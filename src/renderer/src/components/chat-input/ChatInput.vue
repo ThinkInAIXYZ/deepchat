@@ -244,8 +244,6 @@ import { computed, nextTick, onMounted, onUnmounted, ref, toRef, watch } from 'v
 import { useI18n } from 'vue-i18n'
 
 // === Types ===
-import { UserMessageContent } from '@shared/chat'
-import { ModelType } from '@shared/model'
 
 // === Components ===
 import { TooltipProvider } from '@shadcn/components/ui/tooltip'
@@ -280,7 +278,7 @@ import AcpSessionModelSelector from './AcpSessionModelSelector.vue'
 import { Icon } from '@iconify/vue'
 
 // === Composables ===
-import { usePresenter } from '@/composables/usePresenter'
+import { useWindowAdapter } from '@/composables/window/useWindowAdapter'
 import { useInputHistory } from './composables/useInputHistory'
 import { useRateLimitStatus } from './composables/useRateLimitStatus'
 import { useDragAndDrop } from './composables/useDragAndDrop'
@@ -293,12 +291,15 @@ import { usePromptInputEditor } from './composables/usePromptInputEditor'
 import { useInputSettings } from './composables/useInputSettings'
 import { useContextLength } from './composables/useContextLength'
 import { useSendButtonState } from './composables/useSendButtonState'
+import { useComposerSubmission } from './composables/useComposerSubmission'
+import { useComposerDraft } from './composables/useComposerDraft'
 import { useAcpWorkdir } from './composables/useAcpWorkdir'
 import { useAcpMode } from './composables/useAcpMode'
 import { useAcpSessionModel } from './composables/useAcpSessionModel'
-import { useChatMode, type ChatMode } from './composables/useChatMode'
+import { useChatMode } from './composables/useChatMode'
 import { useAgentWorkspace } from './composables/useAgentWorkspace'
 import { useWorkspaceMention } from './composables/useWorkspaceMention'
+import { useChatInputModeSelection } from './composables/useChatInputModeSelection'
 
 // === Stores ===
 import { useChatStore } from '@/stores/chat'
@@ -316,6 +317,7 @@ import suggestion, {
 import slashSuggestion, { setSkillActivationHandler } from '../editor/mention/slashSuggestion'
 import { mentionData, type CategorizedData } from '../editor/mention/suggestion'
 import { useEventListener } from '@vueuse/core'
+import { ModelType } from '@shared/model'
 
 // === Props & Emits ===
 const props = withDefaults(
@@ -351,8 +353,7 @@ const langStore = useLanguageStore()
 const modelStore = useModelStore()
 const themeStore = useThemeStore()
 
-// === Presenters ===
-const windowPresenter = usePresenter('windowPresenter')
+const windowAdapter = useWindowAdapter()
 
 // === i18n ===
 const { t } = useI18n()
@@ -375,7 +376,6 @@ const { settings } = useInputSettings()
 
 // Initialize chat mode management
 const chatMode = useChatMode()
-const isAcpChatMode = computed(() => chatMode.currentMode.value === 'acp agent')
 
 // Initialize history composable first (needed for editor placeholder)
 const history = useInputHistory(null as any, t)
@@ -480,10 +480,9 @@ const handleEditorBlur = () => {
 // Set the editor instance in history after editor is created
 history.setEditor(editor)
 
-const rateLimit = useRateLimitStatus(
-  computed(() => chatStore.chatConfig),
-  t
-)
+const conversationId = computed(() => chatStore.activeThread?.id ?? null)
+
+const rateLimit = useRateLimitStatus(computed(() => chatStore.chatConfig), t)
 const drag = useDragAndDrop()
 const files = usePromptInputFiles(fileInput, emit, t)
 useMentionData(files.selectedFiles) // Setup mention data watchers
@@ -494,6 +493,11 @@ const editorComposable = usePromptInputEditor(
   files.selectedFiles,
   history.clearHistoryPlaceholder
 )
+const composerDraft = useComposerDraft({
+  conversationId,
+  inputText: editorComposable.inputText,
+  editor
+})
 
 // Setup editor update handler
 editor.on('update', editorComposable.onEditorUpdate)
@@ -515,6 +519,13 @@ const sendButtonState = useSendButtonState({
   inputText: editorComposable.inputText,
   currentContextLength: contextLengthTracker.currentContextLength,
   contextLength: toRef(props, 'contextLength')
+})
+const composerSubmission = useComposerSubmission({
+  editor,
+  inputText: editorComposable.inputText,
+  selectedFiles: files.selectedFiles,
+  deepThinking: computed(() => settings.value.deepThinking),
+  buildBlocks: editorComposable.tiptapJSONtoMessageBlock
 })
 
 // Only initialize config for chat variant
@@ -542,30 +553,11 @@ const config =
         loadModelConfig: async () => {}
       } as any)
 
-const conversationId = computed(() => chatStore.activeThread?.id ?? null)
 const activeModelSource = computed(() => {
   if (props.modelInfo?.id && props.modelInfo.providerId) {
     return props.modelInfo
   }
   return config.activeModel.value
-})
-
-const acpAgentOptions = computed(() => {
-  const providerEntry = modelStore.enabledModels.find((entry) => entry.providerId === 'acp')
-  const models = providerEntry?.models ?? []
-  return models
-    .filter((model) => model.type === ModelType.Chat || model.type === ModelType.ImageGeneration)
-    .map((model) => ({
-      id: model.id,
-      name: model.name,
-      providerId: 'acp',
-      type: model.type ?? ModelType.Chat
-    }))
-})
-
-const selectedAcpAgentId = computed(() => {
-  const active = activeModelSource.value
-  return active?.providerId === 'acp' ? (active.id ?? null) : null
 })
 
 const acpWorkdir = useAcpWorkdir({
@@ -611,19 +603,27 @@ const acpSessionModel = useAcpSessionModel({
   workdir: acpWorkdir.workdir
 })
 
-const showAcpSessionModelSelector = computed(
-  () => isAcpChatMode.value && acpSessionModel.isAcpModel.value
-)
-
-const handleAcpSessionModelSelect = async (modelId: string) => {
-  if (acpSessionModel.loading.value) return
-  await acpSessionModel.setModel(modelId)
-}
-
-const handleAcpModeSelect = async (modeId: string) => {
-  if (acpMode.loading.value) return
-  await acpMode.setMode(modeId)
-}
+const {
+  acpAgentOptions,
+  selectedAcpAgentId,
+  showAcpSessionModelSelector,
+  handleModeSelect,
+  handleAcpAgentSelect,
+  handleAcpModeSelect,
+  handleAcpSessionModelSelect
+} = useChatInputModeSelection({
+  variant: props.variant,
+  activeModel: activeModelSource,
+  conversationId,
+  chatMode,
+  modelStore,
+  config,
+  acpMode,
+  acpSessionModel,
+  updateChatConfig: chatStore.updateChatConfig,
+  emitModelUpdate: (payload: unknown, providerId: string) =>
+    emit('model-update', payload as any, providerId)
+})
 
 // === Computed ===
 // Use composable values
@@ -640,7 +640,7 @@ const handleDrop = async (e: DragEvent) => {
 }
 
 const previewFile = (filePath: string) => {
-  windowPresenter.previewFile(filePath)
+  windowAdapter.previewFile(filePath)
 }
 
 const handleCancel = () => {
@@ -649,118 +649,23 @@ const handleCancel = () => {
 }
 
 const emitSend = async () => {
-  if (editorComposable.inputText.value.trim()) {
-    history.addToHistory(editorComposable.inputText.value.trim())
-    const blocks = await editorComposable.tiptapJSONtoMessageBlock(editor.getJSON())
+  const messageContent = await composerSubmission.buildMessageContent()
+  if (!messageContent) return
 
-    const messageContent: UserMessageContent = {
-      text: editorComposable.inputText.value.trim(),
-      files: files.selectedFiles.value,
-      links: [],
-      search: false,
-      think: settings.value.deepThinking,
-      content: blocks
-    }
+  history.addToHistory(messageContent.text)
+  emit('send', messageContent)
+  composerDraft.clearDraft(conversationId.value)
+  editorComposable.inputText.value = ''
+  editor.chain().clearContent().run()
 
-    emit('send', messageContent)
-    editorComposable.inputText.value = ''
-    editor.chain().clearContent().run()
+  history.clearHistoryPlaceholder()
+  files.clearFiles()
 
-    history.clearHistoryPlaceholder()
-    files.clearFiles()
-
-    nextTick(() => {
-      editor.commands.focus()
-    })
-  }
+  nextTick(() => {
+    editor.commands.focus()
+  })
 }
 
-const applyModelSelection = (model: {
-  id: string
-  name: string
-  providerId: string
-  type?: ModelType
-}) => {
-  if (!model?.id || !model.providerId) return
-  const payload = {
-    id: model.id,
-    name: model.name,
-    providerId: model.providerId,
-    type: model.type ?? ModelType.Chat
-  }
-  if (props.variant === 'agent' || props.variant === 'newThread') {
-    config.handleModelUpdate(payload as any)
-  } else {
-    emit('model-update', payload as any, model.providerId)
-  }
-}
-
-const pickFirstAcpModel = () => acpAgentOptions.value[0] ?? null
-
-const pickFirstNonAcpModel = () => {
-  for (const provider of modelStore.enabledModels) {
-    if (provider.providerId === 'acp') continue
-    const match = provider.models.find(
-      (model) => model.type === ModelType.Chat || model.type === ModelType.ImageGeneration
-    )
-    if (match) {
-      return {
-        id: match.id,
-        name: match.name,
-        providerId: provider.providerId,
-        type: match.type ?? ModelType.Chat
-      }
-    }
-  }
-  return null
-}
-
-const handleModeSelect = async (mode: ChatMode) => {
-  await chatMode.setMode(mode)
-  if (chatMode.currentMode.value !== mode) {
-    return
-  }
-
-  if (mode !== 'acp agent' && activeModelSource.value?.providerId === 'acp') {
-    const fallback = pickFirstNonAcpModel()
-    if (fallback) {
-      applyModelSelection(fallback)
-    }
-  } else if (mode === 'acp agent' && activeModelSource.value?.providerId !== 'acp') {
-    const fallback = pickFirstAcpModel()
-    if (fallback) {
-      applyModelSelection(fallback)
-    }
-  }
-
-  if (conversationId.value) {
-    try {
-      await chatStore.updateChatConfig({ chatMode: mode })
-    } catch (error) {
-      console.warn('Failed to update chat mode in conversation settings:', error)
-    }
-  }
-}
-
-const handleAcpAgentSelect = async (agent: {
-  id: string
-  name: string
-  providerId: string
-  type?: ModelType
-}) => {
-  await chatMode.setMode('acp agent')
-  if (chatMode.currentMode.value !== 'acp agent') {
-    return
-  }
-  applyModelSelection(agent)
-  if (conversationId.value) {
-    try {
-      await chatStore.updateChatConfig({ chatMode: 'acp agent' })
-    } catch (error) {
-      console.warn('Failed to update chat mode in conversation settings:', error)
-    }
-  }
-}
 
 const onKeydown = (e: KeyboardEvent) => {
   if (e.code === 'Enter' && !e.shiftKey) {
@@ -937,6 +842,23 @@ watch(
     }
   }
 )
+
+watch(
+  () => conversationId.value,
+  (nextId, prevId) => {
+    if (prevId && prevId !== nextId) {
+      composerDraft.persistDraft(prevId)
+    }
+    if (nextId) {
+      composerDraft.restoreDraft(nextId)
+    }
+  },
+  { immediate: true }
+)
+
+watch(editorComposable.inputText, () => {
+  composerDraft.persistDraft(conversationId.value)
+})
 
 watch(
   () => chatStore.chatConfig.providerId,

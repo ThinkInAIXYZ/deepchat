@@ -1,5 +1,6 @@
 // === Vue Core ===
 import { ref, watch, type Ref } from 'vue'
+import { usePresenter } from '@/composables/usePresenter'
 
 // === Types ===
 import type { IPresenter } from '@shared/presenter'
@@ -20,12 +21,16 @@ export interface ModelCapabilities {
     forced?: boolean
     strategy?: 'turbo' | 'max'
   } | null
+  supportsReasoningEffort: boolean | null
+  reasoningEffortDefault?: 'minimal' | 'low' | 'medium' | 'high'
+  supportsVerbosity: boolean | null
+  verbosityDefault?: 'low' | 'medium' | 'high'
 }
 
 export interface UseModelCapabilitiesOptions {
   providerId: Ref<string | undefined>
   modelId: Ref<string | undefined>
-  configPresenter: ConfigPresenter
+  configPresenter?: ConfigPresenter
 }
 
 /**
@@ -33,7 +38,8 @@ export interface UseModelCapabilitiesOptions {
  * Handles reasoning support, thinking budget ranges, and search capabilities
  */
 export function useModelCapabilities(options: UseModelCapabilitiesOptions) {
-  const { providerId, modelId, configPresenter } = options
+  const { providerId, modelId } = options
+  const configPresenter = options.configPresenter ?? usePresenter('configPresenter')
 
   // === Local State ===
   const capabilitySupportsReasoning = ref<boolean | null>(null)
@@ -48,6 +54,12 @@ export function useModelCapabilities(options: UseModelCapabilitiesOptions) {
     forced?: boolean
     strategy?: 'turbo' | 'max'
   } | null>(null)
+  const capabilitySupportsReasoningEffort = ref<boolean | null>(null)
+  const capabilityReasoningEffortDefault = ref<'minimal' | 'low' | 'medium' | 'high' | undefined>(
+    undefined
+  )
+  const capabilitySupportsVerbosity = ref<boolean | null>(null)
+  const capabilityVerbosityDefault = ref<'low' | 'medium' | 'high' | undefined>(undefined)
   const isLoading = ref(false)
 
   // === Internal Methods ===
@@ -56,6 +68,10 @@ export function useModelCapabilities(options: UseModelCapabilitiesOptions) {
     capabilityBudgetRange.value = null
     capabilitySupportsSearch.value = null
     capabilitySearchDefaults.value = null
+    capabilitySupportsReasoningEffort.value = null
+    capabilityReasoningEffortDefault.value = undefined
+    capabilitySupportsVerbosity.value = null
+    capabilityVerbosityDefault.value = undefined
   }
 
   const fetchCapabilities = async () => {
@@ -66,17 +82,25 @@ export function useModelCapabilities(options: UseModelCapabilitiesOptions) {
 
     isLoading.value = true
     try {
-      const [sr, br, ss, sd] = await Promise.all([
+      const [sr, br, ss, sd, se, ed, sv, vd] = await Promise.all([
         configPresenter.supportsReasoningCapability?.(providerId.value, modelId.value),
         configPresenter.getThinkingBudgetRange?.(providerId.value, modelId.value),
         configPresenter.supportsSearchCapability?.(providerId.value, modelId.value),
-        configPresenter.getSearchDefaults?.(providerId.value, modelId.value)
+        configPresenter.getSearchDefaults?.(providerId.value, modelId.value),
+        configPresenter.supportsReasoningEffortCapability?.(providerId.value, modelId.value),
+        configPresenter.getReasoningEffortDefault?.(providerId.value, modelId.value),
+        configPresenter.supportsVerbosityCapability?.(providerId.value, modelId.value),
+        configPresenter.getVerbosityDefault?.(providerId.value, modelId.value)
       ])
 
       capabilitySupportsReasoning.value = typeof sr === 'boolean' ? sr : null
       capabilityBudgetRange.value = br || {}
       capabilitySupportsSearch.value = typeof ss === 'boolean' ? ss : null
       capabilitySearchDefaults.value = sd || null
+      capabilitySupportsReasoningEffort.value = typeof se === 'boolean' ? se : null
+      capabilityReasoningEffortDefault.value = ed
+      capabilitySupportsVerbosity.value = typeof sv === 'boolean' ? sv : null
+      capabilityVerbosityDefault.value = vd
     } catch (error) {
       resetCapabilities()
       console.error(error)
@@ -95,6 +119,10 @@ export function useModelCapabilities(options: UseModelCapabilitiesOptions) {
     budgetRange: capabilityBudgetRange,
     supportsSearch: capabilitySupportsSearch,
     searchDefaults: capabilitySearchDefaults,
+    supportsReasoningEffort: capabilitySupportsReasoningEffort,
+    reasoningEffortDefault: capabilityReasoningEffortDefault,
+    supportsVerbosity: capabilitySupportsVerbosity,
+    verbosityDefault: capabilityVerbosityDefault,
     isLoading,
     // Methods
     refresh: fetchCapabilities

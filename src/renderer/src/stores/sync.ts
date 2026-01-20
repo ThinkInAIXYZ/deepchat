@@ -14,10 +14,13 @@ export const useSyncStore = defineStore('sync', () => {
   const isBackingUp = ref(false)
   const isImporting = ref(false)
   const importResult = ref<{ success: boolean; message: string; count?: number } | null>(null)
+  const isInitialized = ref(false)
+  let listenersBound = false
 
   const configPresenter = usePresenter('configPresenter')
   const syncPresenter = usePresenter('syncPresenter')
   const devicePresenter = usePresenter('devicePresenter')
+  const ipcRenderer = window?.electron?.ipcRenderer ?? null
 
   const backupQueryKey = (): EntryKey => ['sync', 'backups'] as const
 
@@ -101,6 +104,8 @@ export const useSyncStore = defineStore('sync', () => {
   }
 
   const initialize = async () => {
+    if (isInitialized.value) return
+
     syncEnabled.value = await configPresenter.getSyncEnabled()
     syncFolderPath.value = await configPresenter.getSyncFolderPath()
 
@@ -109,33 +114,7 @@ export const useSyncStore = defineStore('sync', () => {
     isBackingUp.value = status.isBackingUp
 
     await refreshBackups()
-
-    window.electron.ipcRenderer.on(SYNC_EVENTS.BACKUP_STARTED, () => {
-      isBackingUp.value = true
-    })
-
-    window.electron.ipcRenderer.on(SYNC_EVENTS.BACKUP_COMPLETED, (_event, time) => {
-      isBackingUp.value = false
-      lastSyncTime.value = time
-    })
-
-    window.electron.ipcRenderer.on(SYNC_EVENTS.BACKUP_ERROR, () => {
-      isBackingUp.value = false
-    })
-
-    window.electron.ipcRenderer.on(SYNC_EVENTS.IMPORT_STARTED, () => {
-      isImporting.value = true
-    })
-
-    window.electron.ipcRenderer.on(SYNC_EVENTS.IMPORT_COMPLETED, () => {
-      isImporting.value = false
-    })
-
-    window.electron.ipcRenderer.on(SYNC_EVENTS.IMPORT_ERROR, () => {
-      isImporting.value = false
-    })
-
-    setupSyncSettingsListener()
+    isInitialized.value = true
   }
 
   const setSyncEnabled = async (enabled: boolean) => {
@@ -169,21 +148,62 @@ export const useSyncStore = defineStore('sync', () => {
     importResult.value = null
   }
 
-  const setupSyncSettingsListener = () => {
-    window.electron.ipcRenderer.on(
-      CONFIG_EVENTS.SYNC_SETTINGS_CHANGED,
-      async (_event, payload: { enabled?: boolean; folderPath?: string }) => {
-        if (typeof payload.enabled === 'boolean') {
-          syncEnabled.value = payload.enabled
-        }
-        if (typeof payload.folderPath === 'string' && payload.folderPath !== syncFolderPath.value) {
-          syncFolderPath.value = payload.folderPath
-          await refreshBackups()
-        } else if (typeof payload.folderPath === 'string') {
-          syncFolderPath.value = payload.folderPath
-        }
+  const bindEventListeners = () => {
+    if (!ipcRenderer || listenersBound) return () => undefined
+
+    listenersBound = true
+    const unsubscribers: Array<() => void> = []
+
+    const register = (event: string, handler: (...args: unknown[]) => void) => {
+      ipcRenderer.on(event, handler)
+      unsubscribers.push(() => ipcRenderer.removeListener(event, handler))
+    }
+
+    const handleBackupCompleted = (...args: unknown[]) => {
+      const time = args[1]
+      if (typeof time === 'number') {
+        lastSyncTime.value = time
       }
-    )
+      isBackingUp.value = false
+    }
+
+    const handleSyncSettingsChanged = async (...args: unknown[]) => {
+      const payload = args[1] as { enabled?: boolean; folderPath?: string } | undefined
+      if (!payload) return
+
+      if (typeof payload.enabled === 'boolean') {
+        syncEnabled.value = payload.enabled
+      }
+      if (typeof payload.folderPath === 'string' && payload.folderPath !== syncFolderPath.value) {
+        syncFolderPath.value = payload.folderPath
+        await refreshBackups()
+      } else if (typeof payload.folderPath === 'string') {
+        syncFolderPath.value = payload.folderPath
+      }
+    }
+
+    register(SYNC_EVENTS.BACKUP_STARTED, () => {
+      isBackingUp.value = true
+    })
+    register(SYNC_EVENTS.BACKUP_COMPLETED, handleBackupCompleted)
+    register(SYNC_EVENTS.BACKUP_ERROR, () => {
+      isBackingUp.value = false
+    })
+    register(SYNC_EVENTS.IMPORT_STARTED, () => {
+      isImporting.value = true
+    })
+    register(SYNC_EVENTS.IMPORT_COMPLETED, () => {
+      isImporting.value = false
+    })
+    register(SYNC_EVENTS.IMPORT_ERROR, () => {
+      isImporting.value = false
+    })
+    register(CONFIG_EVENTS.SYNC_SETTINGS_CHANGED, handleSyncSettingsChanged)
+
+    return () => {
+      unsubscribers.forEach((unsubscribe) => unsubscribe())
+      listenersBound = false
+    }
   }
 
   return {
@@ -204,6 +224,7 @@ export const useSyncStore = defineStore('sync', () => {
     importData,
     restartApp,
     clearImportResult,
-    refreshBackups
+    refreshBackups,
+    bindEventListeners
   }
 })

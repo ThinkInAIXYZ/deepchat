@@ -2,10 +2,13 @@
 import { defineStore } from 'pinia'
 
 // === Vue Core ===
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref } from 'vue'
 
 // === Composables ===
 import { usePresenter } from '@/composables/usePresenter'
+
+// === Types ===
+import type { IPresenter } from '@shared/presenter'
 
 // === Events ===
 import { WINDOW_EVENTS } from '@/events'
@@ -24,9 +27,17 @@ import { WINDOW_EVENTS } from '@/events'
  * - Prevents memory leaks with proper event cleanup
  * - Reduces IPC calls (platform info fetched once)
  */
-export const useWindowStore = defineStore('window', () => {
+type DevicePresenter = IPresenter['devicePresenter']
+
+type WindowStoreDeps = {
+  devicePresenter?: DevicePresenter
+  ipcRenderer?: typeof window.electron.ipcRenderer | null
+}
+
+export const createWindowStore = (deps: WindowStoreDeps = {}) => {
   // === Presenters ===
-  const devicePresenter = usePresenter('devicePresenter')
+  const devicePresenter = deps.devicePresenter ?? usePresenter('devicePresenter')
+  const ipcRenderer = deps.ipcRenderer ?? window?.electron?.ipcRenderer ?? null
 
   // === Platform State ===
   const isMacOS = ref(false)
@@ -41,6 +52,7 @@ export const useWindowStore = defineStore('window', () => {
 
   // === Initialization Flag ===
   const isInitialized = ref(false)
+  let listenersBound = false
 
   // === Event Handlers (named functions for proper cleanup) ===
   const handleWindowMaximized = () => {
@@ -71,44 +83,26 @@ export const useWindowStore = defineStore('window', () => {
 
   // === Setup Event Listeners ===
   const setupEventListeners = () => {
-    if (!window?.electron?.ipcRenderer) return
+    if (!ipcRenderer) return
 
-    window.electron.ipcRenderer.on(WINDOW_EVENTS.WINDOW_MAXIMIZED, handleWindowMaximized)
-    window.electron.ipcRenderer.on(WINDOW_EVENTS.WINDOW_UNMAXIMIZED, handleWindowUnmaximized)
-    window.electron.ipcRenderer.on(
-      WINDOW_EVENTS.WINDOW_ENTER_FULL_SCREEN,
-      handleWindowEnterFullScreen
-    )
-    window.electron.ipcRenderer.on(
-      WINDOW_EVENTS.WINDOW_LEAVE_FULL_SCREEN,
-      handleWindowLeaveFullScreen
-    )
-    window.electron.ipcRenderer.on(WINDOW_EVENTS.APP_FOCUS, handleAppFocus)
-    window.electron.ipcRenderer.on(WINDOW_EVENTS.APP_BLUR, handleAppBlur)
+    ipcRenderer.on(WINDOW_EVENTS.WINDOW_MAXIMIZED, handleWindowMaximized)
+    ipcRenderer.on(WINDOW_EVENTS.WINDOW_UNMAXIMIZED, handleWindowUnmaximized)
+    ipcRenderer.on(WINDOW_EVENTS.WINDOW_ENTER_FULL_SCREEN, handleWindowEnterFullScreen)
+    ipcRenderer.on(WINDOW_EVENTS.WINDOW_LEAVE_FULL_SCREEN, handleWindowLeaveFullScreen)
+    ipcRenderer.on(WINDOW_EVENTS.APP_FOCUS, handleAppFocus)
+    ipcRenderer.on(WINDOW_EVENTS.APP_BLUR, handleAppBlur)
   }
 
   // === Cleanup Event Listeners ===
   const cleanupEventListeners = () => {
-    if (!window?.electron?.ipcRenderer) return
+    if (!ipcRenderer) return
 
-    window.electron.ipcRenderer.removeListener(
-      WINDOW_EVENTS.WINDOW_MAXIMIZED,
-      handleWindowMaximized
-    )
-    window.electron.ipcRenderer.removeListener(
-      WINDOW_EVENTS.WINDOW_UNMAXIMIZED,
-      handleWindowUnmaximized
-    )
-    window.electron.ipcRenderer.removeListener(
-      WINDOW_EVENTS.WINDOW_ENTER_FULL_SCREEN,
-      handleWindowEnterFullScreen
-    )
-    window.electron.ipcRenderer.removeListener(
-      WINDOW_EVENTS.WINDOW_LEAVE_FULL_SCREEN,
-      handleWindowLeaveFullScreen
-    )
-    window.electron.ipcRenderer.removeListener(WINDOW_EVENTS.APP_FOCUS, handleAppFocus)
-    window.electron.ipcRenderer.removeListener(WINDOW_EVENTS.APP_BLUR, handleAppBlur)
+    ipcRenderer.removeListener(WINDOW_EVENTS.WINDOW_MAXIMIZED, handleWindowMaximized)
+    ipcRenderer.removeListener(WINDOW_EVENTS.WINDOW_UNMAXIMIZED, handleWindowUnmaximized)
+    ipcRenderer.removeListener(WINDOW_EVENTS.WINDOW_ENTER_FULL_SCREEN, handleWindowEnterFullScreen)
+    ipcRenderer.removeListener(WINDOW_EVENTS.WINDOW_LEAVE_FULL_SCREEN, handleWindowLeaveFullScreen)
+    ipcRenderer.removeListener(WINDOW_EVENTS.APP_FOCUS, handleAppFocus)
+    ipcRenderer.removeListener(WINDOW_EVENTS.APP_BLUR, handleAppBlur)
   }
 
   // === Initialize Platform Detection ===
@@ -135,9 +129,6 @@ export const useWindowStore = defineStore('window', () => {
       // isWinMacOS is true for: macOS (all versions) OR Windows 11+
       isWinMacOS.value = isMacOS.value || isWin11Plus
 
-      // Setup event listeners
-      setupEventListeners()
-
       isInitialized.value = true
     } catch (error) {
       console.error('Failed to initialize window store:', error)
@@ -145,14 +136,17 @@ export const useWindowStore = defineStore('window', () => {
     }
   }
 
-  // === Lifecycle Hooks ===
-  onMounted(() => {
-    initialize()
-  })
-
-  onBeforeUnmount(() => {
-    cleanupEventListeners()
-  })
+  const bindEventListeners = () => {
+    if (listenersBound) {
+      return () => undefined
+    }
+    setupEventListeners()
+    listenersBound = true
+    return () => {
+      cleanupEventListeners()
+      listenersBound = false
+    }
+  }
 
   // === Return API ===
   return {
@@ -167,6 +161,9 @@ export const useWindowStore = defineStore('window', () => {
     isBlurred,
     // Methods
     initialize,
+    bindEventListeners,
     cleanupEventListeners
   }
-})
+}
+
+export const useWindowStore = defineStore('window', () => createWindowStore())

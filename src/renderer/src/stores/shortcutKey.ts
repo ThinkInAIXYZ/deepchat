@@ -2,23 +2,23 @@ import { defineStore } from 'pinia'
 import { onMounted, ref } from 'vue'
 import type { ShortcutKeySetting } from '@shared/presenter'
 import { usePresenter } from '@/composables/usePresenter'
+import { useSettingsConfigAdapter } from '@/composables/config/useSettingsConfigAdapter'
 
 export const useShortcutKeyStore = defineStore('shortcutKey', () => {
-  const configP = usePresenter('configPresenter')
+  const settingsAdapter = useSettingsConfigAdapter()
   const shortcutKeyP = usePresenter('shortcutPresenter')
   const shortcutKeys = ref<ShortcutKeySetting>()
 
   const loadShortcutKeys = async () => {
-    const customShortcutKeys = await configP.getShortcutKey()
-    shortcutKeys.value = customShortcutKeys
+    shortcutKeys.value = await settingsAdapter.loadShortcutKeys()
   }
 
   const saveShortcutKeys = async () => {
-    await configP.setShortcutKey(shortcutKeys.value)
+    await settingsAdapter.saveShortcutKeys(shortcutKeys.value)
   }
 
   const resetShortcutKeys = async () => {
-    await configP.resetShortcutKeys()
+    await settingsAdapter.resetShortcutKeys()
     await loadShortcutKeys()
   }
 

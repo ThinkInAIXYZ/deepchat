@@ -125,11 +125,13 @@ import { AssistantMessageBlock } from '@shared/chat'
 import { computed, ref } from 'vue'
 import { CodeBlockNode } from 'markstream-vue'
 import { useThemeStore } from '@/stores/theme'
+import { useMcpStore } from '@/stores/mcp'
 import { getLanguageFromFilename } from '@shared/utils/codeLanguage'
 
 const { t } = useI18n()
 
 const themeStore = useThemeStore()
+const mcpStore = useMcpStore()
 
 const props = defineProps<{
   block: AssistantMessageBlock
@@ -195,7 +197,16 @@ const statusIconClass = computed(() => {
 })
 
 const paramsText = computed(() => props.block.tool_call?.params ?? '')
-const responseText = computed(() => props.block.tool_call?.response ?? '')
+const responseText = computed(() => {
+  const inlineResponse = props.block.tool_call?.response
+  if (inlineResponse && inlineResponse.trim().length > 0) {
+    return inlineResponse
+  }
+
+  const toolCallId = props.block.tool_call?.id ?? null
+  const toolName = props.block.tool_call?.name ?? null
+  return mcpStore.getToolResult(toolCallId, toolName) ?? ''
+})
 const hasParams = computed(() => paramsText.value.trim().length > 0)
 const hasResponse = computed(() => responseText.value.trim().length > 0)
 

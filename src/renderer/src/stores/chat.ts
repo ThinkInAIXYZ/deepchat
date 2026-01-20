@@ -65,8 +65,6 @@ export const useChatStore = defineStore('chat', () => {
   const messageIds = ref<string[]>([])
   const messageCacheVersion = ref(0)
   const generatingThreadIds = ref(new Set<string>())
-  const isSidebarOpen = ref(false)
-  const isMessageNavigationOpen = ref(false)
   const childThreadsByMessageId = ref<Map<string, CONVERSATION[]>>(new Map())
   const pendingContextMentions = ref<Map<string, PendingContextMention>>(new Map())
   const pendingScrollTargetByConversation = ref<Map<string, PendingScrollTarget>>(new Map())
@@ -643,8 +641,6 @@ export const useChatStore = defineStore('chat', () => {
 
   return {
     // 状态 - Single WebContents Architecture
-    isSidebarOpen,
-    isMessageNavigationOpen,
     activeThreadId,
     threads,
     messageIds,

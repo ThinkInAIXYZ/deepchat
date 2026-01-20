@@ -20,7 +20,6 @@ import ConfigSelectField from './ChatConfig/ConfigSelectField.vue'
 import ConfigSwitchField from './ChatConfig/ConfigSwitchField.vue'
 
 // === Composables ===
-import { usePresenter } from '@/composables/usePresenter'
 import { useModelCapabilities } from '@/composables/useModelCapabilities'
 import { useThinkingBudget } from '@/composables/useThinkingBudget'
 import { useSearchConfig } from '@/composables/useSearchConfig'
@@ -71,8 +70,6 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const langStore = useLanguageStore()
 const chatStore = useChatStore()
-const configPresenter = usePresenter('configPresenter')
-
 // === Composable Integrations ===
 
 // Model type detection
@@ -85,8 +82,7 @@ const modelTypeDetection = useModelTypeDetection({
 // Model capabilities
 const capabilities = useModelCapabilities({
   providerId: toRef(props, 'providerId'),
-  modelId: toRef(props, 'modelId'),
-  configPresenter
+  modelId: toRef(props, 'modelId')
 })
 
 // Thinking budget

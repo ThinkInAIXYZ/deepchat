@@ -75,11 +75,6 @@
       @bar-hover="minimap.handleHover"
       @bar-click="wrapScrollToMessage"
     />
-    <TraceDialog
-      :message-id="traceMessageId"
-      :agent-id="chatStore.getActiveThreadId()"
-      @close="traceMessageId = null"
-    />
   </div>
 </template>
 
@@ -98,7 +93,6 @@ import MessageItemPlaceholder from './MessageItemPlaceholder.vue'
 import MessageActionButtons from './MessageActionButtons.vue'
 import ReferencePreview from './ReferencePreview.vue'
 import MessageMinimap from './MessageMinimap.vue'
-import TraceDialog from '../trace/TraceDialog.vue'
 
 // === Composables ===
 import { useResizeObserver, useEventListener, useDebounceFn } from '@vueuse/core'
@@ -114,6 +108,7 @@ import { useChatStore } from '@/stores/chat'
 import { useReferenceStore } from '@/stores/reference'
 import { useWorkspaceStore } from '@/stores/workspace'
 import type { ParentSelection } from '@shared/presenter'
+import { useTraceDialogStore } from '@/stores/traceDialog'
 
 // === Props & Emits ===
 const props = defineProps<{
@@ -124,13 +119,13 @@ const props = defineProps<{
 const chatStore = useChatStore()
 const referenceStore = useReferenceStore()
 const workspaceStore = useWorkspaceStore()
+const traceDialog = useTraceDialogStore()
 
 // === Local State (需要先声明,因为 useMessageScroll 需要引用) ===
 const dynamicScrollerRef = ref<InstanceType<typeof DynamicScroller> | null>(null)
 const scrollAnchor = ref<HTMLDivElement>()
 const visible = ref(false)
 const shouldAutoFollow = ref(true)
-const traceMessageId = ref<string | null>(null)
 let highlightRefreshTimer: number | null = null
 
 const previousHeights = new Map<string, number>()
@@ -374,7 +369,7 @@ const handleOpenWorkspace = () => {
 }
 
 const handleTrace = (messageId: string) => {
-  traceMessageId.value = messageId
+  traceDialog.open(messageId, chatStore.getActiveThreadId())
 }
 
 const hashText = (value: string) => {

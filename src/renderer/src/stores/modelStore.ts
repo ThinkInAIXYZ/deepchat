@@ -10,6 +10,10 @@ import { useAgentModelStore } from '@/stores/agentModelStore'
 import { useModelConfigStore } from '@/stores/modelConfigStore'
 import { useProviderStore } from '@/stores/providerStore'
 import { CONFIG_EVENTS, PROVIDER_DB_EVENTS } from '@/events'
+import {
+  buildSelectableProviderCatalog,
+  type ModelCatalogFilters
+} from '@/composables/model/modelCatalog'
 
 const PROVIDER_MODELS_KEY = (providerId: string) => ['model-store', 'provider-models', providerId]
 const CUSTOM_MODELS_KEY = (providerId: string) => ['model-store', 'custom-models', providerId]
@@ -461,6 +465,14 @@ export const useModelStore = defineStore('model', () => {
 
   const refreshAllModels = useThrottleFn(_refreshAllModelsInternal, 1000, true, true)
 
+  const getSelectableProviders = (filters: ModelCatalogFilters = {}) => {
+    return buildSelectableProviderCatalog(
+      providerStore.sortedProviders,
+      enabledModels.value,
+      filters
+    )
+  }
+
   const searchModels = (query: string) => {
     const normalized = query.toLowerCase()
     return enabledModels.value
@@ -785,6 +797,7 @@ export const useModelStore = defineStore('model', () => {
     refreshStandardModels,
     refreshProviderModels,
     refreshAllModels,
+    getSelectableProviders,
     updateModelStatus,
     updateLocalModelStatus,
     getLocalModelEnabledState,

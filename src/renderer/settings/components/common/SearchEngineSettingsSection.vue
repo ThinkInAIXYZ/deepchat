@@ -153,7 +153,6 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
-import { usePresenter } from '@/composables/usePresenter'
 import { useSearchEngineStore } from '@/stores/searchEngineStore'
 import { useLanguageStore } from '@/stores/language'
 import { Button } from '@shadcn/components/ui/button'
@@ -178,7 +177,6 @@ import type { SearchEngineTemplate } from '@shared/chat'
 import { nanoid } from 'nanoid'
 
 const { t } = useI18n()
-const configPresenter = usePresenter('configPresenter')
 const searchEngineStore = useSearchEngineStore()
 const langStore = useLanguageStore()
 
@@ -244,22 +242,13 @@ const addCustomSearchEngine = async () => {
   }
 
   try {
-    let customSearchEngines: SearchEngineTemplate[] = []
-    try {
-      customSearchEngines = (await configPresenter.getCustomSearchEngines()) || []
-    } catch (error) {
-      console.error('获取自定义搜索引擎失败:', error)
-      customSearchEngines = []
+    const added = await searchEngineStore.addCustomSearchEngine(customEngine)
+    if (!added) {
+      return
     }
 
-    customSearchEngines.push(customEngine)
-
-    await configPresenter.setCustomSearchEngines(customSearchEngines)
-
     selectedSearchEngine.value = customEngine.id
-    await searchEngineStore.refreshSearchEngines()
     await searchEngineStore.setSearchEngine(customEngine.id)
-
     closeAddSearchEngineDialog()
   } catch (error) {
     console.error('添加自定义搜索引擎失败:', error)
@@ -279,21 +268,12 @@ const deleteCustomSearchEngine = async () => {
   if (!engineToDelete.value) return
 
   try {
-    let customSearchEngines: SearchEngineTemplate[] = []
-    try {
-      customSearchEngines = (await configPresenter.getCustomSearchEngines()) || []
-    } catch (error) {
-      console.error('获取自定义搜索引擎失败:', error)
-      customSearchEngines = []
-    }
-
     const isDeletingActiveEngine = selectedSearchEngine.value === engineToDelete.value?.id
 
-    customSearchEngines = customSearchEngines.filter((e) => e.id !== engineToDelete.value?.id)
-
-    await configPresenter.setCustomSearchEngines(customSearchEngines)
-
-    await searchEngineStore.refreshSearchEngines()
+    const removed = await searchEngineStore.deleteCustomSearchEngine(engineToDelete.value.id)
+    if (!removed) {
+      return
+    }
 
     if (isDeletingActiveEngine) {
       const firstDefaultEngine = searchEngineStore.searchEngines.find((e) => !e.isCustom)

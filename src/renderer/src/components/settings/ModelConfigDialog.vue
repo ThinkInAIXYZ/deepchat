@@ -437,14 +437,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, toRef } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import { ApiEndpointType, ModelType } from '@shared/model'
 import type { ModelConfig } from '@shared/presenter'
 import { useModelConfigStore } from '@/stores/modelConfigStore'
 import { useModelStore } from '@/stores/modelStore'
-import { usePresenter } from '@/composables/usePresenter'
+import { useModelCapabilities } from '@/composables/useModelCapabilities'
 import {
   Dialog,
   DialogContent,
@@ -497,7 +497,10 @@ const { t } = useI18n()
 const modelConfigStore = useModelConfigStore()
 const modelStore = useModelStore()
 const { customModels, allProviderModels } = storeToRefs(modelStore)
-const configPresenter = usePresenter('configPresenter')
+const capabilities = useModelCapabilities({
+  providerId: toRef(props, 'providerId'),
+  modelId: toRef(props, 'modelId')
+})
 
 const isOpenAICompatibleProvider = computed(() => {
   const EXCLUDED_PROVIDERS = [
@@ -625,7 +628,7 @@ const loadConfig = async () => {
 
   if (isCreateMode.value) {
     config.value = createDefaultConfig()
-    await fetchCapabilities()
+    await capabilities.refresh()
     return
   }
 
@@ -643,7 +646,7 @@ const loadConfig = async () => {
     config.value = createDefaultConfig()
   }
 
-  await fetchCapabilities()
+  await capabilities.refresh()
 
   if (config.value.isUserDefined !== true) {
     if (capabilitySupportsEffort.value === true && config.value.reasoningEffort === undefined) {
@@ -838,6 +841,15 @@ watch(
   { immediate: true }
 )
 
+const capabilitySupportsReasoning = capabilities.supportsReasoning
+const capabilityBudgetRange = capabilities.budgetRange
+const capabilitySupportsSearch = capabilities.supportsSearch
+const capabilitySearchDefaults = capabilities.searchDefaults
+const capabilitySupportsEffort = capabilities.supportsReasoningEffort
+const capabilityEffortDefault = capabilities.reasoningEffortDefault
+const capabilitySupportsVerbosity = capabilities.supportsVerbosity
+const capabilityVerbosityDefault = capabilities.verbosityDefault
+
 const supportsVerbosity = computed(() => capabilitySupportsVerbosity.value === true)
 
 const isDeepSeekV31Model = computed(() => {
@@ -855,65 +867,6 @@ const showThinkingBudget = computed(() => {
   const hasRange = !!thinkingBudgetRange.value && thinkingBudgetRange.value.max !== undefined
   return hasReasoning && supported && hasRange
 })
-
-const capabilitySupportsReasoning = ref<boolean | null>(null)
-const capabilityBudgetRange = ref<{ min?: number; max?: number; default?: number } | null>(null)
-const capabilitySupportsSearch = ref<boolean | null>(null)
-const capabilitySearchDefaults = ref<{
-  default?: boolean
-  forced?: boolean
-  strategy?: 'turbo' | 'max'
-} | null>(null)
-const capabilitySupportsEffort = ref<boolean | null>(null)
-const capabilityEffortDefault = ref<'minimal' | 'low' | 'medium' | 'high' | undefined>(undefined)
-const capabilitySupportsVerbosity = ref<boolean | null>(null)
-const capabilityVerbosityDefault = ref<'low' | 'medium' | 'high' | undefined>(undefined)
-
-const fetchCapabilities = async () => {
-  if (!props.providerId || !props.modelId) {
-    capabilitySupportsReasoning.value = null
-    capabilityBudgetRange.value = null
-    capabilitySupportsSearch.value = null
-    return
-  }
-  try {
-    const [sr, br, ss, sd, se, ed, sv, vd] = await Promise.all([
-      configPresenter.supportsReasoningCapability?.(props.providerId, props.modelId),
-      configPresenter.getThinkingBudgetRange?.(props.providerId, props.modelId),
-      configPresenter.supportsSearchCapability?.(props.providerId, props.modelId),
-      configPresenter.getSearchDefaults?.(props.providerId, props.modelId),
-      configPresenter.supportsReasoningEffortCapability?.(props.providerId, props.modelId),
-      configPresenter.getReasoningEffortDefault?.(props.providerId, props.modelId),
-      configPresenter.supportsVerbosityCapability?.(props.providerId, props.modelId),
-      configPresenter.getVerbosityDefault?.(props.providerId, props.modelId)
-    ])
-    capabilitySupportsReasoning.value = typeof sr === 'boolean' ? sr : null
-    capabilityBudgetRange.value = br || {}
-    capabilitySupportsSearch.value = typeof ss === 'boolean' ? ss : null
-    capabilitySearchDefaults.value = sd || null
-    capabilitySupportsEffort.value = typeof se === 'boolean' ? se : null
-    capabilityEffortDefault.value = ed
-    capabilitySupportsVerbosity.value = typeof sv === 'boolean' ? sv : null
-    capabilityVerbosityDefault.value = vd
-  } catch {
-    capabilitySupportsReasoning.value = null
-    capabilityBudgetRange.value = null
-    capabilitySupportsSearch.value = null
-    capabilitySearchDefaults.value = null
-    capabilitySupportsEffort.value = null
-    capabilityEffortDefault.value = undefined
-    capabilitySupportsVerbosity.value = null
-    capabilityVerbosityDefault.value = undefined
-  }
-}
-
-watch(
-  () => [props.providerId, props.modelId, props.open],
-  async () => {
-    if (props.open) await fetchCapabilities()
-  },
-  { immediate: true }
-)
 
 const showSearchConfig = computed(() => capabilitySupportsSearch.value === true)
 

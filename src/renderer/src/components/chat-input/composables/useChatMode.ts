@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 
 // === Composables ===
 import { usePresenter } from '@/composables/usePresenter'
-import { CONFIG_EVENTS } from '@/events'
+import { useConfigEventsAdapter } from '@/composables/config/useConfigEventsAdapter'
 
 export type ChatMode = 'agent' | 'acp agent'
 
@@ -20,7 +20,7 @@ const hasAcpAgents = ref<boolean>(false)
 let hasLoaded = false
 let loadPromise: Promise<void> | null = null
 let modeUpdateVersion = 0
-let hasAcpListener = false
+let unsubscribeConfigEvents: (() => void) | null = null
 
 /**
  * Manages chat mode selection (chat, agent, acp agent)
@@ -29,6 +29,7 @@ let hasAcpListener = false
 export function useChatMode() {
   // === Presenters ===
   const configPresenter = usePresenter('configPresenter')
+  const configEventsAdapter = useConfigEventsAdapter()
   const { t } = useI18n()
 
   // === Computed ===
@@ -136,13 +137,14 @@ export function useChatMode() {
 
   ensureLoaded()
 
-  if (!hasAcpListener && window.electron?.ipcRenderer) {
-    hasAcpListener = true
-    window.electron.ipcRenderer.on(CONFIG_EVENTS.MODEL_LIST_CHANGED, (_, providerId?: string) => {
-      if (!providerId || providerId === 'acp') {
-        void checkAcpAgents()
+  if (!unsubscribeConfigEvents) {
+    unsubscribeConfigEvents = configEventsAdapter.subscribeModelListChanged(
+      (providerId?: string) => {
+        if (!providerId || providerId === 'acp') {
+          void checkAcpAgents()
+        }
       }
-    })
+    )
   }
 
   // Watch for ACP agents changes and update availability

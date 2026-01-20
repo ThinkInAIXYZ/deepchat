@@ -7,13 +7,13 @@
       :leave-to-class="'translate-x-full'"
     >
       <div
-        v-if="chatStore.isSidebarOpen"
+        v-if="layoutStore.isThreadSidebarOpen"
         class="fixed inset-0 z-50 flex justify-end"
         :dir="langStore.dir"
         @click.self="closeSidebar"
       >
         <div
-          v-if="chatStore.isSidebarOpen"
+          v-if="layoutStore.isThreadSidebarOpen"
           :class="[
             'h-full w-60 max-w-60 shadow-lg bg-card',
             langStore.dir === 'rtl' ? 'border-l' : 'border-r',
@@ -31,18 +31,18 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted } from 'vue'
 import ThreadsView from './ThreadsView.vue'
-import { useChatStore } from '@/stores/chat'
+import { useLayoutStore } from '@/stores/layoutStore'
 import { useLanguageStore } from '@/stores/language'
 
-const chatStore = useChatStore()
+const layoutStore = useLayoutStore()
 const langStore = useLanguageStore()
 
 const closeSidebar = () => {
-  chatStore.isSidebarOpen = false
+  layoutStore.closeThreadSidebar()
 }
 
 const handleKeydown = (event: KeyboardEvent) => {
-  if (event.key === 'Escape' && chatStore.isSidebarOpen) {
+  if (event.key === 'Escape' && layoutStore.isThreadSidebarOpen) {
     closeSidebar()
   }
 }

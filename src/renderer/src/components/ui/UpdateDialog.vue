@@ -67,12 +67,12 @@ import {
   DialogTitle
 } from '@shadcn/components/ui/dialog'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
-import { useUpgradeStore } from '@/stores/upgrade'
+import { useUpgradeStoreLifecycle } from '@/composables/useUpgradeStoreLifecycle'
 import NodeRenderer from 'markstream-vue'
 import { useThemeStore } from '@/stores/theme'
 
 const { t } = useI18n()
-const upgrade = useUpgradeStore()
+const upgrade = useUpgradeStoreLifecycle()
 const themeStore = useThemeStore()
 
 const handleUpdate = async (type: 'github' | 'netdisk' | 'auto') => {

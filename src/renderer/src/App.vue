@@ -2,15 +2,16 @@
 import { onMounted, ref, watch, onBeforeUnmount, computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { RouterView, useRoute, useRouter } from 'vue-router'
-import UpdateDialog from './components/ui/UpdateDialog.vue'
 import { usePresenter } from './composables/usePresenter'
 import SelectedTextContextMenu from './components/message/SelectedTextContextMenu.vue'
 import { useChatStore } from '@/stores/chat'
 import { useSidebarStore } from '@/stores/sidebarStore'
-import { useWindowStore } from '@/stores/windowStore'
+import { useLayoutStore } from '@/stores/layoutStore'
+import { useWindowStoreLifecycle } from '@/composables/useWindowStoreLifecycle'
 import { NOTIFICATION_EVENTS, SHORTCUT_EVENTS, THREAD_VIEW_EVENTS } from './events'
 import { Toaster } from '@shadcn/components/ui/sonner'
 import { useToast } from '@/components/use-toast'
+import { useNotificationService } from '@/composables/notifications/useNotificationService'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import { useThemeStore } from '@/stores/theme'
 import { useLanguageStore } from '@/stores/language'
@@ -19,7 +20,6 @@ import TranslatePopup from '@/components/popup/TranslatePopup.vue'
 import ThreadView from '@/components/ThreadView.vue'
 import ModelCheckDialog from '@/components/settings/ModelCheckDialog.vue'
 import { useModelCheckStore } from '@/stores/modelCheck'
-import MessageDialog from './components/ui/MessageDialog.vue'
 import McpSamplingDialog from '@/components/mcp/McpSamplingDialog.vue'
 import { initAppStores, useMcpInstallDeeplinkHandler } from '@/lib/storeInitializer'
 import 'vue-sonner/style.css' // vue-sonner v2 requires this import
@@ -27,6 +27,7 @@ import { useFontManager } from './composables/useFontManager'
 import IconSidebar from '@/components/sidebar/IconSidebar.vue'
 import ChatAppBar from '@/components/ChatAppBar.vue'
 import { useConversationNavigation } from '@/composables/useConversationNavigation'
+import DialogRegistry from '@/components/dialogs/DialogRegistry.vue'
 
 // Sidebar width management
 const MIN_SIDEBAR_WIDTH = 8 * 9 // Minimum width to accommodate macOS traffic lights
@@ -39,6 +40,7 @@ const route = useRoute()
 const configPresenter = usePresenter('configPresenter')
 const chatStore = useChatStore()
 const { toast } = useToast()
+const notificationService = useNotificationService()
 const uiSettingsStore = useUiSettingsStore()
 const { setupFontListener } = useFontManager()
 setupFontListener()
@@ -47,18 +49,17 @@ const themeStore = useThemeStore()
 const langStore = useLanguageStore()
 const modelCheckStore = useModelCheckStore()
 const sidebarStore = useSidebarStore()
-const windowStore = useWindowStore()
+const layoutStore = useLayoutStore()
+const windowStore = useWindowStoreLifecycle()
 const { isMacOS } = storeToRefs(windowStore)
 const { t } = useI18n()
 const { navigateToConversation, navigateToHome } = useConversationNavigation()
 const toasterTheme = computed(() =>
   themeStore.themeMode === 'system' ? (themeStore.isDark ? 'dark' : 'light') : themeStore.themeMode
 )
-// Error notification queue and currently displayed error
-const errorQueue = ref<Array<{ id: string; title: string; message: string; type: string }>>([])
-const currentErrorId = ref<string | null>(null)
-const errorDisplayTimer = ref<number | null>(null)
 const { setup: setupMcpDeeplink, cleanup: cleanupMcpDeeplink } = useMcpInstallDeeplinkHandler()
+let cleanupErrorNotifications: (() => void) | null = null
+let cleanupSidebarListeners: (() => void) | null = null
 // Watch theme and font size changes, update body class directly
 watch(
   [() => themeStore.themeMode, () => uiSettingsStore.fontSizeClass],
@@ -79,76 +80,6 @@ watch(
   },
   { immediate: false } // Initialization is handled in onMounted
 )
-
-// Handle error notifications
-const showErrorToast = (error: { id: string; title: string; message: string; type: string }) => {
-  // Check if error with same ID already exists in queue to prevent duplicates
-  const existingErrorIndex = errorQueue.value.findIndex((e) => e.id === error.id)
-
-  if (existingErrorIndex === -1) {
-    // If there's currently an error being displayed, add new error to queue
-    if (currentErrorId.value) {
-      if (errorQueue.value.length > 5) {
-        errorQueue.value.shift()
-      }
-      errorQueue.value.push(error)
-    } else {
-      // Otherwise display this error directly
-      displayError(error)
-    }
-  }
-}
-
-// Display specified error
-const displayError = (error: { id: string; title: string; message: string; type: string }) => {
-  // Update currently displayed error ID
-  currentErrorId.value = error.id
-
-  // Show error notification
-  const { dismiss } = toast({
-    title: error.title,
-    description: error.message,
-    variant: 'destructive',
-    onOpenChange: (open) => {
-      if (!open) {
-        // Also show next error when user manually closes
-        handleErrorClosed()
-      }
-    }
-  })
-
-  // Set timer to automatically close current error after 3 seconds
-  if (errorDisplayTimer.value) {
-    clearTimeout(errorDisplayTimer.value)
-  }
-
-  errorDisplayTimer.value = window.setTimeout(() => {
-    console.log('errorDisplayTimer.value', errorDisplayTimer.value)
-    // Handle logic after error is closed
-    dismiss()
-    handleErrorClosed()
-  }, 3000)
-}
-
-// Handle logic after error is closed
-const handleErrorClosed = () => {
-  // Clear current error ID
-  currentErrorId.value = null
-
-  // Display next error in queue (if any)
-  if (errorQueue.value.length > 0) {
-    const nextError = errorQueue.value.shift()
-    if (nextError) {
-      displayError(nextError)
-    }
-  } else {
-    // Queue is empty, clear timer
-    if (errorDisplayTimer.value) {
-      clearTimeout(errorDisplayTimer.value)
-      errorDisplayTimer.value = null
-    }
-  }
-}
 
 const router = useRouter()
 
@@ -190,10 +121,10 @@ const handleCreateNewConversation = () => {
 const handleThreadViewToggle = () => {
   if (router.currentRoute.value.name !== 'chat') {
     void router.push({ name: 'chat' })
-    chatStore.isSidebarOpen = true
+    layoutStore.openThreadSidebar()
     return
   }
-  chatStore.isSidebarOpen = !chatStore.isSidebarOpen
+  layoutStore.toggleThreadSidebar()
 }
 
 // Sidebar event handlers for Single WebContents Architecture
@@ -201,8 +132,17 @@ const handleSidebarConversationSelect = (conversationId: string) => {
   navigateToConversation(conversationId)
 }
 
-const handleSidebarConversationClose = (conversationId: string) => {
-  sidebarStore.closeConversation(conversationId)
+const handleSidebarConversationClose = async (conversationId: string) => {
+  const activeId = typeof route.params.id === 'string' ? route.params.id : null
+  const nextId = sidebarStore.closeConversation(conversationId, activeId)
+  if (!activeId || activeId !== conversationId) return
+
+  if (nextId) {
+    await navigateToConversation(nextId)
+    return
+  }
+
+  await navigateToHome()
 }
 
 const handleSidebarHome = () => {
@@ -262,11 +202,10 @@ onMounted(() => {
 
   // Restore sidebar state for Single WebContents Architecture
   sidebarStore.restoreState()
+  cleanupSidebarListeners = sidebarStore.bindEventListeners()
 
   // Listen for global error notification events
-  window.electron.ipcRenderer.on(NOTIFICATION_EVENTS.SHOW_ERROR, (_event, error) => {
-    showErrorToast(error)
-  })
+  cleanupErrorNotifications = notificationService.bindErrorNotifications()
 
   // Listen for shortcut key events
   window.electron.ipcRenderer.on(SHORTCUT_EVENTS.ZOOM_IN, () => {
@@ -327,11 +266,6 @@ onMounted(() => {
 
 // Clear timers and event listeners before component unmounts
 onBeforeUnmount(() => {
-  if (errorDisplayTimer.value) {
-    clearTimeout(errorDisplayTimer.value)
-    errorDisplayTimer.value = null
-  }
-
   window.removeEventListener('keydown', handleEscKey)
   window.removeEventListener('mousemove', handleMouseMove)
   window.removeEventListener('mouseup', stopResize)
@@ -345,6 +279,14 @@ onBeforeUnmount(() => {
   window.electron.ipcRenderer.removeAllListeners(NOTIFICATION_EVENTS.SYS_NOTIFY_CLICKED)
   window.electron.ipcRenderer.removeAllListeners(NOTIFICATION_EVENTS.DATA_RESET_COMPLETE_DEV)
   window.electron.ipcRenderer.removeListener(THREAD_VIEW_EVENTS.TOGGLE, handleThreadViewToggle)
+  if (cleanupErrorNotifications) {
+    cleanupErrorNotifications()
+    cleanupErrorNotifications = null
+  }
+  if (cleanupSidebarListeners) {
+    cleanupSidebarListeners()
+    cleanupSidebarListeners = null
+  }
   cleanupMcpDeeplink()
 })
 </script>
@@ -387,10 +329,7 @@ onBeforeUnmount(() => {
       class="border border-window-inner-border rounded-[10px] fixed z-10 top-0 left-0 bottom-0 right-0 pointer-events-none"
     ></div>
 
-    <!-- Global update dialog -->
-    <UpdateDialog />
-    <!-- Global message dialog -->
-    <MessageDialog />
+    <DialogRegistry />
     <McpSamplingDialog />
     <!-- Global Toast notifications -->
     <Toaster :theme="toasterTheme" />

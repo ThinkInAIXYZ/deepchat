@@ -54,7 +54,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
-import { useToast } from '@/components/use-toast'
+import { useNotificationService } from '@/composables/notifications/useNotificationService'
 import { usePresenter } from '@/composables/usePresenter'
 import type { ScanResult } from '@shared/types/skillSync'
 import SyncStatusCard from './SyncStatusCard.vue'
@@ -64,7 +64,7 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
-const { toast } = useToast()
+const notificationService = useNotificationService()
 const skillSyncPresenter = usePresenter('skillSyncPresenter')
 
 const tools = ref<ScanResult[]>([])
@@ -92,10 +92,11 @@ const refresh = async () => {
     tools.value = results
   } catch (error) {
     console.error('Failed to scan external tools:', error)
-    toast({
+    notificationService.showErrorToast({
+      id: `skills-sync-scan-${Date.now()}`,
       title: t('settings.skills.sync.scanError'),
-      description: error instanceof Error ? error.message : String(error),
-      variant: 'destructive'
+      message: error instanceof Error ? error.message : String(error),
+      type: 'error'
     })
   } finally {
     scanning.value = false

@@ -4,6 +4,12 @@ import { describe, it, expect, vi } from 'vitest'
 import MessageBlockToolCall from '@/components/message/MessageBlockToolCall.vue'
 import type { AssistantMessageBlock } from '@shared/chat'
 
+vi.mock('@/stores/mcp', () => ({
+  useMcpStore: () => ({
+    getToolResult: () => null
+  })
+}))
+
 vi.mock('markstream-vue', () => ({
   CodeBlockNode: {
     name: 'CodeBlockNode',

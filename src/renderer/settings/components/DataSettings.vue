@@ -326,7 +326,7 @@
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import {
   Dialog,
@@ -361,7 +361,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@shadcn/components/ui/select'
-import { useSyncStore } from '@/stores/sync'
+import { useSyncStoreLifecycle } from '@/composables/useSyncStoreLifecycle'
 import { useLanguageStore } from '@/stores/language'
 import { usePresenter } from '@/composables/usePresenter'
 import { cn } from '@/lib/utils'
@@ -369,7 +369,7 @@ import { useToast } from '@/components/use-toast'
 
 const { t } = useI18n()
 const languageStore = useLanguageStore()
-const syncStore = useSyncStore()
+const syncStore = useSyncStoreLifecycle()
 const devicePresenter = usePresenter('devicePresenter')
 const yoBrowserPresenter = usePresenter('yoBrowserPresenter')
 const { backups: backupsRef } = storeToRefs(syncStore)
@@ -400,10 +400,6 @@ const handleSyncEnabledChange = (value: boolean) => {
   syncEnabled.value = value
 }
 
-// 初始化
-onMounted(async () => {
-  await syncStore.initialize()
-})
 
 const availableBackups = computed(() => backupsRef.value || [])
 

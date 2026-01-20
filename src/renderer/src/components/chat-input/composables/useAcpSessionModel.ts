@@ -1,6 +1,6 @@
 import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
 import { useAcpRuntimeAdapter } from '@/composables/chat/useAcpRuntimeAdapter'
-import { ACP_WORKSPACE_EVENTS } from '@/events'
+import { useAcpEventsAdapter } from '@/composables/acp/useAcpEventsAdapter'
 import type { Ref } from 'vue'
 
 type ActiveModelRef = Ref<{ id?: string; providerId?: string } | null>
@@ -21,6 +21,8 @@ interface ModelInfo {
 
 export function useAcpSessionModel(options: UseAcpSessionModelOptions) {
   const acpRuntimeAdapter = useAcpRuntimeAdapter()
+  const acpEventsAdapter = useAcpEventsAdapter()
+  let unsubscribeSessionModels: (() => void) | null = null
 
   const currentModelId = ref<string>('')
   const availableModels = ref<ModelInfo[]>([])
@@ -125,16 +127,13 @@ export function useAcpSessionModel(options: UseAcpSessionModelOptions) {
     lastWarmupModelsKey.value = null
   })
 
-  const handleModelsReady = (
-    _: unknown,
-    payload: {
-      conversationId?: string
-      agentId?: string
-      workdir?: string
-      current: string
-      available: ModelInfo[]
-    }
-  ) => {
+  const handleModelsReady = (payload: {
+    conversationId?: string
+    agentId?: string
+    workdir?: string
+    current: string
+    available: ModelInfo[]
+  }) => {
     if (!isAcpModel.value) return
 
     const conversationMatch =
@@ -156,14 +155,12 @@ export function useAcpSessionModel(options: UseAcpSessionModelOptions) {
   }
 
   onMounted(() => {
-    window.electron.ipcRenderer.on(ACP_WORKSPACE_EVENTS.SESSION_MODELS_READY, handleModelsReady)
+    unsubscribeSessionModels = acpEventsAdapter.subscribeSessionModelsReady(handleModelsReady)
   })
 
   onUnmounted(() => {
-    window.electron.ipcRenderer.removeListener(
-      ACP_WORKSPACE_EVENTS.SESSION_MODELS_READY,
-      handleModelsReady
-    )
+    unsubscribeSessionModels?.()
+    unsubscribeSessionModels = null
   })
 
   const setModel = async (modelId: string) => {

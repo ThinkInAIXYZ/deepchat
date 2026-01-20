@@ -103,13 +103,8 @@ const callTool = async (toolName: string) => {
   }
 
   try {
-    // 调用工具前更新全局store里的参数
     const params = JSON.parse(localToolInputs.value[toolName])
-    // 设置全局store参数，以便mcpStore.callTool能使用
-    mcpStore.toolInputs[toolName] = params
-
-    // 调用工具
-    const result = await mcpStore.callTool(toolName)
+    const result = await mcpStore.callToolWithParams(toolName, params)
     if (result) {
       localToolResults.value[toolName] = result.content || ''
     }

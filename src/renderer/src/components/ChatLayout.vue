@@ -56,7 +56,7 @@ import { UserMessageContent } from '@shared/chat'
 import { STREAM_EVENTS, SHORTCUT_EVENTS } from '@/events'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import { useChatStore } from '@/stores/chat'
-import { useWorkspaceStore } from '@/stores/workspace'
+import { useWorkspaceStoreLifecycle } from '@/composables/useWorkspaceStoreLifecycle'
 import { useCleanDialog } from '@/composables/message/useCleanDialog'
 import { useI18n } from 'vue-i18n'
 import type { CategorizedData } from '@/components/editor/mention/suggestion'
@@ -74,7 +74,7 @@ const { t } = useI18n()
 const route = useRoute()
 const uiSettingsStore = useUiSettingsStore()
 const chatStore = useChatStore()
-const workspaceStore = useWorkspaceStore()
+const workspaceStore = useWorkspaceStoreLifecycle()
 const cleanDialog = useCleanDialog()
 
 const messageList = ref()

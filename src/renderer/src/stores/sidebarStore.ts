@@ -1,9 +1,7 @@
 import { defineStore } from 'pinia'
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed } from 'vue'
 import { usePresenter } from '@/composables/usePresenter'
 import { useConversationCore } from '@/composables/chat/useConversationCore'
-import { useRouter } from 'vue-router'
-import { useChatStore } from './chat'
 import { CONVERSATION_EVENTS } from '@/events'
 
 /**
@@ -27,12 +25,11 @@ interface PersistedSidebarState {
 export const useSidebarStore = defineStore('sidebar', () => {
   const conversationCore = useConversationCore()
   const configP = usePresenter('configPresenter')
-  const router = useRouter()
-  const chatStore = useChatStore()
 
   // State
   const conversations = ref<Map<string, ConversationMeta>>(new Map())
   const tabOrder = ref<string[]>([])
+  let cleanupListeners: (() => void) | null = null
 
   // Getters
   const sortedConversations = computed(() => {
@@ -55,21 +52,22 @@ export const useSidebarStore = defineStore('sidebar', () => {
     persistState()
   }
 
-  async function closeConversation(threadId: string): Promise<void> {
-    const isClosingActive = router.currentRoute.value.params.id === threadId
+  function closeConversation(
+    threadId: string,
+    activeConversationId?: string | null
+  ): string | null {
+    const isClosingActive = activeConversationId === threadId
     const idx = tabOrder.value.indexOf(threadId)
 
     // Remove from state
     conversations.value.delete(threadId)
     tabOrder.value = tabOrder.value.filter((id) => id !== threadId)
 
-    // Navigate to adjacent tab if closing active conversation
-    if (isClosingActive) {
-      const nextId = tabOrder.value[idx] || tabOrder.value[idx - 1]
-      router.push(nextId ? `/conversation/${nextId}` : '/new')
-    }
-
     persistState()
+
+    if (!isClosingActive) return null
+
+    return tabOrder.value[idx] || tabOrder.value[idx - 1] || null
   }
 
   function reorderConversations(fromIndex: number, toIndex: number): void {
@@ -133,11 +131,6 @@ export const useSidebarStore = defineStore('sidebar', () => {
     }
   }
 
-  function goHome(): void {
-    chatStore.setActiveThreadId(null)
-    router.push('/home')
-  }
-
   /**
    * Update conversation title from external event (e.g., LIST_UPDATED)
    */
@@ -165,33 +158,49 @@ export const useSidebarStore = defineStore('sidebar', () => {
   /**
    * Setup event listeners for conversation updates
    */
-  function setupEventListeners(): void {
+  function bindEventListeners(): () => void {
+    if (cleanupListeners) return cleanupListeners
+    const unsubscribers: Array<() => void> = []
+
     // Listen for conversation list updates to sync titles
-    window.electron.ipcRenderer.on(
-      CONVERSATION_EVENTS.LIST_UPDATED,
-      (_, updatedGroupedList: { dt: string; dtThreads: { id: string; title: string }[] }[]) => {
-        const flatList = updatedGroupedList.flatMap((g) => g.dtThreads)
-        for (const thread of flatList) {
-          const existing = conversations.value.get(thread.id)
-          if (existing && existing.title !== thread.title) {
-            updateConversationTitle(thread.id, thread.title)
-          }
+    const listUpdatedHandler = (
+      _: unknown,
+      updatedGroupedList: { dt: string; dtThreads: { id: string; title: string }[] }[]
+    ) => {
+      const flatList = updatedGroupedList.flatMap((g) => g.dtThreads)
+      for (const thread of flatList) {
+        const existing = conversations.value.get(thread.id)
+        if (existing && existing.title !== thread.title) {
+          updateConversationTitle(thread.id, thread.title)
         }
       }
-    )
+    }
+    window.electron.ipcRenderer.on(CONVERSATION_EVENTS.LIST_UPDATED, listUpdatedHandler)
+    unsubscribers.push(() => {
+      window.electron.ipcRenderer.removeListener(
+        CONVERSATION_EVENTS.LIST_UPDATED,
+        listUpdatedHandler
+      )
+    })
 
     // Listen for conversation activation to ensure it's in sidebar
-    window.electron.ipcRenderer.on(CONVERSATION_EVENTS.ACTIVATED, (_, msg) => {
+    const activatedHandler = (_: unknown, msg: { conversationId?: string }) => {
       if (msg.conversationId) {
         ensureConversation(msg.conversationId)
       }
+    }
+    window.electron.ipcRenderer.on(CONVERSATION_EVENTS.ACTIVATED, activatedHandler)
+    unsubscribers.push(() => {
+      window.electron.ipcRenderer.removeListener(CONVERSATION_EVENTS.ACTIVATED, activatedHandler)
     })
-  }
 
-  // Setup listeners when store is created
-  onMounted(() => {
-    setupEventListeners()
-  })
+    cleanupListeners = () => {
+      unsubscribers.forEach((unsubscribe) => unsubscribe())
+      cleanupListeners = null
+    }
+
+    return cleanupListeners
+  }
 
   return {
     // State
@@ -205,9 +214,9 @@ export const useSidebarStore = defineStore('sidebar', () => {
     reorderConversations,
     refreshConversationMeta,
     restoreState,
-    goHome,
     updateConversationTitle,
     ensureConversation,
-    persistState
+    persistState,
+    bindEventListeners
   }
 })

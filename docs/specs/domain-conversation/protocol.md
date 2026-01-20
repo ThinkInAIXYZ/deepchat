@@ -122,6 +122,6 @@ MCP_EVENTS.TOOL_CALL_RESULT
 
 ## 协议约束
 - Conversation 域只消费事件结果，不直接执行工具或访问存储。
-- ACP 运行态协议见 `docs/specs/conversation/acp-runtime.md`。
+- ACP 运行态协议见 `docs/specs/domain-conversation/acp-runtime.md`。
 - Export/NowledgeMem 为独立路径，不写入会话核心状态。
 - Presenter 名称在代码中为 `exporter`，此处接口名仅用于协议说明。

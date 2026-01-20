@@ -20,7 +20,7 @@ import { useRouter } from 'vue-router'
 import AppBar from './components/AppBar.vue'
 import BrowserToolbar from './components/BrowserToolbar.vue'
 import BrowserPlaceholder from './components/BrowserPlaceholder.vue'
-import { useWindowStore } from '@/stores/windowStore'
+import { useWindowStoreLifecycle } from '@/composables/useWindowStoreLifecycle'
 import { useMcpStore } from '@/stores/mcp'
 import { useTabStore } from '@shell/stores/tab'
 import { useElementSize } from '@vueuse/core'
@@ -29,7 +29,7 @@ import { useFontManager } from '@/composables/useFontManager'
 const { setupFontListener } = useFontManager()
 setupFontListener()
 
-const windowStore = useWindowStore()
+const windowStore = useWindowStoreLifecycle()
 const { isWinMacOS } = storeToRefs(windowStore)
 const router = useRouter()
 const mcpStore = useMcpStore()

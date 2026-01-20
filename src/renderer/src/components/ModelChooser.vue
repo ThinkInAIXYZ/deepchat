@@ -70,7 +70,6 @@ import { Card, CardContent } from '@shadcn/components/ui/card'
 import { Input } from '@shadcn/components/ui/input'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { useChatStore } from '@/stores/chat'
-import { useProviderStore } from '@/stores/providerStore'
 import { useModelStore } from '@/stores/modelStore'
 import { useThemeStore } from '@/stores/theme'
 import { useLanguageStore } from '@/stores/language'
@@ -83,7 +82,6 @@ import { useChatMode } from '@/components/chat-input/composables/useChatMode'
 const { t } = useI18n()
 const keyword = ref('')
 const chatStore = useChatStore()
-const providerStore = useProviderStore()
 const modelStore = useModelStore()
 const themeStore = useThemeStore()
 const langStore = useLanguageStore()
@@ -105,50 +103,11 @@ const props = defineProps({
 })
 
 const providers = computed(() => {
-  const sortedProviders = providerStore.sortedProviders
-  const enabledModels = modelStore.enabledModels
-  const currentMode = chatMode.currentMode.value
-
-  const orderedProviders = sortedProviders
-    .filter((provider) => provider.enable)
-    .map((provider) => {
-      // In 'acp agent' mode, only show ACP provider
-      if (currentMode === 'acp agent' && provider.id !== 'acp') {
-        return null
-      }
-      // In other modes, hide ACP provider
-      if (currentMode !== 'acp agent' && provider.id === 'acp') {
-        return null
-      }
-
-      const enabledProvider = enabledModels.find((entry) => entry.providerId === provider.id)
-      if (!enabledProvider || enabledProvider.models.length === 0) {
-        return null
-      }
-
-      const models =
-        !props.type || props.type.length === 0
-          ? enabledProvider.models
-          : enabledProvider.models.filter(
-              (model) => model.type !== undefined && props.type!.includes(model.type as ModelType)
-            )
-
-      const eligibleModels = props.requiresVision ? models.filter((model) => model.vision) : models
-
-      if (!eligibleModels || eligibleModels.length === 0) return null
-
-      return {
-        id: provider.id,
-        name: provider.name,
-        models: eligibleModels
-      }
-    })
-    .filter(
-      (provider): provider is { id: string; name: string; models: RENDERER_MODEL_META[] } =>
-        provider !== null
-    )
-
-  return orderedProviders
+  return modelStore.getSelectableProviders({
+    types: props.type,
+    requiresVision: props.requiresVision,
+    mode: chatMode.currentMode.value
+  })
 })
 
 const filteredProviders = computed(() => {

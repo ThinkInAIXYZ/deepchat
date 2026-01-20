@@ -1,6 +1,6 @@
 import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
 import { useAcpRuntimeAdapter } from '@/composables/chat/useAcpRuntimeAdapter'
-import { ACP_WORKSPACE_EVENTS } from '@/events'
+import { useAcpEventsAdapter } from '@/composables/acp/useAcpEventsAdapter'
 import type { Ref } from 'vue'
 
 type ActiveModelRef = Ref<{ id?: string; providerId?: string } | null>
@@ -21,6 +21,8 @@ interface ModeInfo {
 
 export function useAcpMode(options: UseAcpModeOptions) {
   const acpRuntimeAdapter = useAcpRuntimeAdapter()
+  const acpEventsAdapter = useAcpEventsAdapter()
+  let unsubscribeSessionModes: (() => void) | null = null
 
   const currentMode = ref<string>('default')
   const availableModes = ref<ModeInfo[]>([])
@@ -161,16 +163,13 @@ export function useAcpMode(options: UseAcpModeOptions) {
   })
 
   // Listen for session modes ready event from main process
-  const handleModesReady = (
-    _: unknown,
-    payload: {
-      conversationId?: string
-      agentId?: string
-      workdir?: string
-      current: string
-      available: ModeInfo[]
-    }
-  ) => {
+  const handleModesReady = (payload: {
+    conversationId?: string
+    agentId?: string
+    workdir?: string
+    current: string
+    available: ModeInfo[]
+  }) => {
     if (!isAcpModel.value) return
 
     const conversationMatch =
@@ -192,14 +191,12 @@ export function useAcpMode(options: UseAcpModeOptions) {
   }
 
   onMounted(() => {
-    window.electron.ipcRenderer.on(ACP_WORKSPACE_EVENTS.SESSION_MODES_READY, handleModesReady)
+    unsubscribeSessionModes = acpEventsAdapter.subscribeSessionModesReady(handleModesReady)
   })
 
   onUnmounted(() => {
-    window.electron.ipcRenderer.removeListener(
-      ACP_WORKSPACE_EVENTS.SESSION_MODES_READY,
-      handleModesReady
-    )
+    unsubscribeSessionModes?.()
+    unsubscribeSessionModes = null
   })
 
   /**

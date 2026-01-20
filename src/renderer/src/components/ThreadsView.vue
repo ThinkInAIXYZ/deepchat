@@ -6,7 +6,7 @@
         variant="outline"
         size="icon"
         class="shrink-0 text-xs justify-center h-7 w-7"
-        @click="chatStore.isSidebarOpen = false"
+        @click="layoutStore.closeThreadSidebar()"
       >
         <Icon icon="lucide:chevron-right" class="h-4 w-4" />
       </Button>
@@ -109,6 +109,7 @@ import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
 import { useConversationCore } from '@/composables/chat/useConversationCore'
 import { Input } from '@shadcn/components/ui/input'
 import { useChatStore } from '@/stores/chat'
+import { useLayoutStore } from '@/stores/layoutStore'
 import { CONVERSATION } from '@shared/presenter'
 import {
   Dialog,
@@ -125,6 +126,7 @@ import { DynamicScroller, DynamicScrollerItem } from 'vue-virtual-scroller'
 
 const { t } = useI18n()
 const chatStore = useChatStore()
+const layoutStore = useLayoutStore()
 const conversationCore = useConversationCore()
 const dynamicScrollerRef = ref<InstanceType<typeof DynamicScroller> | null>(null)
 const deleteDialog = ref(false)
@@ -185,8 +187,8 @@ const handleThreadSelect = async (thread: CONVERSATION) => {
   try {
     await chatStore.setActiveThread(thread.id)
     if (windowSize.width.value < 1024) {
-      chatStore.isSidebarOpen = false
-      chatStore.isMessageNavigationOpen = false
+      layoutStore.closeThreadSidebar()
+      layoutStore.closeMessageNavigation()
     }
   } catch (error) {
     console.error(t('common.error.selectChatFailed'), error)

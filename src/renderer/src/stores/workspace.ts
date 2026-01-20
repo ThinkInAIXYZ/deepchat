@@ -6,17 +6,29 @@ import { WORKSPACE_EVENTS } from '@/events'
 import type {
   WorkspacePlanEntry,
   WorkspaceFileNode,
-  WorkspaceTerminalSnippet
+  WorkspaceTerminalSnippet,
+  IPresenter
 } from '@shared/presenter'
 import { useChatMode } from '@/components/chat-input/composables/useChatMode'
 
 // Debounce delay for file tree refresh (ms)
 const FILE_REFRESH_DEBOUNCE_MS = 500
 
-export const useWorkspaceStore = defineStore('workspace', () => {
-  const chatStore = useChatStore()
-  const workspacePresenter = usePresenter('workspacePresenter')
-  const chatMode = useChatMode()
+type WorkspacePresenter = IPresenter['workspacePresenter']
+
+type WorkspaceStoreDeps = {
+  chatStore?: ReturnType<typeof useChatStore>
+  chatMode?: ReturnType<typeof useChatMode>
+  workspacePresenter?: WorkspacePresenter
+  ipcRenderer?: typeof window.electron.ipcRenderer | null
+  enableWatchers?: boolean
+}
+
+export const createWorkspaceStore = (deps: WorkspaceStoreDeps = {}) => {
+  const chatStore = deps.chatStore ?? useChatStore()
+  const workspacePresenter = deps.workspacePresenter ?? usePresenter('workspacePresenter')
+  const chatMode = deps.chatMode ?? useChatMode()
+  const ipcRenderer = deps.ipcRenderer ?? window?.electron?.ipcRenderer ?? null
 
   const isAcpAgentMode = computed(() => chatMode.currentMode.value === 'acp agent')
 
@@ -32,6 +44,9 @@ export const useWorkspaceStore = defineStore('workspace', () => {
 
   // Debounce timer for file refresh
   let fileRefreshDebounceTimer: ReturnType<typeof setTimeout> | null = null
+  let fileRefreshRequestId = 0
+  let planRefreshRequestId = 0
+  let listenersBound = false
 
   // === Computed Properties ===
   const isAgentMode = computed(
@@ -69,12 +84,26 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     isOpen.value = open
   }
 
+  const isFileRefreshCurrent = (conversationId: string | null, workspacePath: string | null) => {
+    if (!conversationId || !workspacePath) return false
+    return (
+      chatStore.activeThreadId === conversationId && currentWorkspacePath.value === workspacePath
+    )
+  }
+
+  const isPlanRefreshCurrent = (conversationId: string | null, requestId: number) => {
+    if (!conversationId) return false
+    return requestId === planRefreshRequestId && chatStore.activeThreadId === conversationId
+  }
+
   const refreshFileTree = async () => {
     const workspacePath = currentWorkspacePath.value
-    const conversationIdBefore = chatStore.getActiveThreadId()
+    const conversationIdBefore = chatStore.activeThreadId
+    const requestId = ++fileRefreshRequestId
 
-    if (!workspacePath) {
+    if (!workspacePath || !conversationIdBefore) {
       fileTree.value = []
+      isLoading.value = false
       return
     }
 
@@ -90,19 +119,27 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       // Only read first level (lazy loading)
       const result = (await workspacePresenter.readDirectory(workspacePath)) ?? []
       // Guard against race condition: only update if still on the same conversation
-      if (chatStore.getActiveThreadId() === conversationIdBefore) {
+      if (
+        requestId === fileRefreshRequestId &&
+        isFileRefreshCurrent(conversationIdBefore, workspacePath)
+      ) {
         fileTree.value = result as WorkspaceFileNode[]
         lastSuccessfulWorkspace.value = workspacePath
       }
     } catch (error) {
       console.error('[Workspace] Failed to load file tree:', error)
-      if (chatStore.getActiveThreadId() === conversationIdBefore) {
-        if (lastSuccessfulWorkspace.value !== workspacePath) {
-          fileTree.value = []
-        }
+      if (
+        requestId === fileRefreshRequestId &&
+        isFileRefreshCurrent(conversationIdBefore, workspacePath) &&
+        lastSuccessfulWorkspace.value !== workspacePath
+      ) {
+        fileTree.value = []
       }
     } finally {
-      if (chatStore.getActiveThreadId() === conversationIdBefore) {
+      if (
+        requestId === fileRefreshRequestId &&
+        isFileRefreshCurrent(conversationIdBefore, workspacePath)
+      ) {
         isLoading.value = false
       }
     }
@@ -139,7 +176,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   }
 
   const refreshPlanEntries = async () => {
-    const conversationId = chatStore.getActiveThreadId()
+    const conversationId = chatStore.activeThreadId
+    const requestId = ++planRefreshRequestId
     if (!conversationId) {
       planEntries.value = []
       return
@@ -148,7 +186,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     try {
       const result = (await workspacePresenter.getPlanEntries(conversationId)) ?? []
       // Guard against race condition: only update if still on the same conversation
-      if (chatStore.getActiveThreadId() === conversationId) {
+      if (isPlanRefreshCurrent(conversationId, requestId)) {
         planEntries.value = result as WorkspacePlanEntry[]
       }
     } catch (error) {
@@ -182,6 +220,11 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     expandedSnippetIds.value = new Set()
     lastSyncedConversationId.value = null
     lastSuccessfulWorkspace.value = null
+    isLoading.value = false
+    if (fileRefreshDebounceTimer) {
+      clearTimeout(fileRefreshDebounceTimer)
+      fileRefreshDebounceTimer = null
+    }
   }
 
   const getSnippetTime = (snippet: WorkspaceTerminalSnippet, key: 'startedAt' | 'endedAt') =>
@@ -234,7 +277,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   }
 
   const terminateCommand = async (snippetId: string) => {
-    const conversationId = chatStore.getActiveThreadId()
+    const conversationId = chatStore.activeThreadId
     if (!conversationId) {
       console.warn('[Workspace] No active conversation, cannot terminate command')
       return
@@ -249,7 +292,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   }
 
   const terminateAllRunningCommands = async () => {
-    const conversationId = chatStore.getActiveThreadId()
+    const conversationId = chatStore.activeThreadId
     if (!conversationId) return
 
     const runningSnippets = terminalSnippets.value.filter((snippet) => snippet.status === 'running')
@@ -263,87 +306,106 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   }
 
   // === Event Listeners ===
-  const setupEventListeners = () => {
+  const handlePlanUpdated = (
+    _: unknown,
+    payload: { conversationId: string; entries: WorkspacePlanEntry[] }
+  ) => {
+    if (payload.conversationId === chatStore.activeThreadId) {
+      planEntries.value = payload.entries
+    }
+  }
+
+  const handleTerminalOutput = (
+    _: unknown,
+    payload: { conversationId: string; snippet: WorkspaceTerminalSnippet }
+  ) => {
+    if (payload.conversationId === chatStore.activeThreadId) {
+      upsertTerminalSnippet(payload.snippet)
+    }
+  }
+
+  const handleFilesChanged = (_: unknown, payload: { conversationId: string }) => {
+    if (payload.conversationId === chatStore.activeThreadId && isAgentMode.value) {
+      debouncedRefreshFileTree()
+    }
+  }
+
+  const bindEventListeners = () => {
+    if (!ipcRenderer || listenersBound) {
+      return () => undefined
+    }
+
     // Plan update event
-    window.electron.ipcRenderer.on(
-      WORKSPACE_EVENTS.PLAN_UPDATED,
-      (_, payload: { conversationId: string; entries: WorkspacePlanEntry[] }) => {
-        if (payload.conversationId === chatStore.getActiveThreadId()) {
-          planEntries.value = payload.entries
-        }
-      }
-    )
+    ipcRenderer.on(WORKSPACE_EVENTS.PLAN_UPDATED, handlePlanUpdated)
 
     // Terminal output event
-    window.electron.ipcRenderer.on(
-      WORKSPACE_EVENTS.TERMINAL_OUTPUT,
-      (_, payload: { conversationId: string; snippet: WorkspaceTerminalSnippet }) => {
-        if (payload.conversationId === chatStore.getActiveThreadId()) {
-          upsertTerminalSnippet(payload.snippet)
-        }
-      }
-    )
+    ipcRenderer.on(WORKSPACE_EVENTS.TERMINAL_OUTPUT, handleTerminalOutput)
 
     // File change event - refresh file tree (debounced to merge rapid updates)
-    window.electron.ipcRenderer.on(
-      WORKSPACE_EVENTS.FILES_CHANGED,
-      (_, payload: { conversationId: string }) => {
-        if (payload.conversationId === chatStore.getActiveThreadId() && isAgentMode.value) {
-          debouncedRefreshFileTree()
-        }
+    ipcRenderer.on(WORKSPACE_EVENTS.FILES_CHANGED, handleFilesChanged)
+
+    listenersBound = true
+
+    return () => {
+      ipcRenderer.removeListener(WORKSPACE_EVENTS.PLAN_UPDATED, handlePlanUpdated)
+      ipcRenderer.removeListener(WORKSPACE_EVENTS.TERMINAL_OUTPUT, handleTerminalOutput)
+      ipcRenderer.removeListener(WORKSPACE_EVENTS.FILES_CHANGED, handleFilesChanged)
+      if (fileRefreshDebounceTimer) {
+        clearTimeout(fileRefreshDebounceTimer)
+        fileRefreshDebounceTimer = null
       }
-    )
+      listenersBound = false
+    }
   }
 
   // === Watchers ===
-  // Watch for conversation changes
-  watch(
-    () => chatStore.getActiveThreadId(),
-    async (newId) => {
-      if (newId !== lastSyncedConversationId.value) {
-        lastSyncedConversationId.value = newId ?? null
-        if (newId && isAgentMode.value) {
-          await Promise.all([refreshPlanEntries(), refreshFileTree()])
-        } else {
-          clearData()
+  if (deps.enableWatchers !== false) {
+    // Watch for conversation changes
+    watch(
+      () => chatStore.activeThreadId,
+      async (newId) => {
+        if (newId !== lastSyncedConversationId.value) {
+          lastSyncedConversationId.value = newId ?? null
+          if (newId && isAgentMode.value) {
+            await Promise.all([refreshPlanEntries(), refreshFileTree()])
+          } else {
+            clearData()
+          }
         }
       }
-    }
-  )
+    )
 
-  // Watch for workspace path changes
-  watch(
-    currentWorkspacePath,
-    (workspacePath, previousWorkspacePath) => {
-      if (workspacePath !== previousWorkspacePath) {
-        lastSuccessfulWorkspace.value = null
-      }
+    // Watch for workspace path changes
+    watch(
+      currentWorkspacePath,
+      (workspacePath, previousWorkspacePath) => {
+        if (workspacePath !== previousWorkspacePath) {
+          lastSuccessfulWorkspace.value = null
+        }
 
-      if (isAgentMode.value && workspacePath) {
-        refreshFileTree()
-      }
-    },
-    { immediate: true }
-  )
+        if (isAgentMode.value && workspacePath) {
+          refreshFileTree()
+        }
+      },
+      { immediate: true }
+    )
 
-  // Watch for Agent mode changes
-  watch(
-    isAgentMode,
-    (isAgent) => {
-      if (isAgent) {
-        setOpen(true)
-        refreshFileTree()
-        refreshPlanEntries()
-      } else {
-        setOpen(false)
-        clearData()
-      }
-    },
-    { immediate: true }
-  )
-
-  // Initialize event listeners
-  setupEventListeners()
+    // Watch for Agent mode changes
+    watch(
+      isAgentMode,
+      (isAgent) => {
+        if (isAgent) {
+          setOpen(true)
+          refreshFileTree()
+          refreshPlanEntries()
+        } else {
+          setOpen(false)
+          clearData()
+        }
+      },
+      { immediate: true }
+    )
+  }
 
   return {
     // State
@@ -370,6 +432,9 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     toggleSnippetExpansion,
     removeTerminalSnippet,
     terminateCommand,
-    terminateAllRunningCommands
+    terminateAllRunningCommands,
+    bindEventListeners
   }
-})
+}
+
+export const useWorkspaceStore = defineStore('workspace', () => createWorkspaceStore())

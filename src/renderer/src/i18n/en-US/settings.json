@@ -1,5 +1,11 @@
 {
   "title": "Settings",
+  "groups": {
+    "preferences": "Preferences",
+    "models": "Models",
+    "tools": "Tools",
+    "system": "System"
+  },
   "common": {
     "title": "Common Settings",
     "resetData": "Reset Data",

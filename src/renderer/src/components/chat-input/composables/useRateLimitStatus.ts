@@ -5,27 +5,18 @@ import { ref, computed, onMounted, onUnmounted, type Ref } from 'vue'
 import type { CONVERSATION_SETTINGS } from '@shared/presenter'
 
 // === Composables ===
-import { usePresenter } from '@/composables/usePresenter'
+import {
+  useRateLimitAdapter,
+  type RateLimitStatus
+} from '@/composables/rate-limit/useRateLimitAdapter'
 
 // === Stores ===
 import { useProviderStore } from '@/stores/providerStore'
 
 // === Events ===
-import { RATE_LIMIT_EVENTS } from '@/events'
-
 /**
  * Rate limit status interface
  */
-export interface RateLimitStatus {
-  config: {
-    enabled: boolean
-    qpsLimit: number
-  }
-  currentQps: number
-  queueLength: number
-  lastRequestTime: number
-}
-
 /**
  * Composable for managing rate limit status display and polling
  * Handles status loading, icon/class/tooltip computation, and event listeners
@@ -34,8 +25,8 @@ export function useRateLimitStatus(
   chatConfig: Ref<CONVERSATION_SETTINGS>,
   t: (key: string, params?: any) => string
 ) {
-  // === Presenters ===
-  const llmPresenter = usePresenter('llmproviderPresenter')
+  const rateLimitAdapter = useRateLimitAdapter()
+  let unsubscribeRateLimitEvents: (() => void) | null = null
 
   // === Stores ===
   const providerStore = useProviderStore()
@@ -80,7 +71,7 @@ export function useRateLimitStatus(
     }
 
     try {
-      const status = await llmPresenter.getProviderRateLimitStatus(currentProviderId)
+      const status = await rateLimitAdapter.getProviderRateLimitStatus(currentProviderId)
       rateLimitStatus.value = status
     } catch (error) {
       console.error('Failed to load rate limit status:', error)
@@ -195,18 +186,13 @@ export function useRateLimitStatus(
     startRateLimitPolling()
 
     // Register IPC event listeners
-    window.electron.ipcRenderer.on(RATE_LIMIT_EVENTS.CONFIG_UPDATED, handleRateLimitEvent)
-    window.electron.ipcRenderer.on(RATE_LIMIT_EVENTS.REQUEST_EXECUTED, handleRateLimitEvent)
-    window.electron.ipcRenderer.on(RATE_LIMIT_EVENTS.REQUEST_QUEUED, handleRateLimitEvent)
+    unsubscribeRateLimitEvents = rateLimitAdapter.subscribeRateLimitEvents(handleRateLimitEvent)
   })
 
   onUnmounted(() => {
     stopRateLimitPolling()
-
-    // Remove IPC event listeners
-    window.electron.ipcRenderer.removeAllListeners(RATE_LIMIT_EVENTS.CONFIG_UPDATED)
-    window.electron.ipcRenderer.removeAllListeners(RATE_LIMIT_EVENTS.REQUEST_EXECUTED)
-    window.electron.ipcRenderer.removeAllListeners(RATE_LIMIT_EVENTS.REQUEST_QUEUED)
+    unsubscribeRateLimitEvents?.()
+    unsubscribeRateLimitEvents = null
   })
 
   // === Return Public API ===

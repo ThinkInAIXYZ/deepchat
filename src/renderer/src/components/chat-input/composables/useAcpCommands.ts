@@ -1,5 +1,5 @@
 import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
-import { ACP_WORKSPACE_EVENTS } from '@/events'
+import { useAcpEventsAdapter } from '@/composables/acp/useAcpEventsAdapter'
 import type { Ref } from 'vue'
 
 type ActiveModelRef = Ref<{ id?: string; providerId?: string } | null>
@@ -17,6 +17,8 @@ export interface AcpCommand {
 
 export function useAcpCommands(options: UseAcpCommandsOptions) {
   const availableCommands = ref<AcpCommand[]>([])
+  const acpEventsAdapter = useAcpEventsAdapter()
+  let unsubscribeCommandsUpdate: (() => void) | null = null
 
   const isAcpModel = computed(
     () => options.activeModel.value?.providerId === 'acp' && !!options.activeModel.value?.id
@@ -46,14 +48,11 @@ export function useAcpCommands(options: UseAcpCommandsOptions) {
   })
 
   // Listen for commands update event from main process
-  const handleCommandsUpdate = (
-    _: unknown,
-    payload: {
-      conversationId?: string
-      agentId?: string
-      commands: AcpCommand[]
-    }
-  ) => {
+  const handleCommandsUpdate = (payload: {
+    conversationId?: string
+    agentId?: string
+    commands: AcpCommand[]
+  }) => {
     if (!isAcpModel.value) return
 
     const conversationMatch =
@@ -69,14 +68,12 @@ export function useAcpCommands(options: UseAcpCommandsOptions) {
   }
 
   onMounted(() => {
-    window.electron.ipcRenderer.on(ACP_WORKSPACE_EVENTS.COMMANDS_UPDATE, handleCommandsUpdate)
+    unsubscribeCommandsUpdate = acpEventsAdapter.subscribeCommandsUpdate(handleCommandsUpdate)
   })
 
   onUnmounted(() => {
-    window.electron.ipcRenderer.removeListener(
-      ACP_WORKSPACE_EVENTS.COMMANDS_UPDATE,
-      handleCommandsUpdate
-    )
+    unsubscribeCommandsUpdate?.()
+    unsubscribeCommandsUpdate = null
   })
 
   /**

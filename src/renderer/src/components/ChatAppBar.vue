@@ -93,14 +93,14 @@ import { Icon } from '@iconify/vue'
 import { useLanguageStore } from '@/stores/language'
 import { useWindowStore } from '@/stores/windowStore'
 import { useI18n } from 'vue-i18n'
-import { useChatStore } from '@/stores/chat'
 import { useRouter } from 'vue-router'
+import { useLayoutStore } from '@/stores/layoutStore'
 
 const langStore = useLanguageStore()
 const windowPresenter = usePresenter('windowPresenter')
 const yoBrowserPresenter = usePresenter('yoBrowserPresenter')
-const chatStore = useChatStore()
 const router = useRouter()
+const layoutStore = useLayoutStore()
 const windowStore = useWindowStore()
 const { isMacOS, isMaximized, isFullscreened } = storeToRefs(windowStore)
 
@@ -166,10 +166,10 @@ const onHistoryClick = () => {
   // Toggle thread view in Single WebContents Architecture
   if (router.currentRoute.value.name !== 'chat') {
     void router.push({ name: 'chat' })
-    chatStore.isSidebarOpen = true
+    layoutStore.openThreadSidebar()
     return
   }
-  chatStore.isSidebarOpen = !chatStore.isSidebarOpen
+  layoutStore.toggleThreadSidebar()
 }
 
 onMounted(() => {

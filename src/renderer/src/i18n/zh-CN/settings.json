@@ -1,5 +1,11 @@
 {
   "title": "设置",
+  "groups": {
+    "preferences": "偏好",
+    "models": "模型",
+    "tools": "工具",
+    "system": "系统"
+  },
   "common": {
     "title": "通用设置",
     "resetData": "重置数据",

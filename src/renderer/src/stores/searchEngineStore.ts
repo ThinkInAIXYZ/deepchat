@@ -48,6 +48,47 @@ export const useSearchEngineStore = defineStore('searchEngine', () => {
     }
   }
 
+  const fetchCustomSearchEngines = async (): Promise<SearchEngineTemplate[]> => {
+    try {
+      return (await configP.getCustomSearchEngines()) ?? []
+    } catch (error) {
+      console.error('获取自定义搜索引擎失败:', error)
+      return []
+    }
+  }
+
+  const persistCustomSearchEngines = async (engines: SearchEngineTemplate[]) => {
+    await configP.setCustomSearchEngines(engines)
+    await refreshSearchEngines()
+  }
+
+  const addCustomSearchEngine = async (engine: SearchEngineTemplate): Promise<boolean> => {
+    try {
+      const customEngines = await fetchCustomSearchEngines()
+      customEngines.push(engine)
+      await persistCustomSearchEngines(customEngines)
+      return true
+    } catch (error) {
+      console.error('添加自定义搜索引擎失败:', error)
+      return false
+    }
+  }
+
+  const deleteCustomSearchEngine = async (engineId: string): Promise<boolean> => {
+    try {
+      const customEngines = await fetchCustomSearchEngines()
+      const filtered = customEngines.filter((engine) => engine.id !== engineId)
+      if (filtered.length === customEngines.length) {
+        return false
+      }
+      await persistCustomSearchEngines(filtered)
+      return true
+    } catch (error) {
+      console.error('删除自定义搜索引擎失败:', error)
+      return false
+    }
+  }
+
   const ensureActiveSearchEngine = async () => {
     const preferredEngineId = (await configP.getSetting<string>('searchEngine')) || 'google'
     const matchedEngine = searchEngines.value.find((item) => item.id === preferredEngineId)
@@ -142,6 +183,9 @@ export const useSearchEngineStore = defineStore('searchEngine', () => {
     initialize,
     setSearchEngine,
     refreshSearchEngines,
+    addCustomSearchEngine,
+    deleteCustomSearchEngine,
+    fetchCustomSearchEngines,
     testSearchEngine,
     setupSearchEnginesListener
   }

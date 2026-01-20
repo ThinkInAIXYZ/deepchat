@@ -3,16 +3,10 @@ import { ref, computed, watch, onMounted, onUnmounted, type Ref, type ComputedRe
 
 // === Types ===
 import type { SkillMetadata } from '@shared/types/skill'
-import type { IpcRendererEvent } from 'electron'
-
-// === Composables ===
-import { usePresenter } from '@/composables/usePresenter'
+import { useSkillsAdapter } from '@/composables/skills/useSkillsAdapter'
 
 // === Stores ===
 import { useSkillsStore } from '@/stores/skillsStore'
-
-// === Events ===
-import { SKILL_EVENTS } from '@/events'
 
 /**
  * Composable for managing skills data in chat input context
@@ -25,8 +19,9 @@ import { SKILL_EVENTS } from '@/events'
  * - Event listeners for real-time updates
  */
 export function useSkillsData(conversationId: Ref<string | null> | ComputedRef<string | null>) {
-  const skillPresenter = usePresenter('skillPresenter')
   const skillsStore = useSkillsStore()
+  const skillsAdapter = useSkillsAdapter()
+  let unsubscribeSkillEvents: (() => void) | null = null
 
   // === State ===
   const activeSkills = ref<string[]>([])
@@ -79,7 +74,7 @@ export function useSkillsData(conversationId: Ref<string | null> | ComputedRef<s
 
     loading.value = true
     try {
-      activeSkills.value = await skillPresenter.getActiveSkills(conversationId.value)
+      activeSkills.value = await skillsAdapter.getActiveSkills(conversationId.value)
     } catch (error) {
       console.error('[useSkillsData] Failed to load active skills:', error)
       activeSkills.value = []
@@ -108,7 +103,7 @@ export function useSkillsData(conversationId: Ref<string | null> | ComputedRef<s
       : [...activeSkills.value, skillName]
 
     try {
-      await skillPresenter.setActiveSkills(conversationId.value, updatedSkills)
+      await skillsAdapter.setActiveSkills(conversationId.value, updatedSkills)
       activeSkills.value = updatedSkills
     } catch (error) {
       console.error('[useSkillsData] Failed to toggle skill:', error)
@@ -131,7 +126,7 @@ export function useSkillsData(conversationId: Ref<string | null> | ComputedRef<s
 
     const updatedSkills = [...activeSkills.value, skillName]
     try {
-      await skillPresenter.setActiveSkills(conversationId.value, updatedSkills)
+      await skillsAdapter.setActiveSkills(conversationId.value, updatedSkills)
       activeSkills.value = updatedSkills
     } catch (error) {
       console.error('[useSkillsData] Failed to activate skill:', error)
@@ -152,7 +147,7 @@ export function useSkillsData(conversationId: Ref<string | null> | ComputedRef<s
 
     const updatedSkills = activeSkills.value.filter((s) => s !== skillName)
     try {
-      await skillPresenter.setActiveSkills(conversationId.value, updatedSkills)
+      await skillsAdapter.setActiveSkills(conversationId.value, updatedSkills)
       activeSkills.value = updatedSkills
     } catch (error) {
       console.error('[useSkillsData] Failed to deactivate skill:', error)
@@ -175,7 +170,7 @@ export function useSkillsData(conversationId: Ref<string | null> | ComputedRef<s
     const pending = consumePendingSkills()
     if (pending.length > 0) {
       try {
-        await skillPresenter.setActiveSkills(newConversationId, pending)
+        await skillsAdapter.setActiveSkills(newConversationId, pending)
       } catch (error) {
         console.error('[useSkillsData] Failed to apply pending skills:', error)
       }
@@ -183,10 +178,7 @@ export function useSkillsData(conversationId: Ref<string | null> | ComputedRef<s
   }
 
   // === IPC Event Handlers ===
-  const handleSkillActivated = (
-    _event: IpcRendererEvent,
-    payload: { conversationId: string; skills: string[] }
-  ) => {
+  const handleSkillActivated = (payload: { conversationId: string; skills: string[] }) => {
     if (payload.conversationId === conversationId.value && Array.isArray(payload.skills)) {
       // Add newly activated skills
       const currentSet = new Set(activeSkills.value)
@@ -195,10 +187,7 @@ export function useSkillsData(conversationId: Ref<string | null> | ComputedRef<s
     }
   }
 
-  const handleSkillDeactivated = (
-    _event: IpcRendererEvent,
-    payload: { conversationId: string; skills: string[] }
-  ) => {
+  const handleSkillDeactivated = (payload: { conversationId: string; skills: string[] }) => {
     if (payload.conversationId === conversationId.value && Array.isArray(payload.skills)) {
       // Remove deactivated skills
       const deactivatedSet = new Set(payload.skills)
@@ -224,18 +213,15 @@ export function useSkillsData(conversationId: Ref<string | null> | ComputedRef<s
     }
 
     // Listen for skill activation events from main process via IPC
-    if (window.electron?.ipcRenderer) {
-      window.electron.ipcRenderer.on(SKILL_EVENTS.ACTIVATED, handleSkillActivated)
-      window.electron.ipcRenderer.on(SKILL_EVENTS.DEACTIVATED, handleSkillDeactivated)
-    }
+    unsubscribeSkillEvents = skillsAdapter.subscribeSkillEvents({
+      onActivated: handleSkillActivated,
+      onDeactivated: handleSkillDeactivated
+    })
   })
 
   onUnmounted(() => {
-    // Remove IPC event listeners
-    if (window.electron?.ipcRenderer) {
-      window.electron.ipcRenderer.removeListener(SKILL_EVENTS.ACTIVATED, handleSkillActivated)
-      window.electron.ipcRenderer.removeListener(SKILL_EVENTS.DEACTIVATED, handleSkillDeactivated)
-    }
+    unsubscribeSkillEvents?.()
+    unsubscribeSkillEvents = null
   })
 
   // === Return Public API ===

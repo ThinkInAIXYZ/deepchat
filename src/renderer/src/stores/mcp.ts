@@ -3,8 +3,13 @@ import { defineStore } from 'pinia'
 import { usePresenter } from '@/composables/usePresenter'
 import { useIpcQuery } from '@/composables/useIpcQuery'
 import { useIpcMutation } from '@/composables/useIpcMutation'
-import { MCP_EVENTS } from '@/events'
-import { useMcpToolingAdapter } from '@/composables/mcp/useMcpToolingAdapter'
+import {
+  useMcpToolingAdapter,
+  resolveToolResultKey,
+  type ToolCallResultPayload
+} from '@/composables/mcp/useMcpToolingAdapter'
+import { useMcpEventsAdapter } from '@/composables/mcp/useMcpEventsAdapter'
+import { computeMcpConfigUpdate } from '@/composables/mcp/mcpConfigSync'
 import { useI18n } from 'vue-i18n'
 import { useChatStore } from './chat'
 import { useQuery, type UseMutationReturn, type UseQueryReturn } from '@pinia/colada'
@@ -20,12 +25,6 @@ import type {
   MCPContentItem
 } from '@shared/presenter'
 
-type MCPToolCallEventResult = {
-  toolCallId?: string
-  function_name?: string
-  content: string | MCPContentItem[]
-  isError?: boolean
-}
 export const useMcpStore = defineStore('mcp', () => {
   const chatStore = useChatStore()
   const { t } = useI18n()
@@ -34,7 +33,9 @@ export const useMcpStore = defineStore('mcp', () => {
   // 获取配置相关的presenter
   const configPresenter = usePresenter('configPresenter')
   const toolingAdapter = useMcpToolingAdapter()
+  const mcpEventsAdapter = useMcpEventsAdapter()
   let unsubscribeToolResults: (() => void) | null = null
+  let unsubscribeMcpEvents: Array<() => void> = []
 
   // ==================== 状态定义 ====================
   // MCP配置
@@ -60,6 +61,52 @@ export const useMcpStore = defineStore('mcp', () => {
   const toolLoadingStates = ref<Record<string, boolean>>({})
   const toolInputs = ref<Record<string, Record<string, string>>>({})
   const toolResults = ref<Record<string, string | MCPContentItem[]>>({})
+
+  const formatToolResultContent = (content: string | MCPContentItem[]): string => {
+    if (typeof content === 'string') {
+      return content
+    }
+
+    const parts = content
+      .map((item) => {
+        if (item.type === 'text') return item.text
+        if (item.type === 'resource') {
+          return item.resource.text || item.resource.uri || ''
+        }
+        if (item.type === 'image') {
+          return `[image:${item.mimeType ?? 'unknown'}]`
+        }
+        return ''
+      })
+      .filter(Boolean)
+
+    const merged = parts.join('\n')
+    return merged || JSON.stringify(content)
+  }
+
+  const cacheToolResult = (
+    toolCallId: string | null | undefined,
+    toolName: string | null | undefined,
+    content: string | MCPContentItem[]
+  ) => {
+    const keys = new Set<string>()
+    if (toolCallId) keys.add(toolCallId)
+    if (toolName) keys.add(toolName)
+
+    keys.forEach((key) => {
+      toolResults.value[key] = content
+    })
+  }
+
+  const getToolResult = (toolCallId?: string | null, toolName?: string | null): string | null => {
+    if (toolCallId && toolResults.value[toolCallId]) {
+      return formatToolResultContent(toolResults.value[toolCallId])
+    }
+    if (toolName && toolResults.value[toolName]) {
+      return formatToolResultContent(toolResults.value[toolName])
+    }
+    return null
+  }
 
   type QueryExecuteOptions = { force?: boolean }
 
@@ -180,17 +227,15 @@ export const useMcpStore = defineStore('mcp', () => {
     onSuccess(result, variables) {
       const request = variables?.[0]
       const toolName = request?.function?.name
-      if (toolName) {
-        toolResults.value[toolName] = result.content
-      }
+      const toolCallId = request?.id
+      cacheToolResult(toolCallId, toolName, result.content)
     },
     onError(error, variables) {
       const request = variables?.[0]
       const toolName = request?.function?.name
       console.error(t('mcp.errors.callToolFailed', { toolName }), error)
-      if (toolName) {
-        toolResults.value[toolName] = t('mcp.errors.toolCallError', { error: String(error) })
-      }
+      const toolCallId = request?.id
+      cacheToolResult(toolCallId, toolName, t('mcp.errors.toolCallError', { error: String(error) }))
     }
   }) as UseMutationReturn<CallToolResult, CallToolMutationVars, Error>
 
@@ -227,27 +272,27 @@ export const useMcpStore = defineStore('mcp', () => {
       maybeQuery.isFetching?.value || maybeQuery.isLoading?.value || maybeQuery.isRefreshing?.value
     )
 
-    if (previousReady && previousMcpEnabled && queryInFlight && data.mcpEnabled === false) {
+    const { nextConfig, shouldApply, mcpEnabledChanged } = computeMcpConfigUpdate(
+      config.value,
+      data,
+      queryInFlight
+    )
+
+    if (!shouldApply) {
       return
     }
 
-    // Check if mcpEnabled status really changed
-    const mcpEnabledChanged = previousMcpEnabled !== data.mcpEnabled
-
     if (mcpEnabledChanged) {
-      console.log(`MCP enabled state changing from ${previousMcpEnabled} to ${data.mcpEnabled}`)
+      console.log(
+        `MCP enabled state changing from ${previousMcpEnabled} to ${nextConfig.mcpEnabled}`
+      )
     }
 
-    config.value = {
-      mcpServers: data.mcpServers ?? {},
-      defaultServers: data.defaultServers,
-      mcpEnabled: data.mcpEnabled,
-      ready: true
-    }
+    config.value = nextConfig
 
     // If mcpEnabled state changed, trigger query refreshes
     if (previousReady && mcpEnabledChanged) {
-      if (data.mcpEnabled) {
+      if (nextConfig.mcpEnabled) {
         // MCP enabled: refresh tools, clients, resources
         Promise.all([
           loadTools({ force: true }),
@@ -324,6 +369,7 @@ export const useMcpStore = defineStore('mcp', () => {
         toolInputs.value = {}
         toolResults.value = {}
       }
+      ensureToolResultsSubscription()
     }
   )
   // ==================== 计算属性 ====================
@@ -741,6 +787,30 @@ export const useMcpStore = defineStore('mcp', () => {
     toolInputs.value[toolName][paramName] = value
   }
 
+  const buildToolRequest = (
+    toolName: string,
+    params: Record<string, unknown>,
+    toolCallId?: string
+  ): CallToolRequest => {
+    return {
+      id: toolCallId ?? Date.now().toString(),
+      type: 'function',
+      function: {
+        name: toolName,
+        arguments: JSON.stringify(params)
+      }
+    }
+  }
+
+  const callToolWithParams = async (
+    toolName: string,
+    params: Record<string, unknown>,
+    toolCallId?: string
+  ): Promise<CallToolResult> => {
+    const request = buildToolRequest(toolName, params, toolCallId)
+    return await callToolMutation.mutateAsync([request])
+  }
+
   // 调用工具
   const callTool = async (toolName: string): Promise<CallToolResult> => {
     toolLoadingStates.value[toolName] = true
@@ -786,17 +856,7 @@ export const useMcpStore = defineStore('mcp', () => {
         }
       }
 
-      // 创建工具调用请求
-      const request: CallToolRequest = {
-        id: Date.now().toString(),
-        type: 'function',
-        function: {
-          name: toolName,
-          arguments: JSON.stringify(params)
-        }
-      }
-
-      return await callToolMutation.mutateAsync([request])
+      return await callToolWithParams(toolName, params)
     } finally {
       toolLoadingStates.value[toolName] = false
     }
@@ -896,35 +956,65 @@ export const useMcpStore = defineStore('mcp', () => {
   }
 
   // ==================== 事件监听 ====================
+  const cleanupMcpEvents = () => {
+    unsubscribeMcpEvents.forEach((unsubscribe) => unsubscribe())
+    unsubscribeMcpEvents = []
+  }
+
+  const handleToolResultEvent = (result: ToolCallResultPayload) => {
+    if (!config.value.mcpEnabled) {
+      return
+    }
+
+    const toolKey = resolveToolResultKey(result)
+    if (!toolKey) {
+      console.warn('MCP tool result missing toolCallId and function_name', result)
+      return
+    }
+
+    cacheToolResult(result.toolCallId, result.function_name, result.content)
+  }
+
+  const ensureToolResultsSubscription = () => {
+    if (!config.value.mcpEnabled) {
+      unsubscribeToolResults?.()
+      unsubscribeToolResults = null
+      return
+    }
+
+    if (!unsubscribeToolResults) {
+      unsubscribeToolResults = toolingAdapter.subscribeToolResults(handleToolResultEvent)
+    }
+  }
+
   // 初始化事件监听
   const initEvents = () => {
-    window.electron.ipcRenderer.on(MCP_EVENTS.SERVER_STARTED, (_event, serverName: string) => {
-      console.log(`MCP server started: ${serverName}`)
-      updateServerStatus(serverName).then(() => {
-        // Force refresh tools after server starts to ensure tool count is updated
-        if (config.value.mcpEnabled) {
-          loadTools({ force: true }).catch((error) => {
-            console.error('Failed to refresh tools after server started:', error)
-          })
-        }
-      })
-    })
+    cleanupMcpEvents()
 
-    window.electron.ipcRenderer.on(MCP_EVENTS.SERVER_STOPPED, (_event, serverName: string) => {
-      console.log(`MCP server stopped: ${serverName}`)
-      updateServerStatus(serverName).then(() => {
-        // Force refresh tools after server stops to ensure tool count is updated
-        if (config.value.mcpEnabled) {
-          loadTools({ force: true }).catch((error) => {
-            console.error('Failed to refresh tools after server stopped:', error)
-          })
-        }
-      })
-    })
-
-    window.electron.ipcRenderer.on(
-      MCP_EVENTS.CONFIG_CHANGED,
-      (_event, payload?: ConfigQueryResult) => {
+    unsubscribeMcpEvents = [
+      mcpEventsAdapter.subscribeServerStarted((serverName) => {
+        console.log(`MCP server started: ${serverName}`)
+        updateServerStatus(serverName).then(() => {
+          // Force refresh tools after server starts to ensure tool count is updated
+          if (config.value.mcpEnabled) {
+            loadTools({ force: true }).catch((error) => {
+              console.error('Failed to refresh tools after server started:', error)
+            })
+          }
+        })
+      }),
+      mcpEventsAdapter.subscribeServerStopped((serverName) => {
+        console.log(`MCP server stopped: ${serverName}`)
+        updateServerStatus(serverName).then(() => {
+          // Force refresh tools after server stops to ensure tool count is updated
+          if (config.value.mcpEnabled) {
+            loadTools({ force: true }).catch((error) => {
+              console.error('Failed to refresh tools after server stopped:', error)
+            })
+          }
+        })
+      }),
+      mcpEventsAdapter.subscribeConfigChanged((payload?: ConfigQueryResult) => {
         console.log('MCP config changed', payload)
         if (payload) {
           // Directly sync from event payload to avoid unnecessary query
@@ -937,37 +1027,22 @@ export const useMcpStore = defineStore('mcp', () => {
           // Fallback to query if payload is missing
           loadConfig()
         }
-      }
-    )
-
-    window.electron.ipcRenderer.on(
-      MCP_EVENTS.SERVER_STATUS_CHANGED,
-      (_event, serverName: string, isRunning: boolean) => {
+      }),
+      mcpEventsAdapter.subscribeServerStatusChanged(({ serverName, isRunning }) => {
         console.log(`MCP server ${serverName} status changed: ${isRunning}`)
         serverStatuses.value[serverName] = isRunning
-      }
-    )
+      }),
+      mcpEventsAdapter.subscribeCustomPromptsChanged(() => {
+        console.log('Custom prompts changed, reloading prompts list')
+        loadPrompts()
+      })
+    ]
 
-    unsubscribeToolResults?.()
-    unsubscribeToolResults = toolingAdapter.subscribeToolResults(
-      (result: MCPToolCallEventResult) => {
-        const toolKey = result.toolCallId || result.function_name
-        if (!toolKey) {
-          console.warn('MCP tool result missing toolCallId and function_name', result)
-          return
-        }
-        toolResults.value[toolKey] = result.content
-      }
-    )
-
-    // Listen for custom prompts changes
-    window.electron.ipcRenderer.on('config:custom-prompts-changed', () => {
-      console.log('Custom prompts changed, reloading prompts list')
-      loadPrompts()
-    })
+    ensureToolResultsSubscription()
   }
 
   onScopeDispose(() => {
+    cleanupMcpEvents()
     unsubscribeToolResults?.()
     unsubscribeToolResults = null
   })
@@ -1103,8 +1178,10 @@ export const useMcpStore = defineStore('mcp', () => {
     loadResources,
     updateToolInput,
     callTool,
+    callToolWithParams,
     getPrompt,
     readResource,
+    getToolResult,
 
     // NPM Registry 管理方法
     getNpmRegistryStatus,

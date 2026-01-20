@@ -4,6 +4,11 @@ import { usePresenter } from '@/composables/usePresenter'
 import { useIpcQuery } from '@/composables/useIpcQuery'
 import { CONFIG_EVENTS, PROVIDER_DB_EVENTS } from '@/events'
 import type { AWS_BEDROCK_PROVIDER, LLM_PROVIDER, VERTEX_PROVIDER } from '@shared/presenter'
+import {
+  normalizeNewProvider,
+  normalizeProviderUpdates,
+  validateNewProvider
+} from '@/composables/provider/providerConfig'
 
 const PROVIDER_ORDER_KEY = 'providerOrder'
 const PROVIDER_TIMESTAMP_KEY = 'providerTimestamps'
@@ -185,9 +190,15 @@ export const useProviderStore = defineStore('provider', () => {
       throw new Error(`Provider ${providerId} not found`)
     }
 
-    const requiresRebuild = await configP.updateProviderAtomic(providerId, updates)
+    const normalizedUpdates = normalizeProviderUpdates(updates)
+
+    if (normalizedUpdates.name !== undefined && normalizedUpdates.name.trim().length === 0) {
+      throw new Error('Provider name is required')
+    }
+
+    const requiresRebuild = await configP.updateProviderAtomic(providerId, normalizedUpdates)
     await refreshProviders()
-    return { requiresRebuild, updated: { ...currentProvider, ...updates } }
+    return { requiresRebuild, updated: { ...currentProvider, ...normalizedUpdates } }
   }
 
   const updateProviderApi = async (providerId: string, apiKey?: string, baseUrl?: string) => {
@@ -274,7 +285,11 @@ export const useProviderStore = defineStore('provider', () => {
   }
 
   const addCustomProvider = async (provider: LLM_PROVIDER) => {
-    const newProvider = { ...provider, custom: true }
+    const newProvider = normalizeNewProvider({ ...provider, custom: true })
+    const validation = validateNewProvider(newProvider)
+    if (!validation.isValid) {
+      throw new Error(validation.errors.join('; '))
+    }
     delete (newProvider as any).websites
     await configP.addProviderAtomic(newProvider)
     await refreshProviders()
@@ -303,6 +318,36 @@ export const useProviderStore = defineStore('provider', () => {
 
   const checkProvider = async (providerId: string, modelId?: string) => {
     return llmP.check(providerId, modelId)
+  }
+
+  const refreshProviderModels = async (providerId: string) => {
+    await llmP.refreshModels(providerId)
+  }
+
+  const getProviderKeyStatus = async (providerId: string) => {
+    const provider = providers.value.find((item) => item.id === providerId)
+    if (!provider?.apiKey) return null
+
+    const supportedProviders = new Set([
+      'ppio',
+      'openrouter',
+      'siliconcloud',
+      'silicon',
+      'deepseek',
+      '302ai',
+      'cherryin'
+    ])
+
+    if (!supportedProviders.has(providerId)) {
+      return null
+    }
+
+    try {
+      return await llmP.getKeyStatus(providerId)
+    } catch (error) {
+      console.error('Failed to get key status:', error)
+      return null
+    }
   }
 
   const setAzureApiVersion = async (version: string) => {
@@ -411,6 +456,8 @@ export const useProviderStore = defineStore('provider', () => {
     updateAwsBedrockProviderConfig,
     updateVertexProviderConfig,
     checkProvider,
+    refreshProviderModels,
+    getProviderKeyStatus,
     setAzureApiVersion,
     getAzureApiVersion,
     setGeminiSafety,

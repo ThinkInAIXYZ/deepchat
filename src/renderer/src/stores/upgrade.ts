@@ -1,11 +1,22 @@
 import { usePresenter } from '@/composables/usePresenter'
 import { UPDATE_EVENTS } from '@/events'
 import { defineStore } from 'pinia'
-import { computed, onMounted, ref } from 'vue'
+import { computed, ref } from 'vue'
+import type { IPresenter } from '@shared/presenter'
 
-export const useUpgradeStore = defineStore('upgrade', () => {
-  const upgradeP = usePresenter('upgradePresenter')
-  const devicePresenter = usePresenter('devicePresenter')
+type UpgradePresenter = IPresenter['upgradePresenter']
+type DevicePresenter = IPresenter['devicePresenter']
+
+type UpgradeStoreDeps = {
+  upgradePresenter?: UpgradePresenter
+  devicePresenter?: DevicePresenter
+  ipcRenderer?: typeof window.electron.ipcRenderer | null
+}
+
+export const createUpgradeStore = (deps: UpgradeStoreDeps = {}) => {
+  const upgradeP = deps.upgradePresenter ?? usePresenter('upgradePresenter')
+  const devicePresenter = deps.devicePresenter ?? usePresenter('devicePresenter')
+  const ipcRenderer = deps.ipcRenderer ?? window?.electron?.ipcRenderer ?? null
   const hasUpdate = ref(false)
   const updateInfo = ref<{
     version: string
@@ -31,6 +42,8 @@ export const useUpgradeStore = defineStore('upgrade', () => {
   const isSilent = ref(true) // 默认不弹出检查没有最新更新
   const platform = ref<string | null>(null)
   const isWindows = computed(() => platform.value === 'win32')
+  const isInitialized = ref(false)
+  let listenersBound = false
 
   const loadDeviceInfo = async () => {
     try {
@@ -41,7 +54,11 @@ export const useUpgradeStore = defineStore('upgrade', () => {
     }
   }
 
-  void loadDeviceInfo()
+  const initialize = async () => {
+    if (isInitialized.value) return
+    await loadDeviceInfo()
+    isInitialized.value = true
+  }
   // 检查更新
   const checkUpdate = async (silent = true) => {
     isSilent.value = silent
@@ -85,9 +102,18 @@ export const useUpgradeStore = defineStore('upgrade', () => {
 
   // 监听更新状态
   const setupUpdateListener = () => {
-    console.log('setupUpdateListener')
+    if (!ipcRenderer) return () => undefined
+    if (listenersBound) return () => undefined
+    listenersBound = true
+    const unsubscribers: Array<() => void> = []
+
+    const register = (event: string, handler: (...args: unknown[]) => void) => {
+      ipcRenderer.on(event, handler)
+      unsubscribers.push(() => ipcRenderer.removeListener(event, handler))
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    window.electron.ipcRenderer.on(UPDATE_EVENTS.STATUS_CHANGED, (_, event: any) => {
+    const handleStatusChanged = (_: unknown, event: any) => {
       const { status, type, info, error } = event
       console.log(UPDATE_EVENTS.STATUS_CHANGED, status, info, error)
       // 根据不同状态更新UI
@@ -162,11 +188,12 @@ export const useUpgradeStore = defineStore('upgrade', () => {
           console.error('Update error:', error)
           break
       }
-    })
+    }
+    register(UPDATE_EVENTS.STATUS_CHANGED, handleStatusChanged)
 
     // 监听更新进度
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    window.electron.ipcRenderer.on(UPDATE_EVENTS.PROGRESS, (_, progressData: any) => {
+    const handleProgress = (_: unknown, progressData: any) => {
       console.log(UPDATE_EVENTS.PROGRESS, progressData)
       if (progressData) {
         updateProgress.value = {
@@ -176,24 +203,32 @@ export const useUpgradeStore = defineStore('upgrade', () => {
           total: progressData.total || 0
         }
       }
-    })
+    }
+    register(UPDATE_EVENTS.PROGRESS, handleProgress)
 
     // 监听即将重启事件
-    window.electron.ipcRenderer.on(UPDATE_EVENTS.WILL_RESTART, () => {
+    const handleWillRestart = () => {
       console.log(UPDATE_EVENTS.WILL_RESTART)
       isRestarting.value = true
-    })
+    }
+    register(UPDATE_EVENTS.WILL_RESTART, handleWillRestart)
 
     // 监听更新错误
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    window.electron.ipcRenderer.on(UPDATE_EVENTS.ERROR, (_, errorData: any) => {
+    const handleUpdateError = (_: unknown, errorData: any) => {
       console.error(UPDATE_EVENTS.ERROR, errorData.error)
       hasUpdate.value = false
       updateInfo.value = null
       isDownloading.value = false
       isUpdating.value = false
       updateError.value = errorData.error || '更新出错'
-    })
+    }
+    register(UPDATE_EVENTS.ERROR, handleUpdateError)
+
+    return () => {
+      unsubscribers.forEach((unsubscribe) => unsubscribe())
+      listenersBound = false
+    }
   }
 
   // 打开更新弹窗
@@ -246,13 +281,12 @@ export const useUpgradeStore = defineStore('upgrade', () => {
       isUpdating.value = false
     }
   }
-  onMounted(() => {
-    setupUpdateListener()
-  })
   return {
+    initialize,
     isChecking,
     checkUpdate,
     startUpdate,
+    bindUpdateListeners: setupUpdateListener,
     openUpdateDialog,
     closeUpdateDialog,
     handleUpdate,
@@ -268,4 +302,6 @@ export const useUpgradeStore = defineStore('upgrade', () => {
     isSilent,
     isWindows
   }
-})
+}
+
+export const useUpgradeStore = defineStore('upgrade', () => createUpgradeStore())

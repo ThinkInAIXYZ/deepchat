@@ -10,6 +10,7 @@
 <script setup lang="ts">
 import { defineAsyncComponent } from 'vue'
 import { useChatStore } from '@/stores/chat'
+import { useLayoutStore } from '@/stores/layoutStore'
 import { watch, ref, nextTick } from 'vue'
 import { useTitle, useMediaQuery } from '@vueuse/core'
 import { useRoute } from 'vue-router'
@@ -17,6 +18,7 @@ const ChatLayout = defineAsyncComponent(() => import('@/components/ChatLayout.vu
 const NewThread = defineAsyncComponent(() => import('@/components/NewThread.vue'))
 const route = useRoute()
 const chatStore = useChatStore()
+const layoutStore = useLayoutStore()
 const title = useTitle()
 const chatViewRef = ref()
 
@@ -83,8 +85,8 @@ const handleScrollToMessage = (messageId: string) => {
     chatViewRef.value.messageList.scrollToMessage(messageId)
 
     // 在小屏幕模式下，滚动完成后延迟关闭导航
-    if (!isLargeScreen.value && chatStore.isMessageNavigationOpen) {
-      chatStore.isMessageNavigationOpen = false
+    if (!isLargeScreen.value && layoutStore.isMessageNavigationOpen) {
+      layoutStore.closeMessageNavigation()
     }
   }
 }
@@ -199,7 +201,7 @@ watch(
 )
 
 watch(
-  () => chatStore.isMessageNavigationOpen,
+  () => layoutStore.isMessageNavigationOpen,
   (isOpen) => {
     if (isOpen) {
       void chatStore.prefetchAllMessages()

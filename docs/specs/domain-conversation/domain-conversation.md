@@ -13,9 +13,9 @@ Conversation 是渲染端最核心的业务域，当前职责与事件分散在�
 - **Thread**：历史命名，仅用于兼容现有代码，不作为独立概念。
 
 ## 相关文档
-- `docs/specs/conversation/data-model.md`
-- `docs/specs/conversation/protocol.md`
-- `docs/specs/conversation/acp-runtime.md`
+- `docs/specs/domain-conversation/data-model.md`
+- `docs/specs/domain-conversation/protocol.md`
+- `docs/specs/domain-conversation/acp-runtime.md`
 
 ## 范围（In Scope）
 - 会话生命周期：创建、列出、激活、重命名、删除、置顶。

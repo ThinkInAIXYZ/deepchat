@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { usePresenter } from '@/composables/usePresenter'
-import { MCP_EVENTS } from '@/events'
+import { useMcpEventsAdapter } from '@/composables/mcp/useMcpEventsAdapter'
 import type {
   McpSamplingDecision,
   McpSamplingRequestPayload,
@@ -22,6 +22,7 @@ const SESSION_TIMEOUT = 30 * 60 * 1000
 
 export const useMcpSamplingStore = defineStore('mcpSampling', () => {
   const mcpPresenter = usePresenter('mcpPresenter')
+  const mcpEventsAdapter = useMcpEventsAdapter()
   const chatStore = useChatStore()
   const modelStore = useModelStore()
   const providerStore = useProviderStore()
@@ -34,6 +35,7 @@ export const useMcpSamplingStore = defineStore('mcpSampling', () => {
 
   // Session tracking for auto-approval
   const approvedServers = ref<Map<string, ApprovedServerInfo>>(new Map())
+  let unsubscribeSamplingEvents: Array<() => void> = []
 
   const requiresVision = computed(() => request.value?.requiresVision ?? false)
   const selectedModelSupportsVision = computed(() => selectedModel.value?.vision ?? false)
@@ -328,35 +330,38 @@ export const useMcpSamplingStore = defineStore('mcpSampling', () => {
     })
   }
 
-  const handleSamplingRequest = (_event: unknown, payload: McpSamplingRequestPayload) => {
+  const handleSamplingRequest = (payload: McpSamplingRequestPayload) => {
     openRequest(payload)
   }
 
-  const handleSamplingCancelled = (_event: unknown, payload: { requestId: string }) => {
+  const handleSamplingCancelled = (requestId: string) => {
+    if (request.value && requestId === request.value.requestId) {
+      clearRequest()
+    }
+  }
+
+  const handleSamplingDecision = (payload: McpSamplingDecision) => {
     if (request.value && payload.requestId === request.value.requestId) {
       clearRequest()
     }
   }
 
-  const handleSamplingDecision = (_event: unknown, payload: McpSamplingDecision) => {
-    if (request.value && payload.requestId === request.value.requestId) {
-      clearRequest()
-    }
+  const cleanupSamplingEvents = () => {
+    unsubscribeSamplingEvents.forEach((unsubscribe) => unsubscribe())
+    unsubscribeSamplingEvents = []
   }
 
   onMounted(() => {
-    window.electron.ipcRenderer.on(MCP_EVENTS.SAMPLING_REQUEST, handleSamplingRequest)
-    window.electron.ipcRenderer.on(MCP_EVENTS.SAMPLING_CANCELLED, handleSamplingCancelled)
-    window.electron.ipcRenderer.on(MCP_EVENTS.SAMPLING_DECISION, handleSamplingDecision)
+    cleanupSamplingEvents()
+    unsubscribeSamplingEvents = [
+      mcpEventsAdapter.subscribeSamplingRequest(handleSamplingRequest),
+      mcpEventsAdapter.subscribeSamplingCancelled(handleSamplingCancelled),
+      mcpEventsAdapter.subscribeSamplingDecision(handleSamplingDecision)
+    ]
   })
 
   onUnmounted(() => {
-    window.electron.ipcRenderer.removeListener(MCP_EVENTS.SAMPLING_REQUEST, handleSamplingRequest)
-    window.electron.ipcRenderer.removeListener(
-      MCP_EVENTS.SAMPLING_CANCELLED,
-      handleSamplingCancelled
-    )
-    window.electron.ipcRenderer.removeListener(MCP_EVENTS.SAMPLING_DECISION, handleSamplingDecision)
+    cleanupSamplingEvents()
   })
 
   return {

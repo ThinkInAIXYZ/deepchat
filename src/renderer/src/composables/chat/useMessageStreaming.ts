@@ -5,6 +5,7 @@ import { useConversationCore } from '@/composables/chat/useConversationCore'
 import { getCachedMessage, hasCachedMessage } from '@/lib/messageRuntimeCache'
 import { useI18n } from 'vue-i18n'
 import type { WorkingStatus } from '@/stores/chat'
+import { useNotificationService } from '@/composables/notifications/useNotificationService'
 
 /**
  * Stream message type definition
@@ -73,7 +74,7 @@ export function useMessageStreaming(
 ) {
   const conversationCore = useConversationCore()
   const windowP = usePresenter('windowPresenter')
-  const notificationP = usePresenter('notificationPresenter')
+  const notificationService = useNotificationService()
   const { t } = useI18n()
 
   /**
@@ -486,7 +487,7 @@ export function useMessageStreaming(
           }
 
           // 发送错误通知
-          await notificationP.showNotification({
+          await notificationService.showSystemNotification({
             id: `error-${msg.eventId}`,
             title: t('chat.notify.generationError'),
             body: errorMessage

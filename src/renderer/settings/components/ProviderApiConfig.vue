@@ -134,8 +134,8 @@ import { Input } from '@shadcn/components/ui/input'
 import { Button } from '@shadcn/components/ui/button'
 import { Icon } from '@iconify/vue'
 import GitHubCopilotOAuth from './GitHubCopilotOAuth.vue'
-import { usePresenter } from '@/composables/usePresenter'
 import { useModelCheckStore } from '@/stores/modelCheck'
+import { useProviderStore } from '@/stores/providerStore'
 import type { LLM_PROVIDER, KeyStatus } from '@shared/presenter'
 
 interface ProviderWebsites {
@@ -147,8 +147,8 @@ interface ProviderWebsites {
 }
 
 const { t } = useI18n()
-const llmProviderPresenter = usePresenter('llmproviderPresenter')
 const modelCheckStore = useModelCheckStore()
+const providerStore = useProviderStore()
 
 const props = defineProps<{
   provider: LLM_PROVIDER
@@ -212,19 +212,7 @@ const openModelCheckDialog = () => {
 }
 
 const getKeyStatus = async () => {
-  if (
-    ['ppio', 'openrouter', 'siliconcloud', 'silicon', 'deepseek', '302ai', 'cherryin'].includes(
-      props.provider.id
-    ) &&
-    props.provider.apiKey
-  ) {
-    try {
-      keyStatus.value = await llmProviderPresenter.getKeyStatus(props.provider.id)
-    } catch (error) {
-      console.error('Failed to get key status:', error)
-      keyStatus.value = null
-    }
-  }
+  keyStatus.value = await providerStore.getProviderKeyStatus(props.provider.id)
 }
 
 const refreshModels = async () => {
@@ -232,7 +220,7 @@ const refreshModels = async () => {
 
   isRefreshing.value = true
   try {
-    await llmProviderPresenter.refreshModels(props.provider.id)
+    await providerStore.refreshProviderModels(props.provider.id)
   } catch (error) {
     console.error('Failed to refresh models:', error)
   } finally {

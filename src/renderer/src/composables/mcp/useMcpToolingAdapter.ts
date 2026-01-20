@@ -1,11 +1,15 @@
 import { MCP_EVENTS } from '@/events'
 import type { MCPToolResponse } from '@shared/presenter'
 
-type ToolCallResultPayload = MCPToolResponse & {
+export type ToolCallResultPayload = MCPToolResponse & {
   function_name?: string
 }
 
-type ToolCallResultHandler = (payload: ToolCallResultPayload) => void
+export type ToolCallResultHandler = (payload: ToolCallResultPayload) => void
+
+export const resolveToolResultKey = (payload: ToolCallResultPayload): string | null => {
+  return payload.toolCallId || payload.function_name || null
+}
 
 /**
  * MCP tooling adapter for tool-call result subscriptions.

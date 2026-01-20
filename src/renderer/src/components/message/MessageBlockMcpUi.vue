@@ -47,13 +47,12 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
-import { nanoid } from 'nanoid'
 import { Icon } from '@iconify/vue'
 import { Badge } from '@shadcn/components/ui/badge'
 import { useI18n } from 'vue-i18n'
 import type { UIActionResult } from '@mcp-ui/client'
 import { AssistantMessageBlock } from '@shared/chat'
-import { usePresenter } from '@/composables/usePresenter'
+import { useMcpStore } from '@/stores/mcp'
 
 const props = defineProps<{
   block: AssistantMessageBlock
@@ -62,7 +61,7 @@ const props = defineProps<{
 }>()
 
 const { t } = useI18n()
-const mcpPresenter = usePresenter('mcpPresenter')
+const mcpStore = useMcpStore()
 
 const rendererRef = ref<HTMLElement | null>(null)
 const isLoading = ref(false)
@@ -108,15 +107,8 @@ const handleUIAction = async (action?: UIActionResult | null): Promise<unknown> 
     isLoading.value = true
     errorMessage.value = null
     try {
-      const args = JSON.stringify(action.payload?.params ?? {})
-      const response = await mcpPresenter.callTool({
-        id: action.messageId || nanoid(),
-        type: 'function',
-        function: {
-          name: toolName,
-          arguments: args
-        }
-      })
+      const params = (action.payload?.params ?? {}) as Record<string, unknown>
+      const response = await mcpStore.callToolWithParams(toolName, params, action.messageId)
       return response?.rawData ?? response
     } catch (error) {
       console.error('[MessageBlockMcpUi] Failed to execute MCP UI tool', error)

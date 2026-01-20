@@ -45,10 +45,10 @@
 目标：统一渲染端对 Conversation/Session 的理解，避免 thread/session 混用。
 影响范围：
 ```txt
-docs/specs/conversation/spec.md
-docs/specs/conversation/data-model.md
-docs/specs/conversation/protocol.md
-docs/specs/conversation/acp-runtime.md
+docs/specs/domain-conversation/domain-conversation.md
+docs/specs/domain-conversation/data-model.md
+docs/specs/domain-conversation/protocol.md
+docs/specs/domain-conversation/acp-runtime.md
 src/shared/types/presenters/thread.presenter.d.ts
 src/shared/types/presenters/session.presenter.d.ts
 ```
