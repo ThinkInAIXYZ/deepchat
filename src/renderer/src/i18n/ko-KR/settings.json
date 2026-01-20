@@ -1206,5 +1206,11 @@
     "title": "스킬 관리",
     "openFolder": "폴더 열기",
     "search": "검색 skill..."
+  },
+  "groups": {
+    "models": "모델",
+    "preferences": "선호",
+    "system": "시스템",
+    "tools": "도구"
   }
 }

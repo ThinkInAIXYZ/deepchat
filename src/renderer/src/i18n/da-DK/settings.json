@@ -1206,5 +1206,11 @@
       "title": "Eksterne værktøjer"
     },
     "title": "Færdighedsstyring"
+  },
+  "groups": {
+    "models": "model",
+    "preferences": "præference",
+    "system": "system",
+    "tools": "værktøj"
   }
 }

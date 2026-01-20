@@ -482,7 +482,10 @@ history.setEditor(editor)
 
 const conversationId = computed(() => chatStore.activeThread?.id ?? null)
 
-const rateLimit = useRateLimitStatus(computed(() => chatStore.chatConfig), t)
+const rateLimit = useRateLimitStatus(
+  computed(() => chatStore.chatConfig),
+  t
+)
 const drag = useDragAndDrop()
 const files = usePromptInputFiles(fileInput, emit, t)
 useMentionData(files.selectedFiles) // Setup mention data watchers
@@ -665,7 +668,6 @@ const emitSend = async () => {
     editor.commands.focus()
   })
 }
-
 
 const onKeydown = (e: KeyboardEvent) => {
   if (e.code === 'Enter' && !e.shiftKey) {

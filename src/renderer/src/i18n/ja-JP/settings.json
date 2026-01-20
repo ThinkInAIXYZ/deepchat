@@ -1206,5 +1206,11 @@
       "title": "外部ツール"
     },
     "title": "スキル管理"
+  },
+  "groups": {
+    "models": "モデル",
+    "preferences": "好み",
+    "system": "システム",
+    "tools": "工具"
   }
 }
