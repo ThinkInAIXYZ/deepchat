@@ -1,5 +1,6 @@
 import { approximateTokenSize } from 'tokenx'
 import type { AssistantMessageBlock, Message } from '@shared/chat'
+import { cloneMessageWithContent } from './messageUtils'
 
 function calculateToolCallBlockTokens(block: AssistantMessageBlock): number {
   if (block.type !== 'tool_call' || !block.tool_call?.response) {
@@ -11,26 +12,6 @@ function calculateToolCallBlockTokens(block: AssistantMessageBlock): number {
   const responseTokens = approximateTokenSize(block.tool_call.response || '')
 
   return nameTokens + paramsTokens + responseTokens
-}
-
-function cloneMessageWithContent(message: Message): Message {
-  const cloned: Message = { ...message }
-
-  if (Array.isArray(message.content)) {
-    cloned.content = message.content.map((block) => {
-      const clonedBlock: AssistantMessageBlock = { ...(block as AssistantMessageBlock) }
-      if (block.type === 'tool_call' && block.tool_call) {
-        clonedBlock.tool_call = { ...block.tool_call }
-      }
-      return clonedBlock
-    })
-  } else if (message.content && typeof message.content === 'object') {
-    cloned.content = JSON.parse(JSON.stringify(message.content))
-  } else {
-    cloned.content = message.content
-  }
-
-  return cloned
 }
 
 function removeToolCallsFromAssistant(message: Message): {

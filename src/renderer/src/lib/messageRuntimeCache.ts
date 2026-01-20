@@ -16,6 +16,8 @@ const MAX_CACHE_ENTRIES = 800
 const messageCache = new Map<string, Message>()
 const messageThreadMap = new Map<string, string>()
 const messageDomInfo = new Map<string, DomInfo>()
+// Reverse index for O(1) thread-to-messages lookup
+const threadToMessagesMap = new Map<string, Set<string>>()
 
 const touch = (messageId: string, message: Message) => {
   if (!messageCache.has(messageId)) return
@@ -27,9 +29,23 @@ const prune = () => {
   while (messageCache.size > MAX_CACHE_ENTRIES) {
     const oldestId = messageCache.keys().next().value as string | undefined
     if (!oldestId) return
+    
+    // Remove from all maps atomically
+    const threadId = messageThreadMap.get(oldestId)
     messageCache.delete(oldestId)
     messageThreadMap.delete(oldestId)
     messageDomInfo.delete(oldestId)
+    
+    // Update reverse index
+    if (threadId) {
+      const messageIds = threadToMessagesMap.get(threadId)
+      if (messageIds) {
+        messageIds.delete(oldestId)
+        if (messageIds.size === 0) {
+          threadToMessagesMap.delete(threadId)
+        }
+      }
+    }
   }
 }
 
@@ -47,6 +63,13 @@ export const hasCachedMessage = (messageId: string): boolean => {
 export const cacheMessage = (message: Message) => {
   messageCache.set(message.id, message)
   messageThreadMap.set(message.id, message.conversationId)
+  
+  // Update reverse index
+  if (!threadToMessagesMap.has(message.conversationId)) {
+    threadToMessagesMap.set(message.conversationId, new Set())
+  }
+  threadToMessagesMap.get(message.conversationId)!.add(message.id)
+  
   touch(message.id, message)
   prune()
 }
@@ -58,25 +81,43 @@ export const cacheMessages = (messages: Message[]) => {
 }
 
 export const deleteCachedMessage = (messageId: string) => {
+  const threadId = messageThreadMap.get(messageId)
+  
   messageCache.delete(messageId)
   messageThreadMap.delete(messageId)
   messageDomInfo.delete(messageId)
+  
+  // Update reverse index
+  if (threadId) {
+    const messageIds = threadToMessagesMap.get(threadId)
+    if (messageIds) {
+      messageIds.delete(messageId)
+      if (messageIds.size === 0) {
+        threadToMessagesMap.delete(threadId)
+      }
+    }
+  }
 }
 
 export const clearCachedMessagesForThread = (threadId: string) => {
-  for (const [messageId, conversationId] of messageThreadMap.entries()) {
-    if (conversationId === threadId) {
-      messageCache.delete(messageId)
-      messageThreadMap.delete(messageId)
-      messageDomInfo.delete(messageId)
-    }
+  // O(1) lookup instead of O(n) iteration
+  const messageIds = threadToMessagesMap.get(threadId)
+  if (!messageIds) return
+  
+  for (const messageId of messageIds) {
+    messageCache.delete(messageId)
+    messageThreadMap.delete(messageId)
+    messageDomInfo.delete(messageId)
   }
+  
+  threadToMessagesMap.delete(threadId)
 }
 
 export const clearMessageCache = () => {
   messageCache.clear()
   messageThreadMap.clear()
   messageDomInfo.clear()
+  threadToMessagesMap.clear()
 }
 
 export const setMessageDomInfo = (entries: Array<{ id: string; top: number; height: number }>) => {
