@@ -100,6 +100,13 @@ export class YoBrowserToolHandler {
     if (!browserTab) {
       throw new Error(tabId ? `Tab ${tabId} not found` : 'No active tab available')
     }
+    if (tabId) {
+      const resolvedTabId =
+        (browserTab as { tabId?: string; id?: string }).tabId ?? (browserTab as { id?: string }).id
+      if (resolvedTabId !== tabId) {
+        throw new Error(`Tab ${tabId} not found`)
+      }
+    }
 
     const response = await browserTab.sendCdpCommand(method, params)
     return JSON.stringify(response ?? {})
