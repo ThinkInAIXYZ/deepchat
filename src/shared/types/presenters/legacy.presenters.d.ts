@@ -217,12 +217,14 @@ export interface IYoBrowserPresenter {
     canGoForward: boolean
   }>
   getTabIdByViewId(viewId: number): Promise<string | null>
-  getToolDefinitions(supportsVision: boolean): Promise<MCPToolDefinition[]>
-  callTool(toolName: string, params: Record<string, unknown>): Promise<string>
   captureScreenshot(tabId: string, options?: ScreenshotOptions): Promise<string>
   startDownload(url: string, savePath?: string): Promise<DownloadInfo>
   clearSandboxData(): Promise<void>
   shutdown(): Promise<void>
+  readonly toolHandler: {
+    getToolDefinitions(): any[]
+    callTool(toolName: string, args: Record<string, unknown>): Promise<string>
+  }
 }
 
 export interface IWindowPresenter {

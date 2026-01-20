@@ -18,8 +18,8 @@ describe('ToolCallProcessor tool output offload', () => {
   const toolDefinition = {
     type: 'function',
     function: {
-      name: 'mock_tool',
-      description: 'mock tool',
+      name: 'execute_command',
+      description: 'execute command',
       parameters: {
         type: 'object',
         properties: {}
@@ -43,7 +43,7 @@ describe('ToolCallProcessor tool output offload', () => {
   })
 
   it('offloads large tool responses and returns stub content', async () => {
-    const longOutput = 'x'.repeat(3001)
+    const longOutput = 'x'.repeat(5001)
     const rawData = { content: longOutput } as MCPToolResponse
     const processor = new ToolCallProcessor({
       getAllToolDefinitions: async () => [toolDefinition],
@@ -57,7 +57,7 @@ describe('ToolCallProcessor tool output offload', () => {
     const events: any[] = []
     for await (const event of processor.process({
       eventId: 'event-1',
-      toolCalls: [{ id: 'tool-1', name: 'mock_tool', arguments: '{}' }],
+      toolCalls: [{ id: 'tool-1', name: 'execute_command', arguments: '{}' }],
       enabledMcpTools: [],
       conversationMessages,
       modelConfig,

@@ -73,7 +73,6 @@ export class ToolPresenter implements IToolPresenter {
       // Initialize or update AgentToolManager if workspace path changed
       if (!this.agentToolManager) {
         this.agentToolManager = new AgentToolManager({
-          yoBrowserPresenter: this.options.yoBrowserPresenter,
           agentWorkspacePath,
           configPresenter: this.options.configPresenter,
           commandPermissionHandler: this.options.commandPermissionHandler

@@ -1,4 +1,4 @@
-import type { IConfigPresenter, IYoBrowserPresenter, MCPToolDefinition } from '@shared/presenter'
+import type { IConfigPresenter, MCPToolDefinition } from '@shared/presenter'
 import { zodToJsonSchema } from 'zod-to-json-schema'
 import { z } from 'zod'
 import fs from 'fs'
@@ -52,14 +52,12 @@ export interface AgentToolCallResult {
 }
 
 interface AgentToolManagerOptions {
-  yoBrowserPresenter: IYoBrowserPresenter
   agentWorkspacePath: string | null
   configPresenter: IConfigPresenter
   commandPermissionHandler?: CommandPermissionService
 }
 
 export class AgentToolManager {
-  private readonly yoBrowserPresenter: IYoBrowserPresenter
   private agentWorkspacePath: string | null
   private fileSystemHandler: AgentFileSystemHandler | null = null
   private bashHandler: AgentBashHandler | null = null
@@ -232,7 +230,6 @@ export class AgentToolManager {
   }
 
   constructor(options: AgentToolManagerOptions) {
-    this.yoBrowserPresenter = options.yoBrowserPresenter
     this.agentWorkspacePath = options.agentWorkspacePath
     this.configPresenter = options.configPresenter
     this.commandPermissionHandler = options.commandPermissionHandler
@@ -275,17 +272,7 @@ export class AgentToolManager {
       this.agentWorkspacePath = effectiveWorkspacePath
     }
 
-    // 1. Yo Browser tools (agent mode only)
-    if (isAgentMode) {
-      try {
-        const yoDefs = await this.yoBrowserPresenter.getToolDefinitions(context.supportsVision)
-        defs.push(...yoDefs)
-      } catch (error) {
-        logger.warn('[AgentToolManager] Failed to load Yo Browser tool definitions', { error })
-      }
-    }
-
-    // 2. FileSystem tools (agent mode only)
+    // 1. FileSystem tools (agent mode only)
     if (isAgentMode && this.fileSystemHandler) {
       const fsDefs = this.getFileSystemToolDefinitions()
       defs.push(...fsDefs)
@@ -324,6 +311,15 @@ export class AgentToolManager {
       }
     }
 
+    // 5. YoBrowser CDP tools (agent mode only)
+    if (isAgentMode) {
+      try {
+        defs.push(...presenter.yoBrowserPresenter.toolHandler.getToolDefinitions())
+      } catch (error) {
+        logger.warn('[AgentToolManager] Failed to load YoBrowser tools', { error })
+      }
+    }
+
     return defs
   }
 
@@ -335,17 +331,6 @@ export class AgentToolManager {
     args: Record<string, unknown>,
     conversationId?: string
   ): Promise<AgentToolCallResult | string> {
-    // Route to Yo Browser tools
-    if (toolName.startsWith('browser_')) {
-      const response = await this.yoBrowserPresenter.callTool(
-        toolName,
-        args as Record<string, unknown>
-      )
-      return {
-        content: typeof response === 'string' ? response : JSON.stringify(response)
-      }
-    }
-
     // Route to FileSystem tools
     if (this.isFileSystemTool(toolName)) {
       if (!this.fileSystemHandler) {
@@ -362,6 +347,14 @@ export class AgentToolManager {
     // Route to DeepChat settings tools
     if (this.isChatSettingsTool(toolName)) {
       return await this.callChatSettingsTool(toolName, args, conversationId)
+    }
+
+    // Route to YoBrowser CDP tools
+    if (toolName.startsWith('yo_browser_')) {
+      const response = await presenter.yoBrowserPresenter.toolHandler.callTool(toolName, args)
+      return {
+        content: response
+      }
     }
 
     throw new Error(`Unknown Agent tool: ${toolName}`)

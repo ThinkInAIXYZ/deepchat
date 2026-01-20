@@ -196,7 +196,7 @@ graph TB
 
 - MCP 工具：保持原始命名
 - Agent FileSystem 工具：不加前缀（`read_file` 等）
-- Yo Browser：保留 `browser_` 前缀
+- Yo Browser：使用 `yo_browser_` 前缀
 
 ### 工具路由机制
 
