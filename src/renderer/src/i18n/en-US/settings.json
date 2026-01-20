@@ -511,6 +511,11 @@
         "placeholder": "voiceai-tts-v1-latest",
         "helper": "See the Voice.ai docs for supported models."
       },
+      "agentId": {
+        "label": "Voice Agent ID",
+        "placeholder": "Paste voice agent ID",
+        "helper": "Required for real-time voice calls."
+      },
       "temperature": {
         "label": "Temperature",
         "helper": "Controls randomness (0-2)."

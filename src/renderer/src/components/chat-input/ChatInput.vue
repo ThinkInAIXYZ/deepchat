@@ -20,6 +20,7 @@
         "
         :class="[
           'flex flex-col gap-2 relative',
+          isCallActive ? 'pointer-events-none opacity-60' : '',
           variant === 'newThread'
             ? 'bg-card rounded-lg border p-2 shadow-sm'
             : 'border-t px-4 py-3 gap-3'
@@ -371,13 +372,29 @@
               />
             </ScrollablePopover>
 
+            <!-- Voice Call Button -->
+            <Tooltip v-if="shouldShowVoiceCall">
+              <TooltipTrigger as-child>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  class="w-7 h-7 text-xs rounded-lg"
+                  :disabled="isStreaming || isCallActive"
+                  @click="startVoiceCall"
+                >
+                  <Icon icon="lucide:phone-call" class="w-4 h-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{{ t('chat.call.start') }}</TooltipContent>
+            </Tooltip>
+
             <!-- Send/Stop Button -->
             <Button
               v-if="!isStreaming || variant === 'newThread'"
               variant="default"
               size="icon"
               class="w-7 h-7 text-xs rounded-lg"
-              :disabled="disabledSend"
+              :disabled="disabledSend || isCallActive"
               @click="emitSend"
             >
               <Icon icon="lucide:arrow-up" class="w-4 h-4" />
@@ -413,6 +430,33 @@
         </div>
       </div>
     </TooltipProvider>
+
+    <Dialog v-model:open="callDialogOpen">
+      <DialogContent class="w-105 p-4">
+        <DialogHeader>
+          <DialogTitle>{{ t('chat.call.title') }}</DialogTitle>
+          <DialogDescription>
+            {{ t('chat.call.description') }}
+          </DialogDescription>
+        </DialogHeader>
+        <div class="w-full max-w-105">
+          <voice-agent-widget
+            v-if="callDialogOpen"
+            ref="voiceWidget"
+            :key="callWidgetKey"
+            :api-key="voiceAIApiKey"
+            :data-agent-id="voiceAIAgentId"
+            :data-start-text="t('chat.call.start')"
+            :data-stop-text="t('chat.call.stop')"
+            data-show-time="true"
+            data-show-mic-status="true"
+            data-width="386"
+            data-height="220"
+            class="w-full"
+          />
+        </div>
+      </DialogContent>
+    </Dialog>
   </div>
 </template>
 
@@ -428,6 +472,13 @@ import { ModelType } from '@shared/model'
 // === Components ===
 import { Button } from '@shadcn/components/ui/button'
 import { Badge } from '@shadcn/components/ui/badge'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle
+} from '@shadcn/components/ui/dialog'
 import {
   Tooltip,
   TooltipContent,
@@ -476,6 +527,7 @@ import { useWorkspaceMention } from './composables/useWorkspaceMention'
 import { useChatStore } from '@/stores/chat'
 import { useLanguageStore } from '@/stores/language'
 import { useThemeStore } from '@/stores/theme'
+import { useProviderStore } from '@/stores/providerStore'
 
 // === Mention System ===
 import { Mention } from '../editor/mention/mention'
@@ -552,6 +604,7 @@ const stopResize = () => {
 const chatStore = useChatStore()
 const langStore = useLanguageStore()
 const themeStore = useThemeStore()
+const providerStore = useProviderStore()
 
 // === Presenters ===
 const windowPresenter = usePresenter('windowPresenter')
@@ -569,7 +622,7 @@ const fakeCaretStyle = computed(() => ({
   transform: `translate(${caretPosition.value.x}px, ${caretPosition.value.y}px)`,
   height: `${caretPosition.value.height}px`
 }))
-const showFakeCaret = computed(() => caretVisible.value && !props.disabled)
+const showFakeCaret = computed(() => caretVisible.value && !props.disabled && !isCallActive.value)
 
 // === Composable Integrations ===
 
@@ -753,6 +806,27 @@ const activeModelSource = computed(() => {
   return config.activeModel.value
 })
 
+const voiceAIAgentId = ref('')
+const callDialogOpen = ref(false)
+const callWidgetKey = ref(0)
+const voiceWidget = ref<HTMLElement | null>(null)
+const voiceWidgetReady = ref(false)
+const voiceWidgetLoading = ref(false)
+const callWidgetPulse = ref(false)
+let callWidgetPulseTimer: ReturnType<typeof setTimeout> | null = null
+let voiceWidgetScriptPromise: Promise<void> | null = null
+const isCallActive = computed(() => callDialogOpen.value)
+const voiceAIApiKey = computed(() => {
+  return providerStore.providers.find((provider) => provider.id === 'voiceai')?.apiKey || ''
+})
+const shouldShowVoiceCall = computed(() => {
+  if (props.variant !== 'chat') return false
+  const providerId = activeModelSource.value?.providerId
+  return (
+    providerId === 'voiceai' && voiceAIAgentId.value.length > 0 && voiceAIApiKey.value.length > 0
+  )
+})
+
 const acpWorkdir = useAcpWorkdir({
   activeModel: activeModelSource,
   conversationId
@@ -781,6 +855,102 @@ setSkillActivationHandler(activateSkill)
 
 // Extract isStreaming first so we can pass it to useAcpMode
 const { disabledSend, isStreaming } = sendButtonState
+
+const loadVoiceAIConfig = async () => {
+  const config = await providerStore.getVoiceAIConfig()
+  voiceAIAgentId.value = config.agentId?.trim() || ''
+}
+
+const hasVoiceWidgetDefinition = () => {
+  return typeof window !== 'undefined' && !!window.customElements?.get('voice-agent-widget')
+}
+
+const ensureVoiceAIWidgetScript = () => {
+  if (hasVoiceWidgetDefinition()) {
+    voiceWidgetReady.value = true
+    voiceWidgetLoading.value = false
+    return Promise.resolve()
+  }
+  if (voiceWidgetScriptPromise) return voiceWidgetScriptPromise
+
+  voiceWidgetLoading.value = true
+  voiceWidgetScriptPromise = new Promise<void>((resolve) => {
+    let settled = false
+    const finalize = (ready: boolean) => {
+      if (settled) return
+      settled = true
+      voiceWidgetReady.value = ready
+      voiceWidgetLoading.value = false
+      if (!ready) {
+        voiceWidgetScriptPromise = null
+      }
+      resolve()
+    }
+
+    const handleLoad = () => {
+      finalize(hasVoiceWidgetDefinition())
+    }
+    const handleError = () => {
+      finalize(false)
+    }
+    const fallbackTimer = setTimeout(() => {
+      finalize(hasVoiceWidgetDefinition())
+    }, 4000)
+
+    const existing = document.getElementById('voice-ai-widget-script') as HTMLScriptElement | null
+    if (existing) {
+      existing.addEventListener(
+        'load',
+        () => {
+          clearTimeout(fallbackTimer)
+          handleLoad()
+        },
+        { once: true }
+      )
+      existing.addEventListener(
+        'error',
+        () => {
+          clearTimeout(fallbackTimer)
+          handleError()
+        },
+        { once: true }
+      )
+      return
+    }
+
+    const script = document.createElement('script')
+    script.id = 'voice-ai-widget-script'
+    script.src = 'https://voice.ai/app/voice-agent-widget.js'
+    script.async = true
+    script.addEventListener(
+      'load',
+      () => {
+        clearTimeout(fallbackTimer)
+        handleLoad()
+      },
+      { once: true }
+    )
+    script.addEventListener(
+      'error',
+      () => {
+        clearTimeout(fallbackTimer)
+        handleError()
+      },
+      { once: true }
+    )
+    document.head.appendChild(script)
+  })
+
+  return voiceWidgetScriptPromise
+}
+
+const startVoiceCall = async () => {
+  await loadVoiceAIConfig()
+  if (!voiceAIAgentId.value || !voiceAIApiKey.value) return
+  void ensureVoiceAIWidgetScript()
+  callWidgetKey.value += 1
+  callDialogOpen.value = true
+}
 
 const acpMode = useAcpMode({
   activeModel: activeModelSource,
@@ -857,6 +1027,10 @@ const handleModeSelect = async (mode: ChatMode) => {
 }
 
 const onKeydown = (e: KeyboardEvent) => {
+  if (isCallActive.value) {
+    e.preventDefault()
+    return
+  }
   if (e.code === 'Enter' && !e.shiftKey) {
     editorComposable.handleEditorEnter(e, disabledSend.value, emitSend)
     e.preventDefault()
@@ -978,6 +1152,11 @@ onMounted(async () => {
   editorComposable.setupEditorPasteHandler(files.handlePaste)
 
   nextTick(updateFakeCaretPosition)
+
+  if (activeModelSource.value?.providerId === 'voiceai') {
+    void ensureVoiceAIWidgetScript()
+    await loadVoiceAIConfig()
+  }
 })
 
 useEventListener(window, 'context-menu-ask-ai', handleContextMenuAskAI)
@@ -999,6 +1178,9 @@ onUnmounted(() => {
 
   if (caretAnimationFrame) {
     cancelAnimationFrame(caretAnimationFrame)
+  }
+  if (callWidgetPulseTimer) {
+    clearTimeout(callWidgetPulseTimer)
   }
 
   setWorkspaceMention(null)
@@ -1026,6 +1208,37 @@ watch(
     rateLimit.loadRateLimitStatus()
   }
 )
+
+watch(
+  () => activeModelSource.value?.providerId,
+  (providerId) => {
+    if (providerId === 'voiceai') {
+      void loadVoiceAIConfig()
+      void ensureVoiceAIWidgetScript()
+    }
+  },
+  { immediate: true }
+)
+
+watch(
+  () => providerStore.voiceAIConfig?.agentId,
+  (agentId) => {
+    voiceAIAgentId.value = agentId?.trim() || ''
+  },
+  { immediate: true }
+)
+
+watch(callDialogOpen, (open) => {
+  if (!editor.isDestroyed) {
+    editor.setEditable(!open)
+  }
+  if (open) {
+    void ensureVoiceAIWidgetScript()
+    callWidgetPulse.value = false
+  } else {
+    callWidgetKey.value += 1
+  }
+})
 
 watch(
   () => [chatMode.currentMode.value, settings.value.webSearch] as const,
@@ -1113,6 +1326,7 @@ defineExpose({
   55% {
     opacity: 0.9;
   }
+
   55%,
   100% {
     opacity: 0.35;

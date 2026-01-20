@@ -108,5 +108,4 @@ const audioSrc = computed(() => {
   }
   return `data:${resolvedAudioData.value.mimeType};base64,${raw}`
 })
-
 </script>

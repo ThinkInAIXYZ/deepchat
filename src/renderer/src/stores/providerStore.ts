@@ -11,6 +11,7 @@ type VoiceAIConfig = {
   language: string
   temperature: number
   topP: number
+  agentId: string
 }
 
 const PROVIDER_ORDER_KEY = 'providerOrder'
@@ -38,6 +39,7 @@ export const useProviderStore = defineStore('provider', () => {
   const providerOrder = ref<string[]>([])
   const providerTimestamps = ref<Record<string, number>>({})
   const listenersRegistered = ref(false)
+  const voiceAIConfig = ref<VoiceAIConfig | null>(null)
 
   const providers = computed<LLM_PROVIDER[]>(() => {
     const data = providersQuery.data.value as LLM_PROVIDER[] | undefined
@@ -349,13 +351,16 @@ export const useProviderStore = defineStore('provider', () => {
   }
 
   const getVoiceAIConfig = async (): Promise<VoiceAIConfig> => {
-    return {
+    const config = {
       audioFormat: (await configP.getSetting<string>('voiceAI_audioFormat')) || 'mp3',
       model: (await configP.getSetting<string>('voiceAI_model')) || 'voiceai-tts-v1-latest',
       language: (await configP.getSetting<string>('voiceAI_language')) || 'en',
       temperature: (await configP.getSetting<number>('voiceAI_temperature')) ?? 1,
-      topP: (await configP.getSetting<number>('voiceAI_topP')) ?? 0.8
+      topP: (await configP.getSetting<number>('voiceAI_topP')) ?? 0.8,
+      agentId: (await configP.getSetting<string>('voiceAI_agentId')) || ''
     }
+    voiceAIConfig.value = config
+    return config
   }
 
   const updateVoiceAIConfig = async (updates: Partial<VoiceAIConfig>) => {
@@ -374,6 +379,10 @@ export const useProviderStore = defineStore('provider', () => {
     if (updates.topP !== undefined) {
       await configP.setSetting('voiceAI_topP', updates.topP)
     }
+    if (updates.agentId !== undefined) {
+      await configP.setSetting('voiceAI_agentId', updates.agentId)
+    }
+    await getVoiceAIConfig()
   }
 
   const updateProviderTimestamp = async (providerId: string) => {
@@ -454,6 +463,7 @@ export const useProviderStore = defineStore('provider', () => {
     setAwsBedrockCredential,
     getAwsBedrockCredential,
     getVoiceAIConfig,
-    updateVoiceAIConfig
+    updateVoiceAIConfig,
+    voiceAIConfig
   }
 })

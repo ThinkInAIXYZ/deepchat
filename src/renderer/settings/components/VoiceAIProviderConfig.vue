@@ -39,12 +39,20 @@
           <Label :for="`${provider.id}-language`" class="text-xs font-medium">
             {{ t('settings.provider.voiceai.language.label') }}
           </Label>
-          <Input
-            :id="`${provider.id}-language`"
-            v-model="language"
-            :placeholder="t('settings.provider.voiceai.language.placeholder')"
-            :disabled="isHydrating"
-          />
+          <Select v-model="language" :disabled="isHydrating">
+            <SelectTrigger :id="`${provider.id}-language`">
+              <SelectValue :placeholder="t('settings.provider.voiceai.language.placeholder')" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem
+                v-for="option in languageOptions"
+                :key="option.value"
+                :value="option.value"
+              >
+                {{ option.label }}
+              </SelectItem>
+            </SelectContent>
+          </Select>
           <p class="text-xs text-muted-foreground">
             {{ t('settings.provider.voiceai.language.helper') }}
           </p>
@@ -62,6 +70,21 @@
           />
           <p class="text-xs text-muted-foreground">
             {{ t('settings.provider.voiceai.model.helper') }}
+          </p>
+        </div>
+
+        <div class="space-y-2 md:col-span-2">
+          <Label :for="`${provider.id}-agent-id`" class="text-xs font-medium">
+            {{ t('settings.provider.voiceai.agentId.label') }}
+          </Label>
+          <Input
+            :id="`${provider.id}-agent-id`"
+            v-model="agentId"
+            :placeholder="t('settings.provider.voiceai.agentId.placeholder')"
+            :disabled="isHydrating"
+          />
+          <p class="text-xs text-muted-foreground">
+            {{ t('settings.provider.voiceai.agentId.helper') }}
           </p>
         </div>
       </div>
@@ -144,7 +167,22 @@ const ttsModel = ref('voiceai-tts-v1-latest')
 const language = ref('en')
 const temperature = ref(1)
 const topP = ref(0.8)
+const agentId = ref('')
 const isHydrating = ref(true)
+
+const languageOptions = [
+  { value: 'en', label: 'English (en)' },
+  { value: 'ca', label: 'Catalan (ca)' },
+  { value: 'sv', label: 'Swedish (sv)' },
+  { value: 'es', label: 'Spanish (es)' },
+  { value: 'fr', label: 'French (fr)' },
+  { value: 'de', label: 'German (de)' },
+  { value: 'it', label: 'Italian (it)' },
+  { value: 'pt', label: 'Portuguese (pt)' },
+  { value: 'pl', label: 'Polish (pl)' },
+  { value: 'ru', label: 'Russian (ru)' },
+  { value: 'nl', label: 'Dutch (nl)' }
+]
 
 type VoiceAIConfigUpdates = {
   audioFormat?: string
@@ -152,6 +190,7 @@ type VoiceAIConfigUpdates = {
   language?: string
   temperature?: number
   topP?: number
+  agentId?: string
 }
 
 const persistUpdates = useDebounceFn(async (updates: VoiceAIConfigUpdates) => {
@@ -166,6 +205,7 @@ const loadConfig = async () => {
   language.value = config.language
   temperature.value = config.temperature
   topP.value = config.topP
+  agentId.value = config.agentId
   isHydrating.value = false
 }
 
@@ -186,6 +226,11 @@ watch(ttsModel, (value) => {
 watch(language, (value) => {
   if (isHydrating.value) return
   void persistUpdates({ language: value })
+})
+
+watch(agentId, (value) => {
+  if (isHydrating.value) return
+  void persistUpdates({ agentId: value })
 })
 
 const onTemperatureChange = (value: number[] | undefined) => {

@@ -412,6 +412,11 @@
         "placeholder": "voiceai-tts-v1-latest",
         "helper": "可选模型请查看 Voice.ai 文档。"
       },
+      "agentId": {
+        "label": "语音 Agent ID",
+        "placeholder": "粘贴 voice agent id",
+        "helper": "实时通话需要此 ID。"
+      },
       "temperature": {
         "label": "温度",
         "helper": "随机性参数（0-2）。"
