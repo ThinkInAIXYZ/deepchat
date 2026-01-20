@@ -40,10 +40,7 @@ export class YoBrowserToolHandler {
         case 'yo_browser_cdp_send': {
           const tabId = typeof args.tabId === 'string' ? args.tabId : undefined
           const method = typeof args.method === 'string' ? args.method : ''
-          const params =
-            typeof args.params === 'object' && args.params !== null
-              ? (args.params as Record<string, unknown>)
-              : {}
+          const params = this.normalizeCdpParams(args.params)
           return await this.handleCdpSend(tabId, method, params)
         }
         default:
@@ -106,5 +103,22 @@ export class YoBrowserToolHandler {
 
     const response = await browserTab.sendCdpCommand(method, params)
     return JSON.stringify(response ?? {})
+  }
+
+  private normalizeCdpParams(value: unknown): Record<string, unknown> {
+    if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+      return value as Record<string, unknown>
+    }
+    if (typeof value === 'string' && value.trim()) {
+      try {
+        const parsed = JSON.parse(value)
+        if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+          return parsed as Record<string, unknown>
+        }
+      } catch {
+        return {}
+      }
+    }
+    return {}
   }
 }
