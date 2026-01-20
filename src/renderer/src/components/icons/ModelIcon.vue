@@ -68,6 +68,7 @@ import zenmuxColorIcon from '@/assets/llm-icons/zenmux-color.svg?url'
 import burncloudColorIcon from '@/assets/llm-icons/burncloud-color.svg?url'
 import xiaomiColorIcon from '@/assets/llm-icons/xiaomi.png?url'
 import o3fanColorIcon from '@/assets/llm-icons/o3-fan.png?url'
+import voiceAiColorIcon from '@/assets/llm-icons/voiceai.svg?url'
 
 // 导入所有图标
 const icons = {
@@ -148,6 +149,7 @@ const icons = {
   zenmux: zenmuxColorIcon,
   burncloud: burncloudColorIcon,
   xiaomi: xiaomiColorIcon,
+  voiceai: voiceAiColorIcon,
   default: defaultIcon
 }
 

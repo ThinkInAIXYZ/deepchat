@@ -35,6 +35,7 @@ import { PoeProvider } from '../providers/poeProvider'
 import { JiekouProvider } from '../providers/jiekouProvider'
 import { ZenmuxProvider } from '../providers/zenmuxProvider'
 import { O3fanProvider } from '../providers/o3fanProvider'
+import { VoiceAIProvider } from '../providers/voiceAIProvider'
 import { RateLimitManager } from './rateLimitManager'
 import { StreamState } from '../types'
 import { AcpSessionPersistence } from '../../agentPresenter/acp'
@@ -86,6 +87,7 @@ export class ProviderInstanceManager {
       ['anthropic', AnthropicProvider],
       ['doubao', DoubaoProvider],
       ['openai', OpenAIProvider],
+      ['voiceai', VoiceAIProvider],
       ['openai-responses', OpenAIResponsesProvider],
       ['cherryin', CherryInProvider],
       ['lmstudio', LMStudioProvider],
@@ -118,6 +120,7 @@ export class ProviderInstanceManager {
       ['anthropic', AnthropicProvider],
       ['doubao', DoubaoProvider],
       ['openai', OpenAIProvider],
+      ['voiceai', VoiceAIProvider],
       ['openai-compatible', OpenAICompatibleProvider],
       ['openai-responses', OpenAIResponsesProvider],
       ['lmstudio', LMStudioProvider],
