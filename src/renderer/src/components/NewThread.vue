@@ -36,24 +36,23 @@
 import ChatInput from './chat-input/ChatInput.vue'
 import AcpAgentGrid from './homepage/AcpAgentGrid.vue'
 import AcpAgentConfigDialog from './homepage/AcpAgentConfigDialog.vue'
-import { useChatStore } from '@/stores/chat'
 import { useWorkspaceStore } from '@/stores/workspace'
+import { useChatStore } from '@/stores/chat'
 import { ref } from 'vue'
 import { usePresenter } from '@/composables/usePresenter'
 import type { UserMessageContent } from '@shared/chat'
-import type { ModelType } from '@shared/model'
+import { ModelType } from '@shared/model'
 import { useConversationNavigation } from '@/composables/useConversationNavigation'
+import { useModelSelection } from '@/composables/useModelSelection'
 
-const chatStore = useChatStore()
 const workspaceStore = useWorkspaceStore()
+const chatStore = useChatStore()
 const configPresenter = usePresenter('configPresenter')
 const { createAndNavigateToConversation } = useConversationNavigation()
+const { selectedModelInfo } = useModelSelection()
 
 // ChatInput ref
 const chatInputRef = ref<InstanceType<typeof ChatInput> | null>(null)
-
-// 选择的模型信息
-const selectedModelInfo = ref<{ id: string; providerId: string } | null>(null)
 
 // Agent 选择状态
 const selectedAgentId = ref<string | null>(null)
@@ -92,6 +91,18 @@ const handleModelUpdate = (
     id: model.id,
     providerId
   }
+  chatStore
+    .updateChatConfig({
+      modelId: model.id,
+      providerId: providerId
+    })
+    .then(() => {
+      console.log('updated chat config')
+    })
+  configPresenter.setSetting('preferredModel', {
+    modelId: model.id,
+    providerId: providerId
+  })
 }
 
 // Agent 卡片点击
