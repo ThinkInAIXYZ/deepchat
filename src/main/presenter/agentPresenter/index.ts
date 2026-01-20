@@ -174,8 +174,10 @@ export class AgentPresenter implements IAgentPresenter {
       .startStreamCompletion(agentId, assistantMessage.id, selectedVariantsMap)
       .catch((error) => {
         console.error('[AgentPresenter] Failed to start stream completion:', error)
+        const errorMessage = error instanceof Error ? error.message : String(error)
         eventBus.sendToRenderer(STREAM_EVENTS.ERROR, SendTarget.ALL_WINDOWS, {
-          eventId: assistantMessage.id
+          eventId: assistantMessage.id,
+          error: errorMessage
         })
       })
 
@@ -202,8 +204,10 @@ export class AgentPresenter implements IAgentPresenter {
       .continueStreamCompletion(agentId, messageId, selectedVariantsMap)
       .catch((error) => {
         console.error('[AgentPresenter] Failed to continue stream completion:', error)
+        const errorMessage = error instanceof Error ? error.message : String(error)
         eventBus.sendToRenderer(STREAM_EVENTS.ERROR, SendTarget.ALL_WINDOWS, {
-          eventId: assistantMessage.id
+          eventId: assistantMessage.id,
+          error: errorMessage
         })
       })
 
@@ -250,8 +254,10 @@ export class AgentPresenter implements IAgentPresenter {
       .startStreamCompletion(message.conversationId, messageId, selectedVariantsMap)
       .catch((error) => {
         console.error('[AgentPresenter] Failed to retry stream completion:', error)
+        const errorMessage = error instanceof Error ? error.message : String(error)
         eventBus.sendToRenderer(STREAM_EVENTS.ERROR, SendTarget.ALL_WINDOWS, {
-          eventId: assistantMessage.id
+          eventId: assistantMessage.id,
+          error: errorMessage
         })
       })
 

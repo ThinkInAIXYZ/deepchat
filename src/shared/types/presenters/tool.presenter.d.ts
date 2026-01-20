@@ -19,6 +19,7 @@ export interface IToolPresenter {
     chatMode?: 'agent' | 'acp agent'
     supportsVision?: boolean
     agentWorkspacePath?: string | null
+    conversationId?: string
   }): Promise<MCPToolDefinition[]>
 
   /**
@@ -26,4 +27,9 @@ export interface IToolPresenter {
    * @param request Tool call request
    */
   callTool(request: MCPToolCall): Promise<{ content: unknown; rawData: MCPToolResponse }>
+
+  /**
+   * Build system prompt section for tool-related behavior.
+   */
+  buildToolSystemPrompt(context: { conversationId?: string }): string
 }

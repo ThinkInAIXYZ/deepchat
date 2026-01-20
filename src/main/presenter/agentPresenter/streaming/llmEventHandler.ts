@@ -247,7 +247,14 @@ export class LLMEventHandler {
 
     const delta: Partial<LLMAgentEventData> = {}
     if (content) delta.content = content
-    if (reasoning_content) delta.reasoning_content = reasoning_content
+    if (reasoning_content) {
+      delta.reasoning_content = reasoning_content
+      // Get the current reasoning_time from the last reasoning_content block
+      const lastBlock = state.message.content[state.message.content.length - 1]
+      if (lastBlock?.type === 'reasoning_content' && lastBlock.reasoning_time) {
+        delta.reasoning_time = lastBlock.reasoning_time
+      }
+    }
     if (image_data) delta.image_data = image_data
     if (totalUsage) delta.totalUsage = totalUsage
 
@@ -261,6 +268,9 @@ export class LLMEventHandler {
       delta.tool_call_server_icons = tool_call_server_icons
       delta.tool_call_server_description = tool_call_server_description
       delta.tool_call_response_raw = tool_call_response_raw
+      if (msg.permission_request !== undefined) {
+        delta.permission_request = msg.permission_request
+      }
     }
 
     this.streamUpdateScheduler.enqueueDelta(
@@ -284,14 +294,25 @@ export class LLMEventHandler {
       }
 
       this.contentBufferHandler.cleanupContentBuffer(state)
+    }
 
-      await this.messageManager.handleMessageError(eventId, String(error))
+    // Flush stream buffers before persisting error to avoid stale snapshot overwrites.
+    await this.streamUpdateScheduler.flushAll(eventId, 'final')
+
+    await this.messageManager.handleMessageError(eventId, String(error))
+
+    if (state) {
       this.generatingMessages.delete(eventId)
       presenter.sessionManager.setStatus(state.conversationId, 'error')
       presenter.sessionManager.clearPendingPermission(state.conversationId)
+    } else {
+      const message = await this.messageManager.getMessage(eventId)
+      if (message) {
+        presenter.sessionManager.setStatus(message.conversationId, 'error')
+        presenter.sessionManager.clearPendingPermission(message.conversationId)
+      }
     }
 
-    await this.streamUpdateScheduler.flushAll(eventId, 'final')
     this.searchingMessages.delete(eventId)
     eventBus.sendToRenderer(STREAM_EVENTS.ERROR, SendTarget.ALL_WINDOWS, msg)
   }

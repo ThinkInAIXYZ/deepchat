@@ -71,6 +71,11 @@ export const WINDOW_EVENTS = {
   WINDOW_LEAVE_FULL_SCREEN: 'window:leave-full-screen'
 }
 
+// Settings related events
+export const SETTINGS_EVENTS = {
+  NAVIGATE: 'settings:navigate'
+}
+
 // ollama 相关事件
 export const OLLAMA_EVENTS = {
   PULL_MODEL_PROGRESS: 'ollama:pull-model-progress'

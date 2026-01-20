@@ -5,7 +5,6 @@ import { TAB_EVENTS, YO_BROWSER_EVENTS } from '@/events'
 import { BrowserTabInfo, BrowserContextSnapshot, ScreenshotOptions } from '@shared/types/browser'
 import {
   IYoBrowserPresenter,
-  MCPToolDefinition,
   DownloadInfo,
   IWindowPresenter,
   ITabPresenter
@@ -14,9 +13,8 @@ import { BrowserTab } from './BrowserTab'
 import { CDPManager } from './CDPManager'
 import { ScreenshotManager } from './ScreenshotManager'
 import { DownloadManager } from './DownloadManager'
-import { BrowserToolManager } from './BrowserToolManager'
-import { zodToJsonSchema } from 'zod-to-json-schema'
 import { clearYoBrowserSessionData } from './yoBrowserSession'
+import { YoBrowserToolHandler } from './YoBrowserToolHandler'
 
 export class YoBrowserPresenter implements IYoBrowserPresenter {
   private windowId: number | null = null
@@ -28,14 +26,14 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
   private readonly cdpManager = new CDPManager()
   private readonly screenshotManager = new ScreenshotManager(this.cdpManager)
   private readonly downloadManager = new DownloadManager()
-  private readonly browserToolManager: BrowserToolManager
   private readonly windowPresenter: IWindowPresenter
   private readonly tabPresenter: ITabPresenter
+  readonly toolHandler: YoBrowserToolHandler
 
   constructor(windowPresenter: IWindowPresenter, tabPresenter: ITabPresenter) {
     this.windowPresenter = windowPresenter
     this.tabPresenter = tabPresenter
-    this.browserToolManager = new BrowserToolManager(this)
+    this.toolHandler = new YoBrowserToolHandler(this)
     eventBus.on(TAB_EVENTS.CLOSED, (tabId: number) => this.handleTabClosed(tabId))
   }
 
@@ -168,10 +166,6 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     const tab = this.tabIdToBrowserTab.get(tabId)
     if (!tab || tab.contents.isDestroyed()) return null
     return this.toTabInfo(tab)
-  }
-
-  async getBrowserTab(tabId?: string): Promise<BrowserTab | null> {
-    return await this.resolveTab(tabId)
   }
 
   async goBack(tabId?: string): Promise<void> {
@@ -314,49 +308,6 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
 
   async getTabIdByViewId(viewId: number): Promise<string | null> {
     return this.viewIdToTabId.get(viewId) ?? null
-  }
-
-  async getToolDefinitions(_supportsVision: boolean): Promise<MCPToolDefinition[]> {
-    // Only return browser_* tools from BrowserToolManager
-    const browserTools = this.browserToolManager.getToolDefinitions()
-    const browserMcpTools: MCPToolDefinition[] = browserTools.map((tool) => {
-      const jsonSchema = zodToJsonSchema(tool.schema) as {
-        type?: string
-        properties?: Record<string, unknown>
-        required?: string[]
-        [key: string]: unknown
-      }
-      return {
-        type: 'function' as const,
-        function: {
-          name: tool.name,
-          description: tool.description,
-          parameters: {
-            type: 'object' as const,
-            properties: (jsonSchema.properties || {}) as Record<string, unknown>,
-            required: (jsonSchema.required || []) as string[]
-          }
-        },
-        server: {
-          name: 'yo-browser',
-          icons: '🌐',
-          description: 'DeepChat built-in Yo Browser'
-        }
-      }
-    })
-    return browserMcpTools
-  }
-
-  async callTool(toolName: string, params: Record<string, unknown>): Promise<string> {
-    const result = await this.browserToolManager.executeTool(toolName, params)
-    const textParts = result.content
-      .filter((c): c is { type: 'text'; text: string } => c.type === 'text')
-      .map((c) => c.text)
-    const textContent = textParts.join('\n\n')
-    if (result.isError) {
-      throw new Error(textContent || 'Tool execution failed')
-    }
-    return textContent
   }
 
   async captureScreenshot(tabId: string, options?: ScreenshotOptions): Promise<string> {
@@ -639,6 +590,10 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
 
   private emitTabClosed(tabId: string) {
     eventBus.sendToRenderer(YO_BROWSER_EVENTS.TAB_CLOSED, SendTarget.ALL_WINDOWS, tabId)
+  }
+
+  async getBrowserTab(tabId?: string): Promise<BrowserTab | null> {
+    return await this.resolveTab(tabId)
   }
 
   private emitTabActivated(tabId: string) {

@@ -64,6 +64,11 @@ export class BrowserTab {
     return await this.cdpManager.evaluateScript(session, script)
   }
 
+  async sendCdpCommand(method: string, params?: Record<string, unknown>): Promise<unknown> {
+    const session = await this.ensureSession()
+    return await session.sendCommand(method, params ?? {})
+  }
+
   async takeScreenshot(options?: ScreenshotOptions): Promise<string> {
     await this.ensureSession()
     this.ensureAvailable()

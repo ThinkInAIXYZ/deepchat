@@ -104,9 +104,10 @@ export async function preparePromptContent({
     | 'acp agent'
     | undefined
   const normalizedChatMode = storedChatMode === 'chat' ? 'agent' : storedChatMode
-  const chatMode: 'chat' | 'agent' | 'acp agent' =
+  const chatMode: 'agent' | 'acp agent' =
     conversation.settings.chatMode ?? normalizedChatMode ?? 'agent'
   const isAgentMode = chatMode === 'agent'
+  const isToolPromptMode = chatMode === 'agent' || chatMode === 'acp agent'
 
   const isImageGeneration = modelType === ModelType.ImageGeneration
 
@@ -118,6 +119,7 @@ export async function preparePromptContent({
 
   const { providerId, modelId } = conversation.settings
   const supportsVision = modelCapabilities.supportsVision(providerId, modelId)
+  const toolCallCenter = new ToolCallCenter(presenter.toolPresenter)
   let toolDefinitions: MCPToolDefinition[] = []
   let effectiveEnabledMcpTools = enabledMcpTools
 
@@ -127,13 +129,13 @@ export async function preparePromptContent({
   }
 
   if (!isImageGeneration) {
-    const toolCallCenter = new ToolCallCenter(presenter.toolPresenter)
     try {
       toolDefinitions = await toolCallCenter.getAllToolDefinitions({
         enabledMcpTools: effectiveEnabledMcpTools,
         chatMode,
         supportsVision,
-        agentWorkspacePath: conversation.settings.agentWorkspacePath?.trim() || null
+        agentWorkspacePath: conversation.settings.agentWorkspacePath?.trim() || null,
+        conversationId: conversation.id
       })
     } catch (error) {
       console.warn('AgentPresenter: Failed to load tool definitions', error)
@@ -157,6 +159,13 @@ export async function preparePromptContent({
     } catch (error) {
       console.warn('AgentPresenter: Failed to load Yo Browser context/tools', error)
     }
+  }
+
+  if (!isImageGeneration && isToolPromptMode && toolDefinitions.length > 0) {
+    const toolPrompt = toolCallCenter.buildToolSystemPrompt({
+      conversationId: conversation.id
+    })
+    finalSystemPromptWithExtras = appendPromptSection(finalSystemPromptWithExtras, toolPrompt)
   }
 
   if (!isImageGeneration && isAgentMode) {

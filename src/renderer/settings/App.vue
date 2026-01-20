@@ -78,6 +78,7 @@ import ModelCheckDialog from '@/components/settings/ModelCheckDialog.vue'
 import { Toaster } from '@shadcn/components/ui/sonner'
 import 'vue-sonner/style.css'
 import { useNotificationService } from '@/composables/notifications/useNotificationService'
+import { SETTINGS_EVENTS } from '@/events'
 import { useThemeStore } from '@/stores/theme'
 import { useProviderStore } from '@/stores/providerStore'
 import { useModelStore } from '@/stores/modelStore'
@@ -120,6 +121,22 @@ const { t, locale } = useI18n()
 const router = useRouter()
 const route = useRoute()
 const title = useTitle()
+
+const handleSettingsNavigate = async (
+  _event: unknown,
+  payload?: { routeName?: string; section?: string }
+) => {
+  const routeName = payload?.routeName
+  if (!routeName || !router.hasRoute(routeName)) return
+  await router.isReady()
+  if (router.currentRoute.value.name !== routeName) {
+    await router.push({ name: routeName })
+  }
+}
+
+if (window?.electron?.ipcRenderer) {
+  window.electron.ipcRenderer.on(SETTINGS_EVENTS.NAVIGATE, handleSettingsNavigate)
+}
 type SettingItem = {
   title: string
   name: string
@@ -319,6 +336,7 @@ onBeforeUnmount(() => {
     cleanupErrorNotifications()
     cleanupErrorNotifications = null
   }
+  window.electron.ipcRenderer.removeListener(SETTINGS_EVENTS.NAVIGATE, handleSettingsNavigate)
   cleanupMcpDeeplink()
 })
 </script>

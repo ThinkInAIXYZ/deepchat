@@ -8,6 +8,7 @@ export const STREAM_DB_FLUSH_INTERVAL_MS = 600
 interface PendingDelta {
   content?: string
   reasoning_content?: string
+  reasoning_time?: { start: number; end: number }
   tool_call?: LLMAgentEventData['tool_call']
   tool_call_id?: string
   tool_call_name?: string
@@ -17,6 +18,7 @@ interface PendingDelta {
   tool_call_server_icons?: string
   tool_call_server_description?: string
   tool_call_response_raw?: unknown
+  permission_request?: LLMAgentEventData['permission_request']
   maximum_tool_calls_reached?: boolean
   image_data?: { data: string; mimeType: string }
   rate_limit?: LLMAgentEventData['rate_limit']
@@ -140,6 +142,10 @@ export class StreamUpdateScheduler {
       state.pendingDelta.reasoning_content =
         (state.pendingDelta.reasoning_content ?? '') + delta.reasoning_content
     }
+    if (delta.reasoning_time) {
+      // Always use the latest reasoning_time (contains updated end time)
+      state.pendingDelta.reasoning_time = delta.reasoning_time
+    }
     if (delta.tool_call !== undefined) {
       state.pendingDelta.tool_call = delta.tool_call
     }
@@ -166,6 +172,9 @@ export class StreamUpdateScheduler {
     }
     if (delta.tool_call_response_raw !== undefined) {
       state.pendingDelta.tool_call_response_raw = delta.tool_call_response_raw
+    }
+    if (delta.permission_request !== undefined) {
+      state.pendingDelta.permission_request = delta.permission_request
     }
     if (delta.maximum_tool_calls_reached !== undefined) {
       state.pendingDelta.maximum_tool_calls_reached = delta.maximum_tool_calls_reached
@@ -241,6 +250,7 @@ export class StreamUpdateScheduler {
         seq: state.seq,
         content: delta.content,
         reasoning_content: delta.reasoning_content,
+        reasoning_time: delta.reasoning_time,
         tool_call: delta.tool_call,
         tool_call_id: delta.tool_call_id,
         tool_call_name: delta.tool_call_name,
@@ -250,6 +260,7 @@ export class StreamUpdateScheduler {
         tool_call_server_icons: delta.tool_call_server_icons,
         tool_call_server_description: delta.tool_call_server_description,
         tool_call_response_raw: delta.tool_call_response_raw,
+        permission_request: delta.permission_request,
         maximum_tool_calls_reached: delta.maximum_tool_calls_reached,
         image_data: delta.image_data,
         rate_limit: delta.rate_limit,
@@ -367,6 +378,7 @@ export class StreamUpdateScheduler {
         seq: state.seq,
         content: delta.content,
         reasoning_content: delta.reasoning_content,
+        reasoning_time: delta.reasoning_time,
         tool_call: delta.tool_call,
         tool_call_id: delta.tool_call_id,
         tool_call_name: delta.tool_call_name,
@@ -376,6 +388,7 @@ export class StreamUpdateScheduler {
         tool_call_server_icons: delta.tool_call_server_icons,
         tool_call_server_description: delta.tool_call_server_description,
         tool_call_response_raw: delta.tool_call_response_raw,
+        permission_request: delta.permission_request,
         maximum_tool_calls_reached: delta.maximum_tool_calls_reached,
         image_data: delta.image_data,
         rate_limit: delta.rate_limit,

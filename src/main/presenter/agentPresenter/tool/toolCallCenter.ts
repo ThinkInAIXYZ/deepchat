@@ -10,6 +10,7 @@ export type ToolCallContext = {
   chatMode?: 'agent' | 'acp agent'
   supportsVision?: boolean
   agentWorkspacePath?: string | null
+  conversationId?: string
 }
 
 export class ToolCallCenter {
@@ -21,5 +22,9 @@ export class ToolCallCenter {
 
   async callTool(request: MCPToolCall): Promise<{ content: unknown; rawData: MCPToolResponse }> {
     return this.toolPresenter.callTool(request)
+  }
+
+  buildToolSystemPrompt(context: { conversationId?: string }): string {
+    return this.toolPresenter.buildToolSystemPrompt(context)
   }
 }

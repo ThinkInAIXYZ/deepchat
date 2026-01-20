@@ -48,18 +48,8 @@
                 {{ paramsCopyText }}
               </button>
             </div>
-            <div class="min-h-0 max-h-40 overflow-auto">
-              <CodeBlockNode
-                :node="{
-                  type: 'code_block',
-                  language: 'json',
-                  code: paramsText,
-                  raw: paramsText
-                }"
-                :is-dark="themeStore.isDark"
-                :show-header="false"
-                class="rounded-md border bg-background text-xs p-2 min-h-0"
-              />
+            <div class="rounded-md border bg-background text-xs p-2 min-h-0 max-h-20 overflow-auto">
+              {{ paramsText }}
             </div>
           </div>
 

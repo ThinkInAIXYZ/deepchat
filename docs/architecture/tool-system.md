@@ -29,7 +29,7 @@ graph TB
 
         AgentToolMgr[AgentToolManager]
         FsHandler[AgentFileSystemHandler]
-        Browser[Yo Browser Tools]
+        YoBrowser[Yo Browser CDP]
     end
 
     subgraph "外部服务"
@@ -48,10 +48,10 @@ graph TB
     McpClient --> MCPServers
 
     AgentToolMgr --> FsHandler
-    AgentToolMgr --> Browser
+    AgentToolMgr --> YoBrowser
 
     FsHandler --> Files
-    Browser --> Web
+    YoBrowser --> Web
 
     classDef router fill:#e3f2fd
     classDef mcp fill:#fff3e0
@@ -60,7 +60,7 @@ graph TB
 
     class ToolP,Mapper router
     class McpP,ServerMgr,ToolMgr,McpClient mcp
-    class AgentToolMgr,FsHandler,Browser agent
+    class AgentToolMgr,FsHandler,YoBrowser agent
     class MCPServers,Files,Web external
 ```
 
@@ -622,23 +622,20 @@ class AgentFileSystemHandler {
 3. **边界检查**：防止 `../` 越界访问
 4. **正则验证**：`grep_search` 和 `text_replace` 使用 `validateRegexPattern` 防 ReDoS
 
-### Browser 工具
+### YoBrowser CDP 工具
 
-```typescript
-// 通过 Yo Browser Presenter 调用
-async callBrowserTool(toolName: string, args: any): Promise<string> {
-  switch (toolName) {
-    case 'browser_navigate':
-      return await this.yoBrowserPresenter.navigate(args.url)
-    case 'browser_scrape':
-      return await this.yoBrowserPresenter.scrape(args.url)
-    case 'browser_screenshot':
-      return await this.yoBrowserPresenter.screenshot(args.url)
-    default:
-      throw new Error(`未知的 Browser 工具: ${toolName}`)
-  }
-}
-```
+YoBrowser 提供基于 Chrome DevTools Protocol (CDP) 的最小工具集，在 agent 模式下直接可用。
+
+**可用工具**：
+- `yo_browser_tab_list` - 列出所有浏览器 tabs
+- `yo_browser_tab_new` - 创建新 tab
+- `yo_browser_tab_activate` - 激活指定 tab
+- `yo_browser_tab_close` - 关闭 tab
+- `yo_browser_cdp_send` - 发送 CDP 命令
+
+**安全约束**：
+- `local://` URL 禁止 CDP attach（在 `BrowserTab.ensureSession()` 中检查）
+- 所有 CDP 命令通过 `webContents.debugger.sendCommand()` 执行
 
 ## 🔐 权限系统
 

@@ -6,6 +6,7 @@ import type {
   MCPToolCall,
   MCPToolResponse
 } from '@shared/presenter'
+import { resolveToolOffloadTemplatePath } from '../sessionPresenter/sessionPaths'
 import { ToolMapper } from './toolMapper'
 import { AgentToolManager, type AgentToolCallResult } from '../agentPresenter/acp'
 import { jsonrepair } from 'jsonrepair'
@@ -17,8 +18,10 @@ export interface IToolPresenter {
     chatMode?: 'chat' | 'agent' | 'acp agent'
     supportsVision?: boolean
     agentWorkspacePath?: string | null
+    conversationId?: string
   }): Promise<MCPToolDefinition[]>
   callTool(request: MCPToolCall): Promise<{ content: unknown; rawData: MCPToolResponse }>
+  buildToolSystemPrompt(context: { conversationId?: string }): string
 }
 
 interface ToolPresenterOptions {
@@ -51,6 +54,7 @@ export class ToolPresenter implements IToolPresenter {
     chatMode?: 'chat' | 'agent' | 'acp agent'
     supportsVision?: boolean
     agentWorkspacePath?: string | null
+    conversationId?: string
   }): Promise<MCPToolDefinition[]> {
     const defs: MCPToolDefinition[] = []
     this.mapper.clear()
@@ -69,7 +73,6 @@ export class ToolPresenter implements IToolPresenter {
       // Initialize or update AgentToolManager if workspace path changed
       if (!this.agentToolManager) {
         this.agentToolManager = new AgentToolManager({
-          yoBrowserPresenter: this.options.yoBrowserPresenter,
           agentWorkspacePath,
           configPresenter: this.options.configPresenter,
           commandPermissionHandler: this.options.commandPermissionHandler
@@ -80,7 +83,8 @@ export class ToolPresenter implements IToolPresenter {
         const agentDefs = await this.agentToolManager.getAllToolDefinitions({
           chatMode,
           supportsVision,
-          agentWorkspacePath
+          agentWorkspacePath,
+          conversationId: context.conversationId
         })
         const filteredAgentDefs = agentDefs.filter((tool) => {
           if (!this.mapper.hasTool(tool.function.name)) return true
@@ -157,5 +161,18 @@ export class ToolPresenter implements IToolPresenter {
       return { content: response }
     }
     return response
+  }
+
+  buildToolSystemPrompt(context: { conversationId?: string }): string {
+    const conversationId = context.conversationId || '<conversationId>'
+    const offloadPath =
+      resolveToolOffloadTemplatePath(conversationId) ??
+      '~/.deepchat/sessions/<conversationId>/tool_<toolCallId>.offload'
+
+    return [
+      'Tool outputs may be offloaded when large.',
+      `When you see an offload stub, read the full output from: ${offloadPath}`,
+      'Use file tools to read that path. Access is limited to the current conversation session.'
+    ].join('\n')
   }
 }

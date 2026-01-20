@@ -1,22 +1,3 @@
-/**
- * Session 架构说明：
- *
- * SessionPresenter (src/presenter/sessionPresenter/)
- *   - 职责：会话的 CRUD 操作（数据库层）
- *   - 主要方法：getConversation, createSession, updateConversationSettings 等
- *   - 使用场景：当需要从数据库读取会话数据时
- *
- * SessionManager (src/presenter/agentPresenter/session/)
- *   - 职责：单次对话的 runtime 状态管理（内存层）
- *   - 包含 SessionContext:
- *     - resolved: 解析后的配置 (chatMode, modelId, agentWorkspacePath)
- *     - runtime: 运行时状态 (toolCallCount, userStopRequested, status)
- *   - 使用场景：在 agent loop 期间管理对话状态
- *
- * 访问方式：
- *   - 通过全局 presenter: presenter.sessionManager
- *   - SessionContext.resolved.modelId 获取模型 ID
- */
 import { ChatMessage, IConfigPresenter, LLMAgentEvent, MCPToolCall } from '@shared/presenter'
 import { presenter } from '@/presenter'
 import { eventBus, SendTarget } from '@/eventbus'
@@ -64,7 +45,8 @@ export class AgentLoopHandler {
           enabledMcpTools: context.enabledMcpTools,
           chatMode,
           supportsVision: this.currentSupportsVision,
-          agentWorkspacePath
+          agentWorkspacePath,
+          conversationId: context.conversationId
         })
 
         return await this.filterToolsForChatMode(toolDefs, chatMode, modelId)
@@ -290,7 +272,8 @@ export class AgentLoopHandler {
             enabledMcpTools,
             chatMode,
             supportsVision: this.currentSupportsVision,
-            agentWorkspacePath
+            agentWorkspacePath,
+            conversationId
           })
           const filteredToolDefs = await this.filterToolsForChatMode(toolDefs, chatMode, modelId)
 

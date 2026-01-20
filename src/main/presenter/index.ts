@@ -50,7 +50,11 @@ import { CONFIG_EVENTS, WINDOW_EVENTS } from '@/events'
 import { KnowledgePresenter } from './knowledgePresenter'
 import { WorkspacePresenter } from './workspacePresenter'
 import { ToolPresenter } from './toolPresenter'
-import { CommandPermissionService, FilePermissionService } from './permission'
+import {
+  CommandPermissionService,
+  FilePermissionService,
+  SettingsPermissionService
+} from './permission'
 import { AgentPresenter } from './agentPresenter'
 import { SessionManager } from './agentPresenter/session/sessionManager'
 import { SearchPresenter } from './searchPresenter'
@@ -106,6 +110,7 @@ export class Presenter implements IPresenter {
   skillPresenter: ISkillPresenter
   skillSyncPresenter: ISkillSyncPresenter
   filePermissionService: FilePermissionService
+  settingsPermissionService: SettingsPermissionService
 
   private constructor(lifecycleManager: ILifecycleManager) {
     // Store lifecycle manager reference for component access
@@ -121,6 +126,7 @@ export class Presenter implements IPresenter {
     this.llmproviderPresenter = new LLMProviderPresenter(this.configPresenter, this.sqlitePresenter)
     const commandPermissionHandler = new CommandPermissionService()
     this.filePermissionService = new FilePermissionService()
+    this.settingsPermissionService = new SettingsPermissionService()
     const messageManager = new MessageManager(this.sqlitePresenter)
     this.devicePresenter = new DevicePresenter()
     this.searchPresenter = new SearchPresenter({

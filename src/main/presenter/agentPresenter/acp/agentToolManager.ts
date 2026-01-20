@@ -1,4 +1,4 @@
-import type { IConfigPresenter, IYoBrowserPresenter, MCPToolDefinition } from '@shared/presenter'
+import type { IConfigPresenter, MCPToolDefinition } from '@shared/presenter'
 import { zodToJsonSchema } from 'zod-to-json-schema'
 import { z } from 'zod'
 import fs from 'fs'
@@ -9,6 +9,12 @@ import { presenter } from '@/presenter'
 import { AgentFileSystemHandler } from './agentFileSystemHandler'
 import { AgentBashHandler } from './agentBashHandler'
 import { SkillTools } from '../../skillPresenter/skillTools'
+import {
+  ChatSettingsToolHandler,
+  buildChatSettingsToolDefinitions,
+  CHAT_SETTINGS_SKILL_NAME,
+  CHAT_SETTINGS_TOOL_NAMES
+} from './chatSettingsTools'
 
 // Consider moving to a shared handlers location in future refactoring
 import {
@@ -40,28 +46,42 @@ export interface AgentToolCallResult {
         baseCommand?: string
       }
       conversationId?: string
+      rememberable?: boolean
     }
   }
 }
 
 interface AgentToolManagerOptions {
-  yoBrowserPresenter: IYoBrowserPresenter
   agentWorkspacePath: string | null
   configPresenter: IConfigPresenter
   commandPermissionHandler?: CommandPermissionService
 }
 
 export class AgentToolManager {
-  private readonly yoBrowserPresenter: IYoBrowserPresenter
   private agentWorkspacePath: string | null
   private fileSystemHandler: AgentFileSystemHandler | null = null
   private bashHandler: AgentBashHandler | null = null
   private readonly commandPermissionHandler?: CommandPermissionService
   private readonly configPresenter: IConfigPresenter
   private skillTools: SkillTools | null = null
+  private chatSettingsHandler: ChatSettingsToolHandler | null = null
   private readonly fileSystemSchemas = {
     read_file: z.object({
       paths: z.array(z.string()).min(1),
+      offset: z
+        .number()
+        .int()
+        .min(0)
+        .optional()
+        .describe('Starting character offset (0-based), applied to each file independently'),
+      limit: z
+        .number()
+        .int()
+        .positive()
+        .optional()
+        .describe(
+          'Maximum characters to read per file. Large files are auto-truncated if not specified'
+        ),
       base_directory: z
         .string()
         .optional()
@@ -167,6 +187,13 @@ export class AgentToolManager {
     }),
     directory_tree: z.object({
       path: z.string(),
+      depth: z
+        .number()
+        .int()
+        .min(0)
+        .max(3)
+        .default(1)
+        .describe('Directory depth (root=0). Maximum is 3.'),
       base_directory: z.string().optional().describe('Base directory for resolving relative paths.')
     }),
     get_file_info: z.object({
@@ -203,7 +230,6 @@ export class AgentToolManager {
   }
 
   constructor(options: AgentToolManagerOptions) {
-    this.yoBrowserPresenter = options.yoBrowserPresenter
     this.agentWorkspacePath = options.agentWorkspacePath
     this.configPresenter = options.configPresenter
     this.commandPermissionHandler = options.commandPermissionHandler
@@ -223,6 +249,7 @@ export class AgentToolManager {
     chatMode: 'chat' | 'agent' | 'acp agent'
     supportsVision: boolean
     agentWorkspacePath: string | null
+    conversationId?: string
   }): Promise<MCPToolDefinition[]> {
     const defs: MCPToolDefinition[] = []
     const isAgentMode = context.chatMode === 'agent'
@@ -245,17 +272,7 @@ export class AgentToolManager {
       this.agentWorkspacePath = effectiveWorkspacePath
     }
 
-    // 1. Yo Browser tools (agent mode only)
-    if (isAgentMode) {
-      try {
-        const yoDefs = await this.yoBrowserPresenter.getToolDefinitions(context.supportsVision)
-        defs.push(...yoDefs)
-      } catch (error) {
-        logger.warn('[AgentToolManager] Failed to load Yo Browser tool definitions', { error })
-      }
-    }
-
-    // 2. FileSystem tools (agent mode only)
+    // 1. FileSystem tools (agent mode only)
     if (isAgentMode && this.fileSystemHandler) {
       const fsDefs = this.getFileSystemToolDefinitions()
       defs.push(...fsDefs)
@@ -265,6 +282,42 @@ export class AgentToolManager {
     if (isAgentMode && this.isSkillsEnabled()) {
       const skillDefs = this.getSkillToolDefinitions()
       defs.push(...skillDefs)
+    }
+
+    // 4. DeepChat settings tools (agent mode only, skill gated)
+    if (isAgentMode && this.isSkillsEnabled() && context.conversationId) {
+      try {
+        const activeSkills = await presenter.skillPresenter.getActiveSkills(context.conversationId)
+        if (activeSkills.includes(CHAT_SETTINGS_SKILL_NAME)) {
+          const allowedTools = await presenter.skillPresenter.getActiveSkillsAllowedTools(
+            context.conversationId
+          )
+          const requiredSettingsTools = Object.values(CHAT_SETTINGS_TOOL_NAMES)
+          const nonOpenSettingsTools = requiredSettingsTools.filter(
+            (tool) => tool !== CHAT_SETTINGS_TOOL_NAMES.open
+          )
+          const hasNonOpenSettingsTool = nonOpenSettingsTools.some((tool) =>
+            allowedTools.includes(tool)
+          )
+          const effectiveAllowedTools = hasNonOpenSettingsTool
+            ? allowedTools
+            : Array.from(new Set([...allowedTools, ...requiredSettingsTools]))
+
+          const settingsDefs = buildChatSettingsToolDefinitions(effectiveAllowedTools)
+          defs.push(...settingsDefs)
+        }
+      } catch (error) {
+        logger.warn('[AgentToolManager] Failed to load DeepChat settings tools', { error })
+      }
+    }
+
+    // 5. YoBrowser CDP tools (agent mode only)
+    if (isAgentMode) {
+      try {
+        defs.push(...presenter.yoBrowserPresenter.toolHandler.getToolDefinitions())
+      } catch (error) {
+        logger.warn('[AgentToolManager] Failed to load YoBrowser tools', { error })
+      }
     }
 
     return defs
@@ -278,17 +331,6 @@ export class AgentToolManager {
     args: Record<string, unknown>,
     conversationId?: string
   ): Promise<AgentToolCallResult | string> {
-    // Route to Yo Browser tools
-    if (toolName.startsWith('browser_')) {
-      const response = await this.yoBrowserPresenter.callTool(
-        toolName,
-        args as Record<string, unknown>
-      )
-      return {
-        content: typeof response === 'string' ? response : JSON.stringify(response)
-      }
-    }
-
     // Route to FileSystem tools
     if (this.isFileSystemTool(toolName)) {
       if (!this.fileSystemHandler) {
@@ -300,6 +342,19 @@ export class AgentToolManager {
     // Route to Skill tools
     if (this.isSkillTool(toolName)) {
       return await this.callSkillTool(toolName, args, conversationId)
+    }
+
+    // Route to DeepChat settings tools
+    if (this.isChatSettingsTool(toolName)) {
+      return await this.callChatSettingsTool(toolName, args, conversationId)
+    }
+
+    // Route to YoBrowser CDP tools
+    if (toolName.startsWith('yo_browser_')) {
+      const response = await presenter.yoBrowserPresenter.toolHandler.callTool(toolName, args)
+      return {
+        content: response
+      }
     }
 
     throw new Error(`Unknown Agent tool: ${toolName}`)
@@ -342,7 +397,7 @@ export class AgentToolManager {
         function: {
           name: 'read_file',
           description:
-            "Read the contents of one or more files. When invoked from a skill context with relative paths, provide base_directory as the skill's root directory to ensure correct path resolution. Use absolute paths for files outside the skill or workspace.",
+            "Read the contents of one or more files. Supports pagination via offset/limit for large files (auto-truncated at 4500 chars if not specified). When invoked from a skill context with relative paths, provide base_directory as the skill's root directory.",
           parameters: zodToJsonSchema(schemas.read_file) as {
             type: string
             properties: Record<string, unknown>
@@ -467,7 +522,7 @@ export class AgentToolManager {
         function: {
           name: 'directory_tree',
           description:
-            'Get a recursive directory tree as JSON. Provide base_directory for skill-relative paths.',
+            'Get a directory tree as JSON with optional depth (root=0, max=3). Provide base_directory for skill-relative paths.',
           parameters: zodToJsonSchema(schemas.directory_tree) as {
             type: string
             properties: Record<string, unknown>
@@ -613,7 +668,7 @@ export class AgentToolManager {
     const workspaceRoot =
       dynamicWorkdir ?? this.agentWorkspacePath ?? this.getDefaultAgentWorkspacePath()
     const allowedDirectories = this.buildAllowedDirectories(workspaceRoot, conversationId)
-    const fileSystemHandler = new AgentFileSystemHandler(allowedDirectories)
+    const fileSystemHandler = new AgentFileSystemHandler(allowedDirectories, { conversationId })
 
     try {
       switch (toolName) {
@@ -822,11 +877,31 @@ export class AgentToolManager {
     return this.configPresenter.getSkillsEnabled()
   }
 
+  private async isChatSettingsSkillActive(conversationId?: string): Promise<boolean> {
+    if (!conversationId || !this.isSkillsEnabled()) {
+      return false
+    }
+    const activeSkills = await presenter.skillPresenter.getActiveSkills(conversationId)
+    return activeSkills.includes(CHAT_SETTINGS_SKILL_NAME)
+  }
+
   private getSkillTools(): SkillTools {
     if (!this.skillTools) {
       this.skillTools = new SkillTools(presenter.skillPresenter)
     }
     return this.skillTools
+  }
+
+  private getChatSettingsHandler(): ChatSettingsToolHandler {
+    if (!this.chatSettingsHandler) {
+      this.chatSettingsHandler = new ChatSettingsToolHandler({
+        configPresenter: this.configPresenter,
+        skillPresenter: presenter.skillPresenter,
+        sessionPresenter: presenter.sessionPresenter,
+        windowPresenter: presenter.windowPresenter
+      })
+    }
+    return this.chatSettingsHandler
   }
 
   private getSkillToolDefinitions(): MCPToolDefinition[] {
@@ -875,6 +950,16 @@ export class AgentToolManager {
     return toolName === 'skill_list' || toolName === 'skill_control'
   }
 
+  private isChatSettingsTool(toolName: string): boolean {
+    return (
+      toolName === CHAT_SETTINGS_TOOL_NAMES.toggle ||
+      toolName === CHAT_SETTINGS_TOOL_NAMES.setLanguage ||
+      toolName === CHAT_SETTINGS_TOOL_NAMES.setTheme ||
+      toolName === CHAT_SETTINGS_TOOL_NAMES.setFontSize ||
+      toolName === CHAT_SETTINGS_TOOL_NAMES.open
+    )
+  }
+
   private async callSkillTool(
     toolName: string,
     args: Record<string, unknown>,
@@ -910,5 +995,58 @@ export class AgentToolManager {
     }
 
     throw new Error(`Unknown skill tool: ${toolName}`)
+  }
+
+  private async callChatSettingsTool(
+    toolName: string,
+    args: Record<string, unknown>,
+    conversationId?: string
+  ): Promise<AgentToolCallResult> {
+    const handler = this.getChatSettingsHandler()
+    if (toolName === CHAT_SETTINGS_TOOL_NAMES.toggle) {
+      const result = await handler.toggle(args, conversationId)
+      return { content: JSON.stringify(result) }
+    }
+    if (toolName === CHAT_SETTINGS_TOOL_NAMES.setLanguage) {
+      const result = await handler.setLanguage(args, conversationId)
+      return { content: JSON.stringify(result) }
+    }
+    if (toolName === CHAT_SETTINGS_TOOL_NAMES.setTheme) {
+      const result = await handler.setTheme(args, conversationId)
+      return { content: JSON.stringify(result) }
+    }
+    if (toolName === CHAT_SETTINGS_TOOL_NAMES.setFontSize) {
+      const result = await handler.setFontSize(args, conversationId)
+      return { content: JSON.stringify(result) }
+    }
+    if (toolName === CHAT_SETTINGS_TOOL_NAMES.open) {
+      const shouldCheckPermission = await this.isChatSettingsSkillActive(conversationId)
+      if (shouldCheckPermission && conversationId) {
+        const approved =
+          presenter.settingsPermissionService?.consumeApproval(conversationId, toolName) ?? false
+        if (!approved) {
+          const responseContent = 'components.messageBlockPermissionRequest.description.write'
+          return {
+            content: responseContent,
+            rawData: {
+              content: responseContent,
+              isError: false,
+              requiresPermission: true,
+              permissionRequest: {
+                toolName,
+                serverName: CHAT_SETTINGS_SKILL_NAME,
+                permissionType: 'write',
+                description: 'Opening DeepChat settings requires approval.',
+                conversationId,
+                rememberable: false
+              }
+            }
+          }
+        }
+      }
+      const result = await handler.open(args, conversationId)
+      return { content: JSON.stringify(result) }
+    }
+    throw new Error(`Unknown DeepChat settings tool: ${toolName}`)
   }
 }
