@@ -118,10 +118,6 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     return this.providerInstanceManager.getProviderById(id)
   }
 
-  isAgentProvider(providerId: string): boolean {
-    return this.providerInstanceManager.isAgentProvider(providerId)
-  }
-
   async setCurrentProvider(providerId: string): Promise<void> {
     // 如果有正在生成的流，先停止它们
     await this.stopAllStreams()
