@@ -11,11 +11,7 @@
     <div class="font-bold">DeepChat Agent</div>
     <div class="w-full flex-1 flex flex-col items-center py-8 gap-3">
       <!-- 简化输入框 -->
-      <ChatInput
-        ref="chatInputRef"
-        variant="newThread"
-        @send="handleSend"
-      />
+      <ChatInput ref="chatInputRef" variant="newThread" @send="handleSend" />
       <!-- ACP Agent 网格 -->
       <AcpAgentGrid :selected-agent-id="selectedAgentId" @agent-click="handleAgentClick" />
     </div>
