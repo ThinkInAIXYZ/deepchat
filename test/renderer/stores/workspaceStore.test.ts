@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { reactive, ref } from 'vue'
-import { WORKSPACE_EVENTS } from '@/events'
+import type { WorkspaceAdapter } from '@/composables/workspace/useWorkspaceAdapter'
 import { createWorkspaceStore } from '@/stores/workspace'
 
 vi.mock('@/stores/chat', () => ({
@@ -21,51 +21,39 @@ describe('createWorkspaceStore', () => {
       chatConfig: { agentWorkspacePath: '/tmp/workspace', acpWorkdirMap: {} }
     })
     const chatMode = { currentMode: ref('agent') }
-    const workspacePresenter = {
+    const planCleanup = vi.fn()
+    const terminalCleanup = vi.fn()
+    const filesCleanup = vi.fn()
+
+    const workspaceAdapter: WorkspaceAdapter = {
       readDirectory: vi.fn(),
       registerWorkspace: vi.fn(),
       registerWorkdir: vi.fn(),
       expandDirectory: vi.fn(),
       getPlanEntries: vi.fn(),
-      terminateCommand: vi.fn()
-    }
-    const ipcRenderer = {
-      on: vi.fn(),
-      removeListener: vi.fn()
+      terminateCommand: vi.fn(),
+      searchFiles: vi.fn(),
+      onPlanUpdated: vi.fn().mockReturnValue(planCleanup),
+      onTerminalOutput: vi.fn().mockReturnValue(terminalCleanup),
+      onFilesChanged: vi.fn().mockReturnValue(filesCleanup)
     }
 
     const store = createWorkspaceStore({
       chatStore,
       chatMode,
-      workspacePresenter: workspacePresenter as any,
-      ipcRenderer,
+      workspaceAdapter,
       enableWatchers: false
     })
 
     const cleanup = store.bindEventListeners()
-    expect(ipcRenderer.on).toHaveBeenCalledWith(WORKSPACE_EVENTS.PLAN_UPDATED, expect.any(Function))
-    expect(ipcRenderer.on).toHaveBeenCalledWith(
-      WORKSPACE_EVENTS.TERMINAL_OUTPUT,
-      expect.any(Function)
-    )
-    expect(ipcRenderer.on).toHaveBeenCalledWith(
-      WORKSPACE_EVENTS.FILES_CHANGED,
-      expect.any(Function)
-    )
+    expect(workspaceAdapter.onPlanUpdated).toHaveBeenCalledWith(expect.any(Function))
+    expect(workspaceAdapter.onTerminalOutput).toHaveBeenCalledWith(expect.any(Function))
+    expect(workspaceAdapter.onFilesChanged).toHaveBeenCalledWith(expect.any(Function))
 
     cleanup()
-    expect(ipcRenderer.removeListener).toHaveBeenCalledWith(
-      WORKSPACE_EVENTS.PLAN_UPDATED,
-      expect.any(Function)
-    )
-    expect(ipcRenderer.removeListener).toHaveBeenCalledWith(
-      WORKSPACE_EVENTS.TERMINAL_OUTPUT,
-      expect.any(Function)
-    )
-    expect(ipcRenderer.removeListener).toHaveBeenCalledWith(
-      WORKSPACE_EVENTS.FILES_CHANGED,
-      expect.any(Function)
-    )
+    expect(planCleanup).toHaveBeenCalled()
+    expect(terminalCleanup).toHaveBeenCalled()
+    expect(filesCleanup).toHaveBeenCalled()
   })
 
   it('ignores stale file tree refreshes after conversation switch', async () => {
@@ -81,20 +69,23 @@ describe('createWorkspaceStore', () => {
           resolveRead = resolve
         })
     )
-    const workspacePresenter = {
+    const workspaceAdapter: WorkspaceAdapter = {
       readDirectory,
       registerWorkspace: vi.fn().mockResolvedValue(undefined),
       registerWorkdir: vi.fn().mockResolvedValue(undefined),
       expandDirectory: vi.fn(),
       getPlanEntries: vi.fn(),
-      terminateCommand: vi.fn()
+      terminateCommand: vi.fn(),
+      searchFiles: vi.fn(),
+      onPlanUpdated: vi.fn().mockReturnValue(() => undefined),
+      onTerminalOutput: vi.fn().mockReturnValue(() => undefined),
+      onFilesChanged: vi.fn().mockReturnValue(() => undefined)
     }
 
     const store = createWorkspaceStore({
       chatStore,
       chatMode,
-      workspacePresenter: workspacePresenter as any,
-      ipcRenderer: null,
+      workspaceAdapter,
       enableWatchers: false
     })
 

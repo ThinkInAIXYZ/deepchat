@@ -233,12 +233,12 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@shadcn/components/ui/popover'
 import ModelChooser from '@/components/ModelChooser.vue'
 import ModelIcon from '@/components/icons/ModelIcon.vue'
-import { useMcpSamplingStore } from '@/stores/mcpSampling'
+import { useMcpSamplingStoreLifecycle } from '@/composables/useMcpSamplingStoreLifecycle'
 import { useI18n } from 'vue-i18n'
 import { computed, ref } from 'vue'
 import { Icon } from '@iconify/vue'
 
-const store = useMcpSamplingStore()
+const store = useMcpSamplingStoreLifecycle()
 const { t } = useI18n()
 const modelSelectOpen = ref(false)
 

@@ -1,8 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import {
-  createErrorQueue,
-  type ErrorNotification
-} from '@/composables/notifications/useNotificationService'
+import { createErrorQueue } from '@/composables/notifications/useNotificationToasts'
+import type { ErrorNotification } from '@/composables/notifications/types'
 
 describe('createErrorQueue', () => {
   it('queues errors and preserves order', () => {

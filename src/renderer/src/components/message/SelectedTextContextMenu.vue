@@ -7,10 +7,10 @@ import { onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useChatStore } from '@/stores/chat'
 import type { ParentSelection } from '@shared/presenter'
-import { useNotificationService } from '@/composables/notifications/useNotificationService'
+import { useNotificationAdapter } from '@/composables/notifications/useNotificationAdapter'
 
 const chatStore = useChatStore()
-const notificationService = useNotificationService()
+const notificationAdapter = useNotificationAdapter()
 const { t } = useI18n()
 
 // 处理翻译事件
@@ -134,7 +134,7 @@ const handleNewThreadFromSelection = async (text: string, x?: number, y?: number
     })
   } catch (error) {
     console.error('Failed to create child thread from selection:', error)
-    await notificationService.showSystemNotification({
+    await notificationAdapter.showSystemNotification({
       id: `child-thread-${messageId}`,
       title: t('common.error.createChatFailed'),
       body: t('common.error.operationFailed')

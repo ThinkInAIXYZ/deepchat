@@ -1,22 +1,33 @@
 import { describe, it, expect, vi } from 'vitest'
-import { WINDOW_EVENTS } from '@/events'
+import type { WindowAdapter } from '@/composables/window/useWindowAdapter'
 import { createWindowStore } from '@/stores/windowStore'
 
 describe('createWindowStore', () => {
   it('initializes platform state and binds window events', async () => {
-    const devicePresenter = {
+    const onMaximizedCleanup = vi.fn()
+    const onUnmaximizedCleanup = vi.fn()
+    const onEnterFullscreenCleanup = vi.fn()
+    const onLeaveFullscreenCleanup = vi.fn()
+    const onFocusCleanup = vi.fn()
+    const onBlurCleanup = vi.fn()
+
+    const windowAdapter: WindowAdapter = {
+      previewFile: vi.fn(),
+      openSettingsTab: vi.fn(),
       getDeviceInfo: vi.fn().mockResolvedValue({
         platform: 'darwin',
         osVersion: '14.0.0',
         osVersionMetadata: []
-      })
-    }
-    const ipcRenderer = {
-      on: vi.fn(),
-      removeListener: vi.fn()
+      }),
+      onWindowMaximized: vi.fn().mockReturnValue(onMaximizedCleanup),
+      onWindowUnmaximized: vi.fn().mockReturnValue(onUnmaximizedCleanup),
+      onWindowEnterFullScreen: vi.fn().mockReturnValue(onEnterFullscreenCleanup),
+      onWindowLeaveFullScreen: vi.fn().mockReturnValue(onLeaveFullscreenCleanup),
+      onAppFocus: vi.fn().mockReturnValue(onFocusCleanup),
+      onAppBlur: vi.fn().mockReturnValue(onBlurCleanup)
     }
 
-    const store = createWindowStore({ devicePresenter, ipcRenderer })
+    const store = createWindowStore({ windowAdapter })
     await store.initialize()
 
     expect(store.isMacOS.value).toBe(true)
@@ -24,29 +35,19 @@ describe('createWindowStore', () => {
     expect(store.isWinMacOS.value).toBe(true)
 
     const cleanup = store.bindEventListeners()
-    expect(ipcRenderer.on).toHaveBeenCalledWith(
-      WINDOW_EVENTS.WINDOW_MAXIMIZED,
-      expect.any(Function)
-    )
-    expect(ipcRenderer.on).toHaveBeenCalledWith(
-      WINDOW_EVENTS.WINDOW_UNMAXIMIZED,
-      expect.any(Function)
-    )
-    expect(ipcRenderer.on).toHaveBeenCalledWith(
-      WINDOW_EVENTS.WINDOW_ENTER_FULL_SCREEN,
-      expect.any(Function)
-    )
-    expect(ipcRenderer.on).toHaveBeenCalledWith(
-      WINDOW_EVENTS.WINDOW_LEAVE_FULL_SCREEN,
-      expect.any(Function)
-    )
-    expect(ipcRenderer.on).toHaveBeenCalledWith(WINDOW_EVENTS.APP_FOCUS, expect.any(Function))
-    expect(ipcRenderer.on).toHaveBeenCalledWith(WINDOW_EVENTS.APP_BLUR, expect.any(Function))
+    expect(windowAdapter.onWindowMaximized).toHaveBeenCalledWith(expect.any(Function))
+    expect(windowAdapter.onWindowUnmaximized).toHaveBeenCalledWith(expect.any(Function))
+    expect(windowAdapter.onWindowEnterFullScreen).toHaveBeenCalledWith(expect.any(Function))
+    expect(windowAdapter.onWindowLeaveFullScreen).toHaveBeenCalledWith(expect.any(Function))
+    expect(windowAdapter.onAppFocus).toHaveBeenCalledWith(expect.any(Function))
+    expect(windowAdapter.onAppBlur).toHaveBeenCalledWith(expect.any(Function))
 
     cleanup()
-    expect(ipcRenderer.removeListener).toHaveBeenCalledWith(
-      WINDOW_EVENTS.WINDOW_MAXIMIZED,
-      expect.any(Function)
-    )
+    expect(onMaximizedCleanup).toHaveBeenCalled()
+    expect(onUnmaximizedCleanup).toHaveBeenCalled()
+    expect(onEnterFullscreenCleanup).toHaveBeenCalled()
+    expect(onLeaveFullscreenCleanup).toHaveBeenCalled()
+    expect(onFocusCleanup).toHaveBeenCalled()
+    expect(onBlurCleanup).toHaveBeenCalled()
   })
 })

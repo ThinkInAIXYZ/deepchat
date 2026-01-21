@@ -60,14 +60,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle
 } from '@shadcn/components/ui/alert-dialog'
-import { useDialogStore } from '@/stores/dialog'
+import { useDialogStoreLifecycle } from '@/composables/useDialogStoreLifecycle'
 import { Icon } from '@iconify/vue'
 import { DialogIcon } from '@shared/presenter'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
-const dialog = useDialogStore()
+const dialog = useDialogStoreLifecycle()
 const dialogRequest = computed(() => dialog.dialogRequest)
 const showDialog = computed(() => dialog.showDialog)
 const timeoutSeconds = computed(() => {

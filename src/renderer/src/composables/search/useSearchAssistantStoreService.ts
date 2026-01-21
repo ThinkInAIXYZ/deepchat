@@ -1,0 +1,169 @@
+import { computed, ref, toRaw, watch } from 'vue'
+import { storeToRefs } from 'pinia'
+import { ModelType } from '@shared/model'
+import type { RENDERER_MODEL_META } from '@shared/presenter'
+import { useModelStore } from '@/stores/modelStore'
+import { useSearchAssistantAdapter } from '@/composables/search/useSearchAssistantAdapter'
+
+export const useSearchAssistantStoreService = () => {
+  const adapter = useSearchAssistantAdapter()
+  const modelStore = useModelStore()
+  const { enabledModels } = storeToRefs(modelStore)
+
+  const modelRef = ref<RENDERER_MODEL_META | null>(null)
+  const providerRef = ref<string>('')
+  const priorities = [
+    'gpt-3.5',
+    'qwen2.5-32b',
+    'qwen2.5-14b',
+    'qwen2.5-7b',
+    '14b',
+    '7b',
+    '32b',
+    'deepseek-chat'
+  ]
+
+  const searchAssistantModel = computed(() => modelRef.value)
+  const searchAssistantProvider = computed(() => providerRef.value)
+  const isProviderAllowed = (providerId?: string) => providerId !== 'acp'
+  const isModelEnabledForProvider = (model: RENDERER_MODEL_META, providerId: string) =>
+    enabledModels.value.some(
+      (provider) =>
+        provider.providerId === providerId &&
+        provider.models.some((enabledModel) => enabledModel.id === model.id)
+    )
+
+  const findPriorityModel = (): { model: RENDERER_MODEL_META; providerId: string } | null => {
+    if (!enabledModels.value || enabledModels.value.length === 0) {
+      return null
+    }
+
+    for (const keyword of priorities) {
+      for (const providerModels of enabledModels.value) {
+        if (!isProviderAllowed(providerModels.providerId)) {
+          continue
+        }
+        for (const model of providerModels.models) {
+          if (
+            model.id.toLowerCase().includes(keyword.toLowerCase()) ||
+            model.name.toLowerCase().includes(keyword.toLowerCase())
+          ) {
+            return {
+              model,
+              providerId: providerModels.providerId
+            }
+          }
+        }
+      }
+    }
+
+    const fallback = enabledModels.value
+      .filter((provider) => isProviderAllowed(provider.providerId))
+      .flatMap((provider) =>
+        provider.models.map((model) => ({ ...model, providerId: provider.providerId }))
+      )
+      .find((model) => model.type === ModelType.Chat || model.type === ModelType.ImageGeneration)
+
+    if (fallback) {
+      return {
+        model: fallback,
+        providerId: fallback.providerId
+      }
+    }
+
+    return null
+  }
+
+  const setSearchAssistantModel = async (model: RENDERER_MODEL_META, providerId: string) => {
+    if (!isProviderAllowed(providerId)) {
+      await initOrUpdateSearchAssistantModel()
+      return
+    }
+    const rawModel = toRaw(model)
+    modelRef.value = rawModel
+    providerRef.value = providerId
+
+    await adapter.setSetting('searchAssistantModel', {
+      model: rawModel,
+      providerId
+    })
+
+    await adapter.setSearchAssistantModel(rawModel, providerId)
+  }
+
+  const initOrUpdateSearchAssistantModel = async () => {
+    let savedModel = await adapter.getSetting<{ model: RENDERER_MODEL_META; providerId: string }>(
+      'searchAssistantModel'
+    )
+    savedModel = toRaw(savedModel)
+    const hasEnabledModels = enabledModels.value.length > 0
+    const usableSavedModel =
+      savedModel &&
+      isProviderAllowed(savedModel.providerId) &&
+      (!hasEnabledModels || isModelEnabledForProvider(savedModel.model, savedModel.providerId))
+        ? savedModel
+        : null
+
+    if (usableSavedModel) {
+      modelRef.value = usableSavedModel.model
+      providerRef.value = usableSavedModel.providerId
+      await adapter.setSearchAssistantModel(usableSavedModel.model, usableSavedModel.providerId)
+      return
+    }
+
+    const priorityEntry = findPriorityModel()
+    if (priorityEntry) {
+      await setSearchAssistantModel(
+        {
+          ...priorityEntry.model,
+          providerId: priorityEntry.providerId,
+          enabled: true,
+          type: priorityEntry.model.type || ModelType.Chat,
+          vision: priorityEntry.model.vision || false,
+          functionCall: priorityEntry.model.functionCall || false,
+          reasoning: priorityEntry.model.reasoning || false
+        },
+        priorityEntry.providerId
+      )
+    }
+  }
+
+  const checkAndUpdateSearchAssistantModel = async () => {
+    const currentModel = modelRef.value
+    if (!currentModel) {
+      await initOrUpdateSearchAssistantModel()
+      return
+    }
+
+    const resolvedProviderId = providerRef.value || currentModel.providerId || ''
+    if (!isProviderAllowed(resolvedProviderId)) {
+      await initOrUpdateSearchAssistantModel()
+      return
+    }
+
+    const stillAvailable =
+      resolvedProviderId !== '' && isModelEnabledForProvider(currentModel, resolvedProviderId)
+
+    if (!stillAvailable) {
+      await initOrUpdateSearchAssistantModel()
+    }
+  }
+
+  watch(
+    () => enabledModels.value,
+    () => {
+      void checkAndUpdateSearchAssistantModel()
+    },
+    { deep: true }
+  )
+
+  return {
+    searchAssistantModel,
+    searchAssistantProvider,
+    setSearchAssistantModel,
+    initOrUpdateSearchAssistantModel,
+    checkAndUpdateSearchAssistantModel,
+    findPriorityModel,
+    priorities
+  }
+}

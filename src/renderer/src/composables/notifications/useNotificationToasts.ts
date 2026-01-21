@@ -1,17 +1,9 @@
-import { usePresenter } from '@/composables/usePresenter'
 import { useToast } from '@/components/use-toast'
-import { NOTIFICATION_EVENTS } from '@/events'
-
-export type ErrorNotification = {
-  id: string
-  title: string
-  message: string
-  type: string
-}
+import type { ErrorNotification } from './types'
 
 type DisplayError = (error: ErrorNotification, onClose: () => void) => () => void
 
-type ErrorQueueOptions = {
+export type ErrorQueueOptions = {
   maxQueueSize?: number
   autoCloseMs?: number
 }
@@ -86,22 +78,10 @@ export const createErrorQueue = (display: DisplayError, options?: ErrorQueueOpti
   }
 }
 
-type NotificationService = {
-  showErrorToast: (error: ErrorNotification) => void
-  bindErrorNotifications: () => () => void
-  showSystemNotification: (payload: {
-    id: string
-    title: string
-    body: string
-    silent?: boolean
-  }) => Promise<void>
-}
-
 let sharedQueue: ReturnType<typeof createErrorQueue> | null = null
 
-export function useNotificationService(): NotificationService {
+export function useNotificationToasts() {
   const { toast } = useToast()
-  const notificationPresenter = usePresenter('notificationPresenter')
 
   if (!sharedQueue) {
     sharedQueue = createErrorQueue((error, onClose) => {
@@ -121,32 +101,12 @@ export function useNotificationService(): NotificationService {
     sharedQueue?.show(error)
   }
 
-  const bindErrorNotifications = () => {
-    if (!window?.electron?.ipcRenderer) return () => undefined
-
-    const handler = (_event: unknown, error: ErrorNotification) => {
-      showErrorToast(error)
-    }
-
-    window.electron.ipcRenderer.on(NOTIFICATION_EVENTS.SHOW_ERROR, handler)
-
-    return () => {
-      window.electron.ipcRenderer.removeListener(NOTIFICATION_EVENTS.SHOW_ERROR, handler)
-    }
-  }
-
-  const showSystemNotification = async (payload: {
-    id: string
-    title: string
-    body: string
-    silent?: boolean
-  }) => {
-    return notificationPresenter.showNotification(payload)
+  const clearErrorToasts = () => {
+    sharedQueue?.clear()
   }
 
   return {
     showErrorToast,
-    bindErrorNotifications,
-    showSystemNotification
+    clearErrorToasts
   }
 }

@@ -8,10 +8,14 @@ import { useChatStore } from '@/stores/chat'
 import { useSidebarStore } from '@/stores/sidebarStore'
 import { useLayoutStore } from '@/stores/layoutStore'
 import { useWindowStoreLifecycle } from '@/composables/useWindowStoreLifecycle'
+import { useProviderStoreLifecycle } from '@/composables/useProviderStoreLifecycle'
+import { useOllamaStoreLifecycle } from '@/composables/useOllamaStoreLifecycle'
+import { useSearchEngineStoreLifecycle } from '@/composables/useSearchEngineStoreLifecycle'
 import { NOTIFICATION_EVENTS, SHORTCUT_EVENTS, THREAD_VIEW_EVENTS } from './events'
 import { Toaster } from '@shadcn/components/ui/sonner'
 import { useToast } from '@/components/use-toast'
-import { useNotificationService } from '@/composables/notifications/useNotificationService'
+import { useNotificationAdapter } from '@/composables/notifications/useNotificationAdapter'
+import { useNotificationToasts } from '@/composables/notifications/useNotificationToasts'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import { useThemeStore } from '@/stores/theme'
 import { useLanguageStore } from '@/stores/language'
@@ -40,7 +44,8 @@ const route = useRoute()
 const configPresenter = usePresenter('configPresenter')
 const chatStore = useChatStore()
 const { toast } = useToast()
-const notificationService = useNotificationService()
+const { showErrorToast } = useNotificationToasts()
+const notificationAdapter = useNotificationAdapter()
 const uiSettingsStore = useUiSettingsStore()
 const { setupFontListener } = useFontManager()
 setupFontListener()
@@ -51,6 +56,9 @@ const modelCheckStore = useModelCheckStore()
 const sidebarStore = useSidebarStore()
 const layoutStore = useLayoutStore()
 const windowStore = useWindowStoreLifecycle()
+useProviderStoreLifecycle()
+useOllamaStoreLifecycle()
+useSearchEngineStoreLifecycle()
 const { isMacOS } = storeToRefs(windowStore)
 const { t } = useI18n()
 const { navigateToConversation, navigateToHome } = useConversationNavigation()
@@ -205,7 +213,7 @@ onMounted(() => {
   cleanupSidebarListeners = sidebarStore.bindEventListeners()
 
   // Listen for global error notification events
-  cleanupErrorNotifications = notificationService.bindErrorNotifications()
+  cleanupErrorNotifications = notificationAdapter.bindErrorNotifications(showErrorToast)
 
   // Listen for shortcut key events
   window.electron.ipcRenderer.on(SHORTCUT_EVENTS.ZOOM_IN, () => {

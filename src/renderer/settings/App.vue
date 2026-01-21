@@ -77,7 +77,8 @@ import { Button } from '@shadcn/components/ui/button'
 import ModelCheckDialog from '@/components/settings/ModelCheckDialog.vue'
 import { Toaster } from '@shadcn/components/ui/sonner'
 import 'vue-sonner/style.css'
-import { useNotificationService } from '@/composables/notifications/useNotificationService'
+import { useNotificationAdapter } from '@/composables/notifications/useNotificationAdapter'
+import { useNotificationToasts } from '@/composables/notifications/useNotificationToasts'
 import { SETTINGS_EVENTS } from '@/events'
 import { useThemeStore } from '@/stores/theme'
 import { useProviderStore } from '@/stores/providerStore'
@@ -101,7 +102,8 @@ const languageStore = useLanguageStore()
 const modelCheckStore = useModelCheckStore()
 const windowStore = useWindowStoreLifecycle()
 const { isMacOS, isWinMacOS } = storeToRefs(windowStore)
-const notificationService = useNotificationService()
+const { showErrorToast } = useNotificationToasts()
+const notificationAdapter = useNotificationAdapter()
 const themeStore = useThemeStore()
 const providerStore = useProviderStore()
 const modelStore = useModelStore()
@@ -114,6 +116,7 @@ const { setup: setupMcpDeeplink, cleanup: cleanupMcpDeeplink } = useMcpInstallDe
 setupMcpDeeplink()
 
 let cleanupErrorNotifications: (() => void) | null = null
+let cleanupSearchEngineListeners: (() => void) | null = null
 const toasterTheme = computed(() =>
   themeStore.themeMode === 'system' ? (themeStore.isDark ? 'dark' : 'light') : themeStore.themeMode
 )
@@ -227,7 +230,7 @@ const initializeSettingsStores = async () => {
     await ollamaStore.initialize?.()
     await searchAssistantStore.initOrUpdateSearchAssistantModel()
     await searchEngineStore.refreshSearchEngines()
-    searchEngineStore.setupSearchEnginesListener()
+    cleanupSearchEngineListeners = searchEngineStore.bindEventListeners()
   } catch (error) {
     console.error('Failed to initialize settings stores', error)
   }
@@ -276,7 +279,7 @@ watch(
 )
 
 onMounted(async () => {
-  cleanupErrorNotifications = notificationService.bindErrorNotifications()
+  cleanupErrorNotifications = notificationAdapter.bindErrorNotifications(showErrorToast)
 
   await uiSettingsStore.loadSettings()
 
@@ -335,6 +338,10 @@ onBeforeUnmount(() => {
   if (cleanupErrorNotifications) {
     cleanupErrorNotifications()
     cleanupErrorNotifications = null
+  }
+  if (cleanupSearchEngineListeners) {
+    cleanupSearchEngineListeners()
+    cleanupSearchEngineListeners = null
   }
   window.electron.ipcRenderer.removeListener(SETTINGS_EVENTS.NAVIGATE, handleSettingsNavigate)
   cleanupMcpDeeplink()
