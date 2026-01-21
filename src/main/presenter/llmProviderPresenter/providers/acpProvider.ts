@@ -1,6 +1,5 @@
 import type * as schema from '@agentclientprotocol/sdk/dist/schema.js'
-import { SUMMARY_TITLES_PROMPT } from '../baseProvider'
-import { BaseAgentProvider } from '../baseAgentProvider'
+import { BaseLLMProvider, SUMMARY_TITLES_PROMPT } from '../baseProvider'
 import type {
   ChatMessage,
   LLMResponse,
@@ -58,12 +57,7 @@ type PendingPermissionState = {
   reject: (error: Error) => void
 }
 
-export class AcpProvider extends BaseAgentProvider<
-  AcpSessionManager,
-  AcpProcessManager,
-  schema.RequestPermissionRequest,
-  schema.RequestPermissionResponse
-> {
+export class AcpProvider extends BaseLLMProvider {
   private readonly processManager: AcpProcessManager
   private readonly sessionManager: AcpSessionManager
   private readonly sessionPersistence: AcpSessionPersistence
@@ -100,21 +94,6 @@ export class AcpProvider extends BaseAgentProvider<
     })
 
     void this.initWhenEnabled()
-  }
-
-  protected getSessionManager(): AcpSessionManager {
-    return this.sessionManager
-  }
-
-  protected getProcessManager(): AcpProcessManager {
-    return this.processManager
-  }
-
-  protected async requestPermission(
-    params: schema.RequestPermissionRequest
-  ): Promise<schema.RequestPermissionResponse> {
-    void params
-    return { outcome: { outcome: 'cancelled' } }
   }
 
   protected async fetchProviderModels(): Promise<MODEL_META[]> {
