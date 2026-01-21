@@ -243,17 +243,6 @@ export class WindowPresenter implements IWindowPresenter {
   }
 
   /**
-   * @deprecated Use openOrFocusSettingsWindow() instead. Settings is now an independent window.
-   * Open Settings tab if not exists, otherwise focus existing one in the given window.
-   * This method is kept for backward compatibility.
-   */
-  public async openOrFocusSettingsTab(_windowId: number): Promise<void> {
-    console.warn('openOrFocusSettingsTab is deprecated. Use openOrFocusSettingsWindow() instead.')
-    // Redirect to new Settings Window
-    await this.openOrFocusSettingsWindow()
-  }
-
-  /**
    * 获取当前主窗口 (优先返回焦点窗口，否则返回第一个有效窗口)。
    */
   get mainWindow(): BrowserWindow | undefined {

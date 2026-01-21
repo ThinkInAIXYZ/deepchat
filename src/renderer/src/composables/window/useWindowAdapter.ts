@@ -7,15 +7,12 @@ export function useWindowAdapter() {
     return windowPresenter.previewFile(filePath)
   }
 
-  const openSettingsTab = () => {
-    const windowId = window.api.getWindowId()
-    if (windowId != null) {
-      windowPresenter.openOrFocusSettingsTab(windowId)
-    }
+  const openSettingsWindow = () => {
+    windowPresenter.openOrFocusSettingsWindow()
   }
 
   return {
     previewFile,
-    openSettingsTab
+    openSettingsWindow
   }
 }

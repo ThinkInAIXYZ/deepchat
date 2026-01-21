@@ -262,7 +262,7 @@ export interface IWindowPresenter {
   sendToAllWindows(channel: string, ...args: unknown[]): void
   sendToWindow(windowId: number, channel: string, ...args: unknown[]): boolean
   sendToDefaultTab(channel: string, switchToTarget?: boolean, ...args: unknown[]): Promise<boolean>
-  openOrFocusSettingsTab(windowId: number): Promise<void>
+  openOrFocusSettingsWindow(): Promise<void>
   closeWindow(windowId: number, forceClose?: boolean): Promise<void>
   isApplicationQuitting(): boolean
   setApplicationQuitting(isQuitting: boolean): void
