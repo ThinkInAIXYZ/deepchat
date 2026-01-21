@@ -645,6 +645,7 @@ export class McpPresenter implements IMCPPresenter {
     toolDefinition: MCPToolDefinition,
     serverName: string
   ): MCPTool {
+    const toolParameters = toolDefinition.function.parameters
     const mcpTool = {
       id: toolDefinition.function.name,
       name: toolDefinition.function.name,
@@ -652,12 +653,9 @@ export class McpPresenter implements IMCPPresenter {
       description: toolDefinition.function.description,
       serverName,
       inputSchema: {
-        properties: toolDefinition.function.parameters.properties as Record<
-          string,
-          Record<string, unknown>
-        >,
-        type: toolDefinition.function.parameters.type,
-        required: toolDefinition.function.parameters.required
+        properties: (toolParameters?.properties ?? {}) as Record<string, Record<string, unknown>>,
+        type: toolParameters?.type ?? 'object',
+        required: toolParameters?.required ?? []
       }
     } as MCPTool
     return mcpTool
@@ -676,7 +674,7 @@ export class McpPresenter implements IMCPPresenter {
       '$def'
     ]
 
-    const properties = tool.inputSchema.properties
+    const properties = tool.inputSchema.properties ?? {}
 
     // Recursive cleanup function to ensure all values are serializable
     const cleanValue = (value: unknown): unknown => {

@@ -1,6 +1,6 @@
 <template>
   <div class="my-1">
-    <div class="rounded-lg border bg-card text-card-foreground p-4">
+    <div class="rounded-lg border bg-card text-card-foreground p-4 w-fit">
       <div class="flex flex-col space-y-2">
         <!-- 图片加载区域 -->
         <div class="flex justify-center">

@@ -18,6 +18,7 @@ export interface IToolPresenter {
     chatMode?: 'chat' | 'agent' | 'acp agent'
     supportsVision?: boolean
     agentWorkspacePath?: string | null
+    conversationId?: string
   }): Promise<MCPToolDefinition[]>
   callTool(request: MCPToolCall): Promise<{ content: unknown; rawData: MCPToolResponse }>
   buildToolSystemPrompt(context: { conversationId?: string }): string
@@ -53,6 +54,7 @@ export class ToolPresenter implements IToolPresenter {
     chatMode?: 'chat' | 'agent' | 'acp agent'
     supportsVision?: boolean
     agentWorkspacePath?: string | null
+    conversationId?: string
   }): Promise<MCPToolDefinition[]> {
     const defs: MCPToolDefinition[] = []
     this.mapper.clear()
@@ -82,7 +84,8 @@ export class ToolPresenter implements IToolPresenter {
         const agentDefs = await this.agentToolManager.getAllToolDefinitions({
           chatMode,
           supportsVision,
-          agentWorkspacePath
+          agentWorkspacePath,
+          conversationId: context.conversationId
         })
         const filteredAgentDefs = agentDefs.filter((tool) => {
           if (!this.mapper.hasTool(tool.function.name)) return true

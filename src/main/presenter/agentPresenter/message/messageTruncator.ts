@@ -3,6 +3,7 @@ import type { AssistantMessageBlock, Message } from '@shared/chat'
 import type { ChatMessage } from '@shared/presenter'
 import { addContextMessages } from './messageFormatter'
 import { compressToolCallsFromContext } from './messageCompressor'
+import { cloneMessageWithContent } from './messageUtils'
 
 function calculateToolCallTokens(toolCall: NonNullable<ChatMessage['tool_calls']>[number]): number {
   const nameTokens = approximateTokenSize(toolCall.function?.name || '')
@@ -38,26 +39,6 @@ function calculateMessagesTokens(messages: ChatMessage[]): number {
   return messages.reduce((acc, message) => acc + calculateMessageTokens(message), 0)
 }
 
-function cloneMessageWithContent(message: Message): Message {
-  const cloned: Message = { ...message }
-
-  if (Array.isArray(message.content)) {
-    cloned.content = message.content.map((block) => {
-      const clonedBlock: AssistantMessageBlock = { ...(block as AssistantMessageBlock) }
-      if (block.type === 'tool_call' && block.tool_call) {
-        clonedBlock.tool_call = { ...block.tool_call }
-      }
-      return clonedBlock
-    })
-  } else if (message.content && typeof message.content === 'object') {
-    cloned.content = JSON.parse(JSON.stringify(message.content))
-  } else {
-    cloned.content = message.content
-  }
-
-  return cloned
-}
-
 export function selectContextMessages(
   contextMessages: Message[],
   userMessage: Message,
@@ -69,15 +50,17 @@ export function selectContextMessages(
     return []
   }
 
+  // Filter first, then clone only what's needed - avoid wasting work
   const messages = contextMessages
-    .filter((msg) => msg.id !== userMessage?.id)
-    .map((msg) => cloneMessageWithContent(msg))
+    .filter((msg) => msg.id !== userMessage?.id && msg.status === 'sent')
     .reverse()
-  let selectedMessages = messages.filter((msg) => msg.status === 'sent')
-
-  if (selectedMessages.length === 0) {
+    .map((msg) => cloneMessageWithContent(msg))
+  
+  if (messages.length === 0) {
     return []
   }
+
+  let selectedMessages = messages
 
   let chatMessages = addContextMessages(selectedMessages, vision, supportsFunctionCall)
   let totalTokens = calculateMessagesTokens(chatMessages)

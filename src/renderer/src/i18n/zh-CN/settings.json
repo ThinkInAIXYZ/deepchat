@@ -394,6 +394,38 @@
         "operationalDescription": "同步 ModelScope 平台上可直接使用的 MCP 服务器"
       }
     },
+    "voiceai": {
+      "title": "Voice.ai 文字转语音",
+      "description": "将文本生成语音，voice 会在下方模型列表中展示。",
+      "audioFormat": {
+        "label": "音频格式",
+        "placeholder": "选择格式",
+        "helper": "多数场景推荐 MP3。"
+      },
+      "language": {
+        "label": "语言",
+        "placeholder": "例如 en",
+        "helper": "支持语言：en, ca, sv, es, fr, de, it, pt, pl, ru, nl。"
+      },
+      "model": {
+        "label": "TTS 模型",
+        "placeholder": "voiceai-tts-v1-latest",
+        "helper": "可选模型请查看 Voice.ai 文档。"
+      },
+      "agentId": {
+        "label": "语音 Agent ID",
+        "placeholder": "粘贴 voice agent id",
+        "helper": "实时通话需要此 ID。"
+      },
+      "temperature": {
+        "label": "温度",
+        "helper": "随机性参数（0-2）。"
+      },
+      "topP": {
+        "label": "Top P",
+        "helper": "Nucleus 采样（0-1）。"
+      }
+    },
     "dialog": {
       "disableModel": {
         "title": "确认禁用模型",

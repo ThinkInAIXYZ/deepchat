@@ -2,8 +2,19 @@ import { defineConfig } from 'vitest/config'
 import { resolve } from 'path'
 import vue from '@vitejs/plugin-vue'
 
+const isCustomElement = (tag: string) =>
+  tag === 'voice-agent-widget' || tag.startsWith('ui-resource-renderer')
+
 export default defineConfig({
-  plugins: [vue()],
+  plugins: [
+    vue({
+      template: {
+        compilerOptions: {
+          isCustomElement
+        }
+      }
+    })
+  ],
   resolve: {
     alias: {
       '@': resolve('src/renderer/src'),

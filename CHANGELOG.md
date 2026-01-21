@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.5.6-beta.5 (2025-01-16)
+- 全新 Skills 管理系统，支持技能安装、同步与多平台适配
+- 新增 o3.fan 提供商、优化工具调用（大型调用卸载、差异块展示、权限管理）、性能提升（消息列表虚拟滚动、流式事件批处理调度）
+- 修复多项问题：Ollama 错误处理、滚动定位、聊天输入高度、macOS 全屏等
+- All-new Skills management system with installation, sync, and multi-platform adapters
+- Added o3.fan provider, enhanced tool calls (offloading, diff blocks, permissions), performance boost (message list virtual scrolling, batched stream scheduling)
+- Fixed multiple issues: Ollama error handling, scroll positioning, chat input height, macOS fullscreen, etc.
+
 ## v0.5.6-beta.4 (2025-12-30)
 - 全面重构 Agent 与会话架构：拆分 agent/session/loop/tool/persistence，替换 Thread Presenter 为 Session Presenter，强化消息压缩、工具调用、持久化与导出
 - 增强搜索体验：新增 Search Presenter 与搜索提示模板，完善搜索助手与搜索引擎配置流程

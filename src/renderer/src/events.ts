@@ -67,6 +67,11 @@ export const WINDOW_EVENTS = {
   APP_BLUR: 'app:blur'
 }
 
+// Settings related events
+export const SETTINGS_EVENTS = {
+  NAVIGATE: 'settings:navigate'
+}
+
 // ollama 相关事件
 export const OLLAMA_EVENTS = {
   PULL_MODEL_PROGRESS: 'ollama:pull-model-progress'
