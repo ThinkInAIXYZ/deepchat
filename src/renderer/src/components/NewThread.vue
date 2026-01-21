@@ -14,9 +14,7 @@
       <ChatInput
         ref="chatInputRef"
         variant="newThread"
-        :model-info="selectedModelInfo"
         @send="handleSend"
-        @model-update="handleModelUpdate"
       />
       <!-- ACP Agent 网格 -->
       <AcpAgentGrid :selected-agent-id="selectedAgentId" @agent-click="handleAgentClick" />
@@ -41,7 +39,6 @@ import { useChatStore } from '@/stores/chat'
 import { ref } from 'vue'
 import { usePresenter } from '@/composables/usePresenter'
 import type { UserMessageContent } from '@shared/chat'
-import { ModelType } from '@shared/model'
 import { useConversationNavigation } from '@/composables/useConversationNavigation'
 import { useModelSelection } from '@/composables/useModelSelection'
 
@@ -49,7 +46,8 @@ const workspaceStore = useWorkspaceStore()
 const chatStore = useChatStore()
 const configPresenter = usePresenter('configPresenter')
 const { createAndNavigateToConversation } = useConversationNavigation()
-const { selectedModelInfo } = useModelSelection()
+// Ensure chatConfig has a preferred model for new threads.
+useModelSelection()
 
 // ChatInput ref
 const chatInputRef = ref<InstanceType<typeof ChatInput> | null>(null)
@@ -66,8 +64,8 @@ const handleSend = async (messageContent: UserMessageContent) => {
   try {
     // 创建新线程并导航
     const threadId = await createAndNavigateToConversation(messageContent.text, {
-      providerId: selectedModelInfo.value?.providerId,
-      modelId: selectedModelInfo.value?.id
+      providerId: chatStore.chatConfig.providerId,
+      modelId: chatStore.chatConfig.modelId
     } as any)
 
     if (threadId) {
@@ -80,29 +78,6 @@ const handleSend = async (messageContent: UserMessageContent) => {
   } catch (error) {
     console.error('Failed to send message:', error)
   }
-}
-
-// 处理模型更新
-const handleModelUpdate = (
-  model: { id: string; name: string; type?: ModelType },
-  providerId: string
-) => {
-  selectedModelInfo.value = {
-    id: model.id,
-    providerId
-  }
-  chatStore
-    .updateChatConfig({
-      modelId: model.id,
-      providerId: providerId
-    })
-    .then(() => {
-      console.log('updated chat config')
-    })
-  configPresenter.setSetting('preferredModel', {
-    modelId: model.id,
-    providerId: providerId
-  })
 }
 
 // Agent 卡片点击
@@ -142,12 +117,6 @@ const handleAcpStart = async (config: {
 
     if (threadId) {
       await workspaceStore.refreshFileTree()
-
-      // 更新 ChatInput 的模型选择
-      selectedModelInfo.value = {
-        id: config.agentId,
-        providerId: 'acp'
-      }
     }
   } catch (error) {
     console.error('Failed to start ACP session:', error)
