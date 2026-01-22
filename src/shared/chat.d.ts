@@ -185,12 +185,3 @@ export type SearchBlock = {
     searchId?: string
   }
 }
-
-export interface SearchEngineTemplate {
-  id: string
-  name: string
-  selector: string
-  searchUrl: string
-  extractorScript: string
-  isCustom?: boolean
-}

@@ -18,7 +18,6 @@ export const useUiSettingsStore = defineStore('uiSettings', () => {
   const systemFonts = ref<string[]>([])
   const isLoadingFonts = ref(false)
   const artifactsEffectEnabled = ref(false)
-  const searchPreviewEnabled = ref(true)
   const contentProtectionEnabled = ref(false)
   const copyWithCotEnabled = ref(true)
   const traceDebugEnabled = ref(false)
@@ -49,7 +48,6 @@ export const useUiSettingsStore = defineStore('uiSettings', () => {
     fontFamily.value = snapshot.fontFamily ?? ''
     codeFontFamily.value = snapshot.codeFontFamily ?? ''
     artifactsEffectEnabled.value = snapshot.artifactsEffectEnabled ?? false
-    searchPreviewEnabled.value = snapshot.searchPreviewEnabled ?? true
     contentProtectionEnabled.value = snapshot.contentProtectionEnabled ?? false
     notificationsEnabled.value = snapshot.notificationsEnabled ?? true
     traceDebugEnabled.value = snapshot.traceDebugEnabled ?? false
@@ -92,11 +90,6 @@ export const useUiSettingsStore = defineStore('uiSettings', () => {
     }
   }
 
-  const setSearchPreviewEnabled = async (enabled: boolean) => {
-    searchPreviewEnabled.value = enabled
-    await settingsAdapter.setSearchPreviewEnabled(enabled)
-  }
-
   const setArtifactsEffectEnabled = async (enabled: boolean) => {
     artifactsEffectEnabled.value = enabled
     await settingsAdapter.setArtifactsEffectEnabled(enabled)
@@ -132,9 +125,6 @@ export const useUiSettingsStore = defineStore('uiSettings', () => {
   const applySettingsUpdate = (update: Partial<UiSettingsSnapshot>) => {
     if (update.fontSizeLevel !== undefined) {
       applyFontSizeLevel(update.fontSizeLevel)
-    }
-    if (update.searchPreviewEnabled !== undefined && update.searchPreviewEnabled !== null) {
-      searchPreviewEnabled.value = update.searchPreviewEnabled
     }
     if (update.contentProtectionEnabled !== undefined && update.contentProtectionEnabled !== null) {
       contentProtectionEnabled.value = update.contentProtectionEnabled
@@ -182,7 +172,6 @@ export const useUiSettingsStore = defineStore('uiSettings', () => {
     formattedFontFamily,
     formattedCodeFontFamily,
     artifactsEffectEnabled,
-    searchPreviewEnabled,
     contentProtectionEnabled,
     copyWithCotEnabled,
     traceDebugEnabled,
@@ -193,7 +182,6 @@ export const useUiSettingsStore = defineStore('uiSettings', () => {
     setCodeFontFamily,
     resetFontSettings,
     fetchSystemFonts,
-    setSearchPreviewEnabled,
     setArtifactsEffectEnabled,
     setContentProtectionEnabled,
     setCopyWithCotEnabled,

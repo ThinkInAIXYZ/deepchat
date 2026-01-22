@@ -38,17 +38,6 @@ export class UiSettingsHelper {
     this.setSetting = options.setSetting
   }
 
-  getSearchPreviewEnabled(): Promise<boolean> {
-    const value = this.getSetting<boolean>('searchPreviewEnabled')
-    return Promise.resolve(Boolean(value))
-  }
-
-  setSearchPreviewEnabled(enabled: boolean): void {
-    const boolValue = Boolean(enabled)
-    this.setSetting('searchPreviewEnabled', boolValue)
-    eventBus.send(CONFIG_EVENTS.SEARCH_PREVIEW_CHANGED, SendTarget.ALL_WINDOWS, boolValue)
-  }
-
   getContentProtectionEnabled(): boolean {
     const value = this.getSetting<boolean>('contentProtectionEnabled')
     return value === undefined || value === null ? false : value

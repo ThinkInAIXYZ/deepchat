@@ -57,7 +57,6 @@ import {
 } from './permission'
 import { AgentPresenter } from './agentPresenter'
 import { SessionManager } from './agentPresenter/session/sessionManager'
-import { SearchPresenter } from './searchPresenter'
 import { ConversationExporterService } from './exporter'
 import { SkillPresenter } from './skillPresenter'
 import { SkillSyncPresenter } from './skillSyncPresenter'
@@ -85,7 +84,6 @@ export class Presenter implements IPresenter {
   llmproviderPresenter: ILlmProviderPresenter
   configPresenter: IConfigPresenter
   sessionPresenter: ISessionPresenter
-  searchPresenter: SearchPresenter
   exporter: IConversationExporter
   agentPresenter: IAgentPresenter & ISessionPresenter
   sessionManager: SessionManager
@@ -129,11 +127,6 @@ export class Presenter implements IPresenter {
     this.settingsPermissionService = new SettingsPermissionService()
     const messageManager = new MessageManager(this.sqlitePresenter)
     this.devicePresenter = new DevicePresenter()
-    this.searchPresenter = new SearchPresenter({
-      configPresenter: this.configPresenter,
-      windowPresenter: this.windowPresenter,
-      llmProviderPresenter: this.llmproviderPresenter
-    })
     this.exporter = new ConversationExporterService({
       sqlitePresenter: this.sqlitePresenter,
       configPresenter: this.configPresenter
@@ -156,7 +149,6 @@ export class Presenter implements IPresenter {
       sqlitePresenter: this.sqlitePresenter,
       llmProviderPresenter: this.llmproviderPresenter,
       configPresenter: this.configPresenter,
-      searchPresenter: this.searchPresenter,
       commandPermissionService: commandPermissionHandler,
       messageManager
     }) as unknown as IAgentPresenter & ISessionPresenter

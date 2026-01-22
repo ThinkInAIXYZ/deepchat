@@ -269,10 +269,6 @@ declare module 'vue-i18n' {
     resetData: string
     language: string
     languageSelect: string
-    searchEngine: string
-    searchEngineSelect: string
-    searchPreview: string
-    searchAssistantModel: string
     selectModel: string
     proxyMode: string
     proxyModeSelect: string
@@ -867,10 +863,6 @@ declare module 'vue-i18n' {
       resetData: string
       language: string
       languageSelect: string
-      searchEngine: string
-      searchEngineSelect: string
-      searchPreview: string
-      searchAssistantModel: string
       selectModel: string
       proxyMode: string
       proxyModeSelect: string
@@ -880,18 +872,6 @@ declare module 'vue-i18n' {
       customProxyUrl: string
       customProxyUrlPlaceholder: string
       invalidProxyUrl: string
-      addCustomSearchEngine: string
-      addCustomSearchEngineDesc: string
-      searchEngineName: string
-      searchEngineNamePlaceholder: string
-      searchEngineUrl: string
-      searchEngineUrlPlaceholder: string
-      searchEngineUrlError: string
-      deleteCustomSearchEngine: string
-      deleteCustomSearchEngineDesc: string
-      testSearchEngine: string
-      testSearchEngineDesc: string
-      testSearchEngineNote: string
       theme: string
       themeSelect: string
       themeLight: string
@@ -914,10 +894,6 @@ declare module 'vue-i18n' {
       loggingDialogTitle: string
       loggingEnableDesc: string
       loggingDisableDesc: string
-      webContentLengthLimit: string
-      webContentLengthLimitHint: string
-      charactersUnit: string
-      webContentLengthLimitTooltip: string
       loggingRestartNotice: string
       openLogFolder: string
       notifications: string

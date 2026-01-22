@@ -2,7 +2,7 @@ import { approximateTokenSize } from 'tokenx'
 import { presenter } from '@/presenter'
 import { AssistantMessage, Message, MessageFile, UserMessageContent } from '@shared/chat'
 import { ModelType } from '@shared/model'
-import { CONVERSATION, ModelConfig, SearchResult, ChatMessage } from '@shared/presenter'
+import { CONVERSATION, ModelConfig, ChatMessage } from '@shared/presenter'
 import type { MCPToolDefinition } from '@shared/presenter'
 
 import { modelCapabilities } from '../../configPresenter/modelCapabilities'
@@ -37,7 +37,6 @@ export interface PreparePromptContentParams {
   conversation: CONVERSATION
   userContent: string
   contextMessages: Message[]
-  searchResults: SearchResult[] | null
   userMessage: Message
   vision: boolean
   imageFiles: MessageFile[]
@@ -87,7 +86,6 @@ export async function preparePromptContent({
   conversation,
   userContent,
   contextMessages,
-  searchResults: _searchResults,
   userMessage,
   vision,
   imageFiles,

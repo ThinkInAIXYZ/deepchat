@@ -29,7 +29,6 @@ export type {
   MESSAGE_STATUS,
   MESSAGE_ROLE,
   MESSAGE_METADATA,
-  SearchEngineTemplate,
   SearchResult
 } from './thread.presenter'
 
@@ -45,9 +44,6 @@ export type {
   CreateChildSessionParams,
   ISessionPresenter
 } from './session.presenter'
-
-// Search types
-export type { ISearchPresenter } from './search.presenter'
 
 // Exporter types
 export type { IConversationExporter, NowledgeMemConfig } from './exporter.presenter'

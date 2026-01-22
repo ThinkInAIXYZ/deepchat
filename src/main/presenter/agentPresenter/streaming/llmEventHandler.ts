@@ -15,7 +15,6 @@ type ConversationUpdateHandler = (state: GeneratingMessageState) => Promise<void
 
 export class LLMEventHandler {
   private readonly generatingMessages: Map<string, GeneratingMessageState>
-  private readonly searchingMessages: Set<string>
   private readonly messageManager: MessageManager
   private readonly contentBufferHandler: ContentBufferHandler
   private readonly toolCallHandler: ToolCallHandler
@@ -24,7 +23,6 @@ export class LLMEventHandler {
 
   constructor(options: {
     generatingMessages: Map<string, GeneratingMessageState>
-    searchingMessages: Set<string>
     messageManager: MessageManager
     contentBufferHandler: ContentBufferHandler
     toolCallHandler: ToolCallHandler
@@ -32,7 +30,6 @@ export class LLMEventHandler {
     onConversationUpdated?: ConversationUpdateHandler
   }) {
     this.generatingMessages = options.generatingMessages
-    this.searchingMessages = options.searchingMessages
     this.messageManager = options.messageManager
     this.contentBufferHandler = options.contentBufferHandler
     this.toolCallHandler = options.toolCallHandler
@@ -313,7 +310,6 @@ export class LLMEventHandler {
       }
     }
 
-    this.searchingMessages.delete(eventId)
     eventBus.sendToRenderer(STREAM_EVENTS.ERROR, SendTarget.ALL_WINDOWS, msg)
   }
 
@@ -355,7 +351,6 @@ export class LLMEventHandler {
           {},
           state.message.content
         )
-        this.searchingMessages.delete(eventId)
         presenter.sessionManager.setStatus(state.conversationId, 'waiting_permission')
         return
       }
@@ -366,7 +361,6 @@ export class LLMEventHandler {
     }
 
     await this.streamUpdateScheduler.flushAll(eventId, 'final')
-    this.searchingMessages.delete(eventId)
     eventBus.sendToRenderer(STREAM_EVENTS.END, SendTarget.ALL_WINDOWS, msg)
   }
 
@@ -441,7 +435,6 @@ export class LLMEventHandler {
     await this.messageManager.updateMessageStatus(eventId, 'sent')
     await this.messageManager.editMessage(eventId, JSON.stringify(state.message.content))
     this.generatingMessages.delete(eventId)
-    this.searchingMessages.delete(eventId)
 
     if (this.onConversationUpdated) {
       await this.onConversationUpdated(state)

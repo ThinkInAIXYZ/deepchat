@@ -9,7 +9,6 @@ export type UiSettingsSnapshot = {
   fontFamily: string | null
   codeFontFamily: string | null
   artifactsEffectEnabled: boolean | null
-  searchPreviewEnabled: boolean | null
   contentProtectionEnabled: boolean | null
   copyWithCotEnabled: boolean | null
   traceDebugEnabled: boolean | null
@@ -49,7 +48,6 @@ export const createSettingsConfigAdapter = (configPresenter: ConfigPresenter) =>
       codeFontFamily: (await configPresenter.getCodeFontFamily()) ?? null,
       artifactsEffectEnabled:
         (await configPresenter.getSetting<boolean>('artifactsEffectEnabled')) ?? null,
-      searchPreviewEnabled: (await configPresenter.getSearchPreviewEnabled()) ?? null,
       contentProtectionEnabled: (await configPresenter.getContentProtectionEnabled()) ?? null,
       copyWithCotEnabled: (await configPresenter.getCopyWithCotEnabled()) ?? null,
       traceDebugEnabled: (await configPresenter.getSetting<boolean>('traceDebugEnabled')) ?? null,
@@ -76,10 +74,6 @@ export const createSettingsConfigAdapter = (configPresenter: ConfigPresenter) =>
 
   const getSystemFonts = async () => {
     return configPresenter.getSystemFonts()
-  }
-
-  const setSearchPreviewEnabled = async (enabled: boolean) => {
-    await configPresenter.setSearchPreviewEnabled(enabled)
   }
 
   const setArtifactsEffectEnabled = async (enabled: boolean) => {
@@ -123,9 +117,6 @@ export const createSettingsConfigAdapter = (configPresenter: ConfigPresenter) =>
       subscribeEvent<number>(CONFIG_EVENTS.FONT_SIZE_CHANGED, (value) => {
         handler({ fontSizeLevel: value })
       }),
-      subscribeEvent<boolean>(CONFIG_EVENTS.SEARCH_PREVIEW_CHANGED, (value) => {
-        handler({ searchPreviewEnabled: value })
-      }),
       subscribeEvent<boolean>(CONFIG_EVENTS.CONTENT_PROTECTION_CHANGED, (value) => {
         handler({ contentProtectionEnabled: value })
       }),
@@ -158,7 +149,6 @@ export const createSettingsConfigAdapter = (configPresenter: ConfigPresenter) =>
     setCodeFontFamily,
     resetFontSettings,
     getSystemFonts,
-    setSearchPreviewEnabled,
     setArtifactsEffectEnabled,
     setContentProtectionEnabled,
     setCopyWithCotEnabled,

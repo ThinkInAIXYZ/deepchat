@@ -15,7 +15,7 @@ import {
 import type { GeneratingMessageState } from '../streaming/types'
 import type { StreamGenerationHandler } from '../streaming/streamGenerationHandler'
 import type { LLMEventHandler } from '../streaming/llmEventHandler'
-import { BaseHandler, type ThreadHandlerContext } from '../../searchPresenter/handlers/baseHandler'
+import { BaseHandler, type ThreadHandlerContext } from '../baseHandler'
 import { CommandPermissionService } from '../../permission/commandPermissionService'
 
 export class PermissionHandler extends BaseHandler {

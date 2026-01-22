@@ -3,12 +3,11 @@ import type { AssistantMessage, AssistantMessageBlock } from '@shared/chat'
 import type { ILlmProviderPresenter, IMCPPresenter, IToolPresenter } from '@shared/presenter'
 import { PermissionHandler } from '@/presenter/agentPresenter/permission/permissionHandler'
 import { CommandPermissionService } from '@/presenter/permission'
-import type { ThreadHandlerContext } from '@/presenter/searchPresenter/handlers/baseHandler'
-import type { StreamGenerationHandler } from '@/presenter/sessionPresenter/streaming/streamGenerationHandler'
-import type { LLMEventHandler } from '@/presenter/sessionPresenter/streaming/llmEventHandler'
+import type { ThreadHandlerContext } from '@/presenter/agentPresenter/baseHandler'
+import type { StreamGenerationHandler } from '@/presenter/agentPresenter/streaming/streamGenerationHandler'
+import type { LLMEventHandler } from '@/presenter/agentPresenter/streaming/llmEventHandler'
 import type { MessageManager } from '@/presenter/sessionPresenter/managers/messageManager'
-import type { SearchManager } from '@/presenter/searchPresenter/managers/searchManager'
-import type { GeneratingMessageState } from '@/presenter/sessionPresenter/streaming/types'
+import type { GeneratingMessageState } from '@/presenter/agentPresenter/streaming/types'
 
 vi.mock('@/presenter', () => ({
   presenter: {
@@ -85,8 +84,7 @@ describe('PermissionHandler - ACP permissions', () => {
       sqlitePresenter: {} as never,
       messageManager,
       llmProviderPresenter,
-      configPresenter: {} as never,
-      searchManager: {} as SearchManager
+      configPresenter: {} as never
     }
 
     const generatingMessages = new Map<string, GeneratingMessageState>()
@@ -202,8 +200,7 @@ describe('PermissionHandler - permission block removal', () => {
       sqlitePresenter: {} as never,
       messageManager,
       llmProviderPresenter: {} as never,
-      configPresenter: {} as never,
-      searchManager: {} as SearchManager
+      configPresenter: {} as never
     }
 
     const generatingMessages = new Map<string, GeneratingMessageState>()

@@ -84,8 +84,6 @@ import { useThemeStore } from '@/stores/theme'
 import { useProviderStore } from '@/stores/providerStore'
 import { useModelStore } from '@/stores/modelStore'
 import { useOllamaStore } from '@/stores/ollamaStore'
-import { useSearchAssistantStore } from '@/stores/searchAssistantStore'
-import { useSearchEngineStore } from '@/stores/searchEngineStore'
 import { useMcpStore } from '@/stores/mcp'
 import { useMcpInstallDeeplinkHandler } from '../src/lib/storeInitializer'
 import { useFontManager } from '../src/composables/useFontManager'
@@ -108,15 +106,12 @@ const themeStore = useThemeStore()
 const providerStore = useProviderStore()
 const modelStore = useModelStore()
 const ollamaStore = useOllamaStore()
-const searchAssistantStore = useSearchAssistantStore()
-const searchEngineStore = useSearchEngineStore()
 const mcpStore = useMcpStore()
 const { setup: setupMcpDeeplink, cleanup: cleanupMcpDeeplink } = useMcpInstallDeeplinkHandler()
 // Register MCP deeplink listener immediately to avoid race with incoming IPC
 setupMcpDeeplink()
 
 let cleanupErrorNotifications: (() => void) | null = null
-let cleanupSearchEngineListeners: (() => void) | null = null
 const toasterTheme = computed(() =>
   themeStore.themeMode === 'system' ? (themeStore.isDark ? 'dark' : 'light') : themeStore.themeMode
 )
@@ -228,9 +223,6 @@ const initializeSettingsStores = async () => {
     await providerStore.initialize()
     await modelStore.initialize()
     await ollamaStore.initialize?.()
-    await searchAssistantStore.initOrUpdateSearchAssistantModel()
-    await searchEngineStore.refreshSearchEngines()
-    cleanupSearchEngineListeners = searchEngineStore.bindEventListeners()
   } catch (error) {
     console.error('Failed to initialize settings stores', error)
   }
@@ -338,10 +330,6 @@ onBeforeUnmount(() => {
   if (cleanupErrorNotifications) {
     cleanupErrorNotifications()
     cleanupErrorNotifications = null
-  }
-  if (cleanupSearchEngineListeners) {
-    cleanupSearchEngineListeners()
-    cleanupSearchEngineListeners = null
   }
   window.electron.ipcRenderer.removeListener(SETTINGS_EVENTS.NAVIGATE, handleSettingsNavigate)
   cleanupMcpDeeplink()

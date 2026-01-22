@@ -43,18 +43,15 @@ export class ToolCallHandler {
   ])
 
   private readonly sqlitePresenter: ISQLitePresenter
-  private readonly searchingMessages: Set<string>
   private readonly commandPermissionHandler?: CommandPermissionService
   private readonly streamUpdateScheduler: StreamUpdateScheduler
 
   constructor(options: {
     sqlitePresenter: ISQLitePresenter
-    searchingMessages: Set<string>
     commandPermissionHandler?: CommandPermissionService
     streamUpdateScheduler: StreamUpdateScheduler
   }) {
     this.sqlitePresenter = options.sqlitePresenter
-    this.searchingMessages = options.searchingMessages
     this.commandPermissionHandler = options.commandPermissionHandler
     this.streamUpdateScheduler = options.streamUpdateScheduler
   }
@@ -133,8 +130,6 @@ export class ToolCallHandler {
       lastBlock.status = 'success'
     }
 
-    this.searchingMessages.delete(event.eventId)
-    state.isSearching = false
     state.pendingToolCall = undefined
   }
 
@@ -156,8 +151,6 @@ export class ToolCallHandler {
       }
     }
 
-    this.searchingMessages.delete(event.eventId)
-    state.isSearching = false
     state.pendingToolCall = undefined
   }
 
@@ -190,8 +183,6 @@ export class ToolCallHandler {
           }
         }
 
-        this.searchingMessages.delete(event.eventId)
-        state.isSearching = false
         state.pendingToolCall = this.buildPendingToolCall(event)
         return
       }
@@ -202,8 +193,6 @@ export class ToolCallHandler {
         if (lastBlock.extra) {
           lastBlock.extra.needsUserAction = false
         }
-        this.searchingMessages.delete(event.eventId)
-        state.isSearching = false
         state.pendingToolCall = undefined
         return
       }
@@ -541,8 +530,6 @@ export class ToolCallHandler {
     })
 
     state.pendingToolCall = this.buildPendingToolCall(event)
-    this.searchingMessages.add(event.eventId)
-    state.isSearching = true
   }
 
   private buildPendingToolCall(event: LLMAgentEventData) {

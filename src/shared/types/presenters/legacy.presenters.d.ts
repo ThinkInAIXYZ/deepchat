@@ -9,7 +9,6 @@ import { ProviderChange, ProviderBatchUpdate } from './provider-operations'
 import type { AgentSessionLifecycleStatus } from './agent-provider'
 import type { IAgentPresenter } from './agent.presenter'
 import type { ISessionPresenter } from './session.presenter'
-import type { ISearchPresenter } from './search.presenter'
 import type { IConversationExporter } from './exporter.presenter'
 import type { IWorkspacePresenter } from './workspace'
 import type { IToolPresenter } from './tool.presenter'
@@ -442,7 +441,6 @@ export interface IPresenter {
   llmproviderPresenter: ILlmProviderPresenter
   configPresenter: IConfigPresenter
   sessionPresenter: ISessionPresenter
-  searchPresenter: ISearchPresenter
   exporter: IConversationExporter
   agentPresenter: IAgentPresenter & ISessionPresenter
   devicePresenter: IDevicePresenter
@@ -547,12 +545,6 @@ export interface IConfigPresenter {
   setProxyMode(mode: string): void
   getCustomProxyUrl(): string
   setCustomProxyUrl(url: string): void
-  // Custom search engine
-  getCustomSearchEngines(): Promise<SearchEngineTemplate[]>
-  setCustomSearchEngines(engines: SearchEngineTemplate[]): Promise<void>
-  // Search preview settings
-  getSearchPreviewEnabled(): Promise<boolean>
-  setSearchPreviewEnabled(enabled: boolean): void
   // Screen sharing protection settings
   getContentProtectionEnabled(): boolean
   setContentProtectionEnabled(enabled: boolean): void
@@ -1409,11 +1401,6 @@ export interface SearchResult {
   favicon?: string
   description?: string
   searchId?: string
-}
-
-export interface ISearchPresenter {
-  init(): void
-  search(query: string, engine: 'google' | 'baidu'): Promise<SearchResult[]>
 }
 
 export type FileOperation = {

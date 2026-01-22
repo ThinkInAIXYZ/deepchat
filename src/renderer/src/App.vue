@@ -10,7 +10,6 @@ import { useLayoutStore } from '@/stores/layoutStore'
 import { useWindowStoreLifecycle } from '@/composables/useWindowStoreLifecycle'
 import { useProviderStoreLifecycle } from '@/composables/useProviderStoreLifecycle'
 import { useOllamaStoreLifecycle } from '@/composables/useOllamaStoreLifecycle'
-import { useSearchEngineStoreLifecycle } from '@/composables/useSearchEngineStoreLifecycle'
 import { NOTIFICATION_EVENTS, SHORTCUT_EVENTS, THREAD_VIEW_EVENTS } from './events'
 import { Toaster } from '@shadcn/components/ui/sonner'
 import { useToast } from '@/components/use-toast'
@@ -58,7 +57,6 @@ const layoutStore = useLayoutStore()
 const windowStore = useWindowStoreLifecycle()
 useProviderStoreLifecycle()
 useOllamaStoreLifecycle()
-useSearchEngineStoreLifecycle()
 const { isMacOS } = storeToRefs(windowStore)
 const { t } = useI18n()
 const { navigateToConversation, navigateToHome } = useConversationNavigation()

@@ -8,31 +8,27 @@ import type {
   UserMessage,
   UserMessageContent
 } from '@shared/chat'
-import type { CONVERSATION, MCPToolResponse, SearchResult } from '@shared/presenter'
+import type { CONVERSATION, MCPToolResponse } from '@shared/presenter'
 import { buildUserMessageContext, formatUserMessageContent } from '../message/messageFormatter'
 import { preparePromptContent } from '../message/messageBuilder'
 import type { GeneratingMessageState } from './types'
 import { presenter } from '@/presenter'
-import type { SearchHandler } from '../../searchPresenter/handlers/searchHandler'
-import { BaseHandler, type ThreadHandlerContext } from '../../searchPresenter/handlers/baseHandler'
+import { BaseHandler, type ThreadHandlerContext } from '../baseHandler'
 import type { LLMEventHandler } from './llmEventHandler'
 import { LoopOrchestrator } from '../loop/loopOrchestrator'
 
 interface StreamGenerationHandlerDeps {
-  searchHandler: SearchHandler
   generatingMessages: Map<string, GeneratingMessageState>
   llmEventHandler: LLMEventHandler
 }
 
 export class StreamGenerationHandler extends BaseHandler {
-  private readonly searchHandler: SearchHandler
   private readonly generatingMessages: Map<string, GeneratingMessageState>
   private readonly llmEventHandler: LLMEventHandler
   private readonly loopOrchestrator: LoopOrchestrator
 
   constructor(context: ThreadHandlerContext, deps: StreamGenerationHandlerDeps) {
     super(context)
-    this.searchHandler = deps.searchHandler
     this.generatingMessages = deps.generatingMessages
     this.llmEventHandler = deps.llmEventHandler
     this.loopOrchestrator = new LoopOrchestrator(this.llmEventHandler)
@@ -40,7 +36,6 @@ export class StreamGenerationHandler extends BaseHandler {
   }
 
   private assertDependencies(): void {
-    void this.searchHandler
     void this.generatingMessages
     void this.llmEventHandler
     void this.loopOrchestrator
@@ -90,30 +85,10 @@ export class StreamGenerationHandler extends BaseHandler {
 
       this.throwIfCancelled(state.message.id)
 
-      let searchResults: SearchResult[] | null = null
-      if ((userMessage.content as UserMessageContent).search) {
-        try {
-          searchResults = await this.searchHandler.startStreamSearch(
-            conversationId,
-            state.message.id,
-            userContent
-          )
-          this.throwIfCancelled(state.message.id)
-        } catch (error) {
-          if (String(error).includes('userCanceledGeneration')) {
-            return
-          }
-          console.error('[StreamGenerationHandler] Error during search:', error)
-        }
-      }
-
-      this.throwIfCancelled(state.message.id)
-
       const { finalContent, promptTokens } = await preparePromptContent({
         conversation,
         userContent,
         contextMessages,
-        searchResults,
         userMessage,
         vision: Boolean(modelConfig?.vision),
         imageFiles: modelConfig?.vision ? imageFiles : [],
@@ -262,7 +237,6 @@ export class StreamGenerationHandler extends BaseHandler {
         conversation,
         userContent: 'continue',
         contextMessages,
-        searchResults: null,
         userMessage,
         vision: false,
         imageFiles: [],

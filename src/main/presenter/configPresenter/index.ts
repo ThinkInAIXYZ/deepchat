@@ -18,7 +18,6 @@ import {
   AcpCustomAgent
 } from '@shared/presenter'
 import { ProviderBatchUpdate } from '@shared/provider-operations'
-import { SearchEngineTemplate } from '@shared/chat'
 import { ModelType } from '@shared/model'
 import ElectronStore from 'electron-store'
 import { DEFAULT_PROVIDERS } from './providers'
@@ -61,18 +60,15 @@ interface IAppSettings {
   customProxyUrl?: string // Custom proxy address
   customShortKey?: ShortcutKeySetting // Custom shortcut keys
   artifactsEffectEnabled?: boolean // Whether artifacts animation effects are enabled
-  searchPreviewEnabled?: boolean // Whether search preview is enabled
   contentProtectionEnabled?: boolean // Whether content protection is enabled
   syncEnabled?: boolean // Whether sync functionality is enabled
   syncFolderPath?: string // Sync folder path
   lastSyncTime?: number // Last sync time
-  customSearchEngines?: string // Custom search engines JSON string
   soundEnabled?: boolean // Whether sound effects are enabled
   copyWithCotEnabled?: boolean
   loggingEnabled?: boolean // Whether logging is enabled
   floatingButtonEnabled?: boolean // Whether floating button is enabled
   default_system_prompt?: string // Default system prompt
-  webContentLengthLimit?: number // Web content truncation length limit, default 3000 characters
   updateChannel?: string // Update channel: 'stable' | 'beta'
   fontFamily?: string // Custom UI font
   codeFontFamily?: string // Custom code font
@@ -130,7 +126,6 @@ export class ConfigPresenter implements IConfigPresenter {
         proxyMode: 'system',
         customProxyUrl: '',
         artifactsEffectEnabled: true,
-        searchPreviewEnabled: true,
         contentProtectionEnabled: false,
         syncEnabled: false,
         syncFolderPath: path.join(this.userDataPath, 'sync'),
@@ -142,7 +137,6 @@ export class ConfigPresenter implements IConfigPresenter {
         fontFamily: '',
         codeFontFamily: '',
         default_system_prompt: '',
-        webContentLengthLimit: 3000,
         skillsPath: path.join(app.getPath('home'), '.deepchat', 'skills'),
         enableSkills: true,
         updateChannel: 'stable', // Default to stable version
@@ -856,41 +850,6 @@ export class ConfigPresenter implements IConfigPresenter {
       skillsPath: this.getSkillsPath(),
       enableSkills: this.getSkillsEnabled()
     }
-  }
-
-  // Get custom search engines
-  async getCustomSearchEngines(): Promise<SearchEngineTemplate[]> {
-    try {
-      const customEnginesJson = this.store.get('customSearchEngines')
-      if (customEnginesJson) {
-        return JSON.parse(customEnginesJson as string)
-      }
-      return []
-    } catch (error) {
-      console.error('Failed to get custom search engines:', error)
-      return []
-    }
-  }
-
-  // Set custom search engines
-  async setCustomSearchEngines(engines: SearchEngineTemplate[]): Promise<void> {
-    try {
-      this.store.set('customSearchEngines', JSON.stringify(engines))
-      // Send event to notify search engine update (need to notify all tabs)
-      eventBus.send(CONFIG_EVENTS.SEARCH_ENGINES_UPDATED, SendTarget.ALL_WINDOWS, engines)
-    } catch (error) {
-      console.error('Failed to set custom search engines:', error)
-      throw error
-    }
-  }
-
-  // Get search preview setting status
-  getSearchPreviewEnabled(): Promise<boolean> {
-    return this.uiSettingsHelper.getSearchPreviewEnabled()
-  }
-
-  setSearchPreviewEnabled(enabled: boolean): void {
-    this.uiSettingsHelper.setSearchPreviewEnabled(enabled)
   }
 
   getContentProtectionEnabled(): boolean {
