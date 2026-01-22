@@ -669,10 +669,7 @@ const closeWindow = () => {
 }
 
 const openSettings = () => {
-  const windowId = window.api.getWindowId()
-  if (windowId != null) {
-    windowPresenter.openOrFocusSettingsTab(windowId)
-  }
+  windowPresenter.openOrFocusSettingsWindow()
 }
 
 const onBrowserClick = async () => {

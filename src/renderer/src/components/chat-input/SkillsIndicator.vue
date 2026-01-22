@@ -68,7 +68,7 @@ const handleToggle = async (skillName: string) => {
 
 // Open settings page at Skills section
 const openSettings = () => {
-  windowAdapter.openSettingsTab()
+  windowAdapter.openSettingsWindow()
   panelOpen.value = false
 }
 

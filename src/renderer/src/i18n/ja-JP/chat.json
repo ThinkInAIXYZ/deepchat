@@ -23,7 +23,7 @@
     "acpWorkdirCurrent": "Current workdir: {path}",
     "acpMode": "モード",
     "acpModeTooltip": "現在のモード：{mode}",
-    "agentWorkspaceCurrent": "現在の作業ディレクトリ: {パス}",
+    "agentWorkspaceCurrent": "現在の作業ディレクトリ: {path}",
     "agentWorkspaceSelect": "作業ディレクトリを選択",
     "agentWorkspaceTooltip": "エージェントの作業ディレクトリを設定する",
     "acpWorkdirChangeCancel": "キャンセル",

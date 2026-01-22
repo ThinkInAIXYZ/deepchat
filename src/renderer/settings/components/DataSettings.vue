@@ -400,7 +400,6 @@ const handleSyncEnabledChange = (value: boolean) => {
   syncEnabled.value = value
 }
 
-
 const availableBackups = computed(() => backupsRef.value || [])
 
 watch(availableBackups, (backups) => {

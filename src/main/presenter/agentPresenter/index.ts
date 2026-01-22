@@ -385,8 +385,14 @@ export class AgentPresenter implements IAgentPresenter {
 
     if (conversation.is_new === 1) {
       try {
-        const title = await this.sessionPresenter.generateTitle(state.conversationId)
-        await this.sessionPresenter.renameConversation(state.conversationId, title)
+        this.sessionPresenter
+          .generateTitle(state.conversationId)
+          .then((title) => {
+            return this.sessionPresenter.renameConversation(state.conversationId, title)
+          })
+          .then(() => {
+            console.log('title updated')
+          })
       } catch (error) {
         console.error('[AgentPresenter] Failed to summarize title', {
           conversationId: state.conversationId,

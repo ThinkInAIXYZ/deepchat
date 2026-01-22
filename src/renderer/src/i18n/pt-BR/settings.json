@@ -1206,5 +1206,11 @@
       "title": "Ferramentas Externas"
     },
     "title": "Gerenciamento de Habilidades"
+  },
+  "groups": {
+    "models": "modelo",
+    "preferences": "preferência",
+    "system": "sistema",
+    "tools": "ferramenta"
   }
 }

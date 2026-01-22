@@ -8,7 +8,7 @@ const noopUnsubscribe: Unsubscribe = () => undefined
 
 export type WindowAdapter = {
   previewFile: (filePath: string) => void
-  openSettingsTab: () => void
+  openSettingsWindow: () => void
   getDeviceInfo: () => Promise<DeviceInfo>
   onWindowMaximized: (handler: () => void) => Unsubscribe
   onWindowUnmaximized: (handler: () => void) => Unsubscribe
@@ -45,16 +45,13 @@ export function useWindowAdapter(): WindowAdapter {
     return windowPresenter.previewFile(filePath)
   }
 
-  const openSettingsTab = () => {
-    const windowId = window.api.getWindowId()
-    if (windowId != null) {
-      windowPresenter.openOrFocusSettingsTab(windowId)
-    }
+  const openSettingsWindow = () => {
+    windowPresenter.openOrFocusSettingsWindow()
   }
 
   return {
     previewFile,
-    openSettingsTab,
+    openSettingsWindow,
     getDeviceInfo: () => devicePresenter.getDeviceInfo(),
     onWindowMaximized: (handler) =>
       subscribe<void>(WINDOW_EVENTS.WINDOW_MAXIMIZED, handler, () => undefined),

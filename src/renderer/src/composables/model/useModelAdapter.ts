@@ -42,6 +42,11 @@ export function useModelAdapter(): ModelAdapter {
   const configPresenter = usePresenter('configPresenter')
   const llmPresenter = usePresenter('llmproviderPresenter')
 
+  const isAgentProvider = (providerId: string): boolean => {
+    const provider = llmPresenter.getProviderById(providerId)
+    return provider?.apiType === 'acp'
+  }
+
   const bindModelEvents = (handlers: ModelEventHandlers) => {
     const ipc = window.electron?.ipcRenderer
     if (!ipc) return () => undefined
@@ -88,8 +93,7 @@ export function useModelAdapter(): ModelAdapter {
     getModelList: (providerId: string) => Promise.resolve(llmPresenter.getModelList(providerId)),
     updateModelStatus: (providerId: string, modelId: string, enabled: boolean) =>
       Promise.resolve(llmPresenter.updateModelStatus(providerId, modelId, enabled)),
-    isAgentProvider: (providerId: string) =>
-      Promise.resolve(llmPresenter.isAgentProvider(providerId)),
+    isAgentProvider: (providerId: string) => Promise.resolve(isAgentProvider(providerId)),
     addCustomModel: (
       providerId: string,
       model: Omit<RENDERER_MODEL_META, 'providerId' | 'isCustom' | 'group'>

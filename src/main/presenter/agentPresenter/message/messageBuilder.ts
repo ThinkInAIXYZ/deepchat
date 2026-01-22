@@ -98,11 +98,12 @@ export async function preparePromptContent({
   promptTokens: number
 }> {
   const { systemPrompt, contextLength, artifacts, enabledMcpTools } = conversation.settings
-  const storedChatMode = (await presenter.configPresenter.getSetting('input_chatMode')) as
+  const storedChatMode = presenter.configPresenter.getSetting('input_chatMode') as
     | 'chat'
     | 'agent'
     | 'acp agent'
     | undefined
+  console.log('store chat mode', storedChatMode)
   const normalizedChatMode = storedChatMode === 'chat' ? 'agent' : storedChatMode
   const chatMode: 'agent' | 'acp agent' =
     conversation.settings.chatMode ?? normalizedChatMode ?? 'agent'

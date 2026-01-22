@@ -289,16 +289,16 @@
       "mode": {
         "description": "Vælg Agentens tilladelsespolitik (hvis understøttet).",
         "empty": "Agent har ikke rapporteret tilladelsestilstand",
-        "label": "Tilladelstilstand",
+        "label": "Tilladelsestilstand",
         "placeholder": "Vælg tilstand"
       },
       "model": {
-        "description": "Vælg det underliggende model, som denne ACP Agent eksponerer.",
+        "description": "Vælg den underliggende model, som denne ACP Agent eksponerer.",
         "empty": "Agent har ikke rapporteret tilgængelige modeller",
         "label": "Agent-model",
         "placeholder": "Vælg model"
       },
-      "title": "ACP øktindstillinger"
+      "title": "ACP Sessionsindstillinger"
     }
   },
   "provider": {
@@ -1206,5 +1206,11 @@
       "title": "Eksterne værktøjer"
     },
     "title": "Færdighedsstyring"
+  },
+  "groups": {
+    "models": "model",
+    "preferences": "præference",
+    "system": "system",
+    "tools": "værktøj"
   }
 }

@@ -4,10 +4,7 @@
     <Tooltip v-if="shouldShowRateLimit">
       <TooltipTrigger as-child>
         <div class="flex items-center gap-1 text-xs">
-          <Icon
-            :icon="resolvedRateLimitIcon"
-            :class="['w-3.5 h-3.5', rateLimitStatusClass]"
-          />
+          <Icon :icon="resolvedRateLimitIcon" :class="['w-3.5 h-3.5', rateLimitStatusClass]" />
           <span v-if="hasQueue && rateLimitQueueText">{{ rateLimitQueueText }}</span>
           <span v-else-if="showWaitTime">{{ rateLimitWaitTime }}</span>
         </div>

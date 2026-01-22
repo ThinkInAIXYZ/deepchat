@@ -1206,5 +1206,11 @@
       "title": "外部工具"
     },
     "title": "skills管理"
+  },
+  "groups": {
+    "models": "模型",
+    "preferences": "偏好",
+    "system": "系統",
+    "tools": "工具"
   }
 }

@@ -1206,5 +1206,11 @@
       "noToolsFound": "Aucun outil externe détecté"
     },
     "title": "Gestion des compétences"
+  },
+  "groups": {
+    "models": "modèle",
+    "preferences": "préférence",
+    "system": "système",
+    "tools": "outil"
   }
 }

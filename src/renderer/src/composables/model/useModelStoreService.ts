@@ -36,6 +36,9 @@ export const useModelStoreService = () => {
   const listenersRegistered = ref(false)
   let cleanupModelListeners: (() => void) | null = null
 
+  const providerInitialized = ref<Set<string>>(new Set())
+  const providerInitCallbacks = ref<Map<string, Array<() => void>>>(new Map())
+
   const providerModelQueries = new Map<string, ModelQueryHandle<MODEL_META[]>>()
   const customModelQueries = new Map<string, ModelQueryHandle<MODEL_META[]>>()
   const enabledModelQueries = new Map<string, ModelQueryHandle<RENDERER_MODEL_META[]>>()
@@ -438,6 +441,37 @@ export const useModelStoreService = () => {
     }
   }
 
+  const markProviderInitialized = (providerId: string) => {
+    if (!providerInitialized.value.has(providerId)) {
+      providerInitialized.value.add(providerId)
+      providerInitialized.value = new Set(providerInitialized.value)
+
+      const callbacks = providerInitCallbacks.value.get(providerId)
+      if (callbacks) {
+        callbacks.forEach((callback) => callback())
+        providerInitCallbacks.value.delete(providerId)
+        providerInitCallbacks.value = new Map(providerInitCallbacks.value)
+      }
+    }
+  }
+
+  const awaitProviderInitialized = (providerId: string): Promise<void> => {
+    if (providerInitialized.value.has(providerId)) {
+      return Promise.resolve()
+    }
+
+    return new Promise((resolve) => {
+      const callbacks = providerInitCallbacks.value.get(providerId) || []
+      callbacks.push(resolve)
+      providerInitCallbacks.value.set(providerId, callbacks)
+      providerInitCallbacks.value = new Map(providerInitCallbacks.value)
+    })
+  }
+
+  const isProviderReady = (providerId: string): boolean => {
+    return providerInitialized.value.has(providerId)
+  }
+
   const refreshProviderModels = async (providerId: string) => {
     if (await isAgentProvider(providerId)) {
       try {
@@ -445,6 +479,7 @@ export const useModelStoreService = () => {
         updateProviderModelsCache(providerId, modelMetas)
         updateAllProviderState(providerId, rendererModels)
         updateEnabledState(providerId, rendererModels)
+        markProviderInitialized(providerId)
       } catch (error) {
         console.error(`[ModelStore] Failed to refresh agent models for ${providerId}:`, error)
       }
@@ -453,6 +488,7 @@ export const useModelStoreService = () => {
 
     await refreshStandardModels(providerId)
     await refreshCustomModels(providerId)
+    markProviderInitialized(providerId)
   }
 
   const _refreshAllModelsInternal = async () => {
@@ -781,6 +817,7 @@ export const useModelStoreService = () => {
     enabledModels,
     allProviderModels,
     customModels,
+    providerInitialized,
     getProviderModelsQuery,
     getCustomModelsQuery,
     getEnabledModelsQuery,
@@ -805,6 +842,9 @@ export const useModelStoreService = () => {
     updateCustomModelMutation,
     setupModelListeners,
     cleanup,
-    initialize
+    initialize,
+    markProviderInitialized,
+    awaitProviderInitialized,
+    isProviderReady
   }
 }
