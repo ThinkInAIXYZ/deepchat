@@ -38,18 +38,38 @@
     <PopoverContent
       align="end"
       :portal="false"
-      class="w-[720px] border-none bg-transparent p-0 shadow-none"
+      class="border-none bg-transparent p-0 shadow-none"
+      :class="showModelSettings ? 'w-[720px]' : 'w-[360px]'"
     >
       <div class="rounded-lg border border-border bg-card shadow-sm">
-        <div class="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] divide-x divide-border">
-          <div class="p-2">
+        <div
+          class="grid"
+          :class="
+            showModelSettings
+              ? 'grid-cols-[minmax(0,1fr)_minmax(0,1fr)] divide-x divide-border'
+              : 'grid-cols-1'
+          "
+        >
+          <div class="p-2 space-y-2">
+            <div class="flex items-center justify-end">
+              <Button
+                variant="ghost"
+                size="sm"
+                class="h-7 px-2 text-xs font-medium text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                :disabled="showModelSettings"
+                @click="showModelSettings = true"
+              >
+                <Icon icon="lucide:settings-2" class="mr-1 h-4 w-4" />
+                {{ t('settings.model.title') }}
+              </Button>
+            </div>
             <ModelChooser
               embedded
               :type="[ModelType.Chat, ModelType.ImageGeneration]"
               @update:model="handleModelUpdate"
             />
           </div>
-          <div class="p-2">
+          <div v-if="showModelSettings" class="p-2">
             <ScrollArea class="h-72">
               <ChatConfig
                 v-model:system-prompt-id="systemPromptIdModel"
@@ -88,7 +108,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
@@ -145,11 +165,19 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const open = ref(false)
+const showModelSettings = ref(false)
 
 const handleModelUpdate = (model: any) => {
   emit('model-update', model)
   open.value = false
 }
+
+watch(
+  () => open.value,
+  (isOpen) => {
+    if (isOpen) showModelSettings.value = false
+  }
+)
 
 const systemPromptIdModel = computed({
   get: () => props.systemPromptId,
