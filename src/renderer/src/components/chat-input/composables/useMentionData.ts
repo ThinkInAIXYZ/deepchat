@@ -16,11 +16,11 @@ import { mentionData } from '../../editor/mention/suggestion'
  *
  * Watches various data sources (files, MCP resources) and updates mention data.
  *
- * NOTE: Tools and prompts have been moved to the `/` trigger (slashSuggestion).
- * The `@` trigger now only shows: files, resources, and workspace files.
+ * The `@` trigger shows: files, resources, prompts, tools, and workspace files.
+ * The `/` trigger still keeps skills, prompts, and tools for quick access.
  */
 export function useMentionData(selectedFiles: Ref<MessageFile[]>) {
-  const { resources } = useAgentMcpData()
+  const { resources, prompts, tools } = useAgentMcpData()
 
   // === Watchers ===
   /**
@@ -53,20 +53,67 @@ export function useMentionData(selectedFiles: Ref<MessageFile[]>) {
       mentionData.value = mentionData.value
         .filter((item) => item.type !== 'item' || item.category !== 'resources')
         .concat(
-          resources.value.map((resource) => ({
-            id: `${resource.client.name}.${resource.name ?? ''}`,
-            label: resource.name ?? '',
-            icon: 'lucide:tag',
+          resources.value.map((resource) => {
+            const label = resource.name || resource.uri
+            return {
+              id: `${resource.client.name}.${resource.name ?? resource.uri}`,
+              label,
+              description: resource.uri,
+              icon: 'lucide:tag',
+              type: 'item' as const,
+              category: 'resources' as const,
+              mcpEntry: resource
+            }
+          })
+        )
+    },
+    { immediate: true }
+  )
+
+  /**
+   * Watch MCP prompts and update mention data
+   */
+  watch(
+    () => prompts.value,
+    () => {
+      mentionData.value = mentionData.value
+        .filter((item) => item.type !== 'item' || item.category !== 'prompts')
+        .concat(
+          prompts.value.map((prompt) => ({
+            id: prompt.name,
+            label: prompt.name,
+            icon: undefined,
             type: 'item' as const,
-            category: 'resources' as const,
-            mcpEntry: resource
+            category: 'prompts' as const,
+            description: prompt.description || '',
+            mcpEntry: prompt
           }))
         )
     },
     { immediate: true }
   )
 
-  // NOTE: Tools and prompts watchers removed - they are now handled by useSlashMentionData
+  /**
+   * Watch MCP tools and update mention data
+   */
+  watch(
+    () => tools.value,
+    () => {
+      mentionData.value = mentionData.value
+        .filter((item) => item.type !== 'item' || item.category !== 'tools')
+        .concat(
+          tools.value.map((tool) => ({
+            id: `${tool.server.name}.${tool.function.name ?? ''}`,
+            label: `${tool.server.icons} ${tool.function.name ?? ''}`.trim(),
+            icon: undefined,
+            type: 'item' as const,
+            category: 'tools' as const,
+            description: tool.function.description ?? ''
+          }))
+        )
+    },
+    { immediate: true }
+  )
 
   // === Public Methods ===
   /**
