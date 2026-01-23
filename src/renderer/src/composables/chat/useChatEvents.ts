@@ -132,8 +132,8 @@ export function useChatEvents(
     window.electron.ipcRenderer.on(DEEPLINK_EVENTS.START, async (_, data) => {
       console.log(`[Renderer] Tab ${getTabId()} received DEEPLINK_EVENTS.START:`, data)
       const currentRoute = router.currentRoute.value
-      if (currentRoute.name !== 'chat') {
-        await router.push({ name: 'chat' })
+      if (currentRoute.name !== 'home') {
+        await router.push({ name: 'home' })
       }
       if (activeThreadId.value) {
         await threadManagementComposable.clearActiveThread()

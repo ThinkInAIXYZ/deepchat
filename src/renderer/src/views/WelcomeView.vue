@@ -5,13 +5,13 @@ import logo from '@/assets/logo.png'
 import { useProviderStore } from '@/stores/providerStore'
 import { useModelStore } from '@/stores/modelStore'
 import { usePresenter } from '@/composables/usePresenter'
-import { useRouter } from 'vue-router'
 import { MODEL_META } from '@shared/presenter'
 import { ModelType } from '@shared/model'
 import { useI18n } from 'vue-i18n'
 import { useThemeStore } from '@/stores/theme'
 import { useLanguageStore } from '@/stores/language'
 import { initAppStores } from '@/lib/storeInitializer'
+import { useConversationNavigation } from '@/composables/useConversationNavigation'
 
 const themeStore = useThemeStore()
 
@@ -81,7 +81,7 @@ const providerStore = useProviderStore()
 const modelStore = useModelStore()
 const languageStore = useLanguageStore()
 const configPresenter = usePresenter('configPresenter')
-const router = useRouter()
+const { createAndNavigateToConversation } = useConversationNavigation()
 
 const { t } = useI18n()
 
@@ -165,12 +165,11 @@ const nextStep = async () => {
     }
   } else {
     configPresenter.setSetting('init_complete', true)
-    router.push({
-      name: 'chat',
-      query: {
-        modelId: providerModels.value[0].id,
-        providerId: selectedProvider.value
-      }
+    const nextModel = providerModels.value[0]
+    if (!nextModel) return
+    await createAndNavigateToConversation('新会话', {
+      modelId: nextModel.id,
+      providerId: selectedProvider.value
     })
   }
 }

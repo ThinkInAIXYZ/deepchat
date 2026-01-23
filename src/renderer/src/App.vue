@@ -114,23 +114,17 @@ const handleZoomResume = () => {
   uiSettingsStore.updateFontSizeLevel(1) // 1 corresponds to 'text-base', default font size
 }
 
+const handleThreadViewToggle = () => {
+  layoutStore.toggleThreadSidebar()
+}
+
 // Handle creating new conversation
-const handleCreateNewConversation = () => {
+const handleCreateNewConversation = async () => {
   try {
-    chatStore.createNewEmptyThread()
-    // Simplified handling, just log, actual functionality to be implemented
+    await navigateToHome()
   } catch (error) {
     console.error('Failed to create new conversation:', error)
   }
-}
-
-const handleThreadViewToggle = () => {
-  if (router.currentRoute.value.name !== 'chat') {
-    void router.push({ name: 'chat' })
-    layoutStore.openThreadSidebar()
-    return
-  }
-  layoutStore.toggleThreadSidebar()
 }
 
 // Sidebar event handlers for Single WebContents Architecture
@@ -227,12 +221,7 @@ onMounted(() => {
   })
 
   window.electron.ipcRenderer.on(SHORTCUT_EVENTS.CREATE_NEW_CONVERSATION, () => {
-    // Check if current route is chat page
-    const currentRoute = router.currentRoute.value
-    if (currentRoute.name !== 'chat') {
-      return
-    }
-    handleCreateNewConversation()
+    void handleCreateNewConversation()
   })
 
   // GO_SETTINGS is now handled in main process (open/focus Settings tab)

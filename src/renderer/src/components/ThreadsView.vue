@@ -123,11 +123,13 @@ import { useWindowSize } from '@vueuse/core'
 import { SHORTCUT_EVENTS } from '@/events'
 import { useCleanDialog } from '@/composables/message/useCleanDialog'
 import { DynamicScroller, DynamicScrollerItem } from 'vue-virtual-scroller'
+import { useConversationNavigation } from '@/composables/useConversationNavigation'
 
 const { t } = useI18n()
 const chatStore = useChatStore()
 const layoutStore = useLayoutStore()
 const conversationCore = useConversationCore()
+const { navigateToConversation } = useConversationNavigation()
 const dynamicScrollerRef = ref<InstanceType<typeof DynamicScroller> | null>(null)
 const deleteDialog = ref(false)
 const deleteThread = ref<CONVERSATION | null>(null)
@@ -185,7 +187,7 @@ const flattenedThreads = computed<VirtualScrollItem[]>(() => {
 // 选择会话
 const handleThreadSelect = async (thread: CONVERSATION) => {
   try {
-    await chatStore.setActiveThread(thread.id)
+    await navigateToConversation(thread.id, thread.title)
     if (windowSize.width.value < 1024) {
       layoutStore.closeThreadSidebar()
       layoutStore.closeMessageNavigation()
