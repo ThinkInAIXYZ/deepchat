@@ -91,5 +91,6 @@
     "enterUrlDescription": "Indtast URL'en i adresselinjen ovenfor for at få adgang til webstedet",
     "enterUrlToStart": "Indtast URL'en for at begynde at besøge",
     "name": "Yo browser"
-  }
+  },
+  "moreSettings": "Flere indstillinger"
 }

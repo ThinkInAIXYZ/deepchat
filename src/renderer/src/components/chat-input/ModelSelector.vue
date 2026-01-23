@@ -69,7 +69,7 @@
             />
           </div>
           <div v-if="showModelSettings" class="p-2">
-            <ScrollArea class="h-full">
+            <ScrollArea class="h-96">
               <ChatConfig
                 v-model:system-prompt-id="systemPromptIdModel"
                 :temperature="temperature"

@@ -91,5 +91,6 @@
     "enterUrlDescription": "上のアドレスバーに URL を入力して Web サイトにアクセスします",
     "enterUrlToStart": "URLを入力してアクセスを開始してください",
     "name": "よブラウザ"
-  }
+  },
+  "moreSettings": "その他の設定"
 }
