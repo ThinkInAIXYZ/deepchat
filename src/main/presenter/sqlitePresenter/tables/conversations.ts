@@ -9,6 +9,7 @@ type ConversationRow = {
   createdAt: number
   updatedAt: number
   systemPrompt: string
+  systemPromptId: string | null
   temperature: number
   contextLength: number
   maxTokens: number
@@ -61,6 +62,7 @@ export class ConversationsTable extends BaseTable {
         max_tokens INTEGER DEFAULT 2000,
         temperature REAL DEFAULT 0.7,
         system_prompt TEXT DEFAULT '',
+        system_prompt_id TEXT DEFAULT NULL,
         context_chain TEXT DEFAULT '[]'
       );
       CREATE INDEX idx_conversations_updated ON conversations(updated_at DESC);
@@ -147,12 +149,18 @@ export class ConversationsTable extends BaseTable {
         UPDATE conversations SET active_skills = '[]' WHERE active_skills IS NULL;
       `
     }
+    if (version === 11) {
+      return `
+        -- 添加 system_prompt_id 字段
+        ALTER TABLE conversations ADD COLUMN system_prompt_id TEXT DEFAULT NULL;
+      `
+    }
 
     return null
   }
 
   getLatestVersion(): number {
-    return 10
+    return 11
   }
 
   async create(title: string, settings: Partial<CONVERSATION_SETTINGS> = {}): Promise<string> {
@@ -163,6 +171,7 @@ export class ConversationsTable extends BaseTable {
         created_at,
         updated_at,
         system_prompt,
+        system_prompt_id,
         temperature,
         context_length,
         max_tokens,
@@ -186,7 +195,7 @@ export class ConversationsTable extends BaseTable {
         parent_message_id,
         parent_selection
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     const conv_id = nanoid()
     const now = Date.now()
@@ -196,6 +205,7 @@ export class ConversationsTable extends BaseTable {
       now,
       now,
       settings.systemPrompt || '',
+      settings.systemPromptId ?? null,
       settings.temperature ?? 0.7,
       settings.contextLength || 4000,
       settings.maxTokens || 2000,
@@ -234,6 +244,7 @@ export class ConversationsTable extends BaseTable {
         created_at as createdAt,
         updated_at as updatedAt,
         system_prompt as systemPrompt,
+        system_prompt_id as systemPromptId,
         temperature,
         context_length as contextLength,
         max_tokens as maxTokens,
@@ -272,6 +283,7 @@ export class ConversationsTable extends BaseTable {
 
     const settings = {
       systemPrompt: result.systemPrompt,
+      systemPromptId: result.systemPromptId ?? undefined,
       temperature: result.temperature,
       contextLength: result.contextLength,
       maxTokens: result.maxTokens,
@@ -334,6 +346,10 @@ export class ConversationsTable extends BaseTable {
       if (data.settings.systemPrompt !== undefined) {
         updates.push('system_prompt = ?')
         params.push(data.settings.systemPrompt)
+      }
+      if (data.settings.systemPromptId !== undefined) {
+        updates.push('system_prompt_id = ?')
+        params.push(data.settings.systemPromptId ?? null)
       }
       if (data.settings.temperature !== undefined) {
         updates.push('temperature = ?')
@@ -461,6 +477,7 @@ export class ConversationsTable extends BaseTable {
         created_at as createdAt,
         updated_at as updatedAt,
         system_prompt as systemPrompt,
+        system_prompt_id as systemPromptId,
         temperature,
         context_length as contextLength,
         max_tokens as maxTokens,
@@ -504,6 +521,7 @@ export class ConversationsTable extends BaseTable {
         is_pinned: row.is_pinned,
         settings: {
           systemPrompt: row.systemPrompt,
+          systemPromptId: row.systemPromptId ?? undefined,
           temperature: row.temperature,
           contextLength: row.contextLength,
           maxTokens: row.maxTokens,
@@ -546,6 +564,7 @@ export class ConversationsTable extends BaseTable {
         created_at as createdAt,
         updated_at as updatedAt,
         system_prompt as systemPrompt,
+        system_prompt_id as systemPromptId,
         temperature,
         context_length as contextLength,
         max_tokens as maxTokens,
@@ -587,6 +606,7 @@ export class ConversationsTable extends BaseTable {
       is_pinned: row.is_pinned,
       settings: {
         systemPrompt: row.systemPrompt,
+        systemPromptId: row.systemPromptId ?? undefined,
         temperature: row.temperature,
         contextLength: row.contextLength,
         maxTokens: row.maxTokens,
@@ -631,6 +651,7 @@ export class ConversationsTable extends BaseTable {
         created_at as createdAt,
         updated_at as updatedAt,
         system_prompt as systemPrompt,
+        system_prompt_id as systemPromptId,
         temperature,
         context_length as contextLength,
         max_tokens as maxTokens,
@@ -672,6 +693,7 @@ export class ConversationsTable extends BaseTable {
       is_pinned: row.is_pinned,
       settings: {
         systemPrompt: row.systemPrompt,
+        systemPromptId: row.systemPromptId ?? undefined,
         temperature: row.temperature,
         contextLength: row.contextLength,
         maxTokens: row.maxTokens,

@@ -182,6 +182,7 @@ export class ConversationManager {
           defaultSettings.chatMode = 'agent'
         }
         defaultSettings.systemPrompt = ''
+        defaultSettings.systemPromptId = 'default'
         defaultSettings.reasoningEffort = undefined
         defaultSettings.enableSearch = undefined
         defaultSettings.forcedSearch = undefined

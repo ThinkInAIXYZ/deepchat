@@ -1,6 +1,10 @@
 <template>
-  <Card class="w-full border-border bg-card p-0 shadow-sm" :dir="langStore.dir">
-    <CardContent class="flex flex-col p-2">
+  <Card
+    class="w-full p-0"
+    :class="embedded ? 'border-none bg-transparent shadow-none' : 'border-border bg-card shadow-sm'"
+    :dir="langStore.dir"
+  >
+    <CardContent :class="embedded ? 'flex flex-col p-0' : 'flex flex-col p-2'">
       <Input
         v-model="keyword"
         :placeholder="t('model.search.placeholder')"
@@ -97,6 +101,10 @@ const props = defineProps({
     default: undefined
   },
   requiresVision: {
+    type: Boolean,
+    default: false
+  },
+  embedded: {
     type: Boolean,
     default: false
   }

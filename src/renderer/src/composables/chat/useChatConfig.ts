@@ -16,6 +16,7 @@ export function useChatConfig(
   // Chat configuration state
   const chatConfig = ref<CONVERSATION_SETTINGS>({
     systemPrompt: '',
+    systemPromptId: 'default',
     temperature: 0.7,
     contextLength: 32000,
     maxTokens: 8000,
@@ -138,6 +139,7 @@ export function useChatConfig(
   const resetChatConfig = () => {
     chatConfig.value = {
       systemPrompt: '',
+      systemPromptId: 'default',
       temperature: 0.7,
       contextLength: 32000,
       maxTokens: 8000,

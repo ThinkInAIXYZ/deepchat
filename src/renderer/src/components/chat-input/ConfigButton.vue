@@ -10,7 +10,7 @@
       </Button>
     </template>
     <ChatConfig
-      v-model:system-prompt="systemPromptModel"
+      v-model:system-prompt-id="systemPromptModel"
       :temperature="temperature"
       :context-length="contextLength"
       :max-tokens="maxTokens"
@@ -49,7 +49,7 @@ import ChatConfig from '../ChatConfig.vue'
 import type { ModelType } from '@shared/model'
 
 const props = defineProps<{
-  systemPrompt: string
+  systemPromptId?: string
   temperature: number
   contextLength: number
   maxTokens: number
@@ -68,7 +68,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  'update:systemPrompt': [value: string]
+  'update:systemPromptId': [value: string]
   'update:temperature': [value: number]
   'update:contextLength': [value: number]
   'update:maxTokens': [value: number]
@@ -83,7 +83,7 @@ const emit = defineEmits<{
 
 // Create computed properties for v-model bindings
 const systemPromptModel = computed({
-  get: () => props.systemPrompt,
-  set: (value: string) => emit('update:systemPrompt', value)
+  get: () => props.systemPromptId,
+  set: (value: string) => emit('update:systemPromptId', value)
 })
 </script>

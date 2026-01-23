@@ -35,24 +35,69 @@
         <Icon icon="lucide:chevron-right" class="w-4 h-4 text-muted-foreground" />
       </Button>
     </PopoverTrigger>
-    <PopoverContent align="end" class="w-80 border-none bg-transparent p-0 shadow-none">
-      <ModelChooser
-        :type="[ModelType.Chat, ModelType.ImageGeneration]"
-        @update:model="handleModelUpdate"
-      />
+    <PopoverContent
+      align="end"
+      :portal="false"
+      class="w-[720px] border-none bg-transparent p-0 shadow-none"
+    >
+      <div class="rounded-lg border border-border bg-card shadow-sm">
+        <div class="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] divide-x divide-border">
+          <div class="p-2">
+            <ModelChooser
+              embedded
+              :type="[ModelType.Chat, ModelType.ImageGeneration]"
+              @update:model="handleModelUpdate"
+            />
+          </div>
+          <div class="p-2">
+            <ScrollArea class="h-72">
+              <ChatConfig
+                v-model:system-prompt-id="systemPromptIdModel"
+                :temperature="temperature"
+                :context-length="contextLength"
+                :max-tokens="maxTokens"
+                :artifacts="artifacts"
+                :thinking-budget="thinkingBudget"
+                :enable-search="enableSearch"
+                :forced-search="forcedSearch"
+                :search-strategy="searchStrategy"
+                :reasoning-effort="reasoningEffort"
+                :verbosity="verbosity"
+                :context-length-limit="contextLengthLimit"
+                :max-tokens-limit="maxTokensLimit"
+                :model-id="modelId"
+                :provider-id="providerId"
+                :model-type="modelType"
+                @update:temperature="$emit('update:temperature', $event)"
+                @update:context-length="$emit('update:contextLength', $event)"
+                @update:max-tokens="$emit('update:maxTokens', $event)"
+                @update:artifacts="$emit('update:artifacts', $event)"
+                @update:thinking-budget="$emit('update:thinkingBudget', $event)"
+                @update:enable-search="$emit('update:enableSearch', $event)"
+                @update:forced-search="$emit('update:forcedSearch', $event)"
+                @update:search-strategy="$emit('update:searchStrategy', $event)"
+                @update:reasoning-effort="$emit('update:reasoningEffort', $event)"
+                @update:verbosity="$emit('update:verbosity', $event)"
+              />
+            </ScrollArea>
+          </div>
+        </div>
+      </div>
     </PopoverContent>
   </Popover>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
 import { Badge } from '@shadcn/components/ui/badge'
 import { Popover, PopoverContent, PopoverTrigger } from '@shadcn/components/ui/popover'
+import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import ModelIcon from '../icons/ModelIcon.vue'
 import ModelChooser from '../ModelChooser.vue'
+import ChatConfig from '../ChatConfig.vue'
 import { ModelType } from '@shared/model'
 
 interface ModelInfo {
@@ -61,14 +106,41 @@ interface ModelInfo {
   tags?: string[]
 }
 
-defineProps<{
+const props = defineProps<{
   activeModel: ModelInfo
   modelDisplayName: string
   isDark: boolean
+  systemPromptId?: string
+  temperature: number
+  contextLength: number
+  maxTokens: number
+  artifacts: number
+  thinkingBudget?: number
+  enableSearch?: boolean
+  forcedSearch?: boolean
+  searchStrategy?: 'turbo' | 'max'
+  reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
+  verbosity?: 'low' | 'medium' | 'high'
+  contextLengthLimit?: number
+  maxTokensLimit?: number
+  modelId?: string
+  providerId?: string
+  modelType?: ModelType
 }>()
 
 const emit = defineEmits<{
   'model-update': [model: any]
+  'update:systemPromptId': [value: string | undefined]
+  'update:temperature': [value: number]
+  'update:contextLength': [value: number]
+  'update:maxTokens': [value: number]
+  'update:artifacts': [value: number]
+  'update:thinkingBudget': [value: number | undefined]
+  'update:enableSearch': [value: boolean | undefined]
+  'update:forcedSearch': [value: boolean | undefined]
+  'update:searchStrategy': [value: 'turbo' | 'max' | undefined]
+  'update:reasoningEffort': [value: 'minimal' | 'low' | 'medium' | 'high']
+  'update:verbosity': [value: 'low' | 'medium' | 'high']
 }>()
 
 const { t } = useI18n()
@@ -78,4 +150,9 @@ const handleModelUpdate = (model: any) => {
   emit('model-update', model)
   open.value = false
 }
+
+const systemPromptIdModel = computed({
+  get: () => props.systemPromptId,
+  set: (value) => emit('update:systemPromptId', value)
+})
 </script>

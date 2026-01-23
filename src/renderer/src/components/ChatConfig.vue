@@ -1,20 +1,25 @@
 <script setup lang="ts">
 // === Vue Core ===
-import { computed, watch, toRef } from 'vue'
+import { computed, watch, toRef, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 // === Components ===
 import { Label } from '@shadcn/components/ui/label'
 import { Icon } from '@iconify/vue'
-import { Textarea } from '@shadcn/components/ui/textarea'
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger
 } from '@shadcn/components/ui/tooltip'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@shadcn/components/ui/select'
 import ConfigFieldHeader from './ChatConfig/ConfigFieldHeader.vue'
-import ConfigSliderField from './ChatConfig/ConfigSliderField.vue'
 import ConfigInputField from './ChatConfig/ConfigInputField.vue'
 import ConfigSelectField from './ChatConfig/ConfigSelectField.vue'
 import ConfigSwitchField from './ChatConfig/ConfigSwitchField.vue'
@@ -32,6 +37,7 @@ import { useAcpWorkdir } from '@/components/chat-input/composables/useAcpWorkdir
 // === Stores ===
 import { useLanguageStore } from '@/stores/language'
 import { useChatStore } from '@/stores/chat'
+import { useSystemPromptStore } from '@/stores/systemPromptStore'
 
 // === Props & Emits ===
 const props = defineProps<{
@@ -52,7 +58,7 @@ const props = defineProps<{
   modelType?: 'chat' | 'imageGeneration' | 'embedding' | 'rerank'
 }>()
 
-const systemPrompt = defineModel<string>('systemPrompt')
+const systemPromptId = defineModel<string | undefined>('systemPromptId')
 
 const emit = defineEmits<{
   'update:temperature': [value: number]
@@ -115,7 +121,7 @@ const formatSize = (size: number): string => {
 }
 
 // === Field Configurations ===
-const { sliderFields, inputFields, selectFields } = useChatConfigFields({
+const { inputFields, selectFields, numericFields } = useChatConfigFields({
   // Props
   temperature: toRef(props, 'temperature'),
   contextLength: toRef(props, 'contextLength'),
@@ -225,8 +231,8 @@ const acpSessionModeDisabled = computed(() => acpMode.loading.value || !acpMode.
 watch(
   () => props.modelType,
   (newType) => {
-    if (newType === 'imageGeneration' && systemPrompt.value) {
-      systemPrompt.value = ''
+    if (newType === 'imageGeneration' && systemPromptId.value !== EMPTY_SYSTEM_PROMPT_ID) {
+      systemPromptId.value = EMPTY_SYSTEM_PROMPT_ID
     }
   }
 )
@@ -243,6 +249,44 @@ const modelTypeIcon = computed(() => {
 })
 
 const isAcpProvider = computed(() => props.providerId === 'acp')
+
+const EMPTY_SYSTEM_PROMPT_ID = 'empty'
+const DEFAULT_SYSTEM_PROMPT_ID = 'default'
+const systemPromptStore = useSystemPromptStore()
+const systemPrompts = computed(() => systemPromptStore.prompts)
+const defaultPromptContent = computed(() => systemPromptStore.defaultPrompt?.content ?? '')
+const selectableSystemPrompts = computed(() =>
+  systemPrompts.value.filter(
+    (prompt) => prompt.id !== EMPTY_SYSTEM_PROMPT_ID && prompt.id !== DEFAULT_SYSTEM_PROMPT_ID
+  )
+)
+const resolvedSystemPromptId = computed({
+  get: () => systemPromptId.value ?? DEFAULT_SYSTEM_PROMPT_ID,
+  set: (value) => {
+    systemPromptId.value = value
+  }
+})
+
+const formatPromptPreview = (content?: string) => {
+  const normalized = (content ?? '').replace(/\s+/g, ' ').trim()
+  if (!normalized) return ''
+  const snippet = normalized.slice(0, 80)
+  return normalized.length > 80 ? `${snippet}…` : snippet
+}
+
+const defaultPromptPreview = computed(() => formatPromptPreview(defaultPromptContent.value))
+
+const loadSystemPrompts = async () => {
+  try {
+    await systemPromptStore.loadPrompts()
+  } catch (error) {
+    console.error('Failed to load system prompts:', error)
+  }
+}
+
+onMounted(() => {
+  void loadSystemPrompts()
+})
 </script>
 
 <template>
@@ -255,43 +299,82 @@ const isAcpProvider = computed(() => props.providerId === 'acp')
 
     <div class="space-y-6">
       <!-- System Prompt (hidden for image generation models) -->
-      <div
-        v-if="!isAcpProvider && !modelTypeDetection.isImageGenerationModel.value"
-        class="space-y-2 px-2"
-      >
-        <div class="flex items-center space-x-2 py-1.5">
-          <Icon icon="lucide:terminal" class="w-4 h-4 text-muted-foreground" />
-          <Label class="text-xs font-medium">{{ t('settings.model.systemPrompt.label') }}</Label>
-          <TooltipProvider :ignoreNonKeyboardFocus="true" :delayDuration="200">
-            <Tooltip>
-              <TooltipTrigger>
-                <Icon icon="lucide:help-circle" class="w-4 h-4 text-muted-foreground" />
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>{{ t('settings.model.systemPrompt.description') }}</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+      <div v-if="!isAcpProvider && !modelTypeDetection.isImageGenerationModel.value" class="px-2">
+        <div class="flex items-center justify-between gap-3">
+          <div class="flex min-w-0 items-center gap-2">
+            <Icon icon="lucide:terminal" class="w-4 h-4 text-muted-foreground" />
+            <Label class="text-xs font-medium">{{ t('settings.model.systemPrompt.label') }}</Label>
+            <TooltipProvider :ignoreNonKeyboardFocus="true" :delayDuration="200">
+              <Tooltip>
+                <TooltipTrigger>
+                  <Icon icon="lucide:help-circle" class="w-4 h-4 text-muted-foreground" />
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>{{ t('settings.model.systemPrompt.description') }}</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+          <Select v-model="resolvedSystemPromptId">
+            <SelectTrigger class="h-8 w-40 text-xs">
+              <SelectValue :placeholder="t('promptSetting.selectSystemPrompt')" />
+            </SelectTrigger>
+            <SelectContent :portal="false">
+              <SelectItem :value="EMPTY_SYSTEM_PROMPT_ID">
+                <div class="flex flex-col gap-1">
+                  <span class="text-xs font-medium">
+                    {{ t('promptSetting.emptySystemPromptOption') }}
+                  </span>
+                  <span class="text-[11px] text-muted-foreground line-clamp-1">
+                    {{ t('promptSetting.emptySystemPromptDescription') }}
+                  </span>
+                </div>
+              </SelectItem>
+              <SelectItem :value="DEFAULT_SYSTEM_PROMPT_ID">
+                <div class="flex flex-col gap-1">
+                  <span class="text-xs font-medium">
+                    {{ t('promptSetting.defaultSystemPrompt') }}
+                  </span>
+                  <span class="text-[11px] text-muted-foreground line-clamp-1">
+                    {{ defaultPromptPreview }}
+                  </span>
+                </div>
+              </SelectItem>
+              <SelectItem
+                v-for="prompt in selectableSystemPrompts"
+                :key="prompt.id"
+                :value="prompt.id"
+              >
+                <div class="flex flex-col gap-1">
+                  <span class="text-xs font-medium">
+                    {{ prompt.name }}
+                  </span>
+                  <span class="text-[11px] text-muted-foreground line-clamp-1">
+                    {{ formatPromptPreview(prompt.content) }}
+                  </span>
+                </div>
+              </SelectItem>
+            </SelectContent>
+          </Select>
         </div>
-        <Textarea
-          v-model="systemPrompt"
-          :placeholder="t('settings.model.systemPrompt.placeholder')"
-        />
       </div>
 
-      <!-- Slider Fields (Temperature, Context Length, Response Length) -->
+      <!-- Numeric Fields (Temperature, Context Length, Response Length) -->
       <template v-if="!isAcpProvider">
-        <ConfigSliderField
-          v-for="field in sliderFields"
+        <ConfigInputField
+          v-for="field in numericFields"
           :key="field.key"
           :model-value="field.getValue()"
           :icon="field.icon"
           :label="field.label"
-          :description="field.description || ''"
+          :description="field.description"
+          :type="field.inputType"
           :min="field.min"
           :max="field.max"
           :step="field.step"
-          :formatter="field.formatter"
+          :placeholder="field.placeholder"
+          :error="field.error?.()"
+          :hint="field.hint?.()"
           @update:model-value="field.setValue"
         />
 

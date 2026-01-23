@@ -1083,6 +1083,7 @@ export interface ILlmProviderPresenter {
 
 export type CONVERSATION_SETTINGS = {
   systemPrompt: string
+  systemPromptId?: string
   temperature: number
   contextLength: number
   maxTokens: number

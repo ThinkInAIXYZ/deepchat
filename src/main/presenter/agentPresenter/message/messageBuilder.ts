@@ -82,6 +82,32 @@ function appendPromptSection(base: string, section: string): string {
   return `${base}\n\n${trimmedSection}`
 }
 
+async function resolveSystemPrompt(conversation: CONVERSATION): Promise<string> {
+  const systemPromptId = conversation.settings.systemPromptId?.trim()
+  if (!systemPromptId) {
+    return conversation.settings.systemPrompt || ''
+  }
+
+  if (systemPromptId === 'empty') {
+    return ''
+  }
+
+  try {
+    if (systemPromptId === 'default') {
+      return await presenter.configPresenter.getDefaultSystemPrompt()
+    }
+    const prompts = await presenter.configPresenter.getSystemPrompts()
+    const matchedPrompt = prompts.find((prompt) => prompt.id === systemPromptId)
+    if (matchedPrompt?.content) {
+      return matchedPrompt.content
+    }
+  } catch (error) {
+    console.warn('AgentPresenter: Failed to resolve system prompt id', error)
+  }
+
+  return conversation.settings.systemPrompt || ''
+}
+
 export async function preparePromptContent({
   conversation,
   userContent,
@@ -95,7 +121,8 @@ export async function preparePromptContent({
   finalContent: ChatMessage[]
   promptTokens: number
 }> {
-  const { systemPrompt, contextLength, artifacts, enabledMcpTools } = conversation.settings
+  const { contextLength, artifacts, enabledMcpTools } = conversation.settings
+  const systemPrompt = await resolveSystemPrompt(conversation)
   const storedChatMode = presenter.configPresenter.getSetting('input_chatMode') as
     | 'chat'
     | 'agent'
@@ -256,7 +283,7 @@ export async function buildContinueToolCallContext({
   pendingToolCall,
   modelConfig
 }: ContinueToolCallContextParams): Promise<ChatMessage[]> {
-  const { systemPrompt } = conversation.settings
+  const systemPrompt = await resolveSystemPrompt(conversation)
   const formattedMessages: ChatMessage[] = []
 
   if (systemPrompt) {
@@ -289,7 +316,7 @@ export async function buildPostToolExecutionContext({
   completedToolCall,
   modelConfig
 }: PostToolExecutionContextParams): Promise<ChatMessage[]> {
-  const { systemPrompt } = conversation.settings
+  const systemPrompt = await resolveSystemPrompt(conversation)
   const formattedMessages: ChatMessage[] = []
   const supportsFunctionCall = Boolean(modelConfig?.functionCall)
 

@@ -2,6 +2,7 @@ import type { CONVERSATION_SETTINGS } from '@shared/presenter'
 
 export const DEFAULT_SETTINGS: CONVERSATION_SETTINGS = {
   systemPrompt: '',
+  systemPromptId: 'default',
   temperature: 0.7,
   contextLength: 12800,
   maxTokens: 8192,

@@ -7,6 +7,7 @@ import { AssistantMessageBlock, Message } from '../../chat'
 
 export type CONVERSATION_SETTINGS = {
   systemPrompt: string
+  systemPromptId?: string
   temperature: number
   contextLength: number
   maxTokens: number

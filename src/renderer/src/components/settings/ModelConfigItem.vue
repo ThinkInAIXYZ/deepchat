@@ -8,19 +8,29 @@
       <span class="text-xs" :class="!enabled ? 'text-foreground/70' : ''">
         {{ modelName }}
       </span>
-      <Icon v-if="vision" icon="lucide:eye" class="w-4 h-4 text-blue-500" title="视觉能力" />
+      <Icon
+        v-if="vision"
+        icon="lucide:eye"
+        class="w-4 h-4 text-blue-500"
+        :title="t('settings.model.modelConfig.vision.label')"
+      />
       <Icon
         v-if="functionCall"
         icon="lucide:function-square"
         class="w-4 h-4 text-orange-500"
-        title="函数调用能力"
+        :title="t('settings.model.modelConfig.functionCall.label')"
       />
-      <Icon v-if="reasoning" icon="lucide:brain" class="w-4 h-4 text-purple-500" title="推理能力" />
+      <Icon
+        v-if="reasoning"
+        icon="lucide:brain"
+        class="w-4 h-4 text-purple-500"
+        :title="t('settings.model.modelConfig.reasoning.label')"
+      />
       <Icon
         v-if="enableSearch"
-        icon="lucide:globe"
+        icon="lucide:book-open"
         class="w-4 h-4 text-green-500"
-        title="联网搜索能力"
+        :title="t('settings.model.modelConfig.enableSearch.label')"
       />
     </div>
     <div class="grow"></div>
@@ -74,6 +84,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Button } from '@shadcn/components/ui/button'
 import { Switch } from '@shadcn/components/ui/switch'
 import { Icon } from '@iconify/vue'
@@ -108,6 +119,8 @@ const emit = defineEmits<{
   deleteModel: []
   configChanged: []
 }>()
+
+const { t } = useI18n()
 
 // 配置对话框状态
 const showConfigDialog = ref(false)

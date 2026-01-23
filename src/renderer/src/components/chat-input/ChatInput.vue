@@ -167,14 +167,40 @@
             :active-model="config.activeModel.value"
             :model-display-name="config.modelDisplayName.value"
             :is-dark="themeStore.isDark"
+            :system-prompt-id="config.configSystemPromptId.value"
+            :temperature="config.configTemperature.value"
+            :context-length="config.configContextLength.value"
+            :max-tokens="config.configMaxTokens.value"
+            :artifacts="config.configArtifacts.value"
+            :thinking-budget="config.configThinkingBudget.value"
+            :enable-search="config.configEnableSearch.value"
+            :forced-search="config.configForcedSearch.value"
+            :search-strategy="config.configSearchStrategy.value"
+            :reasoning-effort="config.configReasoningEffort.value"
+            :verbosity="config.configVerbosity.value"
+            :context-length-limit="config.configContextLengthLimit.value"
+            :max-tokens-limit="config.configMaxTokensLimit.value"
+            :model-id="chatStore.chatConfig.modelId"
+            :provider-id="chatStore.chatConfig.providerId"
+            :model-type="config.configModelType.value"
             @model-update="config.handleModelUpdate"
+            @update:system-prompt-id="config.configSystemPromptId.value = $event"
+            @update:temperature="config.configTemperature.value = $event"
+            @update:context-length="config.configContextLength.value = $event"
+            @update:max-tokens="config.configMaxTokens.value = $event"
+            @update:thinking-budget="config.configThinkingBudget.value = $event"
+            @update:enable-search="config.configEnableSearch.value = $event"
+            @update:forced-search="config.configForcedSearch.value = $event"
+            @update:search-strategy="config.configSearchStrategy.value = $event"
+            @update:reasoning-effort="config.configReasoningEffort.value = $event"
+            @update:verbosity="config.configVerbosity.value = $event"
           />
         </template>
 
         <!-- <template #config-button>
           <ConfigButton
             v-if="(variant === 'agent' || variant === 'newThread') && !isAcpChatMode"
-            :system-prompt="config.configSystemPrompt.value"
+            :system-prompt-id="config.configSystemPromptId.value"
             :temperature="config.configTemperature.value"
             :context-length="config.configContextLength.value"
             :max-tokens="config.configMaxTokens.value"
@@ -197,7 +223,7 @@
             :model-id="chatStore.chatConfig.modelId"
             :provider-id="chatStore.chatConfig.providerId"
             :model-type="config.configModelType.value"
-            @update:system-prompt="config.configSystemPrompt.value = $event"
+            @update:system-prompt-id="config.configSystemPromptId.value = $event"
             @update:temperature="config.configTemperature.value = $event"
             @update:context-length="config.configContextLength.value = $event"
             @update:max-tokens="config.configMaxTokens.value = $event"
@@ -538,7 +564,7 @@ const config =
     : ({
         activeModel: ref({ providerId: '', tags: [] }),
         modelDisplayName: ref(''),
-        configSystemPrompt: ref(''),
+        configSystemPromptId: ref('default'),
         configTemperature: ref(0.7),
         configContextLength: ref(0),
         configMaxTokens: ref(0),

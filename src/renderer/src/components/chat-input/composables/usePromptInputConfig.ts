@@ -34,7 +34,7 @@ export function usePromptInputConfig() {
   const configContextLengthLimit = ref(chatStore.chatConfig.contextLength)
   const configMaxTokens = ref(chatStore.chatConfig.maxTokens)
   const configMaxTokensLimit = ref(chatStore.chatConfig.maxTokens)
-  const configSystemPrompt = ref(chatStore.chatConfig.systemPrompt)
+  const configSystemPromptId = ref(chatStore.chatConfig.systemPromptId)
   const configArtifacts = ref(chatStore.chatConfig.artifacts)
   const configThinkingBudget = ref(chatStore.chatConfig.thinkingBudget)
   const configEnableSearch = ref(chatStore.chatConfig.enableSearch)
@@ -200,7 +200,7 @@ export function usePromptInputConfig() {
       configTemperature.value !== currentConfig.temperature ||
       configContextLength.value !== currentConfig.contextLength ||
       configMaxTokens.value !== currentConfig.maxTokens ||
-      configSystemPrompt.value !== currentConfig.systemPrompt ||
+      configSystemPromptId.value !== currentConfig.systemPromptId ||
       configArtifacts.value !== currentConfig.artifacts ||
       configThinkingBudget.value !== currentConfig.thinkingBudget ||
       configEnableSearch.value !== currentConfig.enableSearch ||
@@ -213,7 +213,7 @@ export function usePromptInputConfig() {
         temperature: configTemperature.value,
         contextLength: configContextLength.value,
         maxTokens: configMaxTokens.value,
-        systemPrompt: configSystemPrompt.value,
+        systemPromptId: configSystemPromptId.value,
         artifacts: configArtifacts.value,
         thinkingBudget: configThinkingBudget.value,
         enableSearch: configEnableSearch.value,
@@ -230,7 +230,7 @@ export function usePromptInputConfig() {
       configTemperature,
       configContextLength,
       configMaxTokens,
-      configSystemPrompt,
+      configSystemPromptId,
       configArtifacts,
       configThinkingBudget,
       configEnableSearch,
@@ -251,7 +251,7 @@ export function usePromptInputConfig() {
       configTemperature.value = newConfig.temperature
       configContextLength.value = newConfig.contextLength
       configMaxTokens.value = newConfig.maxTokens
-      configSystemPrompt.value = newConfig.systemPrompt
+      configSystemPromptId.value = newConfig.systemPromptId
       configArtifacts.value = newConfig.artifacts
       configThinkingBudget.value = newConfig.thinkingBudget
       configEnableSearch.value = newConfig.enableSearch
@@ -278,7 +278,7 @@ export function usePromptInputConfig() {
     configContextLengthLimit,
     configMaxTokens,
     configMaxTokensLimit,
-    configSystemPrompt,
+    configSystemPromptId,
     configArtifacts,
     configThinkingBudget,
     configEnableSearch,

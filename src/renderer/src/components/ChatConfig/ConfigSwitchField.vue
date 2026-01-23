@@ -16,8 +16,8 @@ const emit = defineEmits<{
 
 <template>
   <div class="flex items-center justify-between">
-    <div class="space-y-0.5">
-      <Label class="text-sm">{{ label }}</Label>
+    <div class="min-w-0">
+      <Label class="text-xs font-medium">{{ label }}</Label>
     </div>
     <Switch
       :model-value="modelValue"
