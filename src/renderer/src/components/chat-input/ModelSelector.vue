@@ -51,16 +51,15 @@
           "
         >
           <div class="p-2 space-y-2">
-            <div class="flex items-center justify-end">
+            <div v-if="!showModelSettings" class="flex items-center justify-end">
               <Button
                 variant="ghost"
                 size="sm"
                 class="h-7 px-2 text-xs font-medium text-muted-foreground hover:bg-muted/60 hover:text-foreground"
-                :disabled="showModelSettings"
                 @click="showModelSettings = true"
               >
-                <Icon icon="lucide:settings-2" class="mr-1 h-4 w-4" />
-                {{ t('settings.model.title') }}
+                {{ te('common.moreSettings') ? t('common.moreSettings') : 'More settings' }}
+                <Icon icon="lucide:chevron-right" class="ml-1 h-4 w-4" />
               </Button>
             </div>
             <ModelChooser
@@ -163,7 +162,7 @@ const emit = defineEmits<{
   'update:verbosity': [value: 'low' | 'medium' | 'high']
 }>()
 
-const { t } = useI18n()
+const { t, te } = useI18n()
 const open = ref(false)
 const showModelSettings = ref(false)
 
