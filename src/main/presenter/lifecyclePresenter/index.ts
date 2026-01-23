@@ -2,7 +2,7 @@
  * LifecycleManager - Central orchestrator for application lifecycle phases
  */
 
-import { app } from 'electron'
+import { app, BrowserWindow } from 'electron'
 import { eventBus, SendTarget } from '@/eventbus'
 import { LIFECYCLE_EVENTS, WINDOW_EVENTS, UPDATE_EVENTS } from '@/events'
 import { SplashWindowManager } from './SplashWindowManager'
@@ -34,6 +34,8 @@ export class LifecycleManager implements ILifecycleManager {
   private splashManager: ISplashWindowManager
   private lifecycleContext: LifecycleContext
   private isUpdateInProgress = false
+  private splashTimer: ReturnType<typeof setTimeout> | null = null
+  private startupCompleted = false
 
   constructor() {
     this.state = {
@@ -78,11 +80,10 @@ export class LifecycleManager implements ILifecycleManager {
     }
 
     this.state.startTime = Date.now()
+    this.startupCompleted = false
+    this.scheduleSplashIfSlow()
 
     try {
-      // Create and show splash window
-      await this.splashManager.create()
-
       // Execute startup phases in sequence
       await this.executePhase(LifecyclePhase.INIT)
       await this.executePhase(LifecyclePhase.BEFORE_START)
@@ -90,8 +91,12 @@ export class LifecycleManager implements ILifecycleManager {
       await this.executePhase(LifecyclePhase.AFTER_START)
 
       // Close splash window after startup is complete
+      this.startupCompleted = true
+      this.clearSplashTimer()
       await this.splashManager.close()
     } catch (error) {
+      this.startupCompleted = true
+      this.clearSplashTimer()
       // Close splash window on error
       if (this.splashManager.isVisible()) {
         await this.splashManager.close()
@@ -103,6 +108,32 @@ export class LifecycleManager implements ILifecycleManager {
       } as ErrorOccurredEventData)
       throw error
     }
+  }
+
+  private scheduleSplashIfSlow(): void {
+    this.clearSplashTimer()
+
+    this.splashTimer = setTimeout(() => {
+      if (this.startupCompleted) {
+        return
+      }
+
+      // If any window already exists within 1s, skip constructing splash.
+      // This avoids unnecessary flicker for fast startups.
+      if (BrowserWindow.getAllWindows().length > 0) {
+        return
+      }
+
+      this.splashManager.create().catch((error) => {
+        console.error('Failed to create splash window (delayed):', error)
+      })
+    }, 1000)
+  }
+
+  private clearSplashTimer(): void {
+    if (!this.splashTimer) return
+    clearTimeout(this.splashTimer)
+    this.splashTimer = null
   }
 
   /**
