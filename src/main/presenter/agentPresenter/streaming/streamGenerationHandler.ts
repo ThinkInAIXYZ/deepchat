@@ -63,10 +63,7 @@ export class StreamGenerationHandler extends BaseHandler {
       )
 
       const { chatMode, agentWorkspacePath } =
-        await presenter.sessionManager.resolveWorkspaceContext(
-          conversationId,
-          conversation.settings.modelId
-        )
+        await presenter.sessionManager.resolveWorkspaceContext(conversationId)
       if (chatMode === 'agent' && agentWorkspacePath) {
         conversation.settings.agentWorkspacePath = agentWorkspacePath
       }

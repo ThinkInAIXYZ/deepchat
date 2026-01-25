@@ -5,7 +5,7 @@ export type SessionConfig = {
   title: string
   providerId: string
   modelId: string
-  chatMode: 'chat' | 'agent' | 'acp agent'
+  chatMode: 'chat' | 'agent'
   systemPrompt: string
   maxTokens?: number
   temperature?: number
@@ -20,7 +20,6 @@ export type SessionConfig = {
   searchStrategy?: 'turbo' | 'max'
   enabledMcpTools?: string[]
   agentWorkspacePath?: string | null
-  acpWorkdirMap?: Record<string, string | null>
   selectedVariantsMap?: Record<string, string>
   activeSkills?: string[]
   isPinned?: boolean
@@ -33,9 +32,8 @@ export type SessionBindings = {
 }
 
 export type WorkspaceContext = {
-  resolvedChatMode: 'chat' | 'agent' | 'acp agent'
+  resolvedChatMode: 'chat' | 'agent'
   agentWorkspacePath: string | null
-  acpWorkdirMap?: Record<string, string | null>
 }
 
 export type Session = {

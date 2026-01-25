@@ -31,7 +31,6 @@ export function useChatConfig(
     reasoningEffort: undefined,
     verbosity: undefined,
     selectedVariantsMap: {},
-    acpWorkdirMap: {},
     agentWorkspacePath: null
   })
 
@@ -55,8 +54,7 @@ export function useChatConfig(
       if (conversation) {
         const normalizedSettings = { ...conversation.settings }
         chatConfig.value = {
-          ...normalizedSettings,
-          acpWorkdirMap: normalizedSettings.acpWorkdirMap ?? {}
+          ...normalizedSettings
         }
 
         // Populate the in-memory map from the loaded settings
@@ -105,26 +103,6 @@ export function useChatConfig(
   }
 
   /**
-   * Set ACP workdir preference for an agent
-   * @param agentId Agent ID
-   * @param workdir Working directory path
-   */
-  const setAcpWorkdirPreference = (agentId: string, workdir: string | null) => {
-    if (!agentId) return
-
-    const currentMap = chatConfig.value.acpWorkdirMap ?? {}
-    const nextMap = { ...currentMap }
-
-    if (workdir && workdir.trim().length > 0) {
-      nextMap[agentId] = workdir
-    } else {
-      delete nextMap[agentId]
-    }
-
-    chatConfig.value = { ...chatConfig.value, acpWorkdirMap: nextMap }
-  }
-
-  /**
    * Set agent workspace preference
    * @param workspacePath Workspace path
    */
@@ -154,7 +132,6 @@ export function useChatConfig(
       reasoningEffort: undefined,
       verbosity: undefined,
       selectedVariantsMap: {},
-      acpWorkdirMap: {},
       agentWorkspacePath: null
     }
   }
@@ -167,7 +144,6 @@ export function useChatConfig(
     loadChatConfig,
     saveChatConfig,
     updateChatConfig,
-    setAcpWorkdirPreference,
     setAgentWorkspacePreference,
     resetChatConfig
   }

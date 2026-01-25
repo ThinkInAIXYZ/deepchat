@@ -76,7 +76,6 @@ export type OpenChatSettingsSection =
   | 'provider'
   | 'mcp'
   | 'prompt'
-  | 'acp'
   | 'skills'
   | 'knowledge-base'
   | 'database'

@@ -6,7 +6,6 @@ import { useI18n } from 'vue-i18n'
 import { usePresenter } from '@/composables/usePresenter'
 import { useConversationCore } from '@/composables/chat/useConversationCore'
 import { useChatMode } from './useChatMode'
-import { useAcpWorkdir } from './useAcpWorkdir'
 import { useChatStore } from '@/stores/chat'
 
 // === Types ===
@@ -20,7 +19,7 @@ export interface UseAgentWorkspaceOptions {
 
 /**
  * Unified workspace path management composable
- * Handles workspace path selection for both agent and acp agent modes
+ * Handles workspace path selection for agent mode
  */
 export function useAgentWorkspace(options: UseAgentWorkspaceOptions) {
   const { t } = useI18n()
@@ -28,13 +27,7 @@ export function useAgentWorkspace(options: UseAgentWorkspaceOptions) {
   const chatMode = options.chatMode ?? useChatMode()
   const chatStore = useChatStore()
 
-  // Use ACP workdir for acp agent mode
-  const acpWorkdir = useAcpWorkdir({
-    conversationId: options.conversationId,
-    activeModel: options.activeModel
-  })
-
-  // Agent workspace path (for agent mode)
+  // Agent workspace path
   const agentWorkspacePath = ref<string | null>(null)
   const pendingWorkspacePath = ref<string | null>(null)
   const loading = ref(false)
@@ -66,49 +59,28 @@ export function useAgentWorkspace(options: UseAgentWorkspaceOptions) {
 
   // === Computed ===
   const hasWorkspace = computed(() => {
-    if (chatMode.currentMode.value === 'acp agent') {
-      return acpWorkdir.hasWorkdir.value
-    }
     return Boolean(pendingWorkspacePath.value ?? agentWorkspacePath.value)
   })
 
   const workspacePath = computed(() => {
-    if (chatMode.currentMode.value === 'acp agent') {
-      return acpWorkdir.workdir.value
-    }
     return pendingWorkspacePath.value ?? agentWorkspacePath.value
   })
 
   const tooltipTitle = computed(() => {
-    if (chatMode.currentMode.value === 'acp agent') {
-      return t('chat.input.acpWorkdirTooltip')
-    }
     return t('chat.input.agentWorkspaceTooltip')
   })
 
   const tooltipCurrent = computed(() => {
     if (!hasWorkspace.value) return ''
-    if (chatMode.currentMode.value === 'acp agent') {
-      return t('chat.input.acpWorkdirCurrent', { path: workspacePath.value || '' })
-    }
     return t('chat.input.agentWorkspaceCurrent', { path: workspacePath.value || '' })
   })
 
   const tooltipSelect = computed(() => {
-    if (chatMode.currentMode.value === 'acp agent') {
-      return t('chat.input.acpWorkdirSelect')
-    }
     return t('chat.input.agentWorkspaceSelect')
   })
 
   // === Methods ===
   const selectWorkspace = async () => {
-    if (chatMode.currentMode.value === 'acp agent') {
-      // Use ACP workdir selection
-      await acpWorkdir.selectWorkdir()
-      return
-    }
-
     // For agent mode, select workspace path
     loading.value = true
     try {
@@ -143,11 +115,6 @@ export function useAgentWorkspace(options: UseAgentWorkspaceOptions) {
 
   // Load workspace path from conversation settings
   const loadWorkspacePath = async () => {
-    if (chatMode.currentMode.value === 'acp agent') {
-      // ACP workdir is loaded by useAcpWorkdir
-      return
-    }
-
     if (!options.conversationId.value) {
       hydrateWorkspaceFromPreference()
       return
@@ -206,26 +173,24 @@ export function useAgentWorkspace(options: UseAgentWorkspaceOptions) {
   // Watch for chatMode and conversationId changes
   watch(
     [() => chatMode.currentMode.value, () => options.conversationId.value],
-    async ([newMode, conversationId]) => {
-      if (newMode === 'agent') {
-        if (pendingWorkspacePath.value && conversationId) {
-          await syncPendingWorkspaceWhenReady()
-        }
-        if (conversationId) {
-          await loadWorkspacePath()
-        } else {
-          hydrateWorkspaceFromPreference()
-        }
-        return
+    async ([_newMode, conversationId]) => {
+      if (pendingWorkspacePath.value && conversationId) {
+        await syncPendingWorkspaceWhenReady()
       }
-
-      if (newMode === 'acp agent') {
-        // ACP workdir is handled by useAcpWorkdir
-        return
+      if (conversationId) {
+        await loadWorkspacePath()
+      } else {
+        hydrateWorkspaceFromPreference()
       }
     },
     { immediate: true }
   )
+
+  // Stub values for ACP workdir change confirmation (no longer used)
+  const showWorkdirChangeConfirm = ref(false)
+  const pendingWorkdirChange = ref<string | null>(null)
+  const confirmWorkdirChange = async () => {}
+  const cancelWorkdirChange = () => {}
 
   return {
     hasWorkspace,
@@ -236,10 +201,10 @@ export function useAgentWorkspace(options: UseAgentWorkspaceOptions) {
     tooltipSelect,
     selectWorkspace,
     loadWorkspacePath,
-    // ACP workdir change confirmation dialog state and methods
-    showWorkdirChangeConfirm: acpWorkdir.showWorkdirChangeConfirm,
-    pendingWorkdirChange: acpWorkdir.pendingWorkdirChange,
-    confirmWorkdirChange: acpWorkdir.confirmWorkdirChange,
-    cancelWorkdirChange: acpWorkdir.cancelWorkdirChange
+    // Stub values for API compatibility
+    showWorkdirChangeConfirm,
+    pendingWorkdirChange,
+    confirmWorkdirChange,
+    cancelWorkdirChange
   }
 }

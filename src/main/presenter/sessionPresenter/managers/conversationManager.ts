@@ -188,7 +188,6 @@ export class ConversationManager {
         defaultSettings.forcedSearch = undefined
         defaultSettings.searchStrategy = undefined
         defaultSettings.selectedVariantsMap = {}
-        defaultSettings.acpWorkdirMap = {}
         defaultSettings.agentWorkspacePath = null
         defaultSettings.activeSkills = []
       }

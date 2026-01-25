@@ -28,8 +28,6 @@ export const createWorkspaceStore = (deps: WorkspaceStoreDeps = {}) => {
   const chatMode = deps.chatMode ?? useChatMode()
   const workspaceAdapter = deps.workspaceAdapter ?? useWorkspaceAdapter()
 
-  const isAcpAgentMode = computed(() => chatMode.currentMode.value === 'acp agent')
-
   const isOpen = ref(false)
   const isLoading = ref(false)
   const planEntries = ref<WorkspacePlanEntry[]>([])
@@ -44,16 +42,9 @@ export const createWorkspaceStore = (deps: WorkspaceStoreDeps = {}) => {
   let planRefreshRequestId = 0
   let listenersBound = false
 
-  const isAgentMode = computed(
-    () => chatMode.currentMode.value === 'agent' || chatMode.currentMode.value === 'acp agent'
-  )
+  const isAgentMode = computed(() => chatMode.currentMode.value === 'agent')
 
   const currentWorkspacePath = computed(() => {
-    if (chatMode.currentMode.value === 'acp agent') {
-      const modelId = chatStore.chatConfig.modelId
-      if (!modelId) return null
-      return chatStore.chatConfig.acpWorkdirMap?.[modelId] ?? null
-    }
     return chatStore.chatConfig.agentWorkspacePath ?? null
   })
 
@@ -99,11 +90,8 @@ export const createWorkspaceStore = (deps: WorkspaceStoreDeps = {}) => {
       return
     }
 
-    if (isAcpAgentMode.value) {
-      await workspaceAdapter.registerWorkdir(workspacePath)
-    } else {
-      await workspaceAdapter.registerWorkspace(workspacePath)
-    }
+    // Always use registerWorkspace after ACP cleanup
+    await workspaceAdapter.registerWorkspace(workspacePath)
 
     isLoading.value = true
     try {

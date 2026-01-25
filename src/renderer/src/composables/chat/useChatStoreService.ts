@@ -49,7 +49,7 @@ export type MessageListItem = {
 export const useChatStoreService = () => {
   const conversationCore = useConversationCore()
   const chatAdapter = useChatAdapter()
-  const { currentMode } = useChatMode()
+  useChatMode() // Initialize chat mode but don't destructure unused values
 
   const activeThreadId = ref<string | null>(null)
   const threads = ref<
@@ -101,10 +101,9 @@ export const useChatStoreService = () => {
     return threads.value.flatMap((t) => t.dtThreads).find((t) => t.id === activeThreadId.value)
   })
 
-  const isAcpMode = computed(() => currentMode.value === 'acp agent')
-  const activeAcpAgentId = computed(() =>
-    isAcpMode.value ? configComposable.chatConfig.value.modelId?.trim() || null : null
-  )
+  // ACP mode is no longer available after cleanup
+  const isAcpMode = computed(() => false)
+  const activeAcpAgentId = computed(() => null as string | null)
 
   const activeAgentMcpSelectionsState = ref<string[] | null>(null)
   let activeAgentMcpSelectionsRequestId = 0
@@ -191,10 +190,6 @@ export const useChatStoreService = () => {
     if (cacheVersion < 0) return 0
     return messageIds.value.length
   })
-
-  const setAcpWorkdirPreference = (agentId: string, workdir: string | null) => {
-    configComposable.setAcpWorkdirPreference(agentId, workdir)
-  }
 
   const setAgentWorkspacePreference = (workspacePath: string | null) => {
     configComposable.setAgentWorkspacePreference(workspacePath)
@@ -626,7 +621,6 @@ export const useChatStoreService = () => {
     chatConfig: configComposable.chatConfig,
     updateChatConfig: configComposable.updateChatConfig,
     loadChatConfig: configComposable.loadChatConfig,
-    setAcpWorkdirPreference,
     setAgentWorkspacePreference,
     retryMessage,
     deleteMessage,

@@ -10,6 +10,5 @@ export const DEFAULT_SETTINGS: CONVERSATION_SETTINGS = {
   modelId: 'deepseek-chat',
   chatMode: 'agent',
   artifacts: 0,
-  acpWorkdirMap: {},
   activeSkills: []
 }

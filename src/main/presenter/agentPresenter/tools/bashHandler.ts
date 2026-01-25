@@ -11,7 +11,7 @@ import {
   CommandPermissionRequiredError,
   CommandPermissionService
 } from '../../permission/commandPermissionService'
-import { getShellEnvironment, getUserShell } from './shellEnvHelper'
+import { getShellEnvironment, getUserShell } from '@/lib/shellEnvHelper'
 import { registerCommandProcess, unregisterCommandProcess } from './commandProcessTracker'
 
 const COMMAND_MAX_OUTPUT_LENGTH = 30000

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import * as fs from 'fs/promises'
 import * as path from 'path'
 import * as os from 'os'
-import { AcpFsHandler } from '@/presenter/agentPresenter/acp'
+import { AcpFsHandler } from '@/presenter/acpPresenter/handlers/fsHandler'
 
 describe('AcpFsHandler', () => {
   let testDir: string

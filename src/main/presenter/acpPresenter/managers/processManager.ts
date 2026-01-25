@@ -12,14 +12,15 @@ import type {
 import type * as schema from '@agentclientprotocol/sdk/dist/schema.js'
 import type { Stream } from '@agentclientprotocol/sdk/dist/stream.js'
 import type { AcpAgentConfig } from '@shared/presenter'
-import type { AgentProcessHandle, AgentProcessManager } from './types'
-import { getShellEnvironment } from './shellEnvHelper'
+import type { AgentProcessHandle, AgentProcessManager } from '../../agentPresenter/acp/types'
+import { getShellEnvironment } from '@/lib/shellEnvHelper'
 import { RuntimeHelper } from '@/lib/runtimeHelper'
-import { buildClientCapabilities } from './acpCapabilities'
-import { AcpFsHandler } from './acpFsHandler'
-import { AcpTerminalManager } from './acpTerminalManager'
+import { buildClientCapabilities } from '../capabilities'
+import { AcpFsHandler } from '../handlers/fsHandler'
+import { AcpTerminalManager } from '../handlers/terminalManager'
 import { eventBus, SendTarget } from '@/eventbus'
-import { ACP_WORKSPACE_EVENTS, WORKSPACE_EVENTS } from '@/events'
+import { ACP_WORKSPACE_EVENTS } from '../events'
+import { WORKSPACE_EVENTS } from '@/events'
 
 export interface AcpProcessHandle extends AgentProcessHandle {
   child: ChildProcessWithoutNullStreams

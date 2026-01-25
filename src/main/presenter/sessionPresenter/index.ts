@@ -10,7 +10,6 @@ import type {
   ISQLitePresenter,
   IConfigPresenter,
   ILlmProviderPresenter,
-  AcpWorkdirInfo,
   IConversationExporter
 } from '@shared/presenter'
 import type { AssistantMessageBlock, Message, UserMessageContent } from '@shared/chat'
@@ -411,24 +410,6 @@ export class SessionPresenter implements ISessionPresenter {
       options
     )
 
-    if (settings?.acpWorkdirMap) {
-      const tasks = Object.entries(settings.acpWorkdirMap)
-        .filter(([, path]) => typeof path === 'string' && path.trim().length > 0)
-        .map(([agentId, path]) =>
-          this.llmProviderPresenter
-            .setAcpWorkdir(conversationId, agentId, path as string)
-            .catch((error) =>
-              console.warn('[SessionPresenter] Failed to set ACP workdir during creation', {
-                conversationId,
-                agentId,
-                error
-              })
-            )
-        )
-
-      await Promise.all(tasks)
-    }
-
     return conversationId
   }
 
@@ -796,82 +777,6 @@ export class SessionPresenter implements ISessionPresenter {
     return this.exporter.exportConversation(conversationId, format)
   }
 
-  async getAcpWorkdir(conversationId: string, agentId: string): Promise<AcpWorkdirInfo> {
-    return this.llmProviderPresenter.getAcpWorkdir(conversationId, agentId)
-  }
-
-  async setAcpWorkdir(
-    conversationId: string,
-    agentId: string,
-    workdir: string | null
-  ): Promise<void> {
-    await this.llmProviderPresenter.setAcpWorkdir(conversationId, agentId, workdir)
-  }
-
-  async warmupAcpProcess(agentId: string, workdir: string): Promise<void> {
-    await this.llmProviderPresenter.warmupAcpProcess(agentId, workdir)
-  }
-
-  async ensureAcpWarmup(agentId: string, workdir: string | null): Promise<void> {
-    await this.llmProviderPresenter.ensureAcpWarmup(agentId, workdir)
-  }
-
-  async getAcpProcessModes(
-    agentId: string,
-    workdir: string
-  ): Promise<
-    | {
-        availableModes?: Array<{ id: string; name: string; description: string }>
-        currentModeId?: string
-      }
-    | undefined
-  > {
-    return await this.llmProviderPresenter.getAcpProcessModes(agentId, workdir)
-  }
-
-  async getAcpProcessModels(
-    agentId: string,
-    workdir: string
-  ): Promise<
-    | {
-        availableModels?: Array<{ id: string; name: string; description?: string }>
-        currentModelId?: string
-      }
-    | undefined
-  > {
-    return await this.llmProviderPresenter.getAcpProcessModels(agentId, workdir)
-  }
-
-  async setAcpPreferredProcessMode(agentId: string, workdir: string, modeId: string) {
-    await this.llmProviderPresenter.setAcpPreferredProcessMode(agentId, workdir, modeId)
-  }
-
-  async setAcpPreferredProcessModel(agentId: string, workdir: string, modelId: string) {
-    await this.llmProviderPresenter.setAcpPreferredProcessModel(agentId, workdir, modelId)
-  }
-
-  async setAcpSessionMode(conversationId: string, modeId: string): Promise<void> {
-    await this.llmProviderPresenter.setAcpSessionMode(conversationId, modeId)
-  }
-
-  async setAcpSessionModel(conversationId: string, modelId: string): Promise<void> {
-    await this.llmProviderPresenter.setAcpSessionModel(conversationId, modelId)
-  }
-
-  async getAcpSessionModes(conversationId: string): Promise<{
-    current: string
-    available: Array<{ id: string; name: string; description: string }>
-  } | null> {
-    return await this.llmProviderPresenter.getAcpSessionModes(conversationId)
-  }
-
-  async getAcpSessionModels(conversationId: string): Promise<{
-    current: string
-    available: Array<{ id: string; name: string; description?: string }>
-  } | null> {
-    return await this.llmProviderPresenter.getAcpSessionModels(conversationId)
-  }
-
   /**
    * Export conversation to nowledge-mem format with validation
    */
@@ -958,8 +863,7 @@ export class SessionPresenter implements ISessionPresenter {
       context: {
         resolvedChatMode: (conversation.settings.chatMode ??
           'agent') as Session['context']['resolvedChatMode'],
-        agentWorkspacePath: conversation.settings.agentWorkspacePath ?? null,
-        acpWorkdirMap: conversation.settings.acpWorkdirMap
+        agentWorkspacePath: conversation.settings.agentWorkspacePath ?? null
       },
       createdAt: conversation.createdAt,
       updatedAt: conversation.updatedAt

@@ -28,7 +28,6 @@ import { MinimaxProvider } from '../providers/minimaxProvider'
 import { AihubmixProvider } from '../providers/aihubmixProvider'
 import { _302AIProvider } from '../providers/_302AIProvider'
 import { ModelscopeProvider } from '../providers/modelscopeProvider'
-import { AcpProvider } from '../providers/acpProvider'
 import { VercelAIGatewayProvider } from '../providers/vercelAIGatewayProvider'
 import { PoeProvider } from '../providers/poeProvider'
 import { JiekouProvider } from '../providers/jiekouProvider'
@@ -36,7 +35,6 @@ import { ZenmuxProvider } from '../providers/zenmuxProvider'
 import { O3fanProvider } from '../providers/o3fanProvider'
 import { RateLimitManager } from './rateLimitManager'
 import { StreamState } from '../types'
-import { AcpSessionPersistence } from '../../agentPresenter/acp'
 
 type ProviderConstructor = new (
   provider: LLM_PROVIDER,
@@ -50,7 +48,6 @@ interface ProviderInstanceManagerOptions {
   rateLimitManager: RateLimitManager
   getCurrentProviderId: () => string | null
   setCurrentProviderId: (providerId: string | null) => void
-  acpSessionPersistence?: AcpSessionPersistence
 }
 
 export class ProviderInstanceManager {
@@ -95,8 +92,7 @@ export class ProviderInstanceManager {
       ['aws-bedrock', AwsBedrockProvider],
       ['jiekou', JiekouProvider],
       ['zenmux', ZenmuxProvider],
-      ['o3fan', O3fanProvider],
-      ['acp', AcpProvider]
+      ['o3fan', O3fanProvider]
     ])
   }
 
@@ -128,7 +124,6 @@ export class ProviderInstanceManager {
       ['aws-bedrock', AwsBedrockProvider],
       ['jiekou', JiekouProvider],
       ['zenmux', ZenmuxProvider],
-      ['acp', AcpProvider],
       ['o3fan', O3fanProvider]
     ])
   }
@@ -286,12 +281,7 @@ export class ProviderInstanceManager {
 
       if (updatedProvider.enable) {
         try {
-          const instance = this.getProviderInstance(change.providerId)
-          // For ACP provider, trigger model loading when enabled
-          if (change.providerId === 'acp' && instance && 'handleEnableStateChange' in instance) {
-            console.log(`[ACP] Provider rebuilt and enabled, triggering model loading`)
-            void (instance as any).handleEnableStateChange()
-          }
+          this.getProviderInstance(change.providerId)
         } catch (error) {
           console.error(`Failed to rebuild provider instance ${change.providerId}:`, error)
         }
@@ -307,12 +297,7 @@ export class ProviderInstanceManager {
         } else {
           try {
             console.log(`Provider ${change.providerId} enabled, creating instance`)
-            const instance = this.getProviderInstance(change.providerId)
-            // For ACP provider, trigger model loading when enabled
-            if (change.providerId === 'acp' && instance && 'handleEnableStateChange' in instance) {
-              console.log(`[ACP] Provider enabled, triggering model loading`)
-              void (instance as any).handleEnableStateChange()
-            }
+            this.getProviderInstance(change.providerId)
           } catch (error) {
             console.error(`Failed to create provider instance ${change.providerId}:`, error)
           }
@@ -396,17 +381,6 @@ export class ProviderInstanceManager {
       if (!ProviderClass) {
         console.warn(`Unknown provider type: ${provider.apiType} for provider id: ${provider.id}`)
         return undefined
-      }
-
-      if (provider.id === 'acp') {
-        if (!this.options.acpSessionPersistence) {
-          throw new Error('ACP session persistence is not configured')
-        }
-        return new AcpProvider(
-          provider,
-          this.options.configPresenter,
-          this.options.acpSessionPersistence
-        )
       }
 
       return new ProviderClass(provider, this.options.configPresenter)

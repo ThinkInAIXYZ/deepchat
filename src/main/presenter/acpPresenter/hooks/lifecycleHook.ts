@@ -5,7 +5,7 @@
 import { LifecycleHook, LifecycleContext } from '@shared/presenter'
 import { LifecyclePhase } from '@shared/lifecycle'
 import { presenter } from '@/presenter'
-import { killTerminal } from '../../../configPresenter/acpInitHelper'
+import { killTerminal } from '../initHelper'
 
 export const acpCleanupHook: LifecycleHook = {
   name: 'acp-cleanup',

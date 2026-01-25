@@ -174,7 +174,7 @@ describe('LLMProviderPresenter Integration Tests', () => {
     mockConfigPresenter.getModelStatus = vi.fn().mockReturnValue(true)
 
     // Create new instance for each test
-    llmProviderPresenter = new LLMProviderPresenter(mockConfigPresenter, mockSqlitePresenter)
+    llmProviderPresenter = new LLMProviderPresenter(mockConfigPresenter)
   })
 
   afterEach(async () => {
@@ -609,7 +609,7 @@ describe('LLMProviderPresenter Integration Tests', () => {
         removeCustomModel: vi.fn()
       } as unknown as ConfigPresenter
 
-      const invalidLlmProvider = new LLMProviderPresenter(invalidMockConfig, mockSqlitePresenter)
+      const invalidLlmProvider = new LLMProviderPresenter(invalidMockConfig)
 
       const result = await invalidLlmProvider.check('invalid-test')
       expect(result.isOk).toBe(false)

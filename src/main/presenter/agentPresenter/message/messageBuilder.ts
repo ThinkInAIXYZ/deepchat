@@ -126,14 +126,14 @@ export async function preparePromptContent({
   const storedChatMode = presenter.configPresenter.getSetting('input_chatMode') as
     | 'chat'
     | 'agent'
-    | 'acp agent'
     | undefined
   console.log('store chat mode', storedChatMode)
   const normalizedChatMode = storedChatMode === 'chat' ? 'agent' : storedChatMode
-  const chatMode: 'agent' | 'acp agent' =
-    conversation.settings.chatMode ?? normalizedChatMode ?? 'agent'
+  const rawChatMode = conversation.settings.chatMode ?? normalizedChatMode ?? 'agent'
+  // chatMode is now always 'agent' after ACP cleanup
+  const chatMode: 'agent' = rawChatMode
   const isAgentMode = chatMode === 'agent'
-  const isToolPromptMode = chatMode === 'agent' || chatMode === 'acp agent'
+  const isToolPromptMode = chatMode === 'agent'
 
   const isImageGeneration = modelType === ModelType.ImageGeneration
 

@@ -2,12 +2,6 @@ import { ShowResponse } from 'ollama'
 import type { ChatMessage } from '../core/chat-message'
 import type { LLMAgentEvent } from '../core/agent-events'
 import { ModelType } from '../core/model'
-import type {
-  AcpDebugRequest,
-  AcpDebugRunResult,
-  AcpSessionModelInfo,
-  AcpWorkdirInfo
-} from './legacy.presenters'
 
 /**
  * LLM Provider Presenter Interface
@@ -264,43 +258,4 @@ export interface ILlmProviderPresenter {
     temperature?: number,
     maxTokens?: number
   ): Promise<string>
-
-  getAcpWorkdir(conversationId: string, agentId: string): Promise<AcpWorkdirInfo>
-  setAcpWorkdir(conversationId: string, agentId: string, workdir: string | null): Promise<void>
-  warmupAcpProcess(agentId: string, workdir: string): Promise<void>
-  ensureAcpWarmup(agentId: string, workdir: string | null): Promise<void>
-  getAcpProcessModes(
-    agentId: string,
-    workdir: string
-  ): Promise<
-    | {
-        availableModes?: Array<{ id: string; name: string; description: string }>
-        currentModeId?: string
-      }
-    | undefined
-  >
-  getAcpProcessModels(
-    agentId: string,
-    workdir: string
-  ): Promise<
-    | {
-        availableModels?: AcpSessionModelInfo[]
-        currentModelId?: string
-      }
-    | undefined
-  >
-  setAcpPreferredProcessMode(agentId: string, workdir: string, modeId: string): Promise<void>
-  setAcpPreferredProcessModel(agentId: string, workdir: string, modelId: string): Promise<void>
-  setAcpSessionMode(conversationId: string, modeId: string): Promise<void>
-  setAcpSessionModel(conversationId: string, modelId: string): Promise<void>
-  getAcpSessionModes(conversationId: string): Promise<{
-    current: string
-    available: Array<{ id: string; name: string; description: string }>
-  } | null>
-  getAcpSessionModels(conversationId: string): Promise<{
-    current: string
-    available: AcpSessionModelInfo[]
-  } | null>
-  runAcpDebugAction(request: AcpDebugRequest): Promise<AcpDebugRunResult>
-  resolveAgentPermission(requestId: string, granted: boolean): Promise<void>
 }

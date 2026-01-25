@@ -44,21 +44,6 @@ export function useThreadManagement(
   const createThread = async (title: string, settings: Partial<CONVERSATION_SETTINGS>) => {
     try {
       const normalizedSettings: Partial<CONVERSATION_SETTINGS> = { ...settings }
-      const shouldAttachAcpWorkdir =
-        (!normalizedSettings.acpWorkdirMap ||
-          Object.keys(normalizedSettings.acpWorkdirMap).length === 0) &&
-        normalizedSettings.providerId === 'acp' &&
-        typeof normalizedSettings.modelId === 'string'
-
-      if (shouldAttachAcpWorkdir && normalizedSettings.modelId) {
-        const currentMap = configComposable.chatConfig.value.acpWorkdirMap || {}
-        const pendingWorkdir = currentMap[normalizedSettings.modelId]
-        if (pendingWorkdir) {
-          normalizedSettings.acpWorkdirMap = {
-            [normalizedSettings.modelId]: pendingWorkdir
-          }
-        }
-      }
 
       if (normalizedSettings.agentWorkspacePath === undefined) {
         const pendingWorkspacePath = configComposable.chatConfig.value.agentWorkspacePath ?? null

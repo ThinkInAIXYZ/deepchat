@@ -67,5 +67,13 @@ export type { IToolPresenter } from './tool.presenter'
 // Agent Presenter types
 export type { IAgentPresenter } from './agent.presenter'
 
+// ACP Presenter types
+export type {
+  IAcpPresenter,
+  AcpSessionInfo,
+  AcpPromptInput,
+  AcpPermissionResponse
+} from './acp.presenter'
+
 // Re-export legacy types temporarily for compatibility
 export * from './legacy.presenters'

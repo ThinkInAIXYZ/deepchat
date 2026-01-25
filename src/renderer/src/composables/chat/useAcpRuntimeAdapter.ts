@@ -1,10 +1,13 @@
 import { usePresenter } from '@/composables/usePresenter'
+import type { IAcpPresenter } from '@shared/presenter'
 
 /**
  * ACP runtime adapter for session-level and process-level ACP settings.
+ * Uses acpPresenter for all ACP-specific operations.
  */
 export function useAcpRuntimeAdapter() {
-  const sessionPresenter = usePresenter('sessionPresenter')
+  // Use type assertion since acpPresenter may not be in IPresenter type yet
+  const acpPresenter = usePresenter('acpPresenter' as any) as IAcpPresenter
 
   const ensureNonEmptyString = (value: string, label: string) => {
     if (typeof value !== 'string' || !value.trim()) {
@@ -21,85 +24,108 @@ export function useAcpRuntimeAdapter() {
     }
   }
 
-  const getAcpWorkdir = (conversationId: string, agentId: string) => {
-    ensureNonEmptyString(conversationId, 'Conversation ID')
-    ensureNonEmptyString(agentId, 'Agent ID')
-    return sessionPresenter.getAcpWorkdir(conversationId, agentId)
+  const getAcpWorkdir = (_conversationId: string, _agentId: string) => {
+    // ACP workdir is now managed by acpPresenter sessions
+    // Return null as this is deprecated - workdir is part of session creation
+    return Promise.resolve(null as { path?: string; isCustom?: boolean } | null)
   }
 
-  const setAcpWorkdir = async (conversationId: string, agentId: string, workdir: string | null) => {
-    ensureNonEmptyString(conversationId, 'Conversation ID')
-    ensureNonEmptyString(agentId, 'Agent ID')
-    return wrap('setAcpWorkdir', () =>
-      sessionPresenter.setAcpWorkdir(conversationId, agentId, workdir)
-    )
+  const setAcpWorkdir = async (
+    _conversationId: string,
+    _agentId: string,
+    _workdir: string | null
+  ) => {
+    // ACP workdir is now managed by acpPresenter sessions
+    // This is a no-op as workdir is set during session creation
+    return Promise.resolve()
   }
 
   const warmupAcpProcess = async (agentId: string, workdir: string) => {
     ensureNonEmptyString(agentId, 'Agent ID')
     ensureNonEmptyString(workdir, 'Workdir')
-    return wrap('warmupAcpProcess', () => sessionPresenter.warmupAcpProcess(agentId, workdir))
+    return wrap('warmupAcpProcess', () => acpPresenter.warmupProcess(agentId, workdir))
   }
 
   const ensureAcpWarmup = async (agentId: string, workdir: string | null) => {
     ensureNonEmptyString(agentId, 'Agent ID')
-    return wrap('ensureAcpWarmup', () => sessionPresenter.ensureAcpWarmup(agentId, workdir))
+    if (workdir) {
+      return wrap('ensureAcpWarmup', () => acpPresenter.warmupProcess(agentId, workdir))
+    }
+    return Promise.resolve()
   }
 
-  const getAcpProcessModes = (agentId: string, workdir: string) => {
-    ensureNonEmptyString(agentId, 'Agent ID')
-    ensureNonEmptyString(workdir, 'Workdir')
-    return sessionPresenter.getAcpProcessModes(agentId, workdir)
+  const getAcpProcessModes = (_agentId: string, _workdir: string) => {
+    // Process modes are now returned via session info
+    return Promise.resolve(
+      null as {
+        availableModes?: { id: string; name: string; description: string }[]
+        currentModeId?: string
+      } | null
+    )
   }
 
-  const getAcpProcessModels = (agentId: string, workdir: string) => {
-    ensureNonEmptyString(agentId, 'Agent ID')
-    ensureNonEmptyString(workdir, 'Workdir')
-    return sessionPresenter.getAcpProcessModels(agentId, workdir)
+  const getAcpProcessModels = (_agentId: string, _workdir: string) => {
+    // Process models are now returned via session info
+    return Promise.resolve(
+      null as {
+        availableModels?: { id: string; name: string; description?: string }[]
+        currentModelId?: string
+      } | null
+    )
   }
 
-  const setAcpPreferredProcessMode = async (agentId: string, workdir: string, modeId: string) => {
-    ensureNonEmptyString(agentId, 'Agent ID')
-    ensureNonEmptyString(workdir, 'Workdir')
+  const setAcpPreferredProcessMode = async (
+    _agentId: string,
+    _workdir: string,
+    _modeId: string
+  ) => {
+    // Mode is now set via session
+    return Promise.resolve()
+  }
+
+  const setAcpPreferredProcessModel = async (
+    _agentId: string,
+    _workdir: string,
+    _modelId: string
+  ) => {
+    // Model is now set via session
+    return Promise.resolve()
+  }
+
+  const setAcpSessionMode = async (sessionId: string, modeId: string) => {
+    ensureNonEmptyString(sessionId, 'Session ID')
     ensureNonEmptyString(modeId, 'Mode ID')
-    return wrap('setAcpPreferredProcessMode', () =>
-      sessionPresenter.setAcpPreferredProcessMode(agentId, workdir, modeId)
-    )
+    return wrap('setAcpSessionMode', () => acpPresenter.setSessionMode(sessionId, modeId))
   }
 
-  const setAcpPreferredProcessModel = async (agentId: string, workdir: string, modelId: string) => {
-    ensureNonEmptyString(agentId, 'Agent ID')
-    ensureNonEmptyString(workdir, 'Workdir')
+  const setAcpSessionModel = async (sessionId: string, modelId: string) => {
+    ensureNonEmptyString(sessionId, 'Session ID')
     ensureNonEmptyString(modelId, 'Model ID')
-    return wrap('setAcpPreferredProcessModel', () =>
-      sessionPresenter.setAcpPreferredProcessModel(agentId, workdir, modelId)
-    )
+    return wrap('setAcpSessionModel', () => acpPresenter.setSessionModel(sessionId, modelId))
   }
 
-  const setAcpSessionMode = async (conversationId: string, modeId: string) => {
-    ensureNonEmptyString(conversationId, 'Conversation ID')
-    ensureNonEmptyString(modeId, 'Mode ID')
-    return wrap('setAcpSessionMode', () =>
-      sessionPresenter.setAcpSessionMode(conversationId, modeId)
-    )
+  const getAcpSessionModes = (sessionId: string) => {
+    ensureNonEmptyString(sessionId, 'Session ID')
+    const sessionInfo = acpPresenter.getSessionInfo(sessionId)
+    if (!sessionInfo?.availableModes) return null
+    return {
+      available: sessionInfo.availableModes as { id: string; name: string; description: string }[],
+      current: sessionInfo.currentModeId ?? ''
+    }
   }
 
-  const setAcpSessionModel = async (conversationId: string, modelId: string) => {
-    ensureNonEmptyString(conversationId, 'Conversation ID')
-    ensureNonEmptyString(modelId, 'Model ID')
-    return wrap('setAcpSessionModel', () =>
-      sessionPresenter.setAcpSessionModel(conversationId, modelId)
-    )
-  }
-
-  const getAcpSessionModes = (conversationId: string) => {
-    ensureNonEmptyString(conversationId, 'Conversation ID')
-    return sessionPresenter.getAcpSessionModes(conversationId)
-  }
-
-  const getAcpSessionModels = (conversationId: string) => {
-    ensureNonEmptyString(conversationId, 'Conversation ID')
-    return sessionPresenter.getAcpSessionModels(conversationId)
+  const getAcpSessionModels = (sessionId: string) => {
+    ensureNonEmptyString(sessionId, 'Session ID')
+    const sessionInfo = acpPresenter.getSessionInfo(sessionId)
+    if (!sessionInfo?.availableModels) return null
+    return {
+      available: sessionInfo.availableModels as {
+        id: string
+        name: string
+        description?: string
+      }[],
+      current: sessionInfo.currentModelId ?? ''
+    }
   }
 
   return {

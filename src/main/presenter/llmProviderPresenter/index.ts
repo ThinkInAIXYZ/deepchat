@@ -10,11 +10,7 @@ import {
   LLM_EMBEDDING_ATTRS,
   ModelScopeMcpSyncOptions,
   ModelScopeMcpSyncResult,
-  IConfigPresenter,
-  ISQLitePresenter,
-  AcpWorkdirInfo,
-  AcpDebugRequest,
-  AcpDebugRunResult
+  IConfigPresenter
 } from '@shared/presenter'
 import { ProviderChange, ProviderBatchUpdate } from '@shared/provider-operations'
 import { eventBus } from '@/eventbus'
@@ -30,8 +26,6 @@ import { AgentLoopHandler } from '../agentPresenter/loop'
 import { ModelScopeSyncManager } from './managers/modelScopeSyncManager'
 import type { OllamaProvider } from './providers/ollamaProvider'
 import { ShowResponse } from 'ollama'
-import { AcpSessionPersistence } from '../agentPresenter/acp'
-import { AcpProvider } from './providers/acpProvider'
 
 export class LLMProviderPresenter implements ILlmProviderPresenter {
   private currentProviderId: string | null = null
@@ -46,11 +40,9 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
   private readonly embeddingManager: EmbeddingManager
   private readonly agentLoopHandler: AgentLoopHandler
   private readonly modelScopeSyncManager: ModelScopeSyncManager
-  private readonly acpSessionPersistence: AcpSessionPersistence
 
-  constructor(configPresenter: IConfigPresenter, sqlitePresenter: ISQLitePresenter) {
+  constructor(configPresenter: IConfigPresenter) {
     this.rateLimitManager = new RateLimitManager(configPresenter)
-    this.acpSessionPersistence = new AcpSessionPersistence(sqlitePresenter)
     this.providerInstanceManager = new ProviderInstanceManager({
       configPresenter,
       activeStreams: this.activeStreams,
@@ -58,8 +50,7 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
       getCurrentProviderId: () => this.currentProviderId,
       setCurrentProviderId: (providerId) => {
         this.currentProviderId = providerId
-      },
-      acpSessionPersistence: this.acpSessionPersistence
+      }
     })
     this.modelManager = new ModelManager({
       configPresenter,
@@ -457,178 +448,5 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     syncOptions?: ModelScopeMcpSyncOptions
   ): Promise<ModelScopeMcpSyncResult> {
     return this.modelScopeSyncManager.syncModelScopeMcpServers(providerId, syncOptions)
-  }
-
-  async getAcpWorkdir(conversationId: string, agentId: string): Promise<AcpWorkdirInfo> {
-    const record = await this.acpSessionPersistence.getSessionData(conversationId, agentId)
-    const path = this.acpSessionPersistence.resolveWorkdir(record?.workdir)
-    const isCustom = Boolean(record?.workdir && record.workdir.trim().length > 0)
-    return { path, isCustom }
-  }
-
-  async setAcpWorkdir(
-    conversationId: string,
-    agentId: string,
-    workdir: string | null
-  ): Promise<void> {
-    const provider = this.getAcpProviderInstance()
-    if (provider) {
-      await provider.updateAcpWorkdir(conversationId, agentId, workdir)
-      return
-    }
-
-    const trimmed = workdir?.trim() ? workdir : null
-    await this.acpSessionPersistence.updateWorkdir(conversationId, agentId, trimmed)
-  }
-
-  async warmupAcpProcess(agentId: string, workdir: string): Promise<void> {
-    const provider = this.getAcpProviderInstance()
-    if (!provider) return
-    try {
-      await provider.warmupProcess(agentId, workdir)
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-      if (message.includes('shutting down')) {
-        console.warn(
-          `[ACP] Cannot warmup process for agent ${agentId}: process manager is shutting down`
-        )
-        return
-      }
-      throw error
-    }
-  }
-
-  /**
-   * Ensure a warmup process exists for the given agent.
-   * If workdir is null, uses the config-specific warmup directory.
-   * This allows fetching modes/models before user selects a workdir.
-   */
-  async ensureAcpWarmup(agentId: string, workdir: string | null): Promise<void> {
-    const provider = this.getAcpProviderInstance()
-    if (!provider) return
-    try {
-      await provider.ensureWarmup(agentId, workdir)
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-      if (message.includes('shutting down')) {
-        console.warn(
-          `[ACP] Cannot ensure warmup for agent ${agentId}: process manager is shutting down`
-        )
-        return
-      }
-      throw error
-    }
-  }
-
-  async getAcpProcessModes(
-    agentId: string,
-    workdir: string
-  ): Promise<
-    | {
-        availableModes?: Array<{ id: string; name: string; description: string }>
-        currentModeId?: string
-      }
-    | undefined
-  > {
-    const provider = this.getAcpProviderInstance()
-    if (!provider) {
-      return undefined
-    }
-    return provider.getProcessModes(agentId, workdir)
-  }
-
-  async getAcpProcessModels(
-    agentId: string,
-    workdir: string
-  ): Promise<
-    | {
-        availableModels?: Array<{ id: string; name: string; description?: string }>
-        currentModelId?: string
-      }
-    | undefined
-  > {
-    const provider = this.getAcpProviderInstance()
-    if (!provider) {
-      return undefined
-    }
-    return provider.getProcessModels(agentId, workdir)
-  }
-
-  async setAcpPreferredProcessMode(agentId: string, workdir: string, modeId: string) {
-    const provider = this.getAcpProviderInstance()
-    if (!provider) return
-
-    await provider.setPreferredProcessMode(agentId, workdir, modeId)
-  }
-
-  async setAcpPreferredProcessModel(agentId: string, workdir: string, modelId: string) {
-    const provider = this.getAcpProviderInstance()
-    if (!provider) return
-
-    await provider.setPreferredProcessModel(agentId, workdir, modelId)
-  }
-
-  async setAcpSessionMode(conversationId: string, modeId: string): Promise<void> {
-    const provider = this.getAcpProviderInstance()
-    if (!provider) {
-      throw new Error('[ACP] ACP provider not found')
-    }
-    await provider.setSessionMode(conversationId, modeId)
-  }
-
-  async setAcpSessionModel(conversationId: string, modelId: string): Promise<void> {
-    const provider = this.getAcpProviderInstance()
-    if (!provider) {
-      throw new Error('[ACP] ACP provider not found')
-    }
-    await provider.setSessionModel(conversationId, modelId)
-  }
-
-  async getAcpSessionModes(conversationId: string): Promise<{
-    current: string
-    available: Array<{ id: string; name: string; description: string }>
-  } | null> {
-    const provider = this.getAcpProviderInstance()
-    if (!provider) {
-      return null
-    }
-    return await provider.getSessionModes(conversationId)
-  }
-
-  async getAcpSessionModels(conversationId: string): Promise<{
-    current: string
-    available: Array<{ id: string; name: string; description?: string }>
-  } | null> {
-    const provider = this.getAcpProviderInstance()
-    if (!provider) {
-      return null
-    }
-    return await provider.getSessionModels(conversationId)
-  }
-
-  async runAcpDebugAction(request: AcpDebugRequest): Promise<AcpDebugRunResult> {
-    const provider = this.getAcpProviderInstance()
-    if (!provider) {
-      throw new Error('ACP provider unavailable')
-    }
-    return await provider.runDebugAction(request)
-  }
-
-  async resolveAgentPermission(requestId: string, granted: boolean): Promise<void> {
-    const provider = this.getAcpProviderInstance()
-    if (!provider) {
-      throw new Error('ACP provider unavailable')
-    }
-    await provider.resolvePermissionRequest(requestId, granted)
-  }
-
-  private getAcpProviderInstance(): AcpProvider | null {
-    try {
-      const instance = this.getProviderInstance('acp')
-      return instance instanceof AcpProvider ? (instance as AcpProvider) : null
-    } catch (error) {
-      console.warn('[LLMProviderPresenter] ACP provider unavailable:', error)
-      return null
-    }
   }
 }

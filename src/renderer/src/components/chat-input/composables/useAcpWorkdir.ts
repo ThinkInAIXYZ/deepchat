@@ -2,7 +2,6 @@ import { computed, ref, watch } from 'vue'
 import { usePresenter } from '@/composables/usePresenter'
 import { useAcpRuntimeAdapter } from '@/composables/chat/useAcpRuntimeAdapter'
 import type { Ref } from 'vue'
-import { useChatStore } from '@/stores/chat'
 
 type ActiveModelRef = Ref<{ id?: string; providerId?: string } | null>
 
@@ -14,7 +13,6 @@ interface UseAcpWorkdirOptions {
 export function useAcpWorkdir(options: UseAcpWorkdirOptions) {
   const acpRuntimeAdapter = useAcpRuntimeAdapter()
   const devicePresenter = usePresenter('devicePresenter')
-  const chatStore = useChatStore()
 
   const workdir = ref('')
   const isCustom = ref(false)
@@ -33,22 +31,17 @@ export function useAcpWorkdir(options: UseAcpWorkdirOptions) {
   )
 
   const agentId = computed(() => options.activeModel.value?.id ?? '')
-  const syncPreference = (value: string | null) => {
-    if (!agentId.value) return
-    chatStore.setAcpWorkdirPreference(agentId.value, value)
+  const syncPreference = (_value: string | null) => {
+    // ACP workdir preferences are now managed by acpPresenter
+    // This is a no-op
   }
 
   const hydrateFromPreference = () => {
     if (!agentId.value) return
-    const stored = chatStore.chatConfig.acpWorkdirMap?.[agentId.value] ?? null
-    if (stored) {
-      workdir.value = stored
-      isCustom.value = true
-      pendingWorkdir.value = stored
-    } else {
-      pendingWorkdir.value = null
-      resetToDefault()
-    }
+    // ACP workdir preferences are now managed by acpPresenter
+    // Reset to default as we no longer store workdir in chatConfig
+    pendingWorkdir.value = null
+    resetToDefault()
   }
 
   const resetToDefault = () => {

@@ -1,4 +1,5 @@
 import { presenter } from '@/presenter'
+import { acpPresenter } from '@/presenter/acpPresenter'
 import type { AssistantMessage, AssistantMessageBlock } from '@shared/chat'
 import type {
   ILlmProviderPresenter,
@@ -568,10 +569,7 @@ export class PermissionHandler extends BaseHandler {
       let toolDef: MCPToolDefinition | undefined
       try {
         const { chatMode, agentWorkspacePath } =
-          await presenter.sessionManager.resolveWorkspaceContext(
-            conversationId,
-            conversation.settings.modelId
-          )
+          await presenter.sessionManager.resolveWorkspaceContext(conversationId)
         const toolDefinitions = await this.getToolPresenter().getAllToolDefinitions({
           enabledMcpTools,
           chatMode,
@@ -863,7 +861,7 @@ export class PermissionHandler extends BaseHandler {
       throw new Error(`Missing ACP permission request identifier for message ${messageId}`)
     }
 
-    await this.ctx.llmProviderPresenter.resolveAgentPermission(requestId, granted)
+    await acpPresenter.resolvePermission({ requestId, granted })
   }
 
   private getExtraString(block: AssistantMessageBlock, key: string): string | undefined {

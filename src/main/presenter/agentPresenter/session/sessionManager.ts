@@ -6,7 +6,7 @@ import type { SessionContext, SessionContextResolved, SessionStatus } from './se
 import { resolveSessionContext } from './sessionResolver'
 
 type WorkspaceContext = {
-  chatMode: 'agent' | 'acp agent'
+  chatMode: 'agent'
   agentWorkspacePath: string | null
 }
 
@@ -65,7 +65,6 @@ export class SessionManager {
     const rawFallbackChatMode = this.options.configPresenter.getSetting('input_chatMode') as
       | 'chat'
       | 'agent'
-      | 'acp agent'
       | undefined
     const fallbackChatMode = rawFallbackChatMode === 'chat' ? 'agent' : rawFallbackChatMode
     const modelConfig = this.options.configPresenter.getModelDefaultConfig(
@@ -84,13 +83,6 @@ export class SessionManager {
         agentId,
         conversation.settings.agentWorkspacePath ?? null
       )
-    } else if (resolved.chatMode === 'acp agent') {
-      const modelId = conversation.settings.modelId
-      resolved.agentWorkspacePath =
-        modelId && conversation.settings.acpWorkdirMap
-          ? (conversation.settings.acpWorkdirMap[modelId] ?? null)
-          : null
-      resolved.acpWorkdirMap = conversation.settings.acpWorkdirMap
     } else {
       resolved.agentWorkspacePath = null
     }
@@ -98,15 +90,11 @@ export class SessionManager {
     return resolved
   }
 
-  async resolveWorkspaceContext(
-    conversationId?: string,
-    modelId?: string
-  ): Promise<WorkspaceContext> {
+  async resolveWorkspaceContext(conversationId?: string): Promise<WorkspaceContext> {
     if (!conversationId) {
       const rawFallbackChatMode = this.options.configPresenter.getSetting('input_chatMode') as
         | 'chat'
         | 'agent'
-        | 'acp agent'
         | undefined
       const fallbackChatMode =
         (rawFallbackChatMode === 'chat' ? 'agent' : rawFallbackChatMode) ?? 'agent'
@@ -116,12 +104,6 @@ export class SessionManager {
     try {
       const session = await this.getSession(conversationId)
       const resolved = session.resolved
-      if (resolved.chatMode === 'acp agent') {
-        const resolvedModelId = modelId ?? resolved.modelId
-        const map = resolved.acpWorkdirMap
-        const agentWorkspacePath = resolvedModelId && map ? (map[resolvedModelId] ?? null) : null
-        return { chatMode: resolved.chatMode, agentWorkspacePath }
-      }
 
       const normalizedChatMode = resolved.chatMode === 'chat' ? 'agent' : resolved.chatMode
       return {
@@ -133,7 +115,6 @@ export class SessionManager {
       const rawFallbackChatMode = this.options.configPresenter.getSetting('input_chatMode') as
         | 'chat'
         | 'agent'
-        | 'acp agent'
         | undefined
       const fallbackChatMode =
         (rawFallbackChatMode === 'chat' ? 'agent' : rawFallbackChatMode) ?? 'agent'

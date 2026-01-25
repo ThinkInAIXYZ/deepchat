@@ -6,15 +6,15 @@ import path from 'path'
 import { app } from 'electron'
 import logger from '@shared/logger'
 import { presenter } from '@/presenter'
-import { AgentFileSystemHandler } from './agentFileSystemHandler'
-import { AgentBashHandler } from './agentBashHandler'
+import { AgentFileSystemHandler } from './fileSystemHandler'
+import { AgentBashHandler } from './bashHandler'
 import { SkillTools } from '../../skillPresenter/skillTools'
 import {
   ChatSettingsToolHandler,
   buildChatSettingsToolDefinitions,
   CHAT_SETTINGS_SKILL_NAME,
   CHAT_SETTINGS_TOOL_NAMES
-} from './chatSettingsTools'
+} from './settingsTools'
 
 // Consider moving to a shared handlers location in future refactoring
 import {
@@ -368,12 +368,6 @@ export class AgentToolManager {
       }
 
       const resolved = session.resolved
-
-      if (resolved.chatMode === 'acp agent') {
-        const modelId = resolved.modelId
-        const map = resolved.acpWorkdirMap
-        return modelId && map ? (map[modelId] ?? null) : null
-      }
 
       if (resolved.chatMode === 'agent') {
         return resolved.agentWorkspacePath ?? null

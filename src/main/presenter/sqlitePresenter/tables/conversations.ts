@@ -155,12 +155,18 @@ export class ConversationsTable extends BaseTable {
         ALTER TABLE conversations ADD COLUMN system_prompt_id TEXT DEFAULT NULL;
       `
     }
+    if (version === 12) {
+      return `
+        -- 删除 acp_workdir_map 字段（ACP 模块已独立）
+        ALTER TABLE conversations DROP COLUMN acp_workdir_map;
+      `
+    }
 
     return null
   }
 
   getLatestVersion(): number {
-    return 11
+    return 12
   }
 
   async create(title: string, settings: Partial<CONVERSATION_SETTINGS> = {}): Promise<string> {
@@ -190,12 +196,11 @@ export class ConversationsTable extends BaseTable {
         context_chain,
         active_skills,
         agent_workspace_path,
-        acp_workdir_map,
         parent_conversation_id,
         parent_message_id,
         parent_selection
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     const conv_id = nanoid()
     const now = Date.now()
@@ -226,7 +231,6 @@ export class ConversationsTable extends BaseTable {
       settings.agentWorkspacePath !== undefined && settings.agentWorkspacePath !== null
         ? settings.agentWorkspacePath
         : null,
-      settings.acpWorkdirMap ? JSON.stringify(settings.acpWorkdirMap) : null,
       null,
       null,
       null
@@ -263,7 +267,6 @@ export class ConversationsTable extends BaseTable {
         context_chain,
         active_skills,
         agent_workspace_path,
-        acp_workdir_map,
         parent_conversation_id,
         parent_message_id,
         parent_selection
@@ -274,7 +277,6 @@ export class ConversationsTable extends BaseTable {
       .get(conversationId) as ConversationRow & {
       is_pinned: number
       agent_workspace_path: string | null
-      acp_workdir_map: string | null
     }
 
     if (!result) {
@@ -306,8 +308,7 @@ export class ConversationsTable extends BaseTable {
       agentWorkspacePath:
         result.agent_workspace_path !== null && result.agent_workspace_path !== undefined
           ? result.agent_workspace_path
-          : undefined,
-      acpWorkdirMap: getJsonField(result.acp_workdir_map, undefined)
+          : undefined
     }
     return {
       id: result.id,
@@ -417,12 +418,6 @@ export class ConversationsTable extends BaseTable {
           data.settings.agentWorkspacePath !== null ? data.settings.agentWorkspacePath : null
         )
       }
-      if (data.settings.acpWorkdirMap !== undefined) {
-        updates.push('acp_workdir_map = ?')
-        params.push(
-          data.settings.acpWorkdirMap ? JSON.stringify(data.settings.acpWorkdirMap) : null
-        )
-      }
     }
     if (data.parentConversationId !== undefined) {
       updates.push('parent_conversation_id = ?')
@@ -496,7 +491,6 @@ export class ConversationsTable extends BaseTable {
         context_chain,
         active_skills,
         agent_workspace_path,
-        acp_workdir_map,
         parent_conversation_id,
         parent_message_id,
         parent_selection
@@ -507,7 +501,6 @@ export class ConversationsTable extends BaseTable {
       )
       .all(pageSize, offset) as (ConversationRow & {
       agent_workspace_path: string | null
-      acp_workdir_map: string | null
     })[]
 
     return {
@@ -544,8 +537,7 @@ export class ConversationsTable extends BaseTable {
           agentWorkspacePath:
             row.agent_workspace_path !== null && row.agent_workspace_path !== undefined
               ? row.agent_workspace_path
-              : undefined,
-          acpWorkdirMap: getJsonField(row.acp_workdir_map, undefined)
+              : undefined
         },
         parentConversationId: row.parent_conversation_id,
         parentMessageId: row.parent_message_id,
@@ -583,7 +575,6 @@ export class ConversationsTable extends BaseTable {
         context_chain,
         active_skills,
         agent_workspace_path,
-        acp_workdir_map,
         parent_conversation_id,
         parent_message_id,
         parent_selection
@@ -594,7 +585,6 @@ export class ConversationsTable extends BaseTable {
       )
       .all(parentConversationId) as (ConversationRow & {
       agent_workspace_path: string | null
-      acp_workdir_map: string | null
     })[]
 
     return results.map((row) => ({
@@ -627,8 +617,7 @@ export class ConversationsTable extends BaseTable {
         agentWorkspacePath:
           row.agent_workspace_path !== null && row.agent_workspace_path !== undefined
             ? row.agent_workspace_path
-            : undefined,
-        acpWorkdirMap: getJsonField(row.acp_workdir_map, undefined)
+            : undefined
       },
       parentConversationId: row.parent_conversation_id,
       parentMessageId: row.parent_message_id,
@@ -670,7 +659,6 @@ export class ConversationsTable extends BaseTable {
         context_chain,
         active_skills,
         agent_workspace_path,
-        acp_workdir_map,
         parent_conversation_id,
         parent_message_id,
         parent_selection
@@ -681,7 +669,6 @@ export class ConversationsTable extends BaseTable {
       )
       .all(...parentMessageIds) as (ConversationRow & {
       agent_workspace_path: string | null
-      acp_workdir_map: string | null
     })[]
 
     return results.map((row) => ({
@@ -714,8 +701,7 @@ export class ConversationsTable extends BaseTable {
         agentWorkspacePath:
           row.agent_workspace_path !== null && row.agent_workspace_path !== undefined
             ? row.agent_workspace_path
-            : undefined,
-        acpWorkdirMap: getJsonField(row.acp_workdir_map, undefined)
+            : undefined
       },
       parentConversationId: row.parent_conversation_id,
       parentMessageId: row.parent_message_id,

@@ -199,7 +199,7 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const { toast } = useToast()
-const llmProviderPresenter = usePresenter('llmproviderPresenter')
+const llmProviderPresenter = usePresenter('llmproviderPresenter') as any // ACP debug methods are not in type definitions
 const devicePresenter = usePresenter('devicePresenter')
 const uiSettingsStore = useUiSettingsStore()
 

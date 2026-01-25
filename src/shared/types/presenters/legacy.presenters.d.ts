@@ -393,25 +393,6 @@ export interface ISQLitePresenter {
   getLastUserMessage(conversationId: string): Promise<SQLITE_MESSAGE | null>
   getMainMessageByParentId(conversationId: string, parentId: string): Promise<SQLITE_MESSAGE | null>
   deleteAllMessagesInConversation(conversationId: string): Promise<void>
-  getAcpSession(conversationId: string, agentId: string): Promise<AcpSessionEntity | null>
-  upsertAcpSession(
-    conversationId: string,
-    agentId: string,
-    data: AcpSessionUpsertPayload
-  ): Promise<void>
-  updateAcpSessionId(
-    conversationId: string,
-    agentId: string,
-    sessionId: string | null
-  ): Promise<void>
-  updateAcpWorkdir(conversationId: string, agentId: string, workdir: string | null): Promise<void>
-  updateAcpSessionStatus(
-    conversationId: string,
-    agentId: string,
-    status: AgentSessionLifecycleStatus
-  ): Promise<void>
-  deleteAcpSessions(conversationId: string): Promise<void>
-  deleteAcpSession(conversationId: string, agentId: string): Promise<void>
 }
 
 export interface IOAuthPresenter {
@@ -1040,43 +1021,6 @@ export interface ILlmProviderPresenter {
     temperature?: number,
     maxTokens?: number
   ): Promise<string>
-  getAcpWorkdir(conversationId: string, agentId: string): Promise<AcpWorkdirInfo>
-  setAcpWorkdir(conversationId: string, agentId: string, workdir: string | null): Promise<void>
-  warmupAcpProcess(agentId: string, workdir: string): Promise<void>
-  getAcpProcessModes(
-    agentId: string,
-    workdir: string
-  ): Promise<
-    | {
-        availableModes?: Array<{ id: string; name: string; description: string }>
-        currentModeId?: string
-      }
-    | undefined
-  >
-  getAcpProcessModels(
-    agentId: string,
-    workdir: string
-  ): Promise<
-    | {
-        availableModels?: AcpSessionModelInfo[]
-        currentModelId?: string
-      }
-    | undefined
-  >
-  setAcpPreferredProcessMode(agentId: string, workdir: string, modeId: string): Promise<void>
-  setAcpPreferredProcessModel(agentId: string, workdir: string, modelId: string): Promise<void>
-  setAcpSessionMode(conversationId: string, modeId: string): Promise<void>
-  setAcpSessionModel(conversationId: string, modelId: string): Promise<void>
-  getAcpSessionModes(conversationId: string): Promise<{
-    current: string
-    available: Array<{ id: string; name: string; description: string }>
-  } | null>
-  getAcpSessionModels(conversationId: string): Promise<{
-    current: string
-    available: AcpSessionModelInfo[]
-  } | null>
-  resolveAgentPermission(requestId: string, granted: boolean): Promise<void>
-  runAcpDebugAction(request: AcpDebugRequest): Promise<AcpDebugRunResult>
   getProviderInstance(providerId: string): unknown
   getExistingProviderInstance?(providerId: string): unknown
 }
@@ -1098,8 +1042,7 @@ export type CONVERSATION_SETTINGS = {
   reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
   verbosity?: 'low' | 'medium' | 'high'
   selectedVariantsMap?: Record<string, string>
-  acpWorkdirMap?: Record<string, string | null>
-  chatMode?: 'agent' | 'acp agent'
+  chatMode?: 'agent'
   agentWorkspacePath?: string | null
   activeSkills?: string[] // Activated skills for this conversation
 }

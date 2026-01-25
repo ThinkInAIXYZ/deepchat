@@ -28,7 +28,8 @@ import {
   IToolPresenter,
   IYoBrowserPresenter,
   ISkillPresenter,
-  ISkillSyncPresenter
+  ISkillSyncPresenter,
+  IAcpPresenter
 } from '@shared/presenter'
 import { eventBus } from '@/eventbus'
 import { LLMProviderPresenter } from './llmProviderPresenter'
@@ -60,6 +61,7 @@ import { SessionManager } from './agentPresenter/session/sessionManager'
 import { ConversationExporterService } from './exporter'
 import { SkillPresenter } from './skillPresenter'
 import { SkillSyncPresenter } from './skillSyncPresenter'
+import { acpPresenter } from './acpPresenter'
 
 // IPC调用上下文接口
 interface IPCCallContext {
@@ -107,6 +109,7 @@ export class Presenter implements IPresenter {
   lifecycleManager: ILifecycleManager
   skillPresenter: ISkillPresenter
   skillSyncPresenter: ISkillSyncPresenter
+  acpPresenter: IAcpPresenter
   filePermissionService: FilePermissionService
   settingsPermissionService: SettingsPermissionService
 
@@ -121,7 +124,7 @@ export class Presenter implements IPresenter {
     // 初始化各个 Presenter 实例及其依赖
     this.windowPresenter = new WindowPresenter(this.configPresenter)
     this.tabPresenter = new TabPresenter(this.windowPresenter)
-    this.llmproviderPresenter = new LLMProviderPresenter(this.configPresenter, this.sqlitePresenter)
+    this.llmproviderPresenter = new LLMProviderPresenter(this.configPresenter)
     const commandPermissionHandler = new CommandPermissionService()
     this.filePermissionService = new FilePermissionService()
     this.settingsPermissionService = new SettingsPermissionService()
@@ -189,6 +192,9 @@ export class Presenter implements IPresenter {
 
     // Initialize Skill Sync presenter
     this.skillSyncPresenter = new SkillSyncPresenter(this.skillPresenter, this.configPresenter)
+
+    // Initialize ACP presenter
+    this.acpPresenter = acpPresenter
 
     this.setupEventBus() // 设置事件总线监听
   }

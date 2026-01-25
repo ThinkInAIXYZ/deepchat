@@ -1,14 +1,13 @@
 export type SessionStatus = 'idle' | 'generating' | 'paused' | 'waiting_permission' | 'error'
 
 export type SessionContextResolved = {
-  chatMode: 'chat' | 'agent' | 'acp agent'
+  chatMode: 'chat' | 'agent'
   providerId: string
   modelId: string
   supportsVision: boolean
   supportsFunctionCall: boolean
   agentWorkspacePath: string | null
   enabledMcpTools?: string[]
-  acpWorkdirMap?: Record<string, string | null>
 }
 
 export type SessionContext = {

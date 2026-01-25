@@ -40,14 +40,13 @@ import { ProviderModelHelper, PROVIDER_MODELS_DIR } from './providerModelHelper'
 import { SystemPromptHelper, DEFAULT_SYSTEM_PROMPT } from './systemPromptHelper'
 import { UiSettingsHelper } from './uiSettingsHelper'
 import { AcpConfHelper } from './acpConfHelper'
-import { AcpProvider } from '../llmProviderPresenter/providers/acpProvider'
 import {
   initializeBuiltinAgent,
   initializeCustomAgent,
   writeToTerminal,
   killTerminal
-} from './acpInitHelper'
-import { clearShellEnvironmentCache } from '../agentPresenter/acp'
+} from '../acpPresenter/initHelper'
+import { clearShellEnvironmentCache } from '@/lib/shellEnvHelper'
 
 // Define application settings interface
 interface IAppSettings {
@@ -1235,28 +1234,10 @@ export class ConfigPresenter implements IConfigPresenter {
     this.handleAcpAgentsMutated([agentId])
   }
 
-  private handleAcpAgentsMutated(agentIds?: string[]) {
+  private handleAcpAgentsMutated(_agentIds?: string[]) {
     this.clearProviderModelStatusCache('acp')
     this.notifyAcpAgentsChanged()
-    this.refreshAcpProviderAgents(agentIds)
-  }
-
-  private refreshAcpProviderAgents(agentIds?: string[]): void {
-    try {
-      const providerInstance = presenter?.llmproviderPresenter?.getProviderInstance?.('acp')
-      if (!providerInstance) {
-        return
-      }
-
-      const acpProvider = providerInstance as AcpProvider
-      if (typeof acpProvider.refreshAgents !== 'function') {
-        return
-      }
-
-      void acpProvider.refreshAgents(agentIds)
-    } catch (error) {
-      console.warn('[ACP] Failed to refresh agent processes after config change:', error)
-    }
+    // Agent refresh is now handled by AcpPresenter
   }
 
   private notifyAcpAgentsChanged() {

@@ -49,30 +49,21 @@ type ModeSelectionOptions = {
 }
 
 export function useChatInputModeSelection(options: ModeSelectionOptions) {
-  const acpAgentOptions = computed(() => {
-    const providerEntry = options.modelStore.enabledModels.find(
-      (entry) => entry.providerId === 'acp'
-    )
-    const models = providerEntry?.models ?? []
-    return models
-      .filter((model) => model.type === ModelType.Chat || model.type === ModelType.ImageGeneration)
-      .map((model) => ({
-        id: model.id,
-        name: model.name,
-        providerId: 'acp',
-        type: model.type ?? ModelType.Chat
-      }))
-  })
-
-  const selectedAcpAgentId = computed(() => {
-    const active = options.activeModel.value
-    return active?.providerId === 'acp' ? (active.id ?? null) : null
-  })
-
-  const isAcpChatMode = computed(() => options.chatMode.currentMode.value === 'acp agent')
-  const showAcpSessionModelSelector = computed(
-    () => isAcpChatMode.value && options.acpSessionModel.isAcpModel.value
+  // ACP agent options are no longer used after ACP cleanup
+  const acpAgentOptions = computed(
+    () =>
+      [] as Array<{
+        id: string
+        name: string
+        providerId: string
+        type: ModelType
+      }>
   )
+
+  const selectedAcpAgentId = computed(() => null as string | null)
+
+  // ACP chat mode is no longer available
+  const showAcpSessionModelSelector = computed(() => false)
 
   const applyModelSelection = (model: {
     id: string
@@ -93,8 +84,6 @@ export function useChatInputModeSelection(options: ModeSelectionOptions) {
       options.emitModelUpdate(payload as unknown, model.providerId)
     }
   }
-
-  const pickFirstAcpModel = () => acpAgentOptions.value[0] ?? null
 
   const pickFirstNonAcpModel = () => {
     for (const provider of options.modelStore.enabledModels) {
@@ -120,13 +109,9 @@ export function useChatInputModeSelection(options: ModeSelectionOptions) {
       return
     }
 
-    if (mode !== 'acp agent' && options.activeModel.value?.providerId === 'acp') {
+    // If current model is ACP, switch to a non-ACP model
+    if (options.activeModel.value?.providerId === 'acp') {
       const fallback = pickFirstNonAcpModel()
-      if (fallback) {
-        applyModelSelection(fallback)
-      }
-    } else if (mode === 'acp agent' && options.activeModel.value?.providerId !== 'acp') {
-      const fallback = pickFirstAcpModel()
       if (fallback) {
         applyModelSelection(fallback)
       }
@@ -141,24 +126,14 @@ export function useChatInputModeSelection(options: ModeSelectionOptions) {
     }
   }
 
-  const handleAcpAgentSelect = async (agent: {
+  // ACP agent selection is no longer available
+  const handleAcpAgentSelect = async (_agent: {
     id: string
     name: string
     providerId: string
     type?: ModelType
   }) => {
-    await options.chatMode.setMode('acp agent')
-    if (options.chatMode.currentMode.value !== 'acp agent') {
-      return
-    }
-    applyModelSelection(agent)
-    if (options.conversationId.value) {
-      try {
-        await options.updateChatConfig({ chatMode: 'acp agent' })
-      } catch (error) {
-        console.warn('Failed to update chat mode in conversation settings:', error)
-      }
-    }
+    // No-op after ACP cleanup
   }
 
   const handleAcpModeSelect = async (modeId: string) => {

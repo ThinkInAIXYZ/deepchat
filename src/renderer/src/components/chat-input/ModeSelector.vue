@@ -102,7 +102,7 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const open = ref(false)
 
-const isAgentModeSelected = computed(() => props.currentMode !== 'acp agent')
+const isAgentModeSelected = computed(() => props.currentMode === 'agent')
 
 const handleModeSelect = (mode: ChatMode) => {
   emit('mode-select', mode)
