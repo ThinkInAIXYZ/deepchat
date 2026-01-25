@@ -6,7 +6,6 @@ import type { SessionContext, SessionContextResolved, SessionStatus } from './se
 import { resolveSessionContext } from './sessionResolver'
 
 type WorkspaceContext = {
-  chatMode: 'agent'
   agentWorkspacePath: string | null
 }
 
@@ -62,11 +61,6 @@ export class SessionManager {
 
   async resolveSession(agentId: string): Promise<SessionContextResolved> {
     const conversation = await this.options.sessionPresenter.getConversation(agentId)
-    const rawFallbackChatMode = this.options.configPresenter.getSetting('input_chatMode') as
-      | 'chat'
-      | 'agent'
-      | undefined
-    const fallbackChatMode = rawFallbackChatMode === 'chat' ? 'agent' : rawFallbackChatMode
     const modelConfig = this.options.configPresenter.getModelDefaultConfig(
       conversation.settings.modelId,
       conversation.settings.providerId
@@ -74,51 +68,32 @@ export class SessionManager {
 
     const resolved = resolveSessionContext({
       settings: conversation.settings,
-      fallbackChatMode,
       modelConfig
     })
 
-    if (resolved.chatMode === 'agent') {
-      resolved.agentWorkspacePath = await this.resolveAgentWorkspacePath(
-        agentId,
-        conversation.settings.agentWorkspacePath ?? null
-      )
-    } else {
-      resolved.agentWorkspacePath = null
-    }
+    resolved.agentWorkspacePath = await this.resolveAgentWorkspacePath(
+      agentId,
+      conversation.settings.agentWorkspacePath ?? null
+    )
 
     return resolved
   }
 
   async resolveWorkspaceContext(conversationId?: string): Promise<WorkspaceContext> {
     if (!conversationId) {
-      const rawFallbackChatMode = this.options.configPresenter.getSetting('input_chatMode') as
-        | 'chat'
-        | 'agent'
-        | undefined
-      const fallbackChatMode =
-        (rawFallbackChatMode === 'chat' ? 'agent' : rawFallbackChatMode) ?? 'agent'
-      return { chatMode: fallbackChatMode, agentWorkspacePath: null }
+      return { agentWorkspacePath: null }
     }
 
     try {
       const session = await this.getSession(conversationId)
       const resolved = session.resolved
 
-      const normalizedChatMode = resolved.chatMode === 'chat' ? 'agent' : resolved.chatMode
       return {
-        chatMode: normalizedChatMode,
         agentWorkspacePath: resolved.agentWorkspacePath ?? null
       }
     } catch (error) {
       console.warn('[SessionManager] Failed to resolve workspace context:', error)
-      const rawFallbackChatMode = this.options.configPresenter.getSetting('input_chatMode') as
-        | 'chat'
-        | 'agent'
-        | undefined
-      const fallbackChatMode =
-        (rawFallbackChatMode === 'chat' ? 'agent' : rawFallbackChatMode) ?? 'agent'
-      return { chatMode: fallbackChatMode, agentWorkspacePath: null }
+      return { agentWorkspacePath: null }
     }
   }
 

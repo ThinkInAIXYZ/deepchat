@@ -98,7 +98,6 @@
   },
   "mode": {
     "current": "当前模式：{mode}",
-    "chat": "聊天",
     "agent": "Agent",
     "acpAgent": "ACP Agent"
   },

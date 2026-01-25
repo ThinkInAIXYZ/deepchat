@@ -5,7 +5,6 @@ import { useI18n } from 'vue-i18n'
 // === Composables ===
 import { usePresenter } from '@/composables/usePresenter'
 import { useConversationCore } from '@/composables/chat/useConversationCore'
-import { useChatMode } from './useChatMode'
 import { useChatStore } from '@/stores/chat'
 
 // === Types ===
@@ -14,7 +13,6 @@ import type { Ref } from 'vue'
 export interface UseAgentWorkspaceOptions {
   conversationId: Ref<string | null>
   activeModel: Ref<{ id: string; providerId: string } | null>
-  chatMode?: ReturnType<typeof useChatMode>
 }
 
 /**
@@ -24,7 +22,6 @@ export interface UseAgentWorkspaceOptions {
 export function useAgentWorkspace(options: UseAgentWorkspaceOptions) {
   const { t } = useI18n()
   const conversationCore = useConversationCore()
-  const chatMode = options.chatMode ?? useChatMode()
   const chatStore = useChatStore()
 
   // Agent workspace path
@@ -140,7 +137,6 @@ export function useAgentWorkspace(options: UseAgentWorkspaceOptions) {
   }
 
   const syncPendingWorkspaceWhenReady = async () => {
-    if (chatMode.currentMode.value !== 'agent') return
     const selectedPath = pendingWorkspacePath.value
     if (!selectedPath || !options.conversationId.value) return
 
@@ -170,10 +166,10 @@ export function useAgentWorkspace(options: UseAgentWorkspaceOptions) {
     }
   )
 
-  // Watch for chatMode and conversationId changes
+  // Watch for conversationId changes
   watch(
-    [() => chatMode.currentMode.value, () => options.conversationId.value],
-    async ([_newMode, conversationId]) => {
+    () => options.conversationId.value,
+    async (conversationId) => {
       if (pendingWorkspacePath.value && conversationId) {
         await syncPendingWorkspaceWhenReady()
       }

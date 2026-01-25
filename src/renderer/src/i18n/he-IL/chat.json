@@ -99,7 +99,6 @@
   "mode": {
     "acpAgent": "סוכן ACP",
     "agent": "סוֹכֵן",
-    "chat": "לְשׂוֹחֵחַ",
     "current": "מצב נוכחי: {mode}"
   },
   "workspace": {

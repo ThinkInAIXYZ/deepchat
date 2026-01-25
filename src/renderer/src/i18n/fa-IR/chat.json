@@ -99,7 +99,6 @@
   "mode": {
     "acpAgent": "نماینده ACP",
     "agent": "عامل",
-    "chat": "چت کردن",
     "current": "حالت فعلی: {mode}"
   },
   "workspace": {

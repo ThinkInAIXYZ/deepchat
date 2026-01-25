@@ -81,7 +81,6 @@ import ModelIcon from '@/components/icons/ModelIcon.vue'
 import { ModelType } from '@shared/model'
 import type { RENDERER_MODEL_META } from '@shared/presenter'
 import { Icon } from '@iconify/vue'
-import { useChatMode } from '@/components/chat-input/composables/useChatMode'
 
 const { t } = useI18n()
 const keyword = ref('')
@@ -89,7 +88,6 @@ const chatStore = useChatStore()
 const modelStore = useModelStore()
 const themeStore = useThemeStore()
 const langStore = useLanguageStore()
-const chatMode = useChatMode()
 
 const emit = defineEmits<{
   (e: 'update:model', model: RENDERER_MODEL_META, providerId: string): void
@@ -114,7 +112,7 @@ const providers = computed(() => {
   return modelStore.getSelectableProviders({
     types: props.type,
     requiresVision: props.requiresVision,
-    mode: chatMode.currentMode.value
+    mode: 'agent'
   })
 })
 

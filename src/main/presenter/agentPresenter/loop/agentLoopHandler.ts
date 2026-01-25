@@ -24,13 +24,10 @@ export class AgentLoopHandler {
   constructor(private readonly options: AgentLoopHandlerOptions) {
     this.toolCallProcessor = new ToolCallProcessor({
       getAllToolDefinitions: async (context) => {
-        const { chatMode, agentWorkspacePath } = await this.resolveWorkspaceContext(
-          context.conversationId
-        )
+        const { agentWorkspacePath } = await this.resolveWorkspaceContext(context.conversationId)
 
         const toolDefs = await this.getToolPresenter().getAllToolDefinitions({
           enabledMcpTools: context.enabledMcpTools,
-          chatMode,
           supportsVision: this.currentSupportsVision,
           agentWorkspacePath,
           conversationId: context.conversationId
@@ -75,13 +72,13 @@ export class AgentLoopHandler {
   }
 
   /**
-   * Resolve workspace context (chatMode and agentWorkspacePath) for tool definitions
+   * Resolve workspace context (agentWorkspacePath) for tool definitions
    * @param conversationId Optional conversation ID
    * @returns Resolved workspace context
    */
   private async resolveWorkspaceContext(
     conversationId?: string
-  ): Promise<{ chatMode: 'agent'; agentWorkspacePath: string | null }> {
+  ): Promise<{ agentWorkspacePath: string | null }> {
     return presenter.sessionManager.resolveWorkspaceContext(conversationId)
   }
 
@@ -229,13 +226,11 @@ export class AgentLoopHandler {
         try {
           console.log(`[Agent Loop] Iteration ${toolCallCount + 1} for event: ${eventId}`)
           // Resolve workspace context
-          const { chatMode, agentWorkspacePath } =
-            await this.resolveWorkspaceContext(conversationId)
+          const { agentWorkspacePath } = await this.resolveWorkspaceContext(conversationId)
 
           // Get all tool definitions using ToolPresenter
           const toolDefs = await this.getToolPresenter().getAllToolDefinitions({
             enabledMcpTools,
-            chatMode,
             supportsVision: this.currentSupportsVision,
             agentWorkspacePath,
             conversationId

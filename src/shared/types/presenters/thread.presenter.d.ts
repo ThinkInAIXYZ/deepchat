@@ -21,7 +21,6 @@ export type CONVERSATION_SETTINGS = {
   searchStrategy?: 'turbo' | 'max'
   reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
   verbosity?: 'low' | 'medium' | 'high'
-  chatMode?: 'agent'
   agentWorkspacePath?: string | null
   selectedVariantsMap?: Record<string, string>
   activeSkills?: string[]

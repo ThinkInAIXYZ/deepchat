@@ -861,8 +861,6 @@ export class SessionPresenter implements ISessionPresenter {
         windowType
       },
       context: {
-        resolvedChatMode: (conversation.settings.chatMode ??
-          'agent') as Session['context']['resolvedChatMode'],
         agentWorkspacePath: conversation.settings.agentWorkspacePath ?? null
       },
       createdAt: conversation.createdAt,

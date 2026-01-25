@@ -568,11 +568,10 @@ export class PermissionHandler extends BaseHandler {
 
       let toolDef: MCPToolDefinition | undefined
       try {
-        const { chatMode, agentWorkspacePath } =
+        const { agentWorkspacePath } =
           await presenter.sessionManager.resolveWorkspaceContext(conversationId)
         const toolDefinitions = await this.getToolPresenter().getAllToolDefinitions({
           enabledMcpTools,
-          chatMode,
           supportsVision: false,
           agentWorkspacePath,
           conversationId

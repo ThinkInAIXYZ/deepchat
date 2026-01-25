@@ -12,7 +12,7 @@ import type {
 import type * as schema from '@agentclientprotocol/sdk/dist/schema.js'
 import type { Stream } from '@agentclientprotocol/sdk/dist/stream.js'
 import type { AcpAgentConfig } from '@shared/presenter'
-import type { AgentProcessHandle, AgentProcessManager } from '../../agentPresenter/acp/types'
+import type { AgentProcessHandle, AgentProcessManager } from '@shared/types/agent'
 import { getShellEnvironment } from '@/lib/shellEnvHelper'
 import { RuntimeHelper } from '@/lib/runtimeHelper'
 import { buildClientCapabilities } from '../capabilities'

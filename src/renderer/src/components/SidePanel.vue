@@ -44,7 +44,7 @@ const workspaceStore = useWorkspaceStore()
 const artifactStore = useArtifactStore()
 
 // Panel visibility logic
-const showWorkspace = computed(() => workspaceStore.isAgentMode && workspaceStore.isOpen)
+const showWorkspace = computed(() => workspaceStore.isOpen)
 const showArtifact = computed(() => artifactStore.isOpen)
 const showBoth = computed(() => showWorkspace.value && showArtifact.value)
 const isVisible = computed(() => showWorkspace.value || showArtifact.value)

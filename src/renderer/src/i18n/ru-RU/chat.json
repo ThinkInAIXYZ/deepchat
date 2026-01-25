@@ -99,7 +99,6 @@
   "mode": {
     "acpAgent": "Агент АШП",
     "agent": "Агент",
-    "chat": "чат",
     "current": "Текущий режим: {mode}"
   },
   "workspace": {

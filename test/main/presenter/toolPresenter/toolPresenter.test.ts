@@ -45,7 +45,6 @@ describe('ToolPresenter', () => {
     })
 
     const defs = await toolPresenter.getAllToolDefinitions({
-      chatMode: 'agent',
       supportsVision: false,
       agentWorkspacePath: 'C:\\\\workspace'
     })
@@ -72,7 +71,6 @@ describe('ToolPresenter', () => {
     })
 
     await toolPresenter.getAllToolDefinitions({
-      chatMode: 'agent',
       supportsVision: false,
       agentWorkspacePath: 'C:\\\\workspace'
     })

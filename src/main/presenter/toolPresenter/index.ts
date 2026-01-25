@@ -8,14 +8,13 @@ import type {
 } from '@shared/presenter'
 import { resolveToolOffloadTemplatePath } from '../sessionPresenter/sessionPaths'
 import { ToolMapper } from './toolMapper'
-import { AgentToolManager, type AgentToolCallResult } from '../agentPresenter/acp'
+import { AgentToolManager, type AgentToolCallResult } from '../agentPresenter/tools/toolManager'
 import { jsonrepair } from 'jsonrepair'
 import { CommandPermissionService } from '../permission'
 
 export interface IToolPresenter {
   getAllToolDefinitions(context: {
     enabledMcpTools?: string[]
-    chatMode?: 'chat' | 'agent' | 'acp agent'
     supportsVision?: boolean
     agentWorkspacePath?: string | null
     conversationId?: string
@@ -51,7 +50,6 @@ export class ToolPresenter implements IToolPresenter {
    */
   async getAllToolDefinitions(context: {
     enabledMcpTools?: string[]
-    chatMode?: 'chat' | 'agent' | 'acp agent'
     supportsVision?: boolean
     agentWorkspacePath?: string | null
     conversationId?: string
@@ -59,7 +57,6 @@ export class ToolPresenter implements IToolPresenter {
     const defs: MCPToolDefinition[] = []
     this.mapper.clear()
 
-    const chatMode = context.chatMode || 'agent'
     const supportsVision = context.supportsVision || false
     const agentWorkspacePath = context.agentWorkspacePath || null
 
@@ -68,36 +65,33 @@ export class ToolPresenter implements IToolPresenter {
     defs.push(...mcpDefs)
     this.mapper.registerTools(mcpDefs, 'mcp')
 
-    // 2. Get Agent tools (only in agent or acp agent mode)
-    if (chatMode !== 'chat') {
-      // Initialize or update AgentToolManager if workspace path changed
-      if (!this.agentToolManager) {
-        this.agentToolManager = new AgentToolManager({
-          agentWorkspacePath,
-          configPresenter: this.options.configPresenter,
-          commandPermissionHandler: this.options.commandPermissionHandler
-        })
-      }
+    // 2. Get Agent tools (always included now)
+    // Initialize or update AgentToolManager if workspace path changed
+    if (!this.agentToolManager) {
+      this.agentToolManager = new AgentToolManager({
+        agentWorkspacePath,
+        configPresenter: this.options.configPresenter,
+        commandPermissionHandler: this.options.commandPermissionHandler
+      })
+    }
 
-      try {
-        const agentDefs = await this.agentToolManager.getAllToolDefinitions({
-          chatMode,
-          supportsVision,
-          agentWorkspacePath,
-          conversationId: context.conversationId
-        })
-        const filteredAgentDefs = agentDefs.filter((tool) => {
-          if (!this.mapper.hasTool(tool.function.name)) return true
-          console.warn(
-            `[ToolPresenter] Tool name conflict for '${tool.function.name}', preferring MCP tool.`
-          )
-          return false
-        })
-        defs.push(...filteredAgentDefs)
-        this.mapper.registerTools(filteredAgentDefs, 'agent')
-      } catch (error) {
-        console.warn('[ToolPresenter] Failed to load Agent tool definitions', error)
-      }
+    try {
+      const agentDefs = await this.agentToolManager.getAllToolDefinitions({
+        supportsVision,
+        agentWorkspacePath,
+        conversationId: context.conversationId
+      })
+      const filteredAgentDefs = agentDefs.filter((tool) => {
+        if (!this.mapper.hasTool(tool.function.name)) return true
+        console.warn(
+          `[ToolPresenter] Tool name conflict for '${tool.function.name}', preferring MCP tool.`
+        )
+        return false
+      })
+      defs.push(...filteredAgentDefs)
+      this.mapper.registerTools(filteredAgentDefs, 'agent')
+    } catch (error) {
+      console.warn('[ToolPresenter] Failed to load Agent tool definitions', error)
     }
 
     return defs

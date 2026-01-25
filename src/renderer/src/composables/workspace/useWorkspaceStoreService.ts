@@ -1,6 +1,5 @@
 import { computed, ref, watch } from 'vue'
 import { useChatStore } from '@/stores/chat'
-import { useChatMode } from '@/components/chat-input/composables/useChatMode'
 import {
   useWorkspaceAdapter,
   type WorkspaceAdapter,
@@ -18,14 +17,12 @@ const FILE_REFRESH_DEBOUNCE_MS = 500
 
 export type WorkspaceStoreDeps = {
   chatStore?: ReturnType<typeof useChatStore>
-  chatMode?: ReturnType<typeof useChatMode>
   workspaceAdapter?: WorkspaceAdapter
   enableWatchers?: boolean
 }
 
 export const createWorkspaceStore = (deps: WorkspaceStoreDeps = {}) => {
   const chatStore = deps.chatStore ?? useChatStore()
-  const chatMode = deps.chatMode ?? useChatMode()
   const workspaceAdapter = deps.workspaceAdapter ?? useWorkspaceAdapter()
 
   const isOpen = ref(false)
@@ -41,8 +38,6 @@ export const createWorkspaceStore = (deps: WorkspaceStoreDeps = {}) => {
   let fileRefreshRequestId = 0
   let planRefreshRequestId = 0
   let listenersBound = false
-
-  const isAgentMode = computed(() => chatMode.currentMode.value === 'agent')
 
   const currentWorkspacePath = computed(() => {
     return chatStore.chatConfig.agentWorkspacePath ?? null
@@ -285,7 +280,7 @@ export const createWorkspaceStore = (deps: WorkspaceStoreDeps = {}) => {
   }
 
   const handleFilesChanged = (payload: WorkspaceFilesChangedPayload) => {
-    if (payload.conversationId === chatStore.activeThreadId && isAgentMode.value) {
+    if (payload.conversationId === chatStore.activeThreadId) {
       debouncedRefreshFileTree()
     }
   }
@@ -319,7 +314,7 @@ export const createWorkspaceStore = (deps: WorkspaceStoreDeps = {}) => {
       async (newId) => {
         if (newId !== lastSyncedConversationId.value) {
           lastSyncedConversationId.value = newId ?? null
-          if (newId && isAgentMode.value) {
+          if (newId) {
             await Promise.all([refreshPlanEntries(), refreshFileTree()])
           } else {
             clearData()
@@ -335,23 +330,8 @@ export const createWorkspaceStore = (deps: WorkspaceStoreDeps = {}) => {
           lastSuccessfulWorkspace.value = null
         }
 
-        if (isAgentMode.value && workspacePath) {
+        if (workspacePath) {
           void refreshFileTree()
-        }
-      },
-      { immediate: true }
-    )
-
-    watch(
-      isAgentMode,
-      (isAgent) => {
-        if (isAgent) {
-          setOpen(true)
-          void refreshFileTree()
-          void refreshPlanEntries()
-        } else {
-          setOpen(false)
-          clearData()
         }
       },
       { immediate: true }
@@ -365,7 +345,6 @@ export const createWorkspaceStore = (deps: WorkspaceStoreDeps = {}) => {
     fileTree,
     terminalSnippets,
     expandedSnippetIds,
-    isAgentMode,
     currentWorkspacePath,
     completedPlanCount,
     totalPlanCount,

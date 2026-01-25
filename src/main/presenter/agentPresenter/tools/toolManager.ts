@@ -246,16 +246,13 @@ export class AgentToolManager {
    * Get all Agent tool definitions in MCP format
    */
   async getAllToolDefinitions(context: {
-    chatMode: 'chat' | 'agent' | 'acp agent'
     supportsVision: boolean
     agentWorkspacePath: string | null
     conversationId?: string
   }): Promise<MCPToolDefinition[]> {
     const defs: MCPToolDefinition[] = []
-    const isAgentMode = context.chatMode === 'agent'
-    const effectiveWorkspacePath = isAgentMode
-      ? context.agentWorkspacePath?.trim() || this.getDefaultAgentWorkspacePath()
-      : null
+    const effectiveWorkspacePath =
+      context.agentWorkspacePath?.trim() || this.getDefaultAgentWorkspacePath()
 
     // Update filesystem handler if workspace path changed
     if (effectiveWorkspacePath !== this.agentWorkspacePath) {
@@ -272,20 +269,20 @@ export class AgentToolManager {
       this.agentWorkspacePath = effectiveWorkspacePath
     }
 
-    // 1. FileSystem tools (agent mode only)
-    if (isAgentMode && this.fileSystemHandler) {
+    // 1. FileSystem tools
+    if (this.fileSystemHandler) {
       const fsDefs = this.getFileSystemToolDefinitions()
       defs.push(...fsDefs)
     }
 
-    // 3. Skill tools (agent mode only)
-    if (isAgentMode && this.isSkillsEnabled()) {
+    // 3. Skill tools
+    if (this.isSkillsEnabled()) {
       const skillDefs = this.getSkillToolDefinitions()
       defs.push(...skillDefs)
     }
 
-    // 4. DeepChat settings tools (agent mode only, skill gated)
-    if (isAgentMode && this.isSkillsEnabled() && context.conversationId) {
+    // 4. DeepChat settings tools (skill gated)
+    if (this.isSkillsEnabled() && context.conversationId) {
       try {
         const activeSkills = await presenter.skillPresenter.getActiveSkills(context.conversationId)
         if (activeSkills.includes(CHAT_SETTINGS_SKILL_NAME)) {
@@ -311,13 +308,11 @@ export class AgentToolManager {
       }
     }
 
-    // 5. YoBrowser CDP tools (agent mode only)
-    if (isAgentMode) {
-      try {
-        defs.push(...presenter.yoBrowserPresenter.toolHandler.getToolDefinitions())
-      } catch (error) {
-        logger.warn('[AgentToolManager] Failed to load YoBrowser tools', { error })
-      }
+    // 5. YoBrowser CDP tools (always included)
+    try {
+      defs.push(...presenter.yoBrowserPresenter.toolHandler.getToolDefinitions())
+    } catch (error) {
+      logger.warn('[AgentToolManager] Failed to load YoBrowser tools', { error })
     }
 
     return defs
@@ -369,11 +364,7 @@ export class AgentToolManager {
 
       const resolved = session.resolved
 
-      if (resolved.chatMode === 'agent') {
-        return resolved.agentWorkspacePath ?? null
-      }
-
-      return null
+      return resolved.agentWorkspacePath ?? null
     } catch (error) {
       logger.warn('[AgentToolManager] Failed to get workdir for conversation:', {
         conversationId,

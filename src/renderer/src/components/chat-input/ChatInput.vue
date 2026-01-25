@@ -127,16 +127,6 @@
       <!-- Bottom Bar -->
       <InputFooter>
         <template #left-area>
-          <ModeSelector
-            v-if="variant === 'agent' || variant === 'acp'"
-            :current-mode="chatMode.currentMode.value"
-            :current-label="chatMode.currentLabel.value"
-            :current-icon="chatMode.currentIcon.value"
-            :acp-agent-options="acpAgentOptions"
-            :selected-acp-agent-id="selectedAcpAgentId"
-            @mode-select="handleModeSelect"
-            @acp-agent-select="handleAcpAgentSelect"
-          />
           <AcpModeSelector
             v-if="variant === 'acp' && acpMode.isAcpModel.value && acpMode.hasAgentModes.value"
             :current-mode="acpMode.currentMode.value"
@@ -297,7 +287,6 @@ import InputEditor from './InputEditor.vue'
 import InputToolbar from './InputToolbar.vue'
 import InputActions from './InputActions.vue'
 import InputFooter from './InputFooter.vue'
-import ModeSelector from './ModeSelector.vue'
 import AcpModeSelector from './AcpModeSelector.vue'
 import ModelSelector from './ModelSelector.vue'
 import AcpSessionModelSelector from './AcpSessionModelSelector.vue'
@@ -322,7 +311,6 @@ import { useComposerDraft } from './composables/useComposerDraft'
 import { useAcpWorkdir } from './composables/useAcpWorkdir'
 import { useAcpMode } from './composables/useAcpMode'
 import { useAcpSessionModel } from './composables/useAcpSessionModel'
-import { useChatMode } from './composables/useChatMode'
 import { useAgentWorkspace } from './composables/useAgentWorkspace'
 import { useWorkspaceMention } from './composables/useWorkspaceMention'
 import { useChatInputModeSelection } from './composables/useChatInputModeSelection'
@@ -399,9 +387,6 @@ const showFakeCaret = computed(() => caretVisible.value && !props.disabled)
 
 // Initialize settings management
 const { settings } = useInputSettings()
-
-// Initialize chat mode management
-const chatMode = useChatMode()
 
 // Initialize history composable first (needed for editor placeholder)
 const history = useInputHistory(null as any, t)
@@ -597,13 +582,11 @@ const acpWorkdir = useAcpWorkdir({
 // Unified workspace management (for agent and acp agent modes)
 const workspace = useAgentWorkspace({
   conversationId,
-  activeModel: activeModelSource,
-  chatMode
+  activeModel: activeModelSource
 })
 
 const workspaceMention = useWorkspaceMention({
   workspacePath: workspace.workspacePath,
-  chatMode: chatMode.currentMode,
   conversationId
 })
 setWorkspaceMention(workspaceMention)
@@ -633,23 +616,18 @@ const acpSessionModel = useAcpSessionModel({
 })
 
 const {
-  acpAgentOptions,
-  selectedAcpAgentId,
   showAcpSessionModelSelector,
-  handleModeSelect,
-  handleAcpAgentSelect,
   handleAcpModeSelect,
   handleAcpSessionModelSelect
 } = useChatInputModeSelection({
   variant: props.variant,
   activeModel: activeModelSource,
   conversationId,
-  chatMode,
   modelStore,
   config,
   acpMode,
   acpSessionModel,
-  updateChatConfig: chatStore.updateChatConfig,
+  updateChatConfig: chatStore.updateChatConfig as (payload: unknown) => Promise<void>,
   emitModelUpdate: (payload: unknown, providerId: string) =>
     emit('model-update', payload as any, providerId)
 })
@@ -807,14 +785,7 @@ onMounted(async () => {
   // Setup prompt files handler
   setPromptFilesHandler(files.handlePromptFiles)
 
-  // For newThread variant, ensure agent mode is set
-  if (props.variant === 'newThread') {
-    if (chatMode.currentMode.value !== 'agent') {
-      await chatMode.setMode('agent')
-    }
-  }
-
-  // Load model config (only for chat variant)
+  // Load model config (only for agent or newThread variant)
   if (props.variant === 'agent' || props.variant === 'newThread') {
     await config.loadModelConfig()
   }
@@ -895,25 +866,6 @@ watch(
   }
 )
 
-watch(
-  () => [conversationId.value, chatStore.chatConfig.chatMode] as const,
-  async ([activeId, storedMode]) => {
-    if (!activeId) return
-    try {
-      if (!storedMode) {
-        await chatStore.updateChatConfig({ chatMode: chatMode.currentMode.value })
-        return
-      }
-      if (chatMode.currentMode.value !== storedMode) {
-        await chatMode.setMode(storedMode)
-      }
-    } catch (error) {
-      console.warn('Failed to sync chat mode for conversation:', error)
-    }
-  },
-  { immediate: true }
-)
-
 // === Expose ===
 defineExpose({
   clearContent: editorComposable.clearContent,
@@ -921,12 +873,7 @@ defineExpose({
   appendMention: (name: string) => editorComposable.appendMention(name, mentionData),
   appendCustomMention,
   restoreFocus,
-  getAgentWorkspacePath: () => {
-    const mode = chatMode.currentMode.value
-    if (mode !== 'agent') return null
-    return workspace.workspacePath.value
-  },
-  getChatMode: () => chatMode.currentMode.value,
+  getAgentWorkspacePath: () => workspace.workspacePath.value,
   getPendingSkills: () => [...pendingSkills.value],
   consumePendingSkills
 })

@@ -99,7 +99,6 @@
   "mode": {
     "acpAgent": "Agente ACP",
     "agent": "Agente",
-    "chat": "bater papo",
     "current": "Modo atual: {mode}"
   },
   "workspace": {

@@ -99,7 +99,6 @@
   "mode": {
     "acpAgent": "ACP-agent",
     "agent": "Agent",
-    "chat": "snak",
     "current": "Aktuel tilstand: {mode}"
   },
   "workspace": {

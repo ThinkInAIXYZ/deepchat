@@ -8,7 +8,6 @@ export const DEFAULT_SETTINGS: CONVERSATION_SETTINGS = {
   maxTokens: 8192,
   providerId: 'deepseek',
   modelId: 'deepseek-chat',
-  chatMode: 'agent',
   artifacts: 0,
   activeSkills: []
 }

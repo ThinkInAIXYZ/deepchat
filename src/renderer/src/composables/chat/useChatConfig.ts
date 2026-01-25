@@ -93,9 +93,9 @@ export function useChatConfig(
     chatConfig.value = { ...chatConfig.value, ...newConfig }
     await saveChatConfig()
 
-    // Refresh sidebar icon if modelId or chatMode changed
+    // Refresh sidebar icon if modelId changed
     const activeThread = activeThreadId.value
-    if (activeThread && (newConfig.modelId !== undefined || newConfig.chatMode !== undefined)) {
+    if (activeThread && newConfig.modelId !== undefined) {
       const { useSidebarStore } = await import('@/stores/sidebarStore')
       const sidebarStore = useSidebarStore()
       await sidebarStore.refreshConversationMeta(activeThread)

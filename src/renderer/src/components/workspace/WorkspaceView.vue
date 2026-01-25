@@ -41,7 +41,6 @@ import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { useYoBrowserStoreLifecycle } from '@/composables/useYoBrowserStoreLifecycle'
-import { useChatMode } from '@/components/chat-input/composables/useChatMode'
 import WorkspacePlan from './WorkspacePlan.vue'
 import WorkspaceFiles from './WorkspaceFiles.vue'
 import WorkspaceTerminal from './WorkspaceTerminal.vue'
@@ -50,10 +49,7 @@ import WorkspaceBrowserTabs from './WorkspaceBrowserTabs.vue'
 const { t } = useI18n()
 const store = useWorkspaceStore()
 const yoBrowserStore = useYoBrowserStoreLifecycle()
-const chatMode = useChatMode()
-const showBrowserTabs = computed(
-  () => chatMode.currentMode.value === 'agent' && yoBrowserStore.tabCount > 0
-)
+const showBrowserTabs = computed(() => yoBrowserStore.tabCount > 0)
 
 const i18nPrefix = computed(() => 'chat.workspace')
 const titleKey = computed(() => `${i18nPrefix.value}.title`)

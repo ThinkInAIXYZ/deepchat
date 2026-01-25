@@ -123,17 +123,8 @@ export async function preparePromptContent({
 }> {
   const { contextLength, artifacts, enabledMcpTools } = conversation.settings
   const systemPrompt = await resolveSystemPrompt(conversation)
-  const storedChatMode = presenter.configPresenter.getSetting('input_chatMode') as
-    | 'chat'
-    | 'agent'
-    | undefined
-  console.log('store chat mode', storedChatMode)
-  const normalizedChatMode = storedChatMode === 'chat' ? 'agent' : storedChatMode
-  const rawChatMode = conversation.settings.chatMode ?? normalizedChatMode ?? 'agent'
-  // chatMode is now always 'agent' after ACP cleanup
-  const chatMode: 'agent' = rawChatMode
-  const isAgentMode = chatMode === 'agent'
-  const isToolPromptMode = chatMode === 'agent'
+  const isAgentMode = true
+  const isToolPromptMode = true
 
   const isImageGeneration = modelType === ModelType.ImageGeneration
 
@@ -158,7 +149,6 @@ export async function preparePromptContent({
     try {
       toolDefinitions = await toolCallCenter.getAllToolDefinitions({
         enabledMcpTools: effectiveEnabledMcpTools,
-        chatMode,
         supportsVision,
         agentWorkspacePath: conversation.settings.agentWorkspacePath?.trim() || null,
         conversationId: conversation.id

@@ -8,7 +8,6 @@ import type {
 } from '@shared/chat'
 import type { CONVERSATION } from '@shared/presenter'
 import { useConversationCore } from '@/composables/chat/useConversationCore'
-import { useChatMode } from '@/components/chat-input/composables/useChatMode'
 import {
   clearCachedMessagesForThread,
   clearMessageDomInfo,
@@ -49,7 +48,6 @@ export type MessageListItem = {
 export const useChatStoreService = () => {
   const conversationCore = useConversationCore()
   const chatAdapter = useChatAdapter()
-  useChatMode() // Initialize chat mode but don't destructure unused values
 
   const activeThreadId = ref<string | null>(null)
   const threads = ref<

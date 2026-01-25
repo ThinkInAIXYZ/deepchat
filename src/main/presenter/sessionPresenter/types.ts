@@ -5,7 +5,6 @@ export type SessionConfig = {
   title: string
   providerId: string
   modelId: string
-  chatMode: 'chat' | 'agent'
   systemPrompt: string
   maxTokens?: number
   temperature?: number
@@ -32,7 +31,6 @@ export type SessionBindings = {
 }
 
 export type WorkspaceContext = {
-  resolvedChatMode: 'chat' | 'agent'
   agentWorkspacePath: string | null
 }
 

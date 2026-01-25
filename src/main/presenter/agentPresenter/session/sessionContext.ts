@@ -1,7 +1,6 @@
 export type SessionStatus = 'idle' | 'generating' | 'paused' | 'waiting_permission' | 'error'
 
 export type SessionContextResolved = {
-  chatMode: 'chat' | 'agent'
   providerId: string
   modelId: string
   supportsVision: boolean

@@ -3,7 +3,7 @@ import type {
   AgentProcessStatus,
   AgentSessionLifecycleStatus,
   AgentSessionState
-} from '@shared/presenter'
+} from './presenters/agent-provider'
 
 export type {
   AgentProcessHandle,

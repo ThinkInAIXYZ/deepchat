@@ -10,17 +10,12 @@ vi.mock('@/stores/chat', () => ({
   })
 }))
 
-vi.mock('@/components/chat-input/composables/useChatMode', () => ({
-  useChatMode: () => ({ currentMode: { value: 'agent' } })
-}))
-
 describe('createWorkspaceStore', () => {
   it('binds workspace listeners and cleans up', () => {
     const chatStore = reactive({
       activeThreadId: 'thread-a',
       chatConfig: { agentWorkspacePath: '/tmp/workspace', acpWorkdirMap: {} }
     })
-    const chatMode = { currentMode: ref('agent') }
     const planCleanup = vi.fn()
     const terminalCleanup = vi.fn()
     const filesCleanup = vi.fn()
@@ -40,7 +35,6 @@ describe('createWorkspaceStore', () => {
 
     const store = createWorkspaceStore({
       chatStore,
-      chatMode,
       workspaceAdapter,
       enableWatchers: false
     })
@@ -61,7 +55,6 @@ describe('createWorkspaceStore', () => {
       activeThreadId: 'thread-a',
       chatConfig: { agentWorkspacePath: '/tmp/workspace', acpWorkdirMap: {} }
     })
-    const chatMode = { currentMode: ref('agent') }
     let resolveRead: ((value: Array<{ path: string; isDirectory: boolean }>) => void) | null = null
     const readDirectory = vi.fn(
       () =>
@@ -84,7 +77,6 @@ describe('createWorkspaceStore', () => {
 
     const store = createWorkspaceStore({
       chatStore,
-      chatMode,
       workspaceAdapter,
       enableWatchers: false
     })
