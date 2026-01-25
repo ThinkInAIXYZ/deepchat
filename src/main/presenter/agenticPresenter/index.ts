@@ -8,12 +8,14 @@
 
 import { eventBus, SendTarget } from '@/eventbus'
 import { AgentRegistry } from './registry.js'
+import { AgenticEventEmitterImpl } from './emitter.js'
 import type {
   IAgentPresenter,
   SessionInfo,
   MessageContent,
   SessionConfig,
-  LoadContext
+  LoadContext,
+  AgenticEventEmitter
 } from './types.js'
 import type { AgenticEventType } from '@shared/types/presenters/agentic.presenter.d'
 
@@ -29,6 +31,7 @@ import type { AgenticEventType } from '@shared/types/presenters/agentic.presente
 export class AgenticPresenter {
   private registry = new AgentRegistry()
   private sessionToPresenter = new Map<string, IAgentPresenter>()
+  private emitters: Map<string, AgenticEventEmitter> = new Map()
 
   /**
    * Register an agent presenter
@@ -37,6 +40,34 @@ export class AgenticPresenter {
    */
   registerAgent(presenter: IAgentPresenter): void {
     this.registry.register(presenter)
+
+    // Inject emitter provider callback - avoids circular dependency
+    // The agent presenter calls this callback to get/create emitters for sessions
+    presenter.setEmitterProvider((sessionId: string) => this.getOrCreateEmitter(sessionId))
+  }
+
+  /**
+   * Get or create an event emitter for a session
+   * This is called by agent presenters via the injected emitter provider
+   * @param sessionId - The session ID
+   * @returns An event emitter for the session
+   */
+  private getOrCreateEmitter(sessionId: string): AgenticEventEmitter | undefined {
+    let emitter = this.emitters.get(sessionId)
+    if (!emitter) {
+      emitter = this.createEventEmitter(sessionId)
+      this.emitters.set(sessionId, emitter)
+    }
+    return emitter
+  }
+
+  /**
+   * Clean up an emitter when a session is closed
+   * Called by agenticPresenter when a session is closed
+   * @param sessionId - The session ID to clean up
+   */
+  private cleanupEmitter(sessionId: string): void {
+    this.emitters.delete(sessionId)
   }
 
   /**
@@ -150,6 +181,9 @@ export class AgenticPresenter {
       // Remove from tracking
       this.sessionToPresenter.delete(sessionId)
 
+      // Clean up emitter
+      this.cleanupEmitter(sessionId)
+
       // Emit SESSION_CLOSED event
       eventBus.sendToRenderer(
         'agentic.session.closed' as AgenticEventType,
@@ -241,6 +275,38 @@ export class AgenticPresenter {
   }
 
   // ============================================================================
+  // Event Emission
+  // ============================================================================
+
+  /**
+   * Create an event emitter for a specific session
+   * Agents use this to send all events for a session
+   * @param sessionId - The session ID to create an emitter for
+   * @returns An event emitter instance for the session
+   */
+  createEventEmitter(sessionId: string): AgenticEventEmitter {
+    return new AgenticEventEmitterImpl(sessionId, this)
+  }
+
+  /**
+   * Low-level event emitter
+   * Sends a unified agentic event to the renderer
+   * @param eventType - The type of event to emit
+   * @param sessionId - The session ID
+   * @param payload - The event payload
+   */
+  emitAgenticEvent(
+    eventType: AgenticEventType,
+    sessionId: string,
+    payload: Record<string, unknown>
+  ): void {
+    eventBus.sendToRenderer(eventType, SendTarget.ALL_WINDOWS, {
+      sessionId,
+      ...payload
+    })
+  }
+
+  // ============================================================================
   // Private Helpers
   // ============================================================================
 
@@ -263,5 +329,6 @@ export class AgenticPresenter {
 export const agenticPresenter = new AgenticPresenter()
 
 // Export types
-export * from './types.js'
-export * from './registry.js'
+export * from './types'
+export * from './registry'
+export * from './emitter'

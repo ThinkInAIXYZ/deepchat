@@ -16,21 +16,26 @@ import { presenter } from '@/presenter'
 import { BaseHandler, type ThreadHandlerContext } from '../baseHandler'
 import type { LLMEventHandler } from './llmEventHandler'
 import { LoopOrchestrator } from '../loop/loopOrchestrator'
+import type { AgenticEventEmitter } from '@shared/types/presenters/agentic.presenter.d'
+import { normalizeAndEmit } from '../normalizer'
 
 interface StreamGenerationHandlerDeps {
   generatingMessages: Map<string, GeneratingMessageState>
   llmEventHandler: LLMEventHandler
+  getEmitter?: (conversationId: string) => AgenticEventEmitter | undefined
 }
 
 export class StreamGenerationHandler extends BaseHandler {
   private readonly generatingMessages: Map<string, GeneratingMessageState>
   private readonly llmEventHandler: LLMEventHandler
   private readonly loopOrchestrator: LoopOrchestrator
+  private readonly getEmitter?: (conversationId: string) => AgenticEventEmitter | undefined
 
   constructor(context: ThreadHandlerContext, deps: StreamGenerationHandlerDeps) {
     super(context)
     this.generatingMessages = deps.generatingMessages
     this.llmEventHandler = deps.llmEventHandler
+    this.getEmitter = deps.getEmitter
     this.loopOrchestrator = new LoopOrchestrator(this.llmEventHandler)
     this.assertDependencies()
   }
@@ -244,7 +249,8 @@ export class StreamGenerationHandler extends BaseHandler {
       await this.updateGenerationState(state, promptTokens)
 
       if (toolCallResponse && toolCall) {
-        eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, SendTarget.ALL_WINDOWS, {
+        const emitter = this.getEmitter?.(conversationId)
+        const toolCallEventData = {
           eventId: state.message.id,
           content: '',
           tool_call: 'start',
@@ -255,8 +261,20 @@ export class StreamGenerationHandler extends BaseHandler {
           tool_call_server_name: toolCall.server_name,
           tool_call_server_icons: toolCall.server_icons,
           tool_call_server_description: toolCall.server_description
-        })
-        eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, SendTarget.ALL_WINDOWS, {
+        }
+
+        if (emitter) {
+          normalizeAndEmit(
+            STREAM_EVENTS.RESPONSE as keyof typeof STREAM_EVENTS,
+            toolCallEventData,
+            conversationId,
+            emitter
+          )
+        } else {
+          eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, SendTarget.ALL_WINDOWS, toolCallEventData)
+        }
+
+        const toolCallRunningEventData = {
           eventId: state.message.id,
           content: '',
           tool_call: 'running',
@@ -267,8 +285,24 @@ export class StreamGenerationHandler extends BaseHandler {
           tool_call_server_name: toolCall.server_name,
           tool_call_server_icons: toolCall.server_icons,
           tool_call_server_description: toolCall.server_description
-        })
-        eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, SendTarget.ALL_WINDOWS, {
+        }
+
+        if (emitter) {
+          normalizeAndEmit(
+            STREAM_EVENTS.RESPONSE as keyof typeof STREAM_EVENTS,
+            toolCallRunningEventData,
+            conversationId,
+            emitter
+          )
+        } else {
+          eventBus.sendToRenderer(
+            STREAM_EVENTS.RESPONSE,
+            SendTarget.ALL_WINDOWS,
+            toolCallRunningEventData
+          )
+        }
+
+        const toolCallEndEventData = {
           eventId: state.message.id,
           content: '',
           tool_call: 'end',
@@ -280,7 +314,22 @@ export class StreamGenerationHandler extends BaseHandler {
           tool_call_server_icons: toolCall.server_icons,
           tool_call_server_description: toolCall.server_description,
           tool_call_response_raw: toolCallResponse.rawData
-        })
+        }
+
+        if (emitter) {
+          normalizeAndEmit(
+            STREAM_EVENTS.RESPONSE as keyof typeof STREAM_EVENTS,
+            toolCallEndEventData,
+            conversationId,
+            emitter
+          )
+        } else {
+          eventBus.sendToRenderer(
+            STREAM_EVENTS.RESPONSE,
+            SendTarget.ALL_WINDOWS,
+            toolCallEndEventData
+          )
+        }
       }
 
       const stream = this.ctx.llmProviderPresenter.startStreamCompletion(

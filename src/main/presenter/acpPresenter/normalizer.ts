@@ -1,22 +1,14 @@
 /**
  * AcpPresenter Event Normalizer
- * Converts ACP_EVENTS to AgenticEventType format
+ * Converts ACP_EVENTS to AgenticEventType format and emits via AgenticEventEmitter
  */
 
-import type { AgenticEventType } from '@shared/types/presenters/agentic.presenter.d'
+import type { AgenticEventEmitter } from '@shared/types/presenters/agentic.presenter.d'
 import { ACP_EVENTS } from './events'
 import type * as schema from '@agentclientprotocol/sdk/dist/schema.js'
 
 /**
- * Normalizer result contains the unified event type and transformed payload
- */
-export interface NormalizedEvent {
-  eventType: AgenticEventType
-  payload: unknown
-}
-
-/**
- * Normalizes ACP_EVENTS to AgenticEventType
+ * Normalizes ACP_EVENTS to AgenticEventType and emits via the provided emitter
  *
  * Event mapping:
  * - ACP_EVENTS.SESSION_UPDATE → AgenticEventType.MESSAGE_DELTA (for content chunks)
@@ -28,54 +20,55 @@ export interface NormalizedEvent {
  * - AgenticEventType.TOOL_START (when tool call starts)
  * - AgenticEventType.TOOL_RUNNING (when tool is running)
  * - AgenticEventType.TOOL_END (when tool call ends)
+ *
+ * @param acpEvent - The ACP_EVENT type to normalize
+ * @param payload - The event payload
+ * @param sessionId - The session ID for the event
+ * @param emitter - The AgenticEventEmitter to emit normalized events
  */
-export function normalizeAcpEvent(
+export function normalizeAndEmit(
   acpEvent: keyof typeof ACP_EVENTS,
-  payload: unknown
-): NormalizedEvent | null {
+  payload: unknown,
+  sessionId: string,
+  emitter: AgenticEventEmitter
+): void {
   if (!payload || typeof payload !== 'object') {
-    return null
+    return
   }
 
   const data = payload as Record<string, unknown>
 
   switch (acpEvent) {
     case ACP_EVENTS.SESSION_UPDATE:
-      return normalizeSessionUpdateEvent(data)
+      normalizeSessionUpdateEventAndEmit(data, emitter)
+      break
 
     case ACP_EVENTS.PROMPT_COMPLETED:
-      return {
-        eventType: 'agentic.message.end' as AgenticEventType,
-        payload: {
-          sessionId: data.sessionId,
-          messageId: data.sessionId // For ACP, sessionId is used as messageId
-        }
-      }
+      emitter.messageEnd(sessionId) // For ACP, sessionId is used as messageId
+      break
 
     case ACP_EVENTS.ERROR:
-      return {
-        eventType: 'agentic.error' as AgenticEventType,
-        payload: {
-          sessionId: data.sessionId,
-          error: new Error(data.error as string)
-        }
-      }
+      emitter.statusChanged('error', new Error(data.error as string))
+      break
 
     default:
-      return null
+      break
   }
 }
 
 /**
- * Normalizes SESSION_UPDATE event
+ * Normalizes SESSION_UPDATE event and emits via emitter
  * SessionNotification has a nested structure with update.content
  */
-function normalizeSessionUpdateEvent(data: Record<string, unknown>): NormalizedEvent | null {
+function normalizeSessionUpdateEventAndEmit(
+  data: Record<string, unknown>,
+  emitter: AgenticEventEmitter
+): void {
   const sessionId = data.sessionId as string
   const notification = data.notification as schema.SessionNotification
 
   if (!notification || !notification.update) {
-    return null
+    return
   }
 
   // SessionNotification.update is a union type with different update kinds
@@ -100,14 +93,6 @@ function normalizeSessionUpdateEvent(data: Record<string, unknown>): NormalizedE
     isComplete = update.sessionUpdate === 'complete'
   }
 
-  // Default to message delta
-  return {
-    eventType: 'agentic.message.delta' as AgenticEventType,
-    payload: {
-      sessionId,
-      messageId: sessionId,
-      content: contentText,
-      isComplete
-    }
-  }
+  // Emit message delta
+  emitter.messageDelta(sessionId, contentText, isComplete)
 }

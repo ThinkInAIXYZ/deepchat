@@ -1,21 +1,13 @@
 /**
  * AgentPresenter Event Normalizer
- * Converts STREAM_EVENTS to AgenticEventType format
+ * Converts STREAM_EVENTS to AgenticEventType format and emits via AgenticEventEmitter
  */
 
-import type { AgenticEventType } from '@shared/types/presenters/agentic.presenter.d'
+import type { AgenticEventEmitter } from '@shared/types/presenters/agentic.presenter.d'
 import { STREAM_EVENTS } from '@/events'
 
 /**
- * Normalizer result contains the unified event type and transformed payload
- */
-export interface NormalizedEvent {
-  eventType: AgenticEventType
-  payload: unknown
-}
-
-/**
- * Normalizes STREAM_EVENTS to AgenticEventType
+ * Normalizes STREAM_EVENTS to AgenticEventType and emits via the provided emitter
  *
  * Event mapping:
  * - STREAM_EVENTS.RESPONSE → AgenticEventType.MESSAGE_DELTA (for content streaming)
@@ -27,142 +19,117 @@ export interface NormalizedEvent {
  * - AgenticEventType.TOOL_START (when tool_call: 'start')
  * - AgenticEventType.TOOL_RUNNING (when tool_call: 'running')
  * - AgenticEventType.TOOL_END (when tool_call: 'end')
+ *
+ * @param streamEvent - The STREAM_EVENT type to normalize
+ * @param payload - The event payload
+ * @param sessionId - The session ID for the event
+ * @param emitter - The AgenticEventEmitter to emit normalized events
  */
-export function normalizeEvent(
+export function normalizeAndEmit(
   streamEvent: keyof typeof STREAM_EVENTS,
-  payload: unknown
-): NormalizedEvent | null {
+  payload: unknown,
+  _sessionId: string,
+  emitter: AgenticEventEmitter
+): void {
   if (!payload || typeof payload !== 'object') {
-    return null
+    return
   }
 
   const data = payload as Record<string, unknown>
 
   switch (streamEvent) {
     case STREAM_EVENTS.RESPONSE:
-      return normalizeResponseEvent(data)
+      normalizeResponseEventAndEmit(data, emitter)
+      break
 
     case STREAM_EVENTS.END:
-      return {
-        eventType: 'agentic.message.end' as AgenticEventType,
-        payload: {
-          sessionId: data.conversationId,
-          messageId: data.eventId
-        }
-      }
+      emitter.messageEnd(data.eventId as string)
+      break
 
     case STREAM_EVENTS.ERROR:
-      return {
-        eventType: 'agentic.error' as AgenticEventType,
-        payload: {
-          sessionId: data.conversationId,
-          error: new Error(data.error as string)
-        }
-      }
+      emitter.statusChanged('error', new Error(data.error as string))
+      break
 
     default:
-      return null
+      break
   }
 }
 
 /**
- * Normalizes RESPONSE event
+ * Normalizes RESPONSE event and emits via emitter
  * Can represent various types: content delta, tool call, reasoning, etc.
  */
-function normalizeResponseEvent(data: Record<string, unknown>): NormalizedEvent | null {
-  const sessionId = data.conversationId as string
+function normalizeResponseEventAndEmit(
+  data: Record<string, unknown>,
+  emitter: AgenticEventEmitter
+): void {
   const messageId = data.eventId as string
   const streamKind = data.stream_kind as string
 
-  // Check for tool call events
-  if (data.tool_call === 'start' || data.tool_call_id || data.tool_call_name) {
-    return {
-      eventType: 'agentic.tool.start' as AgenticEventType,
-      payload: {
-        sessionId,
-        toolId: data.tool_call_id as string,
-        toolName: data.tool_call_name as string,
-        arguments: data.tool_call_params ? JSON.parse(data.tool_call_params as string) : {}
-      }
-    }
+  // Check for explicit tool call state first (before checking for tool_call_id)
+  if (data.tool_call === 'start') {
+    const toolParams = data.tool_call_params
+      ? (JSON.parse(data.tool_call_params as string) as Record<string, unknown>)
+      : {}
+    emitter.toolStart(data.tool_call_id as string, data.tool_call_name as string, toolParams)
+    return
   }
 
   if (data.tool_call === 'running') {
-    return {
-      eventType: 'agentic.tool.running' as AgenticEventType,
-      payload: {
-        sessionId,
-        toolId: data.tool_call_id as string,
-        status: 'running'
-      }
-    }
+    emitter.toolRunning(data.tool_call_id as string, 'running')
+    return
   }
 
-  if (data.tool_call === 'end' || data.tool_call_response) {
-    return {
-      eventType: 'agentic.tool.end' as AgenticEventType,
-      payload: {
-        sessionId,
-        toolId: data.tool_call_id as string,
-        result: data.tool_call_response_raw
-      }
-    }
+  if (data.tool_call === 'end') {
+    emitter.toolEnd(data.tool_call_id as string, data.tool_call_response_raw)
+    return
+  }
+
+  // Backward compatibility: if we have tool_call_response but no explicit tool_call state
+  // Check this BEFORE tool_call_id, because having a response means it's an END event
+  if (data.tool_call_response || data.tool_call_response_raw) {
+    emitter.toolEnd(data.tool_call_id as string, data.tool_call_response_raw)
+    return
+  }
+
+  // Backward compatibility: if we have tool_call_id but no explicit tool_call state
+  if (data.tool_call_id || data.tool_call_name) {
+    const toolParams = data.tool_call_params
+      ? (JSON.parse(data.tool_call_params as string) as Record<string, unknown>)
+      : {}
+    emitter.toolStart(data.tool_call_id as string, data.tool_call_name as string, toolParams)
+    return
+  }
+
+  // Special block types (reasoning, image, etc.) - check before content delta
+  if (data.reasoning_time) {
+    emitter.messageBlock(messageId, 'reasoning', {
+      reasoningContent: data.reasoning_content,
+      reasoningTime: data.reasoning_time
+    })
+    return
+  }
+
+  if (data.image_data) {
+    emitter.messageBlock(messageId, 'image', {
+      imageData: data.image_data
+    })
+    return
   }
 
   // Content delta events
   const hasContent = data.content || data.reasoning_content
   if (hasContent) {
-    return {
-      eventType: 'agentic.message.delta' as AgenticEventType,
-      payload: {
-        sessionId,
-        messageId,
-        content: (data.content || data.reasoning_content) as string,
-        isComplete: streamKind === 'final'
-      }
-    }
-  }
-
-  // Other block types (reasoning, image, etc.)
-  if (data.reasoning_time) {
-    return {
-      eventType: 'agentic.message.block' as AgenticEventType,
-      payload: {
-        sessionId,
-        messageId,
-        blockType: 'reasoning',
-        content: {
-          reasoningContent: data.reasoning_content,
-          reasoningTime: data.reasoning_time
-        }
-      }
-    }
-  }
-
-  if (data.image_data) {
-    return {
-      eventType: 'agentic.message.block' as AgenticEventType,
-      payload: {
-        sessionId,
-        messageId,
-        blockType: 'text',
-        content: {
-          imageData: data.image_data
-        }
-      }
-    }
+    emitter.messageDelta(
+      messageId,
+      (data.content || data.reasoning_content) as string,
+      streamKind === 'final'
+    )
+    return
   }
 
   // Default to delta for other response types
-  return {
-    eventType: 'agentic.message.delta' as AgenticEventType,
-    payload: {
-      sessionId,
-      messageId,
-      content: '',
-      isComplete: streamKind === 'final'
-    }
-  }
+  emitter.messageDelta(messageId, '', streamKind === 'final')
 }
 
 /**

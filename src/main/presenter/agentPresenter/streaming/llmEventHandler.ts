@@ -10,6 +10,8 @@ import type { GeneratingMessageState } from './types'
 import type { ContentBufferHandler } from './contentBufferHandler'
 import type { ToolCallHandler } from '../loop/toolCallHandler'
 import type { StreamUpdateScheduler } from './streamUpdateScheduler'
+import type { AgenticEventEmitter } from '@shared/types/presenters/agentic.presenter.d'
+import { normalizeAndEmit } from '../normalizer'
 
 type ConversationUpdateHandler = (state: GeneratingMessageState) => Promise<void>
 
@@ -20,6 +22,7 @@ export class LLMEventHandler {
   private readonly toolCallHandler: ToolCallHandler
   private readonly streamUpdateScheduler: StreamUpdateScheduler
   private readonly onConversationUpdated?: ConversationUpdateHandler
+  private readonly getEmitter?: (conversationId: string) => AgenticEventEmitter | undefined
 
   constructor(options: {
     generatingMessages: Map<string, GeneratingMessageState>
@@ -28,6 +31,7 @@ export class LLMEventHandler {
     toolCallHandler: ToolCallHandler
     streamUpdateScheduler: StreamUpdateScheduler
     onConversationUpdated?: ConversationUpdateHandler
+    getEmitter?: (conversationId: string) => AgenticEventEmitter | undefined
   }) {
     this.generatingMessages = options.generatingMessages
     this.messageManager = options.messageManager
@@ -35,6 +39,7 @@ export class LLMEventHandler {
     this.toolCallHandler = options.toolCallHandler
     this.streamUpdateScheduler = options.streamUpdateScheduler
     this.onConversationUpdated = options.onConversationUpdated
+    this.getEmitter = options.getEmitter
   }
 
   async handleLLMAgentResponse(msg: LLMAgentEventData): Promise<void> {
@@ -98,7 +103,8 @@ export class LLMEventHandler {
         Boolean(state.message.is_variant),
         state.tabId,
         {},
-        state.message.content
+        state.message.content,
+        this.getEmitter?.(state.conversationId)
       )
       return
     }
@@ -277,7 +283,8 @@ export class LLMEventHandler {
       Boolean(state.message.is_variant),
       state.tabId,
       delta,
-      state.message.content
+      state.message.content,
+      this.getEmitter?.(state.conversationId)
     )
   }
 
@@ -298,6 +305,7 @@ export class LLMEventHandler {
 
     await this.messageManager.handleMessageError(eventId, String(error))
 
+    let conversationId = state?.conversationId
     if (state) {
       this.generatingMessages.delete(eventId)
       presenter.sessionManager.setStatus(state.conversationId, 'error')
@@ -305,12 +313,23 @@ export class LLMEventHandler {
     } else {
       const message = await this.messageManager.getMessage(eventId)
       if (message) {
+        conversationId = message.conversationId
         presenter.sessionManager.setStatus(message.conversationId, 'error')
         presenter.sessionManager.clearPendingPermission(message.conversationId)
       }
     }
 
-    eventBus.sendToRenderer(STREAM_EVENTS.ERROR, SendTarget.ALL_WINDOWS, msg)
+    const emitter = conversationId ? this.getEmitter?.(conversationId) : undefined
+    if (emitter && conversationId) {
+      normalizeAndEmit(
+        STREAM_EVENTS.ERROR as keyof typeof STREAM_EVENTS,
+        msg,
+        conversationId,
+        emitter
+      )
+    } else {
+      eventBus.sendToRenderer(STREAM_EVENTS.ERROR, SendTarget.ALL_WINDOWS, msg)
+    }
   }
 
   async handleLLMAgentEnd(msg: LLMAgentEventData): Promise<void> {
@@ -349,7 +368,8 @@ export class LLMEventHandler {
           Boolean(state.message.is_variant),
           state.tabId,
           {},
-          state.message.content
+          state.message.content,
+          this.getEmitter?.(state.conversationId)
         )
         presenter.sessionManager.setStatus(state.conversationId, 'waiting_permission')
         return
@@ -361,7 +381,18 @@ export class LLMEventHandler {
     }
 
     await this.streamUpdateScheduler.flushAll(eventId, 'final')
-    eventBus.sendToRenderer(STREAM_EVENTS.END, SendTarget.ALL_WINDOWS, msg)
+
+    const emitter = state ? this.getEmitter?.(state.conversationId) : undefined
+    if (emitter && state) {
+      normalizeAndEmit(
+        STREAM_EVENTS.END as keyof typeof STREAM_EVENTS,
+        msg,
+        state.conversationId,
+        emitter
+      )
+    } else {
+      eventBus.sendToRenderer(STREAM_EVENTS.END, SendTarget.ALL_WINDOWS, msg)
+    }
   }
 
   async finalizeMessage(

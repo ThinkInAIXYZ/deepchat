@@ -28,9 +28,11 @@ import type {
   SessionInfo,
   MessageContent,
   SessionConfig,
-  LoadContext
-} from '../agentic/types'
-import { agenticPresenter } from '../agentic'
+  LoadContext,
+  AgenticEventEmitter
+} from '../agenticPresenter/types'
+import { agenticPresenter } from '../agenticPresenter'
+import { normalizeAndEmit } from './normalizer'
 
 type AgentPresenterDependencies = {
   sessionPresenter: ISessionPresenter
@@ -63,6 +65,8 @@ export class AgentPresenter {
   private permissionHandler: PermissionHandler
   private utilityHandler: UtilityHandler
   private streamUpdateScheduler: StreamUpdateScheduler
+  // Emitter provider callback (injected by AgenticPresenter during registration)
+  private emitterProvider: (sessionId: string) => AgenticEventEmitter | undefined = () => undefined
 
   constructor(options: AgentPresenterDependencies) {
     this.sessionPresenter = options.sessionPresenter
@@ -101,12 +105,14 @@ export class AgentPresenter {
       contentBufferHandler: this.contentBufferHandler,
       toolCallHandler: this.toolCallHandler,
       streamUpdateScheduler: this.streamUpdateScheduler,
-      onConversationUpdated: (state) => this.handleConversationUpdates(state)
+      onConversationUpdated: (state) => this.handleConversationUpdates(state),
+      getEmitter: (conversationId) => this.getEmitter(conversationId)
     })
 
     this.streamGenerationHandler = new StreamGenerationHandler(handlerContext, {
       generatingMessages: this.generatingMessages,
-      llmEventHandler: this.llmEventHandler
+      llmEventHandler: this.llmEventHandler,
+      getEmitter: (conversationId) => this.getEmitter(conversationId)
     })
 
     this.permissionHandler = new PermissionHandler(handlerContext, {
@@ -178,10 +184,20 @@ export class AgentPresenter {
       .catch((error) => {
         console.error('[AgentPresenter] Failed to start stream completion:', error)
         const errorMessage = error instanceof Error ? error.message : String(error)
-        eventBus.sendToRenderer(STREAM_EVENTS.ERROR, SendTarget.ALL_WINDOWS, {
-          eventId: assistantMessage.id,
-          error: errorMessage
-        })
+        const emitter = this.getEmitter(agentId)
+        if (emitter) {
+          normalizeAndEmit(
+            STREAM_EVENTS.ERROR as keyof typeof STREAM_EVENTS,
+            { eventId: assistantMessage.id, error: errorMessage },
+            agentId,
+            emitter
+          )
+        } else {
+          eventBus.sendToRenderer(STREAM_EVENTS.ERROR, SendTarget.ALL_WINDOWS, {
+            eventId: assistantMessage.id,
+            error: errorMessage
+          })
+        }
       })
 
     return assistantMessage
@@ -208,10 +224,20 @@ export class AgentPresenter {
       .catch((error) => {
         console.error('[AgentPresenter] Failed to continue stream completion:', error)
         const errorMessage = error instanceof Error ? error.message : String(error)
-        eventBus.sendToRenderer(STREAM_EVENTS.ERROR, SendTarget.ALL_WINDOWS, {
-          eventId: assistantMessage.id,
-          error: errorMessage
-        })
+        const emitter = this.getEmitter(agentId)
+        if (emitter) {
+          normalizeAndEmit(
+            STREAM_EVENTS.ERROR as keyof typeof STREAM_EVENTS,
+            { eventId: assistantMessage.id, error: errorMessage },
+            agentId,
+            emitter
+          )
+        } else {
+          eventBus.sendToRenderer(STREAM_EVENTS.ERROR, SendTarget.ALL_WINDOWS, {
+            eventId: assistantMessage.id,
+            error: errorMessage
+          })
+        }
       })
 
     return assistantMessage
@@ -258,10 +284,20 @@ export class AgentPresenter {
       .catch((error) => {
         console.error('[AgentPresenter] Failed to retry stream completion:', error)
         const errorMessage = error instanceof Error ? error.message : String(error)
-        eventBus.sendToRenderer(STREAM_EVENTS.ERROR, SendTarget.ALL_WINDOWS, {
-          eventId: assistantMessage.id,
-          error: errorMessage
-        })
+        const emitter = this.getEmitter(message.conversationId)
+        if (emitter) {
+          normalizeAndEmit(
+            STREAM_EVENTS.ERROR as keyof typeof STREAM_EVENTS,
+            { eventId: assistantMessage.id, error: errorMessage },
+            message.conversationId,
+            emitter
+          )
+        } else {
+          eventBus.sendToRenderer(STREAM_EVENTS.ERROR, SendTarget.ALL_WINDOWS, {
+            eventId: assistantMessage.id,
+            error: errorMessage
+          })
+        }
       })
 
     return assistantMessage
@@ -457,6 +493,31 @@ export class AgentPresenter {
     this.generatingMessages.delete(messageId)
   }
 
+  // ==========================================================================
+  // Emitter Management - For Agentic Unified Layer
+  // ==========================================================================
+
+  /**
+   * Get or create an event emitter for a conversation (session)
+   * @param conversationId - The conversation ID to get emitter for
+   * @returns The emitter, or undefined if not in agentic mode
+   */
+  getEmitter(conversationId: string): AgenticEventEmitter | undefined {
+    return this.emitterProvider(conversationId)
+  }
+
+  /**
+   * Set the emitter provider callback (called by AgenticPresenter during registration)
+   * @param provider - The provider callback function
+   */
+  setEmitterProvider(provider: (sessionId: string) => AgenticEventEmitter | undefined): void {
+    this.emitterProvider = provider
+  }
+
+  // ==========================================================================
+  // Private Helpers
+  // ==========================================================================
+
   private shouldLogResolved(): boolean {
     return import.meta.env.VITE_AGENT_PRESENTER_DEBUG === '1'
   }
@@ -626,7 +687,7 @@ export class AgentPresenter {
     // Clear session mode
     this.sessionModes.delete(sessionId)
 
-    // Note: SESSION_CLOSED event is emitted by AgenticPresenter.closeSession
+    // Note: Emitter cleanup and SESSION_CLOSED event are emitted by AgenticPresenter.closeSession
   }
 
   /**

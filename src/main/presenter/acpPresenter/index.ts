@@ -30,9 +30,11 @@ import type {
   SessionInfo,
   MessageContent,
   SessionConfig,
-  LoadContext
-} from '../agentic/types'
-import { agenticPresenter } from '../agentic'
+  LoadContext,
+  AgenticEventEmitter
+} from '../agenticPresenter/types'
+import { agenticPresenter } from '../agenticPresenter'
+import { normalizeAndEmit } from './normalizer'
 
 // ============================================================================
 // ACP Agent Presenter Wrapper (for Agentic Unified Layer)
@@ -50,6 +52,15 @@ class AcpAgentPresenter implements IAgenticAgentPresenter {
   constructor(agentId: string, acpPresenter: AcpPresenter) {
     this.agentId = agentId
     this.acpPresenter = acpPresenter
+  }
+
+  /**
+   * Set the emitter provider callback (called by AgenticPresenter during registration)
+   * @param provider - The provider callback function
+   */
+  setEmitterProvider(provider: (sessionId: string) => AgenticEventEmitter | undefined): void {
+    // Propagate to AcpPresenter since that's where getEmitter is called
+    this.acpPresenter.setEmitterProvider(provider)
   }
 
   async createSession(config: SessionConfig): Promise<string> {
@@ -187,6 +198,9 @@ export class AcpPresenter implements IAcpPresenter {
   // Track registered ACP agent presenters
   private registeredAgentPresenters = new Map<string, IAgenticAgentPresenter>()
 
+  // Emitter provider callback (injected by AgenticPresenter during registration)
+  private emitterProvider: (sessionId: string) => AgenticEventEmitter | undefined = () => undefined
+
   constructor() {
     // 延迟初始化，等待其他 Presenter 就绪
   }
@@ -211,7 +225,8 @@ export class AcpPresenter implements IAcpPresenter {
 
     // 初始化 SessionManager
     this.sessionManager = new AcpSessionManager({
-      processManager: this.processManager
+      processManager: this.processManager,
+      getEmitter: (sessionId: string) => this.getEmitter(sessionId)
     })
 
     // 初始化 InputFormatter
@@ -509,6 +524,19 @@ export class AcpPresenter implements IAcpPresenter {
   }
 
   private sendEvent(event: string, target: SendTarget, payload: unknown): void {
+    // Try to use emitter for ACP_EVENTS when sessionId is available
+    if (event.startsWith('acp:') && payload && typeof payload === 'object') {
+      const data = payload as Record<string, unknown>
+      const sessionId = data.sessionId as string
+      if (sessionId) {
+        const emitter = this.getEmitter(sessionId)
+        if (emitter) {
+          normalizeAndEmit(event as keyof typeof ACP_EVENTS, payload, sessionId, emitter)
+          return
+        }
+      }
+    }
+    // Fallback to direct eventBus call
     eventBus.sendToRenderer(event, target, payload)
   }
 
@@ -598,6 +626,21 @@ export class AcpPresenter implements IAcpPresenter {
    */
   getRegisteredAgent(agentId: string): IAgenticAgentPresenter | undefined {
     return this.registeredAgentPresenters.get(agentId)
+  }
+
+  /**
+   * Get or create an AgenticEventEmitter for a given session
+   */
+  getEmitter(sessionId: string): AgenticEventEmitter | undefined {
+    return this.emitterProvider(sessionId)
+  }
+
+  /**
+   * Set the emitter provider callback (called by AgenticPresenter during registration)
+   * @param provider - The provider callback function
+   */
+  setEmitterProvider(provider: (sessionId: string) => AgenticEventEmitter | undefined): void {
+    this.emitterProvider = provider
   }
 }
 

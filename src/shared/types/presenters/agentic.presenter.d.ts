@@ -85,6 +85,7 @@ export interface LoadContext {
 export enum AgenticEventType {
   // Session lifecycle
   SESSION_CREATED = 'agentic.session.created',
+  SESSION_READY = 'agentic.session.ready',
   SESSION_UPDATED = 'agentic.session.updated',
   SESSION_CLOSED = 'agentic.session.closed',
 
@@ -97,6 +98,10 @@ export enum AgenticEventType {
   TOOL_START = 'agentic.tool.start',
   TOOL_RUNNING = 'agentic.tool.running',
   TOOL_END = 'agentic.tool.end',
+  // Tool permission lifecycle (DeepChat agents)
+  TOOL_PERMISSION_REQUIRED = 'agentic.tool.permission-required',
+  TOOL_PERMISSION_GRANTED = 'agentic.tool.permission-granted',
+  TOOL_PERMISSION_DENIED = 'agentic.tool.permission-denied',
 
   // Status
   STATUS_CHANGED = 'agentic.status.changed',
@@ -143,7 +148,15 @@ export interface MessageDeltaEvent {
 export interface MessageBlockEvent {
   sessionId: string
   messageId: string
-  blockType: 'text' | 'tool' | 'reasoning' | 'error'
+  blockType:
+    | 'text'
+    | 'tool'
+    | 'reasoning'
+    | 'error'
+    | 'image'
+    | 'action'
+    | 'search'
+    | 'mcp_ui_resource'
   content: unknown
 }
 
@@ -200,4 +213,106 @@ export interface AgenticErrorEvent {
   sessionId: string
   error: Error
   context?: Record<string, unknown>
+}
+
+/**
+ * Session ready event payload (emitted when loadSession completes)
+ */
+export interface SessionReadyEvent {
+  sessionId: string
+  agentId: string
+  messageCount?: number
+}
+
+/**
+ * Tool permission required event payload
+ */
+export interface ToolPermissionRequiredEvent {
+  sessionId: string
+  toolId: string
+  toolName: string
+  request: {
+    permissionType: 'read' | 'write' | 'all' | 'command'
+    toolName?: string
+    serverName?: string
+    description?: string
+    command?: string
+    commandInfo?: {
+      command: string
+      riskLevel: 'low' | 'medium' | 'high' | 'critical'
+      suggestion: string
+      signature?: string
+      baseCommand?: string
+    }
+    rememberable?: boolean
+  }
+}
+
+/**
+ * Tool permission granted event payload
+ */
+export interface ToolPermissionGrantedEvent {
+  sessionId: string
+  toolId: string
+}
+
+/**
+ * Tool permission denied event payload
+ */
+export interface ToolPermissionDeniedEvent {
+  sessionId: string
+  toolId: string
+}
+
+/**
+ * Permission request payload (shared between agents)
+ */
+export interface PermissionRequestPayload {
+  permissionType: 'read' | 'write' | 'all' | 'command'
+  toolName?: string
+  serverName?: string
+  description?: string
+  command?: string
+  commandInfo?: {
+    command: string
+    riskLevel: 'low' | 'medium' | 'high' | 'critical'
+    suggestion: string
+    signature?: string
+    baseCommand?: string
+  }
+  providerId?: string
+  requestId?: string
+  sessionId?: string
+  agentId?: string
+  agentName?: string
+  conversationId?: string
+  rememberable?: boolean
+}
+
+/**
+ * Agentic Event Emitter Interface
+ * All agents MUST use this interface to send events to the renderer
+ */
+export interface AgenticEventEmitter {
+  // Message flow events
+  messageDelta(messageId: string, content: string, isComplete: boolean): void
+  messageEnd(messageId: string): void
+  messageBlock(messageId: string, blockType: string, content: unknown): void
+
+  // Tool call events
+  toolStart(toolId: string, toolName: string, toolArguments: Record<string, unknown>): void
+  toolRunning(toolId: string, status?: string): void
+  toolEnd(toolId: string, result?: unknown, error?: Error): void
+
+  // Tool permission lifecycle (DeepChat agents)
+  toolPermissionRequired(toolId: string, toolName: string, request: PermissionRequestPayload): void
+  toolPermissionGranted(toolId: string): void
+  toolPermissionDenied(toolId: string): void
+
+  // Session lifecycle events (for internal use by presenters)
+  sessionReady(sessionId: string, messageCount?: number): void
+  sessionUpdated(info: Partial<SessionInfo>): void
+
+  // Status events
+  statusChanged(status: 'idle' | 'generating' | 'paused' | 'error', error?: Error): void
 }

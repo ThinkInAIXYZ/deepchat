@@ -55,6 +55,8 @@ This specification defines the unified architecture for ACP Agent and DeepChat A
   - Tool calls (start, running, end)
   - Status changes and errors
 - **REQ-4.3**: Event normalization shall happen internally within each presenter
+- **REQ-4.4**: All agent events to renderer MUST be sent through `AgenticEventEmitter`
+- **REQ-4.5**: Agents shall NOT call `eventBus.sendToRenderer()` directly with their native event types
 
 #### REQ-5: Model and Mode Selection
 - **REQ-5.1**: The interface shall provide `setModel(sessionId, modelId)` for model selection
@@ -172,6 +174,7 @@ interface IAgenticPresenter {
 enum AgenticEventType {
   // Session lifecycle
   SESSION_CREATED = 'agentic.session.created',
+  SESSION_READY = 'agentic.session.ready',        // loadSession completed, messages loaded
   SESSION_UPDATED = 'agentic.session.updated',
   SESSION_CLOSED = 'agentic.session.closed',
 
@@ -184,6 +187,10 @@ enum AgenticEventType {
   TOOL_START = 'agentic.tool.start',
   TOOL_RUNNING = 'agentic.tool.running',
   TOOL_END = 'agentic.tool.end',
+  // Tool permission lifecycle (DeepChat agents)
+  TOOL_PERMISSION_REQUIRED = 'agentic.tool.permission-required',
+  TOOL_PERMISSION_GRANTED = 'agentic.tool.permission-granted',
+  TOOL_PERMISSION_DENIED = 'agentic.tool.permission-denied',
 
   // Status
   STATUS_CHANGED = 'agentic.status.changed',
@@ -220,8 +227,33 @@ interface MessageDeltaEvent {
 interface MessageBlockEvent {
   sessionId: string
   messageId: string
-  blockType: 'text' | 'tool' | 'reasoning' | 'error'
+  blockType: 'text' | 'tool' | 'reasoning' | 'error' | 'image' | 'action' | 'search' | 'mcp_ui_resource'
   content: unknown
+}
+```
+
+**Block Type Descriptions**:
+
+| Block Type | Description | Source |
+|-----------|-------------|--------|
+| `text` | Text content delta | Both agents |
+| `tool` | Tool call information | Both agents |
+| `reasoning` | Reasoning/thinking content | DeepChat (extended thinking) |
+| `error` | Error message | Both agents |
+| `image` | Image data (base64 or URL) | DeepChat (vision) |
+| `action` | Action block (permission request, max tool calls) | DeepChat |
+| `search` | Search results from web search tools | DeepChat (MCP) |
+| `mcp_ui_resource` | MCP UI resource (HTML, remote DOM) | DeepChat (MCP) |
+
+### SESSION_READY
+
+Emitted when `loadSession()` completes successfully. For ACP agents, this is emitted after the agent streams all history messages. For DeepChat agents, this is emitted after loading from SQLite.
+
+```typescript
+interface SessionReadyEvent {
+  sessionId: string
+  agentId: string
+  messageCount?: number  // Number of messages loaded (ACP only)
 }
 ```
 
@@ -236,6 +268,72 @@ interface ToolStartEvent {
 }
 ```
 
+### TOOL_RUNNING
+
+```typescript
+interface ToolRunningEvent {
+  sessionId: string
+  toolId: string
+  status?: string  // Optional status message
+}
+```
+
+### TOOL_END
+
+```typescript
+interface ToolEndEvent {
+  sessionId: string
+  toolId: string
+  result?: unknown
+  error?: Error
+}
+```
+
+### TOOL_PERMISSION_REQUIRED
+
+Emitted when a tool call requires user permission (DeepChat agents only).
+
+```typescript
+interface ToolPermissionRequiredEvent {
+  sessionId: string
+  toolId: string
+  toolName: string
+  request: {
+    permissionType: 'read' | 'write' | 'all' | 'command'
+    toolName?: string
+    serverName?: string
+    description?: string
+    command?: string
+    commandInfo?: {
+      command: string
+      riskLevel: 'low' | 'medium' | 'high' | 'critical'
+      suggestion: string
+      signature?: string
+      baseCommand?: string
+    }
+    rememberable?: boolean
+  }
+}
+```
+
+### TOOL_PERMISSION_GRANTED
+
+```typescript
+interface ToolPermissionGrantedEvent {
+  sessionId: string
+  toolId: string
+}
+```
+
+### TOOL_PERMISSION_DENIED
+
+```typescript
+interface ToolPermissionDeniedEvent {
+  sessionId: string
+  toolId: string
+}
+```
+
 ### STATUS_CHANGED
 
 ```typescript
@@ -243,6 +341,230 @@ interface StatusChangedEvent {
   sessionId: string
   status: 'idle' | 'generating' | 'paused' | 'error'
   error?: Error
+}
+```
+
+## Unified Event Emission
+
+### Problem Statement
+
+Currently, each presenter sends events directly to the renderer using their native event types:
+
+```typescript
+// AgentPresenter - sends STREAM_EVENTS directly
+eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, SendTarget.ALL_WINDOWS, payload)
+eventBus.sendToRenderer(STREAM_EVENTS.END, SendTarget.ALL_WINDOWS, payload)
+
+// AcpPresenter - sends ACP_EVENTS directly
+eventBus.sendToRenderer(ACP_EVENTS.SESSION_UPDATE, SendTarget.ALL_WINDOWS, payload)
+eventBus.sendToRenderer(ACP_EVENTS.PROMPT_COMPLETED, SendTarget.ALL_WINDOWS, payload)
+```
+
+This causes:
+1. **Event leakage**: Native event types (`STREAM_EVENTS`, `ACP_EVENTS`) reach the renderer
+2. **No centralization**: Events bypass the unified `AgenticPresenter` layer
+3. **Normalizers unused**: Existing normalizer files are not integrated
+
+### Solution: AgenticEventEmitter
+
+`AgenticPresenter` provides a unified event emission mechanism that all agents MUST use:
+
+```typescript
+interface AgenticEventEmitter {
+  // Message flow events
+  messageDelta(messageId: string, content: string, isComplete: boolean): void
+  messageEnd(messageId: string): void
+  messageBlock(messageId: string, blockType: string, content: unknown): void
+
+  // Tool call events
+  toolStart(toolId: string, toolName: string, arguments: Record<string, unknown>): void
+  toolRunning(toolId: string, status?: string): void
+  toolEnd(toolId: string, result?: unknown, error?: Error): void
+
+  // Tool permission lifecycle (DeepChat agents)
+  toolPermissionRequired(
+    toolId: string,
+    toolName: string,
+    request: PermissionRequestPayload
+  ): void
+  toolPermissionGranted(toolId: string): void
+  toolPermissionDenied(toolId: string): void
+
+  // Session lifecycle events (for internal use by presenters)
+  sessionReady(sessionId: string, messageCount?: number): void
+  sessionUpdated(info: Partial<SessionInfo>): void
+
+  // Status events
+  statusChanged(status: 'idle' | 'generating' | 'paused' | 'error', error?: Error): void
+}
+
+// Permission request payload (shared between agents)
+interface PermissionRequestPayload {
+  permissionType: 'read' | 'write' | 'all' | 'command'
+  toolName?: string
+  serverName?: string
+  description?: string
+  command?: string
+  commandInfo?: {
+    command: string
+    riskLevel: 'low' | 'medium' | 'high' | 'critical'
+    suggestion: string
+    signature?: string
+    baseCommand?: string
+  }
+  providerId?: string
+  requestId?: string
+  sessionId?: string
+  agentId?: string
+  agentName?: string
+  conversationId?: string
+  rememberable?: boolean
+}
+```
+
+### AgenticPresenter Event Emission API
+
+```typescript
+class AgenticPresenter {
+  /**
+   * Create an event emitter for a specific session
+   * Agents use this to send all events for a session
+   */
+  createEventEmitter(sessionId: string): AgenticEventEmitter
+
+  /**
+   * Low-level event emitter (for special cases)
+   * Normalizers use this to emit normalized events
+   */
+  emitAgenticEvent(
+    eventType: AgenticEventType,
+    sessionId: string,
+    payload: unknown
+  ): void
+}
+```
+
+### Event Flow Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    AgentPresenter / AcpPresenter                │
+│                                                                  │
+│  Internal streaming receives native events:                      │
+│  - STREAM_EVENTS.RESPONSE (AgentPresenter)                      │
+│  - ACP_EVENTS.SESSION_UPDATE (AcpPresenter)                     │
+└────────────────────────────┬────────────────────────────────────┘
+                             │
+                             ▼
+                    ┌─────────────────┐
+                    │   Normalizer    │  ← Converts native → AgenticEventType
+                    └────────┬────────┘
+                             │
+                             ▼
+                    ┌─────────────────┐
+                    │   AgenticEvent  │  ← Type-safe emitter methods
+                    │    Emitter      │
+                    └────────┬────────┘
+                             │
+                             ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                       AgenticPresenter                          │
+│                                                                  │
+│  emitAgenticEvent(eventType, sessionId, payload)                │
+│         │                                                        │
+│         ▼                                                        │
+│  eventBus.sendToRenderer(AgenticEventType, ...)                 │
+└────────────────────────────┬────────────────────────────────────┘
+                             │
+                             ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                      Renderer Process                           │
+│                                                                  │
+│  Listens ONLY to AgenticEventType events                        │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Usage Pattern
+
+```typescript
+// AgentPresenter sends messages
+class AgentPresenter implements IAgenticPresenter {
+  async sendMessage(sessionId: string, content: MessageContent): Promise<void> {
+    // Get unified emitter from AgenticPresenter
+    const emitter = agenticPresenter.createEventEmitter(sessionId)
+
+    // Stream response
+    for await (const chunk of this.streamResponse(content)) {
+      // Use emitter - no direct eventBus calls!
+      emitter.messageDelta(messageId, chunk.content, chunk.isComplete)
+    }
+
+    emitter.messageEnd(messageId)
+  }
+}
+
+// AcpPresenter sends tool call events
+class AcpPresenter implements IAgenticPresenter {
+  async handleToolCall(sessionId: string, toolCall: ToolCall): Promise<void> {
+    const emitter = agenticPresenter.createEventEmitter(sessionId)
+
+    emitter.toolStart(toolCall.id, toolCall.name, toolCall.arguments)
+
+    try {
+      const result = await this.executeTool(toolCall)
+      emitter.toolEnd(toolCall.id, result)
+    } catch (error) {
+      emitter.toolEnd(toolCall.id, undefined, error)
+    }
+  }
+}
+```
+
+### Normalizer Integration
+
+Each presenter's normalizer integrates with the emitter:
+
+```typescript
+// agentPresenter/normalizer.ts
+export function normalizeAndEmit(
+  nativeEvent: STREAM_EVENTS,
+  sessionId: string,
+  emitter: AgenticEventEmitter
+): void {
+  switch (nativeEvent.type) {
+    case STREAM_EVENTS.RESPONSE:
+      emitter.messageDelta(
+        nativeEvent.messageId,
+        nativeEvent.content,
+        nativeEvent.isComplete
+      )
+      break
+    case STREAM_EVENTS.END:
+      emitter.messageEnd(nativeEvent.messageId)
+      break
+    // ... other mappings
+  }
+}
+
+// acpPresenter/normalizer.ts
+export function normalizeAndEmit(
+  nativeEvent: ACP_EVENTS,
+  sessionId: string,
+  emitter: AgenticEventEmitter
+): void {
+  switch (nativeEvent.type) {
+    case ACP_EVENTS.SESSION_UPDATE:
+      emitter.messageDelta(
+        nativeEvent.messageId,
+        nativeEvent.content,
+        nativeEvent.isComplete
+      )
+      break
+    case ACP_EVENTS.PROMPT_COMPLETED:
+      emitter.messageEnd(nativeEvent.messageId)
+      break
+    // ... other mappings
+  }
 }
 ```
 

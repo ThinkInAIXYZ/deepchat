@@ -16,9 +16,12 @@ import type { AcpProcessManager } from './processManager'
 import { nanoid } from 'nanoid'
 import { eventBus, SendTarget } from '@/eventbus'
 import { ACP_EVENTS } from '../events'
+import { normalizeAndEmit } from '../normalizer'
+import type { AgenticEventEmitter } from '@shared/types/presenters/agentic.presenter.d'
 
 interface AcpSessionManagerOptions {
   processManager: AcpProcessManager
+  getEmitter?: (sessionId: string) => AgenticEventEmitter | undefined
 }
 
 interface SessionHooks {
@@ -35,11 +38,13 @@ interface SessionHooks {
  */
 export class AcpSessionManager {
   private readonly processManager: AcpProcessManager
+  private readonly getEmitter?: (sessionId: string) => AgenticEventEmitter | undefined
   private readonly sessions = new Map<string, AcpSessionRecord>()
   private readonly pendingSessions = new Map<string, Promise<AcpSessionRecord>>()
 
   constructor(options: AcpSessionManagerOptions) {
     this.processManager = options.processManager
+    this.getEmitter = options.getEmitter
 
     // 应用退出时清理所有 Session
     app.on('before-quit', () => {
@@ -76,11 +81,22 @@ export class AcpSessionManager {
       this.sessions.set(session.sessionId, session)
 
       // 发送 Session 创建事件
-      eventBus.sendToRenderer(ACP_EVENTS.SESSION_CREATED, SendTarget.ALL_WINDOWS, {
+      const emitter = this.getEmitter?.(session.sessionId)
+      const payload = {
         sessionId: session.sessionId,
         agentId: session.agentId,
         workdir: session.workdir
-      })
+      }
+      if (emitter) {
+        normalizeAndEmit(
+          ACP_EVENTS.SESSION_CREATED as keyof typeof ACP_EVENTS,
+          payload,
+          session.sessionId,
+          emitter
+        )
+      } else {
+        eventBus.sendToRenderer(ACP_EVENTS.SESSION_CREATED, SendTarget.ALL_WINDOWS, payload)
+      }
 
       return session
     } finally {
@@ -117,11 +133,22 @@ export class AcpSessionManager {
       this.sessions.set(session.sessionId, session)
 
       // 发送 Session 加载事件
-      eventBus.sendToRenderer(ACP_EVENTS.SESSION_LOADED, SendTarget.ALL_WINDOWS, {
+      const emitter = this.getEmitter?.(session.sessionId)
+      const payload = {
         sessionId: session.sessionId,
         agentId: session.agentId,
         workdir: session.workdir
-      })
+      }
+      if (emitter) {
+        normalizeAndEmit(
+          ACP_EVENTS.SESSION_LOADED as keyof typeof ACP_EVENTS,
+          payload,
+          session.sessionId,
+          emitter
+        )
+      } else {
+        eventBus.sendToRenderer(ACP_EVENTS.SESSION_LOADED, SendTarget.ALL_WINDOWS, payload)
+      }
 
       return session
     } catch (error) {
@@ -209,9 +236,20 @@ export class AcpSessionManager {
     }
 
     // 发送 Session 关闭事件
-    eventBus.sendToRenderer(ACP_EVENTS.SESSION_CLOSED, SendTarget.ALL_WINDOWS, {
+    const emitter = this.getEmitter?.(session.sessionId)
+    const payload = {
       sessionId: session.sessionId
-    })
+    }
+    if (emitter) {
+      normalizeAndEmit(
+        ACP_EVENTS.SESSION_CLOSED as keyof typeof ACP_EVENTS,
+        payload,
+        session.sessionId,
+        emitter
+      )
+    } else {
+      eventBus.sendToRenderer(ACP_EVENTS.SESSION_CLOSED, SendTarget.ALL_WINDOWS, payload)
+    }
   }
 
   /**

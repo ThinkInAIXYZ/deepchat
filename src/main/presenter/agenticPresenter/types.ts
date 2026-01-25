@@ -19,7 +19,12 @@ import type {
   ToolRunningEvent,
   ToolEndEvent,
   StatusChangedEvent,
-  AgenticErrorEvent
+  AgenticErrorEvent,
+  AgenticEventEmitter,
+  SessionReadyEvent,
+  ToolPermissionRequiredEvent,
+  ToolPermissionGrantedEvent,
+  ToolPermissionDeniedEvent
 } from '@shared/types/presenters/agentic.presenter.d'
 
 import type { AgenticEventType } from '@shared/types/presenters/agentic.presenter.d'
@@ -41,7 +46,12 @@ export type {
   ToolRunningEvent,
   ToolEndEvent,
   StatusChangedEvent,
-  AgenticErrorEvent
+  AgenticErrorEvent,
+  AgenticEventEmitter,
+  SessionReadyEvent,
+  ToolPermissionRequiredEvent,
+  ToolPermissionGrantedEvent,
+  ToolPermissionDeniedEvent
 }
 
 export { AgenticEventType }
@@ -69,4 +79,7 @@ export interface IAgentPresenter {
   // Model/Mode selection
   setModel(sessionId: string, modelId: string): Promise<void>
   setMode(sessionId: string, modeId: string): Promise<void>
+
+  // Emitter management (injected by AgenticPresenter during registration)
+  setEmitterProvider(provider: (sessionId: string) => AgenticEventEmitter | undefined): void
 }
