@@ -615,22 +615,19 @@ const acpSessionModel = useAcpSessionModel({
   workdir: acpWorkdir.workdir
 })
 
-const {
-  showAcpSessionModelSelector,
-  handleAcpModeSelect,
-  handleAcpSessionModelSelect
-} = useChatInputModeSelection({
-  variant: props.variant,
-  activeModel: activeModelSource,
-  conversationId,
-  modelStore,
-  config,
-  acpMode,
-  acpSessionModel,
-  updateChatConfig: chatStore.updateChatConfig as (payload: unknown) => Promise<void>,
-  emitModelUpdate: (payload: unknown, providerId: string) =>
-    emit('model-update', payload as any, providerId)
-})
+const { showAcpSessionModelSelector, handleAcpModeSelect, handleAcpSessionModelSelect } =
+  useChatInputModeSelection({
+    variant: props.variant,
+    activeModel: activeModelSource,
+    conversationId,
+    modelStore,
+    config,
+    acpMode,
+    acpSessionModel,
+    updateChatConfig: chatStore.updateChatConfig as (payload: unknown) => Promise<void>,
+    emitModelUpdate: (payload: unknown, providerId: string) =>
+      emit('model-update', payload as any, providerId)
+  })
 
 // === Computed ===
 // Use composable values

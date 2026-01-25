@@ -25,6 +25,108 @@ import { AcpSessionManager } from './managers/sessionManager'
 import { AcpInputFormatter } from './formatters/inputFormatter'
 import { acpCleanupHook } from './hooks/lifecycleHook'
 import { nanoid } from 'nanoid'
+import type {
+  IAgentPresenter as IAgenticAgentPresenter,
+  SessionInfo,
+  MessageContent,
+  SessionConfig,
+  LoadContext
+} from '../agentic/types'
+import { agenticPresenter } from '../agentic'
+
+// ============================================================================
+// ACP Agent Presenter Wrapper (for Agentic Unified Layer)
+// ============================================================================
+
+/**
+ * AcpAgentPresenter - Wrapper for individual ACP agents
+ * Each ACP agent (e.g., 'acp.anthropic.claude-code') gets its own wrapper
+ * that implements IAgenticPresenter and registers with AgenticPresenter
+ */
+class AcpAgentPresenter implements IAgenticAgentPresenter {
+  readonly agentId: string
+  private acpPresenter: AcpPresenter
+
+  constructor(agentId: string, acpPresenter: AcpPresenter) {
+    this.agentId = agentId
+    this.acpPresenter = acpPresenter
+  }
+
+  async createSession(config: SessionConfig): Promise<string> {
+    // Extract workdir from config or use current working directory as default
+    // ACP agents require a working directory for their operations
+    const workdir = (config as any).workdir || process.cwd()
+    const sessionInfo = await this.acpPresenter.createSession(this.agentId, workdir)
+    return sessionInfo.sessionId
+  }
+
+  getSession(sessionId: string): SessionInfo | null {
+    const acpSessionInfo = this.acpPresenter.getSessionInfo(sessionId)
+    if (!acpSessionInfo) {
+      return null
+    }
+
+    // Map ACP status to agentic status
+    const statusMap: Record<string, 'idle' | 'generating' | 'paused' | 'error'> = {
+      idle: 'idle',
+      active: 'generating',
+      error: 'error'
+    }
+
+    return {
+      sessionId: acpSessionInfo.sessionId,
+      agentId: this.agentId,
+      status: statusMap[acpSessionInfo.status] || 'idle',
+      availableModes: acpSessionInfo.availableModes,
+      availableModels: acpSessionInfo.availableModels,
+      currentModeId: acpSessionInfo.currentModeId,
+      currentModelId: acpSessionInfo.currentModelId,
+      capabilities: {
+        supportsVision: false,
+        supportsTools: true,
+        supportsModes: true
+      }
+    }
+  }
+
+  async loadSession(sessionId: string, context: LoadContext): Promise<void> {
+    // Extract workdir from context or use current working directory as default
+    // ACP agents require a working directory for their operations
+    const workdir = (context as any).workdir || process.cwd()
+    await this.acpPresenter.loadSession(this.agentId, sessionId, workdir)
+  }
+
+  async closeSession(sessionId: string): Promise<void> {
+    await this.acpPresenter.closeSession(sessionId)
+  }
+
+  async sendMessage(sessionId: string, content: MessageContent): Promise<void> {
+    const input: AcpPromptInput = {
+      text: content.text,
+      images: content.images?.map((img) => ({
+        type: img.type as 'url' | 'base64' | 'file',
+        data: img.data
+      })),
+      files: content.files?.map((file) => ({
+        path: file.path,
+        name: file.name
+      }))
+    }
+    await this.acpPresenter.sendPrompt(sessionId, input)
+  }
+
+  async cancelMessage(sessionId: string, _messageId: string): Promise<void> {
+    await this.acpPresenter.cancelPrompt(sessionId)
+  }
+
+  async setModel(sessionId: string, modelId: string): Promise<void> {
+    await this.acpPresenter.setSessionModel(sessionId, modelId)
+  }
+
+  async setMode(sessionId: string, modeId: string): Promise<void> {
+    await this.acpPresenter.setSessionMode(sessionId, modeId)
+  }
+}
 
 /**
  * ACP Presenter 接口
@@ -79,6 +181,12 @@ export class AcpPresenter implements IAcpPresenter {
     }
   >()
 
+  // Track sessionId → agentId mapping for Agentic Unified Layer
+  private sessionToAgentId = new Map<string, string>()
+
+  // Track registered ACP agent presenters
+  private registeredAgentPresenters = new Map<string, IAgenticAgentPresenter>()
+
   constructor() {
     // 延迟初始化，等待其他 Presenter 就绪
   }
@@ -125,6 +233,9 @@ export class AcpPresenter implements IAcpPresenter {
 
     this.initialized = true
     console.info('[ACP] ACP Presenter initialized successfully')
+
+    // Agentic Unified Layer - Register all ACP agents
+    await this.registerAgenticAgents()
   }
 
   // ============================================================================
@@ -163,6 +274,10 @@ export class AcpPresenter implements IAcpPresenter {
     }
 
     const session = await this.sessionManager.createSession(agentId, workdir, hooks)
+
+    // Track sessionId → agentId mapping for Agentic Unified Layer
+    this.sessionToAgentId.set(session.sessionId, agentId)
+
     return this.sessionManager.getSessionInfo(session.sessionId)!
   }
 
@@ -185,6 +300,10 @@ export class AcpPresenter implements IAcpPresenter {
     }
 
     const session = await this.sessionManager.loadSession(agentId, sessionId, workdir, hooks)
+
+    // Track sessionId → agentId mapping for Agentic Unified Layer
+    this.sessionToAgentId.set(session.sessionId, agentId)
+
     return this.sessionManager.getSessionInfo(session.sessionId)!
   }
 
@@ -196,6 +315,9 @@ export class AcpPresenter implements IAcpPresenter {
   async closeSession(sessionId: string): Promise<void> {
     this.ensureInitialized()
     await this.sessionManager.closeSession(sessionId)
+
+    // Clean up sessionId → agentId mapping
+    this.sessionToAgentId.delete(sessionId)
   }
 
   listSessions(): AcpSessionInfo[] {
@@ -443,6 +565,39 @@ export class AcpPresenter implements IAcpPresenter {
         10 * 60 * 1000
       )
     })
+  }
+
+  // ============================================================================
+  // Agentic Unified Layer - Agent Registration
+  // ============================================================================
+
+  /**
+   * Register all ACP agents with AgenticPresenter
+   * Called during initialization to register each ACP agent config
+   */
+  async registerAgenticAgents(): Promise<void> {
+    const agents = await this.getAgents()
+    for (const agent of agents) {
+      // Check if already registered
+      if (this.registeredAgentPresenters.has(agent.id)) {
+        continue
+      }
+
+      // Create wrapper for this ACP agent
+      const wrapper = new AcpAgentPresenter(agent.id, this)
+      this.registeredAgentPresenters.set(agent.id, wrapper)
+
+      // Register with AgenticPresenter
+      agenticPresenter.registerAgent(wrapper)
+      console.info(`[ACP] Registered ACP agent with AgenticPresenter: ${agent.id}`)
+    }
+  }
+
+  /**
+   * Get a registered ACP agent presenter by agent ID
+   */
+  getRegisteredAgent(agentId: string): IAgenticAgentPresenter | undefined {
+    return this.registeredAgentPresenters.get(agentId)
   }
 }
 

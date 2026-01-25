@@ -1,6 +1,5 @@
 import type {
   CONVERSATION,
-  IAgentPresenter,
   IConfigPresenter,
   ILlmProviderPresenter,
   ISessionPresenter,
@@ -24,6 +23,14 @@ import { StreamUpdateScheduler } from './streaming/streamUpdateScheduler'
 import { ToolCallHandler } from './loop/toolCallHandler'
 import { PermissionHandler } from './permission/permissionHandler'
 import { UtilityHandler } from './utility/utilityHandler'
+import type {
+  IAgentPresenter as IAgenticAgentPresenter,
+  SessionInfo,
+  MessageContent,
+  SessionConfig,
+  LoadContext
+} from '../agentic/types'
+import { agenticPresenter } from '../agentic'
 
 type AgentPresenterDependencies = {
   sessionPresenter: ISessionPresenter
@@ -35,7 +42,12 @@ type AgentPresenterDependencies = {
   messageManager?: MessageManager
 }
 
-export class AgentPresenter implements IAgentPresenter {
+export class AgentPresenter {
+  // Note: This class implements both ILegacyAgentPresenter (via sendMessageLegacy + alias)
+  // and IAgenticPresenter (via sendMessage with MessageContent parameter)
+  // The backward compatibility alias is set in the constructor
+  // Agentic Unified Layer - agent identifier
+  readonly agentId = 'deepchat.default'
   private sessionPresenter: ISessionPresenter
   private sessionManager: SessionManager
   private sqlitePresenter: ISQLitePresenter
@@ -118,9 +130,23 @@ export class AgentPresenter implements IAgentPresenter {
 
     // Legacy IPC surface: dynamic proxy for ISessionPresenter methods.
     this.bindSessionPresenterMethods()
+
+    // Backward compatibility: Alias sendMessageLegacy as sendMessage for legacy interface
+    // This allows existing code to call sendMessage(agentId, content, tabId) while the class
+    // also implements IAgenticPresenter.sendMessage(sessionId, content)
+    ;(this as any).sendMessage = this.sendMessageLegacy.bind(this)
+
+    // Agentic Unified Layer - Register with AgenticPresenter
+    // Use type assertion since we implement IAgenticPresenter methods but with different internal names
+    agenticPresenter.registerAgent(this as unknown as IAgenticAgentPresenter)
   }
 
-  async sendMessage(
+  /**
+   * Legacy sendMessage implementation (renamed to avoid conflict with agentic sendMessage)
+   * Handles the old interface: sendMessage(agentId, content, tabId, selectedVariantsMap)
+   * Kept for backward compatibility - aliased as `sendMessage` via bindSessionPresenterMethods
+   */
+  async sendMessageLegacy(
     agentId: string,
     content: string,
     tabId?: number,
@@ -463,5 +489,198 @@ export class AgentPresenter implements IAgentPresenter {
         ;(this as Record<string, unknown>)[key] = value.bind(this.sessionPresenter)
       }
     }
+  }
+
+  // ==========================================================================
+  // Agentic Unified Layer - IAgenticPresenter Implementation
+  // ==========================================================================
+
+  // Session-level mode storage (permission policy: strict/balanced/permissive)
+  private sessionModes = new Map<string, string>()
+
+  /**
+   * Create a new session (conversation) for DeepChat agent
+   * sessionId maps to conversationId in SQLite
+   */
+  async createSession(config: SessionConfig): Promise<string> {
+    const tabId = await presenter.tabPresenter.getActiveTabId(
+      presenter.windowPresenter.getFocusedWindow()?.id ?? 0
+    )
+    if (tabId == null) {
+      throw new Error('No active tab to create session')
+    }
+
+    // Convert SessionConfig to conversation settings
+    const settings: Partial<CONVERSATION['settings']> = {}
+    if (config.modelId) {
+      const parts = config.modelId.split(':')
+      settings.providerId = parts.length === 2 ? parts[0] : undefined
+      settings.modelId = parts.length === 2 ? parts[1] : config.modelId
+    }
+
+    // Create conversation via SessionPresenter
+    const conversationId = await this.sessionPresenter.createConversation(
+      'New Chat',
+      settings,
+      tabId
+    )
+
+    // Store modeId in session state if provided
+    if (config.modeId) {
+      this.sessionModes.set(conversationId, config.modeId)
+    }
+
+    // Note: SESSION_CREATED event is emitted by AgenticPresenter.createSession
+
+    return conversationId // sessionId = conversationId for DeepChat
+  }
+
+  /**
+   * Get session information
+   */
+  async getSession(sessionId: string): Promise<SessionInfo | null> {
+    const conversation = await this.sqlitePresenter.getConversation(sessionId)
+    if (!conversation) {
+      return null
+    }
+
+    const sessionContext = this.sessionManager.getSessionSync(sessionId)
+    const { providerId, modelId } = conversation.settings
+
+    // Get available models from config
+    const models = this.configPresenter.getProviderModels(providerId)
+    const availableModels = models.map((model) => ({
+      id: `${providerId}:${model.id}`,
+      name: model.name,
+      description: model.description
+    }))
+
+    // Map session status to agentic status
+    // 'waiting_permission' maps to 'paused'
+    const statusMap: Record<string, 'idle' | 'generating' | 'paused' | 'error'> = {
+      idle: 'idle',
+      generating: 'generating',
+      paused: 'paused',
+      waiting_permission: 'paused',
+      error: 'error'
+    }
+
+    return {
+      sessionId: conversation.id,
+      agentId: this.agentId,
+      status: statusMap[sessionContext?.status ?? 'idle'] ?? 'idle',
+      availableModes: [
+        { id: 'strict', name: 'Strict', description: 'All operations require user confirmation' },
+        {
+          id: 'balanced',
+          name: 'Balanced',
+          description: 'Read operations auto-allow, write/delete require confirmation'
+        },
+        {
+          id: 'permissive',
+          name: 'Permissive',
+          description: 'Most operations auto-allow, only dangerous operations require confirmation'
+        }
+      ],
+      availableModels,
+      currentModeId: this.sessionModes.get(sessionId),
+      currentModelId: modelId,
+      capabilities: {
+        supportsVision: this.configPresenter.getModelConfig(modelId, providerId)?.vision ?? false,
+        supportsTools: true,
+        supportsModes: true
+      }
+    }
+  }
+
+  /**
+   * Load an existing session (conversation history from SQLite)
+   */
+  async loadSession(sessionId: string, _context: LoadContext): Promise<void> {
+    const conversation = await this.sqlitePresenter.getConversation(sessionId)
+    if (!conversation) {
+      throw new Error(`Session not found: ${sessionId}`)
+    }
+
+    // For DeepChat, loading is implicit - messages are fetched from SQLite on demand
+    // The renderer will call getMessageThread to load messages
+    // context.maxHistory and context.includeSystemMessages are handled by getMessageThread
+    // Note: SESSION_UPDATED event is emitted by AgenticPresenter if needed
+  }
+
+  /**
+   * Close a session (conversation)
+   */
+  async closeSession(sessionId: string): Promise<void> {
+    const tabId = await this.sessionPresenter.findTabForConversation(sessionId)
+    if (tabId !== null) {
+      // Use clearActiveThread which is the correct method
+      await this.sessionPresenter.clearActiveThread(tabId)
+    }
+
+    // Clear command permissions for the conversation
+    this.commandPermissionService.clearConversation(sessionId)
+    presenter.filePermissionService?.clearConversation(sessionId)
+    presenter.settingsPermissionService?.clearConversation(sessionId)
+
+    // Clear session mode
+    this.sessionModes.delete(sessionId)
+
+    // Note: SESSION_CLOSED event is emitted by AgenticPresenter.closeSession
+  }
+
+  /**
+   * Send a message to the agent (Agentic Unified Layer)
+   * Implements IAgenticPresenter.sendMessage(sessionId, content)
+   * This overloads the legacy sendMessage(agentId, content, tabId, ...) method
+   */
+  async sendMessage(sessionId: string, content: MessageContent): Promise<void> {
+    const tabId = await this.sessionPresenter.findTabForConversation(sessionId)
+    if (tabId == null) {
+      throw new Error(`Session not active: ${sessionId}`)
+    }
+
+    // Convert MessageContent to text format
+    const text = content.text ?? ''
+
+    // Use the legacy sendMessage implementation
+    await this.sendMessageLegacy(sessionId, text, tabId)
+  }
+
+  /**
+   * Cancel a message
+   */
+  async cancelMessage(_sessionId: string, messageId: string): Promise<void> {
+    await this.cancelLoop(messageId)
+  }
+
+  /**
+   * Set the model for a session
+   */
+  async setModel(sessionId: string, modelId: string): Promise<void> {
+    const parts = modelId.split(':')
+    const providerId = parts.length === 2 ? parts[0] : undefined
+    const actualModelId = parts.length === 2 ? parts[1] : modelId
+
+    const settings: Partial<CONVERSATION['settings']> = {
+      providerId,
+      modelId: actualModelId
+    }
+
+    await this.sessionPresenter.updateConversationSettings(sessionId, settings)
+
+    // Note: SESSION_UPDATED event is emitted by AgenticPresenter if needed
+  }
+
+  /**
+   * Set the mode (permission policy) for a session
+   */
+  async setMode(sessionId: string, modeId: string): Promise<void> {
+    // Store modeId in session state
+    this.sessionModes.set(sessionId, modeId)
+
+    // Note: SESSION_UPDATED event is emitted by AgenticPresenter if needed
+    // The mode affects permission handling, which is implemented
+    // in CommandPermissionService and FilePermissionService
   }
 }
