@@ -39,11 +39,11 @@ export function generateExportFilename(
   return `export_deepchat_${formattedTimestamp}.${extension}`
 }
 
-export function buildConversationExportContent(
+export async function buildConversationExportContent(
   conversation: CONVERSATION,
   messages: Message[],
   format: ConversationExportFormat
-): string {
+): Promise<string> {
   switch (format) {
     case 'markdown':
       return exportToMarkdown(conversation, messages)
@@ -52,7 +52,7 @@ export function buildConversationExportContent(
     case 'txt':
       return exportToText(conversation, messages)
     case 'nowledge-mem':
-      return buildNowledgeMemExportContent(conversation, messages)
+      return await buildNowledgeMemExportContent(conversation, messages)
     default:
       throw new Error(`Unsupported export format: ${format}`)
   }
@@ -61,12 +61,12 @@ export function buildConversationExportContent(
 /**
  * Validates and returns nowledge-mem export data
  */
-export function buildNowledgeMemExportData(
+export async function buildNowledgeMemExportData(
   conversation: CONVERSATION,
   messages: Message[]
-): NowledgeMemExportResult {
+): Promise<NowledgeMemExportResult> {
   try {
-    const threadData = convertDeepChatToNowledgeMemFormat(conversation, messages)
+    const threadData = await convertDeepChatToNowledgeMemFormat(conversation, messages)
     const validation = validateNowledgeMemThread(threadData)
 
     if (!validation.valid) {

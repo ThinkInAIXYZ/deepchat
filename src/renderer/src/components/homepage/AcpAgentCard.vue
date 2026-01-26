@@ -23,7 +23,7 @@
 
 <script setup lang="ts">
 import { Card, CardTitle } from '@shadcn/components/ui/card'
-import ModelIcon from '../icons/ModelIcon.vue'
+import ModelIcon from '@/components/icons/ModelIcon.vue'
 import { useThemeStore } from '@/stores/theme'
 import type { AcpBuiltinAgent, AcpCustomAgent } from '@shared/types/presenters/legacy.presenters'
 

@@ -26,5 +26,6 @@ export type SessionContext = {
       permissionType: 'read' | 'write' | 'all' | 'command'
       payload: unknown
     }
+    activeSkills: string[]
   }
 }

@@ -208,7 +208,7 @@ export class UtilityHandler extends BaseHandler {
       // Phase 6: Variant management removed - use messages directly
       // Generate filename
       const filename = generateExportFilename(format)
-      const content = buildConversationExportContent(conversation, validMessages, format)
+      const content = await buildConversationExportContent(conversation, validMessages, format)
 
       return { filename, content }
     } catch (error) {
@@ -230,7 +230,7 @@ export class UtilityHandler extends BaseHandler {
     const { providerId, modelId } = conversation.settings
 
     // Phase 6: Get context length from runtime config
-    const runtimeConfig = getRuntimeConfig(conversation)
+    const runtimeConfig = await getRuntimeConfig(conversation)
     let messageCount = Math.ceil(runtimeConfig.contextLength / DEFAULT_MESSAGE_LENGTH)
     if (messageCount < 2) {
       messageCount = 2
@@ -287,7 +287,7 @@ export class UtilityHandler extends BaseHandler {
 
       const conversation = await this.ctx.sqlitePresenter.getConversation(message.conversation_id)
       // Phase 6: Get runtime config instead of reading from settings
-      const runtimeConfig = getRuntimeConfig(conversation)
+      const runtimeConfig = await getRuntimeConfig(conversation)
       const {
         providerId: defaultProviderId,
         modelId: defaultModelId,

@@ -38,7 +38,7 @@ export class ConversationExporterService implements IConversationExporter {
     const messages = await this.fetchAllMessages(conversationId)
     const sentMessages = messages.filter((msg) => msg.status === 'sent')
     const filename = generateExportFilename(format, conversation)
-    const content = buildConversationExportContent(conversation, sentMessages, format)
+    const content = await buildConversationExportContent(conversation, sentMessages, format)
     return { filename, content }
   }
 
@@ -54,7 +54,7 @@ export class ConversationExporterService implements IConversationExporter {
     }
 
     const messages = await this.fetchAllMessages(conversationId)
-    const exportResult = buildNowledgeMemExportData(conversation, messages)
+    const exportResult = await buildNowledgeMemExportData(conversation, messages)
     if (!exportResult.valid) {
       return { success: false, errors: exportResult.errors }
     }

@@ -19,10 +19,10 @@ export function generateNowledgeMemExportFilename(
   return `nowledge_mem_${safeTitle}_${formattedTimestamp}.json`
 }
 
-export function convertDeepChatToNowledgeMemFormat(
+export async function convertDeepChatToNowledgeMemFormat(
   conversation: CONVERSATION,
   messages: Message[]
-): NowledgeMemThread {
+): Promise<NowledgeMemThread> {
   const nowledgeMessages: NowledgeMemMessage[] = []
   const messageMetadataArray: any[] = []
 
@@ -206,8 +206,8 @@ export function convertDeepChatToNowledgeMemFormat(
         ].filter(Boolean) as string[],
         settings: {
           // Phase 6: Get runtime config for export values
-          ...(() => {
-            const runtimeConfig = getRuntimeConfig(conversation)
+          ...(await (async () => {
+            const runtimeConfig = await getRuntimeConfig(conversation)
             return {
               system_prompt: runtimeConfig.systemPrompt || '',
               temperature: runtimeConfig.temperature || 0.7,
@@ -216,7 +216,7 @@ export function convertDeepChatToNowledgeMemFormat(
               enable_search: runtimeConfig.enableSearch || false,
               artifacts_enabled: runtimeConfig.artifacts === 1
             }
-          })()
+          })())
         }
       },
       message_metadata: messageMetadataArray
@@ -258,12 +258,12 @@ function extractTokenMetadata(message: Message): {
   return result
 }
 
-export function buildNowledgeMemExportContent(
+export async function buildNowledgeMemExportContent(
   conversation: CONVERSATION,
   messages: Message[]
-): string {
+): Promise<string> {
   try {
-    const nowledgeMemThread = convertDeepChatToNowledgeMemFormat(conversation, messages)
+    const nowledgeMemThread = await convertDeepChatToNowledgeMemFormat(conversation, messages)
     return JSON.stringify(nowledgeMemThread, null, 2)
   } catch (error) {
     throw new Error(

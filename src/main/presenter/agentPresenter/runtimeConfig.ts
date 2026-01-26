@@ -35,12 +35,22 @@ export interface RuntimeConfig {
  * Get runtime configuration for a conversation
  * These values now come from agent's SessionInfo, not from stored settings
  */
-export function getRuntimeConfig(conversation: CONVERSATION): RuntimeConfig {
+export async function getRuntimeConfig(conversation: CONVERSATION): Promise<RuntimeConfig> {
   // Get model config for defaults
   const modelConfig = presenter.configPresenter.getModelConfig(
     conversation.settings.modelId,
     conversation.settings.providerId
   )
+
+  // Get active skills from SessionManager (in-memory session state)
+  let activeSkills: string[] = []
+  try {
+    const session = await presenter.sessionManager.getSession(conversation.id)
+    activeSkills = session.runtime?.activeSkills ?? []
+  } catch {
+    // Session may not exist yet, use empty array
+    activeSkills = []
+  }
 
   return {
     providerId: conversation.settings.providerId,
@@ -59,6 +69,6 @@ export function getRuntimeConfig(conversation: CONVERSATION): RuntimeConfig {
     forcedSearch: undefined, // Phase 6: Use agent default
     searchStrategy: undefined, // Phase 6: Use agent default
     selectedVariantsMap: {}, // Phase 6: Variant management removed
-    activeSkills: [] // Phase 6: Active skills feature removed
+    activeSkills // Get from SessionManager (in-memory session state)
   }
 }

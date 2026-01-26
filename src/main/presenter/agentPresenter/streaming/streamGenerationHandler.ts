@@ -107,7 +107,7 @@ export class StreamGenerationHandler extends BaseHandler {
 
       const currentConversation = await this.getConversation(conversationId)
       // Phase 6: Get runtime config instead of reading from settings
-      const runtimeConfig = getRuntimeConfig(currentConversation)
+      const runtimeConfig = await getRuntimeConfig(currentConversation)
       const {
         providerId: currentProviderId,
         modelId: currentModelId,
@@ -221,7 +221,7 @@ export class StreamGenerationHandler extends BaseHandler {
       this.throwIfCancelled(state.message.id)
 
       // Phase 6: Get runtime config instead of reading from settings
-      const runtimeConfig = getRuntimeConfig(conversation)
+      const runtimeConfig = await getRuntimeConfig(conversation)
       const {
         providerId,
         modelId,
@@ -448,7 +448,7 @@ export class StreamGenerationHandler extends BaseHandler {
       }
 
       // Phase 6: Get context length from runtime config
-      const runtimeConfig = getRuntimeConfig(conversation)
+      const runtimeConfig = await getRuntimeConfig(conversation)
       contextMessages = await this.ctx.messageManager.getMessageHistory(
         userMessage.id,
         runtimeConfig.contextLength
@@ -643,7 +643,7 @@ export class StreamGenerationHandler extends BaseHandler {
 
   private async getContextMessages(conversation: CONVERSATION): Promise<Message[]> {
     // Phase 6: Get context length from runtime config
-    const runtimeConfig = getRuntimeConfig(conversation)
+    const runtimeConfig = await getRuntimeConfig(conversation)
     let messageCount = Math.ceil(runtimeConfig.contextLength / 300)
     if (messageCount < 2) {
       messageCount = 2

@@ -8,7 +8,7 @@
         size="sm"
       >
         <ModelIcon
-          :model-id="isAcpAgent ? agentId : agentId"
+          :model-id="(isAcpAgent ? agentId : currentModelId) ?? ''"
           :is-dark="isDark"
           custom-class="w-4 h-4"
         />
@@ -60,7 +60,7 @@ import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@shadcn/components/ui/popover'
-import ModelIcon from './icons/ModelIcon.vue'
+import ModelIcon from '@/components/icons/ModelIcon.vue'
 import { useAgenticSession } from '@/composables/agentic/useAgenticSession'
 import { usePresenter } from '@/composables/usePresenter'
 

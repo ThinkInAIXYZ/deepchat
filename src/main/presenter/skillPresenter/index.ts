@@ -15,8 +15,7 @@ import {
 } from '@shared/types/skill'
 import { eventBus, SendTarget } from '@/eventbus'
 import { SKILL_EVENTS } from '@/events'
-// Phase 6: presenter import no longer needed (activeSkills feature removed)
-// import { presenter } from '@/presenter'
+import { presenter } from '@/presenter'
 
 /**
  * Skill system configuration constants
@@ -696,18 +695,31 @@ export class SkillPresenter implements ISkillPresenter {
 
   /**
    * Get active skills for a conversation
-   * Phase 6: Active skills feature removed - always returns empty array
+   * Retrieves from SessionContext runtime (in-memory, not persisted to database)
    */
-  async getActiveSkills(_conversationId: string): Promise<string[]> {
-    // Phase 6: Active skills feature removed
-    return []
+  async getActiveSkills(conversationId: string): Promise<string[]> {
+    if (!this.configPresenter.getSkillsEnabled()) {
+      return []
+    }
+
+    try {
+      const session = await presenter.sessionManager.getSession(conversationId)
+      return session.runtime?.activeSkills ?? []
+    } catch (error) {
+      console.warn('[SkillPresenter] Failed to get active skills:', error)
+      return []
+    }
   }
 
   /**
    * Set active skills for a conversation
-   * Phase 6: Active skills feature removed - only emits events, doesn't update settings
+   * Updates SessionContext runtime (in-memory, not persisted to database)
    */
   async setActiveSkills(conversationId: string, skills: string[]): Promise<void> {
+    if (!this.configPresenter.getSkillsEnabled()) {
+      return
+    }
+
     try {
       const previousSkills = await this.getActiveSkills(conversationId)
       const previousSet = new Set(previousSkills)
@@ -716,10 +728,10 @@ export class SkillPresenter implements ISkillPresenter {
       const validSkills = await this.validateSkillNames(skills)
       const validSet = new Set(validSkills)
 
-      // Phase 6: No longer update settings (activeSkills removed from CONVERSATION_SETTINGS)
-      // await presenter.sessionPresenter.updateConversationSettings(conversationId, {
-      //   activeSkills: validSkills
-      // })
+      // Update runtime state in SessionManager (in-memory, not database)
+      presenter.sessionManager.updateRuntime(conversationId, {
+        activeSkills: validSkills
+      })
 
       const activated = validSkills.filter((skill) => !previousSet.has(skill))
       const deactivated = previousSkills.filter((skill) => !validSet.has(skill))

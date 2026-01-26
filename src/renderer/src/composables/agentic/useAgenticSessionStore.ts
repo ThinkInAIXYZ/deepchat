@@ -27,6 +27,7 @@ import { useAgenticExecution } from '@/composables/agentic/useAgenticExecution'
 import { useMessageCache } from '@/composables/chat/useMessageCache'
 import { useAgenticEvents } from '@/composables/agentic/useAgenticEvents'
 import { useSessionExport } from '@/composables/agentic/useSessionExport'
+import { useSessionManagement as useOldSessionManagement } from '@/composables/chat/useSessionManagement'
 
 export type WorkingStatus = 'working' | 'error' | 'completed' | 'none'
 
@@ -259,9 +260,7 @@ export function useAgenticSessionStore() {
 
   // Import the old session management composable for backward compatibility
   // This will be replaced with agentic session management in a future update
-  const {
-    useSessionManagement: useOldSessionManagement
-  } = require('@/composables/chat/useSessionManagement')
+
   const sessionManagementComposable = useOldSessionManagement(
     activeSessionId,
     sessions,

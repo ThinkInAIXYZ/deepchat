@@ -381,7 +381,7 @@ export class PermissionHandler extends BaseHandler {
         await this.streamGenerationHandler.prepareConversationContext(conversationId, messageId)
 
       // Phase 6: Get runtime config instead of reading from settings
-      const runtimeConfig = getRuntimeConfig(conversation)
+      const runtimeConfig = await getRuntimeConfig(conversation)
       const {
         providerId,
         modelId,
@@ -481,7 +481,7 @@ export class PermissionHandler extends BaseHandler {
         await this.streamGenerationHandler.prepareConversationContext(conversationId, messageId)
 
       // Phase 6: Get runtime config instead of reading from settings
-      const runtimeConfig = getRuntimeConfig(conversation)
+      const runtimeConfig = await getRuntimeConfig(conversation)
       const modelConfig = this.ctx.configPresenter.getModelConfig(
         conversation.settings.modelId,
         conversation.settings.providerId
@@ -552,7 +552,7 @@ export class PermissionHandler extends BaseHandler {
         await this.streamGenerationHandler.prepareConversationContext(conversationId, message.id)
 
       // Phase 6: Get runtime config instead of reading from settings
-      const runtimeConfig = getRuntimeConfig(conversation)
+      const runtimeConfig = await getRuntimeConfig(conversation)
       const {
         providerId,
         modelId,

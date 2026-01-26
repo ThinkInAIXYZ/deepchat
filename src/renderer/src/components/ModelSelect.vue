@@ -51,7 +51,7 @@ import { Input } from '@shadcn/components/ui/input'
 // import { useChatStore } from '@/stores/chat' // Removed in Phase 6
 import { type RENDERER_MODEL_META } from '@shared/presenter'
 import { ModelType } from '@shared/model'
-import ModelIcon from './icons/ModelIcon.vue'
+import ModelIcon from '@/components/icons/ModelIcon.vue'
 import { useModelStore } from '@/stores/modelStore'
 import { useThemeStore } from '@/stores/theme'
 import { useLanguageStore } from '@/stores/language'

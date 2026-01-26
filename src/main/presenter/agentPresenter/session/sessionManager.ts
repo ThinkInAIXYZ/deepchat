@@ -52,7 +52,8 @@ export class SessionManager {
       resolved,
       runtime: {
         toolCallCount: 0,
-        userStopRequested: false
+        userStopRequested: false,
+        activeSkills: []
       }
     }
     this.sessions.set(agentId, session)
@@ -140,7 +141,8 @@ export class SessionManager {
     if (!session.runtime) {
       session.runtime = {
         toolCallCount: 0,
-        userStopRequested: false
+        userStopRequested: false,
+        activeSkills: []
       }
     } else {
       if (session.runtime.toolCallCount === undefined) {
@@ -148,6 +150,9 @@ export class SessionManager {
       }
       if (session.runtime.userStopRequested === undefined) {
         session.runtime.userStopRequested = false
+      }
+      if (session.runtime.activeSkills === undefined) {
+        session.runtime.activeSkills = []
       }
     }
     return session.runtime

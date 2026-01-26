@@ -54,7 +54,6 @@ import { useRoute } from 'vue-router'
 import { UserMessageContent } from '@shared/chat'
 import { SHORTCUT_EVENTS } from '@/events'
 import { AgenticEventType } from '@shared/types/presenters/agentic.presenter.d'
-import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import { useChatStore } from '@/stores/chat'
 import { useWorkspaceStoreLifecycle } from '@/composables/useWorkspaceStoreLifecycle'
 import { useCleanDialog } from '@/composables/message/useCleanDialog'
@@ -72,7 +71,6 @@ import { Button } from '@shadcn/components/ui/button'
 
 const { t } = useI18n()
 const route = useRoute()
-const uiSettingsStore = useUiSettingsStore()
 const chatStore = useChatStore()
 const workspaceStore = useWorkspaceStoreLifecycle()
 const cleanDialog = useCleanDialog()
@@ -170,8 +168,7 @@ onMounted(async () => {
   if (route.query.modelId && route.query.providerId) {
     const sessionId = await chatStore.createThread('新会话', {
       modelId: route.query.modelId as string,
-      providerId: route.query.providerId as string,
-      artifacts: uiSettingsStore.artifactsEffectEnabled ? 1 : 0
+      providerId: route.query.providerId as string
     })
     chatStore.setActiveThread(sessionId)
   }
@@ -184,8 +181,7 @@ watch(
     if (route.query.modelId && route.query.providerId) {
       const sessionId = await chatStore.createThread('新会话', {
         modelId: route.query.modelId as string,
-        providerId: route.query.providerId as string,
-        artifacts: uiSettingsStore.artifactsEffectEnabled ? 1 : 0
+        providerId: route.query.providerId as string
       })
       chatStore.setActiveThread(sessionId)
     }

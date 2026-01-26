@@ -12,9 +12,6 @@
 
     <!-- MCP Tools List -->
     <McpToolsList />
-
-    <!-- Skills Indicator -->
-    <SkillsIndicator :conversation-id="conversationId" />
   </div>
 </template>
 
@@ -24,7 +21,6 @@ import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@shadcn/components/ui/tooltip'
 import McpToolsList from '../McpToolsList.vue'
-import SkillsIndicator from './SkillsIndicator.vue'
 
 defineProps<{
   conversationId: string | null

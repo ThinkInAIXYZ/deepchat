@@ -108,7 +108,7 @@ import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { Badge } from '@shadcn/components/ui/badge'
 import { Button } from '@shadcn/components/ui/button'
-import ModelIcon from '../icons/ModelIcon.vue'
+import ModelIcon from '@/components/icons/ModelIcon.vue'
 import { useAgenticSession } from '@/composables/agentic/useAgenticSession'
 
 interface Props {

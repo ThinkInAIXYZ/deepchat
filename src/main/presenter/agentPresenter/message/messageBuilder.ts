@@ -85,7 +85,7 @@ function appendPromptSection(base: string, section: string): string {
 
 async function resolveSystemPrompt(conversation: CONVERSATION): Promise<string> {
   // Phase 6: System prompts removed - use agent default
-  const runtimeConfig = getRuntimeConfig(conversation)
+  const runtimeConfig = await getRuntimeConfig(conversation)
   return runtimeConfig.systemPrompt
 }
 
@@ -103,7 +103,7 @@ export async function preparePromptContent({
   promptTokens: number
 }> {
   // Phase 6: Get runtime config from agent defaults
-  const runtimeConfig = getRuntimeConfig(conversation)
+  const runtimeConfig = await getRuntimeConfig(conversation)
   const { contextLength, artifacts, enabledMcpTools } = runtimeConfig
   const systemPrompt = await resolveSystemPrompt(conversation)
   const isAgentMode = true

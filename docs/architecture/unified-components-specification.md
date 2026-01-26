@@ -506,7 +506,7 @@ import { Button } from '@shadcn/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@shadcn/components/ui/popover'
 import { Badge } from '@shadcn/components/ui/badge'
 import { useAgenticSession } from '@/composables/chat/useAgenticSession'
-import ModelIcon from './icons/ModelIcon.vue'
+import ModelIcon from '@/components/icons/ModelIcon.vue'
 
 const props = withDefaults(
   defineProps<{
