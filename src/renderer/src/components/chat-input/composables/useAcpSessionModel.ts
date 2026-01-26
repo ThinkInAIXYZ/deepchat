@@ -2,6 +2,7 @@ import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
 import { useAcpRuntimeAdapter } from '@/composables/chat/useAcpRuntimeAdapter'
 import { useAcpEventsAdapter } from '@/composables/acp/useAcpEventsAdapter'
 import type { Ref } from 'vue'
+import type { SessionUpdatedEvent } from '@shared/types/presenters/agentic.presenter.d'
 
 type ActiveModelRef = Ref<{ id?: string; providerId?: string } | null>
 
@@ -127,27 +128,29 @@ export function useAcpSessionModel(options: UseAcpSessionModelOptions) {
     lastWarmupModelsKey.value = null
   })
 
-  const handleModelsReady = (payload: {
-    conversationId?: string
-    agentId?: string
-    workdir?: string
-    current: string
-    available: ModelInfo[]
-  }) => {
-    if (!isAcpModel.value) return
+  /**
+   * Listen for session updated event from agentic presenter
+   * Checks for availableModels in sessionInfo to detect model updates
+   */
+  const handleSessionUpdated = (payload: SessionUpdatedEvent) => {
+    if (!isAcpModel.value || !payload.sessionInfo.availableModels) return
 
-    const conversationMatch =
-      payload.conversationId && payload.conversationId === options.conversationId.value
-    const agentMatch = payload.agentId && payload.agentId === options.activeModel.value?.id
-    const workdirMatch =
-      !selectedWorkdir.value || !payload.workdir || selectedWorkdir.value === payload.workdir
+    const conversationMatch = payload.sessionId === options.conversationId.value
+    const agentMatch = payload.sessionInfo.agentId === options.activeModel.value?.id
 
-    if (conversationMatch || (agentMatch && workdirMatch)) {
+    if (conversationMatch || agentMatch) {
+      const models: ModelInfo[] = payload.sessionInfo.availableModels.map((m) => ({
+        id: m.id,
+        name: m.name,
+        description: m.description
+      }))
+      const newModelId = payload.sessionInfo.currentModelId || models[0]?.id || ''
+
       console.info(
-        `[useAcpSessionModel] Received models from main: current="${payload.current}", available=[${payload.available.map((m) => m.id).join(', ')}]`
+        `[useAcpSessionModel] Received models from main: current="${newModelId}", available=[${models.map((m) => m.id).join(', ')}]`
       )
-      currentModelId.value = payload.current
-      availableModels.value = payload.available
+      currentModelId.value = newModelId
+      availableModels.value = models
       if (!conversationMatch && pendingPreferredModel.value) {
         currentModelId.value = pendingPreferredModel.value
       }
@@ -155,7 +158,7 @@ export function useAcpSessionModel(options: UseAcpSessionModelOptions) {
   }
 
   onMounted(() => {
-    unsubscribeSessionModels = acpEventsAdapter.subscribeSessionModelsReady(handleModelsReady)
+    unsubscribeSessionModels = acpEventsAdapter.subscribeSessionUpdated(handleSessionUpdated)
   })
 
   onUnmounted(() => {

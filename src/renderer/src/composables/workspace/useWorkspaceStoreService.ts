@@ -40,7 +40,8 @@ export const createWorkspaceStore = (deps: WorkspaceStoreDeps = {}) => {
   let listenersBound = false
 
   const currentWorkspacePath = computed(() => {
-    return chatStore.chatConfig.agentWorkspacePath ?? null
+    // Workspace path now comes from conversation settings (Phase 6: chatConfig removed)
+    return chatStore.activeThread?.settings?.agentWorkspacePath ?? null
   })
 
   const completedPlanCount = computed(
@@ -65,18 +66,18 @@ export const createWorkspaceStore = (deps: WorkspaceStoreDeps = {}) => {
   const isFileRefreshCurrent = (conversationId: string | null, workspacePath: string | null) => {
     if (!conversationId || !workspacePath) return false
     return (
-      chatStore.activeThreadId === conversationId && currentWorkspacePath.value === workspacePath
+      chatStore.activeSessionId === conversationId && currentWorkspacePath.value === workspacePath
     )
   }
 
   const isPlanRefreshCurrent = (conversationId: string | null, requestId: number) => {
     if (!conversationId) return false
-    return requestId === planRefreshRequestId && chatStore.activeThreadId === conversationId
+    return requestId === planRefreshRequestId && chatStore.activeSessionId === conversationId
   }
 
   const refreshFileTree = async () => {
     const workspacePath = currentWorkspacePath.value
-    const conversationIdBefore = chatStore.activeThreadId
+    const conversationIdBefore = chatStore.activeSessionId
     const requestId = ++fileRefreshRequestId
 
     if (!workspacePath || !conversationIdBefore) {
@@ -142,7 +143,7 @@ export const createWorkspaceStore = (deps: WorkspaceStoreDeps = {}) => {
   }
 
   const refreshPlanEntries = async () => {
-    const conversationId = chatStore.activeThreadId
+    const conversationId = chatStore.activeSessionId
     const requestId = ++planRefreshRequestId
     if (!conversationId) {
       planEntries.value = []
@@ -239,7 +240,7 @@ export const createWorkspaceStore = (deps: WorkspaceStoreDeps = {}) => {
   }
 
   const terminateCommand = async (snippetId: string) => {
-    const conversationId = chatStore.activeThreadId
+    const conversationId = chatStore.activeSessionId
     if (!conversationId) {
       console.warn('[Workspace] No active conversation, cannot terminate command')
       return
@@ -254,7 +255,7 @@ export const createWorkspaceStore = (deps: WorkspaceStoreDeps = {}) => {
   }
 
   const terminateAllRunningCommands = async () => {
-    const conversationId = chatStore.activeThreadId
+    const conversationId = chatStore.activeSessionId
     if (!conversationId) return
 
     const runningSnippets = terminalSnippets.value.filter((snippet) => snippet.status === 'running')
@@ -268,19 +269,19 @@ export const createWorkspaceStore = (deps: WorkspaceStoreDeps = {}) => {
   }
 
   const handlePlanUpdated = (payload: WorkspacePlanUpdatedPayload) => {
-    if (payload.conversationId === chatStore.activeThreadId) {
+    if (payload.conversationId === chatStore.activeSessionId) {
       planEntries.value = payload.entries
     }
   }
 
   const handleTerminalOutput = (payload: WorkspaceTerminalOutputPayload) => {
-    if (payload.conversationId === chatStore.activeThreadId) {
+    if (payload.conversationId === chatStore.activeSessionId) {
       upsertTerminalSnippet(payload.snippet)
     }
   }
 
   const handleFilesChanged = (payload: WorkspaceFilesChangedPayload) => {
-    if (payload.conversationId === chatStore.activeThreadId) {
+    if (payload.conversationId === chatStore.activeSessionId) {
       debouncedRefreshFileTree()
     }
   }
@@ -310,7 +311,7 @@ export const createWorkspaceStore = (deps: WorkspaceStoreDeps = {}) => {
 
   if (deps.enableWatchers !== false) {
     watch(
-      () => chatStore.activeThreadId,
+      () => chatStore.activeSessionId,
       async (newId) => {
         if (newId !== lastSyncedConversationId.value) {
           lastSyncedConversationId.value = newId ?? null

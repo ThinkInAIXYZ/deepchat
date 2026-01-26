@@ -163,14 +163,14 @@
 <script setup lang="ts">
 import { ref, onMounted, reactive, computed, nextTick, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useChatStore } from '@/stores/chat'
+// import { useChatStore } from '@/stores/chat' // Removed in Phase 6
 import { Button } from '@shadcn/components/ui/button'
 import { Input } from '@shadcn/components/ui/input'
 import { Label } from '@shadcn/components/ui/label'
 import { Icon } from '@iconify/vue'
 import { useToast } from '@/components/use-toast'
 
-const chatStore = useChatStore()
+// const chatStore = useChatStore() // Removed in Phase 6
 const { toast } = useToast()
 const { t } = useI18n()
 
@@ -204,23 +204,26 @@ const toggleNowledgeMemConfigPanel = () => {
 }
 
 onMounted(async () => {
-  await loadConfiguration()
+  // NowledgeMem configuration has been removed in Phase 6 (chatConfig removal)
+  // This component is kept for UI consistency but functionality is disabled
 })
 
-const loadConfiguration = async () => {
-  try {
-    const savedConfig = chatStore.getNowledgeMemConfig()
-    if (savedConfig) {
-      Object.assign(config, savedConfig)
-      // Convert milliseconds to seconds for UI
-      if (savedConfig.timeout && !isNaN(savedConfig.timeout)) {
-        config.timeout = savedConfig.timeout
-      }
-    }
-  } catch (error) {
-    console.error('Failed to load nowledge-mem config:', error)
-  }
-}
+// const loadConfiguration = async () => {
+//   // NowledgeMem configuration has been removed in Phase 6 (chatConfig removal)
+//   // TODO: Re-implement without chatConfig if needed
+//   try {
+//     // const savedConfig = chatStore.getNowledgeMemConfig()
+//     // if (savedConfig) {
+//     //   Object.assign(config, savedConfig)
+//     //   // Convert milliseconds to seconds for UI
+//     //   if (savedConfig.timeout && !isNaN(savedConfig.timeout)) {
+//     //     config.timeout = savedConfig.timeout
+//     //   }
+//     // }
+//   } catch (error) {
+//     console.error('Failed to load nowledge-mem config:', error)
+//   }
+// }
 
 const handleTimeoutChange = (value: string | number) => {
   const numericValue = typeof value === 'string' ? parseInt(value, 10) : value
@@ -259,10 +262,12 @@ const testConnection = async () => {
   testingConnection.value = true
 
   try {
-    const result = await chatStore.testNowledgeMemConnection()
+    // NowledgeMem functionality has been removed in Phase 6 (chatConfig removal)
+    // TODO: Re-implement without chatConfig if needed
     toast({
       title: t('settings.knowledgeBase.nowledgeMem.testConnection'),
-      description: result.message || 'Connection successful'
+      description: 'This feature has been temporarily disabled',
+      variant: 'default'
     })
   } catch (error) {
     toast({
@@ -279,12 +284,13 @@ const saveConfiguration = async () => {
   savingConfig.value = true
 
   try {
-    await chatStore.updateNowledgeMemConfig({
-      baseUrl: config.baseUrl,
-      apiKey: config.apiKey,
-      timeout: config.timeout
-    })
-
+    // NowledgeMem functionality has been removed in Phase 6 (chatConfig removal)
+    // TODO: Re-implement without chatConfig if needed
+    // await chatStore.updateNowledgeMemConfig({
+    //   baseUrl: config.baseUrl,
+    //   apiKey: config.apiKey,
+    //   timeout: config.timeout
+    // })
     // Success feedback could be added here
   } catch (error) {
     console.error('Failed to save nowledge-mem config:', error)
@@ -301,7 +307,9 @@ const resetConfiguration = async () => {
       timeout: 30000 // 30 seconds in milliseconds
     }
 
-    await chatStore.updateNowledgeMemConfig(defaultConfig)
+    // NowledgeMem functionality has been removed in Phase 6 (chatConfig removal)
+    // TODO: Re-implement without chatConfig if needed
+    // await chatStore.updateNowledgeMemConfig(defaultConfig)
 
     Object.assign(config, defaultConfig)
   } catch (error) {

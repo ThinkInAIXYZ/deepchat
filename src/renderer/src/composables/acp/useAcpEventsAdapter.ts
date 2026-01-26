@@ -1,67 +1,39 @@
-import { ACP_WORKSPACE_EVENTS } from '@/events'
+import { AgenticEventType } from '@shared/types/presenters/agentic.presenter.d'
+import type { SessionUpdatedEvent } from '@shared/types/presenters/agentic.presenter.d'
 
-type CommandsPayload = {
-  conversationId?: string
-  agentId?: string
-  commands: { name: string; description?: string; input?: { hint: string } | null }[]
-}
+/**
+ * ACP Events Adapter - Agentic Unified Layer
+ * Provides type-safe subscription to agentic session update events
+ * Replaces old ACP_WORKSPACE_EVENTS with unified AgenticEventType.SESSION_UPDATED
+ */
 
-type ModesPayload = {
-  conversationId?: string
-  agentId?: string
-  workdir?: string
-  current: string
-  available: { id: string; name: string; description: string }[]
-}
+type SessionUpdateHandler = (payload: SessionUpdatedEvent) => void
 
-type ModelsPayload = {
-  conversationId?: string
-  agentId?: string
-  workdir?: string
-  current: string
-  available: { id: string; name: string; description?: string }[]
+/**
+ * Unified session update handler
+ * The handler should check specific properties of sessionInfo to determine what was updated:
+ * - sessionInfo.availableModes - Mode updates
+ * - sessionInfo.availableModels - Model updates
+ * - sessionInfo.availableCommands - Command updates
+ */
+function subscribeSessionUpdated(handler: SessionUpdateHandler) {
+  const listener = (_: unknown, payload: SessionUpdatedEvent) => {
+    if (!payload) return
+    handler(payload)
+  }
+  window.electron.ipcRenderer.on(AgenticEventType.SESSION_UPDATED, listener)
+  return () => {
+    window.electron.ipcRenderer.removeListener(AgenticEventType.SESSION_UPDATED, listener)
+  }
 }
 
 export function useAcpEventsAdapter() {
-  const subscribeCommandsUpdate = (handler: (payload: CommandsPayload) => void) => {
-    const listener = (_: unknown, payload: CommandsPayload) => {
-      if (!payload) return
-      handler(payload)
-    }
-    window.electron.ipcRenderer.on(ACP_WORKSPACE_EVENTS.COMMANDS_UPDATE, listener)
-    return () => {
-      window.electron.ipcRenderer.removeListener(ACP_WORKSPACE_EVENTS.COMMANDS_UPDATE, listener)
-    }
-  }
-
-  const subscribeSessionModesReady = (handler: (payload: ModesPayload) => void) => {
-    const listener = (_: unknown, payload: ModesPayload) => {
-      if (!payload) return
-      handler(payload)
-    }
-    window.electron.ipcRenderer.on(ACP_WORKSPACE_EVENTS.SESSION_MODES_READY, listener)
-    return () => {
-      window.electron.ipcRenderer.removeListener(ACP_WORKSPACE_EVENTS.SESSION_MODES_READY, listener)
-    }
-  }
-
-  const subscribeSessionModelsReady = (handler: (payload: ModelsPayload) => void) => {
-    const listener = (_: unknown, payload: ModelsPayload) => {
-      if (!payload) return
-      handler(payload)
-    }
-    window.electron.ipcRenderer.on(ACP_WORKSPACE_EVENTS.SESSION_MODELS_READY, listener)
-    return () => {
-      window.electron.ipcRenderer.removeListener(
-        ACP_WORKSPACE_EVENTS.SESSION_MODELS_READY,
-        listener
-      )
-    }
-  }
-
+  /**
+   * Subscribe to session updated events
+   * This replaces the three separate ACP event subscriptions with a unified handler
+   * The consumer should check the relevant sessionInfo properties
+   */
   return {
-    subscribeCommandsUpdate,
-    subscribeSessionModesReady,
-    subscribeSessionModelsReady
+    subscribeSessionUpdated
   }
 }

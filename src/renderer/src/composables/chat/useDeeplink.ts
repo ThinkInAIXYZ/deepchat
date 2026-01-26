@@ -34,44 +34,44 @@ export type PendingScrollTarget = {
  * Deeplink composable
  * Handles deeplink events, context mentions, and scroll targets
  */
-export function useDeeplink(activeThreadId: Ref<string | null>) {
+export function useDeeplink(activeSessionId: Ref<string | null>) {
   // Deeplink cache
   const deeplinkCache = ref<DeeplinkData | null>(null)
 
-  // Pending context mentions by thread ID
+  // Pending context mentions by session ID
   const pendingContextMentions = ref<Map<string, PendingContextMention>>(new Map())
 
   // Pending scroll targets by conversation ID
   const pendingScrollTargetByConversation = ref<Map<string, PendingScrollTarget>>(new Map())
 
   /**
-   * Get active context mention for current thread
+   * Get active context mention for current session
    */
   const activeContextMention = computed(() => {
-    const threadId = activeThreadId.value
-    if (!threadId) return null
-    return pendingContextMentions.value.get(threadId) ?? null
+    const sessionId = activeSessionId.value
+    if (!sessionId) return null
+    return pendingContextMentions.value.get(sessionId) ?? null
   })
 
   /**
-   * Get active pending scroll target for current thread
+   * Get active pending scroll target for current session
    */
   const activePendingScrollTarget = computed(() => {
-    const threadId = activeThreadId.value
-    if (!threadId) return null
-    return pendingScrollTargetByConversation.value.get(threadId) ?? null
+    const sessionId = activeSessionId.value
+    if (!sessionId) return null
+    return pendingScrollTargetByConversation.value.get(sessionId) ?? null
   })
 
   /**
-   * Set pending context mention for a thread
+   * Set pending context mention for a session
    */
-  const setPendingContextMention = (threadId: string, content: string, label?: string) => {
-    if (!threadId || !content.trim()) {
+  const setPendingContextMention = (sessionId: string, content: string, label?: string) => {
+    if (!sessionId || !content.trim()) {
       return
     }
     const displayLabel = formatContextLabel(label ?? '')
     const next = new Map(pendingContextMentions.value)
-    next.set(threadId, {
+    next.set(sessionId, {
       id: displayLabel,
       label: displayLabel,
       category: 'context',
@@ -81,12 +81,12 @@ export function useDeeplink(activeThreadId: Ref<string | null>) {
   }
 
   /**
-   * Consume (remove) context mention for a thread
+   * Consume (remove) context mention for a session
    */
-  const consumeContextMention = (threadId: string) => {
-    if (!threadId) return
+  const consumeContextMention = (sessionId: string) => {
+    if (!sessionId) return
     const next = new Map(pendingContextMentions.value)
-    next.delete(threadId)
+    next.delete(sessionId)
     pendingContextMentions.value = next
   }
 

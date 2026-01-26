@@ -33,9 +33,9 @@ const themeStore = useThemeStore()
 const uiSettingsStore = useUiSettingsStore()
 // 组件映射表
 const artifactStore = useArtifactStore()
-// 生成唯一的 message ID 和 thread ID，用于 MarkdownRenderer
+// 生成唯一的 message ID 和 session ID，用于 MarkdownRenderer
 const messageId = `artifact-msg-${nanoid()}`
-const threadId = `artifact-thread-${nanoid()}`
+const sessionId = `artifact-session-${nanoid()}`
 const referenceStore = useReferenceStore()
 const conversationCore = useConversationCore()
 const referenceNode = ref<HTMLElement | null>(null)
@@ -64,7 +64,7 @@ setCustomComponents({
     h(ReferenceNode, {
       ..._props,
       messageId,
-      threadId,
+      sessionId,
       onClick() {
         conversationCore.getSearchResults(_props.messageId ?? '').then((results) => {
           const index = parseInt(_props.node.id)
@@ -120,7 +120,7 @@ setCustomComponents({
             status: 'loaded'
           },
           messageId,
-          threadId,
+          sessionId,
           { force: true }
         )
       }

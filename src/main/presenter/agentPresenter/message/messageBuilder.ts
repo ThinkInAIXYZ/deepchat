@@ -9,6 +9,7 @@ import { modelCapabilities } from '../../configPresenter/modelCapabilities'
 import { enhanceSystemPromptWithDateTime } from '../utility/promptEnhancer'
 import { ToolCallCenter } from '../tool/toolCallCenter'
 import { nanoid } from 'nanoid'
+import { getRuntimeConfig } from '../runtimeConfig'
 
 import {
   addContextMessages,
@@ -83,29 +84,9 @@ function appendPromptSection(base: string, section: string): string {
 }
 
 async function resolveSystemPrompt(conversation: CONVERSATION): Promise<string> {
-  const systemPromptId = conversation.settings.systemPromptId?.trim()
-  if (!systemPromptId) {
-    return conversation.settings.systemPrompt || ''
-  }
-
-  if (systemPromptId === 'empty') {
-    return ''
-  }
-
-  try {
-    if (systemPromptId === 'default') {
-      return await presenter.configPresenter.getDefaultSystemPrompt()
-    }
-    const prompts = await presenter.configPresenter.getSystemPrompts()
-    const matchedPrompt = prompts.find((prompt) => prompt.id === systemPromptId)
-    if (matchedPrompt?.content) {
-      return matchedPrompt.content
-    }
-  } catch (error) {
-    console.warn('AgentPresenter: Failed to resolve system prompt id', error)
-  }
-
-  return conversation.settings.systemPrompt || ''
+  // Phase 6: System prompts removed - use agent default
+  const runtimeConfig = getRuntimeConfig(conversation)
+  return runtimeConfig.systemPrompt
 }
 
 export async function preparePromptContent({
@@ -121,7 +102,9 @@ export async function preparePromptContent({
   finalContent: ChatMessage[]
   promptTokens: number
 }> {
-  const { contextLength, artifacts, enabledMcpTools } = conversation.settings
+  // Phase 6: Get runtime config from agent defaults
+  const runtimeConfig = getRuntimeConfig(conversation)
+  const { contextLength, artifacts, enabledMcpTools } = runtimeConfig
   const systemPrompt = await resolveSystemPrompt(conversation)
   const isAgentMode = true
   const isToolPromptMode = true

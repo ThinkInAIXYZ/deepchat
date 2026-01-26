@@ -67,6 +67,33 @@ export type { IToolPresenter } from './tool.presenter'
 // Agent Presenter types
 export type { IAgentPresenter } from './agent.presenter'
 
+// Agentic Unified Presenter types
+export type {
+  IAgenticPresenter,
+  SessionInfo,
+  MessageContent,
+  SessionConfig,
+  LoadContext,
+  AgenticEventType,
+  SessionCreatedEvent,
+  SessionReadyEvent,
+  SessionUpdatedEvent,
+  SessionClosedEvent,
+  MessageDeltaEvent,
+  MessageBlockEvent,
+  MessageEndEvent,
+  ToolStartEvent,
+  ToolRunningEvent,
+  ToolEndEvent,
+  StatusChangedEvent,
+  AgenticErrorEvent,
+  ToolPermissionRequiredEvent,
+  ToolPermissionGrantedEvent,
+  ToolPermissionDeniedEvent,
+  PermissionRequestPayload,
+  AgenticEventEmitter
+} from './agentic.presenter'
+
 // ACP Presenter types
 export type {
   IAcpPresenter,

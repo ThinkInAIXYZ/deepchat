@@ -441,6 +441,7 @@ export interface IPresenter {
   toolPresenter: IToolPresenter
   skillPresenter: ISkillPresenter
   skillSyncPresenter: ISkillSyncPresenter
+  agenticPresenter: IAgenticPresenter
   init(): void
   destroy(): void
 }
@@ -1025,26 +1026,14 @@ export interface ILlmProviderPresenter {
   getExistingProviderInstance?(providerId: string): unknown
 }
 
+/**
+ * Phase 6: chatConfig removed - Only essential session state remains
+ * Runtime configuration comes from agent's SessionInfo
+ */
 export type CONVERSATION_SETTINGS = {
-  systemPrompt: string
-  systemPromptId?: string
-  temperature: number
-  contextLength: number
-  maxTokens: number
   providerId: string
   modelId: string
-  artifacts: 0 | 1
-  enabledMcpTools?: string[]
-  thinkingBudget?: number
-  enableSearch?: boolean
-  forcedSearch?: boolean
-  searchStrategy?: 'turbo' | 'max'
-  reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
-  verbosity?: 'low' | 'medium' | 'high'
-  selectedVariantsMap?: Record<string, string>
-  chatMode?: 'agent'
   agentWorkspacePath?: string | null
-  activeSkills?: string[] // Activated skills for this conversation
 }
 
 export type ParentSelection = {

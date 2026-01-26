@@ -29,7 +29,8 @@ import {
   IYoBrowserPresenter,
   ISkillPresenter,
   ISkillSyncPresenter,
-  IAcpPresenter
+  IAcpPresenter,
+  IAgenticPresenter
 } from '@shared/presenter'
 import { eventBus } from '@/eventbus'
 import { LLMProviderPresenter } from './llmProviderPresenter'
@@ -62,6 +63,7 @@ import { ConversationExporterService } from './exporter'
 import { SkillPresenter } from './skillPresenter'
 import { SkillSyncPresenter } from './skillSyncPresenter'
 import { acpPresenter } from './acpPresenter'
+import { agenticPresenter } from './agenticPresenter'
 
 // IPC调用上下文接口
 interface IPCCallContext {
@@ -110,6 +112,7 @@ export class Presenter implements IPresenter {
   skillPresenter: ISkillPresenter
   skillSyncPresenter: ISkillSyncPresenter
   acpPresenter: IAcpPresenter
+  agenticPresenter: IAgenticPresenter
   filePermissionService: FilePermissionService
   settingsPermissionService: SettingsPermissionService
 
@@ -195,6 +198,9 @@ export class Presenter implements IPresenter {
 
     // Initialize ACP presenter
     this.acpPresenter = acpPresenter
+
+    // Initialize Agentic presenter (unified interface for all agent types)
+    this.agenticPresenter = agenticPresenter
 
     this.setupEventBus() // 设置事件总线监听
   }

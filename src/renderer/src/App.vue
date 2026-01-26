@@ -238,23 +238,23 @@ onMounted(() => {
   window.electron.ipcRenderer.on(THREAD_VIEW_EVENTS.TOGGLE, handleThreadViewToggle)
 
   window.electron.ipcRenderer.on(NOTIFICATION_EVENTS.SYS_NOTIFY_CLICKED, (_, msg) => {
-    let threadId: string | null = null
+    let sessionId: string | null = null
 
     // Check if msg is string and starts with chat/
     if (typeof msg === 'string' && msg.startsWith('chat/')) {
       // Split by /, check if there are three segments
       const parts = msg.split('/')
       if (parts.length === 3) {
-        // Extract middle part as threadId
-        threadId = parts[1]
+        // Extract middle part as sessionId
+        sessionId = parts[1]
       }
     } else if (msg && msg.threadId) {
       // Compatible with original format, if msg is object and contains threadId property
-      threadId = msg.threadId
+      sessionId = msg.threadId
     }
 
-    if (threadId) {
-      chatStore.setActiveThread(threadId)
+    if (sessionId) {
+      chatStore.setActiveThread(sessionId)
     }
   })
 })

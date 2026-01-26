@@ -1,47 +1,25 @@
 import { computed } from 'vue'
-import { useChatStore } from '@/stores/chat'
 import { useMcpStore } from '@/stores/mcp'
 
-const CUSTOM_PROMPTS_CLIENT = 'deepchat/custom-prompts-server'
-
+/**
+ * Agent MCP Data Composable (Phase 6: chatConfig removed)
+ * All MCP tools/resources/prompts are now available by default
+ */
 export function useAgentMcpData() {
-  const chatStore = useChatStore()
   const mcpStore = useMcpStore()
 
-  const selectionSet = computed(() => {
-    const selections = chatStore.activeAgentMcpSelections
-    if (!chatStore.isAcpMode || !selections?.length) return null
-    return new Set(selections)
-  })
+  // All tools are available (ACP mode removed in Phase 6)
+  const tools = computed(() => mcpStore.tools)
 
-  const tools = computed(() => {
-    if (!chatStore.isAcpMode) return mcpStore.tools
-    const set = selectionSet.value
-    if (!set) return []
-    return mcpStore.tools.filter((tool) => set.has(tool.server.name))
-  })
+  // All resources are available
+  const resources = computed(() => mcpStore.resources)
 
-  const resources = computed(() => {
-    if (!chatStore.isAcpMode) return mcpStore.resources
-    const set = selectionSet.value
-    if (!set) return []
-    return mcpStore.resources.filter((resource) => set.has(resource.client.name))
-  })
-
-  const prompts = computed(() => {
-    if (!chatStore.isAcpMode) return mcpStore.prompts
-    const set = selectionSet.value
-    if (!set)
-      return mcpStore.prompts.filter((prompt) => prompt.client?.name === CUSTOM_PROMPTS_CLIENT)
-    return mcpStore.prompts.filter(
-      (prompt) => prompt.client?.name === CUSTOM_PROMPTS_CLIENT || set.has(prompt.client?.name)
-    )
-  })
+  // All prompts are available
+  const prompts = computed(() => mcpStore.prompts)
 
   return {
     tools,
     resources,
-    prompts,
-    selectionSet
+    prompts
   }
 }

@@ -9,26 +9,18 @@ import type {
 
 export type SessionStatus = 'idle' | 'generating' | 'paused' | 'waiting_permission' | 'error'
 
+/**
+ * Session configuration
+ *
+ * Phase 6: chatConfig removed - Only essential session state remains
+ * Runtime configuration comes from agent's SessionInfo
+ */
 export type SessionConfig = {
   sessionId: string
   title: string
   providerId: string
   modelId: string
-  systemPrompt: string
-  maxTokens?: number
-  temperature?: number
-  contextLength?: number
-  supportsVision?: boolean
-  supportsFunctionCall?: boolean
-  thinkingBudget?: number
-  reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
-  verbosity?: 'low' | 'medium' | 'high'
-  enableSearch?: boolean
-  forcedSearch?: boolean
-  searchStrategy?: 'turbo' | 'max'
-  enabledMcpTools?: string[]
   agentWorkspacePath?: string | null
-  selectedVariantsMap?: Record<string, string>
   isPinned?: boolean
 }
 

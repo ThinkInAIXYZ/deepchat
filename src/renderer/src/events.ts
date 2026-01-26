@@ -42,13 +42,6 @@ export const CONVERSATION_EVENTS = {
   SCROLL_TO_MESSAGE: 'conversation:scroll-to-message'
 }
 
-// 通信相关事件
-export const STREAM_EVENTS = {
-  RESPONSE: 'stream:response', // 替代 stream-response
-  END: 'stream:end', // 替代 stream-end
-  ERROR: 'stream:error' // 替代 stream-error
-}
-
 // 应用更新相关事件
 export const UPDATE_EVENTS = {
   STATUS_CHANGED: 'update:status-changed', // 替代 update-status-changed
@@ -209,13 +202,6 @@ export const WORKSPACE_EVENTS = {
   PLAN_UPDATED: 'workspace:plan-updated', // Plan entries updated
   TERMINAL_OUTPUT: 'workspace:terminal-output', // Terminal snippet update
   FILES_CHANGED: 'workspace:files-changed' // File tree changed
-}
-
-// ACP-specific workspace events
-export const ACP_WORKSPACE_EVENTS = {
-  SESSION_MODES_READY: 'acp-workspace:session-modes-ready', // Session modes available
-  SESSION_MODELS_READY: 'acp-workspace:session-models-ready', // Session models available
-  COMMANDS_UPDATE: 'acp-workspace:commands-update' // Available commands updated
 }
 
 export const ACP_DEBUG_EVENTS = {

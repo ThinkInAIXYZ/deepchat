@@ -26,7 +26,7 @@ import { ConversationManager, type CreateConversationOptions } from './managers/
 import type { ConversationExportFormat } from '../exporter/formats/conversationExporter'
 import { resolveSessionDir } from './sessionPaths'
 
-const DEFAULT_MESSAGE_LENGTH = 300
+// Phase 6: DEFAULT_MESSAGE_LENGTH removed - no longer used
 
 export class SessionPresenter implements ISessionPresenter {
   private sqlitePresenter: ISQLitePresenter
@@ -53,7 +53,8 @@ export class SessionPresenter implements ISessionPresenter {
       options.commandPermissionService ?? new CommandPermissionService()
     this.conversationManager = new ConversationManager({
       sqlitePresenter: options.sqlitePresenter,
-      configPresenter: options.configPresenter,
+      // Phase 6: configPresenter no longer needed (removed)
+      // configPresenter: options.configPresenter,
       messageManager: this.messageManager,
       activeConversationIds: this.activeConversationIds
     })
@@ -213,15 +214,15 @@ export class SessionPresenter implements ISessionPresenter {
   async generateTitle(sessionId: string): Promise<string> {
     const conversation = await this.getConversation(sessionId)
 
-    let messageCount = Math.ceil(conversation.settings.contextLength / DEFAULT_MESSAGE_LENGTH)
+    // Phase 6: Use default message count (contextLength now comes from agent's SessionInfo)
+    let messageCount = 10
     if (messageCount < 2) {
       messageCount = 2
     }
 
     const messages = await this.messageManager.getContextMessages(conversation.id, messageCount)
-    const selectedVariantsMap = conversation.settings.selectedVariantsMap || {}
-    const variantAwareMessages = this.applyVariantSelection(messages, selectedVariantsMap)
-    const formattedMessages = variantAwareMessages
+    // Phase 6: Variant management removed - use messages directly
+    const formattedMessages = messages
       .map((msg) => {
         if (msg.role === 'user') {
           const userContent: UserMessageContent =
@@ -472,8 +473,8 @@ export class SessionPresenter implements ISessionPresenter {
   }
 
   async getContextMessages(conversationId: string): Promise<Message[]> {
-    const conversation = await this.getConversation(conversationId)
-    let messageCount = Math.ceil(conversation.settings.contextLength / 300)
+    // Phase 6: Use default message count (contextLength now comes from agent's SessionInfo)
+    let messageCount = 10
     if (messageCount < 2) {
       messageCount = 2
     }
@@ -593,32 +594,7 @@ export class SessionPresenter implements ISessionPresenter {
     return message
   }
 
-  /**
-   * Applies variant selection to messages based on selectedVariantsMap.
-   * Returns messages with selected variant fields applied when a variant is selected.
-   */
-  private applyVariantSelection(
-    messages: Message[],
-    selectedVariantsMap: Record<string, string>
-  ): Message[] {
-    return messages.map((msg) => {
-      if (msg.role === 'assistant' && selectedVariantsMap[msg.id] && msg.variants) {
-        const selectedVariantId = selectedVariantsMap[msg.id]
-        const selectedVariant = msg.variants.find((variant) => variant.id === selectedVariantId)
-
-        if (selectedVariant) {
-          const newMsg = JSON.parse(JSON.stringify(msg))
-          newMsg.content = selectedVariant.content
-          newMsg.usage = selectedVariant.usage
-          newMsg.model_id = selectedVariant.model_id
-          newMsg.model_provider = selectedVariant.model_provider
-          newMsg.model_name = selectedVariant.model_name
-          return newMsg
-        }
-      }
-      return msg
-    })
-  }
+  // Phase 6: applyVariantSelection method removed - variant management feature removed
 
   destroy() {
     // Reserved for future cleanup hooks.
@@ -679,7 +655,7 @@ export class SessionPresenter implements ISessionPresenter {
       ...parentConversation.settings,
       ...settings
     }
-    mergedSettings.selectedVariantsMap = {}
+    // Phase 6: Variant management removed - no longer need to clear selectedVariantsMap
 
     const newConversationId = await this.sqlitePresenter.createConversation(title, mergedSettings)
     const resolvedParentSelection =

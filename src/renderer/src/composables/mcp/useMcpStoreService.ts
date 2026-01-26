@@ -10,7 +10,7 @@ import { useMcpEventsAdapter } from '@/composables/mcp/useMcpEventsAdapter'
 import { useMcpAdapter } from '@/composables/mcp/useMcpAdapter'
 import { computeMcpConfigUpdate } from '@/composables/mcp/mcpConfigSync'
 import { useI18n } from 'vue-i18n'
-import { useChatStore } from '@/stores/chat'
+// import { useChatStore } from '@/stores/chat' // Removed in Phase 6
 import { useQuery, type UseMutationReturn, type UseQueryReturn } from '@pinia/colada'
 import type {
   IPresenter,
@@ -26,7 +26,7 @@ import type {
 } from '@shared/presenter'
 
 export const useMcpStoreService = () => {
-  const chatStore = useChatStore()
+  // const chatStore = useChatStore() // Removed in Phase 6
   const { t } = useI18n()
   const mcpAdapter = useMcpAdapter()
 
@@ -540,22 +540,8 @@ export const useMcpStoreService = () => {
       if (!noRefresh) {
         await Promise.all([loadTools({ force: true }), loadClients({ force: true })])
       }
-      const isRunning = serverStatuses.value[serverName] || false
-      const currentTools =
-        chatStore.chatConfig.enabledMcpTools || [...tools.value].map((tool) => tool.function.name)
-      if (isRunning) {
-        const serverTools = tools.value
-          .filter((tool) => tool.server.name === serverName)
-          .map((tool) => tool.function.name)
-        if (serverTools.length > 0) {
-          const mergedTools = Array.from(new Set([...currentTools, ...serverTools]))
-          chatStore.updateChatConfig({ enabledMcpTools: mergedTools })
-        }
-      } else {
-        const allServerToolNames = tools.value.map((tool) => tool.function.name)
-        const filteredTools = currentTools.filter((name) => allServerToolNames.includes(name))
-        chatStore.updateChatConfig({ enabledMcpTools: filteredTools })
-      }
+      // All MCP tools are now available by default (Phase 6: chatConfig removed)
+      // No need to update enabledMcpTools since tool selection has been removed
     } catch (error) {
       console.error(t('mcp.errors.getServerStatusFailed', { serverName }), error)
       serverStatuses.value[serverName] = false
@@ -676,16 +662,8 @@ export const useMcpStoreService = () => {
     }
 
     try {
-      const state = await runQuery(toolsQuery, options)
-      if (
-        state.status === 'success' &&
-        (!chatStore.chatConfig.enabledMcpTools || chatStore.chatConfig.enabledMcpTools.length === 0)
-      ) {
-        const allToolNames = (state.data ?? []).map((tool) => tool.function.name)
-        if (allToolNames.length > 0) {
-          await chatStore.updateChatConfig({ enabledMcpTools: allToolNames })
-        }
-      }
+      await runQuery(toolsQuery, options)
+      // All MCP tools are now available by default (Phase 6: chatConfig removed)
     } catch (error) {
       console.error(t('mcp.errors.loadToolsFailed'), error)
     }
@@ -967,20 +945,12 @@ export const useMcpStoreService = () => {
       await loadClients()
     }
 
-    if (!chatStore.getActiveThreadId()) {
-      chatStore.chatConfig.enabledMcpTools = tools.value.map((item) => item.function.name)
-    }
+    // All MCP tools are now available by default (Phase 6: chatConfig removed)
   }
 
   const handleActiveThreadChange = () => {
-    watch(
-      () => chatStore.getActiveThreadId(),
-      (newThreadId, oldThreadId) => {
-        if (oldThreadId && !newThreadId && config.value.mcpEnabled && tools.value.length > 0) {
-          chatStore.chatConfig.enabledMcpTools = tools.value.map((item) => item.function.name)
-        }
-      }
-    )
+    // All MCP tools are now available by default (Phase 6: chatConfig removed)
+    // No longer need to watch for active thread changes to update enabledMcpTools
   }
 
   onMounted(async () => {

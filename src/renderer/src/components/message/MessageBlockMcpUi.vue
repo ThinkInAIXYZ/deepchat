@@ -57,7 +57,7 @@ import { useMcpStore } from '@/stores/mcp'
 const props = defineProps<{
   block: AssistantMessageBlock
   messageId?: string
-  threadId?: string
+  sessionId?: string
 }>()
 
 const { t } = useI18n()

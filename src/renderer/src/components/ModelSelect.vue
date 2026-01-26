@@ -48,7 +48,7 @@ import { useI18n } from 'vue-i18n'
 import { ref, computed, PropType } from 'vue'
 import { Input } from '@shadcn/components/ui/input'
 // import Badge from './ui/badge/Badge.vue'
-import { useChatStore } from '@/stores/chat'
+// import { useChatStore } from '@/stores/chat' // Removed in Phase 6
 import { type RENDERER_MODEL_META } from '@shared/presenter'
 import { ModelType } from '@shared/model'
 import ModelIcon from './icons/ModelIcon.vue'
@@ -57,7 +57,7 @@ import { useThemeStore } from '@/stores/theme'
 import { useLanguageStore } from '@/stores/language'
 const { t } = useI18n()
 const keyword = ref('')
-const chatStore = useChatStore()
+// const chatStore = useChatStore() // Removed in Phase 6
 const modelStore = useModelStore()
 const themeStore = useThemeStore()
 const langStore = useLanguageStore()
@@ -95,8 +95,9 @@ const filteredProviders = computed(() => {
     .filter((provider) => provider.models.length > 0)
 })
 
-const isSelected = (providerId: string, modelId: string) => {
-  return chatStore.chatConfig.providerId === providerId && chatStore.chatConfig.modelId === modelId
+const isSelected = (_providerId: string, _modelId: string) => {
+  // Model selection is now managed by agent configuration (Phase 6: chatConfig removed)
+  return false
 }
 
 const handleModelSelect = async (providerId: string, model: RENDERER_MODEL_META) => {

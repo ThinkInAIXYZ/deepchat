@@ -5,7 +5,7 @@
         <!-- 消息列表区域 -->
         <div class="flex min-w-0 flex-1 overflow-hidden">
           <MessageList
-            :key="chatStore.getActiveThreadId() ?? 'default'"
+            :key="chatStore.getActiveSessionId() ?? 'default'"
             ref="messageList"
             :items="chatStore.messageItems"
           />
@@ -17,8 +17,7 @@
         <ChatInput
           ref="chatInput"
           variant="agent"
-          :context-length="chatStore.chatConfig.contextLength"
-          :disabled="!chatStore.getActiveThreadId() || isGenerating"
+          :disabled="!chatStore.getActiveSessionId() || isGenerating"
           @send="handleSend"
           @file-upload="handleFileUpload"
         />
@@ -53,7 +52,8 @@ import ChatInput from './chat-input/ChatInput.vue'
 import SidePanel from './SidePanel.vue'
 import { useRoute } from 'vue-router'
 import { UserMessageContent } from '@shared/chat'
-import { STREAM_EVENTS, SHORTCUT_EVENTS } from '@/events'
+import { SHORTCUT_EVENTS } from '@/events'
+import { AgenticEventType } from '@shared/types/presenters/agentic.presenter.d'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import { useChatStore } from '@/stores/chat'
 import { useWorkspaceStoreLifecycle } from '@/composables/useWorkspaceStoreLifecycle'
@@ -85,8 +85,8 @@ const scrollToBottom = (smooth = true) => {
 }
 
 const isGenerating = computed(() => {
-  if (!chatStore.getActiveThreadId()) return false
-  return chatStore.generatingThreadIds.has(chatStore.getActiveThreadId()!)
+  if (!chatStore.getActiveSessionId()) return false
+  return chatStore.generatingSessionIds.has(chatStore.getActiveSessionId()!)
 })
 
 const handleSend = async (msg: UserMessageContent) => {
@@ -144,8 +144,8 @@ watch(
   () => [chatStore.activeContextMention, chatInput.value] as const,
   ([mention, input]) => {
     if (!mention || !input) return
-    const activeThreadId = chatStore.getActiveThreadId()
-    if (!activeThreadId) return
+    const activeSessionId = chatStore.getActiveSessionId()
+    if (!activeSessionId) return
     const mentionData: CategorizedData = {
       id: mention.id,
       label: mention.label,
@@ -155,7 +155,7 @@ watch(
     }
     const inserted = input.appendCustomMention?.(mentionData)
     if (inserted) {
-      chatStore.consumeContextMention(activeThreadId)
+      chatStore.consumeContextMention(activeSessionId)
     }
   },
   { immediate: true }
@@ -163,17 +163,17 @@ watch(
 
 // 监听流式响应
 onMounted(async () => {
-  window.electron.ipcRenderer.on(STREAM_EVENTS.END, onStreamEnd)
-  window.electron.ipcRenderer.on(STREAM_EVENTS.ERROR, onStreamError)
+  window.electron.ipcRenderer.on(AgenticEventType.MESSAGE_END, onStreamEnd)
+  window.electron.ipcRenderer.on(AgenticEventType.ERROR, onStreamError)
   window.electron.ipcRenderer.on(SHORTCUT_EVENTS.CLEAN_CHAT_HISTORY, onCleanChatHistory)
 
   if (route.query.modelId && route.query.providerId) {
-    const threadId = await chatStore.createThread('新会话', {
+    const sessionId = await chatStore.createThread('新会话', {
       modelId: route.query.modelId as string,
       providerId: route.query.providerId as string,
       artifacts: uiSettingsStore.artifactsEffectEnabled ? 1 : 0
     })
-    chatStore.setActiveThread(threadId)
+    chatStore.setActiveThread(sessionId)
   }
 })
 
@@ -182,20 +182,20 @@ watch(
   () => route.query,
   async () => {
     if (route.query.modelId && route.query.providerId) {
-      const threadId = await chatStore.createThread('新会话', {
+      const sessionId = await chatStore.createThread('新会话', {
         modelId: route.query.modelId as string,
         providerId: route.query.providerId as string,
         artifacts: uiSettingsStore.artifactsEffectEnabled ? 1 : 0
       })
-      chatStore.setActiveThread(threadId)
+      chatStore.setActiveThread(sessionId)
     }
   }
 )
 
 // 清理事件监听
 onUnmounted(async () => {
-  window.electron.ipcRenderer.removeAllListeners(STREAM_EVENTS.END)
-  window.electron.ipcRenderer.removeAllListeners(STREAM_EVENTS.ERROR)
+  window.electron.ipcRenderer.removeAllListeners(AgenticEventType.MESSAGE_END)
+  window.electron.ipcRenderer.removeAllListeners(AgenticEventType.ERROR)
   window.electron.ipcRenderer.removeAllListeners(SHORTCUT_EVENTS.CLEAN_CHAT_HISTORY)
 })
 

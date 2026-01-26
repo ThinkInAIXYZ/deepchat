@@ -12,7 +12,7 @@ import { useNotificationAdapter } from '@/composables/notifications/useNotificat
  */
 export interface StreamMessage {
   eventId: string
-  conversationId?: string
+  sessionId?: string
   parentId?: string
   is_variant?: boolean
   stream_kind?: 'init' | 'delta' | 'final'
@@ -63,11 +63,11 @@ function finalizeAssistantMessageBlocks(content: any[]) {
  * Handles streaming message responses, updates, and errors
  */
 export function useMessageStreaming(
-  activeThreadId: Ref<string | null>,
-  generatingThreadIds: Ref<Set<string>>,
-  generatingMessagesCache: Ref<Map<string, { message: Message; threadId: string }>>,
-  threadsWorkingStatus: Ref<Map<string, WorkingStatus>>,
-  updateThreadWorkingStatus: (threadId: string, status: WorkingStatus) => void,
+  activeSessionId: Ref<string | null>,
+  generatingSessionIds: Ref<Set<string>>,
+  generatingMessagesCache: Ref<Map<string, { message: Message; sessionId: string }>>,
+  sessionsWorkingStatus: Ref<Map<string, WorkingStatus>>,
+  updateThreadWorkingStatus: (sessionId: string, status: WorkingStatus) => void,
   enrichMessageWithExtra: (message: Message) => Promise<Message>,
   audioComposable: any,
   messageCacheComposable: any
@@ -82,10 +82,10 @@ export function useMessageStreaming(
    * Processes init, delta, and final stream events
    */
   const handleStreamResponse = (msg: StreamMessage) => {
-    const { eventId, conversationId, parentId, is_variant, stream_kind } = msg
+    const { eventId, sessionId, parentId, is_variant, stream_kind } = msg
 
     // 非当前会话的消息直接忽略（性能优化）
-    if (conversationId && conversationId !== activeThreadId.value) {
+    if (sessionId && sessionId !== activeSessionId.value) {
       return
     }
 
@@ -97,7 +97,7 @@ export function useMessageStreaming(
 
       const skeleton: AssistantMessage = {
         id: eventId,
-        conversationId: conversationId ?? activeThreadId.value ?? '',
+        conversationId: sessionId ?? activeSessionId.value ?? '',
         parentId: parentId ?? '',
         role: 'assistant',
         content: [],
@@ -136,7 +136,7 @@ export function useMessageStreaming(
     const cached = generatingMessagesCache.value.get(eventId)
     const fallbackCached = cached ? null : (getCachedMessage(eventId) as Message | null)
     const message = cached?.message ?? fallbackCached
-    const msgThreadId = cached?.threadId ?? activeThreadId.value
+    const msgThreadId = cached?.sessionId ?? activeSessionId.value
 
     if (!message || message.role !== 'assistant') {
       return
@@ -337,7 +337,7 @@ export function useMessageStreaming(
       }
     }
 
-    if (msgThreadId === activeThreadId.value) {
+    if (msgThreadId === activeSessionId.value) {
       messageCacheComposable.cacheMessageForView(assistantMsg)
       if (!assistantMsg.is_variant) {
         messageCacheComposable.ensureMessageId(assistantMsg.id)
@@ -377,29 +377,29 @@ export function useMessageStreaming(
       const enrichedMessage = await enrichMessageWithExtra(updatedMessage)
 
       generatingMessagesCache.value.delete(msg.eventId)
-      generatingThreadIds.value.delete(cached.threadId)
-      generatingThreadIds.value = new Set(generatingThreadIds.value)
+      generatingSessionIds.value.delete(cached.sessionId)
+      generatingSessionIds.value = new Set(generatingSessionIds.value)
 
       // 设置会话的workingStatus为completed
       // 如果是当前活跃的会话，则直接从Map中移除
-      if (activeThreadId.value === cached.threadId) {
-        threadsWorkingStatus.value.delete(cached.threadId)
+      if (activeSessionId.value === cached.sessionId) {
+        sessionsWorkingStatus.value.delete(cached.sessionId)
       } else {
-        updateThreadWorkingStatus(cached.threadId, 'completed')
+        updateThreadWorkingStatus(cached.sessionId, 'completed')
       }
 
       // 如果是变体消息，需要更新主消息
       if (enrichedMessage.is_variant && enrichedMessage.parentId) {
         // 获取主消息
         const mainMessage = await conversationCore.getMainMessageByParentId(
-          cached.threadId,
+          cached.sessionId,
           enrichedMessage.parentId
         )
 
         if (mainMessage) {
           const enrichedMainMessage = await enrichMessageWithExtra(mainMessage)
           // 如果是当前激活的会话，更新显示
-          if (activeThreadId.value === cached.threadId) {
+          if (activeSessionId.value === cached.sessionId) {
             messageCacheComposable.cacheMessageForView(
               enrichedMainMessage as AssistantMessage | UserMessage
             )
@@ -408,7 +408,7 @@ export function useMessageStreaming(
         }
       } else {
         // 如果是当前激活的会话，更新显示
-        if (activeThreadId.value === cached.threadId) {
+        if (activeSessionId.value === cached.sessionId) {
           messageCacheComposable.cacheMessageForView(
             enrichedMessage as AssistantMessage | UserMessage
           )
@@ -425,19 +425,19 @@ export function useMessageStreaming(
   const handleStreamError = async (msg: { eventId: string }) => {
     // 从缓存中获取消息
     let cached = generatingMessagesCache.value.get(msg.eventId)
-    let threadId = cached?.threadId
+    let sessionId = cached?.sessionId
 
     // 如果缓存中没有，尝试从当前消息列表中查找对应的会话ID
-    if (!threadId) {
+    if (!sessionId) {
       try {
         const foundMessage = await conversationCore.getMessage(msg.eventId)
-        threadId = foundMessage.conversationId
+        sessionId = foundMessage.conversationId
       } catch (error) {
         console.warn('Failed to locate message thread for stream error:', error)
       }
     }
 
-    if (threadId) {
+    if (sessionId) {
       try {
         const updatedMessage = await conversationCore.getMessage(msg.eventId)
         const enrichedMessage = await enrichMessageWithExtra(updatedMessage)
@@ -498,13 +498,13 @@ export function useMessageStreaming(
       }
 
       generatingMessagesCache.value.delete(msg.eventId)
-      generatingThreadIds.value.delete(threadId)
+      generatingSessionIds.value.delete(sessionId)
       // 设置会话的workingStatus为error
       // 如果是当前活跃的会话，则直接从Map中移除
-      if (activeThreadId.value === threadId) {
-        threadsWorkingStatus.value.delete(threadId)
+      if (activeSessionId.value === sessionId) {
+        sessionsWorkingStatus.value.delete(sessionId)
       } else {
-        updateThreadWorkingStatus(threadId, 'error')
+        updateThreadWorkingStatus(sessionId, 'error')
       }
     }
   }

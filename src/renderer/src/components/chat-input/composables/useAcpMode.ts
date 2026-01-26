@@ -2,6 +2,7 @@ import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
 import { useAcpRuntimeAdapter } from '@/composables/chat/useAcpRuntimeAdapter'
 import { useAcpEventsAdapter } from '@/composables/acp/useAcpEventsAdapter'
 import type { Ref } from 'vue'
+import type { SessionUpdatedEvent } from '@shared/types/presenters/agentic.presenter.d'
 
 type ActiveModelRef = Ref<{ id?: string; providerId?: string } | null>
 
@@ -162,28 +163,29 @@ export function useAcpMode(options: UseAcpModeOptions) {
     lastWarmupModesKey.value = null
   })
 
-  // Listen for session modes ready event from main process
-  const handleModesReady = (payload: {
-    conversationId?: string
-    agentId?: string
-    workdir?: string
-    current: string
-    available: ModeInfo[]
-  }) => {
-    if (!isAcpModel.value) return
+  /**
+   * Listen for session updated event from agentic presenter
+   * Checks for availableModes in sessionInfo to detect mode updates
+   */
+  const handleSessionUpdated = (payload: SessionUpdatedEvent) => {
+    if (!isAcpModel.value || !payload.sessionInfo.availableModes) return
 
-    const conversationMatch =
-      payload.conversationId && payload.conversationId === options.conversationId.value
-    const agentMatch = payload.agentId && payload.agentId === options.activeModel.value?.id
-    const workdirMatch =
-      !selectedWorkdir.value || !payload.workdir || selectedWorkdir.value === payload.workdir
+    const conversationMatch = payload.sessionId === options.conversationId.value
+    const agentMatch = payload.sessionInfo.agentId === options.activeModel.value?.id
 
-    if (conversationMatch || (agentMatch && workdirMatch)) {
+    if (conversationMatch || agentMatch) {
+      const modes: ModeInfo[] = payload.sessionInfo.availableModes.map((m) => ({
+        id: m.id,
+        name: m.name,
+        description: m.description
+      }))
+      const newModeId = payload.sessionInfo.currentModeId || modes[0]?.id || 'default'
+
       console.info(
-        `[useAcpMode] Received modes from main: current="${payload.current}", available=[${payload.available.map((m) => m.id).join(', ')}]`
+        `[useAcpMode] Received modes from main: current="${newModeId}", available=[${modes.map((m) => m.id).join(', ')}]`
       )
-      currentMode.value = payload.current
-      availableModes.value = payload.available
+      currentMode.value = newModeId
+      availableModes.value = modes
       if (!conversationMatch && pendingPreferredMode.value) {
         currentMode.value = pendingPreferredMode.value
       }
@@ -191,7 +193,7 @@ export function useAcpMode(options: UseAcpModeOptions) {
   }
 
   onMounted(() => {
-    unsubscribeSessionModes = acpEventsAdapter.subscribeSessionModesReady(handleModesReady)
+    unsubscribeSessionModes = acpEventsAdapter.subscribeSessionUpdated(handleSessionUpdated)
   })
 
   onUnmounted(() => {

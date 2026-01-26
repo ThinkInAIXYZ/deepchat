@@ -87,7 +87,7 @@ const t = (() => {
 const props = defineProps<{
   block: AssistantMessageBlock
   messageId?: string
-  threadId?: string
+  sessionId?: string
 }>()
 
 type LegacyImageBlockContent = {

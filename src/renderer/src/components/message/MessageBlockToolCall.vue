@@ -126,7 +126,7 @@ const mcpStore = useMcpStore()
 const props = defineProps<{
   block: AssistantMessageBlock
   messageId?: string
-  threadId?: string
+  sessionId?: string
 }>()
 
 const isExpanded = ref(false)

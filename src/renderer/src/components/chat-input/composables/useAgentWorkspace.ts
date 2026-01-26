@@ -5,7 +5,6 @@ import { useI18n } from 'vue-i18n'
 // === Composables ===
 import { usePresenter } from '@/composables/usePresenter'
 import { useConversationCore } from '@/composables/chat/useConversationCore'
-import { useChatStore } from '@/stores/chat'
 
 // === Types ===
 import type { Ref } from 'vue'
@@ -22,37 +21,11 @@ export interface UseAgentWorkspaceOptions {
 export function useAgentWorkspace(options: UseAgentWorkspaceOptions) {
   const { t } = useI18n()
   const conversationCore = useConversationCore()
-  const chatStore = useChatStore()
 
   // Agent workspace path
   const agentWorkspacePath = ref<string | null>(null)
   const pendingWorkspacePath = ref<string | null>(null)
   const loading = ref(false)
-  const syncPreference = (workspacePath: string | null) => {
-    const setPreference = (
-      chatStore as {
-        setAgentWorkspacePreference?: (path: string | null) => void
-        updateChatConfig?: (config: { agentWorkspacePath?: string | null }) => Promise<void>
-      }
-    ).setAgentWorkspacePreference
-
-    if (typeof setPreference === 'function') {
-      setPreference(workspacePath)
-      return
-    }
-
-    if (typeof chatStore.updateChatConfig === 'function') {
-      void chatStore.updateChatConfig({ agentWorkspacePath: workspacePath })
-    }
-  }
-
-  const hydrateWorkspaceFromPreference = () => {
-    if (pendingWorkspacePath.value || agentWorkspacePath.value) return
-    const storedPath = chatStore.chatConfig.agentWorkspacePath ?? null
-    if (storedPath) {
-      agentWorkspacePath.value = storedPath
-    }
-  }
 
   // === Computed ===
   const hasWorkspace = computed(() => {
@@ -87,7 +60,6 @@ export function useAgentWorkspace(options: UseAgentWorkspaceOptions) {
       if (!result.canceled && result.filePaths && result.filePaths.length > 0) {
         const selectedPath = result.filePaths[0]
         agentWorkspacePath.value = selectedPath
-        syncPreference(selectedPath)
 
         // Save to conversation settings when available
         if (options.conversationId.value) {
@@ -113,7 +85,6 @@ export function useAgentWorkspace(options: UseAgentWorkspaceOptions) {
   // Load workspace path from conversation settings
   const loadWorkspacePath = async () => {
     if (!options.conversationId.value) {
-      hydrateWorkspaceFromPreference()
       return
     }
 
@@ -124,7 +95,6 @@ export function useAgentWorkspace(options: UseAgentWorkspaceOptions) {
       if (savedPath) {
         agentWorkspacePath.value = savedPath
         pendingWorkspacePath.value = null
-        syncPreference(savedPath)
         // Register workspace with presenter
         const workspacePresenter = usePresenter('workspacePresenter')
         await workspacePresenter.registerWorkspace(savedPath)
@@ -157,15 +127,6 @@ export function useAgentWorkspace(options: UseAgentWorkspaceOptions) {
     }
   }
 
-  watch(
-    () => options.conversationId.value,
-    () => {
-      if (pendingWorkspacePath.value) {
-        void syncPendingWorkspaceWhenReady()
-      }
-    }
-  )
-
   // Watch for conversationId changes
   watch(
     () => options.conversationId.value,
@@ -175,8 +136,6 @@ export function useAgentWorkspace(options: UseAgentWorkspaceOptions) {
       }
       if (conversationId) {
         await loadWorkspacePath()
-      } else {
-        hydrateWorkspaceFromPreference()
       }
     },
     { immediate: true }

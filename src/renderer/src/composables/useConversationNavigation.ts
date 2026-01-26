@@ -16,9 +16,9 @@ export function useConversationNavigation() {
    * Navigate to a conversation
    * Updates sidebar state and navigates to the conversation route
    */
-  async function navigateToConversation(threadId: string, title?: string) {
-    await sidebarStore.openConversation(threadId, title)
-    await router.push(`/conversation/${threadId}`)
+  async function navigateToConversation(sessionId: string, title?: string) {
+    await sidebarStore.openConversation(sessionId, title)
+    await router.push(`/conversation/${sessionId}`)
   }
 
   /**
@@ -26,7 +26,7 @@ export function useConversationNavigation() {
    */
   async function navigateToHome() {
     await router.push('/home')
-    // ChatTabView will clear active thread
+    // ChatTabView will clear active session
   }
 
   /**
@@ -37,12 +37,12 @@ export function useConversationNavigation() {
     settings: Partial<CONVERSATION_SETTINGS>
   ) {
     // 1. Create the conversation
-    const threadId = await chatStore.createThread(title, settings)
+    const sessionId = await chatStore.createThread(title, settings)
 
     // 2. Navigate to it
-    await navigateToConversation(threadId, title)
+    await navigateToConversation(sessionId, title)
 
-    return threadId
+    return sessionId
   }
 
   return {

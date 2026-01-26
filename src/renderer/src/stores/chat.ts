@@ -1,8 +1,8 @@
 import { defineStore } from 'pinia'
-import { useChatStoreService } from '@/composables/chat/useChatStoreService'
+import { useAgenticSessionStore } from '@/composables/agentic/useAgenticSessionStore'
 
-export type { MessageListItem, WorkingStatus } from '@/composables/chat/useChatStoreService'
+export type { MessageListItem, WorkingStatus } from '@/composables/agentic/useAgenticSessionStore'
 
 export const useChatStore = defineStore('chat', () => {
-  return useChatStoreService()
+  return useAgenticSessionStore()
 })

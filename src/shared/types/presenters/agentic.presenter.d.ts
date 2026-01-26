@@ -2,15 +2,13 @@
 // This file defines the unified protocol for all agent types (ACP and DeepChat)
 
 /**
- * Unified Agentic Presenter Protocol
- * All agent presenters must implement this interface
+ * Unified Agentic Presenter Protocol (Router Interface)
+ * The AgenticPresenter is a router that manages multiple agent types.
+ * It takes agentId as a parameter in createSession to route to the appropriate agent.
  */
 export interface IAgenticPresenter {
-  /** Unique identifier for this agent (e.g., 'deepchat.default', 'acp.anthropic.claude-code') */
-  readonly agentId: string
-
   // Session management
-  createSession(config: SessionConfig): Promise<string>
+  createSession(agentId: string, config: SessionConfig): Promise<string>
   getSession(sessionId: string): SessionInfo | null | Promise<SessionInfo | null>
   loadSession(sessionId: string, context: LoadContext): Promise<void>
   closeSession(sessionId: string): Promise<void>
@@ -34,21 +32,30 @@ export interface SessionInfo {
   agentId: string
   status: 'idle' | 'generating' | 'paused' | 'error'
 
-  // Available modes = available permission policy options
+  // Workspace (D-007, D-008)
+  workspace?: string
+
+  // Modes (permission policies or execution modes)
   availableModes?: Array<{ id: string; name: string; description: string }>
-
-  // Available models
-  availableModels?: Array<{ id: string; name: string; description?: string }>
-
-  // Current selection
   currentModeId?: string
+
+  // Models
+  availableModels?: Array<{ id: string; name: string; description?: string }>
   currentModelId?: string
 
-  // Capability declarations
+  // Commands (ACP agents only)
+  availableCommands?: Array<{
+    name: string
+    description?: string
+    inputHint?: string
+  }>
+
+  // Capabilities
   capabilities: {
     supportsVision: boolean
     supportsTools: boolean
     supportsModes: boolean
+    supportsCommands?: boolean
   }
 }
 
@@ -67,14 +74,17 @@ export interface MessageContent {
 export interface SessionConfig {
   modelId?: string
   modeId?: string
-  // Additional agent-specific config
-  [key: string]: any
+  workspace?: string
+  title?: string // DeepChat only
+  // Agent-specific config via index signature
+  [key: string]: unknown
 }
 
 /**
  * Load context for session loading
  */
 export interface LoadContext {
+  activate: boolean
   maxHistory?: number
   includeSystemMessages?: boolean
 }

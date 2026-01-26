@@ -3,27 +3,14 @@ import { AssistantMessageBlock, Message } from '../../chat'
 /**
  * Thread/Conversation Presenter Interface
  * Handles conversation management, message operations, and search functionality
+ *
+ * Phase 6: chatConfig removed - Only essential session state remains
+ * Runtime configuration (temperature, contextLength, etc.) comes from agent's SessionInfo
  */
-
 export type CONVERSATION_SETTINGS = {
-  systemPrompt: string
-  systemPromptId?: string
-  temperature: number
-  contextLength: number
-  maxTokens: number
   providerId: string
   modelId: string
-  artifacts: 0 | 1
-  enabledMcpTools?: string[]
-  thinkingBudget?: number
-  enableSearch?: boolean
-  forcedSearch?: boolean
-  searchStrategy?: 'turbo' | 'max'
-  reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
-  verbosity?: 'low' | 'medium' | 'high'
   agentWorkspacePath?: string | null
-  selectedVariantsMap?: Record<string, string>
-  activeSkills?: string[]
 }
 
 export type ParentSelection = {
@@ -36,6 +23,10 @@ export type ParentSelection = {
   version?: number
 }
 
+/**
+ * @deprecated Prefer using Session type from session.presenter.d.ts
+ * CONVERSATION type is maintained for backward compatibility during Phase 6 migration
+ */
 export type CONVERSATION = {
   id: string
   title: string

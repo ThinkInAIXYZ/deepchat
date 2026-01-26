@@ -84,7 +84,7 @@ const props = defineProps<{
     content: string
   }
   messageId: string
-  threadId: string
+  sessionId: string
   loading?: boolean
 }>()
 
@@ -313,7 +313,7 @@ const handleClick = () => {
         status: 'loaded'
       },
       props.messageId,
-      props.threadId,
+      props.sessionId,
       { force: true }
     )
   }

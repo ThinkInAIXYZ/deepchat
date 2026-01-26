@@ -48,10 +48,8 @@ export function useModelSelection() {
 
   const setModel = async (model: { id: string; providerId: string }) => {
     selectedModelInfo.value = { id: model.id, providerId: model.providerId }
-    await chatStore.updateChatConfig({
-      modelId: model.id,
-      providerId: model.providerId
-    })
+    // Note: Model selection now happens through agent configuration (Phase 6: chatConfig removed)
+    // The actual model/provider is managed by the agentic presenter
   }
 
   const trySelectPreferredModel = async (preferredModel: {
@@ -77,8 +75,8 @@ export function useModelSelection() {
 
   const initializeModel = async () => {
     const recentThread =
-      chatStore.threads.length > 0
-        ? chatStore.threads
+      chatStore.sessions.length > 0
+        ? chatStore.sessions
             .flatMap((t) => t.dtThreads)
             .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0]
         : null

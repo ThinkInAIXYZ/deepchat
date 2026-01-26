@@ -167,7 +167,7 @@ const minimapMessages = computed(() => {
     return {
       id: item.id,
       role: 'user',
-      conversationId: chatStore.getActiveThreadId() ?? '',
+      conversationId: chatStore.getActiveSessionId() ?? '',
       content: { text: '', files: [], links: [], think: false, search: false },
       timestamp: Date.now()
     } as unknown as Message
@@ -290,10 +290,9 @@ const getMessageSizeKey = (item: MessageListItem) => {
   return `message:${message.id}`
 }
 
-const getVariantSizeKey = (item: MessageListItem) => {
-  const message = item.message
-  if (!message || message.role !== 'assistant') return ''
-  return chatStore.selectedVariantsMap[message.id] ?? ''
+const getVariantSizeKey = (_item: MessageListItem) => {
+  // Variant selection has been removed in Phase 6 (chatConfig removal)
+  return ''
 }
 
 const getRenderingStateKey = (item: MessageListItem) => {
@@ -341,9 +340,9 @@ const handleCopyImage = async (
 
 const handleRetry = async (messageId?: string) => {
   if (!messageId) return
-  if (await chatStore.retryFromUserMessage(messageId)) {
-    scrollToBottom(true)
-  }
+  // Use retryMessage instead of retryFromUserMessage (Phase 6: chatConfig removal)
+  await chatStore.retryMessage(messageId)
+  scrollToBottom(true)
 }
 
 const getPlaceholderHeight = (messageId: string) => getMessageDomInfo(messageId)?.height
@@ -356,7 +355,7 @@ const getAnchorList = () => {
 
 // === Computed ===
 const showCancelButton = computed(() => {
-  return chatStore.generatingThreadIds.has(chatStore.getActiveThreadId() ?? '')
+  return chatStore.generatingSessionIds.has(chatStore.getActiveSessionId() ?? '')
 })
 
 // Show workspace button only when workspace is closed
@@ -369,7 +368,7 @@ const handleOpenWorkspace = () => {
 }
 
 const handleTrace = (messageId: string) => {
-  traceDialog.open(messageId, chatStore.getActiveThreadId())
+  traceDialog.open(messageId, chatStore.getActiveSessionId())
 }
 
 const hashText = (value: string) => {
@@ -588,8 +587,8 @@ useEventListener(messagesContainer, 'click', handleHighlightClick)
 watch(
   () => [
     props.items.length,
-    chatStore.childThreadsByMessageId,
-    chatStore.chatConfig.selectedVariantsMap
+    chatStore.childThreadsByMessageId
+    // chatConfig.selectedVariantsMap removed in Phase 6
   ],
   () => {
     scheduleSelectionHighlightRefresh()

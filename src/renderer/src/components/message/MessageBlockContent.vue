@@ -12,7 +12,7 @@
           artifact: part.artifact
         }"
         :message-id="messageId"
-        :thread-id="threadId"
+        :session-id="sessionId"
         :loading="part.loading"
       />
     </div>
@@ -42,7 +42,7 @@ const artifactStore = useArtifactStore()
 const props = defineProps<{
   block: AssistantMessageBlock
   messageId: string
-  threadId: string
+  sessionId: string
   isSearchResult?: boolean
 }>()
 
@@ -79,7 +79,7 @@ watch(
                 status
               },
               props.messageId,
-              props.threadId
+              props.sessionId
             )
           }
         } else {

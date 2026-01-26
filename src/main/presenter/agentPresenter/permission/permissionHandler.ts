@@ -18,6 +18,7 @@ import type { StreamGenerationHandler } from '../streaming/streamGenerationHandl
 import type { LLMEventHandler } from '../streaming/llmEventHandler'
 import { BaseHandler, type ThreadHandlerContext } from '../baseHandler'
 import { CommandPermissionService } from '../../permission/commandPermissionService'
+import { getRuntimeConfig } from '../runtimeConfig'
 
 export class PermissionHandler extends BaseHandler {
   private readonly generatingMessages: Map<string, GeneratingMessageState>
@@ -379,6 +380,8 @@ export class PermissionHandler extends BaseHandler {
       const { conversation, contextMessages, userMessage } =
         await this.streamGenerationHandler.prepareConversationContext(conversationId, messageId)
 
+      // Phase 6: Get runtime config instead of reading from settings
+      const runtimeConfig = getRuntimeConfig(conversation)
       const {
         providerId,
         modelId,
@@ -391,7 +394,7 @@ export class PermissionHandler extends BaseHandler {
         enableSearch,
         forcedSearch,
         searchStrategy
-      } = conversation.settings
+      } = runtimeConfig
 
       const modelConfig = this.ctx.configPresenter.getModelConfig(modelId, providerId)
       const completedToolCall = {
@@ -477,6 +480,8 @@ export class PermissionHandler extends BaseHandler {
       const { contextMessages, userMessage } =
         await this.streamGenerationHandler.prepareConversationContext(conversationId, messageId)
 
+      // Phase 6: Get runtime config instead of reading from settings
+      const runtimeConfig = getRuntimeConfig(conversation)
       const modelConfig = this.ctx.configPresenter.getModelConfig(
         conversation.settings.modelId,
         conversation.settings.providerId
@@ -495,15 +500,15 @@ export class PermissionHandler extends BaseHandler {
         finalContent,
         conversation.settings.modelId,
         messageId,
-        conversation.settings.temperature,
-        conversation.settings.maxTokens,
-        conversation.settings.enabledMcpTools,
-        conversation.settings.thinkingBudget,
-        conversation.settings.reasoningEffort,
-        conversation.settings.verbosity,
-        conversation.settings.enableSearch,
-        conversation.settings.forcedSearch,
-        conversation.settings.searchStrategy,
+        runtimeConfig.temperature,
+        runtimeConfig.maxTokens,
+        runtimeConfig.enabledMcpTools,
+        runtimeConfig.thinkingBudget,
+        runtimeConfig.reasoningEffort,
+        runtimeConfig.verbosity,
+        runtimeConfig.enableSearch,
+        runtimeConfig.forcedSearch,
+        runtimeConfig.searchStrategy,
         conversationId
       )
 
@@ -546,6 +551,8 @@ export class PermissionHandler extends BaseHandler {
       const { conversation, contextMessages, userMessage } =
         await this.streamGenerationHandler.prepareConversationContext(conversationId, message.id)
 
+      // Phase 6: Get runtime config instead of reading from settings
+      const runtimeConfig = getRuntimeConfig(conversation)
       const {
         providerId,
         modelId,
@@ -558,7 +565,7 @@ export class PermissionHandler extends BaseHandler {
         enableSearch,
         forcedSearch,
         searchStrategy
-      } = conversation.settings
+      } = runtimeConfig
 
       const modelConfig = this.ctx.configPresenter.getModelConfig(modelId, providerId)
       if (!modelConfig) {

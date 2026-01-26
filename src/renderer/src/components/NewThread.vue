@@ -59,12 +59,10 @@ const handleSend = async (messageContent: UserMessageContent) => {
 
   try {
     // 创建新线程并导航
-    const threadId = await createAndNavigateToConversation(messageContent.text, {
-      providerId: chatStore.chatConfig.providerId,
-      modelId: chatStore.chatConfig.modelId
-    } as any)
+    // Model selection is now managed by agent configuration (Phase 6: chatConfig removed)
+    const sessionId = await createAndNavigateToConversation(messageContent.text, {} as any)
 
-    if (threadId) {
+    if (sessionId) {
       // 发送消息
       await chatStore.sendMessage(messageContent)
 
@@ -102,7 +100,7 @@ const handleAcpStart = async (config: {
 }) => {
   try {
     // 创建新线程并导航，配置 ACP agent
-    const threadId = await createAndNavigateToConversation('New ACP Session', {
+    const sessionId = await createAndNavigateToConversation('New ACP Session', {
       providerId: 'acp',
       modelId: config.agentId,
       chatMode: 'acp agent',
@@ -111,7 +109,7 @@ const handleAcpStart = async (config: {
       }
     } as any)
 
-    if (threadId) {
+    if (sessionId) {
       await workspaceStore.refreshFileTree()
     }
   } catch (error) {

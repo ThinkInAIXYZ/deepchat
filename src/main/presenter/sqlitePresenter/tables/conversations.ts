@@ -169,6 +169,28 @@ export class ConversationsTable extends BaseTable {
     return 12
   }
 
+  /**
+   * Phase 6 Migration Note: chatConfig removal
+   *
+   * The following columns are deprecated but kept in the database for backward compatibility:
+   * - system_prompt, system_prompt_id (use agent defaults)
+   * - temperature (use agent defaults)
+   * - context_length, max_tokens (use agent defaults)
+   * - artifacts (feature removed)
+   * - enabled_mcp_tools (all tools now enabled by default)
+   * - thinking_budget, reasoning_effort, verbosity (use agent defaults)
+   * - enable_search, forced_search, search_strategy (use agent defaults)
+   * - context_chain (selectedVariantsMap - variant management removed)
+   * - active_skills (feature removed)
+   *
+   * The following columns are still actively used:
+   * - provider_id, model_id (essential for session identification)
+   * - agent_workspace_path (workspace path for ACP agents)
+   *
+   * Runtime session state (modelId, agentId, modeId, workspace) now comes from SessionInfo
+   * provided by the agent, not from stored configuration.
+   */
+
   async create(title: string, settings: Partial<CONVERSATION_SETTINGS> = {}): Promise<string> {
     const insert = this.db.prepare(`
       INSERT INTO conversations (
@@ -209,25 +231,25 @@ export class ConversationsTable extends BaseTable {
       title,
       now,
       now,
-      settings.systemPrompt || '',
-      settings.systemPromptId ?? null,
-      settings.temperature ?? 0.7,
-      settings.contextLength || 4000,
-      settings.maxTokens || 2000,
+      '', // system_prompt (deprecated, use agent default)
+      null, // system_prompt_id (deprecated)
+      0.7, // temperature (deprecated, use agent default)
+      4000, // context_length (deprecated, use agent default)
+      2000, // max_tokens (deprecated, use agent default)
       settings.providerId || 'openai',
       settings.modelId || 'gpt-4',
       1,
-      settings.artifacts || 0,
+      0, // artifacts (deprecated)
       0, // Default is_pinned to 0
-      settings.enabledMcpTools ? JSON.stringify(settings.enabledMcpTools) : 'NULL',
-      settings.thinkingBudget !== undefined ? settings.thinkingBudget : null,
-      settings.reasoningEffort !== undefined ? settings.reasoningEffort : null,
-      settings.verbosity !== undefined ? settings.verbosity : null,
-      settings.enableSearch !== undefined ? (settings.enableSearch ? 1 : 0) : null,
-      settings.forcedSearch !== undefined ? (settings.forcedSearch ? 1 : 0) : null,
-      settings.searchStrategy !== undefined ? settings.searchStrategy : null,
-      settings.selectedVariantsMap ? JSON.stringify(settings.selectedVariantsMap) : '{}',
-      settings.activeSkills ? JSON.stringify(settings.activeSkills) : '[]',
+      null, // enabled_mcp_tools (deprecated, all tools enabled)
+      null, // thinking_budget (deprecated, use agent default)
+      null, // reasoning_effort (deprecated, use agent default)
+      null, // verbosity (deprecated, use agent default)
+      null, // enable_search (deprecated, use agent default)
+      null, // forced_search (deprecated, use agent default)
+      null, // search_strategy (deprecated, use agent default)
+      '{}', // context_chain (deprecated, variant management removed)
+      '[]', // active_skills (deprecated)
       settings.agentWorkspacePath !== undefined && settings.agentWorkspacePath !== null
         ? settings.agentWorkspacePath
         : null,
@@ -283,28 +305,10 @@ export class ConversationsTable extends BaseTable {
       throw new Error(`Conversation ${conversationId} not found`)
     }
 
-    const settings = {
-      systemPrompt: result.systemPrompt,
-      systemPromptId: result.systemPromptId ?? undefined,
-      temperature: result.temperature,
-      contextLength: result.contextLength,
-      maxTokens: result.maxTokens,
+    // Phase 6: Only return essential fields in settings
+    const settings: CONVERSATION_SETTINGS = {
       providerId: result.providerId,
       modelId: result.modelId,
-      artifacts: result.artifacts as 0 | 1,
-      enabledMcpTools: getJsonField(result.enabled_mcp_tools, undefined),
-      thinkingBudget: result.thinking_budget !== null ? result.thinking_budget : undefined,
-      reasoningEffort: result.reasoning_effort
-        ? (result.reasoning_effort as 'minimal' | 'low' | 'medium' | 'high')
-        : undefined,
-      verbosity: result.verbosity ? (result.verbosity as 'low' | 'medium' | 'high') : undefined,
-      enableSearch: result.enable_search !== null ? Boolean(result.enable_search) : undefined,
-      forcedSearch: result.forced_search !== null ? Boolean(result.forced_search) : undefined,
-      searchStrategy: result.search_strategy
-        ? (result.search_strategy as 'turbo' | 'max')
-        : undefined,
-      selectedVariantsMap: getJsonField(result.context_chain, undefined),
-      activeSkills: getJsonField(result.active_skills, []),
       agentWorkspacePath:
         result.agent_workspace_path !== null && result.agent_workspace_path !== undefined
           ? result.agent_workspace_path
@@ -344,26 +348,7 @@ export class ConversationsTable extends BaseTable {
     }
 
     if (data.settings) {
-      if (data.settings.systemPrompt !== undefined) {
-        updates.push('system_prompt = ?')
-        params.push(data.settings.systemPrompt)
-      }
-      if (data.settings.systemPromptId !== undefined) {
-        updates.push('system_prompt_id = ?')
-        params.push(data.settings.systemPromptId ?? null)
-      }
-      if (data.settings.temperature !== undefined) {
-        updates.push('temperature = ?')
-        params.push(data.settings.temperature)
-      }
-      if (data.settings.contextLength !== undefined) {
-        updates.push('context_length = ?')
-        params.push(data.settings.contextLength)
-      }
-      if (data.settings.maxTokens !== undefined) {
-        updates.push('max_tokens = ?')
-        params.push(data.settings.maxTokens)
-      }
+      // Phase 6: Only update essential fields
       if (data.settings.providerId !== undefined) {
         updates.push('provider_id = ?')
         params.push(data.settings.providerId)
@@ -371,46 +356,6 @@ export class ConversationsTable extends BaseTable {
       if (data.settings.modelId !== undefined) {
         updates.push('model_id = ?')
         params.push(data.settings.modelId)
-      }
-      if (data.settings.artifacts !== undefined) {
-        updates.push('artifacts = ?')
-        params.push(data.settings.artifacts)
-      }
-      if (data.settings.enabledMcpTools !== undefined) {
-        updates.push('enabled_mcp_tools = ?')
-        params.push(JSON.stringify(data.settings.enabledMcpTools))
-      }
-      if (data.settings.thinkingBudget !== undefined) {
-        updates.push('thinking_budget = ?')
-        params.push(data.settings.thinkingBudget)
-      }
-      if (data.settings.reasoningEffort !== undefined) {
-        updates.push('reasoning_effort = ?')
-        params.push(data.settings.reasoningEffort)
-      }
-      if (data.settings.verbosity !== undefined) {
-        updates.push('verbosity = ?')
-        params.push(data.settings.verbosity)
-      }
-      if (data.settings.enableSearch !== undefined) {
-        updates.push('enable_search = ?')
-        params.push(data.settings.enableSearch ? 1 : 0)
-      }
-      if (data.settings.forcedSearch !== undefined) {
-        updates.push('forced_search = ?')
-        params.push(data.settings.forcedSearch ? 1 : 0)
-      }
-      if (data.settings.searchStrategy !== undefined) {
-        updates.push('search_strategy = ?')
-        params.push(data.settings.searchStrategy)
-      }
-      if (data.settings.selectedVariantsMap !== undefined) {
-        updates.push('context_chain = ?')
-        params.push(JSON.stringify(data.settings.selectedVariantsMap))
-      }
-      if (data.settings.activeSkills !== undefined) {
-        updates.push('active_skills = ?')
-        params.push(JSON.stringify(data.settings.activeSkills))
       }
       if (data.settings.agentWorkspacePath !== undefined) {
         updates.push('agent_workspace_path = ?')

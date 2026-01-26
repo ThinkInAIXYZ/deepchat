@@ -18,6 +18,7 @@ import type { LLMEventHandler } from './llmEventHandler'
 import { LoopOrchestrator } from '../loop/loopOrchestrator'
 import type { AgenticEventEmitter } from '@shared/types/presenters/agentic.presenter.d'
 import { normalizeAndEmit } from '../normalizer'
+import { getRuntimeConfig } from '../runtimeConfig'
 
 interface StreamGenerationHandlerDeps {
   generatingMessages: Map<string, GeneratingMessageState>
@@ -105,6 +106,8 @@ export class StreamGenerationHandler extends BaseHandler {
       this.throwIfCancelled(state.message.id)
 
       const currentConversation = await this.getConversation(conversationId)
+      // Phase 6: Get runtime config instead of reading from settings
+      const runtimeConfig = getRuntimeConfig(currentConversation)
       const {
         providerId: currentProviderId,
         modelId: currentModelId,
@@ -117,7 +120,7 @@ export class StreamGenerationHandler extends BaseHandler {
         enableSearch: currentEnableSearch,
         forcedSearch: currentForcedSearch,
         searchStrategy: currentSearchStrategy
-      } = currentConversation.settings
+      } = runtimeConfig
 
       const stream = this.ctx.llmProviderPresenter.startStreamCompletion(
         currentProviderId,
@@ -217,6 +220,8 @@ export class StreamGenerationHandler extends BaseHandler {
 
       this.throwIfCancelled(state.message.id)
 
+      // Phase 6: Get runtime config instead of reading from settings
+      const runtimeConfig = getRuntimeConfig(conversation)
       const {
         providerId,
         modelId,
@@ -229,7 +234,7 @@ export class StreamGenerationHandler extends BaseHandler {
         enableSearch,
         forcedSearch,
         searchStrategy
-      } = conversation.settings
+      } = runtimeConfig
       const modelConfig = this.ctx.configPresenter.getModelConfig(modelId, providerId)
       if (!modelConfig) {
         throw new Error(`Model config not found for ${providerId}/${modelId}`)
@@ -442,9 +447,11 @@ export class StreamGenerationHandler extends BaseHandler {
         throw new Error('Unsupported message type')
       }
 
+      // Phase 6: Get context length from runtime config
+      const runtimeConfig = getRuntimeConfig(conversation)
       contextMessages = await this.ctx.messageManager.getMessageHistory(
         userMessage.id,
-        conversation.settings.contextLength
+        runtimeConfig.contextLength
       )
     } else {
       userMessage = await this.ctx.messageManager.getLastUserMessage(conversationId)
@@ -635,7 +642,9 @@ export class StreamGenerationHandler extends BaseHandler {
   }
 
   private async getContextMessages(conversation: CONVERSATION): Promise<Message[]> {
-    let messageCount = Math.ceil(conversation.settings.contextLength / 300)
+    // Phase 6: Get context length from runtime config
+    const runtimeConfig = getRuntimeConfig(conversation)
+    let messageCount = Math.ceil(runtimeConfig.contextLength / 300)
     if (messageCount < 2) {
       messageCount = 2
     }

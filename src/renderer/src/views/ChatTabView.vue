@@ -1,7 +1,7 @@
 <template>
   <div class="w-full h-full">
     <!-- 新会话 -->
-    <NewThread v-if="!chatStore.getActiveThreadId()" />
+    <NewThread v-if="!chatStore.getActiveSessionId()" />
     <!-- 聊天内容区域 -->
     <ChatLayout v-else ref="chatViewRef" />
   </div>
@@ -31,7 +31,7 @@ watch(
       await chatStore.setActiveThread(newId as string)
     } else if (route.name === 'home' || !newId) {
       // Clear active thread for home view
-      if (chatStore.getActiveThreadId()) {
+      if (chatStore.getActiveSessionId()) {
         await chatStore.clearActiveThread()
       }
     }
@@ -60,7 +60,7 @@ watch(
 
 // 监听会话标题变化
 watch(
-  () => chatStore.threads,
+  () => chatStore.sessions,
   () => {
     if (chatStore.activeThread) {
       updateTitle()
@@ -132,11 +132,8 @@ const tryScrollToPendingMessage = () => {
         }
         return
       }
-      if (
-        pendingTarget.messageId &&
-        pendingVariantResetKey !== pendingKey &&
-        chatStore.clearSelectedVariantForMessage(pendingTarget.messageId)
-      ) {
+      if (pendingTarget.messageId && pendingVariantResetKey !== pendingKey) {
+        // Variant selection has been removed in Phase 6 (chatConfig removal)
         pendingVariantResetKey = pendingKey
         pendingScrollRetryCount = 0
         if (!pendingScrollRetryTimer) {

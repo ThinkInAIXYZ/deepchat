@@ -15,6 +15,6 @@ export function resolveSessionContext(input: SessionResolveInput): SessionContex
     supportsVision: modelConfig?.vision ?? false,
     supportsFunctionCall: modelConfig?.functionCall ?? false,
     agentWorkspacePath: settings.agentWorkspacePath ?? null,
-    enabledMcpTools: settings.enabledMcpTools
+    enabledMcpTools: undefined // Phase 6: All MCP tools enabled by default
   }
 }

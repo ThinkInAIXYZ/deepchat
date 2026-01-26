@@ -127,31 +127,23 @@
       <!-- Bottom Bar -->
       <InputFooter>
         <template #left-area>
-          <AcpModeSelector
-            v-if="variant === 'acp' && acpMode.isAcpModel.value && acpMode.hasAgentModes.value"
-            :current-mode="acpMode.currentMode.value"
-            :current-mode-name="acpMode.currentModeName.value"
-            :current-mode-info="acpMode.currentModeInfo.value ?? null"
-            :available-modes="acpMode.availableModes.value"
-            :loading="acpMode.loading.value"
-            @mode-select="handleAcpModeSelect"
+          <!-- Unified Mode Selector - works for all agent types -->
+          <UnifiedModeSelector
+            v-if="conversationId"
+            :session-id="conversationId"
+            @mode-select="() => {}"
           />
         </template>
 
         <template #right-area>
-          <AcpSessionModelSelector
-            v-if="showAcpSessionModelSelector"
-            :active-model="config.activeModel.value"
-            :acp-session-model="{
-              hasModels: acpSessionModel.hasModels.value,
-              availableModels: acpSessionModel.availableModels.value,
-              currentModelId: acpSessionModel.currentModelId.value,
-              currentModelName: acpSessionModel.currentModelName.value,
-              loading: acpSessionModel.loading.value
-            }"
+          <!-- Unified Model Selector - works for all agent types -->
+          <UnifiedModelSelector
+            v-if="conversationId"
+            :session-id="conversationId"
             :is-dark="themeStore.isDark"
-            @acp-session-model-select="handleAcpSessionModelSelect"
+            @model-select="() => {}"
           />
+          <!-- Legacy ModelSelector for newThread and agent variants (before session creation) -->
           <ModelSelector
             v-else-if="variant === 'agent' || variant === 'newThread'"
             :active-model="config.activeModel.value"
@@ -170,8 +162,8 @@
             :verbosity="config.configVerbosity.value"
             :context-length-limit="config.configContextLengthLimit.value"
             :max-tokens-limit="config.configMaxTokensLimit.value"
-            :model-id="chatStore.chatConfig.modelId"
-            :provider-id="chatStore.chatConfig.providerId"
+            :model-id="stubConfig.modelId"
+            :provider-id="stubConfig.providerId"
             :model-type="config.configModelType.value"
             @model-update="config.handleModelUpdate"
             @update:system-prompt-id="config.configSystemPromptId.value = $event"
@@ -210,8 +202,8 @@
             :verbosity="config.configVerbosity.value as 'low' | 'medium' | 'high' | undefined"
             :context-length-limit="config.configContextLengthLimit.value"
             :max-tokens-limit="config.configMaxTokensLimit.value"
-            :model-id="chatStore.chatConfig.modelId"
-            :provider-id="chatStore.chatConfig.providerId"
+            :model-id="stubConfig.modelId"
+            :provider-id="stubConfig.providerId"
             :model-type="config.configModelType.value"
             @update:system-prompt-id="config.configSystemPromptId.value = $event"
             @update:temperature="config.configTemperature.value = $event"
@@ -287,9 +279,9 @@ import InputEditor from './InputEditor.vue'
 import InputToolbar from './InputToolbar.vue'
 import InputActions from './InputActions.vue'
 import InputFooter from './InputFooter.vue'
-import AcpModeSelector from './AcpModeSelector.vue'
+import UnifiedModelSelector from '../chat/UnifiedModelSelector.vue'
+import UnifiedModeSelector from '../chat/UnifiedModeSelector.vue'
 import ModelSelector from './ModelSelector.vue'
-import AcpSessionModelSelector from './AcpSessionModelSelector.vue'
 import { Icon } from '@iconify/vue'
 
 // === Composables ===
@@ -301,24 +293,18 @@ import { usePromptInputFiles } from './composables/usePromptInputFiles'
 import { useMentionData } from './composables/useMentionData'
 import { useSlashMentionData } from './composables/useSlashMentionData'
 import { useSkillsData } from './composables/useSkillsData'
-import { usePromptInputConfig } from './composables/usePromptInputConfig'
 import { usePromptInputEditor } from './composables/usePromptInputEditor'
 import { useInputSettings } from './composables/useInputSettings'
 import { useContextLength } from './composables/useContextLength'
 import { useSendButtonState } from './composables/useSendButtonState'
 import { useComposerSubmission } from './composables/useComposerSubmission'
 import { useComposerDraft } from './composables/useComposerDraft'
-import { useAcpWorkdir } from './composables/useAcpWorkdir'
-import { useAcpMode } from './composables/useAcpMode'
-import { useAcpSessionModel } from './composables/useAcpSessionModel'
 import { useAgentWorkspace } from './composables/useAgentWorkspace'
 import { useWorkspaceMention } from './composables/useWorkspaceMention'
-import { useChatInputModeSelection } from './composables/useChatInputModeSelection'
 
 // === Stores ===
 import { useChatStore } from '@/stores/chat'
 import { useLanguageStore } from '@/stores/language'
-import { useModelStore } from '@/stores/modelStore'
 import { useThemeStore } from '@/stores/theme'
 
 // === Mention System ===
@@ -364,7 +350,6 @@ const handleResizeHeight = (newHeight: number) => {
 // === Stores ===
 const chatStore = useChatStore()
 const langStore = useLanguageStore()
-const modelStore = useModelStore()
 const themeStore = useThemeStore()
 
 const windowAdapter = useWindowAdapter()
@@ -493,10 +478,30 @@ history.setEditor(editor)
 
 const conversationId = computed(() => chatStore.activeThread?.id ?? null)
 
-const rateLimit = useRateLimitStatus(
-  computed(() => chatStore.chatConfig),
-  t
-)
+// Stub config for rate limit (chatConfig removed in Phase 6)
+// This provides minimal CONVERSATION_SETTINGS structure for rate limit checking
+const stubConfig = computed(() => ({
+  systemPrompt: '',
+  systemPromptId: undefined,
+  temperature: 0.7,
+  contextLength: 0,
+  maxTokens: 0,
+  providerId: chatStore.activeThread?.settings?.providerId ?? '',
+  modelId: chatStore.activeThread?.settings?.modelId ?? '',
+  artifacts: 0,
+  enabledMcpTools: undefined,
+  thinkingBudget: undefined,
+  enableSearch: undefined,
+  forcedSearch: undefined,
+  searchStrategy: undefined,
+  reasoningEffort: undefined,
+  verbosity: undefined,
+  agentWorkspacePath: undefined,
+  selectedVariantsMap: undefined,
+  activeSkills: undefined
+}))
+
+const rateLimit = useRateLimitStatus(stubConfig as any, t)
 const drag = useDragAndDrop()
 const files = usePromptInputFiles(fileInput, emit, t)
 useMentionData(files.selectedFiles) // Setup mention data watchers
@@ -542,41 +547,33 @@ const composerSubmission = useComposerSubmission({
   buildBlocks: editorComposable.tiptapJSONtoMessageBlock
 })
 
-// Only initialize config for chat variant
-const config =
-  props.variant === 'agent' || props.variant === 'newThread'
-    ? usePromptInputConfig()
-    : ({
-        activeModel: ref({ providerId: '', tags: [] }),
-        modelDisplayName: ref(''),
-        configSystemPromptId: ref('default'),
-        configTemperature: ref(0.7),
-        configContextLength: ref(0),
-        configMaxTokens: ref(0),
-        configArtifacts: ref(0),
-        configThinkingBudget: ref(''),
-        configEnableSearch: ref(false),
-        configForcedSearch: ref(false),
-        configSearchStrategy: ref(''),
-        configReasoningEffort: ref(''),
-        configVerbosity: ref(''),
-        configContextLengthLimit: ref(0),
-        configMaxTokensLimit: ref(0),
-        configModelType: ref(ModelType.Chat),
-        handleModelUpdate: () => {},
-        loadModelConfig: async () => {}
-      } as any)
+// Config stub - all LLM parameters now use agent defaults (chatConfig removed in Phase 6)
+const config = {
+  activeModel: ref({ providerId: '', tags: [] }),
+  modelDisplayName: ref(''),
+  configSystemPromptId: ref('default'),
+  configTemperature: ref(0.7),
+  configContextLength: ref(0),
+  configMaxTokens: ref(0),
+  configArtifacts: ref(0),
+  configThinkingBudget: ref(''),
+  configEnableSearch: ref(false),
+  configForcedSearch: ref(false),
+  configSearchStrategy: ref(''),
+  configReasoningEffort: ref(''),
+  configVerbosity: ref(''),
+  configContextLengthLimit: ref(0),
+  configMaxTokensLimit: ref(0),
+  configModelType: ref(ModelType.Chat),
+  handleModelUpdate: () => {},
+  loadModelConfig: async () => {}
+} as any
 
 const activeModelSource = computed(() => {
   if (props.modelInfo?.id && props.modelInfo.providerId) {
     return props.modelInfo
   }
   return config.activeModel.value
-})
-
-const acpWorkdir = useAcpWorkdir({
-  activeModel: activeModelSource,
-  conversationId
 })
 
 // Unified workspace management (for agent and acp agent modes)
@@ -598,36 +595,8 @@ useSlashMentionData(conversationId)
 const { activateSkill, pendingSkills, consumePendingSkills } = useSkillsData(conversationId)
 setSkillActivationHandler(activateSkill)
 
-// Extract isStreaming first so we can pass it to useAcpMode
+// Extract isStreaming
 const { disabledSend, isStreaming } = sendButtonState
-
-const acpMode = useAcpMode({
-  activeModel: activeModelSource,
-  conversationId,
-  isStreaming,
-  workdir: acpWorkdir.workdir
-})
-
-const acpSessionModel = useAcpSessionModel({
-  activeModel: activeModelSource,
-  conversationId,
-  isStreaming,
-  workdir: acpWorkdir.workdir
-})
-
-const { showAcpSessionModelSelector, handleAcpModeSelect, handleAcpSessionModelSelect } =
-  useChatInputModeSelection({
-    variant: props.variant,
-    activeModel: activeModelSource,
-    conversationId,
-    modelStore,
-    config,
-    acpMode,
-    acpSessionModel,
-    updateChatConfig: chatStore.updateChatConfig as (payload: unknown) => Promise<void>,
-    emitModelUpdate: (payload: unknown, providerId: string) =>
-      emit('model-update', payload as any, providerId)
-  })
 
 // === Computed ===
 // Use composable values
@@ -648,8 +617,8 @@ const previewFile = (filePath: string) => {
 }
 
 const handleCancel = () => {
-  if (!chatStore.getActiveThreadId()) return
-  chatStore.cancelGenerating(chatStore.getActiveThreadId()!)
+  if (!chatStore.getActiveSessionId()) return
+  chatStore.cancelGenerating(chatStore.getActiveSessionId()!)
 }
 
 const emitSend = async () => {
@@ -856,12 +825,8 @@ watch(editorComposable.inputText, () => {
   composerDraft.persistDraft(conversationId.value)
 })
 
-watch(
-  () => chatStore.chatConfig.providerId,
-  () => {
-    rateLimit.loadRateLimitStatus()
-  }
-)
+// Watch removed - providerId no longer exists after chatConfig removal (Phase 6)
+// Rate limit status now loaded on demand
 
 // === Expose ===
 defineExpose({

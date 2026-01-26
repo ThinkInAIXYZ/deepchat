@@ -146,7 +146,7 @@ const artifactStore = useArtifactStore()
 const themeStore = useThemeStore()
 
 // === Extract reactive refs from store ===
-const { currentArtifact, isOpen, currentThreadId, currentMessageId } = storeToRefs(artifactStore)
+const { currentArtifact, isOpen, currentSessionId, currentMessageId } = storeToRefs(artifactStore)
 
 // === Composable Integrations ===
 const { t } = useI18n()
@@ -157,7 +157,7 @@ const devicePresenter = usePresenter('devicePresenter')
 const { isPreview, setPreview } = useArtifactViewMode(currentArtifact)
 const { viewportSize, setViewportSize, TABLET_WIDTH, TABLET_HEIGHT, MOBILE_WIDTH, MOBILE_HEIGHT } =
   useViewportSize()
-const context = useArtifactContext(currentArtifact, currentThreadId, currentMessageId)
+const context = useArtifactContext(currentArtifact, currentSessionId, currentMessageId)
 
 const codeEditorRef = ref<HTMLElement | null>(null)
 const codeEditor = useArtifactCodeEditor(currentArtifact, codeEditorRef, isPreview, isOpen)

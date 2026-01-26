@@ -1,6 +1,7 @@
 import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
 import { useAcpEventsAdapter } from '@/composables/acp/useAcpEventsAdapter'
 import type { Ref } from 'vue'
+import type { SessionUpdatedEvent } from '@shared/types/presenters/agentic.presenter.d'
 
 type ActiveModelRef = Ref<{ id?: string; providerId?: string } | null>
 
@@ -47,28 +48,33 @@ export function useAcpCommands(options: UseAcpCommandsOptions) {
     }
   })
 
-  // Listen for commands update event from main process
-  const handleCommandsUpdate = (payload: {
-    conversationId?: string
-    agentId?: string
-    commands: AcpCommand[]
-  }) => {
-    if (!isAcpModel.value) return
+  /**
+   * Listen for session updated event from agentic presenter
+   * Checks for availableCommands in sessionInfo to detect command updates
+   */
+  const handleSessionUpdated = (payload: SessionUpdatedEvent) => {
+    if (!isAcpModel.value || !payload.sessionInfo.availableCommands) return
 
-    const conversationMatch =
-      payload.conversationId && payload.conversationId === options.conversationId.value
-    const agentMatch = payload.agentId && payload.agentId === options.activeModel.value?.id
+    const conversationMatch = payload.sessionId === options.conversationId.value
+    const agentMatch = payload.sessionInfo.agentId === options.activeModel.value?.id
 
     if (conversationMatch || agentMatch) {
+      // Map SessionInfo commands to AcpCommand format
+      const commands: AcpCommand[] = payload.sessionInfo.availableCommands.map((cmd) => ({
+        name: cmd.name,
+        description: cmd.description,
+        input: cmd.inputHint ? { hint: cmd.inputHint } : null
+      }))
+
       console.info(
-        `[useAcpCommands] Received commands from main: [${payload.commands.map((c) => c.name).join(', ')}]`
+        `[useAcpCommands] Received commands from main: [${commands.map((c) => c.name).join(', ')}]`
       )
-      availableCommands.value = payload.commands
+      availableCommands.value = commands
     }
   }
 
   onMounted(() => {
-    unsubscribeCommandsUpdate = acpEventsAdapter.subscribeCommandsUpdate(handleCommandsUpdate)
+    unsubscribeCommandsUpdate = acpEventsAdapter.subscribeSessionUpdated(handleSessionUpdated)
   })
 
   onUnmounted(() => {

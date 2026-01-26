@@ -4,21 +4,21 @@ import { useConversationCore } from '@/composables/chat/useConversationCore'
 import { clearCachedMessagesForThread, clearMessageDomInfo } from '@/lib/messageRuntimeCache'
 
 /**
- * Thread management composable
- * Handles thread CRUD operations, branching, and child thread management
+ * Session management composable
+ * Handles session CRUD operations, branching, and child session management
  */
-export function useThreadManagement(
-  activeThreadId: Ref<string | null>,
-  _threads: Ref<{ dt: string; dtThreads: CONVERSATION[] }[]>,
+export function useSessionManagement(
+  activeSessionId: Ref<string | null>,
+  _sessions: Ref<{ dt: string; dtThreads: CONVERSATION[] }[]>,
   messageIds: Ref<string[]>,
   selectedVariantsMap: Ref<Record<string, string>>,
   childThreadsByMessageId: Ref<Map<string, CONVERSATION[]>>,
   pendingContextMentions: Ref<Map<string, any>>,
   pendingScrollTargetByConversation: Ref<Map<string, any>>,
-  generatingThreadIds: Ref<Set<string>>,
-  generatingMessagesCache: Ref<Map<string, { message: any; threadId: string }>>,
+  generatingSessionIds: Ref<Set<string>>,
+  generatingMessagesCache: Ref<Map<string, { message: any; sessionId: string }>>,
   configComposable: any,
-  setActiveThreadId: (threadId: string | null) => void,
+  setActiveSessionId: (sessionId: string | null) => void,
   setMessageIds: (ids: string[]) => void,
   getTabId: () => number
 ) {
@@ -51,16 +51,16 @@ export function useThreadManagement(
           normalizedSettings.agentWorkspacePath = pendingWorkspacePath
         }
       }
-      const threadId = await conversationCore.createConversation(
+      const sessionId = await conversationCore.createConversation(
         title,
         normalizedSettings,
         getTabId()
       )
       // 因为 createConversation 内部已经调用了 setActiveConversation
       // 并且可以确定是为当前tab激活，所以在这里可以直接、安全地更新本地状态
-      // 以确保后续的 sendMessage 能正确获取 activeThreadId。
-      setActiveThreadId(threadId)
-      return threadId
+      // 以确保后续的 sendMessage 能正确获取 activeSessionId。
+      setActiveSessionId(sessionId)
+      return sessionId
     } catch (error) {
       console.error('Failed to create thread:', error)
       throw error
@@ -68,27 +68,27 @@ export function useThreadManagement(
   }
 
   /**
-   * Set active thread
-   * @param threadId Thread ID to activate
+   * Set active session
+   * @param sessionId Session ID to activate
    */
-  const setActiveThread = async (threadId: string) => {
+  const setActiveThread = async (sessionId: string) => {
     // 不在渲染进程进行逻辑判定（查重）和决策，只向主进程发送意图。
     // 主进程会处理"防重"逻辑，并通过 'ACTIVATED' 事件来通知UI更新。
     // 如果主进程决定切换到其他tab，当前tab不会收到此事件，状态也就不会被错误地更新。
     const tabId = getTabId()
-    await conversationCore.setActiveConversation(threadId, tabId)
+    await conversationCore.setActiveConversation(sessionId, tabId)
   }
 
   /**
-   * Open thread in a new tab
-   * @param threadId Thread ID
+   * Open session in a new tab
+   * @param sessionId Session ID
    * @param options Optional message ID and child conversation ID
    */
   const openThreadInNewTab = async (
-    threadId: string,
+    sessionId: string,
     options?: { messageId?: string; childConversationId?: string }
   ) => {
-    if (!threadId) return
+    if (!sessionId) return
     try {
       const tabId = getTabId()
       const openOptions = options?.messageId
@@ -96,23 +96,23 @@ export function useThreadManagement(
         : options?.childConversationId
           ? { childConversationId: options.childConversationId }
           : undefined
-      await conversationCore.openConversationInNewTab(threadId, tabId, openOptions)
+      await conversationCore.openConversationInNewTab(sessionId, tabId, openOptions)
     } catch (error) {
       console.error('Failed to open thread in new tab:', error)
     }
   }
 
   /**
-   * Clear active thread and all related state
+   * Clear active session and all related state
    */
   const clearActiveThread = async () => {
-    const threadId = activeThreadId.value
-    if (!threadId) return
+    const sessionId = activeSessionId.value
+    if (!sessionId) return
     const tabId = getTabId()
     await conversationCore.clearActiveThread(tabId)
-    setActiveThreadId(null)
+    setActiveSessionId(null)
     setMessageIds([])
-    clearCachedMessagesForThread(threadId)
+    clearCachedMessagesForThread(sessionId)
     clearMessageDomInfo()
     selectedVariantsMap.value = {}
     childThreadsByMessageId.value = new Map()
@@ -122,16 +122,16 @@ export function useThreadManagement(
   }
 
   /**
-   * Clear thread caches for a specific thread
-   * @param threadId Thread ID to clear caches for
+   * Clear session caches for a specific session
+   * @param sessionId Session ID to clear caches for
    */
-  const clearThreadCachesForTab = (threadId: string | null) => {
-    if (threadId) {
-      clearCachedMessagesForThread(threadId)
-      if (!generatingThreadIds.value.has(threadId)) {
+  const clearThreadCachesForTab = (sessionId: string | null) => {
+    if (sessionId) {
+      clearCachedMessagesForThread(sessionId)
+      if (!generatingSessionIds.value.has(sessionId)) {
         const cache = generatingMessagesCache.value
         for (const [messageId, cached] of cache.entries()) {
-          if (cached.threadId === threadId) {
+          if (cached.sessionId === sessionId) {
             cache.delete(messageId)
           }
         }
@@ -147,54 +147,54 @@ export function useThreadManagement(
   }
 
   /**
-   * Fork a thread from a specific message
+   * Fork a session from a specific message
    * @param messageId Message ID to fork from
-   * @param forkTag Tag to append to forked thread title
+   * @param forkTag Tag to append to forked session title
    */
   const forkThread = async (messageId: string, forkTag: string = '(fork)') => {
-    const activeThread = activeThreadId.value
-    if (!activeThread) return
+    const activeSession = activeSessionId.value
+    if (!activeSession) return
 
     try {
       // 获取当前会话信息
-      const currentThread = await conversationCore.getConversation(activeThread)
+      const currentSession = await conversationCore.getConversation(activeSession)
 
       // 创建分支会话标题
-      const newThreadTitle = `${currentThread.title} ${forkTag}`
+      const newSessionTitle = `${currentSession.title} ${forkTag}`
 
       // 调用main层的forkConversation方法
-      const newThreadId = await conversationCore.forkConversation(
-        activeThread,
+      const newSessionId = await conversationCore.forkConversation(
+        activeSession,
         messageId,
-        newThreadTitle,
-        currentThread.settings,
+        newSessionTitle,
+        currentSession.settings,
         selectedVariantsMap.value
       )
 
       // 切换到新会话
-      await setActiveThread(newThreadId)
+      await setActiveThread(newSessionId)
 
-      return newThreadId
+      return newSessionId
     } catch (error) {
-      console.error('Failed to create thread branch:', error)
+      console.error('Failed to create session branch:', error)
       throw error
     }
   }
 
   /**
-   * Create a child thread from text selection
+   * Create a child session from text selection
    * @param payload Parent message ID and selection details
    */
   const createChildThreadFromSelection = async (payload: {
     parentMessageId: string
     parentSelection: ParentSelection
   }) => {
-    const activeThread = activeThreadId.value
-    if (!activeThread) return
+    const activeSession = activeSessionId.value
+    if (!activeSession) return
 
     try {
-      const parentThreadId = activeThread
-      const parentConversation = await conversationCore.getConversation(activeThread)
+      const parentSessionId = activeSession
+      const parentConversation = await conversationCore.getConversation(activeSession)
       const selectionSnippet = payload.parentSelection.selectedText
         .trim()
         .replace(/\s+/g, ' ')
@@ -203,8 +203,8 @@ export function useThreadManagement(
         ? `${parentConversation.title} - ${selectionSnippet}`
         : parentConversation.title
 
-      const newThreadId = await conversationCore.createChildConversationFromSelection({
-        parentConversationId: activeThread,
+      const newSessionId = await conversationCore.createChildConversationFromSelection({
+        parentConversationId: activeSession,
         parentMessageId: payload.parentMessageId,
         parentSelection: payload.parentSelection,
         title,
@@ -213,26 +213,26 @@ export function useThreadManagement(
         openInNewTab: true
       })
 
-      if (!newThreadId) {
+      if (!newSessionId) {
         return
       }
 
-      if (activeThreadId.value === parentThreadId) {
+      if (activeSessionId.value === parentSessionId) {
         await refreshChildThreadsForActiveThread()
       }
-      return newThreadId
+      return newSessionId
     } catch (error) {
-      console.error('Failed to create child thread from selection:', error)
+      console.error('Failed to create child session from selection:', error)
       throw error
     }
   }
 
   /**
-   * Refresh child threads for the active thread
+   * Refresh child sessions for the active session
    */
   const refreshChildThreadsForActiveThread = async () => {
-    const threadId = activeThreadId.value
-    if (!threadId) {
+    const sessionId = activeSessionId.value
+    if (!sessionId) {
       childThreadsByMessageId.value = new Map()
       return
     }
@@ -247,7 +247,7 @@ export function useThreadManagement(
     const nextMap = new Map<string, CONVERSATION[]>()
     for (const child of childThreads) {
       if (!child.parentMessageId) continue
-      if (child.parentConversationId && child.parentConversationId !== threadId) continue
+      if (child.parentConversationId && child.parentConversationId !== sessionId) continue
       const existing = nextMap.get(child.parentMessageId) ?? []
       existing.push(child)
       nextMap.set(child.parentMessageId, existing)
@@ -256,21 +256,21 @@ export function useThreadManagement(
   }
 
   /**
-   * Rename a thread
-   * @param threadId Thread ID
+   * Rename a session
+   * @param sessionId Session ID
    * @param title New title
    */
-  const renameThread = async (threadId: string, title: string) => {
-    await conversationCore.renameConversation(threadId, title)
+  const renameThread = async (sessionId: string, title: string) => {
+    await conversationCore.renameConversation(sessionId, title)
   }
 
   /**
-   * Toggle thread pinned status
-   * @param threadId Thread ID
+   * Toggle session pinned status
+   * @param sessionId Session ID
    * @param isPinned New pinned status
    */
-  const toggleThreadPinned = async (threadId: string, isPinned: boolean) => {
-    await conversationCore.toggleConversationPinned(threadId, isPinned)
+  const toggleThreadPinned = async (sessionId: string, isPinned: boolean) => {
+    await conversationCore.toggleConversationPinned(sessionId, isPinned)
   }
 
   return {

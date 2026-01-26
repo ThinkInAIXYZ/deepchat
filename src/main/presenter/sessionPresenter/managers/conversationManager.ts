@@ -1,7 +1,8 @@
 import type {
   CONVERSATION,
   CONVERSATION_SETTINGS,
-  IConfigPresenter,
+  // Phase 6: configPresenter no longer used (removed in Phase 6)
+  // IConfigPresenter,
   ISQLitePresenter,
   MESSAGE_METADATA
 } from '@shared/presenter'
@@ -18,19 +19,22 @@ export interface CreateConversationOptions {
 
 export class ConversationManager {
   private readonly sqlitePresenter: ISQLitePresenter
-  private readonly configPresenter: IConfigPresenter
+  // Phase 6: configPresenter no longer used (removed in Phase 6)
+  // private readonly configPresenter: IConfigPresenter
   private readonly messageManager: MessageManager
   private readonly activeConversationIds: Map<number, string>
   private fetchThreadLength = 300
 
   constructor(options: {
     sqlitePresenter: ISQLitePresenter
-    configPresenter: IConfigPresenter
+    // Phase 6: configPresenter no longer used (removed in Phase 6)
+    // configPresenter: IConfigPresenter
     messageManager: MessageManager
     activeConversationIds: Map<number, string>
   }) {
     this.sqlitePresenter = options.sqlitePresenter
-    this.configPresenter = options.configPresenter
+    // Phase 6: configPresenter no longer used (removed in Phase 6)
+    // this.configPresenter = options.configPresenter
     this.messageManager = options.messageManager
     this.activeConversationIds = options.activeConversationIds
   }
@@ -176,16 +180,12 @@ export class ConversationManager {
 
       let defaultSettings = DEFAULT_SETTINGS
       if (latestConversation?.settings) {
-        defaultSettings = { ...latestConversation.settings }
-        defaultSettings.systemPrompt = ''
-        defaultSettings.systemPromptId = 'default'
-        defaultSettings.reasoningEffort = undefined
-        defaultSettings.enableSearch = undefined
-        defaultSettings.forcedSearch = undefined
-        defaultSettings.searchStrategy = undefined
-        defaultSettings.selectedVariantsMap = {}
-        defaultSettings.agentWorkspacePath = null
-        defaultSettings.activeSkills = []
+        // Phase 6: Only carry over essential fields
+        defaultSettings = {
+          providerId: latestConversation.settings.providerId,
+          modelId: latestConversation.settings.modelId,
+          agentWorkspacePath: null
+        }
       }
 
       const sanitizedSettings: Partial<CONVERSATION_SETTINGS> = { ...settings }
@@ -196,35 +196,10 @@ export class ConversationManager {
           delete sanitizedSettings[typedKey]
         }
       })
-      const mergedSettings = { ...defaultSettings }
-      const previewSettings = { ...mergedSettings, ...sanitizedSettings }
+      const mergedSettings = { ...defaultSettings, ...sanitizedSettings }
 
-      const defaultModelsSettings = this.configPresenter.getModelConfig(
-        previewSettings.modelId,
-        previewSettings.providerId
-      )
-
-      if (defaultModelsSettings) {
-        if (defaultModelsSettings.maxTokens !== undefined) {
-          mergedSettings.maxTokens = defaultModelsSettings.maxTokens
-        }
-        if (defaultModelsSettings.contextLength !== undefined) {
-          mergedSettings.contextLength = defaultModelsSettings.contextLength
-        }
-        mergedSettings.temperature = defaultModelsSettings.temperature ?? 0.7
-        if (
-          sanitizedSettings.thinkingBudget === undefined &&
-          defaultModelsSettings.thinkingBudget !== undefined
-        ) {
-          mergedSettings.thinkingBudget = defaultModelsSettings.thinkingBudget
-        }
-      }
-
-      Object.assign(mergedSettings, sanitizedSettings)
-
-      if (mergedSettings.temperature === undefined || mergedSettings.temperature === null) {
-        mergedSettings.temperature = defaultModelsSettings?.temperature ?? 0.7
-      }
+      // Phase 6: Runtime configuration now comes from agent's SessionInfo
+      // Only essential fields are stored: providerId, modelId, agentWorkspacePath
       const conversationId = await this.sqlitePresenter.createConversation(title, mergedSettings)
 
       if (options.forceNewAndActivate) {
@@ -313,14 +288,12 @@ export class ConversationManager {
         settings.providerId !== conversation.settings.providerId)
 
     if (modelChanged) {
-      const modelConfig = this.configPresenter.getModelConfig(
-        mergedSettings.modelId,
-        mergedSettings.providerId
-      )
-      if (modelConfig) {
-        mergedSettings.maxTokens = modelConfig.maxTokens
-        mergedSettings.contextLength = modelConfig.contextLength
-      }
+      // Phase 6: maxTokens and contextLength now come from agent's SessionInfo
+      // No need to update them in settings
+      // const modelConfig = this.configPresenter.getModelConfig(
+      //   mergedSettings.modelId,
+      //   mergedSettings.providerId
+      // )
     }
 
     await this.sqlitePresenter.updateConversation(conversationId, { settings: mergedSettings })
@@ -394,7 +367,7 @@ export class ConversationManager {
     targetMessageId: string,
     newTitle: string,
     settings?: Partial<CONVERSATION_SETTINGS>,
-    selectedVariantsMap?: Record<string, string>
+    selectedVariantsMap?: Record<string, string> // Phase 6: unused parameter kept for interface compatibility
   ): Promise<string> {
     try {
       const sourceConversation = await this.sqlitePresenter.getConversation(targetConversationId)
@@ -404,8 +377,8 @@ export class ConversationManager {
 
       const newConversationId = await this.sqlitePresenter.createConversation(newTitle)
 
+      // Phase 6: Variant management removed - no longer need to clear selectedVariantsMap
       const newSettings = { ...(settings || sourceConversation.settings) }
-      newSettings.selectedVariantsMap = {}
       await this.updateConversationSettings(newConversationId, newSettings)
 
       await this.sqlitePresenter.updateConversation(newConversationId, { is_new: 0 })

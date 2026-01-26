@@ -41,8 +41,8 @@
             <div v-else-if="item.type === 'thread'" class="px-0 py-1">
               <ThreadItem
                 :thread="item.data"
-                :is-active="item.data.id === chatStore.getActiveThreadId()"
-                :working-status="chatStore.getThreadWorkingStatus(item.data.id)"
+                :is-active="item.data.id === chatStore.getActiveSessionId()"
+                :working-status="chatStore.getSessionWorkingStatus(item.data.id)"
                 @select="handleThreadSelect"
                 @rename="showRenameDialog(item.data)"
                 @delete="showDeleteDialog(item.data)"
@@ -58,7 +58,7 @@
 
       <!-- 加载状态提示 -->
       <div
-        v-if="chatStore.threads.length === 0"
+        v-if="chatStore.sessions.length === 0"
         class="text-xs text-center text-muted-foreground py-2"
       >
         {{ t('common.loading') }}
@@ -154,7 +154,7 @@ type VirtualScrollItem = {
 const flattenedThreads = computed<VirtualScrollItem[]>(() => {
   const items: VirtualScrollItem[] = []
 
-  chatStore.threads.forEach((thread, threadIndex) => {
+  chatStore.sessions.forEach((thread, threadIndex) => {
     // 添加日期标题
     items.push({
       id: `date-${thread.dt}`,
@@ -172,7 +172,7 @@ const flattenedThreads = computed<VirtualScrollItem[]>(() => {
     })
 
     // 在组之间添加分隔间距(除了最后一组)
-    if (threadIndex < chatStore.threads.length - 1) {
+    if (threadIndex < chatStore.sessions.length - 1) {
       items.push({
         id: `spacer-${thread.dt}`,
         type: 'spacer',
