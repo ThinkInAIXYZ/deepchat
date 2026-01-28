@@ -1569,11 +1569,16 @@ export class AppleServer {
           if (!parsedArgs.query) {
             throw new Error('Query is required for search operation')
           }
+          await runAppleScript(`
+            open location "maps://?q=${encodeURIComponent(parsedArgs.query)}"
+            delay 0.3
+            tell application "Maps" to activate
+          `)
           return {
             content: [
               {
                 type: 'text' as const,
-                text: `Found locations for "${parsedArgs.query}":\n\n• Location 1: ${parsedArgs.query} Restaurant\n• Location 2: ${parsedArgs.query} Store\n• Location 3: ${parsedArgs.query} Center`
+                text: `Search for "${parsedArgs.query}" has been launched in Apple Maps app. Please check the Maps window for results.`
               }
             ]
           }
