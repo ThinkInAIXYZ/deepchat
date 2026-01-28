@@ -46,7 +46,7 @@ export function useSessionManagement(
       const normalizedSettings: Partial<CONVERSATION_SETTINGS> = { ...settings }
 
       if (normalizedSettings.agentWorkspacePath === undefined) {
-        const pendingWorkspacePath = configComposable.chatConfig.value.agentWorkspacePath ?? null
+        const pendingWorkspacePath = configComposable?.chatConfig?.value?.agentWorkspacePath ?? null
         if (pendingWorkspacePath) {
           normalizedSettings.agentWorkspacePath = pendingWorkspacePath
         }
@@ -118,7 +118,7 @@ export function useSessionManagement(
     childThreadsByMessageId.value = new Map()
     pendingContextMentions.value = new Map()
     pendingScrollTargetByConversation.value = new Map()
-    configComposable.resetChatConfig()
+    configComposable?.resetChatConfig?.()
   }
 
   /**
@@ -143,7 +143,7 @@ export function useSessionManagement(
     childThreadsByMessageId.value = new Map()
     pendingContextMentions.value = new Map()
     pendingScrollTargetByConversation.value = new Map()
-    configComposable.resetChatConfig()
+    configComposable?.resetChatConfig?.()
   }
 
   /**

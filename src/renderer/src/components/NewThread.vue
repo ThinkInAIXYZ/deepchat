@@ -36,14 +36,11 @@ import { ref } from 'vue'
 import { usePresenter } from '@/composables/usePresenter'
 import type { UserMessageContent } from '@shared/chat'
 import { useConversationNavigation } from '@/composables/useConversationNavigation'
-import { useModelSelection } from '@/composables/useModelSelection'
 
 const workspaceStore = useWorkspaceStore()
 const chatStore = useChatStore()
 const configPresenter = usePresenter('configPresenter')
 const { createAndNavigateToConversation } = useConversationNavigation()
-// Ensure chatConfig has a preferred model for new threads.
-useModelSelection()
 
 // ChatInput ref
 const chatInputRef = ref<InstanceType<typeof ChatInput> | null>(null)
@@ -58,9 +55,14 @@ const handleSend = async (messageContent: UserMessageContent) => {
   if (!messageContent.text.trim()) return
 
   try {
+    const selected = chatInputRef.value?.getSelectedModel?.()
+    const settings = selected
+      ? ({ modelId: selected.modelId, providerId: selected.providerId } as any)
+      : ({} as any)
+
     // 创建新线程并导航
     // Model selection is now managed by agent configuration (Phase 6: chatConfig removed)
-    const sessionId = await createAndNavigateToConversation(messageContent.text, {} as any)
+    const sessionId = await createAndNavigateToConversation(messageContent.text, settings)
 
     if (sessionId) {
       // 发送消息

@@ -25,7 +25,7 @@
           {{ modelDisplayName }}
         </span>
         <Badge
-          v-for="tag in activeModel.tags"
+          v-for="tag in activeModel.tags ?? []"
           :key="tag"
           variant="outline"
           class="py-0 px-1 rounded-lg text-[10px]"
@@ -148,7 +148,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  'model-update': [model: any]
+  'model-update': [model: any, providerId: string]
   'update:systemPromptId': [value: string | undefined]
   'update:temperature': [value: number]
   'update:contextLength': [value: number]
@@ -166,8 +166,8 @@ const { t, te } = useI18n()
 const open = ref(false)
 const showModelSettings = ref(false)
 
-const handleModelUpdate = (model: any) => {
-  emit('model-update', model)
+const handleModelUpdate = (model: any, providerId: string) => {
+  emit('model-update', model, providerId)
   open.value = false
 }
 

@@ -305,6 +305,7 @@ import { useWorkspaceMention } from './composables/useWorkspaceMention'
 // === Stores ===
 import { useChatStore } from '@/stores/chat'
 import { useLanguageStore } from '@/stores/language'
+import { useModelStore } from '@/stores/modelStore'
 import { useThemeStore } from '@/stores/theme'
 
 // === Mention System ===
@@ -351,6 +352,7 @@ const handleResizeHeight = (newHeight: number) => {
 const chatStore = useChatStore()
 const langStore = useLanguageStore()
 const themeStore = useThemeStore()
+const modelStore = useModelStore()
 
 const windowAdapter = useWindowAdapter()
 
@@ -549,8 +551,8 @@ const composerSubmission = useComposerSubmission({
 
 // Config stub - all LLM parameters now use agent defaults (chatConfig removed in Phase 6)
 const config = {
-  activeModel: ref({ providerId: '', tags: [] }),
-  modelDisplayName: ref(''),
+  activeModel: ref({ id: '', providerId: '', tags: [] as string[] }),
+  modelDisplayName: ref(t('chat.input.modelSelector.placeholder')),
   configSystemPromptId: ref('default'),
   configTemperature: ref(0.7),
   configContextLength: ref(0),
@@ -565,8 +567,62 @@ const config = {
   configContextLengthLimit: ref(0),
   configMaxTokensLimit: ref(0),
   configModelType: ref(ModelType.Chat),
-  handleModelUpdate: () => {},
-  loadModelConfig: async () => {}
+  handleModelUpdate: (model: any, providerId: string) => {
+    const nextProviderId = providerId || model?.providerId || ''
+    const nextModelId = model?.id || ''
+
+    config.activeModel.value = {
+      id: nextModelId,
+      providerId: nextProviderId,
+      tags: Array.isArray(model?.tags) ? model.tags : []
+    }
+    config.configModelType.value = model?.type ?? config.configModelType.value
+    config.modelDisplayName.value =
+      model?.name || nextModelId || t('chat.input.modelSelector.empty')
+  },
+  loadModelConfig: async () => {
+    const applyModel = (providerId: string, modelId: string) => {
+      if (!providerId || !modelId) return false
+      const provider = modelStore.enabledModels.find((p) => p.providerId === providerId)
+      const found = provider?.models.find((m) => m.id === modelId)
+      config.activeModel.value = { id: modelId, providerId, tags: [] }
+      config.configModelType.value = found?.type ?? ModelType.Chat
+      config.modelDisplayName.value = found?.name || modelId
+      return true
+    }
+
+    const pickDefaultModel = () => {
+      const all = modelStore.enabledModels.flatMap((p) =>
+        p.models.map((m) => ({ ...m, providerId: p.providerId }))
+      )
+      const eligible = (m: { providerId: string; type?: ModelType }) =>
+        m.type === ModelType.Chat || m.type === ModelType.ImageGeneration
+      return all.find((m) => m.providerId !== 'acp' && eligible(m)) ?? all.find(eligible)
+    }
+
+    if (props.modelInfo?.id && props.modelInfo.providerId) {
+      applyModel(props.modelInfo.providerId, props.modelInfo.id)
+      return
+    }
+
+    const fallback = pickDefaultModel()
+    if (fallback) {
+      applyModel(fallback.providerId, fallback.id)
+      return
+    }
+
+    const stop = watch(
+      () => modelStore.enabledModels,
+      () => {
+        const next = pickDefaultModel()
+        if (!next) return
+        if (applyModel(next.providerId, next.id)) {
+          stop()
+        }
+      },
+      { deep: true }
+    )
+  }
 } as any
 
 const activeModelSource = computed(() => {
@@ -836,6 +892,12 @@ defineExpose({
   appendCustomMention,
   restoreFocus,
   getAgentWorkspacePath: () => workspace.workspacePath.value,
+  getSelectedModel: () => {
+    const providerId = props.modelInfo?.providerId || config.activeModel.value?.providerId
+    const modelId = props.modelInfo?.id || config.activeModel.value?.id
+    if (!providerId || !modelId) return null
+    return { providerId, modelId }
+  },
   getPendingSkills: () => [...pendingSkills.value],
   consumePendingSkills
 })

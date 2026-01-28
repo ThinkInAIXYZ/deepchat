@@ -47,6 +47,7 @@ vi.mock('vue-i18n', () => ({
   })),
   useI18n: vi.fn(() => ({
     t: vi.fn((key) => key),
+    te: vi.fn(() => true),
     locale: { value: 'zh-CN' }
   }))
 }))
