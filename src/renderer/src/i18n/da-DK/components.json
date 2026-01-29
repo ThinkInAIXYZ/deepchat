@@ -57,5 +57,14 @@
     "description": "Udfyld venligst følgende parametre, felter markeret med * er obligatoriske.",
     "required": "Denne parameter er påkrævet.",
     "title": "{name} parameterindstillinger"
+  },
+  "messageBlockQuestionRequest": {
+    "title": "Question",
+    "send": "Send",
+    "reject": "Reject",
+    "selected": "Selected",
+    "rejected": "Rejected",
+    "customPlaceholder": "Type your answer...",
+    "answerLabel": "Answer"
   }
 }

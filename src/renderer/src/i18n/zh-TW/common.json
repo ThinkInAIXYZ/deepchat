@@ -38,7 +38,8 @@
     "error502": "網關錯誤，請求的服務當前可能不太穩定，可以稍後再試試",
     "error503": "服務不可用，請求的服務可能當前不穩定，可以稍後再試試",
     "error504": "請求超時，請求的服務可能當前不穩定或者網絡鏈路有故障，請檢查代理等網絡配置後再試試",
-    "operationFailed": "操作失敗"
+    "operationFailed": "操作失敗",
+    "invalidQuestionRequest": "问题请求无效"
   },
   "resetDataConfirmTitle": "確定要重設所有資料嗎？",
   "resetDataConfirmDescription": "這將會把所有資料還原到預設設定。此操作無法復原。",

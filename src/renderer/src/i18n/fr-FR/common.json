@@ -42,7 +42,8 @@
     "error502": "Erreur de passerelle, le service demandé peut ne pas être stable à l'heure actuelle, vous pouvez réessayer plus tard",
     "error503": "Le service n'est pas disponible, le service demandé peut être actuellement instable, vous pouvez l'essayer plus tard",
     "error504": "La demande a expiré, le service demandé peut être actuellement instable ou le lien réseau est défectueux. Veuillez vérifier le proxy et d'autres configurations réseau avant d'essayer.",
-    "operationFailed": "L'opération a échoué"
+    "operationFailed": "L'opération a échoué",
+    "invalidQuestionRequest": "Invalid question request"
   },
   "resetDataConfirmTitle": "Réinitialiser toutes les données ?",
   "resetDataConfirmDescription": "Cela réinitialisera toutes vos données aux paramètres par défaut. Cette action ne peut pas être annulée.",

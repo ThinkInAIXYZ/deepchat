@@ -59,6 +59,12 @@
               :conversation-id="currentThreadId"
             />
           </template>
+          <MessageBlockQuestionRequest
+            v-else-if="block.type === 'action' && block.action_type === 'question_request'"
+            :block="block"
+            :message-id="currentMessage.id"
+            :conversation-id="currentThreadId"
+          />
           <MessageBlockAction
             v-else-if="block.type === 'action'"
             :message-id="currentMessage.id"
@@ -131,6 +137,7 @@ import MessageBlockSearch from './MessageBlockSearch.vue'
 import MessageBlockToolCall from './MessageBlockToolCall.vue'
 import MessageBlockError from './MessageBlockError.vue'
 import MessageBlockPermissionRequest from './MessageBlockPermissionRequest.vue'
+import MessageBlockQuestionRequest from './MessageBlockQuestionRequest.vue'
 import MessageToolbar from './MessageToolbar.vue'
 import MessageInfo from './MessageInfo.vue'
 import { useChatStore } from '@/stores/chat'

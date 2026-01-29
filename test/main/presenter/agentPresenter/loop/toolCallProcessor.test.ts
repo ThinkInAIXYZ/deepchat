@@ -94,3 +94,129 @@ describe('ToolCallProcessor tool output offload', () => {
     expect(toolMessage?.content).toContain('[Tool output offloaded]')
   })
 })
+
+describe('ToolCallProcessor question tool', () => {
+  const questionToolDef = {
+    type: 'function',
+    function: {
+      name: 'question',
+      description: 'question tool',
+      parameters: {
+        type: 'object',
+        properties: {}
+      }
+    },
+    server: {
+      name: 'agent-core',
+      icons: '❓',
+      description: 'Agent core tools'
+    }
+  } as MCPToolDefinition
+
+  const executeCommandDef = {
+    type: 'function',
+    function: {
+      name: 'execute_command',
+      description: 'execute command',
+      parameters: {
+        type: 'object',
+        properties: {}
+      }
+    },
+    server: {
+      name: 'mock',
+      icons: '',
+      description: ''
+    }
+  } as MCPToolDefinition
+
+  const basicQuestionArgs = JSON.stringify({
+    question: 'Choose one',
+    options: [{ label: 'A' }, { label: 'B' }]
+  })
+
+  it('emits question-required and pauses the loop', async () => {
+    const callTool = vi.fn()
+    const processor = new ToolCallProcessor({
+      getAllToolDefinitions: async () => [questionToolDef],
+      callTool
+    })
+
+    const conversationMessages: ChatMessage[] = [{ role: 'assistant', content: 'hello' }]
+    const iterator = processor.process({
+      eventId: 'event-question-1',
+      toolCalls: [{ id: 'tool-q1', name: 'question', arguments: basicQuestionArgs }],
+      enabledMcpTools: [],
+      conversationMessages,
+      modelConfig: { functionCall: true } as ModelConfig,
+      abortSignal: new AbortController().signal,
+      currentToolCallCount: 0,
+      maxToolCalls: 5,
+      conversationId: 'conv-question'
+    })
+
+    const events: any[] = []
+    let result: any = null
+    while (true) {
+      const { value, done } = await iterator.next()
+      if (done) {
+        result = value
+        break
+      }
+      events.push(value)
+    }
+
+    const questionEvent = events.find(
+      (event) => event.type === 'response' && event.data?.tool_call === 'question-required'
+    )
+    expect(questionEvent).toBeDefined()
+    expect(questionEvent.data.question_request?.question).toBe('Choose one')
+    expect(result.needContinueConversation).toBe(false)
+    expect(callTool).not.toHaveBeenCalled()
+  })
+
+  it('rejects non-standalone question tool calls', async () => {
+    const callTool = vi.fn(async () => ({
+      content: 'ok',
+      rawData: { content: 'ok' } as MCPToolResponse
+    }))
+    const processor = new ToolCallProcessor({
+      getAllToolDefinitions: async () => [questionToolDef, executeCommandDef],
+      callTool
+    })
+
+    const conversationMessages: ChatMessage[] = [{ role: 'assistant', content: 'hello' }]
+    const iterator = processor.process({
+      eventId: 'event-question-2',
+      toolCalls: [
+        { id: 'tool-q1', name: 'question', arguments: basicQuestionArgs },
+        { id: 'tool-2', name: 'execute_command', arguments: '{}' }
+      ],
+      enabledMcpTools: [],
+      conversationMessages,
+      modelConfig: { functionCall: true } as ModelConfig,
+      abortSignal: new AbortController().signal,
+      currentToolCallCount: 0,
+      maxToolCalls: 5,
+      conversationId: 'conv-question'
+    })
+
+    const events: any[] = []
+    let result: any = null
+    while (true) {
+      const { value, done } = await iterator.next()
+      if (done) {
+        result = value
+        break
+      }
+      events.push(value)
+    }
+
+    const errorEvent = events.find(
+      (event) => event.type === 'response' && event.data?.question_error
+    )
+    expect(errorEvent).toBeDefined()
+    expect(result.needContinueConversation).toBe(true)
+    expect(callTool).toHaveBeenCalled()
+  })
+})

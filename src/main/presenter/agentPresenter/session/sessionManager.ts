@@ -147,6 +147,7 @@ export class SessionManager {
     runtime.toolCallCount = 0
     runtime.userStopRequested = false
     runtime.pendingPermission = undefined
+    runtime.pendingQuestion = undefined
   }
 
   setStatus(agentId: string, status: SessionStatus): void {
@@ -174,6 +175,10 @@ export class SessionManager {
 
   clearPendingPermission(agentId: string): void {
     this.updateRuntime(agentId, { pendingPermission: undefined })
+  }
+
+  clearPendingQuestion(agentId: string): void {
+    this.updateRuntime(agentId, { pendingQuestion: undefined })
   }
 
   private ensureRuntime(session: SessionContext): NonNullable<SessionContext['runtime']> {

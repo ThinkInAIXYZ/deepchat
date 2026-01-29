@@ -31,5 +31,12 @@ export interface IAgentPresenter {
     permissionType: 'read' | 'write' | 'all' | 'command',
     remember?: boolean
   ): Promise<void>
+  resolveQuestion(
+    messageId: string,
+    toolCallId: string,
+    answerText: string,
+    answerMessageId?: string
+  ): Promise<void>
+  rejectQuestion(messageId: string, toolCallId: string): Promise<void>
   getMessageRequestPreview(agentId: string, messageId?: string): Promise<unknown>
 }
