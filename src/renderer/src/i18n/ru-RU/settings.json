@@ -326,6 +326,38 @@
     "stopModel": "Остановить модель",
     "pulling": "Скачивание...",
     "runModel": "Запустить модель",
+    "voiceai": {
+      "title": "Синтез речи Voice.ai",
+      "description": "Генерируйте речь из текста. Голоса отображаются в списке моделей ниже.",
+      "audioFormat": {
+        "label": "Аудиоформат",
+        "placeholder": "Выберите формат",
+        "helper": "В большинстве случаев рекомендуется MP3."
+      },
+      "language": {
+        "label": "Язык",
+        "placeholder": "например, en",
+        "helper": "Поддерживается: en, ca, sv, es, fr, de, it, pt, pl, ru, nl."
+      },
+      "model": {
+        "label": "TTS-модель",
+        "placeholder": "voiceai-tts-v1-latest",
+        "helper": "См. документацию Voice.ai по поддерживаемым моделям."
+      },
+      "agentId": {
+        "label": "ID голосового агента",
+        "placeholder": "Вставьте ID голосового агента",
+        "helper": "Нужен для голосовых звонков в реальном времени."
+      },
+      "temperature": {
+        "label": "Температура",
+        "helper": "Контролирует случайность (0-2)."
+      },
+      "topP": {
+        "label": "Top P",
+        "helper": "Nucleus-сэмплирование (0-1)."
+      }
+    },
     "dialog": {
       "disableModel": {
         "title": "Подтвердите отключение модели",
