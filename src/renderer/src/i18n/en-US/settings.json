@@ -493,6 +493,38 @@
       "verifyFailed": "Verification failed",
       "verifySuccess": "Verification is successful"
     },
+    "voiceai": {
+      "title": "Voice.ai Text-to-Speech",
+      "description": "Generate speech from text. Voices appear in the model list below.",
+      "audioFormat": {
+        "label": "Audio Format",
+        "placeholder": "Select format",
+        "helper": "MP3 is recommended for most cases."
+      },
+      "language": {
+        "label": "Language",
+        "placeholder": "e.g. en",
+        "helper": "Supported: en, ca, sv, es, fr, de, it, pt, pl, ru, nl."
+      },
+      "model": {
+        "label": "TTS Model",
+        "placeholder": "voiceai-tts-v1-latest",
+        "helper": "See the Voice.ai docs for supported models."
+      },
+      "agentId": {
+        "label": "Voice Agent ID",
+        "placeholder": "Paste voice agent ID",
+        "helper": "Required for real-time voice calls."
+      },
+      "temperature": {
+        "label": "Temperature",
+        "helper": "Controls randomness (0-2)."
+      },
+      "topP": {
+        "label": "Top P",
+        "helper": "Nucleus sampling (0-1)."
+      }
+    },
     "anthropicApiKeyTip": "Please go to Anthropic Console to get your API Key",
     "anthropicConnected": "Anthropic connected",
     "anthropicNotConnected": "Anthropic not connected",

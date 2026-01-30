@@ -91,6 +91,7 @@ export type AssistantMessageBlock = {
     | 'tool_call'
     | 'action'
     | 'image'
+    | 'audio'
     | 'artifact-thinking'
     | 'mcp_ui_resource'
   id?: string

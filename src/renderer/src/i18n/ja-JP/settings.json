@@ -327,6 +327,38 @@
     "stopModel": "モデルを停止",
     "pulling": "取得中...",
     "runModel": "モデルを実行",
+    "voiceai": {
+      "title": "Voice.ai テキスト読み上げ",
+      "description": "テキストから音声を生成します。音声は下のモデル一覧に表示されます。",
+      "audioFormat": {
+        "label": "音声形式",
+        "placeholder": "形式を選択",
+        "helper": "多くのケースでは MP3 を推奨します。"
+      },
+      "language": {
+        "label": "言語",
+        "placeholder": "例: en",
+        "helper": "対応言語: en, ca, sv, es, fr, de, it, pt, pl, ru, nl。"
+      },
+      "model": {
+        "label": "TTS モデル",
+        "placeholder": "voiceai-tts-v1-latest",
+        "helper": "対応モデルは Voice.ai のドキュメントを参照してください。"
+      },
+      "agentId": {
+        "label": "音声エージェントID",
+        "placeholder": "voice agent id を貼り付け",
+        "helper": "リアルタイム通話に必要です。"
+      },
+      "temperature": {
+        "label": "温度",
+        "helper": "ランダム性を制御します (0-2)。"
+      },
+      "topP": {
+        "label": "Top P",
+        "helper": "Nucleus サンプリング (0-1)。"
+      }
+    },
     "dialog": {
       "disableModel": {
         "title": "モデルを無効にする確認",

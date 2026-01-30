@@ -98,6 +98,17 @@
     "agent": "Agent",
     "acpAgent": "ACP Agent"
   },
+  "audio": {
+    "play": "Play",
+    "pause": "Pause"
+  },
+  "call": {
+    "title": "Voice.ai Call",
+    "description": "Click to connect to Voice.ai voice agent, speak after the call is connected.",
+    "start": "Start Voice Call",
+    "stop": "End Call",
+    "end": "Hang Up"
+  },
   "skills": {
     "indicator": {
       "active": "{count} skills active",

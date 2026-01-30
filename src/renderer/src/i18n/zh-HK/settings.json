@@ -322,6 +322,38 @@
     "stopModel": "停止模型",
     "pulling": "拉取中...",
     "runModel": "運行模型",
+    "voiceai": {
+      "title": "Voice.ai 文字轉語音",
+      "description": "將文字生成語音，voice 會在下方模型列表中顯示。",
+      "audioFormat": {
+        "label": "音訊格式",
+        "placeholder": "選擇格式",
+        "helper": "多數情況建議使用 MP3。"
+      },
+      "language": {
+        "label": "語言",
+        "placeholder": "例如 en",
+        "helper": "支援語言：en, ca, sv, es, fr, de, it, pt, pl, ru, nl。"
+      },
+      "model": {
+        "label": "TTS 模型",
+        "placeholder": "voiceai-tts-v1-latest",
+        "helper": "可選模型請查看 Voice.ai 文件。"
+      },
+      "agentId": {
+        "label": "語音 Agent ID",
+        "placeholder": "貼上 voice agent id",
+        "helper": "即時通話需要此 ID。"
+      },
+      "temperature": {
+        "label": "溫度",
+        "helper": "隨機性參數（0-2）。"
+      },
+      "topP": {
+        "label": "Top P",
+        "helper": "Nucleus 取樣（0-1）。"
+      }
+    },
     "dialog": {
       "disableModel": {
         "title": "確認禁用模型",
