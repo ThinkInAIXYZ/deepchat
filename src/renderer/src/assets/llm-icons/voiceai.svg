@@ -1,0 +1,11 @@
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="voiceaiGradient" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#06b6d4" />
+      <stop offset="100%" stop-color="#6366f1" />
+    </linearGradient>
+  </defs>
+  <rect x="4" y="7" width="3" height="10" rx="1.5" fill="#94a3b8" />
+  <rect x="10.5" y="4" width="3" height="16" rx="1.5" fill="url(#voiceaiGradient)" />
+  <rect x="17" y="7" width="3" height="10" rx="1.5" fill="#94a3b8" />
+</svg>

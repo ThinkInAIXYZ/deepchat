@@ -77,6 +77,12 @@
             :message-id="currentMessage.id"
             :thread-id="currentThreadId"
           />
+          <MessageBlockAudio
+            v-else-if="isAudioBlock(block)"
+            :block="block"
+            :message-id="currentMessage.id"
+            :thread-id="currentThreadId"
+          />
           <MessageBlockImage
             v-else-if="block.type === 'image'"
             :block="block"
@@ -147,6 +153,7 @@ import { Spinner } from '@shadcn/components/ui/spinner'
 import MessageBlockAction from './MessageBlockAction.vue'
 import { useI18n } from 'vue-i18n'
 import MessageBlockImage from './MessageBlockImage.vue'
+import MessageBlockAudio from './MessageBlockAudio.vue'
 import MessageBlockMcpUi from './MessageBlockMcpUi.vue'
 import MessageBlockPlan from './MessageBlockPlan.vue'
 
@@ -169,6 +176,22 @@ const themeStore = useThemeStore()
 const chatStore = useChatStore()
 const uiSettingsStore = useUiSettingsStore()
 const { t } = useI18n()
+
+const AUDIO_EXTENSIONS = ['.mp3', '.wav', '.m4a', '.aac', '.flac', '.ogg', '.opus', '.webm']
+
+const isAudioBlock = (block: AssistantMessageBlock): boolean => {
+  if (block.type === 'audio') return true
+  if (block.type !== 'image') return false
+  const mimeType = block.image_data?.mimeType?.toLowerCase() || ''
+  if (mimeType.startsWith('audio/')) return true
+  const data = block.image_data?.data || ''
+  if (data.startsWith('data:audio/')) return true
+  if (data.startsWith('imgcache://') || data.startsWith('http://') || data.startsWith('https://')) {
+    const lower = data.toLowerCase()
+    return AUDIO_EXTENSIONS.some((ext) => lower.includes(ext))
+  }
+  return false
+}
 
 // 定义事件
 const emit = defineEmits<{

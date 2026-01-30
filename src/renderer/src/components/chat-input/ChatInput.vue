@@ -20,6 +20,7 @@
         "
         :class="[
           'flex flex-col gap-2 relative',
+          isCallActive ? 'pointer-events-none opacity-60' : '',
           variant === 'newThread'
             ? 'bg-card rounded-lg border p-2 shadow-sm'
             : 'border-t px-4 py-3 gap-3'
@@ -371,13 +372,20 @@
               />
             </ScrollablePopover>
 
+            <VoiceCallWidget
+              :variant="variant"
+              :active-provider-id="activeModelSource?.providerId"
+              :is-streaming="isStreaming"
+              @active-change="isCallActive = $event"
+            />
+
             <!-- Send/Stop Button -->
             <Button
               v-if="!isStreaming || variant === 'newThread'"
               variant="default"
               size="icon"
               class="w-7 h-7 text-xs rounded-lg"
-              :disabled="disabledSend"
+              :disabled="disabledSend || isCallActive"
               @click="emitSend"
             >
               <Icon icon="lucide:arrow-up" class="w-4 h-4" />
@@ -451,6 +459,7 @@ import ModelChooser from '../ModelChooser.vue'
 import ModelIcon from '../icons/ModelIcon.vue'
 import McpToolsList from '../McpToolsList.vue'
 import SkillsIndicator from './SkillsIndicator.vue'
+import VoiceCallWidget from './VoiceCallWidget.vue'
 
 // === Composables ===
 import { usePresenter } from '@/composables/usePresenter'
@@ -565,11 +574,12 @@ const modelSelectOpen = ref(false)
 const editorContainer = ref<HTMLElement | null>(null)
 const caretPosition = ref({ x: 0, y: 0, height: 18 })
 const caretVisible = ref(false)
+const isCallActive = ref(false)
 const fakeCaretStyle = computed(() => ({
   transform: `translate(${caretPosition.value.x}px, ${caretPosition.value.y}px)`,
   height: `${caretPosition.value.height}px`
 }))
-const showFakeCaret = computed(() => caretVisible.value && !props.disabled)
+const showFakeCaret = computed(() => caretVisible.value && !props.disabled && !isCallActive.value)
 
 // === Composable Integrations ===
 
@@ -857,6 +867,10 @@ const handleModeSelect = async (mode: ChatMode) => {
 }
 
 const onKeydown = (e: KeyboardEvent) => {
+  if (isCallActive.value) {
+    e.preventDefault()
+    return
+  }
   if (e.code === 'Enter' && !e.shiftKey) {
     editorComposable.handleEditorEnter(e, disabledSend.value, emitSend)
     e.preventDefault()
@@ -1027,6 +1041,12 @@ watch(
   }
 )
 
+watch(isCallActive, (open) => {
+  if (!editor.isDestroyed) {
+    editor.setEditable(!open)
+  }
+})
+
 watch(
   () => [chatMode.currentMode.value, settings.value.webSearch] as const,
   ([mode, webSearch]) => {
@@ -1113,6 +1133,7 @@ defineExpose({
   55% {
     opacity: 0.9;
   }
+
   55%,
   100% {
     opacity: 0.35;

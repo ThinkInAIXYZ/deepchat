@@ -5,6 +5,15 @@ import { useIpcQuery } from '@/composables/useIpcQuery'
 import { CONFIG_EVENTS, PROVIDER_DB_EVENTS } from '@/events'
 import type { AWS_BEDROCK_PROVIDER, LLM_PROVIDER, VERTEX_PROVIDER } from '@shared/presenter'
 
+type VoiceAIConfig = {
+  audioFormat: string
+  model: string
+  language: string
+  temperature: number
+  topP: number
+  agentId: string
+}
+
 const PROVIDER_ORDER_KEY = 'providerOrder'
 const PROVIDER_TIMESTAMP_KEY = 'providerTimestamps'
 
@@ -30,6 +39,7 @@ export const useProviderStore = defineStore('provider', () => {
   const providerOrder = ref<string[]>([])
   const providerTimestamps = ref<Record<string, number>>({})
   const listenersRegistered = ref(false)
+  const voiceAIConfig = ref<VoiceAIConfig | null>(null)
 
   const providers = computed<LLM_PROVIDER[]>(() => {
     const data = providersQuery.data.value as LLM_PROVIDER[] | undefined
@@ -340,6 +350,41 @@ export const useProviderStore = defineStore('provider', () => {
     return await configP.getSetting('awsBedrockCredential')
   }
 
+  const getVoiceAIConfig = async (): Promise<VoiceAIConfig> => {
+    const config = {
+      audioFormat: (await configP.getSetting<string>('voiceAI_audioFormat')) || 'mp3',
+      model: (await configP.getSetting<string>('voiceAI_model')) || 'voiceai-tts-v1-latest',
+      language: (await configP.getSetting<string>('voiceAI_language')) || 'en',
+      temperature: (await configP.getSetting<number>('voiceAI_temperature')) ?? 1,
+      topP: (await configP.getSetting<number>('voiceAI_topP')) ?? 0.8,
+      agentId: (await configP.getSetting<string>('voiceAI_agentId')) || ''
+    }
+    voiceAIConfig.value = config
+    return config
+  }
+
+  const updateVoiceAIConfig = async (updates: Partial<VoiceAIConfig>) => {
+    if (updates.audioFormat !== undefined) {
+      await configP.setSetting('voiceAI_audioFormat', updates.audioFormat)
+    }
+    if (updates.model !== undefined) {
+      await configP.setSetting('voiceAI_model', updates.model)
+    }
+    if (updates.language !== undefined) {
+      await configP.setSetting('voiceAI_language', updates.language)
+    }
+    if (updates.temperature !== undefined) {
+      await configP.setSetting('voiceAI_temperature', updates.temperature)
+    }
+    if (updates.topP !== undefined) {
+      await configP.setSetting('voiceAI_topP', updates.topP)
+    }
+    if (updates.agentId !== undefined) {
+      await configP.setSetting('voiceAI_agentId', updates.agentId)
+    }
+    await getVoiceAIConfig()
+  }
+
   const updateProviderTimestamp = async (providerId: string) => {
     providerTimestamps.value[providerId] = Date.now()
     await saveProviderTimestamps()
@@ -416,6 +461,9 @@ export const useProviderStore = defineStore('provider', () => {
     setGeminiSafety,
     getGeminiSafety,
     setAwsBedrockCredential,
-    getAwsBedrockCredential
+    getAwsBedrockCredential,
+    getVoiceAIConfig,
+    updateVoiceAIConfig,
+    voiceAIConfig
   }
 })

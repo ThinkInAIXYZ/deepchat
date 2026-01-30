@@ -45,6 +45,10 @@
 
         <Separator v-if="provider.id === 'gemini'" />
 
+        <VoiceAIProviderConfig v-if="provider.id === 'voiceai'" :provider="provider" />
+
+        <Separator v-if="provider.id === 'voiceai'" />
+
         <!-- 速率限制配置 -->
         <ProviderRateLimitConfig :provider="provider" @config-changed="handleConfigChanged" />
 
@@ -104,6 +108,7 @@ import { levelToValueMap, safetyCategories } from '@/lib/gemini'
 import { Separator } from '@shadcn/components/ui/separator'
 import type { SafetyCategoryKey, SafetySettingValue } from '@/lib/gemini'
 import { useThrottleFn } from '@vueuse/core'
+import VoiceAIProviderConfig from './VoiceAIProviderConfig.vue'
 
 interface ProviderWebsites {
   official: string

@@ -327,6 +327,38 @@
     "stopModel": "ایست مدل",
     "pulling": "در حال دریافت...",
     "runModel": "اجرای مدل",
+    "voiceai": {
+      "title": "تبدیل متن به گفتار Voice.ai",
+      "description": "گفتار را از متن تولید کنید. صداها در فهرست مدل‌ها در پایین نمایش داده می‌شوند.",
+      "audioFormat": {
+        "label": "قالب صوتی",
+        "placeholder": "انتخاب قالب",
+        "helper": "برای بیشتر موارد MP3 توصیه می‌شود."
+      },
+      "language": {
+        "label": "زبان",
+        "placeholder": "مثلاً en",
+        "helper": "پشتیبانی‌شده: en, ca, sv, es, fr, de, it, pt, pl, ru, nl."
+      },
+      "model": {
+        "label": "مدل TTS",
+        "placeholder": "voiceai-tts-v1-latest",
+        "helper": "برای مدل‌های پشتیبانی‌شده به مستندات Voice.ai مراجعه کنید."
+      },
+      "agentId": {
+        "label": "شناسه عامل صوتی",
+        "placeholder": "شناسه voice agent را جای‌گذاری کنید",
+        "helper": "برای تماس‌های بلادرنگ لازم است."
+      },
+      "temperature": {
+        "label": "دما",
+        "helper": "تصادفی‌بودن را کنترل می‌کند (0-2)."
+      },
+      "topP": {
+        "label": "Top P",
+        "helper": "نمونه‌گیری هسته‌ای (0-1)."
+      }
+    },
     "dialog": {
       "disableModel": {
         "title": "پذیرش خاموش کردن مدل",

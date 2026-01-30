@@ -1268,9 +1268,12 @@ export const useChatStore = defineStore('chat', () => {
       }
     } else if (msg.image_data) {
       finalizeAssistantMessageBlocks(assistantMsg.content)
+      const mimeType = msg.image_data.mimeType || ''
+      const isAudio =
+        mimeType.startsWith('audio/') || msg.image_data.data?.startsWith('data:audio/')
       assistantMsg.content.push({
-        type: 'image',
-        content: 'image',
+        type: isAudio ? 'audio' : 'image',
+        content: isAudio ? 'audio' : 'image',
         status: 'success',
         timestamp: Date.now(),
         image_data: {
