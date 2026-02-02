@@ -8,6 +8,7 @@
     "searchEngine": "搜索引擎",
     "searchEngineSelect": "選擇搜索引擎",
     "searchPreview": "搜索預覽",
+    "autoScrollEnabled": "生成時自動滾動",
     "searchAssistantModel": "助手模型",
     "selectModel": "選擇模型",
     "proxyMode": "代理模式",

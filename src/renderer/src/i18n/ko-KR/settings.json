@@ -8,6 +8,7 @@
     "searchEngine": "검색 엔진",
     "searchEngineSelect": "검색 엔진 선택",
     "searchPreview": "검색 미리보기",
+    "autoScrollEnabled": "생성 중 자동 스크롤",
     "searchAssistantModel": "보조 모델",
     "selectModel": "모델 선택",
     "proxyMode": "프록시 모드",

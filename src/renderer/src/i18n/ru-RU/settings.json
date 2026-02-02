@@ -8,6 +8,7 @@
     "searchEngine": "Поисковая система",
     "searchEngineSelect": "Выбрать поисковую систему",
     "searchPreview": "Предпросмотр поиска",
+    "autoScrollEnabled": "Автопрокрутка во время генерации",
     "searchAssistantModel": "Помощник модели",
     "selectModel": "Выбрать модель",
     "proxyMode": "Режим прокси",
