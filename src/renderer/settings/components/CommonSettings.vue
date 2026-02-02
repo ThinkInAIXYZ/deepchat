@@ -14,6 +14,13 @@
         @update:model-value="handleSearchPreviewChange"
       />
       <SettingToggleRow
+        id="auto-scroll-switch"
+        icon="lucide:arrow-down"
+        :label="t('settings.common.autoScrollEnabled')"
+        :model-value="autoScrollEnabled"
+        @update:model-value="handleAutoScrollChange"
+      />
+      <SettingToggleRow
         id="sound-switch"
         icon="lucide:volume-2"
         :label="t('settings.common.soundEnabled')"
@@ -58,12 +65,17 @@ const uiSettingsStore = useUiSettingsStore()
 const soundStore = useSoundStore()
 
 const searchPreviewEnabled = computed(() => uiSettingsStore.searchPreviewEnabled)
+const autoScrollEnabled = computed(() => uiSettingsStore.autoScrollEnabled)
 const soundEnabled = computed(() => soundStore.soundEnabled)
 const copyWithCotEnabled = computed(() => uiSettingsStore.copyWithCotEnabled)
 const traceDebugEnabled = computed(() => uiSettingsStore.traceDebugEnabled)
 
 const handleSearchPreviewChange = (value: boolean) => {
   uiSettingsStore.setSearchPreviewEnabled(value)
+}
+
+const handleAutoScrollChange = (value: boolean) => {
+  uiSettingsStore.setAutoScrollEnabled(value)
 }
 
 const handleSoundChange = (value: boolean) => {

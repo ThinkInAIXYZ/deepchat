@@ -8,6 +8,7 @@
     "searchEngine": "検索エンジン",
     "searchEngineSelect": "検索エンジンを選択",
     "searchPreview": "検索プレビュー",
+    "autoScrollEnabled": "生成中に自動スクロール",
     "searchAssistantModel": "アシスタントモデル",
     "selectModel": "モデルを選択",
     "proxyMode": "プロキシモード",
