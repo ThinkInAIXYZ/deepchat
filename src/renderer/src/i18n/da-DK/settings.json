@@ -8,6 +8,7 @@
     "searchEngine": "Søgemaskine",
     "searchEngineSelect": "Vælg søgemaskine",
     "searchPreview": "Søgeforhåndsvisning",
+    "autoScrollEnabled": "Automatisk rulning under generering",
     "searchAssistantModel": "Assistentmodel",
     "selectModel": "Vælg model",
     "proxyMode": "Proxytilstand",
