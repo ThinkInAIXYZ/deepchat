@@ -64,13 +64,12 @@
         </div>
 
         <!-- Editor -->
-        <div ref="editorContainer" class="flex-1 min-h-0 overflow-y-auto relative">
+        <div class="flex-1 min-h-0 overflow-y-auto relative">
           <editor-content
             :editor="editor"
             :class="['text-sm h-full', variant === 'chat' ? 'dark:text-white/80' : 'p-2']"
             @keydown="onKeydown"
           />
-          <div v-if="showFakeCaret" class="fake-caret" :style="fakeCaretStyle" />
         </div>
 
         <!-- Footer -->
@@ -571,15 +570,7 @@ const { t } = useI18n()
 // === Local State ===
 const fileInput = ref<HTMLInputElement>()
 const modelSelectOpen = ref(false)
-const editorContainer = ref<HTMLElement | null>(null)
-const caretPosition = ref({ x: 0, y: 0, height: 18 })
-const caretVisible = ref(false)
 const isCallActive = ref(false)
-const fakeCaretStyle = computed(() => ({
-  transform: `translate(${caretPosition.value.x}px, ${caretPosition.value.y}px)`,
-  height: `${caretPosition.value.height}px`
-}))
-const showFakeCaret = computed(() => caretVisible.value && !props.disabled && !isCallActive.value)
 
 // === Composable Integrations ===
 
@@ -648,48 +639,6 @@ const editor = new Editor({
   ]
 })
 
-let caretAnimationFrame: number | null = null
-
-const updateFakeCaretPosition = () => {
-  if (!editorContainer.value) return
-
-  if (caretAnimationFrame) {
-    cancelAnimationFrame(caretAnimationFrame)
-  }
-
-  caretAnimationFrame = requestAnimationFrame(() => {
-    if (!editorContainer.value) return
-
-    const view = editor.view
-    const position = view.state.selection.$anchor.pos
-
-    let coords
-    try {
-      coords = view.coordsAtPos(position)
-    } catch (error) {
-      return
-    }
-
-    const containerRect = editorContainer.value.getBoundingClientRect()
-    const caretHeight = Math.max(coords.bottom - coords.top, 18)
-
-    caretPosition.value = {
-      x: coords.left - containerRect.left,
-      y: coords.top - containerRect.top,
-      height: caretHeight
-    }
-  })
-}
-
-const handleEditorFocus = () => {
-  caretVisible.value = true
-  updateFakeCaretPosition()
-}
-
-const handleEditorBlur = () => {
-  caretVisible.value = false
-}
-
 // Set the editor instance in history after editor is created
 history.setEditor(editor)
 
@@ -710,10 +659,6 @@ const editorComposable = usePromptInputEditor(
 
 // Setup editor update handler
 editor.on('update', editorComposable.onEditorUpdate)
-editor.on('selectionUpdate', updateFakeCaretPosition)
-editor.on('transaction', updateFakeCaretPosition)
-editor.on('focus', handleEditorFocus)
-editor.on('blur', handleEditorBlur)
 
 // Initialize context length tracking
 const contextLengthTracker = useContextLength({
@@ -970,9 +915,6 @@ const appendCustomMention = (mention: CategorizedData) => {
   return inserted
 }
 
-useEventListener(window, 'resize', updateFakeCaretPosition)
-useEventListener(editorContainer, 'scroll', updateFakeCaretPosition)
-
 // === Lifecycle Hooks ===
 onMounted(async () => {
   // Settings are auto-initialized by useInputSettings composable
@@ -990,8 +932,6 @@ onMounted(async () => {
 
   // Setup editor paste handler
   editorComposable.setupEditorPasteHandler(files.handlePaste)
-
-  nextTick(updateFakeCaretPosition)
 })
 
 useEventListener(window, 'context-menu-ask-ai', handleContextMenuAskAI)
@@ -1003,17 +943,7 @@ onUnmounted(() => {
 
   // Remove editor update listener
   editor.off('update', editorComposable.onEditorUpdate)
-  editor.off('selectionUpdate', updateFakeCaretPosition)
-  editor.off('transaction', updateFakeCaretPosition)
-  editor.off('focus', handleEditorFocus)
-  editor.off('blur', handleEditorBlur)
-
-  // Destroy editor instance
   editor.destroy()
-
-  if (caretAnimationFrame) {
-    cancelAnimationFrame(caretAnimationFrame)
-  }
 
   setWorkspaceMention(null)
 })
@@ -1104,40 +1034,6 @@ defineExpose({
 
 .duration-300 {
   transition-duration: 300ms;
-}
-
-:deep(.tiptap) {
-  caret-color: transparent;
-}
-
-.fake-caret {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 2px;
-  border-radius: 9999px;
-  background: var(--primary);
-  box-shadow: 0 0 10px var(--primary);
-  animation: fake-caret-blink 1.2s steps(1) infinite;
-  transition:
-    transform 140ms cubic-bezier(0.22, 1, 0.36, 1),
-    height 140ms cubic-bezier(0.22, 1, 0.36, 1),
-    opacity 120ms ease;
-  pointer-events: none;
-  will-change: transform, height, opacity;
-  opacity: 0.9;
-}
-
-@keyframes fake-caret-blink {
-  0%,
-  55% {
-    opacity: 0.9;
-  }
-
-  55%,
-  100% {
-    opacity: 0.35;
-  }
 }
 </style>
 
