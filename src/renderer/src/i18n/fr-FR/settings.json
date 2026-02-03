@@ -8,6 +8,7 @@
     "searchEngine": "Moteur de recherche",
     "searchEngineSelect": "Sélectionner le moteur de recherche",
     "searchPreview": "Aperçu de la recherche",
+    "autoScrollEnabled": "Défilement automatique pendant la génération",
     "searchAssistantModel": "Modèle adjoint",
     "selectModel": "Sélectionner le modèle",
     "proxyMode": "Mode proxy",

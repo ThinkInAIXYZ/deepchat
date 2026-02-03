@@ -17,6 +17,7 @@ export const useUiSettingsStore = defineStore('uiSettings', () => {
   const isLoadingFonts = ref(false)
   const artifactsEffectEnabled = ref(false)
   const searchPreviewEnabled = ref(true)
+  const autoScrollEnabled = ref(true)
   const contentProtectionEnabled = ref(false)
   const copyWithCotEnabled = ref(true)
   const traceDebugEnabled = ref(false)
@@ -45,6 +46,7 @@ export const useUiSettingsStore = defineStore('uiSettings', () => {
     artifactsEffectEnabled.value =
       (await configP.getSetting<boolean>('artifactsEffectEnabled')) ?? false
     searchPreviewEnabled.value = await configP.getSearchPreviewEnabled()
+    autoScrollEnabled.value = (await configP.getAutoScrollEnabled()) ?? true
     contentProtectionEnabled.value = await configP.getContentProtectionEnabled()
     notificationsEnabled.value = (await configP.getSetting<boolean>('notificationsEnabled')) ?? true
     traceDebugEnabled.value = (await configP.getSetting<boolean>('traceDebugEnabled')) ?? false
@@ -92,6 +94,11 @@ export const useUiSettingsStore = defineStore('uiSettings', () => {
     await configP.setSearchPreviewEnabled(enabled)
   }
 
+  const setAutoScrollEnabled = async (enabled: boolean) => {
+    autoScrollEnabled.value = enabled
+    await configP.setAutoScrollEnabled(enabled)
+  }
+
   const setArtifactsEffectEnabled = async (enabled: boolean) => {
     artifactsEffectEnabled.value = enabled
     await configP.setSetting('artifactsEffectEnabled', enabled)
@@ -130,6 +137,9 @@ export const useUiSettingsStore = defineStore('uiSettings', () => {
     window.electron.ipcRenderer.on(CONFIG_EVENTS.SEARCH_PREVIEW_CHANGED, (_event, value) => {
       searchPreviewEnabled.value = value
     })
+    window.electron.ipcRenderer.on(CONFIG_EVENTS.AUTO_SCROLL_CHANGED, (_event, value) => {
+      autoScrollEnabled.value = value
+    })
     window.electron.ipcRenderer.on(CONFIG_EVENTS.CONTENT_PROTECTION_CHANGED, (_event, value) => {
       contentProtectionEnabled.value = value
     })
@@ -159,6 +169,7 @@ export const useUiSettingsStore = defineStore('uiSettings', () => {
     if (!window?.electron?.ipcRenderer) return
     window.electron.ipcRenderer.removeAllListeners(CONFIG_EVENTS.FONT_SIZE_CHANGED)
     window.electron.ipcRenderer.removeAllListeners(CONFIG_EVENTS.SEARCH_PREVIEW_CHANGED)
+    window.electron.ipcRenderer.removeAllListeners(CONFIG_EVENTS.AUTO_SCROLL_CHANGED)
     window.electron.ipcRenderer.removeAllListeners(CONFIG_EVENTS.CONTENT_PROTECTION_CHANGED)
     window.electron.ipcRenderer.removeAllListeners(CONFIG_EVENTS.COPY_WITH_COT_CHANGED)
     window.electron.ipcRenderer.removeAllListeners(CONFIG_EVENTS.TRACE_DEBUG_CHANGED)
@@ -178,6 +189,7 @@ export const useUiSettingsStore = defineStore('uiSettings', () => {
     formattedCodeFontFamily,
     artifactsEffectEnabled,
     searchPreviewEnabled,
+    autoScrollEnabled,
     contentProtectionEnabled,
     copyWithCotEnabled,
     traceDebugEnabled,
@@ -189,6 +201,7 @@ export const useUiSettingsStore = defineStore('uiSettings', () => {
     resetFontSettings,
     fetchSystemFonts,
     setSearchPreviewEnabled,
+    setAutoScrollEnabled,
     setArtifactsEffectEnabled,
     setContentProtectionEnabled,
     setCopyWithCotEnabled,
