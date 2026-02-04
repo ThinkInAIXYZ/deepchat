@@ -260,6 +260,12 @@ export const useModelStore = defineStore('model', () => {
       const query = getCustomModelsQuery(providerId)
       await query.refetch()
       const customModelsList = query.data.value ?? []
+      const existingCustom =
+        customModels.value.find((item) => item.providerId === providerId)?.models ?? []
+
+      if (customModelsList.length === 0 && existingCustom.length === 0) {
+        return
+      }
 
       const modelIds = customModelsList.map((model) => model.id)
       const modelStatusMap =
