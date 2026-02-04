@@ -301,6 +301,7 @@
     "getKeyTip": "Besøg venligst",
     "getKeyTipEnd": "for at få API-nøglen",
     "urlFormat": "API-eksempel: {defaultUrl}",
+    "urlFormatFill": "Udfyld API-URL",
     "modelList": "Modelliste",
     "enableModels": "Aktivér modeller",
     "disableAllModels": "Deaktiver alle modeller",

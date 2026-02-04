@@ -313,6 +313,7 @@
     "getKeyTip": "Please visit",
     "getKeyTipEnd": "to get API Key",
     "urlFormat": "API Example: {defaultUrl}",
+    "urlFormatFill": "Fill into API URL",
     "modelList": "Model List",
     "enableModels": "Enable Models",
     "disableAllModels": "Disable All Models",

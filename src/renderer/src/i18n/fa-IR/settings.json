@@ -313,6 +313,7 @@
     "getKeyTip": "لطفاً به",
     "getKeyTipEnd": "بروید تا کلید API را دریافت کنید",
     "urlFormat": "نمونه API: {defaultUrl}",
+    "urlFormatFill": "قرار دادن در URL API",
     "modelList": "فهرست مدل‌ها",
     "enableModels": "روشن کردن مدل‌ها",
     "disableAllModels": "خاموش کردن همه مدل‌ها",

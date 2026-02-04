@@ -434,6 +434,7 @@
     "noLocalModels": "Нет локальных моделей",
     "localModels": "Локальные модели",
     "urlFormat": "Образец API: {defaultUrl}",
+    "urlFormatFill": "Подставить в URL API",
     "azureApiVersion": "Версия API",
     "safety": {
       "title": "Настройки безопасности",

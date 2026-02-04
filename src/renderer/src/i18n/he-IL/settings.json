@@ -313,6 +313,7 @@
     "getKeyTip": "אנא בקר ב",
     "getKeyTipEnd": "כדי לקבל מפתח API",
     "urlFormat": "דוגמת API: {defaultUrl}",
+    "urlFormatFill": "מילוי בכתובת ה-API",
     "modelList": "רשימת מודלים",
     "enableModels": "הפעל מודלים",
     "disableAllModels": "השבת את כל המודלים",

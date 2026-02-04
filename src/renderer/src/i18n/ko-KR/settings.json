@@ -434,6 +434,7 @@
     "noLocalModels": "로컬 모델 없음",
     "localModels": "로컬 모델",
     "urlFormat": "API 샘플 : {defaultUrl}",
+    "urlFormatFill": "API URL에 입력",
     "azureApiVersion": "API 버전",
     "safety": {
       "title": "보안 설정",

@@ -313,6 +313,7 @@
     "getKeyTip": "以下へアクセスしてください",
     "getKeyTipEnd": "API Keyを取得する",
     "urlFormat": "API例：{defaultUrl}",
+    "urlFormatFill": "API URL に入力",
     "modelList": "モデル一覧",
     "enableModels": "モデルを有効にする",
     "disableAllModels": "すべてのモデルを無効にする",
