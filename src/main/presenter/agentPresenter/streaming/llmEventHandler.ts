@@ -404,6 +404,9 @@ export class LLMEventHandler {
         if (!hasPendingPermissions) {
           presenter.sessionManager.setStatus(state.conversationId, 'waiting_question')
         }
+        await this.streamUpdateScheduler.flushAll(eventId, 'final')
+        this.generatingMessages.delete(eventId)
+        eventBus.sendToRenderer(STREAM_EVENTS.END, SendTarget.ALL_WINDOWS, msg)
         return
       }
 

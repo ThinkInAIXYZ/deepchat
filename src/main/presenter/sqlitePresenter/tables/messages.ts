@@ -270,6 +270,32 @@ export class MessagesTable extends BaseTable {
       .get(conversationId) as SQLITE_MESSAGE | null
   }
 
+  async getLastAssistantMessage(conversationId: string): Promise<SQLITE_MESSAGE | null> {
+    return this.db
+      .prepare(
+        `
+        SELECT
+          msg_id as id,
+          conversation_id,
+          parent_id,
+          content,
+          role,
+          created_at,
+          order_seq,
+          token_count,
+          status,
+          metadata,
+          is_context_edge,
+          is_variant
+        FROM messages
+        WHERE conversation_id = ? AND role = 'assistant' AND is_variant = 0
+        ORDER BY created_at DESC, order_seq DESC
+        LIMIT 1
+      `
+      )
+      .get(conversationId) as SQLITE_MESSAGE | null
+  }
+
   async getMainMessageByParentId(
     conversationId: string,
     parentId: string

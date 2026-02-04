@@ -385,6 +385,7 @@ export interface ISQLitePresenter {
   ): Promise<void>
   getMessageAttachments(messageId: string, type: string): Promise<{ content: string }[]>
   getLastUserMessage(conversationId: string): Promise<SQLITE_MESSAGE | null>
+  getLastAssistantMessage(conversationId: string): Promise<SQLITE_MESSAGE | null>
   getMainMessageByParentId(conversationId: string, parentId: string): Promise<SQLITE_MESSAGE | null>
   deleteAllMessagesInConversation(conversationId: string): Promise<void>
   getAcpSession(conversationId: string, agentId: string): Promise<AcpSessionEntity | null>

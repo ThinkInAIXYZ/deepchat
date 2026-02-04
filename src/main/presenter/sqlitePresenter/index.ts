@@ -397,6 +397,10 @@ export class SQLitePresenter implements ISQLitePresenter {
     return this.messagesTable.getLastUserMessage(conversationId)
   }
 
+  public async getLastAssistantMessage(conversationId: string): Promise<SQLITE_MESSAGE | null> {
+    return this.messagesTable.getLastAssistantMessage(conversationId)
+  }
+
   public async getMainMessageByParentId(
     conversationId: string,
     parentId: string

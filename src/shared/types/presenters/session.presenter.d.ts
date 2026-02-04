@@ -117,6 +117,7 @@ export interface ISessionPresenter extends IThreadPresenter {
   markMessageAsContextEdge(messageId: string, isEdge: boolean): Promise<void>
   getContextMessages(sessionId: string): Promise<Message[]>
   getLastUserMessage(sessionId: string): Promise<Message | null>
+  getLastAssistantMessage(sessionId: string): Promise<Message | null>
 
   forkSession(
     targetSessionId: string,

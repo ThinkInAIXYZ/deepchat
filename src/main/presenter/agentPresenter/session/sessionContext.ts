@@ -38,5 +38,6 @@ export type SessionContext = {
       messageId: string
       toolCallId: string
     }
+    pendingQuestionInitialized?: boolean
   }
 }
