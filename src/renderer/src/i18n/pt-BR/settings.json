@@ -313,6 +313,7 @@
     "getKeyTip": "Por favor, visite",
     "getKeyTipEnd": "para obter a Chave da API",
     "urlFormat": "Exemplo de API: {defaultUrl}",
+    "urlFormatFill": "Preencher na URL da API",
     "modelList": "Lista de Modelos",
     "enableModels": "Habilitar Modelos",
     "disableAllModels": "Desabilitar Todos os Modelos",

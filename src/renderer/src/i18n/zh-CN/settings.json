@@ -314,6 +314,7 @@
     "getKeyTip": "请前往",
     "getKeyTipEnd": "获取API Key",
     "urlFormat": "API样例：{defaultUrl}",
+    "urlFormatFill": "填充到 API URL",
     "modelList": "模型列表",
     "enableModels": "启用模型",
     "disableAllModels": "禁用全部",

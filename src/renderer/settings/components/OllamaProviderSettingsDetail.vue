@@ -23,11 +23,34 @@
           @keyup.enter="handleApiHostChange(apiHost)"
         />
         <div class="text-xs text-muted-foreground">
-          {{
-            t('settings.provider.urlFormat', {
-              defaultUrl: 'http://127.0.0.1:11434'
-            })
-          }}
+          <TooltipProvider v-if="hasDefaultBaseUrl" :delayDuration="200">
+            <Tooltip>
+              <TooltipTrigger as-child>
+                <button
+                  type="button"
+                  class="text-xs text-muted-foreground underline decoration-dotted underline-offset-2 transition-colors hover:text-foreground"
+                  :aria-label="t('settings.provider.urlFormatFill')"
+                  @click="fillDefaultBaseUrl"
+                >
+                  {{
+                    t('settings.provider.urlFormat', {
+                      defaultUrl: defaultBaseUrl
+                    })
+                  }}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {{ t('settings.provider.urlFormatFill') }}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <span v-else>
+            {{
+              t('settings.provider.urlFormat', {
+                defaultUrl: defaultBaseUrl
+              })
+            }}
+          </span>
         </div>
       </div>
 
@@ -276,6 +299,12 @@ import { Label } from '@shadcn/components/ui/label'
 import { Input } from '@shadcn/components/ui/input'
 import { Button } from '@shadcn/components/ui/button'
 import { Progress } from '@shadcn/components/ui/progress'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger
+} from '@shadcn/components/ui/tooltip'
 import { Icon } from '@iconify/vue'
 import {
   Dialog,
@@ -310,6 +339,8 @@ const showPullModelDialog = ref(false)
 const showCheckModelDialog = ref(false)
 const checkResult = ref<boolean>(false)
 const showDeleteProviderDialog = ref(false)
+const defaultBaseUrl = 'http://127.0.0.1:11434'
+const hasDefaultBaseUrl = defaultBaseUrl.length > 0
 
 // 模型列表 - 从 settings store 获取
 const runningModels = computed(() => ollamaStore.getOllamaRunningModels(props.provider.id))
@@ -901,6 +932,12 @@ const isModelLocal = (modelName: string): boolean => {
 // API URL 处理
 const handleApiHostChange = async (value: string) => {
   await providerStore.updateProviderApi(props.provider.id, undefined, value)
+}
+
+const fillDefaultBaseUrl = async () => {
+  if (!hasDefaultBaseUrl) return
+  apiHost.value = defaultBaseUrl
+  await handleApiHostChange(defaultBaseUrl)
 }
 
 // API Key 处理

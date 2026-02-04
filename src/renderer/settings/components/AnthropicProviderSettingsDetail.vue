@@ -54,11 +54,34 @@
           @keyup.enter="handleApiHostChange(apiHost)"
         />
         <div class="text-xs text-muted-foreground">
-          {{
-            t('settings.provider.urlFormat', {
-              defaultUrl: 'https://api.anthropic.com'
-            })
-          }}
+          <TooltipProvider v-if="hasDefaultBaseUrl" :delayDuration="200">
+            <Tooltip>
+              <TooltipTrigger as-child>
+                <button
+                  type="button"
+                  class="text-xs text-muted-foreground underline decoration-dotted underline-offset-2 transition-colors hover:text-foreground"
+                  :aria-label="t('settings.provider.urlFormatFill')"
+                  @click="fillDefaultBaseUrl"
+                >
+                  {{
+                    t('settings.provider.urlFormat', {
+                      defaultUrl: defaultBaseUrl
+                    })
+                  }}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {{ t('settings.provider.urlFormatFill') }}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <span v-else>
+            {{
+              t('settings.provider.urlFormat', {
+                defaultUrl: defaultBaseUrl
+              })
+            }}
+          </span>
         </div>
 
         <Label :for="`${provider.id}-apikey`" class="flex-1 cursor-pointer">{{
@@ -340,6 +363,12 @@ import { onMounted, ref, watch, onUnmounted, computed } from 'vue'
 import { Label } from '@shadcn/components/ui/label'
 import { Input } from '@shadcn/components/ui/input'
 import { Button } from '@shadcn/components/ui/button'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger
+} from '@shadcn/components/ui/tooltip'
 import { Icon } from '@iconify/vue'
 import {
   Dialog,
@@ -396,6 +425,8 @@ const oauthCode = ref('')
 const codeValidationError = ref('')
 const isSubmittingCode = ref(false)
 const showDeleteProviderDialog = ref(false)
+const defaultBaseUrl = 'https://api.anthropic.com'
+const hasDefaultBaseUrl = defaultBaseUrl.length > 0
 
 // Computed
 const hasOAuthToken = ref(false)
@@ -608,6 +639,12 @@ const disconnectOAuth = async () => {
 // API URL 处理
 const handleApiHostChange = async (value: string) => {
   await providerStore.updateProviderApi(props.provider.id, undefined, value)
+}
+
+const fillDefaultBaseUrl = async () => {
+  if (!hasDefaultBaseUrl) return
+  apiHost.value = defaultBaseUrl
+  await handleApiHostChange(defaultBaseUrl)
 }
 
 // API Key 处理
