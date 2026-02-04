@@ -313,6 +313,7 @@
     "getKeyTip": "請前往",
     "getKeyTipEnd": "獲取API Key",
     "urlFormat": "API範例：{defaultUrl}",
+    "urlFormatFill": "填入 API URL",
     "modelList": "模型列表",
     "enableModels": "模型已經啟用",
     "verifyLink": "驗證鏈接",
