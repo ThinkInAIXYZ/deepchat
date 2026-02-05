@@ -13,6 +13,7 @@ const PLACEHOLDER_POSITION_THRESHOLD = 5000
 export interface UseMessageScrollOptions {
   dynamicScrollerRef?: Ref<InstanceType<typeof DynamicScroller> | null>
   shouldAutoFollow?: Ref<boolean>
+  autoScrollEnabled?: Ref<boolean>
   scrollAnchor?: Ref<HTMLDivElement | undefined>
 }
 
@@ -73,8 +74,17 @@ export function useMessageScroll(options?: UseMessageScrollOptions) {
 
     nextTick(() => {
       const shouldAutoFollow = options?.shouldAutoFollow
+      const autoScrollEnabled = options?.autoScrollEnabled
+      const canAutoFollow = autoScrollEnabled ? autoScrollEnabled.value : true
       if (force && shouldAutoFollow) {
-        shouldAutoFollow.value = true
+        if (canAutoFollow) {
+          shouldAutoFollow.value = true
+        }
+      }
+
+      if (!force && !canAutoFollow) {
+        updateScrollInfo()
+        return
       }
 
       if (!force && shouldAutoFollow && !shouldAutoFollow.value) {

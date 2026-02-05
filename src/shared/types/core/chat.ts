@@ -55,6 +55,7 @@ export type AssistantMessageBlock = {
     | 'tool_call'
     | 'action'
     | 'image'
+    | 'audio'
     | 'artifact-thinking'
     | 'mcp_ui_resource'
   content?: string
@@ -98,7 +99,11 @@ export type AssistantMessageBlock = {
     server_icons?: string
     server_description?: string
   }
-  action_type?: 'tool_call_permission' | 'maximum_tool_calls_reached' | 'rate_limit'
+  action_type?:
+    | 'tool_call_permission'
+    | 'maximum_tool_calls_reached'
+    | 'rate_limit'
+    | 'question_request'
   image_data?: { data: string; mimeType: string }
   reasoning_time?: { start: number; end: number }
 }

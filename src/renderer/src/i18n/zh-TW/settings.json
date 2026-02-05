@@ -8,6 +8,7 @@
     "searchEngine": "搜尋引擎",
     "searchEngineSelect": "選擇搜尋引擎",
     "searchPreview": "搜尋預覽",
+    "autoScrollEnabled": "生成時自動捲動",
     "searchAssistantModel": "助手模型",
     "selectModel": "選擇模型",
     "proxyMode": "代理伺服器模式",
@@ -312,6 +313,7 @@
     "getKeyTip": "請前往",
     "getKeyTipEnd": "取得 API 金鑰",
     "urlFormat": "API 範例：{defaultUrl}",
+    "urlFormatFill": "填入 API URL",
     "modelList": "模型清單",
     "enableModels": "啟用模型",
     "disableAllModels": "全部停用",
@@ -327,6 +329,38 @@
     "stopModel": "停止模型",
     "pulling": "下載中...",
     "runModel": "執行模型",
+    "voiceai": {
+      "title": "Voice.ai 文字轉語音",
+      "description": "將文字生成語音，voice 會在下方模型清單中顯示。",
+      "audioFormat": {
+        "label": "音訊格式",
+        "placeholder": "選擇格式",
+        "helper": "多數情況建議使用 MP3。"
+      },
+      "language": {
+        "label": "語言",
+        "placeholder": "例如 en",
+        "helper": "支援語言：en, ca, sv, es, fr, de, it, pt, pl, ru, nl。"
+      },
+      "model": {
+        "label": "TTS 模型",
+        "placeholder": "voiceai-tts-v1-latest",
+        "helper": "可選模型請查看 Voice.ai 文件。"
+      },
+      "agentId": {
+        "label": "語音 Agent ID",
+        "placeholder": "貼上 voice agent id",
+        "helper": "即時通話需要此 ID。"
+      },
+      "temperature": {
+        "label": "溫度",
+        "helper": "隨機性參數（0-2）。"
+      },
+      "topP": {
+        "label": "Top P",
+        "helper": "Nucleus 取樣（0-1）。"
+      }
+    },
     "dialog": {
       "disableModel": {
         "title": "確認停用模型",

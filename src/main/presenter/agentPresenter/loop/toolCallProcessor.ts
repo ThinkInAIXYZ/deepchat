@@ -10,6 +10,7 @@ import fs from 'fs/promises'
 import path from 'path'
 import { isNonRetryableError } from './errorClassification'
 import { resolveToolOffloadPath } from '../../sessionPresenter/sessionPaths'
+import { parseQuestionToolArgs, QUESTION_TOOL_NAME } from '../tools/questionTool'
 
 interface ToolCallProcessorOptions {
   getAllToolDefinitions: (context: ToolCallExecutionContext) => Promise<MCPToolDefinition[]>
@@ -42,6 +43,7 @@ interface ToolCallProcessResult {
 
 const TOOL_OUTPUT_OFFLOAD_THRESHOLD = 5000
 const TOOL_OUTPUT_PREVIEW_LENGTH = 1024
+const QUESTION_ERROR_KEY = 'common.error.invalidQuestionRequest'
 
 // Tools that require offload when output exceeds threshold
 // Tools not in this list will never trigger offload (e.g., read_file has its own pagination)
@@ -52,8 +54,7 @@ const TOOLS_REQUIRING_OFFLOAD = new Set([
   'glob_search',
   'grep_search',
   'text_replace',
-  'browser_read_links',
-  'browser_get_clickable_elements'
+  'yo_browser_cdp_send'
 ])
 
 export class ToolCallProcessor {
@@ -76,7 +77,7 @@ export class ToolCallProcessor {
       return toolDefinitions.find((tool) => tool.function.name === toolName)
     }
 
-    for (const toolCall of context.toolCalls) {
+    for (const [index, toolCall] of context.toolCalls.entries()) {
       if (context.abortSignal.aborted) break
 
       if (toolCallCount >= context.maxToolCalls) {
@@ -144,6 +145,70 @@ export class ToolCallProcessor {
         },
         server: toolDef.server,
         conversationId: context.conversationId
+      }
+
+      if (toolCall.name === QUESTION_TOOL_NAME) {
+        const isStandalone = context.toolCalls.length === 1
+        const isLast = index === context.toolCalls.length - 1
+        if (!isStandalone || !isLast) {
+          notifyToolCallFinished('error')
+          this.appendToolError(
+            context.conversationMessages,
+            context.modelConfig,
+            toolCall,
+            'Question tool must be the only tool call in a turn.'
+          )
+          yield {
+            type: 'response',
+            data: {
+              eventId: context.eventId,
+              question_error: QUESTION_ERROR_KEY,
+              tool_call_id: toolCall.id,
+              tool_call_name: toolCall.name
+            }
+          }
+          continue
+        }
+
+        const parsedQuestion = parseQuestionToolArgs(toolCall.arguments || '')
+        if (!parsedQuestion.success) {
+          notifyToolCallFinished('error')
+          this.appendToolError(
+            context.conversationMessages,
+            context.modelConfig,
+            toolCall,
+            `Invalid question tool arguments: ${parsedQuestion.error}`
+          )
+          yield {
+            type: 'response',
+            data: {
+              eventId: context.eventId,
+              question_error: QUESTION_ERROR_KEY,
+              tool_call_id: toolCall.id,
+              tool_call_name: toolCall.name
+            }
+          }
+          continue
+        }
+
+        notifyToolCallFinished('success')
+        yield {
+          type: 'response',
+          data: {
+            eventId: context.eventId,
+            tool_call: 'question-required',
+            tool_call_id: toolCall.id,
+            tool_call_name: toolCall.name,
+            tool_call_params: toolCall.arguments,
+            tool_call_server_name: toolDef.server.name,
+            tool_call_server_icons: toolDef.server.icons,
+            tool_call_server_description: toolDef.server.description,
+            question_request: parsedQuestion.data
+          }
+        }
+
+        needContinueConversation = false
+        break
       }
 
       yield {

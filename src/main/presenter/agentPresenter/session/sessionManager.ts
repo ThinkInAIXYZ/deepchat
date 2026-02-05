@@ -2,6 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { app } from 'electron'
 import type { IConfigPresenter, ISessionPresenter } from '@shared/presenter'
+import type { AssistantMessageBlock } from '@shared/chat'
 import type { SessionContext, SessionContextResolved, SessionStatus } from './sessionContext'
 import { resolveSessionContext } from './sessionResolver'
 
@@ -41,6 +42,7 @@ export class SessionManager {
       existing.resolved = resolved
       existing.updatedAt = now
       this.ensureRuntime(existing)
+      await this.hydratePendingQuestion(existing)
       return existing
     }
 
@@ -57,6 +59,7 @@ export class SessionManager {
       }
     }
     this.sessions.set(agentId, session)
+    await this.hydratePendingQuestion(session)
     return session
   }
 
@@ -147,6 +150,7 @@ export class SessionManager {
     runtime.toolCallCount = 0
     runtime.userStopRequested = false
     runtime.pendingPermission = undefined
+    runtime.pendingQuestion = undefined
   }
 
   setStatus(agentId: string, status: SessionStatus): void {
@@ -176,6 +180,10 @@ export class SessionManager {
     this.updateRuntime(agentId, { pendingPermission: undefined })
   }
 
+  clearPendingQuestion(agentId: string): void {
+    this.updateRuntime(agentId, { pendingQuestion: undefined })
+  }
+
   private ensureRuntime(session: SessionContext): NonNullable<SessionContext['runtime']> {
     if (!session.runtime) {
       session.runtime = {
@@ -191,6 +199,53 @@ export class SessionManager {
       }
     }
     return session.runtime
+  }
+
+  private async hydratePendingQuestion(session: SessionContext): Promise<void> {
+    const runtime = this.ensureRuntime(session)
+    if (runtime.pendingQuestionInitialized) return
+    runtime.pendingQuestionInitialized = true
+    if (runtime.pendingQuestion) return
+
+    try {
+      const lastAssistant = await this.options.sessionPresenter.getLastAssistantMessage(
+        session.agentId
+      )
+      if (!lastAssistant || lastAssistant.role !== 'assistant') {
+        return
+      }
+
+      const blocks = lastAssistant.content as AssistantMessageBlock[]
+      if (!Array.isArray(blocks) || blocks.length === 0) {
+        return
+      }
+
+      const pendingQuestionBlock = [...blocks].reverse().find((block) => {
+        if (
+          block.type !== 'action' ||
+          block.action_type !== 'question_request' ||
+          block.status !== 'pending'
+        ) {
+          return false
+        }
+        if (block.extra && block.extra.needsUserAction === false) {
+          return false
+        }
+        return Boolean(block.tool_call?.id)
+      })
+
+      const toolCallId = pendingQuestionBlock?.tool_call?.id
+      if (!toolCallId) return
+
+      runtime.pendingQuestion = {
+        messageId: lastAssistant.id,
+        toolCallId
+      }
+      session.status = 'waiting_question'
+      session.updatedAt = Date.now()
+    } catch (error) {
+      console.warn('[SessionManager] Failed to hydrate pending question:', error)
+    }
   }
 
   private async resolveAgentWorkspacePath(

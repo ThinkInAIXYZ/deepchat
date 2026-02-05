@@ -57,5 +57,14 @@
     "title": "{name} のパラメーター設定",
     "description": "以下の項目を入力してください。* が付いた欄は必須です。",
     "required": "この項目は必須です。"
+  },
+  "messageBlockQuestionRequest": {
+    "title": "Question",
+    "send": "Send",
+    "reject": "Reject",
+    "selected": "Selected",
+    "rejected": "Rejected",
+    "customPlaceholder": "Type your answer...",
+    "answerLabel": "Answer"
   }
 }

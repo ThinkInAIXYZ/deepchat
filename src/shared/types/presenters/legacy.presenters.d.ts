@@ -217,12 +217,14 @@ export interface IYoBrowserPresenter {
     canGoForward: boolean
   }>
   getTabIdByViewId(viewId: number): Promise<string | null>
-  getToolDefinitions(supportsVision: boolean): Promise<MCPToolDefinition[]>
-  callTool(toolName: string, params: Record<string, unknown>): Promise<string>
   captureScreenshot(tabId: string, options?: ScreenshotOptions): Promise<string>
   startDownload(url: string, savePath?: string): Promise<DownloadInfo>
   clearSandboxData(): Promise<void>
   shutdown(): Promise<void>
+  readonly toolHandler: {
+    getToolDefinitions(): any[]
+    callTool(toolName: string, args: Record<string, unknown>): Promise<string>
+  }
 }
 
 export interface IWindowPresenter {
@@ -383,6 +385,7 @@ export interface ISQLitePresenter {
   ): Promise<void>
   getMessageAttachments(messageId: string, type: string): Promise<{ content: string }[]>
   getLastUserMessage(conversationId: string): Promise<SQLITE_MESSAGE | null>
+  getLastAssistantMessage(conversationId: string): Promise<SQLITE_MESSAGE | null>
   getMainMessageByParentId(conversationId: string, parentId: string): Promise<SQLITE_MESSAGE | null>
   deleteAllMessagesInConversation(conversationId: string): Promise<void>
   getAcpSession(conversationId: string, agentId: string): Promise<AcpSessionEntity | null>
@@ -544,6 +547,9 @@ export interface IConfigPresenter {
   // Search preview settings
   getSearchPreviewEnabled(): Promise<boolean>
   setSearchPreviewEnabled(enabled: boolean): void
+  // Auto scroll settings
+  getAutoScrollEnabled(): boolean
+  setAutoScrollEnabled(enabled: boolean): void
   // Screen sharing protection settings
   getContentProtectionEnabled(): boolean
   setContentProtectionEnabled(enabled: boolean): void
@@ -944,7 +950,6 @@ export interface ILlmProviderPresenter {
   setProviders(provider: LLM_PROVIDER[]): void
   getProviders(): LLM_PROVIDER[]
   getProviderById(id: string): LLM_PROVIDER
-  isAgentProvider(providerId: string): boolean
   getExistingProviderInstance?(providerId: string): unknown
   getModelList(providerId: string): Promise<MODEL_META[]>
   updateModelStatus(providerId: string, modelId: string, enabled: boolean): Promise<void>

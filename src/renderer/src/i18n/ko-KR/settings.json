@@ -8,6 +8,7 @@
     "searchEngine": "검색 엔진",
     "searchEngineSelect": "검색 엔진 선택",
     "searchPreview": "검색 미리보기",
+    "autoScrollEnabled": "생성 중 자동 스크롤",
     "searchAssistantModel": "보조 모델",
     "selectModel": "모델 선택",
     "proxyMode": "프록시 모드",
@@ -326,6 +327,38 @@
     "stopModel": "모델 중지",
     "pulling": "가져오는 중...",
     "runModel": "모델 실행",
+    "voiceai": {
+      "title": "Voice.ai 텍스트 음성 변환",
+      "description": "텍스트로부터 음성을 생성합니다. 음성은 아래 모델 목록에 표시됩니다.",
+      "audioFormat": {
+        "label": "오디오 형식",
+        "placeholder": "형식 선택",
+        "helper": "대부분의 경우 MP3를 권장합니다."
+      },
+      "language": {
+        "label": "언어",
+        "placeholder": "예: en",
+        "helper": "지원: en, ca, sv, es, fr, de, it, pt, pl, ru, nl."
+      },
+      "model": {
+        "label": "TTS 모델",
+        "placeholder": "voiceai-tts-v1-latest",
+        "helper": "지원되는 모델은 Voice.ai 문서를 참고하세요."
+      },
+      "agentId": {
+        "label": "음성 에이전트 ID",
+        "placeholder": "voice agent id 붙여넣기",
+        "helper": "실시간 음성 통화에 필요합니다."
+      },
+      "temperature": {
+        "label": "온도",
+        "helper": "무작위성을 제어합니다 (0-2)."
+      },
+      "topP": {
+        "label": "Top P",
+        "helper": "Nucleus 샘플링 (0-1)."
+      }
+    },
     "dialog": {
       "disableModel": {
         "title": "모델 비활성화 확인",
@@ -401,6 +434,7 @@
     "noLocalModels": "로컬 모델 없음",
     "localModels": "로컬 모델",
     "urlFormat": "API 샘플 : {defaultUrl}",
+    "urlFormatFill": "API URL에 입력",
     "azureApiVersion": "API 버전",
     "safety": {
       "title": "보안 설정",

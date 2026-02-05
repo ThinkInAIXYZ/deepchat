@@ -1,4 +1,5 @@
 import type { AssistantMessageBlock } from '@shared/chat'
+import type { QuestionInfo } from '@shared/types/core/question'
 import { finalizeAssistantMessageBlocks } from '@shared/chat/messageBlocks'
 import type {
   LLMAgentEventData,
@@ -213,6 +214,44 @@ export class ToolCallHandler {
         return
       }
     }
+  }
+
+  async processQuestionRequest(
+    state: GeneratingMessageState,
+    event: LLMAgentEventData,
+    currentTime: number
+  ): Promise<void> {
+    const payload = event.question_request as QuestionInfo | undefined
+    if (!payload) return
+
+    this.finalizeLastBlock(state)
+
+    state.message.content.push({
+      type: 'action',
+      content: '',
+      status: 'pending',
+      timestamp: currentTime,
+      action_type: 'question_request',
+      tool_call: {
+        id: event.tool_call_id,
+        name: event.tool_call_name,
+        params: event.tool_call_params || '',
+        server_name: event.tool_call_server_name,
+        server_icons: event.tool_call_server_icons,
+        server_description: event.tool_call_server_description
+      },
+      extra: {
+        needsUserAction: true,
+        questionHeader: payload.header ?? '',
+        questionText: payload.question,
+        questionOptions: payload.options,
+        questionMultiple: Boolean(payload.multiple),
+        questionCustom: payload.custom !== false,
+        questionResolution: 'asked'
+      }
+    })
+
+    state.pendingToolCall = undefined
   }
 
   async processMcpUiResourcesFromToolCall(

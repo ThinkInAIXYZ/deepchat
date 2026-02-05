@@ -45,7 +45,8 @@ export class AgentLoopHandler {
           enabledMcpTools: context.enabledMcpTools,
           chatMode,
           supportsVision: this.currentSupportsVision,
-          agentWorkspacePath
+          agentWorkspacePath,
+          conversationId: context.conversationId
         })
 
         return await this.filterToolsForChatMode(toolDefs, chatMode, modelId)
@@ -271,7 +272,8 @@ export class AgentLoopHandler {
             enabledMcpTools,
             chatMode,
             supportsVision: this.currentSupportsVision,
-            agentWorkspacePath
+            agentWorkspacePath,
+            conversationId
           })
           const filteredToolDefs = await this.filterToolsForChatMode(toolDefs, chatMode, modelId)
 

@@ -200,9 +200,9 @@ watch(
 
 // 清理事件监听
 onUnmounted(async () => {
-  window.electron.ipcRenderer.removeAllListeners(STREAM_EVENTS.END)
-  window.electron.ipcRenderer.removeAllListeners(STREAM_EVENTS.ERROR)
-  window.electron.ipcRenderer.removeAllListeners(SHORTCUT_EVENTS.CLEAN_CHAT_HISTORY)
+  window.electron.ipcRenderer.removeListener(STREAM_EVENTS.END, onStreamEnd)
+  window.electron.ipcRenderer.removeListener(STREAM_EVENTS.ERROR, onStreamError)
+  window.electron.ipcRenderer.removeListener(SHORTCUT_EVENTS.CLEAN_CHAT_HISTORY, onCleanChatHistory)
 })
 
 defineExpose({

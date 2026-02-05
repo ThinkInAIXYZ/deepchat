@@ -8,6 +8,7 @@
     "searchEngine": "Moteur de recherche",
     "searchEngineSelect": "Sélectionner le moteur de recherche",
     "searchPreview": "Aperçu de la recherche",
+    "autoScrollEnabled": "Défilement automatique pendant la génération",
     "searchAssistantModel": "Modèle adjoint",
     "selectModel": "Sélectionner le modèle",
     "proxyMode": "Mode proxy",
@@ -312,6 +313,7 @@
     "getKeyTip": "Veuillez visiter",
     "getKeyTipEnd": "pour obtenir la clé API",
     "urlFormat": "Exemple d'API : {defaultUrl}",
+    "urlFormatFill": "Renseigner l'URL de l'API",
     "modelList": "Liste des modèles",
     "enableModels": "Activer les modèles",
     "disableAllModels": "Désactiver tous les modèles",
@@ -327,6 +329,38 @@
     "stopModel": "Arrêter le modèle",
     "pulling": "Récupération...",
     "runModel": "Exécuter le modèle",
+    "voiceai": {
+      "title": "Synthèse vocale Voice.ai",
+      "description": "Générez de la parole à partir du texte. Les voix apparaissent dans la liste des modèles ci-dessous.",
+      "audioFormat": {
+        "label": "Format audio",
+        "placeholder": "Sélectionner un format",
+        "helper": "MP3 est recommandé dans la plupart des cas."
+      },
+      "language": {
+        "label": "Langue",
+        "placeholder": "ex. en",
+        "helper": "Pris en charge : en, ca, sv, es, fr, de, it, pt, pl, ru, nl."
+      },
+      "model": {
+        "label": "Modèle TTS",
+        "placeholder": "voiceai-tts-v1-latest",
+        "helper": "Voir la documentation Voice.ai pour les modèles pris en charge."
+      },
+      "agentId": {
+        "label": "ID de l’agent vocal",
+        "placeholder": "Collez l’ID de l’agent vocal",
+        "helper": "Requis pour les appels vocaux en temps réel."
+      },
+      "temperature": {
+        "label": "Température",
+        "helper": "Contrôle l’aléatoire (0-2)."
+      },
+      "topP": {
+        "label": "Top P",
+        "helper": "Échantillonnage nucleus (0-1)."
+      }
+    },
     "dialog": {
       "disableModel": {
         "title": "Confirmer la désactivation du modèle",

@@ -42,7 +42,8 @@
     "error502": "ゲートウェイエラー：後で再試行してください",
     "error503": "サービス不可：後で再試行してください",
     "error504": "タイムアウト：ネットワーク設定を確認してください",
-    "operationFailed": "操作に失敗しました"
+    "operationFailed": "操作に失敗しました",
+    "invalidQuestionRequest": "無効な質問リクエスト"
   },
   "resetDataConfirmTitle": "すべてのデータをリセットしますか？",
   "resetDataConfirmDescription": "すべてのデータがデフォルト設定にリセットされます。この操作は元に戻せません。",

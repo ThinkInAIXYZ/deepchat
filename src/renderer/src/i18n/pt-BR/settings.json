@@ -8,6 +8,7 @@
     "searchEngine": "Mecanismo de Busca",
     "searchEngineSelect": "Selecionar mecanismo de busca",
     "searchPreview": "Pré-visualização de Busca",
+    "autoScrollEnabled": "Rolagem automática durante a geração",
     "searchAssistantModel": "Modelo Assistente",
     "selectModel": "Selecionar Modelo",
     "proxyMode": "Modo Proxy",
@@ -312,6 +313,7 @@
     "getKeyTip": "Por favor, visite",
     "getKeyTipEnd": "para obter a Chave da API",
     "urlFormat": "Exemplo de API: {defaultUrl}",
+    "urlFormatFill": "Preencher na URL da API",
     "modelList": "Lista de Modelos",
     "enableModels": "Habilitar Modelos",
     "disableAllModels": "Desabilitar Todos os Modelos",
@@ -327,6 +329,38 @@
     "stopModel": "Parar Modelo",
     "pulling": "Baixando...",
     "runModel": "Executar Modelo",
+    "voiceai": {
+      "title": "Texto para voz da Voice.ai",
+      "description": "Gere fala a partir de texto. As vozes aparecem na lista de modelos abaixo.",
+      "audioFormat": {
+        "label": "Formato de áudio",
+        "placeholder": "Selecionar formato",
+        "helper": "MP3 é recomendado na maioria dos casos."
+      },
+      "language": {
+        "label": "Idioma",
+        "placeholder": "ex.: en",
+        "helper": "Suporte: en, ca, sv, es, fr, de, it, pt, pl, ru, nl."
+      },
+      "model": {
+        "label": "Modelo TTS",
+        "placeholder": "voiceai-tts-v1-latest",
+        "helper": "Consulte a documentação da Voice.ai para modelos compatíveis."
+      },
+      "agentId": {
+        "label": "ID do agente de voz",
+        "placeholder": "Cole o ID do voice agent",
+        "helper": "Necessário para chamadas de voz em tempo real."
+      },
+      "temperature": {
+        "label": "Temperatura",
+        "helper": "Controla a aleatoriedade (0-2)."
+      },
+      "topP": {
+        "label": "Top P",
+        "helper": "Amostragem nucleus (0-1)."
+      }
+    },
     "dialog": {
       "disableModel": {
         "title": "Confirmar Desativação do Modelo",

@@ -182,6 +182,20 @@ export class PermissionHandler extends BaseHandler {
           return
         }
 
+        if (serverName === 'deepchat-settings') {
+          const toolName =
+            this.getStringFromObject(parsedPermissionRequest, 'toolName') ||
+            this.getStringFromObject(permissionBlock.extra as Record<string, unknown>, 'toolName')
+          if (!toolName) {
+            console.warn('[PermissionHandler] Missing tool name in settings permission request')
+            await this.continueAfterPermissionDenied(messageId, permissionBlock)
+            return
+          }
+          presenter.settingsPermissionService?.approve(message.conversationId, toolName, remember)
+          await this.restartAgentLoopAfterPermission(messageId, toolCallId)
+          return
+        }
+
         try {
           await this.getMcpPresenter().grantPermission(serverName, permissionType, remember)
           await this.waitForMcpServiceReady(serverName)
@@ -562,7 +576,8 @@ export class PermissionHandler extends BaseHandler {
           enabledMcpTools,
           chatMode,
           supportsVision: false,
-          agentWorkspacePath
+          agentWorkspacePath,
+          conversationId
         })
         toolDef = toolDefinitions.find((definition) => {
           if (definition.function.name !== pendingToolCall.name) {

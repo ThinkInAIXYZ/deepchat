@@ -21,6 +21,7 @@ export const CONFIG_EVENTS = {
   SYNC_SETTINGS_CHANGED: 'config:sync-settings-changed',
   SEARCH_ENGINES_UPDATED: 'config:search-engines-updated',
   SEARCH_PREVIEW_CHANGED: 'config:search-preview-changed',
+  AUTO_SCROLL_CHANGED: 'config:auto-scroll-changed',
   NOTIFICATIONS_CHANGED: 'config:notifications-changed',
   CONTENT_PROTECTION_CHANGED: 'config:content-protection-changed',
   SOUND_ENABLED_CHANGED: 'config:sound-enabled-changed', // 新增：声音开关变更事件
@@ -104,6 +105,11 @@ export const WINDOW_EVENTS = {
   WINDOW_CLOSED: 'window:closed',
   FIRST_CONTENT_LOADED: 'window:first-content-loaded', // 新增：首次内容加载完成事件
   WINDOW_RESTORED: 'window:restored'
+}
+
+// Settings related events
+export const SETTINGS_EVENTS = {
+  NAVIGATE: 'settings:navigate'
 }
 
 // ollama 相关事件

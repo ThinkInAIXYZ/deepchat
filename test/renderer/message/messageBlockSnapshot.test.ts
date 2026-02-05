@@ -288,7 +288,7 @@ function isValidStatusTransition(
 ): boolean {
   const validTransitions: Record<string, string[]> = {
     loading: ['success', 'error'],
-    pending: ['granted', 'denied', 'error'],
+    pending: ['granted', 'denied', 'success', 'error'],
     success: [],
     error: [],
     granted: [],

@@ -7,6 +7,7 @@ import type {
   UserMessage,
   Message
 } from '@shared/chat'
+import type { QuestionInfo } from '@shared/types/core/question'
 import { finalizeAssistantMessageBlocks } from '@shared/chat/messageBlocks'
 import type { CONVERSATION, CONVERSATION_SETTINGS, ParentSelection } from '@shared/presenter'
 import { usePresenter } from '@/composables/usePresenter'
@@ -900,6 +901,7 @@ export const useChatStore = defineStore('chat', () => {
       | 'permission-granted'
       | 'permission-denied'
       | 'continue'
+      | 'question-required'
     permission_request?: {
       toolName: string
       serverName: string
@@ -927,6 +929,8 @@ export const useChatStore = defineStore('chat', () => {
       }>
       rememberable?: boolean
     }
+    question_request?: QuestionInfo
+    question_error?: string
     totalUsage?: {
       prompt_tokens: number
       completion_tokens: number
@@ -1031,8 +1035,53 @@ export const useChatStore = defineStore('chat', () => {
           needContinue: true
         }
       })
+    } else if (msg.question_error) {
+      const normalizedQuestionError = msg.question_error.trim()
+      const questionErrorContent =
+        normalizedQuestionError === 'Invalid question request'
+          ? 'common.error.invalidQuestionRequest'
+          : msg.question_error
+
+      finalizeAssistantMessageBlocks(assistantMsg.content)
+      assistantMsg.content.push({
+        type: 'error',
+        content: questionErrorContent,
+        status: 'error',
+        timestamp: Date.now()
+      })
     } else if (msg.tool_call) {
-      if (msg.tool_call === 'permission-required') {
+      if (msg.tool_call === 'question-required') {
+        const payload = msg.question_request
+        if (payload) {
+          finalizeAssistantMessageBlocks(assistantMsg.content)
+          assistantMsg.content.push({
+            type: 'action',
+            content: '',
+            status: 'pending',
+            timestamp: Date.now(),
+            action_type: 'question_request',
+            tool_call: {
+              id: msg.tool_call_id,
+              name: msg.tool_call_name,
+              params: msg.tool_call_params || '',
+              server_name: msg.tool_call_server_name,
+              server_icons: msg.tool_call_server_icons,
+              server_description: msg.tool_call_server_description
+            },
+            extra: {
+              needsUserAction: true,
+              questionHeader: payload.header ?? '',
+              questionText: payload.question,
+              questionOptions: payload.options,
+              questionMultiple: Boolean(payload.multiple),
+              questionCustom: payload.custom !== false,
+              questionResolution: 'asked'
+            }
+          })
+        }
+      } else if (msg.tool_call_name === 'question') {
+        // Ignore question tool call lifecycle events (handled by question-required)
+      } else if (msg.tool_call === 'permission-required') {
         finalizeAssistantMessageBlocks(assistantMsg.content)
         const permissionRequest = msg.permission_request
         const permissionExtra: Record<string, string | boolean> = {
@@ -1225,9 +1274,12 @@ export const useChatStore = defineStore('chat', () => {
       }
     } else if (msg.image_data) {
       finalizeAssistantMessageBlocks(assistantMsg.content)
+      const mimeType = msg.image_data.mimeType || ''
+      const isAudio =
+        mimeType.startsWith('audio/') || msg.image_data.data?.startsWith('data:audio/')
       assistantMsg.content.push({
-        type: 'image',
-        content: 'image',
+        type: isAudio ? 'audio' : 'image',
+        content: isAudio ? 'audio' : 'image',
         status: 'success',
         timestamp: Date.now(),
         image_data: {

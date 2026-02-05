@@ -57,5 +57,14 @@
     "title": "Configurações de Parâmetros de {name}",
     "description": "Por favor, preencha os parâmetros abaixo. Campos marcados com * são obrigatórios.",
     "required": "Este campo é obrigatório."
+  },
+  "messageBlockQuestionRequest": {
+    "title": "Question",
+    "send": "Send",
+    "reject": "Reject",
+    "selected": "Selected",
+    "rejected": "Rejected",
+    "customPlaceholder": "Type your answer...",
+    "answerLabel": "Answer"
   }
 }

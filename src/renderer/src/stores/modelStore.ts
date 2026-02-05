@@ -38,14 +38,6 @@ export const useModelStore = defineStore('model', () => {
   const customModelQueries = new Map<string, ModelQueryHandle<MODEL_META[]>>()
   const enabledModelQueries = new Map<string, ModelQueryHandle<RENDERER_MODEL_META[]>>()
   const queryCache = useQueryCache()
-  const isAgentProvider = async (providerId: string): Promise<boolean> => {
-    try {
-      return Boolean(await llmP.isAgentProvider(providerId))
-    } catch (error) {
-      console.warn(`[ModelStore] Failed to determine provider type: ${providerId}`, error)
-      return false
-    }
-  }
 
   const matchesProviderModelsEntry = (
     entry: { key: readonly unknown[] },
@@ -268,6 +260,12 @@ export const useModelStore = defineStore('model', () => {
       const query = getCustomModelsQuery(providerId)
       await query.refetch()
       const customModelsList = query.data.value ?? []
+      const existingCustom =
+        customModels.value.find((item) => item.providerId === providerId)?.models ?? []
+
+      if (customModelsList.length === 0 && existingCustom.length === 0) {
+        return
+      }
 
       const modelIds = customModelsList.map((model) => model.id)
       const modelStatusMap =
@@ -436,7 +434,7 @@ export const useModelStore = defineStore('model', () => {
   }
 
   const refreshProviderModels = async (providerId: string) => {
-    if (await isAgentProvider(providerId)) {
+    if (providerId === 'acp') {
       try {
         const { rendererModels, modelMetas } = await agentModelStore.refreshAgentModels(providerId)
         updateProviderModelsCache(providerId, modelMetas)

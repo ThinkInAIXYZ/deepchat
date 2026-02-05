@@ -57,5 +57,14 @@
     "title": "{name} 参数设置",
     "description": "请填写以下参数，带 * 的为必填项。",
     "required": "此参数为必填项"
+  },
+  "messageBlockQuestionRequest": {
+    "title": "问题",
+    "send": "发送",
+    "reject": "拒绝",
+    "selected": "已选择",
+    "rejected": "已拒绝",
+    "customPlaceholder": "输入你的回答...",
+    "answerLabel": "回答"
   }
 }

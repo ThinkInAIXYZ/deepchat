@@ -45,6 +45,10 @@
 
         <Separator v-if="provider.id === 'gemini'" />
 
+        <VoiceAIProviderConfig v-if="provider.id === 'voiceai'" :provider="provider" />
+
+        <Separator v-if="provider.id === 'voiceai'" />
+
         <!-- 速率限制配置 -->
         <ProviderRateLimitConfig :provider="provider" @config-changed="handleConfigChanged" />
 
@@ -86,7 +90,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch, reactive } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { useProviderStore } from '@/stores/providerStore'
 import { useModelStore } from '@/stores/modelStore'
 import type { LLM_PROVIDER, RENDERER_MODEL_META, VERTEX_PROVIDER } from '@shared/presenter'
@@ -103,7 +107,7 @@ import { useModelCheckStore } from '@/stores/modelCheck'
 import { levelToValueMap, safetyCategories } from '@/lib/gemini'
 import { Separator } from '@shadcn/components/ui/separator'
 import type { SafetyCategoryKey, SafetySettingValue } from '@/lib/gemini'
-import { useThrottleFn } from '@vueuse/core'
+import VoiceAIProviderConfig from './VoiceAIProviderConfig.vue'
 
 interface ProviderWebsites {
   official: string
@@ -112,8 +116,6 @@ interface ProviderWebsites {
   models: string
   defaultBaseUrl: string
 }
-
-// Types are imported from @/lib/gemini
 
 // Value to level mapping for Gemini safety settings
 const valueToLevelMap: Record<SafetySettingValue, number> = {
@@ -131,10 +133,10 @@ const props = defineProps<{
 const providerStore = useProviderStore()
 const modelStore = useModelStore()
 const modelCheckStore = useModelCheckStore()
-const apiKey = ref(props.provider.apiKey || '')
-const apiHost = ref(props.provider.baseUrl || '')
 const azureApiVersion = ref('')
 const geminiSafetyLevels = reactive<Record<string, number>>({})
+
+const emptyModels: RENDERER_MODEL_META[] = []
 
 const providerModels = ref<RENDERER_MODEL_META[]>([])
 const customModels = ref<RENDERER_MODEL_META[]>([])
@@ -163,15 +165,22 @@ const enabledModels = computed(() => {
 const checkResult = ref<boolean>(false)
 const showCheckModelDialog = ref(false)
 
-const providerWebsites = computed<ProviderWebsites | undefined>(() => {
-  const providerConfig = providerStore.defaultProviders.find((provider) => {
-    return provider.id === props.provider.id
-  })
-  if (providerConfig && providerConfig.websites) {
-    return providerConfig.websites as ProviderWebsites
-  }
-  return undefined
-})
+const providerWebsites = computed<ProviderWebsites | undefined>(
+  () =>
+    providerStore.defaultProviders.find((provider) => provider.id === props.provider.id)
+      ?.websites as ProviderWebsites | undefined
+)
+
+const providerModelsSource = computed(
+  () =>
+    modelStore.allProviderModels.find((p) => p.providerId === props.provider.id)?.models ??
+    emptyModels
+)
+
+const customModelsSource = computed(
+  () =>
+    modelStore.customModels.find((p) => p.providerId === props.provider.id)?.models ?? emptyModels
+)
 
 const validateApiKey = async () => {
   try {
@@ -194,122 +203,98 @@ const validateApiKey = async () => {
   }
 }
 
-// Original initData implementation without debouncing
-const _initData = async () => {
+const syncModels = () => {
   if (!hasInitializedModelList.value) {
     isModelListLoading.value = true
   }
 
-  try {
-    console.log('initData for provider:', props.provider.id)
-    const providerData = modelStore.allProviderModels.find(
-      (p) => p.providerId === props.provider.id
-    )
-    if (providerData) {
-      providerModels.value = providerData.models
-    } else {
-      providerModels.value = [] // Reset if provider data not found
-    }
-    const customModelData = modelStore.customModels.find((p) => p.providerId === props.provider.id)
-    if (customModelData) {
-      customModels.value = customModelData.models
-    } else {
-      customModels.value = [] // Reset if custom data not found
-    }
+  providerModels.value = providerModelsSource.value
+  customModels.value = customModelsSource.value
 
-    // Fetch Azure API Version if applicable
-    if (props.provider.id === 'azure-openai') {
+  if (!hasInitializedModelList.value) {
+    hasInitializedModelList.value = true
+  }
+  isModelListLoading.value = false
+}
+
+watch(
+  [providerModelsSource, customModelsSource],
+  () => {
+    syncModels()
+  },
+  { immediate: true }
+)
+
+const initProviderSettings = async () => {
+  console.log('initData for provider:', props.provider.id)
+
+  // Fetch Azure API Version if applicable
+  if (props.provider.id === 'azure-openai') {
+    try {
+      azureApiVersion.value = await providerStore.getAzureApiVersion()
+      console.log('Azure API Version fetched:', azureApiVersion.value)
+    } catch (error) {
+      console.error('Failed to fetch Azure API Version:', error)
+      azureApiVersion.value = '2024-02-01' // Default value on error
+    }
+  }
+
+  // Fetch Gemini Safety Settings if applicable
+  if (props.provider.id === 'gemini') {
+    console.log('Fetching Gemini safety settings...')
+
+    // 先清空现有数据
+    Object.keys(geminiSafetyLevels).forEach((key) => {
+      delete geminiSafetyLevels[key]
+    })
+
+    for (const key in safetyCategories) {
+      const categoryKey = key as string
       try {
-        azureApiVersion.value = await providerStore.getAzureApiVersion()
-        console.log('Azure API Version fetched:', azureApiVersion.value)
+        const savedValue = (await providerStore.getGeminiSafety(categoryKey)) as
+          | string
+          | 'HARM_BLOCK_THRESHOLD_UNSPECIFIED'
+        console.log(`Fetched Gemini safety for ${categoryKey}:`, savedValue)
+        geminiSafetyLevels[categoryKey] =
+          valueToLevelMap[savedValue as SafetySettingValue] ??
+          safetyCategories[categoryKey as SafetyCategoryKey].defaultLevel
+        console.log(`Set Gemini level for ${categoryKey}:`, geminiSafetyLevels[categoryKey])
       } catch (error) {
-        console.error('Failed to fetch Azure API Version:', error)
-        azureApiVersion.value = '2024-02-01' // Default value on error
+        console.error(`Failed to fetch Gemini safety setting for ${categoryKey}:`, error)
+        geminiSafetyLevels[categoryKey] =
+          safetyCategories[categoryKey as SafetyCategoryKey].defaultLevel // Default on error
       }
     }
 
-    // Fetch Gemini Safety Settings if applicable
-    if (props.provider.id === 'gemini') {
-      console.log('Fetching Gemini safety settings...')
-
-      // 先清空现有数据
-      Object.keys(geminiSafetyLevels).forEach((key) => {
-        delete geminiSafetyLevels[key]
-      })
-
-      for (const key in safetyCategories) {
-        const categoryKey = key as string
-        try {
-          const savedValue = (await providerStore.getGeminiSafety(categoryKey)) as
-            | string
-            | 'HARM_BLOCK_THRESHOLD_UNSPECIFIED'
-          console.log(`Fetched Gemini safety for ${categoryKey}:`, savedValue)
-          geminiSafetyLevels[categoryKey] =
-            valueToLevelMap[savedValue as SafetySettingValue] ??
-            safetyCategories[categoryKey as SafetyCategoryKey].defaultLevel
-          console.log(`Set Gemini level for ${categoryKey}:`, geminiSafetyLevels[categoryKey])
-        } catch (error) {
-          console.error(`Failed to fetch Gemini safety setting for ${categoryKey}:`, error)
-          geminiSafetyLevels[categoryKey] =
-            safetyCategories[categoryKey as SafetyCategoryKey].defaultLevel // Default on error
-        }
-      }
-
-      console.log('All Gemini safety levels initialized:', JSON.stringify(geminiSafetyLevels))
-    }
-  } finally {
-    if (!hasInitializedModelList.value) {
-      hasInitializedModelList.value = true
-    }
-    isModelListLoading.value = false
+    console.log('All Gemini safety levels initialized:', JSON.stringify(geminiSafetyLevels))
   }
 }
 
-// Debounced version of initData to reduce frequent calls within 1 second
-// Ensures the final call is always executed
-const initData = useThrottleFn(_initData, 1000, true, true)
-
-// Immediate version for scenarios that require instant initialization
-const initDataImmediate = _initData
-
-// Flag to track if this is the first initialization
-let isFirstInit = true
-
 watch(
-  () => props.provider,
-  async () => {
-    apiKey.value = props.provider.apiKey || ''
-    apiHost.value = props.provider.baseUrl || ''
-
-    // Use immediate version for first initialization, debounced version for subsequent changes
-    if (isFirstInit) {
-      await initDataImmediate()
-      isFirstInit = false
-    } else {
-      initData() // Use debounced version for frequent changes
-    }
+  () => props.provider.id,
+  () => {
+    initProviderSettings()
   },
-  { immediate: true } // Removed deep: true as provider object itself changes
+  { immediate: true }
 )
 
-const handleApiKeyChange = async (value: string) => {
-  await providerStore.updateProviderApi(props.provider.id, value, undefined)
-}
+const handleApiKeyChange = (value: string) =>
+  providerStore.updateProviderApi(props.provider.id, value, undefined)
 
-const handleApiHostChange = async (value: string) => {
-  await providerStore.updateProviderApi(props.provider.id, undefined, value)
-}
+const handleApiHostChange = (value: string) =>
+  providerStore.updateProviderApi(props.provider.id, undefined, value)
 
 const handleModelEnabledChange = async (
   model: RENDERER_MODEL_META,
   enabled: boolean,
-  comfirm: boolean = false
+  confirm: boolean = false
 ) => {
-  if (!enabled && comfirm) {
+  if (!enabled && confirm) {
     disableModel(model)
-  } else {
-    await modelStore.updateModelStatus(props.provider.id, model.id, enabled)
+    return
   }
+
+  await modelStore.updateModelStatus(props.provider.id, model.id, enabled)
 }
 
 const disableModel = (model: RENDERER_MODEL_META) => {
@@ -318,15 +303,18 @@ const disableModel = (model: RENDERER_MODEL_META) => {
 }
 
 const confirmDisable = async () => {
-  if (modelToDisable.value) {
-    try {
-      await modelStore.updateModelStatus(props.provider.id, modelToDisable.value.id, false)
-    } catch (error) {
-      console.error('Failed to disable model:', error)
-    }
-    showConfirmDialog.value = false
-    modelToDisable.value = null
+  if (!modelToDisable.value) {
+    return
   }
+
+  try {
+    await modelStore.updateModelStatus(props.provider.id, modelToDisable.value.id, false)
+  } catch (error) {
+    console.error('Failed to disable model:', error)
+  }
+
+  showConfirmDialog.value = false
+  modelToDisable.value = null
 }
 
 const disableAllModelsConfirm = () => {
@@ -351,22 +339,6 @@ const confirmDeleteProvider = async () => {
   }
 }
 
-watch(
-  () => modelStore.allProviderModels,
-  () => {
-    initData()
-  },
-  { deep: true }
-)
-
-watch(
-  () => modelStore.customModels,
-  () => {
-    initData()
-  },
-  { deep: true }
-)
-
 // Handler for Azure API Version change
 const handleAzureApiVersionChange = async (value: string) => {
   const trimmedValue = value.trim()
@@ -390,8 +362,8 @@ const handleSafetySettingChange = async (key: SafetyCategoryKey, level: number) 
 // Handler for OAuth success
 const handleOAuthSuccess = async () => {
   console.log('OAuth authentication successful')
-  // OAuth成功后立即刷新provider数据 (使用立即版本以快速显示结果)
-  await initDataImmediate()
+  await initProviderSettings()
+  syncModels()
   // 可以自动验证一次
   await validateApiKey()
 }
@@ -404,22 +376,16 @@ const handleOAuthError = (error: string) => {
 
 // Handler for config changes
 const handleConfigChanged = () => {
-  // 模型配置变更后重新初始化数据 (使用防抖版本)
-  initData()
+  // 模型配置变更后先刷新provider模型数据，确保能看到最新的模型能力
+  return modelStore.refreshProviderModels(props.provider.id)
 }
 
 const openModelCheckDialog = () => {
   modelCheckStore.openDialog(props.provider.id)
 }
 
-const handleAddModelSaved = async () => {
-  await modelStore.refreshCustomModels(props.provider.id)
-  await initDataImmediate()
-}
+const handleAddModelSaved = () => modelStore.refreshProviderModels(props.provider.id)
 
 // 使用 computed 确保响应性正确传递
-const geminiSafetyLevelsForChild = computed(() => {
-  // 创建一个新的对象确保响应性
-  return { ...geminiSafetyLevels }
-})
+const geminiSafetyLevelsForChild = computed(() => ({ ...geminiSafetyLevels }))
 </script>

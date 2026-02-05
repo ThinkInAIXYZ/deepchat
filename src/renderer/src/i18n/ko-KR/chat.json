@@ -148,6 +148,17 @@
     },
     "title": "작업 공간"
   },
+  "audio": {
+    "play": "재생",
+    "pause": "일시정지"
+  },
+  "call": {
+    "title": "Voice.ai 통화",
+    "description": "클릭하여 Voice.ai 음성 에이전트에 연결한 뒤, 통화가 연결되면 말하세요.",
+    "start": "음성 통화 시작",
+    "stop": "통화 종료",
+    "end": "끊기"
+  },
   "skills": {
     "indicator": {
       "active": "{count}개 스킬 활성화됨",

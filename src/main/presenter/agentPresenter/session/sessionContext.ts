@@ -1,4 +1,10 @@
-export type SessionStatus = 'idle' | 'generating' | 'paused' | 'waiting_permission' | 'error'
+export type SessionStatus =
+  | 'idle'
+  | 'generating'
+  | 'paused'
+  | 'waiting_permission'
+  | 'waiting_question'
+  | 'error'
 
 export type SessionContextResolved = {
   chatMode: 'chat' | 'agent' | 'acp agent'
@@ -28,5 +34,10 @@ export type SessionContext = {
       permissionType: 'read' | 'write' | 'all' | 'command'
       payload: unknown
     }
+    pendingQuestion?: {
+      messageId: string
+      toolCallId: string
+    }
+    pendingQuestionInitialized?: boolean
   }
 }

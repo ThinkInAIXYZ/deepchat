@@ -57,5 +57,14 @@
     "title": "Настройка параметров {name}",
     "description": "Пожалуйста, заполните параметры ниже. Поля, отмеченные *, обязательны.",
     "required": "Это поле обязательно."
+  },
+  "messageBlockQuestionRequest": {
+    "title": "Question",
+    "send": "Send",
+    "reject": "Reject",
+    "selected": "Selected",
+    "rejected": "Rejected",
+    "customPlaceholder": "Type your answer...",
+    "answerLabel": "Answer"
   }
 }

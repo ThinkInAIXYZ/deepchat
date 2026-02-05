@@ -8,6 +8,7 @@
     "searchEngine": "מנוע חיפוש",
     "searchEngineSelect": "בחר מנוע חיפוש",
     "searchPreview": "תצוגה מקדימה של חיפוש",
+    "autoScrollEnabled": "גלילה אוטומטית בזמן יצירה",
     "searchAssistantModel": "מודל עוזר",
     "selectModel": "בחר מודל",
     "proxyMode": "מצב פרוקסי",
@@ -312,6 +313,7 @@
     "getKeyTip": "אנא בקר ב",
     "getKeyTipEnd": "כדי לקבל מפתח API",
     "urlFormat": "דוגמת API: {defaultUrl}",
+    "urlFormatFill": "מילוי בכתובת ה-API",
     "modelList": "רשימת מודלים",
     "enableModels": "הפעל מודלים",
     "disableAllModels": "השבת את כל המודלים",
@@ -327,6 +329,38 @@
     "stopModel": "עצור מודל",
     "pulling": "מושך...",
     "runModel": "הרץ מודל",
+    "voiceai": {
+      "title": "המרת טקסט לדיבור של Voice.ai",
+      "description": "יצירת דיבור מטקסט. קולות יופיעו ברשימת המודלים למטה.",
+      "audioFormat": {
+        "label": "פורמט שמע",
+        "placeholder": "בחר פורמט",
+        "helper": "מומלץ MP3 ברוב המקרים."
+      },
+      "language": {
+        "label": "שפה",
+        "placeholder": "למשל en",
+        "helper": "נתמך: en, ca, sv, es, fr, de, it, pt, pl, ru, nl."
+      },
+      "model": {
+        "label": "מודל TTS",
+        "placeholder": "voiceai-tts-v1-latest",
+        "helper": "ראו את מסמכי Voice.ai למודלים הנתמכים."
+      },
+      "agentId": {
+        "label": "מזהה סוכן קולי",
+        "placeholder": "הדבק מזהה סוכן קולי",
+        "helper": "נדרש לשיחות קול בזמן אמת."
+      },
+      "temperature": {
+        "label": "טמפרטורה",
+        "helper": "שולט ברנדומליות (0-2)."
+      },
+      "topP": {
+        "label": "Top P",
+        "helper": "דגימת Nucleus (0-1)."
+      }
+    },
     "dialog": {
       "disableModel": {
         "title": "אשר השבתת מודל",

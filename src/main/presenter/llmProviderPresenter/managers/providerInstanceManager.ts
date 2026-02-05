@@ -1,7 +1,6 @@
 import { ProviderBatchUpdate, ProviderChange } from '@shared/provider-operations'
 import { IConfigPresenter, LLM_PROVIDER } from '@shared/presenter'
 import { BaseLLMProvider } from '../baseProvider'
-import { BaseAgentProvider } from '../baseAgentProvider'
 import { OpenAIProvider } from '../providers/openAIProvider'
 import { DeepseekProvider } from '../providers/deepseekProvider'
 import { SiliconcloudProvider } from '../providers/siliconcloudProvider'
@@ -35,6 +34,7 @@ import { PoeProvider } from '../providers/poeProvider'
 import { JiekouProvider } from '../providers/jiekouProvider'
 import { ZenmuxProvider } from '../providers/zenmuxProvider'
 import { O3fanProvider } from '../providers/o3fanProvider'
+import { VoiceAIProvider } from '../providers/voiceAIProvider'
 import { RateLimitManager } from './rateLimitManager'
 import { StreamState } from '../types'
 import { AcpSessionPersistence } from '../../agentPresenter/acp'
@@ -86,6 +86,7 @@ export class ProviderInstanceManager {
       ['anthropic', AnthropicProvider],
       ['doubao', DoubaoProvider],
       ['openai', OpenAIProvider],
+      ['voiceai', VoiceAIProvider],
       ['openai-responses', OpenAIResponsesProvider],
       ['cherryin', CherryInProvider],
       ['lmstudio', LMStudioProvider],
@@ -118,6 +119,7 @@ export class ProviderInstanceManager {
       ['anthropic', AnthropicProvider],
       ['doubao', DoubaoProvider],
       ['openai', OpenAIProvider],
+      ['voiceai', VoiceAIProvider],
       ['openai-compatible', OpenAICompatibleProvider],
       ['openai-responses', OpenAIResponsesProvider],
       ['lmstudio', LMStudioProvider],
@@ -132,11 +134,6 @@ export class ProviderInstanceManager {
       ['acp', AcpProvider],
       ['o3fan', O3fanProvider]
     ])
-  }
-
-  private static isAgentConstructor(ctor?: ProviderConstructor): boolean {
-    if (!ctor) return false
-    return BaseAgentProvider.prototype.isPrototypeOf(ctor.prototype)
   }
 
   init(): void {
@@ -248,24 +245,6 @@ export class ProviderInstanceManager {
       this.providerInstances.set(providerId, instance)
     }
     return instance
-  }
-
-  isAgentProvider(providerId: string): boolean {
-    const instance = this.providerInstances.get(providerId)
-    if (instance) {
-      return instance instanceof BaseAgentProvider
-    }
-
-    const provider = this.providers.get(providerId)
-    if (!provider) {
-      return false
-    }
-
-    const ProviderClass =
-      ProviderInstanceManager.PROVIDER_ID_MAP.get(provider.id) ??
-      ProviderInstanceManager.PROVIDER_TYPE_MAP.get(provider.apiType)
-
-    return ProviderInstanceManager.isAgentConstructor(ProviderClass)
   }
 
   private handleProviderAdd(change: ProviderChange): void {

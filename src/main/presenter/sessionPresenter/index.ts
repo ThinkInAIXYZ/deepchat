@@ -64,6 +64,7 @@ export class SessionPresenter implements ISessionPresenter {
       if (activeConversationId) {
         this.commandPermissionService.clearConversation(activeConversationId)
         presenter.filePermissionService?.clearConversation(activeConversationId)
+        presenter.settingsPermissionService?.clearConversation(activeConversationId)
         this.clearActiveConversation(tabId, { notify: true })
         console.log(`SessionPresenter: Cleaned up conversation binding for closed tab ${tabId}.`)
       }
@@ -162,6 +163,10 @@ export class SessionPresenter implements ISessionPresenter {
 
   async getLastUserMessage(sessionId: string): Promise<Message | null> {
     return this.messageManager.getLastUserMessage(sessionId)
+  }
+
+  async getLastAssistantMessage(sessionId: string): Promise<Message | null> {
+    return this.messageManager.getLastAssistantMessage(sessionId)
   }
 
   async forkSession(
@@ -285,6 +290,7 @@ export class SessionPresenter implements ISessionPresenter {
     if (conversationId) {
       this.commandPermissionService.clearConversation(conversationId)
       presenter.filePermissionService?.clearConversation(conversationId)
+      presenter.settingsPermissionService?.clearConversation(conversationId)
     }
     this.conversationManager.clearActiveConversation(tabId, options)
   }
@@ -292,6 +298,7 @@ export class SessionPresenter implements ISessionPresenter {
   clearConversationBindings(conversationId: string): void {
     this.commandPermissionService.clearConversation(conversationId)
     presenter.filePermissionService?.clearConversation(conversationId)
+    presenter.settingsPermissionService?.clearConversation(conversationId)
     this.conversationManager.clearConversationBindings(conversationId)
   }
 
@@ -299,10 +306,12 @@ export class SessionPresenter implements ISessionPresenter {
     if (conversationId) {
       this.commandPermissionService.clearConversation(conversationId)
       presenter.filePermissionService?.clearConversation(conversationId)
+      presenter.settingsPermissionService?.clearConversation(conversationId)
       return
     }
     this.commandPermissionService.clearAll()
     presenter.filePermissionService?.clearAll()
+    presenter.settingsPermissionService?.clearAll()
   }
 
   async setActiveConversation(conversationId: string, tabId: number): Promise<void> {
@@ -434,6 +443,7 @@ export class SessionPresenter implements ISessionPresenter {
   async deleteConversation(conversationId: string): Promise<void> {
     this.commandPermissionService.clearConversation(conversationId)
     presenter.filePermissionService?.clearConversation(conversationId)
+    presenter.settingsPermissionService?.clearConversation(conversationId)
     await this.deleteSessionOffloadFiles(conversationId)
     await this.conversationManager.deleteConversation(conversationId)
   }

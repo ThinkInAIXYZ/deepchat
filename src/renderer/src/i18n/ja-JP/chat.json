@@ -148,6 +148,17 @@
     },
     "title": "ワークスペース"
   },
+  "audio": {
+    "play": "再生",
+    "pause": "一時停止"
+  },
+  "call": {
+    "title": "Voice.ai 通話",
+    "description": "クリックして Voice.ai 音声エージェントに接続し、通話がつながったら話してください。",
+    "start": "音声通話を開始",
+    "stop": "通話を終了",
+    "end": "切断"
+  },
   "skills": {
     "indicator": {
       "active": "{count}個のスキルが有効化されました",
