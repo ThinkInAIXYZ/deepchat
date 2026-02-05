@@ -399,6 +399,10 @@ export class LLMEventHandler {
           {},
           state.message.content
         )
+        if (hasPendingQuestions) {
+          // Question tool ends the assistant message even when waiting for user input.
+          await this.messageManager.updateMessageStatus(eventId, 'sent')
+        }
         this.searchingMessages.delete(eventId)
         presenter.sessionManager.setStatus(state.conversationId, 'waiting_permission')
         if (!hasPendingPermissions) {

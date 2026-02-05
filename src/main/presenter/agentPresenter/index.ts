@@ -400,6 +400,9 @@ export class AgentPresenter implements IAgentPresenter {
     }
 
     await this.messageManager.editMessage(messageId, JSON.stringify(content))
+    if (message.status === 'pending') {
+      await this.messageManager.updateMessageStatus(messageId, 'sent')
+    }
     presenter.sessionManager.clearPendingQuestion(message.conversationId)
     presenter.sessionManager.setStatus(message.conversationId, 'idle')
   }
