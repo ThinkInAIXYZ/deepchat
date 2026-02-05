@@ -101,6 +101,17 @@
     "agent": "Agent",
     "acpAgent": "ACP Agent"
   },
+  "audio": {
+    "play": "播放",
+    "pause": "暂停"
+  },
+  "call": {
+    "title": "Voice.ai 通话",
+    "description": "点击连接 Voice.ai 语音代理，接通电话后说话即可。",
+    "start": "开始语音通话",
+    "stop": "结束通话",
+    "end": "挂断"
+  },
   "skills": {
     "indicator": {
       "active": "{count} 个技能已激活",

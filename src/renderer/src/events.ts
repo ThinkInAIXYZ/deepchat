@@ -18,6 +18,9 @@ export const CONFIG_EVENTS = {
   PROXY_MODE_CHANGED: 'config:proxy-mode-changed',
   CUSTOM_PROXY_URL_CHANGED: 'config:custom-proxy-url-changed',
   SYNC_SETTINGS_CHANGED: 'config:sync-settings-changed',
+  SEARCH_ENGINES_UPDATED: 'config:search-engines-updated',
+  SEARCH_PREVIEW_CHANGED: 'config:search-preview-changed',
+  AUTO_SCROLL_CHANGED: 'config:auto-scroll-changed',
   NOTIFICATIONS_CHANGED: 'config:notifications-changed',
   CONTENT_PROTECTION_CHANGED: 'config:content-protection-changed',
   LANGUAGE_CHANGED: 'config:language-changed', // 新增：语言变更事件
@@ -40,6 +43,13 @@ export const CONVERSATION_EVENTS = {
   DEACTIVATED: 'conversation:deactivated', // 替代 active-conversation-cleared
   MESSAGE_EDITED: 'conversation:message-edited', // 替代 message-edited
   SCROLL_TO_MESSAGE: 'conversation:scroll-to-message'
+}
+
+// 流式响应相关事件
+export const STREAM_EVENTS = {
+  RESPONSE: 'stream:response',
+  END: 'stream:end',
+  ERROR: 'stream:error'
 }
 
 // 应用更新相关事件

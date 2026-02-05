@@ -73,7 +73,6 @@ export function compressToolCallsFromContext(
   }
 
   const messagesToEdit = messages.map((msg) => cloneMessageWithContent(msg))
-
   const lastUserIndex = messagesToEdit.findLastIndex((message) => message.role === 'user')
   let removedTokens = 0
 

@@ -190,9 +190,10 @@ watch(
 
 // 清理事件监听
 onUnmounted(async () => {
-  window.electron.ipcRenderer.removeAllListeners(AgenticEventType.MESSAGE_END)
-  window.electron.ipcRenderer.removeAllListeners(AgenticEventType.ERROR)
-  window.electron.ipcRenderer.removeAllListeners(SHORTCUT_EVENTS.CLEAN_CHAT_HISTORY)
+  // Remove only our listeners to avoid breaking other subscriptions (store/composables).
+  window.electron.ipcRenderer.removeListener(AgenticEventType.MESSAGE_END, onStreamEnd)
+  window.electron.ipcRenderer.removeListener(AgenticEventType.ERROR, onStreamError)
+  window.electron.ipcRenderer.removeListener(SHORTCUT_EVENTS.CLEAN_CHAT_HISTORY, onCleanChatHistory)
 })
 
 defineExpose({

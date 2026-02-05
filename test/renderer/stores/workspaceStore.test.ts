@@ -5,16 +5,20 @@ import { createWorkspaceStore } from '@/stores/workspace'
 
 vi.mock('@/stores/chat', () => ({
   useChatStore: () => ({
-    activeThreadId: null,
-    chatConfig: { agentWorkspacePath: null, acpWorkdirMap: {} }
+    activeSessionId: null,
+    activeThread: null
   })
 }))
 
 describe('createWorkspaceStore', () => {
   it('binds workspace listeners and cleans up', () => {
     const chatStore = reactive({
-      activeThreadId: 'thread-a',
-      chatConfig: { agentWorkspacePath: '/tmp/workspace', acpWorkdirMap: {} }
+      activeSessionId: 'thread-a',
+      activeThread: {
+        settings: {
+          agentWorkspacePath: '/tmp/workspace'
+        }
+      }
     })
     const planCleanup = vi.fn()
     const terminalCleanup = vi.fn()
@@ -52,8 +56,12 @@ describe('createWorkspaceStore', () => {
 
   it('ignores stale file tree refreshes after conversation switch', async () => {
     const chatStore = reactive({
-      activeThreadId: 'thread-a',
-      chatConfig: { agentWorkspacePath: '/tmp/workspace', acpWorkdirMap: {} }
+      activeSessionId: 'thread-a',
+      activeThread: {
+        settings: {
+          agentWorkspacePath: '/tmp/workspace'
+        }
+      }
     })
     let resolveRead: ((value: Array<{ path: string; isDirectory: boolean }>) => void) | null = null
     const readDirectory = vi.fn(
@@ -86,7 +94,7 @@ describe('createWorkspaceStore', () => {
     if (!resolveRead) {
       throw new Error('readDirectory was not called')
     }
-    chatStore.activeThreadId = 'thread-b'
+    chatStore.activeSessionId = 'thread-b'
     resolveRead([{ path: '/tmp/workspace/file.txt', isDirectory: false }])
     await refreshPromise
 

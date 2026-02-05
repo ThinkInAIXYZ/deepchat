@@ -23,11 +23,34 @@
         @update:model-value="apiHost = String($event)"
       />
       <div class="text-xs text-muted-foreground">
-        {{
-          t('settings.provider.urlFormat', {
-            defaultUrl: providerWebsites?.defaultBaseUrl || ''
-          })
-        }}
+        <TooltipProvider v-if="hasDefaultBaseUrl" :delayDuration="200">
+          <Tooltip>
+            <TooltipTrigger as-child>
+              <button
+                type="button"
+                class="text-xs text-muted-foreground underline decoration-dotted underline-offset-2 transition-colors hover:text-foreground"
+                :aria-label="t('settings.provider.urlFormatFill')"
+                @click="fillDefaultBaseUrl"
+              >
+                {{
+                  t('settings.provider.urlFormat', {
+                    defaultUrl: defaultBaseUrl
+                  })
+                }}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>
+              {{ t('settings.provider.urlFormatFill') }}
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+        <span v-else>
+          {{
+            t('settings.provider.urlFormat', {
+              defaultUrl: defaultBaseUrl
+            })
+          }}
+        </span>
       </div>
     </div>
 
@@ -127,11 +150,17 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Label } from '@shadcn/components/ui/label'
 import { Input } from '@shadcn/components/ui/input'
 import { Button } from '@shadcn/components/ui/button'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger
+} from '@shadcn/components/ui/tooltip'
 import { Icon } from '@iconify/vue'
 import GitHubCopilotOAuth from './GitHubCopilotOAuth.vue'
 import { useModelCheckStore } from '@/stores/modelCheck'
@@ -169,6 +198,8 @@ const apiHost = ref(props.provider.baseUrl || '')
 const keyStatus = ref<KeyStatus | null>(null)
 const isRefreshing = ref(false)
 const showApiKey = ref(false)
+const defaultBaseUrl = computed(() => props.providerWebsites?.defaultBaseUrl?.trim() || '')
+const hasDefaultBaseUrl = computed(() => defaultBaseUrl.value.length > 0)
 
 watch(
   () => props.provider,
@@ -191,6 +222,12 @@ const handleApiKeyBlur = (event: FocusEvent) => {
 
 const handleApiHostChange = (value: string) => {
   emit('api-host-change', value)
+}
+
+const fillDefaultBaseUrl = () => {
+  if (!hasDefaultBaseUrl.value) return
+  apiHost.value = defaultBaseUrl.value
+  handleApiHostChange(defaultBaseUrl.value)
 }
 
 const handleApiHostBlur = (event: FocusEvent) => {

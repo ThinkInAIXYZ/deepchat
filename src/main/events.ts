@@ -19,6 +19,9 @@ export const CONFIG_EVENTS = {
   PROXY_MODE_CHANGED: 'config:proxy-mode-changed',
   CUSTOM_PROXY_URL_CHANGED: 'config:custom-proxy-url-changed',
   SYNC_SETTINGS_CHANGED: 'config:sync-settings-changed',
+  SEARCH_ENGINES_UPDATED: 'config:search-engines-updated',
+  SEARCH_PREVIEW_CHANGED: 'config:search-preview-changed',
+  AUTO_SCROLL_CHANGED: 'config:auto-scroll-changed',
   NOTIFICATIONS_CHANGED: 'config:notifications-changed',
   CONTENT_PROTECTION_CHANGED: 'config:content-protection-changed',
   SOUND_ENABLED_CHANGED: 'config:sound-enabled-changed', // 新增：声音开关变更事件

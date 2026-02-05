@@ -151,6 +151,17 @@
     },
     "title": "espace de travail"
   },
+  "audio": {
+    "play": "Lire",
+    "pause": "Pause"
+  },
+  "call": {
+    "title": "Appel Voice.ai",
+    "description": "Cliquez pour vous connecter à l’agent vocal Voice.ai, puis parlez une fois l’appel établi.",
+    "start": "Démarrer l’appel vocal",
+    "stop": "Terminer l’appel",
+    "end": "Raccrocher"
+  },
   "skills": {
     "indicator": {
       "active": "{count} compétences activées",

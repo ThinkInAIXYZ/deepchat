@@ -1,4 +1,10 @@
-export type SessionStatus = 'idle' | 'generating' | 'paused' | 'waiting_permission' | 'error'
+export type SessionStatus =
+  | 'idle'
+  | 'generating'
+  | 'paused'
+  | 'waiting_permission'
+  | 'waiting_question'
+  | 'error'
 
 export type SessionContextResolved = {
   providerId: string
@@ -27,5 +33,10 @@ export type SessionContext = {
       payload: unknown
     }
     activeSkills: string[]
+    pendingQuestion?: {
+      messageId: string
+      toolCallId: string
+    }
+    pendingQuestionInitialized?: boolean
   }
 }

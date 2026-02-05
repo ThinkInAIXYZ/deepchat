@@ -18,7 +18,13 @@
               : { maxHeight: '50vh' }
             : {}
         "
-        :class="['flex flex-col gap-2 relative px-3']"
+        :class="[
+          'flex flex-col gap-2 relative',
+          isCallActive ? 'opacity-60' : '',
+          variant === 'newThread'
+            ? 'bg-card rounded-lg border p-2 shadow-sm'
+            : 'border-t px-4 py-3 gap-3'
+        ]"
       >
         <!-- Resize Handle -->
         <ResizeHandle
@@ -52,9 +58,7 @@
           </TransitionGroup>
         </div>
 
-        <div
-          class="w-full flex flex-col border border-input outline-1 outline-black/10 p-3 bg-card rounded-lg"
-        >
+        <div class="relative w-full flex flex-1 min-h-0 flex-col gap-2">
           <!-- Editor -->
           <InputEditor
             ref="editorContainer"
@@ -98,11 +102,17 @@
               :can-send-immediately="rateLimit.canSendImmediately.value"
               :rate-limit-wait-time="rateLimit.formatWaitTime()"
               :is-streaming="isStreaming"
-              :disabled-send="disabledSend"
+              :disabled-send="disabledSend || isCallActive"
               @send="emitSend"
               @cancel="handleCancel"
             >
               <template #addon-actions>
+                <VoiceCallWidget
+                  :variant="variant"
+                  :active-provider-id="activeModelSource?.providerId"
+                  :is-streaming="isStreaming"
+                  @active-change="isCallActive = $event"
+                />
                 <slot name="addon-actions"></slot>
               </template>
             </InputActions>
@@ -283,6 +293,7 @@ import UnifiedModelSelector from '../chat/UnifiedModelSelector.vue'
 import UnifiedModeSelector from '../chat/UnifiedModeSelector.vue'
 import ModelSelector from './ModelSelector.vue'
 import { Icon } from '@iconify/vue'
+import VoiceCallWidget from './VoiceCallWidget.vue'
 
 // === Composables ===
 import { useWindowAdapter } from '@/composables/window/useWindowAdapter'
@@ -369,6 +380,7 @@ const fakeCaretStyle = computed(() => ({
   height: `${caretPosition.value.height}px`
 }))
 const showFakeCaret = computed(() => caretVisible.value && !props.disabled)
+const isCallActive = ref(false)
 
 // === Composable Integrations ===
 
@@ -475,6 +487,11 @@ const handleEditorBlur = () => {
   caretVisible.value = false
 }
 
+// Keep fake caret in sync with editor focus + selection changes.
+editor.on('focus', handleEditorFocus)
+editor.on('blur', handleEditorBlur)
+editor.on('selectionUpdate', updateFakeCaretPosition)
+
 // Set the editor instance in history after editor is created
 history.setEditor(editor)
 
@@ -522,10 +539,6 @@ const composerDraft = useComposerDraft({
 
 // Setup editor update handler
 editor.on('update', editorComposable.onEditorUpdate)
-editor.on('selectionUpdate', updateFakeCaretPosition)
-editor.on('transaction', updateFakeCaretPosition)
-editor.on('focus', handleEditorFocus)
-editor.on('blur', handleEditorBlur)
 
 // Initialize context length tracking
 const contextLengthTracker = useContextLength({
@@ -696,6 +709,10 @@ const emitSend = async () => {
 }
 
 const onKeydown = (e: KeyboardEvent) => {
+  if (isCallActive.value) {
+    e.preventDefault()
+    return
+  }
   if (e.code === 'Enter' && !e.shiftKey) {
     editorComposable.handleEditorEnter(e, disabledSend.value, emitSend)
     e.preventDefault()
@@ -833,17 +850,10 @@ onUnmounted(() => {
 
   // Remove editor update listener
   editor.off('update', editorComposable.onEditorUpdate)
-  editor.off('selectionUpdate', updateFakeCaretPosition)
-  editor.off('transaction', updateFakeCaretPosition)
   editor.off('focus', handleEditorFocus)
   editor.off('blur', handleEditorBlur)
-
-  // Destroy editor instance
+  editor.off('selectionUpdate', updateFakeCaretPosition)
   editor.destroy()
-
-  if (caretAnimationFrame) {
-    cancelAnimationFrame(caretAnimationFrame)
-  }
 
   setWorkspaceMention(null)
 })
@@ -875,6 +885,19 @@ watch(
     }
   },
   { immediate: true }
+)
+
+watch(isCallActive, (open) => {
+  if (!editor.isDestroyed) {
+    editor.setEditable(!open)
+  }
+})
+
+watch(
+  () => stubConfig.value.providerId,
+  () => {
+    void rateLimit.loadRateLimitStatus()
+  }
 )
 
 watch(editorComposable.inputText, () => {
@@ -913,39 +936,6 @@ defineExpose({
 
 .duration-300 {
   transition-duration: 300ms;
-}
-
-:deep(.tiptap) {
-  caret-color: transparent;
-}
-
-.fake-caret {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 2px;
-  border-radius: 9999px;
-  background: var(--primary);
-  box-shadow: 0 0 10px var(--primary);
-  animation: fake-caret-blink 1.2s steps(1) infinite;
-  transition:
-    transform 140ms cubic-bezier(0.22, 1, 0.36, 1),
-    height 140ms cubic-bezier(0.22, 1, 0.36, 1),
-    opacity 120ms ease;
-  pointer-events: none;
-  will-change: transform, height, opacity;
-  opacity: 0.9;
-}
-
-@keyframes fake-caret-blink {
-  0%,
-  55% {
-    opacity: 0.9;
-  }
-  55%,
-  100% {
-    opacity: 0.35;
-  }
 }
 </style>
 

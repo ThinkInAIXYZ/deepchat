@@ -216,13 +216,42 @@ export class AcpContentMapper {
       status: entry.status ?? null
     }))
 
-    // Create dedicated plan block
-    payload.events.push(createStreamEvent.reasoning('')) // Empty event for plan
+    const formattedPlan = this.formatPlan(payload.planEntries)
+    payload.events.push(createStreamEvent.reasoning(formattedPlan))
+    payload.blocks.push(
+      this.createBlock('reasoning_content', formattedPlan, {
+        extra: { plan_entries: payload.planEntries }
+      })
+    )
+
+    // Create dedicated plan block for UI renderers that understand structured plans.
     payload.blocks.push(
       this.createBlock('plan', '', {
         extra: { plan_entries: payload.planEntries }
       })
     )
+  }
+
+  private formatPlan(entries: PlanEntry[]): string {
+    const lines = entries.map((entry) => {
+      const status = entry.status ?? undefined
+      const icon = this.getPlanStatusIcon(status)
+      return `${icon} ${entry.content}`
+    })
+    return `Plan:\n${lines.join('\n')}`
+  }
+
+  private getPlanStatusIcon(status?: string): string {
+    switch (status) {
+      case 'completed':
+        return '●'
+      case 'in_progress':
+        return '◐'
+      case 'pending':
+        return '○'
+      default:
+        return '•'
+    }
   }
 
   private handleModeUpdate(
@@ -440,10 +469,6 @@ export class AcpContentMapper {
       } catch (error) {
         console.warn('[ACP] Failed to stringify locations for tool call params:', error)
       }
-    }
-
-    if ('title' in update && typeof update.title === 'string' && update.title.trim()) {
-      return update.title.trim()
     }
 
     return undefined

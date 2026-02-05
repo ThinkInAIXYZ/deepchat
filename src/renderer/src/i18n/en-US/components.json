@@ -57,5 +57,14 @@
     "title": "{name} Parameter Settings",
     "description": "Please fill in the parameters below. Fields marked * are required.",
     "required": "This field is required."
+  },
+  "messageBlockQuestionRequest": {
+    "title": "Question",
+    "send": "Send",
+    "reject": "Reject",
+    "selected": "Selected",
+    "rejected": "Rejected",
+    "customPlaceholder": "Type your answer...",
+    "answerLabel": "Answer"
   }
 }

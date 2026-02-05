@@ -136,6 +136,13 @@ export class PermissionHandler extends BaseHandler {
         }
       }
 
+      // Ensure the corresponding tool_call block includes server metadata when it exists on the
+      // permission block (older messages or intermediate states may omit it on the tool_call).
+      this.propagateToolCallMetadata(content, permissionBlock, toolCallId)
+      if (generatingState) {
+        this.propagateToolCallMetadata(generatingState.message.content, permissionBlock, toolCallId)
+      }
+
       await this.ctx.messageManager.editMessage(messageId, JSON.stringify(content))
 
       if (isAcpPermission) {
@@ -936,5 +943,33 @@ export class PermissionHandler extends BaseHandler {
 
     console.warn('[PermissionHandler] No command found in permission block')
     return undefined
+  }
+
+  private propagateToolCallMetadata(
+    content: AssistantMessageBlock[],
+    permissionBlock: AssistantMessageBlock,
+    toolCallId: string
+  ): void {
+    const sourceToolCall = permissionBlock.tool_call
+    if (!sourceToolCall) return
+
+    const { server_name, server_icons, server_description } = sourceToolCall
+    if (!server_name && !server_icons && !server_description) return
+
+    for (const block of content) {
+      if (block.type !== 'tool_call') continue
+      if (!block.tool_call || block.tool_call.id !== toolCallId) continue
+
+      // Only fill missing fields - don't override values that were already present.
+      if (!block.tool_call.server_name && server_name) {
+        block.tool_call.server_name = server_name
+      }
+      if (!block.tool_call.server_icons && server_icons) {
+        block.tool_call.server_icons = server_icons
+      }
+      if (!block.tool_call.server_description && server_description) {
+        block.tool_call.server_description = server_description
+      }
+    }
   }
 }

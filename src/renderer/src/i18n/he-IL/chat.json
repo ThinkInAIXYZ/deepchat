@@ -151,6 +151,17 @@
     },
     "title": "סביבת עבודה"
   },
+  "audio": {
+    "play": "נגן",
+    "pause": "השהה"
+  },
+  "call": {
+    "title": "שיחת Voice.ai",
+    "description": "לחץ כדי להתחבר לסוכן הקולי של Voice.ai, דבר לאחר שהשיחה התחברה.",
+    "start": "התחל שיחת קול",
+    "stop": "סיים שיחה",
+    "end": "נתק"
+  },
   "skills": {
     "indicator": {
       "active": "{count} כישורים הופעלו",

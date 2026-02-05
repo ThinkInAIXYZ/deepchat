@@ -44,7 +44,8 @@
     "error502": "网关错误，请求的服务当前可能不太稳定，可以稍后再试试",
     "error503": "服务不可用，请求的服务可能当前不稳定，可以稍后再试试",
     "error504": "请求超时，请求的服务可能当前不稳定或者网络链路有故障，请检查代理等网络配置后再试试",
-    "operationFailed": "操作失败"
+    "operationFailed": "操作失败",
+    "invalidQuestionRequest": "问题请求无效"
   },
   "resetDataConfirmTitle": "确定要重置所有数据吗？",
   "resetDataConfirmDescription": "这将会把所有数据恢复到默认设置。此操作无法撤销。",

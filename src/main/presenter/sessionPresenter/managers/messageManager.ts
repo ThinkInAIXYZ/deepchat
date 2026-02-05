@@ -354,6 +354,14 @@ export class MessageManager implements IMessageManager {
     return this.convertToMessage(sqliteMessage)
   }
 
+  async getLastAssistantMessage(conversationId: string): Promise<Message | null> {
+    const sqliteMessage = await this.sqlitePresenter.getLastAssistantMessage(conversationId)
+    if (!sqliteMessage) {
+      return null
+    }
+    return this.convertToMessage(sqliteMessage)
+  }
+
   async clearAllMessages(conversationId: string): Promise<void> {
     await this.sqlitePresenter.deleteAllMessagesInConversation(conversationId)
   }

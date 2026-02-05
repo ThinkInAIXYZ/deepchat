@@ -57,5 +57,14 @@
     "title": "{name} 매개변수 설정",
     "description": "아래 항목을 입력해 주세요. * 표시된 항목은 필수입니다.",
     "required": "이 항목은 필수입니다."
+  },
+  "messageBlockQuestionRequest": {
+    "title": "Question",
+    "send": "Send",
+    "reject": "Reject",
+    "selected": "Selected",
+    "rejected": "Rejected",
+    "customPlaceholder": "Type your answer...",
+    "answerLabel": "Answer"
   }
 }

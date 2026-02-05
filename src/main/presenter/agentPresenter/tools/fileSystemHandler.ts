@@ -178,6 +178,7 @@ interface PathValidationOptions {
 
 export class AgentFileSystemHandler {
   private allowedDirectories: string[]
+  private allowedDirectoriesRealPaths?: string[]
   private conversationId?: string
   private readonly sessionsRoot: string
 
@@ -200,12 +201,31 @@ export class AgentFileSystemHandler {
     return text.replace(/\r\n/g, '\n')
   }
 
-  private isPathAllowed(candidatePath: string): boolean {
-    return this.allowedDirectories.some((dir) => {
+  private isPathAllowedIn(candidatePath: string, allowedDirectories: string[]): boolean {
+    return allowedDirectories.some((dir) => {
       if (candidatePath === dir) return true
       const dirWithSeparator = dir.endsWith(path.sep) ? dir : `${dir}${path.sep}`
       return candidatePath.startsWith(dirWithSeparator)
     })
+  }
+
+  private isPathAllowed(candidatePath: string): boolean {
+    return this.isPathAllowedIn(candidatePath, this.allowedDirectories)
+  }
+
+  private async getAllowedDirectoriesRealPaths(): Promise<string[]> {
+    if (this.allowedDirectoriesRealPaths) return this.allowedDirectoriesRealPaths
+    const resolved = await Promise.all(
+      this.allowedDirectories.map(async (dir) => {
+        try {
+          return this.normalizePath(await fs.realpath(dir))
+        } catch {
+          return dir
+        }
+      })
+    )
+    this.allowedDirectoriesRealPaths = resolved
+    return resolved
   }
 
   private expandHome(filepath: string): string {
@@ -238,41 +258,46 @@ export class AgentFileSystemHandler {
     if (options.accessType === 'read') {
       this.assertSessionReadAllowed(normalizedRequested)
     }
-    if (enforceAllowed) {
-      const isAllowed = this.isPathAllowed(normalizedRequested)
-      if (!isAllowed) {
-        throw new Error(
-          `Access denied - path outside allowed directories: ${normalizedRequested} not in ${this.allowedDirectories.join(', ')}`
-        )
-      }
+
+    const isNotFoundError = (error: unknown): boolean => {
+      const code = (error as NodeJS.ErrnoException | undefined)?.code
+      return code === 'ENOENT' || code === 'ENOTDIR'
     }
+
+    const allowedDirectories = enforceAllowed ? await this.getAllowedDirectoriesRealPaths() : []
+    const assertAllowed = (candidatePath: string, message: string) => {
+      if (!enforceAllowed) return
+      if (this.isPathAllowedIn(candidatePath, allowedDirectories)) return
+      throw new Error(message)
+    }
+
     try {
       const realPath = await fs.realpath(normalizedRequested)
       const normalizedReal = this.normalizePath(realPath)
       if (options.accessType === 'read') {
         this.assertSessionReadAllowed(normalizedReal)
       }
-      if (enforceAllowed) {
-        const isRealPathAllowed = this.isPathAllowed(normalizedReal)
-        if (!isRealPathAllowed) {
-          throw new Error('Access denied - symlink target outside allowed directories')
-        }
-      }
+      assertAllowed(normalizedReal, 'Access denied - symlink target outside allowed directories')
       return realPath
-    } catch {
+    } catch (error) {
+      if (!isNotFoundError(error)) {
+        throw error
+      }
+
       const parentDir = path.dirname(normalizedRequested)
       try {
         const realParentPath = await fs.realpath(parentDir)
         const normalizedParent = this.normalizePath(realParentPath)
-        if (enforceAllowed) {
-          const isParentAllowed = this.isPathAllowed(normalizedParent)
-          if (!isParentAllowed) {
-            throw new Error('Access denied - parent directory outside allowed directories')
-          }
-        }
+        assertAllowed(
+          normalizedParent,
+          'Access denied - parent directory outside allowed directories'
+        )
         return normalizedRequested
-      } catch {
-        throw new Error(`Parent directory does not exist: ${parentDir}`)
+      } catch (parentError) {
+        if (isNotFoundError(parentError)) {
+          throw new Error(`Parent directory does not exist: ${parentDir}`)
+        }
+        throw parentError
       }
     }
   }

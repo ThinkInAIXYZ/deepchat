@@ -510,7 +510,8 @@ const isOpenAICompatibleProvider = computed(() => {
     'aws-bedrock',
     'github-copilot',
     'ollama',
-    'acp'
+    'acp',
+    'voiceai'
   ]
   const providerId = props.providerId?.toLowerCase() || ''
   return !EXCLUDED_PROVIDERS.some((excluded) => providerId.includes(excluded))

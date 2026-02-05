@@ -165,6 +165,10 @@ export class SessionPresenter implements ISessionPresenter {
     return this.messageManager.getLastUserMessage(sessionId)
   }
 
+  async getLastAssistantMessage(sessionId: string): Promise<Message | null> {
+    return this.messageManager.getLastAssistantMessage(sessionId)
+  }
+
   async forkSession(
     targetSessionId: string,
     targetMessageId: string,

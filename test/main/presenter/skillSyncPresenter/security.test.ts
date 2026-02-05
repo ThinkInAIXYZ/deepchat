@@ -274,6 +274,9 @@ describe('Security Module', () => {
       vi.mocked(fs.promises.access)
         .mockRejectedValueOnce(new Error('ENOENT')) // file doesn't exist
         .mockResolvedValue(undefined) // parent is writable
+      vi.mocked(fs.promises.stat).mockResolvedValue({
+        isDirectory: () => true
+      } as unknown as fs.Stats)
 
       const result = await checkWritePermission('/parent/newfile')
       expect(result).toBe(true)

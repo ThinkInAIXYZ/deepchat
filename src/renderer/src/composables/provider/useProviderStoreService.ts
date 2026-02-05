@@ -11,6 +11,15 @@ import { useProviderAdapter } from '@/composables/provider/useProviderAdapter'
 const PROVIDER_ORDER_KEY = 'providerOrder'
 const PROVIDER_TIMESTAMP_KEY = 'providerTimestamps'
 
+type VoiceAIConfig = {
+  audioFormat: string
+  model: string
+  language: string
+  temperature: number
+  topP: number
+  agentId: string
+}
+
 export const useProviderStoreService = () => {
   const providerAdapter = useProviderAdapter()
   const isInitialized = ref(false)
@@ -33,6 +42,7 @@ export const useProviderStoreService = () => {
 
   const providerOrder = ref<string[]>([])
   const providerTimestamps = ref<Record<string, number>>({})
+  const voiceAIConfig = ref<VoiceAIConfig | null>(null)
 
   const providers = computed<LLM_PROVIDER[]>(() => {
     const data = providersQuery.data.value as LLM_PROVIDER[] | undefined
@@ -44,6 +54,43 @@ export const useProviderStoreService = () => {
   })
   const enabledProviders = computed(() => providers.value.filter((provider) => provider.enable))
   const disabledProviders = computed(() => providers.value.filter((provider) => !provider.enable))
+
+  const getVoiceAIConfig = async (): Promise<VoiceAIConfig> => {
+    const config: VoiceAIConfig = {
+      audioFormat: (await providerAdapter.getSetting<string>('voiceAI_audioFormat')) || 'mp3',
+      model: (await providerAdapter.getSetting<string>('voiceAI_model')) || 'voiceai-tts-v1-latest',
+      language: (await providerAdapter.getSetting<string>('voiceAI_language')) || 'en',
+      temperature: (await providerAdapter.getSetting<number>('voiceAI_temperature')) ?? 1,
+      topP: (await providerAdapter.getSetting<number>('voiceAI_topP')) ?? 0.8,
+      agentId: (await providerAdapter.getSetting<string>('voiceAI_agentId')) || ''
+    }
+
+    voiceAIConfig.value = config
+    return config
+  }
+
+  const updateVoiceAIConfig = async (updates: Partial<VoiceAIConfig>) => {
+    if (updates.audioFormat !== undefined) {
+      await providerAdapter.setSetting('voiceAI_audioFormat', updates.audioFormat)
+    }
+    if (updates.model !== undefined) {
+      await providerAdapter.setSetting('voiceAI_model', updates.model)
+    }
+    if (updates.language !== undefined) {
+      await providerAdapter.setSetting('voiceAI_language', updates.language)
+    }
+    if (updates.temperature !== undefined) {
+      await providerAdapter.setSetting('voiceAI_temperature', updates.temperature)
+    }
+    if (updates.topP !== undefined) {
+      await providerAdapter.setSetting('voiceAI_topP', updates.topP)
+    }
+    if (updates.agentId !== undefined) {
+      await providerAdapter.setSetting('voiceAI_agentId', updates.agentId)
+    }
+
+    await getVoiceAIConfig()
+  }
 
   const ensureOrderIncludesProviders = (order: string[], list: LLM_PROVIDER[]) => {
     const seen = new Set<string>()
@@ -430,6 +477,7 @@ export const useProviderStoreService = () => {
     sortedProviders,
     providerOrder,
     providerTimestamps,
+    voiceAIConfig,
     initialize,
     refreshProviders,
     bindEventListeners,
@@ -457,6 +505,8 @@ export const useProviderStoreService = () => {
     setGeminiSafety,
     getGeminiSafety,
     setAwsBedrockCredential,
-    getAwsBedrockCredential
+    getAwsBedrockCredential,
+    getVoiceAIConfig,
+    updateVoiceAIConfig
   }
 }

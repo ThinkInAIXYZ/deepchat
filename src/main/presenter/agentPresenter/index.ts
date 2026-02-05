@@ -6,7 +6,7 @@ import type {
   ISQLitePresenter,
   MESSAGE_METADATA
 } from '@shared/presenter'
-import type { AssistantMessage } from '@shared/chat'
+import type { AssistantMessage, AssistantMessageBlock, UserMessageContent } from '@shared/chat'
 import { eventBus, SendTarget } from '@/eventbus'
 import { STREAM_EVENTS } from '@/events'
 import { presenter } from '@/presenter'
@@ -169,6 +169,12 @@ export class AgentPresenter {
       false,
       this.buildMessageMetadata(conversation)
     )
+
+    try {
+      await this.resolvePendingQuestionIfNeeded(agentId, userMessage.id, content)
+    } catch (error) {
+      console.warn('[AgentPresenter] Failed to auto-resolve pending question:', error)
+    }
 
     const assistantMessage = await this.streamGenerationHandler.generateAIResponse(
       agentId,
@@ -340,12 +346,140 @@ export class AgentPresenter {
     )
   }
 
+  async resolveQuestion(
+    messageId: string,
+    toolCallId: string,
+    answerText: string,
+    answerMessageId?: string
+  ): Promise<void> {
+    await this.handleQuestionResolution(messageId, toolCallId, {
+      resolution: 'replied',
+      answerText,
+      answerMessageId
+    })
+  }
+
+  async rejectQuestion(messageId: string, toolCallId: string): Promise<void> {
+    await this.handleQuestionResolution(messageId, toolCallId, {
+      resolution: 'rejected'
+    })
+  }
+
   async getMessageRequestPreview(agentId: string, messageId?: string): Promise<unknown> {
     if (!messageId) {
       return null
     }
     await this.logResolvedIfEnabled(agentId)
     return this.utilityHandler.getMessageRequestPreview(messageId)
+  }
+
+  private async handleQuestionResolution(
+    messageId: string,
+    toolCallId: string,
+    payload: {
+      resolution: 'replied' | 'rejected'
+      answerText?: string
+      answerMessageId?: string
+    }
+  ): Promise<void> {
+    if (!messageId || !toolCallId) {
+      return
+    }
+
+    const message = await this.messageManager.getMessage(messageId)
+    if (!message || message.role !== 'assistant') {
+      throw new Error(`Message not found or not assistant (${messageId})`)
+    }
+
+    const content = message.content as AssistantMessageBlock[]
+    const questionBlock = content.find(
+      (block) =>
+        block.type === 'action' &&
+        block.action_type === 'question_request' &&
+        block.tool_call?.id === toolCallId
+    )
+
+    if (!questionBlock) {
+      throw new Error(
+        `Question block not found (messageId: ${messageId}, toolCallId: ${toolCallId})`
+      )
+    }
+
+    if (questionBlock.status !== 'pending') {
+      return
+    }
+
+    const isReplied = payload.resolution === 'replied'
+    questionBlock.status = isReplied ? 'success' : 'denied'
+    questionBlock.extra = {
+      ...questionBlock.extra,
+      needsUserAction: false,
+      questionResolution: payload.resolution,
+      ...(isReplied && payload.answerText ? { answerText: payload.answerText } : {}),
+      ...(isReplied && payload.answerMessageId ? { answerMessageId: payload.answerMessageId } : {})
+    }
+
+    const generatingState = this.generatingMessages.get(messageId)
+    if (generatingState) {
+      const questionIndex = generatingState.message.content.findIndex(
+        (block) =>
+          block.type === 'action' &&
+          block.action_type === 'question_request' &&
+          block.tool_call?.id === toolCallId
+      )
+      if (questionIndex !== -1) {
+        const stateBlock = generatingState.message.content[questionIndex]
+        generatingState.message.content[questionIndex] = {
+          ...stateBlock,
+          ...questionBlock,
+          extra: questionBlock.extra ? { ...questionBlock.extra } : undefined,
+          tool_call: questionBlock.tool_call ? { ...questionBlock.tool_call } : undefined
+        }
+      }
+    }
+
+    await this.messageManager.editMessage(messageId, JSON.stringify(content))
+    presenter.sessionManager.clearPendingQuestion(message.conversationId)
+    presenter.sessionManager.setStatus(message.conversationId, 'idle')
+  }
+
+  private async resolvePendingQuestionIfNeeded(
+    conversationId: string,
+    userMessageId: string,
+    rawContent: string
+  ): Promise<void> {
+    const session = await this.sessionManager.getSession(conversationId)
+    const pendingQuestion = session.runtime?.pendingQuestion
+    if (!pendingQuestion?.messageId || !pendingQuestion.toolCallId) {
+      return
+    }
+
+    const answerText = this.extractUserMessageText(rawContent)
+    if (!answerText.trim()) {
+      return
+    }
+
+    await this.handleQuestionResolution(pendingQuestion.messageId, pendingQuestion.toolCallId, {
+      resolution: 'replied',
+      answerText,
+      answerMessageId: userMessageId
+    })
+  }
+
+  private extractUserMessageText(rawContent: string): string {
+    if (!rawContent) return ''
+    try {
+      const parsed = JSON.parse(rawContent) as UserMessageContent
+      if (typeof parsed.text === 'string') {
+        return parsed.text
+      }
+      if (Array.isArray(parsed.content)) {
+        return parsed.content.map((block) => block.content || '').join('')
+      }
+    } catch (error) {
+      console.warn('[AgentPresenter] Failed to parse user message content:', error)
+    }
+    return rawContent
   }
 
   private buildMessageMetadata(conversation: CONVERSATION): MESSAGE_METADATA {
@@ -461,6 +595,7 @@ export class AgentPresenter {
     this.sessionManager.updateRuntime(state.conversationId, { userStopRequested: true })
     this.sessionManager.setStatus(state.conversationId, 'paused')
     this.sessionManager.clearPendingPermission(state.conversationId)
+    this.sessionManager.clearPendingQuestion(state.conversationId)
     state.isCancelled = true
 
     if (state.adaptiveBuffer) {

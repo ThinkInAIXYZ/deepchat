@@ -107,6 +107,7 @@ import { getAllMessageDomInfo, getMessageDomInfo } from '@/lib/messageRuntimeCac
 import { useChatStore } from '@/stores/chat'
 import { useReferenceStore } from '@/stores/reference'
 import { useWorkspaceStore } from '@/stores/workspace'
+import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import type { ParentSelection } from '@shared/presenter'
 import { useTraceDialogStore } from '@/stores/traceDialog'
 
@@ -120,6 +121,7 @@ const chatStore = useChatStore()
 const referenceStore = useReferenceStore()
 const workspaceStore = useWorkspaceStore()
 const traceDialog = useTraceDialogStore()
+const uiSettingsStore = useUiSettingsStore()
 
 // === Local State (需要先声明,因为 useMessageScroll 需要引用) ===
 const dynamicScrollerRef = ref<InstanceType<typeof DynamicScroller> | null>(null)
@@ -137,6 +139,7 @@ const pendingHeightUpdate = ref(false)
 const scroll = useMessageScroll({
   dynamicScrollerRef,
   shouldAutoFollow,
+  autoScrollEnabled: computed(() => uiSettingsStore.autoScrollEnabled),
   scrollAnchor
 })
 const {
@@ -711,8 +714,12 @@ onMounted(() => {
   })
 
   watch(
-    () => aboveThreshold.value,
-    (isAbove) => {
+    () => [aboveThreshold.value, uiSettingsStore.autoScrollEnabled] as const,
+    ([isAbove, autoScrollEnabled]) => {
+      if (!autoScrollEnabled) {
+        shouldAutoFollow.value = false
+        return
+      }
       shouldAutoFollow.value = !isAbove
     }
   )

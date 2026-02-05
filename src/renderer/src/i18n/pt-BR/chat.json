@@ -151,6 +151,17 @@
     },
     "title": "área de trabalho"
   },
+  "audio": {
+    "play": "Reproduzir",
+    "pause": "Pausar"
+  },
+  "call": {
+    "title": "Chamada Voice.ai",
+    "description": "Clique para conectar ao agente de voz da Voice.ai e fale após a chamada ser conectada.",
+    "start": "Iniciar chamada de voz",
+    "stop": "Encerrar chamada",
+    "end": "Desligar"
+  },
   "skills": {
     "indicator": {
       "active": "{count} habilidades ativadas",

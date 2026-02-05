@@ -391,6 +391,7 @@ export interface ISQLitePresenter {
   ): Promise<void>
   getMessageAttachments(messageId: string, type: string): Promise<{ content: string }[]>
   getLastUserMessage(conversationId: string): Promise<SQLITE_MESSAGE | null>
+  getLastAssistantMessage(conversationId: string): Promise<SQLITE_MESSAGE | null>
   getMainMessageByParentId(conversationId: string, parentId: string): Promise<SQLITE_MESSAGE | null>
   deleteAllMessagesInConversation(conversationId: string): Promise<void>
 }
@@ -450,6 +451,17 @@ export interface INotificationPresenter {
   showNotification(options: { id: string; title: string; body: string; silent?: boolean }): void
   clearNotification(id: string): void
   clearAllNotifications(): void
+}
+
+export type SearchEngineTemplate = {
+  id: string
+  name: string
+  description?: string
+  urlTemplate?: string
+  icon?: string
+  enabled?: boolean
+  // Forward-compatible escape hatch for new engine settings.
+  [key: string]: unknown
 }
 
 export interface IConfigPresenter {
@@ -527,6 +539,15 @@ export interface IConfigPresenter {
   setProxyMode(mode: string): void
   getCustomProxyUrl(): string
   setCustomProxyUrl(url: string): void
+  // Custom search engine
+  getCustomSearchEngines(): Promise<SearchEngineTemplate[]>
+  setCustomSearchEngines(engines: SearchEngineTemplate[]): Promise<void>
+  // Search preview settings
+  getSearchPreviewEnabled(): Promise<boolean>
+  setSearchPreviewEnabled(enabled: boolean): void
+  // Auto scroll settings
+  getAutoScrollEnabled(): boolean
+  setAutoScrollEnabled(enabled: boolean): void
   // Screen sharing protection settings
   getContentProtectionEnabled(): boolean
   setContentProtectionEnabled(enabled: boolean): void

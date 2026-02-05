@@ -151,6 +151,17 @@
     },
     "title": "工作區"
   },
+  "audio": {
+    "play": "播放",
+    "pause": "暫停"
+  },
+  "call": {
+    "title": "Voice.ai 通話",
+    "description": "點擊連接 Voice.ai 語音代理，通話接通後即可說話。",
+    "start": "開始語音通話",
+    "stop": "結束通話",
+    "end": "掛斷"
+  },
   "skills": {
     "indicator": {
       "active": "{count} 個技能已激活",

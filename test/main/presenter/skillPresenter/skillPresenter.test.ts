@@ -24,6 +24,7 @@ vi.mock('fs', () => ({
     mkdirSync: vi.fn(),
     readdirSync: vi.fn(),
     readFileSync: vi.fn(),
+    statSync: vi.fn().mockReturnValue({ size: 0 }),
     writeFileSync: vi.fn(),
     rmSync: vi.fn(),
     copyFileSync: vi.fn(),
@@ -89,6 +90,10 @@ vi.mock('../../../../src/main/events', () => ({
 
 vi.mock('../../../../src/main/presenter', () => ({
   presenter: {
+    sessionManager: {
+      getSession: vi.fn(),
+      updateRuntime: vi.fn()
+    },
     sessionPresenter: {
       getConversation: vi.fn(),
       updateConversationSettings: vi.fn()
@@ -115,13 +120,15 @@ describe('SkillPresenter', () => {
     vi.clearAllMocks()
 
     mockConfigPresenter = {
-      getSkillsPath: vi.fn().mockReturnValue('')
+      getSkillsPath: vi.fn().mockReturnValue(''),
+      getSkillsEnabled: vi.fn().mockReturnValue(true)
     } as unknown as IConfigPresenter
 
     // Setup default mocks
     ;(fs.existsSync as Mock).mockReturnValue(true)
     ;(fs.mkdirSync as Mock).mockReturnValue(undefined)
     ;(fs.readdirSync as Mock).mockReturnValue([])
+    ;(fs.statSync as Mock).mockReturnValue({ size: 0 })
     ;(matter as unknown as Mock).mockReturnValue({
       data: { name: 'test-skill', description: 'Test skill' },
       content: '# Test content'
@@ -598,61 +605,27 @@ describe('SkillPresenter', () => {
 
   describe('getActiveSkills', () => {
     it('should return active skills for a conversation', async () => {
-      ;(presenter.sessionPresenter.getConversation as Mock).mockResolvedValue({
-        settings: { activeSkills: ['skill-1', 'skill-2'] }
+      ;(presenter.sessionManager.getSession as Mock).mockResolvedValue({
+        runtime: { activeSkills: ['skill-1', 'skill-2'] }
       })
-      // Setup skills in metadata cache with proper matter mock
-      ;(fs.readdirSync as Mock).mockReturnValue([
-        { name: 'skill-1', isDirectory: () => true },
-        { name: 'skill-2', isDirectory: () => true }
-      ])
-      ;(fs.existsSync as Mock).mockReturnValue(true)
-      ;(fs.readFileSync as Mock).mockReturnValue('test')
-
-      // Matter mock returns name matching directory name
-      let callIndex = 0
-      ;(matter as unknown as Mock).mockImplementation(() => {
-        callIndex++
-        if (callIndex === 1) {
-          return { data: { name: 'skill-1', description: 'Test 1' }, content: '' }
-        }
-        return { data: { name: 'skill-2', description: 'Test 2' }, content: '' }
-      })
-
-      await skillPresenter.discoverSkills()
-
       const active = await skillPresenter.getActiveSkills('conv-123')
 
       expect(active).toEqual(['skill-1', 'skill-2'])
     })
 
     it('should return empty array if conversation has no active skills', async () => {
-      ;(presenter.sessionPresenter.getConversation as Mock).mockResolvedValue({
-        settings: {}
-      })
+      ;(presenter.sessionManager.getSession as Mock).mockResolvedValue({ runtime: {} })
 
       const active = await skillPresenter.getActiveSkills('conv-123')
 
       expect(active).toEqual([])
     })
 
-    it('should filter out non-existent skills', async () => {
-      ;(presenter.sessionPresenter.getConversation as Mock).mockResolvedValue({
-        settings: { activeSkills: ['exists', 'removed'] }
-      })
-      ;(fs.readdirSync as Mock).mockReturnValue([{ name: 'exists', isDirectory: () => true }])
-      ;(fs.existsSync as Mock).mockReturnValue(true)
-      ;(fs.readFileSync as Mock).mockReturnValue('test')
-      ;(matter as unknown as Mock).mockReturnValue({
-        data: { name: 'exists', description: 'Test' },
-        content: ''
-      })
-      await skillPresenter.discoverSkills()
-
+    it('should return empty array when session lookup fails', async () => {
+      ;(presenter.sessionManager.getSession as Mock).mockRejectedValue(new Error('Missing session'))
       const active = await skillPresenter.getActiveSkills('conv-123')
 
-      expect(active).toEqual(['exists'])
-      expect(presenter.sessionPresenter.updateConversationSettings).toHaveBeenCalled()
+      expect(active).toEqual([])
     })
   })
 
@@ -664,30 +637,32 @@ describe('SkillPresenter', () => {
       ])
       ;(fs.existsSync as Mock).mockReturnValue(true)
       ;(fs.readFileSync as Mock).mockReturnValue('test')
-      ;(matter as unknown as Mock).mockImplementation(() => ({
-        data: { name: 'skill-1', description: 'Test' },
-        content: ''
-      }))
+      let callIndex = 0
+      ;(matter as unknown as Mock).mockImplementation(() => {
+        callIndex += 1
+        if (callIndex === 1) {
+          return { data: { name: 'skill-1', description: 'Test' }, content: '' }
+        }
+        return { data: { name: 'skill-2', description: 'Test' }, content: '' }
+      })
       await skillPresenter.discoverSkills()
     })
 
     it('should set active skills for a conversation', async () => {
-      ;(presenter.sessionPresenter.getConversation as Mock).mockResolvedValue({
-        settings: { activeSkills: [] }
+      ;(presenter.sessionManager.getSession as Mock).mockResolvedValue({
+        runtime: { activeSkills: [] }
       })
-      ;(presenter.sessionPresenter.updateConversationSettings as Mock).mockResolvedValue(undefined)
 
       await skillPresenter.setActiveSkills('conv-123', ['skill-1'])
 
-      expect(presenter.sessionPresenter.updateConversationSettings).toHaveBeenCalledWith(
-        'conv-123',
-        expect.objectContaining({ activeSkills: expect.any(Array) })
-      )
+      expect(presenter.sessionManager.updateRuntime).toHaveBeenCalledWith('conv-123', {
+        activeSkills: ['skill-1']
+      })
     })
 
     it('should emit activated event when skills are activated', async () => {
-      ;(presenter.sessionPresenter.getConversation as Mock).mockResolvedValue({
-        settings: { activeSkills: [] }
+      ;(presenter.sessionManager.getSession as Mock).mockResolvedValue({
+        runtime: { activeSkills: [] }
       })
 
       await skillPresenter.setActiveSkills('conv-123', ['skill-1'])
@@ -703,13 +678,9 @@ describe('SkillPresenter', () => {
     })
 
     it('should emit deactivated event when skills are deactivated', async () => {
-      ;(presenter.sessionPresenter.getConversation as Mock).mockResolvedValue({
-        settings: { activeSkills: ['skill-1', 'skill-2'] }
+      ;(presenter.sessionManager.getSession as Mock).mockResolvedValue({
+        runtime: { activeSkills: ['skill-1', 'skill-2'] }
       })
-      ;(matter as unknown as Mock).mockImplementation(() => ({
-        data: { name: 'skill-2', description: 'Test' },
-        content: ''
-      }))
 
       await skillPresenter.setActiveSkills('conv-123', ['skill-2'])
 
@@ -768,8 +739,8 @@ describe('SkillPresenter', () => {
     })
 
     it('should return union of allowed tools from active skills', async () => {
-      ;(presenter.sessionPresenter.getConversation as Mock).mockResolvedValue({
-        settings: { activeSkills: ['skill-with-tools'] }
+      ;(presenter.sessionManager.getSession as Mock).mockResolvedValue({
+        runtime: { activeSkills: ['skill-with-tools'] }
       })
 
       const tools = await skillPresenter.getActiveSkillsAllowedTools('conv-123')
@@ -779,8 +750,8 @@ describe('SkillPresenter', () => {
     })
 
     it('should return empty array when no active skills', async () => {
-      ;(presenter.sessionPresenter.getConversation as Mock).mockResolvedValue({
-        settings: { activeSkills: [] }
+      ;(presenter.sessionManager.getSession as Mock).mockResolvedValue({
+        runtime: { activeSkills: [] }
       })
 
       const tools = await skillPresenter.getActiveSkillsAllowedTools('conv-123')

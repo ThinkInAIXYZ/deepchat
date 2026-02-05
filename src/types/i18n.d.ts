@@ -372,6 +372,15 @@ declare module 'vue-i18n' {
         critical: string
       }
     }
+    messageBlockQuestionRequest: {
+      title: string
+      send: string
+      reject: string
+      selected: string
+      rejected: string
+      customPlaceholder: string
+      answerLabel: string
+    }
     promptParamsDialog: {
       title: string
       description: string

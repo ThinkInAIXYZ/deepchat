@@ -203,6 +203,21 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
     }
   },
   {
+    id: 'voiceai',
+    name: 'Voice.ai',
+    apiType: 'voiceai',
+    apiKey: '',
+    baseUrl: 'https://dev.voice.ai',
+    enable: false,
+    websites: {
+      official: 'https://voice.ai/',
+      apiKey: 'https://voice.ai/app/dashboard/developers',
+      docs: 'https://voice.ai/docs/introduction',
+      models: 'https://voice.ai/docs/api-reference/text-to-speech/list-voices',
+      defaultBaseUrl: 'https://dev.voice.ai'
+    }
+  },
+  {
     id: 'gemini',
     name: 'Gemini',
     apiType: 'gemini',

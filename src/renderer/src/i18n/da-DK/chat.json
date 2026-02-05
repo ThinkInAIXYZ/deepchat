@@ -151,6 +151,17 @@
     },
     "title": "arbejdsrum"
   },
+  "audio": {
+    "play": "Afspil",
+    "pause": "Pause"
+  },
+  "call": {
+    "title": "Voice.ai-opkald",
+    "description": "Klik for at forbinde til Voice.ai-stemmeagenten, og tal når opkaldet er forbundet.",
+    "start": "Start taleopkald",
+    "stop": "Afslut opkald",
+    "end": "Læg på"
+  },
   "skills": {
     "indicator": {
       "active": "{count} færdigheder er aktiveret",

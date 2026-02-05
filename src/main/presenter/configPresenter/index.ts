@@ -15,7 +15,8 @@ import {
   AcpAgentProfile,
   AcpBuiltinAgent,
   AcpBuiltinAgentId,
-  AcpCustomAgent
+  AcpCustomAgent,
+  SearchEngineTemplate
 } from '@shared/presenter'
 import { ProviderBatchUpdate } from '@shared/provider-operations'
 import { ModelType } from '@shared/model'
@@ -849,6 +850,49 @@ export class ConfigPresenter implements IConfigPresenter {
       skillsPath: this.getSkillsPath(),
       enableSkills: this.getSkillsEnabled()
     }
+  }
+
+  // Get custom search engines
+  async getCustomSearchEngines(): Promise<SearchEngineTemplate[]> {
+    try {
+      const customEnginesJson = this.store.get('customSearchEngines')
+      if (customEnginesJson) {
+        return JSON.parse(customEnginesJson as string)
+      }
+      return []
+    } catch (error) {
+      console.error('Failed to get custom search engines:', error)
+      return []
+    }
+  }
+
+  // Set custom search engines
+  async setCustomSearchEngines(engines: SearchEngineTemplate[]): Promise<void> {
+    try {
+      this.store.set('customSearchEngines', JSON.stringify(engines))
+      // Send event to notify search engine update (need to notify all tabs)
+      eventBus.send(CONFIG_EVENTS.SEARCH_ENGINES_UPDATED, SendTarget.ALL_WINDOWS, engines)
+    } catch (error) {
+      console.error('Failed to set custom search engines:', error)
+      throw error
+    }
+  }
+
+  // Get search preview setting status
+  getSearchPreviewEnabled(): Promise<boolean> {
+    return this.uiSettingsHelper.getSearchPreviewEnabled()
+  }
+
+  setSearchPreviewEnabled(enabled: boolean): void {
+    this.uiSettingsHelper.setSearchPreviewEnabled(enabled)
+  }
+
+  getAutoScrollEnabled(): boolean {
+    return this.uiSettingsHelper.getAutoScrollEnabled()
+  }
+
+  setAutoScrollEnabled(enabled: boolean): void {
+    this.uiSettingsHelper.setAutoScrollEnabled(enabled)
   }
 
   getContentProtectionEnabled(): boolean {

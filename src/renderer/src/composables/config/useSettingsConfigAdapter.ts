@@ -9,6 +9,8 @@ export type UiSettingsSnapshot = {
   fontFamily: string | null
   codeFontFamily: string | null
   artifactsEffectEnabled: boolean | null
+  searchPreviewEnabled: boolean | null
+  autoScrollEnabled: boolean | null
   contentProtectionEnabled: boolean | null
   copyWithCotEnabled: boolean | null
   traceDebugEnabled: boolean | null
@@ -48,6 +50,8 @@ export const createSettingsConfigAdapter = (configPresenter: ConfigPresenter) =>
       codeFontFamily: (await configPresenter.getCodeFontFamily()) ?? null,
       artifactsEffectEnabled:
         (await configPresenter.getSetting<boolean>('artifactsEffectEnabled')) ?? null,
+      searchPreviewEnabled: (await configPresenter.getSearchPreviewEnabled()) ?? null,
+      autoScrollEnabled: (await configPresenter.getAutoScrollEnabled()) ?? null,
       contentProtectionEnabled: (await configPresenter.getContentProtectionEnabled()) ?? null,
       copyWithCotEnabled: (await configPresenter.getCopyWithCotEnabled()) ?? null,
       traceDebugEnabled: (await configPresenter.getSetting<boolean>('traceDebugEnabled')) ?? null,
@@ -78,6 +82,14 @@ export const createSettingsConfigAdapter = (configPresenter: ConfigPresenter) =>
 
   const setArtifactsEffectEnabled = async (enabled: boolean) => {
     await configPresenter.setSetting('artifactsEffectEnabled', enabled)
+  }
+
+  const setSearchPreviewEnabled = async (enabled: boolean) => {
+    await configPresenter.setSearchPreviewEnabled(enabled)
+  }
+
+  const setAutoScrollEnabled = async (enabled: boolean) => {
+    await configPresenter.setAutoScrollEnabled(enabled)
   }
 
   const setContentProtectionEnabled = async (enabled: boolean) => {
@@ -117,6 +129,12 @@ export const createSettingsConfigAdapter = (configPresenter: ConfigPresenter) =>
       subscribeEvent<number>(CONFIG_EVENTS.FONT_SIZE_CHANGED, (value) => {
         handler({ fontSizeLevel: value })
       }),
+      subscribeEvent<boolean>(CONFIG_EVENTS.SEARCH_PREVIEW_CHANGED, (value) => {
+        handler({ searchPreviewEnabled: value })
+      }),
+      subscribeEvent<boolean>(CONFIG_EVENTS.AUTO_SCROLL_CHANGED, (value) => {
+        handler({ autoScrollEnabled: value })
+      }),
       subscribeEvent<boolean>(CONFIG_EVENTS.CONTENT_PROTECTION_CHANGED, (value) => {
         handler({ contentProtectionEnabled: value })
       }),
@@ -150,6 +168,8 @@ export const createSettingsConfigAdapter = (configPresenter: ConfigPresenter) =>
     resetFontSettings,
     getSystemFonts,
     setArtifactsEffectEnabled,
+    setSearchPreviewEnabled,
+    setAutoScrollEnabled,
     setContentProtectionEnabled,
     setCopyWithCotEnabled,
     setTraceDebugEnabled,

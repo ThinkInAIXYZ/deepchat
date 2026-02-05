@@ -13,6 +13,8 @@ describe('createSettingsConfigAdapter', () => {
       }),
       getFontFamily: vi.fn().mockResolvedValue('Inter'),
       getCodeFontFamily: vi.fn().mockResolvedValue('Fira Code'),
+      getSearchPreviewEnabled: vi.fn().mockResolvedValue(true),
+      getAutoScrollEnabled: vi.fn().mockResolvedValue(false),
       getContentProtectionEnabled: vi.fn().mockResolvedValue(true),
       getCopyWithCotEnabled: vi.fn().mockResolvedValue(false),
       getNotificationsEnabled: vi.fn().mockResolvedValue(false),
@@ -26,6 +28,8 @@ describe('createSettingsConfigAdapter', () => {
     expect(snapshot.artifactsEffectEnabled).toBe(true)
     expect(snapshot.fontFamily).toBe('Inter')
     expect(snapshot.codeFontFamily).toBe('Fira Code')
+    expect(snapshot.searchPreviewEnabled).toBe(true)
+    expect(snapshot.autoScrollEnabled).toBe(false)
     expect(snapshot.contentProtectionEnabled).toBe(true)
     expect(snapshot.copyWithCotEnabled).toBe(false)
     expect(snapshot.traceDebugEnabled).toBe(true)

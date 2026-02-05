@@ -44,7 +44,8 @@
     "selectChatFailed": "Valg af samtale mislykkedes",
     "sessionInterrupted": "Samtalen blev afbrudt uventet, genereringen er ikke fuldført.",
     "userCanceledGeneration": "Brugeren annullerede genereringen",
-    "error401": "Godkendelse mislykkedes, forkert API-nøgle eller domænenavn blev konfigureret"
+    "error401": "Godkendelse mislykkedes, forkert API-nøgle eller domænenavn blev konfigureret",
+    "invalidQuestionRequest": "Ugyldig spørgsmålsanmodning"
   },
   "expand": "udvide",
   "export": "Eksportere",

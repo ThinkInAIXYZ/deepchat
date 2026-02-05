@@ -5,6 +5,11 @@
     "resetData": "Nulstil data",
     "language": "Sprog",
     "languageSelect": "Vælg sprog",
+    "searchEngine": "Søgemaskine",
+    "searchEngineSelect": "Vælg søgemaskine",
+    "searchPreview": "Søgeforhåndsvisning",
+    "autoScrollEnabled": "Automatisk rulning under generering",
+    "searchAssistantModel": "Assistentmodel",
     "selectModel": "Vælg model",
     "proxyMode": "Proxytilstand",
     "proxyModeSelect": "Vælg proxytilstand",
@@ -296,6 +301,7 @@
     "getKeyTip": "Besøg venligst",
     "getKeyTipEnd": "for at få API-nøglen",
     "urlFormat": "API-eksempel: {defaultUrl}",
+    "urlFormatFill": "Udfyld API-URL",
     "modelList": "Modelliste",
     "enableModels": "Aktivér modeller",
     "disableAllModels": "Deaktiver alle modeller",
@@ -311,6 +317,38 @@
     "stopModel": "Stop model",
     "pulling": "Henter...",
     "runModel": "Kør model",
+    "voiceai": {
+      "title": "Voice.ai tekst-til-tale",
+      "description": "Generér tale fra tekst. Stemmer vises i modellisten nedenfor.",
+      "audioFormat": {
+        "label": "Lydformat",
+        "placeholder": "Vælg format",
+        "helper": "MP3 anbefales i de fleste tilfælde."
+      },
+      "language": {
+        "label": "Sprog",
+        "placeholder": "f.eks. en",
+        "helper": "Understøttet: en, ca, sv, es, fr, de, it, pt, pl, ru, nl."
+      },
+      "model": {
+        "label": "TTS-model",
+        "placeholder": "voiceai-tts-v1-latest",
+        "helper": "Se Voice.ai-dokumentationen for understøttede modeller."
+      },
+      "agentId": {
+        "label": "Voice Agent ID",
+        "placeholder": "Indsæt voice agent-id",
+        "helper": "Kræves til realtidsopkald."
+      },
+      "temperature": {
+        "label": "Temperatur",
+        "helper": "Styrer tilfældighed (0-2)."
+      },
+      "topP": {
+        "label": "Top P",
+        "helper": "Nucleus sampling (0-1)."
+      }
+    },
     "dialog": {
       "disableModel": {
         "title": "Bekræft deaktivering af model",

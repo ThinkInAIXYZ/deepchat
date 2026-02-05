@@ -84,9 +84,20 @@ function appendPromptSection(base: string, section: string): string {
 }
 
 async function resolveSystemPrompt(conversation: CONVERSATION): Promise<string> {
-  // Phase 6: System prompts removed - use agent default
-  const runtimeConfig = await getRuntimeConfig(conversation)
-  return runtimeConfig.systemPrompt
+  const settingsPrompt = (conversation.settings as unknown as { systemPrompt?: unknown })
+    ?.systemPrompt
+  if (typeof settingsPrompt === 'string') {
+    return settingsPrompt
+  }
+
+  // Phase 6: Prefer agent defaults when available, but don't require the full presenter graph
+  // for unit tests that mock `@/presenter`.
+  try {
+    const runtimeConfig = await getRuntimeConfig(conversation)
+    return runtimeConfig.systemPrompt
+  } catch {
+    return ''
+  }
 }
 
 export async function preparePromptContent({

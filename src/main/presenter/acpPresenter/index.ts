@@ -288,7 +288,7 @@ export class AcpPresenter implements IAcpPresenter {
       }
     }
 
-    const session = await this.sessionManager.createSession(agentId, workdir, hooks)
+    const session = await this.sessionManager.createSession(nanoid(), agent, hooks, workdir)
 
     // Track sessionId → agentId mapping for Agentic Unified Layer
     this.sessionToAgentId.set(session.sessionId, agentId)
@@ -314,7 +314,13 @@ export class AcpPresenter implements IAcpPresenter {
       }
     }
 
-    const session = await this.sessionManager.loadSession(agentId, sessionId, workdir, hooks)
+    const session = await this.sessionManager.loadSession(
+      sessionId,
+      agent,
+      sessionId,
+      hooks,
+      workdir
+    )
 
     // Track sessionId → agentId mapping for Agentic Unified Layer
     this.sessionToAgentId.set(session.sessionId, agentId)

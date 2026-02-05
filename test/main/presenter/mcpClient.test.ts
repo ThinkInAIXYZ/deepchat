@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { McpClient } from '../../../src/main/presenter/mcpPresenter/mcpClient'
+import { RuntimeHelper } from '../../../src/main/lib/runtimeHelper'
 import path from 'path'
 import fs from 'fs'
 import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js'
@@ -17,11 +18,12 @@ vi.mock('electron', () => ({
 }))
 
 // Mock fs module
-vi.mock('fs', () => ({
-  default: {
-    existsSync: vi.fn()
-  }
-}))
+vi.mock('fs', () => {
+  const existsSync = vi.fn()
+  const fsMock = { existsSync }
+  // RuntimeHelper imports `* as fs`, while some tests import the default export.
+  return { ...fsMock, default: fsMock }
+})
 
 // Mock eventBus
 vi.mock('../../../src/main/eventbus', () => ({
@@ -111,6 +113,9 @@ describe('McpClient Runtime Command Processing Tests', () => {
   let mockFsExistsSync: any
 
   beforeEach(() => {
+    // RuntimeHelper caches runtime paths via a singleton; reset for deterministic tests.
+    ;(RuntimeHelper as any).instance = null
+
     mockFsExistsSync = vi.mocked(fs.existsSync)
     vi.clearAllMocks()
 
@@ -126,7 +131,7 @@ describe('McpClient Runtime Command Processing Tests', () => {
   })
 
   describe('NPX to Bun X Command Translation', () => {
-    it('should convert npx command to bun x with correct arguments for everything server', () => {
+    it('should replace npx command with builtin node runtime when available', () => {
       const serverConfig = {
         type: 'stdio',
         command: 'npx',
@@ -134,16 +139,22 @@ describe('McpClient Runtime Command Processing Tests', () => {
       }
 
       const client = new McpClient('everything', serverConfig)
+      const runtimeHelper = (client as any).runtimeHelper as RuntimeHelper
+      ;(runtimeHelper as any).nodeRuntimePath = '/mock/app/runtime/node'
 
       // Access private method for testing
-      const processedCommand = (client as any).processCommandWithArgs('npx', [
+      const processedCommand = (client as any).runtimeHelper.processCommandWithArgs('npx', [
         '-y',
         '@modelcontextprotocol/server-everything'
       ])
 
-      // Should convert npx to bun and add 'x' as first argument
-      expect(processedCommand.command).toContain('bun')
-      expect(processedCommand.args).toEqual(['x', '-y', '@modelcontextprotocol/server-everything'])
+      const expectedNpxPath =
+        process.platform === 'win32'
+          ? path.join('/mock/app/runtime/node', 'npx')
+          : path.join('/mock/app/runtime/node', 'bin', 'npx')
+
+      expect(processedCommand.command).toBe(expectedNpxPath)
+      expect(processedCommand.args).toEqual(['-y', '@modelcontextprotocol/server-everything'])
     })
 
     it('should handle npx in command path correctly', () => {
@@ -154,15 +165,21 @@ describe('McpClient Runtime Command Processing Tests', () => {
       }
 
       const client = new McpClient('everything', serverConfig)
+      const runtimeHelper = (client as any).runtimeHelper as RuntimeHelper
+      ;(runtimeHelper as any).nodeRuntimePath = '/mock/app/runtime/node'
 
-      const processedCommand = (client as any).processCommandWithArgs('/usr/local/bin/npx', [
-        '-y',
-        '@modelcontextprotocol/server-everything'
-      ])
+      const processedCommand = (client as any).runtimeHelper.processCommandWithArgs(
+        '/usr/local/bin/npx',
+        ['-y', '@modelcontextprotocol/server-everything']
+      )
 
-      // Should still convert to bun x regardless of npx path
-      expect(processedCommand.command).toContain('bun')
-      expect(processedCommand.args).toEqual(['x', '-y', '@modelcontextprotocol/server-everything'])
+      const expectedNpxPath =
+        process.platform === 'win32'
+          ? path.join('/mock/app/runtime/node', 'npx')
+          : path.join('/mock/app/runtime/node', 'bin', 'npx')
+
+      expect(processedCommand.command).toBe(expectedNpxPath)
+      expect(processedCommand.args).toEqual(['-y', '@modelcontextprotocol/server-everything'])
     })
   })
 
@@ -175,8 +192,12 @@ describe('McpClient Runtime Command Processing Tests', () => {
       }
 
       const client = new McpClient('osm-mcp-server', serverConfig)
+      const runtimeHelper = (client as any).runtimeHelper as RuntimeHelper
+      ;(runtimeHelper as any).uvRuntimePath = '/mock/app/runtime/uv'
 
-      const processedCommand = (client as any).processCommandWithArgs('uvx', ['osm-mcp-server'])
+      const processedCommand = (client as any).runtimeHelper.processCommandWithArgs('uvx', [
+        'osm-mcp-server'
+      ])
 
       // Should keep uvx as is, only replace with runtime path
       expect(processedCommand.command).toContain('uvx')
@@ -196,9 +217,12 @@ describe('McpClient Runtime Command Processing Tests', () => {
       const uvRuntimePath = path
         .join('/mock/app/runtime/uv')
         .replace('app.asar', 'app.asar.unpacked')
-      ;(client as any).uvRuntimePath = uvRuntimePath
+      const runtimeHelper = (client as any).runtimeHelper as RuntimeHelper
+      ;(runtimeHelper as any).uvRuntimePath = uvRuntimePath
 
-      const processedCommand = (client as any).processCommandWithArgs('uvx', ['osm-mcp-server'])
+      const processedCommand = (client as any).runtimeHelper.processCommandWithArgs('uvx', [
+        'osm-mcp-server'
+      ])
 
       // Should use the runtime path
       const expectedUvxPath =
@@ -218,10 +242,13 @@ describe('McpClient Runtime Command Processing Tests', () => {
       }
 
       const client = new McpClient('osm-mcp-server', serverConfig)
+      const runtimeHelper = (client as any).runtimeHelper as RuntimeHelper
+      ;(runtimeHelper as any).uvRuntimePath = '/mock/app/runtime/uv'
 
-      const processedCommand = (client as any).processCommandWithArgs('/usr/local/bin/uvx', [
-        'osm-mcp-server'
-      ])
+      const processedCommand = (client as any).runtimeHelper.processCommandWithArgs(
+        '/usr/local/bin/uvx',
+        ['osm-mcp-server']
+      )
 
       // Should replace with runtime uvx path
       expect(processedCommand.command).toContain('uvx')
@@ -238,15 +265,18 @@ describe('McpClient Runtime Command Processing Tests', () => {
       }
 
       const client = new McpClient('test', serverConfig)
+      const runtimeHelper = (client as any).runtimeHelper as RuntimeHelper
+      ;(runtimeHelper as any).nodeRuntimePath = '/mock/app/runtime/node'
 
-      const processedCommand = (client as any).processCommandWithArgs('node', ['server.js'])
+      const processedCommand = (client as any).runtimeHelper.processCommandWithArgs('node', [
+        'server.js'
+      ])
 
-      // Should replace node with bun
-      expect(processedCommand.command).toContain('bun')
+      expect(processedCommand.command).toContain('node')
       expect(processedCommand.args).toEqual(['server.js']) // No 'x' prefix for node
     })
 
-    it('should handle npm command replacement with bun', () => {
+    it('should handle npm command replacement with builtin node runtime', () => {
       const serverConfig = {
         type: 'stdio',
         command: 'npm',
@@ -254,11 +284,14 @@ describe('McpClient Runtime Command Processing Tests', () => {
       }
 
       const client = new McpClient('test', serverConfig)
+      const runtimeHelper = (client as any).runtimeHelper as RuntimeHelper
+      ;(runtimeHelper as any).nodeRuntimePath = '/mock/app/runtime/node'
 
-      const processedCommand = (client as any).processCommandWithArgs('npm', ['start'])
+      const processedCommand = (client as any).runtimeHelper.processCommandWithArgs('npm', [
+        'start'
+      ])
 
-      // Should replace npm with bun
-      expect(processedCommand.command).toContain('bun')
+      expect(processedCommand.command).toContain('npm')
       expect(processedCommand.args).toEqual(['start']) // No 'x' prefix for npm
     })
 
@@ -270,8 +303,13 @@ describe('McpClient Runtime Command Processing Tests', () => {
       }
 
       const client = new McpClient('test', serverConfig)
+      const runtimeHelper = (client as any).runtimeHelper as RuntimeHelper
+      ;(runtimeHelper as any).uvRuntimePath = '/mock/app/runtime/uv'
 
-      const processedCommand = (client as any).processCommandWithArgs('uv', ['run', 'server.py'])
+      const processedCommand = (client as any).runtimeHelper.processCommandWithArgs('uv', [
+        'run',
+        'server.py'
+      ])
 
       // Should replace uv with runtime uv
       expect(processedCommand.command).toContain('uv')
@@ -287,7 +325,9 @@ describe('McpClient Runtime Command Processing Tests', () => {
 
       const client = new McpClient('test', serverConfig)
 
-      const processedCommand = (client as any).processCommandWithArgs('python', ['server.py'])
+      const processedCommand = (client as any).runtimeHelper.processCommandWithArgs('python', [
+        'server.py'
+      ])
 
       // Should keep python command as is
       expect(processedCommand.command).toBe('python')
@@ -299,23 +339,31 @@ describe('McpClient Runtime Command Processing Tests', () => {
     it('should detect uv runtime when files exist', () => {
       mockFsExistsSync.mockImplementation((filePath: string | Buffer | URL) => {
         const pathStr = String(filePath)
-        return pathStr.includes('runtime/uv/uv')
+        return (
+          pathStr.includes('runtime/uv/uv') ||
+          pathStr.includes('runtime/uv/uvx') ||
+          pathStr.includes('runtime/node/bin/node')
+        )
       })
 
       const client = new McpClient('test', { type: 'stdio' })
+      const runtimeHelper = (client as any).runtimeHelper as RuntimeHelper
+      runtimeHelper.initializeRuntimes()
 
       // Check if uv runtime path is set
-      expect((client as any).uvRuntimePath).toBeTruthy()
+      expect(runtimeHelper.getUvRuntimePath()).toBeTruthy()
     })
 
     it('should handle missing runtime files gracefully', () => {
       mockFsExistsSync.mockReturnValue(false)
 
       const client = new McpClient('test', { type: 'stdio' })
+      const runtimeHelper = (client as any).runtimeHelper as RuntimeHelper
+      runtimeHelper.initializeRuntimes()
 
       // Should not set runtime paths when files don't exist
-      expect((client as any).bunRuntimePath).toBeNull()
-      expect((client as any).uvRuntimePath).toBeNull()
+      expect(runtimeHelper.getNodeRuntimePath()).toBeNull()
+      expect(runtimeHelper.getUvRuntimePath()).toBeNull()
     })
   })
 
@@ -339,7 +387,7 @@ describe('McpClient Runtime Command Processing Tests', () => {
     it('should expand tilde (~) in paths', () => {
       const client = new McpClient('test', { type: 'stdio' })
 
-      const expandedPath = (client as any).expandPath('~/test/path')
+      const expandedPath = (client as any).runtimeHelper.expandPath('~/test/path')
 
       expect(expandedPath).toBe('/mock/home/test/path')
     })
@@ -350,7 +398,7 @@ describe('McpClient Runtime Command Processing Tests', () => {
 
       const client = new McpClient('test', { type: 'stdio' })
 
-      const expandedPath = (client as any).expandPath('/path/${TEST_VAR}/file')
+      const expandedPath = (client as any).runtimeHelper.expandPath('/path/${TEST_VAR}/file')
 
       expect(expandedPath).toBe('/path//test/value/file')
 
@@ -364,7 +412,7 @@ describe('McpClient Runtime Command Processing Tests', () => {
 
       const client = new McpClient('test', { type: 'stdio' })
 
-      const expandedPath = (client as any).expandPath('/path/$TEST_PATH/file')
+      const expandedPath = (client as any).runtimeHelper.expandPath('/path/$TEST_PATH/file')
 
       expect(expandedPath).toBe('/path//simple/test/file')
 

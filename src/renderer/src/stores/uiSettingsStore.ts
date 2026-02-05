@@ -18,6 +18,8 @@ export const useUiSettingsStore = defineStore('uiSettings', () => {
   const systemFonts = ref<string[]>([])
   const isLoadingFonts = ref(false)
   const artifactsEffectEnabled = ref(false)
+  const searchPreviewEnabled = ref(false)
+  const autoScrollEnabled = ref(true)
   const contentProtectionEnabled = ref(false)
   const copyWithCotEnabled = ref(true)
   const traceDebugEnabled = ref(false)
@@ -48,6 +50,8 @@ export const useUiSettingsStore = defineStore('uiSettings', () => {
     fontFamily.value = snapshot.fontFamily ?? ''
     codeFontFamily.value = snapshot.codeFontFamily ?? ''
     artifactsEffectEnabled.value = snapshot.artifactsEffectEnabled ?? false
+    searchPreviewEnabled.value = snapshot.searchPreviewEnabled ?? false
+    autoScrollEnabled.value = snapshot.autoScrollEnabled ?? true
     contentProtectionEnabled.value = snapshot.contentProtectionEnabled ?? false
     notificationsEnabled.value = snapshot.notificationsEnabled ?? true
     traceDebugEnabled.value = snapshot.traceDebugEnabled ?? false
@@ -90,6 +94,18 @@ export const useUiSettingsStore = defineStore('uiSettings', () => {
     }
   }
 
+  const setSearchPreviewEnabled = async (enabled: boolean) => {
+    const next = Boolean(enabled)
+    searchPreviewEnabled.value = next
+    await settingsAdapter.setSearchPreviewEnabled(next)
+  }
+
+  const setAutoScrollEnabled = async (enabled: boolean) => {
+    const next = Boolean(enabled)
+    autoScrollEnabled.value = next
+    await settingsAdapter.setAutoScrollEnabled(next)
+  }
+
   const setArtifactsEffectEnabled = async (enabled: boolean) => {
     artifactsEffectEnabled.value = enabled
     await settingsAdapter.setArtifactsEffectEnabled(enabled)
@@ -126,6 +142,12 @@ export const useUiSettingsStore = defineStore('uiSettings', () => {
     if (update.fontSizeLevel !== undefined) {
       applyFontSizeLevel(update.fontSizeLevel)
     }
+    if (update.searchPreviewEnabled !== undefined && update.searchPreviewEnabled !== null) {
+      searchPreviewEnabled.value = update.searchPreviewEnabled
+    }
+    if (update.autoScrollEnabled !== undefined && update.autoScrollEnabled !== null) {
+      autoScrollEnabled.value = update.autoScrollEnabled
+    }
     if (update.contentProtectionEnabled !== undefined && update.contentProtectionEnabled !== null) {
       contentProtectionEnabled.value = update.contentProtectionEnabled
     }
@@ -151,7 +173,7 @@ export const useUiSettingsStore = defineStore('uiSettings', () => {
   }
 
   onMounted(() => {
-    loadSettings()
+    void loadSettings()
     setupListeners()
   })
 
@@ -172,6 +194,8 @@ export const useUiSettingsStore = defineStore('uiSettings', () => {
     formattedFontFamily,
     formattedCodeFontFamily,
     artifactsEffectEnabled,
+    searchPreviewEnabled,
+    autoScrollEnabled,
     contentProtectionEnabled,
     copyWithCotEnabled,
     traceDebugEnabled,
@@ -182,6 +206,8 @@ export const useUiSettingsStore = defineStore('uiSettings', () => {
     setCodeFontFamily,
     resetFontSettings,
     fetchSystemFonts,
+    setSearchPreviewEnabled,
+    setAutoScrollEnabled,
     setArtifactsEffectEnabled,
     setContentProtectionEnabled,
     setCopyWithCotEnabled,
