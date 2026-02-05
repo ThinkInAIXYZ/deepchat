@@ -43,7 +43,7 @@
     "error503": "Le service n'est pas disponible, le service demandé peut être actuellement instable, vous pouvez l'essayer plus tard",
     "error504": "La demande a expiré, le service demandé peut être actuellement instable ou le lien réseau est défectueux. Veuillez vérifier le proxy et d'autres configurations réseau avant d'essayer.",
     "operationFailed": "L'opération a échoué",
-    "invalidQuestionRequest": "Invalid question request"
+    "invalidQuestionRequest": "Requête de question invalide"
   },
   "resetDataConfirmTitle": "Réinitialiser toutes les données ?",
   "resetDataConfirmDescription": "Cela réinitialisera toutes vos données aux paramètres par défaut. Cette action ne peut pas être annulée.",

@@ -59,12 +59,12 @@
     "required": "This field is required."
   },
   "messageBlockQuestionRequest": {
-    "title": "Question",
-    "send": "Send",
-    "reject": "Reject",
-    "selected": "Selected",
-    "rejected": "Rejected",
-    "customPlaceholder": "Type your answer...",
-    "answerLabel": "Answer"
+    "title": "سؤال",
+    "send": "ارسال",
+    "reject": "رد کردن",
+    "selected": "انتخاب شد",
+    "rejected": "رد شد",
+    "customPlaceholder": "پاسخ خود را بنویسید...",
+    "answerLabel": "پاسخ"
   }
 }

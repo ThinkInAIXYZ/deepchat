@@ -59,12 +59,12 @@
     "required": "此參數為必填項"
   },
   "messageBlockQuestionRequest": {
-    "title": "问题",
-    "send": "发送",
-    "reject": "拒绝",
-    "selected": "已选择",
-    "rejected": "已拒绝",
-    "customPlaceholder": "输入你的回答...",
+    "title": "問題",
+    "send": "發送",
+    "reject": "拒絕",
+    "selected": "已選擇",
+    "rejected": "已拒絕",
+    "customPlaceholder": "輸入你的回答...",
     "answerLabel": "回答"
   }
 }

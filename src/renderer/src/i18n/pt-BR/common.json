@@ -43,7 +43,7 @@
     "error503": "Serviço indisponível, o serviço pode estar instável, tente novamente mais tarde",
     "error504": "Tempo limite da requisição, o serviço pode estar instável ou pode haver problemas de rede, verifique as configurações de proxy e tente novamente",
     "operationFailed": "Operação falhou",
-    "invalidQuestionRequest": "Invalid question request"
+    "invalidQuestionRequest": "Solicitação de pergunta inválida"
   },
   "resetDataConfirmTitle": "Redefinir Todos os Dados?",
   "resetDataConfirmDescription": "Isso redefinirá todos os seus dados para as configurações padrão. Esta ação não pode ser desfeita.",

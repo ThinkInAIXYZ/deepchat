@@ -43,7 +43,7 @@
     "error503": "השירות אינו זמין, ייתכן שהשירות אינו יציב, אנא נסה שוב מאוחר יותר",
     "error504": "הבקשה הסתיימה (Timeout), ייתכן שהשירות אינו יציב או שיש בעיות רשת, אנא בדוק את הגדרות הפרוקסי ונסה שוב",
     "operationFailed": "הפעולה נכשלה",
-    "invalidQuestionRequest": "Invalid question request"
+    "invalidQuestionRequest": "בקשת שאלה לא תקינה"
   },
   "resetDataConfirmTitle": "לאפס את כל הנתונים?",
   "resetDataConfirmDescription": "פעולה זו תאפס את כל הנתונים שלך להגדרות ברירת המחדל. לא ניתן לבטל פעולה זו.",

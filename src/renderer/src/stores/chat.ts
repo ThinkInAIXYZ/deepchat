@@ -1036,10 +1036,16 @@ export const useChatStore = defineStore('chat', () => {
         }
       })
     } else if (msg.question_error) {
+      const normalizedQuestionError = msg.question_error.trim()
+      const questionErrorContent =
+        normalizedQuestionError === 'Invalid question request'
+          ? 'common.error.invalidQuestionRequest'
+          : msg.question_error
+
       finalizeAssistantMessageBlocks(assistantMsg.content)
       assistantMsg.content.push({
         type: 'error',
-        content: msg.question_error,
+        content: questionErrorContent,
         status: 'error',
         timestamp: Date.now()
       })

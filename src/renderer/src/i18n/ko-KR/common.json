@@ -44,7 +44,7 @@
     "error503": "서비스를 사용할 수없고 요청 된 서비스는 현재 불안정 할 수 있습니다. 나중에 시도해 볼 수 있습니다.",
     "error504": "요청 시간이 초과되었습니다. 서비스가 불안정하거나 네트워크에 문제가 있을 수 있습니다. 프록시 등 네트워크 설정을 확인 후 다시 시도해 주세요.",
     "operationFailed": "작업 실패",
-    "invalidQuestionRequest": "Invalid question request"
+    "invalidQuestionRequest": "유효하지 않은 질문 요청"
   },
   "resetDataConfirmTitle": "모든 데이터 초기화?",
   "resetDataConfirmDescription": "이렇게 하면 모든 데이터가 기본 설정으로 초기화됩니다. 이 작업은 취소할 수 없습니다.",

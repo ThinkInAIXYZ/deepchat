@@ -59,12 +59,12 @@
     "required": "שדה זה הוא חובה."
   },
   "messageBlockQuestionRequest": {
-    "title": "Question",
-    "send": "Send",
-    "reject": "Reject",
-    "selected": "Selected",
-    "rejected": "Rejected",
-    "customPlaceholder": "Type your answer...",
-    "answerLabel": "Answer"
+    "title": "שאלה",
+    "send": "שלח",
+    "reject": "דחה",
+    "selected": "נבחר",
+    "rejected": "נדחה",
+    "customPlaceholder": "הקלד את תשובתך...",
+    "answerLabel": "תשובה"
   }
 }

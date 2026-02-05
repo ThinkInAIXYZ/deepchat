@@ -45,7 +45,7 @@
     "sessionInterrupted": "Samtalen blev afbrudt uventet, genereringen er ikke fuldført.",
     "userCanceledGeneration": "Brugeren annullerede genereringen",
     "error401": "Godkendelse mislykkedes, forkert API-nøgle eller domænenavn blev konfigureret",
-    "invalidQuestionRequest": "Invalid question request"
+    "invalidQuestionRequest": "Ugyldig spørgsmålsanmodning"
   },
   "expand": "udvide",
   "export": "Eksportere",
