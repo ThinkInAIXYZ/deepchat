@@ -23,21 +23,23 @@
     "src/renderer/settings/**/*.vue"
   ],
   "compilerOptions": {
-    "composite": true,
-    "baseUrl": ".",
     "module": "esnext",
+    "composite": false,
+    "declaration": false,
+    "emitDeclarationOnly": false,
+    "noEmit": true,
     "paths": {
       "@/*": [
-        "src/renderer/src/*"
+        "./src/renderer/src/*"
       ],
       "@shell/*": [
-        "src/renderer/shell/*"
+        "./src/renderer/shell/*"
       ],
       "@shared/*": [
-        "src/shared/*"
+        "./src/shared/*"
       ],
       "@shadcn/*": [
-        "src/shadcn/*"
+        "./src/shadcn/*"
       ]
     }
   }
