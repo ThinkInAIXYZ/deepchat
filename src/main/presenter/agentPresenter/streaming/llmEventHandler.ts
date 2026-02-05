@@ -55,6 +55,8 @@ export class LLMEventHandler {
       tool_call_server_description,
       tool_call_response_raw,
       tool_call,
+      question_request,
+      question_error,
       totalUsage,
       image_data
     } = msg
@@ -106,6 +108,16 @@ export class LLMEventHandler {
       return
     }
 
+    if (question_error) {
+      this.finalizeLastBlock(state)
+      state.message.content.push({
+        type: 'error',
+        content: question_error,
+        status: 'error',
+        timestamp: currentTime
+      })
+    }
+
     if (reasoning_content) {
       if (state.reasoningStartTime === null) {
         state.reasoningStartTime = currentTime
@@ -127,7 +139,10 @@ export class LLMEventHandler {
       await this.toolCallHandler.processMcpUiResourcesFromToolCall(state, msg, currentTime)
     }
 
-    if (tool_call) {
+    const shouldSkipToolCall =
+      tool_call && tool_call_name === 'question' && tool_call !== 'question-required'
+
+    if (tool_call && !shouldSkipToolCall) {
       switch (tool_call) {
         case 'start':
           presenter.sessionManager.incrementToolCallCount(state.conversationId)
@@ -149,6 +164,16 @@ export class LLMEventHandler {
           })
           presenter.sessionManager.setStatus(state.conversationId, 'waiting_permission')
           await this.toolCallHandler.processToolCallPermission(state, msg, currentTime)
+          break
+        case 'question-required':
+          presenter.sessionManager.updateRuntime(state.conversationId, {
+            pendingQuestion: {
+              messageId: eventId,
+              toolCallId: tool_call_id || ''
+            }
+          })
+          presenter.sessionManager.setStatus(state.conversationId, 'waiting_question')
+          await this.toolCallHandler.processQuestionRequest(state, msg, currentTime)
           break
         case 'permission-granted':
         case 'permission-denied':
@@ -258,7 +283,7 @@ export class LLMEventHandler {
     if (image_data) delta.image_data = image_data
     if (totalUsage) delta.totalUsage = totalUsage
 
-    if (tool_call) {
+    if (tool_call && !shouldSkipToolCall) {
       delta.tool_call = tool_call
       delta.tool_call_id = tool_call_id
       delta.tool_call_name = tool_call_name
@@ -271,6 +296,13 @@ export class LLMEventHandler {
       if (msg.permission_request !== undefined) {
         delta.permission_request = msg.permission_request
       }
+      if (question_request !== undefined) {
+        delta.question_request = question_request
+      }
+    }
+
+    if (question_error) {
+      delta.question_error = question_error
     }
 
     this.streamUpdateScheduler.enqueueDelta(
@@ -305,11 +337,13 @@ export class LLMEventHandler {
       this.generatingMessages.delete(eventId)
       presenter.sessionManager.setStatus(state.conversationId, 'error')
       presenter.sessionManager.clearPendingPermission(state.conversationId)
+      presenter.sessionManager.clearPendingQuestion(state.conversationId)
     } else {
       const message = await this.messageManager.getMessage(eventId)
       if (message) {
         presenter.sessionManager.setStatus(message.conversationId, 'error')
         presenter.sessionManager.clearPendingPermission(message.conversationId)
+        presenter.sessionManager.clearPendingQuestion(message.conversationId)
       }
     }
 
@@ -334,11 +368,21 @@ export class LLMEventHandler {
           block.action_type === 'tool_call_permission' &&
           block.status === 'pending'
       )
+      const hasPendingQuestions = state.message.content.some(
+        (block) =>
+          block.type === 'action' &&
+          block.action_type === 'question_request' &&
+          block.status === 'pending'
+      )
 
-      if (hasPendingPermissions) {
+      if (hasPendingPermissions || hasPendingQuestions) {
         state.message.content.forEach((block) => {
           if (
-            !(block.type === 'action' && block.action_type === 'tool_call_permission') &&
+            !(
+              block.type === 'action' &&
+              (block.action_type === 'tool_call_permission' ||
+                block.action_type === 'question_request')
+            ) &&
             block.status === 'loading'
           ) {
             if (block.type !== 'tool_call') {
@@ -357,12 +401,19 @@ export class LLMEventHandler {
         )
         this.searchingMessages.delete(eventId)
         presenter.sessionManager.setStatus(state.conversationId, 'waiting_permission')
+        if (!hasPendingPermissions) {
+          presenter.sessionManager.setStatus(state.conversationId, 'waiting_question')
+        }
+        await this.streamUpdateScheduler.flushAll(eventId, 'final')
+        this.generatingMessages.delete(eventId)
+        eventBus.sendToRenderer(STREAM_EVENTS.END, SendTarget.ALL_WINDOWS, msg)
         return
       }
 
       await this.finalizeMessage(state, eventId, Boolean(userStop))
       presenter.sessionManager.setStatus(state.conversationId, 'idle')
       presenter.sessionManager.clearPendingPermission(state.conversationId)
+      presenter.sessionManager.clearPendingQuestion(state.conversationId)
     }
 
     await this.streamUpdateScheduler.flushAll(eventId, 'final')
@@ -376,7 +427,10 @@ export class LLMEventHandler {
     userStop: boolean
   ): Promise<void> {
     state.message.content.forEach((block) => {
-      if (block.type === 'action' && block.action_type === 'tool_call_permission') {
+      if (
+        block.type === 'action' &&
+        (block.action_type === 'tool_call_permission' || block.action_type === 'question_request')
+      ) {
         return
       }
       block.status = 'success'

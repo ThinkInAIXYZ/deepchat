@@ -1,4 +1,5 @@
 import type { PermissionRequestOption } from './llm-events'
+import type { QuestionInfo } from './question'
 import type { UsageStats, RateLimitInfo } from './usage'
 
 export interface LLMAgentEventData {
@@ -30,6 +31,7 @@ export interface LLMAgentEventData {
     | 'permission-granted'
     | 'permission-denied'
     | 'continue'
+    | 'question-required'
   permission_request?: {
     toolName: string
     serverName: string
@@ -53,6 +55,8 @@ export interface LLMAgentEventData {
     options?: PermissionRequestOption[]
     rememberable?: boolean
   }
+  question_request?: QuestionInfo
+  question_error?: string
   totalUsage?: UsageStats
   image_data?: { data: string; mimeType: string }
   rate_limit?: RateLimitInfo

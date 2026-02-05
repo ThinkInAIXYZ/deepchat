@@ -8,7 +8,13 @@ import type {
   AcpWorkdirInfo
 } from './thread.presenter'
 
-export type SessionStatus = 'idle' | 'generating' | 'paused' | 'waiting_permission' | 'error'
+export type SessionStatus =
+  | 'idle'
+  | 'generating'
+  | 'paused'
+  | 'waiting_permission'
+  | 'waiting_question'
+  | 'error'
 
 export type SessionConfig = {
   sessionId: string
@@ -111,6 +117,7 @@ export interface ISessionPresenter extends IThreadPresenter {
   markMessageAsContextEdge(messageId: string, isEdge: boolean): Promise<void>
   getContextMessages(sessionId: string): Promise<Message[]>
   getLastUserMessage(sessionId: string): Promise<Message | null>
+  getLastAssistantMessage(sessionId: string): Promise<Message | null>
 
   forkSession(
     targetSessionId: string,

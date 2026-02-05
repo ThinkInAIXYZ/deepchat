@@ -133,6 +133,35 @@ describe('Renderer Contract Tests', () => {
       expect(mapEventToBlock(agentEvent)).toEqual(expectedBlock)
     })
 
+    it('should map question request correctly', () => {
+      const agentEvent: LLMAgentEvent = {
+        type: 'response',
+        data: {
+          eventId: 'test-123',
+          tool_call: 'question-required',
+          tool_call_id: 'tool-999',
+          tool_call_name: 'question',
+          question_request: {
+            question: 'Pick one',
+            options: [{ label: 'A' }]
+          }
+        }
+      }
+
+      const expectedBlock: AssistantMessageBlock = {
+        type: 'action',
+        action_type: 'question_request',
+        status: 'pending',
+        timestamp: expect.any(Number),
+        tool_call: {
+          id: 'tool-999',
+          name: 'question'
+        }
+      }
+
+      expect(mapEventToBlock(agentEvent)).toEqual(expectedBlock)
+    })
+
     it('should map rate limit correctly', () => {
       const agentEvent: LLMAgentEvent = {
         type: 'response',
@@ -234,7 +263,12 @@ describe('Renderer Contract Tests', () => {
     })
 
     it('should only allow valid action_type values', () => {
-      const validActionTypes = ['tool_call_permission', 'maximum_tool_calls_reached', 'rate_limit']
+      const validActionTypes = [
+        'tool_call_permission',
+        'maximum_tool_calls_reached',
+        'rate_limit',
+        'question_request'
+      ]
 
       const block: AssistantMessageBlock = {
         type: 'action',
@@ -503,6 +537,19 @@ function mapEventToBlock(event: LLMAgentEvent): AssistantMessageBlock {
           }
         }
       }
+
+      if (data.tool_call === 'question-required') {
+        return {
+          type: 'action',
+          action_type: 'question_request',
+          status: 'pending',
+          timestamp,
+          tool_call: {
+            id: data.tool_call_id,
+            name: data.tool_call_name
+          }
+        }
+      }
     }
 
     // Rate limit
@@ -562,7 +609,7 @@ function isValidStatusTransition(
 ): boolean {
   const validTransitions: Record<string, string[]> = {
     loading: ['success', 'error'],
-    pending: ['granted', 'denied', 'error'],
+    pending: ['granted', 'denied', 'success', 'error'],
     success: [],
     error: [],
     granted: [],
@@ -578,7 +625,10 @@ function processEndEvent(
 ): AssistantMessageBlock[] {
   return blocks.map((block) => {
     // Preserve permission blocks
-    if (block.type === 'action' && block.action_type === 'tool_call_permission') {
+    if (
+      block.type === 'action' &&
+      (block.action_type === 'tool_call_permission' || block.action_type === 'question_request')
+    ) {
       return block
     }
 

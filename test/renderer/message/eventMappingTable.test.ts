@@ -151,6 +151,34 @@ const mappingTestCases: MappingTestCase[] = [
     notes: '待用户授权，后续置 granted/denied'
   },
 
+  // 问题请求
+  {
+    name: 'response.question-required → action block (question_request)',
+    event: {
+      type: 'response',
+      data: {
+        eventId: 'test-123',
+        tool_call: 'question-required',
+        tool_call_id: 'tool-999',
+        tool_call_name: 'question',
+        question_request: {
+          question: 'Pick one',
+          options: [{ label: 'A' }]
+        }
+      }
+    },
+    expectedBlock: {
+      type: 'action',
+      action_type: 'question_request',
+      status: 'pending',
+      tool_call: {
+        id: 'tool-999',
+        name: 'question'
+      }
+    },
+    notes: '等待用户选择或输入'
+  },
+
   // 速率限制
   {
     name: 'response.rate_limit → action block (rate_limit)',
@@ -245,6 +273,7 @@ const statusTransitionCases = [
   { from: 'loading', to: 'error', valid: true },
   { from: 'pending', to: 'granted', valid: true },
   { from: 'pending', to: 'denied', valid: true },
+  { from: 'pending', to: 'success', valid: true },
   { from: 'pending', to: 'error', valid: true },
   { from: 'success', to: 'loading', valid: false },
   { from: 'error', to: 'success', valid: false },
@@ -328,7 +357,12 @@ describe('Event-to-UI Mapping Table Contract Tests', () => {
     })
 
     it('should only allow defined action_type values', () => {
-      const validActionTypes = ['tool_call_permission', 'maximum_tool_calls_reached', 'rate_limit']
+      const validActionTypes = [
+        'tool_call_permission',
+        'maximum_tool_calls_reached',
+        'rate_limit',
+        'question_request'
+      ]
 
       mappingTestCases.forEach((testCase) => {
         if (testCase.expectedBlock?.action_type) {
@@ -552,6 +586,19 @@ function mapEventToBlock(event: LLMAgentEvent): AssistantMessageBlock {
           }
         }
       }
+
+      if (data.tool_call === 'question-required') {
+        return {
+          type: 'action',
+          action_type: 'question_request',
+          status: 'pending',
+          timestamp,
+          tool_call: {
+            id: data.tool_call_id,
+            name: data.tool_call_name
+          }
+        }
+      }
     }
 
     if (data.rate_limit) {
@@ -583,7 +630,7 @@ function isValidStatusTransition(
 ): boolean {
   const validTransitions: Record<string, string[]> = {
     loading: ['success', 'error'],
-    pending: ['granted', 'denied', 'error'],
+    pending: ['granted', 'denied', 'success', 'error'],
     success: [],
     error: [],
     granted: [],
@@ -599,7 +646,10 @@ function processEndEvent(
 ): AssistantMessageBlock[] {
   return blocks.map((block) => {
     // Preserve permission blocks
-    if (block.type === 'action' && block.action_type === 'tool_call_permission') {
+    if (
+      block.type === 'action' &&
+      (block.action_type === 'tool_call_permission' || block.action_type === 'question_request')
+    ) {
       return block
     }
 

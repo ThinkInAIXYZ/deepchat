@@ -1,4 +1,10 @@
-export type SessionStatus = 'idle' | 'generating' | 'paused' | 'waiting_permission' | 'error'
+export type SessionStatus =
+  | 'idle'
+  | 'generating'
+  | 'paused'
+  | 'waiting_permission'
+  | 'waiting_question'
+  | 'error'
 
 export type SessionConfig = {
   sessionId: string

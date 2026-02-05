@@ -9,6 +9,7 @@ import { presenter } from '@/presenter'
 import { AgentFileSystemHandler } from './agentFileSystemHandler'
 import { AgentBashHandler } from './agentBashHandler'
 import { SkillTools } from '../../skillPresenter/skillTools'
+import { questionToolSchema, QUESTION_TOOL_NAME } from '../tools/questionTool'
 import {
   ChatSettingsToolHandler,
   buildChatSettingsToolDefinitions,
@@ -278,6 +279,9 @@ export class AgentToolManager {
       defs.push(...fsDefs)
     }
 
+    // 2. Built-in question tool (all modes)
+    defs.push(...this.getQuestionToolDefinitions())
+
     // 3. Skill tools (agent mode only)
     if (isAgentMode && this.isSkillsEnabled()) {
       const skillDefs = this.getSkillToolDefinitions()
@@ -331,6 +335,21 @@ export class AgentToolManager {
     args: Record<string, unknown>,
     conversationId?: string
   ): Promise<AgentToolCallResult | string> {
+    if (toolName === QUESTION_TOOL_NAME) {
+      const validationResult = questionToolSchema.safeParse(args)
+      if (!validationResult.success) {
+        throw new Error(`Invalid arguments for question: ${validationResult.error.message}`)
+      }
+      return {
+        content: 'question_requested',
+        rawData: {
+          content: 'question_requested',
+          isError: false,
+          toolResult: validationResult.data
+        }
+      }
+    }
+
     // Route to FileSystem tools
     if (this.isFileSystemTool(toolName)) {
       if (!this.fileSystemHandler) {
@@ -605,6 +624,29 @@ export class AgentToolManager {
           name: 'agent-filesystem',
           icons: '📁',
           description: 'Agent FileSystem tools'
+        }
+      }
+    ]
+  }
+
+  private getQuestionToolDefinitions(): MCPToolDefinition[] {
+    return [
+      {
+        type: 'function',
+        function: {
+          name: QUESTION_TOOL_NAME,
+          description:
+            'Ask the user a structured question and pause the agent loop until the user responds.',
+          parameters: zodToJsonSchema(questionToolSchema) as {
+            type: string
+            properties: Record<string, unknown>
+            required?: string[]
+          }
+        },
+        server: {
+          name: 'agent-core',
+          icons: '❓',
+          description: 'Agent core tools'
         }
       }
     ]

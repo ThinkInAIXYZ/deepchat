@@ -11,7 +11,11 @@ export function finalizeAssistantMessageBlocks(blocks: AssistantMessageBlock[] |
     return
   }
 
-  if (lastBlock.type === 'action' && lastBlock.action_type === 'tool_call_permission') {
+  if (
+    lastBlock.type === 'action' &&
+    (lastBlock.action_type === 'tool_call_permission' ||
+      lastBlock.action_type === 'question_request')
+  ) {
     return
   }
 

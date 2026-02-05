@@ -57,5 +57,14 @@
     "title": "{name} 參數設定",
     "description": "請填寫以下參數，帶 * 的為必填項。",
     "required": "此參數為必填項"
+  },
+  "messageBlockQuestionRequest": {
+    "title": "問題",
+    "send": "發送",
+    "reject": "拒絕",
+    "selected": "已選擇",
+    "rejected": "已拒絕",
+    "customPlaceholder": "輸入你的回答...",
+    "answerLabel": "回答"
   }
 }
