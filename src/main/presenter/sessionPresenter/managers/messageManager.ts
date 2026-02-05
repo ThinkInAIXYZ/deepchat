@@ -384,6 +384,14 @@ export class MessageManager implements IMessageManager {
 
         // 处理每个未完成的消息
         for (const message of pendingMessages) {
+          const blocks = Array.isArray(message.content) ? message.content : []
+          const hasQuestionRequest = blocks.some(
+            (block) => block.type === 'action' && block.action_type === 'question_request'
+          )
+          if (hasQuestionRequest) {
+            await this.updateMessageStatus(message.id, 'sent')
+            continue
+          }
           await this.handleMessageError(message.id, 'common.error.sessionInterrupted')
         }
       }
