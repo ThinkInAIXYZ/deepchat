@@ -63,10 +63,10 @@
 import { computed, ref } from 'vue'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
-import { useYoBrowserStore } from '@/stores/yoBrowser'
+import { useYoBrowserStoreLifecycle } from '@/composables/useYoBrowserStoreLifecycle'
 
 const { t } = useI18n()
-const store = useYoBrowserStore()
+const store = useYoBrowserStoreLifecycle()
 const showTabs = ref(true)
 const faviconError = ref<Record<string, boolean>>({})
 

@@ -1,5 +1,8 @@
 # Changelog
 
+## Unreleased
+- 新增 OpenCode 作为内置 ACP Agent，支持开源 AI 编码代理
+- Added OpenCode as builtin ACP agent, supporting open-source AI coding agent
 ## v0.5.6-beta.5 (2025-01-16)
 - 全新 Skills 管理系统，支持技能安装、同步与多平台适配
 - 新增 o3.fan 提供商、优化工具调用（大型调用卸载、差异块展示、权限管理）、性能提升（消息列表虚拟滚动、流式事件批处理调度）

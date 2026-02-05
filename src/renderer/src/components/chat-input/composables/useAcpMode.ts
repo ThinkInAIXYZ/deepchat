@@ -1,7 +1,8 @@
 import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
-import { usePresenter } from '@/composables/usePresenter'
-import { ACP_WORKSPACE_EVENTS } from '@/events'
+import { useAcpRuntimeAdapter } from '@/composables/chat/useAcpRuntimeAdapter'
+import { useAcpEventsAdapter } from '@/composables/acp/useAcpEventsAdapter'
 import type { Ref } from 'vue'
+import type { SessionUpdatedEvent } from '@shared/types/presenters/agentic.presenter.d'
 
 type ActiveModelRef = Ref<{ id?: string; providerId?: string } | null>
 
@@ -20,7 +21,9 @@ interface ModeInfo {
 }
 
 export function useAcpMode(options: UseAcpModeOptions) {
-  const sessionPresenter = usePresenter('sessionPresenter')
+  const acpRuntimeAdapter = useAcpRuntimeAdapter()
+  const acpEventsAdapter = useAcpEventsAdapter()
+  let unsubscribeSessionModes: (() => void) | null = null
 
   const currentMode = ref<string>('default')
   const availableModes = ref<ModeInfo[]>([])
@@ -31,6 +34,7 @@ export function useAcpMode(options: UseAcpModeOptions) {
   const isAcpModel = computed(
     () => options.activeModel.value?.providerId === 'acp' && !!options.activeModel.value?.id
   )
+  const agentId = computed(() => options.activeModel.value?.id ?? '')
 
   const hasConversation = computed(() => Boolean(options.conversationId.value))
   const selectedWorkdir = computed(() => options.workdir?.value ?? null)
@@ -55,13 +59,16 @@ export function useAcpMode(options: UseAcpModeOptions) {
 
     loading.value = true
     try {
-      const result = await sessionPresenter.getAcpSessionModes(options.conversationId.value)
+      const result = await acpRuntimeAdapter.getAcpSessionModes(options.conversationId.value)
       if (result && result.available.length > 0) {
         currentMode.value = result.current
         availableModes.value = result.available
         console.info(
           `[useAcpMode] Loaded modes: current="${result.current}", available=[${result.available.map((m) => m.id).join(', ')}]`
         )
+      } else {
+        currentMode.value = 'default'
+        availableModes.value = []
       }
     } catch (error) {
       console.warn('[useAcpMode] Failed to load modes', error)
@@ -72,17 +79,37 @@ export function useAcpMode(options: UseAcpModeOptions) {
 
   const loadWarmupModes = async () => {
     if (!isAcpModel.value || hasConversation.value) return
-    const agentId = options.activeModel.value?.id
-    const workdir = selectedWorkdir.value
-    if (!agentId || !workdir) return
+    if (!agentId.value) return
     if (availableModes.value.length > 0) return
 
-    const warmupKey = `${agentId}::${workdir}`
+    // Use selected workdir or null (will use config warmup dir on backend)
+    const workdir = selectedWorkdir.value
+
+    const warmupKey = `${agentId.value}::${workdir ?? 'config-warmup'}`
     if (lastWarmupModesKey.value === warmupKey) return
     lastWarmupModesKey.value = warmupKey
 
     try {
-      const result = await sessionPresenter.getAcpProcessModes(agentId, workdir)
+      // First try to get modes from existing process (only if workdir is specified)
+      let result = workdir
+        ? await acpRuntimeAdapter.getAcpProcessModes(agentId.value, workdir)
+        : undefined
+
+      // If no modes found, ensure warmup process exists and try again
+      if (!result?.availableModes) {
+        // ensureAcpWarmup will use config warmup dir when workdir is null
+        await acpRuntimeAdapter.ensureAcpWarmup(agentId.value, workdir)
+
+        // Wait a short time for the warmup process to fetch modes
+        await new Promise((resolve) => setTimeout(resolve, 500))
+
+        // Query again after warmup
+        // When workdir is null, backend uses config warmup dir internally
+        // We pass empty string to query the config warmup process
+        const queryWorkdir = workdir ?? ''
+        result = await acpRuntimeAdapter.getAcpProcessModes(agentId.value, queryWorkdir)
+      }
+
       if (result?.availableModes && result.availableModes.length > 0) {
         currentMode.value =
           result.currentModeId ?? result.availableModes[0]?.id ?? currentMode.value
@@ -98,7 +125,7 @@ export function useAcpMode(options: UseAcpModeOptions) {
 
   // Watch for conversation and model changes
   watch(
-    [isAcpModel, options.conversationId],
+    [isAcpModel, options.conversationId, agentId],
     () => {
       void loadModes()
     },
@@ -107,7 +134,7 @@ export function useAcpMode(options: UseAcpModeOptions) {
 
   // Load warmup modes when a workdir is selected but no conversation exists yet
   watch(
-    [isAcpModel, selectedWorkdir, options.conversationId],
+    [isAcpModel, selectedWorkdir, options.conversationId, agentId],
     () => {
       if (!hasConversation.value) {
         void loadWarmupModes()
@@ -128,31 +155,37 @@ export function useAcpMode(options: UseAcpModeOptions) {
     })
   }
 
-  // Listen for session modes ready event from main process
-  const handleModesReady = (
-    _: unknown,
-    payload: {
-      conversationId?: string
-      agentId?: string
-      workdir?: string
-      current: string
-      available: ModeInfo[]
-    }
-  ) => {
-    if (!isAcpModel.value) return
+  watch(agentId, (newId, oldId) => {
+    if (!newId || newId === oldId) return
+    currentMode.value = 'default'
+    availableModes.value = []
+    pendingPreferredMode.value = null
+    lastWarmupModesKey.value = null
+  })
 
-    const conversationMatch =
-      payload.conversationId && payload.conversationId === options.conversationId.value
-    const agentMatch = payload.agentId && payload.agentId === options.activeModel.value?.id
-    const workdirMatch =
-      !selectedWorkdir.value || !payload.workdir || selectedWorkdir.value === payload.workdir
+  /**
+   * Listen for session updated event from agentic presenter
+   * Checks for availableModes in sessionInfo to detect mode updates
+   */
+  const handleSessionUpdated = (payload: SessionUpdatedEvent) => {
+    if (!isAcpModel.value || !payload.sessionInfo.availableModes) return
 
-    if (conversationMatch || (agentMatch && workdirMatch)) {
+    const conversationMatch = payload.sessionId === options.conversationId.value
+    const agentMatch = payload.sessionInfo.agentId === options.activeModel.value?.id
+
+    if (conversationMatch || agentMatch) {
+      const modes: ModeInfo[] = payload.sessionInfo.availableModes.map((m) => ({
+        id: m.id,
+        name: m.name,
+        description: m.description
+      }))
+      const newModeId = payload.sessionInfo.currentModeId || modes[0]?.id || 'default'
+
       console.info(
-        `[useAcpMode] Received modes from main: current="${payload.current}", available=[${payload.available.map((m) => m.id).join(', ')}]`
+        `[useAcpMode] Received modes from main: current="${newModeId}", available=[${modes.map((m) => m.id).join(', ')}]`
       )
-      currentMode.value = payload.current
-      availableModes.value = payload.available
+      currentMode.value = newModeId
+      availableModes.value = modes
       if (!conversationMatch && pendingPreferredMode.value) {
         currentMode.value = pendingPreferredMode.value
       }
@@ -160,20 +193,48 @@ export function useAcpMode(options: UseAcpModeOptions) {
   }
 
   onMounted(() => {
-    window.electron.ipcRenderer.on(ACP_WORKSPACE_EVENTS.SESSION_MODES_READY, handleModesReady)
+    unsubscribeSessionModes = acpEventsAdapter.subscribeSessionUpdated(handleSessionUpdated)
   })
 
   onUnmounted(() => {
-    window.electron.ipcRenderer.removeListener(
-      ACP_WORKSPACE_EVENTS.SESSION_MODES_READY,
-      handleModesReady
-    )
+    unsubscribeSessionModes?.()
+    unsubscribeSessionModes = null
   })
 
   /**
    * Cycle to the next mode in the agent's available modes.
    * Only works when agent has declared modes.
    */
+  const setMode = async (modeId: string) => {
+    if (loading.value || !isAcpModel.value || !modeId || !agentId.value) {
+      return
+    }
+    if (modeId === currentMode.value) {
+      return
+    }
+
+    loading.value = true
+    try {
+      if (options.conversationId.value) {
+        await acpRuntimeAdapter.setAcpSessionMode(options.conversationId.value, modeId)
+        currentMode.value = modeId
+        pendingPreferredMode.value = null
+      } else if (selectedWorkdir.value) {
+        await acpRuntimeAdapter.setAcpPreferredProcessMode(
+          agentId.value,
+          selectedWorkdir.value,
+          modeId
+        )
+        currentMode.value = modeId
+        pendingPreferredMode.value = modeId
+      }
+    } catch (error) {
+      console.error('[useAcpMode] Failed to set mode', error)
+    } finally {
+      loading.value = false
+    }
+  }
+
   const cycleMode = async () => {
     if (loading.value || !isAcpModel.value || !hasAgentModes.value) {
       return
@@ -185,29 +246,10 @@ export function useAcpMode(options: UseAcpModeOptions) {
     const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % cycleOrder.length : 0
     const nextModeId = cycleOrder[nextIndex]
 
-    loading.value = true
-    try {
-      console.info(
-        `[useAcpMode] Cycling mode: "${currentMode.value}" -> "${nextModeId}" (cycle: [${cycleOrder.join(', ')}])`
-      )
-      if (options.conversationId.value) {
-        await sessionPresenter.setAcpSessionMode(options.conversationId.value, nextModeId)
-        currentMode.value = nextModeId
-        pendingPreferredMode.value = null
-      } else if (selectedWorkdir.value) {
-        await sessionPresenter.setAcpPreferredProcessMode(
-          options.activeModel.value!.id!,
-          selectedWorkdir.value,
-          nextModeId
-        )
-        currentMode.value = nextModeId
-        pendingPreferredMode.value = nextModeId
-      }
-    } catch (error) {
-      console.error('[useAcpMode] Failed to cycle mode', error)
-    } finally {
-      loading.value = false
-    }
+    console.info(
+      `[useAcpMode] Cycling mode: "${currentMode.value}" -> "${nextModeId}" (cycle: [${cycleOrder.join(', ')}])`
+    )
+    await setMode(nextModeId)
   }
 
   const currentModeInfo = computed(() => {
@@ -232,6 +274,7 @@ export function useAcpMode(options: UseAcpModeOptions) {
     availableModes,
     hasAgentModes,
     cycleMode,
+    setMode,
     loading
   }
 }

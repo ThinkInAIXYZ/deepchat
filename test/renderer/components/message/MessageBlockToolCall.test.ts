@@ -1,7 +1,22 @@
 import { mount } from '@vue/test-utils'
-import { describe, it, expect } from 'vitest'
+import { nextTick } from 'vue'
+import { describe, it, expect, vi } from 'vitest'
 import MessageBlockToolCall from '@/components/message/MessageBlockToolCall.vue'
 import type { AssistantMessageBlock } from '@shared/chat'
+
+vi.mock('@/stores/mcp', () => ({
+  useMcpStore: () => ({
+    getToolResult: () => null
+  })
+}))
+
+vi.mock('markstream-vue', () => ({
+  CodeBlockNode: {
+    name: 'CodeBlockNode',
+    props: ['node', 'isDark', 'showHeader'],
+    template: '<div class="code-block-stub"></div>'
+  }
+}))
 
 const createBlock = (overrides: Partial<AssistantMessageBlock> = {}): AssistantMessageBlock => ({
   type: 'tool_call',
@@ -28,19 +43,11 @@ describe('MessageBlockToolCall', () => {
         block: createBlock({
           tool_call: { name: 'edit_text', response }
         })
-      },
-      global: {
-        stubs: {
-          CodeBlockNode: {
-            name: 'CodeBlockNode',
-            props: ['node', 'isDark'],
-            template: '<div class="code-block-stub"></div>'
-          }
-        }
       }
     })
 
     await wrapper.find('div.inline-flex').trigger('click')
+    await nextTick()
 
     const codeBlock = wrapper.findComponent({ name: 'CodeBlockNode' })
     expect(codeBlock.exists()).toBe(true)
@@ -62,6 +69,7 @@ describe('MessageBlockToolCall', () => {
     })
 
     await wrapper.find('div.inline-flex').trigger('click')
+    await nextTick()
 
     expect(wrapper.findComponent({ name: 'CodeBlockNode' }).exists()).toBe(false)
     expect(wrapper.find('pre').text()).toContain('plain output')

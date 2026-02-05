@@ -233,17 +233,54 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@shadcn/components/ui/popover'
 import ModelChooser from '@/components/ModelChooser.vue'
 import ModelIcon from '@/components/icons/ModelIcon.vue'
-import { useMcpSamplingStore } from '@/stores/mcpSampling'
+// import { useMcpSamplingStoreLifecycle } from '@/composables/useMcpSamplingStoreLifecycle' // Removed in Phase 6
 import { useI18n } from 'vue-i18n'
 import { computed, ref } from 'vue'
 import { Icon } from '@iconify/vue'
 
-const store = useMcpSamplingStore()
+// MCP Sampling functionality has been removed in Phase 6 (chatConfig removal)
+// This dialog is kept for UI consistency but functionality is disabled
+const _hasEligibleModel = false
+const _selectedModel = null as { id: string; name: string } | null
+const _selectedProviderId = ''
+const _requiresVision = false
+const _selectedModelSupportsVision = false
+const _isSubmitting = false
+const store = {
+  get isOpen() {
+    return false
+  },
+  request: null as any,
+  close: () => {},
+  submitSampling: async (_modelId: string, _providerId: string) => {},
+  get hasEligibleModel() {
+    return _hasEligibleModel
+  },
+  get selectedModel() {
+    return _selectedModel
+  },
+  get selectedProviderId() {
+    return _selectedProviderId
+  },
+  get requiresVision() {
+    return _requiresVision
+  },
+  get selectedModelSupportsVision() {
+    return _selectedModelSupportsVision
+  },
+  get isSubmitting() {
+    return _isSubmitting
+  },
+  selectModel: (_modelId: string, _providerId: string) => {},
+  rejectRequest: () => {},
+  confirmApproval: () => {},
+  dismissRequest: () => {}
+}
 const { t } = useI18n()
 const modelSelectOpen = ref(false)
 
 const preferenceSummary = computed(() => {
-  const prefs = store.request?.modelPreferences
+  const prefs = (store as any).request?.modelPreferences
   if (!prefs) {
     return [] as Array<{ key: string; label: string; value: string }>
   }

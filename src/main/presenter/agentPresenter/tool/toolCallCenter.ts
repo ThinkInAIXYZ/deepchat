@@ -7,7 +7,7 @@ import type {
 
 export type ToolCallContext = {
   enabledMcpTools?: string[]
-  chatMode?: 'chat' | 'agent' | 'acp agent'
+  chatMode?: 'agent'
   supportsVision?: boolean
   agentWorkspacePath?: string | null
   conversationId?: string

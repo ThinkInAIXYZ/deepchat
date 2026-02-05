@@ -29,7 +29,10 @@ const router = createRouter({
       meta: {
         titleKey: 'routes.settings-common',
         icon: 'lucide:bolt',
-        position: 1
+        position: 1,
+        group: 'preferences',
+        groupPosition: 1,
+        groupTitleKey: 'settings.groups.preferences'
       }
     },
     {
@@ -39,7 +42,10 @@ const router = createRouter({
       meta: {
         titleKey: 'routes.settings-display',
         icon: 'lucide:monitor',
-        position: 2
+        position: 2,
+        group: 'preferences',
+        groupPosition: 1,
+        groupTitleKey: 'settings.groups.preferences'
       }
     },
     {
@@ -49,7 +55,10 @@ const router = createRouter({
       meta: {
         titleKey: 'routes.settings-provider',
         icon: 'lucide:cloud-cog',
-        position: 3
+        position: 3,
+        group: 'models',
+        groupPosition: 2,
+        groupTitleKey: 'settings.groups.models'
       }
     },
     {
@@ -59,7 +68,10 @@ const router = createRouter({
       meta: {
         titleKey: 'routes.settings-mcp',
         icon: 'lucide:server',
-        position: 4
+        position: 4,
+        group: 'tools',
+        groupPosition: 3,
+        groupTitleKey: 'settings.groups.tools'
       }
     },
     {
@@ -69,7 +81,10 @@ const router = createRouter({
       meta: {
         titleKey: 'routes.settings-mcp-market',
         icon: 'lucide:shopping-bag',
-        position: 5
+        position: 5,
+        group: 'tools',
+        groupPosition: 3,
+        groupTitleKey: 'settings.groups.tools'
       }
     },
     {
@@ -79,7 +94,10 @@ const router = createRouter({
       meta: {
         titleKey: 'routes.settings-acp',
         icon: 'lucide:shield-check',
-        position: 6
+        position: 6,
+        group: 'tools',
+        groupPosition: 3,
+        groupTitleKey: 'settings.groups.tools'
       }
     },
     {
@@ -89,7 +107,10 @@ const router = createRouter({
       meta: {
         titleKey: 'routes.settings-skills',
         icon: 'lucide:wand-sparkles',
-        position: 7
+        position: 7,
+        group: 'tools',
+        groupPosition: 3,
+        groupTitleKey: 'settings.groups.tools'
       }
     },
     {
@@ -99,7 +120,10 @@ const router = createRouter({
       meta: {
         titleKey: 'routes.settings-prompt',
         icon: 'lucide:book-open-text',
-        position: 8
+        position: 8,
+        group: 'models',
+        groupPosition: 2,
+        groupTitleKey: 'settings.groups.models'
       }
     },
     {
@@ -109,7 +133,10 @@ const router = createRouter({
       meta: {
         titleKey: 'routes.settings-knowledge-base',
         icon: 'lucide:book-marked',
-        position: 9
+        position: 9,
+        group: 'models',
+        groupPosition: 2,
+        groupTitleKey: 'settings.groups.models'
       }
     },
     {
@@ -119,7 +146,10 @@ const router = createRouter({
       meta: {
         titleKey: 'routes.settings-database',
         icon: 'lucide:database',
-        position: 10
+        position: 10,
+        group: 'system',
+        groupPosition: 4,
+        groupTitleKey: 'settings.groups.system'
       }
     },
     {
@@ -129,7 +159,10 @@ const router = createRouter({
       meta: {
         titleKey: 'routes.settings-shortcut',
         icon: 'lucide:keyboard',
-        position: 11
+        position: 11,
+        group: 'preferences',
+        groupPosition: 1,
+        groupTitleKey: 'settings.groups.preferences'
       }
     },
     {
@@ -139,7 +172,10 @@ const router = createRouter({
       meta: {
         titleKey: 'routes.settings-about',
         icon: 'lucide:info',
-        position: 12
+        position: 12,
+        group: 'system',
+        groupPosition: 4,
+        groupTitleKey: 'settings.groups.system'
       }
     },
     {

@@ -1,54 +1,44 @@
 <template>
-  <div class="w-full h-full flex-row flex">
-    <div :class="['flex-1 w-0 h-full transition-all duration-200 max-lg:mr-0!', chatViewMargin]">
-      <div class="flex h-full">
-        <!-- 主聊天区域 -->
-        <div class="flex-1 flex flex-col w-0">
-          <!-- 新会话 -->
-          <NewThread v-if="!chatStore.getActiveThreadId()" />
-          <template v-else>
-            <!-- 标题栏 -->
-            <!-- <TitleView @messageNavigationToggle="handleMessageNavigationToggle" /> -->
-
-            <!-- 聊天内容区域 -->
-            <ChatView ref="chatViewRef" />
-          </template>
-        </div>
-      </div>
-    </div>
-
-    <!-- Artifacts 预览区域 -->
-    <ArtifactDialog />
+  <div class="w-full h-full">
+    <!-- 新会话 -->
+    <NewThread v-if="!chatStore.getActiveSessionId()" />
+    <!-- 聊天内容区域 -->
+    <ChatLayout v-else ref="chatViewRef" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { defineAsyncComponent } from 'vue'
 import { useChatStore } from '@/stores/chat'
-import { watch, ref, computed, nextTick } from 'vue'
+import { useLayoutStore } from '@/stores/layoutStore'
+import { watch, ref, nextTick } from 'vue'
 import { useTitle, useMediaQuery } from '@vueuse/core'
-import { useArtifactStore } from '@/stores/artifact'
-import ArtifactDialog from '@/components/artifacts/ArtifactDialog.vue'
 import { useRoute } from 'vue-router'
-const ChatView = defineAsyncComponent(() => import('@/components/ChatView.vue'))
+const ChatLayout = defineAsyncComponent(() => import('@/components/ChatLayout.vue'))
 const NewThread = defineAsyncComponent(() => import('@/components/NewThread.vue'))
-const artifactStore = useArtifactStore()
 const route = useRoute()
 const chatStore = useChatStore()
+const layoutStore = useLayoutStore()
 const title = useTitle()
 const chatViewRef = ref()
 
-// Calculate chat view margin based on artifact and workspace state
-const chatViewMargin = computed(() => {
-  if (route.name !== 'chat') return ''
+// Single WebContents Architecture: Watch route changes to load conversations
+watch(
+  () => route.params.id,
+  async (newId) => {
+    if (route.name === 'conversation' && newId) {
+      // Load the conversation specified in the route
+      await chatStore.setActiveThread(newId as string)
+    } else if (route.name === 'home' || !newId) {
+      // Clear active thread for home view
+      if (chatStore.getActiveSessionId()) {
+        await chatStore.clearActiveThread()
+      }
+    }
+  },
+  { immediate: true }
+)
 
-  const artifactOpen = artifactStore.isOpen
-  if (artifactOpen) {
-    // Only artifact open
-    return 'mr-[calc(60%-104px)]'
-  }
-  return ''
-})
 // 添加标题更新逻辑
 const updateTitle = () => {
   const activeThread = chatStore.activeThread
@@ -70,7 +60,7 @@ watch(
 
 // 监听会话标题变化
 watch(
-  () => chatStore.threads,
+  () => chatStore.sessions,
   () => {
     if (chatStore.activeThread) {
       updateTitle()
@@ -95,8 +85,8 @@ const handleScrollToMessage = (messageId: string) => {
     chatViewRef.value.messageList.scrollToMessage(messageId)
 
     // 在小屏幕模式下，滚动完成后延迟关闭导航
-    if (!isLargeScreen.value && chatStore.isMessageNavigationOpen) {
-      chatStore.isMessageNavigationOpen = false
+    if (!isLargeScreen.value && layoutStore.isMessageNavigationOpen) {
+      layoutStore.closeMessageNavigation()
     }
   }
 }
@@ -142,11 +132,8 @@ const tryScrollToPendingMessage = () => {
         }
         return
       }
-      if (
-        pendingTarget.messageId &&
-        pendingVariantResetKey !== pendingKey &&
-        chatStore.clearSelectedVariantForMessage(pendingTarget.messageId)
-      ) {
+      if (pendingTarget.messageId && pendingVariantResetKey !== pendingKey) {
+        // Variant selection has been removed in Phase 6 (chatConfig removal)
         pendingVariantResetKey = pendingKey
         pendingScrollRetryCount = 0
         if (!pendingScrollRetryTimer) {
@@ -211,7 +198,7 @@ watch(
 )
 
 watch(
-  () => chatStore.isMessageNavigationOpen,
+  () => layoutStore.isMessageNavigationOpen,
   (isOpen) => {
     if (isOpen) {
       void chatStore.prefetchAllMessages()

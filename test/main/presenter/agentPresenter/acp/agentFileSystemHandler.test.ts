@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import * as fs from 'fs/promises'
 import * as path from 'path'
 import * as os from 'os'
-import { AgentFileSystemHandler } from '@/presenter/agentPresenter/acp'
+import { AgentFileSystemHandler } from '@/presenter/agentPresenter/tools/fileSystemHandler'
 
 describe('AgentFileSystemHandler diff responses', () => {
   let testDir: string

@@ -57,10 +57,6 @@
   "invalidProxyUrl": "نشانی پراکسی نادرست است، لطفاً یک نشانی http/https معتبر وارد کنید",
   "disclaimer": "سلب مسئولیت",
   "resetData": "بازنشانی داده‌ها",
-  "searchAssistantModel": "مدل دستیار",
-  "searchEngine": "موتور جستجو",
-  "searchEngineSelect": "انتخاب یک موتور جستجو",
-  "searchPreview": "پیش‌نمایش جستجو",
   "language": "زبان",
   "languageSelect": "انتخاب یک زبان",
   "selectModel": "انتخاب یک مدل",
@@ -96,5 +92,6 @@
     "enterUrlDescription": "برای دسترسی به وب سایت، آدرس اینترنتی را در نوار آدرس بالا وارد کنید",
     "enterUrlToStart": "برای شروع بازدید، URL را وارد کنید",
     "name": "مرورگر یو"
-  }
+  },
+  "moreSettings": "تنظیمات بیشتر"
 }

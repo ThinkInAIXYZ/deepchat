@@ -7,7 +7,6 @@ import type { SessionContext, SessionContextResolved, SessionStatus } from './se
 import { resolveSessionContext } from './sessionResolver'
 
 type WorkspaceContext = {
-  chatMode: 'chat' | 'agent' | 'acp agent'
   agentWorkspacePath: string | null
 }
 
@@ -55,7 +54,8 @@ export class SessionManager {
       resolved,
       runtime: {
         toolCallCount: 0,
-        userStopRequested: false
+        userStopRequested: false,
+        activeSkills: []
       }
     }
     this.sessions.set(agentId, session)
@@ -65,11 +65,6 @@ export class SessionManager {
 
   async resolveSession(agentId: string): Promise<SessionContextResolved> {
     const conversation = await this.options.sessionPresenter.getConversation(agentId)
-    const fallbackChatMode = this.options.configPresenter.getSetting('input_chatMode') as
-      | 'chat'
-      | 'agent'
-      | 'acp agent'
-      | undefined
     const modelConfig = this.options.configPresenter.getModelDefaultConfig(
       conversation.settings.modelId,
       conversation.settings.providerId
@@ -77,66 +72,32 @@ export class SessionManager {
 
     const resolved = resolveSessionContext({
       settings: conversation.settings,
-      fallbackChatMode,
       modelConfig
     })
 
-    if (resolved.chatMode === 'agent') {
-      resolved.agentWorkspacePath = await this.resolveAgentWorkspacePath(
-        agentId,
-        conversation.settings.agentWorkspacePath ?? null
-      )
-    } else if (resolved.chatMode === 'acp agent') {
-      const modelId = conversation.settings.modelId
-      resolved.agentWorkspacePath =
-        modelId && conversation.settings.acpWorkdirMap
-          ? (conversation.settings.acpWorkdirMap[modelId] ?? null)
-          : null
-      resolved.acpWorkdirMap = conversation.settings.acpWorkdirMap
-    } else {
-      resolved.agentWorkspacePath = null
-    }
+    resolved.agentWorkspacePath = await this.resolveAgentWorkspacePath(
+      agentId,
+      conversation.settings.agentWorkspacePath ?? null
+    )
 
     return resolved
   }
 
-  async resolveWorkspaceContext(
-    conversationId?: string,
-    modelId?: string
-  ): Promise<WorkspaceContext> {
+  async resolveWorkspaceContext(conversationId?: string): Promise<WorkspaceContext> {
     if (!conversationId) {
-      const fallbackChatMode =
-        (this.options.configPresenter.getSetting('input_chatMode') as
-          | 'chat'
-          | 'agent'
-          | 'acp agent'
-          | undefined) ?? 'chat'
-      return { chatMode: fallbackChatMode, agentWorkspacePath: null }
+      return { agentWorkspacePath: null }
     }
 
     try {
       const session = await this.getSession(conversationId)
       const resolved = session.resolved
-      if (resolved.chatMode === 'acp agent') {
-        const resolvedModelId = modelId ?? resolved.modelId
-        const map = resolved.acpWorkdirMap
-        const agentWorkspacePath = resolvedModelId && map ? (map[resolvedModelId] ?? null) : null
-        return { chatMode: resolved.chatMode, agentWorkspacePath }
-      }
 
       return {
-        chatMode: resolved.chatMode,
         agentWorkspacePath: resolved.agentWorkspacePath ?? null
       }
     } catch (error) {
       console.warn('[SessionManager] Failed to resolve workspace context:', error)
-      const fallbackChatMode =
-        (this.options.configPresenter.getSetting('input_chatMode') as
-          | 'chat'
-          | 'agent'
-          | 'acp agent'
-          | undefined) ?? 'chat'
-      return { chatMode: fallbackChatMode, agentWorkspacePath: null }
+      return { agentWorkspacePath: null }
     }
   }
 
@@ -188,7 +149,8 @@ export class SessionManager {
     if (!session.runtime) {
       session.runtime = {
         toolCallCount: 0,
-        userStopRequested: false
+        userStopRequested: false,
+        activeSkills: []
       }
     } else {
       if (session.runtime.toolCallCount === undefined) {
@@ -196,6 +158,9 @@ export class SessionManager {
       }
       if (session.runtime.userStopRequested === undefined) {
         session.runtime.userStopRequested = false
+      }
+      if (session.runtime.activeSkills === undefined) {
+        session.runtime.activeSkills = []
       }
     }
     return session.runtime

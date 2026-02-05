@@ -4,8 +4,7 @@ import type {
   IThreadPresenter,
   MESSAGE_STATUS,
   MESSAGE_METADATA,
-  ParentSelection,
-  AcpWorkdirInfo
+  ParentSelection
 } from './thread.presenter'
 
 export type SessionStatus =
@@ -16,28 +15,18 @@ export type SessionStatus =
   | 'waiting_question'
   | 'error'
 
+/**
+ * Session configuration
+ *
+ * Phase 6: chatConfig removed - Only essential session state remains
+ * Runtime configuration comes from agent's SessionInfo
+ */
 export type SessionConfig = {
   sessionId: string
   title: string
   providerId: string
   modelId: string
-  chatMode: 'chat' | 'agent' | 'acp agent'
-  systemPrompt: string
-  maxTokens?: number
-  temperature?: number
-  contextLength?: number
-  supportsVision?: boolean
-  supportsFunctionCall?: boolean
-  thinkingBudget?: number
-  reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
-  verbosity?: 'low' | 'medium' | 'high'
-  enableSearch?: boolean
-  forcedSearch?: boolean
-  searchStrategy?: 'turbo' | 'max'
-  enabledMcpTools?: string[]
   agentWorkspacePath?: string | null
-  acpWorkdirMap?: Record<string, string | null>
-  selectedVariantsMap?: Record<string, string>
   isPinned?: boolean
 }
 
@@ -48,9 +37,7 @@ export type SessionBindings = {
 }
 
 export type WorkspaceContext = {
-  resolvedChatMode: 'chat' | 'agent' | 'acp agent'
   agentWorkspacePath: string | null
-  acpWorkdirMap?: Record<string, string | null>
 }
 
 export type Session = {
@@ -135,17 +122,6 @@ export interface ISessionPresenter extends IThreadPresenter {
 
   generateTitle(sessionId: string): Promise<string>
   clearCommandPermissionCache(conversationId?: string): void
-
-  getAcpWorkdir(conversationId: string, agentId: string): Promise<AcpWorkdirInfo>
-  setAcpWorkdir(conversationId: string, agentId: string, workdir: string | null): Promise<void>
-  warmupAcpProcess(agentId: string, workdir: string): Promise<void>
-  getAcpProcessModes(
-    agentId: string,
-    workdir: string
-  ): Promise<{ availableModes?: any; currentModeId?: string } | undefined>
-  setAcpPreferredProcessMode(agentId: string, workdir: string, modeId: string): Promise<void>
-  setAcpSessionMode(conversationId: string, modeId: string): Promise<void>
-  getAcpSessionModes(conversationId: string): Promise<{ current: string; available: any[] } | null>
 
   exportConversation(
     conversationId: string,

@@ -19,6 +19,7 @@ defineProps<{
   options: SelectOption[]
   placeholder?: string
   hint?: string
+  disabled?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -27,22 +28,29 @@ const emit = defineEmits<{
 </script>
 
 <template>
-  <div class="space-y-4 px-2">
-    <ConfigFieldHeader :icon="icon" :label="label" :description="description" />
-    <Select
-      :model-value="modelValue"
-      @update:model-value="(val) => val && emit('update:modelValue', String(val))"
-    >
-      <SelectTrigger class="text-xs">
-        <SelectValue :placeholder="placeholder" />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem v-for="option in options" :key="option.value" :value="option.value">
-          {{ option.label }}
-        </SelectItem>
-      </SelectContent>
-    </Select>
-    <p v-if="hint" class="text-xs text-muted-foreground">
+  <div class="px-2">
+    <div class="flex items-center justify-between gap-3">
+      <div class="min-w-0 flex-1">
+        <ConfigFieldHeader :icon="icon" :label="label" :description="description" />
+      </div>
+      <div class="w-36 shrink-0">
+        <Select
+          :model-value="modelValue"
+          :disabled="disabled"
+          @update:model-value="(val) => val && emit('update:modelValue', String(val))"
+        >
+          <SelectTrigger class="h-8 text-xs" :disabled="disabled">
+            <SelectValue :placeholder="placeholder" />
+          </SelectTrigger>
+          <SelectContent :portal="false">
+            <SelectItem v-for="option in options" :key="option.value" :value="option.value">
+              {{ option.label }}
+            </SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+    </div>
+    <p v-if="hint" class="mt-1 text-[11px] text-muted-foreground">
       {{ hint }}
     </p>
   </div>

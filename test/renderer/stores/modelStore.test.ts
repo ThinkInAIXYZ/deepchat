@@ -31,7 +31,11 @@ const setupStore = async () => {
     getBatchModelStatus: vi.fn(async () => ({}))
   }
   const llmPresenter = {
-    getModelList: vi.fn(async () => [])
+    getModelList: vi.fn(async () => []),
+    getProviderById: vi.fn((providerId: string) => ({
+      id: providerId,
+      apiType: providerId === 'acp' ? 'acp' : 'openai-compatible'
+    }))
   }
 
   vi.doMock('pinia', () => ({

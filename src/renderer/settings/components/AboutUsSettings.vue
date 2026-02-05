@@ -195,7 +195,7 @@ import {
   SelectValue
 } from '@shadcn/components/ui/select'
 import NodeRenderer from 'markstream-vue'
-import { useUpgradeStore } from '@/stores/upgrade'
+import { useUpgradeStoreLifecycle } from '@/composables/useUpgradeStoreLifecycle'
 import { useLanguageStore } from '@/stores/language'
 import type { AcceptableValue } from 'reka-ui'
 import { useThemeStore } from '@/stores/theme'
@@ -219,7 +219,7 @@ const deviceInfo = ref<{
   osVersion: ''
 })
 const appVersion = ref('')
-const upgrade = useUpgradeStore()
+const upgrade = useUpgradeStoreLifecycle()
 const updateChannel = ref('stable')
 
 // 免责声明对话框状态

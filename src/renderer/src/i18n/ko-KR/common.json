@@ -52,10 +52,6 @@
   "resetData": "데이터 초기화",
   "language": "언어",
   "languageSelect": "언어 선택",
-  "searchEngine": "검색 엔진",
-  "searchEngineSelect": "검색 엔진 선택",
-  "searchPreview": "검색 미리보기",
-  "searchAssistantModel": "보조 모델",
   "selectModel": "모델 선택",
   "proxyMode": "프록시 모드",
   "proxyModeSelect": "프록시 모드 선택",
@@ -96,5 +92,6 @@
     "enterUrlDescription": "위 주소창에 URL을 입력하시면 해당 홈페이지에 접속하실 수 있습니다.",
     "enterUrlToStart": "방문을 시작하려면 URL을 입력하세요.",
     "name": "요 브라우저"
-  }
+  },
+  "moreSettings": "더 많은 설정"
 }

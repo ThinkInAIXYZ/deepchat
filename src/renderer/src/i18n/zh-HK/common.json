@@ -58,10 +58,6 @@
   "language": "語言",
   "languageSelect": "選擇語言",
   "resetData": "重置數據",
-  "searchAssistantModel": "助手模型",
-  "searchEngine": "搜尋引擎",
-  "searchEngineSelect": "選擇搜索引擎",
-  "searchPreview": "搜索預覽",
   "selectModel": "選擇模型",
   "title": "通用設置",
   "languageSystem": "跟隨系統",
@@ -96,5 +92,6 @@
     "enterUrlDescription": "在上方地址欄輸入網址以訪問網站",
     "enterUrlToStart": "輸入網址開始訪問",
     "name": "Yo Browser"
-  }
+  },
+  "moreSettings": "更多設定"
 }

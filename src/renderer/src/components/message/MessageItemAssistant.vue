@@ -28,7 +28,7 @@
             v-if="block.type === 'content'"
             :block="block"
             :message-id="currentMessage.id"
-            :thread-id="currentThreadId"
+            :session-id="currentSessionId"
             :is-search-result="isSearchResult"
           />
           <MessageBlockThink
@@ -47,7 +47,7 @@
             v-else-if="block.type === 'tool_call'"
             :block="block"
             :message-id="currentMessage.id"
-            :thread-id="currentThreadId"
+            :session-id="currentSessionId"
           />
           <template
             v-else-if="block.type === 'action' && block.action_type === 'tool_call_permission'"
@@ -56,7 +56,7 @@
               v-if="block.extra?.needsUserAction"
               :block="block"
               :message-id="currentMessage.id"
-              :conversation-id="currentThreadId"
+              :session-id="currentSessionId"
             />
           </template>
           <MessageBlockQuestionRequest
@@ -68,14 +68,14 @@
           <MessageBlockAction
             v-else-if="block.type === 'action'"
             :message-id="currentMessage.id"
-            :conversation-id="currentThreadId"
+            :session-id="currentSessionId"
             :block="block"
           />
           <MessageBlockMcpUi
             v-else-if="block.type === 'mcp_ui_resource'"
             :block="block"
             :message-id="currentMessage.id"
-            :thread-id="currentThreadId"
+            :session-id="currentSessionId"
           />
           <MessageBlockAudio
             v-else-if="isAudioBlock(block)"
@@ -87,7 +87,7 @@
             v-else-if="block.type === 'image'"
             :block="block"
             :message-id="currentMessage.id"
-            :thread-id="currentThreadId"
+            :session-id="currentSessionId"
           />
           <MessageBlockError v-else-if="block.type === 'error'" :block="block" />
         </template>
@@ -98,7 +98,7 @@
         :is-assistant="true"
         :current-variant-index="currentVariantIndex"
         :total-variants="totalVariants"
-        :is-in-generating-thread="chatStore.generatingThreadIds.has(currentThreadId)"
+        :is-in-generating-thread="chatStore.generatingSessionIds.has(currentSessionId)"
         :is-capturing-image="isCapturingImage"
         @retry="handleAction('retry')"
         @delete="handleAction('delete')"
@@ -206,15 +206,15 @@ const emit = defineEmits<{
 }>()
 
 // 获取当前会话ID
-const currentThreadId = computed(() => chatStore.getActiveThreadId() || '')
+const currentSessionId = computed(() => chatStore.getActiveSessionId() || '')
+const currentThreadId = computed(
+  () => chatStore.activeThread?.id || chatStore.getActiveSessionId() || ''
+)
 
 // currentVariantIndex: 0 = 主消息, 1-N = 对应的变体索引
+// Variant selection has been removed in Phase 6 (chatConfig removal)
 const currentVariantIndex = computed(() => {
-  const selectedVariantId = chatStore.selectedVariantsMap[props.message.id]
-  if (!selectedVariantId) return 0
-
-  const variantIndex = allVariants.value.findIndex((v) => v.id === selectedVariantId)
-  return variantIndex !== -1 ? variantIndex + 1 : 0
+  return 0 // Always show main message (no variant selection)
 })
 
 // 获取当前显示的消息（根据变体索引）
@@ -268,19 +268,11 @@ const currentContent = computed(() => {
 })
 
 // 监听 allVariants 长度变化，用于新变体生成时的自动切换和持久化
+// Variant selection has been removed in Phase 6 (chatConfig removal)
 watch(
   () => allVariants.value.length,
-  (newLength, oldLength) => {
-    // 仅当新变体被添加时触发
-    // 并且当前会话不是正在生成中的消息，避免在生成过程中频繁切换
-    if (newLength > oldLength && !chatStore.generatingThreadIds.has(currentThreadId.value)) {
-      const mainMessageId = props.message.id
-      // 获取最后一个变体（数组最后一个元素）
-      const lastVariant = allVariants.value[newLength - 1]
-
-      // 只有当 lastVariant 存在时才调用 updateSelectedVariant，确保是有效的变体
-      chatStore.updateSelectedVariant(mainMessageId, lastVariant ? lastVariant.id : null)
-    }
+  (_newLength, _oldLength) => {
+    // Variant auto-switch removed - no longer needed
   }
 )
 
@@ -370,8 +362,9 @@ const handleAction = (action: HandleActionType) => {
 
     if (newIndex === currentVariantIndex.value) return
 
-    const selectedVariantId = newIndex > 0 ? allVariants.value[newIndex - 1]?.id : null
-    chatStore.updateSelectedVariant(props.message.id, selectedVariantId)
+    // Variant selection has been removed in Phase 6 (chatConfig removal)
+    // const selectedVariantId = newIndex > 0 ? allVariants.value[newIndex - 1]?.id : null
+    // chatStore.updateSelectedVariant(props.message.id, selectedVariantId)
     emit('variantChanged', props.message.id)
   } else if (action === 'copyImage') {
     // 使用原始消息的ID，因为DOM中的data-message-id使用的是message.id

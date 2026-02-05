@@ -1,5 +1,11 @@
 {
   "title": "设置",
+  "groups": {
+    "preferences": "偏好",
+    "models": "模型",
+    "tools": "工具",
+    "system": "系统"
+  },
   "common": {
     "title": "通用设置",
     "resetData": "重置数据",
@@ -19,18 +25,6 @@
     "customProxyUrl": "自定义代理地址",
     "customProxyUrlPlaceholder": "例如: http://127.0.0.1:7890",
     "invalidProxyUrl": "无效的代理地址，请输入有效的 http/https URL",
-    "addCustomSearchEngine": "添加自定义搜索引擎",
-    "addCustomSearchEngineDesc": "添加一个新的搜索引擎，需要提供名称和搜索URL。URL中必须包含{query}作为查询占位符。",
-    "searchEngineName": "搜索引擎名称",
-    "searchEngineNamePlaceholder": "请输入搜索引擎名称",
-    "searchEngineUrl": "搜索URL",
-    "searchEngineUrlPlaceholder": "如: https://a.com/search?q={'{'}query{'}'}",
-    "searchEngineUrlError": "URL必须包含{'{'}query{'}'}作为查询占位符",
-    "deleteCustomSearchEngine": "删除自定义搜索引擎",
-    "deleteCustomSearchEngineDesc": "确定要删除自定义搜索引擎 \"{name}\" 吗？此操作无法撤销。",
-    "testSearchEngine": "测试搜索引擎",
-    "testSearchEngineDesc": "即将使用 {engine} 搜索引擎进行测试搜索，将搜索关键词 \"天气\"。",
-    "testSearchEngineNote": "如果搜索页面需要登录或其他操作，您可以在测试窗口中进行。完成测试后请关闭测试窗口。",
     "theme": "主题",
     "themeSelect": "选择主题",
     "themeLight": "浅色",
@@ -53,10 +47,6 @@
     "loggingDialogTitle": "确认日志设置更改",
     "loggingEnableDesc": "启用日志将帮助我们诊断问题并改进应用程序。日志文件可能包含敏感信息。",
     "loggingDisableDesc": "禁用日志将停止收集应用程序日志。",
-    "webContentLengthLimit": "网页内容长度限制",
-    "webContentLengthLimitHint": "（设置为0表示不限制）",
-    "charactersUnit": "字符",
-    "webContentLengthLimitTooltip": "设置从网页提取的文本内容长度上限（字符数），范围：0-50000。设置为0表示不限制长度，获取完整网页内容；较大的值可以获取更完整的网页内容，但可能增加处理时间和token消耗。",
     "loggingRestartNotice": "切换此设置将导致程序重启，请确认是否继续？",
     "openLogFolder": "打开日志文件夹",
     "notifications": "系统通知",
@@ -283,6 +273,22 @@
         "temperatureRequired": "温度不能为空",
         "temperatureMin": "温度必须大于等于0",
         "temperatureMax": "温度必须小于等于2"
+      }
+    },
+    "acpSession": {
+      "title": "ACP 会话设置",
+      "description": "配置 ACP Agent 上报的会话级选项。",
+      "model": {
+        "label": "Agent 模型",
+        "description": "选择该 ACP Agent 暴露的底层模型。",
+        "placeholder": "选择模型",
+        "empty": "Agent 未上报可用模型"
+      },
+      "mode": {
+        "label": "权限模式",
+        "description": "选择 Agent 的权限策略（若支持）。",
+        "placeholder": "选择模式",
+        "empty": "Agent 未上报权限模式"
       }
     }
   },

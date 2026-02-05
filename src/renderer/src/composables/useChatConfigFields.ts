@@ -60,6 +60,12 @@ export interface UseChatConfigFieldsOptions {
  */
 export function useChatConfigFields(options: UseChatConfigFieldsOptions) {
   const { t } = useI18n()
+  const buildRangeHint = (
+    min: number | string | undefined,
+    max: number | string | undefined
+  ): string => {
+    return t('settings.model.modelConfig.thinkingBudget.range', { min, max })
+  }
 
   // === Slider Fields ===
   const sliderFields = computed<SliderFieldConfig[]>(() => {
@@ -148,6 +154,79 @@ export function useChatConfigFields(options: UseChatConfigFieldsOptions) {
         }
       })
     }
+
+    return fields
+  })
+
+  const numericFields = computed<InputFieldConfig[]>(() => {
+    const fields: InputFieldConfig[] = []
+
+    if (!options.isGPT5Model.value) {
+      fields.push({
+        key: 'temperature',
+        type: 'input',
+        icon: 'lucide:thermometer',
+        label: t('settings.model.temperature.label'),
+        description: t('settings.model.temperature.description'),
+        inputType: 'number',
+        min: 0,
+        max: 2,
+        step: 0.1,
+        getValue: () => options.temperature.value,
+        setValue: (val) => {
+          const nextValue = typeof val === 'number' ? val : Number(val)
+          if (!Number.isNaN(nextValue)) {
+            options.emit('update:temperature', nextValue)
+          }
+        },
+        hint: () => buildRangeHint(0, 2)
+      })
+    }
+
+    const contextLengthMax = options.contextLengthLimit.value ?? 16384
+    fields.push({
+      key: 'contextLength',
+      type: 'input',
+      icon: 'lucide:pencil-ruler',
+      label: t('settings.model.contextLength.label'),
+      description: t('settings.model.contextLength.description'),
+      inputType: 'number',
+      min: 2048,
+      max: contextLengthMax,
+      step: 1024,
+      getValue: () => options.contextLength.value,
+      setValue: (val) => {
+        const nextValue = typeof val === 'number' ? val : Number(val)
+        if (!Number.isNaN(nextValue)) {
+          options.emit('update:contextLength', nextValue)
+        }
+      },
+      hint: () => buildRangeHint(options.formatSize(2048), options.formatSize(contextLengthMax))
+    })
+
+    const maxTokensMax =
+      !options.maxTokensLimit.value || options.maxTokensLimit.value < 8192
+        ? 8192
+        : options.maxTokensLimit.value
+    fields.push({
+      key: 'maxTokens',
+      type: 'input',
+      icon: 'lucide:message-circle-reply',
+      label: t('settings.model.responseLength.label'),
+      description: t('settings.model.responseLength.description'),
+      inputType: 'number',
+      min: 1024,
+      max: maxTokensMax,
+      step: 128,
+      getValue: () => options.maxTokens.value,
+      setValue: (val) => {
+        const nextValue = typeof val === 'number' ? val : Number(val)
+        if (!Number.isNaN(nextValue)) {
+          options.emit('update:maxTokens', nextValue)
+        }
+      },
+      hint: () => buildRangeHint(options.formatSize(1024), options.formatSize(maxTokensMax))
+    })
 
     return fields
   })
@@ -257,13 +336,14 @@ export function useChatConfigFields(options: UseChatConfigFieldsOptions) {
 
   // === All Fields Combined ===
   const allFields = computed<FieldConfig[]>(() => {
-    return [...sliderFields.value, ...inputFields.value, ...selectFields.value]
+    return [...numericFields.value, ...inputFields.value, ...selectFields.value]
   })
 
   return {
     sliderFields,
     inputFields,
     selectFields,
+    numericFields,
     allFields
   }
 }

@@ -6,7 +6,7 @@
         variant="outline"
         size="icon"
         class="shrink-0 text-xs justify-center h-7 w-7"
-        @click="chatStore.isSidebarOpen = false"
+        @click="layoutStore.closeThreadSidebar()"
       >
         <Icon icon="lucide:chevron-right" class="h-4 w-4" />
       </Button>
@@ -41,8 +41,8 @@
             <div v-else-if="item.type === 'thread'" class="px-0 py-1">
               <ThreadItem
                 :thread="item.data"
-                :is-active="item.data.id === chatStore.getActiveThreadId()"
-                :working-status="chatStore.getThreadWorkingStatus(item.data.id)"
+                :is-active="item.data.id === chatStore.getActiveSessionId()"
+                :working-status="chatStore.getSessionWorkingStatus(item.data.id)"
                 @select="handleThreadSelect"
                 @rename="showRenameDialog(item.data)"
                 @delete="showDeleteDialog(item.data)"
@@ -58,7 +58,7 @@
 
       <!-- 加载状态提示 -->
       <div
-        v-if="chatStore.threads.length === 0"
+        v-if="chatStore.sessions.length === 0"
         class="text-xs text-center text-muted-foreground py-2"
       >
         {{ t('common.loading') }}
@@ -106,9 +106,10 @@ import { Button } from '@shadcn/components/ui/button'
 import { Icon } from '@iconify/vue'
 import ThreadItem from './ThreadItem.vue'
 import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
-import { usePresenter } from '@/composables/usePresenter'
+import { useConversationCore } from '@/composables/chat/useConversationCore'
 import { Input } from '@shadcn/components/ui/input'
 import { useChatStore } from '@/stores/chat'
+import { useLayoutStore } from '@/stores/layoutStore'
 import { CONVERSATION } from '@shared/presenter'
 import {
   Dialog,
@@ -122,10 +123,13 @@ import { useWindowSize } from '@vueuse/core'
 import { SHORTCUT_EVENTS } from '@/events'
 import { useCleanDialog } from '@/composables/message/useCleanDialog'
 import { DynamicScroller, DynamicScrollerItem } from 'vue-virtual-scroller'
+import { useConversationNavigation } from '@/composables/useConversationNavigation'
 
 const { t } = useI18n()
 const chatStore = useChatStore()
-const sessionP = usePresenter('sessionPresenter')
+const layoutStore = useLayoutStore()
+const conversationCore = useConversationCore()
+const { navigateToConversation } = useConversationNavigation()
 const dynamicScrollerRef = ref<InstanceType<typeof DynamicScroller> | null>(null)
 const deleteDialog = ref(false)
 const deleteThread = ref<CONVERSATION | null>(null)
@@ -150,7 +154,7 @@ type VirtualScrollItem = {
 const flattenedThreads = computed<VirtualScrollItem[]>(() => {
   const items: VirtualScrollItem[] = []
 
-  chatStore.threads.forEach((thread, threadIndex) => {
+  chatStore.sessions.forEach((thread, threadIndex) => {
     // 添加日期标题
     items.push({
       id: `date-${thread.dt}`,
@@ -168,7 +172,7 @@ const flattenedThreads = computed<VirtualScrollItem[]>(() => {
     })
 
     // 在组之间添加分隔间距(除了最后一组)
-    if (threadIndex < chatStore.threads.length - 1) {
+    if (threadIndex < chatStore.sessions.length - 1) {
       items.push({
         id: `spacer-${thread.dt}`,
         type: 'spacer',
@@ -183,10 +187,10 @@ const flattenedThreads = computed<VirtualScrollItem[]>(() => {
 // 选择会话
 const handleThreadSelect = async (thread: CONVERSATION) => {
   try {
-    await chatStore.setActiveThread(thread.id)
+    await navigateToConversation(thread.id, thread.title)
     if (windowSize.width.value < 1024) {
-      chatStore.isSidebarOpen = false
-      chatStore.isMessageNavigationOpen = false
+      layoutStore.closeThreadSidebar()
+      layoutStore.closeMessageNavigation()
     }
   } catch (error) {
     console.error(t('common.error.selectChatFailed'), error)
@@ -226,7 +230,7 @@ const handleThreadDelete = async () => {
     }
     // 只需调用presenter方法，后续的UI更新（tab关闭/重置、列表刷新）
     // 将由主进程编排并通过事件广播回来。
-    await sessionP.deleteConversation(deleteThread.value.id)
+    await conversationCore.deleteConversation(deleteThread.value.id)
   } catch (error) {
     console.error(t('common.error.deleteChatFailed'), error)
   }
@@ -278,7 +282,7 @@ const handleScrollEnd = async () => {
     isLoadingMore = true
 
     // 调用loadMoreThreads方法
-    const result = await sessionP.loadMoreThreads()
+    const result = await conversationCore.loadMoreThreads()
 
     // 更新是否还有更多会话的状态
     hasMoreThreads.value = result.hasMore

@@ -45,11 +45,11 @@ export const CONVERSATION_EVENTS = {
   SCROLL_TO_MESSAGE: 'conversation:scroll-to-message'
 }
 
-// 通信相关事件
+// 流式响应相关事件
 export const STREAM_EVENTS = {
-  RESPONSE: 'stream:response', // 替代 stream-response
-  END: 'stream:end', // 替代 stream-end
-  ERROR: 'stream:error' // 替代 stream-error
+  RESPONSE: 'stream:response',
+  END: 'stream:end',
+  ERROR: 'stream:error'
 }
 
 // 应用更新相关事件
@@ -65,7 +65,11 @@ export const WINDOW_EVENTS = {
   READY_TO_SHOW: 'window:ready-to-show', // 替代 main-window-ready-to-show
   FORCE_QUIT_APP: 'window:force-quit-app', // 替代 force-quit-app
   APP_FOCUS: 'app:focus',
-  APP_BLUR: 'app:blur'
+  APP_BLUR: 'app:blur',
+  WINDOW_MAXIMIZED: 'window:maximized',
+  WINDOW_UNMAXIMIZED: 'window:unmaximized',
+  WINDOW_ENTER_FULL_SCREEN: 'window:enter-full-screen',
+  WINDOW_LEAVE_FULL_SCREEN: 'window:leave-full-screen'
 }
 
 // Settings related events
@@ -208,11 +212,6 @@ export const WORKSPACE_EVENTS = {
   PLAN_UPDATED: 'workspace:plan-updated', // Plan entries updated
   TERMINAL_OUTPUT: 'workspace:terminal-output', // Terminal snippet update
   FILES_CHANGED: 'workspace:files-changed' // File tree changed
-}
-
-// ACP-specific workspace events
-export const ACP_WORKSPACE_EVENTS = {
-  SESSION_MODES_READY: 'acp-workspace:session-modes-ready' // Session modes available
 }
 
 export const ACP_DEBUG_EVENTS = {

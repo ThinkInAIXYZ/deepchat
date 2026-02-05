@@ -25,7 +25,11 @@
     "acpModeTooltip": "Modo atual: {mode}",
     "agentWorkspaceCurrent": "Diretório de trabalho atual: {path}",
     "agentWorkspaceSelect": "Selecione o diretório de trabalho",
-    "agentWorkspaceTooltip": "Definir diretório de trabalho do agente"
+    "agentWorkspaceTooltip": "Definir diretório de trabalho do agente",
+    "acpWorkdirChangeCancel": "Cancelar",
+    "acpWorkdirChangeConfirm": "Confirmar troca",
+    "acpWorkdirChangeDescription": "Alterar o diretório de trabalho redefinirá a sessão atual. As mensagens históricas ainda serão mantidas e exibidas, mas a nova conversa começará a partir do novo diretório.",
+    "acpWorkdirChangeTitle": "Alterar diretório de trabalho"
   },
   "features": {
     "webSearch": "Busca na Web",
@@ -95,7 +99,6 @@
   "mode": {
     "acpAgent": "Agente ACP",
     "agent": "Agente",
-    "chat": "bater papo",
     "current": "Modo atual: {mode}"
   },
   "workspace": {

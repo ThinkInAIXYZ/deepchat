@@ -2,6 +2,7 @@ import { AssistantMessageBlock, Message, UserMessageContent } from '@shared/chat
 import { CONVERSATION } from '@shared/presenter'
 import { getNormalizedUserMessageText } from '../../agentPresenter/message/messageFormatter'
 import { NowledgeMemMessage, NowledgeMemThread } from '@shared/types/nowledgeMem'
+import { getRuntimeConfig } from '../../agentPresenter/runtimeConfig'
 
 export function generateNowledgeMemExportFilename(
   conversation: CONVERSATION,
@@ -18,10 +19,10 @@ export function generateNowledgeMemExportFilename(
   return `nowledge_mem_${safeTitle}_${formattedTimestamp}.json`
 }
 
-export function convertDeepChatToNowledgeMemFormat(
+export async function convertDeepChatToNowledgeMemFormat(
   conversation: CONVERSATION,
   messages: Message[]
-): NowledgeMemThread {
+): Promise<NowledgeMemThread> {
   const nowledgeMessages: NowledgeMemMessage[] = []
   const messageMetadataArray: any[] = []
 
@@ -204,12 +205,18 @@ export function convertDeepChatToNowledgeMemFormat(
           conversation.settings.modelId
         ].filter(Boolean) as string[],
         settings: {
-          system_prompt: conversation.settings.systemPrompt || '',
-          temperature: conversation.settings.temperature || 0.7,
-          context_length: conversation.settings.contextLength || 4000,
-          max_tokens: conversation.settings.maxTokens || 2048,
-          enable_search: conversation.settings.enableSearch || false,
-          artifacts_enabled: conversation.settings.artifacts === 1
+          // Phase 6: Get runtime config for export values
+          ...(await (async () => {
+            const runtimeConfig = await getRuntimeConfig(conversation)
+            return {
+              system_prompt: runtimeConfig.systemPrompt || '',
+              temperature: runtimeConfig.temperature || 0.7,
+              context_length: runtimeConfig.contextLength || 4000,
+              max_tokens: runtimeConfig.maxTokens || 2048,
+              enable_search: runtimeConfig.enableSearch || false,
+              artifacts_enabled: runtimeConfig.artifacts === 1
+            }
+          })())
         }
       },
       message_metadata: messageMetadataArray
@@ -251,12 +258,12 @@ function extractTokenMetadata(message: Message): {
   return result
 }
 
-export function buildNowledgeMemExportContent(
+export async function buildNowledgeMemExportContent(
   conversation: CONVERSATION,
   messages: Message[]
-): string {
+): Promise<string> {
   try {
-    const nowledgeMemThread = convertDeepChatToNowledgeMemFormat(conversation, messages)
+    const nowledgeMemThread = await convertDeepChatToNowledgeMemFormat(conversation, messages)
     return JSON.stringify(nowledgeMemThread, null, 2)
   } catch (error) {
     throw new Error(

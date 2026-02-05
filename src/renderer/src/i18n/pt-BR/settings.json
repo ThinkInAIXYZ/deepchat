@@ -19,18 +19,6 @@
     "customProxyUrl": "URL de Proxy Personalizado",
     "customProxyUrlPlaceholder": "Exemplo: http://127.0.0.1:7890",
     "invalidProxyUrl": "URL de proxy inválida, insira uma URL http/https válida",
-    "addCustomSearchEngine": "Adicionar Mecanismo de Busca Personalizado",
-    "addCustomSearchEngineDesc": "Adicione um novo mecanismo de busca fornecendo um nome e a URL de busca. A URL deve incluir {query} como placeholder da consulta.",
-    "searchEngineName": "Nome do Mecanismo de Busca",
-    "searchEngineNamePlaceholder": "Digite o nome do mecanismo de busca",
-    "searchEngineUrl": "URL de Busca",
-    "searchEngineUrlPlaceholder": "Ex: https://a.com/search?q={'{'}query{'}'}",
-    "searchEngineUrlError": "A URL deve incluir {'{'}query{'}'} como placeholder da consulta",
-    "deleteCustomSearchEngine": "Excluir Mecanismo de Busca Personalizado",
-    "deleteCustomSearchEngineDesc": "Tem certeza de que deseja excluir o mecanismo de busca personalizado \"{name}\"? Esta ação não pode ser desfeita.",
-    "testSearchEngine": "Testar Mecanismo de Busca",
-    "testSearchEngineDesc": "Uma busca de teste por \"tempo\" será realizada usando o mecanismo de busca {engine}.",
-    "testSearchEngineNote": "Se a página de busca exigir login ou outras ações, você pode realizá-las na janela de teste. Por favor, feche a janela de teste quando terminar.",
     "theme": "Tema",
     "themeSelect": "Selecionar tema",
     "themeLight": "Claro",
@@ -47,10 +35,6 @@
     "loggingDialogTitle": "Confirmar Mudança na Configuração de Registro",
     "loggingEnableDesc": "Habilitar o registro ajudará a diagnosticar problemas e melhorar o aplicativo. Os arquivos de registro podem conter informações confidenciais.",
     "loggingDisableDesc": "Desabilitar o registro interromperá a coleta de logs do aplicativo.",
-    "webContentLengthLimit": "Limite de Comprimento do Conteúdo Web",
-    "webContentLengthLimitHint": "(Defina para 0 para sem limite)",
-    "charactersUnit": "caracteres",
-    "webContentLengthLimitTooltip": "Defina o comprimento máximo do conteúdo de texto extraído de páginas web (contagem de caracteres), intervalo: 0-50000. Definir como 0 significa sem limite e recupera o conteúdo web completo; valores mais altos fornecem conteúdo web mais completo, mas podem aumentar o tempo de processamento e o uso de tokens.",
     "loggingRestartNotice": "Alterar esta configuração reiniciará o aplicativo. Deseja continuar?",
     "openLogFolder": "Abrir Pasta de Log",
     "shortcut": {
@@ -284,6 +268,22 @@
           "image": "Geração de Imagens"
         }
       }
+    },
+    "acpSession": {
+      "description": "Configurar as opções de nível de sessão reportadas pelo ACP Agent.",
+      "mode": {
+        "description": "Selecione a política de permissões do Agent (se suportado).",
+        "empty": "Agente não reportou o modo de permissões",
+        "label": "Modo de permissões",
+        "placeholder": "Selecionar modo"
+      },
+      "model": {
+        "description": "Selecione o modelo subjacente exposto por este ACP Agent.",
+        "empty": "Agente não reportou modelos disponíveis",
+        "label": "Modelo de Agente",
+        "placeholder": "Selecionar modelo"
+      },
+      "title": "Configurações de Sessão do ACP"
     }
   },
   "provider": {
@@ -1224,5 +1224,11 @@
       "title": "Ferramentas Externas"
     },
     "title": "Gerenciamento de Habilidades"
+  },
+  "groups": {
+    "models": "modelo",
+    "preferences": "preferência",
+    "system": "sistema",
+    "tools": "ferramenta"
   }
 }

@@ -15,6 +15,8 @@ import { ProgressUpdatedEventData } from './types'
 
 export class SplashWindowManager implements ISplashWindowManager {
   private splashWindow: BrowserWindow | null = null
+  private lastProgress: ProgressUpdatedEventData | null = null
+  private isRendererReady = false
 
   /**
    * Create and display the splash window
@@ -29,24 +31,44 @@ export class SplashWindowManager implements ISplashWindowManager {
 
     try {
       this.splashWindow = new BrowserWindow({
-        width: 400,
-        height: 300,
+        width: 320,
+        height: 80,
         icon: iconFile,
         resizable: false,
         movable: false,
         frame: false,
         alwaysOnTop: true,
         center: true,
+        transparent: true,
         show: false, // 先隐藏窗口，等待 ready-to-show 以避免白屏
         autoHideMenuBar: true,
-        skipTaskbar: true
+        skipTaskbar: true,
+        focusable: false,
+        hasShadow: false,
+        backgroundColor: '#00000000',
+        webPreferences: {
+          preload: path.join(__dirname, '../preload/index.mjs'),
+          sandbox: false,
+          devTools: is.dev
+        }
       })
 
-      // Show the window
-      this.splashWindow.on('ready-to-show', () => {
-        setTimeout(() => {
-          this.splashWindow?.show()
-        }, 800)
+      this.isRendererReady = false
+
+      // Show the window as soon as it's ready (avoid extra delays / blank flashes)
+      this.splashWindow.once('ready-to-show', () => {
+        this.splashWindow?.showInactive()
+      })
+
+      this.splashWindow.webContents.on('did-finish-load', () => {
+        this.isRendererReady = true
+        if (this.lastProgress && !this.splashWindow?.isDestroyed()) {
+          setTimeout(() => {
+            if (this.lastProgress && !this.splashWindow?.isDestroyed()) {
+              this.splashWindow?.webContents.send('splash-update', this.lastProgress)
+            }
+          }, 50)
+        }
       })
 
       // Load the splash HTML template
@@ -59,6 +81,7 @@ export class SplashWindowManager implements ISplashWindowManager {
       // Handle window closed event6
       this.splashWindow.on('closed', () => {
         this.splashWindow = null
+        this.isRendererReady = false
       })
 
       console.log('Splash window created and displayed')
@@ -72,10 +95,6 @@ export class SplashWindowManager implements ISplashWindowManager {
    * Update progress based on lifecycle phase
    */
   updateProgress(phase: LifecyclePhase, progress: number): void {
-    if (!this.splashWindow || this.splashWindow.isDestroyed()) {
-      return
-    }
-
     const phaseMessages = {
       [LifecyclePhase.INIT]: 'Initializing application...',
       [LifecyclePhase.BEFORE_START]: 'Preparing startup...',
@@ -86,17 +105,22 @@ export class SplashWindowManager implements ISplashWindowManager {
     const message = phaseMessages[phase] || 'Loading...'
     const clamped = Math.max(0, Math.min(100, progress))
 
+    const payload = {
+      phase,
+      progress: clamped,
+      message
+    } as ProgressUpdatedEventData
+
+    this.lastProgress = payload
+
     // Emit progress event to both main and renderer processes
-    eventBus.sendToMain(LIFECYCLE_EVENTS.PROGRESS_UPDATED, {
-      phase,
-      progress: clamped,
-      message
-    } as ProgressUpdatedEventData)
-    this.splashWindow.webContents.send('splash-update', {
-      phase,
-      progress: clamped,
-      message
-    })
+    eventBus.sendToMain(LIFECYCLE_EVENTS.PROGRESS_UPDATED, payload)
+
+    if (!this.splashWindow || this.splashWindow.isDestroyed() || !this.isRendererReady) {
+      return
+    }
+
+    this.splashWindow.webContents.send('splash-update', payload)
   }
 
   /**
@@ -108,11 +132,9 @@ export class SplashWindowManager implements ISplashWindowManager {
     }
 
     try {
-      // Add a small delay for smooth transition
-      await new Promise((resolve) => setTimeout(resolve, 500))
-
       this.splashWindow.close()
       this.splashWindow = null
+      this.isRendererReady = false
 
       console.log('Splash window closed')
     } catch (error) {

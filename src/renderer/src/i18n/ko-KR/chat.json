@@ -25,7 +25,11 @@
     "acpModeTooltip": "현재 모드: {mode}",
     "agentWorkspaceCurrent": "현재 작업 디렉터리: {path}",
     "agentWorkspaceSelect": "작업 디렉터리 선택",
-    "agentWorkspaceTooltip": "에이전트 작업 디렉터리 설정"
+    "agentWorkspaceTooltip": "에이전트 작업 디렉터리 설정",
+    "acpWorkdirChangeCancel": "취소",
+    "acpWorkdirChangeConfirm": "전환 확인",
+    "acpWorkdirChangeDescription": "작업 디렉토리를 전환하면 현재 세션이 재설정됩니다. 히스토리 메시지는 여전히 표시되지만, 새로운 대화는 새 디렉토리에서 시작합니다.",
+    "acpWorkdirChangeTitle": "작업 디렉토리 전환"
   },
   "features": {
     "webSearch": "웹 검색",
@@ -95,7 +99,6 @@
   "mode": {
     "acpAgent": "ACP 에이전트",
     "agent": "대리인",
-    "chat": "채팅",
     "current": "현재 모드: {mode}"
   },
   "workspace": {

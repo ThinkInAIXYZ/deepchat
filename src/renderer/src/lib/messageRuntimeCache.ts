@@ -63,9 +63,9 @@ export const deleteCachedMessage = (messageId: string) => {
   messageDomInfo.delete(messageId)
 }
 
-export const clearCachedMessagesForThread = (threadId: string) => {
+export const clearCachedMessagesForThread = (sessionId: string) => {
   for (const [messageId, conversationId] of messageThreadMap.entries()) {
-    if (conversationId === threadId) {
+    if (conversationId === sessionId) {
       messageCache.delete(messageId)
       messageThreadMap.delete(messageId)
       messageDomInfo.delete(messageId)

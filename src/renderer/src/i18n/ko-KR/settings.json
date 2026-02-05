@@ -19,18 +19,6 @@
     "customProxyUrl": "사용자 정의 프록시 URL",
     "customProxyUrlPlaceholder": "예: http://127.0.0.1:7890",
     "invalidProxyUrl": "잘못된 프록시 URL, 유효한 http/https URL을 입력하세요",
-    "addCustomSearchEngine": "사용자 정의 검색 엔진 추가",
-    "addCustomSearchEngineDesc": "새 검색 엔진을 추가하려면 이름과 검색 URL을 제공해야 합니다. URL에는 {query}가 쿼리 자리 표시자로 포함되어야 합니다.",
-    "searchEngineName": "검색 엔진 이름",
-    "searchEngineNamePlaceholder": "검색 엔진 이름을 입력하세요",
-    "searchEngineUrl": "검색 URL",
-    "searchEngineUrlPlaceholder": "예: https://a.com/search?q={query}",
-    "searchEngineUrlError": "URL에는 {query}가 쿼리 자리 표시자로 포함되어야 합니다",
-    "deleteCustomSearchEngine": "커스텀 검색 엔진 삭제",
-    "deleteCustomSearchEngineDesc": "정말로 커스텀 검색 엔진 \"{name}\"을(를) 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.",
-    "testSearchEngine": "검색 엔진 테스트",
-    "testSearchEngineDesc": "{engine} 검색 엔진을 사용하여 \"날씨\"에 대한 테스트 검색을 수행합니다.",
-    "testSearchEngineNote": "검색 페이지에 로그인이나 다른 작업이 필요한 경우 테스트 창에서 수행할 수 있습니다. 테스트가 완료되면 테스트 창을 닫아주세요.",
     "theme": "테마",
     "themeSelect": "테마 선택",
     "themeLight": "라이트",
@@ -49,10 +37,6 @@
     "loggingEnableDesc": "로그를 활성화하면 문제 진단 및 애플리케이션 개선에 도움이 됩니다. 로그 파일에는 민감한 정보가 포함될 수 있습니다.",
     "loggingDisableDesc": "로그를 비활성화하면 애플리케이션 로그 수집이 중지됩니다.",
     "loggingRestartNotice": "이 설정을 변경하면 프로그램이 재시작됩니다. 계속하시겠습니까?",
-    "webContentLengthLimit": "웹 콘텐츠 길이 제한",
-    "webContentLengthLimitHint": "(0으로 설정하면 제한 없음)",
-    "charactersUnit": "문자",
-    "webContentLengthLimitTooltip": "웹 페이지에서 추출할 텍스트 콘텐츠의 최대 길이(문자 수)를 설정합니다. 범위: 0-50000. 0으로 설정하면 제한 없이 전체 웹 콘텐츠를 가져옵니다. 큰 값을 설정하면 더 완전한 웹 콘텐츠를 가져올 수 있지만 처리 시간과 토큰 사용량이 증가할 수 있습니다.",
     "openLogFolder": "로그 폴더 열기",
     "shortcut": {
       "newChat": "새 채팅을 만듭니다",
@@ -284,6 +268,22 @@
           "image": "이미지 생성"
         }
       }
+    },
+    "acpSession": {
+      "description": "ACP 에이전트가 보고하는 세션 수준 옵션을 구성합니다.",
+      "mode": {
+        "description": "Agent의 권한 정책 선택(지원 시).",
+        "empty": "Agent 권한 모드 미보고",
+        "label": "권한 모드",
+        "placeholder": "모드 선택"
+      },
+      "model": {
+        "description": "해당 ACP Agent가 노출하는 기반 모델을 선택하세요.",
+        "empty": "에이전트 사용 가능 모델 미보고",
+        "label": "에이전트 모델",
+        "placeholder": "모델 선택"
+      },
+      "title": "ACP 세션 설정"
     }
   },
   "provider": {
@@ -1224,5 +1224,11 @@
     "title": "스킬 관리",
     "openFolder": "폴더 열기",
     "search": "검색 skill..."
+  },
+  "groups": {
+    "models": "모델",
+    "preferences": "선호",
+    "system": "시스템",
+    "tools": "도구"
   }
 }

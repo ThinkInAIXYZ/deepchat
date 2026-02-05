@@ -87,7 +87,7 @@ const chatStore = useChatStore()
 
 const props = defineProps<{
   messageId: string
-  conversationId: string
+  sessionId: string
   block: AssistantMessageBlock
 }>()
 
@@ -137,7 +137,7 @@ const handleSwitchProvider = () => {
 
 const handleClick = () => {
   console.log('handleClick')
-  chatStore.continueStream(props.conversationId, props.messageId)
+  chatStore.continueStream(props.sessionId, props.messageId)
 }
 
 onMounted(() => {

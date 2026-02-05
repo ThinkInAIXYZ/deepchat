@@ -31,13 +31,13 @@ describe('MermaidArtifact', () => {
       // Wait for component to mount and initialize
       await new Promise((resolve) => setTimeout(resolve, 100))
 
-      const mermaidRef = wrapper.find('[ref="mermaidRef"]')
+      const mermaidRef = wrapper.find({ ref: 'mermaidRef' })
       expect(mermaidRef.exists()).toBe(true)
 
       // The content should be sanitized and set to innerHTML
       // Since we can't directly access the sanitizeMermaidContent function,
       // we verify that the content is set and doesn't contain dangerous tags
-      expect(mermaidRef.element.innerHTML).toBe('graph TD\nA-->B')
+      expect(mermaidRef.element.textContent).toBe('graph TD\nA-->B')
     })
 
     it('should filter dangerous img tag with onerror', async () => {
@@ -57,15 +57,16 @@ describe('MermaidArtifact', () => {
       // Wait for component to mount and initialize
       await new Promise((resolve) => setTimeout(resolve, 100))
 
-      const mermaidRef = wrapper.find('[ref="mermaidRef"]')
+      const mermaidRef = wrapper.find({ ref: 'mermaidRef' })
       expect(mermaidRef.exists()).toBe(true)
 
       // The img tag should be removed
-      expect(mermaidRef.element.innerHTML).not.toContain('<img')
-      expect(mermaidRef.element.innerHTML).not.toContain('onerror')
+      const content = mermaidRef.element.textContent ?? ''
+      expect(content).not.toContain('<img')
+      expect(content).not.toContain('onerror')
       // But the basic mermaid structure should remain
-      expect(mermaidRef.element.innerHTML).toContain('graph TD')
-      expect(mermaidRef.element.innerHTML).toContain('A[')
+      expect(content).toContain('graph TD')
+      expect(content).toContain('A[')
     })
 
     it('should filter script tags', async () => {
@@ -84,10 +85,11 @@ describe('MermaidArtifact', () => {
 
       await new Promise((resolve) => setTimeout(resolve, 100))
 
-      const mermaidRef = wrapper.find('[ref="mermaidRef"]')
-      expect(mermaidRef.element.innerHTML).not.toContain('<script>')
-      expect(mermaidRef.element.innerHTML).not.toContain('alert(1)')
-      expect(mermaidRef.element.innerHTML).toContain('graph TD')
+      const mermaidRef = wrapper.find({ ref: 'mermaidRef' })
+      const content = mermaidRef.element.textContent ?? ''
+      expect(content).not.toContain('<script>')
+      expect(content).not.toContain('alert(1)')
+      expect(content).toContain('graph TD')
     })
 
     it('should filter event handlers', async () => {
@@ -106,9 +108,10 @@ describe('MermaidArtifact', () => {
 
       await new Promise((resolve) => setTimeout(resolve, 100))
 
-      const mermaidRef = wrapper.find('[ref="mermaidRef"]')
-      expect(mermaidRef.element.innerHTML).not.toContain('onclick')
-      expect(mermaidRef.element.innerHTML).not.toContain('alert(1)')
+      const mermaidRef = wrapper.find({ ref: 'mermaidRef' })
+      const content = mermaidRef.element.textContent ?? ''
+      expect(content).not.toContain('onclick')
+      expect(content).not.toContain('alert(1)')
     })
 
     it('should filter dangerous protocols', async () => {
@@ -127,9 +130,10 @@ describe('MermaidArtifact', () => {
 
       await new Promise((resolve) => setTimeout(resolve, 100))
 
-      const mermaidRef = wrapper.find('[ref="mermaidRef"]')
-      expect(mermaidRef.element.innerHTML).not.toContain('javascript:')
-      expect(mermaidRef.element.innerHTML).toContain('graph TD')
+      const mermaidRef = wrapper.find({ ref: 'mermaidRef' })
+      const content = mermaidRef.element.textContent ?? ''
+      expect(content).not.toContain('javascript:')
+      expect(content).toContain('graph TD')
     })
 
     it('should handle the exact PoC from the vulnerability report', async () => {
@@ -149,15 +153,16 @@ describe('MermaidArtifact', () => {
 
       await new Promise((resolve) => setTimeout(resolve, 100))
 
-      const mermaidRef = wrapper.find('[ref="mermaidRef"]')
+      const mermaidRef = wrapper.find({ ref: 'mermaidRef' })
       // The img tag should be completely removed
-      expect(mermaidRef.element.innerHTML).not.toContain('<img')
-      expect(mermaidRef.element.innerHTML).not.toContain('onerror')
-      expect(mermaidRef.element.innerHTML).not.toContain('ipc.invoke')
-      expect(mermaidRef.element.innerHTML).not.toContain('calc.exe')
+      const content = mermaidRef.element.textContent ?? ''
+      expect(content).not.toContain('<img')
+      expect(content).not.toContain('onerror')
+      expect(content).not.toContain('ipc.invoke')
+      expect(content).not.toContain('calc.exe')
       // But the basic mermaid structure should remain
-      expect(mermaidRef.element.innerHTML).toContain('graph TD')
-      expect(mermaidRef.element.innerHTML).toContain('A[')
+      expect(content).toContain('graph TD')
+      expect(content).toContain('A[')
     })
   })
 

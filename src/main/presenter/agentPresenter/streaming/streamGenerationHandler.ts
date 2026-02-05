@@ -8,39 +8,40 @@ import type {
   UserMessage,
   UserMessageContent
 } from '@shared/chat'
-import type { CONVERSATION, MCPToolResponse, SearchResult } from '@shared/presenter'
+import type { CONVERSATION, MCPToolResponse } from '@shared/presenter'
 import { buildUserMessageContext, formatUserMessageContent } from '../message/messageFormatter'
 import { preparePromptContent } from '../message/messageBuilder'
 import type { GeneratingMessageState } from './types'
 import { presenter } from '@/presenter'
-import type { SearchHandler } from '../../searchPresenter/handlers/searchHandler'
-import { BaseHandler, type ThreadHandlerContext } from '../../searchPresenter/handlers/baseHandler'
+import { BaseHandler, type ThreadHandlerContext } from '../baseHandler'
 import type { LLMEventHandler } from './llmEventHandler'
 import { LoopOrchestrator } from '../loop/loopOrchestrator'
+import type { AgenticEventEmitter } from '@shared/types/presenters/agentic.presenter.d'
+import { normalizeAndEmit } from '../normalizer'
+import { getRuntimeConfig } from '../runtimeConfig'
 
 interface StreamGenerationHandlerDeps {
-  searchHandler: SearchHandler
   generatingMessages: Map<string, GeneratingMessageState>
   llmEventHandler: LLMEventHandler
+  getEmitter?: (conversationId: string) => AgenticEventEmitter | undefined
 }
 
 export class StreamGenerationHandler extends BaseHandler {
-  private readonly searchHandler: SearchHandler
   private readonly generatingMessages: Map<string, GeneratingMessageState>
   private readonly llmEventHandler: LLMEventHandler
   private readonly loopOrchestrator: LoopOrchestrator
+  private readonly getEmitter?: (conversationId: string) => AgenticEventEmitter | undefined
 
   constructor(context: ThreadHandlerContext, deps: StreamGenerationHandlerDeps) {
     super(context)
-    this.searchHandler = deps.searchHandler
     this.generatingMessages = deps.generatingMessages
     this.llmEventHandler = deps.llmEventHandler
+    this.getEmitter = deps.getEmitter
     this.loopOrchestrator = new LoopOrchestrator(this.llmEventHandler)
     this.assertDependencies()
   }
 
   private assertDependencies(): void {
-    void this.searchHandler
     void this.generatingMessages
     void this.llmEventHandler
     void this.loopOrchestrator
@@ -67,12 +68,9 @@ export class StreamGenerationHandler extends BaseHandler {
         selectedVariantsMap
       )
 
-      const { chatMode, agentWorkspacePath } =
-        await presenter.sessionManager.resolveWorkspaceContext(
-          conversationId,
-          conversation.settings.modelId
-        )
-      if (chatMode === 'agent' && agentWorkspacePath) {
+      const { agentWorkspacePath } =
+        await presenter.sessionManager.resolveWorkspaceContext(conversationId)
+      if (agentWorkspacePath) {
         conversation.settings.agentWorkspacePath = agentWorkspacePath
       }
 
@@ -90,30 +88,10 @@ export class StreamGenerationHandler extends BaseHandler {
 
       this.throwIfCancelled(state.message.id)
 
-      let searchResults: SearchResult[] | null = null
-      if ((userMessage.content as UserMessageContent).search) {
-        try {
-          searchResults = await this.searchHandler.startStreamSearch(
-            conversationId,
-            state.message.id,
-            userContent
-          )
-          this.throwIfCancelled(state.message.id)
-        } catch (error) {
-          if (String(error).includes('userCanceledGeneration')) {
-            return
-          }
-          console.error('[StreamGenerationHandler] Error during search:', error)
-        }
-      }
-
-      this.throwIfCancelled(state.message.id)
-
       const { finalContent, promptTokens } = await preparePromptContent({
         conversation,
         userContent,
         contextMessages,
-        searchResults,
         userMessage,
         vision: Boolean(modelConfig?.vision),
         imageFiles: modelConfig?.vision ? imageFiles : [],
@@ -128,6 +106,8 @@ export class StreamGenerationHandler extends BaseHandler {
       this.throwIfCancelled(state.message.id)
 
       const currentConversation = await this.getConversation(conversationId)
+      // Phase 6: Get runtime config instead of reading from settings
+      const runtimeConfig = await getRuntimeConfig(currentConversation)
       const {
         providerId: currentProviderId,
         modelId: currentModelId,
@@ -140,7 +120,7 @@ export class StreamGenerationHandler extends BaseHandler {
         enableSearch: currentEnableSearch,
         forcedSearch: currentForcedSearch,
         searchStrategy: currentSearchStrategy
-      } = currentConversation.settings
+      } = runtimeConfig
 
       const stream = this.ctx.llmProviderPresenter.startStreamCompletion(
         currentProviderId,
@@ -240,6 +220,8 @@ export class StreamGenerationHandler extends BaseHandler {
 
       this.throwIfCancelled(state.message.id)
 
+      // Phase 6: Get runtime config instead of reading from settings
+      const runtimeConfig = await getRuntimeConfig(conversation)
       const {
         providerId,
         modelId,
@@ -252,7 +234,7 @@ export class StreamGenerationHandler extends BaseHandler {
         enableSearch,
         forcedSearch,
         searchStrategy
-      } = conversation.settings
+      } = runtimeConfig
       const modelConfig = this.ctx.configPresenter.getModelConfig(modelId, providerId)
       if (!modelConfig) {
         throw new Error(`Model config not found for ${providerId}/${modelId}`)
@@ -262,7 +244,6 @@ export class StreamGenerationHandler extends BaseHandler {
         conversation,
         userContent: 'continue',
         contextMessages,
-        searchResults: null,
         userMessage,
         vision: false,
         imageFiles: [],
@@ -273,7 +254,8 @@ export class StreamGenerationHandler extends BaseHandler {
       await this.updateGenerationState(state, promptTokens)
 
       if (toolCallResponse && toolCall) {
-        eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, SendTarget.ALL_WINDOWS, {
+        const emitter = this.getEmitter?.(conversationId)
+        const toolCallEventData = {
           eventId: state.message.id,
           content: '',
           tool_call: 'start',
@@ -284,8 +266,20 @@ export class StreamGenerationHandler extends BaseHandler {
           tool_call_server_name: toolCall.server_name,
           tool_call_server_icons: toolCall.server_icons,
           tool_call_server_description: toolCall.server_description
-        })
-        eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, SendTarget.ALL_WINDOWS, {
+        }
+
+        if (emitter) {
+          normalizeAndEmit(
+            STREAM_EVENTS.RESPONSE as keyof typeof STREAM_EVENTS,
+            toolCallEventData,
+            conversationId,
+            emitter
+          )
+        } else {
+          eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, SendTarget.ALL_WINDOWS, toolCallEventData)
+        }
+
+        const toolCallRunningEventData = {
           eventId: state.message.id,
           content: '',
           tool_call: 'running',
@@ -296,8 +290,24 @@ export class StreamGenerationHandler extends BaseHandler {
           tool_call_server_name: toolCall.server_name,
           tool_call_server_icons: toolCall.server_icons,
           tool_call_server_description: toolCall.server_description
-        })
-        eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, SendTarget.ALL_WINDOWS, {
+        }
+
+        if (emitter) {
+          normalizeAndEmit(
+            STREAM_EVENTS.RESPONSE as keyof typeof STREAM_EVENTS,
+            toolCallRunningEventData,
+            conversationId,
+            emitter
+          )
+        } else {
+          eventBus.sendToRenderer(
+            STREAM_EVENTS.RESPONSE,
+            SendTarget.ALL_WINDOWS,
+            toolCallRunningEventData
+          )
+        }
+
+        const toolCallEndEventData = {
           eventId: state.message.id,
           content: '',
           tool_call: 'end',
@@ -309,7 +319,22 @@ export class StreamGenerationHandler extends BaseHandler {
           tool_call_server_icons: toolCall.server_icons,
           tool_call_server_description: toolCall.server_description,
           tool_call_response_raw: toolCallResponse.rawData
-        })
+        }
+
+        if (emitter) {
+          normalizeAndEmit(
+            STREAM_EVENTS.RESPONSE as keyof typeof STREAM_EVENTS,
+            toolCallEndEventData,
+            conversationId,
+            emitter
+          )
+        } else {
+          eventBus.sendToRenderer(
+            STREAM_EVENTS.RESPONSE,
+            SendTarget.ALL_WINDOWS,
+            toolCallEndEventData
+          )
+        }
       }
 
       const stream = this.ctx.llmProviderPresenter.startStreamCompletion(
@@ -422,9 +447,11 @@ export class StreamGenerationHandler extends BaseHandler {
         throw new Error('Unsupported message type')
       }
 
+      // Phase 6: Get context length from runtime config
+      const runtimeConfig = await getRuntimeConfig(conversation)
       contextMessages = await this.ctx.messageManager.getMessageHistory(
         userMessage.id,
-        conversation.settings.contextLength
+        runtimeConfig.contextLength
       )
     } else {
       userMessage = await this.ctx.messageManager.getLastUserMessage(conversationId)
@@ -615,7 +642,9 @@ export class StreamGenerationHandler extends BaseHandler {
   }
 
   private async getContextMessages(conversation: CONVERSATION): Promise<Message[]> {
-    let messageCount = Math.ceil(conversation.settings.contextLength / 300)
+    // Phase 6: Get context length from runtime config
+    const runtimeConfig = await getRuntimeConfig(conversation)
+    let messageCount = Math.ceil(runtimeConfig.contextLength / 300)
     if (messageCount < 2) {
       messageCount = 2
     }

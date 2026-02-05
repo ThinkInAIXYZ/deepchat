@@ -78,10 +78,7 @@
               <Icon icon="lucide:file-type" class="mr-2 h-4 w-4" />
               <span>{{ t('thread.actions.exportText') }} (.txt)</span>
             </DropdownMenuItem>
-            <DropdownMenuItem @select="handleExport(thread, 'nowledge-mem')">
-              <Icon icon="lucide:brain" class="mr-2 h-4 w-4" />
-              <span>{{ t('thread.actions.exportNowledgeMem') }} (.json)</span>
-            </DropdownMenuItem>
+            <!-- NowledgeMem export removed in Phase 6 (chatConfig removal) -->
           </DropdownMenuSubContent>
         </DropdownMenuSub>
 
@@ -138,44 +135,17 @@ const handleTogglePin = (thread: CONVERSATION) => {
   chatStore.toggleThreadPinned(thread.id, !(thread.is_pinned === 1))
 }
 
-const handleExport = async (
-  thread: CONVERSATION,
-  format: 'markdown' | 'html' | 'txt' | 'nowledge-mem'
-) => {
+const handleExport = async (thread: CONVERSATION, format: 'markdown' | 'html' | 'txt') => {
   try {
-    if (format === 'nowledge-mem') {
-      // Optional: Ask user if they want to submit to nowledge-mem API
-      const shouldSubmit = confirm(t('thread.export.nowledgeMemSubmitPrompt'))
-      if (shouldSubmit) {
-        try {
-          await chatStore.submitToNowledgeMem(thread.id)
+    // Export functionality now uses useSessionExport composable (Phase 6: chatConfig removed)
+    // Note: nowledge-mem export has been removed
+    await chatStore.exportAndDownload(thread.id, { format })
 
-          toast({
-            title: t('thread.export.nowledgeMemSubmitSuccess'),
-            description: t('thread.export.nowledgeMemSubmitSuccessDesc'),
-            variant: 'default'
-          })
-        } catch (submitError) {
-          toast({
-            title: t('thread.export.nowledgeMemSubmitFailed'),
-            description:
-              submitError instanceof Error
-                ? submitError.message
-                : t('thread.export.nowledgeMemSubmitFailedDesc'),
-            variant: 'destructive'
-          })
-        }
-      }
-    } else {
-      // Regular export for other formats
-      await chatStore.exportThread(thread.id, format)
-
-      toast({
-        title: t('thread.export.success'),
-        description: t('thread.export.successDesc'),
-        variant: 'default'
-      })
-    }
+    toast({
+      title: t('thread.export.success'),
+      description: t('thread.export.successDesc'),
+      variant: 'default'
+    })
   } catch (error) {
     console.error('Export failed:', error)
     // Show error toast

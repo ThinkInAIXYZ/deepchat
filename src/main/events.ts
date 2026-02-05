@@ -258,15 +258,6 @@ export const WORKSPACE_EVENTS = {
   FILES_CHANGED: 'workspace:files-changed' // File tree changed
 }
 
-// ACP-specific workspace events
-export const ACP_WORKSPACE_EVENTS = {
-  SESSION_MODES_READY: 'acp-workspace:session-modes-ready' // Session modes available
-}
-
-export const ACP_DEBUG_EVENTS = {
-  EVENT: 'acp-debug:event'
-}
-
 // Skills system events
 export const SKILL_EVENTS = {
   DISCOVERED: 'skill:discovered', // Skills discovery completed

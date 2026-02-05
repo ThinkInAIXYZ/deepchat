@@ -10,7 +10,7 @@
 </template>
 
 <script setup lang="ts">
-import { usePresenter } from '@/composables/usePresenter'
+import { useConversationCore } from '@/composables/chat/useConversationCore'
 import { useArtifactStore } from '@/stores/artifact'
 import { useReferenceStore } from '@/stores/reference'
 import { nanoid } from 'nanoid'
@@ -33,11 +33,11 @@ const themeStore = useThemeStore()
 const uiSettingsStore = useUiSettingsStore()
 // 组件映射表
 const artifactStore = useArtifactStore()
-// 生成唯一的 message ID 和 thread ID，用于 MarkdownRenderer
+// 生成唯一的 message ID 和 session ID，用于 MarkdownRenderer
 const messageId = `artifact-msg-${nanoid()}`
-const threadId = `artifact-thread-${nanoid()}`
+const sessionId = `artifact-session-${nanoid()}`
 const referenceStore = useReferenceStore()
-const sessionPresenter = usePresenter('sessionPresenter')
+const conversationCore = useConversationCore()
 const referenceNode = ref<HTMLElement | null>(null)
 const debouncedContent = ref(props.content)
 const codeBlockMonacoOption = computed(() => ({
@@ -64,9 +64,9 @@ setCustomComponents({
     h(ReferenceNode, {
       ..._props,
       messageId,
-      threadId,
+      sessionId,
       onClick() {
-        sessionPresenter.getSearchResults(_props.messageId ?? '').then((results) => {
+        conversationCore.getSearchResults(_props.messageId ?? '').then((results) => {
           const index = parseInt(_props.node.id)
           if (index < results.length) {
             window.open(results[index - 1].url, '_blank', 'noopener,noreferrer')
@@ -76,7 +76,7 @@ setCustomComponents({
       onMouseEnter() {
         console.log('Mouse entered')
         referenceStore.hideReference()
-        sessionPresenter.getSearchResults(_props.messageId ?? '').then((results) => {
+        conversationCore.getSearchResults(_props.messageId ?? '').then((results) => {
           const index = parseInt(_props.node.id)
           if (index - 1 < results.length && referenceNode.value) {
             referenceStore.showReference(
@@ -120,7 +120,7 @@ setCustomComponents({
             status: 'loaded'
           },
           messageId,
-          threadId,
+          sessionId,
           { force: true }
         )
       }

@@ -1,4 +1,42 @@
 {
   "greeting": "Hej med dig!",
-  "prompt": "Hvad tænker du på?"
+  "prompt": "Hvad tænker du på?",
+  "homepage": {
+    "inputPlaceholder": "Skriv din besked her...",
+    "selectModel": "Vælg model",
+    "acpAgents": {
+      "title": "Start med en AI-agent",
+      "description": "Vælg en agent for at starte en specialiseret kodningssession",
+      "empty": "Ingen tilgængelige agenter. Aktiver agenter i indstillingerne.",
+      "builtin": "Indbygget",
+      "mcpEnabled": "MCP-værktøjer",
+      "defaultDescription": "Professionel AI-kodningsassistent",
+      "customAgentDescription": "Brugerdefineret agent: {name}",
+      "descriptions": {
+        "claude-code": "Claude Code - Alsidig kodningsassistent",
+        "gemini-cli": "Gemini CLI - Google kodningsassistent",
+        "qwen-code": "Qwen Code - Alibaba Cloud kodningsassistent"
+      }
+    },
+    "acpConfig": {
+      "title": "Konfigurer {name}",
+      "description": "Opsæt arbejdsområde og præferencer for denne agent",
+      "workdir": {
+        "label": "Arbejdsmappe",
+        "placeholder": "Ingen mappe valgt",
+        "select": "Vælg",
+        "hint": "Vælg den mappe, hvor agenten skal arbejde"
+      },
+      "model": {
+        "label": "Model",
+        "placeholder": "Vælg en model"
+      },
+      "mode": {
+        "label": "Tilstand",
+        "placeholder": "Vælg en tilstand"
+      },
+      "loading": "Indlæser konfiguration...",
+      "start": "Start session"
+    }
+  }
 }

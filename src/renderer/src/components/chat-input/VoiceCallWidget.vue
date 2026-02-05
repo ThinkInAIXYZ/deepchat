@@ -59,7 +59,7 @@ import { useProviderStore } from '@/stores/providerStore'
 
 const props = withDefaults(
   defineProps<{
-    variant: 'chat' | 'newThread'
+    variant: 'agent' | 'newThread' | 'acp'
     activeProviderId?: string | null
     isStreaming?: boolean
   }>(),
@@ -92,7 +92,8 @@ const voiceAIApiKey = computed(() => {
 })
 
 const shouldShowVoiceCall = computed(() => {
-  if (props.variant !== 'chat') return false
+  // Voice calls are only meaningful in an active conversation input.
+  if (props.variant !== 'agent') return false
   const providerId = props.activeProviderId
   return (
     providerId === 'voiceai' && voiceAIAgentId.value.length > 0 && voiceAIApiKey.value.length > 0

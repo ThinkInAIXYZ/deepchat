@@ -695,30 +695,31 @@ export class SkillPresenter implements ISkillPresenter {
 
   /**
    * Get active skills for a conversation
+   * Retrieves from SessionContext runtime (in-memory, not persisted to database)
    */
   async getActiveSkills(conversationId: string): Promise<string[]> {
+    if (!this.configPresenter.getSkillsEnabled()) {
+      return []
+    }
+
     try {
-      const conversation = await presenter.sessionPresenter.getConversation(conversationId)
-      const activeSkills = conversation?.settings?.activeSkills || []
-      const validSkills = await this.validateSkillNames(activeSkills)
-
-      if (validSkills.length !== activeSkills.length) {
-        await presenter.sessionPresenter.updateConversationSettings(conversationId, {
-          activeSkills: validSkills
-        })
-      }
-
-      return validSkills
+      const session = await presenter.sessionManager.getSession(conversationId)
+      return session.runtime?.activeSkills ?? []
     } catch (error) {
-      console.error(`[SkillPresenter] Error getting active skills for ${conversationId}:`, error)
+      console.warn('[SkillPresenter] Failed to get active skills:', error)
       return []
     }
   }
 
   /**
    * Set active skills for a conversation
+   * Updates SessionContext runtime (in-memory, not persisted to database)
    */
   async setActiveSkills(conversationId: string, skills: string[]): Promise<void> {
+    if (!this.configPresenter.getSkillsEnabled()) {
+      return
+    }
+
     try {
       const previousSkills = await this.getActiveSkills(conversationId)
       const previousSet = new Set(previousSkills)
@@ -727,7 +728,8 @@ export class SkillPresenter implements ISkillPresenter {
       const validSkills = await this.validateSkillNames(skills)
       const validSet = new Set(validSkills)
 
-      await presenter.sessionPresenter.updateConversationSettings(conversationId, {
+      // Update runtime state in SessionManager (in-memory, not database)
+      presenter.sessionManager.updateRuntime(conversationId, {
         activeSkills: validSkills
       })
 

@@ -59,10 +59,6 @@
   "language": "言語",
   "languageSelect": "言語を選択します",
   "resetData": "データをリセット",
-  "searchAssistantModel": "アシスタントモデル",
-  "searchEngine": "検索エンジン",
-  "searchEngineSelect": "検索エンジンを選択",
-  "searchPreview": "検索プレビュー",
   "selectModel": "モデルを選択",
   "title": "全般設定",
   "languageSystem": "システム設定に従う",
@@ -96,5 +92,6 @@
     "enterUrlDescription": "上のアドレスバーに URL を入力して Web サイトにアクセスします",
     "enterUrlToStart": "URLを入力してアクセスを開始してください",
     "name": "よブラウザ"
-  }
+  },
+  "moreSettings": "その他の設定"
 }

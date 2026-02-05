@@ -1,4 +1,42 @@
 {
   "greeting": "درود",
-  "prompt": "امروز میخواهید درباره چه چیزی بپرسید؟"
+  "prompt": "امروز میخواهید درباره چه چیزی بپرسید؟",
+  "homepage": {
+    "inputPlaceholder": "پیام خود را اینجا تایپ کنید...",
+    "selectModel": "انتخاب مدل",
+    "acpAgents": {
+      "title": "شروع با یک عامل هوش مصنوعی",
+      "description": "یک عامل را برای شروع یک جلسه کدنویسی تخصصی انتخاب کنید",
+      "empty": "هیچ عاملی در دسترس نیست. عامل‌ها را در تنظیمات فعال کنید.",
+      "builtin": "داخلی",
+      "mcpEnabled": "ابزارهای MCP",
+      "defaultDescription": "دستیار کدنویسی هوش مصنوعی حرفه‌ای",
+      "customAgentDescription": "عامل سفارشی: {name}",
+      "descriptions": {
+        "claude-code": "Claude Code - دستیار کدنویسی همه‌کاره",
+        "gemini-cli": "Gemini CLI - دستیار کدنویسی گوگل",
+        "qwen-code": "Qwen Code - دستیار کدنویسی Alibaba Cloud"
+      }
+    },
+    "acpConfig": {
+      "title": "پیکربندی {name}",
+      "description": "فضای کاری و تنظیمات برگزیده را برای این عامل تنظیم کنید",
+      "workdir": {
+        "label": "دایرکتوری فضای کاری",
+        "placeholder": "هیچ دایرکتوری انتخاب نشده",
+        "select": "انتخاب",
+        "hint": "دایرکتوری که عامل در آن کار خواهد کرد را انتخاب کنید"
+      },
+      "model": {
+        "label": "مدل",
+        "placeholder": "انتخاب مدل"
+      },
+      "mode": {
+        "label": "حالت",
+        "placeholder": "انتخاب حالت"
+      },
+      "loading": "در حال بارگذاری پیکربندی...",
+      "start": "شروع جلسه"
+    }
+  }
 }

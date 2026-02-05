@@ -4,13 +4,12 @@ import type {
   CONVERSATION_SETTINGS,
   LLMAgentEventData,
   MCPToolDefinition,
-  MESSAGE_METADATA,
-  MODEL_META
+  MESSAGE_METADATA
 } from '@shared/presenter'
-import type { AssistantMessageBlock, Message, UserMessageContent } from '@shared/chat'
+import type { AssistantMessageBlock, UserMessageContent } from '@shared/chat'
 import { ModelType } from '@shared/model'
 import { presenter } from '@/presenter'
-import { BaseHandler, type ThreadHandlerContext } from '../../searchPresenter/handlers/baseHandler'
+import { BaseHandler, type ThreadHandlerContext } from '../baseHandler'
 import { buildUserMessageContext } from '../message/messageFormatter'
 import {
   buildConversationExportContent,
@@ -19,6 +18,7 @@ import {
 } from '../../exporter/formats/conversationExporter'
 import { preparePromptContent } from '../message/messageBuilder'
 import type { StreamGenerationHandler } from '../streaming/streamGenerationHandler'
+import { getRuntimeConfig } from '../runtimeConfig'
 
 // Translation constants
 const TRANSLATION_TEMPERATURE = 0.3
@@ -37,8 +37,6 @@ export interface UtilityHandlerOptions {
     tabId: number
   ) => Promise<string>
   streamGenerationHandler: StreamGenerationHandler
-  getSearchAssistantModel: () => MODEL_META | null
-  getSearchAssistantProviderId: () => string | null
 }
 
 export class UtilityHandler extends BaseHandler {
@@ -51,8 +49,6 @@ export class UtilityHandler extends BaseHandler {
     tabId: number
   ) => Promise<string>
   private readonly streamGenerationHandler: StreamGenerationHandler
-  private readonly getSearchAssistantModel: () => MODEL_META | null
-  private readonly getSearchAssistantProviderId: () => string | null
 
   constructor(context: ThreadHandlerContext, options: UtilityHandlerOptions) {
     super(context)
@@ -61,8 +57,6 @@ export class UtilityHandler extends BaseHandler {
     this.getConversation = options.getConversation
     this.createConversation = options.createConversation
     this.streamGenerationHandler = options.streamGenerationHandler
-    this.getSearchAssistantModel = options.getSearchAssistantModel
-    this.getSearchAssistantProviderId = options.getSearchAssistantProviderId
   }
 
   async translateText(text: string, tabId: number): Promise<string> {
@@ -211,13 +205,10 @@ export class UtilityHandler extends BaseHandler {
       // Filter out unsent messages
       const validMessages = messages.filter((msg) => msg.status === 'sent')
 
-      // Apply variant selection
-      const selectedVariantsMap = conversation.settings.selectedVariantsMap || {}
-      const variantAwareMessages = this.applyVariantSelection(validMessages, selectedVariantsMap)
-
+      // Phase 6: Variant management removed - use messages directly
       // Generate filename
       const filename = generateExportFilename(format)
-      const content = buildConversationExportContent(conversation, variantAwareMessages, format)
+      const content = await buildConversationExportContent(conversation, validMessages, format)
 
       return { filename, content }
     } catch (error) {
@@ -236,20 +227,18 @@ export class UtilityHandler extends BaseHandler {
     if (!conversation) {
       throw new Error('Conversation not found')
     }
-    let summaryProviderId = conversation.settings.providerId
-    const modelId = this.getSearchAssistantModel()?.id
-    summaryProviderId = this.getSearchAssistantProviderId() || conversation.settings.providerId
+    const { providerId, modelId } = conversation.settings
 
-    // Get context messages
-    let messageCount = Math.ceil(conversation.settings.contextLength / DEFAULT_MESSAGE_LENGTH)
+    // Phase 6: Get context length from runtime config
+    const runtimeConfig = await getRuntimeConfig(conversation)
+    let messageCount = Math.ceil(runtimeConfig.contextLength / DEFAULT_MESSAGE_LENGTH)
     if (messageCount < 2) {
       messageCount = 2
     }
     const messages = await this.ctx.messageManager.getContextMessages(conversation.id, messageCount)
 
-    const selectedVariantsMap = conversation.settings.selectedVariantsMap || {}
-    const variantAwareMessages = this.applyVariantSelection(messages, selectedVariantsMap)
-    const messagesWithLength = variantAwareMessages
+    // Phase 6: Variant management removed - use messages directly
+    const messagesWithLength = messages
       .map((msg) => {
         if (msg.role === 'user') {
           const userContent = msg.content as UserMessageContent
@@ -280,8 +269,8 @@ export class UtilityHandler extends BaseHandler {
       .filter((item) => item.formattedMessage.content.length > 0)
     const title = await this.ctx.llmProviderPresenter.summaryTitles(
       messagesWithLength.map((item) => item.formattedMessage),
-      summaryProviderId || conversation.settings.providerId,
-      modelId || conversation.settings.modelId
+      providerId,
+      modelId
     )
     let cleanedTitle = title.replace(/<think>.*?<\/think>/g, '').trim()
     cleanedTitle = cleanedTitle.replace(/^<think>/, '').trim()
@@ -297,13 +286,15 @@ export class UtilityHandler extends BaseHandler {
       }
 
       const conversation = await this.ctx.sqlitePresenter.getConversation(message.conversation_id)
+      // Phase 6: Get runtime config instead of reading from settings
+      const runtimeConfig = await getRuntimeConfig(conversation)
       const {
         providerId: defaultProviderId,
         modelId: defaultModelId,
         temperature,
         maxTokens,
         enabledMcpTools
-      } = conversation.settings
+      } = runtimeConfig
 
       // Parse metadata to get model_provider and model_id
       let messageMetadata: MESSAGE_METADATA | null = null
@@ -326,9 +317,10 @@ export class UtilityHandler extends BaseHandler {
       const userMessage = this.ctx.messageManager['convertToMessage'](userMessageSqlite)
 
       // Get context messages using getMessageHistory
+      // Phase 6: Use context length from runtime config
       const contextMessages = await this.streamGenerationHandler.getMessageHistory(
         userMessage.id,
-        conversation.settings.contextLength
+        runtimeConfig.contextLength
       )
 
       // Prepare prompt content (reconstruct what was sent)
@@ -365,7 +357,6 @@ export class UtilityHandler extends BaseHandler {
         conversation,
         userContent,
         contextMessages,
-        searchResults: null,
         userMessage,
         vision: visionEnabled,
         imageFiles: [],
@@ -447,31 +438,5 @@ export class UtilityHandler extends BaseHandler {
       throw error
     }
   }
-
-  /**
-   * Applies variant selection to messages based on selectedVariantsMap.
-   * Returns messages with selected variant fields applied when a variant is selected.
-   */
-  private applyVariantSelection(
-    messages: Message[],
-    selectedVariantsMap: Record<string, string>
-  ): Message[] {
-    return messages.map((msg) => {
-      if (msg.role === 'assistant' && selectedVariantsMap[msg.id] && msg.variants) {
-        const selectedVariantId = selectedVariantsMap[msg.id]
-        const selectedVariant = msg.variants.find((v) => v.id === selectedVariantId)
-
-        if (selectedVariant) {
-          const newMsg = JSON.parse(JSON.stringify(msg))
-          newMsg.content = selectedVariant.content
-          newMsg.usage = selectedVariant.usage
-          newMsg.model_id = selectedVariant.model_id
-          newMsg.model_provider = selectedVariant.model_provider
-          newMsg.model_name = selectedVariant.model_name
-          return newMsg
-        }
-      }
-      return msg
-    })
-  }
 }
+// Phase 6: applyVariantSelection method removed - variant management feature removed

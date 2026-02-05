@@ -21,6 +21,10 @@
     "acpWorkdirTooltip": "设置 ACP 工作目录",
     "acpWorkdirSelect": "选择工作目录",
     "acpWorkdirCurrent": "当前工作目录：{path}",
+    "acpWorkdirChangeTitle": "切换工作目录",
+    "acpWorkdirChangeDescription": "切换工作目录将重置当前会话。历史消息仍会保留显示，但新的对话将从新目录开始。",
+    "acpWorkdirChangeConfirm": "确认切换",
+    "acpWorkdirChangeCancel": "取消",
     "acpMode": "模式",
     "acpModeTooltip": "当前模式：{mode}",
     "agentWorkspaceTooltip": "设置 Agent 工作目录",
@@ -94,7 +98,6 @@
   },
   "mode": {
     "current": "当前模式：{mode}",
-    "chat": "聊天",
     "agent": "Agent",
     "acpAgent": "ACP Agent"
   },

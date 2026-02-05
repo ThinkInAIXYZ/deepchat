@@ -13,7 +13,7 @@ import type { ResourceListEntry, PromptListEntry } from '@shared/presenter'
 import type { CategorizedData } from '../../editor/mention/suggestion'
 
 // === Composables ===
-import { usePresenter } from '@/composables/usePresenter'
+import { useFileAdapter } from '@/composables/file/useFileAdapter'
 
 // === Stores ===
 import { useMcpStore } from '@/stores/mcp'
@@ -33,7 +33,7 @@ export function usePromptInputEditor(
   clearHistoryPlaceholder: () => void
 ) {
   // === Presenters ===
-  const filePresenter = usePresenter('filePresenter')
+  const fileAdapter = useFileAdapter()
 
   // === Stores ===
   const mcpStore = useMcpStore()
@@ -86,13 +86,13 @@ export function usePromptInputEditor(
                       type: mcpEntryResult.mimeType
                     }).arrayBuffer()
 
-                    const tempFilePath = await filePresenter.writeTemp({
+                    const tempFilePath = await fileAdapter.writeTemp({
                       name: mcpEntry.name ?? 'temp_resource',
                       content: arrayBuffer
                     })
 
-                    const mimeType = await filePresenter.getMimeType(tempFilePath)
-                    const fileInfo: MessageFile = await filePresenter.prepareFile(
+                    const mimeType = await fileAdapter.getMimeType(tempFilePath)
+                    const fileInfo: MessageFile = await fileAdapter.prepareFile(
                       tempFilePath,
                       mimeType
                     )

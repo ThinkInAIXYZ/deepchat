@@ -102,11 +102,12 @@ import MessageContent from './MessageContent.vue'
 import MessageTextContent from './MessageTextContent.vue'
 import { useChatStore } from '@/stores/chat'
 import { usePresenter } from '@/composables/usePresenter'
+import { useConversationCore } from '@/composables/chat/useConversationCore'
 import { ref, watch, onMounted, nextTick, onBeforeUnmount } from 'vue'
 
 const chatStore = useChatStore()
 const windowPresenter = usePresenter('windowPresenter')
-const sessionPresenter = usePresenter('sessionPresenter')
+const conversationCore = useConversationCore()
 
 const props = defineProps<{
   message: UserMessage
@@ -176,7 +177,7 @@ const saveEdit = async () => {
       newContent.text = editedText.value
     }
     // Update the message in the database using editMessage method
-    await sessionPresenter.editMessage(props.message.id, JSON.stringify(newContent))
+    await conversationCore.editMessage(props.message.id, JSON.stringify(newContent))
 
     // Emit retry event for MessageItemAssistant to handle
     emit('retry')

@@ -29,7 +29,6 @@ export type {
   MESSAGE_STATUS,
   MESSAGE_ROLE,
   MESSAGE_METADATA,
-  SearchEngineTemplate,
   SearchResult
 } from './thread.presenter'
 
@@ -45,9 +44,6 @@ export type {
   CreateChildSessionParams,
   ISessionPresenter
 } from './session.presenter'
-
-// Search types
-export type { ISearchPresenter } from './search.presenter'
 
 // Exporter types
 export type { IConversationExporter, NowledgeMemConfig } from './exporter.presenter'
@@ -70,6 +66,41 @@ export type { IToolPresenter } from './tool.presenter'
 
 // Agent Presenter types
 export type { IAgentPresenter } from './agent.presenter'
+
+// Agentic Unified Presenter types
+export type {
+  IAgenticPresenter,
+  SessionInfo,
+  MessageContent,
+  SessionConfig,
+  LoadContext,
+  AgenticEventType,
+  SessionCreatedEvent,
+  SessionReadyEvent,
+  SessionUpdatedEvent,
+  SessionClosedEvent,
+  MessageDeltaEvent,
+  MessageBlockEvent,
+  MessageEndEvent,
+  ToolStartEvent,
+  ToolRunningEvent,
+  ToolEndEvent,
+  StatusChangedEvent,
+  AgenticErrorEvent,
+  ToolPermissionRequiredEvent,
+  ToolPermissionGrantedEvent,
+  ToolPermissionDeniedEvent,
+  PermissionRequestPayload,
+  AgenticEventEmitter
+} from './agentic.presenter'
+
+// ACP Presenter types
+export type {
+  IAcpPresenter,
+  AcpSessionInfo,
+  AcpPromptInput,
+  AcpPermissionResponse
+} from './acp.presenter'
 
 // Re-export legacy types temporarily for compatibility
 export * from './legacy.presenters'

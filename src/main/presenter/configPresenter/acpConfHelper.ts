@@ -13,7 +13,14 @@ import { McpConfHelper } from './mcpConfHelper'
 const ACP_STORE_VERSION = '2'
 const DEFAULT_PROFILE_NAME = 'Default'
 
-const BUILTIN_ORDER: AcpBuiltinAgentId[] = ['kimi-cli', 'claude-code-acp', 'codex-acp']
+const BUILTIN_ORDER: AcpBuiltinAgentId[] = [
+  'kimi-cli',
+  'claude-code-acp',
+  'codex-acp',
+  'opencode',
+  'gemini-cli',
+  'qwen-code'
+]
 
 interface BuiltinTemplate {
   name: string
@@ -31,7 +38,7 @@ const BUILTIN_TEMPLATES: Record<AcpBuiltinAgentId, BuiltinTemplate> = {
     })
   },
   'claude-code-acp': {
-    name: 'Claude Code ACP',
+    name: 'Claude Code',
     defaultProfile: () => ({
       name: DEFAULT_PROFILE_NAME,
       command: 'npx',
@@ -40,11 +47,38 @@ const BUILTIN_TEMPLATES: Record<AcpBuiltinAgentId, BuiltinTemplate> = {
     })
   },
   'codex-acp': {
-    name: 'Codex CLI ACP',
+    name: 'Codex',
     defaultProfile: () => ({
       name: DEFAULT_PROFILE_NAME,
       command: 'npx',
       args: ['-y', '@zed-industries/codex-acp'],
+      env: {}
+    })
+  },
+  opencode: {
+    name: 'OpenCode',
+    defaultProfile: () => ({
+      name: DEFAULT_PROFILE_NAME,
+      command: 'opencode',
+      args: ['acp'],
+      env: {}
+    })
+  },
+  'gemini-cli': {
+    name: 'Gemini CLI',
+    defaultProfile: () => ({
+      name: DEFAULT_PROFILE_NAME,
+      command: 'gemini',
+      args: ['--experimental-acp'],
+      env: {}
+    })
+  },
+  'qwen-code': {
+    name: 'Qwen Code',
+    defaultProfile: () => ({
+      name: DEFAULT_PROFILE_NAME,
+      command: 'qwen',
+      args: ['--acp'],
       env: {}
     })
   }

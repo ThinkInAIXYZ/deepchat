@@ -1,6 +1,6 @@
 import path from 'path'
 import { DialogPresenter } from './dialogPresenter/index'
-import { ipcMain, IpcMainInvokeEvent, app } from 'electron'
+import { ipcMain, IpcMainInvokeEvent, app, BrowserWindow } from 'electron'
 import { WindowPresenter } from './windowPresenter'
 import { ShortcutPresenter } from './shortcutPresenter'
 import {
@@ -28,7 +28,9 @@ import {
   IToolPresenter,
   IYoBrowserPresenter,
   ISkillPresenter,
-  ISkillSyncPresenter
+  ISkillSyncPresenter,
+  IAcpPresenter,
+  IAgenticPresenter
 } from '@shared/presenter'
 import { eventBus } from '@/eventbus'
 import { LLMProviderPresenter } from './llmProviderPresenter'
@@ -57,10 +59,11 @@ import {
 } from './permission'
 import { AgentPresenter } from './agentPresenter'
 import { SessionManager } from './agentPresenter/session/sessionManager'
-import { SearchPresenter } from './searchPresenter'
 import { ConversationExporterService } from './exporter'
 import { SkillPresenter } from './skillPresenter'
 import { SkillSyncPresenter } from './skillSyncPresenter'
+import { acpPresenter } from './acpPresenter'
+import { agenticPresenter } from './agenticPresenter'
 
 // IPC调用上下文接口
 interface IPCCallContext {
@@ -85,7 +88,6 @@ export class Presenter implements IPresenter {
   llmproviderPresenter: ILlmProviderPresenter
   configPresenter: IConfigPresenter
   sessionPresenter: ISessionPresenter
-  searchPresenter: SearchPresenter
   exporter: IConversationExporter
   agentPresenter: IAgentPresenter & ISessionPresenter
   sessionManager: SessionManager
@@ -109,6 +111,8 @@ export class Presenter implements IPresenter {
   lifecycleManager: ILifecycleManager
   skillPresenter: ISkillPresenter
   skillSyncPresenter: ISkillSyncPresenter
+  acpPresenter: IAcpPresenter
+  agenticPresenter: IAgenticPresenter
   filePermissionService: FilePermissionService
   settingsPermissionService: SettingsPermissionService
 
@@ -123,17 +127,12 @@ export class Presenter implements IPresenter {
     // 初始化各个 Presenter 实例及其依赖
     this.windowPresenter = new WindowPresenter(this.configPresenter)
     this.tabPresenter = new TabPresenter(this.windowPresenter)
-    this.llmproviderPresenter = new LLMProviderPresenter(this.configPresenter, this.sqlitePresenter)
+    this.llmproviderPresenter = new LLMProviderPresenter(this.configPresenter)
     const commandPermissionHandler = new CommandPermissionService()
     this.filePermissionService = new FilePermissionService()
     this.settingsPermissionService = new SettingsPermissionService()
     const messageManager = new MessageManager(this.sqlitePresenter)
     this.devicePresenter = new DevicePresenter()
-    this.searchPresenter = new SearchPresenter({
-      configPresenter: this.configPresenter,
-      windowPresenter: this.windowPresenter,
-      llmProviderPresenter: this.llmproviderPresenter
-    })
     this.exporter = new ConversationExporterService({
       sqlitePresenter: this.sqlitePresenter,
       configPresenter: this.configPresenter
@@ -156,7 +155,6 @@ export class Presenter implements IPresenter {
       sqlitePresenter: this.sqlitePresenter,
       llmProviderPresenter: this.llmproviderPresenter,
       configPresenter: this.configPresenter,
-      searchPresenter: this.searchPresenter,
       commandPermissionService: commandPermissionHandler,
       messageManager
     }) as unknown as IAgentPresenter & ISessionPresenter
@@ -197,6 +195,12 @@ export class Presenter implements IPresenter {
 
     // Initialize Skill Sync presenter
     this.skillSyncPresenter = new SkillSyncPresenter(this.skillPresenter, this.configPresenter)
+
+    // Initialize ACP presenter
+    this.acpPresenter = acpPresenter
+
+    // Initialize Agentic presenter (unified interface for all agent types)
+    this.agenticPresenter = agenticPresenter
 
     this.setupEventBus() // 设置事件总线监听
   }
@@ -359,8 +363,21 @@ ipcMain.handle(
     try {
       // 构建调用上下文
       const webContentsId = event.sender.id
-      const tabId = presenter.tabPresenter.getTabIdByWebContentsId(webContentsId)
-      const windowId = presenter.tabPresenter.getWindowIdByWebContentsId(webContentsId)
+
+      // Try TabPresenter mapping first (for browser window WebContentsView tabs)
+      let tabId = presenter.tabPresenter.getTabIdByWebContentsId(webContentsId)
+      let windowId = presenter.tabPresenter.getWindowIdByWebContentsId(webContentsId)
+
+      // Fallback: For chat windows with single WebContents architecture,
+      // get windowId directly from BrowserWindow (no tab routing needed)
+      if (windowId === undefined) {
+        const browserWindow = BrowserWindow.fromWebContents(event.sender)
+        if (browserWindow && !browserWindow.isDestroyed()) {
+          windowId = browserWindow.id
+          // For single WebContents windows, tabId is not applicable
+          tabId = undefined
+        }
+      }
 
       const context: IPCCallContext = {
         tabId,
@@ -403,11 +420,19 @@ ipcMain.handle(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       e: any
     ) {
-      // 尝试获取调用上下文以改进错误日志
+      // Try to get context for improved error logging
       const webContentsId = event.sender.id
-      const tabId = presenter.tabPresenter.getTabIdByWebContentsId(webContentsId)
+      let windowId = presenter.tabPresenter.getWindowIdByWebContentsId(webContentsId)
 
-      console.error(`[IPC Error] Tab:${tabId || 'unknown'} ${name}.${method}:`, e)
+      // Fallback for single WebContents windows
+      if (windowId === undefined) {
+        const browserWindow = BrowserWindow.fromWebContents(event.sender)
+        if (browserWindow && !browserWindow.isDestroyed()) {
+          windowId = browserWindow.id
+        }
+      }
+
+      console.error(`[IPC Error] Window:${windowId || 'unknown'} ${name}.${method}:`, e)
       return { error: e.message || String(e) }
     }
   }

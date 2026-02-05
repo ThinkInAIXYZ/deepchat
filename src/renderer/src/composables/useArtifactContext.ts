@@ -7,17 +7,17 @@ import { ref, computed, watch } from 'vue'
 
 /**
  * Generate context key for artifact tracking
- * Combines thread ID, message ID, and artifact ID for unique identification
+ * Combines session ID, message ID, and artifact ID for unique identification
  */
 const getArtifactContextKey = (
   artifact: ArtifactState | null,
-  threadId: string | null,
+  sessionId: string | null,
   messageId: string | null
 ): string | null => {
   if (!artifact) return null
 
-  if (threadId && messageId) {
-    return `${threadId}:${messageId}:${artifact.id}`
+  if (sessionId && messageId) {
+    return `${sessionId}:${messageId}:${artifact.id}`
   }
 
   return artifact.id
@@ -29,11 +29,11 @@ const getArtifactContextKey = (
  * Features:
  * - Unique context identification
  * - New artifact detection
- * - Thread and message association
+ * - Session and message association
  */
 export function useArtifactContext(
   artifact: Ref<ArtifactState | null>,
-  threadId: Ref<string | null>,
+  sessionId: Ref<string | null>,
   messageId: Ref<string | null>
 ) {
   // === Local State ===
@@ -41,7 +41,7 @@ export function useArtifactContext(
 
   // Computed context key that automatically updates when any dependency changes
   const activeArtifactContext = computed(() =>
-    getArtifactContextKey(artifact.value, threadId.value, messageId.value)
+    getArtifactContextKey(artifact.value, sessionId.value, messageId.value)
   )
 
   // === Lifecycle Hooks ===

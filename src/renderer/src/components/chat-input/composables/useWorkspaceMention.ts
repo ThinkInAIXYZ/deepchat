@@ -1,22 +1,18 @@
 import { computed, ref, watch, type Ref } from 'vue'
 import { useDebounceFn } from '@vueuse/core'
-import { usePresenter } from '@/composables/usePresenter'
+import { useWorkspaceAdapter } from '@/composables/workspace/useWorkspaceAdapter'
 import type { WorkspaceFileNode } from '@shared/presenter'
 import type { CategorizedData } from '../../editor/mention/suggestion'
 
 export function useWorkspaceMention(options: {
   workspacePath: Ref<string | null>
-  chatMode: Ref<'chat' | 'agent' | 'acp agent'>
   conversationId: Ref<string | null>
 }) {
-  const workspacePresenter = usePresenter('workspacePresenter')
+  const workspaceAdapter = useWorkspaceAdapter()
   const workspaceFileResults = ref<CategorizedData[]>([])
 
   const isEnabled = computed(() => {
-    const hasPath = !!options.workspacePath.value
-    const isAgentMode = options.chatMode.value === 'agent' || options.chatMode.value === 'acp agent'
-    const enabled = hasPath && isAgentMode
-    return enabled
+    return !!options.workspacePath.value
   })
 
   const toDisplayPath = (filePath: string) => {
@@ -59,13 +55,9 @@ export function useWorkspaceMention(options: {
     const searchQuery = trimmed || '**/*'
 
     try {
-      if (options.chatMode.value === 'acp agent') {
-        await workspacePresenter.registerWorkdir(options.workspacePath.value)
-      } else {
-        await workspacePresenter.registerWorkspace(options.workspacePath.value)
-      }
+      await workspaceAdapter.registerWorkspace(options.workspacePath.value)
       const results =
-        (await workspacePresenter.searchFiles(options.workspacePath.value, searchQuery)) ?? []
+        (await workspaceAdapter.searchFiles(options.workspacePath.value, searchQuery)) ?? []
       workspaceFileResults.value = mapResults(results)
     } catch (error) {
       console.error('[WorkspaceMention] Failed to search workspace files:', error)

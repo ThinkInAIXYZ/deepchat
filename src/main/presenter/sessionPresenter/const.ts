@@ -1,13 +1,9 @@
 import type { CONVERSATION_SETTINGS } from '@shared/presenter'
 
+// Phase 6: Simplified default settings - only essential fields
+// Runtime configuration (temperature, contextLength, etc.) comes from agent's SessionInfo
 export const DEFAULT_SETTINGS: CONVERSATION_SETTINGS = {
-  systemPrompt: '',
-  temperature: 0.7,
-  contextLength: 12800,
-  maxTokens: 8192,
   providerId: 'deepseek',
   modelId: 'deepseek-chat',
-  artifacts: 0,
-  acpWorkdirMap: {},
-  activeSkills: []
+  agentWorkspacePath: null
 }

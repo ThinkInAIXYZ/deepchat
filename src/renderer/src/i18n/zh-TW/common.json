@@ -47,10 +47,6 @@
   "resetData": "重設資料",
   "language": "語言",
   "languageSelect": "選擇語言",
-  "searchEngine": "搜尋引擎",
-  "searchEngineSelect": "選擇搜尋引擎",
-  "searchPreview": "搜尋預覽",
-  "searchAssistantModel": "助手模型",
   "selectModel": "選擇模型",
   "proxyMode": "代理伺服器模式",
   "proxyModeSelect": "選擇代理伺服器模式",
@@ -96,5 +92,6 @@
     "enterUrlDescription": "在上方地址欄輸入網址以訪問網站",
     "enterUrlToStart": "輸入網址開始訪問",
     "name": "Yo Browser"
-  }
+  },
+  "moreSettings": "更多設定"
 }

@@ -1,7 +1,5 @@
 <template>
-  <aside
-    class="workspace box-border flex h-full min-h-[320px] w-[228px] flex-col rounded-br-2xl border-l border-black/5 bg-background shadow-sm transition-all dark:border-white/10"
-  >
+  <aside class="workspace box-border flex h-full flex-col transition-all dark:border-white/10">
     <!-- Header -->
     <header class="flex items-center justify-between px-4 py-3">
       <div class="flex items-center gap-2">
@@ -42,8 +40,7 @@ import { computed } from 'vue'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 import { useWorkspaceStore } from '@/stores/workspace'
-import { useYoBrowserStore } from '@/stores/yoBrowser'
-import { useChatMode } from '@/components/chat-input/composables/useChatMode'
+import { useYoBrowserStoreLifecycle } from '@/composables/useYoBrowserStoreLifecycle'
 import WorkspacePlan from './WorkspacePlan.vue'
 import WorkspaceFiles from './WorkspaceFiles.vue'
 import WorkspaceTerminal from './WorkspaceTerminal.vue'
@@ -51,11 +48,8 @@ import WorkspaceBrowserTabs from './WorkspaceBrowserTabs.vue'
 
 const { t } = useI18n()
 const store = useWorkspaceStore()
-const yoBrowserStore = useYoBrowserStore()
-const chatMode = useChatMode()
-const showBrowserTabs = computed(
-  () => chatMode.currentMode.value === 'agent' && yoBrowserStore.tabCount > 0
-)
+const yoBrowserStore = useYoBrowserStoreLifecycle()
+const showBrowserTabs = computed(() => yoBrowserStore.tabCount > 0)
 
 const i18nPrefix = computed(() => 'chat.workspace')
 const titleKey = computed(() => `${i18nPrefix.value}.title`)

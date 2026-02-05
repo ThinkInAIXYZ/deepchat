@@ -11,7 +11,6 @@ vi.mock('electron', () => ({
 const baseSettings = {
   providerId: 'provider-1',
   modelId: 'model-1',
-  chatMode: 'chat' as const,
   enabledMcpTools: [],
   acpWorkdirMap: {},
   agentWorkspacePath: null
@@ -31,7 +30,6 @@ const createManager = (conversation: ReturnType<typeof createConversation>) => {
     updateConversationSettings: vi.fn().mockResolvedValue(undefined)
   } as any
   const configPresenter = {
-    getSetting: vi.fn().mockReturnValue('chat'),
     getModelDefaultConfig: vi.fn().mockReturnValue({
       maxTokens: 0,
       contextLength: 0,
@@ -50,50 +48,27 @@ const createManager = (conversation: ReturnType<typeof createConversation>) => {
 }
 
 describe('SessionManager', () => {
-  it('returns chat mode without workspace when conversation is chat', async () => {
-    const conversation = createConversation({ chatMode: 'chat' })
-    const { manager } = createManager(conversation)
-
-    const context = await manager.resolveWorkspaceContext(
-      conversation.id,
-      conversation.settings.modelId
-    )
-
-    expect(context.chatMode).toBe('chat')
-    expect(context.agentWorkspacePath).toBeNull()
-  })
-
-  it('generates and persists workspace path for agent mode', async () => {
-    const conversation = createConversation({ chatMode: 'agent', agentWorkspacePath: null })
+  it('generates and persists workspace path when not set', async () => {
+    const conversation = createConversation({ agentWorkspacePath: null })
     const { manager, sessionPresenter } = createManager(conversation)
 
-    const context = await manager.resolveWorkspaceContext(
-      conversation.id,
-      conversation.settings.modelId
-    )
+    const context = await manager.resolveWorkspaceContext(conversation.id)
     const expected = path.join('C:\\\\temp', 'deepchat-agent', 'workspaces', conversation.id)
 
-    expect(context.chatMode).toBe('agent')
     expect(context.agentWorkspacePath).toBe(expected)
     expect(sessionPresenter.updateConversationSettings).toHaveBeenCalledWith(conversation.id, {
       agentWorkspacePath: expected
     })
   })
 
-  it('uses ACP workdir map for acp agent mode', async () => {
-    const conversation = createConversation({
-      chatMode: 'acp agent',
-      acpWorkdirMap: { 'model-1': 'C:\\\\acp-workdir' }
-    })
+  it('uses existing workspace path when already set', async () => {
+    const existingPath = 'C:\\\\existing-workspace'
+    const conversation = createConversation({ agentWorkspacePath: existingPath })
     const { manager, sessionPresenter } = createManager(conversation)
 
-    const context = await manager.resolveWorkspaceContext(
-      conversation.id,
-      conversation.settings.modelId
-    )
+    const context = await manager.resolveWorkspaceContext(conversation.id)
 
-    expect(context.chatMode).toBe('acp agent')
-    expect(context.agentWorkspacePath).toBe('C:\\\\acp-workdir')
+    expect(context.agentWorkspacePath).toBe(existingPath)
     expect(sessionPresenter.updateConversationSettings).not.toHaveBeenCalled()
   })
 })

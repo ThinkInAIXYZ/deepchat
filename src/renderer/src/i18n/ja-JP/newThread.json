@@ -1,4 +1,42 @@
 {
   "greeting": "こんにちは",
-  "prompt": "今日は何を聞きたいですか？"
+  "prompt": "今日は何を聞きたいですか？",
+  "homepage": {
+    "inputPlaceholder": "ここにメッセージを入力してください...",
+    "selectModel": "モデルを選択",
+    "acpAgents": {
+      "title": "AIエージェントで開始",
+      "description": "専門的なコーディングセッションを開始するエージェントを選択",
+      "empty": "利用可能なエージェントがありません。設定でエージェントを有効にしてください。",
+      "builtin": "組み込み",
+      "mcpEnabled": "MCPツール",
+      "defaultDescription": "プロフェッショナルAIコーディングアシスタント",
+      "customAgentDescription": "カスタムエージェント: {name}",
+      "descriptions": {
+        "claude-code": "Claude Code - 汎用コーディングアシスタント",
+        "gemini-cli": "Gemini CLI - Googleコーディングアシスタント",
+        "qwen-code": "Qwen Code - Alibaba Cloudコーディングアシスタント"
+      }
+    },
+    "acpConfig": {
+      "title": "{name}を設定",
+      "description": "このエージェントのワークスペースと設定をセットアップ",
+      "workdir": {
+        "label": "ワークスペースディレクトリ",
+        "placeholder": "ディレクトリが選択されていません",
+        "select": "選択",
+        "hint": "エージェントが作業するディレクトリを選択"
+      },
+      "model": {
+        "label": "モデル",
+        "placeholder": "モデルを選択"
+      },
+      "mode": {
+        "label": "モード",
+        "placeholder": "モードを選択"
+      },
+      "loading": "設定を読み込み中...",
+      "start": "セッションを開始"
+    }
+  }
 }

@@ -20,18 +20,29 @@
       <div
         class="border-x border-b border-window-inner-border rounded-b-[10px] absolute z-10 top-0 left-0 bottom-0 right-0 pointer-events-none"
       ></div>
-      <div class="w-52 h-full border-r border-border p-4 space-y-1 shrink-0 overflow-y-auto">
+      <div class="w-52 h-full border-r border-border p-4 shrink-0 overflow-y-auto">
         <div
-          v-for="setting in settings"
-          :key="setting.name"
-          :class="[
-            'flex flex-row items-center hover:bg-accent gap-2 rounded-lg p-2 cursor-pointer',
-            route.name === setting.name ? 'bg-accent' : ''
-          ]"
-          @click="handleClick(setting.path)"
+          v-for="(group, groupIndex) in settingsGroups"
+          :key="group.key"
+          :class="[groupIndex === 0 ? '' : 'mt-4']"
         >
-          <Icon :icon="setting.icon" class="w-4 h-4 text-muted-foreground" />
-          <span class="text-sm font-medium">{{ t(setting.title) }}</span>
+          <div class="px-2 text-xs font-semibold uppercase text-muted-foreground tracking-wide">
+            {{ t(group.titleKey) }}
+          </div>
+          <div class="mt-2 space-y-1">
+            <div
+              v-for="setting in group.items"
+              :key="setting.name"
+              :class="[
+                'flex flex-row items-center hover:bg-accent gap-2 rounded-lg p-2 cursor-pointer',
+                route.name === setting.name ? 'bg-accent' : ''
+              ]"
+              @click="handleClick(setting.path)"
+            >
+              <Icon :icon="setting.icon" class="w-4 h-4 text-muted-foreground" />
+              <span class="text-sm font-medium">{{ t(setting.title) }}</span>
+            </div>
+          </div>
         </div>
       </div>
       <RouterView />
@@ -53,6 +64,7 @@
 import { Icon } from '@iconify/vue'
 import { useRouter, useRoute, RouterView } from 'vue-router'
 import { onMounted, onBeforeUnmount, Ref, ref, watch, computed } from 'vue'
+import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import { useTitle } from '@vueuse/core'
 import { usePresenter } from '../src/composables/usePresenter'
@@ -60,24 +72,22 @@ import CloseIcon from './icons/CloseIcon.vue'
 import { useUiSettingsStore } from '../src/stores/uiSettingsStore'
 import { useLanguageStore } from '../src/stores/language'
 import { useModelCheckStore } from '../src/stores/modelCheck'
+import { useWindowStoreLifecycle } from '../src/composables/useWindowStoreLifecycle'
 import { Button } from '@shadcn/components/ui/button'
 import ModelCheckDialog from '@/components/settings/ModelCheckDialog.vue'
-import { useDeviceVersion } from '../src/composables/useDeviceVersion'
 import { Toaster } from '@shadcn/components/ui/sonner'
 import 'vue-sonner/style.css'
-import { NOTIFICATION_EVENTS, SETTINGS_EVENTS } from '@/events'
-import { useToast } from '@/components/use-toast'
+import { useNotificationAdapter } from '@/composables/notifications/useNotificationAdapter'
+import { useNotificationToasts } from '@/composables/notifications/useNotificationToasts'
+import { SETTINGS_EVENTS } from '@/events'
 import { useThemeStore } from '@/stores/theme'
 import { useProviderStore } from '@/stores/providerStore'
 import { useModelStore } from '@/stores/modelStore'
 import { useOllamaStore } from '@/stores/ollamaStore'
-import { useSearchAssistantStore } from '@/stores/searchAssistantStore'
-import { useSearchEngineStore } from '@/stores/searchEngineStore'
 import { useMcpStore } from '@/stores/mcp'
 import { useMcpInstallDeeplinkHandler } from '../src/lib/storeInitializer'
 import { useFontManager } from '../src/composables/useFontManager'
 
-const devicePresenter = usePresenter('devicePresenter')
 const windowPresenter = usePresenter('windowPresenter')
 const configPresenter = usePresenter('configPresenter')
 
@@ -88,31 +98,28 @@ setupFontListener()
 
 const languageStore = useLanguageStore()
 const modelCheckStore = useModelCheckStore()
-const { toast } = useToast()
+const windowStore = useWindowStoreLifecycle()
+const { isMacOS, isWinMacOS } = storeToRefs(windowStore)
+const { showErrorToast } = useNotificationToasts()
+const notificationAdapter = useNotificationAdapter()
 const themeStore = useThemeStore()
 const providerStore = useProviderStore()
 const modelStore = useModelStore()
 const ollamaStore = useOllamaStore()
-const searchAssistantStore = useSearchAssistantStore()
-const searchEngineStore = useSearchEngineStore()
 const mcpStore = useMcpStore()
 const { setup: setupMcpDeeplink, cleanup: cleanupMcpDeeplink } = useMcpInstallDeeplinkHandler()
 // Register MCP deeplink listener immediately to avoid race with incoming IPC
 setupMcpDeeplink()
 
-const errorQueue = ref<Array<{ id: string; title: string; message: string; type: string }>>([])
-const currentErrorId = ref<string | null>(null)
-const errorDisplayTimer = ref<number | null>(null)
+let cleanupErrorNotifications: (() => void) | null = null
 const toasterTheme = computed(() =>
   themeStore.themeMode === 'system' ? (themeStore.isDark ? 'dark' : 'light') : themeStore.themeMode
 )
-
-// Detect platform to apply proper styling
-const { isMacOS, isWinMacOS } = useDeviceVersion()
 const { t, locale } = useI18n()
 const router = useRouter()
 const route = useRoute()
 const title = useTitle()
+
 const handleSettingsNavigate = async (
   _event: unknown,
   payload?: { routeName?: string; section?: string }
@@ -128,14 +135,50 @@ const handleSettingsNavigate = async (
 if (window?.electron?.ipcRenderer) {
   window.electron.ipcRenderer.on(SETTINGS_EVENTS.NAVIGATE, handleSettingsNavigate)
 }
-const settings: Ref<
-  {
-    title: string
-    name: string
-    icon: string
-    path: string
-  }[]
-> = ref([])
+type SettingItem = {
+  title: string
+  name: string
+  icon: string
+  path: string
+  position: number
+  group: string
+  groupPosition: number
+  groupTitleKey: string
+}
+
+type SettingGroup = {
+  key: string
+  titleKey: string
+  position: number
+  items: SettingItem[]
+}
+
+const settingsItems: Ref<SettingItem[]> = ref([])
+const settingsGroups = computed<SettingGroup[]>(() => {
+  const grouped = new Map<string, SettingGroup>()
+
+  settingsItems.value.forEach((setting) => {
+    const existing = grouped.get(setting.group)
+    if (existing) {
+      existing.items.push(setting)
+      return
+    }
+
+    grouped.set(setting.group, {
+      key: setting.group,
+      titleKey: setting.groupTitleKey,
+      position: setting.groupPosition,
+      items: [setting]
+    })
+  })
+
+  const groups = Array.from(grouped.values())
+  groups.forEach((group) => {
+    group.items.sort((a, b) => a.position - b.position)
+  })
+
+  return groups.sort((a, b) => a.position - b.position)
+})
 
 // Get all routes and build settings navigation
 const routes = router.getRoutes()
@@ -147,6 +190,9 @@ onMounted(() => {
     icon: string
     path: string
     position: number
+    group: string
+    groupPosition: number
+    groupTitleKey: string
   }[] = []
   routes.forEach((route) => {
     // In settings window, all routes are top-level, no parent 'settings' route
@@ -157,15 +203,18 @@ onMounted(() => {
         icon: route.meta.icon as string,
         path: route.path,
         name: route.name as string,
-        position: (route.meta.position as number) || 999
+        position: (route.meta.position as number) || 999,
+        group: (route.meta.group as string) || 'system',
+        groupPosition: (route.meta.groupPosition as number) || 999,
+        groupTitleKey: (route.meta.groupTitleKey as string) || 'settings.groups.system'
       })
     }
     // Sort by position meta field, default to 999 if not present
     tempArray.sort((a, b) => {
       return a.position - b.position
     })
-    settings.value = tempArray
-    console.log('Final sorted settings routes:', settings.value)
+    settingsItems.value = tempArray
+    console.log('Final sorted settings routes:', settingsItems.value)
   })
 })
 
@@ -174,9 +223,6 @@ const initializeSettingsStores = async () => {
     await providerStore.initialize()
     await modelStore.initialize()
     await ollamaStore.initialize?.()
-    await searchAssistantStore.initOrUpdateSearchAssistantModel()
-    await searchEngineStore.refreshSearchEngines()
-    searchEngineStore.setupSearchEnginesListener()
   } catch (error) {
     console.error('Failed to initialize settings stores', error)
   }
@@ -185,7 +231,7 @@ const initializeSettingsStores = async () => {
 // Update title function
 const updateTitle = () => {
   const currentRoute = route.name as string
-  const currentSetting = settings.value.find((s) => s.name === currentRoute)
+  const currentSetting = settingsItems.value.find((s) => s.name === currentRoute)
   if (currentSetting) {
     title.value = t('routes.settings') + ' - ' + t(currentSetting.title)
   } else {
@@ -224,69 +270,8 @@ watch(
   }
 )
 
-const handleErrorClosed = () => {
-  currentErrorId.value = null
-
-  if (errorQueue.value.length > 0) {
-    const nextError = errorQueue.value.shift()
-    if (nextError) {
-      displayError(nextError)
-    }
-  } else if (errorDisplayTimer.value) {
-    clearTimeout(errorDisplayTimer.value)
-    errorDisplayTimer.value = null
-  }
-}
-
-const displayError = (error: { id: string; title: string; message: string; type: string }) => {
-  currentErrorId.value = error.id
-
-  const { dismiss } = toast({
-    title: error.title,
-    description: error.message,
-    variant: 'destructive',
-    onOpenChange: (open) => {
-      if (!open) {
-        handleErrorClosed()
-      }
-    }
-  })
-
-  if (errorDisplayTimer.value) {
-    clearTimeout(errorDisplayTimer.value)
-  }
-
-  errorDisplayTimer.value = window.setTimeout(() => {
-    dismiss()
-  }, 3000)
-}
-
-const showErrorToast = (error: { id: string; title: string; message: string; type: string }) => {
-  const exists = errorQueue.value.findIndex((item) => item.id === error.id)
-  if (exists !== -1) {
-    return
-  }
-
-  if (currentErrorId.value) {
-    if (errorQueue.value.length > 5) {
-      errorQueue.value.shift()
-    }
-    errorQueue.value.push(error)
-    return
-  }
-
-  displayError(error)
-}
-
 onMounted(async () => {
-  // Listen for window maximize/unmaximize events
-  devicePresenter.getDeviceInfo().then((deviceInfo: any) => {
-    isMacOS.value = deviceInfo.platform === 'darwin'
-  })
-
-  window.electron.ipcRenderer.on(NOTIFICATION_EVENTS.SHOW_ERROR, (_event, error) => {
-    showErrorToast(error)
-  })
+  cleanupErrorNotifications = notificationAdapter.bindErrorNotifications(showErrorToast)
 
   await uiSettingsStore.loadSettings()
 
@@ -342,12 +327,10 @@ const closeWindow = () => {
 }
 
 onBeforeUnmount(() => {
-  if (errorDisplayTimer.value) {
-    clearTimeout(errorDisplayTimer.value)
-    errorDisplayTimer.value = null
+  if (cleanupErrorNotifications) {
+    cleanupErrorNotifications()
+    cleanupErrorNotifications = null
   }
-
-  window.electron.ipcRenderer.removeAllListeners(NOTIFICATION_EVENTS.SHOW_ERROR)
   window.electron.ipcRenderer.removeListener(SETTINGS_EVENTS.NAVIGATE, handleSettingsNavigate)
   cleanupMcpDeeplink()
 })

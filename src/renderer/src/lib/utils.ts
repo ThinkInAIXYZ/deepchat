@@ -64,3 +64,41 @@ export function getMimeTypeIcon(mimeType: string) {
     return 'vscode-icons:default-file'
   }
 }
+
+/**
+ * 格式化上下文标签
+ * @param value 原始文本
+ * @returns 格式化后的标签
+ */
+export function formatContextLabel(value: string): string {
+  const normalized = value.trim().replace(/\s+/g, ' ')
+  if (!normalized) return 'context'
+  const maxLength = 48
+  if (normalized.length <= maxLength) return normalized
+  return `${normalized.slice(0, maxLength)}...`
+}
+
+/**
+ * 从消息中提取文本内容用于上下文
+ * @param message 消息对象
+ * @returns 提取的文本内容
+ */
+export function getMessageTextForContext(message: any | null): string {
+  if (!message) return ''
+  if (typeof message.content === 'string') {
+    return message.content
+  }
+  if (Array.isArray(message.content)) {
+    return message.content
+      .map((block) => (typeof block.content === 'string' ? block.content : ''))
+      .join('')
+  }
+  const userContent = message.content
+  if (userContent.text) {
+    return userContent.text
+  }
+  if (userContent.content && Array.isArray(userContent.content)) {
+    return userContent.content.map((block) => block.content || '').join('')
+  }
+  return ''
+}

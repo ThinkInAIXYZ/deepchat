@@ -57,10 +57,6 @@
   "invalidProxyUrl": "Invalid proxy URL, please enter a valid http/https URL",
   "disclaimer": "Disclaimer",
   "resetData": "Reset data",
-  "searchAssistantModel": "Assistant Model",
-  "searchEngine": "Search Engine",
-  "searchEngineSelect": "Select a search engine",
-  "searchPreview": "Search preview",
   "language": "language",
   "languageSelect": "Select a language",
   "selectModel": "Select a model",
@@ -96,5 +92,6 @@
     "enterUrlToStart": "Enter a URL to start browsing",
     "enterUrlDescription": "Type a URL in the address bar above to visit a website",
     "name": "Yo Browser"
-  }
+  },
+  "moreSettings": "More Settings"
 }

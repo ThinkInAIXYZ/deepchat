@@ -7,7 +7,6 @@ import { StreamState } from './loopState'
 import { RateLimitManager } from '@/presenter/llmProviderPresenter/managers/rateLimitManager'
 import { ToolCallProcessor } from './toolCallProcessor'
 import { ToolPresenter } from '../../toolPresenter'
-import { getAgentFilteredTools } from '../../mcpPresenter/agentMcpFilter'
 
 interface AgentLoopHandlerOptions {
   configPresenter: IConfigPresenter
@@ -25,31 +24,16 @@ export class AgentLoopHandler {
   constructor(private readonly options: AgentLoopHandlerOptions) {
     this.toolCallProcessor = new ToolCallProcessor({
       getAllToolDefinitions: async (context) => {
-        // Get modelId from session
-        let modelId: string | undefined
-        if (context.conversationId) {
-          try {
-            const session = await presenter.sessionManager.getSession(context.conversationId)
-            modelId = session?.resolved.modelId
-          } catch {
-            // Ignore errors, modelId will be undefined
-          }
-        }
-
-        const { chatMode, agentWorkspacePath } = await this.resolveWorkspaceContext(
-          context.conversationId,
-          modelId
-        )
+        const { agentWorkspacePath } = await this.resolveWorkspaceContext(context.conversationId)
 
         const toolDefs = await this.getToolPresenter().getAllToolDefinitions({
           enabledMcpTools: context.enabledMcpTools,
-          chatMode,
           supportsVision: this.currentSupportsVision,
           agentWorkspacePath,
           conversationId: context.conversationId
         })
 
-        return await this.filterToolsForChatMode(toolDefs, chatMode, modelId)
+        return await this.filterToolsForChatMode(toolDefs)
       },
       callTool: async (request: MCPToolCall) => {
         return await this.getToolPresenter().callTool(request)
@@ -88,16 +72,14 @@ export class AgentLoopHandler {
   }
 
   /**
-   * Resolve workspace context (chatMode and agentWorkspacePath) for tool definitions
+   * Resolve workspace context (agentWorkspacePath) for tool definitions
    * @param conversationId Optional conversation ID
-   * @param modelId Optional model ID (required for acp agent mode)
    * @returns Resolved workspace context
    */
   private async resolveWorkspaceContext(
-    conversationId?: string,
-    modelId?: string
-  ): Promise<{ chatMode: 'chat' | 'agent' | 'acp agent'; agentWorkspacePath: string | null }> {
-    return presenter.sessionManager.resolveWorkspaceContext(conversationId, modelId)
+    conversationId?: string
+  ): Promise<{ agentWorkspacePath: string | null }> {
+    return presenter.sessionManager.resolveWorkspaceContext(conversationId)
   }
 
   private notifyWorkspaceFilesChanged(conversationId?: string): void {
@@ -116,28 +98,10 @@ export class AgentLoopHandler {
     )
   }
 
-  private isAgentToolDefinition(tool: { server?: { name: string } }): boolean {
-    const name = tool.server?.name
-    return Boolean(name && (name === 'yo-browser' || name.startsWith('agent-')))
-  }
-
   private async filterToolsForChatMode(
-    tools: Awaited<ReturnType<ToolPresenter['getAllToolDefinitions']>>,
-    chatMode: 'chat' | 'agent' | 'acp agent',
-    agentId?: string
+    tools: Awaited<ReturnType<ToolPresenter['getAllToolDefinitions']>>
   ): Promise<Awaited<ReturnType<ToolPresenter['getAllToolDefinitions']>>> {
-    if (chatMode !== 'acp agent') return tools
-    if (!agentId) return []
-
-    const agentTools = tools.filter((tool) => this.isAgentToolDefinition(tool))
-    const mcpTools = tools.filter((tool) => !this.isAgentToolDefinition(tool))
-    const filteredMcp = await getAgentFilteredTools(
-      agentId,
-      undefined,
-      mcpTools,
-      this.options.configPresenter
-    )
-    return [...filteredMcp, ...agentTools]
+    return tools
   }
 
   async *startStreamCompletion(
@@ -262,20 +226,16 @@ export class AgentLoopHandler {
         try {
           console.log(`[Agent Loop] Iteration ${toolCallCount + 1} for event: ${eventId}`)
           // Resolve workspace context
-          const { chatMode, agentWorkspacePath } = await this.resolveWorkspaceContext(
-            conversationId,
-            modelId
-          )
+          const { agentWorkspacePath } = await this.resolveWorkspaceContext(conversationId)
 
           // Get all tool definitions using ToolPresenter
           const toolDefs = await this.getToolPresenter().getAllToolDefinitions({
             enabledMcpTools,
-            chatMode,
             supportsVision: this.currentSupportsVision,
             agentWorkspacePath,
             conversationId
           })
-          const filteredToolDefs = await this.filterToolsForChatMode(toolDefs, chatMode, modelId)
+          const filteredToolDefs = await this.filterToolsForChatMode(toolDefs)
 
           const canExecute = this.options.rateLimitManager.canExecuteImmediately(providerId)
           if (!canExecute) {
@@ -413,54 +373,29 @@ export class AgentLoopHandler {
                   const serverIcons = currentToolChunks[chunk.tool_call_id].server_icons
                   const serverDescription = currentToolChunks[chunk.tool_call_id].server_description
 
-                  // For ACP provider, tool call execution is completed on agent side
-                  // The tool_call_arguments_complete contains the execution result
-                  // So we should immediately send 'end' event to mark it as successful
-                  if (providerId === 'acp') {
-                    // For ACP, tool_call_arguments_complete contains the execution result
-                    // Use it directly as the response
-                    yield {
-                      type: 'response',
-                      data: {
-                        eventId,
-                        tool_call: 'end',
-                        tool_call_id: chunk.tool_call_id,
-                        tool_call_name: toolCallName,
-                        tool_call_params: completeArgs,
-                        tool_call_response: completeArgs,
-                        tool_call_server_name: serverName,
-                        tool_call_server_icons: serverIcons,
-                        tool_call_server_description: serverDescription
-                      }
+                  // Add tool call to be executed by ToolCallProcessor
+                  currentToolCalls.push({
+                    id: chunk.tool_call_id,
+                    name: toolCallName,
+                    arguments: completeArgs
+                  })
+
+                  // Send final update event to ensure parameter completeness
+                  yield {
+                    type: 'response',
+                    data: {
+                      eventId,
+                      tool_call: 'update',
+                      tool_call_id: chunk.tool_call_id,
+                      tool_call_name: toolCallName,
+                      tool_call_params: completeArgs,
+                      tool_call_server_name: serverName,
+                      tool_call_server_icons: serverIcons,
+                      tool_call_server_description: serverDescription
                     }
-
-                    // Don't add to currentToolCalls for ACP - execution already completed
-                    delete currentToolChunks[chunk.tool_call_id]
-                  } else {
-                    // For non-ACP providers, tool call needs to be executed by ToolCallProcessor
-                    currentToolCalls.push({
-                      id: chunk.tool_call_id,
-                      name: toolCallName,
-                      arguments: completeArgs
-                    })
-
-                    // Send final update event to ensure parameter completeness
-                    yield {
-                      type: 'response',
-                      data: {
-                        eventId,
-                        tool_call: 'update',
-                        tool_call_id: chunk.tool_call_id,
-                        tool_call_name: toolCallName,
-                        tool_call_params: completeArgs,
-                        tool_call_server_name: serverName,
-                        tool_call_server_icons: serverIcons,
-                        tool_call_server_description: serverDescription
-                      }
-                    }
-
-                    delete currentToolChunks[chunk.tool_call_id]
                   }
+
+                  delete currentToolChunks[chunk.tool_call_id]
                 }
                 break
               case 'permission': {
@@ -693,11 +628,6 @@ export class AgentLoopHandler {
 
       this.options.activeStreams.delete(eventId)
       console.log('Agent loop finished for event:', eventId, 'User stopped:', userStop)
-
-      // Trigger ACP workspace file refresh (only for ACP provider)
-      if (providerId === 'acp') {
-        this.notifyWorkspaceFilesChanged(conversationId)
-      }
     }
   }
 }

@@ -57,10 +57,6 @@
   "invalidProxyUrl": "URL de proxy inválida, por favor insira uma URL http/https válida",
   "disclaimer": "Aviso Legal",
   "resetData": "Redefinir dados",
-  "searchAssistantModel": "Modelo de Assistente",
-  "searchEngine": "Mecanismo de Busca",
-  "searchEngineSelect": "Selecione um mecanismo de busca",
-  "searchPreview": "Visualização da busca",
   "language": "Idioma",
   "languageSelect": "Selecione um idioma",
   "selectModel": "Selecione um modelo",
@@ -96,5 +92,6 @@
     "enterUrlDescription": "Digite o URL na barra de endereço acima para acessar o site",
     "enterUrlToStart": "Digite o URL para começar a visitar",
     "name": "Seu navegador"
-  }
+  },
+  "moreSettings": "Mais configurações"
 }

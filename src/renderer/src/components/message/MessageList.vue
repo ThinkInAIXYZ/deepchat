@@ -75,11 +75,6 @@
       @bar-hover="minimap.handleHover"
       @bar-click="wrapScrollToMessage"
     />
-    <TraceDialog
-      :message-id="traceMessageId"
-      :agent-id="chatStore.getActiveThreadId()"
-      @close="traceMessageId = null"
-    />
   </div>
 </template>
 
@@ -98,7 +93,6 @@ import MessageItemPlaceholder from './MessageItemPlaceholder.vue'
 import MessageActionButtons from './MessageActionButtons.vue'
 import ReferencePreview from './ReferencePreview.vue'
 import MessageMinimap from './MessageMinimap.vue'
-import TraceDialog from '../trace/TraceDialog.vue'
 
 // === Composables ===
 import { useResizeObserver, useEventListener, useDebounceFn } from '@vueuse/core'
@@ -115,6 +109,7 @@ import { useReferenceStore } from '@/stores/reference'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import type { ParentSelection } from '@shared/presenter'
+import { useTraceDialogStore } from '@/stores/traceDialog'
 
 // === Props & Emits ===
 const props = defineProps<{
@@ -125,6 +120,7 @@ const props = defineProps<{
 const chatStore = useChatStore()
 const referenceStore = useReferenceStore()
 const workspaceStore = useWorkspaceStore()
+const traceDialog = useTraceDialogStore()
 const uiSettingsStore = useUiSettingsStore()
 
 // === Local State (需要先声明,因为 useMessageScroll 需要引用) ===
@@ -132,7 +128,6 @@ const dynamicScrollerRef = ref<InstanceType<typeof DynamicScroller> | null>(null
 const scrollAnchor = ref<HTMLDivElement>()
 const visible = ref(false)
 const shouldAutoFollow = ref(true)
-const traceMessageId = ref<string | null>(null)
 let highlightRefreshTimer: number | null = null
 
 const previousHeights = new Map<string, number>()
@@ -175,7 +170,7 @@ const minimapMessages = computed(() => {
     return {
       id: item.id,
       role: 'user',
-      conversationId: chatStore.getActiveThreadId() ?? '',
+      conversationId: chatStore.getActiveSessionId() ?? '',
       content: { text: '', files: [], links: [], think: false, search: false },
       timestamp: Date.now()
     } as unknown as Message
@@ -298,10 +293,9 @@ const getMessageSizeKey = (item: MessageListItem) => {
   return `message:${message.id}`
 }
 
-const getVariantSizeKey = (item: MessageListItem) => {
-  const message = item.message
-  if (!message || message.role !== 'assistant') return ''
-  return chatStore.selectedVariantsMap[message.id] ?? ''
+const getVariantSizeKey = (_item: MessageListItem) => {
+  // Variant selection has been removed in Phase 6 (chatConfig removal)
+  return ''
 }
 
 const getRenderingStateKey = (item: MessageListItem) => {
@@ -349,9 +343,9 @@ const handleCopyImage = async (
 
 const handleRetry = async (messageId?: string) => {
   if (!messageId) return
-  if (await chatStore.retryFromUserMessage(messageId)) {
-    scrollToBottom(true)
-  }
+  // Use retryMessage instead of retryFromUserMessage (Phase 6: chatConfig removal)
+  await chatStore.retryMessage(messageId)
+  scrollToBottom(true)
 }
 
 const getPlaceholderHeight = (messageId: string) => getMessageDomInfo(messageId)?.height
@@ -364,12 +358,12 @@ const getAnchorList = () => {
 
 // === Computed ===
 const showCancelButton = computed(() => {
-  return chatStore.generatingThreadIds.has(chatStore.getActiveThreadId() ?? '')
+  return chatStore.generatingSessionIds.has(chatStore.getActiveSessionId() ?? '')
 })
 
-// Show workspace button only in agent mode when workspace is closed
+// Show workspace button only when workspace is closed
 const showWorkspaceButton = computed(() => {
-  return workspaceStore.isAgentMode && !workspaceStore.isOpen
+  return !workspaceStore.isOpen
 })
 
 const handleOpenWorkspace = () => {
@@ -377,7 +371,7 @@ const handleOpenWorkspace = () => {
 }
 
 const handleTrace = (messageId: string) => {
-  traceMessageId.value = messageId
+  traceDialog.open(messageId, chatStore.getActiveSessionId())
 }
 
 const hashText = (value: string) => {
@@ -596,8 +590,8 @@ useEventListener(messagesContainer, 'click', handleHighlightClick)
 watch(
   () => [
     props.items.length,
-    chatStore.childThreadsByMessageId,
-    chatStore.chatConfig.selectedVariantsMap
+    chatStore.childThreadsByMessageId
+    // chatConfig.selectedVariantsMap removed in Phase 6
   ],
   () => {
     scheduleSelectionHighlightRefresh()

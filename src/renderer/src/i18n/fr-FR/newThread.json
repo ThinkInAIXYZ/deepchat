@@ -1,4 +1,42 @@
 {
   "greeting": "Bonjour",
-  "prompt": "Que souhaitez-vous demander aujourd'hui ?"
+  "prompt": "Que souhaitez-vous demander aujourd'hui ?",
+  "homepage": {
+    "inputPlaceholder": "Tapez votre message ici...",
+    "selectModel": "Sélectionner un modèle",
+    "acpAgents": {
+      "title": "Commencer avec un agent IA",
+      "description": "Sélectionnez un agent pour commencer une session de codage spécialisée",
+      "empty": "Aucun agent disponible. Activez les agents dans les paramètres.",
+      "builtin": "Intégré",
+      "mcpEnabled": "Outils MCP",
+      "defaultDescription": "Assistant de codage IA professionnel",
+      "customAgentDescription": "Agent personnalisé : {name}",
+      "descriptions": {
+        "claude-code": "Claude Code - Assistant de codage polyvalent",
+        "gemini-cli": "Gemini CLI - Assistant de codage Google",
+        "qwen-code": "Qwen Code - Assistant de codage Alibaba Cloud"
+      }
+    },
+    "acpConfig": {
+      "title": "Configurer {name}",
+      "description": "Configurez l'espace de travail et les préférences pour cet agent",
+      "workdir": {
+        "label": "Répertoire de travail",
+        "placeholder": "Aucun répertoire sélectionné",
+        "select": "Sélectionner",
+        "hint": "Choisissez le répertoire où l'agent travaillera"
+      },
+      "model": {
+        "label": "Modèle",
+        "placeholder": "Sélectionner un modèle"
+      },
+      "mode": {
+        "label": "Mode",
+        "placeholder": "Sélectionner un mode"
+      },
+      "loading": "Chargement de la configuration...",
+      "start": "Démarrer la session"
+    }
+  }
 }

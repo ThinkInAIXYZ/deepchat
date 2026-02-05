@@ -1,0 +1,141 @@
+file,domain,role,import_count,importers,import_key
+composables/acp/useAcpEventsAdapter.ts,acp,adapter,3,components/chat-input/composables/useAcpCommands.ts; components/chat-input/composables/useAcpMode.ts; components/chat-input/composables/useAcpSessionModel.ts,@/composables/acp/useAcpEventsAdapter
+composables/useArtifactCodeEditor.ts,artifact,composable,1,components/artifacts/ArtifactPanel.vue,@/composables/useArtifactCodeEditor
+composables/useArtifactContext.ts,artifact,composable,1,components/artifacts/ArtifactPanel.vue,@/composables/useArtifactContext
+composables/useArtifactExport.ts,artifact,composable,1,components/artifacts/ArtifactPanel.vue,@/composables/useArtifactExport
+composables/useArtifactViewMode.ts,artifact,composable,1,components/artifacts/ArtifactPanel.vue,@/composables/useArtifactViewMode
+composables/useArtifacts.ts,artifact,composable,2,components/artifacts/ToolCallPreview.vue; components/message/MessageBlockContent.vue,@/composables/useArtifacts
+stores/artifact.ts,artifact,store,10,components/SidePanel.vue; components/artifacts/ArtifactPanel.vue; components/artifacts/ArtifactPreview.vue; components/artifacts/CodeArtifact.vue; components/markdown/MarkdownRenderer.vue,@/stores/artifact
+composables/chat/useAcpRuntimeAdapter.ts,chat,adapter,3,components/chat-input/composables/useAcpMode.ts; components/chat-input/composables/useAcpSessionModel.ts; components/chat-input/composables/useAcpWorkdir.ts,@/composables/chat/useAcpRuntimeAdapter
+composables/chat/useChatAdapter.ts,chat,adapter,1,composables/chat/useChatStoreService.ts,@/composables/chat/useChatAdapter
+composables/chat/useExecutionAdapter.ts,chat,adapter,1,composables/chat/useChatStoreService.ts,@/composables/chat/useExecutionAdapter
+composables/chat/useExportAdapter.ts,chat,adapter,1,composables/chat/useThreadExport.ts,@/composables/chat/useExportAdapter
+composables/chat/useChatAudio.ts,chat,composable,1,composables/chat/useChatStoreService.ts,@/composables/chat/useChatAudio
+composables/chat/useConversationCore.ts,chat,composable,14,components/ThreadsView.vue; components/chat-input/composables/useAgentWorkspace.ts; components/markdown/MarkdownRenderer.vue; components/message/MessageBlockContent.vue; components/message/MessageItemUser.vue,@/composables/chat/useConversationCore
+composables/chat/useDeeplink.ts,chat,composable,1,composables/chat/useChatStoreService.ts,@/composables/chat/useDeeplink
+composables/chat/useMessageCache.ts,chat,composable,1,composables/chat/useChatStoreService.ts,@/composables/chat/useMessageCache
+composables/chat/useMessageStreaming.ts,chat,composable,1,composables/chat/useExecutionAdapter.ts,@/composables/chat/useMessageStreaming
+composables/chat/useThreadExport.ts,chat,composable,1,composables/chat/useChatStoreService.ts,@/composables/chat/useThreadExport
+composables/chat/useThreadManagement.ts,chat,composable,1,composables/chat/useChatStoreService.ts,@/composables/chat/useThreadManagement
+composables/chat/useVariantManagement.ts,chat,composable,1,composables/chat/useChatStoreService.ts,@/composables/chat/useVariantManagement
+composables/message/types.ts,chat,composable,0,,@/composables/message/types
+composables/message/useCleanDialog.ts,chat,composable,3,components/ChatLayout.vue; components/ThreadsView.vue; components/message/MessageList.vue,@/composables/message/useCleanDialog
+composables/message/useMessageCapture.ts,chat,composable,1,components/message/MessageList.vue,@/composables/message/useMessageCapture
+composables/message/useMessageMinimap.ts,chat,composable,1,components/message/MessageList.vue,@/composables/message/useMessageMinimap
+composables/message/useMessageScroll.ts,chat,composable,1,components/message/MessageList.vue,@/composables/message/useMessageScroll
+composables/useConversationNavigation.ts,chat,composable,2,App.vue; components/NewThread.vue,@/composables/useConversationNavigation
+composables/chat/useChatConfig.ts,chat,config,1,composables/chat/useChatStoreService.ts,@/composables/chat/useChatConfig
+composables/useChatConfigFields.ts,chat,config,1,components/ChatConfig.vue,@/composables/useChatConfigFields
+composables/chat/useChatEvents.ts,chat,events,1,composables/chat/useChatStoreService.ts,@/composables/chat/useChatEvents
+stores/chat.ts,chat,store,31,App.vue; components/ChatConfig.vue; components/ChatLayout.vue; components/McpToolsList.vue; components/ModelChooser.vue,@/stores/chat
+composables/chat/useChatStoreService.ts,chat,store-service,1,stores/chat.ts,@/composables/chat/useChatStoreService
+composables/config/useConfigEventsAdapter.ts,config,adapter,1,components/chat-input/composables/useChatMode.ts,@/composables/config/useConfigEventsAdapter
+composables/config/useSettingsConfigAdapter.ts,config,adapter,2,composables/settings/useShortcutKeyStoreService.ts; stores/uiSettingsStore.ts,@/composables/config/useSettingsConfigAdapter
+composables/dialog/useDialogAdapter.ts,dialog,adapter,1,composables/dialog/useDialogStoreService.ts,@/composables/dialog/useDialogAdapter
+composables/useDialogStoreLifecycle.ts,dialog,lifecycle,1,components/ui/MessageDialog.vue,@/composables/useDialogStoreLifecycle
+stores/dialog.ts,dialog,store,1,composables/useDialogStoreLifecycle.ts,@/stores/dialog
+stores/traceDialog.ts,dialog,store,2,components/dialogs/DialogRegistry.vue; components/message/MessageList.vue,@/stores/traceDialog
+composables/dialog/useDialogStoreService.ts,dialog,store-service,1,stores/dialog.ts,@/composables/dialog/useDialogStoreService
+composables/file/useFileAdapter.ts,file,adapter,2,components/chat-input/composables/usePromptInputEditor.ts; components/chat-input/composables/usePromptInputFiles.ts,@/composables/file/useFileAdapter
+composables/floating-button/useFloatingButtonAdapter.ts,floating-button,adapter,1,composables/floating-button/useFloatingButtonStoreService.ts,@/composables/floating-button/useFloatingButtonAdapter
+composables/useFloatingButtonStoreLifecycle.ts,floating-button,lifecycle,0,,@/composables/useFloatingButtonStoreLifecycle
+stores/floatingButton.ts,floating-button,store,1,composables/useFloatingButtonStoreLifecycle.ts,@/stores/floatingButton
+composables/floating-button/useFloatingButtonStoreService.ts,floating-button,store-service,1,stores/floatingButton.ts,@/composables/floating-button/useFloatingButtonStoreService
+composables/mcp/useMcpAdapter.ts,mcp,adapter,1,composables/mcp/useMcpStoreService.ts,@/composables/mcp/useMcpAdapter
+composables/mcp/useMcpEventsAdapter.ts,mcp,adapter,2,composables/mcp/useMcpSamplingStoreService.ts; composables/mcp/useMcpStoreService.ts,@/composables/mcp/useMcpEventsAdapter
+composables/mcp/useMcpSamplingAdapter.ts,mcp,adapter,1,composables/mcp/useMcpSamplingStoreService.ts,@/composables/mcp/useMcpSamplingAdapter
+composables/mcp/useMcpToolingAdapter.ts,mcp,adapter,1,composables/mcp/useMcpStoreService.ts,@/composables/mcp/useMcpToolingAdapter
+composables/mcp/mcpConfigSync.ts,mcp,config,1,composables/mcp/useMcpStoreService.ts,@/composables/mcp/mcpConfigSync
+composables/useMcpSamplingStoreLifecycle.ts,mcp,lifecycle,1,components/mcp/McpSamplingDialog.vue,@/composables/useMcpSamplingStoreLifecycle
+stores/mcp.ts,mcp,store,10,components/McpToolsList.vue; components/chat-input/composables/useAgentMcpData.ts; components/chat-input/composables/usePromptInputEditor.ts; components/mcp-config/components/McpPromptPanel.vue; components/mcp-config/components/McpResourceViewer.vue,@/stores/mcp
+stores/mcpSampling.ts,mcp,store,1,composables/useMcpSamplingStoreLifecycle.ts,@/stores/mcpSampling
+composables/mcp/useMcpSamplingStoreService.ts,mcp,store-service,1,stores/mcpSampling.ts,@/composables/mcp/useMcpSamplingStoreService
+composables/mcp/useMcpStoreService.ts,mcp,store-service,1,stores/mcp.ts,@/composables/mcp/useMcpStoreService
+composables/useFontManager.ts,misc,composable,0,,@/composables/useFontManager
+composables/useIpcMutation.ts,misc,composable,5,composables/mcp/useMcpStoreService.ts; composables/model/useModelStoreService.ts; composables/search/useSearchEngineStoreService.ts; composables/sync/useSyncStoreService.ts; stores/prompts.ts,@/composables/useIpcMutation
+composables/useIpcQuery.ts,misc,composable,5,composables/mcp/useMcpStoreService.ts; composables/provider/useProviderStoreService.ts; composables/search/useSearchEngineStoreService.ts; composables/sync/useSyncStoreService.ts; stores/prompts.ts,@/composables/useIpcQuery
+composables/usePageCapture.ts,misc,composable,2,components/artifacts/ArtifactPanel.vue; composables/message/useMessageCapture.ts,@/composables/usePageCapture
+composables/usePresenter.ts,misc,composable,56,components/ChatAppBar.vue; components/NewThread.vue; components/artifacts/ArtifactPanel.vue; components/artifacts/ArtifactThinking.vue; components/artifacts/SvgArtifact.vue,@/composables/usePresenter
+composables/useThinkingBudget.ts,misc,composable,1,components/ChatConfig.vue,@/composables/useThinkingBudget
+composables/useViewportSize.ts,misc,composable,1,components/artifacts/ArtifactPanel.vue,@/composables/useViewportSize
+stores/prompts.ts,misc,store,0,,@/stores/prompts
+composables/model/useAgentModelAdapter.ts,model,adapter,1,composables/model/useAgentModelStoreService.ts,@/composables/model/useAgentModelAdapter
+composables/model/useModelAdapter.ts,model,adapter,1,composables/model/useModelStoreService.ts,@/composables/model/useModelAdapter
+composables/model/useModelConfigAdapter.ts,model,adapter,1,composables/model/useModelConfigStoreService.ts,@/composables/model/useModelConfigAdapter
+composables/model/modelCatalog.ts,model,composable,1,composables/model/useModelStoreService.ts,@/composables/model/modelCatalog
+composables/useModelCapabilities.ts,model,composable,2,components/ChatConfig.vue; components/settings/ModelConfigDialog.vue,@/composables/useModelCapabilities
+composables/useModelTypeDetection.ts,model,composable,1,components/ChatConfig.vue,@/composables/useModelTypeDetection
+stores/agentModelStore.ts,model,store,1,composables/model/useModelStoreService.ts,@/stores/agentModelStore
+stores/modelCheck.ts,model,store,1,App.vue,@/stores/modelCheck
+stores/modelConfigStore.ts,model,store,3,components/settings/ModelConfigDialog.vue; composables/model/useModelStoreService.ts; composables/useModelTypeDetection.ts,@/stores/modelConfigStore
+stores/modelStore.ts,model,store,12,components/ModelChooser.vue; components/ModelSelect.vue; components/chat-input/ChatInput.vue; components/chat-input/composables/usePromptInputConfig.ts; components/mcp-config/mcpServerForm.vue,@/stores/modelStore
+composables/model/useAgentModelStoreService.ts,model,store-service,1,stores/agentModelStore.ts,@/composables/model/useAgentModelStoreService
+composables/model/useModelConfigStoreService.ts,model,store-service,1,stores/modelConfigStore.ts,@/composables/model/useModelConfigStoreService
+composables/model/useModelStoreService.ts,model,store-service,1,stores/modelStore.ts,@/composables/model/useModelStoreService
+composables/sidebar/useSidebarAdapter.ts,navigation,adapter,1,composables/sidebar/useSidebarStoreService.ts,@/composables/sidebar/useSidebarAdapter
+stores/layoutStore.ts,navigation,store,5,App.vue; components/ChatAppBar.vue; components/ThreadView.vue; components/ThreadsView.vue; views/ChatTabView.vue,@/stores/layoutStore
+stores/sidebarStore.ts,navigation,store,5,App.vue; components/sidebar/IconItem.vue; components/sidebar/IconSidebar.vue; composables/chat/useChatConfig.ts; composables/useConversationNavigation.ts,@/stores/sidebarStore
+composables/sidebar/useSidebarStoreService.ts,navigation,store-service,1,stores/sidebarStore.ts,@/composables/sidebar/useSidebarStoreService
+composables/notifications/useNotificationAdapter.ts,notification,adapter,3,App.vue; components/message/SelectedTextContextMenu.vue; composables/chat/useMessageStreaming.ts,@/composables/notifications/useNotificationAdapter
+composables/notifications/types.ts,notification,composable,0,,@/composables/notifications/types
+composables/notifications/useNotificationToasts.ts,notification,composable,1,App.vue,@/composables/notifications/useNotificationToasts
+composables/ollama/useOllamaAdapter.ts,ollama,adapter,1,composables/ollama/useOllamaStoreService.ts,@/composables/ollama/useOllamaAdapter
+composables/useOllamaStoreLifecycle.ts,ollama,lifecycle,1,App.vue,@/composables/useOllamaStoreLifecycle
+stores/ollamaStore.ts,ollama,store,2,composables/useOllamaStoreLifecycle.ts; lib/storeInitializer.ts,@/stores/ollamaStore
+composables/ollama/useOllamaStoreService.ts,ollama,store-service,1,stores/ollamaStore.ts,@/composables/ollama/useOllamaStoreService
+composables/provider/useProviderAdapter.ts,provider,adapter,1,composables/provider/useProviderStoreService.ts,@/composables/provider/useProviderAdapter
+composables/provider/providerConfig.ts,provider,config,1,composables/provider/useProviderStoreService.ts,@/composables/provider/providerConfig
+composables/useProviderStoreLifecycle.ts,provider,lifecycle,1,App.vue,@/composables/useProviderStoreLifecycle
+stores/providerStore.ts,provider,store,9,components/chat-input/composables/useRateLimitStatus.ts; components/icons/ModelIcon.vue; components/settings/ModelCheckDialog.vue; composables/mcp/useMcpSamplingStoreService.ts; composables/model/useModelStoreService.ts,@/stores/providerStore
+composables/provider/useProviderStoreService.ts,provider,store-service,1,stores/providerStore.ts,@/composables/provider/useProviderStoreService
+composables/rate-limit/useRateLimitAdapter.ts,rate-limit,adapter,2,components/chat-input/InputActions.vue; components/chat-input/composables/useRateLimitStatus.ts,@/composables/rate-limit/useRateLimitAdapter
+stores/reference.ts,reference,store,2,components/markdown/MarkdownRenderer.vue; components/message/MessageList.vue,@/stores/reference
+composables/search/useSearchAssistantAdapter.ts,search,adapter,1,composables/search/useSearchAssistantStoreService.ts,@/composables/search/useSearchAssistantAdapter
+composables/search/useSearchEngineAdapter.ts,search,adapter,1,composables/search/useSearchEngineStoreService.ts,@/composables/search/useSearchEngineAdapter
+composables/useSearchResultState.ts,search,composable,1,components/message/MessageBlockSearch.vue,@/composables/useSearchResultState
+composables/useSearchConfig.ts,search,config,1,components/ChatConfig.vue,@/composables/useSearchConfig
+composables/useSearchEngineStoreLifecycle.ts,search,lifecycle,1,App.vue,@/composables/useSearchEngineStoreLifecycle
+stores/searchAssistantStore.ts,search,store,1,lib/storeInitializer.ts,@/stores/searchAssistantStore
+stores/searchEngineStore.ts,search,store,2,composables/useSearchEngineStoreLifecycle.ts; lib/storeInitializer.ts,@/stores/searchEngineStore
+composables/search/useSearchAssistantStoreService.ts,search,store-service,1,stores/searchAssistantStore.ts,@/composables/search/useSearchAssistantStoreService
+composables/search/useSearchEngineStoreService.ts,search,store-service,1,stores/searchEngineStore.ts,@/composables/search/useSearchEngineStoreService
+composables/settings/useLanguageAdapter.ts,settings,adapter,1,composables/settings/useLanguageStoreService.ts,@/composables/settings/useLanguageAdapter
+composables/settings/useShortcutAdapter.ts,settings,adapter,1,composables/settings/useShortcutKeyStoreService.ts,@/composables/settings/useShortcutAdapter
+composables/settings/useSoundAdapter.ts,settings,adapter,1,composables/settings/useSoundStoreService.ts,@/composables/settings/useSoundAdapter
+composables/settings/useSystemPromptAdapter.ts,settings,adapter,1,composables/settings/useSystemPromptStoreService.ts,@/composables/settings/useSystemPromptAdapter
+composables/settings/useThemeAdapter.ts,settings,adapter,1,composables/settings/useThemeStoreService.ts,@/composables/settings/useThemeAdapter
+composables/settings/types.ts,settings,composable,3,composables/settings/useThemeAdapter.ts; composables/settings/useThemeStoreService.ts; stores/theme.ts,@/composables/settings/types
+stores/language.ts,settings,store,11,App.vue; components/ChatAppBar.vue; components/ChatConfig.vue; components/McpToolsList.vue; components/ModelChooser.vue,@/stores/language
+stores/shortcutKey.ts,settings,store,0,,@/stores/shortcutKey
+stores/sound.ts,settings,store,1,composables/chat/useChatAudio.ts,@/stores/sound
+stores/systemPromptStore.ts,settings,store,0,,@/stores/systemPromptStore
+stores/theme.ts,settings,store,16,App.vue; components/MessageNavigationSidebar.vue; components/ModelChooser.vue; components/ModelSelect.vue; components/SideBar.vue,@/stores/theme
+stores/uiSettingsStore.ts,settings,store,9,App.vue; components/ChatLayout.vue; components/artifacts/CodeArtifact.vue; components/markdown/MarkdownRenderer.vue; components/message/MessageItemAssistant.vue,@/stores/uiSettingsStore
+composables/settings/useLanguageStoreService.ts,settings,store-service,1,stores/language.ts,@/composables/settings/useLanguageStoreService
+composables/settings/useShortcutKeyStoreService.ts,settings,store-service,1,stores/shortcutKey.ts,@/composables/settings/useShortcutKeyStoreService
+composables/settings/useSoundStoreService.ts,settings,store-service,1,stores/sound.ts,@/composables/settings/useSoundStoreService
+composables/settings/useSystemPromptStoreService.ts,settings,store-service,1,stores/systemPromptStore.ts,@/composables/settings/useSystemPromptStoreService
+composables/settings/useThemeStoreService.ts,settings,store-service,1,stores/theme.ts,@/composables/settings/useThemeStoreService
+composables/skills/useSkillsAdapter.ts,skills,adapter,2,components/chat-input/composables/useSkillsData.ts; composables/skills/useSkillsStoreService.ts,@/composables/skills/useSkillsAdapter
+stores/skillsStore.ts,skills,store,2,components/chat-input/composables/useSkillsData.ts; components/chat-input/composables/useSlashMentionData.ts,@/stores/skillsStore
+composables/skills/useSkillsStoreService.ts,skills,store-service,1,stores/skillsStore.ts,@/composables/skills/useSkillsStoreService
+composables/sync/useSyncAdapter.ts,sync,adapter,1,composables/sync/useSyncStoreService.ts,@/composables/sync/useSyncAdapter
+composables/useSyncStoreLifecycle.ts,sync,lifecycle,0,,@/composables/useSyncStoreLifecycle
+stores/sync.ts,sync,store,1,composables/useSyncStoreLifecycle.ts,@/stores/sync
+composables/sync/useSyncStoreService.ts,sync,store-service,1,stores/sync.ts,@/composables/sync/useSyncStoreService
+composables/upgrade/useUpgradeAdapter.ts,upgrade,adapter,1,composables/upgrade/useUpgradeStoreService.ts,@/composables/upgrade/useUpgradeAdapter
+composables/useUpgradeStoreLifecycle.ts,upgrade,lifecycle,1,components/ui/UpdateDialog.vue,@/composables/useUpgradeStoreLifecycle
+stores/upgrade.ts,upgrade,store,2,components/SideBar.vue; composables/useUpgradeStoreLifecycle.ts,@/stores/upgrade
+composables/upgrade/useUpgradeStoreService.ts,upgrade,store-service,1,stores/upgrade.ts,@/composables/upgrade/useUpgradeStoreService
+composables/window/useWindowAdapter.ts,window,adapter,3,components/chat-input/ChatInput.vue; components/chat-input/SkillsIndicator.vue; composables/window/useWindowStoreService.ts,@/composables/window/useWindowAdapter
+composables/useWindowStoreLifecycle.ts,window,lifecycle,1,App.vue,@/composables/useWindowStoreLifecycle
+stores/windowStore.ts,window,store,2,components/ChatAppBar.vue; composables/useWindowStoreLifecycle.ts,@/stores/windowStore
+composables/window/useWindowStoreService.ts,window,store-service,1,stores/windowStore.ts,@/composables/window/useWindowStoreService
+composables/workspace/useWorkspaceAdapter.ts,workspace,adapter,2,components/chat-input/composables/useWorkspaceMention.ts; composables/workspace/useWorkspaceStoreService.ts,@/composables/workspace/useWorkspaceAdapter
+composables/useWorkspaceStoreLifecycle.ts,workspace,lifecycle,1,components/ChatLayout.vue,@/composables/useWorkspaceStoreLifecycle
+stores/workspace.ts,workspace,store,9,components/NewThread.vue; components/SidePanel.vue; components/message/MessageList.vue; components/workspace/WorkspaceFiles.vue; components/workspace/WorkspacePlan.vue,@/stores/workspace
+composables/workspace/useWorkspaceStoreService.ts,workspace,store-service,1,stores/workspace.ts,@/composables/workspace/useWorkspaceStoreService
+composables/yo-browser/useYoBrowserAdapter.ts,yo-browser,adapter,1,composables/yo-browser/useYoBrowserStoreService.ts,@/composables/yo-browser/useYoBrowserAdapter
+composables/useYoBrowserStoreLifecycle.ts,yo-browser,lifecycle,2,components/workspace/WorkspaceBrowserTabs.vue; components/workspace/WorkspaceView.vue,@/composables/useYoBrowserStoreLifecycle
+stores/yoBrowser.ts,yo-browser,store,1,composables/useYoBrowserStoreLifecycle.ts,@/stores/yoBrowser
+composables/yo-browser/useYoBrowserStoreService.ts,yo-browser,store-service,1,stores/yoBrowser.ts,@/composables/yo-browser/useYoBrowserStoreService

@@ -1,0 +1,155 @@
+import { ref, watch } from 'vue'
+import { useChatStore } from '@/stores/chat'
+import { useModelStore } from '@/stores/modelStore'
+import { usePresenter } from '@/composables/usePresenter'
+import { ModelType } from '@shared/model'
+
+export type ModelInfo = { id: string; providerId: string }
+
+export function useModelSelection() {
+  const chatStore = useChatStore()
+  const modelStore = useModelStore()
+  const configPresenter = usePresenter('configPresenter')
+
+  const selectedModelInfo = ref<ModelInfo | null>(null)
+  const isUsingFallback = ref(false)
+  const pendingModelInfo = ref<ModelInfo | null>(null)
+
+  const findEnabledModel = (providerId: string, modelId: string) => {
+    for (const provider of modelStore.enabledModels) {
+      if (provider.providerId === providerId) {
+        for (const model of provider.models) {
+          if (model.id === modelId) {
+            return { model, providerId: provider.providerId }
+          }
+        }
+      }
+    }
+    return undefined
+  }
+
+  const pickFirstEnabledModel = () => {
+    const found = modelStore.enabledModels
+      .flatMap((p) => p.models.map((m) => ({ ...m, providerId: p.providerId })))
+      .find((m) => m.type === ModelType.Chat || m.type === ModelType.ImageGeneration)
+    return found
+  }
+
+  const pickFirstNonAcpModel = () => {
+    const found = modelStore.enabledModels
+      .flatMap((p) => p.models.map((m) => ({ ...m, providerId: p.providerId })))
+      .find(
+        (m) =>
+          m.providerId !== 'acp' &&
+          (m.type === ModelType.Chat || m.type === ModelType.ImageGeneration)
+      )
+    return found
+  }
+
+  const setModel = async (model: { id: string; providerId: string }) => {
+    selectedModelInfo.value = { id: model.id, providerId: model.providerId }
+    // Note: Model selection now happens through agent configuration (Phase 6: chatConfig removed)
+    // The actual model/provider is managed by the agentic presenter
+  }
+
+  const trySelectPreferredModel = async (preferredModel: {
+    modelId: string
+    providerId: string
+  }): Promise<boolean> => {
+    const match = findEnabledModel(preferredModel.providerId, preferredModel.modelId)
+    if (match && match.model.providerId !== 'acp') {
+      await setModel({ id: match.model.id, providerId: match.providerId })
+      isUsingFallback.value = false
+      return true
+    }
+    return false
+  }
+
+  const useFallbackModel = async () => {
+    const fallback = pickFirstNonAcpModel() ?? pickFirstEnabledModel()
+    if (fallback) {
+      await setModel({ id: fallback.id, providerId: fallback.providerId })
+      isUsingFallback.value = true
+    }
+  }
+
+  const initializeModel = async () => {
+    const recentThread =
+      chatStore.sessions.length > 0
+        ? chatStore.sessions
+            .flatMap((t) => t.dtThreads)
+            .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0]
+        : null
+
+    let preferredModel: { modelId: string; providerId: string } | null = null
+
+    if (recentThread?.settings?.modelId && recentThread?.settings?.providerId) {
+      preferredModel = {
+        modelId: recentThread.settings.modelId,
+        providerId: recentThread.settings.providerId
+      }
+    }
+
+    if (!preferredModel) {
+      try {
+        const savedModel = await configPresenter.getSetting<{
+          modelId: string
+          providerId: string
+        }>('preferredModel')
+        preferredModel = savedModel || null
+      } catch (error) {
+        console.warn('Failed to get preferred model:', error)
+      }
+    }
+
+    if (preferredModel?.modelId && preferredModel?.providerId) {
+      const success = await trySelectPreferredModel(preferredModel)
+      if (success) {
+        pendingModelInfo.value = null
+        return
+      }
+
+      const providerReady = modelStore.isProviderReady(preferredModel.providerId)
+      if (!providerReady) {
+        pendingModelInfo.value = {
+          id: preferredModel.modelId,
+          providerId: preferredModel.providerId
+        }
+        await modelStore.awaitProviderInitialized(preferredModel.providerId)
+        const retrySuccess = await trySelectPreferredModel(preferredModel)
+        if (retrySuccess) {
+          pendingModelInfo.value = null
+          return
+        }
+      }
+    }
+
+    await useFallbackModel()
+  }
+
+  watch(
+    () => modelStore.enabledModels,
+    async () => {
+      if (!selectedModelInfo.value?.id) {
+        await initializeModel()
+        return
+      }
+
+      const current = selectedModelInfo.value
+      const stillExists = !!findEnabledModel(current.providerId, current.id)
+      if (!stillExists) {
+        await useFallbackModel()
+      }
+    },
+    { immediate: true, deep: true }
+  )
+
+  return {
+    selectedModelInfo,
+    isUsingFallback,
+    pendingModelInfo,
+    initializeModel,
+    setModel,
+    getCurrentModel: () => selectedModelInfo.value
+  }
+}

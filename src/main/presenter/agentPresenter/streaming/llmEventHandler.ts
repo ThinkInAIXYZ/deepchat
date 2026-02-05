@@ -10,34 +10,36 @@ import type { GeneratingMessageState } from './types'
 import type { ContentBufferHandler } from './contentBufferHandler'
 import type { ToolCallHandler } from '../loop/toolCallHandler'
 import type { StreamUpdateScheduler } from './streamUpdateScheduler'
+import type { AgenticEventEmitter } from '@shared/types/presenters/agentic.presenter.d'
+import { normalizeAndEmit } from '../normalizer'
 
 type ConversationUpdateHandler = (state: GeneratingMessageState) => Promise<void>
 
 export class LLMEventHandler {
   private readonly generatingMessages: Map<string, GeneratingMessageState>
-  private readonly searchingMessages: Set<string>
   private readonly messageManager: MessageManager
   private readonly contentBufferHandler: ContentBufferHandler
   private readonly toolCallHandler: ToolCallHandler
   private readonly streamUpdateScheduler: StreamUpdateScheduler
   private readonly onConversationUpdated?: ConversationUpdateHandler
+  private readonly getEmitter?: (conversationId: string) => AgenticEventEmitter | undefined
 
   constructor(options: {
     generatingMessages: Map<string, GeneratingMessageState>
-    searchingMessages: Set<string>
     messageManager: MessageManager
     contentBufferHandler: ContentBufferHandler
     toolCallHandler: ToolCallHandler
     streamUpdateScheduler: StreamUpdateScheduler
     onConversationUpdated?: ConversationUpdateHandler
+    getEmitter?: (conversationId: string) => AgenticEventEmitter | undefined
   }) {
     this.generatingMessages = options.generatingMessages
-    this.searchingMessages = options.searchingMessages
     this.messageManager = options.messageManager
     this.contentBufferHandler = options.contentBufferHandler
     this.toolCallHandler = options.toolCallHandler
     this.streamUpdateScheduler = options.streamUpdateScheduler
     this.onConversationUpdated = options.onConversationUpdated
+    this.getEmitter = options.getEmitter
   }
 
   async handleLLMAgentResponse(msg: LLMAgentEventData): Promise<void> {
@@ -103,7 +105,8 @@ export class LLMEventHandler {
         Boolean(state.message.is_variant),
         state.tabId,
         {},
-        state.message.content
+        state.message.content,
+        this.getEmitter?.(state.conversationId)
       )
       return
     }
@@ -312,7 +315,8 @@ export class LLMEventHandler {
       Boolean(state.message.is_variant),
       state.tabId,
       delta,
-      state.message.content
+      state.message.content,
+      this.getEmitter?.(state.conversationId)
     )
   }
 
@@ -333,6 +337,7 @@ export class LLMEventHandler {
 
     await this.messageManager.handleMessageError(eventId, String(error))
 
+    let conversationId = state?.conversationId
     if (state) {
       this.generatingMessages.delete(eventId)
       presenter.sessionManager.setStatus(state.conversationId, 'error')
@@ -341,14 +346,24 @@ export class LLMEventHandler {
     } else {
       const message = await this.messageManager.getMessage(eventId)
       if (message) {
+        conversationId = message.conversationId
         presenter.sessionManager.setStatus(message.conversationId, 'error')
         presenter.sessionManager.clearPendingPermission(message.conversationId)
         presenter.sessionManager.clearPendingQuestion(message.conversationId)
       }
     }
 
-    this.searchingMessages.delete(eventId)
-    eventBus.sendToRenderer(STREAM_EVENTS.ERROR, SendTarget.ALL_WINDOWS, msg)
+    const emitter = conversationId ? this.getEmitter?.(conversationId) : undefined
+    if (emitter && conversationId) {
+      normalizeAndEmit(
+        STREAM_EVENTS.ERROR as keyof typeof STREAM_EVENTS,
+        msg,
+        conversationId,
+        emitter
+      )
+    } else {
+      eventBus.sendToRenderer(STREAM_EVENTS.ERROR, SendTarget.ALL_WINDOWS, msg)
+    }
   }
 
   async handleLLMAgentEnd(msg: LLMAgentEventData): Promise<void> {
@@ -397,9 +412,9 @@ export class LLMEventHandler {
           Boolean(state.message.is_variant),
           state.tabId,
           {},
-          state.message.content
+          state.message.content,
+          this.getEmitter?.(state.conversationId)
         )
-        this.searchingMessages.delete(eventId)
         presenter.sessionManager.setStatus(state.conversationId, 'waiting_permission')
         if (!hasPendingPermissions) {
           presenter.sessionManager.setStatus(state.conversationId, 'waiting_question')
@@ -417,8 +432,18 @@ export class LLMEventHandler {
     }
 
     await this.streamUpdateScheduler.flushAll(eventId, 'final')
-    this.searchingMessages.delete(eventId)
-    eventBus.sendToRenderer(STREAM_EVENTS.END, SendTarget.ALL_WINDOWS, msg)
+
+    const emitter = state ? this.getEmitter?.(state.conversationId) : undefined
+    if (emitter && state) {
+      normalizeAndEmit(
+        STREAM_EVENTS.END as keyof typeof STREAM_EVENTS,
+        msg,
+        state.conversationId,
+        emitter
+      )
+    } else {
+      eventBus.sendToRenderer(STREAM_EVENTS.END, SendTarget.ALL_WINDOWS, msg)
+    }
   }
 
   async finalizeMessage(
@@ -495,7 +520,6 @@ export class LLMEventHandler {
     await this.messageManager.updateMessageStatus(eventId, 'sent')
     await this.messageManager.editMessage(eventId, JSON.stringify(state.message.content))
     this.generatingMessages.delete(eventId)
-    this.searchingMessages.delete(eventId)
 
     if (this.onConversationUpdated) {
       await this.onConversationUpdated(state)

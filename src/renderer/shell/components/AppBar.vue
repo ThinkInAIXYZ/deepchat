@@ -160,9 +160,11 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, nextTick, computed } from 'vue'
+import { storeToRefs } from 'pinia'
 import MaximizeIcon from './icons/MaximizeIcon.vue'
 import RestoreIcon from './icons/RestoreIcon.vue'
 import { usePresenter } from '@/composables/usePresenter'
+import { useWindowStore } from '@/stores/windowStore'
 import { Button } from '@shadcn/components/ui/button'
 import { Icon } from '@iconify/vue'
 import AppBarTabItem from './app-bar/AppBarTabItem.vue'
@@ -170,7 +172,6 @@ import { useTabStore } from '@shell/stores/tab'
 import { useElementSize } from '@vueuse/core'
 import { useLanguageStore } from '@/stores/language'
 import { useI18n } from 'vue-i18n'
-import { WINDOW_EVENTS } from '../lib/events'
 import CloseIcon from './icons/CloseIcon.vue'
 import MinimizeIcon from './icons/MinimizeIcon.vue'
 import { THREAD_VIEW_EVENTS } from '@/events'
@@ -180,17 +181,14 @@ const props = defineProps<{
 const tabStore = useTabStore()
 const langStore = useLanguageStore()
 const windowPresenter = usePresenter('windowPresenter')
-const devicePresenter = usePresenter('devicePresenter')
 const tabPresenter = usePresenter('tabPresenter')
 const yoBrowserPresenter = usePresenter('yoBrowserPresenter')
+const windowStore = useWindowStore()
+const { isMacOS, isMaximized, isFullscreened } = storeToRefs(windowStore)
 const endOfTabs = ref<HTMLElement | null>(null)
 
 const { t } = useI18n()
 const windowType = computed(() => props.windowType ?? 'chat')
-
-const isMacOS = ref(false)
-const isMaximized = ref(false)
-const isFullscreened = ref(false)
 
 const { ipcRenderer } = window.electron
 
@@ -571,23 +569,6 @@ const handleDragEnd = async (event: DragEvent) => {
 
 onMounted(() => {
   console.log('onMounted', tabStore.tabs)
-  // Listen for window maximize/unmaximize events
-  devicePresenter.getDeviceInfo().then((deviceInfo) => {
-    isMacOS.value = deviceInfo.platform === 'darwin'
-  })
-  ipcRenderer?.on(WINDOW_EVENTS.WINDOW_MAXIMIZED, () => {
-    isMaximized.value = true
-  })
-  ipcRenderer?.on(WINDOW_EVENTS.WINDOW_ENTER_FULL_SCREEN, () => {
-    isFullscreened.value = true
-  })
-  ipcRenderer?.on(WINDOW_EVENTS.WINDOW_UNMAXIMIZED, () => {
-    isMaximized.value = false
-  })
-  ipcRenderer?.on(WINDOW_EVENTS.WINDOW_LEAVE_FULL_SCREEN, () => {
-    isFullscreened.value = false
-  })
-
   window.addEventListener('dragover', handleDragOver)
   window.addEventListener('dragend', handleDragEnd)
   window.addEventListener('resize', updateTooltipPosition)
@@ -688,10 +669,7 @@ const closeWindow = () => {
 }
 
 const openSettings = () => {
-  const windowId = window.api.getWindowId()
-  if (windowId != null) {
-    windowPresenter.openOrFocusSettingsTab(windowId)
-  }
+  windowPresenter.openOrFocusSettingsWindow()
 }
 
 const onBrowserClick = async () => {

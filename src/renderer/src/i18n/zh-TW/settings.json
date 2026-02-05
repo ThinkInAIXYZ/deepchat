@@ -19,18 +19,6 @@
     "customProxyUrl": "自訂代理伺服器位址",
     "customProxyUrlPlaceholder": "例如：http://127.0.0.1:7890",
     "invalidProxyUrl": "無效的代理伺服器位址，請輸入有效的 http/https URL",
-    "addCustomSearchEngine": "新增自訂搜尋引擎",
-    "addCustomSearchEngineDesc": "新增一個新的搜尋引擎，需要提供名稱和搜尋 URL。URL 中必須包含 {query} 作為查詢預留位置。",
-    "searchEngineName": "搜尋引擎名稱",
-    "searchEngineNamePlaceholder": "請輸入搜尋引擎名稱",
-    "searchEngineUrl": "搜尋 URL",
-    "searchEngineUrlPlaceholder": "如：https://a.com/search?q={query}",
-    "searchEngineUrlError": "URL 必須包含 {query} 作為查詢預留位置",
-    "deleteCustomSearchEngine": "刪除自訂搜尋引擎",
-    "deleteCustomSearchEngineDesc": "確定要刪除自訂搜尋引擎「{name}」嗎？此操作無法復原。",
-    "testSearchEngine": "測試搜尋引擎",
-    "testSearchEngineDesc": "即將使用 {engine} 搜尋引擎進行測試搜尋，將搜尋關鍵字「天氣」。",
-    "testSearchEngineNote": "如果搜尋頁面需要登入或其他操作，您可以在測試視窗中進行。完成測試後請關閉測試視窗。",
     "theme": "主題",
     "themeSelect": "選擇主題",
     "themeLight": "淺色",
@@ -49,10 +37,6 @@
     "loggingEnableDesc": "啟用日誌將幫助我們診斷問題並改進應用程式。日誌檔案可能包含敏感資訊。",
     "loggingDisableDesc": "停用日誌將停止收集應用程式日誌。",
     "loggingRestartNotice": "切換此設定將會重新啟動應用程式，請問您是否要繼續？",
-    "webContentLengthLimit": "網頁內容長度限制",
-    "webContentLengthLimitHint": "（設定為0表示不限制）",
-    "charactersUnit": "字元",
-    "webContentLengthLimitTooltip": "設定從網頁擷取的文字內容長度上限（字元數），範圍：0-50000。設定為0表示不限制長度，取得完整網頁內容；較大的值可以取得更完整的網頁內容，但可能增加處理時間和token消耗。",
     "openLogFolder": "打開日誌文件夾",
     "shortcut": {
       "newChat": "新建聊天",
@@ -284,6 +268,22 @@
           "image": "圖片生成"
         }
       }
+    },
+    "acpSession": {
+      "description": "配置 ACP Agent 上報的會話級選項。",
+      "mode": {
+        "description": "選擇 Agent 的權限策略（若支援）。",
+        "empty": "Agent 未上報權限模式",
+        "label": "權限模式",
+        "placeholder": "選擇模式"
+      },
+      "model": {
+        "description": "選擇該 ACP Agent 暴露的底層模型。",
+        "empty": "Agent 未上報可用模型",
+        "label": "Agent 模型",
+        "placeholder": "選擇模型"
+      },
+      "title": "ACP 會話設定"
     }
   },
   "provider": {
@@ -1224,5 +1224,11 @@
       "title": "外部工具"
     },
     "title": "skills管理"
+  },
+  "groups": {
+    "models": "模型",
+    "preferences": "偏好",
+    "system": "系統",
+    "tools": "工具"
   }
 }

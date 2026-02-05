@@ -15,10 +15,10 @@ import {
   AcpAgentProfile,
   AcpBuiltinAgent,
   AcpBuiltinAgentId,
-  AcpCustomAgent
+  AcpCustomAgent,
+  SearchEngineTemplate
 } from '@shared/presenter'
 import { ProviderBatchUpdate } from '@shared/provider-operations'
-import { SearchEngineTemplate } from '@shared/chat'
 import { ModelType } from '@shared/model'
 import ElectronStore from 'electron-store'
 import { DEFAULT_PROVIDERS } from './providers'
@@ -41,14 +41,13 @@ import { ProviderModelHelper, PROVIDER_MODELS_DIR } from './providerModelHelper'
 import { SystemPromptHelper, DEFAULT_SYSTEM_PROMPT } from './systemPromptHelper'
 import { UiSettingsHelper } from './uiSettingsHelper'
 import { AcpConfHelper } from './acpConfHelper'
-import { AcpProvider } from '../llmProviderPresenter/providers/acpProvider'
 import {
   initializeBuiltinAgent,
   initializeCustomAgent,
   writeToTerminal,
   killTerminal
-} from './acpInitHelper'
-import { clearShellEnvironmentCache } from '../agentPresenter/acp'
+} from '../acpPresenter/initHelper'
+import { clearShellEnvironmentCache } from '@/lib/shellEnvHelper'
 
 // Define application settings interface
 interface IAppSettings {
@@ -61,18 +60,15 @@ interface IAppSettings {
   customProxyUrl?: string // Custom proxy address
   customShortKey?: ShortcutKeySetting // Custom shortcut keys
   artifactsEffectEnabled?: boolean // Whether artifacts animation effects are enabled
-  searchPreviewEnabled?: boolean // Whether search preview is enabled
   contentProtectionEnabled?: boolean // Whether content protection is enabled
   syncEnabled?: boolean // Whether sync functionality is enabled
   syncFolderPath?: string // Sync folder path
   lastSyncTime?: number // Last sync time
-  customSearchEngines?: string // Custom search engines JSON string
   soundEnabled?: boolean // Whether sound effects are enabled
   copyWithCotEnabled?: boolean
   loggingEnabled?: boolean // Whether logging is enabled
   floatingButtonEnabled?: boolean // Whether floating button is enabled
   default_system_prompt?: string // Default system prompt
-  webContentLengthLimit?: number // Web content truncation length limit, default 3000 characters
   updateChannel?: string // Update channel: 'stable' | 'beta'
   fontFamily?: string // Custom UI font
   codeFontFamily?: string // Custom code font
@@ -130,7 +126,6 @@ export class ConfigPresenter implements IConfigPresenter {
         proxyMode: 'system',
         customProxyUrl: '',
         artifactsEffectEnabled: true,
-        searchPreviewEnabled: true,
         contentProtectionEnabled: false,
         syncEnabled: false,
         syncFolderPath: path.join(this.userDataPath, 'sync'),
@@ -142,7 +137,6 @@ export class ConfigPresenter implements IConfigPresenter {
         fontFamily: '',
         codeFontFamily: '',
         default_system_prompt: '',
-        webContentLengthLimit: 3000,
         skillsPath: path.join(app.getPath('home'), '.deepchat', 'skills'),
         enableSkills: true,
         updateChannel: 'stable', // Default to stable version
@@ -1284,28 +1278,10 @@ export class ConfigPresenter implements IConfigPresenter {
     this.handleAcpAgentsMutated([agentId])
   }
 
-  private handleAcpAgentsMutated(agentIds?: string[]) {
+  private handleAcpAgentsMutated(_agentIds?: string[]) {
     this.clearProviderModelStatusCache('acp')
     this.notifyAcpAgentsChanged()
-    this.refreshAcpProviderAgents(agentIds)
-  }
-
-  private refreshAcpProviderAgents(agentIds?: string[]): void {
-    try {
-      const providerInstance = presenter?.llmproviderPresenter?.getProviderInstance?.('acp')
-      if (!providerInstance) {
-        return
-      }
-
-      const acpProvider = providerInstance as AcpProvider
-      if (typeof acpProvider.refreshAgents !== 'function') {
-        return
-      }
-
-      void acpProvider.refreshAgents(agentIds)
-    } catch (error) {
-      console.warn('[ACP] Failed to refresh agent processes after config change:', error)
-    }
+    // Agent refresh is now handled by AcpPresenter
   }
 
   private notifyAcpAgentsChanged() {

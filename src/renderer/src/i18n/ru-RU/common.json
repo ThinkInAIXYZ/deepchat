@@ -55,10 +55,6 @@
   "language": "язык",
   "languageSelect": "Выберите язык",
   "resetData": "Сбросить данные",
-  "searchAssistantModel": "Помощник модели",
-  "searchEngine": "Поисковая система",
-  "searchEngineSelect": "Выберите поисковую систему",
-  "searchPreview": "Поиск предварительного просмотра",
   "selectModel": "Выберите модель",
   "title": "Общие настройки",
   "languageSystem": "Следуйте системе",
@@ -96,5 +92,6 @@
     "enterUrlDescription": "Введите URL-адрес в адресную строку выше, чтобы получить доступ к веб-сайту.",
     "enterUrlToStart": "Введите URL, чтобы начать посещение",
     "name": "Эй, браузер"
-  }
+  },
+  "moreSettings": "Дополнительные настройки"
 }

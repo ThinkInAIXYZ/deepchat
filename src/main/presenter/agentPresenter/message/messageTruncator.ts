@@ -72,7 +72,6 @@ export function selectContextMessages(
   const messages = contextMessages
     .filter((msg) => msg.id !== userMessage?.id)
     .map((msg) => cloneMessageWithContent(msg))
-    .reverse()
   let selectedMessages = messages.filter((msg) => msg.status === 'sent')
 
   if (selectedMessages.length === 0) {
@@ -86,12 +85,13 @@ export function selectContextMessages(
     let excessTokens = totalTokens - remainingContextLength
 
     if (supportsFunctionCall) {
-      const { removedTokens } = compressToolCallsFromContext(
-        selectedMessages,
+      const { compressedMessages, removedTokens } = compressToolCallsFromContext(
+        [...selectedMessages, userMessage],
         excessTokens,
         supportsFunctionCall
       )
 
+      selectedMessages = compressedMessages.filter((msg) => msg.id !== userMessage.id)
       totalTokens = Math.max(0, totalTokens - removedTokens)
       chatMessages = addContextMessages(selectedMessages, vision, supportsFunctionCall)
       totalTokens = calculateMessagesTokens(chatMessages)
@@ -119,7 +119,21 @@ export function selectContextMessages(
           .sort((a, b) => a.msg.is_variant - b.msg.is_variant)
 
         if (matchingAssistants.length === 0) {
-          selectedMessages.splice(userIndex, 1)
+          const adjacent = selectedMessages[userIndex + 1]
+          if (adjacent?.role === 'assistant') {
+            const pairMessages = [userMsg, adjacent]
+            const pairTokens = calculateMessagesTokens(
+              addContextMessages(pairMessages, vision, supportsFunctionCall)
+            )
+            console.log(
+              `PromptBuilder: removing one user/assistant pair from context (${pairTokens} tokens)`
+            )
+            selectedMessages.splice(userIndex, 2)
+            removedTokens += pairTokens
+            totalTokens = Math.max(0, totalTokens - pairTokens)
+          } else {
+            selectedMessages.splice(userIndex, 1)
+          }
           continue
         }
 
@@ -152,10 +166,13 @@ export function selectContextMessages(
   )
   selectedMessages = selectedMessages.filter((msg) => {
     if (msg.role === 'assistant') {
-      return msg.parentId && userIds.has(msg.parentId)
+      // Some message sources don't populate parentId; keep these assistants instead of
+      // accidentally dropping the entire user/assistant pair in truncation.
+      if (!msg.parentId) return true
+      return userIds.has(msg.parentId)
     }
     return true
   })
 
-  return selectedMessages.reverse()
+  return selectedMessages
 }

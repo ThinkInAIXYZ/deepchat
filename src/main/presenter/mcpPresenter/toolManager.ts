@@ -13,7 +13,6 @@ import { ServerManager } from './serverManager'
 import { McpClient } from './mcpClient'
 import { jsonrepair } from 'jsonrepair'
 import { getErrorMessageLabels } from '@shared/i18n'
-import { presenter } from '@/presenter'
 
 export class ToolManager {
   private configPresenter: IConfigPresenter
@@ -339,36 +338,6 @@ export class ToolManager {
 
       const { client: targetClient, originalName } = targetInfo
       const toolServerName = targetClient.serverName
-
-      // ACP agent-level MCP access control (only applies in "acp agent" chat mode)
-      if (toolCall.conversationId) {
-        const chatMode = this.configPresenter.getSetting<'chat' | 'agent' | 'acp agent'>(
-          'input_chatMode'
-        )
-        if (chatMode === 'acp agent') {
-          try {
-            const conversation = await presenter.sessionPresenter.getConversation(
-              toolCall.conversationId
-            )
-            const agentId = conversation?.settings?.modelId
-            if (typeof agentId === 'string' && agentId.trim().length > 0) {
-              const selections = await this.configPresenter.getAgentMcpSelections(agentId)
-              if (!selections?.length || !selections.includes(toolServerName)) {
-                return {
-                  toolCallId: toolCall.id,
-                  content: `MCP server '${toolServerName}' is not allowed for ACP agent '${agentId}'. Configure MCP access in ACP settings.`,
-                  isError: true
-                }
-              }
-            }
-          } catch (error) {
-            console.warn(
-              '[ToolManager] Failed to resolve ACP agent context for MCP access control:',
-              error
-            )
-          }
-        }
-      }
 
       // Log the call details including original name
       console.info('[MCP] ToolManager calling tool', {

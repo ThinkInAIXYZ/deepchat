@@ -175,7 +175,7 @@ const agentPresenter = usePresenter('agentPresenter')
 const props = defineProps<{
   block: AssistantMessageBlock
   messageId: string
-  conversationId: string
+  sessionId: string
 }>()
 
 const isProcessing = ref(false)

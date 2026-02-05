@@ -5,7 +5,7 @@ import { ref, type Ref } from 'vue'
 import type { MessageFile } from '@shared/chat'
 
 // === Composables ===
-import { usePresenter } from '@/composables/usePresenter'
+import { useFileAdapter } from '@/composables/file/useFileAdapter'
 import { useToast } from '@/components/use-toast'
 
 // === Utils ===
@@ -36,7 +36,7 @@ export function usePromptInputFiles(
   t: (key: string, params?: any) => string
 ) {
   // === Presenters ===
-  const filePresenter = usePresenter('filePresenter')
+  const fileAdapter = useFileAdapter()
 
   // === Utils ===
   const { toast } = useToast()
@@ -55,7 +55,7 @@ export function usePromptInputFiles(
         const base64 = (await imageFileToBase64(file)) as string
         const imageInfo = await getClipboardImageInfo(file)
 
-        const tempFilePath = await filePresenter.writeImageBase64({
+        const tempFilePath = await fileAdapter.writeImageBase64({
           name: file.name ?? 'image',
           content: base64
         })
@@ -77,9 +77,9 @@ export function usePromptInputFiles(
         }
       } else {
         // Handle other file types
-        const path = window.api.getPathForFile(file)
-        const mimeType = await filePresenter.getMimeType(path)
-        return await filePresenter.prepareFile(path, mimeType)
+        const path = fileAdapter.getPathForFile(file)
+        const mimeType = await fileAdapter.getMimeType(path)
+        return await fileAdapter.prepareFile(path, mimeType)
       }
     } catch (error) {
       console.error('File processing failed:', error)
@@ -92,19 +92,19 @@ export function usePromptInputFiles(
    */
   const processDroppedFile = async (file: File): Promise<MessageFile | null> => {
     try {
-      const path = window.api.getPathForFile(file)
+      const path = fileAdapter.getPathForFile(file)
 
       // Handle empty type (possibly directory)
       if (file.type === '') {
-        const isDirectory = await filePresenter.isDirectory(path)
+        const isDirectory = await fileAdapter.isDirectory(path)
         if (isDirectory) {
-          return await filePresenter.prepareDirectory(path)
+          return await fileAdapter.prepareDirectory(path)
         }
       }
 
       // Handle regular files
-      const mimeType = await filePresenter.getMimeType(path)
-      return await filePresenter.prepareFile(path, mimeType)
+      const mimeType = await fileAdapter.getMimeType(path)
+      return await fileAdapter.prepareFile(path, mimeType)
     } catch (error) {
       console.error('Dropped file processing failed:', error)
       return null
@@ -233,7 +233,7 @@ export function usePromptInputFiles(
         // If no content but has path, try to read file
         if (!messageFile.content && fileItem.path) {
           try {
-            const fileContent = await filePresenter.readFile(fileItem.path)
+            const fileContent = await fileAdapter.readFile(fileItem.path)
             messageFile.content = fileContent
             messageFile.token = approximateTokenSize(fileContent)
           } catch (error) {

@@ -16,7 +16,6 @@ export interface IToolPresenter {
    */
   getAllToolDefinitions(context: {
     enabledMcpTools?: string[]
-    chatMode?: 'chat' | 'agent' | 'acp agent'
     supportsVision?: boolean
     agentWorkspacePath?: string | null
     conversationId?: string

@@ -1,7 +1,7 @@
 import { computed, ref, watch } from 'vue'
 import { usePresenter } from '@/composables/usePresenter'
+import { useAcpRuntimeAdapter } from '@/composables/chat/useAcpRuntimeAdapter'
 import type { Ref } from 'vue'
-import { useChatStore } from '@/stores/chat'
 
 type ActiveModelRef = Ref<{ id?: string; providerId?: string } | null>
 
@@ -11,15 +11,18 @@ interface UseAcpWorkdirOptions {
 }
 
 export function useAcpWorkdir(options: UseAcpWorkdirOptions) {
-  const sessionPresenter = usePresenter('sessionPresenter')
+  const acpRuntimeAdapter = useAcpRuntimeAdapter()
   const devicePresenter = usePresenter('devicePresenter')
-  const chatStore = useChatStore()
 
   const workdir = ref('')
   const isCustom = ref(false)
   const loading = ref(false)
   const pendingWorkdir = ref<string | null>(null)
   const lastWarmupKey = ref<string | null>(null)
+
+  // Confirmation dialog state for workdir change
+  const showWorkdirChangeConfirm = ref(false)
+  const pendingWorkdirChange = ref<string | null>(null)
 
   const hasConversation = computed(() => Boolean(options.conversationId.value))
 
@@ -28,22 +31,17 @@ export function useAcpWorkdir(options: UseAcpWorkdirOptions) {
   )
 
   const agentId = computed(() => options.activeModel.value?.id ?? '')
-  const syncPreference = (value: string | null) => {
-    if (!agentId.value) return
-    chatStore.setAcpWorkdirPreference(agentId.value, value)
+  const syncPreference = (_value: string | null) => {
+    // ACP workdir preferences are now managed by acpPresenter
+    // This is a no-op
   }
 
   const hydrateFromPreference = () => {
     if (!agentId.value) return
-    const stored = chatStore.chatConfig.acpWorkdirMap?.[agentId.value] ?? null
-    if (stored) {
-      workdir.value = stored
-      isCustom.value = true
-      pendingWorkdir.value = stored
-    } else {
-      pendingWorkdir.value = null
-      resetToDefault()
-    }
+    // ACP workdir preferences are now managed by acpPresenter
+    // Reset to default as we no longer store workdir in chatConfig
+    pendingWorkdir.value = null
+    resetToDefault()
   }
 
   const resetToDefault = () => {
@@ -63,7 +61,7 @@ export function useAcpWorkdir(options: UseAcpWorkdirOptions) {
     lastWarmupKey.value = warmupKey
 
     try {
-      await sessionPresenter.warmupAcpProcess(agentId.value, trimmed)
+      await acpRuntimeAdapter.warmupAcpProcess(agentId.value, trimmed)
     } catch (error) {
       console.warn('[useAcpWorkdir] Failed to warmup ACP process', error)
     }
@@ -85,7 +83,7 @@ export function useAcpWorkdir(options: UseAcpWorkdirOptions) {
 
     loading.value = true
     try {
-      const result = await sessionPresenter.getAcpWorkdir(
+      const result = await acpRuntimeAdapter.getAcpWorkdir(
         options.conversationId.value,
         agentId.value
       )
@@ -114,7 +112,7 @@ export function useAcpWorkdir(options: UseAcpWorkdirOptions) {
     if (!pendingWorkdir.value || !options.conversationId.value || !agentId.value) return
     loading.value = true
     try {
-      await sessionPresenter.setAcpWorkdir(
+      await acpRuntimeAdapter.setAcpWorkdir(
         options.conversationId.value,
         agentId.value,
         pendingWorkdir.value
@@ -144,18 +142,11 @@ export function useAcpWorkdir(options: UseAcpWorkdirOptions) {
     lastWarmupKey.value = null
   })
 
-  const selectWorkdir = async () => {
-    if (loading.value || !isAcpModel.value || !agentId.value) {
-      return
-    }
-    const result = await devicePresenter.selectDirectory()
-    if (result.canceled || !result.filePaths?.length) return
-
-    const selectedPath = result.filePaths[0]
+  const applyWorkdirChange = async (selectedPath: string) => {
     loading.value = true
     try {
       if (hasConversation.value && options.conversationId.value) {
-        await sessionPresenter.setAcpWorkdir(
+        await acpRuntimeAdapter.setAcpWorkdir(
           options.conversationId.value,
           agentId.value,
           selectedPath
@@ -176,6 +167,38 @@ export function useAcpWorkdir(options: UseAcpWorkdirOptions) {
     }
   }
 
+  const selectWorkdir = async () => {
+    if (loading.value || !isAcpModel.value || !agentId.value) {
+      return
+    }
+    const result = await devicePresenter.selectDirectory()
+    if (result.canceled || !result.filePaths?.length) return
+
+    const selectedPath = result.filePaths[0]
+
+    // If there's an existing conversation and workdir is different, show confirmation
+    if (hasConversation.value && workdir.value && workdir.value !== selectedPath) {
+      pendingWorkdirChange.value = selectedPath
+      showWorkdirChangeConfirm.value = true
+      return
+    }
+
+    await applyWorkdirChange(selectedPath)
+  }
+
+  const confirmWorkdirChange = async () => {
+    showWorkdirChangeConfirm.value = false
+    if (pendingWorkdirChange.value) {
+      await applyWorkdirChange(pendingWorkdirChange.value)
+      pendingWorkdirChange.value = null
+    }
+  }
+
+  const cancelWorkdirChange = () => {
+    showWorkdirChangeConfirm.value = false
+    pendingWorkdirChange.value = null
+  }
+
   const hasWorkdir = computed(() => isCustom.value || Boolean(pendingWorkdir.value))
 
   return {
@@ -183,6 +206,11 @@ export function useAcpWorkdir(options: UseAcpWorkdirOptions) {
     workdir,
     hasWorkdir,
     selectWorkdir,
-    loading
+    loading,
+    // Confirmation dialog state and methods
+    showWorkdirChangeConfirm,
+    pendingWorkdirChange,
+    confirmWorkdirChange,
+    cancelWorkdirChange
   }
 }

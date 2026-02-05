@@ -25,7 +25,11 @@
     "acpModeTooltip": "Текущий режим: {mode}",
     "agentWorkspaceCurrent": "Текущий рабочий каталог: {path}",
     "agentWorkspaceSelect": "Выберите рабочий каталог",
-    "agentWorkspaceTooltip": "Установить рабочий каталог агента"
+    "agentWorkspaceTooltip": "Установить рабочий каталог агента",
+    "acpWorkdirChangeCancel": "Отмена",
+    "acpWorkdirChangeConfirm": "Подтвердить переключение",
+    "acpWorkdirChangeDescription": "Переключение рабочей директории сбросит текущую сессию. Исторические сообщения по-прежнему будут сохранены и отображены, но новый диалог начнётся с новой директории.",
+    "acpWorkdirChangeTitle": "Сменить рабочую директорию"
   },
   "features": {
     "webSearch": "Поиск в интернете",
@@ -95,7 +99,6 @@
   "mode": {
     "acpAgent": "Агент АШП",
     "agent": "Агент",
-    "chat": "чат",
     "current": "Текущий режим: {mode}"
   },
   "workspace": {

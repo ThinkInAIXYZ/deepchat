@@ -59,10 +59,6 @@
   "language": "Langue",
   "languageSelect": "Sélectionner une langue",
   "resetData": "Réinitialiser les données",
-  "searchAssistantModel": "Modèle adjoint",
-  "searchEngine": "Moteur de recherche",
-  "searchEngineSelect": "Sélectionner un moteur de recherche",
-  "searchPreview": "Aperçu de la recherche",
   "selectModel": "Sélectionner un modèle",
   "title": "Paramètres généraux",
   "languageSystem": "Suivez le système",
@@ -96,5 +92,6 @@
     "enterUrlDescription": "Entrez l'URL dans la barre d'adresse ci-dessus pour accéder au site Web",
     "enterUrlToStart": "Entrez l'URL pour commencer la visite",
     "name": "Votre navigateur"
-  }
+  },
+  "moreSettings": "Plus de paramètres"
 }

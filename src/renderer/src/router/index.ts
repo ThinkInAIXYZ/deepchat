@@ -1,18 +1,14 @@
-import { createRouter, createWebHashHistory } from 'vue-router'
+import { createRouter, createWebHistory } from 'vue-router'
 
 const router = createRouter({
-  history: createWebHashHistory(import.meta.env.BASE_URL),
+  history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
     {
-      path: '/',
-      redirect: '/chat'
-    },
-    {
-      path: '/chat',
-      name: 'chat',
+      path: '/conversation/:id',
+      name: 'conversation',
       component: () => import('@/views/ChatTabView.vue'),
       meta: {
-        titleKey: 'routes.chat',
+        titleKey: 'routes.conversation',
         icon: 'lucide:message-square'
       }
     },
@@ -37,7 +33,16 @@ const router = createRouter({
             }
           }
         ]
-      : [])
+      : []),
+    {
+      path: '/',
+      redirect: '/home'
+    },
+    {
+      path: '/home',
+      name: 'home',
+      component: () => import('@/views/HomeTabView.vue')
+    }
   ]
 })
 

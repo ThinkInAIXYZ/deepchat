@@ -2,13 +2,14 @@ import { approximateTokenSize } from 'tokenx'
 import { presenter } from '@/presenter'
 import { AssistantMessage, Message, MessageFile, UserMessageContent } from '@shared/chat'
 import { ModelType } from '@shared/model'
-import { CONVERSATION, ModelConfig, SearchResult, ChatMessage } from '@shared/presenter'
+import { CONVERSATION, ModelConfig, ChatMessage } from '@shared/presenter'
 import type { MCPToolDefinition } from '@shared/presenter'
 
 import { modelCapabilities } from '../../configPresenter/modelCapabilities'
 import { enhanceSystemPromptWithDateTime } from '../utility/promptEnhancer'
 import { ToolCallCenter } from '../tool/toolCallCenter'
 import { nanoid } from 'nanoid'
+import { getRuntimeConfig } from '../runtimeConfig'
 
 import {
   addContextMessages,
@@ -37,7 +38,6 @@ export interface PreparePromptContentParams {
   conversation: CONVERSATION
   userContent: string
   contextMessages: Message[]
-  searchResults: SearchResult[] | null
   userMessage: Message
   vision: boolean
   imageFiles: MessageFile[]
@@ -83,11 +83,27 @@ function appendPromptSection(base: string, section: string): string {
   return `${base}\n\n${trimmedSection}`
 }
 
+async function resolveSystemPrompt(conversation: CONVERSATION): Promise<string> {
+  const settingsPrompt = (conversation.settings as unknown as { systemPrompt?: unknown })
+    ?.systemPrompt
+  if (typeof settingsPrompt === 'string') {
+    return settingsPrompt
+  }
+
+  // Phase 6: Prefer agent defaults when available, but don't require the full presenter graph
+  // for unit tests that mock `@/presenter`.
+  try {
+    const runtimeConfig = await getRuntimeConfig(conversation)
+    return runtimeConfig.systemPrompt
+  } catch {
+    return ''
+  }
+}
+
 export async function preparePromptContent({
   conversation,
   userContent,
   contextMessages,
-  searchResults: _searchResults,
   userMessage,
   vision,
   imageFiles,
@@ -97,16 +113,12 @@ export async function preparePromptContent({
   finalContent: ChatMessage[]
   promptTokens: number
 }> {
-  const { systemPrompt, contextLength, artifacts, enabledMcpTools } = conversation.settings
-  const chatMode: 'chat' | 'agent' | 'acp agent' =
-    conversation.settings.chatMode ??
-    ((await presenter.configPresenter.getSetting('input_chatMode')) as
-      | 'chat'
-      | 'agent'
-      | 'acp agent') ??
-    'chat'
-  const isAgentMode = chatMode === 'agent'
-  const isToolPromptMode = chatMode !== 'chat'
+  // Phase 6: Get runtime config from agent defaults
+  const runtimeConfig = await getRuntimeConfig(conversation)
+  const { contextLength, artifacts, enabledMcpTools } = runtimeConfig
+  const systemPrompt = await resolveSystemPrompt(conversation)
+  const isAgentMode = true
+  const isToolPromptMode = true
 
   const isImageGeneration = modelType === ModelType.ImageGeneration
 
@@ -131,7 +143,6 @@ export async function preparePromptContent({
     try {
       toolDefinitions = await toolCallCenter.getAllToolDefinitions({
         enabledMcpTools: effectiveEnabledMcpTools,
-        chatMode,
         supportsVision,
         agentWorkspacePath: conversation.settings.agentWorkspacePath?.trim() || null,
         conversationId: conversation.id
@@ -256,7 +267,7 @@ export async function buildContinueToolCallContext({
   pendingToolCall,
   modelConfig
 }: ContinueToolCallContextParams): Promise<ChatMessage[]> {
-  const { systemPrompt } = conversation.settings
+  const systemPrompt = await resolveSystemPrompt(conversation)
   const formattedMessages: ChatMessage[] = []
 
   if (systemPrompt) {
@@ -289,7 +300,7 @@ export async function buildPostToolExecutionContext({
   completedToolCall,
   modelConfig
 }: PostToolExecutionContextParams): Promise<ChatMessage[]> {
-  const { systemPrompt } = conversation.settings
+  const systemPrompt = await resolveSystemPrompt(conversation)
   const formattedMessages: ChatMessage[] = []
   const supportsFunctionCall = Boolean(modelConfig?.functionCall)
 

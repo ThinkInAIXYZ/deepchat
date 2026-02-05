@@ -12,7 +12,7 @@
           artifact: part.artifact
         }"
         :message-id="messageId"
-        :thread-id="threadId"
+        :session-id="sessionId"
         :loading="part.loading"
       />
     </div>
@@ -25,10 +25,10 @@
 <script setup lang="ts">
 import { ref, nextTick, watch, onMounted } from 'vue'
 
-import { usePresenter } from '@/composables/usePresenter'
+import { useConversationCore } from '@/composables/chat/useConversationCore'
 import { SearchResult } from '@shared/presenter'
 
-const sessionPresenter = usePresenter('sessionPresenter')
+const conversationCore = useConversationCore()
 const searchResults = ref<SearchResult[]>([])
 
 import ArtifactThinking from '../artifacts/ArtifactThinking.vue'
@@ -42,7 +42,7 @@ const artifactStore = useArtifactStore()
 const props = defineProps<{
   block: AssistantMessageBlock
   messageId: string
-  threadId: string
+  sessionId: string
   isSearchResult?: boolean
 }>()
 
@@ -79,7 +79,7 @@ watch(
                 status
               },
               props.messageId,
-              props.threadId
+              props.sessionId
             )
           }
         } else {
@@ -101,7 +101,7 @@ watch(
 
 onMounted(async () => {
   if (props.isSearchResult) {
-    searchResults.value = await sessionPresenter.getSearchResults(props.messageId)
+    searchResults.value = await conversationCore.getSearchResults(props.messageId)
   }
 })
 </script>

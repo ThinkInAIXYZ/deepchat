@@ -1,5 +1,11 @@
 {
   "title": "Settings",
+  "groups": {
+    "preferences": "Preferences",
+    "models": "Models",
+    "tools": "Tools",
+    "system": "System"
+  },
   "common": {
     "title": "Common Settings",
     "resetData": "Reset Data",
@@ -19,18 +25,6 @@
     "customProxyUrl": "Custom Proxy URL",
     "customProxyUrlPlaceholder": "Example: http://127.0.0.1:7890",
     "invalidProxyUrl": "Invalid proxy URL, please enter valid http/https URL",
-    "addCustomSearchEngine": "Add Custom Search Engine",
-    "addCustomSearchEngineDesc": "Add a new search engine by providing a name and search URL. The URL must include {query} as the query placeholder.",
-    "searchEngineName": "Search Engine Name",
-    "searchEngineNamePlaceholder": "Enter search engine name",
-    "searchEngineUrl": "Search URL",
-    "searchEngineUrlPlaceholder": "Ex: https://a.com/search?q={'{'}query{'}'}",
-    "searchEngineUrlError": "URL must include {'{'}query{'}'} as the query placeholder",
-    "deleteCustomSearchEngine": "Delete Custom Search Engine",
-    "deleteCustomSearchEngineDesc": "Are you sure you want to delete the custom search engine \"{name}\"? This action cannot be undone.",
-    "testSearchEngine": "Test Search Engine",
-    "testSearchEngineDesc": "A test search for \"weather\" will be performed using the {engine} search engine.",
-    "testSearchEngineNote": "If the search page requires login or other actions, you can perform them in the test window. Please close the test window when you're done.",
     "theme": "Theme",
     "themeSelect": "Select theme",
     "themeLight": "Light",
@@ -48,10 +42,6 @@
     "loggingDialogTitle": "Confirm Logging Setting Change",
     "loggingEnableDesc": "Enabling logging will help us diagnose issues and improve the application. Log files may contain sensitive information.",
     "loggingDisableDesc": "Disabling logging will stop collecting application logs.",
-    "webContentLengthLimit": "Web Content Length Limit",
-    "webContentLengthLimitHint": "(Set to 0 for no limit)",
-    "charactersUnit": "characters",
-    "webContentLengthLimitTooltip": "Set the maximum length of text content extracted from web pages (character count), range: 0-50000. Setting to 0 means no limit and retrieves complete web content; higher values provide more complete web content but may increase processing time and token usage.",
     "loggingRestartNotice": "Changing this setting will restart the application. Do you want to continue?",
     "openLogFolder": "Open Log Folder",
     "shortcut": {
@@ -283,6 +273,22 @@
           "chat": "Text Generation",
           "image": "Image Generation"
         }
+      }
+    },
+    "acpSession": {
+      "title": "ACP Session Settings",
+      "description": "Configure session-level options reported by ACP agents.",
+      "model": {
+        "label": "Agent Model",
+        "description": "Select the underlying model exposed by the ACP agent.",
+        "placeholder": "Select a model",
+        "empty": "No models reported by the agent"
+      },
+      "mode": {
+        "label": "Permission Mode",
+        "description": "Select the agent's permission policy (if supported).",
+        "placeholder": "Select a mode",
+        "empty": "No permission modes reported by the agent"
       }
     }
   },

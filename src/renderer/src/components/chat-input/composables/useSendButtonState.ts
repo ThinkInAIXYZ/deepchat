@@ -6,7 +6,7 @@ import type { MaybeRef } from 'vue'
 import { useChatStore } from '@/stores/chat'
 
 interface SendButtonStateOptions {
-  variant: 'chat' | 'newThread'
+  variant: 'agent' | 'newThread' | 'acp'
   inputText: Ref<string>
   currentContextLength: Ref<number>
   contextLength?: MaybeRef<number | undefined>
@@ -29,12 +29,12 @@ export function useSendButtonState(options: SendButtonStateOptions) {
     }
 
     // chat variant
-    const activeThreadId = chatStore.getActiveThreadId()
-    if (activeThreadId) {
+    const activeSessionId = chatStore.getActiveSessionId()
+    if (activeSessionId) {
       return (
-        chatStore.generatingThreadIds.has(activeThreadId) ||
+        chatStore.generatingSessionIds.has(activeSessionId) ||
         inputText.value.length <= 0 ||
-        currentContextLength.value > (length ?? chatStore.chatConfig.contextLength)
+        currentContextLength.value > (length ?? 200000)
       )
     }
     return false
@@ -43,9 +43,9 @@ export function useSendButtonState(options: SendButtonStateOptions) {
   const isStreaming = computed(() => {
     if (variant === 'newThread') return false
 
-    const activeThreadId = chatStore.getActiveThreadId()
-    if (activeThreadId) {
-      return chatStore.generatingThreadIds.has(activeThreadId)
+    const activeSessionId = chatStore.getActiveSessionId()
+    if (activeSessionId) {
+      return chatStore.generatingSessionIds.has(activeSessionId)
     }
     return false
   })

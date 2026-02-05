@@ -1,6 +1,8 @@
 import { eventBus, SendTarget } from '@/eventbus'
 import { STREAM_EVENTS } from '@/events'
 import type { LLMAgentEventData } from '@shared/presenter'
+import type { AgenticEventEmitter } from '@shared/types/presenters/agentic.presenter.d'
+import { normalizeAndEmit } from '../normalizer'
 
 export const STREAM_RENDER_FLUSH_INTERVAL_MS = 120
 export const STREAM_DB_FLUSH_INTERVAL_MS = 600
@@ -41,6 +43,7 @@ interface SchedulerState {
   lastDbFlushAt: number
   renderTimer?: NodeJS.Timeout
   dbTimer?: NodeJS.Timeout
+  emitter?: AgenticEventEmitter
 }
 
 export class StreamUpdateScheduler {
@@ -59,6 +62,7 @@ export class StreamUpdateScheduler {
     parentId?: string
     isVariant: boolean
     tabId?: number
+    emitter?: AgenticEventEmitter
   }): SchedulerState {
     let state = this.states.get(options.eventId)
     if (!state) {
@@ -72,9 +76,13 @@ export class StreamUpdateScheduler {
         seq: 0,
         hasSentInit: false,
         lastRenderFlushAt: 0,
-        lastDbFlushAt: 0
+        lastDbFlushAt: 0,
+        emitter: options.emitter
       }
       this.states.set(options.eventId, state)
+    } else if (options.emitter && !state.emitter) {
+      // Update emitter if not set
+      state.emitter = options.emitter
     }
     return state
   }
@@ -86,7 +94,8 @@ export class StreamUpdateScheduler {
     isVariant: boolean,
     tabId: number | undefined,
     delta: Partial<LLMAgentEventData>,
-    contentSnapshot?: unknown
+    contentSnapshot?: unknown,
+    emitter?: AgenticEventEmitter
   ): void {
     if (delta.content && delta.reasoning_content) {
       const { content, reasoning_content, ...rest } = delta
@@ -100,7 +109,8 @@ export class StreamUpdateScheduler {
           ...rest,
           content
         },
-        contentSnapshot
+        contentSnapshot,
+        emitter
       )
       this.enqueueDelta(
         eventId,
@@ -111,7 +121,8 @@ export class StreamUpdateScheduler {
         {
           reasoning_content
         },
-        contentSnapshot
+        contentSnapshot,
+        emitter
       )
       return
     }
@@ -121,7 +132,8 @@ export class StreamUpdateScheduler {
       conversationId,
       parentId,
       isVariant,
-      tabId
+      tabId,
+      emitter
     })
 
     if (contentSnapshot !== undefined) {
@@ -225,7 +237,16 @@ export class StreamUpdateScheduler {
       seq: state.seq
     }
 
-    eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, SendTarget.ALL_WINDOWS, eventData)
+    if (state.emitter) {
+      normalizeAndEmit(
+        STREAM_EVENTS.RESPONSE as keyof typeof STREAM_EVENTS,
+        eventData,
+        state.conversationId,
+        state.emitter
+      )
+    } else {
+      eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, SendTarget.ALL_WINDOWS, eventData)
+    }
   }
 
   private scheduleRenderFlush(state: SchedulerState, delayMs: number): void {
@@ -277,7 +298,16 @@ export class StreamUpdateScheduler {
         totalUsage: delta.totalUsage
       }
 
-      eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, SendTarget.ALL_WINDOWS, eventData)
+      if (state.emitter) {
+        normalizeAndEmit(
+          STREAM_EVENTS.RESPONSE as keyof typeof STREAM_EVENTS,
+          eventData,
+          state.conversationId,
+          state.emitter
+        )
+      } else {
+        eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, SendTarget.ALL_WINDOWS, eventData)
+      }
       state.pendingDelta = {}
     }
 
@@ -407,7 +437,16 @@ export class StreamUpdateScheduler {
         totalUsage: delta.totalUsage
       }
 
-      eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, SendTarget.ALL_WINDOWS, eventData)
+      if (state.emitter) {
+        normalizeAndEmit(
+          STREAM_EVENTS.RESPONSE as keyof typeof STREAM_EVENTS,
+          eventData,
+          state.conversationId,
+          state.emitter
+        )
+      } else {
+        eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, SendTarget.ALL_WINDOWS, eventData)
+      }
     }
 
     await this.flushDb(state)

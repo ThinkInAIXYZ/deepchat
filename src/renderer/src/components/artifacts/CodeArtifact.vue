@@ -60,7 +60,7 @@ const props = defineProps<{
   }
   isPreview: boolean
   messageId?: string
-  threadId?: string
+  sessionId?: string
 }>()
 
 const { t } = useI18n()
@@ -194,7 +194,7 @@ const handleCopy = async () => {
 
 // 预览HTML/SVG代码
 const previewCode = () => {
-  if (!isPreviewable.value || !props.messageId || !props.threadId) return
+  if (!isPreviewable.value || !props.messageId || !props.sessionId) return
 
   const lowerLang = codeLanguage.value
   const artifactType = lowerLang === 'html' ? 'text/html' : 'image/svg+xml'
@@ -213,7 +213,7 @@ const previewCode = () => {
       status: 'loaded'
     },
     props.messageId,
-    props.threadId,
+    props.sessionId,
     { force: true }
   )
 }

@@ -22,6 +22,7 @@
     "format:check": "prettier --check .",
     "format": "prettier --cache --write .",
     "lint": "oxlint .",
+    "lint:renderer-boundaries": "node scripts/check-renderer-adapters.mjs",
     "typecheck:node": "tsgo --noEmit -p tsconfig.node.json --composite false",
     "typecheck:web": "vue-tsgo --project tsconfig.app.tsgo.json",
     "typecheck": "pnpm run typecheck:node && pnpm run typecheck:web",

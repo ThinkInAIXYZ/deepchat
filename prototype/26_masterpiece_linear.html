@@ -1,0 +1,1034 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DeepChat - Masterpiece Linear (Wireframe Redesign)</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <style>
+      :root {
+        /* 
+               Masterpiece Palette - "Linear Dark" 
+            */
+        --bg-app: #0e0e11;
+        --bg-sidebar: #0e0e11;
+        --bg-panel: #161618;
+        --bg-active: #1f1f23;
+        --bg-input: #141416;
+
+        /* Text */
+        --txt-primary: rgba(255, 255, 255, 0.92);
+        --txt-secondary: rgba(255, 255, 255, 0.58);
+        --txt-tertiary: rgba(255, 255, 255, 0.35);
+
+        /* Borders */
+        --border-subtle: rgba(255, 255, 255, 0.06);
+        --border-highlight: rgba(255, 255, 255, 0.12);
+
+        /* Shadows */
+        --shadow-subtle: 0 1px 2px rgba(0, 0, 0, 0.1);
+        --shadow-medium: 0 4px 12px rgba(0, 0, 0, 0.15);
+        --shadow-glow: 0 0 20px rgba(94, 106, 210, 0.15);
+
+        /* Timing */
+        --ease: cubic-bezier(0.19, 1, 0.22, 1);
+      }
+
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        background-color: #050505;
+        color: var(--txt-primary);
+        font-family: 'Inter', sans-serif;
+        height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      /* 
+         * WIREFRAME STRUCTURE MAPPING 
+         * [Left: Conversation List] [Center: Main Mode + Header + Messages + Input] [Right: Workspace]
+         */
+
+      .app-shell {
+        width: 95vw;
+        height: 90vh;
+        max-width: 1600px;
+        background: var(--bg-app);
+        border: 1px solid var(--border-subtle);
+        border-radius: 12px;
+        display: flex;
+        box-shadow: 0 24px 48px rgba(0, 0, 0, 0.5);
+        position: relative;
+        overflow: hidden;
+      }
+
+      /* --- 1. Conversation List (Left Sidebar - Icon Strip) --- */
+      .col-conv-list {
+        width: 68px; /* Thin strip */
+        background: var(--bg-sidebar);
+        border-right: 1px solid var(--border-subtle);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 16px 0;
+        flex-shrink: 0;
+        gap: 12px;
+        z-index: 2;
+      }
+
+      .conv-icon-btn {
+        width: 44px;
+        height: 44px;
+        border-radius: 10px;
+        background: var(--bg-active);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        position: relative;
+        transition: all 0.2s var(--ease);
+        border: 1px solid transparent;
+        color: var(--txt-secondary);
+      }
+
+      /* Hover State */
+      .conv-icon-btn:hover {
+        background: rgba(255, 255, 255, 0.08);
+        color: var(--txt-primary);
+        border-color: var(--border-subtle);
+      }
+
+      /* Active State */
+      .conv-icon-btn.active {
+        box-shadow:
+          0 0 0 2px var(--bg-app),
+          0 0 0 4px #3b82f6; /* Ring effect */
+        background: #fff;
+        color: #000;
+        border-radius: 12px;
+      }
+
+      /* Active Indicator Notch */
+      .conv-icon-btn.active::before {
+        content: '';
+        position: absolute;
+        left: -18px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 4px;
+        height: 24px;
+        background: #3b82f6;
+        border-radius: 0 4px 4px 0;
+      }
+
+      .separator {
+        width: 32px;
+        height: 1px;
+        background: var(--border-subtle);
+        margin: 4px 0;
+      }
+
+      .avatar-label {
+        font-size: 14px;
+        font-weight: 600;
+      }
+
+      /* --- 2. Center Main Area (Chat) --- */
+      .col-main {
+        width: 450px;
+        display: flex;
+        flex-direction: column;
+        flex-shrink: 0;
+        background: var(--bg-app);
+        position: relative;
+        border-right: 1px solid var(--border-subtle);
+        z-index: 1;
+      }
+
+      /* Header Row: Agent Mode + Workdir Path */
+      .main-header-row {
+        height: 48px;
+        display: flex;
+        align-items: center;
+        padding: 0 24px;
+        gap: 12px;
+        border-bottom: 1px solid var(--border-subtle);
+      }
+
+      .agent-mode-badge {
+        background: transparent;
+        border: 1px solid transparent;
+        border-radius: 8px;
+        width: 36px;
+        height: 36px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: 0.2s;
+        position: relative;
+        color: var(--txt-primary);
+      }
+      .agent-mode-badge:hover,
+      .agent-mode-badge.active {
+        background: rgba(255, 255, 255, 0.05);
+      }
+
+      .agent-dropdown {
+        position: absolute;
+        top: 44px;
+        left: 0;
+        width: 180px;
+        background: var(--bg-panel);
+        border: 1px solid var(--border-highlight);
+        border-radius: 8px;
+        box-shadow: var(--shadow-medium);
+        padding: 4px;
+        display: none;
+        flex-direction: column;
+        z-index: 100;
+        animation: fadeIn 0.1s ease;
+      }
+      .agent-dropdown.show {
+        display: flex;
+      }
+
+      .agent-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        font-size: 13px;
+        color: var(--txt-secondary);
+        border-radius: 6px;
+        cursor: pointer;
+      }
+      .agent-item:hover {
+        background: var(--bg-active);
+        color: var(--txt-primary);
+      }
+      .agent-item.selected {
+        color: var(--txt-primary);
+        background: rgba(59, 130, 246, 0.1);
+      }
+
+      /* SVG Logos */
+      .agent-logo {
+        width: 18px;
+        height: 18px;
+        fill: currentColor;
+      }
+
+      /* Removed workdir-bar from main header, moved to sidebar */
+      .sidebar-workdir {
+        padding: 10px 16px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 11px;
+        color: var(--txt-secondary);
+        border-bottom: 1px solid var(--border-subtle);
+        background: var(--bg-sidebar);
+        min-height: 48px; /* Match header height if desired, or smaller */
+      }
+      .sidebar-workdir .label {
+        color: var(--txt-tertiary);
+        font-weight: 500;
+        text-transform: uppercase;
+        font-size: 10px;
+        margin-right: 4px;
+      }
+      .sidebar-workdir .path {
+        font-family: 'JetBrains Mono', monospace;
+        color: var(--txt-primary);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        background: rgba(0, 0, 0, 0.2);
+        padding: 4px 8px;
+        border-radius: 4px;
+        flex: 1;
+      }
+
+      /* Message List */
+      .message-list {
+        flex: 1;
+        overflow-y: auto;
+        padding: 24px 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+      .msg-stream {
+        width: 100%;
+        max-width: 800px;
+        padding: 0 24px;
+        display: flex;
+        flex-direction: column;
+        gap: 32px;
+      }
+
+      .msg-row {
+        display: flex;
+        gap: 16px;
+        animation: fadeIn 0.3s ease;
+      }
+      .msg-avatar {
+        width: 28px;
+        height: 28px;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        font-weight: 600;
+        flex-shrink: 0;
+      }
+      .msg-body {
+        flex: 1;
+        margin-top: 2px;
+      }
+      .msg-name {
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--txt-primary);
+        margin-bottom: 8px;
+      }
+      .msg-text {
+        font-size: 15px;
+        line-height: 1.6;
+        color: var(--txt-secondary);
+      }
+      .msg-text p {
+        margin-bottom: 12px;
+      }
+      .msg-text code {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 85%;
+        background: rgba(255, 255, 255, 0.08);
+        padding: 2px 4px;
+        border-radius: 4px;
+        color: #e2e8f0;
+      }
+
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(4px);
+        }
+        to {
+          opacity: 1;
+          transform: 0;
+        }
+      }
+
+      /* Input Area - Fixed at bottom */
+      .input-area-wrapper {
+        padding: 0 24px 24px 24px;
+        display: flex;
+        justify-content: center;
+        background: linear-gradient(to bottom, transparent, var(--bg-app) 20%);
+      }
+      .input-box {
+        width: 100%;
+        max-width: 800px;
+        background: var(--bg-input);
+        border: 1px solid var(--border-highlight);
+        border-radius: 12px;
+        box-shadow: var(--shadow-medium);
+        padding: 12px;
+        transition: all 0.2s;
+      }
+      .input-box:focus-within {
+        border-color: rgba(94, 106, 210, 0.4);
+        box-shadow: var(--shadow-glow);
+      }
+      .input-textarea {
+        width: 100%;
+        background: transparent;
+        border: none;
+        outline: none;
+        color: var(--txt-primary);
+        font-family: inherit;
+        font-size: 15px;
+        resize: none;
+        min-height: 48px;
+        line-height: 1.5;
+      }
+      .input-footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 8px;
+      }
+      .input-tools {
+        display: flex;
+        gap: 8px;
+        color: var(--txt-tertiary);
+      }
+      .tool-icon {
+        width: 28px;
+        height: 28px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      .tool-icon:hover {
+        color: var(--txt-primary);
+        background: rgba(255, 255, 255, 0.05);
+      }
+
+      /* --- 3. Workspace (Right Sidebar -> Main Area) --- */
+      .col-workspace {
+        flex: 1;
+        min-width: 0;
+        background: var(--bg-sidebar);
+        /* border-left removed, using col-main border-right */
+        display: flex;
+        flex-direction: column;
+      }
+
+      /* Code Editor Mock */
+      .editor-container {
+        display: flex;
+        flex: 1;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 13px;
+        line-height: 1.6;
+        color: #d4d4d8;
+        background: #1e1e20; /* Slightly lighter than bg-sidebar for editor contrast */
+        overflow: hidden;
+      }
+      .line-numbers {
+        width: 48px;
+        text-align: right;
+        padding: 16px 12px 16px 0;
+        color: var(--txt-tertiary);
+        user-select: none;
+        background: var(--bg-sidebar);
+        border-right: 1px solid var(--border-subtle);
+      }
+      .code-content {
+        flex: 1;
+        padding: 16px;
+        overflow: auto;
+        white-space: pre;
+      }
+      .kw {
+        color: #f472b6;
+      } /* keyword */
+      .fn {
+        color: #60a5fa;
+      } /* function */
+      .str {
+        color: #fcd34d;
+      } /* string */
+      .cm {
+        color: #6b7280;
+        font-style: italic;
+      } /* comment */
+
+      /* Tab Bar */
+      .workspace-tabs {
+        height: 48px;
+        display: flex;
+        align-items: center;
+        padding: 0 8px;
+        border-bottom: 1px solid var(--border-subtle);
+        gap: 4px;
+      }
+      .tab-btn {
+        flex: 1;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 11px;
+        font-weight: 500;
+        color: var(--txt-tertiary);
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.2s;
+        border: 1px solid transparent;
+      }
+      .tab-btn:hover {
+        color: var(--txt-secondary);
+        background: rgba(255, 255, 255, 0.03);
+      }
+      .tab-btn.active {
+        color: var(--txt-primary);
+        background: var(--bg-active);
+        border-color: var(--border-subtle);
+        font-weight: 600;
+      }
+
+      /* Content Panels */
+      .tab-content {
+        flex: 1;
+        overflow-y: auto;
+        position: relative;
+      }
+      .tab-panel {
+        display: none;
+        flex-direction: column;
+        height: 100%;
+        animation: fadeIn 0.2s ease;
+      }
+      .tab-panel.active {
+        display: flex;
+      }
+
+      /* Tree & Lists */
+      .file-tree,
+      .open-files-list {
+        padding: 12px 0;
+      }
+      .file-tree.hidden {
+        display: none;
+      }
+
+      /* File Icon View (Mac Finder Style) */
+      .file-grid {
+        display: none; /* hidden by default */
+        padding: 16px;
+        grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+        gap: 16px;
+        align-content: start;
+      }
+      .file-grid.active {
+        display: grid;
+      }
+
+      .grid-item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: start;
+        gap: 8px;
+        padding: 8px 4px;
+        border-radius: 6px;
+        border: 1px solid transparent;
+        cursor: pointer;
+        transition: 0.1s;
+        text-align: center;
+        height: 84px; /* Fixed height for consistency */
+      }
+      .grid-item:hover {
+        background: rgba(255, 255, 255, 0.1);
+        border-color: rgba(255, 255, 255, 0.1);
+      }
+      .grid-item.selected {
+        background: rgba(59, 130, 246, 0.2);
+        border-color: rgba(59, 130, 246, 0.4);
+      }
+      .grid-item span {
+        font-size: 11px;
+        line-height: 1.3;
+        color: var(--txt-secondary);
+        width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        white-space: normal;
+        word-break: break-word;
+      }
+
+      /* Section Header with Switcher */
+      .section-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 8px 16px 4px 16px;
+      }
+      .section-label {
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        color: var(--txt-tertiary);
+        letter-spacing: 0.05em;
+        padding: 0; /* Override previous padding */
+      }
+      .view-switcher {
+        display: flex;
+        gap: 2px;
+      }
+      .switcher-btn {
+        width: 20px;
+        height: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 4px;
+        color: var(--txt-tertiary);
+        cursor: pointer;
+      }
+      .switcher-btn:hover,
+      .switcher-btn.active {
+        color: var(--txt-primary);
+        background: rgba(255, 255, 255, 0.05);
+      }
+
+      .tree-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 4px 16px;
+        font-size: 13px;
+        color: var(--txt-secondary);
+        cursor: pointer;
+        height: 28px;
+      }
+      .tree-item:hover {
+        color: var(--txt-primary);
+        background: rgba(255, 255, 255, 0.03);
+      }
+      .tree-item.active {
+        background: var(--bg-active);
+        color: var(--txt-primary);
+      }
+
+      .indent-1 {
+        padding-left: 32px;
+      }
+      .indent-2 {
+        padding-left: 48px;
+      }
+
+      /* Utility */
+      .git-status {
+        margin-left: auto;
+        font-size: 10px;
+        opacity: 0.8;
+      }
+      .text-green {
+        color: #4ade80;
+      }
+      .text-amber {
+        color: #fbbf24;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app-shell">
+      <!-- COLUMN 1: Conversation List -->
+      <aside class="col-conv-list">
+        <!-- New Chat / Brand -->
+        <div
+          class="conv-icon-btn"
+          style="color: white; background: linear-gradient(135deg, #6366f1, #a855f7); border: none"
+        >
+          <i data-lucide="plus" width="20"></i>
+        </div>
+
+        <div class="separator"></div>
+
+        <!-- Active Conversation -->
+        <div class="conv-icon-btn active" title="Refactoring Masterpiece Linear">
+          <span class="avatar-label">RM</span>
+        </div>
+
+        <!-- Other Conversations -->
+        <div class="conv-icon-btn" title="Debugging Docker Config">
+          <span class="avatar-label">DD</span>
+        </div>
+
+        <div class="conv-icon-btn" title="API Schema Validation">
+          <span class="avatar-label">AS</span>
+        </div>
+
+        <div style="flex: 1"></div>
+
+        <!-- Settings / User -->
+        <div class="conv-icon-btn">
+          <div
+            style="
+              width: 24px;
+              height: 24px;
+              border-radius: 50%;
+              background: #333;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              font-size: 10px;
+            "
+          >
+            EB
+          </div>
+        </div>
+      </aside>
+
+      <!-- COLUMN 2: Main Content -->
+      <main class="col-main">
+        <div class="main-header-row">
+          <div id="header-agent-btn" class="agent-mode-badge" onclick="toggleAgentMenu()">
+            <!-- Default: Claude (Anthropic Style) -->
+            <svg class="agent-logo" viewBox="0 0 24 24" style="color: #d97757">
+              <path
+                d="M12,2 C6.48,2 2,6.48 2,12 C2,17.52 6.48,22 12,22 C17.52,22 22,17.52 22,12 C22,6.48 17.52,2 12,2 Z M12,20 C7.59,20 4,16.41 4,12 C4,7.59 7.59,4 12,4 C16.41,4 20,7.59 20,12 C20,16.41 16.41,20 12,20 Z M11,7 L13,7 L13,17 L11,17 Z M11,15 L13,15 L13,17 L11,17 Z"
+                fill="currentColor"
+              ></path>
+              <!-- Placeholder for Claude, using a distinct geometric shape as I don't have the exact path handy, 
+                    but colored Anthropic-orange/beige -->
+            </svg>
+          </div>
+
+          <div id="agent-menu" class="agent-dropdown">
+            <div class="agent-item selected" onclick="selectAgent('Claude', this)">
+              <svg class="agent-logo" viewBox="0 0 24 24" style="color: #d97757">
+                <path
+                  d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"
+                  fill="currentColor"
+                />
+                <rect x="11" y="6" width="2" height="12" rx="1" fill="currentColor" />
+              </svg>
+              <span>Claude Code</span>
+            </div>
+            <div class="agent-item" onclick="selectAgent('Codex', this)">
+              <!-- OpenAI Logo -->
+              <svg class="agent-logo" viewBox="0 0 24 24" style="color: #10a37f">
+                <path
+                  d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0843 7.6093-4.5218-1.4828-.8685-5.914 3.5116a4.4443 4.4443 0 0 1-1.396-1.1378 1.45 1.45 0 0 1 .1355-.0083 4.4952 4.4952 0 0 1 3.7371 1.9678l.0567.0913-.1113.1908zm4.4912-2.1492a4.4284 4.4284 0 0 1-1.9567-2.7303l.068-.1182 3.844-6.669 1.4839.8557-4.2982 7.4614a4.4268 4.4268 0 0 1-1.7456.2825 1.4513 1.4513 0 0 1-.1319 0 4.4842 4.4842 0 0 1 2.6285-1.082l.1075-.0058v.2258zm2.7533-5.2661a4.4735 4.4735 0 0 1-1.8315 2.5085l-.1263.076-7.6105 4.5218 1.4816.8687 5.9152-3.5134a4.4455 4.4455 0 0 1 1.3963 1.1378 1.45 1.45 0 0 1-.1355.0083 4.4952 4.4952 0 0 1-3.7369-1.968l-.058-.0921.1114-.1896a4.4367 4.4367 0 0 1 4.5942.642zm-1.8907-8.9959a4.4278 4.4278 0 0 1 1.9575 2.7303l-.0682.119-3.8437 6.668-1.4845-.8554 4.2982-7.4614a4.4357 4.4357 0 0 1 1.7466-.283 1.4485 1.4485 0 0 1 .1307 0 4.4848 4.4848 0 0 1-2.6288 1.0822l-.1075.0055v-.2261 2.2209zm-8.8344 1.3524a4.482 4.482 0 0 1 2.8753 1.0409l-.1407.0842-7.6105 4.5216 1.4827.8687 5.9153-3.5133a4.4442 4.4442 0 0 1 1.3948 1.139 1.4526 1.4526 0 0 1-.1329.0068 4.4952 4.4952 0 0 1-3.7383-1.9666l-.0568-.0924.111-.1901a4.4372 4.4372 0 0 1 .0001.0012z"
+                  fill="currentColor"
+                />
+              </svg>
+              <span>Codex</span>
+            </div>
+            <div class="agent-item" onclick="selectAgent('OpenCode', this)">
+              <svg class="agent-logo" viewBox="0 0 24 24" style="color: #60a5fa">
+                <path
+                  d="M14.293 4.293 8.586 10l5.707 5.707 1.414-1.414L11.414 10l4.293-4.293-1.414-1.414zm-10 0-1.414 1.414L7.172 10 2.879 14.293l1.414 1.414L10 10 4.293 4.293z"
+                  fill="currentColor"
+                />
+              </svg>
+              <span>OpenCode</span>
+            </div>
+          </div>
+
+          <div style="flex: 1"></div>
+          <!-- Spacer -->
+
+          <div class="icon-btn"><i data-lucide="more-vertical" width="16"></i></div>
+        </div>
+
+        <!-- Messages List -->
+        <div class="message-list">
+          <div class="msg-stream">
+            <!-- User Message -->
+            <div class="msg-row">
+              <div class="msg-avatar" style="background: #333; color: white">E</div>
+              <div class="msg-body">
+                <div class="msg-name">Eric</div>
+                <div class="msg-text">
+                  <p>
+                    I need to redraw the UI based on the new wireframes. The layout should strictly
+                    follow: Left sidebar for conversations, top header split for Agent Mode, and a
+                    detailed Workspace on the right.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Bot Message -->
+            <div class="msg-row">
+              <div
+                class="msg-avatar"
+                style="background: linear-gradient(135deg, #6366f1, #a855f7); color: white"
+              >
+                <i data-lucide="sparkles" width="14"></i>
+              </div>
+              <div class="msg-body">
+                <div class="msg-name">DeepChat</div>
+                <div class="msg-text">
+                  <p>
+                    Understood. I've updated the <code>.app-shell</code> container to use a 3-column
+                    flex layout.
+                  </p>
+                  <p>Here is the structural plan:</p>
+                  <ul>
+                    <li><strong>Left Column</strong>: Fixed 260px Conversation List</li>
+                    <li>
+                      <strong>Center</strong>: Fluid Main area with a
+                      <code>main-header-row</code> containing the Agent Mode badge and Workdir path.
+                    </li>
+                    <li><strong>Right Column</strong>: Fixed 300px Workspace Explorer.</li>
+                  </ul>
+                  <p>I'm ready to proceed with the code changes.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Input Area -->
+        <div class="input-area-wrapper">
+          <div class="input-box">
+            <textarea class="input-textarea" placeholder="Type a message or /command..."></textarea>
+            <div class="input-footer">
+              <div class="input-tools">
+                <div class="tool-icon"><i data-lucide="paperclip" width="16"></i></div>
+                <div class="tool-icon"><i data-lucide="image" width="16"></i></div>
+              </div>
+              <div style="font-size: 11px; color: var(--txt-tertiary); font-weight: 500">
+                Return to send
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+
+      <!-- COLUMN 3: Workspace -->
+      <aside class="col-workspace">
+        <div class="workspace-tabs">
+          <div class="tab-btn" onclick="switchTab('workspace', this)">Explorer</div>
+          <div class="tab-btn active" onclick="switchTab('sidebar-vue', this)">Sidebar.vue</div>
+          <div class="tab-btn" onclick="switchTab('app-vue', this)">App.vue</div>
+          <div class="tab-btn" onclick="switchTab('main-ts', this)">main.ts</div>
+          <div class="tab-btn" onclick="switchTab('ext', this)">Extensions</div>
+        </div>
+
+        <div class="tab-content">
+          <!-- PANEL 1: WORKSPACE TREE -->
+          <div id="panel-workspace" class="tab-panel active">
+            <!-- Workdir Header -->
+            <div class="sidebar-workdir">
+              <i data-lucide="folder-open" width="14" style="color: var(--txt-tertiary)"></i>
+              <span class="path">~/Code/deepchat/prototype/</span>
+            </div>
+
+            <div class="section-header">
+              <div class="section-label">Project</div>
+              <div class="view-switcher">
+                <div class="switcher-btn active" onclick="switchExplorerView('tree', this)">
+                  <i data-lucide="list" width="12"></i>
+                </div>
+                <div class="switcher-btn" onclick="switchExplorerView('grid', this)">
+                  <i data-lucide="layout-grid" width="12"></i>
+                </div>
+              </div>
+            </div>
+
+            <!-- TREE VIEW -->
+            <div id="view-tree" class="file-tree">
+              <div class="tree-item">
+                <i data-lucide="chevron-down" width="14" style="opacity: 0.6"></i>
+                <i data-lucide="folder" width="14" class="text-blue-400" style="color: #60a5fa"></i>
+                <span>src</span>
+              </div>
+
+              <div class="tree-item indent-1">
+                <i data-lucide="chevron-down" width="14" style="opacity: 0.6"></i>
+                <i data-lucide="folder" width="14" style="color: #60a5fa"></i>
+                <span>components</span>
+              </div>
+
+              <div class="tree-item indent-2">
+                <i data-lucide="file-code" width="14" style="color: #a78bfa"></i>
+                <span>AppShell.vue</span>
+              </div>
+
+              <div class="tree-item indent-2 active">
+                <i data-lucide="file-code" width="14" style="color: #a78bfa"></i>
+                <span>Sidebar.vue</span>
+                <span class="git-status text-amber">M</span>
+              </div>
+
+              <div class="tree-item indent-1">
+                <i data-lucide="folder" width="14" style="color: #60a5fa"></i>
+                <span>stores</span>
+              </div>
+            </div>
+
+            <!-- GRID VIEW -->
+            <div id="view-grid" class="file-grid">
+              <div class="grid-item">
+                <i
+                  data-lucide="folder"
+                  width="32"
+                  style="color: #60a5fa; fill: rgba(96, 165, 250, 0.2)"
+                ></i>
+                <span>src</span>
+              </div>
+              <div class="grid-item">
+                <i
+                  data-lucide="folder"
+                  width="32"
+                  style="color: #60a5fa; fill: rgba(96, 165, 250, 0.2)"
+                ></i>
+                <span>components</span>
+              </div>
+              <div class="grid-item">
+                <i data-lucide="file-code" width="32" style="color: #a78bfa"></i>
+                <span>AppShell.vue</span>
+              </div>
+              <div class="grid-item">
+                <i data-lucide="file-code" width="32" style="color: #a78bfa"></i>
+                <span>Sidebar.vue</span>
+              </div>
+              <div class="grid-item">
+                <i
+                  data-lucide="folder"
+                  width="32"
+                  style="color: #60a5fa; fill: rgba(96, 165, 250, 0.2)"
+                ></i>
+                <span>stores</span>
+              </div>
+              <div class="grid-item">
+                <i data-lucide="file-json" width="32" style="color: #fbbf24"></i>
+                <span>package.json</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- PANEL 2: Sidebar.vue -->
+          <div id="panel-sidebar-vue" class="tab-panel active">
+            <div class="editor-container">
+              <div class="line-numbers">
+                1<br />2<br />3<br />4<br />5<br />6<br />7<br />8<br />9<br />10<br />11<br />12<br />13<br />14<br />15
+              </div>
+              <div class="code-content">
+                <span class="kw">import</span> { ref } <span class="kw">from</span>
+                <span class="str">'vue'</span>
+
+                <span class="kw">export default</span> { <span class="fn">setup</span>() {
+                <span class="kw">const</span> isOpen = <span class="fn">ref</span>(<span class="kw"
+                  >true</span
+                >)
+
+                <span class="kw">function</span> <span class="fn">toggle</span>() { isOpen.value =
+                !isOpen.value }
+
+                <span class="kw">return</span> { isOpen, toggle } } }
+              </div>
+            </div>
+          </div>
+
+          <!-- PANEL 3: App.vue -->
+          <div id="panel-app-vue" class="tab-panel">
+            <div class="editor-container">
+              <div class="line-numbers">1<br />2<br />3<br />4<br />5<br />6<br />7<br />8</div>
+              <div class="code-content">
+                <span class="kw">&lt;template&gt;</span> <span class="kw">&lt;div</span>
+                <span class="str">class</span>=<span class="str">"app-shell"</span
+                ><span class="kw">&gt;</span> <span class="kw">&lt;Sidebar</span> /<span class="kw"
+                  >&gt;</span
+                >
+                <span class="kw">&lt;router-view</span> /<span class="kw">&gt;</span>
+                <span class="kw">&lt;/div&gt;</span>
+                <span class="kw">&lt;/template&gt;</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- PANEL 4: main.ts -->
+          <div id="panel-main-ts" class="tab-panel">
+            <div class="editor-container">
+              <div class="line-numbers">1<br />2<br />3<br />4<br />5</div>
+              <div class="code-content">
+                <span class="kw">import</span> { createApp } <span class="kw">from</span>
+                <span class="str">'vue'</span> <span class="kw">import</span> App
+                <span class="kw">from</span> <span class="str">'./App.vue'</span>
+
+                <span class="kw">const</span> app = <span class="fn">createApp</span>(App) app.<span
+                  class="fn"
+                  >mount</span
+                >(<span class="str">'#app'</span>)
+              </div>
+            </div>
+          </div>
+
+          <!-- PANEL 5: EXTENSIONS -->
+          <div id="panel-ext" class="tab-panel">
+            <div class="section-label">Installed</div>
+            <div class="file-tree">
+              <div class="tree-item">
+                <i data-lucide="box" width="14" style="color: #4ade80"></i>
+                <span>Vue.js DevTools</span>
+              </div>
+              <div class="tree-item">
+                <i data-lucide="box" width="14" style="color: #4ade80"></i>
+                <span>Tailwind CSS IntelliSense</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <script>
+      lucide.createIcons()
+
+      function switchTab(tabId, btn) {
+        // Reset tabs
+        document.querySelectorAll('.tab-btn').forEach((b) => b.classList.remove('active'))
+        btn.classList.add('active')
+
+        // Reset panels
+        document.querySelectorAll('.tab-panel').forEach((p) => p.classList.remove('active'))
+
+        // Show target
+        const panel = document.getElementById('panel-' + tabId)
+        if (panel) panel.classList.add('active')
+      }
+
+      function toggleAgentMenu() {
+        document.getElementById('agent-menu').classList.toggle('show')
+      }
+
+      function selectAgent(name, el) {
+        // Update Header Icon by copying SVG from selection
+        const newLogo = el.querySelector('.agent-logo').outerHTML
+        document.getElementById('header-agent-btn').innerHTML = newLogo
+
+        document.getElementById('agent-menu').classList.remove('show')
+
+        // Update selection state
+        document.querySelectorAll('.agent-item').forEach((i) => i.classList.remove('selected'))
+        el.classList.add('selected')
+      }
+
+      // Close dropdown when clicking outside
+      document.addEventListener('click', (e) => {
+        const badge = document.querySelector('.agent-mode-badge')
+        const menu = document.getElementById('agent-menu')
+        if (!badge.contains(e.target) && !menu.contains(e.target)) {
+          menu.classList.remove('show')
+        }
+      })
+
+      function switchExplorerView(mode, btn) {
+        // Switch buttons
+        document.querySelectorAll('.switcher-btn').forEach((b) => b.classList.remove('active'))
+        btn.classList.add('active')
+
+        const tree = document.getElementById('view-tree')
+        const grid = document.getElementById('view-grid')
+
+        if (mode === 'tree') {
+          tree.classList.remove('hidden')
+          grid.classList.remove('active')
+        } else {
+          tree.classList.add('hidden')
+          grid.classList.add('active')
+        }
+      }
+    </script>
+  </body>
+</html>

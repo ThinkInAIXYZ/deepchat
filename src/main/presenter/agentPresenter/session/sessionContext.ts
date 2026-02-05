@@ -7,14 +7,12 @@ export type SessionStatus =
   | 'error'
 
 export type SessionContextResolved = {
-  chatMode: 'chat' | 'agent' | 'acp agent'
   providerId: string
   modelId: string
   supportsVision: boolean
   supportsFunctionCall: boolean
   agentWorkspacePath: string | null
   enabledMcpTools?: string[]
-  acpWorkdirMap?: Record<string, string | null>
 }
 
 export type SessionContext = {
@@ -34,6 +32,7 @@ export type SessionContext = {
       permissionType: 'read' | 'write' | 'all' | 'command'
       payload: unknown
     }
+    activeSkills: string[]
     pendingQuestion?: {
       messageId: string
       toolCallId: string

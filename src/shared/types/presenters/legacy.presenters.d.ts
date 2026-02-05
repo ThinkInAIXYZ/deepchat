@@ -9,7 +9,6 @@ import { ProviderChange, ProviderBatchUpdate } from './provider-operations'
 import type { AgentSessionLifecycleStatus } from './agent-provider'
 import type { IAgentPresenter } from './agent.presenter'
 import type { ISessionPresenter } from './session.presenter'
-import type { ISearchPresenter } from './search.presenter'
 import type { IConversationExporter } from './exporter.presenter'
 import type { IWorkspacePresenter } from './workspace'
 import type { IToolPresenter } from './tool.presenter'
@@ -240,6 +239,13 @@ export interface IWindowPresenter {
     x?: number
     y?: number
   }): Promise<number | null>
+  createChatWindow(options?: {
+    initialConversationId?: string
+    x?: number
+    y?: number
+    width?: number
+    height?: number
+  }): Promise<number | null>
   mainWindow: BrowserWindow | undefined
   previewFile(filePath: string): void
   minimize(windowId: number): void
@@ -255,7 +261,7 @@ export interface IWindowPresenter {
   sendToAllWindows(channel: string, ...args: unknown[]): void
   sendToWindow(windowId: number, channel: string, ...args: unknown[]): boolean
   sendToDefaultTab(channel: string, switchToTarget?: boolean, ...args: unknown[]): Promise<boolean>
-  openOrFocusSettingsTab(windowId: number): Promise<void>
+  openOrFocusSettingsWindow(): Promise<void>
   closeWindow(windowId: number, forceClose?: boolean): Promise<void>
   isApplicationQuitting(): boolean
   setApplicationQuitting(isQuitting: boolean): void
@@ -388,25 +394,6 @@ export interface ISQLitePresenter {
   getLastAssistantMessage(conversationId: string): Promise<SQLITE_MESSAGE | null>
   getMainMessageByParentId(conversationId: string, parentId: string): Promise<SQLITE_MESSAGE | null>
   deleteAllMessagesInConversation(conversationId: string): Promise<void>
-  getAcpSession(conversationId: string, agentId: string): Promise<AcpSessionEntity | null>
-  upsertAcpSession(
-    conversationId: string,
-    agentId: string,
-    data: AcpSessionUpsertPayload
-  ): Promise<void>
-  updateAcpSessionId(
-    conversationId: string,
-    agentId: string,
-    sessionId: string | null
-  ): Promise<void>
-  updateAcpWorkdir(conversationId: string, agentId: string, workdir: string | null): Promise<void>
-  updateAcpSessionStatus(
-    conversationId: string,
-    agentId: string,
-    status: AgentSessionLifecycleStatus
-  ): Promise<void>
-  deleteAcpSessions(conversationId: string): Promise<void>
-  deleteAcpSession(conversationId: string, agentId: string): Promise<void>
 }
 
 export interface IOAuthPresenter {
@@ -436,7 +423,6 @@ export interface IPresenter {
   llmproviderPresenter: ILlmProviderPresenter
   configPresenter: IConfigPresenter
   sessionPresenter: ISessionPresenter
-  searchPresenter: ISearchPresenter
   exporter: IConversationExporter
   agentPresenter: IAgentPresenter & ISessionPresenter
   devicePresenter: IDevicePresenter
@@ -456,6 +442,7 @@ export interface IPresenter {
   toolPresenter: IToolPresenter
   skillPresenter: ISkillPresenter
   skillSyncPresenter: ISkillSyncPresenter
+  agenticPresenter: IAgenticPresenter
   init(): void
   destroy(): void
 }
@@ -464,6 +451,17 @@ export interface INotificationPresenter {
   showNotification(options: { id: string; title: string; body: string; silent?: boolean }): void
   clearNotification(id: string): void
   clearAllNotifications(): void
+}
+
+export type SearchEngineTemplate = {
+  id: string
+  name: string
+  description?: string
+  urlTemplate?: string
+  icon?: string
+  enabled?: boolean
+  // Forward-compatible escape hatch for new engine settings.
+  [key: string]: unknown
 }
 
 export interface IConfigPresenter {
@@ -833,7 +831,13 @@ export interface AcpDebugRunResult {
   events: AcpDebugEventEntry[]
 }
 
-export type AcpBuiltinAgentId = 'kimi-cli' | 'claude-code-acp' | 'codex-acp'
+export type AcpBuiltinAgentId =
+  | 'kimi-cli'
+  | 'claude-code-acp'
+  | 'codex-acp'
+  | 'opencode'
+  | 'gemini-cli'
+  | 'qwen-code'
 
 export interface AcpAgentProfile {
   id: string
@@ -907,6 +911,12 @@ export interface AcpSessionUpsertPayload {
 export interface AcpWorkdirInfo {
   path: string
   isCustom: boolean
+}
+
+export interface AcpSessionModelInfo {
+  id: string
+  name: string
+  description?: string
 }
 
 // Simplified ModelScope MCP sync options
@@ -1033,51 +1043,18 @@ export interface ILlmProviderPresenter {
     temperature?: number,
     maxTokens?: number
   ): Promise<string>
-  getAcpWorkdir(conversationId: string, agentId: string): Promise<AcpWorkdirInfo>
-  setAcpWorkdir(conversationId: string, agentId: string, workdir: string | null): Promise<void>
-  warmupAcpProcess(agentId: string, workdir: string): Promise<void>
-  getAcpProcessModes(
-    agentId: string,
-    workdir: string
-  ): Promise<
-    | {
-        availableModes?: Array<{ id: string; name: string; description: string }>
-        currentModeId?: string
-      }
-    | undefined
-  >
-  setAcpPreferredProcessMode(agentId: string, workdir: string, modeId: string): Promise<void>
-  setAcpSessionMode(conversationId: string, modeId: string): Promise<void>
-  getAcpSessionModes(conversationId: string): Promise<{
-    current: string
-    available: Array<{ id: string; name: string; description: string }>
-  } | null>
-  resolveAgentPermission(requestId: string, granted: boolean): Promise<void>
-  runAcpDebugAction(request: AcpDebugRequest): Promise<AcpDebugRunResult>
   getProviderInstance(providerId: string): unknown
   getExistingProviderInstance?(providerId: string): unknown
 }
 
+/**
+ * Phase 6: chatConfig removed - Only essential session state remains
+ * Runtime configuration comes from agent's SessionInfo
+ */
 export type CONVERSATION_SETTINGS = {
-  systemPrompt: string
-  temperature: number
-  contextLength: number
-  maxTokens: number
   providerId: string
   modelId: string
-  artifacts: 0 | 1
-  enabledMcpTools?: string[]
-  thinkingBudget?: number
-  enableSearch?: boolean
-  forcedSearch?: boolean
-  searchStrategy?: 'turbo' | 'max'
-  reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
-  verbosity?: 'low' | 'medium' | 'high'
-  selectedVariantsMap?: Record<string, string>
-  acpWorkdirMap?: Record<string, string | null>
-  chatMode?: 'chat' | 'agent' | 'acp agent'
   agentWorkspacePath?: string | null
-  activeSkills?: string[] // Activated skills for this conversation
 }
 
 export type ParentSelection = {
@@ -1378,11 +1355,6 @@ export interface SearchResult {
   favicon?: string
   description?: string
   searchId?: string
-}
-
-export interface ISearchPresenter {
-  init(): void
-  search(query: string, engine: 'google' | 'baidu'): Promise<SearchResult[]>
 }
 
 export type FileOperation = {

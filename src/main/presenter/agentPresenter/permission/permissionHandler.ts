@@ -1,4 +1,5 @@
 import { presenter } from '@/presenter'
+import { acpPresenter } from '@/presenter/acpPresenter'
 import type { AssistantMessage, AssistantMessageBlock } from '@shared/chat'
 import type {
   ILlmProviderPresenter,
@@ -15,8 +16,9 @@ import {
 import type { GeneratingMessageState } from '../streaming/types'
 import type { StreamGenerationHandler } from '../streaming/streamGenerationHandler'
 import type { LLMEventHandler } from '../streaming/llmEventHandler'
-import { BaseHandler, type ThreadHandlerContext } from '../../searchPresenter/handlers/baseHandler'
+import { BaseHandler, type ThreadHandlerContext } from '../baseHandler'
 import { CommandPermissionService } from '../../permission/commandPermissionService'
+import { getRuntimeConfig } from '../runtimeConfig'
 
 export class PermissionHandler extends BaseHandler {
   private readonly generatingMessages: Map<string, GeneratingMessageState>
@@ -132,6 +134,13 @@ export class PermissionHandler extends BaseHandler {
               : undefined
           }
         }
+      }
+
+      // Ensure the corresponding tool_call block includes server metadata when it exists on the
+      // permission block (older messages or intermediate states may omit it on the tool_call).
+      this.propagateToolCallMetadata(content, permissionBlock, toolCallId)
+      if (generatingState) {
+        this.propagateToolCallMetadata(generatingState.message.content, permissionBlock, toolCallId)
       }
 
       await this.ctx.messageManager.editMessage(messageId, JSON.stringify(content))
@@ -378,6 +387,8 @@ export class PermissionHandler extends BaseHandler {
       const { conversation, contextMessages, userMessage } =
         await this.streamGenerationHandler.prepareConversationContext(conversationId, messageId)
 
+      // Phase 6: Get runtime config instead of reading from settings
+      const runtimeConfig = await getRuntimeConfig(conversation)
       const {
         providerId,
         modelId,
@@ -390,7 +401,7 @@ export class PermissionHandler extends BaseHandler {
         enableSearch,
         forcedSearch,
         searchStrategy
-      } = conversation.settings
+      } = runtimeConfig
 
       const modelConfig = this.ctx.configPresenter.getModelConfig(modelId, providerId)
       const completedToolCall = {
@@ -476,6 +487,8 @@ export class PermissionHandler extends BaseHandler {
       const { contextMessages, userMessage } =
         await this.streamGenerationHandler.prepareConversationContext(conversationId, messageId)
 
+      // Phase 6: Get runtime config instead of reading from settings
+      const runtimeConfig = await getRuntimeConfig(conversation)
       const modelConfig = this.ctx.configPresenter.getModelConfig(
         conversation.settings.modelId,
         conversation.settings.providerId
@@ -494,15 +507,15 @@ export class PermissionHandler extends BaseHandler {
         finalContent,
         conversation.settings.modelId,
         messageId,
-        conversation.settings.temperature,
-        conversation.settings.maxTokens,
-        conversation.settings.enabledMcpTools,
-        conversation.settings.thinkingBudget,
-        conversation.settings.reasoningEffort,
-        conversation.settings.verbosity,
-        conversation.settings.enableSearch,
-        conversation.settings.forcedSearch,
-        conversation.settings.searchStrategy,
+        runtimeConfig.temperature,
+        runtimeConfig.maxTokens,
+        runtimeConfig.enabledMcpTools,
+        runtimeConfig.thinkingBudget,
+        runtimeConfig.reasoningEffort,
+        runtimeConfig.verbosity,
+        runtimeConfig.enableSearch,
+        runtimeConfig.forcedSearch,
+        runtimeConfig.searchStrategy,
         conversationId
       )
 
@@ -545,6 +558,8 @@ export class PermissionHandler extends BaseHandler {
       const { conversation, contextMessages, userMessage } =
         await this.streamGenerationHandler.prepareConversationContext(conversationId, message.id)
 
+      // Phase 6: Get runtime config instead of reading from settings
+      const runtimeConfig = await getRuntimeConfig(conversation)
       const {
         providerId,
         modelId,
@@ -557,7 +572,7 @@ export class PermissionHandler extends BaseHandler {
         enableSearch,
         forcedSearch,
         searchStrategy
-      } = conversation.settings
+      } = runtimeConfig
 
       const modelConfig = this.ctx.configPresenter.getModelConfig(modelId, providerId)
       if (!modelConfig) {
@@ -567,14 +582,10 @@ export class PermissionHandler extends BaseHandler {
 
       let toolDef: MCPToolDefinition | undefined
       try {
-        const { chatMode, agentWorkspacePath } =
-          await presenter.sessionManager.resolveWorkspaceContext(
-            conversationId,
-            conversation.settings.modelId
-          )
+        const { agentWorkspacePath } =
+          await presenter.sessionManager.resolveWorkspaceContext(conversationId)
         const toolDefinitions = await this.getToolPresenter().getAllToolDefinitions({
           enabledMcpTools,
-          chatMode,
           supportsVision: false,
           agentWorkspacePath,
           conversationId
@@ -863,7 +874,7 @@ export class PermissionHandler extends BaseHandler {
       throw new Error(`Missing ACP permission request identifier for message ${messageId}`)
     }
 
-    await this.ctx.llmProviderPresenter.resolveAgentPermission(requestId, granted)
+    await acpPresenter.resolvePermission({ requestId, granted })
   }
 
   private getExtraString(block: AssistantMessageBlock, key: string): string | undefined {
@@ -932,5 +943,33 @@ export class PermissionHandler extends BaseHandler {
 
     console.warn('[PermissionHandler] No command found in permission block')
     return undefined
+  }
+
+  private propagateToolCallMetadata(
+    content: AssistantMessageBlock[],
+    permissionBlock: AssistantMessageBlock,
+    toolCallId: string
+  ): void {
+    const sourceToolCall = permissionBlock.tool_call
+    if (!sourceToolCall) return
+
+    const { server_name, server_icons, server_description } = sourceToolCall
+    if (!server_name && !server_icons && !server_description) return
+
+    for (const block of content) {
+      if (block.type !== 'tool_call') continue
+      if (!block.tool_call || block.tool_call.id !== toolCallId) continue
+
+      // Only fill missing fields - don't override values that were already present.
+      if (!block.tool_call.server_name && server_name) {
+        block.tool_call.server_name = server_name
+      }
+      if (!block.tool_call.server_icons && server_icons) {
+        block.tool_call.server_icons = server_icons
+      }
+      if (!block.tool_call.server_description && server_description) {
+        block.tool_call.server_description = server_description
+      }
+    }
   }
 }

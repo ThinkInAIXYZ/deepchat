@@ -1,4 +1,42 @@
 {
   "greeting": "Hello there!",
-  "prompt": "What's on your mind?"
+  "prompt": "What's on your mind?",
+  "homepage": {
+    "inputPlaceholder": "Type your message here...",
+    "selectModel": "Select Model",
+    "acpAgents": {
+      "title": "Start with an AI Agent",
+      "description": "Select an agent to begin a specialized coding session",
+      "empty": "No agents available. Enable agents in settings.",
+      "builtin": "Built-in",
+      "mcpEnabled": "MCP Tools",
+      "defaultDescription": "Professional AI coding assistant",
+      "customAgentDescription": "Custom agent: {name}",
+      "descriptions": {
+        "claude-code": "Claude Code - All-purpose coding assistant",
+        "gemini-cli": "Gemini CLI - Google coding assistant",
+        "qwen-code": "Qwen Code - Alibaba Cloud coding assistant"
+      }
+    },
+    "acpConfig": {
+      "title": "Configure {name}",
+      "description": "Set up your workspace and preferences for this agent",
+      "workdir": {
+        "label": "Workspace Directory",
+        "placeholder": "No directory selected",
+        "select": "Select",
+        "hint": "Choose the directory where the agent will work"
+      },
+      "model": {
+        "label": "Model",
+        "placeholder": "Select a model"
+      },
+      "mode": {
+        "label": "Mode",
+        "placeholder": "Select a mode"
+      },
+      "loading": "Loading configuration...",
+      "start": "Start Session"
+    }
+  }
 }
