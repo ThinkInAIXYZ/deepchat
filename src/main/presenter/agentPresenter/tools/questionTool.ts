@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { jsonrepair } from 'jsonrepair'
 import type { QuestionInfo } from '@shared/types/core/question'
 
-export const QUESTION_TOOL_NAME = 'question'
+export const QUESTION_TOOL_NAME = 'deepchat_question'
 
 const questionOptionSchema = z.object({
   label: z.string().trim().min(1).max(30),

@@ -7,6 +7,7 @@ import type {
   MCPToolResponse
 } from '@shared/presenter'
 import { resolveToolOffloadTemplatePath } from '../sessionPresenter/sessionPaths'
+import { QUESTION_TOOL_NAME } from '../agentPresenter/tools/questionTool'
 import { ToolMapper } from './toolMapper'
 import { AgentToolManager, type AgentToolCallResult } from '../agentPresenter/acp'
 import { jsonrepair } from 'jsonrepair'
@@ -172,7 +173,8 @@ export class ToolPresenter implements IToolPresenter {
     return [
       'Tool outputs may be offloaded when large.',
       `When you see an offload stub, read the full output from: ${offloadPath}`,
-      'Use file tools to read that path. Access is limited to the current conversation session.'
+      'Use file tools to read that path. Access is limited to the current conversation session.',
+      `If you need user confirmation or choices, ask with the ${QUESTION_TOOL_NAME} tool.`
     ].join('\n')
   }
 }
