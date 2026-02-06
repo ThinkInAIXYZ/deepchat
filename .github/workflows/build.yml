@@ -46,6 +46,9 @@ jobs:
           TARGET_OS: win32
           TARGET_ARCH: ${{ matrix.arch }}
 
+      - name: Configure extension for duckdb
+        run: pnpm run installRuntime:duckdb:vss
+
       - name: Install dependencies
         run: pnpm install
         env:
