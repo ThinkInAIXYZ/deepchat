@@ -15,9 +15,11 @@ const execAsync = promisify(exec)
 
 export class DevicePresenter implements IDevicePresenter {
   static getDefaultHeaders(): Record<string, string> {
+    const version = app.getVersion()
     return {
       'HTTP-Referer': 'https://deepchatai.cn',
-      'X-Title': 'DeepChat'
+      'X-Title': 'DeepChat',
+      'User-Agent': `DeepChat/${version}`
     }
   }
   async getAppVersion(): Promise<string> {
