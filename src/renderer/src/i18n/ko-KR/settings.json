@@ -435,6 +435,7 @@
     "localModels": "로컬 모델",
     "urlFormat": "API 샘플 : {defaultUrl}",
     "urlFormatFill": "API URL에 입력",
+    "openaiResponsesNotice": "OpenAI defaults to the Responses API. If a third-party endpoint only supports Chat Completions, use the OpenAI Completions provider.",
     "azureApiVersion": "API 버전",
     "safety": {
       "title": "보안 설정",

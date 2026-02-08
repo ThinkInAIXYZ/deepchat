@@ -314,6 +314,7 @@
     "getKeyTipEnd": "API Keyを取得する",
     "urlFormat": "API例：{defaultUrl}",
     "urlFormatFill": "API URL に入力",
+    "openaiResponsesNotice": "OpenAI defaults to the Responses API. If a third-party endpoint only supports Chat Completions, use the OpenAI Completions provider.",
     "modelList": "モデル一覧",
     "enableModels": "モデルを有効にする",
     "disableAllModels": "すべてのモデルを無効にする",
