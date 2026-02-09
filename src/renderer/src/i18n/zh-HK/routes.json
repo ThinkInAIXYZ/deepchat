@@ -14,5 +14,6 @@
   "settings-mcp-market": "MCP市場",
   "playground": "Playground 實驗室",
   "settings-acp": "ACP Agent",
-  "settings-skills": "skills設置"
+  "settings-skills": "skills設置",
+  "settings-notifications-hooks": "通知與 Hooks"
 }

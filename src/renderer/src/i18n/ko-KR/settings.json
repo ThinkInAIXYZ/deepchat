@@ -64,6 +64,60 @@
     "fileMaxSize": "파일 최대 크기",
     "fileMaxSizeHint": "단일 파일 업로드의 최대 크기를 제한합니다"
   },
+  "notificationsHooks": {
+    "title": "알림 및 훅",
+    "description": "웹훅 알림과 라이프사이클 훅을 설정합니다.",
+    "events": {
+      "title": "이벤트",
+      "SessionStart": "세션 시작",
+      "UserPromptSubmit": "사용자 프롬프트 전송",
+      "PreToolUse": "도구 사용 전",
+      "PostToolUse": "도구 사용 후",
+      "PostToolUseFailure": "도구 사용 실패",
+      "PermissionRequest": "권한 요청",
+      "Stop": "중지",
+      "SessionEnd": "세션 종료"
+    },
+    "telegram": {
+      "title": "Telegram",
+      "description": "Telegram 봇으로 알림을 전송합니다.",
+      "botToken": "봇 토큰",
+      "botTokenPlaceholder": "Telegram 봇 토큰",
+      "chatId": "채팅 ID",
+      "chatIdPlaceholder": "예: 123456789",
+      "threadId": "스레드 ID(선택 사항)",
+      "threadIdPlaceholder": "선택 사항 스레드 ID"
+    },
+    "discord": {
+      "title": "Discord",
+      "description": "Discord 웹훅으로 알림을 전송합니다.",
+      "webhookUrl": "웹훅 URL",
+      "webhookUrlPlaceholder": "https://discord.com/api/webhooks/..."
+    },
+    "confirmo": {
+      "title": "Confirmo",
+      "description": "Confirmo 훅으로 알림을 전송합니다(모든 이벤트).",
+      "unavailable": "Confirmo 훅을 찾을 수 없습니다: {path}"
+    },
+    "commands": {
+      "title": "훅 명령",
+      "description": "각 이벤트마다 명령을 실행합니다.",
+      "hint": "페이로드가 JSON으로 stdin에 전송됩니다.",
+      "commandPlaceholder": "실행할 명령"
+    },
+    "test": {
+      "button": "테스트",
+      "testing": "테스트 중...",
+      "success": "성공",
+      "failed": "실패",
+      "duration": "{ms} ms",
+      "statusCode": "HTTP {code}",
+      "exitCode": "종료 코드 {code}",
+      "retryAfter": "{ms} ms 후 재시도",
+      "stdout": "stdout",
+      "stderr": "stderr"
+    }
+  },
   "data": {
     "title": "데이터 설정",
     "syncEnable": "데이터 동기화 활성화",

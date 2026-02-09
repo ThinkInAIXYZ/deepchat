@@ -64,6 +64,60 @@
     "fileMaxSize": "ファイルの最大サイズ",
     "fileMaxSizeHint": "アップロードできるファイルの最大サイズを制限します"
   },
+  "notificationsHooks": {
+    "title": "通知とフック",
+    "description": "Webhook 通知とライフサイクルフックを設定します。",
+    "events": {
+      "title": "イベント",
+      "SessionStart": "セッション開始",
+      "UserPromptSubmit": "ユーザープロンプト送信",
+      "PreToolUse": "ツール使用前",
+      "PostToolUse": "ツール使用後",
+      "PostToolUseFailure": "ツール使用失敗",
+      "PermissionRequest": "権限リクエスト",
+      "Stop": "停止",
+      "SessionEnd": "セッション終了"
+    },
+    "telegram": {
+      "title": "Telegram",
+      "description": "Telegram ボットで通知を送信します。",
+      "botToken": "ボットトークン",
+      "botTokenPlaceholder": "Telegram ボットトークン",
+      "chatId": "チャット ID",
+      "chatIdPlaceholder": "例: 123456789",
+      "threadId": "スレッド ID（任意）",
+      "threadIdPlaceholder": "任意のスレッド ID"
+    },
+    "discord": {
+      "title": "Discord",
+      "description": "Discord の Webhook で通知を送信します。",
+      "webhookUrl": "Webhook URL",
+      "webhookUrlPlaceholder": "https://discord.com/api/webhooks/..."
+    },
+    "confirmo": {
+      "title": "Confirmo",
+      "description": "Confirmo フックで通知を送信します（全イベント）。",
+      "unavailable": "Confirmo フックが見つかりません: {path}"
+    },
+    "commands": {
+      "title": "フックコマンド",
+      "description": "各イベントごとにコマンドを実行します。",
+      "hint": "ペイロードは JSON として stdin に送信されます。",
+      "commandPlaceholder": "実行するコマンド"
+    },
+    "test": {
+      "button": "テスト",
+      "testing": "テスト中...",
+      "success": "成功",
+      "failed": "失敗",
+      "duration": "{ms} ms",
+      "statusCode": "HTTP {code}",
+      "exitCode": "終了コード {code}",
+      "retryAfter": "{ms} ms 後に再試行",
+      "stdout": "stdout",
+      "stderr": "stderr"
+    }
+  },
   "data": {
     "title": "データ設定",
     "syncEnable": "データ同期を有効にする",

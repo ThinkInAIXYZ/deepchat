@@ -64,6 +64,60 @@
     "fileMaxSize": "Максимальный размер файла",
     "fileMaxSizeHint": "Ограничивает максимальный размер загружаемого файла"
   },
+  "notificationsHooks": {
+    "title": "Уведомления и хуки",
+    "description": "Настройте webhook-уведомления и хуки жизненного цикла.",
+    "events": {
+      "title": "События",
+      "SessionStart": "Начало сессии",
+      "UserPromptSubmit": "Отправка пользовательского промпта",
+      "PreToolUse": "Перед использованием инструмента",
+      "PostToolUse": "После использования инструмента",
+      "PostToolUseFailure": "Сбой использования инструмента",
+      "PermissionRequest": "Запрос разрешения",
+      "Stop": "Остановка",
+      "SessionEnd": "Конец сессии"
+    },
+    "telegram": {
+      "title": "Telegram",
+      "description": "Отправлять уведомления через бота Telegram.",
+      "botToken": "Токен бота",
+      "botTokenPlaceholder": "Токен бота Telegram",
+      "chatId": "ID чата",
+      "chatIdPlaceholder": "например 123456789",
+      "threadId": "ID треда (необязательно)",
+      "threadIdPlaceholder": "Необязательный ID треда"
+    },
+    "discord": {
+      "title": "Discord",
+      "description": "Отправлять уведомления через webhook Discord.",
+      "webhookUrl": "URL вебхука",
+      "webhookUrlPlaceholder": "https://discord.com/api/webhooks/..."
+    },
+    "confirmo": {
+      "title": "Confirmo",
+      "description": "Отправлять уведомления через хук Confirmo (все события).",
+      "unavailable": "Хук Confirmo не найден: {path}"
+    },
+    "commands": {
+      "title": "Команды хуков",
+      "description": "Выполнять команду для каждого события.",
+      "hint": "Пейлоад отправляется в stdin в формате JSON.",
+      "commandPlaceholder": "Команда для запуска"
+    },
+    "test": {
+      "button": "Тест",
+      "testing": "Тестирование...",
+      "success": "Успех",
+      "failed": "Ошибка",
+      "duration": "{ms} мс",
+      "statusCode": "HTTP {code}",
+      "exitCode": "Код выхода {code}",
+      "retryAfter": "Повторить через {ms} мс",
+      "stdout": "stdout",
+      "stderr": "stderr"
+    }
+  },
   "data": {
     "title": "Настройки данных",
     "syncEnable": "Включить синхронизацию данных",

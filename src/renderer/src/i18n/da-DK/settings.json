@@ -1224,5 +1224,59 @@
       "title": "Eksterne værktøjer"
     },
     "title": "Færdighedsstyring"
+  },
+  "notificationsHooks": {
+    "commands": {
+      "commandPlaceholder": "Kommandoen der skal udføres",
+      "description": "Udfør kommandoen for hver begivenhed.",
+      "hint": "Skriv payload som JSON til stdin.",
+      "title": "Kroge Kommandoer"
+    },
+    "confirmo": {
+      "description": "Send notifikationer via Confirmo Hook (standard sender alle begivenheder).",
+      "title": "Jeg bekræfter",
+      "unavailable": "Confirmo Hook ikke fundet: {path}"
+    },
+    "description": "Konfigurer webhook-notifikationer og livscyklus-hooks.",
+    "discord": {
+      "description": "Send notifikationer via Discord webhook.",
+      "title": "Discord",
+      "webhookUrl": "Webhook-URL",
+      "webhookUrlPlaceholder": "https://discord.com/api/webhooks/..."
+    },
+    "events": {
+      "PermissionRequest": "Tilladelsesforespørgsel",
+      "PostToolUse": "Efter værktøjskald",
+      "PostToolUseFailure": "Værktøjsopkald mislykkedes",
+      "PreToolUse": "Før værktøjskald",
+      "SessionEnd": "Samtalen er slut",
+      "SessionStart": "Samtalen starter",
+      "Stop": "stop",
+      "UserPromptSubmit": "Brugerindsendelse",
+      "title": "begivenhed"
+    },
+    "telegram": {
+      "botToken": "Bot-token",
+      "botTokenPlaceholder": "Telegram Bot Token",
+      "chatId": "Chat-ID",
+      "chatIdPlaceholder": "For eksempel 123456789",
+      "description": "Send notifikationer via Telegram Bot.",
+      "threadId": "Trådid (valgfri)",
+      "threadIdPlaceholder": "Valgfri tråd-ID",
+      "title": "Telegram"
+    },
+    "test": {
+      "button": "Test",
+      "duration": "{ms} ms",
+      "exitCode": "Afslutningskode {code}",
+      "failed": "mislykkelse",
+      "retryAfter": "Prøv igen om {ms} ms",
+      "statusCode": "HTTP {code}",
+      "stderr": "stderr",
+      "stdout": "stdout",
+      "success": "succes",
+      "testing": "Tester..."
+    },
+    "title": "Meddelelser og Hooks"
   }
 }
