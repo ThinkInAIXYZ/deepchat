@@ -14,5 +14,6 @@
   "settings-prompt": "مدیریت پرامپت‌ها",
   "settings-mcp-market": "بازار MCP",
   "settings-acp": "نماینده ACP",
-  "settings-skills": "Skills"
+  "settings-skills": "Skills",
+  "settings-notifications-hooks": "اعلان‌ها و هوک‌ها"
 }

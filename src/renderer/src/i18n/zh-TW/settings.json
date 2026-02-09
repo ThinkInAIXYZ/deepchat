@@ -64,6 +64,60 @@
     "fileMaxSize": "檔案最大大小",
     "fileMaxSizeHint": "限制單個檔案的最大上傳大小"
   },
+  "notificationsHooks": {
+    "title": "通知與 Hooks",
+    "description": "設定 webhook 通知與生命週期 Hooks。",
+    "events": {
+      "title": "事件",
+      "SessionStart": "會話開始",
+      "UserPromptSubmit": "使用者提示送出",
+      "PreToolUse": "使用工具前",
+      "PostToolUse": "使用工具後",
+      "PostToolUseFailure": "工具使用失敗",
+      "PermissionRequest": "權限請求",
+      "Stop": "停止",
+      "SessionEnd": "會話結束"
+    },
+    "telegram": {
+      "title": "Telegram",
+      "description": "透過 Telegram 機器人發送通知。",
+      "botToken": "機器人 Token",
+      "botTokenPlaceholder": "Telegram 機器人 Token",
+      "chatId": "聊天 ID",
+      "chatIdPlaceholder": "例如 123456789",
+      "threadId": "主題 ID（選填）",
+      "threadIdPlaceholder": "選填主題 ID"
+    },
+    "discord": {
+      "title": "Discord",
+      "description": "透過 Discord webhook 發送通知。",
+      "webhookUrl": "Webhook URL",
+      "webhookUrlPlaceholder": "https://discord.com/api/webhooks/..."
+    },
+    "confirmo": {
+      "title": "Confirmo",
+      "description": "透過 Confirmo hook 發送通知（所有事件）。",
+      "unavailable": "找不到 Confirmo hook：{path}"
+    },
+    "commands": {
+      "title": "Hooks 指令",
+      "description": "每個事件執行一個指令。",
+      "hint": "Payload 會以 JSON 傳送到 stdin。",
+      "commandPlaceholder": "要執行的指令"
+    },
+    "test": {
+      "button": "測試",
+      "testing": "測試中...",
+      "success": "成功",
+      "failed": "失敗",
+      "duration": "{ms} ms",
+      "statusCode": "HTTP {code}",
+      "exitCode": "退出碼 {code}",
+      "retryAfter": "在 {ms} ms 後重試",
+      "stdout": "stdout",
+      "stderr": "stderr"
+    }
+  },
   "data": {
     "title": "資料設定",
     "syncEnable": "啟用資料同步",

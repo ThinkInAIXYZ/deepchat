@@ -13,6 +13,14 @@ import type { StreamUpdateScheduler } from './streamUpdateScheduler'
 
 type ConversationUpdateHandler = (state: GeneratingMessageState) => Promise<void>
 
+type HookErrorSnapshot = {
+  error: { message: string; stack?: string }
+  usage?: Record<string, number> | null
+  conversationId?: string
+  providerId?: string
+  modelId?: string
+}
+
 export class LLMEventHandler {
   private readonly generatingMessages: Map<string, GeneratingMessageState>
   private readonly searchingMessages: Set<string>
@@ -21,6 +29,7 @@ export class LLMEventHandler {
   private readonly toolCallHandler: ToolCallHandler
   private readonly streamUpdateScheduler: StreamUpdateScheduler
   private readonly onConversationUpdated?: ConversationUpdateHandler
+  private readonly errorByEventId: Map<string, HookErrorSnapshot> = new Map()
 
   constructor(options: {
     generatingMessages: Map<string, GeneratingMessageState>
@@ -141,8 +150,57 @@ export class LLMEventHandler {
 
     const shouldSkipToolCall =
       tool_call && tool_call_name === 'question' && tool_call !== 'question-required'
+    const isAcpProvider = state.message.model_provider === 'acp'
 
     if (tool_call && !shouldSkipToolCall) {
+      if (isAcpProvider) {
+        try {
+          if (tool_call === 'start') {
+            presenter.hooksNotifications.dispatchEvent('PreToolUse', {
+              conversationId: state.conversationId,
+              messageId: eventId,
+              providerId: state.message.model_provider,
+              modelId: state.message.model_id,
+              tool: {
+                callId: tool_call_id,
+                name: tool_call_name,
+                params: tool_call_params
+              }
+            })
+          }
+          if (tool_call === 'end') {
+            presenter.hooksNotifications.dispatchEvent('PostToolUse', {
+              conversationId: state.conversationId,
+              messageId: eventId,
+              providerId: state.message.model_provider,
+              modelId: state.message.model_id,
+              tool: {
+                callId: tool_call_id,
+                name: tool_call_name,
+                params: tool_call_params,
+                response: msg.tool_call_response ? String(msg.tool_call_response) : undefined
+              }
+            })
+          }
+          if (tool_call === 'error') {
+            presenter.hooksNotifications.dispatchEvent('PostToolUseFailure', {
+              conversationId: state.conversationId,
+              messageId: eventId,
+              providerId: state.message.model_provider,
+              modelId: state.message.model_id,
+              tool: {
+                callId: tool_call_id,
+                name: tool_call_name,
+                params: tool_call_params,
+                error: msg.tool_call_response ? String(msg.tool_call_response) : undefined
+              }
+            })
+          }
+        } catch (error) {
+          console.warn('[LLMEventHandler] Failed to dispatch ACP tool hooks:', error)
+        }
+      }
+
       switch (tool_call) {
         case 'start':
           presenter.sessionManager.incrementToolCallCount(state.conversationId)
@@ -163,6 +221,22 @@ export class LLMEventHandler {
             }
           })
           presenter.sessionManager.setStatus(state.conversationId, 'waiting_permission')
+          try {
+            presenter.hooksNotifications.dispatchEvent('PermissionRequest', {
+              conversationId: state.conversationId,
+              messageId: eventId,
+              providerId: state.message.model_provider,
+              modelId: state.message.model_id,
+              tool: {
+                callId: tool_call_id,
+                name: tool_call_name,
+                params: tool_call_params
+              },
+              permission: msg.permission_request ?? null
+            })
+          } catch (error) {
+            console.warn('[LLMEventHandler] Failed to dispatch PermissionRequest hook:', error)
+          }
           await this.toolCallHandler.processToolCallPermission(state, msg, currentTime)
           break
         case 'question-required':
@@ -318,7 +392,29 @@ export class LLMEventHandler {
 
   async handleLLMAgentError(msg: LLMAgentEventData): Promise<void> {
     const { eventId, error } = msg
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    const errorStack = error instanceof Error ? error.stack : undefined
     const state = this.generatingMessages.get(eventId)
+    const errorSnapshot: HookErrorSnapshot = {
+      error: errorStack ? { message: errorMessage, stack: errorStack } : { message: errorMessage },
+      usage: state?.totalUsage,
+      conversationId: state?.conversationId,
+      providerId: state?.message.model_provider,
+      modelId: state?.message.model_id
+    }
+
+    if (!errorSnapshot.conversationId) {
+      try {
+        const message = await this.messageManager.getMessage(eventId)
+        errorSnapshot.conversationId = message.conversationId
+        errorSnapshot.providerId = errorSnapshot.providerId ?? message.model_provider
+        errorSnapshot.modelId = errorSnapshot.modelId ?? message.model_id
+      } catch {
+        // ignore
+      }
+    }
+
+    this.errorByEventId.set(eventId, errorSnapshot)
 
     if (state) {
       if (state.adaptiveBuffer) {
@@ -331,7 +427,7 @@ export class LLMEventHandler {
     // Flush stream buffers before persisting error to avoid stale snapshot overwrites.
     await this.streamUpdateScheduler.flushAll(eventId, 'final')
 
-    await this.messageManager.handleMessageError(eventId, String(error))
+    await this.messageManager.handleMessageError(eventId, errorMessage)
 
     if (state) {
       this.generatingMessages.delete(eventId)
@@ -354,6 +450,7 @@ export class LLMEventHandler {
   async handleLLMAgentEnd(msg: LLMAgentEventData): Promise<void> {
     const { eventId, userStop } = msg
     const state = this.generatingMessages.get(eventId)
+    const errorSnapshot = this.errorByEventId.get(eventId)
 
     if (state) {
       if (state.adaptiveBuffer) {
@@ -411,6 +508,7 @@ export class LLMEventHandler {
         await this.streamUpdateScheduler.flushAll(eventId, 'final')
         this.generatingMessages.delete(eventId)
         eventBus.sendToRenderer(STREAM_EVENTS.END, SendTarget.ALL_WINDOWS, msg)
+        this.errorByEventId.delete(eventId)
         return
       }
 
@@ -418,6 +516,55 @@ export class LLMEventHandler {
       presenter.sessionManager.setStatus(state.conversationId, 'idle')
       presenter.sessionManager.clearPendingPermission(state.conversationId)
       presenter.sessionManager.clearPendingQuestion(state.conversationId)
+    }
+
+    const stopReason = errorSnapshot ? 'error' : userStop ? 'user_stop' : 'complete'
+    const stopPayload = {
+      reason: stopReason,
+      userStop: Boolean(userStop)
+    }
+    const usage = state?.totalUsage ?? errorSnapshot?.usage ?? null
+    const errorInfo = errorSnapshot?.error ?? null
+    let conversationId = state?.conversationId ?? errorSnapshot?.conversationId
+    let providerId = state?.message.model_provider ?? errorSnapshot?.providerId
+    let modelId = state?.message.model_id ?? errorSnapshot?.modelId
+
+    if (!conversationId) {
+      try {
+        const message = await this.messageManager.getMessage(eventId)
+        conversationId = message.conversationId
+        providerId = providerId ?? message.model_provider
+        modelId = modelId ?? message.model_id
+      } catch {
+        // ignore
+      }
+    }
+
+    try {
+      try {
+        presenter.hooksNotifications.dispatchEvent('Stop', {
+          conversationId,
+          providerId,
+          modelId,
+          stop: stopPayload
+        })
+      } catch (error) {
+        console.warn('[LLMEventHandler] Failed to dispatch Stop hook:', error)
+      }
+      try {
+        presenter.hooksNotifications.dispatchEvent('SessionEnd', {
+          conversationId,
+          providerId,
+          modelId,
+          stop: stopPayload,
+          usage,
+          error: errorInfo
+        })
+      } catch (error) {
+        console.warn('[LLMEventHandler] Failed to dispatch SessionEnd hook:', error)
+      }
+    } finally {
+      this.errorByEventId.delete(eventId)
     }
 
     await this.streamUpdateScheduler.flushAll(eventId, 'final')

@@ -11,6 +11,7 @@ import path from 'path'
 import { isNonRetryableError } from './errorClassification'
 import { resolveToolOffloadPath } from '../../sessionPresenter/sessionPaths'
 import { parseQuestionToolArgs, QUESTION_TOOL_NAME } from '../tools/questionTool'
+import { presenter } from '@/presenter'
 
 interface ToolCallProcessorOptions {
   getAllToolDefinitions: (context: ToolCallExecutionContext) => Promise<MCPToolDefinition[]>
@@ -30,6 +31,7 @@ interface ToolCallExecutionContext {
   enabledMcpTools?: string[]
   conversationMessages: ChatMessage[]
   modelConfig: ModelConfig
+  providerId?: string
   abortSignal: AbortSignal
   currentToolCallCount: number
   maxToolCalls: number
@@ -65,6 +67,7 @@ export class ToolCallProcessor {
   ): AsyncGenerator<LLMAgentEvent, ToolCallProcessResult, void> {
     let toolCallCount = context.currentToolCallCount
     let needContinueConversation = context.toolCalls.length > 0
+    const shouldDispatchToolHooks = context.providerId === 'acp'
 
     let toolDefinitions = await this.options.getAllToolDefinitions(context)
 
@@ -226,6 +229,21 @@ export class ToolCallProcessor {
       }
 
       try {
+        if (shouldDispatchToolHooks) {
+          try {
+            presenter.hooksNotifications.dispatchEvent('PreToolUse', {
+              conversationId: context.conversationId,
+              tool: {
+                callId: toolCall.id,
+                name: toolCall.name,
+                params: toolCall.arguments
+              }
+            })
+          } catch (error) {
+            console.warn('[ToolCallProcessor] Failed to dispatch PreToolUse hook:', error)
+          }
+        }
+
         const toolResponse = await this.options.callTool(mcpToolInput)
         const requiresPermission = Boolean(toolResponse.rawData?.requiresPermission)
 
@@ -268,6 +286,22 @@ export class ToolCallProcessor {
           context.conversationId,
           toolCall.name
         )
+
+        if (shouldDispatchToolHooks) {
+          try {
+            presenter.hooksNotifications.dispatchEvent('PostToolUse', {
+              conversationId: context.conversationId,
+              tool: {
+                callId: toolCall.id,
+                name: toolCall.name,
+                params: toolCall.arguments,
+                response: toolContent
+              }
+            })
+          } catch (error) {
+            console.warn('[ToolCallProcessor] Failed to dispatch PostToolUse hook:', error)
+          }
+        }
 
         if (supportsFunctionCall) {
           this.appendNativeFunctionCallMessages(context.conversationMessages, toolCall, {
@@ -319,6 +353,22 @@ export class ToolCallProcessor {
           toolError
         )
         const errorMessage = toolError instanceof Error ? toolError.message : String(toolError)
+
+        if (shouldDispatchToolHooks) {
+          try {
+            presenter.hooksNotifications.dispatchEvent('PostToolUseFailure', {
+              conversationId: context.conversationId,
+              tool: {
+                callId: toolCall.id,
+                name: toolCall.name,
+                params: toolCall.arguments,
+                error: errorMessage
+              }
+            })
+          } catch (error) {
+            console.warn('[ToolCallProcessor] Failed to dispatch PostToolUseFailure hook:', error)
+          }
+        }
 
         // Check if error is non-retryable (should stop the loop)
         const errorForClassification: Error | string =
