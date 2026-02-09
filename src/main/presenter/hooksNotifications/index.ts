@@ -17,7 +17,6 @@ const HOOK_PAYLOAD_VERSION = 1 as const
 const COMMAND_TIMEOUT_MS = 30_000
 const PREVIEW_TEXT_LIMIT = 1200
 const DIAGNOSTIC_TEXT_LIMIT = 2000
-const TELEGRAM_TEXT_LIMIT = 4096
 const TRUNCATION_SUFFIX = ' ...(truncated)'
 const MAX_RETRIES = 2
 const CONFIRMO_HOOK_RELATIVE_PATH = path.join('.confirmo', 'hooks', 'confirmo-hook.js')
@@ -330,37 +329,31 @@ export class HooksNotificationsService {
     return payload
   }
 
+  private escapeTelegramHtml(value: string): string {
+    return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  }
+
   private formatNotificationText(payload: HookEventPayload): string {
-    const LINE_LIMIT = 120
     const lines: string[] = []
-    const header = `DeepChat${payload.isTest ? ' Test' : ''}`
-    lines.push(header)
-    lines.push(`Event: ${payload.event}`)
-    if (payload.session.conversationId) {
-      lines.push(`Conversation: ${payload.session.conversationId}`)
+    const title = `DeepChat${payload.isTest ? ' Test' : ''}`
+    const pushLine = (label: string, value: string) => {
+      lines.push(`<b>${this.escapeTelegramHtml(label)}</b>: ${this.escapeTelegramHtml(value)}`)
     }
+
+    lines.push(`<b>${this.escapeTelegramHtml(title)}</b>`)
+    pushLine('Event', payload.event)
     if (payload.tool?.name) {
-      lines.push(`Tool: ${payload.tool.name}`)
+      pushLine('Tool', payload.tool.name)
     }
     if (payload.stop?.reason) {
-      lines.push(`Stop: ${payload.stop.reason}`)
+      pushLine('Stop', payload.stop.reason)
     }
     if (payload.error?.message) {
-      lines.push(`Error: ${truncateText(payload.error.message, 160)}`)
+      pushLine('Error', truncateText(payload.error.message, 160))
     }
-    lines.push(`Time: ${payload.time}`)
+    pushLine('Time', payload.time)
 
-    const safeLines = lines.map((line) => truncateText(line, LINE_LIMIT))
-    const width = Math.max(...safeLines.map((line) => line.length), 1)
-    const horizontal = '─'.repeat(width + 2)
-
-    const framed = [
-      `┌${horizontal}┐`,
-      ...safeLines.map((line) => `│ ${line.padEnd(width)} │`),
-      `└${horizontal}┘`
-    ]
-
-    return framed.join('\n')
+    return lines.join('\n')
   }
 
   private resolveCommandCwd(workdir?: string | null): string {
@@ -483,11 +476,12 @@ export class HooksNotificationsService {
       return { success: false, durationMs: 0, error: 'Missing Telegram config' }
     }
 
-    const text = truncateText(this.formatNotificationText(payload), TELEGRAM_TEXT_LIMIT)
+    const text = this.formatNotificationText(payload)
     const url = `https://api.telegram.org/bot${config.botToken}/sendMessage`
     const body: Record<string, unknown> = {
       chat_id: config.chatId,
-      text
+      text,
+      parse_mode: 'HTML'
     }
     if (config.threadId) {
       const threadValue = Number(config.threadId)

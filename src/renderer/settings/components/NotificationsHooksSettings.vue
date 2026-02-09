@@ -616,10 +616,10 @@ const isLoading = ref(false)
 const isSaving = ref(false)
 let pendingSave = false
 
-const telegramOpen = ref(true)
-const discordOpen = ref(true)
-const confirmoOpen = ref(true)
-const commandsOpen = ref(true)
+const telegramOpen = ref(false)
+const discordOpen = ref(false)
+const confirmoOpen = ref(false)
+const commandsOpen = ref(false)
 
 const showTelegramToken = ref(false)
 const showDiscordWebhook = ref(false)
@@ -698,13 +698,29 @@ const persistConfig = async () => {
 const updateChannelEnabled = (channel: 'telegram' | 'discord' | 'confirmo', value: boolean) => {
   if (!config.value) return
   if (channel === 'confirmo' && !confirmoAvailable.value) return
-  config.value[channel].enabled = Boolean(value)
+  const nextEnabled = Boolean(value)
+  const wasEnabled = config.value[channel].enabled
+  config.value[channel].enabled = nextEnabled
+  if (!wasEnabled && nextEnabled) {
+    if (channel === 'telegram') {
+      telegramOpen.value = true
+    } else if (channel === 'discord') {
+      discordOpen.value = true
+    } else if (channel === 'confirmo') {
+      confirmoOpen.value = true
+    }
+  }
   persistConfig()
 }
 
 const updateCommandsEnabled = (value: boolean) => {
   if (!config.value) return
-  config.value.commands.enabled = Boolean(value)
+  const nextEnabled = Boolean(value)
+  const wasEnabled = config.value.commands.enabled
+  config.value.commands.enabled = nextEnabled
+  if (!wasEnabled && nextEnabled) {
+    commandsOpen.value = true
+  }
   persistConfig()
 }
 
