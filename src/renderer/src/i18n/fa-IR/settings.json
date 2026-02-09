@@ -314,7 +314,7 @@
     "getKeyTipEnd": "بروید تا کلید API را دریافت کنید",
     "urlFormat": "نمونه API: {defaultUrl}",
     "urlFormatFill": "قرار دادن در URL API",
-    "openaiResponsesNotice": "OpenAI defaults to the Responses API. If a third-party endpoint only supports Chat Completions, use the OpenAI Completions provider.",
+    "openaiResponsesNotice": "OpenAI به صورت پیش‌فرض از Responses API استفاده می‌کند. اگر endpoint شخص ثالث فقط از Chat Completions پشتیبانی می‌کند، از ارائه‌دهنده OpenAI Completions استفاده کنید.",
     "modelList": "فهرست مدل‌ها",
     "enableModels": "روشن کردن مدل‌ها",
     "disableAllModels": "خاموش کردن همه مدل‌ها",
