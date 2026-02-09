@@ -4,8 +4,8 @@
 
 为降低风险，分两步交付：
 
-- **Step 1（核心）**：Claude command hooks 引擎 + 生命周期事件映射 + 基础 UI（启用/来源/信任/校验）+ 日志
-- **Step 2（体验）**：Telegram/Discord 内置通道 + 事件路由 UI + Test + 退避重试与脱敏
+- **Step 1（核心）**：Claude command hooks 引擎 + 生命周期事件映射 + Settings（每个生命周期一个 command + Test）+ 日志
+- **Step 2（体验）**：Telegram/Discord 内置通道（全局配置 + enable/disable + Test）+ 退避重试与脱敏
 
 ## Step 1：Claude command hooks 引擎
 
@@ -16,6 +16,7 @@
    - 支持读取 `~/.claude/settings.json`
    - 支持读取 `<workdir>/.claude/settings.json` 与 `.claude/settings.local.json`
    - 增加 project hooks 信任列表（allowlist），未信任时不执行并在 UI 提示
+   - 新增 Settings 管理的 per-event command（每个 hook event 一个 command 输入框），并在合并链路中作为最高优先级
 3. HookSession 管理
    - 为每次生成创建 session context：`session_id`、`cwd`、`transcript_path`、额外 env、`CLAUDE_ENV_FILE` 路径
    - 解析 `CLAUDE_ENV_FILE`（最小子集：`export KEY=VALUE`）并合并到后续 hooks env
@@ -28,13 +29,14 @@
    - `PreToolUse`/`PostToolUse`/`PostToolUseFailure`/`PermissionRequest`：在 ToolCallProcessor 周边触发；ACP 模式 best-effort
 6. Diagnostics
    - electron-log：记录每次事件触发、命中的 matcher、handler 运行耗时与退出码
-   - UI 显示“检测到的 hooks 来源 + 不支持 handler 数量 + 最近错误”
+   - Settings UI：每个事件提供 Test 按钮，显示最近一次执行结果（exit code / stdout/stderr 摘要）
 
 ## Step 2：Telegram / Discord 内置通知通道
 
 1. NotifierEngine
-   - 定义 channel 配置（enabled、secret、detail level、events+matcher）
+   - 定义 channel 配置（enabled、secret、detail level）
    - per-channel 串行队列 + 截断（Telegram 4096 / Discord 2000）+ 脱敏（复用 `redact.ts`）
+   - v1 固定触发：`Notification` 关键通知 + `SessionEnd` error 场景（不做按生命周期订阅 UI）
 2. TelegramClient
    - `sendMessage`（token/chatId/threadId/disable_notification）
    - 处理 429（retry_after）与指数退避
@@ -43,12 +45,12 @@
    - 处理 429（Retry-After/retry_after）
 4. Settings UI
    - 新增 `settings-notifications` 页面与路由（`src/renderer/settings/main.ts`）
-   - 表单：Telegram/Discord 配置 + 事件订阅 + 细节级别 + Test 按钮
-   - Trust flow：启用 project hooks 时提示并写入 allowlist
+   - 表单：Telegram/Discord 配置（enable/disable）+ 细节级别 + Test 按钮
+   - Trust flow：在 Settings 内启用 project hooks 时写入 allowlist（不弹窗）
 5. i18n
    - 增加 settings 文案 key（多语言最少 zh-CN/en-US）
 6. Tests
-   - matcher、截断、脱敏、429 退避、路由选择逻辑
+   - matcher、截断、脱敏、429 退避、触发策略（Notification/SessionEnd error）
 
 ## 里程碑验收（Definition of Done）
 
