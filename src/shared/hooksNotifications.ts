@@ -105,21 +105,7 @@ export interface HookCommandResult {
   error?: string
 }
 
-export interface HookChannelResult {
-  success: boolean
-  durationMs: number
+export interface HookTestResult extends HookCommandResult {
   statusCode?: number
   retryAfterMs?: number
-  error?: string
-}
-
-export interface HookTestResult {
-  success: boolean
-  durationMs: number
-  statusCode?: number
-  retryAfterMs?: number
-  exitCode?: number | null
-  stdout?: string
-  stderr?: string
-  error?: string
 }

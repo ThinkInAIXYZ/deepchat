@@ -541,22 +541,28 @@ export class LLMEventHandler {
     }
 
     try {
-      presenter.hooksNotifications.dispatchEvent('Stop', {
-        conversationId,
-        providerId,
-        modelId,
-        stop: stopPayload
-      })
-      presenter.hooksNotifications.dispatchEvent('SessionEnd', {
-        conversationId,
-        providerId,
-        modelId,
-        stop: stopPayload,
-        usage,
-        error: errorInfo
-      })
-    } catch (error) {
-      console.warn('[LLMEventHandler] Failed to dispatch Stop/SessionEnd hooks:', error)
+      try {
+        presenter.hooksNotifications.dispatchEvent('Stop', {
+          conversationId,
+          providerId,
+          modelId,
+          stop: stopPayload
+        })
+      } catch (error) {
+        console.warn('[LLMEventHandler] Failed to dispatch Stop/SessionEnd hooks:', error)
+      }
+      try {
+        presenter.hooksNotifications.dispatchEvent('SessionEnd', {
+          conversationId,
+          providerId,
+          modelId,
+          stop: stopPayload,
+          usage,
+          error: errorInfo
+        })
+      } catch (error) {
+        console.warn('[LLMEventHandler] Failed to dispatch Stop/SessionEnd hooks:', error)
+      }
     } finally {
       this.errorByEventId.delete(eventId)
     }

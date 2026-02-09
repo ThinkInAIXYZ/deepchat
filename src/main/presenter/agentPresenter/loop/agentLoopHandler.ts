@@ -613,6 +613,7 @@ export class AgentLoopHandler {
               enabledMcpTools,
               conversationMessages,
               modelConfig,
+              providerId,
               abortSignal: abortController.signal,
               currentToolCallCount: toolCallCount,
               maxToolCalls: MAX_TOOL_CALLS,
