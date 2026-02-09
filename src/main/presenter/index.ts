@@ -61,6 +61,7 @@ import { SearchPresenter } from './searchPresenter'
 import { ConversationExporterService } from './exporter'
 import { SkillPresenter } from './skillPresenter'
 import { SkillSyncPresenter } from './skillSyncPresenter'
+import { HooksNotificationsService } from './hooksNotifications'
 
 // IPC调用上下文接口
 interface IPCCallContext {
@@ -109,6 +110,7 @@ export class Presenter implements IPresenter {
   lifecycleManager: ILifecycleManager
   skillPresenter: ISkillPresenter
   skillSyncPresenter: ISkillSyncPresenter
+  hooksNotifications: HooksNotificationsService
   filePermissionService: FilePermissionService
   settingsPermissionService: SettingsPermissionService
 
@@ -197,6 +199,12 @@ export class Presenter implements IPresenter {
 
     // Initialize Skill Sync presenter
     this.skillSyncPresenter = new SkillSyncPresenter(this.skillPresenter, this.configPresenter)
+
+    // Initialize Hooks & Notifications service
+    this.hooksNotifications = new HooksNotificationsService(this.configPresenter, {
+      sessionPresenter: this.sessionPresenter,
+      resolveWorkspaceContext: this.sessionManager.resolveWorkspaceContext.bind(this.sessionManager)
+    })
 
     this.setupEventBus() // 设置事件总线监听
   }

@@ -1,5 +1,17 @@
 <template>
   <div class="flex flex-col gap-4">
+    <div
+      v-if="provider.id === 'openai'"
+      class="w-full rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-amber-900"
+    >
+      <div class="flex items-start gap-2">
+        <Icon icon="lucide:triangle-alert" class="h-4 w-4 mt-0.5 shrink-0" />
+        <p class="text-sm font-medium leading-5">
+          {{ t('settings.provider.openaiResponsesNotice') }}
+        </p>
+      </div>
+    </div>
+
     <!-- API URL 配置 -->
     <div class="flex flex-col items-start gap-2">
       <div class="flex justify-between items-center w-full">

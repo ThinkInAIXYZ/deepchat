@@ -160,6 +160,18 @@ export class AgentPresenter implements IAgentPresenter {
       false,
       this.buildMessageMetadata(conversation)
     )
+    try {
+      const promptPreview = this.extractUserMessageText(content)
+      presenter.hooksNotifications.dispatchEvent('UserPromptSubmit', {
+        conversationId: agentId,
+        messageId: userMessage.id,
+        promptPreview,
+        providerId: conversation.settings.providerId,
+        modelId: conversation.settings.modelId
+      })
+    } catch (error) {
+      console.warn('[AgentPresenter] Failed to dispatch UserPromptSubmit hook:', error)
+    }
 
     try {
       await this.resolvePendingQuestionIfNeeded(agentId, userMessage.id, content)
@@ -400,6 +412,9 @@ export class AgentPresenter implements IAgentPresenter {
     }
 
     await this.messageManager.editMessage(messageId, JSON.stringify(content))
+    if (message.status === 'pending') {
+      await this.messageManager.updateMessageStatus(messageId, 'sent')
+    }
     presenter.sessionManager.clearPendingQuestion(message.conversationId)
     presenter.sessionManager.setStatus(message.conversationId, 'idle')
   }

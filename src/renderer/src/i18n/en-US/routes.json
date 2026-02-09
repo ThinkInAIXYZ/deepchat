@@ -14,5 +14,6 @@
   "settings-prompt": "Prompts",
   "settings-mcp-market": "MCP Market",
   "settings-acp": "ACP Agents",
-  "settings-skills": "Skills"
+  "settings-skills": "Skills",
+  "settings-notifications-hooks": "Notifications & Hooks"
 }

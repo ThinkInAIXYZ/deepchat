@@ -1,4 +1,11 @@
 # Changelog
+
+## v0.5.8 (2026-02-09)
+- OpenAI 默认改为 Responses API
+- 支持了 Telegram/Discord/Confirmo 通知
+- 支持任务生命周期 hooks
+- 修复少量 Bug
+
 ## v0.5.7 (2026-02-05)
 - 完善 Skills 支持
 - Agent 现在可以生成可交互的提问信息

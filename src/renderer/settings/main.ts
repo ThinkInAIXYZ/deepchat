@@ -83,6 +83,16 @@ const router = createRouter({
       }
     },
     {
+      path: '/notifications-hooks',
+      name: 'settings-notifications-hooks',
+      component: () => import('./components/NotificationsHooksSettings.vue'),
+      meta: {
+        titleKey: 'routes.settings-notifications-hooks',
+        icon: 'lucide:bell',
+        position: 6.5
+      }
+    },
+    {
       path: '/skills',
       name: 'settings-skills',
       component: () => import('./components/skills/SkillsSettings.vue'),

@@ -64,6 +64,60 @@
     "fileMaxSize": "Tamanho máximo do arquivo",
     "fileMaxSizeHint": "Limita o tamanho máximo de um arquivo enviado"
   },
+  "notificationsHooks": {
+    "title": "Notificações e hooks",
+    "description": "Configure notificações de webhook e hooks de ciclo de vida.",
+    "events": {
+      "title": "Eventos",
+      "SessionStart": "Início da sessão",
+      "UserPromptSubmit": "Envio do prompt do usuário",
+      "PreToolUse": "Antes do uso da ferramenta",
+      "PostToolUse": "Após o uso da ferramenta",
+      "PostToolUseFailure": "Falha no uso da ferramenta",
+      "PermissionRequest": "Solicitação de permissão",
+      "Stop": "Parada",
+      "SessionEnd": "Fim da sessão"
+    },
+    "telegram": {
+      "title": "Telegram",
+      "description": "Enviar notificações via bot do Telegram.",
+      "botToken": "Token do bot",
+      "botTokenPlaceholder": "Token do bot do Telegram",
+      "chatId": "ID do chat",
+      "chatIdPlaceholder": "ex.: 123456789",
+      "threadId": "ID da thread (opcional)",
+      "threadIdPlaceholder": "ID de thread opcional"
+    },
+    "discord": {
+      "title": "Discord",
+      "description": "Enviar notificações via webhook do Discord.",
+      "webhookUrl": "URL do webhook",
+      "webhookUrlPlaceholder": "https://discord.com/api/webhooks/..."
+    },
+    "confirmo": {
+      "title": "Confirmo",
+      "description": "Enviar notificações via hook Confirmo (todos os eventos).",
+      "unavailable": "Hook do Confirmo não encontrado: {path}"
+    },
+    "commands": {
+      "title": "Comandos de hook",
+      "description": "Executar um comando para cada evento.",
+      "hint": "O payload é enviado para o stdin em JSON.",
+      "commandPlaceholder": "Comando a executar"
+    },
+    "test": {
+      "button": "Testar",
+      "testing": "Testando...",
+      "success": "Sucesso",
+      "failed": "Falhou",
+      "duration": "{ms} ms",
+      "statusCode": "HTTP {code}",
+      "exitCode": "Código de saída {code}",
+      "retryAfter": "Tentar novamente em {ms} ms",
+      "stdout": "stdout",
+      "stderr": "stderr"
+    }
+  },
   "data": {
     "title": "Configurações de Dados",
     "syncEnable": "Habilitar Sincronização de Dados",
@@ -314,6 +368,7 @@
     "getKeyTipEnd": "para obter a Chave da API",
     "urlFormat": "Exemplo de API: {defaultUrl}",
     "urlFormatFill": "Preencher na URL da API",
+    "openaiResponsesNotice": "A OpenAI usa a API Responses por padrão. Se um endpoint de terceiros oferecer suporte apenas a Chat Completions, use o provedor OpenAI Completions.",
     "modelList": "Lista de Modelos",
     "enableModels": "Habilitar Modelos",
     "disableAllModels": "Desabilitar Todos os Modelos",

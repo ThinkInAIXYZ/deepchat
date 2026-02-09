@@ -64,6 +64,60 @@
     "fileMaxSize": "حداکثر اندازه فایل",
     "fileMaxSizeHint": "حداکثر اندازه یک فایل قابل آپلود را محدود می‌کند"
   },
+  "notificationsHooks": {
+    "title": "اعلان‌ها و هوک‌ها",
+    "description": "پیکربندی اعلان‌های وب‌هوک و هوک‌های چرخهٔ عمر.",
+    "events": {
+      "title": "رویدادها",
+      "SessionStart": "شروع نشست",
+      "UserPromptSubmit": "ارسال پرامپت کاربر",
+      "PreToolUse": "پیش از استفاده از ابزار",
+      "PostToolUse": "پس از استفاده از ابزار",
+      "PostToolUseFailure": "شکست استفاده از ابزار",
+      "PermissionRequest": "درخواست اجازه",
+      "Stop": "توقف",
+      "SessionEnd": "پایان نشست"
+    },
+    "telegram": {
+      "title": "Telegram",
+      "description": "ارسال اعلان‌ها از طریق ربات تلگرام.",
+      "botToken": "توکن ربات",
+      "botTokenPlaceholder": "توکن ربات تلگرام",
+      "chatId": "شناسهٔ گفتگو",
+      "chatIdPlaceholder": "مثلاً 123456789",
+      "threadId": "شناسهٔ رشته (اختیاری)",
+      "threadIdPlaceholder": "شناسهٔ رشتهٔ اختیاری"
+    },
+    "discord": {
+      "title": "Discord",
+      "description": "ارسال اعلان‌ها از طریق وب‌هوک دیسکورد.",
+      "webhookUrl": "نشانی وب‌هوک",
+      "webhookUrlPlaceholder": "https://discord.com/api/webhooks/..."
+    },
+    "confirmo": {
+      "title": "Confirmo",
+      "description": "ارسال اعلان‌ها از طریق هوک Confirmo (همهٔ رویدادها).",
+      "unavailable": "هوک Confirmo یافت نشد: {path}"
+    },
+    "commands": {
+      "title": "فرمان‌های هوک",
+      "description": "برای هر رویداد یک فرمان اجرا شود.",
+      "hint": "محتوا به‌صورت JSON به stdin فرستاده می‌شود.",
+      "commandPlaceholder": "فرمان برای اجرا"
+    },
+    "test": {
+      "button": "آزمون",
+      "testing": "در حال آزمون...",
+      "success": "موفق",
+      "failed": "ناموفق",
+      "duration": "{ms} ms",
+      "statusCode": "HTTP {code}",
+      "exitCode": "کد خروج {code}",
+      "retryAfter": "تلاش دوباره پس از {ms} ms",
+      "stdout": "stdout",
+      "stderr": "stderr"
+    }
+  },
   "data": {
     "title": "تنظیمات داده",
     "syncEnable": "روشن کردن همگام‌سازی داده",
@@ -314,6 +368,7 @@
     "getKeyTipEnd": "بروید تا کلید API را دریافت کنید",
     "urlFormat": "نمونه API: {defaultUrl}",
     "urlFormatFill": "قرار دادن در URL API",
+    "openaiResponsesNotice": "OpenAI به صورت پیش‌فرض از Responses API استفاده می‌کند. اگر endpoint شخص ثالث فقط از Chat Completions پشتیبانی می‌کند، از ارائه‌دهنده OpenAI Completions استفاده کنید.",
     "modelList": "فهرست مدل‌ها",
     "enableModels": "روشن کردن مدل‌ها",
     "disableAllModels": "خاموش کردن همه مدل‌ها",

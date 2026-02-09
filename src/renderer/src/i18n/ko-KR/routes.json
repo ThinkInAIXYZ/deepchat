@@ -14,5 +14,6 @@
   "settings-prompt": "프롬프트 관리",
   "settings-mcp-market": "MCP 시장",
   "settings-acp": "ACP 프록시",
-  "settings-skills": "Skills"
+  "settings-skills": "Skills",
+  "settings-notifications-hooks": "알림 및 훅"
 }

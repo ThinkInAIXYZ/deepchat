@@ -14,5 +14,6 @@
   "settings-prompt": "הנחיות (Prompts)",
   "settings-mcp-market": "חנות MCP",
   "settings-acp": "סוכני ACP",
-  "settings-skills": "Skills"
+  "settings-skills": "Skills",
+  "settings-notifications-hooks": "התראות ו‑Hooks"
 }

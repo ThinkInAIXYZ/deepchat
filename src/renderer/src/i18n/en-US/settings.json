@@ -64,6 +64,60 @@
     "fileMaxSize": "File Maximum Size",
     "fileMaxSizeHint": "Limits the maximum size of a single uploaded file"
   },
+  "notificationsHooks": {
+    "title": "Notifications & Hooks",
+    "description": "Configure webhook notifications and lifecycle hooks.",
+    "events": {
+      "title": "Events",
+      "SessionStart": "Session Start",
+      "UserPromptSubmit": "User Prompt Submit",
+      "PreToolUse": "Pre Tool Use",
+      "PostToolUse": "Post Tool Use",
+      "PostToolUseFailure": "Tool Use Failure",
+      "PermissionRequest": "Permission Request",
+      "Stop": "Stop",
+      "SessionEnd": "Session End"
+    },
+    "telegram": {
+      "title": "Telegram",
+      "description": "Send notifications via Telegram bot.",
+      "botToken": "Bot Token",
+      "botTokenPlaceholder": "Telegram bot token",
+      "chatId": "Chat ID",
+      "chatIdPlaceholder": "e.g. 123456789",
+      "threadId": "Thread ID (optional)",
+      "threadIdPlaceholder": "Optional thread ID"
+    },
+    "discord": {
+      "title": "Discord",
+      "description": "Send notifications via Discord webhook.",
+      "webhookUrl": "Webhook URL",
+      "webhookUrlPlaceholder": "https://discord.com/api/webhooks/..."
+    },
+    "confirmo": {
+      "title": "Confirmo",
+      "description": "Send notifications via Confirmo hook (all events).",
+      "unavailable": "Confirmo hook not found: {path}"
+    },
+    "commands": {
+      "title": "Hooks Commands",
+      "description": "Run a command for each event.",
+      "hint": "The payload is sent to stdin as JSON.",
+      "commandPlaceholder": "Command to run"
+    },
+    "test": {
+      "button": "Test",
+      "testing": "Testing...",
+      "success": "Success",
+      "failed": "Failed",
+      "duration": "{ms} ms",
+      "statusCode": "HTTP {code}",
+      "exitCode": "Exit {code}",
+      "retryAfter": "Retry after {ms} ms",
+      "stdout": "stdout",
+      "stderr": "stderr"
+    }
+  },
   "data": {
     "title": "Data Settings",
     "syncEnable": "Enable Data Sync",
@@ -314,6 +368,7 @@
     "getKeyTipEnd": "to get API Key",
     "urlFormat": "API Example: {defaultUrl}",
     "urlFormatFill": "Fill into API URL",
+    "openaiResponsesNotice": "OpenAI defaults to the Responses API. If a third-party endpoint only supports Chat Completions, use the OpenAI Completions provider.",
     "modelList": "Model List",
     "enableModels": "Enable Models",
     "disableAllModels": "Disable All Models",

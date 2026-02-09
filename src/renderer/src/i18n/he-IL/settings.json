@@ -64,6 +64,60 @@
     "fileMaxSize": "גודל קובץ מקסימלי",
     "fileMaxSizeHint": "מגביל את הגודל המקסימלי של קובץ בודד המועלה"
   },
+  "notificationsHooks": {
+    "title": "התראות ו‑Hooks",
+    "description": "הגדרת התראות webhook ו‑hooks של מחזור החיים.",
+    "events": {
+      "title": "אירועים",
+      "SessionStart": "תחילת סשן",
+      "UserPromptSubmit": "שליחת פרומפט משתמש",
+      "PreToolUse": "לפני שימוש בכלי",
+      "PostToolUse": "אחרי שימוש בכלי",
+      "PostToolUseFailure": "כשל בשימוש בכלי",
+      "PermissionRequest": "בקשת הרשאה",
+      "Stop": "עצירה",
+      "SessionEnd": "סיום סשן"
+    },
+    "telegram": {
+      "title": "Telegram",
+      "description": "שליחת התראות דרך בוט טלגרם.",
+      "botToken": "טוקן בוט",
+      "botTokenPlaceholder": "טוקן בוט טלגרם",
+      "chatId": "מזהה צ׳אט",
+      "chatIdPlaceholder": "למשל 123456789",
+      "threadId": "מזהה שרשור (אופציונלי)",
+      "threadIdPlaceholder": "מזהה שרשור אופציונלי"
+    },
+    "discord": {
+      "title": "Discord",
+      "description": "שליחת התראות דרך webhook של Discord.",
+      "webhookUrl": "URL של Webhook",
+      "webhookUrlPlaceholder": "https://discord.com/api/webhooks/..."
+    },
+    "confirmo": {
+      "title": "Confirmo",
+      "description": "שליחת התראות דרך hook של Confirmo (כל האירועים).",
+      "unavailable": "ה‑hook של Confirmo לא נמצא: {path}"
+    },
+    "commands": {
+      "title": "פקודות Hooks",
+      "description": "הרצת פקודה עבור כל אירוע.",
+      "hint": "ה‑payload נשלח ל‑stdin כ‑JSON.",
+      "commandPlaceholder": "פקודה להרצה"
+    },
+    "test": {
+      "button": "בדיקה",
+      "testing": "בבדיקה...",
+      "success": "הצלחה",
+      "failed": "נכשל",
+      "duration": "{ms} ms",
+      "statusCode": "HTTP {code}",
+      "exitCode": "קוד יציאה {code}",
+      "retryAfter": "נסה שוב בעוד {ms} ms",
+      "stdout": "stdout",
+      "stderr": "stderr"
+    }
+  },
   "data": {
     "title": "הגדרות נתונים",
     "syncEnable": "הפעל סנכרון נתונים",
@@ -314,6 +368,7 @@
     "getKeyTipEnd": "כדי לקבל מפתח API",
     "urlFormat": "דוגמת API: {defaultUrl}",
     "urlFormatFill": "מילוי בכתובת ה-API",
+    "openaiResponsesNotice": "OpenAI משתמשת כברירת מחדל ב-Responses API. אם endpoint של צד שלישי תומך רק ב-Chat Completions, השתמש בספק OpenAI Completions.",
     "modelList": "רשימת מודלים",
     "enableModels": "הפעל מודלים",
     "disableAllModels": "השבת את כל המודלים",

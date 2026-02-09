@@ -14,5 +14,6 @@
   "settings-prompt": "Prompter",
   "settings-mcp-market": "MCP-marked",
   "settings-acp": "ACP-agenter",
-  "settings-skills": "Skills"
+  "settings-skills": "Skills",
+  "settings-notifications-hooks": "Notifikationer og Hooks"
 }
