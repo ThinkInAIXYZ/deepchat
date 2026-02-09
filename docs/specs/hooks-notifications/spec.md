@@ -1,358 +1,243 @@
-# Hooks 与通知（兼容 Claude Code Hooks）
+# Hooks 与 Webhook 通知（DeepChat）
 
 ## 背景
 
-DeepChat 当前已具备基础通知能力（renderer toast + main 系统通知），但缺少一个“可配置、可路由、可复用生态脚本”的通知/自动化层。
+DeepChat 目前已有系统通知（OS Notification）与 UI 内提示，但缺少一套“可配置、可复用、可路由”的通知能力：
 
-Claude Code 的 Hooks 机制提供了一套成熟的生命周期钩子：在关键阶段触发脚本（stdin JSON + stdout/exit code 决策），社区已有大量现成脚本可直接复用（如：自动跑测试、推送 Telegram/Discord、审计日志）。
+- 用户希望在关键生命周期点触发通知（例如：开始/结束、工具调用前后、权限请求等）。
+- 用户希望用 **一个命令输入框** 快速接入任意 webhook（例如 `curl`/`node` 脚本），并在 Settings 里一键测试。
+- 同时提供 **内置 Telegram / Discord** 两个常用通道，简单配置参数后勾选要推送的事件即可。
 
-本规格目标是把 DeepChat 的内部生命周期抽象成 Claude Hooks 兼容的事件面，并在此基础上提供“开箱即用”的 Telegram/Discord 通知路由。
+本功能只做“通知/观测”，不改变 DeepChat 的执行语义。
 
 ## 目标
 
-- Claude Code Hooks **配置结构与执行契约兼容**，优先完整支持 `type: "command"` hooks（含 `timeout` / `async` / `description` / `matcher`）。
-- 在 DeepChat 的关键生命周期点触发 hooks（覆盖“用户提交 → 生成 → 工具调用/权限 → 完成/停止”的主链路）。
-- 兼容 Telegram / Discord 两种常用平台：
-  - 用户只需配置 token/webhook 等信息，即可把 DeepChat 的关键通知推送到对应 bot（v1 固定触发点；更细粒度请用 hooks command 自定义）。
-  - 提供“Test”按钮验证配置可用性。
-- 安全与隐私默认更保守：
-  - 外发通知默认不包含完整用户输入/模型输出，只发摘要（可在 UI 里提升细节级别）。
-  - 项目级 hooks 默认不执行，需显式信任当前 workdir。
-- 可靠性：发送队列、平台长度限制截断、失败重试/退避、可观测日志。
+- 在 Settings 中提供三类能力（均可启用/禁用，默认关闭）：
+  - **Telegram 通知**：全局配置（token/chatId/threadId）+ 事件勾选 + Test
+  - **Discord 通知**：全局配置（webhookUrl/threadId）+ 事件勾选 + Test
+  - **Hooks Commands**：每个生命周期事件一个 command 输入框（右侧 Test）+ 每事件启用/禁用
+- Hooks command 执行契约：
+  - 每次触发将事件 payload 以 **stdin JSON** 传入命令
+  - 捕获 stdout/stderr/exit code，仅用于诊断与日志（不阻断主流程）
+- Telegram/Discord 采用 outbound HTTP 请求（webhook/API），不做交互式组件、不接收回调。
+- 不读取/合并任何外部配置文件；所有配置仅由 DeepChat Settings 管理。
 
 ## 非目标（v1）
 
-- 不实现 Claude 的 `type: "prompt"` / `type: "agent"` hooks（可解析并在 UI 标注“不支持”，但不执行）。
-- 不实现 Claude 插件 hooks、skill/agent frontmatter hooks、组织策略 hooks 的完整兼容（保留扩展点）。
-- 不支持 hooks “阻止/中止”语义：即使 hook 返回 `permissionDecision: "deny"` 或 exit code `2`，v1 也仅记录与通知，不影响 DeepChat 的工具执行、权限流转与生成流程。
-- 不强行补齐 DeepChat 目前不存在的语义：`TeammateIdle`、`PreCompact` 等事件允许配置但默认不会触发。
-- 不提供复杂模板语言（v1：预设模板 + 简单变量插值；高级模板后续迭代）。
+- 不提供双向 bot 交互（按钮、指令、回调、鉴权登录）。
+- 不提供复杂模板系统（仅提供固定内置消息格式；高级自定义由 command hooks 覆盖）。
+- 不提供“阻止/中止/改写”的 hooks 能力（exit code/输出不会影响工具与权限流程）。
+- 不提供按事件分别配置 Telegram/Discord 参数（仅全局配置 + 事件勾选）。
 
-## 术语
+## 用户体验（Settings）
 
-- Hook event：生命周期触发点（如 `PreToolUse`）。
-- Matcher group：在某个 hook event 下，对“何时触发”做过滤的规则块（Claude 术语）。
-- Hook handler：被触发执行的单元（v1 仅 command handler）。
-- Notifier：通知通道（System / Telegram / Discord）。
+### 入口
 
-## Claude Code Hooks 兼容范围
+在 Settings 增加一个页面或 section：`Notifications & Hooks`（建议独立页面，避免塞进现有 DisplaySettings）。
 
-兼容目标聚焦在 **settings 配置结构** 与 **command hooks 的执行契约**，以便最大化复用现有脚本生态；但 DeepChat 会保留自身会话/事件模型，不保证 Claude `transcript_path` 文件格式完全一致（见下文）。
+### 页面布局（从上到下）
 
-### Hooks 配置来源（locations）
+1. Telegram 卡片（顶部）
+2. Discord 卡片
+3. Hooks Commands 卡片（生命周期列表）
 
-Claude Code Hooks 文档定义了多种来源。DeepChat v1 建议把 **Settings 配置** 作为主入口，同时保留读取 `.claude/settings*.json` 的能力以复用生态脚本。
+卡片交互参考知识库配置的模式：外层卡片 + Switch 启用/禁用 + 可折叠内容区域。
 
-#### 1) Settings（DeepChat 管理，推荐）
+### Telegram 卡片
 
-在 Settings 中为每个 hook event 提供一个“command 输入框”，用户填写后即表示该事件触发时执行该命令；留空则不执行。
+- Enable（Switch）
+- Bot Token（password input，可 reveal）
+- Chat ID（text input）
+- Thread ID（可选，text/number input，对应 `message_thread_id`）
+- Events（多选勾选要推送的生命周期事件；默认建议勾选“重要事件”）
+- Test（按钮）：发送一条测试消息，不依赖真实会话
 
-该配置以 Electron Store 持久化，内部可被编译为 Claude settings 兼容结构（每个 event 一个 matcher group，`matcher="*"`，单一 command handler），但 v1 不强制写回到 `.claude/settings*.json`。
+### Discord 卡片
 
-#### 2) 读取 Claude settings 文件（可选，兼容生态）
+- Enable（Switch）
+- Webhook URL（password input，可 reveal）
+- Thread ID（可选；用于将 webhook 消息发到指定 thread）
+- Events（多选勾选要推送的生命周期事件）
+- Test（按钮）：发送一条测试消息
 
-DeepChat v1 还支持以下三种 JSON 文件读取（可在 Settings 中开关）：
+### Hooks Commands 卡片
 
-- `[User]`：`~/.claude/settings.json`（全局）
-- `[Project]`：`<workdir>/.claude/settings.json`（可提交到仓库）
-- `[Project Local]`：`<workdir>/.claude/settings.local.json`（建议 gitignore）
+- Enable Hooks Commands（Switch）
+- 生命周期事件列表（每行）：
+  - 事件名（label）
+  - Enable（Switch，便于保留 command 但临时停用）
+  - Command（单行 input；留空视为未配置）
+  - Test（按钮，位于输入框右侧）：触发一次“模拟事件”，执行该 command
 
-读取策略建议：
-- 合并顺序：User → Project → Project Local → Settings（DeepChat 管理的 per-event command）。
-- 项目级文件读取需先在 Settings 中“信任当前 workdir”。
+Test 结果展示（每行/每通道均需要）：
 
-### Hook 配置结构（schema）
+- success/failed
+- 耗时（ms）
+- exit code（command）
+- stdout/stderr 摘要（最多 N 字符，避免 UI 卡顿）
+- 错误信息（HTTP status、429 退避信息、网络错误等）
 
-按 Claude 文档，hooks 配置在 settings 文件中通常形如：
+## 生命周期事件（Hook Events）
 
-```jsonc
-{
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "write_file",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node scripts/notify.js",
-            "timeout": 60000,
-            "async": false,
-            "description": "Notify on file writes"
-          }
-        ]
-      }
-    ]
-  }
-}
-```
+> 事件名为 DeepChat 内部稳定 API（建议保持 PascalCase 以便脚本易读）。
 
-DeepChat v1 支持：
-- Hook event（对象 key）与 matcher group 的结构
-- handler `type: "command"` + `command` / `timeout` / `async` / `description`
-- matcher 的通配（见“Matcher 语义”）
+| Event | 触发时机（主链路） | 关键字段（payload） |
+| --- | --- | --- |
+| `SessionStart` | 一次生成链路开始（准备调用 LLM 前） | `conversationId`、`workdir`、`providerId`、`modelId` |
+| `UserPromptSubmit` | 用户提交消息后、调用 LLM 前 | `promptPreview`、`messageId` |
+| `PreToolUse` | 工具调用执行前 | `tool.name`、`tool.callId`、`tool.paramsPreview` |
+| `PostToolUse` | 工具调用成功后 | `tool.name`、`tool.callId`、`tool.responsePreview` |
+| `PostToolUseFailure` | 工具调用失败后 | `tool.name`、`tool.callId`、`tool.error` |
+| `PermissionRequest` | 出现权限请求时 | `permission.*`（tool/permissionType/description/options） |
+| `Stop` | 生成停止（用户停止/完成/错误） | `stop.reason`、`stop.userStop` |
+| `SessionEnd` | 一次生成链路结束（finalize） | `usage?`、`error?`、`stop?` |
 
-DeepChat v1 不支持（但应在 UI 中显式提示）：
-- `type: "prompt"` / `type: "agent"`
-- 插件/skills/组织策略来源
+说明：
 
-### 执行契约（stdin / env / stdout / exit code）
+- 以上事件是 v1 必须落地的最小集合；后续可增量增加更多事件，但不能修改既有事件语义与字段含义。
+- Telegram/Discord 的 “Events 多选” 与 Hooks Commands 的事件列表保持同一集合，便于用户理解。
 
-#### 输入（stdin JSON）
+## Hook Command 执行契约
 
-command hook 从 stdin 接收一个 JSON 对象，至少包含 Claude 文档的公共字段：
+### 输入（stdin）
 
-- `session_id`
-- `transcript_path`
-- `cwd`
-- `hook_event_name`
+触发时将 payload JSON 写入 stdin，一次性写入并关闭 stdin。
 
-以及各事件的特定字段（例如工具类事件含 `tool_name` / `tool_input`）。
-
-DeepChat 需要保证字段命名与 Claude 一致；DeepChat 自己的额外信息建议放入命名空间字段，避免与 Claude 字段冲突：
+建议 payload 结构（v1）：
 
 ```jsonc
 {
-  "session_id": "assistantMessageId",
-  "transcript_path": "C:\\Users\\...\\.deepchat\\sessions\\<conversationId>\\hooks\\hook_<assistantMessageId>.jsonl",
-  "cwd": "C:\\repo",
-  "hook_event_name": "PreToolUse",
-  "tool_name": "write_file",
-  "tool_input": { "...": "..." },
-  "deepchat": {
-    "conversation_id": "xxx",
-    "provider_id": "openai",
-    "model_id": "gpt-4.1",
-    "tab_id": 1
-  }
+  "payloadVersion": 1,
+  "event": "PreToolUse",
+  "time": "2026-02-09T18:00:00.000Z",
+  "isTest": false,
+  "app": {
+    "version": "0.5.7",
+    "platform": "win32"
+  },
+  "session": {
+    "conversationId": "conv_xxx",
+    "agentId": "agent_xxx",
+    "workdir": "C:\\repo\\project"
+  },
+  "user": {
+    "messageId": "msg_xxx",
+    "promptPreview": "Summarize the diff..."
+  },
+  "tool": {
+    "callId": "toolcall_xxx",
+    "name": "execute_command",
+    "paramsPreview": "{\"command\":\"pnpm test\"}"
+  },
+  "permission": null,
+  "stop": null,
+  "error": null
 }
 ```
 
-`transcript_path` 指向 DeepChat 生成的 hooks 记录文件（建议 JSONL：每行一个事件/结果），用于调试与脚本按需读取；其字段结构以 DeepChat 为准，不需要与 Claude 完全一致。
+字段策略：
 
-#### 环境变量（env vars）
+- `*Preview` 字段默认应为“截断后的摘要”，避免把完整敏感内容外发；如需完整内容，推荐用户用 command hooks 自己读取上下文（或未来新增显式开关）。
+- `isTest=true` 用于区分 Settings 的 Test 触发，脚本可据此避免产生副作用。
 
-为兼容现有脚本，DeepChat 在执行 command hook 时应设置与 Claude 相同的环境变量（至少）：
+### 进程与环境
 
-- `CLAUDE_PROJECT_DIR`：当前 workdir（绝对路径）
-- `CLAUDE_SESSION_ID`
-- `CLAUDE_TRANSCRIPT_PATH`
-- `CLAUDE_HOOK_EVENT_NAME`
-- `CLAUDE_HOOK_MATCHER`
-- `CLAUDE_HOOK_DESCRIPTION`
-- （工具类事件）`CLAUDE_TOOL_NAME` / `CLAUDE_TOOL_INPUT`（JSON 字符串）
-- （通知事件）`CLAUDE_NOTIFICATION_TYPE`
+- 使用 `child_process.spawn` 执行 `command`（建议 `shell: true` 以支持用户常见的 `&&`/管道）。
+- `cwd`：优先使用当前会话的 `workdir`；若不可得，则回落到应用记录的最近 workdir；再回落到 `process.cwd()`。
+- `timeout`：v1 可用固定默认（例如 30s），后续再支持可配置。
+- env：可附加少量只读变量，便于脚本快速取用（可选）：
+  - `DEECHAT_HOOK_EVENT`
+  - `DEECHAT_CONVERSATION_ID`
+  - `DEECHAT_WORKDIR`
 
-此外，Claude 允许在 `SessionStart` hooks 中通过 `CLAUDE_ENV_FILE` 持久化后续 hooks 的环境变量：
-- DeepChat 需要在每个 hook session 生成一个 `CLAUDE_ENV_FILE` 路径（位于该 session 的临时目录/会话目录），并注入到 SessionStart hook 的 env。
-- SessionStart 执行结束后，DeepChat 解析该文件中的 `export KEY=VALUE` 语句（简单子集即可），把变量合并到当前 hook session 的“额外 env”，并在后续 hook handler 执行时一并注入。
+### 输出（stdout/stderr/exit code）
 
-#### 输出（stdout JSON 或文本）
+- stdout/stderr：仅记录与展示摘要（Diagnostics），不做结构化解析要求。
+- exit code：仅用于标记成功/失败（Diagnostics），不影响 DeepChat 主链路。
 
-对齐 Claude 行为：
-- 若 stdout 能解析为 JSON，并包含 Claude 文档定义的决策字段，则作为“结构化输出”处理。
-- 否则把 stdout 当作“附加上下文”（additional context）：
-  - 对 Claude 而言：会被注入到模型上下文。
-  - 对 DeepChat 而言：v1 **不注入**到模型上下文，仅记录日志（减少 prompt 注入与数据泄露风险）。
+## 内置通道：Telegram
 
-#### 退出码（exit code）
+### 配置
 
-DeepChat v1 仅用于诊断与通知：
-- 记录 hook 的退出码与 stderr（用于 UI Diagnostics + 日志）。
-- 若 hook 返回 exit code `2` 或结构化输出包含 `permissionDecision: "deny"`，v1 仍 **不会阻止/中止** 任何 DeepChat 行为（仅记录“deny”结果）。
+- `enabled: boolean`
+- `botToken: string`（secret）
+- `chatId: string`
+- `threadId?: string`（可选，映射到 `message_thread_id`）
+- `events: HookEventName[]`
 
-### Matcher 语义（v1 建议）
+### 发送
 
-Claude hooks 的 matcher 是“按事件不同，匹配不同字段”的过滤器。DeepChat v1 建议实现：
+- Endpoint：`POST https://api.telegram.org/bot{token}/sendMessage`
+- Body（JSON）：`chat_id`、`text`、可选 `message_thread_id` 等
+- 文本长度限制：`text` 1-4096 字符（超出需截断）
 
-- `matcher` 为空：总是匹配
-- `matcher` 为字符串：支持 `*` 通配（minimatch 风格的最小子集即可）
-- 匹配目标（按事件）：
-  - `SessionStart`：匹配 `source`（如 `startup` / `resume` / `clear`）
-  - `Notification`：匹配 `notification_type`
-  - `PreToolUse` / `PermissionRequest` / `PostToolUse` / `PostToolUseFailure`：匹配 `tool_name`
-  - `Stop`：可匹配 stop reason（若 DeepChat 能提供），否则仅支持 `*`
-
-## DeepChat 生命周期映射（Claude Hook Events）
-
-DeepChat 需要在 main 进程定义一套“Hook Session”概念：一次用户提交到一次助手回复结束（含工具循环）为一个 session。
-
-建议 mapping（v1）：
-
-| Claude Hook Event | DeepChat 触发点 | 说明 |
-|---|---|---|
-| `SessionStart` | 每次开始生成 assistant 回复前（stream 启动前） | `session_id = assistantMessageId`；`cwd = workdir`；`source` 以 `startup/resume/clear` best-effort 推断 |
-| `UserPromptSubmit` | 用户消息落库后、调用 LLM 前 | 可用于审计/通知；v1 仅通知，不支持阻止 prompt |
-| `PreToolUse` | 工具调用执行前（ToolCallProcessor 调用 MCP/agent 工具前） | 标准 provider 路径可完整支持；ACP 模式仅能 best-effort（收到 tool_call_start 时触发） |
-| `PermissionRequest` | 需要用户授权时（permission-required 产生时） | 与 DeepChat 现有 Permission UI 对齐 |
-| `PostToolUse` | 工具成功返回后 | 可用于记录 tool_output 摘要 |
-| `PostToolUseFailure` | 工具抛错/失败后 | tool_error 建议截断 |
-| `Stop` | 本次生成正常结束（provider stop） | v1 仅通知，不支持阻止 stop（避免无限循环） |
-| `Notification` | DeepChat 产生“需要用户注意”的系统事件时 | 如：权限请求、工具失败、更新提示等；`notification_type` 由 DeepChat 定义并文档化 |
-| `SessionEnd` | 本次生成结束（success/error/userStop） | `reason` 建议取 `success` / `error` / `user_stop` |
-
-其余 Claude 事件（`SubagentStart/Stop`、`TaskCompleted`、`TeammateIdle`、`PreCompact`）在 DeepChat v1：
-- 允许在配置中出现，但默认不触发（UI 需提示“当前版本不支持/不会触发”）
-- 若未来引入“子代理/任务系统/压缩”语义，再补齐映射
-
-## Telegram / Discord 通知设计
-
-### 触发策略（v1：无 per-event 勾选）
-
-为保持配置简单，Telegram/Discord 在 v1 不提供“按生命周期事件勾选订阅”的 UI。建议策略：
-
-- Telegram/Discord 仅接收 DeepChat 的 **关键通知**（由 DeepChat 产生的 `Notification` 类事件 + `SessionEnd` 的 error 场景）。
-- 关键通知类型建议覆盖：
-  - `permission_request`（需要用户授权）
-  - `tool_failure`（工具失败）
-  - `session_error`（本次生成报错结束）
-  - `update_available`（可选：更新提示）
-  - `test`（用于 Settings 的测试按钮）
-
-如果用户需要更细粒度控制（例如只在 `PreToolUse` 或只在某个 tool 上触发），推荐使用 **hooks command** 自己发送 Telegram/Discord（复用现成脚本生态）。
-
-### Telegram（Bot API）
-
-推荐方案：直接调用 Telegram Bot API 的 `sendMessage`（无需额外依赖库）。
-
-建议 UI 配置项：
-- `enabled`
-- `botToken`（secret）
-- `chatId`（支持数字 chat id 或 `@channelusername`）
-- `messageThreadId`（可选，Topics）
-- `parseMode`：`None | MarkdownV2 | HTML`（默认 None，避免转义复杂）
-- `disableNotification`（可选）
-
-实现要点：
-- `POST https://api.telegram.org/bot<TOKEN>/sendMessage`
-- `text` 长度限制：1-4096（需要截断）
-- 失败处理：尊重 `429` 的 `retry_after`（如返回），并队列退避重试
-
-### Discord（Webhook 优先）
-
-推荐方案：优先支持 Incoming Webhook（配置最简单、无需 bot token）。
-
-建议 UI 配置项（Webhook 模式）：
-- `enabled`
-- `webhookUrl`（secret）
-- `threadId`（可选，用于 forum/media channel）
-- `username` / `avatarUrl`（可选）
-- `suppressMentions`（默认开启：发送时附带 `allowed_mentions: { parse: [] }`）
-
-实现要点：
-- `POST /webhooks/{webhook.id}/{webhook.token}`
-- 至少提供 `content`/`embeds`/`files` 之一；v1 仅发 `content`（可选 embed）
-- `content` 限制：2000 字符（需要截断）
-- 失败处理：尊重 Discord `429`（`retry_after`/`Retry-After`）并退避
-
-说明：v1 仅支持 Incoming Webhook，不提供 bot token 模式，也不发送交互式组件（`components`）。
-
-## UI 设计（Settings 窗口）
-
-### 导航入口
-
-在设置窗口新增一个页面（建议路由名：`settings-notifications`，路径：`/notifications`，position：13）。
-
-### 页面布局（草图）
+### 建议默认消息格式
 
 ```
-Notifications & Hooks
--------------------------------------------------------
-[Telegram]
-  ( ) Enable
-  Bot Token:  [************]  (Reveal) (Test)
-  Chat ID:    [          ]
-  Thread ID:  [          ] (optional)
-  Detail:     minimal | normal | verbose
-
-[Discord]
-  ( ) Enable
-  Webhook URL: [************] (Reveal) (Test)
-  Thread ID:   [          ] (optional)
-  Detail:      minimal | normal | verbose
-
-[Hooks Commands]
-  ( ) Enable hooks commands
-  SessionStart:        [ command... ] (Test)
-  UserPromptSubmit:    [ command... ] (Test)
-  PreToolUse:          [ command... ] (Test)
-  PermissionRequest:   [ command... ] (Test)
-  PostToolUse:         [ command... ] (Test)
-  PostToolUseFailure:  [ command... ] (Test)
-  Stop:                [ command... ] (Test)
-  Notification:        [ command... ] (Test)
-  SessionEnd:          [ command... ] (Test)
-  (Advanced) Load .claude settings: user/project/project-local (Trust required)
-
-[Privacy & Limits]
-  [ ] Include user prompt preview
-  [ ] Include tool input preview
-  [ ] Include tool output preview
-  Max chars per message: [2000/4096 auto]
-  Redaction: [x] redact tokens/keys (default)
-
-[Diagnostics]
-  Last send status (per channel)
-  Open logs
+[DeepChat] PreToolUse
+conv: conv_xxx
+tool: execute_command
+workdir: C:\repo\project
+time: 2026-02-09 18:00:00Z
 ```
 
-### Test 行为（Settings 内）
+## 内置通道：Discord（Incoming Webhook）
 
-- Telegram/Discord `Test`：发送一条 `notification_type="test"` 的测试通知（不依赖真实会话），用于验证参数、网络与限流处理。
-- Hook event 行内 `Test`：
-  - 触发一次“模拟事件”，用最小 payload 运行该 event 对应的 command hook（以及启用的 `.claude` hooks）。
-  - 不影响任何真实会话/消息，不会触发工具调用与权限流程。
-  - 对需要 `tool_name/tool_input` 的事件（如 `PreToolUse`），使用固定示例值（例如 `tool_name="execute_command"`，`tool_input` 为短 JSON）。
-  - 执行结果在页面内显示：exit code + stdout/stderr 摘要，并写入日志与 `transcript_path`。
+### 配置
 
-### i18n
+- `enabled: boolean`
+- `webhookUrl: string`（secret）
+- `threadId?: string`（可选；追加到执行 webhook 的 query 参数）
+- `events: HookEventName[]`
 
-所有面向用户的文案需新增 i18n key（`src/renderer/src/i18n/**/settings.json` 或对应文件），不要硬编码中文。
+### 发送
 
-## 依赖库建议
+- `POST webhookUrl`（可选 query：`thread_id=...`）
+- Body（JSON）：`content`（纯文本）+ `allowed_mentions: { parse: [] }`（避免误 @）
+- 文本长度限制：`content` 0-2000 字符（超出需截断）
 
-- Claude hooks matcher：
-  - 推荐：`minimatch`（若用于运行时，需从 devDependencies 移到 dependencies）；
-  - 备选：实现最小通配（仅 `*`），先满足主流脚本。
-- command 执行：
-  - 推荐：Node `child_process.spawn` + `cross-spawn`（项目已依赖 `cross-spawn`），支持 `timeout` + `async`。
-- HTTP：
-  - 推荐：`undici`（项目已依赖）或直接用 Node 20 `fetch`（由 undici 提供实现）。
-- 模板/插值：
-  - v1 可不加依赖，做 `{{path.to.field}}` 的最小插值；
-  - 若要更强：`mustache`/`handlebars`（后续再评估体积与安全）。
+## 触发与分发策略（运行时）
 
-## 安全与隐私
+当事件发生时，异步分发到以下目标（互不影响）：
 
-- 默认关闭：hooks engine 与 Telegram/Discord 通道默认不启用。
-- 项目级 hooks 信任：
-  - 仅在 Settings 页面提供“信任当前 workdir 并启用 project hooks”的显式开关/按钮；未信任时 project hooks 不执行并提示原因（不弹窗打断正常流程）。
-- 外发脱敏：
-  - 复用 main 侧的 `src/main/lib/redact.ts` 逻辑，对 payload/文本做 token/key 脱敏（尤其是 webhook URL / bot token、Authorization、apiKey 等）。
-- 内容最小化：
-  - 默认仅发送摘要，不发送原始 prompt/tool_output；verbose 需要用户额外确认。
+1. Hooks Commands：若该事件启用且 command 非空，则执行
+2. Telegram：若 enabled 且该事件在 events 列表中，则发送
+3. Discord：同上
 
-## 可观测性与故障处理
+要求：所有分发均为 **best-effort**，不得阻塞 LLM/工具调用主流程。
 
-- 发送队列：每个通道串行发送，避免触发平台限流；支持合并/去重（例如同一 tool_call 失败只通知一次）。
-- 重试策略：
-  - Telegram：处理 `429` 并按 `retry_after` 等待；其他错误指数退避（上限次数）。
-  - Discord：处理 `429`；尊重 `Retry-After` 或 body 中的 `retry_after`。
-- 日志：
-  - 使用 `electron-log` 记录：触发事件、匹配到的路由、发送结果、错误码与重试信息。
+## 可靠性与保护
 
-## 测试策略（实现阶段）
+- **串行队列**：Telegram/Discord 分别串行发送，保持顺序并降低限流概率。
+- **429 退避**：遇到限流按平台返回的等待时间进行重试（上限次数），最终失败写日志即可。
+- **截断**：按平台长度限制截断并在末尾加 `…(truncated)`。
+- **脱敏**：对日志与 diagnostics 做脱敏（token、webhookUrl、Authorization 等）。
 
-- 单元测试：
-  - matcher 匹配（`*`/精确匹配/空 matcher）
-  - 事件 payload 生成（PreToolUse/PermissionRequest/PostToolUseFailure）
-  - 平台长度截断与脱敏
-- 集成测试（可选）：
-  - 使用本地 mock server 模拟 Telegram/Discord 200/429/500 响应，验证退避与重试。
+## 依赖与实现建议
 
-## 已确认决策
+尽量复用现有依赖，避免引入新包：
 
-1. 仅做通知：v1 不支持 hooks 阻止/中止语义。
-2. `transcript_path` 不需要完全照抄 Claude：按 DeepChat 的 hooks 记录格式设计即可。
-3. Discord webhook-only：不支持 bot token；消息不需要交互式组件。
-4. Trust/启用流程放在 Settings：不做额外交互弹窗。
-5. Settings UI：每个生命周期事件仅提供一个 command 输入框 + Test；Telegram/Discord 仅做全局配置与启用开关，不做按生命周期勾选订阅。
+- Schema：`zod`（已在 dependencies）
+- HTTP：优先用 Node `fetch`（Node 20）或复用现有 `axios`
+- Command：`child_process`（必要时复用 `cross-spawn`）
+- 日志：`electron-log`（已存在）
+
+## 外部参考（实现用）
+
+```text
+Telegram Bot API sendMessage:
+https://core.telegram.org/bots/api#sendmessage
+
+Discord Webhook thread_id query (discord.js docs, for reference):
+https://discord.js.org/docs/packages/discord.js/14.21.0/APIs/REST#post-webhooks-webhookid-webhooktoken-query-params
+
+Discord webhook rate limit note (Safety Center, for reference):
+https://discord.com/safety/using-webhooks-and-embeds
+```
+
+## 已确认决策（来自需求）
+
+1. 仅仅通知（不阻断流程）。
+2. 按 DeepChat 设计，不要求完全照抄任何外部实现。
+3. webhook 就够（Telegram/Discord 仅 outbound；无交互）。
+4. 所有配置都在 Settings 完成；Telegram/Discord 置顶且全局配置；生命周期事件每个只提供一个 command 输入框 + 右侧 Test。

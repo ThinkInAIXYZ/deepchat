@@ -1,60 +1,68 @@
-# Plan: Hooks 与通知（兼容 Claude Code Hooks）
+# Plan: Hooks 与 Webhook 通知（DeepChat）
+
+## 范围与原则
+
+- **仅通知**：不会阻断/中止 DeepChat 的生成、工具与权限流程（hook 失败也不影响主链路）。
+- **仅 Settings 配置**：所有配置都由 Settings 管理，不读取/合并任何外部配置文件。
+- **Webhook-only**：Telegram/Discord 只做向外发送消息（HTTP 请求），不做双向交互/按钮/回调。
 
 ## 交付拆分（建议）
 
-为降低风险，分两步交付：
+为降低回归与 UI 复杂度，分两步交付：
 
-- **Step 1（核心）**：Claude command hooks 引擎 + 生命周期事件映射 + Settings（每个生命周期一个 command + Test）+ 日志
-- **Step 2（体验）**：Telegram/Discord 内置通道（全局配置 + enable/disable + Test）+ 退避重试与脱敏
+- **Step 1（可用）**：Settings 页面 + 配置模型 + Test（Telegram/Discord/每个事件 command test）+ 基础日志
+- **Step 2（完整）**：生命周期事件注入 + 真实触发 + 队列/限流/截断/脱敏 + 单元/集成测试
 
-## Step 1：Claude command hooks 引擎
+## Step 1：Settings + Test 能力（不接入真实生命周期）
 
 1. 定义数据模型与校验
-   - 新增 shared types（hooks config、event payload、执行结果）
-   - 用 `zod` 做 settings JSON 的 schema 校验（容错：未知字段忽略但记录 warning）
-2. 配置加载与合并
-   - 支持读取 `~/.claude/settings.json`
-   - 支持读取 `<workdir>/.claude/settings.json` 与 `.claude/settings.local.json`
-   - 增加 project hooks 信任列表（allowlist），未信任时不执行并在 UI 提示
-   - 新增 Settings 管理的 per-event command（每个 hook event 一个 command 输入框），并在合并链路中作为最高优先级
-3. HookSession 管理
-   - 为每次生成创建 session context：`session_id`、`cwd`、`transcript_path`、额外 env、`CLAUDE_ENV_FILE` 路径
-   - 解析 `CLAUDE_ENV_FILE`（最小子集：`export KEY=VALUE`）并合并到后续 hooks env
-4. CommandRunner（跨平台）
-   - `spawn` 执行 `command`（`cwd`=workdir；超时=timeout；支持 async）
-   - stdin 写入事件 JSON；收集 stdout/stderr；解析 JSON 输出（仅用于日志/诊断；v1 不执行阻止/中止语义）
-5. 生命周期事件注入（main）
-   - `SessionStart`/`SessionEnd`：在 stream 启动/结束处触发
-   - `UserPromptSubmit`：在用户消息写入后、调用 LLM 前触发
-   - `PreToolUse`/`PostToolUse`/`PostToolUseFailure`/`PermissionRequest`：在 ToolCallProcessor 周边触发；ACP 模式 best-effort
-6. Diagnostics
-   - electron-log：记录每次事件触发、命中的 matcher、handler 运行耗时与退出码
-   - Settings UI：每个事件提供 Test 按钮，显示最近一次执行结果（exit code / stdout/stderr 摘要）
-
-## Step 2：Telegram / Discord 内置通知通道
-
-1. NotifierEngine
-   - 定义 channel 配置（enabled、secret、detail level）
-   - per-channel 串行队列 + 截断（Telegram 4096 / Discord 2000）+ 脱敏（复用 `redact.ts`）
-   - v1 固定触发：`Notification` 关键通知 + `SessionEnd` error 场景（不做按生命周期订阅 UI）
-2. TelegramClient
-   - `sendMessage`（token/chatId/threadId/disable_notification）
-   - 处理 429（retry_after）与指数退避
-3. DiscordClient（Webhook）
-   - `Execute Webhook`（content + allowed_mentions）
-   - 处理 429（Retry-After/retry_after）
-4. Settings UI
-   - 新增 `settings-notifications` 页面与路由（`src/renderer/settings/main.ts`）
-   - 表单：Telegram/Discord 配置（enable/disable）+ 细节级别 + Test 按钮
-   - Trust flow：在 Settings 内启用 project hooks 时写入 allowlist（不弹窗）
+   - 新增 shared types：`HookEventName`、settings config、event payload、执行/发送结果
+   - 用 `zod` 做 settings schema 校验（容错：未知字段忽略，但记录 warning）
+2. 配置存储与读取（main）
+   - 在现有 config store 中新增 `hooksNotifications` 配置树（默认全关闭）
+   - 提供 getter/setter + IPC 通道（renderer 仅通过 IPC 读写，避免在 renderer 暴露 secret）
+3. Settings UI（renderer）
+   - 新增设置页面（或新增一个 section），布局要求：
+     - 顶部：Telegram 卡片（Enable + 参数 + Test + 事件勾选）
+     - 其次：Discord 卡片（Enable + 参数 + Test + 事件勾选）
+     - 下方：Hooks Commands 卡片（Enable + 每个生命周期：Switch + 单个 command 输入框 + 右侧 Test）
+   - UI 风格参考知识库配置：卡片/折叠 + Switch 控制启用
+4. Test 逻辑（main）
+   - `testTelegram()`：发送一条 `type="test"` 的通知文本到配置目标
+   - `testDiscord()`：同上
+   - `testHookCommand(eventName)`：构造一个最小模拟 payload，通过 stdin JSON 执行对应 command
+   - Test 结果返回 renderer：success/错误信息 + 状态码 + 用时 + stdout/stderr 摘要
 5. i18n
-   - 增加 settings 文案 key（多语言最少 zh-CN/en-US）
-6. Tests
-   - matcher、截断、脱敏、429 退避、触发策略（Notification/SessionEnd error）
+   - 新增 settings 文案 key（zh-CN/en-US），不硬编码中文
+
+## Step 2：接入生命周期 + 可靠性
+
+1. 生命周期事件注入（main）
+   - `SessionStart`/`SessionEnd`：每次一次完整生成链路开始/结束
+   - `UserPromptSubmit`：用户提交消息后、调用 LLM 前
+   - `PreToolUse`：工具调用实际执行前（含 tool name/id/params）
+   - `PostToolUse`：工具调用成功返回后
+   - `PostToolUseFailure`：工具调用失败（error）
+   - `PermissionRequest`：触发权限请求时（含 tool/permission meta）
+   - `Stop`：生成停止（含 stop_reason、userStop）
+2. Dispatcher（非阻塞）
+   - 根据配置把事件分发到：
+     - command hook runner（按 event 的 switch+command）
+     - Telegram notifier（按 channel enabled + event 勾选）
+     - Discord notifier（同上）
+   - 所有分发均异步执行、不可阻断主流程；失败仅记录日志与 diagnostics
+3. 队列/限流/截断/脱敏
+   - per-channel 串行队列，保持顺序并降低触发限流概率
+   - 自动截断：Telegram `sendMessage` 文本 4096；Discord webhook `content` 2000
+   - 处理 429：按 `Retry-After`/`retry_after` 等信息退避重试（上限次数）
+   - 脱敏：复用 main 侧 `redact.ts`（token、webhook URL、Authorization、apiKey 等）
+4. Tests
+   - payload builder、截断、脱敏、队列顺序、429 退避、配置 schema
+   - 可选：本地 mock server 验证 Telegram/Discord 200/429/500 行为
 
 ## 里程碑验收（Definition of Done）
 
-- hooks engine 可读取 `.claude/settings*.json` 并在 `PreToolUse/PermissionRequest` 等事件触发 command hook
-- Telegram/Discord 可通过 UI 配置并测试发送成功
-- 未信任 workdir 时不会执行 project hooks，且 UI/日志可见原因
-- 不影响现有系统通知与聊天/工具调用主流程（默认关闭）
+- Settings 可配置 Telegram/Discord（启用/禁用 + 参数 + 事件勾选）并能 Test 成功/失败可见
+- 每个生命周期事件均可配置单个 command（启用/禁用）并能 Test 执行（展示 exit code/stdout/stderr 摘要）
+- 生命周期触发后可按配置向 Telegram/Discord 发送消息（失败不影响主流程，日志可追踪）
+- 不读取任何外部配置文件；默认关闭；不影响现有系统通知与聊天主流程
