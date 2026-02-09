@@ -33,7 +33,7 @@
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="openai">OpenAI</SelectItem>
-                <SelectItem value="openai-responses">OpenAI Responses</SelectItem>
+                <SelectItem value="openai-completions">OpenAI Completions</SelectItem>
                 <SelectItem value="gemini">Gemini</SelectItem>
                 <SelectItem value="anthropic">Anthropic</SelectItem>
                 <SelectItem value="ollama">Ollama</SelectItem>
@@ -69,8 +69,8 @@
                 :placeholder="t('settings.provider.dialog.addCustomProvider.baseUrlPlaceholder')"
                 required
               />
-              <div v-if="formData.apiType === 'openai'" class="text-xs text-muted-foreground mt-1">
-                {{ `${formData.baseUrl ?? ''}/chat/completions` }}
+              <div v-if="apiEndpointSuffix" class="text-xs text-muted-foreground mt-1">
+                {{ `${formData.baseUrl ?? ''}${apiEndpointSuffix}` }}
               </div>
             </span>
           </div>
@@ -100,7 +100,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { nanoid } from 'nanoid'
 import {
@@ -139,6 +139,17 @@ const emit = defineEmits<{
 
 const isOpen = ref(props.open)
 const isSubmitting = ref(false)
+const apiEndpointSuffix = computed(() => {
+  if (formData.value.apiType === 'openai') {
+    return '/responses'
+  }
+
+  if (formData.value.apiType === 'openai-completions') {
+    return '/chat/completions'
+  }
+
+  return ''
+})
 
 const formData = ref<LLM_PROVIDER>({
   id: '',

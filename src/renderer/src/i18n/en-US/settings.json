@@ -314,6 +314,7 @@
     "getKeyTipEnd": "to get API Key",
     "urlFormat": "API Example: {defaultUrl}",
     "urlFormatFill": "Fill into API URL",
+    "openaiResponsesNotice": "OpenAI defaults to the Responses API. If a third-party endpoint only supports Chat Completions, use the OpenAI Completions provider.",
     "modelList": "Model List",
     "enableModels": "Enable Models",
     "disableAllModels": "Disable All Models",

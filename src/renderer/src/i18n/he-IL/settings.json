@@ -314,6 +314,7 @@
     "getKeyTipEnd": "כדי לקבל מפתח API",
     "urlFormat": "דוגמת API: {defaultUrl}",
     "urlFormatFill": "מילוי בכתובת ה-API",
+    "openaiResponsesNotice": "OpenAI משתמשת כברירת מחדל ב-Responses API. אם endpoint של צד שלישי תומך רק ב-Chat Completions, השתמש בספק OpenAI Completions.",
     "modelList": "רשימת מודלים",
     "enableModels": "הפעל מודלים",
     "disableAllModels": "השבת את כל המודלים",

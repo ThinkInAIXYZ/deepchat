@@ -1,7 +1,6 @@
 import { ProviderBatchUpdate, ProviderChange } from '@shared/provider-operations'
 import { IConfigPresenter, LLM_PROVIDER } from '@shared/presenter'
 import { BaseLLMProvider } from '../baseProvider'
-import { OpenAIProvider } from '../providers/openAIProvider'
 import { DeepseekProvider } from '../providers/deepseekProvider'
 import { SiliconcloudProvider } from '../providers/siliconcloudProvider'
 import { DashscopeProvider } from '../providers/dashscopeProvider'
@@ -85,7 +84,7 @@ export class ProviderInstanceManager {
       ['ollama', OllamaProvider],
       ['anthropic', AnthropicProvider],
       ['doubao', DoubaoProvider],
-      ['openai', OpenAIProvider],
+      ['openai', OpenAIResponsesProvider],
       ['voiceai', VoiceAIProvider],
       ['openai-responses', OpenAIResponsesProvider],
       ['cherryin', CherryInProvider],
@@ -118,7 +117,8 @@ export class ProviderInstanceManager {
       ['ollama', OllamaProvider],
       ['anthropic', AnthropicProvider],
       ['doubao', DoubaoProvider],
-      ['openai', OpenAIProvider],
+      ['openai', OpenAIResponsesProvider],
+      ['openai-completions', OpenAICompatibleProvider],
       ['voiceai', VoiceAIProvider],
       ['openai-compatible', OpenAICompatibleProvider],
       ['openai-responses', OpenAIResponsesProvider],

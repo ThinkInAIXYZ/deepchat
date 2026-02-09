@@ -434,6 +434,34 @@ export class ConfigPresenter implements IConfigPresenter {
         console.warn('Failed to migrate legacy default_system_prompt:', e)
       }
     }
+
+    // Before version 0.5.8, split OpenAI Responses and OpenAI Completions semantics
+    if (oldVersion && compare(oldVersion, '0.5.8', '<')) {
+      const providers = this.getProviders()
+      let hasChanges = false
+
+      const migratedProviders = providers.map((provider) => {
+        if (provider.apiType === 'openai-compatible') {
+          hasChanges = true
+          return { ...provider, apiType: 'openai-completions' }
+        }
+
+        if (
+          provider.id !== 'openai' &&
+          provider.id !== 'minimax' &&
+          provider.apiType === 'openai'
+        ) {
+          hasChanges = true
+          return { ...provider, apiType: 'openai-completions' }
+        }
+
+        return provider
+      })
+
+      if (hasChanges) {
+        this.setProviders(migratedProviders)
+      }
+    }
   }
 
   private migrateMinimaxProvider(): void {

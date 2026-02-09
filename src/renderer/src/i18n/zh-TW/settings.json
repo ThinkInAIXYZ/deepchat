@@ -314,6 +314,7 @@
     "getKeyTipEnd": "取得 API 金鑰",
     "urlFormat": "API 範例：{defaultUrl}",
     "urlFormatFill": "填入 API URL",
+    "openaiResponsesNotice": "OpenAI 官方服務預設使用 Responses API；若第三方僅支援 Chat Completions，請使用 OpenAI Completions 服務商。",
     "modelList": "模型清單",
     "enableModels": "啟用模型",
     "disableAllModels": "全部停用",

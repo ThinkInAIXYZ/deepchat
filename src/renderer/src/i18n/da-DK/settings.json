@@ -302,6 +302,7 @@
     "getKeyTipEnd": "for at få API-nøglen",
     "urlFormat": "API-eksempel: {defaultUrl}",
     "urlFormatFill": "Udfyld API-URL",
+    "openaiResponsesNotice": "OpenAI bruger som standard Responses API. Hvis et tredjeparts-endpoint kun understøtter Chat Completions, skal du bruge OpenAI Completions-udbyderen.",
     "modelList": "Modelliste",
     "enableModels": "Aktivér modeller",
     "disableAllModels": "Deaktiver alle modeller",

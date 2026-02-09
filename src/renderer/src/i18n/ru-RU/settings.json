@@ -435,6 +435,7 @@
     "localModels": "Локальные модели",
     "urlFormat": "Образец API: {defaultUrl}",
     "urlFormatFill": "Подставить в URL API",
+    "openaiResponsesNotice": "OpenAI по умолчанию использует Responses API. Если сторонний endpoint поддерживает только Chat Completions, используйте провайдера OpenAI Completions.",
     "azureApiVersion": "Версия API",
     "safety": {
       "title": "Настройки безопасности",

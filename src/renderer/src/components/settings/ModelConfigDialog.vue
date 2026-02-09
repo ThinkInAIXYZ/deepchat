@@ -444,6 +444,7 @@ import { ApiEndpointType, ModelType } from '@shared/model'
 import type { ModelConfig } from '@shared/presenter'
 import { useModelConfigStore } from '@/stores/modelConfigStore'
 import { useModelStore } from '@/stores/modelStore'
+import { useProviderStore } from '@/stores/providerStore'
 import { usePresenter } from '@/composables/usePresenter'
 import {
   Dialog,
@@ -496,8 +497,13 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const modelConfigStore = useModelConfigStore()
 const modelStore = useModelStore()
+const providerStore = useProviderStore()
 const { customModels, allProviderModels } = storeToRefs(modelStore)
 const configPresenter = usePresenter('configPresenter')
+const providerIdLower = computed(() => props.providerId?.toLowerCase() || '')
+const currentProvider = computed(() =>
+  providerStore.providers.find((provider) => provider.id === props.providerId)
+)
 
 const isOpenAICompatibleProvider = computed(() => {
   const EXCLUDED_PROVIDERS = [
@@ -510,11 +516,21 @@ const isOpenAICompatibleProvider = computed(() => {
     'acp',
     'voiceai'
   ]
-  const providerId = props.providerId?.toLowerCase() || ''
-  return !EXCLUDED_PROVIDERS.some((excluded) => providerId.includes(excluded))
+  return !EXCLUDED_PROVIDERS.some((excluded) => providerIdLower.value.includes(excluded))
 })
 
-const showApiEndpointSelector = computed(() => isOpenAICompatibleProvider.value)
+const isResponsesProvider = computed(() => {
+  if (providerIdLower.value === 'openai' || providerIdLower.value === 'openai-responses') {
+    return true
+  }
+
+  const apiType = currentProvider.value?.apiType?.toLowerCase()
+  return apiType === 'openai' || apiType === 'openai-responses'
+})
+
+const showApiEndpointSelector = computed(
+  () => !isResponsesProvider.value && isOpenAICompatibleProvider.value
+)
 
 const createDefaultConfig = (): ModelConfig => ({
   maxTokens: 4096,
@@ -636,7 +652,7 @@ const loadConfig = async () => {
     const modelConfig = await modelConfigStore.getModelConfig(props.modelId, props.providerId)
     config.value = { ...modelConfig }
 
-    if (isOpenAICompatibleProvider.value && !config.value.apiEndpoint) {
+    if (showApiEndpointSelector.value && !config.value.apiEndpoint) {
       config.value.apiEndpoint = ApiEndpointType.Chat
     }
   } catch (error) {

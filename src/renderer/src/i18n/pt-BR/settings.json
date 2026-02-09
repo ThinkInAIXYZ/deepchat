@@ -314,6 +314,7 @@
     "getKeyTipEnd": "para obter a Chave da API",
     "urlFormat": "Exemplo de API: {defaultUrl}",
     "urlFormatFill": "Preencher na URL da API",
+    "openaiResponsesNotice": "A OpenAI usa a API Responses por padrão. Se um endpoint de terceiros oferecer suporte apenas a Chat Completions, use o provedor OpenAI Completions.",
     "modelList": "Lista de Modelos",
     "enableModels": "Habilitar Modelos",
     "disableAllModels": "Desabilitar Todos os Modelos",
