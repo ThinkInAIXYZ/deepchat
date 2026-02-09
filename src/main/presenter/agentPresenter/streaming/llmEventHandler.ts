@@ -549,7 +549,7 @@ export class LLMEventHandler {
           stop: stopPayload
         })
       } catch (error) {
-        console.warn('[LLMEventHandler] Failed to dispatch Stop/SessionEnd hooks:', error)
+        console.warn('[LLMEventHandler] Failed to dispatch Stop hook:', error)
       }
       try {
         presenter.hooksNotifications.dispatchEvent('SessionEnd', {
@@ -561,7 +561,7 @@ export class LLMEventHandler {
           error: errorInfo
         })
       } catch (error) {
-        console.warn('[LLMEventHandler] Failed to dispatch Stop/SessionEnd hooks:', error)
+        console.warn('[LLMEventHandler] Failed to dispatch SessionEnd hook:', error)
       }
     } finally {
       this.errorByEventId.delete(eventId)

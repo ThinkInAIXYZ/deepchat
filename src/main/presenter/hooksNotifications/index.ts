@@ -456,6 +456,16 @@ export class HooksNotificationsService {
         child.stdin?.write(JSON.stringify(inputPayload))
         child.stdin?.end()
       } catch (error) {
+        try {
+          child.stdin?.end()
+        } catch {
+          // ignore
+        }
+        try {
+          child.kill('SIGKILL')
+        } catch {
+          // ignore
+        }
         clearTimeout(timeout)
         finalize({
           success: false,
