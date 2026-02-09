@@ -51993,8 +51993,7 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true,
-            "default": true
+            "supported": false
           },
           "attachment": false,
           "open_weights": false,
@@ -52812,7 +52811,7 @@
             "context": 400000,
             "output": 64000
           },
-          "temperature": true,
+          "temperature": false,
           "tool_call": true,
           "reasoning": {
             "supported": true,
@@ -53053,7 +53052,7 @@
             "context": 400000,
             "output": 64000
           },
-          "temperature": true,
+          "temperature": false,
           "tool_call": true,
           "reasoning": {
             "supported": true,
@@ -53914,6 +53913,41 @@
             "output": 15,
             "cache_read": 0.3,
             "cache_write": 3.75
+          }
+        },
+        {
+          "id": "anthropic/claude-opus-4.6",
+          "name": "Claude Opus 4.6",
+          "display_name": "Claude Opus 4.6",
+          "modalities": {
+            "input": [
+              "image",
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 128000
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2025-01-01",
+          "release_date": "2026-02-06",
+          "last_updated": "2026-02-06",
+          "cost": {
+            "input": 5,
+            "output": 25,
+            "cache_read": 0.5,
+            "cache_write": 6.25
           }
         },
         {
@@ -56424,6 +56458,40 @@
           "cost": {
             "input": 0.5,
             "output": 2
+          }
+        },
+        {
+          "id": "moonshotai/Kimi-K2.5",
+          "name": "Kimi K2.5",
+          "display_name": "Kimi K2.5",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 262144,
+            "output": 32768
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": true,
+          "open_weights": true,
+          "knowledge": "2025-01",
+          "release_date": "2026-01-27",
+          "last_updated": "2026-01-27",
+          "cost": {
+            "input": 0.5,
+            "output": 2.8
           }
         },
         {
@@ -60682,7 +60750,7 @@
             ]
           },
           "limit": {
-            "context": 1000000,
+            "context": 200000,
             "output": 128000
           },
           "temperature": true,
@@ -61424,6 +61492,42 @@
           "cost": {
             "input": 0,
             "output": 0
+          }
+        },
+        {
+          "id": "duo-chat-opus-4-6",
+          "name": "Agentic Chat (Claude Opus 4.6)",
+          "display_name": "Agentic Chat (Claude Opus 4.6)",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "pdf"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 200000,
+            "output": 64000
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2025-03-31",
+          "release_date": "2026-02-05",
+          "last_updated": "2026-02-05",
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cache_read": 0,
+            "cache_write": 0
           }
         },
         {
@@ -78265,6 +78369,31 @@
           "open_weights": true,
           "release_date": "2025-06-15",
           "last_updated": "2026-01-19"
+        },
+        {
+          "id": "qwen3-coder-next",
+          "name": "qwen3-coder-next",
+          "display_name": "qwen3-coder-next",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 262144,
+            "output": 65536
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": false,
+          "open_weights": true,
+          "release_date": "2026-02-02",
+          "last_updated": "2026-02-08"
         }
       ]
     },
@@ -98869,28 +98998,6 @@
           "type": "chat"
         },
         {
-          "id": "ai21/jamba-mini-1.7",
-          "name": "AI21: Jamba Mini 1.7",
-          "display_name": "AI21: Jamba Mini 1.7",
-          "modalities": {
-            "input": [
-              "text"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 256000,
-            "output": 4096
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": false
-          },
-          "type": "chat"
-        },
-        {
           "id": "aion-labs/aion-1.0",
           "name": "AionLabs: Aion-1.0",
           "display_name": "AionLabs: Aion-1.0",
@@ -102372,7 +102479,7 @@
           },
           "limit": {
             "context": 32768,
-            "output": 32768
+            "output": 16384
           },
           "temperature": true,
           "tool_call": true,
@@ -102617,29 +102724,6 @@
           }
         },
         {
-          "id": "moonshotai/kimi-dev-72b",
-          "name": "MoonshotAI: Kimi Dev 72B",
-          "display_name": "MoonshotAI: Kimi Dev 72B",
-          "modalities": {
-            "input": [
-              "text"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 131072,
-            "output": 131072
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "type": "chat"
-        },
-        {
           "id": "moonshotai/kimi-k2",
           "name": "MoonshotAI: Kimi K2 0711",
           "display_name": "MoonshotAI: Kimi K2 0711",
@@ -102743,7 +102827,7 @@
           },
           "limit": {
             "context": 262144,
-            "output": 65535
+            "output": 262144
           },
           "tool_call": true,
           "reasoning": {
@@ -104718,6 +104802,30 @@
           "type": "imageGeneration"
         },
         {
+          "id": "openrouter/pony-alpha",
+          "name": "Pony Alpha",
+          "display_name": "Pony Alpha",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 200000,
+            "output": 131000
+          },
+          "temperature": true,
+          "tool_call": false,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "type": "chat"
+        },
+        {
           "id": "perplexity/sonar",
           "name": "Perplexity: Sonar",
           "display_name": "Perplexity: Sonar",
@@ -106017,30 +106125,6 @@
           "type": "chat"
         },
         {
-          "id": "stepfun-ai/step3",
-          "name": "StepFun: Step3",
-          "display_name": "StepFun: Step3",
-          "modalities": {
-            "input": [
-              "image",
-              "text"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 65536,
-            "output": 65536
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "type": "imageGeneration"
-        },
-        {
           "id": "stepfun/step-3.5-flash:free",
           "name": "StepFun: Step 3.5 Flash (free)",
           "display_name": "StepFun: Step 3.5 Flash (free)",
@@ -106672,7 +106756,7 @@
           },
           "limit": {
             "context": 131072,
-            "output": 131072
+            "output": 98304
           },
           "temperature": true,
           "tool_call": true,
@@ -106842,8 +106926,8 @@
             ]
           },
           "limit": {
-            "context": 200000,
-            "output": 131072
+            "context": 202752,
+            "output": 202752
           },
           "temperature": true,
           "tool_call": true,
@@ -107041,6 +107125,30 @@
           "tool_call": true,
           "reasoning": {
             "supported": false
+          },
+          "type": "chat"
+        },
+        {
+          "id": "claude-opus-4-6",
+          "name": "claude-opus-4-6",
+          "display_name": "claude-opus-4-6",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 128000
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
           },
           "type": "chat"
         },

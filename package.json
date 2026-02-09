@@ -1,6 +1,6 @@
 {
   "name": "DeepChat",
-  "version": "0.5.7",
+  "version": "0.5.8",
   "description": "DeepChat，一个简单易用的 Agent 客户端",
   "main": "./out/main/index.js",
   "author": "ThinkInAIXYZ",
