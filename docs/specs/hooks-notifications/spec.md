@@ -6,7 +6,7 @@ DeepChat 目前已有系统通知（OS Notification）与 UI 内提示，但缺�
 
 - 用户希望在关键生命周期点触发通知（例如：开始/结束、工具调用前后、权限请求等）。
 - 用户希望用 **一个命令输入框** 快速接入任意 webhook（例如 `curl`/`node` 脚本），并在 Settings 里一键测试。
-- 同时提供 **内置 Telegram / Discord** 两个常用通道，简单配置参数后勾选要推送的事件即可。
+- 同时提供 **内置 Telegram / Discord / Confirmo** 常用通道，简单配置参数后勾选要推送的事件即可。
 
 本功能只做“通知/观测”，不改变 DeepChat 的执行语义。
 
@@ -14,12 +14,14 @@ DeepChat 目前已有系统通知（OS Notification）与 UI 内提示，但缺�
 
 - 在 Settings 中提供三类能力（均可启用/禁用，默认关闭）：
   - **Telegram 通知**：全局配置（token/chatId/threadId）+ 事件勾选 + Test
-  - **Discord 通知**：全局配置（webhookUrl/threadId）+ 事件勾选 + Test
+  - **Discord 通知**：全局配置（webhookUrl）+ 事件勾选 + Test
+  - **Confirmo 通知**：检测本地 hook 文件存在后可启用 + Test（默认全部事件）
   - **Hooks Commands**：每个生命周期事件一个 command 输入框（右侧 Test）+ 每事件启用/禁用
 - Hooks command 执行契约：
   - 每次触发将事件 payload 以 **stdin JSON** 传入命令
   - 捕获 stdout/stderr/exit code，仅用于诊断与日志（不阻断主流程）
 - Telegram/Discord 采用 outbound HTTP 请求（webhook/API），不做交互式组件、不接收回调。
+- Confirmo 采用本地 hook 执行（stdin payload），不做交互式组件。
 - 不读取/合并任何外部配置文件；所有配置仅由 DeepChat Settings 管理。
 
 ## 非目标（v1）
@@ -39,7 +41,8 @@ DeepChat 目前已有系统通知（OS Notification）与 UI 内提示，但缺�
 
 1. Telegram 卡片（顶部）
 2. Discord 卡片
-3. Hooks Commands 卡片（生命周期列表）
+3. Confirmo 卡片
+4. Hooks Commands 卡片（生命周期列表）
 
 卡片交互参考知识库配置的模式：外层卡片 + Switch 启用/禁用 + 可折叠内容区域。
 
@@ -56,9 +59,15 @@ DeepChat 目前已有系统通知（OS Notification）与 UI 内提示，但缺�
 
 - Enable（Switch）
 - Webhook URL（password input，可 reveal）
-- Thread ID（可选；用于将 webhook 消息发到指定 thread）
 - Events（多选勾选要推送的生命周期事件）
 - Test（按钮）：发送一条测试消息
+
+### Confirmo 卡片
+
+- Enable（Switch；仅在检测到 hook 文件后可用）
+- 默认发送全部事件，无需配置事件类型
+- Test（按钮）：触发一次测试通知
+- 若未检测到 `~/.confirmo/hooks/confirmo-hook.js`，整卡片不可用并提示路径
 
 ### Hooks Commands 卡片
 
@@ -95,7 +104,7 @@ Test 结果展示（每行/每通道均需要）：
 说明：
 
 - 以上事件是 v1 必须落地的最小集合；后续可增量增加更多事件，但不能修改既有事件语义与字段含义。
-- Telegram/Discord 的 “Events 多选” 与 Hooks Commands 的事件列表保持同一集合，便于用户理解。
+- Telegram/Discord 的 “Events 多选” 与 Hooks Commands 的事件列表保持同一集合，便于用户理解；Confirmo 默认全部事件。
 
 ## Hook Command 执行契约
 
@@ -138,6 +147,7 @@ Test 结果展示（每行/每通道均需要）：
 字段策略：
 
 - `*Preview` 字段默认应为“截断后的摘要”，避免把完整敏感内容外发；如需完整内容，推荐用户用 command hooks 自己读取上下文（或未来新增显式开关）。
+- Telegram/Discord 使用简洁卡片文本，不发送原始 payload；原始 payload 仅用于 Hooks Commands / Confirmo。
 - `isTest=true` 用于区分 Settings 的 Test 触发，脚本可据此避免产生副作用。
 
 ### 进程与环境
@@ -173,13 +183,7 @@ Test 结果展示（每行/每通道均需要）：
 
 ### 建议默认消息格式
 
-```
-[DeepChat] PreToolUse
-conv: conv_xxx
-tool: execute_command
-workdir: C:\repo\project
-time: 2026-02-09 18:00:00Z
-```
+卡片式文本，字段简洁，突出事件与时间即可。
 
 ## 内置通道：Discord（Incoming Webhook）
 
@@ -187,14 +191,26 @@ time: 2026-02-09 18:00:00Z
 
 - `enabled: boolean`
 - `webhookUrl: string`（secret）
-- `threadId?: string`（可选；追加到执行 webhook 的 query 参数）
 - `events: HookEventName[]`
 
 ### 发送
 
-- `POST webhookUrl`（可选 query：`thread_id=...`）
-- Body（JSON）：`content`（纯文本）+ `allowed_mentions: { parse: [] }`（避免误 @）
-- 文本长度限制：`content` 0-2000 字符（超出需截断）
+- `POST webhookUrl`
+- Body（JSON）：`embeds`（卡片）+ `allowed_mentions: { parse: [] }`（避免误 @），`content` 可选
+- 采用 embeds 形成卡片式消息（符合 Discord message object 结构）
+
+## 内置通道：Confirmo（Local Hook）
+
+### 配置
+
+- `enabled: boolean`
+- `events: HookEventName[]`（固定为全部事件，Settings 不提供选择）
+- 可用性：仅当 `~/.confirmo/hooks/confirmo-hook.js` 存在时可启用
+
+### 执行
+
+- 使用内置 Node（如存在）执行 `confirmo-hook.js`，否则调用系统 `node`
+- 通过 stdin 写入 payload JSON（与 Hooks Commands 相同）
 
 ## 触发与分发策略（运行时）
 
@@ -203,6 +219,7 @@ time: 2026-02-09 18:00:00Z
 1. Hooks Commands：若该事件启用且 command 非空，则执行
 2. Telegram：若 enabled 且该事件在 events 列表中，则发送
 3. Discord：同上
+4. Confirmo：若 enabled 且该事件在 events 列表中，则执行
 
 要求：所有分发均为 **best-effort**，不得阻塞 LLM/工具调用主流程。
 
@@ -228,9 +245,6 @@ time: 2026-02-09 18:00:00Z
 Telegram Bot API sendMessage:
 https://core.telegram.org/bots/api#sendmessage
 
-Discord Webhook thread_id query (discord.js docs, for reference):
-https://discord.js.org/docs/packages/discord.js/14.21.0/APIs/REST#post-webhooks-webhookid-webhooktoken-query-params
-
 Discord webhook rate limit note (Safety Center, for reference):
 https://discord.com/safety/using-webhooks-and-embeds
 ```
@@ -239,5 +253,5 @@ https://discord.com/safety/using-webhooks-and-embeds
 
 1. 仅仅通知（不阻断流程）。
 2. 按 DeepChat 设计，不要求完全照抄任何外部实现。
-3. webhook 就够（Telegram/Discord 仅 outbound；无交互）。
-4. 所有配置都在 Settings 完成；Telegram/Discord 置顶且全局配置；生命周期事件每个只提供一个 command 输入框 + 右侧 Test。
+3. webhook 就够（Telegram/Discord 仅 outbound；无交互），Confirmo 走本地 hook。
+4. 所有配置都在 Settings 完成；Telegram/Discord/Confirmo 置顶且全局配置；生命周期事件每个只提供一个 command 输入框 + 右侧 Test。

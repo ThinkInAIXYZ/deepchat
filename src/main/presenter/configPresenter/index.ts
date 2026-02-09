@@ -49,6 +49,15 @@ import {
   killTerminal
 } from './acpInitHelper'
 import { clearShellEnvironmentCache } from '../agentPresenter/acp'
+import type {
+  HookEventName,
+  HookTestResult,
+  HooksNotificationsSettings
+} from '@shared/hooksNotifications'
+import {
+  createDefaultHooksNotificationsConfig,
+  normalizeHooksNotificationsConfig
+} from '../hooksNotifications/config'
 
 // Define application settings interface
 interface IAppSettings {
@@ -78,6 +87,7 @@ interface IAppSettings {
   codeFontFamily?: string // Custom code font
   skillsPath?: string // Skills directory path
   enableSkills?: boolean // Skills system global toggle
+  hooksNotifications?: HooksNotificationsSettings // Hooks & notifications settings
   [key: string]: unknown // Allow arbitrary keys, using unknown type instead of any
 }
 
@@ -146,7 +156,8 @@ export class ConfigPresenter implements IConfigPresenter {
         skillsPath: path.join(app.getPath('home'), '.deepchat', 'skills'),
         enableSkills: true,
         updateChannel: 'stable', // Default to stable version
-        appVersion: this.currentAppVersion
+        appVersion: this.currentAppVersion,
+        hooksNotifications: createDefaultHooksNotificationsConfig()
       }
     })
 
@@ -1739,6 +1750,49 @@ export class ConfigPresenter implements IConfigPresenter {
       console.error('[Config] Failed to set nowledge-mem config:', error)
       throw error
     }
+  }
+
+  getHooksNotificationsConfig(): HooksNotificationsSettings {
+    const raw = this.store.get('hooksNotifications')
+    const normalized = normalizeHooksNotificationsConfig(raw)
+    const confirmoStatus = presenter?.hooksNotifications?.getConfirmoHookStatus?.()
+    if (confirmoStatus && !confirmoStatus.available) {
+      normalized.confirmo.enabled = false
+    }
+    if (!raw || JSON.stringify(raw) !== JSON.stringify(normalized)) {
+      this.store.set('hooksNotifications', normalized)
+    }
+    return normalized
+  }
+
+  setHooksNotificationsConfig(config: HooksNotificationsSettings): HooksNotificationsSettings {
+    const normalized = normalizeHooksNotificationsConfig(config)
+    const confirmoStatus = presenter?.hooksNotifications?.getConfirmoHookStatus?.()
+    if (confirmoStatus && !confirmoStatus.available) {
+      normalized.confirmo.enabled = false
+    }
+    this.store.set('hooksNotifications', normalized)
+    return normalized
+  }
+
+  async testTelegramNotification(): Promise<HookTestResult> {
+    return await presenter.hooksNotifications.testTelegram()
+  }
+
+  async testDiscordNotification(): Promise<HookTestResult> {
+    return await presenter.hooksNotifications.testDiscord()
+  }
+
+  async testConfirmoNotification(): Promise<HookTestResult> {
+    return await presenter.hooksNotifications.testConfirmo()
+  }
+
+  async testHookCommand(eventName: HookEventName): Promise<HookTestResult> {
+    return await presenter.hooksNotifications.testHookCommand(eventName)
+  }
+
+  getConfirmoHookStatus(): { available: boolean; path: string } {
+    return presenter.hooksNotifications.getConfirmoHookStatus()
   }
 }
 

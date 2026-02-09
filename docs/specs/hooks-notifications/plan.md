@@ -4,13 +4,13 @@
 
 - **仅通知**：不会阻断/中止 DeepChat 的生成、工具与权限流程（hook 失败也不影响主链路）。
 - **仅 Settings 配置**：所有配置都由 Settings 管理，不读取/合并任何外部配置文件。
-- **Webhook-only**：Telegram/Discord 只做向外发送消息（HTTP 请求），不做双向交互/按钮/回调。
+- **Webhook-only**：Telegram/Discord 只做向外发送消息（HTTP 请求），不做双向交互/按钮/回调；Confirmo 走本地 hook。
 
 ## 交付拆分（建议）
 
 为降低回归与 UI 复杂度，分两步交付：
 
-- **Step 1（可用）**：Settings 页面 + 配置模型 + Test（Telegram/Discord/每个事件 command test）+ 基础日志
+- **Step 1（可用）**：Settings 页面 + 配置模型 + Test（Telegram/Discord/Confirmo/每个事件 command test）+ 基础日志
 - **Step 2（完整）**：生命周期事件注入 + 真实触发 + 队列/限流/截断/脱敏 + 单元/集成测试
 
 ## Step 1：Settings + Test 能力（不接入真实生命周期）
@@ -25,11 +25,13 @@
    - 新增设置页面（或新增一个 section），布局要求：
      - 顶部：Telegram 卡片（Enable + 参数 + Test + 事件勾选）
      - 其次：Discord 卡片（Enable + 参数 + Test + 事件勾选）
+     - 其次：Confirmo 卡片（Enable + Test；默认全部事件；需检测 hook 文件存在）
      - 下方：Hooks Commands 卡片（Enable + 每个生命周期：Switch + 单个 command 输入框 + 右侧 Test）
    - UI 风格参考知识库配置：卡片/折叠 + Switch 控制启用
 4. Test 逻辑（main）
    - `testTelegram()`：发送一条 `type="test"` 的通知文本到配置目标
    - `testDiscord()`：同上
+   - `testConfirmo()`：执行本地 Confirmo hook（stdin JSON）
    - `testHookCommand(eventName)`：构造一个最小模拟 payload，通过 stdin JSON 执行对应 command
    - Test 结果返回 renderer：success/错误信息 + 状态码 + 用时 + stdout/stderr 摘要
 5. i18n
@@ -50,6 +52,7 @@
      - command hook runner（按 event 的 switch+command）
      - Telegram notifier（按 channel enabled + event 勾选）
      - Discord notifier（同上）
+     - Confirmo hook runner（同上）
    - 所有分发均异步执行、不可阻断主流程；失败仅记录日志与 diagnostics
 3. 队列/限流/截断/脱敏
    - per-channel 串行队列，保持顺序并降低触发限流概率
@@ -63,6 +66,7 @@
 ## 里程碑验收（Definition of Done）
 
 - Settings 可配置 Telegram/Discord（启用/禁用 + 参数 + 事件勾选）并能 Test 成功/失败可见
+- Settings 可配置 Confirmo（检测 hook 可用性 + 事件勾选）并能 Test 成功/失败可见
 - 每个生命周期事件均可配置单个 command（启用/禁用）并能 Test 执行（展示 exit code/stdout/stderr 摘要）
-- 生命周期触发后可按配置向 Telegram/Discord 发送消息（失败不影响主流程，日志可追踪）
+- 生命周期触发后可按配置向 Telegram/Discord/Confirmo 发送消息（失败不影响主流程，日志可追踪）
 - 不读取任何外部配置文件；默认关闭；不影响现有系统通知与聊天主流程
