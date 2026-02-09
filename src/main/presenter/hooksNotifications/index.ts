@@ -544,7 +544,12 @@ export class HooksNotificationsService {
     }
 
     const embed = this.buildDiscordEmbed(payload)
-    const url = new URL(config.webhookUrl)
+    let url: URL
+    try {
+      url = new URL(config.webhookUrl)
+    } catch {
+      throw new Error('Invalid Discord webhook URL')
+    }
     const body = {
       embeds: [embed],
       allowed_mentions: { parse: [] as string[] }

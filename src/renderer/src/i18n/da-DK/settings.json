@@ -1230,11 +1230,11 @@
       "commandPlaceholder": "Kommandoen der skal udføres",
       "description": "Udfør kommandoen for hver begivenhed.",
       "hint": "Skriv payload som JSON til stdin.",
-      "title": "Kroge Kommandoer"
+      "title": "Hooks kommandoer"
     },
     "confirmo": {
       "description": "Send notifikationer via Confirmo Hook (standard sender alle begivenheder).",
-      "title": "Jeg bekræfter",
+      "title": "Confirmo",
       "unavailable": "Confirmo Hook ikke fundet: {path}"
     },
     "description": "Konfigurer webhook-notifikationer og livscyklus-hooks.",
@@ -1277,6 +1277,6 @@
       "success": "succes",
       "testing": "Tester..."
     },
-    "title": "Meddelelser og Hooks"
+    "title": "Notifikationer og Hooks"
   }
 }

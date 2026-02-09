@@ -9,7 +9,12 @@
       </div>
       <template v-else>
         <div class="space-y-1">
-          <div class="text-base font-medium">{{ t('settings.notificationsHooks.title') }}</div>
+          <div class="flex items-center gap-2">
+            <div class="text-base font-medium">{{ t('settings.notificationsHooks.title') }}</div>
+            <span v-if="isSaving" class="text-xs text-muted-foreground">
+              {{ t('common.saving') }}
+            </span>
+          </div>
           <div class="text-sm text-muted-foreground">
             {{ t('settings.notificationsHooks.description') }}
           </div>
@@ -133,9 +138,6 @@
                         : t('settings.notificationsHooks.test.button')
                     }}
                   </Button>
-                  <span v-if="isSaving" class="text-xs text-muted-foreground">
-                    {{ t('common.saving') }}
-                  </span>
                 </div>
 
                 <div v-if="telegramTestResult" class="text-xs space-y-1">
