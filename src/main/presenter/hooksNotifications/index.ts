@@ -376,11 +376,11 @@ export class HooksNotificationsService {
     const cwd = this.resolveCommandCwd(payload.session.workdir)
     const env: Record<string, string> = {
       ...process.env,
-      DEECHAT_HOOK_EVENT: payload.event,
+      DEEPCHAT_HOOK_EVENT: payload.event,
       ...(payload.session.conversationId
-        ? { DEECHAT_CONVERSATION_ID: payload.session.conversationId }
+        ? { DEEPCHAT_CONVERSATION_ID: payload.session.conversationId }
         : {}),
-      ...(payload.session.workdir ? { DEECHAT_WORKDIR: payload.session.workdir } : {})
+      ...(payload.session.workdir ? { DEEPCHAT_WORKDIR: payload.session.workdir } : {})
     }
 
     return await new Promise<HookCommandResult>((resolve) => {

@@ -156,9 +156,9 @@ Test 结果展示（每行/每通道均需要）：
 - `cwd`：优先使用当前会话的 `workdir`；若不可得，则回落到应用记录的最近 workdir；再回落到 `process.cwd()`。
 - `timeout`：v1 可用固定默认（例如 30s），后续再支持可配置。
 - env：可附加少量只读变量，便于脚本快速取用（可选）：
-  - `DEECHAT_HOOK_EVENT`
-  - `DEECHAT_CONVERSATION_ID`
-  - `DEECHAT_WORKDIR`
+  - `DEEPCHAT_HOOK_EVENT`
+  - `DEEPCHAT_CONVERSATION_ID`
+  - `DEEPCHAT_WORKDIR`
 
 ### 输出（stdout/stderr/exit code）
 
