@@ -238,21 +238,29 @@ export class AgentToolManager {
         .string()
         .min(5)
         .max(100)
-        .describe('Brief description of what the command does'),
+        .describe(
+          'Brief description of what the command does (e.g., "Install dependencies", "Start dev server")'
+        ),
       background: z
         .boolean()
         .optional()
-        .describe('Run the command in the background and return a session ID for later management'),
+        .describe(
+          'Run the command in the background (recommended for commands taking >10s). Returns immediately with sessionId for use with process tool.'
+        ),
       yieldMs: z
         .number()
         .min(100)
         .optional()
-        .describe('Time in milliseconds before yielding control when running in foreground')
+        .describe(
+          'Maximum time in milliseconds to wait for command output in foreground mode (default 120s). Ignored when background is true.'
+        )
     }),
     process: z.object({
       action: z
         .enum(['list', 'poll', 'log', 'write', 'kill', 'clear', 'remove'])
-        .describe('The action to perform on the background process session'),
+        .describe(
+          'Action to perform: list (all sessions), poll (recent output), log (full output with pagination), write (send to stdin), kill (terminate), clear (empty buffer), remove (cleanup)'
+        ),
       sessionId: z
         .string()
         .optional()
@@ -692,7 +700,7 @@ export class AgentToolManager {
         function: {
           name: 'execute_command',
           description:
-            'Execute a shell command in the workspace directory. Prefer file system tools for read/write/search operations.',
+            'Execute a shell command in the workspace directory. For long-running commands (builds, tests, servers, installations), use background: true to run asynchronously and get a session ID. Then use the process tool to poll output, send input, or manage the session. For quick commands that complete within seconds, run without background mode.',
           parameters: zodToJsonSchema(schemas.execute_command) as {
             type: string
             properties: Record<string, unknown>
@@ -710,7 +718,7 @@ export class AgentToolManager {
         function: {
           name: 'process',
           description:
-            'Manage background exec sessions created by execute_command. Use this to list sessions, poll output, write stdin, kill processes, or clean up sessions. Sessions are isolated per conversation.',
+            'Manage background exec sessions created by execute_command with background: true. Use poll to check output and status, log to get full output with pagination, write to send input to stdin, kill to terminate, and remove to clean up completed sessions.',
           parameters: zodToJsonSchema(this.processToolSchema) as {
             type: string
             properties: Record<string, unknown>
