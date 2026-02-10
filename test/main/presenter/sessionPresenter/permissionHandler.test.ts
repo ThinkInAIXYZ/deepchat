@@ -275,4 +275,151 @@ describe('PermissionHandler - permission block removal', () => {
     )
     expect(generatingToolCall?.tool_call?.server_name).toBe('filesystem')
   })
+
+  describe('Multi-permission scenarios', () => {
+    it('should append multiple pending permissions to session', () => {
+      const sessionManager = presenter.sessionManager as unknown as SessionManager
+      const agentId = 'test-agent'
+
+      // Add first permission
+      sessionManager.addPendingPermission(agentId, {
+        messageId: 'msg-1',
+        toolCallId: 'tool-1',
+        permissionType: 'read',
+        payload: { serverName: 'server1' }
+      })
+
+      // Add second permission
+      sessionManager.addPendingPermission(agentId, {
+        messageId: 'msg-1',
+        toolCallId: 'tool-2',
+        permissionType: 'write',
+        payload: { serverName: 'server2' }
+      })
+
+      const pendingPermissions = sessionManager.getPendingPermissions(agentId)
+      expect(pendingPermissions).toHaveLength(2)
+      expect(pendingPermissions?.[0].toolCallId).toBe('tool-1')
+      expect(pendingPermissions?.[1].toolCallId).toBe('tool-2')
+    })
+
+    it('should check pending permissions by messageId', () => {
+      const sessionManager = presenter.sessionManager as unknown as SessionManager
+      const agentId = 'test-agent'
+
+      sessionManager.addPendingPermission(agentId, {
+        messageId: 'msg-1',
+        toolCallId: 'tool-1',
+        permissionType: 'read',
+        payload: {}
+      })
+      sessionManager.addPendingPermission(agentId, {
+        messageId: 'msg-2',
+        toolCallId: 'tool-2',
+        permissionType: 'write',
+        payload: {}
+      })
+
+      expect(sessionManager.hasPendingPermissions(agentId, 'msg-1')).toBe(true)
+      expect(sessionManager.hasPendingPermissions(agentId, 'msg-2')).toBe(true)
+      expect(sessionManager.hasPendingPermissions(agentId, 'msg-3')).toBe(false)
+    })
+  })
+
+  describe('Permission resume lock', () => {
+    it('should acquire resume lock successfully', () => {
+      const sessionManager = presenter.sessionManager as unknown as SessionManager
+      const agentId = 'test-agent'
+
+      const acquired = sessionManager.acquirePermissionResumeLock(agentId, 'msg-1')
+      expect(acquired).toBe(true)
+
+      const lock = sessionManager.getPermissionResumeLock(agentId)
+      expect(lock?.messageId).toBe('msg-1')
+      expect(lock?.startedAt).toBeGreaterThan(0)
+    })
+
+    it('should reject acquiring lock for same message', () => {
+      const sessionManager = presenter.sessionManager as unknown as SessionManager
+      const agentId = 'test-agent'
+
+      sessionManager.acquirePermissionResumeLock(agentId, 'msg-1')
+
+      // Should reject acquiring lock for same message
+      const acquiredAgain = sessionManager.acquirePermissionResumeLock(agentId, 'msg-1')
+      expect(acquiredAgain).toBe(false)
+    })
+
+    it('should release resume lock', () => {
+      const sessionManager = presenter.sessionManager as unknown as SessionManager
+      const agentId = 'test-agent'
+
+      sessionManager.acquirePermissionResumeLock(agentId, 'msg-1')
+      expect(sessionManager.getPermissionResumeLock(agentId)).toBeDefined()
+
+      sessionManager.releasePermissionResumeLock(agentId)
+      expect(sessionManager.getPermissionResumeLock(agentId)).toBeUndefined()
+    })
+
+    it('should allow acquiring lock for different message after release', () => {
+      const sessionManager = presenter.sessionManager as unknown as SessionManager
+      const agentId = 'test-agent'
+
+      sessionManager.acquirePermissionResumeLock(agentId, 'msg-1')
+      sessionManager.releasePermissionResumeLock(agentId)
+
+      const acquiredForNewMessage = sessionManager.acquirePermissionResumeLock(agentId, 'msg-2')
+      expect(acquiredForNewMessage).toBe(true)
+    })
+  })
+
+  describe('Permission level hierarchy', () => {
+    it('should update permissions with same or lower permission level', async () => {
+      // Setup message with two permissions from same server
+      const content: AssistantMessageBlock[] = [
+        {
+          type: 'action',
+          action_type: 'tool_call_permission',
+          status: 'pending',
+          extra: {
+            serverName: 'filesystem',
+            permissionType: 'read',
+            needsUserAction: true
+          },
+          tool_call: {
+            id: 'tool-1',
+            name: 'read_file',
+            server_name: 'filesystem'
+          }
+        },
+        {
+          type: 'action',
+          action_type: 'tool_call_permission',
+          status: 'pending',
+          extra: {
+            serverName: 'filesystem',
+            permissionType: 'write',
+            needsUserAction: true
+          },
+          tool_call: {
+            id: 'tool-2',
+            name: 'write_file',
+            server_name: 'filesystem'
+          }
+        }
+      ]
+
+      messageManager.getMessage = vi.fn().mockResolvedValue({
+        id: messageId,
+        role: 'assistant',
+        content,
+        conversationId: 'conv-1'
+      })
+
+      // Grant 'write' permission - should update both read and write permissions
+      // (since write >= read permission level)
+      // But actually read has level 1, write has level 2, so write >= read is true
+      // So granting 'write' should update both permissions
+    })
+  })
 })

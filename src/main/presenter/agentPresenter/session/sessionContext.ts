@@ -17,6 +17,18 @@ export type SessionContextResolved = {
   acpWorkdirMap?: Record<string, string | null>
 }
 
+export type PendingPermission = {
+  messageId: string
+  toolCallId: string
+  permissionType: 'read' | 'write' | 'all' | 'command'
+  payload: unknown
+}
+
+export type PermissionResumeLock = {
+  messageId: string
+  startedAt: number
+}
+
 export type SessionContext = {
   sessionId: string
   agentId: string
@@ -29,11 +41,9 @@ export type SessionContext = {
     currentMessageId?: string
     toolCallCount: number
     userStopRequested: boolean
-    pendingPermission?: {
-      toolCallId: string
-      permissionType: 'read' | 'write' | 'all' | 'command'
-      payload: unknown
-    }
+    pendingPermission?: PendingPermission
+    pendingPermissions?: PendingPermission[]
+    permissionResumeLock?: PermissionResumeLock
     pendingQuestion?: {
       messageId: string
       toolCallId: string

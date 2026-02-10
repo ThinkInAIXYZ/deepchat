@@ -2173,6 +2173,7 @@ export const useChatStore = defineStore('chat', () => {
     window.electron.ipcRenderer.removeAllListeners(STREAM_EVENTS.RESPONSE)
     window.electron.ipcRenderer.removeAllListeners(STREAM_EVENTS.END)
     window.electron.ipcRenderer.removeAllListeners(STREAM_EVENTS.ERROR)
+    window.electron.ipcRenderer.removeAllListeners(STREAM_EVENTS.PERMISSION_UPDATED)
 
     window.electron.ipcRenderer.on(STREAM_EVENTS.RESPONSE, (_, msg) => {
       handleStreamResponse(msg)
@@ -2185,6 +2186,16 @@ export const useChatStore = defineStore('chat', () => {
     window.electron.ipcRenderer.on(STREAM_EVENTS.ERROR, (_, msg) => {
       handleStreamError(msg)
     })
+
+    // 监听权限更新事件，刷新消息以显示最新的权限状态
+    window.electron.ipcRenderer.on(
+      STREAM_EVENTS.PERMISSION_UPDATED,
+      (_, payload: { messageId: string }) => {
+        console.log('[Chat Store] Permission updated, refreshing message:', payload.messageId)
+        // 触发消息缓存刷新，使UI显示下一个待处理的权限
+        bumpMessageCacheVersion()
+      }
+    )
   }
 
   return {

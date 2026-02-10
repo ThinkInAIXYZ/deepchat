@@ -211,14 +211,13 @@ export class LLMEventHandler {
           await this.toolCallHandler.processToolCallUpdate(state, msg)
           break
         case 'permission-required':
-          presenter.sessionManager.updateRuntime(state.conversationId, {
-            pendingPermission: {
-              toolCallId: tool_call_id || '',
-              permissionType:
-                (msg.permission_request?.permissionType as 'read' | 'write' | 'all' | 'command') ||
-                'read',
-              payload: msg.permission_request ?? {}
-            }
+          presenter.sessionManager.addPendingPermission(state.conversationId, {
+            messageId: eventId,
+            toolCallId: tool_call_id || '',
+            permissionType:
+              (msg.permission_request?.permissionType as 'read' | 'write' | 'all' | 'command') ||
+              'read',
+            payload: msg.permission_request ?? {}
           })
           presenter.sessionManager.setStatus(state.conversationId, 'waiting_permission')
           try {

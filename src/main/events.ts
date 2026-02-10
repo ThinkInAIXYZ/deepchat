@@ -68,7 +68,8 @@ export const CONVERSATION_EVENTS = {
 export const STREAM_EVENTS = {
   RESPONSE: 'stream:response', // 替代 stream-response
   END: 'stream:end', // 替代 stream-end
-  ERROR: 'stream:error' // 替代 stream-error
+  ERROR: 'stream:error', // 替代 stream-error
+  PERMISSION_UPDATED: 'stream:permission-updated' // 权限状态更新，通知前端刷新UI
 }
 
 // 系统相关事件
