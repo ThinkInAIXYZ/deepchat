@@ -459,7 +459,9 @@ const grantPermissionOnce = async () => {
 }
 
 const grantPermissionForSession = async () => {
-  await submitPermission(true, true)
+  // Current session auto-execute: remember=false means memory-only (session-scoped)
+  // This matches the sessionPermissions logic in ToolManager
+  await submitPermission(true, false)
 }
 
 const denyPermission = async () => {

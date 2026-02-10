@@ -17,6 +17,11 @@ export { AgentFileSystemHandler } from './agentFileSystemHandler'
 export { AgentToolManager, type AgentToolCallResult } from './agentToolManager'
 export { AgentBashHandler } from './agentBashHandler'
 export {
+  BackgroundExecSessionManager,
+  backgroundExecSessionManager,
+  type SessionMeta
+} from './backgroundExecSessionManager'
+export {
   registerCommandProcess,
   unregisterCommandProcess,
   terminateCommandProcess

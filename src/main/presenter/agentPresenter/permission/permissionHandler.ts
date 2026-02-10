@@ -98,38 +98,57 @@ export class PermissionHandler extends BaseHandler {
       const parsedPermissionRequest = this.parsePermissionRequest(permissionBlock)
       const isAcpPermission = this.isAcpPermissionBlock(permissionBlock, parsedPermissionRequest)
 
-      permissionBlock.status = granted ? 'granted' : 'denied'
-      if (permissionBlock.extra) {
-        permissionBlock.extra.needsUserAction = false
-        if (granted) {
-          permissionBlock.extra.grantedPermissions = permissionType
+      // Get server name for batch permission updates
+      const serverName = permissionBlock?.extra?.serverName as string
+
+      // Batch update: update all pending permission blocks for the same server
+      const updatedPermissionIds: string[] = []
+      for (const block of content) {
+        if (
+          block.type === 'action' &&
+          block.action_type === 'tool_call_permission' &&
+          block.status === 'pending' &&
+          block.extra?.serverName === serverName
+        ) {
+          block.status = granted ? 'granted' : 'denied'
+          if (block.extra) {
+            block.extra.needsUserAction = false
+            if (granted) {
+              block.extra.grantedPermissions = permissionType
+            }
+          }
+          if (block.tool_call?.id) {
+            updatedPermissionIds.push(block.tool_call.id)
+          }
         }
       }
 
+      console.log(
+        `[PermissionHandler] Batch updated ${updatedPermissionIds.length} permission blocks for server '${serverName}':`,
+        updatedPermissionIds
+      )
+
       const generatingState = this.generatingMessages.get(messageId)
       if (generatingState) {
-        const permissionIndex = generatingState.message.content.findIndex(
-          (block) =>
+        for (let i = 0; i < generatingState.message.content.length; i++) {
+          const block = generatingState.message.content[i]
+          if (
             block.type === 'action' &&
             block.action_type === 'tool_call_permission' &&
-            block.tool_call?.id === toolCallId
-        )
-
-        if (permissionIndex !== -1) {
-          const statePermissionBlock = generatingState.message.content[permissionIndex]
-          generatingState.message.content[permissionIndex] = {
-            ...statePermissionBlock,
-            ...permissionBlock,
-            extra: permissionBlock.extra
-              ? {
-                  ...permissionBlock.extra
-                }
-              : undefined,
-            tool_call: permissionBlock.tool_call
-              ? {
-                  ...permissionBlock.tool_call
-                }
-              : undefined
+            block.status === 'pending' &&
+            block.extra?.serverName === serverName
+          ) {
+            generatingState.message.content[i] = {
+              ...block,
+              status: granted ? 'granted' : 'denied',
+              extra: block.extra
+                ? {
+                    ...block.extra,
+                    needsUserAction: false,
+                    ...(granted && { grantedPermissions: permissionType })
+                  }
+                : undefined
+            }
           }
         }
       }
@@ -274,16 +293,21 @@ export class PermissionHandler extends BaseHandler {
         pendingToolCallFromId ??
         this.findPendingToolCallAfterPermission(content)
 
+      // Find all granted pending tool calls for batch execution
+      const allPendingToolCalls = this.findAllPendingToolCallsAfterPermission(content)
+      const firstPendingToolCall = allPendingToolCalls[0] ?? fallbackPendingToolCall
+
       const state = this.generatingMessages.get(messageId)
       if (state) {
-        if (!state.pendingToolCall && fallbackPendingToolCall) {
-          state.pendingToolCall = fallbackPendingToolCall
+        if (!state.pendingToolCall && firstPendingToolCall) {
+          state.pendingToolCall = firstPendingToolCall
         }
         if (state.pendingToolCall) {
           await this.resumeAfterPermissionWithPendingToolCall(
             state,
             message as AssistantMessage,
-            conversationId
+            conversationId,
+            allPendingToolCalls.slice(1)
           )
         } else {
           await this.resumeStreamCompletion(conversationId, messageId)
@@ -301,10 +325,20 @@ export class PermissionHandler extends BaseHandler {
         reasoningStartTime: null,
         reasoningEndTime: null,
         lastReasoningTime: null,
-        pendingToolCall: fallbackPendingToolCall
+        pendingToolCall: firstPendingToolCall
       })
 
-      await this.streamGenerationHandler.startStreamCompletion(conversationId, messageId)
+      if (firstPendingToolCall) {
+        const newState = this.generatingMessages.get(messageId)!
+        await this.resumeAfterPermissionWithPendingToolCall(
+          newState,
+          message as AssistantMessage,
+          conversationId,
+          allPendingToolCalls.slice(1)
+        )
+      } else {
+        await this.streamGenerationHandler.startStreamCompletion(conversationId, messageId)
+      }
     } catch (error) {
       console.error('[PermissionHandler] Failed to restart agent loop:', error)
       this.generatingMessages.delete(messageId)
@@ -538,7 +572,8 @@ export class PermissionHandler extends BaseHandler {
   async resumeAfterPermissionWithPendingToolCall(
     state: GeneratingMessageState,
     message: AssistantMessage,
-    conversationId: string
+    conversationId: string,
+    remainingToolCalls: PendingToolCall[] = []
   ): Promise<void> {
     const pendingToolCall = state.pendingToolCall
     if (!pendingToolCall || !pendingToolCall.id || !pendingToolCall.name) {
@@ -686,6 +721,21 @@ export class PermissionHandler extends BaseHandler {
 
       state.pendingToolCall = undefined
 
+      // Check if there are remaining tool calls to execute in batch
+      if (remainingToolCalls.length > 0) {
+        console.log(
+          `[PermissionHandler] Continuing with ${remainingToolCalls.length} remaining tool calls in batch`
+        )
+        state.pendingToolCall = remainingToolCalls[0]
+        await this.resumeAfterPermissionWithPendingToolCall(
+          state,
+          message,
+          conversationId,
+          remainingToolCalls.slice(1)
+        )
+        return
+      }
+
       const finalContent = await buildPostToolExecutionContext({
         conversation,
         contextMessages,
@@ -781,6 +831,39 @@ export class PermissionHandler extends BaseHandler {
 
     return this.buildPendingToolCallFromPermissionBlock(grantedPermissionBlock)
   }
+
+  /**
+   * Find all granted pending tool calls after permission is granted
+   * This supports batch execution of multiple tool calls that were all authorized
+   */
+  findAllPendingToolCallsAfterPermission(content: AssistantMessageBlock[]): PendingToolCall[] {
+    const grantedBlocks: AssistantMessageBlock[] = []
+
+    for (const block of content) {
+      if (
+        block.type === 'action' &&
+        block.action_type === 'tool_call_permission' &&
+        block.status === 'granted'
+      ) {
+        grantedBlocks.push(block)
+      }
+    }
+
+    // Build pending calls maintaining original order
+    const pendingCalls: PendingToolCall[] = []
+    for (const block of grantedBlocks) {
+      const pendingCall = this.buildPendingToolCallFromPermissionBlock(block)
+      if (pendingCall) {
+        pendingCalls.push(pendingCall)
+      }
+    }
+
+    console.log(
+      `[PermissionHandler] Found ${pendingCalls.length} granted pending tool calls for batch execution`
+    )
+    return pendingCalls
+  }
+
   private buildPendingToolCallFromPermissionBlock(
     block?: AssistantMessageBlock
   ): PendingToolCall | undefined {

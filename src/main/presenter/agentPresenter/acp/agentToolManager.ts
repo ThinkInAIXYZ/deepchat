@@ -66,6 +66,22 @@ export class AgentToolManager {
   private readonly configPresenter: IConfigPresenter
   private skillTools: SkillTools | null = null
   private chatSettingsHandler: ChatSettingsToolHandler | null = null
+  private readonly processToolSchema = z.object({
+    action: z
+      .enum(['list', 'poll', 'log', 'write', 'kill', 'clear', 'remove'])
+      .describe('The action to perform on the background process session'),
+    sessionId: z.string().optional().describe('Session ID (required for most actions except list)'),
+    offset: z.number().int().min(0).optional().describe('Starting offset for log action'),
+    limit: z
+      .number()
+      .int()
+      .min(1)
+      .optional()
+      .describe('Maximum characters to return for log action'),
+    data: z.string().optional().describe('Data to write to stdin (write action only)'),
+    eof: z.boolean().optional().describe('Send EOF after writing data (write action only)')
+  })
+
   private readonly fileSystemSchemas = {
     read_file: z.object({
       paths: z.array(z.string()).min(1),
@@ -218,7 +234,38 @@ export class AgentToolManager {
         .max(600000)
         .optional()
         .describe('Optional timeout in milliseconds'),
-      description: z.string().min(5).max(100).describe('Brief description of what the command does')
+      description: z
+        .string()
+        .min(5)
+        .max(100)
+        .describe('Brief description of what the command does'),
+      background: z
+        .boolean()
+        .optional()
+        .describe('Run the command in the background and return a session ID for later management'),
+      yieldMs: z
+        .number()
+        .min(100)
+        .optional()
+        .describe('Time in milliseconds before yielding control when running in foreground')
+    }),
+    process: z.object({
+      action: z
+        .enum(['list', 'poll', 'log', 'write', 'kill', 'clear', 'remove'])
+        .describe('The action to perform on the background process session'),
+      sessionId: z
+        .string()
+        .optional()
+        .describe('Session ID (required for most actions except list)'),
+      offset: z.number().int().min(0).optional().describe('Starting offset for log action'),
+      limit: z
+        .number()
+        .int()
+        .min(1)
+        .optional()
+        .describe('Maximum characters to return for log action'),
+      data: z.string().optional().describe('Data to write to stdin (write action only)'),
+      eof: z.boolean().optional().describe('Send EOF after writing data (write action only)')
     })
   }
 
@@ -359,6 +406,11 @@ export class AgentToolManager {
       }
     }
 
+    // Route to process tool
+    if (this.isProcessTool(toolName)) {
+      return await this.callProcessTool(toolName, args, conversationId)
+    }
+
     // Route to FileSystem tools
     if (this.isFileSystemTool(toolName)) {
       if (!this.fileSystemHandler) {
@@ -419,7 +471,7 @@ export class AgentToolManager {
 
   private getFileSystemToolDefinitions(): MCPToolDefinition[] {
     const schemas = this.fileSystemSchemas
-    return [
+    const defs: MCPToolDefinition[] = [
       {
         type: 'function',
         function: {
@@ -652,8 +704,27 @@ export class AgentToolManager {
           icons: '📁',
           description: 'Agent FileSystem tools'
         }
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'process',
+          description:
+            'Manage background exec sessions created by execute_command. Use this to list sessions, poll output, write stdin, kill processes, or clean up sessions. Sessions are isolated per conversation.',
+          parameters: zodToJsonSchema(this.processToolSchema) as {
+            type: string
+            properties: Record<string, unknown>
+            required?: string[]
+          }
+        },
+        server: {
+          name: 'agent-filesystem',
+          icons: '⚙️',
+          description: 'Agent FileSystem tools'
+        }
       }
     ]
+    return defs
   }
 
   private getQuestionToolDefinitions(): MCPToolDefinition[] {
@@ -693,9 +764,105 @@ export class AgentToolManager {
       'grep_search',
       'text_replace',
       'edit_file',
-      'execute_command'
+      'execute_command',
+      'process'
     ]
     return filesystemTools.includes(toolName)
+  }
+
+  private isProcessTool(toolName: string): boolean {
+    return toolName === 'process'
+  }
+
+  private async callProcessTool(
+    _toolName: string,
+    args: Record<string, unknown>,
+    conversationId?: string
+  ): Promise<AgentToolCallResult> {
+    if (!conversationId) {
+      throw new Error('process tool requires a conversation ID')
+    }
+
+    const { backgroundExecSessionManager } = await import('./backgroundExecSessionManager')
+
+    const validationResult = this.processToolSchema.safeParse(args)
+    if (!validationResult.success) {
+      throw new Error(`Invalid arguments for process: ${validationResult.error.message}`)
+    }
+
+    const { action, sessionId, offset, limit, data, eof } = validationResult.data
+
+    switch (action) {
+      case 'list': {
+        const sessions = backgroundExecSessionManager.list(conversationId)
+        return {
+          content: JSON.stringify({ status: 'ok', sessions }, null, 2)
+        }
+      }
+
+      case 'poll': {
+        if (!sessionId) {
+          throw new Error('sessionId is required for poll action')
+        }
+        const result = backgroundExecSessionManager.poll(conversationId, sessionId)
+        return {
+          content: JSON.stringify(result, null, 2)
+        }
+      }
+
+      case 'log': {
+        if (!sessionId) {
+          throw new Error('sessionId is required for log action')
+        }
+        const result = backgroundExecSessionManager.log(conversationId, sessionId, offset, limit)
+        return {
+          content: JSON.stringify(result, null, 2)
+        }
+      }
+
+      case 'write': {
+        if (!sessionId) {
+          throw new Error('sessionId is required for write action')
+        }
+        backgroundExecSessionManager.write(conversationId, sessionId, data ?? '', eof)
+        return {
+          content: JSON.stringify({ status: 'ok', sessionId })
+        }
+      }
+
+      case 'kill': {
+        if (!sessionId) {
+          throw new Error('sessionId is required for kill action')
+        }
+        await backgroundExecSessionManager.kill(conversationId, sessionId)
+        return {
+          content: JSON.stringify({ status: 'ok', sessionId })
+        }
+      }
+
+      case 'clear': {
+        if (!sessionId) {
+          throw new Error('sessionId is required for clear action')
+        }
+        backgroundExecSessionManager.clear(conversationId, sessionId)
+        return {
+          content: JSON.stringify({ status: 'ok', sessionId })
+        }
+      }
+
+      case 'remove': {
+        if (!sessionId) {
+          throw new Error('sessionId is required for remove action')
+        }
+        await backgroundExecSessionManager.remove(conversationId, sessionId)
+        return {
+          content: JSON.stringify({ status: 'ok', sessionId })
+        }
+      }
+
+      default:
+        throw new Error(`Unknown process action: ${action}`)
+    }
   }
 
   private async callFileSystemTool(
@@ -703,6 +870,11 @@ export class AgentToolManager {
     args: Record<string, unknown>,
     conversationId?: string
   ): Promise<AgentToolCallResult> {
+    // Handle process tool separately
+    if (this.isProcessTool(toolName)) {
+      return this.callProcessTool(toolName, args, conversationId)
+    }
+
     if (!this.fileSystemHandler) {
       throw new Error('FileSystem handler not initialized')
     }
@@ -824,8 +996,12 @@ export class AgentToolManager {
           if (!this.bashHandler) {
             throw new Error('Bash handler not initialized for execute_command tool')
           }
+          const commandResult = await this.bashHandler.executeCommand(parsedArgs, {
+            conversationId
+          })
           return {
-            content: await this.bashHandler.executeCommand(parsedArgs, { conversationId })
+            content:
+              typeof commandResult === 'string' ? commandResult : JSON.stringify(commandResult)
           }
         default:
           throw new Error(`Unknown FileSystem tool: ${toolName}`)

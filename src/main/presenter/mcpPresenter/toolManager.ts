@@ -640,18 +640,24 @@ export class ToolManager {
   }
 
   // 检查会话级别的权限
+  // 当前会话自动执行逻辑：一旦用户授权某 server 的任何权限，该 server 的所有 tool 都自动通过
   checkSessionPermission(
     conversationId: string,
     serverName: string,
-    permissionType: 'read' | 'write' | 'all'
+    _permissionType: 'read' | 'write' | 'all'
   ): boolean {
     const sessionPerms = this.sessionPermissions.get(conversationId)
     if (!sessionPerms) return false
 
-    // Check specific permission type
-    if (sessionPerms.has(`${serverName}:${permissionType}`)) return true
-    // Check 'all' permission
-    if (sessionPerms.has(`${serverName}:all`)) return true
+    // 当前会话自动执行：只要用户授权了该 server 的任何权限，该 server 的所有 tool 都自动通过
+    for (const permKey of sessionPerms) {
+      if (permKey.startsWith(`${serverName}:`)) {
+        console.log(
+          `[ToolManager] Session auto-execute: server '${serverName}' has granted permission '${permKey}' in conversation '${conversationId}'`
+        )
+        return true
+      }
+    }
 
     return false
   }
