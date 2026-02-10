@@ -59,7 +59,10 @@ export class StreamGenerationHandler extends BaseHandler {
 
     try {
       state.isCancelled = false
-      await presenter.sessionManager.startLoop(conversationId, state.message.id)
+      // Normal flow: skip lock acquisition (lock is only for permission resume)
+      await presenter.sessionManager.startLoop(conversationId, state.message.id, {
+        skipLockAcquisition: true
+      })
 
       const { conversation, userMessage, contextMessages } = await this.prepareConversationContext(
         conversationId,
@@ -198,7 +201,10 @@ export class StreamGenerationHandler extends BaseHandler {
 
     try {
       state.isCancelled = false
-      await presenter.sessionManager.startLoop(conversationId, state.message.id)
+      // Normal flow: skip lock acquisition (lock is only for permission resume)
+      await presenter.sessionManager.startLoop(conversationId, state.message.id, {
+        skipLockAcquisition: true
+      })
 
       const queryMessage = await this.ctx.messageManager.getMessage(queryMsgId)
       if (!queryMessage) {

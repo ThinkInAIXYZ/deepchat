@@ -26,8 +26,17 @@ export interface IToolPresenter {
     needsPermission: true
     toolName: string
     serverName: string
-    permissionType: 'read' | 'write' | 'all'
+    permissionType: 'read' | 'write' | 'all' | 'command'
     description: string
+    command?: string
+    commandSignature?: string
+    commandInfo?: {
+      command: string
+      riskLevel: 'low' | 'medium' | 'high' | 'critical'
+      suggestion: string
+      signature?: string
+      baseCommand?: string
+    }
   } | null>
   buildToolSystemPrompt(context: { conversationId?: string }): string
 }
@@ -172,8 +181,17 @@ export class ToolPresenter implements IToolPresenter {
     needsPermission: true
     toolName: string
     serverName: string
-    permissionType: 'read' | 'write' | 'all'
+    permissionType: 'read' | 'write' | 'all' | 'command'
     description: string
+    command?: string
+    commandSignature?: string
+    commandInfo?: {
+      command: string
+      riskLevel: 'low' | 'medium' | 'high' | 'critical'
+      suggestion: string
+      signature?: string
+      baseCommand?: string
+    }
   } | null> {
     const toolName = request.function.name
     const source = this.mapper.getToolSource(toolName)
@@ -184,9 +202,51 @@ export class ToolPresenter implements IToolPresenter {
     }
 
     if (source === 'agent') {
-      // Agent tools have their own permission checking in AgentToolManager
-      // For now, skip batch pre-check for agent tools and let them handle permission during execution
-      return null
+      // Agent tools: delegate to AgentToolManager for pre-check
+      if (!this.agentToolManager) {
+        return null
+      }
+
+      let args: Record<string, unknown> = {}
+      const argsString = request.function.arguments || ''
+      if (argsString.trim().length > 0) {
+        try {
+          args = JSON.parse(argsString) as Record<string, unknown>
+        } catch (error) {
+          console.warn(
+            '[ToolPresenter] Failed to parse tool arguments for pre-check, trying jsonrepair:',
+            error
+          )
+          try {
+            args = JSON.parse(jsonrepair(argsString)) as Record<string, unknown>
+          } catch (error) {
+            console.warn(
+              '[ToolPresenter] Failed to repair tool arguments for pre-check, using empty args.',
+              error
+            )
+            args = {}
+          }
+        }
+      }
+
+      const result = await this.agentToolManager.preCheckToolPermission(
+        toolName,
+        args,
+        request.conversationId
+      )
+      if (!result) {
+        return null
+      }
+      return {
+        needsPermission: true,
+        toolName: result.toolName,
+        serverName: result.serverName,
+        permissionType: result.permissionType,
+        description: result.description,
+        command: result.command,
+        commandSignature: result.commandSignature,
+        commandInfo: result.commandInfo
+      }
     }
 
     // Route to MCP for permission pre-check

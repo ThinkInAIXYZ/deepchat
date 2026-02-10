@@ -278,9 +278,20 @@ export class PermissionHandler extends BaseHandler {
 
       // Step 7: Resume tool execution (idempotent - only one resume per message)
       // Pass the specific toolCallId that was granted to ensure only that tool is executed
+      // CRITICAL: Lock is released inside resumeToolExecutionAfterPermissions (success or error)
       await this.resumeToolExecutionAfterPermissions(messageId, granted, toolCallId)
     } catch (error) {
       console.error('[PermissionHandler] Failed to handle permission response:', error)
+
+      // CRITICAL: Ensure lock is released on error (belt-and-suspenders approach)
+      try {
+        const conversationId = await this.getConversationIdFromMessage(messageId)
+        if (conversationId) {
+          presenter.sessionManager.releasePermissionResumeLock(conversationId)
+        }
+      } catch (lockError) {
+        console.warn('[PermissionHandler] Failed to release lock during error handling:', lockError)
+      }
 
       try {
         const message = await this.ctx.messageManager.getMessage(messageId)
@@ -407,8 +418,23 @@ export class PermissionHandler extends BaseHandler {
   }
 
   /**
+   * Get conversation ID from message ID
+   */
+  private async getConversationIdFromMessage(messageId: string): Promise<string | null> {
+    const message = await this.ctx.messageManager.getMessage(messageId)
+    if (!message) {
+      return null
+    }
+    return message.conversationId
+  }
+
+  /**
    * Resume tool execution after permission is granted
-   * This method executes only the specific tool that was granted, then checks for more pending permissions
+   * CRITICAL SECTION: Lock is held throughout the entire resume flow
+   * - Early-exit checks prevent stale execution
+   * - Synchronous flush before executing tools
+   * - Lock released only at single exit point
+   * - All tools executed atomically (no lock release between tools)
    */
   private async resumeToolExecutionAfterPermissions(
     messageId: string,
@@ -422,28 +448,66 @@ export class PermissionHandler extends BaseHandler {
       grantedToolCallId
     )
 
-    try {
-      const message = await this.ctx.messageManager.getMessage(messageId)
-      if (!message) {
-        throw new Error(`Message not found (${messageId})`)
+    const conversationId = await this.getConversationIdFromMessage(messageId)
+    if (!conversationId) {
+      throw new Error(`Message not found (${messageId})`)
+    }
+
+    // CRITICAL SECTION: Lock must be held throughout this entire method
+    // Early-exit checks: Validate session state before proceeding
+    const session = presenter.sessionManager.getSession(conversationId)
+    if (!session) {
+      console.warn('[PermissionHandler] Session not found, skipping resume:', conversationId)
+      presenter.sessionManager.releasePermissionResumeLock(conversationId)
+      return
+    }
+
+    // Verify the lock is still valid (same message)
+    const currentLock = presenter.sessionManager.getPermissionResumeLock(conversationId)
+    if (!currentLock || currentLock.messageId !== messageId) {
+      console.warn(
+        '[PermissionHandler] Lock mismatch or expired, skipping resume. Expected:',
+        messageId,
+        'Got:',
+        currentLock?.messageId
+      )
+      // CRITICAL: Always release lock if we don't proceed - it was acquired in handlePermissionResponse
+      if (currentLock) {
+        presenter.sessionManager.releasePermissionResumeLock(conversationId)
       }
+      return
+    }
 
-      const conversationId = message.conversationId
+    // Ensure status is appropriate for tool execution
+    // Transition from waiting_permission to generating since we're resuming
+    const currentStatus = presenter.sessionManager.getStatus(conversationId)
+    if (currentStatus === 'waiting_permission') {
+      console.log('[PermissionHandler] Transitioning session from waiting_permission to generating')
+      presenter.sessionManager.setStatus(conversationId, 'generating')
+    } else if (currentStatus !== 'generating') {
+      console.warn(
+        '[PermissionHandler] Session status not suitable for resume. Status:',
+        currentStatus
+      )
+      presenter.sessionManager.releasePermissionResumeLock(conversationId)
+      return
+    }
 
-      // CRITICAL: Start the agent loop with pending permissions preservation
-      // This is essential for multi-tool permission scenarios where we execute one tool
-      // while waiting for approval of others. The granted permission was already removed
-      // from the pending list, but other pending permissions must be preserved.
+    try {
+      // Step 1: Start the agent loop with pending permissions preservation
+      // skipLockAcquisition: PermissionHandler already holds the lock
       await presenter.sessionManager.startLoop(conversationId, messageId, {
-        preservePendingPermissions: true
+        preservePendingPermissions: true,
+        skipLockAcquisition: true
       })
-      // Re-fetch message to get updated permission block statuses
+
+      // Step 2: Re-fetch message to get updated permission block statuses
       const updatedMessage = await this.ctx.messageManager.getMessage(messageId)
       if (!updatedMessage) {
         throw new Error(`Message not found after permission update (${messageId})`)
       }
 
-      // Get tool calls to execute - only the granted one if specified
+      // Step 3: Get tool calls to execute
       const toolCallsToExecute = this.getToolCallsToExecute(
         updatedMessage.content as AssistantMessageBlock[],
         grantedToolCallId
@@ -454,10 +518,12 @@ export class PermissionHandler extends BaseHandler {
           '[PermissionHandler] No tool calls to execute, continuing with stream completion'
         )
         await this.resumeStreamCompletion(conversationId, messageId)
+        // SINGLE EXIT POINT: Release lock
+        presenter.sessionManager.releasePermissionResumeLock(conversationId)
         return
       }
 
-      // Set up generating state if not exists
+      // Step 4: Set up generating state
       let state = this.generatingMessages.get(messageId)
       if (!state) {
         state = {
@@ -471,46 +537,44 @@ export class PermissionHandler extends BaseHandler {
           lastReasoningTime: null
         }
         this.generatingMessages.set(messageId, state)
+      } else {
+        // CRITICAL FIX: Sync state.message.content with database to ensure tool_call blocks
+        // created by the frontend are available for processToolCallEnd to update
+        state.message.content = (updatedMessage as AssistantMessage).content
       }
 
-      // Execute tools sequentially
+      // Step 5: SYNCHRONOUS FLUSH before executing tools
+      // This ensures all pending UI updates are persisted to DB before tool execution
+      await this.llmEventHandler.flushStreamUpdates(messageId)
+
+      // Step 6: Execute tools sequentially (lock held throughout - NO RELEASE BETWEEN TOOLS)
+      let hasNewPermissionRequest = false
       for (const toolCall of toolCallsToExecute) {
-        // Release lock before each tool execution (can be re-acquired if permission needed again)
-        presenter.sessionManager.releasePermissionResumeLock(conversationId)
+        const canContinue = await this.executeSingleToolCall(state, toolCall, conversationId)
 
-        const canExecute = await this.executeSingleToolCall(state, toolCall, conversationId)
-
-        if (!canExecute) {
-          // Permission required again - stop here, lock is already released
-          return
-        }
-
-        // Re-acquire lock for next iteration
-        const lockAcquired = presenter.sessionManager.acquirePermissionResumeLock(
-          conversationId,
-          messageId
-        )
-        if (!lockAcquired) {
-          console.log('[PermissionHandler] Could not re-acquire resume lock, stopping')
-          return
+        if (!canContinue) {
+          // Permission required again - but we keep the lock until end of critical section
+          hasNewPermissionRequest = true
+          break
         }
       }
 
-      // Tool executed, check if there are still pending permissions before continuing
+      // Step 7: Check if there are still pending permissions
       const stillHasPending = await this.hasPendingPermissionsInMessage(messageId)
-      if (stillHasPending) {
+      if (stillHasPending || hasNewPermissionRequest) {
         console.log(
-          '[PermissionHandler] Tool executed but more permissions pending, stopping to wait'
+          '[PermissionHandler] Tool(s) executed but more permissions pending, releasing lock and waiting'
         )
+        // SINGLE EXIT POINT: Release lock
         presenter.sessionManager.releasePermissionResumeLock(conversationId)
-        // Notify frontend to refresh permission UI for remaining pending permissions
         this.notifyFrontendPermissionUpdate(conversationId, messageId)
         return
       }
 
-      // All permissions resolved, release lock and continue with model generation
-      presenter.sessionManager.releasePermissionResumeLock(conversationId)
+      // Step 8: All permissions resolved, continue with stream completion
       await this.continueAfterToolsExecuted(state, conversationId, messageId)
+      // SINGLE EXIT POINT: Release lock after successful completion
+      presenter.sessionManager.releasePermissionResumeLock(conversationId)
     } catch (error) {
       console.error('[PermissionHandler] Failed to resume tool execution:', error)
       this.generatingMessages.delete(messageId)
@@ -524,6 +588,8 @@ export class PermissionHandler extends BaseHandler {
         console.error('[PermissionHandler] Failed to update message error status:', updateError)
       }
 
+      // SINGLE EXIT POINT: Ensure lock is released on error
+      presenter.sessionManager.releasePermissionResumeLock(conversationId)
       throw error
     }
   }
@@ -792,6 +858,10 @@ export class PermissionHandler extends BaseHandler {
     await this.streamGenerationHandler.startStreamCompletion(conversationId, messageId)
   }
 
+  /**
+   * Restart agent loop after permission is granted
+   * UNIFIED FLOW: Uses resumeToolExecutionAfterPermissions for all cases
+   */
   async restartAgentLoopAfterPermission(messageId: string, toolCallId?: string): Promise<void> {
     console.log('[PermissionHandler] Restarting agent loop after permission', messageId)
 
@@ -801,12 +871,10 @@ export class PermissionHandler extends BaseHandler {
         throw new Error(`Message not found (${messageId})`)
       }
 
-      const conversationId = message.conversationId
-      await presenter.sessionManager.startLoop(conversationId, messageId, {
-        preservePendingPermissions: true
-      })
-      const content = message.content as AssistantMessageBlock[]
+      // const conversationId = message.conversationId
 
+      // Check server permissions for logging/debugging
+      const content = message.content as AssistantMessageBlock[]
       const permissionBlock = content.find(
         (block) =>
           block.type === 'action' &&
@@ -828,62 +896,12 @@ export class PermissionHandler extends BaseHandler {
         console.warn('[PermissionHandler] Granted permission block missing; continuing', messageId)
       }
 
-      const pendingToolCallFromPermission =
-        this.buildPendingToolCallFromPermissionBlock(permissionBlock)
-      const pendingToolCallFromId = toolCallId
-        ? this.buildPendingToolCallFromToolCallId(content, toolCallId)
-        : undefined
-      const fallbackPendingToolCall =
-        pendingToolCallFromPermission ??
-        pendingToolCallFromId ??
-        this.findPendingToolCallAfterPermission(content)
-
-      // Find all granted pending tool calls for batch execution
-      const allPendingToolCalls = this.findAllPendingToolCallsAfterPermission(content)
-      const firstPendingToolCall = allPendingToolCalls[0] ?? fallbackPendingToolCall
-
-      const state = this.generatingMessages.get(messageId)
-      if (state) {
-        if (!state.pendingToolCall && firstPendingToolCall) {
-          state.pendingToolCall = firstPendingToolCall
-        }
-        if (state.pendingToolCall) {
-          await this._resumeAfterPermissionWithPendingToolCall_legacy(
-            state,
-            message as AssistantMessage,
-            conversationId,
-            allPendingToolCalls.slice(1)
-          )
-        } else {
-          await this.resumeStreamCompletion(conversationId, messageId)
-        }
-        return
-      }
-
-      const assistantMessage = message as AssistantMessage
-      this.generatingMessages.set(messageId, {
-        message: assistantMessage,
-        conversationId,
-        startTime: Date.now(),
-        firstTokenTime: null,
-        promptTokens: 0,
-        reasoningStartTime: null,
-        reasoningEndTime: null,
-        lastReasoningTime: null,
-        pendingToolCall: firstPendingToolCall
-      })
-
-      if (firstPendingToolCall) {
-        const newState = this.generatingMessages.get(messageId)!
-        await this._resumeAfterPermissionWithPendingToolCall_legacy(
-          newState,
-          message as AssistantMessage,
-          conversationId,
-          allPendingToolCalls.slice(1)
-        )
-      } else {
-        await this.streamGenerationHandler.startStreamCompletion(conversationId, messageId)
-      }
+      // UNIFIED FLOW: Use resumeToolExecutionAfterPermissions for all cases
+      // This method handles:
+      // 1. Setting up the generating state
+      // 2. Finding and executing all granted tool calls
+      // 3. Continuing with stream completion
+      await this.resumeToolExecutionAfterPermissions(messageId, true, toolCallId)
     } catch (error) {
       console.error('[PermissionHandler] Failed to restart agent loop:', error)
       this.generatingMessages.delete(messageId)
@@ -911,8 +929,10 @@ export class PermissionHandler extends BaseHandler {
       }
 
       const conversationId = message.conversationId
+      // Permission denied flow: skip lock acquisition (not part of permission resume critical section)
       await presenter.sessionManager.startLoop(conversationId, messageId, {
-        preservePendingPermissions: true
+        preservePendingPermissions: true,
+        skipLockAcquisition: true
       })
       const content = message.content as AssistantMessageBlock[]
       const deniedPermissionBlock =
@@ -1039,238 +1059,6 @@ export class PermissionHandler extends BaseHandler {
     }
   }
 
-  // DEPRECATED: Sequential tool execution is now handled by resumeToolExecutionAfterPermissions
-  async _resumeAfterPermissionWithPendingToolCall_legacy(
-    state: GeneratingMessageState,
-    message: AssistantMessage,
-    conversationId: string,
-    remainingToolCalls: PendingToolCall[] = []
-  ): Promise<void> {
-    const pendingToolCall = state.pendingToolCall
-    if (!pendingToolCall || !pendingToolCall.id || !pendingToolCall.name) {
-      await this.resumeStreamCompletion(conversationId, message.id)
-      return
-    }
-
-    try {
-      const { conversation, contextMessages, userMessage } =
-        await this.streamGenerationHandler.prepareConversationContext(conversationId, message.id)
-
-      const {
-        providerId,
-        modelId,
-        temperature,
-        maxTokens,
-        enabledMcpTools,
-        thinkingBudget,
-        reasoningEffort,
-        verbosity,
-        enableSearch,
-        forcedSearch,
-        searchStrategy
-      } = conversation.settings
-
-      const modelConfig = this.ctx.configPresenter.getModelConfig(modelId, providerId)
-      if (!modelConfig) {
-        await this.resumeStreamCompletion(conversationId, message.id)
-        return
-      }
-
-      let toolDef: MCPToolDefinition | undefined
-      try {
-        const { chatMode, agentWorkspacePath } =
-          await presenter.sessionManager.resolveWorkspaceContext(
-            conversationId,
-            conversation.settings.modelId
-          )
-        const toolDefinitions = await this.getToolPresenter().getAllToolDefinitions({
-          enabledMcpTools,
-          chatMode,
-          supportsVision: false,
-          agentWorkspacePath,
-          conversationId
-        })
-        toolDef = toolDefinitions.find((definition) => {
-          if (definition.function.name !== pendingToolCall.name) {
-            return false
-          }
-          if (pendingToolCall.serverName) {
-            return definition.server.name === pendingToolCall.serverName
-          }
-          return true
-        })
-      } catch (error) {
-        console.error('[PermissionHandler] Failed to load tool definitions:', error)
-      }
-
-      if (!toolDef) {
-        await this.resumeStreamCompletion(conversationId, message.id)
-        return
-      }
-
-      const resolvedServer = toolDef?.server
-      await this.llmEventHandler.handleLLMAgentResponse({
-        eventId: message.id,
-        tool_call: 'running',
-        tool_call_id: pendingToolCall.id,
-        tool_call_name: pendingToolCall.name,
-        tool_call_params: pendingToolCall.params,
-        tool_call_server_name: resolvedServer?.name || pendingToolCall.serverName,
-        tool_call_server_icons: resolvedServer?.icons || pendingToolCall.serverIcons,
-        tool_call_server_description:
-          resolvedServer?.description || pendingToolCall.serverDescription
-      } as any)
-
-      let toolContent = ''
-      let toolRawData: MCPToolResponse | null = null
-      try {
-        const toolCallResult = await this.getToolPresenter().callTool({
-          id: pendingToolCall.id,
-          type: 'function',
-          function: {
-            name: pendingToolCall.name,
-            arguments: pendingToolCall.params
-          },
-          server: resolvedServer,
-          conversationId
-        })
-        toolContent =
-          typeof toolCallResult.content === 'string'
-            ? toolCallResult.content
-            : JSON.stringify(toolCallResult.content)
-        toolRawData = toolCallResult.rawData
-      } catch (toolError) {
-        console.error('[PermissionHandler] Failed to execute pending tool call:', toolError)
-        await this.llmEventHandler.handleLLMAgentResponse({
-          eventId: message.id,
-          tool_call: 'error',
-          tool_call_id: pendingToolCall.id,
-          tool_call_name: pendingToolCall.name,
-          tool_call_params: pendingToolCall.params,
-          tool_call_response: toolError instanceof Error ? toolError.message : String(toolError),
-          tool_call_server_name: resolvedServer?.name || pendingToolCall.serverName,
-          tool_call_server_icons: resolvedServer?.icons || pendingToolCall.serverIcons,
-          tool_call_server_description:
-            resolvedServer?.description || pendingToolCall.serverDescription
-        } as any)
-        throw toolError
-      }
-
-      if (toolRawData?.requiresPermission) {
-        await this.llmEventHandler.handleLLMAgentResponse({
-          eventId: message.id,
-          tool_call: 'permission-required',
-          tool_call_id: pendingToolCall.id,
-          tool_call_name: pendingToolCall.name,
-          tool_call_params: pendingToolCall.params,
-          tool_call_server_name:
-            toolRawData.permissionRequest?.serverName ||
-            resolvedServer?.name ||
-            pendingToolCall.serverName,
-          tool_call_server_icons: resolvedServer?.icons || pendingToolCall.serverIcons,
-          tool_call_server_description:
-            resolvedServer?.description || pendingToolCall.serverDescription,
-          tool_call_response: toolContent,
-          permission_request: toolRawData.permissionRequest
-        } as any)
-        return
-      }
-
-      await this.llmEventHandler.handleLLMAgentResponse({
-        eventId: message.id,
-        tool_call: 'end',
-        tool_call_id: pendingToolCall.id,
-        tool_call_name: pendingToolCall.name,
-        tool_call_params: pendingToolCall.params,
-        tool_call_response: toolContent,
-        tool_call_server_name: resolvedServer?.name || pendingToolCall.serverName,
-        tool_call_server_icons: resolvedServer?.icons || pendingToolCall.serverIcons,
-        tool_call_server_description:
-          resolvedServer?.description || pendingToolCall.serverDescription,
-        tool_call_response_raw: toolRawData ?? undefined
-      } as any)
-
-      state.pendingToolCall = undefined
-
-      // CRITICAL FIX: Check if there are still pending permissions before continuing
-      // This ensures we wait for user approval of other tools in multi-tool scenarios
-      const stillHasPending = await this.hasPendingPermissionsInMessage(message.id)
-      if (stillHasPending) {
-        console.log(
-          '[PermissionHandler] Tool executed but more permissions pending, stopping to wait for approval'
-        )
-        this.notifyFrontendPermissionUpdate(conversationId, message.id)
-        return
-      }
-
-      // Check if there are remaining tool calls to execute (only if all permissions are resolved)
-      if (remainingToolCalls.length > 0) {
-        console.log(
-          `[PermissionHandler] All permissions resolved, continuing with ${remainingToolCalls.length} remaining tool calls`
-        )
-        state.pendingToolCall = remainingToolCalls[0]
-        await this._resumeAfterPermissionWithPendingToolCall_legacy(
-          state,
-          message,
-          conversationId,
-          remainingToolCalls.slice(1)
-        )
-        return
-      }
-
-      const finalContent = await buildPostToolExecutionContext({
-        conversation,
-        contextMessages,
-        userMessage,
-        currentAssistantMessage: state.message,
-        completedToolCall: {
-          ...pendingToolCall,
-          response: toolContent
-        },
-        modelConfig
-      })
-
-      const stream = this.llmProviderPresenter.startStreamCompletion(
-        providerId,
-        finalContent,
-        modelId,
-        message.id,
-        temperature,
-        maxTokens,
-        enabledMcpTools,
-        thinkingBudget,
-        reasoningEffort,
-        verbosity,
-        enableSearch,
-        forcedSearch,
-        searchStrategy,
-        conversation.id
-      )
-
-      for await (const event of stream) {
-        const msg = event.data
-        if (event.type === 'response') {
-          await this.llmEventHandler.handleLLMAgentResponse(msg)
-        } else if (event.type === 'error') {
-          await this.llmEventHandler.handleLLMAgentError(msg)
-        } else if (event.type === 'end') {
-          await this.llmEventHandler.handleLLMAgentEnd(msg)
-        }
-      }
-    } catch (error) {
-      console.error('[PermissionHandler] Failed to resume pending tool call:', error)
-      this.generatingMessages.delete(message.id)
-
-      try {
-        await this.ctx.messageManager.handleMessageError(message.id, String(error))
-      } catch (updateError) {
-        console.error('[PermissionHandler] Failed to update message error status:', updateError)
-      }
-
-      throw error
-    }
-  }
-
   async waitForMcpServiceReady(serverName: string, maxWaitTime: number = 3000): Promise<void> {
     const startTime = Date.now()
     const checkInterval = 100
@@ -1299,102 +1087,6 @@ export class PermissionHandler extends BaseHandler {
 
       checkReady()
     })
-  }
-
-  findPendingToolCallAfterPermission(
-    content: AssistantMessageBlock[]
-  ): PendingToolCall | undefined {
-    const grantedPermissionBlock = content.find(
-      (block) =>
-        block.type === 'action' &&
-        block.action_type === 'tool_call_permission' &&
-        block.status === 'granted'
-    )
-
-    return this.buildPendingToolCallFromPermissionBlock(grantedPermissionBlock)
-  }
-
-  /**
-   * Find all granted pending tool calls after permission is granted
-   * This supports batch execution of multiple tool calls that were all authorized
-   */
-  findAllPendingToolCallsAfterPermission(content: AssistantMessageBlock[]): PendingToolCall[] {
-    const grantedBlocks: AssistantMessageBlock[] = []
-
-    for (const block of content) {
-      if (
-        block.type === 'action' &&
-        block.action_type === 'tool_call_permission' &&
-        block.status === 'granted'
-      ) {
-        grantedBlocks.push(block)
-      }
-    }
-
-    // Build pending calls maintaining original order
-    const pendingCalls: PendingToolCall[] = []
-    for (const block of grantedBlocks) {
-      const pendingCall = this.buildPendingToolCallFromPermissionBlock(block)
-      if (pendingCall) {
-        pendingCalls.push(pendingCall)
-      }
-    }
-
-    console.log(
-      `[PermissionHandler] Found ${pendingCalls.length} granted pending tool calls for batch execution`
-    )
-    return pendingCalls
-  }
-
-  private buildPendingToolCallFromPermissionBlock(
-    block?: AssistantMessageBlock
-  ): PendingToolCall | undefined {
-    if (!block?.tool_call) {
-      return undefined
-    }
-
-    const { id, name, params } = block.tool_call
-    if (!id || !name || !params) {
-      console.warn('[PermissionHandler] Incomplete tool call info:', block.tool_call)
-      return undefined
-    }
-
-    return {
-      id,
-      name,
-      params,
-      serverName: block.tool_call.server_name,
-      serverIcons: block.tool_call.server_icons,
-      serverDescription: block.tool_call.server_description
-    }
-  }
-
-  private buildPendingToolCallFromToolCallId(
-    content: AssistantMessageBlock[],
-    toolCallId: string
-  ): PendingToolCall | undefined {
-    const toolCallBlock = content.find(
-      (block) => block.type === 'tool_call' && block.tool_call?.id === toolCallId
-    )
-
-    if (!toolCallBlock || toolCallBlock.type !== 'tool_call' || !toolCallBlock.tool_call) {
-      return undefined
-    }
-
-    const { id, name, params } = toolCallBlock.tool_call
-    if (!id || !name || !params) {
-      console.warn('[PermissionHandler] Incomplete tool call info:', toolCallBlock.tool_call)
-      return undefined
-    }
-
-    return {
-      id,
-      name,
-      params,
-      serverName: toolCallBlock.tool_call.server_name,
-      serverIcons: toolCallBlock.tool_call.server_icons,
-      serverDescription: toolCallBlock.tool_call.server_description
-    }
   }
 
   private parsePermissionRequest(block: AssistantMessageBlock): Record<string, unknown> | null {

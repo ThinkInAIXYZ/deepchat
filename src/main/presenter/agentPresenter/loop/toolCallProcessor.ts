@@ -20,8 +20,17 @@ interface ToolCallProcessorOptions {
     needsPermission: true
     toolName: string
     serverName: string
-    permissionType: 'read' | 'write' | 'all'
+    permissionType: 'read' | 'write' | 'all' | 'command'
     description: string
+    command?: string
+    commandSignature?: string
+    commandInfo?: {
+      command: string
+      riskLevel: 'low' | 'medium' | 'high' | 'critical'
+      suggestion: string
+      signature?: string
+      baseCommand?: string
+    }
   } | null>
   onToolCallFinished?: (info: {
     toolName: string
@@ -50,15 +59,28 @@ interface ToolCallProcessResult {
   needContinueConversation: boolean
 }
 
+interface ToolCall {
+  id: string
+  name: string
+  arguments: string
+}
+
 interface PermissionRequestInfo {
-  toolCallId: string
-  toolName: string
-  toolArguments: string
+  toolCall: ToolCall
   serverName: string
   serverIcons?: string
   serverDescription?: string
-  permissionType: 'read' | 'write' | 'all'
+  permissionType: 'read' | 'write' | 'all' | 'command'
   description: string
+  command?: string
+  commandSignature?: string
+  commandInfo?: {
+    command: string
+    riskLevel: 'low' | 'medium' | 'high' | 'critical'
+    suggestion: string
+    signature?: string
+    baseCommand?: string
+  }
 }
 
 const TOOL_OUTPUT_OFFLOAD_THRESHOLD = 5000
@@ -101,15 +123,15 @@ export class ToolCallProcessor {
           data: {
             eventId: context.eventId,
             tool_call: 'permission-required',
-            tool_call_id: permissionRequest.toolCallId,
-            tool_call_name: permissionRequest.toolName,
-            tool_call_params: permissionRequest.toolArguments,
+            tool_call_id: permissionRequest.toolCall.id,
+            tool_call_name: permissionRequest.toolCall.name,
+            tool_call_params: permissionRequest.toolCall.arguments,
             tool_call_server_name: permissionRequest.serverName,
             tool_call_server_icons: permissionRequest.serverIcons,
             tool_call_server_description: permissionRequest.serverDescription,
             tool_call_response: permissionRequest.description,
             permission_request: {
-              toolName: permissionRequest.toolName,
+              toolName: permissionRequest.toolCall.name,
               serverName: permissionRequest.serverName,
               permissionType: permissionRequest.permissionType,
               conversationId: context.conversationId,
@@ -720,15 +742,17 @@ export class ToolCallProcessor {
       try {
         const permissionResult = await this.options.preCheckToolPermission(mcpToolInput)
         if (permissionResult) {
+          // Preserve the full ToolCall object instead of stripping it down
           permissionRequests.push({
-            toolCallId: toolCall.id,
-            toolName: toolCall.name,
-            toolArguments: toolCall.arguments,
+            toolCall,
             serverName: permissionResult.serverName,
             serverIcons: toolDef.server?.icons,
             serverDescription: toolDef.server?.description,
             permissionType: permissionResult.permissionType,
-            description: permissionResult.description
+            description: permissionResult.description,
+            command: permissionResult.command,
+            commandSignature: permissionResult.commandSignature,
+            commandInfo: permissionResult.commandInfo
           })
         }
       } catch (error) {

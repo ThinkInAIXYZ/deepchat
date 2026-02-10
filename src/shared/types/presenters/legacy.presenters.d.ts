@@ -1623,8 +1623,17 @@ export interface IMCPPresenter {
     needsPermission: true
     toolName: string
     serverName: string
-    permissionType: 'read' | 'write' | 'all'
+    permissionType: 'read' | 'write' | 'all' | 'command'
     description: string
+    command?: string
+    commandSignature?: string
+    commandInfo?: {
+      command: string
+      riskLevel: 'low' | 'medium' | 'high' | 'critical'
+      suggestion: string
+      signature?: string
+      baseCommand?: string
+    }
   } | null>
   handleSamplingRequest(request: McpSamplingRequestPayload): Promise<McpSamplingDecision>
   submitSamplingDecision(decision: McpSamplingDecision): Promise<void>

@@ -371,4 +371,41 @@ export class AgentBashHandler {
       logger.warn('[AgentBashHandler] Failed to emit terminal snippet', { error })
     }
   }
+
+  /**
+   * Pre-check command permission without executing
+   * Returns permission info if permission is needed, null if no permission needed
+   */
+  checkCommandPermission(
+    command: string,
+    conversationId?: string
+  ): {
+    needsPermission: boolean
+    description?: string
+    signature?: string
+    commandInfo?: {
+      command: string
+      riskLevel: 'low' | 'medium' | 'high' | 'critical'
+      suggestion: string
+      signature?: string
+      baseCommand?: string
+    }
+  } {
+    if (!this.commandPermissionHandler) {
+      return { needsPermission: false }
+    }
+
+    const permissionCheck = this.commandPermissionHandler.checkPermission(conversationId, command)
+    if (permissionCheck.allowed) {
+      return { needsPermission: false }
+    }
+
+    const commandInfo = this.commandPermissionHandler.buildCommandInfo(command)
+    return {
+      needsPermission: true,
+      description: `Command "${command}" requires permission`,
+      signature: commandInfo.signature,
+      commandInfo
+    }
+  }
 }

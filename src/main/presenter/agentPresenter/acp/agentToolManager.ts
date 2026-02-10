@@ -1223,6 +1223,152 @@ export class AgentToolManager {
     return toolName === 'skill_list' || toolName === 'skill_control'
   }
 
+  /**
+   * Pre-check tool permissions for agent tools
+   * Returns permission request info if permission is needed, null if no permission needed
+   */
+  async preCheckToolPermission(
+    toolName: string,
+    args: Record<string, unknown>,
+    conversationId?: string
+  ): Promise<{
+    needsPermission: true
+    toolName: string
+    serverName: string
+    permissionType: 'read' | 'write' | 'all' | 'command'
+    description: string
+    paths?: string[]
+    command?: string
+    commandSignature?: string
+    commandInfo?: {
+      command: string
+      riskLevel: 'low' | 'medium' | 'high' | 'critical'
+      suggestion: string
+      signature?: string
+      baseCommand?: string
+    }
+    conversationId?: string
+  } | null> {
+    // Only file system write operations and command execution need pre-check
+    const writeTools = [
+      'write_file',
+      'create_directory',
+      'move_files',
+      'edit_text',
+      'text_replace',
+      'edit_file'
+    ]
+    const readTools = [
+      'read_file',
+      'list_directory',
+      'directory_tree',
+      'glob_search',
+      'grep_search'
+    ]
+
+    // Check for file system write operations
+    if (this.isFileSystemTool(toolName)) {
+      if (!this.fileSystemHandler) {
+        throw new Error('FileSystem handler not initialized')
+      }
+
+      // Handle command tools separately (they use command permission service)
+      if (toolName === 'execute_command') {
+        if (!this.bashHandler) {
+          return null
+        }
+
+        const command = (args.command as string) || ''
+        if (!command) {
+          return null
+        }
+
+        // Use bash handler's checkCommandPermission if available
+        if (this.bashHandler.checkCommandPermission) {
+          const result = await this.bashHandler.checkCommandPermission(command, conversationId)
+          if (result.needsPermission) {
+            return {
+              needsPermission: true,
+              toolName,
+              serverName: 'agent-filesystem',
+              permissionType: 'command',
+              description: result.description || `Command "${command}" requires permission`,
+              command,
+              commandSignature: result.signature,
+              commandInfo: result.commandInfo,
+              conversationId
+            }
+          }
+        }
+        return null
+      }
+
+      // Handle process tool
+      if (toolName === 'process') {
+        return null
+      }
+
+      // For file system operations, check if write permission is needed
+      const isWriteOperation = writeTools.includes(toolName)
+      const isReadOperation = readTools.includes(toolName)
+
+      if (!isWriteOperation && !isReadOperation) {
+        return null
+      }
+
+      // Get workdir and allowed directories
+      let dynamicWorkdir: string | null = null
+      if (conversationId) {
+        try {
+          dynamicWorkdir = await this.getWorkdirForConversation(conversationId)
+        } catch (error) {
+          logger.warn('[AgentToolManager] Failed to get workdir for permission check:', {
+            conversationId,
+            error
+          })
+        }
+      }
+
+      const workspaceRoot =
+        dynamicWorkdir ?? this.agentWorkspacePath ?? this.getDefaultAgentWorkspacePath()
+      const allowedDirectories = this.buildAllowedDirectories(workspaceRoot, conversationId)
+      const fileSystemHandler = new AgentFileSystemHandler(allowedDirectories, { conversationId })
+
+      // Collect target paths
+      const targets = this.collectWriteTargets(toolName, args)
+      if (targets.length === 0 && isWriteOperation) {
+        // Check for path in read operations too
+        const pathArg = (args.path as string) || (args.paths as string[])?.[0]
+        if (pathArg) {
+          targets.push(pathArg)
+        }
+      }
+
+      // Check each path
+      const denied: string[] = []
+      for (const target of targets) {
+        const resolved = fileSystemHandler.resolvePath(target, undefined)
+        if (!fileSystemHandler.isPathAllowedAbsolute(resolved)) {
+          denied.push(target)
+        }
+      }
+
+      if (denied.length > 0) {
+        return {
+          needsPermission: true,
+          toolName,
+          serverName: 'agent-filesystem',
+          permissionType: isWriteOperation ? 'write' : 'read',
+          description: `${isWriteOperation ? 'Write' : 'Read'} access requires approval for: ${denied.join(', ')}`,
+          paths: denied,
+          conversationId
+        }
+      }
+    }
+
+    return null
+  }
+
   private isChatSettingsTool(toolName: string): boolean {
     return (
       toolName === CHAT_SETTINGS_TOOL_NAMES.toggle ||

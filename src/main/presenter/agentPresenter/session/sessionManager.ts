@@ -148,7 +148,7 @@ export class SessionManager {
   async startLoop(
     agentId: string,
     messageId: string,
-    options?: { preservePendingPermissions?: boolean }
+    options?: { preservePendingPermissions?: boolean; skipLockAcquisition?: boolean }
   ): Promise<void> {
     const session = await this.getSession(agentId)
     session.status = 'generating'
@@ -158,6 +158,20 @@ export class SessionManager {
     runtime.currentMessageId = messageId
     runtime.toolCallCount = 0
     runtime.userStopRequested = false
+
+    // CRITICAL: Acquire permission resume lock BEFORE clearing pending permissions
+    // This ensures atomic state transition during permission resume flow
+    // skipLockAcquisition is used when PermissionHandler already holds the lock
+    if (!options?.skipLockAcquisition) {
+      const hasExistingLock = this.acquirePermissionResumeLock(agentId, messageId)
+      if (!hasExistingLock) {
+        console.warn(
+          `[SessionManager] Lock already exists for message ${messageId}, skipping startLoop initialization`
+        )
+        return
+      }
+    }
+
     // CRITICAL: Only clear pending permissions if not preserving them
     // This is essential for multi-tool permission scenarios where we need to
     // execute one tool while waiting for approval of others
@@ -165,8 +179,10 @@ export class SessionManager {
       runtime.pendingPermission = undefined
       runtime.pendingPermissions = undefined
     }
-    runtime.permissionResumeLock = undefined
     runtime.pendingQuestion = undefined
+
+    // Note: lock is held via permissionResumeLock, will be released in PermissionHandler
+    // after all tools in this resume batch are processed
   }
 
   setStatus(agentId: string, status: SessionStatus): void {
@@ -174,6 +190,12 @@ export class SessionManager {
     if (!session) return
     session.status = status
     session.updatedAt = Date.now()
+  }
+
+  getStatus(agentId: string): SessionStatus | null {
+    const session = this.sessions.get(agentId)
+    if (!session) return null
+    return session.status
   }
 
   updateRuntime(agentId: string, updates: Partial<SessionContext['runtime']>): void {
@@ -286,6 +308,24 @@ export class SessionManager {
     if (!session) return undefined
     const runtime = this.ensureRuntime(session)
     return runtime.permissionResumeLock
+  }
+
+  /**
+   * Remove a session and clean up all pending state.
+   * Critical for preventing stale permission data from affecting new sessions.
+   */
+  removeSession(agentId: string): void {
+    const session = this.sessions.get(agentId)
+    if (session?.runtime) {
+      // Clear pending permissions to prevent stale data
+      session.runtime.pendingPermissions = undefined
+      session.runtime.pendingPermission = undefined
+      // Clear permission resume lock
+      session.runtime.permissionResumeLock = undefined
+      // Clear pending question
+      session.runtime.pendingQuestion = undefined
+    }
+    this.sessions.delete(agentId)
   }
 
   private async hydratePendingQuestion(session: SessionContext): Promise<void> {
