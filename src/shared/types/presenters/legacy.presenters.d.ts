@@ -1619,6 +1619,13 @@ export interface IMCPPresenter {
   getPrompt(prompt: PromptListEntry, args?: Record<string, unknown>): Promise<unknown>
   readResource(resource: ResourceListEntry): Promise<Resource>
   callTool(request: MCPToolCall): Promise<{ content: string; rawData: MCPToolResponse }>
+  preCheckToolPermission?(request: MCPToolCall): Promise<{
+    needsPermission: true
+    toolName: string
+    serverName: string
+    permissionType: 'read' | 'write' | 'all'
+    description: string
+  } | null>
   handleSamplingRequest(request: McpSamplingRequestPayload): Promise<McpSamplingDecision>
   submitSamplingDecision(decision: McpSamplingDecision): Promise<void>
   cancelSamplingRequest(requestId: string, reason?: string): Promise<void>
@@ -1630,7 +1637,8 @@ export interface IMCPPresenter {
   grantPermission(
     serverName: string,
     permissionType: 'read' | 'write' | 'all',
-    remember?: boolean
+    remember?: boolean,
+    conversationId?: string
   ): Promise<void>
   // NPM Registry management methods
   getNpmRegistryStatus?(): Promise<{

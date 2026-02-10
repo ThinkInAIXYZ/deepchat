@@ -16,6 +16,13 @@ import { presenter } from '@/presenter'
 interface ToolCallProcessorOptions {
   getAllToolDefinitions: (context: ToolCallExecutionContext) => Promise<MCPToolDefinition[]>
   callTool: (request: MCPToolCall) => Promise<{ content: unknown; rawData: MCPToolResponse }>
+  preCheckToolPermission?: (request: MCPToolCall) => Promise<{
+    needsPermission: true
+    toolName: string
+    serverName: string
+    permissionType: 'read' | 'write' | 'all'
+    description: string
+  } | null>
   onToolCallFinished?: (info: {
     toolName: string
     toolCallId: string
@@ -41,6 +48,17 @@ interface ToolCallExecutionContext {
 interface ToolCallProcessResult {
   toolCallCount: number
   needContinueConversation: boolean
+}
+
+interface PermissionRequestInfo {
+  toolCallId: string
+  toolName: string
+  toolArguments: string
+  serverName: string
+  serverIcons?: string
+  serverDescription?: string
+  permissionType: 'read' | 'write' | 'all'
+  description: string
 }
 
 const TOOL_OUTPUT_OFFLOAD_THRESHOLD = 5000
@@ -70,6 +88,48 @@ export class ToolCallProcessor {
     const shouldDispatchToolHooks = context.providerId === 'acp'
 
     let toolDefinitions = await this.options.getAllToolDefinitions(context)
+
+    // Step 1: Pre-check all tool permissions in batch
+    // If any tool requires permission, we pause and request permission for all at once
+    const permissionCheckResult = await this.batchPreCheckPermissions(context, toolDefinitions)
+
+    if (permissionCheckResult.hasPendingPermissions) {
+      // Yield permission request event for all tools that need permission
+      for (const permissionRequest of permissionCheckResult.permissionRequests) {
+        yield {
+          type: 'response',
+          data: {
+            eventId: context.eventId,
+            tool_call: 'permission-required',
+            tool_call_id: permissionRequest.toolCallId,
+            tool_call_name: permissionRequest.toolName,
+            tool_call_params: permissionRequest.toolArguments,
+            tool_call_server_name: permissionRequest.serverName,
+            tool_call_server_icons: permissionRequest.serverIcons,
+            tool_call_server_description: permissionRequest.serverDescription,
+            tool_call_response: permissionRequest.description,
+            permission_request: {
+              toolName: permissionRequest.toolName,
+              serverName: permissionRequest.serverName,
+              permissionType: permissionRequest.permissionType,
+              conversationId: context.conversationId,
+              description: permissionRequest.description,
+              // Mark this as part of a batch
+              isBatchPermission: true,
+              totalInBatch: permissionCheckResult.permissionRequests.length
+            }
+          }
+        }
+      }
+
+      // Stop here and wait for user to grant permissions
+      // The loop will be restarted after permissions are granted
+      needContinueConversation = false
+      return {
+        toolCallCount,
+        needContinueConversation
+      }
+    }
 
     const resolveToolDefinition = async (
       toolName: string
@@ -618,5 +678,71 @@ export class ToolCallProcessor {
 
   private stringifyToolContent(content: unknown): string {
     return typeof content === 'string' ? content : JSON.stringify(content)
+  }
+
+  /**
+   * Batch pre-check permissions for all tool calls
+   * Returns info about tools that need permission, or empty if all have permission
+   */
+  private async batchPreCheckPermissions(
+    context: ToolCallExecutionContext,
+    toolDefinitions: MCPToolDefinition[]
+  ): Promise<{
+    hasPendingPermissions: boolean
+    permissionRequests: PermissionRequestInfo[]
+  }> {
+    // If no permission pre-check function provided, skip batch check
+    if (!this.options.preCheckToolPermission) {
+      return { hasPendingPermissions: false, permissionRequests: [] }
+    }
+
+    const permissionRequests: PermissionRequestInfo[] = []
+    const toolNameToDefMap = new Map(toolDefinitions.map((t) => [t.function.name, t]))
+
+    for (const toolCall of context.toolCalls) {
+      const toolDef = toolNameToDefMap.get(toolCall.name)
+      if (!toolDef) continue
+
+      // Skip question tool for permission check
+      if (toolCall.name === QUESTION_TOOL_NAME) continue
+
+      const mcpToolInput: MCPToolCall = {
+        id: toolCall.id,
+        type: 'function',
+        function: {
+          name: toolCall.name,
+          arguments: toolCall.arguments
+        },
+        server: toolDef.server,
+        conversationId: context.conversationId
+      }
+
+      try {
+        const permissionResult = await this.options.preCheckToolPermission(mcpToolInput)
+        if (permissionResult) {
+          permissionRequests.push({
+            toolCallId: toolCall.id,
+            toolName: toolCall.name,
+            toolArguments: toolCall.arguments,
+            serverName: permissionResult.serverName,
+            serverIcons: toolDef.server?.icons,
+            serverDescription: toolDef.server?.description,
+            permissionType: permissionResult.permissionType,
+            description: permissionResult.description
+          })
+        }
+      } catch (error) {
+        console.warn(
+          `[ToolCallProcessor] Failed to pre-check permission for ${toolCall.name}:`,
+          error
+        )
+        // If pre-check fails, we'll let the actual execution handle it
+      }
+    }
+
+    return {
+      hasPendingPermissions: permissionRequests.length > 0,
+      permissionRequests
+    }
   }
 }

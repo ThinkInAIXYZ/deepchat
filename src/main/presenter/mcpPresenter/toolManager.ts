@@ -21,6 +21,8 @@ export class ToolManager {
   private cachedToolDefinitions: MCPToolDefinition[] | null = null
   private toolNameToTargetMap: Map<string, { client: McpClient; originalName: string }> | null =
     null
+  // Session-scoped permission cache: conversationId -> Set of "serverName:permissionType"
+  private sessionPermissions = new Map<string, Set<string>>()
 
   constructor(configPresenter: IConfigPresenter, serverManager: ServerManager) {
     this.configPresenter = configPresenter
@@ -272,23 +274,33 @@ export class ToolManager {
   private checkToolPermission(
     originalToolName: string,
     serverName: string,
-    autoApprove: string[]
+    autoApprove: string[],
+    conversationId?: string
   ): boolean {
     console.log(
       `[ToolManager] Checking permissions for tool '${originalToolName}' on server '${serverName}' with autoApprove:`,
-      autoApprove
+      autoApprove,
+      `conversationId: ${conversationId}`
     )
 
-    // 如果有 'all' 权限，则允许所有操作
+    const permissionType = this.determinePermissionType(originalToolName)
+    console.log(`[ToolManager] Tool '${originalToolName}' requires '${permissionType}' permission`)
+
+    // 1. 优先检查 session 级别的内存权限（当前会话自动执行）
+    if (conversationId && this.checkSessionPermission(conversationId, serverName, permissionType)) {
+      console.log(
+        `[ToolManager] Permission granted via session cache: server '${serverName}' has '${permissionType}' permission`
+      )
+      return true
+    }
+
+    // 2. 检查持久化的 'all' 权限
     if (autoApprove.includes('all')) {
       console.log(`[ToolManager] Permission granted: server '${serverName}' has 'all' permissions`)
       return true
     }
 
-    const permissionType = this.determinePermissionType(originalToolName)
-    console.log(`[ToolManager] Tool '${originalToolName}' requires '${permissionType}' permission`)
-
-    // Check if the specific permission type is approved
+    // 3. 检查持久化的特定权限类型
     if (autoApprove.includes(permissionType)) {
       console.log(
         `[ToolManager] Permission granted: server '${serverName}' has '${permissionType}' permission`
@@ -300,6 +312,64 @@ export class ToolManager {
       `[ToolManager] Permission required for tool '${originalToolName}' on server '${serverName}'.`
     )
     return false
+  }
+
+  /**
+   * Pre-check tool permissions without executing the tool
+   * Returns permission requirement info if permission is needed, null if already has permission
+   */
+  async preCheckToolPermission(toolCall: MCPToolCall): Promise<{
+    needsPermission: true
+    toolName: string
+    serverName: string
+    permissionType: 'read' | 'write' | 'all'
+    description: string
+  } | null> {
+    const finalName = toolCall.function.name
+
+    // Ensure definitions and map are loaded/cached
+    await this.getAllToolDefinitions()
+
+    if (!this.toolNameToTargetMap) {
+      console.error('[ToolManager] Tool target map is not available for permission check.')
+      return null
+    }
+
+    const targetInfo = this.toolNameToTargetMap.get(finalName)
+
+    if (!targetInfo) {
+      console.error(`[ToolManager] Tool '${finalName}' not found for permission check.`)
+      return null
+    }
+
+    const { originalName } = targetInfo
+    const toolServerName = targetInfo.client.serverName
+
+    // Get server config to check auto-approve settings
+    const servers = await this.configPresenter.getMcpServers()
+    const serverConfig = servers[toolServerName]
+    const autoApprove = serverConfig?.autoApprove || []
+
+    // Check permission using existing logic
+    const hasPermission = this.checkToolPermission(
+      originalName,
+      toolServerName,
+      autoApprove,
+      toolCall.conversationId
+    )
+
+    if (hasPermission) {
+      return null // Already has permission
+    }
+
+    const permissionType = this.determinePermissionType(originalName)
+    return {
+      needsPermission: true,
+      toolName: originalName,
+      serverName: toolServerName,
+      permissionType,
+      description: `Allow ${originalName} to perform ${permissionType} operations on ${toolServerName}?`
+    }
   }
 
   async callTool(toolCall: MCPToolCall): Promise<MCPToolResponse> {
@@ -413,8 +483,13 @@ export class ToolManager {
         `Checking permissions for tool '${originalName}' on server '${toolServerName}' with autoApprove:`,
         autoApprove
       )
-      // Use originalName and toolServerName for permission check
-      const hasPermission = this.checkToolPermission(originalName, toolServerName, autoApprove)
+      // Use originalName and toolServerName for permission check, pass conversationId for session cache
+      const hasPermission = this.checkToolPermission(
+        originalName,
+        toolServerName,
+        autoApprove,
+        toolCall.conversationId
+      )
 
       if (!hasPermission) {
         console.warn(
@@ -433,6 +508,7 @@ export class ToolManager {
             toolName: originalName,
             serverName: toolServerName,
             permissionType,
+            conversationId: toolCall.conversationId,
             description: `Allow ${originalName} to perform ${permissionType} operations on ${toolServerName}?`
           }
         }
@@ -537,20 +613,52 @@ export class ToolManager {
   async grantPermission(
     serverName: string,
     permissionType: 'read' | 'write' | 'all',
-    remember: boolean = true
+    remember: boolean = true,
+    conversationId?: string
   ): Promise<void> {
     console.log(
-      `[ToolManager] Granting permission: ${permissionType} for server: ${serverName}, remember: ${remember}`
+      `[ToolManager] Granting permission: ${permissionType} for server: ${serverName}, remember: ${remember}, conversationId: ${conversationId}`
     )
 
     if (remember) {
       // Persist to configuration
       await this.updateServerPermissions(serverName, permissionType)
     } else {
-      // Store in temporary session storage
-      // TODO: Implement temporary permission storage
-      console.log(`[ToolManager] Temporary permission granted (session-scoped)`)
+      // Store in temporary session storage (memory only)
+      if (conversationId) {
+        const key = `${serverName}:${permissionType}`
+        const existing = this.sessionPermissions.get(conversationId) ?? new Set<string>()
+        existing.add(key)
+        this.sessionPermissions.set(conversationId, existing)
+        console.log(
+          `[ToolManager] Session permission stored: ${key} for conversation ${conversationId}`
+        )
+      } else {
+        console.log(`[ToolManager] Temporary permission granted (no conversationId)`)
+      }
     }
+  }
+
+  // 检查会话级别的权限
+  checkSessionPermission(
+    conversationId: string,
+    serverName: string,
+    permissionType: 'read' | 'write' | 'all'
+  ): boolean {
+    const sessionPerms = this.sessionPermissions.get(conversationId)
+    if (!sessionPerms) return false
+
+    // Check specific permission type
+    if (sessionPerms.has(`${serverName}:${permissionType}`)) return true
+    // Check 'all' permission
+    if (sessionPerms.has(`${serverName}:all`)) return true
+
+    return false
+  }
+
+  // 清除会话的临时权限
+  clearSessionPermissions(conversationId: string): void {
+    this.sessionPermissions.delete(conversationId)
   }
 
   private async updateServerPermissions(

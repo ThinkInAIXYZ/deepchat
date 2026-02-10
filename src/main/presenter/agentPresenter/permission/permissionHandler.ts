@@ -197,7 +197,12 @@ export class PermissionHandler extends BaseHandler {
         }
 
         try {
-          await this.getMcpPresenter().grantPermission(serverName, permissionType, remember)
+          await this.getMcpPresenter().grantPermission(
+            serverName,
+            permissionType,
+            remember,
+            message.conversationId
+          )
           await this.waitForMcpServiceReady(serverName)
         } catch (error) {
           permissionBlock.status = 'error'

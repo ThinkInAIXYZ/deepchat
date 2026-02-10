@@ -586,6 +586,20 @@ export class McpPresenter implements IMCPPresenter {
     return { content: formattedContent, rawData: toolCallResult }
   }
 
+  /**
+   * Pre-check tool permissions without executing the tool
+   * Delegates to ToolManager for the actual permission check
+   */
+  async preCheckToolPermission(request: MCPToolCall): Promise<{
+    needsPermission: true
+    toolName: string
+    serverName: string
+    permissionType: 'read' | 'write' | 'all'
+    description: string
+  } | null> {
+    return await this.toolManager.preCheckToolPermission(request)
+  }
+
   async handleSamplingRequest(request: McpSamplingRequestPayload): Promise<McpSamplingDecision> {
     if (!request || !request.requestId) {
       throw new Error('Invalid sampling request: missing requestId')
@@ -1230,13 +1244,14 @@ export class McpPresenter implements IMCPPresenter {
   async grantPermission(
     serverName: string,
     permissionType: 'read' | 'write' | 'all',
-    remember: boolean = false
+    remember: boolean = false,
+    conversationId?: string
   ): Promise<void> {
     try {
       console.log(
-        `[MCP] Granting ${permissionType} permission for server: ${serverName}, remember: ${remember}`
+        `[MCP] Granting ${permissionType} permission for server: ${serverName}, remember: ${remember}, conversationId: ${conversationId}`
       )
-      await this.toolManager.grantPermission(serverName, permissionType, remember)
+      await this.toolManager.grantPermission(serverName, permissionType, remember, conversationId)
       console.log(
         `[MCP] Successfully granted ${permissionType} permission for server: ${serverName}`
       )

@@ -22,6 +22,13 @@ export interface IToolPresenter {
     conversationId?: string
   }): Promise<MCPToolDefinition[]>
   callTool(request: MCPToolCall): Promise<{ content: unknown; rawData: MCPToolResponse }>
+  preCheckToolPermission?(request: MCPToolCall): Promise<{
+    needsPermission: true
+    toolName: string
+    serverName: string
+    permissionType: 'read' | 'write' | 'all'
+    description: string
+  } | null>
   buildToolSystemPrompt(context: { conversationId?: string }): string
 }
 
@@ -155,6 +162,40 @@ export class ToolPresenter implements IToolPresenter {
 
     // Route to MCP (default)
     return await this.options.mcpPresenter.callTool(request)
+  }
+
+  /**
+   * Pre-check tool permissions without executing the tool
+   * Routes to the appropriate source based on tool mapping
+   */
+  async preCheckToolPermission(request: MCPToolCall): Promise<{
+    needsPermission: true
+    toolName: string
+    serverName: string
+    permissionType: 'read' | 'write' | 'all'
+    description: string
+  } | null> {
+    const toolName = request.function.name
+    const source = this.mapper.getToolSource(toolName)
+
+    if (!source) {
+      console.warn(`[ToolPresenter] Tool ${toolName} not found for permission check`)
+      return null
+    }
+
+    if (source === 'agent') {
+      // Agent tools have their own permission checking in AgentToolManager
+      // For now, skip batch pre-check for agent tools and let them handle permission during execution
+      return null
+    }
+
+    // Route to MCP for permission pre-check
+    if (this.options.mcpPresenter.preCheckToolPermission) {
+      return await this.options.mcpPresenter.preCheckToolPermission(request)
+    }
+
+    // If MCP presenter doesn't support preCheckToolPermission, skip it
+    return null
   }
 
   private resolveAgentToolResponse(response: AgentToolCallResult | string): AgentToolCallResult {
