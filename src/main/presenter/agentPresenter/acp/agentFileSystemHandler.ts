@@ -106,6 +106,12 @@ const TextReplaceArgsSchema = z.object({
   dryRun: z.boolean().default(false)
 })
 
+const EditFileArgsSchema = z.object({
+  path: z.string(),
+  oldText: z.string().max(10000),
+  newText: z.string().max(10000)
+})
+
 const DirectoryTreeArgsSchema = z.object({
   path: z.string(),
   depth: z.number().int().min(0).max(3).default(1)
@@ -1086,6 +1092,51 @@ export class AgentFileSystemHandler {
       updatedCode,
       language,
       replacements: result.replacements
+    }
+    return JSON.stringify(response)
+  }
+
+  async editFile(args: unknown, baseDirectory?: string): Promise<string> {
+    const parsed = EditFileArgsSchema.safeParse(args)
+    if (!parsed.success) {
+      throw new Error(`Invalid arguments: ${parsed.error}`)
+    }
+
+    const { path: filePath, oldText, newText } = parsed.data
+    const validPath = await this.validatePath(filePath, baseDirectory)
+
+    const content = await fs.readFile(validPath, 'utf-8')
+
+    if (!content.includes(oldText)) {
+      throw new Error(
+        `Cannot find the specified text to replace. The exact text was not found in the file.`
+      )
+    }
+
+    let replacementCount = 0
+    const normalizedOldText = this.normalizeLineEndings(oldText)
+    const normalizedNewText = this.normalizeLineEndings(newText)
+    const normalizedContent = this.normalizeLineEndings(content)
+
+    const modifiedContent = normalizedContent.replaceAll(normalizedOldText, () => {
+      replacementCount++
+      return normalizedNewText
+    })
+
+    await fs.writeFile(validPath, modifiedContent, 'utf-8')
+
+    const { originalCode, updatedCode } = this.buildTruncatedDiff(
+      normalizedContent,
+      modifiedContent,
+      3
+    )
+    const language = getLanguageFromFilename(validPath)
+    const response: DiffToolResponse = {
+      success: true,
+      originalCode,
+      updatedCode,
+      language,
+      replacements: replacementCount
     }
     return JSON.stringify(response)
   }

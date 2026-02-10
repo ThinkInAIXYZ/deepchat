@@ -186,6 +186,15 @@ export class AgentToolManager {
       dryRun: z.boolean().default(false),
       base_directory: z.string().optional().describe('Base directory for resolving relative paths.')
     }),
+    edit_file: z.object({
+      path: z.string().describe('Path to the file to edit'),
+      oldText: z
+        .string()
+        .max(10000)
+        .describe('The exact text to find and replace (case-sensitive)'),
+      newText: z.string().max(10000).describe('The replacement text'),
+      base_directory: z.string().optional().describe('Base directory for resolving relative paths.')
+    }),
     directory_tree: z.object({
       path: z.string(),
       depth: z
@@ -611,6 +620,24 @@ export class AgentToolManager {
       {
         type: 'function',
         function: {
+          name: 'edit_file',
+          description:
+            'Make precise edits to files by replacing exact text strings. Use this for simple text replacements when you know the exact content to replace. For regex or complex operations, use edit_text instead.',
+          parameters: zodToJsonSchema(schemas.edit_file) as {
+            type: string
+            properties: Record<string, unknown>
+            required?: string[]
+          }
+        },
+        server: {
+          name: 'agent-filesystem',
+          icons: '📁',
+          description: 'Agent FileSystem tools'
+        }
+      },
+      {
+        type: 'function',
+        function: {
           name: 'execute_command',
           description:
             'Execute a shell command in the workspace directory. Prefer file system tools for read/write/search operations.',
@@ -665,6 +692,7 @@ export class AgentToolManager {
       'get_file_info',
       'grep_search',
       'text_replace',
+      'edit_file',
       'execute_command'
     ]
     return filesystemTools.includes(toolName)
@@ -682,6 +710,16 @@ export class AgentToolManager {
     const schema = this.fileSystemSchemas[toolName as keyof typeof this.fileSystemSchemas]
     if (!schema) {
       throw new Error(`No schema found for FileSystem tool: ${toolName}`)
+    }
+
+    // Normalize parameter aliases for edit_file tool
+    if (toolName === 'edit_file') {
+      args = {
+        ...args,
+        path: args.path ?? args.file_path,
+        oldText: args.oldText ?? args.old_string,
+        newText: args.newText ?? args.new_string
+      }
     }
 
     const validationResult = schema.safeParse(args)
@@ -773,6 +811,15 @@ export class AgentToolManager {
             conversationId
           )
           return { content: await fileSystemHandler.textReplace(parsedArgs, baseDirectory) }
+        case 'edit_file':
+          this.assertWritePermission(
+            toolName,
+            parsedArgs,
+            baseDirectory,
+            fileSystemHandler,
+            conversationId
+          )
+          return { content: await fileSystemHandler.editFile(parsedArgs, baseDirectory) }
         case 'execute_command':
           if (!this.bashHandler) {
             throw new Error('Bash handler not initialized for execute_command tool')
