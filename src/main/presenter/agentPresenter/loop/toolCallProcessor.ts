@@ -16,22 +16,7 @@ import { presenter } from '@/presenter'
 interface ToolCallProcessorOptions {
   getAllToolDefinitions: (context: ToolCallExecutionContext) => Promise<MCPToolDefinition[]>
   callTool: (request: MCPToolCall) => Promise<{ content: unknown; rawData: MCPToolResponse }>
-  preCheckToolPermission?: (request: MCPToolCall) => Promise<{
-    needsPermission: true
-    toolName: string
-    serverName: string
-    permissionType: 'read' | 'write' | 'all' | 'command'
-    description: string
-    command?: string
-    commandSignature?: string
-    commandInfo?: {
-      command: string
-      riskLevel: 'low' | 'medium' | 'high' | 'critical'
-      suggestion: string
-      signature?: string
-      baseCommand?: string
-    }
-  } | null>
+  preCheckToolPermission?: (request: MCPToolCall) => Promise<PermissionRequestPayload | null>
   onToolCallFinished?: (info: {
     toolName: string
     toolCallId: string
@@ -65,22 +50,42 @@ interface ToolCall {
   arguments: string
 }
 
+type PermissionType = 'read' | 'write' | 'all' | 'command'
+
+interface CommandInfoPayload {
+  command: string
+  riskLevel: 'low' | 'medium' | 'high' | 'critical'
+  suggestion: string
+  signature?: string
+  baseCommand?: string
+}
+
+interface PermissionRequestPayload {
+  needsPermission: true
+  toolName: string
+  serverName: string
+  permissionType: PermissionType
+  description: string
+  command?: string
+  commandSignature?: string
+  commandInfo?: CommandInfoPayload
+  paths?: string[]
+  providerId?: string
+  requestId?: string
+  sessionId?: string
+  agentId?: string
+  agentName?: string
+  conversationId?: string
+  rememberable?: boolean
+  [key: string]: unknown
+}
+
 interface PermissionRequestInfo {
   toolCall: ToolCall
   serverName: string
   serverIcons?: string
   serverDescription?: string
-  permissionType: 'read' | 'write' | 'all' | 'command'
-  description: string
-  command?: string
-  commandSignature?: string
-  commandInfo?: {
-    command: string
-    riskLevel: 'low' | 'medium' | 'high' | 'critical'
-    suggestion: string
-    signature?: string
-    baseCommand?: string
-  }
+  payload: PermissionRequestPayload
 }
 
 const TOOL_OUTPUT_OFFLOAD_THRESHOLD = 5000
@@ -118,6 +123,18 @@ export class ToolCallProcessor {
     if (permissionCheckResult.hasPendingPermissions) {
       // Yield permission request event for all tools that need permission
       for (const permissionRequest of permissionCheckResult.permissionRequests) {
+        const permissionPayload = {
+          ...permissionRequest.payload,
+          toolName: permissionRequest.toolCall.name,
+          serverName: permissionRequest.serverName,
+          permissionType: permissionRequest.payload.permissionType,
+          description: permissionRequest.payload.description,
+          conversationId: permissionRequest.payload.conversationId ?? context.conversationId,
+          // Mark this as part of a batch
+          isBatchPermission: true,
+          totalInBatch: permissionCheckResult.permissionRequests.length
+        }
+
         yield {
           type: 'response',
           data: {
@@ -129,17 +146,8 @@ export class ToolCallProcessor {
             tool_call_server_name: permissionRequest.serverName,
             tool_call_server_icons: permissionRequest.serverIcons,
             tool_call_server_description: permissionRequest.serverDescription,
-            tool_call_response: permissionRequest.description,
-            permission_request: {
-              toolName: permissionRequest.toolCall.name,
-              serverName: permissionRequest.serverName,
-              permissionType: permissionRequest.permissionType,
-              conversationId: context.conversationId,
-              description: permissionRequest.description,
-              // Mark this as part of a batch
-              isBatchPermission: true,
-              totalInBatch: permissionCheckResult.permissionRequests.length
-            }
+            tool_call_response: permissionRequest.payload.description,
+            permission_request: permissionPayload
           }
         }
       }
@@ -742,17 +750,21 @@ export class ToolCallProcessor {
       try {
         const permissionResult = await this.options.preCheckToolPermission(mcpToolInput)
         if (permissionResult) {
-          // Preserve the full ToolCall object instead of stripping it down
+          const permissionPayload: PermissionRequestPayload = {
+            ...permissionResult,
+            toolName: permissionResult.toolName || toolCall.name,
+            serverName: permissionResult.serverName || toolDef.server.name,
+            permissionType: permissionResult.permissionType,
+            description: permissionResult.description
+          }
+
+          // Preserve the full permission payload (paths and custom fields included)
           permissionRequests.push({
             toolCall,
-            serverName: permissionResult.serverName,
+            serverName: permissionPayload.serverName,
             serverIcons: toolDef.server?.icons,
             serverDescription: toolDef.server?.description,
-            permissionType: permissionResult.permissionType,
-            description: permissionResult.description,
-            command: permissionResult.command,
-            commandSignature: permissionResult.commandSignature,
-            commandInfo: permissionResult.commandInfo
+            payload: permissionPayload
           })
         }
       } catch (error) {

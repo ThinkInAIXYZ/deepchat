@@ -1106,17 +1106,17 @@ export class AgentFileSystemHandler {
     const validPath = await this.validatePath(filePath, baseDirectory)
 
     const content = await fs.readFile(validPath, 'utf-8')
+    const normalizedOldText = this.normalizeLineEndings(oldText)
+    const normalizedNewText = this.normalizeLineEndings(newText)
+    const normalizedContent = this.normalizeLineEndings(content)
 
-    if (!content.includes(oldText)) {
+    if (!normalizedContent.includes(normalizedOldText)) {
       throw new Error(
         `Cannot find the specified text to replace. The exact text was not found in the file.`
       )
     }
 
     let replacementCount = 0
-    const normalizedOldText = this.normalizeLineEndings(oldText)
-    const normalizedNewText = this.normalizeLineEndings(newText)
-    const normalizedContent = this.normalizeLineEndings(content)
 
     const modifiedContent = normalizedContent.replaceAll(normalizedOldText, () => {
       replacementCount++

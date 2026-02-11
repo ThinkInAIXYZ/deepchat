@@ -277,9 +277,9 @@ export class PermissionHandler extends BaseHandler {
       }
 
       // Step 7: Resume tool execution (idempotent - only one resume per message)
-      // Pass the specific toolCallId that was granted to ensure only that tool is executed
+      // Resume all resolved tool calls in this message (granted and denied handling)
       // CRITICAL: Lock is released inside resumeToolExecutionAfterPermissions (success or error)
-      await this.resumeToolExecutionAfterPermissions(messageId, granted, toolCallId)
+      await this.resumeToolExecutionAfterPermissions(messageId, granted)
     } catch (error) {
       console.error('[PermissionHandler] Failed to handle permission response:', error)
 
@@ -610,6 +610,9 @@ export class PermissionHandler extends BaseHandler {
 
       const toolCallId = block.tool_call.id
       if (!toolCallId) continue
+      // Only resume unfinished tool calls.
+      // Completed blocks (success/error) are historical records and must not be re-executed.
+      if (block.status !== 'loading') continue
 
       // If specific tool call ID is specified, only process that one
       if (specificToolCallId && toolCallId !== specificToolCallId) {
@@ -901,7 +904,7 @@ export class PermissionHandler extends BaseHandler {
       // 1. Setting up the generating state
       // 2. Finding and executing all granted tool calls
       // 3. Continuing with stream completion
-      await this.resumeToolExecutionAfterPermissions(messageId, true, toolCallId)
+      await this.resumeToolExecutionAfterPermissions(messageId, true)
     } catch (error) {
       console.error('[PermissionHandler] Failed to restart agent loop:', error)
       this.generatingMessages.delete(messageId)

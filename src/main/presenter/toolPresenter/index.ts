@@ -13,6 +13,32 @@ import { AgentToolManager, type AgentToolCallResult } from '../agentPresenter/ac
 import { jsonrepair } from 'jsonrepair'
 import { CommandPermissionService } from '../permission'
 
+interface PreCheckedPermissionResult {
+  needsPermission: true
+  toolName: string
+  serverName: string
+  permissionType: 'read' | 'write' | 'all' | 'command'
+  description: string
+  paths?: string[]
+  command?: string
+  commandSignature?: string
+  commandInfo?: {
+    command: string
+    riskLevel: 'low' | 'medium' | 'high' | 'critical'
+    suggestion: string
+    signature?: string
+    baseCommand?: string
+  }
+  providerId?: string
+  requestId?: string
+  sessionId?: string
+  agentId?: string
+  agentName?: string
+  conversationId?: string
+  rememberable?: boolean
+  [key: string]: unknown
+}
+
 export interface IToolPresenter {
   getAllToolDefinitions(context: {
     enabledMcpTools?: string[]
@@ -22,22 +48,7 @@ export interface IToolPresenter {
     conversationId?: string
   }): Promise<MCPToolDefinition[]>
   callTool(request: MCPToolCall): Promise<{ content: unknown; rawData: MCPToolResponse }>
-  preCheckToolPermission?(request: MCPToolCall): Promise<{
-    needsPermission: true
-    toolName: string
-    serverName: string
-    permissionType: 'read' | 'write' | 'all' | 'command'
-    description: string
-    command?: string
-    commandSignature?: string
-    commandInfo?: {
-      command: string
-      riskLevel: 'low' | 'medium' | 'high' | 'critical'
-      suggestion: string
-      signature?: string
-      baseCommand?: string
-    }
-  } | null>
+  preCheckToolPermission?(request: MCPToolCall): Promise<PreCheckedPermissionResult | null>
   buildToolSystemPrompt(context: { conversationId?: string }): string
 }
 
@@ -177,22 +188,7 @@ export class ToolPresenter implements IToolPresenter {
    * Pre-check tool permissions without executing the tool
    * Routes to the appropriate source based on tool mapping
    */
-  async preCheckToolPermission(request: MCPToolCall): Promise<{
-    needsPermission: true
-    toolName: string
-    serverName: string
-    permissionType: 'read' | 'write' | 'all' | 'command'
-    description: string
-    command?: string
-    commandSignature?: string
-    commandInfo?: {
-      command: string
-      riskLevel: 'low' | 'medium' | 'high' | 'critical'
-      suggestion: string
-      signature?: string
-      baseCommand?: string
-    }
-  } | null> {
+  async preCheckToolPermission(request: MCPToolCall): Promise<PreCheckedPermissionResult | null> {
     const toolName = request.function.name
     const source = this.mapper.getToolSource(toolName)
 
@@ -237,16 +233,7 @@ export class ToolPresenter implements IToolPresenter {
       if (!result) {
         return null
       }
-      return {
-        needsPermission: true,
-        toolName: result.toolName,
-        serverName: result.serverName,
-        permissionType: result.permissionType,
-        description: result.description,
-        command: result.command,
-        commandSignature: result.commandSignature,
-        commandInfo: result.commandInfo
-      }
+      return result
     }
 
     // Route to MCP for permission pre-check

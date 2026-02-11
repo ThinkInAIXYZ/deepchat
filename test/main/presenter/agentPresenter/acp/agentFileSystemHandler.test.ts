@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import * as fs from 'fs/promises'
 import * as path from 'path'
 import * as os from 'os'
-import { AgentFileSystemHandler } from '@/presenter/agentPresenter/acp'
+import { AgentFileSystemHandler } from '@/presenter/agentPresenter/acp/agentFileSystemHandler'
 
 describe('AgentFileSystemHandler diff responses', () => {
   let testDir: string
@@ -133,5 +133,29 @@ describe('AgentFileSystemHandler diff responses', () => {
 
   it('rejects directoryTree depth above max', async () => {
     await expect(handler.directoryTree({ path: testDir, depth: 4 })).rejects.toThrow()
+  })
+
+  it('normalizes line endings when matching oldText in editFile', async () => {
+    const filePath = path.join(testDir, 'crlf.txt')
+    await fs.writeFile(filePath, 'line1\r\nline2\r\n', 'utf-8')
+
+    const responseText = await handler.editFile({
+      path: filePath,
+      oldText: 'line1\nline2\n',
+      newText: 'line1\nline2-updated\n'
+    })
+
+    const response = JSON.parse(responseText) as {
+      success: boolean
+      replacements: number
+      updatedCode: string
+    }
+
+    expect(response.success).toBe(true)
+    expect(response.replacements).toBe(1)
+    expect(response.updatedCode).toContain('line2-updated')
+
+    const updatedContent = await fs.readFile(filePath, 'utf-8')
+    expect(updatedContent).toContain('line2-updated')
   })
 })
