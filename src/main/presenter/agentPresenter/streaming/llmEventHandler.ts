@@ -211,14 +211,13 @@ export class LLMEventHandler {
           await this.toolCallHandler.processToolCallUpdate(state, msg)
           break
         case 'permission-required':
-          presenter.sessionManager.updateRuntime(state.conversationId, {
-            pendingPermission: {
-              toolCallId: tool_call_id || '',
-              permissionType:
-                (msg.permission_request?.permissionType as 'read' | 'write' | 'all' | 'command') ||
-                'read',
-              payload: msg.permission_request ?? {}
-            }
+          presenter.sessionManager.addPendingPermission(state.conversationId, {
+            messageId: eventId,
+            toolCallId: tool_call_id || '',
+            permissionType:
+              (msg.permission_request?.permissionType as 'read' | 'write' | 'all' | 'command') ||
+              'read',
+            payload: msg.permission_request ?? {}
           })
           presenter.sessionManager.setStatus(state.conversationId, 'waiting_permission')
           try {
@@ -663,5 +662,17 @@ export class LLMEventHandler {
 
   finalizeLastBlock(state: GeneratingMessageState): void {
     finalizeAssistantMessageBlocks(state.message.content)
+  }
+
+  /**
+   * Flush all pending stream updates for a message
+   * Used during permission resume to ensure UI state is synchronized with DB
+   */
+  async flushStreamUpdates(eventId: string): Promise<void> {
+    try {
+      await this.streamUpdateScheduler.flushAll(eventId, 'final')
+    } catch (error) {
+      console.error('[LLMEventHandler] Failed to flush stream updates:', error)
+    }
   }
 }

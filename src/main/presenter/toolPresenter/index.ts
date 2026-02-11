@@ -13,6 +13,32 @@ import { AgentToolManager, type AgentToolCallResult } from '../agentPresenter/ac
 import { jsonrepair } from 'jsonrepair'
 import { CommandPermissionService } from '../permission'
 
+interface PreCheckedPermissionResult {
+  needsPermission: true
+  toolName: string
+  serverName: string
+  permissionType: 'read' | 'write' | 'all' | 'command'
+  description: string
+  paths?: string[]
+  command?: string
+  commandSignature?: string
+  commandInfo?: {
+    command: string
+    riskLevel: 'low' | 'medium' | 'high' | 'critical'
+    suggestion: string
+    signature?: string
+    baseCommand?: string
+  }
+  providerId?: string
+  requestId?: string
+  sessionId?: string
+  agentId?: string
+  agentName?: string
+  conversationId?: string
+  rememberable?: boolean
+  [key: string]: unknown
+}
+
 export interface IToolPresenter {
   getAllToolDefinitions(context: {
     enabledMcpTools?: string[]
@@ -22,6 +48,7 @@ export interface IToolPresenter {
     conversationId?: string
   }): Promise<MCPToolDefinition[]>
   callTool(request: MCPToolCall): Promise<{ content: unknown; rawData: MCPToolResponse }>
+  preCheckToolPermission?(request: MCPToolCall): Promise<PreCheckedPermissionResult | null>
   buildToolSystemPrompt(context: { conversationId?: string }): string
 }
 
@@ -155,6 +182,67 @@ export class ToolPresenter implements IToolPresenter {
 
     // Route to MCP (default)
     return await this.options.mcpPresenter.callTool(request)
+  }
+
+  /**
+   * Pre-check tool permissions without executing the tool
+   * Routes to the appropriate source based on tool mapping
+   */
+  async preCheckToolPermission(request: MCPToolCall): Promise<PreCheckedPermissionResult | null> {
+    const toolName = request.function.name
+    const source = this.mapper.getToolSource(toolName)
+
+    if (!source) {
+      console.warn(`[ToolPresenter] Tool ${toolName} not found for permission check`)
+      return null
+    }
+
+    if (source === 'agent') {
+      // Agent tools: delegate to AgentToolManager for pre-check
+      if (!this.agentToolManager) {
+        return null
+      }
+
+      let args: Record<string, unknown> = {}
+      const argsString = request.function.arguments || ''
+      if (argsString.trim().length > 0) {
+        try {
+          args = JSON.parse(argsString) as Record<string, unknown>
+        } catch (error) {
+          console.warn(
+            '[ToolPresenter] Failed to parse tool arguments for pre-check, trying jsonrepair:',
+            error
+          )
+          try {
+            args = JSON.parse(jsonrepair(argsString)) as Record<string, unknown>
+          } catch (error) {
+            console.warn(
+              '[ToolPresenter] Failed to repair tool arguments for pre-check, using empty args.',
+              error
+            )
+            args = {}
+          }
+        }
+      }
+
+      const result = await this.agentToolManager.preCheckToolPermission(
+        toolName,
+        args,
+        request.conversationId
+      )
+      if (!result) {
+        return null
+      }
+      return result
+    }
+
+    // Route to MCP for permission pre-check
+    if (this.options.mcpPresenter.preCheckToolPermission) {
+      return await this.options.mcpPresenter.preCheckToolPermission(request)
+    }
+
+    // If MCP presenter doesn't support preCheckToolPermission, skip it
+    return null
   }
 
   private resolveAgentToolResponse(response: AgentToolCallResult | string): AgentToolCallResult {

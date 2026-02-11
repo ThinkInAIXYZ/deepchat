@@ -957,7 +957,23 @@ export const useChatStore = defineStore('chat', () => {
 
     // 处理 init 事件：创建骨架消息行
     if (stream_kind === 'init') {
-      if (hasCachedMessage(eventId)) {
+      if (getGeneratingMessagesCache().has(eventId)) {
+        return
+      }
+
+      const existingCachedMessage = getCachedMessage(eventId)
+      if (existingCachedMessage && existingCachedMessage.role === 'assistant') {
+        const threadId =
+          conversationId ?? existingCachedMessage.conversationId ?? getActiveThreadId() ?? ''
+        if (threadId) {
+          generatingThreadIds.value.add(threadId)
+          generatingThreadIds.value = new Set(generatingThreadIds.value)
+          updateThreadWorkingStatus(threadId, 'working')
+          getGeneratingMessagesCache().set(eventId, {
+            message: existingCachedMessage as AssistantMessage,
+            threadId
+          })
+        }
         return
       }
 
@@ -993,6 +1009,15 @@ export const useChatStore = defineStore('chat', () => {
       cacheMessageForView(skeleton)
       if (!skeleton.is_variant) {
         ensureMessageId(eventId)
+      }
+      if (skeleton.conversationId) {
+        generatingThreadIds.value.add(skeleton.conversationId)
+        generatingThreadIds.value = new Set(generatingThreadIds.value)
+        updateThreadWorkingStatus(skeleton.conversationId, 'working')
+        getGeneratingMessagesCache().set(eventId, {
+          message: skeleton,
+          threadId: skeleton.conversationId
+        })
       }
 
       return
@@ -1381,6 +1406,33 @@ export const useChatStore = defineStore('chat', () => {
       // 获取最新的消息并处理 extra 信息
       const updatedMessage = await threadP.getMessage(msg.eventId)
       const enrichedMessage = await enrichMessageWithExtra(updatedMessage)
+      const assistantContent = (enrichedMessage as AssistantMessage).content
+      const hasPendingUserAction =
+        Array.isArray(assistantContent) &&
+        assistantContent.some(
+          (block) =>
+            block.type === 'action' &&
+            (block.action_type === 'tool_call_permission' ||
+              block.action_type === 'question_request') &&
+            block.status === 'pending'
+        )
+
+      // Keep the session in working state while waiting for user permission/question feedback.
+      if (hasPendingUserAction) {
+        getGeneratingMessagesCache().set(msg.eventId, {
+          message: enrichedMessage as AssistantMessage,
+          threadId: cached.threadId
+        })
+        generatingThreadIds.value.add(cached.threadId)
+        generatingThreadIds.value = new Set(generatingThreadIds.value)
+        updateThreadWorkingStatus(cached.threadId, 'working')
+
+        if (getActiveThreadId() === cached.threadId) {
+          cacheMessageForView(enrichedMessage as AssistantMessage | UserMessage)
+          ensureMessageId(enrichedMessage.id)
+        }
+        return
+      }
 
       getGeneratingMessagesCache().delete(msg.eventId)
       generatingThreadIds.value.delete(cached.threadId)
@@ -2173,6 +2225,7 @@ export const useChatStore = defineStore('chat', () => {
     window.electron.ipcRenderer.removeAllListeners(STREAM_EVENTS.RESPONSE)
     window.electron.ipcRenderer.removeAllListeners(STREAM_EVENTS.END)
     window.electron.ipcRenderer.removeAllListeners(STREAM_EVENTS.ERROR)
+    window.electron.ipcRenderer.removeAllListeners(STREAM_EVENTS.PERMISSION_UPDATED)
 
     window.electron.ipcRenderer.on(STREAM_EVENTS.RESPONSE, (_, msg) => {
       handleStreamResponse(msg)
@@ -2185,6 +2238,16 @@ export const useChatStore = defineStore('chat', () => {
     window.electron.ipcRenderer.on(STREAM_EVENTS.ERROR, (_, msg) => {
       handleStreamError(msg)
     })
+
+    // 监听权限更新事件，刷新消息以显示最新的权限状态
+    window.electron.ipcRenderer.on(
+      STREAM_EVENTS.PERMISSION_UPDATED,
+      (_, payload: { messageId: string }) => {
+        console.log('[Chat Store] Permission updated, refreshing message:', payload.messageId)
+        // 触发消息缓存刷新，使UI显示下一个待处理的权限
+        bumpMessageCacheVersion()
+      }
+    )
   }
 
   return {

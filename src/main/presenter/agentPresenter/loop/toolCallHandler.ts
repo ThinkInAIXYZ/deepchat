@@ -191,6 +191,24 @@ export class ToolCallHandler {
           }
         }
 
+        // CRITICAL FIX: Create the tool_call block so processToolCallUpdate/End can find it
+        // This ensures frontend state updates correctly after permission is granted
+        this.finalizeLastBlock(state)
+        state.message.content.push({
+          type: 'tool_call',
+          content: '',
+          status: 'loading',
+          timestamp: currentTime,
+          tool_call: {
+            id: event.tool_call_id,
+            name: event.tool_call_name,
+            params: event.tool_call_params || '',
+            server_name: event.tool_call_server_name,
+            server_icons: event.tool_call_server_icons,
+            server_description: event.tool_call_server_description
+          }
+        })
+
         this.searchingMessages.delete(event.eventId)
         state.isSearching = false
         state.pendingToolCall = this.buildPendingToolCall(event)

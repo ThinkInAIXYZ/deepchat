@@ -66,6 +66,7 @@ export class AgentToolManager {
   private readonly configPresenter: IConfigPresenter
   private skillTools: SkillTools | null = null
   private chatSettingsHandler: ChatSettingsToolHandler | null = null
+
   private readonly fileSystemSchemas = {
     read_file: z.object({
       paths: z.array(z.string()).min(1),
@@ -186,6 +187,15 @@ export class AgentToolManager {
       dryRun: z.boolean().default(false),
       base_directory: z.string().optional().describe('Base directory for resolving relative paths.')
     }),
+    edit_file: z.object({
+      path: z.string().describe('Path to the file to edit'),
+      oldText: z
+        .string()
+        .max(10000)
+        .describe('The exact text to find and replace (case-sensitive)'),
+      newText: z.string().max(10000).describe('The replacement text'),
+      base_directory: z.string().optional().describe('Base directory for resolving relative paths.')
+    }),
     directory_tree: z.object({
       path: z.string(),
       depth: z
@@ -209,7 +219,46 @@ export class AgentToolManager {
         .max(600000)
         .optional()
         .describe('Optional timeout in milliseconds'),
-      description: z.string().min(5).max(100).describe('Brief description of what the command does')
+      description: z
+        .string()
+        .min(5)
+        .max(100)
+        .describe(
+          'Brief description of what the command does (e.g., "Install dependencies", "Start dev server")'
+        ),
+      background: z
+        .boolean()
+        .optional()
+        .describe(
+          'Run the command in the background (recommended for commands taking >10s). Returns immediately with sessionId for use with process tool.'
+        ),
+      yieldMs: z
+        .number()
+        .min(100)
+        .optional()
+        .describe(
+          'Maximum time in milliseconds to wait for command output in foreground mode (default 120s). Ignored when background is true.'
+        )
+    }),
+    process: z.object({
+      action: z
+        .enum(['list', 'poll', 'log', 'write', 'kill', 'clear', 'remove'])
+        .describe(
+          'Action to perform: list (all sessions), poll (recent output), log (full output with pagination), write (send to stdin), kill (terminate), clear (empty buffer), remove (cleanup)'
+        ),
+      sessionId: z
+        .string()
+        .optional()
+        .describe('Session ID (required for most actions except list)'),
+      offset: z.number().int().min(0).optional().describe('Starting offset for log action'),
+      limit: z
+        .number()
+        .int()
+        .min(1)
+        .optional()
+        .describe('Maximum characters to return for log action'),
+      data: z.string().optional().describe('Data to write to stdin (write action only)'),
+      eof: z.boolean().optional().describe('Send EOF after writing data (write action only)')
     })
   }
 
@@ -350,6 +399,11 @@ export class AgentToolManager {
       }
     }
 
+    // Route to process tool
+    if (this.isProcessTool(toolName)) {
+      return await this.callProcessTool(toolName, args, conversationId)
+    }
+
     // Route to FileSystem tools
     if (this.isFileSystemTool(toolName)) {
       if (!this.fileSystemHandler) {
@@ -410,7 +464,7 @@ export class AgentToolManager {
 
   private getFileSystemToolDefinitions(): MCPToolDefinition[] {
     const schemas = this.fileSystemSchemas
-    return [
+    const defs: MCPToolDefinition[] = [
       {
         type: 'function',
         function: {
@@ -611,9 +665,27 @@ export class AgentToolManager {
       {
         type: 'function',
         function: {
+          name: 'edit_file',
+          description:
+            'Make precise edits to files by replacing exact text strings. Use this for simple text replacements when you know the exact content to replace. For regex or complex operations, use edit_text instead.',
+          parameters: zodToJsonSchema(schemas.edit_file) as {
+            type: string
+            properties: Record<string, unknown>
+            required?: string[]
+          }
+        },
+        server: {
+          name: 'agent-filesystem',
+          icons: '📁',
+          description: 'Agent FileSystem tools'
+        }
+      },
+      {
+        type: 'function',
+        function: {
           name: 'execute_command',
           description:
-            'Execute a shell command in the workspace directory. Prefer file system tools for read/write/search operations.',
+            'Execute a shell command in the workspace directory. For long-running commands (builds, tests, servers, installations), use background: true to run asynchronously and get a session ID. Then use the process tool to poll output, send input, or manage the session. For quick commands that complete within seconds, run without background mode.',
           parameters: zodToJsonSchema(schemas.execute_command) as {
             type: string
             properties: Record<string, unknown>
@@ -625,8 +697,27 @@ export class AgentToolManager {
           icons: '📁',
           description: 'Agent FileSystem tools'
         }
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'process',
+          description:
+            'Manage background exec sessions created by execute_command with background: true. Use poll to check output and status, log to get full output with pagination, write to send input to stdin, kill to terminate, and remove to clean up completed sessions.',
+          parameters: zodToJsonSchema(schemas.process) as {
+            type: string
+            properties: Record<string, unknown>
+            required?: string[]
+          }
+        },
+        server: {
+          name: 'agent-filesystem',
+          icons: '⚙️',
+          description: 'Agent FileSystem tools'
+        }
       }
     ]
+    return defs
   }
 
   private getQuestionToolDefinitions(): MCPToolDefinition[] {
@@ -665,9 +756,106 @@ export class AgentToolManager {
       'get_file_info',
       'grep_search',
       'text_replace',
-      'execute_command'
+      'edit_file',
+      'execute_command',
+      'process'
     ]
     return filesystemTools.includes(toolName)
+  }
+
+  private isProcessTool(toolName: string): boolean {
+    return toolName === 'process'
+  }
+
+  private async callProcessTool(
+    _toolName: string,
+    args: Record<string, unknown>,
+    conversationId?: string
+  ): Promise<AgentToolCallResult> {
+    if (!conversationId) {
+      throw new Error('process tool requires a conversation ID')
+    }
+
+    const { backgroundExecSessionManager } = await import('./backgroundExecSessionManager')
+
+    const validationResult = this.fileSystemSchemas.process.safeParse(args)
+    if (!validationResult.success) {
+      throw new Error(`Invalid arguments for process: ${validationResult.error.message}`)
+    }
+
+    const { action, sessionId, offset, limit, data, eof } = validationResult.data
+
+    switch (action) {
+      case 'list': {
+        const sessions = backgroundExecSessionManager.list(conversationId)
+        return {
+          content: JSON.stringify({ status: 'ok', sessions }, null, 2)
+        }
+      }
+
+      case 'poll': {
+        if (!sessionId) {
+          throw new Error('sessionId is required for poll action')
+        }
+        const result = backgroundExecSessionManager.poll(conversationId, sessionId)
+        return {
+          content: JSON.stringify(result, null, 2)
+        }
+      }
+
+      case 'log': {
+        if (!sessionId) {
+          throw new Error('sessionId is required for log action')
+        }
+        const result = backgroundExecSessionManager.log(conversationId, sessionId, offset, limit)
+        return {
+          content: JSON.stringify(result, null, 2)
+        }
+      }
+
+      case 'write': {
+        if (!sessionId) {
+          throw new Error('sessionId is required for write action')
+        }
+        backgroundExecSessionManager.write(conversationId, sessionId, data ?? '', eof)
+        return {
+          content: JSON.stringify({ status: 'ok', sessionId })
+        }
+      }
+
+      case 'kill': {
+        if (!sessionId) {
+          throw new Error('sessionId is required for kill action')
+        }
+        await backgroundExecSessionManager.kill(conversationId, sessionId)
+        return {
+          content: JSON.stringify({ status: 'ok', sessionId })
+        }
+      }
+
+      case 'clear': {
+        if (!sessionId) {
+          throw new Error('sessionId is required for clear action')
+        }
+        backgroundExecSessionManager.clear(conversationId, sessionId)
+        return {
+          content: JSON.stringify({ status: 'ok', sessionId })
+        }
+      }
+
+      case 'remove': {
+        if (!sessionId) {
+          throw new Error('sessionId is required for remove action')
+        }
+        await backgroundExecSessionManager.remove(conversationId, sessionId)
+        return {
+          content: JSON.stringify({ status: 'ok', sessionId })
+        }
+      }
+
+      default:
+        throw new Error(`Unknown process action: ${action}`)
+    }
   }
 
   private async callFileSystemTool(
@@ -675,6 +863,11 @@ export class AgentToolManager {
     args: Record<string, unknown>,
     conversationId?: string
   ): Promise<AgentToolCallResult> {
+    // Handle process tool separately
+    if (this.isProcessTool(toolName)) {
+      return this.callProcessTool(toolName, args, conversationId)
+    }
+
     if (!this.fileSystemHandler) {
       throw new Error('FileSystem handler not initialized')
     }
@@ -682,6 +875,17 @@ export class AgentToolManager {
     const schema = this.fileSystemSchemas[toolName as keyof typeof this.fileSystemSchemas]
     if (!schema) {
       throw new Error(`No schema found for FileSystem tool: ${toolName}`)
+    }
+
+    // Normalize parameter aliases for edit_file tool
+    if (toolName === 'edit_file') {
+      args = {
+        ...args,
+        path: args.path ?? args.file_path,
+        oldText: args.oldText ?? args.old_string,
+        newText: args.newText ?? args.new_string,
+        base_directory: args.base_directory
+      }
     }
 
     const validationResult = schema.safeParse(args)
@@ -773,12 +977,25 @@ export class AgentToolManager {
             conversationId
           )
           return { content: await fileSystemHandler.textReplace(parsedArgs, baseDirectory) }
+        case 'edit_file':
+          this.assertWritePermission(
+            toolName,
+            parsedArgs,
+            baseDirectory,
+            fileSystemHandler,
+            conversationId
+          )
+          return { content: await fileSystemHandler.editFile(parsedArgs, baseDirectory) }
         case 'execute_command':
           if (!this.bashHandler) {
             throw new Error('Bash handler not initialized for execute_command tool')
           }
+          const commandResult = await this.bashHandler.executeCommand(parsedArgs, {
+            conversationId
+          })
           return {
-            content: await this.bashHandler.executeCommand(parsedArgs, { conversationId })
+            content:
+              typeof commandResult === 'string' ? commandResult : JSON.stringify(commandResult)
           }
         default:
           throw new Error(`Unknown FileSystem tool: ${toolName}`)
@@ -990,6 +1207,152 @@ export class AgentToolManager {
 
   private isSkillTool(toolName: string): boolean {
     return toolName === 'skill_list' || toolName === 'skill_control'
+  }
+
+  /**
+   * Pre-check tool permissions for agent tools
+   * Returns permission request info if permission is needed, null if no permission needed
+   */
+  async preCheckToolPermission(
+    toolName: string,
+    args: Record<string, unknown>,
+    conversationId?: string
+  ): Promise<{
+    needsPermission: true
+    toolName: string
+    serverName: string
+    permissionType: 'read' | 'write' | 'all' | 'command'
+    description: string
+    paths?: string[]
+    command?: string
+    commandSignature?: string
+    commandInfo?: {
+      command: string
+      riskLevel: 'low' | 'medium' | 'high' | 'critical'
+      suggestion: string
+      signature?: string
+      baseCommand?: string
+    }
+    conversationId?: string
+  } | null> {
+    // Only file system write operations and command execution need pre-check
+    const writeTools = [
+      'write_file',
+      'create_directory',
+      'move_files',
+      'edit_text',
+      'text_replace',
+      'edit_file'
+    ]
+    const readTools = [
+      'read_file',
+      'list_directory',
+      'directory_tree',
+      'glob_search',
+      'grep_search'
+    ]
+
+    // Check for file system write operations
+    if (this.isFileSystemTool(toolName)) {
+      if (!this.fileSystemHandler) {
+        throw new Error('FileSystem handler not initialized')
+      }
+
+      // Handle command tools separately (they use command permission service)
+      if (toolName === 'execute_command') {
+        if (!this.bashHandler) {
+          return null
+        }
+
+        const command = (args.command as string) || ''
+        if (!command) {
+          return null
+        }
+
+        // Use bash handler's checkCommandPermission if available
+        if (this.bashHandler.checkCommandPermission) {
+          const result = await this.bashHandler.checkCommandPermission(command, conversationId)
+          if (result.needsPermission) {
+            return {
+              needsPermission: true,
+              toolName,
+              serverName: 'agent-filesystem',
+              permissionType: 'command',
+              description: result.description || `Command "${command}" requires permission`,
+              command,
+              commandSignature: result.signature,
+              commandInfo: result.commandInfo,
+              conversationId
+            }
+          }
+        }
+        return null
+      }
+
+      // Handle process tool
+      if (toolName === 'process') {
+        return null
+      }
+
+      // For file system operations, check if write permission is needed
+      const isWriteOperation = writeTools.includes(toolName)
+      const isReadOperation = readTools.includes(toolName)
+
+      if (!isWriteOperation && !isReadOperation) {
+        return null
+      }
+
+      // Get workdir and allowed directories
+      let dynamicWorkdir: string | null = null
+      if (conversationId) {
+        try {
+          dynamicWorkdir = await this.getWorkdirForConversation(conversationId)
+        } catch (error) {
+          logger.warn('[AgentToolManager] Failed to get workdir for permission check:', {
+            conversationId,
+            error
+          })
+        }
+      }
+
+      const workspaceRoot =
+        dynamicWorkdir ?? this.agentWorkspacePath ?? this.getDefaultAgentWorkspacePath()
+      const allowedDirectories = this.buildAllowedDirectories(workspaceRoot, conversationId)
+      const fileSystemHandler = new AgentFileSystemHandler(allowedDirectories, { conversationId })
+
+      // Collect target paths
+      const targets = this.collectWriteTargets(toolName, args)
+      if (targets.length === 0 && isWriteOperation) {
+        // Check for path in read operations too
+        const pathArg = (args.path as string) || (args.paths as string[])?.[0]
+        if (pathArg) {
+          targets.push(pathArg)
+        }
+      }
+
+      // Check each path
+      const denied: string[] = []
+      for (const target of targets) {
+        const resolved = fileSystemHandler.resolvePath(target, undefined)
+        if (!fileSystemHandler.isPathAllowedAbsolute(resolved)) {
+          denied.push(target)
+        }
+      }
+
+      if (denied.length > 0) {
+        return {
+          needsPermission: true,
+          toolName,
+          serverName: 'agent-filesystem',
+          permissionType: isWriteOperation ? 'write' : 'read',
+          description: `${isWriteOperation ? 'Write' : 'Read'} access requires approval for: ${denied.join(', ')}`,
+          paths: denied,
+          conversationId
+        }
+      }
+    }
+
+    return null
   }
 
   private isChatSettingsTool(toolName: string): boolean {

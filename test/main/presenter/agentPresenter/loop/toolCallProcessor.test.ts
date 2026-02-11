@@ -3,13 +3,21 @@ import fs from 'fs/promises'
 import os from 'os'
 import path from 'path'
 import { app } from 'electron'
-import { ToolCallProcessor } from '@/presenter/agentPresenter/loop'
+import { ToolCallProcessor } from '@/presenter/agentPresenter/loop/toolCallProcessor'
 import type {
   ChatMessage,
   MCPToolDefinition,
   MCPToolResponse,
   ModelConfig
 } from '@shared/presenter'
+
+vi.mock('@/presenter', () => ({
+  presenter: {
+    hooksNotifications: {
+      dispatchEvent: vi.fn()
+    }
+  }
+}))
 
 describe('ToolCallProcessor tool output offload', () => {
   let tempHome: string
@@ -99,7 +107,7 @@ describe('ToolCallProcessor question tool', () => {
   const questionToolDef = {
     type: 'function',
     function: {
-      name: 'question',
+      name: 'deepchat_question',
       description: 'question tool',
       parameters: {
         type: 'object',
@@ -145,7 +153,7 @@ describe('ToolCallProcessor question tool', () => {
     const conversationMessages: ChatMessage[] = [{ role: 'assistant', content: 'hello' }]
     const iterator = processor.process({
       eventId: 'event-question-1',
-      toolCalls: [{ id: 'tool-q1', name: 'question', arguments: basicQuestionArgs }],
+      toolCalls: [{ id: 'tool-q1', name: 'deepchat_question', arguments: basicQuestionArgs }],
       enabledMcpTools: [],
       conversationMessages,
       modelConfig: { functionCall: true } as ModelConfig,
@@ -189,7 +197,7 @@ describe('ToolCallProcessor question tool', () => {
     const iterator = processor.process({
       eventId: 'event-question-2',
       toolCalls: [
-        { id: 'tool-q1', name: 'question', arguments: basicQuestionArgs },
+        { id: 'tool-q1', name: 'deepchat_question', arguments: basicQuestionArgs },
         { id: 'tool-2', name: 'execute_command', arguments: '{}' }
       ],
       enabledMcpTools: [],
@@ -218,5 +226,85 @@ describe('ToolCallProcessor question tool', () => {
     expect(errorEvent).toBeDefined()
     expect(result.needContinueConversation).toBe(true)
     expect(callTool).toHaveBeenCalled()
+  })
+})
+
+describe('ToolCallProcessor batch permission pre-check', () => {
+  it('preserves extended permission payload fields for batch permission requests', async () => {
+    const toolDefinition = {
+      type: 'function',
+      function: {
+        name: 'edit_file',
+        description: 'edit file',
+        parameters: {
+          type: 'object',
+          properties: {}
+        }
+      },
+      server: {
+        name: 'agent-filesystem',
+        icons: '📁',
+        description: 'Agent filesystem'
+      }
+    } as MCPToolDefinition
+
+    const callTool = vi.fn(async () => ({
+      content: 'ok',
+      rawData: { content: 'ok' } as MCPToolResponse
+    }))
+    const preCheckToolPermission = vi.fn(async () => ({
+      needsPermission: true as const,
+      toolName: 'edit_file',
+      serverName: 'agent-filesystem',
+      permissionType: 'write' as const,
+      description: 'Write access requires approval',
+      paths: ['src/main.ts'],
+      customMeta: {
+        source: 'batch-precheck'
+      }
+    }))
+
+    const processor = new ToolCallProcessor({
+      getAllToolDefinitions: async () => [toolDefinition],
+      callTool,
+      preCheckToolPermission
+    })
+
+    const conversationMessages: ChatMessage[] = [{ role: 'assistant', content: 'hello' }]
+    const iterator = processor.process({
+      eventId: 'event-batch-permission',
+      toolCalls: [{ id: 'tool-1', name: 'edit_file', arguments: '{"path":"src/main.ts"}' }],
+      enabledMcpTools: [],
+      conversationMessages,
+      modelConfig: { functionCall: true } as ModelConfig,
+      abortSignal: new AbortController().signal,
+      currentToolCallCount: 0,
+      maxToolCalls: 5,
+      conversationId: 'conv-batch-permission'
+    })
+
+    const events: any[] = []
+    let result: any = null
+    while (true) {
+      const { value, done } = await iterator.next()
+      if (done) {
+        result = value
+        break
+      }
+      events.push(value)
+    }
+
+    const permissionEvent = events.find(
+      (event) => event.type === 'response' && event.data?.tool_call === 'permission-required'
+    )
+    expect(permissionEvent).toBeDefined()
+    expect(permissionEvent.data.permission_request.paths).toEqual(['src/main.ts'])
+    expect(permissionEvent.data.permission_request.customMeta).toEqual({
+      source: 'batch-precheck'
+    })
+    expect(permissionEvent.data.permission_request.isBatchPermission).toBe(true)
+    expect(permissionEvent.data.permission_request.totalInBatch).toBe(1)
+    expect(callTool).not.toHaveBeenCalled()
+    expect(result.needContinueConversation).toBe(false)
   })
 })

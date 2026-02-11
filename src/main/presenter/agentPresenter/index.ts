@@ -186,7 +186,8 @@ export class AgentPresenter implements IAgentPresenter {
 
     this.trackGeneratingMessage(assistantMessage, agentId, tabId)
     await this.updateConversationAfterUserMessage(agentId)
-    await this.sessionManager.startLoop(agentId, assistantMessage.id)
+    // Normal flow: skip lock acquisition (lock is only for permission resume)
+    await this.sessionManager.startLoop(agentId, assistantMessage.id, { skipLockAcquisition: true })
 
     void this.streamGenerationHandler
       .startStreamCompletion(agentId, assistantMessage.id, selectedVariantsMap)
@@ -216,7 +217,8 @@ export class AgentPresenter implements IAgentPresenter {
 
     this.trackGeneratingMessage(assistantMessage, agentId)
     await this.updateConversationAfterUserMessage(agentId)
-    await this.sessionManager.startLoop(agentId, assistantMessage.id)
+    // Normal flow: skip lock acquisition (lock is only for permission resume)
+    await this.sessionManager.startLoop(agentId, assistantMessage.id, { skipLockAcquisition: true })
 
     void this.streamGenerationHandler
       .continueStreamCompletion(agentId, messageId, selectedVariantsMap)
@@ -266,7 +268,10 @@ export class AgentPresenter implements IAgentPresenter {
     )) as AssistantMessage
 
     this.trackGeneratingMessage(assistantMessage, message.conversationId)
-    await this.sessionManager.startLoop(message.conversationId, assistantMessage.id)
+    // Normal flow: skip lock acquisition (lock is only for permission resume)
+    await this.sessionManager.startLoop(message.conversationId, assistantMessage.id, {
+      skipLockAcquisition: true
+    })
 
     void this.streamGenerationHandler
       .startStreamCompletion(message.conversationId, messageId, selectedVariantsMap)

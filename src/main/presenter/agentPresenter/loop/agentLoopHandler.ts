@@ -54,6 +54,9 @@ export class AgentLoopHandler {
       callTool: async (request: MCPToolCall) => {
         return await this.getToolPresenter().callTool(request)
       },
+      preCheckToolPermission: async (request: MCPToolCall) => {
+        return await this.getToolPresenter().preCheckToolPermission(request)
+      },
       onToolCallFinished: ({ toolServerName, conversationId }) => {
         if (toolServerName !== 'agent-filesystem') return
         this.notifyWorkspaceFilesChanged(conversationId)

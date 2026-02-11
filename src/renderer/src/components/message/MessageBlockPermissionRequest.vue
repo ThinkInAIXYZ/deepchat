@@ -459,6 +459,7 @@ const grantPermissionOnce = async () => {
 }
 
 const grantPermissionForSession = async () => {
+  // Allow for current session: remember=true means session-scoped storage
   await submitPermission(true, true)
 }
 
