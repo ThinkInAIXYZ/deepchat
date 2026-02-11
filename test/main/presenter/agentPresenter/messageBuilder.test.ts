@@ -19,7 +19,7 @@ describe('messageBuilder.buildPostToolExecutionContext', () => {
       } as any,
       completedToolCall: {
         id: 'call_1',
-        name: 'execute_command',
+        name: 'exec',
         params: '{"command":"pwd"}',
         response: '/tmp'
       },
@@ -45,7 +45,7 @@ describe('messageBuilder.buildPostToolExecutionContext', () => {
       } as any,
       completedToolCall: {
         id: '',
-        name: 'execute_command',
+        name: 'exec',
         params: '{"command":"pwd"}',
         response: '/tmp'
       },
@@ -72,7 +72,7 @@ describe('messageBuilder.buildPostToolExecutionContext', () => {
       } as any,
       completedToolCall: {
         id: 'call_1',
-        name: 'execute_command',
+        name: 'exec',
         params: '{"command":"pwd"}',
         response: '/tmp'
       },

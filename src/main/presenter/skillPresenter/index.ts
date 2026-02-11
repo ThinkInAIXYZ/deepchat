@@ -16,6 +16,8 @@ import {
 import { eventBus, SendTarget } from '@/eventbus'
 import { SKILL_EVENTS } from '@/events'
 import { presenter } from '@/presenter'
+import logger from '@shared/logger'
+import { normalizeSkillAllowedTools } from './toolNameMapping'
 
 /**
  * Skill system configuration constants
@@ -780,7 +782,11 @@ export class SkillPresenter implements ISkillPresenter {
       }
     }
 
-    return Array.from(allowedTools)
+    const result = normalizeSkillAllowedTools(Array.from(allowedTools))
+    for (const warning of result.warnings) {
+      logger.warn(warning, { conversationId })
+    }
+    return result.tools
   }
 
   /**

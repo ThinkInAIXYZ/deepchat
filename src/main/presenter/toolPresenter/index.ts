@@ -259,6 +259,9 @@ export class ToolPresenter implements IToolPresenter {
       '~/.deepchat/sessions/<conversationId>/tool_<toolCallId>.offload'
 
     return [
+      'Use canonical Agent tool names only: read, write, edit, find, grep, ls, exec, process.',
+      'Legacy tool names are not available and will fail with Unknown Agent tool.',
+      'Recommended sequence for code tasks: find/grep -> read -> edit/write.',
       'Tool outputs may be offloaded when large.',
       `When you see an offload stub, read the full output from: ${offloadPath}`,
       'Use file tools to read that path. Access is limited to the current conversation session.',

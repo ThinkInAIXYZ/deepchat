@@ -12,7 +12,7 @@ import { spawn } from 'child_process'
 import { RuntimeHelper } from '../../../lib/runtimeHelper'
 import { glob } from 'glob'
 
-// Auto-truncate threshold for read_file to avoid triggering tool output offload
+// Auto-truncate threshold for read to avoid triggering tool output offload
 const READ_FILE_AUTO_TRUNCATE_THRESHOLD = 4500
 
 const ReadFileArgsSchema = z.object({

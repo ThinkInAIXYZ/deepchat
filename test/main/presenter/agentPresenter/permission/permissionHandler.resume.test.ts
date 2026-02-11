@@ -42,7 +42,7 @@ describe('PermissionHandler resume behavior', () => {
         type: 'tool_call',
         status: 'loading',
         timestamp: Date.now(),
-        tool_call: { id: 'tool-1', name: 'read_file', params: '{}' }
+        tool_call: { id: 'tool-1', name: 'read', params: '{}' }
       },
       {
         type: 'action',
@@ -50,13 +50,13 @@ describe('PermissionHandler resume behavior', () => {
         status: 'pending',
         timestamp: Date.now(),
         content: 'Permission required',
-        tool_call: { id: 'tool-1', name: 'read_file', params: '{}' },
+        tool_call: { id: 'tool-1', name: 'read', params: '{}' },
         extra: {
           needsUserAction: true,
           serverName: 'agent-filesystem',
           permissionType: 'read',
           permissionRequest: JSON.stringify({
-            toolName: 'read_file',
+            toolName: 'read',
             serverName: 'agent-filesystem',
             permissionType: 'read',
             description: 'Read access requires approval',
@@ -68,7 +68,7 @@ describe('PermissionHandler resume behavior', () => {
         type: 'tool_call',
         status: 'loading',
         timestamp: Date.now(),
-        tool_call: { id: 'tool-2', name: 'read_file', params: '{}' }
+        tool_call: { id: 'tool-2', name: 'read', params: '{}' }
       },
       {
         type: 'action',
@@ -76,13 +76,13 @@ describe('PermissionHandler resume behavior', () => {
         status: 'pending',
         timestamp: Date.now(),
         content: 'Permission required',
-        tool_call: { id: 'tool-2', name: 'read_file', params: '{}' },
+        tool_call: { id: 'tool-2', name: 'read', params: '{}' },
         extra: {
           needsUserAction: true,
           serverName: 'agent-filesystem',
           permissionType: 'read',
           permissionRequest: JSON.stringify({
-            toolName: 'read_file',
+            toolName: 'read',
             serverName: 'agent-filesystem',
             permissionType: 'read',
             description: 'Read access requires approval',
