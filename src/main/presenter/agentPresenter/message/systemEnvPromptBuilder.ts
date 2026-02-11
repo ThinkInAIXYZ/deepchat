@@ -101,16 +101,17 @@ export async function buildSystemEnvPrompt(
     ? path.resolve(options.agentsFilePath)
     : path.join(workdir, 'AGENTS.md')
   const agentsContent = await readAgentsInstructions(agentsFilePath)
-  const { modelName } = resolveModelIdentity(options.providerId, options.modelId)
+  const { modelName, exactModelId } = resolveModelIdentity(options.providerId, options.modelId)
 
   return [
     `You are powered by the model named ${modelName}.`,
+    `The exact model ID is ${exactModelId}`,
     `## Here is some useful information about the environment you are running in:`,
     `Working directory: ${workdir}`,
     `Is directory a git repo: ${isGitRepository(workdir) ? 'yes' : 'no'}`,
     `Platform: ${platform}`,
     `Today's date: ${now.toDateString()}`,
-    `Instructions from: ${agentsFilePath} \n`,
+    `Instructions from: ${agentsFilePath}\n`,
     agentsContent
   ].join('\n')
 }

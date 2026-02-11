@@ -78,7 +78,11 @@ export class SkillPresenter implements ISkillPresenter {
     const compareResolved = process.platform === 'win32' ? resolved.toLowerCase() : resolved
     const compareBrokenPrefix =
       process.platform === 'win32' ? brokenPrefix.toLowerCase() : brokenPrefix
-    if (compareResolved.startsWith(compareBrokenPrefix)) {
+    const hasBrokenPrefix = compareResolved.startsWith(compareBrokenPrefix)
+    const nextChar = compareResolved.charAt(compareBrokenPrefix.length)
+    const hasBoundaryAfterPrefix =
+      compareResolved.length === compareBrokenPrefix.length || nextChar === '/' || nextChar === '\\'
+    if (hasBrokenPrefix && hasBoundaryAfterPrefix) {
       const suffix = resolved.slice(brokenPrefix.length).replace(/^[\\/]+/, '')
       return path.join(homeDir, '.deepchat', suffix)
     }
