@@ -66,21 +66,6 @@ export class AgentToolManager {
   private readonly configPresenter: IConfigPresenter
   private skillTools: SkillTools | null = null
   private chatSettingsHandler: ChatSettingsToolHandler | null = null
-  private readonly processToolSchema = z.object({
-    action: z
-      .enum(['list', 'poll', 'log', 'write', 'kill', 'clear', 'remove'])
-      .describe('The action to perform on the background process session'),
-    sessionId: z.string().optional().describe('Session ID (required for most actions except list)'),
-    offset: z.number().int().min(0).optional().describe('Starting offset for log action'),
-    limit: z
-      .number()
-      .int()
-      .min(1)
-      .optional()
-      .describe('Maximum characters to return for log action'),
-    data: z.string().optional().describe('Data to write to stdin (write action only)'),
-    eof: z.boolean().optional().describe('Send EOF after writing data (write action only)')
-  })
 
   private readonly fileSystemSchemas = {
     read_file: z.object({
@@ -719,7 +704,7 @@ export class AgentToolManager {
           name: 'process',
           description:
             'Manage background exec sessions created by execute_command with background: true. Use poll to check output and status, log to get full output with pagination, write to send input to stdin, kill to terminate, and remove to clean up completed sessions.',
-          parameters: zodToJsonSchema(this.processToolSchema) as {
+          parameters: zodToJsonSchema(schemas.process) as {
             type: string
             properties: Record<string, unknown>
             required?: string[]
@@ -793,7 +778,7 @@ export class AgentToolManager {
 
     const { backgroundExecSessionManager } = await import('./backgroundExecSessionManager')
 
-    const validationResult = this.processToolSchema.safeParse(args)
+    const validationResult = this.fileSystemSchemas.process.safeParse(args)
     if (!validationResult.success) {
       throw new Error(`Invalid arguments for process: ${validationResult.error.message}`)
     }
@@ -898,7 +883,8 @@ export class AgentToolManager {
         ...args,
         path: args.path ?? args.file_path,
         oldText: args.oldText ?? args.old_string,
-        newText: args.newText ?? args.new_string
+        newText: args.newText ?? args.new_string,
+        base_directory: args.base_directory
       }
     }
 

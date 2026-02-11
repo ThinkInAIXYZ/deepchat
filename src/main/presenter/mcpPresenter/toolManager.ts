@@ -649,20 +649,31 @@ export class ToolManager {
   }
 
   // 检查会话级别的权限
-  // 当前会话自动执行逻辑：一旦用户授权某 server 的任何权限，该 server 的所有 tool 都自动通过
+  // 当前会话权限遵循层级：all > write > read
   checkSessionPermission(
     conversationId: string,
     serverName: string,
-    _permissionType: 'read' | 'write' | 'all'
+    permissionType: 'read' | 'write' | 'all'
   ): boolean {
     const sessionPerms = this.sessionPermissions.get(conversationId)
     if (!sessionPerms) return false
 
-    // 当前会话自动执行：只要用户授权了该 server 的任何权限，该 server 的所有 tool 都自动通过
+    const permissionLevelMap: Record<'read' | 'write' | 'all', number> = {
+      read: 1,
+      write: 2,
+      all: 3
+    }
+    const requiredLevel = permissionLevelMap[permissionType]
+    const prefix = `${serverName}:`
+
     for (const permKey of sessionPerms) {
-      if (permKey.startsWith(`${serverName}:`)) {
+      if (!permKey.startsWith(prefix)) continue
+
+      const storedPermission = permKey.slice(prefix.length) as 'read' | 'write' | 'all'
+      const storedLevel = permissionLevelMap[storedPermission]
+      if (storedLevel >= requiredLevel) {
         console.log(
-          `[ToolManager] Session auto-execute: server '${serverName}' has granted permission '${permKey}' in conversation '${conversationId}'`
+          `[ToolManager] Session auto-execute: server '${serverName}' has granted permission '${permKey}' in conversation '${conversationId}', required='${permissionType}'`
         )
         return true
       }

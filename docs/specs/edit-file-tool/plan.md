@@ -46,11 +46,11 @@ The `edit_file` tool will be integrated into the existing agent filesystem tool 
 // Normalize parameter aliases before schema validation
 if (toolName === 'edit_file') {
   args = {
+    ...args,
     path: args.path ?? args.file_path,
     oldText: args.oldText ?? args.old_string,
     newText: args.newText ?? args.new_string,
     base_directory: args.base_directory,
-    ...args
   }
 }
 ```

@@ -167,6 +167,7 @@ export class PermissionHandler extends BaseHandler {
       // Step 2: Remove this permission from pending list (only if we actually updated something)
       if (updatedCount > 0) {
         presenter.sessionManager.removePendingPermission(conversationId, messageId, toolCallId)
+        this.notifyFrontendPermissionUpdate(conversationId, messageId)
       } else {
         console.warn(
           '[PermissionHandler] No permission blocks were updated, skipping removal from pending list'
@@ -455,7 +456,7 @@ export class PermissionHandler extends BaseHandler {
 
     // CRITICAL SECTION: Lock must be held throughout this entire method
     // Early-exit checks: Validate session state before proceeding
-    const session = presenter.sessionManager.getSession(conversationId)
+    const session = presenter.sessionManager.getSessionSync(conversationId)
     if (!session) {
       console.warn('[PermissionHandler] Session not found, skipping resume:', conversationId)
       presenter.sessionManager.releasePermissionResumeLock(conversationId)
@@ -483,6 +484,14 @@ export class PermissionHandler extends BaseHandler {
     const currentStatus = presenter.sessionManager.getStatus(conversationId)
     if (currentStatus === 'waiting_permission') {
       console.log('[PermissionHandler] Transitioning session from waiting_permission to generating')
+      presenter.sessionManager.setStatus(conversationId, 'generating')
+    } else if (
+      currentStatus === 'idle' &&
+      presenter.sessionManager.hasPendingPermissions(conversationId, messageId)
+    ) {
+      console.warn(
+        '[PermissionHandler] Session was idle during permission resume, forcing generating status'
+      )
       presenter.sessionManager.setStatus(conversationId, 'generating')
     } else if (currentStatus !== 'generating') {
       console.warn(
@@ -684,6 +693,13 @@ export class PermissionHandler extends BaseHandler {
   ): Promise<boolean> {
     // Check if this tool was denied
     const message = await this.ctx.messageManager.getMessage(state.message.id)
+    if (!message) {
+      console.warn(
+        '[PermissionHandler] Message not found while executing tool call, aborting execution:',
+        state.message.id
+      )
+      return false
+    }
     const content = message.content as AssistantMessageBlock[]
     const permissionBlock = content.find(
       (b) =>
@@ -1205,24 +1221,23 @@ export class PermissionHandler extends BaseHandler {
    */
   private notifyFrontendPermissionUpdate(conversationId: string, messageId: string): void {
     try {
-      const pendingPermissions = presenter.sessionManager.getPendingPermissions(conversationId)
-      if (pendingPermissions && pendingPermissions.length > 0) {
-        console.log('[PermissionHandler] Notifying frontend of permission update:', {
-          conversationId,
-          messageId,
-          remainingCount: pendingPermissions.length,
-          nextToolCallId: pendingPermissions[0].toolCallId
-        })
-        // Send event to all renderer windows to refresh permission UI
-        // Frontend should listen to this event and refresh the permission display
-        eventBus.sendToRenderer(STREAM_EVENTS.PERMISSION_UPDATED, SendTarget.ALL_WINDOWS, {
-          conversationId,
-          messageId,
-          type: 'permission_update',
-          pendingCount: pendingPermissions.length,
-          nextPermission: pendingPermissions[0]
-        })
-      }
+      const pendingPermissions =
+        presenter.sessionManager.getPendingPermissions(conversationId) ?? []
+      const nextPermission = pendingPermissions[0]
+      console.log('[PermissionHandler] Notifying frontend of permission update:', {
+        conversationId,
+        messageId,
+        remainingCount: pendingPermissions.length,
+        nextToolCallId: nextPermission?.toolCallId
+      })
+      // Always notify so renderer can clear stale permission UI when count becomes zero.
+      eventBus.sendToRenderer(STREAM_EVENTS.PERMISSION_UPDATED, SendTarget.ALL_WINDOWS, {
+        conversationId,
+        messageId,
+        type: 'permission_update',
+        pendingCount: pendingPermissions.length,
+        nextPermission
+      })
     } catch (error) {
       console.error('[PermissionHandler] Failed to notify frontend:', error)
     }

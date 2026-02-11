@@ -45,6 +45,7 @@ interface BackgroundSession {
   lastAccessedAt: number
   outputBuffer: string
   outputFilePath: string | null
+  outputWriteQueue: Promise<void>
   totalOutputLength: number
   stdoutEof: boolean
   stderrEof: boolean
@@ -127,6 +128,7 @@ export class BackgroundExecSessionManager {
       lastAccessedAt: now,
       outputBuffer: '',
       outputFilePath,
+      outputWriteQueue: Promise.resolve(),
       totalOutputLength: 0,
       stdoutEof: false,
       stderrEof: false
@@ -279,8 +281,8 @@ export class BackgroundExecSessionManager {
     session.outputBuffer = ''
     session.totalOutputLength = 0
 
-    if (session.outputFilePath && fs.existsSync(session.outputFilePath)) {
-      fs.writeFileSync(session.outputFilePath, '')
+    if (session.outputFilePath) {
+      this.queueOutputWrite(session, '', 'truncate')
     }
 
     session.lastAccessedAt = Date.now()
@@ -304,6 +306,11 @@ export class BackgroundExecSessionManager {
     if (session.status === 'running') {
       await this.killInternal(session, 'remove')
     }
+
+    // Ensure queued writes are completed before deleting files.
+    await session.outputWriteQueue.catch((error) => {
+      logger.warn(`[BackgroundExec] Failed while draining output write queue:`, error)
+    })
 
     // Clean up output file
     if (session.outputFilePath && fs.existsSync(session.outputFilePath)) {
@@ -415,27 +422,12 @@ export class BackgroundExecSessionManager {
       session.outputFilePath !== null && session.totalOutputLength > config.offloadThresholdChars
 
     if (shouldOffload) {
-      // Append to file
-      try {
-        fs.appendFileSync(session.outputFilePath!, data)
-      } catch (error) {
-        logger.warn(`[BackgroundExec] Failed to append to output file:`, error)
-        // Fall back to buffer
-        session.outputBuffer += data
-      }
+      const chunk = session.outputBuffer + data
+      session.outputBuffer = ''
+      this.queueOutputWrite(session, chunk, 'append')
     } else {
       // Keep in buffer
       session.outputBuffer += data
-
-      // Check if we should start offloading
-      if (session.outputFilePath && session.totalOutputLength > config.offloadThresholdChars) {
-        try {
-          fs.writeFileSync(session.outputFilePath, session.outputBuffer)
-          session.outputBuffer = '' // Clear buffer after offload
-        } catch (error) {
-          logger.warn(`[BackgroundExec] Failed to create output file:`, error)
-        }
-      }
     }
   }
 
@@ -464,10 +456,10 @@ export class BackgroundExecSessionManager {
           const remainingStdout = session.child.stdout?.read?.()
           const remainingStderr = session.child.stderr?.read?.()
           if (remainingStdout) {
-            fs.appendFileSync(session.outputFilePath, remainingStdout.toString('utf-8'))
+            this.appendOutput(session, remainingStdout.toString('utf-8'), config)
           }
           if (remainingStderr) {
-            fs.appendFileSync(session.outputFilePath, remainingStderr.toString('utf-8'))
+            this.appendOutput(session, remainingStderr.toString('utf-8'), config)
           }
         } catch (error) {
           logger.warn(`[BackgroundExec] Failed to flush remaining output:`, error)
@@ -566,12 +558,130 @@ export class BackgroundExecSessionManager {
 
   private readFromFile(filePath: string, offset: number, limit: number): string {
     try {
-      const content = fs.readFileSync(filePath, 'utf-8')
-      return content.slice(offset, offset + limit)
+      const safeOffset = Math.max(0, Math.floor(offset))
+      const safeLimit = Math.max(0, Math.floor(limit))
+      if (safeLimit === 0) {
+        return ''
+      }
+
+      const fd = fs.openSync(filePath, 'r')
+      try {
+        const fileSize = fs.fstatSync(fd).size
+        if (fileSize === 0) {
+          return ''
+        }
+
+        const { startByte, endByte } = this.resolveUtf8ByteRange(
+          fd,
+          fileSize,
+          safeOffset,
+          safeLimit
+        )
+        if (endByte <= startByte) {
+          return ''
+        }
+
+        const bytesToRead = endByte - startByte
+        const buffer = Buffer.alloc(bytesToRead)
+        const bytesRead = fs.readSync(fd, buffer, 0, bytesToRead, startByte)
+        if (bytesRead <= 0) {
+          return ''
+        }
+        return buffer.subarray(0, bytesRead).toString('utf-8')
+      } finally {
+        fs.closeSync(fd)
+      }
     } catch (error) {
       logger.warn(`[BackgroundExec] Failed to read from output file:`, error)
       return ''
     }
+  }
+
+  private queueOutputWrite(
+    session: BackgroundSession,
+    data: string,
+    mode: 'append' | 'truncate'
+  ): void {
+    if (!session.outputFilePath) {
+      if (mode === 'append' && data) {
+        session.outputBuffer += data
+      }
+      return
+    }
+
+    const outputFilePath = session.outputFilePath
+    session.outputWriteQueue = session.outputWriteQueue
+      .then(async () => {
+        if (mode === 'truncate') {
+          await fs.promises.writeFile(outputFilePath, data, 'utf-8')
+          return
+        }
+        if (data.length === 0) {
+          return
+        }
+        await fs.promises.appendFile(outputFilePath, data, 'utf-8')
+      })
+      .catch((error) => {
+        logger.warn(`[BackgroundExec] Failed to write output file (${mode}):`, error)
+        if (mode === 'append' && data.length > 0) {
+          session.outputBuffer += data
+        }
+      })
+  }
+
+  private resolveUtf8ByteRange(
+    fd: number,
+    fileSize: number,
+    offset: number,
+    limit: number
+  ): { startByte: number; endByte: number } {
+    const targetStart = offset
+    const targetEnd = offset + limit
+    let startByte = targetStart === 0 ? 0 : -1
+    let endByte = -1
+    let charCount = 0
+    let currentBytePos = 0
+
+    const chunkSize = 64 * 1024
+    const chunkBuffer = Buffer.alloc(chunkSize)
+
+    while (currentBytePos < fileSize && endByte === -1) {
+      const bytesToRead = Math.min(chunkSize, fileSize - currentBytePos)
+      const bytesRead = fs.readSync(fd, chunkBuffer, 0, bytesToRead, currentBytePos)
+      if (bytesRead <= 0) {
+        break
+      }
+
+      for (let i = 0; i < bytesRead; i++) {
+        const byte = chunkBuffer[i]
+        // UTF-8 character starts at non-continuation byte.
+        if ((byte & 0xc0) !== 0x80) {
+          const absoluteBytePos = currentBytePos + i
+          if (startByte === -1 && charCount === targetStart) {
+            startByte = absoluteBytePos
+          }
+          if (charCount === targetEnd) {
+            endByte = absoluteBytePos
+            break
+          }
+          charCount++
+        }
+      }
+
+      currentBytePos += bytesRead
+    }
+
+    if (startByte === -1) {
+      startByte = fileSize
+    }
+    if (endByte === -1) {
+      endByte = fileSize
+    }
+    if (endByte < startByte) {
+      endByte = startByte
+    }
+
+    return { startByte, endByte }
   }
 
   private startCleanupTimer(): void {
