@@ -568,6 +568,9 @@ export class PermissionHandler extends BaseHandler {
         }
       }
 
+      // Ensure tool_call end/error updates are persisted before rebuilding next-turn context.
+      await this.llmEventHandler.flushStreamUpdates(messageId)
+
       // Step 7: Check if there are still pending permissions
       const stillHasPending = await this.hasPendingPermissionsInMessage(messageId)
       if (stillHasPending || hasNewPermissionRequest) {
