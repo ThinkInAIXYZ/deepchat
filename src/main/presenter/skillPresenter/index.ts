@@ -68,10 +68,22 @@ export class SkillPresenter implements ISkillPresenter {
   private resolveSkillsDir(): string {
     const configuredPath = this.configPresenter.getSkillsPath()
     const normalized = configuredPath?.trim()
-    if (normalized) {
-      return path.resolve(normalized)
+    const homePath = app.getPath('home')
+    const homeDir = homePath ? path.resolve(homePath) : path.resolve('.')
+    const fallbackDir = path.join(homeDir, '.deepchat', 'skills')
+    const resolved = normalized ? path.resolve(normalized) : fallbackDir
+
+    // Repair malformed paths like: C:\Users\name.deepchat\skills
+    const brokenPrefix = `${homeDir}.deepchat`
+    const compareResolved = process.platform === 'win32' ? resolved.toLowerCase() : resolved
+    const compareBrokenPrefix =
+      process.platform === 'win32' ? brokenPrefix.toLowerCase() : brokenPrefix
+    if (compareResolved.startsWith(compareBrokenPrefix)) {
+      const suffix = resolved.slice(brokenPrefix.length).replace(/^[\\/]+/, '')
+      return path.join(homeDir, '.deepchat', suffix)
     }
-    return path.join(app.getPath('home'), '.deepchat', 'skills')
+
+    return resolved
   }
 
   /**
@@ -198,7 +210,7 @@ export class SkillPresenter implements ISkillPresenter {
   async getMetadataPrompt(): Promise<string> {
     const skills = await this.getMetadataList()
     const header = '# Available Skills'
-    const dirLine = `Skills directory: ${this.skillsDir}`
+    const dirLine = `Skills directory: \`${this.skillsDir}\``
 
     if (skills.length === 0) {
       return `${header}\n\n${dirLine}\nNo skills are currently installed.`

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi, Mock, afterEach } from 'vitest'
 import type { IConfigPresenter } from '../../../../src/shared/presenter'
 import type { SkillMetadata } from '../../../../src/shared/types/skill'
+import { app } from 'electron'
 
 // Mock external dependencies
 vi.mock('electron', () => ({
@@ -162,6 +163,19 @@ describe('SkillPresenter', () => {
       expect(fs.mkdirSync).toHaveBeenCalledWith(expect.any(String), { recursive: true })
       presenter.destroy()
     })
+
+    it('should repair malformed .deepchat path segments', async () => {
+      ;(mockConfigPresenter.getSkillsPath as Mock).mockReturnValue('/mock/home.deepchat/skills')
+      ;(app.getPath as Mock).mockImplementation((name: string) => {
+        if (name === 'home') return '/mock/home'
+        if (name === 'temp') return '/mock/temp'
+        return '/mock/' + name
+      })
+
+      const presenter = new SkillPresenter(mockConfigPresenter)
+      await expect(presenter.getSkillsDir()).resolves.toBe('/mock/home/.deepchat/skills')
+      presenter.destroy()
+    })
   })
 
   describe('getSkillsDir', () => {
@@ -277,6 +291,7 @@ describe('SkillPresenter', () => {
       const prompt = await skillPresenter.getMetadataPrompt()
 
       expect(prompt).toContain('# Available Skills')
+      expect(prompt).toContain('Skills directory: `')
       expect(prompt).toContain('No skills are currently installed')
     })
 
