@@ -1,6 +1,7 @@
 import * as fs from 'node:fs'
 import path from 'node:path'
 import { presenter } from '@/presenter'
+import logger from '@shared/logger'
 
 export interface BuildSystemEnvPromptOptions {
   providerId?: string
@@ -77,7 +78,11 @@ async function readAgentsInstructions(sourcePath: string): Promise<string> {
   try {
     return await fs.promises.readFile(sourcePath, 'utf8')
   } catch (error) {
-    return `[SystemEnvPromptBuilder] AGENTS.md not found or unreadable: ${error instanceof Error ? error.message : String(error)}`
+    logger.warn('[SystemEnvPromptBuilder] Failed to read AGENTS.md', {
+      sourcePath,
+      error
+    })
+    return ''
   }
 }
 
@@ -103,15 +108,19 @@ export async function buildSystemEnvPrompt(
   const agentsContent = await readAgentsInstructions(agentsFilePath)
   const { modelName, exactModelId } = resolveModelIdentity(options.providerId, options.modelId)
 
-  return [
+  const promptLines = [
     `You are powered by the model named ${modelName}.`,
     `The exact model ID is ${exactModelId}`,
     `## Here is some useful information about the environment you are running in:`,
     `Working directory: ${workdir}`,
     `Is directory a git repo: ${isGitRepository(workdir) ? 'yes' : 'no'}`,
     `Platform: ${platform}`,
-    `Today's date: ${now.toDateString()}`,
-    `Instructions from: ${agentsFilePath}\n`,
-    agentsContent
-  ].join('\n')
+    `Today's date: ${now.toDateString()}`
+  ]
+
+  if (agentsContent.trim().length > 0) {
+    promptLines.push(`Instructions from: ${agentsFilePath}\n`, agentsContent)
+  }
+
+  return promptLines.join('\n')
 }

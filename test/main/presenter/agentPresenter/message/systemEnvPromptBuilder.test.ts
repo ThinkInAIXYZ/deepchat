@@ -2,6 +2,7 @@ import path from 'node:path'
 import * as fs from 'node:fs'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { presenter } from '@/presenter'
+import logger from '@shared/logger'
 import {
   buildRuntimeCapabilitiesPrompt,
   buildSystemEnvPrompt
@@ -25,6 +26,12 @@ vi.mock('@/presenter', () => ({
       getProviderModels: vi.fn(),
       getCustomModels: vi.fn()
     }
+  }
+}))
+
+vi.mock('@shared/logger', () => ({
+  default: {
+    warn: vi.fn()
   }
 }))
 
@@ -85,7 +92,12 @@ describe('systemEnvPromptBuilder', () => {
     expect(prompt).toContain('You are powered by the model named model-b.')
     expect(prompt).toContain('The exact model ID is provider-y/model-b')
     expect(prompt).toContain('Is directory a git repo: no')
-    expect(prompt).toContain('[SystemEnvPromptBuilder] AGENTS.md not found or unreadable:')
+    expect(prompt).not.toContain('Instructions from:')
+    expect(prompt).not.toContain('[SystemEnvPromptBuilder] AGENTS.md not available')
+    expect(logger.warn).toHaveBeenCalledWith(
+      '[SystemEnvPromptBuilder] Failed to read AGENTS.md',
+      expect.objectContaining({ sourcePath: path.join(workdir, 'AGENTS.md') })
+    )
   })
 
   it('builds stable runtime capabilities prompt', () => {

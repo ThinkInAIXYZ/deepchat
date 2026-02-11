@@ -621,7 +621,14 @@ class LLMEventHandler {
 
 ## 🔐 permissionHandler - 权限协调
 
-### 权限响应处理
+### 核心特性
+
+1. **Batch-level Permission**: 同一 tool call 的多个权限块可以批量更新
+2. **Resume Lock**: messageId 级别的锁，确保权限恢复的原子性
+3. **Synchronous Flush**: 工具执行前同步刷新，确保 UI 状态已持久化
+4. **Pending Permissions Queue**: 支持多个待处理权限的队列管理
+
+### 权限响应处理流程
 
 ```typescript
 async handlePermissionResponse(
@@ -629,37 +636,172 @@ async handlePermissionResponse(
   toolCallId: string,
   granted: boolean,
   permissionType: 'read' | 'write' | 'all' | 'command',
-  remember?: boolean
-) {
-  const message = await this.getMessage(messageId)
-  const content = message.content as AssistantMessageBlock[]
-
-  // 1. 更新权限块状态
-  const permissionBlock = content.find(
-    block => block.type === 'action' && block.tool_call?.id === toolCallId
+  remember: boolean = true
+): Promise<void> {
+  // Step 1: 批量更新权限块状态
+  const { updatedCount, targetPermissionBlock } = await this.updatePermissionBlocks(
+    messageId,
+    toolCallId,
+    granted,
+    permissionType
   )
-  permissionBlock.status = granted ? 'granted' : 'denied'
-  await this.ctx.messageManager.editMessage(messageId, JSON.stringify(content))
 
-  // 2. 清除待处理权限
-  this.ctx.sessionManager.clearPendingPermission(message.conversationId)
+  // Step 2: 从待处理队列移除
+  presenter.sessionManager.removePendingPermission(conversationId, messageId, toolCallId)
 
-  if (granted) {
-    // 3. 批准权限
-    if (isACPPermission) {
-      await this.ctx.llmProviderPresenter.resolveAgentPermission(requestId, true)
-    } else if (permissionType === 'command') {
-      CommandPermissionService.approve(conversationId, signature, remember)
-    } else {
-      await this.ctx.mcpPresenter.grantPermission(serverName, permissionType, remember)
+  // Step 3: 处理特殊权限类型（ACP、command、agent-filesystem、deepchat-settings）
+  if (isAcpPermission) {
+    await this.handleAcpPermissionFlow(messageId, targetPermissionBlock, granted)
+    return
+  }
+
+  // Step 4: 批准对应类型的权限
+  if (permissionType === 'command') {
+    this.commandPermissionHandler.approve(conversationId, signature, remember)
+  } else if (serverName === 'agent-filesystem') {
+    presenter.filePermissionService?.approve(conversationId, paths, remember)
+  } else if (serverName === 'deepchat-settings') {
+    presenter.settingsPermissionService?.approve(conversationId, toolName, remember)
+  } else {
+    await this.getMcpPresenter().grantPermission(serverName, permissionType, remember, conversationId)
+  }
+
+  // Step 5: 检查是否还有更多待处理权限，恢复工具执行
+  await this.checkAndResumeToolExecution(conversationId, messageId, granted, toolCallId)
+}
+```
+
+### 批量更新权限块
+
+```typescript
+// Batch update: only update blocks that can be safely batched
+for (const block of content) {
+  if (canBatchUpdate(block, targetPermissionBlock, permissionType)) {
+    block.status = granted ? 'granted' : 'denied'
+    if (block.extra) {
+      block.extra.needsUserAction = false
+      if (granted && ['read', 'write', 'all'].includes(permissionType)) {
+        block.extra.grantedPermissions = permissionType
+      }
+    }
+    updatedCount++
+  }
+}
+
+// canBatchUpdate 条件：
+// 1. 必须是 pending 状态
+// 2. 必须是 tool_call_permission 类型
+// 3. 必须是相同的 server
+// 4. CRITICAL: 必须是相同的 tool_call.id（防止误批准其他工具）
+// 5. 权限层级必须满足（all > write > read）
+```
+
+### Resume Lock 机制
+
+```typescript
+/**
+ * Resume tool execution after permission is granted
+ * CRITICAL SECTION: Lock is held throughout the entire resume flow
+ * - Early-exit checks prevent stale execution
+ * - Synchronous flush before executing tools
+ * - Lock released only at single exit point
+ * - All tools executed atomically (no lock release between tools)
+ */
+private async resumeToolExecutionAfterPermissions(
+  messageId: string,
+  grantedToolCallId?: string
+): Promise<void> {
+  // CRITICAL SECTION: Lock must be held throughout this entire method
+  const session = presenter.sessionManager.getSessionSync(conversationId)
+
+  // Verify the lock is still valid (same message)
+  const currentLock = presenter.sessionManager.getPermissionResumeLock(conversationId)
+  if (!currentLock || currentLock.messageId !== messageId) {
+    // Lock mismatch or expired, skip resume
+    presenter.sessionManager.releasePermissionResumeLock(conversationId)
+    return
+  }
+
+  try {
+    // Step 1: Re-check session status
+    // Step 2: Refresh generating state from DB
+    // Step 3: Collect tool calls to execute
+    // Step 4: Validate tool calls with latest DB state
+
+    // Step 5: SYNCHRONOUS FLUSH before executing tools
+    // This ensures all pending UI updates are persisted to DB before tool execution
+    await this.llmEventHandler.flushStreamUpdates(messageId)
+
+    // Step 6: Execute tools sequentially (lock held throughout - NO RELEASE BETWEEN TOOLS)
+    for (const toolCall of toolCallsToExecute) {
+      const canContinue = await this.executeSingleToolCall(state, toolCall, conversationId)
+      if (!canContinue) {
+        hasNewPermissionRequest = true
+        break
+      }
     }
 
-    // 4. 恢复 Agent Loop
-    await this.ctx.sessionManager.startLoop(conversationId, messageId)
-    await this.streamGenerationHandler.continueStreamCompletion(conversationId, messageId)
+    // Ensure tool_call end/error updates are persisted before rebuilding next-turn context
+    await this.llmEventHandler.flushStreamUpdates(messageId)
+
+    // Step 7: Check if there are still pending permissions
+    const stillHasPending = await this.hasPendingPermissionsInMessage(messageId)
+    if (stillHasPending || hasNewPermissionRequest) {
+      // SINGLE EXIT POINT: Release lock
+      presenter.sessionManager.releasePermissionResumeLock(conversationId)
+      return
+    }
+
+    // Step 8: All permissions resolved, continue with stream completion
+    await this.continueAfterToolsExecuted(state, conversationId, messageId)
+    // SINGLE EXIT POINT: Release lock after successful completion
+    presenter.sessionManager.releasePermissionResumeLock(conversationId)
+  } catch (error) {
+    // SINGLE EXIT POINT: Ensure lock is released on error
+    presenter.sessionManager.releasePermissionResumeLock(conversationId)
+    throw error
+  }
+}
+```
+
+### Pending Permissions Queue
+
+```typescript
+// SessionManager 中的队列管理
+interface PendingPermission {
+  messageId: string
+  toolCallId: string
+  permissionType: string
+  serverName: string
+  timestamp: number
+}
+
+// 添加到队列
+addPendingPermission(conversationId: string, permission: PendingPermission): void {
+  const runtime = this.getRuntime(agentId)
+  if (!runtime.pendingPermissions) {
+    runtime.pendingPermissions = []
+  }
+
+  const existingIndex = runtime.pendingPermissions.findIndex(
+    p => p.toolCallId === permission.toolCallId && p.messageId === permission.messageId
+  )
+  if (existingIndex >= 0) {
+    runtime.pendingPermissions[existingIndex] = permission
   } else {
-    // 5. 拒绝权限
-    await this.continueAfterPermissionDenied(messageId)
+    runtime.pendingPermissions.push(permission)
+  }
+  runtime.pendingPermission = runtime.pendingPermissions[0]
+}
+
+// 从队列移除
+removePendingPermission(conversationId: string, messageId: string, toolCallId: string): void {
+  const runtime = this.getRuntime(agentId)
+  if (runtime.pendingPermissions) {
+    runtime.pendingPermissions = runtime.pendingPermissions.filter(
+      p => !(p.toolCallId === toolCallId && p.messageId === messageId)
+    )
+    runtime.pendingPermission = runtime.pendingPermissions[0]
   }
 }
 ```

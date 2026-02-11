@@ -317,64 +317,203 @@ async getAllToolDefinitions({chatMode, supportsVision, agentWorkspacePath}) {
 - AgentToolManager: `src/main/presenter/agentPresenter/acp/agentToolManager.ts`
 - AgentFileSystemHandler: `src/main/presenter/agentPresenter/acp/agentFileSystemHandler.ts`
 
-## 4. 权限请求与响应流程
+## 4. 权限请求与响应流程（Batch-level Permission + Resume Lock）
+
+### 完整流程
 
 ```mermaid
 sequenceDiagram
     autonumber
     participant AgentLoop as agentLoopHandler
+    participant ToolProc as toolCallProcessor
     participant EventBus as EventBus
     participant UI as PermissionDialog.vue
-    participant AgentP as AgentPresenter
+    participant PermHandler as permissionHandler
     participant SessionMgr as SessionManager
     participant ToolP as ToolPresenter
+    participant McpP as McpPresenter
 
-    AgentLoop->>EventBus: send {tool_call: 'permission-required', permissionType, description}
-    Note over EventBus: permissionType: 'read' | 'write' | 'all' | 'command'
+    Note over AgentLoop: Agent Loop 遇到权限请求
+    AgentLoop->>ToolProc: process(toolCalls)
 
-    EventBus->>UI: 渲染权限请求对话框
-    UI->>User: 显示权限请求
+    Note over ToolProc: Step 1: 批量预检查权限
+    ToolProc->>ToolProc: batchPreCheckPermissions()
 
-    User->>UI: 点击"允许"或"拒绝"
-    UI->>AgentP: handlePermissionResponse(messageId, toolCallId, granted, permissionType)
+    loop 遍历每个 toolCall
+        ToolProc->>ToolP: callTool(request)
+        ToolP->>McpP: callTool(request)
+        McpP->>McpP: checkToolPermission()
 
-    Note over AgentP,SessionMgr: 更新权限状态
-    AgentP->>SessionMgr: clearPendingPermission()
+        alt 需要权限请求
+            McpP-->>ToolP: requiresPermission: true
+            ToolP-->>ToolProc: permission required
+            ToolProc->>EventBus: send {tool_call: 'permission-required', ...}
 
-    alt granted == true
-        AgentP->>AgentP: 记录用户选择（remember?）
+            Note over SessionMgr: 添加到 pendingPermissions 队列
+            ToolProc->>SessionMgr: addPendingPermission({messageId, toolCallId, ...})
+        else 权限已授予
+            McpP->>McpP: 执行工具
+            McpP-->>ToolP: toolResult
+            ToolP-->>ToolProc: toolResult
+        end
+    end
 
+    alt 有待处理权限
+        ToolProc->>AgentLoop: 暂停，等待用户响应
+        EventBus->>UI: 显示权限请求对话框
+        UI->>User: 显示权限请求
+
+        User->>UI: 点击"允许"或"拒绝"
+        UI->>PermHandler: handlePermissionResponse(messageId, toolCallId, granted, permissionType)
+
+        Note over PermHandler: Step 2: 批量更新权限块
+        PermHandler->>PermHandler: updatePermissionBlocks()
+        Note over PermHandler: canBatchUpdate: 相同 tool_call.id 的权限批量更新
+
+        Note over SessionMgr: Step 3: 从队列移除
+        PermHandler->>SessionMgr: removePendingPermission(conversationId, messageId, toolCallId)
+
+        Note over PermHandler: Step 4: 获取 Resume Lock
+        PermHandler->>SessionMgr: acquirePermissionResumeLock(conversationId, messageId)
+
+        Note over PermHandler: Step 5: 批准权限
         alt permissionType == 'command'
-            Note over AgentP: 命令权限
-            AgentP->>AgentP: CommandPermissionService.approve(signautre)
+            PermHandler->>PermHandler: CommandPermissionService.approve()
+        else agent-filesystem
+            PermHandler->>PermHandler: FilePermissionService.approve()
+        else deepchat-settings
+            PermHandler->>PermHandler: SettingsPermissionService.approve()
         else MCP 权限
-            Note over AgentP: MCP 权限
-            AgentP->>ToolP: grantPermission(serverName, permissionType, remember)
+            PermHandler->>McpP: grantPermission(serverName, permissionType, remember)
         else ACP 权限
-            Note over AgentP: ACP 权限
-            AgentP->>AgentP: resolveAgentPermission(requestId, true)
+            PermHandler->>PermHandler: handleAcpPermissionFlow()
         end
 
-        Note over AgentP,AgentP: 恢复 Agent Loop
-        AgentP->>SessionMgr: startLoop(conversationId, messageId)
-        AgentP->>AgentP: continueStreamCompletion(messageId)
-        Note over AgentP: 从断点继续执行工具调用
-    else granted == false
-        Note over AgentP,AgentP: 拒绝权限
-        AgentP->>AgentP: 返回错误消息"工具执行失败：用户拒绝权限"
-        AgentP->>AgentP: 继续生成（不在工具结果基础上继续）
+        Note over PermHandler: Step 6: 恢复工具执行（CRITICAL SECTION）
+        PermHandler->>PermHandler: resumeToolExecutionAfterPermissions()
+
+        Note over PermHandler: 6a: 验证 Resume Lock
+        PermHandler->>SessionMgr: getPermissionResumeLock(conversationId)
+        SessionMgr-->>PermHandler: currentLock
+
+        alt Lock 无效或过期
+            PermHandler->>SessionMgr: releasePermissionResumeLock(conversationId)
+            PermHandler->>PermHandler: 跳过执行
+        else Lock 有效
+            Note over PermHandler: 6b: 重新加载消息状态
+            PermHandler->>PermHandler: 从 DB 刷新 generating state
+
+            Note over PermHandler: 6c: SYNCHRONOUS FLUSH
+            PermHandler->>PermHandler: flushStreamUpdates(messageId)
+
+            Note over PermHandler: 6d: 执行工具（Lock 保持）
+            loop 遍历已授权工具
+                PermHandler->>ToolP: callTool()
+                ToolP->>McpP: callTool()
+                McpP-->>ToolP: toolResult
+                ToolP-->>PermHandler: toolResult
+            end
+
+            Note over PermHandler: 6e: 再次 FLUSH
+            PermHandler->>PermHandler: flushStreamUpdates(messageId)
+
+            Note over PermHandler: 6f: 检查是否还有更多权限
+            PermHandler->>PermHandler: hasPendingPermissionsInMessage()
+
+            alt 还有更多权限
+                PermHandler->>SessionMgr: releasePermissionResumeLock(conversationId)
+                PermHandler->>UI: 通知前端更新
+            else 所有权限已处理
+                PermHandler->>PermHandler: continueAfterToolsExecuted()
+                PermHandler->>SessionMgr: releasePermissionResumeLock(conversationId)
+                PermHandler->>AgentLoop: 继续 Agent Loop
+            end
+        end
     end
 ```
 
-**权限类型说明**：
-- `read` - 读取操作（list_directory, read_file, get_file_info）
-- `write` - 写入操作（write_file, create_directory, delete_file）
-- `all` - 授予读写权限（常用于文件系统操作）
-- `command` - 执行命令（需要额外审批）
+### 关键机制说明
+
+#### 1. Batch-level Permission Update
+
+```typescript
+// 同一个 tool_call 的多个权限块可以批量更新
+function canBatchUpdate(target, granted, grantedType): boolean {
+  // 必须相同状态: pending
+  // 必须相同类型: tool_call_permission
+  // 必须相同 server
+  // CRITICAL: 必须相同 tool_call.id（防止误批准其他工具）
+  // 权限层级必须满足: grantedType >= targetType
+}
+```
+
+#### 2. Resume Lock（MessageId-level）
+
+```typescript
+// 获取锁
+acquirePermissionResumeLock(conversationId: string, messageId: string): boolean
+
+// 验证锁（防止过期/错误的恢复）
+getPermissionResumeLock(conversationId: string): {messageId, timestamp} | null
+
+// 释放锁（单一出口点）
+releasePermissionResumeLock(conversationId: string): void
+
+// CRITICAL SECTION 保证：
+// - Early-exit checks prevent stale execution
+// - Synchronous flush before executing tools
+// - Lock released only at single exit point
+// - All tools executed atomically (no lock release between tools)
+```
+
+#### 3. Pending Permissions Queue
+
+```typescript
+// 支持多个并发权限请求
+interface PendingPermission {
+  messageId: string
+  toolCallId: string
+  permissionType: string
+  serverName: string
+  timestamp: number
+}
+
+// SessionManager 管理队列
+pendingPermissions: PendingPermission[]
+
+// 队列操作
+addPendingPermission(conversationId, permission)
+removePendingPermission(conversationId, messageId, toolCallId)
+getNextPendingPermission(conversationId): PendingPermission | undefined
+```
+
+#### 4. Synchronous Flush
+
+```typescript
+// 工具执行前同步刷新 UI 状态
+await llmEventHandler.flushStreamUpdates(messageId)
+
+// 保证：
+// - 所有 tool_call 块已持久化到 DB
+// - 前端 UI 状态已同步
+// - 断点恢复时状态一致
+```
+
+### 权限类型层级
+
+| 类型 | 层级 | 适用场景 |
+|------|------|---------|
+| `all` | 3 | 授予全部权限 |
+| `write` | 2 | 写入操作（write_file, delete_file） |
+| `read` | 1 | 读取操作（read_file, list_directory） |
+| `command` | 0 | 命令执行（精确匹配） |
+
+**权限升级规则**：`all` > `write` > `read`，授予高级权限自动满足低级权限需求。
 
 **关键文件位置**：
 - PermissionHandler: `src/main/presenter/agentPresenter/permission/permissionHandler.ts`
-- agentLoopHandler permission 事件处理: `src/main/presenter/agentPresenter/loop/agentLoopHandler.ts:432-470`
+- ToolCallProcessor: `src/main/presenter/agentPresenter/loop/toolCallProcessor.ts`
+- SessionManager: `src/main/presenter/agentPresenter/session/sessionManager.ts`
 
 ## 5. 会话生命周期
 
