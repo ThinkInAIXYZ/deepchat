@@ -16,13 +16,13 @@ import {
   formatMessagesForCompletion,
   mergeConsecutiveMessages
 } from './messageFormatter'
-import { BrowserContextBuilder } from '../../browser/BrowserContextBuilder'
 import { selectContextMessages } from './messageTruncator'
 import {
   buildSkillsMetadataPrompt,
   buildSkillsPrompt,
   getSkillsAllowedTools
 } from './skillsPromptBuilder'
+import { buildRuntimeCapabilitiesPrompt, buildSystemEnvPrompt } from './systemEnvPromptBuilder'
 
 export type PendingToolCall = {
   id: string
@@ -81,6 +81,25 @@ function appendPromptSection(base: string, section: string): string {
     return trimmedSection
   }
   return `${base}\n\n${trimmedSection}`
+}
+
+export interface AgentSystemPromptSections {
+  basePrompt: string
+  runtimePrompt?: string
+  skillsMetadataPrompt?: string
+  skillsPrompt?: string
+  envPrompt?: string
+  toolingPrompt?: string
+}
+
+export function composeAgentSystemPromptSections(sections: AgentSystemPromptSections): string {
+  let composed = sections.basePrompt?.trim() ?? ''
+  composed = appendPromptSection(composed, sections.runtimePrompt ?? '')
+  composed = appendPromptSection(composed, sections.skillsMetadataPrompt ?? '')
+  composed = appendPromptSection(composed, sections.skillsPrompt ?? '')
+  composed = appendPromptSection(composed, sections.envPrompt ?? '')
+  composed = appendPromptSection(composed, sections.toolingPrompt ?? '')
+  return composed
 }
 
 export async function preparePromptContent({
@@ -142,45 +161,46 @@ export async function preparePromptContent({
     }
   }
 
-  let finalSystemPromptWithExtras = finalSystemPrompt
+  let runtimePrompt = ''
+  let skillsMetadataPrompt = ''
+  let skillsPrompt = ''
+  let envPrompt = ''
+  let toolingPrompt = ''
 
   if (!isImageGeneration && isAgentMode) {
+    runtimePrompt = buildRuntimeCapabilitiesPrompt()
     try {
-      const browserContext = await presenter.yoBrowserPresenter.getBrowserContext()
-      const browserContextPrompt = BrowserContextBuilder.buildSystemPrompt(
-        browserContext.tabs,
-        browserContext.activeTabId
-      )
-      finalSystemPromptWithExtras = appendPromptSection(
-        finalSystemPromptWithExtras,
-        browserContextPrompt
-      )
+      skillsMetadataPrompt = await buildSkillsMetadataPrompt()
+      skillsPrompt = await buildSkillsPrompt(conversation.id)
     } catch (error) {
-      console.warn('AgentPresenter: Failed to load Yo Browser context/tools', error)
+      console.warn('AgentPresenter: Failed to build skills prompt', error)
+    }
+
+    try {
+      envPrompt = await buildSystemEnvPrompt({
+        providerId,
+        modelId,
+        workdir: conversation.settings.agentWorkspacePath?.trim() || null
+      })
+    } catch (error) {
+      console.warn('AgentPresenter: Failed to build system env prompt', error)
     }
   }
 
   if (!isImageGeneration && isToolPromptMode && toolDefinitions.length > 0) {
-    const toolPrompt = toolCallCenter.buildToolSystemPrompt({
+    toolingPrompt = toolCallCenter.buildToolSystemPrompt({
       conversationId: conversation.id
     })
-    finalSystemPromptWithExtras = appendPromptSection(finalSystemPromptWithExtras, toolPrompt)
   }
 
-  if (!isImageGeneration && isAgentMode) {
-    try {
-      const skillsMetadataPrompt = await buildSkillsMetadataPrompt()
-      finalSystemPromptWithExtras = appendPromptSection(
-        finalSystemPromptWithExtras,
-        skillsMetadataPrompt
-      )
-
-      const skillsPrompt = await buildSkillsPrompt(conversation.id)
-      finalSystemPromptWithExtras = appendPromptSection(finalSystemPromptWithExtras, skillsPrompt)
-    } catch (error) {
-      console.warn('AgentPresenter: Failed to build skills prompt', error)
-    }
-  }
+  const finalSystemPromptWithExtras = composeAgentSystemPromptSections({
+    basePrompt: finalSystemPrompt,
+    runtimePrompt,
+    skillsMetadataPrompt,
+    skillsPrompt,
+    envPrompt,
+    toolingPrompt
+  })
 
   const systemPromptTokens =
     !isImageGeneration && finalSystemPromptWithExtras

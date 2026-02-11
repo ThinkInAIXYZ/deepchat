@@ -155,13 +155,6 @@ export class AgentToolManager {
           'Brief description of what the command does (e.g., "Install dependencies", "Start dev server")'
         ),
       cwd: z.string().optional().describe('Optional working directory for command execution.'),
-      allowParallel: z
-        .boolean()
-        .optional()
-        .default(false)
-        .describe(
-          'Allow starting a new command while background sessions are still running. Use with caution.'
-        ),
       background: z
         .boolean()
         .optional()
@@ -513,7 +506,7 @@ export class AgentToolManager {
         function: {
           name: 'exec',
           description:
-            'Execute a shell command in the workspace directory. For long-running commands (builds, tests, servers, installations), use background: true to run asynchronously and get a session ID. Then use the process tool to poll output, send input, or manage the session. If there are running background sessions, use process(list/poll/log) first unless you intentionally set allowParallel=true.',
+            'Execute a shell command in the workspace directory. For long-running commands (builds, tests, servers, installations), use background: true to run asynchronously and get a session ID. Then use the process tool to poll output, send input, or manage the session.',
           parameters: zodToJsonSchema(schemas.exec) as {
             type: string
             properties: Record<string, unknown>
@@ -859,26 +852,8 @@ export class AgentToolManager {
             timeoutMs?: number
             description?: string
             cwd?: string
-            allowParallel?: boolean
             background?: boolean
             yieldMs?: number
-          }
-          const runningSessions = await this.listRunningBackgroundSessions(conversationId)
-          if (runningSessions.length > 0 && !execArgs.allowParallel) {
-            const preview = runningSessions
-              .slice(0, 3)
-              .map((session) => `${session.sessionId}: ${session.command}`)
-              .join('\n- ')
-            throw new Error(
-              [
-                `Detected ${runningSessions.length} running background session(s).`,
-                'Use process with action="list", then action="poll" or "log" first.',
-                preview ? `Running sessions:\n- ${preview}` : '',
-                'If you intentionally need parallel execution, retry exec with allowParallel=true.'
-              ]
-                .filter(Boolean)
-                .join('\n')
-            )
           }
           const commandResult = await this.bashHandler.executeCommand(
             {
@@ -925,31 +900,6 @@ export class AgentToolManager {
         }
       }
       throw error
-    }
-  }
-
-  private async listRunningBackgroundSessions(
-    conversationId?: string
-  ): Promise<Array<{ sessionId: string; command: string }>> {
-    if (!conversationId) {
-      return []
-    }
-
-    try {
-      const { backgroundExecSessionManager } = await import('./backgroundExecSessionManager')
-      return backgroundExecSessionManager
-        .list(conversationId)
-        .filter((session) => session.status === 'running')
-        .map((session) => ({
-          sessionId: session.sessionId,
-          command: session.command
-        }))
-    } catch (error) {
-      logger.warn('[AgentToolManager] Failed to inspect running background sessions', {
-        conversationId,
-        error
-      })
-      return []
     }
   }
 

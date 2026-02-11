@@ -4,6 +4,24 @@ import { describe, expect, it, vi } from 'vitest'
 // pure message-building utilities without initializing Electron/main presenters.
 vi.mock('@/presenter', () => ({ presenter: {} }))
 
+describe('messageBuilder.composeAgentSystemPromptSections', () => {
+  it('keeps fixed V2.1 section order', async () => {
+    const { composeAgentSystemPromptSections } =
+      await import('@/presenter/agentPresenter/message/messageBuilder')
+
+    const composed = composeAgentSystemPromptSections({
+      basePrompt: 'BASE',
+      runtimePrompt: 'RUNTIME',
+      skillsMetadataPrompt: 'SKILLS_META',
+      skillsPrompt: 'SKILLS_ACTIVE',
+      envPrompt: 'ENV',
+      toolingPrompt: 'TOOLING'
+    })
+
+    expect(composed).toBe('BASE\n\nRUNTIME\n\nSKILLS_META\n\nSKILLS_ACTIVE\n\nENV\n\nTOOLING')
+  })
+})
+
 describe('messageBuilder.buildPostToolExecutionContext', () => {
   it('emits assistant(tool_calls) -> tool(tool_call_id) pairing when functionCall is enabled', async () => {
     const { buildPostToolExecutionContext } =
