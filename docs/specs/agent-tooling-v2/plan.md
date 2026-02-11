@@ -40,7 +40,8 @@
 5. `src/main/presenter/toolPresenter/index.ts`（tool prompt 与路由提示）
 6. `src/main/presenter/agentPresenter/message/messageBuilder.ts`（system prompt 拼接）
 7. `src/main/presenter/agentPresenter/message/skillsPromptBuilder.ts`（skills allowedTools 接入）
-8. 与上述模块直接相关的测试与文档
+8. `src/main/presenter/agentPresenter/message/systemEnvPromptBuilder.ts`（新增 env prompt 生成）
+9. 与上述模块直接相关的测试与文档
 
 明确不改动：
 
@@ -108,6 +109,7 @@ canonical：
 1. schema 校验失败直接返回 `INVALID_ARGUMENT`，不执行工具。
 2. 不再接受 `old_string/new_string` 等 alias。
 3. skills 映射只做工具名映射，不改写工具参数。
+4. 不引入 `allowParallel` 等并行开关参数，避免工具语义分裂。
 
 ### 2.1.2 工具返回 envelope
 
@@ -273,24 +275,34 @@ canonical：
 
 说明：renderer 暂不改，仅作为后续改造输入契约。
 
-### 2.5 Prompt 与调用策略更新（main）
+### 2.5 Prompt 管线与调用策略更新（main）
 
-决策：在 main 侧 prompt 拼接环节明确 canonical 工具规则，减少模型误调用。
+决策：固定 system prompt 管线，避免动态状态碎片化与缓存抖动。
 
 改动点：
 
 1. `src/main/presenter/toolPresenter/index.ts`
    - `buildToolSystemPrompt()` 增加 canonical 工具清单与“意图到工具”选择规则。
 2. `src/main/presenter/agentPresenter/message/messageBuilder.ts`
-   - 保证 tool prompt 在 agent/tool mode 下稳定拼接。
+   - 保证 system prompt 固定顺序拼接。
 3. `src/main/presenter/agentPresenter/message/skillsPromptBuilder.ts`
    - `getSkillsAllowedTools()` 使用 canonicalized allowed tools。
+4. `src/main/presenter/agentPresenter/message/systemEnvPromptBuilder.ts`（新增）
+   - 统一生成 env prompt（模型、系统、仓库、AGENTS.md）。
 
-prompt 规则（要点）：
+拼接顺序（固定）：
 
-1. 仅展示 canonical 工具名。
-2. 明确 `find/grep -> read -> edit/write` 推荐顺序。
-3. 明确“旧工具名不可用”与错误表现（`Unknown Agent tool`）。
+1. conversation `systemPrompt`
+2. Runtime 简要说明段（YoBrowser/后台进程能力说明，静态）
+3. Skills Prompt（metadata + active skills）
+4. Env Prompt（模型名/模型 ID/工作目录/git/platform/date/AGENTS.md 全文）
+5. Tooling Prompt（canonical 规则）
+
+约束：
+
+1. 不在 system prompt 注入 YoBrowser 当前 tab 或后台进程实时列表。
+2. `enhanceSystemPromptWithDateTime` 的运行态信息迁移至统一 env prompt。
+3. Tooling Prompt 保留独立段，不并入 env prompt。
 
 ### 2.6 Loop 执行顺序收敛
 
@@ -326,8 +338,11 @@ prompt 规则（要点）：
 
 ### Phase 4：Prompt 与协议导出
 
-1. 更新 main 侧 tool prompt（仅 canonical + 调用规则）。
-2. 增加消息/事件契约测试，确保字段不回归。
+1. 新增统一 env prompt builder 并接入 messageBuilder。
+2. 调整 system prompt 固定拼接顺序（含 runtime 静态说明与 skills）。
+3. 更新 main 侧 tool prompt（仅 canonical + 调用规则）。
+4. 增加消息/事件契约测试，确保字段不回归。
+5. 回退 `allowParallel` 相关参数/逻辑与测试预期。
 
 ## 4. 数据与配置影响
 
@@ -351,6 +366,8 @@ prompt 规则（要点）：
 4. Prompt 组装：
    - tool prompt 仅包含 canonical 工具名。
    - 不包含旧工具名提示。
+   - system prompt 顺序固定且可断言。
+   - env prompt 包含 AGENTS.md 全文与关键环境字段。
 
 ### 5.2 集成测试
 

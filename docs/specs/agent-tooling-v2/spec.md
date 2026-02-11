@@ -18,6 +18,8 @@
 2. **Skills 工具映射**：引入标准映射层，重点支持 Claude Code 工具名。
 3. **文件匹配增强**：`find/grep` 优先使用 `rg`，大仓库性能可预期。
 4. **协议清晰**：导出 main 层稳定的消息格式与事件格式，供 renderer 后续接入。
+5. **Prompt 管线稳定**：system prompt 拼接顺序固定，避免随意动态段影响缓存命中。
+6. **环境信息统一**：模型/系统/仓库/AGENTS.md 信息统一由 `env prompt` 生成。
 
 ## 非目标
 
@@ -25,6 +27,7 @@
 2. 不保留旧工具名的后向兼容（不做 alias call）。
 3. 不重构 MCP 协议与第三方 provider 的底层实现。
 4. 不引入新的权限类型（仍为 `read|write|all|command`）。
+5. 不在 system prompt 中注入 YoBrowser 当前 tab 明细或后台进程实时列表。
 
 ## 范围边界（补充）
 
@@ -79,6 +82,7 @@
 
 1. 不再接受旧参数别名（如 `old_string/new_string`），只保留 canonical 参数名。
 2. 参数校验失败必须返回结构化错误，不进入工具执行。
+3. `exec` 不引入 `allowParallel` 参数。
 
 ## 工具返回格式（统一）
 
@@ -151,6 +155,46 @@
    - 先查找再读取，再修改（`find/grep -> read -> edit/write`）
    - 优先小步调用，避免一次返回超大输出
 4. 对无效工具名统一返回：`Unknown Agent tool: <name>`，不做自动别名纠正。
+
+## System Prompt 组装顺序（V2.1）
+
+`conversation.settings.systemPrompt` 之后固定拼接顺序：
+
+1. **Runtime 简要说明段**（静态说明）
+   - 仅说明 YoBrowser 能力和后台进程能力。
+   - 不注入当前 tab 列表、当前 active tab、当前运行进程明细等动态快照。
+2. **Skills Prompt 段**
+   - 含 skills metadata + active skills 内容。
+3. **Env Prompt 段**
+   - 统一封装环境信息，格式稳定。
+   - 包含：模型名、模型 ID、工作目录、是否 git 仓库、平台、日期。
+   - 包含 `AGENTS.md` 的具体内容（全文）。
+4. **Tooling Prompt 段**
+   - 继续保留独立工具调用规则段（canonical 工具名 + 推荐调用顺序）。
+
+说明：
+
+1. Env Prompt 统一由独立 builder 生成，不在多个模块分散拼接。
+2. 运行态动态信息不进 system prompt，避免提示词频繁变化影响缓存。
+
+Env Prompt 参考格式：
+
+```text
+You are powered by the model named <model-name>.
+The exact model ID is <provider>/<model-id>
+Here is some useful information about the environment you are running in:
+<env>
+Working directory: <path>
+Is directory a git repo: yes|no
+Platform: <platform>
+Today's date: <date>
+</env>
+<files>
+
+</files>
+Instructions from: <workdir>/AGENTS.md
+<AGENTS.md full content>
+```
 
 ## 用户故事
 
@@ -244,6 +288,9 @@
 1. 所有 canonical 工具参数满足本 spec 的统一定义。
 2. 系统提示仅出现 canonical 工具名，不出现旧工具名或旧参数别名。
 3. 工具参数校验失败可观测（明确错误码/错误信息），且不执行工具副作用操作。
+4. system prompt 拼接顺序严格符合“V2.1 顺序”。
+5. system prompt 中不包含 YoBrowser/后台进程动态状态快照。
+6. env prompt 中包含模型名/模型 ID/工作目录/git 检测/platform/date/AGENTS.md 全文。
 
 ## 开放问题
 
