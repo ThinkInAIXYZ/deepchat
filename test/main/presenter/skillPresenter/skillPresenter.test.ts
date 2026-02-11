@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi, Mock, afterEach } from 'vitest'
 import type { IConfigPresenter } from '../../../../src/shared/presenter'
 import type { SkillMetadata } from '../../../../src/shared/types/skill'
+import { app } from 'electron'
 
 // Mock external dependencies
 vi.mock('electron', () => ({
@@ -28,6 +29,10 @@ vi.mock('fs', () => ({
     rmSync: vi.fn(),
     copyFileSync: vi.fn(),
     renameSync: vi.fn(),
+    statSync: vi.fn().mockReturnValue({
+      isFile: () => true,
+      size: 1024
+    }),
     mkdtempSync: vi.fn().mockReturnValue('/mock/temp/deepchat-skill-123')
   }
 }))
@@ -122,6 +127,10 @@ describe('SkillPresenter', () => {
     ;(fs.existsSync as Mock).mockReturnValue(true)
     ;(fs.mkdirSync as Mock).mockReturnValue(undefined)
     ;(fs.readdirSync as Mock).mockReturnValue([])
+    ;(fs.statSync as Mock).mockReturnValue({
+      isFile: () => true,
+      size: 1024
+    })
     ;(matter as unknown as Mock).mockReturnValue({
       data: { name: 'test-skill', description: 'Test skill' },
       content: '# Test content'
@@ -152,6 +161,19 @@ describe('SkillPresenter', () => {
 
       const presenter = new SkillPresenter(mockConfigPresenter)
       expect(fs.mkdirSync).toHaveBeenCalledWith(expect.any(String), { recursive: true })
+      presenter.destroy()
+    })
+
+    it('should repair malformed .deepchat path segments', async () => {
+      ;(mockConfigPresenter.getSkillsPath as Mock).mockReturnValue('/mock/home.deepchat/skills')
+      ;(app.getPath as Mock).mockImplementation((name: string) => {
+        if (name === 'home') return '/mock/home'
+        if (name === 'temp') return '/mock/temp'
+        return '/mock/' + name
+      })
+
+      const presenter = new SkillPresenter(mockConfigPresenter)
+      await expect(presenter.getSkillsDir()).resolves.toBe('/mock/home/.deepchat/skills')
       presenter.destroy()
     })
   })
@@ -269,6 +291,7 @@ describe('SkillPresenter', () => {
       const prompt = await skillPresenter.getMetadataPrompt()
 
       expect(prompt).toContain('# Available Skills')
+      expect(prompt).toContain('Skills directory: `')
       expect(prompt).toContain('No skills are currently installed')
     })
 
@@ -774,8 +797,8 @@ describe('SkillPresenter', () => {
 
       const tools = await skillPresenter.getActiveSkillsAllowedTools('conv-123')
 
-      expect(tools).toContain('read_file')
-      expect(tools).toContain('write_file')
+      expect(tools).toContain('read')
+      expect(tools).toContain('write')
     })
 
     it('should return empty array when no active skills', async () => {

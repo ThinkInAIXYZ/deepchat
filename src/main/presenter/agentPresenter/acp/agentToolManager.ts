@@ -68,22 +68,15 @@ export class AgentToolManager {
   private chatSettingsHandler: ChatSettingsToolHandler | null = null
 
   private readonly fileSystemSchemas = {
-    read_file: z.object({
-      paths: z.array(z.string()).min(1),
-      offset: z
-        .number()
-        .int()
-        .min(0)
-        .optional()
-        .describe('Starting character offset (0-based), applied to each file independently'),
+    read: z.object({
+      path: z.string(),
+      offset: z.number().int().min(0).optional().describe('Starting character offset (0-based)'),
       limit: z
         .number()
         .int()
         .positive()
         .optional()
-        .describe(
-          'Maximum characters to read per file. Large files are auto-truncated if not specified'
-        ),
+        .describe('Maximum characters to read. Large files are auto-truncated if not specified'),
       base_directory: z
         .string()
         .optional()
@@ -91,7 +84,7 @@ export class AgentToolManager {
           "Base directory for resolving relative paths. Required when using skills with relative paths. For skill-based operations, provide the skill's root directory path."
         )
     }),
-    write_file: z.object({
+    write: z.object({
       path: z.string(),
       content: z.string(),
       base_directory: z
@@ -101,119 +94,53 @@ export class AgentToolManager {
           'Base directory for resolving relative paths. Required when using skills with relative paths.'
         )
     }),
-    list_directory: z.object({
+    ls: z.object({
       path: z.string(),
-      showDetails: z.boolean().default(false),
-      sortBy: z.enum(['name', 'size', 'modified']).default('name'),
+      depth: z.number().int().min(0).max(3).default(1),
       base_directory: z.string().optional().describe('Base directory for resolving relative paths.')
     }),
-    create_directory: z.object({
+    edit: z.object({
       path: z.string(),
-      base_directory: z.string().optional().describe('Base directory for resolving relative paths.')
-    }),
-    move_files: z.object({
-      sources: z.array(z.string()).min(1),
-      destination: z.string(),
-      base_directory: z.string().optional().describe('Base directory for resolving relative paths.')
-    }),
-    edit_text: z.object({
-      path: z.string(),
-      operation: z.enum(['replace_pattern', 'edit_lines']),
-      pattern: z
-        .string()
-        .max(1000)
-        .describe(
-          'Regular expression pattern (max 1000 characters, must be safe and not cause ReDoS). Required when operation is "replace_pattern"'
-        )
-        .optional(),
-      replacement: z.string().optional(),
-      global: z.boolean().default(true),
-      caseSensitive: z.boolean().default(false),
-      edits: z
-        .array(
-          z.object({
-            oldText: z.string(),
-            newText: z.string()
-          })
-        )
-        .optional(),
-      dryRun: z.boolean().default(false),
-      base_directory: z.string().optional().describe('Base directory for resolving relative paths.')
-    }),
-    glob_search: z.object({
-      pattern: z.string().describe('Glob pattern (e.g., **/*.ts, src/**/*.js)'),
-      root: z
-        .string()
-        .optional()
-        .describe('Root directory for search (defaults to workspace root)'),
-      excludePatterns: z
-        .array(z.string())
-        .optional()
-        .default([])
-        .describe('Patterns to exclude (e.g., ["node_modules", ".git"])'),
-      maxResults: z.number().default(1000).describe('Maximum number of results to return'),
-      sortBy: z
-        .enum(['name', 'modified'])
-        .default('name')
-        .describe('Sort results by name or modification time')
-    }),
-    grep_search: z.object({
-      path: z.string(),
-      pattern: z
-        .string()
-        .max(1000)
-        .describe(
-          'Regular expression pattern (max 1000 characters, must be safe and not cause ReDoS)'
-        ),
-      filePattern: z.string().optional(),
-      recursive: z.boolean().default(true),
-      caseSensitive: z.boolean().default(false),
-      includeLineNumbers: z.boolean().default(true),
-      contextLines: z.number().default(0),
-      maxResults: z.number().default(100),
-      base_directory: z.string().optional().describe('Base directory for resolving relative paths.')
-    }),
-    text_replace: z.object({
-      path: z.string(),
-      pattern: z
-        .string()
-        .max(1000)
-        .describe(
-          'Regular expression pattern (max 1000 characters, must be safe and not cause ReDoS)'
-        ),
-      replacement: z.string(),
-      global: z.boolean().default(true),
-      caseSensitive: z.boolean().default(false),
-      dryRun: z.boolean().default(false),
-      base_directory: z.string().optional().describe('Base directory for resolving relative paths.')
-    }),
-    edit_file: z.object({
-      path: z.string().describe('Path to the file to edit'),
       oldText: z
         .string()
         .max(10000)
         .describe('The exact text to find and replace (case-sensitive)'),
       newText: z.string().max(10000).describe('The replacement text'),
+      replaceAll: z.boolean().default(true),
       base_directory: z.string().optional().describe('Base directory for resolving relative paths.')
     }),
-    directory_tree: z.object({
-      path: z.string(),
-      depth: z
-        .number()
-        .int()
-        .min(0)
-        .max(3)
-        .default(1)
-        .describe('Directory depth (root=0). Maximum is 3.'),
+    find: z.object({
+      pattern: z.string().describe('Glob pattern (e.g., **/*.ts, src/**/*.js)'),
+      path: z
+        .string()
+        .optional()
+        .describe('Root directory for search (defaults to workspace root)'),
+      exclude: z
+        .array(z.string())
+        .optional()
+        .default([])
+        .describe('Patterns to exclude (e.g., ["node_modules", ".git"])'),
+      maxResults: z.number().default(1000).describe('Maximum number of results to return'),
       base_directory: z.string().optional().describe('Base directory for resolving relative paths.')
     }),
-    get_file_info: z.object({
-      path: z.string(),
+    grep: z.object({
+      pattern: z
+        .string()
+        .max(1000)
+        .describe(
+          'Regular expression pattern (max 1000 characters, must be safe and not cause ReDoS)'
+        ),
+      path: z.string().optional().default('.'),
+      filePattern: z.string().optional(),
+      recursive: z.boolean().default(true),
+      caseSensitive: z.boolean().default(false),
+      contextLines: z.number().default(0),
+      maxResults: z.number().default(100),
       base_directory: z.string().optional().describe('Base directory for resolving relative paths.')
     }),
-    execute_command: z.object({
+    exec: z.object({
       command: z.string().min(1).describe('The shell command to execute'),
-      timeout: z
+      timeoutMs: z
         .number()
         .min(100)
         .max(600000)
@@ -223,9 +150,11 @@ export class AgentToolManager {
         .string()
         .min(5)
         .max(100)
+        .optional()
         .describe(
           'Brief description of what the command does (e.g., "Install dependencies", "Start dev server")'
         ),
+      cwd: z.string().optional().describe('Optional working directory for command execution.'),
       background: z
         .boolean()
         .optional()
@@ -468,10 +397,10 @@ export class AgentToolManager {
       {
         type: 'function',
         function: {
-          name: 'read_file',
+          name: 'read',
           description:
-            "Read the contents of one or more files. Supports pagination via offset/limit for large files (auto-truncated at 4500 chars if not specified). When invoked from a skill context with relative paths, provide base_directory as the skill's root directory.",
-          parameters: zodToJsonSchema(schemas.read_file) as {
+            "Read the contents of a file. Supports pagination via offset/limit for large files (auto-truncated at 4500 chars if not specified). When invoked from a skill context with relative paths, provide base_directory as the skill's root directory.",
+          parameters: zodToJsonSchema(schemas.read) as {
             type: string
             properties: Record<string, unknown>
             required?: string[]
@@ -486,10 +415,10 @@ export class AgentToolManager {
       {
         type: 'function',
         function: {
-          name: 'write_file',
+          name: 'write',
           description:
             "Write content to a file. For skill files, provide base_directory as the skill's root directory.",
-          parameters: zodToJsonSchema(schemas.write_file) as {
+          parameters: zodToJsonSchema(schemas.write) as {
             type: string
             properties: Record<string, unknown>
             required?: string[]
@@ -504,10 +433,27 @@ export class AgentToolManager {
       {
         type: 'function',
         function: {
-          name: 'list_directory',
+          name: 'ls',
+          description: 'List files and directories in a path.',
+          parameters: zodToJsonSchema(schemas.ls) as {
+            type: string
+            properties: Record<string, unknown>
+            required?: string[]
+          }
+        },
+        server: {
+          name: 'agent-filesystem',
+          icons: '📁',
+          description: 'Agent FileSystem tools'
+        }
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'edit',
           description:
-            'List files and directories in a path. Provide base_directory for skill-relative paths.',
-          parameters: zodToJsonSchema(schemas.list_directory) as {
+            'Make precise edits to a file by replacing exact text strings. Set replaceAll=false to only replace the first match.',
+          parameters: zodToJsonSchema(schemas.edit) as {
             type: string
             properties: Record<string, unknown>
             required?: string[]
@@ -522,63 +468,10 @@ export class AgentToolManager {
       {
         type: 'function',
         function: {
-          name: 'create_directory',
-          description: 'Create a directory. Provide base_directory for skill-relative paths.',
-          parameters: zodToJsonSchema(schemas.create_directory) as {
-            type: string
-            properties: Record<string, unknown>
-            required?: string[]
-          }
-        },
-        server: {
-          name: 'agent-filesystem',
-          icons: '📁',
-          description: 'Agent FileSystem tools'
-        }
-      },
-      {
-        type: 'function',
-        function: {
-          name: 'move_files',
-          description:
-            'Move or rename files and directories. Provide base_directory for skill-relative paths.',
-          parameters: zodToJsonSchema(schemas.move_files) as {
-            type: string
-            properties: Record<string, unknown>
-            required?: string[]
-          }
-        },
-        server: {
-          name: 'agent-filesystem',
-          icons: '📁',
-          description: 'Agent FileSystem tools'
-        }
-      },
-      {
-        type: 'function',
-        function: {
-          name: 'edit_text',
-          description:
-            'Edit text files using pattern replacement or line-based editing. When using "replace_pattern" operation, the pattern must be safe and not exceed 1000 characters to prevent ReDoS (Regular Expression Denial of Service) attacks. Provide base_directory for skill-relative paths.',
-          parameters: zodToJsonSchema(schemas.edit_text) as {
-            type: string
-            properties: Record<string, unknown>
-            required?: string[]
-          }
-        },
-        server: {
-          name: 'agent-filesystem',
-          icons: '📁',
-          description: 'Agent FileSystem tools'
-        }
-      },
-      {
-        type: 'function',
-        function: {
-          name: 'glob_search',
+          name: 'find',
           description:
             'Search for files using glob patterns (e.g., **/*.ts, src/**/*.js). Automatically excludes common directories like node_modules and .git.',
-          parameters: zodToJsonSchema(schemas.glob_search) as {
+          parameters: zodToJsonSchema(schemas.find) as {
             type: string
             properties: Record<string, unknown>
             required?: string[]
@@ -593,10 +486,10 @@ export class AgentToolManager {
       {
         type: 'function',
         function: {
-          name: 'directory_tree',
+          name: 'grep',
           description:
-            'Get a directory tree as JSON with optional depth (root=0, max=3). Provide base_directory for skill-relative paths.',
-          parameters: zodToJsonSchema(schemas.directory_tree) as {
+            'Search file contents using a regular expression. The pattern must be safe and not exceed 1000 characters to prevent ReDoS (Regular Expression Denial of Service) attacks.',
+          parameters: zodToJsonSchema(schemas.grep) as {
             type: string
             properties: Record<string, unknown>
             required?: string[]
@@ -611,82 +504,10 @@ export class AgentToolManager {
       {
         type: 'function',
         function: {
-          name: 'get_file_info',
+          name: 'exec',
           description:
-            'Get detailed metadata about a file or directory. Provide base_directory for skill-relative paths.',
-          parameters: zodToJsonSchema(schemas.get_file_info) as {
-            type: string
-            properties: Record<string, unknown>
-            required?: string[]
-          }
-        },
-        server: {
-          name: 'agent-filesystem',
-          icons: '📁',
-          description: 'Agent FileSystem tools'
-        }
-      },
-      {
-        type: 'function',
-        function: {
-          name: 'grep_search',
-          description:
-            'Search file contents using a regular expression. The pattern must be safe and not exceed 1000 characters to prevent ReDoS (Regular Expression Denial of Service) attacks. Provide base_directory for skill-relative paths.',
-          parameters: zodToJsonSchema(schemas.grep_search) as {
-            type: string
-            properties: Record<string, unknown>
-            required?: string[]
-          }
-        },
-        server: {
-          name: 'agent-filesystem',
-          icons: '📁',
-          description: 'Agent FileSystem tools'
-        }
-      },
-      {
-        type: 'function',
-        function: {
-          name: 'text_replace',
-          description:
-            'Replace text in a file using a regular expression. The pattern must be safe and not exceed 1000 characters to prevent ReDoS (Regular Expression Denial of Service) attacks. Provide base_directory for skill-relative paths.',
-          parameters: zodToJsonSchema(schemas.text_replace) as {
-            type: string
-            properties: Record<string, unknown>
-            required?: string[]
-          }
-        },
-        server: {
-          name: 'agent-filesystem',
-          icons: '📁',
-          description: 'Agent FileSystem tools'
-        }
-      },
-      {
-        type: 'function',
-        function: {
-          name: 'edit_file',
-          description:
-            'Make precise edits to files by replacing exact text strings. Use this for simple text replacements when you know the exact content to replace. For regex or complex operations, use edit_text instead.',
-          parameters: zodToJsonSchema(schemas.edit_file) as {
-            type: string
-            properties: Record<string, unknown>
-            required?: string[]
-          }
-        },
-        server: {
-          name: 'agent-filesystem',
-          icons: '📁',
-          description: 'Agent FileSystem tools'
-        }
-      },
-      {
-        type: 'function',
-        function: {
-          name: 'execute_command',
-          description:
-            'Execute a shell command in the workspace directory. For long-running commands (builds, tests, servers, installations), use background: true to run asynchronously and get a session ID. Then use the process tool to poll output, send input, or manage the session. For quick commands that complete within seconds, run without background mode.',
-          parameters: zodToJsonSchema(schemas.execute_command) as {
+            'Execute a shell command in the workspace directory. For long-running commands (builds, tests, servers, installations), use background: true to run asynchronously and get a session ID. Then use the process tool to poll output, send input, or manage the session.',
+          parameters: zodToJsonSchema(schemas.exec) as {
             type: string
             properties: Record<string, unknown>
             required?: string[]
@@ -703,7 +524,7 @@ export class AgentToolManager {
         function: {
           name: 'process',
           description:
-            'Manage background exec sessions created by execute_command with background: true. Use poll to check output and status, log to get full output with pagination, write to send input to stdin, kill to terminate, and remove to clean up completed sessions.',
+            'Manage background exec sessions created by exec with background: true. Use poll to check output and status, log to get full output with pagination, write to send input to stdin, kill to terminate, and remove to clean up completed sessions.',
           parameters: zodToJsonSchema(schemas.process) as {
             type: string
             properties: Record<string, unknown>
@@ -744,22 +565,7 @@ export class AgentToolManager {
   }
 
   private isFileSystemTool(toolName: string): boolean {
-    const filesystemTools = [
-      'read_file',
-      'write_file',
-      'list_directory',
-      'create_directory',
-      'move_files',
-      'edit_text',
-      'glob_search',
-      'directory_tree',
-      'get_file_info',
-      'grep_search',
-      'text_replace',
-      'edit_file',
-      'execute_command',
-      'process'
-    ]
+    const filesystemTools = ['read', 'write', 'ls', 'edit', 'find', 'grep', 'exec', 'process']
     return filesystemTools.includes(toolName)
   }
 
@@ -877,17 +683,6 @@ export class AgentToolManager {
       throw new Error(`No schema found for FileSystem tool: ${toolName}`)
     }
 
-    // Normalize parameter aliases for edit_file tool
-    if (toolName === 'edit_file') {
-      args = {
-        ...args,
-        path: args.path ?? args.file_path,
-        oldText: args.oldText ?? args.old_string,
-        newText: args.newText ?? args.new_string,
-        base_directory: args.base_directory
-      }
-    }
-
     const validationResult = schema.safeParse(args)
     if (!validationResult.success) {
       throw new Error(`Invalid arguments for ${toolName}: ${validationResult.error.message}`)
@@ -918,9 +713,24 @@ export class AgentToolManager {
 
     try {
       switch (toolName) {
-        case 'read_file':
-          return { content: await fileSystemHandler.readFile(parsedArgs, baseDirectory) }
-        case 'write_file':
+        case 'read': {
+          const readArgs = parsedArgs as {
+            path: string
+            offset?: number
+            limit?: number
+          }
+          return {
+            content: await fileSystemHandler.readFile(
+              {
+                paths: [readArgs.path],
+                offset: readArgs.offset,
+                limit: readArgs.limit
+              },
+              baseDirectory
+            )
+          }
+        }
+        case 'write':
           this.assertWritePermission(
             toolName,
             parsedArgs,
@@ -929,20 +739,27 @@ export class AgentToolManager {
             conversationId
           )
           return { content: await fileSystemHandler.writeFile(parsedArgs, baseDirectory) }
-        case 'list_directory':
-          return { content: await fileSystemHandler.listDirectory(parsedArgs, baseDirectory) }
-        case 'create_directory':
-          this.assertWritePermission(
-            toolName,
-            parsedArgs,
-            baseDirectory,
-            fileSystemHandler,
-            conversationId
-          )
+        case 'ls': {
+          const lsArgs = parsedArgs as {
+            path: string
+            depth?: number
+          }
+          if ((lsArgs.depth ?? 1) > 1) {
+            return {
+              content: await fileSystemHandler.directoryTree(
+                { path: lsArgs.path, depth: lsArgs.depth },
+                baseDirectory
+              )
+            }
+          }
           return {
-            content: await fileSystemHandler.createDirectory(parsedArgs, baseDirectory)
+            content: await fileSystemHandler.listDirectory(
+              { path: lsArgs.path, showDetails: false, sortBy: 'name' },
+              baseDirectory
+            )
           }
-        case 'move_files':
+        }
+        case 'edit': {
           this.assertWritePermission(
             toolName,
             parsedArgs,
@@ -950,53 +767,112 @@ export class AgentToolManager {
             fileSystemHandler,
             conversationId
           )
-          return { content: await fileSystemHandler.moveFiles(parsedArgs, baseDirectory) }
-        case 'edit_text':
-          this.assertWritePermission(
-            toolName,
-            parsedArgs,
-            baseDirectory,
-            fileSystemHandler,
-            conversationId
-          )
-          return { content: await fileSystemHandler.editText(parsedArgs, baseDirectory) }
-        case 'glob_search':
-          return { content: await fileSystemHandler.globSearch(parsedArgs, baseDirectory) }
-        case 'directory_tree':
-          return { content: await fileSystemHandler.directoryTree(parsedArgs, baseDirectory) }
-        case 'get_file_info':
-          return { content: await fileSystemHandler.getFileInfo(parsedArgs, baseDirectory) }
-        case 'grep_search':
-          return { content: await fileSystemHandler.grepSearch(parsedArgs, baseDirectory) }
-        case 'text_replace':
-          this.assertWritePermission(
-            toolName,
-            parsedArgs,
-            baseDirectory,
-            fileSystemHandler,
-            conversationId
-          )
-          return { content: await fileSystemHandler.textReplace(parsedArgs, baseDirectory) }
-        case 'edit_file':
-          this.assertWritePermission(
-            toolName,
-            parsedArgs,
-            baseDirectory,
-            fileSystemHandler,
-            conversationId
-          )
-          return { content: await fileSystemHandler.editFile(parsedArgs, baseDirectory) }
-        case 'execute_command':
+          const editArgs = parsedArgs as {
+            path: string
+            oldText: string
+            newText: string
+            replaceAll?: boolean
+          }
+          if (editArgs.replaceAll === false) {
+            return {
+              content: await fileSystemHandler.editText(
+                {
+                  path: editArgs.path,
+                  operation: 'edit_lines',
+                  edits: [{ oldText: editArgs.oldText, newText: editArgs.newText }],
+                  dryRun: false
+                },
+                baseDirectory
+              )
+            }
+          }
+          return {
+            content: await fileSystemHandler.editFile(
+              {
+                path: editArgs.path,
+                oldText: editArgs.oldText,
+                newText: editArgs.newText
+              },
+              baseDirectory
+            )
+          }
+        }
+        case 'find': {
+          const findArgs = parsedArgs as {
+            pattern: string
+            path?: string
+            exclude?: string[]
+            maxResults?: number
+          }
+          return {
+            content: await fileSystemHandler.globSearch(
+              {
+                pattern: findArgs.pattern,
+                root: findArgs.path,
+                excludePatterns: findArgs.exclude,
+                maxResults: findArgs.maxResults,
+                sortBy: 'name'
+              },
+              baseDirectory
+            )
+          }
+        }
+        case 'grep': {
+          const grepArgs = parsedArgs as {
+            pattern: string
+            path?: string
+            filePattern?: string
+            recursive?: boolean
+            caseSensitive?: boolean
+            contextLines?: number
+            maxResults?: number
+          }
+          return {
+            content: await fileSystemHandler.grepSearch(
+              {
+                path: grepArgs.path ?? '.',
+                pattern: grepArgs.pattern,
+                filePattern: grepArgs.filePattern,
+                recursive: grepArgs.recursive ?? true,
+                caseSensitive: grepArgs.caseSensitive ?? false,
+                includeLineNumbers: true,
+                contextLines: grepArgs.contextLines ?? 0,
+                maxResults: grepArgs.maxResults ?? 100
+              },
+              baseDirectory
+            )
+          }
+        }
+        case 'exec': {
           if (!this.bashHandler) {
-            throw new Error('Bash handler not initialized for execute_command tool')
+            throw new Error('Bash handler not initialized for exec tool')
           }
-          const commandResult = await this.bashHandler.executeCommand(parsedArgs, {
-            conversationId
-          })
+          const execArgs = parsedArgs as {
+            command: string
+            timeoutMs?: number
+            description?: string
+            cwd?: string
+            background?: boolean
+            yieldMs?: number
+          }
+          const commandResult = await this.bashHandler.executeCommand(
+            {
+              command: execArgs.command,
+              timeout: execArgs.timeoutMs,
+              description: execArgs.description ?? 'Execute command',
+              cwd: execArgs.cwd,
+              background: execArgs.background,
+              yieldMs: execArgs.yieldMs
+            },
+            {
+              conversationId
+            }
+          )
           return {
             content:
               typeof commandResult === 'string' ? commandResult : JSON.stringify(commandResult)
           }
+        }
         default:
           throw new Error(`Unknown FileSystem tool: ${toolName}`)
       }
@@ -1088,30 +964,10 @@ export class AgentToolManager {
 
   private collectWriteTargets(toolName: string, args: Record<string, unknown>): string[] {
     switch (toolName) {
-      case 'write_file': {
+      case 'write':
+      case 'edit': {
         const pathArg = args.path
         return typeof pathArg === 'string' ? [pathArg] : []
-      }
-      case 'create_directory': {
-        const pathArg = args.path
-        return typeof pathArg === 'string' ? [pathArg] : []
-      }
-      case 'edit_text': {
-        const pathArg = args.path
-        return typeof pathArg === 'string' ? [pathArg] : []
-      }
-      case 'text_replace': {
-        const pathArg = args.path
-        return typeof pathArg === 'string' ? [pathArg] : []
-      }
-      case 'move_files': {
-        const sources = Array.isArray(args.sources)
-          ? args.sources.filter((source): source is string => typeof source === 'string')
-          : []
-        const destination = typeof args.destination === 'string' ? args.destination : undefined
-        if (!destination) return sources
-        const destinations = sources.map((source) => path.join(destination, path.basename(source)))
-        return [...sources, ...destinations]
       }
       default:
         return []
@@ -1236,21 +1092,8 @@ export class AgentToolManager {
     conversationId?: string
   } | null> {
     // Only file system write operations and command execution need pre-check
-    const writeTools = [
-      'write_file',
-      'create_directory',
-      'move_files',
-      'edit_text',
-      'text_replace',
-      'edit_file'
-    ]
-    const readTools = [
-      'read_file',
-      'list_directory',
-      'directory_tree',
-      'glob_search',
-      'grep_search'
-    ]
+    const writeTools = ['write', 'edit']
+    const readTools = ['read', 'ls', 'find', 'grep']
 
     // Check for file system write operations
     if (this.isFileSystemTool(toolName)) {
@@ -1259,7 +1102,7 @@ export class AgentToolManager {
       }
 
       // Handle command tools separately (they use command permission service)
-      if (toolName === 'execute_command') {
+      if (toolName === 'exec') {
         if (!this.bashHandler) {
           return null
         }
@@ -1323,8 +1166,7 @@ export class AgentToolManager {
       // Collect target paths
       const targets = this.collectWriteTargets(toolName, args)
       if (targets.length === 0 && isWriteOperation) {
-        // Check for path in read operations too
-        const pathArg = (args.path as string) || (args.paths as string[])?.[0]
+        const pathArg = args.path as string | undefined
         if (pathArg) {
           targets.push(pathArg)
         }

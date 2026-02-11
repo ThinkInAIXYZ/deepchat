@@ -23,6 +23,7 @@ const ExecuteCommandArgsSchema = z.object({
   command: z.string().min(1),
   timeout: z.number().min(100).optional(),
   description: z.string().min(5).max(100),
+  cwd: z.string().optional(),
   background: z.boolean().optional().default(false),
   yieldMs: z.number().min(100).optional()
 })
@@ -55,11 +56,12 @@ export class AgentBashHandler {
       throw new Error(`Invalid arguments: ${parsed.error}`)
     }
 
-    const { command, timeout, background } = parsed.data
+    const { command, timeout, background, cwd: requestedCwd } = parsed.data
+    const cwd = this.resolveWorkingDirectory(requestedCwd)
 
     // Handle background execution
     if (background) {
-      return this.executeCommandBackground(command, timeout, options)
+      return this.executeCommandBackground(command, timeout, cwd, options)
     }
 
     if (this.commandPermissionHandler) {
@@ -72,7 +74,7 @@ export class AgentBashHandler {
         const responseContent =
           'components.messageBlockPermissionRequest.description.commandWithRisk'
         throw new CommandPermissionRequiredError(responseContent, {
-          toolName: 'execute_command',
+          toolName: 'exec',
           serverName: 'agent-filesystem',
           permissionType: 'command',
           description: 'Execute command requires approval.',
@@ -84,7 +86,6 @@ export class AgentBashHandler {
       }
     }
 
-    const cwd = this.allowedDirectories[0]
     const startedAt = Date.now()
     const snippetId = options.snippetId ?? nanoid()
 
@@ -179,6 +180,39 @@ export class AgentBashHandler {
 
   private normalizePath(p: string): string {
     return path.normalize(p)
+  }
+
+  private normalizeForComparison(inputPath: string): string {
+    const normalized = this.normalizePath(path.resolve(inputPath))
+    return process.platform === 'win32' ? normalized.toLowerCase() : normalized
+  }
+
+  private isPathAllowed(targetPath: string): boolean {
+    const normalizedTarget = this.normalizeForComparison(targetPath)
+    return this.allowedDirectories.some((allowedDirectory) => {
+      const normalizedAllowed = this.normalizeForComparison(allowedDirectory)
+      const relative = path.relative(normalizedAllowed, normalizedTarget)
+      return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))
+    })
+  }
+
+  private resolveWorkingDirectory(requestedCwd?: string): string {
+    const defaultCwd = this.allowedDirectories[0]
+    const normalizedInput = requestedCwd?.trim()
+    if (!normalizedInput) {
+      return defaultCwd
+    }
+
+    const expanded = this.expandHome(normalizedInput)
+    const resolved = path.isAbsolute(expanded)
+      ? this.normalizePath(path.resolve(expanded))
+      : this.normalizePath(path.resolve(defaultCwd, expanded))
+
+    if (!this.isPathAllowed(resolved)) {
+      throw new Error(`Working directory is not allowed: ${requestedCwd}`)
+    }
+
+    return resolved
   }
 
   private expandHome(filepath: string): string {
@@ -298,9 +332,9 @@ export class AgentBashHandler {
   private async executeCommandBackground(
     command: string,
     timeout: number | undefined,
+    cwd: string,
     options: ExecuteCommandOptions
   ): Promise<{ status: 'running'; sessionId: string }> {
-    const cwd = this.allowedDirectories[0]
     const conversationId = options.conversationId
 
     if (!conversationId) {
@@ -314,7 +348,7 @@ export class AgentBashHandler {
         throw new CommandPermissionRequiredError(
           'components.messageBlockPermissionRequest.description.commandWithRisk',
           {
-            toolName: 'execute_command',
+            toolName: 'exec',
             serverName: 'agent-filesystem',
             permissionType: 'command',
             description: 'Execute command requires approval.',

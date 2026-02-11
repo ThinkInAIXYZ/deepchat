@@ -648,6 +648,75 @@ YoBrowser 提供基于 Chrome DevTools Protocol (CDP) 的最小工具集，在 a
 | `all` | 全部权限 | 授予读写权限 |
 | `command` | 命令执行 | bash 命令（需要额外审批） |
 
+### 权限状态机
+
+```mermaid
+stateDiagram-v2
+    [*] --> IDLE: 初始化
+    IDLE --> REQUESTING: 开始权限检查
+    REQUESTING --> AWAITING_USER: 需要用户确认
+    REQUESTING --> GRANTED: autoApprove 匹配
+    AWAITING_USER --> GRANTED: 用户批准
+    AWAITING_USER --> DENIED: 用户拒绝
+    GRANTED --> COMPLETED: 工具执行完成
+    DENIED --> COMPLETED: 返回错误响应
+    COMPLETED --> [*]
+
+    note right of REQUESTING
+      检查 autoApprove 配置
+      检查已授予权限层级
+    end note
+
+    note right of AWAITING_USER
+      pendingPermissions 队列管理
+      支持多个并发权限请求
+    end note
+```
+
+### 权限层级与批量更新
+
+```typescript
+// 权限层级：all > write > read > command
+const PERMISSION_LEVELS: Record<string, number> = {
+  all: 3,
+  write: 2,
+  read: 1,
+  command: 0  // command 只匹配 command（需要精确匹配）
+}
+
+function isPermissionSufficient(granted: string, required: string): boolean {
+  if (granted === 'command' || required === 'command') {
+    return granted === required
+  }
+  return (PERMISSION_LEVELS[granted] || 0) >= (PERMISSION_LEVELS[required] || 0)
+}
+
+// 批量更新条件
+function canBatchUpdate(
+  targetPermission: AssistantMessageBlock,
+  grantedPermission: AssistantMessageBlock,
+  grantedPermissionType: string
+): boolean {
+  if (targetPermission.status !== 'pending') return false
+  if (targetPermission.action_type !== 'tool_call_permission') return false
+
+  const targetServerName = targetPermission.extra?.serverName
+  const grantedServerName = grantedPermission.extra?.serverName
+
+  // 必须是相同的 server
+  if (targetServerName !== grantedServerName) return false
+
+  // CRITICAL: 必须是相同的 tool_call.id
+  if (targetPermission.tool_call?.id !== grantedPermission.tool_call?.id) return false
+
+  // 检查权限层级
+  const targetPermissionType = targetPermission.extra?.permissionType || 'read'
+  if (!isPermissionSufficient(grantedPermissionType, targetPermissionType)) return false
+
+  return true
+}
+```
+
 ### MCP 服务器权限配置
 
 ```typescript
@@ -670,41 +739,92 @@ interface MCPServerConfig {
 
 ```mermaid
 sequenceDiagram
+    participant AgentLoop as agentLoopHandler
+    participant ToolProc as toolCallProcessor
     participant ToolP as ToolPresenter
     participant ToolMgr as ToolManager
     participant McpP as McpPresenter
+    participant PermHandler as permissionHandler
     participant User as 用户
 
-    ToolP->>McpP: callTool(request)
-    McpP->>ToolMgr: checkToolPermission(serverName, toolName)
+    Note over AgentLoop: 工具调用前
+    AgentLoop->>ToolProc: process(toolCalls)
 
-    ToolMgr->>ToolMgr: 检查 autoApprove 配置
+    Note over ToolProc: Step 1: 批量预检查权限
+    ToolProc->>ToolProc: batchPreCheckPermissions()
 
-    alt 权限在 autoApprove 中
-        Note over ToolMgr: 权限在 autoApprove 中
-        ToolMgr-->>McpP: granted: true
-    else 需要权限请求
-        ToolMgr->>ToolMgr: 查找最高权限类型
-        ToolMgr-->>McpP: granted: false, permissionType: 'read'|'write'
-    end
+    loop 遍历每个 toolCall
+        ToolProc->>ToolP: callTool(request)
+        ToolP->>McpP: callTool(request)
+        McpP->>ToolMgr: checkToolPermission(serverName, toolName)
+        ToolMgr->>ToolMgr: 检查 autoApprove 和已授予权限
 
-    alt granted == false
-        McpP-->>ToolP: requiresPermission: true
-        ToolP->>User: 显示权限请求 UI
-        User->>ToolP: 批准/拒绝
+        alt 需要权限请求
+            ToolMgr-->>McpP: granted: false, permissionType
+            McpP-->>ToolP: requiresPermission: true
+            ToolP-->>ToolProc: permission required
 
-        alt 批准
-            ToolP->>ToolMgr: 记录用户选择（remember?）
-            ToolP->>McpP: grantPermission(serverName, permissionType, remember)
-            ToolMgr->>ToolMgr: 更新权限缓存
-            ToolP->>ToolP: 重试 callTool
-        else 拒绝
-            ToolP->>ToolP: 返回错误
+            Note over ToolProc: 添加到 pendingPermissions
+            ToolProc->>PermHandler: 发送 permission-required 事件
+            PermHandler->>User: 显示权限请求 UI
+        else 权限已授予
+            ToolMgr-->>McpP: granted: true
+            McpP->>McpP: 执行工具
+            McpP-->>ToolP: toolResult
+            ToolP-->>ToolProc: toolResult
         end
-    else granted == true
-        McpP->>McpP: 执行工具
-        McpP-->>ToolP: toolResult
     end
+
+    alt 有权限请求
+        Note over ToolProc: 暂停执行，等待用户响应
+        User->>PermHandler: 批准/拒绝权限
+        PermHandler->>PermHandler: batch update 权限块
+        PermHandler->>ToolProc: resumeToolExecution()
+        Note over ToolProc: SYNCHRONOUS FLUSH
+        ToolProc->>ToolProc: 执行已授权的工具
+    end
+```
+
+### 工具输出保护机制
+
+```typescript
+// 1. 输出截断（防止上下文溢出）
+const MAX_TOOL_OUTPUT_LENGTH = 4500
+
+function truncateOutput(output: string): string {
+  if (output.length <= MAX_TOOL_OUTPUT_LENGTH) return output
+  return output.substring(0, MAX_TOOL_OUTPUT_LENGTH) +
+    `\n\n... [截断：输出超过 ${MAX_TOOL_OUTPUT_LENGTH} 字符]`
+}
+
+// 2. 目录树深度限制（防止循环引用导致无限输出）
+const DIRECTORY_TREE_MAX_DEPTH = 3
+
+async function getDirectoryTree(dirPath: string, currentDepth = 0): Promise<TreeNode> {
+  if (currentDepth >= DIRECTORY_TREE_MAX_DEPTH) {
+    return { name: path.basename(dirPath), type: 'directory', truncated: true }
+  }
+  // ... 递归获取子目录
+}
+
+// 3. 大输出卸载到文件
+const OFFLOAD_THRESHOLD = 10000
+
+async function handleLargeOutput(output: string, toolName: string): Promise<ToolResult> {
+  if (output.length > OFFLOAD_THRESHOLD) {
+    const tempFile = await writeToTempFile(output)
+    return {
+      content: `输出已保存到文件: ${tempFile}\n\n预览（前 500 字符）:\n${output.substring(0, 500)}...`,
+      offloaded: true,
+      offloadedFile: tempFile
+    }
+  }
+  return { content: output }
+}
+
+// 4. 流式输出刷新（确保 UI 状态同步）
+// 在工具执行前同步刷新所有待处理的 UI 更新
+await llmEventHandler.flushStreamUpdates(messageId)
 ```
 
 ## 📊 工具调用事件流

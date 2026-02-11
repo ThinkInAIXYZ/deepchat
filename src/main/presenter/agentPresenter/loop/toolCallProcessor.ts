@@ -93,16 +93,8 @@ const TOOL_OUTPUT_PREVIEW_LENGTH = 1024
 const QUESTION_ERROR_KEY = 'common.error.invalidQuestionRequest'
 
 // Tools that require offload when output exceeds threshold
-// Tools not in this list will never trigger offload (e.g., read_file has its own pagination)
-const TOOLS_REQUIRING_OFFLOAD = new Set([
-  'execute_command',
-  'directory_tree',
-  'list_directory',
-  'glob_search',
-  'grep_search',
-  'text_replace',
-  'yo_browser_cdp_send'
-])
+// Tools not in this list will never trigger offload (e.g., read has its own pagination)
+const TOOLS_REQUIRING_OFFLOAD = new Set(['exec', 'ls', 'find', 'grep', 'yo_browser_cdp_send'])
 
 export class ToolCallProcessor {
   constructor(private readonly options: ToolCallProcessorOptions) {}

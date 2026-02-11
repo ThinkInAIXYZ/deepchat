@@ -26,7 +26,7 @@ describe('ToolCallProcessor tool output offload', () => {
   const toolDefinition = {
     type: 'function',
     function: {
-      name: 'execute_command',
+      name: 'exec',
       description: 'execute command',
       parameters: {
         type: 'object',
@@ -65,7 +65,7 @@ describe('ToolCallProcessor tool output offload', () => {
     const events: any[] = []
     for await (const event of processor.process({
       eventId: 'event-1',
-      toolCalls: [{ id: 'tool-1', name: 'execute_command', arguments: '{}' }],
+      toolCalls: [{ id: 'tool-1', name: 'exec', arguments: '{}' }],
       enabledMcpTools: [],
       conversationMessages,
       modelConfig,
@@ -124,7 +124,7 @@ describe('ToolCallProcessor question tool', () => {
   const executeCommandDef = {
     type: 'function',
     function: {
-      name: 'execute_command',
+      name: 'exec',
       description: 'execute command',
       parameters: {
         type: 'object',
@@ -198,7 +198,7 @@ describe('ToolCallProcessor question tool', () => {
       eventId: 'event-question-2',
       toolCalls: [
         { id: 'tool-q1', name: 'deepchat_question', arguments: basicQuestionArgs },
-        { id: 'tool-2', name: 'execute_command', arguments: '{}' }
+        { id: 'tool-2', name: 'exec', arguments: '{}' }
       ],
       enabledMcpTools: [],
       conversationMessages,
@@ -234,7 +234,7 @@ describe('ToolCallProcessor batch permission pre-check', () => {
     const toolDefinition = {
       type: 'function',
       function: {
-        name: 'edit_file',
+        name: 'edit',
         description: 'edit file',
         parameters: {
           type: 'object',
@@ -254,7 +254,7 @@ describe('ToolCallProcessor batch permission pre-check', () => {
     }))
     const preCheckToolPermission = vi.fn(async () => ({
       needsPermission: true as const,
-      toolName: 'edit_file',
+      toolName: 'edit',
       serverName: 'agent-filesystem',
       permissionType: 'write' as const,
       description: 'Write access requires approval',
@@ -273,7 +273,7 @@ describe('ToolCallProcessor batch permission pre-check', () => {
     const conversationMessages: ChatMessage[] = [{ role: 'assistant', content: 'hello' }]
     const iterator = processor.process({
       eventId: 'event-batch-permission',
-      toolCalls: [{ id: 'tool-1', name: 'edit_file', arguments: '{"path":"src/main.ts"}' }],
+      toolCalls: [{ id: 'tool-1', name: 'edit', arguments: '{"path":"src/main.ts"}' }],
       enabledMcpTools: [],
       conversationMessages,
       modelConfig: { functionCall: true } as ModelConfig,
