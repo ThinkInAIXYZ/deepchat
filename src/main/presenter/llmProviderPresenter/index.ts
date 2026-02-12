@@ -225,9 +225,6 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     thinkingBudget?: number,
     reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high',
     verbosity?: 'low' | 'medium' | 'high',
-    enableSearch?: boolean,
-    forcedSearch?: boolean,
-    searchStrategy?: 'turbo' | 'max',
     conversationId?: string
   ): AsyncGenerator<LLMAgentEvent, void, unknown> {
     yield* this.agentLoopHandler.startStreamCompletion(
@@ -241,9 +238,6 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
       thinkingBudget,
       reasoningEffort,
       verbosity,
-      enableSearch,
-      forcedSearch,
-      searchStrategy,
       conversationId
     )
   }

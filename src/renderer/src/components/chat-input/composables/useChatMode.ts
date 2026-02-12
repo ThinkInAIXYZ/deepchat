@@ -6,16 +6,15 @@ import { useI18n } from 'vue-i18n'
 import { usePresenter } from '@/composables/usePresenter'
 import { CONFIG_EVENTS } from '@/events'
 
-export type ChatMode = 'chat' | 'agent' | 'acp agent'
+export type ChatMode = 'agent' | 'acp agent'
 
 const MODE_ICONS = {
-  chat: 'lucide:message-circle-more',
   agent: 'lucide:bot',
   'acp agent': 'lucide:bot-message-square'
 } as const
 
 // Shared state so all callers observe the same mode.
-const currentMode = ref<ChatMode>('chat')
+const currentMode = ref<ChatMode>('agent')
 const hasAcpAgents = ref<boolean>(false)
 let hasLoaded = false
 let loadPromise: Promise<void> | null = null
@@ -23,7 +22,7 @@ let modeUpdateVersion = 0
 let hasAcpListener = false
 
 /**
- * Manages chat mode selection (chat, agent, acp agent)
+ * Manages chat mode selection (agent, acp agent)
  * Similar to useInputSettings, stores mode in database via configPresenter
  */
 export function useChatMode() {
@@ -34,17 +33,13 @@ export function useChatMode() {
   // === Computed ===
   const currentIcon = computed(() => MODE_ICONS[currentMode.value])
   const currentLabel = computed(() => {
-    if (currentMode.value === 'chat') return t('chat.mode.chat')
     if (currentMode.value === 'agent') return t('chat.mode.agent')
     return t('chat.mode.acpAgent')
   })
-  const isAgentMode = computed(
-    () => currentMode.value === 'agent' || currentMode.value === 'acp agent'
-  )
+  const isAgentMode = computed(() => true)
 
   const modes = computed(() => {
     const allModes = [
-      { value: 'chat' as ChatMode, label: t('chat.mode.chat'), icon: MODE_ICONS.chat },
       { value: 'agent' as ChatMode, label: t('chat.mode.agent'), icon: MODE_ICONS.agent },
       {
         value: 'acp agent' as ChatMode,
@@ -106,12 +101,12 @@ export function useChatMode() {
 
       const saved = await configPresenter.getSetting<string>('input_chatMode')
       if (modeUpdateVersion === loadVersion) {
-        const savedMode = (saved as ChatMode) || 'chat'
-        // If saved mode is 'acp agent' but no agents are configured, fall back to 'chat'
+        const savedMode = (saved as ChatMode) || 'agent'
+        // If saved mode is 'acp agent' but no agents are configured, fall back to 'agent'
         if (savedMode === 'acp agent' && !hasAcpAgents.value) {
-          currentMode.value = 'chat'
+          currentMode.value = 'agent'
           // Save the fallback mode
-          await configPresenter.setSetting('input_chatMode', 'chat')
+          await configPresenter.setSetting('input_chatMode', 'agent')
         } else {
           currentMode.value = savedMode
         }
@@ -119,7 +114,7 @@ export function useChatMode() {
     } catch (error) {
       // Fall back to safe defaults on error
       if (modeUpdateVersion === loadVersion) {
-        currentMode.value = 'chat'
+        currentMode.value = 'agent'
       }
       console.error('Failed to load chat mode, using default:', error)
     } finally {
@@ -152,9 +147,9 @@ export function useChatMode() {
   watch(
     () => hasAcpAgents.value,
     (hasAgents) => {
-      // If current mode is 'acp agent' but agents are removed, switch to 'chat'
+      // If current mode is 'acp agent' but agents are removed, switch to 'agent'
       if (!hasAgents && currentMode.value === 'acp agent') {
-        setMode('chat')
+        setMode('agent')
       }
     }
   )

@@ -20,10 +20,6 @@ export class DashscopeProvider extends OpenAICompatibleProvider {
     return modelCapabilities.supportsReasoning(this.provider.id, modelId)
   }
 
-  private supportsEnableSearch(modelId: string): boolean {
-    return modelCapabilities.supportsSearch(this.provider.id, modelId)
-  }
-
   /**
    * Override coreStream method to support DashScope's enable_thinking and enable_search parameters
    */
@@ -39,12 +35,11 @@ export class DashscopeProvider extends OpenAICompatibleProvider {
     if (!modelId) throw new Error('Model ID is required')
 
     const shouldAddEnableThinking = this.supportsEnableThinking(modelId) && modelConfig?.reasoning
-    const shouldAddEnableSearch = this.supportsEnableSearch(modelId) && modelConfig?.enableSearch
 
-    if (shouldAddEnableThinking || shouldAddEnableSearch) {
+    if (shouldAddEnableThinking) {
       // Original create method
       const originalCreate = this.openai.chat.completions.create.bind(this.openai.chat.completions)
-      // Replace create method to add enable_thinking and enable_search parameters
+      // Replace create method to add enable_thinking parameter
       this.openai.chat.completions.create = ((params: any, options?: any) => {
         const modifiedParams = { ...params }
 
@@ -60,41 +55,11 @@ export class DashscopeProvider extends OpenAICompatibleProvider {
           }
         }
 
-        if (shouldAddEnableSearch) {
-          modifiedParams.enable_search = true
-          const dbSearch = modelCapabilities.getSearchDefaults(this.provider.id, modelId)
-          if (modelConfig?.forcedSearch ?? dbSearch.forced) {
-            modifiedParams.forced_search = true
-          }
-          const strategy = modelConfig?.searchStrategy ?? dbSearch.strategy
-          if (strategy) {
-            modifiedParams.search_strategy = strategy
-          }
-        }
-
         return originalCreate(modifiedParams, options)
-      }) as any
-
-      try {
-        const effectiveModelConfig = {
-          ...modelConfig,
-          reasoning: false,
-          enableSearch: false
-        }
-        yield* super.coreStream(
-          messages,
-          modelId,
-          effectiveModelConfig,
-          temperature,
-          maxTokens,
-          mcpTools
-        )
-      } finally {
-        this.openai.chat.completions.create = originalCreate
-      }
-    } else {
-      yield* super.coreStream(messages, modelId, modelConfig, temperature, maxTokens, mcpTools)
+      }) as typeof this.openai.chat.completions.create
     }
+
+    yield* super.coreStream(messages, modelId, modelConfig, temperature, maxTokens, mcpTools)
   }
 
   protected async fetchOpenAIModels(options?: { timeout: number }): Promise<MODEL_META[]> {

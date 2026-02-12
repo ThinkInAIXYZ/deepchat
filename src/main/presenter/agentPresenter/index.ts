@@ -13,11 +13,8 @@ import { STREAM_EVENTS } from '@/events'
 import { presenter } from '@/presenter'
 import type { SessionContextResolved } from './session/sessionContext'
 import type { SessionManager } from './session/sessionManager'
-import type { SearchPresenter } from '../searchPresenter'
-import type { SearchManager } from '../searchPresenter/managers/searchManager'
-import type { ThreadHandlerContext } from '../searchPresenter/handlers/baseHandler'
-import { SearchHandler } from '../searchPresenter/handlers/searchHandler'
 import { MessageManager } from '../sessionPresenter/managers/messageManager'
+import type { ThreadHandlerContext } from './types/handlerContext'
 import { CommandPermissionService } from '../permission/commandPermissionService'
 import { ContentBufferHandler } from './streaming/contentBufferHandler'
 import { LLMEventHandler } from './streaming/llmEventHandler'
@@ -34,7 +31,6 @@ type AgentPresenterDependencies = {
   sqlitePresenter: ISQLitePresenter
   llmProviderPresenter: ILlmProviderPresenter
   configPresenter: IConfigPresenter
-  searchPresenter: SearchPresenter
   commandPermissionService: CommandPermissionService
   messageManager?: MessageManager
 }
@@ -45,16 +41,12 @@ export class AgentPresenter implements IAgentPresenter {
   private sqlitePresenter: ISQLitePresenter
   private llmProviderPresenter: ILlmProviderPresenter
   private configPresenter: IConfigPresenter
-  private searchPresenter: SearchPresenter
-  private searchManager: SearchManager
   private messageManager: MessageManager
   private commandPermissionService: CommandPermissionService
   private generatingMessages: Map<string, GeneratingMessageState> = new Map()
-  private searchingMessages: Set<string> = new Set()
   private contentBufferHandler: ContentBufferHandler
   private toolCallHandler: ToolCallHandler
   private llmEventHandler: LLMEventHandler
-  private searchHandler: SearchHandler
   private streamGenerationHandler: StreamGenerationHandler
   private permissionHandler: PermissionHandler
   private utilityHandler: UtilityHandler
@@ -66,8 +58,6 @@ export class AgentPresenter implements IAgentPresenter {
     this.sqlitePresenter = options.sqlitePresenter
     this.llmProviderPresenter = options.llmProviderPresenter
     this.configPresenter = options.configPresenter
-    this.searchPresenter = options.searchPresenter
-    this.searchManager = options.searchPresenter.getSearchManager()
     this.messageManager = options.messageManager ?? new MessageManager(options.sqlitePresenter)
     this.commandPermissionService = options.commandPermissionService
 
@@ -79,8 +69,7 @@ export class AgentPresenter implements IAgentPresenter {
       sqlitePresenter: this.sqlitePresenter,
       messageManager: this.messageManager,
       llmProviderPresenter: this.llmProviderPresenter,
-      configPresenter: this.configPresenter,
-      searchManager: this.searchManager
+      configPresenter: this.configPresenter
     }
 
     this.contentBufferHandler = new ContentBufferHandler({
@@ -90,14 +79,12 @@ export class AgentPresenter implements IAgentPresenter {
 
     this.toolCallHandler = new ToolCallHandler({
       sqlitePresenter: this.sqlitePresenter,
-      searchingMessages: this.searchingMessages,
       commandPermissionHandler: this.commandPermissionService,
       streamUpdateScheduler: this.streamUpdateScheduler
     })
 
     this.llmEventHandler = new LLMEventHandler({
       generatingMessages: this.generatingMessages,
-      searchingMessages: this.searchingMessages,
       messageManager: this.messageManager,
       contentBufferHandler: this.contentBufferHandler,
       toolCallHandler: this.toolCallHandler,
@@ -105,15 +92,7 @@ export class AgentPresenter implements IAgentPresenter {
       onConversationUpdated: (state) => this.handleConversationUpdates(state)
     })
 
-    this.searchHandler = new SearchHandler(handlerContext, {
-      generatingMessages: this.generatingMessages,
-      searchingMessages: this.searchingMessages,
-      getSearchAssistantModel: () => this.searchPresenter.getSearchAssistantModel(),
-      getSearchAssistantProviderId: () => this.searchPresenter.getSearchAssistantProviderId()
-    })
-
     this.streamGenerationHandler = new StreamGenerationHandler(handlerContext, {
-      searchHandler: this.searchHandler,
       generatingMessages: this.generatingMessages,
       llmEventHandler: this.llmEventHandler
     })
@@ -131,12 +110,9 @@ export class AgentPresenter implements IAgentPresenter {
     this.utilityHandler = new UtilityHandler(handlerContext, {
       getActiveConversation: (tabId) => this.sessionPresenter.getActiveConversation(tabId),
       getActiveConversationId: (tabId) => this.sessionPresenter.getActiveConversationId(tabId),
-      getConversation: (conversationId) => this.sessionPresenter.getConversation(conversationId),
       createConversation: (title, settings, tabId) =>
         this.sessionPresenter.createConversation(title, settings, tabId),
-      streamGenerationHandler: this.streamGenerationHandler,
-      getSearchAssistantModel: () => this.searchPresenter.getSearchAssistantModel(),
-      getSearchAssistantProviderId: () => this.searchPresenter.getSearchAssistantProviderId()
+      streamGenerationHandler: this.streamGenerationHandler
     })
 
     // Legacy IPC surface: dynamic proxy for ISessionPresenter methods.
@@ -578,11 +554,6 @@ export class AgentPresenter implements IAgentPresenter {
     }
 
     this.contentBufferHandler.cleanupContentBuffer(state)
-
-    if (state.isSearching) {
-      this.searchingMessages.delete(messageId)
-      await this.searchManager.stopSearch(state.conversationId)
-    }
 
     state.message.content.forEach((block) => {
       if (

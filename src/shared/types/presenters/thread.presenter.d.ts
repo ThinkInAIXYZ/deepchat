@@ -21,7 +21,7 @@ export type CONVERSATION_SETTINGS = {
   reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
   verbosity?: 'low' | 'medium' | 'high'
   acpWorkdirMap?: Record<string, string | null>
-  chatMode?: 'chat' | 'agent' | 'acp agent'
+  chatMode?: 'agent' | 'acp agent'
   agentWorkspacePath?: string | null
   selectedVariantsMap?: Record<string, string>
   activeSkills?: string[]

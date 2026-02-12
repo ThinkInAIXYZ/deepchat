@@ -7,7 +7,7 @@ export type SessionStatus =
   | 'error'
 
 export type SessionContextResolved = {
-  chatMode: 'chat' | 'agent' | 'acp agent'
+  chatMode: 'agent' | 'acp agent'
   providerId: string
   modelId: string
   supportsVision: boolean

@@ -188,25 +188,6 @@
               <TooltipContent>{{ t('chat.input.fileSelect') }}</TooltipContent>
             </Tooltip>
 
-            <Tooltip v-if="canUseWebSearch">
-              <TooltipTrigger>
-                <Button
-                  variant="outline"
-                  :class="[
-                    'w-7 h-7 text-xs rounded-lg',
-                    variant === 'chat' ? 'text-accent-foreground' : '',
-                    settings.webSearch ? 'text-primary' : ''
-                  ]"
-                  :dir="langStore.dir"
-                  size="icon"
-                  @click="onWebSearchClick"
-                >
-                  <Icon icon="lucide:globe" class="w-4 h-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{{ t('chat.features.webSearch') }}</TooltipContent>
-            </Tooltip>
-
             <McpToolsList />
             <SkillsIndicator :conversation-id="conversationId" />
           </div>
@@ -575,12 +556,11 @@ const isCallActive = ref(false)
 // === Composable Integrations ===
 
 // Initialize settings management
-const { settings, setWebSearch, toggleWebSearch } = useInputSettings()
+const { settings } = useInputSettings()
 
 // Initialize chat mode management
 const chatMode = useChatMode()
 const modeSelectOpen = ref(false)
-const canUseWebSearch = computed(() => chatMode.currentMode.value === 'chat')
 
 // Initialize history composable first (needed for editor placeholder)
 const history = useInputHistory(null as any, t)
@@ -776,7 +756,7 @@ const emitSend = async () => {
       text: editorComposable.inputText.value.trim(),
       files: files.selectedFiles.value,
       links: [],
-      search: canUseWebSearch.value ? settings.value.webSearch : false,
+      search: false,
       think: settings.value.deepThinking,
       content: blocks
     }
@@ -792,11 +772,6 @@ const emitSend = async () => {
       editor.commands.focus()
     })
   }
-}
-
-const onWebSearchClick = async () => {
-  if (!canUseWebSearch.value) return
-  await toggleWebSearch()
 }
 
 const handleModeSelect = async (mode: ChatMode) => {
@@ -976,16 +951,6 @@ watch(isCallActive, (open) => {
     editor.setEditable(!open)
   }
 })
-
-watch(
-  () => [chatMode.currentMode.value, settings.value.webSearch] as const,
-  ([mode, webSearch]) => {
-    if (mode !== 'chat' && webSearch) {
-      void setWebSearch(false)
-    }
-  },
-  { immediate: true }
-)
 
 watch(
   () => [conversationId.value, chatStore.chatConfig.chatMode] as const,

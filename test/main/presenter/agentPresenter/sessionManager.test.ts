@@ -11,7 +11,7 @@ vi.mock('electron', () => ({
 const baseSettings = {
   providerId: 'provider-1',
   modelId: 'model-1',
-  chatMode: 'chat' as const,
+  chatMode: 'agent' as const,
   enabledMcpTools: [],
   acpWorkdirMap: {},
   agentWorkspacePath: null
@@ -31,7 +31,7 @@ const createManager = (conversation: ReturnType<typeof createConversation>) => {
     updateConversationSettings: vi.fn().mockResolvedValue(undefined)
   } as any
   const configPresenter = {
-    getSetting: vi.fn().mockReturnValue('chat'),
+    getSetting: vi.fn().mockReturnValue('agent'),
     getModelDefaultConfig: vi.fn().mockReturnValue({
       maxTokens: 0,
       contextLength: 0,
@@ -50,8 +50,8 @@ const createManager = (conversation: ReturnType<typeof createConversation>) => {
 }
 
 describe('SessionManager', () => {
-  it('returns chat mode without workspace when conversation is chat', async () => {
-    const conversation = createConversation({ chatMode: 'chat' })
+  it('migrates legacy chat mode to agent mode silently', async () => {
+    const conversation = createConversation({ chatMode: 'chat' as any })
     const { manager } = createManager(conversation)
 
     const context = await manager.resolveWorkspaceContext(
@@ -59,8 +59,8 @@ describe('SessionManager', () => {
       conversation.settings.modelId
     )
 
-    expect(context.chatMode).toBe('chat')
-    expect(context.agentWorkspacePath).toBeNull()
+    // Chat mode should be migrated to agent mode
+    expect(context.chatMode).toBe('agent')
   })
 
   it('generates and persists workspace path for agent mode', async () => {

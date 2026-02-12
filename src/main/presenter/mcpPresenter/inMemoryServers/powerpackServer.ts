@@ -3,7 +3,6 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprot
 import { z } from 'zod'
 import { zodToJsonSchema } from 'zod-to-json-schema'
 import { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
-import { ContentEnricher } from '@/presenter/content/contentEnricher'
 import { app } from 'electron'
 import path from 'path'
 import fs from 'fs'
@@ -28,10 +27,6 @@ const GetTimeArgsSchema = z.object({
     .optional()
     .default(0)
     .describe('Millisecond offset relative to current time, positive for future, negative for past')
-})
-
-const GetWebInfoArgsSchema = z.object({
-  url: z.string().url().describe('URL of the webpage to retrieve detailed information')
 })
 
 const RunNodeCodeArgsSchema = z.object({
@@ -446,19 +441,6 @@ export class PowerpackServer {
           }
         },
         {
-          name: 'get_web_info',
-          description:
-            'Get detailed content information from a specified webpage. Extract title, description, main content, and other information. ' +
-            'This tool is useful for analyzing webpage content, obtaining article summaries or details. ' +
-            'Just provide a valid HTTP or HTTPS URL to get complete webpage content analysis.',
-          inputSchema: zodToJsonSchema(GetWebInfoArgsSchema),
-          annotations: {
-            title: 'Get Web Info',
-            readOnlyHint: true,
-            openWorldHint: true
-          }
-        },
-        {
           name: 'run_shell_command',
           description:
             `${this.shellEnvironment.promptHint} ` +
@@ -485,8 +467,7 @@ export class PowerpackServer {
           inputSchema: zodToJsonSchema(E2BRunCodeArgsSchema),
           annotations: {
             title: 'Run Code (E2B)',
-            readOnlyHint: false,
-            openWorldHint: true
+            readOnlyHint: false
           }
         })
       } else {
@@ -541,42 +522,6 @@ export class PowerpackServer {
                 {
                   type: 'text',
                   text: this.formatRelativeTime(timeDescription, formattedTime)
-                }
-              ]
-            }
-          }
-
-          case 'get_web_info': {
-            const parsed = GetWebInfoArgsSchema.safeParse(args)
-            if (!parsed.success) {
-              throw new Error(`Invalid URL arguments: ${parsed.error}`)
-            }
-
-            const { url } = parsed.data
-            const enrichedData = await ContentEnricher.enrichUrl(url)
-
-            // 格式化网页内容为易读的格式
-            let formattedContent = `## Webpage Details\n\n`
-            formattedContent += `### Title\n${enrichedData.title || 'No Title'}\n\n`
-            formattedContent += `### URL\n${enrichedData.url}\n\n`
-
-            if (enrichedData.description) {
-              formattedContent += `### Description\n${enrichedData.description}\n\n`
-            }
-
-            if (enrichedData.content) {
-              const truncatedContent =
-                enrichedData.content.length > 1000
-                  ? enrichedData.content.substring(0, 1000) + '...(Content truncated)'
-                  : enrichedData.content
-              formattedContent += `### Main Content\n${truncatedContent}\n\n`
-            }
-
-            return {
-              content: [
-                {
-                  type: 'text',
-                  text: formattedContent
                 }
               ]
             }

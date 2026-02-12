@@ -164,8 +164,7 @@ export class GithubCopilotProvider extends BaseLLMProvider {
         maxTokens: m.maxTokens,
         vision: m.vision,
         functionCall: m.functionCall,
-        reasoning: m.reasoning,
-        enableSearch: m.enableSearch
+        reasoning: m.reasoning
       }))
     }
 

@@ -71,8 +71,6 @@ import { useThemeStore } from '@/stores/theme'
 import { useProviderStore } from '@/stores/providerStore'
 import { useModelStore } from '@/stores/modelStore'
 import { useOllamaStore } from '@/stores/ollamaStore'
-import { useSearchAssistantStore } from '@/stores/searchAssistantStore'
-import { useSearchEngineStore } from '@/stores/searchEngineStore'
 import { useMcpStore } from '@/stores/mcp'
 import { useMcpInstallDeeplinkHandler } from '../src/lib/storeInitializer'
 import { useFontManager } from '../src/composables/useFontManager'
@@ -93,8 +91,6 @@ const themeStore = useThemeStore()
 const providerStore = useProviderStore()
 const modelStore = useModelStore()
 const ollamaStore = useOllamaStore()
-const searchAssistantStore = useSearchAssistantStore()
-const searchEngineStore = useSearchEngineStore()
 const mcpStore = useMcpStore()
 const { setup: setupMcpDeeplink, cleanup: cleanupMcpDeeplink } = useMcpInstallDeeplinkHandler()
 // Register MCP deeplink listener immediately to avoid race with incoming IPC
@@ -174,9 +170,6 @@ const initializeSettingsStores = async () => {
     await providerStore.initialize()
     await modelStore.initialize()
     await ollamaStore.initialize?.()
-    await searchAssistantStore.initOrUpdateSearchAssistantModel()
-    await searchEngineStore.refreshSearchEngines()
-    searchEngineStore.setupSearchEnginesListener()
   } catch (error) {
     console.error('Failed to initialize settings stores', error)
   }

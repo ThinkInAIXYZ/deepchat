@@ -37,9 +37,6 @@ export function usePromptInputConfig() {
   const configSystemPrompt = ref(chatStore.chatConfig.systemPrompt)
   const configArtifacts = ref(chatStore.chatConfig.artifacts)
   const configThinkingBudget = ref(chatStore.chatConfig.thinkingBudget)
-  const configEnableSearch = ref(chatStore.chatConfig.enableSearch)
-  const configForcedSearch = ref(chatStore.chatConfig.forcedSearch)
-  const configSearchStrategy = ref(chatStore.chatConfig.searchStrategy)
   const configReasoningEffort = ref(chatStore.chatConfig.reasoningEffort)
   const configVerbosity = ref(chatStore.chatConfig.verbosity)
   const configModelType = ref<ModelType>(ModelType.Chat)
@@ -142,18 +139,6 @@ export function usePromptInputConfig() {
         configThinkingBudget.value = undefined
       }
 
-      if (config.enableSearch !== undefined && configEnableSearch.value === undefined) {
-        configEnableSearch.value = config.enableSearch
-      }
-
-      if (config.forcedSearch !== undefined && configForcedSearch.value === undefined) {
-        configForcedSearch.value = config.forcedSearch
-      }
-
-      if (config.searchStrategy !== undefined && configSearchStrategy.value === undefined) {
-        configSearchStrategy.value = config.searchStrategy
-      }
-
       if (config.reasoningEffort !== undefined) {
         if (configReasoningEffort.value === undefined) {
           configReasoningEffort.value = config.reasoningEffort
@@ -203,9 +188,6 @@ export function usePromptInputConfig() {
       configSystemPrompt.value !== currentConfig.systemPrompt ||
       configArtifacts.value !== currentConfig.artifacts ||
       configThinkingBudget.value !== currentConfig.thinkingBudget ||
-      configEnableSearch.value !== currentConfig.enableSearch ||
-      configForcedSearch.value !== currentConfig.forcedSearch ||
-      configSearchStrategy.value !== currentConfig.searchStrategy ||
       configReasoningEffort.value !== currentConfig.reasoningEffort ||
       configVerbosity.value !== currentConfig.verbosity
     ) {
@@ -216,9 +198,6 @@ export function usePromptInputConfig() {
         systemPrompt: configSystemPrompt.value,
         artifacts: configArtifacts.value,
         thinkingBudget: configThinkingBudget.value,
-        enableSearch: configEnableSearch.value,
-        forcedSearch: configForcedSearch.value,
-        searchStrategy: configSearchStrategy.value,
         reasoningEffort: configReasoningEffort.value,
         verbosity: configVerbosity.value
       } as any)
@@ -233,9 +212,6 @@ export function usePromptInputConfig() {
       configSystemPrompt,
       configArtifacts,
       configThinkingBudget,
-      configEnableSearch,
-      configForcedSearch,
-      configSearchStrategy,
       configReasoningEffort,
       configVerbosity
     ],
@@ -254,9 +230,6 @@ export function usePromptInputConfig() {
       configSystemPrompt.value = newConfig.systemPrompt
       configArtifacts.value = newConfig.artifacts
       configThinkingBudget.value = newConfig.thinkingBudget
-      configEnableSearch.value = newConfig.enableSearch
-      configForcedSearch.value = newConfig.forcedSearch
-      configSearchStrategy.value = newConfig.searchStrategy
       configReasoningEffort.value = newConfig.reasoningEffort
       configVerbosity.value = newConfig.verbosity
 
@@ -281,9 +254,6 @@ export function usePromptInputConfig() {
     configSystemPrompt,
     configArtifacts,
     configThinkingBudget,
-    configEnableSearch,
-    configForcedSearch,
-    configSearchStrategy,
     configReasoningEffort,
     configVerbosity,
     configModelType,

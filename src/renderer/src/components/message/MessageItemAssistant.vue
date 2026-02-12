@@ -38,11 +38,6 @@
             @toggle-collapse="handleCollapseToggle"
           />
           <MessageBlockPlan v-else-if="block.type === 'plan'" :block="block" />
-          <MessageBlockSearch
-            v-else-if="block.type === 'search'"
-            :message-id="currentMessage.id"
-            :block="block"
-          />
           <MessageBlockToolCall
             v-else-if="block.type === 'tool_call'"
             :block="block"
@@ -139,7 +134,6 @@ import { ref, computed, watch } from 'vue'
 import { AssistantMessage, AssistantMessageBlock } from '@shared/chat'
 import MessageBlockContent from './MessageBlockContent.vue'
 import MessageBlockThink from './MessageBlockThink.vue'
-import MessageBlockSearch from './MessageBlockSearch.vue'
 import MessageBlockToolCall from './MessageBlockToolCall.vue'
 import MessageBlockError from './MessageBlockError.vue'
 import MessageBlockPermissionRequest from './MessageBlockPermissionRequest.vue'

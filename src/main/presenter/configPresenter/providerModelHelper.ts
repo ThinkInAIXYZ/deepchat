@@ -92,14 +92,11 @@ export class ProviderModelHelper {
           model.functionCall !== undefined ? model.functionCall : config.functionCall || false
         model.reasoning =
           model.reasoning !== undefined ? model.reasoning : config.reasoning || false
-        model.enableSearch =
-          model.enableSearch !== undefined ? model.enableSearch : config.enableSearch || false
         model.type = model.type !== undefined ? model.type : config.type || ModelType.Chat
       } else {
         model.vision = model.vision || false
         model.functionCall = model.functionCall || false
         model.reasoning = model.reasoning || false
-        model.enableSearch = model.enableSearch || false
         model.type = model.type || ModelType.Chat
       }
       return model

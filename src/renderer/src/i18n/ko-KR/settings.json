@@ -49,10 +49,6 @@
     "loggingEnableDesc": "로그를 활성화하면 문제 진단 및 애플리케이션 개선에 도움이 됩니다. 로그 파일에는 민감한 정보가 포함될 수 있습니다.",
     "loggingDisableDesc": "로그를 비활성화하면 애플리케이션 로그 수집이 중지됩니다.",
     "loggingRestartNotice": "이 설정을 변경하면 프로그램이 재시작됩니다. 계속하시겠습니까?",
-    "webContentLengthLimit": "웹 콘텐츠 길이 제한",
-    "webContentLengthLimitHint": "(0으로 설정하면 제한 없음)",
-    "charactersUnit": "문자",
-    "webContentLengthLimitTooltip": "웹 페이지에서 추출할 텍스트 콘텐츠의 최대 길이(문자 수)를 설정합니다. 범위: 0-50000. 0으로 설정하면 제한 없이 전체 웹 콘텐츠를 가져옵니다. 큰 값을 설정하면 더 완전한 웹 콘텐츠를 가져올 수 있지만 처리 시간과 토큰 사용량이 증가할 수 있습니다.",
     "openLogFolder": "로그 폴더 열기",
     "shortcut": {
       "newChat": "새 채팅을 만듭니다",

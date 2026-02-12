@@ -87,9 +87,6 @@ export class ModelConfigHelper {
       reasoning: Boolean(model.reasoning?.supported ?? false),
       type: this.inferModelType(model),
       thinkingBudget: model.reasoning?.budget?.default ?? undefined,
-      enableSearch: Boolean(model.search?.supported ?? false),
-      forcedSearch: Boolean(model.search?.forced_search),
-      searchStrategy: model.search?.search_strategy === 'max' ? 'max' : 'turbo',
       reasoningEffort: (model.reasoning?.effort ?? undefined) as
         | 'minimal'
         | 'low'
@@ -382,9 +379,6 @@ export class ModelConfigHelper {
         type: ModelType.Chat,
         apiEndpoint: ApiEndpointType.Chat,
         thinkingBudget: undefined,
-        enableSearch: false,
-        forcedSearch: false,
-        searchStrategy: 'turbo',
         reasoningEffort: undefined,
         verbosity: undefined,
         maxCompletionTokens: undefined

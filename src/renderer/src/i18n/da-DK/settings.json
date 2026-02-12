@@ -48,10 +48,7 @@
     "loggingDialogTitle": "Bekræft ændring af logindstillinger",
     "loggingEnableDesc": "Aktivering af logning hjælper os med at diagnosticere problemer og forbedre appen. Logfiler kan indeholde følsomme oplysninger.",
     "loggingDisableDesc": "Deaktivering stopper indsamlingen af applogs.",
-    "webContentLengthLimit": "Grænse for webindholdslængde",
-    "webContentLengthLimitHint": "(Sæt til 0 for ingen grænse)",
     "charactersUnit": "tegn",
-    "webContentLengthLimitTooltip": "Angiv den maksimale længde på tekstindhold udtrukket fra websider (antal tegn), interval: 0-50000. Værdien 0 betyder ingen grænse og henter fuldt webindhold; højere værdier giver mere komplet indhold men kan øge behandlingstid og tokenforbrug.",
     "loggingRestartNotice": "Denne ændring genstarter applikationen. Vil du fortsætte?",
     "openLogFolder": "Åbn logmappe",
     "shortcut": {

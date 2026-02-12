@@ -44,7 +44,6 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Button } from '@shadcn/components/ui/button'
 import { useChatStore } from '@/stores/chat'
-import { useChatMode } from '@/components/chat-input/composables/useChatMode'
 import { useInputSettings } from '@/components/chat-input/composables/useInputSettings'
 import type { AssistantMessageBlock, UserMessageContent } from '@shared/chat'
 import type { QuestionOption } from '@shared/types/core/question'
@@ -57,7 +56,6 @@ const props = defineProps<{
 
 const { t } = useI18n()
 const chatStore = useChatStore()
-const chatMode = useChatMode()
 const { settings } = useInputSettings()
 
 const isProcessing = ref(false)
@@ -121,8 +119,6 @@ const options = computed<QuestionOption[]>(() => {
   return []
 })
 
-const canUseWebSearch = computed(() => chatMode.currentMode.value === 'chat')
-
 const handleOptionClick = async (label: string) => {
   if (isProcessing.value) return
   await submitMessage(label)
@@ -139,7 +135,7 @@ const submitMessage = async (text: string) => {
       text: trimmed,
       files: [],
       links: [],
-      search: canUseWebSearch.value ? settings.value.webSearch : false,
+      search: false,
       think: settings.value.deepThinking,
       content: [{ type: 'text', content: trimmed }]
     }

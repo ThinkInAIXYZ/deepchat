@@ -95,7 +95,6 @@
   "mode": {
     "acpAgent": "ACPエージェント",
     "agent": "エージェント",
-    "chat": "チャット",
     "current": "現在のモード: {モード}"
   },
   "workspace": {

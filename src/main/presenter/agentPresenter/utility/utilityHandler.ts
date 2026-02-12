@@ -4,13 +4,12 @@ import type {
   CONVERSATION_SETTINGS,
   LLMAgentEventData,
   MCPToolDefinition,
-  MESSAGE_METADATA,
-  MODEL_META
+  MESSAGE_METADATA
 } from '@shared/presenter'
 import type { AssistantMessageBlock, Message, UserMessageContent } from '@shared/chat'
 import { ModelType } from '@shared/model'
 import { presenter } from '@/presenter'
-import { BaseHandler, type ThreadHandlerContext } from '../../searchPresenter/handlers/baseHandler'
+import { BaseHandler, type ThreadHandlerContext } from '../types/handlerContext'
 import { buildUserMessageContext } from '../message/messageFormatter'
 import {
   buildConversationExportContent,
@@ -30,39 +29,30 @@ const DEFAULT_MESSAGE_LENGTH = 300
 export interface UtilityHandlerOptions {
   getActiveConversation: (tabId: number) => Promise<CONVERSATION | null>
   getActiveConversationId: (tabId: number) => Promise<string | null>
-  getConversation: (conversationId: string) => Promise<CONVERSATION>
   createConversation: (
     title: string,
     settings: Partial<CONVERSATION_SETTINGS>,
     tabId: number
   ) => Promise<string>
   streamGenerationHandler: StreamGenerationHandler
-  getSearchAssistantModel: () => MODEL_META | null
-  getSearchAssistantProviderId: () => string | null
 }
 
 export class UtilityHandler extends BaseHandler {
   private readonly getActiveConversation: (tabId: number) => Promise<CONVERSATION | null>
   private readonly getActiveConversationId: (tabId: number) => Promise<string | null>
-  private readonly getConversation: (conversationId: string) => Promise<CONVERSATION>
   private readonly createConversation: (
     title: string,
     settings: Partial<CONVERSATION_SETTINGS>,
     tabId: number
   ) => Promise<string>
   private readonly streamGenerationHandler: StreamGenerationHandler
-  private readonly getSearchAssistantModel: () => MODEL_META | null
-  private readonly getSearchAssistantProviderId: () => string | null
 
   constructor(context: ThreadHandlerContext, options: UtilityHandlerOptions) {
     super(context)
     this.getActiveConversation = options.getActiveConversation
     this.getActiveConversationId = options.getActiveConversationId
-    this.getConversation = options.getConversation
     this.createConversation = options.createConversation
     this.streamGenerationHandler = options.streamGenerationHandler
-    this.getSearchAssistantModel = options.getSearchAssistantModel
-    this.getSearchAssistantProviderId = options.getSearchAssistantProviderId
   }
 
   async translateText(text: string, tabId: number): Promise<string> {
@@ -236,9 +226,6 @@ export class UtilityHandler extends BaseHandler {
     if (!conversation) {
       throw new Error('Conversation not found')
     }
-    let summaryProviderId = conversation.settings.providerId
-    const modelId = this.getSearchAssistantModel()?.id
-    summaryProviderId = this.getSearchAssistantProviderId() || conversation.settings.providerId
 
     // Get context messages
     let messageCount = Math.ceil(conversation.settings.contextLength / DEFAULT_MESSAGE_LENGTH)
@@ -280,8 +267,8 @@ export class UtilityHandler extends BaseHandler {
       .filter((item) => item.formattedMessage.content.length > 0)
     const title = await this.ctx.llmProviderPresenter.summaryTitles(
       messagesWithLength.map((item) => item.formattedMessage),
-      summaryProviderId || conversation.settings.providerId,
-      modelId || conversation.settings.modelId
+      conversation.settings.providerId,
+      conversation.settings.modelId
     )
     let cleanedTitle = title.replace(/<think>.*?<\/think>/g, '').trim()
     cleanedTitle = cleanedTitle.replace(/^<think>/, '').trim()

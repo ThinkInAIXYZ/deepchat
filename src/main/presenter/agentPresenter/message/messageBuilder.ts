@@ -117,15 +117,13 @@ export async function preparePromptContent({
   promptTokens: number
 }> {
   const { systemPrompt, contextLength, artifacts, enabledMcpTools } = conversation.settings
-  const chatMode: 'chat' | 'agent' | 'acp agent' =
-    conversation.settings.chatMode ??
-    ((await presenter.configPresenter.getSetting('input_chatMode')) as
-      | 'chat'
-      | 'agent'
-      | 'acp agent') ??
-    'chat'
+  // Migrate legacy 'chat' mode to 'agent' mode silently
+  let chatMode: 'agent' | 'acp agent' =
+    (conversation.settings.chatMode as 'agent' | 'acp agent') ??
+    ((await presenter.configPresenter.getSetting('input_chatMode')) as 'agent' | 'acp agent') ??
+    'agent'
   const isAgentMode = chatMode === 'agent'
-  const isToolPromptMode = chatMode !== 'chat'
+  const isToolPromptMode = true // Always true now, no more 'chat' mode
 
   const isImageGeneration = modelType === ModelType.ImageGeneration
 

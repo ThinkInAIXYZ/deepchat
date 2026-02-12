@@ -14,7 +14,6 @@ import { ProviderChange, ProviderBatchUpdate } from './provider-operations'
 import type { AgentSessionLifecycleStatus } from './agent-provider'
 import type { IAgentPresenter } from './agent.presenter'
 import type { ISessionPresenter } from './session.presenter'
-import type { ISearchPresenter } from './search.presenter'
 import type { IConversationExporter } from './exporter.presenter'
 import type { IWorkspacePresenter } from './workspace'
 import type { IToolPresenter } from './tool.presenter'
@@ -161,9 +160,6 @@ export interface ModelConfig {
   // Whether this config is user-defined (true) or default config (false)
   isUserDefined?: boolean
   thinkingBudget?: number
-  enableSearch?: boolean
-  forcedSearch?: boolean
-  searchStrategy?: 'turbo' | 'max'
   // New parameters for GPT-5 series
   reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
   verbosity?: 'low' | 'medium' | 'high'
@@ -441,7 +437,6 @@ export interface IPresenter {
   llmproviderPresenter: ILlmProviderPresenter
   configPresenter: IConfigPresenter
   sessionPresenter: ISessionPresenter
-  searchPresenter: ISearchPresenter
   exporter: IConversationExporter
   agentPresenter: IAgentPresenter & ISessionPresenter
   devicePresenter: IDevicePresenter
@@ -725,7 +720,6 @@ export type RENDERER_MODEL_META = {
   vision?: boolean
   functionCall?: boolean
   reasoning?: boolean
-  enableSearch?: boolean
   type?: ModelType
   contextLength?: number
   maxTokens?: number
@@ -741,7 +735,6 @@ export type MODEL_META = {
   vision?: boolean
   functionCall?: boolean
   reasoning?: boolean
-  enableSearch?: boolean
   type?: ModelType
   contextLength?: number
   maxTokens?: number
@@ -988,9 +981,6 @@ export interface ILlmProviderPresenter {
     thinkingBudget?: number,
     reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high',
     verbosity?: 'low' | 'medium' | 'high',
-    enableSearch?: boolean,
-    forcedSearch?: boolean,
-    searchStrategy?: 'turbo' | 'max',
     conversationId?: string
   ): AsyncGenerator<LLMAgentEvent, void, unknown>
   generateCompletion(
@@ -1081,14 +1071,11 @@ export type CONVERSATION_SETTINGS = {
   artifacts: 0 | 1
   enabledMcpTools?: string[]
   thinkingBudget?: number
-  enableSearch?: boolean
-  forcedSearch?: boolean
-  searchStrategy?: 'turbo' | 'max'
   reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
   verbosity?: 'low' | 'medium' | 'high'
   selectedVariantsMap?: Record<string, string>
   acpWorkdirMap?: Record<string, string | null>
-  chatMode?: 'chat' | 'agent' | 'acp agent'
+  chatMode?: 'agent' | 'acp agent'
   agentWorkspacePath?: string | null
   activeSkills?: string[] // Activated skills for this conversation
 }
@@ -1173,7 +1160,6 @@ export interface IThreadPresenter {
   clearActiveThread(tabId: number): Promise<void>
   findTabForConversation(conversationId: string): Promise<number | null>
 
-  getSearchResults(messageId: string, searchId?: string): Promise<SearchResult[]>
   clearAllMessages(conversationId: string): Promise<void>
 
   // Message operations
@@ -1380,22 +1366,6 @@ export interface UpdateProgress {
   percent: number
   transferred: number
   total: number
-}
-
-export interface SearchResult {
-  title: string
-  url: string
-  rank: number
-  content?: string
-  icon?: string
-  favicon?: string
-  description?: string
-  searchId?: string
-}
-
-export interface ISearchPresenter {
-  init(): void
-  search(query: string, engine: 'google' | 'baidu'): Promise<SearchResult[]>
 }
 
 export type FileOperation = {

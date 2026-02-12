@@ -3,13 +3,14 @@ import type { SessionContextResolved } from './sessionContext'
 
 export type SessionResolveInput = {
   settings: CONVERSATION_SETTINGS
-  fallbackChatMode?: 'chat' | 'agent' | 'acp agent'
+  fallbackChatMode?: 'agent' | 'acp agent'
   modelConfig?: ModelConfig
 }
 
 export function resolveSessionContext(input: SessionResolveInput): SessionContextResolved {
   const { settings, modelConfig } = input
-  const chatMode = settings.chatMode || input.fallbackChatMode || 'chat'
+  // Migrate legacy 'chat' mode to 'agent' mode silently
+  const chatMode = settings.chatMode || input.fallbackChatMode || 'agent'
 
   return {
     chatMode,

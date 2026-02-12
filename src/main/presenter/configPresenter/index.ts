@@ -81,7 +81,6 @@ interface IAppSettings {
   loggingEnabled?: boolean // Whether logging is enabled
   floatingButtonEnabled?: boolean // Whether floating button is enabled
   default_system_prompt?: string // Default system prompt
-  webContentLengthLimit?: number // Web content truncation length limit, default 3000 characters
   updateChannel?: string // Update channel: 'stable' | 'beta'
   fontFamily?: string // Custom UI font
   codeFontFamily?: string // Custom code font
@@ -152,7 +151,6 @@ export class ConfigPresenter implements IConfigPresenter {
         fontFamily: '',
         codeFontFamily: '',
         default_system_prompt: '',
-        webContentLengthLimit: 3000,
         skillsPath: path.join(app.getPath('home'), '.deepchat', 'skills'),
         enableSkills: true,
         updateChannel: 'stable', // Default to stable version

@@ -95,7 +95,6 @@
   "mode": {
     "acpAgent": "ACP Agent",
     "agent": "Agent",
-    "chat": "聊天",
     "current": "當前模式：{mode}"
   },
   "workspace": {

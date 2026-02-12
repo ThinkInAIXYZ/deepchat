@@ -6,7 +6,7 @@ import type { CategorizedData } from '../../editor/mention/suggestion'
 
 export function useWorkspaceMention(options: {
   workspacePath: Ref<string | null>
-  chatMode: Ref<'chat' | 'agent' | 'acp agent'>
+  chatMode: Ref<'agent' | 'acp agent'>
   conversationId: Ref<string | null>
 }) {
   const workspacePresenter = usePresenter('workspacePresenter')

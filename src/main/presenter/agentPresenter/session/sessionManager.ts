@@ -12,7 +12,7 @@ import type {
 import { resolveSessionContext } from './sessionResolver'
 
 type WorkspaceContext = {
-  chatMode: 'chat' | 'agent' | 'acp agent'
+  chatMode: 'agent' | 'acp agent'
   agentWorkspacePath: string | null
 }
 
@@ -71,7 +71,6 @@ export class SessionManager {
   async resolveSession(agentId: string): Promise<SessionContextResolved> {
     const conversation = await this.options.sessionPresenter.getConversation(agentId)
     const fallbackChatMode = this.options.configPresenter.getSetting('input_chatMode') as
-      | 'chat'
       | 'agent'
       | 'acp agent'
       | undefined
@@ -112,10 +111,9 @@ export class SessionManager {
     if (!conversationId) {
       const fallbackChatMode =
         (this.options.configPresenter.getSetting('input_chatMode') as
-          | 'chat'
           | 'agent'
           | 'acp agent'
-          | undefined) ?? 'chat'
+          | undefined) ?? 'agent'
       return { chatMode: fallbackChatMode, agentWorkspacePath: null }
     }
 
@@ -137,10 +135,9 @@ export class SessionManager {
       console.warn('[SessionManager] Failed to resolve workspace context:', error)
       const fallbackChatMode =
         (this.options.configPresenter.getSetting('input_chatMode') as
-          | 'chat'
           | 'agent'
           | 'acp agent'
-          | undefined) ?? 'chat'
+          | undefined) ?? 'agent'
       return { chatMode: fallbackChatMode, agentWorkspacePath: null }
     }
   }
