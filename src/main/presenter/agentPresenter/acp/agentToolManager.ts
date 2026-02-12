@@ -225,7 +225,7 @@ export class AgentToolManager {
    * Get all Agent tool definitions in MCP format
    */
   async getAllToolDefinitions(context: {
-    chatMode: 'chat' | 'agent' | 'acp agent'
+    chatMode: 'agent' | 'acp agent'
     supportsVision: boolean
     agentWorkspacePath: string | null
     conversationId?: string

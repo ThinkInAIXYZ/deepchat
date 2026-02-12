@@ -127,13 +127,10 @@ export const useOllamaStore = defineStore('ollama', () => {
             modelConfig?.functionCall ?? existingModel?.functionCall ?? capabilitySet.has('tools'),
           reasoning:
             modelConfig?.reasoning ?? existingModel?.reasoning ?? capabilitySet.has('thinking'),
-          enableSearch: modelConfig?.enableSearch ?? existingModel?.enableSearch ?? false,
           temperature: modelConfig?.temperature ?? existingModel?.temperature,
           reasoningEffort: modelConfig?.reasoningEffort ?? existingModel?.reasoningEffort,
           verbosity: modelConfig?.verbosity ?? existingModel?.verbosity,
           thinkingBudget: modelConfig?.thinkingBudget ?? existingModel?.thinkingBudget,
-          forcedSearch: modelConfig?.forcedSearch ?? existingModel?.forcedSearch,
-          searchStrategy: modelConfig?.searchStrategy ?? existingModel?.searchStrategy,
           type: resolvedType,
           ollamaModel: model
         }

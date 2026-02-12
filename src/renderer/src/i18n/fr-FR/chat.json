@@ -95,8 +95,7 @@
   "mode": {
     "acpAgent": "Agent ACP",
     "agent": "Agent",
-    "chat": "chat",
-    "current": "Mode actuel : {mode}"
+    "current": "Mode actuel : {mode}"
   },
   "workspace": {
     "collapse": "fermer",

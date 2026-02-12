@@ -1,6 +1,5 @@
 interface EnhanceOptions {
   isImageGeneration?: boolean
-  isAgentMode?: boolean
   agentWorkspacePath?: string | null
   platform?: NodeJS.Platform
 }

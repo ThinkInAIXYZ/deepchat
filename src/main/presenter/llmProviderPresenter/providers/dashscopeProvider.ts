@@ -20,10 +20,6 @@ export class DashscopeProvider extends OpenAICompatibleProvider {
     return modelCapabilities.supportsReasoning(this.provider.id, modelId)
   }
 
-  private supportsEnableSearch(modelId: string): boolean {
-    return modelCapabilities.supportsSearch(this.provider.id, modelId)
-  }
-
   /**
    * Override coreStream method to support DashScope's enable_thinking and enable_search parameters
    */
@@ -39,61 +35,33 @@ export class DashscopeProvider extends OpenAICompatibleProvider {
     if (!modelId) throw new Error('Model ID is required')
 
     const shouldAddEnableThinking = this.supportsEnableThinking(modelId) && modelConfig?.reasoning
-    const shouldAddEnableSearch = this.supportsEnableSearch(modelId) && modelConfig?.enableSearch
+    const chatCompletions = this.openai.chat.completions
+    const originalCreate = chatCompletions.create
 
-    if (shouldAddEnableThinking || shouldAddEnableSearch) {
+    if (shouldAddEnableThinking) {
       // Original create method
-      const originalCreate = this.openai.chat.completions.create.bind(this.openai.chat.completions)
-      // Replace create method to add enable_thinking and enable_search parameters
-      this.openai.chat.completions.create = ((params: any, options?: any) => {
+      const originalCreateWithContext = originalCreate.bind(chatCompletions)
+      // Replace create method to add enable_thinking parameter
+      chatCompletions.create = ((params: any, options?: any) => {
         const modifiedParams = { ...params }
 
-        if (shouldAddEnableThinking) {
-          modifiedParams.enable_thinking = true
-          const dbBudget = modelCapabilities.getThinkingBudgetRange(
-            this.provider.id,
-            modelId
-          ).default
-          const budget = modelConfig?.thinkingBudget ?? dbBudget
-          if (typeof budget === 'number') {
-            modifiedParams.thinking_budget = budget
-          }
+        modifiedParams.enable_thinking = true
+        const dbBudget = modelCapabilities.getThinkingBudgetRange(this.provider.id, modelId).default
+        const budget = modelConfig?.thinkingBudget ?? dbBudget
+        if (typeof budget === 'number') {
+          modifiedParams.thinking_budget = budget
         }
 
-        if (shouldAddEnableSearch) {
-          modifiedParams.enable_search = true
-          const dbSearch = modelCapabilities.getSearchDefaults(this.provider.id, modelId)
-          if (modelConfig?.forcedSearch ?? dbSearch.forced) {
-            modifiedParams.forced_search = true
-          }
-          const strategy = modelConfig?.searchStrategy ?? dbSearch.strategy
-          if (strategy) {
-            modifiedParams.search_strategy = strategy
-          }
-        }
+        return originalCreateWithContext(modifiedParams, options)
+      }) as typeof chatCompletions.create
+    }
 
-        return originalCreate(modifiedParams, options)
-      }) as any
-
-      try {
-        const effectiveModelConfig = {
-          ...modelConfig,
-          reasoning: false,
-          enableSearch: false
-        }
-        yield* super.coreStream(
-          messages,
-          modelId,
-          effectiveModelConfig,
-          temperature,
-          maxTokens,
-          mcpTools
-        )
-      } finally {
-        this.openai.chat.completions.create = originalCreate
-      }
-    } else {
+    try {
       yield* super.coreStream(messages, modelId, modelConfig, temperature, maxTokens, mcpTools)
+    } finally {
+      if (shouldAddEnableThinking) {
+        chatCompletions.create = originalCreate
+      }
     }
   }
 

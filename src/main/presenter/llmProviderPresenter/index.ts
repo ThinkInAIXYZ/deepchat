@@ -145,6 +145,15 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     return this.providerInstanceManager.getExistingProviderInstance(providerId)
   }
 
+  async clearAcpSession(conversationId: string): Promise<void> {
+    const acpProvider = this.getExistingProviderInstance('acp') as
+      | { clearSession?: (conversationId: string) => Promise<void> }
+      | undefined
+    if (acpProvider?.clearSession) {
+      await acpProvider.clearSession(conversationId)
+    }
+  }
+
   async getModelList(providerId: string): Promise<MODEL_META[]> {
     return this.modelManager.getModelList(providerId)
   }
@@ -225,9 +234,6 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     thinkingBudget?: number,
     reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high',
     verbosity?: 'low' | 'medium' | 'high',
-    enableSearch?: boolean,
-    forcedSearch?: boolean,
-    searchStrategy?: 'turbo' | 'max',
     conversationId?: string
   ): AsyncGenerator<LLMAgentEvent, void, unknown> {
     yield* this.agentLoopHandler.startStreamCompletion(
@@ -241,9 +247,6 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
       thinkingBudget,
       reasoningEffort,
       verbosity,
-      enableSearch,
-      forcedSearch,
-      searchStrategy,
       conversationId
     )
   }

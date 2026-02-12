@@ -11,7 +11,6 @@ import {
   Part,
   SafetySetting,
   Tool,
-  GoogleSearch,
   GenerateContentConfig
 } from '@google/genai'
 import { ModelType } from '@shared/model'
@@ -817,13 +816,9 @@ export class GeminiProvider extends BaseLLMProvider {
     // 添加Gemini工具调用
     let geminiTools: Tool[] = []
 
-    // 注意：googleSearch内置工具与外部工具是互斥的
-    if (modelConfig.enableSearch) {
-      geminiTools.push({ googleSearch: {} as GoogleSearch })
-    } else {
-      if (mcpTools.length > 0)
-        geminiTools = await presenter.mcpPresenter.mcpToolsToGeminiTools(mcpTools, this.provider.id)
-    }
+    // Load MCP tools if available
+    if (mcpTools.length > 0)
+      geminiTools = await presenter.mcpPresenter.mcpToolsToGeminiTools(mcpTools, this.provider.id)
 
     // 格式化消息为Gemini格式
     const formattedParts = this.formatGeminiMessages(messages)

@@ -201,9 +201,6 @@ export interface ILlmProviderPresenter {
     thinkingBudget?: number,
     reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high',
     verbosity?: 'low' | 'medium' | 'high',
-    enableSearch?: boolean,
-    forcedSearch?: boolean,
-    searchStrategy?: 'turbo' | 'max',
     conversationId?: string
   ): AsyncGenerator<LLMAgentEvent, void, unknown>
   generateCompletion(
@@ -281,4 +278,5 @@ export interface ILlmProviderPresenter {
   } | null>
   runAcpDebugAction(request: AcpDebugRequest): Promise<AcpDebugRunResult>
   resolveAgentPermission(requestId: string, granted: boolean): Promise<void>
+  clearAcpSession(conversationId: string): Promise<void>
 }

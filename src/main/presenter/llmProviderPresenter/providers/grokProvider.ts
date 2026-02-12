@@ -13,16 +13,6 @@ export class GrokProvider extends OpenAICompatibleProvider {
   // Models that support reasoning_effort parameter (grok-4 does not)
   private static readonly REASONING_EFFORT_MODELS: string[] = ['grok-3-mini', 'grok-3-mini-fast']
 
-  // All Grok models support internet search according to the requirements
-  // Since all models support search, we don't need a specific list, but keeping it for consistency
-  private static readonly ENABLE_SEARCH_MODELS: string[] = [
-    'grok-4',
-    'grok-3-mini',
-    'grok-3-mini-fast',
-    'grok-2',
-    'grok-2-image'
-  ]
-
   constructor(provider: LLM_PROVIDER, configPresenter: IConfigPresenter) {
     super(provider, configPresenter)
   }
@@ -43,20 +33,6 @@ export class GrokProvider extends OpenAICompatibleProvider {
   private supportsReasoningEffort(modelId: string): boolean {
     return GrokProvider.REASONING_EFFORT_MODELS.some((model) =>
       modelId.toLowerCase().includes(model.toLowerCase())
-    )
-  }
-
-  /**
-   * Check if model supports internet search
-   * @param modelId Model ID
-   * @returns boolean Whether internet search is supported
-   */
-  private supportsEnableSearch(modelId: string): boolean {
-    const normalizedModelId = modelId.toLowerCase()
-    return (
-      GrokProvider.ENABLE_SEARCH_MODELS.some((supportedModel) =>
-        normalizedModelId.includes(supportedModel.toLowerCase())
-      ) || normalizedModelId.includes('grok')
     )
   }
 
@@ -209,10 +185,9 @@ export class GrokProvider extends OpenAICompatibleProvider {
       return
     }
 
-    // Handle reasoning models and search functionality
+    // Handle reasoning models
     const shouldAddReasoningEffort = this.isReasoningModel(modelId) && modelConfig?.reasoningEffort
-    const shouldAddEnableSearch = this.supportsEnableSearch(modelId) && modelConfig?.enableSearch
-    const needsParameterModification = shouldAddReasoningEffort || shouldAddEnableSearch
+    const needsParameterModification = shouldAddReasoningEffort
 
     if (needsParameterModification) {
       const originalCreate = this.openai.chat.completions.create.bind(this.openai.chat.completions)
@@ -224,21 +199,13 @@ export class GrokProvider extends OpenAICompatibleProvider {
           modifiedParams.reasoning_effort = modelConfig.reasoningEffort
         }
 
-        // Only add search parameters when search is explicitly enabled
-        if (shouldAddEnableSearch) {
-          modifiedParams.search_parameters = {
-            mode: 'on'
-          }
-        }
-
         return originalCreate(modifiedParams, options)
       }) as any
 
       try {
         const effectiveModelConfig = {
           ...modelConfig,
-          reasoningEffort: undefined,
-          enableSearch: false
+          reasoningEffort: undefined
         }
         yield* super.coreStream(
           messages,

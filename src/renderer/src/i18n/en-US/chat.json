@@ -94,7 +94,6 @@
   },
   "mode": {
     "current": "Current mode: {mode}",
-    "chat": "Chat",
     "agent": "Agent",
     "acpAgent": "ACP Agent"
   },

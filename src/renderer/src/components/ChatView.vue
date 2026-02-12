@@ -82,8 +82,8 @@ const chatStore = useChatStore()
 const workspaceStore = useWorkspaceStore()
 const cleanDialog = useCleanDialog()
 
-// Show workspace only in agent mode and when open
-const showWorkspace = computed(() => workspaceStore.isAgentMode && workspaceStore.isOpen)
+// Show workspace only when open
+const showWorkspace = computed(() => workspaceStore.isOpen)
 
 const messageList = ref()
 const chatInput = ref()

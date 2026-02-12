@@ -99,7 +99,7 @@ export class AgentLoopHandler {
   private async resolveWorkspaceContext(
     conversationId?: string,
     modelId?: string
-  ): Promise<{ chatMode: 'chat' | 'agent' | 'acp agent'; agentWorkspacePath: string | null }> {
+  ): Promise<{ chatMode: 'agent' | 'acp agent'; agentWorkspacePath: string | null }> {
     return presenter.sessionManager.resolveWorkspaceContext(conversationId, modelId)
   }
 
@@ -126,7 +126,7 @@ export class AgentLoopHandler {
 
   private async filterToolsForChatMode(
     tools: Awaited<ReturnType<ToolPresenter['getAllToolDefinitions']>>,
-    chatMode: 'chat' | 'agent' | 'acp agent',
+    chatMode: 'agent' | 'acp agent',
     agentId?: string
   ): Promise<Awaited<ReturnType<ToolPresenter['getAllToolDefinitions']>>> {
     if (chatMode !== 'acp agent') return tools
@@ -154,9 +154,6 @@ export class AgentLoopHandler {
     thinkingBudget?: number,
     reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high',
     verbosity?: 'low' | 'medium' | 'high',
-    enableSearch?: boolean,
-    forcedSearch?: boolean,
-    searchStrategy?: 'turbo' | 'max',
     conversationId?: string
   ): AsyncGenerator<LLMAgentEvent, void, unknown> {
     console.log(`[Agent Loop] Starting agent loop for event: ${eventId} with model: ${modelId}`)
@@ -183,15 +180,6 @@ export class AgentLoopHandler {
     }
     if (verbosity !== undefined) {
       modelConfig.verbosity = verbosity
-    }
-    if (enableSearch !== undefined) {
-      modelConfig.enableSearch = enableSearch
-    }
-    if (forcedSearch !== undefined) {
-      modelConfig.forcedSearch = forcedSearch
-    }
-    if (searchStrategy !== undefined) {
-      modelConfig.searchStrategy = searchStrategy
     }
     this.currentSupportsVision = Boolean(modelConfig?.vision)
 

@@ -80,9 +80,6 @@
               v-model:system-prompt="systemPrompt"
               v-model:artifacts="artifacts"
               v-model:thinking-budget="thinkingBudget"
-              v-model:enable-search="enableSearch"
-              v-model:forced-search="forcedSearch"
-              v-model:search-strategy="searchStrategy"
               v-model:reasoning-effort="reasoningEffort"
               v-model:verbosity="verbosity"
               :context-length-limit="contextLengthLimit"
@@ -162,9 +159,6 @@ const maxTokensLimit = ref(GLOBAL_OUTPUT_TOKEN_MAX)
 const systemPrompt = ref('')
 const artifacts = ref(uiSettingsStore.artifactsEffectEnabled ? 1 : 0)
 const thinkingBudget = ref<number | undefined>(undefined)
-const enableSearch = ref<boolean | undefined>(undefined)
-const forcedSearch = ref<boolean | undefined>(undefined)
-const searchStrategy = ref<'turbo' | 'max' | undefined>(undefined)
 const reasoningEffort = ref<'minimal' | 'low' | 'medium' | 'high' | undefined>(undefined)
 const verbosity = ref<'low' | 'medium' | 'high' | undefined>(undefined)
 
@@ -217,9 +211,6 @@ watch(
       maxTokens.value = config.maxTokens || GLOBAL_OUTPUT_TOKEN_MAX
     }
     thinkingBudget.value = config.thinkingBudget
-    enableSearch.value = config.enableSearch
-    forcedSearch.value = config.forcedSearch
-    searchStrategy.value = config.searchStrategy
     reasoningEffort.value = config.reasoningEffort
     verbosity.value = config.verbosity
     // console.log('temperature', temperature.value)
@@ -547,9 +538,6 @@ const handleSend = async (content: UserMessageContent) => {
     maxTokens: maxTokens.value,
     artifacts: artifacts.value as 0 | 1,
     thinkingBudget: thinkingBudget.value,
-    enableSearch: enableSearch.value,
-    forcedSearch: forcedSearch.value,
-    searchStrategy: searchStrategy.value,
     reasoningEffort: reasoningEffort.value,
     verbosity: verbosity.value,
     enabledMcpTools: chatStore.chatConfig.enabledMcpTools,

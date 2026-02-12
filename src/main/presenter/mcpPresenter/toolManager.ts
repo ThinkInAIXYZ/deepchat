@@ -421,9 +421,7 @@ export class ToolManager {
 
       // ACP agent-level MCP access control (only applies in "acp agent" chat mode)
       if (toolCall.conversationId) {
-        const chatMode = this.configPresenter.getSetting<'chat' | 'agent' | 'acp agent'>(
-          'input_chatMode'
-        )
+        const chatMode = this.configPresenter.getSetting<'agent' | 'acp agent'>('input_chatMode')
         if (chatMode === 'acp agent') {
           try {
             const conversation = await presenter.sessionPresenter.getConversation(

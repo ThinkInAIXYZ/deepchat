@@ -95,7 +95,6 @@
   "mode": {
     "acpAgent": "ACP 에이전트",
     "agent": "대리인",
-    "chat": "채팅",
     "current": "현재 모드: {mode}"
   },
   "workspace": {

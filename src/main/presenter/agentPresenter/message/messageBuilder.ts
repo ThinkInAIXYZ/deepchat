@@ -117,21 +117,21 @@ export async function preparePromptContent({
   promptTokens: number
 }> {
   const { systemPrompt, contextLength, artifacts, enabledMcpTools } = conversation.settings
-  const chatMode: 'chat' | 'agent' | 'acp agent' =
-    conversation.settings.chatMode ??
-    ((await presenter.configPresenter.getSetting('input_chatMode')) as
-      | 'chat'
-      | 'agent'
-      | 'acp agent') ??
-    'chat'
-  const isAgentMode = chatMode === 'agent'
-  const isToolPromptMode = chatMode !== 'chat'
+
+  function normalizeChatMode(mode: string | undefined): 'agent' | 'acp agent' | undefined {
+    if (mode === 'agent' || mode === 'acp agent') return mode
+    return undefined
+  }
+
+  const rawChatMode = conversation.settings.chatMode
+  const rawFallback = await presenter.configPresenter.getSetting<string>('input_chatMode')
+  const chatMode: 'agent' | 'acp agent' =
+    normalizeChatMode(rawChatMode) ?? normalizeChatMode(rawFallback) ?? 'agent'
 
   const isImageGeneration = modelType === ModelType.ImageGeneration
 
   const finalSystemPrompt = enhanceSystemPromptWithDateTime(systemPrompt, {
     isImageGeneration,
-    isAgentMode,
     agentWorkspacePath: conversation.settings.agentWorkspacePath?.trim() || null
   })
 
@@ -141,7 +141,7 @@ export async function preparePromptContent({
   let toolDefinitions: MCPToolDefinition[] = []
   let effectiveEnabledMcpTools = enabledMcpTools
 
-  if (!isImageGeneration && isAgentMode) {
+  if (!isImageGeneration && chatMode === 'agent') {
     const skillsAllowedTools = await getSkillsAllowedTools(conversation.id)
     effectiveEnabledMcpTools = mergeToolSelections(enabledMcpTools, skillsAllowedTools)
   }
@@ -167,7 +167,7 @@ export async function preparePromptContent({
   let envPrompt = ''
   let toolingPrompt = ''
 
-  if (!isImageGeneration && isAgentMode) {
+  if (!isImageGeneration && chatMode === 'agent') {
     runtimePrompt = buildRuntimeCapabilitiesPrompt()
     try {
       skillsMetadataPrompt = await buildSkillsMetadataPrompt()
@@ -187,7 +187,7 @@ export async function preparePromptContent({
     }
   }
 
-  if (!isImageGeneration && isToolPromptMode && toolDefinitions.length > 0) {
+  if (!isImageGeneration && toolDefinitions.length > 0) {
     toolingPrompt = toolCallCenter.buildToolSystemPrompt({
       conversationId: conversation.id
     })

@@ -367,9 +367,9 @@ const showCancelButton = computed(() => {
   return chatStore.generatingThreadIds.has(chatStore.getActiveThreadId() ?? '')
 })
 
-// Show workspace button only in agent mode when workspace is closed
+// Show workspace button when workspace is closed
 const showWorkspaceButton = computed(() => {
-  return workspaceStore.isAgentMode && !workspaceStore.isOpen
+  return !workspaceStore.isOpen
 })
 
 const handleOpenWorkspace = () => {

@@ -14,12 +14,6 @@ export interface ModelCapabilities {
     max?: number
     default?: number
   } | null
-  supportsSearch: boolean | null
-  searchDefaults: {
-    default?: boolean
-    forced?: boolean
-    strategy?: 'turbo' | 'max'
-  } | null
 }
 
 export interface UseModelCapabilitiesOptions {
@@ -42,20 +36,12 @@ export function useModelCapabilities(options: UseModelCapabilitiesOptions) {
     max?: number
     default?: number
   } | null>(null)
-  const capabilitySupportsSearch = ref<boolean | null>(null)
-  const capabilitySearchDefaults = ref<{
-    default?: boolean
-    forced?: boolean
-    strategy?: 'turbo' | 'max'
-  } | null>(null)
   const isLoading = ref(false)
 
   // === Internal Methods ===
   const resetCapabilities = () => {
     capabilitySupportsReasoning.value = null
     capabilityBudgetRange.value = null
-    capabilitySupportsSearch.value = null
-    capabilitySearchDefaults.value = null
   }
 
   const fetchCapabilities = async () => {
@@ -66,17 +52,13 @@ export function useModelCapabilities(options: UseModelCapabilitiesOptions) {
 
     isLoading.value = true
     try {
-      const [sr, br, ss, sd] = await Promise.all([
+      const [sr, br] = await Promise.all([
         configPresenter.supportsReasoningCapability?.(providerId.value, modelId.value),
-        configPresenter.getThinkingBudgetRange?.(providerId.value, modelId.value),
-        configPresenter.supportsSearchCapability?.(providerId.value, modelId.value),
-        configPresenter.getSearchDefaults?.(providerId.value, modelId.value)
+        configPresenter.getThinkingBudgetRange?.(providerId.value, modelId.value)
       ])
 
       capabilitySupportsReasoning.value = typeof sr === 'boolean' ? sr : null
       capabilityBudgetRange.value = br || {}
-      capabilitySupportsSearch.value = typeof ss === 'boolean' ? ss : null
-      capabilitySearchDefaults.value = sd || null
     } catch (error) {
       resetCapabilities()
       console.error(error)
@@ -93,8 +75,6 @@ export function useModelCapabilities(options: UseModelCapabilitiesOptions) {
     // Read-only state
     supportsReasoning: capabilitySupportsReasoning,
     budgetRange: capabilityBudgetRange,
-    supportsSearch: capabilitySupportsSearch,
-    searchDefaults: capabilitySearchDefaults,
     isLoading,
     // Methods
     refresh: fetchCapabilities

@@ -207,7 +207,6 @@ export const useModelStore = defineStore('model', () => {
           vision: config.vision ?? normalized.vision ?? false,
           functionCall: config.functionCall ?? normalized.functionCall ?? false,
           reasoning: config.reasoning ?? normalized.reasoning ?? false,
-          enableSearch: config.enableSearch ?? normalized.enableSearch ?? false,
           type: config.type ?? normalized.type ?? ModelType.Chat
         }
       }

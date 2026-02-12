@@ -21,7 +21,7 @@ export type CONVERSATION_SETTINGS = {
   reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
   verbosity?: 'low' | 'medium' | 'high'
   acpWorkdirMap?: Record<string, string | null>
-  chatMode?: 'chat' | 'agent' | 'acp agent'
+  chatMode?: 'agent' | 'acp agent'
   agentWorkspacePath?: string | null
   selectedVariantsMap?: Record<string, string>
   activeSkills?: string[]
@@ -147,6 +147,7 @@ export interface IThreadPresenter {
   }): Promise<number | null>
   getActiveConversation(tabId: number): Promise<CONVERSATION | null>
   getActiveConversationId(tabId: number): Promise<string | null>
+  getActiveConversationIdSync(tabId: number): string | null
   clearActiveThread(tabId: number): Promise<void>
   findTabForConversation(conversationId: string): Promise<number | null>
 

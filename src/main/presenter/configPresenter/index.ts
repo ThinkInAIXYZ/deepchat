@@ -81,7 +81,6 @@ interface IAppSettings {
   loggingEnabled?: boolean // Whether logging is enabled
   floatingButtonEnabled?: boolean // Whether floating button is enabled
   default_system_prompt?: string // Default system prompt
-  webContentLengthLimit?: number // Web content truncation length limit, default 3000 characters
   updateChannel?: string // Update channel: 'stable' | 'beta'
   fontFamily?: string // Custom UI font
   codeFontFamily?: string // Custom code font
@@ -152,7 +151,6 @@ export class ConfigPresenter implements IConfigPresenter {
         fontFamily: '',
         codeFontFamily: '',
         default_system_prompt: '',
-        webContentLengthLimit: 3000,
         skillsPath: path.join(app.getPath('home'), '.deepchat', 'skills'),
         enableSkills: true,
         updateChannel: 'stable', // Default to stable version
@@ -645,7 +643,6 @@ export class ConfigPresenter implements IConfigPresenter {
       vision: Array.isArray(m?.modalities?.input) ? m.modalities!.input!.includes('image') : false,
       functionCall: Boolean(m.tool_call),
       reasoning: Boolean(m.reasoning?.supported),
-      enableSearch: Boolean(m.search?.supported),
       type:
         Array.isArray(m?.modalities?.output) && m.modalities!.output!.includes('image')
           ? ModelType.ImageGeneration
@@ -700,8 +697,7 @@ export class ConfigPresenter implements IConfigPresenter {
             // Ensure capability properties are copied
             vision: model.vision || false,
             functionCall: model.functionCall || false,
-            reasoning: model.reasoning || false,
-            enableSearch: model.enableSearch || false
+            reasoning: model.reasoning || false
           }))
 
         return {

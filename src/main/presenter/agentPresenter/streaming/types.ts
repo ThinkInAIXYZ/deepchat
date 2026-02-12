@@ -10,7 +10,6 @@ export interface GeneratingMessageState {
   reasoningStartTime: number | null
   reasoningEndTime: number | null
   lastReasoningTime: number | null
-  isSearching?: boolean
   isCancelled?: boolean
   pendingToolCall?: PendingToolCall
   totalUsage?: {

@@ -3,7 +3,7 @@ import tippy from 'tippy.js'
 import { Ref, ref } from 'vue'
 
 import MentionList from './MentionList.vue'
-import { PromptListEntry, ResourceListEntry } from '@shared/presenter'
+import { MCPToolDefinition, PromptListEntry, ResourceListEntry } from '@shared/presenter'
 
 // Define the type for mention data items
 export interface CategorizedData {
@@ -13,7 +13,7 @@ export interface CategorizedData {
   type: 'item' | 'category' // 'category' kept for backward compatibility but not displayed
   category?: string
   description?: string
-  mcpEntry?: ResourceListEntry | PromptListEntry
+  mcpEntry?: ResourceListEntry | PromptListEntry | MCPToolDefinition
   content?: string
 }
 
@@ -69,26 +69,32 @@ export default {
     // So if user types "@", query is ""
     // If user types "@p", query is "p"
 
-    // Collect workspace results if enabled
+    // Collect workspace results if enabled (with fallback)
     let workspaceResults: CategorizedData[] = []
-    if (workspaceMentionHandler?.isEnabled.value) {
-      workspaceMentionHandler.searchWorkspaceFiles(query)
-      workspaceResults = workspaceMentionHandler.workspaceFileResults.value
+    try {
+      if (workspaceMentionHandler?.isEnabled.value) {
+        workspaceMentionHandler.searchWorkspaceFiles(query)
+        workspaceResults = workspaceMentionHandler.workspaceFileResults.value
+      }
+    } catch (error) {
+      console.warn('[Mention] Workspace search failed:', error)
     }
 
     // Collect other mention data (prompts, tools, files, resources)
     let otherItems: CategorizedData[] = []
-    if (query) {
-      // Search across all categories
-      for (const item of mentionData.value) {
-        if (item.label.toLowerCase().includes(query.toLowerCase())) {
-          otherItems.push(item)
+    try {
+      if (query) {
+        for (const item of mentionData.value) {
+          if (item.label.toLowerCase().includes(query.toLowerCase())) {
+            otherItems.push(item)
+          }
         }
+        otherItems = otherItems.slice(0, 5)
+      } else {
+        otherItems = mentionData.value
       }
-      otherItems = otherItems.slice(0, 5)
-    } else {
-      // If no query, return all mention data
-      otherItems = mentionData.value
+    } catch (error) {
+      console.warn('[Mention] Failed to get mention data:', error)
     }
 
     // Combine workspace results with other mention data

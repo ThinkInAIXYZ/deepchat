@@ -11,7 +11,7 @@ import { buildPostToolExecutionContext, type PendingToolCall } from '../message/
 import type { GeneratingMessageState } from '../streaming/types'
 import type { StreamGenerationHandler } from '../streaming/streamGenerationHandler'
 import type { LLMEventHandler } from '../streaming/llmEventHandler'
-import { BaseHandler, type ThreadHandlerContext } from '../../searchPresenter/handlers/baseHandler'
+import { BaseHandler, type ThreadHandlerContext } from '../types/handlerContext'
 import { CommandPermissionService } from '../../permission/commandPermissionService'
 import { eventBus, SendTarget } from '@/eventbus'
 import { STREAM_EVENTS } from '@/events'
@@ -71,7 +71,6 @@ function canBatchUpdate(
 
 export class PermissionHandler extends BaseHandler {
   private readonly generatingMessages: Map<string, GeneratingMessageState>
-  private readonly llmProviderPresenter: ILlmProviderPresenter
   private readonly getMcpPresenter: () => IMCPPresenter
   private readonly getToolPresenter: () => IToolPresenter
   private readonly streamGenerationHandler: StreamGenerationHandler
@@ -92,7 +91,6 @@ export class PermissionHandler extends BaseHandler {
   ) {
     super(context)
     this.generatingMessages = options.generatingMessages
-    this.llmProviderPresenter = options.llmProviderPresenter
     this.getMcpPresenter = options.getMcpPresenter
     this.getToolPresenter = options.getToolPresenter
     this.streamGenerationHandler = options.streamGenerationHandler
@@ -103,7 +101,6 @@ export class PermissionHandler extends BaseHandler {
 
   private assertDependencies(): void {
     void this.generatingMessages
-    void this.llmProviderPresenter
     void this.getMcpPresenter
     void this.getToolPresenter
     void this.streamGenerationHandler
@@ -1014,10 +1011,7 @@ export class PermissionHandler extends BaseHandler {
         enabledMcpTools,
         thinkingBudget,
         reasoningEffort,
-        verbosity,
-        enableSearch,
-        forcedSearch,
-        searchStrategy
+        verbosity
       } = conversation.settings
 
       const modelConfig = this.ctx.configPresenter.getModelConfig(modelId, providerId)
@@ -1051,9 +1045,6 @@ export class PermissionHandler extends BaseHandler {
         thinkingBudget,
         reasoningEffort,
         verbosity,
-        enableSearch,
-        forcedSearch,
-        searchStrategy,
         conversation.id
       )
 

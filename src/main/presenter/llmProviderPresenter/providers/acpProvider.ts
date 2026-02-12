@@ -221,6 +221,10 @@ export class AcpProvider extends BaseLLMProvider {
     await Promise.allSettled(tasks)
   }
 
+  public async clearSession(conversationId: string): Promise<void> {
+    await this.sessionManager.clearSession(conversationId)
+  }
+
   public async check(): Promise<{ isOk: boolean; errorMsg: string | null }> {
     const enabled = await this.configPresenter.getAcpEnabled()
     if (!enabled) {

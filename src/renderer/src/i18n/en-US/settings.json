@@ -48,10 +48,7 @@
     "loggingDialogTitle": "Confirm Logging Setting Change",
     "loggingEnableDesc": "Enabling logging will help us diagnose issues and improve the application. Log files may contain sensitive information.",
     "loggingDisableDesc": "Disabling logging will stop collecting application logs.",
-    "webContentLengthLimit": "Web Content Length Limit",
-    "webContentLengthLimitHint": "(Set to 0 for no limit)",
     "charactersUnit": "characters",
-    "webContentLengthLimitTooltip": "Set the maximum length of text content extracted from web pages (character count), range: 0-50000. Setting to 0 means no limit and retrieves complete web content; higher values provide more complete web content but may increase processing time and token usage.",
     "loggingRestartNotice": "Changing this setting will restart the application. Do you want to continue?",
     "openLogFolder": "Open Log Folder",
     "shortcut": {
@@ -238,23 +235,6 @@
         "description": "Does the model support reasoning ability?",
         "label": "Reasoning ability"
       },
-      "enableSearch": {
-        "label": "Web Search",
-        "description": "Enable the model to search the web for the latest information"
-      },
-      "forcedSearch": {
-        "label": "Forced Search",
-        "description": "Force the model to perform web search, when disabled the model decides automatically"
-      },
-      "searchStrategy": {
-        "label": "Search Strategy",
-        "description": "Choose search performance mode: turbo balances speed and effectiveness, max provides optimal search results",
-        "placeholder": "Select search strategy",
-        "options": {
-          "turbo": "Turbo - Balance response speed and search effectiveness (Recommended)",
-          "max": "Max - High performance mode, provides optimal search results"
-        }
-      },
       "thinkingBudget": {
         "label": "Thinking Budget",
         "description": "Set the maximum token length of the thinking process to control reasoning depth",
@@ -325,10 +305,6 @@
       "vision": {
         "description": "Does the model support visual ability?",
         "label": "Visual ability"
-      },
-      "searchLimit": {
-        "label": "Search limitation",
-        "description": "Model limitation: Enabling web search will disable tool function calls"
       },
       "apiEndpoint": {
         "description": "Select the OpenAI API endpoint used by this model.",

@@ -8,31 +8,27 @@ import type {
   UserMessage,
   UserMessageContent
 } from '@shared/chat'
-import type { CONVERSATION, MCPToolResponse, SearchResult } from '@shared/presenter'
+import type { CONVERSATION, MCPToolResponse } from '@shared/presenter'
 import { buildUserMessageContext, formatUserMessageContent } from '../message/messageFormatter'
 import { preparePromptContent } from '../message/messageBuilder'
 import type { GeneratingMessageState } from './types'
 import { presenter } from '@/presenter'
-import type { SearchHandler } from '../../searchPresenter/handlers/searchHandler'
-import { BaseHandler, type ThreadHandlerContext } from '../../searchPresenter/handlers/baseHandler'
+import { BaseHandler, type ThreadHandlerContext } from '../types/handlerContext'
 import type { LLMEventHandler } from './llmEventHandler'
 import { LoopOrchestrator } from '../loop/loopOrchestrator'
 
 interface StreamGenerationHandlerDeps {
-  searchHandler: SearchHandler
   generatingMessages: Map<string, GeneratingMessageState>
   llmEventHandler: LLMEventHandler
 }
 
 export class StreamGenerationHandler extends BaseHandler {
-  private readonly searchHandler: SearchHandler
   private readonly generatingMessages: Map<string, GeneratingMessageState>
   private readonly llmEventHandler: LLMEventHandler
   private readonly loopOrchestrator: LoopOrchestrator
 
   constructor(context: ThreadHandlerContext, deps: StreamGenerationHandlerDeps) {
     super(context)
-    this.searchHandler = deps.searchHandler
     this.generatingMessages = deps.generatingMessages
     this.llmEventHandler = deps.llmEventHandler
     this.loopOrchestrator = new LoopOrchestrator(this.llmEventHandler)
@@ -40,7 +36,6 @@ export class StreamGenerationHandler extends BaseHandler {
   }
 
   private assertDependencies(): void {
-    void this.searchHandler
     void this.generatingMessages
     void this.llmEventHandler
     void this.loopOrchestrator
@@ -93,30 +88,11 @@ export class StreamGenerationHandler extends BaseHandler {
 
       this.throwIfCancelled(state.message.id)
 
-      let searchResults: SearchResult[] | null = null
-      if ((userMessage.content as UserMessageContent).search) {
-        try {
-          searchResults = await this.searchHandler.startStreamSearch(
-            conversationId,
-            state.message.id,
-            userContent
-          )
-          this.throwIfCancelled(state.message.id)
-        } catch (error) {
-          if (String(error).includes('userCanceledGeneration')) {
-            return
-          }
-          console.error('[StreamGenerationHandler] Error during search:', error)
-        }
-      }
-
-      this.throwIfCancelled(state.message.id)
-
       const { finalContent, promptTokens } = await preparePromptContent({
         conversation,
         userContent,
         contextMessages,
-        searchResults,
+        searchResults: null,
         userMessage,
         vision: Boolean(modelConfig?.vision),
         imageFiles: modelConfig?.vision ? imageFiles : [],
@@ -139,10 +115,7 @@ export class StreamGenerationHandler extends BaseHandler {
         enabledMcpTools: currentEnabledMcpTools,
         thinkingBudget: currentThinkingBudget,
         reasoningEffort: currentReasoningEffort,
-        verbosity: currentVerbosity,
-        enableSearch: currentEnableSearch,
-        forcedSearch: currentForcedSearch,
-        searchStrategy: currentSearchStrategy
+        verbosity: currentVerbosity
       } = currentConversation.settings
 
       try {
@@ -169,9 +142,6 @@ export class StreamGenerationHandler extends BaseHandler {
         currentThinkingBudget,
         currentReasoningEffort,
         currentVerbosity,
-        currentEnableSearch,
-        currentForcedSearch,
-        currentSearchStrategy,
         conversationId
       )
 
@@ -267,10 +237,7 @@ export class StreamGenerationHandler extends BaseHandler {
         enabledMcpTools,
         thinkingBudget,
         reasoningEffort,
-        verbosity,
-        enableSearch,
-        forcedSearch,
-        searchStrategy
+        verbosity
       } = conversation.settings
       const modelConfig = this.ctx.configPresenter.getModelConfig(modelId, providerId)
       if (!modelConfig) {
@@ -354,9 +321,6 @@ export class StreamGenerationHandler extends BaseHandler {
         thinkingBudget,
         reasoningEffort,
         verbosity,
-        enableSearch,
-        forcedSearch,
-        searchStrategy,
         conversationId
       )
 
@@ -489,9 +453,7 @@ export class StreamGenerationHandler extends BaseHandler {
       }
     }
 
-    const webSearchEnabled = this.ctx.configPresenter.getSetting('input_webSearch') as boolean
     const thinkEnabled = this.ctx.configPresenter.getSetting('input_deepThinking') as boolean
-    ;(userMessage.content as UserMessageContent).search = webSearchEnabled
     ;(userMessage.content as UserMessageContent).think = thinkEnabled
 
     return { conversation, userMessage, contextMessages }
@@ -635,14 +597,6 @@ export class StreamGenerationHandler extends BaseHandler {
 
   async getMessageHistory(messageId: string, limit: number = 100): Promise<Message[]> {
     return this.ctx.messageManager.getMessageHistory(messageId, limit)
-  }
-
-  private async getConversation(conversationId: string): Promise<CONVERSATION> {
-    const conversation = await this.ctx.sqlitePresenter.getConversation(conversationId)
-    if (!conversation) {
-      throw new Error('conversation not found')
-    }
-    return conversation
   }
 
   private async getContextMessages(conversation: CONVERSATION): Promise<Message[]> {

@@ -48,11 +48,8 @@
     "loggingDialogTitle": "確認日誌設定變更",
     "loggingEnableDesc": "啟用日誌將幫助我們診斷問題並改進應用程式。日誌檔案可能包含敏感資訊。",
     "loggingDisableDesc": "停用日誌將停止收集應用程式日誌。",
-    "loggingRestartNotice": "切換此設定將會重新啟動應用程式，請問您是否要繼續？",
-    "webContentLengthLimit": "網頁內容長度限制",
-    "webContentLengthLimitHint": "（設定為0表示不限制）",
     "charactersUnit": "字元",
-    "webContentLengthLimitTooltip": "設定從網頁擷取的文字內容長度上限（字元數），範圍：0-50000。設定為0表示不限制長度，取得完整網頁內容；較大的值可以取得更完整的網頁內容，但可能增加處理時間和token消耗。",
+    "loggingRestartNotice": "切換此設定將會重新啟動應用程式，請問您是否要繼續？",
     "openLogFolder": "打開日誌文件夾",
     "shortcut": {
       "newChat": "新建聊天",
@@ -238,23 +235,6 @@
         "description": "模型是否支持推理能力",
         "label": "推理能力"
       },
-      "enableSearch": {
-        "label": "聯網搜尋",
-        "description": "開啟後模型可以聯網搜尋獲取最新資訊"
-      },
-      "forcedSearch": {
-        "label": "強制搜尋",
-        "description": "開啟後強制模型進行聯網搜尋，關閉時由模型自行決定"
-      },
-      "searchStrategy": {
-        "label": "搜尋策略",
-        "description": "選擇搜尋性能模式：turbo 兼顧速度與效果，max 提供最優搜尋效果",
-        "placeholder": "選擇搜尋策略",
-        "options": {
-          "turbo": "Turbo - 兼顧回應速度與搜尋效果（推薦）",
-          "max": "Max - 高性能模式，提供最優搜尋效果"
-        }
-      },
       "thinkingBudget": {
         "label": "思考預算",
         "description": "設定思考過程的最大 token 長度，用於控制模型推理深度",
@@ -325,10 +305,6 @@
       "vision": {
         "description": "模型是否支持視覺能力",
         "label": "視覺能力"
-      },
-      "searchLimit": {
-        "label": "搜尋限制",
-        "description": "模型限制: 啟用網路搜尋將使工具函數呼叫失效"
       },
       "apiEndpoint": {
         "description": "選擇此模型使用的 OpenAI API 端點。",

@@ -48,11 +48,8 @@
     "loggingDialogTitle": "로그 설정 변경 확인",
     "loggingEnableDesc": "로그를 활성화하면 문제 진단 및 애플리케이션 개선에 도움이 됩니다. 로그 파일에는 민감한 정보가 포함될 수 있습니다.",
     "loggingDisableDesc": "로그를 비활성화하면 애플리케이션 로그 수집이 중지됩니다.",
-    "loggingRestartNotice": "이 설정을 변경하면 프로그램이 재시작됩니다. 계속하시겠습니까?",
-    "webContentLengthLimit": "웹 콘텐츠 길이 제한",
-    "webContentLengthLimitHint": "(0으로 설정하면 제한 없음)",
     "charactersUnit": "문자",
-    "webContentLengthLimitTooltip": "웹 페이지에서 추출할 텍스트 콘텐츠의 최대 길이(문자 수)를 설정합니다. 범위: 0-50000. 0으로 설정하면 제한 없이 전체 웹 콘텐츠를 가져옵니다. 큰 값을 설정하면 더 완전한 웹 콘텐츠를 가져올 수 있지만 처리 시간과 토큰 사용량이 증가할 수 있습니다.",
+    "loggingRestartNotice": "이 설정을 변경하면 프로그램이 재시작됩니다. 계속하시겠습니까?",
     "openLogFolder": "로그 폴더 열기",
     "shortcut": {
       "newChat": "새 채팅을 만듭니다",
@@ -238,23 +235,6 @@
         "description": "모델이 추론 능력을 지원합니까?",
         "label": "추론 능력"
       },
-      "enableSearch": {
-        "label": "웹 검색",
-        "description": "모델이 웹을 검색하여 최신 정보를 얻을 수 있도록 활성화"
-      },
-      "forcedSearch": {
-        "label": "강제 검색",
-        "description": "모델이 웹 검색을 강제 수행하도록, 비활성화시 모델이 자동으로 결정"
-      },
-      "searchStrategy": {
-        "label": "검색 전략",
-        "description": "검색 성능 모드 선택: turbo는 속도와 효과의 균형, max는 최적의 검색 결과 제공",
-        "placeholder": "검색 전략 선택",
-        "options": {
-          "turbo": "Turbo - 응답 속도와 검색 효과의 균형 (권장)",
-          "max": "Max - 고성능 모드, 최적의 검색 결과 제공"
-        }
-      },
       "thinkingBudget": {
         "label": "사고 예산",
         "description": "사고 과정의 최대 토큰 길이를 설정하여 추론 깊이를 제어",
@@ -325,10 +305,6 @@
       "vision": {
         "description": "모델이 시각적 능력을 지원합니까?",
         "label": "시각적 능력"
-      },
-      "searchLimit": {
-        "label": "검색 제한",
-        "description": "모델 제한: 네트워크 검색을 활성화하면 도구 함수 호출이 비활성화됩니다"
       },
       "apiEndpoint": {
         "description": "이 모델이 사용하는 OpenAI API 엔드포인트를 선택하세요.",

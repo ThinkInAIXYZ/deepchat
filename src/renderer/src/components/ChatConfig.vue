@@ -13,17 +13,14 @@ import {
   TooltipProvider,
   TooltipTrigger
 } from '@shadcn/components/ui/tooltip'
-import ConfigFieldHeader from './ChatConfig/ConfigFieldHeader.vue'
 import ConfigSliderField from './ChatConfig/ConfigSliderField.vue'
 import ConfigInputField from './ChatConfig/ConfigInputField.vue'
 import ConfigSelectField from './ChatConfig/ConfigSelectField.vue'
-import ConfigSwitchField from './ChatConfig/ConfigSwitchField.vue'
 
 // === Composables ===
 import { usePresenter } from '@/composables/usePresenter'
 import { useModelCapabilities } from '@/composables/useModelCapabilities'
 import { useThinkingBudget } from '@/composables/useThinkingBudget'
-import { useSearchConfig } from '@/composables/useSearchConfig'
 import { useModelTypeDetection } from '@/composables/useModelTypeDetection'
 import { useChatConfigFields } from '@/composables/useChatConfigFields'
 
@@ -39,9 +36,6 @@ const props = defineProps<{
   maxTokens: number
   artifacts: number
   thinkingBudget?: number
-  enableSearch?: boolean
-  forcedSearch?: boolean
-  searchStrategy?: 'turbo' | 'max'
   modelId?: string
   providerId?: string
   reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
@@ -56,9 +50,6 @@ const emit = defineEmits<{
   'update:contextLength': [value: number]
   'update:maxTokens': [value: number]
   'update:thinkingBudget': [value: number | undefined]
-  'update:enableSearch': [value: boolean | undefined]
-  'update:forcedSearch': [value: boolean | undefined]
-  'update:searchStrategy': [value: 'turbo' | 'max' | undefined]
   'update:reasoningEffort': [value: 'minimal' | 'low' | 'medium' | 'high']
   'update:verbosity': [value: 'low' | 'medium' | 'high']
 }>()
@@ -93,12 +84,6 @@ const thinkingBudget = useThinkingBudget({
   isGeminiProvider: modelTypeDetection.isGeminiProvider
 })
 
-// Search config
-const searchConfig = useSearchConfig({
-  supportsSearch: capabilities.supportsSearch,
-  searchDefaults: capabilities.searchDefaults
-})
-
 // === Utility Functions ===
 
 /**
@@ -124,9 +109,6 @@ const { sliderFields, inputFields, selectFields } = useChatConfigFields({
   thinkingBudget: toRef(props, 'thinkingBudget'),
   reasoningEffort: toRef(props, 'reasoningEffort'),
   verbosity: toRef(props, 'verbosity'),
-  enableSearch: toRef(props, 'enableSearch'),
-  forcedSearch: toRef(props, 'forcedSearch'),
-  searchStrategy: toRef(props, 'searchStrategy'),
   providerId: toRef(props, 'providerId'),
 
   // Composables
@@ -135,9 +117,6 @@ const { sliderFields, inputFields, selectFields } = useChatConfigFields({
   showThinkingBudget: thinkingBudget.showThinkingBudget,
   thinkingBudgetError: thinkingBudget.validationError,
   budgetRange: capabilities.budgetRange,
-  showSearchConfig: searchConfig.showSearchConfig,
-  hasForcedSearchOption: searchConfig.hasForcedSearchOption,
-  hasSearchStrategyOption: searchConfig.hasSearchStrategyOption,
 
   // Utils
   formatSize,
@@ -234,51 +213,9 @@ const modelTypeIcon = computed(() => {
         @update:model-value="field.setValue"
       />
 
-      <!-- Search Configuration (nested switches and select) -->
-      <div v-if="searchConfig.showSearchConfig.value" class="space-y-4 px-2">
-        <ConfigFieldHeader
-          icon="lucide:search"
-          :label="t('settings.model.modelConfig.enableSearch.label')"
-          :description="t('settings.model.modelConfig.enableSearch.description')"
-        />
-
-        <div class="space-y-3 pl-4 border-l-2 border-muted">
-          <!-- Enable Search Toggle -->
-          <ConfigSwitchField
-            :model-value="props.enableSearch ?? false"
-            :label="t('settings.model.modelConfig.enableSearch.label')"
-            @update:model-value="(val) => emit('update:enableSearch', val)"
-          />
-
-          <!-- Forced Search -->
-          <ConfigSwitchField
-            v-if="props.enableSearch && searchConfig.hasForcedSearchOption.value"
-            :model-value="props.forcedSearch ?? false"
-            :label="t('settings.model.modelConfig.forcedSearch.label')"
-            @update:model-value="(val) => emit('update:forcedSearch', val)"
-          />
-
-          <!-- Search Strategy (from select fields) -->
-          <template v-if="props.enableSearch && searchConfig.hasSearchStrategyOption.value">
-            <ConfigSelectField
-              v-for="field in selectFields.filter((f) => f.key === 'searchStrategy')"
-              :key="field.key"
-              :model-value="field.getValue()"
-              :icon="field.icon"
-              :label="field.label"
-              :description="field.description"
-              :options="typeof field.options === 'function' ? field.options() : field.options"
-              :placeholder="field.placeholder"
-              :hint="field.hint"
-              @update:model-value="field.setValue"
-            />
-          </template>
-        </div>
-      </div>
-
       <!-- Select Fields (Reasoning Effort, Verbosity) -->
       <ConfigSelectField
-        v-for="field in selectFields.filter((f) => f.key !== 'searchStrategy')"
+        v-for="field in selectFields"
         :key="field.key"
         :model-value="field.getValue()"
         :icon="field.icon"

@@ -34,10 +34,6 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   let fileRefreshDebounceTimer: ReturnType<typeof setTimeout> | null = null
 
   // === Computed Properties ===
-  const isAgentMode = computed(
-    () => chatMode.currentMode.value === 'agent' || chatMode.currentMode.value === 'acp agent'
-  )
-
   const currentWorkspacePath = computed(() => {
     // For acp agent mode, use ACP workdir
     if (chatMode.currentMode.value === 'acp agent') {
@@ -288,7 +284,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     window.electron.ipcRenderer.on(
       WORKSPACE_EVENTS.FILES_CHANGED,
       (_, payload: { conversationId: string }) => {
-        if (payload.conversationId === chatStore.getActiveThreadId() && isAgentMode.value) {
+        if (payload.conversationId === chatStore.getActiveThreadId()) {
           debouncedRefreshFileTree()
         }
       }
@@ -302,7 +298,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     async (newId) => {
       if (newId !== lastSyncedConversationId.value) {
         lastSyncedConversationId.value = newId ?? null
-        if (newId && isAgentMode.value) {
+        if (newId) {
           await Promise.all([refreshPlanEntries(), refreshFileTree()])
         } else {
           clearData()
@@ -319,24 +315,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
         lastSuccessfulWorkspace.value = null
       }
 
-      if (isAgentMode.value && workspacePath) {
+      if (workspacePath) {
         refreshFileTree()
-      }
-    },
-    { immediate: true }
-  )
-
-  // Watch for Agent mode changes
-  watch(
-    isAgentMode,
-    (isAgent) => {
-      if (isAgent) {
-        setOpen(true)
-        refreshFileTree()
-        refreshPlanEntries()
-      } else {
-        setOpen(false)
-        clearData()
       }
     },
     { immediate: true }
@@ -344,6 +324,9 @@ export const useWorkspaceStore = defineStore('workspace', () => {
 
   // Initialize event listeners
   setupEventListeners()
+
+  // Initialize workspace on first load
+  setOpen(true)
 
   return {
     // State
@@ -354,7 +337,6 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     terminalSnippets,
     expandedSnippetIds,
     // Computed
-    isAgentMode,
     currentWorkspacePath,
     completedPlanCount,
     totalPlanCount,
