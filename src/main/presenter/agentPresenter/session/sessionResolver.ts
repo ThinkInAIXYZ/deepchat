@@ -13,10 +13,10 @@ export type SessionResolveResult = SessionContextResolved & {
   needsMigration?: boolean
 }
 
-function normalizeChatMode(mode: string | undefined): ChatMode {
+function validateChatMode(mode: string | undefined): ChatMode | undefined {
   if (mode === 'acp agent') return 'acp agent'
   if (mode === 'agent') return 'agent'
-  return 'agent'
+  return undefined
 }
 
 function isLegacyChatMode(mode: string | undefined): boolean {
@@ -31,7 +31,7 @@ export function resolveSessionContext(input: SessionResolveInput): SessionResolv
 
   const settingsNeedsMigration = isLegacyChatMode(rawChatMode)
 
-  const chatMode = normalizeChatMode(rawChatMode) ?? normalizeChatMode(rawFallback) ?? 'agent'
+  const chatMode = validateChatMode(rawChatMode) ?? validateChatMode(rawFallback) ?? 'agent'
 
   return {
     chatMode,
