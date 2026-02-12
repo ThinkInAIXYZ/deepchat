@@ -35,31 +35,34 @@ export class DashscopeProvider extends OpenAICompatibleProvider {
     if (!modelId) throw new Error('Model ID is required')
 
     const shouldAddEnableThinking = this.supportsEnableThinking(modelId) && modelConfig?.reasoning
+    const chatCompletions = this.openai.chat.completions
+    const originalCreate = chatCompletions.create
 
     if (shouldAddEnableThinking) {
       // Original create method
-      const originalCreate = this.openai.chat.completions.create.bind(this.openai.chat.completions)
+      const originalCreateWithContext = originalCreate.bind(chatCompletions)
       // Replace create method to add enable_thinking parameter
-      this.openai.chat.completions.create = ((params: any, options?: any) => {
+      chatCompletions.create = ((params: any, options?: any) => {
         const modifiedParams = { ...params }
 
-        if (shouldAddEnableThinking) {
-          modifiedParams.enable_thinking = true
-          const dbBudget = modelCapabilities.getThinkingBudgetRange(
-            this.provider.id,
-            modelId
-          ).default
-          const budget = modelConfig?.thinkingBudget ?? dbBudget
-          if (typeof budget === 'number') {
-            modifiedParams.thinking_budget = budget
-          }
+        modifiedParams.enable_thinking = true
+        const dbBudget = modelCapabilities.getThinkingBudgetRange(this.provider.id, modelId).default
+        const budget = modelConfig?.thinkingBudget ?? dbBudget
+        if (typeof budget === 'number') {
+          modifiedParams.thinking_budget = budget
         }
 
-        return originalCreate(modifiedParams, options)
-      }) as typeof this.openai.chat.completions.create
+        return originalCreateWithContext(modifiedParams, options)
+      }) as typeof chatCompletions.create
     }
 
-    yield* super.coreStream(messages, modelId, modelConfig, temperature, maxTokens, mcpTools)
+    try {
+      yield* super.coreStream(messages, modelId, modelConfig, temperature, maxTokens, mcpTools)
+    } finally {
+      if (shouldAddEnableThinking) {
+        chatCompletions.create = originalCreate
+      }
+    }
   }
 
   protected async fetchOpenAIModels(options?: { timeout: number }): Promise<MODEL_META[]> {

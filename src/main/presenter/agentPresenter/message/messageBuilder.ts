@@ -118,15 +118,15 @@ export async function preparePromptContent({
 }> {
   const { systemPrompt, contextLength, artifacts, enabledMcpTools } = conversation.settings
 
-  function normalizeChatMode(mode: string | undefined): 'agent' | 'acp agent' {
-    if (mode === 'acp agent') return 'acp agent'
-    return 'agent'
+  function normalizeChatMode(mode: string | undefined): 'agent' | 'acp agent' | undefined {
+    if (mode === 'agent' || mode === 'acp agent') return mode
+    return undefined
   }
 
   const rawChatMode = conversation.settings.chatMode
-  const rawFallback = await presenter.configPresenter.getSetting('input_chatMode')
+  const rawFallback = await presenter.configPresenter.getSetting<string>('input_chatMode')
   const chatMode: 'agent' | 'acp agent' =
-    normalizeChatMode(rawChatMode) ?? normalizeChatMode(rawFallback as string) ?? 'agent'
+    normalizeChatMode(rawChatMode) ?? normalizeChatMode(rawFallback) ?? 'agent'
 
   const isImageGeneration = modelType === ModelType.ImageGeneration
 
