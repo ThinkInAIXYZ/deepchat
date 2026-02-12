@@ -156,7 +156,6 @@ export class ProviderModelHelper {
       model.vision = model.vision !== undefined ? model.vision : false
       model.functionCall = model.functionCall !== undefined ? model.functionCall : false
       model.reasoning = model.reasoning !== undefined ? model.reasoning : false
-      model.enableSearch = model.enableSearch !== undefined ? model.enableSearch : false
       model.type = model.type || ModelType.Chat
       return model
     })

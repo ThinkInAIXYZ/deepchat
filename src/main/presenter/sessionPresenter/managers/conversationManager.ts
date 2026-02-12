@@ -179,9 +179,6 @@ export class ConversationManager {
         defaultSettings = { ...latestConversation.settings }
         defaultSettings.systemPrompt = ''
         defaultSettings.reasoningEffort = undefined
-        defaultSettings.enableSearch = undefined
-        defaultSettings.forcedSearch = undefined
-        defaultSettings.searchStrategy = undefined
         defaultSettings.selectedVariantsMap = {}
         defaultSettings.acpWorkdirMap = {}
         defaultSettings.agentWorkspacePath = null

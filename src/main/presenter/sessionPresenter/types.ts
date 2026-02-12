@@ -21,9 +21,6 @@ export type SessionConfig = {
   thinkingBudget?: number
   reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
   verbosity?: 'low' | 'medium' | 'high'
-  enableSearch?: boolean
-  forcedSearch?: boolean
-  searchStrategy?: 'turbo' | 'max'
   enabledMcpTools?: string[]
   agentWorkspacePath?: string | null
   acpWorkdirMap?: Record<string, string | null>

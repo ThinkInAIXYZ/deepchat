@@ -643,7 +643,6 @@ export class ConfigPresenter implements IConfigPresenter {
       vision: Array.isArray(m?.modalities?.input) ? m.modalities!.input!.includes('image') : false,
       functionCall: Boolean(m.tool_call),
       reasoning: Boolean(m.reasoning?.supported),
-      enableSearch: Boolean(m.search?.supported),
       type:
         Array.isArray(m?.modalities?.output) && m.modalities!.output!.includes('image')
           ? ModelType.ImageGeneration
@@ -698,8 +697,7 @@ export class ConfigPresenter implements IConfigPresenter {
             // Ensure capability properties are copied
             vision: model.vision || false,
             functionCall: model.functionCall || false,
-            reasoning: model.reasoning || false,
-            enableSearch: model.enableSearch || false
+            reasoning: model.reasoning || false
           }))
 
         return {
