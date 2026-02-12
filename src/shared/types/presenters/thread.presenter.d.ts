@@ -147,6 +147,7 @@ export interface IThreadPresenter {
   }): Promise<number | null>
   getActiveConversation(tabId: number): Promise<CONVERSATION | null>
   getActiveConversationId(tabId: number): Promise<string | null>
+  getActiveConversationIdSync(tabId: number): string | null
   clearActiveThread(tabId: number): Promise<void>
   findTabForConversation(conversationId: string): Promise<number | null>
 

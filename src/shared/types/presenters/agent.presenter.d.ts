@@ -39,4 +39,5 @@ export interface IAgentPresenter {
   ): Promise<void>
   rejectQuestion(messageId: string, toolCallId: string): Promise<void>
   getMessageRequestPreview(agentId: string, messageId?: string): Promise<unknown>
+  cleanupConversation(conversationId: string): Promise<void>
 }

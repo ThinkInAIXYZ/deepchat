@@ -223,6 +223,23 @@ export class AgentPresenter implements IAgentPresenter {
     await this.stopMessageGeneration(messageId)
   }
 
+  async cleanupConversation(conversationId: string): Promise<void> {
+    for (const [messageId, state] of this.generatingMessages) {
+      if (state.conversationId === conversationId) {
+        await this.stopMessageGeneration(messageId)
+        break
+      }
+    }
+
+    this.sessionManager.removeSession(conversationId)
+
+    try {
+      await this.llmProviderPresenter.clearAcpSession(conversationId)
+    } catch (error) {
+      console.warn('[AgentPresenter] Failed to clear ACP session:', error)
+    }
+  }
+
   async retryMessage(
     messageId: string,
     selectedVariantsMap?: Record<string, string>

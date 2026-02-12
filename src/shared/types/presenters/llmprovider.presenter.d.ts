@@ -278,4 +278,5 @@ export interface ILlmProviderPresenter {
   } | null>
   runAcpDebugAction(request: AcpDebugRequest): Promise<AcpDebugRunResult>
   resolveAgentPermission(requestId: string, granted: boolean): Promise<void>
+  clearAcpSession(conversationId: string): Promise<void>
 }

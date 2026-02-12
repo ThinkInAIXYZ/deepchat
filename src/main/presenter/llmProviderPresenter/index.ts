@@ -145,6 +145,15 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     return this.providerInstanceManager.getExistingProviderInstance(providerId)
   }
 
+  async clearAcpSession(conversationId: string): Promise<void> {
+    const acpProvider = this.getExistingProviderInstance('acp') as
+      | { clearSession?: (conversationId: string) => Promise<void> }
+      | undefined
+    if (acpProvider?.clearSession) {
+      await acpProvider.clearSession(conversationId)
+    }
+  }
+
   async getModelList(providerId: string): Promise<MODEL_META[]> {
     return this.modelManager.getModelList(providerId)
   }
