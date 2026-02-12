@@ -101,11 +101,17 @@ export function useChatMode() {
 
       const saved = await configPresenter.getSetting<string>('input_chatMode')
       if (modeUpdateVersion === loadVersion) {
-        const savedMode = (saved as ChatMode) || 'agent'
+        let savedMode: ChatMode = saved === 'acp agent' ? 'acp agent' : 'agent'
+
+        // Migrate legacy 'chat' mode to 'agent' and persist
+        if (saved === 'chat') {
+          savedMode = 'agent'
+          await configPresenter.setSetting('input_chatMode', 'agent')
+        }
+
         // If saved mode is 'acp agent' but no agents are configured, fall back to 'agent'
         if (savedMode === 'acp agent' && !hasAcpAgents.value) {
           currentMode.value = 'agent'
-          // Save the fallback mode
           await configPresenter.setSetting('input_chatMode', 'agent')
         } else {
           currentMode.value = savedMode

@@ -9,10 +9,10 @@ import type {
   SessionContextResolved,
   SessionStatus
 } from './sessionContext'
-import { resolveSessionContext } from './sessionResolver'
+import { resolveSessionContext, type ChatMode } from './sessionResolver'
 
 type WorkspaceContext = {
-  chatMode: 'agent' | 'acp agent'
+  chatMode: ChatMode
   agentWorkspacePath: string | null
 }
 
@@ -70,9 +70,8 @@ export class SessionManager {
 
   async resolveSession(agentId: string): Promise<SessionContextResolved> {
     const conversation = await this.options.sessionPresenter.getConversation(agentId)
-    const fallbackChatMode = this.options.configPresenter.getSetting('input_chatMode') as
-      | 'agent'
-      | 'acp agent'
+    const rawFallback = this.options.configPresenter.getSetting('input_chatMode') as
+      | string
       | undefined
     const modelConfig = this.options.configPresenter.getModelDefaultConfig(
       conversation.settings.modelId,
@@ -81,9 +80,27 @@ export class SessionManager {
 
     const resolved = resolveSessionContext({
       settings: conversation.settings,
-      fallbackChatMode,
+      fallbackChatMode: rawFallback === 'acp agent' ? 'acp agent' : undefined,
       modelConfig
     })
+
+    if (resolved.needsMigration) {
+      try {
+        await this.options.sessionPresenter.updateConversationSettings(agentId, {
+          chatMode: 'agent'
+        })
+      } catch (error) {
+        console.warn('[SessionManager] Failed to migrate legacy chatMode:', error)
+      }
+    }
+
+    if (rawFallback === 'chat') {
+      try {
+        await this.options.configPresenter.setSetting('input_chatMode', 'agent')
+      } catch (error) {
+        console.warn('[SessionManager] Failed to migrate legacy input_chatMode:', error)
+      }
+    }
 
     if (resolved.chatMode === 'agent') {
       resolved.agentWorkspacePath = await this.resolveAgentWorkspacePath(
@@ -109,11 +126,10 @@ export class SessionManager {
     modelId?: string
   ): Promise<WorkspaceContext> {
     if (!conversationId) {
-      const fallbackChatMode =
-        (this.options.configPresenter.getSetting('input_chatMode') as
-          | 'agent'
-          | 'acp agent'
-          | undefined) ?? 'agent'
+      const rawFallback = this.options.configPresenter.getSetting('input_chatMode') as
+        | string
+        | undefined
+      const fallbackChatMode: ChatMode = rawFallback === 'acp agent' ? 'acp agent' : 'agent'
       return { chatMode: fallbackChatMode, agentWorkspacePath: null }
     }
 
@@ -133,11 +149,10 @@ export class SessionManager {
       }
     } catch (error) {
       console.warn('[SessionManager] Failed to resolve workspace context:', error)
-      const fallbackChatMode =
-        (this.options.configPresenter.getSetting('input_chatMode') as
-          | 'agent'
-          | 'acp agent'
-          | undefined) ?? 'agent'
+      const rawFallback = this.options.configPresenter.getSetting('input_chatMode') as
+        | string
+        | undefined
+      const fallbackChatMode: ChatMode = rawFallback === 'acp agent' ? 'acp agent' : 'agent'
       return { chatMode: fallbackChatMode, agentWorkspacePath: null }
     }
   }
