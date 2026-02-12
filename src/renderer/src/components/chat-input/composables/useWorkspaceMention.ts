@@ -11,6 +11,8 @@ export function useWorkspaceMention(options: {
 }) {
   const workspacePresenter = usePresenter('workspacePresenter')
   const workspaceFileResults = ref<CategorizedData[]>([])
+  const isRegistered = ref(false)
+  const registeredPath = ref<string | null>(null)
 
   const isEnabled = computed(() => {
     const hasPath = !!options.workspacePath.value
@@ -43,30 +45,50 @@ export function useWorkspaceMention(options: {
     workspaceFileResults.value = []
   }
 
+  const ensureWorkspaceRegistered = async () => {
+    const path = options.workspacePath.value
+    if (!path) return false
+
+    if (isRegistered.value && registeredPath.value === path) {
+      return true
+    }
+
+    try {
+      if (options.chatMode.value === 'acp agent') {
+        await workspacePresenter.registerWorkdir(path)
+      } else {
+        await workspacePresenter.registerWorkspace(path)
+      }
+      isRegistered.value = true
+      registeredPath.value = path
+      return true
+    } catch (error) {
+      console.error('[WorkspaceMention] Failed to register workspace:', error)
+      return false
+    }
+  }
+
   const searchWorkspaceFiles = useDebounceFn(async (query: string) => {
-    // Allow empty query to show some files when user just types "@"
-    // Empty query means show a limited list of files
     if (!isEnabled.value || !options.workspacePath.value) {
       clearResults()
       return
     }
 
-    const trimmed = query.trim()
-    // If query is empty, use "**/*" to show some files (limited by searchFiles)
-    // This is a standard glob pattern to match all files
-    const searchQuery = trimmed || '**/*'
-
     try {
-      if (options.chatMode.value === 'acp agent') {
-        await workspacePresenter.registerWorkdir(options.workspacePath.value)
-      } else {
-        await workspacePresenter.registerWorkspace(options.workspacePath.value)
+      const registered = await ensureWorkspaceRegistered()
+      if (!registered) {
+        clearResults()
+        return
       }
+
+      const trimmed = query.trim()
+      const searchQuery = trimmed || '**/*'
+
       const results =
         (await workspacePresenter.searchFiles(options.workspacePath.value, searchQuery)) ?? []
       workspaceFileResults.value = mapResults(results)
     } catch (error) {
-      console.error('[WorkspaceMention] Failed to search workspace files:', error)
+      console.warn('[WorkspaceMention] Search failed, falling back to empty results:', error)
       clearResults()
     }
   }, 300)
@@ -79,7 +101,11 @@ export function useWorkspaceMention(options: {
 
   watch(
     () => options.workspacePath.value,
-    () => {
+    (newPath) => {
+      if (newPath !== registeredPath.value) {
+        isRegistered.value = false
+        registeredPath.value = null
+      }
       clearResults()
     }
   )
