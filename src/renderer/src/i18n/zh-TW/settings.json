@@ -48,6 +48,7 @@
     "loggingDialogTitle": "確認日誌設定變更",
     "loggingEnableDesc": "啟用日誌將幫助我們診斷問題並改進應用程式。日誌檔案可能包含敏感資訊。",
     "loggingDisableDesc": "停用日誌將停止收集應用程式日誌。",
+    "charactersUnit": "字元",
     "loggingRestartNotice": "切換此設定將會重新啟動應用程式，請問您是否要繼續？",
     "openLogFolder": "打開日誌文件夾",
     "shortcut": {
