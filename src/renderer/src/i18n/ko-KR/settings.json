@@ -234,23 +234,6 @@
         "description": "모델이 추론 능력을 지원합니까?",
         "label": "추론 능력"
       },
-      "enableSearch": {
-        "label": "웹 검색",
-        "description": "모델이 웹을 검색하여 최신 정보를 얻을 수 있도록 활성화"
-      },
-      "forcedSearch": {
-        "label": "강제 검색",
-        "description": "모델이 웹 검색을 강제 수행하도록, 비활성화시 모델이 자동으로 결정"
-      },
-      "searchStrategy": {
-        "label": "검색 전략",
-        "description": "검색 성능 모드 선택: turbo는 속도와 효과의 균형, max는 최적의 검색 결과 제공",
-        "placeholder": "검색 전략 선택",
-        "options": {
-          "turbo": "Turbo - 응답 속도와 검색 효과의 균형 (권장)",
-          "max": "Max - 고성능 모드, 최적의 검색 결과 제공"
-        }
-      },
       "thinkingBudget": {
         "label": "사고 예산",
         "description": "사고 과정의 최대 토큰 길이를 설정하여 추론 깊이를 제어",
@@ -321,10 +304,6 @@
       "vision": {
         "description": "모델이 시각적 능력을 지원합니까?",
         "label": "시각적 능력"
-      },
-      "searchLimit": {
-        "label": "검색 제한",
-        "description": "모델 제한: 네트워크 검색을 활성화하면 도구 함수 호출이 비활성화됩니다"
       },
       "apiEndpoint": {
         "description": "이 모델이 사용하는 OpenAI API 엔드포인트를 선택하세요.",

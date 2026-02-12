@@ -234,23 +234,6 @@
         "description": "Le modèle prend-il en charge la capacité de raisonnement?",
         "label": "Capacité de raisonnement"
       },
-      "enableSearch": {
-        "label": "Recherche Web",
-        "description": "Permettre au modèle de rechercher sur le web pour obtenir les dernières informations"
-      },
-      "forcedSearch": {
-        "label": "Recherche Forcée",
-        "description": "Forcer le modèle à effectuer une recherche web, désactivé le modèle décide automatiquement"
-      },
-      "searchStrategy": {
-        "label": "Stratégie de Recherche",
-        "description": "Choisir le mode de performance de recherche : turbo équilibre vitesse et efficacité, max fournit des résultats optimaux",
-        "placeholder": "Sélectionner la stratégie de recherche",
-        "options": {
-          "turbo": "Turbo - Équilibre vitesse de réponse et efficacité de recherche (Recommandé)",
-          "max": "Max - Mode haute performance, fournit des résultats de recherche optimaux"
-        }
-      },
       "thinkingBudget": {
         "label": "Budget de réflexion",
         "description": "Définir la longueur maximale de jeton du processus de réflexion pour contrôler la profondeur du raisonnement",
@@ -321,10 +304,6 @@
       "vision": {
         "description": "Le modèle soutient-il la capacité visuelle?",
         "label": "Capacité visuelle"
-      },
-      "searchLimit": {
-        "label": "Limitation de recherche",
-        "description": "Limitation du modèle : l'activation de la recherche web désactivera les appels de fonctions d'outils"
       },
       "apiEndpoint": {
         "description": "Sélectionnez le point de terminaison de l’API OpenAI utilisé par ce modèle.",

@@ -234,23 +234,6 @@
         "description": "模型是否支持推理能力",
         "label": "推理能力"
       },
-      "enableSearch": {
-        "label": "聯網搜尋",
-        "description": "開啟後模型可以聯網搜尋獲取最新資訊"
-      },
-      "forcedSearch": {
-        "label": "強制搜尋",
-        "description": "開啟後強制模型進行聯網搜尋，關閉時由模型自行決定"
-      },
-      "searchStrategy": {
-        "label": "搜尋策略",
-        "description": "選擇搜尋性能模式：turbo 兼顧速度與效果，max 提供最優搜尋效果",
-        "placeholder": "選擇搜尋策略",
-        "options": {
-          "turbo": "Turbo - 兼顧回應速度與搜尋效果（推薦）",
-          "max": "Max - 高性能模式，提供最優搜尋效果"
-        }
-      },
       "thinkingBudget": {
         "label": "思考預算",
         "description": "設定思考過程的最大 token 長度，用於控制模型推理深度",
@@ -321,10 +304,6 @@
       "vision": {
         "description": "模型是否支持視覺能力",
         "label": "視覺能力"
-      },
-      "searchLimit": {
-        "label": "搜尋限制",
-        "description": "模型限制: 啟用網路搜尋將使工具函數呼叫失效"
       },
       "apiEndpoint": {
         "description": "選擇此模型使用的 OpenAI API 端點。",

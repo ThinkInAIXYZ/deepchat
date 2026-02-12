@@ -181,23 +181,6 @@
         "description": "Understøtter modellen ræsonnering?",
         "label": "Ræsonnering"
       },
-      "enableSearch": {
-        "label": "Websøgning",
-        "description": "Tillad modellen at søge på nettet efter seneste information"
-      },
-      "forcedSearch": {
-        "label": "Tvungen søgning",
-        "description": "Tving modellen til altid at udføre websøgning; når slået fra beslutter modellen automatisk"
-      },
-      "searchStrategy": {
-        "label": "Søgestrategi",
-        "description": "Vælg søgeydelsestilstand: turbo balancerer hastighed og effekt, max giver optimale søgeresultater",
-        "placeholder": "Vælg søgestrategi",
-        "options": {
-          "turbo": "Turbo - Balancerer svartid og søgekvalitet (anbefales)",
-          "max": "Max - Højtydende tilstand, giver optimale søgeresultater"
-        }
-      },
       "thinkingBudget": {
         "label": "Tænke-budget",
         "description": "Angiv den maksimale tokenlængde for tænkningen for at styre ræsonneringsdybden",
@@ -268,10 +251,6 @@
       "vision": {
         "description": "Understøtter modellen visuelle funktioner?",
         "label": "Vision"
-      },
-      "searchLimit": {
-        "label": "Søgebegrænsning",
-        "description": "Modelbegrænsning: Aktivering af websøgning deaktiverer funktionskald til værktøjer"
       },
       "apiEndpoint": {
         "description": "Vælg OpenAI API-endpunktet, som denne model bruger.",
