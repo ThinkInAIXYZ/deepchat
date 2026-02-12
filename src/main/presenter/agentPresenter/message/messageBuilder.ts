@@ -128,14 +128,10 @@ export async function preparePromptContent({
   const chatMode: 'agent' | 'acp agent' =
     normalizeChatMode(rawChatMode) ?? normalizeChatMode(rawFallback as string) ?? 'agent'
 
-  const isAgentMode = chatMode === 'agent'
-  const isToolPromptMode = true
-
   const isImageGeneration = modelType === ModelType.ImageGeneration
 
   const finalSystemPrompt = enhanceSystemPromptWithDateTime(systemPrompt, {
     isImageGeneration,
-    isAgentMode,
     agentWorkspacePath: conversation.settings.agentWorkspacePath?.trim() || null
   })
 
@@ -145,7 +141,7 @@ export async function preparePromptContent({
   let toolDefinitions: MCPToolDefinition[] = []
   let effectiveEnabledMcpTools = enabledMcpTools
 
-  if (!isImageGeneration && isAgentMode) {
+  if (!isImageGeneration && chatMode === 'agent') {
     const skillsAllowedTools = await getSkillsAllowedTools(conversation.id)
     effectiveEnabledMcpTools = mergeToolSelections(enabledMcpTools, skillsAllowedTools)
   }
@@ -171,7 +167,7 @@ export async function preparePromptContent({
   let envPrompt = ''
   let toolingPrompt = ''
 
-  if (!isImageGeneration && isAgentMode) {
+  if (!isImageGeneration && chatMode === 'agent') {
     runtimePrompt = buildRuntimeCapabilitiesPrompt()
     try {
       skillsMetadataPrompt = await buildSkillsMetadataPrompt()
@@ -191,7 +187,7 @@ export async function preparePromptContent({
     }
   }
 
-  if (!isImageGeneration && isToolPromptMode && toolDefinitions.length > 0) {
+  if (!isImageGeneration && toolDefinitions.length > 0) {
     toolingPrompt = toolCallCenter.buildToolSystemPrompt({
       conversationId: conversation.id
     })

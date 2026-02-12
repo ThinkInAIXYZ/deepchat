@@ -14,9 +14,7 @@ export function useWorkspaceMention(options: {
 
   const isEnabled = computed(() => {
     const hasPath = !!options.workspacePath.value
-    const isAgentMode = options.chatMode.value === 'agent' || options.chatMode.value === 'acp agent'
-    const enabled = hasPath && isAgentMode
-    return enabled
+    return hasPath
   })
 
   const toDisplayPath = (filePath: string) => {

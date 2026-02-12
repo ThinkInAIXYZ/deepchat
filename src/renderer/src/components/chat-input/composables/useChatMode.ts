@@ -36,8 +36,6 @@ export function useChatMode() {
     if (currentMode.value === 'agent') return t('chat.mode.agent')
     return t('chat.mode.acpAgent')
   })
-  const isAgentMode = computed(() => true)
-
   const modes = computed(() => {
     const allModes = [
       { value: 'agent' as ChatMode, label: t('chat.mode.agent'), icon: MODE_ICONS.agent },
@@ -170,7 +168,6 @@ export function useChatMode() {
     currentMode,
     currentIcon,
     currentLabel,
-    isAgentMode,
     modes,
     setMode,
     loadMode,

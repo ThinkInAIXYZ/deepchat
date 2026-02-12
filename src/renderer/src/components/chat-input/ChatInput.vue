@@ -129,7 +129,7 @@
             </Tooltip>
 
             <!-- Unified Workspace Path Selection (for agent and acp agent modes) -->
-            <Tooltip v-if="chatMode.isAgentMode.value">
+            <Tooltip>
               <TooltipTrigger>
                 <Button
                   :class="[
