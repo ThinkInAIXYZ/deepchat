@@ -179,16 +179,14 @@ export class OpenAIResponsesProvider extends BaseLLMProvider {
       if (msg.content !== undefined) {
         if (typeof msg.content === 'string') {
           content.push({
-            //@ts-ignore api 和 sdk 定义不同
-            type: msg.role === 'assistant' ? 'output_text' : 'input_text',
+            type: 'input_text',
             text: msg.content
           })
         } else if (Array.isArray(msg.content)) {
           for (const part of msg.content) {
             if (part.type === 'text' && part.text) {
               content.push({
-                //@ts-ignore api 和 sdk 定义不同
-                type: msg.role === 'assistant' ? 'output_text' : 'input_text',
+                type: 'input_text',
                 text: part.text
               })
             }
@@ -261,14 +259,9 @@ export class OpenAIResponsesProvider extends BaseLLMProvider {
       content: ''
     }
 
-    if (response.status === 'completed' && response.output.length > 0) {
-      const message = response.output[0]
-      if (message.type === 'message' && message.content) {
-        const textContent = message.content.find((content) => content.type === 'output_text')
-        if (textContent && 'text' in textContent) {
-          resultResp.content = textContent.text
-        }
-      }
+    // Use the SDK-provided aggregated assistant text for Responses API.
+    if (typeof response.output_text === 'string') {
+      resultResp.content = response.output_text
     }
 
     // 处理 reasoning 内容
@@ -605,8 +598,10 @@ export class OpenAIResponsesProvider extends BaseLLMProvider {
 
     const nativeToolCalls: Record<
       string,
-      { name: string; arguments: string; completed?: boolean }
+      { name: string; arguments: string; completed?: boolean; itemId?: string }
     > = {}
+    const nativeToolCallIdByItemId: Record<string, string> = {}
+    const nativeToolCallIdByOutputIndex: Record<number, string> = {}
     const stopReason: LLMCoreStreamEvent['stop_reason'] = 'complete'
     let toolUseDetected = false
     let usage:
@@ -625,16 +620,21 @@ export class OpenAIResponsesProvider extends BaseLLMProvider {
           const item = chunk.item
           if (item.type === 'function_call') {
             toolUseDetected = true
-            const id = item.call_id
-            if (id) {
-              nativeToolCalls[id] = {
+            const callId = item.call_id
+            if (callId) {
+              nativeToolCalls[callId] = {
                 name: item.name,
                 arguments: item.arguments || '',
-                completed: false
+                completed: false,
+                itemId: item.id
+              }
+              nativeToolCallIdByOutputIndex[chunk.output_index] = callId
+              if (item.id) {
+                nativeToolCallIdByItemId[item.id] = callId
               }
               yield {
                 type: 'tool_call_start',
-                tool_call_id: id,
+                tool_call_id: callId,
                 tool_call_name: item.name
               }
             }
@@ -642,31 +642,45 @@ export class OpenAIResponsesProvider extends BaseLLMProvider {
         } else if (chunk.type === 'response.function_call_arguments.delta') {
           const itemId = chunk.item_id
           const delta = chunk.delta
-          const toolCall = nativeToolCalls[itemId]
+          const callId =
+            nativeToolCallIdByItemId[itemId] || nativeToolCallIdByOutputIndex[chunk.output_index]
+          if (callId && !nativeToolCallIdByItemId[itemId]) {
+            nativeToolCallIdByItemId[itemId] = callId
+          }
+          const toolCall = callId ? nativeToolCalls[callId] : undefined
           if (toolCall) {
             toolCall.arguments += delta
             yield {
               type: 'tool_call_chunk',
-              tool_call_id: itemId,
+              tool_call_id: callId,
               tool_call_arguments_chunk: delta
             }
           }
         } else if (chunk.type === 'response.function_call_arguments.done') {
           const itemId = chunk.item_id
           const argsData = chunk.arguments
-          const toolCall = nativeToolCalls[itemId]
+          const callId =
+            nativeToolCallIdByItemId[itemId] || nativeToolCallIdByOutputIndex[chunk.output_index]
+          if (callId && !nativeToolCallIdByItemId[itemId]) {
+            nativeToolCallIdByItemId[itemId] = callId
+          }
+          const toolCall = callId ? nativeToolCalls[callId] : undefined
           if (toolCall) {
             toolCall.arguments = argsData
             toolCall.completed = true
             yield {
               type: 'tool_call_end',
-              tool_call_id: itemId,
+              tool_call_id: callId,
               tool_call_arguments_complete: argsData
             }
           }
         } else if (chunk.type === 'response.output_item.done') {
           const item = chunk.item
           if (item.type === 'function_call') {
+            nativeToolCallIdByOutputIndex[chunk.output_index] = item.call_id
+            if (item.id) {
+              nativeToolCallIdByItemId[item.id] = item.call_id
+            }
             const toolCall = nativeToolCalls[item.call_id]
             if (toolCall && !toolCall.completed) {
               toolCall.completed = true
