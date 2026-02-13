@@ -90,9 +90,9 @@ export class FloatingChatWindow {
           nodeIntegration: false,
           contextIsolation: true,
           preload: path.join(__dirname, '../preload/index.mjs'),
-          webSecurity: false,
+          webSecurity: true,  // ✅ SECURITY FIX: Enable same-origin policy to prevent file:// access
           devTools: isDev,
-          sandbox: false
+          sandbox: true  // ✅ SECURITY FIX: Enable sandbox for process isolation
         }
       })
 

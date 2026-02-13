@@ -5,8 +5,7 @@ import {
   nativeImage,
   webUtils,
   webFrame,
-  ipcRenderer,
-  shell
+  ipcRenderer
 } from 'electron'
 import { exposeElectronAPI } from '@electron-toolkit/preload'
 
@@ -44,7 +43,8 @@ const api = {
     return cachedWebContentsId
   },
   openExternal: (url: string) => {
-    return shell.openExternal(url)
+    // ✅ SECURITY FIX: Use secure IPC instead of direct shell.openExternal
+    return ipcRenderer.invoke('open-external-secure', url)
   },
   toRelativePath: (filePath: string, baseDir?: string) => {
     if (!baseDir) return filePath

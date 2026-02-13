@@ -1,6 +1,6 @@
 import path from 'path'
 import { DialogPresenter } from './dialogPresenter/index'
-import { ipcMain, IpcMainInvokeEvent, app } from 'electron'
+import { ipcMain, IpcMainInvokeEvent, app, shell, dialog } from 'electron'
 import { WindowPresenter } from './windowPresenter'
 import { ShortcutPresenter } from './shortcutPresenter'
 import {
@@ -201,6 +201,77 @@ export class Presenter implements IPresenter {
     })
 
     this.setupEventBus() // 设置事件总线监听
+    this.setupSecurityHandlers() // ✅ SECURITY: Setup secure IPC handlers
+  }
+
+  // ✅ SECURITY FIX: Secure IPC handlers for potentially dangerous operations
+  private setupSecurityHandlers() {
+    // Secure openExternal handler with protocol whitelist and user confirmation
+    ipcMain.handle('open-external-secure', async (_event: IpcMainInvokeEvent, url: string) => {
+      try {
+        const parsedUrl = new URL(url)
+
+        // 1. Protocol whitelist - only allow http and https
+        const allowedProtocols = ['http:', 'https:']
+        if (!allowedProtocols.includes(parsedUrl.protocol)) {
+          console.error('🔴 SECURITY: Blocked dangerous protocol:', parsedUrl.protocol, 'URL:', url)
+          return {
+            success: false,
+            error: `Protocol "${parsedUrl.protocol}" is not allowed. Only HTTP and HTTPS links are permitted.`
+          }
+        }
+
+        // 2. Domain whitelist for trusted domains (no confirmation needed)
+        const trustedDomains = [
+          'openai.com',
+          'api.openai.com',
+          'anthropic.com',
+          'api.anthropic.com',
+          'github.com',
+          'docs.deepchat.com',
+          'google.com',
+          'gemini.google.com'
+        ]
+
+        const isTrusted = trustedDomains.some(domain =>
+          parsedUrl.hostname === domain || parsedUrl.hostname.endsWith('.' + domain)
+        )
+
+        // 3. Show user confirmation dialog for untrusted domains
+        if (!isTrusted) {
+          const { response } = await dialog.showMessageBox({
+            type: 'warning',
+            title: 'Open External Link?',
+            message: `DeepChat wants to open an external link:\n\n${url}\n\nDo you trust this website?`,
+            buttons: ['Cancel', 'Open Link'],
+            defaultId: 0,
+            cancelId: 0,
+            detail: 'Only open links from sources you trust. Malicious links can compromise your system.',
+            noLink: true
+          })
+
+          if (response !== 1) {
+            console.log('🛡️ SECURITY: User declined to open untrusted URL:', url)
+            return {
+              success: false,
+              error: 'User declined to open link'
+            }
+          }
+        }
+
+        // 4. Safe to open
+        await shell.openExternal(url)
+        console.log('✅ SECURITY: Opened external URL:', url, isTrusted ? '(trusted)' : '(user confirmed)')
+        return { success: true }
+
+      } catch (error) {
+        console.error('🔴 SECURITY: Invalid URL or error opening external link:', error)
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Invalid URL format'
+        }
+      }
+    })
   }
 
   public static getInstance(lifecycleManager: ILifecycleManager): Presenter {
