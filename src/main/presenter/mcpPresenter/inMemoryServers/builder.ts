@@ -31,7 +31,7 @@ export function getInMemoryServer(
     case 'deepResearch':
       return new DeepResearchServer(env)
     case 'imageServer':
-      return new ImageServer(args[0], args[1])
+      return new ImageServer(args[0] || undefined, args[1] || undefined)
     case 'powerpack':
       return new PowerpackServer(env)
     case 'difyKnowledge':

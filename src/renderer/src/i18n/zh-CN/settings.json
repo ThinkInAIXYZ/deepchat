@@ -59,7 +59,12 @@
     "notifications": "系统通知",
     "notificationsDesc": "当 DeepChat 不在前台时，如有会话生成完毕会发送系统通知",
     "fileMaxSize": "文件最大大小",
-    "fileMaxSizeHint": "限制单个文件的最大上传大小"
+    "fileMaxSizeHint": "限制单个文件的最大上传大小",
+    "defaultModel": {
+      "title": "默认模型",
+      "chatModel": "默认聊天模型",
+      "visionModel": "默认视觉模型"
+    }
   },
   "notificationsHooks": {
     "title": "通知与Hooks",
@@ -794,7 +799,7 @@
       "parseAndContinue": "解析并继续",
       "jsonParseError": "JSON解析失败",
       "browseMarketplace": "浏览MCP服务市场",
-      "imageModel": "选择视觉模型",
+      "imageModel": "视觉模型",
       "customHeadersParseError": "自定义Header解析失败",
       "customHeaders": "自定义请求头",
       "clickToEdit": "点击编辑以查看完整内容",

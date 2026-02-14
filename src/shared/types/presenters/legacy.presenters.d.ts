@@ -702,6 +702,12 @@ export interface IConfigPresenter {
   clearNpmRegistryCache?(): void
   getProviderDb(): { providers: Record<string, unknown> } | null
 
+  // Default model settings
+  getDefaultModel(): { providerId: string; modelId: string } | undefined
+  setDefaultModel(model: { providerId: string; modelId: string } | undefined): void
+  getDefaultVisionModel(): { providerId: string; modelId: string } | undefined
+  setDefaultVisionModel(model: { providerId: string; modelId: string } | undefined): void
+
   // Atomic operation interfaces
   updateProviderAtomic(id: string, updates: Partial<LLM_PROVIDER>): boolean
   addProviderAtomic(provider: LLM_PROVIDER): void

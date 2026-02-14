@@ -59,7 +59,12 @@
     "notificationsDesc": "هنگامی که دیپ‌چت در پیش‌زمینه نیست، اگر نشستی تولید شود، یک آگاه‌ساز سامانه فرستاده خواهد شد",
     "traceDebugEnabled": "پیگیری تماس",
     "fileMaxSize": "حداکثر اندازه فایل",
-    "fileMaxSizeHint": "حداکثر اندازه یک فایل قابل آپلود را محدود می‌کند"
+    "fileMaxSizeHint": "حداکثر اندازه یک فایل قابل آپلود را محدود می‌کند",
+    "defaultModel": {
+      "title": "مدل پیش‌فرض",
+      "chatModel": "مدل گفتگوی پیش‌فرض",
+      "visionModel": "مدل بینایی پیش‌فرض"
+    }
   },
   "notificationsHooks": {
     "title": "اعلان‌ها و هوک‌ها",
@@ -795,7 +800,7 @@
       "parseAndContinue": "تجزیه و ادامه",
       "jsonParseError": "تجزیه JSON ناموفق بود",
       "browseMarketplace": "مرور بازار MCP",
-      "imageModel": "انتخاب مدل بصری",
+      "imageModel": "مدل بصری",
       "customHeadersParseError": "تجزیه سربرگ دلخواه ناموفق بود",
       "customHeaders": "سربرگ درخواست دلخواه",
       "invalidKeyValueFormat": "قالب سربرگ درخواست نادرست است، لطفاً بررسی کنید که ورودی صحیح باشد.",

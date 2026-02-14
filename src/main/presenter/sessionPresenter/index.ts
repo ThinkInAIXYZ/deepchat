@@ -33,6 +33,7 @@ export class SessionPresenter implements ISessionPresenter {
   private sqlitePresenter: ISQLitePresenter
   private messageManager: MessageManager
   private llmProviderPresenter: ILlmProviderPresenter
+  private configPresenter: IConfigPresenter
   private conversationManager: ConversationManager
   private exporter: IConversationExporter
   private commandPermissionService: CommandPermissionService
@@ -49,6 +50,7 @@ export class SessionPresenter implements ISessionPresenter {
     this.sqlitePresenter = options.sqlitePresenter
     this.messageManager = options.messageManager ?? new MessageManager(options.sqlitePresenter)
     this.llmProviderPresenter = options.llmProviderPresenter
+    this.configPresenter = options.configPresenter
     this.exporter = options.exporter
     this.commandPermissionService =
       options.commandPermissionService ?? new CommandPermissionService()
@@ -258,11 +260,43 @@ export class SessionPresenter implements ISessionPresenter {
       })
       .filter((item) => item.content.length > 0)
 
-    const title = await this.llmProviderPresenter.summaryTitles(
-      formattedMessages,
-      conversation.settings.providerId,
-      conversation.settings.modelId
+    const assistantModel = this.configPresenter.getSetting<{ providerId: string; modelId: string }>(
+      'assistantModel'
     )
+    const fallbackProviderId = conversation.settings.providerId
+    const fallbackModelId = conversation.settings.modelId
+    const preferredProviderId = assistantModel?.providerId || fallbackProviderId
+    const preferredModelId = assistantModel?.modelId || fallbackModelId
+
+    let title: string
+    try {
+      title = await this.llmProviderPresenter.summaryTitles(
+        formattedMessages,
+        preferredProviderId,
+        preferredModelId
+      )
+    } catch (error) {
+      const shouldFallback =
+        preferredProviderId !== fallbackProviderId || preferredModelId !== fallbackModelId
+      if (!shouldFallback) {
+        throw error
+      }
+      console.warn(
+        '[SessionPresenter] Failed to generate title with assistant model, fallback to conversation model',
+        {
+          preferredProviderId,
+          preferredModelId,
+          fallbackProviderId,
+          fallbackModelId,
+          error
+        }
+      )
+      title = await this.llmProviderPresenter.summaryTitles(
+        formattedMessages,
+        fallbackProviderId,
+        fallbackModelId
+      )
+    }
 
     let cleanedTitle = title.replace(/<think>.*?<\/think>/g, '').trim()
     cleanedTitle = cleanedTitle.replace(/^<think>/, '').trim()
