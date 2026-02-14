@@ -10,6 +10,17 @@ import {
 } from 'electron'
 import { exposeElectronAPI } from '@electron-toolkit/preload'
 
+const ALLOWED_PROTOCOLS = ['http:', 'https:', 'mailto:', 'tel:', 'deepchat:']
+
+const isValidExternalUrl = (url: string): boolean => {
+  try {
+    const parsed = new URL(url)
+    return ALLOWED_PROTOCOLS.includes(parsed.protocol.toLowerCase())
+  } catch {
+    return false
+  }
+}
+
 // Cache variables
 let cachedWindowId: number | undefined = undefined
 let cachedWebContentsId: number | undefined = undefined
@@ -44,6 +55,10 @@ const api = {
     return cachedWebContentsId
   },
   openExternal: (url: string) => {
+    if (!isValidExternalUrl(url)) {
+      console.warn('Preload: Blocked openExternal for disallowed URL:', url)
+      return Promise.reject(new Error('URL protocol not allowed'))
+    }
     return shell.openExternal(url)
   },
   toRelativePath: (filePath: string, baseDir?: string) => {
