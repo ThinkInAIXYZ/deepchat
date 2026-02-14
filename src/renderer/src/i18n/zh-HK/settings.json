@@ -59,7 +59,12 @@
     "notificationsDesc": "當 DeepChat 不在前台時，如有會話生成完畢會發送系統通知",
     "traceDebugEnabled": "Trace 除錯功能",
     "fileMaxSize": "檔案最大大小",
-    "fileMaxSizeHint": "限制單個檔案的最大上傳大小"
+    "fileMaxSizeHint": "限制單個檔案的最大上傳大小",
+    "defaultModel": {
+      "title": "預設模型",
+      "chatModel": "預設聊天模型",
+      "visionModel": "預設視覺模型"
+    }
   },
   "notificationsHooks": {
     "title": "通知與 Hooks",
@@ -787,7 +792,7 @@
       "jsonParseError": "JSON解析失敗",
       "typeHttp": "可流式傳輸的HTTP請求(HTTP)",
       "browseMarketplace": "瀏覽MCP服務市場",
-      "imageModel": "選擇視覺模型",
+      "imageModel": "視覺模型",
       "customHeadersParseError": "自定義Header解析失敗",
       "customHeaders": "自定義請求頭",
       "invalidKeyValueFormat": "錯誤的請求頭格式，請檢查輸入是否正確",

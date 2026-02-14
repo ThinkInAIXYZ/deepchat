@@ -49,9 +49,10 @@ export class ImageServer {
   private provider: string
   private model: string
 
-  constructor(provider: string, model: string) {
-    this.provider = provider
-    this.model = model
+  constructor(provider?: string, model?: string) {
+    const defaultVisionModel = presenter.configPresenter.getDefaultVisionModel()
+    this.provider = provider || defaultVisionModel?.providerId || 'openai'
+    this.model = model || defaultVisionModel?.modelId || 'gpt-4o'
     this.server = new Server(
       {
         name: 'image-processing-server',
@@ -70,6 +71,21 @@ export class ImageServer {
   // public async initialize(): Promise<void> {
   //   // Initialization logic, e.g., configure upload service client
   // }
+
+  private getEffectiveModel(): { provider: string; model: string } {
+    if (this.provider && this.model) {
+      return { provider: this.provider, model: this.model }
+    }
+
+    const defaultVisionModel = presenter.configPresenter.getDefaultVisionModel()
+    if (defaultVisionModel?.providerId && defaultVisionModel?.modelId) {
+      return { provider: defaultVisionModel.providerId, model: defaultVisionModel.modelId }
+    }
+
+    throw new Error(
+      'No vision model configured. Please set a default vision model in Settings > Common > Default Model.'
+    )
+  }
 
   public startServer(transport: Transport): void {
     this.server.connect(transport)
@@ -94,9 +110,10 @@ export class ImageServer {
     fileBuffer: Buffer,
     prompt: string
   ): Promise<string> {
+    const { provider, model } = this.getEffectiveModel()
     // TODO: Implement actual API call to a multimodal model (e.g., GPT-4o, Gemini)
     console.log(
-      `Querying ${filePath} (size: ${fileBuffer.length} bytes) using ${this.provider}/${this.model} with prompt: "${prompt}"...`
+      `Querying ${filePath} (size: ${fileBuffer.length} bytes) using ${provider}/${model} with prompt: "${prompt}"...`
     )
 
     // Construct the messages array for the multimodal model
@@ -117,13 +134,13 @@ export class ImageServer {
       }
     ]
 
-    const modelConfig = presenter.configPresenter.getModelConfig(this.model, this.provider)
+    const modelConfig = presenter.configPresenter.getModelConfig(model, provider)
 
     try {
       const response = await presenter.llmproviderPresenter.generateCompletionStandalone(
-        this.provider,
+        provider,
         messages,
-        this.model,
+        model,
         modelConfig?.temperature ?? 0.6,
         modelConfig?.maxTokens || 1000
       )
@@ -139,9 +156,10 @@ export class ImageServer {
   }
 
   private async ocrImageWithModel(filePath: string, fileBuffer: Buffer): Promise<string> {
+    const { provider, model } = this.getEffectiveModel()
     // TODO: Implement actual API call to an OCR service or a multimodal model capable of OCR
     console.log(
-      `Requesting OCR for ${filePath} (size: ${fileBuffer.length} bytes) using ${this.provider}/${this.model}...`
+      `Requesting OCR for ${filePath} (size: ${fileBuffer.length} bytes) using ${provider}/${model}...`
     )
 
     // Construct the messages array for the multimodal model
@@ -164,13 +182,13 @@ export class ImageServer {
 
     console.log(messages)
 
-    const modelConfig = presenter.configPresenter.getModelConfig(this.model)
+    const modelConfig = presenter.configPresenter.getModelConfig(model, provider)
 
     try {
       const ocrText = await presenter.llmproviderPresenter.generateCompletionStandalone(
-        this.provider,
+        provider,
         messages,
-        this.model,
+        model,
         modelConfig?.temperature ?? 0.6,
         modelConfig?.maxTokens || 1000
       )

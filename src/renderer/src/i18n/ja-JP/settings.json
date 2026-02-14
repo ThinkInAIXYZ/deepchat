@@ -59,7 +59,12 @@
     "notificationsDesc": "DeepChatがバックグラウンドのとき、応答が完了すると通知を送信します",
     "traceDebugEnabled": "追跡呼び出し",
     "fileMaxSize": "ファイルの最大サイズ",
-    "fileMaxSizeHint": "アップロードできるファイルの最大サイズを制限します"
+    "fileMaxSizeHint": "アップロードできるファイルの最大サイズを制限します",
+    "defaultModel": {
+      "title": "デフォルトモデル",
+      "chatModel": "デフォルトチャットモデル",
+      "visionModel": "デフォルト視覚モデル"
+    }
   },
   "notificationsHooks": {
     "title": "通知とフック",
@@ -787,7 +792,7 @@
       "typeHttp": "ストリーミングHTTPリクエスト（HTTP）",
       "typeInMemory": "メモリ",
       "browseMarketplace": "MCPサービス市場を閲覧します",
-      "imageModel": "視覚モデルを選択します",
+      "imageModel": "視覚モデル",
       "customHeadersParseError": "カスタムヘッダーの解析は失敗しました",
       "customHeaders": "カスタムリクエストヘッダー",
       "clickToEdit": "クリックして編集し、完全な内容を表示",

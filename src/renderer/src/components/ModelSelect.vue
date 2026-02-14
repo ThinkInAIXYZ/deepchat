@@ -77,6 +77,10 @@ const props = defineProps({
   excludeProviders: {
     type: Array as PropType<string[]>,
     default: () => []
+  },
+  visionOnly: {
+    type: Boolean,
+    default: false
   }
 })
 const providers = computed(() => {
@@ -104,12 +108,14 @@ const providers = computed(() => {
       return {
         id: provider.id,
         name: provider.name,
-        models:
-          !props.type || props.type.length === 0
-            ? enabledProvider.models
-            : enabledProvider.models.filter(
-                (model) => model.type !== undefined && props.type!.includes(model.type as ModelType)
-              )
+        models: enabledProvider.models.filter((model) => {
+          const matchType =
+            !props.type ||
+            props.type.length === 0 ||
+            (model.type !== undefined && props.type.includes(model.type as ModelType))
+          const matchVision = !props.visionOnly || Boolean(model.vision)
+          return matchType && matchVision
+        })
       }
     })
     .filter(

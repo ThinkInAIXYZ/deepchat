@@ -18,23 +18,18 @@ import { MCPServerConfig } from '@shared/presenter'
 import { EmojiPicker } from '@/components/emoji-picker'
 import { useToast } from '@/components/use-toast'
 import { Icon } from '@iconify/vue'
-import { Popover, PopoverContent, PopoverTrigger } from '@shadcn/components/ui/popover'
-import { ChevronDown, X } from 'lucide-vue-next'
-import ModelSelect from '@/components/ModelSelect.vue'
+import { X } from 'lucide-vue-next'
 import ModelIcon from '@/components/icons/ModelIcon.vue'
 import { useModelStore } from '@/stores/modelStore'
-import type { RENDERER_MODEL_META } from '@shared/presenter'
 import { MCP_MARKETPLACE_URL, HIGRESS_MCP_MARKETPLACE_URL } from './const'
 import { usePresenter } from '@/composables/usePresenter'
-import { useThemeStore } from '@/stores/theme'
-import { ModelType } from '@shared/model'
 import { nanoid } from 'nanoid'
 
 const { t } = useI18n()
 const { toast } = useToast()
 const modelStore = useModelStore()
 const devicePresenter = usePresenter('devicePresenter')
-const themeStore = useThemeStore()
+const configPresenter = usePresenter('configPresenter')
 const props = defineProps<{
   serverName?: string
   initialConfig?: MCPServerConfig
@@ -64,9 +59,8 @@ const customHeadersFocused = ref(false)
 const customHeadersDisplayValue = ref('')
 const npmRegistry = ref(props.initialConfig?.customNpmRegistry || '')
 
-// 模型选择相关
-const modelSelectOpen = ref(false)
-const selectedImageModel = ref<RENDERER_MODEL_META | null>(null)
+// imageServer 展示用（只读，来源于 defaultVisionModel）
+const selectedImageModelName = ref('')
 const selectedImageModelProvider = ref('')
 
 // E2B 配置相关
@@ -94,13 +88,31 @@ const formatJsonHeaders = (headers: Record<string, string>): string => {
     .map(([key, value]) => `${key}=${value}`)
     .join('\n')
 }
-// 处理模型选择
-const handleImageModelSelect = (model: RENDERER_MODEL_META, providerId: string): void => {
-  selectedImageModel.value = model
-  selectedImageModelProvider.value = providerId
-  // 将provider和modelId以空格分隔拼接成args的值
-  setArgsRowsFromArray([providerId, model.id])
-  modelSelectOpen.value = false
+const refreshImageServerDefaultModelDisplay = async (): Promise<void> => {
+  if (!isImageServer.value) {
+    selectedImageModelName.value = ''
+    selectedImageModelProvider.value = ''
+    return
+  }
+
+  const defaultVisionModel = (await configPresenter.getSetting('defaultVisionModel')) as
+    | { providerId: string; modelId: string }
+    | undefined
+  if (!defaultVisionModel?.providerId || !defaultVisionModel?.modelId) {
+    selectedImageModelName.value = ''
+    selectedImageModelProvider.value = ''
+    return
+  }
+
+  selectedImageModelProvider.value = defaultVisionModel.providerId
+  const providerEntry = modelStore.enabledModels.find(
+    (entry) => entry.providerId === defaultVisionModel.providerId
+  )
+  const resolvedModel = providerEntry?.models.find(
+    (model) => model.id === defaultVisionModel.modelId
+  )
+  selectedImageModelName.value =
+    resolvedModel?.name || `${defaultVisionModel.providerId}/${defaultVisionModel.modelId}`
 }
 
 // 获取内置服务器的本地化名称和描述
@@ -490,9 +502,11 @@ const handleSubmit = (): void => {
     }
   } else {
     // STDIO 或 inmemory 类型的服务器
-    const normalizedArgs = isBuildInFileSystem.value
-      ? foldersList.value.filter((folder) => folder.trim().length > 0)
-      : argsRows.value.map((row) => row.value.trim()).filter((value) => value.length > 0)
+    const normalizedArgs = isImageServer.value
+      ? []
+      : isBuildInFileSystem.value
+        ? foldersList.value.filter((folder) => folder.trim().length > 0)
+        : argsRows.value.map((row) => row.value.trim()).filter((value) => value.length > 0)
     serverConfig = {
       ...baseConfig,
       command: command.value.trim(),
@@ -607,28 +621,13 @@ watch(
   { immediate: true }
 )
 
-// 初始化时解析args中的provider和modelId（针对imageServer）
+// imageServer 仅展示默认视觉模型，不再通过 args 配置
 watch(
-  [() => name.value, () => argsRows.value.map((row) => row.value), () => type.value],
-  ([newName, newArgs, newType]) => {
-    if (newType === 'inmemory' && newName === 'imageServer' && newArgs.length > 0) {
-      // 从args中解析出provider和modelId
-      const argsParts = newArgs.filter((value) => value.trim().length > 0)
-      if (argsParts.length >= 2) {
-        const providerId = argsParts[0]
-        const modelId = argsParts[1]
-        // 查找对应的模型
-        const foundModel = modelStore.findModelByIdOrName(modelId)
-        if (foundModel && foundModel.providerId === providerId) {
-          selectedImageModel.value = foundModel.model
-          selectedImageModelProvider.value = providerId
-        } else {
-          console.warn(`未找到匹配的模型: ${providerId} ${modelId}`)
-        }
-      }
-    }
+  [() => name.value, () => type.value, () => modelStore.enabledModels],
+  () => {
+    void refreshImageServerDefaultModelDisplay()
   },
-  { immediate: true }
+  { immediate: true, deep: true }
 )
 
 // Watch for initial config changes (primarily for edit mode)
@@ -872,29 +871,18 @@ HTTP-Referer=deepchatai.cn`
           <Label class="text-xs text-muted-foreground" for="server-model">
             {{ t('settings.mcp.serverForm.imageModel') || '模型选择' }}
           </Label>
-          <Popover v-model:open="modelSelectOpen">
-            <PopoverTrigger as-child>
-              <Button variant="outline" class="w-full justify-between">
-                <div class="flex items-center gap-2">
-                  <ModelIcon
-                    :model-id="selectedImageModel?.id || ''"
-                    class="h-4 w-4"
-                    :is-dark="themeStore.isDark"
-                  />
-                  <span class="truncate">{{
-                    selectedImageModel?.name || t('settings.common.selectModel')
-                  }}</span>
-                </div>
-                <ChevronDown class="h-4 w-4 opacity-50" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent class="w-80 p-0">
-              <ModelSelect
-                :type="[ModelType.Chat, ModelType.ImageGeneration]"
-                @update:model="handleImageModelSelect"
-              />
-            </PopoverContent>
-          </Popover>
+          <div
+            class="flex h-9 items-center rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background opacity-80"
+          >
+            <ModelIcon
+              v-if="selectedImageModelProvider"
+              :model-id="selectedImageModelProvider"
+              class="h-4 w-4 mr-2"
+            />
+            <span class="truncate">{{
+              selectedImageModelName || t('settings.mcp.serverForm.imageModel')
+            }}</span>
+          </div>
         </div>
 
         <!-- 文件夹选择 (特殊处理 buildInFileSystem) -->

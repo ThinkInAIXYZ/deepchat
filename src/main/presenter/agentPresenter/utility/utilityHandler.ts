@@ -265,11 +265,44 @@ export class UtilityHandler extends BaseHandler {
         }
       })
       .filter((item) => item.formattedMessage.content.length > 0)
-    const title = await this.ctx.llmProviderPresenter.summaryTitles(
-      messagesWithLength.map((item) => item.formattedMessage),
-      conversation.settings.providerId,
-      conversation.settings.modelId
-    )
+    const assistantModel = this.ctx.configPresenter.getSetting<{
+      providerId: string
+      modelId: string
+    }>('assistantModel')
+    const fallbackProviderId = conversation.settings.providerId
+    const fallbackModelId = conversation.settings.modelId
+    const preferredProviderId = assistantModel?.providerId || fallbackProviderId
+    const preferredModelId = assistantModel?.modelId || fallbackModelId
+
+    let title: string
+    try {
+      title = await this.ctx.llmProviderPresenter.summaryTitles(
+        messagesWithLength.map((item) => item.formattedMessage),
+        preferredProviderId,
+        preferredModelId
+      )
+    } catch (error) {
+      const shouldFallback =
+        preferredProviderId !== fallbackProviderId || preferredModelId !== fallbackModelId
+      if (!shouldFallback) {
+        throw error
+      }
+      console.warn(
+        '[UtilityHandler] Failed to generate title with assistant model, fallback to conversation model',
+        {
+          preferredProviderId,
+          preferredModelId,
+          fallbackProviderId,
+          fallbackModelId,
+          error
+        }
+      )
+      title = await this.ctx.llmProviderPresenter.summaryTitles(
+        messagesWithLength.map((item) => item.formattedMessage),
+        fallbackProviderId,
+        fallbackModelId
+      )
+    }
     let cleanedTitle = title.replace(/<think>.*?<\/think>/g, '').trim()
     cleanedTitle = cleanedTitle.replace(/^<think>/, '').trim()
     return cleanedTitle
