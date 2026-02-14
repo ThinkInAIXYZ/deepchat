@@ -59,7 +59,12 @@
     "notificationsDesc": "DeepChatがバックグラウンドのとき、応答が完了すると通知を送信します",
     "traceDebugEnabled": "追跡呼び出し",
     "fileMaxSize": "ファイルの最大サイズ",
-    "fileMaxSizeHint": "アップロードできるファイルの最大サイズを制限します"
+    "fileMaxSizeHint": "アップロードできるファイルの最大サイズを制限します",
+    "defaultModel": {
+      "title": "デフォルトモデル",
+      "chatModel": "デフォルトチャットモデル",
+      "visionModel": "デフォルト視覚モデル"
+    }
   },
   "notificationsHooks": {
     "title": "通知とフック",

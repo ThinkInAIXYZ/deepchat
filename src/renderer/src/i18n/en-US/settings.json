@@ -59,7 +59,12 @@
     "notificationsDesc": "When DeepChat is not in the foreground, if a session is generated, a system notification will be sent",
     "contentProtection": "Screen capture protection",
     "fileMaxSize": "File Maximum Size",
-    "fileMaxSizeHint": "Limits the maximum size of a single uploaded file"
+    "fileMaxSizeHint": "Limits the maximum size of a single uploaded file",
+    "defaultModel": {
+      "title": "Default Model",
+      "chatModel": "Default Chat Model",
+      "visionModel": "Default Vision Model"
+    }
   },
   "notificationsHooks": {
     "title": "Notifications & Hooks",

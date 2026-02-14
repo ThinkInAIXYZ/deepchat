@@ -59,7 +59,12 @@
     "notificationsDesc": "Quand DeepChat est en arrière‑plan, envoyer une notification à la fin d’une réponse",
     "traceDebugEnabled": "Suivi des appels",
     "fileMaxSize": "Taille maximale du fichier",
-    "fileMaxSizeHint": "Limite la taille maximale d'un fichier à télécharger"
+    "fileMaxSizeHint": "Limite la taille maximale d'un fichier à télécharger",
+    "defaultModel": {
+      "title": "Modèle par défaut",
+      "chatModel": "Modèle de chat par défaut",
+      "visionModel": "Modèle vision par défaut"
+    }
   },
   "notificationsHooks": {
     "title": "Notifications et hooks",

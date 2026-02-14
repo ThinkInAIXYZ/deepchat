@@ -59,7 +59,12 @@
     "notificationsDesc": "כאשר DeepChat אינו בחזית, אם נוצרת תשובה, תישלח התראת מערכת",
     "contentProtection": "הגנה מפני לכידת מסך",
     "fileMaxSize": "גודל קובץ מקסימלי",
-    "fileMaxSizeHint": "מגביל את הגודל המקסימלי של קובץ בודד המועלה"
+    "fileMaxSizeHint": "מגביל את הגודל המקסימלי של קובץ בודד המועלה",
+    "defaultModel": {
+      "title": "מודל ברירת מחדל",
+      "chatModel": "מודל צ'אט ברירת מחדל",
+      "visionModel": "מודל ראייה ברירת מחדל"
+    }
   },
   "notificationsHooks": {
     "title": "התראות ו‑Hooks",

@@ -185,6 +185,21 @@ export class ConversationManager {
         defaultSettings.activeSkills = []
       }
 
+      // Apply global defaultModel if caller didn't specify model and no recent conversation settings
+      const shouldApplyDefaultModel =
+        !settings.modelId &&
+        !settings.providerId &&
+        !latestConversation?.settings &&
+        !defaultSettings.acpWorkdirMap?.['default']
+
+      if (shouldApplyDefaultModel) {
+        const globalDefaultModel = this.configPresenter.getDefaultModel()
+        if (globalDefaultModel?.modelId && globalDefaultModel?.providerId) {
+          defaultSettings.modelId = globalDefaultModel.modelId
+          defaultSettings.providerId = globalDefaultModel.providerId
+        }
+      }
+
       const sanitizedSettings: Partial<CONVERSATION_SETTINGS> = { ...settings }
       Object.keys(sanitizedSettings).forEach((key) => {
         const typedKey = key as keyof CONVERSATION_SETTINGS

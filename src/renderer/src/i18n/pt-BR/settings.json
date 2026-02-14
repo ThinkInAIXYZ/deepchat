@@ -59,7 +59,12 @@
     "contentProtection": "Proteção contra captura de tela",
     "traceDebugEnabled": "Rastreamento de Chamadas",
     "fileMaxSize": "Tamanho máximo do arquivo",
-    "fileMaxSizeHint": "Limita o tamanho máximo de um arquivo enviado"
+    "fileMaxSizeHint": "Limita o tamanho máximo de um arquivo enviado",
+    "defaultModel": {
+      "title": "Modelo padrão",
+      "chatModel": "Modelo de chat padrão",
+      "visionModel": "Modelo de visão padrão"
+    }
   },
   "notificationsHooks": {
     "title": "Notificações e hooks",
