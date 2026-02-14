@@ -22,6 +22,9 @@ import McpSamplingDialog from '@/components/mcp/McpSamplingDialog.vue'
 import { initAppStores, useMcpInstallDeeplinkHandler } from '@/lib/storeInitializer'
 import 'vue-sonner/style.css' // vue-sonner v2 requires this import
 import { useFontManager } from './composables/useFontManager'
+import AppBar from '@/components/AppBar.vue'
+import { useDeviceVersion } from '@/composables/useDeviceVersion'
+import WindowSideBar from './components/WindowSideBar.vue'
 
 const route = useRoute()
 const configPresenter = usePresenter('configPresenter')
@@ -31,6 +34,8 @@ const { toast } = useToast()
 const uiSettingsStore = useUiSettingsStore()
 const { setupFontListener } = useFontManager()
 setupFontListener()
+
+const { isWinMacOS } = useDeviceVersion()
 
 const themeStore = useThemeStore()
 const langStore = useLanguageStore()
@@ -337,14 +342,20 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="flex flex-col h-screen bg-background">
+  <div class="flex flex-col h-screen" :class="isWinMacOS ? 'bg-background/75' : 'bg-background'">
+    <AppBar />
     <div
       class="border-x border-b border-window-inner-border rounded-b-[10px] fixed z-10 top-0 left-0 bottom-0 right-0 pointer-events-none"
     ></div>
     <div class="flex flex-row h-0 grow relative overflow-hidden px-px py-px" :dir="langStore.dir">
-      <!-- Main content area -->
+      <div class="flex flex-row w-full h-full">
+        <WindowSideBar></WindowSideBar>
 
-      <RouterView />
+        <!-- Main content area -->
+        <div class="flex-1 min-w-0 bg-background rounded-tl-xl overflow-hidden shadow-lg">
+          <RouterView />
+        </div>
+      </div>
     </div>
     <!-- Global update dialog -->
     <UpdateDialog />
