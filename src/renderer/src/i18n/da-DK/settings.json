@@ -59,7 +59,12 @@
     "notificationsDesc": "Når DeepChat ikke er i forgrunden, sendes der en systemmeddelelse, når der genereres et svar",
     "contentProtection": "Skærmoptagelsesbeskyttelse",
     "fileMaxSize": "Maksimal filstørrelse",
-    "fileMaxSizeHint": "Begrænser størrelsen på en enkelt uploadet fil"
+    "fileMaxSizeHint": "Begrænser størrelsen på en enkelt uploadet fil",
+    "defaultModel": {
+      "title": "Standardmodel",
+      "chatModel": "Standard chatmodel",
+      "visionModel": "Standard visionsmodel"
+    }
   },
   "data": {
     "title": "Dataindstillinger",
@@ -741,7 +746,7 @@
       "parseAndContinue": "Fortolk og fortsæt",
       "jsonParseError": "JSON-fortolkning mislykkedes",
       "browseMarketplace": "Gennemse MCP Marketplace",
-      "imageModel": "Vælg en vision-model",
+      "imageModel": "Vision-model",
       "customHeadersParseError": "Fortolkning af brugerdefinerede headers mislykkedes",
       "customHeaders": "Brugerdefinerede forespørgselsheaders",
       "clickToEdit": "Klik for at redigere og se hele indholdet",

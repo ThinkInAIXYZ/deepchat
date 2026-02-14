@@ -59,7 +59,12 @@
     "notificationsDesc": "Quand DeepChat est en arrière‑plan, envoyer une notification à la fin d’une réponse",
     "traceDebugEnabled": "Suivi des appels",
     "fileMaxSize": "Taille maximale du fichier",
-    "fileMaxSizeHint": "Limite la taille maximale d'un fichier à télécharger"
+    "fileMaxSizeHint": "Limite la taille maximale d'un fichier à télécharger",
+    "defaultModel": {
+      "title": "Modèle par défaut",
+      "chatModel": "Modèle de chat par défaut",
+      "visionModel": "Modèle vision par défaut"
+    }
   },
   "notificationsHooks": {
     "title": "Notifications et hooks",
@@ -787,7 +792,7 @@
       "jsonParseError": "Échec de l'analyse JSON",
       "typeHttp": "Requêtes HTTP en streaming (HTTP)",
       "browseMarketplace": "Allez sur MCP Market et installez-le en un seul clic",
-      "imageModel": "Sélectionnez un modèle visuel",
+      "imageModel": "Modèle visuel",
       "customHeadersParseError": "L'analyse de l'en-tête personnalisée a échoué",
       "customHeaders": "En-tête de demande personnalisé",
       "invalidKeyValueFormat": "Format d'en-tête de demande incorrect, veuillez vérifier si l'entrée est correcte.",

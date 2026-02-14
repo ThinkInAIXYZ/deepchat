@@ -87,6 +87,8 @@ interface IAppSettings {
   skillsPath?: string // Skills directory path
   enableSkills?: boolean // Skills system global toggle
   hooksNotifications?: HooksNotificationsSettings // Hooks & notifications settings
+  defaultModel?: { providerId: string; modelId: string } // Default model for new conversations
+  defaultVisionModel?: { providerId: string; modelId: string } // Default vision model for image tools
   [key: string]: unknown // Allow arbitrary keys, using unknown type instead of any
 }
 
@@ -1817,6 +1819,22 @@ export class ConfigPresenter implements IConfigPresenter {
 
   getConfirmoHookStatus(): { available: boolean; path: string } {
     return presenter.hooksNotifications.getConfirmoHookStatus()
+  }
+
+  getDefaultModel(): { providerId: string; modelId: string } | undefined {
+    return this.getSetting<{ providerId: string; modelId: string }>('defaultModel')
+  }
+
+  setDefaultModel(model: { providerId: string; modelId: string } | undefined): void {
+    this.setSetting('defaultModel', model)
+  }
+
+  getDefaultVisionModel(): { providerId: string; modelId: string } | undefined {
+    return this.getSetting<{ providerId: string; modelId: string }>('defaultVisionModel')
+  }
+
+  setDefaultVisionModel(model: { providerId: string; modelId: string } | undefined): void {
+    this.setSetting('defaultVisionModel', model)
   }
 }
 

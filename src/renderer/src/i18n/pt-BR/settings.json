@@ -59,7 +59,12 @@
     "contentProtection": "Proteção contra captura de tela",
     "traceDebugEnabled": "Rastreamento de Chamadas",
     "fileMaxSize": "Tamanho máximo do arquivo",
-    "fileMaxSizeHint": "Limita o tamanho máximo de um arquivo enviado"
+    "fileMaxSizeHint": "Limita o tamanho máximo de um arquivo enviado",
+    "defaultModel": {
+      "title": "Modelo padrão",
+      "chatModel": "Modelo de chat padrão",
+      "visionModel": "Modelo de visão padrão"
+    }
   },
   "notificationsHooks": {
     "title": "Notificações e hooks",
@@ -795,7 +800,7 @@
       "parseAndContinue": "Analisar e Continuar",
       "jsonParseError": "Falha na análise do JSON",
       "browseMarketplace": "Navegar no Mercado MCP",
-      "imageModel": "Escolha um modelo de visão",
+      "imageModel": "Modelo de visão",
       "customHeadersParseError": "Falha na análise do Cabeçalho Personalizado",
       "customHeaders": "Cabeçalhos de Solicitação Personalizados",
       "clickToEdit": "Clique para editar e visualizar o conteúdo completo",

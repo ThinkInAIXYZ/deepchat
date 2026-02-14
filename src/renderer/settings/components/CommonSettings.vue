@@ -2,6 +2,7 @@
   <ScrollArea class="w-full h-full">
     <div class="w-full h-full flex flex-col gap-3 p-4">
       <UploadFileSettingsSection />
+      <DefaultModelSettingsSection />
       <ProxySettingsSection />
       <SettingToggleRow
         id="auto-scroll-switch"
@@ -46,6 +47,7 @@ import ProxySettingsSection from './common/ProxySettingsSection.vue'
 import LoggingSettingsSection from './common/LoggingSettingsSection.vue'
 import SettingToggleRow from './common/SettingToggleRow.vue'
 import UploadFileSettingsSection from './common/UploadFileSettingsSection.vue'
+import DefaultModelSettingsSection from './common/DefaultModelSettingsSection.vue'
 
 const { t } = useI18n()
 const uiSettingsStore = useUiSettingsStore()

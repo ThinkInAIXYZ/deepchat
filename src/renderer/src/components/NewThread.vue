@@ -316,6 +316,26 @@ const syncModelWithMode = (mode: ChatMode, persistPreference = false) => {
 const initActiveModel = async () => {
   if (initialized.value) return
   const currentMode = chatMode.currentMode.value
+
+  // 0) 非 ACP 模式下，优先使用 defaultModel
+  if (currentMode !== 'acp agent') {
+    try {
+      const defaultModel = (await configPresenter.getSetting('defaultModel')) as
+        | { providerId: string; modelId: string }
+        | undefined
+      if (defaultModel?.modelId && defaultModel?.providerId) {
+        const match = findEnabledModel(defaultModel.providerId, defaultModel.modelId)
+        if (match && matchesModeProvider(match.providerId, currentMode)) {
+          setActiveFromEnabled({ ...match.model, providerId: match.providerId })
+          initialized.value = true
+          return
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to get default model:', error)
+    }
+  }
+
   // 1) 尝试根据最近会话（区分 pinned/非 pinned）选择
   if (chatStore.threads.length > 0) {
     const pinnedGroup = chatStore.threads.find((g) => g.dt === 'Pinned')
