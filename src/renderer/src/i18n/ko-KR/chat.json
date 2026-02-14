@@ -151,6 +151,9 @@
     "play": "재생",
     "pause": "일시정지"
   },
+  "video": {
+    "unsupported": "브라우저가 동영상 재생을 지원하지 않습니다."
+  },
   "call": {
     "title": "Voice.ai 통화",
     "description": "클릭하여 Voice.ai 음성 에이전트에 연결한 뒤, 통화가 연결되면 말하세요.",

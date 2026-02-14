@@ -101,6 +101,9 @@
     "play": "Play",
     "pause": "Pause"
   },
+  "video": {
+    "unsupported": "Your browser does not support video playback."
+  },
   "call": {
     "title": "Voice.ai Call",
     "description": "Click to connect to Voice.ai voice agent, speak after the call is connected.",

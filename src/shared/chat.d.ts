@@ -91,6 +91,7 @@ export type AssistantMessageBlock = {
     | 'tool_call'
     | 'action'
     | 'image'
+    | 'video'
     | 'audio'
     | 'artifact-thinking'
     | 'mcp_ui_resource'
@@ -144,6 +145,11 @@ export type AssistantMessageBlock = {
   image_data?: {
     data: string
     mimeType: string
+  }
+  video_data?: {
+    url: string
+    cover?: string
+    duration?: number
   }
   reasoning_time?: {
     start: number

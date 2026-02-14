@@ -11,6 +11,7 @@ export type StreamEventType =
   | 'usage'
   | 'stop'
   | 'image_data'
+  | 'video_data'
   | 'rate_limit'
 
 export interface TextStreamEvent {
@@ -73,6 +74,15 @@ export interface ImageDataStreamEvent {
   }
 }
 
+export interface VideoDataStreamEvent {
+  type: 'video_data'
+  video_data: {
+    url: string
+    cover?: string
+    duration?: number
+  }
+}
+
 export interface RateLimitStreamEvent {
   type: 'rate_limit'
   rate_limit: {
@@ -95,6 +105,7 @@ export type LLMCoreStreamEvent =
   | UsageStreamEvent
   | StopStreamEvent
   | ImageDataStreamEvent
+  | VideoDataStreamEvent
   | RateLimitStreamEvent
 
 export type {
@@ -147,6 +158,14 @@ export const createStreamEvent = {
   imageData: (image_data: { data: string; mimeType: string }): ImageDataStreamEvent => ({
     type: 'image_data',
     image_data
+  }),
+  videoData: (video_data: {
+    url: string
+    cover?: string
+    duration?: number
+  }): VideoDataStreamEvent => ({
+    type: 'video_data',
+    video_data
   }),
   rateLimit: (rate_limit: {
     providerId: string

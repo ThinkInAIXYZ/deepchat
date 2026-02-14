@@ -166,6 +166,13 @@ export interface ModelConfig {
   maxCompletionTokens?: number // GPT-5 series uses this parameter to replace maxTokens
   conversationId?: string
   apiEndpoint?: ApiEndpointType
+  // Image generation parameters
+  size?: string // e.g., '1024x1024', '2048x2048'
+  watermark?: boolean
+  // Video generation parameters
+  resolution?: string // e.g., '720p', '1080p'
+  duration?: number // in seconds
+  cameraFixed?: boolean
 }
 
 export interface IModelConfig {

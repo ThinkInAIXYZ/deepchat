@@ -5,7 +5,8 @@ export enum ModelType {
   Chat = 'chat',
   Embedding = 'embedding',
   Rerank = 'rerank',
-  ImageGeneration = 'imageGeneration'
+  ImageGeneration = 'imageGeneration',
+  VideoGeneration = 'videoGeneration'
 }
 
 export enum ApiEndpointType {

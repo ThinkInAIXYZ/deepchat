@@ -101,6 +101,9 @@
     "play": "播放",
     "pause": "暂停"
   },
+  "video": {
+    "unsupported": "您的浏览器不支持视频播放。"
+  },
   "call": {
     "title": "Voice.ai 通话",
     "description": "点击连接 Voice.ai 语音代理，接通电话后说话即可。",

@@ -59,6 +59,7 @@ export interface LLMAgentEventData {
   question_error?: string
   totalUsage?: UsageStats
   image_data?: { data: string; mimeType: string }
+  video_data?: { url: string; cover?: string; duration?: number }
   rate_limit?: RateLimitInfo
   error?: string
   userStop?: boolean

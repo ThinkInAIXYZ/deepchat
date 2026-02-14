@@ -151,6 +151,9 @@
     "play": "Afspil",
     "pause": "Pause"
   },
+  "video": {
+    "unsupported": "Din browser understøtter ikke videoafspilning."
+  },
   "call": {
     "title": "Voice.ai-opkald",
     "description": "Klik for at forbinde til Voice.ai-stemmeagenten, og tal når opkaldet er forbundet.",

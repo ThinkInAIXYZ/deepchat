@@ -151,6 +151,9 @@
     "play": "再生",
     "pause": "一時停止"
   },
+  "video": {
+    "unsupported": "お使いのブラウザは動画再生に対応していません。"
+  },
   "call": {
     "title": "Voice.ai 通話",
     "description": "クリックして Voice.ai 音声エージェントに接続し、通話がつながったら話してください。",

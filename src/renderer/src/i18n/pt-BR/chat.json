@@ -151,6 +151,9 @@
     "play": "Reproduzir",
     "pause": "Pausar"
   },
+  "video": {
+    "unsupported": "Seu navegador não suporta reprodução de vídeo."
+  },
   "call": {
     "title": "Chamada Voice.ai",
     "description": "Clique para conectar ao agente de voz da Voice.ai e fale após a chamada ser conectada.",

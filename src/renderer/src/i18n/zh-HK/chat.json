@@ -151,6 +151,9 @@
     "play": "播放",
     "pause": "暫停"
   },
+  "video": {
+    "unsupported": "您的瀏覽器不支持視頻播放。"
+  },
   "call": {
     "title": "Voice.ai 通話",
     "description": "點擊連接 Voice.ai 語音代理，通話接通後即可說話。",

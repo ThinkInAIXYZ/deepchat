@@ -64,7 +64,8 @@ export class LLMEventHandler {
       question_request,
       question_error,
       totalUsage,
-      image_data
+      image_data,
+      video_data
     } = msg
 
     const state = this.generatingMessages.get(eventId)
@@ -295,6 +296,21 @@ export class LLMEventHandler {
       state.message.content.push(imageBlock)
     }
 
+    if (video_data?.url) {
+      const videoBlock: AssistantMessageBlock = {
+        type: 'video',
+        status: 'success',
+        timestamp: currentTime,
+        content: 'video',
+        video_data: {
+          url: video_data.url,
+          cover: video_data.cover,
+          duration: video_data.duration
+        }
+      }
+      state.message.content.push(videoBlock)
+    }
+
     if (content) {
       if (!lastBlock || lastBlock.type !== 'content' || lastBlock.status !== 'loading') {
         this.finalizeLastBlock(state)
@@ -351,6 +367,7 @@ export class LLMEventHandler {
       }
     }
     if (image_data) delta.image_data = image_data
+    if (video_data) delta.video_data = video_data
     if (totalUsage) delta.totalUsage = totalUsage
 
     if (tool_call && !shouldSkipToolCall) {
@@ -600,7 +617,8 @@ export class LLMEventHandler {
         block.type === 'content' ||
         block.type === 'reasoning_content' ||
         block.type === 'tool_call' ||
-        block.type === 'image'
+        block.type === 'image' ||
+        block.type === 'video'
     )
 
     if (!hasContentBlock && !userStop) {

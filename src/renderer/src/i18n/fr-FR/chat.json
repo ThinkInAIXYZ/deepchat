@@ -151,6 +151,9 @@
     "play": "Lire",
     "pause": "Pause"
   },
+  "video": {
+    "unsupported": "Votre navigateur ne prend pas en charge la lecture vidéo."
+  },
   "call": {
     "title": "Appel Voice.ai",
     "description": "Cliquez pour vous connecter à l’agent vocal Voice.ai, puis parlez une fois l’appel établi.",

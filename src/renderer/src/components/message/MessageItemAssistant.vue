@@ -84,6 +84,12 @@
             :message-id="currentMessage.id"
             :thread-id="currentThreadId"
           />
+          <MessageBlockVideo
+            v-else-if="block.type === 'video'"
+            :block="block"
+            :message-id="currentMessage.id"
+            :thread-id="currentThreadId"
+          />
           <MessageBlockError v-else-if="block.type === 'error'" :block="block" />
         </template>
       </div>
@@ -147,6 +153,7 @@ import { Spinner } from '@shadcn/components/ui/spinner'
 import MessageBlockAction from './MessageBlockAction.vue'
 import { useI18n } from 'vue-i18n'
 import MessageBlockImage from './MessageBlockImage.vue'
+import MessageBlockVideo from './MessageBlockVideo.vue'
 import MessageBlockAudio from './MessageBlockAudio.vue'
 import MessageBlockMcpUi from './MessageBlockMcpUi.vue'
 import MessageBlockPlan from './MessageBlockPlan.vue'
