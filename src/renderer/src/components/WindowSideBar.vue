@@ -6,17 +6,17 @@
         <!-- All agents button -->
         <Tooltip>
           <TooltipTrigger as-child>
-            <button
-              class="flex items-center justify-center w-9 h-9 rounded-full border transition-all duration-150"
+            <Button
+              class="flex items-center justify-center w-9 h-9 rounded-xl border transition-all duration-150"
               :class="
                 selectedAgentId === null
-                  ? 'bg-background/60 border-foreground/15 text-foreground shadow-sm'
-                  : 'bg-background/30 border-transparent text-muted-foreground opacity-60 hover:opacity-100 hover:bg-background/50 hover:border-foreground/10'
+                  ? 'bg-card/50 border-white/70 dark:border-white/20 ring-1 ring-black/10 hover:bg-white/30 dark:hover:bg-white/10'
+                  : 'bg-transparent border-none hover:bg-white/30 dark:hover:bg-white/10 shadow-none'
               "
               @click="selectedAgentId = null"
             >
-              <Icon icon="lucide:layers" class="w-4 h-4" />
-            </button>
+              <Icon icon="lucide:layers" class="w-4 h-4 text-foreground/80" />
+            </Button>
           </TooltipTrigger>
           <TooltipContent side="right">All Agents</TooltipContent>
         </Tooltip>
@@ -26,19 +26,51 @@
         <!-- Agent icons -->
         <Tooltip v-for="agent in mockAgents" :key="agent.id">
           <TooltipTrigger as-child>
-            <button
-              class="flex items-center justify-center w-9 h-9 rounded-full border transition-all duration-150"
+            <Button
+              class="flex items-center justify-center w-9 h-9 rounded-xl border transition-all duration-150"
               :class="
                 selectedAgentId === agent.id
-                  ? 'bg-background/60 border-foreground/15 text-foreground shadow-sm'
-                  : 'bg-background/30 border-transparent text-muted-foreground opacity-60 hover:opacity-100 hover:bg-background/50 hover:border-foreground/10'
+                  ? 'bg-card/50 border-white/80 dark:border-white/20 ring-1 ring-black/10 hover:bg-white/30 dark:hover:bg-white/10'
+                  : 'bg-transparent border-none hover:bg-white/30 dark:hover:bg-white/10 shadow-none'
               "
               @click="selectedAgentId = selectedAgentId === agent.id ? null : agent.id"
             >
-              <Icon :icon="agent.icon" class="w-4 h-4" />
-            </button>
+              <Icon :icon="agent.icon" class="w-4 h-4 text-foreground/80" />
+            </Button>
           </TooltipTrigger>
           <TooltipContent side="right">{{ agent.name }}</TooltipContent>
+        </Tooltip>
+
+        <!-- Spacer -->
+        <div class="flex-1"></div>
+
+        <!-- Bottom action buttons -->
+        <div class="w-5 h-px bg-border my-1"></div>
+
+        <Tooltip>
+          <TooltipTrigger as-child>
+            <Button
+              class="flex items-center justify-center w-9 h-9 rounded-xl bg-transparent border-none hover:bg-white/30 dark:hover:bg-white/10 shadow-none"
+              :title="t('common.browser.name')"
+              @click="onBrowserClick"
+            >
+              <Icon icon="lucide:compass" class="w-4 h-4 text-foreground/80" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="right">{{ t('common.browser.name') }}</TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger as-child>
+            <Button
+              class="flex items-center justify-center w-9 h-9 rounded-xl bg-transparent border-none hover:bg-white/30 dark:hover:bg-white/10 shadow-none"
+              :title="t('routes.settings')"
+              @click="openSettings"
+            >
+              <Icon icon="lucide:ellipsis" class="w-4 h-4 text-foreground/80" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="right">{{ t('routes.settings') }}</TooltipContent>
         </Tooltip>
       </div>
 
@@ -106,6 +138,28 @@ import {
   TooltipProvider,
   TooltipTrigger
 } from '@shadcn/components/ui/tooltip'
+import { Button } from '@shadcn/components/ui/button'
+import { usePresenter } from '@/composables/usePresenter'
+import { useI18n } from 'vue-i18n'
+
+const windowPresenter = usePresenter('windowPresenter')
+const yoBrowserPresenter = usePresenter('yoBrowserPresenter')
+const { t } = useI18n()
+
+const openSettings = () => {
+  const windowId = window.api.getWindowId()
+  if (windowId != null) {
+    windowPresenter.openOrFocusSettingsTab(windowId)
+  }
+}
+
+const onBrowserClick = async () => {
+  try {
+    await yoBrowserPresenter.show(true)
+  } catch (error) {
+    console.warn('Failed to open browser window.', error)
+  }
+}
 
 const mockAgents = [
   { id: 'claude', name: 'Claude', icon: 'simple-icons:anthropic' },
