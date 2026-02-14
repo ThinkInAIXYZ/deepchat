@@ -792,7 +792,7 @@
       "jsonParseError": "JSON解析失敗",
       "typeHttp": "可流式傳輸的HTTP請求(HTTP)",
       "browseMarketplace": "瀏覽MCP服務市場",
-      "imageModel": "選擇視覺模型",
+      "imageModel": "視覺模型",
       "customHeadersParseError": "自定義Header解析失敗",
       "customHeaders": "自定義請求頭",
       "invalidKeyValueFormat": "錯誤的請求頭格式，請檢查輸入是否正確",

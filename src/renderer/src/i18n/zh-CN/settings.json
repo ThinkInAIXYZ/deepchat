@@ -799,7 +799,7 @@
       "parseAndContinue": "解析并继续",
       "jsonParseError": "JSON解析失败",
       "browseMarketplace": "浏览MCP服务市场",
-      "imageModel": "选择视觉模型",
+      "imageModel": "视觉模型",
       "customHeadersParseError": "自定义Header解析失败",
       "customHeaders": "自定义请求头",
       "clickToEdit": "点击编辑以查看完整内容",

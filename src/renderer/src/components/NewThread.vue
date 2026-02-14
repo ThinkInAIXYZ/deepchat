@@ -325,7 +325,7 @@ const initActiveModel = async () => {
         | undefined
       if (defaultModel?.modelId && defaultModel?.providerId) {
         const match = findEnabledModel(defaultModel.providerId, defaultModel.modelId)
-        if (match) {
+        if (match && matchesModeProvider(match.providerId, currentMode)) {
           setActiveFromEnabled({ ...match.model, providerId: match.providerId })
           initialized.value = true
           return

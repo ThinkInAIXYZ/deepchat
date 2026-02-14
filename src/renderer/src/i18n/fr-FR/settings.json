@@ -792,7 +792,7 @@
       "jsonParseError": "Échec de l'analyse JSON",
       "typeHttp": "Requêtes HTTP en streaming (HTTP)",
       "browseMarketplace": "Allez sur MCP Market et installez-le en un seul clic",
-      "imageModel": "Sélectionnez un modèle visuel",
+      "imageModel": "Modèle visuel",
       "customHeadersParseError": "L'analyse de l'en-tête personnalisée a échoué",
       "customHeaders": "En-tête de demande personnalisé",
       "invalidKeyValueFormat": "Format d'en-tête de demande incorrect, veuillez vérifier si l'entrée est correcte.",

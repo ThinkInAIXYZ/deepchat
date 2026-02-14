@@ -880,7 +880,7 @@ HTTP-Referer=deepchatai.cn`
               class="h-4 w-4 mr-2"
             />
             <span class="truncate">{{
-              selectedImageModelName || t('settings.common.selectModel')
+              selectedImageModelName || t('settings.mcp.serverForm.imageModel')
             }}</span>
           </div>
         </div>

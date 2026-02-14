@@ -800,7 +800,7 @@
       "parseAndContinue": "Parse & Continue",
       "jsonParseError": "JSON parsing failed",
       "browseMarketplace": "Browse MCP Marketplace",
-      "imageModel": "Choose a vision model",
+      "imageModel": "Vision Model",
       "customHeadersParseError": "Custom Header parsing failed",
       "customHeaders": "Custom Request Headers",
       "clickToEdit": "Click to edit and view full content",

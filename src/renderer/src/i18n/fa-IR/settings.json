@@ -800,7 +800,7 @@
       "parseAndContinue": "تجزیه و ادامه",
       "jsonParseError": "تجزیه JSON ناموفق بود",
       "browseMarketplace": "مرور بازار MCP",
-      "imageModel": "انتخاب مدل بصری",
+      "imageModel": "مدل بصری",
       "customHeadersParseError": "تجزیه سربرگ دلخواه ناموفق بود",
       "customHeaders": "سربرگ درخواست دلخواه",
       "invalidKeyValueFormat": "قالب سربرگ درخواست نادرست است، لطفاً بررسی کنید که ورودی صحیح باشد.",

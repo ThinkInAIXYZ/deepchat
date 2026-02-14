@@ -800,7 +800,7 @@
       "parseAndContinue": "Analisar e Continuar",
       "jsonParseError": "Falha na análise do JSON",
       "browseMarketplace": "Navegar no Mercado MCP",
-      "imageModel": "Escolha um modelo de visão",
+      "imageModel": "Modelo de visão",
       "customHeadersParseError": "Falha na análise do Cabeçalho Personalizado",
       "customHeaders": "Cabeçalhos de Solicitação Personalizados",
       "clickToEdit": "Clique para editar e visualizar o conteúdo completo",

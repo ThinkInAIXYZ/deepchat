@@ -267,6 +267,8 @@ const syncModelSelections = async (): Promise<void> => {
     await persistModelSetting('defaultModel', defaultModelSetting, chatSelection)
     await persistModelSetting('assistantModel', assistantModelSetting, assistantSelection)
     await persistModelSetting('defaultVisionModel', defaultVisionModelSetting, visionSelection)
+  } catch (error) {
+    console.error('Failed to sync model selections:', error)
   } finally {
     isSyncingModelDefaults = false
   }

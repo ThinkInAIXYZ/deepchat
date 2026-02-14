@@ -746,7 +746,7 @@
       "parseAndContinue": "Fortolk og fortsæt",
       "jsonParseError": "JSON-fortolkning mislykkedes",
       "browseMarketplace": "Gennemse MCP Marketplace",
-      "imageModel": "Vælg en vision-model",
+      "imageModel": "Vision-model",
       "customHeadersParseError": "Fortolkning af brugerdefinerede headers mislykkedes",
       "customHeaders": "Brugerdefinerede forespørgselsheaders",
       "clickToEdit": "Klik for at redigere og se hele indholdet",
