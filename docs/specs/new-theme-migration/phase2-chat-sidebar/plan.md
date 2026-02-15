@@ -1,264 +1,299 @@
-# Phase 2: Chat 页面整合 WindowSideBar - 实现计划
+# Phase 2: WindowSideBar 重构计划
 
-## 架构决策
+## 1. 目标
 
-### 决策 1: WindowSideBar 布局整合方案
+将 WindowSideBar 从当前的 mock 实现改造为功能完整的生产版本，支持：
+- 动态 Tab 生成（All Agents + 每个 ACP Agent + 每个 Local Model 各自一个 Tab）
+- 会话历史列表显示（始终是会话列表，不是选择器）
+- 正确的会话过滤和状态显示
 
-**背景**: WindowSideBar 目前是一个独立组件，需要整合到 Chat 页面。
+## 2. 设计原则
 
-**决策**: 将 WindowSideBar 作为 Chat 页面的布局容器，内部包含三列布局。
+1. **保留原有样式**：基于现有 WindowSideBar.vue 的 HTML/CSS 结构进行改造，不破坏视觉设计
+2. **会话列表为核心**：任何 Tab 内显示的都是该来源的会话历史
+3. **数据驱动 Tab**：Tab 数量根据实际可用的 Agents/Models 动态生成
+4. **最小侵入性**：尽量复用现有的 stores 和 presenters，不引入新依赖
 
-**布局结构**:
-```
-WindowSideBar (flex row)
-├── LeftColumn (48px, 固定宽度)
-│   └── Agent 类型按钮
-├── MiddleColumn (flex-1, 自适应)
-│   └── NewThread 或 Chat 内容
-└── RightColumn (240px, 可折叠)
-    └── HistoryList
-```
+## 3. 实施步骤
 
-**理由**:
-- 清晰的布局结构
-- 符合新设计稿要求
-- 便于后续功能扩展
+### Step 1: 数据结构准备
 
-### 决策 2: 三模式状态管理
+**目标**：理解并准备所需的数据结构
 
-**背景**: 需要管理 All / ACP Agent / Local Model 三种模式状态。
+**任务**：
+- [ ] 确认 CONVERSATION 类型的 settings 字段结构
+- [ ] 确认如何从 settings 中识别 ACP Agent vs Local Model
+- [ ] 确认如何从 chatStore 获取按日期分组的历史会话
+- [ ] 确认 agentModelStore 的模型数据结构
 
-**决策**: 使用 Pinia Store 集中管理模式状态。
-
-**Store 设计**:
+**关键检查点**：
 ```typescript
-interface SidebarState {
-  currentMode: 'all' | 'acp-agent' | 'local-model'
-  selectedAcpAgent: string | null  // 选中的 ACP Agent ID
-  selectedLocalModel: string | null // 选中的本地模型 ID
+// 需要验证的数据访问方式
+const threads = chatStore.threads  // { dt: string, dtThreads: CONVERSATION[] }[]
+const workingStatus = chatStore.getThreadWorkingStatus(threadId)  // 'working' | 'error' | 'completed' | 'none'
+const agentModels = agentModelStore.agentModels  // 按 providerId 分组的模型
+```
+
+### Step 2: 动态 Tab 生成
+
+**目标**：根据可用 Agents/Models 动态生成 Tab 列表
+
+**任务**：
+- [ ] 修改左列图标列表，从 mock 数据改为真实数据
+- [ ] All Agents Tab 始终存在（第一个）
+- [ ] ACP Agent Tabs：遍历 agentModels['acp']，每个 model 一个 Tab
+- [ ] Local Model Tabs：遍历其他 provider，每个 model 一个 Tab
+- [ ] 为每个 Tab 生成图标和名称
+
+**实现要点**：
+```typescript
+// Tab 数据结构
+interface SidebarTab {
+  id: string           // 'all' | 'acp-{modelId}' | '{providerId}-{modelId}'
+  type: 'all' | 'acp' | 'local'
+  name: string         // 显示名称
+  icon: string         // Iconify 图标名称
+  providerId?: string  // 用于过滤
+  modelId?: string     // 用于过滤
+}
+
+// 生成 Tab 列表
+const tabs = computed<SidebarTab[]>(() => {
+  const result: SidebarTab[] = []
+  
+  // 1. All Agents Tab
+  result.push({ id: 'all', type: 'all', name: 'All Agents', icon: 'lucide:layers' })
+  
+  // 2. ACP Agent Tabs
+  const acpModels = agentModelStore.agentModels['acp'] || []
+  for (const model of acpModels) {
+    result.push({
+      id: `acp-${model.id}`,
+      type: 'acp',
+      name: model.name,
+      icon: getAgentIcon(model.id),  // 根据 model.id 返回对应图标
+      providerId: 'acp',
+      modelId: model.id
+    })
+  }
+  
+  // 3. Local Model Tabs
+  for (const [providerId, models] of Object.entries(agentModelStore.agentModels)) {
+    if (providerId === 'acp') continue
+    for (const model of models) {
+      result.push({
+        id: `${providerId}-${model.id}`,
+        type: 'local',
+        name: model.name,
+        icon: 'lucide:cpu',  // 本地模型使用通用图标
+        providerId,
+        modelId: model.id
+      })
+    }
+  }
+  
+  return result
+})
+```
+
+### Step 3: 会话过滤实现
+
+**目标**：根据当前选中的 Tab 过滤显示对应的会话
+
+**任务**：
+- [ ] 修改 filteredSessions 计算属性
+- [ ] All Agents Tab：显示所有会话（不过滤）
+- [ ] ACP Agent Tab：过滤 providerId === 'acp' && modelId === tab.modelId
+- [ ] Local Model Tab：过滤 providerId === tab.providerId && modelId === tab.modelId
+- [ ] 保持按日期分组结构
+
+**实现要点**：
+```typescript
+const filteredSessions = computed(() => {
+  if (selectedTabId.value === 'all') {
+    // All Agents - 显示所有
+    return chatStore.threads
+  }
+  
+  const selectedTab = tabs.value.find(t => t.id === selectedTabId.value)
+  if (!selectedTab) return []
+  
+  // 过滤并重新分组
+  const filtered = chatStore.threads
+    .map(group => ({
+      dt: group.dt,
+      dtThreads: group.dtThreads.filter(thread => {
+        if (selectedTab.type === 'acp') {
+          return thread.settings.providerId === 'acp' && 
+                 thread.settings.modelId === selectedTab.modelId
+        } else {
+          return thread.settings.providerId === selectedTab.providerId && 
+                 thread.settings.modelId === selectedTab.modelId
+        }
+      })
+    }))
+    .filter(group => group.dtThreads.length > 0)
+  
+  return filtered
+})
+```
+
+### Step 4: 会话状态显示
+
+**目标**：在会话列表中显示工作状态
+
+**任务**：
+- [ ] 修改会话列表项模板，添加状态图标
+- [ ] 使用 chatStore.getThreadWorkingStatus(threadId) 获取状态
+- [ ] 根据状态显示不同图标：
+  - working: `<Icon icon="lucide:loader-2" class="animate-spin" />`
+  - completed: `<Icon icon="lucide:check" class="text-green-500" />`
+  - error: `<Icon icon="lucide:alert-circle" class="text-destructive" />`
+  - none: 不显示图标
+
+### Step 5: 会话切换功能
+
+**目标**：点击会话标题可以切换到该会话
+
+**任务**：
+- [ ] 修改会话点击处理函数
+- [ ] 调用 chatStore.setActiveConversation(threadId, tabId)
+- [ ] 更新选中状态样式
+- [ ] 如果是新标签页打开，调用 chatStore.openConversationInNewTab
+
+**实现要点**：
+```typescript
+const handleSessionClick = async (threadId: string) => {
+  selectedSessionId.value = threadId
+  const windowId = window.api.getWindowId()
+  if (windowId != null) {
+    await chatStore.setActiveConversation(threadId, windowId)
+  }
 }
 ```
 
-**理由**:
-- 状态集中管理，便于跨组件通信
-- 支持持久化（如有需要）
-- 符合现有架构模式
+### Step 6: 新建会话功能
 
-### 决策 3: 历史会话过滤策略
+**目标**：[+ New Chat] 按钮根据当前 Tab 创建对应类型的会话
 
-**背景**: 不同模式下需要显示不同类型的历史会话。
+**任务**：
+- [ ] 修改 handleNewChat 函数
+- [ ] All Agents Tab：使用默认设置创建
+- [ ] ACP Agent Tab：使用对应 Agent 的设置创建
+- [ ] Local Model Tab：使用对应 Model 的设置创建
+- [ ] 创建后自动切换到新会话
 
-**决策**: 在右侧历史列表组件中根据当前模式过滤。
-
-**过滤逻辑**:
-- All 模式: 显示所有历史会话
-- ACP Agent 模式: 显示 provider_id 为 'acp' 且 model_id 匹配的会话
-- Local Model 模式: 显示 provider_id 不为 'acp' 的会话
-
-**理由**:
-- 利用现有会话数据模型
-- 无需改动数据层
-
-## 涉及的模块
-
-### ChatView.vue
-- **改动**: 整合 WindowSideBar 作为布局容器
-- **文件**: `src/renderer/src/views/ChatView.vue`
-
-### WindowSideBar.vue
-- **改动**: 重构为布局容器，包含三列布局
-- **文件**: `src/renderer/src/components/WindowSideBar.vue`
-
-### NewThread 相关组件
-- **改动**: 适配新的布局容器
-- **文件**: `src/renderer/src/components/NewThreadMock.vue` 或新建组件
-
-### 历史会话组件（新建或复用）
-- **改动**: 实现历史会话列表，支持过滤
-- **文件**: 新建 `src/renderer/src/components/HistoryList.vue`
-
-### Store（新建）
-- **改动**: 创建 sidebarStore 管理模式状态
-- **文件**: 新建 `src/renderer/src/stores/sidebar.ts`
-
-## 事件流
-
-### 模式切换流程
-```
-用户点击左侧按钮
-  ↓
-触发模式切换事件
-  ↓
-sidebarStore 更新 currentMode
-  ↓
-WindowSideBar 监听状态变化
-  ↓
-重新渲染中间列和右侧列内容
-```
-
-### 历史会话加载流程
-```
-组件挂载
-  ↓
-调用 sessionPresenter 获取历史会话
-  ↓
-根据 currentMode 过滤会话
-  ↓
-渲染历史列表
-```
-
-## 数据模型
-
-### SidebarState (Pinia Store)
+**实现要点**：
 ```typescript
-interface SidebarState {
-  // 当前模式
-  currentMode: 'all' | 'acp-agent' | 'local-model'
+const handleNewChat = async () => {
+  const selectedTab = tabs.value.find(t => t.id === selectedTabId.value)
   
-  // ACP Agent 模式下的选择
-  selectedAcpAgentId: string | null
+  let settings: Partial<CONVERSATION_SETTINGS> = {}
   
-  // Local Model 模式下的选择
-  selectedLocalModelId: string | null
+  if (selectedTab?.type === 'acp') {
+    settings = {
+      providerId: 'acp',
+      modelId: selectedTab.modelId,
+      chatMode: 'acp agent'
+    }
+  } else if (selectedTab?.type === 'local') {
+    settings = {
+      providerId: selectedTab.providerId,
+      modelId: selectedTab.modelId,
+      chatMode: 'agent'
+    }
+  }
   
-  // UI 状态
-  isHistoryPanelOpen: boolean  // 右侧面板是否展开
+  const windowId = window.api.getWindowId()
+  if (windowId != null) {
+    const newThreadId = await chatStore.createConversation(
+      'New Chat',
+      settings,
+      windowId
+    )
+    selectedSessionId.value = newThreadId
+  }
 }
 ```
 
-### 历史会话数据
-使用现有的 `Conversation` 类型，根据字段过滤：
-```typescript
-interface Conversation {
-  id: string
-  provider_id: string  // 'acp' 表示 ACP Agent
-  model_id: string
-  title: string
-  created_at: number
-  updated_at: number
-  // ... 其他字段
-}
-```
+### Step 7: 空状态处理
 
-## IPC 接口
+**目标**：处理无会话和加载状态
 
-### 从 Presenter 获取数据
-```typescript
-// 获取 ACP Agents 列表
-const agents = await presenter.llmProviderPresenter.getAcpAgents()
+**任务**：
+- [ ] 添加加载状态指示器
+- [ ] All Agents 无会话：显示 "No conversations yet" + 新建按钮
+- [ ] 特定 Agent/Model 无会话：显示 "No conversations with {name}" + 新建按钮
+- [ ] 网络错误状态处理
 
-// 获取本地模型列表
-const models = await presenter.llmProviderPresenter.getAllProviders()
+### Step 8: 实时更新监听
 
-// 获取历史会话
-const conversations = await presenter.sessionPresenter.getRecentConversations()
-```
+**目标**：监听会话列表变化并刷新显示
 
-## 组件设计
+**任务**：
+- [ ] 在 onMounted 中设置事件监听
+- [ ] 监听 CONVERSATION_EVENTS.LIST_UPDATED
+- [ ] 监听 CONVERSATION_EVENTS.TITLE_UPDATED
+- [ ] 监听 CONVERSATION_EVENTS.DELETED
+- [ ] 在 onUnmounted 中清理监听
 
-### WindowSideBar (重构后)
-```vue
-<template>
-  <div class="flex h-full w-full">
-    <!-- 左侧 Agent 按钮列 -->
-    <LeftAgentColumn 
-      :current-mode="currentMode"
-      @mode-change="handleModeChange"
-    />
-    
-    <!-- 中间内容区 -->
-    <MiddleContent :current-mode="currentMode">
-      <NewThread v-if="showNewThread" :mode="currentMode" />
-      <ChatContent v-else />
-    </MiddleContent>
-    
-    <!-- 右侧历史会话 -->
-    <HistoryPanel 
-      v-if="isHistoryPanelOpen"
-      :conversations="filteredConversations"
-    />
-  </div>
-</template>
-```
+### Step 9: 性能优化
 
-### LeftAgentColumn
-- 显示三个主要按钮：All、ACP Agents、Local Models
-- 当前选中的按钮高亮显示
-- 底部可能有 Settings 按钮
+**目标**：确保大量会话时的性能
 
-### MiddleContent
-- 根据模式显示不同内容
-- All 模式: 显示完整的 NewThread（带模式切换）
-- ACP Agent 模式: 显示选中的 Agent 配置界面
-- Local Model 模式: 显示选中的模型配置界面
+**任务**：
+- [ ] 使用 computed 缓存过滤结果
+- [ ] 虚拟滚动（如果会话数量 > 100）
+- [ ] 防抖搜索输入
 
-### HistoryPanel
-- 显示历史会话列表
-- 按时间分组（Today、Yesterday、Last Week 等）
-- 点击会话打开对应聊天
+### Step 10: 测试和验证
 
-## 测试策略
+**目标**：确保功能完整和稳定
 
-### 单元测试
+**任务**：
+- [ ] 单元测试：会话过滤逻辑
+- [ ] 单元测试：Tab 生成逻辑
+- [ ] 集成测试：完整用户流程
+- [ ] 性能测试：大量会话场景
+- [ ] 暗色/亮色主题测试
 
-#### sidebarStore 测试
-- 测试模式切换逻辑
-- 测试选择状态管理
+## 4. 依赖关系
 
-#### WindowSideBar 组件测试
-- 测试渲染正确性
-- 测试模式切换事件
+### 前置依赖
+- Phase 1 完成（Shell 移除架构已稳定）
+- chatStore 已实现（已有 threads、getThreadWorkingStatus 等）
+- agentModelStore 已实现（已有 agentModels、refreshAgentModels 等）
 
-#### HistoryPanel 组件测试
-- 测试过滤逻辑
-- 测试会话列表渲染
+### 并行工作
+- Phase 3（NewThread 适配）可以并行进行，不依赖 WindowSideBar 完成
 
-### 集成测试
-- 测试模式切换后内容正确更新
-- 测试历史会话加载和显示
+### 后置依赖
+- Phase 4（浏览器地址栏）依赖此阶段完成
 
-### 手动测试
-- [ ] 三模式切换流畅
-- [ ] 历史列表显示正确
-- [ ] 点击历史会话打开聊天
+## 5. 风险和对策
 
-## UI/UX 考虑
+| 风险 | 影响 | 对策 |
+|------|------|------|
+| chatStore 数据结构变化 | 高 | 在 Step 1 充分验证数据结构 |
+| 大量会话时性能问题 | 中 | Step 9 实现虚拟滚动 |
+| ACP Agent 识别逻辑变化 | 中 | 使用多种条件判断（providerId + chatMode） |
+| 用户会话过滤不符合预期 | 中 | 与产品经理确认过滤逻辑 |
 
-### 动画效果
-- 模式切换时内容淡入淡出
-- 右侧面板展开/收起动画
+## 6. 验收标准
 
-### 响应式设计
-- 窗口宽度小于某阈值时，右侧面板自动收起
-- 提供按钮手动展开/收起右侧面板
+### 功能标准
+1. 侧边栏正确显示所有可用的 Agents 和 Models 作为独立 Tab
+2. 每个 Tab 内显示对应来源的历史会话列表
+3. 会话状态（working/completed/error）正确显示
+4. 点击会话可以切换到该会话
+5. [+ New Chat] 根据当前 Tab 创建对应类型的会话
 
-### 主题支持
-- 深色/浅色主题正确显示
-- 使用 Tailwind 主题变量
+### 性能标准
+1. 初始加载 < 500ms（100 条会话）
+2. Tab 切换 < 100ms
+3. 滚动流畅（60fps）
 
-## 文件变更清单
-
-### 修改的文件
-1. `src/renderer/src/views/ChatView.vue`
-2. `src/renderer/src/components/WindowSideBar.vue`
-
-### 新建的文件
-1. `src/renderer/src/stores/sidebar.ts` - Sidebar 状态管理
-2. `src/renderer/src/components/LeftAgentColumn.vue` - 左侧 Agent 按钮列
-3. `src/renderer/src/components/HistoryPanel.vue` - 右侧历史会话面板
-4. `src/renderer/src/components/MiddleContent.vue` - 中间内容容器
-
-### 可能需要复用/修改的文件
-1. `src/renderer/src/components/NewThreadMock.vue` - 根据设计调整
-
-## 依赖关系
-
-- 依赖 Phase 1 完成（Shell 移除）
-- 依赖 ChatInput.vue 的设计作为参考
-
-## 进入 Phase 3 的前置条件
-
-- [ ] WindowSideBar 正确整合到 Chat 页面
-- [ ] 三模式切换功能正常
-- [ ] 历史会话列表正确显示
-- [ ] 代码质量检查通过
+### 代码标准
+1. 通过 TypeScript 类型检查
+2. 通过 ESLint 检查
+3. 单元测试覆盖率 > 80%
