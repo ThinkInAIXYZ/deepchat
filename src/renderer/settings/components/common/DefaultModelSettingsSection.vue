@@ -223,20 +223,23 @@ const syncModelSelections = async (): Promise<void> => {
       | { providerId: string; modelId: string }
       | undefined
 
-    const chatSelection =
-      selectBySetting(defaultModelSetting, (_model, providerId) => providerId !== 'acp')
+    const chatSelection = selectBySetting(
+      defaultModelSetting,
+      (_model, providerId) => providerId !== 'acp'
+    )
 
-    const assistantSelection =
-      selectBySetting(assistantModelSetting, (_model, providerId) => providerId !== 'acp')
+    const assistantSelection = selectBySetting(
+      assistantModelSetting,
+      (_model, providerId) => providerId !== 'acp'
+    )
 
-    const visionSelection =
-      selectBySetting(
-        defaultVisionModelSetting,
-        (model, providerId) =>
-          providerId !== 'acp' &&
-          Boolean(model.vision) &&
-          (model.type === ModelType.Chat || model.type === ModelType.ImageGeneration)
-      )
+    const visionSelection = selectBySetting(
+      defaultVisionModelSetting,
+      (model, providerId) =>
+        providerId !== 'acp' &&
+        Boolean(model.vision) &&
+        (model.type === ModelType.Chat || model.type === ModelType.ImageGeneration)
+    )
 
     selectedChatModel.value = chatSelection
     selectedAssistantModel.value = assistantSelection
