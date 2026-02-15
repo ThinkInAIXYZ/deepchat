@@ -22,29 +22,26 @@ export const windowCreationHook: LifecycleHook = {
 
     // If no windows exist, create main window (first app startup)
     if (presenter.windowPresenter.getAllWindows().length === 0) {
-      console.log('windowCreationHook: Creating initial shell window on app startup')
+      console.log('windowCreationHook: Creating initial chat window on app startup')
       try {
-        const windowId = await presenter.windowPresenter.createShellWindow({
-          initialTab: {
-            url: 'local://chat'
-          }
-        })
+        // Use createChatWindow to create a window that loads the main app directly
+        const windowId = await presenter.windowPresenter.createChatWindow()
         if (windowId) {
           console.log(
-            `windowCreationHook: Initial shell window created successfully with ID: ${windowId}`
+            `windowCreationHook: Initial chat window created successfully with ID: ${windowId}`
           )
         } else {
           throw new Error(
-            'windowCreationHook: Failed to create initial shell window - returned null'
+            'windowCreationHook: Failed to create initial chat window - returned null'
           )
         }
       } catch (error) {
-        console.error('windowCreationHook: Error creating initial shell window:', error)
+        console.error('windowCreationHook: Error creating initial chat window:', error)
         throw error
       }
     } else {
       console.log(
-        'windowCreationHook: Shell windows already exist, skipping initial window creation'
+        'windowCreationHook: Chat windows already exist, skipping initial window creation'
       )
     }
 

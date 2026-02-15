@@ -45,8 +45,7 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     const window = this.getWindow()
     if (window) return window.id
 
-    this.windowId = await this.windowPresenter.createShellWindow({
-      windowType: 'browser',
+    this.windowId = await this.windowPresenter.createBrowserWindow({
       x: options?.x,
       y: options?.y
     })

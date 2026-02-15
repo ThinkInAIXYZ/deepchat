@@ -131,8 +131,8 @@ export class WindowPresenter implements IWindowPresenter {
 
     // Listen for shortcut event: create new window
     eventBus.on(SHORTCUT_EVENTS.CREATE_NEW_WINDOW, () => {
-      console.log('Creating new shell window via shortcut.')
-      this.createShellWindow({ initialTab: { url: 'local://chat' } })
+      console.log('Creating new chat window via shortcut.')
+      this.createChatWindow()
     })
 
     // Listen for shortcut event: create new tab
@@ -1619,6 +1619,241 @@ export class WindowPresenter implements IWindowPresenter {
 
     console.log(`Settings window ${windowId} created successfully.`)
     return windowId
+  }
+
+  /**
+   * Create a chat window that loads the main app UI directly.
+   * This is the new default window creation method, bypassing the shell layer.
+   * @param options Window options including initial position
+   * @returns Window ID or null if creation failed
+   */
+  public async createChatWindow(options?: {
+    x?: number
+    y?: number
+    width?: number
+    height?: number
+  }): Promise<number | null> {
+    // Check window limit
+    const currentCount = this.getWindowCount()
+    if (currentCount >= 10) {
+      console.warn('Maximum number of windows (10) reached. Cannot create new window.')
+      return null
+    }
+
+    const { default: windowStateManager } = await import('electron-window-state')
+    const iconFile = this.getAppIcon()
+
+    // Use window state manager to restore position and size
+    const chatWindowState = windowStateManager({
+      defaultWidth: options?.width || 1000,
+      defaultHeight: options?.height || 700
+    })
+
+    // Calculate initial position
+    const initialX =
+      options?.x !== undefined
+        ? options.x
+        : this.validateWindowPosition(
+            chatWindowState.x,
+            chatWindowState.width,
+            chatWindowState.y,
+            chatWindowState.height
+          ).x
+    const initialY =
+      options?.y !== undefined
+        ? options?.y
+        : this.validateWindowPosition(
+            chatWindowState.x,
+            chatWindowState.width,
+            chatWindowState.y,
+            chatWindowState.height
+          ).y
+
+    const chatWindow = new BrowserWindow({
+      width: chatWindowState.width,
+      height: chatWindowState.height,
+      x: initialX,
+      y: initialY,
+      show: false, // Hide initially to avoid white flash
+      autoHideMenuBar: true,
+      icon: iconFile,
+      titleBarStyle: 'hiddenInset',
+      transparent: process.platform === 'darwin',
+      vibrancy: process.platform === 'darwin' ? 'hud' : undefined,
+      backgroundMaterial: process.platform === 'win32' ? 'mica' : undefined,
+      backgroundColor: '#00ffffff',
+      maximizable: true,
+      frame: process.platform === 'darwin',
+      hasShadow: true,
+      trafficLightPosition: process.platform === 'darwin' ? { x: 12, y: 10 } : undefined,
+      webPreferences: {
+        preload: join(__dirname, '../preload/index.mjs'),
+        sandbox: false,
+        devTools: is.dev
+      },
+      roundedCorners: true
+    })
+
+    if (!chatWindow) {
+      console.error('Failed to create chat window.')
+      return null
+    }
+
+    const windowId = chatWindow.id
+    this.windows.set(windowId, chatWindow)
+    ;(presenter.tabPresenter as TabPresenter).setWindowType(windowId, 'chat')
+
+    this.windowFocusStates.set(windowId, {
+      lastFocusTime: 0,
+      shouldFocus: true,
+      isNewWindow: true,
+      hasInitialFocus: false
+    })
+
+    chatWindowState.manage(chatWindow)
+
+    // Apply content protection settings
+    const contentProtectionEnabled = this.configPresenter.getContentProtectionEnabled()
+    this.updateContentProtection(chatWindow, contentProtectionEnabled)
+
+    // Open DevTools in dev mode
+    if (is.dev) {
+      chatWindow.webContents.openDevTools()
+    }
+
+    // Load the main app UI directly (bypassing shell)
+    if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+      chatWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
+    } else {
+      chatWindow.loadFile(join(__dirname, '../renderer/src/index.html'))
+    }
+
+    // Window event listeners
+    chatWindow.on('ready-to-show', () => {
+      console.log(`Chat window ${windowId} is ready to show.`)
+      if (!chatWindow.isDestroyed()) {
+        chatWindow.show()
+        chatWindow.focus()
+        eventBus.sendToMain(WINDOW_EVENTS.WINDOW_CREATED, windowId)
+      }
+    })
+
+    chatWindow.on('focus', () => {
+      console.log(`Chat window ${windowId} gained focus.`)
+      this.focusedWindowId = windowId
+      eventBus.sendToMain(WINDOW_EVENTS.WINDOW_FOCUSED, windowId)
+      if (!chatWindow.isDestroyed()) {
+        chatWindow.webContents.send('window-focused', windowId)
+      }
+    })
+
+    chatWindow.on('blur', () => {
+      console.log(`Chat window ${windowId} lost focus.`)
+      if (this.focusedWindowId === windowId) {
+        this.focusedWindowId = null
+      }
+      eventBus.sendToMain(WINDOW_EVENTS.WINDOW_BLURRED, windowId)
+      if (!chatWindow.isDestroyed()) {
+        chatWindow.webContents.send('window-blurred', windowId)
+      }
+      this.clearTooltipOverlay(windowId)
+    })
+
+    chatWindow.on('maximize', () => {
+      console.log(`Chat window ${windowId} maximized.`)
+      if (!chatWindow.isDestroyed()) {
+        chatWindow.webContents.send(WINDOW_EVENTS.WINDOW_MAXIMIZED)
+        eventBus.sendToMain(WINDOW_EVENTS.WINDOW_MAXIMIZED, windowId)
+      }
+    })
+
+    chatWindow.on('unmaximize', () => {
+      console.log(`Chat window ${windowId} unmaximized.`)
+      if (!chatWindow.isDestroyed()) {
+        chatWindow.webContents.send(WINDOW_EVENTS.WINDOW_UNMAXIMIZED)
+        eventBus.sendToMain(WINDOW_EVENTS.WINDOW_UNMAXIMIZED, windowId)
+      }
+    })
+
+    chatWindow.on('restore', () => {
+      console.log(`Chat window ${windowId} restored.`)
+      chatWindow.webContents.send(WINDOW_EVENTS.WINDOW_UNMAXIMIZED)
+      eventBus.sendToMain(WINDOW_EVENTS.WINDOW_RESTORED, windowId)
+    })
+
+    chatWindow.on('enter-full-screen', () => {
+      console.log(`Chat window ${windowId} entered fullscreen.`)
+      this.destroyTooltipOverlay(windowId)
+      if (!chatWindow.isDestroyed()) {
+        chatWindow.webContents.send(WINDOW_EVENTS.WINDOW_ENTER_FULL_SCREEN)
+        eventBus.sendToMain(WINDOW_EVENTS.WINDOW_ENTER_FULL_SCREEN, windowId)
+      }
+    })
+
+    chatWindow.on('leave-full-screen', () => {
+      console.log(`Chat window ${windowId} left fullscreen.`)
+      this.getOrCreateTooltipOverlay(chatWindow)
+      if (!chatWindow.isDestroyed()) {
+        chatWindow.webContents.send(WINDOW_EVENTS.WINDOW_LEAVE_FULL_SCREEN)
+        eventBus.sendToMain(WINDOW_EVENTS.WINDOW_LEAVE_FULL_SCREEN, windowId)
+      }
+    })
+
+    chatWindow.on('close', () => {
+      console.log(`Chat window ${windowId} is closing.`)
+      this.clearTooltipOverlay(windowId)
+      this.destroyTooltipOverlay(windowId)
+
+      // Notify tab presenter to cleanup tabs
+      const tabPresenterInstance = presenter.tabPresenter as TabPresenter
+      tabPresenterInstance.closeTabs(windowId)
+
+      eventBus.sendToMain(WINDOW_EVENTS.WINDOW_CLOSED, windowId)
+    })
+
+    chatWindow.on('closed', () => {
+      console.log(`Chat window ${windowId} closed.`)
+      this.windows.delete(windowId)
+      this.windowFocusStates.delete(windowId)
+    })
+    console.log(`Chat window ${windowId} created successfully.`)
+    return windowId
+  }
+
+  /**
+   * Get the number of open windows
+   */
+  private getWindowCount(): number {
+    return this.windows.size
+  }
+
+  /**
+   * Get the app icon based on platform
+   */
+  private getAppIcon() {
+    return nativeImage.createFromPath(process.platform === 'win32' ? iconWin : icon)
+  }
+
+  /**
+   * Create a browser window with address bar.
+   * In Phase 1, this creates a browser-type shell window that will be
+   * migrated to standalone browser window in Phase 4.
+   * @param options Window options including initial position
+   * @returns Window ID or null if creation failed
+   */
+  public async createBrowserWindow(options?: {
+    x?: number
+    y?: number
+    width?: number
+    height?: number
+  }): Promise<number | null> {
+    // For Phase 1, delegate to createShellWindow with browser type
+    // This will be replaced with standalone implementation in Phase 4
+    return this.createShellWindow({
+      windowType: 'browser',
+      x: options?.x,
+      y: options?.y
+    })
   }
 
   /**

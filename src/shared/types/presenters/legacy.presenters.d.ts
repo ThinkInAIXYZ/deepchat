@@ -241,6 +241,28 @@ export interface IWindowPresenter {
     x?: number
     y?: number
   }): Promise<number | null>
+  /**
+   * Create a chat window that loads the main app UI directly.
+   * @param options Window options including initial position
+   * @returns Window ID or null if creation failed
+   */
+  createChatWindow(options?: {
+    x?: number
+    y?: number
+    width?: number
+    height?: number
+  }): Promise<number | null>
+  /**
+   * Create a browser window with address bar.
+   * @param options Window options including initial position
+   * @returns Window ID or null if creation failed
+   */
+  createBrowserWindow(options?: {
+    x?: number
+    y?: number
+    width?: number
+    height?: number
+  }): Promise<number | null>
   mainWindow: BrowserWindow | undefined
   previewFile(filePath: string): void
   minimize(windowId: number): void

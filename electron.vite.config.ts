@@ -64,7 +64,6 @@ export default defineConfig({
     resolve: {
       alias: {
         '@': resolve('src/renderer/src'),
-        '@shell': resolve('src/renderer/shell'),
         '@shared': resolve('src/shared'),
         "@shadcn": resolve('src/shadcn'),
         vue: 'vue/dist/vue.esm-bundler.js'
@@ -107,8 +106,6 @@ export default defineConfig({
       cssCodeSplit: false,
       rollupOptions: {
         input: {
-          shell: resolve('src/renderer/shell/index.html'),
-          shellTooltipOverlay: resolve('src/renderer/shell/tooltip-overlay/index.html'),
           index: resolve('src/renderer/index.html'),
           floating: resolve('src/renderer/floating/index.html'),
           splash: resolve('src/renderer/splash/index.html'),

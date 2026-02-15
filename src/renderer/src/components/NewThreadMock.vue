@@ -39,7 +39,6 @@
                   <p>Attach</p>
                 </TooltipContent>
               </Tooltip>
-
             </div>
 
             <div class="flex items-center gap-1">
