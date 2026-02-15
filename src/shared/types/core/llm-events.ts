@@ -13,6 +13,9 @@ export type StreamEventType =
   | 'image_data'
   | 'video_data'
   | 'rate_limit'
+  | 'media_generation_pending'
+  | 'media_generation_progress'
+  | 'media_generation_complete'
 
 export interface TextStreamEvent {
   type: 'text'
@@ -94,6 +97,45 @@ export interface RateLimitStreamEvent {
   }
 }
 
+export interface MediaGenerationPendingEvent {
+  type: 'media_generation_pending'
+  media_generation_pending: {
+    taskId: string
+    mediaType: 'image' | 'video'
+    status: 'queued' | 'processing'
+    message?: string
+    pollCount?: number
+    maxPolls?: number
+    canManualRefresh?: boolean
+  }
+}
+
+export interface MediaGenerationProgressEvent {
+  type: 'media_generation_progress'
+  media_generation_progress: {
+    taskId: string
+    mediaType: 'image' | 'video'
+    status: 'queued' | 'processing' | 'completed' | 'failed'
+    progress?: number
+    message?: string
+    pollCount: number
+    maxPolls: number
+    canManualRefresh: boolean
+  }
+}
+
+export interface MediaGenerationCompleteEvent {
+  type: 'media_generation_complete'
+  media_generation_complete: {
+    taskId: string
+    mediaType: 'image' | 'video'
+    url?: string
+    cover?: string
+    duration?: number
+    error?: string
+  }
+}
+
 export type LLMCoreStreamEvent =
   | TextStreamEvent
   | ReasoningStreamEvent
@@ -107,6 +149,9 @@ export type LLMCoreStreamEvent =
   | ImageDataStreamEvent
   | VideoDataStreamEvent
   | RateLimitStreamEvent
+  | MediaGenerationPendingEvent
+  | MediaGenerationProgressEvent
+  | MediaGenerationCompleteEvent
 
 export type {
   ChatMessage,
@@ -176,6 +221,42 @@ export const createStreamEvent = {
   }): RateLimitStreamEvent => ({
     type: 'rate_limit',
     rate_limit
+  }),
+  mediaGenerationPending: (data: {
+    taskId: string
+    mediaType: 'image' | 'video'
+    status: 'queued' | 'processing'
+    message?: string
+    pollCount?: number
+    maxPolls?: number
+    canManualRefresh?: boolean
+  }): MediaGenerationPendingEvent => ({
+    type: 'media_generation_pending',
+    media_generation_pending: data
+  }),
+  mediaGenerationProgress: (data: {
+    taskId: string
+    mediaType: 'image' | 'video'
+    status: 'queued' | 'processing' | 'completed' | 'failed'
+    progress?: number
+    message?: string
+    pollCount: number
+    maxPolls: number
+    canManualRefresh: boolean
+  }): MediaGenerationProgressEvent => ({
+    type: 'media_generation_progress',
+    media_generation_progress: data
+  }),
+  mediaGenerationComplete: (data: {
+    taskId: string
+    mediaType: 'image' | 'video'
+    url?: string
+    cover?: string
+    duration?: number
+    error?: string
+  }): MediaGenerationCompleteEvent => ({
+    type: 'media_generation_complete',
+    media_generation_complete: data
   })
 }
 

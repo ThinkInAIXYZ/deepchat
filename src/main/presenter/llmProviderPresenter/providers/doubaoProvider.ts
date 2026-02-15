@@ -65,8 +65,12 @@ export class DoubaoProvider extends OpenAICompatibleProvider {
   ]
 
   // Video generation polling configuration
-  private static readonly MAX_POLL_ATTEMPTS = 300
-  private static readonly POLL_INTERVAL_MS = 2000
+  // Progressive polling: fast polling for first 60s (30 attempts at 2s), then slower for long-running tasks
+  // Maximum ~4 hours of polling (14400s) for 48h video generation tasks
+  private static readonly MAX_POLL_ATTEMPTS = 720 // 60 (2s interval) + 660 (20s interval) = ~4 hours
+  private static readonly FAST_POLL_ATTEMPTS = 30 // First 60 seconds
+  private static readonly FAST_POLL_INTERVAL_MS = 2000 // 2 seconds
+  private static readonly SLOW_POLL_INTERVAL_MS = 20000 // 20 seconds for longer tasks
 
   constructor(provider: LLM_PROVIDER, configPresenter: IConfigPresenter) {
     // Initialize Doubao model configuration
@@ -247,6 +251,7 @@ export class DoubaoProvider extends OpenAICompatibleProvider {
 
   /**
    * Handle video generation using Volcano API
+   * Strategy: Return pending block immediately, poll in background, emit progress events
    */
   private async *handleVideoGeneration(
     messages: ChatMessage[],
@@ -288,6 +293,18 @@ export class DoubaoProvider extends OpenAICompatibleProvider {
       )
 
       if (response.id) {
+        // Step 1: Emit pending block immediately (backend will persist it)
+        yield createStreamEvent.mediaGenerationPending({
+          taskId: response.id,
+          mediaType: 'video',
+          status: 'queued',
+          message: 'Video generation task submitted',
+          pollCount: 0,
+          maxPolls: DoubaoProvider.MAX_POLL_ATTEMPTS,
+          canManualRefresh: true
+        })
+
+        // Step 2: Continue polling in background and emit progress events
         yield* this.pollVideoTask(response.id)
       } else {
         yield createStreamEvent.error('Failed to create video generation task')
@@ -302,6 +319,7 @@ export class DoubaoProvider extends OpenAICompatibleProvider {
 
   /**
    * Poll video generation task status
+   * Emits progress events and completes with media_generation_complete
    */
   private async *pollVideoTask(taskId: string): AsyncGenerator<LLMCoreStreamEvent> {
     for (let i = 0; i < DoubaoProvider.MAX_POLL_ATTEMPTS; i++) {
@@ -312,46 +330,101 @@ export class DoubaoProvider extends OpenAICompatibleProvider {
           'GET'
         )
 
+        const progressMessage = this.getVideoProgressMessage(status.status, i)
+
         switch (status.status) {
           case 'queued':
-            yield createStreamEvent.reasoning('Task queued...')
-            break
-
           case 'processing':
-            yield createStreamEvent.reasoning('Processing video...')
+            // Emit progress update (LLMEventHandler will broadcast and update UI)
+            yield createStreamEvent.mediaGenerationProgress({
+              taskId,
+              mediaType: 'video',
+              status: status.status,
+              message: progressMessage,
+              pollCount: i + 1,
+              maxPolls: DoubaoProvider.MAX_POLL_ATTEMPTS,
+              canManualRefresh: true
+            })
             break
 
           case 'completed':
             if (status.video_url) {
               const localUrl = await mediaCache.saveVideo(status.video_url)
-              yield createStreamEvent.videoData({
+              // Emit completion event with result
+              yield createStreamEvent.mediaGenerationComplete({
+                taskId,
+                mediaType: 'video',
                 url: localUrl,
                 cover: status.cover_url,
                 duration: status.duration
               })
               yield createStreamEvent.stop('complete')
             } else {
-              yield createStreamEvent.error('Video completed but no URL received')
+              yield createStreamEvent.mediaGenerationComplete({
+                taskId,
+                mediaType: 'video',
+                error: 'Video completed but no URL received'
+              })
               yield createStreamEvent.stop('error')
             }
             return
 
           case 'failed':
-            yield createStreamEvent.error(status.error?.message || 'Video generation failed')
+            yield createStreamEvent.mediaGenerationComplete({
+              taskId,
+              mediaType: 'video',
+              error: status.error?.message || 'Video generation failed'
+            })
             yield createStreamEvent.stop('error')
             return
         }
       } catch (error) {
-        yield createStreamEvent.error(`Error polling task: ${String(error)}`)
+        yield createStreamEvent.mediaGenerationComplete({
+          taskId,
+          mediaType: 'video',
+          error: `Error polling task: ${String(error)}`
+        })
         yield createStreamEvent.stop('error')
         return
       }
 
-      await this.sleep(DoubaoProvider.POLL_INTERVAL_MS)
+      // Progressive polling: fast for first 60s, then slower for long tasks
+      const pollInterval =
+        i < DoubaoProvider.FAST_POLL_ATTEMPTS
+          ? DoubaoProvider.FAST_POLL_INTERVAL_MS
+          : DoubaoProvider.SLOW_POLL_INTERVAL_MS
+
+      await this.sleep(pollInterval)
     }
 
-    yield createStreamEvent.error('Video generation timeout')
+    // Timeout: emit completion with error but allow manual refresh
+    yield createStreamEvent.mediaGenerationComplete({
+      taskId,
+      mediaType: 'video',
+      error:
+        'Video generation timeout - the task is still processing. You can check the status later.'
+    })
     yield createStreamEvent.stop('error')
+  }
+
+  /**
+   * Get human-readable progress message for video generation
+   */
+  private getVideoProgressMessage(status: string, pollCount: number): string {
+    const elapsedMinutes = Math.floor((pollCount * 2) / 60)
+
+    switch (status) {
+      case 'queued':
+        return elapsedMinutes > 0
+          ? `Queued for ${elapsedMinutes} minute${elapsedMinutes > 1 ? 's' : ''}...`
+          : 'Waiting in queue...'
+      case 'processing':
+        return elapsedMinutes > 0
+          ? `Processing for ${elapsedMinutes} minute${elapsedMinutes > 1 ? 's' : ''}...`
+          : 'Processing video...'
+      default:
+        return 'Processing...'
+    }
   }
 
   /**

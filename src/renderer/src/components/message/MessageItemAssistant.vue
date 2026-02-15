@@ -60,6 +60,12 @@
             :message-id="currentMessage.id"
             :conversation-id="currentThreadId"
           />
+          <MessageBlockMediaGeneration
+            v-else-if="block.type === 'action' && block.action_type === 'media_generation_pending'"
+            :message-id="currentMessage.id"
+            :conversation-id="currentThreadId"
+            :block="block"
+          />
           <MessageBlockAction
             v-else-if="block.type === 'action'"
             :message-id="currentMessage.id"
@@ -157,6 +163,7 @@ import MessageBlockVideo from './MessageBlockVideo.vue'
 import MessageBlockAudio from './MessageBlockAudio.vue'
 import MessageBlockMcpUi from './MessageBlockMcpUi.vue'
 import MessageBlockPlan from './MessageBlockPlan.vue'
+import MessageBlockMediaGeneration from './MessageBlockMediaGeneration.vue'
 
 import {
   Dialog,

@@ -53,7 +53,23 @@
     "rateLimitSwitchProvider": "Switch Provider",
     "rateLimitImmediately": "Now",
     "rateLimitSeconds": "s",
-    "rateLimitMinutes": "m"
+    "rateLimitMinutes": "m",
+    "mediaGeneration": {
+      "imageGenerating": "Generating Image",
+      "videoGenerating": "Generating Video",
+      "pending": "Pending",
+      "waiting": "Waiting in Queue",
+      "processing": "Processing",
+      "stopped": "Stopped",
+      "timeout": "Generation timeout",
+      "status": {
+        "queued": "Queued",
+        "processing": "Generating",
+        "completed": "Completed",
+        "failed": "Failed",
+        "error": "Timeout"
+      }
+    }
   },
   "rateLimit": {
     "queueTooltip": "{count} requests in queue, {interval}s interval",

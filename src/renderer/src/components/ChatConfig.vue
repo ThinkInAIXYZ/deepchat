@@ -7,6 +7,7 @@ import { useI18n } from 'vue-i18n'
 import { Label } from '@shadcn/components/ui/label'
 import { Icon } from '@iconify/vue'
 import { Textarea } from '@shadcn/components/ui/textarea'
+import { Checkbox } from '@shadcn/components/ui/checkbox'
 import {
   Tooltip,
   TooltipContent,
@@ -23,6 +24,7 @@ import { useModelCapabilities } from '@/composables/useModelCapabilities'
 import { useThinkingBudget } from '@/composables/useThinkingBudget'
 import { useModelTypeDetection } from '@/composables/useModelTypeDetection'
 import { useChatConfigFields } from '@/composables/useChatConfigFields'
+import { useMediaParams } from '@/composables/useMediaParams'
 
 // === Stores ===
 import { useLanguageStore } from '@/stores/language'
@@ -40,7 +42,13 @@ const props = defineProps<{
   providerId?: string
   reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
   verbosity?: 'low' | 'medium' | 'high'
-  modelType?: 'chat' | 'imageGeneration' | 'embedding' | 'rerank'
+  modelType?: 'chat' | 'imageGeneration' | 'embedding' | 'rerank' | 'videoGeneration'
+  // Media generation parameters
+  mediaResolution?: string
+  mediaDuration?: number
+  mediaCameraFixed?: boolean
+  mediaWatermark?: boolean
+  mediaAspectRatio?: string
 }>()
 
 const systemPrompt = defineModel<string>('systemPrompt')
@@ -52,6 +60,12 @@ const emit = defineEmits<{
   'update:thinkingBudget': [value: number | undefined]
   'update:reasoningEffort': [value: 'minimal' | 'low' | 'medium' | 'high']
   'update:verbosity': [value: 'low' | 'medium' | 'high']
+  // Media generation parameter emits
+  'update:mediaResolution': [value: string | undefined]
+  'update:mediaDuration': [value: number | undefined]
+  'update:mediaCameraFixed': [value: boolean | undefined]
+  'update:mediaWatermark': [value: boolean | undefined]
+  'update:mediaAspectRatio': [value: string | undefined]
 }>()
 
 // === Stores ===
@@ -82,6 +96,14 @@ const thinkingBudget = useThinkingBudget({
   modelReasoning: modelTypeDetection.modelReasoning,
   supportsReasoning: capabilities.supportsReasoning,
   isGeminiProvider: modelTypeDetection.isGeminiProvider
+})
+
+// Media generation params
+const mediaParams = useMediaParams({
+  providerId: computed(() => props.providerId),
+  modelId: computed(() => props.modelId),
+  configPresenter,
+  modelType: computed(() => props.modelType)
 })
 
 // === Utility Functions ===
@@ -118,6 +140,12 @@ const { sliderFields, inputFields, selectFields } = useChatConfigFields({
   thinkingBudgetError: thinkingBudget.validationError,
   budgetRange: capabilities.budgetRange,
 
+  // Media generation
+  showMediaParams: mediaParams.showMediaParams,
+  isVideoGeneration: mediaParams.isVideoGeneration,
+  isImageGeneration: mediaParams.isImageGeneration,
+  mediaParamConfig: mediaParams.mediaParamConfig,
+
   // Utils
   formatSize,
 
@@ -127,12 +155,28 @@ const { sliderFields, inputFields, selectFields } = useChatConfigFields({
 
 // === Local State & Computed ===
 
-// Clear system prompt when switching to image generation model
+// Clear system prompt when switching to image/video generation model
 watch(
   () => props.modelType,
-  (newType) => {
-    if (newType === 'imageGeneration' && systemPrompt.value) {
+  (newType, oldType) => {
+    if ((newType === 'imageGeneration' || newType === 'videoGeneration') && systemPrompt.value) {
       systemPrompt.value = ''
+    }
+
+    // Clear media params when switching between media types or to non-media model
+    if (oldType !== newType) {
+      const isOldTypeMedia = oldType === 'imageGeneration' || oldType === 'videoGeneration'
+      const isNewTypeMedia = newType === 'imageGeneration' || newType === 'videoGeneration'
+
+      // Clear media params when switching from media to non-media
+      // or when switching between different media types (image <-> video)
+      if (isOldTypeMedia && (!isNewTypeMedia || oldType !== newType)) {
+        emit('update:mediaResolution', undefined)
+        emit('update:mediaDuration', undefined)
+        emit('update:mediaCameraFixed', undefined)
+        emit('update:mediaWatermark', undefined)
+        emit('update:mediaAspectRatio', undefined)
+      }
     }
   }
 )
@@ -142,6 +186,7 @@ const modelTypeIcon = computed(() => {
   const icons = {
     chat: 'lucide:message-circle',
     imageGeneration: 'lucide:image',
+    videoGeneration: 'lucide:video',
     embedding: 'lucide:layers',
     rerank: 'lucide:arrow-up-down'
   }
@@ -158,8 +203,8 @@ const modelTypeIcon = computed(() => {
     </div>
 
     <div class="space-y-6">
-      <!-- System Prompt (hidden for image generation models) -->
-      <div v-if="!modelTypeDetection.isImageGenerationModel.value" class="space-y-2 px-2">
+      <!-- System Prompt (hidden for media generation models) -->
+      <div v-if="!mediaParams.showMediaParams.value" class="space-y-2 px-2">
         <div class="flex items-center space-x-2 py-1.5">
           <Icon icon="lucide:terminal" class="w-4 h-4 text-muted-foreground" />
           <Label class="text-xs font-medium">{{ t('settings.model.systemPrompt.label') }}</Label>
@@ -213,7 +258,7 @@ const modelTypeIcon = computed(() => {
         @update:model-value="field.setValue"
       />
 
-      <!-- Select Fields (Reasoning Effort, Verbosity) -->
+      <!-- Select Fields (Reasoning Effort, Verbosity, Media Resolution) -->
       <ConfigSelectField
         v-for="field in selectFields"
         :key="field.key"
@@ -226,6 +271,56 @@ const modelTypeIcon = computed(() => {
         :hint="field.hint"
         @update:model-value="field.setValue"
       />
+
+      <!-- Camera Fixed (for video generation) -->
+      <div
+        v-if="
+          mediaParams.showMediaParams.value &&
+          mediaParams.isVideoGeneration.value &&
+          mediaParams.mediaParamConfig.value?.cameraFixed?.supported
+        "
+        class="flex items-center justify-between px-2"
+      >
+        <div class="space-y-0.5">
+          <Label class="text-xs font-medium">{{
+            t('settings.model.media.cameraFixed.label')
+          }}</Label>
+          <p class="text-xs text-muted-foreground">
+            {{ t('settings.model.media.cameraFixed.description') }}
+          </p>
+        </div>
+        <Checkbox
+          :checked="
+            props.mediaCameraFixed ??
+            mediaParams.mediaParamConfig.value?.cameraFixed?.default ??
+            false
+          "
+          @update:checked="(val) => emit('update:mediaCameraFixed', val)"
+        />
+      </div>
+
+      <!-- Watermark (for video generation) -->
+      <div
+        v-if="
+          mediaParams.showMediaParams.value &&
+          mediaParams.isVideoGeneration.value &&
+          mediaParams.mediaParamConfig.value?.watermark?.supported
+        "
+        class="flex items-center justify-between px-2"
+      >
+        <div class="space-y-0.5">
+          <Label class="text-xs font-medium">{{ t('settings.model.media.watermark.label') }}</Label>
+          <p class="text-xs text-muted-foreground">
+            {{ t('settings.model.media.watermark.description') }}
+          </p>
+        </div>
+        <Checkbox
+          :checked="
+            props.mediaWatermark ?? mediaParams.mediaParamConfig.value?.watermark?.default ?? false
+          "
+          @update:checked="(val) => emit('update:mediaWatermark', val)"
+        />
+      </div>
     </div>
   </div>
 </template>

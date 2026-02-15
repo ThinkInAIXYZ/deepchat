@@ -10,6 +10,81 @@ import fs from 'fs'
 import { is } from '@electron-toolkit/utils'
 import { LifecyclePhase } from '@shared/lifecycle'
 
+const DEEPCHAT_MEDIA_SCHEME = 'deepchat-media://'
+
+function safeDecodeURIComponent(value: string): string {
+  try {
+    return decodeURIComponent(value)
+  } catch {
+    return value
+  }
+}
+
+function isPathWithinDirectory(targetPath: string, basePath: string): boolean {
+  const relativePath = path.relative(basePath, targetPath)
+  return relativePath === '' || (!relativePath.startsWith('..') && !path.isAbsolute(relativePath))
+}
+
+function resolveDeepchatMediaPath(requestUrl: string, mediaCacheDir: string): string | null {
+  let rawPath = safeDecodeURIComponent(requestUrl.slice(DEEPCHAT_MEDIA_SCHEME.length))
+
+  try {
+    const parsedUrl = new URL(requestUrl)
+    const host = safeDecodeURIComponent(parsedUrl.host)
+    const pathname = safeDecodeURIComponent(parsedUrl.pathname)
+
+    if (host && pathname) {
+      // deepchat-media://Users/foo.png => host='Users', pathname='/foo.png'
+      rawPath = /^[a-zA-Z]:$/.test(host) ? `${host}${pathname}` : `/${host}${pathname}`
+    } else if (host) {
+      rawPath = host
+    } else if (pathname) {
+      rawPath = pathname
+    }
+  } catch {
+    // Keep fallback path parsed by slicing protocol prefix.
+  }
+
+  let resolvedPath = path.isAbsolute(rawPath)
+    ? path.resolve(rawPath)
+    : path.resolve(mediaCacheDir, rawPath.replace(/^[/\\]+/, ''))
+
+  if (!isPathWithinDirectory(resolvedPath, mediaCacheDir)) {
+    const normalizedRawPath = rawPath.replace(/\\/g, '/')
+    const marker = 'media-cache/'
+    const markerIndex = normalizedRawPath.lastIndexOf(marker)
+    if (markerIndex !== -1) {
+      const relativePath = normalizedRawPath.slice(markerIndex + marker.length)
+      resolvedPath = path.resolve(mediaCacheDir, relativePath)
+    }
+  }
+
+  return isPathWithinDirectory(resolvedPath, mediaCacheDir) ? resolvedPath : null
+}
+
+function getMediaMimeType(filePath: string): string {
+  const extension = path.extname(filePath).toLowerCase()
+  const mimeTypeMap: Record<string, string> = {
+    '.png': 'image/png',
+    '.gif': 'image/gif',
+    '.webp': 'image/webp',
+    '.svg': 'image/svg+xml',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.bmp': 'image/bmp',
+    '.ico': 'image/x-icon',
+    '.avif': 'image/avif',
+    '.mp4': 'video/mp4',
+    '.webm': 'video/webm',
+    '.ogg': 'video/ogg',
+    '.ogv': 'video/ogg',
+    '.mov': 'video/quicktime',
+    '.mkv': 'video/x-matroska'
+  }
+
+  return mimeTypeMap[extension] || 'application/octet-stream'
+}
+
 export const protocolRegistrationHook: LifecycleHook = {
   name: 'protocol-registration',
   phase: LifecyclePhase.BEFORE_START,
@@ -120,6 +195,50 @@ export const protocolRegistrationHook: LifecycleHook = {
         })
       } catch (error: unknown) {
         console.error('protocolRegistrationHook: Error handling imgcache request:', error)
+        const errorMessage = error instanceof Error ? error.message : String(error)
+        return new Response(`Server error: ${errorMessage}`, {
+          status: 500,
+          headers: { 'Content-Type': 'text/plain' }
+        })
+      }
+    })
+
+    // Register 'deepchat-media' protocol for handling video/image cache
+    protocol.handle('deepchat-media', (request) => {
+      try {
+        const mediaCacheDir = path.resolve(app.getPath('userData'), 'media-cache')
+        const fullPath = resolveDeepchatMediaPath(request.url, mediaCacheDir)
+
+        if (!fullPath) {
+          console.warn(
+            `protocolRegistrationHook: deepchat-media handler: Invalid media path from URL: ${request.url}`
+          )
+          return new Response('Invalid media path', {
+            status: 400,
+            headers: { 'Content-Type': 'text/plain' }
+          })
+        }
+
+        // Check if file exists
+        if (!fs.existsSync(fullPath)) {
+          console.warn(
+            `protocolRegistrationHook: deepchat-media handler: Media file not found: ${fullPath}`
+          )
+          return new Response(`Media not found: ${request.url}`, {
+            status: 404,
+            headers: { 'Content-Type': 'text/plain' }
+          })
+        }
+
+        const mimeType = getMediaMimeType(fullPath)
+
+        // Read file and return response
+        const fileContent = fs.readFileSync(fullPath)
+        return new Response(fileContent, {
+          headers: { 'Content-Type': mimeType }
+        })
+      } catch (error: unknown) {
+        console.error('protocolRegistrationHook: Error handling deepchat-media request:', error)
         const errorMessage = error instanceof Error ? error.message : String(error)
         return new Response(`Server error: ${errorMessage}`, {
           status: 500,

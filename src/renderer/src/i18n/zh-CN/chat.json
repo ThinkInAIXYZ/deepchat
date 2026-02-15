@@ -53,7 +53,23 @@
     "rateLimitSwitchProvider": "切换服务商",
     "rateLimitImmediately": "立即",
     "rateLimitSeconds": "秒",
-    "rateLimitMinutes": "分钟"
+    "rateLimitMinutes": "分钟",
+    "mediaGeneration": {
+      "imageGenerating": "图片生成中",
+      "videoGenerating": "视频生成中",
+      "pending": "等待中",
+      "waiting": "等待队列",
+      "processing": "处理中",
+      "stopped": "已停止",
+      "timeout": "生成超时",
+      "status": {
+        "queued": "排队中",
+        "processing": "正在生成",
+        "completed": "已完成",
+        "failed": "失败",
+        "error": "超时"
+      }
+    }
   },
   "rateLimit": {
     "queueTooltip": "队列中有 {count} 个请求，间隔 {interval} 秒",

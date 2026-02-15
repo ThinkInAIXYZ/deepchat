@@ -293,6 +293,7 @@
           "chat": "מודל שפה (Chat)",
           "embedding": "מודל הטמעה (Embedding)",
           "imageGeneration": "מודל יצירת תמונות",
+          "videoGeneration": "Video Generation Model",
           "rerank": "מודל דירוג מחדש (Rerank)"
         }
       },
@@ -316,7 +317,29 @@
         "label": "נקודת קצה API",
         "options": {
           "chat": "יצירת טקסט",
-          "image": "יצירת תמונות"
+          "image": "יצירת תמונות",
+          "video": "Video Generation"
+        }
+      },
+      "media": {
+        "duration": {
+          "label": "Duration",
+          "description": "Set the duration of the generated video",
+          "range": "{min}s - {max}s"
+        },
+        "resolution": {
+          "label": "Resolution",
+          "descriptionImage": "Set the resolution of the generated image (e.g., 1024x1024)",
+          "descriptionVideo": "Set the resolution of the generated video (e.g., 1080x720)",
+          "placeholder": "e.g., 1024x1024"
+        },
+        "cameraFixed": {
+          "label": "Camera Fixed",
+          "description": "Keep the camera perspective fixed to avoid lens movement during generation"
+        },
+        "watermark": {
+          "label": "Watermark",
+          "description": "Add provider watermark to the generated video"
         }
       }
     }

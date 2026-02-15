@@ -139,6 +139,9 @@
                 <SelectItem value="imageGeneration">
                   {{ t('settings.model.modelConfig.type.options.imageGeneration') }}
                 </SelectItem>
+                <SelectItem value="videoGeneration">
+                  {{ t('settings.model.modelConfig.type.options.videoGeneration') }}
+                </SelectItem>
               </SelectContent>
             </Select>
             <p class="text-xs text-muted-foreground">
@@ -159,6 +162,9 @@
                 </SelectItem>
                 <SelectItem value="image">
                   {{ t('settings.model.modelConfig.apiEndpoint.options.image') }}
+                </SelectItem>
+                <SelectItem value="video">
+                  {{ t('settings.model.modelConfig.apiEndpoint.options.video') }}
                 </SelectItem>
               </SelectContent>
             </Select>

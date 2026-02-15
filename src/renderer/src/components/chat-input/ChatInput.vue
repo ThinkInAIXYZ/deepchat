@@ -310,7 +310,7 @@
               </PopoverTrigger>
               <PopoverContent align="end" class="w-80 border-none bg-transparent p-0 shadow-none">
                 <ModelChooser
-                  :type="[ModelType.Chat, ModelType.ImageGeneration]"
+                  :type="[ModelType.Chat, ModelType.ImageGeneration, ModelType.VideoGeneration]"
                   @update:model="config.handleModelUpdate"
                 />
               </PopoverContent>

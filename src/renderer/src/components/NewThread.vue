@@ -52,7 +52,7 @@
             </PopoverTrigger>
             <PopoverContent align="end" class="w-80 p-0">
               <ModelSelect
-                :type="[ModelType.Chat, ModelType.ImageGeneration]"
+                :type="[ModelType.Chat, ModelType.ImageGeneration, ModelType.VideoGeneration]"
                 @update:model="handleModelUpdate"
               />
             </PopoverContent>
@@ -82,6 +82,10 @@
               v-model:thinking-budget="thinkingBudget"
               v-model:reasoning-effort="reasoningEffort"
               v-model:verbosity="verbosity"
+              v-model:media-resolution="mediaResolution"
+              v-model:media-duration="mediaDuration"
+              v-model:media-camera-fixed="mediaCameraFixed"
+              v-model:media-watermark="mediaWatermark"
               :context-length-limit="contextLengthLimit"
               :max-tokens-limit="maxTokensLimit"
               :model-id="activeModel?.id"
@@ -162,6 +166,12 @@ const thinkingBudget = ref<number | undefined>(undefined)
 const reasoningEffort = ref<'minimal' | 'low' | 'medium' | 'high' | undefined>(undefined)
 const verbosity = ref<'low' | 'medium' | 'high' | undefined>(undefined)
 
+// Media generation parameters
+const mediaResolution = ref<string | undefined>(undefined)
+const mediaDuration = ref<number | undefined>(undefined)
+const mediaCameraFixed = ref<boolean | undefined>(undefined)
+const mediaWatermark = ref<boolean | undefined>(undefined)
+
 const handleDefaultSystemPromptChange = async (
   _event: IpcRendererEvent,
   payload: { promptId?: string; content?: string }
@@ -188,12 +198,34 @@ const pendingAcpWorkdir = computed(() => {
 
 watch(
   () => activeModel.value,
-  async () => {
+  async (newModel, oldModel) => {
     // console.log('activeModel', activeModel.value)
     const config = await configPresenter.getModelDefaultConfig(
       activeModel.value.id,
       activeModel.value.providerId
     )
+
+    // Check if model type changed
+    const oldType = oldModel?.type
+    const newType = newModel?.type
+    const isMediaModel =
+      newType === ModelType.ImageGeneration || newType === ModelType.VideoGeneration
+    const wasMediaModel =
+      oldType === ModelType.ImageGeneration || oldType === ModelType.VideoGeneration
+
+    // Handle media generation model specific logic
+    if (isMediaModel) {
+      // Clear system prompt and other chat-specific params for media models
+      systemPrompt.value = ''
+      // Keep only media-relevant params
+    } else if (wasMediaModel) {
+      // Clear media params when switching from media to non-media model
+      mediaResolution.value = undefined
+      mediaDuration.value = undefined
+      mediaCameraFixed.value = undefined
+      mediaWatermark.value = undefined
+    }
+
     temperature.value = config.temperature ?? 0.7
     contextLength.value = config.contextLength
     contextLengthLimit.value = config.contextLength
@@ -237,7 +269,12 @@ const findEnabledModel = (providerId: string, modelId: string) => {
 const pickFirstEnabledModel = () => {
   const found = modelStore.enabledModels
     .flatMap((p) => p.models.map((m) => ({ ...m, providerId: p.providerId })))
-    .find((m) => m.type === ModelType.Chat || m.type === ModelType.ImageGeneration)
+    .find(
+      (m) =>
+        m.type === ModelType.Chat ||
+        m.type === ModelType.ImageGeneration ||
+        m.type === ModelType.VideoGeneration
+    )
   return found
 }
 
@@ -247,7 +284,9 @@ const pickFirstAcpModel = () => {
     .find(
       (m) =>
         m.providerId === 'acp' &&
-        (m.type === ModelType.Chat || m.type === ModelType.ImageGeneration)
+        (m.type === ModelType.Chat ||
+          m.type === ModelType.ImageGeneration ||
+          m.type === ModelType.VideoGeneration)
     )
   return found
 }
@@ -258,7 +297,9 @@ const pickFirstNonAcpModel = () => {
     .find(
       (m) =>
         m.providerId !== 'acp' &&
-        (m.type === ModelType.Chat || m.type === ModelType.ImageGeneration)
+        (m.type === ModelType.Chat ||
+          m.type === ModelType.ImageGeneration ||
+          m.type === ModelType.VideoGeneration)
     )
   return found
 }
@@ -560,6 +601,10 @@ const handleSend = async (content: UserMessageContent) => {
     thinkingBudget: thinkingBudget.value,
     reasoningEffort: reasoningEffort.value,
     verbosity: verbosity.value,
+    mediaResolution: mediaResolution.value,
+    mediaDuration: mediaDuration.value,
+    mediaCameraFixed: mediaCameraFixed.value,
+    mediaWatermark: mediaWatermark.value,
     enabledMcpTools: chatStore.chatConfig.enabledMcpTools,
     agentWorkspacePath,
     acpWorkdirMap:

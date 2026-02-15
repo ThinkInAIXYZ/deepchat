@@ -293,6 +293,7 @@
           "chat": "Modelo de Linguagem",
           "embedding": "Modelo de Embedding (Incrustação)",
           "imageGeneration": "Modelo de Geração de Imagem",
+          "videoGeneration": "Video Generation Model",
           "rerank": "Modelo de Rerank (Reclassificação)"
         }
       },
@@ -316,7 +317,29 @@
         "label": "Endpoint da API",
         "options": {
           "chat": "Geração de texto",
-          "image": "Geração de Imagens"
+          "image": "Geração de Imagens",
+          "video": "Video Generation"
+        }
+      },
+      "media": {
+        "duration": {
+          "label": "Duration",
+          "description": "Set the duration of the generated video",
+          "range": "{min}s - {max}s"
+        },
+        "resolution": {
+          "label": "Resolution",
+          "descriptionImage": "Set the resolution of the generated image (e.g., 1024x1024)",
+          "descriptionVideo": "Set the resolution of the generated video (e.g., 1080x720)",
+          "placeholder": "e.g., 1024x1024"
+        },
+        "cameraFixed": {
+          "label": "Camera Fixed",
+          "description": "Keep the camera perspective fixed to avoid lens movement during generation"
+        },
+        "watermark": {
+          "label": "Watermark",
+          "description": "Add provider watermark to the generated video"
         }
       }
     }

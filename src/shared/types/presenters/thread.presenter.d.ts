@@ -25,6 +25,12 @@ export type CONVERSATION_SETTINGS = {
   agentWorkspacePath?: string | null
   selectedVariantsMap?: Record<string, string>
   activeSkills?: string[]
+  // Media generation parameters (video/image)
+  mediaResolution?: string
+  mediaDuration?: number
+  mediaCameraFixed?: boolean
+  mediaWatermark?: boolean
+  mediaAspectRatio?: string
 }
 
 export type ParentSelection = {

@@ -168,6 +168,16 @@ export class ModelCapabilities {
     if (!Array.isArray(outputs)) return false
     return outputs.includes('image')
   }
+
+  supportsVideoGeneration(providerId: string, modelId: string): boolean {
+    const m = this.getModel(providerId, modelId)
+    return m?.type === 'videoGeneration'
+  }
+
+  supportsImageGeneration(providerId: string, modelId: string): boolean {
+    const m = this.getModel(providerId, modelId)
+    return m?.type === 'imageGeneration'
+  }
 }
 
 export const modelCapabilities = new ModelCapabilities()

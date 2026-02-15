@@ -129,6 +129,8 @@ export async function preparePromptContent({
     normalizeChatMode(rawChatMode) ?? normalizeChatMode(rawFallback) ?? 'agent'
 
   const isImageGeneration = modelType === ModelType.ImageGeneration
+  const isVideoGeneration = modelType === ModelType.VideoGeneration
+  const isMediaGeneration = isImageGeneration || isVideoGeneration
 
   const finalSystemPrompt = enhanceSystemPromptWithDateTime(systemPrompt, {
     isImageGeneration,
@@ -141,12 +143,12 @@ export async function preparePromptContent({
   let toolDefinitions: MCPToolDefinition[] = []
   let effectiveEnabledMcpTools = enabledMcpTools
 
-  if (!isImageGeneration && chatMode === 'agent') {
+  if (!isMediaGeneration && chatMode === 'agent') {
     const skillsAllowedTools = await getSkillsAllowedTools(conversation.id)
     effectiveEnabledMcpTools = mergeToolSelections(enabledMcpTools, skillsAllowedTools)
   }
 
-  if (!isImageGeneration) {
+  if (!isMediaGeneration) {
     try {
       toolDefinitions = await toolCallCenter.getAllToolDefinitions({
         enabledMcpTools: effectiveEnabledMcpTools,
@@ -167,7 +169,7 @@ export async function preparePromptContent({
   let envPrompt = ''
   let toolingPrompt = ''
 
-  if (!isImageGeneration && chatMode === 'agent') {
+  if (!isMediaGeneration && chatMode === 'agent') {
     runtimePrompt = buildRuntimeCapabilitiesPrompt()
     try {
       skillsMetadataPrompt = await buildSkillsMetadataPrompt()
@@ -187,7 +189,7 @@ export async function preparePromptContent({
     }
   }
 
-  if (!isImageGeneration && toolDefinitions.length > 0) {
+  if (!isMediaGeneration && toolDefinitions.length > 0) {
     toolingPrompt = toolCallCenter.buildToolSystemPrompt({
       conversationId: conversation.id
     })
@@ -203,7 +205,7 @@ export async function preparePromptContent({
   })
 
   const systemPromptTokens =
-    !isImageGeneration && finalSystemPromptWithExtras
+    !isMediaGeneration && finalSystemPromptWithExtras
       ? approximateTokenSize(finalSystemPromptWithExtras)
       : 0
   const userMessageTokens = approximateTokenSize(userContent)
@@ -224,7 +226,7 @@ export async function preparePromptContent({
 
   const formattedMessages = formatMessagesForCompletion(
     selectedContextMessages,
-    isImageGeneration ? '' : finalSystemPromptWithExtras,
+    isMediaGeneration ? '' : finalSystemPromptWithExtras,
     artifacts,
     userContent,
     '',

@@ -142,6 +142,7 @@ export type AssistantMessageBlock = {
     | 'maximum_tool_calls_reached'
     | 'rate_limit'
     | 'question_request'
+    | 'media_generation_pending'
   image_data?: {
     data: string
     mimeType: string

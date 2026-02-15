@@ -499,6 +499,9 @@ export interface IConfigPresenter {
   ): 'minimal' | 'low' | 'medium' | 'high' | undefined
   supportsVerbosityCapability?(providerId: string, modelId: string): boolean
   getVerbosityDefault?(providerId: string, modelId: string): 'low' | 'medium' | 'high' | undefined
+  // Media generation capabilities
+  supportsVideoGeneration?(providerId: string, modelId: string): boolean
+  supportsImageGeneration?(providerId: string, modelId: string): boolean
   setProviderModels(providerId: string, models: MODEL_META[]): void
   getEnabledProviders(): LLM_PROVIDER[]
   getModelDefaultConfig(modelId: string, providerId?: string): ModelConfig
@@ -1091,6 +1094,12 @@ export type CONVERSATION_SETTINGS = {
   chatMode?: 'agent' | 'acp agent'
   agentWorkspacePath?: string | null
   activeSkills?: string[] // Activated skills for this conversation
+  // Media generation parameters (video/image)
+  mediaResolution?: string
+  mediaDuration?: number
+  mediaCameraFixed?: boolean
+  mediaWatermark?: boolean
+  mediaAspectRatio?: string
 }
 
 export type ParentSelection = {

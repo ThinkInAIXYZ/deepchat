@@ -220,7 +220,7 @@ const handleVisionModelSelect = async (
   visionModelSelectOpen.value = false
 }
 
-const syncModelSelections = async (): Promise<void> => {
+const syncModelSelections = async (autoFallback = false): Promise<void> => {
   if (isSyncingModelDefaults) {
     return
   }
@@ -238,12 +238,13 @@ const syncModelSelections = async (): Promise<void> => {
 
     const chatSelection =
       selectBySetting(defaultModelSetting, (_model, providerId) => providerId !== 'acp') ||
-      pickFirstEnabledModel((_model, providerId) => providerId !== 'acp')
+      (autoFallback ? pickFirstEnabledModel((_model, providerId) => providerId !== 'acp') : null)
 
     const assistantSelection =
       selectBySetting(assistantModelSetting, (_model, providerId) => providerId !== 'acp') ||
-      chatSelection ||
-      pickFirstEnabledModel((_model, providerId) => providerId !== 'acp')
+      (autoFallback
+        ? chatSelection || pickFirstEnabledModel((_model, providerId) => providerId !== 'acp')
+        : null)
 
     const visionSelection =
       selectBySetting(
@@ -253,20 +254,24 @@ const syncModelSelections = async (): Promise<void> => {
           Boolean(model.vision) &&
           (model.type === ModelType.Chat || model.type === ModelType.ImageGeneration)
       ) ||
-      pickFirstEnabledModel(
-        (model, providerId) =>
-          providerId !== 'acp' &&
-          Boolean(model.vision) &&
-          (model.type === ModelType.Chat || model.type === ModelType.ImageGeneration)
-      )
+      (autoFallback
+        ? pickFirstEnabledModel(
+            (model, providerId) =>
+              providerId !== 'acp' &&
+              Boolean(model.vision) &&
+              (model.type === ModelType.Chat || model.type === ModelType.ImageGeneration)
+          )
+        : null)
 
     selectedChatModel.value = chatSelection
     selectedAssistantModel.value = assistantSelection
     selectedVisionModel.value = visionSelection
 
-    await persistModelSetting('defaultModel', defaultModelSetting, chatSelection)
-    await persistModelSetting('assistantModel', assistantModelSetting, assistantSelection)
-    await persistModelSetting('defaultVisionModel', defaultVisionModelSetting, visionSelection)
+    if (autoFallback) {
+      await persistModelSetting('defaultModel', defaultModelSetting, chatSelection)
+      await persistModelSetting('assistantModel', assistantModelSetting, assistantSelection)
+      await persistModelSetting('defaultVisionModel', defaultVisionModelSetting, visionSelection)
+    }
   } catch (error) {
     console.error('Failed to sync model selections:', error)
   } finally {
@@ -275,13 +280,13 @@ const syncModelSelections = async (): Promise<void> => {
 }
 
 onMounted(() => {
-  syncModelSelections()
+  syncModelSelections(false)
 })
 
 watch(
   () => modelStore.enabledModels,
   () => {
-    void syncModelSelections()
+    void syncModelSelections(false)
   },
   { deep: true }
 )

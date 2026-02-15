@@ -293,6 +293,7 @@
           "chat": "言語モデル",
           "embedding": "埋め込みモデル",
           "imageGeneration": "画像生成モデル",
+          "videoGeneration": "Video Generation Model",
           "rerank": "リランクモデル"
         }
       },
@@ -316,7 +317,29 @@
         "label": "API エンドポイント",
         "options": {
           "chat": "テキスト生成",
-          "image": "画像生成"
+          "image": "画像生成",
+          "video": "Video Generation"
+        }
+      },
+      "media": {
+        "duration": {
+          "label": "Duration",
+          "description": "Set the duration of the generated video",
+          "range": "{min}s - {max}s"
+        },
+        "resolution": {
+          "label": "Resolution",
+          "descriptionImage": "Set the resolution of the generated image (e.g., 1024x1024)",
+          "descriptionVideo": "Set the resolution of the generated video (e.g., 1080x720)",
+          "placeholder": "e.g., 1024x1024"
+        },
+        "cameraFixed": {
+          "label": "Camera Fixed",
+          "description": "Keep the camera perspective fixed to avoid lens movement during generation"
+        },
+        "watermark": {
+          "label": "Watermark",
+          "description": "Add provider watermark to the generated video"
         }
       }
     }

@@ -8,7 +8,9 @@ import { useModelConfigStore } from '@/stores/modelConfigStore'
 export interface UseModelTypeDetectionOptions {
   modelId: Ref<string | undefined>
   providerId: Ref<string | undefined>
-  modelType: Ref<'chat' | 'imageGeneration' | 'embedding' | 'rerank' | undefined>
+  modelType: Ref<
+    'chat' | 'imageGeneration' | 'embedding' | 'rerank' | 'videoGeneration' | undefined
+  >
 }
 
 export interface UseModelTypeDetectionReturn {

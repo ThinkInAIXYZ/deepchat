@@ -61,6 +61,33 @@ export interface LLMAgentEventData {
   image_data?: { data: string; mimeType: string }
   video_data?: { url: string; cover?: string; duration?: number }
   rate_limit?: RateLimitInfo
+  media_generation_pending?: {
+    taskId: string
+    mediaType: 'image' | 'video'
+    status: 'queued' | 'processing'
+    message?: string
+    pollCount?: number
+    maxPolls?: number
+    canManualRefresh?: boolean
+  }
+  media_generation_progress?: {
+    taskId: string
+    mediaType: 'image' | 'video'
+    status: 'queued' | 'processing' | 'completed' | 'failed'
+    progress?: number
+    message?: string
+    pollCount: number
+    maxPolls: number
+    canManualRefresh: boolean
+  }
+  media_generation_complete?: {
+    taskId: string
+    mediaType: 'image' | 'video'
+    url?: string
+    cover?: string
+    duration?: number
+    error?: string
+  }
   error?: string
   userStop?: boolean
 }

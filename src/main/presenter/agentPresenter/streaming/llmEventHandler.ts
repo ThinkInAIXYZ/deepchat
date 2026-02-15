@@ -65,7 +65,10 @@ export class LLMEventHandler {
       question_error,
       totalUsage,
       image_data,
-      video_data
+      video_data,
+      media_generation_pending,
+      media_generation_progress,
+      media_generation_complete
     } = msg
 
     const state = this.generatingMessages.get(eventId)
@@ -311,6 +314,98 @@ export class LLMEventHandler {
       state.message.content.push(videoBlock)
     }
 
+    // Handle media generation events
+    if (media_generation_pending) {
+      this.finalizeLastBlock(state)
+      const pendingBlock: AssistantMessageBlock = {
+        type: 'action',
+        status: 'loading',
+        timestamp: currentTime,
+        content: media_generation_pending.message || 'Generating media...',
+        action_type: 'media_generation_pending',
+        extra: {
+          taskId: media_generation_pending.taskId,
+          mediaType: media_generation_pending.mediaType,
+          pollCount: media_generation_pending.pollCount || 0,
+          maxPolls: media_generation_pending.maxPolls || 0,
+          canManualRefresh: media_generation_pending.canManualRefresh ?? true
+        }
+      }
+      state.message.content.push(pendingBlock)
+    }
+
+    if (media_generation_progress) {
+      // Find and update the existing pending block
+      const pendingBlock = state.message.content.find(
+        (block): block is AssistantMessageBlock =>
+          block.type === 'action' &&
+          block.action_type === 'media_generation_pending' &&
+          block.extra?.taskId === media_generation_progress.taskId
+      )
+      if (pendingBlock) {
+        pendingBlock.content = media_generation_progress.message || pendingBlock.content
+        pendingBlock.extra = {
+          ...pendingBlock.extra,
+          pollCount: media_generation_progress.pollCount,
+          maxPolls: media_generation_progress.maxPolls,
+          canManualRefresh: media_generation_progress.canManualRefresh,
+          status: media_generation_progress.status
+        }
+      }
+    }
+
+    if (media_generation_complete) {
+      // Find and remove the pending block
+      const pendingBlockIndex = state.message.content.findIndex(
+        (block) =>
+          block.type === 'action' &&
+          block.action_type === 'media_generation_pending' &&
+          block.extra?.taskId === media_generation_complete.taskId
+      )
+      if (pendingBlockIndex !== -1) {
+        state.message.content.splice(pendingBlockIndex, 1)
+      }
+
+      if (media_generation_complete.error) {
+        // Add error block
+        const errorBlock: AssistantMessageBlock = {
+          type: 'error',
+          status: 'error',
+          timestamp: currentTime,
+          content: media_generation_complete.error
+        }
+        state.message.content.push(errorBlock)
+      } else if (media_generation_complete.url) {
+        // Add final media block
+        if (media_generation_complete.mediaType === 'video') {
+          const videoBlock: AssistantMessageBlock = {
+            type: 'video',
+            status: 'success',
+            timestamp: currentTime,
+            content: 'video',
+            video_data: {
+              url: media_generation_complete.url,
+              cover: media_generation_complete.cover,
+              duration: media_generation_complete.duration
+            }
+          }
+          state.message.content.push(videoBlock)
+        } else {
+          const imageBlock: AssistantMessageBlock = {
+            type: 'image',
+            status: 'success',
+            timestamp: currentTime,
+            content: 'image',
+            image_data: {
+              data: media_generation_complete.url,
+              mimeType: 'deepchat/image-url'
+            }
+          }
+          state.message.content.push(imageBlock)
+        }
+      }
+    }
+
     if (content) {
       if (!lastBlock || lastBlock.type !== 'content' || lastBlock.status !== 'loading') {
         this.finalizeLastBlock(state)
@@ -369,6 +464,9 @@ export class LLMEventHandler {
     if (image_data) delta.image_data = image_data
     if (video_data) delta.video_data = video_data
     if (totalUsage) delta.totalUsage = totalUsage
+    if (media_generation_pending) delta.media_generation_pending = media_generation_pending
+    if (media_generation_progress) delta.media_generation_progress = media_generation_progress
+    if (media_generation_complete) delta.media_generation_complete = media_generation_complete
 
     if (tool_call && !shouldSkipToolCall) {
       delta.tool_call = tool_call

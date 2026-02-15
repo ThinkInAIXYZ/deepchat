@@ -266,7 +266,8 @@
           "chat": "语言模型",
           "embedding": "嵌入模型",
           "rerank": "重排序模型",
-          "imageGeneration": "图像生成模型"
+          "imageGeneration": "图像生成模型",
+          "videoGeneration": "视频生成模型"
         }
       },
       "apiEndpoint": {
@@ -274,7 +275,29 @@
         "description": "选择此模型使用的 OpenAI API 端点。",
         "options": {
           "chat": "文本生成",
-          "image": "图片生成"
+          "image": "图片生成",
+          "video": "视频生成"
+        }
+      },
+      "media": {
+        "duration": {
+          "label": "时长",
+          "description": "设置生成视频的时长",
+          "range": "{min}秒 - {max}秒"
+        },
+        "resolution": {
+          "label": "分辨率",
+          "descriptionImage": "设置生成图片的分辨率（例如：1024x1024）",
+          "descriptionVideo": "设置生成视频的分辨率（例如：1080x720）",
+          "placeholder": "例如：1024x1024"
+        },
+        "cameraFixed": {
+          "label": "相机固定",
+          "description": "保持相机视角固定，避免生成过程中镜头移动"
+        },
+        "watermark": {
+          "label": "水印",
+          "description": "在生成的视频中添加提供商水印"
         }
       },
       "resetToDefault": "重置为默认",

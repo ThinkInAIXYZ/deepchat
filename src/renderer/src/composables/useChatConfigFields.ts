@@ -31,6 +31,17 @@ export interface UseChatConfigFieldsOptions {
   thinkingBudgetError: ComputedRef<string>
   budgetRange: Ref<{ min?: number; max?: number; default?: number } | null>
 
+  // Media generation (accept Ref for compatibility with useMediaParams)
+  showMediaParams: ComputedRef<boolean>
+  isVideoGeneration: Ref<boolean>
+  isImageGeneration: Ref<boolean>
+  mediaParamConfig: ComputedRef<{
+    resolution?: { default: string; options: Array<{ value: string; label: string }> }
+    duration?: { min: number; max: number; step: number; default: number; unit: string }
+    cameraFixed?: { default: boolean; supported: boolean }
+    watermark?: { default: boolean; supported: boolean }
+  } | null>
+
   // Utils
   formatSize: (size: number) => string
 
@@ -42,6 +53,11 @@ export interface UseChatConfigFieldsOptions {
     (e: 'update:thinkingBudget', value: number | undefined): void
     (e: 'update:reasoningEffort', value: 'minimal' | 'low' | 'medium' | 'high'): void
     (e: 'update:verbosity', value: 'low' | 'medium' | 'high'): void
+    (e: 'update:mediaResolution', value: string | undefined): void
+    (e: 'update:mediaDuration', value: number | undefined): void
+    (e: 'update:mediaCameraFixed', value: boolean | undefined): void
+    (e: 'update:mediaWatermark', value: boolean | undefined): void
+    (e: 'update:mediaAspectRatio', value: string | undefined): void
   }
 }
 
@@ -56,7 +72,12 @@ export function useChatConfigFields(options: UseChatConfigFieldsOptions) {
   const sliderFields = computed<SliderFieldConfig[]>(() => {
     const fields: SliderFieldConfig[] = []
 
-    // Temperature (hidden for GPT-5)
+    // Hide slider fields for media generation models
+    if (options.showMediaParams.value) {
+      return fields
+    }
+
+    // Temperature (hidden for GPT-5 and media generation)
     if (!options.isGPT5Model.value) {
       fields.push({
         key: 'temperature',
@@ -140,6 +161,35 @@ export function useChatConfigFields(options: UseChatConfigFieldsOptions) {
       })
     }
 
+    // Media Duration (for video generation)
+    if (
+      options.showMediaParams.value &&
+      options.isVideoGeneration.value &&
+      options.mediaParamConfig.value?.duration
+    ) {
+      const config = options.mediaParamConfig.value.duration
+      fields.push({
+        key: 'mediaDuration',
+        type: 'input',
+        icon: 'lucide:clock',
+        label: t('settings.model.media.duration.label'),
+        description: t('settings.model.media.duration.description'),
+        inputType: 'number',
+        min: config.min,
+        max: config.max,
+        step: config.step,
+        placeholder: config.default.toString(),
+        getValue: () => config.default,
+        setValue: (val) => options.emit('update:mediaDuration', val as number | undefined),
+        hint: () =>
+          t('settings.model.media.duration.range', {
+            min: config.min,
+            max: config.max,
+            unit: config.unit === 'minutes' ? t('common.minutes') : t('common.seconds')
+          })
+      })
+    }
+
     return fields
   })
 
@@ -215,6 +265,24 @@ export function useChatConfigFields(options: UseChatConfigFieldsOptions) {
         placeholder: t('settings.model.modelConfig.verbosity.placeholder'),
         getValue: () => options.verbosity.value,
         setValue: (val) => options.emit('update:verbosity', val as 'low' | 'medium' | 'high')
+      })
+    }
+
+    // Media Resolution (for video/image generation models)
+    if (options.showMediaParams.value && options.mediaParamConfig.value?.resolution) {
+      const config = options.mediaParamConfig.value.resolution
+      fields.push({
+        key: 'mediaResolution',
+        type: 'select',
+        icon: 'lucide:frame',
+        label: t('settings.model.media.resolution.label'),
+        description: options.isVideoGeneration.value
+          ? t('settings.model.media.resolution.descriptionVideo')
+          : t('settings.model.media.resolution.descriptionImage'),
+        options: config.options.map((opt) => ({ value: opt.value, label: opt.label })),
+        placeholder: t('settings.model.media.resolution.placeholder'),
+        getValue: () => options.mediaParamConfig.value?.resolution?.default,
+        setValue: (val) => options.emit('update:mediaResolution', val)
       })
     }
 

@@ -322,6 +322,14 @@ export class ConfigPresenter implements IConfigPresenter {
     return modelCapabilities.getVerbosityDefault(providerId, modelId)
   }
 
+  supportsVideoGeneration(providerId: string, modelId: string): boolean {
+    return modelCapabilities.supportsVideoGeneration(providerId, modelId)
+  }
+
+  supportsImageGeneration(providerId: string, modelId: string): boolean {
+    return modelCapabilities.supportsImageGeneration(providerId, modelId)
+  }
+
   private migrateConfigData(oldVersion: string | undefined): void {
     // Before version 0.2.4, minimax's baseUrl was incorrect and needs to be fixed
     if (oldVersion && compare(oldVersion, '0.2.4', '<')) {
@@ -648,7 +656,9 @@ export class ConfigPresenter implements IConfigPresenter {
       type:
         Array.isArray(m?.modalities?.output) && m.modalities!.output!.includes('image')
           ? ModelType.ImageGeneration
-          : ModelType.Chat
+          : m?.type === 'videoGeneration'
+            ? ModelType.VideoGeneration
+            : ModelType.Chat
     }))
   }
 
