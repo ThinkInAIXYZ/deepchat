@@ -17,6 +17,7 @@ import chat from './chat.json'
 import contextMenu from './contextMenu.json'
 import promptSetting from './promptSetting.json'
 import plan from './plan.json'
+import sidebar from './sidebar.json'
 
 // 单独的顶层键
 const others = {
@@ -52,5 +53,6 @@ export default {
   contextMenu,
   promptSetting,
   plan,
+  sidebar,
   ...others
 }

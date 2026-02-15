@@ -1,0 +1,8 @@
+{
+  "allAgents": "所有智能体",
+  "newChat": "新建会话",
+  "startChat": "开始会话",
+  "noConversations": "暂无会话",
+  "noConversationsWith": "暂无与 {name} 的会话",
+  "newChatTitle": "新会话"
+}

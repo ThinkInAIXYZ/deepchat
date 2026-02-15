@@ -16,6 +16,7 @@ import newThread from './newThread.json'
 import about from './about.json'
 import promptSetting from './promptSetting.json'
 import plan from './plan.json'
+import sidebar from './sidebar.json'
 
 // 单独的顶层键
 const others = {
@@ -50,5 +51,6 @@ export default {
   about,
   promptSetting,
   plan,
+  sidebar,
   ...others
 }
