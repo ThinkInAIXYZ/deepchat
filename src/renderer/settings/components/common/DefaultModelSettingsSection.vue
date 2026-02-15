@@ -163,19 +163,6 @@ const selectBySetting = (
   return { providerId: setting.providerId, model: matchedModel }
 }
 
-const pickFirstEnabledModel = (
-  predicate?: (model: RENDERER_MODEL_META, providerId: string) => boolean
-): SelectedModel | null => {
-  for (const providerEntry of modelStore.enabledModels) {
-    for (const model of providerEntry.models) {
-      if (!predicate || predicate(model, providerEntry.providerId)) {
-        return { providerId: providerEntry.providerId, model }
-      }
-    }
-  }
-  return null
-}
-
 const persistModelSetting = async (
   key: 'assistantModel' | 'defaultModel' | 'defaultVisionModel',
   previous: { providerId: string; modelId: string } | undefined,
@@ -236,29 +223,23 @@ const syncModelSelections = async (): Promise<void> => {
       | { providerId: string; modelId: string }
       | undefined
 
-    const chatSelection =
-      selectBySetting(defaultModelSetting, (_model, providerId) => providerId !== 'acp') ||
-      pickFirstEnabledModel((_model, providerId) => providerId !== 'acp')
+    const chatSelection = selectBySetting(
+      defaultModelSetting,
+      (_model, providerId) => providerId !== 'acp'
+    )
 
-    const assistantSelection =
-      selectBySetting(assistantModelSetting, (_model, providerId) => providerId !== 'acp') ||
-      chatSelection ||
-      pickFirstEnabledModel((_model, providerId) => providerId !== 'acp')
+    const assistantSelection = selectBySetting(
+      assistantModelSetting,
+      (_model, providerId) => providerId !== 'acp'
+    )
 
-    const visionSelection =
-      selectBySetting(
-        defaultVisionModelSetting,
-        (model, providerId) =>
-          providerId !== 'acp' &&
-          Boolean(model.vision) &&
-          (model.type === ModelType.Chat || model.type === ModelType.ImageGeneration)
-      ) ||
-      pickFirstEnabledModel(
-        (model, providerId) =>
-          providerId !== 'acp' &&
-          Boolean(model.vision) &&
-          (model.type === ModelType.Chat || model.type === ModelType.ImageGeneration)
-      )
+    const visionSelection = selectBySetting(
+      defaultVisionModelSetting,
+      (model, providerId) =>
+        providerId !== 'acp' &&
+        Boolean(model.vision) &&
+        (model.type === ModelType.Chat || model.type === ModelType.ImageGeneration)
+    )
 
     selectedChatModel.value = chatSelection
     selectedAssistantModel.value = assistantSelection
