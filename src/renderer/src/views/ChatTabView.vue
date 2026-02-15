@@ -31,7 +31,7 @@ import { useArtifactStore } from '@/stores/artifact'
 import ArtifactDialog from '@/components/artifacts/ArtifactDialog.vue'
 import { useRoute } from 'vue-router'
 const ChatView = defineAsyncComponent(() => import('@/components/ChatView.vue'))
-const NewThread = defineAsyncComponent(() => import('@/components/NewThread.vue'))
+const NewThread = defineAsyncComponent(() => import('@/components/NewThreadMock.vue'))
 const artifactStore = useArtifactStore()
 const route = useRoute()
 const chatStore = useChatStore()
