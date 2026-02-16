@@ -280,7 +280,7 @@ export class Presenter implements IPresenter {
   private async initializeAgentConfig() {
     try {
       await this.agentConfigPresenter.ensureDefaultAgent()
-      await this.agentConfigPresenter.syncAcpAgents()
+      await this.agentConfigPresenter.migrateAcpAgentsFromStore()
     } catch (error) {
       console.error('Failed to initialize AgentConfigPresenter:', error)
     }

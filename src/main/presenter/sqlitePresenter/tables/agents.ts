@@ -6,9 +6,11 @@ import type {
   AgentType,
   TemplateAgent,
   AcpAgent,
+  AcpAgentProfile,
   CreateAgentParams,
   UpdateAgentParams
 } from '@shared/presenter'
+import type { AcpBuiltinAgentId } from '@shared/types/presenters/legacy.presenters'
 
 type AgentRow = {
   id: string
@@ -28,6 +30,11 @@ type AgentRow = {
   env: string | null
   cwd: string | null
   enabled: number | null
+  is_builtin: number | null
+  builtin_id: string | null
+  profiles: string | null
+  active_profile_id: string | null
+  mcp_selections: string | null
   created_at: number
   updated_at: number
 }
@@ -68,11 +75,17 @@ export class AgentsTable extends BaseTable {
         env TEXT,
         cwd TEXT,
         enabled INTEGER DEFAULT 1,
+        is_builtin INTEGER DEFAULT 0,
+        builtin_id TEXT,
+        profiles TEXT,
+        active_profile_id TEXT,
+        mcp_selections TEXT,
 
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL
       );
       CREATE INDEX IF NOT EXISTS idx_agents_type ON agents(type);
+      CREATE INDEX IF NOT EXISTS idx_agents_enabled ON agents(enabled);
     `
   }
 
@@ -86,11 +99,7 @@ export class AgentsTable extends BaseTable {
 
   async list(): Promise<Agent[]> {
     const rows = this.db
-      .prepare(
-        `
-      SELECT * FROM agents ORDER BY created_at DESC
-    `
-      )
+      .prepare(`SELECT * FROM agents ORDER BY created_at DESC`)
       .all() as AgentRow[]
 
     return rows.map((row) => this.rowToAgent(row))
@@ -98,24 +107,22 @@ export class AgentsTable extends BaseTable {
 
   async listByType(type: AgentType): Promise<Agent[]> {
     const rows = this.db
-      .prepare(
-        `
-      SELECT * FROM agents WHERE type = ? ORDER BY created_at DESC
-    `
-      )
+      .prepare(`SELECT * FROM agents WHERE type = ? ORDER BY created_at DESC`)
       .all(type) as AgentRow[]
 
     return rows.map((row) => this.rowToAgent(row))
   }
 
+  async listEnabledAcpAgents(): Promise<AcpAgent[]> {
+    const rows = this.db
+      .prepare(`SELECT * FROM agents WHERE type = 'acp' AND enabled = 1 ORDER BY name ASC`)
+      .all() as AgentRow[]
+
+    return rows.map((row) => this.rowToAgent(row) as AcpAgent)
+  }
+
   async get(id: string): Promise<Agent | null> {
-    const row = this.db
-      .prepare(
-        `
-      SELECT * FROM agents WHERE id = ?
-    `
-      )
-      .get(id) as AgentRow | undefined
+    const row = this.db.prepare(`SELECT * FROM agents WHERE id = ?`).get(id) as AgentRow | undefined
 
     return row ? this.rowToAgent(row) : null
   }
@@ -154,8 +161,9 @@ export class AgentsTable extends BaseTable {
         INSERT INTO agents (
           id, name, type, icon,
           command, args, env, cwd, enabled,
+          is_builtin, builtin_id, profiles, active_profile_id, mcp_selections,
           created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `)
       stmt.run(
         id,
@@ -167,6 +175,11 @@ export class AgentsTable extends BaseTable {
         params.env ? JSON.stringify(params.env) : null,
         params.cwd || null,
         params.enabled !== false ? 1 : 0,
+        params.isBuiltin ? 1 : 0,
+        params.builtinId || null,
+        params.profiles ? JSON.stringify(params.profiles) : null,
+        params.activeProfileId || null,
+        params.mcpSelections ? JSON.stringify(params.mcpSelections) : null,
         now,
         now
       )
@@ -244,21 +257,42 @@ export class AgentsTable extends BaseTable {
         fields.push('enabled = ?')
         values.push(ap.enabled ? 1 : 0)
       }
+      if (ap.isBuiltin !== undefined) {
+        fields.push('is_builtin = ?')
+        values.push(ap.isBuiltin ? 1 : 0)
+      }
+      if (ap.builtinId !== undefined) {
+        fields.push('builtin_id = ?')
+        values.push(ap.builtinId || null)
+      }
+      if (ap.profiles !== undefined) {
+        fields.push('profiles = ?')
+        values.push(ap.profiles ? JSON.stringify(ap.profiles) : null)
+      }
+      if (ap.activeProfileId !== undefined) {
+        fields.push('active_profile_id = ?')
+        values.push(ap.activeProfileId || null)
+      }
+      if (ap.mcpSelections !== undefined) {
+        fields.push('mcp_selections = ?')
+        values.push(ap.mcpSelections ? JSON.stringify(ap.mcpSelections) : null)
+      }
     }
 
     values.push(id)
 
-    this.db
-      .prepare(
-        `
-      UPDATE agents SET ${fields.join(', ')} WHERE id = ?
-    `
-      )
-      .run(...values)
+    this.db.prepare(`UPDATE agents SET ${fields.join(', ')} WHERE id = ?`).run(...values)
   }
 
   async delete(id: string): Promise<void> {
     this.db.prepare('DELETE FROM agents WHERE id = ?').run(id)
+  }
+
+  async hasAcpAgents(): Promise<boolean> {
+    const row = this.db
+      .prepare(`SELECT COUNT(*) as count FROM agents WHERE type = 'acp'`)
+      .get() as { count: number }
+    return row.count > 0
   }
 
   private rowToAgent(row: AgentRow): Agent {
@@ -285,6 +319,7 @@ export class AgentsTable extends BaseTable {
       } as TemplateAgent
     }
 
+    const profiles = parseJsonField<AcpAgentProfile[] | undefined>(row.profiles, undefined)
     return {
       ...base,
       type: 'acp' as const,
@@ -292,7 +327,12 @@ export class AgentsTable extends BaseTable {
       args: parseJsonField<string[] | undefined>(row.args, undefined),
       env: parseJsonField<Record<string, string> | undefined>(row.env, undefined),
       cwd: row.cwd || undefined,
-      enabled: row.enabled === 1
+      enabled: row.enabled === 1,
+      isBuiltin: row.is_builtin === 1 || undefined,
+      builtinId: (row.builtin_id as AcpBuiltinAgentId) || undefined,
+      profiles,
+      activeProfileId: row.active_profile_id || undefined,
+      mcpSelections: parseJsonField<string[] | undefined>(row.mcp_selections, undefined)
     } as AcpAgent
   }
 }
