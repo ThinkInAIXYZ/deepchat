@@ -19,6 +19,7 @@ import type { IWorkspacePresenter } from './workspace'
 import type { IToolPresenter } from './tool.presenter'
 import type { ISkillPresenter } from '../skill'
 import type { ISkillSyncPresenter } from '../skillSync'
+import type { IAgentConfigPresenter } from './agentConfig.presenter'
 import type {
   BrowserTabInfo,
   BrowserContextSnapshot,
@@ -408,6 +409,7 @@ export interface ISQLitePresenter {
   ): Promise<void>
   deleteAcpSessions(conversationId: string): Promise<void>
   deleteAcpSession(conversationId: string, agentId: string): Promise<void>
+  getDb(): unknown
 }
 
 export interface IOAuthPresenter {
@@ -456,6 +458,7 @@ export interface IPresenter {
   toolPresenter: IToolPresenter
   skillPresenter: ISkillPresenter
   skillSyncPresenter: ISkillSyncPresenter
+  agentConfigPresenter: IAgentConfigPresenter
   init(): void
   destroy(): void
 }

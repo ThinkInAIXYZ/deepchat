@@ -14,6 +14,7 @@ import {
 } from '@shared/presenter'
 import { MessageAttachmentsTable } from './tables/messageAttachments'
 import { AcpSessionsTable, type AcpSessionUpsertData } from './tables/acpSessions'
+import { AgentsTable } from './tables/agents'
 
 /**
  * 导入模式枚举
@@ -30,6 +31,7 @@ export class SQLitePresenter implements ISQLitePresenter {
   private attachmentsTable!: AttachmentsTable
   private messageAttachmentsTable!: MessageAttachmentsTable
   private acpSessionsTable!: AcpSessionsTable
+  private agentsTable!: AgentsTable
   private currentVersion: number = 0
   private dbPath: string
   private password?: string
@@ -141,13 +143,14 @@ export class SQLitePresenter implements ISQLitePresenter {
     this.attachmentsTable = new AttachmentsTable(this.db)
     this.messageAttachmentsTable = new MessageAttachmentsTable(this.db)
     this.acpSessionsTable = new AcpSessionsTable(this.db)
+    this.agentsTable = new AgentsTable(this.db)
 
-    // 创建所有表
     this.conversationsTable.createTable()
     this.messagesTable.createTable()
     this.attachmentsTable.createTable()
     this.messageAttachmentsTable.createTable()
     this.acpSessionsTable.createTable()
+    this.agentsTable.createTable()
   }
 
   private initVersionTable() {
@@ -166,14 +169,14 @@ export class SQLitePresenter implements ISQLitePresenter {
   }
 
   private migrate() {
-    // 获取所有表的迁移脚本
     const migrations = new Map<number, string[]>()
     const tables = [
       this.conversationsTable,
       this.messagesTable,
       this.attachmentsTable,
       this.messageAttachmentsTable,
-      this.acpSessionsTable
+      this.acpSessionsTable,
+      this.agentsTable
     ]
 
     // 获取最新的迁移版本
@@ -472,5 +475,9 @@ export class SQLitePresenter implements ISQLitePresenter {
 
   public async deleteAcpSession(conversationId: string, agentId: string): Promise<void> {
     await this.acpSessionsTable.deleteByConversationAndAgent(conversationId, agentId)
+  }
+
+  public getDb(): Database.Database {
+    return this.db
   }
 }

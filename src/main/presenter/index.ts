@@ -28,7 +28,8 @@ import {
   IToolPresenter,
   IYoBrowserPresenter,
   ISkillPresenter,
-  ISkillSyncPresenter
+  ISkillSyncPresenter,
+  IAgentConfigPresenter
 } from '@shared/presenter'
 import { eventBus } from '@/eventbus'
 import { LLMProviderPresenter } from './llmProviderPresenter'
@@ -62,6 +63,7 @@ import { ConversationExporterService } from './exporter'
 import { SkillPresenter } from './skillPresenter'
 import { SkillSyncPresenter } from './skillSyncPresenter'
 import { HooksNotificationsService } from './hooksNotifications'
+import { AgentConfigPresenter } from './agentConfigPresenter'
 
 // IPC调用上下文接口
 interface IPCCallContext {
@@ -113,6 +115,7 @@ export class Presenter implements IPresenter {
   hooksNotifications: HooksNotificationsService
   filePermissionService: FilePermissionService
   settingsPermissionService: SettingsPermissionService
+  agentConfigPresenter: IAgentConfigPresenter
 
   private constructor(lifecycleManager: ILifecycleManager) {
     // Store lifecycle manager reference for component access
@@ -200,7 +203,13 @@ export class Presenter implements IPresenter {
       resolveWorkspaceContext: this.sessionManager.resolveWorkspaceContext.bind(this.sessionManager)
     })
 
-    this.setupEventBus() // 设置事件总线监听
+    // Initialize AgentConfigPresenter
+    const db = (
+      this.sqlitePresenter as unknown as { getDb: () => unknown }
+    ).getDb() as import('better-sqlite3-multiple-ciphers').Database
+    this.agentConfigPresenter = new AgentConfigPresenter(db, this.configPresenter)
+
+    this.setupEventBus()
   }
 
   public static getInstance(lifecycleManager: ILifecycleManager): Presenter {
@@ -263,6 +272,18 @@ export class Presenter implements IPresenter {
 
     // 初始化 Skills 系统
     this.initializeSkills()
+
+    // 初始化 AgentConfig
+    this.initializeAgentConfig()
+  }
+
+  private async initializeAgentConfig() {
+    try {
+      await this.agentConfigPresenter.ensureDefaultAgent()
+      await this.agentConfigPresenter.syncAcpAgents()
+    } catch (error) {
+      console.error('Failed to initialize AgentConfigPresenter:', error)
+    }
   }
 
   // 初始化悬浮按钮

@@ -25,6 +25,7 @@ export type CONVERSATION_SETTINGS = {
   agentWorkspacePath?: string | null
   selectedVariantsMap?: Record<string, string>
   activeSkills?: string[]
+  agentId?: string
 }
 
 export type ParentSelection = {

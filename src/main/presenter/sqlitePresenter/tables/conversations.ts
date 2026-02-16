@@ -29,6 +29,7 @@ type ConversationRow = {
   parent_conversation_id: string | null
   parent_message_id: string | null
   parent_selection: string | null
+  agent_id: string | null
 }
 
 // 解析 JSON 字段
@@ -147,12 +148,19 @@ export class ConversationsTable extends BaseTable {
         UPDATE conversations SET active_skills = '[]' WHERE active_skills IS NULL;
       `
     }
+    if (version === 11) {
+      return `
+        -- 添加 agent_id 字段
+        ALTER TABLE conversations ADD COLUMN agent_id TEXT DEFAULT NULL;
+        CREATE INDEX IF NOT EXISTS idx_conversations_agent ON conversations(agent_id);
+      `
+    }
 
     return null
   }
 
   getLatestVersion(): number {
-    return 10
+    return 11
   }
 
   async create(title: string, settings: Partial<CONVERSATION_SETTINGS> = {}): Promise<string> {
@@ -184,9 +192,10 @@ export class ConversationsTable extends BaseTable {
         acp_workdir_map,
         parent_conversation_id,
         parent_message_id,
-        parent_selection
+        parent_selection,
+        agent_id
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     const conv_id = nanoid()
     const now = Date.now()
@@ -203,7 +212,7 @@ export class ConversationsTable extends BaseTable {
       settings.modelId || 'gpt-4',
       1,
       settings.artifacts || 0,
-      0, // Default is_pinned to 0
+      0,
       settings.enabledMcpTools ? JSON.stringify(settings.enabledMcpTools) : 'NULL',
       settings.thinkingBudget !== undefined ? settings.thinkingBudget : null,
       settings.reasoningEffort !== undefined ? settings.reasoningEffort : null,
@@ -219,7 +228,8 @@ export class ConversationsTable extends BaseTable {
       settings.acpWorkdirMap ? JSON.stringify(settings.acpWorkdirMap) : null,
       null,
       null,
-      null
+      null,
+      settings.agentId || null
     )
     return conv_id
   }
@@ -255,7 +265,8 @@ export class ConversationsTable extends BaseTable {
         acp_workdir_map,
         parent_conversation_id,
         parent_message_id,
-        parent_selection
+        parent_selection,
+        agent_id
       FROM conversations
       WHERE conv_id = ?
     `
@@ -295,7 +306,8 @@ export class ConversationsTable extends BaseTable {
         result.agent_workspace_path !== null && result.agent_workspace_path !== undefined
           ? result.agent_workspace_path
           : undefined,
-      acpWorkdirMap: getJsonField(result.acp_workdir_map, undefined)
+      acpWorkdirMap: getJsonField(result.acp_workdir_map, undefined),
+      agentId: result.agent_id || undefined
     }
     return {
       id: result.id,
@@ -482,7 +494,8 @@ export class ConversationsTable extends BaseTable {
         acp_workdir_map,
         parent_conversation_id,
         parent_message_id,
-        parent_selection
+        parent_selection,
+        agent_id
       FROM conversations
       ORDER BY updated_at DESC
       LIMIT ? OFFSET ?
@@ -527,7 +540,8 @@ export class ConversationsTable extends BaseTable {
             row.agent_workspace_path !== null && row.agent_workspace_path !== undefined
               ? row.agent_workspace_path
               : undefined,
-          acpWorkdirMap: getJsonField(row.acp_workdir_map, undefined)
+          acpWorkdirMap: getJsonField(row.acp_workdir_map, undefined),
+          agentId: row.agent_id || undefined
         },
         parentConversationId: row.parent_conversation_id,
         parentMessageId: row.parent_message_id,
@@ -567,7 +581,8 @@ export class ConversationsTable extends BaseTable {
         acp_workdir_map,
         parent_conversation_id,
         parent_message_id,
-        parent_selection
+        parent_selection,
+        agent_id
       FROM conversations
       WHERE parent_conversation_id = ?
       ORDER BY updated_at DESC
@@ -608,7 +623,8 @@ export class ConversationsTable extends BaseTable {
           row.agent_workspace_path !== null && row.agent_workspace_path !== undefined
             ? row.agent_workspace_path
             : undefined,
-        acpWorkdirMap: getJsonField(row.acp_workdir_map, undefined)
+        acpWorkdirMap: getJsonField(row.acp_workdir_map, undefined),
+        agentId: row.agent_id || undefined
       },
       parentConversationId: row.parent_conversation_id,
       parentMessageId: row.parent_message_id,
@@ -652,7 +668,8 @@ export class ConversationsTable extends BaseTable {
         acp_workdir_map,
         parent_conversation_id,
         parent_message_id,
-        parent_selection
+        parent_selection,
+        agent_id
       FROM conversations
       WHERE parent_message_id IN (${placeholders})
       ORDER BY updated_at DESC
@@ -693,7 +710,8 @@ export class ConversationsTable extends BaseTable {
           row.agent_workspace_path !== null && row.agent_workspace_path !== undefined
             ? row.agent_workspace_path
             : undefined,
-        acpWorkdirMap: getJsonField(row.acp_workdir_map, undefined)
+        acpWorkdirMap: getJsonField(row.acp_workdir_map, undefined),
+        agentId: row.agent_id || undefined
       },
       parentConversationId: row.parent_conversation_id,
       parentMessageId: row.parent_message_id,

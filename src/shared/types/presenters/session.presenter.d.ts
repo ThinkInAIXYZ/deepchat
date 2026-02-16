@@ -39,6 +39,7 @@ export type SessionConfig = {
   acpWorkdirMap?: Record<string, string | null>
   selectedVariantsMap?: Record<string, string>
   isPinned?: boolean
+  agentId?: string
 }
 
 export type SessionBindings = {
