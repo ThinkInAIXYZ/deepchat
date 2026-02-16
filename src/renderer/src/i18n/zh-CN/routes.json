@@ -15,5 +15,6 @@
   "settings-mcp-market": "MCP市场",
   "settings-acp": "ACP Agent",
   "settings-skills": "skills设置",
-  "settings-notifications-hooks": "通知与Hooks"
+  "settings-notifications-hooks": "通知与Hooks",
+  "settings-agents": "智能体"
 }

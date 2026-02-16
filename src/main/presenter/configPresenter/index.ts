@@ -80,6 +80,7 @@ interface IAppSettings {
   codeFontFamily?: string // Custom code font
   skillsPath?: string // Skills directory path
   enableSkills?: boolean // Skills system global toggle
+  recentWorkdirs?: string[] // Recently used working directories
   hooksNotifications?: HooksNotificationsSettings // Hooks & notifications settings
   defaultModel?: { providerId: string; modelId: string } // Default model for new conversations
   defaultVisionModel?: { providerId: string; modelId: string } // Default vision model for image tools
@@ -102,6 +103,8 @@ const defaultProviders = DEFAULT_PROVIDERS.map((provider) => ({
 }))
 
 const PROVIDERS_STORE_KEY = 'providers'
+const RECENT_WORKDIRS_KEY = 'recentWorkdirs'
+const MAX_RECENT_WORKDIRS = 20
 
 export class ConfigPresenter implements IConfigPresenter {
   private store: ElectronStore<IAppSettings>
@@ -148,6 +151,7 @@ export class ConfigPresenter implements IConfigPresenter {
         default_system_prompt: '',
         skillsPath: path.join(app.getPath('home'), '.deepchat', 'skills'),
         enableSkills: true,
+        recentWorkdirs: [],
         updateChannel: 'stable', // Default to stable version
         appVersion: this.currentAppVersion,
         hooksNotifications: createDefaultHooksNotificationsConfig()
@@ -858,6 +862,34 @@ export class ConfigPresenter implements IConfigPresenter {
   // Set last sync time
   setLastSyncTime(time: number): void {
     this.setSetting('lastSyncTime', time)
+  }
+
+  getRecentWorkdirs(): string[] {
+    const value = this.getSetting<unknown>(RECENT_WORKDIRS_KEY)
+    if (!Array.isArray(value)) {
+      return []
+    }
+
+    const normalized = value
+      .filter((item): item is string => typeof item === 'string')
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0)
+
+    return Array.from(new Set(normalized)).slice(0, MAX_RECENT_WORKDIRS)
+  }
+
+  addRecentWorkdir(workdir: string): void {
+    const normalized = workdir.trim()
+    if (!normalized) {
+      return
+    }
+
+    const next = [
+      normalized,
+      ...this.getRecentWorkdirs().filter((item) => item !== normalized)
+    ].slice(0, MAX_RECENT_WORKDIRS)
+
+    this.setSetting(RECENT_WORKDIRS_KEY, next)
   }
 
   // Skills settings

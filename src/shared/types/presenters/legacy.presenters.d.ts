@@ -563,6 +563,9 @@ export interface IConfigPresenter {
   setSyncFolderPath(folderPath: string): void
   getLastSyncTime(): number
   setLastSyncTime(time: number): void
+  // Agent workdir settings
+  getRecentWorkdirs(): string[]
+  addRecentWorkdir(workdir: string): void
   // Hooks & notifications settings
   getHooksNotificationsConfig(): HooksNotificationsSettings
   setHooksNotificationsConfig(config: HooksNotificationsSettings): HooksNotificationsSettings

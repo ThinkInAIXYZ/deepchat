@@ -1260,5 +1260,67 @@
       "skip": "跳过",
       "importSelected": "导入所选"
     }
+  },
+  "agents": {
+    "title": "智能体",
+    "description": "管理模板智能体与 ACP 智能体条目。",
+    "newAgent": "新建智能体",
+    "searchPlaceholder": "搜索智能体...",
+    "templateSection": "模板智能体",
+    "templateSectionHint": "可编辑的常规会话智能体。",
+    "acpSection": "ACP 智能体",
+    "acpSectionHint": "由 ACP 设置管理，此处只读。",
+    "emptyTemplate": "暂无模板智能体。",
+    "emptyAcp": "暂无 ACP 智能体。",
+    "loadError": "加载智能体设置失败。",
+    "createTitle": "创建智能体",
+    "editTitle": "编辑智能体",
+    "create": "创建",
+    "name": "名称",
+    "namePlaceholder": "输入智能体名称",
+    "icon": "图标",
+    "pickIcon": "选择",
+    "provider": "服务商",
+    "providerPlaceholder": "选择服务商",
+    "model": "模型",
+    "modelPlaceholder": "选择模型",
+    "workdir": "工作目录",
+    "workdirPlaceholder": "选择工作目录（可选）",
+    "workdirBrowse": "浏览",
+    "workdirClear": "清除",
+    "workdirNotSet": "未设置",
+    "advancedSettings": "高级设置",
+    "systemPrompt": "系统提示词",
+    "systemPromptPlaceholder": "可选：为该智能体设置系统提示词",
+    "temperature": "温度",
+    "maxTokens": "最大输出 Tokens",
+    "defaultBadge": "默认",
+    "providerModelLine": "服务商: {provider}  |  模型: {model}",
+    "workdirLine": "工作目录: {path}",
+    "commandLine": "命令: {command}",
+    "viewInAcp": "前往 ACP",
+    "deleteConfirm": "确认删除智能体“{name}”？此操作不可撤销。",
+    "defaultAgentDeleteBlocked": "默认本地智能体不可删除。",
+    "validation": {
+      "nameRequired": "名称不能为空。",
+      "providerRequired": "请选择服务商。",
+      "modelRequired": "请选择模型。"
+    },
+    "iconPicker": {
+      "title": "选择图标",
+      "description": "为智能体选择一个图标。",
+      "searchPlaceholder": "搜索图标..."
+    },
+    "workdirPicker": {
+      "title": "选择工作目录",
+      "description": "为该智能体选择工作目录。",
+      "recent": "最近目录",
+      "emptyRecent": "暂无最近目录。",
+      "selected": "已选择",
+      "notSelected": "未选择",
+      "browse": "浏览其他目录",
+      "clear": "清除",
+      "select": "选择"
+    }
   }
 }

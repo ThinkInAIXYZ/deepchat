@@ -53,6 +53,16 @@ const router = createRouter({
       }
     },
     {
+      path: '/agents',
+      name: 'settings-agents',
+      component: () => import('./components/AgentSettings.vue'),
+      meta: {
+        titleKey: 'routes.settings-agents',
+        icon: 'lucide:bot',
+        position: 3.5
+      }
+    },
+    {
       path: '/mcp',
       name: 'settings-mcp',
       component: () => import('./components/McpSettings.vue'),

@@ -15,5 +15,6 @@
   "settings-mcp-market": "MCP Market",
   "settings-acp": "ACP-агент",
   "settings-skills": "Skills",
-  "settings-notifications-hooks": "Уведомления и хуки"
+  "settings-notifications-hooks": "Уведомления и хуки",
+  "settings-agents": "Agents"
 }

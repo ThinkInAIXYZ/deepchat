@@ -15,5 +15,6 @@
   "settings-mcp-market": "MCP 시장",
   "settings-acp": "ACP 프록시",
   "settings-skills": "Skills",
-  "settings-notifications-hooks": "알림 및 훅"
+  "settings-notifications-hooks": "알림 및 훅",
+  "settings-agents": "Agents"
 }

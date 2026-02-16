@@ -15,5 +15,6 @@
   "playground": "Playground 實驗室",
   "settings-acp": "ACP Agent",
   "settings-skills": "skills管理",
-  "settings-notifications-hooks": "通知與 Hooks"
+  "settings-notifications-hooks": "通知與 Hooks",
+  "settings-agents": "智能体"
 }

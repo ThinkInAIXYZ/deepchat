@@ -1260,5 +1260,67 @@
       "title": "ابزارهای خارجی"
     },
     "title": "مدیریت مهارت‌ها"
+  },
+  "agents": {
+    "title": "Agents",
+    "description": "Manage your template agents and ACP agent entries.",
+    "newAgent": "New Agent",
+    "searchPlaceholder": "Search agents...",
+    "templateSection": "Template Agents",
+    "templateSectionHint": "Editable agents used for regular chat sessions.",
+    "acpSection": "ACP Agents",
+    "acpSectionHint": "Managed in ACP Settings. This section is read-only.",
+    "emptyTemplate": "No template agents yet.",
+    "emptyAcp": "No ACP agents available.",
+    "loadError": "Failed to load agent settings.",
+    "createTitle": "Create Agent",
+    "editTitle": "Edit Agent",
+    "create": "Create",
+    "name": "Name",
+    "namePlaceholder": "Enter agent name",
+    "icon": "Icon",
+    "pickIcon": "Pick",
+    "provider": "Provider",
+    "providerPlaceholder": "Select provider",
+    "model": "Model",
+    "modelPlaceholder": "Select model",
+    "workdir": "Working Directory",
+    "workdirPlaceholder": "Select a working directory (optional)",
+    "workdirBrowse": "Browse",
+    "workdirClear": "Clear",
+    "workdirNotSet": "Not set",
+    "advancedSettings": "Advanced Settings",
+    "systemPrompt": "System Prompt",
+    "systemPromptPlaceholder": "Optional system prompt for this agent",
+    "temperature": "Temperature",
+    "maxTokens": "Max Tokens",
+    "defaultBadge": "Default",
+    "providerModelLine": "Provider: {provider}  |  Model: {model}",
+    "workdirLine": "Workdir: {path}",
+    "commandLine": "Command: {command}",
+    "viewInAcp": "View in ACP",
+    "deleteConfirm": "Delete agent \"{name}\"? This action cannot be undone.",
+    "defaultAgentDeleteBlocked": "The default local agent cannot be deleted.",
+    "validation": {
+      "nameRequired": "Name is required.",
+      "providerRequired": "Provider is required.",
+      "modelRequired": "Model is required."
+    },
+    "iconPicker": {
+      "title": "Select Icon",
+      "description": "Choose an icon for this agent.",
+      "searchPlaceholder": "Search icons..."
+    },
+    "workdirPicker": {
+      "title": "Select Working Directory",
+      "description": "Choose a directory for this agent.",
+      "recent": "Recent Directories",
+      "emptyRecent": "No recent directories.",
+      "selected": "Selected",
+      "notSelected": "Not selected",
+      "browse": "Browse Other Directory",
+      "clear": "Clear",
+      "select": "Select"
+    }
   }
 }
