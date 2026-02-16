@@ -13,6 +13,7 @@ import type {
   LLM_PROVIDER,
   IConfigPresenter
 } from '@shared/presenter'
+import type { IAgentConfigPresenter } from '@shared/types/presenters/agentConfig.presenter'
 import {
   createStreamEvent,
   type LLMCoreStreamEvent,
@@ -35,7 +36,6 @@ import {
   type AcpSessionRecord
 } from '../../agentPresenter/acp'
 import { nanoid } from 'nanoid'
-import { presenter } from '@/presenter'
 
 type EventQueue = {
   push: (event: LLMCoreStreamEvent | null) => void
@@ -64,27 +64,30 @@ export class AcpProvider extends BaseLLMProvider {
   private readonly contentMapper = new AcpContentMapper()
   private readonly messageFormatter = new AcpMessageFormatter()
   private readonly pendingPermissions = new Map<string, PendingPermissionState>()
+  private readonly agentConfigPresenter: IAgentConfigPresenter
+  private readonly getNpmRegistry?: () => Promise<string | null>
+  private readonly getUvRegistry?: () => Promise<string | null>
 
   constructor(
     provider: LLM_PROVIDER,
     configPresenter: IConfigPresenter,
-    sessionPersistence: AcpSessionPersistence
+    sessionPersistence: AcpSessionPersistence,
+    agentConfigPresenter: IAgentConfigPresenter,
+    options?: {
+      getNpmRegistry?: () => Promise<string | null>
+      getUvRegistry?: () => Promise<string | null>
+    }
   ) {
     super(provider, configPresenter)
     this.sessionPersistence = sessionPersistence
+    this.agentConfigPresenter = agentConfigPresenter
+    this.getNpmRegistry = options?.getNpmRegistry
+    this.getUvRegistry = options?.getUvRegistry
     this.processManager = new AcpProcessManager({
       providerId: provider.id,
-      getUseBuiltinRuntime: () => this.configPresenter.getAcpUseBuiltinRuntime(),
-      getNpmRegistry: async () => {
-        // Get npm registry from MCP presenter's server manager
-        // This will use the fastest registry from speed test
-        return presenter.mcpPresenter.getNpmRegistry?.() ?? null
-      },
-      getUvRegistry: async () => {
-        // Get uv registry from MCP presenter's server manager
-        // This will use the fastest registry from speed test
-        return presenter.mcpPresenter.getUvRegistry?.() ?? null
-      }
+      getUseBuiltinRuntime: async () => this.agentConfigPresenter.getAcpUseBuiltinRuntime(),
+      getNpmRegistry: async () => this.getNpmRegistry?.() ?? null,
+      getUvRegistry: async () => this.getUvRegistry?.() ?? null
     })
     this.sessionManager = new AcpSessionManager({
       providerId: provider.id,
@@ -98,13 +101,13 @@ export class AcpProvider extends BaseLLMProvider {
 
   protected async fetchProviderModels(): Promise<MODEL_META[]> {
     try {
-      const acpEnabled = await this.configPresenter.getAcpEnabled()
+      const acpEnabled = this.agentConfigPresenter.getAcpGlobalEnabled()
       if (!acpEnabled) {
         console.log('[ACP] fetchProviderModels: ACP is disabled, returning empty models')
         this.configPresenter.setProviderModels(this.provider.id, [])
         return []
       }
-      const agents = await this.configPresenter.getAcpAgents()
+      const agents = await this.agentConfigPresenter.getEnabledAcpAgents()
       console.log(
         `[ACP] fetchProviderModels: found ${agents.length} agents, creating models for provider "${this.provider.id}"`
       )
@@ -158,7 +161,7 @@ export class AcpProvider extends BaseLLMProvider {
    * This ensures renderer is notified when ACP provider is initialized on startup
    */
   protected async init(): Promise<void> {
-    const acpEnabled = await this.configPresenter.getAcpEnabled()
+    const acpEnabled = this.agentConfigPresenter.getAcpGlobalEnabled()
     if (!acpEnabled || !this.provider.enable) return
 
     try {
@@ -183,7 +186,7 @@ export class AcpProvider extends BaseLLMProvider {
    * Called when the provider's enable state changes to true
    */
   public async handleEnableStateChange(): Promise<void> {
-    const acpEnabled = await this.configPresenter.getAcpEnabled()
+    const acpEnabled = this.agentConfigPresenter.getAcpGlobalEnabled()
     if (acpEnabled && this.provider.enable) {
       console.log('[ACP] handleEnableStateChange: ACP enabled, triggering model fetch')
       await this.fetchModels()
@@ -202,7 +205,7 @@ export class AcpProvider extends BaseLLMProvider {
   public async refreshAgents(agentIds?: string[]): Promise<void> {
     const ids = agentIds?.length
       ? Array.from(new Set(agentIds))
-      : (await this.configPresenter.getAcpAgents()).map((agent) => agent.id)
+      : (await this.agentConfigPresenter.getEnabledAcpAgents()).map((agent) => agent.id)
 
     const tasks = ids.map(async (agentId) => {
       try {
@@ -226,14 +229,14 @@ export class AcpProvider extends BaseLLMProvider {
   }
 
   public async check(): Promise<{ isOk: boolean; errorMsg: string | null }> {
-    const enabled = await this.configPresenter.getAcpEnabled()
+    const enabled = this.agentConfigPresenter.getAcpGlobalEnabled()
     if (!enabled) {
       return {
         isOk: false,
         errorMsg: 'ACP is disabled'
       }
     }
-    const agents = await this.configPresenter.getAcpAgents()
+    const agents = await this.agentConfigPresenter.getEnabledAcpAgents()
     if (!agents.length) {
       return {
         isOk: false,
@@ -303,7 +306,7 @@ export class AcpProvider extends BaseLLMProvider {
     let session: AcpSessionRecord | null = null
 
     try {
-      const acpEnabled = await this.configPresenter.getAcpEnabled()
+      const acpEnabled = this.agentConfigPresenter.getAcpGlobalEnabled()
       if (!acpEnabled) {
         queue.push(createStreamEvent.error('ACP is disabled'))
         queue.done()
@@ -439,7 +442,7 @@ export class AcpProvider extends BaseLLMProvider {
   }
 
   public async runDebugAction(request: AcpDebugRequest): Promise<AcpDebugRunResult> {
-    const agent = (await this.configPresenter.getAcpAgents()).find(
+    const agent = (await this.agentConfigPresenter.getEnabledAcpAgents()).find(
       (item) => item.id === request.agentId
     )
     if (!agent) {
@@ -1030,12 +1033,12 @@ export class AcpProvider extends BaseLLMProvider {
   }
 
   private async getAgentById(agentId: string): Promise<AcpAgentConfig | null> {
-    const agents = await this.configPresenter.getAcpAgents()
+    const agents = await this.agentConfigPresenter.getEnabledAcpAgents()
     return agents.find((agent) => agent.id === agentId) ?? null
   }
 
   private async initWhenEnabled(): Promise<void> {
-    const enabled = await this.configPresenter.getAcpEnabled()
+    const enabled = this.agentConfigPresenter.getAcpGlobalEnabled()
     if (!enabled) return
     // Call this.init() instead of super.init() to use the overridden method
     await this.init()

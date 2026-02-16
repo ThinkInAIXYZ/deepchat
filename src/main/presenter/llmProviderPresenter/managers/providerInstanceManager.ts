@@ -1,5 +1,6 @@
 import { ProviderBatchUpdate, ProviderChange } from '@shared/provider-operations'
 import { IConfigPresenter, LLM_PROVIDER } from '@shared/presenter'
+import type { IAgentConfigPresenter } from '@shared/types/presenters/agentConfig.presenter'
 import { BaseLLMProvider } from '../baseProvider'
 import { DeepseekProvider } from '../providers/deepseekProvider'
 import { SiliconcloudProvider } from '../providers/siliconcloudProvider'
@@ -51,6 +52,9 @@ interface ProviderInstanceManagerOptions {
   getCurrentProviderId: () => string | null
   setCurrentProviderId: (providerId: string | null) => void
   acpSessionPersistence?: AcpSessionPersistence
+  agentConfigPresenter?: IAgentConfigPresenter
+  getNpmRegistry?: () => Promise<string | null>
+  getUvRegistry?: () => Promise<string | null>
 }
 
 export class ProviderInstanceManager {
@@ -405,10 +409,18 @@ export class ProviderInstanceManager {
         if (!this.options.acpSessionPersistence) {
           throw new Error('ACP session persistence is not configured')
         }
+        if (!this.options.agentConfigPresenter) {
+          throw new Error('Agent config presenter is not configured for ACP provider')
+        }
         return new AcpProvider(
           provider,
           this.options.configPresenter,
-          this.options.acpSessionPersistence
+          this.options.acpSessionPersistence,
+          this.options.agentConfigPresenter,
+          {
+            getNpmRegistry: this.options.getNpmRegistry,
+            getUvRegistry: this.options.getUvRegistry
+          }
         )
       }
 

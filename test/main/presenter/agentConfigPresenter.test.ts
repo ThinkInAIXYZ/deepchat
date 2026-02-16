@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import type Database from 'better-sqlite3-multiple-ciphers'
-import type { IConfigPresenter, AcpBuiltinAgent, AcpCustomAgent } from '@shared/presenter'
+import type { AcpBuiltinAgent, AcpCustomAgent } from '@shared/presenter'
 import { AgentsTable } from '../../../src/main/presenter/sqlitePresenter/tables/agents'
 import {
   AgentConfigPresenter,
@@ -53,18 +53,6 @@ const mockCustomAgents: AcpCustomAgent[] = [
     mcpSelections: []
   }
 ]
-
-function createMockConfigPresenter(): IConfigPresenter {
-  return {
-    getProviders: vi.fn(() => [{ id: 'openai', enable: true }]),
-    getAcpConfHelper: vi.fn(() => ({
-      getGlobalEnabled: vi.fn(() => false),
-      getUseBuiltinRuntime: vi.fn(() => false),
-      getBuiltins: vi.fn(() => mockBuiltinAgents),
-      getCustoms: vi.fn(() => mockCustomAgents)
-    }))
-  } as unknown as IConfigPresenter
-}
 
 function createInMemoryDb(): Database.Database {
   const Database = require('better-sqlite3-multiple-ciphers')
@@ -229,12 +217,10 @@ describe('AgentsTable', () => {
 describe('AgentConfigPresenter', () => {
   let db: Database.Database
   let presenter: AgentConfigPresenter
-  let mockConfig: IConfigPresenter
 
   beforeEach(() => {
     db = createInMemoryDb()
-    mockConfig = createMockConfigPresenter()
-    presenter = new AgentConfigPresenter(db, mockConfig)
+    presenter = new AgentConfigPresenter(db)
   })
 
   afterEach(() => {

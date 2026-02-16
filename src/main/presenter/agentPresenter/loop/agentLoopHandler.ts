@@ -138,7 +138,7 @@ export class AgentLoopHandler {
       agentId,
       undefined,
       mcpTools,
-      this.options.configPresenter
+      presenter.agentConfigPresenter
     )
     return [...filteredMcp, ...agentTools]
   }

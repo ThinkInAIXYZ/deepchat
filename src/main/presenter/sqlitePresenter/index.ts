@@ -169,7 +169,6 @@ export class SQLitePresenter implements ISQLitePresenter {
   }
 
   private migrate() {
-    const migrations = new Map<number, string[]>()
     const tables = [
       this.conversationsTable,
       this.messagesTable,
@@ -179,43 +178,45 @@ export class SQLitePresenter implements ISQLitePresenter {
       this.agentsTable
     ]
 
-    // 获取最新的迁移版本
     const latestVersion = tables.reduce((maxVersion, table) => {
       const tableMaxVersion = table.getLatestVersion?.() || 0
       return Math.max(maxVersion, tableMaxVersion)
     }, 0)
 
-    // 只迁移未执行的版本
-    tables.forEach((table) => {
+    if (latestVersion <= this.currentVersion) {
+      return
+    }
+
+    console.log(`Migrating database from version ${this.currentVersion} to ${latestVersion}`)
+
+    this.db.transaction(() => {
       for (let version = this.currentVersion + 1; version <= latestVersion; version++) {
-        const sql = table.getMigrationSQL?.(version)
-        if (sql) {
-          if (!migrations.has(version)) {
-            migrations.set(version, [])
-          }
-          migrations.get(version)?.push(sql)
-        }
-      }
-    })
-
-    // 按版本号顺序执行迁移
-    const versions = Array.from(migrations.keys()).sort((a, b) => a - b)
-
-    for (const version of versions) {
-      const migrationSQLs = migrations.get(version) || []
-      if (migrationSQLs.length > 0) {
         console.log(`Executing migration version ${version}`)
-        this.db.transaction(() => {
-          migrationSQLs.forEach((sql) => {
+        const migrationSQLs: string[] = []
+
+        tables.forEach((table) => {
+          const sql = table.getMigrationSQL?.(version)
+          if (sql) {
+            migrationSQLs.push(sql)
+          }
+
+          if (table.runMigration) {
+            table.runMigration(version)
+          }
+        })
+
+        migrationSQLs.forEach((sql) => {
+          if (sql.trim()) {
             console.log(`Executing SQL: ${sql}`)
             this.db.exec(sql)
-          })
-          this.db
-            .prepare('INSERT INTO schema_versions (version, applied_at) VALUES (?, ?)')
-            .run(version, Date.now())
-        })()
+          }
+        })
+
+        this.db
+          .prepare('INSERT INTO schema_versions (version, applied_at) VALUES (?, ?)')
+          .run(version, Date.now())
       }
-    }
+    })()
   }
 
   // 关闭数据库连接

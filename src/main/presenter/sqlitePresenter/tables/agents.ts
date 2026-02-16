@@ -94,7 +94,30 @@ export class AgentsTable extends BaseTable {
   }
 
   getLatestVersion(): number {
-    return 0
+    return 1
+  }
+
+  runMigration(version: number): void {
+    if (version === 1) {
+      const columns = this.db.pragma('table_info(agents)') as { name: string }[]
+      const columnNames = new Set(columns.map((c) => c.name))
+
+      if (!columnNames.has('is_builtin')) {
+        this.db.exec('ALTER TABLE agents ADD COLUMN is_builtin INTEGER DEFAULT 0')
+      }
+      if (!columnNames.has('builtin_id')) {
+        this.db.exec('ALTER TABLE agents ADD COLUMN builtin_id TEXT')
+      }
+      if (!columnNames.has('profiles')) {
+        this.db.exec('ALTER TABLE agents ADD COLUMN profiles TEXT')
+      }
+      if (!columnNames.has('active_profile_id')) {
+        this.db.exec('ALTER TABLE agents ADD COLUMN active_profile_id TEXT')
+      }
+      if (!columnNames.has('mcp_selections')) {
+        this.db.exec('ALTER TABLE agents ADD COLUMN mcp_selections TEXT')
+      }
+    }
   }
 
   async list(): Promise<Agent[]> {
@@ -121,10 +144,36 @@ export class AgentsTable extends BaseTable {
     return rows.map((row) => this.rowToAgent(row) as AcpAgent)
   }
 
+  async listBuiltinAcpAgents(): Promise<AcpAgent[]> {
+    const rows = this.db
+      .prepare(`SELECT * FROM agents WHERE type = 'acp' AND is_builtin = 1 ORDER BY name ASC`)
+      .all() as AgentRow[]
+
+    return rows.map((row) => this.rowToAgent(row) as AcpAgent)
+  }
+
+  async listCustomAcpAgents(): Promise<AcpAgent[]> {
+    const rows = this.db
+      .prepare(
+        `SELECT * FROM agents WHERE type = 'acp' AND (is_builtin = 0 OR is_builtin IS NULL) ORDER BY created_at DESC`
+      )
+      .all() as AgentRow[]
+
+    return rows.map((row) => this.rowToAgent(row) as AcpAgent)
+  }
+
   async get(id: string): Promise<Agent | null> {
     const row = this.db.prepare(`SELECT * FROM agents WHERE id = ?`).get(id) as AgentRow | undefined
 
     return row ? this.rowToAgent(row) : null
+  }
+
+  async getByBuiltinId(builtinId: string): Promise<AcpAgent | null> {
+    const row = this.db
+      .prepare(`SELECT * FROM agents WHERE type = 'acp' AND builtin_id = ?`)
+      .get(builtinId) as AgentRow | undefined
+
+    return row ? (this.rowToAgent(row) as AcpAgent) : null
   }
 
   async create(params: CreateAgentParams & { id?: string }): Promise<string> {

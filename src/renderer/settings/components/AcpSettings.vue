@@ -326,13 +326,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import type {
-  AcpAgentProfile,
-  AcpBuiltinAgent,
-  AcpBuiltinAgentId,
-  AcpCustomAgent,
-  MCPServerConfig
-} from '@shared/presenter'
+import type { AcpAgentProfile, AcpAgent, MCPServerConfig } from '@shared/presenter'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/components/use-toast'
 import { usePresenter } from '@/composables/usePresenter'
@@ -371,6 +365,7 @@ const { t } = useI18n()
 const { toast } = useToast()
 
 const configPresenter = usePresenter('configPresenter')
+const agentConfigPresenter = usePresenter('agentConfigPresenter')
 const llmProviderPresenter = usePresenter('llmproviderPresenter')
 
 const acpEnabled = ref(false)
@@ -378,8 +373,8 @@ const toggling = ref(false)
 const useBuiltinRuntime = ref(false)
 const togglingUseBuiltinRuntime = ref(false)
 const loading = ref(false)
-const builtins = ref<AcpBuiltinAgent[]>([])
-const customAgents = ref<AcpCustomAgent[]>([])
+const builtins = ref<AcpAgent[]>([])
+const customAgents = ref<AcpAgent[]>([])
 const savingProfile = ref(false)
 const mcpServers = ref<Record<string, MCPServerConfig>>({})
 
@@ -417,7 +412,7 @@ const profileDialogState = reactive({
   title: '',
   description: '',
   confirmLabel: '',
-  builtinId: null as AcpBuiltinAgentId | null,
+  builtinId: null as string | null,
   customId: null as string | null,
   profileId: null as string | null,
   profile: null as ProfilePayload | null
@@ -425,7 +420,7 @@ const profileDialogState = reactive({
 
 const profileManagerState = reactive({
   open: false,
-  agentId: null as AcpBuiltinAgentId | null
+  agentId: null as string | null
 })
 
 const profileManagerAgent = computed(() =>
@@ -437,8 +432,9 @@ const profileManagerAgent = computed(() =>
 const activeProfileMap = computed<Record<string, AcpAgentProfile | null>>(() => {
   const map: Record<string, AcpAgentProfile | null> = {}
   builtins.value.forEach((agent) => {
+    const profiles = agent.profiles ?? []
     const profile =
-      agent.profiles.find((item) => item.id === agent.activeProfileId) ?? agent.profiles[0] ?? null
+      profiles.find((item) => item.id === agent.activeProfileId) ?? profiles[0] ?? null
     map[agent.id] = profile
   })
   return map
@@ -461,7 +457,7 @@ type ProfileKind = 'builtin' | 'custom'
 type ProfileDialogMode = 'builtin-add' | 'builtin-edit' | 'custom-add' | 'custom-edit'
 type ProfilePayload = Omit<AcpAgentProfile, 'id'>
 
-const getActiveProfile = (agent: AcpBuiltinAgent) => activeProfileMap.value[agent.id]
+const getActiveProfile = (agent: AcpAgent) => activeProfileMap.value[agent.id]
 
 const formatArgs = (args?: string[] | null) => {
   if (!args || !args.length) {
@@ -491,7 +487,7 @@ const handleError = (error: unknown, descriptionKey?: string) => {
 
 const loadAcpEnabled = async () => {
   try {
-    acpEnabled.value = await configPresenter.getAcpEnabled()
+    acpEnabled.value = agentConfigPresenter.getAcpGlobalEnabled()
   } catch (error) {
     handleError(error)
   }
@@ -499,7 +495,7 @@ const loadAcpEnabled = async () => {
 
 const loadAcpUseBuiltinRuntime = async () => {
   try {
-    useBuiltinRuntime.value = await configPresenter.getAcpUseBuiltinRuntime()
+    useBuiltinRuntime.value = agentConfigPresenter.getAcpUseBuiltinRuntime()
   } catch (error) {
     handleError(error)
   }
@@ -509,7 +505,7 @@ const handleUseBuiltinRuntimeToggle = async (enabled: boolean) => {
   if (togglingUseBuiltinRuntime.value) return
   togglingUseBuiltinRuntime.value = true
   try {
-    await configPresenter.setAcpUseBuiltinRuntime(enabled)
+    agentConfigPresenter.setAcpUseBuiltinRuntime(enabled)
     useBuiltinRuntime.value = enabled
   } catch (error) {
     handleError(error)
@@ -528,8 +524,8 @@ const loadAcpData = async () => {
   loading.value = true
   try {
     const [builtinList, customList] = await Promise.all([
-      configPresenter.getAcpBuiltinAgents(),
-      configPresenter.getAcpCustomAgents()
+      agentConfigPresenter.getAcpBuiltinAgents(),
+      agentConfigPresenter.getAcpCustomAgents()
     ])
     builtins.value = builtinList
     customAgents.value = customList
@@ -571,7 +567,7 @@ const handleToggle = async (enabled: boolean) => {
   if (toggling.value) return
   toggling.value = true
   try {
-    await configPresenter.setAcpEnabled(enabled)
+    agentConfigPresenter.setAcpGlobalEnabled(enabled)
     acpEnabled.value = enabled
     if (enabled) {
       await refreshAfterMutation()
@@ -588,10 +584,10 @@ const handleToggle = async (enabled: boolean) => {
   }
 }
 
-const handleBuiltinToggle = async (agent: AcpBuiltinAgent, enabled: boolean) => {
+const handleBuiltinToggle = async (agent: AcpAgent, enabled: boolean) => {
   setBuiltinPending(agent.id, true)
   try {
-    await configPresenter.setAcpBuiltinEnabled(agent.id, enabled)
+    await agentConfigPresenter.setAcpBuiltinEnabled(agent.id, enabled)
     await refreshAfterMutation()
   } catch (error) {
     handleError(error)
@@ -600,10 +596,10 @@ const handleBuiltinToggle = async (agent: AcpBuiltinAgent, enabled: boolean) => 
   }
 }
 
-const handleActiveProfileChange = async (agent: AcpBuiltinAgent, profileId: string) => {
+const handleActiveProfileChange = async (agent: AcpAgent, profileId: string) => {
   setBuiltinPending(agent.id, true)
   try {
-    await configPresenter.setAcpBuiltinActiveProfile(agent.id, profileId)
+    await agentConfigPresenter.setAcpBuiltinActiveProfile(agent.id, profileId)
     await refreshAfterMutation()
     toast({ title: t('settings.acp.profileSwitched') })
   } catch (error) {
@@ -620,7 +616,7 @@ const ensureProfilePayload = (input?: Partial<ProfilePayload> | null): ProfilePa
   env: input?.env ? { ...input.env } : undefined
 })
 
-const openBuiltinProfileDialog = (agent: AcpBuiltinAgent, profile?: AcpAgentProfile) => {
+const openBuiltinProfileDialog = (agent: AcpAgent, profile?: AcpAgentProfile) => {
   profileDialogState.mode = profile ? 'builtin-edit' : 'builtin-add'
   profileDialogState.kind = 'builtin'
   profileDialogState.title = profile
@@ -635,7 +631,7 @@ const openBuiltinProfileDialog = (agent: AcpBuiltinAgent, profile?: AcpAgentProf
   profileDialogState.open = true
 }
 
-const openCustomAgentDialog = (agent?: AcpCustomAgent) => {
+const openCustomAgentDialog = (agent?: AcpAgent) => {
   profileDialogState.mode = agent ? 'custom-edit' : 'custom-add'
   profileDialogState.kind = 'custom'
   profileDialogState.title = agent
@@ -662,28 +658,29 @@ const handleProfileSave = async (payload: ProfilePayload) => {
   try {
     switch (profileDialogState.mode) {
       case 'builtin-add':
-        await configPresenter.addAcpBuiltinProfile(profileDialogState.builtinId!, payload, {
+        await agentConfigPresenter.addAcpBuiltinProfile(profileDialogState.builtinId!, payload, {
           activate: true
         })
         break
       case 'builtin-edit':
-        await configPresenter.updateAcpBuiltinProfile(
+        await agentConfigPresenter.updateAcpBuiltinProfile(
           profileDialogState.builtinId!,
           profileDialogState.profileId!,
           payload
         )
         break
       case 'custom-add':
-        await configPresenter.addCustomAcpAgent({
-          id: profileDialogState.customId ?? undefined,
+        await agentConfigPresenter.addAcpCustomAgent({
           name: payload.name,
           command: payload.command,
           args: payload.args,
-          env: payload.env
+          env: payload.env,
+          enabled: true,
+          mcpSelections: []
         })
         break
       case 'custom-edit':
-        await configPresenter.updateCustomAcpAgent(profileDialogState.customId!, payload)
+        await agentConfigPresenter.updateAcpCustomAgent(profileDialogState.customId!, payload)
         break
     }
     await refreshAfterMutation()
@@ -696,25 +693,19 @@ const handleProfileSave = async (payload: ProfilePayload) => {
   }
 }
 
-const openProfileManager = (agent: AcpBuiltinAgent) => {
+const openProfileManager = (agent: AcpAgent) => {
   profileManagerState.agentId = agent.id
   profileManagerState.open = true
 }
 
-const handleManagerAdd = (agentId: AcpBuiltinAgentId) => {
+const handleManagerAdd = (agentId: string) => {
   const agent = builtins.value.find((item) => item.id === agentId)
   if (agent) {
     openBuiltinProfileDialog(agent)
   }
 }
 
-const handleManagerEdit = ({
-  agentId,
-  profile
-}: {
-  agentId: AcpBuiltinAgentId
-  profile: AcpAgentProfile
-}) => {
+const handleManagerEdit = ({ agentId, profile }: { agentId: string; profile: AcpAgentProfile }) => {
   const agent = builtins.value.find((item) => item.id === agentId)
   if (agent) {
     openBuiltinProfileDialog(agent, profile)
@@ -725,7 +716,7 @@ const handleManagerDelete = async ({
   agentId,
   profile
 }: {
-  agentId: AcpBuiltinAgentId
+  agentId: string
   profile: AcpAgentProfile
 }) => {
   const confirmed = window.confirm(
@@ -734,7 +725,7 @@ const handleManagerDelete = async ({
   if (!confirmed) return
 
   try {
-    const removed = await configPresenter.removeAcpBuiltinProfile(agentId, profile.id)
+    const removed = await agentConfigPresenter.removeAcpBuiltinProfile(agentId, profile.id)
     if (!removed) {
       toast({
         title: t('settings.acp.profileManager.cannotDeleteTitle'),
@@ -754,7 +745,7 @@ const handleManagerActivate = async ({
   agentId,
   profileId
 }: {
-  agentId: AcpBuiltinAgentId
+  agentId: string
   profileId: string
 }) => {
   const agent = builtins.value.find((item) => item.id === agentId)
@@ -762,10 +753,10 @@ const handleManagerActivate = async ({
   await handleActiveProfileChange(agent, profileId)
 }
 
-const handleCustomToggle = async (agent: AcpCustomAgent, enabled: boolean) => {
+const handleCustomToggle = async (agent: AcpAgent, enabled: boolean) => {
   setCustomPending(agent.id, true)
   try {
-    await configPresenter.setCustomAcpAgentEnabled(agent.id, enabled)
+    await agentConfigPresenter.setAcpCustomAgentEnabled(agent.id, enabled)
     await refreshAfterMutation()
   } catch (error) {
     handleError(error)
@@ -774,11 +765,11 @@ const handleCustomToggle = async (agent: AcpCustomAgent, enabled: boolean) => {
   }
 }
 
-const deleteCustomAgent = async (agent: AcpCustomAgent) => {
+const deleteCustomAgent = async (agent: AcpAgent) => {
   const confirmed = window.confirm(t('settings.acp.customDeleteConfirm', { name: agent.name }))
   if (!confirmed) return
   try {
-    await configPresenter.removeCustomAcpAgent(agent.id)
+    await agentConfigPresenter.removeAcpCustomAgent(agent.id)
     await refreshAfterMutation()
     toast({ title: t('settings.acp.deleteSuccess') })
   } catch (error) {

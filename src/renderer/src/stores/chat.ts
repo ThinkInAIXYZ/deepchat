@@ -65,7 +65,7 @@ export const useChatStore = defineStore('chat', () => {
   const windowP = usePresenter('windowPresenter')
   const notificationP = usePresenter('notificationPresenter')
   const tabP = usePresenter('tabPresenter')
-  const configP = usePresenter('configPresenter')
+  const agentConfigP = usePresenter('agentConfigPresenter')
   const { t } = useI18n()
   const { currentMode } = useChatMode()
 
@@ -236,7 +236,7 @@ export const useChatStore = defineStore('chat', () => {
     }
 
     try {
-      const selections = await configP.getAgentMcpSelections(activeAcpAgentId.value)
+      const selections = await agentConfigP.getAgentMcpSelections(activeAcpAgentId.value)
       if (activeAgentMcpSelectionsRequestId !== requestId) return
       activeAgentMcpSelectionsState.value = Array.isArray(selections) ? selections : []
     } catch (error) {

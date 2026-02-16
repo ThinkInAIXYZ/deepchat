@@ -11,11 +11,7 @@ import {
   SystemPrompt,
   IModelConfig,
   BuiltinKnowledgeConfig,
-  AcpAgentConfig,
-  AcpAgentProfile,
-  AcpBuiltinAgent,
-  AcpBuiltinAgentId,
-  AcpCustomAgent
+  AcpBuiltinAgentId
 } from '@shared/presenter'
 import { ProviderBatchUpdate } from '@shared/provider-operations'
 import { SearchEngineTemplate } from '@shared/chat'
@@ -40,7 +36,6 @@ import { ModelStatusHelper } from './modelStatusHelper'
 import { ProviderModelHelper, PROVIDER_MODELS_DIR } from './providerModelHelper'
 import { SystemPromptHelper, DEFAULT_SYSTEM_PROMPT } from './systemPromptHelper'
 import { UiSettingsHelper } from './uiSettingsHelper'
-import { AcpConfHelper } from './acpConfHelper'
 import { AcpProvider } from '../llmProviderPresenter/providers/acpProvider'
 import {
   initializeBuiltinAgent,
@@ -48,7 +43,6 @@ import {
   writeToTerminal,
   killTerminal
 } from './acpInitHelper'
-import { clearShellEnvironmentCache } from '../agentPresenter/acp'
 import type {
   HookEventName,
   HookTestResult,
@@ -116,7 +110,6 @@ export class ConfigPresenter implements IConfigPresenter {
   private userDataPath: string
   private currentAppVersion: string
   private mcpConfHelper: McpConfHelper // Use MCP configuration helper
-  private acpConfHelper: AcpConfHelper
   private modelConfigHelper: ModelConfigHelper // Model configuration helper
   private knowledgeConfHelper: KnowledgeConfHelper // Knowledge configuration helper
   private providerHelper: ProviderHelper
@@ -212,8 +205,6 @@ export class ConfigPresenter implements IConfigPresenter {
     // Initialize MCP configuration helper
     this.mcpConfHelper = new McpConfHelper()
 
-    this.acpConfHelper = new AcpConfHelper({ mcpConfHelper: this.mcpConfHelper })
-    this.syncAcpProviderEnabled(this.acpConfHelper.getGlobalEnabled())
     this.setupIpcHandlers()
 
     // Initialize model configuration helper
@@ -1079,7 +1070,7 @@ export class ConfigPresenter implements IConfigPresenter {
     await this.mcpConfHelper.updateMcpServer(name, config)
   }
 
-  private syncAcpProviderEnabled(enabled: boolean): void {
+  public syncAcpProviderEnabled(enabled: boolean): void {
     const provider = this.getProviderById('acp')
     if (!provider || provider.enable === enabled) {
       return
@@ -1088,86 +1079,13 @@ export class ConfigPresenter implements IConfigPresenter {
     this.updateProviderAtomic('acp', { enable: enabled })
   }
 
-  async getAcpEnabled(): Promise<boolean> {
-    return this.acpConfHelper.getGlobalEnabled()
+  public clearProviderModels(providerId: string): void {
+    this.providerModelHelper.setProviderModels(providerId, [])
+    this.clearProviderModelStatusCache(providerId)
   }
 
-  async setAcpEnabled(enabled: boolean): Promise<void> {
-    const changed = this.acpConfHelper.setGlobalEnabled(enabled)
-    if (!changed) return
-
-    console.log('[ACP] setAcpEnabled: updating global toggle to', enabled)
-    this.syncAcpProviderEnabled(enabled)
-
-    if (!enabled) {
-      console.log('[ACP] Disabling: clearing provider models and status cache')
-      this.providerModelHelper.setProviderModels('acp', [])
-      this.clearProviderModelStatusCache('acp')
-    }
-
-    this.notifyAcpAgentsChanged()
-  }
-
-  async getAcpUseBuiltinRuntime(): Promise<boolean> {
-    return this.acpConfHelper.getUseBuiltinRuntime()
-  }
-
-  async setAcpUseBuiltinRuntime(enabled: boolean): Promise<void> {
-    this.acpConfHelper.setUseBuiltinRuntime(enabled)
-    // Clear shell environment cache when useBuiltinRuntime changes
-    // This ensures fresh environment variables are fetched if user switches back to system runtime
-    clearShellEnvironmentCache()
-  }
-
-  // ===================== ACP configuration methods =====================
-  async getAcpAgents(): Promise<AcpAgentConfig[]> {
-    return this.acpConfHelper.getEnabledAgents()
-  }
-
-  async setAcpAgents(agents: AcpAgentConfig[]): Promise<AcpAgentConfig[]> {
-    const sanitizedAgents = this.acpConfHelper.replaceWithLegacyAgents(agents)
-    this.handleAcpAgentsMutated(sanitizedAgents.map((agent) => agent.id))
-    return sanitizedAgents
-  }
-
-  async addAcpAgent(agent: Omit<AcpAgentConfig, 'id'> & { id?: string }): Promise<AcpAgentConfig> {
-    const created = this.acpConfHelper.addLegacyAgent(agent)
-    this.handleAcpAgentsMutated([created.id])
-    return created
-  }
-
-  async updateAcpAgent(
-    agentId: string,
-    updates: Partial<Omit<AcpAgentConfig, 'id'>>
-  ): Promise<AcpAgentConfig | null> {
-    const updated = this.acpConfHelper.updateLegacyAgent(agentId, updates)
-    if (updated) {
-      this.handleAcpAgentsMutated([agentId])
-    }
-    return updated
-  }
-
-  async removeAcpAgent(agentId: string): Promise<boolean> {
-    const removed = this.acpConfHelper.removeLegacyAgent(agentId)
-    if (removed) {
-      this.handleAcpAgentsMutated([agentId])
-    }
-    return removed
-  }
-
-  async getAcpBuiltinAgents(): Promise<AcpBuiltinAgent[]> {
-    return this.acpConfHelper.getBuiltins()
-  }
-
-  async getAcpCustomAgents(): Promise<AcpCustomAgent[]> {
-    return this.acpConfHelper.getCustoms()
-  }
-
-  /**
-   * Initialize an ACP agent with terminal output streaming
-   */
   async initializeAcpAgent(agentId: string, isBuiltin: boolean): Promise<void> {
-    const useBuiltinRuntime = await this.getAcpUseBuiltinRuntime()
+    const useBuiltinRuntime = presenter.agentConfigPresenter.getAcpUseBuiltinRuntime()
 
     // Get npm and uv registry from MCP presenter
     let npmRegistry: string | null = null
@@ -1188,21 +1106,19 @@ export class ConfigPresenter implements IConfigPresenter {
     const webContents =
       settingsWindow && !settingsWindow.isDestroyed() ? settingsWindow.webContents : undefined
 
-    if (isBuiltin) {
-      // Get builtin agent and its active profile
-      const builtins = await this.getAcpBuiltinAgents()
-      const agent = builtins.find((a) => a.id === agentId)
-      if (!agent) {
-        throw new Error(`Built-in agent not found: ${agentId}`)
-      }
+    const agent = await presenter.agentConfigPresenter.getAgent(agentId)
+    if (!agent || agent.type !== 'acp') {
+      throw new Error(`ACP agent not found: ${agentId}`)
+    }
 
-      const activeProfile = agent.profiles.find((p) => p.id === agent.activeProfileId)
+    if (isBuiltin) {
+      const activeProfile = (agent.profiles ?? []).find((p) => p.id === agent.activeProfileId)
       if (!activeProfile) {
         throw new Error(`No active profile found for agent: ${agentId}`)
       }
 
       const result = await initializeBuiltinAgent(
-        agentId as AcpBuiltinAgentId,
+        agent.builtinId as AcpBuiltinAgentId,
         activeProfile,
         useBuiltinRuntime,
         npmRegistry,
@@ -1215,116 +1131,18 @@ export class ConfigPresenter implements IConfigPresenter {
         return
       }
     } else {
-      // Get custom agent
-      const customs = await this.getAcpCustomAgents()
-      const agent = customs.find((a) => a.id === agentId)
-      if (!agent) {
-        throw new Error(`Custom agent not found: ${agentId}`)
-      }
-
       await initializeCustomAgent(agent, useBuiltinRuntime, npmRegistry, uvRegistry, webContents)
     }
-  }
-
-  async addAcpBuiltinProfile(
-    agentId: AcpBuiltinAgentId,
-    profile: Omit<AcpAgentProfile, 'id'>,
-    options?: { activate?: boolean }
-  ): Promise<AcpAgentProfile> {
-    const created = this.acpConfHelper.addBuiltinProfile(agentId, profile, options)
-    this.handleAcpAgentsMutated([agentId])
-    return created
-  }
-
-  async updateAcpBuiltinProfile(
-    agentId: AcpBuiltinAgentId,
-    profileId: string,
-    updates: Partial<Omit<AcpAgentProfile, 'id'>>
-  ): Promise<AcpAgentProfile | null> {
-    const updated = this.acpConfHelper.updateBuiltinProfile(agentId, profileId, updates)
-    if (updated) {
-      this.handleAcpAgentsMutated([agentId])
-    }
-    return updated
-  }
-
-  async removeAcpBuiltinProfile(agentId: AcpBuiltinAgentId, profileId: string): Promise<boolean> {
-    const removed = this.acpConfHelper.removeBuiltinProfile(agentId, profileId)
-    if (removed) {
-      this.handleAcpAgentsMutated([agentId])
-    }
-    return removed
-  }
-
-  async setAcpBuiltinActiveProfile(agentId: AcpBuiltinAgentId, profileId: string): Promise<void> {
-    this.acpConfHelper.setBuiltinActiveProfile(agentId, profileId)
-    this.handleAcpAgentsMutated([agentId])
-  }
-
-  async setAcpBuiltinEnabled(agentId: AcpBuiltinAgentId, enabled: boolean): Promise<void> {
-    this.acpConfHelper.setBuiltinEnabled(agentId, enabled)
-    this.handleAcpAgentsMutated([agentId])
-  }
-
-  async addCustomAcpAgent(
-    agent: Omit<AcpCustomAgent, 'id' | 'enabled'> & { id?: string; enabled?: boolean }
-  ): Promise<AcpCustomAgent> {
-    const created = this.acpConfHelper.addCustomAgent(agent)
-    this.handleAcpAgentsMutated([created.id])
-    return created
-  }
-
-  async updateCustomAcpAgent(
-    agentId: string,
-    updates: Partial<Omit<AcpCustomAgent, 'id'>>
-  ): Promise<AcpCustomAgent | null> {
-    const updated = this.acpConfHelper.updateCustomAgent(agentId, updates)
-    if (updated) {
-      this.handleAcpAgentsMutated([agentId])
-    }
-    return updated
-  }
-
-  async removeCustomAcpAgent(agentId: string): Promise<boolean> {
-    const removed = this.acpConfHelper.removeCustomAgent(agentId)
-    if (removed) {
-      this.handleAcpAgentsMutated([agentId])
-    }
-    return removed
-  }
-
-  async setCustomAcpAgentEnabled(agentId: string, enabled: boolean): Promise<void> {
-    this.acpConfHelper.setCustomAgentEnabled(agentId, enabled)
-    this.handleAcpAgentsMutated([agentId])
-  }
-
-  async getAgentMcpSelections(agentId: string, isBuiltin?: boolean): Promise<string[]> {
-    return await this.acpConfHelper.getAgentMcpSelections(agentId, isBuiltin)
-  }
-
-  async setAgentMcpSelections(
-    agentId: string,
-    isBuiltin: boolean,
-    mcpIds: string[]
-  ): Promise<void> {
-    await this.acpConfHelper.setAgentMcpSelections(agentId, isBuiltin, mcpIds)
-    this.handleAcpAgentsMutated([agentId])
-  }
-
-  async addMcpToAgent(agentId: string, isBuiltin: boolean, mcpId: string): Promise<void> {
-    await this.acpConfHelper.addMcpToAgent(agentId, isBuiltin, mcpId)
-    this.handleAcpAgentsMutated([agentId])
-  }
-
-  async removeMcpFromAgent(agentId: string, isBuiltin: boolean, mcpId: string): Promise<void> {
-    await this.acpConfHelper.removeMcpFromAgent(agentId, isBuiltin, mcpId)
-    this.handleAcpAgentsMutated([agentId])
   }
 
   private handleAcpAgentsMutated(agentIds?: string[]) {
     this.clearProviderModelStatusCache('acp')
     this.notifyAcpAgentsChanged()
     this.refreshAcpProviderAgents(agentIds)
+  }
+
+  public onAcpAgentsMutated(agentIds?: string[]): void {
+    this.handleAcpAgentsMutated(agentIds)
   }
 
   private refreshAcpProviderAgents(agentIds?: string[]): void {

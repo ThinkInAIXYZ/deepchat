@@ -1,4 +1,9 @@
-import type { AcpBuiltinAgentId } from './legacy.presenters'
+import type {
+  AcpBuiltinAgentId,
+  AcpCustomAgent,
+  AcpAgentProfile,
+  IConfigPresenter
+} from './legacy.presenters'
 
 export type AgentType = 'template' | 'acp'
 
@@ -90,15 +95,44 @@ export type UpdateAcpAgentParams = Partial<
 export type UpdateAgentParams = UpdateTemplateAgentParams | UpdateAcpAgentParams
 
 export interface IAgentConfigPresenter {
+  setConfigPresenter(configPresenter: IConfigPresenter): void
   getAgents(): Promise<Agent[]>
   getAgent(id: string): Promise<Agent | null>
   getAgentsByType(type: AgentType): Promise<Agent[]>
   getEnabledAcpAgents(): Promise<AcpAgent[]>
+  getAcpBuiltinAgents(): Promise<AcpAgent[]>
+  getAcpCustomAgents(): Promise<AcpAgent[]>
   createAgent(agent: CreateAgentParams): Promise<string>
   updateAgent(id: string, updates: UpdateAgentParams): Promise<void>
   deleteAgent(id: string): Promise<void>
 
+  setAcpBuiltinEnabled(id: string, enabled: boolean): Promise<void>
+  addAcpBuiltinProfile(
+    agentId: string,
+    profile: Omit<AcpAgentProfile, 'id'>,
+    options?: { activate?: boolean }
+  ): Promise<AcpAgentProfile>
+  updateAcpBuiltinProfile(
+    agentId: string,
+    profileId: string,
+    updates: Partial<Omit<AcpAgentProfile, 'id'>>
+  ): Promise<AcpAgentProfile | null>
+  removeAcpBuiltinProfile(agentId: string, profileId: string): Promise<boolean>
+  setAcpBuiltinActiveProfile(agentId: string, profileId: string): Promise<void>
+  addAcpCustomAgent(agent: Omit<AcpCustomAgent, 'id' | 'createdAt' | 'updatedAt'>): Promise<string>
+  updateAcpCustomAgent(
+    id: string,
+    updates: Partial<Omit<AcpCustomAgent, 'id' | 'createdAt' | 'updatedAt'>>
+  ): Promise<void>
+  removeAcpCustomAgent(id: string): Promise<void>
+  setAcpCustomAgentEnabled(id: string, enabled: boolean): Promise<void>
+
+  getAgentMcpSelections(agentId: string): Promise<string[]>
+  setAgentMcpSelections(agentId: string, mcpIds: string[]): Promise<void>
+
   migrateAcpAgentsFromStore(): Promise<void>
+
+  ensureDefaultBuiltinAgents(): Promise<void>
 
   ensureDefaultAgent(): Promise<void>
   getDefaultAgent(): Promise<TemplateAgent | null>

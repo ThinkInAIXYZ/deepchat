@@ -9,16 +9,14 @@ export abstract class BaseTable {
     this.tableName = tableName
   }
 
-  // 获取表创建SQL
   abstract getCreateTableSQL(): string
 
-  // 获取表升级SQL (如果有的话)
   abstract getMigrationSQL?(version: number): string | null
 
-  // 获取最新的迁移版本号
   abstract getLatestVersion(): number
 
-  // 检查表是否存在
+  runMigration?(version: number): void
+
   protected tableExists(): boolean {
     const result = this.db
       .prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name=?`)
@@ -27,7 +25,6 @@ export abstract class BaseTable {
     return !!result
   }
 
-  // 执行表创建
   public createTable(): void {
     if (!this.tableExists()) {
       this.db.exec(this.getCreateTableSQL())

@@ -28,6 +28,7 @@ let hasAcpListener = false
 export function useChatMode() {
   // === Presenters ===
   const configPresenter = usePresenter('configPresenter')
+  const agentConfigPresenter = usePresenter('agentConfigPresenter')
   const { t } = useI18n()
 
   // === Computed ===
@@ -78,12 +79,12 @@ export function useChatMode() {
 
   const checkAcpAgents = async () => {
     try {
-      const acpEnabled = await configPresenter.getAcpEnabled()
+      const acpEnabled = agentConfigPresenter.getAcpGlobalEnabled()
       if (!acpEnabled) {
         hasAcpAgents.value = false
         return
       }
-      const agents = await configPresenter.getAcpAgents()
+      const agents = await agentConfigPresenter.getEnabledAcpAgents()
       hasAcpAgents.value = agents.length > 0
     } catch (error) {
       console.warn('Failed to check ACP agents:', error)

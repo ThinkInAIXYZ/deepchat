@@ -429,7 +429,7 @@ export class ToolManager {
             )
             const agentId = conversation?.settings?.modelId
             if (typeof agentId === 'string' && agentId.trim().length > 0) {
-              const selections = await this.configPresenter.getAgentMcpSelections(agentId)
+              const selections = await presenter.agentConfigPresenter.getAgentMcpSelections(agentId)
               if (!selections?.length || !selections.includes(toolServerName)) {
                 return {
                   toolCallId: toolCall.id,

@@ -17,6 +17,7 @@ import {
   AcpDebugRunResult
 } from '@shared/presenter'
 import { ProviderChange, ProviderBatchUpdate } from '@shared/provider-operations'
+import type { IAgentConfigPresenter } from '@shared/types/presenters/agentConfig.presenter'
 import { eventBus } from '@/eventbus'
 import { CONFIG_EVENTS } from '@/events'
 import { BaseLLMProvider } from './baseProvider'
@@ -33,6 +34,12 @@ import { ShowResponse } from 'ollama'
 import { AcpSessionPersistence } from '../agentPresenter/acp'
 import { AcpProvider } from './providers/acpProvider'
 
+export interface LLMProviderPresenterOptions {
+  agentConfigPresenter: IAgentConfigPresenter
+  getNpmRegistry?: () => Promise<string | null>
+  getUvRegistry?: () => Promise<string | null>
+}
+
 export class LLMProviderPresenter implements ILlmProviderPresenter {
   private currentProviderId: string | null = null
   private readonly activeStreams: Map<string, StreamState> = new Map()
@@ -48,7 +55,11 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
   private readonly modelScopeSyncManager: ModelScopeSyncManager
   private readonly acpSessionPersistence: AcpSessionPersistence
 
-  constructor(configPresenter: IConfigPresenter, sqlitePresenter: ISQLitePresenter) {
+  constructor(
+    configPresenter: IConfigPresenter,
+    sqlitePresenter: ISQLitePresenter,
+    options: LLMProviderPresenterOptions
+  ) {
     this.rateLimitManager = new RateLimitManager(configPresenter)
     this.acpSessionPersistence = new AcpSessionPersistence(sqlitePresenter)
     this.providerInstanceManager = new ProviderInstanceManager({
@@ -59,7 +70,10 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
       setCurrentProviderId: (providerId) => {
         this.currentProviderId = providerId
       },
-      acpSessionPersistence: this.acpSessionPersistence
+      acpSessionPersistence: this.acpSessionPersistence,
+      agentConfigPresenter: options.agentConfigPresenter,
+      getNpmRegistry: options.getNpmRegistry,
+      getUvRegistry: options.getUvRegistry
     })
     this.modelManager = new ModelManager({
       configPresenter,

@@ -1,5 +1,6 @@
 import { app } from 'electron'
 import type { AcpAgentConfig, IConfigPresenter } from '@shared/presenter'
+import { presenter } from '@/presenter'
 import type { AgentSessionState } from './types'
 import type {
   AcpProcessManager,
@@ -275,7 +276,7 @@ export class AcpSessionManager {
     try {
       let mcpServers: schema.McpServer[] = []
       try {
-        const selections = await this.configPresenter.getAgentMcpSelections(agent.id)
+        const selections = await presenter.agentConfigPresenter.getAgentMcpSelections(agent.id)
         if (selections.length > 0) {
           const serverConfigs = await this.configPresenter.getMcpServers()
           const converted = selections

@@ -18,6 +18,7 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const { toast } = useToast()
 const configPresenter = usePresenter('configPresenter')
+const agentConfigPresenter = usePresenter('agentConfigPresenter')
 
 const loading = ref(false)
 const saving = ref(false)
@@ -36,7 +37,7 @@ const load = async () => {
   try {
     const [servers, currentSelections] = await Promise.all([
       configPresenter.getMcpServers(),
-      configPresenter.getAgentMcpSelections(props.agentId, props.isBuiltin)
+      agentConfigPresenter.getAgentMcpSelections(props.agentId)
     ])
 
     availableServers.value = Object.entries(servers ?? {}).map(([name, config]) => ({
@@ -57,7 +58,7 @@ const persist = async (
   if (!props.agentId) return
   saving.value = true
   try {
-    await configPresenter.setAgentMcpSelections(props.agentId, props.isBuiltin, nextSelections)
+    await agentConfigPresenter.setAgentMcpSelections(props.agentId, nextSelections)
     emit('update:selections', nextSelections)
   } catch (error) {
     selections.value = previousSelections

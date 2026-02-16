@@ -589,9 +589,6 @@ export interface IConfigPresenter {
   addMcpServer(serverName: string, config: MCPServerConfig): Promise<boolean>
   removeMcpServer(serverName: string): Promise<void>
   updateMcpServer(serverName: string, config: Partial<MCPServerConfig>): Promise<void>
-  // ACP configuration methods
-  getAcpEnabled(): Promise<boolean>
-  setAcpEnabled(enabled: boolean): Promise<void>
   // Nowledge-mem configuration methods
   getNowledgeMemConfig(): Promise<{
     baseUrl: string
@@ -599,45 +596,11 @@ export interface IConfigPresenter {
     timeout: number
   } | null>
   setNowledgeMemConfig(config: { baseUrl: string; apiKey?: string; timeout: number }): Promise<void>
-  getAcpUseBuiltinRuntime(): Promise<boolean>
-  setAcpUseBuiltinRuntime(enabled: boolean): Promise<void>
-  setAcpAgents(agents: AcpAgentConfig[]): Promise<AcpAgentConfig[]>
-  getAcpAgents(): Promise<AcpAgentConfig[]>
-  addAcpAgent(agent: Omit<AcpAgentConfig, 'id'> & { id?: string }): Promise<AcpAgentConfig>
-  updateAcpAgent(
-    agentId: string,
-    updates: Partial<Omit<AcpAgentConfig, 'id'>>
-  ): Promise<AcpAgentConfig | null>
-  removeAcpAgent(agentId: string): Promise<boolean>
-  getAcpBuiltinAgents(): Promise<AcpBuiltinAgent[]>
-  getAcpCustomAgents(): Promise<AcpCustomAgent[]>
-  addAcpBuiltinProfile(
-    agentId: AcpBuiltinAgentId,
-    profile: Omit<AcpAgentProfile, 'id'>,
-    options?: { activate?: boolean }
-  ): Promise<AcpAgentProfile>
-  updateAcpBuiltinProfile(
-    agentId: AcpBuiltinAgentId,
-    profileId: string,
-    updates: Partial<Omit<AcpAgentProfile, 'id'>>
-  ): Promise<AcpAgentProfile | null>
-  removeAcpBuiltinProfile(agentId: AcpBuiltinAgentId, profileId: string): Promise<boolean>
-  setAcpBuiltinActiveProfile(agentId: AcpBuiltinAgentId, profileId: string): Promise<void>
-  setAcpBuiltinEnabled(agentId: AcpBuiltinAgentId, enabled: boolean): Promise<void>
-  addCustomAcpAgent(
-    agent: Omit<AcpCustomAgent, 'id' | 'enabled'> & { id?: string; enabled?: boolean }
-  ): Promise<AcpCustomAgent>
-  updateCustomAcpAgent(
-    agentId: string,
-    updates: Partial<Omit<AcpCustomAgent, 'id'>>
-  ): Promise<AcpCustomAgent | null>
-  removeCustomAcpAgent(agentId: string): Promise<boolean>
-  setCustomAcpAgentEnabled(agentId: string, enabled: boolean): Promise<void>
+  // ACP configuration methods (initialization and sync only)
   initializeAcpAgent(agentId: string, isBuiltin: boolean): Promise<void>
-  getAgentMcpSelections(agentId: string, isBuiltin?: boolean): Promise<string[]>
-  setAgentMcpSelections(agentId: string, isBuiltin: boolean, mcpIds: string[]): Promise<void>
-  addMcpToAgent(agentId: string, isBuiltin: boolean, mcpId: string): Promise<void>
-  removeMcpFromAgent(agentId: string, isBuiltin: boolean, mcpId: string): Promise<void>
+  onAcpAgentsMutated(agentIds?: string[]): void
+  syncAcpProviderEnabled(enabled: boolean): void
+  clearProviderModels(providerId: string): void
   getMcpConfHelper(): any // Used to get MCP configuration helper
   getModelConfig(modelId: string, providerId?: string): ModelConfig
   setModelConfig(
@@ -889,6 +852,7 @@ export interface AcpStoreData {
   builtins: AcpBuiltinAgent[]
   customs: AcpCustomAgent[]
   enabled: boolean
+  useBuiltinRuntime?: boolean
   version?: string
 }
 

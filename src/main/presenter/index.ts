@@ -125,10 +125,25 @@ export class Presenter implements IPresenter {
     this.configPresenter = context.config as IConfigPresenter
     this.sqlitePresenter = context.database as ISQLitePresenter
 
+    // Initialize AgentConfigPresenter early - needed by AcpProvider in LLMProviderPresenter
+    const db = (
+      this.sqlitePresenter as unknown as { getDb: () => unknown }
+    ).getDb() as import('better-sqlite3-multiple-ciphers').Database
+    this.agentConfigPresenter = new AgentConfigPresenter(db)
+    this.agentConfigPresenter.setConfigPresenter(this.configPresenter)
+
     // 初始化各个 Presenter 实例及其依赖
     this.windowPresenter = new WindowPresenter(this.configPresenter)
     this.tabPresenter = new TabPresenter(this.windowPresenter)
-    this.llmproviderPresenter = new LLMProviderPresenter(this.configPresenter, this.sqlitePresenter)
+    this.llmproviderPresenter = new LLMProviderPresenter(
+      this.configPresenter,
+      this.sqlitePresenter,
+      {
+        agentConfigPresenter: this.agentConfigPresenter,
+        getNpmRegistry: async () => this.mcpPresenter.getNpmRegistry?.() ?? null,
+        getUvRegistry: async () => this.mcpPresenter.getUvRegistry?.() ?? null
+      }
+    )
     const commandPermissionHandler = new CommandPermissionService()
     this.filePermissionService = new FilePermissionService()
     this.settingsPermissionService = new SettingsPermissionService()
@@ -203,12 +218,6 @@ export class Presenter implements IPresenter {
       resolveWorkspaceContext: this.sessionManager.resolveWorkspaceContext.bind(this.sessionManager)
     })
 
-    // Initialize AgentConfigPresenter
-    const db = (
-      this.sqlitePresenter as unknown as { getDb: () => unknown }
-    ).getDb() as import('better-sqlite3-multiple-ciphers').Database
-    this.agentConfigPresenter = new AgentConfigPresenter(db, this.configPresenter)
-
     this.setupEventBus()
   }
 
@@ -281,6 +290,7 @@ export class Presenter implements IPresenter {
     try {
       await this.agentConfigPresenter.ensureDefaultAgent()
       await this.agentConfigPresenter.migrateAcpAgentsFromStore()
+      await this.agentConfigPresenter.ensureDefaultBuiltinAgents()
     } catch (error) {
       console.error('Failed to initialize AgentConfigPresenter:', error)
     }
