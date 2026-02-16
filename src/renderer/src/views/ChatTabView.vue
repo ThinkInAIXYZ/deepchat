@@ -4,8 +4,10 @@
       <div class="flex h-full">
         <!-- 主聊天区域 -->
         <div class="flex-1 flex flex-col w-0">
+          <!-- Mock chat page -->
+          <MockChatPage v-if="isMockChatActive" :title="mockSessionTitle" />
           <!-- 新会话 -->
-          <NewThread v-if="!chatStore.getActiveThreadId()" />
+          <NewThread v-else-if="!chatStore.getActiveThreadId()" />
           <template v-else>
             <!-- 标题栏 -->
             <!-- <TitleView @messageNavigationToggle="handleMessageNavigationToggle" /> -->
@@ -25,6 +27,7 @@
 <script setup lang="ts">
 import { defineAsyncComponent } from 'vue'
 import { useChatStore } from '@/stores/chat'
+import { useMockViewState } from '@/composables/useMockViewState'
 import { watch, ref, computed, nextTick } from 'vue'
 import { useTitle, useMediaQuery } from '@vueuse/core'
 import { useArtifactStore } from '@/stores/artifact'
@@ -32,6 +35,8 @@ import ArtifactDialog from '@/components/artifacts/ArtifactDialog.vue'
 import { useRoute } from 'vue-router'
 const ChatView = defineAsyncComponent(() => import('@/components/ChatView.vue'))
 const NewThread = defineAsyncComponent(() => import('@/components/NewThreadMock.vue'))
+const MockChatPage = defineAsyncComponent(() => import('@/components/mock/MockChatPage.vue'))
+const { isMockChatActive, mockSessionTitle } = useMockViewState()
 const artifactStore = useArtifactStore()
 const route = useRoute()
 const chatStore = useChatStore()

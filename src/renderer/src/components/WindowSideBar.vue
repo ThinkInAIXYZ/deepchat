@@ -1,8 +1,11 @@
 <template>
   <TooltipProvider :delay-duration="200">
-    <div class="flex flex-row h-full w-[288px] shrink-0">
+    <div class="flex flex-row h-full w-[288px] shrink-0 window-drag-region">
       <!-- Left Column: Agent Icons (48px) -->
-      <div class="flex flex-col items-center w-12 shrink-0 py-2 gap-1">
+      <div
+        class="flex flex-col items-center w-12 shrink-0 pb-2 gap-1"
+        :class="isMacOS ? 'pt-9' : 'pt-2'"
+      >
         <!-- All agents button -->
         <Tooltip>
           <TooltipTrigger as-child>
@@ -77,21 +80,44 @@
       <!-- Right Column: Session List (240px) -->
       <div class="flex flex-col w-0 flex-1 min-w-0">
         <!-- Header -->
-        <div class="flex items-center justify-between px-3 h-10 shrink-0">
+        <div
+          class="flex items-center justify-between px-3 h-10 shrink-0"
+          :class="isMacOS ? 'mt-6' : ''"
+        >
           <span class="text-sm font-medium text-foreground truncate">
             {{ selectedAgentName }}
           </span>
-          <Tooltip>
-            <TooltipTrigger as-child>
-              <button
-                class="flex items-center justify-center w-7 h-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-all duration-150"
-                @click="handleNewChat"
-              >
-                <Icon icon="lucide:plus" class="w-4 h-4" />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent>New Chat</TooltipContent>
-          </Tooltip>
+          <div class="flex items-center gap-0.5">
+            <Tooltip>
+              <TooltipTrigger as-child>
+                <button
+                  class="flex items-center justify-center w-7 h-7 rounded-md transition-all duration-150"
+                  :class="
+                    groupByProject
+                      ? 'text-foreground bg-accent/80'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                  "
+                  @click="groupByProject = !groupByProject"
+                >
+                  <Icon icon="lucide:folder-kanban" class="w-4 h-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>{{
+                groupByProject ? 'Group by date' : 'Group by project'
+              }}</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger as-child>
+                <button
+                  class="flex items-center justify-center w-7 h-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-all duration-150"
+                  @click="handleNewChat"
+                >
+                  <Icon icon="lucide:plus" class="w-4 h-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>New Chat</TooltipContent>
+            </Tooltip>
+          </div>
         </div>
 
         <!-- Session list -->
@@ -109,7 +135,7 @@
                   ? 'bg-accent text-accent-foreground'
                   : 'text-foreground/80 hover:bg-accent/50'
               "
-              @click="selectedSessionId = session.id"
+              @click="handleSessionClick(session)"
             >
               <span class="flex-1 text-sm truncate">{{ session.title }}</span>
               <span v-if="session.status === 'working'" class="shrink-0">
@@ -130,7 +156,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { Icon } from '@iconify/vue'
 import {
   Tooltip,
@@ -140,11 +166,21 @@ import {
 } from '@shadcn/components/ui/tooltip'
 import { Button } from '@shadcn/components/ui/button'
 import { usePresenter } from '@/composables/usePresenter'
+import { useMockViewState } from '@/composables/useMockViewState'
 import { useI18n } from 'vue-i18n'
 
 const windowPresenter = usePresenter('windowPresenter')
+const devicePresenter = usePresenter('devicePresenter')
 const yoBrowserPresenter = usePresenter('yoBrowserPresenter')
 const { t } = useI18n()
+
+const isMacOS = ref(false)
+
+onMounted(() => {
+  devicePresenter.getDeviceInfo().then((deviceInfo) => {
+    isMacOS.value = deviceInfo.platform === 'darwin'
+  })
+})
 
 const openSettings = () => {
   const windowId = window.api.getWindowId()
@@ -168,43 +204,98 @@ const mockAgents = [
   { id: 'local', name: 'Local Model', icon: 'lucide:cpu' }
 ]
 
-const mockSessions = [
+const allSessions = [
   {
-    dt: 'Today',
-    sessions: [
-      { id: '1', title: 'Fix login bug', agentId: 'claude', status: 'completed' },
-      { id: '2', title: 'Refactor auth module', agentId: 'claude', status: 'working' },
-      { id: '3', title: 'Write unit tests', agentId: 'gpt4', status: 'none' }
-    ]
+    id: '1',
+    title: 'Fix login bug',
+    agentId: 'claude',
+    status: 'completed',
+    projectDir: '~/Code/deepchat'
   },
   {
-    dt: 'Yesterday',
-    sessions: [
-      { id: '4', title: 'Add dark mode support', agentId: 'claude', status: 'none' },
-      { id: '5', title: 'API integration', agentId: 'gemini', status: 'error' },
-      { id: '6', title: 'Database migration', agentId: 'gpt4', status: 'completed' }
-    ]
+    id: '2',
+    title: 'Refactor auth module',
+    agentId: 'claude',
+    status: 'working',
+    projectDir: '~/Code/deepchat'
   },
   {
-    dt: 'Last Week',
-    sessions: [
-      { id: '7', title: 'Setup CI/CD pipeline', agentId: 'local', status: 'none' },
-      { id: '8', title: 'Performance optimization', agentId: 'claude', status: 'none' }
-    ]
+    id: '3',
+    title: 'Write unit tests',
+    agentId: 'gpt4',
+    status: 'none',
+    projectDir: '~/Code/api-server'
+  },
+  {
+    id: '4',
+    title: 'Add dark mode support',
+    agentId: 'claude',
+    status: 'none',
+    projectDir: '~/Code/deepchat'
+  },
+  {
+    id: '5',
+    title: 'API integration',
+    agentId: 'gemini',
+    status: 'error',
+    projectDir: '~/Code/api-server'
+  },
+  {
+    id: '6',
+    title: 'Database migration',
+    agentId: 'gpt4',
+    status: 'completed',
+    projectDir: '~/Code/api-server'
+  },
+  {
+    id: '7',
+    title: 'Setup CI/CD pipeline',
+    agentId: 'local',
+    status: 'none',
+    projectDir: '~/Code/infra'
+  },
+  {
+    id: '8',
+    title: 'Performance optimization',
+    agentId: 'claude',
+    status: 'none',
+    projectDir: '~/Code/deepchat'
   }
 ]
 
+const mockSessionsByDate = [
+  { dt: 'Today', sessions: allSessions.filter((s) => ['1', '2', '3'].includes(s.id)) },
+  { dt: 'Yesterday', sessions: allSessions.filter((s) => ['4', '5', '6'].includes(s.id)) },
+  { dt: 'Last Week', sessions: allSessions.filter((s) => ['7', '8'].includes(s.id)) }
+]
+
+const { mockSessionId: selectedSessionId, selectSession } = useMockViewState()
+
 const selectedAgentId = ref<string | null>(null)
-const selectedSessionId = ref<string | null>('2')
+const groupByProject = ref(false)
 
 const selectedAgentName = computed(() => {
   if (selectedAgentId.value === null) return 'All Agents'
   return mockAgents.find((a) => a.id === selectedAgentId.value)?.name ?? 'All Agents'
 })
 
+const mockSessionsByProject = computed(() => {
+  const projectMap = new Map<string, typeof allSessions>()
+  for (const session of allSessions) {
+    const dir = session.projectDir
+    if (!projectMap.has(dir)) projectMap.set(dir, [])
+    projectMap.get(dir)!.push(session)
+  }
+  return Array.from(projectMap.entries()).map(([dir, sessions]) => ({
+    dt: dir.split('/').pop() ?? dir,
+    sessions
+  }))
+})
+
 const filteredSessions = computed(() => {
-  if (selectedAgentId.value === null) return mockSessions
-  return mockSessions
+  const source = groupByProject.value ? mockSessionsByProject.value : mockSessionsByDate
+  if (selectedAgentId.value === null) return source
+  return source
     .map((group) => ({
       dt: group.dt,
       sessions: group.sessions.filter((s) => s.agentId === selectedAgentId.value)
@@ -213,7 +304,20 @@ const filteredSessions = computed(() => {
 })
 
 const handleNewChat = () => {
-  // Mock: just deselect current session
-  selectedSessionId.value = null
+  selectSession(null)
+}
+
+const handleSessionClick = (session: { id: string; title: string }) => {
+  selectSession(session.id, session.title)
 }
 </script>
+
+<style scoped>
+.window-drag-region {
+  -webkit-app-region: drag;
+}
+
+button {
+  -webkit-app-region: no-drag;
+}
+</style>
