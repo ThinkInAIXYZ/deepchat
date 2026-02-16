@@ -4,9 +4,11 @@
       <div class="flex h-full">
         <!-- 主聊天区域 -->
         <div class="flex-1 flex flex-col w-0">
+          <!-- Mock welcome page -->
+          <MockWelcomePage v-if="showMockWelcome" />
           <!-- Mock chat page -->
           <MockChatPage
-            v-if="isMockChatActive"
+            v-else-if="isMockChatActive"
             :title="mockSessionTitle"
             :project="mockSessionProject"
           />
@@ -40,7 +42,9 @@ import { useRoute } from 'vue-router'
 const ChatView = defineAsyncComponent(() => import('@/components/ChatView.vue'))
 const NewThread = defineAsyncComponent(() => import('@/components/NewThreadMock.vue'))
 const MockChatPage = defineAsyncComponent(() => import('@/components/mock/MockChatPage.vue'))
-const { isMockChatActive, mockSessionTitle, mockSessionProject } = useMockViewState()
+const MockWelcomePage = defineAsyncComponent(() => import('@/components/mock/MockWelcomePage.vue'))
+const { isMockChatActive, mockSessionTitle, mockSessionProject, showMockWelcome } =
+  useMockViewState()
 const artifactStore = useArtifactStore()
 const route = useRoute()
 const chatStore = useChatStore()
