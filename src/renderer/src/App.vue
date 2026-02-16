@@ -323,13 +323,16 @@ onBeforeUnmount(() => {
     class="flex flex-col h-screen"
     :class="isWinMacOS ? 'bg-window-background' : 'bg-background'"
   >
-    <AppBar />
+    <AppBar v-if="!isMacOS" />
     <div class="flex flex-row h-0 grow relative overflow-hidden px-px py-px" :dir="langStore.dir">
       <div class="flex flex-row w-full h-full">
         <WindowSideBar></WindowSideBar>
 
         <!-- Main content area -->
-        <div class="flex-1 min-w-0 bg-background rounded-tl-xl overflow-hidden shadow-lg">
+        <div
+          class="flex-1 min-w-0 bg-background overflow-hidden"
+          :class="isMacOS ? 'shadow-none' : 'rounded-tl-xl shadow-lg'"
+        >
           <RouterView />
         </div>
       </div>

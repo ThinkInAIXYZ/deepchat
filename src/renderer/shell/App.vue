@@ -1,6 +1,6 @@
 <template>
   <div class="w-screen h-screen flex flex-col" :class="isWinMacOS ? '' : 'bg-background'">
-    <AppBar ref="appBarRef" :window-type="windowType" />
+    <AppBar ref="appBarRef" />
     <BrowserToolbar v-if="shouldShowToolbar" ref="toolbarRef" />
     <main
       class="content-container flex-1 relative overflow-hidden"
@@ -15,12 +15,10 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
 import AppBar from './components/AppBar.vue'
 import BrowserToolbar from './components/BrowserToolbar.vue'
 import BrowserPlaceholder from './components/BrowserPlaceholder.vue'
 import { useDeviceVersion } from '@/composables/useDeviceVersion'
-import { useMcpStore } from '@/stores/mcp'
 import { useTabStore } from '@shell/stores/tab'
 import { useElementSize } from '@vueuse/core'
 import { useFontManager } from '@/composables/useFontManager'
@@ -30,11 +28,8 @@ setupFontListener()
 
 // Detect platform to apply proper styling
 const { isWinMacOS } = useDeviceVersion()
-const router = useRouter()
-const mcpStore = useMcpStore()
 const tabStore = useTabStore()
 
-const windowType = ref<'chat' | 'browser'>('chat')
 const windowId = ref<number | null>(null)
 const appBarRef = ref<InstanceType<typeof AppBar> | null>(null)
 const toolbarRef = ref<InstanceType<typeof BrowserToolbar> | null>(null)
@@ -49,14 +44,11 @@ const isAboutBlank = computed(() => {
   const tab = activeTab.value
   return tab?.url === 'about:blank'
 })
-const shouldShowToolbar = computed(() => windowType.value === 'browser' && isWebTabActive.value)
-const shouldShowPlaceholder = computed(
-  () => windowType.value === 'browser' && isWebTabActive.value && isAboutBlank.value
-)
-const webContentBackgroundClass = computed(() =>
-  windowType.value === 'browser' && isWebTabActive.value ? 'bg-white' : ''
-)
+const shouldShowToolbar = computed(() => isWebTabActive.value)
+const shouldShowPlaceholder = computed(() => isWebTabActive.value && isAboutBlank.value)
+const webContentBackgroundClass = computed(() => (isWebTabActive.value ? 'bg-white' : ''))
 
+// Chrome height reporting — needed for browser windows (TabPresenter manages view bounds)
 const appBarSize = useElementSize(computed(() => appBarRef.value?.$el ?? null))
 const toolbarSize = useElementSize(computed(() => toolbarRef.value?.$el ?? null))
 
@@ -83,52 +75,6 @@ onMounted(async () => {
   windowId.value = window.api.getWindowId?.() ?? null
   await nextTick()
   sendChromeHeight(chromeHeight.value)
-  window.electron.ipcRenderer.once('shell-window:type', (_event, type: 'chat' | 'browser') => {
-    windowType.value = type === 'browser' ? 'browser' : 'chat'
-  })
-
-  // Check for pending MCP install from localStorage (cold start scenario)
-  try {
-    const pendingMcpInstall = localStorage.getItem('pending-mcp-install')
-    if (pendingMcpInstall) {
-      console.log('Found pending MCP install in localStorage (cold start):', pendingMcpInstall)
-      // Clear the localStorage immediately to prevent re-processing
-      localStorage.removeItem('pending-mcp-install')
-
-      // Parse and process the MCP configuration
-      const mcpConfig = JSON.parse(pendingMcpInstall)
-
-      if (!mcpConfig?.mcpServers || typeof mcpConfig.mcpServers !== 'object') {
-        console.error('Invalid MCP install config, missing mcpServers')
-        return
-      }
-
-      // Enable MCP if not already enabled
-      if (!mcpStore.mcpEnabled) {
-        await mcpStore.setMcpEnabled(true)
-      }
-
-      // Set the MCP install cache
-      mcpStore.setMcpInstallCache(JSON.stringify(mcpConfig))
-
-      // Navigate to MCP settings page
-      const currentRoute = router.currentRoute.value
-      if (currentRoute.name !== 'settings-mcp') {
-        await router.push({ name: 'settings-mcp' })
-      } else {
-        await router.replace({
-          name: 'settings-mcp',
-          query: { ...currentRoute.query }
-        })
-      }
-
-      console.log('MCP install deeplink processed successfully from cold start')
-    }
-  } catch (error) {
-    console.error('Error processing pending MCP install from cold start:', error)
-    // Clear potentially corrupted data
-    localStorage.removeItem('pending-mcp-install')
-  }
 })
 </script>
 

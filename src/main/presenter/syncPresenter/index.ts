@@ -564,44 +564,7 @@ export class SyncPresenter implements ISyncPresenter {
   }
 
   private async resetShellWindowsToSingleNewChatTab(): Promise<void> {
-    try {
-      const { presenter } = await import('../index')
-      const windowPresenter = presenter?.windowPresenter as any
-      const tabPresenter = presenter?.tabPresenter as any
-
-      const windows = (windowPresenter?.getAllWindows?.() as Array<{ id: number }>) ?? []
-      await Promise.all(
-        windows.map(async ({ id: windowId }) => {
-          const tabsData =
-            (await tabPresenter?.getWindowTabsData?.(windowId)) ??
-            ([] as Array<{ id: number; isActive?: boolean }>)
-
-          if (tabsData.length === 0) {
-            await tabPresenter?.createTab?.(windowId, 'local://chat', { active: true })
-            return
-          }
-
-          const tabToKeep = tabsData.find((tab) => tab.isActive) ?? tabsData[0]
-          if (!tabToKeep) {
-            return
-          }
-
-          await tabPresenter?.resetTabToBlank?.(tabToKeep.id)
-          await tabPresenter?.switchTab?.(tabToKeep.id)
-
-          const tabsToClose = tabsData.filter((tab) => tab.id !== tabToKeep.id).map((tab) => tab.id)
-          for (const tabId of tabsToClose) {
-            try {
-              await tabPresenter?.closeTab?.(tabId)
-            } catch (error) {
-              console.warn('Failed to close tab after overwrite import:', tabId, error)
-            }
-          }
-        })
-      )
-    } catch (error) {
-      console.warn('Failed to reset shell windows after overwrite import:', error)
-    }
+    // Shell windows no longer manage chat tabs; nothing to reset
   }
 
   private cleanupDatabaseSidecarFiles(dbFilePath: string): void {

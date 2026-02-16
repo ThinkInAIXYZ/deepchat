@@ -376,57 +376,19 @@ export class SessionPresenter implements ISessionPresenter {
       return existingTabId
     }
 
-    const sourceWindowId =
-      typeof tabId === 'number'
-        ? presenter.tabPresenter.getWindowIdByWebContentsId(tabId)
-        : undefined
-    const fallbackWindowId = presenter.windowPresenter.getFocusedWindow()?.id
-    const windowId = sourceWindowId ?? fallbackWindowId
-
-    if (!windowId) {
-      if (typeof tabId === 'number') {
-        await this.conversationManager.setActiveConversation(conversationId, tabId)
-        if (messageId || childConversationId) {
-          eventBus.sendToTab(tabId, CONVERSATION_EVENTS.SCROLL_TO_MESSAGE, {
-            conversationId,
-            messageId,
-            childConversationId
-          })
-        }
-        return tabId
+    // Shell windows no longer create chat tabs; just set active conversation on the current tab
+    if (typeof tabId === 'number') {
+      await this.conversationManager.setActiveConversation(conversationId, tabId)
+      if (messageId || childConversationId) {
+        eventBus.sendToTab(tabId, CONVERSATION_EVENTS.SCROLL_TO_MESSAGE, {
+          conversationId,
+          messageId,
+          childConversationId
+        })
       }
-      return null
+      return tabId
     }
-
-    const newTabId = await presenter.tabPresenter.createTab(windowId, 'local://chat', {
-      active: true
-    })
-
-    if (!newTabId) {
-      if (typeof tabId === 'number') {
-        await this.conversationManager.setActiveConversation(conversationId, tabId)
-        if (messageId || childConversationId) {
-          eventBus.sendToTab(tabId, CONVERSATION_EVENTS.SCROLL_TO_MESSAGE, {
-            conversationId,
-            messageId,
-            childConversationId
-          })
-        }
-        return tabId
-      }
-      return null
-    }
-
-    await this.waitForTabReady(newTabId)
-    await this.conversationManager.setActiveConversation(conversationId, newTabId)
-    if (messageId || childConversationId) {
-      eventBus.sendToTab(newTabId, CONVERSATION_EVENTS.SCROLL_TO_MESSAGE, {
-        conversationId,
-        messageId,
-        childConversationId
-      })
-    }
-    return newTabId
+    return null
   }
 
   async getActiveConversation(tabId: number): Promise<CONVERSATION | null> {
@@ -759,25 +721,11 @@ export class SessionPresenter implements ISessionPresenter {
     })
 
     const shouldOpenInNewTab = openInNewTab ?? true
-    if (shouldOpenInNewTab) {
-      const sourceWindowId =
-        typeof tabId === 'number'
-          ? presenter.tabPresenter.getWindowIdByWebContentsId(tabId)
-          : undefined
-      const fallbackWindowId = presenter.windowPresenter.getFocusedWindow()?.id
-      const windowId = sourceWindowId ?? fallbackWindowId
-
-      if (windowId) {
-        const newTabId = await presenter.tabPresenter.createTab(windowId, 'local://chat', {
-          active: true
-        })
-        if (newTabId) {
-          await this.waitForTabReady(newTabId)
-          await this.conversationManager.setActiveConversation(newConversationId, newTabId)
-          await this.broadcastThreadListUpdate()
-          return newConversationId
-        }
-      }
+    if (shouldOpenInNewTab && typeof tabId === 'number') {
+      // Shell windows no longer create chat tabs; set active conversation on the current tab
+      await this.conversationManager.setActiveConversation(newConversationId, tabId)
+      await this.broadcastThreadListUpdate()
+      return newConversationId
     }
 
     if (typeof tabId === 'number') {
@@ -794,30 +742,6 @@ export class SessionPresenter implements ISessionPresenter {
 
   async listChildConversationsByMessageIds(parentMessageIds: string[]): Promise<CONVERSATION[]> {
     return this.sqlitePresenter.listChildConversationsByMessageIds(parentMessageIds)
-  }
-
-  private async waitForTabReady(tabId: number): Promise<void> {
-    return new Promise((resolve) => {
-      let resolved = false
-      const onTabReady = (readyTabId: number) => {
-        if (readyTabId === tabId && !resolved) {
-          resolved = true
-          eventBus.off(TAB_EVENTS.RENDERER_TAB_READY, onTabReady)
-          clearTimeout(timeoutId)
-          resolve()
-        }
-      }
-
-      eventBus.on(TAB_EVENTS.RENDERER_TAB_READY, onTabReady)
-
-      const timeoutId = setTimeout(() => {
-        if (!resolved) {
-          resolved = true
-          eventBus.off(TAB_EVENTS.RENDERER_TAB_READY, onTabReady)
-          resolve()
-        }
-      }, 3000)
-    })
   }
 
   /**

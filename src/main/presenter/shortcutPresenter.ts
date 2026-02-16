@@ -197,71 +197,17 @@ export class ShortcutPresenter implements IShortcutPresenter {
     this.isActive = true
   }
 
-  // 切换到下一个标签页
-  private async switchToNextTab(windowId: number): Promise<void> {
-    try {
-      const tabsData = await presenter.tabPresenter.getWindowTabsData(windowId)
-      if (!tabsData || tabsData.length <= 1) return // 只有一个或没有标签页时不执行切换
+  // No-op: shell windows no longer manage chat tabs
+  private async switchToNextTab(_windowId: number): Promise<void> {}
 
-      // 找到当前活动标签的索引
-      const activeTabIndex = tabsData.findIndex((tab) => tab.isActive)
-      if (activeTabIndex === -1) return
+  // No-op: shell windows no longer manage chat tabs
+  private async switchToPreviousTab(_windowId: number): Promise<void> {}
 
-      // 计算下一个标签页的索引（循环到第一个）
-      const nextTabIndex = (activeTabIndex + 1) % tabsData.length
+  // No-op: shell windows no longer manage chat tabs
+  private async switchToTabByIndex(_windowId: number, _index: number): Promise<void> {}
 
-      // 切换到下一个标签页
-      await presenter.tabPresenter.switchTab(tabsData[nextTabIndex].id)
-    } catch (error) {
-      console.error('Failed to switch to next tab:', error)
-    }
-  }
-
-  // 切换到上一个标签页
-  private async switchToPreviousTab(windowId: number): Promise<void> {
-    try {
-      const tabsData = await presenter.tabPresenter.getWindowTabsData(windowId)
-      if (!tabsData || tabsData.length <= 1) return // 只有一个或没有标签页时不执行切换
-
-      // 找到当前活动标签的索引
-      const activeTabIndex = tabsData.findIndex((tab) => tab.isActive)
-      if (activeTabIndex === -1) return
-
-      // 计算上一个标签页的索引（循环到最后一个）
-      const previousTabIndex = (activeTabIndex - 1 + tabsData.length) % tabsData.length
-
-      // 切换到上一个标签页
-      await presenter.tabPresenter.switchTab(tabsData[previousTabIndex].id)
-    } catch (error) {
-      console.error('Failed to switch to previous tab:', error)
-    }
-  }
-
-  // 切换到指定索引的标签页
-  private async switchToTabByIndex(windowId: number, index: number): Promise<void> {
-    try {
-      const tabsData = await presenter.tabPresenter.getWindowTabsData(windowId)
-      if (!tabsData || index >= tabsData.length) return // 索引超出范围
-
-      // 切换到指定索引的标签页
-      await presenter.tabPresenter.switchTab(tabsData[index].id)
-    } catch (error) {
-      console.error(`Failed to switch to tab at index ${index}:`, error)
-    }
-  }
-
-  // 切换到最后一个标签页
-  private async switchToLastTab(windowId: number): Promise<void> {
-    try {
-      const tabsData = await presenter.tabPresenter.getWindowTabsData(windowId)
-      if (!tabsData || tabsData.length === 0) return
-
-      // 切换到最后一个标签页
-      await presenter.tabPresenter.switchTab(tabsData[tabsData.length - 1].id)
-    } catch (error) {
-      console.error('Failed to switch to last tab:', error)
-    }
-  }
+  // No-op: shell windows no longer manage chat tabs
+  private async switchToLastTab(_windowId: number): Promise<void> {}
 
   // Command+O 或 Ctrl+O 显示/隐藏窗口
   private async showHideWindow() {

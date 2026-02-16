@@ -6,10 +6,9 @@ import iconWin from '../../../../resources/icon.ico?asset' // App icon (Windows)
 import { is } from '@electron-toolkit/utils' // Electron utilities
 import { IConfigPresenter, IWindowPresenter } from '@shared/presenter' // Window Presenter interface
 import { eventBus } from '@/eventbus' // Event bus
-import { CONFIG_EVENTS, SYSTEM_EVENTS, WINDOW_EVENTS } from '@/events' // System/Window/Config event constants
+import { CONFIG_EVENTS, SHORTCUT_EVENTS, SYSTEM_EVENTS, WINDOW_EVENTS } from '@/events' // System/Window/Config/Shortcut event constants
 import { presenter } from '../' // Global presenter registry
 import windowStateManager from 'electron-window-state' // Window state manager
-import { SHORTCUT_EVENTS } from '@/events' // Shortcut event constants
 // TrayPresenter is globally managed in main/index.ts, this Presenter is not responsible for its lifecycle
 import { TabPresenter } from '../tabPresenter' // TabPresenter type
 import { FloatingChatWindow } from './FloatingChatWindow' // Floating chat window
@@ -28,16 +27,6 @@ export class WindowPresenter implements IWindowPresenter {
   private focusedWindowId: number | null = null
   // Main window ID
   private mainWindowId: number | null = null
-  // Window focus state management
-  private windowFocusStates = new Map<
-    number,
-    {
-      lastFocusTime: number
-      shouldFocus: boolean
-      isNewWindow: boolean
-      hasInitialFocus: boolean
-    }
-  >()
   private floatingChatWindow: FloatingChatWindow | null = null
   private settingsWindow: BrowserWindow | null = null
   private tooltipOverlayWindows = new Map<number, BrowserWindow>()
@@ -59,6 +48,7 @@ export class WindowPresenter implements IWindowPresenter {
       event.returnValue = event.sender.id
     })
 
+    // Chrome height reporting from browser windows (TabPresenter uses this for view bounds)
     ipcMain.on('shell:chrome-height', (event, payload: { height?: number } | number) => {
       const window = BrowserWindow.fromWebContents(event.sender)
       if (!window || window.isDestroyed()) return
@@ -132,60 +122,7 @@ export class WindowPresenter implements IWindowPresenter {
     // Listen for shortcut event: create new window
     eventBus.on(SHORTCUT_EVENTS.CREATE_NEW_WINDOW, () => {
       console.log('Creating new shell window via shortcut.')
-      this.createShellWindow({ initialTab: { url: 'local://chat' } })
-    })
-
-    // Listen for shortcut event: create new tab
-    eventBus.on(SHORTCUT_EVENTS.CREATE_NEW_TAB, async (windowId: number) => {
-      console.log(`Creating new tab via shortcut for window ${windowId}.`)
-      const window = this.windows.get(windowId)
-      if (window && !window.isDestroyed()) {
-        await (presenter.tabPresenter as TabPresenter).createTab(windowId, 'local://chat', {
-          active: true
-        })
-      } else {
-        console.warn(
-          `Cannot create new tab for window ${windowId}, window does not exist or is destroyed.`
-        )
-      }
-    })
-
-    // 监听快捷键事件：关闭当前标签页
-    eventBus.on(SHORTCUT_EVENTS.CLOSE_CURRENT_TAB, async (windowId: number) => {
-      console.log(`Received CLOSE_CURRENT_TAB for window ${windowId}.`)
-      const window = this.windows.get(windowId)
-      if (!window || window.isDestroyed()) {
-        console.warn(
-          `Cannot handle close tab request, window ${windowId} does not exist or is destroyed.`
-        )
-        return
-      }
-
-      const tabPresenterInstance = presenter.tabPresenter as TabPresenter
-      const tabsData = await tabPresenterInstance.getWindowTabsData(windowId)
-      const activeTab = tabsData.find((tab) => tab.isActive)
-
-      if (activeTab) {
-        if (tabsData.length === 1) {
-          // 窗口内只有最后一个标签页
-          const allWindows = this.getAllWindows()
-          if (allWindows.length === 1) {
-            // 是最后一个窗口的最后一个标签页，隐藏窗口
-            console.log(`Window ${windowId} is the last window's last tab, hiding window.`)
-            this.hide(windowId) // 调用 hide() 会触发 hide 逻辑
-          } else {
-            // 不是最后一个窗口的最后一个标签页，关闭窗口
-            console.log(`Window ${windowId} has other windows, closing this window.`)
-            this.close(windowId) // 调用 close() 会触发 'close' 事件处理器
-          }
-        } else {
-          // 窗口内不止一个标签页，直接关闭当前标签页
-          console.log(`Window ${windowId} has multiple tabs, closing active tab ${activeTab.id}.`)
-          await tabPresenterInstance.closeTab(activeTab.id)
-        }
-      } else {
-        console.warn(`No active tab found in window ${windowId} to close.`)
-      }
+      this.createShellWindow()
     })
 
     // Listen for shortcut event: go settings (now opens independent Settings Window)
@@ -437,7 +374,6 @@ export class WindowPresenter implements IWindowPresenter {
 
   /**
    * 窗口恢复、显示或尺寸变更后的处理逻辑。
-   * 主要确保当前活动标签页的 WebContentsView 可见且位置正确。
    * @param windowId 窗口 ID。
    */
   private async handleWindowRestore(windowId: number): Promise<void> {
@@ -448,32 +384,6 @@ export class WindowPresenter implements IWindowPresenter {
         `Cannot handle restore/show logic for window ${windowId}, window does not exist or is destroyed.`
       )
       return
-    }
-
-    try {
-      // 通过 TabPresenter 获取活动标签页 ID
-      const tabPresenterInstance = presenter.tabPresenter as TabPresenter
-      const activeTabId = await tabPresenterInstance.getActiveTabId(windowId)
-
-      if (activeTabId) {
-        console.log(`Window ${windowId} restored/shown: activating active tab ${activeTabId}.`)
-        // 调用 switchTab 会确保视图被关联、可见并更新 bounds
-        await tabPresenterInstance.switchTab(activeTabId)
-      } else {
-        console.warn(
-          `Window ${windowId} restored/shown: no active tab found, ensuring all views are hidden.`
-        )
-        // 如果没有活动标签页，确保所有视图都隐藏
-        const tabsInWindow = await tabPresenterInstance.getWindowTabsData(windowId)
-        for (const tabData of tabsInWindow) {
-          const tabView = await tabPresenterInstance.getTab(tabData.id)
-          if (tabView && !tabView.webContents.isDestroyed()) {
-            tabView.setVisible(false) // 显式隐藏所有标签页视图
-          }
-        }
-      }
-    } catch (error) {
-      console.error(`Error handling restore/show logic for window ${windowId}:`, error)
     }
   }
 
@@ -495,76 +405,6 @@ export class WindowPresenter implements IWindowPresenter {
   isMainWindowFocused(windowId: number): boolean {
     const focusedWindow = this.getFocusedWindow()
     return focusedWindow ? focusedWindow.id === windowId : false
-  }
-
-  /**
-   * 检查是否应该聚焦标签页
-   * @param windowId 窗口 ID
-   * @param reason 聚焦原因
-   */
-  private shouldFocusTab(
-    windowId: number,
-    reason: 'focus' | 'restore' | 'show' | 'initial'
-  ): boolean {
-    const state = this.windowFocusStates.get(windowId)
-    if (!state) {
-      return true
-    }
-    const now = Date.now()
-    if (now - state.lastFocusTime < 100) {
-      console.log(`Skipping focus for window ${windowId}, too frequent (${reason})`)
-      return false
-    }
-    switch (reason) {
-      case 'initial':
-        return !state.hasInitialFocus
-      case 'focus':
-        return state.shouldFocus
-      case 'restore':
-      case 'show':
-        return state.isNewWindow || state.shouldFocus
-      default:
-        return false
-    }
-  }
-
-  /**
-   * 将焦点传递给指定窗口的活动标签页
-   * @param windowId 窗口 ID
-   * @param reason 聚焦原因
-   */
-  public focusActiveTab(
-    windowId: number,
-    reason: 'focus' | 'restore' | 'show' | 'initial' = 'focus'
-  ): void {
-    if (!this.shouldFocusTab(windowId, reason)) {
-      return
-    }
-    try {
-      setTimeout(async () => {
-        const tabPresenterInstance = presenter.tabPresenter as TabPresenter
-        const tabsData = await tabPresenterInstance.getWindowTabsData(windowId)
-        const activeTab = tabsData.find((tab) => tab.isActive)
-        if (activeTab) {
-          console.log(
-            `Focusing active tab ${activeTab.id} in window ${windowId} (reason: ${reason})`
-          )
-          await tabPresenterInstance.switchTab(activeTab.id)
-          const state = this.windowFocusStates.get(windowId)
-          if (state) {
-            state.lastFocusTime = Date.now()
-            if (reason === 'initial') {
-              state.hasInitialFocus = true
-            }
-            if (reason === 'focus' || reason === 'initial') {
-              state.isNewWindow = false
-            }
-          }
-        }
-      }, 50)
-    } catch (error) {
-      console.error(`Error focusing active tab in window ${windowId}:`, error)
-    }
   }
 
   /**
@@ -759,14 +599,10 @@ export class WindowPresenter implements IWindowPresenter {
 
     const windowId = shellWindow.id
     this.windows.set(windowId, shellWindow) // 将窗口实例存入 Map
-    ;(presenter.tabPresenter as TabPresenter).setWindowType(windowId, windowType)
-
-    this.windowFocusStates.set(windowId, {
-      lastFocusTime: 0,
-      shouldFocus: true,
-      isNewWindow: true,
-      hasInitialFocus: false
-    })
+    // For browser windows, register type with TabPresenter
+    if (windowType === 'browser') {
+      ;(presenter.tabPresenter as TabPresenter).setWindowType(windowId, windowType)
+    }
 
     shellWindowState.manage(shellWindow) // 管理窗口状态
 
@@ -787,8 +623,6 @@ export class WindowPresenter implements IWindowPresenter {
       if (!shellWindow.isDestroyed()) {
         // For browser windows, don't auto-show/focus to prevent stealing focus from chat windows
         // Browser windows should only be shown when explicitly requested by user (e.g., clicking browser button)
-        const tabPresenterInstance = presenter.tabPresenter as TabPresenter
-        const windowType = tabPresenterInstance.getWindowType(windowId)
         const shouldAutoShow = windowType !== 'browser' || options?.forMovedTab === true
 
         if (shouldAutoShow) {
@@ -809,7 +643,6 @@ export class WindowPresenter implements IWindowPresenter {
       if (!shellWindow.isDestroyed()) {
         shellWindow.webContents.send('window-focused', windowId)
       }
-      this.focusActiveTab(windowId, 'focus')
     })
 
     // 窗口失去焦点
@@ -860,7 +693,6 @@ export class WindowPresenter implements IWindowPresenter {
       this.handleWindowRestore(windowId).catch((error) => {
         console.error(`Error handling restore logic for window ${windowId}:`, error)
       })
-      this.focusActiveTab(windowId, 'restore')
       shellWindow.webContents.send(WINDOW_EVENTS.WINDOW_UNMAXIMIZED)
       eventBus.sendToMain(WINDOW_EVENTS.WINDOW_RESTORED, windowId)
     }
@@ -952,7 +784,6 @@ export class WindowPresenter implements IWindowPresenter {
           console.log(
             `Window ${windowId}: Allowing default close behavior (app is quitting or macOS last window configured to quit).`
           )
-          presenter.tabPresenter.closeTabs(windowId)
         }
       } else {
         // 如果 isQuitting 为 true，表示应用正在主动退出，允许窗口正常关闭
@@ -971,7 +802,6 @@ export class WindowPresenter implements IWindowPresenter {
       shellWindow.removeListener('restore', handleRestore)
 
       this.windows.delete(windowIdBeingClosed) // 从 Map 中移除
-      this.windowFocusStates.delete(windowIdBeingClosed)
       shellWindowState.unmanage() // 停止管理窗口状态
       eventBus.sendToMain(WINDOW_EVENTS.WINDOW_CLOSED, windowIdBeingClosed)
       this.destroyTooltipOverlay(windowIdBeingClosed)
@@ -992,86 +822,102 @@ export class WindowPresenter implements IWindowPresenter {
     })
 
     // --- 加载 Renderer HTML 文件 ---
-    if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-      console.log(
-        `Loading renderer URL in dev mode: ${process.env['ELECTRON_RENDERER_URL']}/shell/index.html`
-      )
-      shellWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '/shell/index.html')
+    if (windowType === 'chat') {
+      // Chat windows load the main renderer directly with #/chat hash route
+      if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+        console.log(
+          `Loading main renderer URL in dev mode: ${process.env['ELECTRON_RENDERER_URL']}#/chat`
+        )
+        shellWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '#/chat')
+      } else {
+        console.log(
+          `Loading packaged main renderer file: ${join(__dirname, '../renderer/index.html')}`
+        )
+        shellWindow.loadFile(join(__dirname, '../renderer/index.html'), { hash: '/chat' })
+      }
     } else {
-      // 生产模式下加载打包后的 HTML 文件
-      console.log(
-        `Loading packaged renderer file: ${join(__dirname, '../renderer/shell/index.html')}`
-      )
-      shellWindow.loadFile(join(__dirname, '../renderer/shell/index.html'))
+      // Browser windows load the shell renderer
+      if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+        console.log(
+          `Loading renderer URL in dev mode: ${process.env['ELECTRON_RENDERER_URL']}/shell/index.html`
+        )
+        shellWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '/shell/index.html')
+      } else {
+        console.log(
+          `Loading packaged renderer file: ${join(__dirname, '../renderer/shell/index.html')}`
+        )
+        shellWindow.loadFile(join(__dirname, '../renderer/shell/index.html'))
+      }
     }
 
     // Pre-create tooltip overlay so first hover is instant
     shellWindow.webContents.once('did-finish-load', () => {
       if (shellWindow.isDestroyed()) return
-      shellWindow.webContents.send('shell-window:type', windowType)
+      // Only send shell-window:type for browser windows (shell renderer listens for it)
+      if (windowType === 'browser') {
+        shellWindow.webContents.send('shell-window:type', windowType)
+      }
       // Avoid pre-creating overlay if window already in fullscreen on macOS
       if (!(process.platform === 'darwin' && shellWindow.isFullScreen())) {
         this.getOrCreateTooltipOverlay(shellWindow)
       }
     })
 
-    // --- 处理初始标签页创建或激活 ---
-
-    // 如果提供了 options?.initialTab，等待窗口加载完成，然后创建新标签页
-    if (options?.initialTab) {
-      shellWindow.webContents.once('did-finish-load', async () => {
-        console.log(`Window ${windowId} did-finish-load, checking for initial tab creation.`)
-        if (shellWindow.isDestroyed()) {
-          console.warn(
-            `Window ${windowId} was destroyed before did-finish-load callback, cannot create initial tab.`
-          )
-          return
-        }
-        shellWindow.focus() // 窗口加载完成后聚焦
-        try {
-          console.log(`Creating initial tab, URL: ${options.initialTab!.url}`)
-          const tabId = await (presenter.tabPresenter as TabPresenter).createTab(
-            windowId,
-            options.initialTab!.url,
-            { active: true }
-          )
-          if (tabId === null) {
-            console.error(`Failed to create initial tab in new window ${windowId}.`)
-          } else {
-            console.log(`Created initial tab ${tabId} in window ${windowId}.`)
+    // --- 处理 browser 窗口的初始标签页创建或激活 ---
+    // Only browser windows need initial tab / activateTab handling via TabPresenter
+    if (windowType === 'browser') {
+      if (options?.initialTab) {
+        shellWindow.webContents.once('did-finish-load', async () => {
+          console.log(`Window ${windowId} did-finish-load, checking for initial tab creation.`)
+          if (shellWindow.isDestroyed()) {
+            console.warn(
+              `Window ${windowId} was destroyed before did-finish-load callback, cannot create initial tab.`
+            )
+            return
           }
-        } catch (error) {
-          console.error(`Error creating initial tab:`, error)
-        }
-      })
-    }
+          shellWindow.focus()
+          try {
+            console.log(`Creating initial tab, URL: ${options.initialTab!.url}`)
+            const tabId = await (presenter.tabPresenter as TabPresenter).createTab(
+              windowId,
+              options.initialTab!.url,
+              { active: true }
+            )
+            if (tabId === null) {
+              console.error(`Failed to create initial tab in new window ${windowId}.`)
+            } else {
+              console.log(`Created initial tab ${tabId} in window ${windowId}.`)
+            }
+          } catch (error) {
+            console.error(`Error creating initial tab:`, error)
+          }
+        })
+      }
 
-    // 如果提供了 activateTabId，表示一个现有标签页 (WebContentsView) 将被 TabPresenter 关联到此新窗口
-    // 拖拽分离的场景在 attachTab 内激活，这里跳过以避免重复激活
-    // 激活逻辑 (设置可见性、bounds) 在 tabPresenter.attachTab / switchTab 中处理
-    if (options?.activateTabId !== undefined && !options?.forMovedTab) {
-      // 等待窗口加载完成，然后尝试激活指定标签页
-      shellWindow.webContents.once('did-finish-load', async () => {
-        console.log(
-          `Window ${windowId} did-finish-load, attempting to activate tab ${options.activateTabId}.`
-        )
-        if (shellWindow.isDestroyed()) {
-          console.warn(
-            `Window ${windowId} was destroyed before did-finish-load callback, cannot activate tab ${options.activateTabId}.`
+      if (options?.activateTabId !== undefined && !options?.forMovedTab) {
+        shellWindow.webContents.once('did-finish-load', async () => {
+          console.log(
+            `Window ${windowId} did-finish-load, attempting to activate tab ${options.activateTabId}.`
           )
-          return
-        }
-        try {
-          // 切换到指定标签页，这将处理视图的关联和显示
-          await (presenter.tabPresenter as TabPresenter).switchTab(options.activateTabId as number)
-          console.log(`Requested to switch to tab ${options.activateTabId}.`)
-        } catch (error) {
-          console.error(
-            `Failed to activate tab ${options.activateTabId} after window ${windowId} load:`,
-            error
-          )
-        }
-      })
+          if (shellWindow.isDestroyed()) {
+            console.warn(
+              `Window ${windowId} was destroyed before did-finish-load callback, cannot activate tab ${options.activateTabId}.`
+            )
+            return
+          }
+          try {
+            await (presenter.tabPresenter as TabPresenter).switchTab(
+              options.activateTabId as number
+            )
+            console.log(`Requested to switch to tab ${options.activateTabId}.`)
+          } catch (error) {
+            console.error(
+              `Failed to activate tab ${options.activateTabId} after window ${windowId} load:`,
+              error
+            )
+          }
+        })
+      }
     }
 
     // DevTools 不再自动打开，需要手动通过菜单或快捷键打开
@@ -1333,6 +1179,13 @@ export class WindowPresenter implements IWindowPresenter {
         )
       }
     } else {
+      // Fallback: chat windows have no tabs, send directly to BrowserWindow webContents
+      const targetWindow = BrowserWindow.fromId(windowId)
+      if (targetWindow && !targetWindow.isDestroyed() && !targetWindow.webContents.isDestroyed()) {
+        targetWindow.webContents.send(channel, ...args)
+        console.log(`  - No active tab, sent event directly to window ${windowId} webContents.`)
+        return true
+      }
       console.warn(`No active tab found in window ${windowId}, cannot send event "${channel}".`)
     }
     return false
@@ -1376,7 +1229,23 @@ export class WindowPresenter implements IWindowPresenter {
       const tabPresenterInstance = presenter.tabPresenter as TabPresenter
       const tabsData = await tabPresenterInstance.getWindowTabsData(windowId)
       if (tabsData.length === 0) {
-        console.warn(`Window ${windowId} has no tabs, cannot send message to default tab.`)
+        // Fallback: chat windows have no tabs, send directly to BrowserWindow webContents
+        if (
+          targetWindow &&
+          !targetWindow.isDestroyed() &&
+          !targetWindow.webContents.isDestroyed()
+        ) {
+          targetWindow.webContents.send(channel, ...args)
+          console.log(
+            `  - Window ${windowId} has no tabs, sent message directly to window webContents.`
+          )
+          if (switchToTarget) {
+            targetWindow.show()
+            targetWindow.focus()
+          }
+          return true
+        }
+        console.warn(`Window ${windowId} has no tabs and window is unavailable.`)
         return false
       }
 
