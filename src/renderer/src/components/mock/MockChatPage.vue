@@ -1,7 +1,7 @@
 <template>
   <TooltipProvider :delay-duration="200">
     <div class="h-full overflow-y-auto">
-      <MockTopBar :title="title" />
+      <MockTopBar :title="title" :project="project" />
       <MockMessageList />
 
       <!-- Input area (sticky bottom, messages scroll under) -->
@@ -29,5 +29,6 @@ import MockStatusBar from './MockStatusBar.vue'
 
 defineProps<{
   title: string
+  project: string
 }>()
 </script>

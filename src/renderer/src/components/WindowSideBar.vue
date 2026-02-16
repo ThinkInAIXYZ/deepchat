@@ -307,8 +307,8 @@ const handleNewChat = () => {
   selectSession(null)
 }
 
-const handleSessionClick = (session: { id: string; title: string }) => {
-  selectSession(session.id, session.title)
+const handleSessionClick = (session: { id: string; title: string; projectDir: string }) => {
+  selectSession(session.id, session.title, session.projectDir)
 }
 </script>
 

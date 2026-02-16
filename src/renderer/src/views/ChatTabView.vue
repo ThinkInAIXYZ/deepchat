@@ -5,7 +5,11 @@
         <!-- 主聊天区域 -->
         <div class="flex-1 flex flex-col w-0">
           <!-- Mock chat page -->
-          <MockChatPage v-if="isMockChatActive" :title="mockSessionTitle" />
+          <MockChatPage
+            v-if="isMockChatActive"
+            :title="mockSessionTitle"
+            :project="mockSessionProject"
+          />
           <!-- 新会话 -->
           <NewThread v-else-if="!chatStore.getActiveThreadId()" />
           <template v-else>
@@ -36,7 +40,7 @@ import { useRoute } from 'vue-router'
 const ChatView = defineAsyncComponent(() => import('@/components/ChatView.vue'))
 const NewThread = defineAsyncComponent(() => import('@/components/NewThreadMock.vue'))
 const MockChatPage = defineAsyncComponent(() => import('@/components/mock/MockChatPage.vue'))
-const { isMockChatActive, mockSessionTitle } = useMockViewState()
+const { isMockChatActive, mockSessionTitle, mockSessionProject } = useMockViewState()
 const artifactStore = useArtifactStore()
 const route = useRoute()
 const chatStore = useChatStore()
