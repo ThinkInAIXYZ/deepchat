@@ -93,8 +93,20 @@
     "forward": "Forward",
     "reload": "Reload",
     "addressPlaceholder": "Enter a URL",
-    "enterUrlDescription": "הזן את כתובת האתר בשורת הכתובת למעלה כדי לגשת לאתר",
+    "enterUrlDescription": "הזן את כתובת האתר בשורת הכתובות למעלה כדי לגשת לאתר",
     "enterUrlToStart": "הזן את כתובת האתר כדי להתחיל לבקר",
     "name": "יו דפדפן"
+  },
+  "sidebar": {
+    "allAgents": "כל הסוכנים",
+    "localAgent": "סוכן מקומי",
+    "collapseSidebar": "כווץ סרגל צד",
+    "expandSidebar": "הרחב סרגל צד",
+    "toggleWelcomePage": "החלף דף פתיחה",
+    "groupByProject": "קבץ לפי פרויקט",
+    "groupByDate": "קבץ לפי תאריך",
+    "newChat": "צ'אט חדש",
+    "noConversations": "אין שיחות",
+    "startNewChat": "לחץ על + כדי להתחיל צ'אט חדש"
   }
 }

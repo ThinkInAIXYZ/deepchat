@@ -96,5 +96,17 @@
     "enterUrlDescription": "위 주소창에 URL을 입력하시면 해당 홈페이지에 접속하실 수 있습니다.",
     "enterUrlToStart": "방문을 시작하려면 URL을 입력하세요.",
     "name": "요 브라우저"
+  },
+  "sidebar": {
+    "allAgents": "모든 에이전트",
+    "localAgent": "로컬 에이전트",
+    "collapseSidebar": "사이드바 접기",
+    "expandSidebar": "사이드바 펼치기",
+    "toggleWelcomePage": "환영 페이지 전환",
+    "groupByProject": "프로젝트별 그룹화",
+    "groupByDate": "날짜별 그룹화",
+    "newChat": "새 채팅",
+    "noConversations": "대화 없음",
+    "startNewChat": "+를 클릭하여 새 채팅 시작"
   }
 }

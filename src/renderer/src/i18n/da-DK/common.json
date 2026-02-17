@@ -96,5 +96,17 @@
     "enterUrlDescription": "Indtast URL'en i adresselinjen ovenfor for at få adgang til webstedet",
     "enterUrlToStart": "Indtast URL'en for at begynde at besøge",
     "name": "Yo browser"
+  },
+  "sidebar": {
+    "allAgents": "Alle agenter",
+    "localAgent": "Lokal agent",
+    "collapseSidebar": "Skjul sidepanel",
+    "expandSidebar": "Udvid sidepanel",
+    "toggleWelcomePage": "Skift velkomstside",
+    "groupByProject": "Gruppér efter projekt",
+    "groupByDate": "Gruppér efter dato",
+    "newChat": "Ny samtale",
+    "noConversations": "Ingen samtaler",
+    "startNewChat": "Klik på + for at starte en ny samtale"
   }
 }

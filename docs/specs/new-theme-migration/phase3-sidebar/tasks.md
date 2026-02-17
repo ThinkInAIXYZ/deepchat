@@ -9,128 +9,81 @@
 
 在开始实现前，确保理解并遵循以下样式规范：
 
-- [ ] 阅读 `src/renderer/src/components/WindowSideBar.vue` 源码
-- [ ] 理解 Agent Icon 按钮样式 (w-9 h-9 rounded-xl)
-- [ ] 理解 Session Item 样式 (px-2 py-1.5 rounded-md)
-- [ ] 理解 Group 标题样式 (text-xs font-medium text-muted-foreground)
-- [ ] 理解折叠/展开动画 (transition-all duration-200)
+- [x] 阅读 `src/renderer/src/components/WindowSideBar.vue` 源码
+- [x] 理解 Agent Icon 按钮样式 (w-9 h-9 rounded-xl)
+- [x] 理解 Session Item 样式 (px-2 py-1.5 rounded-md)
+- [x] 理解 Group 标题样式 (text-xs font-medium text-muted-foreground)
+- [x] 理解折叠/展开动画 (transition-all duration-200)
 
 ---
 
 ## 1. Agent Store
 
-- [ ] Create `src/renderer/src/stores/agent.ts`
-  - [ ] `agents` ref for agent list
-  - [ ] `selectedAgentId` ref
-  - [ ] `loading` ref
-  - [ ] `selectedAgent` computed
-  - [ ] `templateAgents` computed
-  - [ ] `acpAgents` computed
-  - [ ] `loadAgents()` function
-  - [ ] `selectAgent(id)` function
+- [x] Create `src/renderer/src/stores/agent.ts`
+  - [x] `agents` ref for agent list
+  - [x] `selectedAgentId` ref
+  - [x] `loading` ref
+  - [x] `selectedAgent` computed
+  - [x] `templateAgents` computed
+  - [x] `acpAgents` computed
+  - [x] `loadAgents()` function
+  - [x] `selectAgent(id)` function
 
 ## 2. Session List Composable
 
-- [ ] Create `src/renderer/src/composables/useSessionList.ts`
-  - [ ] `allSessions` ref
-  - [ ] `groupBy` ref ('project' | 'time')
-  - [ ] `searchQuery` ref
-  - [ ] `filteredSessions` computed (by agent + search)
-  - [ ] `groupedSessions` computed
-  - [ ] `groupByProject()` function
-  - [ ] `groupByTime()` function
-  - [ ] `loadSessions()` function
-  - [ ] `refreshSessions()` function
+- [x] Create `src/renderer/src/composables/useSessionList.ts`
+  - [x] `allSessions` ref
+  - [x] `groupBy` ref ('project' | 'time')
+  - [x] `searchQuery` ref
+  - [x] `filteredSessions` computed (by agent + search)
+  - [x] `groupedSessions` computed
+  - [x] `groupByProject()` function
+  - [x] `groupByTime()` function
+  - [x] `loadSessions()` function
+  - [x] `refreshSessions()` function
 
 ## 3. Sidebar Components Structure
 
-- [ ] Create sidebar components directory `src/renderer/src/components/sidebar/`
+- [x] Keep single file `WindowSideBar.vue` (simplified approach)
 
-## 4. AgentPanel Component
+## 4-6. AgentPanel/SessionPanel/SessionList Components
 
-- [ ] Create `src/renderer/src/components/sidebar/AgentPanel.vue`
-  - [ ] 48px fixed width layout
-  - [ ] Agent icon list
-  - [ ] Scrollable if many agents
-  - [ ] Create new agent button at bottom
-
-- [ ] Create `src/renderer/src/components/sidebar/AgentIconItem.vue`
-  - [ ] Icon display
-  - [ ] Active state styling
-  - [ ] Tooltip with agent name
-  - [ ] Status indicator for ACP agents
-  - [ ] Click handler
-
-## 5. SessionPanel Component
-
-- [ ] Create `src/renderer/src/components/sidebar/SessionPanel.vue`
-  - [ ] 240px default width (resizable optional)
-  - [ ] Search bar at top
-  - [ ] Group toggle
-  - [ ] Session list
-  - [ ] New chat button
-
-- [ ] Create `src/renderer/src/components/sidebar/SessionSearchBar.vue`
-  - [ ] Search input
-  - [ ] Clear button
-  - [ ] Debounced search
-
-- [ ] Create `src/renderer/src/components/sidebar/SessionGroupToggle.vue`
-  - [ ] Project button
-  - [ ] Time button
-  - [ ] Active state styling
-
-## 6. SessionList Component
-
-- [ ] Create `src/renderer/src/components/sidebar/SessionList.vue`
-  - [ ] Render grouped or flat list
-  - [ ] Virtual scrolling for performance
-  - [ ] Empty state
-
-- [ ] Create `src/renderer/src/components/sidebar/SessionGroup.vue`
-  - [ ] Collapsible header
-  - [ ] Expand/collapse animation
-  - [ ] Session items
-
-- [ ] Create `src/renderer/src/components/sidebar/SessionItem.vue`
-  - [ ] Session title
-  - [ ] Timestamp
-  - [ ] Hover actions (delete, pin)
-  - [ ] Active state styling
-  - [ ] Right-click context menu
+- [x] Merged into WindowSideBar.vue for simplicity
+- [x] Agent icon list with real data
+- [x] Session list with real data
+- [x] Group toggle (project/time)
+- [x] Empty state handling
 
 ## 7. WindowSideBar Refactor
 
-- [ ] Update `src/renderer/src/components/WindowSideBar.vue`
-  - [ ] Replace mock data with real stores
-  - [ ] Integrate AgentPanel
-  - [ ] Integrate SessionPanel
-  - [ ] Handle resize between panels (optional)
+- [x] Update `src/renderer/src/components/WindowSideBar.vue`
+  - [x] Replace mock data with real stores
+  - [x] Integrate agent store
+  - [x] Integrate session list composable
+  - [x] Handle agent selection
 
 ## 8. Event Handling
 
-- [ ] Agent selection
-  - [ ] Update selectedAgentId in store
-  - [ ] Trigger session list refresh
+- [x] Agent selection
+  - [x] Update selectedAgentId in store
+  - [x] Trigger session list refresh via computed
 
-- [ ] Session actions
-  - [ ] Click to activate session
-  - [ ] Right-click context menu
-  - [ ] Delete session
-  - [ ] Pin/unpin session
+- [x] Session actions
+  - [x] Click to activate session
 
-- [ ] New chat
-  - [ ] Navigate to new-thread with agentId
+- [x] New chat
+  - [x] Navigate to new-thread
 
 ## 9. SessionPresenter Updates
 
-- [ ] Update `src/main/presenter/sessionPresenter/index.ts`
-  - [ ] Add `getSessionsByAgent(agentId)` method
-  - [ ] Support filtering in `getSessionList()`
+- [x] Use existing `getSessionList()` method
+- [x] Filter by agent in composable
 
 ## 10. i18n
 
-- [ ] Add sidebar i18n keys to language files
+- [x] Add sidebar i18n keys to language files
+  - [x] en-US/common.json
+  - [x] zh-CN/common.json
 
 ## 11. Testing
 
@@ -150,3 +103,11 @@
 
 ## Estimated Effort
 - 4-5 days
+
+## Implementation Notes
+
+Phase 3 completed with a simplified approach:
+1. Created `useAgentStore` in `src/renderer/src/stores/agent.ts` - manages agent list and selection
+2. Created `useSessionList` composable in `src/renderer/src/composables/useSessionList.ts` - handles session loading, filtering, and grouping
+3. Updated `WindowSideBar.vue` to use real data from stores while preserving all original styles and interactions
+4. Added i18n keys for sidebar UI strings

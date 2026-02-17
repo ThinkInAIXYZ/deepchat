@@ -96,5 +96,17 @@
     "enterUrlDescription": "上のアドレスバーに URL を入力して Web サイトにアクセスします",
     "enterUrlToStart": "URLを入力してアクセスを開始してください",
     "name": "よブラウザ"
+  },
+  "sidebar": {
+    "allAgents": "すべてのエージェント",
+    "localAgent": "ローカルエージェント",
+    "collapseSidebar": "サイドバーを閉じる",
+    "expandSidebar": "サイドバーを開く",
+    "toggleWelcomePage": "ウェルカムページを切り替え",
+    "groupByProject": "プロジェクトでグループ化",
+    "groupByDate": "日付でグループ化",
+    "newChat": "新しいチャット",
+    "noConversations": "会話がありません",
+    "startNewChat": "+ をクリックして新しいチャットを開始"
   }
 }

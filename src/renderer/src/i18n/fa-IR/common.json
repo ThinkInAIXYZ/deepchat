@@ -96,5 +96,17 @@
     "enterUrlDescription": "برای دسترسی به وب سایت، آدرس اینترنتی را در نوار آدرس بالا وارد کنید",
     "enterUrlToStart": "برای شروع بازدید، URL را وارد کنید",
     "name": "مرورگر یو"
+  },
+  "sidebar": {
+    "allAgents": "همه عامل‌ها",
+    "localAgent": "عامل محلی",
+    "collapseSidebar": "جمع کردن نوار کناری",
+    "expandSidebar": "باز کردن نوار کناری",
+    "toggleWelcomePage": "تغییر صفحه خوش‌آمدگویی",
+    "groupByProject": "گروه‌بندی بر اساس پروژه",
+    "groupByDate": "گروه‌بندی بر اساس تاریخ",
+    "newChat": "گفت‌وگوی جدید",
+    "noConversations": "بدون گفت‌وگو",
+    "startNewChat": "برای شروع گفت‌وگوی جدید روی + کلیک کنید"
   }
 }

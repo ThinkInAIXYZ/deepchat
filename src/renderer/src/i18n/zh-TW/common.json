@@ -96,5 +96,17 @@
     "enterUrlDescription": "在上方地址欄輸入網址以訪問網站",
     "enterUrlToStart": "輸入網址開始訪問",
     "name": "Yo Browser"
+  },
+  "sidebar": {
+    "allAgents": "所有助手",
+    "localAgent": "本機助手",
+    "collapseSidebar": "收起側邊欄",
+    "expandSidebar": "展開側邊欄",
+    "toggleWelcomePage": "切換歡迎頁",
+    "groupByProject": "按專案分組",
+    "groupByDate": "按日期分組",
+    "newChat": "新對話",
+    "noConversations": "暫無對話",
+    "startNewChat": "點擊 + 開始新對話"
   }
 }

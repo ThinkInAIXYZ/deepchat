@@ -501,11 +501,16 @@ function stopResize() {
 
 ## Testing
 
-- [ ] Agent selection updates session list
-- [ ] Session grouping by project
-- [ ] Session grouping by time
-- [ ] Session search functionality
-- [ ] Session pin/unpin
-- [ ] Session delete
-- [ ] New chat creation
-- [ ] Agent creation link opens settings
+- [~] Agent selection updates session list (implemented, needs tests)
+- [~] Session grouping by project (implemented, needs tests)
+- [~] Session grouping by time (implemented, needs tests)
+- [~] Session search functionality (implemented, needs tests)
+- [ ] Session pin/unpin (needs implementation)
+- [ ] Session delete (needs implementation)
+- [~] New chat creation (implemented, needs tests)
+- [ ] Agent creation link opens settings (needs implementation)
+
+## Status
+
+**Implementation: ✅ Completed**
+**Testing: 🔄 Pending**

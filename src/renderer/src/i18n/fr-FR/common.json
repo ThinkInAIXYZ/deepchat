@@ -96,5 +96,17 @@
     "enterUrlDescription": "Entrez l'URL dans la barre d'adresse ci-dessus pour accéder au site Web",
     "enterUrlToStart": "Entrez l'URL pour commencer la visite",
     "name": "Votre navigateur"
+  },
+  "sidebar": {
+    "allAgents": "Tous les agents",
+    "localAgent": "Agent local",
+    "collapseSidebar": "Réduire la barre latérale",
+    "expandSidebar": "Agrandir la barre latérale",
+    "toggleWelcomePage": "Basculer la page d'accueil",
+    "groupByProject": "Grouper par projet",
+    "groupByDate": "Grouper par date",
+    "newChat": "Nouvelle conversation",
+    "noConversations": "Aucune conversation",
+    "startNewChat": "Cliquez sur + pour démarrer une nouvelle conversation"
   }
 }

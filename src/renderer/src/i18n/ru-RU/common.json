@@ -96,5 +96,17 @@
     "enterUrlDescription": "Введите URL-адрес в адресную строку выше, чтобы получить доступ к веб-сайту.",
     "enterUrlToStart": "Введите URL, чтобы начать посещение",
     "name": "Эй, браузер"
+  },
+  "sidebar": {
+    "allAgents": "Все агенты",
+    "localAgent": "Локальный агент",
+    "collapseSidebar": "Свернуть боковую панель",
+    "expandSidebar": "Развернуть боковую панель",
+    "toggleWelcomePage": "Переключить страницу приветствия",
+    "groupByProject": "Группировать по проекту",
+    "groupByDate": "Группировать по дате",
+    "newChat": "Новый чат",
+    "noConversations": "Нет разговоров",
+    "startNewChat": "Нажмите +, чтобы начать новый чат"
   }
 }

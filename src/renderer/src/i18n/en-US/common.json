@@ -96,5 +96,16 @@
     "enterUrlToStart": "Enter a URL to start browsing",
     "enterUrlDescription": "Type a URL in the address bar above to visit a website",
     "name": "Yo Browser"
+  },
+  "sidebar": {
+    "allAgents": "All Agents",
+    "collapseSidebar": "Collapse Sidebar",
+    "expandSidebar": "Expand Sidebar",
+    "toggleWelcomePage": "Toggle Welcome Page",
+    "groupByProject": "Group by Project",
+    "groupByDate": "Group by Date",
+    "newChat": "New Chat",
+    "noConversations": "No conversations yet",
+    "startNewChat": "Click + to start a new chat"
   }
 }
