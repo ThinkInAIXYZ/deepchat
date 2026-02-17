@@ -2,13 +2,10 @@
   <TooltipProvider :delay-duration="200">
     <div
       class="flex flex-row h-full shrink-0 window-drag-region transition-all duration-200"
-      :class="collapsed ? (isMacOS ? 'w-[70px]' : 'w-12') : 'w-[288px]'"
+      :class="collapsed ? 'w-12' : 'w-[288px]'"
     >
       <!-- Left Column: Agent Icons (48px) -->
-      <div
-        class="flex flex-col items-center shrink-0 pb-2 gap-1"
-        :class="[isMacOS ? 'pt-9' : 'pt-2', collapsed && isMacOS ? 'w-[70px]' : 'w-12']"
-      >
+      <div class="flex flex-col items-center shrink-0 pt-2 pb-2 gap-1 w-12">
         <!-- All agents button -->
         <Tooltip>
           <TooltipTrigger as-child>
@@ -120,10 +117,7 @@
       <!-- Right Column: Session List (240px) -->
       <div v-show="!collapsed" class="flex flex-col w-0 flex-1 min-w-0">
         <!-- Header -->
-        <div
-          class="flex items-center justify-between px-3 h-10 shrink-0"
-          :class="isMacOS ? 'mt-6' : ''"
-        >
+        <div class="flex items-center justify-between px-3 h-10 shrink-0">
           <span class="text-sm font-medium text-foreground truncate">
             {{ selectedAgentName }}
           </span>
@@ -206,7 +200,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed } from 'vue'
 import { Icon } from '@iconify/vue'
 import {
   Tooltip,
@@ -222,18 +216,9 @@ import ModelIcon from './icons/ModelIcon.vue'
 import { useI18n } from 'vue-i18n'
 
 const windowPresenter = usePresenter('windowPresenter')
-const devicePresenter = usePresenter('devicePresenter')
 const yoBrowserPresenter = usePresenter('yoBrowserPresenter')
 const { t } = useI18n()
 const themeStore = useThemeStore()
-
-const isMacOS = ref(false)
-
-onMounted(() => {
-  devicePresenter.getDeviceInfo().then((deviceInfo) => {
-    isMacOS.value = deviceInfo.platform === 'darwin'
-  })
-})
 
 const openSettings = () => {
   const windowId = window.api.getWindowId()

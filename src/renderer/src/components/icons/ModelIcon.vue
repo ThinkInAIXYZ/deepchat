@@ -194,28 +194,35 @@ const iconKey = computed(() => {
   return 'default'
 })
 
+// Monochrome icon URLs that need inversion in dark mode
+const monoIconUrls = new Set([
+  openaiColorIcon,
+  ollamaColorIcon,
+  zerooneColorIcon,
+  xaiColorIcon,
+  vercelColorIcon,
+  viggleColorIcon,
+  sunoColorIcon,
+  syncColorIcon,
+  rwkvColorIcon,
+  moonshotColorIcon,
+  openrouterColorIcon,
+  githubColorIcon,
+  qiniuIcon,
+  grokColorIcon,
+  groqColorIcon,
+  metaColorIcon,
+  lmstudioColorIcon,
+  _302aiIcon,
+  awsBedrockIcon,
+  voiceAiColorIcon
+])
+
 const invert = computed(() => {
   if (!props.isDark) {
     return false
   }
-  const checkTargets = [props.modelId.toLowerCase()]
-  if (provider.value?.apiType) {
-    checkTargets.push(provider.value.apiType.toLowerCase())
-  }
-  const invertKeywords = [
-    'openai',
-    'openai-responses',
-    'openrouter',
-    'ollama',
-    'grok',
-    'groq',
-    'github',
-    'moonshot',
-    'lmstudio',
-    'aws-bedrock'
-  ]
-
-  return checkTargets.some((target) => invertKeywords.some((keyword) => target.includes(keyword)))
+  return monoIconUrls.has(icons[iconKey.value])
 })
 </script>
 

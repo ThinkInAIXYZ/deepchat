@@ -48,8 +48,6 @@ const errorQueue = ref<Array<{ id: string; title: string; message: string; type:
 const currentErrorId = ref<string | null>(null)
 const errorDisplayTimer = ref<number | null>(null)
 
-const isMacOS = ref(false)
-const devicePresenter = usePresenter('devicePresenter')
 const { setup: setupMcpDeeplink, cleanup: cleanupMcpDeeplink } = useMcpInstallDeeplinkHandler()
 // Watch theme and font size changes, update body class directly
 watch(
@@ -192,9 +190,6 @@ const handleEscKey = (event: KeyboardEvent) => {
 getInitComplete()
 
 onMounted(() => {
-  devicePresenter.getDeviceInfo().then((deviceInfo) => {
-    isMacOS.value = deviceInfo.platform === 'darwin'
-  })
   // Set initial body class
   document.body.classList.add(themeStore.themeMode)
   document.body.classList.add(uiSettingsStore.fontSizeClass)
@@ -323,15 +318,14 @@ onBeforeUnmount(() => {
     class="flex flex-col h-screen"
     :class="isWinMacOS ? 'bg-window-background' : 'bg-background'"
   >
-    <AppBar v-if="!isMacOS" />
+    <AppBar />
     <div class="flex flex-row h-0 grow relative overflow-hidden px-px py-px" :dir="langStore.dir">
       <div class="flex flex-row w-full h-full">
         <WindowSideBar></WindowSideBar>
 
         <!-- Main content area -->
         <div
-          class="flex-1 min-w-0 bg-background overflow-hidden"
-          :class="isMacOS ? 'shadow-none' : 'rounded-tl-xl shadow-lg'"
+          class="flex-1 min-w-0 bg-background overflow-hidden rounded-tl-xl border-black/20 dark:border-white/10 border-l border-t"
         >
           <RouterView />
         </div>
