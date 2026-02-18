@@ -50,6 +50,13 @@ async function onSubmit() {
   if (!text) return
   message.value = ''
   const tabId = window.api.getWebContentsId()
-  await agentPresenter.sendMessage(props.sessionId, text, tabId)
+  const content = JSON.stringify({
+    text,
+    files: [],
+    links: [],
+    search: false,
+    think: false
+  })
+  await agentPresenter.sendMessage(props.sessionId, content, tabId)
 }
 </script>

@@ -198,8 +198,15 @@ export const useSessionStore = defineStore('session', () => {
       activeSessionId.value = sessionId
       pageRouter.goToChat(sessionId)
 
-      // Send the initial message
-      await agentPresenter.sendMessage(sessionId, params.message, tabId)
+      // Send the initial message (content must be JSON-encoded UserMessageContent)
+      const messageContent = JSON.stringify({
+        text: params.message,
+        files: [],
+        links: [],
+        search: false,
+        think: false
+      })
+      await agentPresenter.sendMessage(sessionId, messageContent, tabId)
     } catch (e) {
       error.value = `Failed to create session: ${e}`
     }
