@@ -29,17 +29,20 @@ import { usePageRouterStore } from '@/stores/ui/pageRouter'
 import { useSessionStore } from '@/stores/ui/session'
 import { useAgentStore } from '@/stores/ui/agent'
 import { useProjectStore } from '@/stores/ui/project'
+import { useModelStore } from '@/stores/modelStore'
 
 const pageRouter = usePageRouterStore()
 const sessionStore = useSessionStore()
 const agentStore = useAgentStore()
 const projectStore = useProjectStore()
+const modelStore = useModelStore()
 
 onMounted(async () => {
   await Promise.all([
     pageRouter.initialize(),
     sessionStore.fetchSessions(),
-    agentStore.fetchAgents()
+    agentStore.fetchAgents(),
+    modelStore.initialize()
   ])
   projectStore.deriveFromSessions(sessionStore.sessions)
 })

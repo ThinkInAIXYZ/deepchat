@@ -34,6 +34,9 @@ This document tracks the development progress of new UI feature implementation. 
 | Sidebar Components | [spec.md](../new-ui-sidebar/spec.md) |
 | Chat Components | [spec.md](../new-ui-chat-components/spec.md) |
 | Page Components | [spec.md](../new-ui-pages/spec.md) |
+| Agent-Aware Sessions | [spec.md](../new-ui-agent-session/spec.md) |
+| Status Bar (Model/Effort) | [spec.md](../new-ui-status-bar/spec.md) |
+| Markdown Rendering | [spec.md](../new-ui-markdown-rendering/spec.md) |
 
 ---
 
@@ -269,9 +272,40 @@ This document tracks the development progress of new UI feature implementation. 
 
 ---
 
+## Phase 6: Agent-Aware Sessions, Working Settings, Markdown Rendering
+
+### 6.1 Agent-Aware Session Creation ([spec](../new-ui-agent-session/spec.md))
+
+- [x] Import `useAgentStore` in `NewThreadPage.vue`
+- [x] Pass `agentId: agentStore.selectedAgentId ?? 'deepchat'` to `sessionStore.createSession()`
+- [x] Pass `providerId: 'acp'` and `modelId: agentId` when ACP agent selected
+- [ ] Verify: select ACP agent → create session → session has `chatMode: 'acp agent'`
+
+### 6.2 Working ChatStatusBar ([spec](../new-ui-status-bar/spec.md))
+
+- [x] Replace hardcoded model dropdown with `modelStore.enabledModels` data
+- [x] Display current model from `chatStore.chatConfig.modelId` via `modelStore.findModelByIdOrName()`
+- [x] On model select: `chatStore.updateChatConfig({ providerId, modelId })`
+- [x] Replace hardcoded effort dropdown with real `reasoningEffort` / `verbosity` data
+- [x] On effort select: `chatStore.updateChatConfig({ reasoningEffort: value })`
+- [x] Keep permissions as read-only indicator
+- [x] Add `modelStore.initialize()` to `ChatTabView.onMounted`
+- [ ] Verify: model dropdown shows real enabled models
+- [ ] Verify: changing model updates `chatConfig` and persists
+
+### 6.3 Markdown Message Rendering ([spec](../new-ui-markdown-rendering/spec.md))
+
+- [x] Replace plain-text rendering with `MessageItemAssistant` / `MessageItemUser`
+- [x] Remove `getUserText()`, `getAssistantText()` helpers
+- [x] Remove direct `ModelIcon` and `useThemeStore` imports (handled by message components)
+- [ ] Verify: messages render with full markdown, code blocks, tool calls, etc.
+
+---
+
 ## Changelog
 
 | Date | Update |
 |------|--------|
 | 2025-02-18 | v2: Rewrote all specs — page router decoupled from session, IPC mapping added, error handling, no legacy fallback |
 | 2026-02-18 | v3: Phase 1–4 implemented — 4 stores, 5 chat components, 3 pages, ChatTabView refactored, sidebar integrated with stores. Typecheck/lint/format pass. Phase 5 (E2E testing, error display, i18n, mock cleanup) pending. |
+| 2026-02-18 | v4: Phase 6 implemented — agent-aware session creation, working ChatStatusBar (model/effort selectors wired to chatStore + modelStore), markdown rendering via existing MessageItemAssistant/MessageItemUser components. |

@@ -81,9 +81,11 @@ import ChatInputToolbar from '@/components/chat/ChatInputToolbar.vue'
 import ChatStatusBar from '@/components/chat/ChatStatusBar.vue'
 import { useProjectStore } from '@/stores/ui/project'
 import { useSessionStore } from '@/stores/ui/session'
+import { useAgentStore } from '@/stores/ui/agent'
 
 const projectStore = useProjectStore()
 const sessionStore = useSessionStore()
+const agentStore = useAgentStore()
 
 const message = ref('')
 
@@ -91,10 +93,16 @@ async function onSubmit() {
   const text = message.value.trim()
   if (!text) return
   message.value = ''
+
+  const agentId = agentStore.selectedAgentId ?? 'deepchat'
+  const isAcp = agentId !== 'deepchat'
+
   await sessionStore.createSession({
     title: text.slice(0, 50),
     message: text,
-    projectDir: projectStore.selectedProject?.path
+    projectDir: projectStore.selectedProject?.path,
+    agentId,
+    ...(isAcp ? { providerId: 'acp', modelId: agentId } : {})
   })
 }
 </script>

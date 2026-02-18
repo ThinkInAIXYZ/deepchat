@@ -187,10 +187,13 @@ export const useSessionStore = defineStore('session', () => {
         settings.acpWorkdirMap = { [params.agentId]: params.projectDir ?? null }
       }
 
+      // Force new session to prevent reusing an empty conversation
+      // with different settings (e.g. switching from DeepChat to ACP agent)
       const sessionId = await sessionPresenter.createSession({
         title: params.title || 'New Thread',
         settings,
-        tabId
+        tabId,
+        options: { forceNewAndActivate: true }
       })
 
       // Refresh session list and activate
