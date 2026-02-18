@@ -12,11 +12,11 @@
             <Button
               class="flex items-center justify-center w-9 h-9 rounded-xl border transition-all duration-150"
               :class="
-                selectedAgentId === null
+                agentStore.selectedAgentId === null
                   ? 'bg-card/50 border-white/70 dark:border-white/20 ring-1 ring-black/10 hover:bg-white/30 dark:hover:bg-white/10'
                   : 'bg-transparent border-none hover:bg-white/30 dark:hover:bg-white/10 shadow-none'
               "
-              @click="selectedAgentId = null"
+              @click="agentStore.selectAgent(null)"
             >
               <Icon icon="lucide:layers" class="w-4 h-4 text-foreground/80" />
             </Button>
@@ -27,17 +27,17 @@
         <div class="w-5 h-px bg-border my-1"></div>
 
         <!-- Agent icons -->
-        <Tooltip v-for="agent in mockAgents" :key="agent.id">
+        <Tooltip v-for="agent in agentStore.enabledAgents" :key="agent.id">
           <TooltipTrigger as-child>
             <Button
               size="icon"
               class="flex items-center justify-center w-9 h-9 rounded-xl border transition-all duration-150"
               :class="
-                selectedAgentId === agent.id
+                agentStore.selectedAgentId === agent.id
                   ? 'bg-card/50 border-white/80 dark:border-white/20 ring-1 ring-black/10 hover:bg-white/30 dark:hover:bg-white/10'
                   : 'bg-transparent border-none hover:bg-white/30 dark:hover:bg-white/10 shadow-none'
               "
-              @click="selectedAgentId = selectedAgentId === agent.id ? null : agent.id"
+              @click="agentStore.selectAgent(agent.id)"
             >
               <ModelIcon :model-id="agent.id" custom-class="w-4 h-4" :is-dark="themeStore.isDark" />
             </Button>
@@ -67,24 +67,6 @@
           <TooltipContent side="right">{{
             collapsed ? 'Expand sidebar' : 'Collapse sidebar'
           }}</TooltipContent>
-        </Tooltip>
-
-        <!-- Debug: toggle welcome page -->
-        <Tooltip>
-          <TooltipTrigger as-child>
-            <Button
-              class="flex items-center justify-center w-9 h-9 rounded-xl border transition-all duration-150"
-              :class="
-                showMockWelcome
-                  ? 'bg-primary/15 border-primary/30 text-primary hover:bg-primary/20'
-                  : 'bg-transparent border-none hover:bg-white/30 dark:hover:bg-white/10 shadow-none'
-              "
-              @click="showMockWelcome = !showMockWelcome"
-            >
-              <Icon icon="lucide:bug" class="w-4 h-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="right">Toggle Welcome Page</TooltipContent>
         </Tooltip>
 
         <Tooltip>
@@ -119,7 +101,7 @@
         <!-- Header -->
         <div class="flex items-center justify-between px-3 h-10 shrink-0">
           <span class="text-sm font-medium text-foreground truncate">
-            {{ selectedAgentName }}
+            {{ agentStore.selectedAgentName }}
           </span>
           <div class="flex items-center gap-0.5">
             <Tooltip>
@@ -127,17 +109,17 @@
                 <button
                   class="flex items-center justify-center w-7 h-7 rounded-md transition-all duration-150"
                   :class="
-                    groupByProject
+                    sessionStore.groupMode === 'project'
                       ? 'text-foreground bg-accent/80'
                       : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
                   "
-                  @click="groupByProject = !groupByProject"
+                  @click="sessionStore.toggleGroupMode()"
                 >
                   <Icon icon="lucide:folder-kanban" class="w-4 h-4" />
                 </button>
               </TooltipTrigger>
               <TooltipContent>{{
-                groupByProject ? 'Group by date' : 'Group by project'
+                sessionStore.groupMode === 'project' ? 'Group by date' : 'Group by project'
               }}</TooltipContent>
             </Tooltip>
             <Tooltip>
@@ -158,7 +140,7 @@
         <div class="flex-1 overflow-y-auto px-1.5">
           <!-- Empty state -->
           <div
-            v-if="filteredSessions.length === 0"
+            v-if="filteredGroups.length === 0"
             class="flex flex-col items-center justify-center h-full px-4 text-center"
           >
             <Icon icon="lucide:message-square-plus" class="w-8 h-8 text-muted-foreground/40 mb-3" />
@@ -166,16 +148,16 @@
             <p class="text-xs text-muted-foreground/40 mt-1">Start a new chat to begin</p>
           </div>
 
-          <template v-for="group in filteredSessions" :key="group.dt">
+          <template v-for="group in filteredGroups" :key="group.label">
             <div class="px-1.5 pt-3 pb-1">
-              <span class="text-xs font-medium text-muted-foreground">{{ group.dt }}</span>
+              <span class="text-xs font-medium text-muted-foreground">{{ group.label }}</span>
             </div>
             <button
               v-for="session in group.sessions"
               :key="session.id"
               class="flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-left transition-all duration-150"
               :class="
-                selectedSessionId === session.id
+                sessionStore.activeSessionId === session.id
                   ? 'bg-accent text-accent-foreground'
                   : 'text-foreground/80 hover:bg-accent/50'
               "
@@ -210,8 +192,9 @@ import {
 } from '@shadcn/components/ui/tooltip'
 import { Button } from '@shadcn/components/ui/button'
 import { usePresenter } from '@/composables/usePresenter'
-import { useMockViewState } from '@/composables/useMockViewState'
 import { useThemeStore } from '@/stores/theme'
+import { useAgentStore } from '@/stores/ui/agent'
+import { useSessionStore } from '@/stores/ui/session'
 import ModelIcon from './icons/ModelIcon.vue'
 import { useI18n } from 'vue-i18n'
 
@@ -219,6 +202,12 @@ const windowPresenter = usePresenter('windowPresenter')
 const yoBrowserPresenter = usePresenter('yoBrowserPresenter')
 const { t } = useI18n()
 const themeStore = useThemeStore()
+const agentStore = useAgentStore()
+const sessionStore = useSessionStore()
+
+const collapsed = ref(false)
+
+const filteredGroups = computed(() => sessionStore.getFilteredGroups(agentStore.selectedAgentId))
 
 const openSettings = () => {
   const windowId = window.api.getWindowId()
@@ -235,120 +224,12 @@ const onBrowserClick = async () => {
   }
 }
 
-const mockAgents = [
-  { id: 'deepchat', name: 'DeepChat' },
-  { id: 'claude-code-acp', name: 'Claude Code' },
-  { id: 'codex-acp', name: 'Codex' },
-  { id: 'kimi-cli', name: 'Kimi' },
-  { id: 'my-bot', name: 'My Code Bot' }
-]
-
-const allSessions = [
-  {
-    id: '1',
-    title: 'Fix login bug',
-    agentId: 'deepchat',
-    status: 'completed',
-    projectDir: '~/Code/deepchat'
-  },
-  {
-    id: '2',
-    title: 'Refactor auth module',
-    agentId: 'deepchat',
-    status: 'working',
-    projectDir: '~/Code/deepchat'
-  },
-  {
-    id: '3',
-    title: 'Write unit tests',
-    agentId: 'codex-acp',
-    status: 'none',
-    projectDir: '~/Code/api-server'
-  },
-  {
-    id: '4',
-    title: 'Add dark mode support',
-    agentId: 'deepchat',
-    status: 'none',
-    projectDir: '~/Code/deepchat'
-  },
-  {
-    id: '5',
-    title: 'API integration',
-    agentId: 'kimi-cli',
-    status: 'error',
-    projectDir: '~/Code/api-server'
-  },
-  {
-    id: '6',
-    title: 'Database migration',
-    agentId: 'codex-acp',
-    status: 'completed',
-    projectDir: '~/Code/api-server'
-  },
-  {
-    id: '7',
-    title: 'Setup CI/CD pipeline',
-    agentId: 'my-bot',
-    status: 'none',
-    projectDir: '~/Code/infra'
-  },
-  {
-    id: '8',
-    title: 'Performance optimization',
-    agentId: 'deepchat',
-    status: 'none',
-    projectDir: '~/Code/deepchat'
-  }
-]
-
-const mockSessionsByDate = [
-  { dt: 'Today', sessions: allSessions.filter((s) => ['1', '2', '3'].includes(s.id)) },
-  { dt: 'Yesterday', sessions: allSessions.filter((s) => ['4', '5', '6'].includes(s.id)) },
-  { dt: 'Last Week', sessions: allSessions.filter((s) => ['7', '8'].includes(s.id)) }
-]
-
-const { mockSessionId: selectedSessionId, showMockWelcome, selectSession } = useMockViewState()
-
-const selectedAgentId = ref<string | null>(null)
-const groupByProject = ref(false)
-const collapsed = ref(false)
-
-const selectedAgentName = computed(() => {
-  if (selectedAgentId.value === null) return 'All Agents'
-  return mockAgents.find((a) => a.id === selectedAgentId.value)?.name ?? 'All Agents'
-})
-
-const mockSessionsByProject = computed(() => {
-  const projectMap = new Map<string, typeof allSessions>()
-  for (const session of allSessions) {
-    const dir = session.projectDir
-    if (!projectMap.has(dir)) projectMap.set(dir, [])
-    projectMap.get(dir)!.push(session)
-  }
-  return Array.from(projectMap.entries()).map(([dir, sessions]) => ({
-    dt: dir.split('/').pop() ?? dir,
-    sessions
-  }))
-})
-
-const filteredSessions = computed(() => {
-  const source = groupByProject.value ? mockSessionsByProject.value : mockSessionsByDate
-  if (selectedAgentId.value === null) return source
-  return source
-    .map((group) => ({
-      dt: group.dt,
-      sessions: group.sessions.filter((s) => s.agentId === selectedAgentId.value)
-    }))
-    .filter((group) => group.sessions.length > 0)
-})
-
 const handleNewChat = () => {
-  selectSession(null)
+  sessionStore.closeSession()
 }
 
-const handleSessionClick = (session: { id: string; title: string; projectDir: string }) => {
-  selectSession(session.id, session.title, session.projectDir)
+const handleSessionClick = (session: { id: string }) => {
+  sessionStore.selectSession(session.id)
 }
 </script>
 
