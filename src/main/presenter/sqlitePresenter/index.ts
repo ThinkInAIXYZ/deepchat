@@ -14,6 +14,10 @@ import {
 } from '@shared/presenter'
 import { MessageAttachmentsTable } from './tables/messageAttachments'
 import { AcpSessionsTable, type AcpSessionUpsertData } from './tables/acpSessions'
+import { NewSessionsTable } from './tables/newSessions'
+import { NewProjectsTable } from './tables/newProjects'
+import { DeepChatSessionsTable } from './tables/deepchatSessions'
+import { DeepChatMessagesTable } from './tables/deepchatMessages'
 
 /**
  * 导入模式枚举
@@ -30,6 +34,10 @@ export class SQLitePresenter implements ISQLitePresenter {
   private attachmentsTable!: AttachmentsTable
   private messageAttachmentsTable!: MessageAttachmentsTable
   private acpSessionsTable!: AcpSessionsTable
+  public newSessionsTable!: NewSessionsTable
+  public newProjectsTable!: NewProjectsTable
+  public deepchatSessionsTable!: DeepChatSessionsTable
+  public deepchatMessagesTable!: DeepChatMessagesTable
   private currentVersion: number = 0
   private dbPath: string
   private password?: string
@@ -141,6 +149,10 @@ export class SQLitePresenter implements ISQLitePresenter {
     this.attachmentsTable = new AttachmentsTable(this.db)
     this.messageAttachmentsTable = new MessageAttachmentsTable(this.db)
     this.acpSessionsTable = new AcpSessionsTable(this.db)
+    this.newSessionsTable = new NewSessionsTable(this.db)
+    this.newProjectsTable = new NewProjectsTable(this.db)
+    this.deepchatSessionsTable = new DeepChatSessionsTable(this.db)
+    this.deepchatMessagesTable = new DeepChatMessagesTable(this.db)
 
     // 创建所有表
     this.conversationsTable.createTable()
@@ -148,6 +160,10 @@ export class SQLitePresenter implements ISQLitePresenter {
     this.attachmentsTable.createTable()
     this.messageAttachmentsTable.createTable()
     this.acpSessionsTable.createTable()
+    this.newSessionsTable.createTable()
+    this.newProjectsTable.createTable()
+    this.deepchatSessionsTable.createTable()
+    this.deepchatMessagesTable.createTable()
   }
 
   private initVersionTable() {
@@ -173,7 +189,11 @@ export class SQLitePresenter implements ISQLitePresenter {
       this.messagesTable,
       this.attachmentsTable,
       this.messageAttachmentsTable,
-      this.acpSessionsTable
+      this.acpSessionsTable,
+      this.newSessionsTable,
+      this.newProjectsTable,
+      this.deepchatSessionsTable,
+      this.deepchatMessagesTable
     ]
 
     // 获取最新的迁移版本

@@ -19,6 +19,8 @@ import type { IWorkspacePresenter } from './workspace'
 import type { IToolPresenter } from './tool.presenter'
 import type { ISkillPresenter } from '../skill'
 import type { ISkillSyncPresenter } from '../skillSync'
+import type { INewAgentPresenter } from './new-agent.presenter'
+import type { IProjectPresenter } from './project.presenter'
 import type {
   BrowserTabInfo,
   BrowserContextSnapshot,
@@ -456,6 +458,8 @@ export interface IPresenter {
   toolPresenter: IToolPresenter
   skillPresenter: ISkillPresenter
   skillSyncPresenter: ISkillSyncPresenter
+  newAgentPresenter: INewAgentPresenter
+  projectPresenter: IProjectPresenter
   init(): void
   destroy(): void
 }

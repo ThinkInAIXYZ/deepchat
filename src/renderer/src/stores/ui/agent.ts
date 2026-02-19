@@ -1,42 +1,21 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { usePresenter } from '@/composables/usePresenter'
-import { CONFIG_EVENTS } from '@/events'
-import type { AcpBuiltinAgent, AcpCustomAgent } from '@shared/types/presenters/legacy.presenters'
+import type { Agent } from '@shared/types/agent-interface'
 
 // --- Type Definitions ---
 
 export interface UIAgent {
   id: string
   name: string
-  type: 'deepchat' | 'builtin-acp' | 'custom-acp'
+  type: 'deepchat' | 'acp'
   enabled: boolean
-}
-
-// --- Helper Functions ---
-
-function mapBuiltinAgent(agent: AcpBuiltinAgent): UIAgent {
-  return {
-    id: agent.id,
-    name: agent.name,
-    type: 'builtin-acp',
-    enabled: agent.enabled
-  }
-}
-
-function mapCustomAgent(agent: AcpCustomAgent): UIAgent {
-  return {
-    id: agent.id,
-    name: agent.name,
-    type: 'custom-acp',
-    enabled: agent.enabled
-  }
 }
 
 // --- Store ---
 
 export const useAgentStore = defineStore('agent', () => {
-  const configPresenter = usePresenter('configPresenter')
+  const newAgentPresenter = usePresenter('newAgentPresenter')
 
   // --- State ---
   const agents = ref<UIAgent[]>([])
@@ -55,21 +34,13 @@ export const useAgentStore = defineStore('agent', () => {
     loading.value = true
     error.value = null
     try {
-      const deepchatAgent: UIAgent = {
-        id: 'deepchat',
-        name: 'DeepChat',
-        type: 'deepchat',
-        enabled: true // Always enabled
-      }
-
-      const builtinAgents = await configPresenter.getAcpBuiltinAgents()
-      const customAgents = await configPresenter.getAcpCustomAgents()
-
-      agents.value = [
-        deepchatAgent,
-        ...builtinAgents.map(mapBuiltinAgent),
-        ...customAgents.map(mapCustomAgent)
-      ]
+      const result: Agent[] = await newAgentPresenter.getAgents()
+      agents.value = result.map((a) => ({
+        id: a.id,
+        name: a.name,
+        type: a.type,
+        enabled: a.enabled
+      }))
     } catch (e) {
       error.value = `Failed to load agents: ${e}`
     } finally {
@@ -80,12 +51,6 @@ export const useAgentStore = defineStore('agent', () => {
   function selectAgent(id: string | null): void {
     selectedAgentId.value = selectedAgentId.value === id ? null : id
   }
-
-  // --- Event Listeners ---
-
-  window.electron.ipcRenderer.on(CONFIG_EVENTS.SETTING_CHANGED, () => {
-    fetchAgents()
-  })
 
   return {
     agents,

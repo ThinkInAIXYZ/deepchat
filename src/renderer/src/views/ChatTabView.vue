@@ -44,7 +44,7 @@ onMounted(async () => {
     agentStore.fetchAgents(),
     modelStore.initialize()
   ])
-  projectStore.deriveFromSessions(sessionStore.sessions)
+  projectStore.fetchProjects()
 })
 </script>
 

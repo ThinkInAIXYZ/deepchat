@@ -203,6 +203,14 @@ export const RAG_EVENTS = {
   FILE_UPDATED: 'rag:file-updated', // 文件状态更新
   FILE_PROGRESS: 'rag:file-progress' // 文件进度更新
 }
+// New agent session events
+export const SESSION_EVENTS = {
+  LIST_UPDATED: 'session:list-updated',
+  ACTIVATED: 'session:activated',
+  DEACTIVATED: 'session:deactivated',
+  STATUS_CHANGED: 'session:status-changed'
+}
+
 // 系统相关事件
 export const SYSTEM_EVENTS = {
   SYSTEM_THEME_UPDATED: 'system:theme-updated'

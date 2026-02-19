@@ -82,12 +82,39 @@ import ChatStatusBar from '@/components/chat/ChatStatusBar.vue'
 import { useProjectStore } from '@/stores/ui/project'
 import { useSessionStore } from '@/stores/ui/session'
 import { useAgentStore } from '@/stores/ui/agent'
+import { useModelStore } from '@/stores/modelStore'
+import { usePresenter } from '@/composables/usePresenter'
 
 const projectStore = useProjectStore()
 const sessionStore = useSessionStore()
 const agentStore = useAgentStore()
+const modelStore = useModelStore()
+const configPresenter = usePresenter('configPresenter')
 
 const message = ref('')
+
+async function resolveModel(): Promise<{ providerId: string; modelId: string } | null> {
+  // 1. defaultModel from settings
+  const defaultModel = (await configPresenter.getSetting('defaultModel')) as
+    | { providerId: string; modelId: string }
+    | undefined
+  if (defaultModel?.providerId && defaultModel?.modelId) return defaultModel
+
+  // 2. preferredModel (last user selection)
+  const preferred = (await configPresenter.getSetting('preferredModel')) as
+    | { providerId: string; modelId: string }
+    | undefined
+  if (preferred?.providerId && preferred?.modelId) return preferred
+
+  // 3. First available enabled model
+  for (const group of modelStore.enabledModels) {
+    if (group.models.length > 0) {
+      return { providerId: group.providerId, modelId: group.models[0].id }
+    }
+  }
+
+  return null
+}
 
 async function onSubmit() {
   const text = message.value.trim()
@@ -97,12 +124,28 @@ async function onSubmit() {
   const agentId = agentStore.selectedAgentId ?? 'deepchat'
   const isAcp = agentId !== 'deepchat'
 
+  let providerId: string | undefined
+  let modelId: string | undefined
+
+  if (isAcp) {
+    providerId = 'acp'
+    modelId = agentId
+  } else {
+    const resolved = await resolveModel()
+    if (!resolved) {
+      console.error('No model available. Please configure a provider and model in settings.')
+      return
+    }
+    providerId = resolved.providerId
+    modelId = resolved.modelId
+  }
+
   await sessionStore.createSession({
-    title: text.slice(0, 50),
     message: text,
     projectDir: projectStore.selectedProject?.path,
     agentId,
-    ...(isAcp ? { providerId: 'acp', modelId: agentId } : {})
+    providerId,
+    modelId
   })
 }
 </script>
