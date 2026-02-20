@@ -1,367 +1,165 @@
-# Phase 6: Shell Removal
+# Phase 6: Shell & Tab Removal (Window-Only Architecture)
 
 ## Overview
 
-移除 Shell 层，将 Tab 管理逻辑整合到主 Renderer 进程中：
-1. 移除 `src/renderer/shell/` 目录
-2. 将 Tab 状态管理合并到 workspace store
-3. 更新 Electron 窗口加载配置
-4. 清理不再需要的代码
+本阶段不再采用“单窗口多 Tab”模型，目标改为：
 
-## Core Principle: 复用现有能力
+1. 移除 `src/renderer/shell/`（含 shell 入口与 shell UI）
+2. 移除 Tab 作为运行时核心概念（`TabPresenter` / `tabId` 绑定）
+3. 统一为 **Window-Only** 架构：每个窗口只承载一个独立 WebContents 视图
+4. YoBrowser 改为 **单窗口、单视图**（不再维护浏览器内部 tab 列表）
 
-本 phase 复用以下现有组件：
+最终形态：
+- 聊天是聊天窗口
+- 设置是设置窗口
+- YoBrowser 是单独浏览器窗口
+- 不再有“窗口内 Tab 切换”
 
-- **Workspace Store**: 将 tab 状态合并到现有 `stores/workspace.ts`
-- **路由**: 保持现有 `src/renderer/src/router/` 结构
-- **窗口管理**: 复用 `windowPresenter` 的窗口加载模式
-- **App 布局**: 在 `App.vue` 中整合侧边栏，保持现有结构
+## Scope
 
-## Current Architecture
+### In Scope
+- 移除 shell 目录与构建入口
+- 主进程从 `tabId` 迁移到 `windowId/webContentsId` 语义
+- `SessionPresenter/ThreadPresenter` 会话激活逻辑去 Tab 化
+- YoBrowser tab 模型简化为单页面模型
+- 事件系统中 Tab 相关事件与快捷键清理
 
-```
-src/renderer/
-├── shell/                    # [TO BE REMOVED]
-│   ├── App.vue              # Shell 外壳
-│   ├── main.ts              # Shell 入口
-│   ├── index.html           # Shell HTML
-│   ├── components/
-│   │   ├── TabBar.vue       # Tab 栏
-│   │   └── ...
-│   └── stores/
-│       └── tabs.ts          # Tab 状态
-├── src/                      # 主应用
-│   ├── App.vue
-│   ├── main.ts
-│   └── ...
-└── index.html
-```
+### Out of Scope
+- 重新设计聊天 UI（Phase 1-5 已完成）
+- 重写核心 agent 生成链路
+- 修改数据库 conversation/message schema（本阶段尽量不改表结构）
+
+## Current Problems
+
+当前实现中 Tab 是中枢概念，导致耦合面很大：
+
+- `src/main/presenter/tabPresenter.ts`
+- `src/main/presenter/sessionPresenter/tab/tabManager.ts`
+- `src/main/presenter/sessionPresenter/index.ts`（大量 `tabId` 参数）
+- `src/shared/types/presenters/thread.presenter.d.ts` 与 `session.presenter.d.ts`（接口层强依赖 `tabId`）
+- `src/main/presenter/browser/YoBrowserPresenter.ts`（依赖 tab 创建/切换）
+- `src/renderer/shell/**` 与 `electron.vite.config.ts` 的 shell entry
+
+这使得窗口、会话、浏览器三套系统通过 Tab 相互牵连，维护和演进成本高。
 
 ## Target Architecture
 
-```
-src/renderer/
-├── src/
-│   ├── App.vue              # 合并后的主应用（包含侧边栏 + 内容区）
-│   ├── main.ts
-│   ├── components/
-│   │   ├── WindowSideBar.vue    # 侧边栏
-│   │   ├── ChatTabView.vue      # 聊天视图
-│   │   └── ...
-│   ├── stores/
-│   │   ├── workspace.ts     # 包含 Tab 管理
-│   │   └── ...
-│   └── views/
-│       └── ...
-└── index.html
-```
+## 1) Window as the only container
 
-## Migration Details
+- 一个窗口只对应一个渲染上下文
+- 不在窗口内管理多个 WebContentsView
+- 需要并行会话时，直接创建新窗口，而不是新 Tab
 
-### 1. Tab State Integration
+## 2) Session binding uses windowId
 
-将 `shell/stores/tabs.ts` 的功能合并到 `workspace.ts`：
+- 活动会话绑定 `windowId`（或 `webContentsId` -> `windowId`）
+- 删除 `tabId -> session` 双向映射
+- `openConversationInNewTab` 语义替换为 `openConversationInNewWindow`
 
-```typescript
-// src/renderer/src/stores/workspace.ts
+## 3) YoBrowser single-window model
 
-export const useWorkspaceStore = defineStore('workspace', () => {
-  // Tab management (from shell/stores/tabs.ts)
-  const tabs = ref<Tab[]>([])
-  const activeTabId = ref<string | null>(null)
-  
-  // ... existing workspace state
-  
-  const activeTab = computed(() => 
-    tabs.value.find(t => t.id === activeTabId.value)
-  )
-  
-  function createTab(options: CreateTabOptions): string {
-    const id = generateId()
-    tabs.value.push({
-      id,
-      type: options.type,
-      title: options.title,
-      threadId: options.threadId,
-      createdAt: Date.now()
-    })
-    activeTabId.value = id
-    return id
-  }
-  
-  function closeTab(id: string): void {
-    const index = tabs.value.findIndex(t => t.id === id)
-    if (index === -1) return
-    
-    tabs.value.splice(index, 1)
-    
-    // 如果关闭的是当前 tab，切换到相邻的
-    if (activeTabId.value === id) {
-      const nextTab = tabs.value[Math.min(index, tabs.value.length - 1)]
-      activeTabId.value = nextTab?.id || null
-    }
-  }
-  
-  function activateTab(id: string): void {
-    activeTabId.value = id
-  }
-  
-  function updateTab(id: string, updates: Partial<Tab>): void {
-    const tab = tabs.value.find(t => t.id === id)
-    if (tab) {
-      Object.assign(tab, updates)
-    }
-  }
-  
-  return {
-    // Tab state
-    tabs,
-    activeTabId,
-    activeTab,
-    createTab,
-    closeTab,
-    activateTab,
-    updateTab,
-    // ... existing workspace functions
-  }
-})
-```
+- YoBrowser 保留一个浏览器窗口
+- 窗口内只有一个页面上下文（当前 URL）
+- `createTab/activateTab/closeTab` API 改为 `navigate/show/hide/reload/goBack/goForward`
 
-### 2. App.vue Refactor
+## 4) Renderer entry simplification
 
-```vue
-<!-- src/renderer/src/App.vue -->
-<template>
-  <div class="app-container">
-    <!-- 侧边栏 -->
-    <WindowSideBar v-if="showSidebar" />
-    
-    <!-- 主内容区 -->
-    <main class="main-content">
-      <!-- Tab 栏 (可选，如果需要) -->
-      <TabBar v-if="showTabs" :tabs="tabs" @close="closeTab" @select="activateTab" />
-      
-      <!-- 内容视图 -->
-      <router-view v-slot="{ Component }">
-        <keep-alive>
-          <component :is="Component" />
-        </keep-alive>
-      </router-view>
-    </main>
-  </div>
-</template>
+- 只保留 `src/renderer/index.html`（主窗口）
+- `settings/index.html`、`floating/index.html`、`splash/index.html` 继续按需保留
+- 删除 `shell/index.html` 与 `shell/tooltip-overlay/index.html` 入口
 
-<script setup lang="ts">
-const workspaceStore = useWorkspaceStore()
+## Migration Strategy
 
-const showSidebar = computed(() => true) // 可根据配置调整
-const showTabs = computed(() => workspaceStore.tabs.length > 1)
+采用分阶段迁移，避免一次性大爆炸。
 
-const { tabs, closeTab, activateTab } = storeToRefs(workspaceStore)
-</script>
-```
+### Stage A: Contract migration (Tab -> Window)
 
-### 3. Router Update
+- 在 shared presenter 类型层引入 window-only 接口（兼容期可保留旧接口别名）
+- `SessionPresenter` 内部先支持 `windowId` 路径
+- 新增窗口语义方法，旧 tab 方法标注 deprecated
 
-```typescript
-// src/renderer/src/router/index.ts
-const routes: RouteRecordRaw[] = [
-  {
-    path: '/',
-    component: () => import('@/views/MainLayout.vue'),
-    children: [
-      {
-        path: '',
-        name: 'new-thread',
-        component: () => import('@/views/NewThreadView.vue')
-      },
-      {
-        path: 'chat/:threadId',
-        name: 'chat',
-        component: () => import('@/views/ChatTabView.vue')
-      },
-      {
-        path: 'settings',
-        name: 'settings',
-        component: () => import('@/views/SettingsView.vue')
-      }
-    ]
-  }
-]
-```
+### Stage B: Main process decoupling
 
-### 4. Electron Window Config Update
+- `WindowPresenter` 去除 create/switch/close tab 分支
+- 关闭 `SHORTCUT_EVENTS.CREATE_NEW_TAB` / tab switch 快捷键
+- `TAB_EVENTS` 停止对外广播
 
-```typescript
-// src/main/presenter/windowPresenter/index.ts
+### Stage C: YoBrowser simplification
 
-// 更新窗口加载路径
-function createMainWindow(): BrowserWindow {
-  const win = new BrowserWindow({
-    // ... window options
-  })
-  
-  // 直接加载 renderer 入口，不再通过 shell
-  if (is.dev) {
-    win.loadURL('http://localhost:5173')  // Vite dev server
-  } else {
-    win.loadFile(path.join(__dirname, '../renderer/index.html'))
-  }
-  
-  return win
-}
-```
+- `YoBrowserPresenter` 不再调用 `tabPresenter.createTab/switchTab`
+- 改为直接在 browser window 的单视图导航
+- `yoBrowser` store 从 `tabs[]` 改为 `currentPage`（可保留最近历史，但非 tab）
 
-### 5. Files to Remove
+### Stage D: Shell deletion
 
-```
-src/renderer/shell/
-├── App.vue
-├── main.ts
-├── index.html
-├── components/
-│   └── TabBar.vue (如果不再需要)
-├── stores/
-│   └── tabs.ts
-└── ...
-```
+- 删除 `src/renderer/shell/` 目录
+- 删除 `electron.vite.config.ts` 中 shell 输入项与 `@shell` alias
+- 清理残留 shell IPC：`shell:chrome-height`、`shell-tooltip:*`
 
-## Tab Types
+### Stage E: Hard cleanup
 
-```typescript
-// src/shared/types/workspace.ts
+- 删除 `TabPresenter` 与 `sessionPresenter/tab/*`
+- 清理 `thread.presenter.d.ts` / `session.presenter.d.ts` 中 tab API
+- 清理 MCP tools 中 `create_new_tab` 语义（提供兼容 alias 或迁移为 `create_new_window`）
 
-export type TabType = 'chat' | 'settings' | 'browser'
+## Impacted Modules
 
-export interface Tab {
-  id: string
-  type: TabType
-  title: string
-  threadId?: string  // for chat tabs
-  icon?: string
-  createdAt: number
-  updatedAt: number
-}
+| Area | Files | Change |
+|------|-------|--------|
+| Build entry | `electron.vite.config.ts` | remove shell entry and alias |
+| Shell UI | `src/renderer/shell/**` | delete |
+| Window | `src/main/presenter/windowPresenter/index.ts` | window-only flow |
+| Tab infra | `src/main/presenter/tabPresenter.ts`, `src/main/presenter/sessionPresenter/tab/*` | remove |
+| Session binding | `src/main/presenter/sessionPresenter/index.ts` | replace tabId with windowId |
+| Shared contracts | `src/shared/types/presenters/thread.presenter.d.ts`, `src/shared/types/presenters/session.presenter.d.ts`, `src/shared/types/presenters/legacy.presenters.d.ts` | API migration |
+| Events | `src/main/events.ts`, `src/renderer/src/events.ts` | remove tab events/shortcuts |
+| YoBrowser main | `src/main/presenter/browser/YoBrowserPresenter.ts` | single-window single-view |
+| YoBrowser renderer | `src/renderer/src/stores/yoBrowser.ts` | remove tabs state |
+| MCP tools (tab related) | `src/main/presenter/mcpPresenter/inMemoryServers/conversationSearchServer.ts` and related tools | migrate API semantics |
 
-export interface CreateTabOptions {
-  type: TabType
-  title: string
-  threadId?: string
-  icon?: string
-}
-```
+## API Migration (Target)
 
-## Session to Tab Mapping
+### Thread/Session API
 
-```typescript
-// 当创建新 session 时自动创建 tab
-async function createSessionWithTab(options: CreateSessionOptions): Promise<string> {
-  // 1. 创建 session
-  const threadId = await sessionPresenter.createSession(options)
-  
-  // 2. 创建对应的 tab
-  const tabId = workspaceStore.createTab({
-    type: 'chat',
-    title: options.title || 'New Chat',
-    threadId
-  })
-  
-  // 3. 激活 tab
-  workspaceStore.activateTab(tabId)
-  
-  return threadId
-}
+- Remove `tabId` required parameters
+- Prefer:
+  - `createConversation(title, settings, windowId?)`
+  - `setActiveConversation(conversationId, windowId)`
+  - `getActiveConversation(windowId)`
+  - `openConversationInNewWindow(payload)`
 
-// 当删除 session 时关闭 tab
-async function deleteSessionAndCloseTab(threadId: string): Promise<void> {
-  // 1. 找到对应的 tab
-  const tab = workspaceStore.tabs.find(t => t.threadId === threadId)
-  
-  // 2. 关闭 tab
-  if (tab) {
-    workspaceStore.closeTab(tab.id)
-  }
-  
-  // 3. 删除 session
-  await sessionPresenter.deleteSession(threadId)
-}
-```
+### YoBrowser API
 
-## Migration Steps
+- Remove:
+  - `listTabs/createTab/activateTab/closeTab/reuseTab`
+- Keep/Add:
+  - `show/hide/toggleVisibility`
+  - `navigate(url)`
+  - `getCurrentPage()`
+  - `goBack/goForward/reload`
 
-### Step 1: 准备工作
-1. 将 `shell/stores/tabs.ts` 逻辑复制到 `workspace.ts`
-2. 更新 `workspace.ts` 的类型定义
-3. 确保所有 tab 相关功能正常工作
+## Acceptance Criteria
 
-### Step 2: 更新组件
-1. 更新 `App.vue` 包含侧边栏
-2. 移除对 shell 组件的引用
-3. 更新路由配置
+1. `src/renderer/shell/` 被完全删除，构建无 shell 入口
+2. 运行时不再创建或切换任何应用内 tab
+3. 会话激活/切换只依赖 window 语义
+4. YoBrowser 在单窗口模型下可正常导航、后退前进、截图
+5. `pnpm run typecheck && pnpm run lint && pnpm run build` 全通过
 
-### Step 3: 更新入口
-1. 更新 electron 窗口加载配置
-2. 更新 vite 配置（如果需要）
-3. 移除 shell 目录
+## Risk & Mitigation
 
-### Step 4: 测试
-1. 验证所有页面正常加载
-2. 验证 tab 创建/切换/关闭功能
-3. 验证 session 与 tab 的同步
+### Risk 1: API breaking changes across main/renderer/shared
+- Mitigation: 先引入兼容层，再删除旧 API
 
-## IPC Events Update
+### Risk 2: MCP tool 行为回归（create_new_tab 等）
+- Mitigation: 提供一版兼容命令映射，并记录弃用日志
 
-```typescript
-// 移除 shell 相关的 IPC 事件
-// src/main/events.ts
-
-// 移除:
-// - SHELL_CREATE_TAB
-// - SHELL_CLOSE_TAB
-// - SHELL_ACTIVATE_TAB
-// ...
-
-// 保留/更新:
-// - TAB_CREATED
-// - TAB_CLOSED
-// - TAB_ACTIVATED
-```
-
-## Files to Create/Modify
-
-### Modified Files
-- `src/renderer/src/App.vue` - 整合 shell 逻辑
-- `src/renderer/src/stores/workspace.ts` - 添加 tab 管理
-- `src/renderer/src/router/index.ts` - 更新路由
-- `src/main/presenter/windowPresenter/index.ts` - 更新窗口加载
-- `electron.vite.config.ts` - 更新构建配置（如需要）
-
-### Removed Files
-- `src/renderer/shell/` - 整个目录
-- 相关的 shell 入口配置
-
-## Dependencies
-
-- Phase 1-5 全部完成
-- 所有组件已迁移到 renderer/src
-
-## Testing
-
-- [ ] App loads without shell
-- [ ] Sidebar displays correctly
-- [ ] Tab creation works
-- [ ] Tab switching works
-- [ ] Tab closing works
-- [ ] Session-tab synchronization
-- [ ] Navigation between views
-- [ ] Settings opens correctly
-- [ ] New thread page works
-- [ ] Chat page works
-- [ ] Build produces correct output
+### Risk 3: 快捷键行为变化引发用户困惑
+- Mitigation: 在 release note 和设置页提示“Tab 快捷键已移除/替换”
 
 ## Rollback Plan
 
-如果出现问题，可以通过以下步骤回滚：
-1. 恢复 `shell/` 目录
-2. 恢复 electron 窗口加载配置
-3. 恢复 `workspace.ts` 中的 tab 相关代码
+1. 恢复 `src/renderer/shell/` 与 build entries
+2. 恢复 `TabPresenter` 与 `sessionPresenter/tab/*`
+3. 恢复 thread/session shared contracts 中 tab API
+4. 恢复 YoBrowser tab 模型
