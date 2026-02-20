@@ -6,9 +6,10 @@ import type {
   MESSAGE_METADATA
 } from '@shared/presenter'
 import type { Message } from '@shared/chat'
+import { webContents } from 'electron'
 import { presenter } from '@/presenter'
 import { eventBus, SendTarget } from '@/eventbus'
-import { CONVERSATION_EVENTS, TAB_EVENTS } from '@/events'
+import { CONVERSATION_EVENTS } from '@/events'
 import { DEFAULT_SETTINGS } from '../const'
 import type { MessageManager } from './messageManager'
 
@@ -69,13 +70,9 @@ export class ConversationManager {
   async findTabForConversation(conversationId: string): Promise<number | null> {
     for (const [tabId, activeId] of this.activeConversationIds.entries()) {
       if (activeId === conversationId) {
-        try {
-          const tabView = await presenter.tabPresenter.getTab(tabId)
-          if (tabView && !tabView.webContents.isDestroyed()) {
-            return tabId
-          }
-        } catch (error) {
-          console.error('Error finding tab for conversation:', error)
+        const target = webContents.fromId(tabId)
+        if (target && !target.isDestroyed()) {
+          return tabId
         }
       }
     }
@@ -83,17 +80,17 @@ export class ConversationManager {
   }
 
   private async getTabWindowType(tabId: number): Promise<'floating' | 'main' | 'unknown'> {
-    try {
-      const tabView = await presenter.tabPresenter.getTab(tabId)
-      if (!tabView) {
-        return 'unknown'
-      }
-      const windowId = presenter.tabPresenter.getTabWindowId(tabId)
-      return windowId ? 'main' : 'floating'
-    } catch (error) {
-      console.error('Error determining tab window type:', error)
+    const window = presenter.windowPresenter.getWindowByWebContentsId?.(tabId)
+    if (!window || window.isDestroyed()) {
+      return 'floating'
+    }
+
+    const windowType = presenter.windowPresenter.getWindowType?.(window.id)
+    if (windowType === 'browser') {
       return 'unknown'
     }
+
+    return 'main'
   }
 
   async setActiveConversation(conversationId: string, tabId: number): Promise<void> {
@@ -119,7 +116,10 @@ export class ConversationManager {
         return
       }
 
-      await presenter.tabPresenter.switchTab(existingTabId)
+      const existingWindow = presenter.windowPresenter.getWindowByWebContentsId?.(existingTabId)
+      if (existingWindow && !existingWindow.isDestroyed()) {
+        presenter.windowPresenter.show(existingWindow.id, true)
+      }
       return
     }
 
@@ -267,28 +267,7 @@ export class ConversationManager {
   async renameConversation(conversationId: string, title: string): Promise<CONVERSATION> {
     await this.sqlitePresenter.renameConversation(conversationId, title)
     await this.broadcastThreadListUpdate()
-
-    const conversation = await this.getConversation(conversationId)
-
-    let tabId: number | undefined
-    for (const [key, value] of this.activeConversationIds.entries()) {
-      if (value === conversationId) {
-        tabId = key
-        break
-      }
-    }
-
-    if (tabId !== undefined) {
-      const windowId = presenter.tabPresenter.getTabWindowId(tabId)
-      eventBus.sendToRenderer(TAB_EVENTS.TITLE_UPDATED, SendTarget.ALL_WINDOWS, {
-        tabId,
-        conversationId,
-        title: conversation.title,
-        windowId
-      })
-    }
-
-    return conversation
+    return await this.getConversation(conversationId)
   }
 
   async deleteConversation(conversationId: string): Promise<void> {

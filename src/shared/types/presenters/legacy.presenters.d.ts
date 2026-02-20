@@ -203,6 +203,7 @@ export interface IYoBrowserPresenter {
   hide(): Promise<void>
   toggleVisibility(): Promise<boolean>
   isVisible(): Promise<boolean>
+  getCurrentPage?(): Promise<BrowserTabInfo | null>
   listTabs(): Promise<BrowserTabInfo[]>
   getActiveTab(): Promise<BrowserTabInfo | null>
   createTab(url?: string): Promise<BrowserTabInfo | null>
@@ -230,6 +231,13 @@ export interface IYoBrowserPresenter {
 }
 
 export interface IWindowPresenter {
+  createChatWindow?(options?: { x?: number; y?: number }): Promise<number | null>
+  createBrowserWindow?(options?: {
+    x?: number
+    y?: number
+    initialUrl?: string
+    autoShow?: boolean
+  }): Promise<number | null>
   createShellWindow(options?: {
     activateTabId?: number
     initialTab?: {
@@ -265,6 +273,9 @@ export interface IWindowPresenter {
   isFloatingChatWindowVisible(): boolean
   getFloatingChatWindow(): FloatingChatWindow | null
   getFocusedWindow(): BrowserWindow | undefined
+  getWindowType?(windowId: number): 'chat' | 'browser'
+  getWindowByWebContentsId?(webContentsId: number): BrowserWindow | undefined
+  getWindowWebContents?(windowId: number): Electron.WebContents | null
   sendToActiveTab(windowId: number, channel: string, ...args: unknown[]): Promise<boolean>
   getAllWindows(): BrowserWindow[]
   toggleFloatingChatWindow(floatingButtonPosition?: {

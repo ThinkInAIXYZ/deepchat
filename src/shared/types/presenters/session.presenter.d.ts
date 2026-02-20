@@ -43,7 +43,7 @@ export type SessionConfig = {
 }
 
 export type SessionBindings = {
-  tabId: number | null
+  webContentsId: number | null
   windowId: number | null
   windowType: 'main' | 'floating' | 'browser' | null
 }
@@ -66,13 +66,13 @@ export type Session = {
 
 export type CreateSessionOptions = {
   forceNewAndActivate?: boolean
-  tabId?: number
+  windowId?: number
 }
 
 export type CreateSessionParams = {
   title: string
   settings?: Partial<SessionConfig>
-  tabId?: number
+  windowId?: number
   options?: CreateSessionOptions
 }
 
@@ -82,8 +82,8 @@ export type CreateChildSessionParams = {
   parentSelection: ParentSelection | string
   title: string
   settings?: Partial<SessionConfig>
-  tabId?: number
-  openInNewTab?: boolean
+  windowId?: number
+  openInNewWindow?: boolean
 }
 
 export interface ISessionPresenter extends IThreadPresenter {
@@ -95,10 +95,10 @@ export interface ISessionPresenter extends IThreadPresenter {
   toggleSessionPinned(sessionId: string, pinned: boolean): Promise<void>
   updateSessionSettings(sessionId: string, settings: Partial<Session['config']>): Promise<void>
 
-  bindToTab(sessionId: string, tabId: number): Promise<void>
-  unbindFromTab(tabId: number): Promise<void>
-  activateSession(tabId: number, sessionId: string): Promise<void>
-  getActiveSession(tabId: number): Promise<Session | null>
+  bindToWindow?(sessionId: string, windowId: number): Promise<void>
+  unbindFromWindow?(windowId: number): Promise<void>
+  activateSession(windowId: number, sessionId: string): Promise<void>
+  getActiveSession(windowId: number): Promise<Session | null>
   findTabForSession(
     sessionId: string,
     preferredWindowType?: 'main' | 'floating'

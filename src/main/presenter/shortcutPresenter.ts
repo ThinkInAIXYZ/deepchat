@@ -3,11 +3,7 @@ import { app, globalShortcut } from 'electron'
 import { presenter } from '.'
 import { SHORTCUT_EVENTS, TRAY_EVENTS } from '../events'
 import { eventBus, SendTarget } from '../eventbus'
-import {
-  CommandKey,
-  defaultShortcutKey,
-  ShortcutKeySetting
-} from './configPresenter/shortcutKeySettings'
+import { defaultShortcutKey, ShortcutKeySetting } from './configPresenter/shortcutKeySettings'
 import { IConfigPresenter, IShortcutPresenter } from '@shared/presenter'
 
 export class ShortcutPresenter implements IShortcutPresenter {
@@ -57,17 +53,7 @@ export class ShortcutPresenter implements IShortcutPresenter {
       })
     }
 
-    // Command+T 或 Ctrl+T 在当前窗口创建新标签页
-    if (this.shortcutKeys.NewTab) {
-      globalShortcut.register(this.shortcutKeys.NewTab, () => {
-        const focusedWindow = presenter.windowPresenter.getFocusedWindow()
-        if (focusedWindow?.isFocused()) {
-          eventBus.sendToMain(SHORTCUT_EVENTS.CREATE_NEW_TAB, focusedWindow.id)
-        }
-      })
-    }
-
-    // Command+W 或 Ctrl+W 关闭当前标签页
+    // Command+W 或 Ctrl+W 关闭当前窗口
     if (this.shortcutKeys.CloseTab) {
       globalShortcut.register(this.shortcutKeys.CloseTab, () => {
         const focusedWindow = presenter.windowPresenter.getFocusedWindow()
@@ -77,7 +63,7 @@ export class ShortcutPresenter implements IShortcutPresenter {
             presenter.windowPresenter.closeSettingsWindow()
             return
           }
-          eventBus.sendToMain(SHORTCUT_EVENTS.CLOSE_CURRENT_TAB, focusedWindow.id)
+          presenter.windowPresenter.close(focusedWindow.id)
         }
       })
     }
@@ -148,119 +134,9 @@ export class ShortcutPresenter implements IShortcutPresenter {
       })
     }
 
-    // 添加标签页切换相关快捷键
-
-    // Command+Tab 或 Ctrl+Tab 切换到下一个标签页
-    if (this.shortcutKeys.SwitchNextTab) {
-      globalShortcut.register(this.shortcutKeys.SwitchNextTab, () => {
-        const focusedWindow = presenter.windowPresenter.getFocusedWindow()
-        if (focusedWindow?.isFocused()) {
-          this.switchToNextTab(focusedWindow.id)
-        }
-      })
-    }
-
-    // Ctrl+Shift+Tab 切换到上一个标签页
-    if (this.shortcutKeys.SwitchPrevTab) {
-      globalShortcut.register(this.shortcutKeys.SwitchPrevTab, () => {
-        const focusedWindow = presenter.windowPresenter.getFocusedWindow()
-        if (focusedWindow?.isFocused()) {
-          this.switchToPreviousTab(focusedWindow.id)
-        }
-      })
-    }
-
-    // 注册标签页数字快捷键 (1-8)
-    if (this.shortcutKeys.NumberTabs) {
-      for (let i = 1; i <= 8; i++) {
-        globalShortcut.register(`${CommandKey}+${i}`, () => {
-          const focusedWindow = presenter.windowPresenter.getFocusedWindow()
-          if (focusedWindow?.isFocused()) {
-            this.switchToTabByIndex(focusedWindow.id, i - 1) // 索引从0开始
-          }
-        })
-      }
-    }
-
-    // Command+9 或 Ctrl+9 切换到最后一个标签页
-    if (this.shortcutKeys.SwtichToLastTab) {
-      globalShortcut.register(this.shortcutKeys.SwtichToLastTab, () => {
-        const focusedWindow = presenter.windowPresenter.getFocusedWindow()
-        if (focusedWindow?.isFocused()) {
-          this.switchToLastTab(focusedWindow.id)
-        }
-      })
-    }
-
     this.showHideWindow()
 
     this.isActive = true
-  }
-
-  // 切换到下一个标签页
-  private async switchToNextTab(windowId: number): Promise<void> {
-    try {
-      const tabsData = await presenter.tabPresenter.getWindowTabsData(windowId)
-      if (!tabsData || tabsData.length <= 1) return // 只有一个或没有标签页时不执行切换
-
-      // 找到当前活动标签的索引
-      const activeTabIndex = tabsData.findIndex((tab) => tab.isActive)
-      if (activeTabIndex === -1) return
-
-      // 计算下一个标签页的索引（循环到第一个）
-      const nextTabIndex = (activeTabIndex + 1) % tabsData.length
-
-      // 切换到下一个标签页
-      await presenter.tabPresenter.switchTab(tabsData[nextTabIndex].id)
-    } catch (error) {
-      console.error('Failed to switch to next tab:', error)
-    }
-  }
-
-  // 切换到上一个标签页
-  private async switchToPreviousTab(windowId: number): Promise<void> {
-    try {
-      const tabsData = await presenter.tabPresenter.getWindowTabsData(windowId)
-      if (!tabsData || tabsData.length <= 1) return // 只有一个或没有标签页时不执行切换
-
-      // 找到当前活动标签的索引
-      const activeTabIndex = tabsData.findIndex((tab) => tab.isActive)
-      if (activeTabIndex === -1) return
-
-      // 计算上一个标签页的索引（循环到最后一个）
-      const previousTabIndex = (activeTabIndex - 1 + tabsData.length) % tabsData.length
-
-      // 切换到上一个标签页
-      await presenter.tabPresenter.switchTab(tabsData[previousTabIndex].id)
-    } catch (error) {
-      console.error('Failed to switch to previous tab:', error)
-    }
-  }
-
-  // 切换到指定索引的标签页
-  private async switchToTabByIndex(windowId: number, index: number): Promise<void> {
-    try {
-      const tabsData = await presenter.tabPresenter.getWindowTabsData(windowId)
-      if (!tabsData || index >= tabsData.length) return // 索引超出范围
-
-      // 切换到指定索引的标签页
-      await presenter.tabPresenter.switchTab(tabsData[index].id)
-    } catch (error) {
-      console.error(`Failed to switch to tab at index ${index}:`, error)
-    }
-  }
-
-  // 切换到最后一个标签页
-  private async switchToLastTab(windowId: number): Promise<void> {
-    try {
-      const tabsData = await presenter.tabPresenter.getWindowTabsData(windowId)
-      if (!tabsData || tabsData.length === 0) return
-
-      // 切换到最后一个标签页
-      await presenter.tabPresenter.switchTab(tabsData[tabsData.length - 1].id)
-    } catch (error) {
-      console.error('Failed to switch to last tab:', error)
-    }
   }
 
   // Command+O 或 Ctrl+O 显示/隐藏窗口

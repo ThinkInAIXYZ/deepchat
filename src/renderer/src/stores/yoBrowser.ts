@@ -4,58 +4,61 @@ import type { BrowserTabInfo } from '@shared/types/browser'
 import { YO_BROWSER_EVENTS } from '@/events'
 import { usePresenter } from '@/composables/usePresenter'
 
-function upsertTab(tabs: BrowserTabInfo[], tab: BrowserTabInfo): BrowserTabInfo[] {
-  const next = tabs.slice()
-  const index = next.findIndex((item) => item.id === tab.id)
-  if (index >= 0) {
-    next[index] = tab
-  } else {
-    next.push(tab)
-  }
-  return next
-}
-
 export const useYoBrowserStore = defineStore('yoBrowser', () => {
   const yoBrowserPresenter = usePresenter('yoBrowserPresenter')
-  const tabs = ref<BrowserTabInfo[]>([])
-  const isVisible = ref(false)
-  const activeTabId = ref<string | null>(null)
 
-  const tabCount = computed(() => tabs.value.length)
-  const hasWindow = computed(() => tabs.value.length > 0 || isVisible.value)
+  const currentPage = ref<BrowserTabInfo | null>(null)
+  const isVisible = ref(false)
+  const canGoBack = ref(false)
+  const canGoForward = ref(false)
+
+  const tabs = computed(() => (currentPage.value ? [currentPage.value] : []))
+  const activeTabId = computed(() => currentPage.value?.id ?? null)
+  const tabCount = computed(() => (currentPage.value ? 1 : 0))
+  const hasWindow = computed(() => Boolean(currentPage.value) || isVisible.value)
+
+  const refreshNavigationState = async () => {
+    try {
+      const state = await yoBrowserPresenter.getNavigationState(activeTabId.value ?? undefined)
+      canGoBack.value = Boolean(state?.canGoBack)
+      canGoForward.value = Boolean(state?.canGoForward)
+    } catch {
+      canGoBack.value = false
+      canGoForward.value = false
+    }
+  }
 
   const loadState = async () => {
-    const [list, visible] = await Promise.all([
-      yoBrowserPresenter.listTabs(),
+    const [active, visible] = await Promise.all([
+      yoBrowserPresenter.getActiveTab(),
       yoBrowserPresenter.isVisible()
     ])
-    if (Array.isArray(list)) {
-      tabs.value = list
-      activeTabId.value = list.find((item) => item.isActive)?.id ?? null
-    }
+
+    currentPage.value = active || null
     isVisible.value = Boolean(visible)
+    await refreshNavigationState()
   }
 
   const handleTabCreated = (_event: unknown, tab: BrowserTabInfo) => {
-    tabs.value = upsertTab(tabs.value, tab)
-    if (tab.isActive) {
-      activeTabId.value = tab.id
-    }
+    currentPage.value = tab
+    void refreshNavigationState()
   }
 
-  const handleTabClosed = (_event: unknown, tabId: string) => {
-    tabs.value = tabs.value.filter((t) => t.id !== tabId)
-    if (activeTabId.value === tabId) {
-      activeTabId.value = tabs.value[0]?.id ?? null
-    }
-    if (tabs.value.length === 0) {
-      isVisible.value = false
-    }
+  const handleTabClosed = () => {
+    currentPage.value = null
+    canGoBack.value = false
+    canGoForward.value = false
+    isVisible.value = false
   }
 
   const handleTabActivated = (_event: unknown, tabId: string) => {
-    activeTabId.value = tabId
-    tabs.value = tabs.value.map((tab) => ({ ...tab, isActive: tab.id === tabId }))
+    if (currentPage.value) {
+      currentPage.value = {
+        ...currentPage.value,
+        isActive: currentPage.value.id === tabId
+      }
+    }
+    void refreshNavigationState()
   }
 
   const handleTabNavigated = (
@@ -65,16 +68,19 @@ export const useYoBrowserStore = defineStore('yoBrowser', () => {
       url: string
     }
   ) => {
-    tabs.value = tabs.value.map((tab) =>
-      tab.id === payload.tabId ? { ...tab, url: payload.url } : tab
-    )
+    if (currentPage.value && currentPage.value.id === payload.tabId) {
+      currentPage.value = {
+        ...currentPage.value,
+        url: payload.url,
+        updatedAt: Date.now()
+      }
+    }
+    void refreshNavigationState()
   }
 
   const handleTabUpdated = (_event: unknown, tab: BrowserTabInfo) => {
-    tabs.value = upsertTab(tabs.value, tab)
-    if (tab.isActive) {
-      activeTabId.value = tab.id
-    }
+    currentPage.value = tab
+    void refreshNavigationState()
   }
 
   const handleTabCountChanged = async () => {
@@ -98,6 +104,7 @@ export const useYoBrowserStore = defineStore('yoBrowser', () => {
   const toggleVisibility = async (): Promise<boolean> => {
     const visible = await yoBrowserPresenter.toggleVisibility()
     isVisible.value = Boolean(visible)
+    await loadState()
     return isVisible.value
   }
 
@@ -148,11 +155,14 @@ export const useYoBrowserStore = defineStore('yoBrowser', () => {
   })
 
   return {
+    currentPage,
     tabs,
     isVisible,
     activeTabId,
     tabCount,
     hasWindow,
+    canGoBack,
+    canGoForward,
     show,
     hide,
     toggleVisibility,

@@ -233,10 +233,19 @@ export class MeetingServer {
     const { participants, topic, rounds } = args
 
     // 1. 准备阶段: 定位、验证并准备所有参会者
-    const mainWindowId = presenter.windowPresenter.mainWindow?.id
-    if (!mainWindowId) throw new Error('主窗口未找到，无法开始会议。')
+    const windows = presenter.windowPresenter.getAllWindows()
+    if (windows.length === 0) throw new Error('未找到可用窗口，无法开始会议。')
 
-    const allChatTabs = await presenter.tabPresenter.getWindowTabsData(mainWindowId)
+    const allChatTabs = windows
+      .filter((window) => presenter.windowPresenter.getWindowType?.(window.id) !== 'browser')
+      .map((window) => {
+        const url = window.webContents.getURL()
+        return {
+          id: window.webContents.id,
+          title: window.webContents.getTitle() || 'Chat',
+          url: url || 'local://chat'
+        }
+      })
     const meetingParticipants: MeetingParticipant[] = []
     let nameIndex = 0
 
@@ -336,7 +345,12 @@ export class MeetingServer {
 
     // 在循环开始前，切换到第一个参与者的Tab
     if (meetingParticipants.length > 0) {
-      await presenter.tabPresenter.switchTab(meetingParticipants[0].tabId)
+      const firstWindow = presenter.windowPresenter.getWindowByWebContentsId?.(
+        meetingParticipants[0].tabId
+      )
+      if (firstWindow && !firstWindow.isDestroyed()) {
+        presenter.windowPresenter.show(firstWindow.id, true)
+      }
     }
 
     // 2. 初始化会议(使用会议代号): 向所有参与者发送会议主题、规则和角色画像

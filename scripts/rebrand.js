@@ -387,7 +387,6 @@ function updateHtmlTitles(config) {
 
   const htmlFiles = [
     'src/renderer/index.html',
-    'src/renderer/shell/index.html',
     'src/renderer/floating/index.html',
     'src/renderer/splash/index.html'
   ]
@@ -406,13 +405,7 @@ function updateHtmlTitles(config) {
       const originalContent = content
 
       // 替换 title 标签中的内容
-      if (filePath.includes('shell/index.html')) {
-        // shell 页面的标题格式：AppName - Shell
-        content = content.replace(
-          /<title>DeepChat - Shell<\/title>/,
-          `<title>${config.app.productName} - Shell</title>`
-        )
-      } else if (filePath.includes('floating/index.html')) {
+      if (filePath.includes('floating/index.html')) {
         // floating 页面保持 "Floating Button" 不变
         // 这个页面的标题是功能性的，不需要改为品牌名称
       } else {

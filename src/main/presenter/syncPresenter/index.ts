@@ -11,7 +11,7 @@ import {
   MCPServerConfig
 } from '@shared/presenter'
 import { eventBus, SendTarget } from '@/eventbus'
-import { SYNC_EVENTS } from '@/events'
+import { SYNC_EVENTS, SHORTCUT_EVENTS } from '@/events'
 import { DataImporter } from '../sqlitePresenter/importData'
 import { ImportMode } from '../sqlitePresenter'
 
@@ -266,7 +266,7 @@ export class SyncPresenter implements ISyncPresenter {
       }
       await this.broadcastThreadListUpdateAfterImport()
       if (importMode === ImportMode.OVERWRITE) {
-        await this.resetShellWindowsToSingleNewChatTab()
+        await this.resetChatWindowsToNewConversation()
       }
       eventBus.send(SYNC_EVENTS.IMPORT_COMPLETED, SendTarget.ALL_WINDOWS)
       return {
@@ -563,44 +563,28 @@ export class SyncPresenter implements ISyncPresenter {
     }
   }
 
-  private async resetShellWindowsToSingleNewChatTab(): Promise<void> {
+  private async resetChatWindowsToNewConversation(): Promise<void> {
     try {
       const { presenter } = await import('../index')
       const windowPresenter = presenter?.windowPresenter as any
-      const tabPresenter = presenter?.tabPresenter as any
 
       const windows = (windowPresenter?.getAllWindows?.() as Array<{ id: number }>) ?? []
+      if (windows.length === 0) {
+        await windowPresenter?.createChatWindow?.()
+        return
+      }
+
       await Promise.all(
         windows.map(async ({ id: windowId }) => {
-          const tabsData =
-            (await tabPresenter?.getWindowTabsData?.(windowId)) ??
-            ([] as Array<{ id: number; isActive?: boolean }>)
-
-          if (tabsData.length === 0) {
-            await tabPresenter?.createTab?.(windowId, 'local://chat', { active: true })
+          const windowType = windowPresenter?.getWindowType?.(windowId)
+          if (windowType === 'browser') {
             return
           }
-
-          const tabToKeep = tabsData.find((tab) => tab.isActive) ?? tabsData[0]
-          if (!tabToKeep) {
-            return
-          }
-
-          await tabPresenter?.resetTabToBlank?.(tabToKeep.id)
-          await tabPresenter?.switchTab?.(tabToKeep.id)
-
-          const tabsToClose = tabsData.filter((tab) => tab.id !== tabToKeep.id).map((tab) => tab.id)
-          for (const tabId of tabsToClose) {
-            try {
-              await tabPresenter?.closeTab?.(tabId)
-            } catch (error) {
-              console.warn('Failed to close tab after overwrite import:', tabId, error)
-            }
-          }
+          windowPresenter?.sendToWindow?.(windowId, SHORTCUT_EVENTS.CREATE_NEW_CONVERSATION)
         })
       )
     } catch (error) {
-      console.warn('Failed to reset shell windows after overwrite import:', error)
+      console.warn('Failed to reset chat windows after overwrite import:', error)
     }
   }
 

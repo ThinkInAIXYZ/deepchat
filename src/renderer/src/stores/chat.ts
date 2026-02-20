@@ -418,7 +418,7 @@ export const useChatStore = defineStore('chat', () => {
       const tabId = getTabId()
       await threadP.openConversationInNewTab({
         conversationId: threadId,
-        tabId,
+        windowId: tabId,
         messageId: options?.messageId,
         childConversationId: options?.childConversationId
       })
@@ -851,8 +851,8 @@ export const useChatStore = defineStore('chat', () => {
         parentSelection: payload.parentSelection,
         title,
         settings: parentConversation.settings,
-        tabId: getTabId(),
-        openInNewTab: true
+        windowId: getTabId(),
+        openInNewWindow: true
       })
 
       if (!newThreadId) {

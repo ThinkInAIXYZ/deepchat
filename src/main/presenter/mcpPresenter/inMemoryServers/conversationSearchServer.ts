@@ -4,6 +4,7 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprot
 import { z } from 'zod'
 import { zodToJsonSchema } from 'zod-to-json-schema'
 import { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
+import { webContents } from 'electron'
 import { presenter } from '@/presenter' // 导入全局的 presenter 对象
 import { eventBus } from '@/eventbus' // 引入 eventBus
 import { TAB_EVENTS } from '@/events'
@@ -45,18 +46,17 @@ const GetConversationStatsArgsSchema = z.object({
   days: z.number().optional().default(30).describe('Statistics period in days (default 30 days)')
 })
 
-const CreateNewTabArgsSchema = z.object({
+const CreateNewWindowArgsSchema = z.object({
   url: z
     .enum(['local://chat'])
     .default('local://chat') // 默认 URL 为 local://chat
-    .describe('URL for the new tab. Defaults to local://chat.'),
+    .describe('URL for the new window. Defaults to local://chat.'),
   active: z
     .boolean()
     .optional()
     .default(true)
-    .describe('Whether the new tab should be active. Defaults to true.'),
-  position: z.number().optional().describe('Optional position for the new tab in the tab bar.'),
-  userInput: z.string().optional().describe('Optional initial user input for the new chat tab.')
+    .describe('Whether the new window should be focused. Defaults to true.'),
+  userInput: z.string().optional().describe('Optional initial user input for the new chat window.')
 })
 
 interface SearchResult {
@@ -517,12 +517,21 @@ export class ConversationSearchServer {
             }
           },
           {
-            name: 'create_new_tab',
+            name: 'create_new_window',
             description:
-              'Creates a new tab. If userInput is provided, it also creates a new chat session and sends the input as the first message, then returns tabId and threadId.',
-            inputSchema: zodToJsonSchema(CreateNewTabArgsSchema),
+              'Creates a new chat window. If userInput is provided, it also creates a new chat session and sends the input as the first message, then returns windowId and threadId.',
+            inputSchema: zodToJsonSchema(CreateNewWindowArgsSchema),
             annotations: {
-              title: 'Create New Tab',
+              title: 'Create New Window',
+              destructiveHint: false
+            }
+          },
+          {
+            name: 'create_new_tab',
+            description: 'Deprecated alias of create_new_window. Kept for backward compatibility.',
+            inputSchema: zodToJsonSchema(CreateNewWindowArgsSchema),
+            annotations: {
+              title: 'Create New Tab (Deprecated)',
               destructiveHint: false
             }
           }
@@ -592,42 +601,61 @@ export class ConversationSearchServer {
               ]
             }
           }
+          case 'create_new_window':
           case 'create_new_tab': {
+            if (name === 'create_new_tab') {
+              console.warn(
+                '[conversation-search-server] create_new_tab is deprecated, use create_new_window'
+              )
+            }
             // 解析参数，url默认值 'local://chat'
-            const { url, active, position, userInput } = CreateNewTabArgsSchema.parse(args)
+            const { url, active, userInput } = CreateNewWindowArgsSchema.parse(args)
 
             const mainWindowId = presenter.windowPresenter.mainWindow?.id
             if (!mainWindowId) {
-              throw new Error('Main application window not found to create a new tab.')
+              throw new Error('Main application window not found to create a new window.')
             }
 
-            // 步骤 1: 创建 Tab，并获取 tabId
-            const newTabId = await presenter.tabPresenter.createTab(mainWindowId, url, {
-              active,
-              position
-            })
+            // 步骤 1: 创建窗口并解析 webContentsId（窗口内唯一视图）
+            const createChatWindow = (presenter.windowPresenter as any).createChatWindow
+            const newWindowId =
+              typeof createChatWindow === 'function'
+                ? await createChatWindow.call(presenter.windowPresenter)
+                : await presenter.windowPresenter.createShellWindow({
+                    initialTab: { url }
+                  })
+            const resolvedWindowId = newWindowId ?? mainWindowId
+            const resolvedWebContentsId =
+              presenter.windowPresenter.getWindowWebContents?.(resolvedWindowId)?.id ??
+              presenter.windowPresenter.mainWindow?.webContents.id
 
-            if (!newTabId) {
-              throw new Error('Failed to create new tab.')
+            if (typeof resolvedWebContentsId !== 'number') {
+              throw new Error('Failed to create new window.')
+            }
+
+            if (active) {
+              presenter.windowPresenter.show(resolvedWindowId, true)
             }
 
             // 如果没有 userInput，流程结束
             if (!userInput) {
               return {
-                content: [{ type: 'text', text: JSON.stringify({ tabId: newTabId }) }]
+                content: [
+                  {
+                    type: 'text',
+                    text: JSON.stringify({
+                      windowId: resolvedWindowId,
+                      webContentsId: resolvedWebContentsId,
+                      tabId: resolvedWebContentsId
+                    })
+                  }
+                ]
               }
             }
 
-            // 等待 Tab 加载完成
-            const newTabView = await presenter.tabPresenter.getTab(newTabId)
-            if (!newTabView) {
-              throw new Error(`Could not find view for new tab ${newTabId}`)
-            }
-
             // ★ 等待渲染进程中的 Vue/Pinia 应用初始化完成
-            const newWebContentsId = newTabView.webContents.id
             try {
-              await awaitTabReady(newWebContentsId)
+              await awaitTabReady(resolvedWebContentsId)
             } catch (error) {
               console.error(error)
               throw new Error("Failed to communicate with the new tab's renderer process.")
@@ -637,7 +665,7 @@ export class ConversationSearchServer {
             const newThreadId = await presenter.sessionPresenter.createConversation(
               'New Chat', // 临时标题
               {}, // 默认设置
-              newTabId
+              resolvedWebContentsId
             )
 
             if (!newThreadId) {
@@ -656,7 +684,14 @@ export class ConversationSearchServer {
             }
 
             // 步骤 3: 发送指令给渲染进程，让它来发送消息，必须页面Activated之后才能发送
-            newTabView.webContents.send('command:send-initial-message', {
+            const targetWebContents =
+              presenter.windowPresenter.getWindowWebContents?.(resolvedWindowId) ??
+              webContents.fromId(resolvedWebContentsId)
+            if (!targetWebContents || targetWebContents.isDestroyed()) {
+              throw new Error("Failed to communicate with the new tab's renderer process.")
+            }
+
+            targetWebContents.send('command:send-initial-message', {
               userInput: userInput
             })
 
@@ -664,7 +699,12 @@ export class ConversationSearchServer {
               content: [
                 {
                   type: 'text',
-                  text: JSON.stringify({ tabId: newTabId, threadId: newThreadId })
+                  text: JSON.stringify({
+                    windowId: resolvedWindowId,
+                    webContentsId: resolvedWebContentsId,
+                    tabId: resolvedWebContentsId,
+                    threadId: newThreadId
+                  })
                 }
               ]
             }

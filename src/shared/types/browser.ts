@@ -54,9 +54,11 @@ export type BrowserEvent =
   | { type: 'tab-activated'; tabId: string }
   | { type: 'tab-closed'; tabId: string }
   | { type: 'tab-navigated'; tabId: string; url: string }
+  | { type: 'page-updated'; page: BrowserTabInfo | null }
   | { type: 'window-visibility-changed'; visible: boolean }
 
 export interface BrowserContextSnapshot {
   activeTabId: string | null
   tabs: BrowserTabInfo[]
+  currentPage?: BrowserTabInfo | null
 }

@@ -100,7 +100,7 @@ export interface IThreadPresenter {
   createConversation(
     title: string,
     settings: Partial<CONVERSATION_SETTINGS>,
-    tabId: number,
+    windowId: number,
     options?: { forceNewAndActivate?: boolean }
   ): Promise<string>
   deleteConversation(conversationId: string): Promise<void>
@@ -127,8 +127,8 @@ export interface IThreadPresenter {
     parentSelection: ParentSelection | string
     title: string
     settings?: Partial<CONVERSATION_SETTINGS>
-    tabId?: number
-    openInNewTab?: boolean
+    windowId?: number
+    openInNewWindow?: boolean
   }): Promise<string>
 
   // Conversation list and activation status
@@ -139,17 +139,24 @@ export interface IThreadPresenter {
   listChildConversationsByParent(parentConversationId: string): Promise<CONVERSATION[]>
   listChildConversationsByMessageIds(parentMessageIds: string[]): Promise<CONVERSATION[]>
   loadMoreThreads(): Promise<{ hasMore: boolean; total: number }>
-  setActiveConversation(conversationId: string, tabId: number): Promise<void>
-  openConversationInNewTab(payload: {
+  setActiveConversation(conversationId: string, windowId: number): Promise<void>
+  openConversationInNewWindow?(payload: {
     conversationId: string
-    tabId?: number
+    windowId?: number
     messageId?: string
     childConversationId?: string
   }): Promise<number | null>
-  getActiveConversation(tabId: number): Promise<CONVERSATION | null>
-  getActiveConversationId(tabId: number): Promise<string | null>
-  getActiveConversationIdSync(tabId: number): string | null
-  clearActiveThread(tabId: number): Promise<void>
+  openConversationInNewTab(payload: {
+    conversationId: string
+    windowId?: number
+    messageId?: string
+    childConversationId?: string
+  }): Promise<number | null>
+  getActiveConversation(windowId: number): Promise<CONVERSATION | null>
+  getActiveConversationId(windowId: number): Promise<string | null>
+  getActiveConversationIdSync(windowId: number): string | null
+  clearActiveThread(windowId: number): Promise<void>
+  findWindowForConversation?(conversationId: string): Promise<number | null>
   findTabForConversation(conversationId: string): Promise<number | null>
 
   getSearchResults(messageId: string, searchId?: string): Promise<SearchResult[]>

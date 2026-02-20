@@ -5,10 +5,6 @@
     "src/renderer/src/**/*",
     "src/renderer/src/**/*.vue",
     "src/renderer/src/assets/**/*",
-    "src/renderer/shell/env.d.ts",
-    "src/renderer/shell/**/*",
-    "src/renderer/shell/**/*.vue",
-    "src/renderer/shell/assets/**/*",
     "src/renderer/floating/env.d.ts",
     "src/renderer/floating/**/*",
     "src/renderer/floating/**/*.vue",
@@ -31,9 +27,6 @@
     "paths": {
       "@/*": [
         "./src/renderer/src/*"
-      ],
-      "@shell/*": [
-        "./src/renderer/shell/*"
       ],
       "@shared/*": [
         "./src/shared/*"

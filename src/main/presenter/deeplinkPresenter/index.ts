@@ -258,15 +258,13 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
     console.log('autoSend:', autoSend, '(disabled for security)')
 
     const focusedWindow = presenter.windowPresenter.getFocusedWindow()
-    if (focusedWindow) {
-      focusedWindow.show()
-      focusedWindow.focus()
+    const windowId = await this.ensureChatWindowActive(focusedWindow?.id)
+    if (typeof windowId === 'number') {
+      presenter.windowPresenter.show(windowId, true)
     } else {
       presenter.windowPresenter.show()
     }
 
-    const windowId = focusedWindow?.id || 1
-    await this.ensureChatTabActive(windowId)
     eventBus.sendToRenderer(DEEPLINK_EVENTS.START, SendTarget.DEFAULT_TAB, {
       msg,
       modelId,
@@ -277,62 +275,34 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
   }
 
   /**
-   * 确保有一个活动的 chat 标签页
-   * @param windowId 窗口ID
+   * 确保有一个可用的聊天窗口并返回其ID
    */
-  private async ensureChatTabActive(windowId: number): Promise<void> {
+  private async ensureChatWindowActive(windowId?: number): Promise<number | null> {
     try {
-      const tabPresenter = presenter.tabPresenter
-      const tabsData = await tabPresenter.getWindowTabsData(windowId)
-      const chatTab = tabsData.find(
-        (tab) =>
-          tab.url === 'local://chat' || tab.url.includes('#/chat') || tab.url.endsWith('/chat')
-      )
-      if (chatTab) {
-        if (!chatTab.isActive) {
-          await tabPresenter.switchTab(chatTab.id)
-          await new Promise((resolve) => setTimeout(resolve, 100))
+      if (typeof windowId === 'number') {
+        const directType = presenter.windowPresenter.getWindowType?.(windowId)
+        if (directType === 'chat') {
+          return windowId
         }
-      } else {
-        const newTabId = await tabPresenter.createTab(windowId, 'local://chat', { active: true })
-        if (newTabId) {
-          console.log(`[Deeplink] Waiting for tab ${newTabId} renderer to be ready`)
-          await this.waitForTabReady(newTabId)
+
+        const mappedWindowId = presenter.windowPresenter.getWindowByWebContentsId?.(windowId)?.id
+        if (
+          mappedWindowId &&
+          presenter.windowPresenter.getWindowType?.(mappedWindowId) === 'chat'
+        ) {
+          return mappedWindowId
         }
+      }
+
+      const createChatWindow = (presenter.windowPresenter as any).createChatWindow
+      if (typeof createChatWindow === 'function') {
+        const created = await createChatWindow.call(presenter.windowPresenter)
+        return typeof created === 'number' ? created : null
       }
     } catch (error) {
-      console.error('Error ensuring chat tab active:', error)
+      console.error('Error ensuring chat window active:', error)
     }
-  }
-
-  /**
-   * 等待标签页渲染进程准备就绪
-   * @param tabId 标签页ID
-   */
-  private async waitForTabReady(tabId: number): Promise<void> {
-    return new Promise((resolve) => {
-      let resolved = false
-      const onTabReady = (readyTabId: number) => {
-        if (readyTabId === tabId && !resolved) {
-          resolved = true
-          console.log(`[Deeplink] Tab ${tabId} renderer is ready`)
-          eventBus.off('tab:renderer-ready', onTabReady)
-          clearTimeout(timeoutId)
-          resolve()
-        }
-      }
-
-      eventBus.on('tab:renderer-ready', onTabReady)
-
-      const timeoutId = setTimeout(() => {
-        if (!resolved) {
-          resolved = true
-          eventBus.off('tab:renderer-ready', onTabReady)
-          console.log(`[Deeplink] Timeout waiting for tab ${tabId}, proceeding anyway`)
-          resolve()
-        }
-      }, 3000)
-    })
+    return null
   }
 
   async handleMcpInstall(params: URLSearchParams): Promise<void> {

@@ -69,7 +69,7 @@
                   <Icon icon="lucide:pencil" class="h-4 w-4" />
                 </Button>
                 <Button
-                  v-if="shortcut.key.length && (!shortcut.disabled || shortcut.isNumberTabs)"
+                  v-if="shortcut.key.length && !shortcut.disabled"
                   variant="ghost"
                   size="icon"
                   class="h-8 w-8 text-muted-foreground hover:text-destructive"
@@ -188,31 +188,9 @@ const shortcutMapping: Record<
     icon: 'lucide:app-window',
     label: 'settings.shortcuts.newWindow'
   },
-  NewTab: {
-    icon: 'lucide:plus',
-    label: 'settings.shortcuts.newTab'
-  },
   CloseTab: {
     icon: 'lucide:x',
     label: 'settings.shortcuts.closeTab'
-  },
-  SwitchNextTab: {
-    icon: 'lucide:arrow-right',
-    label: 'settings.shortcuts.nextTab'
-  },
-  SwitchPrevTab: {
-    icon: 'lucide:arrow-left',
-    label: 'settings.shortcuts.previousTab'
-  },
-  NumberTabs: {
-    icon: 'lucide:list-ordered',
-    label: 'settings.shortcuts.specificTab',
-    key: 'CommandOrControl+1...8',
-    disabled: true
-  },
-  SwtichToLastTab: {
-    icon: 'lucide:move-horizontal',
-    label: 'settings.shortcuts.lastTab'
   },
   ZoomIn: {
     icon: 'lucide:zoom-in',
@@ -260,8 +238,7 @@ const shortcuts = computed(() => {
         icon: value.icon,
         label: value.label,
         key: formattedKey,
-        disabled: value.disabled,
-        isNumberTabs: key === 'NumberTabs'
+        disabled: value.disabled
       }
     })
   } catch (error) {
