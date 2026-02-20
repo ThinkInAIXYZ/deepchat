@@ -1,3 +1,12 @@
 {
-  "prompt": "Что бы вы хотели спросить сегодня?"
+  "prompt": "Что бы вы хотели спросить сегодня?",
+  "selectAgent": "Select Agent",
+  "templateAgents": "Template Agents",
+  "acpAgents": "ACP Agents",
+  "manageAgents": "Manage Agents...",
+  "selectDirectory": "Select directory",
+  "recentDirectories": "Recent Directories",
+  "browseDirectory": "Browse other directory...",
+  "clearDirectory": "Clear selection",
+  "noModels": "No models available"
 }

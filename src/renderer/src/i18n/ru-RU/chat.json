@@ -25,7 +25,20 @@
     "acpModeTooltip": "Текущий режим: {mode}",
     "agentWorkspaceCurrent": "Текущий рабочий каталог: {path}",
     "agentWorkspaceSelect": "Выберите рабочий каталог",
-    "agentWorkspaceTooltip": "Установить рабочий каталог агента"
+    "agentWorkspaceTooltip": "Установить рабочий каталог агента",
+    "agentInfo": "Agent Info",
+    "agentLabel": "Agent",
+    "providerLabel": "Provider",
+    "modelLabel": "Model",
+    "commandLabel": "Command",
+    "viewAgentSettings": "View Agent Settings",
+    "unknownAgent": "Unknown Agent",
+    "workdir": "Working Directory",
+    "workdirRecent": "Recent Directories",
+    "workdirBrowse": "Browse other directory...",
+    "workdirReset": "Reset to default",
+    "workdirNoDirectory": "No directory",
+    "workdirNoRecent": "No recent directories"
   },
   "features": {
     "webSearch": "Поиск в интернете",

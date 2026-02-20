@@ -32,7 +32,20 @@
     "fileArea": "fil område",
     "agentWorkspaceCurrent": "Nuværende arbejdsmappe: {path}",
     "agentWorkspaceSelect": "Vælg arbejdsmappe",
-    "agentWorkspaceTooltip": "Indstil agentens arbejdsmappe"
+    "agentWorkspaceTooltip": "Indstil agentens arbejdsmappe",
+    "agentInfo": "Agent Info",
+    "agentLabel": "Agent",
+    "providerLabel": "Provider",
+    "modelLabel": "Model",
+    "commandLabel": "Command",
+    "viewAgentSettings": "View Agent Settings",
+    "unknownAgent": "Unknown Agent",
+    "workdir": "Working Directory",
+    "workdirRecent": "Recent Directories",
+    "workdirBrowse": "Browse other directory...",
+    "workdirReset": "Reset to default",
+    "workdirNoDirectory": "No directory",
+    "workdirNoRecent": "No recent directories"
   },
   "mcpUi": {
     "badge": "UI",

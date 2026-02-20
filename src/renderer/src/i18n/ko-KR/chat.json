@@ -25,7 +25,20 @@
     "acpModeTooltip": "현재 모드: {mode}",
     "agentWorkspaceCurrent": "현재 작업 디렉터리: {path}",
     "agentWorkspaceSelect": "작업 디렉터리 선택",
-    "agentWorkspaceTooltip": "에이전트 작업 디렉터리 설정"
+    "agentWorkspaceTooltip": "에이전트 작업 디렉터리 설정",
+    "agentInfo": "Agent Info",
+    "agentLabel": "Agent",
+    "providerLabel": "Provider",
+    "modelLabel": "Model",
+    "commandLabel": "Command",
+    "viewAgentSettings": "View Agent Settings",
+    "unknownAgent": "Unknown Agent",
+    "workdir": "Working Directory",
+    "workdirRecent": "Recent Directories",
+    "workdirBrowse": "Browse other directory...",
+    "workdirReset": "Reset to default",
+    "workdirNoDirectory": "No directory",
+    "workdirNoRecent": "No recent directories"
   },
   "features": {
     "webSearch": "웹 검색",

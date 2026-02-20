@@ -25,7 +25,20 @@
     "acpModeTooltip": "目前模式：{mode}",
     "agentWorkspaceCurrent": "當前工作目錄：{path}",
     "agentWorkspaceSelect": "選擇工作目錄",
-    "agentWorkspaceTooltip": "設置 Agent 工作目錄"
+    "agentWorkspaceTooltip": "設置 Agent 工作目錄",
+    "agentInfo": "Agent Info",
+    "agentLabel": "Agent",
+    "providerLabel": "Provider",
+    "modelLabel": "Model",
+    "commandLabel": "Command",
+    "viewAgentSettings": "View Agent Settings",
+    "unknownAgent": "Unknown Agent",
+    "workdir": "Working Directory",
+    "workdirRecent": "Recent Directories",
+    "workdirBrowse": "Browse other directory...",
+    "workdirReset": "Reset to default",
+    "workdirNoDirectory": "No directory",
+    "workdirNoRecent": "No recent directories"
   },
   "features": {
     "webSearch": "網路搜尋",

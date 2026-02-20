@@ -106,6 +106,7 @@
     "groupByDate": "Group by Date",
     "newChat": "New Chat",
     "noConversations": "No conversations yet",
-    "startNewChat": "Click + to start a new chat"
+    "startNewChat": "Click + to start a new chat",
+    "localAgent": "Local Agent"
   }
 }

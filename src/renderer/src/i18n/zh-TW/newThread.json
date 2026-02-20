@@ -1,3 +1,12 @@
 {
-  "prompt": "今天您想問些什麼呢？"
+  "prompt": "今天您想問些什麼呢？",
+  "selectAgent": "Select Agent",
+  "templateAgents": "Template Agents",
+  "acpAgents": "ACP Agents",
+  "manageAgents": "Manage Agents...",
+  "selectDirectory": "Select directory",
+  "recentDirectories": "Recent Directories",
+  "browseDirectory": "Browse other directory...",
+  "clearDirectory": "Clear selection",
+  "noModels": "No models available"
 }
