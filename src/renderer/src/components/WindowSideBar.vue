@@ -24,7 +24,7 @@
               <Icon icon="lucide:layers" class="w-4 h-4 text-foreground/80" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent side="right">{{ t('sidebar.allAgents') }}</TooltipContent>
+          <TooltipContent side="right">{{ t('common.sidebar.allAgents') }}</TooltipContent>
         </Tooltip>
 
         <div class="w-5 h-px bg-border my-1"></div>
@@ -54,7 +54,7 @@
             </Button>
           </TooltipTrigger>
           <TooltipContent side="right">{{
-            agent.type === 'local' ? t('sidebar.localAgent') : agent.name
+            agent.type === 'local' ? t('common.sidebar.localAgent') : agent.name
           }}</TooltipContent>
         </Tooltip>
 
@@ -78,7 +78,7 @@
             </Button>
           </TooltipTrigger>
           <TooltipContent side="right">{{
-            collapsed ? t('sidebar.expandSidebar') : t('sidebar.collapseSidebar')
+            collapsed ? t('common.sidebar.expandSidebar') : t('common.sidebar.collapseSidebar')
           }}</TooltipContent>
         </Tooltip>
 
@@ -97,7 +97,7 @@
               <Icon icon="lucide:bug" class="w-4 h-4" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent side="right">{{ t('sidebar.toggleWelcomePage') }}</TooltipContent>
+          <TooltipContent side="right">{{ t('common.sidebar.toggleWelcomePage') }}</TooltipContent>
         </Tooltip>
 
         <Tooltip>
@@ -154,8 +154,8 @@
               </TooltipTrigger>
               <TooltipContent>{{
                 sessionListGroupBy === 'project'
-                  ? t('sidebar.groupByDate')
-                  : t('sidebar.groupByProject')
+                  ? t('common.sidebar.groupByDate')
+                  : t('common.sidebar.groupByProject')
               }}</TooltipContent>
             </Tooltip>
             <Tooltip>
@@ -167,7 +167,7 @@
                   <Icon icon="lucide:plus" class="w-4 h-4" />
                 </button>
               </TooltipTrigger>
-              <TooltipContent>{{ t('sidebar.newChat') }}</TooltipContent>
+              <TooltipContent>{{ t('common.sidebar.newChat') }}</TooltipContent>
             </Tooltip>
           </div>
         </div>
@@ -184,8 +184,12 @@
             class="flex flex-col items-center justify-center h-full px-4 text-center"
           >
             <Icon icon="lucide:message-square-plus" class="w-8 h-8 text-muted-foreground/40 mb-3" />
-            <p class="text-sm text-muted-foreground/60">{{ t('sidebar.noConversations') }}</p>
-            <p class="text-xs text-muted-foreground/40 mt-1">{{ t('sidebar.startNewChat') }}</p>
+            <p class="text-sm text-muted-foreground/60">
+              {{ t('common.sidebar.noConversations') }}
+            </p>
+            <p class="text-xs text-muted-foreground/40 mt-1">
+              {{ t('common.sidebar.startNewChat') }}
+            </p>
           </div>
 
           <template v-else>
@@ -296,10 +300,10 @@ const { mockSessionId, showMockWelcome, selectSession } = useMockViewState()
 const collapsed = ref(false)
 
 const selectedAgentName = computed(() => {
-  if (agentStore.selectedAgentId === null) return t('sidebar.allAgents')
-  if (agentStore.selectedAgentId === LOCAL_AGENT_ID) return t('sidebar.localAgent')
+  if (agentStore.selectedAgentId === null) return t('common.sidebar.allAgents')
+  if (agentStore.selectedAgentId === LOCAL_AGENT_ID) return t('common.sidebar.localAgent')
   const agent = agentStore.allAgents.find((a) => a.id === agentStore.selectedAgentId)
-  return agent?.name ?? t('sidebar.allAgents')
+  return agent?.name ?? t('common.sidebar.allAgents')
 })
 
 function toggleGroupBy() {

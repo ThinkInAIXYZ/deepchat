@@ -81,7 +81,7 @@ const { t } = useI18n()
 
 const agentName = computed(() => {
   if (!props.agent) return t('chat.input.unknownAgent')
-  if (props.agent.type === 'local') return t('sidebar.localAgent')
+  if (props.agent.type === 'local') return t('common.sidebar.localAgent')
   return props.agent.name
 })
 
