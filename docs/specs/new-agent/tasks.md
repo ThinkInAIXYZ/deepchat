@@ -1,4 +1,4 @@
-# New Agent Architecture v0 — Tasks
+# New Agent Architecture — Tasks
 
 ## T0 Shared Types & Events
 
@@ -75,3 +75,14 @@
 - [x] Integration test: crash recovery — insert pending message, reinit, verify status = error (`test/main/presenter/newAgentPresenter/integration.test.ts`)
 - [ ] Verify old UI regression: old `sessionPresenter` / `chatStore` still functional — zero impact
 - [ ] Manual verify: run `pnpm run dev`, create session via NewThreadPage, see streamed response
+
+---
+
+## v1: Multi-Turn Context Assembly
+
+- [x] Create `src/main/presenter/deepchatAgentPresenter/contextBuilder.ts` — context assembly + truncation
+- [x] Modify `processMessage` in `deepchatAgentPresenter/index.ts` — wire context builder
+- [x] Unit tests for context builder (`test/main/presenter/deepchatAgentPresenter/contextBuilder.test.ts`)
+- [x] Update `deepchatAgentPresenter.test.ts` — mock `getDefaultSystemPrompt`, verify multi-turn messages
+- [x] Update `integration.test.ts` — verify multi-turn flow end-to-end
+- [x] Quality gate: typecheck, lint, format, tests

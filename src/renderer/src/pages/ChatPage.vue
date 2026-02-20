@@ -1,6 +1,6 @@
 <template>
   <TooltipProvider :delay-duration="200">
-    <div class="h-full overflow-y-auto">
+    <div ref="scrollContainer" class="h-full overflow-y-auto" @scroll="onScroll">
       <ChatTopBar :title="sessionTitle" :project="sessionProject" />
       <MessageList :messages="displayMessages" />
 
@@ -20,7 +20,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import { TooltipProvider } from '@shadcn/components/ui/tooltip'
 import ChatTopBar from '@/components/chat/ChatTopBar.vue'
 import MessageList from '@/components/chat/MessageList.vue'
@@ -42,11 +42,34 @@ const messageStore = useMessageStore()
 const sessionTitle = computed(() => sessionStore.activeSession?.title ?? 'New Chat')
 const sessionProject = computed(() => sessionStore.activeSession?.projectDir ?? '')
 
-// Load messages when sessionId changes
+// --- Auto-scroll ---
+const scrollContainer = ref<HTMLDivElement>()
+// Track whether user is near the bottom; if they scroll up, stop auto-following
+const isNearBottom = ref(true)
+const NEAR_BOTTOM_THRESHOLD = 80 // px
+
+function scrollToBottom() {
+  const el = scrollContainer.value
+  if (!el) return
+  el.scrollTop = el.scrollHeight
+}
+
+function onScroll() {
+  const el = scrollContainer.value
+  if (!el) return
+  const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+  isNearBottom.value = distanceFromBottom <= NEAR_BOTTOM_THRESHOLD
+}
+
+// Load messages when sessionId changes, then scroll to bottom
 watch(
   () => props.sessionId,
-  (id) => {
-    if (id) messageStore.loadMessages(id)
+  async (id) => {
+    if (id) {
+      await messageStore.loadMessages(id)
+      await nextTick()
+      scrollToBottom()
+    }
   },
   { immediate: true }
 )
@@ -123,12 +146,24 @@ const displayMessages = computed(() => {
   return msgs
 })
 
+// Auto-scroll when displayMessages changes (new message added, streaming updates)
+watch(
+  displayMessages,
+  () => {
+    if (isNearBottom.value) {
+      nextTick(scrollToBottom)
+    }
+  },
+  { deep: true }
+)
+
 const message = ref('')
 
 async function onSubmit() {
   const text = message.value.trim()
   if (!text) return
   message.value = ''
+  messageStore.addOptimisticUserMessage(props.sessionId, text)
   await sessionStore.sendMessage(props.sessionId, text)
 }
 </script>

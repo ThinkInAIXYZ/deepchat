@@ -37,17 +37,15 @@ function createMocks() {
   } as unknown as AgentRegistry
 
   const sessionManager = {
-    get: vi
-      .fn()
-      .mockReturnValue({
-        id: 's1',
-        agentId: 'deepchat',
-        title: 'Test',
-        projectDir: null,
-        isPinned: false,
-        createdAt: 1000,
-        updatedAt: 1000
-      })
+    get: vi.fn().mockReturnValue({
+      id: 's1',
+      agentId: 'deepchat',
+      title: 'Test',
+      projectDir: null,
+      isPinned: false,
+      createdAt: 1000,
+      updatedAt: 1000
+    })
   } as unknown as NewSessionManager
 
   return { mockAgent, agentRegistry, sessionManager }

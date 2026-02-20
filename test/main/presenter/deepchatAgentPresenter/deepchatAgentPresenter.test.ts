@@ -69,8 +69,11 @@ function createMockLlmProviderPresenter() {
 
 function createMockConfigPresenter() {
   return {
-    getModelConfig: vi.fn().mockReturnValue({ temperature: 0.7, maxTokens: 4096 }),
-    getDefaultModel: vi.fn().mockReturnValue({ providerId: 'openai', modelId: 'gpt-4' })
+    getModelConfig: vi
+      .fn()
+      .mockReturnValue({ temperature: 0.7, maxTokens: 4096, contextLength: 128000 }),
+    getDefaultModel: vi.fn().mockReturnValue({ providerId: 'openai', modelId: 'gpt-4' }),
+    getDefaultSystemPrompt: vi.fn().mockResolvedValue('You are a helpful assistant.')
   } as any
 }
 
@@ -184,19 +187,86 @@ describe('DeepChatAgentPresenter', () => {
       expect(assistantInsert.content).toBe('[]')
     })
 
-    it('calls LLM coreStream with correct parameters', async () => {
+    it('calls LLM coreStream with system prompt and user message', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       await agent.processMessage('s1', 'Hello')
 
       const providerInstance = llmProvider.getProviderInstance.mock.results[0].value
       expect(providerInstance.coreStream).toHaveBeenCalledWith(
-        [{ role: 'user', content: 'Hello' }],
+        [
+          { role: 'system', content: 'You are a helpful assistant.' },
+          { role: 'user', content: 'Hello' }
+        ],
         'gpt-4',
         expect.any(Object),
         0.7,
         4096,
         []
       )
+    })
+
+    it('includes conversation history in LLM call', async () => {
+      // Set up: first user message already in DB as sent
+      const existingMessages = [
+        {
+          id: 'prev-user',
+          session_id: 's1',
+          order_seq: 1,
+          role: 'user',
+          content: JSON.stringify({
+            text: 'First message',
+            files: [],
+            links: [],
+            search: false,
+            think: false
+          }),
+          status: 'sent',
+          is_context_edge: 0,
+          metadata: '{}',
+          created_at: Date.now(),
+          updated_at: Date.now()
+        },
+        {
+          id: 'prev-asst',
+          session_id: 's1',
+          order_seq: 2,
+          role: 'assistant',
+          content: JSON.stringify([
+            { type: 'content', content: 'First reply', status: 'success', timestamp: Date.now() }
+          ]),
+          status: 'sent',
+          is_context_edge: 0,
+          metadata: '{}',
+          created_at: Date.now(),
+          updated_at: Date.now()
+        }
+      ]
+      sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue(existingMessages)
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.processMessage('s1', 'Second message')
+
+      const providerInstance = llmProvider.getProviderInstance.mock.results[0].value
+      const messagesArg = providerInstance.coreStream.mock.calls[0][0]
+
+      expect(messagesArg).toEqual([
+        { role: 'system', content: 'You are a helpful assistant.' },
+        { role: 'user', content: 'First message' },
+        { role: 'assistant', content: 'First reply' },
+        { role: 'user', content: 'Second message' }
+      ])
+    })
+
+    it('omits system prompt when empty', async () => {
+      configPresenter.getDefaultSystemPrompt.mockResolvedValue('')
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.processMessage('s1', 'Hello')
+
+      const providerInstance = llmProvider.getProviderInstance.mock.results[0].value
+      const messagesArg = providerInstance.coreStream.mock.calls[0][0]
+
+      expect(messagesArg).toEqual([{ role: 'user', content: 'Hello' }])
     })
 
     it('calls handleStream with correct context', async () => {

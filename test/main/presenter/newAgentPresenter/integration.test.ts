@@ -156,7 +156,10 @@ function createMockLlmProviderPresenter() {
 function createMockConfigPresenter() {
   return {
     getDefaultModel: vi.fn().mockReturnValue({ providerId: 'openai', modelId: 'gpt-4' }),
-    getModelConfig: vi.fn().mockReturnValue({ temperature: 0.7, maxTokens: 4096 })
+    getModelConfig: vi
+      .fn()
+      .mockReturnValue({ temperature: 0.7, maxTokens: 4096, contextLength: 128000 }),
+    getDefaultSystemPrompt: vi.fn().mockResolvedValue('You are a helpful assistant.')
   } as any
 }
 
@@ -256,6 +259,57 @@ describe('Integration: createSession end-to-end', () => {
     expect(sqlitePresenter.deepchatMessagesTable.deleteBySession).toHaveBeenCalledWith(session.id)
     expect(sqlitePresenter.deepchatSessionsTable.delete).toHaveBeenCalledWith(session.id)
     expect(sqlitePresenter.newSessionsTable.delete).toHaveBeenCalledWith(session.id)
+  })
+})
+
+describe('Integration: multi-turn context', () => {
+  let sqlitePresenter: ReturnType<typeof createMockSqlitePresenter>
+  let llmProvider: ReturnType<typeof createMockLlmProviderPresenter>
+  let configPresenter: ReturnType<typeof createMockConfigPresenter>
+  let agentPresenter: NewAgentPresenter
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    sqlitePresenter = createMockSqlitePresenter()
+    llmProvider = createMockLlmProviderPresenter()
+    configPresenter = createMockConfigPresenter()
+
+    const deepchatAgent = new DeepChatAgentPresenter(llmProvider, configPresenter, sqlitePresenter)
+    agentPresenter = new NewAgentPresenter(deepchatAgent as any, configPresenter, sqlitePresenter)
+  })
+
+  it('second message includes first exchange in LLM context', async () => {
+    // Send first message
+    const session = await agentPresenter.createSession(
+      { agentId: 'deepchat', message: 'Hello', projectDir: null },
+      1
+    )
+
+    // Wait for first processMessage to complete
+    await new Promise((r) => setTimeout(r, 50))
+
+    // Send second message
+    await agentPresenter.sendMessage(session.id, 'Follow up question')
+
+    // Wait for second processMessage to complete
+    await new Promise((r) => setTimeout(r, 50))
+
+    // Verify coreStream was called twice
+    const providerInstance = llmProvider.getProviderInstance.mock.results[0].value
+    expect(providerInstance.coreStream).toHaveBeenCalledTimes(2)
+
+    // Second call should include history
+    const secondCallMessages = providerInstance.coreStream.mock.calls[1][0]
+    expect(secondCallMessages[0]).toEqual({
+      role: 'system',
+      content: 'You are a helpful assistant.'
+    })
+    // Should contain prior user and assistant messages before the new user message
+    expect(secondCallMessages.length).toBeGreaterThanOrEqual(3) // system + at least history + new user
+    expect(secondCallMessages[secondCallMessages.length - 1]).toEqual({
+      role: 'user',
+      content: 'Follow up question'
+    })
   })
 })
 

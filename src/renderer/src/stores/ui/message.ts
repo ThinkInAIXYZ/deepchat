@@ -56,6 +56,30 @@ export const useMessageStore = defineStore('message', () => {
     }
   }
 
+  /**
+   * Add an optimistic user message to the local store so it appears immediately
+   * in the UI without waiting for a backend round-trip or stream completion.
+   * The optimistic record is replaced with the real DB record when loadMessages
+   * is called at stream end.
+   */
+  function addOptimisticUserMessage(sessionId: string, text: string): void {
+    const id = `__optimistic_user_${Date.now()}`
+    const record: ChatMessageRecord = {
+      id,
+      sessionId,
+      orderSeq: messageIds.value.length + 1,
+      role: 'user',
+      content: JSON.stringify({ text, files: [], links: [], search: false, think: false }),
+      status: 'sent',
+      isContextEdge: 0,
+      metadata: '{}',
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    }
+    messageCache.value.set(id, record)
+    messageIds.value.push(id)
+  }
+
   function clear(): void {
     messageIds.value = []
     messageCache.value.clear()
@@ -114,6 +138,7 @@ export const useMessageStore = defineStore('message', () => {
     messages,
     loadMessages,
     getMessage,
+    addOptimisticUserMessage,
     clear
   }
 })

@@ -10,6 +10,7 @@ import type { ChatMessage } from '@shared/types/core/chat-message'
 import { DeepChatSessionStore } from './sessionStore'
 import { DeepChatMessageStore } from './messageStore'
 import { handleStream } from './streamHandler'
+import { buildContext } from './contextBuilder'
 import { eventBus, SendTarget } from '@/eventbus'
 import { SESSION_EVENTS } from '@/events'
 
@@ -99,32 +100,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     })
 
     try {
-      // 1. Persist user message
-      const userOrderSeq = this.messageStore.getNextOrderSeq(sessionId)
-      const userContent: UserMessageContent = {
-        text: content,
-        files: [],
-        links: [],
-        search: false,
-        think: false
-      }
-      const userMsgId = this.messageStore.createUserMessage(sessionId, userOrderSeq, userContent)
-      console.log(`[DeepChatAgent] user message created id=${userMsgId} seq=${userOrderSeq}`)
-
-      // 2. Create pending assistant message
-      const assistantOrderSeq = this.messageStore.getNextOrderSeq(sessionId)
-      const assistantMessageId = this.messageStore.createAssistantMessage(
-        sessionId,
-        assistantOrderSeq
-      )
-      console.log(
-        `[DeepChatAgent] assistant message created id=${assistantMessageId} seq=${assistantOrderSeq}`
-      )
-
-      // 3. Build messages for LLM (v0: single user message, no context)
-      const messages: ChatMessage[] = [{ role: 'user', content }]
-
-      // 4. Get provider and model config
+      // 1. Get provider and model config
       console.log(`[DeepChatAgent] getting provider instance for "${state.providerId}"`)
       const provider = (
         this.llmProviderPresenter as unknown as {
@@ -144,8 +120,41 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       const modelConfig = this.configPresenter.getModelConfig(state.modelId, state.providerId)
       const temperature = modelConfig.temperature ?? 0.7
       const maxTokens = modelConfig.maxTokens ?? 4096
+
+      // 2. Build messages for LLM BEFORE persisting (avoids duplicate user message)
+      const systemPrompt = await this.configPresenter.getDefaultSystemPrompt()
+      const messages = buildContext(
+        sessionId,
+        content,
+        systemPrompt,
+        modelConfig.contextLength,
+        maxTokens,
+        this.messageStore
+      )
       console.log(
-        `[DeepChatAgent] calling coreStream model=${state.modelId} temp=${temperature} maxTokens=${maxTokens}`
+        `[DeepChatAgent] calling coreStream model=${state.modelId} temp=${temperature} maxTokens=${maxTokens} messages=${messages.length}`
+      )
+
+      // 3. Persist user message
+      const userOrderSeq = this.messageStore.getNextOrderSeq(sessionId)
+      const userContent: UserMessageContent = {
+        text: content,
+        files: [],
+        links: [],
+        search: false,
+        think: false
+      }
+      const userMsgId = this.messageStore.createUserMessage(sessionId, userOrderSeq, userContent)
+      console.log(`[DeepChatAgent] user message created id=${userMsgId} seq=${userOrderSeq}`)
+
+      // 4. Create pending assistant message
+      const assistantOrderSeq = this.messageStore.getNextOrderSeq(sessionId)
+      const assistantMessageId = this.messageStore.createAssistantMessage(
+        sessionId,
+        assistantOrderSeq
+      )
+      console.log(
+        `[DeepChatAgent] assistant message created id=${assistantMessageId} seq=${assistantOrderSeq}`
       )
 
       // 5. Call LLM coreStream
