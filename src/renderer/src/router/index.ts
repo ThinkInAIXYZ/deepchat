@@ -17,6 +17,15 @@ const router = createRouter({
       }
     },
     {
+      path: '/browser',
+      name: 'browser',
+      component: () => import('@/views/BrowserWindowView.vue'),
+      meta: {
+        titleKey: 'common.browser.name',
+        icon: 'lucide:compass'
+      }
+    },
+    {
       path: '/welcome',
       name: 'welcome',
       component: () => import('@/views/WelcomeView.vue'),

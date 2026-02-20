@@ -235,7 +235,8 @@ export class WindowPresenter implements IWindowPresenter {
         preload: join(__dirname, '../preload/index.mjs'),
         sandbox: false,
         devTools: is.dev,
-        session: params.kind === 'browser' ? getYoBrowserSession() : undefined
+        session: params.kind === 'browser' ? getYoBrowserSession() : undefined,
+        webviewTag: params.kind === 'browser'
       },
       roundedCorners: true
     })
@@ -350,21 +351,29 @@ export class WindowPresenter implements IWindowPresenter {
       eventBus.sendToMain(WINDOW_EVENTS.WINDOW_CLOSED, windowId)
     })
 
-    if (params.kind === 'chat') {
+    if (params.kind === 'chat' || params.kind === 'browser') {
+      const browserInitialUrl =
+        params.kind === 'browser' &&
+        params.initialUrl &&
+        params.initialUrl.trim() &&
+        params.initialUrl !== 'about:blank'
+          ? `?url=${encodeURIComponent(params.initialUrl)}`
+          : ''
+      const targetHash = params.kind === 'browser' ? `/browser${browserInitialUrl}` : '/chat'
+
       if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-        await browserWindow.loadURL(`${process.env['ELECTRON_RENDERER_URL']}#/chat`)
+        await browserWindow.loadURL(`${process.env['ELECTRON_RENDERER_URL']}#${targetHash}`)
       } else {
         await browserWindow.loadFile(join(__dirname, '../renderer/index.html'), {
-          hash: '/chat'
+          hash: targetHash
         })
       }
 
-      browserWindow.webContents.once('did-finish-load', () => {
-        eventBus.sendToMain(WINDOW_EVENTS.FIRST_CONTENT_LOADED, windowId)
-      })
-    } else {
-      const url = params.initialUrl || 'about:blank'
-      await browserWindow.loadURL(url)
+      if (params.kind === 'chat') {
+        browserWindow.webContents.once('did-finish-load', () => {
+          eventBus.sendToMain(WINDOW_EVENTS.FIRST_CONTENT_LOADED, windowId)
+        })
+      }
     }
 
     if (is.dev) {

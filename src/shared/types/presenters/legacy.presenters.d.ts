@@ -224,6 +224,8 @@ export interface IYoBrowserPresenter {
   startDownload(url: string, savePath?: string): Promise<DownloadInfo>
   clearSandboxData(): Promise<void>
   shutdown(): Promise<void>
+  registerBrowserWebContents(webContentsId: number): Promise<boolean>
+  unregisterBrowserWebContents(webContentsId: number): Promise<void>
   readonly toolHandler: {
     getToolDefinitions(): any[]
     callTool(toolName: string, args: Record<string, unknown>): Promise<string>

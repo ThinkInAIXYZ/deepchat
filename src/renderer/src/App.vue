@@ -144,6 +144,7 @@ const handleErrorClosed = () => {
 
 const router = useRouter()
 const activeTab = ref('chat')
+const isBrowserRoute = computed(() => route.name === 'browser')
 
 const getInitComplete = async () => {
   const initComplete = await configPresenter.getSetting('init_complete')
@@ -323,17 +324,22 @@ onBeforeUnmount(() => {
     class="flex flex-col h-screen"
     :class="isWinMacOS ? 'bg-window-background' : 'bg-background'"
   >
-    <AppBar />
-    <div class="flex flex-row h-0 grow relative overflow-hidden px-px py-px" :dir="langStore.dir">
-      <div class="flex flex-row w-full h-full">
-        <WindowSideBar></WindowSideBar>
+    <template v-if="isBrowserRoute">
+      <RouterView />
+    </template>
+    <template v-else>
+      <AppBar />
+      <div class="flex flex-row h-0 grow relative overflow-hidden px-px py-px" :dir="langStore.dir">
+        <div class="flex flex-row w-full h-full">
+          <WindowSideBar></WindowSideBar>
 
-        <!-- Main content area -->
-        <div class="flex-1 min-w-0 bg-background rounded-tl-xl overflow-hidden shadow-lg">
-          <RouterView />
+          <!-- Main content area -->
+          <div class="flex-1 min-w-0 bg-background rounded-tl-xl overflow-hidden shadow-lg">
+            <RouterView />
+          </div>
         </div>
       </div>
-    </div>
+    </template>
     <!-- Global update dialog -->
     <UpdateDialog />
     <!-- Global message dialog -->

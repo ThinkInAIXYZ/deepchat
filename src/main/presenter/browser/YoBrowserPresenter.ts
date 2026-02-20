@@ -1,4 +1,4 @@
-import { BrowserWindow, WebContents, screen } from 'electron'
+import { BrowserWindow, WebContents, screen, webContents } from 'electron'
 import type { Rectangle } from 'electron'
 import { eventBus, SendTarget } from '@/eventbus'
 import { YO_BROWSER_EVENTS } from '@/events'
@@ -15,6 +15,11 @@ import { ScreenshotManager } from './ScreenshotManager'
 import { DownloadManager } from './DownloadManager'
 import { clearYoBrowserSessionData } from './yoBrowserSession'
 import { YoBrowserToolHandler } from './YoBrowserToolHandler'
+
+const resolveAfter = (ms: number) =>
+  new Promise<void>((resolve) => {
+    setTimeout(resolve, ms)
+  })
 
 export class YoBrowserPresenter implements IYoBrowserPresenter {
   private windowId: number | null = null
@@ -158,21 +163,21 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
   }
 
   async goBack(_tabId?: string): Promise<void> {
-    const tab = await this.resolveTab()
+    const tab = await this.resolveTab(undefined, 1000)
     if (tab?.contents.canGoBack()) {
       tab.contents.goBack()
     }
   }
 
   async goForward(_tabId?: string): Promise<void> {
-    const tab = await this.resolveTab()
+    const tab = await this.resolveTab(undefined, 1000)
     if (tab?.contents.canGoForward()) {
       tab.contents.goForward()
     }
   }
 
   async reload(_tabId?: string): Promise<void> {
-    const tab = await this.resolveTab()
+    const tab = await this.resolveTab(undefined, 1000)
     if (tab && !tab.contents.isDestroyed()) {
       tab.contents.reload()
     }
@@ -180,7 +185,7 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
 
   async createTab(url?: string): Promise<BrowserTabInfo | null> {
     await this.ensureWindow()
-    const tab = await this.resolveTab()
+    const tab = await this.resolveTab(undefined, 3000)
     if (!tab) {
       return null
     }
@@ -198,7 +203,7 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
   }
 
   async navigateTab(tabId: string, url: string, timeoutMs?: number): Promise<void> {
-    const tab = await this.resolveTab(tabId)
+    const tab = (await this.resolveTab(tabId, 3000)) ?? (await this.resolveTab(undefined, 3000))
     if (!tab) {
       throw new Error(`Tab ${tabId} not found`)
     }
@@ -210,7 +215,7 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
   }
 
   async activateTab(tabId: string): Promise<void> {
-    const tab = await this.resolveTab(tabId)
+    const tab = (await this.resolveTab(tabId, 2000)) ?? (await this.resolveTab(undefined, 2000))
     if (!tab) {
       return
     }
@@ -252,7 +257,7 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     canGoBack: boolean
     canGoForward: boolean
   }> {
-    const tab = await this.resolveTab()
+    const tab = await this.resolveTab(undefined, 1000)
     if (!tab || tab.contents.isDestroyed()) {
       return { canGoBack: false, canGoForward: false }
     }
@@ -264,12 +269,12 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
   }
 
   async getTabIdByViewId(viewId: number): Promise<string | null> {
-    const window = this.getWindow()
-    if (!window || window.webContents.id !== viewId) {
+    const tab = await this.resolveTab(undefined, 500)
+    if (!tab || tab.contents.id !== viewId) {
       return null
     }
 
-    return this.activeTabId
+    return tab.tabId
   }
 
   async captureScreenshot(tabId: string, options?: ScreenshotOptions): Promise<string> {
@@ -300,7 +305,7 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
   }
 
   async startDownload(url: string, savePath?: string): Promise<DownloadInfo> {
-    const active = await this.resolveTab()
+    const active = await this.resolveTab(undefined, 2000)
     if (active?.contents?.isDestroyed()) {
       throw new Error('Active page is destroyed')
     }
@@ -328,25 +333,88 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     return await this.resolveTab(tabId)
   }
 
-  private ensureBrowserTab(window: BrowserWindow): void {
+  async registerBrowserWebContents(webContentsId: number): Promise<boolean> {
+    const window = this.getWindow()
+    if (!window) {
+      return false
+    }
+
+    const contents = webContents.fromId(webContentsId)
+    if (!contents || contents.isDestroyed()) {
+      return false
+    }
+
+    const hostContents = contents.hostWebContents ?? contents
+    const ownerWindow = BrowserWindow.fromWebContents(hostContents)
+    if (!ownerWindow || ownerWindow.id !== window.id) {
+      return false
+    }
+
+    this.attachBrowserContents(contents)
+    return true
+  }
+
+  async unregisterBrowserWebContents(webContentsId: number): Promise<void> {
     if (!this.browserTab || this.browserTab.contents.isDestroyed()) {
-      this.browserTab?.destroy()
-      this.browserTab = new BrowserTab(window.webContents, this.cdpManager, this.screenshotManager)
-      this.activeTabId = this.browserTab.tabId
-      this.bindWebContentsListeners(window.webContents, this.browserTab.tabId)
-      this.emitTabCreated(this.browserTab)
-      this.emitTabCount()
       return
     }
 
-    if (this.browserTab.contents.id !== window.webContents.id) {
-      this.browserTab.destroy()
-      this.browserTab = new BrowserTab(window.webContents, this.cdpManager, this.screenshotManager)
-      this.activeTabId = this.browserTab.tabId
-      this.bindWebContentsListeners(window.webContents, this.browserTab.tabId)
-      this.emitTabCreated(this.browserTab)
-      this.emitTabCount()
+    if (this.browserTab.contents.id !== webContentsId) {
+      return
     }
+
+    const closedTabId = this.browserTab.tabId
+    this.detachWebContentsListeners?.()
+    this.detachWebContentsListeners = null
+    this.browserTab.destroy()
+    this.browserTab = null
+    this.activeTabId = null
+    this.emitTabClosed(closedTabId)
+    this.emitTabCount()
+  }
+
+  private ensureBrowserTab(window: BrowserWindow): void {
+    if (this.browserTab && !this.browserTab.contents.isDestroyed()) {
+      const hostContents = this.browserTab.contents.hostWebContents ?? this.browserTab.contents
+      const ownerWindow = BrowserWindow.fromWebContents(hostContents)
+      if (ownerWindow && ownerWindow.id === window.id) {
+        return
+      }
+    }
+
+    if (this.isBrowserHostUrl(window.webContents.getURL())) {
+      return
+    }
+
+    this.attachBrowserContents(window.webContents)
+  }
+
+  private attachBrowserContents(contents: WebContents): void {
+    if (contents.isDestroyed()) {
+      return
+    }
+
+    if (
+      this.browserTab &&
+      !this.browserTab.contents.isDestroyed() &&
+      this.browserTab.contents.id === contents.id
+    ) {
+      this.activeTabId = this.browserTab.tabId
+      this.emitTabUpdated(this.browserTab)
+      return
+    }
+
+    this.detachWebContentsListeners?.()
+    this.detachWebContentsListeners = null
+
+    this.browserTab?.destroy()
+    this.browserTab = new BrowserTab(contents, this.cdpManager, this.screenshotManager)
+    this.activeTabId = this.browserTab.tabId
+    this.bindWebContentsListeners(contents, this.browserTab.tabId)
+    this.emitTabCreated(this.browserTab)
+    this.emitTabActivated(this.browserTab.tabId)
+    this.emitTabUpdated(this.browserTab)
+    this.emitTabCount()
   }
 
   private bindWebContentsListeners(contents: WebContents, tabId: string): void {
@@ -388,37 +456,54 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     }
 
     const handleDestroyed = () => {
-      this.handleWindowClosed()
+      if (!this.browserTab || this.browserTab.tabId !== tabId) {
+        return
+      }
+
+      this.detachWebContentsListeners?.()
+      this.detachWebContentsListeners = null
+
+      this.browserTab = null
+      this.activeTabId = null
+      this.emitTabClosed(tabId)
+      this.emitTabCount()
     }
 
     contents.on('did-navigate', handleDidNavigate)
+    contents.on('did-navigate-in-page', handleDidNavigate)
     contents.on('page-title-updated', handleTitleUpdated)
     contents.on('page-favicon-updated', handleFaviconUpdated)
     contents.on('destroyed', handleDestroyed)
 
     this.detachWebContentsListeners = () => {
       contents.removeListener('did-navigate', handleDidNavigate)
+      contents.removeListener('did-navigate-in-page', handleDidNavigate)
       contents.removeListener('page-title-updated', handleTitleUpdated)
       contents.removeListener('page-favicon-updated', handleFaviconUpdated)
       contents.removeListener('destroyed', handleDestroyed)
     }
   }
 
-  private async resolveTab(tabId?: string): Promise<BrowserTab | null> {
-    const window = this.getWindow()
-    if (window) {
-      this.ensureBrowserTab(window)
-    }
+  private async resolveTab(tabId?: string, waitMs: number = 0): Promise<BrowserTab | null> {
+    const deadline = Date.now() + waitMs
 
-    if (!this.browserTab || this.browserTab.contents.isDestroyed()) {
-      return null
-    }
+    while (true) {
+      const window = this.getWindow()
+      if (window) {
+        this.ensureBrowserTab(window)
+      }
 
-    if (tabId && this.browserTab.tabId !== tabId) {
-      return null
-    }
+      const tab = this.browserTab
+      if (tab && !tab.contents.isDestroyed() && (!tabId || tab.tabId === tabId)) {
+        return tab
+      }
 
-    return this.browserTab
+      if (Date.now() >= deadline) {
+        return null
+      }
+
+      await resolveAfter(50)
+    }
   }
 
   private getWindow(): BrowserWindow | null {
@@ -433,6 +518,18 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     }
 
     return window
+  }
+
+  private isBrowserHostUrl(url: string): boolean {
+    if (!url) {
+      return false
+    }
+
+    if (url === 'about:blank') {
+      return false
+    }
+
+    return url.includes('#/browser')
   }
 
   private getReferenceBounds(excludeWindowId?: number): Rectangle | undefined {
