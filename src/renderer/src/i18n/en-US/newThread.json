@@ -1,4 +1,11 @@
 {
-  "greeting": "Hello there!",
-  "prompt": "What's on your mind?"
+  "selectAgent": "Select Agent",
+  "templateAgents": "Template Agents",
+  "acpAgents": "ACP Agents",
+  "manageAgents": "Manage Agents...",
+  "selectDirectory": "Select directory",
+  "recentDirectories": "Recent Directories",
+  "browseDirectory": "Browse other directory...",
+  "clearDirectory": "Clear selection",
+  "noModels": "No models available"
 }

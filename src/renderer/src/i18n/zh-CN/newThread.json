@@ -1,4 +1,11 @@
 {
-  "greeting": "你好呀",
-  "prompt": "今天你想问点什么？"
+  "selectAgent": "选择智能体",
+  "templateAgents": "模板智能体",
+  "acpAgents": "ACP 智能体",
+  "manageAgents": "管理智能体...",
+  "selectDirectory": "选择目录",
+  "recentDirectories": "最近使用",
+  "browseDirectory": "浏览其他目录...",
+  "clearDirectory": "清除选择",
+  "noModels": "没有可用的模型"
 }

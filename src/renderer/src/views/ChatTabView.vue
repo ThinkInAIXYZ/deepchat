@@ -40,7 +40,7 @@ import { useArtifactStore } from '@/stores/artifact'
 import ArtifactDialog from '@/components/artifacts/ArtifactDialog.vue'
 import { useRoute } from 'vue-router'
 const ChatView = defineAsyncComponent(() => import('@/components/ChatView.vue'))
-const NewThread = defineAsyncComponent(() => import('@/components/NewThreadMock.vue'))
+const NewThread = defineAsyncComponent(() => import('@/components/NewThread.vue'))
 const MockChatPage = defineAsyncComponent(() => import('@/components/mock/MockChatPage.vue'))
 const MockWelcomePage = defineAsyncComponent(() => import('@/components/mock/MockWelcomePage.vue'))
 const { isMockChatActive, mockSessionTitle, mockSessionProject, showMockWelcome } =
