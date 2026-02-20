@@ -27,7 +27,7 @@
 </template>
 
 <script setup lang="ts">
-import ModelIcon from '../icons/ModelIcon.vue'
+import ModelIcon from './icons/ModelIcon.vue'
 import { useThemeStore } from '@/stores/theme'
 
 const themeStore = useThemeStore()

@@ -15,10 +15,10 @@
 所有新组件必须严格遵循现有 mock 组件的样式规范，参考以下文件：
 
 - `src/renderer/src/components/WindowSideBar.vue` - 侧边栏布局和样式
-- `src/renderer/src/components/NewThreadMock.vue` - Welcome 页面布局
-- `src/renderer/src/components/mock/MockInputBox.vue` - 输入框容器
-- `src/renderer/src/components/mock/MockInputToolbar.vue` - 输入工具栏
-- `src/renderer/src/components/mock/MockStatusBar.vue` - 状态栏
+- `src/renderer/src/components/NewThread.vue` - Welcome 页面布局
+- `src/renderer/src/components/chat-input/InputBox.vue` - 输入框容器
+- `src/renderer/src/components/chat-input/components/InputToolbar.vue` - 输入工具栏
+- `src/renderer/src/components/StatusBar.vue` - 状态栏
 
 ### 2. 复用现有能力
 
@@ -220,8 +220,8 @@ Phase 3 (Sidebar) ◄──────┘       Phase 5 (ChatInput)
 | Phase 1 | ✅ Completed | Agent Data Model & Storage |
 | Phase 2 | 🔴 Not Started | Settings - Agent Management |
 | Phase 3 | 🔴 Not Started | WindowSideBar Refactor |
-| Phase 4 | 🔴 Not Started | NewThread Adaptation |
-| Phase 5 | 🔴 Not Started | ChatInput Integration |
+| Phase 4 | ✅ Completed | NewThread Adaptation |
+| Phase 5 | ✅ Completed | ChatInput Integration |
 | Phase 6 | 🔴 Not Started | Shell Removal |
 
 ## Key Files Reference
@@ -231,12 +231,12 @@ Phase 3 (Sidebar) ◄──────┘       Phase 5 (ChatInput)
 | 文件 | 用途 |
 |------|------|
 | `src/renderer/src/components/WindowSideBar.vue` | 侧边栏双列布局、Agent Icon、Session List 样式 |
-| `src/renderer/src/components/NewThreadMock.vue` | Welcome 页面布局、Project Selector 样式 |
-| `src/renderer/src/components/mock/MockInputBox.vue` | InputBox 容器样式 |
-| `src/renderer/src/components/mock/MockInputToolbar.vue` | 工具栏按钮样式 |
-| `src/renderer/src/components/mock/MockStatusBar.vue` | 状态栏按钮样式 |
-| `src/renderer/src/components/mock/MockChatPage.vue` | 聊天页面整体布局 |
-| `src/renderer/src/components/mock/MockTopBar.vue` | 顶部栏样式 |
+| `src/renderer/src/components/NewThread.vue` | Welcome 页面布局、Project Selector 样式 |
+| `src/renderer/src/components/chat-input/InputBox.vue` | InputBox 容器样式 + 输入交互 |
+| `src/renderer/src/components/chat-input/components/InputToolbar.vue` | 工具栏按钮样式 |
+| `src/renderer/src/components/StatusBar.vue` | 状态栏按钮样式 |
+| `src/renderer/src/components/ChatPreviewPage.vue` | 预览聊天页面整体布局 |
+| `src/renderer/src/components/ChatPreviewTopBar.vue` | 顶部栏样式 |
 
 ### 现有 Presenter（复用）
 

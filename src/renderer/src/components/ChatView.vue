@@ -22,7 +22,7 @@
 
     <!-- 输入框区域 -->
     <div class="flex-none px-0 pb-0">
-      <ChatInput
+      <InputBox
         ref="chatInput"
         variant="chat"
         :context-length="chatStore.chatConfig.contextLength"
@@ -54,7 +54,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch, computed, nextTick } from 'vue'
 import MessageList from './message/MessageList.vue'
-import ChatInput from './chat-input/ChatInput.vue'
+import InputBox from './chat-input/InputBox.vue'
 import WorkspaceView from './workspace/WorkspaceView.vue'
 import { useRoute } from 'vue-router'
 import { UserMessageContent } from '@shared/chat'

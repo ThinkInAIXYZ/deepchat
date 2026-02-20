@@ -4,10 +4,10 @@
       <div class="flex h-full">
         <!-- 主聊天区域 -->
         <div class="flex-1 flex flex-col w-0">
-          <!-- Mock welcome page -->
-          <MockWelcomePage v-if="showMockWelcome" />
-          <!-- Mock chat page -->
-          <MockChatPage
+          <!-- Preview welcome page -->
+          <WelcomePreviewPage v-if="showMockWelcome" />
+          <!-- Preview chat page -->
+          <ChatPreviewPage
             v-else-if="isMockChatActive"
             :title="mockSessionTitle"
             :project="mockSessionProject"
@@ -41,8 +41,8 @@ import ArtifactDialog from '@/components/artifacts/ArtifactDialog.vue'
 import { useRoute } from 'vue-router'
 const ChatView = defineAsyncComponent(() => import('@/components/ChatView.vue'))
 const NewThread = defineAsyncComponent(() => import('@/components/NewThread.vue'))
-const MockChatPage = defineAsyncComponent(() => import('@/components/mock/MockChatPage.vue'))
-const MockWelcomePage = defineAsyncComponent(() => import('@/components/mock/MockWelcomePage.vue'))
+const ChatPreviewPage = defineAsyncComponent(() => import('@/components/ChatPreviewPage.vue'))
+const WelcomePreviewPage = defineAsyncComponent(() => import('@/components/WelcomePreviewPage.vue'))
 const { isMockChatActive, mockSessionTitle, mockSessionProject, showMockWelcome } =
   useMockViewState()
 const artifactStore = useArtifactStore()

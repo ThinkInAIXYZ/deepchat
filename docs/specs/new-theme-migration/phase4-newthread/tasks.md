@@ -1,119 +1,49 @@
-# Phase 4 Tasks: NewThread Adaptation
+# Phase 4 Tasks: NewThread Adaptation (Final)
 
 ## Status Legend
 - [ ] Not Started
 - [~] In Progress
 - [x] Completed
 
-## Style Checklist
+## 1. NewThread Core
 
-在开始实现前，确保理解并遵循以下样式规范：
+- [x] `NewThread.vue` 标题固定为 `Build and explore`（不走 i18n）
+- [x] 移除 NewThread 页面内 Agent 选择器，直接使用 `agentStore.selectedAgent`
+- [x] 保留并接入 Workdir 选择
 
-- [x] 阅读 `src/renderer/src/components/NewThreadMock.vue` 源码
-- [x] 阅读 `src/renderer/src/components/mock/MockInputBox.vue` 源码
-- [x] 阅读 `src/renderer/src/components/mock/MockInputToolbar.vue` 源码
-- [x] 阅读 `src/renderer/src/components/mock/MockStatusBar.vue` 源码
-- [x] 理解 InputBox 容器样式 (rounded-xl bg-card/30 backdrop-blur-lg)
-- [x] 理解 Toolbar 按钮样式 (h-7 w-7 rounded-lg)
-- [x] 理解 Project Selector 样式 (h-7 px-2.5 text-xs)
+## 2. StatusBar Logic
 
----
+- [x] 实现 `useNewThreadStatusBar.ts`
+- [x] ACP Agent 仅显示 icon + name（只读）
+- [x] Local/Template Agent 显示 Model Selector + Effort Selector
+- [x] 右侧统一显示 Permissions
+- [x] 模型切换同步 `chatStore.updateChatConfig` 并持久化 preferred model
 
-## 1. NewThread Composable
+## 3. Session Creation Flow
 
-- [x] Create `src/renderer/src/composables/useNewThread.ts`
-  - [x] `selectedAgent` computed (directly from `agentStore.selectedAgent`)
-  - [x] `workdir` ref
-  - [x] `userInput` ref
-  - [x] `loading` ref
-  - [x] `handleSubmit()` function
-  - [x] Remove agent selector related logic (`selectedAgentId`, `selectAgent`, query `agentId`)
-  - [x] Keep workdir/recent workdirs flow
-  - [x] Session creation inherits settings from selected sidebar agent
+- [x] `useNewThread.ts` 支持继承当前侧边栏 Agent 配置创建会话
+- [x] Template agent 配置继承（provider/model/systemPrompt/temperature 等）
+- [x] ACP agent 配置继承（`providerId='acp'` + `acpWorkdirMap`）
 
-## 2. NewThreadStatusBar Composable
+## 4. Post-Phase Cleanup (with Phase5)
 
-- [x] Create `src/renderer/src/composables/useNewThreadStatusBar.ts`
-  - [x] Get current agent from sidebar store
-  - [x] Get all enabled models from modelStore
-  - [x] Get active model from chatStore
-  - [x] Handle model selection with persistence
-  - [x] Handle effort/permission selection
-  - [x] Normalize reasoning effort sync (`minimal` -> `low`)
-  - [x] ACP agent display (readonly with icon + name)
-  - [x] Normal/Local agent display (Model selector + Effort selector)
-
-## 3. NewThread Page Update
-
-- [x] Update `src/renderer/src/components/NewThread.vue`
-  - [x] Hardcode heading `"Build and explore"` (no i18n)
-  - [x] Remove Agent selector UI
-  - [x] Keep Workdir selector
-  - [x] Update input handling
-
-- [x] Update `src/renderer/src/components/mock/StatusBar.vue` (renamed from `MockStatusBar.vue`)
-  - [x] Fix select import path (`@shadcn/components/ui/select`)
-  - [x] Display ACP agent (readonly with icon + name)
-  - [x] Display Model selector for normal agents
-  - [x] Display Effort selector
-  - [x] Display Permissions selector on right side
-  - [x] Hide model/effort selectors for ACP agents
-
-## 4. Session Creation Flow
-
-- [x] Update `src/renderer/src/composables/useNewThread.ts`
-  - [x] `handleSubmit()` to pass agent config to session creation
-  - [x] Handle Template agent (providerId, modelId, systemPrompt, temperature, etc.)
-  - [x] Handle ACP agent (providerId='acp', modelId=agent.id, acpWorkdirMap)
+- [x] `StatusBar.vue` 正式路径切换到 `src/renderer/src/components/StatusBar.vue`
+- [x] `WorkdirSelector.vue` 正式路径切换到 `src/renderer/src/components/WorkdirSelector.vue`
+- [x] NewThread 输入接入真实 `InputBox`：`src/renderer/src/components/chat-input/InputBox.vue`
+- [x] 清理 `src/renderer/src/components/mock/` 目录
 
 ## 5. i18n
 
-- [x] Remove NewThread heading i18n key from all locale files
-  - [x] Remove `newThread.greeting`
-  - [x] Keep existing keys required by Workdir/StatusBar
+- [x] 移除 `newThread.greeting`
+- [x] 保留 Workdir/StatusBar 需要的 `newThread.*` 词条
 
-## 6. Component References
+## 6. Validation
 
-- [x] Update `src/renderer/src/views/ChatTabView.vue`
-  - [x] Import NewThread from `@/components/NewThread.vue` (replace `NewThreadMock.vue`)
-
-## 7. Component Rename Cleanup
-
-- [x] Rename `src/renderer/src/components/mock/MockStatusBar.vue` -> `src/renderer/src/components/mock/StatusBar.vue`
-- [x] Rename `src/renderer/src/components/mock/MockWorkdirSelector.vue` -> `src/renderer/src/components/mock/WorkdirSelector.vue`
-- [x] Rename `src/renderer/src/components/mock/MockInputBox.vue` -> `src/renderer/src/components/mock/InputBox.vue`
-- [x] Rename `src/renderer/src/components/mock/MockInputToolbar.vue` -> `src/renderer/src/components/mock/InputToolbar.vue`
-- [x] Update all related imports
-
----
-
-## Implementation Summary
-
-### 主要变更
-
-1. **NewThread.vue**: 使用固定标题 `Build and explore`，移除 AgentSelector，直接跟随 sidebar 当前 agent
-2. **StatusBar.vue**: 根据 agent 类型显示不同内容
-   - ACP Agent: 显示 Agent 名称+图标（不可切换模型）
-   - Normal/Local Agent: Model Selector + Effort Selector
-   - 右侧统一显示 Permissions Selector
-3. **useNewThreadStatusBar.ts**: 新的 composable 处理 StatusBar 状态
-4. **useNewThread.ts**: 处理 session 创建和 agent 配置继承，移除 agent 选择逻辑
-5. **i18n**: 移除 heading 翻译键（`newThread.greeting`）
-6. **Import Fix**: 修复 `@/shadcn/components/ui/select` 路径错误
-
-## Dependencies
-- Phase 1 (AgentConfigPresenter) ✅
-- Phase 2 (Agent Settings) ✅
-- Phase 3 (WindowSideBar) ✅
-
-## Testing
-
-- [x] NewThread page displays with hardcoded heading `Build and explore`
-- [x] StatusBar shows ACP agent for ACP type
-- [x] StatusBar shows Model/Effort for normal agents
-- [x] Permissions selector renders on right side
-- [x] Model selection updates chatStore and persists preference
-- [x] Session creation with agent config inheritance
 - [x] `pnpm run format`
 - [x] `pnpm run lint`
 - [x] `pnpm run build`
+
+## Notes
+
+- NewThread UI 已与 Phase5 的输入组件迁移保持一致。
+- mock 目录清理后，组件引用统一为正式路径。

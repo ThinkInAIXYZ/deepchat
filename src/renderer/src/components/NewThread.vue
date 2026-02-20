@@ -22,11 +22,7 @@
         </div>
 
         <!-- Input area -->
-        <InputBox>
-          <template #toolbar>
-            <InputToolbar />
-          </template>
-        </InputBox>
+        <InputBox variant="newThread" :disabled="loading" @send="handleSend" />
 
         <!-- Status bar - 绑定真实逻辑 -->
         <StatusBar />
@@ -37,11 +33,16 @@
 
 <script setup lang="ts">
 import { TooltipProvider } from '@shadcn/components/ui/tooltip'
-import InputBox from './mock/InputBox.vue'
-import InputToolbar from './mock/InputToolbar.vue'
-import StatusBar from './mock/StatusBar.vue'
-import WorkdirSelector from './mock/WorkdirSelector.vue'
+import type { UserMessageContent } from '@shared/chat'
+import InputBox from './chat-input/InputBox.vue'
+import StatusBar from './StatusBar.vue'
+import WorkdirSelector from './WorkdirSelector.vue'
 import { useNewThread } from '@/composables/useNewThread'
 
-const { workdir, recentWorkdirs, selectWorkdir, browseDirectory } = useNewThread()
+const { workdir, recentWorkdirs, loading, selectWorkdir, browseDirectory, handleSubmit } =
+  useNewThread()
+
+const handleSend = async (content: UserMessageContent) => {
+  await handleSubmit(content)
+}
 </script>

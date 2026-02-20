@@ -30464,6 +30464,70 @@
           "type": "chat"
         },
         {
+          "id": "PaddlePaddle/PaddleOCR-VL-1.5",
+          "name": "PaddlePaddle/PaddleOCR-VL-1.5",
+          "display_name": "PaddlePaddle/PaddleOCR-VL-1.5",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 16384,
+            "output": 16384
+          },
+          "temperature": true,
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": true,
+          "open_weights": true,
+          "release_date": "2026-01-29",
+          "last_updated": "2026-01-29",
+          "cost": {
+            "input": 0,
+            "output": 0
+          },
+          "type": "chat"
+        },
+        {
+          "id": "PaddlePaddle/PaddleOCR-VL",
+          "name": "PaddlePaddle/PaddleOCR-VL",
+          "display_name": "PaddlePaddle/PaddleOCR-VL",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 16384,
+            "output": 16384
+          },
+          "temperature": true,
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": true,
+          "open_weights": true,
+          "release_date": "2025-10-16",
+          "last_updated": "2025-10-16",
+          "cost": {
+            "input": 0,
+            "output": 0
+          },
+          "type": "chat"
+        },
+        {
           "id": "THUDM/GLM-Z1-32B-0414",
           "name": "THUDM/GLM-Z1-32B-0414",
           "display_name": "THUDM/GLM-Z1-32B-0414",
@@ -31809,6 +31873,36 @@
           "type": "chat"
         },
         {
+          "id": "deepseek-ai/DeepSeek-OCR",
+          "name": "deepseek-ai/DeepSeek-OCR",
+          "display_name": "deepseek-ai/DeepSeek-OCR",
+          "modalities": {
+            "input": [
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "temperature": true,
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": true,
+          "open_weights": true,
+          "release_date": "2025-10-20",
+          "last_updated": "2025-10-20",
+          "cost": {
+            "input": 0,
+            "output": 0
+          }
+        },
+        {
           "id": "deepseek-ai/DeepSeek-V3",
           "name": "deepseek-ai/DeepSeek-V3",
           "display_name": "deepseek-ai/DeepSeek-V3",
@@ -32154,6 +32248,37 @@
           "cost": {
             "input": 0.3,
             "output": 1.2
+          },
+          "type": "chat"
+        },
+        {
+          "id": "Pro/MiniMaxAI/MiniMax-M2.5",
+          "name": "Pro/MiniMaxAI/MiniMax-M2.5",
+          "display_name": "Pro/MiniMaxAI/MiniMax-M2.5",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 192000,
+            "output": 131000
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": false,
+          "open_weights": false,
+          "release_date": "2026-02-13",
+          "last_updated": "2026-02-13",
+          "cost": {
+            "input": 0.3,
+            "output": 1.22
           },
           "type": "chat"
         },
@@ -33379,27 +33504,6 @@
             "default": true
           },
           "type": "chat"
-        },
-        {
-          "id": "deepseek-ai/DeepSeek-OCR",
-          "name": "deepseek-ai/DeepSeek-OCR",
-          "display_name": "deepseek-ai/DeepSeek-OCR",
-          "modalities": {
-            "input": [
-              "image"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          }
         },
         {
           "id": "Pro/Qwen/Qwen2.5-Coder-7B-Instruct",
@@ -39172,6 +39276,39 @@
           "cost": {
             "input": 0.88,
             "output": 0.88
+          },
+          "type": "chat"
+        },
+        {
+          "id": "Qwen/Qwen3.5-397B-A17B",
+          "name": "Qwen3.5 397B A17B",
+          "display_name": "Qwen3.5 397B A17B",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 262144,
+            "output": 130000
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": false,
+          "open_weights": true,
+          "release_date": "2026-02-16",
+          "last_updated": "2026-02-16",
+          "cost": {
+            "input": 0.6,
+            "output": 3.6
           },
           "type": "chat"
         },
@@ -107861,6 +107998,34 @@
           "type": "chat"
         },
         {
+          "id": "gemini-3.1-pro-preview-customtools",
+          "name": "gemini-3.1-pro-preview-customtools",
+          "display_name": "gemini-3.1-pro-preview-customtools",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "audio",
+              "video"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 1000000
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "cost": {
+            "input": 2,
+            "output": 12,
+            "cache_read": 0.2
+          },
+          "type": "chat"
+        },
+        {
           "id": "gemini-3.1-pro-preview-search",
           "name": "gemini-3.1-pro-preview-search",
           "display_name": "gemini-3.1-pro-preview-search",
@@ -107991,33 +108156,6 @@
             "input": 0.137,
             "output": 1.37,
             "cache_read": 0.0137
-          },
-          "type": "chat"
-        },
-        {
-          "id": "sophnet-qwen3.5-397b-a17b",
-          "name": "sophnet-qwen3.5-397b-a17b",
-          "display_name": "sophnet-qwen3.5-397b-a17b",
-          "modalities": {
-            "input": [
-              "text",
-              "image",
-              "video"
-            ]
-          },
-          "limit": {
-            "context": 991000,
-            "output": 991000
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "cost": {
-            "input": 0.1644,
-            "output": 0.9864,
-            "cache_read": 0.1644
           },
           "type": "chat"
         },
@@ -109022,21 +109160,26 @@
           "type": "chat"
         },
         {
-          "id": "baidu-glm-5",
-          "name": "baidu-glm-5",
-          "display_name": "baidu-glm-5",
-          "limit": {
-            "context": 8192,
-            "output": 8192
+          "id": "mistral-large-3",
+          "name": "mistral-large-3",
+          "display_name": "mistral-large-3",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ]
           },
-          "tool_call": false,
+          "limit": {
+            "context": 256000,
+            "output": 256000
+          },
+          "tool_call": true,
           "reasoning": {
             "supported": false
           },
           "cost": {
-            "input": 0.548,
-            "output": 2.466,
-            "cache_read": 0.548
+            "input": 0.5,
+            "output": 1.5
           },
           "type": "chat"
         },
@@ -109117,104 +109260,6 @@
             "cache_read": 0.33
           },
           "type": "chat"
-        },
-        {
-          "id": "mistral-large-3",
-          "name": "mistral-large-3",
-          "display_name": "mistral-large-3",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ]
-          },
-          "limit": {
-            "context": 256000,
-            "output": 256000
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 0.5,
-            "output": 1.5
-          },
-          "type": "chat"
-        },
-        {
-          "id": "mimo-v2-flash",
-          "name": "mimo-v2-flash",
-          "display_name": "mimo-v2-flash",
-          "modalities": {
-            "input": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 0.1918,
-            "output": 0.5754,
-            "cache_read": 0.03836
-          },
-          "type": "chat"
-        },
-        {
-          "id": "step-3.5-flash-free",
-          "name": "step-3.5-flash-free",
-          "display_name": "step-3.5-flash-free",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ]
-          },
-          "limit": {
-            "context": 256000,
-            "output": 256000
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 0,
-            "output": 0,
-            "cache_read": 0
-          },
-          "type": "chat"
-        },
-        {
-          "id": "web-gpt-image-1.5",
-          "name": "web-gpt-image-1.5",
-          "display_name": "web-gpt-image-1.5",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 3,
-            "output": 3,
-            "cache_read": 0
-          },
-          "type": "imageGeneration"
         },
         {
           "id": "cc-glm-5",
@@ -109335,6 +109380,80 @@
             "cache_read": 0.05
           },
           "type": "chat"
+        },
+        {
+          "id": "mimo-v2-flash",
+          "name": "mimo-v2-flash",
+          "display_name": "mimo-v2-flash",
+          "modalities": {
+            "input": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 0.1918,
+            "output": 0.5754,
+            "cache_read": 0.03836
+          },
+          "type": "chat"
+        },
+        {
+          "id": "step-3.5-flash-free",
+          "name": "step-3.5-flash-free",
+          "display_name": "step-3.5-flash-free",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ]
+          },
+          "limit": {
+            "context": 256000,
+            "output": 256000
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cache_read": 0
+          },
+          "type": "chat"
+        },
+        {
+          "id": "web-gpt-image-1.5",
+          "name": "web-gpt-image-1.5",
+          "display_name": "web-gpt-image-1.5",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 3,
+            "output": 3,
+            "cache_read": 0
+          },
+          "type": "imageGeneration"
         },
         {
           "id": "gpt-5",
@@ -109947,6 +110066,31 @@
           "type": "chat"
         },
         {
+          "id": "doubao-seedream-4-5",
+          "name": "doubao-seedream-4-5",
+          "display_name": "doubao-seedream-4-5",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 2,
+            "output": 0,
+            "cache_read": 0
+          },
+          "type": "imageGeneration"
+        },
+        {
           "id": "sora-2",
           "name": "sora-2",
           "display_name": "sora-2",
@@ -109983,13 +110127,57 @@
           "type": "chat"
         },
         {
-          "id": "doubao-seedream-4-5",
-          "name": "doubao-seedream-4-5",
-          "display_name": "doubao-seedream-4-5",
+          "id": "minimax-m2.1",
+          "name": "minimax-m2.1",
+          "display_name": "minimax-m2.1",
+          "limit": {
+            "context": 204800,
+            "output": 204800
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 0.288,
+            "output": 1.152
+          },
+          "type": "chat"
+        },
+        {
+          "id": "o3",
+          "name": "o3",
+          "display_name": "o3",
           "modalities": {
             "input": [
               "text",
               "image"
+            ]
+          },
+          "limit": {
+            "context": 200000,
+            "output": 200000
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "cost": {
+            "input": 2,
+            "output": 8,
+            "cache_read": 0.5
+          },
+          "type": "chat"
+        },
+        {
+          "id": "wan2.6-i2v",
+          "name": "wan2.6-i2v",
+          "display_name": "wan2.6-i2v",
+          "modalities": {
+            "input": [
+              "image",
+              "text"
             ]
           },
           "limit": {
@@ -110002,43 +110190,17 @@
           },
           "cost": {
             "input": 2,
-            "output": 0,
-            "cache_read": 0
-          },
-          "type": "imageGeneration"
-        },
-        {
-          "id": "gpt-4o-audio-preview",
-          "name": "gpt-4o-audio-preview",
-          "display_name": "gpt-4o-audio-preview",
-          "modalities": {
-            "input": [
-              "text",
-              "audio"
-            ]
-          },
-          "limit": {
-            "context": 128000,
-            "output": 128000
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 2.5,
-            "output": 10
+            "output": 0
           },
           "type": "chat"
         },
         {
-          "id": "gpt-4o-mini-audio-preview",
-          "name": "gpt-4o-mini-audio-preview",
-          "display_name": "gpt-4o-mini-audio-preview",
+          "id": "wan2.6-t2v",
+          "name": "wan2.6-t2v",
+          "display_name": "wan2.6-t2v",
           "modalities": {
             "input": [
-              "text",
-              "audio"
+              "text"
             ]
           },
           "limit": {
@@ -110050,8 +110212,8 @@
             "supported": false
           },
           "cost": {
-            "input": 0.15,
-            "output": 0.6
+            "input": 2,
+            "output": 0
           },
           "type": "chat"
         },
@@ -110164,27 +110326,57 @@
           "type": "chat"
         },
         {
-          "id": "minimax-m2.1",
-          "name": "minimax-m2.1",
-          "display_name": "minimax-m2.1",
+          "id": "gpt-4o-audio-preview",
+          "name": "gpt-4o-audio-preview",
+          "display_name": "gpt-4o-audio-preview",
+          "modalities": {
+            "input": [
+              "text",
+              "audio"
+            ]
+          },
           "limit": {
-            "context": 204800,
-            "output": 204800
+            "context": 128000,
+            "output": 128000
           },
           "tool_call": false,
           "reasoning": {
             "supported": false
           },
           "cost": {
-            "input": 0.288,
-            "output": 1.152
+            "input": 2.5,
+            "output": 10
           },
           "type": "chat"
         },
         {
-          "id": "o3",
-          "name": "o3",
-          "display_name": "o3",
+          "id": "gpt-4o-mini-audio-preview",
+          "name": "gpt-4o-mini-audio-preview",
+          "display_name": "gpt-4o-mini-audio-preview",
+          "modalities": {
+            "input": [
+              "text",
+              "audio"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 0.15,
+            "output": 0.6
+          },
+          "type": "chat"
+        },
+        {
+          "id": "flux-2-flex",
+          "name": "flux-2-flex",
+          "display_name": "flux-2-flex",
           "modalities": {
             "input": [
               "text",
@@ -110192,8 +110384,61 @@
             ]
           },
           "limit": {
-            "context": 200000,
-            "output": 200000
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 2,
+            "output": 0,
+            "cache_read": 0
+          },
+          "type": "imageGeneration"
+        },
+        {
+          "id": "flux-2-pro",
+          "name": "flux-2-pro",
+          "display_name": "flux-2-pro",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 2,
+            "output": 0,
+            "cache_read": 0
+          },
+          "type": "imageGeneration"
+        },
+        {
+          "id": "gemini-2.5-pro",
+          "name": "gemini-2.5-pro",
+          "display_name": "gemini-2.5-pro",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "audio",
+              "video",
+              "pdf"
+            ]
+          },
+          "limit": {
+            "context": 1048576,
+            "output": 1048576
           },
           "tool_call": true,
           "reasoning": {
@@ -110201,20 +110446,71 @@
             "default": true
           },
           "cost": {
-            "input": 2,
-            "output": 8,
-            "cache_read": 0.5
+            "input": 1.25,
+            "output": 10,
+            "cache_read": 0.125
           },
           "type": "chat"
         },
         {
-          "id": "wan2.6-i2v",
-          "name": "wan2.6-i2v",
-          "display_name": "wan2.6-i2v",
+          "id": "glm-4.6",
+          "name": "glm-4.6",
+          "display_name": "glm-4.6",
           "modalities": {
             "input": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 204800,
+            "output": 204800
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cache_read": 0
+          },
+          "type": "chat"
+        },
+        {
+          "id": "glm-4.6v",
+          "name": "glm-4.6v",
+          "display_name": "glm-4.6v",
+          "modalities": {
+            "input": [
+              "text",
               "image",
-              "text"
+              "video"
+            ]
+          },
+          "limit": {
+            "context": 128000,
+            "output": 128000
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 0.137,
+            "output": 0.411,
+            "cache_read": 0.0274
+          },
+          "type": "chat"
+        },
+        {
+          "id": "jimeng-3.0-1080p",
+          "name": "jimeng-3.0-1080p",
+          "display_name": "jimeng-3.0-1080p",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
             ]
           },
           "limit": {
@@ -110232,12 +110528,13 @@
           "type": "chat"
         },
         {
-          "id": "wan2.6-t2v",
-          "name": "wan2.6-t2v",
-          "display_name": "wan2.6-t2v",
+          "id": "jimeng-3.0-720p",
+          "name": "jimeng-3.0-720p",
+          "display_name": "jimeng-3.0-720p",
           "modalities": {
             "input": [
-              "text"
+              "text",
+              "image"
             ]
           },
           "limit": {
@@ -110251,6 +110548,55 @@
           "cost": {
             "input": 2,
             "output": 0
+          },
+          "type": "chat"
+        },
+        {
+          "id": "jimeng-3.0-pro",
+          "name": "jimeng-3.0-pro",
+          "display_name": "jimeng-3.0-pro",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 2,
+            "output": 0
+          },
+          "type": "chat"
+        },
+        {
+          "id": "kimi-for-coding-free",
+          "name": "kimi-for-coding-free",
+          "display_name": "kimi-for-coding-free",
+          "modalities": {
+            "input": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 256000,
+            "output": 256000
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cache_read": 0
           },
           "type": "chat"
         },
@@ -110479,233 +110825,6 @@
           "cost": {
             "input": 2,
             "output": 2
-          },
-          "type": "chat"
-        },
-        {
-          "id": "flux-2-flex",
-          "name": "flux-2-flex",
-          "display_name": "flux-2-flex",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 2,
-            "output": 0,
-            "cache_read": 0
-          },
-          "type": "imageGeneration"
-        },
-        {
-          "id": "flux-2-pro",
-          "name": "flux-2-pro",
-          "display_name": "flux-2-pro",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 2,
-            "output": 0,
-            "cache_read": 0
-          },
-          "type": "imageGeneration"
-        },
-        {
-          "id": "gemini-2.5-pro",
-          "name": "gemini-2.5-pro",
-          "display_name": "gemini-2.5-pro",
-          "modalities": {
-            "input": [
-              "text",
-              "image",
-              "audio",
-              "video",
-              "pdf"
-            ]
-          },
-          "limit": {
-            "context": 1048576,
-            "output": 1048576
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "cost": {
-            "input": 1.25,
-            "output": 10,
-            "cache_read": 0.125
-          },
-          "type": "chat"
-        },
-        {
-          "id": "glm-4.6",
-          "name": "glm-4.6",
-          "display_name": "glm-4.6",
-          "modalities": {
-            "input": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 204800,
-            "output": 204800
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "cost": {
-            "input": 0,
-            "output": 0,
-            "cache_read": 0
-          },
-          "type": "chat"
-        },
-        {
-          "id": "glm-4.6v",
-          "name": "glm-4.6v",
-          "display_name": "glm-4.6v",
-          "modalities": {
-            "input": [
-              "text",
-              "image",
-              "video"
-            ]
-          },
-          "limit": {
-            "context": 128000,
-            "output": 128000
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 0.137,
-            "output": 0.411,
-            "cache_read": 0.0274
-          },
-          "type": "chat"
-        },
-        {
-          "id": "jimeng-3.0-1080p",
-          "name": "jimeng-3.0-1080p",
-          "display_name": "jimeng-3.0-1080p",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 2,
-            "output": 0
-          },
-          "type": "chat"
-        },
-        {
-          "id": "jimeng-3.0-720p",
-          "name": "jimeng-3.0-720p",
-          "display_name": "jimeng-3.0-720p",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 2,
-            "output": 0
-          },
-          "type": "chat"
-        },
-        {
-          "id": "jimeng-3.0-pro",
-          "name": "jimeng-3.0-pro",
-          "display_name": "jimeng-3.0-pro",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 2,
-            "output": 0
-          },
-          "type": "chat"
-        },
-        {
-          "id": "kimi-for-coding-free",
-          "name": "kimi-for-coding-free",
-          "display_name": "kimi-for-coding-free",
-          "modalities": {
-            "input": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 256000,
-            "output": 256000
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "cost": {
-            "input": 0,
-            "output": 0,
-            "cache_read": 0
           },
           "type": "chat"
         },
@@ -111721,54 +111840,6 @@
           "type": "chat"
         },
         {
-          "id": "DeepSeek-OCR",
-          "name": "DeepSeek-OCR",
-          "display_name": "DeepSeek-OCR",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ]
-          },
-          "limit": {
-            "context": 8000,
-            "output": 8000
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 0.02,
-            "output": 0.02
-          },
-          "type": "chat"
-        },
-        {
-          "id": "deepseek-ocr",
-          "name": "deepseek-ocr",
-          "display_name": "deepseek-ocr",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ]
-          },
-          "limit": {
-            "context": 8000,
-            "output": 8000
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 0.02,
-            "output": 0.02
-          },
-          "type": "chat"
-        },
-        {
           "id": "ernie-5.0-thinking-exp",
           "name": "ernie-5.0-thinking-exp",
           "display_name": "ernie-5.0-thinking-exp",
@@ -111998,9 +112069,9 @@
           "type": "chat"
         },
         {
-          "id": "gpt-4.1-mini",
-          "name": "gpt-4.1-mini",
-          "display_name": "gpt-4.1-mini",
+          "id": "DeepSeek-OCR",
+          "name": "DeepSeek-OCR",
+          "display_name": "DeepSeek-OCR",
           "modalities": {
             "input": [
               "text",
@@ -112008,17 +112079,40 @@
             ]
           },
           "limit": {
-            "context": 1047576,
-            "output": 1047576
+            "context": 8000,
+            "output": 8000
           },
-          "tool_call": true,
+          "tool_call": false,
           "reasoning": {
             "supported": false
           },
           "cost": {
-            "input": 0.4,
-            "output": 1.6,
-            "cache_read": 0.1
+            "input": 0.02,
+            "output": 0.02
+          },
+          "type": "chat"
+        },
+        {
+          "id": "deepseek-ocr",
+          "name": "deepseek-ocr",
+          "display_name": "deepseek-ocr",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ]
+          },
+          "limit": {
+            "context": 8000,
+            "output": 8000
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 0.02,
+            "output": 0.02
           },
           "type": "chat"
         },
@@ -112037,6 +112131,31 @@
             "output": 8192
           },
           "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 0.4,
+            "output": 1.6,
+            "cache_read": 0.1
+          },
+          "type": "chat"
+        },
+        {
+          "id": "gpt-4.1-mini",
+          "name": "gpt-4.1-mini",
+          "display_name": "gpt-4.1-mini",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ]
+          },
+          "limit": {
+            "context": 1047576,
+            "output": 1047576
+          },
+          "tool_call": true,
           "reasoning": {
             "supported": false
           },
@@ -112526,6 +112645,54 @@
             "cache_read": 0
           },
           "type": "imageGeneration"
+        },
+        {
+          "id": "jina-embeddings-v5-text-nano",
+          "name": "jina-embeddings-v5-text-nano",
+          "display_name": "jina-embeddings-v5-text-nano",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 0.05,
+            "output": 0.05
+          },
+          "type": "embedding"
+        },
+        {
+          "id": "jina-embeddings-v5-text-small",
+          "name": "jina-embeddings-v5-text-small",
+          "display_name": "jina-embeddings-v5-text-small",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 0.05,
+            "output": 0.05
+          },
+          "type": "embedding"
         },
         {
           "id": "DeepSeek-V3",
@@ -113767,33 +113934,6 @@
           "type": "chat"
         },
         {
-          "id": "doubao-seed-1-6",
-          "name": "doubao-seed-1-6",
-          "display_name": "doubao-seed-1-6",
-          "modalities": {
-            "input": [
-              "text",
-              "image",
-              "video"
-            ]
-          },
-          "limit": {
-            "context": 256000,
-            "output": 256000
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "cost": {
-            "input": 0.18,
-            "output": 1.8,
-            "cache_read": 0.036
-          },
-          "type": "chat"
-        },
-        {
           "id": "doubao-seed-1-6-flash",
           "name": "doubao-seed-1-6-flash",
           "display_name": "doubao-seed-1-6-flash",
@@ -113875,6 +114015,33 @@
           "type": "chat"
         },
         {
+          "id": "doubao-seed-1-6",
+          "name": "doubao-seed-1-6",
+          "display_name": "doubao-seed-1-6",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video"
+            ]
+          },
+          "limit": {
+            "context": 256000,
+            "output": 256000
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "cost": {
+            "input": 0.18,
+            "output": 1.8,
+            "cache_read": 0.036
+          },
+          "type": "chat"
+        },
+        {
           "id": "qwen3-30b-a3b-instruct-2507",
           "name": "qwen3-30b-a3b-instruct-2507",
           "display_name": "qwen3-30b-a3b-instruct-2507",
@@ -113925,53 +114092,6 @@
           "cost": {
             "input": 0.28,
             "output": 2.8
-          },
-          "type": "chat"
-        },
-        {
-          "id": "gemini-embedding-001",
-          "name": "gemini-embedding-001",
-          "display_name": "gemini-embedding-001",
-          "modalities": {
-            "input": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 0.15,
-            "output": 0.15
-          },
-          "type": "embedding"
-        },
-        {
-          "id": "gpt-oss-120b",
-          "name": "gpt-oss-120b",
-          "display_name": "gpt-oss-120b",
-          "modalities": {
-            "input": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 131072,
-            "output": 131072
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "cost": {
-            "input": 0.18,
-            "output": 0.9
           },
           "type": "chat"
         },
@@ -114095,6 +114215,53 @@
             "input": 0.2,
             "output": 0.2,
             "cache_read": 0.02
+          },
+          "type": "chat"
+        },
+        {
+          "id": "gemini-embedding-001",
+          "name": "gemini-embedding-001",
+          "display_name": "gemini-embedding-001",
+          "modalities": {
+            "input": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 0.15,
+            "output": 0.15
+          },
+          "type": "embedding"
+        },
+        {
+          "id": "gpt-oss-120b",
+          "name": "gpt-oss-120b",
+          "display_name": "gpt-oss-120b",
+          "modalities": {
+            "input": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 131072,
+            "output": 131072
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "cost": {
+            "input": 0.18,
+            "output": 0.9
           },
           "type": "chat"
         },
@@ -116397,25 +116564,6 @@
           "type": "imageGeneration"
         },
         {
-          "id": "qwen3-14b",
-          "name": "qwen3-14b",
-          "display_name": "qwen3-14b",
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 0.16,
-            "output": 1.6,
-            "cache_read": 0
-          },
-          "type": "chat"
-        },
-        {
           "id": "doubao-embedding-text-240715",
           "name": "doubao-embedding-text-240715",
           "display_name": "doubao-embedding-text-240715",
@@ -116437,6 +116585,25 @@
             "output": 0.7
           },
           "type": "embedding"
+        },
+        {
+          "id": "qwen3-14b",
+          "name": "qwen3-14b",
+          "display_name": "qwen3-14b",
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 0.16,
+            "output": 1.6,
+            "cache_read": 0
+          },
+          "type": "chat"
         },
         {
           "id": "grok-3-beta",
@@ -118504,62 +118671,6 @@
           "type": "chat"
         },
         {
-          "id": "sophnet-glm-4.7",
-          "name": "sophnet-glm-4.7",
-          "display_name": "sophnet-glm-4.7",
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 0.273974,
-            "output": 1.095896,
-            "cache_read": 0.273974
-          },
-          "type": "chat"
-        },
-        {
-          "id": "sophnet-glm-5",
-          "name": "sophnet-glm-5",
-          "display_name": "sophnet-glm-5",
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 0.273974,
-            "output": 1.095896,
-            "cache_read": 0.273974
-          },
-          "type": "chat"
-        },
-        {
-          "id": "sophnet-kimi-k2.5",
-          "name": "sophnet-kimi-k2.5",
-          "display_name": "sophnet-kimi-k2.5",
-          "limit": {
-            "context": 256000,
-            "output": 256000
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 0.548,
-            "output": 2.877
-          },
-          "type": "chat"
-        },
-        {
           "id": "step-2-16k",
           "name": "step-2-16k",
           "display_name": "step-2-16k",
@@ -119165,25 +119276,6 @@
           "cost": {
             "input": 0.000852,
             "output": 0.000852
-          },
-          "type": "chat"
-        },
-        {
-          "id": "doubao-1-5-thinking-vision-pro-250428",
-          "name": "doubao-1-5-thinking-vision-pro-250428",
-          "display_name": "doubao-1-5-thinking-vision-pro-250428",
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 2,
-            "output": 2,
-            "cache_read": 2
           },
           "type": "chat"
         },
@@ -121596,89 +121688,6 @@
           "type": "chat"
         },
         {
-          "id": "baidu-deepseek-v3.2",
-          "name": "baidu-deepseek-v3.2",
-          "display_name": "baidu-deepseek-v3.2",
-          "modalities": {
-            "input": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 0.274,
-            "output": 0.411
-          },
-          "type": "chat"
-        },
-        {
-          "id": "baidu-deepseek-v3.2-exp",
-          "name": "baidu-deepseek-v3.2-exp",
-          "display_name": "baidu-deepseek-v3.2-exp",
-          "modalities": {
-            "input": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 0.274,
-            "output": 0.411,
-            "cache_read": 0.0274
-          },
-          "type": "chat"
-        },
-        {
-          "id": "baidu-kimi-k2.5",
-          "name": "baidu-kimi-k2.5",
-          "display_name": "baidu-kimi-k2.5",
-          "limit": {
-            "context": 256000,
-            "output": 256000
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 0.548,
-            "output": 2.877
-          },
-          "type": "chat"
-        },
-        {
-          "id": "baidu-minimax-m2.1",
-          "name": "baidu-minimax-m2.1",
-          "display_name": "baidu-minimax-m2.1",
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 0.288,
-            "output": 1.152
-          },
-          "type": "chat"
-        },
-        {
           "id": "cbs-glm-4.7",
           "name": "cbs-glm-4.7",
           "display_name": "cbs-glm-4.7",
@@ -122583,6 +122592,25 @@
           "cost": {
             "input": 5.556,
             "output": 5.556
+          },
+          "type": "chat"
+        },
+        {
+          "id": "doubao-1-5-thinking-vision-pro-250428",
+          "name": "doubao-1-5-thinking-vision-pro-250428",
+          "display_name": "doubao-1-5-thinking-vision-pro-250428",
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 2,
+            "output": 2,
+            "cache_read": 2
           },
           "type": "chat"
         },
@@ -131450,6 +131478,31 @@
           "id": "gemini-3-pro-preview",
           "name": "gemini-3-pro-preview",
           "display_name": "gemini-3-pro-preview",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video",
+              "audio"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1048576,
+            "output": 65536
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "type": "chat"
+        },
+        {
+          "id": "gemini-3.1-pro-preview",
+          "name": "gemini-3.1-pro-preview",
+          "display_name": "gemini-3.1-pro-preview",
           "modalities": {
             "input": [
               "text",

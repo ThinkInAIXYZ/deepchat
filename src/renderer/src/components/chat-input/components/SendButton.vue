@@ -3,7 +3,7 @@
     v-if="!isStreaming || variant === 'newThread'"
     variant="default"
     size="icon"
-    class="w-7 h-7 text-xs rounded-lg"
+    class="h-7 w-7 rounded-full"
     :disabled="disabled || isCallActive"
     @click="emit('send')"
   >
@@ -12,15 +12,12 @@
   <Button
     v-else
     key="cancel"
-    variant="outline"
+    variant="destructive"
     size="icon"
-    class="w-7 h-7 text-xs rounded-lg bg-card backdrop-blur-lg"
+    class="h-7 w-7 rounded-full"
     @click="emit('cancel')"
   >
-    <Icon
-      icon="lucide:square"
-      class="w-6 h-6 bg-red-500 p-1 text-primary-foreground rounded-full"
-    />
+    <Icon icon="lucide:square" class="w-3.5 h-3.5" />
   </Button>
 </template>
 

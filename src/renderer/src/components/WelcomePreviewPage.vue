@@ -62,7 +62,7 @@
 import { Icon } from '@iconify/vue'
 import { usePresenter } from '@/composables/usePresenter'
 import { useThemeStore } from '@/stores/theme'
-import ModelIcon from '../icons/ModelIcon.vue'
+import ModelIcon from './icons/ModelIcon.vue'
 
 const windowPresenter = usePresenter('windowPresenter')
 const themeStore = useThemeStore()

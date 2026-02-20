@@ -1,6 +1,7 @@
 <template>
   <div
-    :class="['w-full', variant === 'newThread' ? 'max-w-4xl mx-auto' : '']"
+    class="w-full max-w-2xl"
+    :class="variant === 'chat' ? 'mx-auto' : ''"
     @dragenter.prevent="drag.handleDragEnter"
     @dragover.prevent="drag.handleDragOver"
     @drop.prevent="handleDrop"
@@ -9,35 +10,15 @@
   >
     <TooltipProvider>
       <div
-        ref="inputContainer"
         :dir="langStore.dir"
-        :style="
-          variant === 'chat'
-            ? inputHeight
-              ? { height: `${inputHeight}px` }
-              : { maxHeight: '50vh' }
-            : {}
-        "
         :class="[
-          'flex flex-col gap-2 relative',
+          'flex flex-col relative rounded-xl border bg-card/30 backdrop-blur-lg shadow-sm overflow-hidden',
           isCallActive ? 'pointer-events-none opacity-60' : '',
-          variant === 'newThread'
-            ? 'bg-card rounded-lg border p-2 shadow-sm'
-            : 'border-t px-4 py-3 gap-3'
+          variant === 'chat' ? 'mx-auto' : ''
         ]"
       >
-        <!-- Resize Handle -->
-        <div
-          v-if="variant === 'chat'"
-          class="absolute -top-1.5 left-0 right-0 h-3 cursor-ns-resize hover:bg-primary/10 z-20 flex justify-center items-center group opacity-0 hover:opacity-100 transition-opacity"
-          @mousedown="startResize"
-        >
-          <div
-            class="w-16 h-1 bg-muted-foreground/20 rounded-full group-hover:bg-primary/40 transition-colors"
-          ></div>
-        </div>
         <!-- File Area -->
-        <div v-if="files.selectedFiles.value.length > 0">
+        <div v-if="files.selectedFiles.value.length > 0" class="px-3 pt-3">
           <TransitionGroup
             name="file-list"
             tag="div"
@@ -64,29 +45,26 @@
         </div>
 
         <!-- Editor -->
-        <div class="flex-1 min-h-0 overflow-y-auto relative">
+        <div class="flex-1 min-h-0 overflow-y-auto relative px-4 pt-4 pb-2">
           <editor-content
             :editor="editor"
-            :class="['text-sm h-full', variant === 'chat' ? 'dark:text-white/80' : 'p-2']"
+            :class="['text-sm h-full', variant === 'chat' ? 'dark:text-white/80' : '']"
             @keydown="onKeydown"
           />
         </div>
 
         <!-- Footer -->
-        <ChatInputToolbar>
+        <InputToolbar>
           <template #left>
             <!-- Mode Switch -->
-            <Tooltip>
+            <Tooltip v-if="variant === 'chat'">
               <TooltipTrigger as-child>
                 <span class="inline-flex">
                   <Popover v-model:open="modeSelectOpen">
                     <PopoverTrigger as-child>
                       <Button
-                        variant="outline"
-                        :class="[
-                          'w-7 h-7 text-xs rounded-lg',
-                          variant === 'chat' ? 'text-accent-foreground' : ''
-                        ]"
+                        variant="ghost"
+                        class="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground"
                         size="icon"
                         :title="t('chat.mode.current', { mode: chatMode.currentLabel.value })"
                       >
@@ -148,15 +126,15 @@
             <Tooltip>
               <TooltipTrigger>
                 <Button
-                  variant="outline"
+                  variant="ghost"
                   size="icon"
-                  :class="[
-                    'w-7 h-7 text-xs rounded-lg',
-                    variant === 'chat' ? 'text-accent-foreground' : ''
-                  ]"
+                  class="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground"
                   @click="files.openFilePicker"
                 >
-                  <Icon icon="lucide:paperclip" class="w-4 h-4" />
+                  <Icon
+                    :icon="variant === 'chat' ? 'lucide:paperclip' : 'lucide:plus'"
+                    class="w-4 h-4"
+                  />
                   <input
                     ref="fileInput"
                     type="file"
@@ -170,14 +148,14 @@
               <TooltipContent>{{ t('chat.input.fileSelect') }}</TooltipContent>
             </Tooltip>
 
-            <McpToolsList />
-            <SkillsIndicator :conversation-id="conversationId" />
+            <McpToolsList v-if="variant === 'chat'" />
+            <SkillsIndicator v-if="variant === 'chat'" :conversation-id="conversationId" />
           </template>
 
           <!-- Actions -->
           <template #right>
             <div
-              v-if="shouldShowContextLength"
+              v-if="variant === 'chat' && shouldShowContextLength"
               :class="[
                 'text-xs',
                 variant === 'chat'
@@ -190,7 +168,7 @@
             </div>
 
             <div
-              v-if="rateLimit.rateLimitStatus.value?.config.enabled"
+              v-if="variant === 'chat' && rateLimit.rateLimitStatus.value?.config.enabled"
               :class="[
                 'flex items-center gap-1 text-xs',
                 variant === 'chat' ? 'dark:text-white/60' : '',
@@ -217,11 +195,7 @@
 
             <!-- Mode Switcher (ACPs only, chat mode, only when agent declares modes) -->
             <Tooltip
-              v-if="
-                ['chat', 'newThread'].includes(variant) &&
-                acpMode.isAcpModel.value &&
-                acpMode.hasAgentModes.value
-              "
+              v-if="variant === 'chat' && acpMode.isAcpModel.value && acpMode.hasAgentModes.value"
             >
               <TooltipTrigger>
                 <Button
@@ -350,7 +324,7 @@
               @cancel="handleCancel"
             />
           </template>
-        </ChatInputToolbar>
+        </InputToolbar>
 
         <!-- Drag Overlay -->
         <div v-if="drag.isDragging.value" class="absolute inset-0 bg-black/40 rounded-lg">
@@ -406,7 +380,7 @@ import ModelIcon from '../icons/ModelIcon.vue'
 import McpToolsList from '../McpToolsList.vue'
 import SkillsIndicator from './SkillsIndicator.vue'
 import VoiceCallWidget from './VoiceCallWidget.vue'
-import ChatInputToolbar from './components/ChatInputToolbar.vue'
+import InputToolbar from './components/InputToolbar.vue'
 import AgentInfoBadge from './components/AgentInfoBadge.vue'
 import WorkdirToolbarItem from './components/WorkdirToolbarItem.vue'
 import SendButton from './components/SendButton.vue'
@@ -468,45 +442,6 @@ const props = withDefaults(
 )
 
 const emit = defineEmits(['send', 'file-upload'])
-
-// === Resize Logic ===
-const inputContainer = ref<HTMLElement | null>(null)
-const inputHeight = ref<number | null>(null)
-const isResizing = ref(false)
-const startY = ref(0)
-const startHeight = ref(0)
-
-const startResize = (e: MouseEvent) => {
-  if (props.variant !== 'chat') return
-  isResizing.value = true
-  startY.value = e.clientY
-  if (inputContainer.value) {
-    startHeight.value = inputContainer.value.getBoundingClientRect().height
-  }
-  document.addEventListener('mousemove', handleResize)
-  document.addEventListener('mouseup', stopResize)
-  document.body.style.cursor = 'ns-resize'
-  document.body.style.userSelect = 'none'
-}
-
-const handleResize = (e: MouseEvent) => {
-  if (!isResizing.value) return
-  const deltaY = startY.value - e.clientY
-  const newHeight = startHeight.value + deltaY
-  // Min height 100px, Max height 50% of window height
-  const maxHeight = window.innerHeight * 0.5
-  if (newHeight > 100 && newHeight < maxHeight) {
-    inputHeight.value = newHeight
-  }
-}
-
-const stopResize = () => {
-  isResizing.value = false
-  document.removeEventListener('mousemove', handleResize)
-  document.removeEventListener('mouseup', stopResize)
-  document.body.style.cursor = ''
-  document.body.style.userSelect = ''
-}
 
 // === Stores ===
 const chatStore = useChatStore()
