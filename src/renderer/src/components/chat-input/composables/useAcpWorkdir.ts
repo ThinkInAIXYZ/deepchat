@@ -151,24 +151,35 @@ export function useAcpWorkdir(options: UseAcpWorkdirOptions) {
     const result = await devicePresenter.selectDirectory()
     if (result.canceled || !result.filePaths?.length) return
 
-    const selectedPath = result.filePaths[0]
+    await setWorkdir(result.filePaths[0])
+  }
+
+  const setWorkdir = async (path: string | null) => {
+    if (loading.value || !isAcpModel.value || !agentId.value) {
+      return
+    }
+
+    const nextPath = path?.trim() ? path.trim() : null
+
     loading.value = true
     try {
       if (hasConversation.value && options.conversationId.value) {
-        await sessionPresenter.setAcpWorkdir(
-          options.conversationId.value,
-          agentId.value,
-          selectedPath
-        )
-        workdir.value = selectedPath
-        isCustom.value = true
+        await sessionPresenter.setAcpWorkdir(options.conversationId.value, agentId.value, nextPath)
+        workdir.value = nextPath ?? ''
+        pendingWorkdir.value = null
+        isCustom.value = Boolean(nextPath)
       } else {
-        pendingWorkdir.value = selectedPath
-        workdir.value = selectedPath
-        isCustom.value = true
+        pendingWorkdir.value = nextPath
+        workdir.value = nextPath ?? ''
+        isCustom.value = Boolean(nextPath)
       }
-      syncPreference(selectedPath)
-      await warmupProcess(selectedPath)
+
+      syncPreference(nextPath)
+      if (nextPath) {
+        await warmupProcess(nextPath)
+      } else {
+        lastWarmupKey.value = null
+      }
     } catch (error) {
       console.warn('[useAcpWorkdir] Failed to set workdir', error)
     } finally {
@@ -176,13 +187,19 @@ export function useAcpWorkdir(options: UseAcpWorkdirOptions) {
     }
   }
 
-  const hasWorkdir = computed(() => isCustom.value || Boolean(pendingWorkdir.value))
+  const resetWorkdir = async () => {
+    await setWorkdir(null)
+  }
+
+  const hasWorkdir = computed(() => Boolean(workdir.value || pendingWorkdir.value))
 
   return {
     isAcpModel,
     workdir,
     hasWorkdir,
     selectWorkdir,
+    setWorkdir,
+    resetWorkdir,
     loading
   }
 }

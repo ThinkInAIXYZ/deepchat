@@ -73,9 +73,8 @@
         </div>
 
         <!-- Footer -->
-        <div class="flex items-center justify-between">
-          <!-- Tools -->
-          <div class="flex gap-1.5">
+        <ChatInputToolbar>
+          <template #left>
             <!-- Mode Switch -->
             <Tooltip>
               <TooltipTrigger as-child>
@@ -128,40 +127,23 @@
               </TooltipContent>
             </Tooltip>
 
-            <!-- Unified Workspace Path Selection (for agent and acp agent modes) -->
-            <Tooltip>
-              <TooltipTrigger>
-                <Button
-                  :class="[
-                    'w-7 h-7 text-xs rounded-lg',
-                    variant === 'chat' ? 'text-accent-foreground' : '',
-                    workspace.hasWorkspace.value
-                      ? 'bg-primary text-primary-foreground hover:bg-primary/90'
-                      : ''
-                  ]"
-                  :variant="workspace.hasWorkspace.value ? 'default' : 'outline'"
-                  size="icon"
-                  :disabled="workspace.loading.value"
-                  @click="workspace.selectWorkspace"
-                >
-                  <Icon
-                    :icon="workspace.hasWorkspace.value ? 'lucide:folder-open' : 'lucide:folder'"
-                    class="w-4 h-4"
-                  />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent class="max-w-xs">
-                <p class="text-xs font-semibold">
-                  {{ workspace.tooltipTitle }}
-                </p>
-                <p v-if="workspace.hasWorkspace.value" class="text-xs text-muted-foreground mt-1">
-                  {{ workspace.tooltipCurrent }}
-                </p>
-                <p v-else class="text-xs text-muted-foreground mt-1">
-                  {{ workspace.tooltipSelect }}
-                </p>
-              </TooltipContent>
-            </Tooltip>
+            <AgentInfoBadge
+              v-if="variant === 'chat'"
+              :agent="currentAgent"
+              :active-model="activeModelSource"
+              @open-settings="openAgentSettings"
+            />
+
+            <WorkdirToolbarItem
+              v-if="variant === 'chat'"
+              :workdir="workspace.workspacePath.value || ''"
+              :session-default="workspace.sessionDefaultPath.value || ''"
+              :recent-workdirs="workspace.recentWorkdirs.value"
+              :loading="workspace.loading.value"
+              @select="handleWorkdirSelect"
+              @browse="handleWorkdirBrowse"
+              @reset="handleWorkdirReset"
+            />
 
             <Tooltip>
               <TooltipTrigger>
@@ -190,10 +172,10 @@
 
             <McpToolsList />
             <SkillsIndicator :conversation-id="conversationId" />
-          </div>
+          </template>
 
           <!-- Actions -->
-          <div class="flex items-center gap-2 flex-wrap">
+          <template #right>
             <div
               v-if="shouldShowContextLength"
               :class="[
@@ -359,32 +341,16 @@
               @active-change="isCallActive = $event"
             />
 
-            <!-- Send/Stop Button -->
-            <Button
-              v-if="!isStreaming || variant === 'newThread'"
-              variant="default"
-              size="icon"
-              class="w-7 h-7 text-xs rounded-lg"
+            <SendButton
+              :variant="variant"
+              :is-streaming="isStreaming"
               :disabled="disabledSend || isCallActive"
-              @click="emitSend"
-            >
-              <Icon icon="lucide:arrow-up" class="w-4 h-4" />
-            </Button>
-            <Button
-              v-else-if="isStreaming && variant === 'chat'"
-              key="cancel"
-              variant="outline"
-              size="icon"
-              class="w-7 h-7 text-xs rounded-lg bg-card backdrop-blur-lg"
-              @click="handleCancel"
-            >
-              <Icon
-                icon="lucide:square"
-                class="w-6 h-6 bg-red-500 p-1 text-primary-foreground rounded-full"
-              />
-            </Button>
-          </div>
-        </div>
+              :is-call-active="isCallActive"
+              @send="emitSend"
+              @cancel="handleCancel"
+            />
+          </template>
+        </ChatInputToolbar>
 
         <!-- Drag Overlay -->
         <div v-if="drag.isDragging.value" class="absolute inset-0 bg-black/40 rounded-lg">
@@ -440,6 +406,10 @@ import ModelIcon from '../icons/ModelIcon.vue'
 import McpToolsList from '../McpToolsList.vue'
 import SkillsIndicator from './SkillsIndicator.vue'
 import VoiceCallWidget from './VoiceCallWidget.vue'
+import ChatInputToolbar from './components/ChatInputToolbar.vue'
+import AgentInfoBadge from './components/AgentInfoBadge.vue'
+import WorkdirToolbarItem from './components/WorkdirToolbarItem.vue'
+import SendButton from './components/SendButton.vue'
 
 // === Composables ===
 import { usePresenter } from '@/composables/usePresenter'
@@ -465,6 +435,7 @@ import { useWorkspaceMention } from './composables/useWorkspaceMention'
 import { useChatStore } from '@/stores/chat'
 import { useLanguageStore } from '@/stores/language'
 import { useThemeStore } from '@/stores/theme'
+import { useAgentStore } from '@/stores/agent'
 
 // === Mention System ===
 import { Mention } from '../editor/mention/mention'
@@ -541,6 +512,7 @@ const stopResize = () => {
 const chatStore = useChatStore()
 const langStore = useLanguageStore()
 const themeStore = useThemeStore()
+const agentStore = useAgentStore()
 
 // === Presenters ===
 const windowPresenter = usePresenter('windowPresenter')
@@ -687,6 +659,7 @@ const activeModelSource = computed(() => {
   }
   return config.activeModel.value
 })
+const currentAgent = computed(() => agentStore.selectedAgent)
 
 const acpWorkdir = useAcpWorkdir({
   activeModel: activeModelSource,
@@ -697,7 +670,8 @@ const acpWorkdir = useAcpWorkdir({
 const workspace = useAgentWorkspace({
   conversationId,
   activeModel: activeModelSource,
-  chatMode
+  chatMode,
+  acpWorkdir
 })
 
 const workspaceMention = useWorkspaceMention({
@@ -730,6 +704,25 @@ const { currentContextLengthText, shouldShowContextLength, contextLengthStatusCl
   contextLengthTracker
 
 // === Event Handlers ===
+const openAgentSettings = () => {
+  const windowId = window.api.getWindowId()
+  if (windowId != null) {
+    void windowPresenter.openOrFocusSettingsTab(windowId)
+  }
+}
+
+const handleWorkdirSelect = async (workdirPath: string) => {
+  await workspace.selectWorkspacePath(workdirPath)
+}
+
+const handleWorkdirBrowse = async () => {
+  await workspace.selectWorkspace()
+}
+
+const handleWorkdirReset = async () => {
+  await workspace.resetWorkspace()
+}
+
 const handleDrop = async (e: DragEvent) => {
   drag.resetDragState()
 

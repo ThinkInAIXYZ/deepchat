@@ -15,6 +15,7 @@ export interface UseAgentWorkspaceOptions {
   conversationId: Ref<string | null>
   activeModel: Ref<{ id: string; providerId: string } | null>
   chatMode?: ReturnType<typeof useChatMode>
+  acpWorkdir?: ReturnType<typeof useAcpWorkdir>
 }
 
 /**
@@ -24,18 +25,24 @@ export interface UseAgentWorkspaceOptions {
 export function useAgentWorkspace(options: UseAgentWorkspaceOptions) {
   const { t } = useI18n()
   const sessionPresenter = usePresenter('sessionPresenter')
+  const devicePresenter = usePresenter('devicePresenter')
+  const workspacePresenter = usePresenter('workspacePresenter')
+  const configPresenter = usePresenter('configPresenter')
   const chatMode = options.chatMode ?? useChatMode()
   const chatStore = useChatStore()
 
   // Use ACP workdir for acp agent mode
-  const acpWorkdir = useAcpWorkdir({
-    conversationId: options.conversationId,
-    activeModel: options.activeModel
-  })
+  const acpWorkdir =
+    options.acpWorkdir ??
+    useAcpWorkdir({
+      conversationId: options.conversationId,
+      activeModel: options.activeModel
+    })
 
   // Agent workspace path (for agent mode)
   const agentWorkspacePath = ref<string | null>(null)
   const pendingWorkspacePath = ref<string | null>(null)
+  const recentWorkdirs = ref<string[]>([])
   const loading = ref(false)
   const syncPreference = (workspacePath: string | null) => {
     const setPreference = (
@@ -100,38 +107,107 @@ export function useAgentWorkspace(options: UseAgentWorkspaceOptions) {
     return t('chat.input.agentWorkspaceSelect')
   })
 
+  const sessionDefaultPath = computed(() => {
+    if (chatMode.currentMode.value === 'acp agent') {
+      const activeAcpAgentId =
+        options.activeModel.value?.providerId === 'acp' ? options.activeModel.value.id : ''
+      if (!activeAcpAgentId) return ''
+      return chatStore.chatConfig.acpWorkdirMap?.[activeAcpAgentId] ?? ''
+    }
+
+    return chatStore.activeThread?.settings?.agentWorkspacePath ?? ''
+  })
+
+  const addRecentWorkdir = async (path: string | null) => {
+    const normalized = path?.trim()
+    if (!normalized) return
+    try {
+      await configPresenter.addRecentWorkdir(normalized)
+      await refreshRecentWorkdirs()
+    } catch (error) {
+      console.warn('[useAgentWorkspace] Failed to add recent workdir:', error)
+    }
+  }
+
+  const refreshRecentWorkdirs = async () => {
+    try {
+      const recent = await configPresenter.getRecentWorkdirs()
+      recentWorkdirs.value = Array.isArray(recent) ? recent : []
+    } catch (error) {
+      console.warn('[useAgentWorkspace] Failed to load recent workdirs:', error)
+      recentWorkdirs.value = []
+    }
+  }
+
+  const setAgentWorkspacePath = async (workspacePath: string | null) => {
+    const selectedPath = workspacePath?.trim() ? workspacePath.trim() : null
+    agentWorkspacePath.value = selectedPath
+    syncPreference(selectedPath)
+
+    if (options.conversationId.value) {
+      await sessionPresenter.updateConversationSettings(options.conversationId.value, {
+        agentWorkspacePath: selectedPath
+      })
+      pendingWorkspacePath.value = null
+    } else {
+      pendingWorkspacePath.value = selectedPath
+    }
+
+    if (selectedPath) {
+      await workspacePresenter.registerWorkspace(selectedPath)
+      await addRecentWorkdir(selectedPath)
+    }
+  }
+
+  const selectWorkspacePath = async (workspacePath: string) => {
+    loading.value = true
+    try {
+      if (chatMode.currentMode.value === 'acp agent') {
+        await acpWorkdir.setWorkdir(workspacePath)
+        await addRecentWorkdir(workspacePath)
+        return
+      }
+
+      await setAgentWorkspacePath(workspacePath)
+    } catch (error) {
+      console.error('[useAgentWorkspace] Failed to select workspace path:', error)
+    } finally {
+      loading.value = false
+    }
+  }
+
+  const resetWorkspace = async () => {
+    loading.value = true
+    try {
+      if (chatMode.currentMode.value === 'acp agent') {
+        await acpWorkdir.resetWorkdir()
+        return
+      }
+
+      await setAgentWorkspacePath(null)
+    } catch (error) {
+      console.error('[useAgentWorkspace] Failed to reset workspace:', error)
+    } finally {
+      loading.value = false
+    }
+  }
+
   // === Methods ===
   const selectWorkspace = async () => {
     if (chatMode.currentMode.value === 'acp agent') {
       // Use ACP workdir selection
       await acpWorkdir.selectWorkdir()
+      await addRecentWorkdir(acpWorkdir.workdir.value || null)
       return
     }
 
     // For agent mode, select workspace path
     loading.value = true
     try {
-      const devicePresenter = usePresenter('devicePresenter')
       const result = await devicePresenter.selectDirectory()
 
       if (!result.canceled && result.filePaths && result.filePaths.length > 0) {
-        const selectedPath = result.filePaths[0]
-        agentWorkspacePath.value = selectedPath
-        syncPreference(selectedPath)
-
-        // Save to conversation settings when available
-        if (options.conversationId.value) {
-          await sessionPresenter.updateConversationSettings(options.conversationId.value, {
-            agentWorkspacePath: selectedPath
-          })
-          pendingWorkspacePath.value = null
-        } else {
-          pendingWorkspacePath.value = selectedPath
-        }
-
-        // Register workspace with presenter
-        const workspacePresenter = usePresenter('workspacePresenter')
-        await workspacePresenter.registerWorkspace(selectedPath)
+        await setAgentWorkspacePath(result.filePaths[0])
       }
     } catch (error) {
       console.error('[useAgentWorkspace] Failed to select workspace:', error)
@@ -161,7 +237,6 @@ export function useAgentWorkspace(options: UseAgentWorkspaceOptions) {
         pendingWorkspacePath.value = null
         syncPreference(savedPath)
         // Register workspace with presenter
-        const workspacePresenter = usePresenter('workspacePresenter')
         await workspacePresenter.registerWorkspace(savedPath)
       } else if (!pendingWorkspacePath.value) {
         agentWorkspacePath.value = null
@@ -184,7 +259,6 @@ export function useAgentWorkspace(options: UseAgentWorkspaceOptions) {
       agentWorkspacePath.value = selectedPath
       pendingWorkspacePath.value = null
 
-      const workspacePresenter = usePresenter('workspacePresenter')
       await workspacePresenter.registerWorkspace(selectedPath)
     } catch (error) {
       console.error('[useAgentWorkspace] Failed to sync pending workspace:', error)
@@ -226,14 +300,20 @@ export function useAgentWorkspace(options: UseAgentWorkspaceOptions) {
     { immediate: true }
   )
 
+  void refreshRecentWorkdirs()
+
   return {
     hasWorkspace,
     workspacePath,
+    sessionDefaultPath,
+    recentWorkdirs,
     loading,
     tooltipTitle,
     tooltipCurrent,
     tooltipSelect,
     selectWorkspace,
+    selectWorkspacePath,
+    resetWorkspace,
     loadWorkspacePath
   }
 }

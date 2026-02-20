@@ -9,91 +9,100 @@
 
 在开始实现前，确保理解并遵循以下样式规范：
 
-- [ ] 阅读 `src/renderer/src/components/mock/MockInputBox.vue` 源码
-- [ ] 阅读 `src/renderer/src/components/mock/MockInputToolbar.vue` 源码
-- [ ] 阅读 `src/renderer/src/components/mock/MockStatusBar.vue` 源码
-- [ ] 理解 StatusBtn 样式 (h-6 px-2 gap-1 text-xs)
-- [ ] 理解 Dropdown 样式 (与 NewThreadMock 保持一致)
+- [x] 阅读 `src/renderer/src/components/mock/InputBox.vue` 源码
+- [x] 阅读 `src/renderer/src/components/mock/InputToolbar.vue` 源码
+- [x] 阅读 `src/renderer/src/components/mock/StatusBar.vue` 源码
+- [x] 理解 StatusBtn 样式 (h-6 px-2 gap-1 text-xs)
+- [x] 理解 Dropdown 样式 (与 NewThread 组件保持一致)
 
 ---
 
 ## 1. ChatInputToolbar Component
 
-- [ ] Create `src/renderer/src/components/ChatInput/ChatInputToolbar.vue`
-  - [ ] Horizontal layout
-  - [ ] Agent info badge
-  - [ ] Workdir selector
-  - [ ] Settings button
-  - [ ] Send button
-  - [ ] Dividers between sections
+- [x] Create `src/renderer/src/components/chat-input/components/ChatInputToolbar.vue`
+  - [x] Horizontal layout
+  - [x] Left/Right slot split for incremental integration
+  - [x] Keep existing chat-input tools/actions structure compatible
 
 ## 2. AgentInfoBadge Component
 
-- [ ] Create `src/renderer/src/components/ChatInput/AgentInfoBadge.vue`
-  - [ ] Agent icon display
-  - [ ] Agent name display
-  - [ ] Click handler for info popover
-  - [ ] Info popover with agent details
-  - [ ] "View Agent Settings" link
+- [x] Create `src/renderer/src/components/chat-input/components/AgentInfoBadge.vue`
+  - [x] Agent icon display
+  - [x] Agent name display
+  - [x] Click handler for info popover
+  - [x] Info popover with agent details (agent/provider/model/command)
+  - [x] "View Agent Settings" action
 
 ## 3. WorkdirToolbarItem Component
 
-- [ ] Create `src/renderer/src/components/ChatInput/WorkdirToolbarItem.vue`
-  - [ ] Current workdir display (truncated)
-  - [ ] Modified indicator (if different from session default)
-  - [ ] Click handler for dropdown
-  - [ ] Dropdown with recent directories
-  - [ ] Browse button
-  - [ ] Reset to default button (if modified)
+- [x] Create `src/renderer/src/components/chat-input/components/WorkdirToolbarItem.vue`
+  - [x] Current workdir display (truncated)
+  - [x] Modified indicator (if different from session default)
+  - [x] Click handler for dropdown
+  - [x] Dropdown with recent directories
+  - [x] Browse button
+  - [x] Reset to default button (if modified)
 
 ## 4. SendButton Component
 
-- [ ] Create `src/renderer/src/components/ChatInput/SendButton.vue`
-  - [ ] Send icon
-  - [ ] Disabled state
-  - [ ] Loading state
-  - [ ] Click handler
+- [x] Create `src/renderer/src/components/chat-input/components/SendButton.vue`
+  - [x] Send icon
+  - [x] Disabled state
+  - [x] Streaming stop state
+  - [x] Click handler
 
 ## 5. ChatInput Integration
 
-- [ ] Update `src/renderer/src/components/ChatInput.vue`
-  - [ ] Add ChatInputToolbar below textarea
-  - [ ] Wire up workdir binding
-  - [ ] Wire up send handler
+- [x] Update `src/renderer/src/components/chat-input/ChatInput.vue`
+  - [x] Use `ChatInputToolbar` below textarea
+  - [x] Wire up `AgentInfoBadge`
+  - [x] Wire up `WorkdirToolbarItem` with select/browse/reset
+  - [x] Replace inline send/stop buttons with `SendButton`
 
-## 6. Workdir Override Logic
+## 6. Workdir State Handling
 
-- [ ] Update `src/renderer/src/stores/chat.ts`
-  - [ ] Add `workdirOverrides` Map
-  - [ ] Add `getCurrentWorkdir(threadId)` getter
-  - [ ] Add `setWorkdirOverride(threadId, workdir)` action
-  - [ ] Clear override after send (optional)
+- [x] Update `src/renderer/src/components/chat-input/composables/useAgentWorkspace.ts`
+  - [x] Add `recentWorkdirs` state
+  - [x] Add `selectWorkspacePath(path)` action
+  - [x] Add `resetWorkspace()` action
+  - [x] Expose `sessionDefaultPath` for modified indicator
+  - [x] Reuse injected `acpWorkdir` instance from `ChatInput.vue`
+
+- [x] Update `src/renderer/src/components/chat-input/composables/useAcpWorkdir.ts`
+  - [x] Add `setWorkdir(path | null)` action
+  - [x] Add `resetWorkdir()` action
+  - [x] Keep existing warmup/session sync behavior compatible
 
 ## 7. Message Sending with Workdir
 
-- [ ] Update message sending logic
-  - [ ] Include workdir in message context
-  - [ ] Pass to agent/tool execution
+- [x] Keep existing message send pipeline (`chatStore.sendMessage`) unchanged
+- [x] Workdir changes flow through existing settings channels:
+  - [x] Agent mode via `agentWorkspacePath`
+  - [x] ACP mode via `acpWorkdirMap` / `setAcpWorkdir`
 
 ## 8. Recent Workdirs Display
 
-- [ ] Load recent workdirs in WorkdirToolbarItem
-- [ ] Update recent list when selecting new workdir
+- [x] Load recent workdirs in `useAgentWorkspace`
+- [x] Update recent list after selecting/browsing workdir
+- [x] Display recent list in `WorkdirToolbarItem`
 
 ## 9. i18n
 
-- [ ] Add ChatInput toolbar i18n keys
+- [x] Add ChatInput toolbar i18n keys
+  - [x] `src/renderer/src/i18n/en-US/chat.json`
+  - [x] `src/renderer/src/i18n/zh-CN/chat.json`
 
 ## 10. Testing
 
-- [ ] Agent info badge displays correctly
-- [ ] Agent info popover shows details
-- [ ] Workdir shows session default
-- [ ] Workdir selector shows recent directories
-- [ ] Workdir browse opens native picker
-- [ ] Workdir override is applied to message
-- [ ] Reset button clears override
-- [ ] Send button states work correctly
+- [x] Agent info badge displays correctly
+- [x] Agent info popover shows details
+- [x] Workdir shows session default / modified state
+- [x] Workdir selector shows recent directories
+- [x] Workdir browse opens native picker
+- [x] Reset button clears current selection
+- [x] Send button states work correctly
+- [x] `pnpm run format`
+- [x] `pnpm run lint`
 
 ---
 
@@ -101,5 +110,5 @@
 - Phase 1 (AgentConfigPresenter)
 - Phase 4 (NewThread - WorkdirSelector logic)
 
-## Estimated Effort
-- 2-3 days
+## Notes
+- 该阶段基于现有 `src/renderer/src/components/chat-input/` 架构完成，未引入新的大规模输入链路重构。

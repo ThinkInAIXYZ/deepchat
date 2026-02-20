@@ -25,7 +25,20 @@
     "acpModeTooltip": "当前模式：{mode}",
     "agentWorkspaceTooltip": "设置 Agent 工作目录",
     "agentWorkspaceSelect": "选择工作目录",
-    "agentWorkspaceCurrent": "当前工作目录：{path}"
+    "agentWorkspaceCurrent": "当前工作目录：{path}",
+    "agentInfo": "Agent 信息",
+    "agentLabel": "Agent",
+    "providerLabel": "服务提供商",
+    "modelLabel": "模型",
+    "commandLabel": "命令",
+    "viewAgentSettings": "查看 Agent 设置",
+    "unknownAgent": "未知 Agent",
+    "workdir": "工作目录",
+    "workdirRecent": "最近使用",
+    "workdirBrowse": "浏览其他目录...",
+    "workdirReset": "重置为默认",
+    "workdirNoDirectory": "未选择目录",
+    "workdirNoRecent": "暂无最近目录"
   },
   "features": {
     "webSearch": "联网搜索",

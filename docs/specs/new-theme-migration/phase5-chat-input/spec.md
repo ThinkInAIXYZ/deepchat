@@ -115,7 +115,7 @@
 ### ChatInputToolbar Component
 
 ```vue
-<!-- src/renderer/src/components/ChatInput/ChatInputToolbar.vue -->
+<!-- src/renderer/src/components/chat-input/components/ChatInputToolbar.vue -->
 <template>
   <div class="chat-input-toolbar">
     <!-- Agent Info (read-only) -->
@@ -154,7 +154,7 @@
 ### AgentInfoBadge Component
 
 ```vue
-<!-- src/renderer/src/components/ChatInput/AgentInfoBadge.vue -->
+<!-- src/renderer/src/components/chat-input/components/AgentInfoBadge.vue -->
 <template>
   <Popover>
     <PopoverTrigger as-child>
@@ -208,7 +208,7 @@ const agentType = computed(() => props.agent?.type || 'template')
 ### WorkdirToolbarItem Component
 
 ```vue
-<!-- src/renderer/src/components/ChatInput/WorkdirToolbarItem.vue -->
+<!-- src/renderer/src/components/chat-input/components/WorkdirToolbarItem.vue -->
 <template>
   <Popover v-model:open="showDropdown">
     <PopoverTrigger as-child>
@@ -315,54 +315,35 @@ onMounted(loadRecentWorkdirs)
 
 ## State Management
 
-### Per-Message Workdir Override
+### Workspace State Flow
 
 ```typescript
-// stores/chat.ts
-interface ChatState {
-  // ... existing state
-  
-  // 每个会话的临时 workdir 覆盖
-  workdirOverrides: Map<string, string>
-}
+// src/renderer/src/components/chat-input/composables/useAgentWorkspace.ts
+// agent 模式：通过 agentWorkspacePath + conversation settings 管理
+// acp 模式：复用 useAcpWorkdir，支持 set/reset/select
+const workspace = useAgentWorkspace({
+  conversationId,
+  activeModel,
+  chatMode,
+  acpWorkdir
+})
 
-// 获取当前使用的 workdir
-function getCurrentWorkdir(threadId: string): string {
-  const session = this.sessions.find(s => s.id === threadId)
-  const override = this.workdirOverrides.get(threadId)
-  
-  return override || session?.config.agentWorkspacePath || ''
-}
-
-// 设置临时 workdir
-function setWorkdirOverride(threadId: string, workdir: string | null) {
-  if (workdir === null) {
-    this.workdirOverrides.delete(threadId)
-  } else {
-    this.workdirOverrides.set(threadId, workdir)
-  }
-}
+// 暴露给 WorkdirToolbarItem
+workspace.recentWorkdirs
+workspace.workspacePath
+workspace.sessionDefaultPath
+workspace.selectWorkspacePath(path)
+workspace.selectWorkspace() // browse
+workspace.resetWorkspace()
 ```
 
 ### Sending Message with Workdir
 
 ```typescript
-// components/ChatInput/ChatInput.vue
-async function handleSend() {
-  const content = parseUserInput(userInput.value)
-  const workdir = chatStore.getCurrentWorkdir(props.threadId)
-  
-  // 发送消息时带上 workdir
-  await chatStore.sendMessage(props.threadId, content, {
-    workdir
-  })
-  
-  // 清空输入
-  userInput.value = ''
-  
-  // 可选：发送后重置 workdir 到默认
-  // chatStore.setWorkdirOverride(props.threadId, null)
-}
+// src/renderer/src/components/chat-input/ChatInput.vue
+// 消息发送链路维持不变：sendMessage(content)
+// workdir 通过现有 conversation settings / chatConfig 管道传递到主进程
+emit('send', messageContent)
 ```
 
 ## IPC Communication
@@ -387,30 +368,28 @@ export async function addRecentWorkdir(path: string): Promise<void> {
 
 ```json
 {
-  "chatInput.toolbar.agentInfo": "Agent Info",
-  "chatInput.toolbar.workdir": "Working Directory",
-  "chatInput.toolbar.workdir.reset": "Reset to default",
-  "chatInput.toolbar.workdir.browse": "Browse Other Directory...",
-  "chatInput.toolbar.workdir.noDirectory": "No directory",
-  "chatInput.toolbar.settings": "Chat Settings",
-  "chatInput.send": "Send",
-  "chatInput.sending": "Sending..."
+  "chat.input.agentInfo": "Agent Info",
+  "chat.input.workdir": "Working Directory",
+  "chat.input.workdirReset": "Reset to default",
+  "chat.input.workdirBrowse": "Browse Other Directory...",
+  "chat.input.workdirNoDirectory": "No directory"
 }
 ```
 
 ## Files to Create/Modify
 
 ### New Files
-- `src/renderer/src/components/ChatInput/ChatInputToolbar.vue`
-- `src/renderer/src/components/ChatInput/AgentInfoBadge.vue`
-- `src/renderer/src/components/ChatInput/WorkdirToolbarItem.vue`
-- `src/renderer/src/components/ChatInput/SendButton.vue`
+- `src/renderer/src/components/chat-input/components/ChatInputToolbar.vue`
+- `src/renderer/src/components/chat-input/components/AgentInfoBadge.vue`
+- `src/renderer/src/components/chat-input/components/WorkdirToolbarItem.vue`
+- `src/renderer/src/components/chat-input/components/SendButton.vue`
 
 ### Modified Files
-- `src/renderer/src/components/ChatInput.vue` - 添加工具栏
-- `src/renderer/src/stores/chat.ts` - 添加 workdir override 逻辑
-- `src/main/presenter/configPresenter/index.ts` - 添加 recentWorkdirs 管理
-- `src/shared/types/presenters/config.presenter.d.ts` - 添加类型定义
+- `src/renderer/src/components/chat-input/ChatInput.vue` - 集成 toolbar/agent/workdir/send
+- `src/renderer/src/components/chat-input/composables/useAgentWorkspace.ts` - recent/select/reset/session default
+- `src/renderer/src/components/chat-input/composables/useAcpWorkdir.ts` - set/reset workdir
+- `src/renderer/src/i18n/en-US/chat.json` - 新增 toolbar 文案
+- `src/renderer/src/i18n/zh-CN/chat.json` - 新增 toolbar 文案
 
 ## Dependencies
 
@@ -419,11 +398,10 @@ export async function addRecentWorkdir(path: string): Promise<void> {
 
 ## Testing
 
-- [ ] Agent info badge displays correctly
-- [ ] Agent info popover shows details
-- [ ] Workdir shows session default
-- [ ] Workdir selector shows recent directories
-- [ ] Workdir browse opens native picker
-- [ ] Workdir override is applied to message
-- [ ] Reset button clears override
-- [ ] Recent workdirs persist across sessions
+- [x] Agent info badge displays correctly
+- [x] Agent info popover shows details
+- [x] Workdir shows session default
+- [x] Workdir selector shows recent directories
+- [x] Workdir browse opens native picker
+- [x] Reset button clears override
+- [x] Recent workdirs persist across sessions
