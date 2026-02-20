@@ -2,13 +2,18 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@shadcn/components/ui/select'
+import { Button } from '@shadcn/components/ui/button'
 import { Icon } from '@iconify/vue'
 import { useNewThreadStatusBar } from '@/composables/useNewThreadStatusBar'
 import ModelIcon from '@/components/icons/ModelIcon.vue'
 import { useThemeStore } from '@/stores/theme'
+import { useChatStore } from '@/stores/chat'
+import ScrollablePopover from '@/components/ScrollablePopover.vue'
+import ChatConfig from '@/components/ChatConfig.vue'
 
 const { t } = useI18n()
 const themeStore = useThemeStore()
+const chatStore = useChatStore()
 
 const {
   isAcpAgent,
@@ -18,9 +23,25 @@ const {
   modelDisplayName,
   selectModel,
   selectedEffort,
+  effortOptions,
   selectEffort,
+  selectedVerbosity,
+  showVerbosity,
+  verbosityOptions,
+  selectVerbosity,
   selectedPermission,
-  selectPermission
+  selectPermission,
+  configSystemPrompt,
+  configTemperature,
+  configContextLength,
+  configMaxTokens,
+  configArtifacts,
+  configThinkingBudget,
+  configReasoningEffort,
+  configVerbosity,
+  configContextLengthLimit,
+  configMaxTokensLimit,
+  configModelType
 } = useNewThreadStatusBar()
 
 const acpAgentIconId = computed(() => {
@@ -45,6 +66,16 @@ function handleModelChange(id: string) {
   if (model) {
     void selectModel(model)
   }
+}
+
+const formatEffortLabel = (effort?: 'minimal' | 'low' | 'medium' | 'high') => {
+  if (!effort) return '-'
+  return t(`settings.model.modelConfig.reasoningEffort.options.${effort}`)
+}
+
+const formatVerbosityLabel = (verbosity?: 'low' | 'medium' | 'high') => {
+  if (!verbosity) return '-'
+  return t(`settings.model.modelConfig.verbosity.options.${verbosity}`)
 }
 </script>
 
@@ -90,19 +121,48 @@ function handleModelChange(id: string) {
 
         <Select
           :model-value="selectedEffort"
-          @update:model-value="(v) => selectEffort(v as 'low' | 'medium' | 'high' | 'extra-high')"
+          @update:model-value="(v) => selectEffort(v as 'minimal' | 'low' | 'medium' | 'high')"
         >
           <SelectTrigger
             class="h-8 w-auto min-w-0 border-none bg-transparent hover:bg-accent/50 text-sm gap-1 px-2"
           >
             <Icon icon="lucide:zap" class="size-4 text-muted-foreground" />
-            <span class="capitalize">{{ selectedEffort }}</span>
+            <span class="truncate max-w-[140px]">{{ formatEffortLabel(selectedEffort) }}</span>
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="low" class="cursor-pointer">Low</SelectItem>
-            <SelectItem value="medium" class="cursor-pointer">Medium</SelectItem>
-            <SelectItem value="high" class="cursor-pointer">High</SelectItem>
-            <SelectItem value="extra-high" class="cursor-pointer">Extra High</SelectItem>
+            <SelectItem
+              v-for="effort in effortOptions"
+              :key="effort"
+              :value="effort"
+              class="cursor-pointer"
+            >
+              {{ formatEffortLabel(effort) }}
+            </SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Select
+          v-if="showVerbosity"
+          :model-value="selectedVerbosity"
+          @update:model-value="(v) => selectVerbosity(v as 'low' | 'medium' | 'high')"
+        >
+          <SelectTrigger
+            class="h-8 w-auto min-w-0 border-none bg-transparent hover:bg-accent/50 text-sm gap-1 px-2"
+          >
+            <Icon icon="lucide:message-square-text" class="size-4 text-muted-foreground" />
+            <span class="truncate max-w-[140px]">{{
+              formatVerbosityLabel(selectedVerbosity)
+            }}</span>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem
+              v-for="verbosity in verbosityOptions"
+              :key="verbosity"
+              :value="verbosity"
+              class="cursor-pointer"
+            >
+              {{ formatVerbosityLabel(verbosity) }}
+            </SelectItem>
           </SelectContent>
         </Select>
       </template>
@@ -125,6 +185,39 @@ function handleModelChange(id: string) {
           <SelectItem value="full" class="cursor-pointer">Full Access</SelectItem>
         </SelectContent>
       </Select>
+
+      <ScrollablePopover
+        v-if="!isAcpAgent"
+        align="end"
+        content-class="w-80"
+        :enable-scrollable="true"
+      >
+        <template #trigger>
+          <Button
+            class="h-8 w-8 rounded-md border border-border/60 hover:border-border"
+            size="icon"
+            variant="outline"
+          >
+            <Icon icon="lucide:settings-2" class="w-4 h-4" />
+          </Button>
+        </template>
+        <ChatConfig
+          v-model:system-prompt="configSystemPrompt"
+          v-model:temperature="configTemperature"
+          v-model:context-length="configContextLength"
+          v-model:max-tokens="configMaxTokens"
+          v-model:artifacts="configArtifacts"
+          v-model:thinking-budget="configThinkingBudget"
+          v-model:reasoning-effort="configReasoningEffort"
+          v-model:verbosity="configVerbosity"
+          :context-length-limit="configContextLengthLimit"
+          :max-tokens-limit="configMaxTokensLimit"
+          :model-id="chatStore.chatConfig.modelId"
+          :provider-id="chatStore.chatConfig.providerId"
+          :model-type="configModelType"
+          :show-system-prompt="false"
+        />
+      </ScrollablePopover>
     </div>
   </div>
 </template>

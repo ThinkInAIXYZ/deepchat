@@ -1,19 +1,23 @@
-import { ref, computed, watch } from 'vue'
+import { ref, computed } from 'vue'
 import { useChatStore } from '@/stores/chat'
 import { useModelStore } from '@/stores/modelStore'
 import { useAgentStore } from '@/stores/agent'
 import { usePresenter } from '@/composables/usePresenter'
 import type { RENDERER_MODEL_META } from '@shared/presenter'
 import type { AcpAgent } from '@shared/types/presenters/agentConfig.presenter'
+import { usePromptInputConfig } from '@/components/chat-input/composables/usePromptInputConfig'
+
+type EffortLevel = 'minimal' | 'low' | 'medium' | 'high'
+type VerbosityLevel = 'low' | 'medium' | 'high'
 
 export function useNewThreadStatusBar() {
   const chatStore = useChatStore()
   const modelStore = useModelStore()
   const agentStore = useAgentStore()
   const configPresenter = usePresenter('configPresenter')
+  const promptConfig = usePromptInputConfig()
 
-  // Local state for effort and permissions
-  const selectedEffort = ref<'low' | 'medium' | 'high' | 'extra-high'>('high')
+  // Local state for permissions only. Model config states are bound to chat config.
   const selectedPermission = ref<'default' | 'restricted' | 'full'>('default')
 
   // Get current agent from sidebar
@@ -83,6 +87,7 @@ export function useNewThreadStatusBar() {
       modelId: model.id,
       providerId: model.providerId
     })
+    await promptConfig.loadModelConfig()
     // Save as preferred model
     await configPresenter.setSetting('preferredModel', {
       modelId: model.id,
@@ -90,12 +95,26 @@ export function useNewThreadStatusBar() {
     })
   }
 
-  // Handle effort selection
-  const selectEffort = (effort: 'low' | 'medium' | 'high' | 'extra-high') => {
-    selectedEffort.value = effort
-    void chatStore.updateChatConfig({
-      reasoningEffort: effort === 'extra-high' ? 'high' : effort
-    })
+  const selectedEffort = computed<EffortLevel>(
+    () => promptConfig.configReasoningEffort.value ?? 'medium'
+  )
+  const selectedVerbosity = computed(() => promptConfig.configVerbosity.value)
+  const showVerbosity = computed(() => selectedVerbosity.value !== undefined)
+
+  const effortOptions = computed<EffortLevel[]>(() => {
+    if (chatStore.chatConfig.providerId === 'grok') return ['low', 'high']
+    return ['minimal', 'low', 'medium', 'high']
+  })
+
+  // Handle effort selection (bound to chat config)
+  const selectEffort = async (effort: EffortLevel) => {
+    promptConfig.configReasoningEffort.value = effort
+    await chatStore.updateChatConfig({ reasoningEffort: effort })
+  }
+
+  const selectVerbosity = async (verbosity: VerbosityLevel) => {
+    promptConfig.configVerbosity.value = verbosity
+    await chatStore.updateChatConfig({ verbosity })
   }
 
   // Handle permission selection
@@ -103,21 +122,7 @@ export function useNewThreadStatusBar() {
     selectedPermission.value = permission
   }
 
-  const normalizeEffort = (
-    effort: 'minimal' | 'low' | 'medium' | 'high' | undefined
-  ): 'low' | 'medium' | 'high' | 'extra-high' => {
-    if (effort === 'minimal') return 'low'
-    return effort || 'high'
-  }
-
-  // Watch for config changes
-  watch(
-    () => chatStore.chatConfig.reasoningEffort,
-    (newValue) => {
-      selectedEffort.value = normalizeEffort(newValue)
-    },
-    { immediate: true }
-  )
+  const verbosityOptions = computed<VerbosityLevel[]>(() => ['low', 'medium', 'high'])
 
   return {
     // Agent
@@ -133,10 +138,28 @@ export function useNewThreadStatusBar() {
 
     // Effort
     selectedEffort,
+    effortOptions,
     selectEffort,
+    selectedVerbosity,
+    showVerbosity,
+    verbosityOptions,
+    selectVerbosity,
 
     // Permissions
     selectedPermission,
-    selectPermission
+    selectPermission,
+
+    // ChatConfig bindings
+    configSystemPrompt: promptConfig.configSystemPrompt,
+    configTemperature: promptConfig.configTemperature,
+    configContextLength: promptConfig.configContextLength,
+    configMaxTokens: promptConfig.configMaxTokens,
+    configArtifacts: promptConfig.configArtifacts,
+    configThinkingBudget: promptConfig.configThinkingBudget,
+    configReasoningEffort: promptConfig.configReasoningEffort,
+    configVerbosity: promptConfig.configVerbosity,
+    configContextLengthLimit: promptConfig.configContextLengthLimit,
+    configMaxTokensLimit: promptConfig.configMaxTokensLimit,
+    configModelType: promptConfig.configModelType
   }
 }

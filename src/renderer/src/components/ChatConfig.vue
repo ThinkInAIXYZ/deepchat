@@ -28,20 +28,26 @@ import { useChatConfigFields } from '@/composables/useChatConfigFields'
 import { useLanguageStore } from '@/stores/language'
 
 // === Props & Emits ===
-const props = defineProps<{
-  contextLengthLimit?: number
-  maxTokensLimit?: number
-  temperature: number
-  contextLength: number
-  maxTokens: number
-  artifacts: number
-  thinkingBudget?: number
-  modelId?: string
-  providerId?: string
-  reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
-  verbosity?: 'low' | 'medium' | 'high'
-  modelType?: 'chat' | 'imageGeneration' | 'embedding' | 'rerank'
-}>()
+const props = withDefaults(
+  defineProps<{
+    contextLengthLimit?: number
+    maxTokensLimit?: number
+    temperature: number
+    contextLength: number
+    maxTokens: number
+    artifacts: number
+    thinkingBudget?: number
+    modelId?: string
+    providerId?: string
+    reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
+    verbosity?: 'low' | 'medium' | 'high'
+    modelType?: 'chat' | 'imageGeneration' | 'embedding' | 'rerank'
+    showSystemPrompt?: boolean
+  }>(),
+  {
+    showSystemPrompt: true
+  }
+)
 
 const systemPrompt = defineModel<string>('systemPrompt')
 
@@ -159,7 +165,10 @@ const modelTypeIcon = computed(() => {
 
     <div class="space-y-6">
       <!-- System Prompt (hidden for image generation models) -->
-      <div v-if="!modelTypeDetection.isImageGenerationModel.value" class="space-y-2 px-2">
+      <div
+        v-if="props.showSystemPrompt && !modelTypeDetection.isImageGenerationModel.value"
+        class="space-y-2 px-2"
+      >
         <div class="flex items-center space-x-2 py-1.5">
           <Icon icon="lucide:terminal" class="w-4 h-4 text-muted-foreground" />
           <Label class="text-xs font-medium">{{ t('settings.model.systemPrompt.label') }}</Label>

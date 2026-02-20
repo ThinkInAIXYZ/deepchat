@@ -170,6 +170,12 @@ interface AcpAgent {
 - Integrate tab management into workspace store
 - [Details](./phase6-shell-removal/spec.md)
 
+### Phase 7: StatusBar ChatConfig Overlay Recovery
+- Add back ChatConfig entry in newThread StatusBar
+- Restore core model parameter controls in popover
+- Keep `systemPrompt` hidden in this entry
+- [Details](./phase7-statusbar-model-config/spec.md)
+
 ## UI Structure (Target)
 
 ```
@@ -211,6 +217,9 @@ Phase 3 (Sidebar) ◄──────┘       Phase 5 (ChatInput)
     └───────────────┬───────────────────┘
                     ▼
               Phase 6 (Shell Removal)
+                    │
+                    ▼
+      Phase 7 (StatusBar/Model Config)
 ```
 
 ## Progress
@@ -223,6 +232,7 @@ Phase 3 (Sidebar) ◄──────┘       Phase 5 (ChatInput)
 | Phase 4 | ✅ Completed | NewThread Adaptation |
 | Phase 5 | ✅ Completed | ChatInput Integration |
 | Phase 6 | 🔴 Not Started | Shell Removal |
+| Phase 7 | ✅ Completed | StatusBar ChatConfig Overlay Recovery |
 
 ## Key Files Reference
 
