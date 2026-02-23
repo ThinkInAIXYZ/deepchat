@@ -14,39 +14,32 @@ function recordToChatMessages(record: ChatMessageRecord): ChatMessage[] {
     return [{ role: 'user', content: parsed.text }]
   }
 
-  // Assistant: extract text content, reasoning, and tool calls
+  // Assistant: extract text content and tool calls
   const blocks = JSON.parse(record.content) as AssistantMessageBlock[]
-  const contentText = blocks
-    .filter((b) => b.type === 'content')
+  const text = blocks
+    .filter((b) => b.type === 'content' || b.type === 'reasoning_content')
     .map((b) => b.content)
     .join('')
-  const reasoningText = blocks
-    .filter((b) => b.type === 'reasoning_content')
-    .map((b) => b.content)
-    .join('')
-  const combinedText = reasoningText + contentText
 
   const toolCallBlocks = blocks.filter((b) => b.type === 'tool_call' && b.tool_call)
 
   if (toolCallBlocks.length === 0) {
-    return [{ role: 'assistant', content: combinedText }]
+    return [{ role: 'assistant', content: text }]
   }
 
-  // Build assistant message with tool_calls
+  // Build assistant message with tool_calls.
+  // Note: reasoning_content is NOT included here — for interleaved thinking
+  // models (DeepSeek Reasoner etc.), reasoning_content is only required on
+  // assistant messages in the current agent loop exchange, which the agentLoop
+  // handles directly. Historical messages just include reasoning in content.
   const assistantMsg: ChatMessage = {
     role: 'assistant',
-    content: contentText || undefined,
+    content: text,
     tool_calls: toolCallBlocks.map((b) => ({
       id: b.tool_call!.id,
       type: 'function' as const,
       function: { name: b.tool_call!.name, arguments: b.tool_call!.params }
     }))
-  }
-
-  // Include reasoning_content when present — required by DeepSeek Reasoner
-  // and similar reasoning models
-  if (reasoningText) {
-    assistantMsg.reasoning_content = reasoningText
   }
 
   const result: ChatMessage[] = [assistantMsg]

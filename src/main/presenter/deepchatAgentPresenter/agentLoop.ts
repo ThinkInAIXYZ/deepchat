@@ -159,12 +159,13 @@ export async function agentLoop(params: AgentLoopParams): Promise<void> {
     const assistantText = extractTextFromBlocks(iterationBlocks)
     const assistantMessage: ChatMessage = {
       role: 'assistant',
-      content: assistantText || undefined,
+      content: assistantText,
       tool_calls: buildToolCallsForMessage(result.toolCalls)
     }
 
-    // DeepSeek Reasoner and similar models require reasoning_content on
-    // assistant messages that contain tool_calls
+    // Interleaved thinking: DeepSeek Reasoner and similar models require
+    // reasoning_content on assistant messages in the current exchange
+    // (between the last user message and the next coreStream call)
     if (requiresReasoningField(modelId)) {
       const reasoning = extractReasoningFromBlocks(iterationBlocks)
       if (reasoning) {
