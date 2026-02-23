@@ -579,4 +579,79 @@ describe('agentLoop', () => {
       })
     )
   })
+
+  it('includes reasoning_content on assistant messages for deepseek-reasoner', async () => {
+    let callCount = 0
+    const coreStream = vi.fn(function () {
+      callCount++
+      if (callCount === 1) {
+        // First call: reasoning + tool call (like DeepSeek Reasoner)
+        return (async function* () {
+          yield { type: 'reasoning', reasoning_content: 'Let me think...' } as LLMCoreStreamEvent
+          yield {
+            type: 'tool_call_start',
+            tool_call_id: 'tc1',
+            tool_call_name: 'get_weather'
+          } as LLMCoreStreamEvent
+          yield {
+            type: 'tool_call_end',
+            tool_call_id: 'tc1',
+            tool_call_arguments_complete: '{}'
+          } as LLMCoreStreamEvent
+          yield { type: 'stop', stop_reason: 'tool_use' } as LLMCoreStreamEvent
+        })()
+      } else {
+        return (async function* () {
+          yield { type: 'text', content: 'Done' } as LLMCoreStreamEvent
+          yield { type: 'stop', stop_reason: 'complete' } as LLMCoreStreamEvent
+        })()
+      }
+    }) as unknown as AgentLoopParams['coreStream']
+
+    const params = createParams({ coreStream, modelId: 'deepseek-reasoner' })
+    await agentLoop(params)
+
+    // Second coreStream call should include reasoning_content on assistant message
+    const secondCallMessages = (coreStream as ReturnType<typeof vi.fn>).mock.calls[1][0]
+    const assistantMsg = secondCallMessages.find((m: any) => m.role === 'assistant')
+    expect(assistantMsg).toBeDefined()
+    expect(assistantMsg.reasoning_content).toBe('Let me think...')
+    expect(assistantMsg.tool_calls).toHaveLength(1)
+  })
+
+  it('does not include reasoning_content for non-reasoning models', async () => {
+    let callCount = 0
+    const coreStream = vi.fn(function () {
+      callCount++
+      if (callCount === 1) {
+        return (async function* () {
+          yield { type: 'reasoning', reasoning_content: 'Thinking...' } as LLMCoreStreamEvent
+          yield {
+            type: 'tool_call_start',
+            tool_call_id: 'tc1',
+            tool_call_name: 'get_weather'
+          } as LLMCoreStreamEvent
+          yield {
+            type: 'tool_call_end',
+            tool_call_id: 'tc1',
+            tool_call_arguments_complete: '{}'
+          } as LLMCoreStreamEvent
+          yield { type: 'stop', stop_reason: 'tool_use' } as LLMCoreStreamEvent
+        })()
+      } else {
+        return (async function* () {
+          yield { type: 'text', content: 'Done' } as LLMCoreStreamEvent
+          yield { type: 'stop', stop_reason: 'complete' } as LLMCoreStreamEvent
+        })()
+      }
+    }) as unknown as AgentLoopParams['coreStream']
+
+    const params = createParams({ coreStream, modelId: 'gpt-4' })
+    await agentLoop(params)
+
+    const secondCallMessages = (coreStream as ReturnType<typeof vi.fn>).mock.calls[1][0]
+    const assistantMsg = secondCallMessages.find((m: any) => m.role === 'assistant')
+    expect(assistantMsg).toBeDefined()
+    expect(assistantMsg.reasoning_content).toBeUndefined()
+  })
 })

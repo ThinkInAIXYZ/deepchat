@@ -47,6 +47,22 @@ function extractTextFromBlocks(blocks: AssistantMessageBlock[]): string {
     .join('')
 }
 
+function extractReasoningFromBlocks(blocks: AssistantMessageBlock[]): string {
+  return blocks
+    .filter((b) => b.type === 'reasoning_content')
+    .map((b) => b.content)
+    .join('')
+}
+
+function requiresReasoningField(modelId: string): boolean {
+  const lower = modelId.toLowerCase()
+  return (
+    lower.includes('deepseek-reasoner') ||
+    lower.includes('kimi-k2-thinking') ||
+    lower.includes('glm-4.7')
+  )
+}
+
 function buildToolCallsForMessage(
   toolCalls: ToolCallResult[]
 ): { id: string; type: 'function'; function: { name: string; arguments: string } }[] {
@@ -146,6 +162,16 @@ export async function agentLoop(params: AgentLoopParams): Promise<void> {
       content: assistantText || undefined,
       tool_calls: buildToolCallsForMessage(result.toolCalls)
     }
+
+    // DeepSeek Reasoner and similar models require reasoning_content on
+    // assistant messages that contain tool_calls
+    if (requiresReasoningField(modelId)) {
+      const reasoning = extractReasoningFromBlocks(iterationBlocks)
+      if (reasoning) {
+        assistantMessage.reasoning_content = reasoning
+      }
+    }
+
     conversationMessages.push(assistantMessage)
 
     // Execute each tool call and append results

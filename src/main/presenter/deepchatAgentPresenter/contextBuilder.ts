@@ -14,28 +14,39 @@ function recordToChatMessages(record: ChatMessageRecord): ChatMessage[] {
     return [{ role: 'user', content: parsed.text }]
   }
 
-  // Assistant: extract text content and tool calls
+  // Assistant: extract text content, reasoning, and tool calls
   const blocks = JSON.parse(record.content) as AssistantMessageBlock[]
-  const text = blocks
-    .filter((b) => b.type === 'content' || b.type === 'reasoning_content')
+  const contentText = blocks
+    .filter((b) => b.type === 'content')
     .map((b) => b.content)
     .join('')
+  const reasoningText = blocks
+    .filter((b) => b.type === 'reasoning_content')
+    .map((b) => b.content)
+    .join('')
+  const combinedText = reasoningText + contentText
 
   const toolCallBlocks = blocks.filter((b) => b.type === 'tool_call' && b.tool_call)
 
   if (toolCallBlocks.length === 0) {
-    return [{ role: 'assistant', content: text }]
+    return [{ role: 'assistant', content: combinedText }]
   }
 
   // Build assistant message with tool_calls
   const assistantMsg: ChatMessage = {
     role: 'assistant',
-    content: text || undefined,
+    content: contentText || undefined,
     tool_calls: toolCallBlocks.map((b) => ({
       id: b.tool_call!.id,
       type: 'function' as const,
       function: { name: b.tool_call!.name, arguments: b.tool_call!.params }
     }))
+  }
+
+  // Include reasoning_content when present — required by DeepSeek Reasoner
+  // and similar reasoning models
+  if (reasoningText) {
+    assistantMsg.reasoning_content = reasoningText
   }
 
   const result: ChatMessage[] = [assistantMsg]
