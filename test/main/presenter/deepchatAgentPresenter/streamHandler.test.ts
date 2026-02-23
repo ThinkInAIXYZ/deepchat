@@ -61,7 +61,7 @@ describe('streamHandler', () => {
       { type: 'stop', stop_reason: 'end_turn' }
     ])
 
-    await handleStream(stream, context)
+    const result = await handleStream(stream, context)
 
     // finalizeAssistantMessage should be called with accumulated blocks
     const finalizeCall = (context.messageStore.finalizeAssistantMessage as ReturnType<typeof vi.fn>)
@@ -72,6 +72,11 @@ describe('streamHandler', () => {
     expect(blocks[0].type).toBe('content')
     expect(blocks[0].content).toBe('Hello world')
     expect(blocks[0].status).toBe('success')
+
+    // Check return value
+    expect(result.stopReason).toBe('complete')
+    expect(result.toolCalls).toEqual([])
+    expect(result.blocks).toHaveLength(1)
   })
 
   it('accumulates reasoning events into reasoning_content blocks', async () => {
@@ -83,7 +88,7 @@ describe('streamHandler', () => {
       { type: 'stop', stop_reason: 'end_turn' }
     ])
 
-    await handleStream(stream, context)
+    const result = await handleStream(stream, context)
 
     const blocks = (context.messageStore.finalizeAssistantMessage as ReturnType<typeof vi.fn>).mock
       .calls[0][1]
@@ -92,6 +97,7 @@ describe('streamHandler', () => {
     expect(blocks[0].content).toBe('Thinking... more thoughts')
     expect(blocks[1].type).toBe('content')
     expect(blocks[1].content).toBe('Answer')
+    expect(result.stopReason).toBe('complete')
   })
 
   it('handles usage events and stores metadata', async () => {
@@ -119,7 +125,9 @@ describe('streamHandler', () => {
       { type: 'error', error_message: 'Rate limit exceeded' }
     ])
 
-    await handleStream(stream, context)
+    const result = await handleStream(stream, context)
+
+    expect(result.stopReason).toBe('error')
 
     const errorCall = (context.messageStore.setMessageError as ReturnType<typeof vi.fn>).mock
       .calls[0]
@@ -150,8 +158,9 @@ describe('streamHandler', () => {
       throw new Error('Connection lost')
     }
 
-    await handleStream(failingStream(), context)
+    const result = await handleStream(failingStream(), context)
 
+    expect(result.stopReason).toBe('error')
     expect(context.messageStore.setMessageError).toHaveBeenCalled()
     const blocks = (context.messageStore.setMessageError as ReturnType<typeof vi.fn>).mock
       .calls[0][1]
@@ -170,8 +179,9 @@ describe('streamHandler', () => {
       yield { type: 'text', content: 'Second' } as LLMCoreStreamEvent
     }
 
-    await handleStream(slowStream(), context)
+    const result = await handleStream(slowStream(), context)
 
+    expect(result.stopReason).toBe('abort')
     expect(context.messageStore.setMessageError).toHaveBeenCalled()
     expect(eventBus.sendToRenderer).toHaveBeenCalledWith('stream:error', 'all', {
       conversationId: 's1',
@@ -215,8 +225,9 @@ describe('streamHandler', () => {
     const context = createContext()
     const stream = createStream([{ type: 'text', content: 'No stop event' }])
 
-    await handleStream(stream, context)
+    const result = await handleStream(stream, context)
 
+    expect(result.stopReason).toBe('complete')
     // Should still finalize
     expect(context.messageStore.finalizeAssistantMessage).toHaveBeenCalled()
     const blocks = (context.messageStore.finalizeAssistantMessage as ReturnType<typeof vi.fn>).mock
@@ -250,5 +261,110 @@ describe('streamHandler', () => {
     // Resolve the stream
     resolveYield?.()
     await promise
+  })
+
+  // --- v2: Tool call event tests ---
+
+  it('handles tool_call_start/chunk/end events and creates tool_call blocks', async () => {
+    const context = createContext()
+    const stream = createStream([
+      { type: 'text', content: 'Let me check ' },
+      { type: 'tool_call_start', tool_call_id: 'tc1', tool_call_name: 'get_weather' },
+      { type: 'tool_call_chunk', tool_call_id: 'tc1', tool_call_arguments_chunk: '{"city"' },
+      { type: 'tool_call_chunk', tool_call_id: 'tc1', tool_call_arguments_chunk: ':"NYC"}' },
+      { type: 'tool_call_end', tool_call_id: 'tc1' },
+      { type: 'stop', stop_reason: 'tool_use' }
+    ])
+
+    const result = await handleStream(stream, context)
+
+    expect(result.stopReason).toBe('tool_use')
+    expect(result.toolCalls).toHaveLength(1)
+    expect(result.toolCalls[0]).toEqual({
+      id: 'tc1',
+      name: 'get_weather',
+      arguments: '{"city":"NYC"}'
+    })
+
+    // Blocks should contain both content and tool_call
+    expect(result.blocks).toHaveLength(2)
+    expect(result.blocks[0].type).toBe('content')
+    expect(result.blocks[0].content).toBe('Let me check ')
+    expect(result.blocks[1].type).toBe('tool_call')
+    expect(result.blocks[1].tool_call).toEqual({
+      id: 'tc1',
+      name: 'get_weather',
+      params: '{"city":"NYC"}',
+      response: ''
+    })
+  })
+
+  it('tool_call_end with complete arguments overrides accumulated chunks', async () => {
+    const context = createContext()
+    const stream = createStream([
+      { type: 'tool_call_start', tool_call_id: 'tc1', tool_call_name: 'search' },
+      { type: 'tool_call_chunk', tool_call_id: 'tc1', tool_call_arguments_chunk: 'partial' },
+      {
+        type: 'tool_call_end',
+        tool_call_id: 'tc1',
+        tool_call_arguments_complete: '{"q":"full"}'
+      },
+      { type: 'stop', stop_reason: 'tool_use' }
+    ])
+
+    const result = await handleStream(stream, context)
+
+    expect(result.toolCalls[0].arguments).toBe('{"q":"full"}')
+    expect(result.blocks[0].tool_call?.params).toBe('{"q":"full"}')
+  })
+
+  it('tool_use stop reason does not finalize message or emit END', async () => {
+    const context = createContext()
+    const stream = createStream([
+      { type: 'tool_call_start', tool_call_id: 'tc1', tool_call_name: 'run' },
+      { type: 'tool_call_end', tool_call_id: 'tc1', tool_call_arguments_complete: '{}' },
+      { type: 'stop', stop_reason: 'tool_use' }
+    ])
+
+    const result = await handleStream(stream, context)
+
+    expect(result.stopReason).toBe('tool_use')
+    // Should NOT finalize the message (agentLoop will continue)
+    expect(context.messageStore.finalizeAssistantMessage).not.toHaveBeenCalled()
+    // Should NOT emit END event
+    const endCalls = (eventBus.sendToRenderer as ReturnType<typeof vi.fn>).mock.calls.filter(
+      (c: any[]) => c[0] === 'stream:end'
+    )
+    expect(endCalls).toHaveLength(0)
+  })
+
+  it('handles multiple tool calls in a single stream', async () => {
+    const context = createContext()
+    const stream = createStream([
+      { type: 'tool_call_start', tool_call_id: 'tc1', tool_call_name: 'tool_a' },
+      { type: 'tool_call_end', tool_call_id: 'tc1', tool_call_arguments_complete: '{"a":1}' },
+      { type: 'tool_call_start', tool_call_id: 'tc2', tool_call_name: 'tool_b' },
+      { type: 'tool_call_end', tool_call_id: 'tc2', tool_call_arguments_complete: '{"b":2}' },
+      { type: 'stop', stop_reason: 'tool_use' }
+    ])
+
+    const result = await handleStream(stream, context)
+
+    expect(result.toolCalls).toHaveLength(2)
+    expect(result.toolCalls[0].name).toBe('tool_a')
+    expect(result.toolCalls[1].name).toBe('tool_b')
+    expect(result.blocks.filter((b) => b.type === 'tool_call')).toHaveLength(2)
+  })
+
+  it('returns max_tokens stop reason', async () => {
+    const context = createContext()
+    const stream = createStream([
+      { type: 'text', content: 'Truncated...' },
+      { type: 'stop', stop_reason: 'max_tokens' }
+    ])
+
+    const result = await handleStream(stream, context)
+
+    expect(result.stopReason).toBe('max_tokens')
   })
 })

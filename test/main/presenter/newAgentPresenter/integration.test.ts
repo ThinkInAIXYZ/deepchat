@@ -163,6 +163,17 @@ function createMockConfigPresenter() {
   } as any
 }
 
+function createMockToolPresenter() {
+  return {
+    getAllToolDefinitions: vi.fn().mockResolvedValue([]),
+    callTool: vi.fn().mockResolvedValue({
+      content: 'tool result',
+      rawData: { toolCallId: 'tc1', content: 'tool result', isError: false }
+    }),
+    buildToolSystemPrompt: vi.fn().mockReturnValue('')
+  } as any
+}
+
 describe('Integration: createSession end-to-end', () => {
   let sqlitePresenter: ReturnType<typeof createMockSqlitePresenter>
   let llmProvider: ReturnType<typeof createMockLlmProviderPresenter>
@@ -175,7 +186,12 @@ describe('Integration: createSession end-to-end', () => {
     llmProvider = createMockLlmProviderPresenter()
     configPresenter = createMockConfigPresenter()
 
-    const deepchatAgent = new DeepChatAgentPresenter(llmProvider, configPresenter, sqlitePresenter)
+    const deepchatAgent = new DeepChatAgentPresenter(
+      llmProvider,
+      configPresenter,
+      sqlitePresenter,
+      createMockToolPresenter()
+    )
     agentPresenter = new NewAgentPresenter(deepchatAgent as any, configPresenter, sqlitePresenter)
   })
 
@@ -274,7 +290,12 @@ describe('Integration: multi-turn context', () => {
     llmProvider = createMockLlmProviderPresenter()
     configPresenter = createMockConfigPresenter()
 
-    const deepchatAgent = new DeepChatAgentPresenter(llmProvider, configPresenter, sqlitePresenter)
+    const deepchatAgent = new DeepChatAgentPresenter(
+      llmProvider,
+      configPresenter,
+      sqlitePresenter,
+      createMockToolPresenter()
+    )
     agentPresenter = new NewAgentPresenter(deepchatAgent as any, configPresenter, sqlitePresenter)
   })
 
@@ -325,7 +346,12 @@ describe('Integration: crash recovery', () => {
     const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
 
     // Creating the agent triggers crash recovery
-    new DeepChatAgentPresenter(llmProvider, configPresenter, sqlitePresenter)
+    new DeepChatAgentPresenter(
+      llmProvider,
+      configPresenter,
+      sqlitePresenter,
+      createMockToolPresenter()
+    )
 
     expect(sqlitePresenter.deepchatMessagesTable.recoverPendingMessages).toHaveBeenCalledTimes(1)
     expect(consoleSpy).toHaveBeenCalledWith(

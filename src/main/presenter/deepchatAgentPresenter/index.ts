@@ -5,11 +5,13 @@ import type {
   UserMessageContent
 } from '@shared/types/agent-interface'
 import type { IConfigPresenter, ILlmProviderPresenter, ModelConfig } from '@shared/presenter'
+import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
 import type { SQLitePresenter } from '../sqlitePresenter'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import { DeepChatSessionStore } from './sessionStore'
 import { DeepChatMessageStore } from './messageStore'
 import { handleStream } from './streamHandler'
+import { agentLoop } from './agentLoop'
 import { buildContext } from './contextBuilder'
 import { eventBus, SendTarget } from '@/eventbus'
 import { SESSION_EVENTS } from '@/events'
@@ -17,6 +19,7 @@ import { SESSION_EVENTS } from '@/events'
 export class DeepChatAgentPresenter implements IAgentImplementation {
   private llmProviderPresenter: ILlmProviderPresenter
   private configPresenter: IConfigPresenter
+  private toolPresenter: IToolPresenter | null
   private sessionStore: DeepChatSessionStore
   private messageStore: DeepChatMessageStore
   private runtimeState: Map<string, DeepChatSessionState> = new Map()
@@ -25,10 +28,12 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
   constructor(
     llmProviderPresenter: ILlmProviderPresenter,
     configPresenter: IConfigPresenter,
-    sqlitePresenter: SQLitePresenter
+    sqlitePresenter: SQLitePresenter,
+    toolPresenter?: IToolPresenter
   ) {
     this.llmProviderPresenter = llmProviderPresenter
     this.configPresenter = configPresenter
+    this.toolPresenter = toolPresenter ?? null
     this.sessionStore = new DeepChatSessionStore(sqlitePresenter)
     this.messageStore = new DeepChatMessageStore(sqlitePresenter)
 
@@ -111,7 +116,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
               modelConfig: ModelConfig,
               temperature: number,
               maxTokens: number,
-              tools: unknown[]
+              tools: import('@shared/presenter').MCPToolDefinition[]
             ) => AsyncGenerator<import('@shared/types/core/llm-events').LLMCoreStreamEvent>
           }
         }
@@ -157,27 +162,56 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
         `[DeepChatAgent] assistant message created id=${assistantMessageId} seq=${assistantOrderSeq}`
       )
 
-      // 5. Call LLM coreStream
+      // 5. Fetch tool definitions if toolPresenter is available
       const abortController = new AbortController()
       this.abortControllers.set(sessionId, abortController)
 
-      const stream = provider.coreStream(
-        messages,
-        state.modelId,
-        modelConfig,
-        temperature,
-        maxTokens,
-        []
-      )
+      let tools: import('@shared/presenter').MCPToolDefinition[] = []
+      if (this.toolPresenter) {
+        try {
+          tools = await this.toolPresenter.getAllToolDefinitions({
+            chatMode: 'agent',
+            conversationId: sessionId
+          })
+          console.log(`[DeepChatAgent] fetched ${tools.length} tool definitions`)
+        } catch (err) {
+          console.error('[DeepChatAgent] failed to fetch tool definitions:', err)
+        }
+      }
 
-      // 6. Handle the stream
-      console.log(`[DeepChatAgent] stream started, entering handleStream`)
-      await handleStream(stream, {
+      const streamContext = {
         sessionId,
         messageId: assistantMessageId,
         messageStore: this.messageStore,
         abortSignal: abortController.signal
-      })
+      }
+
+      // 6. Run agent loop (handles tool calling) or simple stream
+      if (tools.length > 0 && this.toolPresenter) {
+        console.log(`[DeepChatAgent] starting agent loop with ${tools.length} tools`)
+        await agentLoop({
+          messages,
+          tools,
+          toolPresenter: this.toolPresenter,
+          coreStream: provider.coreStream.bind(provider),
+          modelId: state.modelId,
+          modelConfig,
+          temperature,
+          maxTokens,
+          streamContext
+        })
+      } else {
+        const stream = provider.coreStream(
+          messages,
+          state.modelId,
+          modelConfig,
+          temperature,
+          maxTokens,
+          []
+        )
+        console.log(`[DeepChatAgent] stream started, entering handleStream`)
+        await handleStream(stream, streamContext)
+      }
 
       // 7. Update status to idle
       console.log(`[DeepChatAgent] stream completed, status → idle`)

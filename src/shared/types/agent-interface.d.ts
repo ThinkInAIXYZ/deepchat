@@ -2,7 +2,7 @@
  * Agent Interface Protocol
  *
  * The unified contract every agent implementation must satisfy.
- * v0 subset: single-turn chat with no tool calling, no permissions.
+ * v2: multi-turn chat with MCP tool calling, no permission checks.
  */
 
 export type SessionStatus = 'idle' | 'generating' | 'error'
@@ -56,7 +56,17 @@ export interface MessageFile {
   size: number
 }
 
-export type AssistantBlockType = 'content' | 'reasoning_content' | 'error'
+export type AssistantBlockType = 'content' | 'reasoning_content' | 'error' | 'tool_call'
+
+export interface ToolCallBlockData {
+  id: string
+  name: string
+  params: string
+  response: string
+  server_name?: string
+  server_icons?: string
+  server_description?: string
+}
 
 export interface AssistantMessageBlock {
   type: AssistantBlockType
@@ -64,6 +74,7 @@ export interface AssistantMessageBlock {
   status: 'pending' | 'success' | 'error'
   timestamp: number
   reasoning_time?: number // only for reasoning_content blocks
+  tool_call?: ToolCallBlockData // only for tool_call blocks
 }
 
 export interface MessageMetadata {

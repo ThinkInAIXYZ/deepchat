@@ -25,11 +25,21 @@ vi.mock('@/events', () => ({
 
 // Mock streamHandler to avoid timer/async complexity
 vi.mock('@/presenter/deepchatAgentPresenter/streamHandler', () => ({
-  handleStream: vi.fn().mockResolvedValue(undefined)
+  handleStream: vi.fn().mockResolvedValue({
+    stopReason: 'complete',
+    toolCalls: [],
+    blocks: []
+  })
+}))
+
+// Mock agentLoop
+vi.mock('@/presenter/deepchatAgentPresenter/agentLoop', () => ({
+  agentLoop: vi.fn().mockResolvedValue(undefined)
 }))
 
 import { eventBus } from '@/eventbus'
 import { handleStream } from '@/presenter/deepchatAgentPresenter/streamHandler'
+import { agentLoop } from '@/presenter/deepchatAgentPresenter/agentLoop'
 
 function createMockSqlitePresenter() {
   return {
@@ -77,10 +87,22 @@ function createMockConfigPresenter() {
   } as any
 }
 
+function createMockToolPresenter(toolDefs: any[] = []) {
+  return {
+    getAllToolDefinitions: vi.fn().mockResolvedValue(toolDefs),
+    callTool: vi.fn().mockResolvedValue({
+      content: 'tool result',
+      rawData: { toolCallId: 'tc1', content: 'tool result', isError: false }
+    }),
+    buildToolSystemPrompt: vi.fn().mockReturnValue('')
+  } as any
+}
+
 describe('DeepChatAgentPresenter', () => {
   let sqlitePresenter: ReturnType<typeof createMockSqlitePresenter>
   let llmProvider: ReturnType<typeof createMockLlmProviderPresenter>
   let configPresenter: ReturnType<typeof createMockConfigPresenter>
+  let toolPresenter: ReturnType<typeof createMockToolPresenter>
   let agent: DeepChatAgentPresenter
 
   beforeEach(() => {
@@ -88,7 +110,8 @@ describe('DeepChatAgentPresenter', () => {
     sqlitePresenter = createMockSqlitePresenter()
     llmProvider = createMockLlmProviderPresenter()
     configPresenter = createMockConfigPresenter()
-    agent = new DeepChatAgentPresenter(llmProvider, configPresenter, sqlitePresenter)
+    toolPresenter = createMockToolPresenter()
+    agent = new DeepChatAgentPresenter(llmProvider, configPresenter, sqlitePresenter, toolPresenter)
   })
 
   describe('constructor (crash recovery)', () => {
@@ -100,7 +123,7 @@ describe('DeepChatAgentPresenter', () => {
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
       sqlitePresenter.deepchatMessagesTable.recoverPendingMessages.mockReturnValue(5)
 
-      new DeepChatAgentPresenter(llmProvider, configPresenter, sqlitePresenter)
+      new DeepChatAgentPresenter(llmProvider, configPresenter, sqlitePresenter, toolPresenter)
 
       expect(consoleSpy).toHaveBeenCalledWith(
         'DeepChatAgent: recovered 5 pending messages to error status'
@@ -315,6 +338,50 @@ describe('DeepChatAgentPresenter', () => {
         'Session unknown not found'
       )
     })
+
+    it('uses agentLoop when tools are available', async () => {
+      const tools = [
+        {
+          type: 'function',
+          function: {
+            name: 'test_tool',
+            description: 'A test tool',
+            parameters: { type: 'object', properties: {} }
+          },
+          server: { name: 'test', icons: '', description: '' }
+        }
+      ]
+      toolPresenter.getAllToolDefinitions.mockResolvedValue(tools)
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.processMessage('s1', 'Hello')
+
+      expect(toolPresenter.getAllToolDefinitions).toHaveBeenCalledWith(
+        expect.objectContaining({
+          chatMode: 'agent',
+          conversationId: 's1'
+        })
+      )
+      expect(agentLoop).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tools,
+          toolPresenter,
+          modelId: 'gpt-4'
+        })
+      )
+      // handleStream should NOT be called directly when agentLoop is used
+      expect(handleStream).not.toHaveBeenCalled()
+    })
+
+    it('falls back to handleStream when no tools available', async () => {
+      toolPresenter.getAllToolDefinitions.mockResolvedValue([])
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.processMessage('s1', 'Hello')
+
+      expect(handleStream).toHaveBeenCalled()
+      expect(agentLoop).not.toHaveBeenCalled()
+    })
   })
 
   describe('destroySession', () => {
@@ -334,20 +401,25 @@ describe('DeepChatAgentPresenter', () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
 
       // Start a message that won't complete immediately
-      let streamResolve: () => void
+      let streamResolve: ((value: any) => void) | undefined
       ;(handleStream as ReturnType<typeof vi.fn>).mockImplementationOnce(
         () =>
-          new Promise<void>((r) => {
+          new Promise((r) => {
             streamResolve = r
           })
       )
       const processPromise = agent.processMessage('s1', 'Hello')
 
+      // Wait a tick for processMessage to reach handleStream
+      await new Promise((r) => setTimeout(r, 10))
+
       // Destroy while processing
       await agent.destroySession('s1')
 
       // Resolve the stream to avoid hanging
-      streamResolve!()
+      if (streamResolve) {
+        streamResolve({ stopReason: 'abort', toolCalls: [], blocks: [] })
+      }
       await processPromise.catch(() => {}) // ignore error from status update on destroyed session
     })
   })

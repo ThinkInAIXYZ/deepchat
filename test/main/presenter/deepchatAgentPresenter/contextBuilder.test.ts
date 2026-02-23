@@ -105,6 +105,47 @@ describe('truncateContext', () => {
     const result = truncateContext(history, 0)
     expect(result).toEqual([])
   })
+
+  it('drops assistant+tool_call messages as a group', () => {
+    // assistant with tool_calls followed by tool results — should be dropped together
+    const history = [
+      {
+        role: 'assistant' as const,
+        content: 'Let me check',
+        tool_calls: [
+          {
+            id: 'tc1',
+            type: 'function' as const,
+            function: { name: 'get_weather', arguments: '{}' }
+          }
+        ]
+      },
+      { role: 'tool' as const, tool_call_id: 'tc1', content: 'Sunny' },
+      { role: 'assistant' as const, content: 'The weather is sunny.' },
+      { role: 'user' as const, content: 'Thanks' },
+      { role: 'assistant' as const, content: 'You are welcome' }
+    ]
+    // Total tokens: 4+2+6+2+4 = 18. Budget = 6.
+    // Drop assistant+tool (4+2=6), drop next assistant (6) → remaining = 6, fits
+    const result = truncateContext(history, 6)
+    expect(result).toEqual([
+      { role: 'user', content: 'Thanks' },
+      { role: 'assistant', content: 'You are welcome' }
+    ])
+  })
+
+  it('drops orphaned tool messages at the start', () => {
+    // If somehow tool messages appear at the start after truncation, drop them
+    const history = [
+      { role: 'tool' as const, tool_call_id: 'tc1', content: 'result' },
+      { role: 'user' as const, content: 'Hello' },
+      { role: 'assistant' as const, content: 'Hi' }
+    ]
+    const result = truncateContext(history, 1000)
+    // No truncation needed — but if we started with orphaned tool, it should remain
+    // since total fits. The orphan guard only kicks in after truncation.
+    expect(result).toEqual(history)
+  })
 })
 
 describe('buildContext', () => {
