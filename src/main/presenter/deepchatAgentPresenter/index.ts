@@ -10,8 +10,7 @@ import type { SQLitePresenter } from '../sqlitePresenter'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import { DeepChatSessionStore } from './sessionStore'
 import { DeepChatMessageStore } from './messageStore'
-import { handleStream } from './streamHandler'
-import { agentLoop } from './agentLoop'
+import { processStream } from './process'
 import { buildContext } from './contextBuilder'
 import { eventBus, SendTarget } from '@/eventbus'
 import { SESSION_EVENTS } from '@/events'
@@ -179,39 +178,24 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
         }
       }
 
-      const streamContext = {
-        sessionId,
-        messageId: assistantMessageId,
-        messageStore: this.messageStore,
-        abortSignal: abortController.signal
-      }
-
-      // 6. Run agent loop (handles tool calling) or simple stream
-      if (tools.length > 0 && this.toolPresenter) {
-        console.log(`[DeepChatAgent] starting agent loop with ${tools.length} tools`)
-        await agentLoop({
-          messages,
-          tools,
-          toolPresenter: this.toolPresenter,
-          coreStream: provider.coreStream.bind(provider),
-          modelId: state.modelId,
-          modelConfig,
-          temperature,
-          maxTokens,
-          streamContext
-        })
-      } else {
-        const stream = provider.coreStream(
-          messages,
-          state.modelId,
-          modelConfig,
-          temperature,
-          maxTokens,
-          []
-        )
-        console.log(`[DeepChatAgent] stream started, entering handleStream`)
-        await handleStream(stream, streamContext)
-      }
+      // 6. Run unified stream processor (handles both simple and tool-calling flows)
+      console.log(`[DeepChatAgent] starting processStream with ${tools.length} tools`)
+      await processStream({
+        messages,
+        tools,
+        toolPresenter: this.toolPresenter,
+        coreStream: provider.coreStream.bind(provider),
+        modelId: state.modelId,
+        modelConfig,
+        temperature,
+        maxTokens,
+        io: {
+          sessionId,
+          messageId: assistantMessageId,
+          messageStore: this.messageStore,
+          abortSignal: abortController.signal
+        }
+      })
 
       // 7. Update status to idle
       console.log(`[DeepChatAgent] stream completed, status → idle`)

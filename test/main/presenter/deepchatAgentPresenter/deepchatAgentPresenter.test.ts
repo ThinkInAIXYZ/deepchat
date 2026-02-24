@@ -23,23 +23,13 @@ vi.mock('@/events', () => ({
   }
 }))
 
-// Mock streamHandler to avoid timer/async complexity
-vi.mock('@/presenter/deepchatAgentPresenter/streamHandler', () => ({
-  handleStream: vi.fn().mockResolvedValue({
-    stopReason: 'complete',
-    toolCalls: [],
-    blocks: []
-  })
-}))
-
-// Mock agentLoop
-vi.mock('@/presenter/deepchatAgentPresenter/agentLoop', () => ({
-  agentLoop: vi.fn().mockResolvedValue(undefined)
+// Mock processStream to avoid timer/async complexity
+vi.mock('@/presenter/deepchatAgentPresenter/process', () => ({
+  processStream: vi.fn().mockResolvedValue(undefined)
 }))
 
 import { eventBus } from '@/eventbus'
-import { handleStream } from '@/presenter/deepchatAgentPresenter/streamHandler'
-import { agentLoop } from '@/presenter/deepchatAgentPresenter/agentLoop'
+import { processStream } from '@/presenter/deepchatAgentPresenter/process'
 
 function createMockSqlitePresenter() {
   return {
@@ -210,21 +200,18 @@ describe('DeepChatAgentPresenter', () => {
       expect(assistantInsert.content).toBe('[]')
     })
 
-    it('calls LLM coreStream with system prompt and user message', async () => {
+    it('calls processStream with correct params', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       await agent.processMessage('s1', 'Hello')
 
-      const providerInstance = llmProvider.getProviderInstance.mock.results[0].value
-      expect(providerInstance.coreStream).toHaveBeenCalledWith(
-        [
-          { role: 'system', content: 'You are a helpful assistant.' },
-          { role: 'user', content: 'Hello' }
-        ],
-        'gpt-4',
-        expect.any(Object),
-        0.7,
-        4096,
-        []
+      expect(processStream).toHaveBeenCalledWith(
+        expect.objectContaining({
+          modelId: 'gpt-4',
+          io: expect.objectContaining({
+            sessionId: 's1',
+            messageId: 'mock-msg-id'
+          })
+        })
       )
     })
 
@@ -269,10 +256,9 @@ describe('DeepChatAgentPresenter', () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       await agent.processMessage('s1', 'Second message')
 
-      const providerInstance = llmProvider.getProviderInstance.mock.results[0].value
-      const messagesArg = providerInstance.coreStream.mock.calls[0][0]
-
-      expect(messagesArg).toEqual([
+      // processStream should receive messages with history
+      const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      expect(callArgs.messages).toEqual([
         { role: 'system', content: 'You are a helpful assistant.' },
         { role: 'user', content: 'First message' },
         { role: 'assistant', content: 'First reply' },
@@ -286,23 +272,8 @@ describe('DeepChatAgentPresenter', () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       await agent.processMessage('s1', 'Hello')
 
-      const providerInstance = llmProvider.getProviderInstance.mock.results[0].value
-      const messagesArg = providerInstance.coreStream.mock.calls[0][0]
-
-      expect(messagesArg).toEqual([{ role: 'user', content: 'Hello' }])
-    })
-
-    it('calls handleStream with correct context', async () => {
-      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
-      await agent.processMessage('s1', 'Hello')
-
-      expect(handleStream).toHaveBeenCalledWith(
-        expect.anything(),
-        expect.objectContaining({
-          sessionId: 's1',
-          messageId: 'mock-msg-id'
-        })
-      )
+      const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      expect(callArgs.messages).toEqual([{ role: 'user', content: 'Hello' }])
     })
 
     it('transitions status: idle → generating → idle', async () => {
@@ -319,7 +290,7 @@ describe('DeepChatAgentPresenter', () => {
     })
 
     it('transitions to error status on exception', async () => {
-      ;(handleStream as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('LLM failed'))
+      ;(processStream as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('LLM failed'))
 
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       await agent.processMessage('s1', 'Hello')
@@ -339,7 +310,7 @@ describe('DeepChatAgentPresenter', () => {
       )
     })
 
-    it('uses agentLoop when tools are available', async () => {
+    it('passes tools from toolPresenter to processStream', async () => {
       const tools = [
         {
           type: 'function',
@@ -362,25 +333,19 @@ describe('DeepChatAgentPresenter', () => {
           conversationId: 's1'
         })
       )
-      expect(agentLoop).toHaveBeenCalledWith(
-        expect.objectContaining({
-          tools,
-          toolPresenter,
-          modelId: 'gpt-4'
-        })
-      )
-      // handleStream should NOT be called directly when agentLoop is used
-      expect(handleStream).not.toHaveBeenCalled()
+
+      const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      expect(callArgs.tools).toEqual(tools)
     })
 
-    it('falls back to handleStream when no tools available', async () => {
+    it('passes empty tools when no toolPresenter or no tools', async () => {
       toolPresenter.getAllToolDefinitions.mockResolvedValue([])
 
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       await agent.processMessage('s1', 'Hello')
 
-      expect(handleStream).toHaveBeenCalled()
-      expect(agentLoop).not.toHaveBeenCalled()
+      const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      expect(callArgs.tools).toEqual([])
     })
   })
 
@@ -402,7 +367,7 @@ describe('DeepChatAgentPresenter', () => {
 
       // Start a message that won't complete immediately
       let streamResolve: ((value: any) => void) | undefined
-      ;(handleStream as ReturnType<typeof vi.fn>).mockImplementationOnce(
+      ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(
         () =>
           new Promise((r) => {
             streamResolve = r
@@ -410,7 +375,7 @@ describe('DeepChatAgentPresenter', () => {
       )
       const processPromise = agent.processMessage('s1', 'Hello')
 
-      // Wait a tick for processMessage to reach handleStream
+      // Wait a tick for processMessage to reach processStream
       await new Promise((r) => setTimeout(r, 10))
 
       // Destroy while processing
@@ -418,7 +383,7 @@ describe('DeepChatAgentPresenter', () => {
 
       // Resolve the stream to avoid hanging
       if (streamResolve) {
-        streamResolve({ stopReason: 'abort', toolCalls: [], blocks: [] })
+        streamResolve(undefined)
       }
       await processPromise.catch(() => {}) // ignore error from status update on destroyed session
     })
