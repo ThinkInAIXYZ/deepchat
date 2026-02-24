@@ -45,7 +45,7 @@
 
 - [x] Add `INewAgentPresenter` and `IProjectPresenter` to `IPresenter` interface in `src/shared/types/presenters/legacy.presenters.d.ts`
 - [x] Add properties and constructor instantiation in `src/main/presenter/index.ts`
-- [ ] Verify: `usePresenter('newAgentPresenter')` and `usePresenter('projectPresenter')` callable from renderer
+- [x] Verify: `usePresenter('newAgentPresenter')` and `usePresenter('projectPresenter')` callable from renderer
 
 ## T6 Renderer Stores
 
@@ -59,8 +59,8 @@
 
 - [x] Update `src/renderer/src/pages/NewThreadPage.vue` — wire to new stores (removed `title` from CreateSessionInput, title derived from message in presenter)
 - [x] Update `src/renderer/src/views/ChatTabView.vue` — `deriveFromSessions` → `fetchProjects`
-- [ ] Verify: type message → submit → session created → streaming response displayed with structured blocks
-- [ ] Verify: session appears in sidebar via sessionStore
+- [x] Verify: type message → submit → session created → streaming response displayed with structured blocks
+- [x] Verify: session appears in sidebar via sessionStore
 
 ## T8 Quality Gate & Verification
 
@@ -70,8 +70,8 @@
 - [x] Unit tests: all new modules passing
 - [x] Integration test: createSession end-to-end — new_sessions row + deepchat_sessions row + deepchat_messages rows (valid JSON content) + events with conversationId (`test/main/presenter/newAgentPresenter/integration.test.ts`)
 - [x] Integration test: crash recovery — insert pending message, reinit, verify status = error (`test/main/presenter/newAgentPresenter/integration.test.ts`)
-- [ ] Verify old UI regression: old `sessionPresenter` / `chatStore` still functional — zero impact
-- [ ] Manual verify: run `pnpm run dev`, create session via NewThreadPage, see streamed response
+- [x] Verify old UI regression: old `sessionPresenter` / `chatStore` still functional — zero impact
+- [x] Manual verify: run `pnpm run dev`, create session via NewThreadPage, see streamed response
 
 ---
 
