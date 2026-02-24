@@ -279,34 +279,8 @@ export interface IWindowPresenter {
   getWindowByWebContentsId?(webContentsId: number): BrowserWindow | undefined
   getWindowWebContents?(windowId: number): Electron.WebContents | null
   sendToActiveTab(windowId: number, channel: string, ...args: unknown[]): Promise<boolean>
-  getAllWindows(): BrowserWindow[]
-  toggleFloatingChatWindow(floatingButtonPosition?: {
-    x: number
-    y: number
-    width: number
-    height: number
-  }): Promise<void>
-  createFloatingChatWindow(): Promise<void>
-}
-
-export interface ITabPresenter {
-  createTab(windowId: number, url: string, options?: TabCreateOptions): Promise<number | null>
-  closeTab(tabId: number): Promise<boolean>
-  closeTabs(windowId: number): Promise<void>
-  switchTab(tabId: number): Promise<boolean>
-  getTab(tabId: number): Promise<BrowserView | undefined>
-  detachTab(tabId: number): Promise<boolean>
-  attachTab(tabId: number, targetWindowId: number, index?: number): Promise<boolean>
-  moveTab(tabId: number, targetWindowId: number, index?: number): Promise<boolean>
-  getWindowTabsData(windowId: number): Promise<Array<TabData>>
-  getActiveTabId(windowId: number): Promise<number | undefined>
-  getTabIdByWebContentsId(webContentsId: number): number | undefined
-  getWindowIdByWebContentsId(webContentsId: number): number | undefined
-  getTabWindowId(tabId: number): number | undefined
-  reorderTabs(windowId: number, tabIds: number[]): Promise<boolean>
-  moveTabToNewWindow(tabId: number, screenX?: number, screenY?: number): Promise<boolean>
-  captureTabArea(
-    tabId: number,
+  captureWindowArea(
+    webContentsId: number,
     rect: { x: number; y: number; width: number; height: number }
   ): Promise<string | null>
   stitchImagesWithWatermark(
@@ -321,21 +295,14 @@ export interface ITabPresenter {
       }
     }
   ): Promise<string | null>
-  // Added renderer process Tab event handling methods
-  onRendererTabReady(tabId: number): Promise<void>
-  onRendererTabActivated(threadId: string): Promise<void>
-  isLastTabInWindow(tabId: number): Promise<boolean>
-  registerFloatingWindow(webContentsId: number, webContents: Electron.WebContents): void
-  unregisterFloatingWindow(webContentsId: number): void
-  resetTabToBlank(tabId: number): Promise<void>
-  setTabBrowserId(tabId: number, browserTabId: string): void
-  destroy(): Promise<void>
-}
-
-export interface TabCreateOptions {
-  active?: boolean
-  position?: number
-  allowNonLocal?: boolean
+  getAllWindows(): BrowserWindow[]
+  toggleFloatingChatWindow(floatingButtonPosition?: {
+    x: number
+    y: number
+    width: number
+    height: number
+  }): Promise<void>
+  createFloatingChatWindow(): Promise<void>
 }
 
 export interface IShortcutPresenter {
@@ -462,7 +429,6 @@ export interface IPresenter {
   syncPresenter: ISyncPresenter
   deeplinkPresenter: IDeeplinkPresenter
   notificationPresenter: INotificationPresenter
-  tabPresenter: ITabPresenter
   yoBrowserPresenter: IYoBrowserPresenter
   oauthPresenter: IOAuthPresenter
   dialogPresenter: IDialogPresenter
@@ -1098,7 +1064,7 @@ export interface IThreadPresenter {
   createConversation(
     title: string,
     settings: Partial<CONVERSATION_SETTINGS>,
-    tabId: number,
+    windowId: number,
     options?: { forceNewAndActivate?: boolean } // Added options parameter, supports forced creation of new sessions, avoiding singleton detection for empty sessions
   ): Promise<string>
   deleteConversation(conversationId: string): Promise<void>
@@ -1125,8 +1091,8 @@ export interface IThreadPresenter {
     parentSelection: ParentSelection | string
     title: string
     settings?: Partial<CONVERSATION_SETTINGS>
-    tabId?: number
-    openInNewTab?: boolean
+    windowId?: number
+    openInNewWindow?: boolean
   }): Promise<string>
 
   // Conversation list and activation status
@@ -1137,17 +1103,19 @@ export interface IThreadPresenter {
   listChildConversationsByParent(parentConversationId: string): Promise<CONVERSATION[]>
   listChildConversationsByMessageIds(parentMessageIds: string[]): Promise<CONVERSATION[]>
   loadMoreThreads(): Promise<{ hasMore: boolean; total: number }>
-  setActiveConversation(conversationId: string, tabId: number): Promise<void>
-  openConversationInNewTab(payload: {
+  setActiveConversation(conversationId: string, windowId: number): Promise<void>
+  openConversationInNewWindow(payload: {
     conversationId: string
-    tabId?: number
+    windowId?: number
     messageId?: string
     childConversationId?: string
   }): Promise<number | null>
-  getActiveConversation(tabId: number): Promise<CONVERSATION | null>
-  getActiveConversationId(tabId: number): Promise<string | null>
-  clearActiveThread(tabId: number): Promise<void>
-  findTabForConversation(conversationId: string): Promise<number | null>
+  onRendererWindowReady(windowBindingId: number): Promise<void>
+  onConversationActivated(conversationId: string): Promise<void>
+  getActiveConversation(windowId: number): Promise<CONVERSATION | null>
+  getActiveConversationId(windowId: number): Promise<string | null>
+  clearActiveThread(windowId: number): Promise<void>
+  findWindowForConversation(conversationId: string): Promise<number | null>
 
   clearAllMessages(conversationId: string): Promise<void>
 

@@ -1,4 +1,12 @@
-import { BrowserWindow, shell, nativeImage, ipcMain, screen, WebContents } from 'electron'
+import {
+  BrowserWindow,
+  shell,
+  nativeImage,
+  ipcMain,
+  screen,
+  WebContents,
+  webContents
+} from 'electron'
 import { join } from 'path'
 import icon from '../../../../resources/icon.png?asset'
 import iconWin from '../../../../resources/icon.ico?asset'
@@ -10,6 +18,8 @@ import { presenter } from '../'
 import windowStateManager from 'electron-window-state'
 import { FloatingChatWindow } from './FloatingChatWindow'
 import { getYoBrowserSession } from '../browser/yoBrowserSession'
+import { addWatermarkToNativeImage } from '@/lib/watermark'
+import { stitchImagesVertically } from '@/lib/scrollCapture'
 
 type AppWindowKind = 'chat' | 'browser'
 
@@ -336,6 +346,7 @@ export class WindowPresenter implements IWindowPresenter {
     })
 
     browserWindow.on('closed', () => {
+      const webContentsId = browserWindow.webContents.id
       this.windows.delete(windowId)
       this.windowTypes.delete(windowId)
       managedState.unmanage()
@@ -348,7 +359,7 @@ export class WindowPresenter implements IWindowPresenter {
         this.mainWindowId = fallbackMain?.id ?? null
       }
 
-      eventBus.sendToMain(WINDOW_EVENTS.WINDOW_CLOSED, windowId)
+      eventBus.sendToMain(WINDOW_EVENTS.WINDOW_CLOSED, { windowId, webContentsId })
     })
 
     if (params.kind === 'chat' || params.kind === 'browser') {
@@ -545,6 +556,61 @@ export class WindowPresenter implements IWindowPresenter {
 
   async sendToActiveTab(windowId: number, channel: string, ...args: unknown[]): Promise<boolean> {
     return this.sendToWindow(windowId, channel, ...args)
+  }
+
+  async captureWindowArea(
+    webContentsId: number,
+    rect: { x: number; y: number; width: number; height: number }
+  ): Promise<string | null> {
+    const target = webContents.fromId(webContentsId)
+    if (!target || target.isDestroyed()) {
+      return null
+    }
+
+    try {
+      const image = await target.capturePage(rect)
+      return image.toDataURL()
+    } catch (error) {
+      console.error(`captureWindowArea failed for webContents ${webContentsId}:`, error)
+      return null
+    }
+  }
+
+  async stitchImagesWithWatermark(
+    imageDataList: string[],
+    options?: {
+      isDark?: boolean
+      version?: string
+      texts?: {
+        brand?: string
+        time?: string
+        tip?: string
+      }
+    }
+  ): Promise<string | null> {
+    if (!Array.isArray(imageDataList) || imageDataList.length === 0) {
+      return null
+    }
+
+    try {
+      const imageBuffers = imageDataList.map((dataUrl) => {
+        const base64Data = dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl
+        return Buffer.from(base64Data, 'base64')
+      })
+      const stitched = await stitchImagesVertically(imageBuffers)
+      if (!stitched) {
+        return null
+      }
+      const watermarked = await addWatermarkToNativeImage(stitched, {
+        isDark: options?.isDark,
+        version: options?.version,
+        texts: options?.texts
+      })
+      return watermarked.toDataURL()
+    } catch (error) {
+      console.error('stitchImagesWithWatermark failed:', error)
+      return null
+    }
   }
 
   getFocusedWindow(): BrowserWindow | undefined {

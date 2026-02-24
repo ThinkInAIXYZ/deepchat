@@ -3,12 +3,7 @@ import type { Rectangle } from 'electron'
 import { eventBus, SendTarget } from '@/eventbus'
 import { YO_BROWSER_EVENTS } from '@/events'
 import { BrowserTabInfo, BrowserContextSnapshot, ScreenshotOptions } from '@shared/types/browser'
-import {
-  IYoBrowserPresenter,
-  DownloadInfo,
-  IWindowPresenter,
-  ITabPresenter
-} from '@shared/presenter'
+import { IYoBrowserPresenter, DownloadInfo, IWindowPresenter } from '@shared/presenter'
 import { BrowserTab } from './BrowserTab'
 import { CDPManager } from './CDPManager'
 import { ScreenshotManager } from './ScreenshotManager'
@@ -32,7 +27,7 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
   private detachWebContentsListeners: (() => void) | null = null
   readonly toolHandler: YoBrowserToolHandler
 
-  constructor(windowPresenter: IWindowPresenter, _tabPresenter: ITabPresenter) {
+  constructor(windowPresenter: IWindowPresenter) {
     this.windowPresenter = windowPresenter
     this.toolHandler = new YoBrowserToolHandler(this)
   }

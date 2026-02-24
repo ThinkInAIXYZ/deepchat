@@ -7,7 +7,7 @@ import { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 import { webContents } from 'electron'
 import { presenter } from '@/presenter' // 导入全局的 presenter 对象
 import { eventBus } from '@/eventbus' // 引入 eventBus
-import { TAB_EVENTS } from '@/events'
+import { RENDERER_LIFECYCLE_EVENTS } from '@/events'
 import { isSafeRegexPattern } from '@shared/regexValidator'
 
 // Schema definitions
@@ -80,43 +80,43 @@ interface SearchResult {
   total: number
 }
 
-// 等待 Tab 内容就绪的辅助函数
-function awaitTabReady(webContentsId: number, timeout = 10000): Promise<void> {
+// 等待渲染内容就绪的辅助函数
+function awaitRendererReady(webContentsId: number, timeout = 10000): Promise<void> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
-      eventBus.removeListener(TAB_EVENTS.RENDERER_TAB_READY, listener)
-      reject(new Error(`Timed out waiting for tab ${webContentsId} to be ready.`))
+      eventBus.removeListener(RENDERER_LIFECYCLE_EVENTS.WINDOW_RENDERER_READY, listener)
+      reject(new Error(`Timed out waiting for renderer ${webContentsId} to be ready.`))
     }, timeout)
 
-    const listener = (readyTabId: number) => {
-      if (readyTabId === webContentsId) {
+    const listener = (readyBindingId: number) => {
+      if (readyBindingId === webContentsId) {
         clearTimeout(timer)
-        eventBus.removeListener(TAB_EVENTS.RENDERER_TAB_READY, listener)
+        eventBus.removeListener(RENDERER_LIFECYCLE_EVENTS.WINDOW_RENDERER_READY, listener)
         resolve()
       }
     }
 
-    eventBus.on(TAB_EVENTS.RENDERER_TAB_READY, listener)
+    eventBus.on(RENDERER_LIFECYCLE_EVENTS.WINDOW_RENDERER_READY, listener)
   })
 }
 
-// 等待 Tab 会话激活的辅助函数
-function awaitTabActivated(threadId: string, timeout = 5000): Promise<void> {
+// 等待会话激活确认的辅助函数
+function awaitConversationActivated(threadId: string, timeout = 5000): Promise<void> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
-      eventBus.removeListener(TAB_EVENTS.RENDERER_TAB_ACTIVATED, listener)
+      eventBus.removeListener(RENDERER_LIFECYCLE_EVENTS.CONVERSATION_ACTIVATED, listener)
       reject(new Error(`Timed out waiting for thread ${threadId} to be activated.`))
     }, timeout)
 
     const listener = (activatedThreadId: string) => {
       if (activatedThreadId === threadId) {
         clearTimeout(timer)
-        eventBus.removeListener(TAB_EVENTS.RENDERER_TAB_ACTIVATED, listener)
+        eventBus.removeListener(RENDERER_LIFECYCLE_EVENTS.CONVERSATION_ACTIVATED, listener)
         resolve()
       }
     }
 
-    eventBus.on(TAB_EVENTS.RENDERER_TAB_ACTIVATED, listener)
+    eventBus.on(RENDERER_LIFECYCLE_EVENTS.CONVERSATION_ACTIVATED, listener)
   })
 }
 
@@ -525,15 +525,6 @@ export class ConversationSearchServer {
               title: 'Create New Window',
               destructiveHint: false
             }
-          },
-          {
-            name: 'create_new_tab',
-            description: 'Deprecated alias of create_new_window. Kept for backward compatibility.',
-            inputSchema: zodToJsonSchema(CreateNewWindowArgsSchema),
-            annotations: {
-              title: 'Create New Tab (Deprecated)',
-              destructiveHint: false
-            }
           }
         ]
       }
@@ -601,13 +592,7 @@ export class ConversationSearchServer {
               ]
             }
           }
-          case 'create_new_window':
-          case 'create_new_tab': {
-            if (name === 'create_new_tab') {
-              console.warn(
-                '[conversation-search-server] create_new_tab is deprecated, use create_new_window'
-              )
-            }
+          case 'create_new_window': {
             // 解析参数，url默认值 'local://chat'
             const { url, active, userInput } = CreateNewWindowArgsSchema.parse(args)
 
@@ -645,8 +630,7 @@ export class ConversationSearchServer {
                     type: 'text',
                     text: JSON.stringify({
                       windowId: resolvedWindowId,
-                      webContentsId: resolvedWebContentsId,
-                      tabId: resolvedWebContentsId
+                      webContentsId: resolvedWebContentsId
                     })
                   }
                 ]
@@ -655,17 +639,17 @@ export class ConversationSearchServer {
 
             // ★ 等待渲染进程中的 Vue/Pinia 应用初始化完成
             try {
-              await awaitTabReady(resolvedWebContentsId)
+              await awaitRendererReady(resolvedWebContentsId)
             } catch (error) {
               console.error(error)
-              throw new Error("Failed to communicate with the new tab's renderer process.")
+              throw new Error("Failed to communicate with the new window's renderer process.")
             }
 
             // 步骤 2: 主进程创建会话。此操作会触发 CONVERSATION_EVENTS.ACTIVATED 事件，必须在 Vue/Pinia 就绪后执行
             const newThreadId = await presenter.sessionPresenter.createConversation(
               'New Chat', // 临时标题
               {}, // 默认设置
-              resolvedWebContentsId
+              resolvedWindowId
             )
 
             if (!newThreadId) {
@@ -674,7 +658,7 @@ export class ConversationSearchServer {
 
             // ★ 等待渲染进程确认会话已激活
             try {
-              await awaitTabActivated(newThreadId)
+              await awaitConversationActivated(newThreadId)
             } catch (error) {
               console.error(error)
               // 即使超时也尝试继续，但记录警告
@@ -688,7 +672,7 @@ export class ConversationSearchServer {
               presenter.windowPresenter.getWindowWebContents?.(resolvedWindowId) ??
               webContents.fromId(resolvedWebContentsId)
             if (!targetWebContents || targetWebContents.isDestroyed()) {
-              throw new Error("Failed to communicate with the new tab's renderer process.")
+              throw new Error("Failed to communicate with the new window's renderer process.")
             }
 
             targetWebContents.send('command:send-initial-message', {
@@ -702,7 +686,6 @@ export class ConversationSearchServer {
                   text: JSON.stringify({
                     windowId: resolvedWindowId,
                     webContentsId: resolvedWebContentsId,
-                    tabId: resolvedWebContentsId,
                     threadId: newThreadId
                   })
                 }

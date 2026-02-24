@@ -208,7 +208,7 @@ const handleMentionClick = (block: UserMessageMentionBlock) => {
   if (!activeThread?.parentConversationId || !activeThread.parentMessageId) {
     return
   }
-  chatStore.openThreadInNewTab(activeThread.parentConversationId, {
+  chatStore.openThreadInNewWindow(activeThread.parentConversationId, {
     messageId: activeThread.parentMessageId,
     childConversationId: activeThread.id
   })

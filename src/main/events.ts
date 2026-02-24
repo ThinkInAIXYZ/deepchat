@@ -177,11 +177,10 @@ export const SHORTCUT_EVENTS = {
   DELETE_CONVERSATION: 'shortcut:delete-conversation'
 }
 
-// 标签页相关事件
-export const TAB_EVENTS = {
-  RENDERER_TAB_READY: 'tab:renderer-ready', // 渲染进程标签页就绪
-  RENDERER_TAB_ACTIVATED: 'tab:renderer-activated', // 渲染进程标签页激活
-  CLOSED: 'tab:closed' // 标签页被关闭事件
+// 渲染进程生命周期相关事件（窗口级）
+export const RENDERER_LIFECYCLE_EVENTS = {
+  WINDOW_RENDERER_READY: 'window:renderer-ready', // 渲染进程窗口就绪
+  CONVERSATION_ACTIVATED: 'window:conversation-activated' // 渲染进程会话激活确认
 }
 
 // Yo Browser 相关事件

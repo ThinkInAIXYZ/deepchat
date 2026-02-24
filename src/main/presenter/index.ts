@@ -18,7 +18,6 @@ import {
   IShortcutPresenter,
   ISQLitePresenter,
   ISyncPresenter,
-  ITabPresenter,
   ISessionPresenter,
   IConversationExporter,
   IAgentPresenter,
@@ -42,7 +41,6 @@ import { McpPresenter } from './mcpPresenter'
 import { SyncPresenter } from './syncPresenter'
 import { DeeplinkPresenter } from './deeplinkPresenter'
 import { NotificationPresenter } from './notifactionPresenter'
-import { TabPresenter } from './tabPresenter'
 import { TrayPresenter } from './trayPresenter'
 import { OAuthPresenter } from './oauthPresenter'
 import { FloatingButtonPresenter } from './floatingButtonPresenter'
@@ -99,7 +97,6 @@ export class Presenter implements IPresenter {
   syncPresenter: ISyncPresenter
   deeplinkPresenter: IDeeplinkPresenter
   notificationPresenter: INotificationPresenter
-  tabPresenter: ITabPresenter
   trayPresenter: TrayPresenter
   oauthPresenter: OAuthPresenter
   floatingButtonPresenter: FloatingButtonPresenter
@@ -133,7 +130,6 @@ export class Presenter implements IPresenter {
 
     // 初始化各个 Presenter 实例及其依赖
     this.windowPresenter = new WindowPresenter(this.configPresenter)
-    this.tabPresenter = new TabPresenter(this.windowPresenter)
     this.llmproviderPresenter = new LLMProviderPresenter(
       this.configPresenter,
       this.sqlitePresenter,
@@ -184,7 +180,7 @@ export class Presenter implements IPresenter {
     this.trayPresenter = new TrayPresenter()
     this.floatingButtonPresenter = new FloatingButtonPresenter(this.configPresenter)
     this.dialogPresenter = new DialogPresenter()
-    this.yoBrowserPresenter = new YoBrowserPresenter(this.windowPresenter, this.tabPresenter)
+    this.yoBrowserPresenter = new YoBrowserPresenter(this.windowPresenter)
 
     // Define dbDir for knowledge presenter
     const dbDir = path.join(app.getPath('userData'), 'app_db')
@@ -354,7 +350,6 @@ export class Presenter implements IPresenter {
   // 在应用退出时进行清理，关闭数据库连接
   destroy() {
     this.floatingButtonPresenter.destroy() // 销毁悬浮按钮
-    this.tabPresenter.destroy()
     this.sqlitePresenter.close() // 关闭数据库连接
     this.shortcutPresenter.destroy() // 销毁快捷键监听
     this.syncPresenter.destroy() // 销毁同步相关资源
@@ -383,7 +378,7 @@ function isFunction(obj: any, prop: string): obj is { [key: string]: (...args: a
   return typeof obj[prop] === 'function'
 }
 
-// IPC 主进程处理程序：动态调用 Presenter 的方法 (支持Tab上下文)
+// IPC 主进程处理程序：动态调用 Presenter 的方法 (支持窗口上下文)
 ipcMain.handle(
   'presenter:call',
   (event: IpcMainInvokeEvent, name: string, method: string, ...payloads: unknown[]) => {

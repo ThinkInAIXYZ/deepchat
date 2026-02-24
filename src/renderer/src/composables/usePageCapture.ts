@@ -72,7 +72,7 @@ export interface CaptureResult {
 
 export function usePageCapture() {
   const isCapturing = ref(false)
-  const tabPresenter = usePresenter('tabPresenter')
+  const windowPresenter = usePresenter('windowPresenter')
 
   /**
    * 获取滚动容器元素
@@ -184,7 +184,7 @@ export function usePageCapture() {
       }
 
       // 获取当前标签页ID
-      const tabId = window.api.getWebContentsId()
+      const windowBindingId = window.api.getWebContentsId()
 
       // 获取滚动容器
       scrollContainer = getScrollContainer(config.container)
@@ -296,7 +296,7 @@ export function usePageCapture() {
 
         // 执行截图
         try {
-          const segmentData = await tabPresenter.captureTabArea(tabId, captureRect)
+          const segmentData = await windowPresenter.captureWindowArea(windowBindingId, captureRect)
           if (segmentData) {
             imageDataList.push(segmentData)
           } else {
@@ -325,10 +325,13 @@ export function usePageCapture() {
       // 拼接图片并添加水印
       let finalImage: string | null = null
       if (config.watermark) {
-        finalImage = await tabPresenter.stitchImagesWithWatermark(imageDataList, config.watermark)
+        finalImage = await windowPresenter.stitchImagesWithWatermark(
+          imageDataList,
+          config.watermark
+        )
       } else {
         // 如果不需要水印，只拼接图片
-        finalImage = await tabPresenter.stitchImagesWithWatermark(imageDataList, {})
+        finalImage = await windowPresenter.stitchImagesWithWatermark(imageDataList, {})
       }
 
       if (!finalImage) {

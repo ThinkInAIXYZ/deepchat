@@ -21,66 +21,85 @@ export class ConversationManager {
   private readonly sqlitePresenter: ISQLitePresenter
   private readonly configPresenter: IConfigPresenter
   private readonly messageManager: MessageManager
-  private readonly activeConversationIds: Map<number, string>
+  private readonly activeConversationBindings: Map<number, string>
   private fetchThreadLength = 300
 
   constructor(options: {
     sqlitePresenter: ISQLitePresenter
     configPresenter: IConfigPresenter
     messageManager: MessageManager
-    activeConversationIds: Map<number, string>
+    activeConversationBindings: Map<number, string>
   }) {
     this.sqlitePresenter = options.sqlitePresenter
     this.configPresenter = options.configPresenter
     this.messageManager = options.messageManager
-    this.activeConversationIds = options.activeConversationIds
+    this.activeConversationBindings = options.activeConversationBindings
   }
 
-  getActiveConversationIdSync(tabId: number): string | null {
-    return this.activeConversationIds.get(tabId) || null
+  getActiveConversationIdSync(windowBindingId: number): string | null {
+    return this.activeConversationBindings.get(windowBindingId) || null
   }
 
-  getTabsByConversation(conversationId: string): number[] {
-    return Array.from(this.activeConversationIds.entries())
+  getWindowBindingsByConversation(conversationId: string): number[] {
+    return Array.from(this.activeConversationBindings.entries())
       .filter(([, id]) => id === conversationId)
-      .map(([tabId]) => tabId)
+      .map(([windowBindingId]) => windowBindingId)
   }
 
-  clearActiveConversation(tabId: number, options: { notify?: boolean } = {}): void {
-    if (!this.activeConversationIds.has(tabId)) {
+  private buildBindingPayload(windowBindingId: number): {
+    windowBindingId: number
+    windowId: number | null
+  } {
+    const targetWindow = presenter.windowPresenter.getWindowByWebContentsId?.(windowBindingId)
+    return {
+      windowBindingId,
+      windowId: targetWindow && !targetWindow.isDestroyed() ? targetWindow.id : null
+    }
+  }
+
+  clearActiveConversation(windowBindingId: number, options: { notify?: boolean } = {}): void {
+    if (!this.activeConversationBindings.has(windowBindingId)) {
       return
     }
-    this.activeConversationIds.delete(tabId)
+    this.activeConversationBindings.delete(windowBindingId)
     if (options.notify) {
-      eventBus.sendToRenderer(CONVERSATION_EVENTS.DEACTIVATED, SendTarget.ALL_WINDOWS, { tabId })
+      eventBus.sendToRenderer(
+        CONVERSATION_EVENTS.DEACTIVATED,
+        SendTarget.ALL_WINDOWS,
+        this.buildBindingPayload(windowBindingId)
+      )
     }
   }
 
   clearConversationBindings(conversationId: string): void {
-    for (const [tabId, activeId] of this.activeConversationIds.entries()) {
+    for (const [windowBindingId, activeId] of this.activeConversationBindings.entries()) {
       if (activeId === conversationId) {
-        this.activeConversationIds.delete(tabId)
-        eventBus.sendToRenderer(CONVERSATION_EVENTS.DEACTIVATED, SendTarget.ALL_WINDOWS, {
-          tabId
-        })
+        this.activeConversationBindings.delete(windowBindingId)
+        eventBus.sendToRenderer(
+          CONVERSATION_EVENTS.DEACTIVATED,
+          SendTarget.ALL_WINDOWS,
+          this.buildBindingPayload(windowBindingId)
+        )
       }
     }
   }
 
-  async findTabForConversation(conversationId: string): Promise<number | null> {
-    for (const [tabId, activeId] of this.activeConversationIds.entries()) {
+  async findBindingForConversation(conversationId: string): Promise<number | null> {
+    for (const [windowBindingId, activeId] of this.activeConversationBindings.entries()) {
       if (activeId === conversationId) {
-        const target = webContents.fromId(tabId)
+        const target = webContents.fromId(windowBindingId)
         if (target && !target.isDestroyed()) {
-          return tabId
+          return windowBindingId
         }
       }
     }
     return null
   }
 
-  private async getTabWindowType(tabId: number): Promise<'floating' | 'main' | 'unknown'> {
-    const window = presenter.windowPresenter.getWindowByWebContentsId?.(tabId)
+  private async getWindowTypeForBinding(
+    windowBindingId: number
+  ): Promise<'floating' | 'main' | 'unknown'> {
+    const window = presenter.windowPresenter.getWindowByWebContentsId?.(windowBindingId)
     if (!window || window.isDestroyed()) {
       return 'floating'
     }
@@ -93,30 +112,31 @@ export class ConversationManager {
     return 'main'
   }
 
-  async setActiveConversation(conversationId: string, tabId: number): Promise<void> {
-    const existingTabId = await this.findTabForConversation(conversationId)
+  async setActiveConversation(conversationId: string, windowBindingId: number): Promise<void> {
+    const existingWindowBindingId = await this.findBindingForConversation(conversationId)
 
-    if (existingTabId !== null && existingTabId !== tabId) {
+    if (existingWindowBindingId !== null && existingWindowBindingId !== windowBindingId) {
       console.log(
-        `Conversation ${conversationId} is already open in tab ${existingTabId}. Switching to it.`
+        `Conversation ${conversationId} is already open in window binding ${existingWindowBindingId}. Switching to it.`
       )
-      const currentTabType = await this.getTabWindowType(tabId)
-      const existingTabType = await this.getTabWindowType(existingTabId)
+      const currentWindowType = await this.getWindowTypeForBinding(windowBindingId)
+      const existingWindowType = await this.getWindowTypeForBinding(existingWindowBindingId)
 
-      if (currentTabType !== existingTabType) {
-        this.activeConversationIds.delete(existingTabId)
+      if (currentWindowType !== existingWindowType) {
+        this.activeConversationBindings.delete(existingWindowBindingId)
         eventBus.sendToRenderer(CONVERSATION_EVENTS.DEACTIVATED, SendTarget.ALL_WINDOWS, {
-          tabId: existingTabId
+          ...this.buildBindingPayload(existingWindowBindingId)
         })
-        this.activeConversationIds.set(tabId, conversationId)
+        this.activeConversationBindings.set(windowBindingId, conversationId)
         eventBus.sendToRenderer(CONVERSATION_EVENTS.ACTIVATED, SendTarget.ALL_WINDOWS, {
           conversationId,
-          tabId
+          ...this.buildBindingPayload(windowBindingId)
         })
         return
       }
 
-      const existingWindow = presenter.windowPresenter.getWindowByWebContentsId?.(existingTabId)
+      const existingWindow =
+        presenter.windowPresenter.getWindowByWebContentsId?.(existingWindowBindingId)
       if (existingWindow && !existingWindow.isDestroyed()) {
         presenter.windowPresenter.show(existingWindow.id, true)
       }
@@ -128,19 +148,19 @@ export class ConversationManager {
       throw new Error(`Conversation ${conversationId} not found`)
     }
 
-    if (this.activeConversationIds.get(tabId) === conversationId) {
+    if (this.activeConversationBindings.get(windowBindingId) === conversationId) {
       return
     }
 
-    this.activeConversationIds.set(tabId, conversationId)
+    this.activeConversationBindings.set(windowBindingId, conversationId)
     eventBus.sendToRenderer(CONVERSATION_EVENTS.ACTIVATED, SendTarget.ALL_WINDOWS, {
       conversationId,
-      tabId
+      ...this.buildBindingPayload(windowBindingId)
     })
   }
 
-  async getActiveConversation(tabId: number): Promise<CONVERSATION | null> {
-    const conversationId = this.activeConversationIds.get(tabId)
+  async getActiveConversation(windowBindingId: number): Promise<CONVERSATION | null> {
+    const conversationId = this.activeConversationBindings.get(windowBindingId)
     if (!conversationId) {
       return null
     }
@@ -154,7 +174,7 @@ export class ConversationManager {
   async createConversation(
     title: string,
     settings: Partial<CONVERSATION_SETTINGS> = {},
-    tabId: number,
+    windowBindingId: number,
     options: CreateConversationOptions = {}
   ): Promise<string> {
     let latestConversation: CONVERSATION | null = null
@@ -169,7 +189,7 @@ export class ConversationManager {
           1
         )
         if (messages.length === 0) {
-          await this.setActiveConversation(latestConversation.id, tabId)
+          await this.setActiveConversation(latestConversation.id, windowBindingId)
           return latestConversation.id
         }
       }
@@ -240,13 +260,13 @@ export class ConversationManager {
       const conversationId = await this.sqlitePresenter.createConversation(title, mergedSettings)
 
       if (options.forceNewAndActivate) {
-        this.activeConversationIds.set(tabId, conversationId)
+        this.activeConversationBindings.set(windowBindingId, conversationId)
         eventBus.sendToRenderer(CONVERSATION_EVENTS.ACTIVATED, SendTarget.ALL_WINDOWS, {
           conversationId,
-          tabId
+          ...this.buildBindingPayload(windowBindingId)
         })
       } else {
-        await this.setActiveConversation(conversationId, tabId)
+        await this.setActiveConversation(conversationId, windowBindingId)
       }
 
       await this.broadcastThreadListUpdate()
@@ -254,7 +274,7 @@ export class ConversationManager {
     } catch (error) {
       console.error('ConversationManager: Failed to create conversation', {
         title,
-        tabId,
+        windowBindingId,
         options,
         latestConversationId: latestConversation?.id,
         errorMessage: error instanceof Error ? error.message : String(error),

@@ -547,7 +547,7 @@ const handleHighlightClick = (event: MouseEvent) => {
   const childConversationId = highlight.dataset.childConversationId
   if (!childConversationId) return
   event.preventDefault()
-  chatStore.openThreadInNewTab(childConversationId)
+  chatStore.openThreadInNewWindow(childConversationId)
 }
 
 const activateHighlight = (highlight: HTMLElement) => {

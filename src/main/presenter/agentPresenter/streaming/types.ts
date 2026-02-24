@@ -32,7 +32,7 @@ export interface GeneratingMessageState {
   flushTimeout?: NodeJS.Timeout
   throttleTimeout?: NodeJS.Timeout
   lastRendererUpdateTime?: number
-  tabId?: number
+  windowId?: number
 }
 
 export type { StreamUpdateScheduler } from './streamUpdateScheduler'

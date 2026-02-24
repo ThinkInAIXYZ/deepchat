@@ -99,7 +99,7 @@ export interface ISessionPresenter extends IThreadPresenter {
   unbindFromWindow?(windowId: number): Promise<void>
   activateSession(windowId: number, sessionId: string): Promise<void>
   getActiveSession(windowId: number): Promise<Session | null>
-  findTabForSession(
+  findWindowForSession(
     sessionId: string,
     preferredWindowType?: 'main' | 'floating'
   ): Promise<number | null>

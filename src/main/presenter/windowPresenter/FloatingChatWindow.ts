@@ -5,8 +5,8 @@ import { platform, is } from '@electron-toolkit/utils'
 import icon from '../../../../resources/icon.png?asset'
 import iconWin from '../../../../resources/icon.ico?asset'
 import { eventBus } from '../../eventbus'
-import { TAB_EVENTS } from '../../events'
 import { presenter } from '../'
+import { RENDERER_LIFECYCLE_EVENTS } from '../../events'
 
 interface FloatingChatConfig {
   size: {
@@ -100,7 +100,6 @@ export class FloatingChatWindow {
       this.window.setAlwaysOnTop(true, 'floating')
       this.window.setOpacity(this.config.opacity)
       this.setupWindowEvents()
-      this.registerVirtualTab()
 
       logger.info('FloatingChatWindow created successfully')
 
@@ -167,7 +166,6 @@ export class FloatingChatWindow {
 
   public destroy(): void {
     if (this.window) {
-      this.unregisterVirtualTab()
       try {
         if (!this.window.isDestroyed()) {
           this.window.destroy()
@@ -194,45 +192,12 @@ export class FloatingChatWindow {
       logger.debug('Refreshing floating window data')
       setTimeout(() => {
         if (this.window && !this.window.isDestroyed()) {
-          eventBus.sendToMain(TAB_EVENTS.RENDERER_TAB_READY, this.window.webContents.id)
+          eventBus.sendToMain(
+            RENDERER_LIFECYCLE_EVENTS.WINDOW_RENDERER_READY,
+            this.window.webContents.id
+          )
         }
       }, 100)
-    }
-  }
-
-  private registerVirtualTab(): void {
-    if (!this.window || this.window.isDestroyed()) {
-      return
-    }
-
-    try {
-      const tabPresenter = presenter.tabPresenter
-      if (tabPresenter) {
-        const webContentsId = this.window.webContents.id
-        logger.info(`Registering virtual tab for floating window, WebContents ID: ${webContentsId}`)
-        tabPresenter.registerFloatingWindow(webContentsId, this.window.webContents)
-      }
-    } catch (error) {
-      logger.error('Failed to register virtual tab for floating window:', error)
-    }
-  }
-
-  private unregisterVirtualTab(): void {
-    if (!this.window) {
-      return
-    }
-
-    try {
-      const tabPresenter = presenter.tabPresenter
-      if (tabPresenter) {
-        const webContentsId = this.window.webContents.id
-        logger.info(
-          `Unregistering virtual tab for floating window, WebContents ID: ${webContentsId}`
-        )
-        tabPresenter.unregisterFloatingWindow(webContentsId)
-      }
-    } catch (error) {
-      logger.error('Failed to unregister virtual tab for floating window:', error)
     }
   }
 
@@ -298,7 +263,10 @@ export class FloatingChatWindow {
       setTimeout(async () => {
         if (this.window && !this.window.isDestroyed()) {
           logger.info(`Broadcasting thread list update for floating window`)
-          eventBus.sendToMain(TAB_EVENTS.RENDERER_TAB_READY, this.window.webContents.id)
+          eventBus.sendToMain(
+            RENDERER_LIFECYCLE_EVENTS.WINDOW_RENDERER_READY,
+            this.window.webContents.id
+          )
         }
       }, 300)
     })

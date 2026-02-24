@@ -18,7 +18,7 @@ import type { NowledgeMemThread, NowledgeMemExportSummary } from '@shared/types/
 import { promises as fs } from 'fs'
 import { presenter } from '@/presenter'
 import { eventBus } from '@/eventbus'
-import { TAB_EVENTS, CONVERSATION_EVENTS } from '@/events'
+import { RENDERER_LIFECYCLE_EVENTS, CONVERSATION_EVENTS, WINDOW_EVENTS } from '@/events'
 import type { ISessionPresenter } from './interface'
 import { MessageManager } from './managers/messageManager'
 import { buildUserMessageContext } from '../agentPresenter/message/messageFormatter'
@@ -37,7 +37,7 @@ export class SessionPresenter implements ISessionPresenter {
   private conversationManager: ConversationManager
   private exporter: IConversationExporter
   private commandPermissionService: CommandPermissionService
-  private activeConversationIds: Map<number, string> = new Map()
+  private activeConversationBindings: Map<number, string> = new Map()
 
   constructor(options: {
     messageManager?: MessageManager
@@ -58,26 +58,53 @@ export class SessionPresenter implements ISessionPresenter {
       sqlitePresenter: options.sqlitePresenter,
       configPresenter: options.configPresenter,
       messageManager: this.messageManager,
-      activeConversationIds: this.activeConversationIds
+      activeConversationBindings: this.activeConversationBindings
     })
-    // 监听Tab关闭事件，清理绑定关系
-    eventBus.on(TAB_EVENTS.CLOSED, (tabId: number) => {
-      const activeConversationId = this.getActiveConversationIdSync(tabId)
-      if (activeConversationId) {
+    eventBus.on(
+      WINDOW_EVENTS.WINDOW_CLOSED,
+      (payload: number | { windowId: number; webContentsId?: number }) => {
+        const closedBindingId =
+          typeof payload === 'number'
+            ? (this.resolveBindingId(payload) ?? payload)
+            : typeof payload.webContentsId === 'number'
+              ? payload.webContentsId
+              : this.resolveBindingId(payload.windowId)
+
+        if (typeof closedBindingId !== 'number') {
+          return
+        }
+
+        const activeConversationId =
+          this.conversationManager.getActiveConversationIdSync(closedBindingId)
+        if (!activeConversationId) {
+          return
+        }
+
         void presenter.agentPresenter.cleanupConversation(activeConversationId)
         this.commandPermissionService.clearConversation(activeConversationId)
         presenter.filePermissionService?.clearConversation(activeConversationId)
         presenter.settingsPermissionService?.clearConversation(activeConversationId)
-        this.clearActiveConversation(tabId, { notify: true })
-        console.log(`SessionPresenter: Cleaned up conversation binding for closed tab ${tabId}.`)
+        this.clearActiveConversation(closedBindingId, { notify: true })
+        console.log(
+          `SessionPresenter: Cleaned up conversation binding for closed window binding ${closedBindingId}.`
+        )
       }
-    })
-    eventBus.on(TAB_EVENTS.RENDERER_TAB_READY, () => {
+    )
+
+    eventBus.on(RENDERER_LIFECYCLE_EVENTS.WINDOW_RENDERER_READY, () => {
       this.broadcastThreadListUpdate()
     })
 
     // 初始化时处理所有未完成的消息
     this.messageManager.initializeUnfinishedMessages()
+  }
+
+  async onRendererWindowReady(windowBindingId: number): Promise<void> {
+    eventBus.sendToMain(RENDERER_LIFECYCLE_EVENTS.WINDOW_RENDERER_READY, windowBindingId)
+  }
+
+  async onConversationActivated(conversationId: string): Promise<void> {
+    eventBus.sendToMain(RENDERER_LIFECYCLE_EVENTS.CONVERSATION_ACTIVATED, conversationId)
   }
 
   async createSession(params: CreateSessionParams): Promise<string> {
@@ -128,36 +155,28 @@ export class SessionPresenter implements ISessionPresenter {
     await this.updateConversationSettings(sessionId, settings as Partial<CONVERSATION_SETTINGS>)
   }
 
-  async bindToTab(sessionId: string, tabId: number): Promise<void> {
-    await this.setActiveConversation(sessionId, tabId)
-  }
-
   async bindToWindow(sessionId: string, windowId: number): Promise<void> {
     await this.setActiveConversation(sessionId, windowId)
-  }
-
-  async unbindFromTab(tabId: number): Promise<void> {
-    this.clearActiveConversation(tabId, { notify: true })
   }
 
   async unbindFromWindow(windowId: number): Promise<void> {
     this.clearActiveConversation(windowId, { notify: true })
   }
 
-  async activateSession(tabId: number, sessionId: string): Promise<void> {
-    await this.setActiveConversation(sessionId, tabId)
+  async activateSession(windowId: number, sessionId: string): Promise<void> {
+    await this.setActiveConversation(sessionId, windowId)
   }
 
-  async getActiveSession(tabId: number): Promise<Session | null> {
-    const conversation = await this.getActiveConversation(tabId)
+  async getActiveSession(windowId: number): Promise<Session | null> {
+    const conversation = await this.getActiveConversation(windowId)
     return conversation ? this.toSession(conversation) : null
   }
 
-  async findTabForSession(
+  async findWindowForSession(
     sessionId: string,
     _preferredWindowType?: 'main' | 'floating'
   ): Promise<number | null> {
-    return this.findTabForConversation(sessionId)
+    return this.findWindowForConversation(sessionId)
   }
 
   async getMessageThread(
@@ -312,28 +331,30 @@ export class SessionPresenter implements ISessionPresenter {
   }
 
   /**
-   * 新增：查找指定会话ID所在的Tab ID
-   * @param conversationId 会话ID
-   * @returns 如果找到，返回tabId，否则返回null
+   * 查找指定会话所在的窗口ID。
    */
-  async findTabForConversation(conversationId: string): Promise<number | null> {
-    return this.conversationManager.findTabForConversation(conversationId)
+  async findWindowForConversation(conversationId: string): Promise<number | null> {
+    const bindingId = await this.conversationManager.findBindingForConversation(conversationId)
+    if (bindingId === null) {
+      return null
+    }
+    return this.getWindowIdByBindingId(bindingId) ?? bindingId
   }
 
-  getActiveConversationIdSync(tabId: number): string | null {
-    const bindingId = this.resolveBindingId(tabId)
+  getActiveConversationIdSync(windowId: number): string | null {
+    const bindingId = this.resolveBindingId(windowId)
     if (bindingId === null) {
       return null
     }
     return this.conversationManager.getActiveConversationIdSync(bindingId)
   }
 
-  getTabsByConversation(conversationId: string): number[] {
-    return this.conversationManager.getTabsByConversation(conversationId)
+  getWindowBindingsByConversation(conversationId: string): number[] {
+    return this.conversationManager.getWindowBindingsByConversation(conversationId)
   }
 
-  clearActiveConversation(tabId: number, options: { notify?: boolean } = {}): void {
-    const bindingId = this.resolveBindingId(tabId)
+  clearActiveConversation(windowId: number, options: { notify?: boolean } = {}): void {
+    const bindingId = this.resolveBindingId(windowId)
     if (bindingId === null) {
       return
     }
@@ -384,17 +405,18 @@ export class SessionPresenter implements ISessionPresenter {
 
     await this.sqlitePresenter.getConversation(conversationId)
 
-    const existingBindingId = await this.conversationManager.findTabForConversation(conversationId)
+    const existingBindingId =
+      await this.conversationManager.findBindingForConversation(conversationId)
     if (existingBindingId !== null) {
       this.focusBindingWindow(existingBindingId)
       if (messageId || childConversationId) {
-        eventBus.sendToTab(existingBindingId, CONVERSATION_EVENTS.SCROLL_TO_MESSAGE, {
+        eventBus.sendToWebContents(existingBindingId, CONVERSATION_EVENTS.SCROLL_TO_MESSAGE, {
           conversationId,
           messageId,
           childConversationId
         })
       }
-      return existingBindingId
+      return this.getWindowIdByBindingId(existingBindingId) ?? existingBindingId
     }
 
     const fallbackBindingId = this.resolveBindingId(windowId) ?? this.getFocusedChatBindingId()
@@ -406,44 +428,23 @@ export class SessionPresenter implements ISessionPresenter {
     }
 
     if (newWindowBindingId !== null) {
-      await this.waitForTabReady(newWindowBindingId)
+      await this.waitForRendererReady(newWindowBindingId)
     }
 
     await this.conversationManager.setActiveConversation(conversationId, targetBindingId)
     if (messageId || childConversationId) {
-      eventBus.sendToTab(targetBindingId, CONVERSATION_EVENTS.SCROLL_TO_MESSAGE, {
+      eventBus.sendToWebContents(targetBindingId, CONVERSATION_EVENTS.SCROLL_TO_MESSAGE, {
         conversationId,
         messageId,
         childConversationId
       })
     }
     this.focusBindingWindow(targetBindingId)
-    return targetBindingId
+    return this.getWindowIdByBindingId(targetBindingId) ?? targetBindingId
   }
 
-  async openConversationInNewTab(payload: {
-    conversationId: string
-    tabId?: number
-    windowId?: number
-    messageId?: string
-    childConversationId?: string
-  }): Promise<number | null> {
-    const resolvedWindowId =
-      typeof payload.windowId === 'number'
-        ? payload.windowId
-        : typeof payload.tabId === 'number'
-          ? payload.tabId
-          : undefined
-    return this.openConversationInNewWindow({
-      conversationId: payload.conversationId,
-      windowId: resolvedWindowId,
-      messageId: payload.messageId,
-      childConversationId: payload.childConversationId
-    })
-  }
-
-  async getActiveConversation(tabId: number): Promise<CONVERSATION | null> {
-    const bindingId = this.resolveBindingId(tabId)
+  async getActiveConversation(windowId: number): Promise<CONVERSATION | null> {
+    const bindingId = this.resolveBindingId(windowId)
     if (bindingId === null) {
       return null
     }
@@ -457,10 +458,10 @@ export class SessionPresenter implements ISessionPresenter {
   async createConversation(
     title: string,
     settings: Partial<CONVERSATION_SETTINGS> = {},
-    tabId: number,
+    windowId: number,
     options: CreateConversationOptions = {}
   ): Promise<string> {
-    const bindingId = this.resolveBindingId(tabId) ?? tabId
+    const bindingId = this.resolveBindingId(windowId) ?? windowId
     const conversationId = await this.conversationManager.createConversation(
       title,
       settings,
@@ -642,16 +643,16 @@ export class SessionPresenter implements ISessionPresenter {
     await this.messageManager.markMessageAsContextEdge(messageId, isEdge)
   }
 
-  async getActiveConversationId(tabId: number): Promise<string | null> {
-    const bindingId = this.resolveBindingId(tabId)
+  async getActiveConversationId(windowId: number): Promise<string | null> {
+    const bindingId = this.resolveBindingId(windowId)
     if (bindingId === null) {
       return null
     }
     return this.conversationManager.getActiveConversationIdSync(bindingId)
   }
 
-  async clearActiveThread(tabId: number): Promise<void> {
-    this.clearActiveConversation(tabId, { notify: true })
+  async clearActiveThread(windowId: number): Promise<void> {
+    this.clearActiveConversation(windowId, { notify: true })
   }
 
   async clearAllMessages(conversationId: string): Promise<void> {
@@ -784,7 +785,7 @@ export class SessionPresenter implements ISessionPresenter {
     if (shouldOpenInNewWindow) {
       const newBindingId = await this.createNewChatWindowBinding()
       if (newBindingId !== null) {
-        await this.waitForTabReady(newBindingId)
+        await this.waitForRendererReady(newBindingId)
         await this.conversationManager.setActiveConversation(newConversationId, newBindingId)
         await this.broadcastThreadListUpdate()
         this.focusBindingWindow(newBindingId)
@@ -809,24 +810,24 @@ export class SessionPresenter implements ISessionPresenter {
     return this.sqlitePresenter.listChildConversationsByMessageIds(parentMessageIds)
   }
 
-  private async waitForTabReady(tabId: number): Promise<void> {
+  private async waitForRendererReady(windowBindingId: number): Promise<void> {
     return new Promise((resolve) => {
       let resolved = false
-      const onTabReady = (readyTabId: number) => {
-        if (readyTabId === tabId && !resolved) {
+      const onRendererReady = (readyBindingId: number) => {
+        if (readyBindingId === windowBindingId && !resolved) {
           resolved = true
-          eventBus.off(TAB_EVENTS.RENDERER_TAB_READY, onTabReady)
+          eventBus.off(RENDERER_LIFECYCLE_EVENTS.WINDOW_RENDERER_READY, onRendererReady)
           clearTimeout(timeoutId)
           resolve()
         }
       }
 
-      eventBus.on(TAB_EVENTS.RENDERER_TAB_READY, onTabReady)
+      eventBus.on(RENDERER_LIFECYCLE_EVENTS.WINDOW_RENDERER_READY, onRendererReady)
 
       const timeoutId = setTimeout(() => {
         if (!resolved) {
           resolved = true
-          eventBus.off(TAB_EVENTS.RENDERER_TAB_READY, onTabReady)
+          eventBus.off(RENDERER_LIFECYCLE_EVENTS.WINDOW_RENDERER_READY, onRendererReady)
           resolve()
         }
       }, 3000)
@@ -963,6 +964,10 @@ export class SessionPresenter implements ISessionPresenter {
       return windowOrWebContentsId
     }
 
+    if (this.activeConversationBindings.has(windowOrWebContentsId)) {
+      return windowOrWebContentsId
+    }
+
     return null
   }
 
@@ -1024,8 +1029,8 @@ export class SessionPresenter implements ISessionPresenter {
   }
 
   private toSession(conversation: CONVERSATION): Session {
-    const tabs = this.conversationManager.getTabsByConversation(conversation.id)
-    const webContentsId = tabs.length > 0 ? tabs[0] : null
+    const windowBindings = this.conversationManager.getWindowBindingsByConversation(conversation.id)
+    const webContentsId = windowBindings.length > 0 ? windowBindings[0] : null
     const windowId =
       typeof webContentsId === 'number' ? this.getWindowIdByBindingId(webContentsId) : null
     const windowType = windowId ? 'main' : webContentsId !== null ? 'floating' : null

@@ -27,23 +27,23 @@ const TRANSLATION_TIMEOUT_MS = 1000
 const DEFAULT_MESSAGE_LENGTH = 300
 
 export interface UtilityHandlerOptions {
-  getActiveConversation: (tabId: number) => Promise<CONVERSATION | null>
-  getActiveConversationId: (tabId: number) => Promise<string | null>
+  getActiveConversation: (windowId: number) => Promise<CONVERSATION | null>
+  getActiveConversationId: (windowId: number) => Promise<string | null>
   createConversation: (
     title: string,
     settings: Partial<CONVERSATION_SETTINGS>,
-    tabId: number
+    windowId: number
   ) => Promise<string>
   streamGenerationHandler: StreamGenerationHandler
 }
 
 export class UtilityHandler extends BaseHandler {
-  private readonly getActiveConversation: (tabId: number) => Promise<CONVERSATION | null>
-  private readonly getActiveConversationId: (tabId: number) => Promise<string | null>
+  private readonly getActiveConversation: (windowId: number) => Promise<CONVERSATION | null>
+  private readonly getActiveConversationId: (windowId: number) => Promise<string | null>
   private readonly createConversation: (
     title: string,
     settings: Partial<CONVERSATION_SETTINGS>,
-    tabId: number
+    windowId: number
   ) => Promise<string>
   private readonly streamGenerationHandler: StreamGenerationHandler
 
@@ -55,9 +55,9 @@ export class UtilityHandler extends BaseHandler {
     this.streamGenerationHandler = options.streamGenerationHandler
   }
 
-  async translateText(text: string, tabId: number): Promise<string> {
+  async translateText(text: string, windowId: number): Promise<string> {
     try {
-      let conversation = await this.getActiveConversation(tabId)
+      let conversation = await this.getActiveConversation(windowId)
       if (!conversation) {
         // Create a temporary conversation for translation
         const defaultProvider = this.ctx.configPresenter.getDefaultProviders()[0]
@@ -69,7 +69,7 @@ export class UtilityHandler extends BaseHandler {
             modelId: defaultModel.id,
             providerId: defaultProvider.id
           },
-          tabId
+          windowId
         )
         conversation = await this.getConversation(conversationId)
       }
@@ -120,9 +120,9 @@ export class UtilityHandler extends BaseHandler {
     }
   }
 
-  async askAI(text: string, tabId: number): Promise<string> {
+  async askAI(text: string, windowId: number): Promise<string> {
     try {
-      let conversation = await this.getActiveConversation(tabId)
+      let conversation = await this.getActiveConversation(windowId)
       if (!conversation) {
         // Create a temporary conversation for AI query
         const defaultProvider = this.ctx.configPresenter.getDefaultProviders()[0]
@@ -134,7 +134,7 @@ export class UtilityHandler extends BaseHandler {
             modelId: defaultModel.id,
             providerId: defaultProvider.id
           },
-          tabId
+          windowId
         )
         conversation = await this.getConversation(conversationId)
       }
@@ -216,8 +216,8 @@ export class UtilityHandler extends BaseHandler {
     }
   }
 
-  async summaryTitles(tabId?: number, conversationId?: string): Promise<string> {
-    const activeId = tabId !== undefined ? await this.getActiveConversationId(tabId) : null
+  async summaryTitles(windowId?: number, conversationId?: string): Promise<string> {
+    const activeId = windowId !== undefined ? await this.getActiveConversationId(windowId) : null
     const targetConversationId = conversationId ?? activeId ?? undefined
     if (!targetConversationId) {
       throw new Error('Conversation not found')

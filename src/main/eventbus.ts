@@ -77,15 +77,15 @@ export class EventBus extends EventEmitter {
   }
 
   /**
-   * 向指定Tab发送事件
-   * @param tabId Tab ID
+   * 向指定渲染进程（WebContents）发送事件
+   * @param webContentsId WebContents ID
    * @param eventName 事件名称
    * @param args 事件参数
    */
-  sendToTab(tabId: number, eventName: string, ...args: unknown[]) {
-    const target = webContents.fromId(tabId)
+  sendToWebContents(webContentsId: number, eventName: string, ...args: unknown[]) {
+    const target = webContents.fromId(webContentsId)
     if (!target || target.isDestroyed()) {
-      console.warn(`WebContents ${tabId} not found or destroyed, cannot send ${eventName}`)
+      console.warn(`WebContents ${webContentsId} not found or destroyed, cannot send ${eventName}`)
       return
     }
     target.send(eventName, ...args)
@@ -109,13 +109,15 @@ export class EventBus extends EventEmitter {
   }
 
   /**
-   * 向多个Tab广播事件
-   * @param tabIds Tab ID数组
+   * 向多个渲染进程（WebContents）广播事件
+   * @param webContentsIds WebContents ID 数组
    * @param eventName 事件名称
    * @param args 事件参数
    */
-  broadcastToTabs(tabIds: number[], eventName: string, ...args: unknown[]) {
-    tabIds.forEach((tabId) => this.sendToTab(tabId, eventName, ...args))
+  broadcastToWebContents(webContentsIds: number[], eventName: string, ...args: unknown[]) {
+    webContentsIds.forEach((webContentsId) =>
+      this.sendToWebContents(webContentsId, eventName, ...args)
+    )
   }
 }
 

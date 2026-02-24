@@ -32,7 +32,7 @@ interface SchedulerState {
   conversationId: string
   parentId?: string
   isVariant: boolean
-  tabId?: number
+  windowId?: number
   pendingDelta: PendingDelta
   contentSnapshot?: unknown
   seq: number
@@ -58,7 +58,7 @@ export class StreamUpdateScheduler {
     conversationId: string
     parentId?: string
     isVariant: boolean
-    tabId?: number
+    windowId?: number
   }): SchedulerState {
     let state = this.states.get(options.eventId)
     if (!state) {
@@ -67,7 +67,7 @@ export class StreamUpdateScheduler {
         conversationId: options.conversationId,
         parentId: options.parentId,
         isVariant: options.isVariant,
-        tabId: options.tabId,
+        windowId: options.windowId,
         pendingDelta: {},
         seq: 0,
         hasSentInit: false,
@@ -84,7 +84,7 @@ export class StreamUpdateScheduler {
     conversationId: string,
     parentId: string | undefined,
     isVariant: boolean,
-    tabId: number | undefined,
+    windowId: number | undefined,
     delta: Partial<LLMAgentEventData>,
     contentSnapshot?: unknown
   ): void {
@@ -95,7 +95,7 @@ export class StreamUpdateScheduler {
         conversationId,
         parentId,
         isVariant,
-        tabId,
+        windowId,
         {
           ...rest,
           content
@@ -107,7 +107,7 @@ export class StreamUpdateScheduler {
         conversationId,
         parentId,
         isVariant,
-        tabId,
+        windowId,
         {
           reasoning_content
         },
@@ -121,7 +121,7 @@ export class StreamUpdateScheduler {
       conversationId,
       parentId,
       isVariant,
-      tabId
+      windowId
     })
 
     if (contentSnapshot !== undefined) {

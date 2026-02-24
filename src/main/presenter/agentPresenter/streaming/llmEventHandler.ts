@@ -107,7 +107,7 @@ export class LLMEventHandler {
         state.conversationId,
         state.message.parentId,
         Boolean(state.message.is_variant),
-        state.tabId,
+        state.windowId,
         {},
         state.message.content
       )
@@ -380,7 +380,7 @@ export class LLMEventHandler {
       state.conversationId,
       state.message.parentId,
       Boolean(state.message.is_variant),
-      state.tabId,
+      state.windowId,
       delta,
       state.message.content
     )
@@ -487,7 +487,7 @@ export class LLMEventHandler {
           state.conversationId,
           state.message.parentId,
           Boolean(state.message.is_variant),
-          state.tabId,
+          state.windowId,
           {},
           state.message.content
         )

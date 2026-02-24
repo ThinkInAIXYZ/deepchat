@@ -109,7 +109,7 @@ export class ContentBufferHandler {
           state.conversationId,
           state.message.parentId,
           Boolean(state.message.is_variant),
-          state.tabId,
+          state.windowId,
           { content: batchContent },
           state.message.content
         )
@@ -152,7 +152,7 @@ export class ContentBufferHandler {
       state.conversationId,
       state.message.parentId,
       Boolean(state.message.is_variant),
-      state.tabId,
+      state.windowId,
       { content },
       state.message.content
     )

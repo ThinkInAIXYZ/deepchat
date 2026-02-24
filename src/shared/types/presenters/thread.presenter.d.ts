@@ -140,24 +140,19 @@ export interface IThreadPresenter {
   listChildConversationsByMessageIds(parentMessageIds: string[]): Promise<CONVERSATION[]>
   loadMoreThreads(): Promise<{ hasMore: boolean; total: number }>
   setActiveConversation(conversationId: string, windowId: number): Promise<void>
-  openConversationInNewWindow?(payload: {
+  openConversationInNewWindow(payload: {
     conversationId: string
     windowId?: number
     messageId?: string
     childConversationId?: string
   }): Promise<number | null>
-  openConversationInNewTab(payload: {
-    conversationId: string
-    windowId?: number
-    messageId?: string
-    childConversationId?: string
-  }): Promise<number | null>
+  onRendererWindowReady?(windowBindingId: number): Promise<void>
+  onConversationActivated?(conversationId: string): Promise<void>
   getActiveConversation(windowId: number): Promise<CONVERSATION | null>
   getActiveConversationId(windowId: number): Promise<string | null>
   getActiveConversationIdSync(windowId: number): string | null
   clearActiveThread(windowId: number): Promise<void>
-  findWindowForConversation?(conversationId: string): Promise<number | null>
-  findTabForConversation(conversationId: string): Promise<number | null>
+  findWindowForConversation(conversationId: string): Promise<number | null>
 
   getSearchResults(messageId: string, searchId?: string): Promise<SearchResult[]>
   clearAllMessages(conversationId: string): Promise<void>

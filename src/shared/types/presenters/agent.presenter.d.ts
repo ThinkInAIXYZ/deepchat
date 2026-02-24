@@ -4,7 +4,7 @@ export interface IAgentPresenter {
   sendMessage(
     agentId: string,
     content: string,
-    tabId?: number,
+    windowId?: number,
     selectedVariantsMap?: Record<string, string>
   ): Promise<AssistantMessage | null>
   continueLoop(
@@ -22,8 +22,8 @@ export interface IAgentPresenter {
     userMessageId: string,
     selectedVariantsMap?: Record<string, string>
   ): Promise<AssistantMessage>
-  translateText(text: string, tabId: number): Promise<string>
-  askAI(text: string, tabId: number): Promise<string>
+  translateText(text: string, windowId: number): Promise<string>
+  askAI(text: string, windowId: number): Promise<string>
   handlePermissionResponse(
     messageId: string,
     toolCallId: string,

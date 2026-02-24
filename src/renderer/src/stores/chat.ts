@@ -64,7 +64,6 @@ export const useChatStore = defineStore('chat', () => {
   const exporterP = usePresenter('exporter')
   const windowP = usePresenter('windowPresenter')
   const notificationP = usePresenter('notificationPresenter')
-  const tabP = usePresenter('tabPresenter')
   const agentConfigP = usePresenter('agentConfigPresenter')
   const { t } = useI18n()
   const { currentMode } = useChatMode()
@@ -130,17 +129,24 @@ export const useChatStore = defineStore('chat', () => {
   let isUpdatingVariant = false
 
   // Getters
-  const getTabId = () => window.api.getWebContentsId()
-  const getActiveThreadId = () => activeThreadIdMap.value.get(getTabId()) ?? null
+  const getWindowId = () => window.api.getWindowId() ?? window.api.getWebContentsId()
+  const getWindowBindingId = () => window.api.getWebContentsId()
+  const isCurrentWindowEvent = (msg: { windowId?: number | null; windowBindingId?: number }) => {
+    if (typeof msg.windowId === 'number') {
+      return msg.windowId === getWindowId()
+    }
+    return typeof msg.windowBindingId === 'number' && msg.windowBindingId === getWindowBindingId()
+  }
+  const getActiveThreadId = () => activeThreadIdMap.value.get(getWindowId()) ?? null
   const setActiveThreadId = (threadId: string | null) => {
-    activeThreadIdMap.value.set(getTabId(), threadId)
+    activeThreadIdMap.value.set(getWindowId(), threadId)
   }
   const bumpMessageCacheVersion = () => {
     messageCacheVersion.value += 1
   }
-  const getMessageIds = () => messageIdsMap.value.get(getTabId()) ?? []
+  const getMessageIds = () => messageIdsMap.value.get(getWindowId()) ?? []
   const setMessageIds = (ids: string[]) => {
-    messageIdsMap.value.set(getTabId(), ids)
+    messageIdsMap.value.set(getWindowId(), ids)
     bumpMessageCacheVersion()
   }
   const ensureMessageId = (messageId: string) => {
@@ -175,16 +181,16 @@ export const useChatStore = defineStore('chat', () => {
     return getLoadedMessages()
   }
   const getThreadsWorkingStatus = () => {
-    if (!threadsWorkingStatusMap.value.has(getTabId())) {
-      threadsWorkingStatusMap.value.set(getTabId(), new Map())
+    if (!threadsWorkingStatusMap.value.has(getWindowId())) {
+      threadsWorkingStatusMap.value.set(getWindowId(), new Map())
     }
-    return threadsWorkingStatusMap.value.get(getTabId())!
+    return threadsWorkingStatusMap.value.get(getWindowId())!
   }
   const getGeneratingMessagesCache = () => {
-    if (!generatingMessagesCacheMap.value.has(getTabId())) {
-      generatingMessagesCacheMap.value.set(getTabId(), new Map())
+    if (!generatingMessagesCacheMap.value.has(getWindowId())) {
+      generatingMessagesCacheMap.value.set(getWindowId(), new Map())
     }
-    return generatingMessagesCacheMap.value.get(getTabId())!
+    return generatingMessagesCacheMap.value.get(getWindowId())!
   }
   const findMainAssistantMessageByParentId = (parentId: string) => {
     if (!parentId) return null
@@ -389,9 +395,9 @@ export const useChatStore = defineStore('chat', () => {
           normalizedSettings.agentWorkspacePath = pendingWorkspacePath
         }
       }
-      const threadId = await threadP.createConversation(title, normalizedSettings, getTabId())
+      const threadId = await threadP.createConversation(title, normalizedSettings, getWindowId())
       // 因为 createConversation 内部已经调用了 setActiveConversation
-      // 并且可以确定是为当前tab激活，所以在这里可以直接、安全地更新本地状态
+      // 并且可以确定是为当前窗口激活，所以在这里可以直接、安全地更新本地状态
       // 以确保后续的 sendMessage 能正确获取 activeThreadId。
       setActiveThreadId(threadId)
       return threadId
@@ -404,34 +410,34 @@ export const useChatStore = defineStore('chat', () => {
   const setActiveThread = async (threadId: string) => {
     // 不在渲染进程进行逻辑判定（查重）和决策，只向主进程发送意图。
     // 主进程会处理“防重”逻辑，并通过 'ACTIVATED' 事件来通知UI更新。
-    // 如果主进程决定切换到其他tab，当前tab不会收到此事件，状态也就不会被错误地更新。
-    const tabId = getTabId()
-    await threadP.setActiveConversation(threadId, tabId)
+    // 如果主进程决定切换到其他窗口，当前窗口不会收到此事件，状态也就不会被错误地更新。
+    const windowId = getWindowId()
+    await threadP.setActiveConversation(threadId, windowId)
   }
 
-  const openThreadInNewTab = async (
+  const openThreadInNewWindow = async (
     threadId: string,
     options?: { messageId?: string; childConversationId?: string }
   ) => {
     if (!threadId) return
     try {
-      const tabId = getTabId()
-      await threadP.openConversationInNewTab({
+      const windowId = getWindowId()
+      await threadP.openConversationInNewWindow({
         conversationId: threadId,
-        windowId: tabId,
+        windowId,
         messageId: options?.messageId,
         childConversationId: options?.childConversationId
       })
     } catch (error) {
-      console.error('Failed to open thread in new tab:', error)
+      console.error('Failed to open thread in new window:', error)
     }
   }
 
   const clearActiveThread = async () => {
     const activeThreadId = getActiveThreadId()
     if (!activeThreadId) return
-    const tabId = getTabId()
-    await threadP.clearActiveThread(tabId)
+    const windowId = getWindowId()
+    await threadP.clearActiveThread(windowId)
     setActiveThreadId(null)
     setMessageIds([])
     clearCachedMessagesForThread(activeThreadId)
@@ -447,7 +453,7 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
-  const clearThreadCachesForTab = (threadId: string | null) => {
+  const clearThreadCachesForWindow = (threadId: string | null) => {
     if (threadId) {
       clearCachedMessagesForThread(threadId)
       if (!generatingThreadIds.value.has(threadId)) {
@@ -672,7 +678,7 @@ export const useChatStore = defineStore('chat', () => {
       const aiResponseMessage = await agentP.sendMessage(
         threadId,
         JSON.stringify(content),
-        getTabId(),
+        getWindowId(),
         selectedVariantsMap.value
       )
 
@@ -851,7 +857,7 @@ export const useChatStore = defineStore('chat', () => {
         parentSelection: payload.parentSelection,
         title,
         settings: parentConversation.settings,
-        windowId: getTabId(),
+        windowId: getWindowId(),
         openInNewWindow: true
       })
 
@@ -1920,7 +1926,7 @@ export const useChatStore = defineStore('chat', () => {
   /////////////////////////////////////////////////////////////////////////////////////////////////////////
   // 注册 deeplink 事件处理
   window.electron.ipcRenderer.on(DEEPLINK_EVENTS.START, async (_, data) => {
-    console.log(`[Renderer] Tab ${getTabId()} received DEEPLINK_EVENTS.START:`, data)
+    console.log(`[Renderer] Window ${getWindowId()} received DEEPLINK_EVENTS.START:`, data)
     // 确保路由正确
     const currentRoute = router.currentRoute.value
     if (currentRoute.name !== 'chat') {
@@ -2019,7 +2025,7 @@ export const useChatStore = defineStore('chat', () => {
           const activeThread = flatList.find((thread) => thread.id === currentActiveId)
 
           if (!activeThread) {
-            // 如果活动会话不存在了（如在其他窗口被删除），清空当前tab的活动状态
+            // 如果活动会话不存在了（如在其他窗口被删除），清空当前窗口的活动状态
             clearActiveThread()
           } else if (!isUpdatingVariant && activeThread.settings.selectedVariantsMap) {
             // 只在非变体更新期间，同步 selectedVariantsMap（防止其他窗口的更新被覆盖）
@@ -2030,46 +2036,52 @@ export const useChatStore = defineStore('chat', () => {
     )
 
     // 监听：定向的会话激活事件
-    window.electron.ipcRenderer.on(CONVERSATION_EVENTS.ACTIVATED, async (_, msg) => {
-      // 确保是发给当前Tab的事件
-      if (msg.tabId !== getTabId()) {
-        return
-      }
-
-      // 如果是当前tab或新激活的会话在当前窗口中，则正常处理
-      const prevActiveThreadId = getActiveThreadId()
-      activeThreadIdMap.value.set(getTabId(), msg.conversationId)
-      if (prevActiveThreadId && prevActiveThreadId !== msg.conversationId) {
-        clearThreadCachesForTab(prevActiveThreadId)
-      }
-
-      // 如果存在状态为completed或error的会话，从Map中移除
-      if (msg.conversationId) {
-        const status = getThreadsWorkingStatus().get(msg.conversationId)
-        if (status === 'completed' || status === 'error') {
-          getThreadsWorkingStatus().delete(msg.conversationId)
+    window.electron.ipcRenderer.on(
+      CONVERSATION_EVENTS.ACTIVATED,
+      async (
+        _,
+        msg: { conversationId: string; windowId?: number | null; windowBindingId?: number }
+      ) => {
+        if (!isCurrentWindowEvent(msg)) {
+          return
         }
+
+        const prevActiveThreadId = getActiveThreadId()
+        activeThreadIdMap.value.set(getWindowId(), msg.conversationId)
+        if (prevActiveThreadId && prevActiveThreadId !== msg.conversationId) {
+          clearThreadCachesForWindow(prevActiveThreadId)
+        }
+
+        // 如果存在状态为completed或error的会话，从Map中移除
+        if (msg.conversationId) {
+          const status = getThreadsWorkingStatus().get(msg.conversationId)
+          if (status === 'completed' || status === 'error') {
+            getThreadsWorkingStatus().delete(msg.conversationId)
+          }
+        }
+
+        await loadChatConfig() // 加载对话配置
+        await loadMessages()
+
+        void threadP.onConversationActivated?.(msg.conversationId)
       }
-
-      await loadChatConfig() // 加载对话配置
-      await loadMessages()
-
-      // 新增：在会话激活处理完成后，通过usePresenter发送确认信号
-      tabP.onRendererTabActivated(msg.conversationId)
-    })
+    )
 
     window.electron.ipcRenderer.on(CONVERSATION_EVENTS.MESSAGE_EDITED, (_, msgId: string) => {
       handleMessageEdited(msgId)
     })
 
-    window.electron.ipcRenderer.on(CONVERSATION_EVENTS.DEACTIVATED, (_, msg) => {
-      if (msg.tabId !== getTabId()) {
-        return
+    window.electron.ipcRenderer.on(
+      CONVERSATION_EVENTS.DEACTIVATED,
+      (_, msg: { windowId?: number | null; windowBindingId?: number }) => {
+        if (!isCurrentWindowEvent(msg)) {
+          return
+        }
+        const prevActiveThreadId = getActiveThreadId()
+        setActiveThreadId(null)
+        clearThreadCachesForWindow(prevActiveThreadId)
       }
-      const prevActiveThreadId = getActiveThreadId()
-      setActiveThreadId(null)
-      clearThreadCachesForTab(prevActiveThreadId)
-    })
+    )
 
     window.electron.ipcRenderer.on(CONVERSATION_EVENTS.SCROLL_TO_MESSAGE, (_, payload) => {
       if (!payload?.conversationId) {
@@ -2089,14 +2101,14 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   onMounted(() => {
-    console.log(`[Chat Store] Tab ${getTabId()} is mounted. Setting up event listeners.`)
+    console.log(`[Chat Store] Window ${getWindowId()} is mounted. Setting up event listeners.`)
 
     // store现在是被动的，等待主进程推送数据
     setupEventListeners()
 
     // 在 store 初始化完成后，通过usePresenter发送就绪信号
-    console.log(`[Chat Store] Tab ${getTabId()} sending ready signal`)
-    tabP.onRendererTabReady(getTabId())
+    console.log(`[Chat Store] Window ${getWindowId()} sending ready signal`)
+    void threadP.onRendererWindowReady?.(getWindowBindingId())
   })
 
   /**
@@ -2297,7 +2309,7 @@ export const useChatStore = defineStore('chat', () => {
     clearDeeplinkCache,
     forkThread,
     createChildThreadFromSelection,
-    openThreadInNewTab,
+    openThreadInNewWindow,
     consumeContextMention,
     consumePendingScrollMessage,
     clearSelectedVariantForMessage,
