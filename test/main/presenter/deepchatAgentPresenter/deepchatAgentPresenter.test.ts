@@ -329,8 +329,7 @@ describe('DeepChatAgentPresenter', () => {
 
       expect(toolPresenter.getAllToolDefinitions).toHaveBeenCalledWith(
         expect.objectContaining({
-          chatMode: 'agent',
-          conversationId: 's1'
+          chatMode: 'agent'
         })
       )
 

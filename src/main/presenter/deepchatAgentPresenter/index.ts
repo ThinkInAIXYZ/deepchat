@@ -169,8 +169,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       if (this.toolPresenter) {
         try {
           tools = await this.toolPresenter.getAllToolDefinitions({
-            chatMode: 'agent',
-            conversationId: sessionId
+            chatMode: 'agent'
           })
           console.log(`[DeepChatAgent] fetched ${tools.length} tool definitions`)
         } catch (err) {
