@@ -19,13 +19,10 @@
 
 ## T2 deepchatAgentPresenter
 
-- [x] Create `src/main/presenter/deepchatAgentPresenter/messageStore.ts` — CRUD over `deepchat_messages`: createUserMessage (JSON UserMessageContent), createAssistantMessage (empty AssistantMessageBlock[]), updateAssistantContent (batched JSON), finalizeAssistantMessage (status→sent), setMessageError (status→error), recoverPendingMessages (pending→error on startup), getNextOrderSeq
-- [x] Create `src/main/presenter/deepchatAgentPresenter/sessionStore.ts` — CRUD over `deepchat_sessions`
-- [x] Create `src/main/presenter/deepchatAgentPresenter/streamHandler.ts` — consume `AsyncGenerator<LLMCoreStreamEvent>`, accumulate into AssistantMessageBlock[], batch DB writes (600ms), batch renderer flush (120ms), emit stream events with conversationId, flush both on stream end/error
-- [x] Create `src/main/presenter/deepchatAgentPresenter/index.ts` — implements `IAgentImplementation`, wires sessionStore + messageStore + streamHandler + llmProviderPresenter, runs crash recovery on init
-- [x] Unit tests: streamHandler given mock async generator → verify block accumulation, batched DB writes at 600ms, renderer flush at 120ms, final flush on stop/error (`test/main/presenter/deepchatAgentPresenter/streamHandler.test.ts`)
-- [x] Unit tests: processMessage → creates user message (JSON), calls streamHandler, creates assistant message (JSON blocks), correct order_seq (`test/main/presenter/deepchatAgentPresenter/deepchatAgentPresenter.test.ts`)
-- [x] Unit tests: recoverPendingMessages → pending rows updated to error (`test/main/presenter/deepchatAgentPresenter/deepchatAgentPresenter.test.ts`)
+- [x] Create `messageStore.ts` — CRUD over `deepchat_messages`
+- [x] Create `sessionStore.ts` — CRUD over `deepchat_sessions`
+- [x] Create `index.ts` — implements `IAgentImplementation`, wires sessionStore + messageStore + llmProviderPresenter, runs crash recovery on init
+- [x] Unit tests: processMessage, recoverPendingMessages (`deepchatAgentPresenter.test.ts`)
 
 ## T3 agentPresenter (newAgentPresenter)
 
@@ -70,7 +67,7 @@
 - [x] `pnpm run typecheck` — passes
 - [x] `pnpm run lint` — passes (0 warnings, 0 errors)
 - [x] `pnpm run format` — passes
-- [x] Unit tests: all new modules (94 tests across 9 test files, all passing)
+- [x] Unit tests: all new modules passing
 - [x] Integration test: createSession end-to-end — new_sessions row + deepchat_sessions row + deepchat_messages rows (valid JSON content) + events with conversationId (`test/main/presenter/newAgentPresenter/integration.test.ts`)
 - [x] Integration test: crash recovery — insert pending message, reinit, verify status = error (`test/main/presenter/newAgentPresenter/integration.test.ts`)
 - [ ] Verify old UI regression: old `sessionPresenter` / `chatStore` still functional — zero impact
@@ -78,11 +75,38 @@
 
 ---
 
-## v1: Multi-Turn Context Assembly
+## v1: Multi-Turn Context Assembly (complete)
 
-- [x] Create `src/main/presenter/deepchatAgentPresenter/contextBuilder.ts` — context assembly + truncation
-- [x] Modify `processMessage` in `deepchatAgentPresenter/index.ts` — wire context builder
-- [x] Unit tests for context builder (`test/main/presenter/deepchatAgentPresenter/contextBuilder.test.ts`)
+- [x] Create `contextBuilder.ts` — context assembly + truncation
+- [x] Modify `processMessage` in `index.ts` — wire context builder
+- [x] Unit tests for context builder (`contextBuilder.test.ts`)
 - [x] Update `deepchatAgentPresenter.test.ts` — mock `getDefaultSystemPrompt`, verify multi-turn messages
 - [x] Update `integration.test.ts` — verify multi-turn flow end-to-end
 - [x] Quality gate: typecheck, lint, format, tests
+
+## v2: Tool Calling / MCP Integration (complete)
+
+- [x] Fetch MCP tool definitions via `ToolPresenter.getAllToolDefinitions()` and pass to `coreStream`
+- [x] `tool_call_start/chunk/end` events create `tool_call` blocks in the stream
+- [x] `stop_reason: 'tool_use'` triggers tool execution via `ToolPresenter.callTool()`
+- [x] Tool results appended as `role: 'tool'` messages, loop re-invokes `coreStream`
+- [x] Multi-turn tool loop works (multiple rounds of tool calls)
+- [x] Max tool calls limit (128) stops the loop
+- [x] Abort signal cancels the loop mid-execution
+- [x] Tool call blocks rendered with name, params, and response
+- [x] Interleaved thinking support for deepseek-reasoner / kimi-k2-thinking / glm-4.7
+- [x] Quality gate: typecheck, lint, format, tests
+- [x] Fix: stop passing sessionId as conversationId to tool definitions (new agent doesn't use skills)
+
+## v3: Stream Processing Refactor (complete)
+
+- [x] Create `src/shared/utils/throttle.ts` — reusable trailing-edge throttle utility
+- [x] Create `types.ts` — `StreamState`, `IoParams`, `ProcessParams`, `createState()`
+- [x] Create `accumulator.ts` — pure `accumulate(state, event)` block mutations
+- [x] Create `echo.ts` — interval-based flush to renderer (120ms) + DB (600ms) with throttle
+- [x] Create `dispatch.ts` — `executeTools()`, `finalize()`, `finalizeError()`
+- [x] Create `process.ts` — unified `processStream()` loop, single code path for tools and no-tools
+- [x] Update `index.ts` — replace `handleStream`/`agentLoop` with single `processStream()` call
+- [x] Delete `streamHandler.ts` and `agentLoop.ts`
+- [x] Tests: `throttle.test.ts` (7), `accumulator.test.ts` (14), `echo.test.ts` (5), `dispatch.test.ts` (14), `process.test.ts` (9), updated `deepchatAgentPresenter.test.ts` (19)
+- [x] Quality gate: typecheck, lint, format, 89 tests passing
