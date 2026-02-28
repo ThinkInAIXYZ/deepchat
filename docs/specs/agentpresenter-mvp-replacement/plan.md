@@ -1,10 +1,11 @@
 # AgentPresenter 全量替换（MVP）实施计划
 
-## 1. 当前基线
+## 1. 当前基线（Updated 2026-02-28）
 
 1. 新旧双栈并存：`newAgentPresenter/deepchatAgentPresenter` 与旧 `sessionPresenter/useChatStore` 同时存在。
-2. 新 loop 已可运行，但权限、消息操作、设置收敛尚未完整迁移。
+2. 新 loop 已可运行，**streaming 和 message persistence 已完成**，但**权限流程完全缺失**。
 3. 产品方向已确定：MVP 先替换核心能力，再完成 chat 模式彻底移除。
+4. **关键发现**：`deepchatAgentPresenter/dispatch.ts` 的 `executeTools()` 直接调用工具，**无任何权限检查**。
 
 ## 2. 核心架构决策
 
@@ -121,3 +122,27 @@
 2. `pnpm run lint`
 3. `pnpm run typecheck`
 4. 关键单测与集成测试通过后进入下一阶段
+
+---
+
+## 10. Implementation Notes (2026-02-28)
+
+**Critical Discovery**: Permission flow is completely missing from new architecture.
+
+**Current State**:
+- ✅ Streaming infrastructure: COMPLETE
+- ✅ Message persistence: COMPLETE  
+- ✅ Session management: COMPLETE
+- ❌ Permission flow: NOT STARTED (CRITICAL)
+- ❌ Message operations (edit/retry/fork): NOT STARTED
+- ❌ Session configuration: PARTIAL (missing advanced options)
+
+**Immediate Next Steps**:
+1. Create `PermissionChecker` class in `deepchatAgentPresenter/`
+2. Modify `executeTools()` in `dispatch.ts` to check permissions before tool calls
+3. Add `handlePermissionResponse()` IPC method to `newAgentPresenter`
+4. Update `ChatStatusBar.vue` to show permission mode dropdown
+5. Add `permission_mode` column to `new_sessions` table
+6. Create `permission_whitelists` table for session-scoped whitelists
+
+See `gap-analysis.md` for complete details.
