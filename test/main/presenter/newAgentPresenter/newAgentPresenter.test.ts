@@ -37,7 +37,14 @@ function createMockDeepChatAgent() {
 function createMockConfigPresenter() {
   return {
     getDefaultModel: vi.fn().mockReturnValue({ providerId: 'openai', modelId: 'gpt-4' }),
-    getModelConfig: vi.fn().mockReturnValue({})
+    getModelConfig: vi.fn().mockReturnValue({}),
+    getSetting: vi.fn().mockReturnValue(undefined)
+  } as any
+}
+
+function createMockLlmProviderPresenter() {
+  return {
+    summaryTitles: vi.fn().mockResolvedValue('Async Generated Title')
   } as any
 }
 
@@ -75,6 +82,7 @@ function createMockSqlitePresenter() {
 
 describe('NewAgentPresenter', () => {
   let deepChatAgent: ReturnType<typeof createMockDeepChatAgent>
+  let llmProviderPresenter: ReturnType<typeof createMockLlmProviderPresenter>
   let configPresenter: ReturnType<typeof createMockConfigPresenter>
   let sqlitePresenter: ReturnType<typeof createMockSqlitePresenter>
   let presenter: NewAgentPresenter
@@ -82,9 +90,15 @@ describe('NewAgentPresenter', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     deepChatAgent = createMockDeepChatAgent()
+    llmProviderPresenter = createMockLlmProviderPresenter()
     configPresenter = createMockConfigPresenter()
     sqlitePresenter = createMockSqlitePresenter()
-    presenter = new NewAgentPresenter(deepChatAgent as any, configPresenter, sqlitePresenter)
+    presenter = new NewAgentPresenter(
+      deepChatAgent as any,
+      llmProviderPresenter,
+      configPresenter,
+      sqlitePresenter
+    )
   })
 
   describe('createSession', () => {
@@ -177,6 +191,70 @@ describe('NewAgentPresenter', () => {
       await expect(
         presenter.createSession({ agentId: 'deepchat', message: 'Hi' }, 1)
       ).rejects.toThrow('No provider or model configured')
+    })
+
+    it('generates title asynchronously without blocking createSession', async () => {
+      const sessions = new Map<string, any>()
+      sqlitePresenter.newSessionsTable.create.mockImplementation(
+        (id: string, agentId: string, title: string, projectDir: string | null) => {
+          sessions.set(id, {
+            id,
+            agent_id: agentId,
+            title,
+            project_dir: projectDir,
+            is_pinned: 0,
+            created_at: Date.now(),
+            updated_at: Date.now()
+          })
+        }
+      )
+      sqlitePresenter.newSessionsTable.get.mockImplementation((id: string) => sessions.get(id))
+      sqlitePresenter.newSessionsTable.update.mockImplementation((id: string, fields: any) => {
+        const row = sessions.get(id)
+        if (!row) return
+        sessions.set(id, {
+          ...row,
+          ...fields,
+          updated_at: Date.now()
+        })
+      })
+
+      deepChatAgent.getMessages.mockResolvedValue([
+        {
+          id: 'u1',
+          sessionId: 'mock-session-id',
+          orderSeq: 1,
+          role: 'user',
+          content: JSON.stringify({ text: 'Please summarize this chat', files: [], links: [] }),
+          status: 'sent',
+          isContextEdge: 0,
+          metadata: '{}',
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        },
+        {
+          id: 'a1',
+          sessionId: 'mock-session-id',
+          orderSeq: 2,
+          role: 'assistant',
+          content: JSON.stringify([
+            { type: 'content', content: 'Summary body', status: 'success', timestamp: Date.now() }
+          ]),
+          status: 'sent',
+          isContextEdge: 0,
+          metadata: '{}',
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        }
+      ])
+
+      await presenter.createSession({ agentId: 'deepchat', message: 'Please summarize' }, 1)
+      await new Promise((r) => setTimeout(r, 20))
+
+      expect(llmProviderPresenter.summaryTitles).toHaveBeenCalled()
+      expect(sqlitePresenter.newSessionsTable.update).toHaveBeenCalledWith('mock-session-id', {
+        title: 'Async Generated Title'
+      })
     })
   })
 

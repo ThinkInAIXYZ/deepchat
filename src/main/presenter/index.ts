@@ -210,6 +210,7 @@ export class Presenter implements IPresenter {
     )
     this.newAgentPresenter = new NewAgentPresenter(
       deepchatAgentPresenter,
+      this.llmproviderPresenter as unknown as ILlmProviderPresenter,
       this.configPresenter,
       this.sqlitePresenter as unknown as import('./sqlitePresenter').SQLitePresenter
     )

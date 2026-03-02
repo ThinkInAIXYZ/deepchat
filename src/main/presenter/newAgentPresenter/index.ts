@@ -2,9 +2,11 @@ import type {
   Agent,
   CreateSessionInput,
   SessionWithState,
-  ChatMessageRecord
+  ChatMessageRecord,
+  UserMessageContent,
+  AssistantMessageBlock
 } from '@shared/types/agent-interface'
-import type { IConfigPresenter } from '@shared/presenter'
+import type { IConfigPresenter, ILlmProviderPresenter } from '@shared/presenter'
 import type { SQLitePresenter } from '../sqlitePresenter'
 import type { DeepChatAgentPresenter } from '../deepchatAgentPresenter'
 import { AgentRegistry } from './agentRegistry'
@@ -17,13 +19,16 @@ export class NewAgentPresenter {
   private agentRegistry: AgentRegistry
   private sessionManager: NewSessionManager
   private messageManager: NewMessageManager
+  private llmProviderPresenter: ILlmProviderPresenter
   private configPresenter: IConfigPresenter
 
   constructor(
     deepchatAgent: DeepChatAgentPresenter,
+    llmProviderPresenter: ILlmProviderPresenter,
     configPresenter: IConfigPresenter,
     sqlitePresenter: SQLitePresenter
   ) {
+    this.llmProviderPresenter = llmProviderPresenter
     this.configPresenter = configPresenter
     this.agentRegistry = new AgentRegistry()
     this.sessionManager = new NewSessionManager(sqlitePresenter)
@@ -77,6 +82,7 @@ export class NewAgentPresenter {
     agent.processMessage(sessionId, input.message, { projectDir }).catch((err) => {
       console.error('[NewAgentPresenter] processMessage failed:', err)
     })
+    void this.generateSessionTitle(sessionId, title, providerId, modelId)
 
     // Return enriched session
     const state = await agent.getSessionState(sessionId)
@@ -188,5 +194,147 @@ export class NewAgentPresenter {
     if (!session) return
     const agent = this.agentRegistry.resolve(session.agentId)
     await agent.cancelGeneration(sessionId)
+  }
+
+  private async generateSessionTitle(
+    sessionId: string,
+    initialTitle: string,
+    fallbackProviderId: string,
+    fallbackModelId: string
+  ): Promise<void> {
+    try {
+      const settled = await this.waitForSessionIdle(sessionId)
+      if (!settled) return
+
+      const currentSession = this.sessionManager.get(sessionId)
+      if (!currentSession) return
+      if (currentSession.title !== initialTitle) return
+
+      const agent = this.agentRegistry.resolve(currentSession.agentId)
+      const records = await agent.getMessages(sessionId)
+      const titleMessages = this.buildTitleMessages(records)
+      if (titleMessages.length === 0) return
+
+      const assistantModel = this.configPresenter.getSetting<{
+        providerId: string
+        modelId: string
+      }>('assistantModel')
+      const preferredProviderId = assistantModel?.providerId || fallbackProviderId
+      const preferredModelId = assistantModel?.modelId || fallbackModelId
+
+      let generatedTitle: string
+      try {
+        generatedTitle = await this.llmProviderPresenter.summaryTitles(
+          titleMessages,
+          preferredProviderId,
+          preferredModelId
+        )
+      } catch (error) {
+        const shouldFallback =
+          preferredProviderId !== fallbackProviderId || preferredModelId !== fallbackModelId
+        if (!shouldFallback) throw error
+        generatedTitle = await this.llmProviderPresenter.summaryTitles(
+          titleMessages,
+          fallbackProviderId,
+          fallbackModelId
+        )
+      }
+
+      const normalized = this.normalizeGeneratedTitle(generatedTitle)
+      if (!normalized || normalized === initialTitle) return
+
+      const latest = this.sessionManager.get(sessionId)
+      if (!latest) return
+      if (latest.title !== initialTitle) return
+
+      this.sessionManager.update(sessionId, { title: normalized })
+      eventBus.sendToRenderer(SESSION_EVENTS.LIST_UPDATED, SendTarget.ALL_WINDOWS)
+    } catch (error) {
+      console.warn(`[NewAgentPresenter] title generation skipped for session=${sessionId}:`, error)
+    }
+  }
+
+  private async waitForSessionIdle(sessionId: string): Promise<boolean> {
+    const MAX_WAIT_MS = 30000
+    const POLL_MS = 250
+    const startedAt = Date.now()
+    const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+    while (Date.now() - startedAt < MAX_WAIT_MS) {
+      const session = this.sessionManager.get(sessionId)
+      if (!session) return false
+
+      const agent = this.agentRegistry.resolve(session.agentId)
+      const state = await agent.getSessionState(sessionId)
+      if (!state) return false
+      if (state.status === 'idle') return true
+      if (state.status === 'error') return false
+
+      await sleep(POLL_MS)
+    }
+
+    return false
+  }
+
+  private buildTitleMessages(
+    records: ChatMessageRecord[]
+  ): Array<{ role: 'system' | 'user' | 'assistant'; content: string }> {
+    const sorted = [...records].sort((a, b) => a.orderSeq - b.orderSeq)
+    const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = []
+
+    for (const record of sorted) {
+      if (record.role === 'user') {
+        const text = this.extractUserText(record.content)
+        if (text) {
+          messages.push({ role: 'user', content: text })
+        }
+        continue
+      }
+
+      if (record.role === 'assistant') {
+        const text = this.extractAssistantText(record.content)
+        if (text) {
+          messages.push({ role: 'assistant', content: text })
+        }
+      }
+    }
+
+    return messages.slice(0, 6)
+  }
+
+  private extractUserText(content: string): string {
+    try {
+      const parsed = JSON.parse(content) as UserMessageContent | string
+      if (typeof parsed === 'string') return parsed.trim()
+      return typeof parsed.text === 'string' ? parsed.text.trim() : ''
+    } catch {
+      return content.trim()
+    }
+  }
+
+  private extractAssistantText(content: string): string {
+    try {
+      const parsed = JSON.parse(content) as AssistantMessageBlock[] | string
+      if (typeof parsed === 'string') return parsed.trim()
+      if (!Array.isArray(parsed)) return ''
+      return parsed
+        .filter((block) => block.type === 'content')
+        .map((block) => block.content)
+        .join('\n')
+        .trim()
+    } catch {
+      return content.trim()
+    }
+  }
+
+  private normalizeGeneratedTitle(rawTitle: string): string {
+    if (!rawTitle) return ''
+    let cleaned = rawTitle.replace(/<think>.*?<\/think>/gs, '').trim()
+    cleaned = cleaned.replace(/^<think>/, '').trim()
+    cleaned = cleaned.replace(/^["'`]+|["'`]+$/g, '').trim()
+    if (cleaned.length > 80) {
+      cleaned = cleaned.slice(0, 80).trim()
+    }
+    return cleaned
   }
 }

@@ -149,7 +149,8 @@ function createMockLlmProviderPresenter() {
           yield { type: 'stop', stop_reason: 'end_turn' }
         })()
       })
-    })
+    }),
+    summaryTitles: vi.fn().mockResolvedValue('Generated Integration Title')
   } as any
 }
 
@@ -159,7 +160,8 @@ function createMockConfigPresenter() {
     getModelConfig: vi
       .fn()
       .mockReturnValue({ temperature: 0.7, maxTokens: 4096, contextLength: 128000 }),
-    getDefaultSystemPrompt: vi.fn().mockResolvedValue('You are a helpful assistant.')
+    getDefaultSystemPrompt: vi.fn().mockResolvedValue('You are a helpful assistant.'),
+    getSetting: vi.fn().mockReturnValue(undefined)
   } as any
 }
 
@@ -192,7 +194,12 @@ describe('Integration: createSession end-to-end', () => {
       sqlitePresenter,
       createMockToolPresenter()
     )
-    agentPresenter = new NewAgentPresenter(deepchatAgent as any, configPresenter, sqlitePresenter)
+    agentPresenter = new NewAgentPresenter(
+      deepchatAgent as any,
+      llmProvider,
+      configPresenter,
+      sqlitePresenter
+    )
   })
 
   it('createSession → new_sessions row + deepchat_sessions row + messages + events', async () => {
@@ -296,7 +303,12 @@ describe('Integration: multi-turn context', () => {
       sqlitePresenter,
       createMockToolPresenter()
     )
-    agentPresenter = new NewAgentPresenter(deepchatAgent as any, configPresenter, sqlitePresenter)
+    agentPresenter = new NewAgentPresenter(
+      deepchatAgent as any,
+      llmProvider,
+      configPresenter,
+      sqlitePresenter
+    )
   })
 
   it('second message includes first exchange in LLM context', async () => {
