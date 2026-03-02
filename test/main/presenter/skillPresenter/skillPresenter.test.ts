@@ -97,6 +97,9 @@ vi.mock('../../../../src/main/presenter', () => ({
     sessionPresenter: {
       getConversation: vi.fn(),
       updateConversationSettings: vi.fn()
+    },
+    newAgentPresenter: {
+      getSession: vi.fn()
     }
   }
 }))
@@ -135,6 +138,7 @@ describe('SkillPresenter', () => {
       data: { name: 'test-skill', description: 'Test skill' },
       content: '# Test content'
     })
+    ;(presenter.newAgentPresenter.getSession as Mock).mockResolvedValue(null)
 
     skillPresenter = new SkillPresenter(mockConfigPresenter)
   })
@@ -620,6 +624,17 @@ describe('SkillPresenter', () => {
   })
 
   describe('getActiveSkills', () => {
+    it('should return empty skills for new agent sessions', async () => {
+      ;(presenter.newAgentPresenter.getSession as Mock).mockResolvedValue({
+        id: 'new-session-1'
+      })
+
+      const active = await skillPresenter.getActiveSkills('new-session-1')
+
+      expect(active).toEqual([])
+      expect(presenter.sessionPresenter.getConversation).not.toHaveBeenCalled()
+    })
+
     it('should return active skills for a conversation', async () => {
       ;(presenter.sessionPresenter.getConversation as Mock).mockResolvedValue({
         settings: { activeSkills: ['skill-1', 'skill-2'] }

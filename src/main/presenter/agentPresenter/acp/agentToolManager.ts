@@ -383,12 +383,30 @@ export class AgentToolManager {
 
       return null
     } catch (error) {
-      logger.warn('[AgentToolManager] Failed to get workdir for conversation:', {
+      if (!this.isConversationNotFoundError(error)) {
+        logger.warn('[AgentToolManager] Failed to resolve legacy conversation workdir:', {
+          conversationId,
+          error
+        })
+      }
+    }
+
+    try {
+      const session = await presenter?.newAgentPresenter?.getSession(conversationId)
+      const normalized = session?.projectDir?.trim()
+      return normalized ?? null
+    } catch (error) {
+      logger.warn('[AgentToolManager] Failed to resolve new session workdir:', {
         conversationId,
         error
       })
       return null
     }
+  }
+
+  private isConversationNotFoundError(error: unknown): boolean {
+    if (!(error instanceof Error)) return false
+    return /Conversation\s+.+\s+not found/i.test(error.message)
   }
 
   private getFileSystemToolDefinitions(): MCPToolDefinition[] {

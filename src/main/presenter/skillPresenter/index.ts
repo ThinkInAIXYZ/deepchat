@@ -711,10 +711,23 @@ export class SkillPresenter implements ISkillPresenter {
     await shell.openPath(this.skillsDir)
   }
 
+  private async isNewAgentSession(conversationId: string): Promise<boolean> {
+    try {
+      const session = await presenter?.newAgentPresenter?.getSession(conversationId)
+      return Boolean(session)
+    } catch {
+      return false
+    }
+  }
+
   /**
    * Get active skills for a conversation
    */
   async getActiveSkills(conversationId: string): Promise<string[]> {
+    if (await this.isNewAgentSession(conversationId)) {
+      return []
+    }
+
     try {
       const conversation = await presenter.sessionPresenter.getConversation(conversationId)
       const activeSkills = conversation?.settings?.activeSkills || []

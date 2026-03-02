@@ -18,6 +18,12 @@ vi.mock('@/presenter', () => ({
       getActiveSkills: vi.fn(),
       getActiveSkillsAllowedTools: vi.fn()
     },
+    sessionManager: {
+      getSession: vi.fn()
+    },
+    newAgentPresenter: {
+      getSession: vi.fn()
+    },
     yoBrowserPresenter: {
       toolHandler: {
         getToolDefinitions: vi.fn().mockReturnValue([])
@@ -35,6 +41,8 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    ;(presenter.sessionManager.getSession as any).mockResolvedValue(null)
+    ;(presenter.newAgentPresenter.getSession as any).mockResolvedValue(null)
   })
 
   it('does not include settings tools when skill is inactive', async () => {
@@ -79,5 +87,23 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
     const names = defs.map((def) => def.function.name)
     expect(names).toContain(CHAT_SETTINGS_TOOL_NAMES.toggle)
     expect(names).not.toContain(CHAT_SETTINGS_TOOL_NAMES.open)
+  })
+
+  it('resolves workdir from new session when legacy conversation is missing', async () => {
+    ;(presenter.sessionManager.getSession as any).mockRejectedValue(
+      new Error('Conversation new-session-1 not found')
+    )
+    ;(presenter.newAgentPresenter.getSession as any).mockResolvedValue({
+      id: 'new-session-1',
+      projectDir: '/tmp/new-session-workdir'
+    })
+
+    const manager = new AgentToolManager({
+      agentWorkspacePath: null,
+      configPresenter
+    })
+
+    const workdir = await (manager as any).getWorkdirForConversation('new-session-1')
+    expect(workdir).toBe('/tmp/new-session-workdir')
   })
 })
