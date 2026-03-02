@@ -26,6 +26,20 @@ vi.mock('@/events', () => ({
   }
 }))
 
+vi.mock('@/presenter', () => ({
+  presenter: {
+    commandPermissionService: {
+      extractCommandSignature: vi.fn().mockReturnValue('mock-signature'),
+      approve: vi.fn()
+    },
+    filePermissionService: { approve: vi.fn() },
+    settingsPermissionService: { approve: vi.fn() },
+    mcpPresenter: {
+      grantPermission: vi.fn().mockResolvedValue(undefined)
+    }
+  }
+}))
+
 import { eventBus } from '@/eventbus'
 
 function createMockSqlitePresenter() {
@@ -55,10 +69,28 @@ function createMockSqlitePresenter() {
       delete: vi.fn((id: string) => sessionsStore.delete(id))
     },
     deepchatSessionsTable: {
-      create: vi.fn((id: string, providerId: string, modelId: string) => {
-        deepchatSessionsStore.set(id, { id, provider_id: providerId, model_id: modelId })
-      }),
+      create: vi.fn(
+        (
+          id: string,
+          providerId: string,
+          modelId: string,
+          permissionMode: 'default' | 'full_access' = 'full_access'
+        ) => {
+          deepchatSessionsStore.set(id, {
+            id,
+            provider_id: providerId,
+            model_id: modelId,
+            permission_mode: permissionMode
+          })
+        }
+      ),
       get: vi.fn((id: string) => deepchatSessionsStore.get(id)),
+      updatePermissionMode: vi.fn((id: string, mode: 'default' | 'full_access') => {
+        const row = deepchatSessionsStore.get(id)
+        if (row) {
+          row.permission_mode = mode
+        }
+      }),
       delete: vi.fn((id: string) => deepchatSessionsStore.delete(id))
     },
     deepchatMessagesTable: {
@@ -99,6 +131,9 @@ function createMockSqlitePresenter() {
           .filter((m) => m.session_id === sessionId)
           .sort((a: any, b: any) => a.order_seq - b.order_seq)
       }),
+      getByStatus: vi.fn((status: string) =>
+        messagesList.filter((m) => m.status === status).sort((a, b) => b.updated_at - a.updated_at)
+      ),
       getIdsBySession: vi.fn((sessionId: string) => {
         return messagesList
           .filter((m) => m.session_id === sessionId)
@@ -223,7 +258,8 @@ describe('Integration: createSession end-to-end', () => {
     expect(sqlitePresenter.deepchatSessionsTable.create).toHaveBeenCalledWith(
       expect.any(String),
       'openai',
-      'gpt-4'
+      'gpt-4',
+      'full_access'
     )
 
     // 3. Messages created (user + assistant)
@@ -352,8 +388,18 @@ describe('Integration: crash recovery', () => {
     const llmProvider = createMockLlmProviderPresenter()
     const configPresenter = createMockConfigPresenter()
 
-    // Simulate a pending message in the DB
-    sqlitePresenter.deepchatMessagesTable.recoverPendingMessages.mockReturnValue(2)
+    sqlitePresenter.deepchatMessagesTable.getByStatus.mockReturnValue([
+      {
+        id: 'm1',
+        role: 'assistant',
+        content: JSON.stringify([{ type: 'content', status: 'pending', timestamp: 1 }])
+      },
+      {
+        id: 'm2',
+        role: 'assistant',
+        content: JSON.stringify([{ type: 'content', status: 'pending', timestamp: 1 }])
+      }
+    ])
 
     const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
 
@@ -365,7 +411,8 @@ describe('Integration: crash recovery', () => {
       createMockToolPresenter()
     )
 
-    expect(sqlitePresenter.deepchatMessagesTable.recoverPendingMessages).toHaveBeenCalledTimes(1)
+    expect(sqlitePresenter.deepchatMessagesTable.getByStatus).toHaveBeenCalledWith('pending')
+    expect(sqlitePresenter.deepchatMessagesTable.updateStatus).toHaveBeenCalledTimes(2)
     expect(consoleSpy).toHaveBeenCalledWith(
       'DeepChatAgent: recovered 2 pending messages to error status'
     )

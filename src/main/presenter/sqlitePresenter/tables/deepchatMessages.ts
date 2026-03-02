@@ -98,6 +98,12 @@ export class DeepChatMessagesTable extends BaseTable {
       .all(sessionId) as DeepChatMessageRow[]
   }
 
+  getByStatus(status: 'pending' | 'sent' | 'error'): DeepChatMessageRow[] {
+    return this.db
+      .prepare('SELECT * FROM deepchat_messages WHERE status = ? ORDER BY updated_at DESC')
+      .all(status) as DeepChatMessageRow[]
+  }
+
   getIdsBySession(sessionId: string): string[] {
     const rows = this.db
       .prepare('SELECT id FROM deepchat_messages WHERE session_id = ? ORDER BY order_seq')

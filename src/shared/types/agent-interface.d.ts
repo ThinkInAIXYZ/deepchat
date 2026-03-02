@@ -6,11 +6,13 @@
  */
 
 export type SessionStatus = 'idle' | 'generating' | 'error'
+export type PermissionMode = 'default' | 'full_access'
 
 export interface DeepChatSessionState {
   status: SessionStatus
   providerId: string
   modelId: string
+  permissionMode: PermissionMode
 }
 
 export interface IAgentImplementation {
@@ -44,6 +46,20 @@ export interface IAgentImplementation {
 
   /** Get a single message by ID */
   getMessage(messageId: string): Promise<ChatMessageRecord | null>
+
+  /** Handle pending tool interaction response (question/permission) */
+  respondToolInteraction?(
+    sessionId: string,
+    messageId: string,
+    toolCallId: string,
+    response: ToolInteractionResponse
+  ): Promise<ToolInteractionResult>
+
+  /** Set permission mode for this session */
+  setPermissionMode?(sessionId: string, mode: PermissionMode): Promise<void>
+
+  /** Get permission mode for this session */
+  getPermissionMode?(sessionId: string): Promise<PermissionMode>
 }
 
 // ---- Message Types ----
@@ -63,25 +79,59 @@ export interface MessageFile {
   size: number
 }
 
-export type AssistantBlockType = 'content' | 'reasoning_content' | 'error' | 'tool_call'
+export type AssistantBlockType = 'content' | 'reasoning_content' | 'error' | 'tool_call' | 'action'
 
 export interface ToolCallBlockData {
-  id: string
-  name: string
-  params: string
-  response: string
+  id?: string
+  name?: string
+  params?: string
+  response?: string
   server_name?: string
   server_icons?: string
   server_description?: string
 }
 
+export interface QuestionOption {
+  label: string
+  description?: string
+}
+
+export interface AssistantMessageExtra {
+  needsUserAction?: boolean
+  permissionType?: 'read' | 'write' | 'all' | 'command'
+  grantedPermissions?: 'read' | 'write' | 'all' | 'command'
+  toolName?: string
+  serverName?: string
+  providerId?: string
+  permissionRequestId?: string
+  permissionRequest?: string
+  commandInfo?: string
+  rememberable?: boolean
+  questionHeader?: string
+  questionText?: string
+  questionOptions?: QuestionOption[] | string
+  questionMultiple?: boolean
+  questionCustom?: boolean
+  questionResolution?: 'asked' | 'replied' | 'rejected'
+  answerText?: string
+  answerMessageId?: string
+  [key: string]: string | number | boolean | object[] | undefined
+}
+
 export interface AssistantMessageBlock {
   type: AssistantBlockType
-  content: string
-  status: 'pending' | 'success' | 'error'
+  content?: string
+  status: 'pending' | 'success' | 'error' | 'loading' | 'granted' | 'denied'
   timestamp: number
-  reasoning_time?: number // only for reasoning_content blocks
-  tool_call?: ToolCallBlockData // only for tool_call blocks
+  reasoning_time?:
+    | number
+    | {
+        start: number
+        end: number
+      }
+  tool_call?: ToolCallBlockData
+  extra?: AssistantMessageExtra
+  action_type?: 'tool_call_permission' | 'question_request'
 }
 
 export interface MessageMetadata {
@@ -131,6 +181,28 @@ export interface SessionWithState extends SessionRecord {
   status: SessionStatus
   providerId: string
   modelId: string
+}
+
+export type ToolInteractionResponse =
+  | {
+      kind: 'permission'
+      granted: boolean
+    }
+  | {
+      kind: 'question_option'
+      optionLabel: string
+    }
+  | {
+      kind: 'question_custom'
+      answerText: string
+    }
+  | {
+      kind: 'question_other'
+    }
+
+export interface ToolInteractionResult {
+  resumed?: boolean
+  waitingForUserMessage?: boolean
 }
 
 export interface CreateSessionInput {

@@ -44,16 +44,6 @@
             :message-id="currentMessage.id"
             :thread-id="currentThreadId"
           />
-          <template
-            v-else-if="block.type === 'action' && block.action_type === 'tool_call_permission'"
-          >
-            <MessageBlockPermissionRequest
-              v-if="block.extra?.needsUserAction"
-              :block="block"
-              :message-id="currentMessage.id"
-              :conversation-id="currentThreadId"
-            />
-          </template>
           <MessageBlockQuestionRequest
             v-else-if="block.type === 'action' && block.action_type === 'question_request'"
             :block="block"
@@ -136,7 +126,6 @@ import MessageBlockContent from './MessageBlockContent.vue'
 import MessageBlockThink from './MessageBlockThink.vue'
 import MessageBlockToolCall from './MessageBlockToolCall.vue'
 import MessageBlockError from './MessageBlockError.vue'
-import MessageBlockPermissionRequest from './MessageBlockPermissionRequest.vue'
 import MessageBlockQuestionRequest from './MessageBlockQuestionRequest.vue'
 import MessageToolbar from './MessageToolbar.vue'
 import MessageInfo from './MessageInfo.vue'

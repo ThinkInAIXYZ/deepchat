@@ -118,6 +118,7 @@ export class Presenter implements IPresenter {
   newAgentPresenter: INewAgentPresenter
   projectPresenter: IProjectPresenter
   hooksNotifications: HooksNotificationsService
+  commandPermissionService: CommandPermissionService
   filePermissionService: FilePermissionService
   settingsPermissionService: SettingsPermissionService
 
@@ -134,6 +135,7 @@ export class Presenter implements IPresenter {
     this.tabPresenter = new TabPresenter(this.windowPresenter)
     this.llmproviderPresenter = new LLMProviderPresenter(this.configPresenter, this.sqlitePresenter)
     const commandPermissionHandler = new CommandPermissionService()
+    this.commandPermissionService = commandPermissionHandler
     this.filePermissionService = new FilePermissionService()
     this.settingsPermissionService = new SettingsPermissionService()
     const messageManager = new MessageManager(this.sqlitePresenter)

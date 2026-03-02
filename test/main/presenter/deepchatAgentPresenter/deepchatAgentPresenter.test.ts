@@ -23,9 +23,23 @@ vi.mock('@/events', () => ({
   }
 }))
 
+vi.mock('@/presenter', () => ({
+  presenter: {
+    commandPermissionService: {
+      extractCommandSignature: vi.fn().mockReturnValue('mock-signature'),
+      approve: vi.fn()
+    },
+    filePermissionService: { approve: vi.fn() },
+    settingsPermissionService: { approve: vi.fn() },
+    mcpPresenter: {
+      grantPermission: vi.fn().mockResolvedValue(undefined)
+    }
+  }
+}))
+
 // Mock processStream to avoid timer/async complexity
 vi.mock('@/presenter/deepchatAgentPresenter/process', () => ({
-  processStream: vi.fn().mockResolvedValue(undefined)
+  processStream: vi.fn().mockResolvedValue({ status: 'completed' })
 }))
 
 import { eventBus } from '@/eventbus'
@@ -36,13 +50,16 @@ function createMockSqlitePresenter() {
     deepchatSessionsTable: {
       create: vi.fn(),
       get: vi.fn(),
+      updatePermissionMode: vi.fn(),
       delete: vi.fn()
     },
     deepchatMessagesTable: {
       insert: vi.fn(),
       updateContent: vi.fn(),
+      updateStatus: vi.fn(),
       updateContentAndStatus: vi.fn(),
       getBySession: vi.fn().mockReturnValue([]),
+      getByStatus: vi.fn().mockReturnValue([]),
       getIdsBySession: vi.fn().mockReturnValue([]),
       get: vi.fn(),
       getMaxOrderSeq: vi.fn().mockReturnValue(0),
@@ -105,18 +122,26 @@ describe('DeepChatAgentPresenter', () => {
   })
 
   describe('constructor (crash recovery)', () => {
-    it('calls recoverPendingMessages on init', () => {
-      expect(sqlitePresenter.deepchatMessagesTable.recoverPendingMessages).toHaveBeenCalledTimes(1)
+    it('calls pending status query on init', () => {
+      expect(sqlitePresenter.deepchatMessagesTable.getByStatus).toHaveBeenCalledWith('pending')
     })
 
     it('logs recovered count when > 0', () => {
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
-      sqlitePresenter.deepchatMessagesTable.recoverPendingMessages.mockReturnValue(5)
+      sqlitePresenter.deepchatMessagesTable.getByStatus.mockReturnValue([
+        {
+          id: 'm1',
+          role: 'assistant',
+          content: JSON.stringify([
+            { type: 'content', content: 'partial', status: 'pending', timestamp: 1 }
+          ])
+        }
+      ])
 
       new DeepChatAgentPresenter(llmProvider, configPresenter, sqlitePresenter, toolPresenter)
 
       expect(consoleSpy).toHaveBeenCalledWith(
-        'DeepChatAgent: recovered 5 pending messages to error status'
+        'DeepChatAgent: recovered 1 pending messages to error status'
       )
       consoleSpy.mockRestore()
     })
@@ -129,14 +154,16 @@ describe('DeepChatAgentPresenter', () => {
       expect(sqlitePresenter.deepchatSessionsTable.create).toHaveBeenCalledWith(
         's1',
         'openai',
-        'gpt-4'
+        'gpt-4',
+        'full_access'
       )
 
       const state = await agent.getSessionState('s1')
       expect(state).toEqual({
         status: 'idle',
         providerId: 'openai',
-        modelId: 'gpt-4'
+        modelId: 'gpt-4',
+        permissionMode: 'full_access'
       })
     })
   })
@@ -152,14 +179,16 @@ describe('DeepChatAgentPresenter', () => {
       sqlitePresenter.deepchatSessionsTable.get.mockReturnValue({
         id: 's1',
         provider_id: 'openai',
-        model_id: 'gpt-4'
+        model_id: 'gpt-4',
+        permission_mode: 'full_access'
       })
 
       const state = await agent.getSessionState('s1')
       expect(state).toEqual({
         status: 'idle',
         providerId: 'openai',
-        modelId: 'gpt-4'
+        modelId: 'gpt-4',
+        permissionMode: 'full_access'
       })
     })
 
@@ -415,6 +444,337 @@ describe('DeepChatAgentPresenter', () => {
       sqlitePresenter.deepchatMessagesTable.get.mockReturnValue(undefined)
       const msg = await agent.getMessage('nonexistent')
       expect(msg).toBeNull()
+    })
+  })
+
+  describe('respondToolInteraction', () => {
+    const makeAssistantRow = (overrides?: {
+      id?: string
+      sessionId?: string
+      orderSeq?: number
+      status?: 'pending' | 'sent' | 'error'
+      blocks?: unknown[]
+    }) => {
+      const row = {
+        id: overrides?.id ?? 'm1',
+        session_id: overrides?.sessionId ?? 's1',
+        order_seq: overrides?.orderSeq ?? 1,
+        role: 'assistant' as const,
+        content: JSON.stringify(overrides?.blocks ?? []),
+        status: overrides?.status ?? 'pending',
+        is_context_edge: 0,
+        metadata: '{}',
+        created_at: Date.now(),
+        updated_at: Date.now()
+      }
+      sqlitePresenter.deepchatMessagesTable.get.mockImplementation((id: string) =>
+        id === row.id ? row : undefined
+      )
+      sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue([row])
+      return row
+    }
+
+    it('handles question_option and resumes assistant message', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      makeAssistantRow({
+        blocks: [
+          {
+            type: 'tool_call',
+            status: 'pending',
+            timestamp: 1,
+            tool_call: { id: 'tc1', name: 'ask_question', params: '{}', response: '' }
+          },
+          {
+            type: 'action',
+            action_type: 'question_request',
+            status: 'pending',
+            timestamp: 2,
+            content: 'Pick one',
+            tool_call: { id: 'tc1', name: 'ask_question', params: '{}' },
+            extra: {
+              needsUserAction: true,
+              questionText: 'Pick one',
+              questionOptions: [{ label: 'A' }]
+            }
+          }
+        ]
+      })
+
+      const result = await agent.respondToolInteraction('s1', 'm1', 'tc1', {
+        kind: 'question_option',
+        optionLabel: 'A'
+      })
+
+      expect(result).toEqual({ resumed: true })
+      expect(sqlitePresenter.deepchatMessagesTable.updateContent).toHaveBeenCalledWith(
+        'm1',
+        expect.any(String)
+      )
+
+      const updatedBlocks = JSON.parse(
+        sqlitePresenter.deepchatMessagesTable.updateContent.mock.calls[0][1]
+      )
+      expect(updatedBlocks[0].tool_call.response).toBe('A')
+      expect(updatedBlocks[0].status).toBe('success')
+      expect(updatedBlocks[1].status).toBe('success')
+      expect(updatedBlocks[1].extra.answerText).toBe('A')
+      expect(processStream).toHaveBeenCalledTimes(1)
+    })
+
+    it('handles question_other and waits for user message without resume', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      makeAssistantRow({
+        blocks: [
+          {
+            type: 'tool_call',
+            status: 'pending',
+            timestamp: 1,
+            tool_call: { id: 'tc1', name: 'ask_question', params: '{}', response: '' }
+          },
+          {
+            type: 'action',
+            action_type: 'question_request',
+            status: 'pending',
+            timestamp: 2,
+            content: 'Pick one',
+            tool_call: { id: 'tc1', name: 'ask_question', params: '{}' },
+            extra: {
+              needsUserAction: true,
+              questionText: 'Pick one'
+            }
+          }
+        ]
+      })
+
+      const result = await agent.respondToolInteraction('s1', 'm1', 'tc1', {
+        kind: 'question_other'
+      })
+
+      expect(result).toEqual({ resumed: false, waitingForUserMessage: true })
+      expect(sqlitePresenter.deepchatMessagesTable.updateStatus).toHaveBeenCalledWith('m1', 'sent')
+      expect(processStream).not.toHaveBeenCalled()
+
+      const updatedBlocks = JSON.parse(
+        sqlitePresenter.deepchatMessagesTable.updateContent.mock.calls[0][1]
+      )
+      expect(updatedBlocks[0].tool_call.response).toBe(
+        'User chose to answer with a follow-up message.'
+      )
+      expect(updatedBlocks[0].status).toBe('success')
+      expect(updatedBlocks[1].status).toBe('success')
+    })
+
+    it('enforces pending interaction queue order', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      makeAssistantRow({
+        blocks: [
+          {
+            type: 'tool_call',
+            status: 'pending',
+            timestamp: 1,
+            tool_call: { id: 'tc1', name: 'ask_one', params: '{}', response: '' }
+          },
+          {
+            type: 'action',
+            action_type: 'question_request',
+            status: 'pending',
+            timestamp: 2,
+            content: 'First',
+            tool_call: { id: 'tc1', name: 'ask_one', params: '{}' },
+            extra: { needsUserAction: true, questionText: 'First' }
+          },
+          {
+            type: 'tool_call',
+            status: 'pending',
+            timestamp: 3,
+            tool_call: { id: 'tc2', name: 'ask_two', params: '{}', response: '' }
+          },
+          {
+            type: 'action',
+            action_type: 'question_request',
+            status: 'pending',
+            timestamp: 4,
+            content: 'Second',
+            tool_call: { id: 'tc2', name: 'ask_two', params: '{}' },
+            extra: { needsUserAction: true, questionText: 'Second' }
+          }
+        ]
+      })
+
+      await expect(
+        agent.respondToolInteraction('s1', 'm1', 'tc2', {
+          kind: 'question_option',
+          optionLabel: 'X'
+        })
+      ).rejects.toThrow('Interaction queue out of order. Please handle the first pending item.')
+      expect(sqlitePresenter.deepchatMessagesTable.updateContent).not.toHaveBeenCalled()
+    })
+
+    it('does not resume when there are remaining pending interactions', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      makeAssistantRow({
+        blocks: [
+          {
+            type: 'tool_call',
+            status: 'pending',
+            timestamp: 1,
+            tool_call: { id: 'tc1', name: 'ask_one', params: '{}', response: '' }
+          },
+          {
+            type: 'action',
+            action_type: 'question_request',
+            status: 'pending',
+            timestamp: 2,
+            content: 'First',
+            tool_call: { id: 'tc1', name: 'ask_one', params: '{}' },
+            extra: { needsUserAction: true, questionText: 'First' }
+          },
+          {
+            type: 'tool_call',
+            status: 'pending',
+            timestamp: 3,
+            tool_call: { id: 'tc2', name: 'ask_two', params: '{}', response: '' }
+          },
+          {
+            type: 'action',
+            action_type: 'question_request',
+            status: 'pending',
+            timestamp: 4,
+            content: 'Second',
+            tool_call: { id: 'tc2', name: 'ask_two', params: '{}' },
+            extra: { needsUserAction: true, questionText: 'Second' }
+          }
+        ]
+      })
+
+      const result = await agent.respondToolInteraction('s1', 'm1', 'tc1', {
+        kind: 'question_option',
+        optionLabel: 'A'
+      })
+
+      expect(result).toEqual({ resumed: false })
+      expect(sqlitePresenter.deepchatMessagesTable.updateStatus).toHaveBeenCalledWith(
+        'm1',
+        'pending'
+      )
+      expect(processStream).not.toHaveBeenCalled()
+    })
+
+    it('handles permission grant by executing deferred tool and resuming', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      makeAssistantRow({
+        blocks: [
+          {
+            type: 'tool_call',
+            status: 'pending',
+            timestamp: 1,
+            tool_call: { id: 'tc1', name: 'write_file', params: '{"path":"a.txt"}', response: '' }
+          },
+          {
+            type: 'action',
+            action_type: 'tool_call_permission',
+            status: 'pending',
+            timestamp: 2,
+            content: 'Need permission',
+            tool_call: { id: 'tc1', name: 'write_file', params: '{"path":"a.txt"}' },
+            extra: {
+              needsUserAction: true,
+              permissionType: 'write',
+              permissionRequest: JSON.stringify({
+                permissionType: 'write',
+                description: 'Need permission',
+                toolName: 'write_file',
+                serverName: 'agent-filesystem',
+                paths: ['a.txt']
+              })
+            }
+          }
+        ]
+      })
+      toolPresenter.callTool.mockResolvedValueOnce({
+        content: 'done',
+        rawData: { content: 'done', isError: false }
+      })
+
+      const result = await agent.respondToolInteraction('s1', 'm1', 'tc1', {
+        kind: 'permission',
+        granted: true
+      })
+
+      expect(result).toEqual({ resumed: true })
+      expect(toolPresenter.callTool).toHaveBeenCalledTimes(1)
+      expect(processStream).toHaveBeenCalledTimes(1)
+
+      const updatedBlocks = JSON.parse(
+        sqlitePresenter.deepchatMessagesTable.updateContent.mock.calls[0][1]
+      )
+      expect(updatedBlocks[0].tool_call.response).toBe('done')
+      expect(updatedBlocks[0].status).toBe('success')
+      expect(updatedBlocks[1].status).toBe('granted')
+      expect(updatedBlocks[1].extra.needsUserAction).toBe(false)
+    })
+
+    it('handles permission deny and resumes with denial result', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      makeAssistantRow({
+        blocks: [
+          {
+            type: 'tool_call',
+            status: 'pending',
+            timestamp: 1,
+            tool_call: { id: 'tc1', name: 'run_shell', params: '{"command":"dir"}', response: '' }
+          },
+          {
+            type: 'action',
+            action_type: 'tool_call_permission',
+            status: 'pending',
+            timestamp: 2,
+            content: 'Need permission',
+            tool_call: { id: 'tc1', name: 'run_shell', params: '{"command":"dir"}' },
+            extra: { needsUserAction: true, permissionType: 'command' }
+          }
+        ]
+      })
+
+      const result = await agent.respondToolInteraction('s1', 'm1', 'tc1', {
+        kind: 'permission',
+        granted: false
+      })
+
+      expect(result).toEqual({ resumed: true })
+      const updatedBlocks = JSON.parse(
+        sqlitePresenter.deepchatMessagesTable.updateContent.mock.calls[0][1]
+      )
+      expect(updatedBlocks[0].tool_call.response).toBe('User denied the request.')
+      expect(updatedBlocks[0].status).toBe('error')
+      expect(updatedBlocks[1].status).toBe('denied')
+      expect(processStream).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  describe('permission mode', () => {
+    it('setPermissionMode updates runtime and db', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.setPermissionMode('s1', 'default')
+
+      const mode = await agent.getPermissionMode('s1')
+      expect(mode).toBe('default')
+      expect(sqlitePresenter.deepchatSessionsTable.updatePermissionMode).toHaveBeenCalledWith(
+        's1',
+        'default'
+      )
+    })
+
+    it('getPermissionMode falls back to db session row', async () => {
+      sqlitePresenter.deepchatSessionsTable.get.mockReturnValue({
+        id: 's2',
+        provider_id: 'openai',
+        model_id: 'gpt-4',
+        permission_mode: 'default'
+      })
+
+      const mode = await agent.getPermissionMode('s2')
+      expect(mode).toBe('default')
     })
   })
 })

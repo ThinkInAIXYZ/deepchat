@@ -53,10 +53,16 @@ describe('echo', () => {
 
     vi.advanceTimersByTime(130)
 
-    expect(eventBus.sendToRenderer).toHaveBeenCalledWith('stream:response', 'all', {
-      conversationId: 's1',
-      blocks: expect.any(Array)
-    })
+    expect(eventBus.sendToRenderer).toHaveBeenCalledWith(
+      'stream:response',
+      'all',
+      expect.objectContaining({
+        conversationId: 's1',
+        messageId: 'm1',
+        eventId: 'm1',
+        blocks: expect.any(Array)
+      })
+    )
 
     echo.stop()
   })
@@ -93,10 +99,16 @@ describe('echo', () => {
 
     echo.flush()
 
-    expect(eventBus.sendToRenderer).toHaveBeenCalledWith('stream:response', 'all', {
-      conversationId: 's1',
-      blocks: expect.any(Array)
-    })
+    expect(eventBus.sendToRenderer).toHaveBeenCalledWith(
+      'stream:response',
+      'all',
+      expect.objectContaining({
+        conversationId: 's1',
+        messageId: 'm1',
+        eventId: 'm1',
+        blocks: expect.any(Array)
+      })
+    )
     expect(io.messageStore.updateAssistantContent).toHaveBeenCalled()
     expect(state.dirty).toBe(false)
 

@@ -1,8 +1,8 @@
-import type { ProcessParams } from './types'
+import type { ProcessParams, ProcessResult } from './types'
 import { createState } from './types'
 import { accumulate } from './accumulator'
 import { startEcho } from './echo'
-import { executeTools, finalize, finalizeError } from './dispatch'
+import { executeTools, finalize, finalizeError, finalizePaused } from './dispatch'
 import { eventBus, SendTarget } from '@/eventbus'
 import { STREAM_EVENTS } from '@/events'
 
@@ -12,7 +12,7 @@ const MAX_TOOL_CALLS = 128
  * Unified stream processor. Handles both simple completions and multi-turn
  * tool-calling loops in a single code path.
  */
-export async function processStream(params: ProcessParams): Promise<void> {
+export async function processStream(params: ProcessParams): Promise<ProcessResult> {
   const {
     messages,
     tools,
@@ -22,10 +22,15 @@ export async function processStream(params: ProcessParams): Promise<void> {
     modelConfig,
     temperature,
     maxTokens,
+    permissionMode,
+    initialBlocks,
     io
   } = params
 
   const state = createState()
+  if (Array.isArray(initialBlocks) && initialBlocks.length > 0) {
+    state.blocks = JSON.parse(JSON.stringify(initialBlocks)) as typeof state.blocks
+  }
   const echo = startEcho(state, io)
   const conversationMessages = [...messages]
   let toolCallCount = 0
@@ -65,7 +70,9 @@ export async function processStream(params: ProcessParams): Promise<void> {
             messageId: io.messageId,
             error: 'Generation cancelled'
           })
-          return
+          return {
+            status: 'aborted' as const
+          }
         }
         accumulate(state, event)
       }
@@ -97,10 +104,22 @@ export async function processStream(params: ProcessParams): Promise<void> {
         tools,
         toolPresenter!,
         modelId,
-        io
+        io,
+        permissionMode
       )
-      toolCallCount += executed
+      toolCallCount += executed.executed
       echo.flush()
+
+      if (executed.pendingInteractions.length > 0) {
+        console.log(
+          `[ProcessStream] paused for user interaction count=${executed.pendingInteractions.length}`
+        )
+        finalizePaused(state, io)
+        return {
+          status: 'paused' as const,
+          pendingInteractions: executed.pendingInteractions
+        }
+      }
 
       // Check abort after tool execution
       if (io.abortSignal.aborted) break
@@ -108,9 +127,15 @@ export async function processStream(params: ProcessParams): Promise<void> {
 
     // Finalize
     finalize(state, io)
+    return {
+      status: 'completed' as const
+    }
   } catch (err) {
     console.error(`[ProcessStream] exception after ${eventCount} events:`, err)
     finalizeError(state, io, err)
+    return {
+      status: 'error' as const
+    }
   } finally {
     echo.stop()
   }

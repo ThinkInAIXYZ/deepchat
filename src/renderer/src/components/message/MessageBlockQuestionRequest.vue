@@ -4,48 +4,31 @@
       {{ questionText }}
     </p>
 
-    <div v-if="isPending" class="flex flex-wrap gap-2">
-      <Button
+    <div v-if="options.length" class="flex flex-wrap gap-1.5">
+      <span
         v-for="option in options"
         :key="option.label"
-        variant="outline"
-        size="sm"
-        class="h-auto rounded-full px-4 py-1.5 text-xs text-foreground bg-muted/40 border-border hover:bg-muted/60"
-        :disabled="isProcessing"
-        @click="handleOptionClick(option.label)"
+        class="inline-flex h-7 items-center rounded-full border bg-muted/30 px-3 text-xs text-muted-foreground"
       >
-        <span class="flex flex-col items-start gap-0.5 text-left whitespace-pre-wrap break-words">
-          <span class="text-xs font-medium">{{ option.label }}</span>
-          <span v-if="option.description" class="text-[11px] text-muted-foreground">
-            {{ option.description }}
-          </span>
-        </span>
-      </Button>
+        {{ option.label }}
+      </span>
     </div>
 
-    <div v-else class="flex flex-col gap-1">
-      <span v-if="isRejected" class="text-xs text-muted-foreground">
-        {{ t('components.messageBlockQuestionRequest.rejected') }}
+    <div v-if="answerText" class="flex flex-col gap-1">
+      <span class="text-[10px] uppercase tracking-wide text-muted-foreground">
+        {{ t('components.messageBlockQuestionRequest.answerLabel') }}
       </span>
-      <template v-else>
-        <span class="text-[10px] uppercase tracking-wide text-muted-foreground">
-          {{ t('components.messageBlockQuestionRequest.answerLabel') }}
-        </span>
-        <p class="text-xs whitespace-pre-wrap break-words">
-          {{ answerText }}
-        </p>
-      </template>
+      <p class="text-xs whitespace-pre-wrap break-words">
+        {{ answerText }}
+      </p>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Button } from '@shadcn/components/ui/button'
-import { useChatStore } from '@/stores/chat'
-import { useInputSettings } from '@/components/chat-input/composables/useInputSettings'
-import type { AssistantMessageBlock, UserMessageContent } from '@shared/chat'
+import type { AssistantMessageBlock } from '@shared/chat'
 import type { QuestionOption } from '@shared/types/core/question'
 
 const props = defineProps<{
@@ -55,31 +38,16 @@ const props = defineProps<{
 }>()
 
 const { t } = useI18n()
-const chatStore = useChatStore()
-const { settings } = useInputSettings()
-
-const isProcessing = ref(false)
-
-const isPending = computed(
-  () => props.block.status === 'pending' && props.block.extra?.needsUserAction !== false
-)
-const resolution = computed(() => {
-  const raw = props.block.extra?.questionResolution
-  if (raw === 'replied' || raw === 'rejected') return raw
-  if (props.block.status === 'denied') return 'rejected'
-  if (props.block.status === 'success') return 'replied'
-  return 'asked'
-})
-const isRejected = computed(() => resolution.value === 'rejected')
-const answerText = computed(() => {
-  const raw = props.block.extra?.answerText
-  return typeof raw === 'string' ? raw : ''
-})
 
 const questionText = computed(() => {
   const raw = props.block.extra?.questionText
   if (typeof raw === 'string' && raw.trim()) return raw
   return props.block.content || ''
+})
+
+const answerText = computed(() => {
+  const raw = props.block.extra?.answerText
+  return typeof raw === 'string' ? raw : ''
 })
 
 const normalizeOption = (option: unknown): QuestionOption | null => {
@@ -118,34 +86,6 @@ const options = computed<QuestionOption[]>(() => {
   }
   return []
 })
-
-const handleOptionClick = async (label: string) => {
-  if (isProcessing.value) return
-  await submitMessage(label)
-}
-
-const submitMessage = async (text: string) => {
-  const trimmed = text.trim()
-  if (!trimmed) return
-  if (isProcessing.value) return
-
-  isProcessing.value = true
-  try {
-    const messageContent: UserMessageContent = {
-      text: trimmed,
-      files: [],
-      links: [],
-      search: false,
-      think: settings.value.deepThinking,
-      content: [{ type: 'text', content: trimmed }]
-    }
-    await chatStore.sendMessage(messageContent)
-  } catch (error) {
-    console.error('Failed to submit question answer:', error)
-  } finally {
-    isProcessing.value = false
-  }
-}
 </script>
 
 <style scoped></style>

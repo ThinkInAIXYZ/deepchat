@@ -17,6 +17,20 @@ vi.mock('@/events', () => ({
   }
 }))
 
+vi.mock('@/presenter', () => ({
+  presenter: {
+    commandPermissionService: {
+      extractCommandSignature: vi.fn().mockReturnValue('mock-signature'),
+      approve: vi.fn()
+    },
+    filePermissionService: { approve: vi.fn() },
+    settingsPermissionService: { approve: vi.fn() },
+    mcpPresenter: {
+      grantPermission: vi.fn().mockResolvedValue(undefined)
+    }
+  }
+}))
+
 import { processStream } from '@/presenter/deepchatAgentPresenter/process'
 import { eventBus } from '@/eventbus'
 
@@ -92,6 +106,7 @@ describe('processStream', () => {
       modelConfig: {} as any,
       temperature: 0.7,
       maxTokens: 4096,
+      permissionMode: 'full_access',
       io: {
         sessionId: 's1',
         messageId: 'm1',
@@ -110,9 +125,15 @@ describe('processStream', () => {
 
     expect(params.coreStream).toHaveBeenCalledTimes(1)
     expect(messageStore.finalizeAssistantMessage).toHaveBeenCalled()
-    expect(eventBus.sendToRenderer).toHaveBeenCalledWith('stream:end', 'all', {
-      conversationId: 's1'
-    })
+    expect(eventBus.sendToRenderer).toHaveBeenCalledWith(
+      'stream:end',
+      'all',
+      expect.objectContaining({
+        conversationId: 's1',
+        messageId: 'm1',
+        eventId: 'm1'
+      })
+    )
   })
 
   it('single tool call → loop once, finalize', async () => {
@@ -323,10 +344,16 @@ describe('processStream', () => {
     await promise
 
     expect(messageStore.setMessageError).toHaveBeenCalled()
-    expect(eventBus.sendToRenderer).toHaveBeenCalledWith('stream:error', 'all', {
-      conversationId: 's1',
-      error: 'Generation cancelled'
-    })
+    expect(eventBus.sendToRenderer).toHaveBeenCalledWith(
+      'stream:error',
+      'all',
+      expect.objectContaining({
+        conversationId: 's1',
+        messageId: 'm1',
+        eventId: 'm1',
+        error: 'Generation cancelled'
+      })
+    )
   })
 
   it('abort during tool execution', async () => {
@@ -420,9 +447,15 @@ describe('processStream', () => {
     await promise
 
     expect(messageStore.setMessageError).toHaveBeenCalled()
-    expect(eventBus.sendToRenderer).toHaveBeenCalledWith('stream:error', 'all', {
-      conversationId: 's1',
-      error: 'Connection lost'
-    })
+    expect(eventBus.sendToRenderer).toHaveBeenCalledWith(
+      'stream:error',
+      'all',
+      expect.objectContaining({
+        conversationId: 's1',
+        messageId: 'm1',
+        eventId: 'm1',
+        error: 'Connection lost'
+      })
+    )
   })
 })

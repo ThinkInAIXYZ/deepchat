@@ -21,7 +21,13 @@ function recordToChatMessages(record: ChatMessageRecord): ChatMessage[] {
     .map((b) => b.content)
     .join('')
 
-  const toolCallBlocks = blocks.filter((b) => b.type === 'tool_call' && b.tool_call)
+  const toolCallBlocks = blocks.filter(
+    (b) =>
+      b.type === 'tool_call' &&
+      b.tool_call &&
+      typeof b.tool_call.id === 'string' &&
+      typeof b.tool_call.name === 'string'
+  )
 
   if (toolCallBlocks.length === 0) {
     return [{ role: 'assistant', content: text }]
@@ -32,14 +38,27 @@ function recordToChatMessages(record: ChatMessageRecord): ChatMessage[] {
   // models (DeepSeek Reasoner etc.), reasoning_content is only required on
   // assistant messages in the current agent loop exchange, which the agentLoop
   // handles directly. Historical messages just include reasoning in content.
+  const toolCalls: NonNullable<ChatMessage['tool_calls']> = []
+  for (const block of toolCallBlocks) {
+    const toolCall = block.tool_call
+    if (!toolCall?.id || !toolCall.name) {
+      continue
+    }
+    toolCalls.push({
+      id: toolCall.id,
+      type: 'function',
+      function: { name: toolCall.name, arguments: toolCall.params || '{}' }
+    })
+  }
+
+  if (toolCalls.length === 0) {
+    return [{ role: 'assistant', content: text }]
+  }
+
   const assistantMsg: ChatMessage = {
     role: 'assistant',
     content: text,
-    tool_calls: toolCallBlocks.map((b) => ({
-      id: b.tool_call!.id,
-      type: 'function' as const,
-      function: { name: b.tool_call!.name, arguments: b.tool_call!.params }
-    }))
+    tool_calls: toolCalls
   }
 
   const result: ChatMessage[] = [assistantMsg]
@@ -145,5 +164,47 @@ export function buildContext(
   messages.push(...truncatedHistory)
   messages.push({ role: 'user', content: newUserContent })
 
+  return messages
+}
+
+/**
+ * Build context for resuming an assistant message that paused on tool interactions.
+ * Includes:
+ * - system prompt
+ * - historical sent messages
+ * - the target assistant message (even if still pending)
+ */
+export function buildResumeContext(
+  sessionId: string,
+  assistantMessageId: string,
+  systemPrompt: string,
+  contextLength: number,
+  maxTokens: number,
+  messageStore: DeepChatMessageStore
+): ChatMessage[] {
+  const allMessages = messageStore.getMessages(sessionId)
+  const targetMessage = allMessages.find((message) => message.id === assistantMessageId)
+  const targetOrderSeq = targetMessage?.orderSeq
+
+  const historyRecords = allMessages.filter((message) => {
+    if (targetOrderSeq !== undefined && message.orderSeq > targetOrderSeq) {
+      return false
+    }
+    if (message.id === assistantMessageId) {
+      return true
+    }
+    return message.status === 'sent'
+  })
+
+  const history = historyRecords.flatMap((record) => recordToChatMessages(record))
+  const systemPromptTokens = systemPrompt ? approximateTokenSize(systemPrompt) : 0
+  const available = contextLength - systemPromptTokens - maxTokens
+  const truncatedHistory = available > 0 ? truncateContext(history, available) : []
+
+  const messages: ChatMessage[] = []
+  if (systemPrompt) {
+    messages.push({ role: 'system', content: systemPrompt })
+  }
+  messages.push(...truncatedHistory)
   return messages
 }

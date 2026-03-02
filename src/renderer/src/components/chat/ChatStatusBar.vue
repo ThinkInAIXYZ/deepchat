@@ -61,14 +61,44 @@
       </DropdownMenu>
     </div>
 
-    <!-- Permissions (read-only indicator) -->
+    <DropdownMenu v-if="canSelectPermissionMode">
+      <DropdownMenuTrigger as-child>
+        <Button
+          variant="ghost"
+          size="sm"
+          class="h-6 px-2 gap-1.5 text-xs text-muted-foreground hover:text-foreground backdrop-blur-lg"
+        >
+          <Icon icon="lucide:shield" class="w-3.5 h-3.5" />
+          <span>{{ permissionModeLabel }}</span>
+          <Icon icon="lucide:chevron-down" class="w-3 h-3" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" class="min-w-0">
+        <DropdownMenuItem
+          class="text-xs py-1.5 px-2"
+          :disabled="permissionMode === 'full_access'"
+          @click="selectPermissionMode('full_access')"
+        >
+          Full access
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          class="text-xs py-1.5 px-2"
+          :disabled="permissionMode === 'default'"
+          @click="selectPermissionMode('default')"
+        >
+          Default permissions
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
     <Button
+      v-else
       variant="ghost"
       size="sm"
       class="h-6 px-2 gap-1.5 text-xs text-muted-foreground hover:text-foreground backdrop-blur-lg"
+      :disabled="true"
     >
       <Icon icon="lucide:shield" class="w-3.5 h-3.5" />
-      <span>Default permissions</span>
+      <span>Full access</span>
     </Button>
   </div>
 </template>
@@ -92,6 +122,7 @@ import { useSessionStore } from '@/stores/ui/session'
 import { useDraftStore } from '@/stores/ui/draft'
 import { usePresenter } from '@/composables/usePresenter'
 import type { RENDERER_MODEL_META } from '@shared/presenter'
+import type { PermissionMode } from '@shared/types/agent-interface'
 
 type ModelSelection = {
   providerId: string
@@ -105,9 +136,12 @@ const agentStore = useAgentStore()
 const sessionStore = useSessionStore()
 const draftStore = useDraftStore()
 const configPresenter = usePresenter('configPresenter')
+const newAgentPresenter = usePresenter('newAgentPresenter')
 
 const draftModelSelection = ref<ModelSelection | null>(null)
 let draftModelSyncToken = 0
+const permissionMode = ref<PermissionMode>('full_access')
+let permissionSyncToken = 0
 
 // Determine if we're in an active session or on NewThreadPage
 const hasActiveSession = computed(() => sessionStore.hasActiveSession)
@@ -220,6 +254,30 @@ watch(
   { immediate: true, deep: true }
 )
 
+const canSelectPermissionMode = computed(() => hasActiveSession.value && !isAcpAgent.value)
+
+watch(
+  [() => sessionStore.activeSessionId, canSelectPermissionMode],
+  async ([sessionId, canSelect]) => {
+    const token = ++permissionSyncToken
+    if (!sessionId || !canSelect) {
+      permissionMode.value = 'full_access'
+      return
+    }
+
+    try {
+      const mode = await newAgentPresenter.getPermissionMode(sessionId)
+      if (token !== permissionSyncToken) return
+      permissionMode.value = mode === 'default' ? 'default' : 'full_access'
+    } catch (error) {
+      console.warn('[ChatStatusBar] Failed to load permission mode:', error)
+      if (token !== permissionSyncToken) return
+      permissionMode.value = 'full_access'
+    }
+  },
+  { immediate: true }
+)
+
 // Resolve display provider ID
 const displayProviderId = computed(() => {
   if (hasActiveSession.value) {
@@ -293,5 +351,22 @@ const currentEffortLabel = computed(() => {
 
 async function selectEffort(value: 'low' | 'medium' | 'high') {
   await chatStore.updateChatConfig({ reasoningEffort: value })
+}
+
+const permissionModeLabel = computed(() =>
+  permissionMode.value === 'default' ? 'Default permissions' : 'Full access'
+)
+
+async function selectPermissionMode(mode: PermissionMode) {
+  const sessionId = sessionStore.activeSessionId
+  if (!sessionId || !canSelectPermissionMode.value) return
+  if (permissionMode.value === mode) return
+
+  permissionMode.value = mode
+  try {
+    await newAgentPresenter.setPermissionMode(sessionId, mode)
+  } catch (error) {
+    console.warn('[ChatStatusBar] Failed to set permission mode:', error)
+  }
 }
 </script>

@@ -5,6 +5,7 @@ import type {
   UserMessageContent,
   AssistantMessageBlock
 } from '@shared/types/agent-interface'
+import type { DeepChatMessageRow } from '../sqlitePresenter/tables/deepchatMessages'
 
 export class DeepChatMessageStore {
   private sqlitePresenter: SQLitePresenter
@@ -41,6 +42,10 @@ export class DeepChatMessageStore {
 
   updateAssistantContent(messageId: string, blocks: AssistantMessageBlock[]): void {
     this.sqlitePresenter.deepchatMessagesTable.updateContent(messageId, JSON.stringify(blocks))
+  }
+
+  updateMessageStatus(messageId: string, status: 'pending' | 'sent' | 'error'): void {
+    this.sqlitePresenter.deepchatMessagesTable.updateStatus(messageId, status)
   }
 
   finalizeAssistantMessage(
@@ -110,6 +115,37 @@ export class DeepChatMessageStore {
   }
 
   recoverPendingMessages(): number {
-    return this.sqlitePresenter.deepchatMessagesTable.recoverPendingMessages()
+    const pendingRows = this.sqlitePresenter.deepchatMessagesTable.getByStatus('pending')
+    let recoveredCount = 0
+    for (const row of pendingRows) {
+      if (this.shouldKeepPending(row)) {
+        continue
+      }
+      this.sqlitePresenter.deepchatMessagesTable.updateStatus(row.id, 'error')
+      recoveredCount += 1
+    }
+    return recoveredCount
+  }
+
+  private shouldKeepPending(row: DeepChatMessageRow): boolean {
+    if (row.role !== 'assistant') {
+      return false
+    }
+    try {
+      const blocks = JSON.parse(row.content) as AssistantMessageBlock[]
+      if (!Array.isArray(blocks)) {
+        return false
+      }
+      return blocks.some(
+        (block) =>
+          block.type === 'action' &&
+          (block.action_type === 'tool_call_permission' ||
+            block.action_type === 'question_request') &&
+          block.status === 'pending' &&
+          block.extra?.needsUserAction !== false
+      )
+    } catch {
+      return false
+    }
   }
 }

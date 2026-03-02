@@ -6,13 +6,21 @@
 
       <!-- Input area (sticky bottom, messages scroll under) -->
       <div class="sticky bottom-0 z-10 px-6 pt-3 pb-3">
-        <div class="flex flex-col items-center">
-          <ChatInputBox v-model="message" @submit="onSubmit">
-            <template #toolbar>
-              <ChatInputToolbar @send="onSubmit" />
-            </template>
-          </ChatInputBox>
-          <ChatStatusBar />
+        <div class="flex flex-col items-center w-full">
+          <ChatToolInteractionOverlay
+            v-if="activePendingInteraction"
+            :interaction="activePendingInteraction"
+            :processing="isHandlingInteraction"
+            @respond="onToolInteractionRespond"
+          />
+          <template v-else>
+            <ChatInputBox v-model="message" @submit="onSubmit">
+              <template #toolbar>
+                <ChatInputToolbar @send="onSubmit" />
+              </template>
+            </ChatInputBox>
+            <ChatStatusBar />
+          </template>
         </div>
       </div>
     </div>
@@ -27,10 +35,16 @@ import MessageList from '@/components/chat/MessageList.vue'
 import ChatInputBox from '@/components/chat/ChatInputBox.vue'
 import ChatInputToolbar from '@/components/chat/ChatInputToolbar.vue'
 import ChatStatusBar from '@/components/chat/ChatStatusBar.vue'
+import ChatToolInteractionOverlay from '@/components/chat/ChatToolInteractionOverlay.vue'
 import { useSessionStore } from '@/stores/ui/session'
 import { useMessageStore } from '@/stores/ui/message'
+import { usePresenter } from '@/composables/usePresenter'
 import type { Message } from '@shared/chat'
-import type { ChatMessageRecord, AssistantMessageBlock } from '@shared/types/agent-interface'
+import type {
+  ChatMessageRecord,
+  AssistantMessageBlock,
+  ToolInteractionResponse
+} from '@shared/types/agent-interface'
 
 const props = defineProps<{
   sessionId: string
@@ -38,6 +52,7 @@ const props = defineProps<{
 
 const sessionStore = useSessionStore()
 const messageStore = useMessageStore()
+const newAgentPresenter = usePresenter('newAgentPresenter')
 
 const sessionTitle = computed(() => sessionStore.activeSession?.title ?? 'New Chat')
 const sessionProject = computed(() => sessionStore.activeSession?.projectDir ?? '')
@@ -169,12 +184,93 @@ watch(
 )
 
 const message = ref('')
+const isHandlingInteraction = ref(false)
+
+type PendingInteractionView = {
+  messageId: string
+  toolCallId: string
+  actionType: 'question_request' | 'tool_call_permission'
+  toolName: string
+  toolArgs: string
+  block: AssistantMessageBlock
+}
+
+function parseAssistantBlocks(content: string): AssistantMessageBlock[] {
+  try {
+    const parsed = JSON.parse(content) as AssistantMessageBlock[]
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+const pendingInteractions = computed<PendingInteractionView[]>(() => {
+  const list: PendingInteractionView[] = []
+
+  for (const message of messageStore.messages) {
+    if (message.role !== 'assistant') continue
+    const blocks = parseAssistantBlocks(message.content)
+
+    for (const block of blocks) {
+      if (
+        block.type !== 'action' ||
+        (block.action_type !== 'question_request' &&
+          block.action_type !== 'tool_call_permission') ||
+        block.status !== 'pending' ||
+        block.extra?.needsUserAction === false
+      ) {
+        continue
+      }
+
+      const toolCallId = block.tool_call?.id
+      if (!toolCallId) {
+        continue
+      }
+
+      list.push({
+        messageId: message.id,
+        toolCallId,
+        actionType: block.action_type,
+        toolName: block.tool_call?.name || '',
+        toolArgs: block.tool_call?.params || '',
+        block
+      })
+    }
+  }
+
+  return list
+})
+
+const activePendingInteraction = computed(() => pendingInteractions.value[0] ?? null)
 
 async function onSubmit() {
+  if (activePendingInteraction.value || isHandlingInteraction.value) return
   const text = message.value.trim()
   if (!text) return
   message.value = ''
   messageStore.addOptimisticUserMessage(props.sessionId, text)
   await sessionStore.sendMessage(props.sessionId, text)
+}
+
+async function onToolInteractionRespond(response: ToolInteractionResponse) {
+  const interaction = activePendingInteraction.value
+  if (!interaction || isHandlingInteraction.value) {
+    return
+  }
+
+  isHandlingInteraction.value = true
+  try {
+    await newAgentPresenter.respondToolInteraction(
+      props.sessionId,
+      interaction.messageId,
+      interaction.toolCallId,
+      response
+    )
+    await messageStore.loadMessages(props.sessionId)
+  } catch (error) {
+    console.error('[ChatPage] respond tool interaction failed:', error)
+  } finally {
+    isHandlingInteraction.value = false
+  }
 }
 </script>

@@ -8,8 +8,10 @@ function createMockSqlitePresenter() {
     deepchatMessagesTable: {
       insert: vi.fn(),
       updateContent: vi.fn(),
+      updateStatus: vi.fn(),
       updateContentAndStatus: vi.fn(),
       getBySession: vi.fn().mockReturnValue([]),
+      getByStatus: vi.fn().mockReturnValue([]),
       getIdsBySession: vi.fn().mockReturnValue([]),
       get: vi.fn(),
       getMaxOrderSeq: vi.fn().mockReturnValue(0),
@@ -194,9 +196,38 @@ describe('DeepChatMessageStore', () => {
   })
 
   describe('recoverPendingMessages', () => {
-    it('delegates and returns count', () => {
-      sqlitePresenter.deepchatMessagesTable.recoverPendingMessages.mockReturnValue(3)
-      expect(store.recoverPendingMessages()).toBe(3)
+    it('marks non-interaction pending messages as error', () => {
+      sqlitePresenter.deepchatMessagesTable.getByStatus.mockReturnValue([
+        {
+          id: 'm1',
+          role: 'assistant',
+          content: JSON.stringify([
+            {
+              type: 'action',
+              action_type: 'question_request',
+              status: 'pending',
+              timestamp: 1,
+              tool_call: { id: 'tc1' },
+              extra: { needsUserAction: true }
+            }
+          ])
+        },
+        {
+          id: 'm2',
+          role: 'assistant',
+          content: JSON.stringify([
+            {
+              type: 'content',
+              status: 'pending',
+              timestamp: 1,
+              content: 'streaming'
+            }
+          ])
+        }
+      ])
+
+      expect(store.recoverPendingMessages()).toBe(1)
+      expect(sqlitePresenter.deepchatMessagesTable.updateStatus).toHaveBeenCalledWith('m2', 'error')
     })
   })
 })

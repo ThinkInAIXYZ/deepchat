@@ -17,6 +17,20 @@ vi.mock('@/events', () => ({
   }
 }))
 
+vi.mock('@/presenter', () => ({
+  presenter: {
+    commandPermissionService: {
+      extractCommandSignature: vi.fn().mockReturnValue('mock-signature'),
+      approve: vi.fn()
+    },
+    filePermissionService: { approve: vi.fn() },
+    settingsPermissionService: { approve: vi.fn() },
+    mcpPresenter: {
+      grantPermission: vi.fn().mockResolvedValue(undefined)
+    }
+  }
+}))
+
 import { executeTools, finalize, finalizeError } from '@/presenter/deepchatAgentPresenter/dispatch'
 import { eventBus } from '@/eventbus'
 
@@ -97,9 +111,18 @@ describe('dispatch', () => {
       })
       state.completedToolCalls = [{ id: 'tc1', name: 'get_weather', arguments: '{}' }]
 
-      const executed = await executeTools(state, conversation, 0, tools, toolPresenter, 'gpt-4', io)
+      const executed = await executeTools(
+        state,
+        conversation,
+        0,
+        tools,
+        toolPresenter,
+        'gpt-4',
+        io,
+        'full_access'
+      )
 
-      expect(executed).toBe(1)
+      expect(executed.executed).toBe(1)
       expect(toolPresenter.callTool).toHaveBeenCalledWith(
         expect.objectContaining({
           id: 'tc1',
@@ -134,7 +157,7 @@ describe('dispatch', () => {
       })
       state.completedToolCalls = [{ id: 'tc1', name: 'get_weather', arguments: '{}' }]
 
-      await executeTools(state, [], 0, tools, toolPresenter, 'gpt-4', io)
+      await executeTools(state, [], 0, tools, toolPresenter, 'gpt-4', io, 'full_access')
 
       expect(state.blocks[0].tool_call!.server_name).toBe('test-server')
       expect(state.blocks[0].tool_call!.server_icons).toBe('icon')
@@ -161,7 +184,16 @@ describe('dispatch', () => {
       })
       state.completedToolCalls = [{ id: 'tc1', name: 'search', arguments: '{}' }]
 
-      await executeTools(state, conversation, 0, tools, toolPresenter, 'deepseek-reasoner', io)
+      await executeTools(
+        state,
+        conversation,
+        0,
+        tools,
+        toolPresenter,
+        'deepseek-reasoner',
+        io,
+        'full_access'
+      )
 
       const assistantMsg = conversation.find((m: any) => m.role === 'assistant')
       expect(assistantMsg.reasoning_content).toBe('Let me think...')
@@ -187,7 +219,7 @@ describe('dispatch', () => {
       })
       state.completedToolCalls = [{ id: 'tc1', name: 'search', arguments: '{}' }]
 
-      await executeTools(state, conversation, 0, tools, toolPresenter, 'gpt-4', io)
+      await executeTools(state, conversation, 0, tools, toolPresenter, 'gpt-4', io, 'full_access')
 
       const assistantMsg = conversation.find((m: any) => m.role === 'assistant')
       expect(assistantMsg.reasoning_content).toBeUndefined()
@@ -210,7 +242,7 @@ describe('dispatch', () => {
       })
       state.completedToolCalls = [{ id: 'tc1', name: 'bad_tool', arguments: '{}' }]
 
-      await executeTools(state, conversation, 0, tools, toolPresenter, 'gpt-4', io)
+      await executeTools(state, conversation, 0, tools, toolPresenter, 'gpt-4', io, 'full_access')
 
       const toolMsg = conversation.find((m: any) => m.role === 'tool')
       expect(toolMsg.content).toBe('Error: Tool failed')
@@ -251,10 +283,19 @@ describe('dispatch', () => {
         { id: 'tc2', name: 'tool_b', arguments: '{}' }
       ]
 
-      const executed = await executeTools(state, [], 0, tools, toolPresenter, 'gpt-4', abortIo)
+      const executed = await executeTools(
+        state,
+        [],
+        0,
+        tools,
+        toolPresenter,
+        'gpt-4',
+        abortIo,
+        'full_access'
+      )
 
       // Only first tool should have been called
-      expect(executed).toBe(1)
+      expect(executed.executed).toBe(1)
       expect(toolPresenter.callTool).toHaveBeenCalledTimes(1)
     })
 
@@ -271,12 +312,18 @@ describe('dispatch', () => {
       })
       state.completedToolCalls = [{ id: 'tc1', name: 'tool_a', arguments: '{}' }]
 
-      await executeTools(state, [], 0, tools, toolPresenter, 'gpt-4', io)
+      await executeTools(state, [], 0, tools, toolPresenter, 'gpt-4', io, 'full_access')
 
-      expect(eventBus.sendToRenderer).toHaveBeenCalledWith('stream:response', 'all', {
-        conversationId: 's1',
-        blocks: expect.any(Array)
-      })
+      expect(eventBus.sendToRenderer).toHaveBeenCalledWith(
+        'stream:response',
+        'all',
+        expect.objectContaining({
+          conversationId: 's1',
+          messageId: 'm1',
+          eventId: 'm1',
+          blocks: expect.any(Array)
+        })
+      )
       expect(io.messageStore.updateAssistantContent).toHaveBeenCalled()
     })
   })
@@ -314,9 +361,15 @@ describe('dispatch', () => {
     it('emits END event', () => {
       finalize(state, io)
 
-      expect(eventBus.sendToRenderer).toHaveBeenCalledWith('stream:end', 'all', {
-        conversationId: 's1'
-      })
+      expect(eventBus.sendToRenderer).toHaveBeenCalledWith(
+        'stream:end',
+        'all',
+        expect.objectContaining({
+          conversationId: 's1',
+          messageId: 'm1',
+          eventId: 'm1'
+        })
+      )
     })
 
     it('emits RESPONSE with blocks', () => {
@@ -329,10 +382,16 @@ describe('dispatch', () => {
 
       finalize(state, io)
 
-      expect(eventBus.sendToRenderer).toHaveBeenCalledWith('stream:response', 'all', {
-        conversationId: 's1',
-        blocks: expect.any(Array)
-      })
+      expect(eventBus.sendToRenderer).toHaveBeenCalledWith(
+        'stream:response',
+        'all',
+        expect.objectContaining({
+          conversationId: 's1',
+          messageId: 'm1',
+          eventId: 'm1',
+          blocks: expect.any(Array)
+        })
+      )
     })
   })
 
@@ -362,10 +421,16 @@ describe('dispatch', () => {
     it('emits ERROR event', () => {
       finalizeError(state, io, new Error('boom'))
 
-      expect(eventBus.sendToRenderer).toHaveBeenCalledWith('stream:error', 'all', {
-        conversationId: 's1',
-        error: 'boom'
-      })
+      expect(eventBus.sendToRenderer).toHaveBeenCalledWith(
+        'stream:error',
+        'all',
+        expect.objectContaining({
+          conversationId: 's1',
+          messageId: 'm1',
+          eventId: 'm1',
+          error: 'boom'
+        })
+      )
     })
 
     it('handles non-Error objects', () => {

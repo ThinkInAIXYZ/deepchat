@@ -1,4 +1,9 @@
-import type { AssistantMessageBlock, MessageMetadata } from '@shared/types/agent-interface'
+import type {
+  AssistantMessageBlock,
+  MessageMetadata,
+  PermissionMode,
+  QuestionOption
+} from '@shared/types/agent-interface'
 import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { MCPToolDefinition, ModelConfig } from '@shared/presenter'
@@ -32,6 +37,48 @@ export interface IoParams {
   abortSignal: AbortSignal
 }
 
+export interface PendingToolInteraction {
+  type: 'question' | 'permission'
+  messageId: string
+  toolCallId: string
+  toolName: string
+  toolArgs: string
+  serverName?: string
+  serverIcons?: string
+  serverDescription?: string
+  question?: {
+    header?: string
+    question: string
+    options: QuestionOption[]
+    custom: boolean
+    multiple: boolean
+  }
+  permission?: {
+    permissionType: 'read' | 'write' | 'all' | 'command'
+    description: string
+    toolName?: string
+    serverName?: string
+    providerId?: string
+    requestId?: string
+    rememberable?: boolean
+    command?: string
+    commandSignature?: string
+    paths?: string[]
+    commandInfo?: {
+      command: string
+      riskLevel: 'low' | 'medium' | 'high' | 'critical'
+      suggestion: string
+      signature?: string
+      baseCommand?: string
+    }
+  }
+}
+
+export interface ProcessResult {
+  status: 'completed' | 'paused' | 'aborted' | 'error'
+  pendingInteractions?: PendingToolInteraction[]
+}
+
 export interface ProcessParams {
   messages: ChatMessage[]
   tools: MCPToolDefinition[]
@@ -48,6 +95,8 @@ export interface ProcessParams {
   modelConfig: ModelConfig
   temperature: number
   maxTokens: number
+  permissionMode: PermissionMode
+  initialBlocks?: AssistantMessageBlock[]
   io: IoParams
 }
 

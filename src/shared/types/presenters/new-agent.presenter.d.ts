@@ -2,7 +2,10 @@ import type {
   Agent,
   CreateSessionInput,
   SessionWithState,
-  ChatMessageRecord
+  ChatMessageRecord,
+  PermissionMode,
+  ToolInteractionResponse,
+  ToolInteractionResult
 } from '../agent-interface'
 
 export interface INewAgentPresenter {
@@ -19,4 +22,12 @@ export interface INewAgentPresenter {
   getAgents(): Promise<Agent[]>
   deleteSession(sessionId: string): Promise<void>
   cancelGeneration(sessionId: string): Promise<void>
+  respondToolInteraction(
+    sessionId: string,
+    messageId: string,
+    toolCallId: string,
+    response: ToolInteractionResponse
+  ): Promise<ToolInteractionResult>
+  getPermissionMode(sessionId: string): Promise<PermissionMode>
+  setPermissionMode(sessionId: string, mode: PermissionMode): Promise<void>
 }

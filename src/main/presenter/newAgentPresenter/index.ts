@@ -4,7 +4,10 @@ import type {
   SessionWithState,
   ChatMessageRecord,
   UserMessageContent,
-  AssistantMessageBlock
+  AssistantMessageBlock,
+  PermissionMode,
+  ToolInteractionResponse,
+  ToolInteractionResult
 } from '@shared/types/agent-interface'
 import type { IConfigPresenter, ILlmProviderPresenter } from '@shared/presenter'
 import type { SQLitePresenter } from '../sqlitePresenter'
@@ -194,6 +197,47 @@ export class NewAgentPresenter {
     if (!session) return
     const agent = this.agentRegistry.resolve(session.agentId)
     await agent.cancelGeneration(sessionId)
+  }
+
+  async respondToolInteraction(
+    sessionId: string,
+    messageId: string,
+    toolCallId: string,
+    response: ToolInteractionResponse
+  ): Promise<ToolInteractionResult> {
+    const session = this.sessionManager.get(sessionId)
+    if (!session) {
+      throw new Error(`Session not found: ${sessionId}`)
+    }
+    const agent = this.agentRegistry.resolve(session.agentId)
+    if (!agent.respondToolInteraction) {
+      throw new Error(`Agent ${session.agentId} does not support tool interaction response.`)
+    }
+    return await agent.respondToolInteraction(sessionId, messageId, toolCallId, response)
+  }
+
+  async getPermissionMode(sessionId: string): Promise<PermissionMode> {
+    const session = this.sessionManager.get(sessionId)
+    if (!session) {
+      throw new Error(`Session not found: ${sessionId}`)
+    }
+    const agent = this.agentRegistry.resolve(session.agentId)
+    if (!agent.getPermissionMode) {
+      return 'full_access'
+    }
+    return await agent.getPermissionMode(sessionId)
+  }
+
+  async setPermissionMode(sessionId: string, mode: PermissionMode): Promise<void> {
+    const session = this.sessionManager.get(sessionId)
+    if (!session) {
+      throw new Error(`Session not found: ${sessionId}`)
+    }
+    const agent = this.agentRegistry.resolve(session.agentId)
+    if (!agent.setPermissionMode) {
+      return
+    }
+    await agent.setPermissionMode(sessionId, mode)
   }
 
   private async generateSessionTitle(

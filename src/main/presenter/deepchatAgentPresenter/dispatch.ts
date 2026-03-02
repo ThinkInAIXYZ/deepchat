@@ -1,25 +1,47 @@
-import type { AssistantMessageBlock } from '@shared/types/agent-interface'
-import type { ChatMessage } from '@shared/types/core/chat-message'
-import type { MCPToolDefinition } from '@shared/presenter'
-import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
-import type { MCPToolCall, MCPContentItem } from '@shared/types/core/mcp'
-import type { StreamState, IoParams } from './types'
 import { eventBus, SendTarget } from '@/eventbus'
 import { STREAM_EVENTS } from '@/events'
+import { presenter } from '@/presenter'
+import type { MCPToolDefinition } from '@shared/presenter'
+import type { MCPToolCall, MCPContentItem } from '@shared/types/core/mcp'
+import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
+import type { AssistantMessageBlock, PermissionMode } from '@shared/types/agent-interface'
+import { parseQuestionToolArgs, QUESTION_TOOL_NAME } from '../agentPresenter/tools/questionTool'
+import type { IoParams, PendingToolInteraction, StreamState } from './types'
+import type { ChatMessage } from '@shared/types/core/chat-message'
 
-// ---- Private helpers ----
+type PermissionType = 'read' | 'write' | 'all' | 'command'
+
+type PermissionRequestLike = {
+  toolName?: string
+  serverName?: string
+  permissionType?: PermissionType
+  description?: string
+  command?: string
+  commandSignature?: string
+  commandInfo?: {
+    command: string
+    riskLevel: 'low' | 'medium' | 'high' | 'critical'
+    suggestion: string
+    signature?: string
+    baseCommand?: string
+  }
+  providerId?: string
+  requestId?: string
+  rememberable?: boolean
+  paths?: string[]
+}
 
 function extractTextFromBlocks(blocks: AssistantMessageBlock[]): string {
   return blocks
     .filter((b) => b.type === 'content')
-    .map((b) => b.content)
+    .map((b) => b.content || '')
     .join('')
 }
 
 function extractReasoningFromBlocks(blocks: AssistantMessageBlock[]): string {
   return blocks
     .filter((b) => b.type === 'reasoning_content')
-    .map((b) => b.content)
+    .map((b) => b.content || '')
     .join('')
 }
 
@@ -56,13 +78,199 @@ function updateToolCallBlock(
   }
 }
 
-// ---- Public API ----
+function isPermissionType(value: unknown): value is PermissionType {
+  return value === 'read' || value === 'write' || value === 'all' || value === 'command'
+}
 
-/**
- * Execute completed tool calls: build the assistant message, call each tool,
- * update blocks, and flush to renderer + DB after each execution.
- * Returns the number of tool calls executed.
- */
+function normalizePermissionRequest(
+  request: PermissionRequestLike | null | undefined,
+  fallback: {
+    toolName: string
+    serverName?: string
+    description: string
+  }
+): PendingToolInteraction['permission'] {
+  const permissionType = isPermissionType(request?.permissionType)
+    ? request.permissionType
+    : 'write'
+  const toolName = typeof request?.toolName === 'string' ? request.toolName : fallback.toolName
+  const serverName =
+    typeof request?.serverName === 'string' ? request.serverName : fallback.serverName
+  const description =
+    typeof request?.description === 'string' && request.description.trim().length > 0
+      ? request.description
+      : fallback.description
+
+  return {
+    permissionType,
+    description,
+    toolName,
+    serverName,
+    providerId: typeof request?.providerId === 'string' ? request.providerId : undefined,
+    requestId: typeof request?.requestId === 'string' ? request.requestId : undefined,
+    rememberable: request?.rememberable === false ? false : true,
+    command: typeof request?.command === 'string' ? request.command : undefined,
+    commandSignature:
+      typeof request?.commandSignature === 'string' ? request.commandSignature : undefined,
+    paths: Array.isArray(request?.paths)
+      ? request.paths.filter((item): item is string => typeof item === 'string' && item.length > 0)
+      : undefined,
+    commandInfo: request?.commandInfo
+  }
+}
+
+async function autoGrantPermission(
+  conversationId: string,
+  permission: NonNullable<PendingToolInteraction['permission']>
+): Promise<void> {
+  const type = permission.permissionType
+  const serverName = permission.serverName || ''
+  const toolName = permission.toolName || ''
+
+  if (type === 'command') {
+    const command = permission.command || permission.commandInfo?.command || ''
+    const signature =
+      permission.commandSignature ||
+      permission.commandInfo?.signature ||
+      (command ? presenter.commandPermissionService.extractCommandSignature(command) : '')
+    if (signature) {
+      presenter.commandPermissionService.approve(conversationId, signature, false)
+    }
+    return
+  }
+
+  if (
+    serverName === 'agent-filesystem' &&
+    Array.isArray(permission.paths) &&
+    permission.paths.length
+  ) {
+    presenter.filePermissionService?.approve(conversationId, permission.paths, false)
+    return
+  }
+
+  if (serverName === 'deepchat-settings' && toolName) {
+    presenter.settingsPermissionService?.approve(conversationId, toolName, false)
+    return
+  }
+
+  if (serverName && (type === 'read' || type === 'write' || type === 'all')) {
+    await presenter.mcpPresenter.grantPermission(serverName, type, false, conversationId)
+  }
+}
+
+function appendPermissionActionBlock(
+  state: StreamState,
+  io: IoParams,
+  toolCall: {
+    id: string
+    name: string
+    args: string
+    serverName?: string
+    serverIcons?: string
+    serverDescription?: string
+  },
+  permission: NonNullable<PendingToolInteraction['permission']>
+): PendingToolInteraction {
+  state.blocks.push({
+    type: 'action',
+    content: permission.description,
+    status: 'pending',
+    timestamp: Date.now(),
+    action_type: 'tool_call_permission',
+    tool_call: {
+      id: toolCall.id,
+      name: toolCall.name,
+      params: toolCall.args,
+      server_name: toolCall.serverName,
+      server_icons: toolCall.serverIcons,
+      server_description: toolCall.serverDescription
+    },
+    extra: {
+      needsUserAction: true,
+      permissionType: permission.permissionType,
+      toolName: permission.toolName || toolCall.name,
+      serverName: permission.serverName || toolCall.serverName || '',
+      ...(permission.providerId ? { providerId: permission.providerId } : {}),
+      ...(permission.requestId ? { permissionRequestId: permission.requestId } : {}),
+      ...(permission.commandInfo ? { commandInfo: JSON.stringify(permission.commandInfo) } : {}),
+      permissionRequest: JSON.stringify(permission),
+      ...(permission.rememberable === false ? { rememberable: false } : {})
+    }
+  })
+  state.dirty = true
+  return {
+    type: 'permission',
+    messageId: io.messageId,
+    toolCallId: toolCall.id,
+    toolName: toolCall.name,
+    toolArgs: toolCall.args,
+    serverName: toolCall.serverName,
+    serverIcons: toolCall.serverIcons,
+    serverDescription: toolCall.serverDescription,
+    permission
+  }
+}
+
+function appendQuestionActionBlock(
+  state: StreamState,
+  io: IoParams,
+  toolCall: {
+    id: string
+    name: string
+    args: string
+    serverName?: string
+    serverIcons?: string
+    serverDescription?: string
+  },
+  question: NonNullable<PendingToolInteraction['question']>
+): PendingToolInteraction {
+  state.blocks.push({
+    type: 'action',
+    content: '',
+    status: 'pending',
+    timestamp: Date.now(),
+    action_type: 'question_request',
+    tool_call: {
+      id: toolCall.id,
+      name: toolCall.name,
+      params: toolCall.args,
+      server_name: toolCall.serverName,
+      server_icons: toolCall.serverIcons,
+      server_description: toolCall.serverDescription
+    },
+    extra: {
+      needsUserAction: true,
+      questionHeader: question.header || '',
+      questionText: question.question,
+      questionOptions: question.options,
+      questionMultiple: question.multiple,
+      questionCustom: question.custom,
+      questionResolution: 'asked'
+    }
+  })
+  state.dirty = true
+  return {
+    type: 'question',
+    messageId: io.messageId,
+    toolCallId: toolCall.id,
+    toolName: toolCall.name,
+    toolArgs: toolCall.args,
+    serverName: toolCall.serverName,
+    serverIcons: toolCall.serverIcons,
+    serverDescription: toolCall.serverDescription,
+    question
+  }
+}
+
+function flushBlocksToRenderer(io: IoParams, blocks: AssistantMessageBlock[]): void {
+  eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, SendTarget.ALL_WINDOWS, {
+    conversationId: io.sessionId,
+    eventId: io.messageId,
+    messageId: io.messageId,
+    blocks: JSON.parse(JSON.stringify(blocks))
+  })
+}
+
 export async function executeTools(
   state: StreamState,
   conversation: ChatMessage[],
@@ -70,22 +278,19 @@ export async function executeTools(
   tools: MCPToolDefinition[],
   toolPresenter: IToolPresenter,
   modelId: string,
-  io: IoParams
-): Promise<number> {
-  // Enrich tool_call blocks with server info from tool definitions
+  io: IoParams,
+  permissionMode: PermissionMode
+): Promise<{ executed: number; pendingInteractions: PendingToolInteraction[] }> {
   for (const tc of state.completedToolCalls) {
     const toolDef = tools.find((t) => t.function.name === tc.name)
-    if (toolDef) {
-      const block = state.blocks.find((b) => b.type === 'tool_call' && b.tool_call?.id === tc.id)
-      if (block?.tool_call) {
-        block.tool_call.server_name = toolDef.server.name
-        block.tool_call.server_icons = toolDef.server.icons
-        block.tool_call.server_description = toolDef.server.description
-      }
-    }
+    if (!toolDef) continue
+    const block = state.blocks.find((b) => b.type === 'tool_call' && b.tool_call?.id === tc.id)
+    if (!block?.tool_call) continue
+    block.tool_call.server_name = toolDef.server.name
+    block.tool_call.server_icons = toolDef.server.icons
+    block.tool_call.server_description = toolDef.server.description
   }
 
-  // Build assistant message from this iteration's blocks
   const iterationBlocks = state.blocks.slice(prevBlockCount)
   const assistantText = extractTextFromBlocks(iterationBlocks)
   const assistantMessage: ChatMessage = {
@@ -98,7 +303,6 @@ export async function executeTools(
     }))
   }
 
-  // Interleaved thinking for reasoning models
   if (requiresReasoningField(modelId)) {
     const reasoning = extractReasoningFromBlocks(iterationBlocks)
     if (reasoning) {
@@ -109,8 +313,8 @@ export async function executeTools(
   conversation.push(assistantMessage)
 
   let executed = 0
+  const pendingInteractions: PendingToolInteraction[] = []
 
-  // Execute each tool call
   for (const tc of state.completedToolCalls) {
     if (io.abortSignal.aborted) break
 
@@ -123,49 +327,154 @@ export async function executeTools(
       conversationId: io.sessionId
     }
 
-    try {
-      const { rawData } = await toolPresenter.callTool(toolCall)
-      const responseText = toolResponseToText(rawData.content)
+    const toolContext = {
+      id: tc.id,
+      name: tc.name,
+      args: tc.arguments,
+      serverName: toolDef?.server.name,
+      serverIcons: toolDef?.server.icons,
+      serverDescription: toolDef?.server.description
+    }
 
+    try {
+      if (toolCall.function.name === QUESTION_TOOL_NAME) {
+        const parsedQuestion = parseQuestionToolArgs(tc.arguments)
+        if (!parsedQuestion.success) {
+          const errorText = `Error: ${parsedQuestion.error}`
+          conversation.push({
+            role: 'tool',
+            tool_call_id: tc.id,
+            content: errorText
+          })
+          updateToolCallBlock(state.blocks, tc.id, errorText, true)
+          state.dirty = true
+          executed += 1
+          flushBlocksToRenderer(io, state.blocks)
+          io.messageStore.updateAssistantContent(io.messageId, state.blocks)
+          continue
+        }
+
+        const interaction = appendQuestionActionBlock(state, io, toolContext, {
+          header: parsedQuestion.data.header,
+          question: parsedQuestion.data.question,
+          options: parsedQuestion.data.options,
+          custom: parsedQuestion.data.custom !== false,
+          multiple: Boolean(parsedQuestion.data.multiple)
+        })
+        pendingInteractions.push(interaction)
+        updateToolCallBlock(state.blocks, tc.id, '', false)
+        continue
+      }
+
+      let preCheckedPermission: PendingToolInteraction['permission'] | null = null
+      if (toolPresenter.preCheckToolPermission) {
+        const preChecked = await toolPresenter.preCheckToolPermission(toolCall)
+        if (preChecked?.needsPermission) {
+          preCheckedPermission = normalizePermissionRequest(preChecked as PermissionRequestLike, {
+            toolName: toolContext.name,
+            serverName: toolContext.serverName,
+            description: `Permission required for ${toolContext.name}`
+          })
+        }
+      }
+
+      if (preCheckedPermission) {
+        if (permissionMode === 'full_access') {
+          await autoGrantPermission(io.sessionId, preCheckedPermission)
+        } else {
+          const interaction = appendPermissionActionBlock(
+            state,
+            io,
+            toolContext,
+            preCheckedPermission
+          )
+          pendingInteractions.push(interaction)
+          updateToolCallBlock(state.blocks, tc.id, '', false)
+          continue
+        }
+      }
+
+      const toolCallResult = await toolPresenter.callTool(toolCall)
+      let toolRawData = toolCallResult.rawData
+
+      if (toolRawData?.requiresPermission) {
+        const pendingPermission = normalizePermissionRequest(
+          toolRawData.permissionRequest as PermissionRequestLike | undefined,
+          {
+            toolName: toolContext.name,
+            serverName: toolContext.serverName,
+            description: `Permission required for ${toolContext.name}`
+          }
+        )
+
+        if (pendingPermission) {
+          if (permissionMode === 'full_access') {
+            await autoGrantPermission(io.sessionId, pendingPermission)
+            const retryCallResult = await toolPresenter.callTool(toolCall)
+            toolRawData = retryCallResult.rawData
+          } else {
+            const interaction = appendPermissionActionBlock(
+              state,
+              io,
+              toolContext,
+              pendingPermission
+            )
+            pendingInteractions.push(interaction)
+            updateToolCallBlock(state.blocks, tc.id, '', false)
+            continue
+          }
+        }
+      }
+
+      const responseText = toolResponseToText(toolRawData.content)
       conversation.push({
         role: 'tool',
         tool_call_id: tc.id,
         content: responseText
       })
-
       updateToolCallBlock(state.blocks, tc.id, responseText, false)
     } catch (err) {
       const errorText = err instanceof Error ? err.message : String(err)
-
       conversation.push({
         role: 'tool',
         tool_call_id: tc.id,
         content: `Error: ${errorText}`
       })
-
       updateToolCallBlock(state.blocks, tc.id, `Error: ${errorText}`, true)
     }
 
-    executed++
-
-    // Flush updated blocks to renderer after each tool execution
-    eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, SendTarget.ALL_WINDOWS, {
-      conversationId: io.sessionId,
-      eventId: io.messageId,
-      messageId: io.messageId,
-      blocks: JSON.parse(JSON.stringify(state.blocks))
-    })
-
-    // Persist intermediate state to DB
+    state.dirty = true
+    executed += 1
+    flushBlocksToRenderer(io, state.blocks)
     io.messageStore.updateAssistantContent(io.messageId, state.blocks)
   }
 
-  return executed
+  return { executed, pendingInteractions }
 }
 
-/**
- * Finalize a successful stream: mark blocks as success, compute metadata, persist.
- */
+export function finalizePaused(state: StreamState, io: IoParams): void {
+  for (const block of state.blocks) {
+    if (
+      block.type === 'action' &&
+      (block.action_type === 'tool_call_permission' || block.action_type === 'question_request') &&
+      block.status === 'pending'
+    ) {
+      continue
+    }
+    if (block.status === 'pending') {
+      block.status = 'success'
+    }
+  }
+
+  io.messageStore.updateAssistantContent(io.messageId, state.blocks)
+  flushBlocksToRenderer(io, state.blocks)
+  eventBus.sendToRenderer(STREAM_EVENTS.END, SendTarget.ALL_WINDOWS, {
+    conversationId: io.sessionId,
+    eventId: io.messageId,
+    messageId: io.messageId
+  })
+}
+
 export function finalize(state: StreamState, io: IoParams): void {
   for (const block of state.blocks) {
     if (block.status === 'pending') block.status = 'success'
@@ -187,12 +496,7 @@ export function finalize(state: StreamState, io: IoParams): void {
     state.blocks,
     JSON.stringify(state.metadata)
   )
-  eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, SendTarget.ALL_WINDOWS, {
-    conversationId: io.sessionId,
-    eventId: io.messageId,
-    messageId: io.messageId,
-    blocks: JSON.parse(JSON.stringify(state.blocks))
-  })
+  flushBlocksToRenderer(io, state.blocks)
   eventBus.sendToRenderer(STREAM_EVENTS.END, SendTarget.ALL_WINDOWS, {
     conversationId: io.sessionId,
     eventId: io.messageId,
@@ -200,9 +504,6 @@ export function finalize(state: StreamState, io: IoParams): void {
   })
 }
 
-/**
- * Finalize after an error: push error block, mark blocks as error, persist.
- */
 export function finalizeError(state: StreamState, io: IoParams, error: unknown): void {
   const errorMessage = error instanceof Error ? error.message : String(error)
   const errorBlock: AssistantMessageBlock = {
@@ -218,12 +519,7 @@ export function finalizeError(state: StreamState, io: IoParams, error: unknown):
   }
 
   io.messageStore.setMessageError(io.messageId, state.blocks)
-  eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, SendTarget.ALL_WINDOWS, {
-    conversationId: io.sessionId,
-    eventId: io.messageId,
-    messageId: io.messageId,
-    blocks: JSON.parse(JSON.stringify(state.blocks))
-  })
+  flushBlocksToRenderer(io, state.blocks)
   eventBus.sendToRenderer(STREAM_EVENTS.ERROR, SendTarget.ALL_WINDOWS, {
     conversationId: io.sessionId,
     eventId: io.messageId,
