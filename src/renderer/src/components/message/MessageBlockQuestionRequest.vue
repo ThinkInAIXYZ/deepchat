@@ -33,8 +33,6 @@ import type { QuestionOption } from '@shared/types/core/question'
 
 const props = defineProps<{
   block: AssistantMessageBlock
-  messageId: string
-  conversationId: string
 }>()
 
 const { t } = useI18n()
@@ -65,27 +63,13 @@ const normalizeOption = (option: unknown): QuestionOption | null => {
   return { label }
 }
 
-const options = computed<QuestionOption[]>(() => {
-  const raw = props.block.extra?.questionOptions
-  if (Array.isArray(raw)) {
-    return raw
-      .map((option) => normalizeOption(option))
-      .filter((option): option is QuestionOption => Boolean(option))
-  }
-  if (typeof raw === 'string' && raw.trim()) {
-    try {
-      const parsed = JSON.parse(raw) as unknown
-      if (Array.isArray(parsed)) {
-        return parsed
-          .map((option) => normalizeOption(option))
-          .filter((option): option is QuestionOption => Boolean(option))
-      }
-    } catch (error) {
-      console.error('Failed to parse question options:', error)
-    }
-  }
-  return []
-})
+const options = computed<QuestionOption[]>(() =>
+  Array.isArray(props.block.extra?.questionOptions)
+    ? props.block.extra.questionOptions
+        .map((option) => normalizeOption(option))
+        .filter((option): option is QuestionOption => Boolean(option))
+    : []
+)
 </script>
 
 <style scoped></style>

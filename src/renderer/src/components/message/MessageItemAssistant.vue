@@ -47,8 +47,6 @@
           <MessageBlockQuestionRequest
             v-else-if="block.type === 'action' && block.action_type === 'question_request'"
             :block="block"
-            :message-id="currentMessage.id"
-            :conversation-id="currentThreadId"
           />
           <MessageBlockAction
             v-else-if="block.type === 'action'"
