@@ -324,12 +324,18 @@ describe('DeepChatAgentPresenter', () => {
       ]
       toolPresenter.getAllToolDefinitions.mockResolvedValue(tools)
 
-      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.initSession('s1', {
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        projectDir: '/tmp/proj'
+      })
       await agent.processMessage('s1', 'Hello')
 
       expect(toolPresenter.getAllToolDefinitions).toHaveBeenCalledWith(
         expect.objectContaining({
-          chatMode: 'agent'
+          chatMode: 'agent',
+          conversationId: 's1',
+          agentWorkspacePath: '/tmp/proj'
         })
       )
 

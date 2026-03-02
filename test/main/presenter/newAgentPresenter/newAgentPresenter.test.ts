@@ -99,6 +99,15 @@ describe('NewAgentPresenter', () => {
       expect(result.title).toBe('Hello world')
       expect(result.projectDir).toBe('/tmp/proj')
       expect(result.status).toBe('idle')
+      expect(deepChatAgent.initSession).toHaveBeenCalledWith('mock-session-id', {
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        projectDir: '/tmp/proj'
+      })
+      await new Promise((r) => setTimeout(r, 0))
+      expect(deepChatAgent.processMessage).toHaveBeenCalledWith('mock-session-id', 'Hello world', {
+        projectDir: '/tmp/proj'
+      })
     })
 
     it('derives title from first 50 chars of message', async () => {
@@ -119,11 +128,14 @@ describe('NewAgentPresenter', () => {
 
       expect(deepChatAgent.initSession).toHaveBeenCalledWith('mock-session-id', {
         providerId: 'openai',
-        modelId: 'gpt-4'
+        modelId: 'gpt-4',
+        projectDir: null
       })
       // processMessage is called non-blocking, so we give it a tick
       await new Promise((r) => setTimeout(r, 0))
-      expect(deepChatAgent.processMessage).toHaveBeenCalledWith('mock-session-id', 'Hello')
+      expect(deepChatAgent.processMessage).toHaveBeenCalledWith('mock-session-id', 'Hello', {
+        projectDir: null
+      })
     })
 
     it('emits ACTIVATED and LIST_UPDATED events', async () => {
@@ -141,7 +153,8 @@ describe('NewAgentPresenter', () => {
 
       expect(deepChatAgent.initSession).toHaveBeenCalledWith(expect.any(String), {
         providerId: 'openai',
-        modelId: 'gpt-4'
+        modelId: 'gpt-4',
+        projectDir: null
       })
     })
 
@@ -153,7 +166,8 @@ describe('NewAgentPresenter', () => {
 
       expect(deepChatAgent.initSession).toHaveBeenCalledWith(expect.any(String), {
         providerId: 'anthropic',
-        modelId: 'claude-3'
+        modelId: 'claude-3',
+        projectDir: null
       })
     })
 
@@ -172,14 +186,16 @@ describe('NewAgentPresenter', () => {
         id: 's1',
         agent_id: 'deepchat',
         title: 'Test',
-        project_dir: null,
+        project_dir: '/tmp/workspace',
         is_pinned: 0,
         created_at: 1000,
         updated_at: 1000
       })
 
       await presenter.sendMessage('s1', 'Follow-up')
-      expect(deepChatAgent.processMessage).toHaveBeenCalledWith('s1', 'Follow-up')
+      expect(deepChatAgent.processMessage).toHaveBeenCalledWith('s1', 'Follow-up', {
+        projectDir: '/tmp/workspace'
+      })
     })
 
     it('throws for unknown session', async () => {

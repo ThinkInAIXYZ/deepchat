@@ -15,7 +15,10 @@ export interface DeepChatSessionState {
 
 export interface IAgentImplementation {
   /** Initialize a new session for this agent */
-  initSession(sessionId: string, config: { providerId: string; modelId: string }): Promise<void>
+  initSession(
+    sessionId: string,
+    config: { providerId: string; modelId: string; projectDir?: string | null }
+  ): Promise<void>
 
   /** Destroy a session and all its data */
   destroySession(sessionId: string): Promise<void>
@@ -24,7 +27,11 @@ export interface IAgentImplementation {
   getSessionState(sessionId: string): Promise<DeepChatSessionState | null>
 
   /** Process a user message: persist, call LLM, stream response */
-  processMessage(sessionId: string, content: string): Promise<void>
+  processMessage(
+    sessionId: string,
+    content: string,
+    context?: { projectDir?: string | null }
+  ): Promise<void>
 
   /** Cancel an in-progress generation */
   cancelGeneration(sessionId: string): Promise<void>

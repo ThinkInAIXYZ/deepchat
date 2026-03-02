@@ -104,7 +104,8 @@ describe('dispatch', () => {
         expect.objectContaining({
           id: 'tc1',
           function: { name: 'get_weather', arguments: '{}' },
-          server: tools[0].server
+          server: tools[0].server,
+          conversationId: 's1'
         })
       )
 

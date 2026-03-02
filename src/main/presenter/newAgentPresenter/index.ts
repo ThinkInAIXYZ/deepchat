@@ -41,6 +41,7 @@ export class NewAgentPresenter {
   async createSession(input: CreateSessionInput, webContentsId: number): Promise<SessionWithState> {
     const agentId = input.agentId || 'deepchat'
     console.log(`[NewAgentPresenter] createSession agent=${agentId} webContentsId=${webContentsId}`)
+    const projectDir = input.projectDir?.trim() ? input.projectDir.trim() : null
 
     const agent = this.agentRegistry.resolve(agentId)
 
@@ -56,11 +57,11 @@ export class NewAgentPresenter {
 
     // Create session record
     const title = input.message.slice(0, 50) || 'New Chat'
-    const sessionId = this.sessionManager.create(agentId, title, input.projectDir ?? null)
+    const sessionId = this.sessionManager.create(agentId, title, projectDir)
     console.log(`[NewAgentPresenter] session created id=${sessionId} title="${title}"`)
 
     // Initialize agent-side session
-    await agent.initSession(sessionId, { providerId, modelId })
+    await agent.initSession(sessionId, { providerId, modelId, projectDir })
     console.log(`[NewAgentPresenter] agent.initSession done`)
 
     // Bind to window and emit activated
@@ -73,7 +74,7 @@ export class NewAgentPresenter {
 
     // Process the first message (non-blocking)
     console.log(`[NewAgentPresenter] firing processMessage (non-blocking)`)
-    agent.processMessage(sessionId, input.message).catch((err) => {
+    agent.processMessage(sessionId, input.message, { projectDir }).catch((err) => {
       console.error('[NewAgentPresenter] processMessage failed:', err)
     })
 
@@ -83,7 +84,7 @@ export class NewAgentPresenter {
       id: sessionId,
       agentId,
       title,
-      projectDir: input.projectDir ?? null,
+      projectDir,
       isPinned: false,
       createdAt: Date.now(),
       updatedAt: Date.now(),
@@ -97,7 +98,9 @@ export class NewAgentPresenter {
     const session = this.sessionManager.get(sessionId)
     if (!session) throw new Error(`Session not found: ${sessionId}`)
     const agent = this.agentRegistry.resolve(session.agentId)
-    await agent.processMessage(sessionId, content)
+    await agent.processMessage(sessionId, content, {
+      projectDir: session.projectDir ?? null
+    })
   }
 
   async getSessionList(filters?: {

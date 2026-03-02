@@ -23,6 +23,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
   private messageStore: DeepChatMessageStore
   private runtimeState: Map<string, DeepChatSessionState> = new Map()
   private abortControllers: Map<string, AbortController> = new Map()
+  private sessionProjectDirs: Map<string, string | null> = new Map()
 
   constructor(
     llmProviderPresenter: ILlmProviderPresenter,
@@ -45,12 +46,14 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
 
   async initSession(
     sessionId: string,
-    config: { providerId: string; modelId: string }
+    config: { providerId: string; modelId: string; projectDir?: string | null }
   ): Promise<void> {
+    const projectDir = this.normalizeProjectDir(config.projectDir)
     console.log(
-      `[DeepChatAgent] initSession id=${sessionId} provider=${config.providerId} model=${config.modelId}`
+      `[DeepChatAgent] initSession id=${sessionId} provider=${config.providerId} model=${config.modelId} projectDir=${projectDir ?? '<none>'}`
     )
     this.sessionStore.create(sessionId, config.providerId, config.modelId)
+    this.sessionProjectDirs.set(sessionId, projectDir)
     this.runtimeState.set(sessionId, {
       status: 'idle',
       providerId: config.providerId,
@@ -69,6 +72,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     this.messageStore.deleteBySession(sessionId)
     this.sessionStore.delete(sessionId)
     this.runtimeState.delete(sessionId)
+    this.sessionProjectDirs.delete(sessionId)
   }
 
   async getSessionState(sessionId: string): Promise<DeepChatSessionState | null> {
@@ -88,12 +92,17 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     return rebuilt
   }
 
-  async processMessage(sessionId: string, content: string): Promise<void> {
+  async processMessage(
+    sessionId: string,
+    content: string,
+    context?: { projectDir?: string | null }
+  ): Promise<void> {
     const state = this.runtimeState.get(sessionId)
     if (!state) throw new Error(`Session ${sessionId} not found`)
+    const projectDir = this.resolveProjectDir(sessionId, context?.projectDir)
 
     console.log(
-      `[DeepChatAgent] processMessage session=${sessionId} content="${content.slice(0, 60)}"`
+      `[DeepChatAgent] processMessage session=${sessionId} content="${content.slice(0, 60)}" projectDir=${projectDir ?? '<none>'}`
     )
 
     // Update status to generating
@@ -169,7 +178,9 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       if (this.toolPresenter) {
         try {
           tools = await this.toolPresenter.getAllToolDefinitions({
-            chatMode: 'agent'
+            chatMode: 'agent',
+            conversationId: sessionId,
+            agentWorkspacePath: projectDir
           })
           console.log(`[DeepChatAgent] fetched ${tools.length} tool definitions`)
         } catch (err) {
@@ -242,5 +253,19 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
 
   async getMessage(messageId: string): Promise<ChatMessageRecord | null> {
     return this.messageStore.getMessage(messageId)
+  }
+
+  private normalizeProjectDir(projectDir?: string | null): string | null {
+    const normalized = projectDir?.trim()
+    return normalized ? normalized : null
+  }
+
+  private resolveProjectDir(sessionId: string, incoming?: string | null): string | null {
+    if (incoming !== undefined) {
+      const normalized = this.normalizeProjectDir(incoming)
+      this.sessionProjectDirs.set(sessionId, normalized)
+      return normalized
+    }
+    return this.sessionProjectDirs.get(sessionId) ?? null
   }
 }

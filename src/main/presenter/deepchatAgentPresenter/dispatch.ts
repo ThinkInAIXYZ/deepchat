@@ -119,7 +119,8 @@ export async function executeTools(
       id: tc.id,
       type: 'function',
       function: { name: tc.name, arguments: tc.arguments },
-      server: toolDef?.server
+      server: toolDef?.server,
+      conversationId: io.sessionId
     }
 
     try {
