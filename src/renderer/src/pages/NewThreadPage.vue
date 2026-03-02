@@ -64,7 +64,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { TooltipProvider } from '@shadcn/components/ui/tooltip'
 import { Button } from '@shadcn/components/ui/button'
 import {
@@ -83,17 +83,36 @@ import { useProjectStore } from '@/stores/ui/project'
 import { useSessionStore } from '@/stores/ui/session'
 import { useAgentStore } from '@/stores/ui/agent'
 import { useModelStore } from '@/stores/modelStore'
+import { useDraftStore } from '@/stores/ui/draft'
 import { usePresenter } from '@/composables/usePresenter'
 
 const projectStore = useProjectStore()
 const sessionStore = useSessionStore()
 const agentStore = useAgentStore()
 const modelStore = useModelStore()
+const draftStore = useDraftStore()
 const configPresenter = usePresenter('configPresenter')
 
 const message = ref('')
 
+const getEnabledModel = (
+  providerId?: string,
+  modelId?: string
+): { providerId: string; modelId: string } | null => {
+  if (!providerId || !modelId) return null
+  const matched = modelStore.enabledModels.some(
+    (group) => group.providerId === providerId && group.models.some((model) => model.id === modelId)
+  )
+  return matched ? { providerId, modelId } : null
+}
+
 async function resolveModel(): Promise<{ providerId: string; modelId: string } | null> {
+  // 0. model manually selected in current NewThread page
+  const draftModel = getEnabledModel(draftStore.providerId, draftStore.modelId)
+  if (draftModel) {
+    return draftModel
+  }
+
   // 1. defaultModel from settings
   const defaultModel = (await configPresenter.getSetting('defaultModel')) as
     | { providerId: string; modelId: string }
@@ -148,4 +167,10 @@ async function onSubmit() {
     modelId
   })
 }
+
+onMounted(() => {
+  // Keep new-thread selection page-scoped: start each NewThread page with no manual override.
+  draftStore.providerId = undefined
+  draftStore.modelId = undefined
+})
 </script>

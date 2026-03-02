@@ -74,7 +74,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { Button } from '@shadcn/components/ui/button'
 import {
   DropdownMenu,
@@ -89,13 +89,25 @@ import { useChatStore } from '@/stores/chat'
 import { useModelStore } from '@/stores/modelStore'
 import { useAgentStore } from '@/stores/ui/agent'
 import { useSessionStore } from '@/stores/ui/session'
+import { useDraftStore } from '@/stores/ui/draft'
+import { usePresenter } from '@/composables/usePresenter'
 import type { RENDERER_MODEL_META } from '@shared/presenter'
+
+type ModelSelection = {
+  providerId: string
+  modelId: string
+}
 
 const themeStore = useThemeStore()
 const chatStore = useChatStore()
 const modelStore = useModelStore()
 const agentStore = useAgentStore()
 const sessionStore = useSessionStore()
+const draftStore = useDraftStore()
+const configPresenter = usePresenter('configPresenter')
+
+const draftModelSelection = ref<ModelSelection | null>(null)
+let draftModelSyncToken = 0
 
 // Determine if we're in an active session or on NewThreadPage
 const hasActiveSession = computed(() => sessionStore.hasActiveSession)
@@ -103,35 +115,132 @@ const hasActiveSession = computed(() => sessionStore.hasActiveSession)
 // Determine the effective agent context
 const isAcpAgent = computed(() => {
   if (hasActiveSession.value) {
-    // In active session: check the session's chatMode
-    return chatStore.chatConfig.chatMode === 'acp agent'
+    // In active session: check active session provider
+    return sessionStore.activeSession?.providerId === 'acp'
   }
   // On NewThreadPage: check sidebar agent selection
   const agentId = agentStore.selectedAgentId
   return agentId !== null && agentId !== 'deepchat'
 })
 
+const activeSessionSelection = computed<ModelSelection | null>(() => {
+  const active = sessionStore.activeSession
+  if (!active?.providerId || !active?.modelId) return null
+  return {
+    providerId: active.providerId,
+    modelId: active.modelId
+  }
+})
+
+const isModelSelection = (value: unknown): value is ModelSelection => {
+  if (!value || typeof value !== 'object') return false
+  const candidate = value as { providerId?: unknown; modelId?: unknown }
+  return typeof candidate.providerId === 'string' && typeof candidate.modelId === 'string'
+}
+
+const findEnabledModel = (providerId: string, modelId: string): ModelSelection | null => {
+  for (const group of modelStore.enabledModels) {
+    if (group.providerId !== providerId) continue
+    const hit = group.models.find((model) => model.id === modelId)
+    if (hit) {
+      return { providerId: group.providerId, modelId: hit.id }
+    }
+  }
+  return null
+}
+
+const pickFirstEnabledModel = (): ModelSelection | null => {
+  for (const group of modelStore.enabledModels) {
+    if (group.providerId === 'acp') continue
+    const firstModel = group.models[0]
+    if (firstModel) {
+      return { providerId: group.providerId, modelId: firstModel.id }
+    }
+  }
+  for (const group of modelStore.enabledModels) {
+    const firstModel = group.models[0]
+    if (firstModel) {
+      return { providerId: group.providerId, modelId: firstModel.id }
+    }
+  }
+  return null
+}
+
+const resolveModelName = (modelId: string): string => {
+  const found = modelStore.findModelByIdOrName(modelId)
+  if (found) return found.model.name
+  return modelId
+}
+
+const syncDraftModelSelection = async () => {
+  const token = ++draftModelSyncToken
+  if (hasActiveSession.value) return
+
+  if (isAcpAgent.value) {
+    const agentId = agentStore.selectedAgentId
+    draftModelSelection.value =
+      agentId && agentId !== 'deepchat' ? { providerId: 'acp', modelId: agentId } : null
+    return
+  }
+
+  try {
+    const defaultModel = (await configPresenter.getSetting('defaultModel')) as unknown
+    if (token !== draftModelSyncToken) return
+    if (isModelSelection(defaultModel)) {
+      const resolvedDefault = findEnabledModel(defaultModel.providerId, defaultModel.modelId)
+      if (resolvedDefault) {
+        draftModelSelection.value = resolvedDefault
+        return
+      }
+    }
+
+    const preferredModel = (await configPresenter.getSetting('preferredModel')) as unknown
+    if (token !== draftModelSyncToken) return
+    if (isModelSelection(preferredModel)) {
+      const resolvedPreferred = findEnabledModel(preferredModel.providerId, preferredModel.modelId)
+      if (resolvedPreferred) {
+        draftModelSelection.value = resolvedPreferred
+        return
+      }
+    }
+  } catch (error) {
+    console.warn('[ChatStatusBar] Failed to resolve draft model:', error)
+  }
+
+  if (token !== draftModelSyncToken) return
+  draftModelSelection.value = pickFirstEnabledModel()
+}
+
+watch(
+  [hasActiveSession, isAcpAgent, () => agentStore.selectedAgentId, () => modelStore.enabledModels],
+  () => {
+    if (hasActiveSession.value) return
+    void syncDraftModelSelection()
+  },
+  { immediate: true, deep: true }
+)
+
 // Resolve display provider ID
 const displayProviderId = computed(() => {
   if (hasActiveSession.value) {
-    return chatStore.chatConfig.providerId || 'anthropic'
+    return (
+      activeSessionSelection.value?.providerId || chatStore.chatConfig.providerId || 'anthropic'
+    )
   }
   // On NewThreadPage: use agent context
   if (isAcpAgent.value) {
     return agentStore.selectedAgentId ?? 'acp'
   }
-  // Default DeepChat: show last-used or default provider
-  return chatStore.chatConfig.providerId || 'anthropic'
+  // On NewThreadPage with DeepChat: show resolved draft/default provider
+  return draftModelSelection.value?.providerId || 'anthropic'
 })
 
 // Resolve display model name
 const displayModelName = computed(() => {
   if (hasActiveSession.value) {
-    const modelId = chatStore.chatConfig.modelId
+    const modelId = activeSessionSelection.value?.modelId || chatStore.chatConfig.modelId
     if (modelId) {
-      const found = modelStore.findModelByIdOrName(modelId)
-      if (found) return found.model.name
-      return modelId
+      return resolveModelName(modelId)
     }
     return 'Select model'
   }
@@ -140,12 +249,10 @@ const displayModelName = computed(() => {
     const agent = agentStore.selectedAgent
     return agent?.name ?? agentStore.selectedAgentId ?? 'ACP Agent'
   }
-  // On NewThreadPage with DeepChat: show default model
-  const modelId = chatStore.chatConfig.modelId
+  // On NewThreadPage with DeepChat: show resolved draft/default model
+  const modelId = draftModelSelection.value?.modelId
   if (modelId) {
-    const found = modelStore.findModelByIdOrName(modelId)
-    if (found) return found.model.name
-    return modelId
+    return resolveModelName(modelId)
   }
   return 'Select model'
 })
@@ -161,6 +268,12 @@ const flatModels = computed(() => {
 })
 
 async function selectModel(providerId: string, modelId: string) {
+  if (!hasActiveSession.value) {
+    draftModelSelection.value = { providerId, modelId }
+    draftStore.providerId = providerId
+    draftStore.modelId = modelId
+    await configPresenter.setSetting('preferredModel', { providerId, modelId })
+  }
   await chatStore.updateChatConfig({ providerId, modelId })
 }
 
