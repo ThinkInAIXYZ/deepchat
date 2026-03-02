@@ -106,9 +106,9 @@ function toDisplayMessage(record: ChatMessageRecord): Message {
 }
 
 // Build a streaming assistant message from live blocks
-function toStreamingMessage(blocks: AssistantMessageBlock[]): Message {
+function toStreamingMessage(blocks: AssistantMessageBlock[], messageId?: string | null): Message {
   return {
-    id: '__streaming__',
+    id: messageId ? `__streaming__:${messageId}` : '__streaming__',
     content: blocks,
     role: 'assistant',
     timestamp: Date.now(),
@@ -135,12 +135,23 @@ function toStreamingMessage(blocks: AssistantMessageBlock[]): Message {
   }
 }
 
+const hasInlineStreamingTarget = computed(() => {
+  const messageId = messageStore.currentStreamMessageId
+  if (!messageId) return false
+  return messageStore.messages.some((msg) => msg.id === messageId)
+})
+
 const displayMessages = computed(() => {
   const msgs = messageStore.messages.map(toDisplayMessage)
 
-  // Append live streaming blocks as a virtual message
-  if (messageStore.isStreaming && messageStore.streamingBlocks.length > 0) {
-    msgs.push(toStreamingMessage(messageStore.streamingBlocks))
+  // Fallback to a virtual streaming message only when target assistant message
+  // is not yet available in messageStore.
+  if (
+    messageStore.isStreaming &&
+    messageStore.streamingBlocks.length > 0 &&
+    !hasInlineStreamingTarget.value
+  ) {
+    msgs.push(toStreamingMessage(messageStore.streamingBlocks, messageStore.currentStreamMessageId))
   }
 
   return msgs

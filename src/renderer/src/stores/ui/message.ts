@@ -16,6 +16,8 @@ export const useMessageStore = defineStore('message', () => {
   const isStreaming = ref(false)
   const streamingBlocks = ref<AssistantMessageBlock[]>([])
   const currentStreamSessionId = ref<string | null>(null)
+  const currentStreamMessageId = ref<string | null>(null)
+  const hydratingStreamMessageIds = new Set<string>()
 
   // --- Getters ---
   const messages = computed(() => {
@@ -25,6 +27,18 @@ export const useMessageStore = defineStore('message', () => {
   })
 
   // --- Actions ---
+
+  function upsertMessageRecord(record: ChatMessageRecord): void {
+    messageCache.value.set(record.id, record)
+    if (!messageIds.value.includes(record.id)) {
+      messageIds.value.push(record.id)
+      messageIds.value.sort((a, b) => {
+        const aSeq = messageCache.value.get(a)?.orderSeq ?? Number.MAX_SAFE_INTEGER
+        const bSeq = messageCache.value.get(b)?.orderSeq ?? Number.MAX_SAFE_INTEGER
+        return aSeq - bSeq
+      })
+    }
+  }
 
   async function loadMessages(sessionId: string): Promise<void> {
     try {
@@ -86,46 +100,106 @@ export const useMessageStore = defineStore('message', () => {
     isStreaming.value = false
     streamingBlocks.value = []
     currentStreamSessionId.value = null
+    currentStreamMessageId.value = null
+    hydratingStreamMessageIds.clear()
+  }
+
+  function applyStreamingBlocksToMessage(
+    messageId: string,
+    conversationId: string,
+    blocks: AssistantMessageBlock[]
+  ): void {
+    const serializedBlocks = JSON.stringify(blocks)
+    const existing = messageCache.value.get(messageId)
+    if (existing) {
+      if (existing.sessionId !== conversationId) return
+      upsertMessageRecord({
+        ...existing,
+        content: serializedBlocks,
+        status: 'pending',
+        updatedAt: Date.now()
+      })
+      return
+    }
+
+    if (hydratingStreamMessageIds.has(messageId)) return
+    hydratingStreamMessageIds.add(messageId)
+
+    void newAgentPresenter
+      .getMessage(messageId)
+      .then((fetched) => {
+        if (!fetched || fetched.sessionId !== conversationId) return
+        upsertMessageRecord({
+          ...fetched,
+          content: serializedBlocks,
+          status: 'pending',
+          updatedAt: Date.now()
+        })
+      })
+      .catch((error) => {
+        console.error('Failed to hydrate streaming assistant message:', error)
+      })
+      .finally(() => {
+        hydratingStreamMessageIds.delete(messageId)
+      })
   }
 
   // --- Event Listeners ---
 
   window.electron.ipcRenderer.on(
     STREAM_EVENTS.RESPONSE,
-    (_: unknown, msg: { conversationId: string; blocks: AssistantMessageBlock[] }) => {
+    (
+      _: unknown,
+      msg: {
+        conversationId: string
+        blocks: AssistantMessageBlock[]
+        messageId?: string
+        eventId?: string
+      }
+    ) => {
       const sessionStore = useSessionStore()
       if (msg.conversationId === sessionStore.activeSessionId) {
+        const streamMessageId = msg.messageId ?? msg.eventId
         isStreaming.value = true
         currentStreamSessionId.value = msg.conversationId
+        currentStreamMessageId.value = streamMessageId ?? null
         streamingBlocks.value = msg.blocks
+        if (streamMessageId) {
+          applyStreamingBlocksToMessage(streamMessageId, msg.conversationId, msg.blocks)
+        }
       }
     }
   )
 
   window.electron.ipcRenderer.on(
     STREAM_EVENTS.END,
-    (_: unknown, msg: { conversationId: string }) => {
+    (_: unknown, msg: { conversationId: string; messageId?: string; eventId?: string }) => {
       const sessionStore = useSessionStore()
       if (msg.conversationId === sessionStore.activeSessionId) {
         isStreaming.value = false
         streamingBlocks.value = []
         currentStreamSessionId.value = null
+        currentStreamMessageId.value = null
         // Reload messages from DB to get finalized content
-        loadMessages(msg.conversationId)
+        void loadMessages(msg.conversationId)
       }
     }
   )
 
   window.electron.ipcRenderer.on(
     STREAM_EVENTS.ERROR,
-    (_: unknown, msg: { conversationId: string; error: string }) => {
+    (
+      _: unknown,
+      msg: { conversationId: string; error: string; messageId?: string; eventId?: string }
+    ) => {
       const sessionStore = useSessionStore()
       if (msg.conversationId === sessionStore.activeSessionId) {
         isStreaming.value = false
         streamingBlocks.value = []
         currentStreamSessionId.value = null
+        currentStreamMessageId.value = null
         // Reload messages from DB to get error state
-        loadMessages(msg.conversationId)
+        void loadMessages(msg.conversationId)
       }
     }
   )
@@ -135,6 +209,7 @@ export const useMessageStore = defineStore('message', () => {
     messageCache,
     isStreaming,
     streamingBlocks,
+    currentStreamMessageId,
     messages,
     loadMessages,
     getMessage,

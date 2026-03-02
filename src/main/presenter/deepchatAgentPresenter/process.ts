@@ -61,6 +61,8 @@ export async function processStream(params: ProcessParams): Promise<void> {
           io.messageStore.setMessageError(io.messageId, state.blocks)
           eventBus.sendToRenderer(STREAM_EVENTS.ERROR, SendTarget.ALL_WINDOWS, {
             conversationId: io.sessionId,
+            eventId: io.messageId,
+            messageId: io.messageId,
             error: 'Generation cancelled'
           })
           return

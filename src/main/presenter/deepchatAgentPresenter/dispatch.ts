@@ -150,6 +150,8 @@ export async function executeTools(
     // Flush updated blocks to renderer after each tool execution
     eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, SendTarget.ALL_WINDOWS, {
       conversationId: io.sessionId,
+      eventId: io.messageId,
+      messageId: io.messageId,
       blocks: JSON.parse(JSON.stringify(state.blocks))
     })
 
@@ -186,10 +188,14 @@ export function finalize(state: StreamState, io: IoParams): void {
   )
   eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, SendTarget.ALL_WINDOWS, {
     conversationId: io.sessionId,
+    eventId: io.messageId,
+    messageId: io.messageId,
     blocks: JSON.parse(JSON.stringify(state.blocks))
   })
   eventBus.sendToRenderer(STREAM_EVENTS.END, SendTarget.ALL_WINDOWS, {
-    conversationId: io.sessionId
+    conversationId: io.sessionId,
+    eventId: io.messageId,
+    messageId: io.messageId
   })
 }
 
@@ -213,10 +219,14 @@ export function finalizeError(state: StreamState, io: IoParams, error: unknown):
   io.messageStore.setMessageError(io.messageId, state.blocks)
   eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, SendTarget.ALL_WINDOWS, {
     conversationId: io.sessionId,
+    eventId: io.messageId,
+    messageId: io.messageId,
     blocks: JSON.parse(JSON.stringify(state.blocks))
   })
   eventBus.sendToRenderer(STREAM_EVENTS.ERROR, SendTarget.ALL_WINDOWS, {
     conversationId: io.sessionId,
+    eventId: io.messageId,
+    messageId: io.messageId,
     error: errorMessage
   })
 }

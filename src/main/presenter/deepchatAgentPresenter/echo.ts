@@ -15,6 +15,8 @@ export function startEcho(state: StreamState, io: IoParams): EchoHandle {
   function flushToRenderer(): void {
     eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, SendTarget.ALL_WINDOWS, {
       conversationId: io.sessionId,
+      eventId: io.messageId,
+      messageId: io.messageId,
       blocks: JSON.parse(JSON.stringify(state.blocks))
     })
   }
