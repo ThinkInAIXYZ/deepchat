@@ -196,7 +196,8 @@ function createMockConfigPresenter() {
       .fn()
       .mockReturnValue({ temperature: 0.7, maxTokens: 4096, contextLength: 128000 }),
     getDefaultSystemPrompt: vi.fn().mockResolvedValue('You are a helpful assistant.'),
-    getSetting: vi.fn().mockReturnValue(undefined)
+    getSetting: vi.fn().mockReturnValue(undefined),
+    getAcpAgents: vi.fn().mockResolvedValue([])
   } as any
 }
 

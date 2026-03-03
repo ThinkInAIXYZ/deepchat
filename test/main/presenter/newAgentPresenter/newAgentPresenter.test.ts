@@ -41,13 +41,26 @@ function createMockConfigPresenter() {
   return {
     getDefaultModel: vi.fn().mockReturnValue({ providerId: 'openai', modelId: 'gpt-4' }),
     getModelConfig: vi.fn().mockReturnValue({}),
-    getSetting: vi.fn().mockReturnValue(undefined)
+    getSetting: vi.fn().mockReturnValue(undefined),
+    getAcpAgents: vi.fn().mockResolvedValue([])
   } as any
 }
 
 function createMockLlmProviderPresenter() {
   return {
-    summaryTitles: vi.fn().mockResolvedValue('Async Generated Title')
+    summaryTitles: vi.fn().mockResolvedValue('Async Generated Title'),
+    getAcpSessionCommands: vi
+      .fn()
+      .mockResolvedValue([
+        { name: 'review', description: 'run review', input: { hint: 'ticket id' } }
+      ])
+  } as any
+}
+
+function createMockSkillPresenter() {
+  return {
+    setActiveSkills: vi.fn().mockResolvedValue(undefined),
+    clearNewAgentSessionSkills: vi.fn().mockResolvedValue(undefined)
   } as any
 }
 
@@ -88,6 +101,7 @@ describe('NewAgentPresenter', () => {
   let llmProviderPresenter: ReturnType<typeof createMockLlmProviderPresenter>
   let configPresenter: ReturnType<typeof createMockConfigPresenter>
   let sqlitePresenter: ReturnType<typeof createMockSqlitePresenter>
+  let skillPresenter: ReturnType<typeof createMockSkillPresenter>
   let presenter: NewAgentPresenter
 
   beforeEach(() => {
@@ -96,11 +110,13 @@ describe('NewAgentPresenter', () => {
     llmProviderPresenter = createMockLlmProviderPresenter()
     configPresenter = createMockConfigPresenter()
     sqlitePresenter = createMockSqlitePresenter()
+    skillPresenter = createMockSkillPresenter()
     presenter = new NewAgentPresenter(
       deepChatAgent as any,
       llmProviderPresenter,
       configPresenter,
-      sqlitePresenter
+      sqlitePresenter,
+      skillPresenter
     )
   })
 
@@ -218,6 +234,22 @@ describe('NewAgentPresenter', () => {
       await expect(
         presenter.createSession({ agentId: 'deepchat', message: 'Hi' }, 1)
       ).rejects.toThrow('No provider or model configured')
+    })
+
+    it('applies active skills before first message processing', async () => {
+      await presenter.createSession(
+        {
+          agentId: 'deepchat',
+          message: 'Hello',
+          activeSkills: ['skill-a', 'skill-b']
+        },
+        1
+      )
+
+      expect(skillPresenter.setActiveSkills).toHaveBeenCalledWith('mock-session-id', [
+        'skill-a',
+        'skill-b'
+      ])
     })
 
     it('generates title asynchronously without blocking createSession', async () => {
@@ -417,12 +449,85 @@ describe('NewAgentPresenter', () => {
     })
   })
 
+  describe('deleteSession', () => {
+    it('clears new-agent skill cache on delete', async () => {
+      sqlitePresenter.newSessionsTable.get.mockReturnValue({
+        id: 's1',
+        agent_id: 'deepchat',
+        title: 'Test',
+        project_dir: null,
+        is_pinned: 0,
+        created_at: 1000,
+        updated_at: 1000
+      })
+
+      await presenter.deleteSession('s1')
+      expect(skillPresenter.clearNewAgentSessionSkills).toHaveBeenCalledWith('s1')
+    })
+  })
+
   describe('getAgents', () => {
     it('returns registered agents', async () => {
       const agents = await presenter.getAgents()
       expect(agents).toHaveLength(1)
       expect(agents[0].id).toBe('deepchat')
       expect(agents[0].name).toBe('DeepChat')
+    })
+
+    it('includes ACP agents from config', async () => {
+      configPresenter.getAcpAgents.mockResolvedValue([
+        { id: 'acp-coder', name: 'ACP Coder', command: 'acp-coder' }
+      ])
+
+      const agents = await presenter.getAgents()
+      expect(agents.some((agent: any) => agent.id === 'acp-coder' && agent.type === 'acp')).toBe(
+        true
+      )
+    })
+  })
+
+  describe('getAcpSessionCommands', () => {
+    it('returns empty list for non-ACP sessions', async () => {
+      sqlitePresenter.newSessionsTable.get.mockReturnValue({
+        id: 's1',
+        agent_id: 'deepchat',
+        title: 'Test',
+        project_dir: null,
+        is_pinned: 0,
+        created_at: 1000,
+        updated_at: 1000
+      })
+
+      const commands = await presenter.getAcpSessionCommands('s1')
+      expect(commands).toEqual([])
+      expect(llmProviderPresenter.getAcpSessionCommands).not.toHaveBeenCalled()
+    })
+
+    it('fetches commands for ACP-backed sessions', async () => {
+      sqlitePresenter.newSessionsTable.get.mockReturnValue({
+        id: 's-acp',
+        agent_id: 'acp-coder',
+        title: 'ACP',
+        project_dir: null,
+        is_pinned: 0,
+        created_at: 1000,
+        updated_at: 1000
+      })
+      configPresenter.getAcpAgents.mockResolvedValue([
+        { id: 'acp-coder', name: 'ACP Coder', command: 'acp-coder' }
+      ])
+      deepChatAgent.getSessionState.mockResolvedValue({
+        status: 'idle',
+        providerId: 'acp',
+        modelId: 'acp-coder',
+        permissionMode: 'full_access'
+      })
+
+      const commands = await presenter.getAcpSessionCommands('s-acp')
+
+      expect(llmProviderPresenter.getAcpSessionCommands).toHaveBeenCalledWith('s-acp')
+      expect(commands).toHaveLength(1)
+      expect(commands[0].name).toBe('review')
     })
   })
 

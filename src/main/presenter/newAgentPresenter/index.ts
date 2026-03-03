@@ -1,5 +1,6 @@
 import type {
   Agent,
+  IAgentImplementation,
   CreateSessionInput,
   SessionWithState,
   ChatMessageRecord,
@@ -9,7 +10,7 @@ import type {
   ToolInteractionResponse,
   ToolInteractionResult
 } from '@shared/types/agent-interface'
-import type { IConfigPresenter, ILlmProviderPresenter } from '@shared/presenter'
+import type { IConfigPresenter, ILlmProviderPresenter, ISkillPresenter } from '@shared/presenter'
 import type { SQLitePresenter } from '../sqlitePresenter'
 import type { DeepChatAgentPresenter } from '../deepchatAgentPresenter'
 import { AgentRegistry } from './agentRegistry'
@@ -24,15 +25,18 @@ export class NewAgentPresenter {
   private messageManager: NewMessageManager
   private llmProviderPresenter: ILlmProviderPresenter
   private configPresenter: IConfigPresenter
+  private skillPresenter?: Pick<ISkillPresenter, 'setActiveSkills' | 'clearNewAgentSessionSkills'>
 
   constructor(
     deepchatAgent: DeepChatAgentPresenter,
     llmProviderPresenter: ILlmProviderPresenter,
     configPresenter: IConfigPresenter,
-    sqlitePresenter: SQLitePresenter
+    sqlitePresenter: SQLitePresenter,
+    skillPresenter?: Pick<ISkillPresenter, 'setActiveSkills' | 'clearNewAgentSessionSkills'>
   ) {
     this.llmProviderPresenter = llmProviderPresenter
     this.configPresenter = configPresenter
+    this.skillPresenter = skillPresenter
     this.agentRegistry = new AgentRegistry()
     this.sessionManager = new NewSessionManager(sqlitePresenter)
     this.messageManager = new NewMessageManager(this.agentRegistry, this.sessionManager)
@@ -51,7 +55,7 @@ export class NewAgentPresenter {
     console.log(`[NewAgentPresenter] createSession agent=${agentId} webContentsId=${webContentsId}`)
     const projectDir = input.projectDir?.trim() ? input.projectDir.trim() : null
 
-    const agent = this.agentRegistry.resolve(agentId)
+    const agent = await this.resolveAgentImplementation(agentId)
 
     // Resolve provider/model
     const defaultModel = this.configPresenter.getDefaultModel()
@@ -82,6 +86,10 @@ export class NewAgentPresenter {
     })
     eventBus.sendToRenderer(SESSION_EVENTS.LIST_UPDATED, SendTarget.ALL_WINDOWS)
 
+    if (input.activeSkills && input.activeSkills.length > 0 && this.skillPresenter) {
+      await this.skillPresenter.setActiveSkills(sessionId, input.activeSkills)
+    }
+
     // Process the first message (non-blocking)
     console.log(`[NewAgentPresenter] firing processMessage (non-blocking)`)
     agent.processMessage(sessionId, input.message, { projectDir }).catch((err) => {
@@ -108,7 +116,7 @@ export class NewAgentPresenter {
   async sendMessage(sessionId: string, content: string): Promise<void> {
     const session = this.sessionManager.get(sessionId)
     if (!session) throw new Error(`Session not found: ${sessionId}`)
-    const agent = this.agentRegistry.resolve(session.agentId)
+    const agent = await this.resolveAgentImplementation(session.agentId)
     await agent.processMessage(sessionId, content, {
       projectDir: session.projectDir ?? null
     })
@@ -122,7 +130,7 @@ export class NewAgentPresenter {
     const enriched: SessionWithState[] = []
 
     for (const record of records) {
-      const agent = this.agentRegistry.resolve(record.agentId)
+      const agent = await this.resolveAgentImplementation(record.agentId)
       const state = await agent.getSessionState(record.id)
       enriched.push({
         ...record,
@@ -138,7 +146,7 @@ export class NewAgentPresenter {
   async getSession(sessionId: string): Promise<SessionWithState | null> {
     const record = this.sessionManager.get(sessionId)
     if (!record) return null
-    const agent = this.agentRegistry.resolve(record.agentId)
+    const agent = await this.resolveAgentImplementation(record.agentId)
     const state = await agent.getSessionState(sessionId)
     return {
       ...record,
@@ -149,11 +157,17 @@ export class NewAgentPresenter {
   }
 
   async getMessages(sessionId: string): Promise<ChatMessageRecord[]> {
-    return this.messageManager.getMessages(sessionId)
+    const session = this.sessionManager.get(sessionId)
+    if (!session) throw new Error(`Session not found: ${sessionId}`)
+    const agent = await this.resolveAgentImplementation(session.agentId)
+    return agent.getMessages(sessionId)
   }
 
   async getMessageIds(sessionId: string): Promise<string[]> {
-    return this.messageManager.getMessageIds(sessionId)
+    const session = this.sessionManager.get(sessionId)
+    if (!session) throw new Error(`Session not found: ${sessionId}`)
+    const agent = await this.resolveAgentImplementation(session.agentId)
+    return agent.getMessageIds(sessionId)
   }
 
   async getMessage(messageId: string): Promise<ChatMessageRecord | null> {
@@ -182,14 +196,28 @@ export class NewAgentPresenter {
   }
 
   async getAgents(): Promise<Agent[]> {
-    return this.agentRegistry.getAll()
+    const builtins = this.agentRegistry.getAll()
+    const acpAgents = await this.configPresenter.getAcpAgents()
+    const acpList: Agent[] = acpAgents.map((agent) => ({
+      id: agent.id,
+      name: agent.name,
+      type: 'acp',
+      enabled: true
+    }))
+
+    const map = new Map<string, Agent>()
+    for (const item of [...builtins, ...acpList]) {
+      map.set(item.id, item)
+    }
+    return Array.from(map.values())
   }
 
   async deleteSession(sessionId: string): Promise<void> {
     const session = this.sessionManager.get(sessionId)
     if (!session) return
-    const agent = this.agentRegistry.resolve(session.agentId)
+    const agent = await this.resolveAgentImplementation(session.agentId)
     await agent.destroySession(sessionId)
+    await this.skillPresenter?.clearNewAgentSessionSkills?.(sessionId)
     this.sessionManager.delete(sessionId)
     eventBus.sendToRenderer(SESSION_EVENTS.LIST_UPDATED, SendTarget.ALL_WINDOWS)
   }
@@ -197,7 +225,7 @@ export class NewAgentPresenter {
   async cancelGeneration(sessionId: string): Promise<void> {
     const session = this.sessionManager.get(sessionId)
     if (!session) return
-    const agent = this.agentRegistry.resolve(session.agentId)
+    const agent = await this.resolveAgentImplementation(session.agentId)
     await agent.cancelGeneration(sessionId)
   }
 
@@ -211,11 +239,28 @@ export class NewAgentPresenter {
     if (!session) {
       throw new Error(`Session not found: ${sessionId}`)
     }
-    const agent = this.agentRegistry.resolve(session.agentId)
+    const agent = await this.resolveAgentImplementation(session.agentId)
     if (!agent.respondToolInteraction) {
       throw new Error(`Agent ${session.agentId} does not support tool interaction response.`)
     }
     return await agent.respondToolInteraction(sessionId, messageId, toolCallId, response)
+  }
+
+  async getAcpSessionCommands(sessionId: string): Promise<
+    Array<{
+      name: string
+      description: string
+      input?: { hint: string } | null
+    }>
+  > {
+    const session = this.sessionManager.get(sessionId)
+    if (!session) return []
+    const agent = await this.resolveAgentImplementation(session.agentId)
+    const state = await agent.getSessionState(sessionId)
+    if (state?.providerId !== 'acp') {
+      return []
+    }
+    return await this.llmProviderPresenter.getAcpSessionCommands(sessionId)
   }
 
   async getPermissionMode(sessionId: string): Promise<PermissionMode> {
@@ -223,7 +268,7 @@ export class NewAgentPresenter {
     if (!session) {
       throw new Error(`Session not found: ${sessionId}`)
     }
-    const agent = this.agentRegistry.resolve(session.agentId)
+    const agent = await this.resolveAgentImplementation(session.agentId)
     if (!agent.getPermissionMode) {
       return 'full_access'
     }
@@ -235,7 +280,7 @@ export class NewAgentPresenter {
     if (!session) {
       throw new Error(`Session not found: ${sessionId}`)
     }
-    const agent = this.agentRegistry.resolve(session.agentId)
+    const agent = await this.resolveAgentImplementation(session.agentId)
     if (!agent.setPermissionMode) {
       return
     }
@@ -256,7 +301,7 @@ export class NewAgentPresenter {
       if (!currentSession) return
       if (currentSession.title !== initialTitle) return
 
-      const agent = this.agentRegistry.resolve(currentSession.agentId)
+      const agent = await this.resolveAgentImplementation(currentSession.agentId)
       const records = await agent.getMessages(sessionId)
       const titleMessages = this.buildTitleMessages(records)
       if (titleMessages.length === 0) return
@@ -310,7 +355,7 @@ export class NewAgentPresenter {
       const session = this.sessionManager.get(sessionId)
       if (!session) return false
 
-      const agent = this.agentRegistry.resolve(session.agentId)
+      const agent = await this.resolveAgentImplementation(session.agentId)
       const state = await agent.getSessionState(sessionId)
       if (!state) return false
       if (state.status === 'idle') return true
@@ -320,6 +365,20 @@ export class NewAgentPresenter {
     }
 
     return false
+  }
+
+  private async resolveAgentImplementation(agentId: string): Promise<IAgentImplementation> {
+    if (this.agentRegistry.has(agentId)) {
+      return this.agentRegistry.resolve(agentId)
+    }
+
+    const acpAgents = await this.configPresenter.getAcpAgents()
+    const isAcpAgent = acpAgents.some((agent) => agent.id === agentId)
+    if (isAcpAgent) {
+      return this.agentRegistry.resolve('deepchat')
+    }
+
+    throw new Error(`Agent not found: ${agentId}`)
   }
 
   private buildTitleMessages(

@@ -3,7 +3,8 @@ import { AcpProvider } from '../../../src/main/presenter/llmProviderPresenter/pr
 
 vi.mock('electron', () => ({
   app: {
-    getVersion: vi.fn(() => '0.0.0-test')
+    getVersion: vi.fn(() => '0.0.0-test'),
+    getPath: vi.fn(() => '/tmp')
   }
 }))
 
@@ -78,5 +79,17 @@ describe('AcpProvider runDebugAction error handling', () => {
         workdir: '/tmp'
       } as any)
     ).rejects.toThrow('boom')
+  })
+
+  it('returns cached ACP session commands', async () => {
+    const provider = Object.create(AcpProvider.prototype) as any
+    provider.sessionManager = {
+      getSession: vi.fn().mockReturnValue({
+        availableCommands: [{ name: 'review', description: 'run review', input: null }]
+      })
+    }
+
+    const commands = await provider.getSessionCommands('conv-1')
+    expect(commands).toEqual([{ name: 'review', description: 'run review', input: null }])
   })
 })

@@ -323,6 +323,23 @@ export class AcpProvider extends BaseLLMProvider {
                 // console.log('[ACP] onSessionUpdate: notification:', JSON.stringify(notification))
                 const mapped = this.contentMapper.map(notification)
                 mapped.events.forEach((event) => queue.push(event))
+
+                if (mapped.availableCommands !== undefined) {
+                  const currentSession = this.sessionManager.getSession(conversationKey)
+                  if (currentSession) {
+                    currentSession.availableCommands = mapped.availableCommands
+                  }
+
+                  eventBus.sendToRenderer(
+                    ACP_WORKSPACE_EVENTS.SESSION_COMMANDS_READY,
+                    SendTarget.ALL_WINDOWS,
+                    {
+                      conversationId: conversationKey,
+                      agentId: agent.id,
+                      commands: mapped.availableCommands
+                    }
+                  )
+                }
               },
               onPermission: (request) =>
                 this.handlePermissionRequest(queue, request, {
@@ -1121,6 +1138,20 @@ export class AcpProvider extends BaseLLMProvider {
     )
 
     return result
+  }
+
+  async getSessionCommands(conversationId: string): Promise<
+    Array<{
+      name: string
+      description: string
+      input?: { hint: string } | null
+    }>
+  > {
+    const session = this.sessionManager.getSession(conversationId)
+    if (!session) {
+      return []
+    }
+    return session.availableCommands ?? []
   }
 
   async cleanup(): Promise<void> {

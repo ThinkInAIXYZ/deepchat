@@ -28,6 +28,13 @@ export interface INewAgentPresenter {
     toolCallId: string,
     response: ToolInteractionResponse
   ): Promise<ToolInteractionResult>
+  getAcpSessionCommands(sessionId: string): Promise<
+    Array<{
+      name: string
+      description: string
+      input?: { hint: string } | null
+    }>
+  >
   getPermissionMode(sessionId: string): Promise<PermissionMode>
   setPermissionMode(sessionId: string, mode: PermissionMode): Promise<void>
 }

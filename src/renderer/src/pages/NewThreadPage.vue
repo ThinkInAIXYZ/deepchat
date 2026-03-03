@@ -50,7 +50,13 @@
         </DropdownMenu>
 
         <!-- Input area -->
-        <ChatInputBox v-model="message" @submit="onSubmit">
+        <ChatInputBox
+          v-model="message"
+          :workspace-path="projectStore.selectedProject?.path ?? null"
+          :is-acp-session="(agentStore.selectedAgentId ?? 'deepchat') !== 'deepchat'"
+          @pending-skills-change="onPendingSkillsChange"
+          @submit="onSubmit"
+        >
           <template #toolbar>
             <ChatInputToolbar @send="onSubmit" />
           </template>
@@ -94,6 +100,7 @@ const draftStore = useDraftStore()
 const configPresenter = usePresenter('configPresenter')
 
 const message = ref('')
+const pendingSkills = ref<string[]>([])
 
 const getEnabledModel = (
   providerId?: string,
@@ -165,8 +172,13 @@ async function onSubmit() {
     agentId,
     providerId,
     modelId,
-    permissionMode: draftStore.permissionMode
+    permissionMode: draftStore.permissionMode,
+    activeSkills: pendingSkills.value.length > 0 ? [...pendingSkills.value] : undefined
   })
+}
+
+function onPendingSkillsChange(skills: string[]) {
+  pendingSkills.value = [...skills]
 }
 
 onMounted(() => {

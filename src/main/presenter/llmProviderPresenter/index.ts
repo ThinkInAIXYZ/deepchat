@@ -544,6 +544,20 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     return await provider.getSessionModes(conversationId)
   }
 
+  async getAcpSessionCommands(conversationId: string): Promise<
+    Array<{
+      name: string
+      description: string
+      input?: { hint: string } | null
+    }>
+  > {
+    const provider = this.getAcpProviderInstance()
+    if (!provider) {
+      return []
+    }
+    return await provider.getSessionCommands(conversationId)
+  }
+
   async runAcpDebugAction(request: AcpDebugRequest): Promise<AcpDebugRunResult> {
     const provider = this.getAcpProviderInstance()
     if (!provider) {

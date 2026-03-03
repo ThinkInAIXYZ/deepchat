@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { usePresenter } from '@/composables/usePresenter'
+import { CONFIG_EVENTS } from '@/events'
 import type { Agent } from '@shared/types/agent-interface'
 
 // --- Type Definitions ---
@@ -51,6 +52,15 @@ export const useAgentStore = defineStore('agent', () => {
   function selectAgent(id: string | null): void {
     selectedAgentId.value = selectedAgentId.value === id ? null : id
   }
+
+  window.electron.ipcRenderer.on(
+    CONFIG_EVENTS.MODEL_LIST_CHANGED,
+    (_: unknown, providerId?: string) => {
+      if (providerId === 'acp') {
+        void fetchAgents()
+      }
+    }
+  )
 
   return {
     agents,

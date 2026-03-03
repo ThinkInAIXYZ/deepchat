@@ -31,7 +31,11 @@ export interface AcpSessionRecord extends AgentSessionState {
   workdir: string
   availableModes?: Array<{ id: string; name: string; description: string }>
   currentModeId?: string
-  availableCommands?: Array<{ name: string; description: string }>
+  availableCommands?: Array<{
+    name: string
+    description: string
+    input?: { hint: string } | null
+  }>
 }
 
 export class AcpSessionManager {

@@ -14,7 +14,14 @@
             @respond="onToolInteractionRespond"
           />
           <template v-else>
-            <ChatInputBox v-model="message" @submit="onSubmit">
+            <ChatInputBox
+              v-model="message"
+              :session-id="props.sessionId"
+              :workspace-path="sessionStore.activeSession?.projectDir ?? null"
+              :is-acp-session="sessionStore.activeSession?.providerId === 'acp'"
+              @command-submit="onCommandSubmit"
+              @submit="onSubmit"
+            >
               <template #toolbar>
                 <ChatInputToolbar :is-generating="isGenerating" @send="onSubmit" @stop="onStop" />
               </template>
@@ -251,6 +258,15 @@ async function onSubmit() {
   const text = message.value.trim()
   if (!text) return
   message.value = ''
+  messageStore.addOptimisticUserMessage(props.sessionId, text)
+  await sessionStore.sendMessage(props.sessionId, text)
+}
+
+async function onCommandSubmit(command: string) {
+  if (activePendingInteraction.value || isHandlingInteraction.value) return
+  const text = command.trim()
+  if (!text) return
+
   messageStore.addOptimisticUserMessage(props.sessionId, text)
   await sessionStore.sendMessage(props.sessionId, text)
 }

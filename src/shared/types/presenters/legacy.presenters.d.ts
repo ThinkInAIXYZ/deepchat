@@ -1065,6 +1065,13 @@ export interface ILlmProviderPresenter {
     current: string
     available: Array<{ id: string; name: string; description: string }>
   } | null>
+  getAcpSessionCommands(conversationId: string): Promise<
+    Array<{
+      name: string
+      description: string
+      input?: { hint: string } | null
+    }>
+  >
   resolveAgentPermission(requestId: string, granted: boolean): Promise<void>
   runAcpDebugAction(request: AcpDebugRequest): Promise<AcpDebugRunResult>
   getProviderInstance(providerId: string): unknown

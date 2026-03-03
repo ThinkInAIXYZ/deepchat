@@ -145,7 +145,8 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     try {
       const modelConfig = this.configPresenter.getModelConfig(state.modelId, state.providerId)
       const maxTokens = modelConfig.maxTokens ?? 4096
-      const systemPrompt = await this.configPresenter.getDefaultSystemPrompt()
+      const baseSystemPrompt = await this.configPresenter.getDefaultSystemPrompt()
+      const systemPrompt = await this.buildSystemPromptWithSkills(sessionId, baseSystemPrompt)
       const messages = buildContext(
         sessionId,
         content,
@@ -458,7 +459,8 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       this.setSessionStatus(sessionId, 'generating')
       const modelConfig = this.configPresenter.getModelConfig(state.modelId, state.providerId)
       const maxTokens = modelConfig.maxTokens ?? 4096
-      const systemPrompt = await this.configPresenter.getDefaultSystemPrompt()
+      const baseSystemPrompt = await this.configPresenter.getDefaultSystemPrompt()
+      const systemPrompt = await this.buildSystemPromptWithSkills(sessionId, baseSystemPrompt)
       const resumeContext = buildResumeContext(
         sessionId,
         messageId,
@@ -482,6 +484,52 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       throw error
     } finally {
       this.resumingMessages.delete(messageId)
+    }
+  }
+
+  private async buildSystemPromptWithSkills(
+    sessionId: string,
+    basePrompt: string
+  ): Promise<string> {
+    const normalizedBase = basePrompt?.trim() ?? ''
+    const skillPresenter = presenter?.skillPresenter
+    if (!skillPresenter?.getActiveSkills || !skillPresenter?.loadSkillContent) {
+      return normalizedBase
+    }
+
+    try {
+      const activeSkills = await skillPresenter.getActiveSkills(sessionId)
+      if (!activeSkills.length) {
+        return normalizedBase
+      }
+
+      const skillSections: string[] = []
+      for (const skillName of activeSkills) {
+        const skill = await skillPresenter.loadSkillContent(skillName)
+        const content = skill?.content?.trim()
+        if (content) {
+          skillSections.push(`## ${skillName}\n${content}`)
+        }
+      }
+
+      if (!skillSections.length) {
+        return normalizedBase
+      }
+
+      const skillsPrompt = [
+        '## Activated Skills',
+        'Follow these skill instructions during this conversation.',
+        '',
+        skillSections.join('\n\n')
+      ].join('\n')
+
+      return normalizedBase ? `${normalizedBase}\n\n${skillsPrompt}` : skillsPrompt
+    } catch (error) {
+      console.warn(
+        `[DeepChatAgent] Failed to append skill prompts for session ${sessionId}:`,
+        error
+      )
+      return normalizedBase
     }
   }
 

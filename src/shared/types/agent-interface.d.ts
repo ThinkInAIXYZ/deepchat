@@ -217,6 +217,7 @@ export interface CreateSessionInput {
   providerId?: string
   modelId?: string
   permissionMode?: PermissionMode
+  activeSkills?: string[]
 }
 
 // ---- Project Types ----
