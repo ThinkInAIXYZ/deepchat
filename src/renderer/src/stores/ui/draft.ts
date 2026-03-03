@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import type { CreateSessionInput } from '@shared/types/agent-interface'
+import type { CreateSessionInput, PermissionMode } from '@shared/types/agent-interface'
 
 // --- Store ---
 
@@ -11,6 +11,7 @@ export const useDraftStore = defineStore('draft', () => {
   const projectDir = ref<string | undefined>(undefined)
   const agentId = ref<string>('deepchat')
   const reasoningEffort = ref<string | undefined>(undefined)
+  const permissionMode = ref<PermissionMode>('full_access')
 
   // --- Actions ---
 
@@ -20,7 +21,8 @@ export const useDraftStore = defineStore('draft', () => {
       message,
       projectDir: projectDir.value,
       providerId: providerId.value,
-      modelId: modelId.value
+      modelId: modelId.value,
+      permissionMode: permissionMode.value
     }
   }
 
@@ -30,6 +32,7 @@ export const useDraftStore = defineStore('draft', () => {
     projectDir.value = undefined
     agentId.value = 'deepchat'
     reasoningEffort.value = undefined
+    permissionMode.value = 'full_access'
   }
 
   return {
@@ -38,6 +41,7 @@ export const useDraftStore = defineStore('draft', () => {
     projectDir,
     agentId,
     reasoningEffort,
+    permissionMode,
     toCreateInput,
     reset
   }

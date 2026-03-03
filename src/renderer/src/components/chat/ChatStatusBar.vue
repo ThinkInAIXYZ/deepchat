@@ -254,14 +254,19 @@ watch(
   { immediate: true, deep: true }
 )
 
-const canSelectPermissionMode = computed(() => hasActiveSession.value && !isAcpAgent.value)
+const canSelectPermissionMode = computed(() => !isAcpAgent.value)
 
 watch(
-  [() => sessionStore.activeSessionId, canSelectPermissionMode],
-  async ([sessionId, canSelect]) => {
+  [() => sessionStore.activeSessionId, canSelectPermissionMode, () => draftStore.permissionMode],
+  async ([sessionId, canSelect, draftPermissionMode]) => {
     const token = ++permissionSyncToken
-    if (!sessionId || !canSelect) {
+    if (!canSelect) {
       permissionMode.value = 'full_access'
+      return
+    }
+
+    if (!sessionId) {
+      permissionMode.value = draftPermissionMode === 'default' ? 'default' : 'full_access'
       return
     }
 
@@ -358,11 +363,15 @@ const permissionModeLabel = computed(() =>
 )
 
 async function selectPermissionMode(mode: PermissionMode) {
-  const sessionId = sessionStore.activeSessionId
-  if (!sessionId || !canSelectPermissionMode.value) return
+  if (!canSelectPermissionMode.value) return
   if (permissionMode.value === mode) return
 
   permissionMode.value = mode
+  const sessionId = sessionStore.activeSessionId
+  if (!sessionId) {
+    draftStore.permissionMode = mode
+    return
+  }
   try {
     await newAgentPresenter.setPermissionMode(sessionId, mode)
   } catch (error) {

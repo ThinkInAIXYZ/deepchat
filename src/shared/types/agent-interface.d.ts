@@ -19,7 +19,12 @@ export interface IAgentImplementation {
   /** Initialize a new session for this agent */
   initSession(
     sessionId: string,
-    config: { providerId: string; modelId: string; projectDir?: string | null }
+    config: {
+      providerId: string
+      modelId: string
+      projectDir?: string | null
+      permissionMode?: PermissionMode
+    }
   ): Promise<void>
 
   /** Destroy a session and all its data */
@@ -211,6 +216,7 @@ export interface CreateSessionInput {
   projectDir?: string
   providerId?: string
   modelId?: string
+  permissionMode?: PermissionMode
 }
 
 // ---- Project Types ----

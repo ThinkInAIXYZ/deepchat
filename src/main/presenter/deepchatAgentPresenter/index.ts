@@ -66,19 +66,26 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
 
   async initSession(
     sessionId: string,
-    config: { providerId: string; modelId: string; projectDir?: string | null }
+    config: {
+      providerId: string
+      modelId: string
+      projectDir?: string | null
+      permissionMode?: PermissionMode
+    }
   ): Promise<void> {
     const projectDir = this.normalizeProjectDir(config.projectDir)
+    const permissionMode: PermissionMode =
+      config.permissionMode === 'default' ? 'default' : 'full_access'
     console.log(
-      `[DeepChatAgent] initSession id=${sessionId} provider=${config.providerId} model=${config.modelId} projectDir=${projectDir ?? '<none>'}`
+      `[DeepChatAgent] initSession id=${sessionId} provider=${config.providerId} model=${config.modelId} permission=${permissionMode} projectDir=${projectDir ?? '<none>'}`
     )
-    this.sessionStore.create(sessionId, config.providerId, config.modelId, 'full_access')
+    this.sessionStore.create(sessionId, config.providerId, config.modelId, permissionMode)
     this.sessionProjectDirs.set(sessionId, projectDir)
     this.runtimeState.set(sessionId, {
       status: 'idle',
       providerId: config.providerId,
       modelId: config.modelId,
-      permissionMode: 'full_access'
+      permissionMode
     })
   }
 

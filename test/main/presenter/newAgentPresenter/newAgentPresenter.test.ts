@@ -23,9 +23,12 @@ function createMockDeepChatAgent() {
   return {
     initSession: vi.fn().mockResolvedValue(undefined),
     destroySession: vi.fn().mockResolvedValue(undefined),
-    getSessionState: vi
-      .fn()
-      .mockResolvedValue({ status: 'idle', providerId: 'openai', modelId: 'gpt-4' }),
+    getSessionState: vi.fn().mockResolvedValue({
+      status: 'idle',
+      providerId: 'openai',
+      modelId: 'gpt-4',
+      permissionMode: 'full_access'
+    }),
     processMessage: vi.fn().mockResolvedValue(undefined),
     cancelGeneration: vi.fn().mockResolvedValue(undefined),
     getMessages: vi.fn().mockResolvedValue([]),
@@ -116,7 +119,8 @@ describe('NewAgentPresenter', () => {
       expect(deepChatAgent.initSession).toHaveBeenCalledWith('mock-session-id', {
         providerId: 'openai',
         modelId: 'gpt-4',
-        projectDir: '/tmp/proj'
+        projectDir: '/tmp/proj',
+        permissionMode: 'full_access'
       })
       await new Promise((r) => setTimeout(r, 0))
       expect(deepChatAgent.processMessage).toHaveBeenCalledWith('mock-session-id', 'Hello world', {
@@ -143,7 +147,8 @@ describe('NewAgentPresenter', () => {
       expect(deepChatAgent.initSession).toHaveBeenCalledWith('mock-session-id', {
         providerId: 'openai',
         modelId: 'gpt-4',
-        projectDir: null
+        projectDir: null,
+        permissionMode: 'full_access'
       })
       // processMessage is called non-blocking, so we give it a tick
       await new Promise((r) => setTimeout(r, 0))
@@ -168,7 +173,8 @@ describe('NewAgentPresenter', () => {
       expect(deepChatAgent.initSession).toHaveBeenCalledWith(expect.any(String), {
         providerId: 'openai',
         modelId: 'gpt-4',
-        projectDir: null
+        projectDir: null,
+        permissionMode: 'full_access'
       })
     })
 
@@ -181,7 +187,28 @@ describe('NewAgentPresenter', () => {
       expect(deepChatAgent.initSession).toHaveBeenCalledWith(expect.any(String), {
         providerId: 'anthropic',
         modelId: 'claude-3',
-        projectDir: null
+        projectDir: null,
+        permissionMode: 'full_access'
+      })
+    })
+
+    it('uses input permission mode when specified', async () => {
+      await presenter.createSession(
+        {
+          agentId: 'deepchat',
+          message: 'Hi',
+          providerId: 'anthropic',
+          modelId: 'claude-3',
+          permissionMode: 'default'
+        },
+        1
+      )
+
+      expect(deepChatAgent.initSession).toHaveBeenCalledWith(expect.any(String), {
+        providerId: 'anthropic',
+        modelId: 'claude-3',
+        projectDir: null,
+        permissionMode: 'default'
       })
     })
 

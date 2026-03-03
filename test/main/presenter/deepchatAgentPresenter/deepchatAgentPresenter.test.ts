@@ -166,6 +166,24 @@ describe('DeepChatAgentPresenter', () => {
         permissionMode: 'full_access'
       })
     })
+
+    it('applies provided permission mode', async () => {
+      await agent.initSession('s1', {
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        permissionMode: 'default'
+      })
+
+      expect(sqlitePresenter.deepchatSessionsTable.create).toHaveBeenCalledWith(
+        's1',
+        'openai',
+        'gpt-4',
+        'default'
+      )
+
+      const state = await agent.getSessionState('s1')
+      expect(state?.permissionMode).toBe('default')
+    })
   })
 
   describe('getSessionState', () => {

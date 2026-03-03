@@ -57,6 +57,8 @@ export class NewAgentPresenter {
     const defaultModel = this.configPresenter.getDefaultModel()
     const providerId = input.providerId ?? defaultModel?.providerId ?? ''
     const modelId = input.modelId ?? defaultModel?.modelId ?? ''
+    const permissionMode: PermissionMode =
+      input.permissionMode === 'default' ? 'default' : 'full_access'
     console.log(`[NewAgentPresenter] resolved provider=${providerId} model=${modelId}`)
 
     if (!providerId || !modelId) {
@@ -69,7 +71,7 @@ export class NewAgentPresenter {
     console.log(`[NewAgentPresenter] session created id=${sessionId} title="${title}"`)
 
     // Initialize agent-side session
-    await agent.initSession(sessionId, { providerId, modelId, projectDir })
+    await agent.initSession(sessionId, { providerId, modelId, projectDir, permissionMode })
     console.log(`[NewAgentPresenter] agent.initSession done`)
 
     // Bind to window and emit activated

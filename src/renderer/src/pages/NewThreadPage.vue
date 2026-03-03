@@ -164,7 +164,8 @@ async function onSubmit() {
     projectDir: projectStore.selectedProject?.path,
     agentId,
     providerId,
-    modelId
+    modelId,
+    permissionMode: draftStore.permissionMode
   })
 }
 
@@ -172,5 +173,6 @@ onMounted(() => {
   // Keep new-thread selection page-scoped: start each NewThread page with no manual override.
   draftStore.providerId = undefined
   draftStore.modelId = undefined
+  draftStore.permissionMode = 'full_access'
 })
 </script>
