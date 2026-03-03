@@ -74,6 +74,9 @@ export interface IAgentImplementation {
   /** Set permission mode for this session */
   setPermissionMode?(sessionId: string, mode: PermissionMode): Promise<void>
 
+  /** Set provider/model for this session (takes effect on next user message) */
+  setSessionModel?(sessionId: string, providerId: string, modelId: string): Promise<void>
+
   /** Get permission mode for this session */
   getPermissionMode?(sessionId: string): Promise<PermissionMode>
 

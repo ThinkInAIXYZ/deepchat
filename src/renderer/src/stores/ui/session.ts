@@ -193,6 +193,24 @@ export const useSessionStore = defineStore('session', () => {
     }
   }
 
+  async function setSessionModel(
+    sessionId: string,
+    providerId: string,
+    modelId: string
+  ): Promise<void> {
+    error.value = null
+    try {
+      const updated = await newAgentPresenter.setSessionModel(sessionId, providerId, modelId)
+      const index = sessions.value.findIndex((item) => item.id === sessionId)
+      if (index >= 0) {
+        sessions.value[index] = mapToUISession(updated)
+      }
+    } catch (e) {
+      error.value = `Failed to set session model: ${e}`
+      throw e
+    }
+  }
+
   async function deleteSession(sessionId: string): Promise<void> {
     error.value = null
     try {
@@ -284,6 +302,7 @@ export const useSessionStore = defineStore('session', () => {
     fetchSessions,
     createSession,
     sendMessage,
+    setSessionModel,
     selectSession,
     closeSession,
     deleteSession,

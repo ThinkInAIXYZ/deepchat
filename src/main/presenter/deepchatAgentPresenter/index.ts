@@ -353,6 +353,48 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     this.sessionStore.updatePermissionMode(sessionId, normalizedMode)
   }
 
+  async setSessionModel(sessionId: string, providerId: string, modelId: string): Promise<void> {
+    const nextProviderId = providerId?.trim()
+    const nextModelId = modelId?.trim()
+    if (!nextProviderId || !nextModelId) {
+      throw new Error('Session model update requires providerId and modelId.')
+    }
+
+    const state = this.runtimeState.get(sessionId)
+    const dbSession = this.sessionStore.get(sessionId)
+    if (!state && !dbSession) {
+      throw new Error(`Session ${sessionId} not found`)
+    }
+
+    if (state?.status === 'generating') {
+      throw new Error('Cannot switch model while session is generating.')
+    }
+
+    const currentGeneration = await this.getEffectiveSessionGenerationSettings(sessionId)
+    const sanitized = await this.sanitizeGenerationSettings(
+      nextProviderId,
+      nextModelId,
+      {},
+      currentGeneration
+    )
+
+    if (state) {
+      state.providerId = nextProviderId
+      state.modelId = nextModelId
+    } else {
+      this.runtimeState.set(sessionId, {
+        status: 'idle',
+        providerId: nextProviderId,
+        modelId: nextModelId,
+        permissionMode: dbSession?.permission_mode || 'full_access'
+      })
+    }
+
+    this.sessionStore.updateSessionModel(sessionId, nextProviderId, nextModelId)
+    this.sessionStore.updateGenerationSettings(sessionId, sanitized)
+    this.sessionGenerationSettings.set(sessionId, sanitized)
+  }
+
   async getPermissionMode(sessionId: string): Promise<PermissionMode> {
     const state = this.runtimeState.get(sessionId)
     if (state) {
@@ -479,6 +521,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
         tools,
         toolPresenter: this.toolPresenter,
         coreStream: provider.coreStream.bind(provider),
+        providerId: state.providerId,
         modelId: state.modelId,
         modelConfig,
         temperature,

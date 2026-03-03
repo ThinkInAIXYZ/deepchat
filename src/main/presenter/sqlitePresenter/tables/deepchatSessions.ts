@@ -144,6 +144,12 @@ export class DeepChatSessionsTable extends BaseTable {
     this.db.prepare('UPDATE deepchat_sessions SET permission_mode = ? WHERE id = ?').run(mode, id)
   }
 
+  updateSessionModel(id: string, providerId: string, modelId: string): void {
+    this.db
+      .prepare('UPDATE deepchat_sessions SET provider_id = ?, model_id = ? WHERE id = ?')
+      .run(providerId, modelId, id)
+  }
+
   updateGenerationSettings(id: string, settings: Partial<DeepChatSessionGenerationSettings>): void {
     const updates: string[] = []
     const params: unknown[] = []

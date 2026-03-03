@@ -413,9 +413,20 @@ describe('dispatch', () => {
     })
 
     it('calls setMessageError', () => {
+      state.metadata.provider = 'openai'
+      state.metadata.model = 'gpt-4'
       finalizeError(state, io, new Error('fail'))
 
-      expect(io.messageStore.setMessageError).toHaveBeenCalledWith('m1', state.blocks)
+      expect(io.messageStore.setMessageError).toHaveBeenCalledWith(
+        'm1',
+        state.blocks,
+        expect.any(String)
+      )
+      const metadata = JSON.parse(
+        (io.messageStore.setMessageError as ReturnType<typeof vi.fn>).mock.calls[0][2]
+      )
+      expect(metadata.provider).toBe('openai')
+      expect(metadata.model).toBe('gpt-4')
     })
 
     it('emits ERROR event', () => {

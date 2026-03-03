@@ -102,6 +102,7 @@ describe('processStream', () => {
       tools,
       toolPresenter,
       coreStream,
+      providerId: 'openai',
       modelId: 'gpt-4',
       modelConfig: {} as any,
       temperature: 0.7,
@@ -125,6 +126,11 @@ describe('processStream', () => {
 
     expect(params.coreStream).toHaveBeenCalledTimes(1)
     expect(messageStore.finalizeAssistantMessage).toHaveBeenCalled()
+    const finalMetadata = JSON.parse(
+      (messageStore.finalizeAssistantMessage as ReturnType<typeof vi.fn>).mock.calls[0][2]
+    )
+    expect(finalMetadata.provider).toBe('openai')
+    expect(finalMetadata.model).toBe('gpt-4')
     expect(eventBus.sendToRenderer).toHaveBeenCalledWith(
       'stream:end',
       'all',
@@ -343,7 +349,16 @@ describe('processStream', () => {
     await vi.runAllTimersAsync()
     await promise
 
-    expect(messageStore.setMessageError).toHaveBeenCalled()
+    expect(messageStore.setMessageError).toHaveBeenCalledWith(
+      'm1',
+      expect.any(Array),
+      expect.any(String)
+    )
+    const abortMetadata = JSON.parse(
+      (messageStore.setMessageError as ReturnType<typeof vi.fn>).mock.calls[0][2]
+    )
+    expect(abortMetadata.provider).toBe('openai')
+    expect(abortMetadata.model).toBe('gpt-4')
     expect(eventBus.sendToRenderer).toHaveBeenCalledWith(
       'stream:error',
       'all',

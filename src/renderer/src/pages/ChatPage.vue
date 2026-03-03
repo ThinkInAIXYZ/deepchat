@@ -19,7 +19,7 @@
               :session-id="props.sessionId"
               :workspace-path="sessionStore.activeSession?.projectDir ?? null"
               :is-acp-session="sessionStore.activeSession?.providerId === 'acp'"
-              :submit-disabled="isAcpWorkdirMissing"
+              :submit-disabled="isInputSubmitDisabled"
               @command-submit="onCommandSubmit"
               @submit="onSubmit"
             >
@@ -51,11 +51,13 @@ import ChatStatusBar from '@/components/chat/ChatStatusBar.vue'
 import ChatToolInteractionOverlay from '@/components/chat/ChatToolInteractionOverlay.vue'
 import { useSessionStore } from '@/stores/ui/session'
 import { useMessageStore } from '@/stores/ui/message'
+import { useModelStore } from '@/stores/modelStore'
 import { usePresenter } from '@/composables/usePresenter'
 import type { Message } from '@shared/chat'
 import type {
   ChatMessageRecord,
   AssistantMessageBlock,
+  MessageMetadata,
   ToolInteractionResponse
 } from '@shared/types/agent-interface'
 
@@ -65,6 +67,7 @@ const props = defineProps<{
 
 const sessionStore = useSessionStore()
 const messageStore = useMessageStore()
+const modelStore = useModelStore()
 const newAgentPresenter = usePresenter('newAgentPresenter')
 
 const sessionTitle = computed(() => sessionStore.activeSession?.title ?? 'New Chat')
@@ -79,6 +82,7 @@ const isAcpWorkdirMissing = computed(() => {
   }
   return !activeSession.projectDir?.trim()
 })
+const isInputSubmitDisabled = computed(() => isAcpWorkdirMissing.value || isGenerating.value)
 
 // --- Auto-scroll ---
 const scrollContainer = ref<HTMLDivElement>()
@@ -113,31 +117,73 @@ watch(
 )
 
 // Map ChatMessageRecord → old Message format for MessageList
+function parseMessageContent(record: ChatMessageRecord): Message['content'] {
+  try {
+    return JSON.parse(record.content) as Message['content']
+  } catch {
+    if (record.role === 'assistant') {
+      return []
+    }
+    return {
+      text: '',
+      files: [],
+      links: [],
+      search: false,
+      think: false
+    }
+  }
+}
+
+function parseMessageMetadata(record: ChatMessageRecord): MessageMetadata {
+  try {
+    const parsed = JSON.parse(record.metadata) as MessageMetadata
+    return parsed && typeof parsed === 'object' ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
+function resolveAssistantModelName(modelId: string): string {
+  if (!modelId) {
+    return 'Assistant'
+  }
+  const found = modelStore.findModelByIdOrName(modelId)
+  return found?.model?.name || modelId
+}
+
+function buildUsage(metadata: MessageMetadata): Message['usage'] {
+  return {
+    context_usage: 0,
+    tokens_per_second: metadata.tokensPerSecond ?? 0,
+    total_tokens: metadata.totalTokens ?? 0,
+    generation_time: metadata.generationTime ?? 0,
+    first_token_time: metadata.firstTokenTime ?? 0,
+    reasoning_start_time: 0,
+    reasoning_end_time: 0,
+    input_tokens: metadata.inputTokens ?? 0,
+    output_tokens: metadata.outputTokens ?? 0
+  }
+}
+
 function toDisplayMessage(record: ChatMessageRecord): Message {
-  const parsed = JSON.parse(record.content)
+  const metadata = parseMessageMetadata(record)
+  const modelId = metadata.model || sessionStore.activeSession?.modelId || ''
+  const providerId = metadata.provider || sessionStore.activeSession?.providerId || ''
+  const modelName = record.role === 'assistant' ? resolveAssistantModelName(modelId) : ''
+
   return {
     id: record.id,
-    content: parsed,
+    content: parseMessageContent(record),
     role: record.role,
     timestamp: record.createdAt,
     avatar: '',
     name: record.role === 'user' ? 'You' : 'Assistant',
-    model_name: '',
-    model_id: sessionStore.activeSession?.modelId ?? '',
-    model_provider: sessionStore.activeSession?.providerId ?? '',
+    model_name: modelName,
+    model_id: modelId,
+    model_provider: providerId,
     status: record.status,
     error: '',
-    usage: {
-      context_usage: 0,
-      tokens_per_second: 0,
-      total_tokens: 0,
-      generation_time: 0,
-      first_token_time: 0,
-      reasoning_start_time: 0,
-      reasoning_end_time: 0,
-      input_tokens: 0,
-      output_tokens: 0
-    },
+    usage: buildUsage(metadata),
     conversationId: record.sessionId,
     is_variant: 0
   }
@@ -145,6 +191,7 @@ function toDisplayMessage(record: ChatMessageRecord): Message {
 
 // Build a streaming assistant message from live blocks
 function toStreamingMessage(blocks: AssistantMessageBlock[], messageId?: string | null): Message {
+  const modelId = sessionStore.activeSession?.modelId ?? ''
   return {
     id: messageId ? `__streaming__:${messageId}` : '__streaming__',
     content: blocks,
@@ -152,22 +199,12 @@ function toStreamingMessage(blocks: AssistantMessageBlock[], messageId?: string 
     timestamp: Date.now(),
     avatar: '',
     name: 'Assistant',
-    model_name: '',
-    model_id: sessionStore.activeSession?.modelId ?? '',
+    model_name: resolveAssistantModelName(modelId),
+    model_id: modelId,
     model_provider: sessionStore.activeSession?.providerId ?? '',
     status: 'pending',
     error: '',
-    usage: {
-      context_usage: 0,
-      tokens_per_second: 0,
-      total_tokens: 0,
-      generation_time: 0,
-      first_token_time: 0,
-      reasoning_start_time: 0,
-      reasoning_end_time: 0,
-      input_tokens: 0,
-      output_tokens: 0
-    },
+    usage: buildUsage({}),
     conversationId: props.sessionId,
     is_variant: 0
   }
@@ -267,6 +304,7 @@ const pendingInteractions = computed<PendingInteractionView[]>(() => {
 const activePendingInteraction = computed(() => pendingInteractions.value[0] ?? null)
 
 async function onSubmit() {
+  if (isGenerating.value) return
   if (isAcpWorkdirMissing.value) return
   if (activePendingInteraction.value || isHandlingInteraction.value) return
   const text = message.value.trim()
@@ -277,6 +315,7 @@ async function onSubmit() {
 }
 
 async function onCommandSubmit(command: string) {
+  if (isGenerating.value) return
   if (isAcpWorkdirMissing.value) return
   if (activePendingInteraction.value || isHandlingInteraction.value) return
   const text = command.trim()

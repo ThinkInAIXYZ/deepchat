@@ -18,6 +18,7 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
     tools,
     toolPresenter,
     coreStream,
+    providerId,
     modelId,
     modelConfig,
     temperature,
@@ -28,6 +29,8 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
   } = params
 
   const state = createState()
+  state.metadata.provider = providerId
+  state.metadata.model = modelId
   if (Array.isArray(initialBlocks) && initialBlocks.length > 0) {
     state.blocks = JSON.parse(JSON.stringify(initialBlocks)) as typeof state.blocks
   }
@@ -63,7 +66,11 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
           for (const block of state.blocks) {
             if (block.status === 'pending') block.status = 'error'
           }
-          io.messageStore.setMessageError(io.messageId, state.blocks)
+          io.messageStore.setMessageError(
+            io.messageId,
+            state.blocks,
+            JSON.stringify(state.metadata)
+          )
           eventBus.sendToRenderer(STREAM_EVENTS.ERROR, SendTarget.ALL_WINDOWS, {
             conversationId: io.sessionId,
             eventId: io.messageId,

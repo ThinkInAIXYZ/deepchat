@@ -518,7 +518,18 @@ export function finalizeError(state: StreamState, io: IoParams, error: unknown):
     if (block.status === 'pending') block.status = 'error'
   }
 
-  io.messageStore.setMessageError(io.messageId, state.blocks)
+  const endTime = Date.now()
+  state.metadata.generationTime = endTime - state.startTime
+  if (state.firstTokenTime !== null) {
+    state.metadata.firstTokenTime = state.firstTokenTime - state.startTime
+  }
+  if (state.metadata.outputTokens && state.metadata.generationTime > 0) {
+    state.metadata.tokensPerSecond = Math.round(
+      (state.metadata.outputTokens / state.metadata.generationTime) * 1000
+    )
+  }
+
+  io.messageStore.setMessageError(io.messageId, state.blocks, JSON.stringify(state.metadata))
   flushBlocksToRenderer(io, state.blocks)
   eventBus.sendToRenderer(STREAM_EVENTS.ERROR, SendTarget.ALL_WINDOWS, {
     conversationId: io.sessionId,

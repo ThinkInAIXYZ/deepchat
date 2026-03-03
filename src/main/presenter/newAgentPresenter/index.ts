@@ -398,6 +398,44 @@ export class NewAgentPresenter {
     await agent.setPermissionMode(sessionId, mode)
   }
 
+  async setSessionModel(
+    sessionId: string,
+    providerId: string,
+    modelId: string
+  ): Promise<SessionWithState> {
+    const session = this.sessionManager.get(sessionId)
+    if (!session) {
+      throw new Error(`Session not found: ${sessionId}`)
+    }
+
+    const nextProviderId = providerId?.trim()
+    const nextModelId = modelId?.trim()
+    if (!nextProviderId || !nextModelId) {
+      throw new Error('setSessionModel requires providerId and modelId.')
+    }
+
+    const acpAgents = await this.configPresenter.getAcpAgents()
+    if (session.agentId !== 'deepchat' && acpAgents.some((item) => item.id === session.agentId)) {
+      throw new Error('ACP session model is locked.')
+    }
+
+    const agent = await this.resolveAgentImplementation(session.agentId)
+    if (!agent.setSessionModel) {
+      throw new Error(`Agent ${session.agentId} does not support session model switching.`)
+    }
+
+    await agent.setSessionModel(sessionId, nextProviderId, nextModelId)
+    const state = await agent.getSessionState(sessionId)
+    const updated: SessionWithState = {
+      ...session,
+      status: state?.status ?? 'idle',
+      providerId: state?.providerId ?? nextProviderId,
+      modelId: state?.modelId ?? nextModelId
+    }
+    eventBus.sendToRenderer(SESSION_EVENTS.LIST_UPDATED, SendTarget.ALL_WINDOWS)
+    return updated
+  }
+
   async getSessionGenerationSettings(sessionId: string): Promise<SessionGenerationSettings | null> {
     const session = this.sessionManager.get(sessionId)
     if (!session) {

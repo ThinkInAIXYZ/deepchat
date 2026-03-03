@@ -99,7 +99,8 @@ const setup = async (options: SetupOptions = {}) => {
           modelId: options.activeModelId ?? 'gpt-4',
           status: 'idle'
         }
-      : null
+      : null,
+    setSessionModel: vi.fn().mockResolvedValue(undefined)
   })
 
   const draftStore = reactive({
@@ -231,7 +232,9 @@ const setup = async (options: SetupOptions = {}) => {
 
   return {
     wrapper,
-    newAgentPresenter
+    newAgentPresenter,
+    sessionStore,
+    chatStore
   }
 }
 
@@ -290,5 +293,43 @@ describe('ChatStatusBar advanced settings', () => {
 
     vi.runOnlyPendingTimers()
     vi.useRealTimers()
+  })
+
+  it('switches active non-ACP session model via session store', async () => {
+    const { wrapper, sessionStore, chatStore } = await setup({
+      agentId: 'deepchat',
+      hasActiveSession: true,
+      activeProviderId: 'openai',
+      activeModelId: 'gpt-4'
+    })
+
+    await (wrapper.vm as any).selectModel('anthropic', 'claude-3-5-sonnet')
+
+    expect(sessionStore.setSessionModel).toHaveBeenCalledWith(
+      's1',
+      'anthropic',
+      'claude-3-5-sonnet'
+    )
+    expect(chatStore.updateChatConfig).not.toHaveBeenCalled()
+  })
+
+  it('keeps advanced modal open when clicking advanced select portal content', async () => {
+    const { wrapper } = await setup({ agentId: 'deepchat', hasActiveSession: false })
+
+    ;(wrapper.vm as any).toggleAdvancedSettings()
+    await flushPromises()
+    expect((wrapper.vm as any).isAdvancedOpen).toBe(true)
+
+    const portal = document.createElement('div')
+    portal.className = 'advanced-settings-portal-content'
+    const option = document.createElement('button')
+    portal.appendChild(option)
+    document.body.appendChild(portal)
+
+    option.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+    await flushPromises()
+
+    expect((wrapper.vm as any).isAdvancedOpen).toBe(true)
+    portal.remove()
   })
 })

@@ -34,6 +34,7 @@ function createMockDeepChatAgent() {
     getMessages: vi.fn().mockResolvedValue([]),
     getMessageIds: vi.fn().mockResolvedValue([]),
     getMessage: vi.fn().mockResolvedValue(null),
+    setSessionModel: vi.fn().mockResolvedValue(undefined),
     getGenerationSettings: vi.fn().mockResolvedValue({
       systemPrompt: 'Default prompt',
       temperature: 0.7,
@@ -712,6 +713,57 @@ describe('NewAgentPresenter', () => {
       await expect(
         presenter.updateSessionGenerationSettings('unknown', { temperature: 1 })
       ).rejects.toThrow('Session not found: unknown')
+    })
+  })
+
+  describe('setSessionModel', () => {
+    it('updates deepchat session model and emits LIST_UPDATED', async () => {
+      sqlitePresenter.newSessionsTable.get.mockReturnValue({
+        id: 's1',
+        agent_id: 'deepchat',
+        title: 'Test',
+        project_dir: null,
+        is_pinned: 0,
+        created_at: 1000,
+        updated_at: 1000
+      })
+      deepChatAgent.getSessionState.mockResolvedValue({
+        status: 'idle',
+        providerId: 'anthropic',
+        modelId: 'claude-3-5-sonnet',
+        permissionMode: 'full_access'
+      })
+
+      const updated = await presenter.setSessionModel('s1', 'anthropic', 'claude-3-5-sonnet')
+
+      expect(deepChatAgent.setSessionModel).toHaveBeenCalledWith(
+        's1',
+        'anthropic',
+        'claude-3-5-sonnet'
+      )
+      expect(updated.providerId).toBe('anthropic')
+      expect(updated.modelId).toBe('claude-3-5-sonnet')
+      expect(eventBus.sendToRenderer).toHaveBeenCalledWith('session:list-updated', 'all')
+    })
+
+    it('rejects ACP session model switching', async () => {
+      sqlitePresenter.newSessionsTable.get.mockReturnValue({
+        id: 's-acp',
+        agent_id: 'acp-coder',
+        title: 'ACP',
+        project_dir: '/tmp/workspace',
+        is_pinned: 0,
+        created_at: 1000,
+        updated_at: 1000
+      })
+      configPresenter.getAcpAgents.mockResolvedValue([
+        { id: 'acp-coder', name: 'ACP Coder', command: 'acp-coder' }
+      ])
+
+      await expect(presenter.setSessionModel('s-acp', 'openai', 'gpt-4')).rejects.toThrow(
+        'ACP session model is locked.'
+      )
+      expect(deepChatAgent.setSessionModel).not.toHaveBeenCalled()
     })
   })
 

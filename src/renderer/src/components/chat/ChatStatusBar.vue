@@ -170,7 +170,7 @@
             <SelectTrigger class="h-8 text-xs">
               <SelectValue :placeholder="t('chat.advancedSettings.systemPromptPlaceholder')" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent class="advanced-settings-portal-content">
               <SelectItem
                 v-for="option in systemPromptOptions"
                 :key="option.id"
@@ -278,7 +278,7 @@
             <SelectTrigger class="h-8 text-xs">
               <SelectValue :placeholder="t('chat.advancedSettings.verbosityPlaceholder')" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent class="advanced-settings-portal-content">
               <SelectItem value="low">{{
                 t('settings.model.modelConfig.verbosity.options.low')
               }}</SelectItem>
@@ -1120,6 +1120,10 @@ const handleDocumentMouseDown = (event: MouseEvent) => {
     return
   }
 
+  if (target instanceof Element && target.closest('.advanced-settings-portal-content')) {
+    return
+  }
+
   if (advancedOverlayRef.value?.contains(target)) {
     return
   }
@@ -1164,6 +1168,19 @@ function closeAdvancedSettings() {
 
 async function selectModel(providerId: string, modelId: string) {
   if (isModelSelectionLocked.value) {
+    return
+  }
+
+  if (hasActiveSession.value) {
+    const sessionId = sessionStore.activeSessionId
+    if (!sessionId) {
+      return
+    }
+    try {
+      await sessionStore.setSessionModel(sessionId, providerId, modelId)
+    } catch (error) {
+      console.warn('[ChatStatusBar] Failed to switch active session model:', error)
+    }
     return
   }
 

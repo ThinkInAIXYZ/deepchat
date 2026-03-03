@@ -91,6 +91,7 @@ export interface ProcessParams {
     maxTokens: number,
     tools: MCPToolDefinition[]
   ) => AsyncGenerator<LLMCoreStreamEvent>
+  providerId: string
   modelId: string
   modelConfig: ModelConfig
   temperature: number

@@ -36,6 +36,10 @@ export class DeepChatSessionStore {
     this.sqlitePresenter.deepchatSessionsTable.updatePermissionMode(id, mode)
   }
 
+  updateSessionModel(id: string, providerId: string, modelId: string): void {
+    this.sqlitePresenter.deepchatSessionsTable.updateSessionModel(id, providerId, modelId)
+  }
+
   getGenerationSettings(id: string): Partial<SessionGenerationSettings> | null {
     return this.sqlitePresenter.deepchatSessionsTable.getGenerationSettings(id)
   }

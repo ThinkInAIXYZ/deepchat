@@ -43,6 +43,7 @@ export interface INewAgentPresenter {
   >
   getPermissionMode(sessionId: string): Promise<PermissionMode>
   setPermissionMode(sessionId: string, mode: PermissionMode): Promise<void>
+  setSessionModel(sessionId: string, providerId: string, modelId: string): Promise<SessionWithState>
   getSessionGenerationSettings(sessionId: string): Promise<SessionGenerationSettings | null>
   updateSessionGenerationSettings(
     sessionId: string,

@@ -61,11 +61,21 @@ export class DeepChatMessageStore {
     )
   }
 
-  setMessageError(messageId: string, blocks: AssistantMessageBlock[]): void {
+  setMessageError(messageId: string, blocks: AssistantMessageBlock[], metadata?: string): void {
+    const serializedBlocks = JSON.stringify(blocks)
+    if (metadata === undefined) {
+      this.sqlitePresenter.deepchatMessagesTable.updateContentAndStatus(
+        messageId,
+        serializedBlocks,
+        'error'
+      )
+      return
+    }
     this.sqlitePresenter.deepchatMessagesTable.updateContentAndStatus(
       messageId,
-      JSON.stringify(blocks),
-      'error'
+      serializedBlocks,
+      'error',
+      metadata
     )
   }
 

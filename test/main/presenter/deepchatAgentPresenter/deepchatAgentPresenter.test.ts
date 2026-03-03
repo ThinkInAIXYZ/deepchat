@@ -278,6 +278,7 @@ describe('DeepChatAgentPresenter', () => {
 
       expect(processStream).toHaveBeenCalledWith(
         expect.objectContaining({
+          providerId: 'openai',
           modelId: 'gpt-4',
           io: expect.objectContaining({
             sessionId: 's1',

@@ -107,6 +107,21 @@ describe('DeepChatMessageStore', () => {
         'error'
       )
     })
+
+    it('persists metadata when provided', () => {
+      const blocks = [
+        { type: 'error' as const, content: 'failed', status: 'error' as const, timestamp: 1000 }
+      ]
+      const metadata = '{"provider":"openai","model":"gpt-4"}'
+      store.setMessageError('m1', blocks, metadata)
+
+      expect(sqlitePresenter.deepchatMessagesTable.updateContentAndStatus).toHaveBeenCalledWith(
+        'm1',
+        JSON.stringify(blocks),
+        'error',
+        metadata
+      )
+    })
   })
 
   describe('getMessages', () => {
