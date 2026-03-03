@@ -2,7 +2,7 @@
   <div class="w-full max-w-2xl flex items-center justify-between px-1 py-2">
     <div class="flex items-center gap-1">
       <!-- Model selector -->
-      <DropdownMenu>
+      <DropdownMenu v-if="!isModelSelectionLocked">
         <DropdownMenuTrigger as-child>
           <Button
             variant="ghost"
@@ -34,6 +34,20 @@
           </template>
         </DropdownMenuContent>
       </DropdownMenu>
+      <Button
+        v-else
+        variant="ghost"
+        size="sm"
+        class="h-6 px-2 gap-1 text-xs text-muted-foreground hover:text-foreground backdrop-blur-lg"
+        :disabled="true"
+      >
+        <ModelIcon
+          :model-id="displayProviderId"
+          custom-class="w-3.5 h-3.5"
+          :is-dark="themeStore.isDark"
+        />
+        <span>{{ displayModelName }}</span>
+      </Button>
 
       <!-- Effort selector (hide for ACP agents — they don't have effort settings) -->
       <DropdownMenu v-if="!isAcpAgent">
@@ -156,6 +170,16 @@ const isAcpAgent = computed(() => {
   const agentId = agentStore.selectedAgentId
   return agentId !== null && agentId !== 'deepchat'
 })
+
+const lockedAcpModelId = computed(() => {
+  if (hasActiveSession.value && sessionStore.activeSession?.providerId === 'acp') {
+    return sessionStore.activeSession.modelId || null
+  }
+  const selectedAgentId = agentStore.selectedAgentId
+  return selectedAgentId && selectedAgentId !== 'deepchat' ? selectedAgentId : null
+})
+
+const isModelSelectionLocked = computed(() => isAcpAgent.value && Boolean(lockedAcpModelId.value))
 
 const activeSessionSelection = computed<ModelSelection | null>(() => {
   const active = sessionStore.activeSession
@@ -321,8 +345,20 @@ const displayModelName = computed(() => {
 })
 
 const flatModels = computed(() => {
+  if (isAcpAgent.value) {
+    const targetModelId = lockedAcpModelId.value
+    const acpGroup = modelStore.enabledModels.find((group) => group.providerId === 'acp')
+    if (!targetModelId || !acpGroup) return []
+    return acpGroup.models
+      .filter((model) => model.id === targetModelId)
+      .map((model) => ({ providerId: 'acp', model }))
+  }
+
   const result: { providerId: string; model: RENDERER_MODEL_META }[] = []
   for (const group of modelStore.enabledModels) {
+    if (group.providerId === 'acp') {
+      continue
+    }
     for (const model of group.models) {
       result.push({ providerId: group.providerId, model })
     }
@@ -331,6 +367,10 @@ const flatModels = computed(() => {
 })
 
 async function selectModel(providerId: string, modelId: string) {
+  if (isModelSelectionLocked.value) {
+    return
+  }
+
   if (!hasActiveSession.value) {
     draftModelSelection.value = { providerId, modelId }
     draftStore.providerId = providerId

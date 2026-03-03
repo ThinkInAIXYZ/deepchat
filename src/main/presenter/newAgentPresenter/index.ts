@@ -68,6 +68,7 @@ export class NewAgentPresenter {
     if (!providerId || !modelId) {
       throw new Error('No provider or model configured. Please set a default model in settings.')
     }
+    this.assertAcpSessionHasWorkdir(providerId, projectDir)
 
     // Create session record
     const title = input.message.slice(0, 50) || 'New Chat'
@@ -117,6 +118,15 @@ export class NewAgentPresenter {
     const session = this.sessionManager.get(sessionId)
     if (!session) throw new Error(`Session not found: ${sessionId}`)
     const agent = await this.resolveAgentImplementation(session.agentId)
+    const state = await agent.getSessionState(sessionId)
+    let providerId = state?.providerId ?? ''
+    if (!providerId) {
+      const acpAgents = await this.configPresenter.getAcpAgents()
+      if (acpAgents.some((item) => item.id === session.agentId)) {
+        providerId = 'acp'
+      }
+    }
+    this.assertAcpSessionHasWorkdir(providerId, session.projectDir ?? null)
     await agent.processMessage(sessionId, content, {
       projectDir: session.projectDir ?? null
     })
@@ -441,5 +451,15 @@ export class NewAgentPresenter {
       cleaned = cleaned.slice(0, 80).trim()
     }
     return cleaned
+  }
+
+  private assertAcpSessionHasWorkdir(providerId: string, projectDir: string | null): void {
+    if (providerId !== 'acp') {
+      return
+    }
+    if (projectDir?.trim()) {
+      return
+    }
+    throw new Error('ACP agent requires selecting a workdir before sending messages.')
   }
 }

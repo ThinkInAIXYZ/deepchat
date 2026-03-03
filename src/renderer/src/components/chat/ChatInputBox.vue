@@ -52,13 +52,15 @@ const props = withDefaults(
     sessionId?: string | null
     workspacePath?: string | null
     isAcpSession?: boolean
+    submitDisabled?: boolean
   }>(),
   {
     modelValue: '',
     placeholder: 'Ask DeepChat anything, @ to mention files, / for commands',
     sessionId: null,
     workspacePath: null,
-    isAcpSession: false
+    isAcpSession: false,
+    submitDisabled: false
   }
 )
 
@@ -176,6 +178,11 @@ function handleKeydown(e: KeyboardEvent) {
   }
 
   if (mentions.isSuggestionMenuOpen.value || mentions.shouldSuppressSubmit()) {
+    return
+  }
+
+  if (props.submitDisabled) {
+    e.preventDefault()
     return
   }
 

@@ -37,7 +37,13 @@
       </Tooltip>
 
       <!-- Send button -->
-      <Button v-if="!isGenerating" size="icon" class="h-7 w-7 rounded-full" @click="$emit('send')">
+      <Button
+        v-if="!isGenerating"
+        size="icon"
+        class="h-7 w-7 rounded-full"
+        :disabled="sendDisabled"
+        @click="$emit('send')"
+      >
         <Icon icon="lucide:arrow-up" class="w-4 h-4" />
       </Button>
       <Button
@@ -61,9 +67,11 @@ import { Icon } from '@iconify/vue'
 withDefaults(
   defineProps<{
     isGenerating?: boolean
+    sendDisabled?: boolean
   }>(),
   {
-    isGenerating: false
+    isGenerating: false,
+    sendDisabled: false
   }
 )
 

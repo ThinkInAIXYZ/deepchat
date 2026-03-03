@@ -19,11 +19,17 @@
               :session-id="props.sessionId"
               :workspace-path="sessionStore.activeSession?.projectDir ?? null"
               :is-acp-session="sessionStore.activeSession?.providerId === 'acp'"
+              :submit-disabled="isAcpWorkdirMissing"
               @command-submit="onCommandSubmit"
               @submit="onSubmit"
             >
               <template #toolbar>
-                <ChatInputToolbar :is-generating="isGenerating" @send="onSubmit" @stop="onStop" />
+                <ChatInputToolbar
+                  :is-generating="isGenerating"
+                  :send-disabled="isAcpWorkdirMissing"
+                  @send="onSubmit"
+                  @stop="onStop"
+                />
               </template>
             </ChatInputBox>
             <ChatStatusBar />
@@ -66,6 +72,13 @@ const sessionProject = computed(() => sessionStore.activeSession?.projectDir ?? 
 const isGenerating = computed(
   () => sessionStore.activeSession?.status === 'working' || messageStore.isStreaming
 )
+const isAcpWorkdirMissing = computed(() => {
+  const activeSession = sessionStore.activeSession
+  if (!activeSession || activeSession.providerId !== 'acp') {
+    return false
+  }
+  return !activeSession.projectDir?.trim()
+})
 
 // --- Auto-scroll ---
 const scrollContainer = ref<HTMLDivElement>()
@@ -254,6 +267,7 @@ const pendingInteractions = computed<PendingInteractionView[]>(() => {
 const activePendingInteraction = computed(() => pendingInteractions.value[0] ?? null)
 
 async function onSubmit() {
+  if (isAcpWorkdirMissing.value) return
   if (activePendingInteraction.value || isHandlingInteraction.value) return
   const text = message.value.trim()
   if (!text) return
@@ -263,6 +277,7 @@ async function onSubmit() {
 }
 
 async function onCommandSubmit(command: string) {
+  if (isAcpWorkdirMissing.value) return
   if (activePendingInteraction.value || isHandlingInteraction.value) return
   const text = command.trim()
   if (!text) return

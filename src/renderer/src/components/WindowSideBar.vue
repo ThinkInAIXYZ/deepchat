@@ -16,7 +16,7 @@
                   ? 'bg-card/50 border-white/70 dark:border-white/20 ring-1 ring-black/10 hover:bg-white/30 dark:hover:bg-white/10'
                   : 'bg-transparent border-none hover:bg-white/30 dark:hover:bg-white/10 shadow-none'
               "
-              @click="agentStore.selectAgent(null)"
+              @click="handleAgentSelect(null)"
             >
               <Icon icon="lucide:layers" class="w-4 h-4 text-foreground/80" />
             </Button>
@@ -37,7 +37,7 @@
                   ? 'bg-card/50 border-white/80 dark:border-white/20 ring-1 ring-black/10 hover:bg-white/30 dark:hover:bg-white/10'
                   : 'bg-transparent border-none hover:bg-white/30 dark:hover:bg-white/10 shadow-none'
               "
-              @click="agentStore.selectAgent(agent.id)"
+              @click="handleAgentSelect(agent.id)"
             >
               <ModelIcon :model-id="agent.id" custom-class="w-4 h-4" :is-dark="themeStore.isDark" />
             </Button>
@@ -226,6 +226,16 @@ const onBrowserClick = async () => {
 
 const handleNewChat = () => {
   sessionStore.closeSession()
+}
+
+const handleAgentSelect = async (id: string | null) => {
+  const previousAgentId = agentStore.selectedAgentId
+  agentStore.selectAgent(id)
+  const hasAgentChanged = previousAgentId !== agentStore.selectedAgentId
+
+  if (hasAgentChanged && sessionStore.hasActiveSession) {
+    await sessionStore.closeSession()
+  }
 }
 
 const handleSessionClick = (session: { id: string }) => {

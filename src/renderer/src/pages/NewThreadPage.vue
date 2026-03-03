@@ -54,11 +54,12 @@
           v-model="message"
           :workspace-path="projectStore.selectedProject?.path ?? null"
           :is-acp-session="(agentStore.selectedAgentId ?? 'deepchat') !== 'deepchat'"
+          :submit-disabled="isAcpWorkdirMissing"
           @pending-skills-change="onPendingSkillsChange"
           @submit="onSubmit"
         >
           <template #toolbar>
-            <ChatInputToolbar @send="onSubmit" />
+            <ChatInputToolbar :send-disabled="isAcpWorkdirMissing" @send="onSubmit" />
           </template>
         </ChatInputBox>
 
@@ -70,7 +71,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { TooltipProvider } from '@shadcn/components/ui/tooltip'
 import { Button } from '@shadcn/components/ui/button'
 import {
@@ -98,9 +99,18 @@ const agentStore = useAgentStore()
 const modelStore = useModelStore()
 const draftStore = useDraftStore()
 const configPresenter = usePresenter('configPresenter')
+const sessionPresenter = usePresenter('sessionPresenter')
 
 const message = ref('')
 const pendingSkills = ref<string[]>([])
+const lastAcpWarmupKey = ref<string | null>(null)
+const isAcpWorkdirMissing = computed(() => {
+  const selectedAgentId = agentStore.selectedAgentId ?? 'deepchat'
+  if (selectedAgentId === 'deepchat') {
+    return false
+  }
+  return !projectStore.selectedProject?.path?.trim()
+})
 
 const getEnabledModel = (
   providerId?: string,
@@ -143,6 +153,8 @@ async function resolveModel(): Promise<{ providerId: string; modelId: string } |
 }
 
 async function onSubmit() {
+  if (isAcpWorkdirMissing.value) return
+
   const text = message.value.trim()
   if (!text) return
   message.value = ''
@@ -180,6 +192,33 @@ async function onSubmit() {
 function onPendingSkillsChange(skills: string[]) {
   pendingSkills.value = [...skills]
 }
+
+const warmupAcpAgent = async (agentId: string, projectPath: string) => {
+  const workdir = projectPath.trim()
+  if (!workdir) return
+
+  const warmupKey = `${agentId}::${workdir}`
+  if (lastAcpWarmupKey.value === warmupKey) return
+  lastAcpWarmupKey.value = warmupKey
+
+  try {
+    await sessionPresenter.warmupAcpProcess(agentId, workdir)
+    await sessionPresenter.getAcpProcessModes(agentId, workdir)
+  } catch (error) {
+    console.warn('[NewThreadPage] Failed to warmup ACP agent process:', error)
+  }
+}
+
+watch(
+  () => [agentStore.selectedAgentId, projectStore.selectedProject?.path] as const,
+  ([selectedAgentId, projectPath]) => {
+    if (!selectedAgentId || selectedAgentId === 'deepchat' || !projectPath) {
+      return
+    }
+    void warmupAcpAgent(selectedAgentId, projectPath)
+  },
+  { immediate: true }
+)
 
 onMounted(() => {
   // Keep new-thread selection page-scoped: start each NewThread page with no manual override.
