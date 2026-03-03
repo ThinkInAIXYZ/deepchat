@@ -246,7 +246,14 @@ const ensureAcpDraftSession = async (agentId: string, projectPath: string) => {
     if (currentAgentId !== agentId || currentProjectDir !== projectDir) {
       return
     }
-    acpDraftSessionId.value = session.id
+    const sessionId = typeof session?.id === 'string' ? session.id.trim() : ''
+    if (!sessionId) {
+      console.warn('[NewThreadPage] ensureAcpDraftSession returned invalid session:', session)
+      acpDraftSessionId.value = null
+      lastAcpDraftKey.value = null
+      return
+    }
+    acpDraftSessionId.value = sessionId
     lastAcpDraftKey.value = draftKey
   } catch (error) {
     if (requestSeq !== acpDraftRequestSeq.value) {

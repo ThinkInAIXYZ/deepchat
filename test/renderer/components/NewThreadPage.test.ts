@@ -21,7 +21,7 @@ const setup = async (options?: {
     agentId: string
     projectDir: string
     permissionMode?: string
-  }) => Promise<{ id: string }>
+  }) => Promise<{ id: string } | null>
 }) => {
   vi.resetModules()
 
@@ -238,5 +238,13 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
     resolveNew?.({ id: 'draft-new' })
     await flushPromises()
     expect((wrapper.vm as any).acpDraftSessionId).toBe('draft-new')
+  })
+
+  it('handles null ensureAcpDraftSession result without throwing', async () => {
+    const { wrapper } = await setup({
+      ensureAcpDraftSession: () => Promise.resolve(null)
+    })
+
+    expect((wrapper.vm as any).acpDraftSessionId).toBeNull()
   })
 })

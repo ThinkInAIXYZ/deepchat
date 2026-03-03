@@ -80,11 +80,12 @@
           ref="advancedButtonRef"
           variant="ghost"
           size="sm"
-          class="h-6 px-2 gap-1 text-xs text-muted-foreground hover:text-foreground backdrop-blur-lg"
+          class="h-6 w-6 p-0 text-muted-foreground hover:text-foreground backdrop-blur-lg"
+          :aria-label="t('chat.advancedSettings.button')"
+          :title="t('chat.advancedSettings.button')"
           @click="toggleAdvancedSettings"
         >
           <Icon icon="lucide:sliders-horizontal" class="w-3.5 h-3.5" />
-          <span>{{ t('chat.advancedSettings.button') }}</span>
         </Button>
 
         <DropdownMenu v-if="canSelectPermissionMode">
@@ -139,7 +140,16 @@
           <Icon icon="lucide:sliders-horizontal" class="h-4 w-4" />
           <span>{{ t('chat.advancedSettings.title') }}</span>
         </div>
-        <span>{{ t('chat.advancedSettings.closeHint') }}</span>
+        <Button
+          variant="ghost"
+          size="sm"
+          class="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
+          :aria-label="t('common.close')"
+          :title="t('common.close')"
+          @click="closeAdvancedSettings"
+        >
+          <Icon icon="lucide:x" class="h-3.5 w-3.5" />
+        </Button>
       </div>
 
       <div class="mt-4 space-y-4">
@@ -174,31 +184,45 @@
         </div>
 
         <div class="space-y-1.5">
-          <div class="flex items-center justify-between">
+          <div class="flex items-center justify-between gap-2">
             <label class="text-xs font-medium">{{ t('chat.advancedSettings.temperature') }}</label>
-            <span class="text-[11px] text-muted-foreground">{{
-              localSettings.temperature.toFixed(1)
-            }}</span>
+            <Input
+              class="h-7 w-20 text-xs tabular-nums"
+              type="number"
+              :min="TEMPERATURE_MIN"
+              :max="TEMPERATURE_MAX"
+              step="0.1"
+              :model-value="localSettings.temperature.toFixed(1)"
+              @update:model-value="onTemperatureInput"
+            />
           </div>
           <Slider
             :model-value="[localSettings.temperature]"
-            :min="0"
-            :max="2"
+            :min="TEMPERATURE_MIN"
+            :max="TEMPERATURE_MAX"
             :step="0.1"
             @update:model-value="onTemperatureSlider"
           />
         </div>
 
         <div class="space-y-1.5">
-          <div class="flex items-center justify-between">
+          <div class="flex items-center justify-between gap-2">
             <label class="text-xs font-medium">{{
               t('chat.advancedSettings.contextLength')
             }}</label>
-            <span class="text-[11px] text-muted-foreground">{{ localSettings.contextLength }}</span>
+            <Input
+              class="h-7 w-24 text-xs tabular-nums"
+              type="number"
+              :min="CONTEXT_LENGTH_MIN"
+              :max="contextLengthLimit"
+              :step="1024"
+              :model-value="localSettings.contextLength.toString()"
+              @update:model-value="onContextLengthInput"
+            />
           </div>
           <Slider
             :model-value="[localSettings.contextLength]"
-            :min="2048"
+            :min="CONTEXT_LENGTH_MIN"
             :max="contextLengthLimit"
             :step="1024"
             @update:model-value="onContextLengthSlider"
@@ -206,13 +230,21 @@
         </div>
 
         <div class="space-y-1.5">
-          <div class="flex items-center justify-between">
+          <div class="flex items-center justify-between gap-2">
             <label class="text-xs font-medium">{{ t('chat.advancedSettings.maxTokens') }}</label>
-            <span class="text-[11px] text-muted-foreground">{{ localSettings.maxTokens }}</span>
+            <Input
+              class="h-7 w-24 text-xs tabular-nums"
+              type="number"
+              :min="MAX_TOKENS_MIN"
+              :max="maxTokensSliderLimit"
+              :step="128"
+              :model-value="localSettings.maxTokens.toString()"
+              @update:model-value="onMaxTokensInput"
+            />
           </div>
           <Slider
             :model-value="[localSettings.maxTokens]"
-            :min="128"
+            :min="MAX_TOKENS_MIN"
             :max="maxTokensSliderLimit"
             :step="128"
             @update:model-value="onMaxTokensSlider"
@@ -329,7 +361,7 @@ let permissionSyncToken = 0
 
 const isAdvancedOpen = ref(false)
 const advancedOverlayRef = ref<HTMLElement | null>(null)
-const advancedButtonRef = ref<HTMLElement | null>(null)
+const advancedButtonRef = ref<HTMLElement | { $el?: unknown } | null>(null)
 const localSettings = ref<SessionGenerationSettings | null>(null)
 const systemPromptList = ref<SystemPrompt[]>([])
 
@@ -341,6 +373,7 @@ const capabilitySupportsVerbosity = ref<boolean | null>(null)
 let generationSyncToken = 0
 let generationPersistTimer: ReturnType<typeof setTimeout> | null = null
 let pendingGenerationPatch: Partial<SessionGenerationSettings> = {}
+let generationPersistRequestToken = 0
 
 const hasActiveSession = computed(() => sessionStore.hasActiveSession)
 
@@ -405,6 +438,28 @@ const toFiniteNumber = (value: unknown): number | undefined => {
     return undefined
   }
   return value
+}
+
+const resolveDomElement = (value: HTMLElement | { $el?: unknown } | null): HTMLElement | null => {
+  if (!value) {
+    return null
+  }
+  if (value instanceof HTMLElement) {
+    return value
+  }
+  return value.$el instanceof HTMLElement ? value.$el : null
+}
+
+const parseNumericInput = (value: string | number): number | undefined => {
+  const normalized = typeof value === 'string' ? value.trim() : String(value)
+  if (!normalized) {
+    return undefined
+  }
+  const numeric = Number(normalized)
+  if (!Number.isFinite(numeric)) {
+    return undefined
+  }
+  return numeric
 }
 
 const normalizeReasoningEffort = (
@@ -769,9 +824,20 @@ const flushGenerationPatch = async () => {
     return
   }
 
+  const requestToken = ++generationPersistRequestToken
   try {
     const updated = await newAgentPresenter.updateSessionGenerationSettings(sessionId, patch)
-    localSettings.value = { ...updated }
+    if (requestToken !== generationPersistRequestToken) {
+      return
+    }
+    if (!localSettings.value) {
+      localSettings.value = { ...updated }
+      return
+    }
+    localSettings.value = {
+      ...localSettings.value,
+      ...updated
+    }
   } catch (error) {
     console.warn('[ChatStatusBar] Failed to update generation settings:', error)
   }
@@ -791,6 +857,7 @@ const updateLocalGenerationSettings = (patch: Partial<SessionGenerationSettings>
   if (!localSettings.value) {
     return
   }
+  generationSyncToken += 1
 
   const limits = getCurrentLimits()
   const next: SessionGenerationSettings = {
@@ -1056,11 +1123,12 @@ const handleDocumentMouseDown = (event: MouseEvent) => {
   if (advancedOverlayRef.value?.contains(target)) {
     return
   }
-  if (advancedButtonRef.value?.contains(target)) {
+  const advancedButtonEl = resolveDomElement(advancedButtonRef.value)
+  if (advancedButtonEl?.contains(target)) {
     return
   }
 
-  isAdvancedOpen.value = false
+  closeAdvancedSettings()
 }
 
 const handleDocumentKeydown = (event: KeyboardEvent) => {
@@ -1068,7 +1136,7 @@ const handleDocumentKeydown = (event: KeyboardEvent) => {
     return
   }
   if (event.key === 'Escape') {
-    isAdvancedOpen.value = false
+    closeAdvancedSettings()
   }
 }
 
@@ -1088,6 +1156,10 @@ function toggleAdvancedSettings() {
     return
   }
   isAdvancedOpen.value = !isAdvancedOpen.value
+}
+
+function closeAdvancedSettings() {
+  isAdvancedOpen.value = false
 }
 
 async function selectModel(providerId: string, modelId: string) {
@@ -1136,6 +1208,18 @@ function onTemperatureSlider(values: number[]) {
   updateLocalGenerationSettings({ temperature: Number(next.toFixed(1)) })
 }
 
+function onTemperatureInput(value: string | number) {
+  if (!localSettings.value) {
+    return
+  }
+  const numeric = parseNumericInput(value)
+  if (numeric === undefined) {
+    return
+  }
+  const next = clamp(numeric, TEMPERATURE_MIN, TEMPERATURE_MAX)
+  updateLocalGenerationSettings({ temperature: Number(next.toFixed(1)) })
+}
+
 function onContextLengthSlider(values: number[]) {
   const next = values[0]
   if (!localSettings.value || typeof next !== 'number') {
@@ -1144,12 +1228,36 @@ function onContextLengthSlider(values: number[]) {
   updateLocalGenerationSettings({ contextLength: Math.round(next) })
 }
 
+function onContextLengthInput(value: string | number) {
+  if (!localSettings.value) {
+    return
+  }
+  const numeric = parseNumericInput(value)
+  if (numeric === undefined) {
+    return
+  }
+  const next = clamp(Math.round(numeric), CONTEXT_LENGTH_MIN, contextLengthLimit.value)
+  updateLocalGenerationSettings({ contextLength: next })
+}
+
 function onMaxTokensSlider(values: number[]) {
   const next = values[0]
   if (!localSettings.value || typeof next !== 'number') {
     return
   }
   updateLocalGenerationSettings({ maxTokens: Math.round(next) })
+}
+
+function onMaxTokensInput(value: string | number) {
+  if (!localSettings.value) {
+    return
+  }
+  const numeric = parseNumericInput(value)
+  if (numeric === undefined) {
+    return
+  }
+  const next = clamp(Math.round(numeric), MAX_TOKENS_MIN, maxTokensSliderLimit.value)
+  updateLocalGenerationSettings({ maxTokens: next })
 }
 
 function onThinkingBudgetInput(value: string | number) {
