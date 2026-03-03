@@ -184,10 +184,12 @@ export class AcpSessionManager {
     }
     this.processManager.bindProcess(agent.id, conversationId, workdir)
 
-    const session = await this.initializeSession(handle, agent, workdir).catch(async (error) => {
-      await this.processManager.unbindProcess(agent.id, conversationId)
-      throw error
-    })
+    const session = await this.initializeSession(handle, conversationId, agent, workdir).catch(
+      async (error) => {
+        await this.processManager.unbindProcess(agent.id, conversationId)
+        throw error
+      }
+    )
     const detachListeners = this.attachSessionHooks(agent.id, session.sessionId, hooks)
 
     // Register session workdir for fs/terminal operations
@@ -269,6 +271,7 @@ export class AcpSessionManager {
 
   private async initializeSession(
     handle: AcpProcessHandle,
+    conversationId: string,
     agent: AcpAgentConfig,
     workdir: string
   ): Promise<{
@@ -321,17 +324,55 @@ export class AcpSessionManager {
         mcpServers = []
       }
 
-      const response = await handle.connection.newSession({
-        cwd: workdir,
-        mcpServers
-      })
+      const persistedSession = await this.sessionPersistence.getSessionData(
+        conversationId,
+        agent.id
+      )
+      const persistedSessionId = persistedSession?.sessionId?.trim() || null
+
+      type SessionModes = {
+        availableModes?: Array<{ id: string; name: string; description?: string | null }>
+        currentModeId?: string
+      }
+
+      let sessionId = ''
+      let modes: SessionModes | undefined
+
+      const canLoadSession = Boolean(handle.supportsLoadSession)
+      if (canLoadSession && persistedSessionId) {
+        try {
+          const loadResponse = await handle.connection.loadSession({
+            cwd: workdir,
+            mcpServers,
+            sessionId: persistedSessionId
+          })
+          sessionId = persistedSessionId
+          modes = loadResponse.modes ?? undefined
+          console.info(
+            `[ACP] Loaded persisted session ${sessionId} for conversation ${conversationId} (agent ${agent.id})`
+          )
+        } catch (error) {
+          console.warn(
+            `[ACP] Failed to load persisted session ${persistedSessionId} for conversation ${conversationId}; falling back to newSession.`,
+            error
+          )
+        }
+      }
+
+      if (!sessionId) {
+        const response = await handle.connection.newSession({
+          cwd: workdir,
+          mcpServers
+        })
+        sessionId = response.sessionId
+        modes = response.modes ?? undefined
+      }
 
       // Extract modes from response if available
-      const modes = response.modes
       const availableModes =
         modes?.availableModes?.map((m) => ({
           id: m.id,
-          name: m.name,
+          name: m.name ?? m.id,
           description: m.description ?? ''
         })) ?? handle.availableModes
 
@@ -361,12 +402,12 @@ export class AcpSessionManager {
       }
 
       return {
-        sessionId: response.sessionId,
+        sessionId,
         availableModes,
         currentModeId
       }
     } catch (error) {
-      console.error(`[ACP] Failed to create session for agent ${agent.id}:`, error)
+      console.error(`[ACP] Failed to initialize session for agent ${agent.id}:`, error)
       throw error
     }
   }

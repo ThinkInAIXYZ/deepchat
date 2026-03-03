@@ -12,8 +12,8 @@ import {
   buildCommandText,
   flattenPromptResultToText,
   resolveSlashSelectionAction,
+  sortSlashSuggestionItems,
   type AcpSessionCommand,
-  type SlashCategory,
   type SlashSuggestionItem
 } from '../mentions/utils'
 
@@ -213,19 +213,7 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
       })
     }
 
-    const rank: Record<SlashCategory, number> = {
-      command: 0,
-      skill: 1,
-      prompt: 2,
-      tool: 3
-    }
-
-    return items.sort((a, b) => {
-      if (rank[a.category] !== rank[b.category]) {
-        return rank[a.category] - rank[b.category]
-      }
-      return a.label.localeCompare(b.label)
-    })
+    return sortSlashSuggestionItems(items)
   })
 
   const refreshAcpCommands = async () => {

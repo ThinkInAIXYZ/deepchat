@@ -2,6 +2,7 @@ import type {
   Agent,
   IAgentImplementation,
   CreateSessionInput,
+  SessionRecord,
   SessionWithState,
   ChatMessageRecord,
   UserMessageContent,
@@ -72,7 +73,7 @@ export class NewAgentPresenter {
 
     // Create session record
     const title = input.message.slice(0, 50) || 'New Chat'
-    const sessionId = this.sessionManager.create(agentId, title, projectDir)
+    const sessionId = this.sessionManager.create(agentId, title, projectDir, { isDraft: false })
     console.log(`[NewAgentPresenter] session created id=${sessionId} title="${title}"`)
 
     // Initialize agent-side session
@@ -106,6 +107,7 @@ export class NewAgentPresenter {
       title,
       projectDir,
       isPinned: false,
+      isDraft: false,
       createdAt: Date.now(),
       updatedAt: Date.now(),
       status: state?.status ?? 'idle',
@@ -114,9 +116,74 @@ export class NewAgentPresenter {
     }
   }
 
+  async ensureAcpDraftSession(input: {
+    agentId: string
+    projectDir: string
+    permissionMode?: PermissionMode
+  }): Promise<SessionWithState> {
+    const agentId = input.agentId?.trim()
+    if (!agentId) {
+      throw new Error('ACP draft session requires an agentId.')
+    }
+
+    const projectDir = input.projectDir?.trim()
+    if (!projectDir) {
+      throw new Error('ACP draft session requires a non-empty projectDir.')
+    }
+
+    await this.assertAcpAgent(agentId)
+    const agent = await this.resolveAgentImplementation(agentId)
+    const permissionMode: PermissionMode =
+      input.permissionMode === 'default' ? 'default' : 'full_access'
+
+    let record = await this.findReusableDraftSession(agentId, projectDir, agent)
+    if (!record) {
+      const sessionId = this.sessionManager.create(agentId, 'New Chat', projectDir, {
+        isDraft: true
+      })
+      await this.ensureSessionRuntimeInitialized(agent, sessionId, {
+        providerId: 'acp',
+        modelId: agentId,
+        projectDir,
+        permissionMode
+      })
+      record = this.sessionManager.get(sessionId)
+      if (!record) {
+        throw new Error(`Failed to read created ACP draft session: ${sessionId}`)
+      }
+    } else {
+      await this.ensureSessionRuntimeInitialized(agent, record.id, {
+        providerId: 'acp',
+        modelId: agentId,
+        projectDir,
+        permissionMode
+      })
+    }
+
+    await this.llmProviderPresenter.prepareAcpSession(record.id, agentId, projectDir)
+    eventBus.sendToRenderer(SESSION_EVENTS.LIST_UPDATED, SendTarget.ALL_WINDOWS)
+
+    const state = await agent.getSessionState(record.id)
+    return {
+      ...record,
+      status: state?.status ?? 'idle',
+      providerId: state?.providerId ?? 'acp',
+      modelId: state?.modelId ?? agentId
+    }
+  }
+
   async sendMessage(sessionId: string, content: string): Promise<void> {
-    const session = this.sessionManager.get(sessionId)
+    let session = this.sessionManager.get(sessionId)
     if (!session) throw new Error(`Session not found: ${sessionId}`)
+
+    if (session.isDraft) {
+      const title = content.trim().slice(0, 50) || 'New Chat'
+      this.sessionManager.update(sessionId, { isDraft: false, title })
+      eventBus.sendToRenderer(SESSION_EVENTS.LIST_UPDATED, SendTarget.ALL_WINDOWS)
+      session = this.sessionManager.get(sessionId)
+      if (!session) throw new Error(`Session not found: ${sessionId}`)
+    }
+
     const agent = await this.resolveAgentImplementation(session.agentId)
     const state = await agent.getSessionState(sessionId)
     let providerId = state?.providerId ?? ''
@@ -267,7 +334,14 @@ export class NewAgentPresenter {
     if (!session) return []
     const agent = await this.resolveAgentImplementation(session.agentId)
     const state = await agent.getSessionState(sessionId)
-    if (state?.providerId !== 'acp') {
+    let providerId = state?.providerId ?? ''
+    if (!providerId) {
+      const acpAgents = await this.configPresenter.getAcpAgents()
+      if (acpAgents.some((item) => item.id === session.agentId)) {
+        providerId = 'acp'
+      }
+    }
+    if (providerId !== 'acp') {
       return []
     }
     return await this.llmProviderPresenter.getAcpSessionCommands(sessionId)
@@ -389,6 +463,70 @@ export class NewAgentPresenter {
     }
 
     throw new Error(`Agent not found: ${agentId}`)
+  }
+
+  private async assertAcpAgent(agentId: string): Promise<void> {
+    const acpAgents = await this.configPresenter.getAcpAgents()
+    if (!acpAgents.some((agent) => agent.id === agentId)) {
+      throw new Error(`Agent ${agentId} is not an ACP agent.`)
+    }
+  }
+
+  private async findReusableDraftSession(
+    agentId: string,
+    projectDir: string,
+    agent: IAgentImplementation
+  ): Promise<SessionRecord | null> {
+    const candidates = this.sessionManager.list({ agentId, projectDir })
+    for (const session of candidates) {
+      if (!session.isDraft) continue
+      const hasMessages = await this.hasSessionMessages(agent, session.id)
+      if (!hasMessages) {
+        return session
+      }
+    }
+    return null
+  }
+
+  private async hasSessionMessages(
+    agent: IAgentImplementation,
+    sessionId: string
+  ): Promise<boolean> {
+    try {
+      const ids = await agent.getMessageIds(sessionId)
+      return ids.length > 0
+    } catch (error) {
+      console.warn(
+        `[NewAgentPresenter] Failed to inspect message ids for session=${sessionId}:`,
+        error
+      )
+      return true
+    }
+  }
+
+  private async ensureSessionRuntimeInitialized(
+    agent: IAgentImplementation,
+    sessionId: string,
+    config: {
+      providerId: string
+      modelId: string
+      projectDir: string
+      permissionMode: PermissionMode
+    }
+  ): Promise<void> {
+    const state = await agent.getSessionState(sessionId)
+    if (!state) {
+      await agent.initSession(sessionId, config)
+      return
+    }
+
+    if (
+      state.permissionMode &&
+      state.permissionMode !== config.permissionMode &&
+      agent.setPermissionMode
+    ) {
+      await agent.setPermissionMode(sessionId, config.permissionMode)
+    }
   }
 
   private buildTitleMessages(

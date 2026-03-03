@@ -33,7 +33,8 @@ describe('NewSessionManager', () => {
         'mock-id-123',
         'deepchat',
         'Hello world',
-        null
+        null,
+        undefined
       )
     })
   })
@@ -46,6 +47,7 @@ describe('NewSessionManager', () => {
         title: 'Test',
         project_dir: '/tmp/proj',
         is_pinned: 1,
+        is_draft: 0,
         created_at: 1000,
         updated_at: 2000
       })
@@ -57,6 +59,7 @@ describe('NewSessionManager', () => {
         title: 'Test',
         projectDir: '/tmp/proj',
         isPinned: true,
+        isDraft: false,
         createdAt: 1000,
         updatedAt: 2000
       })
@@ -77,6 +80,7 @@ describe('NewSessionManager', () => {
           title: 'Chat 1',
           project_dir: null,
           is_pinned: 0,
+          is_draft: 1,
           created_at: 1000,
           updated_at: 2000
         }
@@ -85,6 +89,7 @@ describe('NewSessionManager', () => {
       const records = manager.list()
       expect(records).toHaveLength(1)
       expect(records[0].isPinned).toBe(false)
+      expect(records[0].isDraft).toBe(true)
       expect(records[0].projectDir).toBeNull()
     })
 
@@ -96,10 +101,11 @@ describe('NewSessionManager', () => {
 
   describe('update', () => {
     it('maps camelCase fields to snake_case', () => {
-      manager.update('s1', { title: 'New Title', isPinned: true })
+      manager.update('s1', { title: 'New Title', isPinned: true, isDraft: false })
       expect(sqlitePresenter.newSessionsTable.update).toHaveBeenCalledWith('s1', {
         title: 'New Title',
-        is_pinned: 1
+        is_pinned: 1,
+        is_draft: 0
       })
     })
 

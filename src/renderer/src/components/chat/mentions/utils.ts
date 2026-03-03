@@ -16,6 +16,13 @@ export interface SlashSuggestionItem {
   payload: AcpSessionCommand | PromptListEntry | MCPToolDefinition | { name: string }
 }
 
+const SLASH_CATEGORY_RANK: Record<SlashCategory, number> = {
+  command: 0,
+  skill: 1,
+  prompt: 2,
+  tool: 3
+}
+
 export type SlashActionDecision =
   | { kind: 'send-command'; command: string }
   | { kind: 'request-command-input'; command: AcpSessionCommand }
@@ -97,6 +104,15 @@ export const extractPromptTextSegments = (value: unknown): string[] => {
 
 export const flattenPromptResultToText = (value: unknown): string => {
   return extractPromptTextSegments(value).join('\n\n').trim()
+}
+
+export const sortSlashSuggestionItems = (items: SlashSuggestionItem[]): SlashSuggestionItem[] => {
+  return [...items].sort((a, b) => {
+    if (SLASH_CATEGORY_RANK[a.category] !== SLASH_CATEGORY_RANK[b.category]) {
+      return SLASH_CATEGORY_RANK[a.category] - SLASH_CATEGORY_RANK[b.category]
+    }
+    return a.label.localeCompare(b.label)
+  })
 }
 
 export const resolveSlashSelectionAction = (item: SlashSuggestionItem): SlashActionDecision => {

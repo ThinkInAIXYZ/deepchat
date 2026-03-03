@@ -18,6 +18,7 @@ export interface UISession {
   projectDir: string
   providerId: string
   modelId: string
+  isDraft: boolean
   createdAt: number
   updatedAt: number
 }
@@ -53,6 +54,7 @@ function mapToUISession(session: SessionWithState): UISession {
     projectDir: session.projectDir ?? '',
     providerId: session.providerId,
     modelId: session.modelId,
+    isDraft: Boolean(session.isDraft),
     createdAt: session.createdAt,
     updatedAt: session.updatedAt
   }
@@ -204,8 +206,9 @@ export const useSessionStore = defineStore('session', () => {
   }
 
   function getFilteredGroups(agentId: string | null): SessionGroup[] {
+    const visibleSessions = sessions.value.filter((session) => !session.isDraft)
     const grouped =
-      groupMode.value === 'time' ? groupByTime(sessions.value) : groupByProject(sessions.value)
+      groupMode.value === 'time' ? groupByTime(visibleSessions) : groupByProject(visibleSessions)
 
     if (agentId === null) return grouped
 

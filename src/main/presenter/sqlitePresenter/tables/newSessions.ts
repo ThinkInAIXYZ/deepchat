@@ -7,6 +7,7 @@ export interface NewSessionRow {
   title: string
   project_dir: string | null
   is_pinned: number
+  is_draft: number
   created_at: number
   updated_at: number
 }
@@ -32,22 +33,31 @@ export class NewSessionsTable extends BaseTable {
     `
   }
 
-  getMigrationSQL(_version: number): string | null {
+  getMigrationSQL(version: number): string | null {
+    if (version === 11) {
+      return `ALTER TABLE new_sessions ADD COLUMN is_draft INTEGER NOT NULL DEFAULT 0;`
+    }
     return null
   }
 
   getLatestVersion(): number {
-    return 0
+    return 11
   }
 
-  create(id: string, agentId: string, title: string, projectDir: string | null): void {
+  create(
+    id: string,
+    agentId: string,
+    title: string,
+    projectDir: string | null,
+    isDraft: boolean = false
+  ): void {
     const now = Date.now()
     this.db
       .prepare(
-        `INSERT INTO new_sessions (id, agent_id, title, project_dir, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?)`
+        `INSERT INTO new_sessions (id, agent_id, title, project_dir, is_draft, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`
       )
-      .run(id, agentId, title, projectDir, now, now)
+      .run(id, agentId, title, projectDir, isDraft ? 1 : 0, now, now)
   }
 
   get(id: string): NewSessionRow | undefined {
@@ -80,7 +90,7 @@ export class NewSessionsTable extends BaseTable {
 
   update(
     id: string,
-    fields: Partial<Pick<NewSessionRow, 'title' | 'project_dir' | 'is_pinned'>>
+    fields: Partial<Pick<NewSessionRow, 'title' | 'project_dir' | 'is_pinned' | 'is_draft'>>
   ): void {
     const setClauses: string[] = []
     const params: unknown[] = []
@@ -96,6 +106,10 @@ export class NewSessionsTable extends BaseTable {
     if (fields.is_pinned !== undefined) {
       setClauses.push('is_pinned = ?')
       params.push(fields.is_pinned)
+    }
+    if (fields.is_draft !== undefined) {
+      setClauses.push('is_draft = ?')
+      params.push(fields.is_draft)
     }
 
     if (setClauses.length === 0) return

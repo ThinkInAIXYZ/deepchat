@@ -3,6 +3,7 @@ import type { MCPToolDefinition, PromptListEntry } from '@shared/presenter'
 import {
   flattenPromptResultToText,
   resolveSlashSelectionAction,
+  sortSlashSuggestionItems,
   type SlashSuggestionItem
 } from '@/components/chat/mentions/utils'
 
@@ -114,5 +115,22 @@ describe('resolveSlashSelectionAction', () => {
 
     const action = resolveSlashSelectionAction(item)
     expect(action.kind).toBe('request-prompt-args')
+  })
+
+  it('sorts slash entries by category: command > skill > prompt > tool', () => {
+    const unordered: SlashSuggestionItem[] = [
+      { id: 'tool:a', category: 'tool', label: 'z-tool', payload: {} as any },
+      { id: 'prompt:a', category: 'prompt', label: 'b-prompt', payload: {} as any },
+      { id: 'skill:a', category: 'skill', label: 'c-skill', payload: { name: 'c-skill' } },
+      {
+        id: 'command:a',
+        category: 'command',
+        label: '/do',
+        payload: { name: 'do', description: '', input: null }
+      }
+    ]
+
+    const sorted = sortSlashSuggestionItems(unordered)
+    expect(sorted.map((item) => item.category)).toEqual(['command', 'skill', 'prompt', 'tool'])
   })
 })

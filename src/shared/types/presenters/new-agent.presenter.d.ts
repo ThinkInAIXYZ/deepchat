@@ -10,6 +10,11 @@ import type {
 
 export interface INewAgentPresenter {
   createSession(input: CreateSessionInput, webContentsId: number): Promise<SessionWithState>
+  ensureAcpDraftSession(input: {
+    agentId: string
+    projectDir: string
+    permissionMode?: PermissionMode
+  }): Promise<SessionWithState>
   sendMessage(sessionId: string, content: string): Promise<void>
   getSessionList(filters?: { agentId?: string; projectDir?: string }): Promise<SessionWithState[]>
   getSession(sessionId: string): Promise<SessionWithState | null>

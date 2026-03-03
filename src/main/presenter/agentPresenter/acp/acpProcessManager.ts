@@ -33,6 +33,7 @@ export interface AcpProcessHandle extends AgentProcessHandle {
   availableModes?: Array<{ id: string; name: string; description: string }>
   currentModeId?: string
   mcpCapabilities?: schema.McpCapabilities
+  supportsLoadSession?: boolean
 }
 
 interface AcpProcessManagerOptions {
@@ -64,6 +65,21 @@ function isElectron(): boolean {
 interface PermissionResolverEntry {
   agentId: string
   resolver: PermissionResolver
+}
+
+export const parseLoadSessionCapability = (initializeResult: unknown): boolean | undefined => {
+  if (!initializeResult || typeof initializeResult !== 'object') {
+    return undefined
+  }
+
+  const resultRecord = initializeResult as {
+    agentCapabilities?: { loadSession?: unknown }
+  }
+  const loadSession = resultRecord.agentCapabilities?.loadSession
+  if (loadSession === undefined) {
+    return undefined
+  }
+  return Boolean(loadSession)
 }
 
 export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, AcpAgentConfig> {
@@ -527,12 +543,18 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
         }
         agentCapabilities?: {
           mcpCapabilities?: schema.McpCapabilities
+          loadSession?: boolean
         }
       }
 
       if (resultData.agentCapabilities?.mcpCapabilities) {
         handleSeed.mcpCapabilities = resultData.agentCapabilities.mcpCapabilities
         console.info('[ACP] MCP capabilities:', resultData.agentCapabilities.mcpCapabilities)
+      }
+      const loadSessionCapability = parseLoadSessionCapability(resultData)
+      if (loadSessionCapability !== undefined) {
+        handleSeed.supportsLoadSession = loadSessionCapability
+        console.info('[ACP] loadSession capability:', handleSeed.supportsLoadSession)
       }
 
       if (resultData.sessionId) {
@@ -590,7 +612,8 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
       workdir,
       availableModes: handleSeed.availableModes,
       currentModeId: handleSeed.currentModeId,
-      mcpCapabilities: handleSeed.mcpCapabilities
+      mcpCapabilities: handleSeed.mcpCapabilities,
+      supportsLoadSession: handleSeed.supportsLoadSession
     }
 
     child.on('exit', (code, signal) => {

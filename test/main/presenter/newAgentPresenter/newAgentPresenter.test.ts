@@ -49,6 +49,7 @@ function createMockConfigPresenter() {
 function createMockLlmProviderPresenter() {
   return {
     summaryTitles: vi.fn().mockResolvedValue('Async Generated Title'),
+    prepareAcpSession: vi.fn().mockResolvedValue(undefined),
     getAcpSessionCommands: vi
       .fn()
       .mockResolvedValue([
@@ -318,6 +319,46 @@ describe('NewAgentPresenter', () => {
   })
 
   describe('sendMessage', () => {
+    it('promotes draft session before first message', async () => {
+      configPresenter.getAcpAgents.mockResolvedValue([
+        { id: 'acp-coder', name: 'ACP Coder', command: 'acp-coder' }
+      ])
+
+      const row = {
+        id: 's-draft',
+        agent_id: 'acp-coder',
+        title: 'New Chat',
+        project_dir: '/tmp/workspace',
+        is_pinned: 0,
+        is_draft: 1,
+        created_at: 1000,
+        updated_at: 1000
+      }
+      sqlitePresenter.newSessionsTable.get.mockImplementation(() => row)
+      sqlitePresenter.newSessionsTable.update.mockImplementation((_: string, fields: any) => {
+        if (fields.title !== undefined) row.title = fields.title
+        if (fields.is_draft !== undefined) row.is_draft = fields.is_draft
+      })
+
+      deepChatAgent.getSessionState.mockResolvedValue({
+        status: 'idle',
+        providerId: 'acp',
+        modelId: 'acp-coder',
+        permissionMode: 'full_access'
+      })
+
+      await presenter.sendMessage('s-draft', 'Hello ACP')
+
+      expect(sqlitePresenter.newSessionsTable.update).toHaveBeenCalledWith('s-draft', {
+        is_draft: 0,
+        title: 'Hello ACP'
+      })
+      expect(eventBus.sendToRenderer).toHaveBeenCalledWith('session:list-updated', 'all')
+      expect(deepChatAgent.processMessage).toHaveBeenCalledWith('s-draft', 'Hello ACP', {
+        projectDir: '/tmp/workspace'
+      })
+    })
+
     it('routes to correct agent', async () => {
       sqlitePresenter.newSessionsTable.get.mockReturnValue({
         id: 's1',
@@ -325,6 +366,7 @@ describe('NewAgentPresenter', () => {
         title: 'Test',
         project_dir: '/tmp/workspace',
         is_pinned: 0,
+        is_draft: 0,
         created_at: 1000,
         updated_at: 1000
       })
@@ -340,6 +382,96 @@ describe('NewAgentPresenter', () => {
       await expect(presenter.sendMessage('unknown', 'hi')).rejects.toThrow(
         'Session not found: unknown'
       )
+    })
+  })
+
+  describe('ensureAcpDraftSession', () => {
+    it('creates draft session and prepares ACP session setup', async () => {
+      configPresenter.getAcpAgents.mockResolvedValue([
+        { id: 'acp-coder', name: 'ACP Coder', command: 'acp-coder' }
+      ])
+
+      sqlitePresenter.newSessionsTable.list.mockReturnValue([])
+      sqlitePresenter.newSessionsTable.get.mockImplementation((id: string) => {
+        if (id !== 'mock-session-id') return undefined
+        return {
+          id,
+          agent_id: 'acp-coder',
+          title: 'New Chat',
+          project_dir: '/tmp/workspace',
+          is_pinned: 0,
+          is_draft: 1,
+          created_at: 1000,
+          updated_at: 1000
+        }
+      })
+
+      deepChatAgent.getSessionState.mockResolvedValueOnce(null).mockResolvedValueOnce({
+        status: 'idle',
+        providerId: 'acp',
+        modelId: 'acp-coder',
+        permissionMode: 'full_access'
+      })
+
+      const session = await presenter.ensureAcpDraftSession({
+        agentId: 'acp-coder',
+        projectDir: '/tmp/workspace'
+      })
+
+      expect(deepChatAgent.initSession).toHaveBeenCalledWith('mock-session-id', {
+        providerId: 'acp',
+        modelId: 'acp-coder',
+        projectDir: '/tmp/workspace',
+        permissionMode: 'full_access'
+      })
+      expect(llmProviderPresenter.prepareAcpSession).toHaveBeenCalledWith(
+        'mock-session-id',
+        'acp-coder',
+        '/tmp/workspace'
+      )
+      expect(deepChatAgent.processMessage).not.toHaveBeenCalled()
+      expect(session.isDraft).toBe(true)
+      expect(session.providerId).toBe('acp')
+    })
+
+    it('reuses existing empty draft session for same agent and project', async () => {
+      configPresenter.getAcpAgents.mockResolvedValue([
+        { id: 'acp-coder', name: 'ACP Coder', command: 'acp-coder' }
+      ])
+
+      const draftRow = {
+        id: 'draft-1',
+        agent_id: 'acp-coder',
+        title: 'New Chat',
+        project_dir: '/tmp/workspace',
+        is_pinned: 0,
+        is_draft: 1,
+        created_at: 1000,
+        updated_at: 2000
+      }
+      sqlitePresenter.newSessionsTable.list.mockReturnValue([draftRow])
+      sqlitePresenter.newSessionsTable.get.mockReturnValue(draftRow)
+      deepChatAgent.getMessageIds.mockResolvedValue([])
+      deepChatAgent.getSessionState.mockResolvedValue({
+        status: 'idle',
+        providerId: 'acp',
+        modelId: 'acp-coder',
+        permissionMode: 'full_access'
+      })
+
+      const session = await presenter.ensureAcpDraftSession({
+        agentId: 'acp-coder',
+        projectDir: '/tmp/workspace'
+      })
+
+      expect(sqlitePresenter.newSessionsTable.create).not.toHaveBeenCalled()
+      expect(llmProviderPresenter.prepareAcpSession).toHaveBeenCalledWith(
+        'draft-1',
+        'acp-coder',
+        '/tmp/workspace'
+      )
+      expect(session.id).toBe('draft-1')
+      expect(session.isDraft).toBe(true)
     })
   })
 

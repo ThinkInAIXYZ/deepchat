@@ -52,10 +52,12 @@
         <!-- Input area -->
         <ChatInputBox
           v-model="message"
+          :session-id="acpDraftSessionId"
           :workspace-path="projectStore.selectedProject?.path ?? null"
           :is-acp-session="(agentStore.selectedAgentId ?? 'deepchat') !== 'deepchat'"
           :submit-disabled="isAcpWorkdirMissing"
           @pending-skills-change="onPendingSkillsChange"
+          @command-submit="onCommandSubmit"
           @submit="onSubmit"
         >
           <template #toolbar>
@@ -99,11 +101,12 @@ const agentStore = useAgentStore()
 const modelStore = useModelStore()
 const draftStore = useDraftStore()
 const configPresenter = usePresenter('configPresenter')
-const sessionPresenter = usePresenter('sessionPresenter')
+const newAgentPresenter = usePresenter('newAgentPresenter')
 
 const message = ref('')
 const pendingSkills = ref<string[]>([])
-const lastAcpWarmupKey = ref<string | null>(null)
+const acpDraftSessionId = ref<string | null>(null)
+const lastAcpDraftKey = ref<string | null>(null)
 const isAcpWorkdirMissing = computed(() => {
   const selectedAgentId = agentStore.selectedAgentId ?? 'deepchat'
   if (selectedAgentId === 'deepchat') {
@@ -159,8 +162,27 @@ async function onSubmit() {
   if (!text) return
   message.value = ''
 
+  await submitText(text)
+}
+
+async function onCommandSubmit(command: string) {
+  if (isAcpWorkdirMissing.value) return
+  const text = command.trim()
+  if (!text) return
+  await submitText(text)
+}
+
+async function submitText(text: string) {
+  if (!text.trim()) return
+
   const agentId = agentStore.selectedAgentId ?? 'deepchat'
   const isAcp = agentId !== 'deepchat'
+
+  if (isAcp && acpDraftSessionId.value) {
+    await sessionStore.selectSession(acpDraftSessionId.value)
+    await sessionStore.sendMessage(acpDraftSessionId.value, text)
+    return
+  }
 
   let providerId: string | undefined
   let modelId: string | undefined
@@ -193,29 +215,39 @@ function onPendingSkillsChange(skills: string[]) {
   pendingSkills.value = [...skills]
 }
 
-const warmupAcpAgent = async (agentId: string, projectPath: string) => {
-  const workdir = projectPath.trim()
-  if (!workdir) return
+const ensureAcpDraftSession = async (agentId: string, projectPath: string) => {
+  const projectDir = projectPath.trim()
+  if (!projectDir) return
 
-  const warmupKey = `${agentId}::${workdir}`
-  if (lastAcpWarmupKey.value === warmupKey) return
-  lastAcpWarmupKey.value = warmupKey
+  const draftKey = `${agentId}::${projectDir}`
+  if (lastAcpDraftKey.value === draftKey && acpDraftSessionId.value) {
+    return
+  }
 
   try {
-    await sessionPresenter.warmupAcpProcess(agentId, workdir)
-    await sessionPresenter.getAcpProcessModes(agentId, workdir)
+    const session = await newAgentPresenter.ensureAcpDraftSession({
+      agentId,
+      projectDir,
+      permissionMode: draftStore.permissionMode
+    })
+    acpDraftSessionId.value = session.id
+    lastAcpDraftKey.value = draftKey
   } catch (error) {
-    console.warn('[NewThreadPage] Failed to warmup ACP agent process:', error)
+    console.warn('[NewThreadPage] Failed to ensure ACP draft session:', error)
+    acpDraftSessionId.value = null
+    lastAcpDraftKey.value = null
   }
 }
 
 watch(
   () => [agentStore.selectedAgentId, projectStore.selectedProject?.path] as const,
   ([selectedAgentId, projectPath]) => {
-    if (!selectedAgentId || selectedAgentId === 'deepchat' || !projectPath) {
+    if (!selectedAgentId || selectedAgentId === 'deepchat' || !projectPath?.trim()) {
+      acpDraftSessionId.value = null
+      lastAcpDraftKey.value = null
       return
     }
-    void warmupAcpAgent(selectedAgentId, projectPath)
+    void ensureAcpDraftSession(selectedAgentId, projectPath)
   },
   { immediate: true }
 )

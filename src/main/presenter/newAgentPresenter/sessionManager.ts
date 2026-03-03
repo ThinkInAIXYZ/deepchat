@@ -11,9 +11,14 @@ export class NewSessionManager {
     this.sqlitePresenter = sqlitePresenter
   }
 
-  create(agentId: string, title: string, projectDir: string | null): string {
+  create(
+    agentId: string,
+    title: string,
+    projectDir: string | null,
+    options?: { isDraft?: boolean }
+  ): string {
     const id = nanoid()
-    this.sqlitePresenter.newSessionsTable.create(id, agentId, title, projectDir)
+    this.sqlitePresenter.newSessionsTable.create(id, agentId, title, projectDir, options?.isDraft)
     return id
   }
 
@@ -26,6 +31,7 @@ export class NewSessionManager {
       title: row.title,
       projectDir: row.project_dir,
       isPinned: row.is_pinned === 1,
+      isDraft: row.is_draft === 1,
       createdAt: row.created_at,
       updatedAt: row.updated_at
     }
@@ -39,6 +45,7 @@ export class NewSessionManager {
       title: row.title,
       projectDir: row.project_dir,
       isPinned: row.is_pinned === 1,
+      isDraft: row.is_draft === 1,
       createdAt: row.created_at,
       updatedAt: row.updated_at
     }))
@@ -46,12 +53,18 @@ export class NewSessionManager {
 
   update(
     id: string,
-    fields: Partial<Pick<SessionRecord, 'title' | 'projectDir' | 'isPinned'>>
+    fields: Partial<Pick<SessionRecord, 'title' | 'projectDir' | 'isPinned' | 'isDraft'>>
   ): void {
-    const dbFields: { title?: string; project_dir?: string | null; is_pinned?: number } = {}
+    const dbFields: {
+      title?: string
+      project_dir?: string | null
+      is_pinned?: number
+      is_draft?: number
+    } = {}
     if (fields.title !== undefined) dbFields.title = fields.title
     if (fields.projectDir !== undefined) dbFields.project_dir = fields.projectDir
     if (fields.isPinned !== undefined) dbFields.is_pinned = fields.isPinned ? 1 : 0
+    if (fields.isDraft !== undefined) dbFields.is_draft = fields.isDraft ? 1 : 0
     this.sqlitePresenter.newSessionsTable.update(id, dbFields)
   }
 

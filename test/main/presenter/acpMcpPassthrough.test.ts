@@ -1,14 +1,14 @@
 import { describe, it, expect, vi } from 'vitest'
 import type * as schema from '@agentclientprotocol/sdk/dist/schema.js'
-import {
-  convertMcpConfigToAcpFormat,
-  filterMcpServersByTransportSupport,
-  AcpSessionManager
-} from '../../../src/main/presenter/agentPresenter/acp'
+import { convertMcpConfigToAcpFormat } from '../../../src/main/presenter/agentPresenter/acp/mcpConfigConverter'
+import { filterMcpServersByTransportSupport } from '../../../src/main/presenter/agentPresenter/acp/mcpTransportFilter'
+import { AcpSessionManager } from '../../../src/main/presenter/agentPresenter/acp/acpSessionManager'
 
 vi.mock('electron', () => ({
   app: {
-    on: vi.fn()
+    on: vi.fn(),
+    getPath: vi.fn(() => '/tmp'),
+    getVersion: vi.fn(() => '0.0.0-test')
   }
 }))
 
@@ -85,7 +85,9 @@ describe('AcpSessionManager MCP server injection', () => {
     const manager = new AcpSessionManager({
       providerId: 'acp',
       processManager: {} as any,
-      sessionPersistence: {} as any,
+      sessionPersistence: {
+        getSessionData: vi.fn().mockResolvedValue(null)
+      } as any,
       configPresenter: configPresenter as any
     })
 
@@ -98,11 +100,127 @@ describe('AcpSessionManager MCP server injection', () => {
       mcpCapabilities: { http: false, sse: false }
     } as any
 
-    await (manager as any).initializeSession(handle, { id: 'agent1', name: 'Agent 1' }, '/tmp')
+    await (manager as any).initializeSession(
+      handle,
+      'conv1',
+      { id: 'agent1', name: 'Agent 1' },
+      '/tmp'
+    )
 
     expect(handle.connection.newSession).toHaveBeenCalledWith({
       cwd: '/tmp',
       mcpServers: [{ name: 'stdio-1', command: 'node', args: ['server.js'], env: [] }]
     })
+  })
+})
+
+describe('AcpSessionManager loadSession fallback behavior', () => {
+  const createBaseConfigPresenter = () =>
+    ({
+      getAgentMcpSelections: vi.fn().mockResolvedValue([]),
+      getMcpServers: vi.fn().mockResolvedValue({})
+    }) as any
+
+  it('prefers loadSession when agent supports it and persisted session exists', async () => {
+    const manager = new AcpSessionManager({
+      providerId: 'acp',
+      processManager: {} as any,
+      sessionPersistence: {
+        getSessionData: vi.fn().mockResolvedValue({ sessionId: 'persisted-1' })
+      } as any,
+      configPresenter: createBaseConfigPresenter()
+    })
+
+    const handle = {
+      supportsLoadSession: true,
+      connection: {
+        loadSession: vi.fn().mockResolvedValue({}),
+        newSession: vi.fn().mockResolvedValue({ sessionId: 'new-1' })
+      },
+      availableModes: [],
+      currentModeId: null,
+      mcpCapabilities: {}
+    } as any
+
+    const result = await (manager as any).initializeSession(
+      handle,
+      'conv-load',
+      { id: 'agent1', name: 'Agent 1' },
+      '/tmp'
+    )
+
+    expect(handle.connection.loadSession).toHaveBeenCalledWith({
+      cwd: '/tmp',
+      mcpServers: [],
+      sessionId: 'persisted-1'
+    })
+    expect(handle.connection.newSession).not.toHaveBeenCalled()
+    expect(result.sessionId).toBe('persisted-1')
+  })
+
+  it('falls back to newSession when loadSession fails', async () => {
+    const manager = new AcpSessionManager({
+      providerId: 'acp',
+      processManager: {} as any,
+      sessionPersistence: {
+        getSessionData: vi.fn().mockResolvedValue({ sessionId: 'persisted-2' })
+      } as any,
+      configPresenter: createBaseConfigPresenter()
+    })
+
+    const handle = {
+      supportsLoadSession: true,
+      connection: {
+        loadSession: vi.fn().mockRejectedValue(new Error('session not found')),
+        newSession: vi.fn().mockResolvedValue({ sessionId: 'new-2' })
+      },
+      availableModes: [],
+      currentModeId: null,
+      mcpCapabilities: {}
+    } as any
+
+    const result = await (manager as any).initializeSession(
+      handle,
+      'conv-fallback',
+      { id: 'agent1', name: 'Agent 1' },
+      '/tmp'
+    )
+
+    expect(handle.connection.loadSession).toHaveBeenCalledTimes(1)
+    expect(handle.connection.newSession).toHaveBeenCalledTimes(1)
+    expect(result.sessionId).toBe('new-2')
+  })
+
+  it('uses newSession when loadSession is not supported', async () => {
+    const manager = new AcpSessionManager({
+      providerId: 'acp',
+      processManager: {} as any,
+      sessionPersistence: {
+        getSessionData: vi.fn().mockResolvedValue({ sessionId: 'persisted-3' })
+      } as any,
+      configPresenter: createBaseConfigPresenter()
+    })
+
+    const handle = {
+      supportsLoadSession: false,
+      connection: {
+        loadSession: vi.fn().mockResolvedValue({}),
+        newSession: vi.fn().mockResolvedValue({ sessionId: 'new-3' })
+      },
+      availableModes: [],
+      currentModeId: null,
+      mcpCapabilities: {}
+    } as any
+
+    const result = await (manager as any).initializeSession(
+      handle,
+      'conv-new',
+      { id: 'agent1', name: 'Agent 1' },
+      '/tmp'
+    )
+
+    expect(handle.connection.loadSession).not.toHaveBeenCalled()
+    expect(handle.connection.newSession).toHaveBeenCalledTimes(1)
+    expect(result.sessionId).toBe('new-3')
   })
 })
