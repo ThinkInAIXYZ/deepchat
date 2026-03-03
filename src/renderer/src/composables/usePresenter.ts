@@ -51,7 +51,10 @@ function safeSerialize(obj: unknown): unknown {
   return serialized
 }
 
-function createProxy(presenterName: string) {
+function createProxy<T extends keyof IPresenter>(
+  presenterName: string,
+  safeCall: boolean = true
+): IPresenter[T] {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return new Proxy({} as any, {
     get(_, functionName) {
@@ -77,7 +80,11 @@ function createProxy(presenterName: string) {
                 `[Renderer IPC Error] WebContents:${webContentsId} ${presenterName}.${functionName as string}:`,
                 e
               )
-              return null
+              if (safeCall) {
+                return null
+              } else {
+                throw e
+              }
             })
         } catch (error) {
           console.warn('error on payload serialization', functionName, error)
@@ -86,20 +93,26 @@ function createProxy(presenterName: string) {
             .invoke('presenter:call', presenterName, functionName, ...payloads)
             .catch((e: Error) => {
               console.warn('error on presenter invoke fallback', functionName, e)
-              return null
+              if (safeCall) {
+                return null
+              } else {
+                throw e
+              }
             })
         }
       }
     }
   })
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const presentersProxy: IPresenter = new Proxy({} as any, {
-  get(_, presenterName) {
-    return createProxy(presenterName as string)
-  }
-})
 
-export function usePresenter<T extends keyof IPresenter>(name: T): IPresenter[T] {
-  return presentersProxy[name]
+interface UsePresenterOptions {
+  safeCall: boolean
+}
+
+export function usePresenter<T extends keyof IPresenter>(
+  name: T,
+  options?: UsePresenterOptions
+): IPresenter[T] {
+  const safeCall = options?.safeCall ?? true
+  return createProxy(name, safeCall)
 }
