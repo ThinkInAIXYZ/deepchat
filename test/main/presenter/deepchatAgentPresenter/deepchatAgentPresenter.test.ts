@@ -50,7 +50,9 @@ function createMockSqlitePresenter() {
     deepchatSessionsTable: {
       create: vi.fn(),
       get: vi.fn(),
+      getGenerationSettings: vi.fn(),
       updatePermissionMode: vi.fn(),
+      updateGenerationSettings: vi.fn(),
       delete: vi.fn()
     },
     deepchatMessagesTable: {
@@ -86,11 +88,22 @@ function createMockLlmProviderPresenter() {
 
 function createMockConfigPresenter() {
   return {
-    getModelConfig: vi
-      .fn()
-      .mockReturnValue({ temperature: 0.7, maxTokens: 4096, contextLength: 128000 }),
+    getModelConfig: vi.fn().mockReturnValue({
+      temperature: 0.7,
+      maxTokens: 4096,
+      contextLength: 128000,
+      thinkingBudget: 512,
+      reasoningEffort: 'medium',
+      verbosity: 'medium'
+    }),
     getDefaultModel: vi.fn().mockReturnValue({ providerId: 'openai', modelId: 'gpt-4' }),
-    getDefaultSystemPrompt: vi.fn().mockResolvedValue('You are a helpful assistant.')
+    getDefaultSystemPrompt: vi.fn().mockResolvedValue('You are a helpful assistant.'),
+    supportsReasoningCapability: vi.fn().mockReturnValue(true),
+    getThinkingBudgetRange: vi.fn().mockReturnValue({ min: 0, max: 8192, default: 512 }),
+    supportsReasoningEffortCapability: vi.fn().mockReturnValue(true),
+    getReasoningEffortDefault: vi.fn().mockReturnValue('medium'),
+    supportsVerbosityCapability: vi.fn().mockReturnValue(true),
+    getVerbosityDefault: vi.fn().mockReturnValue('medium')
   } as any
 }
 
@@ -155,7 +168,13 @@ describe('DeepChatAgentPresenter', () => {
         's1',
         'openai',
         'gpt-4',
-        'full_access'
+        'full_access',
+        expect.objectContaining({
+          systemPrompt: 'You are a helpful assistant.',
+          temperature: 0.7,
+          contextLength: 128000,
+          maxTokens: 4096
+        })
       )
 
       const state = await agent.getSessionState('s1')
@@ -178,7 +197,13 @@ describe('DeepChatAgentPresenter', () => {
         's1',
         'openai',
         'gpt-4',
-        'default'
+        'default',
+        expect.objectContaining({
+          systemPrompt: 'You are a helpful assistant.',
+          temperature: 0.7,
+          contextLength: 128000,
+          maxTokens: 4096
+        })
       )
 
       const state = await agent.getSessionState('s1')
@@ -323,6 +348,33 @@ describe('DeepChatAgentPresenter', () => {
       expect(callArgs.messages).toEqual([{ role: 'user', content: 'Hello' }])
     })
 
+    it('uses session generation settings for context and model config', async () => {
+      await agent.initSession('s1', {
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        generationSettings: {
+          systemPrompt: 'Custom system prompt',
+          temperature: 1.3,
+          contextLength: 8192,
+          maxTokens: 2048,
+          thinkingBudget: 1024,
+          reasoningEffort: 'low',
+          verbosity: 'high'
+        }
+      })
+      await agent.processMessage('s1', 'Hello')
+
+      const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      expect(callArgs.messages[0]).toEqual({ role: 'system', content: 'Custom system prompt' })
+      expect(callArgs.temperature).toBe(1.3)
+      expect(callArgs.maxTokens).toBe(2048)
+      expect(callArgs.modelConfig.contextLength).toBe(8192)
+      expect(callArgs.modelConfig.maxTokens).toBe(2048)
+      expect(callArgs.modelConfig.thinkingBudget).toBe(1024)
+      expect(callArgs.modelConfig.reasoningEffort).toBe('low')
+      expect(callArgs.modelConfig.verbosity).toBe('high')
+    })
+
     it('transitions status: idle → generating → idle', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       await agent.processMessage('s1', 'Hello')
@@ -398,6 +450,72 @@ describe('DeepChatAgentPresenter', () => {
 
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
       expect(callArgs.tools).toEqual([])
+    })
+  })
+
+  describe('generation settings', () => {
+    it('returns null for unknown session', async () => {
+      sqlitePresenter.deepchatSessionsTable.get.mockReturnValue(undefined)
+      await expect(agent.getGenerationSettings('unknown')).resolves.toBeNull()
+    })
+
+    it('updates generation settings with sanitize and clamp', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+
+      const updated = await agent.updateGenerationSettings('s1', {
+        temperature: 9,
+        contextLength: 1000,
+        maxTokens: 999999,
+        thinkingBudget: -1,
+        reasoningEffort: 'minimal',
+        verbosity: 'invalid' as any
+      })
+
+      expect(updated.temperature).toBe(2)
+      expect(updated.contextLength).toBe(2048)
+      expect(updated.maxTokens).toBe(2048)
+      expect(updated.thinkingBudget).toBe(0)
+      expect(updated.reasoningEffort).toBe('minimal')
+      expect(updated.verbosity).toBe('medium')
+
+      expect(sqlitePresenter.deepchatSessionsTable.updateGenerationSettings).toHaveBeenCalledWith(
+        's1',
+        expect.objectContaining({
+          temperature: 2,
+          contextLength: 2048,
+          maxTokens: 2048,
+          thinkingBudget: 0,
+          reasoningEffort: 'minimal',
+          verbosity: 'medium'
+        })
+      )
+    })
+
+    it('falls back from old DB rows with null generation fields', async () => {
+      sqlitePresenter.deepchatSessionsTable.get.mockReturnValue({
+        id: 's2',
+        provider_id: 'openai',
+        model_id: 'gpt-4',
+        permission_mode: 'full_access',
+        system_prompt: null,
+        temperature: null,
+        context_length: null,
+        max_tokens: null,
+        thinking_budget: null,
+        reasoning_effort: null,
+        verbosity: null
+      })
+
+      const settings = await agent.getGenerationSettings('s2')
+      expect(settings).toEqual({
+        systemPrompt: 'You are a helpful assistant.',
+        temperature: 0.7,
+        contextLength: 128000,
+        maxTokens: 4096,
+        thinkingBudget: 512,
+        reasoningEffort: 'medium',
+        verbosity: 'medium'
+      })
     })
   })
 

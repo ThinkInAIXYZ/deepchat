@@ -4,6 +4,7 @@ import type {
   DeepChatSessionState,
   IAgentImplementation,
   PermissionMode,
+  SessionGenerationSettings,
   ToolInteractionResponse,
   ToolInteractionResult,
   UserMessageContent
@@ -34,6 +35,29 @@ type DeferredToolExecutionResult = {
   permissionRequest?: PendingToolInteraction['permission']
 }
 
+type PersistedSessionGenerationRow = {
+  provider_id: string
+  model_id: string
+  system_prompt: string | null
+  temperature: number | null
+  context_length: number | null
+  max_tokens: number | null
+  thinking_budget: number | null
+  reasoning_effort: SessionGenerationSettings['reasoningEffort'] | null
+  verbosity: SessionGenerationSettings['verbosity'] | null
+}
+
+const TEMPERATURE_MIN = 0
+const TEMPERATURE_MAX = 2
+const CONTEXT_LENGTH_MIN = 2048
+const MAX_TOKENS_MIN = 128
+
+const isReasoningEffort = (value: unknown): value is SessionGenerationSettings['reasoningEffort'] =>
+  value === 'minimal' || value === 'low' || value === 'medium' || value === 'high'
+
+const isVerbosity = (value: unknown): value is SessionGenerationSettings['verbosity'] =>
+  value === 'low' || value === 'medium' || value === 'high'
+
 export class DeepChatAgentPresenter implements IAgentImplementation {
   private readonly llmProviderPresenter: ILlmProviderPresenter
   private readonly configPresenter: IConfigPresenter
@@ -41,6 +65,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
   private readonly sessionStore: DeepChatSessionStore
   private readonly messageStore: DeepChatMessageStore
   private readonly runtimeState: Map<string, DeepChatSessionState> = new Map()
+  private readonly sessionGenerationSettings: Map<string, SessionGenerationSettings> = new Map()
   private readonly abortControllers: Map<string, AbortController> = new Map()
   private readonly sessionProjectDirs: Map<string, string | null> = new Map()
   private readonly interactionLocks: Set<string> = new Set()
@@ -71,6 +96,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       modelId: string
       projectDir?: string | null
       permissionMode?: PermissionMode
+      generationSettings?: Partial<SessionGenerationSettings>
     }
   ): Promise<void> {
     const projectDir = this.normalizeProjectDir(config.projectDir)
@@ -79,8 +105,20 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     console.log(
       `[DeepChatAgent] initSession id=${sessionId} provider=${config.providerId} model=${config.modelId} permission=${permissionMode} projectDir=${projectDir ?? '<none>'}`
     )
-    this.sessionStore.create(sessionId, config.providerId, config.modelId, permissionMode)
+    const generationSettings = await this.sanitizeGenerationSettings(
+      config.providerId,
+      config.modelId,
+      config.generationSettings ?? {}
+    )
+    this.sessionStore.create(
+      sessionId,
+      config.providerId,
+      config.modelId,
+      permissionMode,
+      generationSettings
+    )
     this.sessionProjectDirs.set(sessionId, projectDir)
+    this.sessionGenerationSettings.set(sessionId, generationSettings)
     this.runtimeState.set(sessionId, {
       status: 'idle',
       providerId: config.providerId,
@@ -99,6 +137,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     this.messageStore.deleteBySession(sessionId)
     this.sessionStore.delete(sessionId)
     this.runtimeState.delete(sessionId)
+    this.sessionGenerationSettings.delete(sessionId)
     this.sessionProjectDirs.delete(sessionId)
   }
 
@@ -108,6 +147,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       if (this.hasPendingInteractions(sessionId)) {
         state.status = 'generating'
       }
+      await this.getEffectiveSessionGenerationSettings(sessionId)
       return { ...state }
     }
 
@@ -121,6 +161,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       permissionMode: dbSession.permission_mode || 'full_access'
     }
     this.runtimeState.set(sessionId, rebuilt)
+    await this.getEffectiveSessionGenerationSettings(sessionId)
     return { ...rebuilt }
   }
 
@@ -143,15 +184,15 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     this.setSessionStatus(sessionId, 'generating')
 
     try {
-      const modelConfig = this.configPresenter.getModelConfig(state.modelId, state.providerId)
-      const maxTokens = modelConfig.maxTokens ?? 4096
-      const baseSystemPrompt = await this.configPresenter.getDefaultSystemPrompt()
+      const generationSettings = await this.getEffectiveSessionGenerationSettings(sessionId)
+      const maxTokens = generationSettings.maxTokens
+      const baseSystemPrompt = generationSettings.systemPrompt
       const systemPrompt = await this.buildSystemPromptWithSkills(sessionId, baseSystemPrompt)
       const messages = buildContext(
         sessionId,
         content,
         systemPrompt,
-        modelConfig.contextLength,
+        generationSettings.contextLength,
         maxTokens,
         this.messageStore
       )
@@ -321,6 +362,38 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     return dbSession?.permission_mode || 'full_access'
   }
 
+  async getGenerationSettings(sessionId: string): Promise<SessionGenerationSettings | null> {
+    const state = this.runtimeState.get(sessionId)
+    const dbSession = this.sessionStore.get(sessionId)
+    if (!state && !dbSession) {
+      return null
+    }
+    return await this.getEffectiveSessionGenerationSettings(sessionId)
+  }
+
+  async updateGenerationSettings(
+    sessionId: string,
+    settings: Partial<SessionGenerationSettings>
+  ): Promise<SessionGenerationSettings> {
+    const state = this.runtimeState.get(sessionId)
+    const dbSession = this.sessionStore.get(sessionId)
+    if (!state && !dbSession) {
+      throw new Error(`Session ${sessionId} not found`)
+    }
+
+    const providerId = state?.providerId ?? dbSession?.provider_id
+    const modelId = state?.modelId ?? dbSession?.model_id
+    if (!providerId || !modelId) {
+      throw new Error(`Session ${sessionId} model information is missing`)
+    }
+
+    const current = await this.getEffectiveSessionGenerationSettings(sessionId)
+    const sanitized = await this.sanitizeGenerationSettings(providerId, modelId, settings, current)
+    this.sessionGenerationSettings.set(sessionId, sanitized)
+    this.sessionStore.updateGenerationSettings(sessionId, sanitized)
+    return sanitized
+  }
+
   async cancelGeneration(sessionId: string): Promise<void> {
     const controller = this.abortControllers.get(sessionId)
     if (controller) {
@@ -370,9 +443,19 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       }
     ).getProviderInstance(state.providerId)
 
-    const modelConfig = this.configPresenter.getModelConfig(state.modelId, state.providerId)
-    const temperature = modelConfig.temperature ?? 0.7
-    const maxTokens = modelConfig.maxTokens ?? 4096
+    const generationSettings = await this.getEffectiveSessionGenerationSettings(sessionId)
+    const baseModelConfig = this.configPresenter.getModelConfig(state.modelId, state.providerId)
+    const modelConfig: ModelConfig = {
+      ...baseModelConfig,
+      temperature: generationSettings.temperature,
+      contextLength: generationSettings.contextLength,
+      maxTokens: generationSettings.maxTokens,
+      thinkingBudget: generationSettings.thinkingBudget,
+      reasoningEffort: generationSettings.reasoningEffort,
+      verbosity: generationSettings.verbosity
+    }
+    const temperature = generationSettings.temperature
+    const maxTokens = generationSettings.maxTokens
 
     let tools: import('@shared/presenter').MCPToolDefinition[] = []
     if (this.toolPresenter) {
@@ -457,15 +540,15 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       }
 
       this.setSessionStatus(sessionId, 'generating')
-      const modelConfig = this.configPresenter.getModelConfig(state.modelId, state.providerId)
-      const maxTokens = modelConfig.maxTokens ?? 4096
-      const baseSystemPrompt = await this.configPresenter.getDefaultSystemPrompt()
+      const generationSettings = await this.getEffectiveSessionGenerationSettings(sessionId)
+      const maxTokens = generationSettings.maxTokens
+      const baseSystemPrompt = generationSettings.systemPrompt
       const systemPrompt = await this.buildSystemPromptWithSkills(sessionId, baseSystemPrompt)
       const resumeContext = buildResumeContext(
         sessionId,
         messageId,
         systemPrompt,
-        modelConfig.contextLength,
+        generationSettings.contextLength,
         maxTokens,
         this.messageStore
       )
@@ -531,6 +614,312 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       )
       return normalizedBase
     }
+  }
+
+  private async getEffectiveSessionGenerationSettings(
+    sessionId: string
+  ): Promise<SessionGenerationSettings> {
+    const cached = this.sessionGenerationSettings.get(sessionId)
+    if (cached) {
+      return { ...cached }
+    }
+
+    const state = this.runtimeState.get(sessionId)
+    const dbSession = this.sessionStore.get(sessionId) as PersistedSessionGenerationRow | undefined
+    const providerId = state?.providerId ?? dbSession?.provider_id
+    const modelId = state?.modelId ?? dbSession?.model_id
+
+    if (!providerId || !modelId) {
+      throw new Error(`Session ${sessionId} not found`)
+    }
+
+    const persistedPatch = dbSession ? this.mapPersistedGenerationPatch(dbSession) : {}
+    const sanitized = await this.sanitizeGenerationSettings(providerId, modelId, persistedPatch)
+    this.sessionGenerationSettings.set(sessionId, sanitized)
+    return { ...sanitized }
+  }
+
+  private mapPersistedGenerationPatch(
+    sessionRow: PersistedSessionGenerationRow
+  ): Partial<SessionGenerationSettings> {
+    const patch: Partial<SessionGenerationSettings> = {}
+
+    if (sessionRow.system_prompt !== null) {
+      patch.systemPrompt = sessionRow.system_prompt
+    }
+    if (sessionRow.temperature !== null) {
+      patch.temperature = sessionRow.temperature
+    }
+    if (sessionRow.context_length !== null) {
+      patch.contextLength = sessionRow.context_length
+    }
+    if (sessionRow.max_tokens !== null) {
+      patch.maxTokens = sessionRow.max_tokens
+    }
+    if (sessionRow.thinking_budget !== null) {
+      patch.thinkingBudget = sessionRow.thinking_budget
+    }
+    if (sessionRow.reasoning_effort !== null) {
+      patch.reasoningEffort = sessionRow.reasoning_effort
+    }
+    if (sessionRow.verbosity !== null) {
+      patch.verbosity = sessionRow.verbosity
+    }
+
+    return patch
+  }
+
+  private async buildDefaultGenerationSettings(
+    providerId: string,
+    modelId: string
+  ): Promise<SessionGenerationSettings> {
+    const modelConfig = this.configPresenter.getModelConfig(modelId, providerId)
+    const defaultSystemPrompt = await this.configPresenter.getDefaultSystemPrompt()
+    const contextLengthLimit = this.getContextLengthLimit(modelConfig)
+    const maxTokensLimit = this.getMaxTokensLimit(modelConfig)
+
+    const defaults: SessionGenerationSettings = {
+      systemPrompt: defaultSystemPrompt ?? '',
+      temperature: this.clampNumber(
+        modelConfig.temperature ?? 0.7,
+        TEMPERATURE_MIN,
+        TEMPERATURE_MAX
+      ),
+      contextLength: this.clampInteger(
+        modelConfig.contextLength ?? contextLengthLimit,
+        CONTEXT_LENGTH_MIN,
+        contextLengthLimit
+      ),
+      maxTokens: this.clampInteger(
+        modelConfig.maxTokens ?? Math.min(4096, maxTokensLimit),
+        MAX_TOKENS_MIN,
+        maxTokensLimit
+      )
+    }
+
+    defaults.maxTokens = Math.min(defaults.maxTokens, defaults.contextLength)
+
+    const supportsReasoning =
+      this.configPresenter.supportsReasoningCapability?.(providerId, modelId) === true
+    if (supportsReasoning) {
+      const budgetRange = this.configPresenter.getThinkingBudgetRange?.(providerId, modelId) ?? {}
+      const defaultBudget = this.toFiniteNumber(
+        modelConfig.thinkingBudget ?? budgetRange.default ?? undefined
+      )
+      if (defaultBudget !== undefined) {
+        defaults.thinkingBudget = this.clampNumberWithOptionalRange(
+          Math.round(defaultBudget),
+          budgetRange.min,
+          budgetRange.max
+        )
+      }
+    }
+
+    const supportsEffort =
+      this.configPresenter.supportsReasoningEffortCapability?.(providerId, modelId) === true
+    if (supportsEffort) {
+      const rawEffort =
+        modelConfig.reasoningEffort ??
+        this.configPresenter.getReasoningEffortDefault?.(providerId, modelId)
+      const normalizedEffort = this.normalizeReasoningEffort(providerId, rawEffort)
+      if (normalizedEffort) {
+        defaults.reasoningEffort = normalizedEffort
+      }
+    }
+
+    const supportsVerbosity =
+      this.configPresenter.supportsVerbosityCapability?.(providerId, modelId) === true
+    if (supportsVerbosity) {
+      const rawVerbosity =
+        modelConfig.verbosity ?? this.configPresenter.getVerbosityDefault?.(providerId, modelId)
+      if (isVerbosity(rawVerbosity)) {
+        defaults.verbosity = rawVerbosity
+      }
+    }
+
+    return defaults
+  }
+
+  private async sanitizeGenerationSettings(
+    providerId: string,
+    modelId: string,
+    patch: Partial<SessionGenerationSettings>,
+    baseSettings?: SessionGenerationSettings
+  ): Promise<SessionGenerationSettings> {
+    const base = baseSettings
+      ? { ...baseSettings }
+      : await this.buildDefaultGenerationSettings(providerId, modelId)
+    const modelConfig = this.configPresenter.getModelConfig(modelId, providerId)
+    const contextLengthLimit = this.getContextLengthLimit(modelConfig)
+    const maxTokensLimit = this.getMaxTokensLimit(modelConfig)
+
+    const next: SessionGenerationSettings = { ...base }
+
+    if (Object.prototype.hasOwnProperty.call(patch, 'systemPrompt')) {
+      next.systemPrompt =
+        typeof patch.systemPrompt === 'string' ? patch.systemPrompt : base.systemPrompt
+    }
+
+    if (Object.prototype.hasOwnProperty.call(patch, 'temperature')) {
+      const numeric = this.toFiniteNumber(patch.temperature)
+      next.temperature = this.clampNumber(
+        numeric ?? base.temperature,
+        TEMPERATURE_MIN,
+        TEMPERATURE_MAX
+      )
+    }
+
+    if (Object.prototype.hasOwnProperty.call(patch, 'contextLength')) {
+      const numeric = this.toFiniteNumber(patch.contextLength)
+      next.contextLength = this.clampInteger(
+        Math.round(numeric ?? base.contextLength),
+        CONTEXT_LENGTH_MIN,
+        contextLengthLimit
+      )
+    } else {
+      next.contextLength = this.clampInteger(
+        next.contextLength,
+        CONTEXT_LENGTH_MIN,
+        contextLengthLimit
+      )
+    }
+
+    if (Object.prototype.hasOwnProperty.call(patch, 'maxTokens')) {
+      const numeric = this.toFiniteNumber(patch.maxTokens)
+      next.maxTokens = this.clampInteger(
+        Math.round(numeric ?? base.maxTokens),
+        MAX_TOKENS_MIN,
+        maxTokensLimit
+      )
+    } else {
+      next.maxTokens = this.clampInteger(next.maxTokens, MAX_TOKENS_MIN, maxTokensLimit)
+    }
+    next.maxTokens = Math.min(next.maxTokens, next.contextLength)
+
+    const supportsReasoning =
+      this.configPresenter.supportsReasoningCapability?.(providerId, modelId) === true
+    if (supportsReasoning) {
+      const budgetRange = this.configPresenter.getThinkingBudgetRange?.(providerId, modelId) ?? {}
+      if (Object.prototype.hasOwnProperty.call(patch, 'thinkingBudget')) {
+        const raw = patch.thinkingBudget
+        const numeric = this.toFiniteNumber(raw)
+        if (numeric === undefined) {
+          delete next.thinkingBudget
+        } else {
+          next.thinkingBudget = this.clampNumberWithOptionalRange(
+            Math.round(numeric),
+            budgetRange.min,
+            budgetRange.max
+          )
+        }
+      } else if (next.thinkingBudget !== undefined) {
+        next.thinkingBudget = this.clampNumberWithOptionalRange(
+          Math.round(next.thinkingBudget),
+          budgetRange.min,
+          budgetRange.max
+        )
+      }
+    } else {
+      delete next.thinkingBudget
+    }
+
+    const supportsEffort =
+      this.configPresenter.supportsReasoningEffortCapability?.(providerId, modelId) === true
+    if (supportsEffort) {
+      const fromPatch = Object.prototype.hasOwnProperty.call(patch, 'reasoningEffort')
+        ? patch.reasoningEffort
+        : next.reasoningEffort
+      const defaultEffort = this.configPresenter.getReasoningEffortDefault?.(providerId, modelId)
+      const normalizedEffort =
+        this.normalizeReasoningEffort(providerId, fromPatch) ??
+        this.normalizeReasoningEffort(providerId, defaultEffort)
+      if (normalizedEffort) {
+        next.reasoningEffort = normalizedEffort
+      } else {
+        delete next.reasoningEffort
+      }
+    } else {
+      delete next.reasoningEffort
+    }
+
+    const supportsVerbosity =
+      this.configPresenter.supportsVerbosityCapability?.(providerId, modelId) === true
+    if (supportsVerbosity) {
+      const fromPatch = Object.prototype.hasOwnProperty.call(patch, 'verbosity')
+        ? patch.verbosity
+        : next.verbosity
+      const defaultVerbosity = this.configPresenter.getVerbosityDefault?.(providerId, modelId)
+      const candidate = isVerbosity(fromPatch) ? fromPatch : defaultVerbosity
+      if (isVerbosity(candidate)) {
+        next.verbosity = candidate
+      } else {
+        delete next.verbosity
+      }
+    } else {
+      delete next.verbosity
+    }
+
+    return next
+  }
+
+  private normalizeReasoningEffort(
+    providerId: string,
+    value: unknown
+  ): SessionGenerationSettings['reasoningEffort'] | undefined {
+    if (!isReasoningEffort(value)) {
+      return undefined
+    }
+    if (providerId !== 'grok') {
+      return value
+    }
+    if (value === 'low' || value === 'high') {
+      return value
+    }
+    return value === 'minimal' ? 'low' : 'high'
+  }
+
+  private toFiniteNumber(value: unknown): number | undefined {
+    if (typeof value !== 'number' || Number.isNaN(value) || !Number.isFinite(value)) {
+      return undefined
+    }
+    return value
+  }
+
+  private clampNumber(value: number, min: number, max: number): number {
+    if (value < min) return min
+    if (value > max) return max
+    return value
+  }
+
+  private clampInteger(value: number, min: number, max: number): number {
+    return Math.round(this.clampNumber(value, min, max))
+  }
+
+  private clampNumberWithOptionalRange(value: number, min?: number, max?: number): number {
+    let next = value
+    if (typeof min === 'number' && Number.isFinite(min)) {
+      next = Math.max(next, Math.round(min))
+    }
+    if (typeof max === 'number' && Number.isFinite(max)) {
+      next = Math.min(next, Math.round(max))
+    }
+    return next
+  }
+
+  private getContextLengthLimit(modelConfig: ModelConfig): number {
+    const configured = this.toFiniteNumber(modelConfig.contextLength)
+    if (configured === undefined) {
+      return 32000
+    }
+    return Math.max(CONTEXT_LENGTH_MIN, Math.round(configured))
+  }
+
+  private getMaxTokensLimit(modelConfig: ModelConfig): number {
+    const configured = this.toFiniteNumber(modelConfig.maxTokens)
+    if (configured === undefined) {
+      return 4096
+    }
+    return Math.max(MAX_TOKENS_MIN, Math.round(configured))
   }
 
   private parseAssistantBlocks(rawContent: string): AssistantMessageBlock[] {

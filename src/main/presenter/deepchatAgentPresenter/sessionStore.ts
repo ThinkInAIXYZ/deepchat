@@ -1,5 +1,5 @@
 import { SQLitePresenter } from '../sqlitePresenter'
-import type { PermissionMode } from '@shared/types/agent-interface'
+import type { PermissionMode, SessionGenerationSettings } from '@shared/types/agent-interface'
 
 export class DeepChatSessionStore {
   private sqlitePresenter: SQLitePresenter
@@ -12,9 +12,16 @@ export class DeepChatSessionStore {
     id: string,
     providerId: string,
     modelId: string,
-    permissionMode: PermissionMode = 'full_access'
+    permissionMode: PermissionMode = 'full_access',
+    generationSettings?: Partial<SessionGenerationSettings>
   ): void {
-    this.sqlitePresenter.deepchatSessionsTable.create(id, providerId, modelId, permissionMode)
+    this.sqlitePresenter.deepchatSessionsTable.create(
+      id,
+      providerId,
+      modelId,
+      permissionMode,
+      generationSettings
+    )
   }
 
   get(id: string) {
@@ -27,5 +34,13 @@ export class DeepChatSessionStore {
 
   updatePermissionMode(id: string, mode: PermissionMode): void {
     this.sqlitePresenter.deepchatSessionsTable.updatePermissionMode(id, mode)
+  }
+
+  getGenerationSettings(id: string): Partial<SessionGenerationSettings> | null {
+    return this.sqlitePresenter.deepchatSessionsTable.getGenerationSettings(id)
+  }
+
+  updateGenerationSettings(id: string, settings: Partial<SessionGenerationSettings>): void {
+    this.sqlitePresenter.deepchatSessionsTable.updateGenerationSettings(id, settings)
   }
 }

@@ -208,6 +208,7 @@ async function submitText(text: string) {
     providerId,
     modelId,
     permissionMode: draftStore.permissionMode,
+    generationSettings: draftStore.toGenerationSettings(),
     activeSkills: pendingSkills.value.length > 0 ? [...pendingSkills.value] : undefined
   })
 }
@@ -276,5 +277,6 @@ onMounted(() => {
   draftStore.providerId = undefined
   draftStore.modelId = undefined
   draftStore.permissionMode = 'full_access'
+  draftStore.resetGenerationSettings()
 })
 </script>

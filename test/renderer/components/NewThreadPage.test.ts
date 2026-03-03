@@ -51,7 +51,16 @@ const setup = async (options?: {
   const draftStore = reactive({
     providerId: undefined as string | undefined,
     modelId: undefined as string | undefined,
-    permissionMode: 'full_access' as const
+    permissionMode: 'full_access' as const,
+    systemPrompt: undefined as string | undefined,
+    temperature: undefined as number | undefined,
+    contextLength: undefined as number | undefined,
+    maxTokens: undefined as number | undefined,
+    thinkingBudget: undefined as number | undefined,
+    reasoningEffort: undefined as 'minimal' | 'low' | 'medium' | 'high' | undefined,
+    verbosity: undefined as 'low' | 'medium' | 'high' | undefined,
+    toGenerationSettings: vi.fn(() => undefined),
+    resetGenerationSettings: vi.fn()
   })
 
   const configPresenter = {
@@ -124,6 +133,7 @@ const setup = async (options?: {
     projectStore,
     sessionStore,
     agentStore,
+    modelStore,
     draftStore,
     newAgentPresenter
   }
@@ -151,6 +161,42 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
     expect(sessionStore.selectSession).toHaveBeenCalledWith('draft-1')
     expect(sessionStore.sendMessage).toHaveBeenCalledWith('draft-1', 'hello from draft')
     expect(sessionStore.createSession).not.toHaveBeenCalled()
+  })
+
+  it('passes draft generation settings when creating a deepchat session', async () => {
+    const { wrapper, sessionStore, agentStore, modelStore, draftStore } = await setup()
+
+    agentStore.selectedAgentId = 'deepchat'
+    modelStore.enabledModels = [
+      {
+        providerId: 'openai',
+        models: [{ id: 'gpt-4', name: 'GPT-4' }]
+      }
+    ]
+    draftStore.providerId = 'openai'
+    draftStore.modelId = 'gpt-4'
+    ;(draftStore.toGenerationSettings as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+      systemPrompt: 'Preset prompt',
+      temperature: 1.2,
+      contextLength: 8192,
+      maxTokens: 2048
+    })
+    ;(wrapper.vm as any).message = 'hello deepchat'
+    await (wrapper.vm as any).onSubmit()
+    await flushPromises()
+
+    expect(sessionStore.createSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'hello deepchat',
+        agentId: 'deepchat',
+        generationSettings: {
+          systemPrompt: 'Preset prompt',
+          temperature: 1.2,
+          contextLength: 8192,
+          maxTokens: 2048
+        }
+      })
+    )
   })
 
   it('ignores stale ensureAcpDraftSession response after agent/workdir switches', async () => {

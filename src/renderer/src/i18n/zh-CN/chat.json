@@ -97,6 +97,21 @@
     "agent": "Agent",
     "acpAgent": "ACP Agent"
   },
+  "advancedSettings": {
+    "button": "高级配置",
+    "title": "高级配置",
+    "closeHint": "按 Esc 关闭",
+    "systemPrompt": "系统提示词",
+    "systemPromptPlaceholder": "选择预设",
+    "temperature": "温度",
+    "contextLength": "上下文长度",
+    "maxTokens": "最大输出",
+    "thinkingBudget": "思考预算",
+    "verbosity": "回答详略",
+    "verbosityPlaceholder": "选择详略级别",
+    "currentCustomPrompt": "当前自定义",
+    "useDefault": "使用默认值"
+  },
   "audio": {
     "play": "播放",
     "pause": "暂停"

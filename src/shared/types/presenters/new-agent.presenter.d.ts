@@ -4,6 +4,7 @@ import type {
   SessionWithState,
   ChatMessageRecord,
   PermissionMode,
+  SessionGenerationSettings,
   ToolInteractionResponse,
   ToolInteractionResult
 } from '../agent-interface'
@@ -42,4 +43,9 @@ export interface INewAgentPresenter {
   >
   getPermissionMode(sessionId: string): Promise<PermissionMode>
   setPermissionMode(sessionId: string, mode: PermissionMode): Promise<void>
+  getSessionGenerationSettings(sessionId: string): Promise<SessionGenerationSettings | null>
+  updateSessionGenerationSettings(
+    sessionId: string,
+    settings: Partial<SessionGenerationSettings>
+  ): Promise<SessionGenerationSettings>
 }

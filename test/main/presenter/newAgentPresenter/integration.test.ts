@@ -74,22 +74,62 @@ function createMockSqlitePresenter() {
           id: string,
           providerId: string,
           modelId: string,
-          permissionMode: 'default' | 'full_access' = 'full_access'
+          permissionMode: 'default' | 'full_access' = 'full_access',
+          generationSettings: {
+            systemPrompt?: string
+            temperature?: number
+            contextLength?: number
+            maxTokens?: number
+            thinkingBudget?: number
+            reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
+            verbosity?: 'low' | 'medium' | 'high'
+          } = {}
         ) => {
           deepchatSessionsStore.set(id, {
             id,
             provider_id: providerId,
             model_id: modelId,
-            permission_mode: permissionMode
+            permission_mode: permissionMode,
+            system_prompt: generationSettings.systemPrompt ?? null,
+            temperature: generationSettings.temperature ?? null,
+            context_length: generationSettings.contextLength ?? null,
+            max_tokens: generationSettings.maxTokens ?? null,
+            thinking_budget: generationSettings.thinkingBudget ?? null,
+            reasoning_effort: generationSettings.reasoningEffort ?? null,
+            verbosity: generationSettings.verbosity ?? null
           })
         }
       ),
       get: vi.fn((id: string) => deepchatSessionsStore.get(id)),
+      getGenerationSettings: vi.fn((id: string) => {
+        const row = deepchatSessionsStore.get(id)
+        if (!row) return null
+        return {
+          ...(row.system_prompt !== null ? { systemPrompt: row.system_prompt } : {}),
+          ...(row.temperature !== null ? { temperature: row.temperature } : {}),
+          ...(row.context_length !== null ? { contextLength: row.context_length } : {}),
+          ...(row.max_tokens !== null ? { maxTokens: row.max_tokens } : {}),
+          ...(row.thinking_budget !== null ? { thinkingBudget: row.thinking_budget } : {}),
+          ...(row.reasoning_effort !== null ? { reasoningEffort: row.reasoning_effort } : {}),
+          ...(row.verbosity !== null ? { verbosity: row.verbosity } : {})
+        }
+      }),
       updatePermissionMode: vi.fn((id: string, mode: 'default' | 'full_access') => {
         const row = deepchatSessionsStore.get(id)
         if (row) {
           row.permission_mode = mode
         }
+      }),
+      updateGenerationSettings: vi.fn((id: string, settings: Record<string, unknown>) => {
+        const row = deepchatSessionsStore.get(id)
+        if (!row) return
+        if ('systemPrompt' in settings) row.system_prompt = settings.systemPrompt ?? null
+        if ('temperature' in settings) row.temperature = settings.temperature ?? null
+        if ('contextLength' in settings) row.context_length = settings.contextLength ?? null
+        if ('maxTokens' in settings) row.max_tokens = settings.maxTokens ?? null
+        if ('thinkingBudget' in settings) row.thinking_budget = settings.thinkingBudget ?? null
+        if ('reasoningEffort' in settings) row.reasoning_effort = settings.reasoningEffort ?? null
+        if ('verbosity' in settings) row.verbosity = settings.verbosity ?? null
       }),
       delete: vi.fn((id: string) => deepchatSessionsStore.delete(id))
     },
@@ -261,7 +301,13 @@ describe('Integration: createSession end-to-end', () => {
       expect.any(String),
       'openai',
       'gpt-4',
-      'full_access'
+      'full_access',
+      expect.objectContaining({
+        systemPrompt: 'You are a helpful assistant.',
+        temperature: 0.7,
+        contextLength: 128000,
+        maxTokens: 4096
+      })
     )
 
     // 3. Messages created (user + assistant)

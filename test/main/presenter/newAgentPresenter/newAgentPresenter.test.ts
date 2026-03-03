@@ -33,7 +33,24 @@ function createMockDeepChatAgent() {
     cancelGeneration: vi.fn().mockResolvedValue(undefined),
     getMessages: vi.fn().mockResolvedValue([]),
     getMessageIds: vi.fn().mockResolvedValue([]),
-    getMessage: vi.fn().mockResolvedValue(null)
+    getMessage: vi.fn().mockResolvedValue(null),
+    getGenerationSettings: vi.fn().mockResolvedValue({
+      systemPrompt: 'Default prompt',
+      temperature: 0.7,
+      contextLength: 128000,
+      maxTokens: 4096
+    }),
+    updateGenerationSettings: vi.fn().mockImplementation((_: string, patch: any) =>
+      Promise.resolve({
+        systemPrompt: 'Default prompt',
+        temperature: patch.temperature ?? 0.7,
+        contextLength: patch.contextLength ?? 128000,
+        maxTokens: patch.maxTokens ?? 4096,
+        thinkingBudget: patch.thinkingBudget,
+        reasoningEffort: patch.reasoningEffort,
+        verbosity: patch.verbosity
+      })
+    )
   }
 }
 
@@ -227,6 +244,37 @@ describe('NewAgentPresenter', () => {
         modelId: 'claude-3',
         projectDir: null,
         permissionMode: 'default'
+      })
+    })
+
+    it('passes generationSettings to agent.initSession', async () => {
+      await presenter.createSession(
+        {
+          agentId: 'deepchat',
+          message: 'Hi',
+          generationSettings: {
+            systemPrompt: 'Custom prompt',
+            temperature: 1.1,
+            contextLength: 8192,
+            maxTokens: 2048,
+            reasoningEffort: 'low'
+          }
+        },
+        1
+      )
+
+      expect(deepChatAgent.initSession).toHaveBeenCalledWith(expect.any(String), {
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        projectDir: null,
+        permissionMode: 'full_access',
+        generationSettings: {
+          systemPrompt: 'Custom prompt',
+          temperature: 1.1,
+          contextLength: 8192,
+          maxTokens: 2048,
+          reasoningEffort: 'low'
+        }
       })
     })
 
@@ -605,6 +653,65 @@ describe('NewAgentPresenter', () => {
 
       await presenter.cancelGeneration('s1')
       expect(deepChatAgent.cancelGeneration).toHaveBeenCalledWith('s1')
+    })
+  })
+
+  describe('generation settings', () => {
+    it('delegates getSessionGenerationSettings to agent', async () => {
+      sqlitePresenter.newSessionsTable.get.mockReturnValue({
+        id: 's1',
+        agent_id: 'deepchat',
+        title: 'Test',
+        project_dir: null,
+        is_pinned: 0,
+        created_at: 1000,
+        updated_at: 1000
+      })
+
+      const settings = await presenter.getSessionGenerationSettings('s1')
+
+      expect(deepChatAgent.getGenerationSettings).toHaveBeenCalledWith('s1')
+      expect(settings).toEqual({
+        systemPrompt: 'Default prompt',
+        temperature: 0.7,
+        contextLength: 128000,
+        maxTokens: 4096
+      })
+    })
+
+    it('delegates updateSessionGenerationSettings to agent', async () => {
+      sqlitePresenter.newSessionsTable.get.mockReturnValue({
+        id: 's1',
+        agent_id: 'deepchat',
+        title: 'Test',
+        project_dir: null,
+        is_pinned: 0,
+        created_at: 1000,
+        updated_at: 1000
+      })
+
+      const updated = await presenter.updateSessionGenerationSettings('s1', {
+        temperature: 1.4,
+        reasoningEffort: 'high'
+      })
+
+      expect(deepChatAgent.updateGenerationSettings).toHaveBeenCalledWith('s1', {
+        temperature: 1.4,
+        reasoningEffort: 'high'
+      })
+      expect(updated.temperature).toBe(1.4)
+      expect(updated.reasoningEffort).toBe('high')
+    })
+
+    it('throws when generation settings methods target unknown session', async () => {
+      sqlitePresenter.newSessionsTable.get.mockReturnValue(undefined)
+
+      await expect(presenter.getSessionGenerationSettings('unknown')).rejects.toThrow(
+        'Session not found: unknown'
+      )
+      await expect(
+        presenter.updateSessionGenerationSettings('unknown', { temperature: 1 })
+      ).rejects.toThrow('Session not found: unknown')
     })
   })
 

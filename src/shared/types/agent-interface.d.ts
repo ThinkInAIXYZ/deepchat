@@ -8,6 +8,16 @@
 export type SessionStatus = 'idle' | 'generating' | 'error'
 export type PermissionMode = 'default' | 'full_access'
 
+export interface SessionGenerationSettings {
+  systemPrompt: string
+  temperature: number
+  contextLength: number
+  maxTokens: number
+  thinkingBudget?: number
+  reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
+  verbosity?: 'low' | 'medium' | 'high'
+}
+
 export interface DeepChatSessionState {
   status: SessionStatus
   providerId: string
@@ -24,6 +34,7 @@ export interface IAgentImplementation {
       modelId: string
       projectDir?: string | null
       permissionMode?: PermissionMode
+      generationSettings?: Partial<SessionGenerationSettings>
     }
   ): Promise<void>
 
@@ -65,6 +76,15 @@ export interface IAgentImplementation {
 
   /** Get permission mode for this session */
   getPermissionMode?(sessionId: string): Promise<PermissionMode>
+
+  /** Get generation settings for this session */
+  getGenerationSettings?(sessionId: string): Promise<SessionGenerationSettings | null>
+
+  /** Update generation settings for this session */
+  updateGenerationSettings?(
+    sessionId: string,
+    settings: Partial<SessionGenerationSettings>
+  ): Promise<SessionGenerationSettings>
 }
 
 // ---- Message Types ----
@@ -219,6 +239,7 @@ export interface CreateSessionInput {
   modelId?: string
   permissionMode?: PermissionMode
   activeSkills?: string[]
+  generationSettings?: Partial<SessionGenerationSettings>
 }
 
 // ---- Project Types ----

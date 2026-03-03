@@ -8,6 +8,7 @@ import type {
   UserMessageContent,
   AssistantMessageBlock,
   PermissionMode,
+  SessionGenerationSettings,
   ToolInteractionResponse,
   ToolInteractionResult
 } from '@shared/types/agent-interface'
@@ -77,7 +78,22 @@ export class NewAgentPresenter {
     console.log(`[NewAgentPresenter] session created id=${sessionId} title="${title}"`)
 
     // Initialize agent-side session
-    await agent.initSession(sessionId, { providerId, modelId, projectDir, permissionMode })
+    const initConfig: {
+      providerId: string
+      modelId: string
+      projectDir: string | null
+      permissionMode: PermissionMode
+      generationSettings?: Partial<SessionGenerationSettings>
+    } = {
+      providerId,
+      modelId,
+      projectDir,
+      permissionMode
+    }
+    if (input.generationSettings) {
+      initConfig.generationSettings = input.generationSettings
+    }
+    await agent.initSession(sessionId, initConfig)
     console.log(`[NewAgentPresenter] agent.initSession done`)
 
     // Bind to window and emit activated
@@ -380,6 +396,33 @@ export class NewAgentPresenter {
       return
     }
     await agent.setPermissionMode(sessionId, mode)
+  }
+
+  async getSessionGenerationSettings(sessionId: string): Promise<SessionGenerationSettings | null> {
+    const session = this.sessionManager.get(sessionId)
+    if (!session) {
+      throw new Error(`Session not found: ${sessionId}`)
+    }
+    const agent = await this.resolveAgentImplementation(session.agentId)
+    if (!agent.getGenerationSettings) {
+      return null
+    }
+    return await agent.getGenerationSettings(sessionId)
+  }
+
+  async updateSessionGenerationSettings(
+    sessionId: string,
+    settings: Partial<SessionGenerationSettings>
+  ): Promise<SessionGenerationSettings> {
+    const session = this.sessionManager.get(sessionId)
+    if (!session) {
+      throw new Error(`Session not found: ${sessionId}`)
+    }
+    const agent = await this.resolveAgentImplementation(session.agentId)
+    if (!agent.updateGenerationSettings) {
+      throw new Error(`Agent ${session.agentId} does not support generation settings updates.`)
+    }
+    return await agent.updateGenerationSettings(sessionId, settings)
   }
 
   private async generateSessionTitle(
