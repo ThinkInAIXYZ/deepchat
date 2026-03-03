@@ -37,8 +37,17 @@
       </Tooltip>
 
       <!-- Send button -->
-      <Button size="icon" class="h-7 w-7 rounded-full" @click="$emit('send')">
+      <Button v-if="!isGenerating" size="icon" class="h-7 w-7 rounded-full" @click="$emit('send')">
         <Icon icon="lucide:arrow-up" class="w-4 h-4" />
+      </Button>
+      <Button
+        v-else
+        variant="outline"
+        size="icon"
+        class="h-7 w-7 rounded-full"
+        @click="$emit('stop')"
+      >
+        <Icon icon="lucide:square" class="w-4 h-4 text-red-500" />
       </Button>
     </div>
   </div>
@@ -49,8 +58,18 @@ import { Button } from '@shadcn/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@shadcn/components/ui/tooltip'
 import { Icon } from '@iconify/vue'
 
+withDefaults(
+  defineProps<{
+    isGenerating?: boolean
+  }>(),
+  {
+    isGenerating: false
+  }
+)
+
 defineEmits<{
   send: []
   attach: []
+  stop: []
 }>()
 </script>

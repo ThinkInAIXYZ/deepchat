@@ -16,7 +16,7 @@
           <template v-else>
             <ChatInputBox v-model="message" @submit="onSubmit">
               <template #toolbar>
-                <ChatInputToolbar @send="onSubmit" />
+                <ChatInputToolbar :is-generating="isGenerating" @send="onSubmit" @stop="onStop" />
               </template>
             </ChatInputBox>
             <ChatStatusBar />
@@ -56,6 +56,9 @@ const newAgentPresenter = usePresenter('newAgentPresenter')
 
 const sessionTitle = computed(() => sessionStore.activeSession?.title ?? 'New Chat')
 const sessionProject = computed(() => sessionStore.activeSession?.projectDir ?? '')
+const isGenerating = computed(
+  () => sessionStore.activeSession?.status === 'working' || messageStore.isStreaming
+)
 
 // --- Auto-scroll ---
 const scrollContainer = ref<HTMLDivElement>()
@@ -271,6 +274,15 @@ async function onToolInteractionRespond(response: ToolInteractionResponse) {
     console.error('[ChatPage] respond tool interaction failed:', error)
   } finally {
     isHandlingInteraction.value = false
+  }
+}
+
+async function onStop() {
+  if (!isGenerating.value) return
+  try {
+    await newAgentPresenter.cancelGeneration(props.sessionId)
+  } catch (error) {
+    console.error('[ChatPage] cancel generation failed:', error)
   }
 }
 </script>
