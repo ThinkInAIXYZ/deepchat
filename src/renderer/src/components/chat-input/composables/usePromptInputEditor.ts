@@ -248,7 +248,8 @@ export function usePromptInputEditor(
   const handleEditorEnter = (
     e: KeyboardEvent,
     disabledSend: boolean,
-    emitSend: () => void
+    emitSend: () => void,
+    isComposingFallback = false
   ): void => {
     // Check if either @ mention or / slash mention was just selected
     if (mentionSelected.value || slashMentionSelected.value) {
@@ -269,7 +270,8 @@ export function usePromptInputEditor(
       return
     }
 
-    if (!e.isComposing) {
+    const isImeComposing = e.isComposing || isComposingFallback || e.keyCode === 229
+    if (!isImeComposing) {
       emitSend()
     }
   }

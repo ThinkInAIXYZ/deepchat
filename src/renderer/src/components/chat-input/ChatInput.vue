@@ -68,6 +68,8 @@
           <editor-content
             :editor="editor"
             :class="['text-sm h-full', variant === 'chat' ? 'dark:text-white/80' : 'p-2']"
+            @compositionstart="onCompositionStart"
+            @compositionend="onCompositionEnd"
             @keydown="onKeydown"
           />
         </div>
@@ -707,6 +709,8 @@ const workspaceMention = useWorkspaceMention({
 })
 setWorkspaceMention(workspaceMention)
 
+const isComposing = ref(false)
+
 // Setup slash mention data (skills, prompts, tools)
 useSlashMentionData(conversationId)
 
@@ -792,7 +796,7 @@ const onKeydown = (e: KeyboardEvent) => {
     return
   }
   if (e.code === 'Enter' && !e.shiftKey) {
-    editorComposable.handleEditorEnter(e, disabledSend.value, emitSend)
+    editorComposable.handleEditorEnter(e, disabledSend.value, emitSend, isComposing.value)
     e.preventDefault()
   }
 
@@ -816,6 +820,14 @@ const onKeydown = (e: KeyboardEvent) => {
   } else if (history.currentHistoryPlaceholder.value && e.key.length === 1) {
     history.clearHistoryPlaceholder()
   }
+}
+
+const onCompositionStart = () => {
+  isComposing.value = true
+}
+
+const onCompositionEnd = () => {
+  isComposing.value = false
 }
 
 const restoreFocus = () => {
