@@ -206,6 +206,8 @@ const agentStore = useAgentStore()
 const sessionStore = useSessionStore()
 
 const collapsed = ref(false)
+let agentSwitchSeq = 0
+let agentSwitchQueue: Promise<void> = Promise.resolve()
 
 const filteredGroups = computed(() => sessionStore.getFilteredGroups(agentStore.selectedAgentId))
 
@@ -229,13 +231,39 @@ const handleNewChat = () => {
 }
 
 const handleAgentSelect = async (id: string | null) => {
-  const previousAgentId = agentStore.selectedAgentId
-  agentStore.selectAgent(id)
-  const hasAgentChanged = previousAgentId !== agentStore.selectedAgentId
+  const requestSeq = ++agentSwitchSeq
 
-  if (hasAgentChanged && sessionStore.hasActiveSession) {
-    await sessionStore.closeSession()
-  }
+  agentSwitchQueue = agentSwitchQueue
+    .then(async () => {
+      const currentAgentId = agentStore.selectedAgentId
+      const nextAgentId = currentAgentId === id ? null : id
+      if (nextAgentId === currentAgentId) {
+        return
+      }
+
+      if (sessionStore.hasActiveSession) {
+        try {
+          await sessionStore.closeSession()
+        } catch (error) {
+          console.warn(
+            '[WindowSideBar] Failed to close active session before switching agent:',
+            error
+          )
+          return
+        }
+      }
+
+      if (requestSeq !== agentSwitchSeq) {
+        return
+      }
+
+      agentStore.setSelectedAgent(nextAgentId)
+    })
+    .catch((error) => {
+      console.warn('[WindowSideBar] Agent switch pipeline failed:', error)
+    })
+
+  await agentSwitchQueue
 }
 
 const handleSessionClick = (session: { id: string }) => {

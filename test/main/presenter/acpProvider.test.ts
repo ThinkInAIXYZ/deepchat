@@ -147,4 +147,58 @@ describe('AcpProvider runDebugAction error handling', () => {
       }
     )
   })
+
+  it('updates mode on bound handle by conversation id', async () => {
+    const provider = Object.create(AcpProvider.prototype) as any
+    const setSessionMode = vi.fn().mockResolvedValue(undefined)
+    provider.sessionManager = {
+      getSession: vi.fn().mockReturnValue({
+        sessionId: 's-1',
+        agentId: 'agent1',
+        workdir: '/tmp/workspace',
+        currentModeId: 'default',
+        availableModes: [{ id: 'default', name: 'Default', description: '' }],
+        connection: { setSessionMode }
+      })
+    }
+    provider.processManager = {
+      updateBoundProcessMode: vi.fn().mockReturnValue(true)
+    }
+
+    await provider.setSessionMode('conv-a', 'default')
+
+    expect(setSessionMode).toHaveBeenCalledWith({ sessionId: 's-1', modeId: 'default' })
+    expect(provider.processManager.updateBoundProcessMode).toHaveBeenCalledWith('conv-a', 'default')
+  })
+
+  it('still emits mode event when bound handle is unavailable', async () => {
+    const provider = Object.create(AcpProvider.prototype) as any
+    provider.sessionManager = {
+      getSession: vi.fn().mockReturnValue({
+        sessionId: 's-2',
+        agentId: 'agent1',
+        workdir: '/tmp/workspace',
+        currentModeId: 'default',
+        availableModes: [{ id: 'default', name: 'Default', description: '' }],
+        connection: { setSessionMode: vi.fn().mockResolvedValue(undefined) }
+      })
+    }
+    provider.processManager = {
+      updateBoundProcessMode: vi.fn().mockReturnValue(false)
+    }
+
+    await provider.setSessionMode('conv-b', 'default')
+
+    expect(eventBus.sendToRenderer).toHaveBeenCalledWith(
+      ACP_WORKSPACE_EVENTS.SESSION_MODES_READY,
+      SendTarget.ALL_WINDOWS,
+      {
+        conversationId: 'conv-b',
+        agentId: 'agent1',
+        workdir: '/tmp/workspace',
+        current: 'default',
+        available: [{ id: 'default', name: 'Default', description: '' }]
+      }
+    )
+  })
 })

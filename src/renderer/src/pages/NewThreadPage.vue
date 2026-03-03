@@ -107,6 +107,7 @@ const message = ref('')
 const pendingSkills = ref<string[]>([])
 const acpDraftSessionId = ref<string | null>(null)
 const lastAcpDraftKey = ref<string | null>(null)
+const acpDraftRequestSeq = ref(0)
 const isAcpWorkdirMissing = computed(() => {
   const selectedAgentId = agentStore.selectedAgentId ?? 'deepchat'
   if (selectedAgentId === 'deepchat') {
@@ -223,6 +224,12 @@ const ensureAcpDraftSession = async (agentId: string, projectPath: string) => {
   if (lastAcpDraftKey.value === draftKey && acpDraftSessionId.value) {
     return
   }
+  if (lastAcpDraftKey.value !== draftKey) {
+    acpDraftSessionId.value = null
+    lastAcpDraftKey.value = null
+  }
+
+  const requestSeq = ++acpDraftRequestSeq.value
 
   try {
     const session = await newAgentPresenter.ensureAcpDraftSession({
@@ -230,9 +237,20 @@ const ensureAcpDraftSession = async (agentId: string, projectPath: string) => {
       projectDir,
       permissionMode: draftStore.permissionMode
     })
+    if (requestSeq !== acpDraftRequestSeq.value) {
+      return
+    }
+    const currentAgentId = agentStore.selectedAgentId
+    const currentProjectDir = projectStore.selectedProject?.path?.trim()
+    if (currentAgentId !== agentId || currentProjectDir !== projectDir) {
+      return
+    }
     acpDraftSessionId.value = session.id
     lastAcpDraftKey.value = draftKey
   } catch (error) {
+    if (requestSeq !== acpDraftRequestSeq.value) {
+      return
+    }
     console.warn('[NewThreadPage] Failed to ensure ACP draft session:', error)
     acpDraftSessionId.value = null
     lastAcpDraftKey.value = null
@@ -242,6 +260,7 @@ const ensureAcpDraftSession = async (agentId: string, projectPath: string) => {
 watch(
   () => [agentStore.selectedAgentId, projectStore.selectedProject?.path] as const,
   ([selectedAgentId, projectPath]) => {
+    acpDraftRequestSeq.value += 1
     if (!selectedAgentId || selectedAgentId === 'deepchat' || !projectPath?.trim()) {
       acpDraftSessionId.value = null
       lastAcpDraftKey.value = null

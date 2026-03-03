@@ -298,6 +298,19 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     return null
   }
 
+  getBoundProcess(conversationId: string): AcpProcessHandle | null {
+    return this.boundHandles.get(conversationId) ?? null
+  }
+
+  updateBoundProcessMode(conversationId: string, modeId: string): boolean {
+    const handle = this.boundHandles.get(conversationId)
+    if (!handle || !this.isHandleAlive(handle)) {
+      return false
+    }
+    handle.currentModeId = modeId
+    return true
+  }
+
   listProcesses(): AcpProcessHandle[] {
     const seen = new Set<AcpProcessHandle>()
     const processes: AcpProcessHandle[] = []

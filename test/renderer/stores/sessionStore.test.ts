@@ -26,6 +26,12 @@ const setupStore = async () => {
       goToNewThread: vi.fn()
     })
   }))
+  const clearStreamingState = vi.fn()
+  vi.doMock('@/stores/ui/message', () => ({
+    useMessageStore: () => ({
+      clearStreamingState
+    })
+  }))
   ;(window as any).electron = {
     ipcRenderer: {
       on: vi.fn(),
@@ -38,7 +44,7 @@ const setupStore = async () => {
 
   const { useSessionStore } = await import('@/stores/ui/session')
   const store = useSessionStore()
-  return { store }
+  return { store, clearStreamingState, newAgentPresenter }
 }
 
 describe('sessionStore.getFilteredGroups', () => {
@@ -77,5 +83,17 @@ describe('sessionStore.getFilteredGroups', () => {
     const ids = groups.flatMap((group) => group.sessions.map((session) => session.id))
 
     expect(ids).toEqual(['real-1'])
+  })
+})
+
+describe('sessionStore streaming cleanup', () => {
+  it('clears streaming state when switching active session', async () => {
+    const { store, clearStreamingState, newAgentPresenter } = await setupStore()
+    store.activeSessionId.value = 'session-a'
+
+    await store.selectSession('session-b')
+
+    expect(newAgentPresenter.activateSession).toHaveBeenCalledWith(1, 'session-b')
+    expect(clearStreamingState).toHaveBeenCalledTimes(1)
   })
 })

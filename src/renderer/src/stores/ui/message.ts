@@ -97,11 +97,15 @@ export const useMessageStore = defineStore('message', () => {
   function clear(): void {
     messageIds.value = []
     messageCache.value.clear()
+    clearStreamingState()
+    hydratingStreamMessageIds.clear()
+  }
+
+  function clearStreamingState(): void {
     isStreaming.value = false
     streamingBlocks.value = []
     currentStreamSessionId.value = null
     currentStreamMessageId.value = null
-    hydratingStreamMessageIds.clear()
   }
 
   function applyStreamingBlocksToMessage(
@@ -214,6 +218,7 @@ export const useMessageStore = defineStore('message', () => {
     loadMessages,
     getMessage,
     addOptimisticUserMessage,
+    clearStreamingState,
     clear
   }
 })

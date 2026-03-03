@@ -50,6 +50,7 @@ function createMockLlmProviderPresenter() {
   return {
     summaryTitles: vi.fn().mockResolvedValue('Async Generated Title'),
     prepareAcpSession: vi.fn().mockResolvedValue(undefined),
+    clearAcpSession: vi.fn().mockResolvedValue(undefined),
     getAcpSessionCommands: vi
       .fn()
       .mockResolvedValue([
@@ -561,6 +562,32 @@ describe('NewAgentPresenter', () => {
       sqlitePresenter.newSessionsTable.get.mockReturnValue(undefined)
       await presenter.deleteSession('unknown') // should not throw
       expect(deepChatAgent.destroySession).not.toHaveBeenCalled()
+    })
+
+    it('clears ACP runtime session before deleting ACP session', async () => {
+      sqlitePresenter.newSessionsTable.get.mockReturnValue({
+        id: 's-acp',
+        agent_id: 'acp-coder',
+        title: 'ACP Session',
+        project_dir: '/tmp/workspace',
+        is_pinned: 0,
+        created_at: 1000,
+        updated_at: 2000
+      })
+      configPresenter.getAcpAgents.mockResolvedValue([
+        { id: 'acp-coder', name: 'ACP Coder', command: 'acp-coder' }
+      ])
+      deepChatAgent.getSessionState.mockResolvedValue({
+        status: 'idle',
+        providerId: 'acp',
+        modelId: 'acp-coder',
+        permissionMode: 'full_access'
+      })
+
+      await presenter.deleteSession('s-acp')
+
+      expect(llmProviderPresenter.clearAcpSession).toHaveBeenCalledWith('s-acp')
+      expect(deepChatAgent.destroySession).toHaveBeenCalledWith('s-acp')
     })
   })
 

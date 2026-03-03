@@ -10,6 +10,7 @@ export type PageRoute =
 
 export const usePageRouterStore = defineStore('pageRouter', () => {
   const configPresenter = usePresenter('configPresenter')
+  const newAgentPresenter = usePresenter('newAgentPresenter')
   const sessionPresenter = usePresenter('sessionPresenter')
 
   // --- State ---
@@ -27,15 +28,22 @@ export const usePageRouterStore = defineStore('pageRouter', () => {
         return
       }
 
-      // 2. Check for active session on this tab
+      // 2. Check for active new-agent session on this tab first
       const tabId = window.api.getWebContentsId()
-      const activeSession = await sessionPresenter.getActiveSession(tabId)
-      if (activeSession) {
-        route.value = { name: 'chat', sessionId: activeSession.sessionId }
+      const activeNewSession = await newAgentPresenter.getActiveSession(tabId)
+      if (activeNewSession) {
+        route.value = { name: 'chat', sessionId: activeNewSession.id }
         return
       }
 
-      // 3. Default to new thread
+      // 3. Fallback to legacy session presenter for compatibility
+      const activeLegacySession = await sessionPresenter.getActiveSession(tabId)
+      if (activeLegacySession) {
+        route.value = { name: 'chat', sessionId: activeLegacySession.sessionId }
+        return
+      }
+
+      // 4. Default to new thread
       route.value = { name: 'newThread' }
     } catch (e) {
       error.value = String(e)

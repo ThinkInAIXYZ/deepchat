@@ -49,6 +49,10 @@ export const useAgentStore = defineStore('agent', () => {
     }
   }
 
+  function setSelectedAgent(id: string | null): void {
+    selectedAgentId.value = id
+  }
+
   function selectAgent(id: string | null): void {
     selectedAgentId.value = selectedAgentId.value === id ? null : id
   }
@@ -70,6 +74,7 @@ export const useAgentStore = defineStore('agent', () => {
     enabledAgents,
     selectedAgent,
     selectedAgentName,
+    setSelectedAgent,
     fetchAgents,
     selectAgent
   }

@@ -1164,9 +1164,11 @@ export class AcpProvider extends BaseLLMProvider {
       )
       await session.connection.setSessionMode({ sessionId: session.sessionId, modeId })
       session.currentModeId = modeId
-      const handle = this.processManager.getProcess(session.agentId)
-      if (handle && handle.boundConversationId === conversationId) {
-        handle.currentModeId = modeId
+      const updated = this.processManager.updateBoundProcessMode(conversationId, modeId)
+      if (!updated) {
+        console.warn(
+          `[ACP] Bound process not found for conversation ${conversationId} while setting mode "${modeId}".`
+        )
       }
       eventBus.sendToRenderer(ACP_WORKSPACE_EVENTS.SESSION_MODES_READY, SendTarget.ALL_WINDOWS, {
         conversationId,

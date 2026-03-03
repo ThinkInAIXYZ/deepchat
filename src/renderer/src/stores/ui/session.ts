@@ -5,6 +5,7 @@ import { usePresenter } from '@/composables/usePresenter'
 import { SESSION_EVENTS, CONVERSATION_EVENTS } from '@/events'
 import type { SessionWithState, CreateSessionInput } from '@shared/types/agent-interface'
 import { usePageRouterStore } from './pageRouter'
+import { useMessageStore } from './message'
 
 // --- Type Definitions ---
 
@@ -109,6 +110,7 @@ function groupByProject(sessions: UISession[]): SessionGroup[] {
 export const useSessionStore = defineStore('session', () => {
   const newAgentPresenter = usePresenter('newAgentPresenter')
   const pageRouter = usePageRouterStore()
+  const messageStore = useMessageStore()
 
   // --- State ---
   const sessions = ref<UISession[]>([])
@@ -157,6 +159,9 @@ export const useSessionStore = defineStore('session', () => {
   async function selectSession(sessionId: string): Promise<void> {
     error.value = null
     try {
+      if (activeSessionId.value && activeSessionId.value !== sessionId) {
+        messageStore.clearStreamingState()
+      }
       const webContentsId = window.api.getWebContentsId()
       await newAgentPresenter.activateSession(webContentsId, sessionId)
       activeSessionId.value = sessionId
@@ -169,6 +174,7 @@ export const useSessionStore = defineStore('session', () => {
   async function closeSession(): Promise<void> {
     error.value = null
     try {
+      messageStore.clearStreamingState()
       const webContentsId = window.api.getWebContentsId()
       await newAgentPresenter.deactivateSession(webContentsId)
       activeSessionId.value = null
@@ -231,6 +237,9 @@ export const useSessionStore = defineStore('session', () => {
     (_: unknown, msg: { webContentsId: number; sessionId: string }) => {
       const myId = window.api.getWebContentsId()
       if (msg.webContentsId === myId) {
+        if (activeSessionId.value && activeSessionId.value !== msg.sessionId) {
+          messageStore.clearStreamingState()
+        }
         activeSessionId.value = msg.sessionId
       }
     }
@@ -241,6 +250,7 @@ export const useSessionStore = defineStore('session', () => {
     (_: unknown, msg: { webContentsId: number }) => {
       const myId = window.api.getWebContentsId()
       if (msg.webContentsId === myId) {
+        messageStore.clearStreamingState()
         activeSessionId.value = null
         pageRouter.goToNewThread()
       }

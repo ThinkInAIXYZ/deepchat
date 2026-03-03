@@ -293,6 +293,17 @@ export class NewAgentPresenter {
     const session = this.sessionManager.get(sessionId)
     if (!session) return
     const agent = await this.resolveAgentImplementation(session.agentId)
+    const state = await agent.getSessionState(sessionId)
+    let providerId = state?.providerId ?? ''
+    if (!providerId) {
+      const acpAgents = await this.configPresenter.getAcpAgents()
+      if (acpAgents.some((item) => item.id === session.agentId)) {
+        providerId = 'acp'
+      }
+    }
+    if (providerId === 'acp') {
+      await this.llmProviderPresenter.clearAcpSession(sessionId)
+    }
     await agent.destroySession(sessionId)
     await this.skillPresenter?.clearNewAgentSessionSkills?.(sessionId)
     this.sessionManager.delete(sessionId)

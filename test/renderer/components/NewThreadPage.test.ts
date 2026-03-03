@@ -16,7 +16,13 @@ const createChatInputBoxStub = () =>
     template: '<div />'
   })
 
-const setup = async () => {
+const setup = async (options?: {
+  ensureAcpDraftSession?: (input: {
+    agentId: string
+    projectDir: string
+    permissionMode?: string
+  }) => Promise<{ id: string }>
+}) => {
   vi.resetModules()
 
   const projectStore = reactive({
@@ -53,7 +59,12 @@ const setup = async () => {
   }
 
   const newAgentPresenter = {
-    ensureAcpDraftSession: vi.fn().mockResolvedValue({ id: 'draft-1' })
+    ensureAcpDraftSession: vi.fn().mockImplementation(
+      options?.ensureAcpDraftSession ??
+        (() => {
+          return Promise.resolve({ id: 'draft-1' })
+        })
+    )
   }
 
   vi.doMock('@/stores/ui/project', () => ({
@@ -140,5 +151,46 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
     expect(sessionStore.selectSession).toHaveBeenCalledWith('draft-1')
     expect(sessionStore.sendMessage).toHaveBeenCalledWith('draft-1', 'hello from draft')
     expect(sessionStore.createSession).not.toHaveBeenCalled()
+  })
+
+  it('ignores stale ensureAcpDraftSession response after agent/workdir switches', async () => {
+    let resolveOld: ((value: { id: string }) => void) | null = null
+    let resolveNew: ((value: { id: string }) => void) | null = null
+    const oldPromise = new Promise<{ id: string }>((resolve) => {
+      resolveOld = resolve
+    })
+    const newPromise = new Promise<{ id: string }>((resolve) => {
+      resolveNew = resolve
+    })
+
+    const { wrapper, projectStore, agentStore } = await setup({
+      ensureAcpDraftSession: ({ agentId, projectDir }) => {
+        if (agentId === 'acp-agent' && projectDir === '/tmp/workspace') {
+          return oldPromise
+        }
+        if (agentId === 'acp-agent-2' && projectDir === '/tmp/workspace-2') {
+          return newPromise
+        }
+        return Promise.resolve({ id: 'unexpected' })
+      }
+    })
+
+    agentStore.selectedAgentId = 'acp-agent-2'
+    agentStore.selectedAgent = {
+      id: 'acp-agent-2',
+      name: 'ACP Agent 2',
+      type: 'acp',
+      enabled: true
+    }
+    projectStore.selectedProject = { path: '/tmp/workspace-2', name: 'workspace-2' }
+    await flushPromises()
+
+    resolveOld?.({ id: 'draft-old' })
+    await flushPromises()
+    expect((wrapper.vm as any).acpDraftSessionId).not.toBe('draft-old')
+
+    resolveNew?.({ id: 'draft-new' })
+    await flushPromises()
+    expect((wrapper.vm as any).acpDraftSessionId).toBe('draft-new')
   })
 })

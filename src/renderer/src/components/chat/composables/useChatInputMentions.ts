@@ -85,6 +85,7 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
   const skillsStore = useSkillsStore()
 
   const acpCommands = ref<AcpSessionCommand[]>([])
+  const acpCommandFetchSeq = ref(0)
   const pendingSkills = ref<string[]>([])
   const isSuggestionMenuOpen = ref(false)
   const suppressSubmitUntil = ref(0)
@@ -218,15 +219,27 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
 
   const refreshAcpCommands = async () => {
     const sessionId = options.sessionId.value
-    if (!sessionId || !options.isAcpSession.value) {
+    const isAcpSession = options.isAcpSession.value
+    const fetchSeq = ++acpCommandFetchSeq.value
+
+    if (!sessionId || !isAcpSession) {
       acpCommands.value = []
       return
     }
 
     try {
       const commands = await newAgentPresenter.getAcpSessionCommands(sessionId)
+      if (fetchSeq !== acpCommandFetchSeq.value) {
+        return
+      }
+      if (options.sessionId.value !== sessionId || options.isAcpSession.value !== isAcpSession) {
+        return
+      }
       acpCommands.value = normalizeAcpCommands(commands)
     } catch (error) {
+      if (fetchSeq !== acpCommandFetchSeq.value) {
+        return
+      }
       console.warn('[ChatInputMentions] Failed to fetch ACP session commands:', error)
       acpCommands.value = []
     }
