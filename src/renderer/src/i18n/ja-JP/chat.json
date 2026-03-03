@@ -97,6 +97,21 @@
     "agent": "エージェント",
     "current": "現在のモード: {モード}"
   },
+  "advancedSettings": {
+    "button": "詳細設定",
+    "title": "詳細設定",
+    "closeHint": "Esc で閉じる",
+    "systemPrompt": "システムプロンプト",
+    "systemPromptPlaceholder": "プリセットを選択",
+    "temperature": "温度",
+    "contextLength": "コンテキスト長",
+    "maxTokens": "最大トークン",
+    "thinkingBudget": "思考予算",
+    "verbosity": "回答の詳しさ",
+    "verbosityPlaceholder": "詳しさを選択",
+    "currentCustomPrompt": "現在のカスタム",
+    "useDefault": "デフォルトを使用"
+  },
   "workspace": {
     "collapse": "近い",
     "files": {

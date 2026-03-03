@@ -97,6 +97,21 @@
     "agent": "Агент",
     "current": "Текущий режим: {mode}"
   },
+  "advancedSettings": {
+    "button": "Расширенные",
+    "title": "Расширенные настройки",
+    "closeHint": "Нажмите Esc, чтобы закрыть",
+    "systemPrompt": "Системный промпт",
+    "systemPromptPlaceholder": "Выберите пресет",
+    "temperature": "Температура",
+    "contextLength": "Длина контекста",
+    "maxTokens": "Макс. токенов",
+    "thinkingBudget": "Бюджет размышления",
+    "verbosity": "Детализация ответа",
+    "verbosityPlaceholder": "Выберите уровень детализации",
+    "currentCustomPrompt": "Текущий пользовательский",
+    "useDefault": "Использовать по умолчанию"
+  },
   "workspace": {
     "collapse": "закрывать",
     "files": {

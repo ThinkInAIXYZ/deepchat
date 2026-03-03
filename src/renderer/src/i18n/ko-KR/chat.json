@@ -97,6 +97,21 @@
     "agent": "대리인",
     "current": "현재 모드: {mode}"
   },
+  "advancedSettings": {
+    "button": "고급 설정",
+    "title": "고급 설정",
+    "closeHint": "Esc를 눌러 닫기",
+    "systemPrompt": "시스템 프롬프트",
+    "systemPromptPlaceholder": "프리셋 선택",
+    "temperature": "온도",
+    "contextLength": "컨텍스트 길이",
+    "maxTokens": "최대 토큰",
+    "thinkingBudget": "사고 예산",
+    "verbosity": "응답 상세도",
+    "verbosityPlaceholder": "상세도 선택",
+    "currentCustomPrompt": "현재 사용자 지정",
+    "useDefault": "기본값 사용"
+  },
   "workspace": {
     "collapse": "닫다",
     "files": {

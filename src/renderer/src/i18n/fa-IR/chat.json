@@ -97,6 +97,21 @@
     "agent": "عامل",
     "current": "حالت فعلی: {mode}"
   },
+  "advancedSettings": {
+    "button": "پیشرفته",
+    "title": "تنظیمات پیشرفته",
+    "closeHint": "برای بستن Esc را بزنید",
+    "systemPrompt": "پرامپت سیستم",
+    "systemPromptPlaceholder": "یک پیش‌تنظیم را انتخاب کنید",
+    "temperature": "دما",
+    "contextLength": "طول زمینه",
+    "maxTokens": "حداکثر توکن",
+    "thinkingBudget": "بودجه تفکر",
+    "verbosity": "میزان جزئیات پاسخ",
+    "verbosityPlaceholder": "سطح جزئیات را انتخاب کنید",
+    "currentCustomPrompt": "سفارشی فعلی",
+    "useDefault": "استفاده از پیش‌فرض"
+  },
   "workspace": {
     "collapse": "بستن",
     "files": {

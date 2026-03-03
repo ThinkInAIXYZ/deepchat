@@ -97,6 +97,21 @@
     "agent": "סוֹכֵן",
     "current": "מצב נוכחי: {mode}"
   },
+  "advancedSettings": {
+    "button": "מתקדם",
+    "title": "הגדרות מתקדמות",
+    "closeHint": "לחץ Esc כדי לסגור",
+    "systemPrompt": "הנחיית מערכת",
+    "systemPromptPlaceholder": "בחר תבנית",
+    "temperature": "טמפרטורה",
+    "contextLength": "אורך הקשר",
+    "maxTokens": "מקסימום טוקנים",
+    "thinkingBudget": "תקציב חשיבה",
+    "verbosity": "רמת פירוט",
+    "verbosityPlaceholder": "בחר רמת פירוט",
+    "currentCustomPrompt": "מותאם נוכחי",
+    "useDefault": "השתמש בברירת מחדל"
+  },
   "workspace": {
     "collapse": "לִסְגוֹר",
     "files": {

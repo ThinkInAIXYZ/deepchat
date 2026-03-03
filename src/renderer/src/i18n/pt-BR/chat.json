@@ -97,6 +97,21 @@
     "agent": "Agente",
     "current": "Modo atual: {mode}"
   },
+  "advancedSettings": {
+    "button": "Avançado",
+    "title": "Configurações avançadas",
+    "closeHint": "Pressione Esc para fechar",
+    "systemPrompt": "Prompt do sistema",
+    "systemPromptPlaceholder": "Selecione um preset",
+    "temperature": "Temperatura",
+    "contextLength": "Tamanho do contexto",
+    "maxTokens": "Máx. de tokens",
+    "thinkingBudget": "Orçamento de raciocínio",
+    "verbosity": "Nível de detalhe",
+    "verbosityPlaceholder": "Selecione o nível de detalhe",
+    "currentCustomPrompt": "Personalização atual",
+    "useDefault": "Usar padrão"
+  },
   "workspace": {
     "collapse": "fechar",
     "files": {

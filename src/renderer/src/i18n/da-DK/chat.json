@@ -97,6 +97,21 @@
     "agent": "Agent",
     "current": "Aktuel tilstand: {mode}"
   },
+  "advancedSettings": {
+    "button": "Avanceret",
+    "title": "Avancerede indstillinger",
+    "closeHint": "Tryk Esc for at lukke",
+    "systemPrompt": "Systemprompt",
+    "systemPromptPlaceholder": "Vælg en forudindstilling",
+    "temperature": "Temperatur",
+    "contextLength": "Kontekstlængde",
+    "maxTokens": "Maks. tokens",
+    "thinkingBudget": "Tænkebudget",
+    "verbosity": "Detaljegrad",
+    "verbosityPlaceholder": "Vælg detaljegrad",
+    "currentCustomPrompt": "Aktuel brugerdefineret",
+    "useDefault": "Brug standard"
+  },
   "workspace": {
     "collapse": "tæt",
     "files": {

@@ -97,6 +97,21 @@
     "agent": "Agent",
     "current": "當前模式：{mode}"
   },
+  "advancedSettings": {
+    "button": "進階設定",
+    "title": "進階設定",
+    "closeHint": "按 Esc 關閉",
+    "systemPrompt": "系統提示詞",
+    "systemPromptPlaceholder": "選擇預設",
+    "temperature": "溫度",
+    "contextLength": "上下文長度",
+    "maxTokens": "最大輸出",
+    "thinkingBudget": "思考預算",
+    "verbosity": "回答詳略",
+    "verbosityPlaceholder": "選擇詳略等級",
+    "currentCustomPrompt": "目前自訂",
+    "useDefault": "使用預設值"
+  },
   "workspace": {
     "collapse": "收起",
     "files": {
