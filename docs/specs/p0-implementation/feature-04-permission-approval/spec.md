@@ -1,5 +1,10 @@
 # Permission Approval Flow - Specification
 
+## Implementation Status Sync (2026-03-04)
+
+**Status:** 🟡 Partial  
+**Note:** Approve/deny + pause/resume interaction flow is present, while remember-decision persistence and full-access boundary closure remain open per this spec line.
+
 ## Overview
 
 Implement the permission approval flow where the backend pauses on permission requests and waits for user approval/denial before resuming tool execution. This provides security boundaries while maintaining usability.

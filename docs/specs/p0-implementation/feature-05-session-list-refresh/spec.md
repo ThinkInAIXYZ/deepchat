@@ -1,5 +1,10 @@
 # Session List Auto-Refresh - Specification
 
+## Implementation Status Sync (2026-03-04)
+
+**Status:** ✅ Mostly Complete  
+**Note:** The new chain uses `SESSION_EVENTS.LIST_UPDATED` as primary refresh signal; compatibility with legacy list events is still retained.
+
 ## Overview
 
 Implement automatic session list refresh by listening to `CONVERSATION_EVENTS.LIST_UPDATED` events. This ensures the UI always shows the current state of sessions without manual refresh.

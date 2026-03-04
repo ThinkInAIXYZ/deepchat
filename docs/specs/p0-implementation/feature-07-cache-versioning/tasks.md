@@ -1,5 +1,20 @@
 # Message Cache Version Bumping - Tasks
 
+## Implementation Sync (2026-03-04)
+
+**Overall:** ⚪ Not Started (per this feature definition)
+
+### Current state in codebase
+
+1. New UI message store currently uses in-memory cache structures only.
+2. No explicit `CACHE_VERSION` constant or versioned persistent cache key scheme in new UI path.
+3. No formal version bump + invalidation process matching this task spec.
+
+### Evidence (current files)
+
+1. `src/renderer/src/stores/ui/message.ts`
+2. `src/renderer/src/lib/messageRuntimeCache.ts`
+
 ## Task List
 
 ### Task 1: Cache Version Constant

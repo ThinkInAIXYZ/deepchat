@@ -1,5 +1,26 @@
 # Input Box Disable + Stop Button - Implementation Tasks
 
+## Implementation Sync (2026-03-04)
+
+**Overall:** ✅ Functional Complete (with implementation deviation)
+
+### Done in current codebase
+
+1. Chat input submit is disabled while generating (`isInputSubmitDisabled` in `ChatPage`).
+2. Stop action is wired (`ChatInputToolbar` emits `stop`, `ChatPage.onStop` calls `newAgentPresenter.cancelGeneration`).
+3. Send/stop button switching during generation is live.
+
+### Diff vs this task doc
+
+1. No standalone `StopButton.vue` component; stop UX is implemented inside `ChatInputToolbar.vue`.
+2. Prop names differ (`submit-disabled` / `is-generating`) from this older draft.
+
+### Evidence (current files)
+
+1. `src/renderer/src/pages/ChatPage.vue`
+2. `src/renderer/src/components/chat/ChatInputBox.vue`
+3. `src/renderer/src/components/chat/ChatInputToolbar.vue`
+
 ## Task List
 
 ### Task 1: Update ChatInputBox Component

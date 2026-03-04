@@ -1,5 +1,28 @@
 # Session List Auto-Refresh - Tasks
 
+## Implementation Sync (2026-03-04)
+
+**Overall:** ✅ Mostly Complete
+
+### Done in current codebase
+
+1. Backend emits list refresh events for new-agent session mutations (`SESSION_EVENTS.LIST_UPDATED`, all windows).
+2. Frontend new session store listens and refreshes session list automatically.
+3. Compatibility listener for legacy `CONVERSATION_EVENTS.LIST_UPDATED` remains in place.
+4. Active-session delete fallback to new-thread route is handled in new session store.
+5. Recent session actions (rename/pin/clear/delete from topbar) also trigger list refresh path.
+
+### Remaining / follow-up
+
+1. `pageRouter` still includes legacy `sessionPresenter` fallback path.
+2. This task doc still references old store path/events naming and should be treated as historical draft.
+
+### Evidence (current files)
+
+1. `src/main/presenter/newAgentPresenter/index.ts`
+2. `src/renderer/src/stores/ui/session.ts`
+3. `src/renderer/src/stores/ui/pageRouter.ts`
+
 ## Task List
 
 ### Task 1: Backend Event Emission

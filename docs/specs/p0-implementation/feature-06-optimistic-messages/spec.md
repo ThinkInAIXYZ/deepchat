@@ -1,5 +1,10 @@
 # Optimistic User Messages - Specification
 
+## Implementation Status Sync (2026-03-04)
+
+**Status:** 🟡 Partial  
+**Note:** Optimistic insertion exists, but fine-grained temp-id merge contract is not yet closed; current reconciliation is refresh-based.
+
 ## Overview
 
 Implement optimistic UI for user messages by showing them immediately in the UI before backend confirmation, then merging with the real message once persisted. This provides instant feedback and a more responsive user experience.

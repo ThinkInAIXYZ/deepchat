@@ -1,8 +1,8 @@
 # P0 Implementation Master Plan
 
-**Date:** 2026-02-28  
+**Date:** 2026-03-04  
 **Branch:** `feat/new-arch-complete`  
-**Status:** Draft v2 (Scope Aligned Across New-Agent / New-UI / Default-Model Specs)
+**Status:** In Progress (Synced with current codebase state on 2026-03-04)
 
 ---
 
@@ -19,7 +19,28 @@ This is the implementation baseline for the larger replacement plan, not final c
 
 ---
 
-## 2) Current Baseline (as of 2026-02-28)
+## 2) Current Snapshot (as of 2026-03-04)
+
+### 2.1 Feature-01 ~ Feature-07 Progress Matrix
+
+| Feature | Current State | Notes |
+|---|---|---|
+| feature-01-generating-session-ids | 🟡 Partial | Generation state is tracked via `session status + messageStore.isStreaming`, not via a dedicated `generatingSessionIds` Set. |
+| feature-02-input-disable-stop | ✅ Functional Complete (Implementation differs) | Input disable and stop button are closed in `ChatPage + ChatInputBox + ChatInputToolbar`; no standalone `StopButton.vue`. |
+| feature-03-cancel-generating | 🟡 Partial | Cancel flow and abort controller are live; aborted message currently lands as error-style stream termination, not explicit `cancelled` status model. |
+| feature-04-permission-approval | 🟡 Partial | Approval/deny + resume loop are live; remember-decision persistence and strict full-access boundary closure are still not fully closed in this P0 spec line. |
+| feature-05-session-list-refresh | ✅ Mostly Complete | `SESSION_EVENTS.LIST_UPDATED` is primary and cross-window refresh works; compatibility listener retained, but old-link fallback still exists in `pageRouter`. |
+| feature-06-optimistic-messages | 🟡 Partial | Optimistic user message insertion is live; temp-id → backend-id merge contract is not fully implemented (currently refresh-based reconciliation). |
+| feature-07-cache-versioning | ⚪ Not Started | No explicit cache version bump/invalidation scheme per this feature spec yet. |
+
+### 2.2 Additional Progress Already Landed (outside feature-01~07 docs)
+
+1. Chat top bar Share/More menus are now functional in new architecture.
+2. Session actions from top bar are live: pin/unpin, rename, clear messages, delete.
+3. Session export from top bar is live: markdown/html/txt/nowledge-mem(json download only).
+4. Sidebar now supports pinned sessions in a no-title top area outside normal groups.
+
+### 2.3 Historical Baseline Notes (kept for context)
 
 ### 已有基础
 
@@ -27,13 +48,13 @@ This is the implementation baseline for the larger replacement plan, not final c
 2. 新 UI 页面与 stores 已接入主路径（`sessionStore/messageStore/agentStore/projectStore`）。
 3. P0 的 7 个功能子规格（feature-01 ~ feature-07）文档已拆分完成。
 
-### 仍未闭环的关键缺口（P0 blocker）
+### 仍未闭环的关键缺口（P0 blockers, refreshed）
 
-1. 新链路缺少完整 permission gating（工具执行前权限门闩、暂停/恢复、remember 白名单）。
-2. 会话权限模式未落库（`new_sessions` 无 `permission_mode`）。
-3. 新链路 session 状态未覆盖 `paused` 等等待态。
-4. 部分 UI 仍依赖旧链路状态源（如 `ChatStatusBar` 读 `useChatStore`，`pageRouter` 读 `sessionPresenter`）。
-5. default-model/default-vision-model 方案与 imageServer 全局视觉模型链路尚未纳入本 README 的重构主线。
+1. `new_sessions` 仍无 `permission_mode` 字段（仅 `deepchat_sessions.permission_mode` 已存在）。
+2. 新链路会话状态仍未对外覆盖 `paused / waiting_permission`（当前 `SessionStatus` 仍是 `idle/generating/error`）。
+3. 权限流 remember 决策持久化与 full-access 工作区边界约束仍需按 P0 标准补齐。
+4. `pageRouter` 仍保留 legacy `sessionPresenter` fallback；`ChatStatusBar` 仍有旧 `chatStore` 依赖。
+5. optimistic merge 协议（temp id → real id）与 cache versioning 仍未完全落地。
 
 ---
 
@@ -179,6 +200,6 @@ P0 完成前必须全部满足：
 
 ---
 
-**Last Updated:** 2026-02-28  
+**Last Updated:** 2026-03-04  
 **Maintained By:** Development Team  
-**Review Status:** Ready for Implementation Breakdown
+**Review Status:** Active Implementation Sync

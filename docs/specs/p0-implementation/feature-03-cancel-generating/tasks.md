@@ -1,5 +1,28 @@
 # CancelGenerating Implementation - Tasks
 
+## Implementation Sync (2026-03-04)
+
+**Overall:** 🟡 Partial
+
+### Done in current codebase
+
+1. `newAgentPresenter.cancelGeneration(sessionId)` exists and is callable from renderer.
+2. `deepchatAgentPresenter` abort controller path is live and can stop in-flight streams.
+3. Frontend stop action is wired from `ChatPage` and user can continue sending new messages after cancel.
+
+### Not done / differs from this task doc
+
+1. No dedicated message status `cancelled` in the new-agent message model.
+2. Abort currently ends as error-style stream termination (`STREAM_EVENTS.ERROR` with `Generation cancelled`) rather than explicit `END(cancelled=true)`.
+3. Spec text in this task file assumes a separate stream manager file path that no longer matches current structure.
+
+### Evidence (current files)
+
+1. `src/main/presenter/newAgentPresenter/index.ts`
+2. `src/main/presenter/deepchatAgentPresenter/index.ts`
+3. `src/main/presenter/deepchatAgentPresenter/process.ts`
+4. `src/renderer/src/pages/ChatPage.vue`
+
 ## Task List
 
 ### Task 1: Backend cancelGeneration Method

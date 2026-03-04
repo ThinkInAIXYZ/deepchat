@@ -1,5 +1,10 @@
 # Generating Session IDs Tracking - Implementation Plan
 
+## Implementation Status Sync (2026-03-04)
+
+**Status:** 🟡 Partial  
+Current new UI implementation uses `session status + streaming state` instead of the dedicated Set strategy in this plan.
+
 ## Current State
 
 **What exists today:**

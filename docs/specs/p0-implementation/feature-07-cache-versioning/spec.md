@@ -1,5 +1,10 @@
 # Message Cache Version Bumping - Specification
 
+## Implementation Status Sync (2026-03-04)
+
+**Status:** ⚪ Not Started  
+**Note:** This spec's versioned persistent cache design has not been implemented in the current new UI message path.
+
 ## Overview
 
 Implement cache version bumping for messages to ensure virtual scroll compatibility and prevent stale cache issues. When message structure or caching logic changes, the version bump forces cache invalidation and refresh.

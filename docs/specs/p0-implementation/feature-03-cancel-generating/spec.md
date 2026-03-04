@@ -1,5 +1,10 @@
 # CancelGenerating Implementation - Specification
 
+## Implementation Status Sync (2026-03-04)
+
+**Status:** 🟡 Partial  
+**Note:** Cancel/abort flow is live, but the message model does not yet expose an explicit `cancelled` status in this new-agent path.
+
 ## Overview
 
 Implement the cancelGenerating functionality to allow users to stop ongoing generation. When cancelled, the assistant message should be marked as 'cancelled' but keep partial content, and the user should be able to resend a new message.

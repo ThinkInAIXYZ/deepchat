@@ -1,5 +1,10 @@
 # CancelGenerating Implementation - Plan
 
+## Implementation Status Sync (2026-03-04)
+
+**Status:** 🟡 Partial  
+Abort/cancel is implemented, while explicit cancelled-state modeling remains open.
+
 ## Current State
 
 **What exists today:**

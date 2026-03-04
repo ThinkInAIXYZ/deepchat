@@ -1,5 +1,10 @@
 # Session List Auto-Refresh - Plan
 
+## Implementation Status Sync (2026-03-04)
+
+**Status:** ✅ Mostly Complete  
+Cross-window list refresh is live in new chain; legacy fallback paths still remain for compatibility.
+
 ## Current State
 
 **What exists today:**

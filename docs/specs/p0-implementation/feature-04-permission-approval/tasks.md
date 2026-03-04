@@ -1,5 +1,31 @@
 # Permission Approval Flow - Tasks
 
+## Implementation Sync (2026-03-04)
+
+**Overall:** 🟡 Partial
+
+### Done in current codebase
+
+1. Tool pre-check + pending interaction pause flow exists in dispatch/process loop.
+2. Frontend permission/question overlay is integrated in chat page and can approve/deny.
+3. Backend response handling is implemented via `respondToolInteraction(...)`.
+4. Resume/idempotency guards exist (`interactionLocks`, `resumingMessages`).
+
+### Not done / still open for this spec line
+
+1. No explicit remember-decision UI/control in the new overlay response contract.
+2. `new_sessions` still has no `permission_mode`; permission mode is stored in `deepchat_sessions`.
+3. Session status contract still does not expose `paused/waiting_permission` to renderer as first-class states.
+4. Full-access projectDir boundary closure is not fully documented as enforced end-to-end in this P0 scope.
+
+### Evidence (current files)
+
+1. `src/main/presenter/deepchatAgentPresenter/dispatch.ts`
+2. `src/main/presenter/deepchatAgentPresenter/process.ts`
+3. `src/main/presenter/deepchatAgentPresenter/index.ts`
+4. `src/renderer/src/components/chat/ChatToolInteractionOverlay.vue`
+5. `src/renderer/src/pages/ChatPage.vue`
+
 ## Task List
 
 ### Task 1: Create PermissionChecker Class

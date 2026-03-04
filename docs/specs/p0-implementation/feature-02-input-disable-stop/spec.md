@@ -1,5 +1,10 @@
 # Input Box Disable + Stop Button - Specification
 
+## Implementation Status Sync (2026-03-04)
+
+**Status:** ✅ Functional Complete (implementation differs)  
+**Note:** Stop UX is implemented in `ChatInputToolbar` (send/stop toggle), not in a standalone `StopButton.vue` component.
+
 ## Overview
 
 Add proper disabled state management to the ChatInputBox component and implement a stop button that appears during generation. This provides users with clear visual feedback and control over the generation process.

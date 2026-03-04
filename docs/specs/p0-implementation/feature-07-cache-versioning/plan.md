@@ -1,5 +1,10 @@
 # Message Cache Version Bumping - Plan
 
+## Implementation Status Sync (2026-03-04)
+
+**Status:** ⚪ Not Started  
+Versioned persistent cache invalidation is still not implemented in current new UI message path.
+
 ## Current State
 
 **What exists today:**

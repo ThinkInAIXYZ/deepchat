@@ -1,5 +1,10 @@
 # Generating Session IDs Tracking - Specification
 
+## Implementation Status Sync (2026-03-04)
+
+**Status:** 🟡 Partial  
+**Note:** Business outcome is mostly achieved via `session status + messageStore.isStreaming`; this spec's dedicated `generatingSessionIds Set` design is not implemented as-is.
+
 ## Overview
 
 Track which sessions are currently generating responses using a frontend-managed Set (`generatingSessionIds`). This provides immediate UI feedback for generation state, enabling proper input box disabling and stop button visibility.

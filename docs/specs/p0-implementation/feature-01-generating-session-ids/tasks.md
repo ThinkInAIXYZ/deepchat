@@ -1,5 +1,27 @@
 # Generating Session IDs Tracking - Implementation Tasks
 
+## Implementation Sync (2026-03-04)
+
+**Overall:** 🟡 Partial (implemented with a different mechanism)
+
+### Done in current codebase
+
+1. Generation UI state is driven by `sessionStore.activeSession.status === 'working'` and `messageStore.isStreaming`.
+2. Input submit disabling and stop-button visibility already bind to that computed generating state.
+3. Stream END/ERROR both trigger `messageStore` cleanup and message reload.
+
+### Not done / differs from this task doc
+
+1. No dedicated reactive `generatingSessionIds: Set<string>` state exists.
+2. No explicit add/remove helper API (`addGeneratingSession/removeGeneratingSession/isGenerating`) exists.
+3. Multi-session generation tracking is not represented as a standalone Set.
+
+### Evidence (current files)
+
+1. `src/renderer/src/pages/ChatPage.vue`
+2. `src/renderer/src/stores/ui/message.ts`
+3. `src/renderer/src/stores/ui/session.ts`
+
 ## Task List
 
 ### Task 1: Add generatingSessionIds State to Session Store

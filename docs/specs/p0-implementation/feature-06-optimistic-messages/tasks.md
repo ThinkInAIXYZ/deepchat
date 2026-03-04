@@ -1,5 +1,26 @@
 # Optimistic User Messages - Tasks
 
+## Implementation Sync (2026-03-04)
+
+**Overall:** 🟡 Partial
+
+### Done in current codebase
+
+1. Renderer message store has optimistic insertion (`addOptimisticUserMessage`).
+2. `ChatPage` inserts optimistic user message immediately before calling backend send.
+
+### Not done / still open for this spec line
+
+1. No explicit temp-id → real-id merge API; reconciliation is currently done by full `loadMessages()` reload after stream end/error.
+2. `newAgentPresenter.sendMessage(...)` still returns `Promise<void>`, not a persisted user message payload.
+3. Error rollback policy is coarse-grained (reload-based), not fine-grained optimistic record reconciliation.
+
+### Evidence (current files)
+
+1. `src/renderer/src/stores/ui/message.ts`
+2. `src/renderer/src/pages/ChatPage.vue`
+3. `src/main/presenter/newAgentPresenter/index.ts`
+
 ## Task List
 
 ### Task 1: Message Store Optimistic Methods

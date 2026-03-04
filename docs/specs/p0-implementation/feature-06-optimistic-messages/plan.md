@@ -1,5 +1,10 @@
 # Optimistic User Messages - Plan
 
+## Implementation Status Sync (2026-03-04)
+
+**Status:** 🟡 Partial  
+Optimistic insertion exists; merge protocol remains refresh-based instead of temp-id reconciliation.
+
 ## Current State
 
 **What exists today:**
