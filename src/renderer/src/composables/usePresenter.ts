@@ -51,55 +51,64 @@ function safeSerialize(obj: unknown): unknown {
   return serialized
 }
 
-function createProxy(presenterName: string) {
+function tryToRow(payloads: unknown[]) {
+  try {
+    return payloads.map((e) => safeSerialize(toRaw(e)))
+  } catch (e) {
+    console.warn('error on payload serialization', e)
+    return payloads
+  }
+}
+
+function createProxy(presenterName: string, safeCall: boolean) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return new Proxy({} as any, {
     get(_, functionName) {
       return async (...payloads: []) => {
-        try {
-          // 获取webContentsId (主进程将自动映射到tabId)
-          const webContentsId = getWebContentsId()
+        // 获取webContentsId (主进程将自动映射到tabId)
+        const webContentsId = getWebContentsId()
 
-          // 先使用 toRaw 获取原始对象，然后安全序列化
-          const rawPayloads = payloads.map((e) => safeSerialize(toRaw(e)))
+        // 尝试 toRaw 获取原始对象并安全序列化
+        const rawPayloads = tryToRow(payloads)
 
-          // 在调用中记录webContentsId (主进程会自动映射到tab上下文)
-          if (import.meta.env.VITE_LOG_IPC_CALL === '1') {
-            console.log(
-              `[Renderer IPC] WebContents:${webContentsId || 'unknown'} -> ${presenterName}.${functionName as string}`
+        // 在调用中记录webContentsId (主进程会自动映射到tab上下文)
+        if (import.meta.env.VITE_LOG_IPC_CALL === '1') {
+          console.log(
+            `[Renderer IPC] WebContents:${webContentsId || 'unknown'} -> ${presenterName}.${functionName as string}`
+          )
+        }
+
+        const invokedPromise = window.electron.ipcRenderer.invoke(
+          'presenter:call',
+          presenterName,
+          functionName,
+          ...rawPayloads
+        )
+
+        if (safeCall) {
+          return await invokedPromise.catch((e: Error) => {
+            console.warn(
+              `[Renderer IPC Error] WebContents:${webContentsId} ${presenterName}.${functionName as string}:`,
+              e
             )
-          }
-
-          return await window.electron.ipcRenderer
-            .invoke('presenter:call', presenterName, functionName, ...rawPayloads)
-            .catch((e: Error) => {
-              console.warn(
-                `[Renderer IPC Error] WebContents:${webContentsId} ${presenterName}.${functionName as string}:`,
-                e
-              )
-              return null
-            })
-        } catch (error) {
-          console.warn('error on payload serialization', functionName, error)
-          // 如果序列化失败，尝试直接传递原始数据
-          return await window.electron.ipcRenderer
-            .invoke('presenter:call', presenterName, functionName, ...payloads)
-            .catch((e: Error) => {
-              console.warn('error on presenter invoke fallback', functionName, e)
-              return null
-            })
+            return null
+          })
+        } else {
+          return await invokedPromise
         }
       }
     }
   })
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const presentersProxy: IPresenter = new Proxy({} as any, {
-  get(_, presenterName) {
-    return createProxy(presenterName as string)
-  }
-})
 
-export function usePresenter<T extends keyof IPresenter>(name: T): IPresenter[T] {
-  return presentersProxy[name]
+interface UsePresenterOptions {
+  safeCall?: boolean
+}
+
+export function usePresenter<T extends keyof IPresenter>(
+  name: T,
+  options?: UsePresenterOptions
+): IPresenter[T] {
+  const safeCall = options?.safeCall ?? true
+  return createProxy(name, safeCall)
 }
