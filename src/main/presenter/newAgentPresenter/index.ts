@@ -27,6 +27,7 @@ import { NewSessionManager } from './sessionManager'
 import { NewMessageManager } from './messageManager'
 import { eventBus, SendTarget } from '@/eventbus'
 import { SESSION_EVENTS } from '@/events'
+import { presenter } from '@/presenter'
 import {
   buildConversationExportContent,
   generateExportFilename,
@@ -55,7 +56,7 @@ export class NewAgentPresenter {
     this.skillPresenter = skillPresenter
     this.agentRegistry = new AgentRegistry()
     this.sessionManager = new NewSessionManager(sqlitePresenter)
-    this.messageManager = new NewMessageManager(this.agentRegistry, this.sessionManager)
+    this.messageManager = new NewMessageManager(this.agentRegistry)
 
     // Register the built-in deepchat agent
     this.agentRegistry.register(
@@ -399,11 +400,6 @@ export class NewAgentPresenter {
       }))
   }
 
-  async getMessageTraceCount(messageId: string): Promise<number> {
-    if (!messageId?.trim()) return 0
-    return this.sqlitePresenter.deepchatMessageTracesTable.countByMessageId(messageId)
-  }
-
   async getMessageIds(sessionId: string): Promise<string[]> {
     const session = this.sessionManager.get(sessionId)
     if (!session) throw new Error(`Session not found: ${sessionId}`)
@@ -413,6 +409,45 @@ export class NewAgentPresenter {
 
   async getMessage(messageId: string): Promise<ChatMessageRecord | null> {
     return this.messageManager.getMessage(messageId)
+  }
+
+  async translateText(text: string, locale?: string): Promise<string> {
+    const input = text?.trim()
+    if (!input) {
+      return ''
+    }
+
+    const assistantModel = this.configPresenter.getSetting<{
+      providerId: string
+      modelId: string
+    }>('assistantModel')
+    const defaultModel = this.configPresenter.getDefaultModel()
+    const providerId = assistantModel?.providerId || defaultModel?.providerId || ''
+    const modelId = assistantModel?.modelId || defaultModel?.modelId || ''
+    if (!providerId || !modelId) {
+      throw new Error('No provider or model configured. Please set a default model in settings.')
+    }
+
+    const targetLanguage = this.resolveTranslateLanguage(locale)
+    const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
+      {
+        role: 'system',
+        content: `You are a translation assistant. Translate the user input into ${targetLanguage}. Return only the translated text with no explanations.`
+      },
+      {
+        role: 'user',
+        content: input
+      }
+    ]
+
+    const translated = await this.llmProviderPresenter.generateCompletion(
+      providerId,
+      messages,
+      modelId,
+      0.2,
+      1024
+    )
+    return translated.trim()
   }
 
   async activateSession(webContentsId: number, sessionId: string): Promise<void> {
@@ -543,6 +578,9 @@ export class NewAgentPresenter {
       await this.llmProviderPresenter.clearAcpSession(sessionId)
     }
     await agent.destroySession(sessionId)
+    presenter.commandPermissionService.clearConversation(sessionId)
+    presenter.filePermissionService?.clearConversation(sessionId)
+    presenter.settingsPermissionService?.clearConversation(sessionId)
     await this.skillPresenter?.clearNewAgentSessionSkills?.(sessionId)
     this.sessionManager.delete(sessionId)
     eventBus.sendToRenderer(SESSION_EVENTS.LIST_UPDATED, SendTarget.ALL_WINDOWS)
@@ -1120,6 +1158,66 @@ export class NewAgentPresenter {
       return base.slice(0, 60).trim()
     }
     return `${base} - Fork`
+  }
+
+  private resolveTranslateLanguage(locale?: string): string {
+    const normalized = locale?.trim().toLowerCase() || ''
+    if (!normalized) {
+      return 'English'
+    }
+    if (normalized.startsWith('zh-cn') || normalized.startsWith('zh-hans')) {
+      return 'Simplified Chinese'
+    }
+    if (
+      normalized.startsWith('zh-tw') ||
+      normalized.startsWith('zh-hk') ||
+      normalized.startsWith('zh-hant')
+    ) {
+      return 'Traditional Chinese'
+    }
+    if (normalized.startsWith('ja')) {
+      return 'Japanese'
+    }
+    if (normalized.startsWith('ko')) {
+      return 'Korean'
+    }
+    if (normalized.startsWith('fr')) {
+      return 'French'
+    }
+    if (normalized.startsWith('de')) {
+      return 'German'
+    }
+    if (normalized.startsWith('es')) {
+      return 'Spanish'
+    }
+    if (normalized.startsWith('pt')) {
+      return 'Portuguese'
+    }
+    if (normalized.startsWith('ru')) {
+      return 'Russian'
+    }
+    if (normalized.startsWith('it')) {
+      return 'Italian'
+    }
+    if (normalized.startsWith('tr')) {
+      return 'Turkish'
+    }
+    if (normalized.startsWith('pl')) {
+      return 'Polish'
+    }
+    if (normalized.startsWith('da')) {
+      return 'Danish'
+    }
+    if (normalized.startsWith('fa')) {
+      return 'Persian'
+    }
+    if (normalized.startsWith('he')) {
+      return 'Hebrew'
+    }
+    if (normalized.startsWith('en')) {
+      return 'English'
+    }
+    return 'English'
   }
 
   private assertAcpSessionHasWorkdir(providerId: string, projectDir: string | null): void {

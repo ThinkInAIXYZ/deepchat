@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { ComputedRef } from 'vue'
 import { usePresenter } from '@/composables/usePresenter'
-import { SESSION_EVENTS, CONVERSATION_EVENTS } from '@/events'
+import { SESSION_EVENTS } from '@/events'
 import type { SessionWithState, CreateSessionInput } from '@shared/types/agent-interface'
 import { downloadBlob } from '@/lib/download'
 import { usePageRouterStore } from './pageRouter'
@@ -152,8 +152,20 @@ export const useSessionStore = defineStore('session', () => {
     loading.value = true
     error.value = null
     try {
-      const result = await newAgentPresenter.getSessionList()
+      const webContentsId = window.api.getWebContentsId()
+      const [result, activeSession] = await Promise.all([
+        newAgentPresenter.getSessionList(),
+        newAgentPresenter.getActiveSession(webContentsId)
+      ])
       sessions.value = result.map(mapToUISession)
+
+      const nextActiveSessionId = activeSession?.id ?? null
+      if (activeSessionId.value !== nextActiveSessionId) {
+        if (activeSessionId.value && activeSessionId.value !== nextActiveSessionId) {
+          messageStore.clearStreamingState()
+        }
+        activeSessionId.value = nextActiveSessionId
+      }
     } catch (e) {
       error.value = `Failed to load sessions: ${e}`
     } finally {
@@ -378,11 +390,6 @@ export const useSessionStore = defineStore('session', () => {
       }
     }
   )
-
-  // Keep backward compatibility: also listen to old CONVERSATION_EVENTS
-  window.electron.ipcRenderer.on(CONVERSATION_EVENTS.LIST_UPDATED, () => {
-    fetchSessions()
-  })
 
   return {
     sessions,

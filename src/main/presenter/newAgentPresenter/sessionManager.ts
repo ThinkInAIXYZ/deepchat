@@ -84,8 +84,4 @@ export class NewSessionManager {
   getActiveSessionId(webContentsId: number): string | null {
     return this.windowBindings.get(webContentsId) ?? null
   }
-
-  generateId(): string {
-    return nanoid()
-  }
 }

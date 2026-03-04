@@ -5,6 +5,7 @@ const setupStore = async () => {
 
   const newAgentPresenter = {
     getSessionList: vi.fn().mockResolvedValue([]),
+    getActiveSession: vi.fn().mockResolvedValue(null),
     createSession: vi.fn(),
     activateSession: vi.fn(),
     deactivateSession: vi.fn(),
@@ -144,5 +145,45 @@ describe('sessionStore streaming cleanup', () => {
 
     expect(newAgentPresenter.activateSession).toHaveBeenCalledWith(1, 'session-b')
     expect(clearStreamingState).toHaveBeenCalledTimes(1)
+  })
+
+  it('syncs active session from presenter when fetching sessions', async () => {
+    const { store, newAgentPresenter } = await setupStore()
+    newAgentPresenter.getSessionList.mockResolvedValueOnce([
+      {
+        id: 'session-sync-1',
+        title: 'Session Sync',
+        agentId: 'deepchat',
+        status: 'idle',
+        projectDir: null,
+        providerId: 'openai',
+        modelId: 'gpt-4o',
+        isPinned: false,
+        isDraft: false,
+        createdAt: 1,
+        updatedAt: 2
+      }
+    ])
+    newAgentPresenter.getActiveSession.mockResolvedValueOnce({
+      id: 'session-sync-1'
+    })
+
+    await store.fetchSessions()
+
+    expect(newAgentPresenter.getActiveSession).toHaveBeenCalledWith(1)
+    expect(store.activeSessionId.value).toBe('session-sync-1')
+  })
+
+  it('clears streaming when fetch detects active session switch', async () => {
+    const { store, clearStreamingState, newAgentPresenter } = await setupStore()
+    store.activeSessionId.value = 'session-a'
+    newAgentPresenter.getActiveSession.mockResolvedValueOnce({
+      id: 'session-b'
+    })
+
+    await store.fetchSessions()
+
+    expect(clearStreamingState).toHaveBeenCalledTimes(1)
+    expect(store.activeSessionId.value).toBe('session-b')
   })
 })

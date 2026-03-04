@@ -2218,11 +2218,8 @@ export const useChatStore = defineStore('chat', () => {
   // 初始化全局流事件监听
   // 确保只在客户端环境中执行
   if (window.electron && window.electron.ipcRenderer) {
-    // 移除旧的监听器以防止重复（虽然 store 通常只初始化一次）
-    window.electron.ipcRenderer.removeAllListeners(STREAM_EVENTS.RESPONSE)
-    window.electron.ipcRenderer.removeAllListeners(STREAM_EVENTS.END)
-    window.electron.ipcRenderer.removeAllListeners(STREAM_EVENTS.ERROR)
-    window.electron.ipcRenderer.removeAllListeners(STREAM_EVENTS.PERMISSION_UPDATED)
+    // Do not clear global stream listeners here.
+    // New UI stores (ui/message) also subscribe to STREAM_EVENTS and would be broken.
 
     window.electron.ipcRenderer.on(STREAM_EVENTS.RESPONSE, (_, msg) => {
       handleStreamResponse(msg)

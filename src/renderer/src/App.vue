@@ -5,7 +5,8 @@ import UpdateDialog from './components/ui/UpdateDialog.vue'
 import { usePresenter } from './composables/usePresenter'
 import SelectedTextContextMenu from './components/message/SelectedTextContextMenu.vue'
 import { useArtifactStore } from './stores/artifact'
-import { useChatStore } from '@/stores/chat'
+import { useSessionStore } from '@/stores/ui/session'
+import { usePageRouterStore } from '@/stores/ui/pageRouter'
 import { NOTIFICATION_EVENTS, SHORTCUT_EVENTS } from './events'
 import { Toaster } from '@shadcn/components/ui/sonner'
 import { useToast } from '@/components/use-toast'
@@ -28,7 +29,8 @@ import WindowSideBar from './components/WindowSideBar.vue'
 const route = useRoute()
 const configPresenter = usePresenter('configPresenter')
 const artifactStore = useArtifactStore()
-const chatStore = useChatStore()
+const sessionStore = useSessionStore()
+const pageRouterStore = usePageRouterStore()
 const { toast } = useToast()
 const uiSettingsStore = useUiSettingsStore()
 const { setupFontListener } = useFontManager()
@@ -169,10 +171,13 @@ const handleZoomResume = () => {
 }
 
 // Handle creating new conversation
-const handleCreateNewConversation = () => {
+const handleCreateNewConversation = async () => {
   try {
-    chatStore.createNewEmptyThread()
-    // Simplified handling, just log, actual functionality to be implemented
+    if (sessionStore.hasActiveSession) {
+      await sessionStore.closeSession()
+      return
+    }
+    pageRouterStore.goToNewThread()
   } catch (error) {
     console.error('Failed to create new conversation:', error)
   }
@@ -224,7 +229,7 @@ onMounted(() => {
     if (currentRoute.name !== 'chat') {
       return
     }
-    handleCreateNewConversation()
+    void handleCreateNewConversation()
   })
 
   // GO_SETTINGS is now handled in main process (open/focus Settings tab)
@@ -239,23 +244,23 @@ onMounted(() => {
   })
 
   window.electron.ipcRenderer.on(NOTIFICATION_EVENTS.SYS_NOTIFY_CLICKED, (_, msg) => {
-    let threadId: string | null = null
+    let sessionId: string | null = null
 
     // Check if msg is string and starts with chat/
     if (typeof msg === 'string' && msg.startsWith('chat/')) {
       // Split by /, check if there are three segments
       const parts = msg.split('/')
       if (parts.length === 3) {
-        // Extract middle part as threadId
-        threadId = parts[1]
+        // Extract middle part as sessionId
+        sessionId = parts[1]
       }
     } else if (msg && msg.threadId) {
       // Compatible with original format, if msg is object and contains threadId property
-      threadId = msg.threadId
+      sessionId = msg.threadId
     }
 
-    if (threadId) {
-      chatStore.setActiveThread(threadId)
+    if (sessionId) {
+      void sessionStore.selectSession(sessionId)
     }
   })
 
@@ -284,7 +289,7 @@ onMounted(() => {
 
   // Listen for changes to current conversation
   watch(
-    () => chatStore.getActiveThreadId(),
+    () => sessionStore.activeSessionId,
     () => {
       // Close artifacts page when switching conversations
       artifactStore.hideArtifact()
