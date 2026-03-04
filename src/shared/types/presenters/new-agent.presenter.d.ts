@@ -37,6 +37,13 @@ export interface INewAgentPresenter {
   deactivateSession(webContentsId: number): Promise<void>
   getActiveSession(webContentsId: number): Promise<SessionWithState | null>
   getAgents(): Promise<Agent[]>
+  renameSession(sessionId: string, title: string): Promise<void>
+  toggleSessionPinned(sessionId: string, pinned: boolean): Promise<void>
+  clearSessionMessages(sessionId: string): Promise<void>
+  exportSession(
+    sessionId: string,
+    format: 'markdown' | 'html' | 'txt' | 'nowledge-mem'
+  ): Promise<{ filename: string; content: string }>
   deleteSession(sessionId: string): Promise<void>
   cancelGeneration(sessionId: string): Promise<void>
   respondToolInteraction(

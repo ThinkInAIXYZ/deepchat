@@ -31,6 +31,7 @@ function createMockDeepChatAgent() {
     }),
     processMessage: vi.fn().mockResolvedValue(undefined),
     cancelGeneration: vi.fn().mockResolvedValue(undefined),
+    clearMessages: vi.fn().mockResolvedValue(undefined),
     getMessages: vi.fn().mockResolvedValue([]),
     getMessageIds: vi.fn().mockResolvedValue([]),
     getMessage: vi.fn().mockResolvedValue(null),
@@ -835,6 +836,129 @@ describe('NewAgentPresenter', () => {
 
       await presenter.deleteSession('s1')
       expect(skillPresenter.clearNewAgentSessionSkills).toHaveBeenCalledWith('s1')
+    })
+  })
+
+  describe('session management actions', () => {
+    it('renames session with trimmed title and emits list update', async () => {
+      sqlitePresenter.newSessionsTable.get.mockReturnValue({
+        id: 's1',
+        agent_id: 'deepchat',
+        title: 'Old',
+        project_dir: null,
+        is_pinned: 0,
+        created_at: 1000,
+        updated_at: 1000
+      })
+
+      await presenter.renameSession('s1', '  New Title  ')
+
+      expect(sqlitePresenter.newSessionsTable.update).toHaveBeenCalledWith('s1', {
+        title: 'New Title'
+      })
+      expect(eventBus.sendToRenderer).toHaveBeenCalledWith('session:list-updated', 'all')
+    })
+
+    it('toggles pinned state and emits list update', async () => {
+      sqlitePresenter.newSessionsTable.get.mockReturnValue({
+        id: 's1',
+        agent_id: 'deepchat',
+        title: 'Test',
+        project_dir: null,
+        is_pinned: 0,
+        created_at: 1000,
+        updated_at: 1000
+      })
+
+      await presenter.toggleSessionPinned('s1', true)
+
+      expect(sqlitePresenter.newSessionsTable.update).toHaveBeenCalledWith('s1', {
+        is_pinned: 1
+      })
+      expect(eventBus.sendToRenderer).toHaveBeenCalledWith('session:list-updated', 'all')
+    })
+
+    it('clears session messages and keeps session', async () => {
+      sqlitePresenter.newSessionsTable.get.mockReturnValue({
+        id: 's1',
+        agent_id: 'deepchat',
+        title: 'Test',
+        project_dir: null,
+        is_pinned: 0,
+        created_at: 1000,
+        updated_at: 1000
+      })
+
+      await presenter.clearSessionMessages('s1')
+
+      expect(deepChatAgent.clearMessages).toHaveBeenCalledWith('s1')
+      expect(sqlitePresenter.newSessionsTable.delete).not.toHaveBeenCalled()
+      expect(eventBus.sendToRenderer).toHaveBeenCalledWith('session:list-updated', 'all')
+    })
+
+    it('exports session in all supported formats', async () => {
+      const now = Date.now()
+      sqlitePresenter.newSessionsTable.get.mockReturnValue({
+        id: 's1',
+        agent_id: 'deepchat',
+        title: 'Export Target',
+        project_dir: '/tmp/project',
+        is_pinned: 1,
+        created_at: now - 1000,
+        updated_at: now
+      })
+      deepChatAgent.getMessages.mockResolvedValue([
+        {
+          id: 'm-user',
+          sessionId: 's1',
+          orderSeq: 1,
+          role: 'user',
+          content: JSON.stringify({
+            text: 'hello export',
+            files: [],
+            links: [],
+            search: false,
+            think: false
+          }),
+          status: 'sent',
+          isContextEdge: 0,
+          metadata: '{}',
+          createdAt: now - 500,
+          updatedAt: now - 500
+        },
+        {
+          id: 'm-assistant',
+          sessionId: 's1',
+          orderSeq: 2,
+          role: 'assistant',
+          content: JSON.stringify([
+            {
+              type: 'content',
+              content: 'export result',
+              status: 'success',
+              timestamp: now - 400
+            }
+          ]),
+          status: 'sent',
+          isContextEdge: 0,
+          metadata: JSON.stringify({ model: 'gpt-4', provider: 'openai' }),
+          createdAt: now - 400,
+          updatedAt: now - 400
+        }
+      ])
+
+      const formats = [
+        ['markdown', '.md'],
+        ['html', '.html'],
+        ['txt', '.txt'],
+        ['nowledge-mem', '.json']
+      ] as const
+
+      for (const [format, extension] of formats) {
+        const result = await presenter.exportSession('s1', format)
+        expect(result.filename.endsWith(extension)).toBe(true)
+        expect(result.content.length).toBeGreaterThan(0)
+      }
     })
   })
 

@@ -4,6 +4,7 @@ import type { ComputedRef } from 'vue'
 import { usePresenter } from '@/composables/usePresenter'
 import { SESSION_EVENTS, CONVERSATION_EVENTS } from '@/events'
 import type { SessionWithState, CreateSessionInput } from '@shared/types/agent-interface'
+import { downloadBlob } from '@/lib/download'
 import { usePageRouterStore } from './pageRouter'
 import { useMessageStore } from './message'
 
@@ -19,6 +20,7 @@ export interface UISession {
   projectDir: string
   providerId: string
   modelId: string
+  isPinned: boolean
   isDraft: boolean
   createdAt: number
   updatedAt: number
@@ -55,6 +57,7 @@ function mapToUISession(session: SessionWithState): UISession {
     projectDir: session.projectDir ?? '',
     providerId: session.providerId,
     modelId: session.modelId,
+    isPinned: Boolean(session.isPinned),
     isDraft: Boolean(session.isDraft),
     createdAt: session.createdAt,
     updatedAt: session.updatedAt
@@ -103,6 +106,21 @@ function groupByProject(sessions: UISession[]): SessionGroup[] {
     label: dir.split('/').pop() ?? dir,
     sessions
   }))
+}
+
+function getContentType(format: 'markdown' | 'html' | 'txt' | 'nowledge-mem'): string {
+  switch (format) {
+    case 'markdown':
+      return 'text/markdown;charset=utf-8'
+    case 'html':
+      return 'text/html;charset=utf-8'
+    case 'txt':
+      return 'text/plain;charset=utf-8'
+    case 'nowledge-mem':
+      return 'application/json;charset=utf-8'
+    default:
+      return 'text/plain;charset=utf-8'
+  }
 }
 
 // --- Store ---
@@ -225,12 +243,88 @@ export const useSessionStore = defineStore('session', () => {
     }
   }
 
+  async function renameSession(sessionId: string, title: string): Promise<void> {
+    error.value = null
+    try {
+      const normalized = title.trim()
+      if (!normalized) {
+        return
+      }
+      await newAgentPresenter.renameSession(sessionId, normalized)
+      const target = sessions.value.find((session) => session.id === sessionId)
+      if (target) {
+        target.title = normalized
+      }
+    } catch (e) {
+      error.value = `Failed to rename session: ${e}`
+      throw e
+    }
+  }
+
+  async function toggleSessionPinned(sessionId: string, pinned: boolean): Promise<void> {
+    error.value = null
+    try {
+      await newAgentPresenter.toggleSessionPinned(sessionId, pinned)
+      const target = sessions.value.find((session) => session.id === sessionId)
+      if (target) {
+        target.isPinned = pinned
+      }
+    } catch (e) {
+      error.value = `Failed to toggle pinned state: ${e}`
+      throw e
+    }
+  }
+
+  async function clearSessionMessages(sessionId: string): Promise<void> {
+    error.value = null
+    try {
+      await newAgentPresenter.clearSessionMessages(sessionId)
+      if (activeSessionId.value === sessionId) {
+        messageStore.clearStreamingState()
+        await messageStore.loadMessages(sessionId)
+      }
+    } catch (e) {
+      error.value = `Failed to clear session messages: ${e}`
+      throw e
+    }
+  }
+
+  async function exportSession(
+    sessionId: string,
+    format: 'markdown' | 'html' | 'txt' | 'nowledge-mem'
+  ): Promise<{ filename: string; content: string }> {
+    error.value = null
+    try {
+      const result = await newAgentPresenter.exportSession(sessionId, format)
+      const blob = new Blob([result.content], {
+        type: getContentType(format)
+      })
+      downloadBlob(blob, result.filename)
+      return result
+    } catch (e) {
+      error.value = `Failed to export session: ${e}`
+      throw e
+    }
+  }
+
   function toggleGroupMode(): void {
     groupMode.value = groupMode.value === 'time' ? 'project' : 'time'
   }
 
+  function getPinnedSessions(agentId: string | null): UISession[] {
+    const pinned = sessions.value
+      .filter((session) => session.isPinned && !session.isDraft)
+      .sort((a, b) => b.updatedAt - a.updatedAt)
+
+    if (agentId === null) return pinned
+
+    return pinned.filter((session) => session.agentId === agentId)
+  }
+
   function getFilteredGroups(agentId: string | null): SessionGroup[] {
-    const visibleSessions = sessions.value.filter((session) => !session.isDraft)
+    const visibleSessions = sessions.value.filter(
+      (session) => !session.isDraft && !session.isPinned
+    )
     const grouped =
       groupMode.value === 'time' ? groupByTime(visibleSessions) : groupByProject(visibleSessions)
 
@@ -305,8 +399,13 @@ export const useSessionStore = defineStore('session', () => {
     setSessionModel,
     selectSession,
     closeSession,
+    renameSession,
+    toggleSessionPinned,
+    clearSessionMessages,
+    exportSession,
     deleteSession,
     toggleGroupMode,
+    getPinnedSessions,
     getFilteredGroups
   }
 })

@@ -138,9 +138,35 @@
 
         <!-- Session list -->
         <div class="flex-1 overflow-y-auto px-1.5">
+          <div v-if="pinnedSessions.length > 0" class="pt-2 space-y-0.5">
+            <button
+              v-for="session in pinnedSessions"
+              :key="`pinned-${session.id}`"
+              class="flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-left transition-all duration-150"
+              :class="
+                sessionStore.activeSessionId === session.id
+                  ? 'bg-accent text-accent-foreground'
+                  : 'text-foreground/80 hover:bg-accent/50'
+              "
+              @click="handleSessionClick(session)"
+            >
+              <Icon icon="lucide:pin" class="w-3.5 h-3.5 text-yellow-500 shrink-0" />
+              <span class="flex-1 text-sm truncate">{{ session.title }}</span>
+              <span v-if="session.status === 'working'" class="shrink-0">
+                <Icon icon="lucide:loader-2" class="w-3.5 h-3.5 text-primary animate-spin" />
+              </span>
+              <span v-else-if="session.status === 'completed'" class="shrink-0">
+                <Icon icon="lucide:check" class="w-3.5 h-3.5 text-green-500" />
+              </span>
+              <span v-else-if="session.status === 'error'" class="shrink-0">
+                <Icon icon="lucide:alert-circle" class="w-3.5 h-3.5 text-destructive" />
+              </span>
+            </button>
+          </div>
+
           <!-- Empty state -->
           <div
-            v-if="filteredGroups.length === 0"
+            v-if="pinnedSessions.length === 0 && filteredGroups.length === 0"
             class="flex flex-col items-center justify-center h-full px-4 text-center"
           >
             <Icon icon="lucide:message-square-plus" class="w-8 h-8 text-muted-foreground/40 mb-3" />
@@ -209,6 +235,7 @@ const collapsed = ref(false)
 let agentSwitchSeq = 0
 let agentSwitchQueue: Promise<void> = Promise.resolve()
 
+const pinnedSessions = computed(() => sessionStore.getPinnedSessions(agentStore.selectedAgentId))
 const filteredGroups = computed(() => sessionStore.getFilteredGroups(agentStore.selectedAgentId))
 
 const openSettings = () => {

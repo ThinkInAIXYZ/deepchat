@@ -2,7 +2,15 @@ import { describe, expect, it, vi } from 'vitest'
 import { defineComponent, reactive } from 'vue'
 import { mount } from '@vue/test-utils'
 
-const setup = async () => {
+type SetupOptions = {
+  pinnedSessions?: Array<{ id: string; title: string; status: string }>
+  groups?: Array<{
+    label: string
+    sessions: Array<{ id: string; title: string; status: string }>
+  }>
+}
+
+const setup = async (options: SetupOptions = {}) => {
   vi.resetModules()
 
   const operations: string[] = []
@@ -26,7 +34,8 @@ const setup = async () => {
       sessionStore.activeSessionId = null
     }),
     toggleGroupMode: vi.fn(),
-    getFilteredGroups: vi.fn(() => [])
+    getPinnedSessions: vi.fn(() => options.pinnedSessions ?? []),
+    getFilteredGroups: vi.fn(() => options.groups ?? [])
   })
 
   const themeStore = reactive({
@@ -94,5 +103,35 @@ describe('WindowSideBar agent switch', () => {
     expect(sessionStore.closeSession).toHaveBeenCalledTimes(1)
     expect(agentStore.setSelectedAgent).toHaveBeenCalledWith('acp-a')
     expect(operations).toEqual(['close', 'set:acp-a'])
+  })
+
+  it('renders pinned sessions outside grouped sections', async () => {
+    const { wrapper } = await setup({
+      pinnedSessions: [
+        {
+          id: 'pinned-1',
+          title: 'Pinned Session',
+          status: 'none'
+        }
+      ],
+      groups: [
+        {
+          label: 'Today',
+          sessions: [
+            {
+              id: 'normal-1',
+              title: 'Normal Session',
+              status: 'none'
+            }
+          ]
+        }
+      ]
+    })
+
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.text()).toContain('Pinned Session')
+    expect(wrapper.text()).toContain('Today')
+    expect(wrapper.text()).toContain('Normal Session')
   })
 })

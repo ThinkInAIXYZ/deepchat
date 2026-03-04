@@ -464,6 +464,17 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     return this.messageStore.getMessage(messageId)
   }
 
+  async clearMessages(sessionId: string): Promise<void> {
+    const state = await this.getSessionState(sessionId)
+    if (!state) {
+      throw new Error(`Session ${sessionId} not found`)
+    }
+
+    await this.cancelGeneration(sessionId)
+    this.messageStore.deleteBySession(sessionId)
+    this.setSessionStatus(sessionId, 'idle')
+  }
+
   async retryMessage(sessionId: string, messageId: string): Promise<void> {
     const state = await this.getSessionState(sessionId)
     if (!state) {

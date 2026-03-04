@@ -9,6 +9,10 @@ const setupStore = async () => {
     activateSession: vi.fn(),
     deactivateSession: vi.fn(),
     sendMessage: vi.fn(),
+    renameSession: vi.fn(),
+    toggleSessionPinned: vi.fn(),
+    clearSessionMessages: vi.fn(),
+    exportSession: vi.fn(),
     deleteSession: vi.fn()
   }
 
@@ -29,7 +33,8 @@ const setupStore = async () => {
   const clearStreamingState = vi.fn()
   vi.doMock('@/stores/ui/message', () => ({
     useMessageStore: () => ({
-      clearStreamingState
+      clearStreamingState,
+      loadMessages: vi.fn()
     })
   }))
   ;(window as any).electron = {
@@ -61,6 +66,7 @@ describe('sessionStore.getFilteredGroups', () => {
         projectDir: '/tmp/workspace',
         providerId: 'acp',
         modelId: 'acp-agent',
+        isPinned: false,
         isDraft: true,
         createdAt: now,
         updatedAt: now
@@ -73,6 +79,7 @@ describe('sessionStore.getFilteredGroups', () => {
         projectDir: '/tmp/workspace',
         providerId: 'acp',
         modelId: 'acp-agent',
+        isPinned: false,
         isDraft: false,
         createdAt: now,
         updatedAt: now
@@ -83,6 +90,48 @@ describe('sessionStore.getFilteredGroups', () => {
     const ids = groups.flatMap((group) => group.sessions.map((session) => session.id))
 
     expect(ids).toEqual(['real-1'])
+  })
+
+  it('hides pinned sessions from grouped list and exposes them in pinned list', async () => {
+    const { store } = await setupStore()
+    const now = Date.now()
+
+    store.sessions.value = [
+      {
+        id: 'pinned-1',
+        title: 'Pinned',
+        agentId: 'deepchat',
+        status: 'none',
+        projectDir: '/tmp/workspace',
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        isPinned: true,
+        isDraft: false,
+        createdAt: now - 100,
+        updatedAt: now
+      },
+      {
+        id: 'normal-1',
+        title: 'Normal',
+        agentId: 'deepchat',
+        status: 'none',
+        projectDir: '/tmp/workspace',
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        isPinned: false,
+        isDraft: false,
+        createdAt: now - 200,
+        updatedAt: now - 200
+      }
+    ]
+
+    const groupIds = store
+      .getFilteredGroups(null)
+      .flatMap((group) => group.sessions.map((session) => session.id))
+    const pinnedIds = store.getPinnedSessions(null).map((session) => session.id)
+
+    expect(groupIds).toEqual(['normal-1'])
+    expect(pinnedIds).toEqual(['pinned-1'])
   })
 })
 

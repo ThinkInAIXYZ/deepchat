@@ -13,7 +13,13 @@ import type {
   ToolInteractionResponse,
   ToolInteractionResult
 } from '@shared/types/agent-interface'
-import type { IConfigPresenter, ILlmProviderPresenter, ISkillPresenter } from '@shared/presenter'
+import type { Message } from '@shared/chat'
+import type {
+  IConfigPresenter,
+  ILlmProviderPresenter,
+  ISkillPresenter,
+  CONVERSATION
+} from '@shared/presenter'
 import type { SQLitePresenter } from '../sqlitePresenter'
 import type { DeepChatAgentPresenter } from '../deepchatAgentPresenter'
 import { AgentRegistry } from './agentRegistry'
@@ -21,6 +27,11 @@ import { NewSessionManager } from './sessionManager'
 import { NewMessageManager } from './messageManager'
 import { eventBus, SendTarget } from '@/eventbus'
 import { SESSION_EVENTS } from '@/events'
+import {
+  buildConversationExportContent,
+  generateExportFilename,
+  type ConversationExportFormat
+} from '../exporter/formats/conversationExporter'
 
 export class NewAgentPresenter {
   private agentRegistry: AgentRegistry
@@ -442,6 +453,80 @@ export class NewAgentPresenter {
     return Array.from(map.values())
   }
 
+  async renameSession(sessionId: string, title: string): Promise<void> {
+    const session = this.sessionManager.get(sessionId)
+    if (!session) {
+      throw new Error(`Session not found: ${sessionId}`)
+    }
+
+    const normalized = title.trim()
+    if (!normalized) {
+      throw new Error('Session title cannot be empty.')
+    }
+
+    this.sessionManager.update(sessionId, { title: normalized })
+    eventBus.sendToRenderer(SESSION_EVENTS.LIST_UPDATED, SendTarget.ALL_WINDOWS)
+  }
+
+  async toggleSessionPinned(sessionId: string, pinned: boolean): Promise<void> {
+    const session = this.sessionManager.get(sessionId)
+    if (!session) {
+      throw new Error(`Session not found: ${sessionId}`)
+    }
+
+    this.sessionManager.update(sessionId, { isPinned: pinned })
+    eventBus.sendToRenderer(SESSION_EVENTS.LIST_UPDATED, SendTarget.ALL_WINDOWS)
+  }
+
+  async clearSessionMessages(sessionId: string): Promise<void> {
+    const session = this.sessionManager.get(sessionId)
+    if (!session) {
+      throw new Error(`Session not found: ${sessionId}`)
+    }
+
+    const agent = await this.resolveAgentImplementation(session.agentId)
+    if (!agent.clearMessages) {
+      throw new Error(`Agent ${session.agentId} does not support clearing messages.`)
+    }
+
+    await agent.clearMessages(sessionId)
+    eventBus.sendToRenderer(SESSION_EVENTS.LIST_UPDATED, SendTarget.ALL_WINDOWS)
+  }
+
+  async exportSession(
+    sessionId: string,
+    format: ConversationExportFormat
+  ): Promise<{ filename: string; content: string }> {
+    const session = this.sessionManager.get(sessionId)
+    if (!session) {
+      throw new Error(`Session not found: ${sessionId}`)
+    }
+
+    const agent = await this.resolveAgentImplementation(session.agentId)
+    const state = await agent.getSessionState(sessionId)
+    const generationSettings = agent.getGenerationSettings
+      ? await agent.getGenerationSettings(sessionId)
+      : null
+    const providerId = state?.providerId?.trim() ?? ''
+    const modelId = state?.modelId?.trim() ?? ''
+
+    const conversation = this.buildExportConversation(
+      session,
+      providerId,
+      modelId,
+      generationSettings
+    )
+    const records = await agent.getMessages(sessionId)
+    const exportMessages = records
+      .filter((record) => record.status === 'sent')
+      .sort((a, b) => a.orderSeq - b.orderSeq)
+      .map((record) => this.mapRecordToExportMessage(record, providerId, modelId))
+
+    const filename = generateExportFilename(format, conversation)
+    const content = buildConversationExportContent(conversation, exportMessages, format)
+    return { filename, content }
+  }
+
   async deleteSession(sessionId: string): Promise<void> {
     const session = this.sessionManager.get(sessionId)
     if (!session) return
@@ -755,6 +840,211 @@ export class NewAgentPresenter {
       agent.setPermissionMode
     ) {
       await agent.setPermissionMode(sessionId, config.permissionMode)
+    }
+  }
+
+  private buildExportConversation(
+    session: SessionRecord,
+    providerId: string,
+    modelId: string,
+    generationSettings: SessionGenerationSettings | null
+  ): CONVERSATION {
+    const resolvedProviderId = providerId || (session.agentId !== 'deepchat' ? 'acp' : '')
+    const resolvedModelId = modelId || (session.agentId !== 'deepchat' ? session.agentId : '')
+    const modelConfig =
+      resolvedProviderId && resolvedModelId
+        ? this.configPresenter.getModelConfig(resolvedModelId, resolvedProviderId)
+        : undefined
+
+    return {
+      id: session.id,
+      title: session.title,
+      settings: {
+        systemPrompt: generationSettings?.systemPrompt ?? '',
+        temperature: generationSettings?.temperature ?? modelConfig?.temperature ?? 0.7,
+        contextLength: generationSettings?.contextLength ?? modelConfig?.contextLength ?? 32000,
+        maxTokens: generationSettings?.maxTokens ?? modelConfig?.maxTokens ?? 8000,
+        providerId: resolvedProviderId,
+        modelId: resolvedModelId,
+        artifacts: 0,
+        thinkingBudget: generationSettings?.thinkingBudget,
+        reasoningEffort: generationSettings?.reasoningEffort,
+        verbosity: generationSettings?.verbosity
+      },
+      createdAt: session.createdAt,
+      updatedAt: session.updatedAt,
+      is_pinned: session.isPinned ? 1 : 0
+    }
+  }
+
+  private mapRecordToExportMessage(
+    record: ChatMessageRecord,
+    fallbackProviderId: string,
+    fallbackModelId: string
+  ): Message {
+    const metadata = this.parseMessageMetadata(record.metadata)
+    const usage = {
+      context_usage: 0,
+      tokens_per_second: metadata.tokensPerSecond ?? 0,
+      total_tokens: metadata.totalTokens ?? 0,
+      generation_time: metadata.generationTime ?? 0,
+      first_token_time: metadata.firstTokenTime ?? 0,
+      reasoning_start_time: 0,
+      reasoning_end_time: 0,
+      input_tokens: metadata.inputTokens ?? 0,
+      output_tokens: metadata.outputTokens ?? 0
+    }
+
+    const base: Omit<Message, 'content' | 'role'> = {
+      id: record.id,
+      timestamp: record.createdAt,
+      avatar: '',
+      name: record.role === 'user' ? 'You' : 'Assistant',
+      model_name: metadata.model ?? fallbackModelId,
+      model_id: metadata.model ?? fallbackModelId,
+      model_provider: metadata.provider ?? fallbackProviderId,
+      status: record.status,
+      error: '',
+      usage,
+      conversationId: record.sessionId,
+      is_variant: 0
+    }
+
+    if (record.role === 'user') {
+      return {
+        ...base,
+        role: 'user',
+        content: this.parseUserExportContent(record.content)
+      }
+    }
+
+    return {
+      ...base,
+      role: 'assistant',
+      content: this.parseAssistantExportBlocks(record.content, record.createdAt)
+    }
+  }
+
+  private parseUserExportContent(content: string): Message['content'] {
+    const fallback = {
+      text: '',
+      files: [],
+      links: [],
+      search: false,
+      think: false
+    }
+
+    try {
+      const parsed = JSON.parse(content) as UserMessageContent | Record<string, unknown> | string
+      if (typeof parsed === 'string') {
+        return { ...fallback, text: parsed }
+      }
+      if (!parsed || typeof parsed !== 'object') {
+        return fallback
+      }
+      const parsedRecord = parsed as Record<string, unknown>
+
+      const files = Array.isArray(parsedRecord.files)
+        ? (parsedRecord.files as Array<Record<string, unknown>>).map((file) => ({
+            name: typeof file.name === 'string' ? file.name : '',
+            content: '',
+            mimeType:
+              typeof file.mimeType === 'string'
+                ? file.mimeType
+                : typeof file.type === 'string'
+                  ? file.type
+                  : 'application/octet-stream',
+            metadata: {
+              fileName: typeof file.name === 'string' ? file.name : '',
+              fileSize: typeof file.size === 'number' ? file.size : 0,
+              fileCreated: new Date(),
+              fileModified: new Date()
+            },
+            token: 0,
+            path: typeof file.path === 'string' ? file.path : ''
+          }))
+        : []
+
+      const links = Array.isArray(parsedRecord.links)
+        ? (parsedRecord.links as unknown[]).filter(
+            (link): link is string => typeof link === 'string'
+          )
+        : []
+
+      return {
+        ...fallback,
+        text: typeof parsedRecord.text === 'string' ? parsedRecord.text : '',
+        files,
+        links,
+        search: Boolean(parsedRecord.search),
+        think: Boolean(parsedRecord.think)
+      }
+    } catch {
+      return {
+        ...fallback,
+        text: content.trim()
+      }
+    }
+  }
+
+  private parseAssistantExportBlocks(content: string, timestamp: number): Message['content'] {
+    try {
+      const parsed = JSON.parse(content) as AssistantMessageBlock[] | string
+      if (typeof parsed === 'string') {
+        return [
+          {
+            type: 'content',
+            content: parsed,
+            status: 'success',
+            timestamp
+          }
+        ]
+      }
+      if (Array.isArray(parsed)) {
+        return parsed as unknown as Message['content']
+      }
+      return []
+    } catch {
+      if (!content.trim()) return []
+      return [
+        {
+          type: 'content',
+          content: content.trim(),
+          status: 'success',
+          timestamp
+        }
+      ]
+    }
+  }
+
+  private parseMessageMetadata(raw: string): {
+    totalTokens?: number
+    inputTokens?: number
+    outputTokens?: number
+    generationTime?: number
+    firstTokenTime?: number
+    tokensPerSecond?: number
+    model?: string
+    provider?: string
+  } {
+    try {
+      const parsed = JSON.parse(raw) as Record<string, unknown>
+      if (!parsed || typeof parsed !== 'object') return {}
+      return {
+        totalTokens: typeof parsed.totalTokens === 'number' ? parsed.totalTokens : undefined,
+        inputTokens: typeof parsed.inputTokens === 'number' ? parsed.inputTokens : undefined,
+        outputTokens: typeof parsed.outputTokens === 'number' ? parsed.outputTokens : undefined,
+        generationTime:
+          typeof parsed.generationTime === 'number' ? parsed.generationTime : undefined,
+        firstTokenTime:
+          typeof parsed.firstTokenTime === 'number' ? parsed.firstTokenTime : undefined,
+        tokensPerSecond:
+          typeof parsed.tokensPerSecond === 'number' ? parsed.tokensPerSecond : undefined,
+        model: typeof parsed.model === 'string' ? parsed.model : undefined,
+        provider: typeof parsed.provider === 'string' ? parsed.provider : undefined
+      }
+    } catch {
+      return {}
     }
   }
 

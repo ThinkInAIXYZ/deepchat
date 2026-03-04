@@ -97,6 +97,10 @@
     "agent": "Agent",
     "acpAgent": "ACP Agent"
   },
+  "topbar": {
+    "share": "Share",
+    "more": "More"
+  },
   "advancedSettings": {
     "button": "Advanced",
     "title": "Advanced Settings",

@@ -379,6 +379,23 @@ describe('Integration: createSession end-to-end', () => {
     expect(sqlitePresenter.deepchatSessionsTable.delete).toHaveBeenCalledWith(session.id)
     expect(sqlitePresenter.newSessionsTable.delete).toHaveBeenCalledWith(session.id)
   })
+
+  it('clearSessionMessages clears messages but keeps session row', async () => {
+    const session = await agentPresenter.createSession(
+      { agentId: 'deepchat', message: 'To clear' },
+      1
+    )
+
+    await new Promise((r) => setTimeout(r, 50))
+
+    await agentPresenter.clearSessionMessages(session.id)
+
+    expect(sqlitePresenter.deepchatMessagesTable.deleteBySession).toHaveBeenCalledWith(session.id)
+    expect(sqlitePresenter.newSessionsTable.delete).not.toHaveBeenCalledWith(session.id)
+
+    const remainingSession = sqlitePresenter.newSessionsTable.get(session.id)
+    expect(remainingSession).toBeTruthy()
+  })
 })
 
 describe('Integration: multi-turn context', () => {

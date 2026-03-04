@@ -63,6 +63,9 @@ export interface IAgentImplementation {
   /** Get a single message by ID */
   getMessage(messageId: string): Promise<ChatMessageRecord | null>
 
+  /** Clear all messages in this session while keeping the session record */
+  clearMessages?(sessionId: string): Promise<void>
+
   /** Retry generation from the selected message context */
   retryMessage?(sessionId: string, messageId: string): Promise<void>
 

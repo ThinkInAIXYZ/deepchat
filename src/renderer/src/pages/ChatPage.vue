@@ -5,7 +5,12 @@
       class="h-full overflow-y-auto message-list-container"
       @scroll="onScroll"
     >
-      <ChatTopBar class="chat-capture-hide" :title="sessionTitle" :project="sessionProject" />
+      <ChatTopBar
+        class="chat-capture-hide"
+        :session-id="props.sessionId"
+        :title="sessionTitle"
+        :project="sessionProject"
+      />
       <MessageList
         :messages="displayMessages"
         :is-generating="isGenerating"

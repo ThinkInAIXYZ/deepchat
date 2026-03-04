@@ -97,6 +97,10 @@
     "agent": "Agent",
     "acpAgent": "ACP Agent"
   },
+  "topbar": {
+    "share": "分享",
+    "more": "更多"
+  },
   "advancedSettings": {
     "button": "高级配置",
     "title": "高级配置",
