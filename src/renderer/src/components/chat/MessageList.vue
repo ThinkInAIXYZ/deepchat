@@ -1,5 +1,5 @@
 <template>
-  <div class="message-list-container">
+  <div class="chat-message-list">
     <div class="max-w-3xl mx-auto px-4 py-6 space-y-1">
       <template v-for="msg in messages" :key="msg.id">
         <MessageItemUser
@@ -78,15 +78,36 @@ const onEditSave = (payload: { messageId: string; text: string }) => {
   emit('editSave', payload)
 }
 
+const resolveCaptureParentId = (messageId: string, parentId?: string): string | undefined => {
+  if (parentId) {
+    const parentMessage = props.messages.find((msg) => msg.id === parentId)
+    if (parentMessage?.role === 'user') {
+      return parentId
+    }
+  }
+  const messageIndex = props.messages.findIndex((msg) => msg.id === messageId)
+  if (messageIndex <= 0) return undefined
+
+  for (let index = messageIndex - 1; index >= 0; index -= 1) {
+    const candidate = props.messages[index]
+    if (candidate.role === 'user') {
+      return candidate.id
+    }
+  }
+
+  return undefined
+}
+
 const handleCopyImage = async (
   messageId: string,
   parentId: string | undefined,
   fromTop: boolean,
   modelInfo: { model_name: string; model_provider: string }
 ) => {
+  const resolvedParentId = resolveCaptureParentId(messageId, parentId)
   await captureMessage({
     messageId,
-    parentId,
+    parentId: resolvedParentId,
     fromTop,
     modelInfo
   })

@@ -48,7 +48,7 @@ export interface IAgentImplementation {
   processMessage(
     sessionId: string,
     content: string,
-    context?: { projectDir?: string | null }
+    context?: { projectDir?: string | null; emitRefreshBeforeStream?: boolean }
   ): Promise<void>
 
   /** Cancel an in-progress generation */

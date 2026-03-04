@@ -1,4 +1,4 @@
-import { ref, onUnmounted } from 'vue'
+import { ref, onUnmounted, nextTick } from 'vue'
 import { usePageCapture } from '@/composables/usePageCapture'
 import { useThemeStore } from '@/stores/theme'
 import { usePresenter } from '@/composables/usePresenter'
@@ -28,15 +28,43 @@ export function useMessageCapture() {
     return containerCache
   }
 
+  const captureHiddenElements = ref<HTMLElement[]>([])
+
+  const hideCaptureOverlays = () => {
+    const elements = Array.from(document.querySelectorAll('.chat-capture-hide')) as HTMLElement[]
+    captureHiddenElements.value = elements
+    elements.forEach((element) => {
+      element.dataset.captureOriginalDisplay = element.style.display
+      element.style.display = 'none'
+    })
+  }
+
+  const restoreCaptureOverlays = () => {
+    for (const element of captureHiddenElements.value) {
+      const original = element.dataset.captureOriginalDisplay
+      if (original !== undefined) {
+        element.style.display = original
+        delete element.dataset.captureOriginalDisplay
+      } else {
+        element.style.removeProperty('display')
+      }
+    }
+    captureHiddenElements.value = []
+  }
+
   // Clear cache on unmount
   onUnmounted(() => {
     containerCache = null
+    restoreCaptureOverlays()
   })
 
   const findUserMessageElement = (parentId: string): HTMLElement | null => {
     if (!parentId) return null
     const userMessageSelector = `[data-message-id="${parentId}"]`
-    return document.querySelector(userMessageSelector) as HTMLElement
+    const element = document.querySelector(userMessageSelector) as HTMLElement | null
+    if (!element) return null
+    if (!element.classList.contains('user-message-item')) return null
+    return element
   }
 
   const calculateMessageGroupRect = (
@@ -125,20 +153,30 @@ export function useMessageCapture() {
       ? () => calculateFromTopToCurrentRect(messageId)
       : () => calculateMessageGroupRect(messageId, parentId)
 
-    const success = await captureAndCopy({
-      container: '.message-list-container',
-      getTargetRect,
-      watermark: {
-        isDark: themeStore.isDark,
-        version: appVersion.value,
-        texts: {
-          brand: 'DeepChat',
-          tip: t('common.watermarkTip'),
-          model: modelInfo?.model_name,
-          provider: modelInfo?.model_provider
+    hideCaptureOverlays()
+    await nextTick()
+    await new Promise((resolve) => setTimeout(resolve, 60))
+
+    let success = false
+    try {
+      success = await captureAndCopy({
+        container: '.message-list-container',
+        getTargetRect,
+        containerHeaderOffset: 0,
+        watermark: {
+          isDark: themeStore.isDark,
+          version: appVersion.value,
+          texts: {
+            brand: 'DeepChat',
+            tip: t('common.watermarkTip'),
+            model: modelInfo?.model_name,
+            provider: modelInfo?.model_provider
+          }
         }
-      }
-    })
+      })
+    } finally {
+      restoreCaptureOverlays()
+    }
 
     if (!success) {
       console.error('Screenshot copy failed')

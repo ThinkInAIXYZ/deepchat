@@ -1,7 +1,11 @@
 <template>
   <TooltipProvider :delay-duration="200">
-    <div ref="scrollContainer" class="h-full overflow-y-auto" @scroll="onScroll">
-      <ChatTopBar :title="sessionTitle" :project="sessionProject" />
+    <div
+      ref="scrollContainer"
+      class="h-full overflow-y-auto message-list-container"
+      @scroll="onScroll"
+    >
+      <ChatTopBar class="chat-capture-hide" :title="sessionTitle" :project="sessionProject" />
       <MessageList
         :messages="displayMessages"
         :is-generating="isGenerating"
@@ -14,7 +18,7 @@
       />
 
       <!-- Input area (sticky bottom, messages scroll under) -->
-      <div class="sticky bottom-0 z-10 px-6 pt-3 pb-3">
+      <div class="sticky bottom-0 z-10 px-6 pt-3 pb-3 chat-capture-hide">
         <div class="flex flex-col items-center w-full">
           <ChatToolInteractionOverlay
             v-if="activePendingInteraction"

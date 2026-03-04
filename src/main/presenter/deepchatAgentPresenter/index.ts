@@ -168,7 +168,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
   async processMessage(
     sessionId: string,
     content: string,
-    context?: { projectDir?: string | null }
+    context?: { projectDir?: string | null; emitRefreshBeforeStream?: boolean }
   ): Promise<void> {
     const state = this.runtimeState.get(sessionId)
     if (!state) throw new Error(`Session ${sessionId} not found`)
@@ -212,6 +212,10 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
         sessionId,
         assistantOrderSeq
       )
+
+      if (context?.emitRefreshBeforeStream) {
+        this.emitMessageRefresh(sessionId, assistantMessageId)
+      }
 
       const result = await this.runStreamForMessage({
         sessionId,
@@ -492,7 +496,8 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
 
     this.messageStore.deleteFromOrderSeq(sessionId, sourceUserMessage.orderSeq)
     await this.processMessage(sessionId, retryText, {
-      projectDir: this.resolveProjectDir(sessionId)
+      projectDir: this.resolveProjectDir(sessionId),
+      emitRefreshBeforeStream: true
     })
   }
 
