@@ -52,14 +52,42 @@ export class DeepChatMessagesTable extends BaseTable {
     role: 'user' | 'assistant'
     content: string
     status: 'pending' | 'sent' | 'error'
+    isContextEdge?: number
+    metadata?: string
+    createdAt?: number
+    updatedAt?: number
   }): void {
     const now = Date.now()
+    const createdAt = row.createdAt ?? now
+    const updatedAt = row.updatedAt ?? createdAt
     this.db
       .prepare(
-        `INSERT INTO deepchat_messages (id, session_id, order_seq, role, content, status, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO deepchat_messages (
+           id,
+           session_id,
+           order_seq,
+           role,
+           content,
+           status,
+           is_context_edge,
+           metadata,
+           created_at,
+           updated_at
+         )
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
-      .run(row.id, row.sessionId, row.orderSeq, row.role, row.content, row.status, now, now)
+      .run(
+        row.id,
+        row.sessionId,
+        row.orderSeq,
+        row.role,
+        row.content,
+        row.status,
+        row.isContextEdge ?? 0,
+        row.metadata ?? '{}',
+        createdAt,
+        updatedAt
+      )
   }
 
   updateContent(messageId: string, content: string): void {
@@ -98,6 +126,14 @@ export class DeepChatMessagesTable extends BaseTable {
       .all(sessionId) as DeepChatMessageRow[]
   }
 
+  getBySessionUpToOrderSeq(sessionId: string, maxOrderSeq: number): DeepChatMessageRow[] {
+    return this.db
+      .prepare(
+        'SELECT * FROM deepchat_messages WHERE session_id = ? AND order_seq <= ? ORDER BY order_seq'
+      )
+      .all(sessionId, maxOrderSeq) as DeepChatMessageRow[]
+  }
+
   getByStatus(status: 'pending' | 'sent' | 'error'): DeepChatMessageRow[] {
     return this.db
       .prepare('SELECT * FROM deepchat_messages WHERE status = ? ORDER BY updated_at DESC')
@@ -124,8 +160,25 @@ export class DeepChatMessagesTable extends BaseTable {
     return row.max_seq ?? 0
   }
 
+  getLastUserMessageBeforeOrAtOrderSeq(
+    sessionId: string,
+    orderSeq: number
+  ): DeepChatMessageRow | undefined {
+    return this.db
+      .prepare(
+        "SELECT * FROM deepchat_messages WHERE session_id = ? AND role = 'user' AND order_seq <= ? ORDER BY order_seq DESC LIMIT 1"
+      )
+      .get(sessionId, orderSeq) as DeepChatMessageRow | undefined
+  }
+
   deleteBySession(sessionId: string): void {
     this.db.prepare('DELETE FROM deepchat_messages WHERE session_id = ?').run(sessionId)
+  }
+
+  deleteFromOrderSeq(sessionId: string, fromOrderSeq: number): void {
+    this.db
+      .prepare('DELETE FROM deepchat_messages WHERE session_id = ? AND order_seq >= ?')
+      .run(sessionId, fromOrderSeq)
   }
 
   recoverPendingMessages(): number {

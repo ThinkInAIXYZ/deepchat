@@ -81,8 +81,9 @@
         :is-assistant="true"
         :current-variant-index="currentVariantIndex"
         :total-variants="totalVariants"
-        :is-in-generating-thread="chatStore.generatingThreadIds.has(currentThreadId)"
+        :is-in-generating-thread="resolvedIsInGeneratingThread"
         :is-capturing-image="isCapturingImage"
+        :show-trace="showTrace"
         @retry="handleAction('retry')"
         @delete="handleAction('delete')"
         @copy="handleAction('copy')"
@@ -97,7 +98,7 @@
   </div>
 
   <!-- 分支会话确认对话框 -->
-  <Dialog v-model:open="isForkDialogOpen">
+  <Dialog v-if="useLegacyActions" v-model:open="isForkDialogOpen">
     <DialogContent>
       <DialogHeader>
         <DialogTitle>{{ t('dialog.fork.title') }}</DialogTitle>
@@ -151,6 +152,9 @@ import { useThemeStore } from '@/stores/theme'
 const props = defineProps<{
   message: AssistantMessage
   isCapturingImage: boolean
+  useLegacyActions?: boolean
+  isInGeneratingThread?: boolean
+  showTrace?: boolean
 }>()
 
 const themeStore = useThemeStore()
@@ -184,10 +188,20 @@ const emit = defineEmits<{
   ]
   variantChanged: [messageId: string]
   trace: [messageId: string]
+  retry: [messageId: string]
+  delete: [messageId: string]
+  fork: [messageId: string]
 }>()
 
 // 获取当前会话ID
-const currentThreadId = computed(() => chatStore.getActiveThreadId() || '')
+const currentThreadId = computed(
+  () => props.message.conversationId || chatStore.getActiveThreadId() || ''
+)
+const useLegacyActions = computed(() => props.useLegacyActions !== false)
+const resolvedIsInGeneratingThread = computed(
+  () => props.isInGeneratingThread ?? chatStore.generatingThreadIds.has(currentThreadId.value)
+)
+const showTrace = computed(() => props.showTrace ?? true)
 
 // currentVariantIndex: 0 = 主消息, 1-N = 对应的变体索引
 const currentVariantIndex = computed(() => {
@@ -312,9 +326,17 @@ const handleCollapseToggle = () => {
 
 const handleAction = (action: HandleActionType) => {
   if (action === 'retry') {
-    chatStore.retryMessage(currentMessage.value.id)
+    if (useLegacyActions.value) {
+      chatStore.retryMessage(currentMessage.value.id)
+    } else {
+      emit('retry', currentMessage.value.id)
+    }
   } else if (action === 'delete') {
-    chatStore.deleteMessage(currentMessage.value.id)
+    if (useLegacyActions.value) {
+      chatStore.deleteMessage(currentMessage.value.id)
+    } else {
+      emit('delete', currentMessage.value.id)
+    }
   } else if (action === 'copy') {
     window.api.copyText(
       currentContent.value
@@ -367,7 +389,11 @@ const handleAction = (action: HandleActionType) => {
       model_provider: currentMessage.value.model_provider
     })
   } else if (action === 'fork') {
-    showForkDialog()
+    if (useLegacyActions.value) {
+      showForkDialog()
+    } else {
+      emit('fork', currentMessage.value.id)
+    }
   } else if (action === 'trace') {
     emit('trace', currentMessage.value.id)
   }

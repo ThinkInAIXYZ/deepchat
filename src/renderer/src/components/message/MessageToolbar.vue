@@ -154,7 +154,7 @@
               </TooltipTrigger>
               <TooltipContent>{{ t('thread.toolbar.retry') }}</TooltipContent>
             </Tooltip>
-            <Tooltip v-if="isAssistant && traceDebugEnabled">
+            <Tooltip v-if="isAssistant && traceDebugEnabled && allowTrace">
               <TooltipTrigger as-child>
                 <Button
                   variant="ghost"
@@ -308,6 +308,7 @@ const props = defineProps<{
   isEditMode?: boolean
   isInGeneratingThread?: boolean
   isCapturingImage: boolean
+  showTrace?: boolean
 }>()
 const emit = defineEmits<{
   (e: 'retry'): void
@@ -326,6 +327,7 @@ const emit = defineEmits<{
 
 const hasTokensPerSecond = computed(() => props.usage.tokens_per_second > 0)
 const hasVariants = computed(() => (props.totalVariants || 0) > 1)
+const allowTrace = computed(() => props.showTrace ?? true)
 </script>
 
 <style scoped>

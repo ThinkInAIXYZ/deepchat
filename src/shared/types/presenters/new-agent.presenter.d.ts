@@ -17,6 +17,14 @@ export interface INewAgentPresenter {
     permissionMode?: PermissionMode
   }): Promise<SessionWithState>
   sendMessage(sessionId: string, content: string): Promise<void>
+  retryMessage(sessionId: string, messageId: string): Promise<void>
+  deleteMessage(sessionId: string, messageId: string): Promise<void>
+  editUserMessage(sessionId: string, messageId: string, text: string): Promise<ChatMessageRecord>
+  forkSession(
+    sourceSessionId: string,
+    targetMessageId: string,
+    newTitle?: string
+  ): Promise<SessionWithState>
   getSessionList(filters?: { agentId?: string; projectDir?: string }): Promise<SessionWithState[]>
   getSession(sessionId: string): Promise<SessionWithState | null>
   getMessages(sessionId: string): Promise<ChatMessageRecord[]>

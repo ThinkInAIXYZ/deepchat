@@ -81,7 +81,7 @@
         :is-assistant="false"
         :is-edit-mode="isEditMode"
         :is-capturing-image="false"
-        @retry="emit('retry')"
+        @retry="onRetryAction"
         @delete="handleAction('delete')"
         @copy="handleAction('copy')"
         @edit="startEdit"
@@ -102,15 +102,22 @@ import MessageContent from './MessageContent.vue'
 import MessageTextContent from './MessageTextContent.vue'
 import { useChatStore } from '@/stores/chat'
 import { usePresenter } from '@/composables/usePresenter'
-import { ref, watch, onMounted, nextTick, onBeforeUnmount } from 'vue'
+import { ref, watch, onMounted, nextTick, onBeforeUnmount, computed } from 'vue'
 
 const chatStore = useChatStore()
 const windowPresenter = usePresenter('windowPresenter')
 const sessionPresenter = usePresenter('sessionPresenter')
 
-const props = defineProps<{
-  message: UserMessage
-}>()
+const props = withDefaults(
+  defineProps<{
+    message: UserMessage
+    useLegacyActions?: boolean
+  }>(),
+  {
+    useLegacyActions: true
+  }
+)
+const useLegacyActions = computed(() => props.useLegacyActions !== false)
 
 const isEditMode = ref(false)
 const editedText = ref('')
@@ -142,7 +149,9 @@ watch(isEditMode, (newValue) => {
 
 const emit = defineEmits<{
   fileClick: [fileName: string]
-  retry: []
+  retry: [messageId: string]
+  delete: [messageId: string]
+  editSave: [payload: { messageId: string; text: string }]
 }>()
 
 const previewFile = (filePath: string) => {
@@ -162,24 +171,31 @@ const startEdit = () => {
 }
 
 const saveEdit = async () => {
-  if (editedText.value.trim() === '') return
+  const nextText = editedText.value.trim()
+  if (!nextText) return
 
   try {
-    // Create a new content object with the edited text
-    let newContent = {
-      ...props.message.content
-    }
-    if (newContent?.content && newContent.content.length > 0) {
-      const nonTextBlocks = newContent.content.filter((block) => block.type !== 'text')
-      newContent.content = [{ type: 'text', content: editedText.value }, ...nonTextBlocks]
+    if (useLegacyActions.value) {
+      // Create a new content object with the edited text
+      let newContent = {
+        ...props.message.content
+      }
+      if (newContent?.content && newContent.content.length > 0) {
+        const nonTextBlocks = newContent.content.filter((block) => block.type !== 'text')
+        newContent.content = [{ type: 'text', content: nextText }, ...nonTextBlocks]
+      } else {
+        newContent.text = nextText
+      }
+      // Update the message in the database using editMessage method
+      await sessionPresenter.editMessage(props.message.id, JSON.stringify(newContent))
+      // Legacy mode: trigger regeneration through parent handler.
+      emit('retry', props.message.id)
     } else {
-      newContent.text = editedText.value
+      emit('editSave', {
+        messageId: props.message.id,
+        text: nextText
+      })
     }
-    // Update the message in the database using editMessage method
-    await sessionPresenter.editMessage(props.message.id, JSON.stringify(newContent))
-
-    // Emit retry event for MessageItemAssistant to handle
-    emit('retry')
 
     // Exit edit mode
     isEditMode.value = false
@@ -188,19 +204,45 @@ const saveEdit = async () => {
   }
 }
 
+const onRetryAction = () => {
+  emit('retry', props.message.id)
+}
+
+const getCopyText = () => {
+  if (props.message.content?.content && props.message.content.content.length > 0) {
+    return props.message.content.content
+      .map((block) => {
+        if (typeof block.content === 'string') {
+          return block.content
+        }
+        return ''
+      })
+      .join('')
+      .trim()
+  }
+  return props.message.content.text || ''
+}
+
 const cancelEdit = () => {
   isEditMode.value = false
 }
 
 const handleAction = (action: 'delete' | 'copy') => {
   if (action === 'delete') {
-    chatStore.deleteMessage(props.message.id)
+    if (useLegacyActions.value) {
+      chatStore.deleteMessage(props.message.id)
+    } else {
+      emit('delete', props.message.id)
+    }
   } else if (action === 'copy') {
-    window.api.copyText(props.message.content.text)
+    window.api.copyText(getCopyText())
   }
 }
 
 const handleMentionClick = (block: UserMessageMentionBlock) => {
+  if (!useLegacyActions.value) {
+    return
+  }
   if (block.category !== 'context') {
     return
   }

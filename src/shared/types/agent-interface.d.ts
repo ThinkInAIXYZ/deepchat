@@ -63,6 +63,22 @@ export interface IAgentImplementation {
   /** Get a single message by ID */
   getMessage(messageId: string): Promise<ChatMessageRecord | null>
 
+  /** Retry generation from the selected message context */
+  retryMessage?(sessionId: string, messageId: string): Promise<void>
+
+  /** Delete a message and following history in this session */
+  deleteMessage?(sessionId: string, messageId: string): Promise<void>
+
+  /** Edit the text part of a user message */
+  editUserMessage?(sessionId: string, messageId: string, text: string): Promise<ChatMessageRecord>
+
+  /** Copy sent history up to target message into another session */
+  forkSessionFromMessage?(
+    sourceSessionId: string,
+    targetSessionId: string,
+    targetMessageId: string
+  ): Promise<void>
+
   /** Handle pending tool interaction response (question/permission) */
   respondToolInteraction?(
     sessionId: string,

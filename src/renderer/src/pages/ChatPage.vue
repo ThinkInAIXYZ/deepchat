@@ -2,7 +2,16 @@
   <TooltipProvider :delay-duration="200">
     <div ref="scrollContainer" class="h-full overflow-y-auto" @scroll="onScroll">
       <ChatTopBar :title="sessionTitle" :project="sessionProject" />
-      <MessageList :messages="displayMessages" />
+      <MessageList
+        :messages="displayMessages"
+        :is-generating="isGenerating"
+        :trace-message-ids="traceMessageIds"
+        @retry="onMessageRetry"
+        @delete="onMessageDelete"
+        @fork="onMessageFork"
+        @trace="onMessageTrace"
+        @edit-save="onMessageEditSave"
+      />
 
       <!-- Input area (sticky bottom, messages scroll under) -->
       <div class="sticky bottom-0 z-10 px-6 pt-3 pb-3">
@@ -232,6 +241,8 @@ const displayMessages = computed(() => {
   return msgs
 })
 
+const traceMessageIds = computed(() => [] as string[])
+
 // Auto-scroll when displayMessages changes (new message added, streaming updates)
 watch(
   displayMessages,
@@ -354,5 +365,56 @@ async function onStop() {
   } catch (error) {
     console.error('[ChatPage] cancel generation failed:', error)
   }
+}
+
+async function onMessageRetry(messageId: string) {
+  if (!messageId) return
+  if (activePendingInteraction.value || isHandlingInteraction.value) return
+  try {
+    messageStore.clearStreamingState()
+    await newAgentPresenter.retryMessage(props.sessionId, messageId)
+  } catch (error) {
+    console.error('[ChatPage] retry message failed:', error)
+    await messageStore.loadMessages(props.sessionId)
+  }
+}
+
+async function onMessageDelete(messageId: string) {
+  if (!messageId) return
+  try {
+    messageStore.clearStreamingState()
+    await newAgentPresenter.deleteMessage(props.sessionId, messageId)
+    await messageStore.loadMessages(props.sessionId)
+  } catch (error) {
+    console.error('[ChatPage] delete message failed:', error)
+  }
+}
+
+async function onMessageEditSave(payload: { messageId: string; text: string }) {
+  const messageId = payload?.messageId
+  const text = payload?.text?.trim()
+  if (!messageId || !text) return
+
+  try {
+    await newAgentPresenter.editUserMessage(props.sessionId, messageId, text)
+    await onMessageRetry(messageId)
+  } catch (error) {
+    console.error('[ChatPage] edit message failed:', error)
+  }
+}
+
+async function onMessageFork(messageId: string) {
+  if (!messageId) return
+  try {
+    const forked = await newAgentPresenter.forkSession(props.sessionId, messageId)
+    await sessionStore.fetchSessions()
+    await sessionStore.selectSession(forked.id)
+  } catch (error) {
+    console.error('[ChatPage] fork session failed:', error)
+  }
+}
+
+function onMessageTrace(messageId: string) {
+  console.warn('[ChatPage] trace not implemented yet for new flow:', messageId)
 }
 </script>

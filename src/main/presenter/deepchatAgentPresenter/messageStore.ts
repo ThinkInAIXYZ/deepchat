@@ -81,18 +81,15 @@ export class DeepChatMessageStore {
 
   getMessages(sessionId: string): ChatMessageRecord[] {
     const rows = this.sqlitePresenter.deepchatMessagesTable.getBySession(sessionId)
-    return rows.map((row) => ({
-      id: row.id,
-      sessionId: row.session_id,
-      orderSeq: row.order_seq,
-      role: row.role,
-      content: row.content,
-      status: row.status,
-      isContextEdge: row.is_context_edge,
-      metadata: row.metadata,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at
-    }))
+    return rows.map((row) => this.toRecord(row))
+  }
+
+  getMessagesUpToOrderSeq(sessionId: string, maxOrderSeq: number): ChatMessageRecord[] {
+    const rows = this.sqlitePresenter.deepchatMessagesTable.getBySessionUpToOrderSeq(
+      sessionId,
+      maxOrderSeq
+    )
+    return rows.map((row) => this.toRecord(row))
   }
 
   getMessageIds(sessionId: string): string[] {
@@ -102,18 +99,20 @@ export class DeepChatMessageStore {
   getMessage(messageId: string): ChatMessageRecord | null {
     const row = this.sqlitePresenter.deepchatMessagesTable.get(messageId)
     if (!row) return null
-    return {
-      id: row.id,
-      sessionId: row.session_id,
-      orderSeq: row.order_seq,
-      role: row.role,
-      content: row.content,
-      status: row.status,
-      isContextEdge: row.is_context_edge,
-      metadata: row.metadata,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at
-    }
+    return this.toRecord(row)
+  }
+
+  getLastUserMessageBeforeOrAt(sessionId: string, orderSeq: number): ChatMessageRecord | null {
+    const row = this.sqlitePresenter.deepchatMessagesTable.getLastUserMessageBeforeOrAtOrderSeq(
+      sessionId,
+      orderSeq
+    )
+    if (!row) return null
+    return this.toRecord(row)
+  }
+
+  updateMessageContent(messageId: string, content: string): void {
+    this.sqlitePresenter.deepchatMessagesTable.updateContent(messageId, content)
   }
 
   getNextOrderSeq(sessionId: string): number {
@@ -122,6 +121,37 @@ export class DeepChatMessageStore {
 
   deleteBySession(sessionId: string): void {
     this.sqlitePresenter.deepchatMessagesTable.deleteBySession(sessionId)
+  }
+
+  deleteFromOrderSeq(sessionId: string, fromOrderSeq: number): void {
+    this.sqlitePresenter.deepchatMessagesTable.deleteFromOrderSeq(sessionId, fromOrderSeq)
+  }
+
+  cloneSentMessagesToSession(
+    sourceSessionId: string,
+    targetSessionId: string,
+    maxOrderSeq: number
+  ): number {
+    const sourceRows = this.sqlitePresenter.deepchatMessagesTable
+      .getBySessionUpToOrderSeq(sourceSessionId, maxOrderSeq)
+      .filter((row) => row.status === 'sent')
+
+    let nextOrderSeq = 1
+    for (const row of sourceRows) {
+      this.sqlitePresenter.deepchatMessagesTable.insert({
+        id: nanoid(),
+        sessionId: targetSessionId,
+        orderSeq: nextOrderSeq,
+        role: row.role,
+        content: row.content,
+        status: 'sent',
+        isContextEdge: row.is_context_edge,
+        metadata: row.metadata
+      })
+      nextOrderSeq += 1
+    }
+
+    return sourceRows.length
   }
 
   recoverPendingMessages(): number {
@@ -156,6 +186,21 @@ export class DeepChatMessageStore {
       )
     } catch {
       return false
+    }
+  }
+
+  private toRecord(row: DeepChatMessageRow): ChatMessageRecord {
+    return {
+      id: row.id,
+      sessionId: row.session_id,
+      orderSeq: row.order_seq,
+      role: row.role,
+      content: row.content,
+      status: row.status,
+      isContextEdge: row.is_context_edge,
+      metadata: row.metadata,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
     }
   }
 }

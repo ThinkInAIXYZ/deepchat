@@ -215,6 +215,116 @@ export class NewAgentPresenter {
     })
   }
 
+  async retryMessage(sessionId: string, messageId: string): Promise<void> {
+    const session = this.sessionManager.get(sessionId)
+    if (!session) {
+      throw new Error(`Session not found: ${sessionId}`)
+    }
+    const agent = await this.resolveAgentImplementation(session.agentId)
+    if (!agent.retryMessage) {
+      throw new Error(`Agent ${session.agentId} does not support message retry.`)
+    }
+    await agent.retryMessage(sessionId, messageId)
+  }
+
+  async deleteMessage(sessionId: string, messageId: string): Promise<void> {
+    const session = this.sessionManager.get(sessionId)
+    if (!session) {
+      throw new Error(`Session not found: ${sessionId}`)
+    }
+    const agent = await this.resolveAgentImplementation(session.agentId)
+    if (!agent.deleteMessage) {
+      throw new Error(`Agent ${session.agentId} does not support message deletion.`)
+    }
+    await agent.deleteMessage(sessionId, messageId)
+  }
+
+  async editUserMessage(
+    sessionId: string,
+    messageId: string,
+    text: string
+  ): Promise<ChatMessageRecord> {
+    const session = this.sessionManager.get(sessionId)
+    if (!session) {
+      throw new Error(`Session not found: ${sessionId}`)
+    }
+    const agent = await this.resolveAgentImplementation(session.agentId)
+    if (!agent.editUserMessage) {
+      throw new Error(`Agent ${session.agentId} does not support user message editing.`)
+    }
+    return await agent.editUserMessage(sessionId, messageId, text)
+  }
+
+  async forkSession(
+    sourceSessionId: string,
+    targetMessageId: string,
+    newTitle?: string
+  ): Promise<SessionWithState> {
+    const sourceSession = this.sessionManager.get(sourceSessionId)
+    if (!sourceSession) {
+      throw new Error(`Session not found: ${sourceSessionId}`)
+    }
+
+    const agent = await this.resolveAgentImplementation(sourceSession.agentId)
+    if (!agent.forkSessionFromMessage) {
+      throw new Error(`Agent ${sourceSession.agentId} does not support session fork.`)
+    }
+
+    const sourceState = await agent.getSessionState(sourceSessionId)
+    if (!sourceState) {
+      throw new Error(`Session state not found: ${sourceSessionId}`)
+    }
+
+    const generationSettings = agent.getGenerationSettings
+      ? await agent.getGenerationSettings(sourceSessionId)
+      : null
+
+    const title = this.buildForkTitle(sourceSession.title, newTitle)
+    const targetSessionId = this.sessionManager.create(
+      sourceSession.agentId,
+      title,
+      sourceSession.projectDir ?? null,
+      { isDraft: false }
+    )
+
+    try {
+      await agent.initSession(targetSessionId, {
+        providerId: sourceState.providerId,
+        modelId: sourceState.modelId,
+        projectDir: sourceSession.projectDir ?? null,
+        permissionMode: sourceState.permissionMode,
+        generationSettings: generationSettings ?? undefined
+      })
+      await agent.forkSessionFromMessage(sourceSessionId, targetSessionId, targetMessageId)
+    } catch (error) {
+      try {
+        await agent.destroySession(targetSessionId)
+      } catch (cleanupError) {
+        console.warn(
+          `[NewAgentPresenter] Failed to cleanup forked session runtime ${targetSessionId}:`,
+          cleanupError
+        )
+      }
+      this.sessionManager.delete(targetSessionId)
+      throw error
+    }
+
+    eventBus.sendToRenderer(SESSION_EVENTS.LIST_UPDATED, SendTarget.ALL_WINDOWS)
+
+    const record = this.sessionManager.get(targetSessionId)
+    if (!record) {
+      throw new Error(`Forked session not found: ${targetSessionId}`)
+    }
+
+    const targetState = await agent.getSessionState(targetSessionId)
+    return {
+      ...record,
+      status: targetState?.status ?? 'idle',
+      providerId: targetState?.providerId ?? sourceState.providerId,
+      modelId: targetState?.modelId ?? sourceState.modelId
+    }
+  }
+
   async getSessionList(filters?: {
     agentId?: string
     projectDir?: string
@@ -681,6 +791,18 @@ export class NewAgentPresenter {
       cleaned = cleaned.slice(0, 80).trim()
     }
     return cleaned
+  }
+
+  private buildForkTitle(sourceTitle: string, customTitle?: string): string {
+    const normalizedCustom = customTitle?.trim()
+    if (normalizedCustom) {
+      return normalizedCustom
+    }
+    const base = sourceTitle?.trim() || 'New Chat'
+    if (base.length >= 60) {
+      return base.slice(0, 60).trim()
+    }
+    return `${base} - Fork`
   }
 
   private assertAcpSessionHasWorkdir(providerId: string, projectDir: string | null): void {

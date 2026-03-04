@@ -457,6 +457,106 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     return this.messageStore.getMessage(messageId)
   }
 
+  async retryMessage(sessionId: string, messageId: string): Promise<void> {
+    const state = await this.getSessionState(sessionId)
+    if (!state) {
+      throw new Error(`Session ${sessionId} not found`)
+    }
+    if (state.status === 'generating') {
+      throw new Error('Cannot retry while session is generating.')
+    }
+    if (this.hasPendingInteractions(sessionId)) {
+      throw new Error('Please resolve pending tool interactions before retrying.')
+    }
+
+    const target = await this.messageStore.getMessage(messageId)
+    if (!target) {
+      throw new Error(`Message ${messageId} not found`)
+    }
+    if (target.sessionId !== sessionId) {
+      throw new Error(`Message ${messageId} does not belong to session ${sessionId}`)
+    }
+
+    const sourceUserMessage =
+      target.role === 'user'
+        ? target
+        : this.messageStore.getLastUserMessageBeforeOrAt(sessionId, target.orderSeq)
+    if (!sourceUserMessage) {
+      throw new Error('No user message found for retry.')
+    }
+
+    const retryText = this.extractUserText(sourceUserMessage.content)
+    if (!retryText.trim()) {
+      throw new Error('Cannot retry an empty user message.')
+    }
+
+    this.messageStore.deleteFromOrderSeq(sessionId, sourceUserMessage.orderSeq)
+    await this.processMessage(sessionId, retryText, {
+      projectDir: this.resolveProjectDir(sessionId)
+    })
+  }
+
+  async deleteMessage(sessionId: string, messageId: string): Promise<void> {
+    const target = await this.messageStore.getMessage(messageId)
+    if (!target) {
+      throw new Error(`Message ${messageId} not found`)
+    }
+    if (target.sessionId !== sessionId) {
+      throw new Error(`Message ${messageId} does not belong to session ${sessionId}`)
+    }
+
+    await this.cancelGeneration(sessionId)
+    this.messageStore.deleteFromOrderSeq(sessionId, target.orderSeq)
+    this.setSessionStatus(sessionId, 'idle')
+  }
+
+  async editUserMessage(
+    sessionId: string,
+    messageId: string,
+    text: string
+  ): Promise<ChatMessageRecord> {
+    const target = await this.messageStore.getMessage(messageId)
+    if (!target) {
+      throw new Error(`Message ${messageId} not found`)
+    }
+    if (target.sessionId !== sessionId) {
+      throw new Error(`Message ${messageId} does not belong to session ${sessionId}`)
+    }
+    if (target.role !== 'user') {
+      throw new Error('Only user messages can be edited.')
+    }
+
+    const nextText = text.trim()
+    if (!nextText) {
+      throw new Error('Edited message cannot be empty.')
+    }
+
+    const nextContent = this.buildEditedUserContent(target.content, nextText)
+    this.messageStore.updateMessageContent(messageId, nextContent)
+
+    const updated = await this.messageStore.getMessage(messageId)
+    if (!updated) {
+      throw new Error(`Message ${messageId} not found after edit`)
+    }
+    return updated
+  }
+
+  async forkSessionFromMessage(
+    sourceSessionId: string,
+    targetSessionId: string,
+    targetMessageId: string
+  ): Promise<void> {
+    const target = await this.messageStore.getMessage(targetMessageId)
+    if (!target) {
+      throw new Error(`Message ${targetMessageId} not found`)
+    }
+    if (target.sessionId !== sourceSessionId) {
+      throw new Error(`Message ${targetMessageId} does not belong to session ${sourceSessionId}`)
+    }
+
+    this.messageStore.cloneSentMessagesToSession(sourceSessionId, targetSessionId, target.orderSeq)
+  }
+
   private async runStreamForMessage(args: {
     sessionId: string
     messageId: string
@@ -971,6 +1071,79 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       return Array.isArray(parsed) ? parsed : []
     } catch {
       return []
+    }
+  }
+
+  private extractUserText(content: string): string {
+    try {
+      const parsed = JSON.parse(content) as UserMessageContent | { text?: unknown } | string
+      if (typeof parsed === 'string') {
+        return parsed
+      }
+      if (parsed && typeof parsed === 'object' && typeof parsed.text === 'string') {
+        return parsed.text
+      }
+      return ''
+    } catch {
+      return content
+    }
+  }
+
+  private buildEditedUserContent(rawContent: string, text: string): string {
+    const fallback: UserMessageContent = {
+      text,
+      files: [],
+      links: [],
+      search: false,
+      think: false
+    }
+
+    try {
+      const parsed = JSON.parse(rawContent) as Record<string, unknown> | string
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        return JSON.stringify(fallback)
+      }
+
+      const next = { ...parsed, text } as Record<string, unknown>
+
+      if (!Array.isArray(next.files)) {
+        next.files = []
+      }
+      if (!Array.isArray(next.links)) {
+        next.links = []
+      }
+      if (typeof next.search !== 'boolean') {
+        next.search = false
+      }
+      if (typeof next.think !== 'boolean') {
+        next.think = false
+      }
+
+      if (Array.isArray(next.content)) {
+        let replaced = false
+        const mapped = next.content.map((item) => {
+          if (
+            !replaced &&
+            item &&
+            typeof item === 'object' &&
+            !Array.isArray(item) &&
+            (item as { type?: unknown }).type === 'text'
+          ) {
+            replaced = true
+            return { ...(item as Record<string, unknown>), content: text }
+          }
+          return item
+        })
+
+        if (!replaced) {
+          mapped.unshift({ type: 'text', content: text })
+        }
+        next.content = mapped
+      }
+
+      return JSON.stringify(next)
+    } catch {
+      return JSON.stringify(fallback)
     }
   }
 
