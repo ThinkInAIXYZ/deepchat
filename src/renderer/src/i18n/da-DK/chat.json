@@ -97,6 +97,10 @@
     "agent": "Agent",
     "current": "Aktuel tilstand: {mode}"
   },
+  "topbar": {
+    "share": "Del",
+    "more": "Mere"
+  },
   "advancedSettings": {
     "button": "Avanceret",
     "title": "Avancerede indstillinger",

@@ -97,6 +97,10 @@
     "agent": "عامل",
     "current": "حالت فعلی: {mode}"
   },
+  "topbar": {
+    "share": "اشتراک‌گذاری",
+    "more": "بیشتر"
+  },
   "advancedSettings": {
     "button": "پیشرفته",
     "title": "تنظیمات پیشرفته",

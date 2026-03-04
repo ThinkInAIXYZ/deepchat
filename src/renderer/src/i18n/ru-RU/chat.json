@@ -97,6 +97,10 @@
     "agent": "Агент",
     "current": "Текущий режим: {mode}"
   },
+  "topbar": {
+    "share": "Поделиться",
+    "more": "Ещё"
+  },
   "advancedSettings": {
     "button": "Расширенные",
     "title": "Расширенные настройки",

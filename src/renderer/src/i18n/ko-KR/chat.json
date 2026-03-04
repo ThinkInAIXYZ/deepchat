@@ -97,6 +97,10 @@
     "agent": "대리인",
     "current": "현재 모드: {mode}"
   },
+  "topbar": {
+    "share": "공유",
+    "more": "더보기"
+  },
   "advancedSettings": {
     "button": "고급 설정",
     "title": "고급 설정",

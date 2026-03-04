@@ -97,6 +97,10 @@
     "agent": "Agente",
     "current": "Modo atual: {mode}"
   },
+  "topbar": {
+    "share": "Compartilhar",
+    "more": "Mais"
+  },
   "advancedSettings": {
     "button": "Avançado",
     "title": "Configurações avançadas",

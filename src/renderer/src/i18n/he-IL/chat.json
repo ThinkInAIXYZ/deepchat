@@ -97,6 +97,10 @@
     "agent": "סוֹכֵן",
     "current": "מצב נוכחי: {mode}"
   },
+  "topbar": {
+    "share": "שיתוף",
+    "more": "עוד"
+  },
   "advancedSettings": {
     "button": "מתקדם",
     "title": "הגדרות מתקדמות",

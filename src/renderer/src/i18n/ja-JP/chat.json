@@ -97,6 +97,10 @@
     "agent": "エージェント",
     "current": "現在のモード: {モード}"
   },
+  "topbar": {
+    "share": "共有",
+    "more": "その他"
+  },
   "advancedSettings": {
     "button": "詳細設定",
     "title": "詳細設定",

@@ -97,6 +97,10 @@
     "agent": "Agent",
     "current": "當前模式：{mode}"
   },
+  "topbar": {
+    "share": "分享",
+    "more": "更多"
+  },
   "advancedSettings": {
     "button": "進階設定",
     "title": "進階設定",
