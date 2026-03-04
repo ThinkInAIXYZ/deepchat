@@ -60,7 +60,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, nextTick } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { TooltipProvider } from '@shadcn/components/ui/tooltip'
 import ChatTopBar from '@/components/chat/ChatTopBar.vue'
 import MessageList from '@/components/chat/MessageList.vue'
@@ -273,6 +273,15 @@ watch(
 const message = ref('')
 const isHandlingInteraction = ref(false)
 
+const handleContextMenuAskAI = (event: Event) => {
+  const detail = (event as CustomEvent<string>).detail
+  const text = typeof detail === 'string' ? detail.trim() : ''
+  if (!text) {
+    return
+  }
+  message.value = text
+}
+
 type PendingInteractionView = {
   messageId: string
   toolCallId: string
@@ -433,4 +442,12 @@ async function onMessageFork(messageId: string) {
 function onMessageTrace(messageId: string) {
   traceMessageId.value = messageId
 }
+
+onMounted(() => {
+  window.addEventListener('context-menu-ask-ai', handleContextMenuAskAI)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('context-menu-ask-ai', handleContextMenuAskAI)
+})
 </script>

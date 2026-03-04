@@ -1,101 +1,142 @@
 <template>
-  <div
-    :data-message-id="message.id"
-    class="flex flex-row pl-4 pt-5 pr-11 group gap-2 w-full justify-start assistant-message-item"
-  >
-    <div class="shrink-0 w-5 h-5 flex items-center justify-center">
-      <ModelIcon
-        v-if="currentMessage.model_provider === 'acp'"
-        :model-id="currentMessage.model_id"
-        :is-dark="themeStore.isDark"
-        custom-class="w-[18px] h-[18px]"
-      />
-      <ModelIcon
-        v-else
-        :model-id="currentMessage.model_provider"
-        custom-class="w-[18px] h-[18px]"
-        :is-dark="themeStore.isDark"
-        :alt="currentMessage.role"
-      />
-    </div>
+  <ContextMenu>
+    <component
+      :is="useLegacyActions ? 'div' : ContextMenuTrigger"
+      v-bind="useLegacyActions ? {} : { asChild: true }"
+    >
+      <div
+        ref="rootRef"
+        :data-message-id="message.id"
+        class="flex flex-row pl-4 pt-5 pr-11 group gap-2 w-full justify-start assistant-message-item"
+        @contextmenu.capture="handleContextMenuOpen"
+      >
+        <div class="shrink-0 w-5 h-5 flex items-center justify-center">
+          <ModelIcon
+            v-if="currentMessage.model_provider === 'acp'"
+            :model-id="currentMessage.model_id"
+            :is-dark="themeStore.isDark"
+            custom-class="w-[18px] h-[18px]"
+          />
+          <ModelIcon
+            v-else
+            :model-id="currentMessage.model_provider"
+            custom-class="w-[18px] h-[18px]"
+            :is-dark="themeStore.isDark"
+            :alt="currentMessage.role"
+          />
+        </div>
 
-    <div class="flex flex-col w-full space-y-1.5">
-      <MessageInfo :name="currentMessage.model_name" :timestamp="currentMessage.timestamp" />
-      <Spinner v-if="currentContent.length === 0" class="size-3 text-muted-foreground" />
-      <div v-else class="flex flex-col w-full gap-1.5" data-message-content="true">
-        <template v-for="(block, idx) in currentContent" :key="`${message.id}-${idx}`">
-          <MessageBlockContent
-            v-if="block.type === 'content'"
-            :block="block"
-            :message-id="currentMessage.id"
-            :thread-id="currentThreadId"
-            :is-search-result="isSearchResult"
-          />
-          <MessageBlockThink
-            v-else-if="block.type === 'reasoning_content' && block.content"
-            :block="block"
+        <div class="flex flex-col w-full space-y-1.5">
+          <MessageInfo :name="currentMessage.model_name" :timestamp="currentMessage.timestamp" />
+          <Spinner v-if="currentContent.length === 0" class="size-3 text-muted-foreground" />
+          <div v-else class="flex flex-col w-full gap-1.5" data-message-content="true">
+            <template v-for="(block, idx) in currentContent" :key="`${message.id}-${idx}`">
+              <MessageBlockContent
+                v-if="block.type === 'content'"
+                :block="block"
+                :message-id="currentMessage.id"
+                :thread-id="currentThreadId"
+                :is-search-result="isSearchResult"
+              />
+              <MessageBlockThink
+                v-else-if="block.type === 'reasoning_content' && block.content"
+                :block="block"
+                :usage="message.usage"
+                @toggle-collapse="handleCollapseToggle"
+              />
+              <MessageBlockPlan v-else-if="block.type === 'plan'" :block="block" />
+              <MessageBlockToolCall
+                v-else-if="block.type === 'tool_call'"
+                :block="block"
+                :message-id="currentMessage.id"
+                :thread-id="currentThreadId"
+              />
+              <MessageBlockQuestionRequest
+                v-else-if="block.type === 'action' && block.action_type === 'question_request'"
+                :block="block"
+              />
+              <MessageBlockAction
+                v-else-if="block.type === 'action'"
+                :message-id="currentMessage.id"
+                :conversation-id="currentThreadId"
+                :block="block"
+              />
+              <MessageBlockMcpUi
+                v-else-if="block.type === 'mcp_ui_resource'"
+                :block="block"
+                :message-id="currentMessage.id"
+                :thread-id="currentThreadId"
+              />
+              <MessageBlockAudio
+                v-else-if="isAudioBlock(block)"
+                :block="block"
+                :message-id="currentMessage.id"
+                :thread-id="currentThreadId"
+              />
+              <MessageBlockImage
+                v-else-if="block.type === 'image'"
+                :block="block"
+                :message-id="currentMessage.id"
+                :thread-id="currentThreadId"
+              />
+              <MessageBlockError v-else-if="block.type === 'error'" :block="block" />
+            </template>
+          </div>
+          <MessageToolbar
+            :loading="message.status === 'pending'"
             :usage="message.usage"
-            @toggle-collapse="handleCollapseToggle"
+            :is-assistant="true"
+            :current-variant-index="currentVariantIndex"
+            :total-variants="totalVariants"
+            :is-in-generating-thread="resolvedIsInGeneratingThread"
+            :is-capturing-image="isCapturingImage"
+            :show-trace="showTrace"
+            @retry="handleAction('retry')"
+            @delete="handleAction('delete')"
+            @copy="handleAction('copy')"
+            @copy-image="handleAction('copyImage')"
+            @copy-image-from-top="handleAction('copyImageFromTop')"
+            @prev="handleAction('prev')"
+            @next="handleAction('next')"
+            @fork="handleAction('fork')"
+            @trace="handleAction('trace')"
           />
-          <MessageBlockPlan v-else-if="block.type === 'plan'" :block="block" />
-          <MessageBlockToolCall
-            v-else-if="block.type === 'tool_call'"
-            :block="block"
-            :message-id="currentMessage.id"
-            :thread-id="currentThreadId"
-          />
-          <MessageBlockQuestionRequest
-            v-else-if="block.type === 'action' && block.action_type === 'question_request'"
-            :block="block"
-          />
-          <MessageBlockAction
-            v-else-if="block.type === 'action'"
-            :message-id="currentMessage.id"
-            :conversation-id="currentThreadId"
-            :block="block"
-          />
-          <MessageBlockMcpUi
-            v-else-if="block.type === 'mcp_ui_resource'"
-            :block="block"
-            :message-id="currentMessage.id"
-            :thread-id="currentThreadId"
-          />
-          <MessageBlockAudio
-            v-else-if="isAudioBlock(block)"
-            :block="block"
-            :message-id="currentMessage.id"
-            :thread-id="currentThreadId"
-          />
-          <MessageBlockImage
-            v-else-if="block.type === 'image'"
-            :block="block"
-            :message-id="currentMessage.id"
-            :thread-id="currentThreadId"
-          />
-          <MessageBlockError v-else-if="block.type === 'error'" :block="block" />
-        </template>
+        </div>
       </div>
-      <MessageToolbar
-        :loading="message.status === 'pending'"
-        :usage="message.usage"
-        :is-assistant="true"
-        :current-variant-index="currentVariantIndex"
-        :total-variants="totalVariants"
-        :is-in-generating-thread="resolvedIsInGeneratingThread"
-        :is-capturing-image="isCapturingImage"
-        :show-trace="showTrace"
-        @retry="handleAction('retry')"
-        @delete="handleAction('delete')"
-        @copy="handleAction('copy')"
-        @copy-image="handleAction('copyImage')"
-        @copy-image-from-top="handleAction('copyImageFromTop')"
-        @prev="handleAction('prev')"
-        @next="handleAction('next')"
-        @fork="handleAction('fork')"
-        @trace="handleAction('trace')"
-      />
-    </div>
-  </div>
+    </component>
+
+    <ContextMenuContent v-if="!useLegacyActions" class="w-56">
+      <template v-if="showSelectionMenu">
+        <ContextMenuItem @select="handleSelectionCopy">
+          {{ t('common.copy') }}
+        </ContextMenuItem>
+        <ContextMenuItem @select="handleSelectionTranslate">
+          {{ t('contextMenu.translate.title') }}
+        </ContextMenuItem>
+        <ContextMenuItem @select="handleSelectionAskAI">
+          {{ t('contextMenu.askAI.title') }}
+        </ContextMenuItem>
+      </template>
+      <template v-else>
+        <ContextMenuItem @select="handleAction('copy')">
+          {{ t('thread.toolbar.copy') }}
+        </ContextMenuItem>
+        <ContextMenuItem @select="handleAction('retry')">
+          {{ t('thread.toolbar.retry') }}
+        </ContextMenuItem>
+        <ContextMenuItem
+          :disabled="message.status === 'pending' || resolvedIsInGeneratingThread"
+          @select="handleAction('fork')"
+        >
+          {{ t('thread.toolbar.fork') }}
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem @select="handleAction('delete')">
+          {{ t('thread.toolbar.delete') }}
+        </ContextMenuItem>
+      </template>
+    </ContextMenuContent>
+  </ContextMenu>
 
   <!-- 分支会话确认对话框 -->
   <Dialog v-if="useLegacyActions" v-model:open="isForkDialogOpen">
@@ -148,6 +189,13 @@ import {
   DialogTitle
 } from '@shadcn/components/ui/dialog'
 import { Button } from '@shadcn/components/ui/button'
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger
+} from '@shadcn/components/ui/context-menu'
 import { useThemeStore } from '@/stores/theme'
 const props = defineProps<{
   message: AssistantMessage
@@ -202,6 +250,10 @@ const resolvedIsInGeneratingThread = computed(
   () => props.isInGeneratingThread ?? chatStore.generatingThreadIds.has(currentThreadId.value)
 )
 const showTrace = computed(() => props.showTrace ?? false)
+const rootRef = ref<HTMLElement | null>(null)
+const showSelectionMenu = ref(false)
+const lastSelectionText = ref('')
+const contextMenuPosition = ref<{ x?: number; y?: number }>({})
 
 // currentVariantIndex: 0 = 主消息, 1-N = 对应的变体索引
 const currentVariantIndex = computed(() => {
@@ -322,6 +374,75 @@ type HandleActionType =
 
 const handleCollapseToggle = () => {
   emit('variantChanged', props.message.id)
+}
+
+const getSelectionInCurrentMessage = () => {
+  const selection = window.getSelection()
+  const root = rootRef.value
+  if (!selection || !root || selection.rangeCount === 0 || selection.isCollapsed) {
+    return ''
+  }
+
+  const text = selection.toString().trim()
+  if (!text) {
+    return ''
+  }
+
+  const range = selection.getRangeAt(0)
+  if (!root.contains(range.startContainer) || !root.contains(range.endContainer)) {
+    return ''
+  }
+
+  return text
+}
+
+const resolveSelectionText = () => getSelectionInCurrentMessage() || lastSelectionText.value
+
+const handleContextMenuOpen = (event: MouseEvent) => {
+  if (useLegacyActions.value) {
+    return
+  }
+
+  contextMenuPosition.value = {
+    x: event.clientX,
+    y: event.clientY
+  }
+  const text = getSelectionInCurrentMessage()
+  showSelectionMenu.value = !!text
+  lastSelectionText.value = text
+}
+
+const handleSelectionCopy = () => {
+  const text = resolveSelectionText()
+  if (!text) {
+    return
+  }
+  window.api.copyText(text)
+}
+
+const handleSelectionTranslate = () => {
+  const text = resolveSelectionText()
+  if (!text) {
+    return
+  }
+
+  window.dispatchEvent(
+    new CustomEvent('context-menu-translate-text', {
+      detail: {
+        text,
+        x: contextMenuPosition.value.x,
+        y: contextMenuPosition.value.y
+      }
+    })
+  )
+}
+
+const handleSelectionAskAI = () => {
+  const text = resolveSelectionText()
+  if (!text) {
+    return
+  }
+  window.dispatchEvent(new CustomEvent('context-menu-ask-ai', { detail: text }))
 }
 
 const handleAction = (action: HandleActionType) => {
