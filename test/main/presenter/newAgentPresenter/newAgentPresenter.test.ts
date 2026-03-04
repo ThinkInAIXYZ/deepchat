@@ -108,10 +108,15 @@ function createMockSqlitePresenter() {
       updateContentAndStatus: vi.fn(),
       getBySession: vi.fn().mockReturnValue([]),
       getIdsBySession: vi.fn().mockReturnValue([]),
+      getIdsFromOrderSeq: vi.fn().mockReturnValue([]),
       get: vi.fn(),
       getMaxOrderSeq: vi.fn().mockReturnValue(0),
       deleteBySession: vi.fn(),
       recoverPendingMessages: vi.fn().mockReturnValue(0)
+    },
+    deepchatMessageTracesTable: {
+      listByMessageId: vi.fn().mockReturnValue([]),
+      countByMessageId: vi.fn().mockReturnValue(0)
     }
   } as any
 }
@@ -567,6 +572,55 @@ describe('NewAgentPresenter', () => {
     it('returns null for unknown session', async () => {
       sqlitePresenter.newSessionsTable.get.mockReturnValue(undefined)
       expect(await presenter.getSession('unknown')).toBeNull()
+    })
+  })
+
+  describe('message traces', () => {
+    it('lists message traces from sqlite table', async () => {
+      sqlitePresenter.deepchatMessageTracesTable.listByMessageId.mockReturnValue([
+        {
+          id: 't2',
+          message_id: 'm1',
+          session_id: 's1',
+          provider_id: 'openai',
+          model_id: 'gpt-4o',
+          request_seq: 2,
+          endpoint: 'https://api.openai.com/v1/responses',
+          headers_json: '{"authorization":"Bearer ****1234"}',
+          body_json: '{"stream":true}',
+          truncated: 1,
+          created_at: 1234
+        }
+      ])
+
+      const traces = await presenter.listMessageTraces('m1')
+      expect(traces).toEqual([
+        {
+          id: 't2',
+          messageId: 'm1',
+          sessionId: 's1',
+          providerId: 'openai',
+          modelId: 'gpt-4o',
+          requestSeq: 2,
+          endpoint: 'https://api.openai.com/v1/responses',
+          headersJson: '{"authorization":"Bearer ****1234"}',
+          bodyJson: '{"stream":true}',
+          truncated: true,
+          createdAt: 1234
+        }
+      ])
+    })
+
+    it('returns empty list for blank message id', async () => {
+      const traces = await presenter.listMessageTraces('  ')
+      expect(traces).toEqual([])
+      expect(sqlitePresenter.deepchatMessageTracesTable.listByMessageId).not.toHaveBeenCalled()
+    })
+
+    it('returns trace count by message id', async () => {
+      sqlitePresenter.deepchatMessageTracesTable.countByMessageId.mockReturnValue(3)
+      await expect(presenter.getMessageTraceCount('m1')).resolves.toBe(3)
+      expect(sqlitePresenter.deepchatMessageTracesTable.countByMessageId).toHaveBeenCalledWith('m1')
     })
   })
 

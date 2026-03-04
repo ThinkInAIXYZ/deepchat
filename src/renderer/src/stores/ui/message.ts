@@ -87,6 +87,7 @@ export const useMessageStore = defineStore('message', () => {
       status: 'sent',
       isContextEdge: 0,
       metadata: '{}',
+      traceCount: 0,
       createdAt: Date.now(),
       updatedAt: Date.now()
     }

@@ -16,6 +16,7 @@
         @trace="onMessageTrace"
         @edit-save="onMessageEditSave"
       />
+      <TraceDialog :message-id="traceMessageId" @close="traceMessageId = null" />
 
       <!-- Input area (sticky bottom, messages scroll under) -->
       <div class="sticky bottom-0 z-10 px-6 pt-3 pb-3 chat-capture-hide">
@@ -62,6 +63,7 @@ import ChatInputBox from '@/components/chat/ChatInputBox.vue'
 import ChatInputToolbar from '@/components/chat/ChatInputToolbar.vue'
 import ChatStatusBar from '@/components/chat/ChatStatusBar.vue'
 import ChatToolInteractionOverlay from '@/components/chat/ChatToolInteractionOverlay.vue'
+import TraceDialog from '@/components/trace/TraceDialog.vue'
 import { useSessionStore } from '@/stores/ui/session'
 import { useMessageStore } from '@/stores/ui/message'
 import { useModelStore } from '@/stores/modelStore'
@@ -102,6 +104,7 @@ const scrollContainer = ref<HTMLDivElement>()
 // Track whether user is near the bottom; if they scroll up, stop auto-following
 const isNearBottom = ref(true)
 const NEAR_BOTTOM_THRESHOLD = 80 // px
+const traceMessageId = ref<string | null>(null)
 
 function scrollToBottom() {
   const el = scrollContainer.value
@@ -245,7 +248,11 @@ const displayMessages = computed(() => {
   return msgs
 })
 
-const traceMessageIds = computed(() => [] as string[])
+const traceMessageIds = computed(() =>
+  messageStore.messages
+    .filter((msg) => msg.role === 'assistant' && (msg.traceCount ?? 0) > 0)
+    .map((msg) => msg.id)
+)
 
 // Auto-scroll when displayMessages changes (new message added, streaming updates)
 watch(
@@ -419,6 +426,6 @@ async function onMessageFork(messageId: string) {
 }
 
 function onMessageTrace(messageId: string) {
-  console.warn('[ChatPage] trace not implemented yet for new flow:', messageId)
+  traceMessageId.value = messageId
 }
 </script>

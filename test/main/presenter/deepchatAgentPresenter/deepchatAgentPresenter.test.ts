@@ -63,10 +63,19 @@ function createMockSqlitePresenter() {
       getBySession: vi.fn().mockReturnValue([]),
       getByStatus: vi.fn().mockReturnValue([]),
       getIdsBySession: vi.fn().mockReturnValue([]),
+      getIdsFromOrderSeq: vi.fn().mockReturnValue([]),
       get: vi.fn(),
       getMaxOrderSeq: vi.fn().mockReturnValue(0),
       deleteBySession: vi.fn(),
+      deleteFromOrderSeq: vi.fn(),
       recoverPendingMessages: vi.fn().mockReturnValue(0)
+    },
+    deepchatMessageTracesTable: {
+      insert: vi.fn().mockReturnValue(1),
+      listByMessageId: vi.fn().mockReturnValue([]),
+      countByMessageId: vi.fn().mockReturnValue(0),
+      deleteByMessageIds: vi.fn(),
+      deleteBySessionId: vi.fn()
     }
   } as any
 }
@@ -103,7 +112,8 @@ function createMockConfigPresenter() {
     supportsReasoningEffortCapability: vi.fn().mockReturnValue(true),
     getReasoningEffortDefault: vi.fn().mockReturnValue('medium'),
     supportsVerbosityCapability: vi.fn().mockReturnValue(true),
-    getVerbosityDefault: vi.fn().mockReturnValue('medium')
+    getVerbosityDefault: vi.fn().mockReturnValue('medium'),
+    getSetting: vi.fn().mockReturnValue(undefined)
   } as any
 }
 
@@ -451,6 +461,65 @@ describe('DeepChatAgentPresenter', () => {
 
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
       expect(callArgs.tools).toEqual([])
+    })
+
+    it('injects request trace context when trace debug is enabled', async () => {
+      configPresenter.getSetting.mockImplementation((key: string) =>
+        key === 'traceDebugEnabled' ? true : undefined
+      )
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.processMessage('s1', 'Hello')
+
+      const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      const traceContext = callArgs.modelConfig.requestTraceContext
+
+      expect(traceContext).toBeDefined()
+      expect(traceContext.enabled).toBe(true)
+
+      await traceContext.persist({
+        endpoint: 'https://api.openai.com/v1/responses',
+        headers: {
+          authorization: 'Bearer sk-very-secret-token'
+        },
+        body: {
+          api_key: 'secret-value-1234',
+          nested: {
+            token: 'deepchat-token-9999'
+          }
+        }
+      })
+
+      expect(sqlitePresenter.deepchatMessageTracesTable.insert).toHaveBeenCalledTimes(1)
+      const inserted = sqlitePresenter.deepchatMessageTracesTable.insert.mock.calls[0][0]
+      const headers = JSON.parse(inserted.headersJson) as Record<string, string>
+      const body = JSON.parse(inserted.bodyJson) as {
+        api_key: string
+        nested: { token: string }
+      }
+
+      expect(inserted.sessionId).toBe('s1')
+      expect(inserted.messageId).toBe('mock-msg-id')
+      expect(inserted.providerId).toBe('openai')
+      expect(inserted.modelId).toBe('gpt-4')
+      expect(inserted.endpoint).toBe('https://api.openai.com/v1/responses')
+      expect(inserted.truncated).toBe(false)
+      expect(headers.authorization).toMatch(/^Bearer \*+oken$/)
+      expect(body.api_key).toMatch(/^\*+1234$/)
+      expect(body.nested.token).toMatch(/^\*+9999$/)
+    })
+
+    it('does not inject request trace context when trace debug is disabled', async () => {
+      configPresenter.getSetting.mockImplementation((key: string) =>
+        key === 'traceDebugEnabled' ? false : undefined
+      )
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.processMessage('s1', 'Hello')
+
+      const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      expect(callArgs.modelConfig.requestTraceContext).toBeUndefined()
+      expect(sqlitePresenter.deepchatMessageTracesTable.insert).not.toHaveBeenCalled()
     })
   })
 

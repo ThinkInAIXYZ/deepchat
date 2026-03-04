@@ -111,8 +111,7 @@ export class AgentPresenter implements IAgentPresenter {
       getActiveConversation: (tabId) => this.sessionPresenter.getActiveConversation(tabId),
       getActiveConversationId: (tabId) => this.sessionPresenter.getActiveConversationId(tabId),
       createConversation: (title, settings, tabId) =>
-        this.sessionPresenter.createConversation(title, settings, tabId),
-      streamGenerationHandler: this.streamGenerationHandler
+        this.sessionPresenter.createConversation(title, settings, tabId)
     })
 
     // Legacy IPC surface: dynamic proxy for ISessionPresenter methods.
@@ -334,14 +333,6 @@ export class AgentPresenter implements IAgentPresenter {
     await this.handleQuestionResolution(messageId, toolCallId, {
       resolution: 'rejected'
     })
-  }
-
-  async getMessageRequestPreview(agentId: string, messageId?: string): Promise<unknown> {
-    if (!messageId) {
-      return null
-    }
-    await this.logResolvedIfEnabled(agentId)
-    return this.utilityHandler.getMessageRequestPreview(messageId)
   }
 
   private async handleQuestionResolution(

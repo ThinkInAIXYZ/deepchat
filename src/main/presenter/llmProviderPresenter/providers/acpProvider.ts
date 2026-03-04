@@ -340,7 +340,7 @@ export class AcpProvider extends BaseLLMProvider {
           this.emitSessionCommandsReady(conversationKey, agent.id, session.availableCommands ?? [])
 
           const promptBlocks = this.messageFormatter.format(messages, modelConfig)
-          void this.runPrompt(session, promptBlocks, queue)
+          void this.runPrompt(session, promptBlocks, queue, modelConfig)
         }
       }
     } catch (error) {
@@ -809,12 +809,23 @@ export class AcpProvider extends BaseLLMProvider {
   private async runPrompt(
     session: AcpSessionRecord,
     prompt: schema.ContentBlock[],
-    queue: EventQueue
+    queue: EventQueue,
+    modelConfig: ModelConfig
   ): Promise<void> {
     try {
-      const response = await session.connection.prompt({
+      const requestBody = {
         sessionId: session.sessionId,
         prompt
+      }
+      await this.emitRequestTrace(modelConfig, {
+        endpoint: 'acp://session/prompt',
+        headers: {},
+        body: requestBody
+      })
+
+      const response = await session.connection.prompt({
+        sessionId: requestBody.sessionId,
+        prompt: requestBody.prompt
       })
       console.log('[ACP] runPrompt: response:', response)
       queue.push(createStreamEvent.stop(this.mapStopReason(response.stopReason)))

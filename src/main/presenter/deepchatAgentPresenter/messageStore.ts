@@ -2,6 +2,7 @@ import { nanoid } from 'nanoid'
 import { SQLitePresenter } from '../sqlitePresenter'
 import type {
   ChatMessageRecord,
+  MessageTraceRecord,
   UserMessageContent,
   AssistantMessageBlock
 } from '@shared/types/agent-interface'
@@ -120,11 +121,55 @@ export class DeepChatMessageStore {
   }
 
   deleteBySession(sessionId: string): void {
+    this.sqlitePresenter.deepchatMessageTracesTable.deleteBySessionId(sessionId)
     this.sqlitePresenter.deepchatMessagesTable.deleteBySession(sessionId)
   }
 
   deleteFromOrderSeq(sessionId: string, fromOrderSeq: number): void {
+    const messageIds = this.sqlitePresenter.deepchatMessagesTable.getIdsFromOrderSeq(
+      sessionId,
+      fromOrderSeq
+    )
+    if (messageIds.length > 0) {
+      this.sqlitePresenter.deepchatMessageTracesTable.deleteByMessageIds(messageIds)
+    }
     this.sqlitePresenter.deepchatMessagesTable.deleteFromOrderSeq(sessionId, fromOrderSeq)
+  }
+
+  insertMessageTrace(row: {
+    id: string
+    messageId: string
+    sessionId: string
+    providerId: string
+    modelId: string
+    endpoint: string
+    headersJson: string
+    bodyJson: string
+    truncated: boolean
+    createdAt?: number
+  }): number {
+    return this.sqlitePresenter.deepchatMessageTracesTable.insert(row)
+  }
+
+  listMessageTraces(messageId: string): MessageTraceRecord[] {
+    const rows = this.sqlitePresenter.deepchatMessageTracesTable.listByMessageId(messageId)
+    return rows.map((row) => ({
+      id: row.id,
+      messageId: row.message_id,
+      sessionId: row.session_id,
+      providerId: row.provider_id,
+      modelId: row.model_id,
+      requestSeq: row.request_seq,
+      endpoint: row.endpoint,
+      headersJson: row.headers_json,
+      bodyJson: row.body_json,
+      truncated: row.truncated === 1,
+      createdAt: row.created_at
+    }))
+  }
+
+  getMessageTraceCount(messageId: string): number {
+    return this.sqlitePresenter.deepchatMessageTracesTable.countByMessageId(messageId)
   }
 
   cloneSentMessagesToSession(
@@ -199,6 +244,7 @@ export class DeepChatMessageStore {
       status: row.status,
       isContextEdge: row.is_context_edge,
       metadata: row.metadata,
+      traceCount: row.trace_count ?? 0,
       createdAt: row.created_at,
       updatedAt: row.updated_at
     }

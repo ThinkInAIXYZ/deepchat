@@ -13,15 +13,18 @@ import type { MCPToolCall, MCPToolResponse } from '@shared/types/core/mcp'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { IConfigPresenter, ILlmProviderPresenter, ModelConfig } from '@shared/presenter'
 import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
+import { nanoid } from 'nanoid'
 import type { SQLitePresenter } from '../sqlitePresenter'
 import { eventBus, SendTarget } from '@/eventbus'
 import { SESSION_EVENTS, STREAM_EVENTS } from '@/events'
 import { presenter } from '@/presenter'
 import { buildContext, buildResumeContext } from './contextBuilder'
+import { buildPersistableMessageTracePayload } from './messageTracePayload'
 import { DeepChatMessageStore } from './messageStore'
 import { processStream } from './process'
 import { DeepChatSessionStore } from './sessionStore'
 import type { PendingToolInteraction, ProcessResult } from './types'
+import type { ProviderRequestTracePayload } from '../llmProviderPresenter/requestTrace'
 
 type PendingInteractionEntry = {
   interaction: PendingToolInteraction
@@ -601,6 +604,29 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       reasoningEffort: generationSettings.reasoningEffort,
       verbosity: generationSettings.verbosity
     }
+
+    const traceEnabled = this.configPresenter.getSetting<boolean>('traceDebugEnabled') === true
+    if (traceEnabled) {
+      const traceAwareConfig = modelConfig as ModelConfig & {
+        requestTraceContext?: {
+          enabled: boolean
+          persist: (payload: ProviderRequestTracePayload) => Promise<void>
+        }
+      }
+      traceAwareConfig.requestTraceContext = {
+        enabled: true,
+        persist: async (payload: ProviderRequestTracePayload) => {
+          this.persistMessageTrace({
+            sessionId,
+            messageId,
+            providerId: state.providerId,
+            modelId: state.modelId,
+            payload
+          })
+        }
+      }
+    }
+
     const temperature = generationSettings.temperature
     const maxTokens = generationSettings.maxTokens
 
@@ -785,6 +811,29 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     const sanitized = await this.sanitizeGenerationSettings(providerId, modelId, persistedPatch)
     this.sessionGenerationSettings.set(sessionId, sanitized)
     return { ...sanitized }
+  }
+
+  private persistMessageTrace(args: {
+    sessionId: string
+    messageId: string
+    providerId: string
+    modelId: string
+    payload: ProviderRequestTracePayload
+  }): void {
+    const { sessionId, messageId, providerId, modelId, payload } = args
+    const persistable = buildPersistableMessageTracePayload(payload)
+
+    this.messageStore.insertMessageTrace({
+      id: nanoid(),
+      sessionId,
+      messageId,
+      providerId,
+      modelId,
+      endpoint: persistable.endpoint,
+      headersJson: persistable.headersJson,
+      bodyJson: persistable.bodyJson,
+      truncated: persistable.truncated
+    })
   }
 
   private mapPersistedGenerationPatch(

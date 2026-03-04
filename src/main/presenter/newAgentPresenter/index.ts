@@ -5,6 +5,7 @@ import type {
   SessionRecord,
   SessionWithState,
   ChatMessageRecord,
+  MessageTraceRecord,
   UserMessageContent,
   AssistantMessageBlock,
   PermissionMode,
@@ -25,6 +26,7 @@ export class NewAgentPresenter {
   private agentRegistry: AgentRegistry
   private sessionManager: NewSessionManager
   private messageManager: NewMessageManager
+  private sqlitePresenter: SQLitePresenter
   private llmProviderPresenter: ILlmProviderPresenter
   private configPresenter: IConfigPresenter
   private skillPresenter?: Pick<ISkillPresenter, 'setActiveSkills' | 'clearNewAgentSessionSkills'>
@@ -36,6 +38,7 @@ export class NewAgentPresenter {
     sqlitePresenter: SQLitePresenter,
     skillPresenter?: Pick<ISkillPresenter, 'setActiveSkills' | 'clearNewAgentSessionSkills'>
   ) {
+    this.sqlitePresenter = sqlitePresenter
     this.llmProviderPresenter = llmProviderPresenter
     this.configPresenter = configPresenter
     this.skillPresenter = skillPresenter
@@ -364,6 +367,30 @@ export class NewAgentPresenter {
     if (!session) throw new Error(`Session not found: ${sessionId}`)
     const agent = await this.resolveAgentImplementation(session.agentId)
     return agent.getMessages(sessionId)
+  }
+
+  async listMessageTraces(messageId: string): Promise<MessageTraceRecord[]> {
+    if (!messageId?.trim()) return []
+    return this.sqlitePresenter.deepchatMessageTracesTable
+      .listByMessageId(messageId)
+      .map((row) => ({
+        id: row.id,
+        messageId: row.message_id,
+        sessionId: row.session_id,
+        providerId: row.provider_id,
+        modelId: row.model_id,
+        requestSeq: row.request_seq,
+        endpoint: row.endpoint,
+        headersJson: row.headers_json,
+        bodyJson: row.body_json,
+        truncated: row.truncated === 1,
+        createdAt: row.created_at
+      }))
+  }
+
+  async getMessageTraceCount(messageId: string): Promise<number> {
+    if (!messageId?.trim()) return 0
+    return this.sqlitePresenter.deepchatMessageTracesTable.countByMessageId(messageId)
   }
 
   async getMessageIds(sessionId: string): Promise<string[]> {

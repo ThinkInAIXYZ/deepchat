@@ -70,6 +70,22 @@ export class GeminiProvider extends BaseLLMProvider {
     return modelId?.startsWith('models/') ? modelId : `models/${modelId}`
   }
 
+  private buildGeminiStreamEndpoint(modelId: string): string {
+    const baseUrl = (this.provider.baseUrl || 'https://generativelanguage.googleapis.com').replace(
+      /\/+$/,
+      ''
+    )
+    const normalizedModel = this.ensureGoogleModelName(modelId).replace(/^\/+/, '')
+    return `${baseUrl}/v1beta/${normalizedModel}:streamGenerateContent`
+  }
+
+  private buildGeminiTraceHeaders(): Record<string, string> {
+    return {
+      'Content-Type': 'application/json',
+      'x-goog-api-key': this.provider.apiKey || 'MISSING_API_KEY'
+    }
+  }
+
   // Implement abstract method fetchProviderModels from BaseLLMProvider
   protected async fetchProviderModels(): Promise<MODEL_META[]> {
     try {
@@ -864,13 +880,19 @@ export class GeminiProvider extends BaseLLMProvider {
       config: generateContentConfig
     }
 
-    console.log('requestParams', requestParams)
-
-    // 发送流式请求
-    const result = await this.genAI.models.generateContentStream({
+    const streamRequestParams = {
       ...requestParams,
       model: this.ensureGoogleModelName(requestParams.model as string)
+    }
+
+    await this.emitRequestTrace(modelConfig, {
+      endpoint: this.buildGeminiStreamEndpoint(modelId),
+      headers: this.buildGeminiTraceHeaders(),
+      body: streamRequestParams
     })
+
+    // 发送流式请求
+    const result = await this.genAI.models.generateContentStream(streamRequestParams)
 
     // 状态变量
     let buffer = ''

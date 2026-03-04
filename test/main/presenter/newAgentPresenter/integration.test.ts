@@ -180,6 +180,11 @@ function createMockSqlitePresenter() {
           .sort((a: any, b: any) => a.order_seq - b.order_seq)
           .map((m: any) => m.id)
       }),
+      getIdsFromOrderSeq: vi.fn((sessionId: string, fromOrderSeq: number) => {
+        return messagesList
+          .filter((m) => m.session_id === sessionId && m.order_seq >= fromOrderSeq)
+          .map((m: any) => m.id)
+      }),
       get: vi.fn((id: string) => messagesStore.get(id)),
       getMaxOrderSeq: vi.fn((sessionId: string) => {
         const msgs = messagesList.filter((m) => m.session_id === sessionId)
@@ -202,6 +207,13 @@ function createMockSqlitePresenter() {
         }
         return count
       })
+    },
+    deepchatMessageTracesTable: {
+      insert: vi.fn().mockReturnValue(1),
+      listByMessageId: vi.fn().mockReturnValue([]),
+      countByMessageId: vi.fn().mockReturnValue(0),
+      deleteByMessageIds: vi.fn(),
+      deleteBySessionId: vi.fn()
     },
     // Expose internal stores for assertion
     _sessionsStore: sessionsStore,

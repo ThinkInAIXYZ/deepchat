@@ -327,7 +327,7 @@ const emit = defineEmits<{
 
 const hasTokensPerSecond = computed(() => props.usage.tokens_per_second > 0)
 const hasVariants = computed(() => (props.totalVariants || 0) > 1)
-const allowTrace = computed(() => props.showTrace ?? true)
+const allowTrace = computed(() => props.showTrace ?? false)
 </script>
 
 <style scoped>

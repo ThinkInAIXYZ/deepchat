@@ -201,7 +201,7 @@ const useLegacyActions = computed(() => props.useLegacyActions !== false)
 const resolvedIsInGeneratingThread = computed(
   () => props.isInGeneratingThread ?? chatStore.generatingThreadIds.has(currentThreadId.value)
 )
-const showTrace = computed(() => props.showTrace ?? true)
+const showTrace = computed(() => props.showTrace ?? false)
 
 // currentVariantIndex: 0 = 主消息, 1-N = 对应的变体索引
 const currentVariantIndex = computed(() => {

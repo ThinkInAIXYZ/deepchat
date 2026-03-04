@@ -18,6 +18,7 @@ import { NewSessionsTable } from './tables/newSessions'
 import { NewProjectsTable } from './tables/newProjects'
 import { DeepChatSessionsTable } from './tables/deepchatSessions'
 import { DeepChatMessagesTable } from './tables/deepchatMessages'
+import { DeepChatMessageTracesTable } from './tables/deepchatMessageTraces'
 
 /**
  * 导入模式枚举
@@ -38,6 +39,7 @@ export class SQLitePresenter implements ISQLitePresenter {
   public newProjectsTable!: NewProjectsTable
   public deepchatSessionsTable!: DeepChatSessionsTable
   public deepchatMessagesTable!: DeepChatMessagesTable
+  public deepchatMessageTracesTable!: DeepChatMessageTracesTable
   private currentVersion: number = 0
   private dbPath: string
   private password?: string
@@ -153,6 +155,7 @@ export class SQLitePresenter implements ISQLitePresenter {
     this.newProjectsTable = new NewProjectsTable(this.db)
     this.deepchatSessionsTable = new DeepChatSessionsTable(this.db)
     this.deepchatMessagesTable = new DeepChatMessagesTable(this.db)
+    this.deepchatMessageTracesTable = new DeepChatMessageTracesTable(this.db)
 
     // 创建所有表
     this.conversationsTable.createTable()
@@ -164,6 +167,7 @@ export class SQLitePresenter implements ISQLitePresenter {
     this.newProjectsTable.createTable()
     this.deepchatSessionsTable.createTable()
     this.deepchatMessagesTable.createTable()
+    this.deepchatMessageTracesTable.createTable()
   }
 
   private initVersionTable() {
@@ -193,7 +197,8 @@ export class SQLitePresenter implements ISQLitePresenter {
       this.newSessionsTable,
       this.newProjectsTable,
       this.deepchatSessionsTable,
-      this.deepchatMessagesTable
+      this.deepchatMessagesTable,
+      this.deepchatMessageTracesTable
     ]
 
     // 获取最新的迁移版本

@@ -198,8 +198,23 @@ export interface ChatMessageRecord {
   status: 'pending' | 'sent' | 'error'
   isContextEdge: number
   metadata: string // JSON string: MessageMetadata
+  traceCount?: number
   createdAt: number
   updatedAt: number
+}
+
+export interface MessageTraceRecord {
+  id: string
+  messageId: string
+  sessionId: string
+  providerId: string
+  modelId: string
+  requestSeq: number
+  endpoint: string
+  headersJson: string
+  bodyJson: string
+  truncated: boolean
+  createdAt: number
 }
 
 // ---- Session / Agent Types ----

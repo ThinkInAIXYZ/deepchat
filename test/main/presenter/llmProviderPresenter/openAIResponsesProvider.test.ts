@@ -274,4 +274,69 @@ describe('OpenAIResponsesProvider tool call id mapping', () => {
     expect(endEvent?.tool_call_arguments_complete).toBe('{"topic":"responses"}')
     expect(stopEvent?.stop_reason).toBe('tool_use')
   })
+
+  it('emits request trace with final endpoint, headers and body', async () => {
+    const persist = vi.fn()
+    const traceAwareConfig = {
+      ...modelConfig,
+      requestTraceContext: {
+        enabled: true,
+        persist
+      }
+    } as ModelConfig & {
+      requestTraceContext: {
+        enabled: boolean
+        persist: (payload: {
+          endpoint: string
+          headers: Record<string, string>
+          body: unknown
+        }) => void
+      }
+    }
+
+    mockResponsesCreate.mockResolvedValue(
+      createAsyncStream([
+        {
+          type: 'response.completed',
+          response: {
+            usage: {
+              input_tokens: 1,
+              output_tokens: 1,
+              total_tokens: 2
+            }
+          }
+        }
+      ])
+    )
+
+    const provider = new OpenAIResponsesProvider(mockProvider, mockConfigPresenter)
+    ;(provider as any).isInitialized = true
+
+    for await (const _event of provider.coreStream(
+      messages,
+      'gpt-4o',
+      traceAwareConfig,
+      0.7,
+      512,
+      []
+    )) {
+      // consume stream
+    }
+
+    expect(persist).toHaveBeenCalledTimes(1)
+    const payload = persist.mock.calls[0][0] as {
+      endpoint: string
+      headers: Record<string, string>
+      body: Record<string, unknown>
+    }
+
+    expect(payload.endpoint).toContain('/responses')
+    expect(payload.headers).toHaveProperty('Authorization', 'Bearer test-key')
+    expect(payload.body).toMatchObject({
+      model: 'gpt-4o',
+      temperature: 0.7,
+      max_output_tokens: 512,
+      stream: true
+    })
+  })
 })

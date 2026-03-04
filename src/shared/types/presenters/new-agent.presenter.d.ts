@@ -3,6 +3,7 @@ import type {
   CreateSessionInput,
   SessionWithState,
   ChatMessageRecord,
+  MessageTraceRecord,
   PermissionMode,
   SessionGenerationSettings,
   ToolInteractionResponse,
@@ -28,6 +29,8 @@ export interface INewAgentPresenter {
   getSessionList(filters?: { agentId?: string; projectDir?: string }): Promise<SessionWithState[]>
   getSession(sessionId: string): Promise<SessionWithState | null>
   getMessages(sessionId: string): Promise<ChatMessageRecord[]>
+  listMessageTraces(messageId: string): Promise<MessageTraceRecord[]>
+  getMessageTraceCount(messageId: string): Promise<number>
   getMessageIds(sessionId: string): Promise<string[]>
   getMessage(messageId: string): Promise<ChatMessageRecord | null>
   activateSession(webContentsId: number, sessionId: string): Promise<void>

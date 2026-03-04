@@ -13,10 +13,19 @@ function createMockSqlitePresenter() {
       getBySession: vi.fn().mockReturnValue([]),
       getByStatus: vi.fn().mockReturnValue([]),
       getIdsBySession: vi.fn().mockReturnValue([]),
+      getIdsFromOrderSeq: vi.fn().mockReturnValue([]),
       get: vi.fn(),
       getMaxOrderSeq: vi.fn().mockReturnValue(0),
       deleteBySession: vi.fn(),
+      deleteFromOrderSeq: vi.fn(),
       recoverPendingMessages: vi.fn().mockReturnValue(0)
+    },
+    deepchatMessageTracesTable: {
+      insert: vi.fn().mockReturnValue(1),
+      listByMessageId: vi.fn().mockReturnValue([]),
+      countByMessageId: vi.fn().mockReturnValue(0),
+      deleteByMessageIds: vi.fn(),
+      deleteBySessionId: vi.fn()
     }
   } as any
 }
@@ -136,6 +145,7 @@ describe('DeepChatMessageStore', () => {
           status: 'sent',
           is_context_edge: 0,
           metadata: '{}',
+          trace_count: 2,
           created_at: 1000,
           updated_at: 1000
         }
@@ -152,6 +162,7 @@ describe('DeepChatMessageStore', () => {
         status: 'sent',
         isContextEdge: 0,
         metadata: '{}',
+        traceCount: 2,
         createdAt: 1000,
         updatedAt: 1000
       })
@@ -206,7 +217,104 @@ describe('DeepChatMessageStore', () => {
   describe('deleteBySession', () => {
     it('delegates to table', () => {
       store.deleteBySession('s1')
+      expect(sqlitePresenter.deepchatMessageTracesTable.deleteBySessionId).toHaveBeenCalledWith(
+        's1'
+      )
       expect(sqlitePresenter.deepchatMessagesTable.deleteBySession).toHaveBeenCalledWith('s1')
+    })
+  })
+
+  describe('deleteFromOrderSeq', () => {
+    it('deletes traces for affected messages before deleting messages', () => {
+      sqlitePresenter.deepchatMessagesTable.getIdsFromOrderSeq.mockReturnValue(['m2', 'm3'])
+
+      store.deleteFromOrderSeq('s1', 2)
+
+      expect(sqlitePresenter.deepchatMessagesTable.getIdsFromOrderSeq).toHaveBeenCalledWith('s1', 2)
+      expect(sqlitePresenter.deepchatMessageTracesTable.deleteByMessageIds).toHaveBeenCalledWith([
+        'm2',
+        'm3'
+      ])
+      expect(sqlitePresenter.deepchatMessagesTable.deleteFromOrderSeq).toHaveBeenCalledWith('s1', 2)
+    })
+
+    it('skips trace deletion when no affected messages', () => {
+      sqlitePresenter.deepchatMessagesTable.getIdsFromOrderSeq.mockReturnValue([])
+
+      store.deleteFromOrderSeq('s1', 2)
+
+      expect(sqlitePresenter.deepchatMessageTracesTable.deleteByMessageIds).not.toHaveBeenCalled()
+      expect(sqlitePresenter.deepchatMessagesTable.deleteFromOrderSeq).toHaveBeenCalledWith('s1', 2)
+    })
+  })
+
+  describe('trace operations', () => {
+    it('inserts trace and returns request sequence', () => {
+      const seq = store.insertMessageTrace({
+        id: 't1',
+        messageId: 'm1',
+        sessionId: 's1',
+        providerId: 'openai',
+        modelId: 'gpt-4o',
+        endpoint: 'https://api.openai.com/v1/responses',
+        headersJson: '{"authorization":"Bearer ****1234"}',
+        bodyJson: '{"model":"gpt-4o"}',
+        truncated: false
+      })
+
+      expect(seq).toBe(1)
+      expect(sqlitePresenter.deepchatMessageTracesTable.insert).toHaveBeenCalledWith({
+        id: 't1',
+        messageId: 'm1',
+        sessionId: 's1',
+        providerId: 'openai',
+        modelId: 'gpt-4o',
+        endpoint: 'https://api.openai.com/v1/responses',
+        headersJson: '{"authorization":"Bearer ****1234"}',
+        bodyJson: '{"model":"gpt-4o"}',
+        truncated: false
+      })
+    })
+
+    it('lists traces mapped to MessageTraceRecord', () => {
+      sqlitePresenter.deepchatMessageTracesTable.listByMessageId.mockReturnValue([
+        {
+          id: 't2',
+          message_id: 'm1',
+          session_id: 's1',
+          provider_id: 'openai',
+          model_id: 'gpt-4o',
+          request_seq: 2,
+          endpoint: 'https://api.openai.com/v1/responses',
+          headers_json: '{"authorization":"Bearer ****1234"}',
+          body_json: '{"stream":true}',
+          truncated: 1,
+          created_at: 1234
+        }
+      ])
+
+      const traces = store.listMessageTraces('m1')
+      expect(traces).toEqual([
+        {
+          id: 't2',
+          messageId: 'm1',
+          sessionId: 's1',
+          providerId: 'openai',
+          modelId: 'gpt-4o',
+          requestSeq: 2,
+          endpoint: 'https://api.openai.com/v1/responses',
+          headersJson: '{"authorization":"Bearer ****1234"}',
+          bodyJson: '{"stream":true}',
+          truncated: true,
+          createdAt: 1234
+        }
+      ])
+    })
+
+    it('returns trace count by message id', () => {
+      sqlitePresenter.deepchatMessageTracesTable.countByMessageId.mockReturnValue(3)
+      expect(store.getMessageTraceCount('m1')).toBe(3)
+      expect(sqlitePresenter.deepchatMessageTracesTable.countByMessageId).toHaveBeenCalledWith('m1')
     })
   })
 

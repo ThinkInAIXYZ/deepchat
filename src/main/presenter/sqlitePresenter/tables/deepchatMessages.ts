@@ -12,6 +12,7 @@ export interface DeepChatMessageRow {
   metadata: string
   created_at: number
   updated_at: number
+  trace_count?: number
 }
 
 export class DeepChatMessagesTable extends BaseTable {
@@ -122,7 +123,20 @@ export class DeepChatMessagesTable extends BaseTable {
 
   getBySession(sessionId: string): DeepChatMessageRow[] {
     return this.db
-      .prepare('SELECT * FROM deepchat_messages WHERE session_id = ? ORDER BY order_seq')
+      .prepare(
+        `SELECT
+           m.*,
+           COALESCE(t.trace_count, 0) AS trace_count
+         FROM deepchat_messages m
+         LEFT JOIN (
+           SELECT message_id, COUNT(*) AS trace_count
+           FROM deepchat_message_traces
+           GROUP BY message_id
+         ) t
+           ON t.message_id = m.id
+         WHERE m.session_id = ?
+         ORDER BY m.order_seq`
+      )
       .all(sessionId) as DeepChatMessageRow[]
   }
 
@@ -148,9 +162,19 @@ export class DeepChatMessagesTable extends BaseTable {
   }
 
   get(messageId: string): DeepChatMessageRow | undefined {
-    return this.db.prepare('SELECT * FROM deepchat_messages WHERE id = ?').get(messageId) as
-      | DeepChatMessageRow
-      | undefined
+    return this.db
+      .prepare(
+        `SELECT
+           m.*,
+           COALESCE((
+             SELECT COUNT(*)
+             FROM deepchat_message_traces t
+             WHERE t.message_id = m.id
+           ), 0) AS trace_count
+         FROM deepchat_messages m
+         WHERE m.id = ?`
+      )
+      .get(messageId) as DeepChatMessageRow | undefined
   }
 
   getMaxOrderSeq(sessionId: string): number {
@@ -179,6 +203,13 @@ export class DeepChatMessagesTable extends BaseTable {
     this.db
       .prepare('DELETE FROM deepchat_messages WHERE session_id = ? AND order_seq >= ?')
       .run(sessionId, fromOrderSeq)
+  }
+
+  getIdsFromOrderSeq(sessionId: string, fromOrderSeq: number): string[] {
+    const rows = this.db
+      .prepare('SELECT id FROM deepchat_messages WHERE session_id = ? AND order_seq >= ?')
+      .all(sessionId, fromOrderSeq) as Array<{ id: string }>
+    return rows.map((row) => row.id)
   }
 
   recoverPendingMessages(): number {

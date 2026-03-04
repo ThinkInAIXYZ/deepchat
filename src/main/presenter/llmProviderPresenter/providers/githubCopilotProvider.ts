@@ -369,7 +369,7 @@ export class GithubCopilotProvider extends BaseLLMProvider {
   async *coreStream(
     messages: ChatMessage[],
     modelId: string,
-    _modelConfig: ModelConfig,
+    modelConfig: ModelConfig,
     temperature: number,
     _maxTokens: number,
     tools: MCPToolDefinition[]
@@ -413,6 +413,12 @@ export class GithubCopilotProvider extends BaseLLMProvider {
         headers,
         body: JSON.stringify(requestBody)
       }
+
+      await this.emitRequestTrace(modelConfig, {
+        endpoint: `${this.baseApiUrl}/chat/completions`,
+        headers,
+        body: requestBody
+      })
 
       // 添加代理支持
       const proxyUrl = proxyConfig.getProxyUrl()
