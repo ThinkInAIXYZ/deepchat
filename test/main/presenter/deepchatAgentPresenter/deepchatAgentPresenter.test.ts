@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { DeepChatAgentPresenter } from '@/presenter/deepchatAgentPresenter/index'
 
 vi.mock('nanoid', () => ({ nanoid: vi.fn(() => 'mock-msg-id') }))
@@ -25,6 +25,11 @@ vi.mock('@/events', () => ({
 
 vi.mock('@/presenter', () => ({
   presenter: {
+    skillPresenter: {
+      getMetadataList: vi.fn().mockResolvedValue([]),
+      getActiveSkills: vi.fn().mockResolvedValue([]),
+      loadSkillContent: vi.fn().mockResolvedValue(null)
+    },
     commandPermissionService: {
       extractCommandSignature: vi.fn().mockReturnValue('mock-signature'),
       approve: vi.fn()
@@ -37,6 +42,18 @@ vi.mock('@/presenter', () => ({
   }
 }))
 
+vi.mock('@/presenter/agentPresenter/message/systemEnvPromptBuilder', () => ({
+  buildRuntimeCapabilitiesPrompt: vi.fn(() => 'RUNTIME_CAPABILITIES'),
+  buildSystemEnvPrompt: vi.fn(
+    async (options?: { providerId?: string; modelId?: string; now?: Date }) => {
+      const providerId = options?.providerId || 'unknown-provider'
+      const modelId = options?.modelId || 'unknown-model'
+      const dateText = (options?.now ?? new Date()).toDateString()
+      return ['ENV_BLOCK', `MODEL:${providerId}/${modelId}`, `DATE:${dateText}`].join('\n')
+    }
+  )
+}))
+
 // Mock processStream to avoid timer/async complexity
 vi.mock('@/presenter/deepchatAgentPresenter/process', () => ({
   processStream: vi.fn().mockResolvedValue({ status: 'completed' })
@@ -44,6 +61,8 @@ vi.mock('@/presenter/deepchatAgentPresenter/process', () => ({
 
 import { eventBus } from '@/eventbus'
 import { processStream } from '@/presenter/deepchatAgentPresenter/process'
+import { presenter } from '@/presenter'
+import { buildSystemEnvPrompt } from '@/presenter/agentPresenter/message/systemEnvPromptBuilder'
 
 function createMockSqlitePresenter() {
   return {
@@ -119,6 +138,7 @@ function createMockConfigPresenter() {
     getReasoningEffortDefault: vi.fn().mockReturnValue('medium'),
     supportsVerbosityCapability: vi.fn().mockReturnValue(true),
     getVerbosityDefault: vi.fn().mockReturnValue('medium'),
+    getSkillsEnabled: vi.fn().mockReturnValue(true),
     getSetting: vi.fn().mockReturnValue(undefined)
   } as any
 }
@@ -143,11 +163,23 @@ describe('DeepChatAgentPresenter', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    const skillPresenter = presenter.skillPresenter as {
+      getMetadataList: ReturnType<typeof vi.fn>
+      getActiveSkills: ReturnType<typeof vi.fn>
+      loadSkillContent: ReturnType<typeof vi.fn>
+    }
+    skillPresenter.getMetadataList.mockResolvedValue([])
+    skillPresenter.getActiveSkills.mockResolvedValue([])
+    skillPresenter.loadSkillContent.mockResolvedValue(null)
     sqlitePresenter = createMockSqlitePresenter()
     llmProvider = createMockLlmProviderPresenter()
     configPresenter = createMockConfigPresenter()
     toolPresenter = createMockToolPresenter()
     agent = new DeepChatAgentPresenter(llmProvider, configPresenter, sqlitePresenter, toolPresenter)
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   describe('constructor (crash recovery)', () => {
@@ -347,22 +379,27 @@ describe('DeepChatAgentPresenter', () => {
 
       // processStream should receive messages with history
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
-      expect(callArgs.messages).toEqual([
-        { role: 'system', content: 'You are a helpful assistant.' },
+      expect(callArgs.messages[0].role).toBe('system')
+      expect(callArgs.messages[0].content).toContain('RUNTIME_CAPABILITIES')
+      expect(callArgs.messages[0].content).toContain('You are a helpful assistant.')
+      expect(callArgs.messages.slice(1)).toEqual([
         { role: 'user', content: 'First message' },
         { role: 'assistant', content: 'First reply' },
         { role: 'user', content: 'Second message' }
       ])
     })
 
-    it('omits system prompt when empty', async () => {
+    it('keeps runtime and env sections when user system prompt is empty', async () => {
       configPresenter.getDefaultSystemPrompt.mockResolvedValue('')
 
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       await agent.processMessage('s1', 'Hello')
 
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
-      expect(callArgs.messages).toEqual([{ role: 'user', content: 'Hello' }])
+      expect(callArgs.messages[0].role).toBe('system')
+      expect(callArgs.messages[0].content).toContain('RUNTIME_CAPABILITIES')
+      expect(callArgs.messages[0].content).toContain('ENV_BLOCK')
+      expect(callArgs.messages[1]).toEqual({ role: 'user', content: 'Hello' })
     })
 
     it('uses session generation settings for context and model config', async () => {
@@ -382,7 +419,9 @@ describe('DeepChatAgentPresenter', () => {
       await agent.processMessage('s1', 'Hello')
 
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
-      expect(callArgs.messages[0]).toEqual({ role: 'system', content: 'Custom system prompt' })
+      expect(callArgs.messages[0].role).toBe('system')
+      expect(callArgs.messages[0].content).toContain('Custom system prompt')
+      expect(callArgs.messages[0].content.trim().endsWith('Custom system prompt')).toBe(true)
       expect(callArgs.temperature).toBe(1.3)
       expect(callArgs.maxTokens).toBe(2048)
       expect(callArgs.modelConfig.contextLength).toBe(8192)
@@ -390,6 +429,126 @@ describe('DeepChatAgentPresenter', () => {
       expect(callArgs.modelConfig.thinkingBudget).toBe(1024)
       expect(callArgs.modelConfig.reasoningEffort).toBe('low')
       expect(callArgs.modelConfig.verbosity).toBe('high')
+    })
+
+    it('reuses cached system prompt within the same day', async () => {
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date('2026-03-05T08:00:00.000Z'))
+      const envBuilder = buildSystemEnvPrompt as ReturnType<typeof vi.fn>
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.processMessage('s1', 'First message')
+      await agent.processMessage('s1', 'Second message')
+
+      expect(envBuilder).toHaveBeenCalledTimes(1)
+
+      const firstCallArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      const secondCallArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[1][0]
+      expect(firstCallArgs.messages[0].content).toBe(secondCallArgs.messages[0].content)
+    })
+
+    it('invalidates cached prompt after system prompt update', async () => {
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date('2026-03-05T08:00:00.000Z'))
+      const envBuilder = buildSystemEnvPrompt as ReturnType<typeof vi.fn>
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.processMessage('s1', 'Before update')
+
+      await agent.updateGenerationSettings('s1', { systemPrompt: 'Updated user prompt' })
+      await agent.processMessage('s1', 'After update')
+
+      expect(envBuilder).toHaveBeenCalledTimes(2)
+
+      const secondCallArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[1][0]
+      expect(secondCallArgs.messages[0].content).toContain('Updated user prompt')
+    })
+
+    it('invalidates cached prompt across natural days', async () => {
+      vi.useFakeTimers()
+      const envBuilder = buildSystemEnvPrompt as ReturnType<typeof vi.fn>
+
+      vi.setSystemTime(new Date('2026-03-05T08:00:00.000Z'))
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.processMessage('s1', 'Day one')
+
+      vi.setSystemTime(new Date('2026-03-06T08:00:00.000Z'))
+      await agent.processMessage('s1', 'Day two')
+
+      expect(envBuilder).toHaveBeenCalledTimes(2)
+
+      const firstCallArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      const secondCallArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[1][0]
+      expect(firstCallArgs.messages[0].content).toContain('DATE:Thu Mar 05 2026')
+      expect(secondCallArgs.messages[0].content).toContain('DATE:Fri Mar 06 2026')
+    })
+
+    it('invalidates cached prompt when active skills change', async () => {
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date('2026-03-05T08:00:00.000Z'))
+      const envBuilder = buildSystemEnvPrompt as ReturnType<typeof vi.fn>
+      const skillPresenter = presenter.skillPresenter as {
+        getMetadataList: ReturnType<typeof vi.fn>
+        getActiveSkills: ReturnType<typeof vi.fn>
+        loadSkillContent: ReturnType<typeof vi.fn>
+      }
+
+      skillPresenter.getMetadataList.mockResolvedValue([{ name: 'skill-a' }])
+      skillPresenter.getActiveSkills.mockResolvedValueOnce([]).mockResolvedValueOnce(['skill-a'])
+      skillPresenter.loadSkillContent.mockResolvedValue({ content: 'Skill A instructions' })
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.processMessage('s1', 'Before skill activation')
+      await agent.processMessage('s1', 'After skill activation')
+
+      expect(envBuilder).toHaveBeenCalledTimes(2)
+
+      const secondCallArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[1][0]
+      expect(secondCallArgs.messages[0].content).toContain('## Activated Skills')
+      expect(secondCallArgs.messages[0].content).toContain('### skill-a')
+      expect(secondCallArgs.messages[0].content).toContain('Skill A instructions')
+    })
+
+    it('keeps system prompt section order: runtime -> skills -> env -> tooling -> user prompt', async () => {
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date('2026-03-05T08:00:00.000Z'))
+      const skillPresenter = presenter.skillPresenter as {
+        getMetadataList: ReturnType<typeof vi.fn>
+        getActiveSkills: ReturnType<typeof vi.fn>
+        loadSkillContent: ReturnType<typeof vi.fn>
+      }
+      toolPresenter.buildToolSystemPrompt.mockReturnValue('TOOLING_BLOCK')
+      skillPresenter.getMetadataList.mockResolvedValue([{ name: 'skill-a', description: 'desc-a' }])
+      skillPresenter.getActiveSkills.mockResolvedValue(['skill-a'])
+      skillPresenter.loadSkillContent.mockResolvedValue({ content: 'Skill A body' })
+
+      await agent.initSession('s1', {
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        generationSettings: { systemPrompt: 'USER_CUSTOM_PROMPT' }
+      })
+      await agent.processMessage('s1', 'Check order')
+
+      const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      const systemPrompt = String(callArgs.messages[0].content)
+
+      const runtimeIndex = systemPrompt.indexOf('RUNTIME_CAPABILITIES')
+      const skillsIndex = systemPrompt.indexOf('## Skills')
+      const activeSkillsIndex = systemPrompt.indexOf('## Activated Skills')
+      const envIndex = systemPrompt.indexOf('ENV_BLOCK')
+      const toolingIndex = systemPrompt.indexOf('TOOLING_BLOCK')
+      const userPromptIndex = systemPrompt.indexOf('USER_CUSTOM_PROMPT')
+
+      expect(runtimeIndex).toBeGreaterThanOrEqual(0)
+      expect(skillsIndex).toBeGreaterThan(runtimeIndex)
+      expect(activeSkillsIndex).toBeGreaterThan(skillsIndex)
+      expect(envIndex).toBeGreaterThan(activeSkillsIndex)
+      expect(toolingIndex).toBeGreaterThan(envIndex)
+      expect(userPromptIndex).toBeGreaterThan(toolingIndex)
+      expect(systemPrompt).toContain('- skill-a')
+      expect(systemPrompt).toContain('`skill_list`')
+      expect(systemPrompt).toContain('`skill_control`')
+      expect(systemPrompt).not.toContain('desc-a')
     })
 
     it('transitions status: idle → generating → idle', async () => {

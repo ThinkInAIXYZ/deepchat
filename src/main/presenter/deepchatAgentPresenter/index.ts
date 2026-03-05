@@ -20,6 +20,10 @@ import type { SQLitePresenter } from '../sqlitePresenter'
 import { eventBus, SendTarget } from '@/eventbus'
 import { SESSION_EVENTS, STREAM_EVENTS } from '@/events'
 import { presenter } from '@/presenter'
+import {
+  buildRuntimeCapabilitiesPrompt,
+  buildSystemEnvPrompt
+} from '../agentPresenter/message/systemEnvPromptBuilder'
 import { buildContext, buildResumeContext } from './contextBuilder'
 import { buildPersistableMessageTracePayload } from './messageTracePayload'
 import { DeepChatMessageStore } from './messageStore'
@@ -52,6 +56,12 @@ type PersistedSessionGenerationRow = {
   verbosity: SessionGenerationSettings['verbosity'] | null
 }
 
+type SystemPromptCacheEntry = {
+  prompt: string
+  dayKey: string
+  fingerprint: string
+}
+
 const TEMPERATURE_MIN = 0
 const TEMPERATURE_MAX = 2
 const CONTEXT_LENGTH_MIN = 2048
@@ -73,6 +83,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
   private readonly sessionGenerationSettings: Map<string, SessionGenerationSettings> = new Map()
   private readonly abortControllers: Map<string, AbortController> = new Map()
   private readonly sessionProjectDirs: Map<string, string | null> = new Map()
+  private readonly systemPromptCache: Map<string, SystemPromptCacheEntry> = new Map()
   private readonly interactionLocks: Set<string> = new Set()
   private readonly resumingMessages: Set<string> = new Set()
 
@@ -130,6 +141,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       modelId: config.modelId,
       permissionMode
     })
+    this.invalidateSystemPromptCache(sessionId)
   }
 
   async destroySession(sessionId: string): Promise<void> {
@@ -144,6 +156,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     this.runtimeState.delete(sessionId)
     this.sessionGenerationSettings.delete(sessionId)
     this.sessionProjectDirs.delete(sessionId)
+    this.systemPromptCache.delete(sessionId)
   }
 
   async getSessionState(sessionId: string): Promise<DeepChatSessionState | null> {
@@ -405,6 +418,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     this.sessionStore.updateSessionModel(sessionId, nextProviderId, nextModelId)
     this.sessionStore.updateGenerationSettings(sessionId, sanitized)
     this.sessionGenerationSettings.set(sessionId, sanitized)
+    this.invalidateSystemPromptCache(sessionId)
   }
 
   async getPermissionMode(sessionId: string): Promise<PermissionMode> {
@@ -445,6 +459,9 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     const sanitized = await this.sanitizeGenerationSettings(providerId, modelId, settings, current)
     this.sessionGenerationSettings.set(sessionId, sanitized)
     this.sessionStore.updateGenerationSettings(sessionId, sanitized)
+    if (Object.prototype.hasOwnProperty.call(settings, 'systemPrompt')) {
+      this.invalidateSystemPromptCache(sessionId)
+    }
     return sanitized
   }
 
@@ -766,45 +783,213 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     basePrompt: string
   ): Promise<string> {
     const normalizedBase = basePrompt?.trim() ?? ''
+    const state = this.runtimeState.get(sessionId)
+    const providerId = state?.providerId?.trim() || 'unknown-provider'
+    const modelId = state?.modelId?.trim() || 'unknown-model'
+    const workdir = this.resolveProjectDir(sessionId)
+    const now = new Date()
+    const dayKey = this.buildLocalDayKey(now)
+
+    const skillsEnabled = this.configPresenter.getSkillsEnabled()
     const skillPresenter = presenter?.skillPresenter
-    if (!skillPresenter?.getActiveSkills || !skillPresenter?.loadSkillContent) {
-      return normalizedBase
-    }
+    const availableSkillNames: string[] = []
+    const activeSkillNames: string[] = []
 
-    try {
-      const activeSkills = await skillPresenter.getActiveSkills(sessionId)
-      if (!activeSkills.length) {
-        return normalizedBase
-      }
-
-      const skillSections: string[] = []
-      for (const skillName of activeSkills) {
-        const skill = await skillPresenter.loadSkillContent(skillName)
-        const content = skill?.content?.trim()
-        if (content) {
-          skillSections.push(`## ${skillName}\n${content}`)
+    if (skillsEnabled && skillPresenter) {
+      if (skillPresenter.getMetadataList) {
+        try {
+          const metadataList = await skillPresenter.getMetadataList()
+          for (const metadata of metadataList) {
+            const skillName = metadata?.name?.trim()
+            if (skillName) {
+              availableSkillNames.push(skillName)
+            }
+          }
+        } catch (error) {
+          console.warn(
+            `[DeepChatAgent] Failed to load skills metadata for session ${sessionId}:`,
+            error
+          )
         }
       }
 
-      if (!skillSections.length) {
-        return normalizedBase
+      if (skillPresenter.getActiveSkills) {
+        try {
+          const activeSkills = await skillPresenter.getActiveSkills(sessionId)
+          for (const skillName of activeSkills) {
+            const normalizedName = skillName?.trim()
+            if (normalizedName) {
+              activeSkillNames.push(normalizedName)
+            }
+          }
+        } catch (error) {
+          console.warn(
+            `[DeepChatAgent] Failed to load active skills for session ${sessionId}:`,
+            error
+          )
+        }
       }
-
-      const skillsPrompt = [
-        '## Activated Skills',
-        'Follow these skill instructions during this conversation.',
-        '',
-        skillSections.join('\n\n')
-      ].join('\n')
-
-      return normalizedBase ? `${normalizedBase}\n\n${skillsPrompt}` : skillsPrompt
-    } catch (error) {
-      console.warn(
-        `[DeepChatAgent] Failed to append skill prompts for session ${sessionId}:`,
-        error
-      )
-      return normalizedBase
     }
+
+    const normalizedAvailableSkills = this.normalizeSkillNames(availableSkillNames)
+    const normalizedActiveSkills = this.normalizeSkillNames(activeSkillNames)
+    const fingerprint = this.buildSystemPromptFingerprint({
+      providerId,
+      modelId,
+      workdir,
+      basePrompt: normalizedBase,
+      skillsEnabled,
+      availableSkillNames: normalizedAvailableSkills,
+      activeSkillNames: normalizedActiveSkills
+    })
+
+    const cachedPrompt = this.systemPromptCache.get(sessionId)
+    if (
+      cachedPrompt &&
+      cachedPrompt.dayKey === dayKey &&
+      cachedPrompt.fingerprint === fingerprint
+    ) {
+      return cachedPrompt.prompt
+    }
+
+    const runtimePrompt = buildRuntimeCapabilitiesPrompt()
+    const skillsMetadataPrompt = skillsEnabled
+      ? this.buildSkillsMetadataPrompt(normalizedAvailableSkills)
+      : ''
+
+    let skillsPrompt = ''
+    if (skillsEnabled && skillPresenter?.loadSkillContent && normalizedActiveSkills.length > 0) {
+      const skillSections: string[] = []
+      for (const skillName of normalizedActiveSkills) {
+        try {
+          const skill = await skillPresenter.loadSkillContent(skillName)
+          const content = skill?.content?.trim()
+          if (content) {
+            skillSections.push(`### ${skillName}\n${content}`)
+          }
+        } catch (error) {
+          console.warn(
+            `[DeepChatAgent] Failed to load skill content for "${skillName}" in session ${sessionId}:`,
+            error
+          )
+        }
+      }
+      skillsPrompt = this.buildActiveSkillsPrompt(skillSections)
+    }
+
+    let envPrompt = ''
+    try {
+      envPrompt = await buildSystemEnvPrompt({
+        providerId,
+        modelId,
+        workdir,
+        now
+      })
+    } catch (error) {
+      console.warn(`[DeepChatAgent] Failed to build env prompt for session ${sessionId}:`, error)
+    }
+
+    let toolingPrompt = ''
+    if (this.toolPresenter) {
+      try {
+        toolingPrompt = this.toolPresenter.buildToolSystemPrompt({ conversationId: sessionId })
+      } catch (error) {
+        console.warn(
+          `[DeepChatAgent] Failed to build tooling prompt for session ${sessionId}:`,
+          error
+        )
+      }
+    }
+
+    const composedPrompt = this.composePromptSections([
+      runtimePrompt,
+      skillsMetadataPrompt,
+      skillsPrompt,
+      envPrompt,
+      toolingPrompt,
+      normalizedBase
+    ])
+
+    this.systemPromptCache.set(sessionId, {
+      prompt: composedPrompt,
+      dayKey,
+      fingerprint
+    })
+
+    return composedPrompt
+  }
+
+  private composePromptSections(sections: string[]): string {
+    return sections
+      .map((section) => section.trim())
+      .filter((section) => section.length > 0)
+      .join('\n\n')
+  }
+
+  private buildSkillsMetadataPrompt(availableSkillNames: string[]): string {
+    const lines = [
+      '## Skills',
+      'If you may need specialized guidance, call `skill_list` first to inspect available skills and activation status.',
+      'After identifying a matching skill, call `skill_control` to activate or deactivate it before proceeding.'
+    ]
+
+    if (availableSkillNames.length > 0) {
+      lines.push('Installed skill names:')
+      lines.push(...availableSkillNames.map((name) => `- ${name}`))
+    } else {
+      lines.push('Installed skill names: (none)')
+    }
+
+    return lines.join('\n')
+  }
+
+  private buildActiveSkillsPrompt(skillSections: string[]): string {
+    if (skillSections.length === 0) {
+      return ''
+    }
+    return [
+      '## Activated Skills',
+      'Follow these active skill instructions during this conversation.',
+      '',
+      skillSections.join('\n\n')
+    ].join('\n')
+  }
+
+  private normalizeSkillNames(skillNames: string[]): string[] {
+    return Array.from(
+      new Set(skillNames.map((name) => name.trim()).filter((name) => name.length > 0))
+    ).sort((a, b) => a.localeCompare(b))
+  }
+
+  private buildSystemPromptFingerprint(params: {
+    providerId: string
+    modelId: string
+    workdir: string | null
+    basePrompt: string
+    skillsEnabled: boolean
+    availableSkillNames: string[]
+    activeSkillNames: string[]
+  }): string {
+    return JSON.stringify({
+      providerId: params.providerId,
+      modelId: params.modelId,
+      workdir: params.workdir ?? '',
+      basePrompt: params.basePrompt,
+      skillsEnabled: params.skillsEnabled,
+      availableSkillNames: params.availableSkillNames,
+      activeSkillNames: params.activeSkillNames
+    })
+  }
+
+  private buildLocalDayKey(now: Date): string {
+    const year = now.getFullYear()
+    const month = String(now.getMonth() + 1).padStart(2, '0')
+    const day = String(now.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+
+  private invalidateSystemPromptCache(sessionId: string): void {
+    this.systemPromptCache.delete(sessionId)
   }
 
   private async getEffectiveSessionGenerationSettings(
@@ -1615,7 +1800,11 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
   private resolveProjectDir(sessionId: string, incoming?: string | null): string | null {
     if (incoming !== undefined) {
       const normalized = this.normalizeProjectDir(incoming)
+      const previous = this.sessionProjectDirs.get(sessionId) ?? null
       this.sessionProjectDirs.set(sessionId, normalized)
+      if (previous !== normalized) {
+        this.invalidateSystemPromptCache(sessionId)
+      }
       return normalized
     }
     return this.sessionProjectDirs.get(sessionId) ?? null
