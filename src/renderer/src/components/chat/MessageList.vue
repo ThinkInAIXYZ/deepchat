@@ -5,7 +5,6 @@
         <MessageItemUser
           v-if="msg.role === 'user'"
           :message="msg as UserMessage"
-          :use-legacy-actions="false"
           @retry="onRetry"
           @delete="onDelete"
           @edit-save="onEditSave"

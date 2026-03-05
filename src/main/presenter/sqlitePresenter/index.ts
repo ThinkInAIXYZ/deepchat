@@ -276,6 +276,32 @@ export class SQLitePresenter implements ISQLitePresenter {
     }
   }
 
+  public async clearNewAgentData(): Promise<void> {
+    await this.runTransaction(() => {
+      // Keep project metadata and legacy import status; clear session/message domain data only.
+      this.db.exec(`
+        DELETE FROM deepchat_message_search_results;
+        DELETE FROM deepchat_message_traces;
+        DELETE FROM deepchat_messages;
+        DELETE FROM deepchat_sessions;
+        DELETE FROM new_sessions;
+      `)
+    })
+  }
+
+  public async importLegacyChatDb(
+    sourceDbPath: string,
+    mode: 'increment' | 'overwrite'
+  ): Promise<{
+    importedSessions: number
+    importedMessages: number
+    importedSearchResults: number
+  }> {
+    const { LegacyChatImportService } = await import('../newAgentPresenter/legacyImportService')
+    const service = new LegacyChatImportService(this)
+    return await service.importFromSourceDb(sourceDbPath, mode)
+  }
+
   // 创建新对话
   public async createConversation(
     title: string,

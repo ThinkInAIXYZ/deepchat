@@ -101,21 +101,13 @@ import MessageToolbar from './MessageToolbar.vue'
 import MessageContent from './MessageContent.vue'
 import MessageTextContent from './MessageTextContent.vue'
 import { usePresenter } from '@/composables/usePresenter'
-import { ref, watch, onMounted, nextTick, onBeforeUnmount, computed } from 'vue'
+import { ref, watch, onMounted, nextTick, onBeforeUnmount } from 'vue'
 
 const windowPresenter = usePresenter('windowPresenter')
-const sessionPresenter = usePresenter('sessionPresenter')
 
-const props = withDefaults(
-  defineProps<{
-    message: UserMessage
-    useLegacyActions?: boolean
-  }>(),
-  {
-    useLegacyActions: true
-  }
-)
-const useLegacyActions = computed(() => props.useLegacyActions !== false)
+const props = defineProps<{
+  message: UserMessage
+}>()
 
 const isEditMode = ref(false)
 const editedText = ref('')
@@ -173,27 +165,10 @@ const saveEdit = async () => {
   if (!nextText) return
 
   try {
-    if (useLegacyActions.value) {
-      // Create a new content object with the edited text
-      let newContent = {
-        ...props.message.content
-      }
-      if (newContent?.content && newContent.content.length > 0) {
-        const nonTextBlocks = newContent.content.filter((block) => block.type !== 'text')
-        newContent.content = [{ type: 'text', content: nextText }, ...nonTextBlocks]
-      } else {
-        newContent.text = nextText
-      }
-      // Update the message in the database using editMessage method
-      await sessionPresenter.editMessage(props.message.id, JSON.stringify(newContent))
-      // Legacy mode: trigger regeneration through parent handler.
-      emit('retry', props.message.id)
-    } else {
-      emit('editSave', {
-        messageId: props.message.id,
-        text: nextText
-      })
-    }
+    emit('editSave', {
+      messageId: props.message.id,
+      text: nextText
+    })
 
     // Exit edit mode
     isEditMode.value = false
@@ -233,29 +208,8 @@ const handleAction = (action: 'delete' | 'copy') => {
   }
 }
 
-const handleMentionClick = async (block: UserMessageMentionBlock) => {
-  if (!useLegacyActions.value) {
-    return
-  }
-  if (block.category !== 'context') {
-    return
-  }
-  if (!props.message.conversationId) {
-    return
-  }
-  try {
-    const conversation = await sessionPresenter.getConversation(props.message.conversationId)
-    if (!conversation.parentConversationId || !conversation.parentMessageId) {
-      return
-    }
-    await sessionPresenter.openConversationInNewTab({
-      conversationId: conversation.parentConversationId,
-      messageId: conversation.parentMessageId,
-      childConversationId: conversation.id
-    })
-  } catch (error) {
-    console.error('Failed to open parent conversation from mention:', error)
-  }
+const handleMentionClick = async (_block: UserMessageMentionBlock) => {
+  return
 }
 
 const autoResize = () => {

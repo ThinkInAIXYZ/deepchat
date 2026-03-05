@@ -66,7 +66,7 @@ setCustomComponents({
       messageId,
       threadId,
       onClick() {
-        // TODO: remove legacy sessionPresenter search path after full old stack cleanup.
+        // TODO: remove this temporary fallback after search result loading is fully unified.
         newAgentPresenter.getSearchResults(_props.messageId ?? '').then((results) => {
           const index = parseInt(_props.node.id)
           if (index < results.length) {

@@ -335,6 +335,15 @@ export interface IShortcutPresenter {
 export interface ISQLitePresenter {
   close(): void
   reopen(): void
+  clearNewAgentData(): Promise<void>
+  importLegacyChatDb(
+    sourceDbPath: string,
+    mode: 'increment' | 'overwrite'
+  ): Promise<{
+    importedSessions: number
+    importedMessages: number
+    importedSearchResults: number
+  }>
   createConversation(title: string, settings?: Partial<CONVERSATION_SETTINGS>): Promise<string>
   deleteConversation(conversationId: string): Promise<void>
   renameConversation(conversationId: string, title: string): Promise<CONVERSATION>
@@ -1729,7 +1738,13 @@ export interface ISyncPresenter {
   importFromSync(
     backupFileName: string,
     importMode?: ImportMode
-  ): Promise<{ success: boolean; message: string; count?: number }>
+  ): Promise<{
+    success: boolean
+    message: string
+    count?: number
+    sourceDbType?: 'agent' | 'chat'
+    importedSessions?: number
+  }>
   checkSyncFolder(): Promise<{ exists: boolean; path: string }>
   openSyncFolder(): Promise<void>
 

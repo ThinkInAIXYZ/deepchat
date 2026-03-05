@@ -54,6 +54,69 @@ export class LegacyChatImportService {
     return this.start(true)
   }
 
+  async importFromSourceDb(
+    sourceDbPath: string,
+    mode: 'increment' | 'overwrite' = 'increment'
+  ): Promise<{
+    importedSessions: number
+    importedMessages: number
+    importedSearchResults: number
+  }> {
+    const normalizedPath = sourceDbPath?.trim()
+    if (!normalizedPath) {
+      throw new Error('Legacy source database path is required')
+    }
+
+    if (!fs.existsSync(normalizedPath)) {
+      throw new Error(`Legacy source database not found: ${normalizedPath}`)
+    }
+
+    let legacyDb: Database.Database | null = null
+    const closeLegacyDb = () => {
+      if (!legacyDb) return
+      try {
+        legacyDb.close()
+      } catch (error) {
+        console.warn('[LegacyChatImport] Failed to close source database handle:', error)
+      } finally {
+        legacyDb = null
+      }
+    }
+
+    try {
+      legacyDb = new Database(normalizedPath, { readonly: true, fileMustExist: true })
+      legacyDb.pragma('query_only = TRUE')
+
+      const conversations = this.readTableRows(legacyDb, 'conversations')
+      const messageRows = this.readTableRows(legacyDb, 'messages')
+      const attachmentRows = this.readTableRows(legacyDb, 'message_attachments')
+      const acpSessionRows = this.readTableRows(legacyDb, 'acp_sessions')
+      closeLegacyDb()
+
+      if (mode === 'overwrite') {
+        await this.sqlitePresenter.clearNewAgentData()
+      }
+
+      if (conversations.length === 0) {
+        return {
+          importedSessions: 0,
+          importedMessages: 0,
+          importedSearchResults: 0
+        }
+      }
+
+      return await this.importRows({
+        conversations,
+        messageRows,
+        attachmentRows,
+        acpSessionRows
+      })
+    } finally {
+      closeLegacyDb()
+      this.cleanupSidecarFiles(normalizedPath)
+    }
+  }
+
   getStatus(): LegacyImportStatus {
     const row = this.sqlitePresenter.legacyImportStatusTable.get(IMPORT_KEY)
     if (!row) {
@@ -194,13 +257,13 @@ export class LegacyChatImportService {
       return this.getStatus()
     } finally {
       closeLegacyDb()
-      this.cleanupLegacySidecarFiles()
+      this.cleanupSidecarFiles(this.sourceDbPath)
     }
   }
 
-  private cleanupLegacySidecarFiles(): void {
-    const walPath = `${this.sourceDbPath}-wal`
-    const shmPath = `${this.sourceDbPath}-shm`
+  private cleanupSidecarFiles(dbPath: string): void {
+    const walPath = `${dbPath}-wal`
+    const shmPath = `${dbPath}-shm`
 
     if (fs.existsSync(walPath)) {
       try {
