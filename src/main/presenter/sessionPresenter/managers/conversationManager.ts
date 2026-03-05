@@ -23,6 +23,13 @@ export class ConversationManager {
   private readonly activeConversationIds: Map<number, string>
   private fetchThreadLength = 300
 
+  private isLegacyTableMissingError(error: unknown): boolean {
+    return (
+      error instanceof Error &&
+      /no such table:\s*(conversations|messages|message_attachments)/i.test(error.message)
+    )
+  }
+
   constructor(options: {
     sqlitePresenter: ISQLitePresenter
     configPresenter: IConfigPresenter
@@ -359,7 +366,18 @@ export class ConversationManager {
   }
 
   async broadcastThreadListUpdate(): Promise<void> {
-    const result = await this.sqlitePresenter.getConversationList(1, this.fetchThreadLength)
+    let result: { total: number; list: CONVERSATION[] }
+    try {
+      result = await this.sqlitePresenter.getConversationList(1, this.fetchThreadLength)
+    } catch (error) {
+      if (this.isLegacyTableMissingError(error)) {
+        console.info(
+          '[ConversationManager] Skip legacy thread list broadcast: legacy tables not found.'
+        )
+        return
+      }
+      throw error
+    }
 
     const pinnedConversations: CONVERSATION[] = []
     const normalConversations: CONVERSATION[] = []

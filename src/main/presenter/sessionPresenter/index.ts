@@ -73,7 +73,18 @@ export class SessionPresenter implements ISessionPresenter {
       }
     })
     eventBus.on(TAB_EVENTS.RENDERER_TAB_READY, () => {
-      this.broadcastThreadListUpdate()
+      void this.broadcastThreadListUpdate().catch((error) => {
+        if (
+          error instanceof Error &&
+          /no such table:\s*(conversations|messages|message_attachments)/i.test(error.message)
+        ) {
+          console.info(
+            '[SessionPresenter] Skip legacy thread list broadcast on tab ready: legacy tables not found.'
+          )
+          return
+        }
+        console.error('[SessionPresenter] Failed to broadcast thread list on tab ready:', error)
+      })
     })
 
     // 初始化时处理所有未完成的消息
