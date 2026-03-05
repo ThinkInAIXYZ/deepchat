@@ -32,7 +32,9 @@
     "fileArea": "fil område",
     "agentWorkspaceCurrent": "Nuværende arbejdsmappe: {path}",
     "agentWorkspaceSelect": "Vælg arbejdsmappe",
-    "agentWorkspaceTooltip": "Indstil agentens arbejdsmappe"
+    "agentWorkspaceTooltip": "Indstil agentens arbejdsmappe",
+    "attach": "Vedhæft",
+    "voiceInput": "Stemmeinput"
   },
   "mcpUi": {
     "badge": "UI",

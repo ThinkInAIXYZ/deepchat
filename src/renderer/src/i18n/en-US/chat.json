@@ -4,6 +4,8 @@
     "fileArea": "File Area",
     "inputArea": "Input Area",
     "functionSwitch": "Function Switch",
+    "attach": "Attach",
+    "voiceInput": "Voice input",
     "fileSelect": "Select File",
     "pasteFiles": "Paste files from clipboard",
     "dropFiles": "Drop files here",

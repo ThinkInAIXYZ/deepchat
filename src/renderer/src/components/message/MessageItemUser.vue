@@ -23,14 +23,10 @@
         data-message-content="true"
       >
         <div v-show="message.content.files.length > 0" class="flex flex-wrap gap-1.5">
-          <FileItem
-            v-for="file in message.content.files"
-            :key="file.name"
-            :file-name="file.name"
-            :deletable="false"
-            :tokens="file.token"
-            :mime-type="file.mimeType"
-            :thumbnail="file.thumbnail"
+          <ChatAttachmentItem
+            v-for="(file, index) in message.content.files"
+            :key="file.path || `${file.name}-${index}`"
+            :file="file"
             @click="previewFile(file.path)"
           />
         </div>
@@ -96,7 +92,7 @@
 import { UserMessage, UserMessageMentionBlock } from '@shared/chat'
 import { Icon } from '@iconify/vue'
 import MessageInfo from './MessageInfo.vue'
-import FileItem from '../FileItem.vue'
+import ChatAttachmentItem from '../chat/ChatAttachmentItem.vue'
 import MessageToolbar from './MessageToolbar.vue'
 import MessageContent from './MessageContent.vue'
 import MessageTextContent from './MessageTextContent.vue'

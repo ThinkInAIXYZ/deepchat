@@ -14,7 +14,7 @@
           </Button>
         </TooltipTrigger>
         <TooltipContent>
-          <p>Attach</p>
+          <p>{{ t('chat.input.attach') }}</p>
         </TooltipContent>
       </Tooltip>
     </div>
@@ -32,7 +32,7 @@
           </Button>
         </TooltipTrigger>
         <TooltipContent>
-          <p>Voice input</p>
+          <p>{{ t('chat.input.voiceInput') }}</p>
         </TooltipContent>
       </Tooltip>
 
@@ -63,6 +63,7 @@
 import { Button } from '@shadcn/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@shadcn/components/ui/tooltip'
 import { Icon } from '@iconify/vue'
+import { useI18n } from 'vue-i18n'
 
 withDefaults(
   defineProps<{
@@ -80,4 +81,6 @@ defineEmits<{
   attach: []
   stop: []
 }>()
+
+const { t } = useI18n()
 </script>

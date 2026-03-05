@@ -25,7 +25,9 @@
     "acpModeTooltip": "Текущий режим: {mode}",
     "agentWorkspaceCurrent": "Текущий рабочий каталог: {path}",
     "agentWorkspaceSelect": "Выберите рабочий каталог",
-    "agentWorkspaceTooltip": "Установить рабочий каталог агента"
+    "agentWorkspaceTooltip": "Установить рабочий каталог агента",
+    "attach": "Прикрепить",
+    "voiceInput": "Голосовой ввод"
   },
   "features": {
     "webSearch": "Поиск в интернете",

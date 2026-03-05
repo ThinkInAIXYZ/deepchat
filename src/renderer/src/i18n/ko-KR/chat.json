@@ -25,7 +25,9 @@
     "acpModeTooltip": "현재 모드: {mode}",
     "agentWorkspaceCurrent": "현재 작업 디렉터리: {path}",
     "agentWorkspaceSelect": "작업 디렉터리 선택",
-    "agentWorkspaceTooltip": "에이전트 작업 디렉터리 설정"
+    "agentWorkspaceTooltip": "에이전트 작업 디렉터리 설정",
+    "attach": "첨부",
+    "voiceInput": "음성 입력"
   },
   "features": {
     "webSearch": "웹 검색",

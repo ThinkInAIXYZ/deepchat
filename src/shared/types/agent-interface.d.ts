@@ -47,7 +47,7 @@ export interface IAgentImplementation {
   /** Process a user message: persist, call LLM, stream response */
   processMessage(
     sessionId: string,
-    content: string,
+    content: string | SendMessageInput,
     context?: { projectDir?: string | null; emitRefreshBeforeStream?: boolean }
   ): Promise<void>
 
@@ -134,8 +134,25 @@ export interface LegacyImportStatus {
 export interface MessageFile {
   name: string
   path: string
-  type: string
-  size: number
+  type?: string
+  size?: number
+  content?: string
+  mimeType?: string
+  token?: number
+  thumbnail?: string
+  metadata?: {
+    fileName?: string
+    fileSize?: number
+    fileDescription?: string
+    fileCreated?: Date
+    fileModified?: Date
+    [key: string]: unknown
+  }
+}
+
+export interface SendMessageInput {
+  text: string
+  files?: MessageFile[]
 }
 
 export type AssistantBlockType =
@@ -290,6 +307,7 @@ export interface ToolInteractionResult {
 export interface CreateSessionInput {
   agentId: string
   message: string
+  files?: MessageFile[]
   projectDir?: string
   providerId?: string
   modelId?: string

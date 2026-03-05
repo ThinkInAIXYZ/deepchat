@@ -3,7 +3,11 @@ import { ref, computed } from 'vue'
 import type { ComputedRef } from 'vue'
 import { usePresenter } from '@/composables/usePresenter'
 import { SESSION_EVENTS } from '@/events'
-import type { SessionWithState, CreateSessionInput } from '@shared/types/agent-interface'
+import type {
+  SessionWithState,
+  CreateSessionInput,
+  SendMessageInput
+} from '@shared/types/agent-interface'
 import { downloadBlob } from '@/lib/download'
 import { usePageRouterStore } from './pageRouter'
 import { useMessageStore } from './message'
@@ -225,7 +229,7 @@ export const useSessionStore = defineStore('session', () => {
     }
   }
 
-  async function sendMessage(sessionId: string, content: string): Promise<void> {
+  async function sendMessage(sessionId: string, content: string | SendMessageInput): Promise<void> {
     error.value = null
     try {
       await newAgentPresenter.sendMessage(sessionId, content)

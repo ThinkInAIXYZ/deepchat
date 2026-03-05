@@ -7,6 +7,7 @@ import type {
   PermissionMode,
   SessionGenerationSettings,
   LegacyImportStatus,
+  SendMessageInput,
   ToolInteractionResponse,
   ToolInteractionResult
 } from '../agent-interface'
@@ -19,7 +20,7 @@ export interface INewAgentPresenter {
     projectDir: string
     permissionMode?: PermissionMode
   }): Promise<SessionWithState>
-  sendMessage(sessionId: string, content: string): Promise<void>
+  sendMessage(sessionId: string, content: string | SendMessageInput): Promise<void>
   retryMessage(sessionId: string, messageId: string): Promise<void>
   deleteMessage(sessionId: string, messageId: string): Promise<void>
   editUserMessage(sessionId: string, messageId: string, text: string): Promise<ChatMessageRecord>

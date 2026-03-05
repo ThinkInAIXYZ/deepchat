@@ -25,7 +25,9 @@
     "acpModeTooltip": "מצב נוכחי: {mode}",
     "agentWorkspaceCurrent": "ספריית עבודה נוכחית: {path}",
     "agentWorkspaceSelect": "בחר ספריית עבודה",
-    "agentWorkspaceTooltip": "הגדר את ספריית העבודה של הסוכן"
+    "agentWorkspaceTooltip": "הגדר את ספריית העבודה של הסוכן",
+    "attach": "צרף",
+    "voiceInput": "קלט קולי"
   },
   "features": {
     "webSearch": "חיפוש אינטרנט",

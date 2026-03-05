@@ -3,7 +3,9 @@ import type {
   ChatMessageRecord,
   DeepChatSessionState,
   IAgentImplementation,
+  MessageFile,
   PermissionMode,
+  SendMessageInput,
   SessionGenerationSettings,
   ToolInteractionResponse,
   ToolInteractionResult,
@@ -170,7 +172,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
 
   async processMessage(
     sessionId: string,
-    content: string,
+    content: string | SendMessageInput,
     context?: { projectDir?: string | null; emitRefreshBeforeStream?: boolean }
   ): Promise<void> {
     const state = this.runtimeState.get(sessionId)
@@ -179,9 +181,11 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       throw new Error('Pending tool interactions must be resolved before sending a new message.')
     }
 
+    const normalizedInput = this.normalizeUserMessageInput(content)
+    const supportsVision = this.supportsVision(state.providerId, state.modelId)
     const projectDir = this.resolveProjectDir(sessionId, context?.projectDir)
     console.log(
-      `[DeepChatAgent] processMessage session=${sessionId} content="${content.slice(0, 60)}" projectDir=${projectDir ?? '<none>'}`
+      `[DeepChatAgent] processMessage session=${sessionId} content="${normalizedInput.text.slice(0, 60)}" projectDir=${projectDir ?? '<none>'}`
     )
 
     this.setSessionStatus(sessionId, 'generating')
@@ -193,17 +197,18 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       const systemPrompt = await this.buildSystemPromptWithSkills(sessionId, baseSystemPrompt)
       const messages = buildContext(
         sessionId,
-        content,
+        normalizedInput,
         systemPrompt,
         generationSettings.contextLength,
         maxTokens,
-        this.messageStore
+        this.messageStore,
+        supportsVision
       )
 
       const userOrderSeq = this.messageStore.getNextOrderSeq(sessionId)
       const userContent: UserMessageContent = {
-        text: content,
-        files: [],
+        text: normalizedInput.text,
+        files: normalizedInput.files || [],
         links: [],
         search: false,
         think: false
@@ -503,13 +508,13 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       throw new Error('No user message found for retry.')
     }
 
-    const retryText = this.extractUserText(sourceUserMessage.content)
-    if (!retryText.trim()) {
+    const retryInput = this.extractUserMessageInput(sourceUserMessage.content)
+    if (!retryInput.text.trim()) {
       throw new Error('Cannot retry an empty user message.')
     }
 
     this.messageStore.deleteFromOrderSeq(sessionId, sourceUserMessage.orderSeq)
-    await this.processMessage(sessionId, retryText, {
+    await this.processMessage(sessionId, retryInput, {
       projectDir: this.resolveProjectDir(sessionId),
       emitRefreshBeforeStream: true
     })
@@ -735,7 +740,8 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
         systemPrompt,
         generationSettings.contextLength,
         maxTokens,
-        this.messageStore
+        this.messageStore,
+        this.supportsVision(state.providerId, state.modelId)
       )
 
       const result = await this.runStreamForMessage({
@@ -1139,19 +1145,44 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     }
   }
 
-  private extractUserText(content: string): string {
+  private extractUserMessageInput(content: string): SendMessageInput {
+    const fallback: SendMessageInput = { text: '', files: [] }
+
     try {
-      const parsed = JSON.parse(content) as UserMessageContent | { text?: unknown } | string
+      const parsed = JSON.parse(content) as UserMessageContent | SendMessageInput | string
       if (typeof parsed === 'string') {
-        return parsed
+        return { text: parsed, files: [] }
       }
-      if (parsed && typeof parsed === 'object' && typeof parsed.text === 'string') {
-        return parsed.text
+      if (!parsed || typeof parsed !== 'object') {
+        return fallback
       }
-      return ''
+
+      const text = typeof parsed.text === 'string' ? parsed.text : ''
+      const files = Array.isArray((parsed as { files?: unknown }).files)
+        ? ((parsed as { files?: unknown }).files as MessageFile[]).filter((file) => Boolean(file))
+        : []
+      return { text, files }
     } catch {
-      return content
+      return { text: content, files: [] }
     }
+  }
+
+  private normalizeUserMessageInput(input: string | SendMessageInput): SendMessageInput {
+    if (typeof input === 'string') {
+      return { text: input, files: [] }
+    }
+    if (!input || typeof input !== 'object') {
+      return { text: '', files: [] }
+    }
+    const text = typeof input.text === 'string' ? input.text : ''
+    const files = Array.isArray(input.files)
+      ? input.files.filter((file): file is MessageFile => Boolean(file))
+      : []
+    return { text, files }
+  }
+
+  private supportsVision(providerId: string, modelId: string): boolean {
+    return Boolean(this.configPresenter.getModelConfig(modelId, providerId)?.vision)
   }
 
   private buildEditedUserContent(rawContent: string, text: string): string {

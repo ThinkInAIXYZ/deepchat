@@ -76,6 +76,12 @@ function createMockSqlitePresenter() {
       countByMessageId: vi.fn().mockReturnValue(0),
       deleteByMessageIds: vi.fn(),
       deleteBySessionId: vi.fn()
+    },
+    deepchatMessageSearchResultsTable: {
+      add: vi.fn(),
+      listByMessageId: vi.fn().mockReturnValue([]),
+      deleteByMessageIds: vi.fn(),
+      deleteBySessionId: vi.fn()
     }
   } as any
 }
@@ -418,6 +424,26 @@ describe('DeepChatAgentPresenter', () => {
       await expect(agent.processMessage('unknown', 'hi')).rejects.toThrow(
         'Session unknown not found'
       )
+    })
+
+    it('persists files when message input is object', async () => {
+      sqlitePresenter.deepchatMessagesTable.getMaxOrderSeq
+        .mockReturnValueOnce(0)
+        .mockReturnValueOnce(1)
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.processMessage('s1', {
+        text: 'with file',
+        files: [
+          { name: 'a.md', path: '/tmp/a.md', mimeType: 'text/markdown', content: '# a' } as any
+        ]
+      })
+
+      const userInsert = sqlitePresenter.deepchatMessagesTable.insert.mock.calls[0][0]
+      const parsed = JSON.parse(userInsert.content)
+      expect(parsed.text).toBe('with file')
+      expect(parsed.files).toHaveLength(1)
+      expect(parsed.files[0].name).toBe('a.md')
     })
 
     it('passes tools from toolPresenter to processStream', async () => {

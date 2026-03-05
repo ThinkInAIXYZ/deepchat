@@ -35,18 +35,22 @@
           />
           <template v-else>
             <ChatInputBox
+              ref="chatInputRef"
               v-model="message"
+              :files="attachedFiles"
               :session-id="props.sessionId"
               :workspace-path="sessionStore.activeSession?.projectDir ?? null"
               :is-acp-session="sessionStore.activeSession?.providerId === 'acp'"
               :submit-disabled="isInputSubmitDisabled"
+              @update:files="onFilesChange"
               @command-submit="onCommandSubmit"
               @submit="onSubmit"
             >
               <template #toolbar>
                 <ChatInputToolbar
                   :is-generating="isGenerating"
-                  :send-disabled="isAcpWorkdirMissing"
+                  :send-disabled="isAcpWorkdirMissing || !message.trim()"
+                  @attach="onAttach"
                   @send="onSubmit"
                   @stop="onStop"
                 />
@@ -75,6 +79,7 @@ import { useMessageStore } from '@/stores/ui/message'
 import { useModelStore } from '@/stores/modelStore'
 import { usePresenter } from '@/composables/usePresenter'
 import type { Message } from '@shared/chat'
+import type { MessageFile } from '@shared/chat'
 import type {
   ChatMessageRecord,
   AssistantMessageBlock,
@@ -272,6 +277,8 @@ watch(
 )
 
 const message = ref('')
+const attachedFiles = ref<MessageFile[]>([])
+const chatInputRef = ref<{ triggerAttach: () => void } | null>(null)
 const isHandlingInteraction = ref(false)
 
 const handleContextMenuAskAI = (event: Event) => {
@@ -346,9 +353,11 @@ async function onSubmit() {
   if (activePendingInteraction.value || isHandlingInteraction.value) return
   const text = message.value.trim()
   if (!text) return
+  const files = [...attachedFiles.value]
   message.value = ''
-  messageStore.addOptimisticUserMessage(props.sessionId, text)
-  await sessionStore.sendMessage(props.sessionId, text)
+  attachedFiles.value = []
+  messageStore.addOptimisticUserMessage(props.sessionId, text, files)
+  await sessionStore.sendMessage(props.sessionId, { text, files })
 }
 
 async function onCommandSubmit(command: string) {
@@ -358,8 +367,18 @@ async function onCommandSubmit(command: string) {
   const text = command.trim()
   if (!text) return
 
-  messageStore.addOptimisticUserMessage(props.sessionId, text)
-  await sessionStore.sendMessage(props.sessionId, text)
+  const files = [...attachedFiles.value]
+  attachedFiles.value = []
+  messageStore.addOptimisticUserMessage(props.sessionId, text, files)
+  await sessionStore.sendMessage(props.sessionId, { text, files })
+}
+
+function onAttach() {
+  chatInputRef.value?.triggerAttach()
+}
+
+function onFilesChange(files: MessageFile[]) {
+  attachedFiles.value = files
 }
 
 async function onToolInteractionRespond(response: ToolInteractionResponse) {

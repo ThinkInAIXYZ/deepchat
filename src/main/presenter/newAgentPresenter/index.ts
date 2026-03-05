@@ -6,6 +6,8 @@ import type {
   SessionWithState,
   ChatMessageRecord,
   MessageTraceRecord,
+  MessageFile,
+  SendMessageInput,
   UserMessageContent,
   AssistantMessageBlock,
   LegacyImportStatus,
@@ -76,6 +78,7 @@ export class NewAgentPresenter {
     const agentId = input.agentId || 'deepchat'
     console.log(`[NewAgentPresenter] createSession agent=${agentId} webContentsId=${webContentsId}`)
     const projectDir = input.projectDir?.trim() ? input.projectDir.trim() : null
+    const normalizedInput = this.normalizeCreateSessionInput(input)
 
     const agent = await this.resolveAgentImplementation(agentId)
 
@@ -93,7 +96,7 @@ export class NewAgentPresenter {
     this.assertAcpSessionHasWorkdir(providerId, projectDir)
 
     // Create session record
-    const title = input.message.slice(0, 50) || 'New Chat'
+    const title = normalizedInput.text.slice(0, 50) || 'New Chat'
     const sessionId = this.sessionManager.create(agentId, title, projectDir, { isDraft: false })
     console.log(`[NewAgentPresenter] session created id=${sessionId} title="${title}"`)
 
@@ -130,7 +133,7 @@ export class NewAgentPresenter {
 
     // Process the first message (non-blocking)
     console.log(`[NewAgentPresenter] firing processMessage (non-blocking)`)
-    agent.processMessage(sessionId, input.message, { projectDir }).catch((err) => {
+    agent.processMessage(sessionId, normalizedInput, { projectDir }).catch((err) => {
       console.error('[NewAgentPresenter] processMessage failed:', err)
     })
     void this.generateSessionTitle(sessionId, title, providerId, modelId)
@@ -208,12 +211,13 @@ export class NewAgentPresenter {
     }
   }
 
-  async sendMessage(sessionId: string, content: string): Promise<void> {
+  async sendMessage(sessionId: string, content: string | SendMessageInput): Promise<void> {
     let session = this.sessionManager.get(sessionId)
     if (!session) throw new Error(`Session not found: ${sessionId}`)
+    const normalizedInput = this.normalizeSendMessageInput(content)
 
     if (session.isDraft) {
-      const title = content.trim().slice(0, 50) || 'New Chat'
+      const title = normalizedInput.text.trim().slice(0, 50) || 'New Chat'
       this.sessionManager.update(sessionId, { isDraft: false, title })
       eventBus.sendToRenderer(SESSION_EVENTS.LIST_UPDATED, SendTarget.ALL_WINDOWS)
       session = this.sessionManager.get(sessionId)
@@ -230,7 +234,7 @@ export class NewAgentPresenter {
       }
     }
     this.assertAcpSessionHasWorkdir(providerId, session.projectDir ?? null)
-    await agent.processMessage(sessionId, content, {
+    await agent.processMessage(sessionId, normalizedInput, {
       projectDir: session.projectDir ?? null
     })
   }
@@ -1280,5 +1284,29 @@ export class NewAgentPresenter {
       return
     }
     throw new Error('ACP agent requires selecting a workdir before sending messages.')
+  }
+
+  private normalizeSendMessageInput(content: string | SendMessageInput): SendMessageInput {
+    if (typeof content === 'string') {
+      return { text: content, files: [] }
+    }
+
+    if (!content || typeof content !== 'object') {
+      return { text: '', files: [] }
+    }
+
+    const text = typeof content.text === 'string' ? content.text : ''
+    const files = Array.isArray(content.files)
+      ? content.files.filter((file): file is MessageFile => Boolean(file))
+      : []
+    return { text, files }
+  }
+
+  private normalizeCreateSessionInput(input: CreateSessionInput): SendMessageInput {
+    const text = typeof input.message === 'string' ? input.message : ''
+    const files = Array.isArray(input.files)
+      ? input.files.filter((file): file is MessageFile => Boolean(file))
+      : []
+    return { text, files }
   }
 }

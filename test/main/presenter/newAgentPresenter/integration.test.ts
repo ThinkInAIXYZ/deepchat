@@ -30,10 +30,11 @@ vi.mock('@/presenter', () => ({
   presenter: {
     commandPermissionService: {
       extractCommandSignature: vi.fn().mockReturnValue('mock-signature'),
-      approve: vi.fn()
+      approve: vi.fn(),
+      clearConversation: vi.fn()
     },
-    filePermissionService: { approve: vi.fn() },
-    settingsPermissionService: { approve: vi.fn() },
+    filePermissionService: { approve: vi.fn(), clearConversation: vi.fn() },
+    settingsPermissionService: { approve: vi.fn(), clearConversation: vi.fn() },
     mcpPresenter: {
       grantPermission: vi.fn().mockResolvedValue(undefined)
     }
@@ -51,18 +52,27 @@ function createMockSqlitePresenter() {
 
   return {
     newSessionsTable: {
-      create: vi.fn((id: string, agentId: string, title: string, projectDir: string | null) => {
-        const now = Date.now()
-        sessionsStore.set(id, {
-          id,
-          agent_id: agentId,
-          title,
-          project_dir: projectDir,
-          is_pinned: 0,
-          created_at: now,
-          updated_at: now
-        })
-      }),
+      create: vi.fn(
+        (
+          id: string,
+          agentId: string,
+          title: string,
+          projectDir: string | null,
+          options?: { isDraft?: boolean }
+        ) => {
+          const now = Date.now()
+          sessionsStore.set(id, {
+            id,
+            agent_id: agentId,
+            title,
+            project_dir: projectDir,
+            is_pinned: 0,
+            is_draft: options?.isDraft ? 1 : 0,
+            created_at: now,
+            updated_at: now
+          })
+        }
+      ),
       get: vi.fn((id: string) => sessionsStore.get(id)),
       list: vi.fn(() => Array.from(sessionsStore.values())),
       update: vi.fn(),
@@ -215,6 +225,12 @@ function createMockSqlitePresenter() {
       deleteByMessageIds: vi.fn(),
       deleteBySessionId: vi.fn()
     },
+    deepchatMessageSearchResultsTable: {
+      add: vi.fn(),
+      listByMessageId: vi.fn().mockReturnValue([]),
+      deleteByMessageIds: vi.fn(),
+      deleteBySessionId: vi.fn()
+    },
     // Expose internal stores for assertion
     _sessionsStore: sessionsStore,
     _deepchatSessionsStore: deepchatSessionsStore,
@@ -292,7 +308,19 @@ describe('Integration: createSession end-to-end', () => {
 
   it('createSession → new_sessions row + deepchat_sessions row + messages + events', async () => {
     const session = await agentPresenter.createSession(
-      { agentId: 'deepchat', message: 'Tell me a joke', projectDir: '/tmp/proj' },
+      {
+        agentId: 'deepchat',
+        message: 'Tell me a joke',
+        files: [
+          {
+            name: 'notes.txt',
+            path: '/tmp/proj/notes.txt',
+            mimeType: 'text/plain',
+            content: 'hello file'
+          } as any
+        ],
+        projectDir: '/tmp/proj'
+      },
       1
     )
 
@@ -305,7 +333,7 @@ describe('Integration: createSession end-to-end', () => {
       'deepchat',
       'Tell me a joke',
       '/tmp/proj',
-      false
+      expect.objectContaining({ isDraft: false })
     )
 
     // 2. deepchat_sessions row created
@@ -329,6 +357,7 @@ describe('Integration: createSession end-to-end', () => {
     expect(userInsert.role).toBe('user')
     const userContent = JSON.parse(userInsert.content)
     expect(userContent.text).toBe('Tell me a joke')
+    expect(userContent.files).toHaveLength(1)
 
     const assistantInsert = sqlitePresenter.deepchatMessagesTable.insert.mock.calls[1][0]
     expect(assistantInsert.role).toBe('assistant')
@@ -456,6 +485,31 @@ describe('Integration: multi-turn context', () => {
       role: 'user',
       content: 'Follow up question'
     })
+  })
+
+  it('supports both string and object sendMessage input', async () => {
+    const session = await agentPresenter.createSession(
+      { agentId: 'deepchat', message: 'Hello', projectDir: null },
+      1
+    )
+    await new Promise((r) => setTimeout(r, 50))
+
+    await agentPresenter.sendMessage(session.id, 'Follow up (string)')
+    await new Promise((r) => setTimeout(r, 50))
+
+    await agentPresenter.sendMessage(session.id, {
+      text: 'Follow up (object)',
+      files: [{ name: 'a.md', path: '/tmp/a.md', mimeType: 'text/markdown', content: '# a' } as any]
+    })
+    await new Promise((r) => setTimeout(r, 50))
+
+    const messages = sqlitePresenter.deepchatMessagesTable.getBySession(session.id)
+    const userMessages = messages.filter((m: any) => m.role === 'user')
+    const lastUser = userMessages[userMessages.length - 1]
+    expect(lastUser).toBeTruthy()
+    const lastUserContent = JSON.parse(lastUser.content)
+    expect(lastUserContent.text).toBe('Follow up (object)')
+    expect(lastUserContent.files).toHaveLength(1)
   })
 })
 

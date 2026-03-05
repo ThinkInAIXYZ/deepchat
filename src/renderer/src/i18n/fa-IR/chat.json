@@ -25,7 +25,9 @@
     "acpModeTooltip": "حالت فعلی: {mode}",
     "agentWorkspaceCurrent": "فهرست کاری فعلی: {path}",
     "agentWorkspaceSelect": "پوشه کاری را انتخاب کنید",
-    "agentWorkspaceTooltip": "دایرکتوری کاری عامل را تنظیم کنید"
+    "agentWorkspaceTooltip": "دایرکتوری کاری عامل را تنظیم کنید",
+    "attach": "پیوست",
+    "voiceInput": "ورودی صوتی"
   },
   "features": {
     "webSearch": "جستجوی وب",

@@ -25,7 +25,9 @@
     "acpModeTooltip": "Modo atual: {mode}",
     "agentWorkspaceCurrent": "Diretório de trabalho atual: {path}",
     "agentWorkspaceSelect": "Selecione o diretório de trabalho",
-    "agentWorkspaceTooltip": "Definir diretório de trabalho do agente"
+    "agentWorkspaceTooltip": "Definir diretório de trabalho do agente",
+    "attach": "Anexar",
+    "voiceInput": "Entrada de voz"
   },
   "features": {
     "webSearch": "Busca na Web",

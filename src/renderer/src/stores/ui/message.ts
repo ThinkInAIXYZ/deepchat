@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import { usePresenter } from '@/composables/usePresenter'
 import { STREAM_EVENTS } from '@/events'
 import type { ChatMessageRecord, AssistantMessageBlock } from '@shared/types/agent-interface'
+import type { MessageFile } from '@shared/chat'
 import { useSessionStore } from './session'
 
 // --- Store ---
@@ -76,14 +77,18 @@ export const useMessageStore = defineStore('message', () => {
    * The optimistic record is replaced with the real DB record when loadMessages
    * is called at stream end.
    */
-  function addOptimisticUserMessage(sessionId: string, text: string): void {
+  function addOptimisticUserMessage(
+    sessionId: string,
+    text: string,
+    files: MessageFile[] = []
+  ): void {
     const id = `__optimistic_user_${Date.now()}`
     const record: ChatMessageRecord = {
       id,
       sessionId,
       orderSeq: messageIds.value.length + 1,
       role: 'user',
-      content: JSON.stringify({ text, files: [], links: [], search: false, think: false }),
+      content: JSON.stringify({ text, files, links: [], search: false, think: false }),
       status: 'sent',
       isContextEdge: 0,
       metadata: '{}',

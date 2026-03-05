@@ -165,9 +165,13 @@ describe('NewAgentPresenter', () => {
         permissionMode: 'full_access'
       })
       await new Promise((r) => setTimeout(r, 0))
-      expect(deepChatAgent.processMessage).toHaveBeenCalledWith('mock-session-id', 'Hello world', {
-        projectDir: '/tmp/proj'
-      })
+      expect(deepChatAgent.processMessage).toHaveBeenCalledWith(
+        'mock-session-id',
+        { text: 'Hello world', files: [] },
+        {
+          projectDir: '/tmp/proj'
+        }
+      )
     })
 
     it('derives title from first 50 chars of message', async () => {
@@ -194,9 +198,13 @@ describe('NewAgentPresenter', () => {
       })
       // processMessage is called non-blocking, so we give it a tick
       await new Promise((r) => setTimeout(r, 0))
-      expect(deepChatAgent.processMessage).toHaveBeenCalledWith('mock-session-id', 'Hello', {
-        projectDir: null
-      })
+      expect(deepChatAgent.processMessage).toHaveBeenCalledWith(
+        'mock-session-id',
+        { text: 'Hello', files: [] },
+        {
+          projectDir: null
+        }
+      )
     })
 
     it('emits ACTIVATED and LIST_UPDATED events', async () => {
@@ -410,9 +418,13 @@ describe('NewAgentPresenter', () => {
         title: 'Hello ACP'
       })
       expect(eventBus.sendToRenderer).toHaveBeenCalledWith('session:list-updated', 'all')
-      expect(deepChatAgent.processMessage).toHaveBeenCalledWith('s-draft', 'Hello ACP', {
-        projectDir: '/tmp/workspace'
-      })
+      expect(deepChatAgent.processMessage).toHaveBeenCalledWith(
+        's-draft',
+        { text: 'Hello ACP', files: [] },
+        {
+          projectDir: '/tmp/workspace'
+        }
+      )
     })
 
     it('routes to correct agent', async () => {
@@ -428,9 +440,13 @@ describe('NewAgentPresenter', () => {
       })
 
       await presenter.sendMessage('s1', 'Follow-up')
-      expect(deepChatAgent.processMessage).toHaveBeenCalledWith('s1', 'Follow-up', {
-        projectDir: '/tmp/workspace'
-      })
+      expect(deepChatAgent.processMessage).toHaveBeenCalledWith(
+        's1',
+        { text: 'Follow-up', files: [] },
+        {
+          projectDir: '/tmp/workspace'
+        }
+      )
     })
 
     it('throws for unknown session', async () => {

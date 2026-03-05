@@ -51,17 +51,24 @@
 
         <!-- Input area -->
         <ChatInputBox
+          ref="chatInputRef"
           v-model="message"
+          :files="attachedFiles"
           :session-id="acpDraftSessionId"
           :workspace-path="projectStore.selectedProject?.path ?? null"
           :is-acp-session="(agentStore.selectedAgentId ?? 'deepchat') !== 'deepchat'"
           :submit-disabled="isAcpWorkdirMissing"
+          @update:files="onFilesChange"
           @pending-skills-change="onPendingSkillsChange"
           @command-submit="onCommandSubmit"
           @submit="onSubmit"
         >
           <template #toolbar>
-            <ChatInputToolbar :send-disabled="isAcpWorkdirMissing" @send="onSubmit" />
+            <ChatInputToolbar
+              :send-disabled="isAcpWorkdirMissing || !message.trim()"
+              @attach="onAttach"
+              @send="onSubmit"
+            />
           </template>
         </ChatInputBox>
 
@@ -94,6 +101,8 @@ import { useAgentStore } from '@/stores/ui/agent'
 import { useModelStore } from '@/stores/modelStore'
 import { useDraftStore } from '@/stores/ui/draft'
 import { usePresenter } from '@/composables/usePresenter'
+import type { MessageFile as ChatMessageFile } from '@shared/chat'
+import type { MessageFile as AgentMessageFile } from '@shared/types/agent-interface'
 
 const projectStore = useProjectStore()
 const sessionStore = useSessionStore()
@@ -104,7 +113,9 @@ const configPresenter = usePresenter('configPresenter')
 const newAgentPresenter = usePresenter('newAgentPresenter')
 
 const message = ref('')
+const attachedFiles = ref<ChatMessageFile[]>([])
 const pendingSkills = ref<string[]>([])
+const chatInputRef = ref<{ triggerAttach: () => void } | null>(null)
 const acpDraftSessionId = ref<string | null>(null)
 const lastAcpDraftKey = ref<string | null>(null)
 const acpDraftRequestSeq = ref(0)
@@ -161,27 +172,51 @@ async function onSubmit() {
 
   const text = message.value.trim()
   if (!text) return
+  const files = [...attachedFiles.value]
   message.value = ''
+  attachedFiles.value = []
 
-  await submitText(text)
+  await submitText(text, files)
 }
 
 async function onCommandSubmit(command: string) {
   if (isAcpWorkdirMissing.value) return
   const text = command.trim()
   if (!text) return
-  await submitText(text)
+  const files = [...attachedFiles.value]
+  attachedFiles.value = []
+  await submitText(text, files)
 }
 
-async function submitText(text: string) {
+const toAgentMessageFiles = (files: ChatMessageFile[]): AgentMessageFile[] =>
+  files.map((file) => ({
+    ...file,
+    metadata: file.metadata
+      ? {
+          ...file.metadata,
+          fileCreated: file.metadata.fileCreated
+            ? new Date(file.metadata.fileCreated as Date | string | number)
+            : undefined,
+          fileModified: file.metadata.fileModified
+            ? new Date(file.metadata.fileModified as Date | string | number)
+            : undefined
+        }
+      : undefined
+  }))
+
+async function submitText(text: string, files: ChatMessageFile[]) {
   if (!text.trim()) return
 
   const agentId = agentStore.selectedAgentId ?? 'deepchat'
   const isAcp = agentId !== 'deepchat'
+  const normalizedFiles = toAgentMessageFiles(files)
 
   if (isAcp && acpDraftSessionId.value) {
     await sessionStore.selectSession(acpDraftSessionId.value)
-    await sessionStore.sendMessage(acpDraftSessionId.value, text)
+    await sessionStore.sendMessage(acpDraftSessionId.value, {
+      text,
+      files: normalizedFiles
+    })
     return
   }
 
@@ -203,6 +238,7 @@ async function submitText(text: string) {
 
   await sessionStore.createSession({
     message: text,
+    files: normalizedFiles,
     projectDir: projectStore.selectedProject?.path,
     agentId,
     providerId,
@@ -211,6 +247,14 @@ async function submitText(text: string) {
     generationSettings: draftStore.toGenerationSettings(),
     activeSkills: pendingSkills.value.length > 0 ? [...pendingSkills.value] : undefined
   })
+}
+
+function onAttach() {
+  chatInputRef.value?.triggerAttach()
+}
+
+function onFilesChange(files: ChatMessageFile[]) {
+  attachedFiles.value = files
 }
 
 function onPendingSkillsChange(skills: string[]) {

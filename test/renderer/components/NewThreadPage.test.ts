@@ -7,12 +7,19 @@ const createChatInputBoxStub = () =>
     name: 'ChatInputBox',
     props: {
       modelValue: { type: String, default: '' },
+      files: { type: Array, default: () => [] },
       sessionId: { type: String, default: null },
       workspacePath: { type: String, default: null },
       isAcpSession: { type: Boolean, default: false },
       submitDisabled: { type: Boolean, default: false }
     },
-    emits: ['update:modelValue', 'submit', 'command-submit', 'pending-skills-change'],
+    emits: [
+      'update:modelValue',
+      'update:files',
+      'submit',
+      'command-submit',
+      'pending-skills-change'
+    ],
     template: '<div />'
   })
 
@@ -155,11 +162,17 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
   it('reuses ensured draft session on first submit', async () => {
     const { wrapper, sessionStore } = await setup()
     ;(wrapper.vm as any).message = 'hello from draft'
+    ;(wrapper.vm as any).attachedFiles = [
+      { name: 'a.txt', path: '/tmp/a.txt', mimeType: 'text/plain' }
+    ]
     await (wrapper.vm as any).onSubmit()
     await flushPromises()
 
     expect(sessionStore.selectSession).toHaveBeenCalledWith('draft-1')
-    expect(sessionStore.sendMessage).toHaveBeenCalledWith('draft-1', 'hello from draft')
+    expect(sessionStore.sendMessage).toHaveBeenCalledWith('draft-1', {
+      text: 'hello from draft',
+      files: [{ name: 'a.txt', path: '/tmp/a.txt', mimeType: 'text/plain' }]
+    })
     expect(sessionStore.createSession).not.toHaveBeenCalled()
   })
 
@@ -182,12 +195,16 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
       maxTokens: 2048
     })
     ;(wrapper.vm as any).message = 'hello deepchat'
+    ;(wrapper.vm as any).attachedFiles = [
+      { name: 'plan.md', path: '/tmp/workspace/plan.md', mimeType: 'text/markdown' }
+    ]
     await (wrapper.vm as any).onSubmit()
     await flushPromises()
 
     expect(sessionStore.createSession).toHaveBeenCalledWith(
       expect.objectContaining({
         message: 'hello deepchat',
+        files: [{ name: 'plan.md', path: '/tmp/workspace/plan.md', mimeType: 'text/markdown' }],
         agentId: 'deepchat',
         generationSettings: {
           systemPrompt: 'Preset prompt',

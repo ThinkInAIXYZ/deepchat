@@ -33,6 +33,25 @@ function makeUserRecord(
   }
 }
 
+function makeUserRecordWithFiles(
+  orderSeq: number,
+  text: string,
+  files: Array<Record<string, unknown>>
+) {
+  return {
+    id: `user-${orderSeq}`,
+    sessionId: 's1',
+    orderSeq,
+    role: 'user' as const,
+    content: JSON.stringify({ text, files, links: [], search: false, think: false }),
+    status: 'sent' as const,
+    isContextEdge: 0,
+    metadata: '{}',
+    createdAt: Date.now(),
+    updatedAt: Date.now()
+  }
+}
+
 function makeAssistantRecord(
   orderSeq: number,
   text: string,
@@ -287,5 +306,53 @@ describe('buildContext', () => {
     const store = createMockMessageStore([])
     buildContext('my-session', 'Hello', '', 10000, 4096, store)
     expect(store.getMessages).toHaveBeenCalledWith('my-session')
+  })
+
+  it('includes non-image file context in user content', () => {
+    const store = createMockMessageStore([])
+    const result = buildContext(
+      's1',
+      {
+        text: 'Please review',
+        files: [
+          {
+            name: 'README.md',
+            path: '/tmp/README.md',
+            mimeType: 'text/markdown',
+            content: '# Title'
+          } as any
+        ]
+      },
+      '',
+      10000,
+      4096,
+      store
+    )
+
+    expect(result).toEqual([
+      {
+        role: 'user',
+        content: expect.stringContaining('[Attached File 1]')
+      }
+    ])
+    expect(result[0].content).toEqual(expect.stringContaining('# Title'))
+  })
+
+  it('converts image files to image_url when vision is enabled', () => {
+    const store = createMockMessageStore([
+      makeUserRecordWithFiles(1, 'Look at this', [
+        {
+          name: 'img.png',
+          path: '/tmp/img.png',
+          mimeType: 'image/png',
+          content: 'data:image/png;base64,AAA='
+        }
+      ])
+    ])
+
+    const result = buildContext('s1', 'next', '', 10000, 4096, store, true)
+    const userHistory = result[0]
+    expect(Array.isArray(userHistory.content)).toBe(true)
+    expect((userHistory.content as any[]).some((part) => part.type === 'image_url')).toBe(true)
   })
 })

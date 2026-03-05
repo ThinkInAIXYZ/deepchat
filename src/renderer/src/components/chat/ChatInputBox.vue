@@ -1,8 +1,26 @@
 <template>
   <div
     class="w-full max-w-2xl rounded-xl border bg-card/30 backdrop-blur-lg shadow-sm overflow-hidden"
+    @dragover.prevent
+    @drop.prevent="onDrop"
   >
-    <div class="chat-input-editor px-4 pt-4 pb-2 text-sm" @keydown="handleKeydown">
+    <input ref="fileInput" type="file" class="hidden" multiple @change="files.handleFileSelect" />
+
+    <div v-if="files.selectedFiles.value.length > 0" class="flex flex-wrap gap-2 px-4 pt-3">
+      <ChatAttachmentItem
+        v-for="(file, index) in files.selectedFiles.value"
+        :key="file.path || `${file.name}-${index}`"
+        :file="file"
+        removable
+        @remove="files.deleteFile(index)"
+      />
+    </div>
+
+    <div
+      class="chat-input-editor px-4 pt-4 pb-2 text-sm"
+      @keydown="handleKeydown"
+      @paste.capture="onPaste"
+    >
       <EditorContent
         :editor="editor"
         class="min-h-[80px]"
@@ -38,8 +56,12 @@ import Placeholder from '@tiptap/extension-placeholder'
 import HardBreak from '@tiptap/extension-hard-break'
 import History from '@tiptap/extension-history'
 import { TextSelection } from '@tiptap/pm/state'
+import type { MessageFile } from '@shared/chat'
+import { useI18n } from 'vue-i18n'
 import { useChatInputMentions } from './composables/useChatInputMentions'
+import { useChatInputFiles } from './composables/useChatInputFiles'
 import CommandInputDialog from './mentions/CommandInputDialog.vue'
+import ChatAttachmentItem from './ChatAttachmentItem.vue'
 
 const SlashMention = Mention.extend({
   name: 'slashMention'
@@ -53,6 +75,7 @@ const props = withDefaults(
     workspacePath?: string | null
     isAcpSession?: boolean
     submitDisabled?: boolean
+    files?: MessageFile[]
   }>(),
   {
     modelValue: '',
@@ -60,18 +83,22 @@ const props = withDefaults(
     sessionId: null,
     workspacePath: null,
     isAcpSession: false,
-    submitDisabled: false
+    submitDisabled: false,
+    files: () => []
   }
 )
 
 const emit = defineEmits<{
   'update:modelValue': [value: string]
   submit: []
+  'update:files': [files: MessageFile[]]
   'command-submit': [command: string]
   'pending-skills-change': [skills: string[]]
 }>()
 
 const isComposing = ref(false)
+const fileInput = ref<HTMLInputElement>()
+const { t } = useI18n()
 let editorInstance: Editor | null = null
 const getEditor = () => editorInstance
 
@@ -84,6 +111,25 @@ const mentions = useChatInputMentions({
   onPendingSkillsChange: (skills) => emit('pending-skills-change', skills)
 })
 const dialogState = mentions.dialogState
+const files = useChatInputFiles(
+  fileInput,
+  (_event, nextFiles) => {
+    emit('update:files', [...nextFiles])
+  },
+  t
+)
+
+const sameFiles = (a: MessageFile[], b: MessageFile[]) => {
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i += 1) {
+    const left = a[i]
+    const right = b[i]
+    if (left.name !== right.name) return false
+    if ((left.path || '') !== (right.path || '')) return false
+    if ((left.mimeType || '') !== (right.mimeType || '')) return false
+  }
+  return true
+}
 
 const toEditorDoc = (text: string) => {
   const lines = text.replace(/\r/g, '').split('\n')
@@ -160,6 +206,17 @@ watch(
   }
 )
 
+watch(
+  () => props.files ?? [],
+  (nextFiles) => {
+    if (sameFiles(nextFiles, files.selectedFiles.value)) {
+      return
+    }
+    files.selectedFiles.value = [...nextFiles]
+  },
+  { deep: true, immediate: true }
+)
+
 onUnmounted(() => {
   editor.destroy()
 })
@@ -200,6 +257,25 @@ function onDialogOpenChange(open: boolean) {
     mentions.closeDialog()
   }
 }
+
+function onPaste(event: ClipboardEvent) {
+  void files.handlePaste(event, true)
+}
+
+function onDrop(event: DragEvent) {
+  if (!event.dataTransfer?.files || event.dataTransfer.files.length === 0) {
+    return
+  }
+  void files.handleDrop(event.dataTransfer.files)
+}
+
+function triggerAttach() {
+  files.openFilePicker()
+}
+
+defineExpose({
+  triggerAttach
+})
 </script>
 
 <style scoped>

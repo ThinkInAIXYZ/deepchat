@@ -25,7 +25,9 @@
     "acpModeTooltip": "現在のモード：{mode}",
     "agentWorkspaceCurrent": "現在の作業ディレクトリ: {パス}",
     "agentWorkspaceSelect": "作業ディレクトリを選択",
-    "agentWorkspaceTooltip": "エージェントの作業ディレクトリを設定する"
+    "agentWorkspaceTooltip": "エージェントの作業ディレクトリを設定する",
+    "attach": "添付",
+    "voiceInput": "音声入力"
   },
   "features": {
     "webSearch": "ウェブ検索",
