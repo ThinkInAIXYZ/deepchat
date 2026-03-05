@@ -4,6 +4,8 @@
     "fileArea": "文件区域",
     "inputArea": "输入区域",
     "functionSwitch": "功能开关",
+    "attach": "添加附件",
+    "voiceInput": "语音输入",
     "fileSelect": "选择文件",
     "pasteFiles": "支持复制粘贴文件",
     "dropFiles": "拖拽文件到此处",
@@ -96,6 +98,25 @@
     "current": "当前模式：{mode}",
     "agent": "Agent",
     "acpAgent": "ACP Agent"
+  },
+  "topbar": {
+    "share": "分享",
+    "more": "更多"
+  },
+  "advancedSettings": {
+    "button": "高级配置",
+    "title": "高级配置",
+    "closeHint": "按 Esc 关闭",
+    "systemPrompt": "系统提示词",
+    "systemPromptPlaceholder": "选择预设",
+    "temperature": "温度",
+    "contextLength": "上下文长度",
+    "maxTokens": "最大输出",
+    "thinkingBudget": "思考预算",
+    "verbosity": "回答详略",
+    "verbosityPlaceholder": "选择详略级别",
+    "currentCustomPrompt": "当前自定义",
+    "useDefault": "使用默认值"
   },
   "audio": {
     "play": "播放",

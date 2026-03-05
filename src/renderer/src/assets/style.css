@@ -88,7 +88,7 @@
     --destructive: hsl(0 84.2% 60.2%);
     --destructive-foreground: hsl(0 0% 98%);
     /* --border: var(--base-200); */
-    --input: var(--base-300);
+    --input: hsl(0 0 10% / 0.1);
     --ring: var(--primary-600);
     --chart-1: var(--primary-600);
     --chart-2: var(--primary-200);
@@ -126,7 +126,7 @@
     /* light */
     /* color */
     --bg-accent: hsl(0 0 15% / 0.05);
-    --bg-window-background: hsl(0 0 100% / 0.5);
+    --bg-window-background: hsl(0 0 95% / 0.8);
     --bg-background-70: hsl(0 0 100% / 0.7);
     --bg-card: hsl(0 0 100%);
     --bg-primary: hsl(210 100% 43%);
@@ -180,7 +180,7 @@
   .dark,
   [data-theme='dark'] {
     --container: var(--black);
-    --background: hsl(0 0 15% / 1);
+    --background: hsl(0 0 5% / 1);
     --foreground: var(--base-200);
     --card: hsl(0 0 20% / 1);
     --card-foreground: var(--base-200);
@@ -208,7 +208,7 @@
     /* dark */
     /* color */
     --bg-accent: hsl(0 0 100% / 0.05);
-    --bg-window-background: hsl(0 0 10% / 0.5);
+    --bg-window-background: hsl(0 0 5% / 0.5);
     --bg-background-70: hsl(0 0 15% / 0.7);
 
     --bg-muted: hsl(0 0 100% / 0.03);
@@ -232,13 +232,13 @@
     --text-red: hsl(0 73% 58%);
     --text-secondary-foreground: hsl(0 0 100% / 0.5);
     --text-skeleton-primary: hsl(0 0 100% / 0.05);
-    --window-inner-border: hsl(0 0 100% / 0.15);
+    --window-inner-border: hsl(0 0 100% / 0.05);
   }
 
   @media (prefers-color-scheme: dark) {
     :root:not(.dark):not([data-theme='light']):not([data-theme='dark']) {
       --container: var(--black);
-      --background: hsl(0 0 15% / 1);
+      --background: hsl(0 0 5% / 1);
       --foreground: hsl(0 0 100%);
       --card: hsl(0 0 20% / 1);
       --card-foreground: hsl(0 0 100%);
@@ -284,7 +284,7 @@
       --bg-primary: hsl(210 100% 43%);
       --bg-primary-70: hsl(210 100% 43% / 0.7);
       --bg-primary-700: hsl(210 100% 37%);
-      --bg-window-background: hsl(0 0 10% / 0.5);
+      --bg-window-background: hsl(0 0 5% / 0.5);
       --border-window-outside: hsl(0 0 0% / 0.4);
       --shadow-card: hsl(0 0 0% / 0.4);
       --syntax-bold: var(--color-blue-500);
@@ -302,7 +302,7 @@
       --text-red: hsl(0 73% 58%);
       --text-secondary-foreground: hsl(0 0 100% / 0.5);
       --text-skeleton-primary: hsl(0 0 100% / 0.05);
-      --window-inner-border: hsl(0 0 100% / 0.15);
+      --window-inner-border: hsl(0 0 100% / 0.05);
     }
   }
 

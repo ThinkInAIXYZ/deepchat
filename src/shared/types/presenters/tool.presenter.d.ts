@@ -29,6 +29,35 @@ export interface IToolPresenter {
   callTool(request: MCPToolCall): Promise<{ content: unknown; rawData: MCPToolResponse }>
 
   /**
+   * Pre-check tool permission without executing the tool.
+   */
+  preCheckToolPermission?(request: MCPToolCall): Promise<{
+    needsPermission: true
+    toolName: string
+    serverName: string
+    permissionType: 'read' | 'write' | 'all' | 'command'
+    description: string
+    paths?: string[]
+    command?: string
+    commandSignature?: string
+    commandInfo?: {
+      command: string
+      riskLevel: 'low' | 'medium' | 'high' | 'critical'
+      suggestion: string
+      signature?: string
+      baseCommand?: string
+    }
+    providerId?: string
+    requestId?: string
+    sessionId?: string
+    agentId?: string
+    agentName?: string
+    conversationId?: string
+    rememberable?: boolean
+    [key: string]: unknown
+  } | null>
+
+  /**
    * Build system prompt section for tool-related behavior.
    */
   buildToolSystemPrompt(context: { conversationId?: string }): string

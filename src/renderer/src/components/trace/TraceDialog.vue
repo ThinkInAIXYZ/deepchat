@@ -16,43 +16,34 @@
         <p class="text-sm text-muted-foreground">{{ t('traceDialog.errorDesc') }}</p>
       </div>
 
-      <div v-else-if="notImplemented" class="flex flex-col items-center justify-center py-8">
-        <Icon icon="lucide:info" class="w-12 h-12 text-muted-foreground mb-2" />
-        <h3 class="text-lg font-semibold mb-1">{{ t('traceDialog.notImplemented') }}</h3>
-        <p class="text-sm text-muted-foreground">{{ t('traceDialog.notImplementedDesc') }}</p>
-      </div>
-
-      <div v-else-if="previewData" class="flex flex-col flex-1 min-h-0 space-y-4">
-        <div
-          v-if="previewData.mayNotMatch"
-          class="px-4 py-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md"
-        >
-          <div class="flex items-start gap-2">
-            <Icon
-              icon="lucide:alert-triangle"
-              class="w-4 h-4 text-yellow-600 dark:text-yellow-400 mt-0.5"
-            />
-            <p class="text-xs text-yellow-700 dark:text-yellow-300">
-              {{ t('traceDialog.mayNotMatch') }}
-            </p>
-          </div>
+      <div v-else-if="selectedTrace" class="flex flex-col flex-1 min-h-0 space-y-4">
+        <div v-if="traceList.length > 1" class="flex flex-wrap gap-2">
+          <Button
+            v-for="trace in traceList"
+            :key="trace.id"
+            size="sm"
+            :variant="trace.id === selectedTrace.id ? 'default' : 'outline'"
+            @click="selectedTraceId = trace.id"
+          >
+            #{{ trace.requestSeq }}
+          </Button>
         </div>
 
         <div class="space-y-3 text-sm">
           <div>
             <span class="font-semibold">{{ t('traceDialog.endpoint') }}:</span>
             <div class="mt-1 px-2 py-1 bg-muted rounded break-all">
-              <span class="text-xs">{{ previewData.endpoint }}</span>
+              <span class="text-xs">{{ selectedTrace.endpoint }}</span>
             </div>
           </div>
           <div class="grid grid-cols-2 gap-4">
             <div class="min-w-0">
               <span class="font-semibold">{{ t('traceDialog.provider') }}:</span>
-              <span class="ml-2 break-words">{{ previewData.providerId }}</span>
+              <span class="ml-2 break-words">{{ selectedTrace.providerId }}</span>
             </div>
             <div class="min-w-0">
               <span class="font-semibold">{{ t('traceDialog.model') }}:</span>
-              <span class="ml-2 break-words">{{ previewData.modelId }}</span>
+              <span class="ml-2 break-words">{{ selectedTrace.modelId }}</span>
             </div>
           </div>
         </div>
@@ -71,7 +62,6 @@
               class="absolute inset-0"
               :class="{ 'opacity-0': !editorInitialized }"
             ></div>
-            <!-- Fallback: show raw JSON while Monaco Editor is initializing -->
             <div
               v-if="formattedJson && !editorInitialized"
               class="absolute inset-0 p-4 overflow-auto"
@@ -107,12 +97,12 @@ import { useI18n } from 'vue-i18n'
 import { usePresenter } from '@/composables/usePresenter'
 import { useMonaco } from 'stream-monaco'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
+import type { MessageTraceRecord } from '@shared/types/agent-interface'
 
 const { t } = useI18n()
-const agentPresenter = usePresenter('agentPresenter')
+const newAgentPresenter = usePresenter('newAgentPresenter')
 const uiSettingsStore = useUiSettingsStore()
 
-// Monaco Editor setup
 const jsonEditor = ref<HTMLElement | null>(null)
 const { createEditor, updateCode, cleanupEditor, getEditorView } = useMonaco({
   readOnly: true,
@@ -133,16 +123,6 @@ const { createEditor, updateCode, cleanupEditor, getEditorView } = useMonaco({
   }
 })
 
-type PreviewData = {
-  providerId: string
-  modelId: string
-  endpoint: string
-  headers: Record<string, string>
-  body: unknown
-  mayNotMatch?: boolean
-  notImplemented?: boolean
-}
-
 const props = defineProps<{
   messageId: string | null
   agentId?: string | null
@@ -155,17 +135,52 @@ const emit = defineEmits<{
 const isOpen = ref(false)
 const loading = ref(false)
 const error = ref(false)
-const notImplemented = ref(false)
-const previewData = ref<PreviewData | null>(null)
 const copySuccess = ref(false)
 const requestId = ref(0)
+const traceList = ref<MessageTraceRecord[]>([])
+const selectedTraceId = ref<string | null>(null)
+
+const selectedTrace = computed(() => {
+  if (!traceList.value.length) {
+    return null
+  }
+
+  if (selectedTraceId.value) {
+    const matched = traceList.value.find((item) => item.id === selectedTraceId.value)
+    if (matched) {
+      return matched
+    }
+  }
+
+  return traceList.value[0] ?? null
+})
+
+const parsedHeaders = computed(() => {
+  if (!selectedTrace.value) return {}
+  try {
+    return JSON.parse(selectedTrace.value.headersJson)
+  } catch {
+    return selectedTrace.value.headersJson
+  }
+})
+
+const parsedBody = computed(() => {
+  if (!selectedTrace.value) return {}
+  try {
+    return JSON.parse(selectedTrace.value.bodyJson)
+  } catch {
+    return selectedTrace.value.bodyJson
+  }
+})
 
 const formattedJson = computed(() => {
-  if (!previewData.value) return ''
+  if (!selectedTrace.value) return ''
   const fullData = {
-    endpoint: previewData.value.endpoint,
-    headers: previewData.value.headers,
-    body: previewData.value.body
+    endpoint: selectedTrace.value.endpoint,
+    headers: parsedHeaders.value,
+    body: parsedBody.value,
+    truncated: selectedTrace.value.truncated,
+    requestSeq: selectedTrace.value.requestSeq
   }
   return JSON.stringify(fullData, null, 2)
 })
@@ -175,25 +190,21 @@ watch(
   async (newMessageId) => {
     if (newMessageId) {
       isOpen.value = true
-      await loadPreview(newMessageId)
+      await loadTraces(newMessageId)
     } else {
-      // Reset state when messageId becomes null
       isOpen.value = false
       resetState()
     }
   }
 )
 
-// Watch isOpen to handle external close (click outside)
 watch(isOpen, (newValue) => {
   if (!newValue) {
-    // Dialog was closed (by clicking outside or ESC)
     resetState()
     emit('close')
   }
 })
 
-// Track if editor is initialized
 const editorInitialized = ref(false)
 const applyFontFamily = (fontFamily: string) => {
   const editor = getEditorView()
@@ -202,13 +213,11 @@ const applyFontFamily = (fontFamily: string) => {
   }
 }
 
-// Initialize Monaco Editor when dialog opens and data is ready
 watch(
-  [isOpen, () => previewData.value, formattedJson, jsonEditor],
-  async ([open, data, json, editorEl]) => {
-    if (open && data && json && editorEl) {
+  [isOpen, selectedTrace, formattedJson, jsonEditor],
+  async ([open, trace, json, editorEl]) => {
+    if (open && trace && json && editorEl) {
       await nextTick()
-      // Wait for DOM to be ready
       await nextTick()
       const hasEditor = editorEl.querySelector('.monaco-editor')
       if (!hasEditor && !editorInitialized.value) {
@@ -227,9 +236,8 @@ watch(
   { flush: 'post' }
 )
 
-// Also try to initialize on mount if data is already available
 onMounted(async () => {
-  if (isOpen.value && previewData.value && formattedJson.value && jsonEditor.value) {
+  if (isOpen.value && selectedTrace.value && formattedJson.value && jsonEditor.value) {
     await nextTick()
     await nextTick()
     if (!jsonEditor.value.querySelector('.monaco-editor') && !editorInitialized.value) {
@@ -256,47 +264,34 @@ onBeforeUnmount(() => {
   editorInitialized.value = false
 })
 
-const loadPreview = async (messageId: string) => {
-  // Increment request ID and capture it for this request
+const loadTraces = async (messageId: string) => {
   requestId.value += 1
   const currentRequestId = requestId.value
 
   loading.value = true
   error.value = false
-  notImplemented.value = false
-  previewData.value = null
+  traceList.value = []
+  selectedTraceId.value = null
 
   try {
-    if (!props.agentId) {
-      error.value = true
-      loading.value = false
-      return
-    }
-    const result = await agentPresenter.getMessageRequestPreview(props.agentId, messageId)
-    // Only update state if this is still the latest request
+    const result = await newAgentPresenter.listMessageTraces(messageId)
     if (currentRequestId !== requestId.value) {
       return
     }
-    // Check if result is null or undefined
-    if (!result) {
-      console.error('getMessageRequestPreview returned null or undefined')
+
+    if (!Array.isArray(result) || result.length === 0) {
       error.value = true
       return
     }
-    // Check if provider has not implemented preview
-    if ((result as any).notImplemented === true) {
-      notImplemented.value = true
-    } else {
-      previewData.value = result as PreviewData
-    }
+
+    traceList.value = result
+    selectedTraceId.value = result[0].id
   } catch (err) {
-    // Only update state if this is still the latest request
     if (currentRequestId === requestId.value) {
-      console.error('Failed to load request preview:', err)
+      console.error('Failed to load message traces:', err)
       error.value = true
     }
   } finally {
-    // Only update state if this is still the latest request
     if (currentRequestId === requestId.value) {
       loading.value = false
     }
@@ -319,10 +314,9 @@ const copyJson = async () => {
 const resetState = () => {
   loading.value = false
   error.value = false
-  notImplemented.value = false
-  previewData.value = null
   copySuccess.value = false
-  // Clean up Monaco Editor when resetting state
+  traceList.value = []
+  selectedTraceId.value = null
   cleanupEditor()
   editorInitialized.value = false
 }

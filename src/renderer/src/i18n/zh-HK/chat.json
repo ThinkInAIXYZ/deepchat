@@ -25,7 +25,9 @@
     "acpModeTooltip": "目前模式：{mode}",
     "agentWorkspaceCurrent": "當前工作目錄：{path}",
     "agentWorkspaceSelect": "選擇工作目錄",
-    "agentWorkspaceTooltip": "設置 Agent 工作目錄"
+    "agentWorkspaceTooltip": "設置 Agent 工作目錄",
+    "attach": "添加附件",
+    "voiceInput": "語音輸入"
   },
   "features": {
     "webSearch": "網絡搜索",
@@ -96,6 +98,25 @@
     "acpAgent": "ACP Agent",
     "agent": "Agent",
     "current": "當前模式：{mode}"
+  },
+  "topbar": {
+    "share": "分享",
+    "more": "更多"
+  },
+  "advancedSettings": {
+    "button": "進階設定",
+    "title": "進階設定",
+    "closeHint": "按 Esc 關閉",
+    "systemPrompt": "系統提示詞",
+    "systemPromptPlaceholder": "選擇預設",
+    "temperature": "溫度",
+    "contextLength": "上下文長度",
+    "maxTokens": "最大輸出",
+    "thinkingBudget": "思考預算",
+    "verbosity": "回答詳略",
+    "verbosityPlaceholder": "選擇詳略等級",
+    "currentCustomPrompt": "目前自訂",
+    "useDefault": "使用預設值"
   },
   "workspace": {
     "collapse": "收起",

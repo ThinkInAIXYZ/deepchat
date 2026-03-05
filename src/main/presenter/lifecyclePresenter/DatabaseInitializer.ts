@@ -23,7 +23,7 @@ export class DatabaseInitializer implements IDatabaseInitializer {
   constructor(password?: string) {
     // Initialize database path
     const dbDir = path.join(app.getPath('userData'), 'app_db')
-    this.dbPath = path.join(dbDir, 'chat.db')
+    this.dbPath = path.join(dbDir, 'agent.db')
     this.password = password
   }
 
@@ -79,8 +79,8 @@ export class DatabaseInitializer implements IDatabaseInitializer {
     }
 
     try {
-      // Test basic database functionality
-      await this.database.getConversationCount()
+      // Test basic database functionality without relying on any specific table.
+      await this.database.runTransaction(() => {})
       return true
     } catch (error) {
       console.error('DatabaseInitializer: Connection validation failed:', error)

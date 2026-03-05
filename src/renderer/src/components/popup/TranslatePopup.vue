@@ -42,8 +42,8 @@ import { usePresenter } from '@/composables/usePresenter'
 import { Button } from '@shadcn/components/ui/button'
 import { Icon } from '@iconify/vue'
 
-const { t } = useI18n()
-const agentPresenter = usePresenter('agentPresenter')
+const { t, locale } = useI18n()
+const newAgentPresenter = usePresenter('newAgentPresenter')
 
 // 状态
 const isOpen = ref(false)
@@ -125,7 +125,7 @@ const handleTranslateRequest = async (event: Event) => {
   translatedText.value = ''
 
   try {
-    const result = await agentPresenter.translateText(newText, window.api.getWebContentsId())
+    const result = await newAgentPresenter.translateText(newText, locale.value)
     translatedText.value = result
   } catch (error) {
     translatedText.value = t('contextMenu.translate.error')

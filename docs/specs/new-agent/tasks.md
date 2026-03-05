@@ -1,0 +1,112 @@
+# New Agent Architecture — Tasks
+
+## T0 Shared Types & Events
+
+- [x] Create `src/shared/types/agent-interface.d.ts` — `IAgentImplementation`, `Agent`, `Session`, `SessionStatus`, `CreateSessionInput`, `ChatMessageRecord`, `UserMessageContent`, `AssistantMessageBlock`, `MessageMetadata`, `Project` (merged chat-types into this file)
+- [x] Create `src/shared/types/presenters/new-agent.presenter.d.ts` — `INewAgentPresenter` interface
+- [x] Create `src/shared/types/presenters/project.presenter.d.ts` — `IProjectPresenter` interface
+- [x] Export new types from `src/shared/types/presenters/index.d.ts`
+- [x] Add `SESSION_EVENTS` to `src/main/events.ts` (list-updated, activated, deactivated, status-changed)
+- [x] Add `SESSION_EVENTS` mirror to `src/renderer/src/events.ts`
+
+## T1 New DB Tables
+
+- [x] Create `src/main/presenter/sqlitePresenter/tables/newSessions.ts` — `new_sessions` table (no provider_id/model_id — agent owns those)
+- [x] Create `src/main/presenter/sqlitePresenter/tables/newProjects.ts` — `new_projects` table with `icon` column
+- [x] Create `src/main/presenter/sqlitePresenter/tables/deepchatSessions.ts` — `deepchat_sessions` table (id, provider_id, model_id only — no per-session config columns)
+- [x] Create `src/main/presenter/sqlitePresenter/tables/deepchatMessages.ts` — `deepchat_messages` table with order_seq, JSON content, status (pending/sent/error), is_context_edge, metadata; index on (session_id, order_seq)
+- [x] Register new tables in `sqlitePresenter/index.ts` (initTables + migrate array)
+
+## T2 deepchatAgentPresenter
+
+- [x] Create `messageStore.ts` — CRUD over `deepchat_messages`
+- [x] Create `sessionStore.ts` — CRUD over `deepchat_sessions`
+- [x] Create `index.ts` — implements `IAgentImplementation`, wires sessionStore + messageStore + llmProviderPresenter, runs crash recovery on init
+- [x] Unit tests: processMessage, recoverPendingMessages (`deepchatAgentPresenter.test.ts`)
+
+## T3 agentPresenter (newAgentPresenter)
+
+- [x] Create `src/main/presenter/newAgentPresenter/agentRegistry.ts` — register/resolve/getAll
+- [x] Create `src/main/presenter/newAgentPresenter/sessionManager.ts` — CRUD over `new_sessions`, in-memory window bindings (webContentsId → sessionId)
+- [x] Create `src/main/presenter/newAgentPresenter/messageManager.ts` — proxy resolves agentId then delegates to agent
+- [x] Create `src/main/presenter/newAgentPresenter/index.ts` — implements `INewAgentPresenter`, wires sessionManager + messageManager + agentRegistry + event relay (all stream events carry conversationId)
+- [x] Unit tests: sessionManager CRUD + window bindings (`test/main/presenter/newAgentPresenter/sessionManager.test.ts`)
+- [x] Unit tests: agentRegistry register/resolve/getAll/has (`test/main/presenter/newAgentPresenter/agentRegistry.test.ts`)
+- [x] Unit tests: messageManager delegation (`test/main/presenter/newAgentPresenter/messageManager.test.ts`)
+- [x] Unit tests: createSession → verify sessionManager.create + agent.initSession + agent.processMessage called (`test/main/presenter/newAgentPresenter/newAgentPresenter.test.ts`)
+- [x] Unit tests: sendMessage → verify agent routing (`test/main/presenter/newAgentPresenter/newAgentPresenter.test.ts`)
+
+## T4 projectPresenter
+
+- [x] Create `src/main/presenter/projectPresenter/index.ts` — implements `IProjectPresenter`, CRUD over `new_projects`, selectDirectory via devicePresenter
+- [x] Unit tests: getProjects, getRecentProjects (order + limit), selectDirectory (`test/main/presenter/projectPresenter/projectPresenter.test.ts`)
+
+## T5 Presenter Registration
+
+- [x] Add `INewAgentPresenter` and `IProjectPresenter` to `IPresenter` interface in `src/shared/types/presenters/legacy.presenters.d.ts`
+- [x] Add properties and constructor instantiation in `src/main/presenter/index.ts`
+- [x] Verify: `usePresenter('newAgentPresenter')` and `usePresenter('projectPresenter')` callable from renderer
+
+## T6 Renderer Stores
+
+- [x] Rewrite `src/renderer/src/stores/ui/session.ts` — uses `newAgentPresenter`, listens to `SESSION_EVENTS`, uses `webContentsId` for activation
+- [x] Create `src/renderer/src/stores/ui/message.ts` — uses `newAgentPresenter`, listens to `STREAM_EVENTS`, filters by conversationId, maintains streamingBlocks as AssistantMessageBlock[]
+- [x] Rewrite `src/renderer/src/stores/ui/agent.ts` — uses `newAgentPresenter.getAgents()`
+- [x] Rewrite `src/renderer/src/stores/ui/project.ts` — uses `projectPresenter`
+- [x] Create `src/renderer/src/stores/ui/draft.ts` — pre-session config, toCreateInput()
+
+## T7 NewThreadPage Integration
+
+- [x] Update `src/renderer/src/pages/NewThreadPage.vue` — wire to new stores (removed `title` from CreateSessionInput, title derived from message in presenter)
+- [x] Update `src/renderer/src/views/ChatTabView.vue` — `deriveFromSessions` → `fetchProjects`
+- [x] Verify: type message → submit → session created → streaming response displayed with structured blocks
+- [x] Verify: session appears in sidebar via sessionStore
+
+## T8 Quality Gate & Verification
+
+- [x] `pnpm run typecheck` — passes
+- [x] `pnpm run lint` — passes (0 warnings, 0 errors)
+- [x] `pnpm run format` — passes
+- [x] Unit tests: all new modules passing
+- [x] Integration test: createSession end-to-end — new_sessions row + deepchat_sessions row + deepchat_messages rows (valid JSON content) + events with conversationId (`test/main/presenter/newAgentPresenter/integration.test.ts`)
+- [x] Integration test: crash recovery — insert pending message, reinit, verify status = error (`test/main/presenter/newAgentPresenter/integration.test.ts`)
+- [x] Verify old UI regression: old `sessionPresenter` / `chatStore` still functional — zero impact
+- [x] Manual verify: run `pnpm run dev`, create session via NewThreadPage, see streamed response
+
+---
+
+## v1: Multi-Turn Context Assembly (complete)
+
+- [x] Create `contextBuilder.ts` — context assembly + truncation
+- [x] Modify `processMessage` in `index.ts` — wire context builder
+- [x] Unit tests for context builder (`contextBuilder.test.ts`)
+- [x] Update `deepchatAgentPresenter.test.ts` — mock `getDefaultSystemPrompt`, verify multi-turn messages
+- [x] Update `integration.test.ts` — verify multi-turn flow end-to-end
+- [x] Quality gate: typecheck, lint, format, tests
+
+## v2: Tool Calling / MCP Integration (complete)
+
+- [x] Fetch MCP tool definitions via `ToolPresenter.getAllToolDefinitions()` and pass to `coreStream`
+- [x] `tool_call_start/chunk/end` events create `tool_call` blocks in the stream
+- [x] `stop_reason: 'tool_use'` triggers tool execution via `ToolPresenter.callTool()`
+- [x] Tool results appended as `role: 'tool'` messages, loop re-invokes `coreStream`
+- [x] Multi-turn tool loop works (multiple rounds of tool calls)
+- [x] Max tool calls limit (128) stops the loop
+- [x] Abort signal cancels the loop mid-execution
+- [x] Tool call blocks rendered with name, params, and response
+- [x] Interleaved thinking support for deepseek-reasoner / kimi-k2-thinking / glm-4.7
+- [x] Quality gate: typecheck, lint, format, tests
+- [x] Fix: stop passing sessionId as conversationId to tool definitions (new agent doesn't use skills)
+
+## v3: Stream Processing Refactor (complete)
+
+- [x] Create `src/shared/utils/throttle.ts` — reusable trailing-edge throttle utility
+- [x] Create `types.ts` — `StreamState`, `IoParams`, `ProcessParams`, `createState()`
+- [x] Create `accumulator.ts` — pure `accumulate(state, event)` block mutations
+- [x] Create `echo.ts` — interval-based flush to renderer (120ms) + DB (600ms) with throttle
+- [x] Create `dispatch.ts` — `executeTools()`, `finalize()`, `finalizeError()`
+- [x] Create `process.ts` — unified `processStream()` loop, single code path for tools and no-tools
+- [x] Update `index.ts` — replace `handleStream`/`agentLoop` with single `processStream()` call
+- [x] Delete `streamHandler.ts` and `agentLoop.ts`
+- [x] Tests: `throttle.test.ts` (7), `accumulator.test.ts` (14), `echo.test.ts` (5), `dispatch.test.ts` (14), `process.test.ts` (9), updated `deepchatAgentPresenter.test.ts` (19)
+- [x] Quality gate: typecheck, lint, format, 89 tests passing

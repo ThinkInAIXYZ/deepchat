@@ -3,7 +3,14 @@ import { eventBus } from '@/eventbus'
 import { WINDOW_EVENTS, CONFIG_EVENTS, SYSTEM_EVENTS, TAB_EVENTS } from '@/events'
 import { is } from '@electron-toolkit/utils'
 import { ITabPresenter, TabCreateOptions, IWindowPresenter, TabData } from '@shared/presenter'
-import { BrowserWindow, WebContentsView, shell, nativeImage, type WebPreferences } from 'electron'
+import {
+  BrowserWindow,
+  WebContentsView,
+  shell,
+  nativeImage,
+  webContents as electronWebContents,
+  type WebPreferences
+} from 'electron'
 import { join } from 'path'
 import contextMenu from '@/contextMenuHelper'
 import { getContextMenuLabels } from '@shared/i18n'
@@ -971,14 +978,43 @@ export class TabPresenter implements ITabPresenter {
     rect: { x: number; y: number; width: number; height: number }
   ): Promise<string | null> {
     try {
-      const view = this.tabs.get(tabId)
-      if (!view || view.webContents.isDestroyed()) {
+      let targetWebContents: Electron.WebContents | null = null
+
+      const tabView = this.tabs.get(tabId)
+      if (tabView && !tabView.webContents.isDestroyed()) {
+        targetWebContents = tabView.webContents
+      } else {
+        const directWebContents = electronWebContents.fromId(tabId)
+        if (directWebContents && !directWebContents.isDestroyed()) {
+          targetWebContents = directWebContents
+        }
+      }
+
+      // Fallback: some callers may pass windowId. Capture active tab in that window.
+      if (!targetWebContents) {
+        const window = BrowserWindow.fromId(tabId)
+        if (window && !window.isDestroyed()) {
+          const activeTabId = await this.getActiveTabId(window.id)
+          if (activeTabId) {
+            const activeView = this.tabs.get(activeTabId)
+            if (activeView && !activeView.webContents.isDestroyed()) {
+              targetWebContents = activeView.webContents
+            }
+          }
+
+          if (!targetWebContents && !window.webContents.isDestroyed()) {
+            targetWebContents = window.webContents
+          }
+        }
+      }
+
+      if (!targetWebContents || targetWebContents.isDestroyed()) {
         console.error(`captureTabArea: Tab ${tabId} not found or destroyed`)
         return null
       }
 
       // 使用Electron的capturePage API进行截图
-      const image = await view.webContents.capturePage(rect)
+      const image = await targetWebContents.capturePage(rect)
 
       if (image.isEmpty()) {
         console.error('Capture tab area: Captured image is empty')

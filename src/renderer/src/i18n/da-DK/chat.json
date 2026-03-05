@@ -32,7 +32,9 @@
     "fileArea": "fil område",
     "agentWorkspaceCurrent": "Nuværende arbejdsmappe: {path}",
     "agentWorkspaceSelect": "Vælg arbejdsmappe",
-    "agentWorkspaceTooltip": "Indstil agentens arbejdsmappe"
+    "agentWorkspaceTooltip": "Indstil agentens arbejdsmappe",
+    "attach": "Vedhæft",
+    "voiceInput": "Stemmeinput"
   },
   "mcpUi": {
     "badge": "UI",
@@ -96,6 +98,25 @@
     "acpAgent": "ACP-agent",
     "agent": "Agent",
     "current": "Aktuel tilstand: {mode}"
+  },
+  "topbar": {
+    "share": "Del",
+    "more": "Mere"
+  },
+  "advancedSettings": {
+    "button": "Avanceret",
+    "title": "Avancerede indstillinger",
+    "closeHint": "Tryk Esc for at lukke",
+    "systemPrompt": "Systemprompt",
+    "systemPromptPlaceholder": "Vælg en forudindstilling",
+    "temperature": "Temperatur",
+    "contextLength": "Kontekstlængde",
+    "maxTokens": "Maks. tokens",
+    "thinkingBudget": "Tænkebudget",
+    "verbosity": "Detaljegrad",
+    "verbosityPlaceholder": "Vælg detaljegrad",
+    "currentCustomPrompt": "Aktuel brugerdefineret",
+    "useDefault": "Brug standard"
   },
   "workspace": {
     "collapse": "tæt",

@@ -25,7 +25,9 @@
     "acpModeTooltip": "حالت فعلی: {mode}",
     "agentWorkspaceCurrent": "فهرست کاری فعلی: {path}",
     "agentWorkspaceSelect": "پوشه کاری را انتخاب کنید",
-    "agentWorkspaceTooltip": "دایرکتوری کاری عامل را تنظیم کنید"
+    "agentWorkspaceTooltip": "دایرکتوری کاری عامل را تنظیم کنید",
+    "attach": "پیوست",
+    "voiceInput": "ورودی صوتی"
   },
   "features": {
     "webSearch": "جستجوی وب",
@@ -96,6 +98,25 @@
     "acpAgent": "نماینده ACP",
     "agent": "عامل",
     "current": "حالت فعلی: {mode}"
+  },
+  "topbar": {
+    "share": "اشتراک‌گذاری",
+    "more": "بیشتر"
+  },
+  "advancedSettings": {
+    "button": "پیشرفته",
+    "title": "تنظیمات پیشرفته",
+    "closeHint": "برای بستن Esc را بزنید",
+    "systemPrompt": "پرامپت سیستم",
+    "systemPromptPlaceholder": "یک پیش‌تنظیم را انتخاب کنید",
+    "temperature": "دما",
+    "contextLength": "طول زمینه",
+    "maxTokens": "حداکثر توکن",
+    "thinkingBudget": "بودجه تفکر",
+    "verbosity": "میزان جزئیات پاسخ",
+    "verbosityPlaceholder": "سطح جزئیات را انتخاب کنید",
+    "currentCustomPrompt": "سفارشی فعلی",
+    "useDefault": "استفاده از پیش‌فرض"
   },
   "workspace": {
     "collapse": "بستن",

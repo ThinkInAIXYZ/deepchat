@@ -25,7 +25,9 @@
     "acpModeTooltip": "מצב נוכחי: {mode}",
     "agentWorkspaceCurrent": "ספריית עבודה נוכחית: {path}",
     "agentWorkspaceSelect": "בחר ספריית עבודה",
-    "agentWorkspaceTooltip": "הגדר את ספריית העבודה של הסוכן"
+    "agentWorkspaceTooltip": "הגדר את ספריית העבודה של הסוכן",
+    "attach": "צרף",
+    "voiceInput": "קלט קולי"
   },
   "features": {
     "webSearch": "חיפוש אינטרנט",
@@ -96,6 +98,25 @@
     "acpAgent": "סוכן ACP",
     "agent": "סוֹכֵן",
     "current": "מצב נוכחי: {mode}"
+  },
+  "topbar": {
+    "share": "שיתוף",
+    "more": "עוד"
+  },
+  "advancedSettings": {
+    "button": "מתקדם",
+    "title": "הגדרות מתקדמות",
+    "closeHint": "לחץ Esc כדי לסגור",
+    "systemPrompt": "הנחיית מערכת",
+    "systemPromptPlaceholder": "בחר תבנית",
+    "temperature": "טמפרטורה",
+    "contextLength": "אורך הקשר",
+    "maxTokens": "מקסימום טוקנים",
+    "thinkingBudget": "תקציב חשיבה",
+    "verbosity": "רמת פירוט",
+    "verbosityPlaceholder": "בחר רמת פירוט",
+    "currentCustomPrompt": "מותאם נוכחי",
+    "useDefault": "השתמש בברירת מחדל"
   },
   "workspace": {
     "collapse": "לִסְגוֹר",

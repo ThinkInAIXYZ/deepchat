@@ -2,13 +2,9 @@ import type {
   ChatMessage,
   CONVERSATION,
   CONVERSATION_SETTINGS,
-  LLMAgentEventData,
-  MCPToolDefinition,
-  MESSAGE_METADATA
+  LLMAgentEventData
 } from '@shared/presenter'
 import type { AssistantMessageBlock, Message, UserMessageContent } from '@shared/chat'
-import { ModelType } from '@shared/model'
-import { presenter } from '@/presenter'
 import { BaseHandler, type ThreadHandlerContext } from '../types/handlerContext'
 import { buildUserMessageContext } from '../message/messageFormatter'
 import {
@@ -16,8 +12,6 @@ import {
   generateExportFilename,
   type ConversationExportFormat
 } from '../../exporter/formats/conversationExporter'
-import { preparePromptContent } from '../message/messageBuilder'
-import type { StreamGenerationHandler } from '../streaming/streamGenerationHandler'
 
 // Translation constants
 const TRANSLATION_TEMPERATURE = 0.3
@@ -34,7 +28,6 @@ export interface UtilityHandlerOptions {
     settings: Partial<CONVERSATION_SETTINGS>,
     tabId: number
   ) => Promise<string>
-  streamGenerationHandler: StreamGenerationHandler
 }
 
 export class UtilityHandler extends BaseHandler {
@@ -45,14 +38,12 @@ export class UtilityHandler extends BaseHandler {
     settings: Partial<CONVERSATION_SETTINGS>,
     tabId: number
   ) => Promise<string>
-  private readonly streamGenerationHandler: StreamGenerationHandler
 
   constructor(context: ThreadHandlerContext, options: UtilityHandlerOptions) {
     super(context)
     this.getActiveConversation = options.getActiveConversation
     this.getActiveConversationId = options.getActiveConversationId
     this.createConversation = options.createConversation
-    this.streamGenerationHandler = options.streamGenerationHandler
   }
 
   async translateText(text: string, tabId: number): Promise<string> {
@@ -306,166 +297,6 @@ export class UtilityHandler extends BaseHandler {
     let cleanedTitle = title.replace(/<think>.*?<\/think>/g, '').trim()
     cleanedTitle = cleanedTitle.replace(/^<think>/, '').trim()
     return cleanedTitle
-  }
-
-  async getMessageRequestPreview(messageId: string): Promise<unknown> {
-    try {
-      // Get message and conversation
-      const message = await this.ctx.sqlitePresenter.getMessage(messageId)
-      if (!message || message.role !== 'assistant') {
-        throw new Error('Message not found or not an assistant message')
-      }
-
-      const conversation = await this.ctx.sqlitePresenter.getConversation(message.conversation_id)
-      const {
-        providerId: defaultProviderId,
-        modelId: defaultModelId,
-        temperature,
-        maxTokens,
-        enabledMcpTools
-      } = conversation.settings
-
-      // Parse metadata to get model_provider and model_id
-      let messageMetadata: MESSAGE_METADATA | null = null
-      try {
-        messageMetadata = JSON.parse(message.metadata) as MESSAGE_METADATA
-      } catch (e) {
-        console.warn('Failed to parse message metadata:', e)
-      }
-
-      const effectiveProviderId = messageMetadata?.provider || defaultProviderId
-      const effectiveModelId = messageMetadata?.model || defaultModelId
-
-      // Get user message (parent of assistant message)
-      const userMessageSqlite = await this.ctx.sqlitePresenter.getMessage(message.parent_id || '')
-      if (!userMessageSqlite) {
-        throw new Error('User message not found')
-      }
-
-      // Convert SQLITE_MESSAGE to Message type
-      const userMessage = this.ctx.messageManager['convertToMessage'](userMessageSqlite)
-
-      // Get context messages using getMessageHistory
-      const contextMessages = await this.streamGenerationHandler.getMessageHistory(
-        userMessage.id,
-        conversation.settings.contextLength
-      )
-
-      // Prepare prompt content (reconstruct what was sent)
-      let modelConfig = this.ctx.configPresenter.getModelConfig(
-        effectiveModelId,
-        effectiveProviderId
-      )
-      if (!modelConfig) {
-        modelConfig = this.ctx.configPresenter.getModelConfig(defaultModelId, defaultProviderId)
-      }
-
-      if (!modelConfig) {
-        throw new Error(
-          `Model config not found for provider ${effectiveProviderId} and model ${effectiveModelId}`
-        )
-      }
-
-      const supportsFunctionCall = modelConfig?.functionCall ?? false
-      const visionEnabled = modelConfig?.vision ?? false
-
-      // Extract user content from userMessage
-      let userContent = ''
-      if (typeof userMessage.content === 'string') {
-        userContent = userMessage.content
-      } else if (
-        userMessage.content &&
-        typeof userMessage.content === 'object' &&
-        'text' in userMessage.content
-      ) {
-        userContent = userMessage.content.text || ''
-      }
-
-      const { finalContent } = await preparePromptContent({
-        conversation,
-        userContent,
-        contextMessages,
-        searchResults: null,
-        userMessage,
-        vision: visionEnabled,
-        imageFiles: [],
-        supportsFunctionCall,
-        modelType: ModelType.Chat
-      })
-
-      // Get MCP tools
-      let mcpTools: MCPToolDefinition[] = []
-      try {
-        const toolDefinitions = await presenter.mcpPresenter.getAllToolDefinitions(enabledMcpTools)
-        if (Array.isArray(toolDefinitions)) {
-          mcpTools = toolDefinitions
-        }
-      } catch (error) {
-        console.warn('Failed to load MCP tool definitions for preview', error)
-      }
-
-      // Get provider and request preview
-      const provider =
-        this.ctx.llmProviderPresenter.getProviderInstance?.(effectiveProviderId) ?? null
-      if (!provider) {
-        throw new Error(`Provider ${effectiveProviderId} not found`)
-      }
-
-      // Type assertion for provider instance
-      const providerInstance = provider as {
-        getRequestPreview: (
-          messages: ChatMessage[],
-          modelId: string,
-          modelConfig: unknown,
-          temperature: number,
-          maxTokens: number,
-          mcpTools: MCPToolDefinition[]
-        ) => Promise<{
-          endpoint: string
-          headers: Record<string, string>
-          body: unknown
-        }>
-      }
-
-      try {
-        const preview = await providerInstance.getRequestPreview(
-          finalContent,
-          effectiveModelId,
-          modelConfig,
-          temperature,
-          maxTokens,
-          mcpTools
-        )
-
-        // Redact sensitive information
-        const { redactRequestPreview } = await import('@/lib/redact')
-        const redacted = redactRequestPreview({
-          headers: preview.headers,
-          body: preview.body
-        })
-
-        return {
-          providerId: effectiveProviderId,
-          modelId: effectiveModelId,
-          endpoint: preview.endpoint,
-          headers: redacted.headers,
-          body: redacted.body,
-          mayNotMatch: true // Always mark as potentially inconsistent since we're reconstructing
-        }
-      } catch (error) {
-        if (error instanceof Error && error.message.includes('not implemented')) {
-          return {
-            notImplemented: true,
-            providerId: effectiveProviderId,
-            modelId: effectiveModelId
-          }
-        }
-        throw error
-      }
-    } catch (error) {
-      console.error('[UtilityHandler] getMessageRequestPreview failed:', error)
-      throw error
-    }
   }
 
   /**

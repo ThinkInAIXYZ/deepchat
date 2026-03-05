@@ -163,14 +163,14 @@
 <script setup lang="ts">
 import { ref, onMounted, reactive, computed, nextTick, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useChatStore } from '@/stores/chat'
+import { usePresenter } from '@/composables/usePresenter'
 import { Button } from '@shadcn/components/ui/button'
 import { Input } from '@shadcn/components/ui/input'
 import { Label } from '@shadcn/components/ui/label'
 import { Icon } from '@iconify/vue'
 import { useToast } from '@/components/use-toast'
 
-const chatStore = useChatStore()
+const exporterPresenter = usePresenter('exporter')
 const { toast } = useToast()
 const { t } = useI18n()
 
@@ -209,7 +209,7 @@ onMounted(async () => {
 
 const loadConfiguration = async () => {
   try {
-    const savedConfig = chatStore.getNowledgeMemConfig()
+    const savedConfig = exporterPresenter.getNowledgeMemConfig()
     if (savedConfig) {
       Object.assign(config, savedConfig)
       // Convert milliseconds to seconds for UI
@@ -259,7 +259,7 @@ const testConnection = async () => {
   testingConnection.value = true
 
   try {
-    const result = await chatStore.testNowledgeMemConnection()
+    const result = await exporterPresenter.testNowledgeMemConnection()
     toast({
       title: t('settings.knowledgeBase.nowledgeMem.testConnection'),
       description: result.message || 'Connection successful'
@@ -279,7 +279,7 @@ const saveConfiguration = async () => {
   savingConfig.value = true
 
   try {
-    await chatStore.updateNowledgeMemConfig({
+    await exporterPresenter.updateNowledgeMemConfig({
       baseUrl: config.baseUrl,
       apiKey: config.apiKey,
       timeout: config.timeout
@@ -301,7 +301,7 @@ const resetConfiguration = async () => {
       timeout: 30000 // 30 seconds in milliseconds
     }
 
-    await chatStore.updateNowledgeMemConfig(defaultConfig)
+    await exporterPresenter.updateNowledgeMemConfig(defaultConfig)
 
     Object.assign(config, defaultConfig)
   } catch (error) {

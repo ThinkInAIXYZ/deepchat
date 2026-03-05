@@ -5,7 +5,6 @@ import { useIpcQuery } from '@/composables/useIpcQuery'
 import { useIpcMutation } from '@/composables/useIpcMutation'
 import { MCP_EVENTS } from '@/events'
 import { useI18n } from 'vue-i18n'
-import { useChatStore } from './chat'
 import { useQuery, type UseMutationReturn, type UseQueryReturn } from '@pinia/colada'
 import type {
   McpClient,
@@ -22,8 +21,10 @@ interface MCPToolCallEventResult {
   function_name?: string
   content: string | { type: string; text: string }[]
 }
+
+const ENABLED_MCP_TOOLS_KEY = 'input_enabledMcpTools'
+
 export const useMcpStore = defineStore('mcp', () => {
-  const chatStore = useChatStore()
   const { t } = useI18n()
   // 获取MCP相关的presenter
   const mcpPresenter = usePresenter('mcpPresenter')
@@ -54,12 +55,62 @@ export const useMcpStore = defineStore('mcp', () => {
   const toolLoadingStates = ref<Record<string, boolean>>({})
   const toolInputs = ref<Record<string, Record<string, string>>>({})
   const toolResults = ref<Record<string, string | { type: string; text: string }[]>>({})
+  const enabledToolNames = ref<string[]>([])
 
   type QueryExecuteOptions = { force?: boolean }
 
   const runQuery = async <T>(queryReturn: UseQueryReturn<T>, options?: QueryExecuteOptions) => {
     const runner = options?.force ? queryReturn.refetch : queryReturn.refresh
     return await runner()
+  }
+
+  const normalizeEnabledToolNames = (value: unknown): string[] => {
+    if (!Array.isArray(value)) {
+      return []
+    }
+
+    const normalized = value
+      .filter((item): item is string => typeof item === 'string')
+      .map((item) => item.trim())
+      .filter(Boolean)
+
+    return Array.from(new Set(normalized))
+  }
+
+  const hasSameToolList = (left: string[], right: string[]): boolean => {
+    if (left.length !== right.length) {
+      return false
+    }
+    return left.every((item, index) => item === right[index])
+  }
+
+  const persistEnabledToolNames = async () => {
+    try {
+      await configPresenter.setSetting(ENABLED_MCP_TOOLS_KEY, [...enabledToolNames.value])
+    } catch (error) {
+      console.warn('Failed to persist enabled MCP tools:', error)
+    }
+  }
+
+  const setEnabledToolNames = async (names: string[], persist = true): Promise<void> => {
+    const normalized = normalizeEnabledToolNames(names)
+    if (hasSameToolList(enabledToolNames.value, normalized)) {
+      return
+    }
+    enabledToolNames.value = normalized
+    if (persist) {
+      await persistEnabledToolNames()
+    }
+  }
+
+  const loadEnabledToolNames = async () => {
+    try {
+      const stored = await configPresenter.getSetting(ENABLED_MCP_TOOLS_KEY)
+      await setEnabledToolNames(normalizeEnabledToolNames(stored), false)
+    } catch (error) {
+      console.warn('Failed to load enabled MCP tools:', error)
+      enabledToolNames.value = []
+    }
   }
 
   interface ConfigQueryResult {
@@ -291,6 +342,14 @@ export const useMcpStore = defineStore('mcp', () => {
     })
   }
 
+  const syncEnabledToolsWithDefinitions = async (toolDefs: MCPToolDefinition[] = []) => {
+    const allToolNames = toolDefs.map((tool) => tool.function.name)
+    const availableSet = new Set(allToolNames)
+    const filtered = enabledToolNames.value.filter((name) => availableSet.has(name))
+    const next = filtered.length > 0 || allToolNames.length === 0 ? filtered : allToolNames
+    await setEnabledToolNames(next)
+  }
+
   watch(
     () => configQuery.data.value,
     (data) => syncConfigFromQuery(data),
@@ -306,6 +365,7 @@ export const useMcpStore = defineStore('mcp', () => {
 
       if (Array.isArray(toolDefs)) {
         applyToolsSnapshot(toolDefs as MCPToolDefinition[])
+        void syncEnabledToolsWithDefinitions(toolDefs as MCPToolDefinition[])
       }
     },
     { immediate: true }
@@ -534,21 +594,21 @@ export const useMcpStore = defineStore('mcp', () => {
       }
       // 根据服务器的状态，关闭或者开启该服务器的所有工具
       const isRunning = serverStatuses.value[serverName] || false
-      const currentTools =
-        chatStore.chatConfig.enabledMcpTools || [...tools.value].map((tool) => tool.function.name)
       if (isRunning) {
         // Get server tools after refresh
         const serverTools = tools.value
           .filter((tool) => tool.server.name === serverName)
           .map((tool) => tool.function.name)
         if (serverTools.length > 0) {
-          const mergedTools = Array.from(new Set([...currentTools, ...serverTools]))
-          chatStore.updateChatConfig({ enabledMcpTools: mergedTools })
+          const mergedTools = Array.from(new Set([...enabledToolNames.value, ...serverTools]))
+          await setEnabledToolNames(mergedTools)
         }
       } else {
         const allServerToolNames = tools.value.map((tool) => tool.function.name)
-        const filteredTools = currentTools.filter((name) => allServerToolNames.includes(name))
-        chatStore.updateChatConfig({ enabledMcpTools: filteredTools })
+        const filteredTools = enabledToolNames.value.filter((name) =>
+          allServerToolNames.includes(name)
+        )
+        await setEnabledToolNames(filteredTools)
       }
     } catch (error) {
       console.error(t('mcp.errors.getServerStatusFailed', { serverName }), error)
@@ -690,15 +750,8 @@ export const useMcpStore = defineStore('mcp', () => {
 
     try {
       const state = await runQuery(toolsQuery, options)
-      // 当用户没有显式选择启用的工具时，默认启用全部可用工具，避免重启后出现0个工具的情况
-      if (
-        state.status === 'success' &&
-        (!chatStore.chatConfig.enabledMcpTools || chatStore.chatConfig.enabledMcpTools.length === 0)
-      ) {
-        const allToolNames = (state.data ?? []).map((tool) => tool.function.name)
-        if (allToolNames.length > 0) {
-          await chatStore.updateChatConfig({ enabledMcpTools: allToolNames })
-        }
+      if (state.status === 'success') {
+        await syncEnabledToolsWithDefinitions(state.data ?? [])
       }
     } catch (error) {
       console.error(t('mcp.errors.loadToolsFailed'), error)
@@ -962,6 +1015,7 @@ export const useMcpStore = defineStore('mcp', () => {
   // 初始化
   const init = async () => {
     initEvents()
+    await loadEnabledToolNames()
     await loadConfig()
 
     // 总是加载提示模板（包含config数据源）
@@ -972,30 +1026,11 @@ export const useMcpStore = defineStore('mcp', () => {
       await loadTools()
       await loadClients()
     }
-
-    // 如果是新建会话页面，则缓存已激活工具名称
-    if (!chatStore.getActiveThreadId()) {
-      chatStore.chatConfig.enabledMcpTools = tools.value.map((item) => item.function.name)
-    }
-  }
-
-  // 监听活动线程变化，处理新会话的默认工具状态
-  const handleActiveThreadChange = () => {
-    watch(
-      () => chatStore.getActiveThreadId(),
-      (newThreadId, oldThreadId) => {
-        // 从有活动线程切换到无活动线程（新会话页面）
-        if (oldThreadId && !newThreadId && config.value.mcpEnabled && tools.value.length > 0) {
-          chatStore.chatConfig.enabledMcpTools = tools.value.map((item) => item.function.name)
-        }
-      }
-    )
   }
 
   // 立即初始化
   onMounted(async () => {
     await init()
-    handleActiveThreadChange()
   })
 
   // 获取NPM Registry状态
@@ -1047,6 +1082,17 @@ export const useMcpStore = defineStore('mcp', () => {
     mcpInstallCache.value = null
   }
 
+  const isToolEnabled = (toolName: string): boolean => enabledToolNames.value.includes(toolName)
+
+  const setToolEnabled = async (toolName: string, enabled: boolean): Promise<void> => {
+    const current = enabledToolNames.value
+    if (enabled) {
+      await setEnabledToolNames([...current, toolName])
+      return
+    }
+    await setEnabledToolNames(current.filter((name) => name !== toolName))
+  }
+
   return {
     // 状态
     config,
@@ -1060,6 +1106,7 @@ export const useMcpStore = defineStore('mcp', () => {
     toolLoadingStates,
     toolInputs,
     toolResults,
+    enabledToolNames,
     prompts,
     resources,
     mcpEnabled,
@@ -1089,6 +1136,8 @@ export const useMcpStore = defineStore('mcp', () => {
     loadPrompts,
     loadResources,
     updateToolInput,
+    isToolEnabled,
+    setToolEnabled,
     callTool,
     getPrompt,
     readResource,

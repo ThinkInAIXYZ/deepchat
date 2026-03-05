@@ -54,6 +54,7 @@ export class SkillPresenter implements ISkillPresenter {
   private skillsDir: string
   private metadataCache: Map<string, SkillMetadata> = new Map()
   private contentCache: Map<string, SkillContent> = new Map()
+  private newAgentActiveSkills: Map<string, string[]> = new Map()
   private watcher: FSWatcher | null = null
   private initialized: boolean = false
   // Prevent concurrent discovery calls (race condition protection)
@@ -711,10 +712,28 @@ export class SkillPresenter implements ISkillPresenter {
     await shell.openPath(this.skillsDir)
   }
 
+  private async isNewAgentSession(conversationId: string): Promise<boolean> {
+    try {
+      const session = await presenter?.newAgentPresenter?.getSession(conversationId)
+      return Boolean(session)
+    } catch {
+      return false
+    }
+  }
+
   /**
    * Get active skills for a conversation
    */
   async getActiveSkills(conversationId: string): Promise<string[]> {
+    if (await this.isNewAgentSession(conversationId)) {
+      const skills = this.newAgentActiveSkills.get(conversationId) ?? []
+      const validSkills = await this.validateSkillNames(skills)
+      if (validSkills.length !== skills.length) {
+        this.newAgentActiveSkills.set(conversationId, validSkills)
+      }
+      return validSkills
+    }
+
     try {
       const conversation = await presenter.sessionPresenter.getConversation(conversationId)
       const activeSkills = conversation?.settings?.activeSkills || []
@@ -738,6 +757,7 @@ export class SkillPresenter implements ISkillPresenter {
    */
   async setActiveSkills(conversationId: string, skills: string[]): Promise<void> {
     try {
+      const isNewSession = await this.isNewAgentSession(conversationId)
       const previousSkills = await this.getActiveSkills(conversationId)
       const previousSet = new Set(previousSkills)
 
@@ -745,9 +765,13 @@ export class SkillPresenter implements ISkillPresenter {
       const validSkills = await this.validateSkillNames(skills)
       const validSet = new Set(validSkills)
 
-      await presenter.sessionPresenter.updateConversationSettings(conversationId, {
-        activeSkills: validSkills
-      })
+      if (isNewSession) {
+        this.newAgentActiveSkills.set(conversationId, validSkills)
+      } else {
+        await presenter.sessionPresenter.updateConversationSettings(conversationId, {
+          activeSkills: validSkills
+        })
+      }
 
       const activated = validSkills.filter((skill) => !previousSet.has(skill))
       const deactivated = previousSkills.filter((skill) => !validSet.has(skill))
@@ -769,6 +793,10 @@ export class SkillPresenter implements ISkillPresenter {
       console.error(`[SkillPresenter] Error setting active skills for ${conversationId}:`, error)
       throw error
     }
+  }
+
+  async clearNewAgentSessionSkills(conversationId: string): Promise<void> {
+    this.newAgentActiveSkills.delete(conversationId)
   }
 
   /**

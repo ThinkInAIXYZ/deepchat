@@ -28,7 +28,9 @@ import {
   IToolPresenter,
   IYoBrowserPresenter,
   ISkillPresenter,
-  ISkillSyncPresenter
+  ISkillSyncPresenter,
+  INewAgentPresenter,
+  IProjectPresenter
 } from '@shared/presenter'
 import { eventBus } from '@/eventbus'
 import { LLMProviderPresenter } from './llmProviderPresenter'
@@ -62,6 +64,9 @@ import { ConversationExporterService } from './exporter'
 import { SkillPresenter } from './skillPresenter'
 import { SkillSyncPresenter } from './skillSyncPresenter'
 import { HooksNotificationsService } from './hooksNotifications'
+import { NewAgentPresenter } from './newAgentPresenter'
+import { DeepChatAgentPresenter } from './deepchatAgentPresenter'
+import { ProjectPresenter } from './projectPresenter'
 
 // IPC调用上下文接口
 interface IPCCallContext {
@@ -110,7 +115,10 @@ export class Presenter implements IPresenter {
   lifecycleManager: ILifecycleManager
   skillPresenter: ISkillPresenter
   skillSyncPresenter: ISkillSyncPresenter
+  newAgentPresenter: INewAgentPresenter
+  projectPresenter: IProjectPresenter
   hooksNotifications: HooksNotificationsService
+  commandPermissionService: CommandPermissionService
   filePermissionService: FilePermissionService
   settingsPermissionService: SettingsPermissionService
 
@@ -127,6 +135,7 @@ export class Presenter implements IPresenter {
     this.tabPresenter = new TabPresenter(this.windowPresenter)
     this.llmproviderPresenter = new LLMProviderPresenter(this.configPresenter, this.sqlitePresenter)
     const commandPermissionHandler = new CommandPermissionService()
+    this.commandPermissionService = commandPermissionHandler
     this.filePermissionService = new FilePermissionService()
     this.settingsPermissionService = new SettingsPermissionService()
     const messageManager = new MessageManager(this.sqlitePresenter)
@@ -193,6 +202,25 @@ export class Presenter implements IPresenter {
 
     // Initialize Skill Sync presenter
     this.skillSyncPresenter = new SkillSyncPresenter(this.skillPresenter, this.configPresenter)
+
+    // Initialize new agent architecture presenters
+    const deepchatAgentPresenter = new DeepChatAgentPresenter(
+      this.llmproviderPresenter as unknown as ILlmProviderPresenter,
+      this.configPresenter,
+      this.sqlitePresenter as unknown as import('./sqlitePresenter').SQLitePresenter,
+      this.toolPresenter
+    )
+    this.newAgentPresenter = new NewAgentPresenter(
+      deepchatAgentPresenter,
+      this.llmproviderPresenter as unknown as ILlmProviderPresenter,
+      this.configPresenter,
+      this.sqlitePresenter as unknown as import('./sqlitePresenter').SQLitePresenter,
+      this.skillPresenter
+    )
+    this.projectPresenter = new ProjectPresenter(
+      this.sqlitePresenter as unknown as import('./sqlitePresenter').SQLitePresenter,
+      this.devicePresenter
+    )
 
     // Initialize Hooks & Notifications service
     this.hooksNotifications = new HooksNotificationsService(this.configPresenter, {

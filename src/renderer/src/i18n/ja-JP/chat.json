@@ -25,7 +25,9 @@
     "acpModeTooltip": "現在のモード：{mode}",
     "agentWorkspaceCurrent": "現在の作業ディレクトリ: {パス}",
     "agentWorkspaceSelect": "作業ディレクトリを選択",
-    "agentWorkspaceTooltip": "エージェントの作業ディレクトリを設定する"
+    "agentWorkspaceTooltip": "エージェントの作業ディレクトリを設定する",
+    "attach": "添付",
+    "voiceInput": "音声入力"
   },
   "features": {
     "webSearch": "ウェブ検索",
@@ -96,6 +98,25 @@
     "acpAgent": "ACPエージェント",
     "agent": "エージェント",
     "current": "現在のモード: {モード}"
+  },
+  "topbar": {
+    "share": "共有",
+    "more": "その他"
+  },
+  "advancedSettings": {
+    "button": "詳細設定",
+    "title": "詳細設定",
+    "closeHint": "Esc で閉じる",
+    "systemPrompt": "システムプロンプト",
+    "systemPromptPlaceholder": "プリセットを選択",
+    "temperature": "温度",
+    "contextLength": "コンテキスト長",
+    "maxTokens": "最大トークン",
+    "thinkingBudget": "思考予算",
+    "verbosity": "回答の詳しさ",
+    "verbosityPlaceholder": "詳しさを選択",
+    "currentCustomPrompt": "現在のカスタム",
+    "useDefault": "デフォルトを使用"
   },
   "workspace": {
     "collapse": "近い",

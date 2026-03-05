@@ -23,14 +23,10 @@
         data-message-content="true"
       >
         <div v-show="message.content.files.length > 0" class="flex flex-wrap gap-1.5">
-          <FileItem
-            v-for="file in message.content.files"
-            :key="file.name"
-            :file-name="file.name"
-            :deletable="false"
-            :tokens="file.token"
-            :mime-type="file.mimeType"
-            :thumbnail="file.thumbnail"
+          <ChatAttachmentItem
+            v-for="(file, index) in message.content.files"
+            :key="file.path || `${file.name}-${index}`"
+            :file="file"
             @click="previewFile(file.path)"
           />
         </div>
@@ -81,7 +77,7 @@
         :is-assistant="false"
         :is-edit-mode="isEditMode"
         :is-capturing-image="false"
-        @retry="emit('retry')"
+        @retry="onRetryAction"
         @delete="handleAction('delete')"
         @copy="handleAction('copy')"
         @edit="startEdit"
@@ -96,17 +92,14 @@
 import { UserMessage, UserMessageMentionBlock } from '@shared/chat'
 import { Icon } from '@iconify/vue'
 import MessageInfo from './MessageInfo.vue'
-import FileItem from '../FileItem.vue'
+import ChatAttachmentItem from '../chat/ChatAttachmentItem.vue'
 import MessageToolbar from './MessageToolbar.vue'
 import MessageContent from './MessageContent.vue'
 import MessageTextContent from './MessageTextContent.vue'
-import { useChatStore } from '@/stores/chat'
 import { usePresenter } from '@/composables/usePresenter'
 import { ref, watch, onMounted, nextTick, onBeforeUnmount } from 'vue'
 
-const chatStore = useChatStore()
 const windowPresenter = usePresenter('windowPresenter')
-const sessionPresenter = usePresenter('sessionPresenter')
 
 const props = defineProps<{
   message: UserMessage
@@ -142,7 +135,9 @@ watch(isEditMode, (newValue) => {
 
 const emit = defineEmits<{
   fileClick: [fileName: string]
-  retry: []
+  retry: [messageId: string]
+  delete: [messageId: string]
+  editSave: [payload: { messageId: string; text: string }]
 }>()
 
 const previewFile = (filePath: string) => {
@@ -162,24 +157,14 @@ const startEdit = () => {
 }
 
 const saveEdit = async () => {
-  if (editedText.value.trim() === '') return
+  const nextText = editedText.value.trim()
+  if (!nextText) return
 
   try {
-    // Create a new content object with the edited text
-    let newContent = {
-      ...props.message.content
-    }
-    if (newContent?.content && newContent.content.length > 0) {
-      const nonTextBlocks = newContent.content.filter((block) => block.type !== 'text')
-      newContent.content = [{ type: 'text', content: editedText.value }, ...nonTextBlocks]
-    } else {
-      newContent.text = editedText.value
-    }
-    // Update the message in the database using editMessage method
-    await sessionPresenter.editMessage(props.message.id, JSON.stringify(newContent))
-
-    // Emit retry event for MessageItemAssistant to handle
-    emit('retry')
+    emit('editSave', {
+      messageId: props.message.id,
+      text: nextText
+    })
 
     // Exit edit mode
     isEditMode.value = false
@@ -188,30 +173,39 @@ const saveEdit = async () => {
   }
 }
 
+const onRetryAction = () => {
+  emit('retry', props.message.id)
+}
+
+const getCopyText = () => {
+  if (props.message.content?.content && props.message.content.content.length > 0) {
+    return props.message.content.content
+      .map((block) => {
+        if (typeof block.content === 'string') {
+          return block.content
+        }
+        return ''
+      })
+      .join('')
+      .trim()
+  }
+  return props.message.content.text || ''
+}
+
 const cancelEdit = () => {
   isEditMode.value = false
 }
 
 const handleAction = (action: 'delete' | 'copy') => {
   if (action === 'delete') {
-    chatStore.deleteMessage(props.message.id)
+    emit('delete', props.message.id)
   } else if (action === 'copy') {
-    window.api.copyText(props.message.content.text)
+    window.api.copyText(getCopyText())
   }
 }
 
-const handleMentionClick = (block: UserMessageMentionBlock) => {
-  if (block.category !== 'context') {
-    return
-  }
-  const activeThread = chatStore.activeThread
-  if (!activeThread?.parentConversationId || !activeThread.parentMessageId) {
-    return
-  }
-  chatStore.openThreadInNewTab(activeThread.parentConversationId, {
-    messageId: activeThread.parentMessageId,
-    childConversationId: activeThread.id
-  })
+const handleMentionClick = async (_block: UserMessageMentionBlock) => {
+  return
 }
 
 const autoResize = () => {

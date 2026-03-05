@@ -19,6 +19,8 @@ import type { IWorkspacePresenter } from './workspace'
 import type { IToolPresenter } from './tool.presenter'
 import type { ISkillPresenter } from '../skill'
 import type { ISkillSyncPresenter } from '../skillSync'
+import type { INewAgentPresenter } from './new-agent.presenter'
+import type { IProjectPresenter } from './project.presenter'
 import type {
   BrowserTabInfo,
   BrowserContextSnapshot,
@@ -333,6 +335,15 @@ export interface IShortcutPresenter {
 export interface ISQLitePresenter {
   close(): void
   reopen(): void
+  clearNewAgentData(): Promise<void>
+  importLegacyChatDb(
+    sourceDbPath: string,
+    mode: 'increment' | 'overwrite'
+  ): Promise<{
+    importedSessions: number
+    importedMessages: number
+    importedSearchResults: number
+  }>
   createConversation(title: string, settings?: Partial<CONVERSATION_SETTINGS>): Promise<string>
   deleteConversation(conversationId: string): Promise<void>
   renameConversation(conversationId: string, title: string): Promise<CONVERSATION>
@@ -456,6 +467,8 @@ export interface IPresenter {
   toolPresenter: IToolPresenter
   skillPresenter: ISkillPresenter
   skillSyncPresenter: ISkillSyncPresenter
+  newAgentPresenter: INewAgentPresenter
+  projectPresenter: IProjectPresenter
   init(): void
   destroy(): void
 }
@@ -1057,10 +1070,18 @@ export interface ILlmProviderPresenter {
   >
   setAcpPreferredProcessMode(agentId: string, workdir: string, modeId: string): Promise<void>
   setAcpSessionMode(conversationId: string, modeId: string): Promise<void>
+  prepareAcpSession(conversationId: string, agentId: string, workdir: string): Promise<void>
   getAcpSessionModes(conversationId: string): Promise<{
     current: string
     available: Array<{ id: string; name: string; description: string }>
   } | null>
+  getAcpSessionCommands(conversationId: string): Promise<
+    Array<{
+      name: string
+      description: string
+      input?: { hint: string } | null
+    }>
+  >
   resolveAgentPermission(requestId: string, granted: boolean): Promise<void>
   runAcpDebugAction(request: AcpDebugRequest): Promise<AcpDebugRunResult>
   getProviderInstance(providerId: string): unknown
@@ -1717,7 +1738,13 @@ export interface ISyncPresenter {
   importFromSync(
     backupFileName: string,
     importMode?: ImportMode
-  ): Promise<{ success: boolean; message: string; count?: number }>
+  ): Promise<{
+    success: boolean
+    message: string
+    count?: number
+    sourceDbType?: 'agent' | 'chat'
+    importedSessions?: number
+  }>
   checkSyncFolder(): Promise<{ exists: boolean; path: string }>
   openSyncFolder(): Promise<void>
 

@@ -25,7 +25,9 @@
     "acpModeTooltip": "Текущий режим: {mode}",
     "agentWorkspaceCurrent": "Текущий рабочий каталог: {path}",
     "agentWorkspaceSelect": "Выберите рабочий каталог",
-    "agentWorkspaceTooltip": "Установить рабочий каталог агента"
+    "agentWorkspaceTooltip": "Установить рабочий каталог агента",
+    "attach": "Прикрепить",
+    "voiceInput": "Голосовой ввод"
   },
   "features": {
     "webSearch": "Поиск в интернете",
@@ -96,6 +98,25 @@
     "acpAgent": "Агент АШП",
     "agent": "Агент",
     "current": "Текущий режим: {mode}"
+  },
+  "topbar": {
+    "share": "Поделиться",
+    "more": "Ещё"
+  },
+  "advancedSettings": {
+    "button": "Расширенные",
+    "title": "Расширенные настройки",
+    "closeHint": "Нажмите Esc, чтобы закрыть",
+    "systemPrompt": "Системный промпт",
+    "systemPromptPlaceholder": "Выберите пресет",
+    "temperature": "Температура",
+    "contextLength": "Длина контекста",
+    "maxTokens": "Макс. токенов",
+    "thinkingBudget": "Бюджет размышления",
+    "verbosity": "Детализация ответа",
+    "verbosityPlaceholder": "Выберите уровень детализации",
+    "currentCustomPrompt": "Текущий пользовательский",
+    "useDefault": "Использовать по умолчанию"
   },
   "workspace": {
     "collapse": "закрывать",

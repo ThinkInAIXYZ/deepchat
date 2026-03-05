@@ -15,6 +15,12 @@ export interface MappedContent {
   planEntries?: PlanEntry[]
   /** Current mode ID from mode change notification (optional) */
   currentModeId?: string
+  /** Available slash commands from ACP session (optional) */
+  availableCommands?: Array<{
+    name: string
+    description: string
+    input?: { hint: string } | null
+  }>
 }
 
 interface ToolCallState {
@@ -60,6 +66,7 @@ export class AcpContentMapper {
           '[ACP] Available commands update:',
           JSON.stringify(update.availableCommands?.map((c) => c.name) ?? [])
         )
+        this.handleAvailableCommandsUpdate(update, payload)
         break
       case 'user_message_chunk':
         // ignore echo
@@ -234,6 +241,31 @@ export class AcpContentMapper {
         extra: { mode_change: modeId }
       })
     )
+  }
+
+  private handleAvailableCommandsUpdate(
+    update: Extract<
+      schema.SessionNotification['update'],
+      { sessionUpdate: 'available_commands_update' }
+    >,
+    payload: MappedContent
+  ) {
+    const commands = (update.availableCommands ?? [])
+      .map((command) => {
+        const name = typeof command.name === 'string' ? command.name.trim() : ''
+        if (!name) return null
+        const description =
+          typeof command.description === 'string' ? command.description.trim() : ''
+        const hint = command.input?.hint
+        return {
+          name,
+          description,
+          input: typeof hint === 'string' && hint.trim() ? { hint: hint.trim() } : null
+        }
+      })
+      .filter((command): command is NonNullable<typeof command> => command !== null)
+
+    payload.availableCommands = commands
   }
 
   private formatToolCallContent(

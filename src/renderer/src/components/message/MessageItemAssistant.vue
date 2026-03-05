@@ -1,115 +1,147 @@
 <template>
-  <div
-    :data-message-id="message.id"
-    class="flex flex-row pl-4 pt-5 pr-11 group gap-2 w-full justify-start assistant-message-item"
-  >
-    <div class="shrink-0 w-5 h-5 flex items-center justify-center">
-      <ModelIcon
-        v-if="currentMessage.model_provider === 'acp'"
-        :model-id="currentMessage.model_id"
-        :is-dark="themeStore.isDark"
-        custom-class="w-[18px] h-[18px]"
-      />
-      <ModelIcon
-        v-else
-        :model-id="currentMessage.model_provider"
-        custom-class="w-[18px] h-[18px]"
-        :is-dark="themeStore.isDark"
-        :alt="currentMessage.role"
-      />
-    </div>
+  <ContextMenu>
+    <component
+      :is="useLegacyActions ? 'div' : ContextMenuTrigger"
+      v-bind="useLegacyActions ? {} : { asChild: true }"
+    >
+      <div
+        ref="rootRef"
+        :data-message-id="message.id"
+        class="flex flex-row pl-4 pt-5 pr-11 group gap-2 w-full justify-start assistant-message-item"
+        @contextmenu.capture="handleContextMenuOpen"
+      >
+        <div class="shrink-0 w-5 h-5 flex items-center justify-center">
+          <ModelIcon
+            v-if="currentMessage.model_provider === 'acp'"
+            :model-id="currentMessage.model_id"
+            :is-dark="themeStore.isDark"
+            custom-class="w-[18px] h-[18px]"
+          />
+          <ModelIcon
+            v-else
+            :model-id="currentMessage.model_provider"
+            custom-class="w-[18px] h-[18px]"
+            :is-dark="themeStore.isDark"
+            :alt="currentMessage.role"
+          />
+        </div>
 
-    <div class="flex flex-col w-full space-y-1.5">
-      <MessageInfo :name="currentMessage.model_name" :timestamp="currentMessage.timestamp" />
-      <Spinner v-if="currentContent.length === 0" class="size-3 text-muted-foreground" />
-      <div v-else class="flex flex-col w-full gap-1.5" data-message-content="true">
-        <template v-for="(block, idx) in currentContent" :key="`${message.id}-${idx}`">
-          <MessageBlockContent
-            v-if="block.type === 'content'"
-            :block="block"
-            :message-id="currentMessage.id"
-            :thread-id="currentThreadId"
-            :is-search-result="isSearchResult"
-          />
-          <MessageBlockThink
-            v-else-if="block.type === 'reasoning_content' && block.content"
-            :block="block"
+        <div class="flex flex-col w-full space-y-1.5">
+          <MessageInfo :name="currentMessage.model_name" :timestamp="currentMessage.timestamp" />
+          <Spinner v-if="currentContent.length === 0" class="size-3 text-muted-foreground" />
+          <div v-else class="flex flex-col w-full gap-1.5" data-message-content="true">
+            <template v-for="(block, idx) in currentContent" :key="`${message.id}-${idx}`">
+              <MessageBlockContent
+                v-if="block.type === 'content'"
+                :block="block"
+                :message-id="currentMessage.id"
+                :thread-id="currentThreadId"
+                :is-search-result="isSearchResult"
+              />
+              <MessageBlockThink
+                v-else-if="block.type === 'reasoning_content' && block.content"
+                :block="block"
+                :usage="message.usage"
+                @toggle-collapse="handleCollapseToggle"
+              />
+              <MessageBlockPlan v-else-if="block.type === 'plan'" :block="block" />
+              <MessageBlockToolCall
+                v-else-if="block.type === 'tool_call'"
+                :block="block"
+                :message-id="currentMessage.id"
+                :thread-id="currentThreadId"
+              />
+              <MessageBlockQuestionRequest
+                v-else-if="block.type === 'action' && block.action_type === 'question_request'"
+                :block="block"
+              />
+              <MessageBlockAction
+                v-else-if="block.type === 'action'"
+                :message-id="currentMessage.id"
+                :conversation-id="currentThreadId"
+                :block="block"
+                @continue="handleBlockContinue"
+                @switch-provider="handleBlockSwitchProvider"
+              />
+              <MessageBlockMcpUi
+                v-else-if="block.type === 'mcp_ui_resource'"
+                :block="block"
+                :message-id="currentMessage.id"
+                :thread-id="currentThreadId"
+              />
+              <MessageBlockAudio
+                v-else-if="isAudioBlock(block)"
+                :block="block"
+                :message-id="currentMessage.id"
+                :thread-id="currentThreadId"
+              />
+              <MessageBlockImage
+                v-else-if="block.type === 'image'"
+                :block="block"
+                :message-id="currentMessage.id"
+                :thread-id="currentThreadId"
+              />
+              <MessageBlockError v-else-if="block.type === 'error'" :block="block" />
+            </template>
+          </div>
+          <MessageToolbar
+            :loading="message.status === 'pending'"
             :usage="message.usage"
-            @toggle-collapse="handleCollapseToggle"
+            :is-assistant="true"
+            :current-variant-index="currentVariantIndex"
+            :total-variants="totalVariants"
+            :is-in-generating-thread="resolvedIsInGeneratingThread"
+            :is-capturing-image="isCapturingImage"
+            :show-trace="showTrace"
+            @retry="handleAction('retry')"
+            @delete="handleAction('delete')"
+            @copy="handleAction('copy')"
+            @copy-image="handleAction('copyImage')"
+            @copy-image-from-top="handleAction('copyImageFromTop')"
+            @prev="handleAction('prev')"
+            @next="handleAction('next')"
+            @fork="handleAction('fork')"
+            @trace="handleAction('trace')"
           />
-          <MessageBlockPlan v-else-if="block.type === 'plan'" :block="block" />
-          <MessageBlockToolCall
-            v-else-if="block.type === 'tool_call'"
-            :block="block"
-            :message-id="currentMessage.id"
-            :thread-id="currentThreadId"
-          />
-          <template
-            v-else-if="block.type === 'action' && block.action_type === 'tool_call_permission'"
-          >
-            <MessageBlockPermissionRequest
-              v-if="block.extra?.needsUserAction"
-              :block="block"
-              :message-id="currentMessage.id"
-              :conversation-id="currentThreadId"
-            />
-          </template>
-          <MessageBlockQuestionRequest
-            v-else-if="block.type === 'action' && block.action_type === 'question_request'"
-            :block="block"
-            :message-id="currentMessage.id"
-            :conversation-id="currentThreadId"
-          />
-          <MessageBlockAction
-            v-else-if="block.type === 'action'"
-            :message-id="currentMessage.id"
-            :conversation-id="currentThreadId"
-            :block="block"
-          />
-          <MessageBlockMcpUi
-            v-else-if="block.type === 'mcp_ui_resource'"
-            :block="block"
-            :message-id="currentMessage.id"
-            :thread-id="currentThreadId"
-          />
-          <MessageBlockAudio
-            v-else-if="isAudioBlock(block)"
-            :block="block"
-            :message-id="currentMessage.id"
-            :thread-id="currentThreadId"
-          />
-          <MessageBlockImage
-            v-else-if="block.type === 'image'"
-            :block="block"
-            :message-id="currentMessage.id"
-            :thread-id="currentThreadId"
-          />
-          <MessageBlockError v-else-if="block.type === 'error'" :block="block" />
-        </template>
+        </div>
       </div>
-      <MessageToolbar
-        :loading="message.status === 'pending'"
-        :usage="message.usage"
-        :is-assistant="true"
-        :current-variant-index="currentVariantIndex"
-        :total-variants="totalVariants"
-        :is-in-generating-thread="chatStore.generatingThreadIds.has(currentThreadId)"
-        :is-capturing-image="isCapturingImage"
-        @retry="handleAction('retry')"
-        @delete="handleAction('delete')"
-        @copy="handleAction('copy')"
-        @copy-image="handleAction('copyImage')"
-        @copy-image-from-top="handleAction('copyImageFromTop')"
-        @prev="handleAction('prev')"
-        @next="handleAction('next')"
-        @fork="handleAction('fork')"
-        @trace="handleAction('trace')"
-      />
-    </div>
-  </div>
+    </component>
+
+    <ContextMenuContent v-if="!useLegacyActions" class="w-56">
+      <template v-if="showSelectionMenu">
+        <ContextMenuItem @select="handleSelectionCopy">
+          {{ t('common.copy') }}
+        </ContextMenuItem>
+        <ContextMenuItem @select="handleSelectionTranslate">
+          {{ t('contextMenu.translate.title') }}
+        </ContextMenuItem>
+        <ContextMenuItem @select="handleSelectionAskAI">
+          {{ t('contextMenu.askAI.title') }}
+        </ContextMenuItem>
+      </template>
+      <template v-else>
+        <ContextMenuItem @select="handleAction('copy')">
+          {{ t('thread.toolbar.copy') }}
+        </ContextMenuItem>
+        <ContextMenuItem @select="handleAction('retry')">
+          {{ t('thread.toolbar.retry') }}
+        </ContextMenuItem>
+        <ContextMenuItem
+          :disabled="message.status === 'pending' || resolvedIsInGeneratingThread"
+          @select="handleAction('fork')"
+        >
+          {{ t('thread.toolbar.fork') }}
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem @select="handleAction('delete')">
+          {{ t('thread.toolbar.delete') }}
+        </ContextMenuItem>
+      </template>
+    </ContextMenuContent>
+  </ContextMenu>
 
   <!-- 分支会话确认对话框 -->
-  <Dialog v-model:open="isForkDialogOpen">
+  <Dialog v-if="useLegacyActions" v-model:open="isForkDialogOpen">
     <DialogContent>
       <DialogHeader>
         <DialogTitle>{{ t('dialog.fork.title') }}</DialogTitle>
@@ -136,11 +168,9 @@ import MessageBlockContent from './MessageBlockContent.vue'
 import MessageBlockThink from './MessageBlockThink.vue'
 import MessageBlockToolCall from './MessageBlockToolCall.vue'
 import MessageBlockError from './MessageBlockError.vue'
-import MessageBlockPermissionRequest from './MessageBlockPermissionRequest.vue'
 import MessageBlockQuestionRequest from './MessageBlockQuestionRequest.vue'
 import MessageToolbar from './MessageToolbar.vue'
 import MessageInfo from './MessageInfo.vue'
-import { useChatStore } from '@/stores/chat'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import ModelIcon from '@/components/icons/ModelIcon.vue'
 import { Spinner } from '@shadcn/components/ui/spinner'
@@ -160,14 +190,23 @@ import {
   DialogTitle
 } from '@shadcn/components/ui/dialog'
 import { Button } from '@shadcn/components/ui/button'
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger
+} from '@shadcn/components/ui/context-menu'
 import { useThemeStore } from '@/stores/theme'
 const props = defineProps<{
   message: AssistantMessage
   isCapturingImage: boolean
+  useLegacyActions?: boolean
+  isInGeneratingThread?: boolean
+  showTrace?: boolean
 }>()
 
 const themeStore = useThemeStore()
-const chatStore = useChatStore()
 const uiSettingsStore = useUiSettingsStore()
 const { t } = useI18n()
 
@@ -197,17 +236,31 @@ const emit = defineEmits<{
   ]
   variantChanged: [messageId: string]
   trace: [messageId: string]
+  retry: [messageId: string]
+  delete: [messageId: string]
+  fork: [messageId: string]
+  continue: [conversationId: string, messageId: string]
+  switchProvider: []
 }>()
 
 // 获取当前会话ID
-const currentThreadId = computed(() => chatStore.getActiveThreadId() || '')
+const currentThreadId = computed(() => props.message.conversationId || '')
+const useLegacyActions = computed(() => props.useLegacyActions !== false)
+const resolvedIsInGeneratingThread = computed(() => props.isInGeneratingThread ?? false)
+const showTrace = computed(() => props.showTrace ?? false)
+const rootRef = ref<HTMLElement | null>(null)
+const showSelectionMenu = ref(false)
+const lastSelectionText = ref('')
+const contextMenuPosition = ref<{ x?: number; y?: number }>({})
 
 // currentVariantIndex: 0 = 主消息, 1-N = 对应的变体索引
-const currentVariantIndex = computed(() => {
-  const selectedVariantId = chatStore.selectedVariantsMap[props.message.id]
-  if (!selectedVariantId) return 0
+const selectedVariantId = ref<string | null>(null)
 
-  const variantIndex = allVariants.value.findIndex((v) => v.id === selectedVariantId)
+const currentVariantIndex = computed(() => {
+  if (!useLegacyActions.value) return 0
+  if (!selectedVariantId.value) return 0
+
+  const variantIndex = allVariants.value.findIndex((v) => v.id === selectedVariantId.value)
   return variantIndex !== -1 ? variantIndex + 1 : 0
 })
 
@@ -233,18 +286,6 @@ const allVariants = computed(() => {
     }
   })
 
-  for (const [, cached] of chatStore.getGeneratingMessagesCache().entries()) {
-    const msg = cached.message
-    if (
-      props.message.parentId &&
-      msg.role === 'assistant' &&
-      msg.is_variant &&
-      msg.parentId === props.message.parentId
-    ) {
-      variantsById.set(msg.id, msg as AssistantMessage)
-    }
-  }
-
   return Array.from(variantsById.values())
 })
 
@@ -265,17 +306,33 @@ const currentContent = computed(() => {
 watch(
   () => allVariants.value.length,
   (newLength, oldLength) => {
+    if (!useLegacyActions.value) {
+      return
+    }
+
     // 仅当新变体被添加时触发
     // 并且当前会话不是正在生成中的消息，避免在生成过程中频繁切换
-    if (newLength > oldLength && !chatStore.generatingThreadIds.has(currentThreadId.value)) {
-      const mainMessageId = props.message.id
+    if (newLength > oldLength && !resolvedIsInGeneratingThread.value) {
       // 获取最后一个变体（数组最后一个元素）
       const lastVariant = allVariants.value[newLength - 1]
 
       // 只有当 lastVariant 存在时才调用 updateSelectedVariant，确保是有效的变体
-      chatStore.updateSelectedVariant(mainMessageId, lastVariant ? lastVariant.id : null)
+      selectedVariantId.value = lastVariant?.id ?? null
+      emit('variantChanged', props.message.id)
     }
   }
+)
+
+watch(
+  [() => props.message.id, allVariants],
+  () => {
+    if (!selectedVariantId.value) return
+    const exists = allVariants.value.some((variant) => variant.id === selectedVariantId.value)
+    if (!exists) {
+      selectedVariantId.value = null
+    }
+  },
+  { immediate: true }
 )
 
 const isSearchResult = computed(() => {
@@ -298,14 +355,9 @@ const cancelFork = () => {
 }
 
 // 确认分支
-const confirmFork = async () => {
-  try {
-    // 执行fork操作
-    await chatStore.forkThread(currentMessage.value.id, t('dialog.fork.tag'))
-    isForkDialogOpen.value = false
-  } catch (error) {
-    console.error('创建对话分支失败:', error)
-  }
+const confirmFork = () => {
+  emit('fork', currentMessage.value.id)
+  isForkDialogOpen.value = false
 }
 
 type HandleActionType =
@@ -323,11 +375,88 @@ const handleCollapseToggle = () => {
   emit('variantChanged', props.message.id)
 }
 
+const getSelectionInCurrentMessage = () => {
+  const selection = window.getSelection()
+  const root = rootRef.value
+  if (!selection || !root || selection.rangeCount === 0 || selection.isCollapsed) {
+    return ''
+  }
+
+  const text = selection.toString().trim()
+  if (!text) {
+    return ''
+  }
+
+  const range = selection.getRangeAt(0)
+  if (!root.contains(range.startContainer) || !root.contains(range.endContainer)) {
+    return ''
+  }
+
+  return text
+}
+
+const resolveSelectionText = () => getSelectionInCurrentMessage() || lastSelectionText.value
+
+const handleContextMenuOpen = (event: MouseEvent) => {
+  if (useLegacyActions.value) {
+    return
+  }
+
+  contextMenuPosition.value = {
+    x: event.clientX,
+    y: event.clientY
+  }
+  const text = getSelectionInCurrentMessage()
+  showSelectionMenu.value = !!text
+  lastSelectionText.value = text
+}
+
+const handleSelectionCopy = () => {
+  const text = resolveSelectionText()
+  if (!text) {
+    return
+  }
+  window.api.copyText(text)
+}
+
+const handleSelectionTranslate = () => {
+  const text = resolveSelectionText()
+  if (!text) {
+    return
+  }
+
+  window.dispatchEvent(
+    new CustomEvent('context-menu-translate-text', {
+      detail: {
+        text,
+        x: contextMenuPosition.value.x,
+        y: contextMenuPosition.value.y
+      }
+    })
+  )
+}
+
+const handleSelectionAskAI = () => {
+  const text = resolveSelectionText()
+  if (!text) {
+    return
+  }
+  window.dispatchEvent(new CustomEvent('context-menu-ask-ai', { detail: text }))
+}
+
+const handleBlockContinue = (conversationId: string, messageId: string) => {
+  emit('continue', conversationId, messageId)
+}
+
+const handleBlockSwitchProvider = () => {
+  emit('switchProvider')
+}
+
 const handleAction = (action: HandleActionType) => {
   if (action === 'retry') {
-    chatStore.retryMessage(currentMessage.value.id)
+    emit('retry', currentMessage.value.id)
   } else if (action === 'delete') {
-    chatStore.deleteMessage(currentMessage.value.id)
+    emit('delete', currentMessage.value.id)
   } else if (action === 'copy') {
     window.api.copyText(
       currentContent.value
@@ -354,6 +483,10 @@ const handleAction = (action: HandleActionType) => {
         .trim()
     )
   } else if (action === 'prev' || action === 'next') {
+    if (!useLegacyActions.value) {
+      return
+    }
+
     let newIndex = currentVariantIndex.value
 
     if (action === 'prev' && newIndex > 0) {
@@ -364,8 +497,7 @@ const handleAction = (action: HandleActionType) => {
 
     if (newIndex === currentVariantIndex.value) return
 
-    const selectedVariantId = newIndex > 0 ? allVariants.value[newIndex - 1]?.id : null
-    chatStore.updateSelectedVariant(props.message.id, selectedVariantId)
+    selectedVariantId.value = newIndex > 0 ? (allVariants.value[newIndex - 1]?.id ?? null) : null
     emit('variantChanged', props.message.id)
   } else if (action === 'copyImage') {
     // 使用原始消息的ID，因为DOM中的data-message-id使用的是message.id
@@ -380,7 +512,11 @@ const handleAction = (action: HandleActionType) => {
       model_provider: currentMessage.value.model_provider
     })
   } else if (action === 'fork') {
-    showForkDialog()
+    if (useLegacyActions.value) {
+      showForkDialog()
+    } else {
+      emit('fork', currentMessage.value.id)
+    }
   } else if (action === 'trace') {
     emit('trace', currentMessage.value.id)
   }

@@ -7,9 +7,10 @@ import type {
   McpSamplingRequestPayload,
   RENDERER_MODEL_META
 } from '@shared/presenter'
-import { useChatStore } from '@/stores/chat'
 import { useModelStore } from '@/stores/modelStore'
 import { useProviderStore } from '@/stores/providerStore'
+import { useSessionStore } from '@/stores/ui/session'
+import { useDraftStore } from '@/stores/ui/draft'
 
 interface ApprovedServerInfo {
   providerId: string
@@ -20,11 +21,89 @@ interface ApprovedServerInfo {
 // Session timeout: 30 minutes
 const SESSION_TIMEOUT = 30 * 60 * 1000
 
+type ModelSelection = {
+  providerId: string
+  modelId?: string | null
+}
+
+const pickEligibleModel = (
+  providerEntry: { providerId: string; models: RENDERER_MODEL_META[] } | undefined,
+  requiresVision: boolean,
+  preferredModelId?: string | null
+): { providerId: string | null; model: RENDERER_MODEL_META | null } => {
+  if (!providerEntry) {
+    return { providerId: null, model: null }
+  }
+
+  const models = requiresVision
+    ? providerEntry.models.filter((model) => model.vision)
+    : providerEntry.models
+
+  if (models.length === 0) {
+    return { providerId: null, model: null }
+  }
+
+  if (preferredModelId) {
+    const preferredModel = models.find((model) => model.id === preferredModelId)
+    if (preferredModel) {
+      return { providerId: providerEntry.providerId, model: preferredModel }
+    }
+  }
+
+  return { providerId: providerEntry.providerId, model: models[0] }
+}
+
+export const resolveSamplingDefaultModel = (input: {
+  enabledModels: Array<{ providerId: string; models: RENDERER_MODEL_META[] }>
+  providerOrder: string[]
+  requiresVision: boolean
+  activeSelection?: ModelSelection | null
+  draftSelection?: ModelSelection | null
+}): { providerId: string | null; model: RENDERER_MODEL_META | null } => {
+  const selectFrom = (selection?: ModelSelection | null) => {
+    if (!selection?.providerId) {
+      return { providerId: null, model: null as RENDERER_MODEL_META | null }
+    }
+    const providerEntry = input.enabledModels.find(
+      (entry) => entry.providerId === selection.providerId
+    )
+    return pickEligibleModel(providerEntry, input.requiresVision, selection.modelId)
+  }
+
+  const activeMatch = selectFrom(input.activeSelection)
+  if (activeMatch.providerId && activeMatch.model) {
+    return activeMatch
+  }
+
+  const draftMatch = selectFrom(input.draftSelection)
+  if (draftMatch.providerId && draftMatch.model) {
+    return draftMatch
+  }
+
+  for (const providerId of input.providerOrder) {
+    const providerEntry = input.enabledModels.find((entry) => entry.providerId === providerId)
+    const match = pickEligibleModel(providerEntry, input.requiresVision)
+    if (match.providerId && match.model) {
+      return match
+    }
+  }
+
+  for (const providerEntry of input.enabledModels) {
+    const match = pickEligibleModel(providerEntry, input.requiresVision)
+    if (match.providerId && match.model) {
+      return match
+    }
+  }
+
+  return { providerId: null, model: null }
+}
+
 export const useMcpSamplingStore = defineStore('mcpSampling', () => {
   const mcpPresenter = usePresenter('mcpPresenter')
-  const chatStore = useChatStore()
   const modelStore = useModelStore()
   const providerStore = useProviderStore()
+  const sessionStore = useSessionStore()
+  const draftStore = useDraftStore()
 
   const request = ref<McpSamplingRequestPayload | null>(null)
   const isOpen = ref(false)
@@ -50,68 +129,29 @@ export const useMcpSamplingStore = defineStore('mcpSampling', () => {
   })
 
   const resetSelection = () => {
-    const requiresVisionValue = requiresVision.value
+    const providerOrder = providerStore.sortedProviders
+      .filter((provider) => provider.enable)
+      .map((provider) => provider.id)
+    const activeSession = sessionStore.activeSession
+    const activeSelection =
+      activeSession?.providerId && activeSession?.modelId
+        ? { providerId: activeSession.providerId, modelId: activeSession.modelId }
+        : null
+    const draftSelection =
+      draftStore.providerId && draftStore.modelId
+        ? { providerId: draftStore.providerId, modelId: draftStore.modelId }
+        : null
 
-    const pickEligibleModel = (
-      providerEntry: { providerId: string; models: RENDERER_MODEL_META[] } | undefined,
-      preferredModelId?: string | null
-    ): { providerId: string | null; model: RENDERER_MODEL_META | null } => {
-      if (!providerEntry) {
-        return { providerId: null, model: null }
-      }
+    const selection = resolveSamplingDefaultModel({
+      enabledModels: modelStore.enabledModels,
+      providerOrder,
+      requiresVision: requiresVision.value,
+      activeSelection,
+      draftSelection
+    })
 
-      const models = requiresVisionValue
-        ? providerEntry.models.filter((model) => model.vision)
-        : providerEntry.models
-
-      if (models.length === 0) {
-        return { providerId: null, model: null }
-      }
-
-      if (preferredModelId) {
-        const preferredModel = models.find((model) => model.id === preferredModelId)
-        if (preferredModel) {
-          return { providerId: providerEntry.providerId, model: preferredModel }
-        }
-      }
-
-      return { providerId: providerEntry.providerId, model: models[0] }
-    }
-
-    const activeProviderId = chatStore.chatConfig.providerId || null
-    const activeModelId = chatStore.chatConfig.modelId || null
-
-    if (activeProviderId) {
-      const providerEntry = modelStore.enabledModels.find(
-        (entry) => entry.providerId === activeProviderId
-      )
-      const selection = pickEligibleModel(providerEntry, activeModelId)
-      if (selection.model && selection.providerId) {
-        selectedProviderId.value = selection.providerId
-        selectedModel.value = selection.model
-        return
-      }
-    }
-
-    for (const provider of providerStore.sortedProviders) {
-      if (!provider.enable) {
-        continue
-      }
-
-      const providerEntry = modelStore.enabledModels.find(
-        (entry) => entry.providerId === provider.id
-      )
-
-      const selection = pickEligibleModel(providerEntry)
-      if (selection.model && selection.providerId) {
-        selectedProviderId.value = selection.providerId
-        selectedModel.value = selection.model
-        return
-      }
-    }
-
-    selectedProviderId.value = null
-    selectedModel.value = null
+    selectedProviderId.value = selection.providerId
+    selectedModel.value = selection.model
   }
 
   const hasEligibleModel = computed(() => {

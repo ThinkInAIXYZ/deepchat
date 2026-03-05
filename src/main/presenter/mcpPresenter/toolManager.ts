@@ -424,17 +424,31 @@ export class ToolManager {
         const chatMode = this.configPresenter.getSetting<'agent' | 'acp agent'>('input_chatMode')
         if (chatMode === 'acp agent') {
           try {
-            const conversation = await presenter.sessionPresenter.getConversation(
-              toolCall.conversationId
-            )
-            const agentId = conversation?.settings?.modelId
-            if (typeof agentId === 'string' && agentId.trim().length > 0) {
-              const selections = await this.configPresenter.getAgentMcpSelections(agentId)
-              if (!selections?.length || !selections.includes(toolServerName)) {
-                return {
-                  toolCallId: toolCall.id,
-                  content: `MCP server '${toolServerName}' is not allowed for ACP agent '${agentId}'. Configure MCP access in ACP settings.`,
-                  isError: true
+            let agentId: string | null = null
+
+            const session = await presenter.newAgentPresenter.getSession(toolCall.conversationId)
+            if (session?.agentId?.trim()) {
+              agentId = session.agentId.trim()
+            } else {
+              const conversation = await presenter.sessionPresenter.getConversation(
+                toolCall.conversationId
+              )
+              if (typeof conversation?.settings?.modelId === 'string') {
+                const normalized = conversation.settings.modelId.trim()
+                agentId = normalized.length > 0 ? normalized : null
+              }
+            }
+
+            if (agentId) {
+              const acpAgents = await this.configPresenter.getAcpAgents()
+              if (acpAgents.some((item) => item.id === agentId)) {
+                const selections = await this.configPresenter.getAgentMcpSelections(agentId)
+                if (!selections?.length || !selections.includes(toolServerName)) {
+                  return {
+                    toolCallId: toolCall.id,
+                    content: `MCP server '${toolServerName}' is not allowed for ACP agent '${agentId}'. Configure MCP access in ACP settings.`,
+                    isError: true
+                  }
                 }
               }
             }

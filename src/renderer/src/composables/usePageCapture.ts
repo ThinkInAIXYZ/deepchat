@@ -183,8 +183,23 @@ export function usePageCapture() {
         return { success: false, error: '截图区域高度无效' }
       }
 
-      // 获取当前标签页ID
-      const tabId = window.api.getWebContentsId()
+      // 优先使用当前窗口激活的 tabId；fallback 到当前 webContentsId
+      const webContentsId = window.api.getWebContentsId()
+      const windowId = window.api.getWindowId()
+      let tabId = webContentsId
+      try {
+        if (typeof windowId === 'number') {
+          const activeTabId = await tabPresenter.getActiveTabId(windowId)
+          if (typeof activeTabId === 'number') {
+            tabId = activeTabId
+          }
+        }
+      } catch (error) {
+        console.warn(
+          '[CAPTURE_DEBUG] Failed to resolve active tab id, fallback to webContentsId:',
+          error
+        )
+      }
 
       // 获取滚动容器
       scrollContainer = getScrollContainer(config.container)
@@ -224,79 +239,60 @@ export function usePageCapture() {
       const imageDataList: string[] = []
       let totalCapturedContentHeight = 0
       let iteration = 0
+      const targetTopInContent = containerOriginalScrollTop + (initialRect.y - containerRect.top)
+      const targetBottomInContent = targetTopInContent + targetContentHeight
+      const captureTargets = [tabId]
+      if (typeof windowId === 'number' && windowId !== tabId) {
+        captureTargets.push(windowId)
+      }
+      if (webContentsId !== tabId && webContentsId !== windowId) {
+        captureTargets.push(webContentsId)
+      }
 
       // 分段截图循环
       while (totalCapturedContentHeight < targetContentHeight && iteration < maxIterations) {
         iteration++
 
-        // 重新获取当前目标区域（可能因滚动而变化）
-        const currentActualInitialRect = config.getTargetRect()
-        if (!currentActualInitialRect) {
-          console.error(`[CAPTURE_DEBUG] Iteration ${iteration}: 无法获取当前目标区域`)
-          break
-        }
-
-        // 计算需要滚动到的位置
-        const targetContentSegmentTopInCurrentInitialRectY =
-          currentActualInitialRect.y + totalCapturedContentHeight
-        const scrollTopTarget =
-          getScrollTop(scrollContainer, isHTMLIframe) +
-          targetContentSegmentTopInCurrentInitialRectY -
-          fixedCaptureWindow.y
-
-        const currentScroll = Math.max(0, Math.min(scrollTopTarget, maxScrollTop))
+        const segmentTopInContent = targetTopInContent + totalCapturedContentHeight
+        const scrollTopTarget = Math.max(0, Math.min(segmentTopInContent, maxScrollTop))
 
         // 执行滚动
-        performScroll(scrollContainer, currentScroll, isHTMLIframe)
+        performScroll(scrollContainer, scrollTopTarget, isHTMLIframe)
         await new Promise((resolve) => setTimeout(resolve, captureDelay))
 
-        // 重新获取滚动后的目标区域
-        const finalInitialRectStateAfterScroll = config.getTargetRect()
-        if (!finalInitialRectStateAfterScroll) {
-          console.error(`[CAPTURE_DEBUG] Iteration ${iteration}: 滚动后无法获取目标区域`)
-          break
-        }
-
-        const finalScRect = scrollContainer.getBoundingClientRect()
-        const topOfUncapturedContentInViewport =
-          finalInitialRectStateAfterScroll.y + totalCapturedContentHeight
-        const contentOffsetYInCaptureWindow = topOfUncapturedContentInViewport - finalScRect.top
-
-        // 计算当前段的截图参数
-        let captureStartYInWindow = 0
-        let heightToCaptureFromSegment = 0
-
-        if (contentOffsetYInCaptureWindow < 0) {
-          captureStartYInWindow = 0
-          heightToCaptureFromSegment = Math.min(
-            targetContentHeight - totalCapturedContentHeight + contentOffsetYInCaptureWindow,
-            fixedCaptureWindow.height
-          )
-        } else {
-          captureStartYInWindow = contentOffsetYInCaptureWindow
-          heightToCaptureFromSegment = Math.min(
-            targetContentHeight - totalCapturedContentHeight,
-            fixedCaptureWindow.height - contentOffsetYInCaptureWindow
-          )
-        }
+        const actualScrollTop = getScrollTop(scrollContainer, isHTMLIframe)
+        const segmentTopInViewport = containerRect.top + (segmentTopInContent - actualScrollTop)
+        const captureStartYInWindow = Math.max(0, segmentTopInViewport - containerRect.top)
+        let heightToCaptureFromSegment = Math.min(
+          targetBottomInContent - segmentTopInContent,
+          fixedCaptureWindow.height - captureStartYInWindow
+        )
 
         heightToCaptureFromSegment = Math.max(0, heightToCaptureFromSegment)
 
         if (heightToCaptureFromSegment < 1 && targetContentHeight > totalCapturedContentHeight) {
+          console.error(`[CAPTURE_DEBUG] Iteration ${iteration}: 可捕获高度无效`)
           break
         }
 
         // 构建截图区域
         const captureRect: CaptureRect = {
           x: fixedCaptureWindow.x,
-          y: Math.round(finalScRect.top + captureStartYInWindow),
+          y: Math.round(containerRect.top + captureStartYInWindow),
           width: fixedCaptureWindow.width,
           height: Math.round(heightToCaptureFromSegment)
         }
 
-        // 执行截图
+        // 执行截图：按 tabId -> windowId -> webContentsId 顺序兜底
         try {
-          const segmentData = await tabPresenter.captureTabArea(tabId, captureRect)
+          let segmentData: string | null = null
+          for (const targetId of captureTargets) {
+            segmentData = await tabPresenter.captureTabArea(targetId, captureRect)
+            if (segmentData) {
+              break
+            }
+          }
+
           if (segmentData) {
             imageDataList.push(segmentData)
           } else {

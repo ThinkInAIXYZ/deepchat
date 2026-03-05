@@ -15,4 +15,5 @@ export type ChatMessage = {
   content?: string | ChatMessageContent[]
   tool_calls?: ChatMessageToolCall[]
   tool_call_id?: string
+  reasoning_content?: string
 }

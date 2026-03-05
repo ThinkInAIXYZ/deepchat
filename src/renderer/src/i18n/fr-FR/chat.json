@@ -25,7 +25,9 @@
     "acpModeTooltip": "Mode actuel : {mode}",
     "agentWorkspaceCurrent": "Répertoire de travail actuel : {path}",
     "agentWorkspaceSelect": "Sélectionnez le répertoire de travail",
-    "agentWorkspaceTooltip": "Définir le répertoire de travail de l'agent"
+    "agentWorkspaceTooltip": "Définir le répertoire de travail de l'agent",
+    "attach": "Joindre",
+    "voiceInput": "Saisie vocale"
   },
   "features": {
     "webSearch": "Recherche web",
@@ -96,6 +98,25 @@
     "acpAgent": "Agent ACP",
     "agent": "Agent",
     "current": "Mode actuel : {mode}"
+  },
+  "topbar": {
+    "share": "Partager",
+    "more": "Plus"
+  },
+  "advancedSettings": {
+    "button": "Avancé",
+    "title": "Paramètres avancés",
+    "closeHint": "Appuyez sur Échap pour fermer",
+    "systemPrompt": "Prompt système",
+    "systemPromptPlaceholder": "Sélectionner un préréglage",
+    "temperature": "Température",
+    "contextLength": "Longueur du contexte",
+    "maxTokens": "Jetons max",
+    "thinkingBudget": "Budget de réflexion",
+    "verbosity": "Niveau de détail",
+    "verbosityPlaceholder": "Sélectionner un niveau de détail",
+    "currentCustomPrompt": "Personnalisé actuel",
+    "useDefault": "Utiliser la valeur par défaut"
   },
   "workspace": {
     "collapse": "fermer",

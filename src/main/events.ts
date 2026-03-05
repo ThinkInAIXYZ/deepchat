@@ -72,6 +72,14 @@ export const STREAM_EVENTS = {
   PERMISSION_UPDATED: 'stream:permission-updated' // 权限状态更新，通知前端刷新UI
 }
 
+// New agent session events
+export const SESSION_EVENTS = {
+  LIST_UPDATED: 'session:list-updated',
+  ACTIVATED: 'session:activated',
+  DEACTIVATED: 'session:deactivated',
+  STATUS_CHANGED: 'session:status-changed'
+}
+
 // 系统相关事件
 export const SYSTEM_EVENTS = {
   SYSTEM_THEME_UPDATED: 'system:theme-updated'
@@ -261,7 +269,8 @@ export const WORKSPACE_EVENTS = {
 
 // ACP-specific workspace events
 export const ACP_WORKSPACE_EVENTS = {
-  SESSION_MODES_READY: 'acp-workspace:session-modes-ready' // Session modes available
+  SESSION_MODES_READY: 'acp-workspace:session-modes-ready', // Session modes available
+  SESSION_COMMANDS_READY: 'acp-workspace:session-commands-ready' // Session commands available
 }
 
 export const ACP_DEBUG_EVENTS = {

@@ -350,14 +350,14 @@ export class DevicePresenter implements IDevicePresenter {
             console.warn('Error closing SQLite connection:', closeError)
           }
           const appDbPath = path.join(userDataPath, 'app_db')
-          const mainDbFile = path.join(appDbPath, 'chat.db')
+          const mainDbFile = path.join(appDbPath, 'agent.db')
           try {
             removeFile(mainDbFile)
             console.log('Removed chat database file')
           } catch (error) {
             console.warn('Failed to remove chat database file:', error)
           }
-          const auxiliaryFiles = ['chat.db-wal', 'chat.db-shm']
+          const auxiliaryFiles = ['agent.db-wal', 'agent.db-shm']
           auxiliaryFiles.forEach((fileName) => {
             const filePath = path.join(appDbPath, fileName)
             if (fs.existsSync(filePath)) {

@@ -293,46 +293,11 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
           await tabPresenter.switchTab(chatTab.id)
           await new Promise((resolve) => setTimeout(resolve, 100))
         }
-      } else {
-        const newTabId = await tabPresenter.createTab(windowId, 'local://chat', { active: true })
-        if (newTabId) {
-          console.log(`[Deeplink] Waiting for tab ${newTabId} renderer to be ready`)
-          await this.waitForTabReady(newTabId)
-        }
       }
+      // Shell windows no longer create chat tabs
     } catch (error) {
       console.error('Error ensuring chat tab active:', error)
     }
-  }
-
-  /**
-   * 等待标签页渲染进程准备就绪
-   * @param tabId 标签页ID
-   */
-  private async waitForTabReady(tabId: number): Promise<void> {
-    return new Promise((resolve) => {
-      let resolved = false
-      const onTabReady = (readyTabId: number) => {
-        if (readyTabId === tabId && !resolved) {
-          resolved = true
-          console.log(`[Deeplink] Tab ${tabId} renderer is ready`)
-          eventBus.off('tab:renderer-ready', onTabReady)
-          clearTimeout(timeoutId)
-          resolve()
-        }
-      }
-
-      eventBus.on('tab:renderer-ready', onTabReady)
-
-      const timeoutId = setTimeout(() => {
-        if (!resolved) {
-          resolved = true
-          eventBus.off('tab:renderer-ready', onTabReady)
-          console.log(`[Deeplink] Timeout waiting for tab ${tabId}, proceeding anyway`)
-          resolve()
-        }
-      }, 3000)
-    })
   }
 
   async handleMcpInstall(params: URLSearchParams): Promise<void> {

@@ -12,6 +12,7 @@
       class="h-full shrink-0 w-0 flex-1 flex select-none text-center text-sm font-medium flex-row items-center justify-start window-drag-region"
     >
       <div v-if="!isFullscreened && isMacOS" class="shrink-0 w-20 h-full window-drag-region"></div>
+      <!-- Tab UI for browser windows -->
       <!-- App title/content in center -->
       <Button
         v-if="isTabContainerOverflowingLeft"
@@ -83,36 +84,6 @@
       <div class="flex-1"></div>
 
       <Button
-        v-if="windowType !== 'browser'"
-        size="icon"
-        class="window-no-drag-region shrink-0 w-10 bg-transparent shadow-none rounded-none hover:bg-card/80 text-xs font-medium text-foreground flex items-center justify-center transition-all duration-200 group border-l"
-        @click="onBrowserClick"
-        @mouseenter="onOverlayMouseEnter('browser', t('common.browser.name'), $event)"
-        @mouseleave="onOverlayMouseLeave('browser')"
-      >
-        <Icon icon="lucide:compass" class="w-4 h-4" />
-      </Button>
-      <Button
-        v-if="windowType !== 'browser'"
-        size="icon"
-        class="window-no-drag-region shrink-0 w-10 bg-transparent shadow-none rounded-none hover:bg-card/80 text-xs font-medium text-foreground flex items-center justify-center transition-all duration-200 group border-l"
-        @click="onHistoryClick"
-        @mouseenter="onOverlayMouseEnter('history', t('common.history'), $event)"
-        @mouseleave="onOverlayMouseLeave('history')"
-      >
-        <Icon icon="lucide:history" class="w-4 h-4" />
-      </Button>
-      <Button
-        v-if="windowType !== 'browser'"
-        size="icon"
-        class="window-no-drag-region shrink-0 w-10 bg-transparent shadow-none rounded-none hover:bg-card/80 text-xs font-medium text-foreground flex items-center justify-center transition-all duration-200 group border-l"
-        @click="openSettings"
-        @mouseenter="onOverlayMouseEnter('settings', t('routes.settings'), $event)"
-        @mouseleave="onOverlayMouseLeave('settings')"
-      >
-        <Icon icon="lucide:ellipsis" class="w-4 h-4" />
-      </Button>
-      <Button
         v-if="!isMacOS"
         class="window-no-drag-region shrink-0 w-12 bg-transparent shadow-none rounded-none hover:bg-card/80 text-xs font-medium text-foreground flex items-center justify-center transition-all duration-200 group border-l"
         @click="minimizeWindow"
@@ -173,10 +144,7 @@ import { useI18n } from 'vue-i18n'
 import { WINDOW_EVENTS } from '../lib/events'
 import CloseIcon from './icons/CloseIcon.vue'
 import MinimizeIcon from './icons/MinimizeIcon.vue'
-import { THREAD_VIEW_EVENTS } from '@/events'
-const props = defineProps<{
-  windowType?: 'chat' | 'browser'
-}>()
+
 const tabStore = useTabStore()
 const langStore = useLanguageStore()
 const windowPresenter = usePresenter('windowPresenter')
@@ -186,7 +154,6 @@ const yoBrowserPresenter = usePresenter('yoBrowserPresenter')
 const endOfTabs = ref<HTMLElement | null>(null)
 
 const { t } = useI18n()
-const windowType = computed(() => props.windowType ?? 'chat')
 
 const isMacOS = ref(false)
 const isMaximized = ref(false)
@@ -272,22 +239,6 @@ const onTabContainerWrapperScroll = () => {
     tabContainerWrapperScrollLeft.value = tabContainerWrapper.value?.scrollLeft ?? 0
     updateTooltipPosition()
   })
-}
-
-const onHistoryClick = async () => {
-  try {
-    const windowId = window.api.getWindowId()
-    if (windowId == null) {
-      console.warn('Failed to toggle thread view: unable to determine window id.')
-      return
-    }
-    const success = await windowPresenter.sendToActiveTab(windowId, THREAD_VIEW_EVENTS.TOGGLE)
-    if (!success) {
-      console.warn('Failed to toggle thread view: no active tab found.')
-    }
-  } catch (error) {
-    console.warn('Failed to toggle thread view via windowPresenter.', error)
-  }
 }
 
 const isTabContainerOverflowingLeft = computed(() => {
@@ -598,55 +549,24 @@ onBeforeUnmount(() => {
   hideTooltip()
 })
 
-const isPlaygroundEnabled = import.meta.env.VITE_ENABLE_PLAYGROUND === 'true'
-
-const openNewTab = async (event?: MouseEvent, forcePlayground = false) => {
-  // In browser mode, create browser tab
-  if (windowType.value === 'browser') {
-    try {
-      await yoBrowserPresenter.createTab('about:blank')
-      setTimeout(() => {
-        nextTick(() => {
-          if (endOfTabs.value) {
-            console.log('newTabButton', endOfTabs.value)
-            endOfTabs.value.scrollIntoView({ behavior: 'smooth', block: 'center' })
-          }
-        })
-      }, 300)
-    } catch (error) {
-      console.error('Failed to create browser tab:', error)
-    }
-    return
+const openNewTab = async () => {
+  try {
+    await yoBrowserPresenter.createTab('about:blank')
+    setTimeout(() => {
+      nextTick(() => {
+        if (endOfTabs.value) {
+          console.log('newTabButton', endOfTabs.value)
+          endOfTabs.value.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        }
+      })
+    }, 300)
+  } catch (error) {
+    console.error('Failed to create browser tab:', error)
   }
-
-  // In chat mode, create chat tab or playground
-  const shouldOpenPlayground = isPlaygroundEnabled && (forcePlayground || event?.shiftKey)
-
-  const config = shouldOpenPlayground
-    ? {
-        name: t('routes.playground'),
-        icon: 'lucide:flask-conical',
-        viewType: 'playground'
-      }
-    : {
-        name: t('common.newTab'),
-        icon: 'lucide:plus',
-        viewType: 'chat'
-      }
-
-  tabStore.addTab(config)
-  setTimeout(() => {
-    nextTick(() => {
-      if (endOfTabs.value) {
-        console.log('newTabButton', endOfTabs.value)
-        endOfTabs.value.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      }
-    })
-  }, 300)
 }
 
-const onNewTabClick = (event: MouseEvent) => {
-  openNewTab(event)
+const onNewTabClick = () => {
+  openNewTab()
 }
 
 const scrollTabContainer = (direction: 'left' | 'right') => {
@@ -684,21 +604,6 @@ const closeWindow = () => {
   const id = window.api.getWindowId()
   if (id != null) {
     windowPresenter.close(id)
-  }
-}
-
-const openSettings = () => {
-  const windowId = window.api.getWindowId()
-  if (windowId != null) {
-    windowPresenter.openOrFocusSettingsTab(windowId)
-  }
-}
-
-const onBrowserClick = async () => {
-  try {
-    await yoBrowserPresenter.show(true)
-  } catch (error) {
-    console.warn('Failed to open browser window.', error)
   }
 }
 </script>

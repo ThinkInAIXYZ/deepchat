@@ -66,7 +66,11 @@ export const WINDOW_EVENTS = {
   READY_TO_SHOW: 'window:ready-to-show', // 替代 main-window-ready-to-show
   FORCE_QUIT_APP: 'window:force-quit-app', // 替代 force-quit-app
   APP_FOCUS: 'app:focus',
-  APP_BLUR: 'app:blur'
+  APP_BLUR: 'app:blur',
+  WINDOW_MAXIMIZED: 'window:maximized',
+  WINDOW_UNMAXIMIZED: 'window:unmaximized',
+  WINDOW_ENTER_FULL_SCREEN: 'window:enter-full-screen',
+  WINDOW_LEAVE_FULL_SCREEN: 'window:leave-full-screen'
 }
 
 // Settings related events
@@ -199,6 +203,14 @@ export const RAG_EVENTS = {
   FILE_UPDATED: 'rag:file-updated', // 文件状态更新
   FILE_PROGRESS: 'rag:file-progress' // 文件进度更新
 }
+// New agent session events
+export const SESSION_EVENTS = {
+  LIST_UPDATED: 'session:list-updated',
+  ACTIVATED: 'session:activated',
+  DEACTIVATED: 'session:deactivated',
+  STATUS_CHANGED: 'session:status-changed'
+}
+
 // 系统相关事件
 export const SYSTEM_EVENTS = {
   SYSTEM_THEME_UPDATED: 'system:theme-updated'
@@ -213,7 +225,8 @@ export const WORKSPACE_EVENTS = {
 
 // ACP-specific workspace events
 export const ACP_WORKSPACE_EVENTS = {
-  SESSION_MODES_READY: 'acp-workspace:session-modes-ready' // Session modes available
+  SESSION_MODES_READY: 'acp-workspace:session-modes-ready', // Session modes available
+  SESSION_COMMANDS_READY: 'acp-workspace:session-commands-ready' // Session commands available
 }
 
 export const ACP_DEBUG_EVENTS = {

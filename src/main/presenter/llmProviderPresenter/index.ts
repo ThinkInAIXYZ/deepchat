@@ -533,6 +533,14 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     await provider.setSessionMode(conversationId, modeId)
   }
 
+  async prepareAcpSession(conversationId: string, agentId: string, workdir: string): Promise<void> {
+    const provider = this.getAcpProviderInstance()
+    if (!provider) {
+      throw new Error('[ACP] ACP provider not found')
+    }
+    await provider.prepareSession(conversationId, agentId, workdir)
+  }
+
   async getAcpSessionModes(conversationId: string): Promise<{
     current: string
     available: Array<{ id: string; name: string; description: string }>
@@ -542,6 +550,20 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
       return null
     }
     return await provider.getSessionModes(conversationId)
+  }
+
+  async getAcpSessionCommands(conversationId: string): Promise<
+    Array<{
+      name: string
+      description: string
+      input?: { hint: string } | null
+    }>
+  > {
+    const provider = this.getAcpProviderInstance()
+    if (!provider) {
+      return []
+    }
+    return await provider.getSessionCommands(conversationId)
   }
 
   async runAcpDebugAction(request: AcpDebugRequest): Promise<AcpDebugRunResult> {

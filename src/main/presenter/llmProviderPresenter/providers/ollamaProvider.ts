@@ -54,6 +54,22 @@ export class OllamaProvider extends BaseLLMProvider {
     this.init()
   }
 
+  private getOllamaBaseUrl(): string {
+    const raw = this.provider.baseUrl?.trim()
+    return raw && raw.length > 0 ? raw.replace(/\/+$/, '') : 'http://localhost:11434'
+  }
+
+  private buildOllamaTraceHeaders(): Record<string, string> {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...this.defaultHeaders
+    }
+    if (this.provider.apiKey) {
+      headers.Authorization = `Bearer ${this.provider.apiKey}`
+    }
+    return headers
+  }
+
   // Basic Provider functionality implementation
   protected async fetchProviderModels(): Promise<MODEL_META[]> {
     try {
@@ -537,6 +553,12 @@ export class OllamaProvider extends BaseLLMProvider {
           ? { tools: ollamaTools }
           : {})
       }
+
+      await this.emitRequestTrace(modelConfig, {
+        endpoint: `${this.getOllamaBaseUrl()}/api/chat`,
+        headers: this.buildOllamaTraceHeaders(),
+        body: chatParams
+      })
 
       // 创建流
       const stream = await this.ollama.chat(chatParams)

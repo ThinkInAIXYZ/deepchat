@@ -3,8 +3,9 @@ import { zodToJsonSchema } from 'zod-to-json-schema'
 import { z } from 'zod'
 import fs from 'fs'
 import path from 'path'
-import { app } from 'electron'
+import { app, nativeImage } from 'electron'
 import logger from '@shared/logger'
+import type { ChatMessage } from '@shared/types/core/chat-message'
 import { presenter } from '@/presenter'
 import { AgentFileSystemHandler } from './agentFileSystemHandler'
 import { AgentBashHandler } from './agentBashHandler'
@@ -66,6 +67,7 @@ export class AgentToolManager {
   private readonly configPresenter: IConfigPresenter
   private skillTools: SkillTools | null = null
   private chatSettingsHandler: ChatSettingsToolHandler | null = null
+  private static readonly READ_FILE_AUTO_TRUNCATE_THRESHOLD = 4500
 
   private readonly fileSystemSchemas = {
     read: z.object({
@@ -364,6 +366,19 @@ export class AgentToolManager {
 
   private async getWorkdirForConversation(conversationId: string): Promise<string | null> {
     try {
+      const session = await presenter?.newAgentPresenter?.getSession(conversationId)
+      const normalized = session?.projectDir?.trim()
+      if (normalized) {
+        return normalized
+      }
+    } catch (error) {
+      logger.warn('[AgentToolManager] Failed to resolve new session workdir:', {
+        conversationId,
+        error
+      })
+    }
+
+    try {
       const session = await presenter?.sessionManager?.getSession(conversationId)
       if (!session?.resolved) {
         return null
@@ -383,12 +398,20 @@ export class AgentToolManager {
 
       return null
     } catch (error) {
-      logger.warn('[AgentToolManager] Failed to get workdir for conversation:', {
-        conversationId,
-        error
-      })
-      return null
+      if (!this.isConversationNotFoundError(error)) {
+        logger.warn('[AgentToolManager] Failed to resolve legacy conversation workdir:', {
+          conversationId,
+          error
+        })
+      }
     }
+
+    return null
+  }
+
+  private isConversationNotFoundError(error: unknown): boolean {
+    if (!(error instanceof Error)) return false
+    return /Conversation\s+.+\s+not found/i.test(error.message)
   }
 
   private getFileSystemToolDefinitions(): MCPToolDefinition[] {
@@ -719,14 +742,43 @@ export class AgentToolManager {
             offset?: number
             limit?: number
           }
+          const validPath = await this.resolveValidatedReadPath(
+            fileSystemHandler,
+            readArgs.path,
+            baseDirectory
+          )
+          const mimeType = await presenter.filePresenter.getMimeType(validPath)
+
+          if (this.isImageMimeType(mimeType)) {
+            return {
+              content: await this.readImageWithVisionFallback(validPath, mimeType)
+            }
+          }
+
+          if (this.shouldUseRawTextRead(mimeType)) {
+            return {
+              content: await fileSystemHandler.readFile(
+                {
+                  paths: [readArgs.path],
+                  offset: readArgs.offset,
+                  limit: readArgs.limit
+                },
+                baseDirectory
+              )
+            }
+          }
+
+          const prepared = await presenter.filePresenter.prepareFileCompletely(
+            validPath,
+            mimeType,
+            'llm-friendly'
+          )
           return {
-            content: await fileSystemHandler.readFile(
-              {
-                paths: [readArgs.path],
-                offset: readArgs.offset,
-                limit: readArgs.limit
-              },
-              baseDirectory
+            content: this.paginateReadContent(
+              readArgs.path,
+              prepared.content || '',
+              readArgs.offset,
+              readArgs.limit
             )
           }
         }
@@ -929,6 +981,162 @@ export class AgentToolManager {
     }
 
     return ordered
+  }
+
+  private async resolveValidatedReadPath(
+    fileSystemHandler: AgentFileSystemHandler,
+    requestedPath: string,
+    baseDirectory?: string
+  ): Promise<string> {
+    const resolvedPath = fileSystemHandler.resolvePath(requestedPath, baseDirectory)
+    if (!fileSystemHandler.isPathAllowedAbsolute(resolvedPath)) {
+      throw new Error(`Access denied - path outside allowed directories: ${requestedPath}`)
+    }
+
+    const stats = await fs.promises.stat(resolvedPath)
+    if (!stats.isFile()) {
+      throw new Error(`Path is not a file: ${requestedPath}`)
+    }
+
+    return resolvedPath
+  }
+
+  private isImageMimeType(mimeType: string): boolean {
+    return mimeType.startsWith('image/')
+  }
+
+  private shouldUseRawTextRead(mimeType: string): boolean {
+    if (mimeType === 'text/csv') {
+      return false
+    }
+    if (mimeType.startsWith('text/')) {
+      return true
+    }
+
+    const codeLikeMimes = new Set([
+      'application/json',
+      'application/xml',
+      'application/javascript',
+      'application/x-javascript',
+      'application/typescript',
+      'application/x-typescript'
+    ])
+    return codeLikeMimes.has(mimeType)
+  }
+
+  private paginateReadContent(
+    pathLabel: string,
+    fullContent: string,
+    offset?: number,
+    limit?: number
+  ): string {
+    const start = Math.max(0, offset ?? 0)
+    const totalLength = fullContent.length
+
+    let effectiveLimit = limit
+    let autoTruncated = false
+    if (
+      effectiveLimit === undefined &&
+      totalLength - start > AgentToolManager.READ_FILE_AUTO_TRUNCATE_THRESHOLD
+    ) {
+      effectiveLimit = AgentToolManager.READ_FILE_AUTO_TRUNCATE_THRESHOLD
+      autoTruncated = true
+    }
+
+    const content =
+      effectiveLimit !== undefined
+        ? fullContent.slice(start, start + effectiveLimit)
+        : fullContent.slice(start)
+    const endOffset = start + content.length
+
+    if (start > 0 || limit !== undefined || autoTruncated) {
+      let header = `${pathLabel} [chars ${start}-${endOffset} of ${totalLength}]`
+      if (autoTruncated) {
+        header += ' (auto-truncated, use offset/limit to read more)'
+      }
+      return `${header}:\n${content}\n`
+    }
+
+    return `${pathLabel}:\n${content}\n`
+  }
+
+  private buildImageMetadataBlock(filePath: string, mimeType: string, fileSize: number): string {
+    let width: number | null = null
+    let height: number | null = null
+    try {
+      const image = nativeImage.createFromPath(filePath)
+      const size = image.getSize()
+      if (size.width > 0 && size.height > 0) {
+        width = size.width
+        height = size.height
+      }
+    } catch (error) {
+      logger.warn('[AgentToolManager] Failed to read image dimensions', { filePath, error })
+    }
+
+    const lines = [
+      '[Image Metadata]',
+      `path: ${filePath}`,
+      `mime: ${mimeType}`,
+      `size: ${fileSize} bytes`,
+      width !== null && height !== null ? `resolution: ${width}x${height}` : 'resolution: unknown'
+    ]
+    return lines.join('\n')
+  }
+
+  private async readImageWithVisionFallback(filePath: string, mimeType: string): Promise<string> {
+    const fileBuffer = await fs.promises.readFile(filePath)
+    const metadata = this.buildImageMetadataBlock(filePath, mimeType, fileBuffer.length)
+    const defaultVisionModel = this.configPresenter.getDefaultVisionModel?.()
+
+    if (!defaultVisionModel?.providerId || !defaultVisionModel?.modelId) {
+      return `${metadata}\n\nNo defaultVisionModel configured, downgraded to metadata.`
+    }
+
+    try {
+      const dataUrl = `data:${mimeType};base64,${fileBuffer.toString('base64')}`
+      const messages: ChatMessage[] = [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: [
+                'Analyze this image and return exactly two sections.',
+                'Section 1 title: OCR',
+                'Section 2 title: Summary',
+                'Keep OCR as faithful extracted text and Summary concise.'
+              ].join('\n')
+            },
+            {
+              type: 'image_url',
+              image_url: { url: dataUrl, detail: 'auto' }
+            }
+          ]
+        }
+      ]
+
+      const modelConfig = this.configPresenter.getModelConfig(
+        defaultVisionModel.modelId,
+        defaultVisionModel.providerId
+      )
+      const response = await presenter.llmproviderPresenter.generateCompletionStandalone(
+        defaultVisionModel.providerId,
+        messages,
+        defaultVisionModel.modelId,
+        modelConfig?.temperature ?? 0.2,
+        modelConfig?.maxTokens ?? 1200
+      )
+
+      const normalized = (response || '').trim()
+      if (!normalized) {
+        return `${metadata}\n\nOCR:\n\nSummary:\nNo result returned by vision model.`
+      }
+      return normalized.startsWith('OCR:') ? normalized : `OCR:\n\nSummary:\n${normalized}`
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      return `${metadata}\n\nVision analysis failed, downgraded to metadata.\nerror: ${message}`
+    }
   }
 
   private assertWritePermission(

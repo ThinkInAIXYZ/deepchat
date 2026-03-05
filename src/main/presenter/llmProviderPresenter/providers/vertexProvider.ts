@@ -135,6 +135,23 @@ export class VertexProvider extends BaseLLMProvider {
     return `publishers/google/models/${normalized}`
   }
 
+  private buildVertexStreamEndpoint(modelId: string): string {
+    const baseUrl = this.buildBaseUrl().replace(/\/+$/, '')
+    const apiVersion = this.getApiVersion()
+    const modelPath = this.ensureVertexModelName(modelId).replace(/^\/+/, '')
+    return `${baseUrl}/${apiVersion}/${modelPath}:streamGenerateContent`
+  }
+
+  private buildVertexTraceHeaders(): Record<string, string> {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json'
+    }
+    if (this.provider.apiKey) {
+      headers['x-goog-api-key'] = this.provider.apiKey
+    }
+    return headers
+  }
+
   // Implement abstract method fetchProviderModels from BaseLLMProvider
   protected async fetchProviderModels(): Promise<MODEL_META[]> {
     try {
@@ -951,11 +968,19 @@ export class VertexProvider extends BaseLLMProvider {
       config: generateContentConfig
     }
 
-    // 发送流式请求
-    const result = await this.genAI.models.generateContentStream({
+    const streamRequestParams = {
       ...requestParams,
       model: this.ensureVertexModelName(requestParams.model as string)
+    }
+
+    await this.emitRequestTrace(modelConfig, {
+      endpoint: this.buildVertexStreamEndpoint(modelId),
+      headers: this.buildVertexTraceHeaders(),
+      body: streamRequestParams
     })
+
+    // 发送流式请求
+    const result = await this.genAI.models.generateContentStream(streamRequestParams)
 
     // 状态变量
     let buffer = ''

@@ -28,7 +28,7 @@ import { ref, nextTick, watch, onMounted } from 'vue'
 import { usePresenter } from '@/composables/usePresenter'
 import { SearchResult } from '@shared/presenter'
 
-const sessionPresenter = usePresenter('sessionPresenter')
+const newAgentPresenter = usePresenter('newAgentPresenter')
 const searchResults = ref<SearchResult[]>([])
 
 import ArtifactThinking from '../artifacts/ArtifactThinking.vue'
@@ -101,7 +101,8 @@ watch(
 
 onMounted(async () => {
   if (props.isSearchResult) {
-    searchResults.value = await sessionPresenter.getSearchResults(props.messageId)
+    // TODO: remove this temporary fallback after search result loading is fully unified.
+    searchResults.value = await newAgentPresenter.getSearchResults(props.messageId)
   }
 })
 </script>

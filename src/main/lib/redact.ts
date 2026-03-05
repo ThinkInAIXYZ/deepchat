@@ -1,32 +1,35 @@
 /**
- * Redaction utilities for sensitive information in request preview
+ * Redaction utilities for sensitive information in request trace payloads.
  */
 
-/**
- * Sensitive header keys that should be redacted
- */
 const SENSITIVE_HEADER_KEYS = [
   'authorization',
   'api-key',
   'x-api-key',
   'apikey',
-  'bearer',
   'token',
   'secret',
   'password',
   'credential',
-  'auth'
+  'access-key',
+  'access_key',
+  'client-secret',
+  'client_secret'
 ]
 
-/**
- * Sensitive body keys that should be redacted
- * Note: We use exact match to avoid filtering legitimate keys like 'max_tokens'
- */
-const SENSITIVE_BODY_KEYS = ['api_key', 'apiKey', 'apikey', 'secret', 'password', 'token']
+const SENSITIVE_BODY_KEYS = [
+  'api_key',
+  'apikey',
+  'apiKey',
+  'secret',
+  'password',
+  'token',
+  'access_token',
+  'refresh_token',
+  'client_secret',
+  'private_key'
+]
 
-/**
- * Body keys that should never be redacted (even if they contain sensitive keywords)
- */
 const ALLOWED_BODY_KEYS = [
   'max_tokens',
   'max_completion_tokens',
@@ -38,35 +41,64 @@ const ALLOWED_BODY_KEYS = [
   'tools'
 ]
 
-/**
- * Redact sensitive values in headers
- * @param headers Original headers
- * @returns Redacted headers
- */
+const MASKED_LITERAL = '***MASKED***'
+
+function maskKeepTail(value: string, tailLength: number = 4): string {
+  if (!value) return value
+  if (value.length <= tailLength) {
+    return '*'.repeat(value.length)
+  }
+  return `${'*'.repeat(value.length - tailLength)}${value.slice(-tailLength)}`
+}
+
+function maskSensitiveString(value: string): string {
+  const bearerMatch = value.match(/^([A-Za-z]+\s+)(.+)$/)
+  if (bearerMatch && /bearer|token|key/i.test(bearerMatch[1])) {
+    return `${bearerMatch[1]}${maskKeepTail(bearerMatch[2])}`
+  }
+  return maskKeepTail(value)
+}
+
+function isSensitiveHeaderKey(key: string): boolean {
+  const lower = key.toLowerCase()
+  return SENSITIVE_HEADER_KEYS.some((sensitiveKey) => lower.includes(sensitiveKey))
+}
+
+function isSensitiveBodyKey(key: string): boolean {
+  if (ALLOWED_BODY_KEYS.includes(key)) {
+    return false
+  }
+
+  const keyLower = key.toLowerCase()
+  return SENSITIVE_BODY_KEYS.some((sensitiveKey) => {
+    const sensitiveLower = sensitiveKey.toLowerCase()
+    if (keyLower === sensitiveLower) {
+      return true
+    }
+    if (keyLower.endsWith(`_${sensitiveLower}`) || keyLower.endsWith(sensitiveLower)) {
+      return !ALLOWED_BODY_KEYS.some((allowed) => keyLower.includes(allowed.toLowerCase()))
+    }
+    return false
+  })
+}
+
+function maskUnknownValue(value: unknown): unknown {
+  if (typeof value === 'string') {
+    return maskSensitiveString(value)
+  }
+  return MASKED_LITERAL
+}
+
 export function redactHeaders(headers: Record<string, string>): Record<string, string> {
   const redacted: Record<string, string> = {}
 
   for (const [key, value] of Object.entries(headers)) {
-    const keyLower = key.toLowerCase()
-    const shouldRedact = SENSITIVE_HEADER_KEYS.some((sensitiveKey) =>
-      keyLower.includes(sensitiveKey)
-    )
-
-    if (shouldRedact) {
-      redacted[key] = '***REDACTED***'
-    } else {
-      redacted[key] = value
-    }
+    redacted[key] = isSensitiveHeaderKey(key) ? maskSensitiveString(String(value)) : value
   }
 
   return redacted
 }
 
-/**
- * Redact sensitive values in request body
- * @param body Original body
- * @returns Redacted body
- */
 export function redactBody(body: unknown): unknown {
   if (body === null || body === undefined) {
     return body
@@ -80,40 +112,17 @@ export function redactBody(body: unknown): unknown {
     const redacted: Record<string, unknown> = {}
 
     for (const [key, value] of Object.entries(body)) {
-      // Skip redaction for allowed keys (like max_tokens, max_completion_tokens, etc.)
-      if (ALLOWED_BODY_KEYS.includes(key)) {
-        if (typeof value === 'object' && value !== null) {
-          redacted[key] = redactBody(value)
-        } else {
-          redacted[key] = value
-        }
+      if (isSensitiveBodyKey(key)) {
+        redacted[key] = maskUnknownValue(value)
         continue
       }
 
-      // Check if key matches sensitive patterns (exact match or ends with sensitive keyword)
-      const keyLower = key.toLowerCase()
-      const shouldRedact = SENSITIVE_BODY_KEYS.some((sensitiveKey) => {
-        const sensitiveKeyLower = sensitiveKey.toLowerCase()
-        // Exact match
-        if (keyLower === sensitiveKeyLower) {
-          return true
-        }
-        // Key ends with sensitive keyword (e.g., 'api_token', 'access_token')
-        // But exclude keys that contain allowed patterns (e.g., 'max_tokens')
-        if (keyLower.endsWith(`_${sensitiveKeyLower}`) || keyLower.endsWith(sensitiveKeyLower)) {
-          // Double check: make sure it's not a false positive
-          return !ALLOWED_BODY_KEYS.some((allowed) => keyLower.includes(allowed.toLowerCase()))
-        }
-        return false
-      })
-
-      if (shouldRedact) {
-        redacted[key] = '***REDACTED***'
-      } else if (typeof value === 'object' && value !== null) {
+      if (typeof value === 'object' && value !== null) {
         redacted[key] = redactBody(value)
-      } else {
-        redacted[key] = value
+        continue
       }
+
+      redacted[key] = value
     }
 
     return redacted
@@ -122,11 +131,6 @@ export function redactBody(body: unknown): unknown {
   return body
 }
 
-/**
- * Redact sensitive information in full request preview
- * @param preview Request preview data
- * @returns Redacted preview
- */
 export function redactRequestPreview(preview: { headers: Record<string, string>; body: unknown }): {
   headers: Record<string, string>
   body: unknown

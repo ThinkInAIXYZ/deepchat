@@ -53,7 +53,7 @@ const EXTERNAL_DEPENDENCIES: ExternalDependency[] = [
 
 const BUILTIN_INIT_COMMANDS: Record<AcpBuiltinAgentId, InitCommandConfig> = {
   'kimi-cli': {
-    commands: ['uv tool install --python 3.13 kimi-cli', 'kimi'],
+    commands: ['uv tool install --python 3.13 kimi-cli', 'kimi acp'],
     description: 'Initialize Kimi CLI'
   },
   'claude-code-acp': {

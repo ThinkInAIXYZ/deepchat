@@ -1,9 +1,12 @@
 import { describe, it, expect, vi } from 'vitest'
 import { AcpProvider } from '../../../src/main/presenter/llmProviderPresenter/providers/acpProvider'
+import { ACP_WORKSPACE_EVENTS } from '../../../src/main/events'
+import { eventBus, SendTarget } from '@/eventbus'
 
 vi.mock('electron', () => ({
   app: {
-    getVersion: vi.fn(() => '0.0.0-test')
+    getVersion: vi.fn(() => '0.0.0-test'),
+    getPath: vi.fn(() => '/tmp')
   }
 }))
 
@@ -78,5 +81,124 @@ describe('AcpProvider runDebugAction error handling', () => {
         workdir: '/tmp'
       } as any)
     ).rejects.toThrow('boom')
+  })
+
+  it('returns cached ACP session commands', async () => {
+    const provider = Object.create(AcpProvider.prototype) as any
+    provider.sessionManager = {
+      getSession: vi.fn().mockReturnValue({
+        availableCommands: [{ name: 'review', description: 'run review', input: null }]
+      })
+    }
+
+    const commands = await provider.getSessionCommands('conv-1')
+    expect(commands).toEqual([{ name: 'review', description: 'run review', input: null }])
+  })
+
+  it('prepares ACP session without prompt and emits ready events', async () => {
+    const provider = Object.create(AcpProvider.prototype) as any
+    provider.getAgentById = vi.fn().mockResolvedValue({ id: 'agent1', name: 'Agent 1' })
+    provider.sessionPersistence = {
+      updateWorkdir: vi.fn().mockResolvedValue(undefined)
+    }
+    provider.sessionManager = {
+      getOrCreateSession: vi.fn().mockResolvedValue({
+        workdir: '/tmp/workspace',
+        currentModeId: 'default',
+        availableModes: [{ id: 'default', name: 'Default', description: '' }],
+        availableCommands: [{ name: 'review', description: 'run review', input: null }]
+      })
+    }
+
+    await provider.prepareSession('conv-2', 'agent1', '/tmp/workspace')
+
+    expect(provider.sessionPersistence.updateWorkdir).toHaveBeenCalledWith(
+      'conv-2',
+      'agent1',
+      '/tmp/workspace'
+    )
+    expect(provider.sessionManager.getOrCreateSession).toHaveBeenCalledWith(
+      'conv-2',
+      { id: 'agent1', name: 'Agent 1' },
+      expect.objectContaining({
+        onSessionUpdate: expect.any(Function),
+        onPermission: expect.any(Function)
+      }),
+      '/tmp/workspace'
+    )
+    expect(eventBus.sendToRenderer).toHaveBeenCalledWith(
+      ACP_WORKSPACE_EVENTS.SESSION_MODES_READY,
+      SendTarget.ALL_WINDOWS,
+      {
+        conversationId: 'conv-2',
+        agentId: 'agent1',
+        workdir: '/tmp/workspace',
+        current: 'default',
+        available: [{ id: 'default', name: 'Default', description: '' }]
+      }
+    )
+    expect(eventBus.sendToRenderer).toHaveBeenCalledWith(
+      ACP_WORKSPACE_EVENTS.SESSION_COMMANDS_READY,
+      SendTarget.ALL_WINDOWS,
+      {
+        conversationId: 'conv-2',
+        agentId: 'agent1',
+        commands: [{ name: 'review', description: 'run review', input: null }]
+      }
+    )
+  })
+
+  it('updates mode on bound handle by conversation id', async () => {
+    const provider = Object.create(AcpProvider.prototype) as any
+    const setSessionMode = vi.fn().mockResolvedValue(undefined)
+    provider.sessionManager = {
+      getSession: vi.fn().mockReturnValue({
+        sessionId: 's-1',
+        agentId: 'agent1',
+        workdir: '/tmp/workspace',
+        currentModeId: 'default',
+        availableModes: [{ id: 'default', name: 'Default', description: '' }],
+        connection: { setSessionMode }
+      })
+    }
+    provider.processManager = {
+      updateBoundProcessMode: vi.fn().mockReturnValue(true)
+    }
+
+    await provider.setSessionMode('conv-a', 'default')
+
+    expect(setSessionMode).toHaveBeenCalledWith({ sessionId: 's-1', modeId: 'default' })
+    expect(provider.processManager.updateBoundProcessMode).toHaveBeenCalledWith('conv-a', 'default')
+  })
+
+  it('still emits mode event when bound handle is unavailable', async () => {
+    const provider = Object.create(AcpProvider.prototype) as any
+    provider.sessionManager = {
+      getSession: vi.fn().mockReturnValue({
+        sessionId: 's-2',
+        agentId: 'agent1',
+        workdir: '/tmp/workspace',
+        currentModeId: 'default',
+        availableModes: [{ id: 'default', name: 'Default', description: '' }],
+        connection: { setSessionMode: vi.fn().mockResolvedValue(undefined) }
+      })
+    }
+    provider.processManager = {
+      updateBoundProcessMode: vi.fn().mockReturnValue(false)
+    }
+
+    await provider.setSessionMode('conv-b', 'default')
+
+    expect(eventBus.sendToRenderer).toHaveBeenCalledWith(
+      ACP_WORKSPACE_EVENTS.SESSION_MODES_READY,
+      SendTarget.ALL_WINDOWS,
+      {
+        conversationId: 'conv-b',
+        agentId: 'agent1',
+        workdir: '/tmp/workspace',
+        current: 'default',
+        available: [{ id: 'default', name: 'Default', description: '' }]
+      }
+    )
   })
 })
