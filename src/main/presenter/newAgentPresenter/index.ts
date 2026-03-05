@@ -8,6 +8,7 @@ import type {
   MessageTraceRecord,
   UserMessageContent,
   AssistantMessageBlock,
+  LegacyImportStatus,
   PermissionMode,
   SessionGenerationSettings,
   ToolInteractionResponse,
@@ -18,13 +19,15 @@ import type {
   IConfigPresenter,
   ILlmProviderPresenter,
   ISkillPresenter,
-  CONVERSATION
+  CONVERSATION,
+  SearchResult
 } from '@shared/presenter'
 import type { SQLitePresenter } from '../sqlitePresenter'
 import type { DeepChatAgentPresenter } from '../deepchatAgentPresenter'
 import { AgentRegistry } from './agentRegistry'
 import { NewSessionManager } from './sessionManager'
 import { NewMessageManager } from './messageManager'
+import { LegacyChatImportService } from './legacyImportService'
 import { eventBus, SendTarget } from '@/eventbus'
 import { SESSION_EVENTS } from '@/events'
 import { presenter } from '@/presenter'
@@ -41,6 +44,7 @@ export class NewAgentPresenter {
   private sqlitePresenter: SQLitePresenter
   private llmProviderPresenter: ILlmProviderPresenter
   private configPresenter: IConfigPresenter
+  private legacyImportService: LegacyChatImportService
   private skillPresenter?: Pick<ISkillPresenter, 'setActiveSkills' | 'clearNewAgentSessionSkills'>
 
   constructor(
@@ -57,6 +61,7 @@ export class NewAgentPresenter {
     this.agentRegistry = new AgentRegistry()
     this.sessionManager = new NewSessionManager(sqlitePresenter)
     this.messageManager = new NewMessageManager(this.agentRegistry)
+    this.legacyImportService = new LegacyChatImportService(sqlitePresenter)
 
     // Register the built-in deepchat agent
     this.agentRegistry.register(
@@ -379,6 +384,53 @@ export class NewAgentPresenter {
     if (!session) throw new Error(`Session not found: ${sessionId}`)
     const agent = await this.resolveAgentImplementation(session.agentId)
     return agent.getMessages(sessionId)
+  }
+
+  async getSearchResults(messageId: string, searchId?: string): Promise<SearchResult[]> {
+    const normalizedMessageId = messageId?.trim()
+    if (!normalizedMessageId) {
+      return []
+    }
+    const parsed: SearchResult[] = []
+    const rows =
+      this.sqlitePresenter.deepchatMessageSearchResultsTable.listByMessageId(normalizedMessageId)
+    for (const row of rows) {
+      try {
+        const result = JSON.parse(row.content) as SearchResult
+        parsed.push({
+          ...result,
+          rank: typeof result.rank === 'number' ? result.rank : (row.rank ?? undefined),
+          searchId: result.searchId ?? row.search_id ?? undefined
+        })
+      } catch (error) {
+        console.warn('[NewAgentPresenter] Failed to parse search result row:', error)
+      }
+    }
+
+    if (searchId) {
+      const filtered = parsed.filter((item) => item.searchId === searchId)
+      if (filtered.length > 0) {
+        return filtered
+      }
+      const legacy = parsed.filter((item) => !item.searchId)
+      if (legacy.length > 0) {
+        return legacy
+      }
+    }
+
+    return parsed
+  }
+
+  async getLegacyImportStatus(): Promise<LegacyImportStatus> {
+    return this.legacyImportService.getStatus()
+  }
+
+  async retryLegacyImport(): Promise<LegacyImportStatus> {
+    return await this.legacyImportService.retry()
+  }
+
+  async startLegacyImport(): Promise<void> {
+    this.legacyImportService.startInBackground(false)
   }
 
   async listMessageTraces(messageId: string): Promise<MessageTraceRecord[]> {

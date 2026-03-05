@@ -6,6 +6,7 @@ import type {
   UserMessageContent,
   AssistantMessageBlock
 } from '@shared/types/agent-interface'
+import type { SearchResult } from '@shared/presenter'
 import type { DeepChatMessageRow } from '../sqlitePresenter/tables/deepchatMessages'
 
 export class DeepChatMessageStore {
@@ -122,6 +123,7 @@ export class DeepChatMessageStore {
 
   deleteBySession(sessionId: string): void {
     this.sqlitePresenter.deepchatMessageTracesTable.deleteBySessionId(sessionId)
+    this.sqlitePresenter.deepchatMessageSearchResultsTable.deleteBySessionId(sessionId)
     this.sqlitePresenter.deepchatMessagesTable.deleteBySession(sessionId)
   }
 
@@ -132,8 +134,69 @@ export class DeepChatMessageStore {
     )
     if (messageIds.length > 0) {
       this.sqlitePresenter.deepchatMessageTracesTable.deleteByMessageIds(messageIds)
+      this.sqlitePresenter.deepchatMessageSearchResultsTable.deleteByMessageIds(messageIds)
     }
     this.sqlitePresenter.deepchatMessagesTable.deleteFromOrderSeq(sessionId, fromOrderSeq)
+  }
+
+  addSearchResult(row: {
+    sessionId: string
+    messageId: string
+    searchId?: string | null
+    rank?: number | null
+    result: SearchResult
+  }): void {
+    const payload: SearchResult = {
+      title: row.result.title || '',
+      url: row.result.url || '',
+      snippet: row.result.snippet,
+      favicon: row.result.favicon,
+      content: row.result.content,
+      description: row.result.description,
+      icon: row.result.icon,
+      rank: row.result.rank,
+      searchId: row.result.searchId ?? row.searchId ?? undefined
+    }
+
+    this.sqlitePresenter.deepchatMessageSearchResultsTable.add({
+      sessionId: row.sessionId,
+      messageId: row.messageId,
+      searchId: row.searchId,
+      rank: row.rank,
+      content: JSON.stringify(payload)
+    })
+  }
+
+  getSearchResults(messageId: string, searchId?: string): SearchResult[] {
+    const rows = this.sqlitePresenter.deepchatMessageSearchResultsTable.listByMessageId(messageId)
+    const parsed: SearchResult[] = []
+
+    for (const row of rows) {
+      try {
+        const result = JSON.parse(row.content) as SearchResult
+        parsed.push({
+          ...result,
+          rank: typeof result.rank === 'number' ? result.rank : (row.rank ?? undefined),
+          searchId: result.searchId ?? row.search_id ?? undefined
+        })
+      } catch (error) {
+        console.warn('[DeepChatMessageStore] Failed to parse search result row:', error)
+      }
+    }
+
+    if (searchId) {
+      const filtered = parsed.filter((item) => item.searchId === searchId)
+      if (filtered.length > 0) {
+        return filtered
+      }
+
+      const legacyResults = parsed.filter((item) => !item.searchId)
+      if (legacyResults.length > 0) {
+        return legacyResults
+      }
+    }
+
+    return parsed
   }
 
   insertMessageTrace(row: {

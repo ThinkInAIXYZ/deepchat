@@ -6,9 +6,11 @@ import type {
   MessageTraceRecord,
   PermissionMode,
   SessionGenerationSettings,
+  LegacyImportStatus,
   ToolInteractionResponse,
   ToolInteractionResult
 } from '../agent-interface'
+import type { SearchResult } from './thread.presenter'
 
 export interface INewAgentPresenter {
   createSession(input: CreateSessionInput, webContentsId: number): Promise<SessionWithState>
@@ -29,6 +31,9 @@ export interface INewAgentPresenter {
   getSessionList(filters?: { agentId?: string; projectDir?: string }): Promise<SessionWithState[]>
   getSession(sessionId: string): Promise<SessionWithState | null>
   getMessages(sessionId: string): Promise<ChatMessageRecord[]>
+  getSearchResults(messageId: string, searchId?: string): Promise<SearchResult[]>
+  getLegacyImportStatus(): Promise<LegacyImportStatus>
+  retryLegacyImport(): Promise<LegacyImportStatus>
   listMessageTraces(messageId: string): Promise<MessageTraceRecord[]>
   getMessageIds(sessionId: string): Promise<string[]>
   getMessage(messageId: string): Promise<ChatMessageRecord | null>

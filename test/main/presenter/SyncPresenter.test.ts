@@ -15,7 +15,7 @@ const { SyncPresenter } = await import('../../../src/main/presenter/syncPresente
 const { ImportMode } = await import('../../../src/main/presenter/sqlitePresenter')
 
 const ZIP_PATHS = {
-  db: 'database/chat.db',
+  db: 'database/agent.db',
   appSettings: 'configs/app-settings.json',
   customPrompts: 'configs/custom_prompts.json',
   systemPrompts: 'configs/system_prompts.json',
@@ -124,7 +124,7 @@ describe('SyncPresenter backup import', () => {
     expect(sqlitePresenter.close).toHaveBeenCalled()
     expect(sqlitePresenter.reopen).toHaveBeenCalled()
 
-    const dbPath = path.join(userDataDir, 'app_db', 'chat.db')
+    const dbPath = path.join(userDataDir, 'app_db', 'agent.db')
     const db = new Database(dbPath)
     const rows = db.prepare('SELECT id, title FROM conversations ORDER BY id').all()
     db.close()
@@ -215,7 +215,7 @@ describe('SyncPresenter backup import', () => {
     expect(result.count).toBe(1)
     expect(sqlitePresenter.reopen).toHaveBeenCalled()
 
-    const dbPath = path.join(userDataDir, 'app_db', 'chat.db')
+    const dbPath = path.join(userDataDir, 'app_db', 'agent.db')
     const db = new Database(dbPath)
     const rows = db.prepare('SELECT id, title FROM conversations ORDER BY id').all()
     db.close()
@@ -251,7 +251,7 @@ function createLocalState(
 ) {
   const dbDir = path.join(userDataDir, 'app_db')
   fs.mkdirSync(dbDir, { recursive: true })
-  const dbPath = path.join(dbDir, 'chat.db')
+  const dbPath = path.join(dbDir, 'agent.db')
   writeConversationDb(dbPath, data.conversations)
 
   fs.writeFileSync(
@@ -302,7 +302,7 @@ function createBackupArchive(
   fs.mkdirSync(databaseDir, { recursive: true })
   fs.mkdirSync(configsDir, { recursive: true })
 
-  const dbPath = path.join(databaseDir, 'chat.db')
+  const dbPath = path.join(databaseDir, 'agent.db')
   writeConversationDb(dbPath, data.conversations)
 
   fs.writeFileSync(

@@ -32,7 +32,7 @@ const BACKUP_EXTENSION = '.zip'
 const BACKUP_FILE_NAME_REGEX = /^backup-\d+\.zip$/
 
 const ZIP_PATHS = {
-  db: 'database/chat.db',
+  db: 'database/agent.db',
   appSettings: 'configs/app-settings.json',
   customPrompts: 'configs/custom_prompts.json',
   systemPrompts: 'configs/system_prompts.json',
@@ -51,7 +51,7 @@ export class SyncPresenter implements ISyncPresenter {
   private readonly CUSTOM_PROMPTS_PATH = path.join(app.getPath('userData'), 'custom_prompts.json')
   private readonly SYSTEM_PROMPTS_PATH = path.join(app.getPath('userData'), 'system_prompts.json')
   private readonly MCP_SETTINGS_PATH = path.join(app.getPath('userData'), 'mcp-settings.json')
-  private readonly DB_PATH = path.join(app.getPath('userData'), 'app_db', 'chat.db')
+  private readonly DB_PATH = path.join(app.getPath('userData'), 'app_db', 'agent.db')
 
   constructor(configPresenter: IConfigPresenter, sqlitePresenter: ISQLitePresenter) {
     this.configPresenter = configPresenter
@@ -200,7 +200,7 @@ export class SyncPresenter implements ISyncPresenter {
       this.sqlitePresenter.close()
       sqliteClosed = true
 
-      tempCurrentFiles.db = this.createTempBackup(this.DB_PATH, 'chat.db')
+      tempCurrentFiles.db = this.createTempBackup(this.DB_PATH, 'agent.db')
       tempCurrentFiles.appSettings = this.createTempBackup(
         this.APP_SETTINGS_PATH,
         'app-settings.json'
@@ -222,10 +222,9 @@ export class SyncPresenter implements ISyncPresenter {
 
       if (importMode === ImportMode.OVERWRITE) {
         const backupDb = new Database(backupDbPath, { readonly: true })
-        const result = backupDb.prepare('SELECT COUNT(*) as count FROM conversations').get() as {
-          count: number
-        }
-        importedConversationCount = result?.count || 0
+        importedConversationCount =
+          this.countTableRows(backupDb, 'new_sessions') ||
+          this.countTableRows(backupDb, 'conversations')
         backupDb.close()
 
         this.copyFile(backupDbPath, this.DB_PATH)
@@ -247,7 +246,8 @@ export class SyncPresenter implements ISyncPresenter {
         const importer = new DataImporter(backupDbPath, this.DB_PATH)
         const summary = await importer.importData()
         importer.close()
-        importedConversationCount = summary.tableCounts.conversations || 0
+        importedConversationCount =
+          summary.tableCounts.new_sessions || summary.tableCounts.conversations || 0
 
         this.mergeAppSettingsPreservingSync(backupAppSettingsPath, this.APP_SETTINGS_PATH)
         if (fs.existsSync(backupCustomPromptsPath)) {
@@ -625,6 +625,19 @@ export class SyncPresenter implements ISyncPresenter {
       }
     }
     fs.rmdirSync(dirPath)
+  }
+
+  private countTableRows(db: Database.Database, tableName: string): number {
+    const exists = db
+      .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?")
+      .get(tableName)
+    if (!exists) {
+      return 0
+    }
+    const row = db.prepare(`SELECT COUNT(*) as count FROM "${tableName}"`).get() as {
+      count: number
+    }
+    return row.count || 0
   }
 
   private mergePromptStore(backupPath: string, targetPath: string): number {

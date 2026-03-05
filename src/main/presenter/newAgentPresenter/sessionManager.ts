@@ -18,7 +18,9 @@ export class NewSessionManager {
     options?: { isDraft?: boolean }
   ): string {
     const id = nanoid()
-    this.sqlitePresenter.newSessionsTable.create(id, agentId, title, projectDir, options?.isDraft)
+    this.sqlitePresenter.newSessionsTable.create(id, agentId, title, projectDir, {
+      isDraft: options?.isDraft
+    })
     return id
   }
 

@@ -37,7 +37,7 @@ const artifactStore = useArtifactStore()
 const messageId = `artifact-msg-${nanoid()}`
 const threadId = `artifact-thread-${nanoid()}`
 const referenceStore = useReferenceStore()
-const sessionPresenter = usePresenter('sessionPresenter')
+const newAgentPresenter = usePresenter('newAgentPresenter')
 const referenceNode = ref<HTMLElement | null>(null)
 const debouncedContent = ref(props.content)
 const codeBlockMonacoOption = computed(() => ({
@@ -66,7 +66,8 @@ setCustomComponents({
       messageId,
       threadId,
       onClick() {
-        sessionPresenter.getSearchResults(_props.messageId ?? '').then((results) => {
+        // TODO: remove legacy sessionPresenter search path after full old stack cleanup.
+        newAgentPresenter.getSearchResults(_props.messageId ?? '').then((results) => {
           const index = parseInt(_props.node.id)
           if (index < results.length) {
             window.open(results[index - 1].url, '_blank', 'noopener,noreferrer')
@@ -76,7 +77,7 @@ setCustomComponents({
       onMouseEnter() {
         console.log('Mouse entered')
         referenceStore.hideReference()
-        sessionPresenter.getSearchResults(_props.messageId ?? '').then((results) => {
+        newAgentPresenter.getSearchResults(_props.messageId ?? '').then((results) => {
           const index = parseInt(_props.node.id)
           if (index - 1 < results.length && referenceNode.value) {
             referenceStore.showReference(

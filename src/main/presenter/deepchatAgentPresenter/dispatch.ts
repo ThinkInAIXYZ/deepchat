@@ -1,13 +1,14 @@
 import { eventBus, SendTarget } from '@/eventbus'
 import { STREAM_EVENTS } from '@/events'
 import { presenter } from '@/presenter'
-import type { MCPToolDefinition } from '@shared/presenter'
-import type { MCPToolCall, MCPContentItem } from '@shared/types/core/mcp'
+import type { MCPToolDefinition, SearchResult } from '@shared/presenter'
+import type { MCPToolCall, MCPContentItem, MCPResourceContent } from '@shared/types/core/mcp'
 import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
 import type { AssistantMessageBlock, PermissionMode } from '@shared/types/agent-interface'
 import { parseQuestionToolArgs, QUESTION_TOOL_NAME } from '../agentPresenter/tools/questionTool'
 import type { IoParams, PendingToolInteraction, StreamState } from './types'
 import type { ChatMessage } from '@shared/types/core/chat-message'
+import { nanoid } from 'nanoid'
 
 type PermissionType = 'read' | 'write' | 'all' | 'command'
 
@@ -63,6 +64,102 @@ function toolResponseToText(content: string | MCPContentItem[]): string {
       return `[${item.type}]`
     })
     .join('\n')
+}
+
+function extractSearchPayload(
+  content: string | MCPContentItem[],
+  toolName?: string,
+  serverName?: string
+): { block: AssistantMessageBlock; results: SearchResult[] } | null {
+  if (!Array.isArray(content)) {
+    return null
+  }
+
+  const resourceItems = content.filter(
+    (item): item is MCPResourceContent =>
+      item.type === 'resource' && item.resource?.mimeType === 'application/deepchat-webpage'
+  )
+  if (resourceItems.length === 0) {
+    return null
+  }
+
+  const results = resourceItems
+    .map((item) => {
+      const resource = item.resource
+      if (!resource?.text) {
+        return null
+      }
+      try {
+        const parsed = JSON.parse(resource.text) as {
+          title?: string
+          url?: string
+          content?: string
+          description?: string
+          icon?: string
+          favicon?: string
+          rank?: number
+          snippet?: string
+          searchId?: string
+        }
+        const url = parsed.url || resource.uri || ''
+        if (!url) {
+          return null
+        }
+        return {
+          title: parsed.title || '',
+          url,
+          content: parsed.content || '',
+          description: parsed.description || parsed.content || '',
+          snippet: parsed.snippet || parsed.description || parsed.content || '',
+          icon: parsed.icon || '',
+          favicon: parsed.favicon || '',
+          rank: typeof parsed.rank === 'number' ? parsed.rank : undefined,
+          searchId: parsed.searchId
+        } as SearchResult
+      } catch (error) {
+        console.warn('[DeepChatDispatch] Failed to parse search result resource:', error)
+        return null
+      }
+    })
+    .filter((item): item is SearchResult => item !== null)
+
+  if (results.length === 0) {
+    return null
+  }
+
+  const searchId = nanoid()
+  const pages = results
+    .filter((item) => item.icon || item.favicon)
+    .slice(0, 6)
+    .map((item) => ({
+      url: item.url,
+      icon: item.icon || item.favicon || ''
+    }))
+
+  const block: AssistantMessageBlock = {
+    id: searchId,
+    type: 'search',
+    content: '',
+    status: 'success',
+    timestamp: Date.now(),
+    extra: {
+      total: results.length,
+      searchId,
+      pages,
+      label: toolName || 'web_search',
+      name: toolName || 'web_search',
+      engine: serverName || undefined,
+      provider: serverName || undefined
+    }
+  }
+
+  return {
+    block,
+    results: results.map((item) => ({
+      ...item,
+      searchId: item.searchId || searchId
+    }))
+  }
 }
 
 function updateToolCallBlock(
@@ -423,6 +520,24 @@ export async function executeTools(
             updateToolCallBlock(state.blocks, tc.id, '', false)
             continue
           }
+        }
+      }
+
+      const searchPayload = extractSearchPayload(
+        toolRawData.content,
+        toolContext.name,
+        toolContext.serverName
+      )
+      if (searchPayload) {
+        state.blocks.push(searchPayload.block)
+        for (const result of searchPayload.results) {
+          io.messageStore.addSearchResult({
+            sessionId: io.sessionId,
+            messageId: io.messageId,
+            searchId: result.searchId,
+            rank: typeof result.rank === 'number' ? result.rank : null,
+            result
+          })
         }
       }
 

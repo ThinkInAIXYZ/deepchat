@@ -119,6 +119,18 @@ export interface UserMessageContent {
   think: boolean
 }
 
+export interface LegacyImportStatus {
+  status: 'idle' | 'running' | 'completed' | 'failed' | 'skipped'
+  sourceDbPath: string
+  startedAt: number | null
+  finishedAt: number | null
+  importedSessions: number
+  importedMessages: number
+  importedSearchResults: number
+  error: string | null
+  updatedAt: number
+}
+
 export interface MessageFile {
   name: string
   path: string
@@ -126,7 +138,13 @@ export interface MessageFile {
   size: number
 }
 
-export type AssistantBlockType = 'content' | 'reasoning_content' | 'error' | 'tool_call' | 'action'
+export type AssistantBlockType =
+  | 'content'
+  | 'search'
+  | 'reasoning_content'
+  | 'error'
+  | 'tool_call'
+  | 'action'
 
 export interface ToolCallBlockData {
   id?: string
@@ -166,6 +184,7 @@ export interface AssistantMessageExtra {
 }
 
 export interface AssistantMessageBlock {
+  id?: string
   type: AssistantBlockType
   content?: string
   status: 'pending' | 'success' | 'error' | 'loading' | 'granted' | 'denied'

@@ -49,15 +49,39 @@ export class NewSessionsTable extends BaseTable {
     agentId: string,
     title: string,
     projectDir: string | null,
-    isDraft: boolean = false
+    options?: {
+      isDraft?: boolean
+      isPinned?: boolean
+      createdAt?: number
+      updatedAt?: number
+    }
   ): void {
     const now = Date.now()
+    const createdAt = options?.createdAt ?? now
+    const updatedAt = options?.updatedAt ?? createdAt
     this.db
       .prepare(
-        `INSERT INTO new_sessions (id, agent_id, title, project_dir, is_draft, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO new_sessions (
+          id,
+          agent_id,
+          title,
+          project_dir,
+          is_pinned,
+          is_draft,
+          created_at,
+          updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
       )
-      .run(id, agentId, title, projectDir, isDraft ? 1 : 0, now, now)
+      .run(
+        id,
+        agentId,
+        title,
+        projectDir,
+        options?.isPinned ? 1 : 0,
+        options?.isDraft ? 1 : 0,
+        createdAt,
+        updatedAt
+      )
   }
 
   get(id: string): NewSessionRow | undefined {
