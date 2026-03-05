@@ -56,7 +56,7 @@ describe('pageRouter.initialize', () => {
     expect(store.route.value).toEqual({ name: 'chat', sessionId: 'new-session-1' })
   })
 
-  it('falls back to legacy active session when new-agent binding is absent', async () => {
+  it('defaults to new thread when no new-agent active session exists', async () => {
     const { store, sessionPresenter } = await setupStore({
       activeNewSession: null,
       activeLegacySession: { sessionId: 'legacy-session-2' }
@@ -64,7 +64,7 @@ describe('pageRouter.initialize', () => {
 
     await store.initialize()
 
-    expect(sessionPresenter.getActiveSession).toHaveBeenCalledWith(1)
-    expect(store.route.value).toEqual({ name: 'chat', sessionId: 'legacy-session-2' })
+    expect(sessionPresenter.getActiveSession).not.toHaveBeenCalled()
+    expect(store.route.value).toEqual({ name: 'newThread' })
   })
 })

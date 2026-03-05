@@ -11,14 +11,6 @@ import type { QuestionInfo } from '@shared/types/core/question'
 import { finalizeAssistantMessageBlocks } from '@shared/chat/messageBlocks'
 import type { CONVERSATION, CONVERSATION_SETTINGS, ParentSelection } from '@shared/presenter'
 import { usePresenter } from '@/composables/usePresenter'
-import {
-  CONVERSATION_EVENTS,
-  CONFIG_EVENTS,
-  DEEPLINK_EVENTS,
-  MEETING_EVENTS,
-  STREAM_EVENTS
-} from '@/events'
-import router from '@/router'
 import { useI18n } from 'vue-i18n'
 import { useSoundStore } from './sound'
 import { useWorkspaceStore } from './workspace'
@@ -125,9 +117,6 @@ export const useChatStore = defineStore('chat', () => {
 
   // 用于管理当前激活会话的 selectedVariantsMap
   const selectedVariantsMap = ref<Record<string, string>>({})
-
-  // 标志：是否正在更新变体选择（用于防止 LIST_UPDATED 循环）
-  let isUpdatingVariant = false
 
   // Getters
   const getTabId = () => window.api.getWebContentsId()
@@ -345,13 +334,6 @@ export const useChatStore = defineStore('chat', () => {
     pendingContextMentions.value = next
   }
 
-  const queueScrollTarget = (conversationId: string, target: PendingScrollTarget) => {
-    if (!conversationId || (!target.messageId && !target.childConversationId)) return
-    const next = new Map(pendingScrollTargetByConversation.value)
-    next.set(conversationId, target)
-    pendingScrollTargetByConversation.value = next
-  }
-
   const consumePendingScrollMessage = (conversationId: string) => {
     if (!conversationId) return
     const next = new Map(pendingScrollTargetByConversation.value)
@@ -440,31 +422,6 @@ export const useChatStore = defineStore('chat', () => {
     setActiveThreadId(null)
     setMessageIds([])
     clearCachedMessagesForThread(activeThreadId)
-    clearMessageDomInfo()
-    selectedVariantsMap.value = {}
-    childThreadsByMessageId.value = new Map()
-    pendingContextMentions.value = new Map()
-    pendingScrollTargetByConversation.value = new Map()
-    chatConfig.value = {
-      ...chatConfig.value,
-      acpWorkdirMap: {},
-      agentWorkspacePath: null
-    }
-  }
-
-  const clearThreadCachesForTab = (threadId: string | null) => {
-    if (threadId) {
-      clearCachedMessagesForThread(threadId)
-      if (!generatingThreadIds.value.has(threadId)) {
-        const cache = getGeneratingMessagesCache()
-        for (const [messageId, cached] of cache.entries()) {
-          if (cached.threadId === threadId) {
-            cache.delete(messageId)
-          }
-        }
-      }
-    }
-    setMessageIds([])
     clearMessageDomInfo()
     selectedVariantsMap.value = {}
     childThreadsByMessageId.value = new Map()
@@ -1626,36 +1583,6 @@ export const useChatStore = defineStore('chat', () => {
     await threadP.toggleConversationPinned(threadId, isPinned)
   }
 
-  // 配置相关的方法
-  const loadChatConfig = async () => {
-    const activeThread = getActiveThreadId()
-    if (!activeThread) return
-    try {
-      const conversation = await threadP.getConversation(activeThread)
-      const threadToUpdate = threads.value
-        .flatMap((thread) => thread.dtThreads)
-        .find((t) => t.id === activeThread)
-      if (threadToUpdate) {
-        Object.assign(threadToUpdate, conversation)
-      }
-      if (conversation) {
-        chatConfig.value = {
-          ...conversation.settings,
-          acpWorkdirMap: conversation.settings.acpWorkdirMap ?? {}
-        }
-        // Populate the in-memory map from the loaded settings
-        if (conversation.settings.selectedVariantsMap) {
-          selectedVariantsMap.value = { ...conversation.settings.selectedVariantsMap }
-        } else {
-          selectedVariantsMap.value = {}
-        }
-      }
-    } catch (error) {
-      console.error('Failed to load conversation config:', error)
-      throw error
-    }
-  }
-
   const saveChatConfig = async () => {
     const activeThread = getActiveThreadId()
     if (!activeThread) return
@@ -1670,8 +1597,6 @@ export const useChatStore = defineStore('chat', () => {
   const updateChatConfig = async (newConfig: Partial<CONVERSATION_SETTINGS>) => {
     chatConfig.value = { ...chatConfig.value, ...newConfig }
     await saveChatConfig()
-    // Removed loadChatConfig() call to avoid triggering watch loops
-    // loadChatConfig() should only be called when switching conversations, not after every config update
   }
 
   const deleteMessage = async (messageId: string) => {
@@ -1813,31 +1738,6 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
-  // 新增：监听来自主进程的初始化并发送消息的指令
-  window.electron.ipcRenderer.on(
-    'command:send-initial-message',
-    async (_, data: { userInput: string }) => {
-      // 确保当前有活动的会话
-      if (!getActiveThreadId()) {
-        console.error('Received send-initial-message command but no active thread is set.')
-        return
-      }
-
-      try {
-        // 调用已有的 sendMessage 方法，这将复用所有现有逻辑
-        await sendMessage({
-          text: data.userInput,
-          files: [],
-          links: [],
-          think: false,
-          search: false
-        })
-      } catch (error) {
-        console.error('Failed to handle send-initial-message command:', error)
-      }
-    }
-  )
-
   const handleMessageEdited = async (msgId: string) => {
     // 首先检查是否在生成缓存中
     const cached = getGeneratingMessagesCache().get(msgId)
@@ -1887,8 +1787,6 @@ export const useChatStore = defineStore('chat', () => {
     const activeThreadId = getActiveThreadId()
     if (!activeThreadId) return
 
-    isUpdatingVariant = true
-
     // 更新内存中的映射
     if (selectedVariantId && selectedVariantId !== mainMessageId) {
       selectedVariantsMap.value[mainMessageId] = selectedVariantId
@@ -1908,10 +1806,6 @@ export const useChatStore = defineStore('chat', () => {
       })
     } catch (error) {
       console.error('Failed to update selected variant:', error)
-    } finally {
-      setTimeout(() => {
-        isUpdatingVariant = false
-      }, 100)
     }
   }
 
@@ -1960,31 +1854,6 @@ export const useChatStore = defineStore('chat', () => {
     toolcallAudio.play().catch(console.error)
   }
 
-  /////////////////////////////////////////////////////////////////////////////////////////////////////////
-  // 注册 deeplink 事件处理
-  window.electron.ipcRenderer.on(DEEPLINK_EVENTS.START, async (_, data) => {
-    console.log(`[Renderer] Tab ${getTabId()} received DEEPLINK_EVENTS.START:`, data)
-    // 确保路由正确
-    const currentRoute = router.currentRoute.value
-    if (currentRoute.name !== 'chat') {
-      await router.push({ name: 'chat' })
-    }
-    // 如果存在活动会话，创建新会话
-    if (getActiveThreadId()) {
-      await clearActiveThread()
-    }
-    // 存储 deeplink 数据到缓存
-    if (data) {
-      deeplinkCache.value = {
-        msg: data.msg,
-        modelId: data.modelId,
-        systemPrompt: data.systemPrompt,
-        autoSend: data.autoSend,
-        mentions: data.mentions
-      }
-    }
-  })
-
   // 清理 Deeplink 缓存
   const clearDeeplinkCache = () => {
     deeplinkCache.value = null
@@ -2012,133 +1881,8 @@ export const useChatStore = defineStore('chat', () => {
     return getThreadsWorkingStatus().get(threadId) || null
   }
 
-  /**
-   * 新增: 处理来自主进程的会议指令
-   * @param data 包含指令文本的对象
-   */
-  const handleMeetingInstruction = async (data: { prompt: string }) => {
-    // 确保当前有活动的会话，否则指令无法执行
-    if (!getActiveThreadId()) {
-      console.warn('Received meeting command, but no active session. Command ignored.')
-      return
-    }
-    try {
-      // 将收到的指令作为用户输入，调用已有的sendMessage方法
-      // 这样可以完全复用UI的加载状态、消息显示等所有逻辑
-      await sendMessage({
-        text: data.prompt,
-        files: [],
-        links: [],
-        think: false,
-        search: false,
-        content: [{ type: 'text', content: data.prompt }]
-      })
-    } catch (error) {
-      console.error('Error occurred while processing meeting command:', error)
-    }
-  }
-
-  const setupEventListeners = () => {
-    // 新增：监听来自主进程的会议指令
-    window.electron.ipcRenderer.on(MEETING_EVENTS.INSTRUCTION, (_, data) => {
-      handleMeetingInstruction(data)
-    })
-
-    // 监听：主进程推送的完整会话列表
-    window.electron.ipcRenderer.on(
-      CONVERSATION_EVENTS.LIST_UPDATED,
-      (_, updatedGroupedList: { dt: string; dtThreads: CONVERSATION[] }[]) => {
-        console.log('Received full thread list update from main process.')
-
-        // 1. 获取当前活动会话ID，在列表更新前
-        const currentActiveId = getActiveThreadId()
-
-        // 2. 用主进程推送的最新、完整的、已格式化好的列表直接替换本地状态
-        threads.value = updatedGroupedList
-
-        // 3. 检查活动会话是否还存在
-        if (currentActiveId) {
-          const flatList = updatedGroupedList.flatMap((g) => g.dtThreads)
-          const activeThread = flatList.find((thread) => thread.id === currentActiveId)
-
-          if (!activeThread) {
-            // 如果活动会话不存在了（如在其他窗口被删除），清空当前tab的活动状态
-            clearActiveThread()
-          } else if (!isUpdatingVariant && activeThread.settings.selectedVariantsMap) {
-            // 只在非变体更新期间，同步 selectedVariantsMap（防止其他窗口的更新被覆盖）
-            selectedVariantsMap.value = { ...activeThread.settings.selectedVariantsMap }
-          }
-        }
-      }
-    )
-
-    // 监听：定向的会话激活事件
-    window.electron.ipcRenderer.on(CONVERSATION_EVENTS.ACTIVATED, async (_, msg) => {
-      // 确保是发给当前Tab的事件
-      if (msg.tabId !== getTabId()) {
-        return
-      }
-
-      // 如果是当前tab或新激活的会话在当前窗口中，则正常处理
-      const prevActiveThreadId = getActiveThreadId()
-      activeThreadIdMap.value.set(getTabId(), msg.conversationId)
-      if (prevActiveThreadId && prevActiveThreadId !== msg.conversationId) {
-        clearThreadCachesForTab(prevActiveThreadId)
-      }
-
-      // 如果存在状态为completed或error的会话，从Map中移除
-      if (msg.conversationId) {
-        const status = getThreadsWorkingStatus().get(msg.conversationId)
-        if (status === 'completed' || status === 'error') {
-          getThreadsWorkingStatus().delete(msg.conversationId)
-        }
-      }
-
-      await loadChatConfig() // 加载对话配置
-      await loadMessages()
-
-      // 新增：在会话激活处理完成后，通过usePresenter发送确认信号
-      tabP.onRendererTabActivated(msg.conversationId)
-    })
-
-    window.electron.ipcRenderer.on(CONVERSATION_EVENTS.MESSAGE_EDITED, (_, msgId: string) => {
-      handleMessageEdited(msgId)
-    })
-
-    window.electron.ipcRenderer.on(CONVERSATION_EVENTS.DEACTIVATED, (_, msg) => {
-      if (msg.tabId !== getTabId()) {
-        return
-      }
-      const prevActiveThreadId = getActiveThreadId()
-      setActiveThreadId(null)
-      clearThreadCachesForTab(prevActiveThreadId)
-    })
-
-    window.electron.ipcRenderer.on(CONVERSATION_EVENTS.SCROLL_TO_MESSAGE, (_, payload) => {
-      if (!payload?.conversationId) {
-        return
-      }
-      queueScrollTarget(payload.conversationId, {
-        messageId: payload.messageId,
-        childConversationId: payload.childConversationId
-      })
-    })
-
-    window.electron.ipcRenderer.on(CONFIG_EVENTS.MODEL_LIST_CHANGED, (_, providerId?: string) => {
-      if (providerId === 'acp') {
-        void refreshActiveAgentMcpSelections()
-      }
-    })
-  }
-
   onMounted(() => {
-    console.log(`[Chat Store] Tab ${getTabId()} is mounted. Setting up event listeners.`)
-
-    // store现在是被动的，等待主进程推送数据
-    setupEventListeners()
-
     // 在 store 初始化完成后，通过usePresenter发送就绪信号
-    console.log(`[Chat Store] Tab ${getTabId()} sending ready signal`)
     tabP.onRendererTabReady(getTabId())
   })
 
@@ -2256,35 +2000,6 @@ export const useChatStore = defineStore('chat', () => {
   const showProviderSelector = () => {
     // 触发事件让 ChatInput 组件显示 provider 选择器
     window.dispatchEvent(new CustomEvent('show-provider-selector'))
-  }
-
-  // 初始化全局流事件监听
-  // 确保只在客户端环境中执行
-  if (window.electron && window.electron.ipcRenderer) {
-    // Do not clear global stream listeners here.
-    // New UI stores (ui/message) also subscribe to STREAM_EVENTS and would be broken.
-
-    window.electron.ipcRenderer.on(STREAM_EVENTS.RESPONSE, (_, msg) => {
-      handleStreamResponse(msg)
-    })
-
-    window.electron.ipcRenderer.on(STREAM_EVENTS.END, (_, msg) => {
-      handleStreamEnd(msg)
-    })
-
-    window.electron.ipcRenderer.on(STREAM_EVENTS.ERROR, (_, msg) => {
-      handleStreamError(msg)
-    })
-
-    // 监听权限更新事件，刷新消息以显示最新的权限状态
-    window.electron.ipcRenderer.on(
-      STREAM_EVENTS.PERMISSION_UPDATED,
-      (_, payload: { messageId: string }) => {
-        console.log('[Chat Store] Permission updated, refreshing message:', payload.messageId)
-        // 触发消息缓存刷新，使UI显示下一个待处理的权限
-        bumpMessageCacheVersion()
-      }
-    )
   }
 
   return {

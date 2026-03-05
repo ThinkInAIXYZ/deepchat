@@ -52,14 +52,6 @@ const setup = async (options: SetupOptions = {}) => {
     isDark: false
   })
 
-  const chatStore = reactive({
-    chatConfig: {
-      providerId: 'openai',
-      modelId: 'gpt-4'
-    },
-    updateChatConfig: vi.fn().mockResolvedValue(undefined)
-  })
-
   const modelStore = reactive({
     enabledModels: [
       {
@@ -175,9 +167,6 @@ const setup = async (options: SetupOptions = {}) => {
   vi.doMock('@/stores/theme', () => ({
     useThemeStore: () => themeStore
   }))
-  vi.doMock('@/stores/chat', () => ({
-    useChatStore: () => chatStore
-  }))
   vi.doMock('@/stores/modelStore', () => ({
     useModelStore: () => modelStore
   }))
@@ -234,7 +223,8 @@ const setup = async (options: SetupOptions = {}) => {
     wrapper,
     newAgentPresenter,
     sessionStore,
-    chatStore
+    draftStore,
+    configPresenter
   }
 }
 
@@ -296,7 +286,7 @@ describe('ChatStatusBar advanced settings', () => {
   })
 
   it('switches active non-ACP session model via session store', async () => {
-    const { wrapper, sessionStore, chatStore } = await setup({
+    const { wrapper, sessionStore } = await setup({
       agentId: 'deepchat',
       hasActiveSession: true,
       activeProviderId: 'openai',
@@ -310,7 +300,23 @@ describe('ChatStatusBar advanced settings', () => {
       'anthropic',
       'claude-3-5-sonnet'
     )
-    expect(chatStore.updateChatConfig).not.toHaveBeenCalled()
+  })
+
+  it('updates draft model and preferred model when no active session', async () => {
+    const { wrapper, sessionStore, draftStore, configPresenter } = await setup({
+      agentId: 'deepchat',
+      hasActiveSession: false
+    })
+
+    await (wrapper.vm as any).selectModel('anthropic', 'claude-3-5-sonnet')
+
+    expect(sessionStore.setSessionModel).not.toHaveBeenCalled()
+    expect(draftStore.providerId).toBe('anthropic')
+    expect(draftStore.modelId).toBe('claude-3-5-sonnet')
+    expect(configPresenter.setSetting).toHaveBeenCalledWith('preferredModel', {
+      providerId: 'anthropic',
+      modelId: 'claude-3-5-sonnet'
+    })
   })
 
   it('keeps advanced modal open when clicking advanced select portal content', async () => {

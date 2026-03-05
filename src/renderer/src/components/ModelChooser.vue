@@ -69,7 +69,6 @@ import { Button } from '@shadcn/components/ui/button'
 import { Card, CardContent } from '@shadcn/components/ui/card'
 import { Input } from '@shadcn/components/ui/input'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
-import { useChatStore } from '@/stores/chat'
 import { useProviderStore } from '@/stores/providerStore'
 import { useModelStore } from '@/stores/modelStore'
 import { useThemeStore } from '@/stores/theme'
@@ -82,7 +81,6 @@ import { useChatMode } from '@/components/chat-input/composables/useChatMode'
 
 const { t } = useI18n()
 const keyword = ref('')
-const chatStore = useChatStore()
 const providerStore = useProviderStore()
 const modelStore = useModelStore()
 const themeStore = useThemeStore()
@@ -101,6 +99,14 @@ const props = defineProps({
   requiresVision: {
     type: Boolean,
     default: false
+  },
+  selectedProviderId: {
+    type: String,
+    default: ''
+  },
+  selectedModelId: {
+    type: String,
+    default: ''
   }
 })
 
@@ -165,7 +171,7 @@ const filteredProviders = computed(() => {
 })
 
 const isSelected = (providerId: string, modelId: string) => {
-  return chatStore.chatConfig.providerId === providerId && chatStore.chatConfig.modelId === modelId
+  return props.selectedProviderId === providerId && props.selectedModelId === modelId
 }
 
 const handleModelSelect = (providerId: string, model: RENDERER_MODEL_META) => {

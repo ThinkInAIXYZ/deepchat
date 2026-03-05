@@ -59,11 +59,8 @@ const getEnabledToolCountByServer = (serverName: string) => {
   if (isReadOnly.value) {
     return serverTools.length
   }
-  if (chatStore.chatConfig.enabledMcpTools) {
-    const enabledTools = chatStore.chatConfig.enabledMcpTools
-    return serverTools.filter((tool) => enabledTools.includes(tool.function.name)).length
-  }
-  return serverTools.length
+  const enabledTools = mcpStore.enabledToolNames
+  return serverTools.filter((tool) => enabledTools.includes(tool.function.name)).length
 }
 
 // 获取可用工具总数
@@ -71,14 +68,11 @@ const getTotalEnabledToolCount = () => {
   if (isReadOnly.value) {
     return scopedTools.value.length
   }
-  if (chatStore.chatConfig.enabledMcpTools) {
-    const enabledMcpTools = chatStore.chatConfig.enabledMcpTools
-    const filterList = scopedTools.value.filter((item) =>
-      enabledMcpTools.includes(item.function.name)
-    )
-    return filterList.length
-  }
-  return scopedTools.value.length
+  const enabledMcpTools = mcpStore.enabledToolNames
+  const filterList = scopedTools.value.filter((item) =>
+    enabledMcpTools.includes(item.function.name)
+  )
+  return filterList.length
 }
 
 // 处理单个服务开关状态变化
@@ -101,19 +95,15 @@ const onServerToggle = async (serverName: string) => {
 }
 
 // 处理单个工具开关状态变化
-const handleToolEnabledChange = (isEnabled: boolean, functionName: string) => {
+const handleToolEnabledChange = async (isEnabled: boolean, functionName: string) => {
   if (isReadOnly.value) return
-  const currentTools = chatStore.chatConfig.enabledMcpTools || []
-  const updatedTools = isEnabled
-    ? Array.from(new Set([...currentTools, functionName]))
-    : currentTools.filter((name) => name !== functionName)
-  chatStore.updateChatConfig({ enabledMcpTools: updatedTools })
+  await mcpStore.setToolEnabled(functionName, isEnabled)
 }
 
 // 获取单个工具开关状态
 const isEnabled = (functionName: string): boolean => {
   if (isReadOnly.value) return true
-  return chatStore.chatConfig.enabledMcpTools?.includes(functionName) ?? false
+  return mcpStore.isToolEnabled(functionName)
 }
 
 // 获取内置服务器的本地化名称和描述

@@ -30,14 +30,19 @@
               :message="item.message"
               :is-capturing-image="capture.isCapturing.value"
               @copy-image="handleCopyImage"
+              @retry="handleRetry"
+              @delete="handleDelete"
+              @fork="handleFork"
+              @continue="handleContinue"
+              @switch-provider="handleSwitchProvider"
               @variant-changed="wrapScrollToMessage"
               @trace="handleTrace"
             />
             <MessageItemUser
               v-else-if="item.message?.role === 'user'"
               :message="item.message"
-              @retry="handleRetry(item.message?.id)"
-              @scroll-to-bottom="scrollToBottom"
+              @retry="handleRetry"
+              @delete="handleDelete"
             />
             <MessageItemPlaceholder
               v-else
@@ -352,6 +357,37 @@ const handleRetry = async (messageId?: string) => {
   if (await chatStore.retryFromUserMessage(messageId)) {
     scrollToBottom(true)
   }
+}
+
+const handleDelete = async (messageId?: string) => {
+  if (!messageId) return
+  try {
+    await chatStore.deleteMessage(messageId)
+  } catch (error) {
+    console.error('Failed to delete message:', error)
+  }
+}
+
+const handleFork = async (messageId?: string) => {
+  if (!messageId) return
+  try {
+    await chatStore.forkThread(messageId, 'Fork')
+  } catch (error) {
+    console.error('Failed to fork conversation:', error)
+  }
+}
+
+const handleContinue = async (conversationId: string, messageId: string) => {
+  if (!conversationId || !messageId) return
+  try {
+    await chatStore.continueStream(conversationId, messageId)
+  } catch (error) {
+    console.error('Failed to continue generation:', error)
+  }
+}
+
+const handleSwitchProvider = () => {
+  chatStore.showProviderSelector()
 }
 
 const getPlaceholderHeight = (messageId: string) => getMessageDomInfo(messageId)?.height

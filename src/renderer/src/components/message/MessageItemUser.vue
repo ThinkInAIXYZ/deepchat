@@ -100,11 +100,9 @@ import FileItem from '../FileItem.vue'
 import MessageToolbar from './MessageToolbar.vue'
 import MessageContent from './MessageContent.vue'
 import MessageTextContent from './MessageTextContent.vue'
-import { useChatStore } from '@/stores/chat'
 import { usePresenter } from '@/composables/usePresenter'
 import { ref, watch, onMounted, nextTick, onBeforeUnmount, computed } from 'vue'
 
-const chatStore = useChatStore()
 const windowPresenter = usePresenter('windowPresenter')
 const sessionPresenter = usePresenter('sessionPresenter')
 
@@ -229,31 +227,35 @@ const cancelEdit = () => {
 
 const handleAction = (action: 'delete' | 'copy') => {
   if (action === 'delete') {
-    if (useLegacyActions.value) {
-      chatStore.deleteMessage(props.message.id)
-    } else {
-      emit('delete', props.message.id)
-    }
+    emit('delete', props.message.id)
   } else if (action === 'copy') {
     window.api.copyText(getCopyText())
   }
 }
 
-const handleMentionClick = (block: UserMessageMentionBlock) => {
+const handleMentionClick = async (block: UserMessageMentionBlock) => {
   if (!useLegacyActions.value) {
     return
   }
   if (block.category !== 'context') {
     return
   }
-  const activeThread = chatStore.activeThread
-  if (!activeThread?.parentConversationId || !activeThread.parentMessageId) {
+  if (!props.message.conversationId) {
     return
   }
-  chatStore.openThreadInNewTab(activeThread.parentConversationId, {
-    messageId: activeThread.parentMessageId,
-    childConversationId: activeThread.id
-  })
+  try {
+    const conversation = await sessionPresenter.getConversation(props.message.conversationId)
+    if (!conversation.parentConversationId || !conversation.parentMessageId) {
+      return
+    }
+    await sessionPresenter.openConversationInNewTab({
+      conversationId: conversation.parentConversationId,
+      messageId: conversation.parentMessageId,
+      childConversationId: conversation.id
+    })
+  } catch (error) {
+    console.error('Failed to open parent conversation from mention:', error)
+  }
 }
 
 const autoResize = () => {

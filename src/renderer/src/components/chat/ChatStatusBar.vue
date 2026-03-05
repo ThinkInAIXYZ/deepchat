@@ -318,7 +318,6 @@ import {
 import { Icon } from '@iconify/vue'
 import ModelIcon from '../icons/ModelIcon.vue'
 import { useThemeStore } from '@/stores/theme'
-import { useChatStore } from '@/stores/chat'
 import { useModelStore } from '@/stores/modelStore'
 import { useAgentStore } from '@/stores/ui/agent'
 import { useSessionStore } from '@/stores/ui/session'
@@ -345,7 +344,6 @@ const CONTEXT_LENGTH_MIN = 2048
 const MAX_TOKENS_MIN = 128
 
 const themeStore = useThemeStore()
-const chatStore = useChatStore()
 const modelStore = useModelStore()
 const agentStore = useAgentStore()
 const sessionStore = useSessionStore()
@@ -545,10 +543,17 @@ const syncDraftModelSelection = async () => {
   const token = ++draftModelSyncToken
   if (hasActiveSession.value) return
 
+  const applyDraftSelection = (selection: ModelSelection | null) => {
+    draftModelSelection.value = selection
+    draftStore.providerId = selection?.providerId
+    draftStore.modelId = selection?.modelId
+  }
+
   if (isAcpAgent.value) {
     const agentId = agentStore.selectedAgentId
-    draftModelSelection.value =
+    applyDraftSelection(
       agentId && agentId !== 'deepchat' ? { providerId: 'acp', modelId: agentId } : null
+    )
     return
   }
 
@@ -558,7 +563,7 @@ const syncDraftModelSelection = async () => {
     if (isModelSelection(defaultModel)) {
       const resolvedDefault = findEnabledModel(defaultModel.providerId, defaultModel.modelId)
       if (resolvedDefault) {
-        draftModelSelection.value = resolvedDefault
+        applyDraftSelection(resolvedDefault)
         return
       }
     }
@@ -568,7 +573,7 @@ const syncDraftModelSelection = async () => {
     if (isModelSelection(preferredModel)) {
       const resolvedPreferred = findEnabledModel(preferredModel.providerId, preferredModel.modelId)
       if (resolvedPreferred) {
-        draftModelSelection.value = resolvedPreferred
+        applyDraftSelection(resolvedPreferred)
         return
       }
     }
@@ -577,7 +582,7 @@ const syncDraftModelSelection = async () => {
   }
 
   if (token !== draftModelSyncToken) return
-  draftModelSelection.value = pickFirstEnabledModel()
+  applyDraftSelection(pickFirstEnabledModel())
 }
 
 watch(
@@ -621,7 +626,9 @@ watch(
 const displayProviderId = computed(() => {
   if (hasActiveSession.value) {
     return (
-      activeSessionSelection.value?.providerId || chatStore.chatConfig.providerId || 'anthropic'
+      activeSessionSelection.value?.providerId ||
+      draftModelSelection.value?.providerId ||
+      'anthropic'
     )
   }
   if (isAcpAgent.value) {
@@ -632,7 +639,7 @@ const displayProviderId = computed(() => {
 
 const displayModelName = computed(() => {
   if (hasActiveSession.value) {
-    const modelId = activeSessionSelection.value?.modelId || chatStore.chatConfig.modelId
+    const modelId = activeSessionSelection.value?.modelId || draftModelSelection.value?.modelId
     if (modelId) {
       return resolveModelName(modelId)
     }
@@ -1190,7 +1197,6 @@ async function selectModel(providerId: string, modelId: string) {
     draftStore.modelId = modelId
     await configPresenter.setSetting('preferredModel', { providerId, modelId })
   }
-  await chatStore.updateChatConfig({ providerId, modelId })
 }
 
 function selectEffort(value: 'minimal' | 'low' | 'medium' | 'high') {

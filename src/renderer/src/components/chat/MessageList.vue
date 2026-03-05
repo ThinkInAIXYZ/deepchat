@@ -20,6 +20,7 @@
           @retry="onRetry"
           @delete="onDelete"
           @fork="onFork"
+          @continue="onContinue"
           @trace="onTrace"
           @copy-image="handleCopyImage"
         />
@@ -51,6 +52,7 @@ const emit = defineEmits<{
   retry: [messageId: string]
   delete: [messageId: string]
   fork: [messageId: string]
+  continue: [conversationId: string, messageId: string]
   trace: [messageId: string]
   editSave: [payload: { messageId: string; text: string }]
 }>()
@@ -68,6 +70,10 @@ const onDelete = (messageId: string) => {
 
 const onFork = (messageId: string) => {
   emit('fork', messageId)
+}
+
+const onContinue = (conversationId: string, messageId: string) => {
+  emit('continue', conversationId, messageId)
 }
 
 const onTrace = (messageId: string) => {

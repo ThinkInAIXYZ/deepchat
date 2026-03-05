@@ -60,6 +60,8 @@
                 :message-id="currentMessage.id"
                 :conversation-id="currentThreadId"
                 :block="block"
+                @continue="handleBlockContinue"
+                @switch-provider="handleBlockSwitchProvider"
               />
               <MessageBlockMcpUi
                 v-else-if="block.type === 'mcp_ui_resource'"
@@ -169,7 +171,6 @@ import MessageBlockError from './MessageBlockError.vue'
 import MessageBlockQuestionRequest from './MessageBlockQuestionRequest.vue'
 import MessageToolbar from './MessageToolbar.vue'
 import MessageInfo from './MessageInfo.vue'
-import { useChatStore } from '@/stores/chat'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import ModelIcon from '@/components/icons/ModelIcon.vue'
 import { Spinner } from '@shadcn/components/ui/spinner'
@@ -206,7 +207,6 @@ const props = defineProps<{
 }>()
 
 const themeStore = useThemeStore()
-const chatStore = useChatStore()
 const uiSettingsStore = useUiSettingsStore()
 const { t } = useI18n()
 
@@ -239,16 +239,14 @@ const emit = defineEmits<{
   retry: [messageId: string]
   delete: [messageId: string]
   fork: [messageId: string]
+  continue: [conversationId: string, messageId: string]
+  switchProvider: []
 }>()
 
 // 获取当前会话ID
-const currentThreadId = computed(
-  () => props.message.conversationId || chatStore.getActiveThreadId() || ''
-)
+const currentThreadId = computed(() => props.message.conversationId || '')
 const useLegacyActions = computed(() => props.useLegacyActions !== false)
-const resolvedIsInGeneratingThread = computed(
-  () => props.isInGeneratingThread ?? chatStore.generatingThreadIds.has(currentThreadId.value)
-)
+const resolvedIsInGeneratingThread = computed(() => props.isInGeneratingThread ?? false)
 const showTrace = computed(() => props.showTrace ?? false)
 const rootRef = ref<HTMLElement | null>(null)
 const showSelectionMenu = ref(false)
@@ -256,11 +254,13 @@ const lastSelectionText = ref('')
 const contextMenuPosition = ref<{ x?: number; y?: number }>({})
 
 // currentVariantIndex: 0 = 主消息, 1-N = 对应的变体索引
-const currentVariantIndex = computed(() => {
-  const selectedVariantId = chatStore.selectedVariantsMap[props.message.id]
-  if (!selectedVariantId) return 0
+const selectedVariantId = ref<string | null>(null)
 
-  const variantIndex = allVariants.value.findIndex((v) => v.id === selectedVariantId)
+const currentVariantIndex = computed(() => {
+  if (!useLegacyActions.value) return 0
+  if (!selectedVariantId.value) return 0
+
+  const variantIndex = allVariants.value.findIndex((v) => v.id === selectedVariantId.value)
   return variantIndex !== -1 ? variantIndex + 1 : 0
 })
 
@@ -286,18 +286,6 @@ const allVariants = computed(() => {
     }
   })
 
-  for (const [, cached] of chatStore.getGeneratingMessagesCache().entries()) {
-    const msg = cached.message
-    if (
-      props.message.parentId &&
-      msg.role === 'assistant' &&
-      msg.is_variant &&
-      msg.parentId === props.message.parentId
-    ) {
-      variantsById.set(msg.id, msg as AssistantMessage)
-    }
-  }
-
   return Array.from(variantsById.values())
 })
 
@@ -318,17 +306,33 @@ const currentContent = computed(() => {
 watch(
   () => allVariants.value.length,
   (newLength, oldLength) => {
+    if (!useLegacyActions.value) {
+      return
+    }
+
     // 仅当新变体被添加时触发
     // 并且当前会话不是正在生成中的消息，避免在生成过程中频繁切换
-    if (newLength > oldLength && !chatStore.generatingThreadIds.has(currentThreadId.value)) {
-      const mainMessageId = props.message.id
+    if (newLength > oldLength && !resolvedIsInGeneratingThread.value) {
       // 获取最后一个变体（数组最后一个元素）
       const lastVariant = allVariants.value[newLength - 1]
 
       // 只有当 lastVariant 存在时才调用 updateSelectedVariant，确保是有效的变体
-      chatStore.updateSelectedVariant(mainMessageId, lastVariant ? lastVariant.id : null)
+      selectedVariantId.value = lastVariant?.id ?? null
+      emit('variantChanged', props.message.id)
     }
   }
+)
+
+watch(
+  [() => props.message.id, allVariants],
+  () => {
+    if (!selectedVariantId.value) return
+    const exists = allVariants.value.some((variant) => variant.id === selectedVariantId.value)
+    if (!exists) {
+      selectedVariantId.value = null
+    }
+  },
+  { immediate: true }
 )
 
 const isSearchResult = computed(() => {
@@ -351,14 +355,9 @@ const cancelFork = () => {
 }
 
 // 确认分支
-const confirmFork = async () => {
-  try {
-    // 执行fork操作
-    await chatStore.forkThread(currentMessage.value.id, t('dialog.fork.tag'))
-    isForkDialogOpen.value = false
-  } catch (error) {
-    console.error('创建对话分支失败:', error)
-  }
+const confirmFork = () => {
+  emit('fork', currentMessage.value.id)
+  isForkDialogOpen.value = false
 }
 
 type HandleActionType =
@@ -445,19 +444,19 @@ const handleSelectionAskAI = () => {
   window.dispatchEvent(new CustomEvent('context-menu-ask-ai', { detail: text }))
 }
 
+const handleBlockContinue = (conversationId: string, messageId: string) => {
+  emit('continue', conversationId, messageId)
+}
+
+const handleBlockSwitchProvider = () => {
+  emit('switchProvider')
+}
+
 const handleAction = (action: HandleActionType) => {
   if (action === 'retry') {
-    if (useLegacyActions.value) {
-      chatStore.retryMessage(currentMessage.value.id)
-    } else {
-      emit('retry', currentMessage.value.id)
-    }
+    emit('retry', currentMessage.value.id)
   } else if (action === 'delete') {
-    if (useLegacyActions.value) {
-      chatStore.deleteMessage(currentMessage.value.id)
-    } else {
-      emit('delete', currentMessage.value.id)
-    }
+    emit('delete', currentMessage.value.id)
   } else if (action === 'copy') {
     window.api.copyText(
       currentContent.value
@@ -484,6 +483,10 @@ const handleAction = (action: HandleActionType) => {
         .trim()
     )
   } else if (action === 'prev' || action === 'next') {
+    if (!useLegacyActions.value) {
+      return
+    }
+
     let newIndex = currentVariantIndex.value
 
     if (action === 'prev' && newIndex > 0) {
@@ -494,8 +497,7 @@ const handleAction = (action: HandleActionType) => {
 
     if (newIndex === currentVariantIndex.value) return
 
-    const selectedVariantId = newIndex > 0 ? allVariants.value[newIndex - 1]?.id : null
-    chatStore.updateSelectedVariant(props.message.id, selectedVariantId)
+    selectedVariantId.value = newIndex > 0 ? (allVariants.value[newIndex - 1]?.id ?? null) : null
     emit('variantChanged', props.message.id)
   } else if (action === 'copyImage') {
     // 使用原始消息的ID，因为DOM中的data-message-id使用的是message.id

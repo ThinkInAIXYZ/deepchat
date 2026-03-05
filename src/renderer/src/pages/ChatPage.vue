@@ -18,6 +18,7 @@
         @retry="onMessageRetry"
         @delete="onMessageDelete"
         @fork="onMessageFork"
+        @continue="onMessageContinue"
         @trace="onMessageTrace"
         @edit-save="onMessageEditSave"
       />
@@ -436,6 +437,17 @@ async function onMessageFork(messageId: string) {
     await sessionStore.selectSession(forked.id)
   } catch (error) {
     console.error('[ChatPage] fork session failed:', error)
+  }
+}
+
+async function onMessageContinue(_conversationId: string, messageId: string) {
+  if (!messageId) return
+  try {
+    messageStore.clearStreamingState()
+    await newAgentPresenter.retryMessage(props.sessionId, messageId)
+  } catch (error) {
+    console.error('[ChatPage] continue message failed:', error)
+    await messageStore.loadMessages(props.sessionId)
   }
 }
 

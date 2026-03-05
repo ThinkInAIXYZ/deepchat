@@ -313,6 +313,8 @@
               <PopoverContent align="end" class="w-80 border-none bg-transparent p-0 shadow-none">
                 <ModelChooser
                   :type="[ModelType.Chat, ModelType.ImageGeneration]"
+                  :selected-provider-id="config.activeModel.value.providerId"
+                  :selected-model-id="config.activeModel.value.id"
                   @update:model="config.handleModelUpdate"
                 />
               </PopoverContent>
