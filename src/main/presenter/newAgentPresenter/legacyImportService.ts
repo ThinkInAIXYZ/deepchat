@@ -118,6 +118,18 @@ export class LegacyChatImportService {
     })
 
     let legacyDb: Database.Database | null = null
+    const closeLegacyDb = () => {
+      if (!legacyDb) {
+        return
+      }
+      try {
+        legacyDb.close()
+      } catch (error) {
+        console.warn('[LegacyChatImport] Failed to close legacy database handle:', error)
+      } finally {
+        legacyDb = null
+      }
+    }
     try {
       legacyDb = new Database(this.sourceDbPath, { readonly: true, fileMustExist: true })
       legacyDb.pragma('query_only = TRUE')
@@ -142,6 +154,9 @@ export class LegacyChatImportService {
       const messageRows = this.readTableRows(legacyDb, 'messages')
       const attachmentRows = this.readTableRows(legacyDb, 'message_attachments')
       const acpSessionRows = this.readTableRows(legacyDb, 'acp_sessions')
+      // Release legacy database handle immediately after snapshot read.
+      // Import write path below may be long-running.
+      closeLegacyDb()
 
       const summary = await this.importRows({
         conversations,
@@ -178,13 +193,7 @@ export class LegacyChatImportService {
       })
       return this.getStatus()
     } finally {
-      if (legacyDb) {
-        try {
-          legacyDb.close()
-        } catch (error) {
-          console.warn('[LegacyChatImport] Failed to close legacy database handle:', error)
-        }
-      }
+      closeLegacyDb()
     }
   }
 
