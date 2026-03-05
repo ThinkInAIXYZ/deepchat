@@ -135,6 +135,11 @@ export const useChatStore = defineStore('chat', () => {
   const setActiveThreadId = (threadId: string | null) => {
     activeThreadIdMap.value.set(getTabId(), threadId)
   }
+  const isLegacyImportSessionId = (sessionId?: string | null) =>
+    typeof sessionId === 'string' && sessionId.startsWith('legacy-session-')
+  const isLegacyTablesMissingError = (error: unknown) =>
+    error instanceof Error &&
+    /no such table:\s*(messages|conversations|message_attachments)/i.test(error.message)
   const bumpMessageCacheVersion = () => {
     messageCacheVersion.value += 1
   }
@@ -947,6 +952,10 @@ export const useChatStore = defineStore('chat', () => {
   }) => {
     const { eventId, conversationId, parentId, is_variant, stream_kind } = msg
 
+    if (isLegacyImportSessionId(conversationId)) {
+      return
+    }
+
     // 非当前会话的消息直接忽略（性能优化）
     if (conversationId && conversationId !== getActiveThreadId()) {
       return
@@ -1396,12 +1405,30 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
-  const handleStreamEnd = async (msg: { eventId: string }) => {
+  const handleStreamEnd = async (msg: { eventId: string; conversationId?: string }) => {
+    if (isLegacyImportSessionId(msg.conversationId)) {
+      return
+    }
+
     // 从缓存中移除消息
     const cached = getGeneratingMessagesCache().get(msg.eventId)
     if (cached) {
       // 获取最新的消息并处理 extra 信息
-      const updatedMessage = await threadP.getMessage(msg.eventId)
+      let updatedMessage: Message
+      try {
+        updatedMessage = await threadP.getMessage(msg.eventId)
+      } catch (error) {
+        if (isLegacyTablesMissingError(error)) {
+          console.info(
+            '[Chat Store] Skip legacy stream-end message hydration: legacy tables not found.'
+          )
+          getGeneratingMessagesCache().delete(msg.eventId)
+          generatingThreadIds.value.delete(cached.threadId)
+          generatingThreadIds.value = new Set(generatingThreadIds.value)
+          return
+        }
+        throw error
+      }
       const enrichedMessage = await enrichMessageWithExtra(updatedMessage)
       const assistantContent = (enrichedMessage as AssistantMessage).content
       const hasPendingUserAction =
@@ -1493,7 +1520,11 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
-  const handleStreamError = async (msg: { eventId: string }) => {
+  const handleStreamError = async (msg: { eventId: string; conversationId?: string }) => {
+    if (isLegacyImportSessionId(msg.conversationId)) {
+      return
+    }
+
     // 从缓存中获取消息
     let cached = getGeneratingMessagesCache().get(msg.eventId)
     let threadId = cached?.threadId
@@ -1504,6 +1535,12 @@ export const useChatStore = defineStore('chat', () => {
         const foundMessage = await threadP.getMessage(msg.eventId)
         threadId = foundMessage.conversationId
       } catch (error) {
+        if (isLegacyTablesMissingError(error)) {
+          console.info(
+            '[Chat Store] Skip legacy stream-error message lookup: legacy tables not found.'
+          )
+          return
+        }
         console.warn('Failed to locate message thread for stream error:', error)
       }
     }
@@ -1560,6 +1597,12 @@ export const useChatStore = defineStore('chat', () => {
           })
         }
       } catch (error) {
+        if (isLegacyTablesMissingError(error)) {
+          console.info(
+            '[Chat Store] Skip legacy stream-error message hydration: legacy tables not found.'
+          )
+          return
+        }
         console.error('Failed to load error message:', error)
       }
 
