@@ -7,6 +7,16 @@ const handleDropMock = vi.fn().mockResolvedValue(undefined)
 const openFilePickerMock = vi.fn()
 const deleteFileMock = vi.fn()
 const selectedFilesRef = ref<any[]>([])
+const activeSkillsRef = ref<string[]>([])
+const pendingSkillsRef = ref<string[]>([])
+const activateSkillMock = vi.fn().mockResolvedValue(undefined)
+const deactivateSkillMock = vi.fn().mockResolvedValue(undefined)
+const consumePendingSkillsMock = vi.fn(() => {
+  const copied = [...pendingSkillsRef.value]
+  pendingSkillsRef.value = []
+  return copied
+})
+const applyPendingSkillsToConversationMock = vi.fn().mockResolvedValue(undefined)
 
 vi.mock('@tiptap/vue-3', () => {
   class MockEditor {
@@ -89,6 +99,24 @@ vi.mock('@/components/chat/composables/useChatInputMentions', () => ({
   })
 }))
 
+vi.mock('@/components/chat-input/composables/useSkillsData', () => ({
+  useSkillsData: () => ({
+    skills: ref([]),
+    activeSkills: activeSkillsRef,
+    activeCount: ref(0),
+    activeSkillItems: ref([]),
+    availableSkills: ref([]),
+    loading: ref(false),
+    pendingSkills: pendingSkillsRef,
+    loadActiveSkills: vi.fn(),
+    toggleSkill: vi.fn(),
+    activateSkill: activateSkillMock,
+    deactivateSkill: deactivateSkillMock,
+    consumePendingSkills: consumePendingSkillsMock,
+    applyPendingSkillsToConversation: applyPendingSkillsToConversationMock
+  })
+}))
+
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
     t: (key: string) => key
@@ -99,6 +127,8 @@ describe('ChatInputBox attachments', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     selectedFilesRef.value = []
+    activeSkillsRef.value = []
+    pendingSkillsRef.value = []
   })
 
   const mountComponent = async (options?: { files?: any[] }) => {
@@ -148,5 +178,11 @@ describe('ChatInputBox attachments', () => {
     await nextTick()
     await wrapper.find('.group button[type="button"]').trigger('click')
     expect(deleteFileMock).toHaveBeenCalledWith(0)
+  })
+
+  it('exposes deduplicated pending skills snapshot', async () => {
+    pendingSkillsRef.value = ['review', 'review', 'commit']
+    const wrapper = await mountComponent()
+    expect((wrapper.vm as any).getPendingSkillsSnapshot()).toEqual(['review', 'commit'])
   })
 })

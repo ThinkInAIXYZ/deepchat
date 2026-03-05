@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
-import { defineComponent, reactive } from 'vue'
+import { defineComponent, h, reactive } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
+
+const chatInputTriggerAttachMock = vi.fn()
+const chatInputPendingSkillsSnapshotRef: { value: string[] } = { value: [] }
 
 const createChatInputBoxStub = () =>
   defineComponent({
@@ -20,7 +23,13 @@ const createChatInputBoxStub = () =>
       'command-submit',
       'pending-skills-change'
     ],
-    template: '<div />'
+    setup(_props, { expose }) {
+      expose({
+        triggerAttach: chatInputTriggerAttachMock,
+        getPendingSkillsSnapshot: () => [...chatInputPendingSkillsSnapshotRef.value]
+      })
+      return () => h('div')
+    }
   })
 
 const setup = async (options?: {
@@ -31,6 +40,8 @@ const setup = async (options?: {
   }) => Promise<{ id: string } | null>
 }) => {
   vi.resetModules()
+  chatInputTriggerAttachMock.mockReset()
+  chatInputPendingSkillsSnapshotRef.value = []
 
   const projectStore = reactive({
     selectedProject: { path: '/tmp/workspace', name: 'workspace' },
@@ -127,8 +138,7 @@ const setup = async (options?: {
         DropdownMenuSeparator: true,
         Icon: true,
         ChatInputToolbar: true,
-        ChatStatusBar: true,
-        ChatInputBox: createChatInputBoxStub()
+        ChatStatusBar: true
       }
     }
   })
@@ -212,6 +222,33 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
           contextLength: 8192,
           maxTokens: 2048
         }
+      })
+    )
+  })
+
+  it('prefers ChatInputBox pending skills snapshot when creating deepchat session', async () => {
+    const { wrapper, sessionStore, agentStore, modelStore } = await setup()
+
+    agentStore.selectedAgentId = 'deepchat'
+    modelStore.enabledModels = [
+      {
+        providerId: 'openai',
+        models: [{ id: 'gpt-4', name: 'GPT-4' }]
+      }
+    ]
+    ;(wrapper.vm as any).onPendingSkillsChange(['stale-skill'])
+    ;(wrapper.vm as any).chatInputRef = {
+      triggerAttach: vi.fn(),
+      getPendingSkillsSnapshot: () => ['live-skill', 'live-skill']
+    }
+    ;(wrapper.vm as any).message = 'hello deepchat'
+
+    await (wrapper.vm as any).onSubmit()
+    await flushPromises()
+
+    expect(sessionStore.createSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        activeSkills: ['live-skill']
       })
     )
   })

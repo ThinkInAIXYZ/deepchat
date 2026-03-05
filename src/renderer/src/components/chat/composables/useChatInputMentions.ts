@@ -37,6 +37,7 @@ export interface UseChatInputMentionsOptions {
   sessionId: Ref<string | null>
   isAcpSession: Ref<boolean>
   onCommandSubmit: (command: string) => void
+  onActivateSkill?: (skillName: string) => Promise<void> | void
   onPendingSkillsChange?: (skills: string[]) => void
 }
 
@@ -308,6 +309,10 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
 
     if (action.kind === 'activate-skill') {
       editor.chain().focus().insertContentAt(range, '').run()
+      if (options.onActivateSkill) {
+        await options.onActivateSkill(action.skillName)
+        return
+      }
       await activateSkill(action.skillName)
       return
     }

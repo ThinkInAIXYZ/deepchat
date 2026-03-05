@@ -6,7 +6,28 @@
   >
     <input ref="fileInput" type="file" class="hidden" multiple @change="files.handleFileSelect" />
 
-    <div v-if="files.selectedFiles.value.length > 0" class="flex flex-wrap gap-2 px-4 pt-3">
+    <div v-if="activeSkillNames.length > 0" class="flex flex-wrap gap-2 px-4 pt-3">
+      <div
+        v-for="skillName in activeSkillNames"
+        :key="skillName"
+        class="inline-flex items-center gap-1.5 rounded-md border border-primary/30 bg-primary/10 px-2 py-1 text-xs text-primary"
+      >
+        <Icon icon="lucide:sparkles" class="h-3 w-3 shrink-0" />
+        <span class="truncate max-w-[160px]">{{ skillName }}</span>
+        <button
+          type="button"
+          class="inline-flex h-4 w-4 items-center justify-center rounded-sm hover:bg-primary/20"
+          @click="removeSkill(skillName)"
+        >
+          <Icon icon="lucide:x" class="h-3 w-3" />
+        </button>
+      </div>
+    </div>
+
+    <div
+      v-if="files.selectedFiles.value.length > 0"
+      :class="['flex flex-wrap gap-2 px-4', activeSkillNames.length > 0 ? 'pt-2' : 'pt-3']"
+    >
       <ChatAttachmentItem
         v-for="(file, index) in files.selectedFiles.value"
         :key="file.path || `${file.name}-${index}`"
@@ -56,10 +77,12 @@ import Placeholder from '@tiptap/extension-placeholder'
 import HardBreak from '@tiptap/extension-hard-break'
 import History from '@tiptap/extension-history'
 import { TextSelection } from '@tiptap/pm/state'
+import { Icon } from '@iconify/vue'
 import type { MessageFile } from '@shared/chat'
 import { useI18n } from 'vue-i18n'
 import { useChatInputMentions } from './composables/useChatInputMentions'
 import { useChatInputFiles } from './composables/useChatInputFiles'
+import { useSkillsData } from '@/components/chat-input/composables/useSkillsData'
 import CommandInputDialog from './mentions/CommandInputDialog.vue'
 import ChatAttachmentItem from './ChatAttachmentItem.vue'
 
@@ -101,6 +124,9 @@ const fileInput = ref<HTMLInputElement>()
 const { t } = useI18n()
 let editorInstance: Editor | null = null
 const getEditor = () => editorInstance
+const conversationId = computed(() => props.sessionId)
+const skillsData = useSkillsData(conversationId)
+const activeSkillNames = computed(() => skillsData.activeSkills.value)
 
 const mentions = useChatInputMentions({
   getEditor,
@@ -108,7 +134,9 @@ const mentions = useChatInputMentions({
   sessionId: computed(() => props.sessionId),
   isAcpSession: computed(() => props.isAcpSession),
   onCommandSubmit: (command) => emit('command-submit', command),
-  onPendingSkillsChange: (skills) => emit('pending-skills-change', skills)
+  onActivateSkill: async (skillName) => {
+    await skillsData.activateSkill(skillName)
+  }
 })
 const dialogState = mentions.dialogState
 const files = useChatInputFiles(
@@ -217,9 +245,38 @@ watch(
   { deep: true, immediate: true }
 )
 
+watch(
+  () => [...skillsData.pendingSkills.value],
+  (pendingSkills) => {
+    if (!props.sessionId) {
+      emit('pending-skills-change', pendingSkills)
+    }
+  },
+  { immediate: true }
+)
+
+watch(
+  () => props.sessionId,
+  async (sessionId) => {
+    if (sessionId) {
+      if (skillsData.pendingSkills.value.length > 0) {
+        await skillsData.applyPendingSkillsToConversation(sessionId)
+      }
+      emit('pending-skills-change', [])
+      return
+    }
+    emit('pending-skills-change', [...skillsData.pendingSkills.value])
+  },
+  { immediate: true }
+)
+
 onUnmounted(() => {
   editor.destroy()
 })
+
+function removeSkill(skillName: string) {
+  void skillsData.deactivateSkill(skillName)
+}
 
 function onCompositionStart() {
   isComposing.value = true
@@ -273,8 +330,13 @@ function triggerAttach() {
   files.openFilePicker()
 }
 
+function getPendingSkillsSnapshot(): string[] {
+  return Array.from(new Set(skillsData.pendingSkills.value))
+}
+
 defineExpose({
-  triggerAttach
+  triggerAttach,
+  getPendingSkillsSnapshot
 })
 </script>
 

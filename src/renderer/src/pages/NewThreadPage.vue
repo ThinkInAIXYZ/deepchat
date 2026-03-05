@@ -115,7 +115,10 @@ const newAgentPresenter = usePresenter('newAgentPresenter')
 const message = ref('')
 const attachedFiles = ref<ChatMessageFile[]>([])
 const pendingSkills = ref<string[]>([])
-const chatInputRef = ref<{ triggerAttach: () => void } | null>(null)
+const chatInputRef = ref<{
+  triggerAttach: () => void
+  getPendingSkillsSnapshot?: () => string[]
+} | null>(null)
 const acpDraftSessionId = ref<string | null>(null)
 const lastAcpDraftKey = ref<string | null>(null)
 const acpDraftRequestSeq = ref(0)
@@ -236,6 +239,10 @@ async function submitText(text: string, files: ChatMessageFile[]) {
     modelId = resolved.modelId
   }
 
+  const pendingSkillsSnapshot =
+    chatInputRef.value?.getPendingSkillsSnapshot?.() ?? pendingSkills.value
+  const dedupedPendingSkills = Array.from(new Set(pendingSkillsSnapshot))
+
   await sessionStore.createSession({
     message: text,
     files: normalizedFiles,
@@ -245,7 +252,7 @@ async function submitText(text: string, files: ChatMessageFile[]) {
     modelId,
     permissionMode: draftStore.permissionMode,
     generationSettings: draftStore.toGenerationSettings(),
-    activeSkills: pendingSkills.value.length > 0 ? [...pendingSkills.value] : undefined
+    activeSkills: dedupedPendingSkills.length > 0 ? dedupedPendingSkills : undefined
   })
 }
 
