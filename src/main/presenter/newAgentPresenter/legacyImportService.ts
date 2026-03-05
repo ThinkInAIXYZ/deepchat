@@ -194,6 +194,33 @@ export class LegacyChatImportService {
       return this.getStatus()
     } finally {
       closeLegacyDb()
+      this.cleanupLegacySidecarFiles()
+    }
+  }
+
+  private cleanupLegacySidecarFiles(): void {
+    const walPath = `${this.sourceDbPath}-wal`
+    const shmPath = `${this.sourceDbPath}-shm`
+
+    if (fs.existsSync(walPath)) {
+      try {
+        const walStat = fs.statSync(walPath)
+        // Non-empty WAL may still contain committed frames; do not delete it.
+        if (walStat.size > 0) {
+          return
+        }
+        fs.unlinkSync(walPath)
+      } catch (error) {
+        console.warn('[LegacyChatImport] Failed to cleanup WAL sidecar:', error)
+      }
+    }
+
+    if (fs.existsSync(shmPath)) {
+      try {
+        fs.unlinkSync(shmPath)
+      } catch (error) {
+        console.warn('[LegacyChatImport] Failed to cleanup SHM sidecar:', error)
+      }
     }
   }
 
