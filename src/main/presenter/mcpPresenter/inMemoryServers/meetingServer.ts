@@ -6,12 +6,8 @@ import { z } from 'zod'
 import { zodToJsonSchema } from 'zod-to-json-schema'
 import { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 import { presenter } from '@/presenter'
-import { eventBus } from '@/eventbus'
-import { TAB_EVENTS, MEETING_EVENTS, CONVERSATION_EVENTS } from '@/events'
+import type { ChatMessageRecord } from '@shared/types/agent-interface'
 
-// --- 会议常量和Schema定义 ---
-
-// 预设的参会者代号，用于在会议中标识不同的Tab
 const PARTICIPANT_NAMES = [
   'Alice',
   'Brian',
@@ -41,7 +37,6 @@ const PARTICIPANT_NAMES = [
   'Zoe'
 ]
 
-// 定义单个参会者的Zod Schema，用于验证和解析LLM的工具调用参数
 const ParticipantSchema = z
   .object({
     tab_id: z
@@ -85,7 +80,6 @@ const ParticipantSchema = z
     }
   )
 
-// 定义开启会议工具的Zod Schema
 const StartMeetingArgsSchema = z.object({
   participants: z
     .array(ParticipantSchema)
@@ -95,46 +89,26 @@ const StartMeetingArgsSchema = z.object({
   rounds: z.number().optional().default(3).describe('讨论的轮次数，默认为3轮。')
 })
 
-// --- 内部数据结构 ---
-
-// 内部使用的会议参与者信息接口，增加了会议代号
 interface MeetingParticipant {
   meetingName: string
   tabId: number
+  webContentsId: number
   conversationId: string
   originalTitle: string
   profile: string
 }
 
-// --- 辅助函数 ---
-
-// 等待Tab会话被渲染进程激活的异步函数。这是保证主进程可以安全地向目标Tab发送消息的关键同步点。
-function awaitTabActivated(threadId: string, timeout = 5000): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      eventBus.removeListener(TAB_EVENTS.RENDERER_TAB_ACTIVATED, listener)
-      reject(new Error(`等待会话 ${threadId} 激活超时。`))
-    }, timeout)
-
-    const listener = (activatedThreadId: string) => {
-      if (activatedThreadId === threadId) {
-        clearTimeout(timer)
-        eventBus.removeListener(TAB_EVENTS.RENDERER_TAB_ACTIVATED, listener)
-        resolve()
-      }
-    }
-    eventBus.on(TAB_EVENTS.RENDERER_TAB_ACTIVATED, listener)
-  })
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 /**
- * MeetingServer 类
- * 负责处理所有与MCP会议相关的逻辑，包括工具定义和会议流程的组织。
- * Notes by luy:
- *   Risk 1: create_new_tab triggered by MCP may overlap with start_meeting due to lack of a clear completion event, causing race conditions.
- *   Risk 2: organizeMeeting relies on tab_title to find participants, but the title may change by user or another process might change the tab title between tool call generation and execution, leading to tab-lookup failures.
- *   Risk 3: Using title to locate conversation ID assumes the conversation ID persists even when the conversation is cleared (i.e., its length is zero), which may be changed in the future.
- *   Risk 4: If any participant's session fails, the entire meeting in background is aborted peacefully. This is by design for now. LGTM.
+ * MeetingServer
+ *
+ * Migrated to new-agent stack:
+ * - session lookup/creation uses newAgentPresenter
+ * - prompt dispatch uses newAgentPresenter.sendMessage directly
+ * - response waiting polls deepchat messages/status instead of legacy conversation events
  */
 export class MeetingServer {
   private server: Server
@@ -152,7 +126,6 @@ export class MeetingServer {
   }
 
   private setupRequestHandlers(): void {
-    // 注册 `start_meeting` 工具
     this.server.setRequestHandler(ListToolsRequestSchema, async () => ({
       tools: [
         {
@@ -168,7 +141,6 @@ export class MeetingServer {
       ]
     }))
 
-    // 处理 `start_meeting` 工具的调用
     this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const { name, arguments: args } = request.params
       if (name !== 'start_meeting') throw new Error(`未知的工具: ${name}`)
@@ -176,7 +148,6 @@ export class MeetingServer {
       try {
         const meetingArgs = StartMeetingArgsSchema.parse(args)
 
-        // 关键点: 立即返回成功响应，将耗时的会议流程放到后台执行，避免LLM工具调用超时。
         ;(async () => {
           try {
             await this.organizeMeeting(meetingArgs)
@@ -196,43 +167,124 @@ export class MeetingServer {
     })
   }
 
-  /**
-   * 等待指定会话生成一个新消息。
-   * 这是会议流程同步的关键，通过监听 `MESSAGE_GENERATED` 事件来确保按序进行。
-   * @param conversationId 要等待的会话ID
-   * @param timeout 超时时间（毫秒）
-   * @returns 返回生成的消息对象
-   */
-  private waitForResponse(conversationId: string, timeout = 180000): Promise<any> {
-    return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        eventBus.removeListener(CONVERSATION_EVENTS.MESSAGE_GENERATED, listener)
-        reject(
-          new Error(
-            `超时: 等待会话 ${conversationId} 的回复超过 ${timeout / 1000} 秒，未收到响应。`
+  private extractAssistantText(message: ChatMessageRecord): string {
+    try {
+      const parsed = JSON.parse(message.content)
+      if (Array.isArray(parsed)) {
+        const texts = parsed
+          .map((block: { content?: unknown }) =>
+            typeof block?.content === 'string' ? block.content : ''
           )
-        )
-      }, timeout)
-
-      const listener = (data: { conversationId: string; message: any }) => {
-        if (data.conversationId === conversationId) {
-          clearTimeout(timer)
-          eventBus.removeListener(CONVERSATION_EVENTS.MESSAGE_GENERATED, listener)
-          resolve(data.message)
+          .filter((text) => text.length > 0)
+        if (texts.length > 0) {
+          return texts.join('\n')
         }
       }
-      eventBus.on(CONVERSATION_EVENTS.MESSAGE_GENERATED, listener)
-    })
+    } catch {
+      // Keep raw fallback.
+    }
+    return message.content || '[无内容]'
   }
 
-  /**
-   * 组织和执行整个会议流程。
-   * @param args 会议参数
-   */
+  private async waitUntilSessionReady(conversationId: string, timeout = 120000): Promise<void> {
+    const startedAt = Date.now()
+
+    while (Date.now() - startedAt < timeout) {
+      const session = await presenter.newAgentPresenter.getSession(conversationId)
+      if (!session) {
+        throw new Error(`会话不存在: ${conversationId}`)
+      }
+      if (session.status !== 'generating') {
+        return
+      }
+      await sleep(600)
+    }
+
+    throw new Error(`等待会话 ${conversationId} 空闲超时。`)
+  }
+
+  private async waitForResponse(
+    conversationId: string,
+    previousAssistantMessageId: string | null,
+    timeout = 180000
+  ): Promise<ChatMessageRecord> {
+    const startedAt = Date.now()
+
+    while (Date.now() - startedAt < timeout) {
+      const messages = await presenter.newAgentPresenter.getMessages(conversationId)
+      const assistants = messages.filter((msg) => msg.role === 'assistant')
+      const latest = assistants.length > 0 ? assistants[assistants.length - 1] : null
+
+      if (
+        latest &&
+        latest.id !== previousAssistantMessageId &&
+        (latest.status === 'sent' || latest.status === 'error')
+      ) {
+        return latest
+      }
+
+      await sleep(700)
+    }
+
+    throw new Error(
+      `超时: 等待会话 ${conversationId} 的回复超过 ${Math.floor(timeout / 1000)} 秒。`
+    )
+  }
+
+  private async sendPromptAndWait(conversationId: string, prompt: string): Promise<string> {
+    await this.waitUntilSessionReady(conversationId)
+
+    const messagesBefore = await presenter.newAgentPresenter.getMessages(conversationId)
+    const previousAssistant = [...messagesBefore].reverse().find((msg) => msg.role === 'assistant')
+
+    await presenter.newAgentPresenter.sendMessage(conversationId, prompt)
+    const response = await this.waitForResponse(conversationId, previousAssistant?.id ?? null)
+    return this.extractAssistantText(response)
+  }
+
+  private buildMeetingName(index: number): string {
+    return index < PARTICIPANT_NAMES.length ? PARTICIPANT_NAMES[index] : `Participant-${index + 1}`
+  }
+
+  private async resolveParticipantSession(options: {
+    tabId: number
+    meetingName: string
+    topic: string
+  }): Promise<{ conversationId: string; webContentsId: number } | null> {
+    const tabView = await presenter.tabPresenter.getTab(options.tabId)
+    if (!tabView || tabView.webContents.isDestroyed()) {
+      return null
+    }
+
+    const webContentsId = tabView.webContents.id
+    const activeSession = await presenter.newAgentPresenter.getActiveSession(webContentsId)
+    if (activeSession) {
+      return {
+        conversationId: activeSession.id,
+        webContentsId
+      }
+    }
+
+    const bootstrapPrompt = `You are ${options.meetingName}. Topic: ${options.topic}. Reply briefly with "Ready".`
+    const created = await presenter.newAgentPresenter.createSession(
+      {
+        agentId: 'deepchat',
+        message: bootstrapPrompt
+      },
+      webContentsId
+    )
+
+    await this.waitForResponse(created.id, null, 120000)
+
+    return {
+      conversationId: created.id,
+      webContentsId
+    }
+  }
+
   private async organizeMeeting(args: z.infer<typeof StartMeetingArgsSchema>): Promise<void> {
     const { participants, topic, rounds } = args
 
-    // 1. 准备阶段: 定位、验证并准备所有参会者
     const mainWindowId = presenter.windowPresenter.mainWindow?.id
     if (!mainWindowId) throw new Error('主窗口未找到，无法开始会议。')
 
@@ -241,106 +293,54 @@ export class MeetingServer {
     let nameIndex = 0
 
     for (const p of participants) {
-      let tabData
+      let tabData = null as (typeof allChatTabs)[number] | null
 
-      // 优先使用 tab_id 查找
       if (p.tab_id !== undefined) {
-        tabData = allChatTabs.find((t) => t.id === p.tab_id)
+        tabData = allChatTabs.find((t) => t.id === p.tab_id) ?? null
       }
 
-      // 如果通过 tab_id 没找到，再尝试使用 tab_title
-      let foundByTabTitle = false
       if (!tabData && p.tab_title) {
-        tabData = allChatTabs.find((t) => t.title === p.tab_title)
-        if (tabData) foundByTabTitle = true
+        tabData = allChatTabs.find((t) => t.title === p.tab_title) ?? null
       }
 
-      // 找不到 tabData，跳过这个参会者
-      if (!tabData) continue
-
-      // 关键点: 根据tab定位方法的不同，采取不同处理方法
-      if (!foundByTabTitle) {
-        // 关键点1: 通过tabId定位到的tab通常为create_new_tab的结果，需要创建会话并激活
-        let conversationId = await presenter.sessionPresenter.getActiveConversationId(tabData.id)
-
-        // 确保每个参会者都有一个参会名称，超过26个用‘参会者27’之类命名
-        const meetingName =
-          nameIndex < PARTICIPANT_NAMES.length
-            ? PARTICIPANT_NAMES[nameIndex]
-            : `参会者${nameIndex + 1}`
-        nameIndex++
-
-        // 确保每个参会者都要有活动会话，如没有，则需创建并等待UI同步
-        if (!conversationId) {
-          console.log(`参会者 (ID: ${tabData.id}) 没有活动会话，正在为其创建...`)
-
-          // 步骤 a: 创建新会话，将自动激活并广播 'conversation:activated' 事件
-          conversationId = await presenter.sessionPresenter.createConversation(
-            `${meetingName}`,
-            {},
-            tabData.id,
-            { forceNewAndActivate: true } //强制创建并激活空会话，避免冗余的空会话单例检测
-          )
-          if (!conversationId) {
-            console.warn(`为Tab ${tabData.id} 创建会话失败，将跳过此参会者。`)
-            continue
-          }
-
-          // 步骤 b: 关键的UI同步点，等待渲染进程处理完激活事件并回传确认信号
-          try {
-            await awaitTabActivated(conversationId)
-            console.log(`会话 ${conversationId} 在Tab ${tabData.id} 中已成功激活。`)
-          } catch (error) {
-            console.error(`等待Tab ${tabData.id} 激活失败:`, error)
-            continue
-          }
-        }
-
-        meetingParticipants.push({
-          meetingName,
-          tabId: tabData.id,
-          conversationId,
-          originalTitle: tabData.title,
-          profile: p.profile || `你可以就“${topic}”这个话题，自由发表你的看法和观点。`
-        })
-      } else {
-        // 关键点2: 通过title定位到的tab，通常为已有tab，无需重新创建会话并激活
-        let conversationId = await presenter.sessionPresenter.getActiveConversationId(tabData.id)
-        if (!conversationId) {
-          console.warn(`为Tab ${tabData.id} 创建会话失败，将跳过此参会者。`)
-          continue
-        }
-
-        // 确保每个有效的参会者都有一个可用的conversationId
-        const meetingName =
-          nameIndex < PARTICIPANT_NAMES.length
-            ? PARTICIPANT_NAMES[nameIndex]
-            : `参会者${nameIndex + 1}`
-        nameIndex++
-
-        meetingParticipants.push({
-          meetingName,
-          tabId: tabData.id,
-          conversationId,
-          originalTitle: tabData.title,
-          profile: p.profile || `你可以就“${topic}”这个话题，自由发表你的看法和观点。`
-        })
+      if (!tabData) {
+        continue
       }
+
+      const meetingName = this.buildMeetingName(nameIndex)
+      nameIndex += 1
+
+      const resolved = await this.resolveParticipantSession({
+        tabId: tabData.id,
+        meetingName,
+        topic
+      })
+
+      if (!resolved) {
+        console.warn(`Tab ${tabData.id} 无法用于会议，将跳过。`)
+        continue
+      }
+
+      meetingParticipants.push({
+        meetingName,
+        tabId: tabData.id,
+        webContentsId: resolved.webContentsId,
+        conversationId: resolved.conversationId,
+        originalTitle: tabData.title,
+        profile: p.profile || `你可以就“${topic}”这个话题，自由发表你的看法和观点。`
+      })
     }
 
     if (meetingParticipants.length < 2) {
       throw new Error(
-        `会议无法开始。只找到了 ${meetingParticipants.length} 位有效的参会者。请确保指定的Tab ID或Tab标题正确，并且它们正在进行对话。`
+        `会议无法开始。只找到了 ${meetingParticipants.length} 位有效的参会者。请确保指定的Tab ID或Tab标题正确。`
       )
     }
 
-    // 在循环开始前，切换到第一个参与者的Tab
-    if (meetingParticipants.length > 0) {
-      await presenter.tabPresenter.switchTab(meetingParticipants[0].tabId)
-    }
+    await presenter.tabPresenter.switchTab(meetingParticipants[0].tabId)
 
-    // 2. 初始化会议(使用会议代号): 向所有参与者发送会议主题、规则和角色画像
     const participantNames = meetingParticipants.map((p) => p.meetingName).join('、')
+
     for (const p of meetingParticipants) {
       const initPrompt = `您好，${p.meetingName}。
 我是Argus，是当前会议的组织者，很荣幸能邀请您参加会议：
@@ -358,51 +358,36 @@ export class MeetingServer {
 5. 在他人发言时，你会收到其发言内容，但请勿回复，轮到你再发言。
 6. 参会期间禁止调用会议相关的工具函数，如start_meeting等。
 ---
-会议现在开始。请等待你的发言回合。
-`
-      eventBus.sendToTab(p.tabId, MEETING_EVENTS.INSTRUCTION, { prompt: initPrompt })
+会议现在开始。请等待你的发言回合。`
 
-      // 等待AI模型的确认性回复，以同步流程，忽略其具体内容
-      await this.waitForResponse(p.conversationId)
+      await this.sendPromptAndWait(p.conversationId, initPrompt)
     }
 
-    // 3. 会议循环: 按轮次进行发言和广播
     let _history = `会议记录\n主题: ${topic}\n`
+
     for (let round = 1; round <= rounds; round++) {
       for (const speaker of meetingParticipants) {
         const speakPrompt = `第 ${round}/${rounds} 轮。现在轮到您（${speaker.meetingName}）发言。请陈述您的观点。`
-        eventBus.sendToTab(speaker.tabId, MEETING_EVENTS.INSTRUCTION, { prompt: speakPrompt })
-
-        // 等待并捕获真正的、需要被记录和转发的发言内容
-        const speechMessage = await this.waitForResponse(speaker.conversationId)
-        const speechText = Array.isArray(speechMessage.content)
-          ? speechMessage.content.find((c: any) => c.type === 'content')?.content || '[无内容]'
-          : speechMessage.content || '[无内容]'
+        const speechText = await this.sendPromptAndWait(speaker.conversationId, speakPrompt)
 
         _history += `\n[第${round}轮] ${speaker.meetingName}: ${speechText}`
 
-        // 广播发言给其他参会者，并等待他们的确认性回复
         for (const listener of meetingParticipants) {
-          if (listener.tabId !== speaker.tabId) {
-            const forwardPrompt = `来自 ${speaker.meetingName} 的发言如下：\n\n---\n${speechText}\n---\n\n**以上信息仅供参考，请不要回复！**\n作为参会者，请您（${listener.meetingName}）等待我（Argus）的指示。`
-            eventBus.sendToTab(listener.tabId, MEETING_EVENTS.INSTRUCTION, {
-              prompt: forwardPrompt
-            })
-
-            // 等待确认性回复，并忽略内容
-            await this.waitForResponse(listener.conversationId)
+          if (listener.tabId === speaker.tabId) {
+            continue
           }
+
+          const forwardPrompt = `来自 ${speaker.meetingName} 的发言如下：\n\n---\n${speechText}\n---\n\n以上信息仅供参考，请不要展开讨论。请回复“收到”，并等待下一步指示。`
+          await this.sendPromptAndWait(listener.conversationId, forwardPrompt)
         }
       }
     }
 
-    // 4. 结束会议: 要求所有参与者总结
     for (const p of meetingParticipants) {
       const personalizedFinalPrompt = `讨论已结束。请您（${p.meetingName}）根据整个对话过程，对您的观点进行最终总结。`
-      eventBus.sendToTab(p.tabId, MEETING_EVENTS.INSTRUCTION, { prompt: personalizedFinalPrompt })
+      await this.sendPromptAndWait(p.conversationId, personalizedFinalPrompt)
     }
 
-    // 注意：这里不再有返回值，因为函数在后台执行
     console.log(`关于“${topic}”的会议流程已在后台正常结束。`)
   }
 }

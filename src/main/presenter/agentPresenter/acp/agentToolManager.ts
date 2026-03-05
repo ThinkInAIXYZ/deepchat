@@ -364,6 +364,19 @@ export class AgentToolManager {
 
   private async getWorkdirForConversation(conversationId: string): Promise<string | null> {
     try {
+      const session = await presenter?.newAgentPresenter?.getSession(conversationId)
+      const normalized = session?.projectDir?.trim()
+      if (normalized) {
+        return normalized
+      }
+    } catch (error) {
+      logger.warn('[AgentToolManager] Failed to resolve new session workdir:', {
+        conversationId,
+        error
+      })
+    }
+
+    try {
       const session = await presenter?.sessionManager?.getSession(conversationId)
       if (!session?.resolved) {
         return null
@@ -391,17 +404,7 @@ export class AgentToolManager {
       }
     }
 
-    try {
-      const session = await presenter?.newAgentPresenter?.getSession(conversationId)
-      const normalized = session?.projectDir?.trim()
-      return normalized ?? null
-    } catch (error) {
-      logger.warn('[AgentToolManager] Failed to resolve new session workdir:', {
-        conversationId,
-        error
-      })
-      return null
-    }
+    return null
   }
 
   private isConversationNotFoundError(error: unknown): boolean {

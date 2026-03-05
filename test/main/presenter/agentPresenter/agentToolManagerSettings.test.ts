@@ -89,10 +89,7 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
     expect(names).not.toContain(CHAT_SETTINGS_TOOL_NAMES.open)
   })
 
-  it('resolves workdir from new session when legacy conversation is missing', async () => {
-    ;(presenter.sessionManager.getSession as any).mockRejectedValue(
-      new Error('Conversation new-session-1 not found')
-    )
+  it('resolves workdir from new session first', async () => {
     ;(presenter.newAgentPresenter.getSession as any).mockResolvedValue({
       id: 'new-session-1',
       projectDir: '/tmp/new-session-workdir'
@@ -105,5 +102,6 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
 
     const workdir = await (manager as any).getWorkdirForConversation('new-session-1')
     expect(workdir).toBe('/tmp/new-session-workdir')
+    expect(presenter.sessionManager.getSession).not.toHaveBeenCalled()
   })
 })

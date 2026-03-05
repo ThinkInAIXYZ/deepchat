@@ -127,8 +127,11 @@ function getContentType(format: 'markdown' | 'html' | 'txt' | 'nowledge-mem'): s
 
 export const useSessionStore = defineStore('session', () => {
   const newAgentPresenter = usePresenter('newAgentPresenter')
+  const tabPresenter = usePresenter('tabPresenter')
   const pageRouter = usePageRouterStore()
   const messageStore = useMessageStore()
+  const myWebContentsId = window.api.getWebContentsId()
+  let rendererReadyNotified = false
 
   // --- State ---
   const sessions = ref<UISession[]>([])
@@ -136,6 +139,14 @@ export const useSessionStore = defineStore('session', () => {
   const groupMode = ref<GroupMode>('time')
   const loading = ref(false)
   const error = ref<string | null>(null)
+
+  const notifyRendererReady = (): void => {
+    if (rendererReadyNotified) return
+    rendererReadyNotified = true
+    void tabPresenter.onRendererTabReady(myWebContentsId)
+  }
+
+  notifyRendererReady()
 
   // --- Getters ---
   const activeSession: ComputedRef<UISession | undefined> = computed(() =>
@@ -359,12 +370,12 @@ export const useSessionStore = defineStore('session', () => {
   window.electron.ipcRenderer.on(
     SESSION_EVENTS.ACTIVATED,
     (_: unknown, msg: { webContentsId: number; sessionId: string }) => {
-      const myId = window.api.getWebContentsId()
-      if (msg.webContentsId === myId) {
+      if (msg.webContentsId === myWebContentsId) {
         if (activeSessionId.value && activeSessionId.value !== msg.sessionId) {
           messageStore.clearStreamingState()
         }
         activeSessionId.value = msg.sessionId
+        void tabPresenter.onRendererTabActivated(msg.sessionId)
       }
     }
   )
@@ -372,8 +383,7 @@ export const useSessionStore = defineStore('session', () => {
   window.electron.ipcRenderer.on(
     SESSION_EVENTS.DEACTIVATED,
     (_: unknown, msg: { webContentsId: number }) => {
-      const myId = window.api.getWebContentsId()
-      if (msg.webContentsId === myId) {
+      if (msg.webContentsId === myWebContentsId) {
         messageStore.clearStreamingState()
         activeSessionId.value = null
         pageRouter.goToNewThread()
