@@ -456,6 +456,12 @@ export class NewAgentPresenter {
       }))
   }
 
+  async getMessageTraceCount(messageId: string): Promise<number> {
+    const normalizedMessageId = messageId?.trim()
+    if (!normalizedMessageId) return 0
+    return this.sqlitePresenter.deepchatMessageTracesTable.countByMessageId(normalizedMessageId)
+  }
+
   async getMessageIds(sessionId: string): Promise<string[]> {
     const session = this.sessionManager.get(sessionId)
     if (!session) throw new Error(`Session not found: ${sessionId}`)

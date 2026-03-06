@@ -65,13 +65,29 @@ import { presenter } from '@/presenter'
 import { buildSystemEnvPrompt } from '@/presenter/agentPresenter/message/systemEnvPromptBuilder'
 
 function createMockSqlitePresenter() {
+  const summaryState = {
+    summary_text: null,
+    summary_cursor_order_seq: 1,
+    summary_updated_at: null
+  }
   return {
     deepchatSessionsTable: {
       create: vi.fn(),
       get: vi.fn(),
       getGenerationSettings: vi.fn(),
+      getSummaryState: vi.fn(() => ({ ...summaryState })),
       updatePermissionMode: vi.fn(),
       updateGenerationSettings: vi.fn(),
+      updateSummaryState: vi.fn((_id: string, nextState: any) => {
+        summaryState.summary_text = nextState.summaryText ?? null
+        summaryState.summary_cursor_order_seq = nextState.summaryCursorOrderSeq ?? 1
+        summaryState.summary_updated_at = nextState.summaryUpdatedAt ?? null
+      }),
+      resetSummaryState: vi.fn(() => {
+        summaryState.summary_text = null
+        summaryState.summary_cursor_order_seq = 1
+        summaryState.summary_updated_at = null
+      }),
       delete: vi.fn()
     },
     deepchatMessagesTable: {
@@ -116,6 +132,9 @@ function createMockLlmProviderPresenter() {
   return {
     getProviderInstance: vi.fn().mockReturnValue({
       coreStream: vi.fn().mockReturnValue(createMockCoreStream()())
+    }),
+    generateText: vi.fn().mockResolvedValue({
+      content: ['## Current Goal', '- Continue the session safely'].join('\n')
     })
   } as any
 }
@@ -387,6 +406,131 @@ describe('DeepChatAgentPresenter', () => {
         { role: 'assistant', content: 'First reply' },
         { role: 'user', content: 'Second message' }
       ])
+    })
+
+    it('compacts old turns into summary before building prompt', async () => {
+      const longUser = 'U'.repeat(2400)
+      const longAssistant = 'A'.repeat(2400)
+      sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue([
+        {
+          id: 'u1',
+          session_id: 's1',
+          order_seq: 1,
+          role: 'user',
+          content: JSON.stringify({
+            text: longUser,
+            files: [],
+            links: [],
+            search: false,
+            think: false
+          }),
+          status: 'sent',
+          is_context_edge: 0,
+          metadata: '{}',
+          created_at: Date.now(),
+          updated_at: Date.now()
+        },
+        {
+          id: 'a1',
+          session_id: 's1',
+          order_seq: 2,
+          role: 'assistant',
+          content: JSON.stringify([
+            { type: 'content', content: longAssistant, status: 'success', timestamp: Date.now() }
+          ]),
+          status: 'sent',
+          is_context_edge: 0,
+          metadata: '{}',
+          created_at: Date.now(),
+          updated_at: Date.now()
+        },
+        {
+          id: 'u2',
+          session_id: 's1',
+          order_seq: 3,
+          role: 'user',
+          content: JSON.stringify({
+            text: longUser,
+            files: [],
+            links: [],
+            search: false,
+            think: false
+          }),
+          status: 'sent',
+          is_context_edge: 0,
+          metadata: '{}',
+          created_at: Date.now(),
+          updated_at: Date.now()
+        },
+        {
+          id: 'a2',
+          session_id: 's1',
+          order_seq: 4,
+          role: 'assistant',
+          content: JSON.stringify([
+            { type: 'content', content: longAssistant, status: 'success', timestamp: Date.now() }
+          ]),
+          status: 'sent',
+          is_context_edge: 0,
+          metadata: '{}',
+          created_at: Date.now(),
+          updated_at: Date.now()
+        },
+        {
+          id: 'u3',
+          session_id: 's1',
+          order_seq: 5,
+          role: 'user',
+          content: JSON.stringify({
+            text: longUser,
+            files: [],
+            links: [],
+            search: false,
+            think: false
+          }),
+          status: 'sent',
+          is_context_edge: 0,
+          metadata: '{}',
+          created_at: Date.now(),
+          updated_at: Date.now()
+        },
+        {
+          id: 'a3',
+          session_id: 's1',
+          order_seq: 6,
+          role: 'assistant',
+          content: JSON.stringify([
+            { type: 'content', content: longAssistant, status: 'success', timestamp: Date.now() }
+          ]),
+          status: 'sent',
+          is_context_edge: 0,
+          metadata: '{}',
+          created_at: Date.now(),
+          updated_at: Date.now()
+        }
+      ])
+
+      await agent.initSession('s1', {
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        generationSettings: {
+          contextLength: 2500,
+          maxTokens: 512
+        }
+      })
+      await agent.processMessage('s1', 'new prompt')
+
+      expect(llmProvider.generateText).toHaveBeenCalledTimes(1)
+      expect(sqlitePresenter.deepchatSessionsTable.updateSummaryState).toHaveBeenCalledWith(
+        's1',
+        expect.objectContaining({
+          summaryText: expect.stringContaining('## Current Goal'),
+          summaryCursorOrderSeq: 3
+        })
+      )
+
+      const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      expect(callArgs.messages[0].content).toContain('## Conversation Summary')
     })
 
     it('keeps runtime and env sections when user system prompt is empty', async () => {
@@ -835,6 +979,39 @@ describe('DeepChatAgentPresenter', () => {
       sqlitePresenter.deepchatMessagesTable.get.mockReturnValue(undefined)
       const msg = await agent.getMessage('nonexistent')
       expect(msg).toBeNull()
+    })
+  })
+
+  describe('summary invalidation', () => {
+    it('resets summary when deleting history before cursor', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      sqlitePresenter.deepchatSessionsTable.updateSummaryState('s1', {
+        summaryText: 'summary',
+        summaryCursorOrderSeq: 10,
+        summaryUpdatedAt: Date.now()
+      })
+      sqlitePresenter.deepchatMessagesTable.get.mockReturnValue({
+        id: 'm1',
+        session_id: 's1',
+        order_seq: 5,
+        role: 'user',
+        content: JSON.stringify({
+          text: 'old',
+          files: [],
+          links: [],
+          search: false,
+          think: false
+        }),
+        status: 'sent',
+        is_context_edge: 0,
+        metadata: '{}',
+        created_at: Date.now(),
+        updated_at: Date.now()
+      })
+
+      await agent.deleteMessage('s1', 'm1')
+
+      expect(sqlitePresenter.deepchatSessionsTable.resetSummaryState).toHaveBeenCalledWith('s1')
     })
   })
 

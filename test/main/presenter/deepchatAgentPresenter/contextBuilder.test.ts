@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { buildContext, truncateContext } from '@/presenter/deepchatAgentPresenter/contextBuilder'
+import {
+  buildContext,
+  buildResumeContext,
+  truncateContext
+} from '@/presenter/deepchatAgentPresenter/contextBuilder'
 
 vi.mock('tokenx', () => ({
   approximateTokenSize: vi.fn((text: string) => {
@@ -84,6 +88,39 @@ function makeAssistantWithReasoningRecord(orderSeq: number, text: string, reason
       { type: 'content', content: text, status: 'success', timestamp: Date.now() }
     ]),
     status: 'sent' as const,
+    isContextEdge: 0,
+    metadata: '{}',
+    createdAt: Date.now(),
+    updatedAt: Date.now()
+  }
+}
+
+function makeAssistantWithToolRecord(
+  orderSeq: number,
+  text: string,
+  toolResponse: string,
+  status: 'sent' | 'pending' | 'error' = 'sent'
+) {
+  return {
+    id: `asst-${orderSeq}`,
+    sessionId: 's1',
+    orderSeq,
+    role: 'assistant' as const,
+    content: JSON.stringify([
+      { type: 'content', content: text, status: 'success', timestamp: Date.now() },
+      {
+        type: 'tool_call',
+        status: 'success',
+        timestamp: Date.now(),
+        tool_call: {
+          id: `tc-${orderSeq}`,
+          name: 'example_tool',
+          params: '{"foo":"bar"}',
+          response: toolResponse
+        }
+      }
+    ]),
+    status,
     isContextEdge: 0,
     metadata: '{}',
     createdAt: Date.now(),
@@ -308,6 +345,54 @@ describe('buildContext', () => {
     expect(store.getMessages).toHaveBeenCalledWith('my-session')
   })
 
+  it('starts history from summary cursor', () => {
+    const messages = [
+      makeUserRecord(1, 'old user'),
+      makeAssistantRecord(2, 'old reply'),
+      makeUserRecord(3, 'recent user'),
+      makeAssistantRecord(4, 'recent reply')
+    ]
+    const store = createMockMessageStore(messages)
+    const result = buildContext('s1', 'next', 'System', 10000, 4096, store, false, {
+      summaryCursorOrderSeq: 3
+    })
+
+    expect(result).toEqual([
+      { role: 'system', content: 'System' },
+      { role: 'user', content: 'recent user' },
+      { role: 'assistant', content: 'recent reply' },
+      { role: 'user', content: 'next' }
+    ])
+  })
+
+  it('only replays settled tool calls with non-empty responses', () => {
+    const messages = [
+      makeUserRecord(1, 'check this'),
+      makeAssistantWithToolRecord(2, 'Done', ''),
+      makeAssistantWithToolRecord(3, 'Tool finished', 'All good')
+    ]
+    const store = createMockMessageStore(messages)
+    const result = buildContext('s1', 'next', '', 10000, 4096, store)
+
+    expect(result).toEqual([
+      { role: 'user', content: 'check this' },
+      { role: 'assistant', content: 'Done' },
+      {
+        role: 'assistant',
+        content: 'Tool finished',
+        tool_calls: [
+          {
+            id: 'tc-3',
+            type: 'function',
+            function: { name: 'example_tool', arguments: '{"foo":"bar"}' }
+          }
+        ]
+      },
+      { role: 'tool', tool_call_id: 'tc-3', content: 'All good' },
+      { role: 'user', content: 'next' }
+    ])
+  })
+
   it('includes non-image file context in user content', () => {
     const store = createMockMessageStore([])
     const result = buildContext(
@@ -354,5 +439,39 @@ describe('buildContext', () => {
     const userHistory = result[0]
     expect(Array.isArray(userHistory.content)).toBe(true)
     expect((userHistory.content as any[]).some((part) => part.type === 'image_url')).toBe(true)
+  })
+})
+
+describe('buildResumeContext', () => {
+  it('keeps the final turn when fallback pruning older turns', () => {
+    const messages = [
+      makeUserRecord(1, 'A'.repeat(300)),
+      makeAssistantRecord(2, 'B'.repeat(300)),
+      makeUserRecord(3, 'recent user'),
+      {
+        id: 'resume-target',
+        sessionId: 's1',
+        orderSeq: 4,
+        role: 'assistant' as const,
+        content: JSON.stringify([
+          { type: 'content', content: 'partial answer', status: 'success', timestamp: Date.now() }
+        ]),
+        status: 'pending' as const,
+        isContextEdge: 0,
+        metadata: '{}',
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      }
+    ]
+    const store = createMockMessageStore(messages)
+    const result = buildResumeContext('s1', 'resume-target', 'Sys', 220, 100, store, false, {
+      fallbackProtectedTurnCount: 1
+    })
+
+    expect(result[0]).toEqual({ role: 'system', content: 'Sys' })
+    expect(result.slice(-2)).toEqual([
+      { role: 'user', content: 'recent user' },
+      { role: 'assistant', content: 'partial answer' }
+    ])
   })
 })

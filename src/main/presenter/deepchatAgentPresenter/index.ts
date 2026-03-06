@@ -25,6 +25,7 @@ import {
   buildSystemEnvPrompt
 } from '../agentPresenter/message/systemEnvPromptBuilder'
 import { buildContext, buildResumeContext } from './contextBuilder'
+import { appendSummarySection, CompactionService } from './compactionService'
 import { buildPersistableMessageTracePayload } from './messageTracePayload'
 import { DeepChatMessageStore } from './messageStore'
 import { processStream } from './process'
@@ -86,6 +87,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
   private readonly systemPromptCache: Map<string, SystemPromptCacheEntry> = new Map()
   private readonly interactionLocks: Set<string> = new Set()
   private readonly resumingMessages: Set<string> = new Set()
+  private readonly compactionService: CompactionService
 
   constructor(
     llmProviderPresenter: ILlmProviderPresenter,
@@ -98,6 +100,12 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     this.toolPresenter = toolPresenter ?? null
     this.sessionStore = new DeepChatSessionStore(sqlitePresenter)
     this.messageStore = new DeepChatMessageStore(sqlitePresenter)
+    this.compactionService = new CompactionService(
+      this.sessionStore,
+      this.messageStore,
+      this.llmProviderPresenter,
+      this.configPresenter
+    )
 
     const recovered = this.messageStore.recoverPendingMessages()
     if (recovered > 0) {
@@ -206,8 +214,21 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     try {
       const generationSettings = await this.getEffectiveSessionGenerationSettings(sessionId)
       const maxTokens = generationSettings.maxTokens
-      const baseSystemPrompt = generationSettings.systemPrompt
-      const systemPrompt = await this.buildSystemPromptWithSkills(sessionId, baseSystemPrompt)
+      const baseSystemPrompt = await this.buildSystemPromptWithSkills(
+        sessionId,
+        generationSettings.systemPrompt
+      )
+      const summaryState = await this.compactionService.compactForNextUserTurn({
+        sessionId,
+        providerId: state.providerId,
+        modelId: state.modelId,
+        systemPrompt: baseSystemPrompt,
+        contextLength: generationSettings.contextLength,
+        reserveTokens: maxTokens,
+        supportsVision,
+        newUserContent: normalizedInput
+      })
+      const systemPrompt = appendSummarySection(baseSystemPrompt, summaryState.summaryText)
       const messages = buildContext(
         sessionId,
         normalizedInput,
@@ -215,7 +236,10 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
         generationSettings.contextLength,
         maxTokens,
         this.messageStore,
-        supportsVision
+        supportsVision,
+        {
+          summaryCursorOrderSeq: summaryState.summaryCursorOrderSeq
+        }
       )
 
       const userOrderSeq = this.messageStore.getNextOrderSeq(sessionId)
@@ -494,6 +518,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
 
     await this.cancelGeneration(sessionId)
     this.messageStore.deleteBySession(sessionId)
+    this.sessionStore.resetSummaryState(sessionId)
     this.setSessionStatus(sessionId, 'idle')
   }
 
@@ -530,6 +555,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       throw new Error('Cannot retry an empty user message.')
     }
 
+    this.invalidateSummaryIfNeeded(sessionId, sourceUserMessage.orderSeq)
     this.messageStore.deleteFromOrderSeq(sessionId, sourceUserMessage.orderSeq)
     await this.processMessage(sessionId, retryInput, {
       projectDir: this.resolveProjectDir(sessionId),
@@ -547,6 +573,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     }
 
     await this.cancelGeneration(sessionId)
+    this.invalidateSummaryIfNeeded(sessionId, target.orderSeq)
     this.messageStore.deleteFromOrderSeq(sessionId, target.orderSeq)
     this.setSessionStatus(sessionId, 'idle')
   }
@@ -573,6 +600,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     }
 
     const nextContent = this.buildEditedUserContent(target.content, nextText)
+    this.invalidateSummaryIfNeeded(sessionId, target.orderSeq)
     this.messageStore.updateMessageContent(messageId, nextContent)
 
     const updated = await this.messageStore.getMessage(messageId)
@@ -596,6 +624,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     }
 
     this.messageStore.cloneSentMessagesToSession(sourceSessionId, targetSessionId, target.orderSeq)
+    this.sessionStore.resetSummaryState(targetSessionId)
   }
 
   private async runStreamForMessage(args: {
@@ -749,8 +778,21 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       this.setSessionStatus(sessionId, 'generating')
       const generationSettings = await this.getEffectiveSessionGenerationSettings(sessionId)
       const maxTokens = generationSettings.maxTokens
-      const baseSystemPrompt = generationSettings.systemPrompt
-      const systemPrompt = await this.buildSystemPromptWithSkills(sessionId, baseSystemPrompt)
+      const baseSystemPrompt = await this.buildSystemPromptWithSkills(
+        sessionId,
+        generationSettings.systemPrompt
+      )
+      const summaryState = await this.compactionService.compactForResumeTurn({
+        sessionId,
+        messageId,
+        providerId: state.providerId,
+        modelId: state.modelId,
+        systemPrompt: baseSystemPrompt,
+        contextLength: generationSettings.contextLength,
+        reserveTokens: maxTokens,
+        supportsVision: this.supportsVision(state.providerId, state.modelId)
+      })
+      const systemPrompt = appendSummarySection(baseSystemPrompt, summaryState.summaryText)
       const resumeContext = buildResumeContext(
         sessionId,
         messageId,
@@ -758,7 +800,11 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
         generationSettings.contextLength,
         maxTokens,
         this.messageStore,
-        this.supportsVision(state.providerId, state.modelId)
+        this.supportsVision(state.providerId, state.modelId),
+        {
+          summaryCursorOrderSeq: summaryState.summaryCursorOrderSeq,
+          fallbackProtectedTurnCount: 1
+        }
       )
 
       const result = await this.runStreamForMessage({
@@ -1767,6 +1813,13 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       }
     }
     return false
+  }
+
+  private invalidateSummaryIfNeeded(sessionId: string, orderSeq: number): void {
+    const summaryState = this.sessionStore.getSummaryState(sessionId)
+    if (orderSeq < summaryState.summaryCursorOrderSeq) {
+      this.sessionStore.resetSummaryState(sessionId)
+    }
   }
 
   private setSessionStatus(sessionId: string, status: DeepChatSessionState['status']): void {

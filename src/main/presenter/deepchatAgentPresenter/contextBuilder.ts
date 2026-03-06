@@ -10,6 +10,17 @@ import type { DeepChatMessageStore } from './messageStore'
 
 const IMAGE_TOKEN_ESTIMATE = 512
 
+export type ContextBuildOptions = {
+  summaryCursorOrderSeq?: number
+  fallbackProtectedTurnCount?: number
+}
+
+export type HistoryTurn = {
+  records: ChatMessageRecord[]
+  messages: ChatMessage[]
+  tokens: number
+}
+
 function resolveFileMimeType(file: MessageFile): string {
   if (typeof file.mimeType === 'string' && file.mimeType.trim()) {
     return file.mimeType
@@ -24,7 +35,7 @@ function isImageFile(file: MessageFile): boolean {
   return resolveFileMimeType(file).startsWith('image/')
 }
 
-function normalizeUserInput(input: string | SendMessageInput): SendMessageInput {
+export function normalizeUserInput(input: string | SendMessageInput): SendMessageInput {
   if (typeof input === 'string') {
     return { text: input, files: [] }
   }
@@ -98,7 +109,7 @@ function buildImageMetadataContext(files: MessageFile[]): string {
     .join('\n\n')
 }
 
-function buildUserMessageContent(
+export function buildUserMessageContent(
   input: SendMessageInput,
   supportsVision: boolean
 ): ChatMessage['content'] {
@@ -137,7 +148,19 @@ function buildUserMessageContent(
     const imageMetadata = buildImageMetadataContext(imageFiles)
     return [textPart, imageMetadata].filter((value) => value.trim()).join('\n\n')
   }
+
   return parts
+}
+
+export function createUserChatMessage(
+  input: string | SendMessageInput,
+  supportsVision: boolean
+): ChatMessage {
+  const normalizedInput = normalizeUserInput(input)
+  return {
+    role: 'user',
+    content: buildUserMessageContent(normalizedInput, supportsVision)
+  }
 }
 
 function estimateMessageTokens(message: ChatMessage): number {
@@ -155,44 +178,55 @@ function estimateMessageTokens(message: ChatMessage): number {
       total += IMAGE_TOKEN_ESTIMATE
     }
   }
+  if (Array.isArray(message.tool_calls)) {
+    for (const toolCall of message.tool_calls) {
+      total += approximateTokenSize(toolCall.function.name)
+      total += approximateTokenSize(toolCall.function.arguments)
+    }
+  }
+  if (message.reasoning_content) {
+    total += approximateTokenSize(message.reasoning_content)
+  }
   return total
+}
+
+export function estimateMessagesTokens(messages: ChatMessage[]): number {
+  return messages.reduce((total, message) => total + estimateMessageTokens(message), 0)
 }
 
 /**
  * Convert a ChatMessageRecord from the DB into one or more ChatMessages for the LLM.
- * An assistant record with tool_call blocks expands into:
- *   assistant message (with text + tool_calls) + tool result messages
+ * Only settled tool calls (with a non-empty response) are included in history.
  */
-function recordToChatMessages(record: ChatMessageRecord, supportsVision: boolean): ChatMessage[] {
+export function recordToChatMessages(
+  record: ChatMessageRecord,
+  supportsVision: boolean
+): ChatMessage[] {
   if (record.role === 'user') {
     const parsed = parseUserRecordContent(record.content)
     return [{ role: 'user', content: buildUserMessageContent(parsed, supportsVision) }]
   }
 
-  // Assistant: extract text content and tool calls
   const blocks = JSON.parse(record.content) as AssistantMessageBlock[]
   const text = blocks
-    .filter((b) => b.type === 'content' || b.type === 'reasoning_content')
-    .map((b) => b.content)
+    .filter((block) => block.type === 'content' || block.type === 'reasoning_content')
+    .map((block) => block.content)
     .join('')
 
   const toolCallBlocks = blocks.filter(
-    (b) =>
-      b.type === 'tool_call' &&
-      b.tool_call &&
-      typeof b.tool_call.id === 'string' &&
-      typeof b.tool_call.name === 'string'
+    (block) =>
+      block.type === 'tool_call' &&
+      block.tool_call &&
+      typeof block.tool_call.id === 'string' &&
+      typeof block.tool_call.name === 'string' &&
+      typeof block.tool_call.response === 'string' &&
+      block.tool_call.response.length > 0
   )
 
   if (toolCallBlocks.length === 0) {
     return [{ role: 'assistant', content: text }]
   }
 
-  // Build assistant message with tool_calls.
-  // Note: reasoning_content is NOT included here — for interleaved thinking
-  // models (DeepSeek Reasoner etc.), reasoning_content is only required on
-  // assistant messages in the current agent loop exchange, which the agentLoop
-  // handles directly. Historical messages just include reasoning in content.
   const toolCalls: NonNullable<ChatMessage['tool_calls']> = []
   for (const block of toolCallBlocks) {
     const toolCall = block.tool_call
@@ -210,145 +244,187 @@ function recordToChatMessages(record: ChatMessageRecord, supportsVision: boolean
     return [{ role: 'assistant', content: text }]
   }
 
-  const assistantMsg: ChatMessage = {
+  const assistantMessage: ChatMessage = {
     role: 'assistant',
     content: text,
     tool_calls: toolCalls
   }
 
-  const result: ChatMessage[] = [assistantMsg]
-
-  // Append tool result messages
-  for (const b of toolCallBlocks) {
+  const result: ChatMessage[] = [assistantMessage]
+  for (const block of toolCallBlocks) {
     result.push({
       role: 'tool',
-      tool_call_id: b.tool_call!.id,
-      content: b.tool_call!.response || ''
+      tool_call_id: block.tool_call!.id,
+      content: block.tool_call!.response || ''
     })
   }
 
   return result
 }
 
-/**
- * Truncate history messages to fit within the available token budget.
- * Drops oldest messages from the front until the total fits.
- * Tool result messages (role: 'tool') are dropped together with the
- * preceding assistant message that contains their tool_calls to avoid
- * orphaned tool results.
- */
-export function truncateContext(history: ChatMessage[], availableTokens: number): ChatMessage[] {
-  let total = 0
-  for (const msg of history) {
-    total += estimateMessageTokens(msg)
+export function buildHistoryTurns(
+  records: ChatMessageRecord[],
+  supportsVision: boolean
+): HistoryTurn[] {
+  const sortedRecords = [...records].sort((a, b) => a.orderSeq - b.orderSeq)
+  const turns: ChatMessageRecord[][] = []
+  let currentTurn: ChatMessageRecord[] = []
+
+  for (const record of sortedRecords) {
+    if (record.role === 'user' && currentTurn.length > 0) {
+      turns.push(currentTurn)
+      currentTurn = [record]
+      continue
+    }
+
+    if (currentTurn.length === 0) {
+      currentTurn = [record]
+      continue
+    }
+
+    currentTurn.push(record)
   }
 
+  if (currentTurn.length > 0) {
+    turns.push(currentTurn)
+  }
+
+  return turns.map((turnRecords) => {
+    const messages = turnRecords.flatMap((record) => recordToChatMessages(record, supportsVision))
+    return {
+      records: turnRecords,
+      messages,
+      tokens: estimateMessagesTokens(messages)
+    }
+  })
+}
+
+function flattenTurns(turns: HistoryTurn[]): ChatMessage[] {
+  return turns.flatMap((turn) => turn.messages)
+}
+
+/**
+ * Emergency fallback that drops full turns first and only then falls back to
+ * message-level truncation to keep the prompt valid.
+ */
+export function truncateContext(history: ChatMessage[], availableTokens: number): ChatMessage[] {
+  let total = estimateMessagesTokens(history)
   if (total <= availableTokens) {
     return history
   }
 
-  // Drop from the front (oldest) until we fit.
-  // When dropping, skip past any tool result messages that follow an
-  // assistant message with tool_calls so they're removed as a group.
   const result = [...history]
   while (result.length > 0 && total > availableTokens) {
     const removed = result.shift()!
     total -= estimateMessageTokens(removed)
 
-    // If we just removed an assistant message with tool_calls, also remove the
-    // subsequent tool result messages that belong to it
     if (removed.role === 'assistant' && removed.tool_calls && removed.tool_calls.length > 0) {
-      const toolCallIds = new Set(removed.tool_calls.map((tc) => tc.id))
+      const toolCallIds = new Set(removed.tool_calls.map((toolCall) => toolCall.id))
       while (
         result.length > 0 &&
         result[0].role === 'tool' &&
         toolCallIds.has(result[0].tool_call_id!)
       ) {
-        const toolMsg = result.shift()!
-        total -= estimateMessageTokens(toolMsg)
+        const toolMessage = result.shift()!
+        total -= estimateMessageTokens(toolMessage)
       }
     }
   }
 
-  // If the result starts with orphaned tool messages (shouldn't happen after
-  // the above, but guard defensively), drop them
   while (result.length > 0 && result[0].role === 'tool') {
-    const removed = result.shift()!
-    total -= estimateMessageTokens(removed)
+    total -= estimateMessageTokens(result[0])
+    result.shift()
   }
 
   return result
 }
 
-/**
- * Build the full ChatMessage[] array for an LLM call, including:
- * - System prompt (if non-empty)
- * - Conversation history (truncated to fit context window)
- * - The new user message
- */
+function selectTurnHistory(
+  turns: HistoryTurn[],
+  availableTokens: number,
+  fallbackProtectedTurnCount: number
+): ChatMessage[] {
+  if (availableTokens <= 0 || turns.length === 0) {
+    return []
+  }
+
+  let total = turns.reduce((sum, turn) => sum + turn.tokens, 0)
+  if (total <= availableTokens) {
+    return flattenTurns(turns)
+  }
+
+  const remainingTurns = [...turns]
+  const protectedCount = Math.max(0, Math.min(fallbackProtectedTurnCount, remainingTurns.length))
+
+  while (remainingTurns.length > protectedCount && total > availableTokens) {
+    const removedTurn = remainingTurns.shift()
+    total -= removedTurn?.tokens ?? 0
+  }
+
+  const flattened = flattenTurns(remainingTurns)
+  if (estimateMessagesTokens(flattened) <= availableTokens) {
+    return flattened
+  }
+
+  return truncateContext(flattened, availableTokens)
+}
+
+function filterRecordsFromCursor(
+  records: ChatMessageRecord[],
+  summaryCursorOrderSeq: number
+): ChatMessageRecord[] {
+  const cursor = Math.max(1, summaryCursorOrderSeq)
+  return records.filter((record) => record.orderSeq >= cursor)
+}
+
 export function buildContext(
   sessionId: string,
   newUserContent: string | SendMessageInput,
   systemPrompt: string,
   contextLength: number,
-  maxTokens: number,
+  reserveTokens: number,
   messageStore: DeepChatMessageStore,
-  supportsVision: boolean = false
+  supportsVision: boolean = false,
+  options: ContextBuildOptions = {}
 ): ChatMessage[] {
-  // 1. Fetch all sent messages (excludes pending/error)
   const allMessages = messageStore.getMessages(sessionId)
-  const sentMessages = allMessages.filter((m) => m.status === 'sent')
+  const sentRecords = allMessages.filter((message) => message.status === 'sent')
+  const historyRecords = filterRecordsFromCursor(sentRecords, options.summaryCursorOrderSeq ?? 1)
+  const historyTurns = buildHistoryTurns(historyRecords, supportsVision)
 
-  // 2. Convert to ChatMessage format (tool_call records expand to multiple messages)
-  const history: ChatMessage[] = sentMessages.flatMap((record) =>
-    recordToChatMessages(record, supportsVision)
-  )
-  const normalizedInput = normalizeUserInput(newUserContent)
-  const newUserMessage: ChatMessage = {
-    role: 'user',
-    content: buildUserMessageContent(normalizedInput, supportsVision)
-  }
-
-  // 3. Calculate available token budget
+  const newUserMessage = createUserChatMessage(newUserContent, supportsVision)
   const systemPromptTokens = systemPrompt ? approximateTokenSize(systemPrompt) : 0
   const newUserTokens = estimateMessageTokens(newUserMessage)
-  const available = contextLength - systemPromptTokens - newUserTokens - maxTokens
+  const available = contextLength - systemPromptTokens - newUserTokens - reserveTokens
+  const selectedHistory = selectTurnHistory(
+    historyTurns,
+    available,
+    options.fallbackProtectedTurnCount ?? 0
+  )
 
-  // 4. Truncate history to fit
-  const truncatedHistory = available > 0 ? truncateContext(history, available) : []
-
-  // 5. Assemble final messages
   const messages: ChatMessage[] = []
-
   if (systemPrompt) {
     messages.push({ role: 'system', content: systemPrompt })
   }
-
-  messages.push(...truncatedHistory)
+  messages.push(...selectedHistory)
   messages.push(newUserMessage)
-
   return messages
 }
 
-/**
- * Build context for resuming an assistant message that paused on tool interactions.
- * Includes:
- * - system prompt
- * - historical sent messages
- * - the target assistant message (even if still pending)
- */
 export function buildResumeContext(
   sessionId: string,
   assistantMessageId: string,
   systemPrompt: string,
   contextLength: number,
-  maxTokens: number,
+  reserveTokens: number,
   messageStore: DeepChatMessageStore,
-  supportsVision: boolean = false
+  supportsVision: boolean = false,
+  options: ContextBuildOptions = {}
 ): ChatMessage[] {
   const allMessages = messageStore.getMessages(sessionId)
   const targetMessage = allMessages.find((message) => message.id === assistantMessageId)
   const targetOrderSeq = targetMessage?.orderSeq
+  const cursor = Math.max(1, options.summaryCursorOrderSeq ?? 1)
 
   const historyRecords = allMessages.filter((message) => {
     if (targetOrderSeq !== undefined && message.orderSeq > targetOrderSeq) {
@@ -357,18 +433,25 @@ export function buildResumeContext(
     if (message.id === assistantMessageId) {
       return true
     }
-    return message.status === 'sent'
+    if (message.status !== 'sent') {
+      return false
+    }
+    return message.orderSeq >= cursor
   })
 
-  const history = historyRecords.flatMap((record) => recordToChatMessages(record, supportsVision))
+  const historyTurns = buildHistoryTurns(historyRecords, supportsVision)
   const systemPromptTokens = systemPrompt ? approximateTokenSize(systemPrompt) : 0
-  const available = contextLength - systemPromptTokens - maxTokens
-  const truncatedHistory = available > 0 ? truncateContext(history, available) : []
+  const available = contextLength - systemPromptTokens - reserveTokens
+  const selectedHistory = selectTurnHistory(
+    historyTurns,
+    available,
+    options.fallbackProtectedTurnCount ?? 1
+  )
 
   const messages: ChatMessage[] = []
   if (systemPrompt) {
     messages.push({ role: 'system', content: systemPrompt })
   }
-  messages.push(...truncatedHistory)
+  messages.push(...selectedHistory)
   return messages
 }

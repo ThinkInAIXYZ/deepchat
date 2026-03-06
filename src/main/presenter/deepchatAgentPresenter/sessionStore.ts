@@ -1,5 +1,20 @@
 import { SQLitePresenter } from '../sqlitePresenter'
 import type { PermissionMode, SessionGenerationSettings } from '@shared/types/agent-interface'
+import type { DeepChatSessionSummaryRow } from '../sqlitePresenter/tables/deepchatSessions'
+
+export type SessionSummaryState = {
+  summaryText: string | null
+  summaryCursorOrderSeq: number
+  summaryUpdatedAt: number | null
+}
+
+function normalizeSummaryState(row: DeepChatSessionSummaryRow | null): SessionSummaryState {
+  return {
+    summaryText: row?.summary_text ?? null,
+    summaryCursorOrderSeq: Math.max(1, row?.summary_cursor_order_seq ?? 1),
+    summaryUpdatedAt: row?.summary_updated_at ?? null
+  }
+}
 
 export class DeepChatSessionStore {
   private sqlitePresenter: SQLitePresenter
@@ -46,5 +61,17 @@ export class DeepChatSessionStore {
 
   updateGenerationSettings(id: string, settings: Partial<SessionGenerationSettings>): void {
     this.sqlitePresenter.deepchatSessionsTable.updateGenerationSettings(id, settings)
+  }
+
+  getSummaryState(id: string): SessionSummaryState {
+    return normalizeSummaryState(this.sqlitePresenter.deepchatSessionsTable.getSummaryState(id))
+  }
+
+  updateSummaryState(id: string, state: SessionSummaryState): void {
+    this.sqlitePresenter.deepchatSessionsTable.updateSummaryState(id, state)
+  }
+
+  resetSummaryState(id: string): void {
+    this.sqlitePresenter.deepchatSessionsTable.resetSummaryState(id)
   }
 }
