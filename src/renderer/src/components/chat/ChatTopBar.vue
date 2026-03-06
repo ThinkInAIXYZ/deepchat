@@ -1,5 +1,6 @@
 <template>
   <div
+    v-bind="attrs"
     class="sticky top-0 z-10 flex items-center justify-between h-12 px-4 bg-background/60 backdrop-blur-lg window-drag-region"
   >
     <div class="flex items-center gap-2 min-w-0">
@@ -129,7 +130,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, useAttrs } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
@@ -152,12 +153,17 @@ import {
 import { useSessionStore } from '@/stores/ui/session'
 import { useToast } from '@/components/use-toast'
 
+defineOptions({
+  inheritAttrs: false
+})
+
 const props = defineProps<{
   sessionId: string
   title: string
   project: string
 }>()
 
+const attrs = useAttrs()
 const { t } = useI18n()
 const sessionStore = useSessionStore()
 const { toast } = useToast()

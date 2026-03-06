@@ -20,7 +20,8 @@ vi.mock('@/events', async (importOriginal) => {
       LIST_UPDATED: 'session:list-updated',
       ACTIVATED: 'session:activated',
       DEACTIVATED: 'session:deactivated',
-      STATUS_CHANGED: 'session:status-changed'
+      STATUS_CHANGED: 'session:status-changed',
+      COMPACTION_UPDATED: 'session:compaction-updated'
     },
     STREAM_EVENTS: {
       RESPONSE: 'stream:response',
@@ -198,7 +199,7 @@ function createMockSqlitePresenter() {
           session_id: row.sessionId,
           order_seq: row.orderSeq,
           is_context_edge: 0,
-          metadata: '{}',
+          metadata: row.metadata ?? '{}',
           created_at: now,
           updated_at: now
         }
@@ -257,6 +258,10 @@ function createMockSqlitePresenter() {
         const msgs = messagesList.filter((m) => m.session_id === sessionId)
         if (msgs.length === 0) return 0
         return Math.max(...msgs.map((m: any) => m.order_seq))
+      }),
+      delete: vi.fn((id: string) => {
+        messagesStore.delete(id)
+        messagesList = messagesList.filter((item) => item.id !== id)
       }),
       deleteFromOrderSeq: vi.fn((sessionId: string, fromOrderSeq: number) => {
         const idsToDelete = messagesList

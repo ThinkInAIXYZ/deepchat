@@ -2,7 +2,8 @@ import { approximateTokenSize } from 'tokenx'
 import type {
   ChatMessageRecord,
   SendMessageInput,
-  AssistantMessageBlock
+  AssistantMessageBlock,
+  MessageMetadata
 } from '@shared/types/agent-interface'
 import type { IConfigPresenter, ILlmProviderPresenter } from '@shared/presenter'
 import type { DeepChatMessageStore } from './messageStore'
@@ -15,10 +16,24 @@ const SUMMARY_OUTPUT_TOKENS_CAP = 2048
 const USER_MESSAGE_RAW_TAIL_TURNS = 2
 const RESUME_RAW_TAIL_TURNS = 3
 
-type ModelSpec = {
+export type ModelSpec = {
   providerId: string
   modelId: string
   contextLength: number
+}
+
+export type CompactionIntent = {
+  sessionId: string
+  previousState: SessionSummaryState
+  targetCursorOrderSeq: number
+  summaryBlocks: string[]
+  currentModel: ModelSpec
+  reserveTokens: number
+}
+
+export type CompactionExecutionResult = {
+  succeeded: boolean
+  summaryState: SessionSummaryState
 }
 
 function composeSections(sections: Array<string | null | undefined>): string {
@@ -122,6 +137,15 @@ function serializeRecord(record: ChatMessageRecord): string {
   return serializeAssistantRecord(record)
 }
 
+function isCompactionRecord(record: ChatMessageRecord): boolean {
+  try {
+    const metadata = JSON.parse(record.metadata) as MessageMetadata
+    return metadata.messageType === 'compaction'
+  } catch {
+    return false
+  }
+}
+
 function sanitizeSummaryContent(value: string): string {
   const withoutThinking = value
     .replace(/<think>[\s\S]*?<\/think>/gi, '')
@@ -151,7 +175,7 @@ export class CompactionService {
     private readonly configPresenter: IConfigPresenter
   ) {}
 
-  async compactForNextUserTurn(params: {
+  prepareForNextUserTurn(params: {
     sessionId: string
     providerId: string
     modelId: string
@@ -160,13 +184,13 @@ export class CompactionService {
     reserveTokens: number
     supportsVision: boolean
     newUserContent: string | SendMessageInput
-  }): Promise<SessionSummaryState> {
+  }): CompactionIntent | null {
     const sentRecords = this.messageStore
       .getMessages(params.sessionId)
-      .filter((record) => record.status === 'sent')
+      .filter((record) => record.status === 'sent' && !isCompactionRecord(record))
       .sort((a, b) => a.orderSeq - b.orderSeq)
 
-    return await this.compactIfNeeded({
+    return this.prepareCompaction({
       ...params,
       records: sentRecords,
       protectedTurnCount: USER_MESSAGE_RAW_TAIL_TURNS,
@@ -174,7 +198,7 @@ export class CompactionService {
     })
   }
 
-  async compactForResumeTurn(params: {
+  prepareForResumeTurn(params: {
     sessionId: string
     messageId: string
     providerId: string
@@ -183,13 +207,14 @@ export class CompactionService {
     contextLength: number
     reserveTokens: number
     supportsVision: boolean
-  }): Promise<SessionSummaryState> {
+  }): CompactionIntent | null {
     const allMessages = this.messageStore
       .getMessages(params.sessionId)
+      .filter((record) => !isCompactionRecord(record))
       .sort((a, b) => a.orderSeq - b.orderSeq)
     const target = allMessages.find((record) => record.id === params.messageId)
     if (!target) {
-      return this.sessionStore.getSummaryState(params.sessionId)
+      return null
     }
 
     const resumeRecords = allMessages.filter((record) => {
@@ -202,7 +227,7 @@ export class CompactionService {
       return record.status === 'sent'
     })
 
-    return await this.compactIfNeeded({
+    return this.prepareCompaction({
       ...params,
       records: resumeRecords,
       protectedTurnCount: RESUME_RAW_TAIL_TURNS,
@@ -210,7 +235,35 @@ export class CompactionService {
     })
   }
 
-  private async compactIfNeeded(params: {
+  async applyCompaction(intent: CompactionIntent): Promise<CompactionExecutionResult> {
+    try {
+      const nextSummary = await this.generateRollingSummary({
+        previousSummary: intent.previousState.summaryText,
+        summaryBlocks: intent.summaryBlocks,
+        currentModel: intent.currentModel,
+        reserveTokens: intent.reserveTokens
+      })
+
+      const updatedState: SessionSummaryState = {
+        summaryText: nextSummary,
+        summaryCursorOrderSeq: Math.max(1, intent.targetCursorOrderSeq),
+        summaryUpdatedAt: Date.now()
+      }
+      this.sessionStore.updateSummaryState(intent.sessionId, updatedState)
+      return {
+        succeeded: true,
+        summaryState: updatedState
+      }
+    } catch (error) {
+      console.warn(`[CompactionService] Failed to compact session ${intent.sessionId}:`, error)
+      return {
+        succeeded: false,
+        summaryState: intent.previousState
+      }
+    }
+  }
+
+  private prepareCompaction(params: {
     sessionId: string
     providerId: string
     modelId: string
@@ -221,18 +274,18 @@ export class CompactionService {
     records: ChatMessageRecord[]
     protectedTurnCount: number
     projectedMessages: ReturnType<typeof createUserChatMessage>[]
-  }): Promise<SessionSummaryState> {
+  }): CompactionIntent | null {
     const summaryState = this.sessionStore.getSummaryState(params.sessionId)
     const scopedRecords = params.records.filter(
       (record) => record.orderSeq >= summaryState.summaryCursorOrderSeq
     )
     if (scopedRecords.length === 0) {
-      return summaryState
+      return null
     }
 
     const turns = buildHistoryTurns(scopedRecords, params.supportsVision)
     if (turns.length === 0) {
-      return summaryState
+      return null
     }
 
     const systemPromptWithSummary = appendSummarySection(
@@ -249,11 +302,11 @@ export class CompactionService {
     ]
     const requestBudget = Math.floor((params.contextLength - params.reserveTokens) / SAFETY_MARGIN)
     if (estimateMessagesTokens(projectedPrompt) <= requestBudget) {
-      return summaryState
+      return null
     }
 
     if (turns.length <= params.protectedTurnCount) {
-      return summaryState
+      return null
     }
 
     const summaryableTurns = turns.slice(0, turns.length - params.protectedTurnCount)
@@ -262,32 +315,21 @@ export class CompactionService {
       turn.records.map((record) => serializeRecord(record)).join('\n\n')
     )
 
-    try {
-      const nextSummary = await this.generateRollingSummary({
-        previousSummary: summaryState.summaryText,
-        summaryBlocks,
-        currentModel: this.getCurrentModelSpec(
-          params.providerId,
-          params.modelId,
-          params.contextLength
-        ),
-        reserveTokens: params.reserveTokens
-      })
+    const nextCursor =
+      rawTailTurns[0]?.records[0]?.orderSeq ??
+      (scopedRecords[scopedRecords.length - 1]?.orderSeq ?? summaryState.summaryCursorOrderSeq) + 1
 
-      const nextCursor =
-        rawTailTurns[0]?.records[0]?.orderSeq ??
-        (scopedRecords[scopedRecords.length - 1]?.orderSeq ?? summaryState.summaryCursorOrderSeq) +
-          1
-      const updatedState: SessionSummaryState = {
-        summaryText: nextSummary,
-        summaryCursorOrderSeq: Math.max(1, nextCursor),
-        summaryUpdatedAt: Date.now()
-      }
-      this.sessionStore.updateSummaryState(params.sessionId, updatedState)
-      return updatedState
-    } catch (error) {
-      console.warn(`[CompactionService] Failed to compact session ${params.sessionId}:`, error)
-      return summaryState
+    return {
+      sessionId: params.sessionId,
+      previousState: summaryState,
+      targetCursorOrderSeq: Math.max(1, nextCursor),
+      summaryBlocks,
+      currentModel: this.getCurrentModelSpec(
+        params.providerId,
+        params.modelId,
+        params.contextLength
+      ),
+      reserveTokens: params.reserveTokens
     }
   }
 

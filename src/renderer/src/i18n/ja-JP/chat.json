@@ -195,5 +195,9 @@
       "manage": "管理",
       "title": "スキル"
     }
+  },
+  "compaction": {
+    "compacting": "コンテキストを自動圧縮しています...",
+    "compacted": "コンテキストは自動圧縮されました"
   }
 }

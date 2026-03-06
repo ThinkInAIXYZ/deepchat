@@ -16,7 +16,8 @@ vi.mock('@/events', async (importOriginal) => {
       LIST_UPDATED: 'session:list-updated',
       ACTIVATED: 'session:activated',
       DEACTIVATED: 'session:deactivated',
-      STATUS_CHANGED: 'session:status-changed'
+      STATUS_CHANGED: 'session:status-changed',
+      COMPACTION_UPDATED: 'session:compaction-updated'
     }
   }
 })
@@ -52,6 +53,11 @@ function createMockDeepChatAgent() {
     cancelGeneration: vi.fn().mockResolvedValue(undefined),
     clearMessages: vi.fn().mockResolvedValue(undefined),
     getMessages: vi.fn().mockResolvedValue([]),
+    getSessionCompactionState: vi.fn().mockResolvedValue({
+      status: 'idle',
+      cursorOrderSeq: 1,
+      summaryUpdatedAt: null
+    }),
     getMessageIds: vi.fn().mockResolvedValue([]),
     getMessage: vi.fn().mockResolvedValue(null),
     setSessionModel: vi.fn().mockResolvedValue(undefined),
@@ -617,6 +623,34 @@ describe('NewAgentPresenter', () => {
     it('returns null for unknown session', async () => {
       sqlitePresenter.newSessionsTable.get.mockReturnValue(undefined)
       expect(await presenter.getSession('unknown')).toBeNull()
+    })
+  })
+
+  describe('getSessionCompactionState', () => {
+    it('delegates to the agent implementation', async () => {
+      sqlitePresenter.newSessionsTable.get.mockReturnValue({
+        id: 's1',
+        agent_id: 'deepchat',
+        title: 'Test',
+        project_dir: null,
+        is_pinned: 0,
+        created_at: 1000,
+        updated_at: 2000
+      })
+      deepChatAgent.getSessionCompactionState.mockResolvedValueOnce({
+        status: 'compacted',
+        cursorOrderSeq: 9,
+        summaryUpdatedAt: 123
+      })
+
+      const state = await presenter.getSessionCompactionState('s1')
+
+      expect(deepChatAgent.getSessionCompactionState).toHaveBeenCalledWith('s1')
+      expect(state).toEqual({
+        status: 'compacted',
+        cursorOrderSeq: 9,
+        summaryUpdatedAt: 123
+      })
     })
   })
 

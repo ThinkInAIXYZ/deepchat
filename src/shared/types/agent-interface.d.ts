@@ -7,6 +7,13 @@
 
 export type SessionStatus = 'idle' | 'generating' | 'error'
 export type PermissionMode = 'default' | 'full_access'
+export type SessionCompactionStatus = 'idle' | 'compacting' | 'compacted'
+
+export interface SessionCompactionState {
+  status: SessionCompactionStatus
+  cursorOrderSeq: number
+  summaryUpdatedAt: number | null
+}
 
 export interface SessionGenerationSettings {
   systemPrompt: string
@@ -62,6 +69,9 @@ export interface IAgentImplementation {
 
   /** Get a single message by ID */
   getMessage(messageId: string): Promise<ChatMessageRecord | null>
+
+  /** Get current runtime/persisted compaction state for the session */
+  getSessionCompactionState?(sessionId: string): Promise<SessionCompactionState>
 
   /** Clear all messages in this session while keeping the session record */
   clearMessages?(sessionId: string): Promise<void>
@@ -226,6 +236,9 @@ export interface MessageMetadata {
   tokensPerSecond?: number
   model?: string
   provider?: string
+  messageType?: 'compaction'
+  compactionStatus?: 'compacting' | 'compacted'
+  summaryUpdatedAt?: number | null
 }
 
 export interface ChatMessageRecord {

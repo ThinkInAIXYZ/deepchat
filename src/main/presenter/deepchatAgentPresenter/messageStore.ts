@@ -4,7 +4,8 @@ import type {
   ChatMessageRecord,
   MessageTraceRecord,
   UserMessageContent,
-  AssistantMessageBlock
+  AssistantMessageBlock,
+  MessageMetadata
 } from '@shared/types/agent-interface'
 import type { SearchResult } from '@shared/presenter'
 import type { DeepChatMessageRow } from '../sqlitePresenter/tables/deepchatMessages'
@@ -42,6 +43,25 @@ export class DeepChatMessageStore {
     return id
   }
 
+  createCompactionMessage(
+    sessionId: string,
+    orderSeq: number,
+    status: 'compacting' | 'compacted',
+    summaryUpdatedAt: number | null
+  ): string {
+    const id = nanoid()
+    this.sqlitePresenter.deepchatMessagesTable.insert({
+      id,
+      sessionId,
+      orderSeq,
+      role: 'assistant',
+      content: JSON.stringify(this.buildCompactionBlocks(status)),
+      status: 'sent',
+      metadata: JSON.stringify(this.buildCompactionMetadata(status, summaryUpdatedAt))
+    })
+    return id
+  }
+
   updateAssistantContent(messageId: string, blocks: AssistantMessageBlock[]): void {
     this.sqlitePresenter.deepchatMessagesTable.updateContent(messageId, JSON.stringify(blocks))
   }
@@ -60,6 +80,19 @@ export class DeepChatMessageStore {
       JSON.stringify(blocks),
       'sent',
       metadata
+    )
+  }
+
+  updateCompactionMessage(
+    messageId: string,
+    status: 'compacting' | 'compacted',
+    summaryUpdatedAt: number | null
+  ): void {
+    this.sqlitePresenter.deepchatMessagesTable.updateContentAndStatus(
+      messageId,
+      JSON.stringify(this.buildCompactionBlocks(status)),
+      'sent',
+      JSON.stringify(this.buildCompactionMetadata(status, summaryUpdatedAt))
     )
   }
 
@@ -125,6 +158,12 @@ export class DeepChatMessageStore {
     this.sqlitePresenter.deepchatMessageTracesTable.deleteBySessionId(sessionId)
     this.sqlitePresenter.deepchatMessageSearchResultsTable.deleteBySessionId(sessionId)
     this.sqlitePresenter.deepchatMessagesTable.deleteBySession(sessionId)
+  }
+
+  deleteMessage(messageId: string): void {
+    this.sqlitePresenter.deepchatMessageTracesTable.deleteByMessageIds([messageId])
+    this.sqlitePresenter.deepchatMessageSearchResultsTable.deleteByMessageIds([messageId])
+    this.sqlitePresenter.deepchatMessagesTable.delete(messageId)
   }
 
   deleteFromOrderSeq(sessionId: string, fromOrderSeq: number): void {
@@ -310,6 +349,31 @@ export class DeepChatMessageStore {
       traceCount: row.trace_count ?? 0,
       createdAt: row.created_at,
       updatedAt: row.updated_at
+    }
+  }
+
+  private buildCompactionBlocks(status: 'compacting' | 'compacted'): AssistantMessageBlock[] {
+    return [
+      {
+        type: 'content',
+        content:
+          status === 'compacting'
+            ? 'Compacting conversation context...'
+            : 'Conversation context compacted.',
+        status: status === 'compacting' ? 'loading' : 'success',
+        timestamp: Date.now()
+      }
+    ]
+  }
+
+  private buildCompactionMetadata(
+    status: 'compacting' | 'compacted',
+    summaryUpdatedAt: number | null
+  ): MessageMetadata {
+    return {
+      messageType: 'compaction',
+      compactionStatus: status,
+      summaryUpdatedAt
     }
   }
 }

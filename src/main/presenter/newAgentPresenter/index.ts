@@ -12,6 +12,7 @@ import type {
   AssistantMessageBlock,
   LegacyImportStatus,
   PermissionMode,
+  SessionCompactionState,
   SessionGenerationSettings,
   ToolInteractionResponse,
   ToolInteractionResult
@@ -388,6 +389,24 @@ export class NewAgentPresenter {
     if (!session) throw new Error(`Session not found: ${sessionId}`)
     const agent = await this.resolveAgentImplementation(session.agentId)
     return agent.getMessages(sessionId)
+  }
+
+  async getSessionCompactionState(sessionId: string): Promise<SessionCompactionState> {
+    const session = this.sessionManager.get(sessionId)
+    if (!session) {
+      throw new Error(`Session not found: ${sessionId}`)
+    }
+
+    const agent = await this.resolveAgentImplementation(session.agentId)
+    if (!agent.getSessionCompactionState) {
+      return {
+        status: 'idle',
+        cursorOrderSeq: 1,
+        summaryUpdatedAt: null
+      }
+    }
+
+    return await agent.getSessionCompactionState(sessionId)
   }
 
   async getSearchResults(messageId: string, searchId?: string): Promise<SearchResult[]> {

@@ -4,6 +4,7 @@ import type {
   ChatMessageRecord,
   AssistantMessageBlock,
   MessageFile,
+  MessageMetadata,
   SendMessageInput
 } from '@shared/types/agent-interface'
 import type { DeepChatMessageStore } from './messageStore'
@@ -12,6 +13,7 @@ const IMAGE_TOKEN_ESTIMATE = 512
 
 export type ContextBuildOptions = {
   summaryCursorOrderSeq?: number
+  historyRecords?: ChatMessageRecord[]
   fallbackProtectedTurnCount?: number
 }
 
@@ -56,6 +58,15 @@ function parseUserRecordContent(content: string): SendMessageInput {
     return normalizeUserInput(parsed)
   } catch {
     return { text: content, files: [] }
+  }
+}
+
+function isCompactionRecord(record: ChatMessageRecord): boolean {
+  try {
+    const metadata = JSON.parse(record.metadata) as MessageMetadata
+    return metadata.messageType === 'compaction'
+  } catch {
+    return false
   }
 }
 
@@ -202,6 +213,10 @@ export function recordToChatMessages(
   record: ChatMessageRecord,
   supportsVision: boolean
 ): ChatMessage[] {
+  if (isCompactionRecord(record)) {
+    return []
+  }
+
   if (record.role === 'user') {
     const parsed = parseUserRecordContent(record.content)
     return [{ role: 'user', content: buildUserMessageContent(parsed, supportsVision) }]
@@ -387,8 +402,9 @@ export function buildContext(
   supportsVision: boolean = false,
   options: ContextBuildOptions = {}
 ): ChatMessage[] {
-  const allMessages = messageStore.getMessages(sessionId)
-  const sentRecords = allMessages.filter((message) => message.status === 'sent')
+  const sentRecords =
+    options.historyRecords ??
+    messageStore.getMessages(sessionId).filter((message) => message.status === 'sent')
   const historyRecords = filterRecordsFromCursor(sentRecords, options.summaryCursorOrderSeq ?? 1)
   const historyTurns = buildHistoryTurns(historyRecords, supportsVision)
 

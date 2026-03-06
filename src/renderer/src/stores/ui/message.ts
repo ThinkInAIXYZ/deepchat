@@ -19,6 +19,7 @@ export const useMessageStore = defineStore('message', () => {
   const currentStreamSessionId = ref<string | null>(null)
   const currentStreamMessageId = ref<string | null>(null)
   const hydratingStreamMessageIds = new Set<string>()
+  let latestLoadRequestId = 0
 
   // --- Getters ---
   const messages = computed(() => {
@@ -42,8 +43,13 @@ export const useMessageStore = defineStore('message', () => {
   }
 
   async function loadMessages(sessionId: string): Promise<void> {
+    const requestId = ++latestLoadRequestId
     try {
       const result = await newAgentPresenter.getMessages(sessionId)
+      if (requestId !== latestLoadRequestId) {
+        return
+      }
+
       messageCache.value.clear()
       messageIds.value = []
       for (const msg of result) {
@@ -101,6 +107,7 @@ export const useMessageStore = defineStore('message', () => {
   }
 
   function clear(): void {
+    latestLoadRequestId += 1
     messageIds.value = []
     messageCache.value.clear()
     clearStreamingState()

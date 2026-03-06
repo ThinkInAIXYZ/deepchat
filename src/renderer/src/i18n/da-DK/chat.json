@@ -195,5 +195,9 @@
       "manage": "ledelse",
       "title": "færdigheder"
     }
+  },
+  "compaction": {
+    "compacting": "Komprimerer automatisk kontekst...",
+    "compacted": "Konteksten blev automatisk komprimeret"
   }
 }

@@ -14,7 +14,8 @@ vi.mock('@/events', () => ({
     LIST_UPDATED: 'session:list-updated',
     ACTIVATED: 'session:activated',
     DEACTIVATED: 'session:deactivated',
-    STATUS_CHANGED: 'session:status-changed'
+    STATUS_CHANGED: 'session:status-changed',
+    COMPACTION_UPDATED: 'session:compaction-updated'
   },
   STREAM_EVENTS: {
     RESPONSE: 'stream:response',
@@ -102,6 +103,7 @@ function createMockSqlitePresenter() {
       get: vi.fn(),
       getMaxOrderSeq: vi.fn().mockReturnValue(0),
       deleteBySession: vi.fn(),
+      delete: vi.fn(),
       deleteFromOrderSeq: vi.fn(),
       recoverPendingMessages: vi.fn().mockReturnValue(0)
     },
@@ -392,6 +394,9 @@ describe('DeepChatAgentPresenter', () => {
         }
       ]
       sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue(existingMessages)
+      sqlitePresenter.deepchatMessagesTable.getMaxOrderSeq
+        .mockReturnValueOnce(2)
+        .mockReturnValueOnce(3)
 
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       await agent.processMessage('s1', 'Second message')
@@ -509,6 +514,10 @@ describe('DeepChatAgentPresenter', () => {
           updated_at: Date.now()
         }
       ])
+      sqlitePresenter.deepchatMessagesTable.getMaxOrderSeq
+        .mockReturnValueOnce(6)
+        .mockReturnValueOnce(7)
+        .mockReturnValueOnce(8)
 
       await agent.initSession('s1', {
         providerId: 'openai',
@@ -1012,6 +1021,256 @@ describe('DeepChatAgentPresenter', () => {
       await agent.deleteMessage('s1', 'm1')
 
       expect(sqlitePresenter.deepchatSessionsTable.resetSummaryState).toHaveBeenCalledWith('s1')
+      expect(eventBus.sendToRenderer).toHaveBeenCalledWith('session:compaction-updated', 'all', {
+        sessionId: 's1',
+        status: 'idle',
+        cursorOrderSeq: 1,
+        summaryUpdatedAt: null
+      })
+    })
+  })
+
+  describe('session compaction state', () => {
+    const createSentTurnRecords = (turnCount: number) => {
+      const longUser = 'U'.repeat(2400)
+      const longAssistant = 'A'.repeat(2400)
+      const records: any[] = []
+
+      for (let index = 0; index < turnCount; index += 1) {
+        const orderBase = index * 2
+        records.push({
+          id: `u${index + 1}`,
+          session_id: 's1',
+          order_seq: orderBase + 1,
+          role: 'user',
+          content: JSON.stringify({
+            text: longUser,
+            files: [],
+            links: [],
+            search: false,
+            think: false
+          }),
+          status: 'sent',
+          is_context_edge: 0,
+          metadata: '{}',
+          created_at: Date.now(),
+          updated_at: Date.now()
+        })
+        records.push({
+          id: `a${index + 1}`,
+          session_id: 's1',
+          order_seq: orderBase + 2,
+          role: 'assistant',
+          content: JSON.stringify([
+            { type: 'content', content: longAssistant, status: 'success', timestamp: Date.now() }
+          ]),
+          status: 'sent',
+          is_context_edge: 0,
+          metadata: '{}',
+          created_at: Date.now(),
+          updated_at: Date.now()
+        })
+      }
+
+      return records
+    }
+
+    it('emits compacting before compacted on successful compaction', async () => {
+      sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue(createSentTurnRecords(3))
+      sqlitePresenter.deepchatMessagesTable.getMaxOrderSeq
+        .mockReturnValueOnce(6)
+        .mockReturnValueOnce(7)
+        .mockReturnValueOnce(8)
+
+      await agent.initSession('s1', {
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        generationSettings: {
+          contextLength: 2500,
+          maxTokens: 512
+        }
+      })
+      await agent.processMessage('s1', 'new prompt')
+
+      const compactionCalls = (eventBus.sendToRenderer as ReturnType<typeof vi.fn>).mock.calls
+        .filter((call: any[]) => call[0] === 'session:compaction-updated')
+        .map((call: any[]) => call[2])
+
+      expect(compactionCalls).toEqual([
+        {
+          sessionId: 's1',
+          status: 'compacting',
+          cursorOrderSeq: 3,
+          summaryUpdatedAt: null
+        },
+        expect.objectContaining({
+          sessionId: 's1',
+          status: 'compacted',
+          cursorOrderSeq: 3
+        })
+      ])
+
+      const insertRows = sqlitePresenter.deepchatMessagesTable.insert.mock.calls.map(
+        ([row]: any[]) => row
+      )
+      expect(insertRows[0]).toEqual(
+        expect.objectContaining({
+          role: 'assistant',
+          orderSeq: 7,
+          status: 'sent'
+        })
+      )
+      expect(JSON.parse(insertRows[0].metadata)).toEqual({
+        messageType: 'compaction',
+        compactionStatus: 'compacting',
+        summaryUpdatedAt: null
+      })
+
+      expect(insertRows[1]).toEqual(
+        expect.objectContaining({
+          role: 'user',
+          orderSeq: 8,
+          status: 'sent'
+        })
+      )
+
+      const compactionInsert = sqlitePresenter.deepchatMessagesTable.insert.mock.calls.find(
+        ([row]: any[]) =>
+          typeof row?.metadata === 'string' && row.metadata.includes('"messageType":"compaction"')
+      )?.[0]
+      expect(compactionInsert).toEqual(
+        expect.objectContaining({
+          sessionId: 's1',
+          orderSeq: 7,
+          role: 'assistant',
+          status: 'sent'
+        })
+      )
+      expect(JSON.parse(compactionInsert.metadata)).toEqual({
+        messageType: 'compaction',
+        compactionStatus: 'compacting',
+        summaryUpdatedAt: null
+      })
+
+      const finalizedCompaction =
+        sqlitePresenter.deepchatMessagesTable.updateContentAndStatus.mock.calls.find(
+          ([, , , metadata]: any[]) =>
+            typeof metadata === 'string' && metadata.includes('"messageType":"compaction"')
+        )
+      expect(finalizedCompaction).toEqual([
+        'mock-msg-id',
+        expect.any(String),
+        'sent',
+        expect.stringContaining('"compactionStatus":"compacted"')
+      ])
+    })
+
+    it('falls back to the previous compacted state when compaction fails', async () => {
+      await agent.initSession('s1', {
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        generationSettings: {
+          contextLength: 2500,
+          maxTokens: 512
+        }
+      })
+      sqlitePresenter.deepchatSessionsTable.updateSummaryState('s1', {
+        summaryText: 'old summary',
+        summaryCursorOrderSeq: 3,
+        summaryUpdatedAt: 111
+      })
+      llmProvider.generateText.mockRejectedValueOnce(new Error('boom'))
+      sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue(createSentTurnRecords(4))
+      sqlitePresenter.deepchatMessagesTable.getMaxOrderSeq
+        .mockReturnValueOnce(8)
+        .mockReturnValueOnce(9)
+        .mockReturnValueOnce(10)
+
+      await agent.processMessage('s1', 'new prompt')
+
+      const compactionCalls = (eventBus.sendToRenderer as ReturnType<typeof vi.fn>).mock.calls
+        .filter((call: any[]) => call[0] === 'session:compaction-updated')
+        .map((call: any[]) => call[2])
+
+      expect(compactionCalls).toEqual([
+        {
+          sessionId: 's1',
+          status: 'compacting',
+          cursorOrderSeq: 5,
+          summaryUpdatedAt: 111
+        },
+        {
+          sessionId: 's1',
+          status: 'compacted',
+          cursorOrderSeq: 3,
+          summaryUpdatedAt: 111
+        }
+      ])
+      expect(sqlitePresenter.deepchatMessagesTable.delete).toHaveBeenCalledWith('mock-msg-id')
+    })
+
+    it('emits idle when clearMessages resets compaction state', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      sqlitePresenter.deepchatSessionsTable.updateSummaryState('s1', {
+        summaryText: 'summary',
+        summaryCursorOrderSeq: 3,
+        summaryUpdatedAt: 111
+      })
+
+      await agent.clearMessages('s1')
+
+      expect(eventBus.sendToRenderer).toHaveBeenCalledWith('session:compaction-updated', 'all', {
+        sessionId: 's1',
+        status: 'idle',
+        cursorOrderSeq: 1,
+        summaryUpdatedAt: null
+      })
+    })
+
+    it('returns persisted compacted state for reopened sessions', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      sqlitePresenter.deepchatSessionsTable.updateSummaryState('s1', {
+        summaryText: 'summary',
+        summaryCursorOrderSeq: 7,
+        summaryUpdatedAt: 222
+      })
+      sqlitePresenter.deepchatSessionsTable.get.mockReturnValue({
+        id: 's1',
+        provider_id: 'openai',
+        model_id: 'gpt-4',
+        permission_mode: 'full_access'
+      })
+
+      const reopenedAgent = new DeepChatAgentPresenter(
+        llmProvider,
+        configPresenter,
+        sqlitePresenter,
+        toolPresenter
+      )
+      const compactionState = await reopenedAgent.getSessionCompactionState('s1')
+
+      expect(compactionState).toEqual({
+        status: 'compacted',
+        cursorOrderSeq: 7,
+        summaryUpdatedAt: 222
+      })
+    })
+
+    it('reconciles runtime idle cache with persisted compacted state', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      sqlitePresenter.deepchatSessionsTable.updateSummaryState('s1', {
+        summaryText: 'summary',
+        summaryCursorOrderSeq: 3,
+        summaryUpdatedAt: 333
+      })
+
+      const compactionState = await agent.getSessionCompactionState('s1')
+
+      expect(compactionState).toEqual({
+        status: 'compacted',
+        cursorOrderSeq: 3,
+        summaryUpdatedAt: 333
+      })
     })
   })
 

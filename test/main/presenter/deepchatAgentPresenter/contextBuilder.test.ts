@@ -365,6 +365,34 @@ describe('buildContext', () => {
     ])
   })
 
+  it('builds from provided history records without rereading newer persisted messages', () => {
+    const messages = [
+      makeUserRecord(1, 'old user'),
+      makeAssistantRecord(2, 'old reply'),
+      makeUserRecord(3, 'new user already persisted')
+    ]
+    const store = createMockMessageStore(messages)
+    const result = buildContext(
+      's1',
+      'new user already persisted',
+      'System',
+      10000,
+      4096,
+      store,
+      false,
+      {
+        historyRecords: messages.slice(0, 2)
+      }
+    )
+
+    expect(result).toEqual([
+      { role: 'system', content: 'System' },
+      { role: 'user', content: 'old user' },
+      { role: 'assistant', content: 'old reply' },
+      { role: 'user', content: 'new user already persisted' }
+    ])
+  })
+
   it('only replays settled tool calls with non-empty responses', () => {
     const messages = [
       makeUserRecord(1, 'check this'),
