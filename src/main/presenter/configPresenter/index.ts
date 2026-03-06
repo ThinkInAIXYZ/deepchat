@@ -20,6 +20,13 @@ import {
 import { ProviderBatchUpdate } from '@shared/provider-operations'
 import { SearchEngineTemplate } from '@shared/chat'
 import { ModelType } from '@shared/model'
+import {
+  DEFAULT_MODEL_CAPABILITY_FALLBACKS,
+  resolveModelContextLength,
+  resolveModelFunctionCall,
+  resolveModelMaxTokens,
+  resolveModelVision
+} from '@shared/modelConfigDefaults'
 import ElectronStore from 'electron-store'
 import { DEFAULT_PROVIDERS } from './providers'
 import path from 'path'
@@ -635,15 +642,17 @@ export class ConfigPresenter implements IConfigPresenter {
     return provider.models.map((m) => ({
       id: m.id,
       name: m.display_name || m.name || m.id,
-      contextLength: m.limit?.context ?? 8192,
-      maxTokens: m.limit?.output ?? 4096,
+      contextLength: resolveModelContextLength(m.limit?.context),
+      maxTokens: resolveModelMaxTokens(m.limit?.output),
       provider: providerId,
       providerId,
       group: 'default',
       enabled: false,
       isCustom: false,
-      vision: Array.isArray(m?.modalities?.input) ? m.modalities!.input!.includes('image') : false,
-      functionCall: Boolean(m.tool_call),
+      vision: resolveModelVision(
+        Array.isArray(m?.modalities?.input) ? m.modalities!.input!.includes('image') : undefined
+      ),
+      functionCall: resolveModelFunctionCall(m.tool_call),
       reasoning: Boolean(m.reasoning?.supported),
       type:
         Array.isArray(m?.modalities?.output) && m.modalities!.output!.includes('image')
@@ -658,12 +667,8 @@ export class ConfigPresenter implements IConfigPresenter {
       return model
     }
     return {
-      maxTokens: 4096,
-      contextLength: 8192,
+      ...DEFAULT_MODEL_CAPABILITY_FALLBACKS,
       temperature: 0.6,
-      vision: false,
-      functionCall: false,
-      reasoning: false,
       type: ModelType.Chat
     }
   }

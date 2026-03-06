@@ -1,4 +1,5 @@
 import { IConfigPresenter, LLM_PROVIDER, LLMResponse, MODEL_META } from '@shared/presenter'
+import { DEFAULT_MODEL_CONTEXT_LENGTH, DEFAULT_MODEL_MAX_TOKENS } from '@shared/modelConfigDefaults'
 import { OpenAICompatibleProvider } from './openAICompatibleProvider'
 import Together from 'together-ai'
 export class TogetherProvider extends OpenAICompatibleProvider {
@@ -74,8 +75,8 @@ export class TogetherProvider extends OpenAICompatibleProvider {
         group: 'default',
         providerId: this.provider.id,
         isCustom: false,
-        contextLength: 4096,
-        maxTokens: 2048
+        contextLength: DEFAULT_MODEL_CONTEXT_LENGTH,
+        maxTokens: DEFAULT_MODEL_MAX_TOKENS
       }))
   }
 }

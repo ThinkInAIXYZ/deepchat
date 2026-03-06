@@ -4,6 +4,7 @@ import { OLLAMA_EVENTS } from '@/events'
 import { usePresenter } from '@/composables/usePresenter'
 import type { OllamaModel, RENDERER_MODEL_META } from '@shared/presenter'
 import { ModelType } from '@shared/model'
+import { DEFAULT_MODEL_CONTEXT_LENGTH, DEFAULT_MODEL_MAX_TOKENS } from '@shared/modelConfigDefaults'
 import { useModelStore } from '@/stores/modelStore'
 import { useProviderStore } from '@/stores/providerStore'
 
@@ -103,9 +104,10 @@ export const useOllamaStore = defineStore('ollama', () => {
           modelConfig?.contextLength ??
           existingModel?.contextLength ??
           (model as any)?.model_info?.context_length ??
-          4096
+          DEFAULT_MODEL_CONTEXT_LENGTH
 
-        const maxTokens = modelConfig?.maxTokens ?? existingModel?.maxTokens ?? 2048
+        const maxTokens =
+          modelConfig?.maxTokens ?? existingModel?.maxTokens ?? DEFAULT_MODEL_MAX_TOKENS
 
         const resolvedType =
           modelConfig?.type ??

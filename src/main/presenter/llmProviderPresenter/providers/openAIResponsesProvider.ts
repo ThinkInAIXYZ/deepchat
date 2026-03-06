@@ -8,6 +8,7 @@ import {
   ChatMessage,
   IConfigPresenter
 } from '@shared/presenter'
+import { DEFAULT_MODEL_CONTEXT_LENGTH, DEFAULT_MODEL_MAX_TOKENS } from '@shared/modelConfigDefaults'
 import { createStreamEvent } from '@shared/types/core/llm-events'
 import { BaseLLMProvider, SUMMARY_TITLES_PROMPT } from '../baseProvider'
 import OpenAI, { AzureOpenAI } from 'openai'
@@ -162,8 +163,8 @@ export class OpenAIResponsesProvider extends BaseLLMProvider {
       group: 'default',
       providerId: this.provider.id,
       isCustom: false,
-      contextLength: 4096,
-      maxTokens: 2048
+      contextLength: DEFAULT_MODEL_CONTEXT_LENGTH,
+      maxTokens: DEFAULT_MODEL_MAX_TOKENS
     }))
   }
 

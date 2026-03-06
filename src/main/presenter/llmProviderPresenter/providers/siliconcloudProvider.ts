@@ -9,6 +9,7 @@ import {
   ModelConfig,
   MCPToolDefinition
 } from '@shared/presenter'
+import { DEFAULT_MODEL_CONTEXT_LENGTH, DEFAULT_MODEL_MAX_TOKENS } from '@shared/modelConfigDefaults'
 import { OpenAICompatibleProvider } from './openAICompatibleProvider'
 
 // Define interface for SiliconCloud API key response
@@ -117,8 +118,8 @@ export class SiliconcloudProvider extends OpenAICompatibleProvider {
       group: 'default',
       providerId: this.provider.id,
       isCustom: false,
-      contextLength: 4096,
-      maxTokens: 2048
+      contextLength: DEFAULT_MODEL_CONTEXT_LENGTH,
+      maxTokens: DEFAULT_MODEL_MAX_TOKENS
     }))
   }
 

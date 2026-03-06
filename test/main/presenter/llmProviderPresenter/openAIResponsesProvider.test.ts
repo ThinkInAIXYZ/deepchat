@@ -210,6 +210,23 @@ describe('OpenAIResponsesProvider tool call id mapping', () => {
     expect(stopEvent?.stop_reason).toBe('tool_use')
   })
 
+  it('uses unified fallback defaults when model list lacks capability metadata', async () => {
+    mockModelsList.mockResolvedValue({
+      data: [{ id: 'gpt-4.1' }]
+    })
+
+    const provider = new OpenAIResponsesProvider(mockProvider, mockConfigPresenter)
+    const models = await (provider as any).fetchOpenAIModels()
+
+    expect(models).toEqual([
+      expect.objectContaining({
+        id: 'gpt-4.1',
+        contextLength: 16000,
+        maxTokens: 4096
+      })
+    ])
+  })
+
   it('falls back to output_index mapping when item id is unavailable', async () => {
     mockResponsesCreate.mockResolvedValue(
       createAsyncStream([

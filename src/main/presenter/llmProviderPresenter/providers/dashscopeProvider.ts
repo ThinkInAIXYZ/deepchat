@@ -8,6 +8,7 @@ import {
   ModelConfig,
   MCPToolDefinition
 } from '@shared/presenter'
+import { DEFAULT_MODEL_CONTEXT_LENGTH, DEFAULT_MODEL_MAX_TOKENS } from '@shared/modelConfigDefaults'
 import { OpenAICompatibleProvider } from './openAICompatibleProvider'
 import { modelCapabilities } from '../../configPresenter/modelCapabilities'
 
@@ -73,8 +74,8 @@ export class DashscopeProvider extends OpenAICompatibleProvider {
       group: 'default',
       providerId: this.provider.id,
       isCustom: false,
-      contextLength: 8192,
-      maxTokens: 4096
+      contextLength: DEFAULT_MODEL_CONTEXT_LENGTH,
+      maxTokens: DEFAULT_MODEL_MAX_TOKENS
     }))
   }
 

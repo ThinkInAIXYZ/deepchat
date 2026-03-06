@@ -11,6 +11,7 @@ import {
   LLM_EMBEDDING_ATTRS,
   IConfigPresenter
 } from '@shared/presenter'
+import { DEFAULT_MODEL_CONTEXT_LENGTH, DEFAULT_MODEL_MAX_TOKENS } from '@shared/modelConfigDefaults'
 import { createStreamEvent } from '@shared/types/core/llm-events'
 import { BaseLLMProvider, SUMMARY_TITLES_PROMPT } from '../baseProvider'
 import { Ollama, Message, ShowResponse } from 'ollama'
@@ -82,8 +83,8 @@ export class OllamaProvider extends BaseLLMProvider {
         id: model.name,
         name: model.name,
         providerId: this.provider.id,
-        contextLength: 8192, // Default value, can be adjusted based on actual model information
-        maxTokens: 2048, // Add required maxTokens field
+        contextLength: DEFAULT_MODEL_CONTEXT_LENGTH,
+        maxTokens: DEFAULT_MODEL_MAX_TOKENS,
         isCustom: false,
         group: model.details?.family || 'default',
         description: `${model.details?.parameter_size || ''} ${model.details?.family || ''} model`
@@ -343,7 +344,7 @@ export class OllamaProvider extends BaseLLMProvider {
       const showResponse = await this.showModelInfo(model.name)
       const info = showResponse.model_info
       const family = model.details.family
-      const context_length = info?.[family + '.context_length'] ?? 4096
+      const context_length = info?.[family + '.context_length'] ?? DEFAULT_MODEL_CONTEXT_LENGTH
       const embedding_length = info?.[family + '.embedding_length'] ?? 512
       const capabilities = showResponse.capabilities ?? ['chat']
 

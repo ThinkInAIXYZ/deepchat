@@ -385,6 +385,12 @@ import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import { ApiEndpointType, ModelType } from '@shared/model'
 import type { ModelConfig } from '@shared/presenter'
+import {
+  DEFAULT_MODEL_CONTEXT_LENGTH,
+  DEFAULT_MODEL_FUNCTION_CALL,
+  DEFAULT_MODEL_MAX_TOKENS,
+  DEFAULT_MODEL_VISION
+} from '@shared/modelConfigDefaults'
 import { useModelConfigStore } from '@/stores/modelConfigStore'
 import { useModelStore } from '@/stores/modelStore'
 import { useProviderStore } from '@/stores/providerStore'
@@ -476,11 +482,11 @@ const showApiEndpointSelector = computed(
 )
 
 const createDefaultConfig = (): ModelConfig => ({
-  maxTokens: 4096,
-  contextLength: 8192,
+  maxTokens: DEFAULT_MODEL_MAX_TOKENS,
+  contextLength: DEFAULT_MODEL_CONTEXT_LENGTH,
   temperature: 0.7,
-  vision: false,
-  functionCall: false,
+  vision: DEFAULT_MODEL_VISION,
+  functionCall: DEFAULT_MODEL_FUNCTION_CALL,
   reasoning: false,
   type: ModelType.Chat,
   apiEndpoint: ApiEndpointType.Chat,
@@ -552,10 +558,10 @@ const buildCustomModelPayload = (id: string, name: string, enabled?: boolean) =>
   id,
   name,
   enabled: enabled ?? true,
-  contextLength: config.value.contextLength ?? 4096,
-  maxTokens: config.value.maxTokens ?? 2048,
-  vision: config.value.vision ?? false,
-  functionCall: config.value.functionCall ?? false,
+  contextLength: config.value.contextLength ?? DEFAULT_MODEL_CONTEXT_LENGTH,
+  maxTokens: config.value.maxTokens ?? DEFAULT_MODEL_MAX_TOKENS,
+  vision: config.value.vision ?? DEFAULT_MODEL_VISION,
+  functionCall: config.value.functionCall ?? DEFAULT_MODEL_FUNCTION_CALL,
   reasoning: config.value.reasoning ?? false,
   type: config.value.type ?? ModelType.Chat
 })

@@ -168,6 +168,10 @@ export interface ModelConfig {
   maxCompletionTokens?: number // GPT-5 series uses this parameter to replace maxTokens
   conversationId?: string
   apiEndpoint?: ApiEndpointType
+  // Search-related parameters
+  enableSearch?: boolean
+  forcedSearch?: boolean
+  searchStrategy?: 'turbo' | 'balanced' | 'precise'
 }
 
 export interface IModelConfig {

@@ -121,7 +121,7 @@ const setup = async (options: SetupOptions = {}) => {
     setSetting: vi.fn().mockResolvedValue(undefined),
     getModelConfig: vi.fn().mockReturnValue({
       temperature: 0.7,
-      contextLength: 8192,
+      contextLength: 16000,
       maxTokens: 4096,
       thinkingBudget: 512,
       reasoningEffort: 'medium',
@@ -146,8 +146,8 @@ const setup = async (options: SetupOptions = {}) => {
   const baseSessionSettings = {
     systemPrompt: 'Default prompt',
     temperature: 0.7,
-    contextLength: 8192,
-    maxTokens: 2048,
+    contextLength: 16000,
+    maxTokens: 4096,
     thinkingBudget: 512,
     reasoningEffort: 'medium' as const,
     verbosity: 'medium' as const
@@ -259,6 +259,13 @@ describe('ChatStatusBar advanced settings', () => {
       supportsEffort: false
     })
     expect((disabled.wrapper.vm as any).showEffortSelector).toBe(false)
+  })
+
+  it('uses unified defaults for draft advanced settings', async () => {
+    const { wrapper } = await setup({ agentId: 'deepchat', hasActiveSession: false })
+
+    expect((wrapper.vm as any).localSettings.contextLength).toBe(16000)
+    expect((wrapper.vm as any).localSettings.maxTokens).toBe(4096)
   })
 
   it('debounces generation setting persistence to a single session update', async () => {
