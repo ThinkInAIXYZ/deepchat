@@ -247,6 +247,43 @@ export class DeepChatSessionsTable extends BaseTable {
       )
   }
 
+  updateSummaryStateIfMatches(
+    id: string,
+    state: {
+      summaryText: string | null
+      summaryCursorOrderSeq: number
+      summaryUpdatedAt: number | null
+    },
+    expectedState: {
+      summaryText: string | null
+      summaryCursorOrderSeq: number
+      summaryUpdatedAt: number | null
+    }
+  ): boolean {
+    const result = this.db
+      .prepare(
+        `UPDATE deepchat_sessions
+         SET summary_text = ?, summary_cursor_order_seq = ?, summary_updated_at = ?
+         WHERE id = ?
+           AND summary_cursor_order_seq = ?
+           AND ((summary_text = ?) OR (summary_text IS NULL AND ? IS NULL))
+           AND ((summary_updated_at = ?) OR (summary_updated_at IS NULL AND ? IS NULL))`
+      )
+      .run(
+        state.summaryText ?? null,
+        Math.max(1, state.summaryCursorOrderSeq),
+        state.summaryUpdatedAt ?? null,
+        id,
+        Math.max(1, expectedState.summaryCursorOrderSeq),
+        expectedState.summaryText ?? null,
+        expectedState.summaryText ?? null,
+        expectedState.summaryUpdatedAt ?? null,
+        expectedState.summaryUpdatedAt ?? null
+      )
+
+    return result.changes > 0
+  }
+
   resetSummaryState(id: string): void {
     this.db
       .prepare(

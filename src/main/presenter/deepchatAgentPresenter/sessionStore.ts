@@ -8,6 +8,11 @@ export type SessionSummaryState = {
   summaryUpdatedAt: number | null
 }
 
+export type SummaryStateCompareAndSetResult = {
+  applied: boolean
+  currentState: SessionSummaryState
+}
+
 function normalizeSummaryState(row: DeepChatSessionSummaryRow | null): SessionSummaryState {
   return {
     summaryText: row?.summary_text ?? null,
@@ -69,6 +74,33 @@ export class DeepChatSessionStore {
 
   updateSummaryState(id: string, state: SessionSummaryState): void {
     this.sqlitePresenter.deepchatSessionsTable.updateSummaryState(id, state)
+  }
+
+  compareAndSetSummaryState(
+    id: string,
+    expectedState: SessionSummaryState,
+    nextState: SessionSummaryState
+  ): SummaryStateCompareAndSetResult {
+    const applied = this.sqlitePresenter.deepchatSessionsTable.updateSummaryStateIfMatches(
+      id,
+      nextState,
+      expectedState
+    )
+    if (applied) {
+      return {
+        applied: true,
+        currentState: {
+          summaryText: nextState.summaryText,
+          summaryCursorOrderSeq: Math.max(1, nextState.summaryCursorOrderSeq),
+          summaryUpdatedAt: nextState.summaryUpdatedAt
+        }
+      }
+    }
+
+    return {
+      applied: false,
+      currentState: this.getSummaryState(id)
+    }
   }
 
   resetSummaryState(id: string): void {

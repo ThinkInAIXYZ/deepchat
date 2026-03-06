@@ -17,6 +17,7 @@ function createMockSqlitePresenter() {
       get: vi.fn(),
       getMaxOrderSeq: vi.fn().mockReturnValue(0),
       deleteBySession: vi.fn(),
+      delete: vi.fn(),
       deleteFromOrderSeq: vi.fn(),
       recoverPendingMessages: vi.fn().mockReturnValue(0)
     },
@@ -24,6 +25,12 @@ function createMockSqlitePresenter() {
       insert: vi.fn().mockReturnValue(1),
       listByMessageId: vi.fn().mockReturnValue([]),
       countByMessageId: vi.fn().mockReturnValue(0),
+      deleteByMessageIds: vi.fn(),
+      deleteBySessionId: vi.fn()
+    },
+    deepchatMessageSearchResultsTable: {
+      add: vi.fn(),
+      listByMessageId: vi.fn().mockReturnValue([]),
       deleteByMessageIds: vi.fn(),
       deleteBySessionId: vi.fn()
     }
@@ -220,7 +227,24 @@ describe('DeepChatMessageStore', () => {
       expect(sqlitePresenter.deepchatMessageTracesTable.deleteBySessionId).toHaveBeenCalledWith(
         's1'
       )
+      expect(
+        sqlitePresenter.deepchatMessageSearchResultsTable.deleteBySessionId
+      ).toHaveBeenCalledWith('s1')
       expect(sqlitePresenter.deepchatMessagesTable.deleteBySession).toHaveBeenCalledWith('s1')
+    })
+  })
+
+  describe('deleteMessage', () => {
+    it('deletes traces and search results before removing the message', () => {
+      store.deleteMessage('m1')
+
+      expect(sqlitePresenter.deepchatMessageTracesTable.deleteByMessageIds).toHaveBeenCalledWith([
+        'm1'
+      ])
+      expect(
+        sqlitePresenter.deepchatMessageSearchResultsTable.deleteByMessageIds
+      ).toHaveBeenCalledWith(['m1'])
+      expect(sqlitePresenter.deepchatMessagesTable.delete).toHaveBeenCalledWith('m1')
     })
   })
 

@@ -84,6 +84,20 @@ function createMockSqlitePresenter() {
         summaryState.summary_cursor_order_seq = nextState.summaryCursorOrderSeq ?? 1
         summaryState.summary_updated_at = nextState.summaryUpdatedAt ?? null
       }),
+      updateSummaryStateIfMatches: vi.fn((_id: string, nextState: any, expectedState: any) => {
+        if (
+          summaryState.summary_text !== (expectedState.summaryText ?? null) ||
+          summaryState.summary_cursor_order_seq !== (expectedState.summaryCursorOrderSeq ?? 1) ||
+          summaryState.summary_updated_at !== (expectedState.summaryUpdatedAt ?? null)
+        ) {
+          return false
+        }
+
+        summaryState.summary_text = nextState.summaryText ?? null
+        summaryState.summary_cursor_order_seq = nextState.summaryCursorOrderSeq ?? 1
+        summaryState.summary_updated_at = nextState.summaryUpdatedAt ?? null
+        return true
+      }),
       resetSummaryState: vi.fn(() => {
         summaryState.summary_text = null
         summaryState.summary_cursor_order_seq = 1
@@ -530,11 +544,18 @@ describe('DeepChatAgentPresenter', () => {
       await agent.processMessage('s1', 'new prompt')
 
       expect(llmProvider.generateText).toHaveBeenCalledTimes(1)
-      expect(sqlitePresenter.deepchatSessionsTable.updateSummaryState).toHaveBeenCalledWith(
+      expect(
+        sqlitePresenter.deepchatSessionsTable.updateSummaryStateIfMatches
+      ).toHaveBeenCalledWith(
         's1',
         expect.objectContaining({
           summaryText: expect.stringContaining('## Current Goal'),
           summaryCursorOrderSeq: 3
+        }),
+        expect.objectContaining({
+          summaryText: null,
+          summaryCursorOrderSeq: 1,
+          summaryUpdatedAt: null
         })
       )
 

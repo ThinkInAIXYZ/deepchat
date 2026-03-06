@@ -182,6 +182,36 @@ function createMockSqlitePresenter() {
           row.summary_updated_at = state.summaryUpdatedAt
         }
       ),
+      updateSummaryStateIfMatches: vi.fn(
+        (
+          id: string,
+          state: {
+            summaryText: string | null
+            summaryCursorOrderSeq: number
+            summaryUpdatedAt: number | null
+          },
+          expectedState: {
+            summaryText: string | null
+            summaryCursorOrderSeq: number
+            summaryUpdatedAt: number | null
+          }
+        ) => {
+          const row = deepchatSessionsStore.get(id)
+          if (!row) return false
+          if (
+            row.summary_text !== (expectedState.summaryText ?? null) ||
+            row.summary_cursor_order_seq !== (expectedState.summaryCursorOrderSeq ?? 1) ||
+            row.summary_updated_at !== (expectedState.summaryUpdatedAt ?? null)
+          ) {
+            return false
+          }
+
+          row.summary_text = state.summaryText ?? null
+          row.summary_cursor_order_seq = state.summaryCursorOrderSeq ?? 1
+          row.summary_updated_at = state.summaryUpdatedAt ?? null
+          return true
+        }
+      ),
       resetSummaryState: vi.fn((id: string) => {
         const row = deepchatSessionsStore.get(id)
         if (!row) return
