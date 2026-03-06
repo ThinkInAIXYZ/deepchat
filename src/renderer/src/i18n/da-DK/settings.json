@@ -666,6 +666,9 @@
     "enabledDescription": "Aktivér eller deaktiver MCP-funktioner og værktøjer",
     "enableToAccess": "Aktivér MCP for at få adgang til konfigurationsmuligheder",
     "marketplace": "Gå til MCP Market for installation med ét klik",
+    "marketMenu": {
+      "higress": "Higress"
+    },
     "technicalDetails": "Tekniske detaljer",
     "httpServer": "HTTP-server",
     "localProcess": "Lokal proces",

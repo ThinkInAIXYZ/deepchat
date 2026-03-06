@@ -1,6 +1,17 @@
 <template>
   <div class="w-full h-full flex flex-col">
     <div class="p-4 sticky top-0 z-10 flex items-center gap-2">
+      <Button
+        v-if="embedded"
+        variant="ghost"
+        size="sm"
+        class="h-8 px-2 text-xs"
+        @click="emit('back')"
+      >
+        <Icon icon="lucide:chevron-left" class="w-4 h-4 mr-1" />
+        {{ t('common.back') }}
+      </Button>
+
       <div class="flex flex-col">
         <div class="font-medium">{{ t('mcp.market.builtinTitle') }}</div>
         <a
@@ -125,6 +136,19 @@ import { Input } from '@shadcn/components/ui/input'
 import { usePresenter } from '@/composables/usePresenter'
 import { useToast } from '@/components/use-toast'
 import { Separator } from '@shadcn/components/ui/separator'
+
+withDefaults(
+  defineProps<{
+    embedded?: boolean
+  }>(),
+  {
+    embedded: false
+  }
+)
+
+const emit = defineEmits<{
+  back: []
+}>()
 
 const { t } = useI18n()
 const { toast } = useToast()

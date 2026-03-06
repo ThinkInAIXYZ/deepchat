@@ -1116,6 +1116,9 @@ declare module 'vue-i18n' {
       enabledDescription: string
       enableToAccess: string
       marketplace: string
+      marketMenu: {
+        higress: string
+      }
       technicalDetails: string
       httpServer: string
       localProcess: string

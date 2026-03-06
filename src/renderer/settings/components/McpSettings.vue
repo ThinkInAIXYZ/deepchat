@@ -1,5 +1,9 @@
 <template>
-  <div class="w-full h-full flex flex-col">
+  <div v-if="isMarketView" class="w-full h-full">
+    <McpBuiltinMarket embedded @back="closeMarketView" />
+  </div>
+
+  <div v-else class="w-full h-full flex flex-col">
     <!-- MCP 总开关 - 卡片样式 -->
     <div class="shrink-0 px-4 pt-4">
       <div class="flex items-center justify-between">
@@ -149,6 +153,7 @@
 import { useI18n } from 'vue-i18n'
 import { computed, ref, onMounted } from 'vue'
 import McpServers from '@/components/mcp-config/components/McpServers.vue'
+import McpBuiltinMarket from './McpBuiltinMarket.vue'
 import { Switch } from '@shadcn/components/ui/switch'
 import { Button } from '@shadcn/components/ui/button'
 import { Input } from '@shadcn/components/ui/input'
@@ -170,14 +175,18 @@ import {
 import { useMcpStore } from '@/stores/mcp'
 import { useLanguageStore } from '@/stores/language'
 import { useToast } from '@/components/use-toast'
+import { useRoute, useRouter } from 'vue-router'
 
 const { t } = useI18n()
 const languageStore = useLanguageStore()
 const mcpStore = useMcpStore()
 const { toast } = useToast()
+const route = useRoute()
+const router = useRouter()
 
 // 计算属性
 const mcpEnabled = computed(() => mcpStore.mcpEnabled)
+const isMarketView = computed(() => route.query.view === 'market')
 
 // NPM Registry 相关状态
 const npmRegistryStatus = ref<{
@@ -375,4 +384,14 @@ const clearCustomNpmRegistry = async () => {
 onMounted(() => {
   loadNpmRegistryStatus()
 })
+
+const closeMarketView = async () => {
+  const nextQuery = { ...route.query }
+  delete nextQuery.view
+
+  await router.replace({
+    name: 'settings-mcp',
+    query: nextQuery
+  })
+}
 </script>

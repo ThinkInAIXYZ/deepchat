@@ -840,6 +840,9 @@
     "cannotRemoveBuiltIn": "내장 서버를 제거할 수 없음",
     "builtInServerCannotBeRemoved": "내장 서버는 제거할 수 없으며, 매개변수와 환경 변수만 수정할 수 있습니다",
     "marketplace": "MCP 시장으로 가서 한 번의 클릭으로 설치하십시오.",
+    "marketMenu": {
+      "higress": "Higress"
+    },
     "maxDefaultServersReached": "최대 3 개의 기본 서버 만 설정할 수 있습니다",
     "removeDefaultFirst": "기본 서버를 먼저 제거하십시오",
     "higressMarket": "Higress MCP 설치로 이동하십시오",

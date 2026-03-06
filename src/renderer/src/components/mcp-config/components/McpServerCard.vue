@@ -173,7 +173,7 @@ watch(watchDescription, () => {
             <DropdownMenuItem
               v-if="!isBuiltIn"
               :disabled="disabled"
-              class="text-destructive focus:text-destructive"
+              class="text-red-600 dark:text-red-400/90 focus:bg-red-50 focus:text-red-700 dark:focus:bg-red-950/40 dark:focus:text-red-300 [&_svg]:text-current"
               @click="$emit('remove')"
             >
               <Icon icon="lucide:trash-2" class="h-4 w-4 mr-2" />

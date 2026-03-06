@@ -20,7 +20,6 @@ import { Icon } from '@iconify/vue'
 import { X } from 'lucide-vue-next'
 import ModelIcon from '@/components/icons/ModelIcon.vue'
 import { useModelStore } from '@/stores/modelStore'
-import { MCP_MARKETPLACE_URL, HIGRESS_MCP_MARKETPLACE_URL } from './const'
 import { usePresenter } from '@/composables/usePresenter'
 import { nanoid } from 'nanoid'
 
@@ -647,16 +646,6 @@ watch(
   { immediate: true } // Run immediately on component mount
 )
 
-// 打开MCP Marketplace
-const openMcpMarketplace = (): void => {
-  window.open(MCP_MARKETPLACE_URL, '_blank')
-}
-
-// 打开Higress MCP Marketplace
-const openHigressMcpMarketplace = (): void => {
-  window.open(HIGRESS_MCP_MARKETPLACE_URL, '_blank')
-}
-
 // --- 新增辅助函数 ---
 // 解析 Key=Value 格式为 JSON 对象
 const parseKeyValueHeaders = (text: string): Record<string, string> => {
@@ -693,33 +682,6 @@ HTTP-Referer=deepchatai.cn`
       <div class="space-y-4 px-4 pb-4">
         <div class="text-sm">
           {{ t('settings.mcp.serverForm.jsonConfigIntro') }}
-        </div>
-
-        <!-- MCP Marketplace 入口 -->
-        <div class="my-4">
-          <div class="flex gap-2">
-            <Button
-              v-if="false"
-              variant="outline"
-              class="flex-1 flex items-center justify-center gap-2"
-              @click="openMcpMarketplace"
-            >
-              <Icon icon="lucide:shopping-bag" class="w-4 h-4" />
-              <span>{{ t('settings.mcp.serverForm.browseMarketplace') }}</span>
-              <Icon icon="lucide:external-link" class="w-3.5 h-3.5 text-muted-foreground" />
-            </Button>
-
-            <!-- Higress MCP Marketplace 入口 -->
-            <Button
-              variant="outline"
-              class="flex-1 flex items-center justify-center gap-2"
-              @click="openHigressMcpMarketplace"
-            >
-              <img src="@/assets/mcp-icons/higress.avif" class="w-4 h-4" />
-              <span>{{ $t('settings.mcp.serverForm.browseHigress') }}</span>
-              <Icon icon="lucide:external-link" class="w-3.5 h-3.5 text-muted-foreground" />
-            </Button>
-          </div>
         </div>
 
         <div class="space-y-2">

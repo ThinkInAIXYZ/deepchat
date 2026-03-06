@@ -11,6 +11,12 @@ import {
   DialogTrigger,
   DialogDescription
 } from '@shadcn/components/ui/dialog'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
+} from '@shadcn/components/ui/dropdown-menu'
 import { useMcpStore } from '@/stores/mcp'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/components/use-toast'
@@ -21,6 +27,7 @@ import McpToolPanel from './McpToolPanel.vue'
 import McpPromptPanel from './McpPromptPanel.vue'
 import McpResourceViewer from './McpResourceViewer.vue'
 import type { MCPServerConfig } from '@shared/presenter'
+import { HIGRESS_MCP_MARKETPLACE_URL } from '../const'
 
 const mcpStore = useMcpStore()
 const { t } = useI18n()
@@ -178,6 +185,20 @@ const handleViewResources = async (serverName: string) => {
   await mcpStore.loadResources()
   isResourceViewerOpen.value = true
 }
+
+const openMarketView = async () => {
+  await router.push({
+    name: 'settings-mcp',
+    query: {
+      ...router.currentRoute.value.query,
+      view: 'market'
+    }
+  })
+}
+
+const openHigressMarket = () => {
+  window.open(HIGRESS_MCP_MARKETPLACE_URL, '_blank')
+}
 </script>
 
 <template>
@@ -297,6 +318,23 @@ const handleViewResources = async (serverName: string) => {
 
         <!-- 右侧：操作按钮 -->
         <div class="flex space-x-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger as-child>
+              <Button variant="outline" size="sm" class="h-8 px-3 text-xs gap-1.5">
+                <Icon icon="lucide:shopping-bag" class="h-3.5 w-3.5" />
+                {{ t('routes.settings-mcp-market') }}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem class="text-xs" @click="openMarketView">
+                {{ t('routes.settings-mcp-market') }}
+              </DropdownMenuItem>
+              <DropdownMenuItem class="text-xs" @click="openHigressMarket">
+                {{ t('settings.mcp.marketMenu.higress') }}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
           <Dialog v-model:open="isAddServerDialogOpen">
             <DialogTrigger as-child>
               <Button size="sm" class="h-8 px-3 text-xs">
@@ -355,14 +393,19 @@ const handleViewResources = async (serverName: string) => {
             {{ t('settings.mcp.confirmRemoveServer', { name: selectedServer }) }}
           </DialogDescription>
         </DialogHeader>
-        <DialogFooter class="flex-row gap-2 justify-end">
-          <Button variant="outline" size="sm" @click="isRemoveConfirmDialogOpen = false">
+        <div class="mt-2 flex flex-row items-center justify-end gap-3">
+          <Button
+            variant="outline"
+            size="sm"
+            class="min-w-24"
+            @click="isRemoveConfirmDialogOpen = false"
+          >
             {{ t('common.cancel') }}
           </Button>
-          <Button variant="destructive" size="sm" @click="confirmRemoveServer">
+          <Button variant="destructive" size="sm" class="min-w-24" @click="confirmRemoveServer">
             {{ t('common.confirm') }}
           </Button>
-        </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
 
