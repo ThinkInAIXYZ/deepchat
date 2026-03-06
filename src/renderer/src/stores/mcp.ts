@@ -664,14 +664,6 @@ export const useMcpStore = defineStore('mcp', () => {
     try {
       await setMcpServerEnabledMutation.mutateAsync([serverName, nextEnabled])
 
-      if (config.value.mcpEnabled) {
-        if (nextEnabled) {
-          await mcpPresenter.startServer(serverName)
-        } else {
-          await mcpPresenter.stopServer(serverName)
-        }
-      }
-
       await runQuery(configQuery, { force: true })
       await updateServerStatus(serverName)
       return true
@@ -679,6 +671,11 @@ export const useMcpStore = defineStore('mcp', () => {
       config.value.mcpServers = {
         ...config.value.mcpServers,
         [serverName]: previousConfig
+      }
+      try {
+        await setMcpServerEnabledMutation.mutateAsync([serverName, previousConfig.enabled])
+      } catch (rollbackError) {
+        console.error(`Failed to rollback MCP server state for ${serverName}`, rollbackError)
       }
       console.error(t('mcp.errors.toggleServerFailed', { serverName }), error)
       return false

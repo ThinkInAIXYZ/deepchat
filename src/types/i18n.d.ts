@@ -107,6 +107,12 @@ declare module 'vue-i18n' {
       agentWorkspaceTooltip: string
       agentWorkspaceSelect: string
       agentWorkspaceCurrent: string
+      mcp: {
+        badge: string
+        title: string
+        empty: string
+        openSettings: string
+      }
     }
     features: {
       webSearch: string

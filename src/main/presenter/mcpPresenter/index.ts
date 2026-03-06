@@ -368,6 +368,17 @@ export class McpPresenter implements IMCPPresenter {
 
   async setMcpServerEnabled(serverName: string, enabled: boolean): Promise<void> {
     await this.configPresenter.setMcpServerEnabled(serverName, enabled)
+
+    if (!(await this.configPresenter.getMcpEnabled())) {
+      return
+    }
+
+    if (enabled) {
+      await this.startServer(serverName)
+      return
+    }
+
+    await this.stopServer(serverName)
   }
 
   // Add MCP server

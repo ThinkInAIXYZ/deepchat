@@ -367,6 +367,7 @@ export class McpConfHelper {
     serverName: string,
     config: MCPServerConfig,
     legacyEnabledServers: Set<string>,
+    legacyKeysPresent: boolean,
     defaultEnabledServers: Set<string>
   ): MCPServerConfig {
     return {
@@ -374,7 +375,9 @@ export class McpConfHelper {
       enabled:
         typeof config.enabled === 'boolean'
           ? config.enabled
-          : legacyEnabledServers.has(serverName) || defaultEnabledServers.has(serverName)
+          : legacyKeysPresent
+            ? legacyEnabledServers.has(serverName)
+            : defaultEnabledServers.has(serverName)
     }
   }
 
@@ -438,20 +441,27 @@ export class McpConfHelper {
       this.mcpStore.get('mcpServers') || this.buildDefaultServerConfigs()
     )
     const legacyEnabledServers = this.resolveLegacyEnabledServers()
+    const legacyKeysPresent =
+      this.mcpStore.has('defaultServer') || this.mcpStore.has('defaultServers')
     const defaultEnabledServers = new Set(this.getDefaultEnabledServerNames())
 
     // 检查并补充缺少的inmemory服务
     const updatedServers = Object.fromEntries(
       Object.entries(storedServers).map(([name, config]) => [
         name,
-        this.normalizeServerConfig(name, config, legacyEnabledServers, defaultEnabledServers)
+        this.normalizeServerConfig(
+          name,
+          config,
+          legacyEnabledServers,
+          legacyKeysPresent,
+          defaultEnabledServers
+        )
       ])
     )
     const removedBuiltInServers = new Set(this.getRemovedBuiltInServers())
     let hasChanges =
       legacyEnabledServers.size > 0 ||
-      this.mcpStore.has('defaultServer') ||
-      this.mcpStore.has('defaultServers') ||
+      legacyKeysPresent ||
       Boolean((this.mcpStore.get('mcpServers') || {}).powerpack)
 
     const ensureBuiltInServerExists = (
@@ -577,6 +587,7 @@ export class McpConfHelper {
       name,
       config,
       new Set<string>(),
+      false,
       new Set(this.getDefaultEnabledServerNames())
     )
     if (this.isBuiltInServer(name)) {
@@ -916,10 +927,15 @@ export class McpConfHelper {
     // 升级后检查并添加平台特有服务
     try {
       const mcpServers = this.mcpStore.get('mcpServers') || {}
+      const removedBuiltInServers = new Set(this.getRemovedBuiltInServers())
       let hasChanges = false
 
       // 检查是否需要添加平台特有服务
-      if (isMacOS() && !mcpServers['deepchat/apple-server']) {
+      if (
+        isMacOS() &&
+        !mcpServers['deepchat/apple-server'] &&
+        !removedBuiltInServers.has('deepchat/apple-server')
+      ) {
         console.log('Detected macOS platform, adding Apple system integration service')
         mcpServers['deepchat/apple-server'] = {
           ...(PLATFORM_SPECIFIC_SERVERS['deepchat/apple-server'] as MCPServerConfig),
