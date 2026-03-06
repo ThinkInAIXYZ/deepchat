@@ -4,6 +4,12 @@ import { useQueryCache, type DataState, type EntryKey, type UseQueryEntry } from
 import { useThrottleFn } from '@vueuse/core'
 import type { MODEL_META, RENDERER_MODEL_META, ModelConfig } from '@shared/presenter'
 import { ModelType } from '@shared/model'
+import {
+  resolveModelContextLength,
+  resolveModelFunctionCall,
+  resolveModelMaxTokens,
+  resolveModelVision
+} from '@shared/modelConfigDefaults'
 import { useIpcMutation } from '@/composables/useIpcMutation'
 import { usePresenter } from '@/composables/usePresenter'
 import { useAgentModelStore } from '@/stores/agentModelStore'
@@ -102,14 +108,14 @@ export const useModelStore = defineStore('model', () => {
   const normalizeRendererModel = (model: MODEL_META, providerId: string): RENDERER_MODEL_META => ({
     id: model.id,
     name: model.name || model.id,
-    contextLength: model.contextLength ?? 4096,
-    maxTokens: model.maxTokens ?? 2048,
+    contextLength: resolveModelContextLength(model.contextLength),
+    maxTokens: resolveModelMaxTokens(model.maxTokens),
     group: model.group || 'default',
     providerId,
     enabled: (model as RENDERER_MODEL_META).enabled ?? false,
     isCustom: model.isCustom ?? false,
-    vision: model.vision ?? false,
-    functionCall: model.functionCall ?? false,
+    vision: resolveModelVision(model.vision),
+    functionCall: resolveModelFunctionCall(model.functionCall),
     reasoning: model.reasoning ?? false,
     enableSearch: (model as RENDERER_MODEL_META).enableSearch ?? false,
     type: (model.type ?? ModelType.Chat) as ModelType
@@ -188,8 +194,8 @@ export const useModelStore = defineStore('model', () => {
   ): Promise<RENDERER_MODEL_META> => {
     const normalized: RENDERER_MODEL_META = {
       ...model,
-      vision: model.vision ?? false,
-      functionCall: model.functionCall ?? false,
+      vision: resolveModelVision(model.vision),
+      functionCall: resolveModelFunctionCall(model.functionCall),
       reasoning: model.reasoning ?? false,
       enableSearch: model.enableSearch ?? false,
       type: model.type ?? ModelType.Chat
@@ -202,10 +208,12 @@ export const useModelStore = defineStore('model', () => {
           config.maxTokens ?? config.maxCompletionTokens ?? normalized.maxTokens
         return {
           ...normalized,
-          contextLength: config.contextLength ?? normalized.contextLength,
+          contextLength: resolveModelContextLength(
+            config.contextLength ?? normalized.contextLength
+          ),
           maxTokens: resolvedMaxTokens,
-          vision: config.vision ?? normalized.vision ?? false,
-          functionCall: config.functionCall ?? normalized.functionCall ?? false,
+          vision: resolveModelVision(config.vision ?? normalized.vision),
+          functionCall: resolveModelFunctionCall(config.functionCall ?? normalized.functionCall),
           reasoning: config.reasoning ?? normalized.reasoning ?? false,
           type: config.type ?? normalized.type ?? ModelType.Chat
         }
@@ -336,10 +344,12 @@ export const useModelStore = defineStore('model', () => {
             providerId,
             enabled: false,
             isCustom: model.isCustom ?? fallback?.isCustom ?? false,
-            contextLength: model.contextLength ?? fallback?.contextLength ?? 4096,
-            maxTokens: model.maxTokens ?? fallback?.maxTokens ?? 2048,
-            vision: model.vision ?? fallback?.vision ?? false,
-            functionCall: model.functionCall ?? fallback?.functionCall ?? false,
+            contextLength: resolveModelContextLength(
+              model.contextLength ?? fallback?.contextLength
+            ),
+            maxTokens: resolveModelMaxTokens(model.maxTokens ?? fallback?.maxTokens),
+            vision: resolveModelVision(model.vision ?? fallback?.vision),
+            functionCall: resolveModelFunctionCall(model.functionCall ?? fallback?.functionCall),
             reasoning: model.reasoning ?? fallback?.reasoning ?? false,
             enableSearch:
               (model as RENDERER_MODEL_META).enableSearch ??
@@ -506,8 +516,8 @@ export const useModelStore = defineStore('model', () => {
           const normalizedModel: RENDERER_MODEL_META = {
             ...sourceModel,
             enabled: true,
-            vision: sourceModel.vision ?? false,
-            functionCall: sourceModel.functionCall ?? false,
+            vision: resolveModelVision(sourceModel.vision),
+            functionCall: resolveModelFunctionCall(sourceModel.functionCall),
             reasoning: sourceModel.reasoning ?? false,
             type: sourceModel.type ?? ModelType.Chat
           }

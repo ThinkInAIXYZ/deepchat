@@ -5,16 +5,23 @@ const createQueryCache = () => {
   return {
     ensure: vi.fn((options: any) => ({
       key: options.key,
+      query: options.query,
       state: ref({ data: undefined })
     })),
     invalidateQueries: vi.fn(async () => undefined),
-    refresh: vi.fn(async (entry: any) => entry.state.value),
-    fetch: vi.fn(async (entry: any) => entry.state.value),
+    refresh: vi.fn(async (entry: any) => {
+      entry.state.value = { data: await entry.query() }
+      return entry.state.value
+    }),
+    fetch: vi.fn(async (entry: any) => {
+      entry.state.value = { data: await entry.query() }
+      return entry.state.value
+    }),
     setQueriesData: vi.fn()
   }
 }
 
-const setupStore = async () => {
+const setupStore = async (overrides?: { configPresenter?: Record<string, any> }) => {
   vi.resetModules()
 
   const queryCache = createQueryCache()
@@ -28,7 +35,8 @@ const setupStore = async () => {
     getDbProviderModels: vi.fn(async () => []),
     getProviderModels: vi.fn(async () => []),
     getCustomModels: vi.fn(async () => []),
-    getBatchModelStatus: vi.fn(async () => ({}))
+    getBatchModelStatus: vi.fn(async () => ({})),
+    ...overrides?.configPresenter
   }
   const llmPresenter = {
     getModelList: vi.fn(async () => [])
@@ -95,5 +103,52 @@ describe('modelStore.refreshProviderModels', () => {
     expect(agentModelStore.refreshAgentModels).not.toHaveBeenCalled()
     expect(configPresenter.getDbProviderModels).toHaveBeenCalledWith('openai')
     expect(configPresenter.getProviderModels).toHaveBeenCalledWith('openai')
+  })
+
+  it('normalizes sparse model metadata with unified fallback defaults', async () => {
+    const sparseModel = {
+      id: 'gpt-sparse',
+      name: 'GPT Sparse',
+      providerId: 'openai',
+      isCustom: false
+    }
+    const { store } = await setupStore({
+      configPresenter: {
+        getDbProviderModels: vi.fn(async () => []),
+        getProviderModels: vi.fn(async () => [sparseModel]),
+        getBatchModelStatus: vi.fn(async () => ({ 'gpt-sparse': true }))
+      }
+    })
+
+    await store.refreshProviderModels('openai')
+
+    expect(store.allProviderModels.value).toEqual([
+      {
+        providerId: 'openai',
+        models: [
+          expect.objectContaining({
+            id: 'gpt-sparse',
+            contextLength: 16000,
+            maxTokens: 4096,
+            vision: false,
+            functionCall: true
+          })
+        ]
+      }
+    ])
+    expect(store.enabledModels.value).toEqual([
+      {
+        providerId: 'openai',
+        models: [
+          expect.objectContaining({
+            id: 'gpt-sparse',
+            contextLength: 16000,
+            maxTokens: 4096,
+            vision: false,
+            functionCall: true
+          })
+        ]
+      }
+    ])
   })
 })

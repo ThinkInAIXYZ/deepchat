@@ -120,10 +120,10 @@ describe('Model Configuration Tests', () => {
 
       expect(defaultConfig).toMatchObject({
         maxTokens: 4096,
-        contextLength: 8192,
+        contextLength: 16000,
         temperature: 0.6,
         vision: false,
-        functionCall: false,
+        functionCall: true,
         reasoning: false,
         type: ModelType.Chat
       })

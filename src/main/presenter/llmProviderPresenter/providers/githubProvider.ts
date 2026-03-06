@@ -5,6 +5,7 @@ import {
   ChatMessage,
   IConfigPresenter
 } from '@shared/presenter'
+import { DEFAULT_MODEL_CONTEXT_LENGTH, DEFAULT_MODEL_MAX_TOKENS } from '@shared/modelConfigDefaults'
 import { OpenAICompatibleProvider } from './openAICompatibleProvider'
 import { ModelsPage } from 'openai/resources'
 
@@ -26,8 +27,8 @@ export class GithubProvider extends OpenAICompatibleProvider {
       group: 'default',
       providerId: this.provider.id,
       isCustom: false,
-      contextLength: 4096,
-      maxTokens: 8192,
+      contextLength: DEFAULT_MODEL_CONTEXT_LENGTH,
+      maxTokens: DEFAULT_MODEL_MAX_TOKENS,
       description: model.description
     }))
   }
