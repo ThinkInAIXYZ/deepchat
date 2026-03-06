@@ -75,6 +75,8 @@
       </div>
 
       <div class="flex items-center gap-1">
+        <McpIndicator />
+
         <Button
           v-if="showAdvancedSettingsButton"
           ref="advancedButtonRef"
@@ -317,6 +319,7 @@ import {
 } from '@shadcn/components/ui/select'
 import { Icon } from '@iconify/vue'
 import ModelIcon from '../icons/ModelIcon.vue'
+import McpIndicator from '@/components/chat-input/McpIndicator.vue'
 import { useThemeStore } from '@/stores/theme'
 import { useModelStore } from '@/stores/modelStore'
 import { useAgentStore } from '@/stores/ui/agent'

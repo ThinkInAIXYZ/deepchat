@@ -17,8 +17,8 @@ export interface INpmRegistryCache {
 // MCP settings interface
 interface IMcpSettings {
   mcpServers: Record<string, MCPServerConfig>
-  defaultServer?: string // Keep old field for version compatibility
-  defaultServers: string[] // New: multiple default servers array
+  defaultServer?: string
+  defaultServers?: string[]
   mcpEnabled: boolean // Add MCP enabled status field
   npmRegistryCache?: INpmRegistryCache // NPM registry cache
   customNpmRegistry?: string // User custom NPM registry
@@ -59,7 +59,7 @@ function isLinux(): boolean {
 }
 
 // Platform-specific MCP server configurations
-const PLATFORM_SPECIFIC_SERVERS: Record<string, MCPServerConfig> = {
+const PLATFORM_SPECIFIC_SERVERS: Record<string, Omit<MCPServerConfig, 'enabled'>> = {
   // macOS specific services
   ...(isMacOS()
     ? {
@@ -110,7 +110,7 @@ const PLATFORM_SPECIFIC_SERVERS: Record<string, MCPServerConfig> = {
 }
 
 // Extract inmemory type services as constants
-const DEFAULT_INMEMORY_SERVERS: Record<string, MCPServerConfig> = {
+const DEFAULT_INMEMORY_SERVERS: Record<string, Omit<MCPServerConfig, 'enabled'>> = {
   // buildInFileSystem has been removed - filesystem capabilities are now provided via Agent tools
   Artifacts: {
     args: [],
@@ -172,16 +172,6 @@ const DEFAULT_INMEMORY_SERVERS: Record<string, MCPServerConfig> = {
     autoApprove: ['read_image_base64', 'read_multiple_images_base64'], // Auto-approve reading, require confirmation for uploads
     type: 'inmemory' as MCPServerType,
     command: 'image', // We need to map this command to the ImageServer class later
-    env: {},
-    disable: false
-  },
-  powerpack: {
-    args: [],
-    descriptions: 'DeepChat内置增强工具包',
-    icons: '🛠️',
-    autoApprove: ['all'],
-    type: 'inmemory' as MCPServerType,
-    command: 'powerpack',
     env: {},
     disable: false
   },
@@ -282,6 +272,8 @@ const DEFAULT_INMEMORY_SERVERS: Record<string, MCPServerConfig> = {
   ...PLATFORM_SPECIFIC_SERVERS
 }
 
+const DEFAULT_ENABLED_SERVER_NAMES = ['Artifacts', ...(isMacOS() ? ['deepchat/apple-server'] : [])]
+
 const DEFAULT_MCP_SERVERS = {
   mcpServers: {
     // First define built-in MCP servers
@@ -301,12 +293,7 @@ const DEFAULT_MCP_SERVERS = {
         APP: 'DeepChat'
       }
     }
-  },
-  defaultServers: [
-    'Artifacts',
-    // Add platform-specific services enabled by default based on platform
-    ...(isMacOS() ? ['deepchat/apple-server'] : [])
-  ],
+  } satisfies Record<string, Omit<MCPServerConfig, 'enabled'>>,
   mcpEnabled: false // MCP functionality is disabled by default
 }
 const BUILT_IN_SERVER_NAMES = new Set<string>(Object.keys(DEFAULT_MCP_SERVERS.mcpServers))
@@ -323,8 +310,7 @@ export class McpConfHelper {
     this.mcpStore = new ElectronStore<IMcpSettings>({
       name: 'mcp-settings',
       defaults: {
-        mcpServers: DEFAULT_MCP_SERVERS.mcpServers,
-        defaultServers: DEFAULT_MCP_SERVERS.defaultServers,
+        mcpServers: this.buildDefaultServerConfigs(),
         mcpEnabled: DEFAULT_MCP_SERVERS.mcpEnabled,
         autoDetectNpmRegistry: true,
         npmRegistryCache: undefined,
@@ -334,16 +320,85 @@ export class McpConfHelper {
     })
   }
 
+  private getDefaultEnabledServerNames(): string[] {
+    return [...DEFAULT_ENABLED_SERVER_NAMES]
+  }
+
+  private buildDefaultServerConfigs(): Record<string, MCPServerConfig> {
+    const enabledServers = new Set(this.getDefaultEnabledServerNames())
+
+    return Object.fromEntries(
+      Object.entries(DEFAULT_MCP_SERVERS.mcpServers).map(([name, config]) => [
+        name,
+        {
+          ...this.cloneServerConfig(config as unknown as MCPServerConfig),
+          enabled: enabledServers.has(name)
+        }
+      ])
+    )
+  }
+
+  private emitConfigChanged(servers: Record<string, MCPServerConfig>): void {
+    eventBus.send(MCP_EVENTS.CONFIG_CHANGED, SendTarget.ALL_WINDOWS, {
+      mcpServers: servers,
+      mcpEnabled: this.mcpStore.get('mcpEnabled')
+    })
+  }
+
+  private resolveLegacyEnabledServers(): Set<string> {
+    const enabled = new Set<string>()
+    const oldDefaultServer = this.mcpStore.get('defaultServer')
+    const oldDefaultServers = this.mcpStore.get('defaultServers') || []
+
+    if (typeof oldDefaultServer === 'string' && oldDefaultServer.trim()) {
+      enabled.add(oldDefaultServer.trim())
+    }
+
+    for (const serverName of oldDefaultServers) {
+      if (typeof serverName === 'string' && serverName.trim()) {
+        enabled.add(serverName.trim())
+      }
+    }
+
+    return enabled
+  }
+
+  private normalizeServerConfig(
+    serverName: string,
+    config: MCPServerConfig,
+    legacyEnabledServers: Set<string>,
+    defaultEnabledServers: Set<string>
+  ): MCPServerConfig {
+    return {
+      ...this.cloneServerConfig(config),
+      enabled:
+        typeof config.enabled === 'boolean'
+          ? config.enabled
+          : legacyEnabledServers.has(serverName) || defaultEnabledServers.has(serverName)
+    }
+  }
+
+  private removeDeprecatedBuiltInServers(
+    servers: Record<string, MCPServerConfig>
+  ): Record<string, MCPServerConfig> {
+    const deprecatedBuiltInServers = ['powerpack']
+
+    for (const serverName of deprecatedBuiltInServers) {
+      if (servers[serverName]) {
+        console.log(`Removing deprecated built-in MCP service: ${serverName}`)
+        delete servers[serverName]
+      }
+    }
+
+    return servers
+  }
+
   private getRemovedBuiltInServers(): string[] {
     return this.mcpStore.get('removedBuiltInServers') || []
   }
 
   private setRemovedBuiltInServers(servers: string[]): void {
     this.mcpStore.set('removedBuiltInServers', Array.from(new Set(servers)))
-  }
-
-  private clearRemovedBuiltInServers(): void {
-    this.mcpStore.set('removedBuiltInServers', [])
   }
 
   private isBuiltInServer(name: string): boolean {
@@ -379,19 +434,40 @@ export class McpConfHelper {
 
   // Get MCP server configuration
   async getMcpServers(): Promise<Record<string, MCPServerConfig>> {
-    const storedServers = this.mcpStore.get('mcpServers') || DEFAULT_MCP_SERVERS.mcpServers
+    const storedServers = this.removeDeprecatedBuiltInServers(
+      this.mcpStore.get('mcpServers') || this.buildDefaultServerConfigs()
+    )
+    const legacyEnabledServers = this.resolveLegacyEnabledServers()
+    const defaultEnabledServers = new Set(this.getDefaultEnabledServerNames())
 
     // 检查并补充缺少的inmemory服务
-    const updatedServers = { ...storedServers }
+    const updatedServers = Object.fromEntries(
+      Object.entries(storedServers).map(([name, config]) => [
+        name,
+        this.normalizeServerConfig(name, config, legacyEnabledServers, defaultEnabledServers)
+      ])
+    )
     const removedBuiltInServers = new Set(this.getRemovedBuiltInServers())
+    let hasChanges =
+      legacyEnabledServers.size > 0 ||
+      this.mcpStore.has('defaultServer') ||
+      this.mcpStore.has('defaultServers') ||
+      Boolean((this.mcpStore.get('mcpServers') || {}).powerpack)
 
-    const ensureBuiltInServerExists = (serverName: string, serverConfig: MCPServerConfig): void => {
+    const ensureBuiltInServerExists = (
+      serverName: string,
+      serverConfig: Omit<MCPServerConfig, 'enabled'>
+    ): void => {
       if (removedBuiltInServers.has(serverName)) {
         return
       }
       if (!updatedServers[serverName]) {
         console.log(`Adding missing built-in MCP service: ${serverName}`)
-        updatedServers[serverName] = this.cloneServerConfig(serverConfig)
+        updatedServers[serverName] = {
+          ...this.cloneServerConfig(serverConfig as MCPServerConfig),
+          enabled: defaultEnabledServers.has(serverName)
+        }
+        hasChanges = true
       }
     }
 
@@ -428,6 +504,7 @@ export class McpConfHelper {
     for (const serverName of serversToRemove) {
       console.log(`Removing service not supported on current platform: ${serverName}`)
       delete updatedServers[serverName]
+      hasChanges = true
     }
 
     // 移除不兼容的服务
@@ -437,14 +514,20 @@ export class McpConfHelper {
         'Built-in knowledge base service is not supported in current environment, removing related services'
       )
       delete updatedServers.builtinKnowledge
+      hasChanges = true
     }
 
     // 如果有变化，更新存储
     if (
+      hasChanges ||
       Object.keys(updatedServers).length !== Object.keys(storedServers).length ||
-      serversToRemove.length > 0
+      Object.entries(updatedServers).some(
+        ([serverName, config]) => storedServers[serverName]?.enabled !== config.enabled
+      )
     ) {
       this.mcpStore.set('mcpServers', updatedServers)
+      this.mcpStore.delete('defaultServer')
+      this.mcpStore.delete('defaultServers')
     }
 
     return Promise.resolve(updatedServers)
@@ -453,89 +536,33 @@ export class McpConfHelper {
   // 设置MCP服务器配置
   async setMcpServers(servers: Record<string, MCPServerConfig>): Promise<void> {
     this.mcpStore.set('mcpServers', servers)
-    eventBus.send(MCP_EVENTS.CONFIG_CHANGED, SendTarget.ALL_WINDOWS, {
-      mcpServers: servers,
-      defaultServers: this.mcpStore.get('defaultServers') || [],
-      mcpEnabled: this.mcpStore.get('mcpEnabled')
-    })
+    this.emitConfigChanged(servers)
   }
 
-  // 获取默认服务器列表
-  getMcpDefaultServers(): Promise<string[]> {
-    return Promise.resolve(this.mcpStore.get('defaultServers') || [])
+  async getEnabledMcpServers(): Promise<string[]> {
+    const servers = await this.getMcpServers()
+    return Object.entries(servers)
+      .filter(([, config]) => config.enabled)
+      .map(([name]) => name)
   }
 
-  // 添加默认服务器
-  async addMcpDefaultServer(serverName: string): Promise<void> {
-    const defaultServers = this.mcpStore.get('defaultServers') || []
-    const mcpServers = await this.getMcpServers() // 使用getMcpServers确保平台检查
-
-    // 检测并清理失效的服务器
-    const validDefaultServers = defaultServers.filter((server) => {
-      const exists = mcpServers[server] !== undefined
-      if (!exists) {
-        console.log(`Detected invalid MCP server: ${server}, removed from default list`)
-      }
-      return exists
-    })
-
-    // 检查要添加的服务器是否存在且支持当前平台
-    if (mcpServers[serverName]) {
-      // 添加新服务器（如果不在列表中）
-      if (!validDefaultServers.includes(serverName)) {
-        validDefaultServers.push(serverName)
-      }
-    } else {
-      console.log(
-        `Attempted to add non-existent or unsupported MCP server for current platform: ${serverName}`
-      )
+  async setMcpServerEnabled(serverName: string, enabled: boolean): Promise<void> {
+    const mcpServers = await this.getMcpServers()
+    const server = mcpServers[serverName]
+    if (!server) {
+      throw new Error(`MCP server ${serverName} not found`)
+    }
+    if (server.enabled === enabled) {
       return
     }
-
-    // 如果有变化则更新存储并发送事件
-    if (
-      validDefaultServers.length !== defaultServers.length ||
-      !defaultServers.includes(serverName)
-    ) {
-      this.mcpStore.set('defaultServers', validDefaultServers)
-      eventBus.send(MCP_EVENTS.CONFIG_CHANGED, SendTarget.ALL_WINDOWS, {
-        mcpServers: mcpServers,
-        defaultServers: validDefaultServers,
-        mcpEnabled: this.mcpStore.get('mcpEnabled')
-      })
-    }
-  }
-
-  // 移除默认服务器
-  async removeMcpDefaultServer(serverName: string): Promise<void> {
-    const defaultServers = this.mcpStore.get('defaultServers') || []
-    const updatedServers = defaultServers.filter((name) => name !== serverName)
-    this.mcpStore.set('defaultServers', updatedServers)
-    eventBus.send(MCP_EVENTS.CONFIG_CHANGED, SendTarget.ALL_WINDOWS, {
-      mcpServers: this.mcpStore.get('mcpServers'),
-      defaultServers: updatedServers,
-      mcpEnabled: this.mcpStore.get('mcpEnabled')
-    })
-  }
-
-  // 切换服务器的默认状态
-  async toggleMcpDefaultServer(serverName: string): Promise<void> {
-    const defaultServers = this.mcpStore.get('defaultServers') || []
-    if (defaultServers.includes(serverName)) {
-      await this.removeMcpDefaultServer(serverName)
-    } else {
-      await this.addMcpDefaultServer(serverName)
-    }
+    mcpServers[serverName] = { ...server, enabled }
+    await this.setMcpServers(mcpServers)
   }
 
   // 设置MCP启用状态
   async setMcpEnabled(enabled: boolean): Promise<void> {
     this.mcpStore.set('mcpEnabled', enabled)
-    eventBus.send(MCP_EVENTS.CONFIG_CHANGED, SendTarget.ALL_WINDOWS, {
-      mcpServers: this.mcpStore.get('mcpServers'),
-      defaultServers: this.mcpStore.get('defaultServers'),
-      mcpEnabled: enabled
-    })
+    this.emitConfigChanged(await this.getMcpServers())
   }
 
   // 获取MCP启用状态
@@ -546,7 +573,12 @@ export class McpConfHelper {
   // 添加MCP服务器
   async addMcpServer(name: string, config: MCPServerConfig): Promise<boolean> {
     const mcpServers = await this.getMcpServers()
-    mcpServers[name] = config
+    mcpServers[name] = this.normalizeServerConfig(
+      name,
+      config,
+      new Set<string>(),
+      new Set(this.getDefaultEnabledServerNames())
+    )
     if (this.isBuiltInServer(name)) {
       this.unmarkBuiltInServerRemoved(name)
     }
@@ -642,12 +674,6 @@ export class McpConfHelper {
       this.markBuiltInServerRemoved(name)
     }
     await this.setMcpServers(mcpServers)
-
-    // 如果删除的服务器在默认服务器列表中，则从列表中移除
-    const defaultServers = await this.getMcpDefaultServers()
-    if (defaultServers.includes(name)) {
-      await this.removeMcpDefaultServer(name)
-    }
   }
 
   // 更新MCP服务器配置
@@ -661,42 +687,6 @@ export class McpConfHelper {
       ...config
     }
     await this.setMcpServers(mcpServers)
-  }
-
-  // 恢复默认服务器配置
-  async resetToDefaultServers(): Promise<void> {
-    const currentServers = await this.getMcpServers()
-    const updatedServers = { ...currentServers }
-
-    // 删除所有类型为inmemory的服务
-    for (const [serverName, serverConfig] of Object.entries(updatedServers)) {
-      if (serverConfig.type === 'inmemory') {
-        delete updatedServers[serverName]
-      }
-    }
-
-    // 遍历所有默认服务，有则覆盖，无则新增
-    for (const [serverName, serverConfig] of Object.entries(DEFAULT_MCP_SERVERS.mcpServers)) {
-      updatedServers[serverName] = serverConfig
-    }
-
-    // 更新服务器配置
-    await this.setMcpServers(updatedServers)
-
-    // 恢复默认服务器设置，确保平台特有服务的正确处理
-    const platformAwareDefaultServers = [
-      'Artifacts',
-      // Add platform-specific services enabled by default based on platform
-      ...(isMacOS() ? ['deepchat/apple-server'] : [])
-    ]
-
-    this.mcpStore.set('defaultServers', platformAwareDefaultServers)
-    this.clearRemovedBuiltInServers()
-    eventBus.send(MCP_EVENTS.CONFIG_CHANGED, SendTarget.ALL_WINDOWS, {
-      mcpServers: updatedServers,
-      defaultServers: platformAwareDefaultServers,
-      mcpEnabled: this.mcpStore.get('mcpEnabled')
-    })
   }
 
   /**
@@ -853,27 +843,12 @@ export class McpConfHelper {
 
   public onUpgrade(oldVersion: string | undefined): void {
     console.log('onUpgrade', oldVersion)
-    if (oldVersion && compare(oldVersion, '0.0.12', '<=')) {
-      // 将旧版本的defaultServer迁移到新版本的defaultServers
-      const oldDefaultServer = this.mcpStore.get('defaultServer') as string | undefined
-      if (oldDefaultServer) {
-        console.log(`Migrating old version defaultServer: ${oldDefaultServer} to defaultServers`)
-        const defaultServers = this.mcpStore.get('defaultServers') || []
-        if (!defaultServers.includes(oldDefaultServer)) {
-          defaultServers.push(oldDefaultServer)
-          this.mcpStore.set('defaultServers', defaultServers)
-        }
-        // 删除旧的defaultServer字段，防止重复迁移
-        this.mcpStore.delete('defaultServer')
-      }
-    }
 
     // Migrate filesystem/buildInFileSystem servers - these are now provided via Agent tools
     // Remove for all versions < 0.6.0
     if (oldVersion && compare(oldVersion, '0.6.0', '<')) {
       try {
         const mcpServers = this.mcpStore.get('mcpServers') || {}
-        const defaultServers = this.mcpStore.get('defaultServers') || []
         let hasChanges = false
 
         // Check if servers exist before deletion (for tracking)
@@ -891,15 +866,6 @@ export class McpConfHelper {
         if (mcpServers.buildInFileSystem) {
           console.log('Removing buildInFileSystem MCP server (now provided via Agent tools)')
           delete mcpServers.buildInFileSystem
-          hasChanges = true
-        }
-
-        // Remove from default servers list
-        const updatedDefaultServers = defaultServers.filter(
-          (name) => name !== 'filesystem' && name !== 'buildInFileSystem'
-        )
-        if (updatedDefaultServers.length !== defaultServers.length) {
-          this.mcpStore.set('defaultServers', updatedDefaultServers)
           hasChanges = true
         }
 
@@ -928,16 +894,6 @@ export class McpConfHelper {
           delete mcpServers[customPromptsServerName]
           this.mcpStore.set('mcpServers', mcpServers)
 
-          // 从默认服务器列表中移除（如果存在）
-          const defaultServers = this.mcpStore.get('defaultServers') || []
-          const updatedDefaultServers = defaultServers.filter(
-            (name) => name !== customPromptsServerName
-          )
-          if (updatedDefaultServers.length !== defaultServers.length) {
-            this.mcpStore.set('defaultServers', updatedDefaultServers)
-            console.log('Removing custom-prompts-server from default server list')
-          }
-
           console.log('Removal of custom-prompts-server completed')
         }
       } catch (error) {
@@ -945,23 +901,31 @@ export class McpConfHelper {
       }
     }
 
+    try {
+      const mcpServers = this.mcpStore.get('mcpServers') || {}
+
+      if (mcpServers.powerpack) {
+        console.log('Removing deprecated powerpack MCP server')
+        delete mcpServers.powerpack
+        this.mcpStore.set('mcpServers', mcpServers)
+      }
+    } catch (error) {
+      console.error('Error occurred while removing deprecated powerpack server:', error)
+    }
+
     // 升级后检查并添加平台特有服务
     try {
       const mcpServers = this.mcpStore.get('mcpServers') || {}
-      const defaultServers = this.mcpStore.get('defaultServers') || []
       let hasChanges = false
 
       // 检查是否需要添加平台特有服务
       if (isMacOS() && !mcpServers['deepchat/apple-server']) {
         console.log('Detected macOS platform, adding Apple system integration service')
-        mcpServers['deepchat/apple-server'] = PLATFORM_SPECIFIC_SERVERS['deepchat/apple-server']
-        hasChanges = true
-
-        // 如果不在默认服务器列表中，添加到默认服务器列表
-        if (!defaultServers.includes('deepchat/apple-server')) {
-          defaultServers.push('deepchat/apple-server')
-          this.mcpStore.set('defaultServers', defaultServers)
+        mcpServers['deepchat/apple-server'] = {
+          ...(PLATFORM_SPECIFIC_SERVERS['deepchat/apple-server'] as MCPServerConfig),
+          enabled: true
         }
+        hasChanges = true
       }
 
       // 移除不支持当前平台的服务
@@ -977,13 +941,6 @@ export class McpConfHelper {
         console.log(`Removing service not supported on current platform: ${serverName}`)
         delete mcpServers[serverName]
         hasChanges = true
-
-        // 从默认服务器列表中移除
-        const index = defaultServers.indexOf(serverName)
-        if (index > -1) {
-          defaultServers.splice(index, 1)
-          this.mcpStore.set('defaultServers', defaultServers)
-        }
       }
 
       if (hasChanges) {
@@ -993,5 +950,8 @@ export class McpConfHelper {
     } catch (error) {
       console.error('Error occurred while upgrading platform-specific services:', error)
     }
+
+    this.mcpStore.delete('defaultServer')
+    this.mcpStore.delete('defaultServers')
   }
 }

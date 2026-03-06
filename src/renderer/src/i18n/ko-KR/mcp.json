@@ -167,10 +167,6 @@
       "desc": "Brave 검색 API https://brave.com/search/api/",
       "name": "Brave 검색"
     },
-    "powerpack": {
-      "desc": "모든 대형 모델에 시간 조회, 웹 정보 수집, 안전한 코드 실행 등의 향상된 기능을 제공하여 더 강력하고 정확한 정보 수집 능력을 제공합니다",
-      "name": "파워팩 도구"
-    },
     "difyKnowledge": {
       "name": "Dify 지식 기반 검색",
       "desc": "Dify 지식 기반 검색 서비스, Dify 지식 기반의 콘텐츠를 검색할 수 있습니다."

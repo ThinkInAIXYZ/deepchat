@@ -34,7 +34,13 @@
     "agentWorkspaceSelect": "Vælg arbejdsmappe",
     "agentWorkspaceTooltip": "Indstil agentens arbejdsmappe",
     "attach": "Vedhæft",
-    "voiceInput": "Stemmeinput"
+    "voiceInput": "Stemmeinput",
+    "mcp": {
+      "badge": "MCP {count}",
+      "title": "Aktiverede MCP'er",
+      "empty": "Ingen aktiverede tjenester",
+      "openSettings": "Åbn MCP-indstillinger"
+    }
   },
   "mcpUi": {
     "badge": "UI",

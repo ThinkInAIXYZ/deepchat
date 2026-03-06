@@ -167,10 +167,6 @@
       "desc": "Brave搜索 API https://brave.com/search/api/",
       "name": "Brave搜索"
     },
-    "powerpack": {
-      "desc": "為任意大模型提供時間查詢、網頁信息獲取和安全的代碼執行等增強能力，讓模型擁有更強大和準確的信息獲取能力",
-      "name": "增強工具包"
-    },
     "difyKnowledge": {
       "name": "Dify知識庫檢索",
       "desc": "Dify知識庫檢索服務，可以檢索Dify知識庫中的內容"

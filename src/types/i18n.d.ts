@@ -619,10 +619,6 @@ declare module 'vue-i18n' {
         name: string
         desc: string
       }
-      powerpack: {
-        name: string
-        desc: string
-      }
       difyKnowledge: {
         name: string
         desc: string

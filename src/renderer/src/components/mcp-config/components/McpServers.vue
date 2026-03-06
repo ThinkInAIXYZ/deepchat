@@ -9,7 +9,6 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-  DialogFooter,
   DialogDescription
 } from '@shadcn/components/ui/dialog'
 import { useMcpStore } from '@/stores/mcp'
@@ -31,7 +30,6 @@ const router = useRouter()
 // 对话框状态
 const isAddServerDialogOpen = ref(false)
 const isEditServerDialogOpen = ref(false)
-const isResetConfirmDialogOpen = ref(false)
 const isRemoveConfirmDialogOpen = ref(false)
 const isToolPanelOpen = ref(false)
 const isPromptPanelOpen = ref(false)
@@ -125,47 +123,12 @@ const confirmRemoveServer = async () => {
   isRemoveConfirmDialogOpen.value = false
 }
 
-const handleToggleDefaultServer = async (serverName: string) => {
-  const isDefault = mcpStore.config.defaultServers.includes(serverName)
-  if (!isDefault && mcpStore.config.defaultServers.length > 30) {
-    toast({
-      title: t('mcp.errors.maxDefaultServersReached'),
-      description: t('settings.mcp.removeDefaultFirst'),
-      variant: 'destructive'
-    })
-    return
-  }
-
-  const result = await mcpStore.toggleDefaultServer(serverName)
-  if (!result.success) {
-    toast({
-      title: t('common.error.operationFailed'),
-      description: result.message,
-      variant: 'destructive'
-    })
-  }
-}
-
 const handleToggleServer = async (serverName: string) => {
   if (mcpStore.serverLoadingStates[serverName]) {
     return
   }
   const success = await mcpStore.toggleServer(serverName)
   if (!success) {
-    const isRunning = mcpStore.serverStatuses[serverName]
-    toast({
-      title: t('common.error.operationFailed'),
-      description: `${serverName} ${isRunning ? t('settings.mcp.stopped') : t('settings.mcp.running')}${t('common.error.requestFailed')}`,
-      variant: 'destructive'
-    })
-  }
-}
-
-const handleResetToDefaultServers = async () => {
-  const success = await mcpStore.resetToDefaultServers()
-  if (success) {
-    isResetConfirmDialogOpen.value = false
-  } else {
     toast({
       title: t('common.error.operationFailed'),
       description: t('common.error.requestFailed'),
@@ -269,7 +232,6 @@ const handleViewResources = async (serverName: string) => {
               :prompts-count="getServerPromptsCount(server.name)"
               :resources-count="getServerResourcesCount(server.name)"
               @toggle="handleToggleServer(server.name)"
-              @toggle-default="handleToggleDefaultServer(server.name)"
               @edit="openEditServerDialog(server.name)"
               @view-tools="handleViewTools(server.name)"
               @view-prompts="handleViewPrompts(server.name)"
@@ -301,7 +263,6 @@ const handleViewResources = async (serverName: string) => {
               :prompts-count="getServerPromptsCount(server.name)"
               :resources-count="getServerResourcesCount(server.name)"
               @toggle="handleToggleServer(server.name)"
-              @toggle-default="handleToggleDefaultServer(server.name)"
               @edit="openEditServerDialog(server.name)"
               @remove="handleRemoveServer(server.name)"
               @view-tools="handleViewTools(server.name)"
@@ -336,33 +297,6 @@ const handleViewResources = async (serverName: string) => {
 
         <!-- 右侧：操作按钮 -->
         <div class="flex space-x-2">
-          <Dialog v-model:open="isResetConfirmDialogOpen">
-            <DialogTrigger as-child>
-              <Button variant="outline" size="sm" class="h-8 px-3 text-xs">
-                <Icon icon="lucide:refresh-cw" class="mr-1.5 h-3 w-3" />
-                {{ t('common.reset') }}
-              </Button>
-            </DialogTrigger>
-            <DialogContent class="w-[90vw] max-w-[400px]">
-              <DialogHeader>
-                <DialogTitle class="text-base">{{
-                  t('settings.mcp.resetConfirmTitle')
-                }}</DialogTitle>
-                <DialogDescription class="text-sm">
-                  {{ t('settings.mcp.resetConfirmDescription') }}
-                </DialogDescription>
-              </DialogHeader>
-              <DialogFooter class="flex-row gap-2 justify-end">
-                <Button variant="outline" size="sm" @click="isResetConfirmDialogOpen = false">
-                  {{ t('common.cancel') }}
-                </Button>
-                <Button variant="default" size="sm" @click="handleResetToDefaultServers">
-                  {{ t('settings.mcp.resetConfirm') }}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-
           <Dialog v-model:open="isAddServerDialogOpen">
             <DialogTrigger as-child>
               <Button size="sm" class="h-8 px-3 text-xs">

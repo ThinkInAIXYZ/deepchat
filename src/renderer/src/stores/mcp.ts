@@ -35,7 +35,6 @@ export const useMcpStore = defineStore('mcp', () => {
   // MCP配置
   const config = ref<MCPConfig>({
     mcpServers: {},
-    defaultServers: [],
     mcpEnabled: false, // 添加MCP启用状态
     ready: false // if init finished, the ready will be true
   })
@@ -115,7 +114,6 @@ export const useMcpStore = defineStore('mcp', () => {
 
   interface ConfigQueryResult {
     mcpServers: MCPConfig['mcpServers']
-    defaultServers: string[]
     mcpEnabled: boolean
   }
 
@@ -124,15 +122,13 @@ export const useMcpStore = defineStore('mcp', () => {
     staleTime: 30_000,
     gcTime: 300_000,
     query: async () => {
-      const [servers, defaultServers, enabled] = await Promise.all([
+      const [servers, enabled] = await Promise.all([
         mcpPresenter.getMcpServers(),
-        mcpPresenter.getMcpDefaultServers(),
         mcpPresenter.getMcpEnabled()
       ])
 
       return {
         mcpServers: servers ?? {},
-        defaultServers: defaultServers ?? [],
         mcpEnabled: Boolean(enabled)
       }
     }
@@ -285,7 +281,6 @@ export const useMcpStore = defineStore('mcp', () => {
 
     config.value = {
       mcpServers: data.mcpServers ?? {},
-      defaultServers: data.defaultServers,
       mcpEnabled: data.mcpEnabled,
       ready: true
     }
@@ -387,7 +382,6 @@ export const useMcpStore = defineStore('mcp', () => {
       name,
       ...serverConfig,
       isRunning: serverStatuses.value[name] || false,
-      isDefault: config.value.defaultServers.includes(name),
       isLoading: serverLoadingStates.value[name] || false
     }))
 
@@ -407,12 +401,8 @@ export const useMcpStore = defineStore('mcp', () => {
       return 0 // 保持原有顺序
     })
   })
-
-  // 计算默认服务器数量
-  const defaultServersCount = computed(() => config.value.defaultServers.length)
-
-  // 检查是否达到默认服务器最大数量
-  const hasMaxDefaultServers = computed(() => defaultServersCount.value >= 30)
+  const enabledServers = computed(() => serverList.value.filter((server) => server.enabled))
+  const enabledServerCount = computed(() => enabledServers.value.length)
 
   // 工具数量
   const toolCount = computed(() => tools.value.length)
@@ -453,21 +443,9 @@ export const useMcpStore = defineStore('mcp', () => {
     ]
   })
 
-  const addDefaultServerMutation = useIpcMutation({
+  const setMcpServerEnabledMutation = useIpcMutation({
     presenter: 'mcpPresenter',
-    method: 'addMcpDefaultServer',
-    invalidateQueries: () => [['mcp', 'config']]
-  })
-
-  const removeDefaultServerMutation = useIpcMutation({
-    presenter: 'mcpPresenter',
-    method: 'removeMcpDefaultServer',
-    invalidateQueries: () => [['mcp', 'config']]
-  })
-
-  const resetToDefaultServersMutation = useIpcMutation({
-    presenter: 'mcpPresenter',
-    method: 'resetToDefaultServers',
+    method: 'setMcpServerEnabled',
     invalidateQueries: () => [['mcp', 'config']]
   })
 
@@ -495,9 +473,11 @@ export const useMcpStore = defineStore('mcp', () => {
   }
 
   // 设置MCP启用状态
-  const startDefaultServers = async () => {
-    const defaultServers = config.value.defaultServers
-    for (const serverName of defaultServers) {
+  const startEnabledServers = async () => {
+    for (const [serverName, serverConfig] of Object.entries(config.value.mcpServers)) {
+      if (!serverConfig.enabled) {
+        continue
+      }
       try {
         const running = await mcpPresenter.isServerRunning(serverName)
         if (!running) {
@@ -524,7 +504,7 @@ export const useMcpStore = defineStore('mcp', () => {
 
       // Wait a bit for config to sync, then refresh queries
       if (enabled) {
-        await startDefaultServers()
+        await startEnabledServers()
         // Update server statuses first, then refresh tools
         await updateAllServerStatuses()
         // Wait a bit for servers to fully start and register tools
@@ -542,6 +522,11 @@ export const useMcpStore = defineStore('mcp', () => {
           }
         }, 1000)
       } else {
+        await Promise.allSettled(
+          Object.keys(config.value.mcpServers).map((serverName) =>
+            mcpPresenter.stopServer(serverName)
+          )
+        )
         // clearing server/tool state when disabling
         serverStatuses.value = {}
         toolInputs.value = {}
@@ -658,69 +643,43 @@ export const useMcpStore = defineStore('mcp', () => {
     }
   }
 
-  // 切换服务器的默认状态
-  const toggleDefaultServer = async (serverName: string) => {
-    try {
-      // 如果服务器已经是默认服务器，移除
-      if (config.value.defaultServers.includes(serverName)) {
-        await removeDefaultServerMutation.mutateAsync([serverName])
-      } else {
-        // 检查是否已达到最大默认服务器数量
-        if (hasMaxDefaultServers.value) {
-          // 如果已达到最大数量，返回错误
-          return { success: false, message: t('mcp.errors.maxDefaultServersReached') }
-        }
-        await addDefaultServerMutation.mutateAsync([serverName])
-      }
-      // Cache invalidation happens automatically, trigger config refresh
-      await runQuery(configQuery, { force: true })
-      return { success: true, message: '' }
-    } catch (error) {
-      console.error(t('mcp.errors.toggleDefaultServerFailed'), error)
-      return { success: false, message: String(error) }
-    }
-  }
-
-  // 恢复默认服务配置
-  const resetToDefaultServers = async () => {
-    try {
-      await resetToDefaultServersMutation.mutateAsync([])
-      // Cache invalidation happens automatically, trigger config refresh
-      await runQuery(configQuery, { force: true })
-      return true
-    } catch (error) {
-      console.error(t('mcp.errors.resetToDefaultFailed'), error)
-      return false
-    }
-  }
-
-  // 启动/停止服务器
   const toggleServer = async (serverName: string) => {
-    // 如果正在加载，避免重复操作
     if (serverLoadingStates.value[serverName]) {
       return false
     }
 
-    // 乐观更新：立即更新状态
-    const currentStatus = serverStatuses.value[serverName] || false
-    const targetStatus = !currentStatus
-    serverStatuses.value[serverName] = targetStatus
+    const serverConfig = config.value.mcpServers[serverName]
+    if (!serverConfig) {
+      return false
+    }
+
+    const nextEnabled = !serverConfig.enabled
+    const previousConfig = { ...serverConfig }
+    config.value.mcpServers = {
+      ...config.value.mcpServers,
+      [serverName]: { ...serverConfig, enabled: nextEnabled }
+    }
     serverLoadingStates.value[serverName] = true
 
     try {
-      // 执行实际操作
-      if (currentStatus) {
-        await mcpPresenter.stopServer(serverName)
-      } else {
-        await mcpPresenter.startServer(serverName)
+      await setMcpServerEnabledMutation.mutateAsync([serverName, nextEnabled])
+
+      if (config.value.mcpEnabled) {
+        if (nextEnabled) {
+          await mcpPresenter.startServer(serverName)
+        } else {
+          await mcpPresenter.stopServer(serverName)
+        }
       }
 
-      // 同步实际状态（可能因网络延迟等原因状态不一致）
+      await runQuery(configQuery, { force: true })
       await updateServerStatus(serverName)
       return true
     } catch (error) {
-      // 失败时回滚状态
-      serverStatuses.value[serverName] = currentStatus
+      config.value.mcpServers = {
+        ...config.value.mcpServers,
+        [serverName]: previousConfig
+      }
       console.error(t('mcp.errors.toggleServerFailed', { serverName }), error)
       return false
     } finally {
@@ -1114,6 +1073,8 @@ export const useMcpStore = defineStore('mcp', () => {
 
     // 计算属性
     serverList,
+    enabledServers,
+    enabledServerCount,
     toolCount,
     hasTools,
     clients,
@@ -1125,8 +1086,6 @@ export const useMcpStore = defineStore('mcp', () => {
     addServer,
     updateServer,
     removeServer,
-    toggleDefaultServer,
-    resetToDefaultServers,
     toggleServer,
     setMcpEnabled,
 

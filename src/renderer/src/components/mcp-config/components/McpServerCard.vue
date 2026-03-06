@@ -25,8 +25,8 @@ interface ServerInfo {
   descriptions: string
   command: string
   args: string[]
+  enabled: boolean
   isRunning: boolean
-  isDefault: boolean
   type?: string
   baseUrl?: string
   errorMessage?: string
@@ -44,7 +44,6 @@ interface Props {
 
 interface Emits {
   (e: 'toggle'): void
-  (e: 'toggleDefault'): void
   (e: 'edit'): void
   (e: 'remove'): void
   (e: 'viewLogs'): void
@@ -170,16 +169,6 @@ watch(watchDescription, () => {
               <Icon icon="lucide:edit-3" class="h-4 w-4 mr-2" />
               {{ t('settings.mcp.editServer') }}
             </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem :disabled="disabled" @click="$emit('toggleDefault')">
-              <Icon
-                :icon="server.isDefault ? 'lucide:power-off' : 'lucide:power'"
-                class="h-4 w-4 mr-2"
-              />
-              {{
-                server.isDefault ? t('settings.mcp.removeDefault') : t('settings.mcp.setAsDefault')
-              }}
-            </DropdownMenuItem>
             <DropdownMenuSeparator v-if="!isBuiltIn" />
             <DropdownMenuItem
               v-if="!isBuiltIn"
@@ -232,7 +221,7 @@ watch(watchDescription, () => {
 
         <!-- 开关 -->
         <Switch
-          :model-value="server.isRunning"
+          :model-value="server.enabled"
           :disabled="disabled || isLoading"
           @update:model-value="$emit('toggle')"
         />

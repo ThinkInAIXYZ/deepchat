@@ -103,10 +103,6 @@
       "desc": "Når det er aktiveret, kan enhver model i DeepChat forstå billeder og generere billeder.",
       "name": "Billedtjeneste"
     },
-    "powerpack": {
-      "desc": "At tilbyde enhver stor model forbedrede funktioner som tidsforespørgsler, websideinformation og sikker kodeudførelse, så modellen får stærkere og mere præcis informationsindhentningsevne.",
-      "name": "Forstærkningsværktøjssæt"
-    },
     "ragflowKnowledge": {
       "desc": "RAGFlow vidensbase søgetjeneste kan søge i indholdet af RAGFlow vidensbasen.",
       "name": "RAGFlow vidensbase søgning"

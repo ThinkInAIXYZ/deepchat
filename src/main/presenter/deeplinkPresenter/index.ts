@@ -395,6 +395,7 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
           descriptions: `${serverName} MCP Service`,
           icons: determinedType === 'stdio' ? '🔌' : '🌐', // Different default icons
           autoApprove: ['all'],
+          enabled: false,
           disable: false,
           args: [],
           baseUrl: '',
@@ -416,6 +417,7 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
           descriptions: serverConfig.descriptions || defaultConfig.descriptions!,
           icons: serverConfig.icons || defaultConfig.icons!,
           autoApprove: serverConfig.autoApprove || defaultConfig.autoApprove!,
+          enabled: (serverConfig as { enabled?: boolean }).enabled ?? defaultConfig.enabled!,
           disable: serverConfig.disable ?? defaultConfig.disable!,
           args: serverConfig.args || defaultConfig.args!,
           type: determinedType, // Use the determined type

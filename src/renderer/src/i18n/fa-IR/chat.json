@@ -27,7 +27,13 @@
     "agentWorkspaceSelect": "پوشه کاری را انتخاب کنید",
     "agentWorkspaceTooltip": "دایرکتوری کاری عامل را تنظیم کنید",
     "attach": "پیوست",
-    "voiceInput": "ورودی صوتی"
+    "voiceInput": "ورودی صوتی",
+    "mcp": {
+      "badge": "MCP {count}",
+      "title": "MCPهای فعال",
+      "empty": "سرویسی فعال نشده است",
+      "openSettings": "باز کردن تنظیمات MCP"
+    }
   },
   "features": {
     "webSearch": "جستجوی وب",

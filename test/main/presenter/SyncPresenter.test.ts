@@ -89,7 +89,7 @@ describe('SyncPresenter backup import', () => {
       },
       mcpSettings: {
         mcpServers: {
-          local: { command: 'bunx local', type: 'stdio' }
+          local: { command: 'bunx local', type: 'stdio', enabled: true }
         },
         defaultServers: ['local'],
         extra: true
@@ -116,8 +116,8 @@ describe('SyncPresenter backup import', () => {
       },
       mcpSettings: {
         mcpServers: {
-          imported: { command: 'bunx imported', type: 'stdio' },
-          knowledge: { command: 'bunx knowledge', type: 'stdio' }
+          imported: { command: 'bunx imported', type: 'stdio', enabled: false },
+          knowledge: { command: 'bunx knowledge', type: 'stdio', enabled: true }
         },
         defaultServers: ['imported'],
         additional: true
@@ -167,10 +167,18 @@ describe('SyncPresenter backup import', () => {
     const mcpSettings = JSON.parse(
       fs.readFileSync(path.join(userDataDir, 'mcp-settings.json'), 'utf-8')
     )
-    expect(mcpSettings.mcpServers.local).toEqual({ command: 'bunx local', type: 'stdio' })
-    expect(mcpSettings.mcpServers.imported).toEqual({ command: 'bunx imported', type: 'stdio' })
+    expect(mcpSettings.mcpServers.local).toEqual({
+      command: 'bunx local',
+      type: 'stdio',
+      enabled: true
+    })
+    expect(mcpSettings.mcpServers.imported).toEqual({
+      command: 'bunx imported',
+      type: 'stdio',
+      enabled: true
+    })
     expect(mcpSettings.mcpServers.knowledge).toBeUndefined()
-    expect(new Set(mcpSettings.defaultServers)).toEqual(new Set(['local', 'imported']))
+    expect(mcpSettings.defaultServers).toBeUndefined()
     expect(mcpSettings.extra).toBe(true)
     expect(mcpSettings.additional).toBe(true)
   })
@@ -195,7 +203,7 @@ describe('SyncPresenter backup import', () => {
       },
       mcpSettings: {
         mcpServers: {
-          local: { command: 'bunx local', type: 'stdio' }
+          local: { command: 'bunx local', type: 'stdio', enabled: true }
         },
         defaultServers: ['local']
       }
@@ -212,7 +220,7 @@ describe('SyncPresenter backup import', () => {
       },
       mcpSettings: {
         mcpServers: {
-          imported: { command: 'bunx imported', type: 'stdio' }
+          imported: { command: 'bunx imported', type: 'stdio', enabled: true }
         },
         defaultServers: ['imported']
       }
@@ -244,9 +252,9 @@ describe('SyncPresenter backup import', () => {
       fs.readFileSync(path.join(userDataDir, 'mcp-settings.json'), 'utf-8')
     )
     expect(mcpSettings.mcpServers).toEqual({
-      imported: { command: 'bunx imported', type: 'stdio' }
+      imported: { command: 'bunx imported', type: 'stdio', enabled: true }
     })
-    expect(mcpSettings.defaultServers).toEqual(['imported'])
+    expect(mcpSettings.defaultServers).toBeUndefined()
   })
 
   it('imports backup from chat.db through legacy migration in increment mode', async () => {

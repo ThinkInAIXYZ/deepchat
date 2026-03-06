@@ -27,7 +27,13 @@
     "agentWorkspaceSelect": "작업 디렉터리 선택",
     "agentWorkspaceTooltip": "에이전트 작업 디렉터리 설정",
     "attach": "첨부",
-    "voiceInput": "음성 입력"
+    "voiceInput": "음성 입력",
+    "mcp": {
+      "badge": "MCP {count}",
+      "title": "활성화된 MCP",
+      "empty": "활성화된 서비스가 없습니다",
+      "openSettings": "MCP 설정 열기"
+    }
   },
   "features": {
     "webSearch": "웹 검색",

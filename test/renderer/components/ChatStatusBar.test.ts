@@ -194,6 +194,12 @@ const setup = async (options: SetupOptions = {}) => {
       template: '<span class="icon-stub" />'
     })
   }))
+  vi.doMock('@/components/chat-input/McpIndicator.vue', () => ({
+    default: defineComponent({
+      name: 'McpIndicator',
+      template: '<div class="mcp-indicator-stub" />'
+    })
+  }))
 
   const ChatStatusBar = (await import('@/components/chat/ChatStatusBar.vue')).default
   const wrapper = mount(ChatStatusBar, {
