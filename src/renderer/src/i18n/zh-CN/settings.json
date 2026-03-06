@@ -939,14 +939,9 @@
     "hideWindow": "隐藏窗口",
     "quitApp": "退出程序",
     "newWindow": "打开新窗口",
-    "newTab": "新建标签页",
-    "closeTab": "关闭当前标签页",
     "showHideWindow": "显示/隐藏窗口",
     "newConversation": "新会话",
-    "nextTab": "切换到下一个标签页",
-    "previousTab": "切换到上一个标签页",
-    "specificTab": "切换到指定标签页 (1-8)",
-    "lastTab": "切换到最后一个标签页"
+    "closeWindow": "关闭当前窗口"
   },
   "acp": {
     "title": "ACP Agent",

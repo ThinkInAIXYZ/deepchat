@@ -339,7 +339,7 @@ export class ToolCallHandler {
         state.conversationId,
         state.message.parentId,
         Boolean(state.message.is_variant),
-        state.tabId,
+        state.webContentsId,
         {},
         state.message.content
       )
@@ -465,7 +465,7 @@ export class ToolCallHandler {
         state.conversationId,
         state.message.parentId,
         Boolean(state.message.is_variant),
-        state.tabId,
+        state.webContentsId,
         {},
         state.message.content
       )

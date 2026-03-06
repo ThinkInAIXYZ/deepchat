@@ -615,7 +615,7 @@ export class McpPresenter implements IMCPPresenter {
     return new Promise<McpSamplingDecision>((resolve, reject) => {
       try {
         this.pendingSamplingRequests.set(request.requestId, { resolve, reject })
-        eventBus.sendToRenderer(MCP_EVENTS.SAMPLING_REQUEST, SendTarget.DEFAULT_TAB, request)
+        eventBus.sendToRenderer(MCP_EVENTS.SAMPLING_REQUEST, SendTarget.DEFAULT_WINDOW, request)
       } catch (error) {
         this.pendingSamplingRequests.delete(request.requestId)
         reject(error instanceof Error ? error : new Error(String(error)))

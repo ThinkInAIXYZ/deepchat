@@ -183,22 +183,15 @@ export function usePageCapture() {
         return { success: false, error: '截图区域高度无效' }
       }
 
-      // 优先使用当前窗口激活的 tabId；fallback 到当前 webContentsId
+      // 优先使用当前 webContentsId；必要时回退到 windowId
       const webContentsId = window.api.getWebContentsId()
       const windowId = window.api.getWindowId()
-      let tabId = webContentsId
-      try {
-        if (typeof windowId === 'number') {
-          const activeTabId = await tabPresenter.getActiveTabId(windowId)
-          if (typeof activeTabId === 'number') {
-            tabId = activeTabId
-          }
-        }
-      } catch (error) {
-        console.warn(
-          '[CAPTURE_DEBUG] Failed to resolve active tab id, fallback to webContentsId:',
-          error
-        )
+      const captureTargets: number[] = []
+      if (typeof webContentsId === 'number') {
+        captureTargets.push(webContentsId)
+      }
+      if (typeof windowId === 'number' && !captureTargets.includes(windowId)) {
+        captureTargets.push(windowId)
       }
 
       // 获取滚动容器
@@ -241,13 +234,6 @@ export function usePageCapture() {
       let iteration = 0
       const targetTopInContent = containerOriginalScrollTop + (initialRect.y - containerRect.top)
       const targetBottomInContent = targetTopInContent + targetContentHeight
-      const captureTargets = [tabId]
-      if (typeof windowId === 'number' && windowId !== tabId) {
-        captureTargets.push(windowId)
-      }
-      if (webContentsId !== tabId && webContentsId !== windowId) {
-        captureTargets.push(webContentsId)
-      }
 
       // 分段截图循环
       while (totalCapturedContentHeight < targetContentHeight && iteration < maxIterations) {
@@ -283,7 +269,7 @@ export function usePageCapture() {
           height: Math.round(heightToCaptureFromSegment)
         }
 
-        // 执行截图：按 tabId -> windowId -> webContentsId 顺序兜底
+        // 执行截图：按 webContentsId -> windowId 顺序兜底
         try {
           let segmentData: string | null = null
           for (const targetId of captureTargets) {

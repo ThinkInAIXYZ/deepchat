@@ -1,5 +1,5 @@
 <template>
-  <div class="flex items-center gap-2 border-b border-border bg-card px-4 py-2 h-12">
+  <div class="flex h-12 items-center gap-2 border-b border-border bg-card px-4 py-2">
     <Button variant="outline" size="icon" :disabled="!canGoBack" @click="goBack">
       <Icon icon="lucide:arrow-left" class="h-4 w-4" />
     </Button>
@@ -28,11 +28,11 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { Button } from '@shadcn/components/ui/button'
 import { Input } from '@shadcn/components/ui/input'
 import { Icon } from '@iconify/vue'
-import { useTabStore } from '@shell/stores/tab'
 import { usePresenter } from '@/composables/usePresenter'
 import { useI18n } from 'vue-i18n'
+import { useBrowserWindowStore } from '../stores/window'
 
-const tabStore = useTabStore()
+const browserWindowStore = useBrowserWindowStore()
 const yoBrowserPresenter = usePresenter('yoBrowserPresenter')
 const { t } = useI18n()
 
@@ -41,26 +41,22 @@ const canGoBack = ref(false)
 const canGoForward = ref(false)
 const isNavigating = ref(false)
 
-const activeTab = computed(() => tabStore.tabs.find((tab) => tab.id === tabStore.currentTabId))
-const activeBrowserTabId = computed(() => activeTab.value?.browserTabId ?? null)
-const isWebTab = computed(() => {
-  const tab = activeTab.value
-  if (!tab) return false
-  return Boolean(!tab.url?.startsWith('local://') && tab.browserTabId)
-})
+const currentWindowId = computed(() => browserWindowStore.windowId)
+const currentPage = computed(() => browserWindowStore.browserWindow?.page ?? null)
 
 const syncUrlInput = (url?: string) => {
-  if (!isWebTab.value) {
+  if (!currentPage.value) {
     urlInput.value = ''
     return
   }
+
   if (url !== undefined) {
     urlInput.value = url === 'about:blank' ? '' : url
   }
 }
 
 watch(
-  () => activeTab.value?.url,
+  () => currentPage.value?.url,
   (url) => {
     syncUrlInput(url)
   },
@@ -68,13 +64,14 @@ watch(
 )
 
 const refreshNavigationState = async () => {
-  if (!activeBrowserTabId.value || !isWebTab.value) {
+  if (!currentWindowId.value) {
     canGoBack.value = false
     canGoForward.value = false
     return
   }
+
   try {
-    const state = await yoBrowserPresenter.getNavigationState(activeBrowserTabId.value)
+    const state = await yoBrowserPresenter.getNavigationState(currentWindowId.value)
     canGoBack.value = Boolean(state?.canGoBack)
     canGoForward.value = Boolean(state?.canGoForward)
   } catch (error) {
@@ -84,13 +81,9 @@ const refreshNavigationState = async () => {
   }
 }
 
-watch(
-  [activeBrowserTabId, () => activeTab.value?.url],
-  () => {
-    refreshNavigationState()
-  },
-  { immediate: true }
-)
+watch([currentWindowId, () => currentPage.value?.url], refreshNavigationState, {
+  immediate: true
+})
 
 onMounted(() => {
   refreshNavigationState()
@@ -106,16 +99,15 @@ const normalizeUrl = (value: string) => {
 }
 
 const navigate = async () => {
-  if (isNavigating.value) return
+  if (isNavigating.value || !currentWindowId.value) return
+
   const normalized = normalizeUrl(urlInput.value)
   if (!normalized) return
+
   isNavigating.value = true
   try {
-    if (activeBrowserTabId.value) {
-      await yoBrowserPresenter.navigateTab(activeBrowserTabId.value, normalized)
-    } else {
-      await yoBrowserPresenter.createTab(normalized)
-    }
+    await yoBrowserPresenter.navigateWindow(currentWindowId.value, normalized)
+    await browserWindowStore.loadState()
   } catch (error) {
     console.error('Failed to navigate', error)
   } finally {
@@ -125,9 +117,10 @@ const navigate = async () => {
 }
 
 const goBack = async () => {
-  if (!activeBrowserTabId.value) return
+  if (!currentWindowId.value) return
   try {
-    await yoBrowserPresenter.goBack(activeBrowserTabId.value)
+    await yoBrowserPresenter.goBack(currentWindowId.value)
+    await browserWindowStore.loadState()
   } catch (error) {
     console.error('Failed to go back', error)
   }
@@ -135,9 +128,10 @@ const goBack = async () => {
 }
 
 const goForward = async () => {
-  if (!activeBrowserTabId.value) return
+  if (!currentWindowId.value) return
   try {
-    await yoBrowserPresenter.goForward(activeBrowserTabId.value)
+    await yoBrowserPresenter.goForward(currentWindowId.value)
+    await browserWindowStore.loadState()
   } catch (error) {
     console.error('Failed to go forward', error)
   }
@@ -145,11 +139,12 @@ const goForward = async () => {
 }
 
 const reload = async () => {
-  if (!activeBrowserTabId.value) return
+  if (!currentWindowId.value) return
   try {
-    await yoBrowserPresenter.reload(activeBrowserTabId.value)
+    await yoBrowserPresenter.reload(currentWindowId.value)
+    await browserWindowStore.loadState()
   } catch (error) {
-    console.error('Failed to reload tab', error)
+    console.error('Failed to reload page', error)
   }
   refreshNavigationState()
 }

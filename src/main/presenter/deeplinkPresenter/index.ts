@@ -266,8 +266,8 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
     }
 
     const windowId = focusedWindow?.id || 1
-    await this.ensureChatTabActive(windowId)
-    eventBus.sendToRenderer(DEEPLINK_EVENTS.START, SendTarget.DEFAULT_TAB, {
+    await this.ensureChatWindowReady(windowId)
+    eventBus.sendToRenderer(DEEPLINK_EVENTS.START, SendTarget.DEFAULT_WINDOW, {
       msg,
       modelId,
       systemPrompt,
@@ -277,26 +277,23 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
   }
 
   /**
-   * 确保有一个活动的 chat 标签页
+   * Ensure the active chat window is ready to receive the deeplink payload.
    * @param windowId 窗口ID
    */
-  private async ensureChatTabActive(windowId: number): Promise<void> {
+  private async ensureChatWindowReady(windowId: number): Promise<void> {
     try {
-      const tabPresenter = presenter.tabPresenter
-      const tabsData = await tabPresenter.getWindowTabsData(windowId)
-      const chatTab = tabsData.find(
-        (tab) =>
-          tab.url === 'local://chat' || tab.url.includes('#/chat') || tab.url.endsWith('/chat')
-      )
-      if (chatTab) {
-        if (!chatTab.isActive) {
-          await tabPresenter.switchTab(chatTab.id)
-          await new Promise((resolve) => setTimeout(resolve, 100))
-        }
+      const targetWindow = BrowserWindow.fromId(windowId)
+      if (!targetWindow || targetWindow.isDestroyed()) {
+        return
       }
-      // Shell windows no longer create chat tabs
+
+      if (targetWindow.webContents.isLoadingMainFrame()) {
+        await new Promise<void>((resolve) => {
+          targetWindow.webContents.once('did-finish-load', () => resolve())
+        })
+      }
     } catch (error) {
-      console.error('Error ensuring chat tab active:', error)
+      console.error('Error ensuring chat window ready:', error)
     }
   }
 
@@ -455,9 +452,8 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
           }
         }
       } else {
-        // 应用程序未启动，将配置保存到第一个 shell 窗口的 localStorage
-        console.log('App not fully started yet, saving MCP config for shell window')
-        await this.saveMcpConfigToShellWindow(completeMcpConfig)
+        console.log('App not fully started yet, saving MCP config for first app window')
+        await this.saveMcpConfigToAppWindow(completeMcpConfig)
       }
 
       console.log('All MCP servers processing completed')
@@ -467,42 +463,39 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
   }
 
   /**
-   * 将 MCP 配置保存到第一个 shell 窗口的 localStorage
+   * Store MCP config in the first available app window localStorage.
    * @param mcpConfig MCP 配置对象
    */
-  private async saveMcpConfigToShellWindow(mcpConfig: {
+  private async saveMcpConfigToAppWindow(mcpConfig: {
     mcpServers: Record<string, any>
   }): Promise<void> {
     try {
-      // 等待第一个 shell 窗口创建并准备就绪
-      const shellWindow = await this.waitForFirstShellWindow()
-      if (!shellWindow) {
-        console.error('No shell window available to store MCP configuration')
+      const appWindow = await this.waitForFirstAppWindow()
+      if (!appWindow) {
+        console.error('No app window available to store MCP configuration')
         return
       }
 
-      // 确保 webContents 已准备就绪
-      if (shellWindow.webContents.isLoading()) {
+      if (appWindow.webContents.isLoading()) {
         await new Promise<void>((resolve) => {
-          shellWindow.webContents.once('dom-ready', () => resolve())
+          appWindow.webContents.once('dom-ready', () => resolve())
         })
       }
 
-      // 存储到 localStorage
-      await shellWindow.webContents.executeJavaScript(`
+      await appWindow.webContents.executeJavaScript(`
         localStorage.setItem('pending-mcp-install', '${JSON.stringify(mcpConfig).replace(/'/g, "\\'")}');
       `)
-      console.log('MCP configuration stored in shell window localStorage for cold start')
+      console.log('MCP configuration stored in app window localStorage for cold start')
     } catch (error) {
-      console.error('Failed to store MCP configuration in shell window localStorage:', error)
+      console.error('Failed to store MCP configuration in app window localStorage:', error)
     }
   }
 
   /**
-   * 等待第一个 shell 窗口创建并返回
+   * Wait for the first app window to become available.
    * @returns Promise<BrowserWindow | null>
    */
-  private async waitForFirstShellWindow(): Promise<BrowserWindow | null> {
+  private async waitForFirstAppWindow(): Promise<BrowserWindow | null> {
     return new Promise((resolve) => {
       // 先检查是否已经有窗口
       const existingWindows = presenter.windowPresenter.getAllWindows()
@@ -525,7 +518,7 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
       // 设置超时，避免无限等待
       setTimeout(() => {
         eventBus.off(WINDOW_EVENTS.WINDOW_CREATED, checkForWindow)
-        console.warn('Timeout waiting for shell window creation')
+        console.warn('Timeout waiting for app window creation')
         resolve(null)
       }, 10000) // 10秒超时
     })

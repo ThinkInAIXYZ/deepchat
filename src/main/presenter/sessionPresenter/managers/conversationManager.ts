@@ -6,9 +6,10 @@ import type {
   MESSAGE_METADATA
 } from '@shared/presenter'
 import type { Message } from '@shared/chat'
+import { BrowserWindow, webContents as electronWebContents } from 'electron'
 import { presenter } from '@/presenter'
 import { eventBus, SendTarget } from '@/eventbus'
-import { CONVERSATION_EVENTS, TAB_EVENTS } from '@/events'
+import { CONVERSATION_EVENTS } from '@/events'
 import { DEFAULT_SETTINGS } from '../const'
 import type { MessageManager } from './messageManager'
 
@@ -20,7 +21,7 @@ export class ConversationManager {
   private readonly sqlitePresenter: ISQLitePresenter
   private readonly configPresenter: IConfigPresenter
   private readonly messageManager: MessageManager
-  private readonly activeConversationIds: Map<number, string>
+  private readonly activeConversationBindings: Map<number, string>
   private fetchThreadLength = 300
 
   private isLegacyTableMissingError(error: unknown): boolean {
@@ -34,99 +35,129 @@ export class ConversationManager {
     sqlitePresenter: ISQLitePresenter
     configPresenter: IConfigPresenter
     messageManager: MessageManager
-    activeConversationIds: Map<number, string>
+    activeConversationBindings: Map<number, string>
   }) {
     this.sqlitePresenter = options.sqlitePresenter
     this.configPresenter = options.configPresenter
     this.messageManager = options.messageManager
-    this.activeConversationIds = options.activeConversationIds
+    this.activeConversationBindings = options.activeConversationBindings
   }
 
-  getActiveConversationIdSync(tabId: number): string | null {
-    return this.activeConversationIds.get(tabId) || null
+  getActiveConversationIdSync(webContentsId: number): string | null {
+    return this.activeConversationBindings.get(webContentsId) || null
+  }
+
+  getWebContentsIdsByConversation(conversationId: string): number[] {
+    return Array.from(this.activeConversationBindings.entries())
+      .filter(([, id]) => id === conversationId)
+      .map(([webContentsId]) => webContentsId)
   }
 
   getTabsByConversation(conversationId: string): number[] {
-    return Array.from(this.activeConversationIds.entries())
-      .filter(([, id]) => id === conversationId)
-      .map(([tabId]) => tabId)
+    return this.getWebContentsIdsByConversation(conversationId)
   }
 
-  clearActiveConversation(tabId: number, options: { notify?: boolean } = {}): void {
-    if (!this.activeConversationIds.has(tabId)) {
+  clearActiveConversationBinding(webContentsId: number, options: { notify?: boolean } = {}): void {
+    if (!this.activeConversationBindings.has(webContentsId)) {
       return
     }
-    this.activeConversationIds.delete(tabId)
+    this.activeConversationBindings.delete(webContentsId)
     if (options.notify) {
-      eventBus.sendToRenderer(CONVERSATION_EVENTS.DEACTIVATED, SendTarget.ALL_WINDOWS, { tabId })
+      eventBus.sendToRenderer(CONVERSATION_EVENTS.DEACTIVATED, SendTarget.ALL_WINDOWS, {
+        webContentsId
+      })
     }
   }
 
   clearConversationBindings(conversationId: string): void {
-    for (const [tabId, activeId] of this.activeConversationIds.entries()) {
+    for (const [webContentsId, activeId] of this.activeConversationBindings.entries()) {
       if (activeId === conversationId) {
-        this.activeConversationIds.delete(tabId)
+        this.activeConversationBindings.delete(webContentsId)
         eventBus.sendToRenderer(CONVERSATION_EVENTS.DEACTIVATED, SendTarget.ALL_WINDOWS, {
-          tabId
+          webContentsId
         })
       }
     }
   }
 
-  async findTabForConversation(conversationId: string): Promise<number | null> {
-    for (const [tabId, activeId] of this.activeConversationIds.entries()) {
+  async findWebContentsForConversation(conversationId: string): Promise<number | null> {
+    for (const [webContentsId, activeId] of this.activeConversationBindings.entries()) {
       if (activeId === conversationId) {
         try {
-          const tabView = await presenter.tabPresenter.getTab(tabId)
-          if (tabView && !tabView.webContents.isDestroyed()) {
-            return tabId
+          const targetContents = electronWebContents.fromId(webContentsId)
+          if (targetContents && !targetContents.isDestroyed()) {
+            return webContentsId
           }
         } catch (error) {
-          console.error('Error finding tab for conversation:', error)
+          console.error('Error finding bound webContents for conversation:', error)
         }
       }
     }
     return null
   }
 
-  private async getTabWindowType(tabId: number): Promise<'floating' | 'main' | 'unknown'> {
+  async findTabForConversation(conversationId: string): Promise<number | null> {
+    return this.findWebContentsForConversation(conversationId)
+  }
+
+  private getWindowTypeForWebContents(webContentsId: number): 'floating' | 'main' | 'unknown' {
     try {
-      const tabView = await presenter.tabPresenter.getTab(tabId)
-      if (!tabView) {
+      const targetContents = electronWebContents.fromId(webContentsId)
+      if (!targetContents || targetContents.isDestroyed()) {
         return 'unknown'
       }
-      const windowId = presenter.tabPresenter.getTabWindowId(tabId)
-      return windowId ? 'main' : 'floating'
+
+      const targetWindow = BrowserWindow.fromWebContents(targetContents)
+      if (!targetWindow || targetWindow.isDestroyed()) {
+        return 'unknown'
+      }
+
+      const floatingWindow = presenter.windowPresenter.getFloatingChatWindow()?.getWindow()
+      return floatingWindow && floatingWindow.id === targetWindow.id ? 'floating' : 'main'
     } catch (error) {
-      console.error('Error determining tab window type:', error)
+      console.error('Error determining webContents window type:', error)
       return 'unknown'
     }
   }
 
-  async setActiveConversation(conversationId: string, tabId: number): Promise<void> {
-    const existingTabId = await this.findTabForConversation(conversationId)
+  private focusBoundWebContents(webContentsId: number): void {
+    const targetContents = electronWebContents.fromId(webContentsId)
+    if (!targetContents || targetContents.isDestroyed()) {
+      return
+    }
 
-    if (existingTabId !== null && existingTabId !== tabId) {
+    const targetWindow = BrowserWindow.fromWebContents(targetContents)
+    if (!targetWindow || targetWindow.isDestroyed()) {
+      return
+    }
+
+    presenter.windowPresenter.show(targetWindow.id, true)
+  }
+
+  async setActiveConversation(conversationId: string, webContentsId: number): Promise<void> {
+    const existingWebContentsId = await this.findWebContentsForConversation(conversationId)
+
+    if (existingWebContentsId !== null && existingWebContentsId !== webContentsId) {
       console.log(
-        `Conversation ${conversationId} is already open in tab ${existingTabId}. Switching to it.`
+        `Conversation ${conversationId} is already bound to webContents ${existingWebContentsId}. Focusing that window.`
       )
-      const currentTabType = await this.getTabWindowType(tabId)
-      const existingTabType = await this.getTabWindowType(existingTabId)
+      const currentWindowType = this.getWindowTypeForWebContents(webContentsId)
+      const existingWindowType = this.getWindowTypeForWebContents(existingWebContentsId)
 
-      if (currentTabType !== existingTabType) {
-        this.activeConversationIds.delete(existingTabId)
+      if (currentWindowType !== existingWindowType) {
+        this.activeConversationBindings.delete(existingWebContentsId)
         eventBus.sendToRenderer(CONVERSATION_EVENTS.DEACTIVATED, SendTarget.ALL_WINDOWS, {
-          tabId: existingTabId
+          webContentsId: existingWebContentsId
         })
-        this.activeConversationIds.set(tabId, conversationId)
+        this.activeConversationBindings.set(webContentsId, conversationId)
         eventBus.sendToRenderer(CONVERSATION_EVENTS.ACTIVATED, SendTarget.ALL_WINDOWS, {
           conversationId,
-          tabId
+          webContentsId
         })
         return
       }
 
-      await presenter.tabPresenter.switchTab(existingTabId)
+      this.focusBoundWebContents(existingWebContentsId)
       return
     }
 
@@ -135,19 +166,19 @@ export class ConversationManager {
       throw new Error(`Conversation ${conversationId} not found`)
     }
 
-    if (this.activeConversationIds.get(tabId) === conversationId) {
+    if (this.activeConversationBindings.get(webContentsId) === conversationId) {
       return
     }
 
-    this.activeConversationIds.set(tabId, conversationId)
+    this.activeConversationBindings.set(webContentsId, conversationId)
     eventBus.sendToRenderer(CONVERSATION_EVENTS.ACTIVATED, SendTarget.ALL_WINDOWS, {
       conversationId,
-      tabId
+      webContentsId
     })
   }
 
-  async getActiveConversation(tabId: number): Promise<CONVERSATION | null> {
-    const conversationId = this.activeConversationIds.get(tabId)
+  async getActiveConversation(webContentsId: number): Promise<CONVERSATION | null> {
+    const conversationId = this.activeConversationBindings.get(webContentsId)
     if (!conversationId) {
       return null
     }
@@ -161,7 +192,7 @@ export class ConversationManager {
   async createConversation(
     title: string,
     settings: Partial<CONVERSATION_SETTINGS> = {},
-    tabId: number,
+    webContentsId: number,
     options: CreateConversationOptions = {}
   ): Promise<string> {
     let latestConversation: CONVERSATION | null = null
@@ -176,7 +207,7 @@ export class ConversationManager {
           1
         )
         if (messages.length === 0) {
-          await this.setActiveConversation(latestConversation.id, tabId)
+          await this.setActiveConversation(latestConversation.id, webContentsId)
           return latestConversation.id
         }
       }
@@ -247,13 +278,13 @@ export class ConversationManager {
       const conversationId = await this.sqlitePresenter.createConversation(title, mergedSettings)
 
       if (options.forceNewAndActivate) {
-        this.activeConversationIds.set(tabId, conversationId)
+        this.activeConversationBindings.set(webContentsId, conversationId)
         eventBus.sendToRenderer(CONVERSATION_EVENTS.ACTIVATED, SendTarget.ALL_WINDOWS, {
           conversationId,
-          tabId
+          webContentsId
         })
       } else {
-        await this.setActiveConversation(conversationId, tabId)
+        await this.setActiveConversation(conversationId, webContentsId)
       }
 
       await this.broadcastThreadListUpdate()
@@ -261,7 +292,7 @@ export class ConversationManager {
     } catch (error) {
       console.error('ConversationManager: Failed to create conversation', {
         title,
-        tabId,
+        webContentsId,
         options,
         latestConversationId: latestConversation?.id,
         errorMessage: error instanceof Error ? error.message : String(error),
@@ -274,28 +305,7 @@ export class ConversationManager {
   async renameConversation(conversationId: string, title: string): Promise<CONVERSATION> {
     await this.sqlitePresenter.renameConversation(conversationId, title)
     await this.broadcastThreadListUpdate()
-
-    const conversation = await this.getConversation(conversationId)
-
-    let tabId: number | undefined
-    for (const [key, value] of this.activeConversationIds.entries()) {
-      if (value === conversationId) {
-        tabId = key
-        break
-      }
-    }
-
-    if (tabId !== undefined) {
-      const windowId = presenter.tabPresenter.getTabWindowId(tabId)
-      eventBus.sendToRenderer(TAB_EVENTS.TITLE_UPDATED, SendTarget.ALL_WINDOWS, {
-        tabId,
-        conversationId,
-        title: conversation.title,
-        windowId
-      })
-    }
-
-    return conversation
+    return this.getConversation(conversationId)
   }
 
   async deleteConversation(conversationId: string): Promise<void> {

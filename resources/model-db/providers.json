@@ -42934,6 +42934,40 @@
           "type": "chat"
         },
         {
+          "id": "gpt-5.4",
+          "name": "GPT-5.4",
+          "display_name": "GPT-5.4",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 400000,
+            "output": 128000
+          },
+          "temperature": false,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": false,
+          "open_weights": false,
+          "knowledge": "2025-08-31",
+          "release_date": "2026-03-05",
+          "last_updated": "2026-03-05",
+          "cost": {
+            "input": 0,
+            "output": 0
+          },
+          "type": "chat"
+        },
+        {
           "id": "gpt-5.1-codex",
           "name": "GPT-5.1-Codex",
           "display_name": "GPT-5.1-Codex",
@@ -131721,8 +131755,8 @@
             ]
           },
           "limit": {
-            "context": 131072,
-            "output": 131072
+            "context": 262144,
+            "output": 262144
           },
           "tool_call": true,
           "reasoning": {
@@ -134897,6 +134931,29 @@
           "type": "chat"
         },
         {
+          "id": "gpt-5.3-chat-latest",
+          "name": "gpt-5.3-chat-latest",
+          "display_name": "gpt-5.3-chat-latest",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 128000,
+            "output": 16000
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "type": "chat"
+        },
+        {
           "id": "gpt-5.3-codex",
           "name": "gpt-5.3-codex",
           "display_name": "gpt-5.3-codex",
@@ -134911,6 +134968,54 @@
           },
           "limit": {
             "context": 400000,
+            "output": 128000
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "type": "chat"
+        },
+        {
+          "id": "gpt-5.4",
+          "name": "gpt-5.4",
+          "display_name": "gpt-5.4",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1050000,
+            "output": 128000
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "type": "chat"
+        },
+        {
+          "id": "gpt-5.4-pro",
+          "name": "gpt-5.4-pro",
+          "display_name": "gpt-5.4-pro",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1050000,
             "output": 128000
           },
           "tool_call": true,
@@ -139265,6 +139370,63 @@
             "input": 0.2,
             "output": 0.5,
             "cache_read": 0.05
+          },
+          "type": "chat"
+        },
+        {
+          "id": "x-ai/grok-4.2-fast",
+          "name": "xAI: Grok 4.2 Fast",
+          "display_name": "xAI: Grok 4.2 Fast",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 2000000,
+            "output": 2000000
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "cost": {
+            "input": 2,
+            "output": 6,
+            "cache_read": 0.2
+          },
+          "type": "chat"
+        },
+        {
+          "id": "x-ai/grok-4.2-fast-non-reasoning",
+          "name": "xAI: Grok 4.2 Fast Non Reasoning",
+          "display_name": "xAI: Grok 4.2 Fast Non Reasoning",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 2000000,
+            "output": 2000000
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 2,
+            "output": 6,
+            "cache_read": 0.2
           },
           "type": "chat"
         },

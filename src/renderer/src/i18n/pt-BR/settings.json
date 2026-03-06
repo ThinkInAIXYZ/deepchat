@@ -938,15 +938,10 @@
     "zoomIn": "Ampliar ",
     "zoomOut": "Reduzir ",
     "zoomReset": "Redefinir zoom",
-    "closeTab": "Fechar a guia atual",
-    "newTab": "Criar uma nova guia",
     "newWindow": "Abrir uma nova janela",
     "showHideWindow": "Mostrar/Ocultar janela",
     "newConversation": "Nova conversa",
-    "nextTab": "Mudar para a próxima guia",
-    "previousTab": "Mudar para a guia anterior",
-    "specificTab": "Mudar para guia específica (1-8)",
-    "lastTab": "Mudar para a última guia"
+    "closeWindow": "Fechar a guia atual"
   },
   "rateLimit": {
     "title": "Limite de Taxa",

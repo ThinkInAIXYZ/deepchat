@@ -1,162 +1,85 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { defineStore } from 'pinia'
-import type { BrowserTabInfo } from '@shared/types/browser'
+import type { BrowserWindowInfo } from '@shared/types/browser'
 import { YO_BROWSER_EVENTS } from '@/events'
 import { usePresenter } from '@/composables/usePresenter'
 
-function upsertTab(tabs: BrowserTabInfo[], tab: BrowserTabInfo): BrowserTabInfo[] {
-  const next = tabs.slice()
-  const index = next.findIndex((item) => item.id === tab.id)
-  if (index >= 0) {
-    next[index] = tab
-  } else {
-    next.push(tab)
-  }
-  return next
-}
+const WINDOW_EVENT_CHANNELS = [
+  YO_BROWSER_EVENTS.WINDOW_CREATED,
+  YO_BROWSER_EVENTS.WINDOW_UPDATED,
+  YO_BROWSER_EVENTS.WINDOW_CLOSED,
+  YO_BROWSER_EVENTS.WINDOW_FOCUSED,
+  YO_BROWSER_EVENTS.WINDOW_VISIBILITY_CHANGED,
+  YO_BROWSER_EVENTS.WINDOW_COUNT_CHANGED
+]
 
 export const useYoBrowserStore = defineStore('yoBrowser', () => {
   const yoBrowserPresenter = usePresenter('yoBrowserPresenter')
-  const tabs = ref<BrowserTabInfo[]>([])
-  const isVisible = ref(false)
-  const activeTabId = ref<string | null>(null)
+  const windows = ref<BrowserWindowInfo[]>([])
+  const activeWindowId = ref<number | null>(null)
 
-  const tabCount = computed(() => tabs.value.length)
-  const hasWindow = computed(() => tabs.value.length > 0 || isVisible.value)
+  const windowCount = computed(() => windows.value.length)
+  const hasWindow = computed(() => windows.value.length > 0)
+  const activeWindow = computed(
+    () => windows.value.find((item) => item.id === activeWindowId.value) ?? null
+  )
 
   const loadState = async () => {
-    const [list, visible] = await Promise.all([
-      yoBrowserPresenter.listTabs(),
-      yoBrowserPresenter.isVisible()
-    ])
-    if (Array.isArray(list)) {
-      tabs.value = list
-      activeTabId.value = list.find((item) => item.isActive)?.id ?? null
-    }
-    isVisible.value = Boolean(visible)
+    const snapshot = await yoBrowserPresenter.getBrowserContext()
+    windows.value = Array.isArray(snapshot?.windows) ? snapshot.windows : []
+    activeWindowId.value = snapshot?.activeWindowId ?? null
   }
 
-  const handleTabCreated = (_event: unknown, tab: BrowserTabInfo) => {
-    tabs.value = upsertTab(tabs.value, tab)
-    if (tab.isActive) {
-      activeTabId.value = tab.id
-    }
-  }
-
-  const handleTabClosed = (_event: unknown, tabId: string) => {
-    tabs.value = tabs.value.filter((t) => t.id !== tabId)
-    if (activeTabId.value === tabId) {
-      activeTabId.value = tabs.value[0]?.id ?? null
-    }
-    if (tabs.value.length === 0) {
-      isVisible.value = false
-    }
-  }
-
-  const handleTabActivated = (_event: unknown, tabId: string) => {
-    activeTabId.value = tabId
-    tabs.value = tabs.value.map((tab) => ({ ...tab, isActive: tab.id === tabId }))
-  }
-
-  const handleTabNavigated = (
-    _event: unknown,
-    payload: {
-      tabId: string
-      url: string
-    }
-  ) => {
-    tabs.value = tabs.value.map((tab) =>
-      tab.id === payload.tabId ? { ...tab, url: payload.url } : tab
-    )
-  }
-
-  const handleTabUpdated = (_event: unknown, tab: BrowserTabInfo) => {
-    tabs.value = upsertTab(tabs.value, tab)
-    if (tab.isActive) {
-      activeTabId.value = tab.id
-    }
-  }
-
-  const handleTabCountChanged = async () => {
+  const handleStateChanged = async () => {
     await loadState()
   }
 
-  const handleVisibilityChanged = (_event: unknown, visible: boolean) => {
-    isVisible.value = visible
-  }
+  const openLatestOrCreate = async () => {
+    const targetWindowId = activeWindow.value?.id ?? windows.value[0]?.id ?? null
 
-  const show = async () => {
-    await yoBrowserPresenter.show(true)
+    if (targetWindowId != null) {
+      await yoBrowserPresenter.focusWindow(targetWindowId)
+    } else {
+      await yoBrowserPresenter.openWindow('about:blank')
+    }
+
     await loadState()
   }
 
-  const hide = async () => {
-    await yoBrowserPresenter.hide()
-    await loadState()
-  }
-
-  const toggleVisibility = async (): Promise<boolean> => {
-    const visible = await yoBrowserPresenter.toggleVisibility()
-    isVisible.value = Boolean(visible)
-    return isVisible.value
-  }
-
-  const openTab = async (tabId: string): Promise<void> => {
-    await yoBrowserPresenter.activateTab(tabId)
-    await yoBrowserPresenter.show(true)
+  const openWindow = async (windowId: number) => {
+    await yoBrowserPresenter.focusWindow(windowId)
     await loadState()
   }
 
   onMounted(async () => {
     await loadState()
-    if (window?.electron?.ipcRenderer) {
-      window.electron.ipcRenderer.on(YO_BROWSER_EVENTS.TAB_CREATED, handleTabCreated)
-      window.electron.ipcRenderer.on(YO_BROWSER_EVENTS.TAB_CLOSED, handleTabClosed)
-      window.electron.ipcRenderer.on(YO_BROWSER_EVENTS.TAB_ACTIVATED, handleTabActivated)
-      window.electron.ipcRenderer.on(YO_BROWSER_EVENTS.TAB_NAVIGATED, handleTabNavigated)
-      window.electron.ipcRenderer.on(YO_BROWSER_EVENTS.TAB_UPDATED, handleTabUpdated)
-      window.electron.ipcRenderer.on(YO_BROWSER_EVENTS.TAB_COUNT_CHANGED, handleTabCountChanged)
-      window.electron.ipcRenderer.on(
-        YO_BROWSER_EVENTS.WINDOW_VISIBILITY_CHANGED,
-        handleVisibilityChanged
-      )
+    if (!window?.electron?.ipcRenderer) {
+      return
     }
+
+    WINDOW_EVENT_CHANNELS.forEach((channel) => {
+      window.electron.ipcRenderer.on(channel, handleStateChanged)
+    })
   })
 
   onBeforeUnmount(() => {
-    if (window?.electron?.ipcRenderer) {
-      window.electron.ipcRenderer.removeListener(YO_BROWSER_EVENTS.TAB_CREATED, handleTabCreated)
-      window.electron.ipcRenderer.removeListener(YO_BROWSER_EVENTS.TAB_CLOSED, handleTabClosed)
-      window.electron.ipcRenderer.removeListener(
-        YO_BROWSER_EVENTS.TAB_ACTIVATED,
-        handleTabActivated
-      )
-      window.electron.ipcRenderer.removeListener(
-        YO_BROWSER_EVENTS.TAB_NAVIGATED,
-        handleTabNavigated
-      )
-      window.electron.ipcRenderer.removeListener(YO_BROWSER_EVENTS.TAB_UPDATED, handleTabUpdated)
-      window.electron.ipcRenderer.removeListener(
-        YO_BROWSER_EVENTS.TAB_COUNT_CHANGED,
-        handleTabCountChanged
-      )
-      window.electron.ipcRenderer.removeListener(
-        YO_BROWSER_EVENTS.WINDOW_VISIBILITY_CHANGED,
-        handleVisibilityChanged
-      )
+    if (!window?.electron?.ipcRenderer) {
+      return
     }
+
+    WINDOW_EVENT_CHANNELS.forEach((channel) => {
+      window.electron.ipcRenderer.removeListener(channel, handleStateChanged)
+    })
   })
 
   return {
-    tabs,
-    isVisible,
-    activeTabId,
-    tabCount,
+    windows,
+    activeWindowId,
+    activeWindow,
+    windowCount,
     hasWindow,
-    show,
-    hide,
-    toggleVisibility,
-    openTab,
+    openLatestOrCreate,
+    openWindow,
     loadState
   }
 })

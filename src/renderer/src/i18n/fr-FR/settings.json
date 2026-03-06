@@ -938,15 +938,10 @@
     "zoomIn": "Zoomer",
     "zoomOut": "Zoom out",
     "zoomReset": "Réinitialiser le zoom",
-    "closeTab": "Fermez la page d'onglet actuelle",
-    "newTab": "Créer un nouvel onglet",
     "newWindow": "Ouvrez une nouvelle fenêtre",
     "showHideWindow": "Afficher/Masquer la fenêtre",
     "newConversation": "Nouvelle conversation",
-    "lastTab": "Passez à la dernière onglet",
-    "nextTab": "Passez à l'onglet suivant",
-    "previousTab": "Passez à l'onglet précédent",
-    "specificTab": "Passez à la page d'onglet spécifiée (1-8)"
+    "closeWindow": "Fermez la page d'onglet actuelle"
   },
   "rateLimit": {
     "title": "Limitation de débit",

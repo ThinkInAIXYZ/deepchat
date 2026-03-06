@@ -30,7 +30,7 @@ export type SessionConfig = {
 }
 
 export type SessionBindings = {
-  tabId: number | null
+  webContentsId: number | null
   windowId: number | null
   windowType: 'main' | 'floating' | 'browser' | null
 }
@@ -53,12 +53,14 @@ export type Session = {
 
 export type CreateSessionOptions = {
   forceNewAndActivate?: boolean
+  webContentsId?: number
   tabId?: number
 }
 
 export type CreateSessionParams = {
   title: string
   settings?: Partial<SessionConfig>
+  webContentsId?: number
   tabId?: number
   options?: CreateSessionOptions
 }

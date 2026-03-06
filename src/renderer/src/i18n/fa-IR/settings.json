@@ -938,15 +938,10 @@
     "zoomIn": "بزرگ‌نمایی",
     "zoomOut": "کوچک‌نمایی",
     "zoomReset": "بازنشانی بزرگ‌نمایی",
-    "closeTab": "بستن برگه کنونی",
-    "newTab": "ساختن برگه جدید",
     "newWindow": "باز کردن پنجره جدید",
     "showHideWindow": "نمایش/مخفی کردن پنجره",
     "newConversation": "گفت‌وگوی جدید",
-    "nextTab": "رفتن به برگه بعدی",
-    "previousTab": "رفتن به برگه پیشین",
-    "specificTab": "رفتن به برگه خاص (1-8)",
-    "lastTab": "رفتن به آخرین برگه"
+    "closeWindow": "بستن برگه کنونی"
   },
   "rateLimit": {
     "title": "محدودیت نرخ",

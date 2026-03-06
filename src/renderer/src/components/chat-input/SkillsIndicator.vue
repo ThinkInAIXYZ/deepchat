@@ -79,7 +79,7 @@ const handleToggle = async (skillName: string) => {
 const openSettings = () => {
   const windowId = window.api.getWindowId()
   if (windowId != null) {
-    windowPresenter.openOrFocusSettingsTab(windowId)
+    void windowPresenter.openOrFocusSettingsWindow()
   }
   panelOpen.value = false
 }

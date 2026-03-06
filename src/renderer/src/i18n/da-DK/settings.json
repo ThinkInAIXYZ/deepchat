@@ -884,15 +884,10 @@
     "zoomIn": "Zoom ind",
     "zoomOut": "Zoom ud",
     "zoomReset": "Nulstil zoom",
-    "closeTab": "Luk aktiv fane",
-    "newTab": "Opret ny fane",
     "newWindow": "Åbn nyt vindue",
     "showHideWindow": "Vis/skjul vindue",
     "newConversation": "Ny samtale",
-    "nextTab": "Skift til næste fane",
-    "previousTab": "Skift til forrige fane",
-    "specificTab": "Skift til bestemt fane (1-8)",
-    "lastTab": "Skift til sidste fane"
+    "closeWindow": "Luk aktiv fane"
   },
   "acp": {
     "title": "ACP-agenter",

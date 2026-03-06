@@ -100,7 +100,7 @@ export class FloatingChatWindow {
       this.window.setAlwaysOnTop(true, 'floating')
       this.window.setOpacity(this.config.opacity)
       this.setupWindowEvents()
-      this.registerVirtualTab()
+      this.registerWindowContent()
 
       logger.info('FloatingChatWindow created successfully')
 
@@ -167,7 +167,7 @@ export class FloatingChatWindow {
 
   public destroy(): void {
     if (this.window) {
-      this.unregisterVirtualTab()
+      this.unregisterWindowContent()
       try {
         if (!this.window.isDestroyed()) {
           this.window.destroy()
@@ -200,7 +200,7 @@ export class FloatingChatWindow {
     }
   }
 
-  private registerVirtualTab(): void {
+  private registerWindowContent(): void {
     if (!this.window || this.window.isDestroyed()) {
       return
     }
@@ -209,15 +209,17 @@ export class FloatingChatWindow {
       const tabPresenter = presenter.tabPresenter
       if (tabPresenter) {
         const webContentsId = this.window.webContents.id
-        logger.info(`Registering virtual tab for floating window, WebContents ID: ${webContentsId}`)
+        logger.info(
+          `Registering floating window webContents bridge, WebContents ID: ${webContentsId}`
+        )
         tabPresenter.registerFloatingWindow(webContentsId, this.window.webContents)
       }
     } catch (error) {
-      logger.error('Failed to register virtual tab for floating window:', error)
+      logger.error('Failed to register floating window webContents bridge:', error)
     }
   }
 
-  private unregisterVirtualTab(): void {
+  private unregisterWindowContent(): void {
     if (!this.window) {
       return
     }
@@ -227,12 +229,12 @@ export class FloatingChatWindow {
       if (tabPresenter) {
         const webContentsId = this.window.webContents.id
         logger.info(
-          `Unregistering virtual tab for floating window, WebContents ID: ${webContentsId}`
+          `Unregistering floating window webContents bridge, WebContents ID: ${webContentsId}`
         )
         tabPresenter.unregisterFloatingWindow(webContentsId)
       }
     } catch (error) {
-      logger.error('Failed to unregister virtual tab for floating window:', error)
+      logger.error('Failed to unregister floating window webContents bridge:', error)
     }
   }
 

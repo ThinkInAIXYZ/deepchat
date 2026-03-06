@@ -27,9 +27,9 @@ export const usePageRouterStore = defineStore('pageRouter', () => {
         return
       }
 
-      // 2. Check for active new-agent session on this tab first
-      const tabId = window.api.getWebContentsId()
-      const activeNewSession = await newAgentPresenter.getActiveSession(tabId)
+      // 2. Check for active new-agent session on this window content first
+      const webContentsId = window.api.getWebContentsId()
+      const activeNewSession = await newAgentPresenter.getActiveSession(webContentsId)
       if (activeNewSession) {
         route.value = { name: 'chat', sessionId: activeNewSession.id }
         return

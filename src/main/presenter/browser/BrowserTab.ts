@@ -1,16 +1,20 @@
 import { WebContents } from 'electron'
 import { nanoid } from 'nanoid'
-import { BrowserTabStatus, type ScreenshotOptions } from '@shared/types/browser'
+import {
+  BrowserPageStatus,
+  type BrowserPageInfo,
+  type ScreenshotOptions
+} from '@shared/types/browser'
 import { CDPManager } from './CDPManager'
 import { ScreenshotManager } from './ScreenshotManager'
 
 export class BrowserTab {
-  readonly tabId: string
+  readonly pageId: string
   readonly createdAt: number
   url = 'about:blank'
   title = ''
   favicon = ''
-  status: BrowserTabStatus = BrowserTabStatus.Idle
+  status: BrowserPageStatus = BrowserPageStatus.Idle
   updatedAt: number
   private readonly webContents: WebContents
   private readonly cdpManager: CDPManager
@@ -22,7 +26,7 @@ export class BrowserTab {
     cdpManager: CDPManager,
     screenshotManager: ScreenshotManager
   ) {
-    this.tabId = nanoid(12)
+    this.pageId = nanoid(12)
     this.createdAt = Date.now()
     this.updatedAt = this.createdAt
     this.webContents = webContents
@@ -36,8 +40,12 @@ export class BrowserTab {
     return this.webContents
   }
 
+  get tabId(): string {
+    return this.pageId
+  }
+
   async navigate(url: string, timeoutMs?: number): Promise<void> {
-    this.status = BrowserTabStatus.Loading
+    this.status = BrowserPageStatus.Loading
     this.url = url
     this.updatedAt = Date.now()
     await this.ensureSession()
@@ -45,11 +53,11 @@ export class BrowserTab {
       await this.webContents.loadURL(url)
       await this.waitForLoad(timeoutMs)
       this.title = this.webContents.getTitle() || url
-      this.status = BrowserTabStatus.Ready
+      this.status = BrowserPageStatus.Ready
       this.updatedAt = Date.now()
     } catch (error) {
-      this.status = BrowserTabStatus.Error
-      console.error(`[YoBrowser][${this.tabId}] navigate failed:`, error)
+      this.status = BrowserPageStatus.Error
+      console.error(`[YoBrowser][${this.pageId}] navigate failed:`, error)
       throw error
     }
   }
@@ -622,7 +630,7 @@ export class BrowserTab {
         this.webContents.debugger.detach()
       }
     } catch (error) {
-      console.warn(`[YoBrowser][${this.tabId}] failed to detach debugger:`, error)
+      console.warn(`[YoBrowser][${this.pageId}] failed to detach debugger:`, error)
     } finally {
       this.isAttached = false
     }
@@ -644,10 +652,22 @@ export class BrowserTab {
         await this.cdpManager.createSession(this.webContents)
         this.isAttached = true
       } catch (error) {
-        console.error(`[YoBrowser][${this.tabId}] failed to create CDP session`, error)
+        console.error(`[YoBrowser][${this.pageId}] failed to create CDP session`, error)
         throw error
       }
     }
     return this.webContents.debugger
+  }
+
+  toPageInfo(): BrowserPageInfo {
+    return {
+      id: this.pageId,
+      url: this.url,
+      title: this.title,
+      favicon: this.favicon,
+      status: this.status,
+      createdAt: this.createdAt,
+      updatedAt: this.updatedAt
+    }
   }
 }

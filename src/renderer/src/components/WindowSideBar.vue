@@ -221,15 +221,16 @@ import { usePresenter } from '@/composables/usePresenter'
 import { useThemeStore } from '@/stores/theme'
 import { useAgentStore } from '@/stores/ui/agent'
 import { useSessionStore } from '@/stores/ui/session'
+import { useYoBrowserStore } from '@/stores/yoBrowser'
 import ModelIcon from './icons/ModelIcon.vue'
 import { useI18n } from 'vue-i18n'
 
 const windowPresenter = usePresenter('windowPresenter')
-const yoBrowserPresenter = usePresenter('yoBrowserPresenter')
 const { t } = useI18n()
 const themeStore = useThemeStore()
 const agentStore = useAgentStore()
 const sessionStore = useSessionStore()
+const yoBrowserStore = useYoBrowserStore()
 
 const collapsed = ref(false)
 let agentSwitchSeq = 0
@@ -241,13 +242,13 @@ const filteredGroups = computed(() => sessionStore.getFilteredGroups(agentStore.
 const openSettings = () => {
   const windowId = window.api.getWindowId()
   if (windowId != null) {
-    windowPresenter.openOrFocusSettingsTab(windowId)
+    void windowPresenter.openOrFocusSettingsWindow()
   }
 }
 
 const onBrowserClick = async () => {
   try {
-    await yoBrowserPresenter.show(true)
+    await yoBrowserStore.openLatestOrCreate()
   } catch (error) {
     console.warn('Failed to open browser window.', error)
   }

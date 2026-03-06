@@ -5,8 +5,6 @@ import { z } from 'zod'
 import { zodToJsonSchema } from 'zod-to-json-schema'
 import { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 import { presenter } from '@/presenter' // 导入全局的 presenter 对象
-import { eventBus } from '@/eventbus' // 引入 eventBus
-import { TAB_EVENTS } from '@/events'
 import { isSafeRegexPattern } from '@shared/regexValidator'
 
 // Schema definitions
@@ -45,20 +43,6 @@ const GetConversationStatsArgsSchema = z.object({
   days: z.number().optional().default(30).describe('Statistics period in days (default 30 days)')
 })
 
-const CreateNewTabArgsSchema = z.object({
-  url: z
-    .enum(['local://chat'])
-    .default('local://chat') // 默认 URL 为 local://chat
-    .describe('URL for the new tab. Defaults to local://chat.'),
-  active: z
-    .boolean()
-    .optional()
-    .default(true)
-    .describe('Whether the new tab should be active. Defaults to true.'),
-  position: z.number().optional().describe('Optional position for the new tab in the tab bar.'),
-  userInput: z.string().optional().describe('Optional initial user input for the new chat tab.')
-})
-
 interface SearchResult {
   conversations?: Array<{
     id: string
@@ -78,26 +62,6 @@ interface SearchResult {
     snippet?: string
   }>
   total: number
-}
-
-// 等待 Tab 内容就绪的辅助函数
-function awaitTabReady(webContentsId: number, timeout = 10000): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      eventBus.removeListener(TAB_EVENTS.RENDERER_TAB_READY, listener)
-      reject(new Error(`Timed out waiting for tab ${webContentsId} to be ready.`))
-    }, timeout)
-
-    const listener = (readyTabId: number) => {
-      if (readyTabId === webContentsId) {
-        clearTimeout(timer)
-        eventBus.removeListener(TAB_EVENTS.RENDERER_TAB_READY, listener)
-        resolve()
-      }
-    }
-
-    eventBus.on(TAB_EVENTS.RENDERER_TAB_READY, listener)
-  })
 }
 
 export class ConversationSearchServer {
@@ -526,16 +490,6 @@ export class ConversationSearchServer {
               title: 'Get Conversation Stats',
               readOnlyHint: true
             }
-          },
-          {
-            name: 'create_new_tab',
-            description:
-              'Creates a new tab. If userInput is provided, it also creates a new chat session and sends the input as the first message, then returns tabId and threadId.',
-            inputSchema: zodToJsonSchema(CreateNewTabArgsSchema),
-            annotations: {
-              title: 'Create New Tab',
-              destructiveHint: false
-            }
           }
         ]
       }
@@ -599,60 +553,6 @@ export class ConversationSearchServer {
                 {
                   type: 'text',
                   text: JSON.stringify(result, null, 2)
-                }
-              ]
-            }
-          }
-          case 'create_new_tab': {
-            const { url, active, position, userInput } = CreateNewTabArgsSchema.parse(args)
-
-            const mainWindowId = presenter.windowPresenter.mainWindow?.id
-            if (!mainWindowId) {
-              throw new Error('Main application window not found to create a new tab.')
-            }
-
-            const newTabId = await presenter.tabPresenter.createTab(mainWindowId, url, {
-              active,
-              position
-            })
-
-            if (!newTabId) {
-              throw new Error('Failed to create new tab.')
-            }
-
-            const normalizedInput = userInput?.trim()
-            if (!normalizedInput) {
-              return {
-                content: [{ type: 'text', text: JSON.stringify({ tabId: newTabId }) }]
-              }
-            }
-
-            const newTabView = await presenter.tabPresenter.getTab(newTabId)
-            if (!newTabView) {
-              throw new Error(`Could not find view for new tab ${newTabId}`)
-            }
-
-            const newWebContentsId = newTabView.webContents.id
-            try {
-              await awaitTabReady(newWebContentsId)
-            } catch (error) {
-              console.error(error)
-              throw new Error("Failed to communicate with the new tab's renderer process.")
-            }
-
-            const session = await presenter.newAgentPresenter.createSession(
-              {
-                agentId: 'deepchat',
-                message: normalizedInput
-              },
-              newWebContentsId
-            )
-
-            return {
-              content: [
-                {
-                  type: 'text' as const,
-                  text: JSON.stringify({ tabId: newTabId, threadId: session.id })
                 }
               ]
             }

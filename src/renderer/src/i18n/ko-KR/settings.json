@@ -938,15 +938,10 @@
     "zoomIn": "글꼴을 확대하십시오",
     "zoomOut": "글꼴을 줄입니다",
     "zoomReset": "글꼴을 재설정하십시오",
-    "closeTab": "현재 탭 페이지를 닫습니다",
-    "newTab": "새 탭을 만듭니다",
     "newWindow": "새 창을 엽니 다",
     "showHideWindow": "창을 표시/숨기기",
     "newConversation": "새로운 대화",
-    "lastTab": "마지막 탭으로 전환하십시오",
-    "previousTab": "이전 탭으로 전환하십시오",
-    "specificTab": "지정된 탭 페이지 (1-8)로 전환",
-    "nextTab": "다음 탭으로 전환하십시오"
+    "closeWindow": "현재 탭 페이지를 닫습니다"
   },
   "rateLimit": {
     "title": "속도 제한",

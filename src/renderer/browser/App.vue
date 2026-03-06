@@ -19,34 +19,26 @@ import AppBar from './components/AppBar.vue'
 import BrowserToolbar from './components/BrowserToolbar.vue'
 import BrowserPlaceholder from './components/BrowserPlaceholder.vue'
 import { useDeviceVersion } from '@/composables/useDeviceVersion'
-import { useTabStore } from '@shell/stores/tab'
 import { useElementSize } from '@vueuse/core'
 import { useFontManager } from '@/composables/useFontManager'
+import { useBrowserWindowStore } from './stores/window'
 
 const { setupFontListener } = useFontManager()
 setupFontListener()
 
 // Detect platform to apply proper styling
 const { isWinMacOS } = useDeviceVersion()
-const tabStore = useTabStore()
+const browserWindowStore = useBrowserWindowStore()
 
 const windowId = ref<number | null>(null)
 const appBarRef = ref<InstanceType<typeof AppBar> | null>(null)
 const toolbarRef = ref<InstanceType<typeof BrowserToolbar> | null>(null)
 
-const activeTab = computed(() => tabStore.tabs.find((tab) => tab.id === tabStore.currentTabId))
-const isWebTabActive = computed(() => {
-  const tab = activeTab.value
-  if (!tab) return false
-  return Boolean(!tab.url?.startsWith('local://') && tab.browserTabId)
-})
-const isAboutBlank = computed(() => {
-  const tab = activeTab.value
-  return tab?.url === 'about:blank'
-})
-const shouldShowToolbar = computed(() => isWebTabActive.value)
-const shouldShowPlaceholder = computed(() => isWebTabActive.value && isAboutBlank.value)
-const webContentBackgroundClass = computed(() => (isWebTabActive.value ? 'bg-white' : ''))
+const shouldShowToolbar = computed(() => Boolean(browserWindowStore.browserWindow))
+const shouldShowPlaceholder = computed(() => browserWindowStore.isAboutBlank)
+const webContentBackgroundClass = computed(() =>
+  browserWindowStore.browserWindow ? 'bg-white' : ''
+)
 
 // Chrome height reporting — needed for browser windows (TabPresenter manages view bounds)
 const appBarSize = useElementSize(computed(() => appBarRef.value?.$el ?? null))
@@ -60,7 +52,7 @@ const chromeHeight = computed(() => {
 
 const sendChromeHeight = (height: number) => {
   if (windowId.value == null) return
-  window.electron.ipcRenderer.send('shell:chrome-height', { height })
+  window.electron.ipcRenderer.send('browser:chrome-height', { height })
 }
 
 watch(
@@ -73,6 +65,7 @@ watch(
 
 onMounted(async () => {
   windowId.value = window.api.getWindowId?.() ?? null
+  await browserWindowStore.init()
   await nextTick()
   sendChromeHeight(chromeHeight.value)
 })
