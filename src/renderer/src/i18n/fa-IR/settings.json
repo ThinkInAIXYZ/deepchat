@@ -720,6 +720,9 @@
     "enabledDescription": "روشن یا خاموش کردن امکانات و ابزارهای MCP",
     "enableToAccess": "لطفاً MCP را روشن کنید تا به گزینه‌های پیکربندی دسترسی پیدا کنید",
     "marketplace": "رفتن به بازار MCP برای نصب با یک دکمه",
+    "marketMenu": {
+      "higress": "Higress"
+    },
     "technicalDetails": "جزئیات فنی",
     "httpServer": "کارساز HTTP",
     "localProcess": "فرآیند محلی",

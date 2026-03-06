@@ -590,10 +590,8 @@ export interface IConfigPresenter {
   // MCP configuration related methods
   getMcpServers(): Promise<Record<string, MCPServerConfig>>
   setMcpServers(servers: Record<string, MCPServerConfig>): Promise<void>
-  getMcpDefaultServers(): Promise<string[]>
-  addMcpDefaultServer(serverName: string): Promise<void>
-  removeMcpDefaultServer(serverName: string): Promise<void>
-  toggleMcpDefaultServer(serverName: string): Promise<void>
+  getEnabledMcpServers(): Promise<string[]>
+  setMcpServerEnabled(serverName: string, enabled: boolean): Promise<void>
   getMcpEnabled(): Promise<boolean>
   setMcpEnabled(enabled: boolean): Promise<void>
   addMcpServer(serverName: string, config: MCPServerConfig): Promise<boolean>
@@ -1469,6 +1467,7 @@ export interface MCPServerConfig {
   descriptions: string
   icons: string
   autoApprove: string[]
+  enabled: boolean
   disable?: boolean
   baseUrl?: string
   customHeaders?: Record<string, string>
@@ -1480,7 +1479,6 @@ export interface MCPServerConfig {
 
 export interface MCPConfig {
   mcpServers: Record<string, MCPServerConfig>
-  defaultServers: string[]
   mcpEnabled: boolean
   ready: boolean
 }
@@ -1600,10 +1598,8 @@ export interface IMCPPresenter {
   isReady(): boolean
   getMcpServers(): Promise<Record<string, MCPServerConfig>>
   getMcpClients(): Promise<McpClient[]>
-  getMcpDefaultServers(): Promise<string[]>
-  addMcpDefaultServer(serverName: string): Promise<void>
-  removeMcpDefaultServer(serverName: string): Promise<void>
-  toggleMcpDefaultServer(serverName: string): Promise<void>
+  getEnabledMcpServers(): Promise<string[]>
+  setMcpServerEnabled(serverName: string, enabled: boolean): Promise<void>
   addMcpServer(serverName: string, config: MCPServerConfig): Promise<boolean>
   removeMcpServer(serverName: string): Promise<void>
   updateMcpServer(serverName: string, config: Partial<MCPServerConfig>): Promise<void>
@@ -1637,7 +1633,6 @@ export interface IMCPPresenter {
   cancelSamplingRequest(requestId: string, reason?: string): Promise<void>
   setMcpEnabled(enabled: boolean): Promise<void>
   getMcpEnabled(): Promise<boolean>
-  resetToDefaultServers(): Promise<void>
 
   // Permission management
   grantPermission(

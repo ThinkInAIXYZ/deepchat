@@ -720,6 +720,9 @@
     "enabledDescription": "הפעל או השבת פונקציונליות וכלים של MCP",
     "enableToAccess": "אנא הפעל את MCP כדי לגשת לאפשרויות התצורה",
     "marketplace": "עבור לחנות MCP להתקנה בלחיצה אחת",
+    "marketMenu": {
+      "higress": "Higress"
+    },
     "technicalDetails": "פרטים טכניים",
     "httpServer": "שרת HTTP",
     "localProcess": "תהליך מקומי",

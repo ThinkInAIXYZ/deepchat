@@ -107,6 +107,12 @@ declare module 'vue-i18n' {
       agentWorkspaceTooltip: string
       agentWorkspaceSelect: string
       agentWorkspaceCurrent: string
+      mcp: {
+        badge: string
+        title: string
+        empty: string
+        openSettings: string
+      }
     }
     features: {
       webSearch: string
@@ -619,10 +625,6 @@ declare module 'vue-i18n' {
         name: string
         desc: string
       }
-      powerpack: {
-        name: string
-        desc: string
-      }
       difyKnowledge: {
         name: string
         desc: string
@@ -1120,6 +1122,9 @@ declare module 'vue-i18n' {
       enabledDescription: string
       enableToAccess: string
       marketplace: string
+      marketMenu: {
+        higress: string
+      }
       technicalDetails: string
       httpServer: string
       localProcess: string

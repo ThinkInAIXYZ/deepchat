@@ -67,7 +67,7 @@
     "title": "Edit Server"
   },
   "enableToAccess": "Please enable MCP to access configuration options.",
-  "enabledDescription": "Enable or disable MCP functionality and tools.",
+  "enabledDescription": "When enabled, all enabled services start automatically.",
   "enabledTitle": "Enable MCP",
   "isDefault": "Default server",
   "noServersFound": "Server not found",
@@ -205,10 +205,6 @@
     "braveSearch": {
       "desc": "Brave Search API https://brave.com/search/api/",
       "name": "Brave Search"
-    },
-    "powerpack": {
-      "desc": "Provide models with time queries, web browsing, and secure code execution.",
-      "name": "Power Pack"
     },
     "difyKnowledge": {
       "desc": "Dify Knowledge Base Search Service, which can retrieve content in Dify Knowledge Base",

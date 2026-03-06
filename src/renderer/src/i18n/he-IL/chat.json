@@ -27,7 +27,13 @@
     "agentWorkspaceSelect": "בחר ספריית עבודה",
     "agentWorkspaceTooltip": "הגדר את ספריית העבודה של הסוכן",
     "attach": "צרף",
-    "voiceInput": "קלט קולי"
+    "voiceInput": "קלט קולי",
+    "mcp": {
+      "badge": "MCP {count}",
+      "title": "MCP פעילים",
+      "empty": "אין שירותים פעילים",
+      "openSettings": "פתח הגדרות MCP"
+    }
   },
   "features": {
     "webSearch": "חיפוש אינטרנט",

@@ -206,10 +206,6 @@
       "desc": "Brave Search API https://brave.com/search/api/",
       "name": "Brave Search"
     },
-    "powerpack": {
-      "desc": "ספק למודלים שאילתות זמן, גלישה באינטרנט והרצת קוד מאובטחת.",
-      "name": "Power Pack"
-    },
     "difyKnowledge": {
       "desc": "שירות חיפוש בסיס ידע של Dify, המסוגל לאחזר תוכן מתוך Dify Knowledge Base",
       "name": "חיפוש בסיס ידע Dify"

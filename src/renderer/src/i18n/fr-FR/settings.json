@@ -840,6 +840,9 @@
     "setAsDefault": "Définir en tant que serveur par défaut",
     "setDefault": "Définir par défaut",
     "marketplace": "Allez sur MCP Market et installez-le en un seul clic",
+    "marketMenu": {
+      "higress": "Higress"
+    },
     "maxDefaultServersReached": "Seuls 3 serveurs par défaut peuvent être définis au maximum",
     "removeDefaultFirst": "Veuillez supprimer d'abord certains serveurs par défaut",
     "higressMarket": "Aller à l'installation de Higress MCP",

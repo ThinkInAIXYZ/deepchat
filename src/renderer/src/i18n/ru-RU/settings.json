@@ -840,6 +840,9 @@
     "cannotRemoveBuiltIn": "Невозможно удалить встроенный сервер",
     "builtInServerCannotBeRemoved": "Встроенные серверы нельзя удалить, можно изменять только параметры и переменные окружения",
     "marketplace": "Перейдите на MCP Market и установите его одним щелчком",
+    "marketMenu": {
+      "higress": "Higress"
+    },
     "maxDefaultServersReached": "Только 3 сервера по умолчанию могут быть установлены по максимум",
     "removeDefaultFirst": "Сначала удалите несколько серверов по умолчанию",
     "higressMarket": "Перейти к установке Higress MCP",

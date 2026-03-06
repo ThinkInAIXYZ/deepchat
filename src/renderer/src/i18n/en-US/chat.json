@@ -27,7 +27,13 @@
     "acpModeTooltip": "Current mode: {mode}",
     "agentWorkspaceTooltip": "Set Agent workspace directory",
     "agentWorkspaceSelect": "Select a folder to use as the workspace",
-    "agentWorkspaceCurrent": "Current workspace: {path}"
+    "agentWorkspaceCurrent": "Current workspace: {path}",
+    "mcp": {
+      "badge": "MCP {count}",
+      "title": "Enabled MCP",
+      "empty": "No enabled services",
+      "openSettings": "Open MCP settings"
+    }
   },
   "features": {
     "webSearch": "Web Search",

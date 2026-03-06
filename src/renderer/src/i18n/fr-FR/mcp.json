@@ -167,10 +167,6 @@
       "desc": "Brave Search API https://brave.com/search/api/",
       "name": "Brave Search"
     },
-    "powerpack": {
-      "desc": "Fournissez des capacités améliorées telles que la requête temporelle, l'acquisition d'informations Web et l'exécution de code sécurisé pour tout grand modèle, afin que le modèle ait des capacités d'acquisition d'informations plus puissantes et précises.",
-      "name": "Boîte à outils d'amélioration"
-    },
     "difyKnowledge": {
       "name": "Recherche dans la base de connaissances Dify",
       "desc": "Service de recherche de la base de connaissances Dify, permet de rechercher le contenu de la base de connaissances Dify"

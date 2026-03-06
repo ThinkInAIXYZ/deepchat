@@ -27,7 +27,13 @@
     "agentWorkspaceSelect": "選擇工作目錄",
     "agentWorkspaceTooltip": "設置 Agent 工作目錄",
     "attach": "添加附件",
-    "voiceInput": "語音輸入"
+    "voiceInput": "語音輸入",
+    "mcp": {
+      "badge": "MCP {count}",
+      "title": "已啟用 MCP",
+      "empty": "暫無已啟用服務",
+      "openSettings": "打開 MCP 設置"
+    }
   },
   "features": {
     "webSearch": "網絡搜索",

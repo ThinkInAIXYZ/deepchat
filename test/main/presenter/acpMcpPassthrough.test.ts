@@ -21,7 +21,8 @@ describe('ACP MCP passthrough helpers', () => {
       env: { FOO: 'bar', NUM: 1 },
       descriptions: 'desc',
       icons: '🧪',
-      autoApprove: []
+      autoApprove: [],
+      enabled: true
     })
 
     expect(server && 'type' in server).toBe(false)
@@ -66,7 +67,8 @@ describe('AcpSessionManager MCP server injection', () => {
           env: {},
           descriptions: '',
           icons: '',
-          autoApprove: []
+          autoApprove: [],
+          enabled: true
         },
         'http-1': {
           type: 'http',
@@ -76,6 +78,7 @@ describe('AcpSessionManager MCP server injection', () => {
           descriptions: '',
           icons: '',
           autoApprove: [],
+          enabled: true,
           baseUrl: 'http://localhost',
           customHeaders: { Authorization: 'Bearer test' }
         }

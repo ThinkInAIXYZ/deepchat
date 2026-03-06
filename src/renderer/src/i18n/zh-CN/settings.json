@@ -720,6 +720,9 @@
     "enabledDescription": "启用或禁用MCP功能和工具",
     "enableToAccess": "请先启用MCP以访问配置选项",
     "marketplace": "前往MCP市场一键安装",
+    "marketMenu": {
+      "higress": "Higress"
+    },
     "technicalDetails": "技术详情",
     "httpServer": "HTTP服务器",
     "localProcess": "本地进程",

@@ -771,25 +771,33 @@ export class SyncPresenter implements ISyncPresenter {
       if (!mergedServers[name]) {
         mergedServers[name] = config
         addedServers = true
+      } else if (config.enabled && !mergedServers[name].enabled) {
+        mergedServers[name] = { ...mergedServers[name], enabled: true }
+        addedServers = true
       }
     }
 
-    const currentDefaults = new Set(currentSettings.defaultServers || [])
-    let defaultsChanged = false
+    const currentEnabled = new Set(
+      Object.entries(mergedServers)
+        .filter(([, config]) => config.enabled)
+        .map(([name]) => name)
+    )
+    let enabledChanged = false
     for (const serverName of backupSettings.defaultServers || []) {
       const serverConfig = backupSettings.mcpServers?.[serverName]
       if (serverConfig && !this.isKnowledgeMcp(serverName, serverConfig)) {
-        const beforeSize = currentDefaults.size
-        currentDefaults.add(serverName)
-        if (currentDefaults.size !== beforeSize) {
-          defaultsChanged = true
+        const beforeSize = currentEnabled.size
+        currentEnabled.add(serverName)
+        if (currentEnabled.size !== beforeSize && mergedServers[serverName]) {
+          mergedServers[serverName] = { ...mergedServers[serverName], enabled: true }
+          enabledChanged = true
         }
       }
     }
 
     const mergedSettings: McpSettings = { ...currentSettings }
     mergedSettings.mcpServers = mergedServers
-    mergedSettings.defaultServers = Array.from(currentDefaults)
+    delete mergedSettings.defaultServers
 
     let settingsChanged = false
     for (const [key, value] of Object.entries(backupSettings)) {
@@ -802,7 +810,7 @@ export class SyncPresenter implements ISyncPresenter {
       }
     }
 
-    if (addedServers || defaultsChanged || settingsChanged) {
+    if (addedServers || enabledChanged || settingsChanged) {
       fs.writeFileSync(targetPath, JSON.stringify(mergedSettings, null, 2), 'utf-8')
       return
     }

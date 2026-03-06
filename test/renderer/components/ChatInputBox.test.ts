@@ -117,6 +117,19 @@ vi.mock('@/components/chat-input/composables/useSkillsData', () => ({
   })
 }))
 
+vi.mock('@/stores/mcp', () => ({
+  useMcpStore: () => ({
+    mcpEnabled: false
+  })
+}))
+
+vi.mock('@/components/chat-input/McpIndicator.vue', () => ({
+  default: defineComponent({
+    name: 'McpIndicator',
+    template: '<div data-testid="mcp-indicator"></div>'
+  })
+}))
+
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
     t: (key: string) => key

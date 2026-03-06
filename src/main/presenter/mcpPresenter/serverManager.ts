@@ -176,51 +176,6 @@ export class ServerManager {
     return this.uvRegistry
   }
 
-  // Get default server name list
-  async getDefaultServerNames(): Promise<string[]> {
-    return this.configPresenter.getMcpDefaultServers()
-  }
-
-  // Get default server name (compatible with old version, return first default server)
-  async getDefaultServerName(): Promise<string | null> {
-    const defaultServers = await this.configPresenter.getMcpDefaultServers()
-    const servers = await this.configPresenter.getMcpServers()
-
-    // If no default servers or default server doesn't exist, return null
-    if (defaultServers.length === 0 || !servers[defaultServers[0]]) {
-      return null
-    }
-
-    return defaultServers[0]
-  }
-
-  // Get default client (don't auto-start service, only return first default server client)
-  async getDefaultClient(): Promise<McpClient | null> {
-    const defaultServerName = await this.getDefaultServerName()
-
-    if (!defaultServerName) {
-      return null
-    }
-
-    // Return existing client instance, regardless of whether it's running
-    return this.getClient(defaultServerName) || null
-  }
-
-  // Get all default clients
-  async getDefaultClients(): Promise<McpClient[]> {
-    const defaultServerNames = await this.getDefaultServerNames()
-    const clients: McpClient[] = []
-
-    for (const serverName of defaultServerNames) {
-      const client = this.getClient(serverName)
-      if (client) {
-        clients.push(client)
-      }
-    }
-
-    return clients
-  }
-
   // Get running clients
   async getRunningClients(): Promise<McpClient[]> {
     const clients: McpClient[] = []

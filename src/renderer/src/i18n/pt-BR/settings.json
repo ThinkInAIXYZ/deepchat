@@ -720,6 +720,9 @@
     "enabledDescription": "Habilitar ou desabilitar a funcionalidade e ferramentas MCP",
     "enableToAccess": "Por favor, habilite o MCP para acessar as opções de configuração",
     "marketplace": "Ir para o Mercado MCP para instalação com um clique",
+    "marketMenu": {
+      "higress": "Higress"
+    },
     "technicalDetails": "Detalhes Técnicos",
     "httpServer": "Servidor HTTP",
     "localProcess": "Processo Local",

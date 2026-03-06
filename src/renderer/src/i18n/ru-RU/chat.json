@@ -27,7 +27,13 @@
     "agentWorkspaceSelect": "Выберите рабочий каталог",
     "agentWorkspaceTooltip": "Установить рабочий каталог агента",
     "attach": "Прикрепить",
-    "voiceInput": "Голосовой ввод"
+    "voiceInput": "Голосовой ввод",
+    "mcp": {
+      "badge": "MCP {count}",
+      "title": "Включённые MCP",
+      "empty": "Нет включённых сервисов",
+      "openSettings": "Открыть настройки MCP"
+    }
   },
   "features": {
     "webSearch": "Поиск в интернете",

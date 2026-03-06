@@ -323,6 +323,7 @@ export class ModelscopeProvider extends OpenAICompatibleProvider {
         `ModelScope MCP Server: ${displayName}`,
       icons: randomEmoji, // Random emoji instead of URL
       autoApprove: ['all'],
+      enabled: false,
       disable: false, // Default to disabled for safety
       type: 'sse' as const, // SSE type for operational servers
       baseUrl: baseUrl, // Use operational URL

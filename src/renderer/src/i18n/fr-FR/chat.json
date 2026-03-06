@@ -27,7 +27,13 @@
     "agentWorkspaceSelect": "Sélectionnez le répertoire de travail",
     "agentWorkspaceTooltip": "Définir le répertoire de travail de l'agent",
     "attach": "Joindre",
-    "voiceInput": "Saisie vocale"
+    "voiceInput": "Saisie vocale",
+    "mcp": {
+      "badge": "MCP {count}",
+      "title": "MCP activés",
+      "empty": "Aucun service activé",
+      "openSettings": "Ouvrir les paramètres MCP"
+    }
   },
   "features": {
     "webSearch": "Recherche web",

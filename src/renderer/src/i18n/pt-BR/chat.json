@@ -27,7 +27,13 @@
     "agentWorkspaceSelect": "Selecione o diretório de trabalho",
     "agentWorkspaceTooltip": "Definir diretório de trabalho do agente",
     "attach": "Anexar",
-    "voiceInput": "Entrada de voz"
+    "voiceInput": "Entrada de voz",
+    "mcp": {
+      "badge": "MCP {count}",
+      "title": "MCPs habilitados",
+      "empty": "Nenhum serviço habilitado",
+      "openSettings": "Abrir configurações do MCP"
+    }
   },
   "features": {
     "webSearch": "Busca na Web",

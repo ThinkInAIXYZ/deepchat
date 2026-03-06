@@ -27,7 +27,13 @@
     "acpModeTooltip": "当前模式：{mode}",
     "agentWorkspaceTooltip": "设置 Agent 工作目录",
     "agentWorkspaceSelect": "选择工作目录",
-    "agentWorkspaceCurrent": "当前工作目录：{path}"
+    "agentWorkspaceCurrent": "当前工作目录：{path}",
+    "mcp": {
+      "badge": "MCP {count}",
+      "title": "已启用 MCP",
+      "empty": "暂无已启用服务",
+      "openSettings": "打开 MCP 设置"
+    }
   },
   "features": {
     "webSearch": "联网搜索",

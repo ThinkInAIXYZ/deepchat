@@ -840,6 +840,9 @@
     "customServers": "カスタムサービス",
     "removeDefault": "デフォルトを削除します",
     "marketplace": "MCPマーケットに移動し、ワンクリックでインストールします",
+    "marketMenu": {
+      "higress": "Higress"
+    },
     "maxDefaultServersReached": "せいぜい3つのデフォルトサーバーのみを設定できます",
     "removeDefaultFirst": "最初にいくつかのデフォルトサーバーを削除してください",
     "higressMarket": "Higress MCPのインストールに移動します",

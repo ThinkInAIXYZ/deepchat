@@ -1036,22 +1036,12 @@ export class ConfigPresenter implements IConfigPresenter {
     return this.mcpConfHelper.setMcpServers(servers)
   }
 
-  // Get default MCP server
-  getMcpDefaultServers(): Promise<string[]> {
-    return this.mcpConfHelper.getMcpDefaultServers()
+  getEnabledMcpServers(): Promise<string[]> {
+    return this.mcpConfHelper.getEnabledMcpServers()
   }
 
-  // Set default MCP server
-  async addMcpDefaultServer(serverName: string): Promise<void> {
-    return this.mcpConfHelper.addMcpDefaultServer(serverName)
-  }
-
-  async removeMcpDefaultServer(serverName: string): Promise<void> {
-    return this.mcpConfHelper.removeMcpDefaultServer(serverName)
-  }
-
-  async toggleMcpDefaultServer(serverName: string): Promise<void> {
-    return this.mcpConfHelper.toggleMcpDefaultServer(serverName)
+  async setMcpServerEnabled(serverName: string, enabled: boolean): Promise<void> {
+    return this.mcpConfHelper.setMcpServerEnabled(serverName, enabled)
   }
 
   // Get MCP enabled status
