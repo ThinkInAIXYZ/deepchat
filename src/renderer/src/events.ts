@@ -208,7 +208,8 @@ export const SESSION_EVENTS = {
   LIST_UPDATED: 'session:list-updated',
   ACTIVATED: 'session:activated',
   DEACTIVATED: 'session:deactivated',
-  STATUS_CHANGED: 'session:status-changed'
+  STATUS_CHANGED: 'session:status-changed',
+  COMPACTION_UPDATED: 'session:compaction-updated'
 }
 
 // 系统相关事件

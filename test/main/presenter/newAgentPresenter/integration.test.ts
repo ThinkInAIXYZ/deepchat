@@ -8,23 +8,28 @@ vi.mock('nanoid', () => {
 })
 
 vi.mock('@/eventbus', () => ({
-  eventBus: { sendToRenderer: vi.fn() },
+  eventBus: { sendToRenderer: vi.fn(), sendToMain: vi.fn(), on: vi.fn() },
   SendTarget: { ALL_WINDOWS: 'all' }
 }))
 
-vi.mock('@/events', () => ({
-  SESSION_EVENTS: {
-    LIST_UPDATED: 'session:list-updated',
-    ACTIVATED: 'session:activated',
-    DEACTIVATED: 'session:deactivated',
-    STATUS_CHANGED: 'session:status-changed'
-  },
-  STREAM_EVENTS: {
-    RESPONSE: 'stream:response',
-    END: 'stream:end',
-    ERROR: 'stream:error'
+vi.mock('@/events', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/events')>()
+  return {
+    ...actual,
+    SESSION_EVENTS: {
+      LIST_UPDATED: 'session:list-updated',
+      ACTIVATED: 'session:activated',
+      DEACTIVATED: 'session:deactivated',
+      STATUS_CHANGED: 'session:status-changed',
+      COMPACTION_UPDATED: 'session:compaction-updated'
+    },
+    STREAM_EVENTS: {
+      RESPONSE: 'stream:response',
+      END: 'stream:end',
+      ERROR: 'stream:error'
+    }
   }
-}))
+})
 
 vi.mock('@/presenter', () => ({
   presenter: {
@@ -106,7 +111,10 @@ function createMockSqlitePresenter() {
             max_tokens: generationSettings.maxTokens ?? null,
             thinking_budget: generationSettings.thinkingBudget ?? null,
             reasoning_effort: generationSettings.reasoningEffort ?? null,
-            verbosity: generationSettings.verbosity ?? null
+            verbosity: generationSettings.verbosity ?? null,
+            summary_text: null,
+            summary_cursor_order_seq: 1,
+            summary_updated_at: null
           })
         }
       ),
@@ -124,11 +132,28 @@ function createMockSqlitePresenter() {
           ...(row.verbosity !== null ? { verbosity: row.verbosity } : {})
         }
       }),
+      getSummaryState: vi.fn((id: string) => {
+        const row = deepchatSessionsStore.get(id)
+        if (!row) {
+          return null
+        }
+        return {
+          summary_text: row.summary_text ?? null,
+          summary_cursor_order_seq: row.summary_cursor_order_seq ?? 1,
+          summary_updated_at: row.summary_updated_at ?? null
+        }
+      }),
       updatePermissionMode: vi.fn((id: string, mode: 'default' | 'full_access') => {
         const row = deepchatSessionsStore.get(id)
         if (row) {
           row.permission_mode = mode
         }
+      }),
+      updateSessionModel: vi.fn((id: string, providerId: string, modelId: string) => {
+        const row = deepchatSessionsStore.get(id)
+        if (!row) return
+        row.provider_id = providerId
+        row.model_id = modelId
       }),
       updateGenerationSettings: vi.fn((id: string, settings: Record<string, unknown>) => {
         const row = deepchatSessionsStore.get(id)
@@ -141,6 +166,59 @@ function createMockSqlitePresenter() {
         if ('reasoningEffort' in settings) row.reasoning_effort = settings.reasoningEffort ?? null
         if ('verbosity' in settings) row.verbosity = settings.verbosity ?? null
       }),
+      updateSummaryState: vi.fn(
+        (
+          id: string,
+          state: {
+            summaryText: string | null
+            summaryCursorOrderSeq: number
+            summaryUpdatedAt: number | null
+          }
+        ) => {
+          const row = deepchatSessionsStore.get(id)
+          if (!row) return
+          row.summary_text = state.summaryText
+          row.summary_cursor_order_seq = state.summaryCursorOrderSeq
+          row.summary_updated_at = state.summaryUpdatedAt
+        }
+      ),
+      updateSummaryStateIfMatches: vi.fn(
+        (
+          id: string,
+          state: {
+            summaryText: string | null
+            summaryCursorOrderSeq: number
+            summaryUpdatedAt: number | null
+          },
+          expectedState: {
+            summaryText: string | null
+            summaryCursorOrderSeq: number
+            summaryUpdatedAt: number | null
+          }
+        ) => {
+          const row = deepchatSessionsStore.get(id)
+          if (!row) return false
+          if (
+            row.summary_text !== (expectedState.summaryText ?? null) ||
+            row.summary_cursor_order_seq !== (expectedState.summaryCursorOrderSeq ?? 1) ||
+            row.summary_updated_at !== (expectedState.summaryUpdatedAt ?? null)
+          ) {
+            return false
+          }
+
+          row.summary_text = state.summaryText ?? null
+          row.summary_cursor_order_seq = state.summaryCursorOrderSeq ?? 1
+          row.summary_updated_at = state.summaryUpdatedAt ?? null
+          return true
+        }
+      ),
+      resetSummaryState: vi.fn((id: string) => {
+        const row = deepchatSessionsStore.get(id)
+        if (!row) return
+        row.summary_text = null
+        row.summary_cursor_order_seq = 1
+        row.summary_updated_at = null
+      }),
       delete: vi.fn((id: string) => deepchatSessionsStore.delete(id))
     },
     deepchatMessagesTable: {
@@ -151,7 +229,7 @@ function createMockSqlitePresenter() {
           session_id: row.sessionId,
           order_seq: row.orderSeq,
           is_context_edge: 0,
-          metadata: '{}',
+          metadata: row.metadata ?? '{}',
           created_at: now,
           updated_at: now
         }
@@ -181,6 +259,11 @@ function createMockSqlitePresenter() {
           .filter((m) => m.session_id === sessionId)
           .sort((a: any, b: any) => a.order_seq - b.order_seq)
       }),
+      getBySessionUpToOrderSeq: vi.fn((sessionId: string, maxOrderSeq: number) => {
+        return messagesList
+          .filter((m) => m.session_id === sessionId && m.order_seq <= maxOrderSeq)
+          .sort((a: any, b: any) => a.order_seq - b.order_seq)
+      }),
       getByStatus: vi.fn((status: string) =>
         messagesList.filter((m) => m.status === status).sort((a, b) => b.updated_at - a.updated_at)
       ),
@@ -196,10 +279,31 @@ function createMockSqlitePresenter() {
           .map((m: any) => m.id)
       }),
       get: vi.fn((id: string) => messagesStore.get(id)),
+      getLastUserMessageBeforeOrAtOrderSeq: vi.fn((sessionId: string, orderSeq: number) => {
+        return messagesList
+          .filter((m) => m.session_id === sessionId && m.role === 'user' && m.order_seq <= orderSeq)
+          .sort((a: any, b: any) => b.order_seq - a.order_seq)[0]
+      }),
       getMaxOrderSeq: vi.fn((sessionId: string) => {
         const msgs = messagesList.filter((m) => m.session_id === sessionId)
         if (msgs.length === 0) return 0
         return Math.max(...msgs.map((m: any) => m.order_seq))
+      }),
+      delete: vi.fn((id: string) => {
+        messagesStore.delete(id)
+        messagesList = messagesList.filter((item) => item.id !== id)
+      }),
+      deleteFromOrderSeq: vi.fn((sessionId: string, fromOrderSeq: number) => {
+        const idsToDelete = messagesList
+          .filter((m) => m.session_id === sessionId && m.order_seq >= fromOrderSeq)
+          .map((m) => m.id)
+
+        messagesList = messagesList.filter(
+          (m) => !(m.session_id === sessionId && m.order_seq >= fromOrderSeq)
+        )
+        for (const id of idsToDelete) {
+          messagesStore.delete(id)
+        }
       }),
       deleteBySession: vi.fn((sessionId: string) => {
         messagesList = messagesList.filter((m) => m.session_id !== sessionId)
@@ -253,6 +357,9 @@ function createMockLlmProviderPresenter() {
         })()
       })
     }),
+    generateText: vi.fn().mockResolvedValue({
+      content: ['## Current Goal', '- Continue the conversation'].join('\n')
+    }),
     summaryTitles: vi.fn().mockResolvedValue('Generated Integration Title')
   } as any
 }
@@ -264,6 +371,13 @@ function createMockConfigPresenter() {
       .fn()
       .mockReturnValue({ temperature: 0.7, maxTokens: 4096, contextLength: 128000 }),
     getDefaultSystemPrompt: vi.fn().mockResolvedValue('You are a helpful assistant.'),
+    supportsReasoningCapability: vi.fn().mockReturnValue(false),
+    getThinkingBudgetRange: vi.fn().mockReturnValue({}),
+    supportsReasoningEffortCapability: vi.fn().mockReturnValue(false),
+    getReasoningEffortDefault: vi.fn().mockReturnValue(undefined),
+    supportsVerbosityCapability: vi.fn().mockReturnValue(false),
+    getVerbosityDefault: vi.fn().mockReturnValue(undefined),
+    getSkillsEnabled: vi.fn().mockReturnValue(false),
     getSetting: vi.fn().mockReturnValue(undefined),
     getAcpAgents: vi.fn().mockResolvedValue([])
   } as any
@@ -475,10 +589,9 @@ describe('Integration: multi-turn context', () => {
 
     // Second call should include history
     const secondCallMessages = providerInstance.coreStream.mock.calls[1][0]
-    expect(secondCallMessages[0]).toEqual({
-      role: 'system',
-      content: 'You are a helpful assistant.'
-    })
+    expect(secondCallMessages[0].role).toBe('system')
+    expect(secondCallMessages[0].content).toContain('You are a helpful assistant.')
+    expect(secondCallMessages[0].content).toContain('## Runtime Capabilities')
     // Should contain prior user and assistant messages before the new user message
     expect(secondCallMessages.length).toBeGreaterThanOrEqual(3) // system + at least history + new user
     expect(secondCallMessages[secondCallMessages.length - 1]).toEqual({

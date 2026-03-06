@@ -6,6 +6,7 @@ import type {
   MessageFile,
   PermissionMode,
   SendMessageInput,
+  SessionCompactionState,
   SessionGenerationSettings,
   ToolInteractionResponse,
   ToolInteractionResult,
@@ -25,10 +26,11 @@ import {
   buildSystemEnvPrompt
 } from '../agentPresenter/message/systemEnvPromptBuilder'
 import { buildContext, buildResumeContext } from './contextBuilder'
+import { appendSummarySection, CompactionService, type CompactionIntent } from './compactionService'
 import { buildPersistableMessageTracePayload } from './messageTracePayload'
 import { DeepChatMessageStore } from './messageStore'
 import { processStream } from './process'
-import { DeepChatSessionStore } from './sessionStore'
+import { DeepChatSessionStore, type SessionSummaryState } from './sessionStore'
 import type { PendingToolInteraction, ProcessResult } from './types'
 import type { ProviderRequestTracePayload } from '../llmProviderPresenter/requestTrace'
 
@@ -84,8 +86,10 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
   private readonly abortControllers: Map<string, AbortController> = new Map()
   private readonly sessionProjectDirs: Map<string, string | null> = new Map()
   private readonly systemPromptCache: Map<string, SystemPromptCacheEntry> = new Map()
+  private readonly sessionCompactionStates: Map<string, SessionCompactionState> = new Map()
   private readonly interactionLocks: Set<string> = new Set()
   private readonly resumingMessages: Set<string> = new Set()
+  private readonly compactionService: CompactionService
 
   constructor(
     llmProviderPresenter: ILlmProviderPresenter,
@@ -98,6 +102,12 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     this.toolPresenter = toolPresenter ?? null
     this.sessionStore = new DeepChatSessionStore(sqlitePresenter)
     this.messageStore = new DeepChatMessageStore(sqlitePresenter)
+    this.compactionService = new CompactionService(
+      this.sessionStore,
+      this.messageStore,
+      this.llmProviderPresenter,
+      this.configPresenter
+    )
 
     const recovered = this.messageStore.recoverPendingMessages()
     if (recovered > 0) {
@@ -141,6 +151,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       modelId: config.modelId,
       permissionMode
     })
+    this.sessionCompactionStates.set(sessionId, this.buildIdleCompactionState())
     this.invalidateSystemPromptCache(sessionId)
   }
 
@@ -157,6 +168,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     this.sessionGenerationSettings.delete(sessionId)
     this.sessionProjectDirs.delete(sessionId)
     this.systemPromptCache.delete(sessionId)
+    this.sessionCompactionStates.delete(sessionId)
   }
 
   async getSessionState(sessionId: string): Promise<DeepChatSessionState | null> {
@@ -206,19 +218,13 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     try {
       const generationSettings = await this.getEffectiveSessionGenerationSettings(sessionId)
       const maxTokens = generationSettings.maxTokens
-      const baseSystemPrompt = generationSettings.systemPrompt
-      const systemPrompt = await this.buildSystemPromptWithSkills(sessionId, baseSystemPrompt)
-      const messages = buildContext(
+      const baseSystemPrompt = await this.buildSystemPromptWithSkills(
         sessionId,
-        normalizedInput,
-        systemPrompt,
-        generationSettings.contextLength,
-        maxTokens,
-        this.messageStore,
-        supportsVision
+        generationSettings.systemPrompt
       )
-
-      const userOrderSeq = this.messageStore.getNextOrderSeq(sessionId)
+      const historyRecords = this.messageStore
+        .getMessages(sessionId)
+        .filter((message) => message.status === 'sent')
       const userContent: UserMessageContent = {
         text: normalizedInput.text,
         files: normalizedInput.files || [],
@@ -226,7 +232,65 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
         search: false,
         think: false
       }
-      this.messageStore.createUserMessage(sessionId, userOrderSeq, userContent)
+
+      const compactionIntent = this.compactionService.prepareForNextUserTurn({
+        sessionId,
+        providerId: state.providerId,
+        modelId: state.modelId,
+        systemPrompt: baseSystemPrompt,
+        contextLength: generationSettings.contextLength,
+        reserveTokens: maxTokens,
+        supportsVision,
+        newUserContent: normalizedInput
+      })
+      let userMessageId: string
+      let summaryState: SessionSummaryState
+
+      if (compactionIntent) {
+        const compactionMessageId = this.messageStore.createCompactionMessage(
+          sessionId,
+          this.messageStore.getNextOrderSeq(sessionId),
+          'compacting',
+          compactionIntent.previousState.summaryUpdatedAt
+        )
+        userMessageId = this.messageStore.createUserMessage(
+          sessionId,
+          this.messageStore.getNextOrderSeq(sessionId),
+          userContent
+        )
+        this.emitMessageRefresh(sessionId, userMessageId)
+        this.emitCompactionState(sessionId, {
+          status: 'compacting',
+          cursorOrderSeq: compactionIntent.targetCursorOrderSeq,
+          summaryUpdatedAt: compactionIntent.previousState.summaryUpdatedAt
+        })
+        summaryState = await this.applyCompactionIntent(sessionId, compactionIntent, {
+          compactionMessageId,
+          startedExternally: true
+        })
+      } else {
+        summaryState = this.sessionStore.getSummaryState(sessionId)
+        userMessageId = this.messageStore.createUserMessage(
+          sessionId,
+          this.messageStore.getNextOrderSeq(sessionId),
+          userContent
+        )
+      }
+
+      const systemPrompt = appendSummarySection(baseSystemPrompt, summaryState.summaryText)
+      const messages = buildContext(
+        sessionId,
+        normalizedInput,
+        systemPrompt,
+        generationSettings.contextLength,
+        maxTokens,
+        this.messageStore,
+        supportsVision,
+        {
+          summaryCursorOrderSeq: summaryState.summaryCursorOrderSeq,
+          historyRecords
+        }
+      )
 
       const assistantOrderSeq = this.messageStore.getNextOrderSeq(sessionId)
       const assistantMessageId = this.messageStore.createAssistantMessage(
@@ -235,7 +299,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       )
 
       if (context?.emitRefreshBeforeStream) {
-        this.emitMessageRefresh(sessionId, assistantMessageId)
+        this.emitMessageRefresh(sessionId, assistantMessageId || userMessageId)
       }
 
       const result = await this.runStreamForMessage({
@@ -486,6 +550,32 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     return this.messageStore.getMessage(messageId)
   }
 
+  async getSessionCompactionState(sessionId: string): Promise<SessionCompactionState> {
+    const runtimeState = this.runtimeState.get(sessionId)
+    const session = this.sessionStore.get(sessionId)
+    if (!runtimeState && !session) {
+      throw new Error(`Session ${sessionId} not found`)
+    }
+
+    const persistedState = this.summaryStateToCompactionState(
+      this.sessionStore.getSummaryState(sessionId)
+    )
+    const currentCompactionState = this.sessionCompactionStates.get(sessionId)
+    if (currentCompactionState?.status === 'compacting') {
+      return { ...currentCompactionState }
+    }
+
+    if (
+      currentCompactionState &&
+      this.isSameCompactionState(currentCompactionState, persistedState)
+    ) {
+      return { ...currentCompactionState }
+    }
+
+    this.sessionCompactionStates.set(sessionId, persistedState)
+    return { ...persistedState }
+  }
+
   async clearMessages(sessionId: string): Promise<void> {
     const state = await this.getSessionState(sessionId)
     if (!state) {
@@ -494,6 +584,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
 
     await this.cancelGeneration(sessionId)
     this.messageStore.deleteBySession(sessionId)
+    this.resetSummaryState(sessionId)
     this.setSessionStatus(sessionId, 'idle')
   }
 
@@ -530,6 +621,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       throw new Error('Cannot retry an empty user message.')
     }
 
+    this.invalidateSummaryIfNeeded(sessionId, sourceUserMessage.orderSeq)
     this.messageStore.deleteFromOrderSeq(sessionId, sourceUserMessage.orderSeq)
     await this.processMessage(sessionId, retryInput, {
       projectDir: this.resolveProjectDir(sessionId),
@@ -547,6 +639,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     }
 
     await this.cancelGeneration(sessionId)
+    this.invalidateSummaryIfNeeded(sessionId, target.orderSeq)
     this.messageStore.deleteFromOrderSeq(sessionId, target.orderSeq)
     this.setSessionStatus(sessionId, 'idle')
   }
@@ -573,6 +666,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     }
 
     const nextContent = this.buildEditedUserContent(target.content, nextText)
+    this.invalidateSummaryIfNeeded(sessionId, target.orderSeq)
     this.messageStore.updateMessageContent(messageId, nextContent)
 
     const updated = await this.messageStore.getMessage(messageId)
@@ -596,6 +690,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     }
 
     this.messageStore.cloneSentMessagesToSession(sourceSessionId, targetSessionId, target.orderSeq)
+    this.resetSummaryState(targetSessionId)
   }
 
   private async runStreamForMessage(args: {
@@ -749,8 +844,21 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       this.setSessionStatus(sessionId, 'generating')
       const generationSettings = await this.getEffectiveSessionGenerationSettings(sessionId)
       const maxTokens = generationSettings.maxTokens
-      const baseSystemPrompt = generationSettings.systemPrompt
-      const systemPrompt = await this.buildSystemPromptWithSkills(sessionId, baseSystemPrompt)
+      const baseSystemPrompt = await this.buildSystemPromptWithSkills(
+        sessionId,
+        generationSettings.systemPrompt
+      )
+      const summaryState = await this.resolveCompactionStateForResumeTurn({
+        sessionId,
+        messageId,
+        providerId: state.providerId,
+        modelId: state.modelId,
+        systemPrompt: baseSystemPrompt,
+        contextLength: generationSettings.contextLength,
+        reserveTokens: maxTokens,
+        supportsVision: this.supportsVision(state.providerId, state.modelId)
+      })
+      const systemPrompt = appendSummarySection(baseSystemPrompt, summaryState.summaryText)
       const resumeContext = buildResumeContext(
         sessionId,
         messageId,
@@ -758,7 +866,11 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
         generationSettings.contextLength,
         maxTokens,
         this.messageStore,
-        this.supportsVision(state.providerId, state.modelId)
+        this.supportsVision(state.providerId, state.modelId),
+        {
+          summaryCursorOrderSeq: summaryState.summaryCursorOrderSeq,
+          fallbackProtectedTurnCount: 1
+        }
       )
 
       const result = await this.runStreamForMessage({
@@ -1767,6 +1879,127 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       }
     }
     return false
+  }
+
+  private async resolveCompactionStateForResumeTurn(params: {
+    sessionId: string
+    messageId: string
+    providerId: string
+    modelId: string
+    systemPrompt: string
+    contextLength: number
+    reserveTokens: number
+    supportsVision: boolean
+  }): Promise<SessionSummaryState> {
+    const intent = this.compactionService.prepareForResumeTurn(params)
+    return await this.applyCompactionIntent(params.sessionId, intent)
+  }
+
+  private async applyCompactionIntent(
+    sessionId: string,
+    intent: CompactionIntent | null,
+    options?: {
+      compactionMessageId?: string
+      startedExternally?: boolean
+    }
+  ): Promise<SessionSummaryState> {
+    if (!intent) {
+      return this.sessionStore.getSummaryState(sessionId)
+    }
+
+    const compactionMessageId =
+      options?.compactionMessageId ??
+      this.messageStore.createCompactionMessage(
+        sessionId,
+        this.messageStore.getNextOrderSeq(sessionId),
+        'compacting',
+        intent.previousState.summaryUpdatedAt
+      )
+
+    if (!options?.startedExternally) {
+      this.emitMessageRefresh(sessionId, compactionMessageId)
+      this.emitCompactionState(sessionId, {
+        status: 'compacting',
+        cursorOrderSeq: intent.targetCursorOrderSeq,
+        summaryUpdatedAt: intent.previousState.summaryUpdatedAt
+      })
+    }
+
+    const result = await this.compactionService.applyCompaction(intent)
+    if (result.succeeded) {
+      this.messageStore.updateCompactionMessage(
+        compactionMessageId,
+        'compacted',
+        result.summaryState.summaryUpdatedAt
+      )
+    } else {
+      this.messageStore.deleteMessage(compactionMessageId)
+    }
+    this.emitMessageRefresh(sessionId, compactionMessageId)
+    this.emitCompactionState(
+      sessionId,
+      result.succeeded
+        ? this.summaryStateToCompactionState(result.summaryState, 'compacted')
+        : this.summaryStateToCompactionState(result.summaryState)
+    )
+    return result.summaryState
+  }
+
+  private buildIdleCompactionState(): SessionCompactionState {
+    return {
+      status: 'idle',
+      cursorOrderSeq: 1,
+      summaryUpdatedAt: null
+    }
+  }
+
+  private summaryStateToCompactionState(
+    summaryState: SessionSummaryState,
+    preferredStatus?: 'compacted'
+  ): SessionCompactionState {
+    const hasPersistedSummary =
+      Boolean(summaryState.summaryText?.trim()) && summaryState.summaryUpdatedAt !== null
+    if (preferredStatus === 'compacted' || hasPersistedSummary) {
+      return {
+        status: 'compacted',
+        cursorOrderSeq: Math.max(1, summaryState.summaryCursorOrderSeq),
+        summaryUpdatedAt: summaryState.summaryUpdatedAt
+      }
+    }
+    return this.buildIdleCompactionState()
+  }
+
+  private isSameCompactionState(
+    left: SessionCompactionState,
+    right: SessionCompactionState
+  ): boolean {
+    return (
+      left.status === right.status &&
+      left.cursorOrderSeq === right.cursorOrderSeq &&
+      left.summaryUpdatedAt === right.summaryUpdatedAt
+    )
+  }
+
+  private emitCompactionState(sessionId: string, state: SessionCompactionState): void {
+    this.sessionCompactionStates.set(sessionId, { ...state })
+    eventBus.sendToRenderer(SESSION_EVENTS.COMPACTION_UPDATED, SendTarget.ALL_WINDOWS, {
+      sessionId,
+      status: state.status,
+      cursorOrderSeq: state.cursorOrderSeq,
+      summaryUpdatedAt: state.summaryUpdatedAt
+    })
+  }
+
+  private resetSummaryState(sessionId: string): void {
+    this.sessionStore.resetSummaryState(sessionId)
+    this.emitCompactionState(sessionId, this.buildIdleCompactionState())
+  }
+
+  private invalidateSummaryIfNeeded(sessionId: string, orderSeq: number): void {
+    const summaryState = this.sessionStore.getSummaryState(sessionId)
+    if (orderSeq < summaryState.summaryCursorOrderSeq) {
+      this.resetSummaryState(sessionId)
+    }
   }
 
   private setSessionStatus(sessionId: string, status: DeepChatSessionState['status']): void {

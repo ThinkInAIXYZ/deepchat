@@ -63,6 +63,10 @@
     "rateLimitSeconds": "秒",
     "rateLimitMinutes": "分钟"
   },
+  "compaction": {
+    "compacting": "正在自动压缩...",
+    "compacted": "上下文已自动压缩"
+  },
   "rateLimit": {
     "queueTooltip": "队列中有 {count} 个请求，间隔 {interval} 秒",
     "readyTooltip": "可以发送请求，间隔 {interval} 秒",

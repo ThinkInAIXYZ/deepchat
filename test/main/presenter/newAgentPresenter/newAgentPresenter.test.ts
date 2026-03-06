@@ -4,16 +4,36 @@ import { NewAgentPresenter } from '@/presenter/newAgentPresenter/index'
 vi.mock('nanoid', () => ({ nanoid: vi.fn(() => 'mock-session-id') }))
 
 vi.mock('@/eventbus', () => ({
-  eventBus: { sendToRenderer: vi.fn() },
+  eventBus: { sendToRenderer: vi.fn(), sendToMain: vi.fn(), on: vi.fn() },
   SendTarget: { ALL_WINDOWS: 'all' }
 }))
 
-vi.mock('@/events', () => ({
-  SESSION_EVENTS: {
-    LIST_UPDATED: 'session:list-updated',
-    ACTIVATED: 'session:activated',
-    DEACTIVATED: 'session:deactivated',
-    STATUS_CHANGED: 'session:status-changed'
+vi.mock('@/events', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/events')>()
+  return {
+    ...actual,
+    SESSION_EVENTS: {
+      LIST_UPDATED: 'session:list-updated',
+      ACTIVATED: 'session:activated',
+      DEACTIVATED: 'session:deactivated',
+      STATUS_CHANGED: 'session:status-changed',
+      COMPACTION_UPDATED: 'session:compaction-updated'
+    }
+  }
+})
+
+vi.mock('@/presenter', () => ({
+  presenter: {
+    commandPermissionService: {
+      extractCommandSignature: vi.fn().mockReturnValue('mock-signature'),
+      approve: vi.fn(),
+      clearConversation: vi.fn()
+    },
+    filePermissionService: { approve: vi.fn(), clearConversation: vi.fn() },
+    settingsPermissionService: { approve: vi.fn(), clearConversation: vi.fn() },
+    mcpPresenter: {
+      grantPermission: vi.fn().mockResolvedValue(undefined)
+    }
   }
 }))
 
@@ -33,6 +53,11 @@ function createMockDeepChatAgent() {
     cancelGeneration: vi.fn().mockResolvedValue(undefined),
     clearMessages: vi.fn().mockResolvedValue(undefined),
     getMessages: vi.fn().mockResolvedValue([]),
+    getSessionCompactionState: vi.fn().mockResolvedValue({
+      status: 'idle',
+      cursorOrderSeq: 1,
+      summaryUpdatedAt: null
+    }),
     getMessageIds: vi.fn().mockResolvedValue([]),
     getMessage: vi.fn().mockResolvedValue(null),
     setSessionModel: vi.fn().mockResolvedValue(undefined),
@@ -68,6 +93,9 @@ function createMockConfigPresenter() {
 function createMockLlmProviderPresenter() {
   return {
     summaryTitles: vi.fn().mockResolvedValue('Async Generated Title'),
+    generateText: vi.fn().mockResolvedValue({
+      content: ['## Current Goal', '- Continue the conversation'].join('\n')
+    }),
     prepareAcpSession: vi.fn().mockResolvedValue(undefined),
     clearAcpSession: vi.fn().mockResolvedValue(undefined),
     getAcpSessionCommands: vi
@@ -101,6 +129,12 @@ function createMockSqlitePresenter() {
     deepchatSessionsTable: {
       create: vi.fn(),
       get: vi.fn(),
+      getGenerationSettings: vi.fn(),
+      getSummaryState: vi.fn().mockReturnValue(null),
+      updatePermissionMode: vi.fn(),
+      updateGenerationSettings: vi.fn(),
+      updateSummaryState: vi.fn(),
+      resetSummaryState: vi.fn(),
       delete: vi.fn()
     },
     deepchatMessagesTable: {
@@ -589,6 +623,34 @@ describe('NewAgentPresenter', () => {
     it('returns null for unknown session', async () => {
       sqlitePresenter.newSessionsTable.get.mockReturnValue(undefined)
       expect(await presenter.getSession('unknown')).toBeNull()
+    })
+  })
+
+  describe('getSessionCompactionState', () => {
+    it('delegates to the agent implementation', async () => {
+      sqlitePresenter.newSessionsTable.get.mockReturnValue({
+        id: 's1',
+        agent_id: 'deepchat',
+        title: 'Test',
+        project_dir: null,
+        is_pinned: 0,
+        created_at: 1000,
+        updated_at: 2000
+      })
+      deepChatAgent.getSessionCompactionState.mockResolvedValueOnce({
+        status: 'compacted',
+        cursorOrderSeq: 9,
+        summaryUpdatedAt: 123
+      })
+
+      const state = await presenter.getSessionCompactionState('s1')
+
+      expect(deepChatAgent.getSessionCompactionState).toHaveBeenCalledWith('s1')
+      expect(state).toEqual({
+        status: 'compacted',
+        cursorOrderSeq: 9,
+        summaryUpdatedAt: 123
+      })
     })
   })
 

@@ -6,6 +6,7 @@ import type {
   MessageTraceRecord,
   PermissionMode,
   SessionGenerationSettings,
+  SessionCompactionState,
   LegacyImportStatus,
   SendMessageInput,
   ToolInteractionResponse,
@@ -32,10 +33,12 @@ export interface INewAgentPresenter {
   getSessionList(filters?: { agentId?: string; projectDir?: string }): Promise<SessionWithState[]>
   getSession(sessionId: string): Promise<SessionWithState | null>
   getMessages(sessionId: string): Promise<ChatMessageRecord[]>
+  getSessionCompactionState(sessionId: string): Promise<SessionCompactionState>
   getSearchResults(messageId: string, searchId?: string): Promise<SearchResult[]>
   getLegacyImportStatus(): Promise<LegacyImportStatus>
   retryLegacyImport(): Promise<LegacyImportStatus>
   listMessageTraces(messageId: string): Promise<MessageTraceRecord[]>
+  getMessageTraceCount(messageId: string): Promise<number>
   getMessageIds(sessionId: string): Promise<string[]>
   getMessage(messageId: string): Promise<ChatMessageRecord | null>
   translateText(text: string, locale?: string): Promise<string>

@@ -63,6 +63,10 @@
     "rateLimitSeconds": "秒",
     "rateLimitMinutes": "分鐘"
   },
+  "compaction": {
+    "compacting": "正在自動壓縮...",
+    "compacted": "上下文已自動壓縮"
+  },
   "rateLimit": {
     "queueTooltip": "佇列中有 {count} 個請求，間隔 {interval} 秒",
     "readyTooltip": "可以發送請求，間隔 {interval} 秒",

@@ -1011,6 +1011,13 @@ export interface ILlmProviderPresenter {
     temperature?: number,
     maxTokens?: number
   ): Promise<string>
+  generateText(
+    providerId: string,
+    prompt: string,
+    modelId: string,
+    temperature?: number,
+    maxTokens?: number
+  ): Promise<{ content: string }>
   stopStream(eventId: string): Promise<void>
   check(providerId: string, modelId?: string): Promise<{ isOk: boolean; errorMsg: string | null }>
   getKeyStatus(providerId: string): Promise<KeyStatus | null>

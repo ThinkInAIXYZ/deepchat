@@ -69,6 +69,7 @@ import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { TooltipProvider } from '@shadcn/components/ui/tooltip'
 import ChatTopBar from '@/components/chat/ChatTopBar.vue'
 import MessageList from '@/components/chat/MessageList.vue'
+import { type DisplayMessage } from '@/components/chat/messageListItems'
 import ChatInputBox from '@/components/chat/ChatInputBox.vue'
 import ChatInputToolbar from '@/components/chat/ChatInputToolbar.vue'
 import ChatStatusBar from '@/components/chat/ChatStatusBar.vue'
@@ -192,7 +193,7 @@ function buildUsage(metadata: MessageMetadata): Message['usage'] {
   }
 }
 
-function toDisplayMessage(record: ChatMessageRecord): Message {
+function toDisplayMessage(record: ChatMessageRecord): DisplayMessage {
   const metadata = parseMessageMetadata(record)
   const modelId = metadata.model || sessionStore.activeSession?.modelId || ''
   const providerId = metadata.provider || sessionStore.activeSession?.providerId || ''
@@ -212,12 +213,19 @@ function toDisplayMessage(record: ChatMessageRecord): Message {
     error: '',
     usage: buildUsage(metadata),
     conversationId: record.sessionId,
-    is_variant: 0
+    is_variant: 0,
+    orderSeq: record.orderSeq,
+    messageType: metadata.messageType === 'compaction' ? 'compaction' : 'normal',
+    compactionStatus: metadata.compactionStatus,
+    summaryUpdatedAt: metadata.summaryUpdatedAt ?? null
   }
 }
 
 // Build a streaming assistant message from live blocks
-function toStreamingMessage(blocks: AssistantMessageBlock[], messageId?: string | null): Message {
+function toStreamingMessage(
+  blocks: AssistantMessageBlock[],
+  messageId?: string | null
+): DisplayMessage {
   const modelId = sessionStore.activeSession?.modelId ?? ''
   return {
     id: messageId ? `__streaming__:${messageId}` : '__streaming__',
@@ -233,7 +241,8 @@ function toStreamingMessage(blocks: AssistantMessageBlock[], messageId?: string 
     error: '',
     usage: buildUsage({}),
     conversationId: props.sessionId,
-    is_variant: 0
+    is_variant: 0,
+    orderSeq: Number.MAX_SAFE_INTEGER
   }
 }
 
@@ -244,7 +253,7 @@ const hasInlineStreamingTarget = computed(() => {
 })
 
 const displayMessages = computed(() => {
-  const msgs = messageStore.messages.map(toDisplayMessage)
+  const msgs: DisplayMessage[] = messageStore.messages.map(toDisplayMessage)
 
   // Fallback to a virtual streaming message only when target assistant message
   // is not yet available in messageStore.

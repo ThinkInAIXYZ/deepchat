@@ -25,6 +25,15 @@ export interface DeepChatSessionRow {
   thinking_budget: number | null
   reasoning_effort: 'minimal' | 'low' | 'medium' | 'high' | null
   verbosity: 'low' | 'medium' | 'high' | null
+  summary_text: string | null
+  summary_cursor_order_seq: number | null
+  summary_updated_at: number | null
+}
+
+export interface DeepChatSessionSummaryRow {
+  summary_text: string | null
+  summary_cursor_order_seq: number | null
+  summary_updated_at: number | null
 }
 
 export class DeepChatSessionsTable extends BaseTable {
@@ -55,11 +64,18 @@ export class DeepChatSessionsTable extends BaseTable {
         ALTER TABLE deepchat_sessions ADD COLUMN verbosity TEXT;
       `
     }
+    if (version === 14) {
+      return `
+        ALTER TABLE deepchat_sessions ADD COLUMN summary_text TEXT;
+        ALTER TABLE deepchat_sessions ADD COLUMN summary_cursor_order_seq INTEGER NOT NULL DEFAULT 1;
+        ALTER TABLE deepchat_sessions ADD COLUMN summary_updated_at INTEGER;
+      `
+    }
     return null
   }
 
   getLatestVersion(): number {
-    return 12
+    return 14
   }
 
   create(
@@ -82,9 +98,12 @@ export class DeepChatSessionsTable extends BaseTable {
            max_tokens,
            thinking_budget,
            reasoning_effort,
-           verbosity
+           verbosity,
+           summary_text,
+           summary_cursor_order_seq,
+           summary_updated_at
          )
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         id,
@@ -97,7 +116,10 @@ export class DeepChatSessionsTable extends BaseTable {
         generationSettings?.maxTokens ?? null,
         generationSettings?.thinkingBudget ?? null,
         generationSettings?.reasoningEffort ?? null,
-        generationSettings?.verbosity ?? null
+        generationSettings?.verbosity ?? null,
+        null,
+        1,
+        null
       )
   }
 
@@ -191,6 +213,85 @@ export class DeepChatSessionsTable extends BaseTable {
     this.db
       .prepare(`UPDATE deepchat_sessions SET ${updates.join(', ')} WHERE id = ?`)
       .run(...params)
+  }
+
+  getSummaryState(id: string): DeepChatSessionSummaryRow | null {
+    const row = this.db
+      .prepare(
+        'SELECT summary_text, summary_cursor_order_seq, summary_updated_at FROM deepchat_sessions WHERE id = ?'
+      )
+      .get(id) as DeepChatSessionSummaryRow | undefined
+
+    return row ?? null
+  }
+
+  updateSummaryState(
+    id: string,
+    state: {
+      summaryText: string | null
+      summaryCursorOrderSeq: number
+      summaryUpdatedAt: number | null
+    }
+  ): void {
+    this.db
+      .prepare(
+        `UPDATE deepchat_sessions
+         SET summary_text = ?, summary_cursor_order_seq = ?, summary_updated_at = ?
+         WHERE id = ?`
+      )
+      .run(
+        state.summaryText ?? null,
+        Math.max(1, state.summaryCursorOrderSeq),
+        state.summaryUpdatedAt ?? null,
+        id
+      )
+  }
+
+  updateSummaryStateIfMatches(
+    id: string,
+    state: {
+      summaryText: string | null
+      summaryCursorOrderSeq: number
+      summaryUpdatedAt: number | null
+    },
+    expectedState: {
+      summaryText: string | null
+      summaryCursorOrderSeq: number
+      summaryUpdatedAt: number | null
+    }
+  ): boolean {
+    const result = this.db
+      .prepare(
+        `UPDATE deepchat_sessions
+         SET summary_text = ?, summary_cursor_order_seq = ?, summary_updated_at = ?
+         WHERE id = ?
+           AND summary_cursor_order_seq = ?
+           AND ((summary_text = ?) OR (summary_text IS NULL AND ? IS NULL))
+           AND ((summary_updated_at = ?) OR (summary_updated_at IS NULL AND ? IS NULL))`
+      )
+      .run(
+        state.summaryText ?? null,
+        Math.max(1, state.summaryCursorOrderSeq),
+        state.summaryUpdatedAt ?? null,
+        id,
+        Math.max(1, expectedState.summaryCursorOrderSeq),
+        expectedState.summaryText ?? null,
+        expectedState.summaryText ?? null,
+        expectedState.summaryUpdatedAt ?? null,
+        expectedState.summaryUpdatedAt ?? null
+      )
+
+    return result.changes > 0
+  }
+
+  resetSummaryState(id: string): void {
+    this.db
+      .prepare(
+        `UPDATE deepchat_sessions
+         SET summary_text = NULL, summary_cursor_order_seq = 1, summary_updated_at = NULL
+         WHERE id = ?`
+      )
+      .run(id)
   }
 
   delete(id: string): void {

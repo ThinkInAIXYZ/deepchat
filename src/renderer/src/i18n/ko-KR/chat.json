@@ -195,5 +195,9 @@
       "manage": "관리",
       "title": "기술"
     }
+  },
+  "compaction": {
+    "compacting": "컨텍스트를 자동 압축하는 중...",
+    "compacted": "컨텍스트가 자동으로 압축되었습니다"
   }
 }

@@ -195,5 +195,9 @@
       "manage": "gerenciamento",
       "title": "Habilidade"
     }
+  },
+  "compaction": {
+    "compacting": "Compactando o contexto automaticamente...",
+    "compacted": "O contexto foi compactado automaticamente"
   }
 }

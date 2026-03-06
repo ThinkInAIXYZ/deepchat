@@ -1,5 +1,25 @@
 import { SQLitePresenter } from '../sqlitePresenter'
 import type { PermissionMode, SessionGenerationSettings } from '@shared/types/agent-interface'
+import type { DeepChatSessionSummaryRow } from '../sqlitePresenter/tables/deepchatSessions'
+
+export type SessionSummaryState = {
+  summaryText: string | null
+  summaryCursorOrderSeq: number
+  summaryUpdatedAt: number | null
+}
+
+export type SummaryStateCompareAndSetResult = {
+  applied: boolean
+  currentState: SessionSummaryState
+}
+
+function normalizeSummaryState(row: DeepChatSessionSummaryRow | null): SessionSummaryState {
+  return {
+    summaryText: row?.summary_text ?? null,
+    summaryCursorOrderSeq: Math.max(1, row?.summary_cursor_order_seq ?? 1),
+    summaryUpdatedAt: row?.summary_updated_at ?? null
+  }
+}
 
 export class DeepChatSessionStore {
   private sqlitePresenter: SQLitePresenter
@@ -46,5 +66,44 @@ export class DeepChatSessionStore {
 
   updateGenerationSettings(id: string, settings: Partial<SessionGenerationSettings>): void {
     this.sqlitePresenter.deepchatSessionsTable.updateGenerationSettings(id, settings)
+  }
+
+  getSummaryState(id: string): SessionSummaryState {
+    return normalizeSummaryState(this.sqlitePresenter.deepchatSessionsTable.getSummaryState(id))
+  }
+
+  updateSummaryState(id: string, state: SessionSummaryState): void {
+    this.sqlitePresenter.deepchatSessionsTable.updateSummaryState(id, state)
+  }
+
+  compareAndSetSummaryState(
+    id: string,
+    expectedState: SessionSummaryState,
+    nextState: SessionSummaryState
+  ): SummaryStateCompareAndSetResult {
+    const applied = this.sqlitePresenter.deepchatSessionsTable.updateSummaryStateIfMatches(
+      id,
+      nextState,
+      expectedState
+    )
+    if (applied) {
+      return {
+        applied: true,
+        currentState: {
+          summaryText: nextState.summaryText,
+          summaryCursorOrderSeq: Math.max(1, nextState.summaryCursorOrderSeq),
+          summaryUpdatedAt: nextState.summaryUpdatedAt
+        }
+      }
+    }
+
+    return {
+      applied: false,
+      currentState: this.getSummaryState(id)
+    }
+  }
+
+  resetSummaryState(id: string): void {
+    this.sqlitePresenter.deepchatSessionsTable.resetSummaryState(id)
   }
 }

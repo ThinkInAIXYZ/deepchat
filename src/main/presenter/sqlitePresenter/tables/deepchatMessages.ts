@@ -199,6 +199,10 @@ export class DeepChatMessagesTable extends BaseTable {
     this.db.prepare('DELETE FROM deepchat_messages WHERE session_id = ?').run(sessionId)
   }
 
+  delete(messageId: string): void {
+    this.db.prepare('DELETE FROM deepchat_messages WHERE id = ?').run(messageId)
+  }
+
   deleteFromOrderSeq(sessionId: string, fromOrderSeq: number): void {
     this.db
       .prepare('DELETE FROM deepchat_messages WHERE session_id = ? AND order_seq >= ?')

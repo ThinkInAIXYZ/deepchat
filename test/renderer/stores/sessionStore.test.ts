@@ -16,13 +16,17 @@ const setupStore = async () => {
     exportSession: vi.fn(),
     deleteSession: vi.fn()
   }
+  const tabPresenter = {
+    onRendererTabReady: vi.fn(),
+    onRendererTabActivated: vi.fn()
+  }
 
   vi.doMock('pinia', () => ({
     defineStore: (_id: string, setup: () => unknown) => setup
   }))
 
   vi.doMock('@/composables/usePresenter', () => ({
-    usePresenter: () => newAgentPresenter
+    usePresenter: (name: string) => (name === 'tabPresenter' ? tabPresenter : newAgentPresenter)
   }))
 
   vi.doMock('@/stores/ui/pageRouter', () => ({

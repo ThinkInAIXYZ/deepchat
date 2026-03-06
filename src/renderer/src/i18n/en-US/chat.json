@@ -63,6 +63,10 @@
     "rateLimitSeconds": "s",
     "rateLimitMinutes": "m"
   },
+  "compaction": {
+    "compacting": "Auto-compacting context...",
+    "compacted": "Context was auto-compacted"
+  },
   "rateLimit": {
     "queueTooltip": "{count} requests in queue, {interval}s interval",
     "readyTooltip": "Ready to send, {interval}s interval",
