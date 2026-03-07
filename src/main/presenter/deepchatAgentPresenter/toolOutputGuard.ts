@@ -17,6 +17,7 @@ export type PreparedToolOutputResult =
       kind: 'ok'
       content: string
       offloaded: boolean
+      offloadPath?: string
     }
   | {
       kind: 'tool_error'
@@ -28,6 +29,7 @@ export type ToolOutputGuardResult =
       kind: 'ok'
       content: string
       offloaded: boolean
+      offloadPath?: string
     }
   | {
       kind: 'tool_error'
@@ -74,7 +76,8 @@ export class ToolOutputGuard {
       return {
         kind: 'ok',
         content: rawContent,
-        offloaded: false
+        offloaded: false,
+        offloadPath: undefined
       }
     }
 
@@ -100,7 +103,8 @@ export class ToolOutputGuard {
     return {
       kind: 'ok',
       content: this.buildOffloadStub(rawContent, filePath),
-      offloaded: true
+      offloaded: true,
+      offloadPath: filePath
     }
   }
 
@@ -130,10 +134,12 @@ export class ToolOutputGuard {
       return prepared
     }
 
-    return this.fitToolError({
+    const overflowResult = this.fitToolError({
       ...params,
       errorMessage: this.buildContextOverflowMessage(params.toolCallId, params.toolName)
     })
+    await this.cleanupOffloadedOutput(prepared.offloadPath)
+    return overflowResult
   }
 
   hasContextBudget(params: ContextBudgetParams): boolean {
@@ -183,6 +189,18 @@ export class ToolOutputGuard {
     content: string
   ): ChatMessage[] {
     return this.withToolMessage(conversationMessages, toolCallId, content, 'replace')
+  }
+
+  async cleanupOffloadedOutput(offloadPath?: string): Promise<void> {
+    if (!offloadPath) {
+      return
+    }
+
+    try {
+      await fs.rm(offloadPath, { force: true })
+    } catch (error) {
+      console.warn('[ToolOutputGuard] Failed to delete offloaded tool output:', error)
+    }
   }
 
   buildContextOverflowMessage(toolCallId: string, toolName: string): string {
@@ -239,7 +257,7 @@ export class ToolOutputGuard {
     return [
       '[Tool output offloaded]',
       `Total characters: ${rawContent.length}`,
-      `Full output saved to: ${filePath}`,
+      `Offload file: ${path.basename(filePath)}`,
       `first ${preview.length} chars:`,
       preview
     ].join('\n')

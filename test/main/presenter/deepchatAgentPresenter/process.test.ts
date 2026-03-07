@@ -249,6 +249,7 @@ describe('processStream', () => {
     const toolResultMsg = secondCallMessages.find((m: any) => m.role === 'tool')
     expect(toolResultMsg.content).toContain('[Tool output offloaded]')
     expect(toolResultMsg.content).toContain('tool_tc1.offload')
+    expect(toolResultMsg.content).not.toContain(tempHome!)
   })
 
   it('multiple tool calls in one turn', async () => {

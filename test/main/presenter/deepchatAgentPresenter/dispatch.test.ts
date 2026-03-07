@@ -310,6 +310,50 @@ describe('dispatch', () => {
       expect(block!.status).toBe('error')
     })
 
+    it('preserves raw tool error status when guard returns ok', async () => {
+      const tools = [makeTool('bad_tool')]
+      const toolPresenter = createMockToolPresenter()
+      ;(toolPresenter.callTool as ReturnType<typeof vi.fn>).mockResolvedValue({
+        content: 'Upstream failure',
+        rawData: {
+          toolCallId: 'tc1',
+          content: 'Upstream failure',
+          isError: true
+        }
+      })
+      const conversation: any[] = []
+
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: { id: 'tc1', name: 'bad_tool', params: '{}', response: '' }
+      })
+      state.completedToolCalls = [{ id: 'tc1', name: 'bad_tool', arguments: '{}' }]
+
+      await executeTools(
+        state,
+        conversation,
+        0,
+        tools,
+        toolPresenter,
+        'gpt-4',
+        io,
+        'full_access',
+        new ToolOutputGuard(),
+        32000,
+        1024
+      )
+
+      const toolMsg = conversation.find((message: any) => message.role === 'tool')
+      expect(toolMsg.content).toBe('Upstream failure')
+
+      const block = state.blocks.find((b) => b.type === 'tool_call')
+      expect(block!.tool_call!.response).toBe('Upstream failure')
+      expect(block!.status).toBe('error')
+    })
+
     it('stops on abort', async () => {
       const abortController = new AbortController()
       const abortIo = createIo({ abortSignal: abortController.signal })
@@ -446,6 +490,8 @@ describe('dispatch', () => {
       expect(executed.terminalError).toBeUndefined()
       const toolMessage = conversation.find((message: any) => message.role === 'tool')
       expect(toolMessage.content).toContain('[Tool output offloaded]')
+      expect(toolMessage.content).toContain('tool_tc1.offload')
+      expect(toolMessage.content).not.toContain(tempHome!)
       expect(state.blocks[0].tool_call?.response).toContain('[Tool output offloaded]')
       expect(state.blocks[0].status).toBe('success')
     })
@@ -502,6 +548,9 @@ describe('dispatch', () => {
     })
 
     it('marks the tool as error when offload succeeds but context budget cannot fit the stub', async () => {
+      tempHome = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-dispatch-offload-clean-'))
+      getPathSpy = vi.spyOn(app, 'getPath').mockReturnValue(tempHome)
+
       const tools = [makeTool('yo_browser_cdp_send')]
       const longScreenshot = JSON.stringify({ data: 'x'.repeat(7000) })
       const toolPresenter = createMockToolPresenter({ yo_browser_cdp_send: longScreenshot })
@@ -544,9 +593,15 @@ describe('dispatch', () => {
       const toolMessage = conversation.find((message: any) => message.role === 'tool')
       expect(toolMessage.content).toContain('remaining context window is insufficient')
       expect(state.blocks[0].status).toBe('error')
+      await expect(
+        fs.access(path.join(tempHome, '.deepchat', 'sessions', 's1', 'tool_tc1.offload'))
+      ).rejects.toThrow()
     })
 
     it('returns terminalError when even the minimal tool failure stub cannot fit', async () => {
+      tempHome = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-dispatch-terminal-clean-'))
+      getPathSpy = vi.spyOn(app, 'getPath').mockReturnValue(tempHome)
+
       const tools = [makeTool('yo_browser_cdp_send')]
       const longScreenshot = JSON.stringify({ data: 'x'.repeat(7000) })
       const toolPresenter = createMockToolPresenter({ yo_browser_cdp_send: longScreenshot })
@@ -589,6 +644,9 @@ describe('dispatch', () => {
       expect(executed.terminalError).toContain('remaining context window is too small')
       expect(conversation.find((message: any) => message.role === 'tool')).toBeUndefined()
       expect(state.blocks[0].status).toBe('error')
+      await expect(
+        fs.access(path.join(tempHome, '.deepchat', 'sessions', 's1', 'tool_tc1.offload'))
+      ).rejects.toThrow()
     })
   })
 

@@ -574,6 +574,7 @@ export async function executeTools(
         }
       }
 
+      const isToolError = guardedResult.kind === 'tool_error' || toolRawData.isError === true
       const toolMessageContent =
         guardedResult.kind === 'tool_error' ? guardedResult.message : guardedResult.content
       conversation.push({
@@ -581,12 +582,7 @@ export async function executeTools(
         tool_call_id: tc.id,
         content: toolMessageContent
       })
-      updateToolCallBlock(
-        state.blocks,
-        tc.id,
-        toolMessageContent,
-        guardedResult.kind === 'tool_error'
-      )
+      updateToolCallBlock(state.blocks, tc.id, toolMessageContent, isToolError)
     } catch (err) {
       const errorText = err instanceof Error ? err.message : String(err)
       conversation.push({

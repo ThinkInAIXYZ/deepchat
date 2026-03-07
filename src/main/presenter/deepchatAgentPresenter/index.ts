@@ -48,9 +48,16 @@ type PendingInteractionEntry = {
 type DeferredToolExecutionResult = {
   responseText: string
   isError: boolean
+  offloadPath?: string
   requiresPermission?: boolean
   permissionRequest?: PendingToolInteraction['permission']
   terminalError?: string
+}
+
+type ResumeBudgetToolCall = {
+  id: string
+  name: string
+  offloadPath?: string
 }
 
 type PersistedSessionGenerationRow = {
@@ -357,7 +364,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       }
 
       let waitingForUserMessage = false
-      let resumeBudgetToolCall: NonNullable<AssistantMessageBlock['tool_call']> | null = null
+      let resumeBudgetToolCall: ResumeBudgetToolCall | null = null
       const actionBlock = blocks[currentEntry.blockIndex]
       const toolCall = actionBlock.tool_call
       if (!toolCall?.id) {
@@ -414,7 +421,11 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
             execution.responseText,
             execution.isError
           )
-          resumeBudgetToolCall = toolCall
+          resumeBudgetToolCall = {
+            id: toolCall.id,
+            name: toolCall.name || '',
+            offloadPath: execution.offloadPath
+          }
 
           if (execution.requiresPermission && execution.permissionRequest) {
             actionBlock.status = 'pending'
@@ -849,7 +860,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     sessionId: string,
     messageId: string,
     initialBlocks: AssistantMessageBlock[],
-    budgetToolCall?: NonNullable<AssistantMessageBlock['tool_call']> | null
+    budgetToolCall?: ResumeBudgetToolCall | null
   ): Promise<boolean> {
     if (this.resumingMessages.has(messageId)) {
       return false
@@ -907,6 +918,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
         })
 
         if (resumeBudget?.kind === 'tool_error') {
+          await this.toolOutputGuard.cleanupOffloadedOutput(budgetToolCall.offloadPath)
           this.updateToolCallResponse(initialBlocks, budgetToolCall.id, resumeBudget.message, true)
           this.messageStore.updateAssistantContent(messageId, initialBlocks)
           this.emitMessageRefresh(sessionId, messageId)
@@ -916,6 +928,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
             resumeBudget.message
           )
         } else if (resumeBudget?.kind === 'terminal_error') {
+          await this.toolOutputGuard.cleanupOffloadedOutput(budgetToolCall.offloadPath)
           this.updateToolCallResponse(initialBlocks, budgetToolCall.id, resumeBudget.message, true)
           this.messageStore.setMessageError(messageId, initialBlocks)
           this.emitMessageRefresh(sessionId, messageId)
@@ -1901,7 +1914,8 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       }
       return {
         responseText: prepared.content,
-        isError: Boolean(rawData.isError)
+        isError: Boolean(rawData.isError),
+        offloadPath: prepared.offloadPath
       }
     } catch (error) {
       const errorText = error instanceof Error ? error.message : String(error)

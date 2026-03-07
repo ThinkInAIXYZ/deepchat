@@ -1642,8 +1642,93 @@ describe('DeepChatAgentPresenter', () => {
         sqlitePresenter.deepchatMessagesTable.updateContent.mock.calls[0][1]
       )
       expect(updatedBlocks[0].tool_call.response).toContain('[Tool output offloaded]')
+      expect(updatedBlocks[0].tool_call.response).toContain('tool_tc1.offload')
+      expect(updatedBlocks[0].tool_call.response).not.toContain(tempHome!)
       expect(updatedBlocks[0].status).toBe('success')
       expect(processStream).toHaveBeenCalledTimes(1)
+    })
+
+    it('cleans deferred offload files when resume budget downgrades the tool result', async () => {
+      tempHome = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-deferred-cleanup-'))
+      getPathSpy = vi.spyOn(app, 'getPath').mockReturnValue(tempHome)
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      makeAssistantRow({
+        blocks: [
+          {
+            type: 'tool_call',
+            status: 'pending',
+            timestamp: 1,
+            tool_call: {
+              id: 'tc1',
+              name: 'yo_browser_cdp_send',
+              params: '{"method":"Page.captureScreenshot"}',
+              response: ''
+            }
+          },
+          {
+            type: 'action',
+            action_type: 'tool_call_permission',
+            status: 'pending',
+            timestamp: 2,
+            content: 'Need permission',
+            tool_call: {
+              id: 'tc1',
+              name: 'yo_browser_cdp_send',
+              params: '{"method":"Page.captureScreenshot"}'
+            },
+            extra: {
+              needsUserAction: true,
+              permissionType: 'write',
+              permissionRequest: JSON.stringify({
+                permissionType: 'write',
+                description: 'Need permission',
+                toolName: 'yo_browser_cdp_send',
+                serverName: 'yo-browser'
+              })
+            }
+          }
+        ]
+      })
+      toolPresenter.getAllToolDefinitions.mockResolvedValueOnce([
+        {
+          type: 'function',
+          function: {
+            name: 'yo_browser_cdp_send',
+            description: 'CDP send',
+            parameters: { type: 'object', properties: {} }
+          },
+          server: { name: 'yo-browser', icons: '', description: '' }
+        }
+      ])
+      toolPresenter.callTool.mockResolvedValueOnce({
+        content: JSON.stringify({ data: 'x'.repeat(7000) }),
+        rawData: { content: JSON.stringify({ data: 'x'.repeat(7000) }), isError: false }
+      })
+
+      const hasContextBudgetSpy = vi.spyOn((agent as any).toolOutputGuard, 'hasContextBudget')
+      hasContextBudgetSpy.mockReturnValueOnce(false).mockReturnValueOnce(true)
+
+      try {
+        const result = await agent.respondToolInteraction('s1', 'm1', 'tc1', {
+          kind: 'permission',
+          granted: true
+        })
+
+        expect(result).toEqual({ resumed: true })
+        const updateCalls = sqlitePresenter.deepchatMessagesTable.updateContent.mock.calls
+        const updatedBlocks = JSON.parse(updateCalls[updateCalls.length - 1][1])
+        expect(updatedBlocks[0].tool_call.response).toContain(
+          'remaining context window is insufficient'
+        )
+        expect(updatedBlocks[0].tool_call.response).not.toContain('[Tool output offloaded]')
+        await expect(
+          fs.access(path.join(tempHome, '.deepchat', 'sessions', 's1', 'tool_tc1.offload'))
+        ).rejects.toThrow()
+        expect(processStream).toHaveBeenCalledTimes(1)
+      } finally {
+        hasContextBudgetSpy.mockRestore()
+      }
     })
 
     it('handles permission deny and resumes with denial result', async () => {
