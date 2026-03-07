@@ -91,6 +91,7 @@
     "back": "Voltar",
     "forward": "Avançar",
     "reload": "Recarregar",
+    "addressLabel": "Barra de endereços",
     "addressPlaceholder": "Digite uma URL",
     "enterUrlDescription": "Digite o URL na barra de endereço acima para acessar o site",
     "enterUrlToStart": "Digite o URL para começar a visitar",

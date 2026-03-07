@@ -29,11 +29,19 @@ type BrowserWindowState = {
   attachedWindowId?: number | null
 }
 
+type BrowserWindowListeners = {
+  focus: () => void
+  show: () => void
+  hide: () => void
+  closed: () => void
+}
+
 export class YoBrowserPresenter implements IYoBrowserPresenter {
   private readonly browserWindows = new Map<number, BrowserWindowState>()
   private readonly viewIdToWindowId = new Map<number, number>()
   private readonly pageIdToWindowId = new Map<string, number>()
   private readonly attachedWindowIds = new Set<number>()
+  private readonly windowListeners = new Map<number, BrowserWindowListeners>()
   private embeddedState: BrowserWindowState | null = null
   private activeWindowId: number | null = null
   private readonly cdpManager = new CDPManager()
@@ -69,7 +77,7 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
 
     this.windowPresenter.show(created.id, true)
     this.setActiveWindowId(created.id)
-    this.setWindowVisibility(created, true)
+    this.setWindowVisibility(created, Boolean(created.attachedWindowId))
     this.emitWindowUpdated(created)
     return this.toWindowInfo(created)
   }
@@ -86,7 +94,9 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     }
 
     if (state.attachedWindowId != null && state.attachedWindowId !== windowId) {
-      const previousWindow = BrowserWindow.fromId(state.attachedWindowId)
+      const previousWindowId = state.attachedWindowId
+      const previousWindow = BrowserWindow.fromId(previousWindowId)
+      this.detachWindowListeners(previousWindowId)
       if (previousWindow && !previousWindow.isDestroyed()) {
         try {
           previousWindow.contentView.removeChildView(state.view)
@@ -111,9 +121,11 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
 
     if (state.id !== windowId) {
       state.id = windowId
+      this.viewIdToWindowId.set(state.viewId, windowId)
       this.pageIdToWindowId.set(state.page.pageId, windowId)
     }
 
+    this.attachWindowListeners(windowId)
     state.attachedWindowId = windowId
     state.updatedAt = Date.now()
     this.setActiveWindowId(windowId)
@@ -147,20 +159,25 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
 
   async detachEmbedded(): Promise<void> {
     const state = this.embeddedState
-    if (!state?.view || state.attachedWindowId == null) {
+    if (!state?.view) {
       return
     }
 
-    const window = BrowserWindow.fromId(state.attachedWindowId)
-    if (window && !window.isDestroyed()) {
-      try {
-        window.contentView.removeChildView(state.view)
-      } catch {
-        // Ignore already detached view.
+    const attachedWindowId = state.attachedWindowId
+    if (attachedWindowId != null) {
+      const window = BrowserWindow.fromId(attachedWindowId)
+      this.detachWindowListeners(attachedWindowId)
+      if (window && !window.isDestroyed()) {
+        try {
+          window.contentView.removeChildView(state.view)
+        } catch {
+          // Ignore already detached view.
+        }
       }
     }
 
     state.attachedWindowId = null
+    state.updatedAt = Date.now()
     this.setWindowVisibility(state, false)
   }
 
@@ -227,13 +244,18 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
           this.windowPresenter.show(existing.id, true)
           this.setActiveWindowId(existing.id)
         }
+
+        const canShowEmbedded =
+          existing.attachedWindowId != null &&
+          Boolean(existing.view && !existing.view.webContents.isDestroyed())
+        this.setWindowVisibility(existing, canShowEmbedded)
       } else {
         this.windowPresenter.show(existing.id, shouldFocus)
         if (shouldFocus) {
           this.setActiveWindowId(existing.id)
         }
+        this.setWindowVisibility(existing, true)
       }
-      this.setWindowVisibility(existing, true)
       return
     }
 
@@ -259,6 +281,14 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     }
 
     if (state.isEmbedded) {
+      const canShowEmbedded =
+        state.attachedWindowId != null &&
+        Boolean(state.view && !state.view.webContents.isDestroyed())
+      if (!canShowEmbedded) {
+        this.setWindowVisibility(state, false)
+        return false
+      }
+
       const nextVisible = !state.visible
       this.setWindowVisibility(state, nextVisible)
       return nextVisible
@@ -282,6 +312,14 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
   async isVisible(): Promise<boolean> {
     const state = this.getResolvedWindowState()
     if (!state) return false
+    if (state.isEmbedded) {
+      return Boolean(
+        state.visible &&
+        state.attachedWindowId != null &&
+        state.view &&
+        !state.view.webContents.isDestroyed()
+      )
+    }
     const window = BrowserWindow.fromId(state.id)
     return Boolean(window && !window.isDestroyed() && window.isVisible())
   }
@@ -511,7 +549,7 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
 
     const view = new WebContentsView({
       webPreferences: {
-        sandbox: false,
+        sandbox: true,
         devTools: is.dev,
         session: getYoBrowserSession()
       }
@@ -538,7 +576,6 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     this.viewIdToWindowId.set(state.viewId, hostWindowId)
     this.pageIdToWindowId.set(page.pageId, hostWindowId)
     this.setupPageListeners(hostWindowId, page, view.webContents, true)
-    this.attachWindowListeners(hostWindowId)
 
     if (url && url !== 'about:blank') {
       await page.navigate(url)
@@ -563,29 +600,73 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
 
     this.attachedWindowIds.add(windowId)
 
-    window.on('focus', () => {
+    const focus = () => {
       this.setActiveWindowId(windowId)
-      const state = this.browserWindows.get(windowId)
+      const state = this.getAttachedWindowState(windowId)
       if (state) {
         state.updatedAt = Date.now()
         this.emitWindowUpdated(state)
       }
-    })
+    }
 
-    window.on('show', () => {
+    const show = () => {
+      const state = this.getAttachedWindowState(windowId)
+      if (state?.isEmbedded) {
+        this.setWindowVisibility(state, true)
+        return
+      }
       this.emitWindowVisibility(windowId, true)
-    })
+    }
 
-    window.on('hide', () => {
+    const hide = () => {
+      const state = this.getAttachedWindowState(windowId)
+      if (state?.isEmbedded) {
+        this.setWindowVisibility(state, false)
+        return
+      }
       this.emitWindowVisibility(windowId, false)
-    })
+    }
 
-    window.on('closed', () => {
-      if (this.embeddedState?.id === windowId) {
+    const closed = () => {
+      this.detachWindowListeners(windowId)
+      if (this.embeddedState?.attachedWindowId === windowId) {
         void this.destroyEmbeddedState(false)
       }
       this.cleanupWindow(windowId, true)
-    })
+    }
+
+    this.windowListeners.set(windowId, { focus, show, hide, closed })
+
+    window.on('focus', focus)
+    window.on('show', show)
+    window.on('hide', hide)
+    window.on('closed', closed)
+  }
+
+  private detachWindowListeners(windowId: number): void {
+    const listeners = this.windowListeners.get(windowId)
+    if (!listeners) {
+      this.attachedWindowIds.delete(windowId)
+      return
+    }
+
+    const window = BrowserWindow.fromId(windowId)
+    if (window && !window.isDestroyed()) {
+      window.removeListener('focus', listeners.focus)
+      window.removeListener('show', listeners.show)
+      window.removeListener('hide', listeners.hide)
+      window.removeListener('closed', listeners.closed)
+    }
+
+    this.windowListeners.delete(windowId)
+    this.attachedWindowIds.delete(windowId)
+  }
+
+  private getAttachedWindowState(windowId: number): BrowserWindowState | null {
+    if (this.embeddedState?.attachedWindowId === windowId) {
+      return this.embeddedState
+    }
+    return this.browserWindows.get(windowId) ?? null
   }
 
   private setupPageListeners(
@@ -632,6 +713,7 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
   private cleanupWindow(windowId: number, emitClosed: boolean): void {
     const state = this.browserWindows.get(windowId)
     if (!state) {
+      this.detachWindowListeners(windowId)
       return
     }
 
@@ -639,7 +721,7 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     this.browserWindows.delete(windowId)
     this.viewIdToWindowId.delete(state.viewId)
     this.pageIdToWindowId.delete(state.page.pageId)
-    this.attachedWindowIds.delete(windowId)
+    this.detachWindowListeners(windowId)
 
     if (this.activeWindowId === windowId) {
       this.activeWindowId = this.getResolvedWindowState()?.id ?? null
@@ -763,6 +845,9 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
   }
 
   private setWindowVisibility(state: BrowserWindowState, visible: boolean): void {
+    if (state.visible === visible) {
+      return
+    }
     state.visible = visible
     this.emitWindowVisibility(state.id, visible)
   }

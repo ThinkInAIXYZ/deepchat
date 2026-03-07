@@ -138,12 +138,12 @@ export const useArtifactStore = defineStore('artifact', () => {
 
     syncArtifact(artifact, messageId, threadId)
 
-    if (currentMatches) {
-      sidepanelStore.setViewMode(threadId, 'preview')
-    }
-
     if (completedContexts.value.has(contextKey)) {
       return
+    }
+
+    if (currentMatches) {
+      sidepanelStore.setViewMode(threadId, 'preview')
     }
 
     completedContexts.value.add(contextKey)

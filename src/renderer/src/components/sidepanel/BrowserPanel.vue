@@ -1,24 +1,39 @@
 <template>
   <div class="flex h-full min-w-0 flex-1 flex-col bg-background">
     <div class="flex h-11 items-center gap-2 border-b px-3">
-      <Button variant="outline" size="icon" class="h-7 w-7" :disabled="!canGoBack" @click="goBack">
+      <Button
+        variant="outline"
+        size="icon"
+        class="h-7 w-7"
+        :aria-label="t('common.browser.back')"
+        :disabled="!canGoBack"
+        @click="goBack"
+      >
         <Icon icon="lucide:arrow-left" class="h-4 w-4" />
       </Button>
       <Button
         variant="outline"
         size="icon"
         class="h-7 w-7"
+        :aria-label="t('common.browser.forward')"
         :disabled="!canGoForward"
         @click="goForward"
       >
         <Icon icon="lucide:arrow-right" class="h-4 w-4" />
       </Button>
-      <Button variant="outline" size="icon" class="h-7 w-7" @click="reloadPage">
+      <Button
+        variant="outline"
+        size="icon"
+        class="h-7 w-7"
+        :aria-label="t('common.browser.reload')"
+        @click="reloadPage"
+      >
         <Icon icon="lucide:refresh-ccw" class="h-4 w-4" />
       </Button>
       <form class="flex min-w-0 flex-1" @submit.prevent="navigate">
         <Input
           v-model="urlInput"
+          :aria-label="t('common.browser.addressLabel')"
           class="h-7 text-xs"
           :placeholder="t('common.browser.addressPlaceholder')"
           autocapitalize="off"

@@ -132,17 +132,18 @@
         </template>
       </div>
 
-      <div
-        v-else-if="activeSource === 'artifact' && previewBlock && previewComponent"
-        class="h-full"
-      >
+      <div v-else-if="activeSource === 'artifact' && previewBlock" class="h-full overflow-auto">
         <component
+          v-if="previewComponent"
           :is="previewComponent"
           :block="previewBlock"
           :is-preview="true"
           viewport-size="desktop"
           class="h-full"
         />
+        <pre v-else class="whitespace-pre-wrap break-words p-4 text-sm leading-6">{{
+          previewBlock.content
+        }}</pre>
       </div>
     </div>
   </div>

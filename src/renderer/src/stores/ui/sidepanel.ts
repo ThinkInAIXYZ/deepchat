@@ -38,6 +38,12 @@ export const useSidepanelStore = defineStore('sidepanel', () => {
     return Math.min(960, Math.round(window.innerWidth * 0.62))
   }
 
+  const clampWidth = (nextWidth: number) => {
+    const maxWidth = resolveMaxWidth()
+    const minWidth = Math.min(420, maxWidth)
+    return Math.min(maxWidth, Math.max(minWidth, Math.round(nextWidth)))
+  }
+
   const open = ref(false)
   const activeTab = ref<SidePanelTab>('workspace')
   const width = useStorage('chat-sidepanel-width', 520)
@@ -45,10 +51,12 @@ export const useSidepanelStore = defineStore('sidepanel', () => {
 
   const normalizedWidth = computed(() => {
     const current = Number(width.value)
+    const maxWidth = resolveMaxWidth()
+    const minWidth = Math.min(420, maxWidth)
     if (!Number.isFinite(current)) {
-      return 520
+      return Math.min(maxWidth, Math.max(minWidth, 520))
     }
-    return Math.max(420, Math.min(resolveMaxWidth(), Math.round(current)))
+    return clampWidth(current)
   })
 
   const ensureSessionState = (sessionId: string): WorkspaceSessionState => {
@@ -66,7 +74,7 @@ export const useSidepanelStore = defineStore('sidepanel', () => {
   }
 
   const setWidth = (nextWidth: number) => {
-    width.value = Math.max(420, Math.min(resolveMaxWidth(), Math.round(nextWidth)))
+    width.value = clampWidth(nextWidth)
   }
 
   const openWorkspace = (sessionId?: string | null) => {

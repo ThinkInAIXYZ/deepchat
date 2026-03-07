@@ -91,6 +91,7 @@
     "back": "Back",
     "forward": "Forward",
     "reload": "Reload",
+    "addressLabel": "نوار آدرس",
     "addressPlaceholder": "Enter a URL",
     "enterUrlDescription": "برای دسترسی به وب سایت، آدرس اینترنتی را در نوار آدرس بالا وارد کنید",
     "enterUrlToStart": "برای شروع بازدید، URL را وارد کنید",
