@@ -96,5 +96,8 @@
     "enterUrlToStart": "输入网址开始访问",
     "enterUrlDescription": "在上方地址栏输入网址以访问网站",
     "name": "Yo Browser"
+  },
+  "size": {
+    "bytes": "{count} 字节"
   }
 }

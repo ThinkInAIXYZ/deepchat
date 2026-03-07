@@ -112,7 +112,11 @@
           <div class="space-y-2 p-4 text-sm">
             <div class="text-muted-foreground">{{ props.filePreview.mimeType }}</div>
             <div class="text-muted-foreground">
-              {{ Math.max(0, Number(props.filePreview.metadata.fileSize) || 0) }} bytes
+              {{
+                t('common.size.bytes', {
+                  count: Math.max(0, Number(props.filePreview.metadata.fileSize) || 0)
+                })
+              }}
             </div>
           </div>
         </template>

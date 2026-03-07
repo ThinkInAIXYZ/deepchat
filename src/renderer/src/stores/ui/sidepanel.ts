@@ -1,4 +1,4 @@
-import { computed, reactive, ref } from 'vue'
+import { computed, onScopeDispose, reactive, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { useStorage } from '@vueuse/core'
 import type { SidePanelTab, WorkspaceNavSection, WorkspaceViewMode } from '@shared/presenter'
@@ -30,18 +30,20 @@ const createSessionState = (): WorkspaceSessionState => ({
 })
 
 export const useSidepanelStore = defineStore('sidepanel', () => {
-  const resolveMaxWidth = () => {
-    if (typeof window === 'undefined') {
-      return 960
-    }
+  const viewportWidth = ref(typeof window === 'undefined' ? 1548 : window.innerWidth)
 
-    return Math.min(960, Math.round(window.innerWidth * 0.62))
+  const resolveMaxWidth = () => {
+    return Math.min(960, Math.round(viewportWidth.value * 0.62))
   }
 
   const clampWidth = (nextWidth: number) => {
     const maxWidth = resolveMaxWidth()
     const minWidth = Math.min(420, maxWidth)
-    return Math.min(maxWidth, Math.max(minWidth, Math.round(nextWidth)))
+    const widthValue = Number(nextWidth)
+    if (!Number.isFinite(widthValue)) {
+      return Math.min(maxWidth, Math.max(minWidth, 520))
+    }
+    return Math.min(maxWidth, Math.max(minWidth, Math.round(widthValue)))
   }
 
   const open = ref(false)
@@ -50,14 +52,18 @@ export const useSidepanelStore = defineStore('sidepanel', () => {
   const sessionStates = reactive<Record<string, WorkspaceSessionState>>({})
 
   const normalizedWidth = computed(() => {
-    const current = Number(width.value)
-    const maxWidth = resolveMaxWidth()
-    const minWidth = Math.min(420, maxWidth)
-    if (!Number.isFinite(current)) {
-      return Math.min(maxWidth, Math.max(minWidth, 520))
-    }
-    return clampWidth(current)
+    return clampWidth(Number(width.value))
   })
+
+  if (typeof window !== 'undefined') {
+    const handleResize = () => {
+      viewportWidth.value = window.innerWidth
+      width.value = clampWidth(Number(width.value))
+    }
+
+    window.addEventListener('resize', handleResize)
+    onScopeDispose(() => window.removeEventListener('resize', handleResize))
+  }
 
   const ensureSessionState = (sessionId: string): WorkspaceSessionState => {
     if (!sessionStates[sessionId]) {

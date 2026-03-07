@@ -34,4 +34,22 @@ describe('sidepanel store', () => {
     expect(storageRef.value).toBe(310)
     expect(store.width).toBe(310)
   })
+
+  it('reclamps width when the viewport shrinks', async () => {
+    const { store, storageRef } = await setupSidepanelStore(1200)
+
+    store.setWidth(640)
+    expect(storageRef.value).toBe(640)
+
+    Object.defineProperty(window, 'innerWidth', {
+      configurable: true,
+      writable: true,
+      value: 500
+    })
+
+    window.dispatchEvent(new Event('resize'))
+
+    expect(storageRef.value).toBe(310)
+    expect(store.width).toBe(310)
+  })
 })

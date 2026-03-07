@@ -59,7 +59,7 @@ import { Input } from '@shadcn/components/ui/input'
 import { YO_BROWSER_EVENTS } from '@/events'
 import { usePresenter } from '@/composables/usePresenter'
 import { useSidepanelStore } from '@/stores/ui/sidepanel'
-import BrowserPlaceholder from '../../../browser/components/BrowserPlaceholder.vue'
+import BrowserPlaceholder from '@browser/components/BrowserPlaceholder.vue'
 
 const { t } = useI18n()
 const sidepanelStore = useSidepanelStore()

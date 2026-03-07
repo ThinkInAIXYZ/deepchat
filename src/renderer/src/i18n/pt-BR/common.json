@@ -96,5 +96,8 @@
     "enterUrlDescription": "Digite o URL na barra de endereço acima para acessar o site",
     "enterUrlToStart": "Digite o URL para começar a visitar",
     "name": "Seu navegador"
+  },
+  "size": {
+    "bytes": "{count} bytes"
   }
 }
