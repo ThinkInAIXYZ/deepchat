@@ -14,7 +14,12 @@ import type {
 } from '@shared/types/agent-interface'
 import type { MCPToolCall, MCPToolResponse } from '@shared/types/core/mcp'
 import type { ChatMessage } from '@shared/types/core/chat-message'
-import type { IConfigPresenter, ILlmProviderPresenter, ModelConfig } from '@shared/presenter'
+import type {
+  IConfigPresenter,
+  ILlmProviderPresenter,
+  MCPToolDefinition,
+  ModelConfig
+} from '@shared/presenter'
 import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
 import { nanoid } from 'nanoid'
 import type { SQLitePresenter } from '../sqlitePresenter'
@@ -32,6 +37,7 @@ import { DeepChatMessageStore } from './messageStore'
 import { processStream } from './process'
 import { DeepChatSessionStore, type SessionSummaryState } from './sessionStore'
 import type { PendingToolInteraction, ProcessResult } from './types'
+import { ToolOutputGuard } from './toolOutputGuard'
 import type { ProviderRequestTracePayload } from '../llmProviderPresenter/requestTrace'
 
 type PendingInteractionEntry = {
@@ -44,6 +50,7 @@ type DeferredToolExecutionResult = {
   isError: boolean
   requiresPermission?: boolean
   permissionRequest?: PendingToolInteraction['permission']
+  terminalError?: string
 }
 
 type PersistedSessionGenerationRow = {
@@ -90,6 +97,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
   private readonly interactionLocks: Set<string> = new Set()
   private readonly resumingMessages: Set<string> = new Set()
   private readonly compactionService: CompactionService
+  private readonly toolOutputGuard: ToolOutputGuard
 
   constructor(
     llmProviderPresenter: ILlmProviderPresenter,
@@ -108,6 +116,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       this.llmProviderPresenter,
       this.configPresenter
     )
+    this.toolOutputGuard = new ToolOutputGuard()
 
     const recovered = this.messageStore.recoverPendingMessages()
     if (recovered > 0) {
@@ -348,6 +357,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       }
 
       let waitingForUserMessage = false
+      let resumeBudgetToolCall: NonNullable<AssistantMessageBlock['tool_call']> | null = null
       const actionBlock = blocks[currentEntry.blockIndex]
       const toolCall = actionBlock.tool_call
       if (!toolCall?.id) {
@@ -385,12 +395,26 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
           this.markPermissionResolved(actionBlock, true, permissionType)
           await this.grantPermissionForPayload(sessionId, permissionPayload, toolCall)
           const execution = await this.executeDeferredToolCall(sessionId, toolCall)
+          if (execution.terminalError) {
+            this.updateToolCallResponse(blocks, toolCall.id, execution.terminalError, true)
+            this.messageStore.setMessageError(messageId, blocks)
+            this.emitMessageRefresh(sessionId, messageId)
+            eventBus.sendToRenderer(STREAM_EVENTS.ERROR, SendTarget.ALL_WINDOWS, {
+              conversationId: sessionId,
+              eventId: messageId,
+              messageId,
+              error: execution.terminalError
+            })
+            this.setSessionStatus(sessionId, 'error')
+            return { resumed: false }
+          }
           this.updateToolCallResponse(
             blocks,
             toolCall.id,
             execution.responseText,
             execution.isError
           )
+          resumeBudgetToolCall = toolCall
 
           if (execution.requiresPermission && execution.permissionRequest) {
             actionBlock.status = 'pending'
@@ -426,8 +450,13 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
         return { resumed: false, waitingForUserMessage: true }
       }
 
-      await this.resumeAssistantMessage(sessionId, messageId, blocks)
-      return { resumed: true }
+      const resumed = await this.resumeAssistantMessage(
+        sessionId,
+        messageId,
+        blocks,
+        resumeBudgetToolCall
+      )
+      return { resumed }
     } finally {
       this.interactionLocks.delete(lockKey)
     }
@@ -698,9 +727,10 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     messageId: string
     messages: ChatMessage[]
     projectDir: string | null
+    tools?: MCPToolDefinition[]
     initialBlocks?: AssistantMessageBlock[]
   }): Promise<ProcessResult> {
-    const { sessionId, messageId, messages, projectDir, initialBlocks } = args
+    const { sessionId, messageId, messages, projectDir, tools: providedTools, initialBlocks } = args
     const state = this.runtimeState.get(sessionId)
     if (!state) {
       throw new Error(`Session ${sessionId} not found`)
@@ -758,18 +788,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     const temperature = generationSettings.temperature
     const maxTokens = generationSettings.maxTokens
 
-    let tools: import('@shared/presenter').MCPToolDefinition[] = []
-    if (this.toolPresenter) {
-      try {
-        tools = await this.toolPresenter.getAllToolDefinitions({
-          chatMode: 'agent',
-          conversationId: sessionId,
-          agentWorkspacePath: projectDir
-        })
-      } catch (error) {
-        console.error('[DeepChatAgent] failed to fetch tool definitions:', error)
-      }
-    }
+    const tools = providedTools ?? (await this.loadToolDefinitionsForSession(sessionId, projectDir))
 
     const abortController = new AbortController()
     this.abortControllers.set(sessionId, abortController)
@@ -786,6 +805,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
         temperature,
         maxTokens,
         permissionMode: state.permissionMode,
+        toolOutputGuard: this.toolOutputGuard,
         initialBlocks,
         io: {
           sessionId,
@@ -828,10 +848,11 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
   private async resumeAssistantMessage(
     sessionId: string,
     messageId: string,
-    initialBlocks: AssistantMessageBlock[]
-  ): Promise<void> {
+    initialBlocks: AssistantMessageBlock[],
+    budgetToolCall?: NonNullable<AssistantMessageBlock['tool_call']> | null
+  ): Promise<boolean> {
     if (this.resumingMessages.has(messageId)) {
-      return
+      return false
     }
     this.resumingMessages.add(messageId)
 
@@ -859,7 +880,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
         supportsVision: this.supportsVision(state.providerId, state.modelId)
       })
       const systemPrompt = appendSummarySection(baseSystemPrompt, summaryState.summaryText)
-      const resumeContext = buildResumeContext(
+      let resumeContext = buildResumeContext(
         sessionId,
         messageId,
         systemPrompt,
@@ -872,15 +893,53 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
           fallbackProtectedTurnCount: 1
         }
       )
+      const projectDir = this.resolveProjectDir(sessionId)
+      const tools = await this.loadToolDefinitionsForSession(sessionId, projectDir)
+
+      if (budgetToolCall?.id && budgetToolCall.name) {
+        const resumeBudget = this.fitResumeBudgetForToolCall({
+          resumeContext,
+          toolDefinitions: tools,
+          contextLength: generationSettings.contextLength,
+          maxTokens,
+          toolCallId: budgetToolCall.id,
+          toolName: budgetToolCall.name
+        })
+
+        if (resumeBudget?.kind === 'tool_error') {
+          this.updateToolCallResponse(initialBlocks, budgetToolCall.id, resumeBudget.message, true)
+          this.messageStore.updateAssistantContent(messageId, initialBlocks)
+          this.emitMessageRefresh(sessionId, messageId)
+          resumeContext = this.toolOutputGuard.replaceToolMessageContent(
+            resumeContext,
+            budgetToolCall.id,
+            resumeBudget.message
+          )
+        } else if (resumeBudget?.kind === 'terminal_error') {
+          this.updateToolCallResponse(initialBlocks, budgetToolCall.id, resumeBudget.message, true)
+          this.messageStore.setMessageError(messageId, initialBlocks)
+          this.emitMessageRefresh(sessionId, messageId)
+          eventBus.sendToRenderer(STREAM_EVENTS.ERROR, SendTarget.ALL_WINDOWS, {
+            conversationId: sessionId,
+            eventId: messageId,
+            messageId,
+            error: resumeBudget.message
+          })
+          this.setSessionStatus(sessionId, 'error')
+          return false
+        }
+      }
 
       const result = await this.runStreamForMessage({
         sessionId,
         messageId,
         messages: resumeContext,
-        projectDir: this.resolveProjectDir(sessionId),
+        projectDir,
+        tools,
         initialBlocks
       })
       this.applyProcessResultStatus(sessionId, result)
+      return true
     } catch (error) {
       console.error('[DeepChatAgent] resumeAssistantMessage error:', error)
       this.setSessionStatus(sessionId, 'error')
@@ -1793,19 +1852,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     }
 
     const projectDir = this.resolveProjectDir(sessionId)
-    let toolDefinitions: import('@shared/presenter').MCPToolDefinition[] = []
-    try {
-      toolDefinitions = await this.toolPresenter.getAllToolDefinitions({
-        chatMode: 'agent',
-        conversationId: sessionId,
-        agentWorkspacePath: projectDir
-      })
-    } catch (error) {
-      console.error(
-        '[DeepChatAgent] Failed to load tool definitions for deferred execution:',
-        error
-      )
-    }
+    const toolDefinitions = await this.loadToolDefinitionsForSession(sessionId, projectDir)
 
     const toolDefinition = toolDefinitions.find((definition) => {
       if (definition.function.name !== toolName) {
@@ -1839,8 +1886,21 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
           permissionRequest: rawData.permissionRequest as PendingToolInteraction['permission']
         }
       }
+      const responseText = this.toolContentToText(rawData.content)
+      const prepared = await this.toolOutputGuard.prepareToolOutput({
+        sessionId,
+        toolCallId: toolCall.id || '',
+        toolName,
+        rawContent: responseText
+      })
+      if (prepared.kind === 'tool_error') {
+        return {
+          responseText: prepared.message,
+          isError: true
+        }
+      }
       return {
-        responseText: this.toolContentToText(rawData.content),
+        responseText: prepared.content,
         isError: Boolean(rawData.isError)
       }
     } catch (error) {
@@ -1850,6 +1910,60 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
         isError: true
       }
     }
+  }
+
+  private async loadToolDefinitionsForSession(
+    sessionId: string,
+    projectDir: string | null
+  ): Promise<MCPToolDefinition[]> {
+    if (!this.toolPresenter) {
+      return []
+    }
+
+    try {
+      return await this.toolPresenter.getAllToolDefinitions({
+        chatMode: 'agent',
+        conversationId: sessionId,
+        agentWorkspacePath: projectDir
+      })
+    } catch (error) {
+      console.error('[DeepChatAgent] failed to fetch tool definitions:', error)
+      return []
+    }
+  }
+
+  private fitResumeBudgetForToolCall(params: {
+    resumeContext: ChatMessage[]
+    toolDefinitions: MCPToolDefinition[]
+    contextLength: number
+    maxTokens: number
+    toolCallId: string
+    toolName: string
+  }) {
+    if (
+      this.toolOutputGuard.hasContextBudget({
+        conversationMessages: params.resumeContext,
+        toolDefinitions: params.toolDefinitions,
+        contextLength: params.contextLength,
+        maxTokens: params.maxTokens
+      })
+    ) {
+      return null
+    }
+
+    return this.toolOutputGuard.fitToolError({
+      conversationMessages: params.resumeContext,
+      toolDefinitions: params.toolDefinitions,
+      contextLength: params.contextLength,
+      maxTokens: params.maxTokens,
+      toolCallId: params.toolCallId,
+      toolName: params.toolName,
+      errorMessage: this.toolOutputGuard.buildContextOverflowMessage(
+        params.toolCallId,
+        params.toolName
+      ),
+      mode: 'replace'
+    })
   }
 
   private toolContentToText(content: MCPToolResponse['content']): string {

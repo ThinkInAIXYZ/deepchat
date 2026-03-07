@@ -9,6 +9,7 @@ import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { MCPToolDefinition, ModelConfig } from '@shared/presenter'
 import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
 import type { DeepChatMessageStore } from './messageStore'
+import type { ToolOutputGuard } from './toolOutputGuard'
 
 export interface ToolCallResult {
   id: string
@@ -77,6 +78,7 @@ export interface PendingToolInteraction {
 export interface ProcessResult {
   status: 'completed' | 'paused' | 'aborted' | 'error'
   pendingInteractions?: PendingToolInteraction[]
+  terminalError?: string
 }
 
 export interface ProcessParams {
@@ -97,6 +99,7 @@ export interface ProcessParams {
   temperature: number
   maxTokens: number
   permissionMode: PermissionMode
+  toolOutputGuard: ToolOutputGuard
   initialBlocks?: AssistantMessageBlock[]
   io: IoParams
 }

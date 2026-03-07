@@ -1,4 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import fs from 'fs/promises'
+import os from 'os'
+import path from 'path'
+import { app } from 'electron'
 import { DeepChatAgentPresenter } from '@/presenter/deepchatAgentPresenter/index'
 
 vi.mock('nanoid', () => ({ nanoid: vi.fn(() => 'mock-msg-id') }))
@@ -195,6 +199,8 @@ describe('DeepChatAgentPresenter', () => {
   let configPresenter: ReturnType<typeof createMockConfigPresenter>
   let toolPresenter: ReturnType<typeof createMockToolPresenter>
   let agent: DeepChatAgentPresenter
+  let tempHome: string | null = null
+  let getPathSpy: ReturnType<typeof vi.spyOn> | null = null
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -213,8 +219,14 @@ describe('DeepChatAgentPresenter', () => {
     agent = new DeepChatAgentPresenter(llmProvider, configPresenter, sqlitePresenter, toolPresenter)
   })
 
-  afterEach(() => {
+  afterEach(async () => {
     vi.useRealTimers()
+    getPathSpy?.mockRestore()
+    getPathSpy = null
+    if (tempHome) {
+      await fs.rm(tempHome, { recursive: true, force: true })
+      tempHome = null
+    }
   })
 
   describe('constructor (crash recovery)', () => {
@@ -1560,6 +1572,78 @@ describe('DeepChatAgentPresenter', () => {
       expect(updatedBlocks[0].status).toBe('success')
       expect(updatedBlocks[1].status).toBe('granted')
       expect(updatedBlocks[1].extra.needsUserAction).toBe(false)
+    })
+
+    it('offloads deferred tool results before resume', async () => {
+      tempHome = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-deferred-offload-'))
+      getPathSpy = vi.spyOn(app, 'getPath').mockReturnValue(tempHome)
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      makeAssistantRow({
+        blocks: [
+          {
+            type: 'tool_call',
+            status: 'pending',
+            timestamp: 1,
+            tool_call: {
+              id: 'tc1',
+              name: 'yo_browser_cdp_send',
+              params: '{"method":"Page.captureScreenshot"}',
+              response: ''
+            }
+          },
+          {
+            type: 'action',
+            action_type: 'tool_call_permission',
+            status: 'pending',
+            timestamp: 2,
+            content: 'Need permission',
+            tool_call: {
+              id: 'tc1',
+              name: 'yo_browser_cdp_send',
+              params: '{"method":"Page.captureScreenshot"}'
+            },
+            extra: {
+              needsUserAction: true,
+              permissionType: 'write',
+              permissionRequest: JSON.stringify({
+                permissionType: 'write',
+                description: 'Need permission',
+                toolName: 'yo_browser_cdp_send',
+                serverName: 'yo-browser'
+              })
+            }
+          }
+        ]
+      })
+      toolPresenter.getAllToolDefinitions.mockResolvedValueOnce([
+        {
+          type: 'function',
+          function: {
+            name: 'yo_browser_cdp_send',
+            description: 'CDP send',
+            parameters: { type: 'object', properties: {} }
+          },
+          server: { name: 'yo-browser', icons: '', description: '' }
+        }
+      ])
+      toolPresenter.callTool.mockResolvedValueOnce({
+        content: JSON.stringify({ data: 'x'.repeat(7000) }),
+        rawData: { content: JSON.stringify({ data: 'x'.repeat(7000) }), isError: false }
+      })
+
+      const result = await agent.respondToolInteraction('s1', 'm1', 'tc1', {
+        kind: 'permission',
+        granted: true
+      })
+
+      expect(result).toEqual({ resumed: true })
+      const updatedBlocks = JSON.parse(
+        sqlitePresenter.deepchatMessagesTable.updateContent.mock.calls[0][1]
+      )
+      expect(updatedBlocks[0].tool_call.response).toContain('[Tool output offloaded]')
+      expect(updatedBlocks[0].status).toBe('success')
+      expect(processStream).toHaveBeenCalledTimes(1)
     })
 
     it('handles permission deny and resumes with denial result', async () => {

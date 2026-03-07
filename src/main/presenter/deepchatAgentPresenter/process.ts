@@ -1,4 +1,4 @@
-import type { ProcessParams, ProcessResult } from './types'
+import type { ProcessParams, ProcessResult, StreamState } from './types'
 import { createState } from './types'
 import { accumulate } from './accumulator'
 import { startEcho } from './echo'
@@ -7,6 +7,37 @@ import { eventBus, SendTarget } from '@/eventbus'
 import { STREAM_EVENTS } from '@/events'
 
 const MAX_TOOL_CALLS = 128
+const UNKNOWN_CONTEXT_LIMIT = Number.MAX_SAFE_INTEGER
+const CONTEXT_WINDOW_ERROR_PATTERNS = [
+  'context length',
+  'context window',
+  'too many tokens',
+  'prompt too long',
+  'maximum context length',
+  'reduce the length'
+]
+
+function isContextWindowErrorMessage(message: string): boolean {
+  const normalized = message.toLowerCase()
+  return CONTEXT_WINDOW_ERROR_PATTERNS.some((pattern) => normalized.includes(pattern))
+}
+
+function getLatestErrorMessage(state: StreamState): string | null {
+  for (let index = state.blocks.length - 1; index >= 0; index -= 1) {
+    const block = state.blocks[index]
+    if (block.type === 'error' && typeof block.content === 'string' && block.content.trim()) {
+      return block.content
+    }
+  }
+  return null
+}
+
+function stripTrailingErrorBlock(state: StreamState, message: string): void {
+  const lastBlock = state.blocks[state.blocks.length - 1]
+  if (lastBlock?.type === 'error' && lastBlock.content === message) {
+    state.blocks.pop()
+  }
+}
 
 /**
  * Unified stream processor. Handles both simple completions and multi-turn
@@ -112,10 +143,21 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
         toolPresenter!,
         modelId,
         io,
-        permissionMode
+        permissionMode,
+        params.toolOutputGuard,
+        modelConfig.contextLength > 0 ? modelConfig.contextLength : UNKNOWN_CONTEXT_LIMIT,
+        maxTokens
       )
       toolCallCount += executed.executed
       echo.flush()
+
+      if (executed.terminalError) {
+        finalizeError(state, io, executed.terminalError)
+        return {
+          status: 'error' as const,
+          terminalError: executed.terminalError
+        }
+      }
 
       if (executed.pendingInteractions.length > 0) {
         console.log(
@@ -133,6 +175,17 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
     }
 
     // Finalize
+    if (state.stopReason === 'error') {
+      const streamErrorMessage = getLatestErrorMessage(state)
+      if (streamErrorMessage && isContextWindowErrorMessage(streamErrorMessage)) {
+        stripTrailingErrorBlock(state, streamErrorMessage)
+        finalizeError(state, io, streamErrorMessage)
+        return {
+          status: 'error' as const,
+          terminalError: streamErrorMessage
+        }
+      }
+    }
     finalize(state, io)
     return {
       status: 'completed' as const
