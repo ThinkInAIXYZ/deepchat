@@ -1,6 +1,6 @@
 import path from 'path'
 import { DialogPresenter } from './dialogPresenter/index'
-import { ipcMain, IpcMainInvokeEvent, app } from 'electron'
+import { BrowserWindow, ipcMain, IpcMainInvokeEvent, app } from 'electron'
 import { WindowPresenter } from './windowPresenter'
 import { ShortcutPresenter } from './shortcutPresenter'
 import {
@@ -70,7 +70,6 @@ import { ProjectPresenter } from './projectPresenter'
 
 // IPC调用上下文接口
 interface IPCCallContext {
-  tabId?: number
   windowId?: number
   webContentsId: number
   presenterName: string
@@ -382,18 +381,16 @@ function isFunction(obj: any, prop: string): obj is { [key: string]: (...args: a
   return typeof obj[prop] === 'function'
 }
 
-// IPC 主进程处理程序：动态调用 Presenter 的方法 (支持Tab上下文)
+// IPC 主进程处理程序：动态调用 Presenter 的方法 (支持 window/webContents 上下文)
 ipcMain.handle(
   'presenter:call',
   (event: IpcMainInvokeEvent, name: string, method: string, ...payloads: unknown[]) => {
     try {
       // 构建调用上下文
       const webContentsId = event.sender.id
-      const tabId = presenter.tabPresenter.getTabIdByWebContentsId(webContentsId)
-      const windowId = presenter.tabPresenter.getWindowIdByWebContentsId(webContentsId)
+      const windowId = BrowserWindow.fromWebContents(event.sender)?.id
 
       const context: IPCCallContext = {
-        tabId,
         windowId,
         webContentsId,
         presenterName: name,
@@ -401,10 +398,10 @@ ipcMain.handle(
         timestamp: Date.now()
       }
 
-      // 记录调用日志 (包含tab上下文)
+      // 记录调用日志
       if (import.meta.env.VITE_LOG_IPC_CALL === '1') {
         console.log(
-          `[IPC Call] Tab:${context.tabId || 'unknown'} Window:${context.windowId || 'unknown'} -> ${context.presenterName}.${context.methodName}`
+          `[IPC Call] WebContents:${context.webContentsId} Window:${context.windowId || 'unknown'} -> ${context.presenterName}.${context.methodName}`
         )
       }
 
@@ -415,7 +412,9 @@ ipcMain.handle(
       let resolvedPayloads = payloads
 
       if (!calledPresenter) {
-        console.warn(`[IPC Warning] Tab:${context.tabId} calling wrong presenter: ${name}`)
+        console.warn(
+          `[IPC Warning] WebContents:${context.webContentsId} calling wrong presenter: ${name}`
+        )
         return { error: `Presenter "${name}" not found` }
       }
 
@@ -425,7 +424,7 @@ ipcMain.handle(
         return calledPresenter[resolvedMethod](...resolvedPayloads)
       } else {
         console.warn(
-          `[IPC Warning] Tab:${context.tabId} called method is not a function or does not exist: ${name}.${method}`
+          `[IPC Warning] WebContents:${context.webContentsId} called method is not a function or does not exist: ${name}.${method}`
         )
         return { error: `Method "${method}" not found or not a function on "${name}"` }
       }
@@ -435,9 +434,8 @@ ipcMain.handle(
     ) {
       // 尝试获取调用上下文以改进错误日志
       const webContentsId = event.sender.id
-      const tabId = presenter.tabPresenter.getTabIdByWebContentsId(webContentsId)
 
-      console.error(`[IPC Error] Tab:${tabId || 'unknown'} ${name}.${method}:`, e)
+      console.error(`[IPC Error] WebContents:${webContentsId} ${name}.${method}:`, e)
       return { error: e.message || String(e) }
     }
   }

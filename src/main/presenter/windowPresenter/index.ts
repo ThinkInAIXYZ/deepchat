@@ -1,5 +1,12 @@
 // src\main\presenter\windowPresenter\index.ts
-import { BrowserWindow, shell, nativeImage, ipcMain, screen } from 'electron'
+import {
+  BrowserWindow,
+  shell,
+  nativeImage,
+  ipcMain,
+  screen,
+  webContents as electronWebContents
+} from 'electron'
 import { join } from 'path'
 import icon from '../../../../resources/icon.png?asset' // App icon (macOS/Linux)
 import iconWin from '../../../../resources/icon.ico?asset' // App icon (Windows)
@@ -29,10 +36,6 @@ export class WindowPresenter implements IWindowPresenter {
   private mainWindowId: number | null = null
   private floatingChatWindow: FloatingChatWindow | null = null
   private settingsWindow: BrowserWindow | null = null
-  private tooltipOverlayWindows = new Map<number, BrowserWindow>()
-  private pendingTooltipPayload = new Map<number, { x: number; y: number; text: string }>()
-  // TEMP: Tooltip overlay window creation is disabled while renderer tooltip overlay is unstable.
-  private isTooltipOverlayEnabled = false
 
   constructor(configPresenter: IConfigPresenter) {
     this.windows = new Map()
@@ -49,7 +52,7 @@ export class WindowPresenter implements IWindowPresenter {
     })
 
     // Chrome height reporting from browser windows (TabPresenter uses this for view bounds)
-    ipcMain.on('shell:chrome-height', (event, payload: { height?: number } | number) => {
+    ipcMain.on('browser:chrome-height', (event, payload: { height?: number } | number) => {
       const window = BrowserWindow.fromWebContents(event.sender)
       if (!window || window.isDestroyed()) return
       const height = typeof payload === 'number' ? payload : payload?.height
@@ -68,61 +71,10 @@ export class WindowPresenter implements IWindowPresenter {
       }
     })
 
-    ipcMain.on(
-      'shell-tooltip:show',
-      (event, payload: { x: number; y: number; text: string } | undefined) => {
-        if (!payload) return
-
-        const parentWindow = BrowserWindow.fromWebContents(event.sender)
-        if (!parentWindow || parentWindow.isDestroyed()) return
-        // On macOS fullscreen, suppress tooltip overlay to keep system traffic lights reachable
-        if (process.platform === 'darwin' && parentWindow.isFullScreen()) {
-          return
-        }
-
-        const overlay = this.getOrCreateTooltipOverlay(parentWindow)
-        if (!overlay) return
-
-        this.pendingTooltipPayload.set(parentWindow.id, payload)
-
-        if (!overlay.webContents.isLoadingMainFrame()) {
-          if (!overlay.isVisible()) {
-            overlay.showInactive()
-          }
-          overlay.webContents.send('shell-tooltip-overlay:show', payload)
-          return
-        }
-
-        overlay.webContents.once('did-finish-load', () => {
-          const pending = this.pendingTooltipPayload.get(parentWindow.id)
-          if (!pending) return
-          if (overlay.isDestroyed()) return
-          if (!overlay.isVisible()) {
-            overlay.showInactive()
-          }
-          overlay.webContents.send('shell-tooltip-overlay:show', pending)
-        })
-      }
-    )
-
-    ipcMain.on('shell-tooltip:hide', (event) => {
-      const parentWindow = BrowserWindow.fromWebContents(event.sender)
-      if (!parentWindow || parentWindow.isDestroyed()) return
-
-      const overlay = this.tooltipOverlayWindows.get(parentWindow.id)
-      if (!overlay || overlay.isDestroyed()) return
-
-      this.pendingTooltipPayload.delete(parentWindow.id)
-      overlay.webContents.send('shell-tooltip-overlay:hide')
-      if (overlay.isVisible()) {
-        overlay.hide()
-      }
-    })
-
     // Listen for shortcut event: create new window
     eventBus.on(SHORTCUT_EVENTS.CREATE_NEW_WINDOW, () => {
-      console.log('Creating new shell window via shortcut.')
-      this.createShellWindow()
+      console.log('Creating new app window via shortcut.')
+      this.createAppWindow()
     })
 
     // Listen for shortcut event: go settings (now opens independent Settings Window)
@@ -514,12 +466,87 @@ export class WindowPresenter implements IWindowPresenter {
     return false
   }
 
+  async sendToDefaultWindow(
+    channel: string,
+    switchToTarget: boolean = false,
+    ...args: unknown[]
+  ): Promise<boolean> {
+    const targetWindow = this.getFocusedWindow() || this.getAllWindows()[0]
+    if (!targetWindow || targetWindow.isDestroyed() || targetWindow.webContents.isDestroyed()) {
+      return false
+    }
+
+    targetWindow.webContents.send(channel, ...args)
+
+    if (switchToTarget) {
+      targetWindow.show()
+      targetWindow.focus()
+    }
+
+    return true
+  }
+
+  async sendToWebContents(
+    webContentsId: number,
+    channel: string,
+    ...args: unknown[]
+  ): Promise<boolean> {
+    const target = electronWebContents.fromId(webContentsId)
+    if (!target || target.isDestroyed()) {
+      return false
+    }
+
+    target.send(channel, ...args)
+    return true
+  }
+
+  public async createAppWindow(options?: {
+    initialRoute?: string
+    x?: number
+    y?: number
+  }): Promise<number | null> {
+    return await this.createManagedWindow({
+      initialTab: {
+        url:
+          options?.initialRoute === 'chat' || !options?.initialRoute
+            ? 'local://chat'
+            : `local://${options.initialRoute}`
+      },
+      windowType: 'chat',
+      x: options?.x,
+      y: options?.y
+    })
+  }
+
+  public async createBrowserWindow(options?: { x?: number; y?: number }): Promise<number | null> {
+    return await this.createManagedWindow({
+      windowType: 'browser',
+      x: options?.x,
+      y: options?.y
+    })
+  }
+
+  async createShellWindow(options?: {
+    activateTabId?: number
+    initialTab?: {
+      url: string
+      icon?: string
+    }
+    windowType?: 'chat' | 'browser'
+    forMovedTab?: boolean
+    x?: number
+    y?: number
+  }): Promise<number | null> {
+    console.log('Creating window via deprecated createShellWindow wrapper.')
+    return await this.createManagedWindow(options)
+  }
+
   /**
-   * 创建一个新的外壳窗口。
+   * 创建一个新的兼容窗口包装器。
    * @param options 窗口配置选项，包括初始标签页或激活现有标签页。
    * @returns 创建的窗口 ID，如果创建失败则返回 null。
    */
-  async createShellWindow(options?: {
+  private async createManagedWindow(options?: {
     activateTabId?: number // 要关联并激活的现有标签页 ID
     initialTab?: {
       // 窗口创建时要创建的新标签页选项
@@ -531,7 +558,6 @@ export class WindowPresenter implements IWindowPresenter {
     x?: number // 初始 X 坐标
     y?: number // 初始 Y 坐标
   }): Promise<number | null> {
-    console.log('Creating new shell window.')
     const windowType = options?.windowType ?? 'chat'
 
     // 根据平台选择图标
@@ -542,7 +568,7 @@ export class WindowPresenter implements IWindowPresenter {
     const defaultHeight = 620
 
     // 使用窗口状态管理器恢复位置和尺寸
-    const shellWindowState = windowStateManager({
+    const managedWindowState = windowStateManager({
       defaultWidth,
       defaultHeight
     })
@@ -552,24 +578,24 @@ export class WindowPresenter implements IWindowPresenter {
       options?.x !== undefined
         ? options.x
         : this.validateWindowPosition(
-            shellWindowState.x,
-            shellWindowState.width,
-            shellWindowState.y,
-            shellWindowState.height
+            managedWindowState.x,
+            managedWindowState.width,
+            managedWindowState.y,
+            managedWindowState.height
           ).x
     let initialY =
       options?.y !== undefined
         ? options?.y
         : this.validateWindowPosition(
-            shellWindowState.x,
-            shellWindowState.width,
-            shellWindowState.y,
-            shellWindowState.height
+            managedWindowState.x,
+            managedWindowState.width,
+            managedWindowState.y,
+            managedWindowState.height
           ).y
 
-    const shellWindow = new BrowserWindow({
-      width: shellWindowState.width,
-      height: shellWindowState.height,
+    const appWindow = new BrowserWindow({
+      width: managedWindowState.width,
+      height: managedWindowState.height,
       x: initialX,
       y: initialY,
       show: false, // 先隐藏窗口，等待 ready-to-show 以避免白屏
@@ -592,42 +618,42 @@ export class WindowPresenter implements IWindowPresenter {
       roundedCorners: true // Windows 11 圆角
     })
 
-    if (!shellWindow) {
-      console.error('Failed to create shell window.')
+    if (!appWindow) {
+      console.error('Failed to create application window.')
       return null
     }
 
-    const windowId = shellWindow.id
-    this.windows.set(windowId, shellWindow) // 将窗口实例存入 Map
+    const windowId = appWindow.id
+    this.windows.set(windowId, appWindow) // 将窗口实例存入 Map
     // For browser windows, register type with TabPresenter
     if (windowType === 'browser') {
       ;(presenter.tabPresenter as TabPresenter).setWindowType(windowId, windowType)
     }
 
-    shellWindowState.manage(shellWindow) // 管理窗口状态
+    managedWindowState.manage(appWindow) // 管理窗口状态
 
     // 应用内容保护设置
     const contentProtectionEnabled = this.configPresenter.getContentProtectionEnabled()
-    this.updateContentProtection(shellWindow, contentProtectionEnabled)
+    this.updateContentProtection(appWindow, contentProtectionEnabled)
 
     // 开发模式下自动打开 DevTools
     if (is.dev) {
-      shellWindow.webContents.openDevTools()
+      appWindow.webContents.openDevTools()
     }
 
     // --- 窗口事件监听 ---
 
     // 窗口准备就绪时显示
-    shellWindow.on('ready-to-show', () => {
+    appWindow.on('ready-to-show', () => {
       console.log(`Window ${windowId} is ready to show.`)
-      if (!shellWindow.isDestroyed()) {
+      if (!appWindow.isDestroyed()) {
         // For browser windows, don't auto-show/focus to prevent stealing focus from chat windows
         // Browser windows should only be shown when explicitly requested by user (e.g., clicking browser button)
         const shouldAutoShow = windowType !== 'browser' || options?.forMovedTab === true
 
         if (shouldAutoShow) {
-          shellWindow.show()
-          shellWindow.focus()
+          appWindow.show()
+          appWindow.focus()
         }
         eventBus.sendToMain(WINDOW_EVENTS.WINDOW_CREATED, windowId)
       } else {
@@ -636,33 +662,32 @@ export class WindowPresenter implements IWindowPresenter {
     })
 
     // 窗口获得焦点
-    shellWindow.on('focus', () => {
+    appWindow.on('focus', () => {
       console.log(`Window ${windowId} gained focus.`)
       this.focusedWindowId = windowId
       eventBus.sendToMain(WINDOW_EVENTS.WINDOW_FOCUSED, windowId)
-      if (!shellWindow.isDestroyed()) {
-        shellWindow.webContents.send('window-focused', windowId)
+      if (!appWindow.isDestroyed()) {
+        appWindow.webContents.send('window-focused', windowId)
       }
     })
 
     // 窗口失去焦点
-    shellWindow.on('blur', () => {
+    appWindow.on('blur', () => {
       console.log(`Window ${windowId} lost focus.`)
       if (this.focusedWindowId === windowId) {
         this.focusedWindowId = null // 仅当失去焦点的窗口是当前记录的焦点窗口时才清空
       }
       eventBus.sendToMain(WINDOW_EVENTS.WINDOW_BLURRED, windowId)
-      if (!shellWindow.isDestroyed()) {
-        shellWindow.webContents.send('window-blurred', windowId)
+      if (!appWindow.isDestroyed()) {
+        appWindow.webContents.send('window-blurred', windowId)
       }
-      this.clearTooltipOverlay(windowId)
     })
 
     // 窗口最大化
-    shellWindow.on('maximize', () => {
+    appWindow.on('maximize', () => {
       console.log(`Window ${windowId} maximized.`)
-      if (!shellWindow.isDestroyed()) {
-        shellWindow.webContents.send(WINDOW_EVENTS.WINDOW_MAXIMIZED)
+      if (!appWindow.isDestroyed()) {
+        appWindow.webContents.send(WINDOW_EVENTS.WINDOW_MAXIMIZED)
         eventBus.sendToMain(WINDOW_EVENTS.WINDOW_MAXIMIZED, windowId)
         // 触发恢复逻辑更新标签页 bounds
         this.handleWindowRestore(windowId).catch((error) => {
@@ -672,10 +697,10 @@ export class WindowPresenter implements IWindowPresenter {
     })
 
     // 窗口取消最大化
-    shellWindow.on('unmaximize', () => {
+    appWindow.on('unmaximize', () => {
       console.log(`Window ${windowId} unmaximized.`)
-      if (!shellWindow.isDestroyed()) {
-        shellWindow.webContents.send(WINDOW_EVENTS.WINDOW_UNMAXIMIZED)
+      if (!appWindow.isDestroyed()) {
+        appWindow.webContents.send(WINDOW_EVENTS.WINDOW_UNMAXIMIZED)
         eventBus.sendToMain(WINDOW_EVENTS.WINDOW_UNMAXIMIZED, windowId)
         // 触发恢复逻辑更新标签页 bounds
         this.handleWindowRestore(windowId).catch((error) => {
@@ -693,18 +718,16 @@ export class WindowPresenter implements IWindowPresenter {
       this.handleWindowRestore(windowId).catch((error) => {
         console.error(`Error handling restore logic for window ${windowId}:`, error)
       })
-      shellWindow.webContents.send(WINDOW_EVENTS.WINDOW_UNMAXIMIZED)
+      appWindow.webContents.send(WINDOW_EVENTS.WINDOW_UNMAXIMIZED)
       eventBus.sendToMain(WINDOW_EVENTS.WINDOW_RESTORED, windowId)
     }
-    shellWindow.on('restore', handleRestore)
+    appWindow.on('restore', handleRestore)
 
     // 窗口进入全屏
-    shellWindow.on('enter-full-screen', () => {
+    appWindow.on('enter-full-screen', () => {
       console.log(`Window ${windowId} entered fullscreen.`)
-      // Destroy tooltip overlay while fullscreen so it never blocks system traffic lights
-      this.destroyTooltipOverlay(windowId)
-      if (!shellWindow.isDestroyed()) {
-        shellWindow.webContents.send(WINDOW_EVENTS.WINDOW_ENTER_FULL_SCREEN)
+      if (!appWindow.isDestroyed()) {
+        appWindow.webContents.send(WINDOW_EVENTS.WINDOW_ENTER_FULL_SCREEN)
         eventBus.sendToMain(WINDOW_EVENTS.WINDOW_ENTER_FULL_SCREEN, windowId)
         // 触发恢复逻辑更新标签页 bounds
         this.handleWindowRestore(windowId).catch((error) => {
@@ -717,12 +740,10 @@ export class WindowPresenter implements IWindowPresenter {
     })
 
     // 窗口退出全屏
-    shellWindow.on('leave-full-screen', () => {
+    appWindow.on('leave-full-screen', () => {
       console.log(`Window ${windowId} left fullscreen.`)
-      // Recreate tooltip overlay after exiting fullscreen for normal behavior
-      this.getOrCreateTooltipOverlay(shellWindow)
-      if (!shellWindow.isDestroyed()) {
-        shellWindow.webContents.send(WINDOW_EVENTS.WINDOW_LEAVE_FULL_SCREEN)
+      if (!appWindow.isDestroyed()) {
+        appWindow.webContents.send(WINDOW_EVENTS.WINDOW_LEAVE_FULL_SCREEN)
         eventBus.sendToMain(WINDOW_EVENTS.WINDOW_LEAVE_FULL_SCREEN, windowId)
         // 触发恢复逻辑更新标签页 bounds
         this.handleWindowRestore(windowId).catch((error) => {
@@ -735,13 +756,13 @@ export class WindowPresenter implements IWindowPresenter {
     })
 
     // 窗口尺寸改变，通知 TabPresenter 更新所有视图 bounds
-    shellWindow.on('resize', () => {
+    appWindow.on('resize', () => {
       eventBus.sendToMain(WINDOW_EVENTS.WINDOW_RESIZE, windowId)
     })
 
     // 'close' 事件：用户尝试关闭窗口 (点击关闭按钮等)。
     // 此处理程序决定是隐藏窗口还是允许其关闭/销毁。
-    shellWindow.on('close', (event) => {
+    appWindow.on('close', (event) => {
       console.log(
         `Window ${windowId} close event. isQuitting: ${this.isQuitting}, Platform: ${process.platform}.`
       )
@@ -760,24 +781,24 @@ export class WindowPresenter implements IWindowPresenter {
           event.preventDefault() // 阻止默认窗口关闭行为
 
           // 处理全屏窗口隐藏时的黑屏问题 (同 hide 方法)
-          if (shellWindow.isFullScreen()) {
+          if (appWindow.isFullScreen()) {
             console.log(
               `Window ${windowId} is fullscreen, exiting fullscreen before hiding (close event).`
             )
-            shellWindow.once('leave-full-screen', () => {
+            appWindow.once('leave-full-screen', () => {
               console.log(`Window ${windowId} left fullscreen, proceeding with hide (close event).`)
-              if (!shellWindow.isDestroyed()) {
-                shellWindow.hide()
+              if (!appWindow.isDestroyed()) {
+                appWindow.hide()
               } else {
                 console.warn(
                   `Window ${windowId} was destroyed after leaving fullscreen, cannot hide (close event).`
                 )
               }
             })
-            shellWindow.setFullScreen(false)
+            appWindow.setFullScreen(false)
           } else {
             console.log(`Window ${windowId} is not fullscreen, hiding directly (close event).`)
-            shellWindow.hide()
+            appWindow.hide()
           }
         } else {
           // 允许默认关闭行为。这将触发 'closed' 事件。
@@ -792,19 +813,18 @@ export class WindowPresenter implements IWindowPresenter {
     })
 
     // 'closed' 事件：窗口实际关闭并销毁时触发 (在 'close' 事件之后，如果未阻止默认行为)
-    shellWindow.on('closed', () => {
+    appWindow.on('closed', () => {
       console.log(
         `Window ${windowId} closed event triggered. isQuitting: ${this.isQuitting}, Map size BEFORE delete: ${this.windows.size}`
       )
       const windowIdBeingClosed = windowId // 捕获 ID
 
       // 移除 restore 事件监听器，防止内存泄漏 (其他事件的清理根据需要添加)
-      shellWindow.removeListener('restore', handleRestore)
+      appWindow.removeListener('restore', handleRestore)
 
       this.windows.delete(windowIdBeingClosed) // 从 Map 中移除
-      shellWindowState.unmanage() // 停止管理窗口状态
+      managedWindowState.unmanage() // 停止管理窗口状态
       eventBus.sendToMain(WINDOW_EVENTS.WINDOW_CLOSED, windowIdBeingClosed)
-      this.destroyTooltipOverlay(windowIdBeingClosed)
       console.log(
         `Window ${windowIdBeingClosed} closed event handled. Map size AFTER delete: ${this.windows.size}`
       )
@@ -828,78 +848,65 @@ export class WindowPresenter implements IWindowPresenter {
         console.log(
           `Loading main renderer URL in dev mode: ${process.env['ELECTRON_RENDERER_URL']}#/chat`
         )
-        shellWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '#/chat')
+        appWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '#/chat')
       } else {
         console.log(
           `Loading packaged main renderer file: ${join(__dirname, '../renderer/index.html')}`
         )
-        shellWindow.loadFile(join(__dirname, '../renderer/index.html'), { hash: '/chat' })
+        appWindow.loadFile(join(__dirname, '../renderer/index.html'), { hash: '/chat' })
       }
     } else {
-      // Browser windows load the shell renderer
+      // Browser windows load the dedicated browser renderer
       if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
         console.log(
-          `Loading renderer URL in dev mode: ${process.env['ELECTRON_RENDERER_URL']}/shell/index.html`
+          `Loading renderer URL in dev mode: ${process.env['ELECTRON_RENDERER_URL']}/browser/index.html`
         )
-        shellWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '/shell/index.html')
+        appWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '/browser/index.html')
       } else {
         console.log(
-          `Loading packaged renderer file: ${join(__dirname, '../renderer/shell/index.html')}`
+          `Loading packaged renderer file: ${join(__dirname, '../renderer/browser/index.html')}`
         )
-        shellWindow.loadFile(join(__dirname, '../renderer/shell/index.html'))
+        appWindow.loadFile(join(__dirname, '../renderer/browser/index.html'))
       }
     }
-
-    // Pre-create tooltip overlay so first hover is instant
-    shellWindow.webContents.once('did-finish-load', () => {
-      if (shellWindow.isDestroyed()) return
-      // Only send shell-window:type for browser windows (shell renderer listens for it)
-      if (windowType === 'browser') {
-        shellWindow.webContents.send('shell-window:type', windowType)
-      }
-      // Avoid pre-creating overlay if window already in fullscreen on macOS
-      if (!(process.platform === 'darwin' && shellWindow.isFullScreen())) {
-        this.getOrCreateTooltipOverlay(shellWindow)
-      }
-    })
 
     // --- 处理 browser 窗口的初始标签页创建或激活 ---
     // Only browser windows need initial tab / activateTab handling via TabPresenter
     if (windowType === 'browser') {
       if (options?.initialTab) {
-        shellWindow.webContents.once('did-finish-load', async () => {
+        appWindow.webContents.once('did-finish-load', async () => {
           console.log(`Window ${windowId} did-finish-load, checking for initial tab creation.`)
-          if (shellWindow.isDestroyed()) {
+          if (appWindow.isDestroyed()) {
             console.warn(
               `Window ${windowId} was destroyed before did-finish-load callback, cannot create initial tab.`
             )
             return
           }
-          shellWindow.focus()
+          appWindow.focus()
           try {
-            console.log(`Creating initial tab, URL: ${options.initialTab!.url}`)
-            const tabId = await (presenter.tabPresenter as TabPresenter).createTab(
+            console.log(`Creating initial browser view, URL: ${options.initialTab!.url}`)
+            const viewId = await (presenter.tabPresenter as TabPresenter).createTab(
               windowId,
               options.initialTab!.url,
               { active: true }
             )
-            if (tabId === null) {
-              console.error(`Failed to create initial tab in new window ${windowId}.`)
+            if (viewId === null) {
+              console.error(`Failed to create initial browser view in new window ${windowId}.`)
             } else {
-              console.log(`Created initial tab ${tabId} in window ${windowId}.`)
+              console.log(`Created initial browser view ${viewId} in window ${windowId}.`)
             }
           } catch (error) {
-            console.error(`Error creating initial tab:`, error)
+            console.error(`Error creating initial browser view:`, error)
           }
         })
       }
 
       if (options?.activateTabId !== undefined && !options?.forMovedTab) {
-        shellWindow.webContents.once('did-finish-load', async () => {
+        appWindow.webContents.once('did-finish-load', async () => {
           console.log(
             `Window ${windowId} did-finish-load, attempting to activate tab ${options.activateTabId}.`
           )
-          if (shellWindow.isDestroyed()) {
+          if (appWindow.isDestroyed()) {
             console.warn(
               `Window ${windowId} was destroyed before did-finish-load callback, cannot activate tab ${options.activateTabId}.`
             )
@@ -923,146 +930,15 @@ export class WindowPresenter implements IWindowPresenter {
     // DevTools 不再自动打开，需要手动通过菜单或快捷键打开
     // 开发环境直接自动开启，方便排查
     if (is.dev) {
-      shellWindow.webContents.openDevTools({ mode: 'detach' })
+      appWindow.webContents.openDevTools({ mode: 'detach' })
     }
 
-    console.log(`Shell window ${windowId} created successfully.`)
+    console.log(`Window ${windowId} created successfully.`)
 
     if (this.mainWindowId == null) {
       this.mainWindowId = windowId // 如果这是第一个窗口，设置为主窗口 ID
     }
     return windowId // 返回新创建窗口的 ID
-  }
-
-  private getOrCreateTooltipOverlay(parentWindow: BrowserWindow): BrowserWindow | null {
-    if (!this.isTooltipOverlayEnabled) return null
-    if (parentWindow.isDestroyed()) return null
-    // Do not create overlay on macOS fullscreen; it hides traffic lights
-    if (process.platform === 'darwin' && parentWindow.isFullScreen()) return null
-
-    const existing = this.tooltipOverlayWindows.get(parentWindow.id)
-    if (existing && !existing.isDestroyed()) {
-      this.syncTooltipOverlayBounds(parentWindow, existing)
-      return existing
-    }
-
-    const bounds = parentWindow.getContentBounds()
-
-    const overlay = new BrowserWindow({
-      x: bounds.x,
-      y: bounds.y,
-      width: bounds.width,
-      height: bounds.height,
-      parent: parentWindow,
-      show: false,
-      frame: false,
-      transparent: true,
-      backgroundColor: '#00000000',
-      resizable: false,
-      movable: false,
-      minimizable: false,
-      maximizable: false,
-      closable: false,
-      hasShadow: false,
-      focusable: false,
-      skipTaskbar: true,
-      autoHideMenuBar: true,
-      webPreferences: {
-        preload: join(__dirname, '../preload/index.mjs'),
-        sandbox: false,
-        devTools: is.dev
-      }
-    })
-
-    if (process.platform === 'darwin') {
-      overlay.setHiddenInMissionControl(true)
-      // Keep overlay off fullscreen spaces to avoid covering macOS traffic lights
-      overlay.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: false })
-    }
-    overlay.setIgnoreMouseEvents(true, { forward: true })
-
-    const syncOnMoved = () => {
-      const current = this.tooltipOverlayWindows.get(parentWindow.id)
-      if (!current || current.isDestroyed() || parentWindow.isDestroyed()) return
-      this.syncTooltipOverlayBounds(parentWindow, current)
-    }
-
-    // Debounce resize to avoid excessive sync during window resize.
-    let resizeSyncTimer: NodeJS.Timeout | null = null
-    const syncOnResize = () => {
-      const current = this.tooltipOverlayWindows.get(parentWindow.id)
-      if (!current || current.isDestroyed() || parentWindow.isDestroyed()) return
-
-      if (resizeSyncTimer) {
-        clearTimeout(resizeSyncTimer)
-      }
-
-      resizeSyncTimer = setTimeout(() => {
-        this.syncTooltipOverlayBounds(parentWindow, current)
-        resizeSyncTimer = null
-      }, 100)
-    }
-
-    parentWindow.on('moved', syncOnMoved)
-    parentWindow.on('resize', syncOnResize)
-    parentWindow.on('hide', () => {
-      if (!overlay.isDestroyed()) overlay.hide()
-    })
-    parentWindow.on('minimize', () => {
-      if (!overlay.isDestroyed()) overlay.hide()
-    })
-
-    overlay.on('closed', () => {
-      this.tooltipOverlayWindows.delete(parentWindow.id)
-      this.pendingTooltipPayload.delete(parentWindow.id)
-    })
-
-    if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-      overlay.loadURL(process.env['ELECTRON_RENDERER_URL'] + '/shell/tooltip-overlay/index.html')
-    } else {
-      overlay.loadFile(join(__dirname, '../renderer/shell/tooltip-overlay/index.html'))
-    }
-
-    overlay.webContents.once('did-finish-load', () => {
-      if (overlay.isDestroyed()) return
-      overlay.webContents.send('shell-tooltip-overlay:clear')
-
-      const pending = this.pendingTooltipPayload.get(parentWindow.id)
-      if (pending) {
-        if (!overlay.isVisible()) {
-          overlay.showInactive()
-        }
-        overlay.webContents.send('shell-tooltip-overlay:show', pending)
-      }
-    })
-
-    this.tooltipOverlayWindows.set(parentWindow.id, overlay)
-    return overlay
-  }
-
-  private syncTooltipOverlayBounds(parentWindow: BrowserWindow, overlay: BrowserWindow): void {
-    if (parentWindow.isDestroyed() || overlay.isDestroyed()) return
-    const bounds = parentWindow.getContentBounds()
-    overlay.setBounds(bounds)
-  }
-
-  private clearTooltipOverlay(windowId: number): void {
-    const overlay = this.tooltipOverlayWindows.get(windowId)
-    if (!overlay || overlay.isDestroyed()) return
-    this.pendingTooltipPayload.delete(windowId)
-    overlay.webContents.send('shell-tooltip-overlay:hide')
-    if (overlay.isVisible()) {
-      overlay.hide()
-    }
-  }
-
-  private destroyTooltipOverlay(windowId: number): void {
-    const overlay = this.tooltipOverlayWindows.get(windowId)
-    if (overlay && !overlay.isDestroyed()) {
-      overlay.destroy()
-    }
-    this.tooltipOverlayWindows.delete(windowId)
-    this.pendingTooltipPayload.delete(windowId)
   }
 
   /**

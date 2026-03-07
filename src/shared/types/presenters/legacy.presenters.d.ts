@@ -24,6 +24,7 @@ import type { IProjectPresenter } from './project.presenter'
 import type {
   BrowserTabInfo,
   BrowserContextSnapshot,
+  BrowserWindowInfo,
   DownloadInfo,
   ScreenshotOptions
 } from '../browser'
@@ -196,13 +197,20 @@ export interface TabData {
 }
 
 export interface BrowserContextSnapshot {
-  activeTabId: string | null
-  tabs: BrowserTabInfo[]
+  activeWindowId: number | null
+  windows: BrowserWindowInfo[]
 }
 
 export interface IYoBrowserPresenter {
   initialize(): Promise<void>
   ensureWindow(): Promise<number | null>
+  openWindow(url?: string): Promise<BrowserWindowInfo | null>
+  focusWindow(windowId: number): Promise<void>
+  closeWindow(windowId: number): Promise<void>
+  listWindows(): Promise<BrowserWindowInfo[]>
+  getActiveWindow(): Promise<BrowserWindowInfo | null>
+  getWindowById(windowId: number): Promise<BrowserWindowInfo | null>
+  navigateWindow(windowId: number, url: string, timeoutMs?: number): Promise<void>
   hasWindow(): Promise<boolean>
   show(shouldFocus?: boolean): Promise<void>
   hide(): Promise<void>
@@ -215,16 +223,16 @@ export interface IYoBrowserPresenter {
   activateTab(tabId: string): Promise<void>
   closeTab(tabId: string): Promise<void>
   reuseTab(url: string): Promise<BrowserTabInfo | null>
-  goBack(tabId?: string): Promise<void>
-  goForward(tabId?: string): Promise<void>
-  reload(tabId?: string): Promise<void>
+  goBack(target?: string | number): Promise<void>
+  goForward(target?: string | number): Promise<void>
+  reload(target?: string | number): Promise<void>
   getBrowserContext(): Promise<BrowserContextSnapshot>
-  getNavigationState(tabId?: string): Promise<{
+  getNavigationState(target?: string | number): Promise<{
     canGoBack: boolean
     canGoForward: boolean
   }>
   getTabIdByViewId(viewId: number): Promise<string | null>
-  captureScreenshot(tabId: string, options?: ScreenshotOptions): Promise<string>
+  captureScreenshot(target: string | number, options?: ScreenshotOptions): Promise<string>
   startDownload(url: string, savePath?: string): Promise<DownloadInfo>
   clearSandboxData(): Promise<void>
   shutdown(): Promise<void>
@@ -235,6 +243,12 @@ export interface IYoBrowserPresenter {
 }
 
 export interface IWindowPresenter {
+  createAppWindow(options?: {
+    initialRoute?: string
+    x?: number
+    y?: number
+  }): Promise<number | null>
+  createBrowserWindow(options?: { x?: number; y?: number }): Promise<number | null>
   createShellWindow(options?: {
     activateTabId?: number
     initialTab?: {
@@ -261,6 +275,12 @@ export interface IWindowPresenter {
   isMainWindowFocused(windowId: number): boolean
   sendToAllWindows(channel: string, ...args: unknown[]): void
   sendToWindow(windowId: number, channel: string, ...args: unknown[]): boolean
+  sendToDefaultWindow(
+    channel: string,
+    switchToTarget?: boolean,
+    ...args: unknown[]
+  ): Promise<boolean>
+  openOrFocusSettingsWindow(): Promise<void>
   sendToDefaultTab(channel: string, switchToTarget?: boolean, ...args: unknown[]): Promise<boolean>
   openOrFocusSettingsTab(windowId: number): Promise<void>
   closeWindow(windowId: number, forceClose?: boolean): Promise<void>
@@ -270,6 +290,7 @@ export interface IWindowPresenter {
   isFloatingChatWindowVisible(): boolean
   getFloatingChatWindow(): FloatingChatWindow | null
   getFocusedWindow(): BrowserWindow | undefined
+  sendToWebContents(webContentsId: number, channel: string, ...args: unknown[]): Promise<boolean>
   sendToActiveTab(windowId: number, channel: string, ...args: unknown[]): Promise<boolean>
   getAllWindows(): BrowserWindow[]
   toggleFloatingChatWindow(floatingButtonPosition?: {

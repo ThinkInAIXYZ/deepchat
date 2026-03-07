@@ -3,11 +3,7 @@ import { app, globalShortcut } from 'electron'
 import { presenter } from '.'
 import { SHORTCUT_EVENTS, TRAY_EVENTS } from '../events'
 import { eventBus, SendTarget } from '../eventbus'
-import {
-  CommandKey,
-  defaultShortcutKey,
-  ShortcutKeySetting
-} from './configPresenter/shortcutKeySettings'
+import { defaultShortcutKey, ShortcutKeySetting } from './configPresenter/shortcutKeySettings'
 import { IConfigPresenter, IShortcutPresenter } from '@shared/presenter'
 
 export class ShortcutPresenter implements IShortcutPresenter {
@@ -39,8 +35,8 @@ export class ShortcutPresenter implements IShortcutPresenter {
       globalShortcut.register(this.shortcutKeys.NewConversation, async () => {
         const focusedWindow = presenter.windowPresenter.getFocusedWindow()
         if (focusedWindow?.isFocused()) {
-          presenter.windowPresenter.sendToActiveTab(
-            focusedWindow.id,
+          void presenter.windowPresenter.sendToWebContents(
+            focusedWindow.webContents.id,
             SHORTCUT_EVENTS.CREATE_NEW_CONVERSATION
           )
         }
@@ -57,27 +53,16 @@ export class ShortcutPresenter implements IShortcutPresenter {
       })
     }
 
-    // Command+T 或 Ctrl+T 在当前窗口创建新标签页
-    if (this.shortcutKeys.NewTab) {
-      globalShortcut.register(this.shortcutKeys.NewTab, () => {
-        const focusedWindow = presenter.windowPresenter.getFocusedWindow()
-        if (focusedWindow?.isFocused()) {
-          eventBus.sendToMain(SHORTCUT_EVENTS.CREATE_NEW_TAB, focusedWindow.id)
-        }
-      })
-    }
-
-    // Command+W 或 Ctrl+W 关闭当前标签页
-    if (this.shortcutKeys.CloseTab) {
-      globalShortcut.register(this.shortcutKeys.CloseTab, () => {
+    // Command+W 或 Ctrl+W 关闭当前窗口
+    if (this.shortcutKeys.CloseWindow) {
+      globalShortcut.register(this.shortcutKeys.CloseWindow, () => {
         const focusedWindow = presenter.windowPresenter.getFocusedWindow()
         if (focusedWindow?.isFocused()) {
           if (focusedWindow.id === presenter.windowPresenter.getSettingsWindowId()) {
-            // 如果是设置窗口，直接关闭
             presenter.windowPresenter.closeSettingsWindow()
             return
           }
-          eventBus.sendToMain(SHORTCUT_EVENTS.CLOSE_CURRENT_TAB, focusedWindow.id)
+          presenter.windowPresenter.close(focusedWindow.id)
         }
       })
     }
@@ -126,8 +111,8 @@ export class ShortcutPresenter implements IShortcutPresenter {
         const focusedWindow = presenter.windowPresenter.getFocusedWindow()
         console.log('clean chat history')
         if (focusedWindow?.isFocused()) {
-          presenter.windowPresenter.sendToActiveTab(
-            focusedWindow.id,
+          void presenter.windowPresenter.sendToWebContents(
+            focusedWindow.webContents.id,
             SHORTCUT_EVENTS.CLEAN_CHAT_HISTORY
           )
         }
@@ -140,54 +125,10 @@ export class ShortcutPresenter implements IShortcutPresenter {
         const focusedWindow = presenter.windowPresenter.getFocusedWindow()
         console.log('delete conversation')
         if (focusedWindow?.isFocused()) {
-          presenter.windowPresenter.sendToActiveTab(
-            focusedWindow.id,
+          void presenter.windowPresenter.sendToWebContents(
+            focusedWindow.webContents.id,
             SHORTCUT_EVENTS.DELETE_CONVERSATION
           )
-        }
-      })
-    }
-
-    // 添加标签页切换相关快捷键
-
-    // Command+Tab 或 Ctrl+Tab 切换到下一个标签页
-    if (this.shortcutKeys.SwitchNextTab) {
-      globalShortcut.register(this.shortcutKeys.SwitchNextTab, () => {
-        const focusedWindow = presenter.windowPresenter.getFocusedWindow()
-        if (focusedWindow?.isFocused()) {
-          this.switchToNextTab(focusedWindow.id)
-        }
-      })
-    }
-
-    // Ctrl+Shift+Tab 切换到上一个标签页
-    if (this.shortcutKeys.SwitchPrevTab) {
-      globalShortcut.register(this.shortcutKeys.SwitchPrevTab, () => {
-        const focusedWindow = presenter.windowPresenter.getFocusedWindow()
-        if (focusedWindow?.isFocused()) {
-          this.switchToPreviousTab(focusedWindow.id)
-        }
-      })
-    }
-
-    // 注册标签页数字快捷键 (1-8)
-    if (this.shortcutKeys.NumberTabs) {
-      for (let i = 1; i <= 8; i++) {
-        globalShortcut.register(`${CommandKey}+${i}`, () => {
-          const focusedWindow = presenter.windowPresenter.getFocusedWindow()
-          if (focusedWindow?.isFocused()) {
-            this.switchToTabByIndex(focusedWindow.id, i - 1) // 索引从0开始
-          }
-        })
-      }
-    }
-
-    // Command+9 或 Ctrl+9 切换到最后一个标签页
-    if (this.shortcutKeys.SwtichToLastTab) {
-      globalShortcut.register(this.shortcutKeys.SwtichToLastTab, () => {
-        const focusedWindow = presenter.windowPresenter.getFocusedWindow()
-        if (focusedWindow?.isFocused()) {
-          this.switchToLastTab(focusedWindow.id)
         }
       })
     }
@@ -196,18 +137,6 @@ export class ShortcutPresenter implements IShortcutPresenter {
 
     this.isActive = true
   }
-
-  // No-op: shell windows no longer manage chat tabs
-  private async switchToNextTab(_windowId: number): Promise<void> {}
-
-  // No-op: shell windows no longer manage chat tabs
-  private async switchToPreviousTab(_windowId: number): Promise<void> {}
-
-  // No-op: shell windows no longer manage chat tabs
-  private async switchToTabByIndex(_windowId: number, _index: number): Promise<void> {}
-
-  // No-op: shell windows no longer manage chat tabs
-  private async switchToLastTab(_windowId: number): Promise<void> {}
 
   // Command+O 或 Ctrl+O 显示/隐藏窗口
   private async showHideWindow() {

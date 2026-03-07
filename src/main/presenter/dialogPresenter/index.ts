@@ -1,8 +1,8 @@
 /**
  * Message dialog implemented via the renderer process
- * The dialog is displayed on the currently active tab. If the tab is in the background, it will automatically switch to the foreground.
+ * The dialog is displayed on the current default window content. If it is in the background, it will automatically switch to the foreground.
  * Only one message dialog can exist within a single active window. Repeated calls will trigger the callback of the previous dialog with null.
- * @see {@link SendTarget.DEFAULT_TAB}
+ * @see {@link SendTarget.DEFAULT_WINDOW}
  */
 import {
   DialogRequest,
@@ -24,7 +24,7 @@ export class DialogPresenter implements IDialogPresenter {
   >()
 
   /**
-   * show dialog in default active tab
+   * show dialog in the default active window
    * @param request Dialog Parameters
    * @returns Promise<DialogResponse> click result
    */
@@ -49,7 +49,7 @@ export class DialogPresenter implements IDialogPresenter {
         this.pendingDialogs.set(finalRequest.id, { resolve, reject })
         try {
           // send dialog request to renderer
-          eventBus.sendToRenderer(DIALOG_EVENTS.REQUEST, SendTarget.DEFAULT_TAB, finalRequest)
+          eventBus.sendToRenderer(DIALOG_EVENTS.REQUEST, SendTarget.DEFAULT_WINDOW, finalRequest)
         } catch (error) {
           // Clean up the pending dialog entry
           this.pendingDialogs.delete(finalRequest.id)

@@ -938,15 +938,10 @@
     "zoomIn": "Zoom in ",
     "zoomOut": "Zoom out ",
     "zoomReset": "Reset zoom",
-    "closeTab": "Close the current tab page",
-    "newTab": "Create a new tab",
     "newWindow": "Open a new window",
     "showHideWindow": "Show/Hide window",
     "newConversation": "New conversation",
-    "nextTab": "Switch to next tab",
-    "previousTab": "Switch to previous tab",
-    "specificTab": "Switch to specific tab (1-8)",
-    "lastTab": "Switch to last tab"
+    "closeWindow": "Close the current window"
   },
   "acp": {
     "title": "ACP Agents",

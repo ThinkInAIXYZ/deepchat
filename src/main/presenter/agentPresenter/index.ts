@@ -108,10 +108,12 @@ export class AgentPresenter implements IAgentPresenter {
     })
 
     this.utilityHandler = new UtilityHandler(handlerContext, {
-      getActiveConversation: (tabId) => this.sessionPresenter.getActiveConversation(tabId),
-      getActiveConversationId: (tabId) => this.sessionPresenter.getActiveConversationId(tabId),
-      createConversation: (title, settings, tabId) =>
-        this.sessionPresenter.createConversation(title, settings, tabId)
+      getActiveConversation: (webContentsId) =>
+        this.sessionPresenter.getActiveConversation(webContentsId),
+      getActiveConversationId: (webContentsId) =>
+        this.sessionPresenter.getActiveConversationId(webContentsId),
+      createConversation: (title, settings, webContentsId) =>
+        this.sessionPresenter.createConversation(title, settings, webContentsId)
     })
 
     // Legacy IPC surface: dynamic proxy for ISessionPresenter methods.
@@ -121,7 +123,7 @@ export class AgentPresenter implements IAgentPresenter {
   async sendMessage(
     agentId: string,
     content: string,
-    tabId?: number,
+    webContentsId?: number,
     selectedVariantsMap?: Record<string, string>
   ): Promise<AssistantMessage | null> {
     await this.logResolvedIfEnabled(agentId)
@@ -159,7 +161,7 @@ export class AgentPresenter implements IAgentPresenter {
       userMessage.id
     )
 
-    this.trackGeneratingMessage(assistantMessage, agentId, tabId)
+    this.trackGeneratingMessage(assistantMessage, agentId, webContentsId)
     await this.updateConversationAfterUserMessage(agentId)
     // Normal flow: skip lock acquisition (lock is only for permission resume)
     await this.sessionManager.startLoop(agentId, assistantMessage.id, { skipLockAcquisition: true })
@@ -292,12 +294,12 @@ export class AgentPresenter implements IAgentPresenter {
     )
   }
 
-  async translateText(text: string, tabId: number): Promise<string> {
-    return this.utilityHandler.translateText(text, tabId)
+  async translateText(text: string, webContentsId: number): Promise<string> {
+    return this.utilityHandler.translateText(text, webContentsId)
   }
 
-  async askAI(text: string, tabId: number): Promise<string> {
-    return this.utilityHandler.askAI(text, tabId)
+  async askAI(text: string, webContentsId: number): Promise<string> {
+    return this.utilityHandler.askAI(text, webContentsId)
   }
 
   async handlePermissionResponse(
@@ -465,7 +467,7 @@ export class AgentPresenter implements IAgentPresenter {
   private trackGeneratingMessage(
     message: AssistantMessage,
     conversationId: string,
-    tabId?: number
+    webContentsId?: number
   ): void {
     this.generatingMessages.set(message.id, {
       message,
@@ -476,7 +478,7 @@ export class AgentPresenter implements IAgentPresenter {
       reasoningStartTime: null,
       reasoningEndTime: null,
       lastReasoningTime: null,
-      tabId
+      webContentsId
     })
   }
 

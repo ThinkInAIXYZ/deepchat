@@ -12,7 +12,7 @@
         {{ t('chat.workspace.browser.section') }}
       </span>
       <span class="text-[10px] text-muted-foreground">
-        {{ tabCount }}
+        {{ windowCount }}
       </span>
       <Icon
         :icon="showTabs ? 'lucide:chevron-down' : 'lucide:chevron-up'"
@@ -22,34 +22,38 @@
 
     <Transition name="workspace-collapse">
       <div v-if="showTabs" class="space-y-0 overflow-hidden">
-        <div v-if="store.tabs.length === 0" class="px-4 py-3 text-[11px] text-muted-foreground">
+        <div v-if="store.windows.length === 0" class="px-4 py-3 text-[11px] text-muted-foreground">
           {{ t('chat.workspace.browser.empty') }}
         </div>
         <ul v-else class="pb-1">
-          <li v-for="tab in store.tabs" :key="tab.id">
+          <li v-for="browserWindow in store.windows" :key="browserWindow.id">
             <button
               class="flex w-full items-center gap-2 py-2 pr-4 text-left text-xs transition hover:bg-muted/40 pl-7"
-              :class="tab.isActive ? 'bg-muted/40 text-foreground' : 'text-muted-foreground'"
+              :class="
+                browserWindow.id === store.activeWindowId
+                  ? 'bg-muted/40 text-foreground'
+                  : 'text-muted-foreground'
+              "
               type="button"
-              @click="openTab(tab.id)"
+              @click="openWindow(browserWindow.id)"
             >
               <span class="flex h-4 w-4 shrink-0 items-center justify-center">
                 <Icon
-                  v-if="tab.status === 'loading'"
+                  v-if="browserWindow.page.status === 'loading'"
                   icon="lucide:loader-2"
                   class="h-3.5 w-3.5 animate-spin text-muted-foreground"
                 />
                 <img
-                  v-else-if="tab.favicon && !faviconError[tab.id]"
-                  :src="tab.favicon"
+                  v-else-if="browserWindow.page.favicon && !faviconError[browserWindow.id]"
+                  :src="browserWindow.page.favicon"
                   alt=""
                   class="h-3.5 w-3.5 object-contain"
-                  @error="faviconError[tab.id] = true"
+                  @error="faviconError[browserWindow.id] = true"
                 />
                 <Icon v-else icon="lucide:form" class="h-3.5 w-3.5" />
               </span>
               <span class="flex-1 min-w-0 truncate text-[12px] font-medium">
-                {{ tab.title || tab.url || 'about:blank' }}
+                {{ browserWindow.page.title || browserWindow.page.url || 'about:blank' }}
               </span>
             </button>
           </li>
@@ -68,12 +72,12 @@ import { useYoBrowserStore } from '@/stores/yoBrowser'
 const { t } = useI18n()
 const store = useYoBrowserStore()
 const showTabs = ref(true)
-const faviconError = ref<Record<string, boolean>>({})
+const faviconError = ref<Record<number, boolean>>({})
 
-const tabCount = computed(() => store.tabs.length)
+const windowCount = computed(() => store.windows.length)
 
-const openTab = async (tabId: string) => {
-  await store.openTab(tabId)
+const openWindow = async (windowId: number) => {
+  await store.openWindow(windowId)
 }
 </script>
 

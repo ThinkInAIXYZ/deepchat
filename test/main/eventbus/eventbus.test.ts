@@ -14,7 +14,10 @@ describe('EventBus 事件总线', () => {
     mockWindowPresenter = {
       sendToWindow: vi.fn(),
       sendToAllWindows: vi.fn(),
-      sendToDefaultTab: vi.fn()
+      sendToDefaultWindow: vi.fn(),
+      sendToDefaultTab: vi.fn(),
+      sendToWebContents: vi.fn().mockResolvedValue(true),
+      sendToActiveTab: vi.fn().mockResolvedValue(true)
     } as Partial<IWindowPresenter> as IWindowPresenter
 
     // Mock TabPresenter
@@ -108,13 +111,17 @@ describe('EventBus 事件总线', () => {
       expect(mockWindowPresenter.sendToAllWindows).toHaveBeenCalledWith(eventName, testData)
     })
 
-    it('应该能够发送事件到默认标签页', () => {
-      const eventName = 'renderer:default-tab'
-      const testData = { message: 'default tab' }
+    it('应该能够发送事件到默认窗口', () => {
+      const eventName = 'renderer:default-window'
+      const testData = { message: 'default window' }
 
-      eventBus.sendToRenderer(eventName, SendTarget.DEFAULT_TAB, testData)
+      eventBus.sendToRenderer(eventName, SendTarget.DEFAULT_WINDOW, testData)
 
-      expect(mockWindowPresenter.sendToDefaultTab).toHaveBeenCalledWith(eventName, true, testData)
+      expect(mockWindowPresenter.sendToDefaultWindow).toHaveBeenCalledWith(
+        eventName,
+        true,
+        testData
+      )
     })
 
     it('当WindowPresenter未设置时应该显示警告', () => {
@@ -162,72 +169,71 @@ describe('EventBus 事件总线', () => {
     })
   })
 
-  describe('Tab相关功能', () => {
-    const mockTabView = {
-      webContents: {
-        send: vi.fn(),
-        isDestroyed: vi.fn(() => false)
-      }
-    }
-
+  describe('webContents 路由相关功能', () => {
     beforeEach(() => {
+      eventBus.setWindowPresenter(mockWindowPresenter)
       eventBus.setTabPresenter(mockTabPresenter)
-      vi.mocked(mockTabPresenter.getTab).mockResolvedValue(mockTabView as any)
       vi.mocked(mockTabPresenter.getActiveTabId).mockResolvedValue(1)
     })
 
-    it('应该能够发送事件到指定Tab', async () => {
-      const tabId = 1
-      const eventName = 'tab:test'
-      const testData = { message: 'tab test' }
+    it('应该能够发送事件到指定 webContents', async () => {
+      const webContentsId = 1
+      const eventName = 'web-contents:test'
+      const testData = { message: 'webContents test' }
 
-      eventBus.sendToTab(tabId, eventName, testData)
+      eventBus.sendToWebContents(webContentsId, eventName, testData)
 
       // 等待异步操作完成
       await new Promise((resolve) => setTimeout(resolve, 0))
 
-      expect(mockTabPresenter.getTab).toHaveBeenCalledWith(tabId)
-      expect(mockTabView.webContents.send).toHaveBeenCalledWith(eventName, testData)
+      expect(mockWindowPresenter.sendToWebContents).toHaveBeenCalledWith(
+        webContentsId,
+        eventName,
+        testData
+      )
     })
 
-    it('应该能够发送事件到活跃Tab', async () => {
+    it('应该能够发送事件到活跃窗口内容', async () => {
       const windowId = 1
-      const eventName = 'active-tab:test'
-      const testData = { message: 'active tab test' }
+      const eventName = 'active-content:test'
+      const testData = { message: 'active content test' }
 
       eventBus.sendToActiveTab(windowId, eventName, testData)
 
       // 等待异步操作完成
       await new Promise((resolve) => setTimeout(resolve, 0))
 
-      expect(mockTabPresenter.getActiveTabId).toHaveBeenCalledWith(windowId)
-      expect(mockTabPresenter.getTab).toHaveBeenCalledWith(1)
+      expect(mockWindowPresenter.sendToActiveTab).toHaveBeenCalledWith(
+        windowId,
+        eventName,
+        testData
+      )
     })
 
-    it('应该能够广播事件到多个Tab', async () => {
-      const tabIds = [1, 2, 3]
+    it('应该能够广播事件到多个 webContents', async () => {
+      const webContentsIds = [1, 2, 3]
       const eventName = 'broadcast:test'
       const testData = { message: 'broadcast test' }
 
-      eventBus.broadcastToTabs(tabIds, eventName, testData)
+      eventBus.broadcastToWebContents(webContentsIds, eventName, testData)
 
       // 等待异步操作完成
       await new Promise((resolve) => setTimeout(resolve, 0))
 
-      expect(mockTabPresenter.getTab).toHaveBeenCalledTimes(3)
-      expect(mockTabPresenter.getTab).toHaveBeenCalledWith(1)
-      expect(mockTabPresenter.getTab).toHaveBeenCalledWith(2)
-      expect(mockTabPresenter.getTab).toHaveBeenCalledWith(3)
+      expect(mockWindowPresenter.sendToWebContents).toHaveBeenCalledTimes(3)
+      expect(mockWindowPresenter.sendToWebContents).toHaveBeenCalledWith(1, eventName, testData)
+      expect(mockWindowPresenter.sendToWebContents).toHaveBeenCalledWith(2, eventName, testData)
+      expect(mockWindowPresenter.sendToWebContents).toHaveBeenCalledWith(3, eventName, testData)
     })
 
-    it('当TabPresenter未设置时应该显示警告', () => {
+    it('当WindowPresenter未设置时应该显示警告', () => {
       const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
       const newEventBus = new EventBus()
 
-      newEventBus.sendToTab(1, 'test:event', 'data')
+      newEventBus.sendToWebContents(1, 'test:event', 'data')
 
       expect(consoleSpy).toHaveBeenCalledWith(
-        'TabPresenter not available, cannot send to specific tab'
+        'WindowPresenter not available, cannot send to specific webContents'
       )
 
       consoleSpy.mockRestore()
@@ -247,20 +253,12 @@ describe('EventBus 事件总线', () => {
     })
 
     it('应该能够设置TabPresenter', () => {
-      // Mock getTab method before testing
-      const mockTabView = {
-        webContents: {
-          send: vi.fn(),
-          isDestroyed: vi.fn(() => false)
-        }
-      }
-      vi.mocked(mockTabPresenter.getTab).mockResolvedValue(mockTabView as any)
-
       eventBus.setTabPresenter(mockTabPresenter)
 
       // 验证设置成功（通过发送事件不产生警告）
       const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
-      eventBus.sendToTab(1, 'test:event', 'data')
+      eventBus.setWindowPresenter(mockWindowPresenter)
+      eventBus.sendToWebContents(1, 'test:event', 'data')
 
       expect(consoleSpy).not.toHaveBeenCalled()
       consoleSpy.mockRestore()
@@ -269,57 +267,39 @@ describe('EventBus 事件总线', () => {
 
   describe('错误处理', () => {
     beforeEach(() => {
-      eventBus.setTabPresenter(mockTabPresenter)
+      eventBus.setWindowPresenter(mockWindowPresenter)
     })
 
-    it('当Tab不存在时应该显示警告', async () => {
-      vi.mocked(mockTabPresenter.getTab).mockResolvedValue(null)
+    it('当 webContents 不存在时应该显示警告', async () => {
+      vi.mocked(mockWindowPresenter.sendToWebContents).mockResolvedValue(false)
       const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
 
-      eventBus.sendToTab(999, 'test:event', 'data')
+      eventBus.sendToWebContents(999, 'test:event', 'data')
 
       // 等待异步操作完成
       await new Promise((resolve) => setTimeout(resolve, 0))
 
       expect(consoleSpy).toHaveBeenCalledWith(
-        'Tab 999 not found or destroyed, cannot send event test:event'
+        'webContents 999 not found or destroyed, cannot send event test:event'
       )
 
       consoleSpy.mockRestore()
     })
 
-    it('当Tab已销毁时应该显示警告', async () => {
-      const destroyedTabView = {
-        webContents: {
-          isDestroyed: vi.fn(() => true)
-        }
-      }
-      vi.mocked(mockTabPresenter.getTab).mockResolvedValue(destroyedTabView as any)
-      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
-
-      eventBus.sendToTab(1, 'test:event', 'data')
-
-      // 等待异步操作完成
-      await new Promise((resolve) => setTimeout(resolve, 0))
-
-      expect(consoleSpy).toHaveBeenCalledWith(
-        'Tab 1 not found or destroyed, cannot send event test:event'
-      )
-
-      consoleSpy.mockRestore()
-    })
-
-    it('当获取Tab失败时应该记录错误', async () => {
-      const error = new Error('Failed to get tab')
-      vi.mocked(mockTabPresenter.getTab).mockRejectedValue(error)
+    it('当发送 webContents 失败时应该记录错误', async () => {
+      const error = new Error('Failed to send webContents event')
+      vi.mocked(mockWindowPresenter.sendToWebContents).mockRejectedValue(error)
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
 
-      eventBus.sendToTab(1, 'test:event', 'data')
+      eventBus.sendToWebContents(1, 'test:event', 'data')
 
       // 等待异步操作完成
       await new Promise((resolve) => setTimeout(resolve, 0))
 
-      expect(consoleSpy).toHaveBeenCalledWith('Error sending event test:event to tab 1:', error)
+      expect(consoleSpy).toHaveBeenCalledWith(
+        'Error sending event test:event to webContents 1:',
+        error
+      )
 
       consoleSpy.mockRestore()
     })

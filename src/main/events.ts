@@ -181,15 +181,9 @@ export const SHORTCUT_EVENTS = {
   ZOOM_RESUME: 'shortcut:zoom-resume',
   CREATE_NEW_WINDOW: 'shortcut:create-new-window',
   CREATE_NEW_CONVERSATION: 'shortcut:create-new-conversation',
-  CREATE_NEW_TAB: 'shortcut:create-new-tab',
-  CLOSE_CURRENT_TAB: 'shortcut:close-current-tab',
   GO_SETTINGS: 'shortcut:go-settings',
   CLEAN_CHAT_HISTORY: 'shortcut:clean-chat-history',
-  DELETE_CONVERSATION: 'shortcut:delete-conversation',
-  SWITCH_TO_NEXT_TAB: 'shortcut:switch-to-next-tab',
-  SWITCH_TO_PREVIOUS_TAB: 'shortcut:switch-to-previous-tab',
-  SWITCH_TO_SPECIFIC_TAB: 'shortcut:switch-to-specific-tab',
-  SWITCH_TO_LAST_TAB: 'shortcut:switch-to-last-tab'
+  DELETE_CONVERSATION: 'shortcut:delete-conversation'
 }
 
 // 标签页相关事件
@@ -205,12 +199,11 @@ export const TAB_EVENTS = {
 
 // Yo Browser 相关事件
 export const YO_BROWSER_EVENTS = {
-  TAB_CREATED: 'yo-browser:tab-created',
-  TAB_CLOSED: 'yo-browser:tab-closed',
-  TAB_ACTIVATED: 'yo-browser:tab-activated',
-  TAB_NAVIGATED: 'yo-browser:tab-navigated',
-  TAB_UPDATED: 'yo-browser:tab-updated',
-  TAB_COUNT_CHANGED: 'yo-browser:tab-count-changed',
+  WINDOW_CREATED: 'yo-browser:window-created',
+  WINDOW_UPDATED: 'yo-browser:window-updated',
+  WINDOW_CLOSED: 'yo-browser:window-closed',
+  WINDOW_FOCUSED: 'yo-browser:window-focused',
+  WINDOW_COUNT_CHANGED: 'yo-browser:window-count-changed',
   WINDOW_VISIBILITY_CHANGED: 'yo-browser:window-visibility-changed'
 }
 

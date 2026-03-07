@@ -1,7 +1,7 @@
 import { type IPresenter } from '@shared/presenter'
 import { toRaw } from 'vue'
 
-// WebContentsId 缓存 (主进程通过此ID映射到tabId和windowId)
+// WebContentsId 缓存
 let cachedWebContentsId: number | null = null
 
 // 获取当前webContentsId
@@ -65,13 +65,13 @@ function createProxy(presenterName: string, safeCall: boolean) {
   return new Proxy({} as any, {
     get(_, functionName) {
       return async (...payloads: []) => {
-        // 获取webContentsId (主进程将自动映射到tabId)
+        // 获取当前 webContentsId
         const webContentsId = getWebContentsId()
 
         // 尝试 toRaw 获取原始对象并安全序列化
         const rawPayloads = tryToRow(payloads)
 
-        // 在调用中记录webContentsId (主进程会自动映射到tab上下文)
+        // 在调用中记录 webContentsId
         if (import.meta.env.VITE_LOG_IPC_CALL === '1') {
           console.log(
             `[Renderer IPC] WebContents:${webContentsId || 'unknown'} -> ${presenterName}.${functionName as string}`

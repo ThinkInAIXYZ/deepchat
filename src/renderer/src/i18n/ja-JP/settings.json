@@ -938,15 +938,10 @@
     "zoomIn": "フォントにズームインします",
     "zoomOut": "フォントを削減します",
     "zoomReset": "フォントをリセットします",
-    "closeTab": "現在のタブページを閉じます",
-    "newTab": "新しいタブを作成します",
     "newWindow": "新しいウィンドウを開きます",
     "showHideWindow": "ウィンドウを表示または非表示にします",
     "newConversation": "新しい会話",
-    "lastTab": "最後のタブに切り替えます",
-    "nextTab": "次のタブに切り替えます",
-    "previousTab": "前のタブに切り替えます",
-    "specificTab": "指定されたタブページ（1-8）に切り替える"
+    "closeWindow": "現在のタブページを閉じます"
   },
   "rateLimit": {
     "title": "レート制限",

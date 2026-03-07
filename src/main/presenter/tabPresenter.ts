@@ -935,7 +935,17 @@ export class TabPresenter implements ITabPresenter {
       newWindowOptions.y = screenY
     }
 
-    const newWindowId = await this.windowPresenter.createShellWindow(newWindowOptions)
+    const newWindowId =
+      sourceWindowType === 'browser'
+        ? await this.windowPresenter.createBrowserWindow({
+            x: newWindowOptions.x,
+            y: newWindowOptions.y
+          })
+        : await this.windowPresenter.createAppWindow({
+            initialRoute: 'chat',
+            x: newWindowOptions.x,
+            y: newWindowOptions.y
+          })
 
     if (newWindowId === null) {
       console.error('moveTabToNewWindow: Failed to create a new window.')

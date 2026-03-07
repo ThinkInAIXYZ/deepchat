@@ -42,7 +42,7 @@ export type SessionConfig = {
 }
 
 export type SessionBindings = {
-  tabId: number | null
+  webContentsId: number | null
   windowId: number | null
   windowType: 'main' | 'floating' | 'browser' | null
 }
@@ -65,12 +65,16 @@ export type Session = {
 
 export type CreateSessionOptions = {
   forceNewAndActivate?: boolean
+  webContentsId?: number
+  /** @deprecated Use webContentsId instead. */
   tabId?: number
 }
 
 export type CreateSessionParams = {
   title: string
   settings?: Partial<SessionConfig>
+  webContentsId?: number
+  /** @deprecated Use webContentsId instead. */
   tabId?: number
   options?: CreateSessionOptions
 }
@@ -81,7 +85,11 @@ export type CreateChildSessionParams = {
   parentSelection: ParentSelection | string
   title: string
   settings?: Partial<SessionConfig>
+  webContentsId?: number
+  openInNewWindow?: boolean
+  /** @deprecated Use webContentsId instead. */
   tabId?: number
+  /** @deprecated Use openInNewWindow instead. */
   openInNewTab?: boolean
 }
 
@@ -94,10 +102,19 @@ export interface ISessionPresenter extends IThreadPresenter {
   toggleSessionPinned(sessionId: string, pinned: boolean): Promise<void>
   updateSessionSettings(sessionId: string, settings: Partial<Session['config']>): Promise<void>
 
+  bindToWebContents(sessionId: string, webContentsId: number): Promise<void>
+  unbindFromWebContents(webContentsId: number): Promise<void>
+  activateSession(webContentsId: number, sessionId: string): Promise<void>
+  getActiveSession(webContentsId: number): Promise<Session | null>
+  findWebContentsForSession(
+    sessionId: string,
+    preferredWindowType?: 'main' | 'floating'
+  ): Promise<number | null>
+  /** @deprecated Use bindToWebContents instead. */
   bindToTab(sessionId: string, tabId: number): Promise<void>
+  /** @deprecated Use unbindFromWebContents instead. */
   unbindFromTab(tabId: number): Promise<void>
-  activateSession(tabId: number, sessionId: string): Promise<void>
-  getActiveSession(tabId: number): Promise<Session | null>
+  /** @deprecated Use findWebContentsForSession instead. */
   findTabForSession(
     sessionId: string,
     preferredWindowType?: 'main' | 'floating'

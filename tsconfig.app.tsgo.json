@@ -5,10 +5,10 @@
     "src/renderer/src/**/*",
     "src/renderer/src/**/*.vue",
     "src/renderer/src/assets/**/*",
-    "src/renderer/shell/env.d.ts",
-    "src/renderer/shell/**/*",
-    "src/renderer/shell/**/*.vue",
-    "src/renderer/shell/assets/**/*",
+    "src/renderer/browser/env.d.ts",
+    "src/renderer/browser/**/*",
+    "src/renderer/browser/**/*.vue",
+    "src/renderer/browser/assets/**/*",
     "src/renderer/floating/env.d.ts",
     "src/renderer/floating/**/*",
     "src/renderer/floating/**/*.vue",
@@ -32,8 +32,8 @@
       "@/*": [
         "./src/renderer/src/*"
       ],
-      "@shell/*": [
-        "./src/renderer/shell/*"
+      "@browser/*": [
+        "./src/renderer/browser/*"
       ],
       "@shared/*": [
         "./src/shared/*"

@@ -22,30 +22,24 @@ export const windowCreationHook: LifecycleHook = {
 
     // If no windows exist, create main window (first app startup)
     if (presenter.windowPresenter.getAllWindows().length === 0) {
-      console.log('windowCreationHook: Creating initial shell window on app startup')
+      console.log('windowCreationHook: Creating initial app window on app startup')
       try {
-        const windowId = await presenter.windowPresenter.createShellWindow({
-          initialTab: {
-            url: 'local://chat'
-          }
+        const windowId = await presenter.windowPresenter.createAppWindow({
+          initialRoute: 'chat'
         })
         if (windowId) {
           console.log(
-            `windowCreationHook: Initial shell window created successfully with ID: ${windowId}`
+            `windowCreationHook: Initial app window created successfully with ID: ${windowId}`
           )
         } else {
-          throw new Error(
-            'windowCreationHook: Failed to create initial shell window - returned null'
-          )
+          throw new Error('windowCreationHook: Failed to create initial app window - returned null')
         }
       } catch (error) {
-        console.error('windowCreationHook: Error creating initial shell window:', error)
+        console.error('windowCreationHook: Error creating initial app window:', error)
         throw error
       }
     } else {
-      console.log(
-        'windowCreationHook: Shell windows already exist, skipping initial window creation'
-      )
+      console.log('windowCreationHook: App windows already exist, skipping initial window creation')
     }
 
     // Register global shortcuts

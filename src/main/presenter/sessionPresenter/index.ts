@@ -15,6 +15,7 @@ import type {
 } from '@shared/presenter'
 import type { AssistantMessageBlock, Message, UserMessageContent } from '@shared/chat'
 import type { NowledgeMemThread, NowledgeMemExportSummary } from '@shared/types/nowledgeMem'
+import { BrowserWindow, webContents as electronWebContents } from 'electron'
 import { promises as fs } from 'fs'
 import { presenter } from '@/presenter'
 import { eventBus } from '@/eventbus'
@@ -37,7 +38,7 @@ export class SessionPresenter implements ISessionPresenter {
   private conversationManager: ConversationManager
   private exporter: IConversationExporter
   private commandPermissionService: CommandPermissionService
-  private activeConversationIds: Map<number, string> = new Map()
+  private activeConversationBindings: Map<number, string> = new Map()
 
   constructor(options: {
     messageManager?: MessageManager
@@ -58,18 +59,20 @@ export class SessionPresenter implements ISessionPresenter {
       sqlitePresenter: options.sqlitePresenter,
       configPresenter: options.configPresenter,
       messageManager: this.messageManager,
-      activeConversationIds: this.activeConversationIds
+      activeConversationBindings: this.activeConversationBindings
     })
-    // 监听Tab关闭事件，清理绑定关系
-    eventBus.on(TAB_EVENTS.CLOSED, (tabId: number) => {
-      const activeConversationId = this.getActiveConversationIdSync(tabId)
+    // Clean up conversation bindings when a bound renderer is closed.
+    eventBus.on(TAB_EVENTS.CLOSED, (webContentsId: number) => {
+      const activeConversationId = this.getActiveConversationIdSync(webContentsId)
       if (activeConversationId) {
         void presenter.agentPresenter.cleanupConversation(activeConversationId)
         this.commandPermissionService.clearConversation(activeConversationId)
         presenter.filePermissionService?.clearConversation(activeConversationId)
         presenter.settingsPermissionService?.clearConversation(activeConversationId)
-        this.clearActiveConversation(tabId, { notify: true })
-        console.log(`SessionPresenter: Cleaned up conversation binding for closed tab ${tabId}.`)
+        this.clearActiveConversationBindingInternal(webContentsId, { notify: true })
+        console.log(
+          `SessionPresenter: Cleaned up conversation binding for closed webContents ${webContentsId}.`
+        )
       }
     })
     eventBus.on(TAB_EVENTS.RENDERER_TAB_READY, () => {
@@ -92,16 +95,26 @@ export class SessionPresenter implements ISessionPresenter {
   }
 
   async createSession(params: CreateSessionParams): Promise<string> {
-    const tabId =
-      typeof params.tabId === 'number'
-        ? params.tabId
-        : await presenter.tabPresenter.getActiveTabId(
-            presenter.windowPresenter.getFocusedWindow()?.id ?? 0
-          )
-    if (tabId == null) {
-      throw new Error('tabId is required to create a session')
+    const webContentsId =
+      typeof params.webContentsId === 'number'
+        ? params.webContentsId
+        : typeof params.tabId === 'number'
+          ? params.tabId
+          : typeof params.options?.webContentsId === 'number'
+            ? params.options.webContentsId
+            : typeof params.options?.tabId === 'number'
+              ? params.options.tabId
+              : (presenter.windowPresenter.getFocusedWindow()?.webContents.id ?? null)
+
+    if (webContentsId == null) {
+      throw new Error('webContentsId is required to create a session')
     }
-    return this.createConversation(params.title, params.settings ?? {}, tabId, params.options ?? {})
+    return this.createConversation(
+      params.title,
+      params.settings ?? {},
+      webContentsId,
+      params.options ?? {}
+    )
   }
 
   async getSession(sessionId: string): Promise<Session> {
@@ -139,28 +152,43 @@ export class SessionPresenter implements ISessionPresenter {
     await this.updateConversationSettings(sessionId, settings as Partial<CONVERSATION_SETTINGS>)
   }
 
+  async bindToWebContents(sessionId: string, webContentsId: number): Promise<void> {
+    await this.setActiveConversation(sessionId, webContentsId)
+  }
+
   async bindToTab(sessionId: string, tabId: number): Promise<void> {
-    await this.setActiveConversation(sessionId, tabId)
+    await this.bindToWebContents(sessionId, tabId)
+  }
+
+  async unbindFromWebContents(webContentsId: number): Promise<void> {
+    this.clearActiveConversationBindingInternal(webContentsId, { notify: true })
   }
 
   async unbindFromTab(tabId: number): Promise<void> {
-    this.clearActiveConversation(tabId, { notify: true })
+    await this.unbindFromWebContents(tabId)
   }
 
-  async activateSession(tabId: number, sessionId: string): Promise<void> {
-    await this.setActiveConversation(sessionId, tabId)
+  async activateSession(webContentsId: number, sessionId: string): Promise<void> {
+    await this.setActiveConversation(sessionId, webContentsId)
   }
 
-  async getActiveSession(tabId: number): Promise<Session | null> {
-    const conversation = await this.getActiveConversation(tabId)
+  async getActiveSession(webContentsId: number): Promise<Session | null> {
+    const conversation = await this.getActiveConversation(webContentsId)
     return conversation ? this.toSession(conversation) : null
+  }
+
+  async findWebContentsForSession(
+    sessionId: string,
+    _preferredWindowType?: 'main' | 'floating'
+  ): Promise<number | null> {
+    return this.findWebContentsForConversation(sessionId)
   }
 
   async findTabForSession(
     sessionId: string,
-    _preferredWindowType?: 'main' | 'floating'
+    preferredWindowType?: 'main' | 'floating'
   ): Promise<number | null> {
-    return this.findTabForConversation(sessionId)
+    return this.findWebContentsForSession(sessionId, preferredWindowType)
   }
 
   async getMessageThread(
@@ -205,6 +233,8 @@ export class SessionPresenter implements ISessionPresenter {
     parentSelection: ParentSelection | string
     title: string
     settings?: Partial<Session['config']>
+    webContentsId?: number
+    openInNewWindow?: boolean
     tabId?: number
     openInNewTab?: boolean
   }): Promise<string> {
@@ -214,6 +244,8 @@ export class SessionPresenter implements ISessionPresenter {
       parentSelection: params.parentSelection,
       title: params.title,
       settings: params.settings as Partial<CONVERSATION_SETTINGS>,
+      webContentsId: params.webContentsId ?? params.tabId,
+      openInNewWindow: params.openInNewWindow ?? params.openInNewTab,
       tabId: params.tabId,
       openInNewTab: params.openInNewTab
     })
@@ -314,31 +346,41 @@ export class SessionPresenter implements ISessionPresenter {
     return cleanedTitle
   }
 
-  /**
-   * 新增：查找指定会话ID所在的Tab ID
-   * @param conversationId 会话ID
-   * @returns 如果找到，返回tabId，否则返回null
-   */
-  async findTabForConversation(conversationId: string): Promise<number | null> {
-    return this.conversationManager.findTabForConversation(conversationId)
+  async findWebContentsForConversation(conversationId: string): Promise<number | null> {
+    return this.conversationManager.findWebContentsForConversation(conversationId)
   }
 
-  getActiveConversationIdSync(tabId: number): string | null {
-    return this.conversationManager.getActiveConversationIdSync(tabId)
+  async findTabForConversation(conversationId: string): Promise<number | null> {
+    return this.findWebContentsForConversation(conversationId)
+  }
+
+  getActiveConversationIdSync(webContentsId: number): string | null {
+    return this.conversationManager.getActiveConversationIdSync(webContentsId)
+  }
+
+  getWebContentsIdsByConversation(conversationId: string): number[] {
+    return this.conversationManager.getWebContentsIdsByConversation(conversationId)
   }
 
   getTabsByConversation(conversationId: string): number[] {
-    return this.conversationManager.getTabsByConversation(conversationId)
+    return this.getWebContentsIdsByConversation(conversationId)
   }
 
-  clearActiveConversation(tabId: number, options: { notify?: boolean } = {}): void {
-    const conversationId = this.getActiveConversationIdSync(tabId)
+  private clearActiveConversationBindingInternal(
+    webContentsId: number,
+    options: { notify?: boolean } = {}
+  ): void {
+    const conversationId = this.getActiveConversationIdSync(webContentsId)
     if (conversationId) {
       this.commandPermissionService.clearConversation(conversationId)
       presenter.filePermissionService?.clearConversation(conversationId)
       presenter.settingsPermissionService?.clearConversation(conversationId)
     }
-    this.conversationManager.clearActiveConversation(tabId, options)
+    this.conversationManager.clearActiveConversationBinding(webContentsId, options)
+  }
+
+  clearActiveConversation(webContentsId: number, options: { notify?: boolean } = {}): void {
+    this.clearActiveConversationBindingInternal(webContentsId, options)
   }
 
   clearConversationBindings(conversationId: string): void {
@@ -360,8 +402,80 @@ export class SessionPresenter implements ISessionPresenter {
     presenter.settingsPermissionService?.clearAll()
   }
 
-  async setActiveConversation(conversationId: string, tabId: number): Promise<void> {
-    await this.conversationManager.setActiveConversation(conversationId, tabId)
+  private focusWindowForWebContents(webContentsId: number): void {
+    const targetContents = electronWebContents.fromId(webContentsId)
+    if (!targetContents || targetContents.isDestroyed()) {
+      return
+    }
+
+    const targetWindow = BrowserWindow.fromWebContents(targetContents)
+    if (!targetWindow || targetWindow.isDestroyed()) {
+      return
+    }
+
+    presenter.windowPresenter.show(targetWindow.id, true)
+  }
+
+  async setActiveConversation(conversationId: string, webContentsId: number): Promise<void> {
+    await this.conversationManager.setActiveConversation(conversationId, webContentsId)
+  }
+
+  async openConversationInNewWindow(payload: {
+    conversationId: string
+    webContentsId?: number
+    messageId?: string
+    childConversationId?: string
+  }): Promise<number | null> {
+    const { conversationId, messageId, childConversationId } = payload
+
+    await this.sqlitePresenter.getConversation(conversationId)
+
+    const existingWebContentsId =
+      await this.conversationManager.findWebContentsForConversation(conversationId)
+    if (existingWebContentsId !== null) {
+      this.focusWindowForWebContents(existingWebContentsId)
+      if (messageId || childConversationId) {
+        await presenter.windowPresenter.sendToWebContents(
+          existingWebContentsId,
+          CONVERSATION_EVENTS.SCROLL_TO_MESSAGE,
+          {
+            conversationId,
+            messageId,
+            childConversationId
+          }
+        )
+      }
+      return existingWebContentsId
+    }
+
+    const newWindowId = await presenter.windowPresenter.createAppWindow({ initialRoute: 'chat' })
+    if (newWindowId == null) {
+      return null
+    }
+
+    const targetWindow =
+      BrowserWindow.fromId(newWindowId) ??
+      presenter.windowPresenter.getAllWindows().find((window) => window.id === newWindowId)
+    const targetWebContentsId = targetWindow?.webContents.id ?? null
+    if (targetWebContentsId == null) {
+      return null
+    }
+
+    await this.conversationManager.setActiveConversation(conversationId, targetWebContentsId)
+    this.focusWindowForWebContents(targetWebContentsId)
+    if (messageId || childConversationId) {
+      await presenter.windowPresenter.sendToWebContents(
+        targetWebContentsId,
+        CONVERSATION_EVENTS.SCROLL_TO_MESSAGE,
+        {
+          conversationId,
+          messageId,
+          childConversationId
+        }
+      )
+    }
+
+    return targetWebContentsId
   }
 
   async openConversationInNewTab(payload: {
@@ -371,39 +485,50 @@ export class SessionPresenter implements ISessionPresenter {
     childConversationId?: string
   }): Promise<number | null> {
     const { conversationId, tabId, messageId, childConversationId } = payload
+    const existingWebContentsId =
+      await this.conversationManager.findWebContentsForConversation(conversationId)
 
-    await this.sqlitePresenter.getConversation(conversationId)
-
-    const existingTabId = await this.conversationManager.findTabForConversation(conversationId)
-    if (existingTabId !== null) {
-      await presenter.tabPresenter.switchTab(existingTabId)
+    if (existingWebContentsId !== null) {
+      this.focusWindowForWebContents(existingWebContentsId)
       if (messageId || childConversationId) {
-        eventBus.sendToTab(existingTabId, CONVERSATION_EVENTS.SCROLL_TO_MESSAGE, {
-          conversationId,
-          messageId,
-          childConversationId
-        })
+        await presenter.windowPresenter.sendToWebContents(
+          existingWebContentsId,
+          CONVERSATION_EVENTS.SCROLL_TO_MESSAGE,
+          {
+            conversationId,
+            messageId,
+            childConversationId
+          }
+        )
       }
-      return existingTabId
+      return existingWebContentsId
     }
 
-    // Shell windows no longer create chat tabs; just set active conversation on the current tab
     if (typeof tabId === 'number') {
       await this.conversationManager.setActiveConversation(conversationId, tabId)
       if (messageId || childConversationId) {
-        eventBus.sendToTab(tabId, CONVERSATION_EVENTS.SCROLL_TO_MESSAGE, {
-          conversationId,
-          messageId,
-          childConversationId
-        })
+        await presenter.windowPresenter.sendToWebContents(
+          tabId,
+          CONVERSATION_EVENTS.SCROLL_TO_MESSAGE,
+          {
+            conversationId,
+            messageId,
+            childConversationId
+          }
+        )
       }
       return tabId
     }
-    return null
+
+    return this.openConversationInNewWindow({
+      conversationId,
+      messageId,
+      childConversationId
+    })
   }
 
-  async getActiveConversation(tabId: number): Promise<CONVERSATION | null> {
-    return this.conversationManager.getActiveConversation(tabId)
+  async getActiveConversation(webContentsId: number): Promise<CONVERSATION | null> {
+    return this.conversationManager.getActiveConversation(webContentsId)
   }
 
   async getConversation(conversationId: string): Promise<CONVERSATION> {
@@ -413,13 +538,13 @@ export class SessionPresenter implements ISessionPresenter {
   async createConversation(
     title: string,
     settings: Partial<CONVERSATION_SETTINGS> = {},
-    tabId: number,
+    webContentsId: number,
     options: CreateConversationOptions = {}
   ): Promise<string> {
     const conversationId = await this.conversationManager.createConversation(
       title,
       settings,
-      tabId,
+      webContentsId,
       options
     )
 
@@ -597,12 +722,16 @@ export class SessionPresenter implements ISessionPresenter {
     await this.messageManager.markMessageAsContextEdge(messageId, isEdge)
   }
 
-  async getActiveConversationId(tabId: number): Promise<string | null> {
-    return this.conversationManager.getActiveConversationIdSync(tabId)
+  async getActiveConversationId(webContentsId: number): Promise<string | null> {
+    return this.conversationManager.getActiveConversationIdSync(webContentsId)
   }
 
-  async clearActiveThread(tabId: number): Promise<void> {
-    this.clearActiveConversation(tabId, { notify: true })
+  async clearActiveConversationBinding(webContentsId: number): Promise<void> {
+    this.clearActiveConversationBindingInternal(webContentsId, { notify: true })
+  }
+
+  async clearActiveThread(webContentsId: number): Promise<void> {
+    this.clearActiveConversationBindingInternal(webContentsId, { notify: true })
   }
 
   async clearAllMessages(conversationId: string): Promise<void> {
@@ -687,6 +816,8 @@ export class SessionPresenter implements ISessionPresenter {
     parentSelection: ParentSelection | string
     title: string
     settings?: Partial<CONVERSATION_SETTINGS>
+    webContentsId?: number
+    openInNewWindow?: boolean
     tabId?: number
     openInNewTab?: boolean
   }): Promise<string> {
@@ -696,6 +827,8 @@ export class SessionPresenter implements ISessionPresenter {
       parentSelection,
       title,
       settings,
+      webContentsId,
+      openInNewWindow,
       tabId,
       openInNewTab
     } = payload
@@ -731,19 +864,27 @@ export class SessionPresenter implements ISessionPresenter {
       parentSelection: resolvedParentSelection
     })
 
-    const shouldOpenInNewTab = openInNewTab ?? true
-    if (shouldOpenInNewTab && typeof tabId === 'number') {
-      // Shell windows no longer create chat tabs; set active conversation on the current tab
-      await this.conversationManager.setActiveConversation(newConversationId, tabId)
-      await this.broadcastThreadListUpdate()
+    await this.broadcastThreadListUpdate()
+
+    const targetWebContentsId =
+      typeof webContentsId === 'number'
+        ? webContentsId
+        : typeof tabId === 'number'
+          ? tabId
+          : undefined
+    const shouldOpenInNewChatWindow = openInNewWindow ?? openInNewTab ?? true
+
+    if (shouldOpenInNewChatWindow) {
+      await this.openConversationInNewWindow({
+        conversationId: newConversationId
+      })
       return newConversationId
     }
 
-    if (typeof tabId === 'number') {
-      await this.conversationManager.setActiveConversation(newConversationId, tabId)
+    if (typeof targetWebContentsId === 'number') {
+      await this.conversationManager.setActiveConversation(newConversationId, targetWebContentsId)
     }
 
-    await this.broadcastThreadListUpdate()
     return newConversationId
   }
 
@@ -870,11 +1011,26 @@ export class SessionPresenter implements ISessionPresenter {
   }
 
   private toSession(conversation: CONVERSATION): Session {
-    const tabs = this.conversationManager.getTabsByConversation(conversation.id)
-    const tabId = tabs.length > 0 ? tabs[0] : null
-    const windowId =
-      typeof tabId === 'number' ? presenter.tabPresenter.getWindowIdByWebContentsId(tabId) : null
-    const windowType = windowId ? 'main' : tabId !== null ? 'floating' : null
+    const boundWebContentsIds = this.conversationManager.getWebContentsIdsByConversation(
+      conversation.id
+    )
+    const webContentsId = boundWebContentsIds.length > 0 ? boundWebContentsIds[0] : null
+    const targetContents =
+      typeof webContentsId === 'number' ? electronWebContents.fromId(webContentsId) : null
+    const targetWindow =
+      targetContents && !targetContents.isDestroyed()
+        ? BrowserWindow.fromWebContents(targetContents)
+        : null
+    const floatingWindow = presenter.windowPresenter.getFloatingChatWindow()?.getWindow()
+    const windowId = targetWindow?.id ?? null
+    const windowType =
+      targetWindow == null
+        ? webContentsId !== null
+          ? 'floating'
+          : null
+        : floatingWindow && floatingWindow.id === targetWindow.id
+          ? 'floating'
+          : 'main'
     const sessionContext =
       typeof presenter?.sessionManager?.getSessionSync === 'function'
         ? presenter.sessionManager.getSessionSync(conversation.id)
@@ -894,7 +1050,7 @@ export class SessionPresenter implements ISessionPresenter {
         isPinned: conversation.is_pinned === 1
       },
       bindings: {
-        tabId: tabId ?? null,
+        webContentsId: webContentsId ?? null,
         windowId: windowId ?? null,
         windowType
       },

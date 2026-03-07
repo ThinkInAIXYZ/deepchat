@@ -1,28 +1,40 @@
 import { BrowserWindow, WebContents, screen } from 'electron'
 import type { Rectangle } from 'electron'
 import { eventBus, SendTarget } from '@/eventbus'
-import { TAB_EVENTS, YO_BROWSER_EVENTS } from '@/events'
-import { BrowserTabInfo, BrowserContextSnapshot, ScreenshotOptions } from '@shared/types/browser'
-import {
-  IYoBrowserPresenter,
+import { YO_BROWSER_EVENTS } from '@/events'
+import type {
+  BrowserContextSnapshot,
+  BrowserTabInfo,
+  BrowserWindowInfo,
+  ScreenshotOptions
+} from '@shared/types/browser'
+import type {
   DownloadInfo,
+  ITabPresenter,
   IWindowPresenter,
-  ITabPresenter
+  IYoBrowserPresenter
 } from '@shared/presenter'
-import { BrowserTab } from './BrowserTab'
+import { BrowserTab as BrowserPage } from './BrowserTab'
 import { CDPManager } from './CDPManager'
 import { ScreenshotManager } from './ScreenshotManager'
 import { DownloadManager } from './DownloadManager'
 import { clearYoBrowserSessionData } from './yoBrowserSession'
 import { YoBrowserToolHandler } from './YoBrowserToolHandler'
 
+type BrowserWindowState = {
+  id: number
+  viewId: number
+  page: BrowserPage
+  createdAt: number
+  updatedAt: number
+}
+
 export class YoBrowserPresenter implements IYoBrowserPresenter {
-  private windowId: number | null = null
-  private readonly tabIds: Map<string, number> = new Map()
-  private readonly viewIdToTabId: Map<number, string> = new Map()
-  private readonly tabIdToBrowserTab: Map<string, BrowserTab> = new Map()
-  private activeTabId: string | null = null
-  private readonly maxTabs = 5
+  private readonly browserWindows = new Map<number, BrowserWindowState>()
+  private readonly viewIdToWindowId = new Map<number, number>()
+  private readonly pageIdToWindowId = new Map<string, number>()
+  private readonly attachedWindowIds = new Set<number>()
+  private activeWindowId: number | null = null
   private readonly cdpManager = new CDPManager()
   private readonly screenshotManager = new ScreenshotManager(this.cdpManager)
   private readonly downloadManager = new DownloadManager()
@@ -34,340 +46,496 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     this.windowPresenter = windowPresenter
     this.tabPresenter = tabPresenter
     this.toolHandler = new YoBrowserToolHandler(this)
-    eventBus.on(TAB_EVENTS.CLOSED, (tabId: number) => this.handleTabClosed(tabId))
   }
 
   async initialize(): Promise<void> {
-    // Lazy initialization: only create browser window/tabs when explicitly requested.
+    // Lazy initialization only.
   }
 
-  async ensureWindow(options?: { x?: number; y?: number }): Promise<number | null> {
-    const window = this.getWindow()
-    if (window) return window.id
-
-    this.windowId = await this.windowPresenter.createShellWindow({
-      windowType: 'browser',
-      x: options?.x,
-      y: options?.y
-    })
-
-    const created = this.getWindow()
-    if (created) {
-      created.on('closed', () => this.handleWindowClosed())
-      this.emitVisibility(created.isVisible())
+  async ensureWindow(): Promise<number | null> {
+    const existing = this.getResolvedWindowState()
+    if (existing) {
+      return existing.id
     }
 
-    return this.windowId
+    const created = await this.createWindowState('about:blank')
+    return created?.id ?? null
+  }
+
+  async openWindow(url?: string): Promise<BrowserWindowInfo | null> {
+    const referenceBounds = this.getReferenceBounds()
+    const defaultBounds: Rectangle = {
+      x: 0,
+      y: 0,
+      width: 600,
+      height: 620
+    }
+    const position = this.calculateWindowPosition(defaultBounds, referenceBounds)
+    const created = await this.createWindowState(url ?? 'about:blank', position)
+    if (!created) {
+      return null
+    }
+
+    this.windowPresenter.show(created.id, true)
+    this.setActiveWindowId(created.id)
+    this.emitWindowVisibility(created.id, true)
+    this.emitWindowUpdated(created)
+    return this.toWindowInfo(created)
+  }
+
+  async focusWindow(windowId: number): Promise<void> {
+    const state = this.browserWindows.get(windowId)
+    if (!state) return
+    this.windowPresenter.show(windowId, true)
+    this.setActiveWindowId(windowId)
+    this.emitWindowVisibility(windowId, true)
+    this.emitWindowUpdated(state)
+  }
+
+  async closeWindow(windowId: number): Promise<void> {
+    if (!this.browserWindows.has(windowId)) return
+    await this.windowPresenter.closeWindow(windowId, true)
+  }
+
+  async listWindows(): Promise<BrowserWindowInfo[]> {
+    return Array.from(this.browserWindows.values())
+      .sort((left, right) => right.updatedAt - left.updatedAt)
+      .map((state) => this.toWindowInfo(state))
+  }
+
+  async getActiveWindow(): Promise<BrowserWindowInfo | null> {
+    const state = this.getResolvedWindowState()
+    return state ? this.toWindowInfo(state) : null
+  }
+
+  async getWindowById(windowId: number): Promise<BrowserWindowInfo | null> {
+    const state = this.browserWindows.get(windowId)
+    return state ? this.toWindowInfo(state) : null
   }
 
   async hasWindow(): Promise<boolean> {
-    return this.windowId !== null && this.getWindow() !== null
+    return this.browserWindows.size > 0
   }
 
   async show(shouldFocus: boolean = true): Promise<void> {
-    const existingWindow = this.getWindow()
-    const referenceBounds = existingWindow
-      ? this.getReferenceBounds(existingWindow.id)
-      : this.getReferenceBounds()
-
-    // Calculate position before creating window if it doesn't exist
-    let initialPosition: { x: number; y: number } | undefined
-    if (!existingWindow && referenceBounds) {
-      // Use default window size for calculation (browser window is 600px wide)
-      const defaultBounds: Rectangle = {
-        x: 0,
-        y: 0,
-        width: 600,
-        height: 620
+    const existing = this.getResolvedWindowState()
+    if (existing) {
+      this.windowPresenter.show(existing.id, shouldFocus)
+      if (shouldFocus) {
+        this.setActiveWindowId(existing.id)
       }
-      initialPosition = this.calculateWindowPosition(defaultBounds, referenceBounds)
+      this.emitWindowVisibility(existing.id, true)
+      return
     }
 
-    await this.ensureWindow({
-      x: initialPosition?.x,
-      y: initialPosition?.y
-    })
-
-    if (this.tabIdToBrowserTab.size === 0) {
-      await this.createTab('about:blank')
-    }
-
-    const window = this.getWindow()
-    if (window && !window.isDestroyed()) {
-      // If window already existed, recalculate position based on actual bounds
-      if (existingWindow) {
-        const currentReferenceBounds = this.getReferenceBounds(window.id)
-        const position = this.calculateWindowPosition(window.getBounds(), currentReferenceBounds)
-        window.setPosition(position.x, position.y)
-      }
-
-      // For existing windows, directly show them (they're already ready)
-      // For new windows, wait for ready-to-show event
-      if (existingWindow) {
-        // Window already exists, just show it directly
-        this.windowPresenter.show(window.id, shouldFocus)
-        this.emitVisibility(true)
-      } else {
-        // New window, wait for ready-to-show
-        const reveal = () => {
-          if (!window.isDestroyed()) {
-            this.windowPresenter.show(window.id, shouldFocus)
-            this.emitVisibility(true)
-          }
-        }
-        if (window.isVisible()) {
-          reveal()
-        } else {
-          window.once('ready-to-show', reveal)
-        }
-      }
-    }
+    await this.openWindow('about:blank')
   }
 
   async hide(): Promise<void> {
-    const window = this.getWindow()
-    if (window) {
-      this.windowPresenter.hide(window.id)
-      this.emitVisibility(false)
-    }
+    const state = this.getResolvedWindowState()
+    if (!state) return
+    this.windowPresenter.hide(state.id)
+    this.emitWindowVisibility(state.id, false)
   }
 
   async toggleVisibility(): Promise<boolean> {
-    await this.ensureWindow()
-    const window = this.getWindow()
-    if (!window) return false
+    const state = this.getResolvedWindowState()
+    if (!state) {
+      await this.openWindow('about:blank')
+      return true
+    }
+
+    const window = BrowserWindow.fromId(state.id)
+    if (!window || window.isDestroyed()) {
+      await this.openWindow('about:blank')
+      return true
+    }
+
     if (window.isVisible()) {
       await this.hide()
       return false
     }
-    await this.show()
+
+    await this.focusWindow(state.id)
     return true
   }
 
   async isVisible(): Promise<boolean> {
-    const window = this.getWindow()
-    return Boolean(window?.isVisible())
+    const state = this.getResolvedWindowState()
+    if (!state) return false
+    const window = BrowserWindow.fromId(state.id)
+    return Boolean(window && !window.isDestroyed() && window.isVisible())
   }
 
-  async listTabs(): Promise<BrowserTabInfo[]> {
-    await this.syncActiveTabId()
-    return Array.from(this.tabIdToBrowserTab.values()).map((tab) => this.toTabInfo(tab))
-  }
-
-  async getActiveTab(): Promise<BrowserTabInfo | null> {
-    await this.syncActiveTabId()
-    if (!this.activeTabId) return null
-    const tab = this.tabIdToBrowserTab.get(this.activeTabId)
-    const result = tab ? this.toTabInfo(tab) : null
-    return result
-  }
-
-  async getTabById(tabId: string): Promise<BrowserTabInfo | null> {
-    const tab = this.tabIdToBrowserTab.get(tabId)
-    if (!tab || tab.contents.isDestroyed()) return null
-    return this.toTabInfo(tab)
-  }
-
-  async goBack(tabId?: string): Promise<void> {
-    const tab = await this.resolveTab(tabId)
-    if (tab?.contents.canGoBack()) {
-      tab.contents.goBack()
-    }
-  }
-
-  async goForward(tabId?: string): Promise<void> {
-    const tab = await this.resolveTab(tabId)
-    if (tab?.contents.canGoForward()) {
-      tab.contents.goForward()
-    }
-  }
-
-  async reload(tabId?: string): Promise<void> {
-    const tab = await this.resolveTab(tabId)
-    if (tab && !tab.contents.isDestroyed()) {
-      tab.contents.reload()
-    }
-  }
-
-  async createTab(url?: string): Promise<BrowserTabInfo | null> {
-    await this.ensureWindow()
-    const windowId = this.windowId
-    if (!windowId) return null
-
-    if (this.tabIdToBrowserTab.size >= this.maxTabs) {
-      const reusable = this.findReusableTab(url || '')
-      if (reusable) {
-        await reusable.navigate(url || reusable.url)
-        await this.activateTab(reusable.tabId)
-        return this.toTabInfo(reusable)
-      }
-
-      const oldest = this.findOldestTab()
-      if (oldest) {
-        await this.closeTab(oldest.tabId)
-      }
-    }
-
-    const targetUrl = url || 'about:blank'
-    const viewId = await this.tabPresenter.createTab(windowId, targetUrl, { active: true })
-    if (viewId === null) return null
-    const view = await this.tabPresenter.getTab(viewId as number)
-    if (!view) return null
-
-    const browserTab = new BrowserTab(view.webContents, this.cdpManager, this.screenshotManager)
-    const tabKey = browserTab.tabId
-    this.tabIds.set(tabKey, viewId as number)
-    this.viewIdToTabId.set(view.webContents.id, tabKey)
-    this.tabIdToBrowserTab.set(tabKey, browserTab)
-    this.tabPresenter.setTabBrowserId(viewId as number, tabKey)
-    this.activeTabId = tabKey
-
-    this.setupTabListeners(tabKey, viewId as number, view.webContents)
-    this.emitTabCreated(browserTab)
-    this.emitTabCount()
-
-    const result = this.toTabInfo(browserTab)
-    return result
-  }
-
-  async navigateTab(tabId: string, url: string, timeoutMs?: number): Promise<void> {
-    let tab = this.tabIdToBrowserTab.get(tabId)
-    if (!tab || tab.contents.isDestroyed()) {
-      const created = await this.createTab(url)
+  async navigateWindow(windowId: number, url: string, timeoutMs?: number): Promise<void> {
+    const state = this.browserWindows.get(windowId)
+    if (!state) {
+      const created = await this.openWindow(url)
       if (!created) {
-        throw new Error('Failed to create tab for navigation')
+        throw new Error(`Browser window ${windowId} not found`)
       }
-      tab = this.tabIdToBrowserTab.get(created.id) ?? undefined
-      this.activeTabId = created.id
+      return
     }
-    if (!tab) {
-      throw new Error(`Tab ${tabId} not found`)
-    }
-    if (tab.contents.isDestroyed()) {
-      throw new Error(`Tab ${tab.tabId} is destroyed`)
-    }
-    await tab.navigate(url, timeoutMs)
-    this.emitTabNavigated(tab.tabId, url)
+
+    await state.page.navigate(url, timeoutMs)
+    state.updatedAt = Date.now()
+    this.emitWindowUpdated(state)
   }
 
-  async activateTab(tabId: string): Promise<void> {
-    const viewId = this.tabIds.get(tabId)
-    if (viewId === undefined) return
-    await this.tabPresenter.switchTab(viewId)
-    this.activeTabId = tabId
-    this.emitTabActivated(tabId)
+  async goBack(target?: number | string): Promise<void> {
+    const state = this.getResolvedWindowState(target)
+    if (!state) return
+    await state.page.goBack()
+    state.updatedAt = Date.now()
+    this.emitWindowUpdated(state)
   }
 
-  async closeTab(tabId: string): Promise<void> {
-    const viewId = this.tabIds.get(tabId)
-    if (viewId !== undefined) {
-      await this.tabPresenter.closeTab(viewId)
-    }
-    this.cleanupTab(tabId)
+  async goForward(target?: number | string): Promise<void> {
+    const state = this.getResolvedWindowState(target)
+    if (!state) return
+    await state.page.goForward()
+    state.updatedAt = Date.now()
+    this.emitWindowUpdated(state)
   }
 
-  async reuseTab(url: string): Promise<BrowserTabInfo | null> {
-    const reusable = this.findReusableTab(url)
-    if (reusable) {
-      await reusable.navigate(url)
-      await this.activateTab(reusable.tabId)
-      return this.toTabInfo(reusable)
-    }
+  async reload(target?: number | string): Promise<void> {
+    const state = this.getResolvedWindowState(target)
+    if (!state) return
+    await state.page.reload()
+    state.updatedAt = Date.now()
+    this.emitWindowUpdated(state)
+  }
 
-    if (this.tabIdToBrowserTab.size >= this.maxTabs) {
-      const oldest = this.findOldestTab()
-      if (oldest) {
-        await this.closeTab(oldest.tabId)
-        return this.createTab(url)
+  async getNavigationState(target?: number | string): Promise<{
+    canGoBack: boolean
+    canGoForward: boolean
+  }> {
+    const state = this.getResolvedWindowState(target)
+    if (!state || state.page.contents.isDestroyed()) {
+      return {
+        canGoBack: false,
+        canGoForward: false
       }
     }
 
-    return await this.createTab(url)
+    return {
+      canGoBack: state.page.contents.canGoBack(),
+      canGoForward: state.page.contents.canGoForward()
+    }
   }
 
   async getBrowserContext(): Promise<BrowserContextSnapshot> {
     return {
-      activeTabId: this.activeTabId,
-      tabs: await this.listTabs()
+      activeWindowId: this.getResolvedWindowState()?.id ?? null,
+      windows: await this.listWindows()
     }
   }
 
-  async getNavigationState(tabId?: string): Promise<{
-    canGoBack: boolean
-    canGoForward: boolean
-  }> {
-    const tab = await this.resolveTab(tabId)
-    if (!tab || tab.contents.isDestroyed()) {
-      return { canGoBack: false, canGoForward: false }
+  async captureScreenshot(target: string | number, options?: ScreenshotOptions): Promise<string> {
+    const state = this.getResolvedWindowState(target)
+    if (!state) {
+      throw new Error(`Browser target ${String(target)} not found`)
     }
-    return {
-      canGoBack: tab.contents.canGoBack(),
-      canGoForward: tab.contents.canGoForward()
-    }
+    return await state.page.takeScreenshot(options)
   }
 
-  async getTabIdByViewId(viewId: number): Promise<string | null> {
-    return this.viewIdToTabId.get(viewId) ?? null
+  async extractDom(target: string | number, selector?: string): Promise<string> {
+    const state = this.getResolvedWindowState(target)
+    if (!state) {
+      throw new Error(`Browser target ${String(target)} not found`)
+    }
+    return await state.page.extractDOM(selector)
   }
 
-  async captureScreenshot(tabId: string, options?: ScreenshotOptions): Promise<string> {
-    const tab = await this.resolveTab(tabId)
-    if (!tab) {
-      throw new Error(`Tab ${tabId} not found`)
+  async evaluateScript(target: string | number, script: string): Promise<unknown> {
+    const state = this.getResolvedWindowState(target)
+    if (!state) {
+      throw new Error(`Browser target ${String(target)} not found`)
     }
-    return await tab.takeScreenshot(options)
-  }
-
-  async extractDom(tabId: string, selector?: string): Promise<string> {
-    const tab = await this.resolveTab(tabId)
-    if (!tab) {
-      throw new Error(`Tab ${tabId} not found`)
-    }
-    return await tab.extractDOM(selector)
-  }
-
-  async evaluateScript(tabId: string, script: string): Promise<unknown> {
-    const tab = await this.resolveTab(tabId)
-    if (!tab) {
-      throw new Error(`Tab ${tabId} not found`)
-    }
-    return await tab.evaluateScript(script)
+    return await state.page.evaluateScript(script)
   }
 
   async startDownload(url: string, savePath?: string): Promise<DownloadInfo> {
-    const active = await this.resolveTab()
-    if (active?.contents?.isDestroyed()) {
-      throw new Error('Active tab is destroyed')
+    const state = this.getResolvedWindowState()
+    if (!state || state.page.contents.isDestroyed()) {
+      throw new Error('No active browser window available')
     }
-    return await this.downloadManager.downloadFile(url, savePath, active?.contents)
+    return await this.downloadManager.downloadFile(url, savePath, state.page.contents)
   }
 
   async clearSandboxData(): Promise<void> {
     await clearYoBrowserSessionData()
-    for (const tab of this.tabIdToBrowserTab.values()) {
-      if (!tab.contents.isDestroyed()) {
-        tab.contents.reloadIgnoringCache()
+    for (const state of this.browserWindows.values()) {
+      if (!state.page.contents.isDestroyed()) {
+        state.page.contents.reloadIgnoringCache()
       }
     }
   }
 
   async shutdown(): Promise<void> {
-    if (this.windowId) {
-      await this.windowPresenter.closeWindow(this.windowId, true)
+    const windowIds = Array.from(this.browserWindows.keys())
+    for (const windowId of windowIds) {
+      await this.windowPresenter.closeWindow(windowId, true)
     }
-    this.cleanup()
-    this.emitTabCount()
-    this.emitVisibility(false)
   }
 
-  private getWindow(): BrowserWindow | null {
-    if (!this.windowId) return null
-    const window = BrowserWindow.fromId(this.windowId)
-    if (!window || window.isDestroyed()) {
-      this.windowId = null
+  // Deprecated wrappers kept temporarily while callers migrate to window semantics.
+  async listTabs(): Promise<BrowserTabInfo[]> {
+    return (await this.listWindows()).map((browserWindow) => ({
+      ...browserWindow.page,
+      isActive: browserWindow.id === this.activeWindowId
+    }))
+  }
+
+  async getActiveTab(): Promise<BrowserTabInfo | null> {
+    const activeWindow = await this.getActiveWindow()
+    if (!activeWindow) {
       return null
     }
-    return window
+    return {
+      ...activeWindow.page,
+      isActive: true
+    }
+  }
+
+  async getTabById(pageId: string): Promise<BrowserTabInfo | null> {
+    const state = this.getResolvedWindowState(pageId)
+    if (!state) {
+      return null
+    }
+    return {
+      ...state.page.toPageInfo(),
+      isActive: state.id === this.activeWindowId
+    }
+  }
+
+  async createTab(url?: string): Promise<BrowserTabInfo | null> {
+    const browserWindow = await this.openWindow(url ?? 'about:blank')
+    if (!browserWindow) {
+      return null
+    }
+    return {
+      ...browserWindow.page,
+      isActive: true
+    }
+  }
+
+  async navigateTab(pageId: string, url: string, timeoutMs?: number): Promise<void> {
+    const state = this.getResolvedWindowState(pageId)
+    if (!state) {
+      throw new Error(`Browser page ${pageId} not found`)
+    }
+    await this.navigateWindow(state.id, url, timeoutMs)
+  }
+
+  async activateTab(pageId: string): Promise<void> {
+    const state = this.getResolvedWindowState(pageId)
+    if (!state) return
+    await this.focusWindow(state.id)
+  }
+
+  async closeTab(pageId: string): Promise<void> {
+    const state = this.getResolvedWindowState(pageId)
+    if (!state) return
+    await this.closeWindow(state.id)
+  }
+
+  async reuseTab(url: string): Promise<BrowserTabInfo | null> {
+    const existing = this.findReusableWindow(url)
+    if (existing) {
+      await this.navigateWindow(existing.id, url)
+      await this.focusWindow(existing.id)
+      return {
+        ...existing.page.toPageInfo(),
+        isActive: true
+      }
+    }
+    return await this.createTab(url)
+  }
+
+  async getTabIdByViewId(viewId: number): Promise<string | null> {
+    const windowId = this.viewIdToWindowId.get(viewId)
+    if (windowId == null) {
+      return null
+    }
+    const state = this.browserWindows.get(windowId)
+    return state?.page.pageId ?? null
+  }
+
+  async getBrowserTab(target?: string | number): Promise<BrowserPage | null> {
+    return this.getResolvedWindowState(target)?.page ?? null
+  }
+
+  private async createWindowState(
+    url: string,
+    position?: { x: number; y: number }
+  ): Promise<BrowserWindowState | null> {
+    const browserWindowId = await this.createBrowserWindow(position)
+    if (!browserWindowId) {
+      return null
+    }
+
+    const viewId = await this.tabPresenter.createTab(browserWindowId, url, { active: true })
+    if (viewId == null) {
+      await this.windowPresenter.closeWindow(browserWindowId, true)
+      return null
+    }
+
+    const view = await this.tabPresenter.getTab(viewId)
+    if (!view) {
+      await this.windowPresenter.closeWindow(browserWindowId, true)
+      return null
+    }
+
+    const page = new BrowserPage(view.webContents, this.cdpManager, this.screenshotManager)
+    const now = Date.now()
+    const state: BrowserWindowState = {
+      id: browserWindowId,
+      viewId,
+      page,
+      createdAt: now,
+      updatedAt: now
+    }
+
+    this.browserWindows.set(browserWindowId, state)
+    this.viewIdToWindowId.set(viewId, browserWindowId)
+    this.pageIdToWindowId.set(page.pageId, browserWindowId)
+    this.attachWindowListeners(browserWindowId)
+    this.setupPageListeners(browserWindowId, page, view.webContents)
+    this.emitWindowCreated(state)
+    this.emitWindowCount()
+    return state
+  }
+
+  private async createBrowserWindow(position?: { x: number; y: number }): Promise<number | null> {
+    return await this.windowPresenter.createBrowserWindow(position)
+  }
+
+  private attachWindowListeners(windowId: number): void {
+    if (this.attachedWindowIds.has(windowId)) {
+      return
+    }
+
+    const window = BrowserWindow.fromId(windowId)
+    if (!window || window.isDestroyed()) {
+      return
+    }
+
+    this.attachedWindowIds.add(windowId)
+
+    window.on('focus', () => {
+      this.setActiveWindowId(windowId)
+      const state = this.browserWindows.get(windowId)
+      if (state) {
+        state.updatedAt = Date.now()
+        this.emitWindowUpdated(state)
+      }
+    })
+
+    window.on('show', () => {
+      this.emitWindowVisibility(windowId, true)
+    })
+
+    window.on('hide', () => {
+      this.emitWindowVisibility(windowId, false)
+    })
+
+    window.on('closed', () => {
+      this.cleanupWindow(windowId, true)
+    })
+  }
+
+  private setupPageListeners(windowId: number, page: BrowserPage, contents: WebContents): void {
+    contents.on('did-navigate', (_event, url) => {
+      const state = this.browserWindows.get(windowId)
+      if (!state) return
+      page.url = url
+      state.updatedAt = Date.now()
+      this.emitWindowUpdated(state)
+    })
+
+    contents.on('page-title-updated', (_event, title) => {
+      const state = this.browserWindows.get(windowId)
+      if (!state) return
+      page.title = title || page.url
+      state.updatedAt = Date.now()
+      this.emitWindowUpdated(state)
+    })
+
+    contents.on('page-favicon-updated', (_event, favicons) => {
+      const state = this.browserWindows.get(windowId)
+      if (!state || favicons.length === 0) return
+      if (page.favicon !== favicons[0]) {
+        page.favicon = favicons[0]
+        state.updatedAt = Date.now()
+        this.emitWindowUpdated(state)
+      }
+    })
+
+    contents.on('destroyed', () => {
+      this.cleanupWindow(windowId, false)
+    })
+  }
+
+  private cleanupWindow(windowId: number, emitClosed: boolean): void {
+    const state = this.browserWindows.get(windowId)
+    if (!state) {
+      return
+    }
+
+    state.page.destroy()
+    this.browserWindows.delete(windowId)
+    this.viewIdToWindowId.delete(state.viewId)
+    this.pageIdToWindowId.delete(state.page.pageId)
+    this.attachedWindowIds.delete(windowId)
+
+    if (this.activeWindowId === windowId) {
+      this.activeWindowId = this.getResolvedWindowState()?.id ?? null
+      this.emitWindowFocused(this.activeWindowId)
+    }
+
+    if (emitClosed) {
+      this.emitWindowClosed(windowId)
+    }
+
+    this.emitWindowCount()
+  }
+
+  private getResolvedWindowState(target?: number | string): BrowserWindowState | null {
+    if (typeof target === 'number') {
+      return this.browserWindows.get(target) ?? null
+    }
+
+    if (typeof target === 'string' && target.trim()) {
+      const windowId = this.pageIdToWindowId.get(target)
+      return windowId != null ? (this.browserWindows.get(windowId) ?? null) : null
+    }
+
+    const activeFromFocused = this.findFocusedBrowserWindow()
+    if (activeFromFocused) {
+      this.activeWindowId = activeFromFocused.id
+      return activeFromFocused
+    }
+
+    if (this.activeWindowId != null) {
+      const activeState = this.browserWindows.get(this.activeWindowId)
+      if (activeState) {
+        return activeState
+      }
+    }
+
+    const [latest] = Array.from(this.browserWindows.values()).sort(
+      (left, right) => right.updatedAt - left.updatedAt
+    )
+    return latest ?? null
+  }
+
+  private findFocusedBrowserWindow(): BrowserWindowState | null {
+    const focusedWindow = this.windowPresenter.getFocusedWindow()
+    if (!focusedWindow || focusedWindow.isDestroyed()) {
+      return null
+    }
+    return this.browserWindows.get(focusedWindow.id) ?? null
   }
 
   private getReferenceBounds(excludeWindowId?: number): Rectangle | undefined {
@@ -375,10 +543,11 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     if (focused && !focused.isDestroyed() && focused.id !== excludeWindowId) {
       return focused.getBounds()
     }
-    const fallback = this.windowPresenter
+
+    return this.windowPresenter
       .getAllWindows()
       .find((candidate) => candidate.id !== excludeWindowId)
-    return fallback?.getBounds()
+      ?.getBounds()
   }
 
   private calculateWindowPosition(
@@ -386,7 +555,6 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     referenceBounds?: Rectangle
   ): { x: number; y: number } {
     if (!referenceBounds) {
-      // 如果没有参考窗口，使用默认位置
       const display = screen.getDisplayMatching(windowBounds)
       const { workArea } = display
       return {
@@ -399,11 +567,9 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     const display = screen.getDisplayMatching(referenceBounds)
     const { workArea } = display
 
-    // Browser 窗口尺寸
     const browserWidth = windowBounds.width
     const browserHeight = windowBounds.height
 
-    // 计算主窗口右侧和左侧的空间
     const spaceOnRight = workArea.x + workArea.width - (referenceBounds.x + referenceBounds.width)
     const spaceOnLeft = referenceBounds.x - workArea.x
 
@@ -411,26 +577,20 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     let targetY: number
 
     if (spaceOnRight >= browserWidth + gap) {
-      // 显示在主窗口右侧
       targetX = referenceBounds.x + referenceBounds.width + gap
       targetY = referenceBounds.y + (referenceBounds.height - browserHeight) / 2
     } else if (spaceOnLeft >= browserWidth + gap) {
-      // 显示在主窗口左侧
       targetX = referenceBounds.x - browserWidth - gap
       targetY = referenceBounds.y + (referenceBounds.height - browserHeight) / 2
     } else {
-      // 空间不够，显示在主窗口下方
       targetX = referenceBounds.x
       const spaceBelow = workArea.y + workArea.height - (referenceBounds.y + referenceBounds.height)
-      if (spaceBelow >= browserHeight + gap) {
-        targetY = referenceBounds.y + referenceBounds.height + gap
-      } else {
-        // 下方空间也不够，显示在主窗口上方
-        targetY = referenceBounds.y - browserHeight - gap
-      }
+      targetY =
+        spaceBelow >= browserHeight + gap
+          ? referenceBounds.y + referenceBounds.height + gap
+          : referenceBounds.y - browserHeight - gap
     }
 
-    // 确保窗口在屏幕范围内
     const clampedX = Math.max(
       workArea.x,
       Math.min(targetX, workArea.x + workArea.width - browserWidth)
@@ -440,202 +600,86 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
       Math.min(targetY, workArea.y + workArea.height - browserHeight)
     )
 
-    return { x: Math.round(clampedX), y: Math.round(clampedY) }
+    return {
+      x: Math.round(clampedX),
+      y: Math.round(clampedY)
+    }
   }
 
-  private handleWindowClosed(): void {
-    this.cleanup()
-    this.emitVisibility(false)
-    this.emitTabCount()
-  }
+  private findReusableWindow(url: string): BrowserWindowState | null {
+    if (!url) {
+      return this.getResolvedWindowState()
+    }
 
-  private setupTabListeners(tabId: string, viewId: number, contents: WebContents): void {
-    contents.on('did-navigate', (_event, url) => {
-      const tab = this.tabIdToBrowserTab.get(tabId)
-      if (!tab) return
-      tab.url = url
-      tab.updatedAt = Date.now()
-      this.emitTabNavigated(tabId, url)
-    })
-
-    contents.on('page-title-updated', (_event, title) => {
-      const tab = this.tabIdToBrowserTab.get(tabId)
-      if (!tab) return
-      tab.title = title || tab.url
-      tab.updatedAt = Date.now()
-      this.emitTabUpdated(tab)
-    })
-
-    contents.on('page-favicon-updated', (_event, favicons) => {
-      if (favicons.length > 0) {
-        const tab = this.tabIdToBrowserTab.get(tabId)
-        if (!tab) return
-        if (tab.favicon !== favicons[0]) {
-          tab.favicon = favicons[0]
-          tab.updatedAt = Date.now()
-          this.emitTabUpdated(tab)
-        }
-      }
-    })
-
-    contents.on('destroyed', () => {
-      const mappedId = this.viewIdToTabId.get(viewId)
-      if (mappedId) {
-        this.cleanupTab(mappedId)
-      }
-    })
-  }
-
-  private findReusableTab(url: string): BrowserTab | null {
-    if (!url) return this.findOldestTab()
     try {
       const targetHost = new URL(url).hostname
-      const sameHost = Array.from(this.tabIdToBrowserTab.values()).find((tab) => {
+      for (const state of this.browserWindows.values()) {
         try {
-          return new URL(tab.url).hostname === targetHost
+          if (new URL(state.page.url).hostname === targetHost) {
+            return state
+          }
         } catch {
-          return false
-        }
-      })
-      if (sameHost) return sameHost
-    } catch {
-      // ignore parse errors
-    }
-    return this.findOldestTab()
-  }
-
-  private findOldestTab(): BrowserTab | null {
-    const sorted = Array.from(this.tabIdToBrowserTab.values()).sort(
-      (a, b) => a.createdAt - b.createdAt
-    )
-    return sorted[0] || null
-  }
-
-  private async resolveTab(tabId?: string): Promise<BrowserTab | null> {
-    if (tabId) {
-      const target = this.tabIdToBrowserTab.get(tabId)
-      if (target && !target.contents.isDestroyed()) return target
-    }
-    await this.syncActiveTabId()
-    if (this.activeTabId) {
-      const active = this.tabIdToBrowserTab.get(this.activeTabId)
-      if (active && !active.contents.isDestroyed()) return active
-    }
-    const first = this.tabIdToBrowserTab.values().next().value as BrowserTab | undefined
-    if (first && !first.contents.isDestroyed()) return first
-    return null
-  }
-
-  private async syncActiveTabId(): Promise<void> {
-    if (!this.windowId) return
-    try {
-      const activeViewId = await this.tabPresenter.getActiveTabId(this.windowId)
-      if (activeViewId !== undefined) {
-        const mapped = this.viewIdToTabId.get(activeViewId)
-        if (mapped) {
-          this.activeTabId = mapped
+          // Ignore invalid URL parsing for existing pages.
         }
       }
-    } catch (error) {
-      console.warn('[YoBrowser] Failed to sync active tab id', error)
+    } catch {
+      // Ignore invalid URL parsing for requested URL.
     }
+
+    return this.getResolvedWindowState()
   }
 
-  private handleTabClosed(tabId: number): void {
-    const mapped = this.viewIdToTabId.get(tabId)
-    if (mapped) {
-      this.cleanupTab(mapped)
-    }
-  }
-
-  private cleanupTab(tabId: string): void {
-    if (!this.tabIdToBrowserTab.has(tabId)) {
-      return
-    }
-    const browserTab = this.tabIdToBrowserTab.get(tabId)
-    const viewId = this.tabIds.get(tabId)
-    if (browserTab) {
-      browserTab.destroy()
-    }
-    if (viewId !== undefined) {
-      this.viewIdToTabId.delete(viewId)
-    }
-    this.tabIds.delete(tabId)
-    this.tabIdToBrowserTab.delete(tabId)
-    if (this.activeTabId === tabId) {
-      const fallback = Array.from(this.tabIdToBrowserTab.keys()).find((id) => id !== tabId)
-      this.activeTabId = fallback ?? null
-    }
-    this.emitTabClosed(tabId)
-    this.emitTabCount()
-  }
-
-  private toTabInfo(tab: BrowserTab): BrowserTabInfo {
+  private toWindowInfo(state: BrowserWindowState): BrowserWindowInfo {
+    const window = BrowserWindow.fromId(state.id)
     return {
-      id: tab.tabId,
-      url: tab.url,
-      title: tab.title,
-      favicon: tab.favicon,
-      isActive: tab.tabId === this.activeTabId,
-      status: tab.status,
-      createdAt: tab.createdAt,
-      updatedAt: tab.updatedAt
+      id: state.id,
+      page: state.page.toPageInfo(),
+      isFocused: Boolean(window && !window.isDestroyed() && window.isFocused()),
+      isVisible: Boolean(window && !window.isDestroyed() && window.isVisible()),
+      createdAt: state.createdAt,
+      updatedAt: state.updatedAt
     }
   }
 
-  private emitTabCreated(tab: BrowserTab) {
-    const info = this.toTabInfo(tab)
-    eventBus.sendToRenderer(YO_BROWSER_EVENTS.TAB_CREATED, SendTarget.ALL_WINDOWS, info)
+  private setActiveWindowId(windowId: number | null): void {
+    this.activeWindowId = windowId
+    this.emitWindowFocused(windowId)
   }
 
-  private emitTabClosed(tabId: string) {
-    eventBus.sendToRenderer(YO_BROWSER_EVENTS.TAB_CLOSED, SendTarget.ALL_WINDOWS, tabId)
-  }
-
-  async getBrowserTab(tabId?: string): Promise<BrowserTab | null> {
-    return await this.resolveTab(tabId)
-  }
-
-  private emitTabActivated(tabId: string) {
-    eventBus.sendToRenderer(YO_BROWSER_EVENTS.TAB_ACTIVATED, SendTarget.ALL_WINDOWS, tabId)
-  }
-
-  private emitTabNavigated(tabId: string, url: string) {
-    eventBus.sendToRenderer(YO_BROWSER_EVENTS.TAB_NAVIGATED, SendTarget.ALL_WINDOWS, {
-      tabId,
-      url
+  private emitWindowCreated(state: BrowserWindowState): void {
+    eventBus.sendToRenderer(YO_BROWSER_EVENTS.WINDOW_CREATED, SendTarget.ALL_WINDOWS, {
+      window: this.toWindowInfo(state)
     })
   }
 
-  private emitTabUpdated(tab: BrowserTab) {
-    const info = this.toTabInfo(tab)
-    eventBus.sendToRenderer(YO_BROWSER_EVENTS.TAB_UPDATED, SendTarget.ALL_WINDOWS, info)
+  private emitWindowUpdated(state: BrowserWindowState): void {
+    eventBus.sendToRenderer(YO_BROWSER_EVENTS.WINDOW_UPDATED, SendTarget.ALL_WINDOWS, {
+      window: this.toWindowInfo(state)
+    })
   }
 
-  private emitTabCount() {
+  private emitWindowClosed(windowId: number): void {
+    eventBus.sendToRenderer(YO_BROWSER_EVENTS.WINDOW_CLOSED, SendTarget.ALL_WINDOWS, { windowId })
+  }
+
+  private emitWindowFocused(windowId: number | null): void {
+    eventBus.sendToRenderer(YO_BROWSER_EVENTS.WINDOW_FOCUSED, SendTarget.ALL_WINDOWS, {
+      windowId
+    })
+  }
+
+  private emitWindowCount(): void {
     eventBus.sendToRenderer(
-      YO_BROWSER_EVENTS.TAB_COUNT_CHANGED,
+      YO_BROWSER_EVENTS.WINDOW_COUNT_CHANGED,
       SendTarget.ALL_WINDOWS,
-      this.tabIdToBrowserTab.size
+      this.browserWindows.size
     )
   }
 
-  private emitVisibility(visible: boolean) {
-    eventBus.sendToRenderer(
-      YO_BROWSER_EVENTS.WINDOW_VISIBILITY_CHANGED,
-      SendTarget.ALL_WINDOWS,
+  private emitWindowVisibility(windowId: number, visible: boolean): void {
+    eventBus.sendToRenderer(YO_BROWSER_EVENTS.WINDOW_VISIBILITY_CHANGED, SendTarget.ALL_WINDOWS, {
+      windowId,
       visible
-    )
-  }
-
-  private cleanup() {
-    for (const tab of this.tabIdToBrowserTab.values()) {
-      tab.destroy()
-    }
-    this.tabIdToBrowserTab.clear()
-    this.tabIds.clear()
-    this.viewIdToTabId.clear()
-    this.activeTabId = null
-    this.windowId = null
+    })
   }
 }

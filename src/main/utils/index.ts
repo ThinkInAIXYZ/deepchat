@@ -3,10 +3,8 @@ import { presenter } from '@/presenter'
 export function handleShowHiddenWindow(mustShow: boolean) {
   const allWindows = presenter.windowPresenter.getAllWindows()
   if (allWindows.length === 0) {
-    presenter.windowPresenter.createShellWindow({
-      initialTab: {
-        url: 'local://chat'
-      }
+    presenter.windowPresenter.createAppWindow({
+      initialRoute: 'chat'
     })
   } else {
     // 查找目标窗口 (焦点窗口或第一个窗口)
@@ -23,10 +21,8 @@ export function handleShowHiddenWindow(mustShow: boolean) {
     } else {
       console.warn('Target window for SHOW_HIDDEN_WINDOW event is destroyed.') // 保持 warn
       // 如果目标窗口已销毁，创建新窗口
-      presenter.windowPresenter.createShellWindow({
-        initialTab: {
-          url: 'local://chat'
-        }
+      presenter.windowPresenter.createAppWindow({
+        initialRoute: 'chat'
       })
     }
   }

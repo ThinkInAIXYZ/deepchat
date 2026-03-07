@@ -1,4 +1,4 @@
-export enum BrowserTabStatus {
+export enum BrowserPageStatus {
   Idle = 'idle',
   Loading = 'loading',
   Ready = 'ready',
@@ -6,13 +6,29 @@ export enum BrowserTabStatus {
   Closed = 'closed'
 }
 
-export interface BrowserTabInfo {
+// Deprecated aliases kept temporarily while in-tree callers migrate to page/window semantics.
+export type BrowserTabStatus = BrowserPageStatus
+
+export interface BrowserPageInfo {
   id: string
   url: string
   title?: string
   favicon?: string
-  isActive: boolean
-  status: BrowserTabStatus
+  status: BrowserPageStatus
+  createdAt: number
+  updatedAt: number
+}
+
+// Deprecated alias kept temporarily while in-tree callers migrate to page/window semantics.
+export interface BrowserTabInfo extends BrowserPageInfo {
+  isActive?: boolean
+}
+
+export interface BrowserWindowInfo {
+  id: number
+  page: BrowserPageInfo
+  isFocused: boolean
+  isVisible: boolean
   createdAt: number
   updatedAt: number
 }
@@ -49,14 +65,13 @@ export interface BrowserToolDefinition {
 }
 
 export type BrowserEvent =
-  | { type: 'tab-created'; tab: BrowserTabInfo }
-  | { type: 'tab-updated'; tab: BrowserTabInfo }
-  | { type: 'tab-activated'; tabId: string }
-  | { type: 'tab-closed'; tabId: string }
-  | { type: 'tab-navigated'; tabId: string; url: string }
-  | { type: 'window-visibility-changed'; visible: boolean }
+  | { type: 'window-created'; window: BrowserWindowInfo }
+  | { type: 'window-updated'; window: BrowserWindowInfo }
+  | { type: 'window-focused'; windowId: number | null }
+  | { type: 'window-closed'; windowId: number }
+  | { type: 'window-visibility-changed'; windowId: number; visible: boolean }
 
 export interface BrowserContextSnapshot {
-  activeTabId: string | null
-  tabs: BrowserTabInfo[]
+  activeWindowId: number | null
+  windows: BrowserWindowInfo[]
 }

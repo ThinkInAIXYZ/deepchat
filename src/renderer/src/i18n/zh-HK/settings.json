@@ -938,15 +938,10 @@
     "zoomIn": "放大字體",
     "zoomOut": "縮小字體",
     "zoomReset": "重置字體",
-    "closeTab": "關閉當前標籤頁",
-    "newTab": "新建標籤頁",
     "newWindow": "打開新窗口",
     "showHideWindow": "顯示/隱藏窗口",
     "newConversation": "新會話",
-    "lastTab": "切換到最後一個標籤頁",
-    "previousTab": "切換到上一個標籤頁",
-    "specificTab": "切換到指定標籤頁 (1-8)",
-    "nextTab": "切換到下一個標籤頁"
+    "closeWindow": "關閉當前視窗"
   },
   "rateLimit": {
     "title": "速率限制",

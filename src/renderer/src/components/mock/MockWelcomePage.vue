@@ -79,7 +79,7 @@ const providers = [
 const onAddProvider = () => {
   const windowId = window.api.getWindowId()
   if (windowId != null) {
-    windowPresenter.openOrFocusSettingsTab(windowId)
+    void windowPresenter.openOrFocusSettingsWindow()
   }
 }
 </script>
