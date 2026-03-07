@@ -56,12 +56,17 @@ export type * from './agent-provider'
 
 // Generic Workspace types (for all Agent modes)
 export type {
-  WorkspacePlanStatus,
-  WorkspacePlanEntry,
+  SidePanelTab,
+  WorkspaceNavSection,
   WorkspaceFileNode,
-  WorkspaceTerminalStatus,
-  WorkspaceTerminalSnippet,
-  WorkspaceRawPlanEntry,
+  WorkspaceViewMode,
+  WorkspaceFilePreviewKind,
+  WorkspaceFileMetadata,
+  WorkspaceFilePreview,
+  WorkspaceGitChangeType,
+  WorkspaceGitFileChange,
+  WorkspaceGitState,
+  WorkspaceGitDiff,
   IWorkspacePresenter
 } from './workspace'
 

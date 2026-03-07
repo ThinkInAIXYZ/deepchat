@@ -1,27 +1,24 @@
 <template>
-  <div class="w-full h-full flex-row flex">
-    <div class="flex-1 w-0 h-full">
-      <div class="flex h-full">
-        <!-- Main content area -->
-        <div class="flex-1 flex flex-col w-0">
-          <WelcomePage v-if="pageRouter.currentRoute === 'welcome'" />
-          <NewThreadPage v-else-if="pageRouter.currentRoute === 'newThread'" />
-          <ChatPage
-            v-else-if="pageRouter.currentRoute === 'chat' && pageRouter.chatSessionId"
-            :session-id="pageRouter.chatSessionId"
-          />
-        </div>
-      </div>
+  <div class="flex h-full w-full flex-row overflow-hidden">
+    <div class="flex h-full min-w-0 w-0 flex-1 transition-[width] duration-200 ease-out">
+      <WelcomePage v-if="pageRouter.currentRoute === 'welcome'" />
+      <NewThreadPage v-else-if="pageRouter.currentRoute === 'newThread'" />
+      <ChatPage
+        v-else-if="pageRouter.currentRoute === 'chat' && pageRouter.chatSessionId"
+        :session-id="pageRouter.chatSessionId"
+      />
     </div>
 
-    <!-- Artifacts preview area -->
-    <ArtifactDialog />
+    <ChatSidePanel
+      :session-id="pageRouter.currentRoute === 'chat' ? pageRouter.chatSessionId : null"
+      :workspace-path="sessionStore.activeSession?.projectDir ?? null"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { onMounted } from 'vue'
-import ArtifactDialog from '@/components/artifacts/ArtifactDialog.vue'
+import ChatSidePanel from '@/components/sidepanel/ChatSidePanel.vue'
 import WelcomePage from '@/pages/WelcomePage.vue'
 import NewThreadPage from '@/pages/NewThreadPage.vue'
 import ChatPage from '@/pages/ChatPage.vue'

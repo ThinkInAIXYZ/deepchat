@@ -126,6 +126,11 @@
   },
   "workspace": {
     "collapse": "بستن",
+    "sections": {
+      "files": "فایل‌ها",
+      "git": "Git",
+      "artifacts": "Artifacts"
+    },
     "files": {
       "contextMenu": {
         "insertPath": "در جعبه ورودی وارد کنید",
@@ -135,6 +140,12 @@
       "empty": "هنوز فایلی وجود ندارد",
       "loading": "در حال بارگیری فایل ها...",
       "section": "سند"
+    },
+    "git": {
+      "empty": "diff برای نمایش وجود ندارد",
+      "clean": "درخت کاری تمیز است",
+      "staged": "Stage شده",
+      "unstaged": "Stage نشده"
     },
     "browser": {
       "section": "مرورگر",

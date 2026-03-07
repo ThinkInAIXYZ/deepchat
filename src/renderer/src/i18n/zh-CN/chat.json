@@ -153,6 +153,11 @@
   "workspace": {
     "title": "工作区",
     "collapse": "收起",
+    "sections": {
+      "files": "文件",
+      "git": "Git",
+      "artifacts": "Artifacts"
+    },
     "plan": {
       "section": "计划",
       "empty": "暂无任务",
@@ -173,6 +178,12 @@
         "revealInFolder": "在文件管理器中打开",
         "insertPath": "插入到输入框"
       }
+    },
+    "git": {
+      "empty": "暂无可显示的 diff",
+      "clean": "工作区干净",
+      "staged": "已暂存",
+      "unstaged": "未暂存"
     },
     "browser": {
       "section": "浏览器",

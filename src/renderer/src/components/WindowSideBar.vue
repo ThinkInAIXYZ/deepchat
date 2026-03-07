@@ -73,19 +73,6 @@
           <TooltipTrigger as-child>
             <Button
               class="flex items-center justify-center w-9 h-9 rounded-xl bg-transparent border-none hover:bg-white/30 dark:hover:bg-white/10 shadow-none"
-              :title="t('common.browser.name')"
-              @click="onBrowserClick"
-            >
-              <Icon icon="lucide:compass" class="w-4 h-4 text-foreground/80" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="right">{{ t('common.browser.name') }}</TooltipContent>
-        </Tooltip>
-
-        <Tooltip>
-          <TooltipTrigger as-child>
-            <Button
-              class="flex items-center justify-center w-9 h-9 rounded-xl bg-transparent border-none hover:bg-white/30 dark:hover:bg-white/10 shadow-none"
               :title="t('routes.settings')"
               @click="openSettings"
             >
@@ -221,7 +208,6 @@ import { usePresenter } from '@/composables/usePresenter'
 import { useThemeStore } from '@/stores/theme'
 import { useAgentStore } from '@/stores/ui/agent'
 import { useSessionStore } from '@/stores/ui/session'
-import { useYoBrowserStore } from '@/stores/yoBrowser'
 import ModelIcon from './icons/ModelIcon.vue'
 import { useI18n } from 'vue-i18n'
 
@@ -230,7 +216,6 @@ const { t } = useI18n()
 const themeStore = useThemeStore()
 const agentStore = useAgentStore()
 const sessionStore = useSessionStore()
-const yoBrowserStore = useYoBrowserStore()
 
 const collapsed = ref(false)
 let agentSwitchSeq = 0
@@ -243,14 +228,6 @@ const openSettings = () => {
   const windowId = window.api.getWindowId()
   if (windowId != null) {
     void windowPresenter.openOrFocusSettingsWindow()
-  }
-}
-
-const onBrowserClick = async () => {
-  try {
-    await yoBrowserStore.openLatestOrCreate()
-  } catch (error) {
-    console.warn('Failed to open browser window.', error)
   }
 }
 

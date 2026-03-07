@@ -153,6 +153,11 @@
   "workspace": {
     "title": "Workspace",
     "collapse": "Collapse",
+    "sections": {
+      "files": "Files",
+      "git": "Git",
+      "artifacts": "Artifacts"
+    },
     "plan": {
       "section": "Plan",
       "empty": "No tasks yet",
@@ -173,6 +178,12 @@
         "revealInFolder": "Show in file manager",
         "insertPath": "Insert into input"
       }
+    },
+    "git": {
+      "empty": "No diff available",
+      "clean": "Clean working tree",
+      "staged": "Staged",
+      "unstaged": "Unstaged"
     },
     "browser": {
       "section": "Browser",

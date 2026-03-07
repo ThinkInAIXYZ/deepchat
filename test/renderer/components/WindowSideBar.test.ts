@@ -41,9 +41,6 @@ const setup = async (options: SetupOptions = {}) => {
   const themeStore = reactive({
     isDark: false
   })
-  const yoBrowserStore = reactive({
-    openLatestOrCreate: vi.fn()
-  })
 
   vi.doMock('@/stores/ui/agent', () => ({
     useAgentStore: () => agentStore
@@ -53,9 +50,6 @@ const setup = async (options: SetupOptions = {}) => {
   }))
   vi.doMock('@/stores/theme', () => ({
     useThemeStore: () => themeStore
-  }))
-  vi.doMock('@/stores/yoBrowser', () => ({
-    useYoBrowserStore: () => yoBrowserStore
   }))
   vi.doMock('@/composables/usePresenter', () => ({
     usePresenter: () => ({

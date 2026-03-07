@@ -1,6 +1,9 @@
 <template>
   <div
-    class="w-full max-w-2xl rounded-xl border bg-card/30 backdrop-blur-lg shadow-sm overflow-hidden"
+    :class="[
+      'w-full overflow-hidden rounded-xl border bg-card/30 shadow-sm backdrop-blur-lg',
+      props.maxWidthClass
+    ]"
     @dragover.prevent
     @drop.prevent="onDrop"
   >
@@ -98,6 +101,7 @@ const props = withDefaults(
     workspacePath?: string | null
     isAcpSession?: boolean
     submitDisabled?: boolean
+    maxWidthClass?: string
     files?: MessageFile[]
   }>(),
   {
@@ -107,6 +111,7 @@ const props = withDefaults(
     workspacePath: null,
     isAcpSession: false,
     submitDisabled: false,
+    maxWidthClass: 'max-w-2xl',
     files: () => []
   }
 )

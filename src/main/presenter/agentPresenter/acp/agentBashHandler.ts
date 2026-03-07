@@ -1,10 +1,7 @@
-import { spawn, type ChildProcess } from 'child_process'
+import { spawn } from 'child_process'
 import path from 'path'
 import os from 'os'
 import { z } from 'zod'
-import { nanoid } from 'nanoid'
-import logger from '@shared/logger'
-import { presenter } from '@/presenter'
 
 // Consider moving to a shared handlers location in future refactoring
 import {
@@ -12,7 +9,6 @@ import {
   CommandPermissionService
 } from '../../permission/commandPermissionService'
 import { getShellEnvironment, getUserShell } from './shellEnvHelper'
-import { registerCommandProcess, unregisterCommandProcess } from './commandProcessTracker'
 import { backgroundExecSessionManager } from './backgroundExecSessionManager'
 
 const COMMAND_MAX_OUTPUT_LENGTH = 30000
@@ -30,7 +26,6 @@ const ExecuteCommandArgsSchema = z.object({
 
 export interface ExecuteCommandOptions {
   conversationId?: string
-  snippetId?: string
 }
 
 export class AgentBashHandler {
@@ -86,83 +81,14 @@ export class AgentBashHandler {
       }
     }
 
-    const startedAt = Date.now()
-    const snippetId = options.snippetId ?? nanoid()
-
-    await this.emitTerminalSnippet(options.conversationId, {
-      id: snippetId,
-      status: 'running',
-      command,
-      cwd,
-      output: '',
-      truncated: false,
-      exitCode: null,
-      startedAt,
-      timestamp: startedAt
-    })
-
     let result: {
       output: string
       exitCode: number | null
       timedOut: boolean
-      aborted: boolean
       truncated: boolean
     }
-    const conversationId = options.conversationId
-    let registered = false
 
-    try {
-      result = await this.runShellProcess(command, cwd, timeout ?? COMMAND_DEFAULT_TIMEOUT_MS, {
-        onSpawn: (child, markAborted) => {
-          if (!conversationId) return
-          registerCommandProcess(conversationId, snippetId, child, markAborted)
-          registered = true
-          child.once('exit', () => unregisterCommandProcess(conversationId, snippetId))
-        }
-      })
-    } catch (error) {
-      if (registered && conversationId) {
-        unregisterCommandProcess(conversationId, snippetId)
-      }
-      const endedAt = Date.now()
-      await this.emitTerminalSnippet(options.conversationId, {
-        id: snippetId,
-        status: 'failed',
-        command,
-        cwd,
-        output: error instanceof Error ? error.message : String(error),
-        truncated: false,
-        exitCode: null,
-        startedAt,
-        endedAt,
-        durationMs: endedAt - startedAt,
-        timestamp: endedAt
-      })
-      throw error
-    }
-
-    const endedAt = Date.now()
-    const status = result.timedOut
-      ? 'timed_out'
-      : result.aborted
-        ? 'aborted'
-        : result.exitCode === 0
-          ? 'completed'
-          : 'failed'
-
-    await this.emitTerminalSnippet(options.conversationId, {
-      id: snippetId,
-      status,
-      command,
-      cwd,
-      output: result.output,
-      truncated: result.truncated,
-      exitCode: result.exitCode,
-      startedAt,
-      endedAt,
-      durationMs: endedAt - startedAt,
-      timestamp: endedAt
-    })
+    result = await this.runShellProcess(command, cwd, timeout ?? COMMAND_DEFAULT_TIMEOUT_MS)
 
     const responseLines: string[] = []
     if (result.output) {
@@ -225,15 +151,11 @@ export class AgentBashHandler {
   private async runShellProcess(
     command: string,
     cwd: string,
-    timeout: number,
-    options: {
-      onSpawn?: (child: ChildProcess, markAborted: () => void) => void
-    } = {}
+    timeout: number
   ): Promise<{
     output: string
     exitCode: number | null
     timedOut: boolean
-    aborted: boolean
     truncated: boolean
   }> {
     const { shell, args } = getUserShell()
@@ -252,15 +174,9 @@ export class AgentBashHandler {
       let output = ''
       let truncated = false
       let timedOut = false
-      let aborted = false
       let exitCode: number | null = null
       let timeoutId: NodeJS.Timeout | null = null
       let killTimeoutId: NodeJS.Timeout | null = null
-      const markAborted = () => {
-        aborted = true
-      }
-
-      options.onSpawn?.(child, markAborted)
 
       const appendOutput = (chunk: string) => {
         if (truncated) return
@@ -322,7 +238,6 @@ export class AgentBashHandler {
           output,
           exitCode,
           timedOut,
-          aborted,
           truncated
         })
       })
@@ -366,44 +281,7 @@ export class AgentBashHandler {
       timeout: timeout ?? COMMAND_DEFAULT_TIMEOUT_MS
     })
 
-    // Emit initial terminal snippet
-    await this.emitTerminalSnippet(conversationId, {
-      id: result.sessionId,
-      status: 'running',
-      command,
-      cwd,
-      output: '',
-      truncated: false,
-      exitCode: null,
-      startedAt: Date.now(),
-      timestamp: Date.now()
-    })
-
     return { status: 'running', sessionId: result.sessionId }
-  }
-
-  private async emitTerminalSnippet(
-    conversationId: string | undefined,
-    snippet: {
-      id: string
-      status: 'running' | 'completed' | 'failed' | 'timed_out' | 'aborted'
-      command: string
-      cwd?: string
-      output: string
-      truncated: boolean
-      exitCode?: number | null
-      startedAt?: number
-      endedAt?: number
-      durationMs?: number
-      timestamp: number
-    }
-  ): Promise<void> {
-    if (!conversationId || !presenter?.workspacePresenter) return
-    try {
-      await presenter.workspacePresenter.emitTerminalSnippet(conversationId, snippet)
-    } catch (error) {
-      logger.warn('[AgentBashHandler] Failed to emit terminal snippet', { error })
-    }
   }
 
   /**

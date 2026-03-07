@@ -126,6 +126,11 @@
   },
   "workspace": {
     "collapse": "近い",
+    "sections": {
+      "files": "ファイル",
+      "git": "Git",
+      "artifacts": "Artifacts"
+    },
     "files": {
       "contextMenu": {
         "insertPath": "入力ボックスに挿入",
@@ -135,6 +140,12 @@
       "empty": "まだファイルがありません",
       "loading": "ファイルをロード中...",
       "section": "書類"
+    },
+    "git": {
+      "empty": "表示できる diff はありません",
+      "clean": "ワークツリーはクリーンです",
+      "staged": "ステージ済み",
+      "unstaged": "未ステージ"
     },
     "browser": {
       "section": "ブラウザ",

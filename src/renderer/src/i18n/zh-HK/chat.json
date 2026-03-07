@@ -130,6 +130,11 @@
   },
   "workspace": {
     "collapse": "收起",
+    "sections": {
+      "files": "文件",
+      "git": "Git",
+      "artifacts": "Artifacts"
+    },
     "files": {
       "contextMenu": {
         "insertPath": "插入到輸入框",
@@ -139,6 +144,12 @@
       "empty": "暫無文件",
       "loading": "加載文件中...",
       "section": "文件"
+    },
+    "git": {
+      "empty": "暫無可顯示的 diff",
+      "clean": "工作區乾淨",
+      "staged": "已暫存",
+      "unstaged": "未暫存"
     },
     "browser": {
       "section": "瀏覽器",

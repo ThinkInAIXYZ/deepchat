@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
+import { useSidepanelStore } from './ui/sidepanel'
 
 export interface ArtifactState {
   id: string
@@ -15,14 +16,53 @@ const makeContextKey = (artifactId: string, messageId: string, threadId: string)
 
 interface ShowArtifactOptions {
   force?: boolean
+  open?: boolean
+  viewMode?: 'preview' | 'code'
 }
 
 export const useArtifactStore = defineStore('artifact', () => {
+  const sidepanelStore = useSidepanelStore()
   const currentArtifact = ref<ArtifactState | null>(null)
-  const isOpen = ref(false)
   const currentMessageId = ref<string | null>(null)
   const currentThreadId = ref<string | null>(null)
   const dismissedContexts = ref(new Set<string>())
+  const completedContexts = ref(new Set<string>())
+
+  const isOpen = computed(() => {
+    if (!currentArtifact.value || !currentThreadId.value) {
+      return false
+    }
+
+    const sessionState = sidepanelStore.getSessionState(currentThreadId.value)
+    return (
+      sidepanelStore.open &&
+      sidepanelStore.activeTab === 'workspace' &&
+      sessionState.selectedArtifactContext?.artifactId === currentArtifact.value.id
+    )
+  })
+
+  const applyArtifactSelection = (
+    artifact: ArtifactState,
+    messageId: string,
+    threadId: string,
+    options?: ShowArtifactOptions
+  ) => {
+    currentArtifact.value = artifact
+    currentMessageId.value = messageId
+    currentThreadId.value = threadId
+    sidepanelStore.selectArtifact(
+      threadId,
+      {
+        threadId,
+        messageId,
+        artifactId: artifact.id
+      },
+      {
+        open: options?.open,
+        viewMode: options?.viewMode ?? 'preview'
+      }
+    )
+  }
 
   const showArtifact = (
     artifact: ArtifactState,
@@ -40,17 +80,20 @@ export const useArtifactStore = defineStore('artifact', () => {
       dismissedContexts.value.delete(contextKey)
     }
 
-    currentArtifact.value = artifact
-    currentMessageId.value = messageId
-    currentThreadId.value = threadId
-    isOpen.value = true
+    applyArtifactSelection(artifact, messageId, threadId, {
+      open: options?.open ?? true,
+      viewMode: options?.viewMode ?? 'preview'
+    })
   }
 
   const hideArtifact = () => {
+    const threadId = currentThreadId.value
     currentArtifact.value = null
     currentMessageId.value = null
     currentThreadId.value = null
-    isOpen.value = false
+    if (threadId) {
+      sidepanelStore.clearArtifact(threadId)
+    }
   }
 
   const dismissArtifact = () => {
@@ -79,6 +122,40 @@ export const useArtifactStore = defineStore('artifact', () => {
     }
   }
 
+  const syncArtifact = (artifact: ArtifactState, messageId: string, threadId: string) => {
+    if (!currentArtifact.value || validateContext(messageId, threadId)) {
+      currentArtifact.value = artifact
+      currentMessageId.value = messageId
+      currentThreadId.value = threadId
+    }
+  }
+
+  const completeArtifact = (artifact: ArtifactState, messageId: string, threadId: string) => {
+    const contextKey = makeContextKey(artifact.id, messageId, threadId)
+    const panelWasHidden = !sidepanelStore.open
+    const currentMatches =
+      validateContext(messageId, threadId) && currentArtifact.value?.id === artifact.id
+
+    syncArtifact(artifact, messageId, threadId)
+
+    if (currentMatches) {
+      sidepanelStore.setViewMode(threadId, 'preview')
+    }
+
+    if (completedContexts.value.has(contextKey)) {
+      return
+    }
+
+    completedContexts.value.add(contextKey)
+
+    if (panelWasHidden && !dismissedContexts.value.has(contextKey)) {
+      applyArtifactSelection(artifact, messageId, threadId, {
+        open: true,
+        viewMode: 'preview'
+      })
+    }
+  }
+
   return {
     currentArtifact,
     currentMessageId,
@@ -88,6 +165,8 @@ export const useArtifactStore = defineStore('artifact', () => {
     hideArtifact,
     dismissArtifact,
     validateContext,
-    updateArtifactContent
+    updateArtifactContent,
+    syncArtifact,
+    completeArtifact
   }
 })
