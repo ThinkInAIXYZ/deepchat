@@ -9,6 +9,7 @@ import { parseQuestionToolArgs, QUESTION_TOOL_NAME } from '../agentPresenter/too
 import type { IoParams, PendingToolInteraction, StreamState } from './types'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import { nanoid } from 'nanoid'
+import type { ToolOutputGuard } from './toolOutputGuard'
 
 type PermissionType = 'read' | 'write' | 'all' | 'command'
 
@@ -376,8 +377,15 @@ export async function executeTools(
   toolPresenter: IToolPresenter,
   modelId: string,
   io: IoParams,
-  permissionMode: PermissionMode
-): Promise<{ executed: number; pendingInteractions: PendingToolInteraction[] }> {
+  permissionMode: PermissionMode,
+  toolOutputGuard: ToolOutputGuard,
+  contextLength: number,
+  maxTokens: number
+): Promise<{
+  executed: number
+  pendingInteractions: PendingToolInteraction[]
+  terminalError?: string
+}> {
   for (const tc of state.completedToolCalls) {
     const toolDef = tools.find((t) => t.function.name === tc.name)
     if (!toolDef) continue
@@ -542,12 +550,39 @@ export async function executeTools(
       }
 
       const responseText = toolResponseToText(toolRawData.content)
+      const guardedResult = await toolOutputGuard.guardToolOutput({
+        sessionId: io.sessionId,
+        toolCallId: tc.id,
+        toolName: toolContext.name,
+        rawContent: responseText,
+        conversationMessages: conversation,
+        toolDefinitions: tools,
+        contextLength,
+        maxTokens
+      })
+
+      if (guardedResult.kind === 'terminal_error') {
+        updateToolCallBlock(state.blocks, tc.id, guardedResult.message, true)
+        state.dirty = true
+        executed += 1
+        flushBlocksToRenderer(io, state.blocks)
+        io.messageStore.updateAssistantContent(io.messageId, state.blocks)
+        return {
+          executed,
+          pendingInteractions,
+          terminalError: guardedResult.message
+        }
+      }
+
+      const isToolError = guardedResult.kind === 'tool_error' || toolRawData.isError === true
+      const toolMessageContent =
+        guardedResult.kind === 'tool_error' ? guardedResult.message : guardedResult.content
       conversation.push({
         role: 'tool',
         tool_call_id: tc.id,
-        content: responseText
+        content: toolMessageContent
       })
-      updateToolCallBlock(state.blocks, tc.id, responseText, false)
+      updateToolCallBlock(state.blocks, tc.id, toolMessageContent, isToolError)
     } catch (err) {
       const errorText = err instanceof Error ? err.message : String(err)
       conversation.push({

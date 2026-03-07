@@ -1,8 +1,13 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import fs from 'fs/promises'
+import os from 'os'
+import path from 'path'
+import { app } from 'electron'
 import type { StreamState, IoParams } from '@/presenter/deepchatAgentPresenter/types'
 import { createState } from '@/presenter/deepchatAgentPresenter/types'
 import type { MCPToolDefinition } from '@shared/presenter'
 import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
+import { ToolOutputGuard } from '@/presenter/deepchatAgentPresenter/toolOutputGuard'
 
 vi.mock('@/eventbus', () => ({
   eventBus: { sendToRenderer: vi.fn() },
@@ -82,11 +87,22 @@ function createMockToolPresenter(responses: Record<string, string> = {}): IToolP
 describe('dispatch', () => {
   let state: StreamState
   let io: IoParams
+  let tempHome: string | null = null
+  let getPathSpy: ReturnType<typeof vi.spyOn> | null = null
 
   beforeEach(() => {
     vi.clearAllMocks()
     state = createState()
     io = createIo()
+  })
+
+  afterEach(async () => {
+    getPathSpy?.mockRestore()
+    getPathSpy = null
+    if (tempHome) {
+      await fs.rm(tempHome, { recursive: true, force: true })
+      tempHome = null
+    }
   })
 
   describe('executeTools', () => {
@@ -119,7 +135,10 @@ describe('dispatch', () => {
         toolPresenter,
         'gpt-4',
         io,
-        'full_access'
+        'full_access',
+        new ToolOutputGuard(),
+        32000,
+        1024
       )
 
       expect(executed.executed).toBe(1)
@@ -157,7 +176,19 @@ describe('dispatch', () => {
       })
       state.completedToolCalls = [{ id: 'tc1', name: 'get_weather', arguments: '{}' }]
 
-      await executeTools(state, [], 0, tools, toolPresenter, 'gpt-4', io, 'full_access')
+      await executeTools(
+        state,
+        [],
+        0,
+        tools,
+        toolPresenter,
+        'gpt-4',
+        io,
+        'full_access',
+        new ToolOutputGuard(),
+        32000,
+        1024
+      )
 
       expect(state.blocks[0].tool_call!.server_name).toBe('test-server')
       expect(state.blocks[0].tool_call!.server_icons).toBe('icon')
@@ -192,7 +223,10 @@ describe('dispatch', () => {
         toolPresenter,
         'deepseek-reasoner',
         io,
-        'full_access'
+        'full_access',
+        new ToolOutputGuard(),
+        32000,
+        1024
       )
 
       const assistantMsg = conversation.find((m: any) => m.role === 'assistant')
@@ -219,7 +253,19 @@ describe('dispatch', () => {
       })
       state.completedToolCalls = [{ id: 'tc1', name: 'search', arguments: '{}' }]
 
-      await executeTools(state, conversation, 0, tools, toolPresenter, 'gpt-4', io, 'full_access')
+      await executeTools(
+        state,
+        conversation,
+        0,
+        tools,
+        toolPresenter,
+        'gpt-4',
+        io,
+        'full_access',
+        new ToolOutputGuard(),
+        32000,
+        1024
+      )
 
       const assistantMsg = conversation.find((m: any) => m.role === 'assistant')
       expect(assistantMsg.reasoning_content).toBeUndefined()
@@ -242,13 +288,69 @@ describe('dispatch', () => {
       })
       state.completedToolCalls = [{ id: 'tc1', name: 'bad_tool', arguments: '{}' }]
 
-      await executeTools(state, conversation, 0, tools, toolPresenter, 'gpt-4', io, 'full_access')
+      await executeTools(
+        state,
+        conversation,
+        0,
+        tools,
+        toolPresenter,
+        'gpt-4',
+        io,
+        'full_access',
+        new ToolOutputGuard(),
+        32000,
+        1024
+      )
 
       const toolMsg = conversation.find((m: any) => m.role === 'tool')
       expect(toolMsg.content).toBe('Error: Tool failed')
 
       const block = state.blocks.find((b) => b.type === 'tool_call')
       expect(block!.tool_call!.response).toBe('Error: Tool failed')
+      expect(block!.status).toBe('error')
+    })
+
+    it('preserves raw tool error status when guard returns ok', async () => {
+      const tools = [makeTool('bad_tool')]
+      const toolPresenter = createMockToolPresenter()
+      ;(toolPresenter.callTool as ReturnType<typeof vi.fn>).mockResolvedValue({
+        content: 'Upstream failure',
+        rawData: {
+          toolCallId: 'tc1',
+          content: 'Upstream failure',
+          isError: true
+        }
+      })
+      const conversation: any[] = []
+
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: { id: 'tc1', name: 'bad_tool', params: '{}', response: '' }
+      })
+      state.completedToolCalls = [{ id: 'tc1', name: 'bad_tool', arguments: '{}' }]
+
+      await executeTools(
+        state,
+        conversation,
+        0,
+        tools,
+        toolPresenter,
+        'gpt-4',
+        io,
+        'full_access',
+        new ToolOutputGuard(),
+        32000,
+        1024
+      )
+
+      const toolMsg = conversation.find((message: any) => message.role === 'tool')
+      expect(toolMsg.content).toBe('Upstream failure')
+
+      const block = state.blocks.find((b) => b.type === 'tool_call')
+      expect(block!.tool_call!.response).toBe('Upstream failure')
       expect(block!.status).toBe('error')
     })
 
@@ -291,7 +393,10 @@ describe('dispatch', () => {
         toolPresenter,
         'gpt-4',
         abortIo,
-        'full_access'
+        'full_access',
+        new ToolOutputGuard(),
+        32000,
+        1024
       )
 
       // Only first tool should have been called
@@ -312,7 +417,19 @@ describe('dispatch', () => {
       })
       state.completedToolCalls = [{ id: 'tc1', name: 'tool_a', arguments: '{}' }]
 
-      await executeTools(state, [], 0, tools, toolPresenter, 'gpt-4', io, 'full_access')
+      await executeTools(
+        state,
+        [],
+        0,
+        tools,
+        toolPresenter,
+        'gpt-4',
+        io,
+        'full_access',
+        new ToolOutputGuard(),
+        32000,
+        1024
+      )
 
       expect(eventBus.sendToRenderer).toHaveBeenCalledWith(
         'stream:response',
@@ -325,6 +442,211 @@ describe('dispatch', () => {
         })
       )
       expect(io.messageStore.updateAssistantContent).toHaveBeenCalled()
+    })
+
+    it('offloads large yo_browser responses into a stub', async () => {
+      tempHome = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-dispatch-offload-'))
+      getPathSpy = vi.spyOn(app, 'getPath').mockReturnValue(tempHome)
+
+      const tools = [makeTool('yo_browser_cdp_send')]
+      const longScreenshot = JSON.stringify({ data: 'x'.repeat(7000) })
+      const toolPresenter = createMockToolPresenter({ yo_browser_cdp_send: longScreenshot })
+      const conversation: any[] = []
+
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: {
+          id: 'tc1',
+          name: 'yo_browser_cdp_send',
+          params: '{"method":"Page.captureScreenshot"}',
+          response: ''
+        }
+      })
+      state.completedToolCalls = [
+        {
+          id: 'tc1',
+          name: 'yo_browser_cdp_send',
+          arguments: '{"method":"Page.captureScreenshot"}'
+        }
+      ]
+
+      const executed = await executeTools(
+        state,
+        conversation,
+        0,
+        tools,
+        toolPresenter,
+        'gpt-4',
+        io,
+        'full_access',
+        new ToolOutputGuard(),
+        32000,
+        1024
+      )
+
+      expect(executed.terminalError).toBeUndefined()
+      const toolMessage = conversation.find((message: any) => message.role === 'tool')
+      expect(toolMessage.content).toContain('[Tool output offloaded]')
+      expect(toolMessage.content).toContain('tool_tc1.offload')
+      expect(toolMessage.content).not.toContain(tempHome!)
+      expect(state.blocks[0].tool_call?.response).toContain('[Tool output offloaded]')
+      expect(state.blocks[0].status).toBe('success')
+    })
+
+    it('turns offload write failures into tool errors instead of falling back to raw content', async () => {
+      tempHome = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-dispatch-offload-fail-'))
+      getPathSpy = vi.spyOn(app, 'getPath').mockReturnValue(tempHome)
+      const writeFileSpy = vi.spyOn(fs, 'writeFile').mockRejectedValueOnce(new Error('disk full'))
+
+      const tools = [makeTool('yo_browser_cdp_send')]
+      const longScreenshot = JSON.stringify({ data: 'x'.repeat(7000) })
+      const toolPresenter = createMockToolPresenter({ yo_browser_cdp_send: longScreenshot })
+      const conversation: any[] = []
+
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: {
+          id: 'tc1',
+          name: 'yo_browser_cdp_send',
+          params: '{"method":"Page.captureScreenshot"}',
+          response: ''
+        }
+      })
+      state.completedToolCalls = [
+        {
+          id: 'tc1',
+          name: 'yo_browser_cdp_send',
+          arguments: '{"method":"Page.captureScreenshot"}'
+        }
+      ]
+
+      await executeTools(
+        state,
+        conversation,
+        0,
+        tools,
+        toolPresenter,
+        'gpt-4',
+        io,
+        'full_access',
+        new ToolOutputGuard(),
+        32000,
+        1024
+      )
+
+      writeFileSpy.mockRestore()
+      const toolMessage = conversation.find((message: any) => message.role === 'tool')
+      expect(toolMessage.content).toContain('offloading that result to disk failed')
+      expect(toolMessage.content).not.toContain(longScreenshot)
+      expect(state.blocks[0].status).toBe('error')
+    })
+
+    it('marks the tool as error when offload succeeds but context budget cannot fit the stub', async () => {
+      tempHome = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-dispatch-offload-clean-'))
+      getPathSpy = vi.spyOn(app, 'getPath').mockReturnValue(tempHome)
+
+      const tools = [makeTool('yo_browser_cdp_send')]
+      const longScreenshot = JSON.stringify({ data: 'x'.repeat(7000) })
+      const toolPresenter = createMockToolPresenter({ yo_browser_cdp_send: longScreenshot })
+      const conversation: any[] = []
+
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: {
+          id: 'tc1',
+          name: 'yo_browser_cdp_send',
+          params: '{"method":"Page.captureScreenshot"}',
+          response: ''
+        }
+      })
+      state.completedToolCalls = [
+        {
+          id: 'tc1',
+          name: 'yo_browser_cdp_send',
+          arguments: '{"method":"Page.captureScreenshot"}'
+        }
+      ]
+
+      await executeTools(
+        state,
+        conversation,
+        0,
+        tools,
+        toolPresenter,
+        'gpt-4',
+        io,
+        'full_access',
+        new ToolOutputGuard(),
+        200,
+        32
+      )
+
+      const toolMessage = conversation.find((message: any) => message.role === 'tool')
+      expect(toolMessage.content).toContain('remaining context window is insufficient')
+      expect(state.blocks[0].status).toBe('error')
+      await expect(
+        fs.access(path.join(tempHome, '.deepchat', 'sessions', 's1', 'tool_tc1.offload'))
+      ).rejects.toThrow()
+    })
+
+    it('returns terminalError when even the minimal tool failure stub cannot fit', async () => {
+      tempHome = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-dispatch-terminal-clean-'))
+      getPathSpy = vi.spyOn(app, 'getPath').mockReturnValue(tempHome)
+
+      const tools = [makeTool('yo_browser_cdp_send')]
+      const longScreenshot = JSON.stringify({ data: 'x'.repeat(7000) })
+      const toolPresenter = createMockToolPresenter({ yo_browser_cdp_send: longScreenshot })
+      const conversation: any[] = []
+
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: {
+          id: 'tc1',
+          name: 'yo_browser_cdp_send',
+          params: '{"method":"Page.captureScreenshot"}',
+          response: ''
+        }
+      })
+      state.completedToolCalls = [
+        {
+          id: 'tc1',
+          name: 'yo_browser_cdp_send',
+          arguments: '{"method":"Page.captureScreenshot"}'
+        }
+      ]
+
+      const executed = await executeTools(
+        state,
+        conversation,
+        0,
+        tools,
+        toolPresenter,
+        'gpt-4',
+        io,
+        'full_access',
+        new ToolOutputGuard(),
+        1,
+        1
+      )
+
+      expect(executed.terminalError).toContain('remaining context window is too small')
+      expect(conversation.find((message: any) => message.role === 'tool')).toBeUndefined()
+      expect(state.blocks[0].status).toBe('error')
+      await expect(
+        fs.access(path.join(tempHome, '.deepchat', 'sessions', 's1', 'tool_tc1.offload'))
+      ).rejects.toThrow()
     })
   })
 

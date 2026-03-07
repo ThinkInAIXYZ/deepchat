@@ -1,8 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import fs from 'fs/promises'
+import os from 'os'
+import path from 'path'
+import { app } from 'electron'
 import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
 import type { MCPToolDefinition } from '@shared/presenter'
 import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
 import type { ProcessParams } from '@/presenter/deepchatAgentPresenter/types'
+import { ToolOutputGuard } from '@/presenter/deepchatAgentPresenter/toolOutputGuard'
 
 vi.mock('@/eventbus', () => ({
   eventBus: { sendToRenderer: vi.fn() },
@@ -75,6 +80,8 @@ function makeStreamEvents(...events: LLMCoreStreamEvent[]): LLMCoreStreamEvent[]
 
 describe('processStream', () => {
   let messageStore: ReturnType<typeof createMockMessageStore>
+  let tempHome: string | null = null
+  let getPathSpy: ReturnType<typeof vi.spyOn> | null = null
 
   beforeEach(() => {
     vi.useFakeTimers()
@@ -84,6 +91,13 @@ describe('processStream', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+    getPathSpy?.mockRestore()
+    getPathSpy = null
+    if (tempHome) {
+      return fs.rm(tempHome, { recursive: true, force: true }).then(() => {
+        tempHome = null
+      })
+    }
   })
 
   function createParams(overrides: Partial<ProcessParams> = {}): ProcessParams {
@@ -108,6 +122,7 @@ describe('processStream', () => {
       temperature: 0.7,
       maxTokens: 4096,
       permissionMode: 'full_access',
+      toolOutputGuard: new ToolOutputGuard(),
       io: {
         sessionId: 's1',
         messageId: 'm1',
@@ -188,6 +203,53 @@ describe('processStream', () => {
     const toolResultMsg = secondCallMessages.find((m: any) => m.role === 'tool')
     expect(toolResultMsg).toBeDefined()
     expect(toolResultMsg.content).toBe('Sunny, 72F')
+  })
+
+  it('offloads large tool results before the next provider call', async () => {
+    tempHome = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-process-offload-'))
+    getPathSpy = vi.spyOn(app, 'getPath').mockReturnValue(tempHome)
+
+    let callCount = 0
+    const longScreenshot = JSON.stringify({ data: 'x'.repeat(7000) })
+    const coreStream = vi.fn(function () {
+      callCount++
+      if (callCount === 1) {
+        return (async function* () {
+          yield {
+            type: 'tool_call_start',
+            tool_call_id: 'tc1',
+            tool_call_name: 'yo_browser_cdp_send'
+          } as LLMCoreStreamEvent
+          yield {
+            type: 'tool_call_end',
+            tool_call_id: 'tc1',
+            tool_call_arguments_complete: '{"method":"Page.captureScreenshot"}'
+          } as LLMCoreStreamEvent
+          yield { type: 'stop', stop_reason: 'tool_use' } as LLMCoreStreamEvent
+        })()
+      }
+      return (async function* () {
+        yield { type: 'text', content: 'Done' } as LLMCoreStreamEvent
+        yield { type: 'stop', stop_reason: 'complete' } as LLMCoreStreamEvent
+      })()
+    }) as unknown as ProcessParams['coreStream']
+
+    const toolPresenter = createMockToolPresenter({ yo_browser_cdp_send: longScreenshot })
+    const params = createParams({
+      coreStream,
+      toolPresenter,
+      tools: [makeTool('yo_browser_cdp_send')]
+    })
+
+    const promise = processStream(params)
+    await vi.runAllTimersAsync()
+    await promise
+
+    const secondCallMessages = (coreStream as ReturnType<typeof vi.fn>).mock.calls[1][0]
+    const toolResultMsg = secondCallMessages.find((m: any) => m.role === 'tool')
+    expect(toolResultMsg.content).toContain('[Tool output offloaded]')
+    expect(toolResultMsg.content).toContain('tool_tc1.offload')
+    expect(toolResultMsg.content).not.toContain(tempHome!)
   })
 
   it('multiple tool calls in one turn', async () => {
@@ -445,6 +507,61 @@ describe('processStream', () => {
     // This matches the v2 behavior where error events from the stream
     // still lead to finalization (blocks contain the error block).
     expect(messageStore.finalizeAssistantMessage).toHaveBeenCalled()
+  })
+
+  it('context window error event is finalized as an error', async () => {
+    const coreStream = vi.fn(function* () {
+      yield {
+        type: 'error',
+        error_message: 'maximum context length exceeded'
+      } as LLMCoreStreamEvent
+    }) as unknown as ProcessParams['coreStream']
+
+    const params = createParams({ coreStream })
+
+    const promise = processStream(params)
+    await vi.runAllTimersAsync()
+    await promise
+
+    expect(messageStore.setMessageError).toHaveBeenCalled()
+    expect(messageStore.finalizeAssistantMessage).not.toHaveBeenCalled()
+  })
+
+  it('terminal tool output failure stops before the next provider call', async () => {
+    const coreStream = vi.fn(function () {
+      return (async function* () {
+        yield {
+          type: 'tool_call_start',
+          tool_call_id: 'tc1',
+          tool_call_name: 'yo_browser_cdp_send'
+        } as LLMCoreStreamEvent
+        yield {
+          type: 'tool_call_end',
+          tool_call_id: 'tc1',
+          tool_call_arguments_complete: '{"method":"Page.captureScreenshot"}'
+        } as LLMCoreStreamEvent
+        yield { type: 'stop', stop_reason: 'tool_use' } as LLMCoreStreamEvent
+      })()
+    }) as unknown as ProcessParams['coreStream']
+
+    const longScreenshot = JSON.stringify({ data: 'x'.repeat(7000) })
+    const toolPresenter = createMockToolPresenter({ yo_browser_cdp_send: longScreenshot })
+    const params = createParams({
+      coreStream,
+      toolPresenter,
+      tools: [makeTool('yo_browser_cdp_send')],
+      modelConfig: { contextLength: 1 } as any,
+      maxTokens: 1
+    })
+
+    const promise = processStream(params)
+    await vi.runAllTimersAsync()
+    const result = await promise
+
+    expect(result.status).toBe('error')
+    expect(result.terminalError).toContain('remaining context window is too small')
+    expect(coreStream).toHaveBeenCalledTimes(1)
+    expect(messageStore.setMessageError).toHaveBeenCalled()
   })
 
   it('stream exception → catch finalizeError', async () => {
