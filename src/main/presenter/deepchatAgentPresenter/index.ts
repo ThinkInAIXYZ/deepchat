@@ -618,12 +618,9 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     }
 
     const currentGeneration = await this.getEffectiveSessionGenerationSettings(sessionId)
-    const sanitized = await this.sanitizeGenerationSettings(
-      nextProviderId,
-      nextModelId,
-      {},
-      currentGeneration
-    )
+    const sanitized = await this.sanitizeGenerationSettings(nextProviderId, nextModelId, {
+      systemPrompt: currentGeneration.systemPrompt
+    })
 
     if (state) {
       state.providerId = nextProviderId

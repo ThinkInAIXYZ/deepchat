@@ -890,7 +890,7 @@ export interface AcpDebugRunResult {
   events: AcpDebugEventEntry[]
 }
 
-export type AcpBuiltinAgentId = 'kimi-cli' | 'claude-code-acp' | 'codex-acp'
+export type AcpBuiltinAgentId = 'kimi-cli' | 'claude-code-acp' | 'codex-acp' | 'dimcode-acp'
 
 export interface AcpAgentProfile {
   id: string

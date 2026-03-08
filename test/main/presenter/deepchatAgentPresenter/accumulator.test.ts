@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { accumulate } from '@/presenter/deepchatAgentPresenter/accumulator'
 import { createState } from '@/presenter/deepchatAgentPresenter/types'
 import type { StreamState } from '@/presenter/deepchatAgentPresenter/types'
@@ -8,6 +8,10 @@ describe('accumulate', () => {
 
   beforeEach(() => {
     state = createState()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   it('coalesces text events into a single content block', () => {
@@ -27,6 +31,48 @@ describe('accumulate', () => {
     expect(state.blocks).toHaveLength(1)
     expect(state.blocks[0].type).toBe('reasoning_content')
     expect(state.blocks[0].content).toBe('Think more')
+  })
+
+  it('tracks reasoning_time and metadata for reasoning blocks', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(1_000)
+    const timedState = createState()
+
+    accumulate(timedState, { type: 'reasoning', reasoning_content: 'Think ' })
+    vi.setSystemTime(1_450)
+    accumulate(timedState, { type: 'reasoning', reasoning_content: 'more' })
+
+    expect(timedState.blocks).toHaveLength(1)
+    expect(timedState.blocks[0].reasoning_time).toEqual({
+      start: 1_000,
+      end: 1_450
+    })
+    expect(timedState.metadata.reasoningStartTime).toBe(0)
+    expect(timedState.metadata.reasoningEndTime).toBe(450)
+  })
+
+  it('starts a new reasoning timer after a non-reasoning block interrupts the stream', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(2_000)
+    const timedState = createState()
+
+    accumulate(timedState, { type: 'reasoning', reasoning_content: 'First' })
+    vi.setSystemTime(2_300)
+    accumulate(timedState, { type: 'text', content: 'Answer' })
+    vi.setSystemTime(2_800)
+    accumulate(timedState, { type: 'reasoning', reasoning_content: 'Second' })
+
+    expect(timedState.blocks).toHaveLength(3)
+    expect(timedState.blocks[0].reasoning_time).toEqual({
+      start: 2_000,
+      end: 2_000
+    })
+    expect(timedState.blocks[2].reasoning_time).toEqual({
+      start: 2_800,
+      end: 2_800
+    })
+    expect(timedState.metadata.reasoningStartTime).toBe(0)
+    expect(timedState.metadata.reasoningEndTime).toBe(800)
   })
 
   it('creates separate blocks for different types', () => {

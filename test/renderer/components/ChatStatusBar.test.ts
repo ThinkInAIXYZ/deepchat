@@ -45,7 +45,8 @@ const setup = async (options: SetupOptions = {}) => {
 
   const modelLookup = new Map([
     ['gpt-4', { model: { id: 'gpt-4', name: 'GPT-4' } }],
-    ['acp-agent', { model: { id: 'acp-agent', name: 'ACP Agent' } }]
+    ['acp-agent', { model: { id: 'acp-agent', name: 'ACP Agent' } }],
+    ['dimcode-acp', { model: { id: 'dimcode-acp', name: 'DimCode - Default' } }]
   ])
 
   const themeStore = reactive({
@@ -60,7 +61,10 @@ const setup = async (options: SetupOptions = {}) => {
       },
       {
         providerId: 'acp',
-        models: [{ id: 'acp-agent', name: 'ACP Agent' }]
+        models: [
+          { id: 'acp-agent', name: 'ACP Agent' },
+          { id: 'dimcode-acp', name: 'DimCode - Default' }
+        ]
       }
     ],
     findModelByIdOrName: vi.fn((value: string) => modelLookup.get(value) ?? null)
@@ -217,7 +221,13 @@ const setup = async (options: SetupOptions = {}) => {
         SelectItem: passthrough('SelectItem'),
         SelectTrigger: passthrough('SelectTrigger'),
         SelectValue: passthrough('SelectValue'),
-        ModelIcon: true,
+        ModelIcon: defineComponent({
+          name: 'ModelIcon',
+          props: {
+            modelId: { type: String, default: '' }
+          },
+          template: '<div class="model-icon-stub" :data-model-id="modelId" />'
+        }),
         Icon: true
       }
     }
@@ -315,6 +325,40 @@ describe('ChatStatusBar advanced settings', () => {
     )
   })
 
+  it('reloads active session generation settings after switching models', async () => {
+    const { wrapper, sessionStore, newAgentPresenter } = await setup({
+      agentId: 'deepchat',
+      hasActiveSession: true,
+      activeProviderId: 'openai',
+      activeModelId: 'gpt-4'
+    })
+
+    const nextSettings = {
+      systemPrompt: 'Keep this prompt',
+      temperature: 0.2,
+      contextLength: 32000,
+      maxTokens: 2048,
+      thinkingBudget: 256,
+      reasoningEffort: 'low' as const,
+      verbosity: 'high' as const
+    }
+
+    sessionStore.setSessionModel.mockImplementation(async () => {
+      if (sessionStore.activeSession) {
+        sessionStore.activeSession.providerId = 'anthropic'
+        sessionStore.activeSession.modelId = 'claude-3-5-sonnet'
+      }
+    })
+    newAgentPresenter.getSessionGenerationSettings.mockClear()
+    newAgentPresenter.getSessionGenerationSettings.mockResolvedValue(nextSettings)
+
+    await (wrapper.vm as any).selectModel('anthropic', 'claude-3-5-sonnet')
+    await flushPromises()
+
+    expect(newAgentPresenter.getSessionGenerationSettings).toHaveBeenCalledWith('s1')
+    expect((wrapper.vm as any).localSettings).toEqual(nextSettings)
+  })
+
   it('updates draft model and preferred model when no active session', async () => {
     const { wrapper, sessionStore, draftStore, configPresenter } = await setup({
       agentId: 'deepchat',
@@ -330,6 +374,17 @@ describe('ChatStatusBar advanced settings', () => {
       providerId: 'anthropic',
       modelId: 'claude-3-5-sonnet'
     })
+  })
+
+  it('uses ACP model id for the displayed icon', async () => {
+    const { wrapper } = await setup({
+      agentId: 'dimcode-acp',
+      hasActiveSession: true,
+      activeProviderId: 'acp',
+      activeModelId: 'dimcode-acp'
+    })
+
+    expect(wrapper.find('.model-icon-stub').attributes('data-model-id')).toBe('dimcode-acp')
   })
 
   it('keeps advanced modal open when clicking advanced select portal content', async () => {

@@ -10,7 +10,7 @@
               class="h-6 px-2 gap-1 text-xs text-muted-foreground hover:text-foreground backdrop-blur-lg"
             >
               <ModelIcon
-                :model-id="displayProviderId"
+                :model-id="displayIconId"
                 custom-class="w-3.5 h-3.5"
                 :is-dark="themeStore.isDark"
               />
@@ -25,7 +25,7 @@
                 @click="selectModel(group.providerId, group.model.id)"
               >
                 <ModelIcon
-                  :model-id="group.providerId"
+                  :model-id="resolveModelIconId(group.providerId, group.model.id)"
                   custom-class="w-3.5 h-3.5"
                   :is-dark="themeStore.isDark"
                 />
@@ -42,7 +42,7 @@
           :disabled="true"
         >
           <ModelIcon
-            :model-id="displayProviderId"
+            :model-id="displayIconId"
             custom-class="w-3.5 h-3.5"
             :is-dark="themeStore.isDark"
           />
@@ -635,18 +635,27 @@ watch(
   { immediate: true }
 )
 
-const displayProviderId = computed(() => {
+const resolveModelIconId = (providerId?: string | null, modelId?: string | null): string => {
+  if (providerId === 'acp' && modelId) {
+    return modelId
+  }
+  return providerId || 'anthropic'
+}
+
+const displayIconId = computed(() => {
   if (hasActiveSession.value) {
-    return (
-      activeSessionSelection.value?.providerId ||
-      draftModelSelection.value?.providerId ||
-      'anthropic'
+    return resolveModelIconId(
+      activeSessionSelection.value?.providerId || draftModelSelection.value?.providerId,
+      activeSessionSelection.value?.modelId || draftModelSelection.value?.modelId
     )
   }
   if (isAcpAgent.value) {
-    return agentStore.selectedAgentId ?? 'acp'
+    return resolveModelIconId('acp', agentStore.selectedAgentId)
   }
-  return draftModelSelection.value?.providerId || 'anthropic'
+  return resolveModelIconId(
+    draftModelSelection.value?.providerId,
+    draftModelSelection.value?.modelId
+  )
 })
 
 const displayModelName = computed(() => {
