@@ -57,7 +57,7 @@
                 />
               </template>
             </ChatInputBox>
-            <ChatStatusBar />
+            <ChatStatusBar max-width-class="max-w-4xl" />
           </template>
         </div>
       </div>
