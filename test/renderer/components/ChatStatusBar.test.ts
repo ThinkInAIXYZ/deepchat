@@ -325,6 +325,40 @@ describe('ChatStatusBar advanced settings', () => {
     )
   })
 
+  it('reloads active session generation settings after switching models', async () => {
+    const { wrapper, sessionStore, newAgentPresenter } = await setup({
+      agentId: 'deepchat',
+      hasActiveSession: true,
+      activeProviderId: 'openai',
+      activeModelId: 'gpt-4'
+    })
+
+    const nextSettings = {
+      systemPrompt: 'Keep this prompt',
+      temperature: 0.2,
+      contextLength: 32000,
+      maxTokens: 2048,
+      thinkingBudget: 256,
+      reasoningEffort: 'low' as const,
+      verbosity: 'high' as const
+    }
+
+    sessionStore.setSessionModel.mockImplementation(async () => {
+      if (sessionStore.activeSession) {
+        sessionStore.activeSession.providerId = 'anthropic'
+        sessionStore.activeSession.modelId = 'claude-3-5-sonnet'
+      }
+    })
+    newAgentPresenter.getSessionGenerationSettings.mockClear()
+    newAgentPresenter.getSessionGenerationSettings.mockResolvedValue(nextSettings)
+
+    await (wrapper.vm as any).selectModel('anthropic', 'claude-3-5-sonnet')
+    await flushPromises()
+
+    expect(newAgentPresenter.getSessionGenerationSettings).toHaveBeenCalledWith('s1')
+    expect((wrapper.vm as any).localSettings).toEqual(nextSettings)
+  })
+
   it('updates draft model and preferred model when no active session', async () => {
     const { wrapper, sessionStore, draftStore, configPresenter } = await setup({
       agentId: 'deepchat',

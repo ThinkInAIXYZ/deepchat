@@ -86,6 +86,7 @@ function createMockSqlitePresenter() {
       getGenerationSettings: vi.fn(),
       getSummaryState: vi.fn(() => ({ ...summaryState })),
       updatePermissionMode: vi.fn(),
+      updateSessionModel: vi.fn(),
       updateGenerationSettings: vi.fn(),
       updateSummaryState: vi.fn((_id: string, nextState: any) => {
         summaryState.summary_text = nextState.summaryText ?? null
@@ -1102,6 +1103,148 @@ describe('DeepChatAgentPresenter', () => {
         reasoningEffort: 'medium',
         verbosity: 'medium'
       })
+    })
+
+    it('keeps system prompt and resets other settings to the new model defaults', async () => {
+      configPresenter.getModelConfig.mockImplementation((modelId: string, providerId: string) => {
+        if (providerId === 'anthropic' && modelId === 'claude-3-5-sonnet') {
+          return {
+            temperature: 0.2,
+            maxTokens: 2048,
+            contextLength: 32000,
+            thinkingBudget: 256,
+            reasoningEffort: 'low',
+            verbosity: 'high'
+          }
+        }
+        return {
+          temperature: 0.7,
+          maxTokens: 4096,
+          contextLength: 128000,
+          thinkingBudget: 512,
+          reasoningEffort: 'medium',
+          verbosity: 'medium'
+        }
+      })
+      configPresenter.getThinkingBudgetRange.mockImplementation(
+        (providerId: string, modelId: string) => {
+          if (providerId === 'anthropic' && modelId === 'claude-3-5-sonnet') {
+            return { min: 0, max: 4096, default: 256 }
+          }
+          return { min: 0, max: 8192, default: 512 }
+        }
+      )
+      configPresenter.getReasoningEffortDefault.mockImplementation(
+        (providerId: string, modelId: string) => {
+          if (providerId === 'anthropic' && modelId === 'claude-3-5-sonnet') {
+            return 'low'
+          }
+          return 'medium'
+        }
+      )
+      configPresenter.getVerbosityDefault.mockImplementation(
+        (providerId: string, modelId: string) => {
+          if (providerId === 'anthropic' && modelId === 'claude-3-5-sonnet') {
+            return 'high'
+          }
+          return 'medium'
+        }
+      )
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.updateGenerationSettings('s1', {
+        systemPrompt: 'Keep this prompt',
+        temperature: 1.5,
+        contextLength: 64000,
+        maxTokens: 1234,
+        thinkingBudget: 1024,
+        reasoningEffort: 'minimal',
+        verbosity: 'low'
+      })
+
+      await agent.setSessionModel('s1', 'anthropic', 'claude-3-5-sonnet')
+
+      expect(sqlitePresenter.deepchatSessionsTable.updateSessionModel).toHaveBeenCalledWith(
+        's1',
+        'anthropic',
+        'claude-3-5-sonnet'
+      )
+
+      const updated = await agent.getGenerationSettings('s1')
+      expect(updated).toEqual({
+        systemPrompt: 'Keep this prompt',
+        temperature: 0.2,
+        contextLength: 32000,
+        maxTokens: 2048,
+        thinkingBudget: 256,
+        reasoningEffort: 'low',
+        verbosity: 'high'
+      })
+    })
+
+    it('drops unsupported reasoning and verbosity settings when switching models', async () => {
+      configPresenter.getModelConfig.mockImplementation((modelId: string, providerId: string) => {
+        if (providerId === 'openai' && modelId === 'gpt-4o-mini') {
+          return {
+            temperature: 0.4,
+            maxTokens: 1024,
+            contextLength: 8192
+          }
+        }
+        return {
+          temperature: 0.7,
+          maxTokens: 4096,
+          contextLength: 128000,
+          thinkingBudget: 512,
+          reasoningEffort: 'medium',
+          verbosity: 'medium'
+        }
+      })
+      configPresenter.supportsReasoningCapability.mockImplementation(
+        (providerId: string, modelId: string) =>
+          !(providerId === 'openai' && modelId === 'gpt-4o-mini')
+      )
+      configPresenter.supportsReasoningEffortCapability.mockImplementation(
+        (providerId: string, modelId: string) =>
+          !(providerId === 'openai' && modelId === 'gpt-4o-mini')
+      )
+      configPresenter.supportsVerbosityCapability.mockImplementation(
+        (providerId: string, modelId: string) =>
+          !(providerId === 'openai' && modelId === 'gpt-4o-mini')
+      )
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.updateGenerationSettings('s1', {
+        systemPrompt: 'Keep this prompt',
+        thinkingBudget: 1024,
+        reasoningEffort: 'high',
+        verbosity: 'high'
+      })
+
+      await agent.setSessionModel('s1', 'openai', 'gpt-4o-mini')
+
+      const updated = await agent.getGenerationSettings('s1')
+      expect(updated).toEqual({
+        systemPrompt: 'Keep this prompt',
+        temperature: 0.4,
+        contextLength: 8192,
+        maxTokens: 1024
+      })
+    })
+
+    it('rejects model switching while the session is generating', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      ;((agent as any).runtimeState as Map<string, { status: string }>).set('s1', {
+        status: 'generating',
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        permissionMode: 'full_access'
+      })
+
+      await expect(agent.setSessionModel('s1', 'anthropic', 'claude-3-5-sonnet')).rejects.toThrow(
+        'Cannot switch model while session is generating.'
+      )
+      expect(sqlitePresenter.deepchatSessionsTable.updateSessionModel).not.toHaveBeenCalled()
     })
   })
 
