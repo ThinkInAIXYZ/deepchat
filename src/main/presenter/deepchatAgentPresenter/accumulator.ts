@@ -20,6 +20,16 @@ function getCurrentBlock(
   return block
 }
 
+function updateReasoningMetadata(state: StreamState, start: number, end: number): void {
+  const relativeStart = Math.max(0, start - state.startTime)
+  const relativeEnd = Math.max(0, end - state.startTime)
+
+  if (state.metadata.reasoningStartTime === undefined) {
+    state.metadata.reasoningStartTime = relativeStart
+  }
+  state.metadata.reasoningEndTime = relativeEnd
+}
+
 /**
  * Apply a single stream event to the accumulator state.
  * Pure block mutations only — no I/O, no finalization, no emit.
@@ -34,9 +44,25 @@ export function accumulate(state: StreamState, event: LLMCoreStreamEvent): void 
       break
     }
     case 'reasoning': {
-      if (state.firstTokenTime === null) state.firstTokenTime = Date.now()
+      const currentTime = Date.now()
+      if (state.firstTokenTime === null) state.firstTokenTime = currentTime
       const block = getCurrentBlock(state.blocks, 'reasoning_content')
       block.content += event.reasoning_content
+      if (
+        typeof block.reasoning_time !== 'object' ||
+        block.reasoning_time === null ||
+        typeof block.reasoning_time.start !== 'number' ||
+        typeof block.reasoning_time.end !== 'number'
+      ) {
+        block.reasoning_time = {
+          start: currentTime,
+          end: currentTime
+        }
+      } else {
+        block.reasoning_time.end = currentTime
+      }
+      const reasoningTime = block.reasoning_time as { start: number; end: number }
+      updateReasoningMetadata(state, reasoningTime.start, reasoningTime.end)
       state.dirty = true
       break
     }

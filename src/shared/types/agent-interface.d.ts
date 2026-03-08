@@ -234,6 +234,8 @@ export interface MessageMetadata {
   outputTokens?: number
   generationTime?: number
   firstTokenTime?: number
+  reasoningStartTime?: number
+  reasoningEndTime?: number
   tokensPerSecond?: number
   model?: string
   provider?: string

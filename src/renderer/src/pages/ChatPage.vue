@@ -187,8 +187,8 @@ function buildUsage(metadata: MessageMetadata): Message['usage'] {
     total_tokens: metadata.totalTokens ?? 0,
     generation_time: metadata.generationTime ?? 0,
     first_token_time: metadata.firstTokenTime ?? 0,
-    reasoning_start_time: 0,
-    reasoning_end_time: 0,
+    reasoning_start_time: metadata.reasoningStartTime ?? 0,
+    reasoning_end_time: metadata.reasoningEndTime ?? 0,
     input_tokens: metadata.inputTokens ?? 0,
     output_tokens: metadata.outputTokens ?? 0
   }
