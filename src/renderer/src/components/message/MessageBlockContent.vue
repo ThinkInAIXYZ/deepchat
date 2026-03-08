@@ -60,38 +60,33 @@ watch(
         const { content, loading } = part
         if (props.block.status === 'loading') {
           const status = loading ? 'loading' : 'loaded'
-          if (artifactStore.currentArtifact?.id === artifact.identifier) {
-            // Use updateArtifactContent to trigger reactivity
-            artifactStore.updateArtifactContent({
-              content,
-              title,
-              type,
-              status
-            })
+          const nextArtifact = {
+            id: artifact.identifier,
+            type,
+            title,
+            language: artifact.language,
+            content,
+            status
+          } as const
+
+          if (loading) {
+            artifactStore.syncArtifact(nextArtifact, props.messageId, props.threadId)
           } else {
-            artifactStore.showArtifact(
-              {
-                id: artifact.identifier,
-                type,
-                title,
-                language: artifact.language,
-                content,
-                status
-              },
-              props.messageId,
-              props.threadId
-            )
+            artifactStore.completeArtifact(nextArtifact, props.messageId, props.threadId)
           }
         } else {
-          if (artifactStore.currentArtifact?.id === artifact.identifier) {
-            // Use updateArtifactContent to trigger reactivity
-            artifactStore.updateArtifactContent({
-              content,
-              title: artifact.title,
+          artifactStore.completeArtifact(
+            {
+              id: artifact.identifier,
               type,
+              title: artifact.title,
+              language: artifact.language,
+              content,
               status: 'loaded'
-            })
-          }
+            },
+            props.messageId,
+            props.threadId
+          )
         }
       }
     })

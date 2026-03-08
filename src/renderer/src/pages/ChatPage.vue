@@ -2,7 +2,7 @@
   <TooltipProvider :delay-duration="200">
     <div
       ref="scrollContainer"
-      class="h-full overflow-y-auto message-list-container"
+      class="message-list-container h-full w-full min-w-0 overflow-y-auto"
       @scroll="onScroll"
     >
       <ChatTopBar
@@ -25,8 +25,8 @@
       <TraceDialog :message-id="traceMessageId" @close="traceMessageId = null" />
 
       <!-- Input area (sticky bottom, messages scroll under) -->
-      <div class="sticky bottom-0 z-10 px-6 pt-3 pb-3 chat-capture-hide">
-        <div class="flex flex-col items-center w-full">
+      <div class="chat-capture-hide sticky bottom-0 z-10 w-full px-6 pb-3 pt-3">
+        <div class="mx-auto flex w-full max-w-5xl min-w-0 flex-col items-center">
           <ChatToolInteractionOverlay
             v-if="activePendingInteraction"
             :interaction="activePendingInteraction"
@@ -37,6 +37,7 @@
             <ChatInputBox
               ref="chatInputRef"
               v-model="message"
+              max-width-class="max-w-4xl"
               :files="attachedFiles"
               :session-id="props.sessionId"
               :workspace-path="sessionStore.activeSession?.projectDir ?? null"

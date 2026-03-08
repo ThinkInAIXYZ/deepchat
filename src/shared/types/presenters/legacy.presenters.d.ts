@@ -205,6 +205,18 @@ export interface IYoBrowserPresenter {
   initialize(): Promise<void>
   ensureWindow(): Promise<number | null>
   openWindow(url?: string): Promise<BrowserWindowInfo | null>
+  attachEmbeddedToWindow(windowId: number): Promise<number | null>
+  updateEmbeddedBounds(
+    windowId: number,
+    bounds: {
+      x: number
+      y: number
+      width: number
+      height: number
+    },
+    visible: boolean
+  ): Promise<void>
+  detachEmbedded(): Promise<void>
   focusWindow(windowId: number): Promise<void>
   closeWindow(windowId: number): Promise<void>
   listWindows(): Promise<BrowserWindowInfo[]>

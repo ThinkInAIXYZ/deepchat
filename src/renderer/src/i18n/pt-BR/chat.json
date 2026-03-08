@@ -126,6 +126,11 @@
   },
   "workspace": {
     "collapse": "fechar",
+    "sections": {
+      "files": "Arquivos",
+      "git": "Git",
+      "artifacts": "Artifacts"
+    },
     "files": {
       "contextMenu": {
         "insertPath": "Insira na caixa de entrada",
@@ -135,6 +140,12 @@
       "empty": "Nenhum arquivo ainda",
       "loading": "Carregando arquivos...",
       "section": "documento"
+    },
+    "git": {
+      "empty": "Nenhum diff disponível",
+      "clean": "Árvore de trabalho limpa",
+      "staged": "Em stage",
+      "unstaged": "Sem stage"
     },
     "browser": {
       "section": "Navegador",

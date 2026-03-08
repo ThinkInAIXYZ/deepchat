@@ -175,7 +175,7 @@ export class Presenter implements IPresenter {
     this.trayPresenter = new TrayPresenter()
     this.floatingButtonPresenter = new FloatingButtonPresenter(this.configPresenter)
     this.dialogPresenter = new DialogPresenter()
-    this.yoBrowserPresenter = new YoBrowserPresenter(this.windowPresenter, this.tabPresenter)
+    this.yoBrowserPresenter = new YoBrowserPresenter(this.windowPresenter)
 
     // Define dbDir for knowledge presenter
     const dbDir = path.join(app.getPath('userData'), 'app_db')
@@ -186,7 +186,7 @@ export class Presenter implements IPresenter {
     )
 
     // Initialize generic Workspace presenter (for all Agent modes)
-    this.workspacePresenter = new WorkspacePresenter()
+    this.workspacePresenter = new WorkspacePresenter(this.filePresenter)
 
     // Initialize unified Tool presenter (for routing MCP and Agent tools)
     this.toolPresenter = new ToolPresenter({

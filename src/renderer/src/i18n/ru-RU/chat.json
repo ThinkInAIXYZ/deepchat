@@ -126,6 +126,11 @@
   },
   "workspace": {
     "collapse": "закрывать",
+    "sections": {
+      "files": "Файлы",
+      "git": "Git",
+      "artifacts": "Artifacts"
+    },
     "files": {
       "contextMenu": {
         "insertPath": "Вставить в поле ввода",
@@ -135,6 +140,12 @@
       "empty": "Файлов пока нет",
       "loading": "Загрузка файлов...",
       "section": "документ"
+    },
+    "git": {
+      "empty": "Нет доступного diff",
+      "clean": "Рабочее дерево чистое",
+      "staged": "В индексе",
+      "unstaged": "Не в индексе"
     },
     "browser": {
       "section": "Браузер",

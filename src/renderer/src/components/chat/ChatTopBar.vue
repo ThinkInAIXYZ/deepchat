@@ -13,6 +13,16 @@
     </div>
 
     <div class="flex items-center gap-1 no-drag">
+      <Button
+        variant="ghost"
+        size="icon"
+        class="h-7 w-7 text-muted-foreground hover:text-foreground"
+        :title="t('chat.workspace.title')"
+        @click="sidepanelStore.toggleWorkspace(props.sessionId)"
+      >
+        <Icon icon="lucide:folder-tree" class="w-4 h-4" />
+      </Button>
+
       <DropdownMenu>
         <DropdownMenuTrigger as-child>
           <Button
@@ -151,6 +161,7 @@ import {
   DialogTitle
 } from '@shadcn/components/ui/dialog'
 import { useSessionStore } from '@/stores/ui/session'
+import { useSidepanelStore } from '@/stores/ui/sidepanel'
 import { useToast } from '@/components/use-toast'
 
 defineOptions({
@@ -166,6 +177,7 @@ const props = defineProps<{
 const attrs = useAttrs()
 const { t } = useI18n()
 const sessionStore = useSessionStore()
+const sidepanelStore = useSidepanelStore()
 const { toast } = useToast()
 
 const renameDialogOpen = ref(false)

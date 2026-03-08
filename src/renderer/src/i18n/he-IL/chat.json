@@ -126,6 +126,11 @@
   },
   "workspace": {
     "collapse": "לִסְגוֹר",
+    "sections": {
+      "files": "קבצים",
+      "git": "Git",
+      "artifacts": "Artifacts"
+    },
     "files": {
       "contextMenu": {
         "insertPath": "הכנס לתוך תיבת הקלט",
@@ -135,6 +140,12 @@
       "empty": "עדיין אין קבצים",
       "loading": "טוען קבצים...",
       "section": "מִסְמָך"
+    },
+    "git": {
+      "empty": "אין diff להצגה",
+      "clean": "עץ העבודה נקי",
+      "staged": "ב-Staged",
+      "unstaged": "לא ב-Staged"
     },
     "browser": {
       "section": "דפדפן",

@@ -126,6 +126,11 @@
   },
   "workspace": {
     "collapse": "tæt",
+    "sections": {
+      "files": "Filer",
+      "git": "Git",
+      "artifacts": "Artifacts"
+    },
     "files": {
       "contextMenu": {
         "insertPath": "Indsæt i inputboksen",
@@ -135,6 +140,12 @@
       "empty": "Ingen filer endnu",
       "loading": "Indlæser filer...",
       "section": "dokument"
+    },
+    "git": {
+      "empty": "Ingen diff tilgængelig",
+      "clean": "Arbejdstreet er rent",
+      "staged": "Indekseret",
+      "unstaged": "Ikke indekseret"
     },
     "browser": {
       "section": "Browser",

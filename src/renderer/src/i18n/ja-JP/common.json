@@ -91,9 +91,13 @@
     "back": "戻る",
     "forward": "進む",
     "reload": "再読み込み",
+    "addressLabel": "アドレスバー",
     "addressPlaceholder": "URLを入力",
     "enterUrlDescription": "上のアドレスバーに URL を入力して Web サイトにアクセスします",
     "enterUrlToStart": "URLを入力してアクセスを開始してください",
     "name": "よブラウザ"
+  },
+  "size": {
+    "bytes": "{count} バイト"
   }
 }

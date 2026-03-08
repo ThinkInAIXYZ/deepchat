@@ -23,6 +23,21 @@ export interface ProcessedPart {
   }
 }
 
+export interface ParsedArtifactPart {
+  identifier: string
+  title: string
+  type:
+    | 'application/vnd.ant.code'
+    | 'text/markdown'
+    | 'text/html'
+    | 'image/svg+xml'
+    | 'application/vnd.ant.mermaid'
+    | 'application/vnd.ant.react'
+  language?: string
+  content: string
+  loading: boolean
+}
+
 // 定义可接受的artifact类型
 type ArtifactType =
   | 'application/vnd.ant.code'
@@ -41,6 +56,31 @@ export const useBlockContent = (props: { block: AssistantMessageBlock }) => {
   return {
     processedContent
   }
+}
+
+export function extractArtifactsFromContent(
+  content: string,
+  status: AssistantMessageBlock['status']
+): ParsedArtifactPart[] {
+  return generatePart(content, status)
+    .filter(
+      (
+        part
+      ): part is ProcessedPart & {
+        type: 'artifact'
+        artifact: NonNullable<ProcessedPart['artifact']>
+      } => {
+        return part.type === 'artifact' && Boolean(part.artifact)
+      }
+    )
+    .map((part) => ({
+      identifier: part.artifact.identifier,
+      title: part.artifact.title,
+      type: part.artifact.type,
+      language: part.artifact.language,
+      content: part.content,
+      loading: Boolean(part.loading)
+    }))
 }
 
 // 辅助函数：解析标签属性

@@ -21,11 +21,6 @@ export {
   backgroundExecSessionManager,
   type SessionMeta
 } from './backgroundExecSessionManager'
-export {
-  registerCommandProcess,
-  unregisterCommandProcess,
-  terminateCommandProcess
-} from './commandProcessTracker'
 export { getShellEnvironment, clearShellEnvironmentCache } from './shellEnvHelper'
 export { convertMcpConfigToAcpFormat } from './mcpConfigConverter'
 export { filterMcpServersByTransportSupport } from './mcpTransportFilter'

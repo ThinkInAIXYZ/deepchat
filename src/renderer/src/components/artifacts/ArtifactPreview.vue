@@ -30,10 +30,12 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
 import { useArtifactStore } from '@/stores/artifact'
+import { useSidepanelStore } from '@/stores/ui/sidepanel'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 const artifactStore = useArtifactStore()
+const sidepanelStore = useSidepanelStore()
 
 // 创建一个安全的翻译函数
 const t = (() => {
@@ -302,6 +304,7 @@ const handleClick = () => {
     artifactStore.currentArtifact?.content === props.block.content
   ) {
     artifactStore.hideArtifact()
+    sidepanelStore.closePanel()
   } else {
     artifactStore.showArtifact(
       {
