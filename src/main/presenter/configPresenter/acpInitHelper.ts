@@ -67,6 +67,10 @@ const BUILTIN_INIT_COMMANDS: Record<AcpBuiltinAgentId, InitCommandConfig> = {
   'codex-acp': {
     commands: ['npm i -g @zed-industries/codex-acp', 'npm install -g @openai/codex', 'codex'],
     description: 'Initialize Codex CLI ACP'
+  },
+  'dimcode-acp': {
+    commands: ['npm i -g dimcode', 'dim'],
+    description: 'Initialize DimCode ACP'
   }
 }
 

@@ -1108,7 +1108,7 @@
     "resetToDefaultFailed": "重置失败，请重试"
   },
   "skills": {
-    "title": "skills管理",
+    "title": "Skills设置",
     "description": "管理和配置 AI 助手的 skill 模块",
     "openFolder": "打开文件夹",
     "addSkill": "添加 skill",

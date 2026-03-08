@@ -13,7 +13,12 @@ import { McpConfHelper } from './mcpConfHelper'
 const ACP_STORE_VERSION = '2'
 const DEFAULT_PROFILE_NAME = 'Default'
 
-const BUILTIN_ORDER: AcpBuiltinAgentId[] = ['kimi-cli', 'claude-code-acp', 'codex-acp']
+const BUILTIN_ORDER: AcpBuiltinAgentId[] = [
+  'kimi-cli',
+  'claude-code-acp',
+  'codex-acp',
+  'dimcode-acp'
+]
 
 interface BuiltinTemplate {
   name: string
@@ -45,6 +50,15 @@ const BUILTIN_TEMPLATES: Record<AcpBuiltinAgentId, BuiltinTemplate> = {
       name: DEFAULT_PROFILE_NAME,
       command: 'npx',
       args: ['-y', '@zed-industries/codex-acp'],
+      env: {}
+    })
+  },
+  'dimcode-acp': {
+    name: 'DimCode',
+    defaultProfile: () => ({
+      name: DEFAULT_PROFILE_NAME,
+      command: 'dim',
+      args: ['acp'],
       env: {}
     })
   }

@@ -32,6 +32,7 @@ import deepseekColorIcon from '@/assets/llm-icons/deepseek-color.svg?url'
 import openaiColorIcon from '@/assets/llm-icons/openai.svg?url'
 import ollamaColorIcon from '@/assets/llm-icons/ollama.svg?url'
 import doubaoColorIcon from '@/assets/llm-icons/doubao-color.svg?url'
+import dimcodeColorIcon from '@/assets/llm-icons/dimcode.svg?url'
 import minimaxColorIcon from '@/assets/llm-icons/minimax-color.svg?url'
 import fireworksColorIcon from '@/assets/llm-icons/fireworks-color.svg?url'
 import zerooneColorIcon from '@/assets/llm-icons/zeroone.svg?url'
@@ -75,6 +76,7 @@ const icons = {
   'kimi-cli': moonshotColorIcon,
   'claude-code-acp': claudeColorIcon,
   'codex-acp': openaiColorIcon,
+  'dimcode-acp': dimcodeColorIcon,
   o3fan: o3fanColorIcon,
   cherryin: cherryinColorIcon,
   modelscope: modelscopeColorIcon,
@@ -197,6 +199,7 @@ const iconKey = computed(() => {
 // Monochrome icon URLs that need inversion in dark mode
 const monoIconUrls = new Set([
   openaiColorIcon,
+  dimcodeColorIcon,
   ollamaColorIcon,
   zerooneColorIcon,
   xaiColorIcon,
