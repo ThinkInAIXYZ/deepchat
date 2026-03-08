@@ -42,7 +42,6 @@
     "contentProtectionEnableDesc": "L'activation de la protection de l'écran empêche les logiciels de partage d'écran de capturer la fenêtre DeepChat, protégeant ainsi la confidentialité de votre contenu. Notez que cette fonctionnalité ne masquera pas complètement toutes les interfaces. Veuillez utiliser cette fonctionnalité de manière responsable et conformément aux réglementations. De plus, tous les logiciels de partage d'écran ne prennent pas en charge cette fonctionnalité. Certains environnements peuvent laisser une fenêtre noire.",
     "contentProtectionDisableDesc": "La désactivation de la protection de l'écran permettra aux logiciels de partage d'écran de capturer la fenêtre DeepChat.",
     "contentProtectionRestartNotice": "La modification de ce paramètre redémarrera l'application. Voulez-vous continuer ?",
-    "soundEnabled": "Activer le son",
     "copyWithCotEnabled": "Copier les infos COT",
     "loggingEnabled": "Activer la journalisation",
     "loggingDialogTitle": "Confirmer le changement de paramètre de journalisation",

@@ -39,6 +39,7 @@ import { DeepChatSessionStore, type SessionSummaryState } from './sessionStore'
 import type { PendingToolInteraction, ProcessResult } from './types'
 import { ToolOutputGuard } from './toolOutputGuard'
 import type { ProviderRequestTracePayload } from '../llmProviderPresenter/requestTrace'
+import type { NewSessionHooksBridge } from '../hooksNotifications/newSessionBridge'
 
 type PendingInteractionEntry = {
   interaction: PendingToolInteraction
@@ -98,6 +99,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
   private readonly runtimeState: Map<string, DeepChatSessionState> = new Map()
   private readonly sessionGenerationSettings: Map<string, SessionGenerationSettings> = new Map()
   private readonly abortControllers: Map<string, AbortController> = new Map()
+  private readonly sessionAgentIds: Map<string, string> = new Map()
   private readonly sessionProjectDirs: Map<string, string | null> = new Map()
   private readonly systemPromptCache: Map<string, SystemPromptCacheEntry> = new Map()
   private readonly sessionCompactionStates: Map<string, SessionCompactionState> = new Map()
@@ -105,12 +107,14 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
   private readonly resumingMessages: Set<string> = new Set()
   private readonly compactionService: CompactionService
   private readonly toolOutputGuard: ToolOutputGuard
+  private readonly hooksBridge?: NewSessionHooksBridge
 
   constructor(
     llmProviderPresenter: ILlmProviderPresenter,
     configPresenter: IConfigPresenter,
     sqlitePresenter: SQLitePresenter,
-    toolPresenter?: IToolPresenter
+    toolPresenter?: IToolPresenter,
+    hooksBridge?: NewSessionHooksBridge
   ) {
     this.llmProviderPresenter = llmProviderPresenter
     this.configPresenter = configPresenter
@@ -124,6 +128,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       this.configPresenter
     )
     this.toolOutputGuard = new ToolOutputGuard()
+    this.hooksBridge = hooksBridge
 
     const recovered = this.messageStore.recoverPendingMessages()
     if (recovered > 0) {
@@ -134,6 +139,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
   async initSession(
     sessionId: string,
     config: {
+      agentId?: string
       providerId: string
       modelId: string
       projectDir?: string | null
@@ -159,6 +165,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       permissionMode,
       generationSettings
     )
+    this.sessionAgentIds.set(sessionId, config.agentId?.trim() || 'deepchat')
     this.sessionProjectDirs.set(sessionId, projectDir)
     this.sessionGenerationSettings.set(sessionId, generationSettings)
     this.runtimeState.set(sessionId, {
@@ -181,6 +188,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     this.messageStore.deleteBySession(sessionId)
     this.sessionStore.delete(sessionId)
     this.runtimeState.delete(sessionId)
+    this.sessionAgentIds.delete(sessionId)
     this.sessionGenerationSettings.delete(sessionId)
     this.sessionProjectDirs.delete(sessionId)
     this.systemPromptCache.delete(sessionId)
@@ -293,6 +301,15 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
         )
       }
 
+      this.dispatchHook('UserPromptSubmit', {
+        sessionId,
+        messageId: userMessageId,
+        promptPreview: normalizedInput.text,
+        providerId: state.providerId,
+        modelId: state.modelId,
+        projectDir
+      })
+
       const systemPrompt = appendSummarySection(baseSystemPrompt, summaryState.summaryText)
       const messages = buildContext(
         sessionId,
@@ -322,11 +339,27 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
         sessionId,
         messageId: assistantMessageId,
         messages,
-        projectDir
+        projectDir,
+        promptPreview: normalizedInput.text
       })
       this.applyProcessResultStatus(sessionId, result)
     } catch (err) {
       console.error('[DeepChatAgent] processMessage error:', err)
+      const errorMessage = err instanceof Error ? err.message : String(err)
+      this.dispatchHook('Stop', {
+        sessionId,
+        providerId: state.providerId,
+        modelId: state.modelId,
+        projectDir,
+        stop: { reason: 'error', userStop: false }
+      })
+      this.dispatchHook('SessionEnd', {
+        sessionId,
+        providerId: state.providerId,
+        modelId: state.modelId,
+        projectDir,
+        error: { message: errorMessage }
+      })
       this.setSessionStatus(sessionId, 'error')
     }
   }
@@ -397,12 +430,38 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
         }
         const permissionPayload = this.parsePermissionPayload(actionBlock)
         const permissionType = permissionPayload?.permissionType ?? 'write'
+        const state = this.runtimeState.get(sessionId)
 
         if (response.granted) {
           this.markPermissionResolved(actionBlock, true, permissionType)
           await this.grantPermissionForPayload(sessionId, permissionPayload, toolCall)
+          this.dispatchHook('PreToolUse', {
+            sessionId,
+            messageId,
+            providerId: state?.providerId,
+            modelId: state?.modelId,
+            projectDir: this.resolveProjectDir(sessionId),
+            tool: {
+              callId: toolCall.id,
+              name: toolCall.name,
+              params: toolCall.params
+            }
+          })
           const execution = await this.executeDeferredToolCall(sessionId, toolCall)
           if (execution.terminalError) {
+            this.dispatchHook('PostToolUseFailure', {
+              sessionId,
+              messageId,
+              providerId: state?.providerId,
+              modelId: state?.modelId,
+              projectDir: this.resolveProjectDir(sessionId),
+              tool: {
+                callId: toolCall.id,
+                name: toolCall.name,
+                params: toolCall.params,
+                error: execution.terminalError
+              }
+            })
             this.updateToolCallResponse(blocks, toolCall.id, execution.terminalError, true)
             this.messageStore.setMessageError(messageId, blocks)
             this.emitMessageRefresh(sessionId, messageId)
@@ -412,9 +471,45 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
               messageId,
               error: execution.terminalError
             })
+            this.dispatchHook('Stop', {
+              sessionId,
+              messageId,
+              providerId: state?.providerId,
+              modelId: state?.modelId,
+              projectDir: this.resolveProjectDir(sessionId),
+              stop: { reason: 'error', userStop: false }
+            })
+            this.dispatchHook('SessionEnd', {
+              sessionId,
+              messageId,
+              providerId: state?.providerId,
+              modelId: state?.modelId,
+              projectDir: this.resolveProjectDir(sessionId),
+              error: { message: execution.terminalError }
+            })
             this.setSessionStatus(sessionId, 'error')
             return { resumed: false }
           }
+          this.dispatchHook(execution.isError ? 'PostToolUseFailure' : 'PostToolUse', {
+            sessionId,
+            messageId,
+            providerId: state?.providerId,
+            modelId: state?.modelId,
+            projectDir: this.resolveProjectDir(sessionId),
+            tool: execution.isError
+              ? {
+                  callId: toolCall.id,
+                  name: toolCall.name,
+                  params: toolCall.params,
+                  error: execution.responseText
+                }
+              : {
+                  callId: toolCall.id,
+                  name: toolCall.name,
+                  params: toolCall.params,
+                  response: execution.responseText
+                }
+          })
           this.updateToolCallResponse(
             blocks,
             toolCall.id,
@@ -428,6 +523,19 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
           }
 
           if (execution.requiresPermission && execution.permissionRequest) {
+            this.dispatchHook('PermissionRequest', {
+              sessionId,
+              messageId,
+              providerId: state?.providerId,
+              modelId: state?.modelId,
+              projectDir: this.resolveProjectDir(sessionId),
+              permission: execution.permissionRequest,
+              tool: {
+                callId: toolCall.id,
+                name: toolCall.name,
+                params: toolCall.params
+              }
+            })
             actionBlock.status = 'pending'
             actionBlock.content = execution.permissionRequest.description
             actionBlock.extra = {
@@ -576,6 +684,92 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       this.abortControllers.delete(sessionId)
     }
     this.setSessionStatus(sessionId, 'idle')
+  }
+
+  private dispatchTerminalHooks(
+    sessionId: string,
+    state: DeepChatSessionState | undefined,
+    result: ProcessResult
+  ): void {
+    if (!state || result.status === 'paused') {
+      return
+    }
+
+    this.dispatchHook('Stop', {
+      sessionId,
+      providerId: state.providerId,
+      modelId: state.modelId,
+      projectDir: this.resolveProjectDir(sessionId),
+      stop: {
+        reason:
+          result.stopReason ??
+          (result.status === 'completed'
+            ? 'complete'
+            : result.status === 'aborted'
+              ? 'user_stop'
+              : 'error'),
+        userStop: result.status === 'aborted'
+      }
+    })
+    this.dispatchHook('SessionEnd', {
+      sessionId,
+      providerId: state.providerId,
+      modelId: state.modelId,
+      projectDir: this.resolveProjectDir(sessionId),
+      usage: result.usage ?? null,
+      error:
+        result.errorMessage || result.terminalError
+          ? {
+              message: result.errorMessage ?? result.terminalError
+            }
+          : null
+    })
+  }
+
+  private dispatchHook(
+    event:
+      | 'UserPromptSubmit'
+      | 'SessionStart'
+      | 'PreToolUse'
+      | 'PostToolUse'
+      | 'PostToolUseFailure'
+      | 'PermissionRequest'
+      | 'Stop'
+      | 'SessionEnd',
+    context: {
+      sessionId: string
+      messageId?: string
+      promptPreview?: string
+      providerId?: string
+      modelId?: string
+      projectDir?: string | null
+      tool?: {
+        callId?: string
+        name?: string
+        params?: string
+        response?: string
+        error?: string
+      }
+      permission?: Record<string, unknown> | null
+      stop?: {
+        reason?: string
+        userStop?: boolean
+      } | null
+      usage?: Record<string, number> | null
+      error?: {
+        message?: string
+        stack?: string
+      } | null
+    }
+  ): void {
+    try {
+      this.hooksBridge?.dispatch(event, {
+        ...context,
+        agentId: this.sessionAgentIds.get(context.sessionId) ?? 'deepchat'
+      })
+    } catch (error) {
+      console.warn(`[DeepChatAgent] Failed to dispatch ${event} hook:`, error)
+    }
   }
 
   async getMessages(sessionId: string): Promise<ChatMessageRecord[]> {
@@ -740,8 +934,17 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     projectDir: string | null
     tools?: MCPToolDefinition[]
     initialBlocks?: AssistantMessageBlock[]
+    promptPreview?: string
   }): Promise<ProcessResult> {
-    const { sessionId, messageId, messages, projectDir, tools: providedTools, initialBlocks } = args
+    const {
+      sessionId,
+      messageId,
+      messages,
+      projectDir,
+      tools: providedTools,
+      initialBlocks,
+      promptPreview
+    } = args
     const state = this.runtimeState.get(sessionId)
     if (!state) {
       throw new Error(`Session ${sessionId} not found`)
@@ -805,6 +1008,15 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     this.abortControllers.set(sessionId, abortController)
 
     try {
+      this.dispatchHook('SessionStart', {
+        sessionId,
+        messageId,
+        promptPreview,
+        providerId: state.providerId,
+        modelId: state.modelId,
+        projectDir
+      })
+
       return await processStream({
         messages,
         tools,
@@ -818,6 +1030,49 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
         permissionMode: state.permissionMode,
         toolOutputGuard: this.toolOutputGuard,
         initialBlocks,
+        hooks: {
+          onPreToolUse: (tool) => {
+            this.dispatchHook('PreToolUse', {
+              sessionId,
+              messageId,
+              providerId: state.providerId,
+              modelId: state.modelId,
+              projectDir,
+              tool
+            })
+          },
+          onPostToolUse: (tool) => {
+            this.dispatchHook('PostToolUse', {
+              sessionId,
+              messageId,
+              providerId: state.providerId,
+              modelId: state.modelId,
+              projectDir,
+              tool
+            })
+          },
+          onPostToolUseFailure: (tool) => {
+            this.dispatchHook('PostToolUseFailure', {
+              sessionId,
+              messageId,
+              providerId: state.providerId,
+              modelId: state.modelId,
+              projectDir,
+              tool
+            })
+          },
+          onPermissionRequest: (permission, tool) => {
+            this.dispatchHook('PermissionRequest', {
+              sessionId,
+              messageId,
+              providerId: state.providerId,
+              modelId: state.modelId,
+              projectDir,
+              permission,
+              tool
+            })
+          }
+        },
         io: {
           sessionId,
           messageId,
@@ -837,11 +1092,13 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     sessionId: string,
     result: ProcessResult | null | undefined
   ): void {
+    const state = this.runtimeState.get(sessionId)
     if (!result || !result.status) {
       this.setSessionStatus(sessionId, 'idle')
       return
     }
     if (result.status === 'completed') {
+      this.dispatchTerminalHooks(sessionId, state, result)
       this.setSessionStatus(sessionId, 'idle')
       return
     }
@@ -850,9 +1107,11 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       return
     }
     if (result.status === 'aborted') {
+      this.dispatchTerminalHooks(sessionId, state, result)
       this.setSessionStatus(sessionId, 'idle')
       return
     }
+    this.dispatchTerminalHooks(sessionId, state, result)
     this.setSessionStatus(sessionId, 'error')
   }
 

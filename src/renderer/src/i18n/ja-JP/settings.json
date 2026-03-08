@@ -24,7 +24,6 @@
     "contentProtectionEnableDesc": "DeepChatウィンドウの画面共有によるキャプチャを防止し、プライバシー保護に役立ちます。すべてのアプリがこの設定に対応するわけではなく、環境によっては黒いウィンドウが残る場合があります。",
     "contentProtectionDisableDesc": "画面共有アプリによるDeepChatウィンドウのキャプチャを許可します。",
     "contentProtectionRestartNotice": "この設定を変更するとアプリケーションが再起動します。続行しますか？",
-    "soundEnabled": "サウンドを有効にする",
     "copyWithCotEnabled": "COT情報をコピー",
     "loggingEnabled": "ログを有効にする",
     "loggingDialogTitle": "ログ設定の変更確認",

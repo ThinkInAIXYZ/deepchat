@@ -103,12 +103,14 @@ export class NewAgentPresenter {
 
     // Initialize agent-side session
     const initConfig: {
+      agentId?: string
       providerId: string
       modelId: string
       projectDir: string | null
       permissionMode: PermissionMode
       generationSettings?: Partial<SessionGenerationSettings>
     } = {
+      agentId,
       providerId,
       modelId,
       projectDir,
@@ -182,6 +184,7 @@ export class NewAgentPresenter {
         isDraft: true
       })
       await this.ensureSessionRuntimeInitialized(agent, sessionId, {
+        agentId,
         providerId: 'acp',
         modelId: agentId,
         projectDir,
@@ -193,6 +196,7 @@ export class NewAgentPresenter {
       }
     } else {
       await this.ensureSessionRuntimeInitialized(agent, record.id, {
+        agentId,
         providerId: 'acp',
         modelId: agentId,
         projectDir,
@@ -314,6 +318,7 @@ export class NewAgentPresenter {
 
     try {
       await agent.initSession(targetSessionId, {
+        agentId: sourceSession.agentId,
         providerId: sourceState.providerId,
         modelId: sourceState.modelId,
         projectDir: sourceSession.projectDir ?? null,
@@ -941,6 +946,7 @@ export class NewAgentPresenter {
     agent: IAgentImplementation,
     sessionId: string,
     config: {
+      agentId?: string
       providerId: string
       modelId: string
       projectDir: string

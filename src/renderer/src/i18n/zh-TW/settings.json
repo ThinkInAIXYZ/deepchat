@@ -42,7 +42,6 @@
     "contentProtectionEnableDesc": "開啟畫面保護可以防止錄影軟體擷取 DeepChat 主視窗，用來保護您的內容隱私。請注意，此功能不會徹底隱藏所有介面，請合理合規使用。並且，並不是所有錄影軟體都遵守使用者隱私設定，該功能可能會在一些不遵守隱私設定的錄影軟體上失效，某些環境中可能會殘留一個黑色視窗。",
     "contentProtectionDisableDesc": "關閉畫面保護將允許錄影軟體擷取 DeepChat 視窗。",
     "contentProtectionRestartNotice": "切換此設定將會重新啟動應用程式，請問您是否要繼續？",
-    "soundEnabled": "啟用音效",
     "copyWithCotEnabled": "複製COT資訊",
     "loggingEnabled": "啟用日誌",
     "loggingDialogTitle": "確認日誌設定變更",

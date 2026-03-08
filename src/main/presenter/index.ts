@@ -64,6 +64,7 @@ import { ConversationExporterService } from './exporter'
 import { SkillPresenter } from './skillPresenter'
 import { SkillSyncPresenter } from './skillSyncPresenter'
 import { HooksNotificationsService } from './hooksNotifications'
+import { NewSessionHooksBridge } from './hooksNotifications/newSessionBridge'
 import { NewAgentPresenter } from './newAgentPresenter'
 import { DeepChatAgentPresenter } from './deepchatAgentPresenter'
 import { ProjectPresenter } from './projectPresenter'
@@ -202,12 +203,21 @@ export class Presenter implements IPresenter {
     // Initialize Skill Sync presenter
     this.skillSyncPresenter = new SkillSyncPresenter(this.skillPresenter, this.configPresenter)
 
+    // Initialize Hooks & Notifications service
+    this.hooksNotifications = new HooksNotificationsService(this.configPresenter, {
+      getConversation: this.sessionPresenter.getConversation.bind(this.sessionPresenter),
+      getMessage: this.sessionPresenter.getMessage.bind(this.sessionPresenter),
+      resolveWorkspaceContext: this.sessionManager.resolveWorkspaceContext.bind(this.sessionManager)
+    })
+    const newSessionHooksBridge = new NewSessionHooksBridge(this.hooksNotifications)
+
     // Initialize new agent architecture presenters
     const deepchatAgentPresenter = new DeepChatAgentPresenter(
       this.llmproviderPresenter as unknown as ILlmProviderPresenter,
       this.configPresenter,
       this.sqlitePresenter as unknown as import('./sqlitePresenter').SQLitePresenter,
-      this.toolPresenter
+      this.toolPresenter,
+      newSessionHooksBridge
     )
     this.newAgentPresenter = new NewAgentPresenter(
       deepchatAgentPresenter,
@@ -220,12 +230,6 @@ export class Presenter implements IPresenter {
       this.sqlitePresenter as unknown as import('./sqlitePresenter').SQLitePresenter,
       this.devicePresenter
     )
-
-    // Initialize Hooks & Notifications service
-    this.hooksNotifications = new HooksNotificationsService(this.configPresenter, {
-      sessionPresenter: this.sessionPresenter,
-      resolveWorkspaceContext: this.sessionManager.resolveWorkspaceContext.bind(this.sessionManager)
-    })
 
     this.setupEventBus() // 设置事件总线监听
   }

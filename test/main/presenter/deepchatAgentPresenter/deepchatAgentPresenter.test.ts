@@ -4,6 +4,7 @@ import os from 'os'
 import path from 'path'
 import { app } from 'electron'
 import { DeepChatAgentPresenter } from '@/presenter/deepchatAgentPresenter/index'
+import { NewSessionHooksBridge } from '@/presenter/hooksNotifications/newSessionBridge'
 
 vi.mock('nanoid', () => ({ nanoid: vi.fn(() => 'mock-msg-id') }))
 
@@ -199,6 +200,7 @@ describe('DeepChatAgentPresenter', () => {
   let configPresenter: ReturnType<typeof createMockConfigPresenter>
   let toolPresenter: ReturnType<typeof createMockToolPresenter>
   let agent: DeepChatAgentPresenter
+  let hookDispatcher: { dispatchEvent: ReturnType<typeof vi.fn> }
   let tempHome: string | null = null
   let getPathSpy: ReturnType<typeof vi.spyOn> | null = null
 
@@ -216,7 +218,14 @@ describe('DeepChatAgentPresenter', () => {
     llmProvider = createMockLlmProviderPresenter()
     configPresenter = createMockConfigPresenter()
     toolPresenter = createMockToolPresenter()
-    agent = new DeepChatAgentPresenter(llmProvider, configPresenter, sqlitePresenter, toolPresenter)
+    hookDispatcher = { dispatchEvent: vi.fn() }
+    agent = new DeepChatAgentPresenter(
+      llmProvider,
+      configPresenter,
+      sqlitePresenter,
+      toolPresenter,
+      new NewSessionHooksBridge(hookDispatcher)
+    )
   })
 
   afterEach(async () => {
@@ -379,6 +388,111 @@ describe('DeepChatAgentPresenter', () => {
             sessionId: 's1',
             messageId: 'mock-msg-id'
           })
+        })
+      )
+    })
+
+    it('dispatches lifecycle hooks through new session bridge', async () => {
+      ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async () => ({
+        status: 'completed',
+        stopReason: 'complete',
+        usage: { totalTokens: 3 }
+      }))
+
+      await agent.initSession('s1', {
+        agentId: 'deepchat',
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        projectDir: '/tmp/project'
+      })
+      await agent.processMessage('s1', 'Hello bridge')
+
+      expect(hookDispatcher.dispatchEvent).toHaveBeenCalledWith(
+        'UserPromptSubmit',
+        expect.objectContaining({
+          conversationId: 's1',
+          agentId: 'deepchat',
+          workdir: '/tmp/project',
+          promptPreview: 'Hello bridge'
+        })
+      )
+      expect(hookDispatcher.dispatchEvent).toHaveBeenCalledWith(
+        'SessionStart',
+        expect.objectContaining({
+          conversationId: 's1',
+          agentId: 'deepchat',
+          workdir: '/tmp/project'
+        })
+      )
+      expect(hookDispatcher.dispatchEvent).toHaveBeenCalledWith(
+        'Stop',
+        expect.objectContaining({
+          conversationId: 's1',
+          stop: expect.objectContaining({ reason: 'complete', userStop: false })
+        })
+      )
+      expect(hookDispatcher.dispatchEvent).toHaveBeenCalledWith(
+        'SessionEnd',
+        expect.objectContaining({
+          conversationId: 's1'
+        })
+      )
+    })
+
+    it('dispatches tool and permission hooks through process callbacks', async () => {
+      ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async (params) => {
+        params.hooks?.onPreToolUse?.({
+          callId: 'tool-1',
+          name: 'write_file',
+          params: '{"path":"a.txt"}'
+        })
+        params.hooks?.onPermissionRequest?.(
+          {
+            permissionType: 'write',
+            description: 'Need permission'
+          },
+          {
+            callId: 'tool-1',
+            name: 'write_file',
+            params: '{"path":"a.txt"}'
+          }
+        )
+        params.hooks?.onPostToolUseFailure?.({
+          callId: 'tool-1',
+          name: 'write_file',
+          params: '{"path":"a.txt"}',
+          error: 'permission denied'
+        })
+        return {
+          status: 'error',
+          stopReason: 'error',
+          errorMessage: 'permission denied'
+        }
+      })
+
+      await agent.initSession('s1', { agentId: 'coder', providerId: 'acp', modelId: 'coder' })
+      await agent.processMessage('s1', 'Run tool')
+
+      expect(hookDispatcher.dispatchEvent).toHaveBeenCalledWith(
+        'PreToolUse',
+        expect.objectContaining({
+          conversationId: 's1',
+          agentId: 'coder',
+          tool: expect.objectContaining({ callId: 'tool-1', name: 'write_file' })
+        })
+      )
+      expect(hookDispatcher.dispatchEvent).toHaveBeenCalledWith(
+        'PermissionRequest',
+        expect.objectContaining({
+          conversationId: 's1',
+          permission: expect.objectContaining({ permissionType: 'write' })
+        })
+      )
+      expect(hookDispatcher.dispatchEvent).toHaveBeenCalledWith(
+        'PostToolUseFailure',
+        expect.objectContaining({
+          conversationId: 's1',
+          tool: expect.objectContaining({ error: 'permission denied' })
         })
       )
     })

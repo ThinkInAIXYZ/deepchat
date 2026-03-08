@@ -41,7 +41,6 @@
     "contentProtectionEnableDesc": "מנע מיישומי שיתוף מסך ללכוד את חלון DeepChat כדי לעזור להגן על פרטיותך. לא כל האפליקציות מכבדות הגדרה זו; בסביבות מסוימות עשוי להופיע חלון שחור.",
     "contentProtectionDisableDesc": "אפשר ליישומי שיתוף מסך ללכוד את חלון DeepChat.",
     "contentProtectionRestartNotice": "שינוי הגדרה זו יגרום להפעלה מחדש של האפליקציה. האם להמשיך?",
-    "soundEnabled": "הפעל אפקטים קוליים",
     "copyWithCotEnabled": "העתק פרטי COT (שרשרת מחשבה)",
     "traceDebugEnabled": "מעקב אחר קריאה (Trace Call)",
     "loggingEnabled": "הפעל רישום לוגים",

@@ -42,7 +42,6 @@
     "contentProtectionEnableDesc": "화면 보호를 활성화하면 화면 공유 소프트웨어가 DeepChat 창을 캡쳐할 수 없습니다. 이 기능은 모든 인터페이스를 완전히 숨기지 않습니다. 이 기능을 사용할 때는 항상 규정을 준수하세요. 또한, 모든 화면 공유 소프트웨어가 이 기능을 지원하지 않을 수 있습니다. 또한, 일부 환경에서는 검은색 창이 남을 수 있습니다.",
     "contentProtectionDisableDesc": "화면 보호를 비활성화하면 화면 공유 소프트웨어가 DeepChat 창을 캡쳐할 수 있습니다.",
     "contentProtectionRestartNotice": "이 설정을 변경하면 프로그램이 재시작됩니다. 계속하시겠습니까?",
-    "soundEnabled": "소리 활성화",
     "copyWithCotEnabled": "COT 정보 복사",
     "loggingEnabled": "로그 활성화",
     "loggingDialogTitle": "로그 설정 변경 확인",

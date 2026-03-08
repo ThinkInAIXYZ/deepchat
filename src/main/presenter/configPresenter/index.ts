@@ -83,7 +83,6 @@ interface IAppSettings {
   syncFolderPath?: string // Sync folder path
   lastSyncTime?: number // Last sync time
   customSearchEngines?: string // Custom search engines JSON string
-  soundEnabled?: boolean // Whether sound effects are enabled
   copyWithCotEnabled?: boolean
   loggingEnabled?: boolean // Whether logging is enabled
   floatingButtonEnabled?: boolean // Whether floating button is enabled
@@ -153,7 +152,6 @@ export class ConfigPresenter implements IConfigPresenter {
         syncEnabled: false,
         syncFolderPath: path.join(this.userDataPath, 'sync'),
         lastSyncTime: 0,
-        soundEnabled: false,
         copyWithCotEnabled: true,
         loggingEnabled: false,
         floatingButtonEnabled: false,
@@ -960,18 +958,6 @@ export class ConfigPresenter implements IConfigPresenter {
     setTimeout(() => {
       presenter.devicePresenter.restartApp()
     }, 1000)
-  }
-
-  // Get sound effects switch status
-  getSoundEnabled(): boolean {
-    const value = this.getSetting<boolean>('soundEnabled') ?? false
-    return value === undefined || value === null ? false : value
-  }
-
-  // Set sound effects switch status
-  setSoundEnabled(enabled: boolean): void {
-    this.setSetting('soundEnabled', enabled)
-    eventBus.sendToRenderer(CONFIG_EVENTS.SOUND_ENABLED_CHANGED, SendTarget.ALL_WINDOWS, enabled)
   }
 
   getCopyWithCotEnabled(): boolean {

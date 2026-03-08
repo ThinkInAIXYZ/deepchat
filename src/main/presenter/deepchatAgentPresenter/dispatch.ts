@@ -6,7 +6,7 @@ import type { MCPToolCall, MCPContentItem, MCPResourceContent } from '@shared/ty
 import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
 import type { AssistantMessageBlock, PermissionMode } from '@shared/types/agent-interface'
 import { parseQuestionToolArgs, QUESTION_TOOL_NAME } from '../agentPresenter/tools/questionTool'
-import type { IoParams, PendingToolInteraction, StreamState } from './types'
+import type { IoParams, PendingToolInteraction, ProcessHooks, StreamState } from './types'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import { nanoid } from 'nanoid'
 import type { ToolOutputGuard } from './toolOutputGuard'
@@ -380,7 +380,8 @@ export async function executeTools(
   permissionMode: PermissionMode,
   toolOutputGuard: ToolOutputGuard,
   contextLength: number,
-  maxTokens: number
+  maxTokens: number,
+  hooks?: ProcessHooks
 ): Promise<{
   executed: number
   pendingInteractions: PendingToolInteraction[]
@@ -442,6 +443,12 @@ export async function executeTools(
     }
 
     try {
+      hooks?.onPreToolUse?.({
+        callId: tc.id,
+        name: tc.name,
+        params: tc.arguments
+      })
+
       if (toolCall.function.name === QUESTION_TOOL_NAME) {
         const parsedQuestion = parseQuestionToolArgs(tc.arguments)
         if (!parsedQuestion.success) {
@@ -487,6 +494,11 @@ export async function executeTools(
         if (permissionMode === 'full_access') {
           await autoGrantPermission(io.sessionId, preCheckedPermission)
         } else {
+          hooks?.onPermissionRequest?.(preCheckedPermission, {
+            callId: tc.id,
+            name: tc.name,
+            params: tc.arguments
+          })
           const interaction = appendPermissionActionBlock(
             state,
             io,
@@ -518,6 +530,11 @@ export async function executeTools(
             const retryCallResult = await toolPresenter.callTool(toolCall)
             toolRawData = retryCallResult.rawData
           } else {
+            hooks?.onPermissionRequest?.(pendingPermission, {
+              callId: tc.id,
+              name: tc.name,
+              params: tc.arguments
+            })
             const interaction = appendPermissionActionBlock(
               state,
               io,
@@ -583,6 +600,21 @@ export async function executeTools(
         content: toolMessageContent
       })
       updateToolCallBlock(state.blocks, tc.id, toolMessageContent, isToolError)
+      if (isToolError) {
+        hooks?.onPostToolUseFailure?.({
+          callId: tc.id,
+          name: tc.name,
+          params: tc.arguments,
+          error: toolMessageContent
+        })
+      } else {
+        hooks?.onPostToolUse?.({
+          callId: tc.id,
+          name: tc.name,
+          params: tc.arguments,
+          response: toolMessageContent
+        })
+      }
     } catch (err) {
       const errorText = err instanceof Error ? err.message : String(err)
       conversation.push({
@@ -591,6 +623,12 @@ export async function executeTools(
         content: `Error: ${errorText}`
       })
       updateToolCallBlock(state.blocks, tc.id, `Error: ${errorText}`, true)
+      hooks?.onPostToolUseFailure?.({
+        callId: tc.id,
+        name: tc.name,
+        params: tc.arguments,
+        error: `Error: ${errorText}`
+      })
     }
 
     state.dirty = true

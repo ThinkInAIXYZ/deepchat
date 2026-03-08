@@ -546,9 +546,6 @@ export interface IConfigPresenter {
   getEnabledProviders(): LLM_PROVIDER[]
   getModelDefaultConfig(modelId: string, providerId?: string): ModelConfig
   getAllEnabledModels(): Promise<{ providerId: string; models: RENDERER_MODEL_META[] }[]>
-  // Sound effect settings
-  getSoundEnabled(): boolean
-  setSoundEnabled(enabled: boolean): void
   // Chain of Thought copy settings
   getCopyWithCotEnabled(): boolean
   setCopyWithCotEnabled(enabled: boolean): void

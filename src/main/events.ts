@@ -24,7 +24,6 @@ export const CONFIG_EVENTS = {
   AUTO_SCROLL_CHANGED: 'config:auto-scroll-changed',
   NOTIFICATIONS_CHANGED: 'config:notifications-changed',
   CONTENT_PROTECTION_CHANGED: 'config:content-protection-changed',
-  SOUND_ENABLED_CHANGED: 'config:sound-enabled-changed', // 新增：声音开关变更事件
   COPY_WITH_COT_CHANGED: 'config:copy-with-cot-enabled-changed',
   TRACE_DEBUG_CHANGED: 'config:trace-debug-changed', // Trace 调试功能开关变更事件
   PROXY_RESOLVED: 'config:proxy-resolved',

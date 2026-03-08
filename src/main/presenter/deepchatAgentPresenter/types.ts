@@ -38,6 +38,30 @@ export interface IoParams {
   abortSignal: AbortSignal
 }
 
+export interface ProcessHooks {
+  onPreToolUse?: (tool: { callId?: string; name?: string; params?: string }) => void
+  onPostToolUse?: (tool: {
+    callId?: string
+    name?: string
+    params?: string
+    response?: string
+  }) => void
+  onPostToolUseFailure?: (tool: {
+    callId?: string
+    name?: string
+    params?: string
+    error?: string
+  }) => void
+  onPermissionRequest?: (
+    permission: Record<string, unknown>,
+    tool: {
+      callId?: string
+      name?: string
+      params?: string
+    }
+  ) => void
+}
+
 export interface PendingToolInteraction {
   type: 'question' | 'permission'
   messageId: string
@@ -79,6 +103,9 @@ export interface ProcessResult {
   status: 'completed' | 'paused' | 'aborted' | 'error'
   pendingInteractions?: PendingToolInteraction[]
   terminalError?: string
+  stopReason?: string
+  usage?: Record<string, number>
+  errorMessage?: string
 }
 
 export interface ProcessParams {
@@ -101,6 +128,7 @@ export interface ProcessParams {
   permissionMode: PermissionMode
   toolOutputGuard: ToolOutputGuard
   initialBlocks?: AssistantMessageBlock[]
+  hooks?: ProcessHooks
   io: IoParams
 }
 

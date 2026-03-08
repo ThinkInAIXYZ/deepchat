@@ -56,6 +56,7 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
     maxTokens,
     permissionMode,
     initialBlocks,
+    hooks,
     io
   } = params
 
@@ -109,7 +110,10 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
             error: 'Generation cancelled'
           })
           return {
-            status: 'aborted' as const
+            status: 'aborted' as const,
+            stopReason: 'user_stop',
+            errorMessage: 'Generation cancelled',
+            usage: buildUsageSnapshot(state)
           }
         }
         accumulate(state, event)
@@ -146,7 +150,8 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
         permissionMode,
         params.toolOutputGuard,
         modelConfig.contextLength > 0 ? modelConfig.contextLength : UNKNOWN_CONTEXT_LIMIT,
-        maxTokens
+        maxTokens,
+        hooks
       )
       toolCallCount += executed.executed
       echo.flush()
@@ -155,7 +160,10 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
         finalizeError(state, io, executed.terminalError)
         return {
           status: 'error' as const,
-          terminalError: executed.terminalError
+          terminalError: executed.terminalError,
+          stopReason: 'error',
+          errorMessage: executed.terminalError,
+          usage: buildUsageSnapshot(state)
         }
       }
 
@@ -188,15 +196,34 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
     }
     finalize(state, io)
     return {
-      status: 'completed' as const
+      status: 'completed' as const,
+      stopReason: 'complete',
+      usage: buildUsageSnapshot(state)
     }
   } catch (err) {
     console.error(`[ProcessStream] exception after ${eventCount} events:`, err)
     finalizeError(state, io, err)
     return {
-      status: 'error' as const
+      status: 'error' as const,
+      stopReason: 'error',
+      errorMessage: err instanceof Error ? err.message : String(err),
+      usage: buildUsageSnapshot(state)
     }
   } finally {
     echo.stop()
   }
+}
+
+function buildUsageSnapshot(state: StreamState): Record<string, number> {
+  const usage: Record<string, number> = {}
+  if (typeof state.metadata.totalTokens === 'number') {
+    usage.totalTokens = state.metadata.totalTokens
+  }
+  if (typeof state.metadata.inputTokens === 'number') {
+    usage.inputTokens = state.metadata.inputTokens
+  }
+  if (typeof state.metadata.outputTokens === 'number') {
+    usage.outputTokens = state.metadata.outputTokens
+  }
+  return usage
 }

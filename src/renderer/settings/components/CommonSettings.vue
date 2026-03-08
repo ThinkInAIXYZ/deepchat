@@ -12,13 +12,6 @@
         @update:model-value="handleAutoScrollChange"
       />
       <SettingToggleRow
-        id="sound-switch"
-        icon="lucide:volume-2"
-        :label="t('settings.common.soundEnabled')"
-        :model-value="soundEnabled"
-        @update:model-value="handleSoundChange"
-      />
-      <SettingToggleRow
         id="copy-with-cot-switch"
         icon="lucide:file-text"
         :label="t('settings.common.copyWithCotEnabled')"
@@ -42,7 +35,6 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
-import { useSoundStore } from '@/stores/sound'
 import ProxySettingsSection from './common/ProxySettingsSection.vue'
 import LoggingSettingsSection from './common/LoggingSettingsSection.vue'
 import SettingToggleRow from './common/SettingToggleRow.vue'
@@ -51,19 +43,13 @@ import DefaultModelSettingsSection from './common/DefaultModelSettingsSection.vu
 
 const { t } = useI18n()
 const uiSettingsStore = useUiSettingsStore()
-const soundStore = useSoundStore()
 
 const autoScrollEnabled = computed(() => uiSettingsStore.autoScrollEnabled)
-const soundEnabled = computed(() => soundStore.soundEnabled)
 const copyWithCotEnabled = computed(() => uiSettingsStore.copyWithCotEnabled)
 const traceDebugEnabled = computed(() => uiSettingsStore.traceDebugEnabled)
 
 const handleAutoScrollChange = (value: boolean) => {
   uiSettingsStore.setAutoScrollEnabled(value)
-}
-
-const handleSoundChange = (value: boolean) => {
-  soundStore.setSoundEnabled(value)
 }
 
 const handleCopyWithCotChange = (value: boolean) => {

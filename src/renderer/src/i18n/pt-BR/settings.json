@@ -41,7 +41,6 @@
     "contentProtectionEnableDesc": "Evita que aplicativos de compartilhamento de tela capturem a janela do DeepChat para ajudar a proteger sua privacidade. Nem todos os aplicativos respeitam essa configuração; em alguns ambientes, uma janela preta pode permanecer.",
     "contentProtectionDisableDesc": "Permite que aplicativos de compartilhamento de tela capturem a janela do DeepChat.",
     "contentProtectionRestartNotice": "Alterar esta configuração reiniciará o aplicativo. Deseja continuar?",
-    "soundEnabled": "Habilitar Efeitos Sonoros",
     "copyWithCotEnabled": "Copiar Detalhes COT",
     "loggingEnabled": "Habilitar Registro (Logging)",
     "loggingDialogTitle": "Confirmar Mudança na Configuração de Registro",
