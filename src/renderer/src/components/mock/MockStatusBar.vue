@@ -69,14 +69,18 @@
           class="h-6 px-2 gap-1.5 text-xs text-muted-foreground hover:text-foreground backdrop-blur-lg"
         >
           <Icon icon="lucide:shield" class="w-3.5 h-3.5" />
-          <span>Default permissions</span>
+          <span>{{ t('chat.permissionMode.default') }}</span>
           <Icon icon="lucide:chevron-down" class="w-3 h-3" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" class="min-w-0">
-        <DropdownMenuItem class="text-xs py-1.5 px-2">Default permissions</DropdownMenuItem>
+        <DropdownMenuItem class="text-xs py-1.5 px-2">{{
+          t('chat.permissionMode.default')
+        }}</DropdownMenuItem>
         <DropdownMenuItem class="text-xs py-1.5 px-2">Restricted</DropdownMenuItem>
-        <DropdownMenuItem class="text-xs py-1.5 px-2">Full access</DropdownMenuItem>
+        <DropdownMenuItem class="text-xs py-1.5 px-2">{{
+          t('chat.permissionMode.fullAccess')
+        }}</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   </div>
@@ -91,8 +95,10 @@ import {
   DropdownMenuTrigger
 } from '@shadcn/components/ui/dropdown-menu'
 import { Icon } from '@iconify/vue'
+import { useI18n } from 'vue-i18n'
 import ModelIcon from '../icons/ModelIcon.vue'
 import { useThemeStore } from '@/stores/theme'
 
 const themeStore = useThemeStore()
+const { t } = useI18n()
 </script>

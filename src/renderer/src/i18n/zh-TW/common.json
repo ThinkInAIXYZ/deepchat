@@ -99,5 +99,17 @@
   },
   "size": {
     "bytes": "{count} 位元組"
+  },
+  "time": {
+    "today": "今天",
+    "yesterday": "昨天",
+    "lastWeek": "最近一週",
+    "older": "更早"
+  },
+  "project": {
+    "select": "選擇專案",
+    "none": "未關聯專案",
+    "recent": "最近專案",
+    "openFolder": "開啟資料夾..."
   }
 }

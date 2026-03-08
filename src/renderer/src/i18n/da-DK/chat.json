@@ -19,7 +19,7 @@
     "historyPlaceholder": "(Udfyld med Tab)",
     "inputArea": "Indtastningsområde",
     "pasteFiles": "Understøtter kopiering og indsættelse af filer",
-    "placeholder": "Spørg om noget? Du kan referere til værktøjer, filer, ressourcer osv. ved at bruge {'@'}.",
+    "placeholder": "Ask DeepChat anything, @ to mention files, / for commands",
     "promptFilesAdded": "Prompt-filen er blevet tilføjet",
     "promptFilesAddedDesc": "{count} filer er blevet tilføjet successfully",
     "promptFilesError": "Filbehandlingsfejl",
@@ -210,5 +210,21 @@
   "compaction": {
     "compacting": "Komprimerer automatisk kontekst...",
     "compacted": "Konteksten blev automatisk komprimeret"
+  },
+  "newThread": {
+    "title": "Build and explore"
+  },
+  "permissionMode": {
+    "default": "Default permissions",
+    "fullAccess": "Full access"
+  },
+  "sidebar": {
+    "allAgents": "All Agents",
+    "expandSidebar": "Expand sidebar",
+    "collapseSidebar": "Collapse sidebar",
+    "groupByDate": "Group by date",
+    "groupByProject": "Group by project",
+    "emptyTitle": "No conversations yet",
+    "emptyDescription": "Start a new chat to begin"
   }
 }

@@ -1,6 +1,6 @@
 {
   "input": {
-    "placeholder": "질문하세요. {'@'}를 통해 도구, 파일, 리소스를 인용할 수 있습니다...",
+    "placeholder": "Ask DeepChat anything, @ to mention files, / for commands",
     "fileArea": "파일 영역",
     "inputArea": "입력 영역",
     "functionSwitch": "기능 전환",
@@ -210,5 +210,21 @@
   "compaction": {
     "compacting": "컨텍스트를 자동 압축하는 중...",
     "compacted": "컨텍스트가 자동으로 압축되었습니다"
+  },
+  "newThread": {
+    "title": "Build and explore"
+  },
+  "permissionMode": {
+    "default": "Default permissions",
+    "fullAccess": "Full access"
+  },
+  "sidebar": {
+    "allAgents": "All Agents",
+    "expandSidebar": "Expand sidebar",
+    "collapseSidebar": "Collapse sidebar",
+    "groupByDate": "Group by date",
+    "groupByProject": "Group by project",
+    "emptyTitle": "No conversations yet",
+    "emptyDescription": "Start a new chat to begin"
   }
 }

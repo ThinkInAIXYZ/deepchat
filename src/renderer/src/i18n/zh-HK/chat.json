@@ -1,6 +1,6 @@
 {
   "input": {
-    "placeholder": "問點什麼？可以通過{'@'}來引用工具、文件、資源...",
+    "placeholder": "向 DeepChat 發送訊息，@ 可引用檔案，/ 可使用指令",
     "fileArea": "文件區域",
     "inputArea": "輸入區域",
     "functionSwitch": "功能開關",
@@ -210,5 +210,21 @@
       "manage": "管理",
       "title": "技能"
     }
+  },
+  "newThread": {
+    "title": "建構與探索"
+  },
+  "permissionMode": {
+    "default": "預設權限",
+    "fullAccess": "完全存取"
+  },
+  "sidebar": {
+    "allAgents": "所有 Agents",
+    "expandSidebar": "展開側邊欄",
+    "collapseSidebar": "收起側邊欄",
+    "groupByDate": "按時間分組",
+    "groupByProject": "按專案分組",
+    "emptyTitle": "還沒有對話",
+    "emptyDescription": "開始一個新對話吧"
   }
 }

@@ -1,6 +1,6 @@
 {
   "input": {
-    "placeholder": "何か質問は？{'@'}でツール、ファイル、リソースを引用できます...",
+    "placeholder": "Ask DeepChat anything, @ to mention files, / for commands",
     "fileArea": "ファイルエリア",
     "inputArea": "入力エリア",
     "functionSwitch": "機能スイッチ",
@@ -210,5 +210,21 @@
   "compaction": {
     "compacting": "コンテキストを自動圧縮しています...",
     "compacted": "コンテキストは自動圧縮されました"
+  },
+  "newThread": {
+    "title": "Build and explore"
+  },
+  "permissionMode": {
+    "default": "Default permissions",
+    "fullAccess": "Full access"
+  },
+  "sidebar": {
+    "allAgents": "All Agents",
+    "expandSidebar": "Expand sidebar",
+    "collapseSidebar": "Collapse sidebar",
+    "groupByDate": "Group by date",
+    "groupByProject": "Group by project",
+    "emptyTitle": "No conversations yet",
+    "emptyDescription": "Start a new chat to begin"
   }
 }

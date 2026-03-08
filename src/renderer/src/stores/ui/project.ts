@@ -25,7 +25,6 @@ export const useProjectStore = defineStore('project', () => {
   const selectedProject = computed(() =>
     projects.value.find((p) => p.path === selectedProjectPath.value)
   )
-  const selectedProjectName = computed(() => selectedProject.value?.name ?? 'Select project')
 
   // --- Actions ---
 
@@ -66,7 +65,6 @@ export const useProjectStore = defineStore('project', () => {
     selectedProjectPath,
     error,
     selectedProject,
-    selectedProjectName,
     fetchProjects,
     selectProject,
     openFolderPicker

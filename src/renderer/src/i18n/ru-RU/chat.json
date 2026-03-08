@@ -1,6 +1,6 @@
 {
   "input": {
-    "placeholder": "Задайте вопрос? Вы можете ссылаться на инструменты, файлы, ресурсы через {'@'}...",
+    "placeholder": "Ask DeepChat anything, @ to mention files, / for commands",
     "fileArea": "Область файлов",
     "inputArea": "Область ввода",
     "functionSwitch": "Переключатель функций",
@@ -210,5 +210,21 @@
   "compaction": {
     "compacting": "Контекст автоматически сжимается...",
     "compacted": "Контекст был автоматически сжат"
+  },
+  "newThread": {
+    "title": "Build and explore"
+  },
+  "permissionMode": {
+    "default": "Default permissions",
+    "fullAccess": "Full access"
+  },
+  "sidebar": {
+    "allAgents": "All Agents",
+    "expandSidebar": "Expand sidebar",
+    "collapseSidebar": "Collapse sidebar",
+    "groupByDate": "Group by date",
+    "groupByProject": "Group by project",
+    "emptyTitle": "No conversations yet",
+    "emptyDescription": "Start a new chat to begin"
   }
 }

@@ -94,6 +94,7 @@ describe('sessionStore.getFilteredGroups', () => {
     const groups = store.getFilteredGroups(null)
     const ids = groups.flatMap((group) => group.sessions.map((session) => session.id))
 
+    expect(groups[0]?.labelKey).toBe('common.time.today')
     expect(ids).toEqual(['real-1'])
   })
 

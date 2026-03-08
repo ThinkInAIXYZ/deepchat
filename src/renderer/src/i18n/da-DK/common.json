@@ -99,5 +99,17 @@
   },
   "size": {
     "bytes": "{count} byte"
+  },
+  "time": {
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "lastWeek": "Last week",
+    "older": "Older"
+  },
+  "project": {
+    "select": "Select project",
+    "none": "No project",
+    "recent": "Recent projects",
+    "openFolder": "Open folder..."
   }
 }

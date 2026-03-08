@@ -32,6 +32,7 @@ export interface UISession {
 
 export interface SessionGroup {
   label: string
+  labelKey?: string
   sessions: UISession[]
 }
 
@@ -81,33 +82,34 @@ function groupByTime(sessions: UISession[]): SessionGroup[] {
   const lastWeek = startOfDay(now - 7 * 86400000)
 
   const groups: Record<string, UISession[]> = {
-    Today: [],
-    Yesterday: [],
-    'Last Week': [],
-    Older: []
+    'common.time.today': [],
+    'common.time.yesterday': [],
+    'common.time.lastWeek': [],
+    'common.time.older': []
   }
 
   for (const s of sessions) {
-    if (s.updatedAt >= today) groups['Today'].push(s)
-    else if (s.updatedAt >= yesterday) groups['Yesterday'].push(s)
-    else if (s.updatedAt >= lastWeek) groups['Last Week'].push(s)
-    else groups['Older'].push(s)
+    if (s.updatedAt >= today) groups['common.time.today'].push(s)
+    else if (s.updatedAt >= yesterday) groups['common.time.yesterday'].push(s)
+    else if (s.updatedAt >= lastWeek) groups['common.time.lastWeek'].push(s)
+    else groups['common.time.older'].push(s)
   }
 
   return Object.entries(groups)
     .filter(([, sessions]) => sessions.length > 0)
-    .map(([label, sessions]) => ({ label, sessions }))
+    .map(([labelKey, sessions]) => ({ label: labelKey, labelKey, sessions }))
 }
 
 function groupByProject(sessions: UISession[]): SessionGroup[] {
   const projectMap = new Map<string, UISession[]>()
   for (const session of sessions) {
-    const dir = session.projectDir || 'No Project'
+    const dir = session.projectDir.trim() || '__no_project__'
     if (!projectMap.has(dir)) projectMap.set(dir, [])
     projectMap.get(dir)!.push(session)
   }
   return Array.from(projectMap.entries()).map(([dir, sessions]) => ({
-    label: dir.split('/').pop() ?? dir,
+    label: dir === '__no_project__' ? 'common.project.none' : (dir.split('/').pop() ?? dir),
+    labelKey: dir === '__no_project__' ? 'common.project.none' : undefined,
     sessions
   }))
 }
@@ -360,6 +362,7 @@ export const useSessionStore = defineStore('session', () => {
     return grouped
       .map((group) => ({
         label: group.label,
+        labelKey: group.labelKey,
         sessions: group.sessions.filter((s) => s.agentId === agentId)
       }))
       .filter((group) => group.sessions.length > 0)
