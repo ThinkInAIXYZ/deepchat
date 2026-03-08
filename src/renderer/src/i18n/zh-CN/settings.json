@@ -46,7 +46,6 @@
     "contentProtectionEnableDesc": "开启投屏保护可以防止投屏软件捕获DeepChat主窗口，用来保护您的内容隐私。请注意，此功能不会彻底隐藏所有界面，请合理合规使用。并且，并不是所有投屏软件都遵守用户隐私设定，该功能可能会在一些不遵守隐私设定的投屏软件上失效，且部分环境中可能会残留一个黑色窗体。",
     "contentProtectionDisableDesc": "关闭投屏保护将允许投屏软件捕获DeepChat窗口。",
     "contentProtectionRestartNotice": "切换此设置将导致程序重启，请确认是否继续？",
-    "soundEnabled": "启用音效",
     "copyWithCotEnabled": "复制COT信息",
     "traceDebugEnabled": "追踪调用",
     "loggingEnabled": "启用日志",

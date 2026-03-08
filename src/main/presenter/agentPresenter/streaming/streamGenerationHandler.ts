@@ -118,19 +118,6 @@ export class StreamGenerationHandler extends BaseHandler {
         verbosity: currentVerbosity
       } = currentConversation.settings
 
-      try {
-        presenter.hooksNotifications.dispatchEvent('SessionStart', {
-          conversationId,
-          messageId: userMessage.id,
-          promptPreview: userContent,
-          providerId: currentProviderId,
-          modelId: currentModelId,
-          workdir: agentWorkspacePath ?? null
-        })
-      } catch (error) {
-        console.warn('[StreamGenerationHandler] Failed to dispatch SessionStart hook:', error)
-      }
-
       const stream = this.ctx.llmProviderPresenter.startStreamCompletion(
         currentProviderId,
         finalContent,
@@ -257,18 +244,6 @@ export class StreamGenerationHandler extends BaseHandler {
       })
 
       await this.updateGenerationState(state, promptTokens)
-
-      try {
-        presenter.hooksNotifications.dispatchEvent('SessionStart', {
-          conversationId,
-          messageId: userMessage.id,
-          promptPreview: 'continue',
-          providerId,
-          modelId
-        })
-      } catch (error) {
-        console.warn('[StreamGenerationHandler] Failed to dispatch SessionStart hook:', error)
-      }
 
       if (toolCallResponse && toolCall) {
         eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, SendTarget.ALL_WINDOWS, {

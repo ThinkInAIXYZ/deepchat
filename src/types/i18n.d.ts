@@ -1117,7 +1117,6 @@ declare module 'vue-i18n' {
       contentProtectionEnableDesc: string
       contentProtectionDisableDesc: string
       contentProtectionRestartNotice: string
-      soundEnabled: string
       copyWithCotEnabled: string
       traceDebugEnabled: string
       loggingEnabled: string

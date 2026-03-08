@@ -41,7 +41,6 @@
     "contentProtectionEnableDesc": "Prevent screen sharing apps from capturing the DeepChat window to help protect your privacy. Not all apps honor this setting; in some environments a black window may remain.",
     "contentProtectionDisableDesc": "Allow screen sharing apps to capture the DeepChat window.",
     "contentProtectionRestartNotice": "Changing this setting will restart the application. Do you want to continue?",
-    "soundEnabled": "Enable Sound Effects",
     "copyWithCotEnabled": "Copy COT Details",
     "traceDebugEnabled": "Trace Call",
     "loggingEnabled": "Enable Logging",

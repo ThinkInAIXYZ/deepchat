@@ -41,7 +41,6 @@
     "contentProtectionEnableDesc": "Forhindrer skærmdelingsapps i at optage DeepChat-vinduet og beskytter din fortrolighed. Ikke alle apps respekterer dette; i nogle miljøer kan et sort vindue blive vist.",
     "contentProtectionDisableDesc": "Tillad skærmdelingsapps at optage DeepChat-vinduet.",
     "contentProtectionRestartNotice": "Denne ændring genstarter applikationen. Vil du fortsætte?",
-    "soundEnabled": "Aktivér lydeffekter",
     "copyWithCotEnabled": "Kopiér COT-detaljer",
     "traceDebugEnabled": "Trace-kald",
     "loggingEnabled": "Aktivér logning",

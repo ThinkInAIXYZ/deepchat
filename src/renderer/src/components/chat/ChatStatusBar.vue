@@ -1,5 +1,5 @@
 <template>
-  <div class="relative w-full max-w-2xl">
+  <div :class="['relative w-full', props.maxWidthClass]">
     <div class="w-full flex items-center justify-between px-1 py-2">
       <div class="flex items-center gap-1">
         <DropdownMenu v-if="!isModelSelectionLocked">
@@ -328,6 +328,15 @@ import { useDraftStore } from '@/stores/ui/draft'
 import { usePresenter } from '@/composables/usePresenter'
 import type { RENDERER_MODEL_META, SystemPrompt } from '@shared/presenter'
 import type { PermissionMode, SessionGenerationSettings } from '@shared/types/agent-interface'
+
+const props = withDefaults(
+  defineProps<{
+    maxWidthClass?: string
+  }>(),
+  {
+    maxWidthClass: 'max-w-2xl'
+  }
+)
 
 type ModelSelection = {
   providerId: string

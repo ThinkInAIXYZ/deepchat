@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NewAgentPresenter } from '@/presenter/newAgentPresenter/index'
 import { DeepChatAgentPresenter } from '@/presenter/deepchatAgentPresenter/index'
+import { NewSessionHooksBridge } from '@/presenter/hooksNotifications/newSessionBridge'
 
 vi.mock('nanoid', () => {
   let counter = 0
@@ -538,6 +539,88 @@ describe('Integration: createSession end-to-end', () => {
 
     const remainingSession = sqlitePresenter.newSessionsTable.get(session.id)
     expect(remainingSession).toBeTruthy()
+  })
+})
+
+describe('Integration: ACP hooks bridge', () => {
+  let sqlitePresenter: ReturnType<typeof createMockSqlitePresenter>
+  let llmProvider: ReturnType<typeof createMockLlmProviderPresenter>
+  let configPresenter: ReturnType<typeof createMockConfigPresenter>
+  let agentPresenter: NewAgentPresenter
+  let hookDispatcher: { dispatchEvent: ReturnType<typeof vi.fn> }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    sqlitePresenter = createMockSqlitePresenter()
+    llmProvider = createMockLlmProviderPresenter()
+    configPresenter = createMockConfigPresenter()
+    configPresenter.getAcpAgents.mockResolvedValue([{ id: 'coder', name: 'Coder' }])
+    hookDispatcher = { dispatchEvent: vi.fn() }
+
+    const deepchatAgent = new DeepChatAgentPresenter(
+      llmProvider,
+      configPresenter,
+      sqlitePresenter,
+      createMockToolPresenter(),
+      new NewSessionHooksBridge(hookDispatcher)
+    )
+    agentPresenter = new NewAgentPresenter(
+      deepchatAgent as any,
+      llmProvider,
+      configPresenter,
+      sqlitePresenter
+    )
+  })
+
+  it('dispatches lifecycle hooks for ACP sessions through the new bridge', async () => {
+    const session = await agentPresenter.createSession(
+      {
+        agentId: 'coder',
+        providerId: 'acp',
+        modelId: 'coder',
+        message: 'Inspect workspace',
+        projectDir: '/tmp/acp-project'
+      },
+      1
+    )
+
+    await new Promise((r) => setTimeout(r, 50))
+
+    expect(session.agentId).toBe('coder')
+    expect(hookDispatcher.dispatchEvent).toHaveBeenCalledWith(
+      'UserPromptSubmit',
+      expect.objectContaining({
+        conversationId: session.id,
+        agentId: 'coder',
+        workdir: '/tmp/acp-project',
+        providerId: 'acp',
+        modelId: 'coder',
+        promptPreview: 'Inspect workspace'
+      })
+    )
+    expect(hookDispatcher.dispatchEvent).toHaveBeenCalledWith(
+      'SessionStart',
+      expect.objectContaining({
+        conversationId: session.id,
+        agentId: 'coder',
+        workdir: '/tmp/acp-project',
+        providerId: 'acp',
+        modelId: 'coder'
+      })
+    )
+    expect(hookDispatcher.dispatchEvent).toHaveBeenCalledWith(
+      'Stop',
+      expect.objectContaining({
+        conversationId: session.id,
+        stop: expect.objectContaining({ userStop: false })
+      })
+    )
+    expect(hookDispatcher.dispatchEvent).toHaveBeenCalledWith(
+      'SessionEnd',
+      expect.objectContaining({
+        conversationId: session.id
+      })
+    )
   })
 })
 

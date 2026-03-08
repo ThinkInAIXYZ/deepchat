@@ -151,51 +151,7 @@ export class LLMEventHandler {
 
     if (tool_call && !shouldSkipToolCall) {
       if (isAcpProvider) {
-        try {
-          if (tool_call === 'start') {
-            presenter.hooksNotifications.dispatchEvent('PreToolUse', {
-              conversationId: state.conversationId,
-              messageId: eventId,
-              providerId: state.message.model_provider,
-              modelId: state.message.model_id,
-              tool: {
-                callId: tool_call_id,
-                name: tool_call_name,
-                params: tool_call_params
-              }
-            })
-          }
-          if (tool_call === 'end') {
-            presenter.hooksNotifications.dispatchEvent('PostToolUse', {
-              conversationId: state.conversationId,
-              messageId: eventId,
-              providerId: state.message.model_provider,
-              modelId: state.message.model_id,
-              tool: {
-                callId: tool_call_id,
-                name: tool_call_name,
-                params: tool_call_params,
-                response: msg.tool_call_response ? String(msg.tool_call_response) : undefined
-              }
-            })
-          }
-          if (tool_call === 'error') {
-            presenter.hooksNotifications.dispatchEvent('PostToolUseFailure', {
-              conversationId: state.conversationId,
-              messageId: eventId,
-              providerId: state.message.model_provider,
-              modelId: state.message.model_id,
-              tool: {
-                callId: tool_call_id,
-                name: tool_call_name,
-                params: tool_call_params,
-                error: msg.tool_call_response ? String(msg.tool_call_response) : undefined
-              }
-            })
-          }
-        } catch (error) {
-          console.warn('[LLMEventHandler] Failed to dispatch ACP tool hooks:', error)
-        }
+        // Legacy hook dispatch disabled. New session hooks are emitted by the new agent pipeline.
       }
 
       switch (tool_call) {
@@ -217,22 +173,6 @@ export class LLMEventHandler {
             payload: msg.permission_request ?? {}
           })
           presenter.sessionManager.setStatus(state.conversationId, 'waiting_permission')
-          try {
-            presenter.hooksNotifications.dispatchEvent('PermissionRequest', {
-              conversationId: state.conversationId,
-              messageId: eventId,
-              providerId: state.message.model_provider,
-              modelId: state.message.model_id,
-              tool: {
-                callId: tool_call_id,
-                name: tool_call_name,
-                params: tool_call_params
-              },
-              permission: msg.permission_request ?? null
-            })
-          } catch (error) {
-            console.warn('[LLMEventHandler] Failed to dispatch PermissionRequest hook:', error)
-          }
           await this.toolCallHandler.processToolCallPermission(state, msg, currentTime)
           break
         case 'question-required':
@@ -445,8 +385,6 @@ export class LLMEventHandler {
   async handleLLMAgentEnd(msg: LLMAgentEventData): Promise<void> {
     const { eventId, userStop } = msg
     const state = this.generatingMessages.get(eventId)
-    const errorSnapshot = this.errorByEventId.get(eventId)
-
     if (state) {
       if (state.adaptiveBuffer) {
         await this.contentBufferHandler.flushAdaptiveBuffer(eventId)
@@ -512,51 +450,8 @@ export class LLMEventHandler {
       presenter.sessionManager.clearPendingQuestion(state.conversationId)
     }
 
-    const stopReason = errorSnapshot ? 'error' : userStop ? 'user_stop' : 'complete'
-    const stopPayload = {
-      reason: stopReason,
-      userStop: Boolean(userStop)
-    }
-    const usage = state?.totalUsage ?? errorSnapshot?.usage ?? null
-    const errorInfo = errorSnapshot?.error ?? null
-    let conversationId = state?.conversationId ?? errorSnapshot?.conversationId
-    let providerId = state?.message.model_provider ?? errorSnapshot?.providerId
-    let modelId = state?.message.model_id ?? errorSnapshot?.modelId
-
-    if (!conversationId) {
-      try {
-        const message = await this.messageManager.getMessage(eventId)
-        conversationId = message.conversationId
-        providerId = providerId ?? message.model_provider
-        modelId = modelId ?? message.model_id
-      } catch {
-        // ignore
-      }
-    }
-
     try {
-      try {
-        presenter.hooksNotifications.dispatchEvent('Stop', {
-          conversationId,
-          providerId,
-          modelId,
-          stop: stopPayload
-        })
-      } catch (error) {
-        console.warn('[LLMEventHandler] Failed to dispatch Stop hook:', error)
-      }
-      try {
-        presenter.hooksNotifications.dispatchEvent('SessionEnd', {
-          conversationId,
-          providerId,
-          modelId,
-          stop: stopPayload,
-          usage,
-          error: errorInfo
-        })
-      } catch (error) {
-        console.warn('[LLMEventHandler] Failed to dispatch SessionEnd hook:', error)
-      }
+      // Legacy hook dispatch disabled. New session hooks are emitted by the new agent pipeline.
     } finally {
       this.errorByEventId.delete(eventId)
     }

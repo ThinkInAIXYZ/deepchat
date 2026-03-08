@@ -37,6 +37,7 @@ export interface IAgentImplementation {
   initSession(
     sessionId: string,
     config: {
+      agentId?: string
       providerId: string
       modelId: string
       projectDir?: string | null

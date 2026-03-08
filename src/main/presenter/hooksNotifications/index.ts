@@ -3,7 +3,7 @@ import log from 'electron-log'
 import { spawn } from 'child_process'
 import fs from 'fs'
 import path from 'path'
-import type { IConfigPresenter, ISessionPresenter } from '@shared/presenter'
+import type { IConfigPresenter } from '@shared/presenter'
 import { RuntimeHelper } from '@/lib/runtimeHelper'
 import {
   HookCommandResult,
@@ -21,7 +21,7 @@ const TRUNCATION_SUFFIX = ' ...(truncated)'
 const MAX_RETRIES = 2
 const CONFIRMO_HOOK_RELATIVE_PATH = path.join('.confirmo', 'hooks', 'confirmo-hook.js')
 
-type HookDispatchContext = {
+export type HookDispatchContext = {
   conversationId?: string
   messageId?: string
   promptPreview?: string
@@ -47,6 +47,26 @@ type HookDispatchContext = {
     stack?: string
   } | null
   isTest?: boolean
+}
+
+type HookConversationLookup = {
+  settings: {
+    providerId?: string
+    modelId?: string
+  }
+}
+
+type HookMessageLookup = {
+  content: unknown
+}
+
+type HooksNotificationsDeps = {
+  getConversation?: (conversationId: string) => Promise<HookConversationLookup>
+  getMessage?: (messageId: string) => Promise<HookMessageLookup>
+  resolveWorkspaceContext?: (
+    conversationId?: string,
+    modelId?: string
+  ) => Promise<{ agentWorkspacePath: string | null }>
 }
 
 class SerialQueue {
@@ -129,13 +149,7 @@ export class HooksNotificationsService {
 
   constructor(
     private readonly configPresenter: IConfigPresenter,
-    private readonly deps: {
-      sessionPresenter: ISessionPresenter
-      resolveWorkspaceContext: (
-        conversationId?: string,
-        modelId?: string
-      ) => Promise<{ agentWorkspacePath: string | null }>
-    }
+    private readonly deps: HooksNotificationsDeps
   ) {}
 
   getConfigSnapshot(): HooksNotificationsSettings {
@@ -251,12 +265,15 @@ export class HooksNotificationsService {
     let workdir = context.workdir
 
     if (conversationId && (!providerId || !modelId)) {
+      const getConversation = this.deps.getConversation
       try {
-        const conversation = await this.deps.sessionPresenter.getConversation(conversationId)
-        providerId = providerId ?? conversation.settings.providerId
-        modelId = modelId ?? conversation.settings.modelId
-        if (!agentId && conversation.settings.providerId === 'acp') {
-          agentId = conversation.settings.modelId
+        if (getConversation) {
+          const conversation = await getConversation(conversationId)
+          providerId = providerId ?? conversation.settings.providerId
+          modelId = modelId ?? conversation.settings.modelId
+          if (!agentId && conversation.settings.providerId === 'acp') {
+            agentId = conversation.settings.modelId
+          }
         }
       } catch (error) {
         log.warn('[HooksNotifications] Failed to load conversation info:', error)
@@ -264,9 +281,12 @@ export class HooksNotificationsService {
     }
 
     if (conversationId && !workdir) {
+      const resolveWorkspaceContext = this.deps.resolveWorkspaceContext
       try {
-        const resolved = await this.deps.resolveWorkspaceContext(conversationId, modelId)
-        workdir = resolved.agentWorkspacePath ?? null
+        if (resolveWorkspaceContext) {
+          const resolved = await resolveWorkspaceContext(conversationId, modelId)
+          workdir = resolved.agentWorkspacePath ?? null
+        }
       } catch (error) {
         log.warn('[HooksNotifications] Failed to resolve workdir:', error)
       }
@@ -274,9 +294,12 @@ export class HooksNotificationsService {
 
     let promptPreview = context.promptPreview
     if (!promptPreview && context.messageId) {
+      const getMessage = this.deps.getMessage
       try {
-        const message = await this.deps.sessionPresenter.getMessage(context.messageId)
-        promptPreview = extractPromptPreview(message.content)
+        if (getMessage) {
+          const message = await getMessage(context.messageId)
+          promptPreview = extractPromptPreview(message.content)
+        }
       } catch (error) {
         log.warn('[HooksNotifications] Failed to read message for preview:', error)
       }
