@@ -8,6 +8,7 @@ import { createState } from '@/presenter/deepchatAgentPresenter/types'
 import type { MCPToolDefinition } from '@shared/presenter'
 import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
 import { ToolOutputGuard } from '@/presenter/deepchatAgentPresenter/toolOutputGuard'
+import { QUESTION_TOOL_NAME } from '@/presenter/agentPresenter/tools/questionTool'
 
 vi.mock('@/eventbus', () => ({
   eventBus: { sendToRenderer: vi.fn() },
@@ -161,6 +162,99 @@ describe('dispatch', () => {
       const toolBlock = state.blocks.find((b) => b.type === 'tool_call')
       expect(toolBlock!.tool_call!.response).toBe('Sunny, 72F')
       expect(toolBlock!.status).toBe('success')
+    })
+
+    it('does not emit PreToolUse for question interactions that pause execution', async () => {
+      const hooks = {
+        onPreToolUse: vi.fn(),
+        onPermissionRequest: vi.fn(),
+        onPostToolUse: vi.fn(),
+        onPostToolUseFailure: vi.fn()
+      }
+      const toolPresenter = createMockToolPresenter()
+
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: { id: 'tc1', name: QUESTION_TOOL_NAME, params: '', response: '' }
+      })
+      state.completedToolCalls = [
+        {
+          id: 'tc1',
+          name: QUESTION_TOOL_NAME,
+          arguments: JSON.stringify({
+            question: 'Continue?',
+            options: [{ label: 'Yes' }]
+          })
+        }
+      ]
+
+      const result = await executeTools(
+        state,
+        [],
+        0,
+        [makeTool(QUESTION_TOOL_NAME)],
+        toolPresenter,
+        'gpt-4',
+        io,
+        'full_access',
+        new ToolOutputGuard(),
+        32000,
+        1024,
+        hooks
+      )
+
+      expect(result.pendingInteractions).toHaveLength(1)
+      expect(hooks.onPreToolUse).not.toHaveBeenCalled()
+      expect(toolPresenter.callTool).not.toHaveBeenCalled()
+    })
+
+    it('does not emit PreToolUse before a pre-checked permission pause', async () => {
+      const hooks = {
+        onPreToolUse: vi.fn(),
+        onPermissionRequest: vi.fn(),
+        onPostToolUse: vi.fn(),
+        onPostToolUseFailure: vi.fn()
+      }
+      const toolPresenter = createMockToolPresenter() as IToolPresenter & {
+        preCheckToolPermission: ReturnType<typeof vi.fn>
+      }
+      toolPresenter.preCheckToolPermission = vi.fn().mockResolvedValue({
+        needsPermission: true,
+        permissionType: 'write',
+        description: 'Need permission'
+      })
+
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: { id: 'tc1', name: 'write_file', params: '{"path":"a.txt"}', response: '' }
+      })
+      state.completedToolCalls = [{ id: 'tc1', name: 'write_file', arguments: '{"path":"a.txt"}' }]
+
+      const result = await executeTools(
+        state,
+        [],
+        0,
+        [makeTool('write_file')],
+        toolPresenter,
+        'gpt-4',
+        io,
+        'default',
+        new ToolOutputGuard(),
+        32000,
+        1024,
+        hooks
+      )
+
+      expect(result.pendingInteractions).toHaveLength(1)
+      expect(hooks.onPreToolUse).not.toHaveBeenCalled()
+      expect(hooks.onPermissionRequest).toHaveBeenCalledTimes(1)
+      expect(toolPresenter.callTool).not.toHaveBeenCalled()
     })
 
     it('enriches tool_call blocks with server info', async () => {
@@ -606,6 +700,12 @@ describe('dispatch', () => {
       const longScreenshot = JSON.stringify({ data: 'x'.repeat(7000) })
       const toolPresenter = createMockToolPresenter({ yo_browser_cdp_send: longScreenshot })
       const conversation: any[] = []
+      const hooks = {
+        onPreToolUse: vi.fn(),
+        onPermissionRequest: vi.fn(),
+        onPostToolUse: vi.fn(),
+        onPostToolUseFailure: vi.fn()
+      }
 
       state.blocks.push({
         type: 'tool_call',
@@ -638,12 +738,19 @@ describe('dispatch', () => {
         'full_access',
         new ToolOutputGuard(),
         1,
-        1
+        1,
+        hooks
       )
 
       expect(executed.terminalError).toContain('remaining context window is too small')
       expect(conversation.find((message: any) => message.role === 'tool')).toBeUndefined()
       expect(state.blocks[0].status).toBe('error')
+      expect(hooks.onPostToolUseFailure).toHaveBeenCalledWith({
+        callId: 'tc1',
+        name: 'yo_browser_cdp_send',
+        params: '{"method":"Page.captureScreenshot"}',
+        error: expect.stringContaining('remaining context window is too small')
+      })
       await expect(
         fs.access(path.join(tempHome, '.deepchat', 'sessions', 's1', 'tool_tc1.offload'))
       ).rejects.toThrow()

@@ -77,6 +77,9 @@ function createMockSqlitePresenter() {
     summary_updated_at: null
   }
   return {
+    newSessionsTable: {
+      get: vi.fn()
+    },
     deepchatSessionsTable: {
       create: vi.fn(),
       get: vi.fn(),
@@ -435,6 +438,34 @@ describe('DeepChatAgentPresenter', () => {
         'SessionEnd',
         expect.objectContaining({
           conversationId: 's1'
+        })
+      )
+    })
+
+    it('rehydrates agentId from persisted new session rows before dispatching hooks', async () => {
+      sqlitePresenter.newSessionsTable.get.mockReturnValue({
+        id: 's1',
+        agent_id: 'coder'
+      })
+      sqlitePresenter.deepchatSessionsTable.get.mockReturnValue({
+        id: 's1',
+        provider_id: 'acp',
+        model_id: 'coder',
+        permission_mode: 'full_access'
+      })
+      ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async () => ({
+        status: 'completed',
+        stopReason: 'complete'
+      }))
+
+      await agent.getSessionState('s1')
+      await agent.processMessage('s1', 'Reopened session', { projectDir: '/tmp/project' })
+
+      expect(hookDispatcher.dispatchEvent).toHaveBeenCalledWith(
+        'UserPromptSubmit',
+        expect.objectContaining({
+          conversationId: 's1',
+          agentId: 'coder'
         })
       )
     })
@@ -1836,6 +1867,23 @@ describe('DeepChatAgentPresenter', () => {
           'remaining context window is insufficient'
         )
         expect(updatedBlocks[0].tool_call.response).not.toContain('[Tool output offloaded]')
+        const postToolUseCalls = hookDispatcher.dispatchEvent.mock.calls.filter(
+          ([event]) => event === 'PostToolUse'
+        )
+        const postToolUseFailureCalls = hookDispatcher.dispatchEvent.mock.calls.filter(
+          ([event]) => event === 'PostToolUseFailure'
+        )
+        expect(postToolUseCalls).toHaveLength(0)
+        expect(postToolUseFailureCalls).toHaveLength(1)
+        expect(postToolUseFailureCalls[0][1]).toEqual(
+          expect.objectContaining({
+            conversationId: 's1',
+            tool: expect.objectContaining({
+              callId: 'tc1',
+              error: expect.stringContaining('remaining context window is insufficient')
+            })
+          })
+        )
         await expect(
           fs.access(path.join(tempHome, '.deepchat', 'sessions', 's1', 'tool_tc1.offload'))
         ).rejects.toThrow()
@@ -1879,6 +1927,23 @@ describe('DeepChatAgentPresenter', () => {
       expect(updatedBlocks[0].tool_call.response).toBe('User denied the request.')
       expect(updatedBlocks[0].status).toBe('error')
       expect(updatedBlocks[1].status).toBe('denied')
+      const postToolUseCalls = hookDispatcher.dispatchEvent.mock.calls.filter(
+        ([event]) => event === 'PostToolUse'
+      )
+      const postToolUseFailureCalls = hookDispatcher.dispatchEvent.mock.calls.filter(
+        ([event]) => event === 'PostToolUseFailure'
+      )
+      expect(postToolUseCalls).toHaveLength(0)
+      expect(postToolUseFailureCalls).toHaveLength(1)
+      expect(postToolUseFailureCalls[0][1]).toEqual(
+        expect.objectContaining({
+          conversationId: 's1',
+          tool: expect.objectContaining({
+            callId: 'tc1',
+            error: 'User denied the request.'
+          })
+        })
+      )
       expect(processStream).toHaveBeenCalledTimes(1)
     })
   })

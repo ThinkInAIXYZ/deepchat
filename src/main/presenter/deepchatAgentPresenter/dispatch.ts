@@ -443,12 +443,6 @@ export async function executeTools(
     }
 
     try {
-      hooks?.onPreToolUse?.({
-        callId: tc.id,
-        name: tc.name,
-        params: tc.arguments
-      })
-
       if (toolCall.function.name === QUESTION_TOOL_NAME) {
         const parsedQuestion = parseQuestionToolArgs(tc.arguments)
         if (!parsedQuestion.success) {
@@ -510,6 +504,12 @@ export async function executeTools(
           continue
         }
       }
+
+      hooks?.onPreToolUse?.({
+        callId: tc.id,
+        name: tc.name,
+        params: tc.arguments
+      })
 
       const toolCallResult = await toolPresenter.callTool(toolCall)
       let toolRawData = toolCallResult.rawData
@@ -580,6 +580,12 @@ export async function executeTools(
 
       if (guardedResult.kind === 'terminal_error') {
         updateToolCallBlock(state.blocks, tc.id, guardedResult.message, true)
+        hooks?.onPostToolUseFailure?.({
+          callId: tc.id,
+          name: tc.name,
+          params: tc.arguments,
+          error: guardedResult.message
+        })
         state.dirty = true
         executed += 1
         flushBlocksToRenderer(io, state.blocks)
