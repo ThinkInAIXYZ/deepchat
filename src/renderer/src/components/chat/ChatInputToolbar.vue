@@ -21,7 +21,7 @@
 
     <div class="flex items-center gap-1">
       <!-- Mic button -->
-      <Tooltip>
+      <Tooltip v-if="showVoiceInput">
         <TooltipTrigger as-child>
           <Button
             variant="ghost"
@@ -69,10 +69,12 @@ withDefaults(
   defineProps<{
     isGenerating?: boolean
     sendDisabled?: boolean
+    showVoiceInput?: boolean
   }>(),
   {
     isGenerating: false,
-    sendDisabled: false
+    sendDisabled: false,
+    showVoiceInput: false
   }
 )
 

@@ -20,7 +20,7 @@
 
     <div class="flex items-center gap-1">
       <!-- Mic button -->
-      <Tooltip>
+      <Tooltip v-if="SHOW_VOICE_INPUT">
         <TooltipTrigger as-child>
           <Button
             variant="ghost"
@@ -47,4 +47,6 @@
 import { Button } from '@shadcn/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@shadcn/components/ui/tooltip'
 import { Icon } from '@iconify/vue'
+
+const SHOW_VOICE_INPUT = false
 </script>
