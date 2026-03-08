@@ -3,6 +3,7 @@ import fs from 'fs/promises'
 import os from 'os'
 import path from 'path'
 import { app } from 'electron'
+import type { DeepChatSessionState } from '@shared/types/agent-interface'
 import { DeepChatAgentPresenter } from '@/presenter/deepchatAgentPresenter/index'
 import { NewSessionHooksBridge } from '@/presenter/hooksNotifications/newSessionBridge'
 
@@ -1234,7 +1235,7 @@ describe('DeepChatAgentPresenter', () => {
 
     it('rejects model switching while the session is generating', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
-      ;((agent as any).runtimeState as Map<string, { status: string }>).set('s1', {
+      ;((agent as any).runtimeState as Map<string, DeepChatSessionState>).set('s1', {
         status: 'generating',
         providerId: 'openai',
         modelId: 'gpt-4',
