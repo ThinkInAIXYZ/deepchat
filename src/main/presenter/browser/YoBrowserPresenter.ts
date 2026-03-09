@@ -583,10 +583,8 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     this.setupPageListeners(hostWindowId, page, view.webContents, true)
 
     if (url && url !== 'about:blank') {
-      state.page.contents.loadURL(url).catch((err) => {
-        console.error('[YoBrowser] loadURL failed:', err)
-      })
-      state.updatedAt = Date.now()
+      await state.page.navigate(url)
+      state.updatedAt = state.page.updatedAt
     }
 
     this.setActiveWindowId(hostWindowId)

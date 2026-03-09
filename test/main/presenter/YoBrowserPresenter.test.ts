@@ -18,6 +18,13 @@ class MockWebContents extends EventEmitter {
   loadURL = vi.fn(async (url: string) => {
     this.url = url
   })
+  once = vi.fn((event: string, listener: (...args: any[]) => void) => {
+    super.once(event, listener)
+    if (event === 'did-finish-load') {
+      queueMicrotask(() => this.emit('did-finish-load'))
+    }
+    return this
+  })
   canGoBack = vi.fn(() => false)
   canGoForward = vi.fn(() => false)
   goBack = vi.fn()
