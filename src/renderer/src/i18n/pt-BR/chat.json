@@ -1,6 +1,6 @@
 {
   "input": {
-    "placeholder": "Pergunte qualquer coisa ao DeepChat, @ para mencionar arquivos, / para comandos",
+    "placeholder": "Pergunte qualquer coisa ao DeepChat, {'@'} para mencionar arquivos, / para comandos",
     "fileArea": "Área de Arquivos",
     "inputArea": "Área de Entrada",
     "functionSwitch": "Alternar Função",

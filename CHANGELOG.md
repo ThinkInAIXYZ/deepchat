@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.0.0-beta.1 (2026-03-09)
+- 全新 Agent 架构：重构 Agent UI 与 Agent Loop，模块化流处理，统一代码路径
+- 移除 Chat 模式：简化模式选择，仅保留 Agent 和 ACP Agent 两种模式
+- 默认模型配置系统：新增默认模型与默认视觉模型全局设置
+- 内置 DimCode Agent：预置 ACP Agent，开箱即用的代码助手
+
 ## v0.5.8 (2026-02-09)
 - OpenAI 默认改为 Responses API
 - 支持了 Telegram/Discord/Confirmo 通知

@@ -50,10 +50,9 @@ export type HookDispatchContext = {
 }
 
 type HookConversationLookup = {
-  settings: {
-    providerId?: string
-    modelId?: string
-  }
+  providerId?: string
+  modelId?: string
+  projectDir?: string | null
 }
 
 type HookMessageLookup = {
@@ -61,12 +60,8 @@ type HookMessageLookup = {
 }
 
 type HooksNotificationsDeps = {
-  getConversation?: (conversationId: string) => Promise<HookConversationLookup>
-  getMessage?: (messageId: string) => Promise<HookMessageLookup>
-  resolveWorkspaceContext?: (
-    conversationId?: string,
-    modelId?: string
-  ) => Promise<{ agentWorkspacePath: string | null }>
+  getSession?: (sessionId: string) => Promise<HookConversationLookup | null>
+  getMessage?: (messageId: string) => Promise<HookMessageLookup | null>
 }
 
 class SerialQueue {
@@ -113,16 +108,36 @@ export const parseRetryAfterMs = (response: Response, body?: unknown): number | 
 }
 
 const extractPromptPreview = (content: unknown): string => {
-  if (typeof content === 'string') return content
+  // Handle string content (JSON serialized from new agent system)
+  if (typeof content === 'string') {
+    try {
+      const parsed = JSON.parse(content) as unknown
+      return extractFromParsed(parsed)
+    } catch {
+      // Not valid JSON, return as-is
+      return content
+    }
+  }
+  // Handle object content (already parsed)
+  return extractFromParsed(content)
+}
+
+const extractFromParsed = (content: unknown): string => {
   if (!content || typeof content !== 'object') return ''
-  const candidate = content as {
-    text?: string
-    content?: Array<{ content?: string }>
+
+  // Handle UserMessageContent format: { text: string, files: [], ... }
+  const userCandidate = content as { text?: string }
+  if (typeof userCandidate.text === 'string') return userCandidate.text
+
+  // Handle AssistantMessageBlock[] format: array of blocks
+  if (Array.isArray(content)) {
+    const blocks = content as Array<{ type?: string; content?: string }>
+    return blocks
+      .filter((block) => block.type === 'content')
+      .map((block) => block.content || '')
+      .join('')
   }
-  if (typeof candidate.text === 'string') return candidate.text
-  if (Array.isArray(candidate.content)) {
-    return candidate.content.map((block) => block.content || '').join('')
-  }
+
   return ''
 }
 
@@ -264,31 +279,22 @@ export class HooksNotificationsService {
     let agentId = context.agentId
     let workdir = context.workdir
 
-    if (conversationId && (!providerId || !modelId)) {
-      const getConversation = this.deps.getConversation
+    if (conversationId && (!providerId || !modelId || !workdir)) {
+      const getSession = this.deps.getSession
       try {
-        if (getConversation) {
-          const conversation = await getConversation(conversationId)
-          providerId = providerId ?? conversation.settings.providerId
-          modelId = modelId ?? conversation.settings.modelId
-          if (!agentId && conversation.settings.providerId === 'acp') {
-            agentId = conversation.settings.modelId
+        if (getSession) {
+          const session = await getSession(conversationId)
+          if (session) {
+            providerId = providerId ?? session.providerId
+            modelId = modelId ?? session.modelId
+            workdir = workdir ?? session.projectDir
+            if (!agentId && session.providerId === 'acp') {
+              agentId = session.modelId
+            }
           }
         }
       } catch (error) {
-        log.warn('[HooksNotifications] Failed to load conversation info:', error)
-      }
-    }
-
-    if (conversationId && !workdir) {
-      const resolveWorkspaceContext = this.deps.resolveWorkspaceContext
-      try {
-        if (resolveWorkspaceContext) {
-          const resolved = await resolveWorkspaceContext(conversationId, modelId)
-          workdir = resolved.agentWorkspacePath ?? null
-        }
-      } catch (error) {
-        log.warn('[HooksNotifications] Failed to resolve workdir:', error)
+        log.warn('[HooksNotifications] Failed to load session info:', error)
       }
     }
 
@@ -298,7 +304,9 @@ export class HooksNotificationsService {
       try {
         if (getMessage) {
           const message = await getMessage(context.messageId)
-          promptPreview = extractPromptPreview(message.content)
+          if (message) {
+            promptPreview = extractPromptPreview(message.content)
+          }
         }
       } catch (error) {
         log.warn('[HooksNotifications] Failed to read message for preview:', error)

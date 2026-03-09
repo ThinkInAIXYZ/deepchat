@@ -2,6 +2,8 @@
 
 本文档从高层视角介绍 DeepChat 的系统架构，帮助开发者快速理解项目结构和组件关系。
 
+> **Note (2026-03-09):** 本文档描述的是原始 AgentPresenter 架构。新架构（P0 实现）使用 `newAgentPresenter` + `deepchatAgentPresenter` 作为主要入口，详见 [P0 Implementation Summary](./P0_IMPLEMENTATION_SUMMARY.md)。
+
 ## 🏗️ 核心组件关系
 
 ```mermaid

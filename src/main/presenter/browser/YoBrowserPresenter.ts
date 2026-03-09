@@ -75,9 +75,14 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
       return null
     }
 
+    const targetWindow =
+      this.windowPresenter.getFocusedWindow() || this.windowPresenter.getAllWindows()[0]
+    if (targetWindow) {
+      await this.attachEmbeddedToWindow(targetWindow.id)
+    }
+
     this.windowPresenter.show(created.id, true)
     this.setActiveWindowId(created.id)
-    this.setWindowVisibility(created, Boolean(created.attachedWindowId))
     this.emitWindowUpdated(created)
     return this.toWindowInfo(created)
   }
@@ -578,8 +583,8 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     this.setupPageListeners(hostWindowId, page, view.webContents, true)
 
     if (url && url !== 'about:blank') {
-      await page.navigate(url)
-      state.updatedAt = Date.now()
+      await state.page.navigate(url)
+      state.updatedAt = state.page.updatedAt
     }
 
     this.setActiveWindowId(hostWindowId)

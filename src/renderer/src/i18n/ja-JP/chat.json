@@ -1,6 +1,6 @@
 {
   "input": {
-    "placeholder": "DeepChat に何でも聞いてください。@ でファイルをメンション、/ でコマンドを使用できます",
+    "placeholder": "DeepChat に何でも聞いてください。{'@'} でファイルをメンション、/ でコマンドを使用できます",
     "fileArea": "ファイルエリア",
     "inputArea": "入力エリア",
     "functionSwitch": "機能スイッチ",

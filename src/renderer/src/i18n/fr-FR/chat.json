@@ -1,6 +1,6 @@
 {
   "input": {
-    "placeholder": "Demandez n'importe quoi à DeepChat, @ pour mentionner des fichiers, / pour les commandes",
+    "placeholder": "Demandez n'importe quoi à DeepChat, {'@'} pour mentionner des fichiers, / pour les commandes",
     "fileArea": "Zone de fichiers",
     "inputArea": "Zone de saisie",
     "functionSwitch": "Commutateur de fonction",

@@ -1,6 +1,6 @@
 {
   "input": {
-    "placeholder": "向 DeepChat 發送訊息，@ 可引用檔案，/ 可使用指令",
+    "placeholder": "向 DeepChat 發送訊息，{'@'} 可引用檔案，/ 可使用指令",
     "fileArea": "文件區域",
     "inputArea": "輸入區域",
     "functionSwitch": "功能開關",
