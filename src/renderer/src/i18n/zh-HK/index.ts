@@ -12,7 +12,6 @@ import artifacts from './artifacts.json'
 import sync from './sync.json'
 import toolCall from './toolCall.json'
 import components from './components.json'
-import newThread from './newThread.json'
 import about from './about.json'
 import promptSetting from './promptSetting.json'
 import plan from './plan.json'
@@ -47,7 +46,6 @@ export default {
   sync,
   toolCall,
   components,
-  newThread,
   about,
   promptSetting,
   plan,

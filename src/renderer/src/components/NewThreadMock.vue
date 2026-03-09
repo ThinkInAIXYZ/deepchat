@@ -9,7 +9,9 @@
         </div>
 
         <!-- Heading -->
-        <h1 class="text-3xl font-semibold text-foreground mb-4">Build and explore</h1>
+        <h1 class="text-3xl font-semibold text-foreground mb-4">
+          {{ t('chat.newThread.title') }}
+        </h1>
 
         <!-- Project selector -->
         <DropdownMenu>
@@ -25,7 +27,7 @@
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="center" class="min-w-[200px]">
-            <DropdownMenuLabel class="text-xs">Recent Projects</DropdownMenuLabel>
+            <DropdownMenuLabel class="text-xs">{{ t('common.project.recent') }}</DropdownMenuLabel>
             <DropdownMenuItem
               v-for="project in recentProjects"
               :key="project.path"
@@ -41,7 +43,7 @@
             <DropdownMenuSeparator />
             <DropdownMenuItem class="gap-2 text-xs py-1.5 px-2" @click="selectCustomProject">
               <Icon icon="lucide:folder-open" class="w-3.5 h-3.5 text-muted-foreground" />
-              <span>Open folder...</span>
+              <span>{{ t('common.project.openFolder') }}</span>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -62,6 +64,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { TooltipProvider } from '@shadcn/components/ui/tooltip'
 import { Button } from '@shadcn/components/ui/button'
 import {
@@ -76,6 +79,8 @@ import { Icon } from '@iconify/vue'
 import MockInputBox from './mock/MockInputBox.vue'
 import MockInputToolbar from './mock/MockInputToolbar.vue'
 import MockStatusBar from './mock/MockStatusBar.vue'
+
+const { t } = useI18n()
 
 const recentProjects = [
   { name: 'deepchat', path: '~/Code/deepchat' },

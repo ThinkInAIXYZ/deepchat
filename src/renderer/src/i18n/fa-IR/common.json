@@ -99,5 +99,17 @@
   },
   "size": {
     "bytes": "{count} بایت"
+  },
+  "time": {
+    "today": "امروز",
+    "yesterday": "دیروز",
+    "lastWeek": "هفته گذشته",
+    "older": "قدیمی‌تر"
+  },
+  "project": {
+    "select": "انتخاب پروژه",
+    "none": "بدون پروژه",
+    "recent": "پروژه‌های اخیر",
+    "openFolder": "باز کردن پوشه..."
   }
 }

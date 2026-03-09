@@ -1,6 +1,6 @@
 {
   "input": {
-    "placeholder": "Pergunte algo? Você pode citar ferramentas, arquivos, recursos usando {'@'}...",
+    "placeholder": "Pergunte qualquer coisa ao DeepChat, @ para mencionar arquivos, / para comandos",
     "fileArea": "Área de Arquivos",
     "inputArea": "Área de Entrada",
     "functionSwitch": "Alternar Função",
@@ -210,5 +210,21 @@
   "compaction": {
     "compacting": "Compactando o contexto automaticamente...",
     "compacted": "O contexto foi compactado automaticamente"
+  },
+  "newThread": {
+    "title": "Criar e explorar"
+  },
+  "permissionMode": {
+    "default": "Permissões padrão",
+    "fullAccess": "Acesso total"
+  },
+  "sidebar": {
+    "allAgents": "Todos os agentes",
+    "expandSidebar": "Expandir barra lateral",
+    "collapseSidebar": "Recolher barra lateral",
+    "groupByDate": "Agrupar por data",
+    "groupByProject": "Agrupar por projeto",
+    "emptyTitle": "Ainda não há conversas",
+    "emptyDescription": "Inicie um novo chat para começar"
   }
 }

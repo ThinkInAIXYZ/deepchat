@@ -27,7 +27,6 @@ export const useAgentStore = defineStore('agent', () => {
   // --- Getters ---
   const enabledAgents = computed(() => agents.value.filter((a) => a.enabled))
   const selectedAgent = computed(() => agents.value.find((a) => a.id === selectedAgentId.value))
-  const selectedAgentName = computed(() => selectedAgent.value?.name ?? 'All Agents')
 
   // --- Actions ---
 
@@ -73,7 +72,6 @@ export const useAgentStore = defineStore('agent', () => {
     error,
     enabledAgents,
     selectedAgent,
-    selectedAgentName,
     setSelectedAgent,
     fetchAgents,
     selectAgent

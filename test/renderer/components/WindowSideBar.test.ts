@@ -6,6 +6,7 @@ type SetupOptions = {
   pinnedSessions?: Array<{ id: string; title: string; status: string }>
   groups?: Array<{
     label: string
+    labelKey?: string
     sessions: Array<{ id: string; title: string; status: string }>
   }>
 }
@@ -116,7 +117,8 @@ describe('WindowSideBar agent switch', () => {
       ],
       groups: [
         {
-          label: 'Today',
+          label: 'common.time.today',
+          labelKey: 'common.time.today',
           sessions: [
             {
               id: 'normal-1',
@@ -131,7 +133,7 @@ describe('WindowSideBar agent switch', () => {
     await wrapper.vm.$nextTick()
 
     expect(wrapper.text()).toContain('Pinned Session')
-    expect(wrapper.text()).toContain('Today')
+    expect(wrapper.text()).toContain('common.time.today')
     expect(wrapper.text()).toContain('Normal Session')
   })
 })

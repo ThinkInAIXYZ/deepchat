@@ -7,7 +7,6 @@ import sync from './sync.json'
 import thread from './thread.json'
 import mcp from './mcp.json'
 import model from './model.json'
-import newThread from './newThread.json'
 import components from './components.json'
 import dialog from './dialog.json'
 import about from './about.json'
@@ -41,7 +40,6 @@ export default {
   dialog,
   settings,
   welcome,
-  newThread,
   about,
   artifacts,
   sync,

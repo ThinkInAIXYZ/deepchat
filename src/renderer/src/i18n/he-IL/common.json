@@ -99,5 +99,17 @@
   },
   "size": {
     "bytes": "{count} בתים"
+  },
+  "time": {
+    "today": "היום",
+    "yesterday": "אתמול",
+    "lastWeek": "השבוע שעבר",
+    "older": "ישן יותר"
+  },
+  "project": {
+    "select": "בחר פרויקט",
+    "none": "ללא פרויקט",
+    "recent": "פרויקטים אחרונים",
+    "openFolder": "פתח תיקייה..."
   }
 }

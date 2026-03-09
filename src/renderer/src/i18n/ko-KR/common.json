@@ -99,5 +99,17 @@
   },
   "size": {
     "bytes": "{count} 바이트"
+  },
+  "time": {
+    "today": "오늘",
+    "yesterday": "어제",
+    "lastWeek": "지난 주",
+    "older": "이전"
+  },
+  "project": {
+    "select": "프로젝트 선택",
+    "none": "프로젝트 없음",
+    "recent": "최근 프로젝트",
+    "openFolder": "폴더 열기..."
   }
 }

@@ -1,6 +1,6 @@
 {
   "input": {
-    "placeholder": "שאל משהו? ניתן לצטט כלים, קבצים ומשאבים באמצעות {'@'}...",
+    "placeholder": "שאלו את DeepChat כל דבר, השתמשו ב-@ כדי להזכיר קבצים וב-/ לפקודות",
     "fileArea": "אזור קבצים",
     "inputArea": "אזור קלט",
     "functionSwitch": "מתג פונקציות",
@@ -210,5 +210,21 @@
   "compaction": {
     "compacting": "דחיסת ההקשר מתבצעת באופן אוטומטי...",
     "compacted": "ההקשר נדחס אוטומטית"
+  },
+  "newThread": {
+    "title": "בנו וגלו"
+  },
+  "permissionMode": {
+    "default": "הרשאות ברירת מחדל",
+    "fullAccess": "גישה מלאה"
+  },
+  "sidebar": {
+    "allAgents": "כל הסוכנים",
+    "expandSidebar": "הרחב את הסרגל הצדדי",
+    "collapseSidebar": "כווץ את הסרגל הצדדי",
+    "groupByDate": "קבץ לפי תאריך",
+    "groupByProject": "קבץ לפי פרויקט",
+    "emptyTitle": "עדיין אין שיחות",
+    "emptyDescription": "התחילו שיחה חדשה כדי להתחיל"
   }
 }

@@ -99,5 +99,17 @@
   },
   "size": {
     "bytes": "{count} byte"
+  },
+  "time": {
+    "today": "I dag",
+    "yesterday": "I går",
+    "lastWeek": "Sidste uge",
+    "older": "Ældre"
+  },
+  "project": {
+    "select": "Vælg projekt",
+    "none": "Intet projekt",
+    "recent": "Seneste projekter",
+    "openFolder": "Åbn mappe..."
   }
 }

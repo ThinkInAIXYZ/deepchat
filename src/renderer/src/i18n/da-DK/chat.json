@@ -19,7 +19,7 @@
     "historyPlaceholder": "(Udfyld med Tab)",
     "inputArea": "Indtastningsområde",
     "pasteFiles": "Understøtter kopiering og indsættelse af filer",
-    "placeholder": "Spørg om noget? Du kan referere til værktøjer, filer, ressourcer osv. ved at bruge {'@'}.",
+    "placeholder": "Spørg DeepChat om hvad som helst, @ for at nævne filer, / for kommandoer",
     "promptFilesAdded": "Prompt-filen er blevet tilføjet",
     "promptFilesAddedDesc": "{count} filer er blevet tilføjet successfully",
     "promptFilesError": "Filbehandlingsfejl",
@@ -210,5 +210,21 @@
   "compaction": {
     "compacting": "Komprimerer automatisk kontekst...",
     "compacted": "Konteksten blev automatisk komprimeret"
+  },
+  "newThread": {
+    "title": "Byg og udforsk"
+  },
+  "permissionMode": {
+    "default": "Standardtilladelser",
+    "fullAccess": "Fuld adgang"
+  },
+  "sidebar": {
+    "allAgents": "Alle agenter",
+    "expandSidebar": "Udvid sidepanelet",
+    "collapseSidebar": "Skjul sidepanelet",
+    "groupByDate": "Gruppér efter dato",
+    "groupByProject": "Gruppér efter projekt",
+    "emptyTitle": "Ingen samtaler endnu",
+    "emptyDescription": "Start en ny samtale for at komme i gang"
   }
 }

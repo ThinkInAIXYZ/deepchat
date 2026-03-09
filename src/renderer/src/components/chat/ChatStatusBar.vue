@@ -108,14 +108,14 @@
               :disabled="permissionMode === 'full_access'"
               @click="selectPermissionMode('full_access')"
             >
-              Full access
+              {{ t('chat.permissionMode.fullAccess') }}
             </DropdownMenuItem>
             <DropdownMenuItem
               class="text-xs py-1.5 px-2"
               :disabled="permissionMode === 'default'"
               @click="selectPermissionMode('default')"
             >
-              Default permissions
+              {{ t('chat.permissionMode.default') }}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -127,7 +127,7 @@
           :disabled="true"
         >
           <Icon icon="lucide:shield" class="w-3.5 h-3.5" />
-          <span>Full access</span>
+          <span>{{ t('chat.permissionMode.fullAccess') }}</span>
         </Button>
       </div>
     </div>
@@ -1136,7 +1136,9 @@ const currentEffortLabel = computed(() => {
 })
 
 const permissionModeLabel = computed(() =>
-  permissionMode.value === 'default' ? 'Default permissions' : 'Full access'
+  permissionMode.value === 'default'
+    ? t('chat.permissionMode.default')
+    : t('chat.permissionMode.fullAccess')
 )
 
 const handleDocumentMouseDown = (event: MouseEvent) => {

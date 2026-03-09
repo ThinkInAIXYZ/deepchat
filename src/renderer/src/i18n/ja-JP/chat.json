@@ -1,6 +1,6 @@
 {
   "input": {
-    "placeholder": "何か質問は？{'@'}でツール、ファイル、リソースを引用できます...",
+    "placeholder": "DeepChat に何でも聞いてください。@ でファイルをメンション、/ でコマンドを使用できます",
     "fileArea": "ファイルエリア",
     "inputArea": "入力エリア",
     "functionSwitch": "機能スイッチ",
@@ -210,5 +210,21 @@
   "compaction": {
     "compacting": "コンテキストを自動圧縮しています...",
     "compacted": "コンテキストは自動圧縮されました"
+  },
+  "newThread": {
+    "title": "作成して探索"
+  },
+  "permissionMode": {
+    "default": "デフォルト権限",
+    "fullAccess": "フルアクセス"
+  },
+  "sidebar": {
+    "allAgents": "すべてのエージェント",
+    "expandSidebar": "サイドバーを展開",
+    "collapseSidebar": "サイドバーを折りたたむ",
+    "groupByDate": "日付でグループ化",
+    "groupByProject": "プロジェクトでグループ化",
+    "emptyTitle": "まだ会話がありません",
+    "emptyDescription": "新しいチャットを始めましょう"
   }
 }

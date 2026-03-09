@@ -99,5 +99,17 @@
   },
   "size": {
     "bytes": "{count} octets"
+  },
+  "time": {
+    "today": "Aujourd'hui",
+    "yesterday": "Hier",
+    "lastWeek": "La semaine dernière",
+    "older": "Plus anciennes"
+  },
+  "project": {
+    "select": "Sélectionner un projet",
+    "none": "Aucun projet",
+    "recent": "Projets récents",
+    "openFolder": "Ouvrir un dossier..."
   }
 }

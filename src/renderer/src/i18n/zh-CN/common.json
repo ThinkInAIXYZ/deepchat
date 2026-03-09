@@ -99,5 +99,17 @@
   },
   "size": {
     "bytes": "{count} 字节"
+  },
+  "time": {
+    "today": "今天",
+    "yesterday": "昨天",
+    "lastWeek": "最近一周",
+    "older": "更早"
+  },
+  "project": {
+    "select": "选择项目",
+    "none": "未关联项目",
+    "recent": "最近项目",
+    "openFolder": "打开文件夹..."
   }
 }

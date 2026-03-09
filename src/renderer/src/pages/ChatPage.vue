@@ -67,6 +67,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { TooltipProvider } from '@shadcn/components/ui/tooltip'
 import ChatTopBar from '@/components/chat/ChatTopBar.vue'
 import MessageList from '@/components/chat/MessageList.vue'
@@ -97,8 +98,9 @@ const sessionStore = useSessionStore()
 const messageStore = useMessageStore()
 const modelStore = useModelStore()
 const newAgentPresenter = usePresenter('newAgentPresenter')
+const { t } = useI18n()
 
-const sessionTitle = computed(() => sessionStore.activeSession?.title ?? 'New Chat')
+const sessionTitle = computed(() => sessionStore.activeSession?.title ?? t('common.newChat'))
 const sessionProject = computed(() => sessionStore.activeSession?.projectDir ?? '')
 const isGenerating = computed(
   () => sessionStore.activeSession?.status === 'working' || messageStore.isStreaming

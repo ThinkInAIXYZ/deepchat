@@ -10,7 +10,6 @@ import welcome from './welcome.json'
 import components from './components.json'
 import dialog from './dialog.json'
 import model from './model.json'
-import newThread from './newThread.json'
 import routes from './routes.json'
 import artifacts from './artifacts.json'
 import chat from './chat.json'
@@ -44,7 +43,6 @@ export default {
   components,
   dialog,
   model,
-  newThread,
   routes,
   artifacts,
   chat,

@@ -21,7 +21,7 @@
               <Icon icon="lucide:layers" class="w-4 h-4 text-foreground/80" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent side="right">All Agents</TooltipContent>
+          <TooltipContent side="right">{{ t('chat.sidebar.allAgents') }}</TooltipContent>
         </Tooltip>
 
         <div class="w-5 h-px bg-border my-1"></div>
@@ -65,7 +65,7 @@
             </Button>
           </TooltipTrigger>
           <TooltipContent side="right">{{
-            collapsed ? 'Expand sidebar' : 'Collapse sidebar'
+            collapsed ? t('chat.sidebar.expandSidebar') : t('chat.sidebar.collapseSidebar')
           }}</TooltipContent>
         </Tooltip>
 
@@ -88,7 +88,7 @@
         <!-- Header -->
         <div class="flex items-center justify-between px-3 h-10 shrink-0">
           <span class="text-sm font-medium text-foreground truncate">
-            {{ agentStore.selectedAgentName }}
+            {{ selectedAgentName }}
           </span>
           <div class="flex items-center gap-0.5">
             <Tooltip>
@@ -106,7 +106,9 @@
                 </button>
               </TooltipTrigger>
               <TooltipContent>{{
-                sessionStore.groupMode === 'project' ? 'Group by date' : 'Group by project'
+                sessionStore.groupMode === 'project'
+                  ? t('chat.sidebar.groupByDate')
+                  : t('chat.sidebar.groupByProject')
               }}</TooltipContent>
             </Tooltip>
             <Tooltip>
@@ -118,7 +120,7 @@
                   <Icon icon="lucide:plus" class="w-4 h-4" />
                 </button>
               </TooltipTrigger>
-              <TooltipContent>New Chat</TooltipContent>
+              <TooltipContent>{{ t('common.newChat') }}</TooltipContent>
             </Tooltip>
           </div>
         </div>
@@ -157,13 +159,17 @@
             class="flex flex-col items-center justify-center h-full px-4 text-center"
           >
             <Icon icon="lucide:message-square-plus" class="w-8 h-8 text-muted-foreground/40 mb-3" />
-            <p class="text-sm text-muted-foreground/60">No conversations yet</p>
-            <p class="text-xs text-muted-foreground/40 mt-1">Start a new chat to begin</p>
+            <p class="text-sm text-muted-foreground/60">{{ t('chat.sidebar.emptyTitle') }}</p>
+            <p class="text-xs text-muted-foreground/40 mt-1">
+              {{ t('chat.sidebar.emptyDescription') }}
+            </p>
           </div>
 
           <template v-for="group in filteredGroups" :key="group.label">
             <div class="px-1.5 pt-3 pb-1">
-              <span class="text-xs font-medium text-muted-foreground">{{ group.label }}</span>
+              <span class="text-xs font-medium text-muted-foreground">{{
+                group.labelKey ? t(group.labelKey) : group.label
+              }}</span>
             </div>
             <button
               v-for="session in group.sessions"
@@ -220,6 +226,9 @@ const sessionStore = useSessionStore()
 const collapsed = ref(false)
 let agentSwitchSeq = 0
 let agentSwitchQueue: Promise<void> = Promise.resolve()
+const selectedAgentName = computed(
+  () => agentStore.selectedAgent?.name ?? t('chat.sidebar.allAgents')
+)
 
 const pinnedSessions = computed(() => sessionStore.getPinnedSessions(agentStore.selectedAgentId))
 const filteredGroups = computed(() => sessionStore.getFilteredGroups(agentStore.selectedAgentId))

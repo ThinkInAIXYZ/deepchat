@@ -106,7 +106,7 @@ const props = withDefaults(
   }>(),
   {
     modelValue: '',
-    placeholder: 'Ask DeepChat anything, @ to mention files, / for commands',
+    placeholder: '',
     sessionId: null,
     workspacePath: null,
     isAcpSession: false,
@@ -127,6 +127,7 @@ const emit = defineEmits<{
 const isComposing = ref(false)
 const fileInput = ref<HTMLInputElement>()
 const { t } = useI18n()
+const resolvedPlaceholder = computed(() => props.placeholder?.trim() || t('chat.input.placeholder'))
 let editorInstance: Editor | null = null
 const getEditor = () => editorInstance
 const conversationId = computed(() => props.sessionId)
@@ -204,7 +205,7 @@ const editor = new VueEditor({
       deleteTriggerWithBackspace: true
     }),
     Placeholder.configure({
-      placeholder: props.placeholder
+      placeholder: () => resolvedPlaceholder.value
     }),
     HardBreak.extend({
       addKeyboardShortcuts() {
@@ -249,6 +250,10 @@ watch(
   },
   { deep: true, immediate: true }
 )
+
+watch(resolvedPlaceholder, () => {
+  editor.view.updateState(editor.state)
+})
 
 watch(
   () => [...skillsData.pendingSkills.value],

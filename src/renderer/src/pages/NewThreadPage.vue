@@ -9,7 +9,9 @@
         </div>
 
         <!-- Heading -->
-        <h1 class="text-3xl font-semibold text-foreground mb-4">Build and explore</h1>
+        <h1 class="text-3xl font-semibold text-foreground mb-4">
+          {{ t('chat.newThread.title') }}
+        </h1>
 
         <!-- Project selector -->
         <DropdownMenu>
@@ -20,12 +22,12 @@
               class="h-7 px-2.5 gap-1.5 text-xs text-muted-foreground hover:text-foreground mb-6"
             >
               <Icon icon="lucide:folder" class="w-3.5 h-3.5" />
-              <span>{{ projectStore.selectedProjectName }}</span>
+              <span>{{ selectedProjectName }}</span>
               <Icon icon="lucide:chevron-down" class="w-3 h-3" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="center" class="min-w-[200px]">
-            <DropdownMenuLabel class="text-xs">Recent Projects</DropdownMenuLabel>
+            <DropdownMenuLabel class="text-xs">{{ t('common.project.recent') }}</DropdownMenuLabel>
             <DropdownMenuItem
               v-for="project in projectStore.projects"
               :key="project.path"
@@ -44,7 +46,7 @@
               @click="projectStore.openFolderPicker()"
             >
               <Icon icon="lucide:folder-open" class="w-3.5 h-3.5 text-muted-foreground" />
-              <span>Open folder...</span>
+              <span>{{ t('common.project.openFolder') }}</span>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -81,6 +83,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { TooltipProvider } from '@shadcn/components/ui/tooltip'
 import { Button } from '@shadcn/components/ui/button'
 import {
@@ -111,6 +114,7 @@ const modelStore = useModelStore()
 const draftStore = useDraftStore()
 const configPresenter = usePresenter('configPresenter')
 const newAgentPresenter = usePresenter('newAgentPresenter')
+const { t } = useI18n()
 
 const message = ref('')
 const attachedFiles = ref<ChatMessageFile[]>([])
@@ -122,6 +126,9 @@ const chatInputRef = ref<{
 const acpDraftSessionId = ref<string | null>(null)
 const lastAcpDraftKey = ref<string | null>(null)
 const acpDraftRequestSeq = ref(0)
+const selectedProjectName = computed(
+  () => projectStore.selectedProject?.name ?? t('common.project.select')
+)
 const isAcpWorkdirMissing = computed(() => {
   const selectedAgentId = agentStore.selectedAgentId ?? 'deepchat'
   if (selectedAgentId === 'deepchat') {

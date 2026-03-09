@@ -1,6 +1,6 @@
 {
   "input": {
-    "placeholder": "질문하세요. {'@'}를 통해 도구, 파일, 리소스를 인용할 수 있습니다...",
+    "placeholder": "DeepChat에 무엇이든 물어보세요. @로 파일을 언급하고 /로 명령을 사용할 수 있습니다",
     "fileArea": "파일 영역",
     "inputArea": "입력 영역",
     "functionSwitch": "기능 전환",
@@ -210,5 +210,21 @@
   "compaction": {
     "compacting": "컨텍스트를 자동 압축하는 중...",
     "compacted": "컨텍스트가 자동으로 압축되었습니다"
+  },
+  "newThread": {
+    "title": "만들고 탐색하기"
+  },
+  "permissionMode": {
+    "default": "기본 권한",
+    "fullAccess": "전체 접근"
+  },
+  "sidebar": {
+    "allAgents": "모든 에이전트",
+    "expandSidebar": "사이드바 펼치기",
+    "collapseSidebar": "사이드바 접기",
+    "groupByDate": "날짜별 그룹화",
+    "groupByProject": "프로젝트별 그룹화",
+    "emptyTitle": "아직 대화가 없습니다",
+    "emptyDescription": "새 대화를 시작해 보세요"
   }
 }
