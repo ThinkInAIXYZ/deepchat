@@ -203,11 +203,10 @@ export class Presenter implements IPresenter {
     // Initialize Skill Sync presenter
     this.skillSyncPresenter = new SkillSyncPresenter(this.skillPresenter, this.configPresenter)
 
-    // Initialize Hooks & Notifications service
+    // Initialize new agent architecture presenters first (needed by hooksNotifications)
     this.hooksNotifications = new HooksNotificationsService(this.configPresenter, {
-      getConversation: this.sessionPresenter.getConversation.bind(this.sessionPresenter),
-      getMessage: this.sessionPresenter.getMessage.bind(this.sessionPresenter),
-      resolveWorkspaceContext: this.sessionManager.resolveWorkspaceContext.bind(this.sessionManager)
+      getSession: async () => null,
+      getMessage: async () => null
     })
     const newSessionHooksBridge = new NewSessionHooksBridge(this.hooksNotifications)
 
@@ -230,6 +229,12 @@ export class Presenter implements IPresenter {
       this.sqlitePresenter as unknown as import('./sqlitePresenter').SQLitePresenter,
       this.devicePresenter
     )
+
+    // Update hooksNotifications with actual dependencies now that newAgentPresenter is ready
+    this.hooksNotifications = new HooksNotificationsService(this.configPresenter, {
+      getSession: this.newAgentPresenter.getSession.bind(this.newAgentPresenter),
+      getMessage: this.newAgentPresenter.getMessage.bind(this.newAgentPresenter)
+    })
 
     this.setupEventBus() // 设置事件总线监听
   }
