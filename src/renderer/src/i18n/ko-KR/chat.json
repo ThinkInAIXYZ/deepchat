@@ -1,6 +1,6 @@
 {
   "input": {
-    "placeholder": "DeepChat에 무엇이든 물어보세요. @로 파일을 언급하고 /로 명령을 사용할 수 있습니다",
+    "placeholder": "DeepChat에 무엇이든 물어보세요. {'@'}로 파일을 언급하고 /로 명령을 사용할 수 있습니다",
     "fileArea": "파일 영역",
     "inputArea": "입력 영역",
     "functionSwitch": "기능 전환",
