@@ -134,16 +134,9 @@ export class NewAgentPresenter {
       await this.skillPresenter.setActiveSkills(sessionId, input.activeSkills)
     }
 
-    // Process the first message (non-blocking)
-    console.log(`[NewAgentPresenter] firing processMessage (non-blocking)`)
-    agent.processMessage(sessionId, normalizedInput, { projectDir }).catch((err) => {
-      console.error('[NewAgentPresenter] processMessage failed:', err)
-    })
-    void this.generateSessionTitle(sessionId, title, providerId, modelId)
-
-    // Return enriched session
+    // Return enriched session first
     const state = await agent.getSessionState(sessionId)
-    return {
+    const sessionResult: SessionWithState = {
       id: sessionId,
       agentId,
       title,
@@ -156,6 +149,15 @@ export class NewAgentPresenter {
       providerId: state?.providerId ?? providerId,
       modelId: state?.modelId ?? modelId
     }
+
+    // Process the first message (non-blocking) after returning session ID
+    console.log(`[NewAgentPresenter] firing processMessage (non-blocking)`)
+    agent.processMessage(sessionId, normalizedInput, { projectDir }).catch((err) => {
+      console.error('[NewAgentPresenter] processMessage failed:', err)
+    })
+    void this.generateSessionTitle(sessionId, title, providerId, modelId)
+
+    return sessionResult
   }
 
   async ensureAcpDraftSession(input: {
