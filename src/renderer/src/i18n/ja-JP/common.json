@@ -101,15 +101,15 @@
     "bytes": "{count} バイト"
   },
   "time": {
-    "today": "Today",
-    "yesterday": "Yesterday",
-    "lastWeek": "Last week",
-    "older": "Older"
+    "today": "今日",
+    "yesterday": "昨日",
+    "lastWeek": "先週",
+    "older": "以前"
   },
   "project": {
-    "select": "Select project",
-    "none": "No project",
-    "recent": "Recent projects",
-    "openFolder": "Open folder..."
+    "select": "プロジェクトを選択",
+    "none": "プロジェクトなし",
+    "recent": "最近のプロジェクト",
+    "openFolder": "フォルダを開く..."
   }
 }

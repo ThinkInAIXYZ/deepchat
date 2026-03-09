@@ -1,6 +1,6 @@
 {
   "input": {
-    "placeholder": "Ask DeepChat anything, @ to mention files, / for commands",
+    "placeholder": "Demandez n'importe quoi à DeepChat, @ pour mentionner des fichiers, / pour les commandes",
     "fileArea": "Zone de fichiers",
     "inputArea": "Zone de saisie",
     "functionSwitch": "Commutateur de fonction",
@@ -212,19 +212,19 @@
     "compacted": "Le contexte a été compacté automatiquement"
   },
   "newThread": {
-    "title": "Build and explore"
+    "title": "Créer et explorer"
   },
   "permissionMode": {
-    "default": "Default permissions",
-    "fullAccess": "Full access"
+    "default": "Autorisations par défaut",
+    "fullAccess": "Accès complet"
   },
   "sidebar": {
-    "allAgents": "All Agents",
-    "expandSidebar": "Expand sidebar",
-    "collapseSidebar": "Collapse sidebar",
-    "groupByDate": "Group by date",
-    "groupByProject": "Group by project",
-    "emptyTitle": "No conversations yet",
-    "emptyDescription": "Start a new chat to begin"
+    "allAgents": "Tous les agents",
+    "expandSidebar": "Développer la barre latérale",
+    "collapseSidebar": "Réduire la barre latérale",
+    "groupByDate": "Grouper par date",
+    "groupByProject": "Grouper par projet",
+    "emptyTitle": "Aucune conversation pour le moment",
+    "emptyDescription": "Commencez une nouvelle discussion pour démarrer"
   }
 }

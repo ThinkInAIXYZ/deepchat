@@ -101,15 +101,15 @@
     "bytes": "{count} байт"
   },
   "time": {
-    "today": "Today",
-    "yesterday": "Yesterday",
-    "lastWeek": "Last week",
-    "older": "Older"
+    "today": "Сегодня",
+    "yesterday": "Вчера",
+    "lastWeek": "На прошлой неделе",
+    "older": "Ранее"
   },
   "project": {
-    "select": "Select project",
-    "none": "No project",
-    "recent": "Recent projects",
-    "openFolder": "Open folder..."
+    "select": "Выбрать проект",
+    "none": "Нет проекта",
+    "recent": "Недавние проекты",
+    "openFolder": "Открыть папку..."
   }
 }

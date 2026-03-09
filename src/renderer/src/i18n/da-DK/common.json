@@ -101,15 +101,15 @@
     "bytes": "{count} byte"
   },
   "time": {
-    "today": "Today",
-    "yesterday": "Yesterday",
-    "lastWeek": "Last week",
-    "older": "Older"
+    "today": "I dag",
+    "yesterday": "I går",
+    "lastWeek": "Sidste uge",
+    "older": "Ældre"
   },
   "project": {
-    "select": "Select project",
-    "none": "No project",
-    "recent": "Recent projects",
-    "openFolder": "Open folder..."
+    "select": "Vælg projekt",
+    "none": "Intet projekt",
+    "recent": "Seneste projekter",
+    "openFolder": "Åbn mappe..."
   }
 }

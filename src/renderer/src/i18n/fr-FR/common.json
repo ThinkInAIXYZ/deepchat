@@ -101,15 +101,15 @@
     "bytes": "{count} octets"
   },
   "time": {
-    "today": "Today",
-    "yesterday": "Yesterday",
-    "lastWeek": "Last week",
-    "older": "Older"
+    "today": "Aujourd'hui",
+    "yesterday": "Hier",
+    "lastWeek": "La semaine dernière",
+    "older": "Plus anciennes"
   },
   "project": {
-    "select": "Select project",
-    "none": "No project",
-    "recent": "Recent projects",
-    "openFolder": "Open folder..."
+    "select": "Sélectionner un projet",
+    "none": "Aucun projet",
+    "recent": "Projets récents",
+    "openFolder": "Ouvrir un dossier..."
   }
 }

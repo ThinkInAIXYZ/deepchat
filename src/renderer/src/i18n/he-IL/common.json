@@ -101,15 +101,15 @@
     "bytes": "{count} בתים"
   },
   "time": {
-    "today": "Today",
-    "yesterday": "Yesterday",
-    "lastWeek": "Last week",
-    "older": "Older"
+    "today": "היום",
+    "yesterday": "אתמול",
+    "lastWeek": "השבוע שעבר",
+    "older": "ישן יותר"
   },
   "project": {
-    "select": "Select project",
-    "none": "No project",
-    "recent": "Recent projects",
-    "openFolder": "Open folder..."
+    "select": "בחר פרויקט",
+    "none": "ללא פרויקט",
+    "recent": "פרויקטים אחרונים",
+    "openFolder": "פתח תיקייה..."
   }
 }

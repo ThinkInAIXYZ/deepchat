@@ -1,6 +1,6 @@
 {
   "input": {
-    "placeholder": "Ask DeepChat anything, @ to mention files, / for commands",
+    "placeholder": "שאלו את DeepChat כל דבר, השתמשו ב-@ כדי להזכיר קבצים וב-/ לפקודות",
     "fileArea": "אזור קבצים",
     "inputArea": "אזור קלט",
     "functionSwitch": "מתג פונקציות",
@@ -212,19 +212,19 @@
     "compacted": "ההקשר נדחס אוטומטית"
   },
   "newThread": {
-    "title": "Build and explore"
+    "title": "בנו וגלו"
   },
   "permissionMode": {
-    "default": "Default permissions",
-    "fullAccess": "Full access"
+    "default": "הרשאות ברירת מחדל",
+    "fullAccess": "גישה מלאה"
   },
   "sidebar": {
-    "allAgents": "All Agents",
-    "expandSidebar": "Expand sidebar",
-    "collapseSidebar": "Collapse sidebar",
-    "groupByDate": "Group by date",
-    "groupByProject": "Group by project",
-    "emptyTitle": "No conversations yet",
-    "emptyDescription": "Start a new chat to begin"
+    "allAgents": "כל הסוכנים",
+    "expandSidebar": "הרחב את הסרגל הצדדי",
+    "collapseSidebar": "כווץ את הסרגל הצדדי",
+    "groupByDate": "קבץ לפי תאריך",
+    "groupByProject": "קבץ לפי פרויקט",
+    "emptyTitle": "עדיין אין שיחות",
+    "emptyDescription": "התחילו שיחה חדשה כדי להתחיל"
   }
 }

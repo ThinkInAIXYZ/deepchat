@@ -101,15 +101,15 @@
     "bytes": "{count} بایت"
   },
   "time": {
-    "today": "Today",
-    "yesterday": "Yesterday",
-    "lastWeek": "Last week",
-    "older": "Older"
+    "today": "امروز",
+    "yesterday": "دیروز",
+    "lastWeek": "هفته گذشته",
+    "older": "قدیمی‌تر"
   },
   "project": {
-    "select": "Select project",
-    "none": "No project",
-    "recent": "Recent projects",
-    "openFolder": "Open folder..."
+    "select": "انتخاب پروژه",
+    "none": "بدون پروژه",
+    "recent": "پروژه‌های اخیر",
+    "openFolder": "باز کردن پوشه..."
   }
 }
