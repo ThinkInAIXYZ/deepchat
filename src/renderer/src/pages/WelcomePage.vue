@@ -60,12 +60,18 @@
 
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
+import { useRoute, useRouter } from 'vue-router'
 import { usePresenter } from '@/composables/usePresenter'
 import { useThemeStore } from '@/stores/theme'
+import { usePageRouterStore } from '@/stores/ui/pageRouter'
 import ModelIcon from '@/components/icons/ModelIcon.vue'
 
+const route = useRoute()
+const router = useRouter()
+const configPresenter = usePresenter('configPresenter')
 const windowPresenter = usePresenter('windowPresenter')
 const themeStore = useThemeStore()
+const pageRouter = usePageRouterStore()
 
 const providers = [
   { id: 'claude', name: 'Claude' },
@@ -76,11 +82,20 @@ const providers = [
   { id: 'openrouter', name: 'OpenRouter' }
 ]
 
-const onAddProvider = () => {
+const onAddProvider = async () => {
   const windowId = window.api.getWindowId()
-  if (windowId != null) {
-    void windowPresenter.openOrFocusSettingsWindow()
+  if (windowId == null) {
+    return
   }
+
+  await configPresenter.setSetting('init_complete', true)
+  pageRouter.goToNewThread()
+
+  if (route.name === 'welcome') {
+    await router.replace({ name: 'chat' })
+  }
+
+  await windowPresenter.openOrFocusSettingsWindow()
 }
 </script>
 
