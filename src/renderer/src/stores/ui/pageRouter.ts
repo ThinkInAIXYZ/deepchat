@@ -1,15 +1,10 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { usePresenter } from '@/composables/usePresenter'
-import { CONFIG_EVENTS } from '@/events'
 
-export type PageRoute =
-  | { name: 'welcome' }
-  | { name: 'newThread' }
-  | { name: 'chat'; sessionId: string }
+export type PageRoute = { name: 'newThread' } | { name: 'chat'; sessionId: string }
 
 export const usePageRouterStore = defineStore('pageRouter', () => {
-  const configPresenter = usePresenter('configPresenter')
   const newAgentPresenter = usePresenter('newAgentPresenter')
 
   // --- State ---
@@ -20,14 +15,7 @@ export const usePageRouterStore = defineStore('pageRouter', () => {
 
   async function initialize(): Promise<void> {
     try {
-      // 1. Check if any provider is enabled
-      const enabledProviders = configPresenter.getEnabledProviders()
-      if (!enabledProviders || enabledProviders.length === 0) {
-        route.value = { name: 'welcome' }
-        return
-      }
-
-      // 2. Check for active new-agent session on this window content first
+      // 1. Check for active new-agent session on this window content first
       const webContentsId = window.api.getWebContentsId()
       const activeNewSession = await newAgentPresenter.getActiveSession(webContentsId)
       if (activeNewSession) {
@@ -35,16 +23,12 @@ export const usePageRouterStore = defineStore('pageRouter', () => {
         return
       }
 
-      // 3. Default to new thread
+      // 2. Default to new thread
       route.value = { name: 'newThread' }
     } catch (e) {
       error.value = String(e)
       route.value = { name: 'newThread' }
     }
-  }
-
-  function goToWelcome(): void {
-    route.value = { name: 'welcome' }
   }
 
   function goToNewThread(): void {
@@ -60,27 +44,10 @@ export const usePageRouterStore = defineStore('pageRouter', () => {
   const currentRoute = computed(() => route.value.name)
   const chatSessionId = computed(() => (route.value.name === 'chat' ? route.value.sessionId : null))
 
-  // --- Event Listeners ---
-
-  window.electron.ipcRenderer.on(CONFIG_EVENTS.PROVIDER_CHANGED, async () => {
-    try {
-      const enabledProviders = configPresenter.getEnabledProviders()
-      if (!enabledProviders || enabledProviders.length === 0) {
-        goToWelcome()
-      } else if (route.value.name === 'welcome') {
-        // Providers became available, go to new thread
-        goToNewThread()
-      }
-    } catch (e) {
-      error.value = String(e)
-    }
-  })
-
   return {
     route,
     error,
     initialize,
-    goToWelcome,
     goToNewThread,
     goToChat,
     currentRoute,

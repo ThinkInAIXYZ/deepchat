@@ -19,7 +19,7 @@ const router = createRouter({
     {
       path: '/welcome',
       name: 'welcome',
-      component: () => import('@/views/WelcomeView.vue'),
+      component: () => import('@/pages/WelcomePage.vue'),
       meta: {
         titleKey: 'routes.welcome',
         icon: 'lucide:message-square'

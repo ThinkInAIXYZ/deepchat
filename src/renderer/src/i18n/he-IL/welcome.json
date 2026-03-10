@@ -33,5 +33,21 @@
     "getStarted": "התחל",
     "next": "הבא",
     "back": "חזור"
+  },
+  "page": {
+    "title": "ברוכים הבאים ל-DeepChat Agent",
+    "description": "חברו ספק מודלים כדי להתחיל",
+    "browseProviders": "עיינו בכל הספקים...",
+    "connectAgent": "או חברו סוכן",
+    "acpTitle": "הגדירו סוכן ACP",
+    "acpDescription": "Claude Code, Codex, Kimi או סוכן משלכם",
+    "providers": {
+      "claude": "Claude",
+      "openai": "OpenAI",
+      "deepseek": "DeepSeek",
+      "gemini": "Gemini",
+      "ollama": "Ollama",
+      "openrouter": "OpenRouter"
+    }
   }
 }

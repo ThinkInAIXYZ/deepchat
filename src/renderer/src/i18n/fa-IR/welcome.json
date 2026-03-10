@@ -33,5 +33,21 @@
     "getStarted": "آغاز کنید",
     "next": "بعدی",
     "back": "بازگشت"
+  },
+  "page": {
+    "title": "به DeepChat Agent خوش آمدید",
+    "description": "برای شروع، یک ارائه‌دهنده مدل متصل کنید",
+    "browseProviders": "مرور همه ارائه‌دهنده‌ها...",
+    "connectAgent": "یا یک ایجنت متصل کنید",
+    "acpTitle": "یک ایجنت ACP راه‌اندازی کنید",
+    "acpDescription": "Claude Code، Codex، Kimi یا ایجنت خودتان",
+    "providers": {
+      "claude": "Claude",
+      "openai": "OpenAI",
+      "deepseek": "DeepSeek",
+      "gemini": "Gemini",
+      "ollama": "Ollama",
+      "openrouter": "OpenRouter"
+    }
   }
 }

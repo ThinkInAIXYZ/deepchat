@@ -365,14 +365,10 @@ export class NewAgentPresenter {
     const enriched: SessionWithState[] = []
 
     for (const record of records) {
-      const agent = await this.resolveAgentImplementation(record.agentId)
-      const state = await agent.getSessionState(record.id)
-      enriched.push({
-        ...record,
-        status: state?.status ?? 'idle',
-        providerId: state?.providerId ?? '',
-        modelId: state?.modelId ?? ''
-      })
+      const session = await this.tryBuildSessionWithState(record)
+      if (session) {
+        enriched.push(session)
+      }
     }
 
     return enriched
@@ -381,14 +377,7 @@ export class NewAgentPresenter {
   async getSession(sessionId: string): Promise<SessionWithState | null> {
     const record = this.sessionManager.get(sessionId)
     if (!record) return null
-    const agent = await this.resolveAgentImplementation(record.agentId)
-    const state = await agent.getSessionState(sessionId)
-    return {
-      ...record,
-      status: state?.status ?? 'idle',
-      providerId: state?.providerId ?? '',
-      modelId: state?.modelId ?? ''
-    }
+    return await this.tryBuildSessionWithState(record)
   }
 
   async getMessages(sessionId: string): Promise<ChatMessageRecord[]> {
@@ -556,7 +545,11 @@ export class NewAgentPresenter {
   async getActiveSession(webContentsId: number): Promise<SessionWithState | null> {
     const sessionId = this.sessionManager.getActiveSessionId(webContentsId)
     if (!sessionId) return null
-    return this.getSession(sessionId)
+    const session = await this.getSession(sessionId)
+    if (!session) {
+      this.sessionManager.unbindWindow(webContentsId)
+    }
+    return session
   }
 
   async getAgents(): Promise<Agent[]> {
@@ -889,6 +882,29 @@ export class NewAgentPresenter {
     }
 
     return false
+  }
+
+  private async buildSessionWithState(record: SessionRecord): Promise<SessionWithState> {
+    const agent = await this.resolveAgentImplementation(record.agentId)
+    const state = await agent.getSessionState(record.id)
+    return {
+      ...record,
+      status: state?.status ?? 'idle',
+      providerId: state?.providerId ?? '',
+      modelId: state?.modelId ?? ''
+    }
+  }
+
+  private async tryBuildSessionWithState(record: SessionRecord): Promise<SessionWithState | null> {
+    try {
+      return await this.buildSessionWithState(record)
+    } catch (error) {
+      console.warn(
+        `[NewAgentPresenter] Skipping unavailable session id=${record.id} agent=${record.agentId}:`,
+        error
+      )
+      return null
+    }
   }
 
   private async resolveAgentImplementation(agentId: string): Promise<IAgentImplementation> {

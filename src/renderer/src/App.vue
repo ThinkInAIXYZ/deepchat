@@ -26,6 +26,8 @@ import AppBar from '@/components/AppBar.vue'
 import { useDeviceVersion } from '@/composables/useDeviceVersion'
 import WindowSideBar from './components/WindowSideBar.vue'
 
+const DEV_WELCOME_OVERRIDE_KEY = '__deepchat_dev_force_welcome'
+
 const route = useRoute()
 const configPresenter = usePresenter('configPresenter')
 const artifactStore = useArtifactStore()
@@ -144,11 +146,45 @@ const handleErrorClosed = () => {
 
 const router = useRouter()
 const activeTab = ref('chat')
+const isStartupRouteReady = ref(false)
 
-const getInitComplete = async () => {
-  const initComplete = await configPresenter.getSetting('init_complete')
-  if (!initComplete) {
-    router.push({ name: 'welcome' })
+const isDevWelcomeOverrideEnabled = () => {
+  if (!import.meta.env.DEV) return false
+
+  try {
+    return window.sessionStorage.getItem(DEV_WELCOME_OVERRIDE_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+const ensureStartupWelcomeState = async () => {
+  try {
+    await router.isReady()
+
+    const currentRoute = router.currentRoute.value
+    const isWelcomeRoute = currentRoute.name === 'welcome' || currentRoute.path === '/welcome'
+
+    if (isDevWelcomeOverrideEnabled()) {
+      if (!isWelcomeRoute) {
+        await router.replace({ name: 'welcome' })
+      }
+      return
+    }
+
+    const initComplete = Boolean(await configPresenter.getSetting('init_complete'))
+    if (!initComplete) {
+      if (!isWelcomeRoute) {
+        await router.replace({ name: 'welcome' })
+      }
+      return
+    }
+
+    if (isWelcomeRoute) {
+      await router.replace({ name: 'chat' })
+    }
+  } finally {
+    isStartupRouteReady.value = true
   }
 }
 
@@ -192,7 +228,7 @@ const handleEscKey = (event: KeyboardEvent) => {
   }
 }
 
-getInitComplete()
+void ensureStartupWelcomeState()
 
 onMounted(() => {
   // Set initial body class
@@ -332,7 +368,7 @@ onBeforeUnmount(() => {
         <div
           class="flex-1 min-w-0 bg-background overflow-hidden rounded-tl-xl border-black/20 dark:border-white/10 border-l border-t"
         >
-          <RouterView />
+          <RouterView v-if="isStartupRouteReady" />
         </div>
       </div>
     </div>

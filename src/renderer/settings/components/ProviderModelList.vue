@@ -63,13 +63,13 @@
           <DynamicScrollerItem
             :item="item"
             :active="active"
-            :size-dependencies="getItemSizeDependencies(item)"
+            :size-dependencies="getScrollerItemSizeDependencies(item)"
           >
-            <div v-if="item.type === 'label'" class="px-3 py-2 text-xs text-muted-foreground">
+            <div v-if="isLabelItem(item)" class="px-3 py-2 text-xs text-muted-foreground">
               {{ item.label }}
             </div>
             <div
-              v-else-if="item.type === 'provider-actions'"
+              v-else-if="isProviderActionsItem(item)"
               class="flex flex-wrap items-center justify-between gap-3 px-3 py-2 bg-muted/30"
             >
               <div class="text-sm font-medium">{{ getProviderName(item.providerId) }}</div>
@@ -94,7 +94,7 @@
                 </Button>
               </div>
             </div>
-            <div v-else class="bg-card">
+            <div v-else-if="isModelItem(item)" class="bg-card">
               <ModelConfigItem
                 :model-name="item.model.name"
                 :model-id="item.model.id"
@@ -246,6 +246,28 @@ const virtualItems = computed<VirtualModelListItem[]>(() => {
   return items
 })
 
+const isLabelItem = (item: unknown): item is Extract<VirtualModelListItem, { type: 'label' }> => {
+  return (
+    typeof item === 'object' && item !== null && (item as VirtualModelListItem).type === 'label'
+  )
+}
+
+const isProviderActionsItem = (
+  item: unknown
+): item is Extract<VirtualModelListItem, { type: 'provider-actions' }> => {
+  return (
+    typeof item === 'object' &&
+    item !== null &&
+    (item as VirtualModelListItem).type === 'provider-actions'
+  )
+}
+
+const isModelItem = (item: unknown): item is Extract<VirtualModelListItem, { type: 'model' }> => {
+  return (
+    typeof item === 'object' && item !== null && (item as VirtualModelListItem).type === 'model'
+  )
+}
+
 const getItemSizeDependencies = (item: VirtualModelListItem) => {
   if (item.type === 'model') {
     return [
@@ -268,6 +290,10 @@ const getItemSizeDependencies = (item: VirtualModelListItem) => {
   }
 
   return [item.label]
+}
+
+const getScrollerItemSizeDependencies = (item: unknown) => {
+  return getItemSizeDependencies(item as VirtualModelListItem)
 }
 
 const getProviderName = (providerId: string) => {

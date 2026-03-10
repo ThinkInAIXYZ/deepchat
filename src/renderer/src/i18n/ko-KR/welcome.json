@@ -33,5 +33,21 @@
     "getStarted": "시작하기",
     "next": "다음",
     "back": "뒤로"
+  },
+  "page": {
+    "title": "DeepChat Agent에 오신 것을 환영합니다",
+    "description": "시작하려면 모델 제공자를 연결하세요",
+    "browseProviders": "모든 제공자 보기...",
+    "connectAgent": "또는 에이전트 연결",
+    "acpTitle": "ACP 에이전트 설정",
+    "acpDescription": "Claude Code, Codex, Kimi 또는 직접 만든 에이전트",
+    "providers": {
+      "claude": "Claude",
+      "openai": "OpenAI",
+      "deepseek": "DeepSeek",
+      "gemini": "Gemini",
+      "ollama": "Ollama",
+      "openrouter": "OpenRouter"
+    }
   }
 }
