@@ -32,7 +32,7 @@ import { DEFAULT_PROVIDERS } from './providers'
 import path from 'path'
 import { app, nativeTheme, shell, ipcMain } from 'electron'
 import fs from 'fs'
-import { CONFIG_EVENTS, SYSTEM_EVENTS, FLOATING_BUTTON_EVENTS } from '@/events'
+import { CONFIG_EVENTS, SYSTEM_EVENTS, FLOATING_BUTTON_EVENTS, SESSION_EVENTS } from '@/events'
 import { McpConfHelper } from './mcpConfHelper'
 import { presenter } from '@/presenter'
 import { compare } from 'compare-versions'
@@ -1329,6 +1329,7 @@ export class ConfigPresenter implements IConfigPresenter {
   private notifyAcpAgentsChanged() {
     console.log('[ACP] notifyAcpAgentsChanged: sending MODEL_LIST_CHANGED event for provider "acp"')
     eventBus.sendToRenderer(CONFIG_EVENTS.MODEL_LIST_CHANGED, SendTarget.ALL_WINDOWS, 'acp')
+    eventBus.sendToRenderer(SESSION_EVENTS.LIST_UPDATED, SendTarget.ALL_WINDOWS)
   }
 
   // Provide getMcpConfHelper method to get MCP configuration helper
