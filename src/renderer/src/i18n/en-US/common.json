@@ -78,7 +78,6 @@
   "save": "Save",
   "clear": "Clear",
   "saved": "Saved",
-  "newTab": "New Tab",
   "unknownError": "Unknown error",
   "testing": "Testing in progress",
   "saving": "Saving",
@@ -92,9 +91,25 @@
     "back": "Back",
     "forward": "Forward",
     "reload": "Reload",
+    "addressLabel": "Address bar",
     "addressPlaceholder": "Enter a URL",
     "enterUrlToStart": "Enter a URL to start browsing",
     "enterUrlDescription": "Type a URL in the address bar above to visit a website",
     "name": "Yo Browser"
+  },
+  "size": {
+    "bytes": "{count} bytes"
+  },
+  "time": {
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "lastWeek": "Last week",
+    "older": "Older"
+  },
+  "project": {
+    "select": "Select project",
+    "none": "No project",
+    "recent": "Recent projects",
+    "openFolder": "Open folder..."
   }
 }

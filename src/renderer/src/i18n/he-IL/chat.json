@@ -1,6 +1,6 @@
 {
   "input": {
-    "placeholder": "שאל משהו? ניתן לצטט כלים, קבצים ומשאבים באמצעות {'@'}...",
+    "placeholder": "שאלו את DeepChat כל דבר, השתמשו ב-{'@'} כדי להזכיר קבצים וב-/ לפקודות",
     "fileArea": "אזור קבצים",
     "inputArea": "אזור קלט",
     "functionSwitch": "מתג פונקציות",
@@ -25,7 +25,15 @@
     "acpModeTooltip": "מצב נוכחי: {mode}",
     "agentWorkspaceCurrent": "ספריית עבודה נוכחית: {path}",
     "agentWorkspaceSelect": "בחר ספריית עבודה",
-    "agentWorkspaceTooltip": "הגדר את ספריית העבודה של הסוכן"
+    "agentWorkspaceTooltip": "הגדר את ספריית העבודה של הסוכן",
+    "attach": "צרף",
+    "voiceInput": "קלט קולי",
+    "mcp": {
+      "badge": "MCP {count}",
+      "title": "MCP פעילים",
+      "empty": "אין שירותים פעילים",
+      "openSettings": "פתח הגדרות MCP"
+    }
   },
   "features": {
     "webSearch": "חיפוש אינטרנט",
@@ -95,11 +103,34 @@
   "mode": {
     "acpAgent": "סוכן ACP",
     "agent": "סוֹכֵן",
-    "chat": "לְשׂוֹחֵחַ",
     "current": "מצב נוכחי: {mode}"
+  },
+  "topbar": {
+    "share": "שיתוף",
+    "more": "עוד"
+  },
+  "advancedSettings": {
+    "button": "מתקדם",
+    "title": "הגדרות מתקדמות",
+    "closeHint": "לחץ Esc כדי לסגור",
+    "systemPrompt": "הנחיית מערכת",
+    "systemPromptPlaceholder": "בחר תבנית",
+    "temperature": "טמפרטורה",
+    "contextLength": "אורך הקשר",
+    "maxTokens": "מקסימום טוקנים",
+    "thinkingBudget": "תקציב חשיבה",
+    "verbosity": "רמת פירוט",
+    "verbosityPlaceholder": "בחר רמת פירוט",
+    "currentCustomPrompt": "מותאם נוכחי",
+    "useDefault": "השתמש בברירת מחדל"
   },
   "workspace": {
     "collapse": "לִסְגוֹר",
+    "sections": {
+      "files": "קבצים",
+      "git": "Git",
+      "artifacts": "Artifacts"
+    },
     "files": {
       "contextMenu": {
         "insertPath": "הכנס לתוך תיבת הקלט",
@@ -109,6 +140,12 @@
       "empty": "עדיין אין קבצים",
       "loading": "טוען קבצים...",
       "section": "מִסְמָך"
+    },
+    "git": {
+      "empty": "אין diff להצגה",
+      "clean": "עץ העבודה נקי",
+      "staged": "ב-Staged",
+      "unstaged": "לא ב-Staged"
     },
     "browser": {
       "section": "דפדפן",
@@ -169,5 +206,25 @@
       "manage": "ניהול",
       "title": "כישורים"
     }
+  },
+  "compaction": {
+    "compacting": "דחיסת ההקשר מתבצעת באופן אוטומטי...",
+    "compacted": "ההקשר נדחס אוטומטית"
+  },
+  "newThread": {
+    "title": "בנו וגלו"
+  },
+  "permissionMode": {
+    "default": "הרשאות ברירת מחדל",
+    "fullAccess": "גישה מלאה"
+  },
+  "sidebar": {
+    "allAgents": "כל הסוכנים",
+    "expandSidebar": "הרחב את הסרגל הצדדי",
+    "collapseSidebar": "כווץ את הסרגל הצדדי",
+    "groupByDate": "קבץ לפי תאריך",
+    "groupByProject": "קבץ לפי פרויקט",
+    "emptyTitle": "עדיין אין שיחות",
+    "emptyDescription": "התחילו שיחה חדשה כדי להתחיל"
   }
 }

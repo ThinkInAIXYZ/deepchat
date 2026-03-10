@@ -11,6 +11,7 @@ import {
   IConfigPresenter
 } from '@shared/presenter'
 import { ApiEndpointType } from '@shared/model'
+import { DEFAULT_MODEL_CONTEXT_LENGTH, DEFAULT_MODEL_MAX_TOKENS } from '@shared/modelConfigDefaults'
 import { createStreamEvent } from '@shared/types/core/llm-events'
 import { BaseLLMProvider, SUMMARY_TITLES_PROMPT } from '../baseProvider'
 import OpenAI, { AzureOpenAI } from 'openai'
@@ -85,6 +86,30 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
 
   private supportsVerbosityParameter(modelId: string): boolean {
     return modelCapabilities.supportsVerbosity(this.provider.id, modelId)
+  }
+
+  private resolveTraceAuthToken(): string {
+    return this.provider.oauthToken || this.provider.apiKey || 'MISSING_API_KEY'
+  }
+
+  private buildChatCompletionsTraceHeaders(): Record<string, string> {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...this.defaultHeaders
+    }
+
+    if (this.provider.id === 'azure-openai') {
+      headers['api-key'] = this.resolveTraceAuthToken()
+    } else {
+      headers.Authorization = `Bearer ${this.resolveTraceAuthToken()}`
+    }
+
+    return headers
+  }
+
+  private buildChatCompletionsEndpoint(): string {
+    const baseUrl = (this.provider.baseUrl || 'https://api.openai.com/v1').replace(/\/+$/, '')
+    return `${baseUrl}/chat/completions`
   }
 
   private getEffectiveApiEndpoint(modelId: string): ApiEndpointType {
@@ -255,8 +280,8 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
       group: 'default',
       providerId: this.provider.id,
       isCustom: false,
-      contextLength: 4096,
-      maxTokens: 2048
+      contextLength: DEFAULT_MODEL_CONTEXT_LENGTH,
+      maxTokens: DEFAULT_MODEL_MAX_TOKENS
     }))
   }
 
@@ -1065,6 +1090,12 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
 
     // 如果存在 API 工具且支持函数调用，则添加到请求参数中
     if (apiTools && apiTools.length > 0 && supportsFunctionCall) requestParams.tools = apiTools
+
+    await this.emitRequestTrace(modelConfig, {
+      endpoint: this.buildChatCompletionsEndpoint(),
+      headers: this.buildChatCompletionsTraceHeaders(),
+      body: requestParams
+    })
 
     // console.log('[handleChatCompletion] requestParams', JSON.stringify(requestParams))
     // 发起 OpenAI 聊天补全请求
@@ -1946,102 +1977,6 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
             }`
           )
         }
-    }
-  }
-
-  /**
-   * Get request preview for debugging (DEV mode only)
-   * Builds the actual request parameters without sending the request
-   */
-  public async getRequestPreview(
-    messages: ChatMessage[],
-    modelId: string,
-    modelConfig: ModelConfig,
-    temperature: number,
-    maxTokens: number,
-    mcpTools: MCPToolDefinition[]
-  ): Promise<{
-    endpoint: string
-    headers: Record<string, string>
-    body: unknown
-  }> {
-    const tools = mcpTools || []
-    const supportsFunctionCall = modelConfig?.functionCall || false
-    let processedMessages = [
-      ...this.formatMessages(messages, supportsFunctionCall)
-    ] as ChatCompletionMessageParam[]
-
-    // Prepare non-native function call prompt if needed
-    if (tools.length > 0 && !supportsFunctionCall) {
-      processedMessages = this.prepareFunctionCallPrompt(processedMessages, tools)
-    }
-
-    // Convert tools to OpenAI format if native support
-    const apiTools =
-      tools.length > 0 && supportsFunctionCall
-        ? await presenter.mcpPresenter.mcpToolsToOpenAITools(tools, this.provider.id)
-        : undefined
-
-    // Build request params (same logic as handleChatCompletion)
-    const requestParams: OpenAI.Chat.ChatCompletionCreateParams = {
-      messages: processedMessages,
-      model: modelId,
-      stream: true,
-      temperature,
-      ...(modelId.startsWith('o1') ||
-      modelId.startsWith('o3') ||
-      modelId.startsWith('o4') ||
-      modelId.includes('gpt-4.1') ||
-      modelId.includes('gpt-5')
-        ? { max_completion_tokens: maxTokens }
-        : { max_tokens: maxTokens })
-    }
-
-    requestParams.stream_options = { include_usage: true }
-
-    if (this.provider.id.toLowerCase().includes('dashscope')) {
-      requestParams.response_format = { type: 'text' }
-    }
-
-    if (
-      this.provider.id.toLowerCase().includes('openrouter') &&
-      modelId.startsWith('deepseek/deepseek-chat-v3-0324:free')
-    ) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      ;(requestParams as any).provider = {
-        only: ['chutes']
-      }
-    }
-
-    if (modelConfig.reasoningEffort && this.supportsEffortParameter(modelId)) {
-      ;(requestParams as any).reasoning_effort = modelConfig.reasoningEffort
-    }
-
-    if (modelConfig.verbosity && this.supportsVerbosityParameter(modelId)) {
-      ;(requestParams as any).verbosity = modelConfig.verbosity
-    }
-
-    OPENAI_REASONING_MODELS.forEach((noTempId) => {
-      if (modelId.startsWith(noTempId)) delete requestParams.temperature
-    })
-
-    if (apiTools && apiTools.length > 0 && supportsFunctionCall) requestParams.tools = apiTools
-
-    // Build headers
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${this.provider.apiKey || 'MISSING_API_KEY'}`,
-      ...this.defaultHeaders
-    }
-
-    // Determine endpoint
-    const baseUrl = this.provider.baseUrl || 'https://api.openai.com/v1'
-    const endpoint = `${baseUrl}/chat/completions`
-
-    return {
-      endpoint,
-      headers,
-      body: requestParams
     }
   }
 }

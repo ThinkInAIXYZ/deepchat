@@ -41,17 +41,13 @@
     "contentProtectionEnableDesc": "מנע מיישומי שיתוף מסך ללכוד את חלון DeepChat כדי לעזור להגן על פרטיותך. לא כל האפליקציות מכבדות הגדרה זו; בסביבות מסוימות עשוי להופיע חלון שחור.",
     "contentProtectionDisableDesc": "אפשר ליישומי שיתוף מסך ללכוד את חלון DeepChat.",
     "contentProtectionRestartNotice": "שינוי הגדרה זו יגרום להפעלה מחדש של האפליקציה. האם להמשיך?",
-    "soundEnabled": "הפעל אפקטים קוליים",
     "copyWithCotEnabled": "העתק פרטי COT (שרשרת מחשבה)",
     "traceDebugEnabled": "מעקב אחר קריאה (Trace Call)",
     "loggingEnabled": "הפעל רישום לוגים",
     "loggingDialogTitle": "אשר שינוי הגדרת רישום לוגים",
     "loggingEnableDesc": "הפעלת רישום לוגים תעזור לנו לאבחן בעיות ולשפר את האפליקציה. קבצי הלוג עשויים להכיל מידע רגיש.",
     "loggingDisableDesc": "השבתת רישום לוגים תפסיק את איסוף יומני האפליקציה.",
-    "webContentLengthLimit": "מגבלת אורך תוכן אינטרנט",
-    "webContentLengthLimitHint": "(הגדר ל-0 ללא הגבלה)",
     "charactersUnit": "תווים",
-    "webContentLengthLimitTooltip": "הגדר את האורך המקסימלי של טקסט המופק מדפי אינטרנט (מספר תווים), טווח: 0-50000. הגדרה ל-0 משמעותה ללא הגבלה ושליפת תוכן האינטרנט המלא; ערכים גבוהים יותר מספקים תוכן שלם יותר אך עשויים להגדיל את זמן העיבוד ואת השימוש בטוקנים.",
     "loggingRestartNotice": "שינוי הגדרה זו יגרום להפעלה מחדש של האפליקציה. האם להמשיך?",
     "openLogFolder": "פתח תיקיית לוגים",
     "shortcut": {
@@ -62,7 +58,12 @@
     "notificationsDesc": "כאשר DeepChat אינו בחזית, אם נוצרת תשובה, תישלח התראת מערכת",
     "contentProtection": "הגנה מפני לכידת מסך",
     "fileMaxSize": "גודל קובץ מקסימלי",
-    "fileMaxSizeHint": "מגביל את הגודל המקסימלי של קובץ בודד המועלה"
+    "fileMaxSizeHint": "מגביל את הגודל המקסימלי של קובץ בודד המועלה",
+    "defaultModel": {
+      "title": "מודל ברירת מחדל",
+      "chatModel": "מודל צ'אט ברירת מחדל",
+      "visionModel": "מודל ראייה ברירת מחדל"
+    }
   },
   "notificationsHooks": {
     "title": "התראות ו‑Hooks",
@@ -238,23 +239,6 @@
         "description": "האם המודל תומך ביכולת חשיבה (Reasoning)?",
         "label": "יכולת חשיבה"
       },
-      "enableSearch": {
-        "label": "חיפוש אינטרנט",
-        "description": "אפשר למודל לחפש באינטרנט מידע עדכני"
-      },
-      "forcedSearch": {
-        "label": "חיפוש כפוי",
-        "description": "כפה על המודל לבצע חיפוש באינטרנט; כשמושבת, המודל מחליט אוטומטית"
-      },
-      "searchStrategy": {
-        "label": "אסטרטגיית חיפוש",
-        "description": "בחר מצב ביצועי חיפוש: turbo מאזן מהירות ויעילות, max מספק תוצאות חיפוש אופטימליות",
-        "placeholder": "בחר אסטרטגיית חיפוש",
-        "options": {
-          "turbo": "Turbo - איזון בין מהירות תגובה ליעילות חיפוש (מומלץ)",
-          "max": "Max - מצב ביצועים גבוהים, מספק תוצאות חיפוש אופטימליות"
-        }
-      },
       "thinkingBudget": {
         "label": "תקציב חשיבה",
         "description": "הגדר את אורך הטוקנים המקסימלי לתהליך החשיבה כדי לשלוט בעומק החשיבה",
@@ -325,10 +309,6 @@
       "vision": {
         "description": "האם המודל תומך ביכולת חזותית?",
         "label": "יכולת חזותית"
-      },
-      "searchLimit": {
-        "label": "מגבלת חיפוש",
-        "description": "מגבלת מודל: הפעלת חיפוש באינטרנט תשבית קריאות לפונקציות כלים"
       },
       "apiEndpoint": {
         "description": "בחר את נקודת הקצה של API ה-OpenAI שבה משתמש המודל הזה.",
@@ -739,6 +719,9 @@
     "enabledDescription": "הפעל או השבת פונקציונליות וכלים של MCP",
     "enableToAccess": "אנא הפעל את MCP כדי לגשת לאפשרויות התצורה",
     "marketplace": "עבור לחנות MCP להתקנה בלחיצה אחת",
+    "marketMenu": {
+      "higress": "Higress"
+    },
     "technicalDetails": "פרטים טכניים",
     "httpServer": "שרת HTTP",
     "localProcess": "תהליך מקומי",
@@ -819,7 +802,7 @@
       "parseAndContinue": "פענח והמשך",
       "jsonParseError": "פענוח JSON נכשל",
       "browseMarketplace": "עיין בחנות MCP",
-      "imageModel": "בחר מודל ראייה",
+      "imageModel": "מודל ראייה",
       "customHeadersParseError": "פענוח כותרות מותאמות אישית נכשל",
       "customHeaders": "כותרות בקשה מותאמות אישית",
       "clickToEdit": "לחץ לעריכה וצפייה בתוכן המלא",
@@ -954,15 +937,10 @@
     "zoomIn": "הגדל תצוגה ",
     "zoomOut": "הקטן תצוגה ",
     "zoomReset": "אפס תצוגה",
-    "closeTab": "סגור את הכרטיסייה הנוכחית",
-    "newTab": "צור כרטיסייה חדשה",
     "newWindow": "פתח חלון חדש",
     "showHideWindow": "הצג/הסתר חלון",
     "newConversation": "שיחה חדשה",
-    "nextTab": "עבור לכרטיסייה הבאה",
-    "previousTab": "עבור לכרטיסייה הקודמת",
-    "specificTab": "עבור לכרטיסייה מסוימת (1-8)",
-    "lastTab": "עבור לכרטיסייה האחרונה"
+    "closeWindow": "סגור את הכרטיסייה הנוכחית"
   },
   "acp": {
     "title": "סוכני ACP",

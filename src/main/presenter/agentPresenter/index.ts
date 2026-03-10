@@ -13,11 +13,8 @@ import { STREAM_EVENTS } from '@/events'
 import { presenter } from '@/presenter'
 import type { SessionContextResolved } from './session/sessionContext'
 import type { SessionManager } from './session/sessionManager'
-import type { SearchPresenter } from '../searchPresenter'
-import type { SearchManager } from '../searchPresenter/managers/searchManager'
-import type { ThreadHandlerContext } from '../searchPresenter/handlers/baseHandler'
-import { SearchHandler } from '../searchPresenter/handlers/searchHandler'
 import { MessageManager } from '../sessionPresenter/managers/messageManager'
+import type { ThreadHandlerContext } from './types/handlerContext'
 import { CommandPermissionService } from '../permission/commandPermissionService'
 import { ContentBufferHandler } from './streaming/contentBufferHandler'
 import { LLMEventHandler } from './streaming/llmEventHandler'
@@ -34,7 +31,6 @@ type AgentPresenterDependencies = {
   sqlitePresenter: ISQLitePresenter
   llmProviderPresenter: ILlmProviderPresenter
   configPresenter: IConfigPresenter
-  searchPresenter: SearchPresenter
   commandPermissionService: CommandPermissionService
   messageManager?: MessageManager
 }
@@ -45,16 +41,12 @@ export class AgentPresenter implements IAgentPresenter {
   private sqlitePresenter: ISQLitePresenter
   private llmProviderPresenter: ILlmProviderPresenter
   private configPresenter: IConfigPresenter
-  private searchPresenter: SearchPresenter
-  private searchManager: SearchManager
   private messageManager: MessageManager
   private commandPermissionService: CommandPermissionService
   private generatingMessages: Map<string, GeneratingMessageState> = new Map()
-  private searchingMessages: Set<string> = new Set()
   private contentBufferHandler: ContentBufferHandler
   private toolCallHandler: ToolCallHandler
   private llmEventHandler: LLMEventHandler
-  private searchHandler: SearchHandler
   private streamGenerationHandler: StreamGenerationHandler
   private permissionHandler: PermissionHandler
   private utilityHandler: UtilityHandler
@@ -66,8 +58,6 @@ export class AgentPresenter implements IAgentPresenter {
     this.sqlitePresenter = options.sqlitePresenter
     this.llmProviderPresenter = options.llmProviderPresenter
     this.configPresenter = options.configPresenter
-    this.searchPresenter = options.searchPresenter
-    this.searchManager = options.searchPresenter.getSearchManager()
     this.messageManager = options.messageManager ?? new MessageManager(options.sqlitePresenter)
     this.commandPermissionService = options.commandPermissionService
 
@@ -79,8 +69,7 @@ export class AgentPresenter implements IAgentPresenter {
       sqlitePresenter: this.sqlitePresenter,
       messageManager: this.messageManager,
       llmProviderPresenter: this.llmProviderPresenter,
-      configPresenter: this.configPresenter,
-      searchManager: this.searchManager
+      configPresenter: this.configPresenter
     }
 
     this.contentBufferHandler = new ContentBufferHandler({
@@ -90,14 +79,12 @@ export class AgentPresenter implements IAgentPresenter {
 
     this.toolCallHandler = new ToolCallHandler({
       sqlitePresenter: this.sqlitePresenter,
-      searchingMessages: this.searchingMessages,
       commandPermissionHandler: this.commandPermissionService,
       streamUpdateScheduler: this.streamUpdateScheduler
     })
 
     this.llmEventHandler = new LLMEventHandler({
       generatingMessages: this.generatingMessages,
-      searchingMessages: this.searchingMessages,
       messageManager: this.messageManager,
       contentBufferHandler: this.contentBufferHandler,
       toolCallHandler: this.toolCallHandler,
@@ -105,15 +92,7 @@ export class AgentPresenter implements IAgentPresenter {
       onConversationUpdated: (state) => this.handleConversationUpdates(state)
     })
 
-    this.searchHandler = new SearchHandler(handlerContext, {
-      generatingMessages: this.generatingMessages,
-      searchingMessages: this.searchingMessages,
-      getSearchAssistantModel: () => this.searchPresenter.getSearchAssistantModel(),
-      getSearchAssistantProviderId: () => this.searchPresenter.getSearchAssistantProviderId()
-    })
-
     this.streamGenerationHandler = new StreamGenerationHandler(handlerContext, {
-      searchHandler: this.searchHandler,
       generatingMessages: this.generatingMessages,
       llmEventHandler: this.llmEventHandler
     })
@@ -129,14 +108,12 @@ export class AgentPresenter implements IAgentPresenter {
     })
 
     this.utilityHandler = new UtilityHandler(handlerContext, {
-      getActiveConversation: (tabId) => this.sessionPresenter.getActiveConversation(tabId),
-      getActiveConversationId: (tabId) => this.sessionPresenter.getActiveConversationId(tabId),
-      getConversation: (conversationId) => this.sessionPresenter.getConversation(conversationId),
-      createConversation: (title, settings, tabId) =>
-        this.sessionPresenter.createConversation(title, settings, tabId),
-      streamGenerationHandler: this.streamGenerationHandler,
-      getSearchAssistantModel: () => this.searchPresenter.getSearchAssistantModel(),
-      getSearchAssistantProviderId: () => this.searchPresenter.getSearchAssistantProviderId()
+      getActiveConversation: (webContentsId) =>
+        this.sessionPresenter.getActiveConversation(webContentsId),
+      getActiveConversationId: (webContentsId) =>
+        this.sessionPresenter.getActiveConversationId(webContentsId),
+      createConversation: (title, settings, webContentsId) =>
+        this.sessionPresenter.createConversation(title, settings, webContentsId)
     })
 
     // Legacy IPC surface: dynamic proxy for ISessionPresenter methods.
@@ -146,7 +123,7 @@ export class AgentPresenter implements IAgentPresenter {
   async sendMessage(
     agentId: string,
     content: string,
-    tabId?: number,
+    webContentsId?: number,
     selectedVariantsMap?: Record<string, string>
   ): Promise<AssistantMessage | null> {
     await this.logResolvedIfEnabled(agentId)
@@ -161,19 +138,6 @@ export class AgentPresenter implements IAgentPresenter {
       this.buildMessageMetadata(conversation)
     )
     try {
-      const promptPreview = this.extractUserMessageText(content)
-      presenter.hooksNotifications.dispatchEvent('UserPromptSubmit', {
-        conversationId: agentId,
-        messageId: userMessage.id,
-        promptPreview,
-        providerId: conversation.settings.providerId,
-        modelId: conversation.settings.modelId
-      })
-    } catch (error) {
-      console.warn('[AgentPresenter] Failed to dispatch UserPromptSubmit hook:', error)
-    }
-
-    try {
       await this.resolvePendingQuestionIfNeeded(agentId, userMessage.id, content)
     } catch (error) {
       console.warn('[AgentPresenter] Failed to auto-resolve pending question:', error)
@@ -184,9 +148,10 @@ export class AgentPresenter implements IAgentPresenter {
       userMessage.id
     )
 
-    this.trackGeneratingMessage(assistantMessage, agentId, tabId)
+    this.trackGeneratingMessage(assistantMessage, agentId, webContentsId)
     await this.updateConversationAfterUserMessage(agentId)
-    await this.sessionManager.startLoop(agentId, assistantMessage.id)
+    // Normal flow: skip lock acquisition (lock is only for permission resume)
+    await this.sessionManager.startLoop(agentId, assistantMessage.id, { skipLockAcquisition: true })
 
     void this.streamGenerationHandler
       .startStreamCompletion(agentId, assistantMessage.id, selectedVariantsMap)
@@ -216,7 +181,8 @@ export class AgentPresenter implements IAgentPresenter {
 
     this.trackGeneratingMessage(assistantMessage, agentId)
     await this.updateConversationAfterUserMessage(agentId)
-    await this.sessionManager.startLoop(agentId, assistantMessage.id)
+    // Normal flow: skip lock acquisition (lock is only for permission resume)
+    await this.sessionManager.startLoop(agentId, assistantMessage.id, { skipLockAcquisition: true })
 
     void this.streamGenerationHandler
       .continueStreamCompletion(agentId, messageId, selectedVariantsMap)
@@ -245,6 +211,23 @@ export class AgentPresenter implements IAgentPresenter {
     await this.stopMessageGeneration(messageId)
   }
 
+  async cleanupConversation(conversationId: string): Promise<void> {
+    for (const [messageId, state] of this.generatingMessages) {
+      if (state.conversationId === conversationId) {
+        await this.stopMessageGeneration(messageId)
+        break
+      }
+    }
+
+    this.sessionManager.removeSession(conversationId)
+
+    try {
+      await this.llmProviderPresenter.clearAcpSession(conversationId)
+    } catch (error) {
+      console.warn('[AgentPresenter] Failed to clear ACP session:', error)
+    }
+  }
+
   async retryMessage(
     messageId: string,
     selectedVariantsMap?: Record<string, string>
@@ -266,7 +249,10 @@ export class AgentPresenter implements IAgentPresenter {
     )) as AssistantMessage
 
     this.trackGeneratingMessage(assistantMessage, message.conversationId)
-    await this.sessionManager.startLoop(message.conversationId, assistantMessage.id)
+    // Normal flow: skip lock acquisition (lock is only for permission resume)
+    await this.sessionManager.startLoop(message.conversationId, assistantMessage.id, {
+      skipLockAcquisition: true
+    })
 
     void this.streamGenerationHandler
       .startStreamCompletion(message.conversationId, messageId, selectedVariantsMap)
@@ -295,12 +281,12 @@ export class AgentPresenter implements IAgentPresenter {
     )
   }
 
-  async translateText(text: string, tabId: number): Promise<string> {
-    return this.utilityHandler.translateText(text, tabId)
+  async translateText(text: string, webContentsId: number): Promise<string> {
+    return this.utilityHandler.translateText(text, webContentsId)
   }
 
-  async askAI(text: string, tabId: number): Promise<string> {
-    return this.utilityHandler.askAI(text, tabId)
+  async askAI(text: string, webContentsId: number): Promise<string> {
+    return this.utilityHandler.askAI(text, webContentsId)
   }
 
   async handlePermissionResponse(
@@ -336,14 +322,6 @@ export class AgentPresenter implements IAgentPresenter {
     await this.handleQuestionResolution(messageId, toolCallId, {
       resolution: 'rejected'
     })
-  }
-
-  async getMessageRequestPreview(agentId: string, messageId?: string): Promise<unknown> {
-    if (!messageId) {
-      return null
-    }
-    await this.logResolvedIfEnabled(agentId)
-    return this.utilityHandler.getMessageRequestPreview(messageId)
   }
 
   private async handleQuestionResolution(
@@ -476,7 +454,7 @@ export class AgentPresenter implements IAgentPresenter {
   private trackGeneratingMessage(
     message: AssistantMessage,
     conversationId: string,
-    tabId?: number
+    webContentsId?: number
   ): void {
     this.generatingMessages.set(message.id, {
       message,
@@ -487,7 +465,7 @@ export class AgentPresenter implements IAgentPresenter {
       reasoningStartTime: null,
       reasoningEndTime: null,
       lastReasoningTime: null,
-      tabId
+      webContentsId
     })
   }
 
@@ -573,11 +551,6 @@ export class AgentPresenter implements IAgentPresenter {
     }
 
     this.contentBufferHandler.cleanupContentBuffer(state)
-
-    if (state.isSearching) {
-      this.searchingMessages.delete(messageId)
-      await this.searchManager.stopSearch(state.conversationId)
-    }
 
     state.message.content.forEach((block) => {
       if (

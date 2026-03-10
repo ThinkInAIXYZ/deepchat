@@ -1,6 +1,6 @@
 {
   "input": {
-    "placeholder": "چیزی بپرسید؟ می‌توانید با {'@'} به ابزارها، پرونده‌ها، منابع ارجاع دهید...",
+    "placeholder": "هر چیزی از DeepChat بپرسید، با {'@'} به فایل‌ها اشاره کنید و با / از دستورها استفاده کنید",
     "fileArea": "ناحیه پرونده",
     "inputArea": "ناحیه ورودی",
     "functionSwitch": "کلید کارکرد",
@@ -25,7 +25,15 @@
     "acpModeTooltip": "حالت فعلی: {mode}",
     "agentWorkspaceCurrent": "فهرست کاری فعلی: {path}",
     "agentWorkspaceSelect": "پوشه کاری را انتخاب کنید",
-    "agentWorkspaceTooltip": "دایرکتوری کاری عامل را تنظیم کنید"
+    "agentWorkspaceTooltip": "دایرکتوری کاری عامل را تنظیم کنید",
+    "attach": "پیوست",
+    "voiceInput": "ورودی صوتی",
+    "mcp": {
+      "badge": "MCP {count}",
+      "title": "MCPهای فعال",
+      "empty": "سرویسی فعال نشده است",
+      "openSettings": "باز کردن تنظیمات MCP"
+    }
   },
   "features": {
     "webSearch": "جستجوی وب",
@@ -95,11 +103,34 @@
   "mode": {
     "acpAgent": "نماینده ACP",
     "agent": "عامل",
-    "chat": "چت کردن",
     "current": "حالت فعلی: {mode}"
+  },
+  "topbar": {
+    "share": "اشتراک‌گذاری",
+    "more": "بیشتر"
+  },
+  "advancedSettings": {
+    "button": "پیشرفته",
+    "title": "تنظیمات پیشرفته",
+    "closeHint": "برای بستن Esc را بزنید",
+    "systemPrompt": "پرامپت سیستم",
+    "systemPromptPlaceholder": "یک پیش‌تنظیم را انتخاب کنید",
+    "temperature": "دما",
+    "contextLength": "طول زمینه",
+    "maxTokens": "حداکثر توکن",
+    "thinkingBudget": "بودجه تفکر",
+    "verbosity": "میزان جزئیات پاسخ",
+    "verbosityPlaceholder": "سطح جزئیات را انتخاب کنید",
+    "currentCustomPrompt": "سفارشی فعلی",
+    "useDefault": "استفاده از پیش‌فرض"
   },
   "workspace": {
     "collapse": "بستن",
+    "sections": {
+      "files": "فایل‌ها",
+      "git": "Git",
+      "artifacts": "Artifacts"
+    },
     "files": {
       "contextMenu": {
         "insertPath": "در جعبه ورودی وارد کنید",
@@ -109,6 +140,12 @@
       "empty": "هنوز فایلی وجود ندارد",
       "loading": "در حال بارگیری فایل ها...",
       "section": "سند"
+    },
+    "git": {
+      "empty": "diff برای نمایش وجود ندارد",
+      "clean": "درخت کاری تمیز است",
+      "staged": "Stage شده",
+      "unstaged": "Stage نشده"
     },
     "browser": {
       "section": "مرورگر",
@@ -169,5 +206,25 @@
       "manage": "مدیریت",
       "title": "مهارت"
     }
+  },
+  "compaction": {
+    "compacting": "در حال فشرده‌سازی خودکار زمینه...",
+    "compacted": "زمینه به‌صورت خودکار فشرده شد"
+  },
+  "newThread": {
+    "title": "بسازید و کاوش کنید"
+  },
+  "permissionMode": {
+    "default": "مجوزهای پیش‌فرض",
+    "fullAccess": "دسترسی کامل"
+  },
+  "sidebar": {
+    "allAgents": "همه عامل‌ها",
+    "expandSidebar": "گسترش نوار کناری",
+    "collapseSidebar": "جمع کردن نوار کناری",
+    "groupByDate": "گروه‌بندی بر اساس تاریخ",
+    "groupByProject": "گروه‌بندی بر اساس پروژه",
+    "emptyTitle": "هنوز گفت‌وگویی وجود ندارد",
+    "emptyDescription": "برای شروع، یک گفت‌وگوی جدید آغاز کنید"
   }
 }

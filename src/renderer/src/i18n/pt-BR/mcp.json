@@ -167,10 +167,6 @@
       "desc": "API de Pesquisa Brave https://brave.com/search/api/",
       "name": "Pesquisa Brave"
     },
-    "powerpack": {
-      "desc": "Fornecer aos modelos consultas de tempo, navegação na web e execução segura de código.",
-      "name": "Power Pack"
-    },
     "difyKnowledge": {
       "desc": "Serviço de Pesquisa da Base de Conhecimento Dify, que pode recuperar conteúdo na Base de Conhecimento Dify",
       "name": "Pesquisa na Base de Conhecimento Dify"

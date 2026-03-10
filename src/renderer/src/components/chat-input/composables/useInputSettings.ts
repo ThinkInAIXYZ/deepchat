@@ -5,7 +5,7 @@ import { ref, onMounted } from 'vue'
 import { usePresenter } from '@/composables/usePresenter'
 
 /**
- * Manages input-specific settings (web search, deep thinking)
+ * Manages input-specific settings (deep thinking)
  */
 export function useInputSettings() {
   // === Presenters ===
@@ -13,30 +13,10 @@ export function useInputSettings() {
 
   // === Local State ===
   const settings = ref({
-    deepThinking: false,
-    webSearch: false
+    deepThinking: false
   })
 
   // === Public Methods ===
-  const setWebSearch = async (value: boolean) => {
-    const previousValue = settings.value.webSearch
-    if (previousValue === value) return
-    settings.value.webSearch = value
-
-    try {
-      await configPresenter.setSetting('input_webSearch', settings.value.webSearch)
-    } catch (error) {
-      // Revert to previous value on error
-      settings.value.webSearch = previousValue
-      console.error('Failed to save web search setting:', error)
-      // TODO: Show user-facing notification when toast system is available
-    }
-  }
-
-  const toggleWebSearch = async () => {
-    await setWebSearch(!settings.value.webSearch)
-  }
-
   const toggleDeepThinking = async () => {
     const previousValue = settings.value.deepThinking
     settings.value.deepThinking = !settings.value.deepThinking
@@ -54,11 +34,9 @@ export function useInputSettings() {
   const loadSettings = async () => {
     try {
       settings.value.deepThinking = Boolean(await configPresenter.getSetting('input_deepThinking'))
-      settings.value.webSearch = Boolean(await configPresenter.getSetting('input_webSearch'))
     } catch (error) {
       // Fall back to safe defaults on error
       settings.value.deepThinking = false
-      settings.value.webSearch = false
       console.error('Failed to load input settings, using defaults:', error)
     }
   }
@@ -74,8 +52,6 @@ export function useInputSettings() {
 
   return {
     settings,
-    setWebSearch,
-    toggleWebSearch,
     toggleDeepThinking,
     loadSettings
   }

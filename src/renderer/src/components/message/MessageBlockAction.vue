@@ -78,17 +78,20 @@
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
-import { useChatStore } from '@/stores/chat'
 import { AssistantMessageBlock } from '@shared/chat'
 import { ref, onMounted, onUnmounted } from 'vue'
 
 const { t } = useI18n()
-const chatStore = useChatStore()
 
 const props = defineProps<{
   messageId: string
   conversationId: string
   block: AssistantMessageBlock
+}>()
+
+const emit = defineEmits<{
+  continue: [conversationId: string, messageId: string]
+  switchProvider: []
 }>()
 
 const progressTimer = ref<number | null>(null)
@@ -132,12 +135,11 @@ const handleQuickSettings = () => {
 }
 
 const handleSwitchProvider = () => {
-  chatStore.showProviderSelector()
+  emit('switchProvider')
 }
 
 const handleClick = () => {
-  console.log('handleClick')
-  chatStore.continueStream(props.conversationId, props.messageId)
+  emit('continue', props.conversationId, props.messageId)
 }
 
 onMounted(() => {

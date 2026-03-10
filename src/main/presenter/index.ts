@@ -1,6 +1,6 @@
 import path from 'path'
 import { DialogPresenter } from './dialogPresenter/index'
-import { ipcMain, IpcMainInvokeEvent, app } from 'electron'
+import { BrowserWindow, ipcMain, IpcMainInvokeEvent, app } from 'electron'
 import { WindowPresenter } from './windowPresenter'
 import { ShortcutPresenter } from './shortcutPresenter'
 import {
@@ -28,7 +28,9 @@ import {
   IToolPresenter,
   IYoBrowserPresenter,
   ISkillPresenter,
-  ISkillSyncPresenter
+  ISkillSyncPresenter,
+  INewAgentPresenter,
+  IProjectPresenter
 } from '@shared/presenter'
 import { eventBus } from '@/eventbus'
 import { LLMProviderPresenter } from './llmProviderPresenter'
@@ -57,15 +59,18 @@ import {
 } from './permission'
 import { AgentPresenter } from './agentPresenter'
 import { SessionManager } from './agentPresenter/session/sessionManager'
-import { SearchPresenter } from './searchPresenter'
+
 import { ConversationExporterService } from './exporter'
 import { SkillPresenter } from './skillPresenter'
 import { SkillSyncPresenter } from './skillSyncPresenter'
 import { HooksNotificationsService } from './hooksNotifications'
+import { NewSessionHooksBridge } from './hooksNotifications/newSessionBridge'
+import { NewAgentPresenter } from './newAgentPresenter'
+import { DeepChatAgentPresenter } from './deepchatAgentPresenter'
+import { ProjectPresenter } from './projectPresenter'
 
 // IPC调用上下文接口
 interface IPCCallContext {
-  tabId?: number
   windowId?: number
   webContentsId: number
   presenterName: string
@@ -86,7 +91,7 @@ export class Presenter implements IPresenter {
   llmproviderPresenter: ILlmProviderPresenter
   configPresenter: IConfigPresenter
   sessionPresenter: ISessionPresenter
-  searchPresenter: SearchPresenter
+
   exporter: IConversationExporter
   agentPresenter: IAgentPresenter & ISessionPresenter
   sessionManager: SessionManager
@@ -110,7 +115,10 @@ export class Presenter implements IPresenter {
   lifecycleManager: ILifecycleManager
   skillPresenter: ISkillPresenter
   skillSyncPresenter: ISkillSyncPresenter
+  newAgentPresenter: INewAgentPresenter
+  projectPresenter: IProjectPresenter
   hooksNotifications: HooksNotificationsService
+  commandPermissionService: CommandPermissionService
   filePermissionService: FilePermissionService
   settingsPermissionService: SettingsPermissionService
 
@@ -127,15 +135,11 @@ export class Presenter implements IPresenter {
     this.tabPresenter = new TabPresenter(this.windowPresenter)
     this.llmproviderPresenter = new LLMProviderPresenter(this.configPresenter, this.sqlitePresenter)
     const commandPermissionHandler = new CommandPermissionService()
+    this.commandPermissionService = commandPermissionHandler
     this.filePermissionService = new FilePermissionService()
     this.settingsPermissionService = new SettingsPermissionService()
     const messageManager = new MessageManager(this.sqlitePresenter)
     this.devicePresenter = new DevicePresenter()
-    this.searchPresenter = new SearchPresenter({
-      configPresenter: this.configPresenter,
-      windowPresenter: this.windowPresenter,
-      llmProviderPresenter: this.llmproviderPresenter
-    })
     this.exporter = new ConversationExporterService({
       sqlitePresenter: this.sqlitePresenter,
       configPresenter: this.configPresenter
@@ -158,7 +162,6 @@ export class Presenter implements IPresenter {
       sqlitePresenter: this.sqlitePresenter,
       llmProviderPresenter: this.llmproviderPresenter,
       configPresenter: this.configPresenter,
-      searchPresenter: this.searchPresenter,
       commandPermissionService: commandPermissionHandler,
       messageManager
     }) as unknown as IAgentPresenter & ISessionPresenter
@@ -173,7 +176,7 @@ export class Presenter implements IPresenter {
     this.trayPresenter = new TrayPresenter()
     this.floatingButtonPresenter = new FloatingButtonPresenter(this.configPresenter)
     this.dialogPresenter = new DialogPresenter()
-    this.yoBrowserPresenter = new YoBrowserPresenter(this.windowPresenter, this.tabPresenter)
+    this.yoBrowserPresenter = new YoBrowserPresenter(this.windowPresenter)
 
     // Define dbDir for knowledge presenter
     const dbDir = path.join(app.getPath('userData'), 'app_db')
@@ -184,7 +187,7 @@ export class Presenter implements IPresenter {
     )
 
     // Initialize generic Workspace presenter (for all Agent modes)
-    this.workspacePresenter = new WorkspacePresenter()
+    this.workspacePresenter = new WorkspacePresenter(this.filePresenter)
 
     // Initialize unified Tool presenter (for routing MCP and Agent tools)
     this.toolPresenter = new ToolPresenter({
@@ -200,10 +203,37 @@ export class Presenter implements IPresenter {
     // Initialize Skill Sync presenter
     this.skillSyncPresenter = new SkillSyncPresenter(this.skillPresenter, this.configPresenter)
 
-    // Initialize Hooks & Notifications service
+    // Initialize new agent architecture presenters first (needed by hooksNotifications)
     this.hooksNotifications = new HooksNotificationsService(this.configPresenter, {
-      sessionPresenter: this.sessionPresenter,
-      resolveWorkspaceContext: this.sessionManager.resolveWorkspaceContext.bind(this.sessionManager)
+      getSession: async () => null,
+      getMessage: async () => null
+    })
+    const newSessionHooksBridge = new NewSessionHooksBridge(this.hooksNotifications)
+
+    // Initialize new agent architecture presenters
+    const deepchatAgentPresenter = new DeepChatAgentPresenter(
+      this.llmproviderPresenter as unknown as ILlmProviderPresenter,
+      this.configPresenter,
+      this.sqlitePresenter as unknown as import('./sqlitePresenter').SQLitePresenter,
+      this.toolPresenter,
+      newSessionHooksBridge
+    )
+    this.newAgentPresenter = new NewAgentPresenter(
+      deepchatAgentPresenter,
+      this.llmproviderPresenter as unknown as ILlmProviderPresenter,
+      this.configPresenter,
+      this.sqlitePresenter as unknown as import('./sqlitePresenter').SQLitePresenter,
+      this.skillPresenter
+    )
+    this.projectPresenter = new ProjectPresenter(
+      this.sqlitePresenter as unknown as import('./sqlitePresenter').SQLitePresenter,
+      this.devicePresenter
+    )
+
+    // Update hooksNotifications with actual dependencies now that newAgentPresenter is ready
+    this.hooksNotifications = new HooksNotificationsService(this.configPresenter, {
+      getSession: this.newAgentPresenter.getSession.bind(this.newAgentPresenter),
+      getMessage: this.newAgentPresenter.getMessage.bind(this.newAgentPresenter)
     })
 
     this.setupEventBus() // 设置事件总线监听
@@ -360,18 +390,16 @@ function isFunction(obj: any, prop: string): obj is { [key: string]: (...args: a
   return typeof obj[prop] === 'function'
 }
 
-// IPC 主进程处理程序：动态调用 Presenter 的方法 (支持Tab上下文)
+// IPC 主进程处理程序：动态调用 Presenter 的方法 (支持 window/webContents 上下文)
 ipcMain.handle(
   'presenter:call',
   (event: IpcMainInvokeEvent, name: string, method: string, ...payloads: unknown[]) => {
     try {
       // 构建调用上下文
       const webContentsId = event.sender.id
-      const tabId = presenter.tabPresenter.getTabIdByWebContentsId(webContentsId)
-      const windowId = presenter.tabPresenter.getWindowIdByWebContentsId(webContentsId)
+      const windowId = BrowserWindow.fromWebContents(event.sender)?.id
 
       const context: IPCCallContext = {
-        tabId,
         windowId,
         webContentsId,
         presenterName: name,
@@ -379,10 +407,10 @@ ipcMain.handle(
         timestamp: Date.now()
       }
 
-      // 记录调用日志 (包含tab上下文)
+      // 记录调用日志
       if (import.meta.env.VITE_LOG_IPC_CALL === '1') {
         console.log(
-          `[IPC Call] Tab:${context.tabId || 'unknown'} Window:${context.windowId || 'unknown'} -> ${context.presenterName}.${context.methodName}`
+          `[IPC Call] WebContents:${context.webContentsId} Window:${context.windowId || 'unknown'} -> ${context.presenterName}.${context.methodName}`
         )
       }
 
@@ -393,7 +421,9 @@ ipcMain.handle(
       let resolvedPayloads = payloads
 
       if (!calledPresenter) {
-        console.warn(`[IPC Warning] Tab:${context.tabId} calling wrong presenter: ${name}`)
+        console.warn(
+          `[IPC Warning] WebContents:${context.webContentsId} calling wrong presenter: ${name}`
+        )
         return { error: `Presenter "${name}" not found` }
       }
 
@@ -403,7 +433,7 @@ ipcMain.handle(
         return calledPresenter[resolvedMethod](...resolvedPayloads)
       } else {
         console.warn(
-          `[IPC Warning] Tab:${context.tabId} called method is not a function or does not exist: ${name}.${method}`
+          `[IPC Warning] WebContents:${context.webContentsId} called method is not a function or does not exist: ${name}.${method}`
         )
         return { error: `Method "${method}" not found or not a function on "${name}"` }
       }
@@ -413,9 +443,8 @@ ipcMain.handle(
     ) {
       // 尝试获取调用上下文以改进错误日志
       const webContentsId = event.sender.id
-      const tabId = presenter.tabPresenter.getTabIdByWebContentsId(webContentsId)
 
-      console.error(`[IPC Error] Tab:${tabId || 'unknown'} ${name}.${method}:`, e)
+      console.error(`[IPC Error] WebContents:${webContentsId} ${name}.${method}:`, e)
       return { error: e.message || String(e) }
     }
   }

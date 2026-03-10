@@ -32,12 +32,18 @@ const BACKUP_EXTENSION = '.zip'
 const BACKUP_FILE_NAME_REGEX = /^backup-\d+\.zip$/
 
 const ZIP_PATHS = {
-  db: 'database/chat.db',
+  agentDb: 'database/agent.db',
+  chatDb: 'database/chat.db',
   appSettings: 'configs/app-settings.json',
   customPrompts: 'configs/custom_prompts.json',
   systemPrompts: 'configs/system_prompts.json',
   mcpSettings: 'configs/mcp-settings.json',
   manifest: 'manifest.json'
+}
+
+type BackupDbSource = {
+  type: 'agent' | 'chat'
+  path: string
 }
 
 export class SyncPresenter implements ISyncPresenter {
@@ -51,7 +57,7 @@ export class SyncPresenter implements ISyncPresenter {
   private readonly CUSTOM_PROMPTS_PATH = path.join(app.getPath('userData'), 'custom_prompts.json')
   private readonly SYSTEM_PROMPTS_PATH = path.join(app.getPath('userData'), 'system_prompts.json')
   private readonly MCP_SETTINGS_PATH = path.join(app.getPath('userData'), 'mcp-settings.json')
-  private readonly DB_PATH = path.join(app.getPath('userData'), 'app_db', 'chat.db')
+  private readonly DB_PATH = path.join(app.getPath('userData'), 'app_db', 'agent.db')
 
   constructor(configPresenter: IConfigPresenter, sqlitePresenter: ISQLitePresenter) {
     this.configPresenter = configPresenter
@@ -145,7 +151,13 @@ export class SyncPresenter implements ISyncPresenter {
   public async importFromSync(
     backupFileName: string,
     importMode: ImportMode = ImportMode.INCREMENT
-  ): Promise<{ success: boolean; message: string; count?: number }> {
+  ): Promise<{
+    success: boolean
+    message: string
+    count?: number
+    sourceDbType?: 'agent' | 'chat'
+    importedSessions?: number
+  }> {
     if (this.backupTimer) {
       clearTimeout(this.backupTimer)
       this.backupTimer = null
@@ -183,24 +195,25 @@ export class SyncPresenter implements ISyncPresenter {
     }
 
     let sqliteClosed = false
+    let sqliteReopenedForLegacyImport = false
 
     try {
       this.extractBackupArchive(backupZipPath, extractionDir)
 
-      const backupDbPath = path.join(extractionDir, ZIP_PATHS.db)
+      const backupDbSource = this.resolveBackupDbSource(extractionDir)
       const backupAppSettingsPath = path.join(extractionDir, ZIP_PATHS.appSettings)
       const backupCustomPromptsPath = path.join(extractionDir, ZIP_PATHS.customPrompts)
       const backupSystemPromptsPath = path.join(extractionDir, ZIP_PATHS.systemPrompts)
       const backupMcpSettingsPath = path.join(extractionDir, ZIP_PATHS.mcpSettings)
 
-      if (!fs.existsSync(backupDbPath) || !fs.existsSync(backupAppSettingsPath)) {
+      if (!backupDbSource || !fs.existsSync(backupAppSettingsPath)) {
         throw new Error('sync.error.noValidBackup')
       }
 
       this.sqlitePresenter.close()
       sqliteClosed = true
 
-      tempCurrentFiles.db = this.createTempBackup(this.DB_PATH, 'chat.db')
+      tempCurrentFiles.db = this.createTempBackup(this.DB_PATH, 'agent.db')
       tempCurrentFiles.appSettings = this.createTempBackup(
         this.APP_SETTINGS_PATH,
         'app-settings.json'
@@ -218,36 +231,61 @@ export class SyncPresenter implements ISyncPresenter {
         'mcp-settings.json'
       )
 
+      if (backupDbSource.type === 'chat') {
+        this.sqlitePresenter.reopen()
+        sqliteClosed = false
+        sqliteReopenedForLegacyImport = true
+      }
+
       let importedConversationCount = 0
 
-      if (importMode === ImportMode.OVERWRITE) {
-        const backupDb = new Database(backupDbPath, { readonly: true })
-        const result = backupDb.prepare('SELECT COUNT(*) as count FROM conversations').get() as {
-          count: number
-        }
-        importedConversationCount = result?.count || 0
-        backupDb.close()
+      if (backupDbSource.type === 'agent') {
+        if (importMode === ImportMode.OVERWRITE) {
+          const backupDb = new Database(backupDbSource.path, { readonly: true })
+          importedConversationCount =
+            this.countTableRows(backupDb, 'new_sessions') ||
+            this.countTableRows(backupDb, 'conversations')
+          backupDb.close()
 
-        this.copyFile(backupDbPath, this.DB_PATH)
-        this.cleanupDatabaseSidecarFiles(this.DB_PATH)
-        this.mergeAppSettingsPreservingSync(backupAppSettingsPath, this.APP_SETTINGS_PATH)
+          this.copyFile(backupDbSource.path, this.DB_PATH)
+          this.cleanupDatabaseSidecarFiles(this.DB_PATH)
+          this.mergeAppSettingsPreservingSync(backupAppSettingsPath, this.APP_SETTINGS_PATH)
 
-        if (fs.existsSync(backupCustomPromptsPath)) {
-          this.copyFile(backupCustomPromptsPath, this.CUSTOM_PROMPTS_PATH)
-        }
+          if (fs.existsSync(backupCustomPromptsPath)) {
+            this.copyFile(backupCustomPromptsPath, this.CUSTOM_PROMPTS_PATH)
+          }
 
-        if (fs.existsSync(backupSystemPromptsPath)) {
-          this.copyFile(backupSystemPromptsPath, this.SYSTEM_PROMPTS_PATH)
-        }
+          if (fs.existsSync(backupSystemPromptsPath)) {
+            this.copyFile(backupSystemPromptsPath, this.SYSTEM_PROMPTS_PATH)
+          }
 
-        if (fs.existsSync(backupMcpSettingsPath)) {
-          this.copyFile(backupMcpSettingsPath, this.MCP_SETTINGS_PATH)
+          if (fs.existsSync(backupMcpSettingsPath)) {
+            this.copyFile(backupMcpSettingsPath, this.MCP_SETTINGS_PATH)
+          }
+        } else {
+          const importer = new DataImporter(backupDbSource.path, this.DB_PATH)
+          const summary = await importer.importData()
+          importer.close()
+          importedConversationCount =
+            summary.tableCounts.new_sessions || summary.tableCounts.conversations || 0
+
+          this.mergeAppSettingsPreservingSync(backupAppSettingsPath, this.APP_SETTINGS_PATH)
+          if (fs.existsSync(backupCustomPromptsPath)) {
+            this.mergePromptStore(backupCustomPromptsPath, this.CUSTOM_PROMPTS_PATH)
+          }
+          if (fs.existsSync(backupSystemPromptsPath)) {
+            this.mergePromptStore(backupSystemPromptsPath, this.SYSTEM_PROMPTS_PATH)
+          }
+          if (fs.existsSync(backupMcpSettingsPath)) {
+            this.mergeMcpSettings(backupMcpSettingsPath, this.MCP_SETTINGS_PATH)
+          }
         }
       } else {
-        const importer = new DataImporter(backupDbPath, this.DB_PATH)
-        const summary = await importer.importData()
-        importer.close()
-        importedConversationCount = summary.tableCounts.conversations || 0
+        const summary = await this.sqlitePresenter.importLegacyChatDb(
+          backupDbSource.path,
+          importMode === ImportMode.OVERWRITE ? 'overwrite' : 'increment'
+        )
+        importedConversationCount = summary.importedSessions
 
         this.mergeAppSettingsPreservingSync(backupAppSettingsPath, this.APP_SETTINGS_PATH)
         if (fs.existsSync(backupCustomPromptsPath)) {
@@ -272,10 +310,21 @@ export class SyncPresenter implements ISyncPresenter {
       return {
         success: true,
         message: 'sync.success.importComplete',
-        count: importedConversationCount
+        count: importedConversationCount,
+        sourceDbType: backupDbSource.type,
+        importedSessions: importedConversationCount
       }
     } catch (error) {
       console.error('import failed,reverting:', error)
+      const errorMessage = (error as Error).message || 'sync.error.unknown'
+      if (sqliteReopenedForLegacyImport && !sqliteClosed) {
+        try {
+          this.sqlitePresenter.close()
+          sqliteClosed = true
+        } catch (closeError) {
+          console.error('Failed to close sqlite before restore after import failure:', closeError)
+        }
+      }
       this.restoreFromTempBackup(tempCurrentFiles)
       if (sqliteClosed) {
         try {
@@ -285,12 +334,12 @@ export class SyncPresenter implements ISyncPresenter {
           console.error('Failed to reopen sqlite after import failure:', reopenError)
         }
       }
-      eventBus.send(
-        SYNC_EVENTS.IMPORT_ERROR,
-        SendTarget.ALL_WINDOWS,
-        (error as Error).message || 'sync.error.unknown'
-      )
-      return { success: false, message: 'sync.error.importFailed' }
+      eventBus.send(SYNC_EVENTS.IMPORT_ERROR, SendTarget.ALL_WINDOWS, errorMessage)
+      return {
+        success: false,
+        message:
+          errorMessage === 'sync.error.noValidBackup' ? errorMessage : 'sync.error.importFailed'
+      }
     } finally {
       this.cleanupTempFiles(Object.values(tempCurrentFiles))
       this.removeDirectory(extractionDir)
@@ -328,7 +377,7 @@ export class SyncPresenter implements ISyncPresenter {
 
       this.emitBackupStatus('collecting')
       const files: Record<string, Uint8Array> = {}
-      files[ZIP_PATHS.db] = new Uint8Array(fs.readFileSync(this.DB_PATH))
+      files[ZIP_PATHS.agentDb] = new Uint8Array(fs.readFileSync(this.DB_PATH))
       files[ZIP_PATHS.appSettings] = new Uint8Array(fs.readFileSync(this.APP_SETTINGS_PATH))
       this.addOptionalFile(files, ZIP_PATHS.customPrompts, this.CUSTOM_PROMPTS_PATH)
       this.addOptionalFile(files, ZIP_PATHS.systemPrompts, this.SYSTEM_PROMPTS_PATH)
@@ -442,6 +491,26 @@ export class SyncPresenter implements ISyncPresenter {
     if (fs.existsSync(filePath)) {
       files[zipPath] = new Uint8Array(fs.readFileSync(filePath))
     }
+  }
+
+  private resolveBackupDbSource(extractionDir: string): BackupDbSource | null {
+    const agentDbPath = path.join(extractionDir, ZIP_PATHS.agentDb)
+    if (fs.existsSync(agentDbPath)) {
+      return {
+        type: 'agent',
+        path: agentDbPath
+      }
+    }
+
+    const chatDbPath = path.join(extractionDir, ZIP_PATHS.chatDb)
+    if (fs.existsSync(chatDbPath)) {
+      return {
+        type: 'chat',
+        path: chatDbPath
+      }
+    }
+
+    return null
   }
 
   private extractBackupArchive(zipPath: string, targetDir: string): void {
@@ -564,44 +633,7 @@ export class SyncPresenter implements ISyncPresenter {
   }
 
   private async resetShellWindowsToSingleNewChatTab(): Promise<void> {
-    try {
-      const { presenter } = await import('../index')
-      const windowPresenter = presenter?.windowPresenter as any
-      const tabPresenter = presenter?.tabPresenter as any
-
-      const windows = (windowPresenter?.getAllWindows?.() as Array<{ id: number }>) ?? []
-      await Promise.all(
-        windows.map(async ({ id: windowId }) => {
-          const tabsData =
-            (await tabPresenter?.getWindowTabsData?.(windowId)) ??
-            ([] as Array<{ id: number; isActive?: boolean }>)
-
-          if (tabsData.length === 0) {
-            await tabPresenter?.createTab?.(windowId, 'local://chat', { active: true })
-            return
-          }
-
-          const tabToKeep = tabsData.find((tab) => tab.isActive) ?? tabsData[0]
-          if (!tabToKeep) {
-            return
-          }
-
-          await tabPresenter?.resetTabToBlank?.(tabToKeep.id)
-          await tabPresenter?.switchTab?.(tabToKeep.id)
-
-          const tabsToClose = tabsData.filter((tab) => tab.id !== tabToKeep.id).map((tab) => tab.id)
-          for (const tabId of tabsToClose) {
-            try {
-              await tabPresenter?.closeTab?.(tabId)
-            } catch (error) {
-              console.warn('Failed to close tab after overwrite import:', tabId, error)
-            }
-          }
-        })
-      )
-    } catch (error) {
-      console.warn('Failed to reset shell windows after overwrite import:', error)
-    }
+    // Shell windows no longer manage chat tabs; nothing to reset
   }
 
   private cleanupDatabaseSidecarFiles(dbFilePath: string): void {
@@ -662,6 +694,19 @@ export class SyncPresenter implements ISyncPresenter {
       }
     }
     fs.rmdirSync(dirPath)
+  }
+
+  private countTableRows(db: Database.Database, tableName: string): number {
+    const exists = db
+      .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?")
+      .get(tableName)
+    if (!exists) {
+      return 0
+    }
+    const row = db.prepare(`SELECT COUNT(*) as count FROM "${tableName}"`).get() as {
+      count: number
+    }
+    return row.count || 0
   }
 
   private mergePromptStore(backupPath: string, targetPath: string): number {
@@ -726,25 +771,33 @@ export class SyncPresenter implements ISyncPresenter {
       if (!mergedServers[name]) {
         mergedServers[name] = config
         addedServers = true
+      } else if (config.enabled && !mergedServers[name].enabled) {
+        mergedServers[name] = { ...mergedServers[name], enabled: true }
+        addedServers = true
       }
     }
 
-    const currentDefaults = new Set(currentSettings.defaultServers || [])
-    let defaultsChanged = false
+    const currentEnabled = new Set(
+      Object.entries(mergedServers)
+        .filter(([, config]) => config.enabled)
+        .map(([name]) => name)
+    )
+    let enabledChanged = false
     for (const serverName of backupSettings.defaultServers || []) {
       const serverConfig = backupSettings.mcpServers?.[serverName]
       if (serverConfig && !this.isKnowledgeMcp(serverName, serverConfig)) {
-        const beforeSize = currentDefaults.size
-        currentDefaults.add(serverName)
-        if (currentDefaults.size !== beforeSize) {
-          defaultsChanged = true
+        const beforeSize = currentEnabled.size
+        currentEnabled.add(serverName)
+        if (currentEnabled.size !== beforeSize && mergedServers[serverName]) {
+          mergedServers[serverName] = { ...mergedServers[serverName], enabled: true }
+          enabledChanged = true
         }
       }
     }
 
     const mergedSettings: McpSettings = { ...currentSettings }
     mergedSettings.mcpServers = mergedServers
-    mergedSettings.defaultServers = Array.from(currentDefaults)
+    delete mergedSettings.defaultServers
 
     let settingsChanged = false
     for (const [key, value] of Object.entries(backupSettings)) {
@@ -757,7 +810,7 @@ export class SyncPresenter implements ISyncPresenter {
       }
     }
 
-    if (addedServers || defaultsChanged || settingsChanged) {
+    if (addedServers || enabledChanged || settingsChanged) {
       fs.writeFileSync(targetPath, JSON.stringify(mergedSettings, null, 2), 'utf-8')
       return
     }

@@ -31,6 +31,35 @@ export class AwsBedrockProvider extends BaseLLMProvider {
     this.init()
   }
 
+  private getBedrockRegion(): string {
+    const provider = this.provider as AWS_BEDROCK_PROVIDER
+    return provider.credential?.region || process.env.BEDROCK_REGION || 'unknown-region'
+  }
+
+  private buildBedrockStreamEndpoint(modelId: string): string {
+    const region = this.getBedrockRegion()
+    return `https://bedrock-runtime.${region}.amazonaws.com/model/${encodeURIComponent(modelId)}/invoke-with-response-stream`
+  }
+
+  private decodeBedrockBody(body: unknown): unknown {
+    if (typeof body === 'string') {
+      try {
+        return JSON.parse(body)
+      } catch {
+        return body
+      }
+    }
+    if (body instanceof Uint8Array) {
+      const text = new TextDecoder().decode(body)
+      try {
+        return JSON.parse(text)
+      } catch {
+        return text
+      }
+    }
+    return body
+  }
+
   public onProxyResolved(): void {
     this.init()
   }
@@ -642,6 +671,15 @@ ${text}
         // @ts-ignore - 类型不匹配，但格式是正确的
         payload.tools = anthropicTools
       }
+
+      await this.emitRequestTrace(modelConfig, {
+        endpoint: this.buildBedrockStreamEndpoint(modelId),
+        headers: {
+          'Content-Type': 'application/json',
+          'x-aws-region': this.getBedrockRegion()
+        },
+        body: this.decodeBedrockBody(command.input.body)
+      })
       // 创建Anthropic流
       const response = await this.bedrockRuntime.send(command)
       const body = await response.body

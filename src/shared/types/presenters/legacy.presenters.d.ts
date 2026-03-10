@@ -14,15 +14,17 @@ import { ProviderChange, ProviderBatchUpdate } from './provider-operations'
 import type { AgentSessionLifecycleStatus } from './agent-provider'
 import type { IAgentPresenter } from './agent.presenter'
 import type { ISessionPresenter } from './session.presenter'
-import type { ISearchPresenter } from './search.presenter'
 import type { IConversationExporter } from './exporter.presenter'
 import type { IWorkspacePresenter } from './workspace'
 import type { IToolPresenter } from './tool.presenter'
 import type { ISkillPresenter } from '../skill'
 import type { ISkillSyncPresenter } from '../skillSync'
+import type { INewAgentPresenter } from './new-agent.presenter'
+import type { IProjectPresenter } from './project.presenter'
 import type {
   BrowserTabInfo,
   BrowserContextSnapshot,
+  BrowserWindowInfo,
   DownloadInfo,
   ScreenshotOptions
 } from '../browser'
@@ -161,15 +163,16 @@ export interface ModelConfig {
   // Whether this config is user-defined (true) or default config (false)
   isUserDefined?: boolean
   thinkingBudget?: number
-  enableSearch?: boolean
-  forcedSearch?: boolean
-  searchStrategy?: 'turbo' | 'max'
   // New parameters for GPT-5 series
   reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
   verbosity?: 'low' | 'medium' | 'high'
   maxCompletionTokens?: number // GPT-5 series uses this parameter to replace maxTokens
   conversationId?: string
   apiEndpoint?: ApiEndpointType
+  // Search-related parameters
+  enableSearch?: boolean
+  forcedSearch?: boolean
+  searchStrategy?: 'turbo' | 'balanced' | 'precise'
 }
 
 export interface IModelConfig {
@@ -194,13 +197,32 @@ export interface TabData {
 }
 
 export interface BrowserContextSnapshot {
-  activeTabId: string | null
-  tabs: BrowserTabInfo[]
+  activeWindowId: number | null
+  windows: BrowserWindowInfo[]
 }
 
 export interface IYoBrowserPresenter {
   initialize(): Promise<void>
   ensureWindow(): Promise<number | null>
+  openWindow(url?: string): Promise<BrowserWindowInfo | null>
+  attachEmbeddedToWindow(windowId: number): Promise<number | null>
+  updateEmbeddedBounds(
+    windowId: number,
+    bounds: {
+      x: number
+      y: number
+      width: number
+      height: number
+    },
+    visible: boolean
+  ): Promise<void>
+  detachEmbedded(): Promise<void>
+  focusWindow(windowId: number): Promise<void>
+  closeWindow(windowId: number): Promise<void>
+  listWindows(): Promise<BrowserWindowInfo[]>
+  getActiveWindow(): Promise<BrowserWindowInfo | null>
+  getWindowById(windowId: number): Promise<BrowserWindowInfo | null>
+  navigateWindow(windowId: number, url: string, timeoutMs?: number): Promise<void>
   hasWindow(): Promise<boolean>
   show(shouldFocus?: boolean): Promise<void>
   hide(): Promise<void>
@@ -213,16 +235,16 @@ export interface IYoBrowserPresenter {
   activateTab(tabId: string): Promise<void>
   closeTab(tabId: string): Promise<void>
   reuseTab(url: string): Promise<BrowserTabInfo | null>
-  goBack(tabId?: string): Promise<void>
-  goForward(tabId?: string): Promise<void>
-  reload(tabId?: string): Promise<void>
+  goBack(target?: string | number): Promise<void>
+  goForward(target?: string | number): Promise<void>
+  reload(target?: string | number): Promise<void>
   getBrowserContext(): Promise<BrowserContextSnapshot>
-  getNavigationState(tabId?: string): Promise<{
+  getNavigationState(target?: string | number): Promise<{
     canGoBack: boolean
     canGoForward: boolean
   }>
   getTabIdByViewId(viewId: number): Promise<string | null>
-  captureScreenshot(tabId: string, options?: ScreenshotOptions): Promise<string>
+  captureScreenshot(target: string | number, options?: ScreenshotOptions): Promise<string>
   startDownload(url: string, savePath?: string): Promise<DownloadInfo>
   clearSandboxData(): Promise<void>
   shutdown(): Promise<void>
@@ -233,6 +255,12 @@ export interface IYoBrowserPresenter {
 }
 
 export interface IWindowPresenter {
+  createAppWindow(options?: {
+    initialRoute?: string
+    x?: number
+    y?: number
+  }): Promise<number | null>
+  createBrowserWindow(options?: { x?: number; y?: number }): Promise<number | null>
   createShellWindow(options?: {
     activateTabId?: number
     initialTab?: {
@@ -259,6 +287,12 @@ export interface IWindowPresenter {
   isMainWindowFocused(windowId: number): boolean
   sendToAllWindows(channel: string, ...args: unknown[]): void
   sendToWindow(windowId: number, channel: string, ...args: unknown[]): boolean
+  sendToDefaultWindow(
+    channel: string,
+    switchToTarget?: boolean,
+    ...args: unknown[]
+  ): Promise<boolean>
+  openOrFocusSettingsWindow(): Promise<void>
   sendToDefaultTab(channel: string, switchToTarget?: boolean, ...args: unknown[]): Promise<boolean>
   openOrFocusSettingsTab(windowId: number): Promise<void>
   closeWindow(windowId: number, forceClose?: boolean): Promise<void>
@@ -268,6 +302,7 @@ export interface IWindowPresenter {
   isFloatingChatWindowVisible(): boolean
   getFloatingChatWindow(): FloatingChatWindow | null
   getFocusedWindow(): BrowserWindow | undefined
+  sendToWebContents(webContentsId: number, channel: string, ...args: unknown[]): Promise<boolean>
   sendToActiveTab(windowId: number, channel: string, ...args: unknown[]): Promise<boolean>
   getAllWindows(): BrowserWindow[]
   toggleFloatingChatWindow(floatingButtonPosition?: {
@@ -337,6 +372,15 @@ export interface IShortcutPresenter {
 export interface ISQLitePresenter {
   close(): void
   reopen(): void
+  clearNewAgentData(): Promise<void>
+  importLegacyChatDb(
+    sourceDbPath: string,
+    mode: 'increment' | 'overwrite'
+  ): Promise<{
+    importedSessions: number
+    importedMessages: number
+    importedSearchResults: number
+  }>
   createConversation(title: string, settings?: Partial<CONVERSATION_SETTINGS>): Promise<string>
   deleteConversation(conversationId: string): Promise<void>
   renameConversation(conversationId: string, title: string): Promise<CONVERSATION>
@@ -441,7 +485,6 @@ export interface IPresenter {
   llmproviderPresenter: ILlmProviderPresenter
   configPresenter: IConfigPresenter
   sessionPresenter: ISessionPresenter
-  searchPresenter: ISearchPresenter
   exporter: IConversationExporter
   agentPresenter: IAgentPresenter & ISessionPresenter
   devicePresenter: IDevicePresenter
@@ -461,6 +504,8 @@ export interface IPresenter {
   toolPresenter: IToolPresenter
   skillPresenter: ISkillPresenter
   skillSyncPresenter: ISkillSyncPresenter
+  newAgentPresenter: INewAgentPresenter
+  projectPresenter: IProjectPresenter
   init(): void
   destroy(): void
 }
@@ -501,9 +546,6 @@ export interface IConfigPresenter {
   getEnabledProviders(): LLM_PROVIDER[]
   getModelDefaultConfig(modelId: string, providerId?: string): ModelConfig
   getAllEnabledModels(): Promise<{ providerId: string; models: RENDERER_MODEL_META[] }[]>
-  // Sound effect settings
-  getSoundEnabled(): boolean
-  setSoundEnabled(enabled: boolean): void
   // Chain of Thought copy settings
   getCopyWithCotEnabled(): boolean
   setCopyWithCotEnabled(enabled: boolean): void
@@ -582,10 +624,8 @@ export interface IConfigPresenter {
   // MCP configuration related methods
   getMcpServers(): Promise<Record<string, MCPServerConfig>>
   setMcpServers(servers: Record<string, MCPServerConfig>): Promise<void>
-  getMcpDefaultServers(): Promise<string[]>
-  addMcpDefaultServer(serverName: string): Promise<void>
-  removeMcpDefaultServer(serverName: string): Promise<void>
-  toggleMcpDefaultServer(serverName: string): Promise<void>
+  getEnabledMcpServers(): Promise<string[]>
+  setMcpServerEnabled(serverName: string, enabled: boolean): Promise<void>
   getMcpEnabled(): Promise<boolean>
   setMcpEnabled(enabled: boolean): Promise<void>
   addMcpServer(serverName: string, config: MCPServerConfig): Promise<boolean>
@@ -707,6 +747,12 @@ export interface IConfigPresenter {
   clearNpmRegistryCache?(): void
   getProviderDb(): { providers: Record<string, unknown> } | null
 
+  // Default model settings
+  getDefaultModel(): { providerId: string; modelId: string } | undefined
+  setDefaultModel(model: { providerId: string; modelId: string } | undefined): void
+  getDefaultVisionModel(): { providerId: string; modelId: string } | undefined
+  setDefaultVisionModel(model: { providerId: string; modelId: string } | undefined): void
+
   // Atomic operation interfaces
   updateProviderAtomic(id: string, updates: Partial<LLM_PROVIDER>): boolean
   addProviderAtomic(provider: LLM_PROVIDER): void
@@ -725,7 +771,6 @@ export type RENDERER_MODEL_META = {
   vision?: boolean
   functionCall?: boolean
   reasoning?: boolean
-  enableSearch?: boolean
   type?: ModelType
   contextLength?: number
   maxTokens?: number
@@ -741,7 +786,6 @@ export type MODEL_META = {
   vision?: boolean
   functionCall?: boolean
   reasoning?: boolean
-  enableSearch?: boolean
   type?: ModelType
   contextLength?: number
   maxTokens?: number
@@ -846,7 +890,7 @@ export interface AcpDebugRunResult {
   events: AcpDebugEventEntry[]
 }
 
-export type AcpBuiltinAgentId = 'kimi-cli' | 'claude-code-acp' | 'codex-acp'
+export type AcpBuiltinAgentId = 'kimi-cli' | 'claude-code-acp' | 'codex-acp' | 'dimcode-acp'
 
 export interface AcpAgentProfile {
   id: string
@@ -988,9 +1032,6 @@ export interface ILlmProviderPresenter {
     thinkingBudget?: number,
     reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high',
     verbosity?: 'low' | 'medium' | 'high',
-    enableSearch?: boolean,
-    forcedSearch?: boolean,
-    searchStrategy?: 'turbo' | 'max',
     conversationId?: string
   ): AsyncGenerator<LLMAgentEvent, void, unknown>
   generateCompletion(
@@ -1000,6 +1041,13 @@ export interface ILlmProviderPresenter {
     temperature?: number,
     maxTokens?: number
   ): Promise<string>
+  generateText(
+    providerId: string,
+    prompt: string,
+    modelId: string,
+    temperature?: number,
+    maxTokens?: number
+  ): Promise<{ content: string }>
   stopStream(eventId: string): Promise<void>
   check(providerId: string, modelId?: string): Promise<{ isOk: boolean; errorMsg: string | null }>
   getKeyStatus(providerId: string): Promise<KeyStatus | null>
@@ -1061,10 +1109,18 @@ export interface ILlmProviderPresenter {
   >
   setAcpPreferredProcessMode(agentId: string, workdir: string, modeId: string): Promise<void>
   setAcpSessionMode(conversationId: string, modeId: string): Promise<void>
+  prepareAcpSession(conversationId: string, agentId: string, workdir: string): Promise<void>
   getAcpSessionModes(conversationId: string): Promise<{
     current: string
     available: Array<{ id: string; name: string; description: string }>
   } | null>
+  getAcpSessionCommands(conversationId: string): Promise<
+    Array<{
+      name: string
+      description: string
+      input?: { hint: string } | null
+    }>
+  >
   resolveAgentPermission(requestId: string, granted: boolean): Promise<void>
   runAcpDebugAction(request: AcpDebugRequest): Promise<AcpDebugRunResult>
   getProviderInstance(providerId: string): unknown
@@ -1081,14 +1137,11 @@ export type CONVERSATION_SETTINGS = {
   artifacts: 0 | 1
   enabledMcpTools?: string[]
   thinkingBudget?: number
-  enableSearch?: boolean
-  forcedSearch?: boolean
-  searchStrategy?: 'turbo' | 'max'
   reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
   verbosity?: 'low' | 'medium' | 'high'
   selectedVariantsMap?: Record<string, string>
   acpWorkdirMap?: Record<string, string | null>
-  chatMode?: 'chat' | 'agent' | 'acp agent'
+  chatMode?: 'agent' | 'acp agent'
   agentWorkspacePath?: string | null
   activeSkills?: string[] // Activated skills for this conversation
 }
@@ -1173,7 +1226,6 @@ export interface IThreadPresenter {
   clearActiveThread(tabId: number): Promise<void>
   findTabForConversation(conversationId: string): Promise<number | null>
 
-  getSearchResults(messageId: string, searchId?: string): Promise<SearchResult[]>
   clearAllMessages(conversationId: string): Promise<void>
 
   // Message operations
@@ -1382,22 +1434,6 @@ export interface UpdateProgress {
   total: number
 }
 
-export interface SearchResult {
-  title: string
-  url: string
-  rank: number
-  content?: string
-  icon?: string
-  favicon?: string
-  description?: string
-  searchId?: string
-}
-
-export interface ISearchPresenter {
-  init(): void
-  search(query: string, engine: 'google' | 'baidu'): Promise<SearchResult[]>
-}
-
 export type FileOperation = {
   path: string
   content?: string
@@ -1472,6 +1508,7 @@ export interface MCPServerConfig {
   descriptions: string
   icons: string
   autoApprove: string[]
+  enabled: boolean
   disable?: boolean
   baseUrl?: string
   customHeaders?: Record<string, string>
@@ -1483,7 +1520,6 @@ export interface MCPServerConfig {
 
 export interface MCPConfig {
   mcpServers: Record<string, MCPServerConfig>
-  defaultServers: string[]
   mcpEnabled: boolean
   ready: boolean
 }
@@ -1603,10 +1639,8 @@ export interface IMCPPresenter {
   isReady(): boolean
   getMcpServers(): Promise<Record<string, MCPServerConfig>>
   getMcpClients(): Promise<McpClient[]>
-  getMcpDefaultServers(): Promise<string[]>
-  addMcpDefaultServer(serverName: string): Promise<void>
-  removeMcpDefaultServer(serverName: string): Promise<void>
-  toggleMcpDefaultServer(serverName: string): Promise<void>
+  getEnabledMcpServers(): Promise<string[]>
+  setMcpServerEnabled(serverName: string, enabled: boolean): Promise<void>
   addMcpServer(serverName: string, config: MCPServerConfig): Promise<boolean>
   removeMcpServer(serverName: string): Promise<void>
   updateMcpServer(serverName: string, config: Partial<MCPServerConfig>): Promise<void>
@@ -1619,18 +1653,34 @@ export interface IMCPPresenter {
   getPrompt(prompt: PromptListEntry, args?: Record<string, unknown>): Promise<unknown>
   readResource(resource: ResourceListEntry): Promise<Resource>
   callTool(request: MCPToolCall): Promise<{ content: string; rawData: MCPToolResponse }>
+  preCheckToolPermission?(request: MCPToolCall): Promise<{
+    needsPermission: true
+    toolName: string
+    serverName: string
+    permissionType: 'read' | 'write' | 'all' | 'command'
+    description: string
+    command?: string
+    commandSignature?: string
+    commandInfo?: {
+      command: string
+      riskLevel: 'low' | 'medium' | 'high' | 'critical'
+      suggestion: string
+      signature?: string
+      baseCommand?: string
+    }
+  } | null>
   handleSamplingRequest(request: McpSamplingRequestPayload): Promise<McpSamplingDecision>
   submitSamplingDecision(decision: McpSamplingDecision): Promise<void>
   cancelSamplingRequest(requestId: string, reason?: string): Promise<void>
   setMcpEnabled(enabled: boolean): Promise<void>
   getMcpEnabled(): Promise<boolean>
-  resetToDefaultServers(): Promise<void>
 
   // Permission management
   grantPermission(
     serverName: string,
     permissionType: 'read' | 'write' | 'all',
-    remember?: boolean
+    remember?: boolean,
+    conversationId?: string
   ): Promise<void>
   // NPM Registry management methods
   getNpmRegistryStatus?(): Promise<{
@@ -1724,7 +1774,13 @@ export interface ISyncPresenter {
   importFromSync(
     backupFileName: string,
     importMode?: ImportMode
-  ): Promise<{ success: boolean; message: string; count?: number }>
+  ): Promise<{
+    success: boolean
+    message: string
+    count?: number
+    sourceDbType?: 'agent' | 'chat'
+    importedSessions?: number
+  }>
   checkSyncFolder(): Promise<{ exists: boolean; path: string }>
   openSyncFolder(): Promise<void>
 

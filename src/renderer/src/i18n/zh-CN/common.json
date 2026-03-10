@@ -78,7 +78,6 @@
   "save": "保存",
   "clear": "清除",
   "saved": "已保存",
-  "newTab": "新建标签页",
   "unknownError": "未知错误",
   "testing": "测试中",
   "saving": "保存中",
@@ -92,9 +91,25 @@
     "back": "后退",
     "forward": "前进",
     "reload": "刷新",
+    "addressLabel": "地址栏",
     "addressPlaceholder": "输入网址",
     "enterUrlToStart": "输入网址开始访问",
     "enterUrlDescription": "在上方地址栏输入网址以访问网站",
     "name": "Yo Browser"
+  },
+  "size": {
+    "bytes": "{count} 字节"
+  },
+  "time": {
+    "today": "今天",
+    "yesterday": "昨天",
+    "lastWeek": "最近一周",
+    "older": "更早"
+  },
+  "project": {
+    "select": "选择项目",
+    "none": "未关联项目",
+    "recent": "最近项目",
+    "openFolder": "打开文件夹..."
   }
 }

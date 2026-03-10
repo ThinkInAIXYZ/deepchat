@@ -42,17 +42,13 @@
     "contentProtectionEnableDesc": "L'activation de la protection de l'écran empêche les logiciels de partage d'écran de capturer la fenêtre DeepChat, protégeant ainsi la confidentialité de votre contenu. Notez que cette fonctionnalité ne masquera pas complètement toutes les interfaces. Veuillez utiliser cette fonctionnalité de manière responsable et conformément aux réglementations. De plus, tous les logiciels de partage d'écran ne prennent pas en charge cette fonctionnalité. Certains environnements peuvent laisser une fenêtre noire.",
     "contentProtectionDisableDesc": "La désactivation de la protection de l'écran permettra aux logiciels de partage d'écran de capturer la fenêtre DeepChat.",
     "contentProtectionRestartNotice": "La modification de ce paramètre redémarrera l'application. Voulez-vous continuer ?",
-    "soundEnabled": "Activer le son",
     "copyWithCotEnabled": "Copier les infos COT",
     "loggingEnabled": "Activer la journalisation",
     "loggingDialogTitle": "Confirmer le changement de paramètre de journalisation",
     "loggingEnableDesc": "L'activation de la journalisation nous aidera à diagnostiquer les problèmes et à améliorer l'application. Les fichiers journaux peuvent contenir des informations sensibles.",
     "loggingDisableDesc": "La désactivation de la journalisation arrêtera la collecte des journaux d'application.",
-    "loggingRestartNotice": "La modification de ce paramètre redémarrera l'application. Voulez-vous continuer ?",
-    "webContentLengthLimit": "Limite de longueur du contenu Web",
-    "webContentLengthLimitHint": "(Définir à 0 pour aucune limite)",
     "charactersUnit": "caractères",
-    "webContentLengthLimitTooltip": "Définir la longueur maximale du contenu textuel extrait des pages web (nombre de caractères), plage : 0-50000. Définir à 0 signifie aucune limite et récupère le contenu web complet ; des valeurs plus élevées fournissent un contenu web plus complet mais peuvent augmenter le temps de traitement et l'utilisation de jetons.",
+    "loggingRestartNotice": "La modification de ce paramètre redémarrera l'application. Voulez-vous continuer ?",
     "openLogFolder": "Ouvrir le dossier des journaux",
     "shortcut": {
       "newChat": "Créer une nouvelle conversation",
@@ -62,7 +58,12 @@
     "notificationsDesc": "Quand DeepChat est en arrière‑plan, envoyer une notification à la fin d’une réponse",
     "traceDebugEnabled": "Suivi des appels",
     "fileMaxSize": "Taille maximale du fichier",
-    "fileMaxSizeHint": "Limite la taille maximale d'un fichier à télécharger"
+    "fileMaxSizeHint": "Limite la taille maximale d'un fichier à télécharger",
+    "defaultModel": {
+      "title": "Modèle par défaut",
+      "chatModel": "Modèle de chat par défaut",
+      "visionModel": "Modèle vision par défaut"
+    }
   },
   "notificationsHooks": {
     "title": "Notifications et hooks",
@@ -238,23 +239,6 @@
         "description": "Le modèle prend-il en charge la capacité de raisonnement?",
         "label": "Capacité de raisonnement"
       },
-      "enableSearch": {
-        "label": "Recherche Web",
-        "description": "Permettre au modèle de rechercher sur le web pour obtenir les dernières informations"
-      },
-      "forcedSearch": {
-        "label": "Recherche Forcée",
-        "description": "Forcer le modèle à effectuer une recherche web, désactivé le modèle décide automatiquement"
-      },
-      "searchStrategy": {
-        "label": "Stratégie de Recherche",
-        "description": "Choisir le mode de performance de recherche : turbo équilibre vitesse et efficacité, max fournit des résultats optimaux",
-        "placeholder": "Sélectionner la stratégie de recherche",
-        "options": {
-          "turbo": "Turbo - Équilibre vitesse de réponse et efficacité de recherche (Recommandé)",
-          "max": "Max - Mode haute performance, fournit des résultats de recherche optimaux"
-        }
-      },
       "thinkingBudget": {
         "label": "Budget de réflexion",
         "description": "Définir la longueur maximale de jeton du processus de réflexion pour contrôler la profondeur du raisonnement",
@@ -325,10 +309,6 @@
       "vision": {
         "description": "Le modèle soutient-il la capacité visuelle?",
         "label": "Capacité visuelle"
-      },
-      "searchLimit": {
-        "label": "Limitation de recherche",
-        "description": "Limitation du modèle : l'activation de la recherche web désactivera les appels de fonctions d'outils"
       },
       "apiEndpoint": {
         "description": "Sélectionnez le point de terminaison de l’API OpenAI utilisé par ce modèle.",
@@ -811,7 +791,7 @@
       "jsonParseError": "Échec de l'analyse JSON",
       "typeHttp": "Requêtes HTTP en streaming (HTTP)",
       "browseMarketplace": "Allez sur MCP Market et installez-le en un seul clic",
-      "imageModel": "Sélectionnez un modèle visuel",
+      "imageModel": "Modèle visuel",
       "customHeadersParseError": "L'analyse de l'en-tête personnalisée a échoué",
       "customHeaders": "En-tête de demande personnalisé",
       "invalidKeyValueFormat": "Format d'en-tête de demande incorrect, veuillez vérifier si l'entrée est correcte.",
@@ -859,6 +839,9 @@
     "setAsDefault": "Définir en tant que serveur par défaut",
     "setDefault": "Définir par défaut",
     "marketplace": "Allez sur MCP Market et installez-le en un seul clic",
+    "marketMenu": {
+      "higress": "Higress"
+    },
     "maxDefaultServersReached": "Seuls 3 serveurs par défaut peuvent être définis au maximum",
     "removeDefaultFirst": "Veuillez supprimer d'abord certains serveurs par défaut",
     "higressMarket": "Aller à l'installation de Higress MCP",
@@ -954,15 +937,10 @@
     "zoomIn": "Zoomer",
     "zoomOut": "Zoom out",
     "zoomReset": "Réinitialiser le zoom",
-    "closeTab": "Fermez la page d'onglet actuelle",
-    "newTab": "Créer un nouvel onglet",
     "newWindow": "Ouvrez une nouvelle fenêtre",
     "showHideWindow": "Afficher/Masquer la fenêtre",
     "newConversation": "Nouvelle conversation",
-    "lastTab": "Passez à la dernière onglet",
-    "nextTab": "Passez à l'onglet suivant",
-    "previousTab": "Passez à l'onglet précédent",
-    "specificTab": "Passez à la page d'onglet spécifiée (1-8)"
+    "closeWindow": "Fermez la page d'onglet actuelle"
   },
   "rateLimit": {
     "title": "Limitation de débit",

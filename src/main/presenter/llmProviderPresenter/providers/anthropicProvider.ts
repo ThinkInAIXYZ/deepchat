@@ -89,6 +89,19 @@ export class AnthropicProvider extends BaseLLMProvider {
     this.init()
   }
 
+  private buildAnthropicEndpoint(): string {
+    const baseUrl = (this.provider.baseUrl || 'https://api.anthropic.com').replace(/\/+$/, '')
+    return `${baseUrl}/v1/messages`
+  }
+
+  private buildAnthropicApiKeyHeaders(): Record<string, string> {
+    return {
+      'Content-Type': 'application/json',
+      'anthropic-version': '2023-06-01',
+      'x-api-key': this.provider.apiKey || 'MISSING_API_KEY'
+    }
+  }
+
   public onProxyResolved(): void {
     this.init()
   }
@@ -1029,6 +1042,11 @@ ${context}
         // @ts-ignore - 类型不匹配，但格式是正确的
         streamParams.tools = anthropicTools
       }
+      await this.emitRequestTrace(modelConfig, {
+        endpoint: this.buildAnthropicEndpoint(),
+        headers: this.buildAnthropicApiKeyHeaders(),
+        body: streamParams
+      })
       // console.log('streamParams', JSON.stringify(streamParams.messages))
       // 创建Anthropic流
       const stream = await this.anthropic.messages.create(streamParams)
@@ -1260,6 +1278,12 @@ ${context}
         Authorization: `Bearer ${this.oauthToken}`,
         Accept: 'text/event-stream'
       }
+
+      await this.emitRequestTrace(_modelConfig, {
+        endpoint: url,
+        headers,
+        body: streamParams
+      })
 
       // Get proxy configuration
       const proxyUrl = proxyConfig.getProxyUrl()

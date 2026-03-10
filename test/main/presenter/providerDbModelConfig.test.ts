@@ -80,7 +80,11 @@ describe('Provider DB strict matching + user overrides', () => {
               modalities: { input: ['text'] }
             },
             {
-              id: 'no-limit' // both missing -> fallback 8192/4096
+              id: 'no-limit' // both missing -> fallback 16000/4096
+            },
+            {
+              id: 'tool-call-disabled',
+              tool_call: false
             }
           ]
         }
@@ -116,18 +120,28 @@ describe('Provider DB strict matching + user overrides', () => {
     expect(cfg1.searchStrategy).toBe('turbo')
 
     const cfg2 = helper.getModelConfig('no-limit', 'test-provider')
-    expect(cfg2.contextLength).toBe(8192)
+    expect(cfg2.contextLength).toBe(16000)
     expect(cfg2.maxTokens).toBe(4096)
+    expect(cfg2.functionCall).toBe(true)
     expect(cfg2.enableSearch).toBe(false)
     expect(cfg2.forcedSearch).toBe(false)
     expect(cfg2.searchStrategy).toBe('turbo')
   })
 
+  it('preserves explicit tool_call=false from provider DB', () => {
+    const helper = new ModelConfigHelper('1.0.0')
+    const cfg = helper.getModelConfig('tool-call-disabled', 'test-provider')
+    expect(cfg.contextLength).toBe(16000)
+    expect(cfg.maxTokens).toBe(4096)
+    expect(cfg.functionCall).toBe(false)
+  })
+
   it('falls back to safe defaults when providerId is not provided', () => {
     const helper = new ModelConfigHelper('1.0.0')
     const cfg = helper.getModelConfig('test-model')
-    expect(cfg.contextLength).toBe(8192)
+    expect(cfg.contextLength).toBe(16000)
     expect(cfg.maxTokens).toBe(4096)
+    expect(cfg.functionCall).toBe(true)
     expect(cfg.temperature).toBe(0.6)
   })
 

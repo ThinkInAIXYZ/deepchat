@@ -1,6 +1,6 @@
 {
   "input": {
-    "placeholder": "질문하세요. {'@'}를 통해 도구, 파일, 리소스를 인용할 수 있습니다...",
+    "placeholder": "DeepChat에 무엇이든 물어보세요. {'@'}로 파일을 언급하고 /로 명령을 사용할 수 있습니다",
     "fileArea": "파일 영역",
     "inputArea": "입력 영역",
     "functionSwitch": "기능 전환",
@@ -25,7 +25,15 @@
     "acpModeTooltip": "현재 모드: {mode}",
     "agentWorkspaceCurrent": "현재 작업 디렉터리: {path}",
     "agentWorkspaceSelect": "작업 디렉터리 선택",
-    "agentWorkspaceTooltip": "에이전트 작업 디렉터리 설정"
+    "agentWorkspaceTooltip": "에이전트 작업 디렉터리 설정",
+    "attach": "첨부",
+    "voiceInput": "음성 입력",
+    "mcp": {
+      "badge": "MCP {count}",
+      "title": "활성화된 MCP",
+      "empty": "활성화된 서비스가 없습니다",
+      "openSettings": "MCP 설정 열기"
+    }
   },
   "features": {
     "webSearch": "웹 검색",
@@ -95,11 +103,34 @@
   "mode": {
     "acpAgent": "ACP 에이전트",
     "agent": "대리인",
-    "chat": "채팅",
     "current": "현재 모드: {mode}"
+  },
+  "topbar": {
+    "share": "공유",
+    "more": "더보기"
+  },
+  "advancedSettings": {
+    "button": "고급 설정",
+    "title": "고급 설정",
+    "closeHint": "Esc를 눌러 닫기",
+    "systemPrompt": "시스템 프롬프트",
+    "systemPromptPlaceholder": "프리셋 선택",
+    "temperature": "온도",
+    "contextLength": "컨텍스트 길이",
+    "maxTokens": "최대 토큰",
+    "thinkingBudget": "사고 예산",
+    "verbosity": "응답 상세도",
+    "verbosityPlaceholder": "상세도 선택",
+    "currentCustomPrompt": "현재 사용자 지정",
+    "useDefault": "기본값 사용"
   },
   "workspace": {
     "collapse": "닫다",
+    "sections": {
+      "files": "파일",
+      "git": "Git",
+      "artifacts": "Artifacts"
+    },
     "files": {
       "contextMenu": {
         "insertPath": "입력창에 삽입",
@@ -109,6 +140,12 @@
       "empty": "아직 파일이 없습니다",
       "loading": "파일 로드 중...",
       "section": "문서"
+    },
+    "git": {
+      "empty": "표시할 diff가 없습니다",
+      "clean": "작업 트리가 깨끗합니다",
+      "staged": "스테이징됨",
+      "unstaged": "스테이징되지 않음"
     },
     "browser": {
       "section": "브라우저",
@@ -169,5 +206,25 @@
       "manage": "관리",
       "title": "기술"
     }
+  },
+  "compaction": {
+    "compacting": "컨텍스트를 자동 압축하는 중...",
+    "compacted": "컨텍스트가 자동으로 압축되었습니다"
+  },
+  "newThread": {
+    "title": "만들고 탐색하기"
+  },
+  "permissionMode": {
+    "default": "기본 권한",
+    "fullAccess": "전체 접근"
+  },
+  "sidebar": {
+    "allAgents": "모든 에이전트",
+    "expandSidebar": "사이드바 펼치기",
+    "collapseSidebar": "사이드바 접기",
+    "groupByDate": "날짜별 그룹화",
+    "groupByProject": "프로젝트별 그룹화",
+    "emptyTitle": "아직 대화가 없습니다",
+    "emptyDescription": "새 대화를 시작해 보세요"
   }
 }

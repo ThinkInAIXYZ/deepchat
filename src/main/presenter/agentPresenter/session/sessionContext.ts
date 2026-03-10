@@ -7,7 +7,7 @@ export type SessionStatus =
   | 'error'
 
 export type SessionContextResolved = {
-  chatMode: 'chat' | 'agent' | 'acp agent'
+  chatMode: 'agent' | 'acp agent'
   providerId: string
   modelId: string
   supportsVision: boolean
@@ -15,6 +15,18 @@ export type SessionContextResolved = {
   agentWorkspacePath: string | null
   enabledMcpTools?: string[]
   acpWorkdirMap?: Record<string, string | null>
+}
+
+export type PendingPermission = {
+  messageId: string
+  toolCallId: string
+  permissionType: 'read' | 'write' | 'all' | 'command'
+  payload: unknown
+}
+
+export type PermissionResumeLock = {
+  messageId: string
+  startedAt: number
 }
 
 export type SessionContext = {
@@ -29,11 +41,9 @@ export type SessionContext = {
     currentMessageId?: string
     toolCallCount: number
     userStopRequested: boolean
-    pendingPermission?: {
-      toolCallId: string
-      permissionType: 'read' | 'write' | 'all' | 'command'
-      payload: unknown
-    }
+    pendingPermission?: PendingPermission
+    pendingPermissions?: PendingPermission[]
+    permissionResumeLock?: PermissionResumeLock
     pendingQuestion?: {
       messageId: string
       toolCallId: string

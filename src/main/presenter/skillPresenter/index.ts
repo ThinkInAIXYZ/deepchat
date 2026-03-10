@@ -16,6 +16,8 @@ import {
 import { eventBus, SendTarget } from '@/eventbus'
 import { SKILL_EVENTS } from '@/events'
 import { presenter } from '@/presenter'
+import logger from '@shared/logger'
+import { normalizeSkillAllowedTools } from './toolNameMapping'
 
 /**
  * Skill system configuration constants
@@ -52,6 +54,7 @@ export class SkillPresenter implements ISkillPresenter {
   private skillsDir: string
   private metadataCache: Map<string, SkillMetadata> = new Map()
   private contentCache: Map<string, SkillContent> = new Map()
+  private newAgentActiveSkills: Map<string, string[]> = new Map()
   private watcher: FSWatcher | null = null
   private initialized: boolean = false
   // Prevent concurrent discovery calls (race condition protection)
@@ -66,10 +69,26 @@ export class SkillPresenter implements ISkillPresenter {
   private resolveSkillsDir(): string {
     const configuredPath = this.configPresenter.getSkillsPath()
     const normalized = configuredPath?.trim()
-    if (normalized) {
-      return path.resolve(normalized)
+    const homePath = app.getPath('home')
+    const homeDir = homePath ? path.resolve(homePath) : path.resolve('.')
+    const fallbackDir = path.join(homeDir, '.deepchat', 'skills')
+    const resolved = normalized ? path.resolve(normalized) : fallbackDir
+
+    // Repair malformed paths like: C:\Users\name.deepchat\skills
+    const brokenPrefix = `${homeDir}.deepchat`
+    const compareResolved = process.platform === 'win32' ? resolved.toLowerCase() : resolved
+    const compareBrokenPrefix =
+      process.platform === 'win32' ? brokenPrefix.toLowerCase() : brokenPrefix
+    const hasBrokenPrefix = compareResolved.startsWith(compareBrokenPrefix)
+    const nextChar = compareResolved.charAt(compareBrokenPrefix.length)
+    const hasBoundaryAfterPrefix =
+      compareResolved.length === compareBrokenPrefix.length || nextChar === '/' || nextChar === '\\'
+    if (hasBrokenPrefix && hasBoundaryAfterPrefix) {
+      const suffix = resolved.slice(brokenPrefix.length).replace(/^[\\/]+/, '')
+      return path.join(homeDir, '.deepchat', suffix)
     }
-    return path.join(app.getPath('home'), '.deepchat', 'skills')
+
+    return resolved
   }
 
   /**
@@ -196,7 +215,7 @@ export class SkillPresenter implements ISkillPresenter {
   async getMetadataPrompt(): Promise<string> {
     const skills = await this.getMetadataList()
     const header = '# Available Skills'
-    const dirLine = `Skills directory: ${this.skillsDir}`
+    const dirLine = `Skills directory: \`${this.skillsDir}\``
 
     if (skills.length === 0) {
       return `${header}\n\n${dirLine}\nNo skills are currently installed.`
@@ -693,10 +712,28 @@ export class SkillPresenter implements ISkillPresenter {
     await shell.openPath(this.skillsDir)
   }
 
+  private async isNewAgentSession(conversationId: string): Promise<boolean> {
+    try {
+      const session = await presenter?.newAgentPresenter?.getSession(conversationId)
+      return Boolean(session)
+    } catch {
+      return false
+    }
+  }
+
   /**
    * Get active skills for a conversation
    */
   async getActiveSkills(conversationId: string): Promise<string[]> {
+    if (await this.isNewAgentSession(conversationId)) {
+      const skills = this.newAgentActiveSkills.get(conversationId) ?? []
+      const validSkills = await this.validateSkillNames(skills)
+      if (validSkills.length !== skills.length) {
+        this.newAgentActiveSkills.set(conversationId, validSkills)
+      }
+      return validSkills
+    }
+
     try {
       const conversation = await presenter.sessionPresenter.getConversation(conversationId)
       const activeSkills = conversation?.settings?.activeSkills || []
@@ -720,6 +757,7 @@ export class SkillPresenter implements ISkillPresenter {
    */
   async setActiveSkills(conversationId: string, skills: string[]): Promise<void> {
     try {
+      const isNewSession = await this.isNewAgentSession(conversationId)
       const previousSkills = await this.getActiveSkills(conversationId)
       const previousSet = new Set(previousSkills)
 
@@ -727,9 +765,13 @@ export class SkillPresenter implements ISkillPresenter {
       const validSkills = await this.validateSkillNames(skills)
       const validSet = new Set(validSkills)
 
-      await presenter.sessionPresenter.updateConversationSettings(conversationId, {
-        activeSkills: validSkills
-      })
+      if (isNewSession) {
+        this.newAgentActiveSkills.set(conversationId, validSkills)
+      } else {
+        await presenter.sessionPresenter.updateConversationSettings(conversationId, {
+          activeSkills: validSkills
+        })
+      }
 
       const activated = validSkills.filter((skill) => !previousSet.has(skill))
       const deactivated = previousSkills.filter((skill) => !validSet.has(skill))
@@ -751,6 +793,10 @@ export class SkillPresenter implements ISkillPresenter {
       console.error(`[SkillPresenter] Error setting active skills for ${conversationId}:`, error)
       throw error
     }
+  }
+
+  async clearNewAgentSessionSkills(conversationId: string): Promise<void> {
+    this.newAgentActiveSkills.delete(conversationId)
   }
 
   /**
@@ -780,7 +826,11 @@ export class SkillPresenter implements ISkillPresenter {
       }
     }
 
-    return Array.from(allowedTools)
+    const result = normalizeSkillAllowedTools(Array.from(allowedTools))
+    for (const warning of result.warnings) {
+      logger.warn(warning, { conversationId })
+    }
+    return result.tools
   }
 
   /**

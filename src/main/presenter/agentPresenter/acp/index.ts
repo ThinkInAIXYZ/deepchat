@@ -17,10 +17,10 @@ export { AgentFileSystemHandler } from './agentFileSystemHandler'
 export { AgentToolManager, type AgentToolCallResult } from './agentToolManager'
 export { AgentBashHandler } from './agentBashHandler'
 export {
-  registerCommandProcess,
-  unregisterCommandProcess,
-  terminateCommandProcess
-} from './commandProcessTracker'
+  BackgroundExecSessionManager,
+  backgroundExecSessionManager,
+  type SessionMeta
+} from './backgroundExecSessionManager'
 export { getShellEnvironment, clearShellEnvironmentCache } from './shellEnvHelper'
 export { convertMcpConfigToAcpFormat } from './mcpConfigConverter'
 export { filterMcpServersByTransportSupport } from './mcpTransportFilter'

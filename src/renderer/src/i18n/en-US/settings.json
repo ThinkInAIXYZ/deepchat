@@ -41,17 +41,13 @@
     "contentProtectionEnableDesc": "Prevent screen sharing apps from capturing the DeepChat window to help protect your privacy. Not all apps honor this setting; in some environments a black window may remain.",
     "contentProtectionDisableDesc": "Allow screen sharing apps to capture the DeepChat window.",
     "contentProtectionRestartNotice": "Changing this setting will restart the application. Do you want to continue?",
-    "soundEnabled": "Enable Sound Effects",
     "copyWithCotEnabled": "Copy COT Details",
     "traceDebugEnabled": "Trace Call",
     "loggingEnabled": "Enable Logging",
     "loggingDialogTitle": "Confirm Logging Setting Change",
     "loggingEnableDesc": "Enabling logging will help us diagnose issues and improve the application. Log files may contain sensitive information.",
     "loggingDisableDesc": "Disabling logging will stop collecting application logs.",
-    "webContentLengthLimit": "Web Content Length Limit",
-    "webContentLengthLimitHint": "(Set to 0 for no limit)",
     "charactersUnit": "characters",
-    "webContentLengthLimitTooltip": "Set the maximum length of text content extracted from web pages (character count), range: 0-50000. Setting to 0 means no limit and retrieves complete web content; higher values provide more complete web content but may increase processing time and token usage.",
     "loggingRestartNotice": "Changing this setting will restart the application. Do you want to continue?",
     "openLogFolder": "Open Log Folder",
     "shortcut": {
@@ -62,7 +58,12 @@
     "notificationsDesc": "When DeepChat is not in the foreground, if a session is generated, a system notification will be sent",
     "contentProtection": "Screen capture protection",
     "fileMaxSize": "File Maximum Size",
-    "fileMaxSizeHint": "Limits the maximum size of a single uploaded file"
+    "fileMaxSizeHint": "Limits the maximum size of a single uploaded file",
+    "defaultModel": {
+      "title": "Default Model",
+      "chatModel": "Default Chat Model",
+      "visionModel": "Default Vision Model"
+    }
   },
   "notificationsHooks": {
     "title": "Notifications & Hooks",
@@ -238,23 +239,6 @@
         "description": "Does the model support reasoning ability?",
         "label": "Reasoning ability"
       },
-      "enableSearch": {
-        "label": "Web Search",
-        "description": "Enable the model to search the web for the latest information"
-      },
-      "forcedSearch": {
-        "label": "Forced Search",
-        "description": "Force the model to perform web search, when disabled the model decides automatically"
-      },
-      "searchStrategy": {
-        "label": "Search Strategy",
-        "description": "Choose search performance mode: turbo balances speed and effectiveness, max provides optimal search results",
-        "placeholder": "Select search strategy",
-        "options": {
-          "turbo": "Turbo - Balance response speed and search effectiveness (Recommended)",
-          "max": "Max - High performance mode, provides optimal search results"
-        }
-      },
       "thinkingBudget": {
         "label": "Thinking Budget",
         "description": "Set the maximum token length of the thinking process to control reasoning depth",
@@ -325,10 +309,6 @@
       "vision": {
         "description": "Does the model support visual ability?",
         "label": "Visual ability"
-      },
-      "searchLimit": {
-        "label": "Search limitation",
-        "description": "Model limitation: Enabling web search will disable tool function calls"
       },
       "apiEndpoint": {
         "description": "Select the OpenAI API endpoint used by this model.",
@@ -739,6 +719,9 @@
     "enabledDescription": "Enable or disable MCP functionality and tools",
     "enableToAccess": "Please enable MCP to access configuration options",
     "marketplace": "Go to the MCP Market for one-click installation",
+    "marketMenu": {
+      "higress": "Higress"
+    },
     "technicalDetails": "Technical Details",
     "httpServer": "HTTP Server",
     "localProcess": "Local Process",
@@ -819,7 +802,7 @@
       "parseAndContinue": "Parse & Continue",
       "jsonParseError": "JSON parsing failed",
       "browseMarketplace": "Browse MCP Marketplace",
-      "imageModel": "Choose a vision model",
+      "imageModel": "Vision Model",
       "customHeadersParseError": "Custom Header parsing failed",
       "customHeaders": "Custom Request Headers",
       "clickToEdit": "Click to edit and view full content",
@@ -954,15 +937,10 @@
     "zoomIn": "Zoom in ",
     "zoomOut": "Zoom out ",
     "zoomReset": "Reset zoom",
-    "closeTab": "Close the current tab page",
-    "newTab": "Create a new tab",
     "newWindow": "Open a new window",
     "showHideWindow": "Show/Hide window",
     "newConversation": "New conversation",
-    "nextTab": "Switch to next tab",
-    "previousTab": "Switch to previous tab",
-    "specificTab": "Switch to specific tab (1-8)",
-    "lastTab": "Switch to last tab"
+    "closeWindow": "Close the current window"
   },
   "acp": {
     "title": "ACP Agents",

@@ -5,7 +5,6 @@ import { Button } from '@shadcn/components/ui/button'
 import { Input } from '@shadcn/components/ui/input'
 import { Label } from '@shadcn/components/ui/label'
 import { Textarea } from '@shadcn/components/ui/textarea'
-import { Checkbox } from '@shadcn/components/ui/checkbox'
 import {
   Select,
   SelectContent,
@@ -18,23 +17,17 @@ import { MCPServerConfig } from '@shared/presenter'
 import { EmojiPicker } from '@/components/emoji-picker'
 import { useToast } from '@/components/use-toast'
 import { Icon } from '@iconify/vue'
-import { Popover, PopoverContent, PopoverTrigger } from '@shadcn/components/ui/popover'
-import { ChevronDown, X } from 'lucide-vue-next'
-import ModelSelect from '@/components/ModelSelect.vue'
+import { X } from 'lucide-vue-next'
 import ModelIcon from '@/components/icons/ModelIcon.vue'
 import { useModelStore } from '@/stores/modelStore'
-import type { RENDERER_MODEL_META } from '@shared/presenter'
-import { MCP_MARKETPLACE_URL, HIGRESS_MCP_MARKETPLACE_URL } from './const'
 import { usePresenter } from '@/composables/usePresenter'
-import { useThemeStore } from '@/stores/theme'
-import { ModelType } from '@shared/model'
 import { nanoid } from 'nanoid'
 
 const { t } = useI18n()
 const { toast } = useToast()
 const modelStore = useModelStore()
 const devicePresenter = usePresenter('devicePresenter')
-const themeStore = useThemeStore()
+const configPresenter = usePresenter('configPresenter')
 const props = defineProps<{
   serverName?: string
   initialConfig?: MCPServerConfig
@@ -64,14 +57,9 @@ const customHeadersFocused = ref(false)
 const customHeadersDisplayValue = ref('')
 const npmRegistry = ref(props.initialConfig?.customNpmRegistry || '')
 
-// 模型选择相关
-const modelSelectOpen = ref(false)
-const selectedImageModel = ref<RENDERER_MODEL_META | null>(null)
+// imageServer 展示用（只读，来源于 defaultVisionModel）
+const selectedImageModelName = ref('')
 const selectedImageModelProvider = ref('')
-
-// E2B 配置相关
-const useE2B = ref(false)
-const e2bApiKey = ref('')
 
 // 判断是否是inmemory类型
 const isInMemoryType = computed(() => type.value === 'inmemory')
@@ -81,8 +69,6 @@ const isImageServer = computed(() => isInMemoryType.value && name.value === 'ima
 const isBuildInFileSystem = computed(
   () => isInMemoryType.value && name.value === 'buildInFileSystem'
 )
-// 判断是否是powerpack服务器
-const isPowerpackServer = computed(() => isInMemoryType.value && name.value === 'powerpack')
 const isHttpTransportType = computed(() => type.value === 'http')
 const isRemoteType = computed(() => type.value === 'sse' || isHttpTransportType.value)
 // 判断字段是否只读(inmemory类型除了args和env外都是只读的)
@@ -94,13 +80,31 @@ const formatJsonHeaders = (headers: Record<string, string>): string => {
     .map(([key, value]) => `${key}=${value}`)
     .join('\n')
 }
-// 处理模型选择
-const handleImageModelSelect = (model: RENDERER_MODEL_META, providerId: string): void => {
-  selectedImageModel.value = model
-  selectedImageModelProvider.value = providerId
-  // 将provider和modelId以空格分隔拼接成args的值
-  setArgsRowsFromArray([providerId, model.id])
-  modelSelectOpen.value = false
+const refreshImageServerDefaultModelDisplay = async (): Promise<void> => {
+  if (!isImageServer.value) {
+    selectedImageModelName.value = ''
+    selectedImageModelProvider.value = ''
+    return
+  }
+
+  const defaultVisionModel = (await configPresenter.getSetting('defaultVisionModel')) as
+    | { providerId: string; modelId: string }
+    | undefined
+  if (!defaultVisionModel?.providerId || !defaultVisionModel?.modelId) {
+    selectedImageModelName.value = ''
+    selectedImageModelProvider.value = ''
+    return
+  }
+
+  selectedImageModelProvider.value = defaultVisionModel.providerId
+  const providerEntry = modelStore.enabledModels.find(
+    (entry) => entry.providerId === defaultVisionModel.providerId
+  )
+  const resolvedModel = providerEntry?.models.find(
+    (model) => model.id === defaultVisionModel.modelId
+  )
+  selectedImageModelName.value =
+    resolvedModel?.name || `${defaultVisionModel.providerId}/${defaultVisionModel.modelId}`
 }
 
 // 获取内置服务器的本地化名称和描述
@@ -140,14 +144,11 @@ const jsonConfig = ref('')
 const showBaseUrl = computed(() => isRemoteType.value)
 // 添加计算属性来控制命令相关字段的显示
 const showCommandFields = computed(() => type.value === 'stdio')
-// 控制参数输入框的显示 (stdio 或 非imageServer且非buildInFileSystem且非powerpack的inmemory)
+// 控制参数输入框的显示 (stdio 或 非imageServer且非buildInFileSystem的inmemory)
 const showArgsInput = computed(
   () =>
     showCommandFields.value ||
-    (isInMemoryType.value &&
-      !isImageServer.value &&
-      !isBuildInFileSystem.value &&
-      !isPowerpackServer.value)
+    (isInMemoryType.value && !isImageServer.value && !isBuildInFileSystem.value)
 )
 
 // 控制文件夹选择界面的显示 (仅针对 buildInFileSystem)
@@ -294,19 +295,9 @@ const validateKeyValueHeaders = (text: string): boolean => {
 // 新增：计算属性用于验证 Key=Value 格式
 const isCustomHeadersFormatValid = computed(() => validateKeyValueHeaders(customHeaders.value))
 
-// E2B 配置验证
-const isE2BConfigValid = computed(() => {
-  if (!isPowerpackServer.value) return true
-  if (!useE2B.value) return true
-  return e2bApiKey.value.trim().length > 0
-})
-
 const isFormValid = computed(() => {
   // 基本验证：名称必须有效
   if (!isNameValid.value) return false
-
-  // E2B 配置验证
-  if (!isE2BConfigValid.value) return false
 
   // 对于SSE类型，只需要名称和baseUrl有效
   if (isRemoteType.value) {
@@ -432,7 +423,8 @@ const handleSubmit = (): void => {
     descriptions: descriptions.value.trim(),
     icons: icons.value.trim(),
     autoApprove,
-    type: type.value
+    type: type.value,
+    enabled: props.initialConfig?.enabled ?? false
   }
 
   // 创建符合MCPServerConfig接口的配置对象
@@ -452,15 +444,6 @@ const handleSubmit = (): void => {
     })
     // 阻止提交或根据需要处理错误
     return
-  }
-
-  // 如果是 powerpack 服务器，添加 E2B 配置到环境变量
-  if (isPowerpackServer.value) {
-    parsedEnv = {
-      ...parsedEnv,
-      USE_E2B: useE2B.value,
-      E2B_API_KEY: useE2B.value ? e2bApiKey.value.trim() : ''
-    }
   }
 
   // 解析 customHeaders
@@ -490,9 +473,11 @@ const handleSubmit = (): void => {
     }
   } else {
     // STDIO 或 inmemory 类型的服务器
-    const normalizedArgs = isBuildInFileSystem.value
-      ? foldersList.value.filter((folder) => folder.trim().length > 0)
-      : argsRows.value.map((row) => row.value.trim()).filter((value) => value.length > 0)
+    const normalizedArgs = isImageServer.value
+      ? []
+      : isBuildInFileSystem.value
+        ? foldersList.value.filter((folder) => folder.trim().length > 0)
+        : argsRows.value.map((row) => row.value.trim()).filter((value) => value.length > 0)
     serverConfig = {
       ...baseConfig,
       command: command.value.trim(),
@@ -607,28 +592,13 @@ watch(
   { immediate: true }
 )
 
-// 初始化时解析args中的provider和modelId（针对imageServer）
+// imageServer 仅展示默认视觉模型，不再通过 args 配置
 watch(
-  [() => name.value, () => argsRows.value.map((row) => row.value), () => type.value],
-  ([newName, newArgs, newType]) => {
-    if (newType === 'inmemory' && newName === 'imageServer' && newArgs.length > 0) {
-      // 从args中解析出provider和modelId
-      const argsParts = newArgs.filter((value) => value.trim().length > 0)
-      if (argsParts.length >= 2) {
-        const providerId = argsParts[0]
-        const modelId = argsParts[1]
-        // 查找对应的模型
-        const foundModel = modelStore.findModelByIdOrName(modelId)
-        if (foundModel && foundModel.providerId === providerId) {
-          selectedImageModel.value = foundModel.model
-          selectedImageModelProvider.value = providerId
-        } else {
-          console.warn(`未找到匹配的模型: ${providerId} ${modelId}`)
-        }
-      }
-    }
+  [() => name.value, () => type.value, () => modelStore.enabledModels],
+  () => {
+    void refreshImageServerDefaultModelDisplay()
   },
-  { immediate: true }
+  { immediate: true, deep: true }
 )
 
 // Watch for initial config changes (primarily for edit mode)
@@ -655,13 +625,6 @@ watch(
         setArgsRowsFromArray(incomingArgs)
       }
 
-      // 解析 E2B 配置（仅针对 powerpack 服务器）
-      if (props.serverName === 'powerpack' && newConfig.env) {
-        const envConfig = newConfig.env as Record<string, any>
-        useE2B.value = envConfig.USE_E2B === true || envConfig.USE_E2B === 'true'
-        e2bApiKey.value = envConfig.E2B_API_KEY || ''
-      }
-
       // Format customHeaders from initialConfig
       if (newConfig.customHeaders) {
         customHeaders.value = formatJsonHeaders(newConfig.customHeaders)
@@ -682,16 +645,6 @@ watch(
   },
   { immediate: true } // Run immediately on component mount
 )
-
-// 打开MCP Marketplace
-const openMcpMarketplace = (): void => {
-  window.open(MCP_MARKETPLACE_URL, '_blank')
-}
-
-// 打开Higress MCP Marketplace
-const openHigressMcpMarketplace = (): void => {
-  window.open(HIGRESS_MCP_MARKETPLACE_URL, '_blank')
-}
 
 // --- 新增辅助函数 ---
 // 解析 Key=Value 格式为 JSON 对象
@@ -729,33 +682,6 @@ HTTP-Referer=deepchatai.cn`
       <div class="space-y-4 px-4 pb-4">
         <div class="text-sm">
           {{ t('settings.mcp.serverForm.jsonConfigIntro') }}
-        </div>
-
-        <!-- MCP Marketplace 入口 -->
-        <div class="my-4">
-          <div class="flex gap-2">
-            <Button
-              v-if="false"
-              variant="outline"
-              class="flex-1 flex items-center justify-center gap-2"
-              @click="openMcpMarketplace"
-            >
-              <Icon icon="lucide:shopping-bag" class="w-4 h-4" />
-              <span>{{ t('settings.mcp.serverForm.browseMarketplace') }}</span>
-              <Icon icon="lucide:external-link" class="w-3.5 h-3.5 text-muted-foreground" />
-            </Button>
-
-            <!-- Higress MCP Marketplace 入口 -->
-            <Button
-              variant="outline"
-              class="flex-1 flex items-center justify-center gap-2"
-              @click="openHigressMcpMarketplace"
-            >
-              <img src="@/assets/mcp-icons/higress.avif" class="w-4 h-4" />
-              <span>{{ $t('settings.mcp.serverForm.browseHigress') }}</span>
-              <Icon icon="lucide:external-link" class="w-3.5 h-3.5 text-muted-foreground" />
-            </Button>
-          </div>
         </div>
 
         <div class="space-y-2">
@@ -872,29 +798,18 @@ HTTP-Referer=deepchatai.cn`
           <Label class="text-xs text-muted-foreground" for="server-model">
             {{ t('settings.mcp.serverForm.imageModel') || '模型选择' }}
           </Label>
-          <Popover v-model:open="modelSelectOpen">
-            <PopoverTrigger as-child>
-              <Button variant="outline" class="w-full justify-between">
-                <div class="flex items-center gap-2">
-                  <ModelIcon
-                    :model-id="selectedImageModel?.id || ''"
-                    class="h-4 w-4"
-                    :is-dark="themeStore.isDark"
-                  />
-                  <span class="truncate">{{
-                    selectedImageModel?.name || t('settings.common.selectModel')
-                  }}</span>
-                </div>
-                <ChevronDown class="h-4 w-4 opacity-50" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent class="w-80 p-0">
-              <ModelSelect
-                :type="[ModelType.Chat, ModelType.ImageGeneration]"
-                @update:model="handleImageModelSelect"
-              />
-            </PopoverContent>
-          </Popover>
+          <div
+            class="flex h-9 items-center rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background opacity-80"
+          >
+            <ModelIcon
+              v-if="selectedImageModelProvider"
+              :model-id="selectedImageModelProvider"
+              class="h-4 w-4 mr-2"
+            />
+            <span class="truncate">{{
+              selectedImageModelName || t('settings.mcp.serverForm.imageModel')
+            }}</span>
+          </div>
         </div>
 
         <!-- 文件夹选择 (特殊处理 buildInFileSystem) -->
@@ -975,7 +890,7 @@ HTTP-Referer=deepchatai.cn`
         </div>
 
         <!-- 环境变量 -->
-        <div v-if="(showCommandFields || isInMemoryType) && !isPowerpackServer" class="space-y-2">
+        <div v-if="showCommandFields || isInMemoryType" class="space-y-2">
           <Label class="text-xs text-muted-foreground" for="server-env">{{
             t('settings.mcp.serverForm.env')
           }}</Label>
@@ -986,58 +901,6 @@ HTTP-Referer=deepchatai.cn`
             :placeholder="t('settings.mcp.serverForm.envPlaceholder')"
             :class="{ 'border-red-500': !isEnvValid }"
           />
-        </div>
-
-        <!-- E2B 配置 (仅针对 powerpack 服务器) -->
-        <div
-          v-if="isPowerpackServer"
-          class="space-y-4 p-4 border border-border rounded-lg bg-background/50"
-        >
-          <div class="flex items-center justify-between">
-            <div class="space-y-1">
-              <Label class="text-sm font-medium">{{
-                t('settings.mcp.serverForm.useE2B') || '使用 E2B 代码执行'
-              }}</Label>
-              <div class="text-xs text-muted-foreground">
-                {{
-                  t('settings.mcp.serverForm.e2bDescription') ||
-                  '启用 E2B 云端沙盒环境执行代码，更安全且支持完整的 Python 生态系统'
-                }}
-              </div>
-            </div>
-            <div class="flex items-center space-x-2">
-              <Checkbox id="use-e2b" v-model:checked="useE2B" />
-            </div>
-          </div>
-
-          <!-- E2B API Key 输入框 -->
-          <div v-if="useE2B" class="space-y-2">
-            <Label class="text-xs text-muted-foreground" for="e2b-api-key">
-              {{ t('settings.mcp.serverForm.e2bApiKey') || 'E2B API Key' }}
-              <span class="text-red-500">*</span>
-            </Label>
-            <Input
-              id="e2b-api-key"
-              v-model="e2bApiKey"
-              type="password"
-              :placeholder="
-                t('settings.mcp.serverForm.e2bApiKeyPlaceholder') || '输入您的 E2B API Key'
-              "
-              required
-              :class="{ 'border-red-500': useE2B && !e2bApiKey.trim() }"
-            />
-            <div class="text-xs text-muted-foreground">
-              {{
-                t('settings.mcp.serverForm.e2bApiKeyHelp') || '您可以在 E2B 控制台获取 API Key：'
-              }}
-              <a href="https://e2b.dev/docs" target="_blank" class="text-primary hover:underline">
-                https://e2b.dev/docs
-              </a>
-            </div>
-            <div v-if="useE2B && !e2bApiKey.trim()" class="text-xs text-red-500">
-              {{ t('settings.mcp.serverForm.e2bApiKeyRequired') || 'E2B API Key 是必需的' }}
-            </div>
-          </div>
         </div>
 
         <!-- 描述 -->

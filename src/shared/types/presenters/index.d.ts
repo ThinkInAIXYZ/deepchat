@@ -56,12 +56,17 @@ export type * from './agent-provider'
 
 // Generic Workspace types (for all Agent modes)
 export type {
-  WorkspacePlanStatus,
-  WorkspacePlanEntry,
+  SidePanelTab,
+  WorkspaceNavSection,
   WorkspaceFileNode,
-  WorkspaceTerminalStatus,
-  WorkspaceTerminalSnippet,
-  WorkspaceRawPlanEntry,
+  WorkspaceViewMode,
+  WorkspaceFilePreviewKind,
+  WorkspaceFileMetadata,
+  WorkspaceFilePreview,
+  WorkspaceGitChangeType,
+  WorkspaceGitFileChange,
+  WorkspaceGitState,
+  WorkspaceGitDiff,
   IWorkspacePresenter
 } from './workspace'
 
@@ -70,6 +75,10 @@ export type { IToolPresenter } from './tool.presenter'
 
 // Agent Presenter types
 export type { IAgentPresenter } from './agent.presenter'
+
+// New agent architecture types
+export type { INewAgentPresenter } from './new-agent.presenter'
+export type { IProjectPresenter } from './project.presenter'
 
 // Re-export legacy types temporarily for compatibility
 export * from './legacy.presenters'

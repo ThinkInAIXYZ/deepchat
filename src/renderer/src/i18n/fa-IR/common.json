@@ -78,7 +78,6 @@
   "save": "ذخیره",
   "clear": "پاک کردن",
   "saved": "ذخیره شده",
-  "newTab": "برگه جدید",
   "unknownError": "خطای ناشناخته",
   "testing": "در حال آزمایش",
   "saving": "در حال ذخیره‌سازی",
@@ -92,9 +91,25 @@
     "back": "Back",
     "forward": "Forward",
     "reload": "Reload",
+    "addressLabel": "نوار آدرس",
     "addressPlaceholder": "Enter a URL",
     "enterUrlDescription": "برای دسترسی به وب سایت، آدرس اینترنتی را در نوار آدرس بالا وارد کنید",
     "enterUrlToStart": "برای شروع بازدید، URL را وارد کنید",
     "name": "مرورگر یو"
+  },
+  "size": {
+    "bytes": "{count} بایت"
+  },
+  "time": {
+    "today": "امروز",
+    "yesterday": "دیروز",
+    "lastWeek": "هفته گذشته",
+    "older": "قدیمی‌تر"
+  },
+  "project": {
+    "select": "انتخاب پروژه",
+    "none": "بدون پروژه",
+    "recent": "پروژه‌های اخیر",
+    "openFolder": "باز کردن پوشه..."
   }
 }

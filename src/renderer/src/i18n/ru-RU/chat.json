@@ -1,6 +1,6 @@
 {
   "input": {
-    "placeholder": "Задайте вопрос? Вы можете ссылаться на инструменты, файлы, ресурсы через {'@'}...",
+    "placeholder": "Спросите DeepChat о чем угодно, {'@'} чтобы упомянуть файлы, / для команд",
     "fileArea": "Область файлов",
     "inputArea": "Область ввода",
     "functionSwitch": "Переключатель функций",
@@ -25,7 +25,15 @@
     "acpModeTooltip": "Текущий режим: {mode}",
     "agentWorkspaceCurrent": "Текущий рабочий каталог: {path}",
     "agentWorkspaceSelect": "Выберите рабочий каталог",
-    "agentWorkspaceTooltip": "Установить рабочий каталог агента"
+    "agentWorkspaceTooltip": "Установить рабочий каталог агента",
+    "attach": "Прикрепить",
+    "voiceInput": "Голосовой ввод",
+    "mcp": {
+      "badge": "MCP {count}",
+      "title": "Включённые MCP",
+      "empty": "Нет включённых сервисов",
+      "openSettings": "Открыть настройки MCP"
+    }
   },
   "features": {
     "webSearch": "Поиск в интернете",
@@ -95,11 +103,34 @@
   "mode": {
     "acpAgent": "Агент АШП",
     "agent": "Агент",
-    "chat": "чат",
     "current": "Текущий режим: {mode}"
+  },
+  "topbar": {
+    "share": "Поделиться",
+    "more": "Ещё"
+  },
+  "advancedSettings": {
+    "button": "Расширенные",
+    "title": "Расширенные настройки",
+    "closeHint": "Нажмите Esc, чтобы закрыть",
+    "systemPrompt": "Системный промпт",
+    "systemPromptPlaceholder": "Выберите пресет",
+    "temperature": "Температура",
+    "contextLength": "Длина контекста",
+    "maxTokens": "Макс. токенов",
+    "thinkingBudget": "Бюджет размышления",
+    "verbosity": "Детализация ответа",
+    "verbosityPlaceholder": "Выберите уровень детализации",
+    "currentCustomPrompt": "Текущий пользовательский",
+    "useDefault": "Использовать по умолчанию"
   },
   "workspace": {
     "collapse": "закрывать",
+    "sections": {
+      "files": "Файлы",
+      "git": "Git",
+      "artifacts": "Artifacts"
+    },
     "files": {
       "contextMenu": {
         "insertPath": "Вставить в поле ввода",
@@ -109,6 +140,12 @@
       "empty": "Файлов пока нет",
       "loading": "Загрузка файлов...",
       "section": "документ"
+    },
+    "git": {
+      "empty": "Нет доступного diff",
+      "clean": "Рабочее дерево чистое",
+      "staged": "В индексе",
+      "unstaged": "Не в индексе"
     },
     "browser": {
       "section": "Браузер",
@@ -169,5 +206,25 @@
       "manage": "управление",
       "title": "навыки"
     }
+  },
+  "compaction": {
+    "compacting": "Контекст автоматически сжимается...",
+    "compacted": "Контекст был автоматически сжат"
+  },
+  "newThread": {
+    "title": "Создавайте и исследуйте"
+  },
+  "permissionMode": {
+    "default": "Разрешения по умолчанию",
+    "fullAccess": "Полный доступ"
+  },
+  "sidebar": {
+    "allAgents": "Все агенты",
+    "expandSidebar": "Развернуть боковую панель",
+    "collapseSidebar": "Свернуть боковую панель",
+    "groupByDate": "Группировать по дате",
+    "groupByProject": "Группировать по проекту",
+    "emptyTitle": "Пока нет диалогов",
+    "emptyDescription": "Начните новый чат, чтобы приступить"
   }
 }

@@ -5,7 +5,6 @@ import { useIpcQuery } from '@/composables/useIpcQuery'
 import { useIpcMutation } from '@/composables/useIpcMutation'
 import { MCP_EVENTS } from '@/events'
 import { useI18n } from 'vue-i18n'
-import { useChatStore } from './chat'
 import { useQuery, type UseMutationReturn, type UseQueryReturn } from '@pinia/colada'
 import type {
   McpClient,
@@ -22,8 +21,10 @@ interface MCPToolCallEventResult {
   function_name?: string
   content: string | { type: string; text: string }[]
 }
+
+const ENABLED_MCP_TOOLS_KEY = 'input_enabledMcpTools'
+
 export const useMcpStore = defineStore('mcp', () => {
-  const chatStore = useChatStore()
   const { t } = useI18n()
   // 获取MCP相关的presenter
   const mcpPresenter = usePresenter('mcpPresenter')
@@ -34,7 +35,6 @@ export const useMcpStore = defineStore('mcp', () => {
   // MCP配置
   const config = ref<MCPConfig>({
     mcpServers: {},
-    defaultServers: [],
     mcpEnabled: false, // 添加MCP启用状态
     ready: false // if init finished, the ready will be true
   })
@@ -54,6 +54,7 @@ export const useMcpStore = defineStore('mcp', () => {
   const toolLoadingStates = ref<Record<string, boolean>>({})
   const toolInputs = ref<Record<string, Record<string, string>>>({})
   const toolResults = ref<Record<string, string | { type: string; text: string }[]>>({})
+  const enabledToolNames = ref<string[]>([])
 
   type QueryExecuteOptions = { force?: boolean }
 
@@ -62,9 +63,57 @@ export const useMcpStore = defineStore('mcp', () => {
     return await runner()
   }
 
+  const normalizeEnabledToolNames = (value: unknown): string[] => {
+    if (!Array.isArray(value)) {
+      return []
+    }
+
+    const normalized = value
+      .filter((item): item is string => typeof item === 'string')
+      .map((item) => item.trim())
+      .filter(Boolean)
+
+    return Array.from(new Set(normalized))
+  }
+
+  const hasSameToolList = (left: string[], right: string[]): boolean => {
+    if (left.length !== right.length) {
+      return false
+    }
+    return left.every((item, index) => item === right[index])
+  }
+
+  const persistEnabledToolNames = async () => {
+    try {
+      await configPresenter.setSetting(ENABLED_MCP_TOOLS_KEY, [...enabledToolNames.value])
+    } catch (error) {
+      console.warn('Failed to persist enabled MCP tools:', error)
+    }
+  }
+
+  const setEnabledToolNames = async (names: string[], persist = true): Promise<void> => {
+    const normalized = normalizeEnabledToolNames(names)
+    if (hasSameToolList(enabledToolNames.value, normalized)) {
+      return
+    }
+    enabledToolNames.value = normalized
+    if (persist) {
+      await persistEnabledToolNames()
+    }
+  }
+
+  const loadEnabledToolNames = async () => {
+    try {
+      const stored = await configPresenter.getSetting(ENABLED_MCP_TOOLS_KEY)
+      await setEnabledToolNames(normalizeEnabledToolNames(stored), false)
+    } catch (error) {
+      console.warn('Failed to load enabled MCP tools:', error)
+      enabledToolNames.value = []
+    }
+  }
+
   interface ConfigQueryResult {
     mcpServers: MCPConfig['mcpServers']
-    defaultServers: string[]
     mcpEnabled: boolean
   }
 
@@ -73,15 +122,13 @@ export const useMcpStore = defineStore('mcp', () => {
     staleTime: 30_000,
     gcTime: 300_000,
     query: async () => {
-      const [servers, defaultServers, enabled] = await Promise.all([
+      const [servers, enabled] = await Promise.all([
         mcpPresenter.getMcpServers(),
-        mcpPresenter.getMcpDefaultServers(),
         mcpPresenter.getMcpEnabled()
       ])
 
       return {
         mcpServers: servers ?? {},
-        defaultServers: defaultServers ?? [],
         mcpEnabled: Boolean(enabled)
       }
     }
@@ -234,7 +281,6 @@ export const useMcpStore = defineStore('mcp', () => {
 
     config.value = {
       mcpServers: data.mcpServers ?? {},
-      defaultServers: data.defaultServers,
       mcpEnabled: data.mcpEnabled,
       ready: true
     }
@@ -291,6 +337,14 @@ export const useMcpStore = defineStore('mcp', () => {
     })
   }
 
+  const syncEnabledToolsWithDefinitions = async (toolDefs: MCPToolDefinition[] = []) => {
+    const allToolNames = toolDefs.map((tool) => tool.function.name)
+    const availableSet = new Set(allToolNames)
+    const filtered = enabledToolNames.value.filter((name) => availableSet.has(name))
+    const next = filtered.length > 0 || allToolNames.length === 0 ? filtered : allToolNames
+    await setEnabledToolNames(next)
+  }
+
   watch(
     () => configQuery.data.value,
     (data) => syncConfigFromQuery(data),
@@ -306,6 +360,7 @@ export const useMcpStore = defineStore('mcp', () => {
 
       if (Array.isArray(toolDefs)) {
         applyToolsSnapshot(toolDefs as MCPToolDefinition[])
+        void syncEnabledToolsWithDefinitions(toolDefs as MCPToolDefinition[])
       }
     },
     { immediate: true }
@@ -327,7 +382,6 @@ export const useMcpStore = defineStore('mcp', () => {
       name,
       ...serverConfig,
       isRunning: serverStatuses.value[name] || false,
-      isDefault: config.value.defaultServers.includes(name),
       isLoading: serverLoadingStates.value[name] || false
     }))
 
@@ -347,12 +401,8 @@ export const useMcpStore = defineStore('mcp', () => {
       return 0 // 保持原有顺序
     })
   })
-
-  // 计算默认服务器数量
-  const defaultServersCount = computed(() => config.value.defaultServers.length)
-
-  // 检查是否达到默认服务器最大数量
-  const hasMaxDefaultServers = computed(() => defaultServersCount.value >= 30)
+  const enabledServers = computed(() => serverList.value.filter((server) => server.enabled))
+  const enabledServerCount = computed(() => enabledServers.value.length)
 
   // 工具数量
   const toolCount = computed(() => tools.value.length)
@@ -393,21 +443,9 @@ export const useMcpStore = defineStore('mcp', () => {
     ]
   })
 
-  const addDefaultServerMutation = useIpcMutation({
+  const setMcpServerEnabledMutation = useIpcMutation({
     presenter: 'mcpPresenter',
-    method: 'addMcpDefaultServer',
-    invalidateQueries: () => [['mcp', 'config']]
-  })
-
-  const removeDefaultServerMutation = useIpcMutation({
-    presenter: 'mcpPresenter',
-    method: 'removeMcpDefaultServer',
-    invalidateQueries: () => [['mcp', 'config']]
-  })
-
-  const resetToDefaultServersMutation = useIpcMutation({
-    presenter: 'mcpPresenter',
-    method: 'resetToDefaultServers',
+    method: 'setMcpServerEnabled',
     invalidateQueries: () => [['mcp', 'config']]
   })
 
@@ -435,9 +473,11 @@ export const useMcpStore = defineStore('mcp', () => {
   }
 
   // 设置MCP启用状态
-  const startDefaultServers = async () => {
-    const defaultServers = config.value.defaultServers
-    for (const serverName of defaultServers) {
+  const startEnabledServers = async () => {
+    for (const [serverName, serverConfig] of Object.entries(config.value.mcpServers)) {
+      if (!serverConfig.enabled) {
+        continue
+      }
       try {
         const running = await mcpPresenter.isServerRunning(serverName)
         if (!running) {
@@ -464,7 +504,7 @@ export const useMcpStore = defineStore('mcp', () => {
 
       // Wait a bit for config to sync, then refresh queries
       if (enabled) {
-        await startDefaultServers()
+        await startEnabledServers()
         // Update server statuses first, then refresh tools
         await updateAllServerStatuses()
         // Wait a bit for servers to fully start and register tools
@@ -482,6 +522,11 @@ export const useMcpStore = defineStore('mcp', () => {
           }
         }, 1000)
       } else {
+        await Promise.allSettled(
+          Object.keys(config.value.mcpServers).map((serverName) =>
+            mcpPresenter.stopServer(serverName)
+          )
+        )
         // clearing server/tool state when disabling
         serverStatuses.value = {}
         toolInputs.value = {}
@@ -534,21 +579,21 @@ export const useMcpStore = defineStore('mcp', () => {
       }
       // 根据服务器的状态，关闭或者开启该服务器的所有工具
       const isRunning = serverStatuses.value[serverName] || false
-      const currentTools =
-        chatStore.chatConfig.enabledMcpTools || [...tools.value].map((tool) => tool.function.name)
       if (isRunning) {
         // Get server tools after refresh
         const serverTools = tools.value
           .filter((tool) => tool.server.name === serverName)
           .map((tool) => tool.function.name)
         if (serverTools.length > 0) {
-          const mergedTools = Array.from(new Set([...currentTools, ...serverTools]))
-          chatStore.updateChatConfig({ enabledMcpTools: mergedTools })
+          const mergedTools = Array.from(new Set([...enabledToolNames.value, ...serverTools]))
+          await setEnabledToolNames(mergedTools)
         }
       } else {
         const allServerToolNames = tools.value.map((tool) => tool.function.name)
-        const filteredTools = currentTools.filter((name) => allServerToolNames.includes(name))
-        chatStore.updateChatConfig({ enabledMcpTools: filteredTools })
+        const filteredTools = enabledToolNames.value.filter((name) =>
+          allServerToolNames.includes(name)
+        )
+        await setEnabledToolNames(filteredTools)
       }
     } catch (error) {
       console.error(t('mcp.errors.getServerStatusFailed', { serverName }), error)
@@ -598,69 +643,40 @@ export const useMcpStore = defineStore('mcp', () => {
     }
   }
 
-  // 切换服务器的默认状态
-  const toggleDefaultServer = async (serverName: string) => {
-    try {
-      // 如果服务器已经是默认服务器，移除
-      if (config.value.defaultServers.includes(serverName)) {
-        await removeDefaultServerMutation.mutateAsync([serverName])
-      } else {
-        // 检查是否已达到最大默认服务器数量
-        if (hasMaxDefaultServers.value) {
-          // 如果已达到最大数量，返回错误
-          return { success: false, message: t('mcp.errors.maxDefaultServersReached') }
-        }
-        await addDefaultServerMutation.mutateAsync([serverName])
-      }
-      // Cache invalidation happens automatically, trigger config refresh
-      await runQuery(configQuery, { force: true })
-      return { success: true, message: '' }
-    } catch (error) {
-      console.error(t('mcp.errors.toggleDefaultServerFailed'), error)
-      return { success: false, message: String(error) }
-    }
-  }
-
-  // 恢复默认服务配置
-  const resetToDefaultServers = async () => {
-    try {
-      await resetToDefaultServersMutation.mutateAsync([])
-      // Cache invalidation happens automatically, trigger config refresh
-      await runQuery(configQuery, { force: true })
-      return true
-    } catch (error) {
-      console.error(t('mcp.errors.resetToDefaultFailed'), error)
-      return false
-    }
-  }
-
-  // 启动/停止服务器
   const toggleServer = async (serverName: string) => {
-    // 如果正在加载，避免重复操作
     if (serverLoadingStates.value[serverName]) {
       return false
     }
 
-    // 乐观更新：立即更新状态
-    const currentStatus = serverStatuses.value[serverName] || false
-    const targetStatus = !currentStatus
-    serverStatuses.value[serverName] = targetStatus
+    const serverConfig = config.value.mcpServers[serverName]
+    if (!serverConfig) {
+      return false
+    }
+
+    const nextEnabled = !serverConfig.enabled
+    const previousConfig = { ...serverConfig }
+    config.value.mcpServers = {
+      ...config.value.mcpServers,
+      [serverName]: { ...serverConfig, enabled: nextEnabled }
+    }
     serverLoadingStates.value[serverName] = true
 
     try {
-      // 执行实际操作
-      if (currentStatus) {
-        await mcpPresenter.stopServer(serverName)
-      } else {
-        await mcpPresenter.startServer(serverName)
-      }
+      await setMcpServerEnabledMutation.mutateAsync([serverName, nextEnabled])
 
-      // 同步实际状态（可能因网络延迟等原因状态不一致）
+      await runQuery(configQuery, { force: true })
       await updateServerStatus(serverName)
       return true
     } catch (error) {
-      // 失败时回滚状态
-      serverStatuses.value[serverName] = currentStatus
+      config.value.mcpServers = {
+        ...config.value.mcpServers,
+        [serverName]: previousConfig
+      }
+      try {
+        await setMcpServerEnabledMutation.mutateAsync([serverName, previousConfig.enabled])
+      } catch (rollbackError) {
+        console.error(`Failed to rollback MCP server state for ${serverName}`, rollbackError)
+      }
       console.error(t('mcp.errors.toggleServerFailed', { serverName }), error)
       return false
     } finally {
@@ -690,15 +706,8 @@ export const useMcpStore = defineStore('mcp', () => {
 
     try {
       const state = await runQuery(toolsQuery, options)
-      // 当用户没有显式选择启用的工具时，默认启用全部可用工具，避免重启后出现0个工具的情况
-      if (
-        state.status === 'success' &&
-        (!chatStore.chatConfig.enabledMcpTools || chatStore.chatConfig.enabledMcpTools.length === 0)
-      ) {
-        const allToolNames = (state.data ?? []).map((tool) => tool.function.name)
-        if (allToolNames.length > 0) {
-          await chatStore.updateChatConfig({ enabledMcpTools: allToolNames })
-        }
+      if (state.status === 'success') {
+        await syncEnabledToolsWithDefinitions(state.data ?? [])
       }
     } catch (error) {
       console.error(t('mcp.errors.loadToolsFailed'), error)
@@ -962,6 +971,7 @@ export const useMcpStore = defineStore('mcp', () => {
   // 初始化
   const init = async () => {
     initEvents()
+    await loadEnabledToolNames()
     await loadConfig()
 
     // 总是加载提示模板（包含config数据源）
@@ -972,30 +982,11 @@ export const useMcpStore = defineStore('mcp', () => {
       await loadTools()
       await loadClients()
     }
-
-    // 如果是新建会话页面，则缓存已激活工具名称
-    if (!chatStore.getActiveThreadId()) {
-      chatStore.chatConfig.enabledMcpTools = tools.value.map((item) => item.function.name)
-    }
-  }
-
-  // 监听活动线程变化，处理新会话的默认工具状态
-  const handleActiveThreadChange = () => {
-    watch(
-      () => chatStore.getActiveThreadId(),
-      (newThreadId, oldThreadId) => {
-        // 从有活动线程切换到无活动线程（新会话页面）
-        if (oldThreadId && !newThreadId && config.value.mcpEnabled && tools.value.length > 0) {
-          chatStore.chatConfig.enabledMcpTools = tools.value.map((item) => item.function.name)
-        }
-      }
-    )
   }
 
   // 立即初始化
   onMounted(async () => {
     await init()
-    handleActiveThreadChange()
   })
 
   // 获取NPM Registry状态
@@ -1047,6 +1038,17 @@ export const useMcpStore = defineStore('mcp', () => {
     mcpInstallCache.value = null
   }
 
+  const isToolEnabled = (toolName: string): boolean => enabledToolNames.value.includes(toolName)
+
+  const setToolEnabled = async (toolName: string, enabled: boolean): Promise<void> => {
+    const current = enabledToolNames.value
+    if (enabled) {
+      await setEnabledToolNames([...current, toolName])
+      return
+    }
+    await setEnabledToolNames(current.filter((name) => name !== toolName))
+  }
+
   return {
     // 状态
     config,
@@ -1060,6 +1062,7 @@ export const useMcpStore = defineStore('mcp', () => {
     toolLoadingStates,
     toolInputs,
     toolResults,
+    enabledToolNames,
     prompts,
     resources,
     mcpEnabled,
@@ -1067,6 +1070,8 @@ export const useMcpStore = defineStore('mcp', () => {
 
     // 计算属性
     serverList,
+    enabledServers,
+    enabledServerCount,
     toolCount,
     hasTools,
     clients,
@@ -1078,8 +1083,6 @@ export const useMcpStore = defineStore('mcp', () => {
     addServer,
     updateServer,
     removeServer,
-    toggleDefaultServer,
-    resetToDefaultServers,
     toggleServer,
     setMcpEnabled,
 
@@ -1089,6 +1092,8 @@ export const useMcpStore = defineStore('mcp', () => {
     loadPrompts,
     loadResources,
     updateToolInput,
+    isToolEnabled,
+    setToolEnabled,
     callTool,
     getPrompt,
     readResource,

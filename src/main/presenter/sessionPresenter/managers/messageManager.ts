@@ -396,6 +396,15 @@ export class MessageManager implements IMessageManager {
         }
       }
     } catch (error) {
+      if (
+        error instanceof Error &&
+        /no such table:\s*(conversations|messages|message_attachments)/i.test(error.message)
+      ) {
+        console.info(
+          '[MessageManager] Skip legacy unfinished message initialization: legacy tables not found.'
+        )
+        return
+      }
       console.error('初始化未完成消息失败:', error)
     }
   }

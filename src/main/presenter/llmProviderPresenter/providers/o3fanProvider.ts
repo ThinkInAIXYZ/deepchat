@@ -6,6 +6,11 @@ import {
   IConfigPresenter
 } from '@shared/presenter'
 import { ModelType } from '@shared/model'
+import {
+  resolveModelContextLength,
+  resolveModelFunctionCall,
+  resolveModelMaxTokens
+} from '@shared/modelConfigDefaults'
 import { OpenAICompatibleProvider } from './openAICompatibleProvider'
 import { providerDbLoader } from '../../configPresenter/providerDbLoader'
 import { modelCapabilities } from '../../configPresenter/modelCapabilities'
@@ -35,10 +40,10 @@ export class O3fanProvider extends OpenAICompatibleProvider {
         group: 'o3fan',
         providerId: this.provider.id,
         isCustom: false,
-        contextLength: model.limit?.context ?? 8192,
-        maxTokens: model.limit?.output ?? 4096,
+        contextLength: resolveModelContextLength(model.limit?.context),
+        maxTokens: resolveModelMaxTokens(model.limit?.output),
         vision: hasImageInput,
-        functionCall: Boolean(model.tool_call),
+        functionCall: resolveModelFunctionCall(model.tool_call),
         reasoning: Boolean(model.reasoning?.supported),
         enableSearch: Boolean(model.search?.supported),
         type: modelType

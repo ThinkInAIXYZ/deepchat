@@ -11,11 +11,11 @@ import path from 'path'
 import { isNonRetryableError } from './errorClassification'
 import { resolveToolOffloadPath } from '../../sessionPresenter/sessionPaths'
 import { parseQuestionToolArgs, QUESTION_TOOL_NAME } from '../tools/questionTool'
-import { presenter } from '@/presenter'
 
 interface ToolCallProcessorOptions {
   getAllToolDefinitions: (context: ToolCallExecutionContext) => Promise<MCPToolDefinition[]>
   callTool: (request: MCPToolCall) => Promise<{ content: unknown; rawData: MCPToolResponse }>
+  preCheckToolPermission?: (request: MCPToolCall) => Promise<PermissionRequestPayload | null>
   onToolCallFinished?: (info: {
     toolName: string
     toolCallId: string
@@ -43,21 +43,57 @@ interface ToolCallProcessResult {
   needContinueConversation: boolean
 }
 
+interface ToolCall {
+  id: string
+  name: string
+  arguments: string
+}
+
+type PermissionType = 'read' | 'write' | 'all' | 'command'
+
+interface CommandInfoPayload {
+  command: string
+  riskLevel: 'low' | 'medium' | 'high' | 'critical'
+  suggestion: string
+  signature?: string
+  baseCommand?: string
+}
+
+interface PermissionRequestPayload {
+  needsPermission: true
+  toolName: string
+  serverName: string
+  permissionType: PermissionType
+  description: string
+  command?: string
+  commandSignature?: string
+  commandInfo?: CommandInfoPayload
+  paths?: string[]
+  providerId?: string
+  requestId?: string
+  sessionId?: string
+  agentId?: string
+  agentName?: string
+  conversationId?: string
+  rememberable?: boolean
+  [key: string]: unknown
+}
+
+interface PermissionRequestInfo {
+  toolCall: ToolCall
+  serverName: string
+  serverIcons?: string
+  serverDescription?: string
+  payload: PermissionRequestPayload
+}
+
 const TOOL_OUTPUT_OFFLOAD_THRESHOLD = 5000
 const TOOL_OUTPUT_PREVIEW_LENGTH = 1024
 const QUESTION_ERROR_KEY = 'common.error.invalidQuestionRequest'
 
 // Tools that require offload when output exceeds threshold
-// Tools not in this list will never trigger offload (e.g., read_file has its own pagination)
-const TOOLS_REQUIRING_OFFLOAD = new Set([
-  'execute_command',
-  'directory_tree',
-  'list_directory',
-  'glob_search',
-  'grep_search',
-  'text_replace',
-  'yo_browser_cdp_send'
-])
+// Tools not in this list will never trigger offload (e.g., read has its own pagination)
+const TOOLS_REQUIRING_OFFLOAD = new Set(['exec', 'ls', 'find', 'grep', 'yo_browser_cdp_send'])
 
 export class ToolCallProcessor {
   constructor(private readonly options: ToolCallProcessorOptions) {}
@@ -67,9 +103,52 @@ export class ToolCallProcessor {
   ): AsyncGenerator<LLMAgentEvent, ToolCallProcessResult, void> {
     let toolCallCount = context.currentToolCallCount
     let needContinueConversation = context.toolCalls.length > 0
-    const shouldDispatchToolHooks = context.providerId === 'acp'
-
     let toolDefinitions = await this.options.getAllToolDefinitions(context)
+
+    // Step 1: Pre-check all tool permissions in batch
+    // If any tool requires permission, we pause and request permission for all at once
+    const permissionCheckResult = await this.batchPreCheckPermissions(context, toolDefinitions)
+
+    if (permissionCheckResult.hasPendingPermissions) {
+      // Yield permission request event for all tools that need permission
+      for (const permissionRequest of permissionCheckResult.permissionRequests) {
+        const permissionPayload = {
+          ...permissionRequest.payload,
+          toolName: permissionRequest.toolCall.name,
+          serverName: permissionRequest.serverName,
+          permissionType: permissionRequest.payload.permissionType,
+          description: permissionRequest.payload.description,
+          conversationId: permissionRequest.payload.conversationId ?? context.conversationId,
+          // Mark this as part of a batch
+          isBatchPermission: true,
+          totalInBatch: permissionCheckResult.permissionRequests.length
+        }
+
+        yield {
+          type: 'response',
+          data: {
+            eventId: context.eventId,
+            tool_call: 'permission-required',
+            tool_call_id: permissionRequest.toolCall.id,
+            tool_call_name: permissionRequest.toolCall.name,
+            tool_call_params: permissionRequest.toolCall.arguments,
+            tool_call_server_name: permissionRequest.serverName,
+            tool_call_server_icons: permissionRequest.serverIcons,
+            tool_call_server_description: permissionRequest.serverDescription,
+            tool_call_response: permissionRequest.payload.description,
+            permission_request: permissionPayload
+          }
+        }
+      }
+
+      // Stop here and wait for user to grant permissions
+      // The loop will be restarted after permissions are granted
+      needContinueConversation = false
+      return {
+        toolCallCount,
+        needContinueConversation
+      }
+    }
 
     const resolveToolDefinition = async (
       toolName: string
@@ -229,21 +308,6 @@ export class ToolCallProcessor {
       }
 
       try {
-        if (shouldDispatchToolHooks) {
-          try {
-            presenter.hooksNotifications.dispatchEvent('PreToolUse', {
-              conversationId: context.conversationId,
-              tool: {
-                callId: toolCall.id,
-                name: toolCall.name,
-                params: toolCall.arguments
-              }
-            })
-          } catch (error) {
-            console.warn('[ToolCallProcessor] Failed to dispatch PreToolUse hook:', error)
-          }
-        }
-
         const toolResponse = await this.options.callTool(mcpToolInput)
         const requiresPermission = Boolean(toolResponse.rawData?.requiresPermission)
 
@@ -286,22 +350,6 @@ export class ToolCallProcessor {
           context.conversationId,
           toolCall.name
         )
-
-        if (shouldDispatchToolHooks) {
-          try {
-            presenter.hooksNotifications.dispatchEvent('PostToolUse', {
-              conversationId: context.conversationId,
-              tool: {
-                callId: toolCall.id,
-                name: toolCall.name,
-                params: toolCall.arguments,
-                response: toolContent
-              }
-            })
-          } catch (error) {
-            console.warn('[ToolCallProcessor] Failed to dispatch PostToolUse hook:', error)
-          }
-        }
 
         if (supportsFunctionCall) {
           this.appendNativeFunctionCallMessages(context.conversationMessages, toolCall, {
@@ -353,22 +401,6 @@ export class ToolCallProcessor {
           toolError
         )
         const errorMessage = toolError instanceof Error ? toolError.message : String(toolError)
-
-        if (shouldDispatchToolHooks) {
-          try {
-            presenter.hooksNotifications.dispatchEvent('PostToolUseFailure', {
-              conversationId: context.conversationId,
-              tool: {
-                callId: toolCall.id,
-                name: toolCall.name,
-                params: toolCall.arguments,
-                error: errorMessage
-              }
-            })
-          } catch (error) {
-            console.warn('[ToolCallProcessor] Failed to dispatch PostToolUseFailure hook:', error)
-          }
-        }
 
         // Check if error is non-retryable (should stop the loop)
         const errorForClassification: Error | string =
@@ -618,5 +650,77 @@ export class ToolCallProcessor {
 
   private stringifyToolContent(content: unknown): string {
     return typeof content === 'string' ? content : JSON.stringify(content)
+  }
+
+  /**
+   * Batch pre-check permissions for all tool calls
+   * Returns info about tools that need permission, or empty if all have permission
+   */
+  private async batchPreCheckPermissions(
+    context: ToolCallExecutionContext,
+    toolDefinitions: MCPToolDefinition[]
+  ): Promise<{
+    hasPendingPermissions: boolean
+    permissionRequests: PermissionRequestInfo[]
+  }> {
+    // If no permission pre-check function provided, skip batch check
+    if (!this.options.preCheckToolPermission) {
+      return { hasPendingPermissions: false, permissionRequests: [] }
+    }
+
+    const permissionRequests: PermissionRequestInfo[] = []
+    const toolNameToDefMap = new Map(toolDefinitions.map((t) => [t.function.name, t]))
+
+    for (const toolCall of context.toolCalls) {
+      const toolDef = toolNameToDefMap.get(toolCall.name)
+      if (!toolDef) continue
+
+      // Skip question tool for permission check
+      if (toolCall.name === QUESTION_TOOL_NAME) continue
+
+      const mcpToolInput: MCPToolCall = {
+        id: toolCall.id,
+        type: 'function',
+        function: {
+          name: toolCall.name,
+          arguments: toolCall.arguments
+        },
+        server: toolDef.server,
+        conversationId: context.conversationId
+      }
+
+      try {
+        const permissionResult = await this.options.preCheckToolPermission(mcpToolInput)
+        if (permissionResult) {
+          const permissionPayload: PermissionRequestPayload = {
+            ...permissionResult,
+            toolName: permissionResult.toolName || toolCall.name,
+            serverName: permissionResult.serverName || toolDef.server.name,
+            permissionType: permissionResult.permissionType,
+            description: permissionResult.description
+          }
+
+          // Preserve the full permission payload (paths and custom fields included)
+          permissionRequests.push({
+            toolCall,
+            serverName: permissionPayload.serverName,
+            serverIcons: toolDef.server?.icons,
+            serverDescription: toolDef.server?.description,
+            payload: permissionPayload
+          })
+        }
+      } catch (error) {
+        console.warn(
+          `[ToolCallProcessor] Failed to pre-check permission for ${toolCall.name}:`,
+          error
+        )
+        // If pre-check fails, we'll let the actual execution handle it
+      }
+    }
+
+    return {
+      hasPendingPermissions: permissionRequests.length > 0,
+      permissionRequests
+    }
   }
 }

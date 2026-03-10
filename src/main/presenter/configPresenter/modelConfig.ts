@@ -1,5 +1,11 @@
 import { ApiEndpointType, ModelType } from '@shared/model'
 import { IModelConfig, ModelConfig, ModelConfigSource } from '@shared/presenter'
+import {
+  DEFAULT_MODEL_CAPABILITY_FALLBACKS,
+  resolveModelContextLength,
+  resolveModelFunctionCall,
+  resolveModelMaxTokens
+} from '@shared/modelConfigDefaults'
 import ElectronStore from 'electron-store'
 import { providerDbLoader } from './providerDbLoader'
 import { isImageInputSupported, ProviderModel } from '@shared/types/model-db'
@@ -79,17 +85,14 @@ export class ModelConfigHelper {
 
   private buildConfigFromProviderModel(model: ProviderModel): ModelConfig {
     return {
-      maxTokens: model.limit?.output ?? 4096,
-      contextLength: model.limit?.context ?? 8192,
+      maxTokens: resolveModelMaxTokens(model.limit?.output),
+      contextLength: resolveModelContextLength(model.limit?.context),
       temperature: 0.6,
       vision: isImageInputSupported(model),
-      functionCall: model.tool_call ?? false,
+      functionCall: resolveModelFunctionCall(model.tool_call),
       reasoning: Boolean(model.reasoning?.supported ?? false),
       type: this.inferModelType(model),
       thinkingBudget: model.reasoning?.budget?.default ?? undefined,
-      enableSearch: Boolean(model.search?.supported ?? false),
-      forcedSearch: Boolean(model.search?.forced_search),
-      searchStrategy: model.search?.search_strategy === 'max' ? 'max' : 'turbo',
       reasoningEffort: (model.reasoning?.effort ?? undefined) as
         | 'minimal'
         | 'low'
@@ -97,6 +100,12 @@ export class ModelConfigHelper {
         | 'high'
         | undefined,
       verbosity: (model.reasoning?.verbosity ?? undefined) as 'low' | 'medium' | 'high' | undefined,
+      enableSearch: Boolean(model.search?.supported ?? false),
+      forcedSearch: Boolean(model.search?.forced_search ?? false),
+      searchStrategy: (model.search?.search_strategy ?? 'turbo') as
+        | 'turbo'
+        | 'balanced'
+        | 'precise',
       maxCompletionTokens: undefined
     }
   }
@@ -373,26 +382,22 @@ export class ModelConfigHelper {
 
     if (!finalConfig) {
       finalConfig = {
-        maxTokens: 4096,
-        contextLength: 8192,
+        ...DEFAULT_MODEL_CAPABILITY_FALLBACKS,
         temperature: 0.6,
-        vision: false,
-        functionCall: false,
-        reasoning: false,
         type: ModelType.Chat,
         apiEndpoint: ApiEndpointType.Chat,
         thinkingBudget: undefined,
+        reasoningEffort: undefined,
+        verbosity: undefined,
         enableSearch: false,
         forcedSearch: false,
         searchStrategy: 'turbo',
-        reasoningEffort: undefined,
-        verbosity: undefined,
         maxCompletionTokens: undefined
       }
     }
 
-    finalConfig.isUserDefined = false
-    return finalConfig
+    finalConfig!.isUserDefined = false
+    return finalConfig!
   }
 
   /**

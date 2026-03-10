@@ -162,6 +162,8 @@
               <PopoverContent align="start" class="w-80 border-none bg-transparent p-0 shadow-none">
                 <ModelChooser
                   :requires-vision="store.requiresVision"
+                  :selected-provider-id="store.selectedProviderId ?? ''"
+                  :selected-model-id="store.selectedModel?.id ?? ''"
                   @update:model="onModelUpdate"
                 />
               </PopoverContent>
@@ -237,6 +239,7 @@ import { useMcpSamplingStore } from '@/stores/mcpSampling'
 import { useI18n } from 'vue-i18n'
 import { computed, ref } from 'vue'
 import { Icon } from '@iconify/vue'
+import type { RENDERER_MODEL_META } from '@shared/presenter'
 
 const store = useMcpSamplingStore()
 const { t } = useI18n()
@@ -280,7 +283,7 @@ const preferenceSummary = computed(() => {
   return entries
 })
 
-const onModelUpdate = (model, providerId: string) => {
+const onModelUpdate = (model: RENDERER_MODEL_META, providerId: string) => {
   store.selectModel(model, providerId)
   modelSelectOpen.value = false
 }

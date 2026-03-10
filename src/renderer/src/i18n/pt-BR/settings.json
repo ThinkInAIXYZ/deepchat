@@ -41,16 +41,12 @@
     "contentProtectionEnableDesc": "Evita que aplicativos de compartilhamento de tela capturem a janela do DeepChat para ajudar a proteger sua privacidade. Nem todos os aplicativos respeitam essa configuração; em alguns ambientes, uma janela preta pode permanecer.",
     "contentProtectionDisableDesc": "Permite que aplicativos de compartilhamento de tela capturem a janela do DeepChat.",
     "contentProtectionRestartNotice": "Alterar esta configuração reiniciará o aplicativo. Deseja continuar?",
-    "soundEnabled": "Habilitar Efeitos Sonoros",
     "copyWithCotEnabled": "Copiar Detalhes COT",
     "loggingEnabled": "Habilitar Registro (Logging)",
     "loggingDialogTitle": "Confirmar Mudança na Configuração de Registro",
     "loggingEnableDesc": "Habilitar o registro ajudará a diagnosticar problemas e melhorar o aplicativo. Os arquivos de registro podem conter informações confidenciais.",
     "loggingDisableDesc": "Desabilitar o registro interromperá a coleta de logs do aplicativo.",
-    "webContentLengthLimit": "Limite de Comprimento do Conteúdo Web",
-    "webContentLengthLimitHint": "(Defina para 0 para sem limite)",
     "charactersUnit": "caracteres",
-    "webContentLengthLimitTooltip": "Defina o comprimento máximo do conteúdo de texto extraído de páginas web (contagem de caracteres), intervalo: 0-50000. Definir como 0 significa sem limite e recupera o conteúdo web completo; valores mais altos fornecem conteúdo web mais completo, mas podem aumentar o tempo de processamento e o uso de tokens.",
     "loggingRestartNotice": "Alterar esta configuração reiniciará o aplicativo. Deseja continuar?",
     "openLogFolder": "Abrir Pasta de Log",
     "shortcut": {
@@ -62,7 +58,12 @@
     "contentProtection": "Proteção contra captura de tela",
     "traceDebugEnabled": "Rastreamento de Chamadas",
     "fileMaxSize": "Tamanho máximo do arquivo",
-    "fileMaxSizeHint": "Limita o tamanho máximo de um arquivo enviado"
+    "fileMaxSizeHint": "Limita o tamanho máximo de um arquivo enviado",
+    "defaultModel": {
+      "title": "Modelo padrão",
+      "chatModel": "Modelo de chat padrão",
+      "visionModel": "Modelo de visão padrão"
+    }
   },
   "notificationsHooks": {
     "title": "Notificações e hooks",
@@ -238,23 +239,6 @@
         "description": "O modelo suporta capacidade de raciocínio?",
         "label": "Capacidade de raciocínio"
       },
-      "enableSearch": {
-        "label": "Busca na Web",
-        "description": "Habilitar o modelo para buscar na web pelas informações mais recentes"
-      },
-      "forcedSearch": {
-        "label": "Busca Forçada",
-        "description": "Forçar o modelo a realizar busca na web, quando desabilitado o modelo decide automaticamente"
-      },
-      "searchStrategy": {
-        "label": "Estratégia de Busca",
-        "description": "Escolha o modo de desempenho de busca: turbo equilibra velocidade e eficácia, max fornece resultados de busca ideais",
-        "placeholder": "Selecionar estratégia de busca",
-        "options": {
-          "turbo": "Turbo - Equilibra velocidade de resposta e eficácia de busca (Recomendado)",
-          "max": "Max - Modo de alto desempenho, fornece resultados de busca ideais"
-        }
-      },
       "thinkingBudget": {
         "label": "Orçamento de Pensamento",
         "description": "Defina o comprimento máximo de tokens do processo de pensamento para controlar a profundidade do raciocínio",
@@ -325,10 +309,6 @@
       "vision": {
         "description": "O modelo suporta capacidade visual?",
         "label": "Capacidade visual"
-      },
-      "searchLimit": {
-        "label": "Limitação de busca",
-        "description": "Limitação do modelo: Habilitar a busca na web desabilitará as chamadas de função de ferramenta"
       },
       "apiEndpoint": {
         "description": "Selecione o endpoint da API OpenAI usado por este modelo.",
@@ -739,6 +719,9 @@
     "enabledDescription": "Habilitar ou desabilitar a funcionalidade e ferramentas MCP",
     "enableToAccess": "Por favor, habilite o MCP para acessar as opções de configuração",
     "marketplace": "Ir para o Mercado MCP para instalação com um clique",
+    "marketMenu": {
+      "higress": "Higress"
+    },
     "technicalDetails": "Detalhes Técnicos",
     "httpServer": "Servidor HTTP",
     "localProcess": "Processo Local",
@@ -819,7 +802,7 @@
       "parseAndContinue": "Analisar e Continuar",
       "jsonParseError": "Falha na análise do JSON",
       "browseMarketplace": "Navegar no Mercado MCP",
-      "imageModel": "Escolha um modelo de visão",
+      "imageModel": "Modelo de visão",
       "customHeadersParseError": "Falha na análise do Cabeçalho Personalizado",
       "customHeaders": "Cabeçalhos de Solicitação Personalizados",
       "clickToEdit": "Clique para editar e visualizar o conteúdo completo",
@@ -954,15 +937,10 @@
     "zoomIn": "Ampliar ",
     "zoomOut": "Reduzir ",
     "zoomReset": "Redefinir zoom",
-    "closeTab": "Fechar a guia atual",
-    "newTab": "Criar uma nova guia",
     "newWindow": "Abrir uma nova janela",
     "showHideWindow": "Mostrar/Ocultar janela",
     "newConversation": "Nova conversa",
-    "nextTab": "Mudar para a próxima guia",
-    "previousTab": "Mudar para a guia anterior",
-    "specificTab": "Mudar para guia específica (1-8)",
-    "lastTab": "Mudar para a última guia"
+    "closeWindow": "Fechar a guia atual"
   },
   "rateLimit": {
     "title": "Limite de Taxa",

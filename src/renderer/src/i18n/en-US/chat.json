@@ -1,9 +1,11 @@
 {
   "input": {
-    "placeholder": "Ask something? You can quote tools, files, resources via {'@'}...",
+    "placeholder": "Ask DeepChat anything, {'@'} to mention files, / for commands",
     "fileArea": "File Area",
     "inputArea": "Input Area",
     "functionSwitch": "Function Switch",
+    "attach": "Attach",
+    "voiceInput": "Voice input",
     "fileSelect": "Select File",
     "pasteFiles": "Paste files from clipboard",
     "dropFiles": "Drop files here",
@@ -25,7 +27,13 @@
     "acpModeTooltip": "Current mode: {mode}",
     "agentWorkspaceTooltip": "Set Agent workspace directory",
     "agentWorkspaceSelect": "Select a folder to use as the workspace",
-    "agentWorkspaceCurrent": "Current workspace: {path}"
+    "agentWorkspaceCurrent": "Current workspace: {path}",
+    "mcp": {
+      "badge": "MCP {count}",
+      "title": "Enabled MCP",
+      "empty": "No enabled services",
+      "openSettings": "Open MCP settings"
+    }
   },
   "features": {
     "webSearch": "Web Search",
@@ -54,6 +62,10 @@
     "rateLimitImmediately": "Now",
     "rateLimitSeconds": "s",
     "rateLimitMinutes": "m"
+  },
+  "compaction": {
+    "compacting": "Auto-compacting context...",
+    "compacted": "Context was auto-compacted"
   },
   "rateLimit": {
     "queueTooltip": "{count} requests in queue, {interval}s interval",
@@ -94,9 +106,27 @@
   },
   "mode": {
     "current": "Current mode: {mode}",
-    "chat": "Chat",
     "agent": "Agent",
     "acpAgent": "ACP Agent"
+  },
+  "topbar": {
+    "share": "Share",
+    "more": "More"
+  },
+  "advancedSettings": {
+    "button": "Advanced",
+    "title": "Advanced Settings",
+    "closeHint": "Esc to close",
+    "systemPrompt": "System Prompt",
+    "systemPromptPlaceholder": "Select a preset",
+    "temperature": "Temperature",
+    "contextLength": "Context Length",
+    "maxTokens": "Max Tokens",
+    "thinkingBudget": "Thinking Budget",
+    "verbosity": "Verbosity",
+    "verbosityPlaceholder": "Select verbosity",
+    "currentCustomPrompt": "Current custom",
+    "useDefault": "Use default"
   },
   "audio": {
     "play": "Play",
@@ -123,6 +153,11 @@
   "workspace": {
     "title": "Workspace",
     "collapse": "Collapse",
+    "sections": {
+      "files": "Files",
+      "git": "Git",
+      "artifacts": "Artifacts"
+    },
     "plan": {
       "section": "Plan",
       "empty": "No tasks yet",
@@ -143,6 +178,12 @@
         "revealInFolder": "Show in file manager",
         "insertPath": "Insert into input"
       }
+    },
+    "git": {
+      "empty": "No diff available",
+      "clean": "Clean working tree",
+      "staged": "Staged",
+      "unstaged": "Unstaged"
     },
     "browser": {
       "section": "Browser",
@@ -169,5 +210,21 @@
         "aborted": "Aborted"
       }
     }
+  },
+  "newThread": {
+    "title": "Build and explore"
+  },
+  "permissionMode": {
+    "default": "Default permissions",
+    "fullAccess": "Full access"
+  },
+  "sidebar": {
+    "allAgents": "All Agents",
+    "expandSidebar": "Expand sidebar",
+    "collapseSidebar": "Collapse sidebar",
+    "groupByDate": "Group by date",
+    "groupByProject": "Group by project",
+    "emptyTitle": "No conversations yet",
+    "emptyDescription": "Start a new chat to begin"
   }
 }

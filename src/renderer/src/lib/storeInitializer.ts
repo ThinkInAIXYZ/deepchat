@@ -3,8 +3,6 @@ import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import { useProviderStore } from '@/stores/providerStore'
 import { useModelStore } from '@/stores/modelStore'
 import { useOllamaStore } from '@/stores/ollamaStore'
-import { useSearchEngineStore } from '@/stores/searchEngineStore'
-import { useSearchAssistantStore } from '@/stores/searchAssistantStore'
 import { useMcpStore } from '@/stores/mcp'
 import { DEEPLINK_EVENTS } from '@/events'
 
@@ -13,8 +11,6 @@ export const initAppStores = async () => {
   const providerStore = useProviderStore()
   const modelStore = useModelStore()
   const ollamaStore = useOllamaStore()
-  const searchEngineStore = useSearchEngineStore()
-  const searchAssistantStore = useSearchAssistantStore()
 
   await uiSettingsStore.loadSettings()
 
@@ -24,11 +20,7 @@ export const initAppStores = async () => {
   modelStore.setupModelListeners()
   await modelStore.refreshAllModels()
 
-  await searchEngineStore.initialize()
-
   await ollamaStore.initialize()
-
-  await searchAssistantStore.initOrUpdateSearchAssistantModel()
 }
 
 export const useMcpInstallDeeplinkHandler = () => {

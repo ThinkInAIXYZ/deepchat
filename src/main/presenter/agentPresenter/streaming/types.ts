@@ -10,7 +10,6 @@ export interface GeneratingMessageState {
   reasoningStartTime: number | null
   reasoningEndTime: number | null
   lastReasoningTime: number | null
-  isSearching?: boolean
   isCancelled?: boolean
   pendingToolCall?: PendingToolCall
   totalUsage?: {
@@ -33,7 +32,7 @@ export interface GeneratingMessageState {
   flushTimeout?: NodeJS.Timeout
   throttleTimeout?: NodeJS.Timeout
   lastRendererUpdateTime?: number
-  tabId?: number
+  webContentsId?: number
 }
 
 export type { StreamUpdateScheduler } from './streamUpdateScheduler'

@@ -15,6 +15,7 @@ import { jsonrepair } from 'jsonrepair'
 import { eventBus, SendTarget } from '@/eventbus'
 import { CONFIG_EVENTS } from '@/events'
 import logger from '@shared/logger'
+import { resolveRequestTraceContext, type ProviderRequestTracePayload } from './requestTrace'
 
 /**
  * Base LLM Provider Abstract Class
@@ -30,7 +31,7 @@ import logger from '@shared/logger'
  */
 export abstract class BaseLLMProvider {
   // Maximum tool calls limit in a single conversation turn
-  protected static readonly MAX_TOOL_CALLS = 200
+  protected static readonly MAX_TOOL_CALLS = 12800
   protected static readonly DEFAULT_MODEL_FETCH_TIMEOUT = 12000 // Increased to 12 seconds as universal default
 
   protected provider: LLM_PROVIDER
@@ -670,37 +671,33 @@ ${this.convertToolsToXml(tools)}
     return null // 默认实现返回 null，表示不支持此功能
   }
 
-  /**
-   * Get request preview for debugging (DEV mode only)
-   * Build the actual request parameters that would be sent to the provider API
-   * @param messages Conversation messages
-   * @param modelId Model ID
-   * @param modelConfig Model configuration
-   * @param temperature Temperature parameter
-   * @param maxTokens Max tokens parameter
-   * @param mcpTools MCP tools definitions
-   * @returns Preview data including endpoint, headers, and body (all redacted)
-   */
-  public async getRequestPreview(
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    _messages: ChatMessage[],
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    _modelId: string,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    _modelConfig: ModelConfig,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    _temperature: number,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    _maxTokens: number,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    _mcpTools: MCPToolDefinition[]
-  ): Promise<{
-    endpoint: string
-    headers: Record<string, string>
-    body: unknown
-  }> {
-    // Default implementation returns not implemented marker
-    throw new Error('Provider has not implemented getRequestPreview')
+  protected async emitRequestTrace(
+    modelConfig: ModelConfig,
+    payload: {
+      endpoint: string
+      headers?: Record<string, string>
+      body?: unknown
+    }
+  ): Promise<void> {
+    const context = resolveRequestTraceContext(modelConfig)
+    if (!context) {
+      return
+    }
+
+    const tracePayload: ProviderRequestTracePayload = {
+      endpoint: payload.endpoint,
+      headers: payload.headers ?? {},
+      body: payload.body ?? null
+    }
+
+    try {
+      await context.persist(tracePayload)
+    } catch (error) {
+      logger.warn(
+        `[Trace] Failed to persist request trace for provider "${this.provider.id}"`,
+        error
+      )
+    }
   }
 
   /**

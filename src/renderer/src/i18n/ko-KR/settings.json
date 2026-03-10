@@ -42,17 +42,13 @@
     "contentProtectionEnableDesc": "화면 보호를 활성화하면 화면 공유 소프트웨어가 DeepChat 창을 캡쳐할 수 없습니다. 이 기능은 모든 인터페이스를 완전히 숨기지 않습니다. 이 기능을 사용할 때는 항상 규정을 준수하세요. 또한, 모든 화면 공유 소프트웨어가 이 기능을 지원하지 않을 수 있습니다. 또한, 일부 환경에서는 검은색 창이 남을 수 있습니다.",
     "contentProtectionDisableDesc": "화면 보호를 비활성화하면 화면 공유 소프트웨어가 DeepChat 창을 캡쳐할 수 있습니다.",
     "contentProtectionRestartNotice": "이 설정을 변경하면 프로그램이 재시작됩니다. 계속하시겠습니까?",
-    "soundEnabled": "소리 활성화",
     "copyWithCotEnabled": "COT 정보 복사",
     "loggingEnabled": "로그 활성화",
     "loggingDialogTitle": "로그 설정 변경 확인",
     "loggingEnableDesc": "로그를 활성화하면 문제 진단 및 애플리케이션 개선에 도움이 됩니다. 로그 파일에는 민감한 정보가 포함될 수 있습니다.",
     "loggingDisableDesc": "로그를 비활성화하면 애플리케이션 로그 수집이 중지됩니다.",
-    "loggingRestartNotice": "이 설정을 변경하면 프로그램이 재시작됩니다. 계속하시겠습니까?",
-    "webContentLengthLimit": "웹 콘텐츠 길이 제한",
-    "webContentLengthLimitHint": "(0으로 설정하면 제한 없음)",
     "charactersUnit": "문자",
-    "webContentLengthLimitTooltip": "웹 페이지에서 추출할 텍스트 콘텐츠의 최대 길이(문자 수)를 설정합니다. 범위: 0-50000. 0으로 설정하면 제한 없이 전체 웹 콘텐츠를 가져옵니다. 큰 값을 설정하면 더 완전한 웹 콘텐츠를 가져올 수 있지만 처리 시간과 토큰 사용량이 증가할 수 있습니다.",
+    "loggingRestartNotice": "이 설정을 변경하면 프로그램이 재시작됩니다. 계속하시겠습니까?",
     "openLogFolder": "로그 폴더 열기",
     "shortcut": {
       "newChat": "새 채팅을 만듭니다",
@@ -62,7 +58,12 @@
     "notificationsDesc": "DeepChat이 전경에 있지 않으면 세션이 생성되면 시스템 알림이 전송됩니다.",
     "traceDebugEnabled": "추적 호출",
     "fileMaxSize": "파일 최대 크기",
-    "fileMaxSizeHint": "단일 파일 업로드의 최대 크기를 제한합니다"
+    "fileMaxSizeHint": "단일 파일 업로드의 최대 크기를 제한합니다",
+    "defaultModel": {
+      "title": "기본 모델",
+      "chatModel": "기본 채팅 모델",
+      "visionModel": "기본 비전 모델"
+    }
   },
   "notificationsHooks": {
     "title": "알림 및 훅",
@@ -238,23 +239,6 @@
         "description": "모델이 추론 능력을 지원합니까?",
         "label": "추론 능력"
       },
-      "enableSearch": {
-        "label": "웹 검색",
-        "description": "모델이 웹을 검색하여 최신 정보를 얻을 수 있도록 활성화"
-      },
-      "forcedSearch": {
-        "label": "강제 검색",
-        "description": "모델이 웹 검색을 강제 수행하도록, 비활성화시 모델이 자동으로 결정"
-      },
-      "searchStrategy": {
-        "label": "검색 전략",
-        "description": "검색 성능 모드 선택: turbo는 속도와 효과의 균형, max는 최적의 검색 결과 제공",
-        "placeholder": "검색 전략 선택",
-        "options": {
-          "turbo": "Turbo - 응답 속도와 검색 효과의 균형 (권장)",
-          "max": "Max - 고성능 모드, 최적의 검색 결과 제공"
-        }
-      },
       "thinkingBudget": {
         "label": "사고 예산",
         "description": "사고 과정의 최대 토큰 길이를 설정하여 추론 깊이를 제어",
@@ -325,10 +309,6 @@
       "vision": {
         "description": "모델이 시각적 능력을 지원합니까?",
         "label": "시각적 능력"
-      },
-      "searchLimit": {
-        "label": "검색 제한",
-        "description": "모델 제한: 네트워크 검색을 활성화하면 도구 함수 호출이 비활성화됩니다"
       },
       "apiEndpoint": {
         "description": "이 모델이 사용하는 OpenAI API 엔드포인트를 선택하세요.",
@@ -811,7 +791,7 @@
       "jsonParseError": "JSON 파싱이 실패했습니다",
       "typeHttp": "스트리밍 HTTP 요청 (HTTP)",
       "browseMarketplace": "MCP 서비스 시장을 탐색하십시오",
-      "imageModel": "시각적 모델을 선택하십시오",
+      "imageModel": "시각적 모델",
       "customHeadersParseError": "사용자 정의 헤더 구문 분석이 실패했습니다",
       "customHeaders": "사용자 정의 요청 헤더",
       "invalidKeyValueFormat": "잘못된 요청 헤더 형식, 입력이 올바른지 확인하십시오.",
@@ -859,6 +839,9 @@
     "cannotRemoveBuiltIn": "내장 서버를 제거할 수 없음",
     "builtInServerCannotBeRemoved": "내장 서버는 제거할 수 없으며, 매개변수와 환경 변수만 수정할 수 있습니다",
     "marketplace": "MCP 시장으로 가서 한 번의 클릭으로 설치하십시오.",
+    "marketMenu": {
+      "higress": "Higress"
+    },
     "maxDefaultServersReached": "최대 3 개의 기본 서버 만 설정할 수 있습니다",
     "removeDefaultFirst": "기본 서버를 먼저 제거하십시오",
     "higressMarket": "Higress MCP 설치로 이동하십시오",
@@ -954,15 +937,10 @@
     "zoomIn": "글꼴을 확대하십시오",
     "zoomOut": "글꼴을 줄입니다",
     "zoomReset": "글꼴을 재설정하십시오",
-    "closeTab": "현재 탭 페이지를 닫습니다",
-    "newTab": "새 탭을 만듭니다",
     "newWindow": "새 창을 엽니 다",
     "showHideWindow": "창을 표시/숨기기",
     "newConversation": "새로운 대화",
-    "lastTab": "마지막 탭으로 전환하십시오",
-    "previousTab": "이전 탭으로 전환하십시오",
-    "specificTab": "지정된 탭 페이지 (1-8)로 전환",
-    "nextTab": "다음 탭으로 전환하십시오"
+    "closeWindow": "현재 탭 페이지를 닫습니다"
   },
   "rateLimit": {
     "title": "속도 제한",

@@ -1,6 +1,6 @@
 {
   "input": {
-    "placeholder": "問點什麼？可以通過{'@'}來引用工具、文件、資源...",
+    "placeholder": "向 DeepChat 發送訊息，{'@'} 可引用檔案，/ 可使用指令",
     "fileArea": "文件區域",
     "inputArea": "輸入區域",
     "functionSwitch": "功能開關",
@@ -25,7 +25,15 @@
     "acpModeTooltip": "目前模式：{mode}",
     "agentWorkspaceCurrent": "當前工作目錄：{path}",
     "agentWorkspaceSelect": "選擇工作目錄",
-    "agentWorkspaceTooltip": "設置 Agent 工作目錄"
+    "agentWorkspaceTooltip": "設置 Agent 工作目錄",
+    "attach": "添加附件",
+    "voiceInput": "語音輸入",
+    "mcp": {
+      "badge": "MCP {count}",
+      "title": "已啟用 MCP",
+      "empty": "暫無已啟用服務",
+      "openSettings": "打開 MCP 設置"
+    }
   },
   "features": {
     "webSearch": "網絡搜索",
@@ -54,6 +62,10 @@
     "rateLimitImmediately": "立即",
     "rateLimitSeconds": "秒",
     "rateLimitMinutes": "分鐘"
+  },
+  "compaction": {
+    "compacting": "正在自動壓縮...",
+    "compacted": "上下文已自動壓縮"
   },
   "rateLimit": {
     "queueTooltip": "佇列中有 {count} 個請求，間隔 {interval} 秒",
@@ -95,11 +107,34 @@
   "mode": {
     "acpAgent": "ACP Agent",
     "agent": "Agent",
-    "chat": "聊天",
     "current": "當前模式：{mode}"
+  },
+  "topbar": {
+    "share": "分享",
+    "more": "更多"
+  },
+  "advancedSettings": {
+    "button": "進階設定",
+    "title": "進階設定",
+    "closeHint": "按 Esc 關閉",
+    "systemPrompt": "系統提示詞",
+    "systemPromptPlaceholder": "選擇預設",
+    "temperature": "溫度",
+    "contextLength": "上下文長度",
+    "maxTokens": "最大輸出",
+    "thinkingBudget": "思考預算",
+    "verbosity": "回答詳略",
+    "verbosityPlaceholder": "選擇詳略等級",
+    "currentCustomPrompt": "目前自訂",
+    "useDefault": "使用預設值"
   },
   "workspace": {
     "collapse": "收起",
+    "sections": {
+      "files": "文件",
+      "git": "Git",
+      "artifacts": "Artifacts"
+    },
     "files": {
       "contextMenu": {
         "insertPath": "插入到輸入框",
@@ -109,6 +144,12 @@
       "empty": "暫無文件",
       "loading": "加載文件中...",
       "section": "文件"
+    },
+    "git": {
+      "empty": "暫無可顯示的 diff",
+      "clean": "工作區乾淨",
+      "staged": "已暫存",
+      "unstaged": "未暫存"
     },
     "browser": {
       "section": "瀏覽器",
@@ -169,5 +210,21 @@
       "manage": "管理",
       "title": "技能"
     }
+  },
+  "newThread": {
+    "title": "建構與探索"
+  },
+  "permissionMode": {
+    "default": "預設權限",
+    "fullAccess": "完全存取"
+  },
+  "sidebar": {
+    "allAgents": "所有 Agents",
+    "expandSidebar": "展開側邊欄",
+    "collapseSidebar": "收起側邊欄",
+    "groupByDate": "按時間分組",
+    "groupByProject": "按專案分組",
+    "emptyTitle": "還沒有對話",
+    "emptyDescription": "開始一個新對話吧"
   }
 }

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi, Mock, afterEach } from 'vitest'
 import type { IConfigPresenter } from '../../../../src/shared/presenter'
 import type { SkillMetadata } from '../../../../src/shared/types/skill'
+import { app } from 'electron'
 
 // Mock external dependencies
 vi.mock('electron', () => ({
@@ -28,6 +29,10 @@ vi.mock('fs', () => ({
     rmSync: vi.fn(),
     copyFileSync: vi.fn(),
     renameSync: vi.fn(),
+    statSync: vi.fn().mockReturnValue({
+      isFile: () => true,
+      size: 1024
+    }),
     mkdtempSync: vi.fn().mockReturnValue('/mock/temp/deepchat-skill-123')
   }
 }))
@@ -92,6 +97,9 @@ vi.mock('../../../../src/main/presenter', () => ({
     sessionPresenter: {
       getConversation: vi.fn(),
       updateConversationSettings: vi.fn()
+    },
+    newAgentPresenter: {
+      getSession: vi.fn()
     }
   }
 }))
@@ -122,10 +130,15 @@ describe('SkillPresenter', () => {
     ;(fs.existsSync as Mock).mockReturnValue(true)
     ;(fs.mkdirSync as Mock).mockReturnValue(undefined)
     ;(fs.readdirSync as Mock).mockReturnValue([])
+    ;(fs.statSync as Mock).mockReturnValue({
+      isFile: () => true,
+      size: 1024
+    })
     ;(matter as unknown as Mock).mockReturnValue({
       data: { name: 'test-skill', description: 'Test skill' },
       content: '# Test content'
     })
+    ;(presenter.newAgentPresenter.getSession as Mock).mockResolvedValue(null)
 
     skillPresenter = new SkillPresenter(mockConfigPresenter)
   })
@@ -152,6 +165,19 @@ describe('SkillPresenter', () => {
 
       const presenter = new SkillPresenter(mockConfigPresenter)
       expect(fs.mkdirSync).toHaveBeenCalledWith(expect.any(String), { recursive: true })
+      presenter.destroy()
+    })
+
+    it('should repair malformed .deepchat path segments', async () => {
+      ;(mockConfigPresenter.getSkillsPath as Mock).mockReturnValue('/mock/home.deepchat/skills')
+      ;(app.getPath as Mock).mockImplementation((name: string) => {
+        if (name === 'home') return '/mock/home'
+        if (name === 'temp') return '/mock/temp'
+        return '/mock/' + name
+      })
+
+      const presenter = new SkillPresenter(mockConfigPresenter)
+      await expect(presenter.getSkillsDir()).resolves.toBe('/mock/home/.deepchat/skills')
       presenter.destroy()
     })
   })
@@ -269,6 +295,7 @@ describe('SkillPresenter', () => {
       const prompt = await skillPresenter.getMetadataPrompt()
 
       expect(prompt).toContain('# Available Skills')
+      expect(prompt).toContain('Skills directory: `')
       expect(prompt).toContain('No skills are currently installed')
     })
 
@@ -597,6 +624,37 @@ describe('SkillPresenter', () => {
   })
 
   describe('getActiveSkills', () => {
+    it('should return empty skills for new agent sessions', async () => {
+      ;(presenter.newAgentPresenter.getSession as Mock).mockResolvedValue({
+        id: 'new-session-1'
+      })
+
+      const active = await skillPresenter.getActiveSkills('new-session-1')
+
+      expect(active).toEqual([])
+      expect(presenter.sessionPresenter.getConversation).not.toHaveBeenCalled()
+    })
+
+    it('returns in-memory active skills for new agent sessions', async () => {
+      ;(presenter.newAgentPresenter.getSession as Mock).mockResolvedValue({
+        id: 'new-session-2'
+      })
+      ;(fs.readdirSync as Mock).mockReturnValue([{ name: 'skill-1', isDirectory: () => true }])
+      ;(fs.existsSync as Mock).mockReturnValue(true)
+      ;(fs.readFileSync as Mock).mockReturnValue('test')
+      ;(matter as unknown as Mock).mockReturnValue({
+        data: { name: 'skill-1', description: 'Test' },
+        content: ''
+      })
+      await skillPresenter.discoverSkills()
+
+      await skillPresenter.setActiveSkills('new-session-2', ['skill-1'])
+      const active = await skillPresenter.getActiveSkills('new-session-2')
+
+      expect(active).toEqual(['skill-1'])
+      expect(presenter.sessionPresenter.updateConversationSettings).not.toHaveBeenCalled()
+    })
+
     it('should return active skills for a conversation', async () => {
       ;(presenter.sessionPresenter.getConversation as Mock).mockResolvedValue({
         settings: { activeSkills: ['skill-1', 'skill-2'] }
@@ -722,6 +780,21 @@ describe('SkillPresenter', () => {
         })
       )
     })
+
+    it('uses in-memory storage for new-agent sessions', async () => {
+      ;(presenter.newAgentPresenter.getSession as Mock).mockResolvedValue({
+        id: 'new-session-3'
+      })
+      ;(presenter.sessionPresenter.getConversation as Mock).mockResolvedValue({
+        settings: { activeSkills: [] }
+      })
+
+      await skillPresenter.setActiveSkills('new-session-3', ['skill-1'])
+      const active = await skillPresenter.getActiveSkills('new-session-3')
+
+      expect(active).toEqual(['skill-1'])
+      expect(presenter.sessionPresenter.updateConversationSettings).not.toHaveBeenCalled()
+    })
   })
 
   describe('validateSkillNames', () => {
@@ -774,8 +847,8 @@ describe('SkillPresenter', () => {
 
       const tools = await skillPresenter.getActiveSkillsAllowedTools('conv-123')
 
-      expect(tools).toContain('read_file')
-      expect(tools).toContain('write_file')
+      expect(tools).toContain('read')
+      expect(tools).toContain('write')
     })
 
     it('should return empty array when no active skills', async () => {

@@ -78,7 +78,6 @@
   "save": "저장",
   "clear": "지우기",
   "saved": "저장",
-  "newTab": "새 탭",
   "unknownError": "알 수 없는 오류",
   "testing": "테스트 중",
   "saving": "저장 중",
@@ -92,9 +91,25 @@
     "back": "뒤로",
     "forward": "앞으로",
     "reload": "새로고침",
+    "addressLabel": "주소 표시줄",
     "addressPlaceholder": "URL을 입력하세요",
     "enterUrlDescription": "위 주소창에 URL을 입력하시면 해당 홈페이지에 접속하실 수 있습니다.",
     "enterUrlToStart": "방문을 시작하려면 URL을 입력하세요.",
     "name": "요 브라우저"
+  },
+  "size": {
+    "bytes": "{count} 바이트"
+  },
+  "time": {
+    "today": "오늘",
+    "yesterday": "어제",
+    "lastWeek": "지난 주",
+    "older": "이전"
+  },
+  "project": {
+    "select": "프로젝트 선택",
+    "none": "프로젝트 없음",
+    "recent": "최근 프로젝트",
+    "openFolder": "폴더 열기..."
   }
 }

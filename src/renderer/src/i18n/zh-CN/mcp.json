@@ -2,7 +2,7 @@
   "title": "MCP设置",
   "description": "管理和配置MCP（Model Context Protocol）服务器和工具",
   "enabledTitle": "启用MCP",
-  "enabledDescription": "启用或禁用MCP功能和工具",
+  "enabledDescription": "启用后，已启用的服务会自动启动",
   "enableToAccess": "请先启用MCP以访问配置选项",
   "errors": {
     "loadConfigFailed": "加载MCP配置失败",
@@ -190,10 +190,6 @@
     "braveSearch": {
       "name": "Brave搜索",
       "desc": "Brave搜索 API https://brave.com/search/api/"
-    },
-    "powerpack": {
-      "name": "增强工具包",
-      "desc": "为任意大模型提供时间查询、网页信息获取和安全的代码执行等增强能力，让模型拥有更强大和准确的信息获取能力"
     },
     "difyKnowledge": {
       "name": "Dify知识库检索",

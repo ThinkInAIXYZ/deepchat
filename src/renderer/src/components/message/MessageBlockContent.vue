@@ -28,7 +28,7 @@ import { ref, nextTick, watch, onMounted } from 'vue'
 import { usePresenter } from '@/composables/usePresenter'
 import { SearchResult } from '@shared/presenter'
 
-const sessionPresenter = usePresenter('sessionPresenter')
+const newAgentPresenter = usePresenter('newAgentPresenter')
 const searchResults = ref<SearchResult[]>([])
 
 import ArtifactThinking from '../artifacts/ArtifactThinking.vue'
@@ -60,38 +60,33 @@ watch(
         const { content, loading } = part
         if (props.block.status === 'loading') {
           const status = loading ? 'loading' : 'loaded'
-          if (artifactStore.currentArtifact?.id === artifact.identifier) {
-            // Use updateArtifactContent to trigger reactivity
-            artifactStore.updateArtifactContent({
-              content,
-              title,
-              type,
-              status
-            })
+          const nextArtifact = {
+            id: artifact.identifier,
+            type,
+            title,
+            language: artifact.language,
+            content,
+            status
+          } as const
+
+          if (loading) {
+            artifactStore.syncArtifact(nextArtifact, props.messageId, props.threadId)
           } else {
-            artifactStore.showArtifact(
-              {
-                id: artifact.identifier,
-                type,
-                title,
-                language: artifact.language,
-                content,
-                status
-              },
-              props.messageId,
-              props.threadId
-            )
+            artifactStore.completeArtifact(nextArtifact, props.messageId, props.threadId)
           }
         } else {
-          if (artifactStore.currentArtifact?.id === artifact.identifier) {
-            // Use updateArtifactContent to trigger reactivity
-            artifactStore.updateArtifactContent({
-              content,
-              title: artifact.title,
+          artifactStore.completeArtifact(
+            {
+              id: artifact.identifier,
               type,
+              title: artifact.title,
+              language: artifact.language,
+              content,
               status: 'loaded'
-            })
-          }
+            },
+            props.messageId,
+            props.threadId
+          )
         }
       }
     })
@@ -101,7 +96,8 @@ watch(
 
 onMounted(async () => {
   if (props.isSearchResult) {
-    searchResults.value = await sessionPresenter.getSearchResults(props.messageId)
+    // TODO: remove this temporary fallback after search result loading is fully unified.
+    searchResults.value = await newAgentPresenter.getSearchResults(props.messageId)
   }
 })
 </script>

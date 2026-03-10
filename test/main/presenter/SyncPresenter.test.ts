@@ -15,7 +15,8 @@ const { SyncPresenter } = await import('../../../src/main/presenter/syncPresente
 const { ImportMode } = await import('../../../src/main/presenter/sqlitePresenter')
 
 const ZIP_PATHS = {
-  db: 'database/chat.db',
+  agentDb: 'database/agent.db',
+  chatDb: 'database/chat.db',
   appSettings: 'configs/app-settings.json',
   customPrompts: 'configs/custom_prompts.json',
   systemPrompts: 'configs/system_prompts.json',
@@ -49,7 +50,13 @@ describe('SyncPresenter backup import', () => {
 
     sqlitePresenter = {
       close: vi.fn(),
-      reopen: vi.fn()
+      reopen: vi.fn(),
+      clearNewAgentData: vi.fn(),
+      importLegacyChatDb: vi.fn(async () => ({
+        importedSessions: 0,
+        importedMessages: 0,
+        importedSearchResults: 0
+      }))
     }
 
     configPresenter = {
@@ -82,7 +89,7 @@ describe('SyncPresenter backup import', () => {
       },
       mcpSettings: {
         mcpServers: {
-          local: { command: 'bunx local', type: 'stdio' }
+          local: { command: 'bunx local', type: 'stdio', enabled: true }
         },
         defaultServers: ['local'],
         extra: true
@@ -109,8 +116,8 @@ describe('SyncPresenter backup import', () => {
       },
       mcpSettings: {
         mcpServers: {
-          imported: { command: 'bunx imported', type: 'stdio' },
-          knowledge: { command: 'bunx knowledge', type: 'stdio' }
+          imported: { command: 'bunx imported', type: 'stdio', enabled: false },
+          knowledge: { command: 'bunx knowledge', type: 'stdio', enabled: true }
         },
         defaultServers: ['imported'],
         additional: true
@@ -121,10 +128,12 @@ describe('SyncPresenter backup import', () => {
 
     expect(result.success).toBe(true)
     expect(result.count).toBe(1)
+    expect(result.sourceDbType).toBe('agent')
+    expect(result.importedSessions).toBe(1)
     expect(sqlitePresenter.close).toHaveBeenCalled()
     expect(sqlitePresenter.reopen).toHaveBeenCalled()
 
-    const dbPath = path.join(userDataDir, 'app_db', 'chat.db')
+    const dbPath = path.join(userDataDir, 'app_db', 'agent.db')
     const db = new Database(dbPath)
     const rows = db.prepare('SELECT id, title FROM conversations ORDER BY id').all()
     db.close()
@@ -158,10 +167,18 @@ describe('SyncPresenter backup import', () => {
     const mcpSettings = JSON.parse(
       fs.readFileSync(path.join(userDataDir, 'mcp-settings.json'), 'utf-8')
     )
-    expect(mcpSettings.mcpServers.local).toEqual({ command: 'bunx local', type: 'stdio' })
-    expect(mcpSettings.mcpServers.imported).toEqual({ command: 'bunx imported', type: 'stdio' })
+    expect(mcpSettings.mcpServers.local).toEqual({
+      command: 'bunx local',
+      type: 'stdio',
+      enabled: true
+    })
+    expect(mcpSettings.mcpServers.imported).toEqual({
+      command: 'bunx imported',
+      type: 'stdio',
+      enabled: true
+    })
     expect(mcpSettings.mcpServers.knowledge).toBeUndefined()
-    expect(new Set(mcpSettings.defaultServers)).toEqual(new Set(['local', 'imported']))
+    expect(mcpSettings.defaultServers).toBeUndefined()
     expect(mcpSettings.extra).toBe(true)
     expect(mcpSettings.additional).toBe(true)
   })
@@ -186,7 +203,7 @@ describe('SyncPresenter backup import', () => {
       },
       mcpSettings: {
         mcpServers: {
-          local: { command: 'bunx local', type: 'stdio' }
+          local: { command: 'bunx local', type: 'stdio', enabled: true }
         },
         defaultServers: ['local']
       }
@@ -203,7 +220,7 @@ describe('SyncPresenter backup import', () => {
       },
       mcpSettings: {
         mcpServers: {
-          imported: { command: 'bunx imported', type: 'stdio' }
+          imported: { command: 'bunx imported', type: 'stdio', enabled: true }
         },
         defaultServers: ['imported']
       }
@@ -213,9 +230,11 @@ describe('SyncPresenter backup import', () => {
 
     expect(result.success).toBe(true)
     expect(result.count).toBe(1)
+    expect(result.sourceDbType).toBe('agent')
+    expect(result.importedSessions).toBe(1)
     expect(sqlitePresenter.reopen).toHaveBeenCalled()
 
-    const dbPath = path.join(userDataDir, 'app_db', 'chat.db')
+    const dbPath = path.join(userDataDir, 'app_db', 'agent.db')
     const db = new Database(dbPath)
     const rows = db.prepare('SELECT id, title FROM conversations ORDER BY id').all()
     db.close()
@@ -233,9 +252,146 @@ describe('SyncPresenter backup import', () => {
       fs.readFileSync(path.join(userDataDir, 'mcp-settings.json'), 'utf-8')
     )
     expect(mcpSettings.mcpServers).toEqual({
-      imported: { command: 'bunx imported', type: 'stdio' }
+      imported: { command: 'bunx imported', type: 'stdio', enabled: true }
     })
-    expect(mcpSettings.defaultServers).toEqual(['imported'])
+    expect(mcpSettings.defaultServers).toBeUndefined()
+  })
+
+  it('imports backup from chat.db through legacy migration in increment mode', async () => {
+    createLocalState(userDataDir, {
+      conversations: [{ id: 'conv-1', title: 'Local conversation' }],
+      appSettings: { theme: 'light', locale: 'en' },
+      customPrompts: { prompts: [] },
+      systemPrompts: { prompts: [] },
+      mcpSettings: {}
+    })
+
+    sqlitePresenter.importLegacyChatDb.mockResolvedValue({
+      importedSessions: 2,
+      importedMessages: 5,
+      importedSearchResults: 1
+    })
+
+    const backupFile = createBackupArchive(
+      syncDir,
+      Date.now(),
+      {
+        conversations: [{ id: 'legacy-conv-1', title: 'Legacy conversation' }],
+        appSettings: { theme: 'dark', locale: 'zh' },
+        customPrompts: { prompts: [] },
+        systemPrompts: { prompts: [] },
+        mcpSettings: {}
+      },
+      { dbType: 'chat' }
+    )
+
+    const result = await presenter.importFromSync(backupFile, ImportMode.INCREMENT)
+
+    expect(result.success).toBe(true)
+    expect(result.count).toBe(2)
+    expect(result.sourceDbType).toBe('chat')
+    expect(result.importedSessions).toBe(2)
+    expect(sqlitePresenter.importLegacyChatDb).toHaveBeenCalledTimes(1)
+    const [sourcePathArg, modeArg] = sqlitePresenter.importLegacyChatDb.mock.calls[0]
+    expect(typeof sourcePathArg).toBe('string')
+    expect(sourcePathArg.endsWith(path.join('database', 'chat.db'))).toBe(true)
+    expect(modeArg).toBe('increment')
+  })
+
+  it('imports backup from chat.db through legacy migration in overwrite mode', async () => {
+    createLocalState(userDataDir, {
+      conversations: [{ id: 'conv-1', title: 'Local conversation' }],
+      appSettings: { theme: 'light', locale: 'en' },
+      customPrompts: { prompts: [] },
+      systemPrompts: { prompts: [] },
+      mcpSettings: {}
+    })
+
+    sqlitePresenter.importLegacyChatDb.mockResolvedValue({
+      importedSessions: 3,
+      importedMessages: 7,
+      importedSearchResults: 2
+    })
+
+    const backupFile = createBackupArchive(
+      syncDir,
+      Date.now(),
+      {
+        conversations: [{ id: 'legacy-conv-1', title: 'Legacy conversation' }],
+        appSettings: { theme: 'dark', locale: 'zh' },
+        customPrompts: { prompts: [] },
+        systemPrompts: { prompts: [] },
+        mcpSettings: {}
+      },
+      { dbType: 'chat' }
+    )
+
+    const result = await presenter.importFromSync(backupFile, ImportMode.OVERWRITE)
+
+    expect(result.success).toBe(true)
+    expect(result.count).toBe(3)
+    expect(result.sourceDbType).toBe('chat')
+    expect(result.importedSessions).toBe(3)
+    expect(sqlitePresenter.importLegacyChatDb).toHaveBeenCalledTimes(1)
+    const [sourcePathArg, modeArg] = sqlitePresenter.importLegacyChatDb.mock.calls[0]
+    expect(typeof sourcePathArg).toBe('string')
+    expect(sourcePathArg.endsWith(path.join('database', 'chat.db'))).toBe(true)
+    expect(modeArg).toBe('overwrite')
+  })
+
+  it('prefers agent.db when both agent.db and chat.db exist in backup', async () => {
+    createLocalState(userDataDir, {
+      conversations: [{ id: 'conv-1', title: 'Local conversation' }],
+      appSettings: { theme: 'light', locale: 'en' },
+      customPrompts: { prompts: [] },
+      systemPrompts: { prompts: [] },
+      mcpSettings: {}
+    })
+
+    const backupFile = createBackupArchive(
+      syncDir,
+      Date.now(),
+      {
+        conversations: [{ id: 'conv-2', title: 'Imported conversation' }],
+        appSettings: { theme: 'dark', locale: 'zh' },
+        customPrompts: { prompts: [] },
+        systemPrompts: { prompts: [] },
+        mcpSettings: {}
+      },
+      { dbType: 'both' }
+    )
+
+    const result = await presenter.importFromSync(backupFile, ImportMode.INCREMENT)
+    expect(result.success).toBe(true)
+    expect(result.sourceDbType).toBe('agent')
+    expect(sqlitePresenter.importLegacyChatDb).not.toHaveBeenCalled()
+  })
+
+  it('returns noValidBackup when neither agent.db nor chat.db exists', async () => {
+    createLocalState(userDataDir, {
+      conversations: [{ id: 'conv-1', title: 'Local conversation' }],
+      appSettings: { theme: 'light', locale: 'en' },
+      customPrompts: { prompts: [] },
+      systemPrompts: { prompts: [] },
+      mcpSettings: {}
+    })
+
+    const backupFile = createBackupArchive(
+      syncDir,
+      Date.now(),
+      {
+        conversations: [{ id: 'conv-2', title: 'Imported conversation' }],
+        appSettings: { theme: 'dark', locale: 'zh' },
+        customPrompts: { prompts: [] },
+        systemPrompts: { prompts: [] },
+        mcpSettings: {}
+      },
+      { dbType: 'none' }
+    )
+
+    const result = await presenter.importFromSync(backupFile, ImportMode.INCREMENT)
+    expect(result.success).toBe(false)
+    expect(result.message).toBe('sync.error.noValidBackup')
   })
 })
 
@@ -251,7 +407,7 @@ function createLocalState(
 ) {
   const dbDir = path.join(userDataDir, 'app_db')
   fs.mkdirSync(dbDir, { recursive: true })
-  const dbPath = path.join(dbDir, 'chat.db')
+  const dbPath = path.join(dbDir, 'agent.db')
   writeConversationDb(dbPath, data.conversations)
 
   fs.writeFileSync(
@@ -294,16 +450,25 @@ function createBackupArchive(
     customPrompts: { prompts: Array<Record<string, unknown>> }
     systemPrompts: { prompts: Array<Record<string, unknown>> }
     mcpSettings: Record<string, any>
-  }
+  },
+  options: { dbType?: 'agent' | 'chat' | 'both' | 'none' } = {}
 ): string {
+  const dbType = options.dbType ?? 'agent'
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-backup-src-'))
   const databaseDir = path.join(tempDir, 'database')
   const configsDir = path.join(tempDir, 'configs')
   fs.mkdirSync(databaseDir, { recursive: true })
   fs.mkdirSync(configsDir, { recursive: true })
 
-  const dbPath = path.join(databaseDir, 'chat.db')
-  writeConversationDb(dbPath, data.conversations)
+  const agentDbPath = path.join(databaseDir, 'agent.db')
+  if (dbType === 'agent' || dbType === 'both') {
+    writeConversationDb(agentDbPath, data.conversations)
+  }
+
+  const chatDbPath = path.join(databaseDir, 'chat.db')
+  if (dbType === 'chat' || dbType === 'both') {
+    writeLegacyChatDb(chatDbPath, data.conversations)
+  }
 
   fs.writeFileSync(
     path.join(configsDir, 'app-settings.json'),
@@ -323,7 +488,12 @@ function createBackupArchive(
   )
 
   const files: Record<string, Uint8Array> = {}
-  files[ZIP_PATHS.db] = new Uint8Array(fs.readFileSync(dbPath))
+  if (dbType === 'agent' || dbType === 'both') {
+    files[ZIP_PATHS.agentDb] = new Uint8Array(fs.readFileSync(agentDbPath))
+  }
+  if (dbType === 'chat' || dbType === 'both') {
+    files[ZIP_PATHS.chatDb] = new Uint8Array(fs.readFileSync(chatDbPath))
+  }
   files[ZIP_PATHS.appSettings] = new Uint8Array(
     Buffer.from(JSON.stringify(data.appSettings, null, 2), 'utf-8')
   )
@@ -353,6 +523,65 @@ function createBackupArchive(
 
   removeDir(tempDir)
   return backupFileName
+}
+
+function writeLegacyChatDb(dbPath: string, conversations: Array<{ id: string; title: string }>) {
+  const db = new Database(dbPath)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS conversations (
+      conv_id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      provider_id TEXT,
+      model_id TEXT,
+      created_at INTEGER,
+      updated_at INTEGER
+    );
+    CREATE TABLE IF NOT EXISTS messages (
+      msg_id TEXT PRIMARY KEY,
+      conversation_id TEXT NOT NULL,
+      role TEXT NOT NULL,
+      content TEXT NOT NULL,
+      status TEXT DEFAULT 'sent',
+      is_variant INTEGER DEFAULT 0,
+      parent_id TEXT,
+      metadata TEXT DEFAULT '{}',
+      created_at INTEGER,
+      order_seq INTEGER DEFAULT 0
+    );
+    CREATE TABLE IF NOT EXISTS message_attachments (
+      id TEXT PRIMARY KEY,
+      message_id TEXT NOT NULL,
+      type TEXT NOT NULL,
+      content TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS acp_sessions (
+      id TEXT PRIMARY KEY,
+      conversation_id TEXT NOT NULL,
+      agent_id TEXT NOT NULL,
+      workdir TEXT
+    );
+  `)
+
+  const now = Date.now()
+  const insertConv = db.prepare(
+    `INSERT OR REPLACE INTO conversations (
+      conv_id,
+      title,
+      provider_id,
+      model_id,
+      created_at,
+      updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?)`
+  )
+
+  const insertMany = db.transaction((rows: Array<{ id: string; title: string }>) => {
+    for (const row of rows) {
+      insertConv.run(row.id, row.title, 'openai', 'gpt-4', now, now)
+    }
+  })
+
+  insertMany(conversations)
+  db.close()
 }
 
 function removeDir(dirPath: string) {

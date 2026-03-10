@@ -5,8 +5,9 @@ import UpdateDialog from './components/ui/UpdateDialog.vue'
 import { usePresenter } from './composables/usePresenter'
 import SelectedTextContextMenu from './components/message/SelectedTextContextMenu.vue'
 import { useArtifactStore } from './stores/artifact'
-import { useChatStore } from '@/stores/chat'
-import { NOTIFICATION_EVENTS, SHORTCUT_EVENTS, THREAD_VIEW_EVENTS } from './events'
+import { useSessionStore } from '@/stores/ui/session'
+import { usePageRouterStore } from '@/stores/ui/pageRouter'
+import { NOTIFICATION_EVENTS, SHORTCUT_EVENTS } from './events'
 import { Toaster } from '@shadcn/components/ui/sonner'
 import { useToast } from '@/components/use-toast'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
@@ -14,7 +15,6 @@ import { useThemeStore } from '@/stores/theme'
 import { useLanguageStore } from '@/stores/language'
 import { useI18n } from 'vue-i18n'
 import TranslatePopup from '@/components/popup/TranslatePopup.vue'
-import ThreadView from '@/components/ThreadView.vue'
 import ModelCheckDialog from '@/components/settings/ModelCheckDialog.vue'
 import { useModelCheckStore } from '@/stores/modelCheck'
 import MessageDialog from './components/ui/MessageDialog.vue'
@@ -22,15 +22,21 @@ import McpSamplingDialog from '@/components/mcp/McpSamplingDialog.vue'
 import { initAppStores, useMcpInstallDeeplinkHandler } from '@/lib/storeInitializer'
 import 'vue-sonner/style.css' // vue-sonner v2 requires this import
 import { useFontManager } from './composables/useFontManager'
+import AppBar from '@/components/AppBar.vue'
+import { useDeviceVersion } from '@/composables/useDeviceVersion'
+import WindowSideBar from './components/WindowSideBar.vue'
 
 const route = useRoute()
 const configPresenter = usePresenter('configPresenter')
 const artifactStore = useArtifactStore()
-const chatStore = useChatStore()
+const sessionStore = useSessionStore()
+const pageRouterStore = usePageRouterStore()
 const { toast } = useToast()
 const uiSettingsStore = useUiSettingsStore()
 const { setupFontListener } = useFontManager()
 setupFontListener()
+
+const { isWinMacOS } = useDeviceVersion()
 
 const themeStore = useThemeStore()
 const langStore = useLanguageStore()
@@ -44,8 +50,6 @@ const errorQueue = ref<Array<{ id: string; title: string; message: string; type:
 const currentErrorId = ref<string | null>(null)
 const errorDisplayTimer = ref<number | null>(null)
 
-const isMacOS = ref(false)
-const devicePresenter = usePresenter('devicePresenter')
 const { setup: setupMcpDeeplink, cleanup: cleanupMcpDeeplink } = useMcpInstallDeeplinkHandler()
 // Watch theme and font size changes, update body class directly
 watch(
@@ -167,22 +171,16 @@ const handleZoomResume = () => {
 }
 
 // Handle creating new conversation
-const handleCreateNewConversation = () => {
+const handleCreateNewConversation = async () => {
   try {
-    chatStore.createNewEmptyThread()
-    // Simplified handling, just log, actual functionality to be implemented
+    if (sessionStore.hasActiveSession) {
+      await sessionStore.closeSession()
+      return
+    }
+    pageRouterStore.goToNewThread()
   } catch (error) {
     console.error('Failed to create new conversation:', error)
   }
-}
-
-const handleThreadViewToggle = () => {
-  if (router.currentRoute.value.name !== 'chat') {
-    void router.push({ name: 'chat' })
-    chatStore.isSidebarOpen = true
-    return
-  }
-  chatStore.isSidebarOpen = !chatStore.isSidebarOpen
 }
 
 // Removed GO_SETTINGS handler; now handled in main via tab logic
@@ -197,9 +195,6 @@ const handleEscKey = (event: KeyboardEvent) => {
 getInitComplete()
 
 onMounted(() => {
-  devicePresenter.getDeviceInfo().then((deviceInfo) => {
-    isMacOS.value = deviceInfo.platform === 'darwin'
-  })
   // Set initial body class
   document.body.classList.add(themeStore.themeMode)
   document.body.classList.add(uiSettingsStore.fontSizeClass)
@@ -234,7 +229,7 @@ onMounted(() => {
     if (currentRoute.name !== 'chat') {
       return
     }
-    handleCreateNewConversation()
+    void handleCreateNewConversation()
   })
 
   // GO_SETTINGS is now handled in main process (open/focus Settings tab)
@@ -248,26 +243,24 @@ onMounted(() => {
     })
   })
 
-  window.electron.ipcRenderer.on(THREAD_VIEW_EVENTS.TOGGLE, handleThreadViewToggle)
-
   window.electron.ipcRenderer.on(NOTIFICATION_EVENTS.SYS_NOTIFY_CLICKED, (_, msg) => {
-    let threadId: string | null = null
+    let sessionId: string | null = null
 
     // Check if msg is string and starts with chat/
     if (typeof msg === 'string' && msg.startsWith('chat/')) {
       // Split by /, check if there are three segments
       const parts = msg.split('/')
       if (parts.length === 3) {
-        // Extract middle part as threadId
-        threadId = parts[1]
+        // Extract middle part as sessionId
+        sessionId = parts[1]
       }
     } else if (msg && msg.threadId) {
       // Compatible with original format, if msg is object and contains threadId property
-      threadId = msg.threadId
+      sessionId = msg.threadId
     }
 
-    if (threadId) {
-      chatStore.setActiveThread(threadId)
+    if (sessionId) {
+      void sessionStore.selectSession(sessionId)
     }
   })
 
@@ -291,25 +284,15 @@ onMounted(() => {
       }
       // Close artifacts page when route changes
       artifactStore.hideArtifact()
-      if (route.name !== 'chat') {
-        chatStore.isSidebarOpen = false
-      }
     }
   )
 
   // Listen for changes to current conversation
   watch(
-    () => chatStore.getActiveThreadId(),
+    () => sessionStore.activeSessionId,
     () => {
       // Close artifacts page when switching conversations
       artifactStore.hideArtifact()
-    }
-  )
-
-  watch(
-    () => artifactStore.isOpen,
-    () => {
-      chatStore.isSidebarOpen = false
     }
   )
 })
@@ -331,20 +314,27 @@ onBeforeUnmount(() => {
   // GO_SETTINGS listener removed; handled in main
   window.electron.ipcRenderer.removeAllListeners(NOTIFICATION_EVENTS.SYS_NOTIFY_CLICKED)
   window.electron.ipcRenderer.removeAllListeners(NOTIFICATION_EVENTS.DATA_RESET_COMPLETE_DEV)
-  window.electron.ipcRenderer.removeListener(THREAD_VIEW_EVENTS.TOGGLE, handleThreadViewToggle)
   cleanupMcpDeeplink()
 })
 </script>
 
 <template>
-  <div class="flex flex-col h-screen bg-background">
-    <div
-      class="border-x border-b border-window-inner-border rounded-b-[10px] fixed z-10 top-0 left-0 bottom-0 right-0 pointer-events-none"
-    ></div>
+  <div
+    class="flex flex-col h-screen"
+    :class="isWinMacOS ? 'bg-window-background' : 'bg-background'"
+  >
+    <AppBar />
     <div class="flex flex-row h-0 grow relative overflow-hidden px-px py-px" :dir="langStore.dir">
-      <!-- Main content area -->
+      <div class="flex flex-row w-full h-full">
+        <WindowSideBar></WindowSideBar>
 
-      <RouterView />
+        <!-- Main content area -->
+        <div
+          class="flex-1 min-w-0 bg-background overflow-hidden rounded-tl-xl border-black/20 dark:border-white/10 border-l border-t"
+        >
+          <RouterView />
+        </div>
+      </div>
     </div>
     <!-- Global update dialog -->
     <UpdateDialog />
@@ -355,7 +345,6 @@ onBeforeUnmount(() => {
     <Toaster :theme="toasterTheme" />
     <SelectedTextContextMenu />
     <TranslatePopup />
-    <ThreadView />
     <!-- Global model check dialog -->
     <ModelCheckDialog
       :open="modelCheckStore.isDialogOpen"

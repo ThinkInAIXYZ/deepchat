@@ -41,17 +41,13 @@
     "contentProtectionEnableDesc": "Forhindrer skærmdelingsapps i at optage DeepChat-vinduet og beskytter din fortrolighed. Ikke alle apps respekterer dette; i nogle miljøer kan et sort vindue blive vist.",
     "contentProtectionDisableDesc": "Tillad skærmdelingsapps at optage DeepChat-vinduet.",
     "contentProtectionRestartNotice": "Denne ændring genstarter applikationen. Vil du fortsætte?",
-    "soundEnabled": "Aktivér lydeffekter",
     "copyWithCotEnabled": "Kopiér COT-detaljer",
     "traceDebugEnabled": "Trace-kald",
     "loggingEnabled": "Aktivér logning",
     "loggingDialogTitle": "Bekræft ændring af logindstillinger",
     "loggingEnableDesc": "Aktivering af logning hjælper os med at diagnosticere problemer og forbedre appen. Logfiler kan indeholde følsomme oplysninger.",
     "loggingDisableDesc": "Deaktivering stopper indsamlingen af applogs.",
-    "webContentLengthLimit": "Grænse for webindholdslængde",
-    "webContentLengthLimitHint": "(Sæt til 0 for ingen grænse)",
     "charactersUnit": "tegn",
-    "webContentLengthLimitTooltip": "Angiv den maksimale længde på tekstindhold udtrukket fra websider (antal tegn), interval: 0-50000. Værdien 0 betyder ingen grænse og henter fuldt webindhold; højere værdier giver mere komplet indhold men kan øge behandlingstid og tokenforbrug.",
     "loggingRestartNotice": "Denne ændring genstarter applikationen. Vil du fortsætte?",
     "openLogFolder": "Åbn logmappe",
     "shortcut": {
@@ -62,7 +58,12 @@
     "notificationsDesc": "Når DeepChat ikke er i forgrunden, sendes der en systemmeddelelse, når der genereres et svar",
     "contentProtection": "Skærmoptagelsesbeskyttelse",
     "fileMaxSize": "Maksimal filstørrelse",
-    "fileMaxSizeHint": "Begrænser størrelsen på en enkelt uploadet fil"
+    "fileMaxSizeHint": "Begrænser størrelsen på en enkelt uploadet fil",
+    "defaultModel": {
+      "title": "Standardmodel",
+      "chatModel": "Standard chatmodel",
+      "visionModel": "Standard visionsmodel"
+    }
   },
   "data": {
     "title": "Dataindstillinger",
@@ -184,23 +185,6 @@
         "description": "Understøtter modellen ræsonnering?",
         "label": "Ræsonnering"
       },
-      "enableSearch": {
-        "label": "Websøgning",
-        "description": "Tillad modellen at søge på nettet efter seneste information"
-      },
-      "forcedSearch": {
-        "label": "Tvungen søgning",
-        "description": "Tving modellen til altid at udføre websøgning; når slået fra beslutter modellen automatisk"
-      },
-      "searchStrategy": {
-        "label": "Søgestrategi",
-        "description": "Vælg søgeydelsestilstand: turbo balancerer hastighed og effekt, max giver optimale søgeresultater",
-        "placeholder": "Vælg søgestrategi",
-        "options": {
-          "turbo": "Turbo - Balancerer svartid og søgekvalitet (anbefales)",
-          "max": "Max - Højtydende tilstand, giver optimale søgeresultater"
-        }
-      },
       "thinkingBudget": {
         "label": "Tænke-budget",
         "description": "Angiv den maksimale tokenlængde for tænkningen for at styre ræsonneringsdybden",
@@ -271,10 +255,6 @@
       "vision": {
         "description": "Understøtter modellen visuelle funktioner?",
         "label": "Vision"
-      },
-      "searchLimit": {
-        "label": "Søgebegrænsning",
-        "description": "Modelbegrænsning: Aktivering af websøgning deaktiverer funktionskald til værktøjer"
       },
       "apiEndpoint": {
         "description": "Vælg OpenAI API-endpunktet, som denne model bruger.",
@@ -685,6 +665,9 @@
     "enabledDescription": "Aktivér eller deaktiver MCP-funktioner og værktøjer",
     "enableToAccess": "Aktivér MCP for at få adgang til konfigurationsmuligheder",
     "marketplace": "Gå til MCP Market for installation med ét klik",
+    "marketMenu": {
+      "higress": "Higress"
+    },
     "technicalDetails": "Tekniske detaljer",
     "httpServer": "HTTP-server",
     "localProcess": "Lokal proces",
@@ -765,7 +748,7 @@
       "parseAndContinue": "Fortolk og fortsæt",
       "jsonParseError": "JSON-fortolkning mislykkedes",
       "browseMarketplace": "Gennemse MCP Marketplace",
-      "imageModel": "Vælg en vision-model",
+      "imageModel": "Vision-model",
       "customHeadersParseError": "Fortolkning af brugerdefinerede headers mislykkedes",
       "customHeaders": "Brugerdefinerede forespørgselsheaders",
       "clickToEdit": "Klik for at redigere og se hele indholdet",
@@ -900,15 +883,10 @@
     "zoomIn": "Zoom ind",
     "zoomOut": "Zoom ud",
     "zoomReset": "Nulstil zoom",
-    "closeTab": "Luk aktiv fane",
-    "newTab": "Opret ny fane",
     "newWindow": "Åbn nyt vindue",
     "showHideWindow": "Vis/skjul vindue",
     "newConversation": "Ny samtale",
-    "nextTab": "Skift til næste fane",
-    "previousTab": "Skift til forrige fane",
-    "specificTab": "Skift til bestemt fane (1-8)",
-    "lastTab": "Skift til sidste fane"
+    "closeWindow": "Luk aktiv fane"
   },
   "acp": {
     "title": "ACP-agenter",

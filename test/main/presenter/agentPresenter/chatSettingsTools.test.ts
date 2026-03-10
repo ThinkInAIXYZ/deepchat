@@ -9,8 +9,6 @@ import {
 
 describe('ChatSettingsToolHandler', () => {
   const configPresenter = {
-    getSoundEnabled: vi.fn(),
-    setSoundEnabled: vi.fn(),
     getCopyWithCotEnabled: vi.fn(),
     setCopyWithCotEnabled: vi.fn(),
     getSetting: vi.fn(),
@@ -43,7 +41,6 @@ describe('ChatSettingsToolHandler', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    configPresenter.getSoundEnabled.mockReturnValue(false)
     configPresenter.getCopyWithCotEnabled.mockReturnValue(true)
     configPresenter.getSetting.mockReturnValue('chat')
     configPresenter.setTheme.mockResolvedValue(false)
@@ -57,34 +54,34 @@ describe('ChatSettingsToolHandler', () => {
   it('rejects toggle when skill is inactive', async () => {
     skillPresenter.getActiveSkills.mockResolvedValue([])
     const handler = buildHandler()
-    const result = await handler.toggle({ setting: 'soundEnabled', enabled: true }, 'conv-1')
+    const result = await handler.toggle({ setting: 'copyWithCotEnabled', enabled: true }, 'conv-1')
 
     expect(result.ok).toBe(false)
     if (!result.ok) {
       expect(result.errorCode).toBe('skill_inactive')
     }
-    expect(configPresenter.setSoundEnabled).not.toHaveBeenCalled()
+    expect(configPresenter.setCopyWithCotEnabled).not.toHaveBeenCalled()
   })
 
   it('rejects invalid toggle payloads', async () => {
     const handler = buildHandler()
-    const result = await handler.toggle({ setting: 'soundEnabled', enabled: 'true' }, 'conv-1')
+    const result = await handler.toggle({ setting: 'unknownSetting', enabled: 'true' }, 'conv-1')
 
     expect(result.ok).toBe(false)
     if (!result.ok) {
       expect(result.errorCode).toBe('invalid_request')
     }
-    expect(configPresenter.setSoundEnabled).not.toHaveBeenCalled()
+    expect(configPresenter.setCopyWithCotEnabled).not.toHaveBeenCalled()
   })
 
-  it('applies soundEnabled toggle', async () => {
+  it('applies copyWithCotEnabled toggle', async () => {
     const handler = buildHandler()
-    const result = await handler.toggle({ setting: 'soundEnabled', enabled: true }, 'conv-1')
+    const result = await handler.toggle({ setting: 'copyWithCotEnabled', enabled: false }, 'conv-1')
 
-    expect(configPresenter.setSoundEnabled).toHaveBeenCalledWith(true)
+    expect(configPresenter.setCopyWithCotEnabled).toHaveBeenCalledWith(false)
     expect(result.ok).toBe(true)
     if (result.ok) {
-      expect(result.previousValue).toBe(false)
+      expect(result.previousValue).toBe(true)
     }
   })
 

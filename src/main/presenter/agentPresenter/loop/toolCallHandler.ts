@@ -44,18 +44,15 @@ export class ToolCallHandler {
   ])
 
   private readonly sqlitePresenter: ISQLitePresenter
-  private readonly searchingMessages: Set<string>
   private readonly commandPermissionHandler?: CommandPermissionService
   private readonly streamUpdateScheduler: StreamUpdateScheduler
 
   constructor(options: {
     sqlitePresenter: ISQLitePresenter
-    searchingMessages: Set<string>
     commandPermissionHandler?: CommandPermissionService
     streamUpdateScheduler: StreamUpdateScheduler
   }) {
     this.sqlitePresenter = options.sqlitePresenter
-    this.searchingMessages = options.searchingMessages
     this.commandPermissionHandler = options.commandPermissionHandler
     this.streamUpdateScheduler = options.streamUpdateScheduler
   }
@@ -134,8 +131,6 @@ export class ToolCallHandler {
       lastBlock.status = 'success'
     }
 
-    this.searchingMessages.delete(event.eventId)
-    state.isSearching = false
     state.pendingToolCall = undefined
   }
 
@@ -157,8 +152,6 @@ export class ToolCallHandler {
       }
     }
 
-    this.searchingMessages.delete(event.eventId)
-    state.isSearching = false
     state.pendingToolCall = undefined
   }
 
@@ -191,8 +184,24 @@ export class ToolCallHandler {
           }
         }
 
-        this.searchingMessages.delete(event.eventId)
-        state.isSearching = false
+        // CRITICAL FIX: Create the tool_call block so processToolCallUpdate/End can find it
+        // This ensures frontend state updates correctly after permission is granted
+        this.finalizeLastBlock(state)
+        state.message.content.push({
+          type: 'tool_call',
+          content: '',
+          status: 'loading',
+          timestamp: currentTime,
+          tool_call: {
+            id: event.tool_call_id,
+            name: event.tool_call_name,
+            params: event.tool_call_params || '',
+            server_name: event.tool_call_server_name,
+            server_icons: event.tool_call_server_icons,
+            server_description: event.tool_call_server_description
+          }
+        })
+
         state.pendingToolCall = this.buildPendingToolCall(event)
         return
       }
@@ -203,8 +212,6 @@ export class ToolCallHandler {
         if (lastBlock.extra) {
           lastBlock.extra.needsUserAction = false
         }
-        this.searchingMessages.delete(event.eventId)
-        state.isSearching = false
         state.pendingToolCall = undefined
         return
       }
@@ -332,7 +339,7 @@ export class ToolCallHandler {
         state.conversationId,
         state.message.parentId,
         Boolean(state.message.is_variant),
-        state.tabId,
+        state.webContentsId,
         {},
         state.message.content
       )
@@ -458,7 +465,7 @@ export class ToolCallHandler {
         state.conversationId,
         state.message.parentId,
         Boolean(state.message.is_variant),
-        state.tabId,
+        state.webContentsId,
         {},
         state.message.content
       )
@@ -580,8 +587,6 @@ export class ToolCallHandler {
     })
 
     state.pendingToolCall = this.buildPendingToolCall(event)
-    this.searchingMessages.add(event.eventId)
-    state.isSearching = true
   }
 
   private buildPendingToolCall(event: LLMAgentEventData) {

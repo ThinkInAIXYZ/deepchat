@@ -16,13 +16,13 @@ import {
   formatMessagesForCompletion,
   mergeConsecutiveMessages
 } from './messageFormatter'
-import { BrowserContextBuilder } from '../../browser/BrowserContextBuilder'
 import { selectContextMessages } from './messageTruncator'
 import {
   buildSkillsMetadataPrompt,
   buildSkillsPrompt,
   getSkillsAllowedTools
 } from './skillsPromptBuilder'
+import { buildRuntimeCapabilitiesPrompt, buildSystemEnvPrompt } from './systemEnvPromptBuilder'
 
 export type PendingToolCall = {
   id: string
@@ -83,6 +83,25 @@ function appendPromptSection(base: string, section: string): string {
   return `${base}\n\n${trimmedSection}`
 }
 
+export interface AgentSystemPromptSections {
+  basePrompt: string
+  runtimePrompt?: string
+  skillsMetadataPrompt?: string
+  skillsPrompt?: string
+  envPrompt?: string
+  toolingPrompt?: string
+}
+
+export function composeAgentSystemPromptSections(sections: AgentSystemPromptSections): string {
+  let composed = sections.basePrompt?.trim() ?? ''
+  composed = appendPromptSection(composed, sections.runtimePrompt ?? '')
+  composed = appendPromptSection(composed, sections.skillsMetadataPrompt ?? '')
+  composed = appendPromptSection(composed, sections.skillsPrompt ?? '')
+  composed = appendPromptSection(composed, sections.envPrompt ?? '')
+  composed = appendPromptSection(composed, sections.toolingPrompt ?? '')
+  return composed
+}
+
 export async function preparePromptContent({
   conversation,
   userContent,
@@ -98,21 +117,21 @@ export async function preparePromptContent({
   promptTokens: number
 }> {
   const { systemPrompt, contextLength, artifacts, enabledMcpTools } = conversation.settings
-  const chatMode: 'chat' | 'agent' | 'acp agent' =
-    conversation.settings.chatMode ??
-    ((await presenter.configPresenter.getSetting('input_chatMode')) as
-      | 'chat'
-      | 'agent'
-      | 'acp agent') ??
-    'chat'
-  const isAgentMode = chatMode === 'agent'
-  const isToolPromptMode = chatMode !== 'chat'
+
+  function normalizeChatMode(mode: string | undefined): 'agent' | 'acp agent' | undefined {
+    if (mode === 'agent' || mode === 'acp agent') return mode
+    return undefined
+  }
+
+  const rawChatMode = conversation.settings.chatMode
+  const rawFallback = await presenter.configPresenter.getSetting<string>('input_chatMode')
+  const chatMode: 'agent' | 'acp agent' =
+    normalizeChatMode(rawChatMode) ?? normalizeChatMode(rawFallback) ?? 'agent'
 
   const isImageGeneration = modelType === ModelType.ImageGeneration
 
   const finalSystemPrompt = enhanceSystemPromptWithDateTime(systemPrompt, {
     isImageGeneration,
-    isAgentMode,
     agentWorkspacePath: conversation.settings.agentWorkspacePath?.trim() || null
   })
 
@@ -122,7 +141,7 @@ export async function preparePromptContent({
   let toolDefinitions: MCPToolDefinition[] = []
   let effectiveEnabledMcpTools = enabledMcpTools
 
-  if (!isImageGeneration && isAgentMode) {
+  if (!isImageGeneration && chatMode === 'agent') {
     const skillsAllowedTools = await getSkillsAllowedTools(conversation.id)
     effectiveEnabledMcpTools = mergeToolSelections(enabledMcpTools, skillsAllowedTools)
   }
@@ -142,45 +161,46 @@ export async function preparePromptContent({
     }
   }
 
-  let finalSystemPromptWithExtras = finalSystemPrompt
+  let runtimePrompt = ''
+  let skillsMetadataPrompt = ''
+  let skillsPrompt = ''
+  let envPrompt = ''
+  let toolingPrompt = ''
 
-  if (!isImageGeneration && isAgentMode) {
+  if (!isImageGeneration && chatMode === 'agent') {
+    runtimePrompt = buildRuntimeCapabilitiesPrompt()
     try {
-      const browserContext = await presenter.yoBrowserPresenter.getBrowserContext()
-      const browserContextPrompt = BrowserContextBuilder.buildSystemPrompt(
-        browserContext.tabs,
-        browserContext.activeTabId
-      )
-      finalSystemPromptWithExtras = appendPromptSection(
-        finalSystemPromptWithExtras,
-        browserContextPrompt
-      )
-    } catch (error) {
-      console.warn('AgentPresenter: Failed to load Yo Browser context/tools', error)
-    }
-  }
-
-  if (!isImageGeneration && isToolPromptMode && toolDefinitions.length > 0) {
-    const toolPrompt = toolCallCenter.buildToolSystemPrompt({
-      conversationId: conversation.id
-    })
-    finalSystemPromptWithExtras = appendPromptSection(finalSystemPromptWithExtras, toolPrompt)
-  }
-
-  if (!isImageGeneration && isAgentMode) {
-    try {
-      const skillsMetadataPrompt = await buildSkillsMetadataPrompt()
-      finalSystemPromptWithExtras = appendPromptSection(
-        finalSystemPromptWithExtras,
-        skillsMetadataPrompt
-      )
-
-      const skillsPrompt = await buildSkillsPrompt(conversation.id)
-      finalSystemPromptWithExtras = appendPromptSection(finalSystemPromptWithExtras, skillsPrompt)
+      skillsMetadataPrompt = await buildSkillsMetadataPrompt()
+      skillsPrompt = await buildSkillsPrompt(conversation.id)
     } catch (error) {
       console.warn('AgentPresenter: Failed to build skills prompt', error)
     }
+
+    try {
+      envPrompt = await buildSystemEnvPrompt({
+        providerId,
+        modelId,
+        workdir: conversation.settings.agentWorkspacePath?.trim() || null
+      })
+    } catch (error) {
+      console.warn('AgentPresenter: Failed to build system env prompt', error)
+    }
   }
+
+  if (!isImageGeneration && toolDefinitions.length > 0) {
+    toolingPrompt = toolCallCenter.buildToolSystemPrompt({
+      conversationId: conversation.id
+    })
+  }
+
+  const finalSystemPromptWithExtras = composeAgentSystemPromptSections({
+    basePrompt: finalSystemPrompt,
+    runtimePrompt,
+    skillsMetadataPrompt,
+    skillsPrompt,
+    envPrompt,
+    toolingPrompt
+  })
 
   const systemPromptTokens =
     !isImageGeneration && finalSystemPromptWithExtras

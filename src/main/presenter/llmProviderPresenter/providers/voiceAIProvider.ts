@@ -8,6 +8,7 @@ import {
   MCPToolDefinition,
   ModelConfig
 } from '@shared/presenter'
+import { DEFAULT_MODEL_CONTEXT_LENGTH, DEFAULT_MODEL_MAX_TOKENS } from '@shared/modelConfigDefaults'
 import { createStreamEvent } from '@shared/types/core/llm-events'
 import { BaseLLMProvider } from '../baseProvider'
 import { proxyConfig } from '../../proxyConfig'
@@ -143,7 +144,7 @@ export class VoiceAIProvider extends BaseLLMProvider {
   public async *coreStream(
     messages: ChatMessage[],
     modelId: string,
-    _modelConfig: ModelConfig,
+    modelConfig: ModelConfig,
     temperature: number,
     _maxTokens: number,
     _mcpTools: MCPToolDefinition[]
@@ -156,7 +157,12 @@ export class VoiceAIProvider extends BaseLLMProvider {
     }
 
     try {
-      const { audioBase64, mimeType } = await this.generateSpeech(text, modelId, temperature)
+      const { audioBase64, mimeType } = await this.generateSpeech(
+        text,
+        modelId,
+        temperature,
+        modelConfig
+      )
 
       yield createStreamEvent.imageData({
         data: audioBase64,
@@ -182,8 +188,8 @@ export class VoiceAIProvider extends BaseLLMProvider {
         group: 'default',
         providerId: this.provider.id,
         isCustom: false,
-        contextLength: 4096,
-        maxTokens: 2048
+        contextLength: DEFAULT_MODEL_CONTEXT_LENGTH,
+        maxTokens: DEFAULT_MODEL_MAX_TOKENS
       }))
 
       const defaultVoice: MODEL_META = {
@@ -192,8 +198,8 @@ export class VoiceAIProvider extends BaseLLMProvider {
         group: 'default',
         providerId: this.provider.id,
         isCustom: false,
-        contextLength: 4096,
-        maxTokens: 2048
+        contextLength: DEFAULT_MODEL_CONTEXT_LENGTH,
+        maxTokens: DEFAULT_MODEL_MAX_TOKENS
       }
 
       return [defaultVoice, ...models]
@@ -388,7 +394,8 @@ export class VoiceAIProvider extends BaseLLMProvider {
   private async generateSpeech(
     text: string,
     modelId: string,
-    temperature?: number
+    temperature?: number,
+    modelConfig?: ModelConfig
   ): Promise<{ audioBase64: string; mimeType: string }> {
     const config = this.getTtsConfig()
     if (!SUPPORTED_LANGUAGES.has(config.language)) {
@@ -412,9 +419,18 @@ export class VoiceAIProvider extends BaseLLMProvider {
       requestBody['voice_id'] = voiceId
     }
 
+    const headers = this.getAuthHeaders()
+    if (modelConfig) {
+      await this.emitRequestTrace(modelConfig, {
+        endpoint: this.buildUrl('/api/v1/tts/speech'),
+        headers,
+        body: requestBody
+      })
+    }
+
     const response = await fetch(this.buildUrl('/api/v1/tts/speech'), {
       method: 'POST',
-      headers: this.getAuthHeaders(),
+      headers,
       body: JSON.stringify(requestBody),
       ...this.getFetchOptions()
     })

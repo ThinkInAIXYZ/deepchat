@@ -321,63 +321,6 @@
               </div>
             </div>
           </div>
-
-          <!-- 联网搜索（统一基于能力） -->
-          <div v-if="showSearchConfig" class="space-y-4">
-            <div class="flex items-center justify-between">
-              <div class="space-y-0.5">
-                <Label>{{ t('settings.model.modelConfig.enableSearch.label') }}</Label>
-                <p class="text-xs text-muted-foreground">
-                  {{ t('settings.model.modelConfig.enableSearch.description') }}
-                </p>
-              </div>
-              <Switch
-                :model-value="config.enableSearch"
-                @update:model-value="(value) => (config.enableSearch = value)"
-              />
-            </div>
-
-            <!-- 搜索配置子选项 -->
-            <div v-if="config.enableSearch" class="space-y-3 pl-4 border-l-2 border-muted">
-              <!-- 强制搜索（若能力提供默认项，则视为支持该配置） -->
-              <div v-if="hasForcedSearchOption" class="flex items-center justify-between">
-                <div class="space-y-0.5">
-                  <Label class="text-sm">{{
-                    t('settings.model.modelConfig.forcedSearch.label')
-                  }}</Label>
-                  <p class="text-xs text-muted-foreground">
-                    {{ t('settings.model.modelConfig.forcedSearch.description') }}
-                  </p>
-                </div>
-                <Switch v-model:model-value="config.forcedSearch" />
-              </div>
-
-              <!-- 搜索策略（若能力提供默认项，则视为支持该配置） -->
-              <div v-if="hasSearchStrategyOption" class="space-y-2">
-                <Label class="text-sm">{{
-                  t('settings.model.modelConfig.searchStrategy.label')
-                }}</Label>
-                <Select v-model="config.searchStrategy">
-                  <SelectTrigger>
-                    <SelectValue
-                      :placeholder="t('settings.model.modelConfig.searchStrategy.placeholder')"
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="turbo">{{
-                      t('settings.model.modelConfig.searchStrategy.options.turbo')
-                    }}</SelectItem>
-                    <SelectItem value="max">{{
-                      t('settings.model.modelConfig.searchStrategy.options.max')
-                    }}</SelectItem>
-                  </SelectContent>
-                </Select>
-                <p class="text-xs text-muted-foreground">
-                  {{ t('settings.model.modelConfig.searchStrategy.description') }}
-                </p>
-              </div>
-            </div>
-          </div>
         </form>
       </div>
 
@@ -442,6 +385,12 @@ import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import { ApiEndpointType, ModelType } from '@shared/model'
 import type { ModelConfig } from '@shared/presenter'
+import {
+  DEFAULT_MODEL_CONTEXT_LENGTH,
+  DEFAULT_MODEL_FUNCTION_CALL,
+  DEFAULT_MODEL_MAX_TOKENS,
+  DEFAULT_MODEL_VISION
+} from '@shared/modelConfigDefaults'
 import { useModelConfigStore } from '@/stores/modelConfigStore'
 import { useModelStore } from '@/stores/modelStore'
 import { useProviderStore } from '@/stores/providerStore'
@@ -533,19 +482,16 @@ const showApiEndpointSelector = computed(
 )
 
 const createDefaultConfig = (): ModelConfig => ({
-  maxTokens: 4096,
-  contextLength: 8192,
+  maxTokens: DEFAULT_MODEL_MAX_TOKENS,
+  contextLength: DEFAULT_MODEL_CONTEXT_LENGTH,
   temperature: 0.7,
-  vision: false,
-  functionCall: false,
+  vision: DEFAULT_MODEL_VISION,
+  functionCall: DEFAULT_MODEL_FUNCTION_CALL,
   reasoning: false,
   type: ModelType.Chat,
   apiEndpoint: ApiEndpointType.Chat,
   reasoningEffort: 'medium',
-  verbosity: 'medium',
-  enableSearch: false,
-  forcedSearch: false,
-  searchStrategy: 'turbo'
+  verbosity: 'medium'
 })
 
 // 配置数据
@@ -612,12 +558,11 @@ const buildCustomModelPayload = (id: string, name: string, enabled?: boolean) =>
   id,
   name,
   enabled: enabled ?? true,
-  contextLength: config.value.contextLength ?? 4096,
-  maxTokens: config.value.maxTokens ?? 2048,
-  vision: config.value.vision ?? false,
-  functionCall: config.value.functionCall ?? false,
+  contextLength: config.value.contextLength ?? DEFAULT_MODEL_CONTEXT_LENGTH,
+  maxTokens: config.value.maxTokens ?? DEFAULT_MODEL_MAX_TOKENS,
+  vision: config.value.vision ?? DEFAULT_MODEL_VISION,
+  functionCall: config.value.functionCall ?? DEFAULT_MODEL_FUNCTION_CALL,
   reasoning: config.value.reasoning ?? false,
-  enableSearch: config.value.enableSearch ?? false,
   type: config.value.type ?? ModelType.Chat
 })
 
@@ -680,25 +625,6 @@ const loadConfig = async () => {
     const range = capabilityBudgetRange.value
     if (range && typeof range.default === 'number') {
       config.value.thinkingBudget = range.default
-    }
-    if (capabilitySupportsSearch.value === true && capabilitySearchDefaults.value) {
-      if (config.value.isUserDefined !== true) {
-        const def = capabilitySearchDefaults.value
-        if (typeof def.default === 'boolean') config.value.enableSearch = def.default
-        if (typeof def.forced === 'boolean') config.value.forcedSearch = def.forced
-        if (def.strategy === 'turbo' || def.strategy === 'max')
-          config.value.searchStrategy = def.strategy
-      }
-    }
-  }
-
-  if (capabilitySupportsSearch.value === true && capabilitySearchDefaults.value) {
-    if (config.value.isUserDefined !== true) {
-      const def = capabilitySearchDefaults.value
-      if (typeof def.default === 'boolean') config.value.enableSearch = def.default
-      if (typeof def.forced === 'boolean') config.value.forcedSearch = def.forced
-      if (def.strategy === 'turbo' || def.strategy === 'max')
-        config.value.searchStrategy = def.strategy
     }
   }
 }
@@ -801,7 +727,6 @@ const handleSave = async () => {
           vision: config.value.vision,
           functionCall: config.value.functionCall,
           reasoning: config.value.reasoning,
-          enableSearch: config.value.enableSearch,
           type: config.value.type ?? ModelType.Chat
         })
       }
@@ -875,12 +800,6 @@ const showThinkingBudget = computed(() => {
 
 const capabilitySupportsReasoning = ref<boolean | null>(null)
 const capabilityBudgetRange = ref<{ min?: number; max?: number; default?: number } | null>(null)
-const capabilitySupportsSearch = ref<boolean | null>(null)
-const capabilitySearchDefaults = ref<{
-  default?: boolean
-  forced?: boolean
-  strategy?: 'turbo' | 'max'
-} | null>(null)
 const capabilitySupportsEffort = ref<boolean | null>(null)
 const capabilityEffortDefault = ref<'minimal' | 'low' | 'medium' | 'high' | undefined>(undefined)
 const capabilitySupportsVerbosity = ref<boolean | null>(null)
@@ -890,15 +809,12 @@ const fetchCapabilities = async () => {
   if (!props.providerId || !props.modelId) {
     capabilitySupportsReasoning.value = null
     capabilityBudgetRange.value = null
-    capabilitySupportsSearch.value = null
     return
   }
   try {
-    const [sr, br, ss, sd, se, ed, sv, vd] = await Promise.all([
+    const [sr, br, se, ed, sv, vd] = await Promise.all([
       configPresenter.supportsReasoningCapability?.(props.providerId, props.modelId),
       configPresenter.getThinkingBudgetRange?.(props.providerId, props.modelId),
-      configPresenter.supportsSearchCapability?.(props.providerId, props.modelId),
-      configPresenter.getSearchDefaults?.(props.providerId, props.modelId),
       configPresenter.supportsReasoningEffortCapability?.(props.providerId, props.modelId),
       configPresenter.getReasoningEffortDefault?.(props.providerId, props.modelId),
       configPresenter.supportsVerbosityCapability?.(props.providerId, props.modelId),
@@ -906,8 +822,6 @@ const fetchCapabilities = async () => {
     ])
     capabilitySupportsReasoning.value = typeof sr === 'boolean' ? sr : null
     capabilityBudgetRange.value = br || {}
-    capabilitySupportsSearch.value = typeof ss === 'boolean' ? ss : null
-    capabilitySearchDefaults.value = sd || null
     capabilitySupportsEffort.value = typeof se === 'boolean' ? se : null
     capabilityEffortDefault.value = ed
     capabilitySupportsVerbosity.value = typeof sv === 'boolean' ? sv : null
@@ -915,8 +829,6 @@ const fetchCapabilities = async () => {
   } catch {
     capabilitySupportsReasoning.value = null
     capabilityBudgetRange.value = null
-    capabilitySupportsSearch.value = null
-    capabilitySearchDefaults.value = null
     capabilitySupportsEffort.value = null
     capabilityEffortDefault.value = undefined
     capabilitySupportsVerbosity.value = null
@@ -930,13 +842,6 @@ watch(
     if (props.open) await fetchCapabilities()
   },
   { immediate: true }
-)
-
-const showSearchConfig = computed(() => capabilitySupportsSearch.value === true)
-
-const hasForcedSearchOption = computed(() => capabilitySearchDefaults.value?.forced !== undefined)
-const hasSearchStrategyOption = computed(
-  () => capabilitySearchDefaults.value?.strategy !== undefined
 )
 
 // 思考预算范围（完全由能力提供，上游保证存在）

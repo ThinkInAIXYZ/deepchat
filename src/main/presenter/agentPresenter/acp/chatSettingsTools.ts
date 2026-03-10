@@ -45,7 +45,7 @@ const FONT_SIZE_LEVELS = [0, 1, 2, 3, 4] as const
 
 const toggleSchema = z
   .object({
-    setting: z.enum(['soundEnabled', 'copyWithCotEnabled']).describe('Toggle setting id.'),
+    setting: z.enum(['copyWithCotEnabled']).describe('Toggle setting id.'),
     enabled: z.boolean().describe('Enable or disable the setting.')
   })
   .strict()
@@ -192,8 +192,6 @@ export class ChatSettingsToolHandler {
   private getCurrentValue(key: string): ChatSettingValue | undefined {
     const configPresenter = this.options.configPresenter
     switch (key) {
-      case 'soundEnabled':
-        return configPresenter.getSoundEnabled()
       case 'copyWithCotEnabled':
         return configPresenter.getCopyWithCotEnabled()
       case 'language':
@@ -224,9 +222,6 @@ export class ChatSettingsToolHandler {
 
     try {
       switch (setting) {
-        case 'soundEnabled':
-          configPresenter.setSoundEnabled(enabled)
-          break
         case 'copyWithCotEnabled':
           configPresenter.setCopyWithCotEnabled(enabled)
           break
@@ -409,7 +404,7 @@ export const buildChatSettingsToolDefinitions = (allowedTools: string[]): MCPToo
       type: 'function',
       function: {
         name: CHAT_SETTINGS_TOOL_NAMES.toggle,
-        description: 'Toggle a DeepChat setting (sound or copy COT).',
+        description: 'Toggle a DeepChat setting.',
         parameters: zodToJsonSchema(toggleSchema) as {
           type: string
           properties: Record<string, unknown>

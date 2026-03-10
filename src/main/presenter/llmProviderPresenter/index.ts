@@ -145,6 +145,15 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     return this.providerInstanceManager.getExistingProviderInstance(providerId)
   }
 
+  async clearAcpSession(conversationId: string): Promise<void> {
+    const acpProvider = this.getExistingProviderInstance('acp') as
+      | { clearSession?: (conversationId: string) => Promise<void> }
+      | undefined
+    if (acpProvider?.clearSession) {
+      await acpProvider.clearSession(conversationId)
+    }
+  }
+
   async getModelList(providerId: string): Promise<MODEL_META[]> {
     return this.modelManager.getModelList(providerId)
   }
@@ -225,9 +234,6 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     thinkingBudget?: number,
     reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high',
     verbosity?: 'low' | 'medium' | 'high',
-    enableSearch?: boolean,
-    forcedSearch?: boolean,
-    searchStrategy?: 'turbo' | 'max',
     conversationId?: string
   ): AsyncGenerator<LLMAgentEvent, void, unknown> {
     yield* this.agentLoopHandler.startStreamCompletion(
@@ -241,9 +247,6 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
       thinkingBudget,
       reasoningEffort,
       verbosity,
-      enableSearch,
-      forcedSearch,
-      searchStrategy,
       conversationId
     )
   }
@@ -530,6 +533,14 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     await provider.setSessionMode(conversationId, modeId)
   }
 
+  async prepareAcpSession(conversationId: string, agentId: string, workdir: string): Promise<void> {
+    const provider = this.getAcpProviderInstance()
+    if (!provider) {
+      throw new Error('[ACP] ACP provider not found')
+    }
+    await provider.prepareSession(conversationId, agentId, workdir)
+  }
+
   async getAcpSessionModes(conversationId: string): Promise<{
     current: string
     available: Array<{ id: string; name: string; description: string }>
@@ -539,6 +550,20 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
       return null
     }
     return await provider.getSessionModes(conversationId)
+  }
+
+  async getAcpSessionCommands(conversationId: string): Promise<
+    Array<{
+      name: string
+      description: string
+      input?: { hint: string } | null
+    }>
+  > {
+    const provider = this.getAcpProviderInstance()
+    if (!provider) {
+      return []
+    }
+    return await provider.getSessionCommands(conversationId)
   }
 
   async runAcpDebugAction(request: AcpDebugRequest): Promise<AcpDebugRunResult> {

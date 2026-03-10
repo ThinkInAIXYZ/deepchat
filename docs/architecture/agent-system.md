@@ -1,23 +1,303 @@
 # Agent 系统架构详解
 
-本文档详细介绍 Agent 系统的设计和实现，包括 Agent Loop、流生成、事件处理和权限协调。
+本文档详细介绍 Agent 系统的设计和实现，包括 Session 管理、Agent Loop、流生成、事件处理和权限协调。
 
-## 📋 核心组件概览
+## 架构概览
+
+DeepChat 采用两层 Agent 架构：
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        Renderer (IPC)                           │
+└───────────────────────────────┬─────────────────────────────────┘
+                                │
+                                ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    NewAgentPresenter                            │
+│  (Session Manager - IPC-facing, routing, orchestration)         │
+│                                                                 │
+│  - Owns AgentRegistry (maps agentId -> implementation)          │
+│  - Owns NewSessionManager (session records + window bindings)   │
+│  - Routes calls to appropriate agent implementation             │
+│  - Handles multi-agent support (deepchat + ACP agents)          │
+└───────────────────────────────┬─────────────────────────────────┘
+                                │ resolves via AgentRegistry
+                                ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                  DeepChatAgentPresenter                         │
+│  (Agent Loop - IAgentImplementation for "deepchat" agent)       │
+│                                                                 │
+│  - Owns SessionStore (runtime state per session)                │
+│  - Owns MessageStore (message persistence)                      │
+│  - Owns CompactionManager (context summarization)               │
+│  - Implements processMessage() -> processStream() loop          │
+│  - Handles tool execution via ToolPresenter                     │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+## 核心组件
+
+### NewAgentPresenter - Session Manager Layer
+
+**文件位置**: `src/main/presenter/newAgentPresenter/`
+
+```
+newAgentPresenter/
+├── index.ts              # Main presenter - orchestrates sessions
+├── sessionManager.ts     # Session CRUD operations
+├── messageManager.ts     # Message lookup across agents
+├── agentRegistry.ts      # Agent registration and resolution
+└── legacyImportService.ts # Legacy chat import functionality
+```
+
+#### 主要方法
+
+| 方法 | 用途 |
+|------|------|
+| `createSession(input, webContentsId)` | 创建新会话并发送第一条消息 |
+| `sendMessage(sessionId, content)` | 向现有会话发送消息 |
+| `retryMessage(sessionId, messageId)` | 从某条消息重试生成 |
+| `editUserMessage(sessionId, messageId, text)` | 编辑用户消息并重新生成 |
+| `forkSession(sourceSessionId, targetMessageId)` | 从某条消息分叉会话 |
+| `getSessionList(filters)` | 获取会话列表 |
+| `activateSession(webContentsId, sessionId)` | 绑定会话到窗口 |
+| `deleteSession(sessionId)` | 删除会话并清理资源 |
+| `cancelGeneration(sessionId)` | 取消正在进行的生成 |
+| `respondToolInteraction(...)` | 响应权限/问题提示 |
+| `setSessionModel(sessionId, providerId, modelId)` | 更换模型 |
+| `getAgents()` | 获取可用的 agent 列表 |
+
+### DeepChatAgentPresenter - Agent Loop Implementation
+
+**文件位置**: `src/main/presenter/deepchatAgentPresenter/`
+
+```
+deepchatAgentPresenter/
+├── index.ts              # Agent implementation (IAgentImplementation)
+├── process.ts            # Core stream processing loop
+├── dispatch.ts           # Tool execution and finalization
+├── types.ts              # Stream state, process params, results
+├── accumulator.ts        # Stream event -> block accumulator
+├── contextBuilder.ts     # Build LLM context from history
+├── messageStore.ts       # Message persistence (SQLite wrapper)
+├── sessionStore.ts       # Session runtime state
+├── echo.ts               # Real-time block streaming to renderer
+├── toolOutputGuard.ts    # Tool output validation/truncation
+├── compactionManager.ts  # Context compaction via summarization
+└── pendingInteractions.ts # Manage paused tool interactions
+```
+
+#### 主要方法
+
+| 方法 | 用途 |
+|------|------|
+| `initSession(sessionId, config)` | 初始化会话运行时状态 |
+| `destroySession(sessionId)` | 清理会话资源 |
+| `processMessage(sessionId, input, options)` | 处理用户消息（生成主入口） |
+| `getMessages(sessionId)` | 获取会话所有消息 |
+| `cancelGeneration(sessionId)` | 中止当前生成 |
+| `respondToolInteraction(...)` | 恢复暂停的交互（权限批准/回答问题） |
+| `setSessionModel(...)` | 切换 provider/model |
+| `setPermissionMode(...)` | 更改权限模式 |
+
+#### 内部模块职责
+
+| 模块 | 职责 |
+|------|------|
+| `processStream()` | 核心 LLM 循环: stream -> accumulate -> tool_use loop -> finalize |
+| `executeTools()` | 执行工具调用，处理权限，构建工具消息 |
+| `finalize/finalizeError/finalizePaused` | 消息完成状态处理 |
+| `StreamState` | 流式过程中的可变状态（blocks, metadata, tool calls） |
+| `accumulate()` | 纯函数: LLM events -> assistant message blocks |
+| `DeepChatMessageStore` | 持久化消息到 SQLite |
+| `DeepChatSessionStore` | 持久化会话运行时状态 |
+| `buildContext()` | 构建 LLM 上下文，包含 token 预算和历史选择 |
+| `startEcho()` | 实时流式传输 blocks 到 renderer |
+| `ToolOutputGuard` | 验证/截断工具输出 |
+| `CompactionManager` | 当上下文过长时总结旧消息 |
+
+## 核心流程
+
+### 发送消息流程
+
+```
+Renderer IPC -> NewAgentPresenter.sendMessage()
+  -> resolveAgentImplementation(session.agentId)  // via AgentRegistry
+  -> agent.processMessage(sessionId, input)       // DeepChatAgentPresenter
+    -> buildContext()                             // history -> ChatMessage[]
+    -> processStream()                            // LLM loop
+      -> accumulate()                             // events -> blocks
+      -> executeTools()                           // MCP tool calls
+      -> finalize()                               // persist to DB
+```
+
+### Agent Loop 主循环
+
+```mermaid
+flowchart TD
+    Start([processStream 开始]) --> InitState[初始化 StreamState]
+    InitState --> BuildContext[构建上下文 buildContext]
+    BuildContext --> CallLLM[调用 provider.coreStream]
+    
+    CallLLM --> LoopEvents{遍历 LLM Stream 事件}
+    
+    LoopEvents --> EventText{text 事件
+累积 content block}
+    EventText --> LoopEvents
+    
+    LoopEvents --> EventReasoning{reasoning 事件
+累积 reasoning block}
+    EventReasoning --> LoopEvents
+    
+    LoopEvents --> EventToolStart{tool_call_start
+初始化 tool block}
+    EventToolStart --> LoopEvents
+    
+    LoopEvents --> EventToolEnd{tool_call_end}
+    EventToolEnd --> CheckPermission{需要权限?}
+    
+    CheckPermission -->|是| PauseStream[暂停流
+发送 permission block]
+    PauseStream --> WaitUser[等待用户响应]
+    WaitUser --> UserResponse{用户批准?}
+    UserResponse -->|是| ExecuteTool
+    UserResponse -->|否| DenyTool[记录拒绝]
+    DenyTool --> LoopEvents
+    
+    CheckPermission -->|否| ExecuteTool[执行工具]
+    ExecuteTool --> AddResult[添加工具结果到上下文]
+    AddResult --> LoopEvents
+    
+    LoopEvents --> EventStop{stop 事件}
+    EventStop --> CheckReason{stop_reason?}
+    
+    CheckReason -->|tool_use| SetContinue[needContinue = true]
+    CheckReason -->|end| SetStop[needContinue = false]
+    
+    SetContinue --> CheckToolCalls{有待执行工具?}
+    CheckToolCalls -->|是| ExecuteTools[executeTools]
+    ExecuteTools --> BuildContext
+    
+    CheckToolCalls -->|否| Finalize[finalize]
+    SetStop --> Finalize
+    
+    Finalize --> PersistDB[持久化到 SQLite]
+    PersistDB --> SendEnd([发送 END 事件])
+```
+
+### 权限流程
+
+```mermaid
+sequenceDiagram
+    participant L as Agent Loop
+    participant D as dispatch.ts
+    participant P as PermissionService
+    participant E as EventBus
+    participant R as Renderer
+    
+    L->>D: executeTools(toolCalls)
+    
+    loop 遍历每个 toolCall
+        D->>P: checkPermission(toolCall)
+        
+        alt 需要权限
+            P-->>D: {needsPermission: true}
+            D->>E: 发送 permission block
+            E->>R: 显示权限对话框
+            R-->>D: respondToolInteraction()
+            
+            alt 用户批准
+                D->>P: grantPermission()
+                D->>D: 执行工具
+            else 用户拒绝
+                D->>P: denyPermission()
+                D->>D: 记录拒绝
+            end
+        else 已有权限/全权限模式
+            D->>D: 直接执行工具
+        end
+    end
+    
+    D-->>L: 返回工具结果
+```
+
+## 权限模式
+
+### 三种权限模式
+
+| 模式 | 行为 |
+|------|------|
+| `default` | 每次工具调用都需要用户批准 |
+| `ask` | 首次询问，之后记住决策 |
+| `full` | 自动批准所有工具调用（受 projectDir 限制） |
+
+### 权限类型
+
+| 类型 | 说明 |
+|------|------|
+| `read` | 读取文件权限 |
+| `write` | 写入文件权限 |
+| `all` | 完全访问权限 |
+| `command` | 执行命令权限 |
+
+## P0 功能实现状态
+
+| 功能 | 状态 | 说明 |
+|------|------|------|
+| Session 状态跟踪 | ✅ 完成 | 通过 `session.status` + `messageStore.isStreaming` |
+| 输入禁用 + Stop | ✅ 完成 | Stop UX 在 `ChatInputToolbar.vue` |
+| 取消生成 | ✅ 完成 | Abort controller 集成 |
+| 权限审批流程 | 🟡 部分 | 核心流程已实现，remember 持久化待完成 |
+| Session 列表刷新 | ✅ 完成 | 事件驱动 `SESSION_EVENTS.LIST_UPDATED` |
+| 乐观消息 | ✅ 完成 | `addOptimisticUserMessage()` |
+| 缓存版本 | ⚪ 延迟 | 内存缓存足够 P0 |
+
+详见 [P0 Implementation Summary](../P0_IMPLEMENTATION_SUMMARY.md)
+
+## 关键文件位置
+
+### 新架构
+
+| 组件 | 位置 |
+|------|------|
+| NewAgentPresenter | `src/main/presenter/newAgentPresenter/index.ts` |
+| DeepChatAgentPresenter | `src/main/presenter/deepchatAgentPresenter/index.ts` |
+| processStream | `src/main/presenter/deepchatAgentPresenter/process.ts` |
+| executeTools | `src/main/presenter/deepchatAgentPresenter/dispatch.ts` |
+| buildContext | `src/main/presenter/deepchatAgentPresenter/contextBuilder.ts` |
+| accumulate | `src/main/presenter/deepchatAgentPresenter/accumulator.ts` |
+| MessageStore | `src/main/presenter/deepchatAgentPresenter/messageStore.ts` |
+| SessionStore | `src/main/presenter/deepchatAgentPresenter/sessionStore.ts` |
+
+### 前端组件
+
+| 组件 | 位置 |
+|------|------|
+| ChatPage | `src/renderer/src/pages/ChatPage.vue` |
+| ChatInputToolbar | `src/renderer/src/components/chat/ChatInputToolbar.vue` |
+| ChatToolInteractionOverlay | `src/renderer/src/components/chat/ChatToolInteractionOverlay.vue` |
+| sessionStore | `src/renderer/src/stores/ui/session.ts` |
+| messageStore | `src/renderer/src/stores/ui/message.ts` |
+
+---
+
+## Legacy Architecture (旧架构)
+
+以下内容描述旧的 AgentPresenter 架构，保留作为历史参考。新开发应使用上述新架构。
+
+### 旧架构组件概览
 
 | 组件 | 文件位置 | 职责 |
 |------|---------|------|
 | **AgentPresenter** | `src/main/presenter/agentPresenter/index.ts` | Agent 编排主入口，实现 IAgentPresenter 接口 |
 | **agentLoopHandler** | `src/main/presenter/agentPresenter/loop/agentLoopHandler.ts` | Agent Loop 主循环（while 循环） |
-| **streamGenerationHandler** | `src/main/presenter/agentPresenter/streaming/streamGenerationHandler.ts` | 流生成协调，准备上下文、启动 Loop |
+| **streamGenerationHandler** | `src/main/presenter/agentPresenter/streaming/streamGenerationHandler.ts` | 流生成协调 |
 | **loopOrchestrator** | `src/main/presenter/agentPresenter/loop/loopOrchestrator.ts` | Loop 状态管理器 |
-| **toolCallProcessor** | `src/main/presenter/agentPresenter/loop/toolCallProcessor.ts` | 工具调用执行和结果处理 |
+| **toolCallProcessor** | `src/main/presenter/agentPresenter/loop/toolCallProcessor.ts` | 工具调用执行 |
 | **llmEventHandler** | `src/main/presenter/agentPresenter/streaming/llmEventHandler.ts` | 标准化 LLM 事件 |
 | **permissionHandler** | `src/main/presenter/agentPresenter/permission/permissionHandler.ts` | 权限请求响应协调 |
-| **messageBuilder** | `src/main/presenter/agentPresenter/message/messageBuilder.ts` | 提示词构建 |
-| **contentBufferHandler** | `src/main/presenter/agentPresenter/streaming/contentBufferHandler.ts` | 流式内容缓冲优化 |
-| **toolCallHandler** | `src/main/presenter/agentPresenter/loop/toolCallHandler.ts` | 工具调用 UI 块管理 |
 
-## 🏗️ 架构关系
+### 旧架构关系图
 
 ```mermaid
 graph TB
@@ -73,720 +353,24 @@ graph TB
     class MessageBuilder,PermHandler,Utility util
 ```
 
-## 🎯 AgentPresenter 主入口
-
-### 核心方法
-
-```typescript
-class AgentPresenter implements IAgentPresenter {
-  // 1. 发送消息（启动新的 Agent Loop）
-  async sendMessage(
-    agentId: string,
-    content: string,
-    tabId?: number,
-    selectedVariantsMap?: Record<string, string>
-  ): Promise<AssistantMessage | null>
-
-  // 2. 继续生成（从断点恢复）
-  async continueLoop(
-    agentId: string,
-    messageId: string,
-    selectedVariantsMap?: Record<string, string>
-  ): Promise<AssistantMessage | null>
-
-  // 3. 取消生成
-  async cancelLoop(messageId: string): Promise<void>
-
-  // 4. 重试消息
-  async retryMessage(
-    messageId: string,
-    selectedVariantsMap?: Record<string, string>
-  ): Promise<AssistantMessage>
-
-  // 5. 从用户消息重新生成
-  async regenerateFromUserMessage(
-    agentId: string,
-    userMessageId: string,
-    selectedVariantsMap?: Record<string, string>
-  ): Promise<AssistantMessage>
-
-  // 6. 翻译文本
-  async translateText(text: string, tabId: number): Promise<string>
-
-  // 7. AI 问答
-  async askAI(text: string, tabId: number): Promise<string>
-
-  // 8. 权限响应
-  async handlePermissionResponse(
-    messageId: string,
-    toolCallId: string,
-    granted: boolean,
-    permissionType: 'read' | 'write' | 'all' | 'command',
-    remember?: boolean
-  ): Promise<void>
-
-  // 9. 获取请求预览
-  async getMessageRequestPreview(agentId: string, messageId?: string): Promise<unknown>
-}
-```
-
-**文件位置**：`src/main/presenter/agentPresenter/index.ts:139-365`
-
-### sendMessage 流程详解
-
-```typescript
-async sendMessage(agentId, content, tabId, selectedVariantsMap) {
-  // 1. 创建用户消息
-  const userMessage = await messageManager.sendMessage(
-    agentId,
-    content,
-    'user',
-    '',
-    false,
-    this.buildMessageMetadata(conversation)
-  )
-
-  // 2. 创建助手消息（初始为空）
-  const assistantMessage = await streamGenerationHandler.generateAIResponse(
-    agentId,
-    userMessage.id
-  )
-
-  // 3. 跟踪生成状态
-  this.trackGeneratingMessage(assistantMessage, agentId)
-
-  // 4. 更新会话状态
-  await this.updateConversationAfterUserMessage(agentId)
-
-  // 5. 启动 Agent Loop
-  await sessionManager.startLoop(agentId, assistantMessage.id)
-
-  // 6. 启动流生成
-  void StreamGenerationHandler.startStreamCompletion(
-    agentId,
-    assistantMessage.id,
-    selectedVariantsMap
-  )
-
-  return assistantMessage
-}
-```
-
-**文件位置**：`src/main/presenter/agentPresenter/index.ts:139-176`
-
-### 生成状态跟踪
-
-```typescript
-private trackGeneratingMessage(message: AssistantMessage, conversationId: string) {
-  this.generatingMessages.set(message.id, {
-    message,
-    conversationId,
-    startTime: Date.now(),
-    firstTokenTime: null,
-    promptTokens: 0,
-    reasoningStartTime: null,
-    reasoningEndTime: null,
-    lastReasoningTime: null
-  })
-}
-```
-
-## 🔄 agentLoopHandler - Agent Loop 主循环
-
-### 核心结构
-
-```typescript
-async *startStreamCompletion(
-  providerId: string,
-  initialMessages: ChatMessage[],
-  modelId: string,
-  eventId: string,
-  temperature: number,
-  maxTokens: number,
-  enabledMcpTools?: string[],
-  thinkingBudget?: number,
-  reasoningEffort?: 'minimal'|'low'|'medium'|'high',
-  verbosity?: 'low'|'medium'|'high',
-  enableSearch?: boolean,
-  forcedSearch?: boolean,
-  searchStrategy?: 'turbo'|'max',
-  conversationId?: string
-): AsyncGenerator<LLMAgentEvent>
-```
-
-**文件位置**：`src/main/presenter/agentPresenter/loop/agentLoopHandler.ts:145-668`
-
-### Agent Loop 主循环逻辑
-
-```mermaid
-flowchart TD
-    Start([Agent Loop 开始]) --> InitLoop[初始化循环变量<br/>conversationMessages, needContinue, toolCallCount]
-    InitLoop --> CheckAbort{用户是否中断?}
-    CheckAbort -->|是| EndLoop([Loop 结束])
-    CheckAbort -->|否| CheckMaxCalls{toolCallCount >= MAX?}
-
-    CheckMaxCalls -->|是| SendMax[发送 maximum_tool_calls_reached 事件]
-    SendMax --> EndLoop
-    CheckMaxCalls -->|否| ResetNeedContinue[needContinue = false]
-
-    ResetNeedContinue --> GetTools[获取工具定义<br/>getAllToolDefinitions]
-    GetTools --> CallLLM[调用 provider.coreStream<br/>带 filteredToolDefs]
-
-    CallLLM --> LoopEvents{遍历 LLM Stream 事件}
-
-    LoopEvents --> EventText{text 事件<br/>累积 currentContent}
-    EventText --> LoopEvents
-
-    LoopEvents --> EventReasoning{reasoning 事件<br/>累积 currentReasoning}
-    EventReasoning --> LoopEvents
-
-    LoopEvents --> EventToolStart{tool_call_start<br/>初始化 currentToolChunks}
-    EventToolStart --> LoopEvents
-
-    LoopEvents --> EventToolChunk{tool_call_chunk<br/>累积参数增量}
-    EventToolChunk --> LoopEvents
-
-    LoopEvents --> EventToolEnd{tool_call_end}
-    EventToolEnd --> IsACP{providerId == 'acp'?}
-
-    IsACP -->|是| SendACPResult[发送 tool_call: end 事件<br/>ACP 已执行]
-    IsACP -->|否| PushToolCall[将工具调用加入 currentToolCalls]
-    PushToolCall --> LoopEvents
-
-    LoopEvents --> EventPermission{permission 事件<br/>发送权限请求}
-    EventPermission --> ExitLoop[退出循环<br/>等待用户响应]
-    ExitLoop --> EndLoop
-
-    LoopEvents --> EventStop{stop 事件}
-    EventStop --> CheckReason{stop_reason == 'tool_use'?}
-
-    CheckReason -->|是| SetContinue[needContinue = true]
-    CheckReason -->|否| SetStop[needContinue = false]
-    SetContinue --> LoopEvents
-    SetStop --> LoopEvents
-
-    LoopEvents -->|所有事件处理完| AddAssistant[添加 assistant 消息到上下文]
-    AddAssistant --> CheckNeedTool{needContinue && 有工具调用?}
-
-    CheckNeedTool -->|是| ExecuteTools[执行工具调用<br/>ToolCallProcessor]
-    ExecuteTools --> ProcessToolLoop{遍历 toolCalls 执行}
-    ProcessToolLoop --> SendToolEvents[发送工具执行事件]
-    SendToolEvents --> AddToolResult[添加工具结果到上下文]
-    AddToolResult --> IncrementCount[toolCallCount++]
-    IncrementCount --> CheckContinue2{needContinue?}
-
-    CheckContinue2 -->|是| InitLoop
-    CheckContinue2 -->|否| EndLoop
-
-    CheckNeedTool -->|否| EndLoop
-
-    EndLoop --> SendFinalUsage[发送最终 usage 事件]
-    SendFinalUsage --> EndStream([发送 END 事件])
-```
-
-**文件位置**：`src/main/presenter/agentPresenter/loop/agentLoopHandler.ts:222-627`
-
-### 关键代码片段
-
-```typescript
-// 主循环
-while (needContinueConversation) {
-  if (abortController.signal.aborted) break
-
-  if (toolCallCount >= MAX_TOOL_CALLS) {
-    yield { type: 'response', data: { maximum_tool_calls_reached: true } }
-    break
-  }
-
-  needContinueConversation = false
-  let currentContent = ''
-  let currentToolCalls = []
-
-  // 获取工具定义
-  const toolDefs = await this.getToolPresenter().getAllToolDefinitions({
-    enabledMcpTools,
-    chatMode,
-    supportsVision: this.currentSupportsVision,
-    agentWorkspacePath
-  })
-  const filteredToolDefs = await this.filterToolsForChatMode(toolDefs, chatMode, modelId)
-
-  // 调用 LLM
-  const stream = provider.coreStream(
-    conversationMessages,
-    modelId,
-    modelConfig,
-    temperature,
-    maxTokens,
-    filteredToolDefs
-  )
-
-  // 处理流事件
-  for await (const chunk of stream) {
-    switch (chunk.type) {
-      case 'text':
-        currentContent += chunk.content
-        yield { type: 'response', data: { eventId, content: chunk.content } }
-        break
-
-      case 'tool_call_end':
-        if (providerId === 'acp') {
-          // ACP Provider 直接返回执行结果
-          yield { type: 'response', data: { eventId, tool_call: 'end', ...completeArgs } }
-        } else {
-          // 非 ACP 需要本地执行
-          currentToolCalls.push({ id: chunk.tool_call_id, name, arguments: completeArgs })
-        }
-        break
-
-      case 'stop':
-        needContinueConversation = chunk.stop_reason === 'tool_use'
-        break
-    }
-  }
-
-  // 添加 assistant 消息
-  conversationMessages.push({ role: 'assistant', content: currentContent })
-
-  // 执行工具调用
-  if (needContinueConversation && currentToolCalls.length > 0) {
-    const processor = this.toolCallProcessor.process({...})
-    while (true) {
-      const { value, done } = await processor.next()
-      if (done) {
-        toolCallCount = value.toolCallCount
-        needContinueConversation = value.needContinueConversation
-        break
-      }
-      yield value
-    }
-  }
-}
-```
-
-## 🌊 streamGenerationHandler - 流生成协调
-
-### 主要职责
-
-1. **准备对话上下文** - 获取用户消息、历史消息、处理变体选择
-2. **处理用户消息内容** - 提取 URL、图片等
-3. **执行搜索**（如启用）
-4. **构建提示词** - 使用 messageBuilder
-5. **启动 LLM Stream** - 调用 llmProviderPresenter
-6. **消费流** - 通过 loopOrchestrator
-
-### startStreamCompletion 流程
-
-```typescript
-async startStreamCompletion(conversationId: string, queryMsgId?: string, selectedVariantsMap?) {
-  // 1. 获取生成状态
-  const state = this.findGeneratingState(conversationId)
-
-  // 2. 启动 Loop
-  await sessionManager.startLoop(conversationId, state.message.id)
-
-  // 3. 准备会话上下文
-  const { conversation, userMessage, contextMessages } = await this.prepareConversationContext(
-    conversationId,
-    queryMsgId,
-    selectedVariantsMap
-  )
-
-  // 4. 解析 workspace context
-  const { chatMode, agentWorkspacePath } = await sessionManager.resolveWorkspaceContext(conversationId, modelId)
-
-  // 5. 处理用户消息内容（URL、图片）
-  const { userContent, urlResults, imageFiles } = await this.processUserMessageContent(userMessage)
-
-  // 6. 执行搜索（如果启用）
-  let searchResults = null
-  if (userMessage.content.search) {
-    searchResults = await this.searchHandler.startStreamSearch(conversationId, state.message.id, userContent)
-  }
-
-  // 7. 构建提示词
-  const { finalContent, promptTokens } = await preparePromptContent({
-    conversation,
-    userContent,
-    contextMessages,
-    searchResults,
-    urlResults,
-    userMessage,
-    vision: modelConfig?.vision,
-    imageFiles,
-    supportsFunctionCall: modelConfig.functionCall,
-    modelType: modelConfig.type
-  })
-
-  // 8. 启动 LLM Stream
-  const stream = llmProviderPresenter.startStreamCompletion(
-    providerId,
-    finalContent,
-    modelId,
-    eventId,
-    temperature,
-    maxTokens,
-    enabledMcpTools,
-    thinkingBudget,
-    reasoningEffort,
-    verbosity,
-    enableSearch,
-    forcedSearch,
-    searchStrategy,
-    conversationId
-  )
-
-  // 9. 消费流
-  await this.loopOrchestrator.consume(stream)
-}
-```
-
-**文件位置**：`src/main/presenter/agentPresenter/streaming/streamGenerationHandler.ts:54-179`
-
-### continueStreamCompletion - 继续生成
-
-```typescript
-async continueStreamCompletion(conversationId: string, queryMsgId: string, selectedVariantsMap?) {
-  // 1. 检查待执行的工具调用（maximum_tool_calls_reached）
-  const queryMessage = await this.ctx.messageManager.getMessage(queryMsgId)
-  const content = queryMessage.content as AssistantMessageBlock[]
-  const lastActionBlock = content.filter((block) => block.type === 'action').pop()
-
-  if (lastActionBlock?.action_type === 'maximum_tool_calls_reached' && lastActionBlock.tool_call) {
-    // 2. 执行工具调用
-    const toolCallResponse = await presenter.mcpPresenter.callTool({
-      id: lastActionBlock.tool_call.id,
-      type: 'function',
-      function: {
-        name: lastActionBlock.tool_call.name,
-        arguments: lastActionBlock.tool_call.params
-      },
-      server: {
-        name: lastActionBlock.tool_call.server_name,
-        icons: lastActionBlock.tool_call.server_icons,
-        description: lastActionBlock.tool_call.server_description
-      }
-    })
-
-    // 3. 发送工具执行事件
-    eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, SendTarget.ALL_WINDOWS, {
-      eventId: state.message.id,
-      tool_call: 'start',
-      tool_call_id: toolCall.id,
-      tool_call_name: toolCall.name,
-      tool_call_params: toolCall.params,
-      tool_call_response: toolCallResponse.content
-    })
-    // ... running, end 事件
-  }
-
-  // 4. 准备上下文并继续
-  const { conversation, contextMessages, userMessage } = await this.prepareConversationContext(...)
-  const { finalContent } = await preparePromptContent({
-    conversation,
-    userContent: 'continue',  // 特殊标记继续
-    contextMessages,
-    searchResults: null,
-    ...
-  })
-
-  // 5. 继续流式生成
-  const stream = llmProviderPresenter.startStreamCompletion(...)
-  await this.loopOrchestrator.consume(stream)
-}
-```
-
-**文件位置**：`src/main/presenter/agentPresenter/streaming/streamGenerationHandler.ts:181-350`
-
-## 🔄 loopOrchestrator - 循环编排
-
-```typescript
-class LoopOrchestrator {
-  constructor(private llmEventHandler: LLMEventHandler) {}
-
-  async consume(stream: AsyncGenerator<LLMAgentEvent>) {
-    for await (const event of stream) {
-      if (event.type === 'response') {
-        await this.llmEventHandler.handleResponse(event.data)
-      } else if (event.type === 'error') {
-        await this.llmEventHandler.handleError(event.data)
-      } else if (event.type === 'end') {
-        await this.llmEventHandler.handleEnd(event.data)
-        break
-      }
-    }
-  }
-}
-```
-
-**文件位置**：`src/main/presenter/agentPresenter/loop/loopOrchestrator.ts`
-
-## 🔧 toolCallProcessor - 工具调用处理
-
-### 组件职责
-
-```typescript
-class ToolCallProcessor {
-  // 处理工具调用（异步生成器）
-  async *process(context: {
-    eventId: string
-    toolCalls: Array<{id, name, arguments}>
-    conversationMessages: ChatMessage[]
-    modelConfig: any
-    abortSignal: AbortSignal
-    currentToolCallCount: number
-    maxToolCalls: number
-    conversationId: string
-  }): AsyncGenerator<LLMAgentEvent>
-}
-```
-
-**文件位置**：`src/main/presenter/agentPresenter/loop/toolCallProcessor.ts:1-445`
-
-### 处理流程
-
-```mermaid
-sequenceDiagram
-    participant L as Agent Loop
-    participant T as toolCallProcessor
-    participant P as ToolPresenter
-    participant E as EventBus
-
-    L->>T: process(toolCalls)
-
-    T->>T: 检查工具列表
-    loop 遍历每个 toolCall
-        T->>P: callTool(toolCall)
-        P->>P: ToolMapper 路由
-
-        alt MCP 工具
-            P->>P: mcpPresenter.callTool()
-        else Agent 工具
-            P->>P: agentToolManager.callTool()
-        end
-
-        P-->>T: toolResponse
-
-        T->>E: send(tool_call running)
-        T->>E: send(tool_call end)
-
-        T->>T: 添加 tool result 到上下文
-        T-->>L: return tool_call end
-
-        T->>T: incrementToolCallCount()
-    end
-
-    alt 用户中断
-        T->>T: needContinueConversation = false
-    else 工具调用达上限
-        T->>T: needContinueConversation = false
-        T-->>L: return maximum_tool_calls_reached
-    end
-
-    T-->>L: return metadata
-```
-
-**文件位置**：`src/main/presenter/agentPresenter/loop/toolCallProcessor.ts`
-
-## 📡 llmEventHandler - 事件处理
-
-### 标准化事件处理
-
-```typescript
-class LLMEventHandler {
-  async handleResponse(data: LLMAgentEvent['data']) {
-    const { content, tool_call, tool_call_id, tool_call_name, tool_call_params } = data
-
-    if (content) {
-      await this.contentBufferHandler.accumulate(eventId, content)
-    }
-
-    if (tool_call) {
-      await this.toolCallHandler.handleToolCallEvent(data)
-    }
-  }
-
-  async handleError(data: {eventId, error}) {
-    await this.messageManager.handleMessageError(eventId, error)
-  }
-
-  async handleEnd(data: {eventId, userStop}) {
-    await this.contentBufferHandler.flush(eventId)
-    await this.conversationUpdates(state)
-  }
-}
-```
-
-**文件位置**：`src/main/presenter/agentPresenter/streaming/llmEventHandler.ts`
-
-## 🔐 permissionHandler - 权限协调
-
-### 权限响应处理
-
-```typescript
-async handlePermissionResponse(
-  messageId: string,
-  toolCallId: string,
-  granted: boolean,
-  permissionType: 'read' | 'write' | 'all' | 'command',
-  remember?: boolean
-) {
-  const message = await this.getMessage(messageId)
-  const content = message.content as AssistantMessageBlock[]
-
-  // 1. 更新权限块状态
-  const permissionBlock = content.find(
-    block => block.type === 'action' && block.tool_call?.id === toolCallId
-  )
-  permissionBlock.status = granted ? 'granted' : 'denied'
-  await this.ctx.messageManager.editMessage(messageId, JSON.stringify(content))
-
-  // 2. 清除待处理权限
-  this.ctx.sessionManager.clearPendingPermission(message.conversationId)
-
-  if (granted) {
-    // 3. 批准权限
-    if (isACPPermission) {
-      await this.ctx.llmProviderPresenter.resolveAgentPermission(requestId, true)
-    } else if (permissionType === 'command') {
-      CommandPermissionService.approve(conversationId, signature, remember)
-    } else {
-      await this.ctx.mcpPresenter.grantPermission(serverName, permissionType, remember)
-    }
-
-    // 4. 恢复 Agent Loop
-    await this.ctx.sessionManager.startLoop(conversationId, messageId)
-    await this.streamGenerationHandler.continueStreamCompletion(conversationId, messageId)
-  } else {
-    // 5. 拒绝权限
-    await this.continueAfterPermissionDenied(messageId)
-  }
-}
-```
-
-**文件位置**：`src/main/presenter/agentPresenter/permission/permissionHandler.ts`
-
-## 🛠️ messageBuilder - 提示词构建
-
-### 主要方法
-
-```typescript
-async function preparePromptContent(context: {
-  conversation: CONVERSATION
-  userContent: string
-  contextMessages: Message[]
-  searchResults?: SearchResult[]
-  urlResults?: SearchResult[]
-  userMessage: Message
-  vision?: boolean
-  imageFiles?: MessageFile[]
-  supportsFunctionCall?: boolean
-  modelType?: 'chat' | 'image' | 'audio'
-}): Promise<{ finalContent: ChatMessage[], promptTokens: number }>
-```
-
-**文件位置**：`src/main/presenter/agentPresenter/message/messageBuilder.ts`
-
-### 构建流程
-
-```typescript
-async function preparePromptContent(context) {
-  const { conversation, userContent, contextMessages, searchResults, urlResults } = context
-
-  // 1. 基础消息列表
-  let messages = contextMessages.map(msg => ({
-    role: msg.role,
-    content: buildUserMessageContext(msg.content)
-  }))
-
-  // 2. 添加系统提示词
-  const systemPrompt = buildSystemPrompt(conversation)
-  messages.unshift({ role: 'system', content: systemPrompt })
-
-  // 3. 添加用户消息
-  const userMessage = {
-    role: 'user',
-    content: buildUserMessageWithContext(userMessage.content, searchResults, urlResults)
-  }
-  messages.push(userMessage)
-
-  // 4. 处理图片（vision）
-  if (conversation.settings.vision && context.imageFiles.length > 0) {
-    userMessage.content = combineTextAndImages(userMessage.content, context.imageFiles)
-  }
-
-  // 5. 压缩上下文（如超过限制）
-  messages = await MessageCompressor.compress(messages, conversation.settings.contextLength)
-
-  // 6. 格式化为 OpenAI 格式
-  const finalContent = toOpenAIMessages(messages)
-
-  return { finalContent, promptTokens: calculateTokens(messages) }
-}
-```
-
-**文件位置**：`src/main/presenter/agentPresenter/message/messageBuilder.ts`
-
-## 📊 contentBufferHandler - 内容缓冲
-
-### 优化策略
-
-```typescript
-class ContentBufferHandler {
-  // 累积内容
-  async accumulate(eventId: string, content: string) {
-    const state = this.generatingMessages.get(eventId)
-    if (!state) return
-
-    // 累积到 adaptiveBuffer
-    if (!state.adaptiveBuffer) {
-      state.adaptiveBuffer = []
-    }
-    state.adaptiveBuffer.push({
-      content,
-      timestamp: Date.now(),
-      size: content.length
-    })
-
-    // 自适应刷新
-    const totalSize = state.adaptiveBuffer.reduce((sum, item) => sum + item.size, 0)
-    if (totalSize >= this.threshold) {
-      await this.flushAdaptiveBuffer(eventId)
-    }
-  }
-
-  // 刷新到前端
-  async flushAdaptiveBuffer(eventId: string) {
-    const state = this.generatingMessages.get(eventId)
-    if (!state?.adaptiveBuffer) return
-
-    const combined = state.adaptiveBuffer.map(item => item.content).join('')
-    state.adaptiveBuffer = []
-
-    await this.messageManager.editMessage(eventId, JSON.stringify(combined))
-    eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, { eventId, content: combined })
-  }
-}
-```
-
-**文件位置**：`src/main/presenter/agentPresenter/streaming/contentBufferHandler.ts`
-
-## 📁 关键文件位置汇总
-
-- **AgentPresenter**: `src/main/presenter/agentPresenter/index.ts:1-472`
-- **agentLoopHandler**: `src/main/presenter/agentPresenter/loop/agentLoopHandler.ts:145-668`
-- **streamGenerationHandler**: `src/main/presenter/agentPresenter/streaming/streamGenerationHandler.ts:54-645`
+### 旧架构关键文件位置
+
+- **AgentPresenter**: `src/main/presenter/agentPresenter/index.ts`
+- **agentLoopHandler**: `src/main/presenter/agentPresenter/loop/agentLoopHandler.ts`
+- **streamGenerationHandler**: `src/main/presenter/agentPresenter/streaming/streamGenerationHandler.ts`
 - **loopOrchestrator**: `src/main/presenter/agentPresenter/loop/loopOrchestrator.ts`
-- **toolCallProcessor**: `src/main/presenter/agentPresenter/loop/toolCallProcessor.ts:1-445`
+- **toolCallProcessor**: `src/main/presenter/agentPresenter/loop/toolCallProcessor.ts`
 - **llmEventHandler**: `src/main/presenter/agentPresenter/streaming/llmEventHandler.ts`
 - **permissionHandler**: `src/main/presenter/agentPresenter/permission/permissionHandler.ts`
-- **messageBuilder**: `src/main/presenter/agentPresenter/message/messageBuilder.ts:1-285`
+- **messageBuilder**: `src/main/presenter/agentPresenter/message/messageBuilder.ts`
 - **contentBufferHandler**: `src/main/presenter/agentPresenter/streaming/contentBufferHandler.ts`
-- **toolCallHandler**: `src/main/presenter/agentPresenter/loop/toolCallHandler.ts`
 
-## 📚 相关阅读
+---
 
-- [整体架构概览](../ARCHITECTURE.md#agent-编排器层)
-- [工具系统详解](../architecture/tool-system.md)
-- [核心流程](../FLOWS.md#发送消息完整流程)
+## 相关阅读
+
+- [整体架构概览](../ARCHITECTURE.md)
+- [工具系统详解](./tool-system.md)
+- [核心流程](../FLOWS.md)
 - [会话管理详解](./session-management.md)
+- [事件系统](./event-system.md)

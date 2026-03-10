@@ -13,15 +13,42 @@ import { AgentToolManager, type AgentToolCallResult } from '../agentPresenter/ac
 import { jsonrepair } from 'jsonrepair'
 import { CommandPermissionService } from '../permission'
 
+interface PreCheckedPermissionResult {
+  needsPermission: true
+  toolName: string
+  serverName: string
+  permissionType: 'read' | 'write' | 'all' | 'command'
+  description: string
+  paths?: string[]
+  command?: string
+  commandSignature?: string
+  commandInfo?: {
+    command: string
+    riskLevel: 'low' | 'medium' | 'high' | 'critical'
+    suggestion: string
+    signature?: string
+    baseCommand?: string
+  }
+  providerId?: string
+  requestId?: string
+  sessionId?: string
+  agentId?: string
+  agentName?: string
+  conversationId?: string
+  rememberable?: boolean
+  [key: string]: unknown
+}
+
 export interface IToolPresenter {
   getAllToolDefinitions(context: {
     enabledMcpTools?: string[]
-    chatMode?: 'chat' | 'agent' | 'acp agent'
+    chatMode?: 'agent' | 'acp agent'
     supportsVision?: boolean
     agentWorkspacePath?: string | null
     conversationId?: string
   }): Promise<MCPToolDefinition[]>
   callTool(request: MCPToolCall): Promise<{ content: unknown; rawData: MCPToolResponse }>
+  preCheckToolPermission?(request: MCPToolCall): Promise<PreCheckedPermissionResult | null>
   buildToolSystemPrompt(context: { conversationId?: string }): string
 }
 
@@ -52,7 +79,7 @@ export class ToolPresenter implements IToolPresenter {
    */
   async getAllToolDefinitions(context: {
     enabledMcpTools?: string[]
-    chatMode?: 'chat' | 'agent' | 'acp agent'
+    chatMode?: 'agent' | 'acp agent'
     supportsVision?: boolean
     agentWorkspacePath?: string | null
     conversationId?: string
@@ -60,7 +87,7 @@ export class ToolPresenter implements IToolPresenter {
     const defs: MCPToolDefinition[] = []
     this.mapper.clear()
 
-    const chatMode = context.chatMode || 'chat'
+    const chatMode = context.chatMode || 'agent'
     const supportsVision = context.supportsVision || false
     const agentWorkspacePath = context.agentWorkspacePath || null
 
@@ -69,36 +96,34 @@ export class ToolPresenter implements IToolPresenter {
     defs.push(...mcpDefs)
     this.mapper.registerTools(mcpDefs, 'mcp')
 
-    // 2. Get Agent tools (only in agent or acp agent mode)
-    if (chatMode !== 'chat') {
-      // Initialize or update AgentToolManager if workspace path changed
-      if (!this.agentToolManager) {
-        this.agentToolManager = new AgentToolManager({
-          agentWorkspacePath,
-          configPresenter: this.options.configPresenter,
-          commandPermissionHandler: this.options.commandPermissionHandler
-        })
-      }
+    // 2. Get Agent tools (always load in agent or acp agent mode)
+    // Initialize or update AgentToolManager if workspace path changed
+    if (!this.agentToolManager) {
+      this.agentToolManager = new AgentToolManager({
+        agentWorkspacePath,
+        configPresenter: this.options.configPresenter,
+        commandPermissionHandler: this.options.commandPermissionHandler
+      })
+    }
 
-      try {
-        const agentDefs = await this.agentToolManager.getAllToolDefinitions({
-          chatMode,
-          supportsVision,
-          agentWorkspacePath,
-          conversationId: context.conversationId
-        })
-        const filteredAgentDefs = agentDefs.filter((tool) => {
-          if (!this.mapper.hasTool(tool.function.name)) return true
-          console.warn(
-            `[ToolPresenter] Tool name conflict for '${tool.function.name}', preferring MCP tool.`
-          )
-          return false
-        })
-        defs.push(...filteredAgentDefs)
-        this.mapper.registerTools(filteredAgentDefs, 'agent')
-      } catch (error) {
-        console.warn('[ToolPresenter] Failed to load Agent tool definitions', error)
-      }
+    try {
+      const agentDefs = await this.agentToolManager.getAllToolDefinitions({
+        chatMode,
+        supportsVision,
+        agentWorkspacePath,
+        conversationId: context.conversationId
+      })
+      const filteredAgentDefs = agentDefs.filter((tool) => {
+        if (!this.mapper.hasTool(tool.function.name)) return true
+        console.warn(
+          `[ToolPresenter] Tool name conflict for '${tool.function.name}', preferring MCP tool.`
+        )
+        return false
+      })
+      defs.push(...filteredAgentDefs)
+      this.mapper.registerTools(filteredAgentDefs, 'agent')
+    } catch (error) {
+      console.warn('[ToolPresenter] Failed to load Agent tool definitions', error)
     }
 
     return defs
@@ -157,6 +182,67 @@ export class ToolPresenter implements IToolPresenter {
     return await this.options.mcpPresenter.callTool(request)
   }
 
+  /**
+   * Pre-check tool permissions without executing the tool
+   * Routes to the appropriate source based on tool mapping
+   */
+  async preCheckToolPermission(request: MCPToolCall): Promise<PreCheckedPermissionResult | null> {
+    const toolName = request.function.name
+    const source = this.mapper.getToolSource(toolName)
+
+    if (!source) {
+      console.warn(`[ToolPresenter] Tool ${toolName} not found for permission check`)
+      return null
+    }
+
+    if (source === 'agent') {
+      // Agent tools: delegate to AgentToolManager for pre-check
+      if (!this.agentToolManager) {
+        return null
+      }
+
+      let args: Record<string, unknown> = {}
+      const argsString = request.function.arguments || ''
+      if (argsString.trim().length > 0) {
+        try {
+          args = JSON.parse(argsString) as Record<string, unknown>
+        } catch (error) {
+          console.warn(
+            '[ToolPresenter] Failed to parse tool arguments for pre-check, trying jsonrepair:',
+            error
+          )
+          try {
+            args = JSON.parse(jsonrepair(argsString)) as Record<string, unknown>
+          } catch (error) {
+            console.warn(
+              '[ToolPresenter] Failed to repair tool arguments for pre-check, using empty args.',
+              error
+            )
+            args = {}
+          }
+        }
+      }
+
+      const result = await this.agentToolManager.preCheckToolPermission(
+        toolName,
+        args,
+        request.conversationId
+      )
+      if (!result) {
+        return null
+      }
+      return result
+    }
+
+    // Route to MCP for permission pre-check
+    if (this.options.mcpPresenter.preCheckToolPermission) {
+      return await this.options.mcpPresenter.preCheckToolPermission(request)
+    }
+
+    // If MCP presenter doesn't support preCheckToolPermission, skip it
+    return null
+  }
+
   private resolveAgentToolResponse(response: AgentToolCallResult | string): AgentToolCallResult {
     if (typeof response === 'string') {
       return { content: response }
@@ -171,6 +257,9 @@ export class ToolPresenter implements IToolPresenter {
       '~/.deepchat/sessions/<conversationId>/tool_<toolCallId>.offload'
 
     return [
+      'Use canonical Agent tool names only: read, write, edit, find, grep, ls, exec, process.',
+      'Legacy tool names are not available and will fail with Unknown Agent tool.',
+      'Recommended sequence for code tasks: find/grep -> read -> edit/write.',
       'Tool outputs may be offloaded when large.',
       `When you see an offload stub, read the full output from: ${offloadPath}`,
       'Use file tools to read that path. Access is limited to the current conversation session.',

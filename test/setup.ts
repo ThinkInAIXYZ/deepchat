@@ -41,20 +41,28 @@ vi.mock('electron', () => ({
 }))
 
 // Mock file system operations
-vi.mock('fs', () => ({
-  existsSync: vi.fn(),
-  readFileSync: vi.fn(),
-  writeFileSync: vi.fn(),
-  mkdirSync: vi.fn(),
-  readdirSync: vi.fn(),
-  promises: {
-    access: vi.fn(),
-    readFile: vi.fn(),
-    writeFile: vi.fn(),
-    mkdir: vi.fn(),
-    readdir: vi.fn()
+vi.mock('fs', () => {
+  const mockedFs = {
+    existsSync: vi.fn(),
+    readFileSync: vi.fn(),
+    writeFileSync: vi.fn(),
+    mkdirSync: vi.fn(),
+    readdirSync: vi.fn(),
+    promises: {
+      access: vi.fn(),
+      readFile: vi.fn(),
+      writeFile: vi.fn(),
+      mkdir: vi.fn(),
+      readdir: vi.fn()
+    }
   }
-}))
+
+  return {
+    __esModule: true,
+    ...mockedFs,
+    default: mockedFs
+  }
+})
 
 // Mock path module
 vi.mock('path', async () => {

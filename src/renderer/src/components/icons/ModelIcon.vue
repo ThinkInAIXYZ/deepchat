@@ -32,6 +32,7 @@ import deepseekColorIcon from '@/assets/llm-icons/deepseek-color.svg?url'
 import openaiColorIcon from '@/assets/llm-icons/openai.svg?url'
 import ollamaColorIcon from '@/assets/llm-icons/ollama.svg?url'
 import doubaoColorIcon from '@/assets/llm-icons/doubao-color.svg?url'
+import dimcodeColorIcon from '@/assets/llm-icons/dimcode.svg?url'
 import minimaxColorIcon from '@/assets/llm-icons/minimax-color.svg?url'
 import fireworksColorIcon from '@/assets/llm-icons/fireworks-color.svg?url'
 import zerooneColorIcon from '@/assets/llm-icons/zeroone.svg?url'
@@ -75,6 +76,7 @@ const icons = {
   'kimi-cli': moonshotColorIcon,
   'claude-code-acp': claudeColorIcon,
   'codex-acp': openaiColorIcon,
+  'dimcode-acp': dimcodeColorIcon,
   o3fan: o3fanColorIcon,
   cherryin: cherryinColorIcon,
   modelscope: modelscopeColorIcon,
@@ -194,28 +196,36 @@ const iconKey = computed(() => {
   return 'default'
 })
 
+// Monochrome icon URLs that need inversion in dark mode
+const monoIconUrls = new Set([
+  openaiColorIcon,
+  dimcodeColorIcon,
+  ollamaColorIcon,
+  zerooneColorIcon,
+  xaiColorIcon,
+  vercelColorIcon,
+  viggleColorIcon,
+  sunoColorIcon,
+  syncColorIcon,
+  rwkvColorIcon,
+  moonshotColorIcon,
+  openrouterColorIcon,
+  githubColorIcon,
+  qiniuIcon,
+  grokColorIcon,
+  groqColorIcon,
+  metaColorIcon,
+  lmstudioColorIcon,
+  _302aiIcon,
+  awsBedrockIcon,
+  voiceAiColorIcon
+])
+
 const invert = computed(() => {
   if (!props.isDark) {
     return false
   }
-  const checkTargets = [props.modelId.toLowerCase()]
-  if (provider.value?.apiType) {
-    checkTargets.push(provider.value.apiType.toLowerCase())
-  }
-  const invertKeywords = [
-    'openai',
-    'openai-responses',
-    'openrouter',
-    'ollama',
-    'grok',
-    'groq',
-    'github',
-    'moonshot',
-    'lmstudio',
-    'aws-bedrock'
-  ]
-
-  return checkTargets.some((target) => invertKeywords.some((keyword) => target.includes(keyword)))
+  return monoIconUrls.has(icons[iconKey.value])
 })
 </script>
 

@@ -15,17 +15,12 @@ export type ChatLanguage =
 
 export type ChatTheme = 'dark' | 'light' | 'system'
 
-export type ChatSettingId =
-  | 'soundEnabled'
-  | 'copyWithCotEnabled'
-  | 'language'
-  | 'theme'
-  | 'fontSizeLevel'
+export type ChatSettingId = 'copyWithCotEnabled' | 'language' | 'theme' | 'fontSizeLevel'
 
 export type ChatSettingValue = boolean | number | ChatLanguage | ChatTheme
 
 export type ToggleChatSettingRequest = {
-  setting: 'soundEnabled' | 'copyWithCotEnabled'
+  setting: 'copyWithCotEnabled'
   enabled: boolean
 }
 

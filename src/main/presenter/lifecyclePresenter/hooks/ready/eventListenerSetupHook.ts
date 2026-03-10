@@ -36,10 +36,8 @@ export const eventListenerSetupHook: LifecycleHook = {
       // Also handle showing hidden windows
       const allWindows = presenter.windowPresenter.getAllWindows()
       if (allWindows.length === 0) {
-        presenter.windowPresenter.createShellWindow({
-          initialTab: {
-            url: 'local://chat'
-          }
+        presenter.windowPresenter.createAppWindow({
+          initialRoute: 'chat'
         })
       } else {
         // Try to show the most recently focused window, otherwise show the first window
@@ -51,9 +49,8 @@ export const eventListenerSetupHook: LifecycleHook = {
           console.warn(
             'eventListenerSetupHook: App activated but target window is destroyed, creating new window.'
           )
-          presenter.windowPresenter.createShellWindow({
-            // If target window is destroyed, create new window
-            initialTab: { url: 'local://chat' }
+          presenter.windowPresenter.createAppWindow({
+            initialRoute: 'chat'
           })
         }
       }

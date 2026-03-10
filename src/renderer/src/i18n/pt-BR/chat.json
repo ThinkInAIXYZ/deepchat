@@ -1,6 +1,6 @@
 {
   "input": {
-    "placeholder": "Pergunte algo? Você pode citar ferramentas, arquivos, recursos usando {'@'}...",
+    "placeholder": "Pergunte qualquer coisa ao DeepChat, {'@'} para mencionar arquivos, / para comandos",
     "fileArea": "Área de Arquivos",
     "inputArea": "Área de Entrada",
     "functionSwitch": "Alternar Função",
@@ -25,7 +25,15 @@
     "acpModeTooltip": "Modo atual: {mode}",
     "agentWorkspaceCurrent": "Diretório de trabalho atual: {path}",
     "agentWorkspaceSelect": "Selecione o diretório de trabalho",
-    "agentWorkspaceTooltip": "Definir diretório de trabalho do agente"
+    "agentWorkspaceTooltip": "Definir diretório de trabalho do agente",
+    "attach": "Anexar",
+    "voiceInput": "Entrada de voz",
+    "mcp": {
+      "badge": "MCP {count}",
+      "title": "MCPs habilitados",
+      "empty": "Nenhum serviço habilitado",
+      "openSettings": "Abrir configurações do MCP"
+    }
   },
   "features": {
     "webSearch": "Busca na Web",
@@ -95,11 +103,34 @@
   "mode": {
     "acpAgent": "Agente ACP",
     "agent": "Agente",
-    "chat": "bater papo",
     "current": "Modo atual: {mode}"
+  },
+  "topbar": {
+    "share": "Compartilhar",
+    "more": "Mais"
+  },
+  "advancedSettings": {
+    "button": "Avançado",
+    "title": "Configurações avançadas",
+    "closeHint": "Pressione Esc para fechar",
+    "systemPrompt": "Prompt do sistema",
+    "systemPromptPlaceholder": "Selecione um preset",
+    "temperature": "Temperatura",
+    "contextLength": "Tamanho do contexto",
+    "maxTokens": "Máx. de tokens",
+    "thinkingBudget": "Orçamento de raciocínio",
+    "verbosity": "Nível de detalhe",
+    "verbosityPlaceholder": "Selecione o nível de detalhe",
+    "currentCustomPrompt": "Personalização atual",
+    "useDefault": "Usar padrão"
   },
   "workspace": {
     "collapse": "fechar",
+    "sections": {
+      "files": "Arquivos",
+      "git": "Git",
+      "artifacts": "Artifacts"
+    },
     "files": {
       "contextMenu": {
         "insertPath": "Insira na caixa de entrada",
@@ -109,6 +140,12 @@
       "empty": "Nenhum arquivo ainda",
       "loading": "Carregando arquivos...",
       "section": "documento"
+    },
+    "git": {
+      "empty": "Nenhum diff disponível",
+      "clean": "Árvore de trabalho limpa",
+      "staged": "Em stage",
+      "unstaged": "Sem stage"
     },
     "browser": {
       "section": "Navegador",
@@ -169,5 +206,25 @@
       "manage": "gerenciamento",
       "title": "Habilidade"
     }
+  },
+  "compaction": {
+    "compacting": "Compactando o contexto automaticamente...",
+    "compacted": "O contexto foi compactado automaticamente"
+  },
+  "newThread": {
+    "title": "Criar e explorar"
+  },
+  "permissionMode": {
+    "default": "Permissões padrão",
+    "fullAccess": "Acesso total"
+  },
+  "sidebar": {
+    "allAgents": "Todos os agentes",
+    "expandSidebar": "Expandir barra lateral",
+    "collapseSidebar": "Recolher barra lateral",
+    "groupByDate": "Agrupar por data",
+    "groupByProject": "Agrupar por projeto",
+    "emptyTitle": "Ainda não há conversas",
+    "emptyDescription": "Inicie um novo chat para começar"
   }
 }

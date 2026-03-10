@@ -11,7 +11,6 @@ import {
   Part,
   SafetySetting,
   Tool,
-  GoogleSearch,
   GenerateContentConfig
 } from '@google/genai'
 import { ModelType } from '@shared/model'
@@ -134,6 +133,23 @@ export class VertexProvider extends BaseLLMProvider {
       .replace(/^models\//i, '')
       .replace(/^publishers\/google\/models\//i, '')
     return `publishers/google/models/${normalized}`
+  }
+
+  private buildVertexStreamEndpoint(modelId: string): string {
+    const baseUrl = this.buildBaseUrl().replace(/\/+$/, '')
+    const apiVersion = this.getApiVersion()
+    const modelPath = this.ensureVertexModelName(modelId).replace(/^\/+/, '')
+    return `${baseUrl}/${apiVersion}/${modelPath}:streamGenerateContent`
+  }
+
+  private buildVertexTraceHeaders(): Record<string, string> {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json'
+    }
+    if (this.provider.apiKey) {
+      headers['x-goog-api-key'] = this.provider.apiKey
+    }
+    return headers
   }
 
   // Implement abstract method fetchProviderModels from BaseLLMProvider
@@ -904,13 +920,9 @@ export class VertexProvider extends BaseLLMProvider {
     // 添加Gemini工具调用
     let geminiTools: Tool[] = []
 
-    // 注意：googleSearch内置工具与外部工具是互斥的
-    if (modelConfig.enableSearch) {
-      geminiTools.push({ googleSearch: {} as GoogleSearch })
-    } else {
-      if (mcpTools.length > 0)
-        geminiTools = await presenter.mcpPresenter.mcpToolsToGeminiTools(mcpTools, this.provider.id)
-    }
+    // Load MCP tools if available
+    if (mcpTools.length > 0)
+      geminiTools = await presenter.mcpPresenter.mcpToolsToGeminiTools(mcpTools, this.provider.id)
 
     // 格式化消息为Gemini格式
     const formattedParts = this.formatVertexMessages(messages)
@@ -956,11 +968,19 @@ export class VertexProvider extends BaseLLMProvider {
       config: generateContentConfig
     }
 
-    // 发送流式请求
-    const result = await this.genAI.models.generateContentStream({
+    const streamRequestParams = {
       ...requestParams,
       model: this.ensureVertexModelName(requestParams.model as string)
+    }
+
+    await this.emitRequestTrace(modelConfig, {
+      endpoint: this.buildVertexStreamEndpoint(modelId),
+      headers: this.buildVertexTraceHeaders(),
+      body: streamRequestParams
     })
+
+    // 发送流式请求
+    const result = await this.genAI.models.generateContentStream(streamRequestParams)
 
     // 状态变量
     let buffer = ''

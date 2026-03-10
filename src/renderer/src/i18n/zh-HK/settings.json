@@ -42,17 +42,13 @@
     "contentProtectionEnableDesc": "開啟投屏保護可以防止投屏軟件捕獲DeepChat主窗口，用來保護您的內容隱私。請注意，此功能不會徹底隱藏所有界面，請合理合規使用。並且，並不是所有投屏軟件都遵守用戶隱私設定，該功能可能在一些不遵守隱私設定的投屏軟件上失效，且部分環境中可能會殘留一個黑色窗體。",
     "contentProtectionDisableDesc": "關閉投屏保護將允許投屏軟件捕獲DeepChat窗口。",
     "contentProtectionRestartNotice": "切換此設置將導致程序重啟，請確認是否繼續？",
-    "soundEnabled": "啟用音效",
     "copyWithCotEnabled": "複製COT資訊",
     "loggingEnabled": "啟用日誌",
     "loggingDialogTitle": "確認日誌設定變更",
     "loggingEnableDesc": "啟用日誌將幫助我們診斷問題並改進應用程式。日誌檔案可能包含敏感資訊。",
     "loggingDisableDesc": "停用日誌將停止收集應用程式日誌。",
+    "charactersUnit": "字元",
     "loggingRestartNotice": "切換此設定將導致程序重啟，請確認是否繼續？",
-    "webContentLengthLimit": "網頁內容長度限制",
-    "webContentLengthLimitHint": "（設置為0表示不限制）",
-    "charactersUnit": "字符",
-    "webContentLengthLimitTooltip": "設置從網頁提取的文本內容長度上限（字符數），範圍：0-50000。設置為0表示不限制長度，獲取完整網頁內容；較大的值可以獲取更完整的網頁內容，但可能增加處理時間和token消耗。",
     "openLogFolder": "打開日誌文件夾",
     "shortcut": {
       "newChat": "新建聊天",
@@ -62,7 +58,12 @@
     "notificationsDesc": "當 DeepChat 不在前台時，如有會話生成完畢會發送系統通知",
     "traceDebugEnabled": "Trace 除錯功能",
     "fileMaxSize": "檔案最大大小",
-    "fileMaxSizeHint": "限制單個檔案的最大上傳大小"
+    "fileMaxSizeHint": "限制單個檔案的最大上傳大小",
+    "defaultModel": {
+      "title": "預設模型",
+      "chatModel": "預設聊天模型",
+      "visionModel": "預設視覺模型"
+    }
   },
   "notificationsHooks": {
     "title": "通知與 Hooks",
@@ -238,23 +239,6 @@
         "description": "模型是否支持推理能力",
         "label": "推理能力"
       },
-      "enableSearch": {
-        "label": "聯網搜尋",
-        "description": "開啟後模型可以聯網搜尋獲取最新資訊"
-      },
-      "forcedSearch": {
-        "label": "強制搜尋",
-        "description": "開啟後強制模型進行聯網搜尋，關閉時由模型自行決定"
-      },
-      "searchStrategy": {
-        "label": "搜尋策略",
-        "description": "選擇搜尋性能模式：turbo 兼顧速度與效果，max 提供最優搜尋效果",
-        "placeholder": "選擇搜尋策略",
-        "options": {
-          "turbo": "Turbo - 兼顧回應速度與搜尋效果（推薦）",
-          "max": "Max - 高性能模式，提供最優搜尋效果"
-        }
-      },
       "thinkingBudget": {
         "label": "思考預算",
         "description": "設定思考過程的最大 token 長度，用於控制模型推理深度",
@@ -325,10 +309,6 @@
       "vision": {
         "description": "模型是否支持視覺能力",
         "label": "視覺能力"
-      },
-      "searchLimit": {
-        "label": "搜尋限制",
-        "description": "模型限制: 啟用網絡搜尋將使工具函數呼叫失效"
       },
       "apiEndpoint": {
         "description": "選擇此模型使用的 OpenAI API 端點。",
@@ -811,7 +791,7 @@
       "jsonParseError": "JSON解析失敗",
       "typeHttp": "可流式傳輸的HTTP請求(HTTP)",
       "browseMarketplace": "瀏覽MCP服務市場",
-      "imageModel": "選擇視覺模型",
+      "imageModel": "視覺模型",
       "customHeadersParseError": "自定義Header解析失敗",
       "customHeaders": "自定義請求頭",
       "invalidKeyValueFormat": "錯誤的請求頭格式，請檢查輸入是否正確",
@@ -859,6 +839,9 @@
     "cannotRemoveBuiltIn": "無法刪除內置服務",
     "builtInServerCannotBeRemoved": "內置服務不能被刪除，僅支持修改參數和環境變量",
     "marketplace": "前往MCP市場一鍵安裝",
+    "marketMenu": {
+      "higress": "Higress"
+    },
     "maxDefaultServersReached": "最多只能設置3個默認服務器",
     "removeDefaultFirst": "請先移除一些默認服務器",
     "higressMarket": "前往 Higress MCP 安裝",
@@ -954,15 +937,10 @@
     "zoomIn": "放大字體",
     "zoomOut": "縮小字體",
     "zoomReset": "重置字體",
-    "closeTab": "關閉當前標籤頁",
-    "newTab": "新建標籤頁",
     "newWindow": "打開新窗口",
     "showHideWindow": "顯示/隱藏窗口",
     "newConversation": "新會話",
-    "lastTab": "切換到最後一個標籤頁",
-    "previousTab": "切換到上一個標籤頁",
-    "specificTab": "切換到指定標籤頁 (1-8)",
-    "nextTab": "切換到下一個標籤頁"
+    "closeWindow": "關閉當前視窗"
   },
   "rateLimit": {
     "title": "速率限制",
@@ -1278,6 +1256,6 @@
       "syncing": "正在匯入...",
       "title": "外部工具"
     },
-    "title": "skills管理"
+    "title": "Skills設置"
   }
 }

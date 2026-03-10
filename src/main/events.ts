@@ -24,7 +24,6 @@ export const CONFIG_EVENTS = {
   AUTO_SCROLL_CHANGED: 'config:auto-scroll-changed',
   NOTIFICATIONS_CHANGED: 'config:notifications-changed',
   CONTENT_PROTECTION_CHANGED: 'config:content-protection-changed',
-  SOUND_ENABLED_CHANGED: 'config:sound-enabled-changed', // 新增：声音开关变更事件
   COPY_WITH_COT_CHANGED: 'config:copy-with-cot-enabled-changed',
   TRACE_DEBUG_CHANGED: 'config:trace-debug-changed', // Trace 调试功能开关变更事件
   PROXY_RESOLVED: 'config:proxy-resolved',
@@ -68,7 +67,17 @@ export const CONVERSATION_EVENTS = {
 export const STREAM_EVENTS = {
   RESPONSE: 'stream:response', // 替代 stream-response
   END: 'stream:end', // 替代 stream-end
-  ERROR: 'stream:error' // 替代 stream-error
+  ERROR: 'stream:error', // 替代 stream-error
+  PERMISSION_UPDATED: 'stream:permission-updated' // 权限状态更新，通知前端刷新UI
+}
+
+// New agent session events
+export const SESSION_EVENTS = {
+  LIST_UPDATED: 'session:list-updated',
+  ACTIVATED: 'session:activated',
+  DEACTIVATED: 'session:deactivated',
+  STATUS_CHANGED: 'session:status-changed',
+  COMPACTION_UPDATED: 'session:compaction-updated'
 }
 
 // 系统相关事件
@@ -171,15 +180,9 @@ export const SHORTCUT_EVENTS = {
   ZOOM_RESUME: 'shortcut:zoom-resume',
   CREATE_NEW_WINDOW: 'shortcut:create-new-window',
   CREATE_NEW_CONVERSATION: 'shortcut:create-new-conversation',
-  CREATE_NEW_TAB: 'shortcut:create-new-tab',
-  CLOSE_CURRENT_TAB: 'shortcut:close-current-tab',
   GO_SETTINGS: 'shortcut:go-settings',
   CLEAN_CHAT_HISTORY: 'shortcut:clean-chat-history',
-  DELETE_CONVERSATION: 'shortcut:delete-conversation',
-  SWITCH_TO_NEXT_TAB: 'shortcut:switch-to-next-tab',
-  SWITCH_TO_PREVIOUS_TAB: 'shortcut:switch-to-previous-tab',
-  SWITCH_TO_SPECIFIC_TAB: 'shortcut:switch-to-specific-tab',
-  SWITCH_TO_LAST_TAB: 'shortcut:switch-to-last-tab'
+  DELETE_CONVERSATION: 'shortcut:delete-conversation'
 }
 
 // 标签页相关事件
@@ -195,12 +198,11 @@ export const TAB_EVENTS = {
 
 // Yo Browser 相关事件
 export const YO_BROWSER_EVENTS = {
-  TAB_CREATED: 'yo-browser:tab-created',
-  TAB_CLOSED: 'yo-browser:tab-closed',
-  TAB_ACTIVATED: 'yo-browser:tab-activated',
-  TAB_NAVIGATED: 'yo-browser:tab-navigated',
-  TAB_UPDATED: 'yo-browser:tab-updated',
-  TAB_COUNT_CHANGED: 'yo-browser:tab-count-changed',
+  WINDOW_CREATED: 'yo-browser:window-created',
+  WINDOW_UPDATED: 'yo-browser:window-updated',
+  WINDOW_CLOSED: 'yo-browser:window-closed',
+  WINDOW_FOCUSED: 'yo-browser:window-focused',
+  WINDOW_COUNT_CHANGED: 'yo-browser:window-count-changed',
   WINDOW_VISIBILITY_CHANGED: 'yo-browser:window-visibility-changed'
 }
 
@@ -253,14 +255,13 @@ export const LIFECYCLE_EVENTS = {
 
 // Workspace events
 export const WORKSPACE_EVENTS = {
-  PLAN_UPDATED: 'workspace:plan-updated', // Plan entries updated
-  TERMINAL_OUTPUT: 'workspace:terminal-output', // Terminal snippet update
   FILES_CHANGED: 'workspace:files-changed' // File tree changed
 }
 
 // ACP-specific workspace events
 export const ACP_WORKSPACE_EVENTS = {
-  SESSION_MODES_READY: 'acp-workspace:session-modes-ready' // Session modes available
+  SESSION_MODES_READY: 'acp-workspace:session-modes-ready', // Session modes available
+  SESSION_COMMANDS_READY: 'acp-workspace:session-commands-ready' // Session commands available
 }
 
 export const ACP_DEBUG_EVENTS = {

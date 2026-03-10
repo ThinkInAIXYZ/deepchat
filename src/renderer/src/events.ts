@@ -24,7 +24,6 @@ export const CONFIG_EVENTS = {
   NOTIFICATIONS_CHANGED: 'config:notifications-changed',
   CONTENT_PROTECTION_CHANGED: 'config:content-protection-changed',
   LANGUAGE_CHANGED: 'config:language-changed', // 新增：语言变更事件
-  SOUND_ENABLED_CHANGED: 'config:sound-enabled-changed', // 新增：声音启用状态变更事件
   COPY_WITH_COT_CHANGED: 'config:copy-with-cot-enabled-changed',
   TRACE_DEBUG_CHANGED: 'config:trace-debug-changed', // Trace 调试功能开关变更事件
   FONT_FAMILY_CHANGED: 'config:font-family-changed',
@@ -49,7 +48,8 @@ export const CONVERSATION_EVENTS = {
 export const STREAM_EVENTS = {
   RESPONSE: 'stream:response', // 替代 stream-response
   END: 'stream:end', // 替代 stream-end
-  ERROR: 'stream:error' // 替代 stream-error
+  ERROR: 'stream:error', // 替代 stream-error
+  PERMISSION_UPDATED: 'stream:permission-updated' // 权限状态更新，通知前端刷新UI
 }
 
 // 应用更新相关事件
@@ -65,7 +65,11 @@ export const WINDOW_EVENTS = {
   READY_TO_SHOW: 'window:ready-to-show', // 替代 main-window-ready-to-show
   FORCE_QUIT_APP: 'window:force-quit-app', // 替代 force-quit-app
   APP_FOCUS: 'app:focus',
-  APP_BLUR: 'app:blur'
+  APP_BLUR: 'app:blur',
+  WINDOW_MAXIMIZED: 'window:maximized',
+  WINDOW_UNMAXIMIZED: 'window:unmaximized',
+  WINDOW_ENTER_FULL_SCREEN: 'window:enter-full-screen',
+  WINDOW_LEAVE_FULL_SCREEN: 'window:leave-full-screen'
 }
 
 // Settings related events
@@ -159,12 +163,11 @@ export const TAB_EVENTS = {
 
 // Yo Browser 相关事件
 export const YO_BROWSER_EVENTS = {
-  TAB_CREATED: 'yo-browser:tab-created',
-  TAB_CLOSED: 'yo-browser:tab-closed',
-  TAB_ACTIVATED: 'yo-browser:tab-activated',
-  TAB_NAVIGATED: 'yo-browser:tab-navigated',
-  TAB_UPDATED: 'yo-browser:tab-updated',
-  TAB_COUNT_CHANGED: 'yo-browser:tab-count-changed',
+  WINDOW_CREATED: 'yo-browser:window-created',
+  WINDOW_UPDATED: 'yo-browser:window-updated',
+  WINDOW_CLOSED: 'yo-browser:window-closed',
+  WINDOW_FOCUSED: 'yo-browser:window-focused',
+  WINDOW_COUNT_CHANGED: 'yo-browser:window-count-changed',
   WINDOW_VISIBILITY_CHANGED: 'yo-browser:window-visibility-changed'
 }
 
@@ -198,6 +201,15 @@ export const RAG_EVENTS = {
   FILE_UPDATED: 'rag:file-updated', // 文件状态更新
   FILE_PROGRESS: 'rag:file-progress' // 文件进度更新
 }
+// New agent session events
+export const SESSION_EVENTS = {
+  LIST_UPDATED: 'session:list-updated',
+  ACTIVATED: 'session:activated',
+  DEACTIVATED: 'session:deactivated',
+  STATUS_CHANGED: 'session:status-changed',
+  COMPACTION_UPDATED: 'session:compaction-updated'
+}
+
 // 系统相关事件
 export const SYSTEM_EVENTS = {
   SYSTEM_THEME_UPDATED: 'system:theme-updated'
@@ -205,14 +217,13 @@ export const SYSTEM_EVENTS = {
 
 // Workspace events
 export const WORKSPACE_EVENTS = {
-  PLAN_UPDATED: 'workspace:plan-updated', // Plan entries updated
-  TERMINAL_OUTPUT: 'workspace:terminal-output', // Terminal snippet update
   FILES_CHANGED: 'workspace:files-changed' // File tree changed
 }
 
 // ACP-specific workspace events
 export const ACP_WORKSPACE_EVENTS = {
-  SESSION_MODES_READY: 'acp-workspace:session-modes-ready' // Session modes available
+  SESSION_MODES_READY: 'acp-workspace:session-modes-ready', // Session modes available
+  SESSION_COMMANDS_READY: 'acp-workspace:session-commands-ready' // Session commands available
 }
 
 export const ACP_DEBUG_EVENTS = {

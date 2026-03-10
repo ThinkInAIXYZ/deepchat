@@ -78,7 +78,6 @@
   "save": "Enregistrer",
   "clear": "Effacer",
   "saved": "Sauvé",
-  "newTab": "Nouvel onglet",
   "unknownError": "Erreur inconnue",
   "testing": "En cours de test",
   "saving": "En cours d'enregistrement",
@@ -92,9 +91,25 @@
     "back": "Précédent",
     "forward": "Suivant",
     "reload": "Actualiser",
+    "addressLabel": "Barre d’adresse",
     "addressPlaceholder": "Saisir une URL",
     "enterUrlDescription": "Entrez l'URL dans la barre d'adresse ci-dessus pour accéder au site Web",
     "enterUrlToStart": "Entrez l'URL pour commencer la visite",
     "name": "Votre navigateur"
+  },
+  "size": {
+    "bytes": "{count} octets"
+  },
+  "time": {
+    "today": "Aujourd'hui",
+    "yesterday": "Hier",
+    "lastWeek": "La semaine dernière",
+    "older": "Plus anciennes"
+  },
+  "project": {
+    "select": "Sélectionner un projet",
+    "none": "Aucun projet",
+    "recent": "Projets récents",
+    "openFolder": "Ouvrir un dossier..."
   }
 }

@@ -2,23 +2,16 @@ import type {
   ChatMessage,
   CONVERSATION,
   CONVERSATION_SETTINGS,
-  LLMAgentEventData,
-  MCPToolDefinition,
-  MESSAGE_METADATA,
-  MODEL_META
+  LLMAgentEventData
 } from '@shared/presenter'
 import type { AssistantMessageBlock, Message, UserMessageContent } from '@shared/chat'
-import { ModelType } from '@shared/model'
-import { presenter } from '@/presenter'
-import { BaseHandler, type ThreadHandlerContext } from '../../searchPresenter/handlers/baseHandler'
+import { BaseHandler, type ThreadHandlerContext } from '../types/handlerContext'
 import { buildUserMessageContext } from '../message/messageFormatter'
 import {
   buildConversationExportContent,
   generateExportFilename,
   type ConversationExportFormat
 } from '../../exporter/formats/conversationExporter'
-import { preparePromptContent } from '../message/messageBuilder'
-import type { StreamGenerationHandler } from '../streaming/streamGenerationHandler'
 
 // Translation constants
 const TRANSLATION_TEMPERATURE = 0.3
@@ -28,46 +21,34 @@ const TRANSLATION_TIMEOUT_MS = 1000
 const DEFAULT_MESSAGE_LENGTH = 300
 
 export interface UtilityHandlerOptions {
-  getActiveConversation: (tabId: number) => Promise<CONVERSATION | null>
-  getActiveConversationId: (tabId: number) => Promise<string | null>
-  getConversation: (conversationId: string) => Promise<CONVERSATION>
+  getActiveConversation: (webContentsId: number) => Promise<CONVERSATION | null>
+  getActiveConversationId: (webContentsId: number) => Promise<string | null>
   createConversation: (
     title: string,
     settings: Partial<CONVERSATION_SETTINGS>,
-    tabId: number
+    webContentsId: number
   ) => Promise<string>
-  streamGenerationHandler: StreamGenerationHandler
-  getSearchAssistantModel: () => MODEL_META | null
-  getSearchAssistantProviderId: () => string | null
 }
 
 export class UtilityHandler extends BaseHandler {
-  private readonly getActiveConversation: (tabId: number) => Promise<CONVERSATION | null>
-  private readonly getActiveConversationId: (tabId: number) => Promise<string | null>
-  private readonly getConversation: (conversationId: string) => Promise<CONVERSATION>
+  private readonly getActiveConversation: (webContentsId: number) => Promise<CONVERSATION | null>
+  private readonly getActiveConversationId: (webContentsId: number) => Promise<string | null>
   private readonly createConversation: (
     title: string,
     settings: Partial<CONVERSATION_SETTINGS>,
-    tabId: number
+    webContentsId: number
   ) => Promise<string>
-  private readonly streamGenerationHandler: StreamGenerationHandler
-  private readonly getSearchAssistantModel: () => MODEL_META | null
-  private readonly getSearchAssistantProviderId: () => string | null
 
   constructor(context: ThreadHandlerContext, options: UtilityHandlerOptions) {
     super(context)
     this.getActiveConversation = options.getActiveConversation
     this.getActiveConversationId = options.getActiveConversationId
-    this.getConversation = options.getConversation
     this.createConversation = options.createConversation
-    this.streamGenerationHandler = options.streamGenerationHandler
-    this.getSearchAssistantModel = options.getSearchAssistantModel
-    this.getSearchAssistantProviderId = options.getSearchAssistantProviderId
   }
 
-  async translateText(text: string, tabId: number): Promise<string> {
+  async translateText(text: string, webContentsId: number): Promise<string> {
     try {
-      let conversation = await this.getActiveConversation(tabId)
+      let conversation = await this.getActiveConversation(webContentsId)
       if (!conversation) {
         // Create a temporary conversation for translation
         const defaultProvider = this.ctx.configPresenter.getDefaultProviders()[0]
@@ -79,7 +60,7 @@ export class UtilityHandler extends BaseHandler {
             modelId: defaultModel.id,
             providerId: defaultProvider.id
           },
-          tabId
+          webContentsId
         )
         conversation = await this.getConversation(conversationId)
       }
@@ -130,9 +111,9 @@ export class UtilityHandler extends BaseHandler {
     }
   }
 
-  async askAI(text: string, tabId: number): Promise<string> {
+  async askAI(text: string, webContentsId: number): Promise<string> {
     try {
-      let conversation = await this.getActiveConversation(tabId)
+      let conversation = await this.getActiveConversation(webContentsId)
       if (!conversation) {
         // Create a temporary conversation for AI query
         const defaultProvider = this.ctx.configPresenter.getDefaultProviders()[0]
@@ -144,7 +125,7 @@ export class UtilityHandler extends BaseHandler {
             modelId: defaultModel.id,
             providerId: defaultProvider.id
           },
-          tabId
+          webContentsId
         )
         conversation = await this.getConversation(conversationId)
       }
@@ -226,8 +207,9 @@ export class UtilityHandler extends BaseHandler {
     }
   }
 
-  async summaryTitles(tabId?: number, conversationId?: string): Promise<string> {
-    const activeId = tabId !== undefined ? await this.getActiveConversationId(tabId) : null
+  async summaryTitles(webContentsId?: number, conversationId?: string): Promise<string> {
+    const activeId =
+      webContentsId !== undefined ? await this.getActiveConversationId(webContentsId) : null
     const targetConversationId = conversationId ?? activeId ?? undefined
     if (!targetConversationId) {
       throw new Error('Conversation not found')
@@ -236,9 +218,6 @@ export class UtilityHandler extends BaseHandler {
     if (!conversation) {
       throw new Error('Conversation not found')
     }
-    let summaryProviderId = conversation.settings.providerId
-    const modelId = this.getSearchAssistantModel()?.id
-    summaryProviderId = this.getSearchAssistantProviderId() || conversation.settings.providerId
 
     // Get context messages
     let messageCount = Math.ceil(conversation.settings.contextLength / DEFAULT_MESSAGE_LENGTH)
@@ -278,174 +257,47 @@ export class UtilityHandler extends BaseHandler {
         }
       })
       .filter((item) => item.formattedMessage.content.length > 0)
-    const title = await this.ctx.llmProviderPresenter.summaryTitles(
-      messagesWithLength.map((item) => item.formattedMessage),
-      summaryProviderId || conversation.settings.providerId,
-      modelId || conversation.settings.modelId
-    )
+    const assistantModel = this.ctx.configPresenter.getSetting<{
+      providerId: string
+      modelId: string
+    }>('assistantModel')
+    const fallbackProviderId = conversation.settings.providerId
+    const fallbackModelId = conversation.settings.modelId
+    const preferredProviderId = assistantModel?.providerId || fallbackProviderId
+    const preferredModelId = assistantModel?.modelId || fallbackModelId
+
+    let title: string
+    try {
+      title = await this.ctx.llmProviderPresenter.summaryTitles(
+        messagesWithLength.map((item) => item.formattedMessage),
+        preferredProviderId,
+        preferredModelId
+      )
+    } catch (error) {
+      const shouldFallback =
+        preferredProviderId !== fallbackProviderId || preferredModelId !== fallbackModelId
+      if (!shouldFallback) {
+        throw error
+      }
+      console.warn(
+        '[UtilityHandler] Failed to generate title with assistant model, fallback to conversation model',
+        {
+          preferredProviderId,
+          preferredModelId,
+          fallbackProviderId,
+          fallbackModelId,
+          error
+        }
+      )
+      title = await this.ctx.llmProviderPresenter.summaryTitles(
+        messagesWithLength.map((item) => item.formattedMessage),
+        fallbackProviderId,
+        fallbackModelId
+      )
+    }
     let cleanedTitle = title.replace(/<think>.*?<\/think>/g, '').trim()
     cleanedTitle = cleanedTitle.replace(/^<think>/, '').trim()
     return cleanedTitle
-  }
-
-  async getMessageRequestPreview(messageId: string): Promise<unknown> {
-    try {
-      // Get message and conversation
-      const message = await this.ctx.sqlitePresenter.getMessage(messageId)
-      if (!message || message.role !== 'assistant') {
-        throw new Error('Message not found or not an assistant message')
-      }
-
-      const conversation = await this.ctx.sqlitePresenter.getConversation(message.conversation_id)
-      const {
-        providerId: defaultProviderId,
-        modelId: defaultModelId,
-        temperature,
-        maxTokens,
-        enabledMcpTools
-      } = conversation.settings
-
-      // Parse metadata to get model_provider and model_id
-      let messageMetadata: MESSAGE_METADATA | null = null
-      try {
-        messageMetadata = JSON.parse(message.metadata) as MESSAGE_METADATA
-      } catch (e) {
-        console.warn('Failed to parse message metadata:', e)
-      }
-
-      const effectiveProviderId = messageMetadata?.provider || defaultProviderId
-      const effectiveModelId = messageMetadata?.model || defaultModelId
-
-      // Get user message (parent of assistant message)
-      const userMessageSqlite = await this.ctx.sqlitePresenter.getMessage(message.parent_id || '')
-      if (!userMessageSqlite) {
-        throw new Error('User message not found')
-      }
-
-      // Convert SQLITE_MESSAGE to Message type
-      const userMessage = this.ctx.messageManager['convertToMessage'](userMessageSqlite)
-
-      // Get context messages using getMessageHistory
-      const contextMessages = await this.streamGenerationHandler.getMessageHistory(
-        userMessage.id,
-        conversation.settings.contextLength
-      )
-
-      // Prepare prompt content (reconstruct what was sent)
-      let modelConfig = this.ctx.configPresenter.getModelConfig(
-        effectiveModelId,
-        effectiveProviderId
-      )
-      if (!modelConfig) {
-        modelConfig = this.ctx.configPresenter.getModelConfig(defaultModelId, defaultProviderId)
-      }
-
-      if (!modelConfig) {
-        throw new Error(
-          `Model config not found for provider ${effectiveProviderId} and model ${effectiveModelId}`
-        )
-      }
-
-      const supportsFunctionCall = modelConfig?.functionCall ?? false
-      const visionEnabled = modelConfig?.vision ?? false
-
-      // Extract user content from userMessage
-      let userContent = ''
-      if (typeof userMessage.content === 'string') {
-        userContent = userMessage.content
-      } else if (
-        userMessage.content &&
-        typeof userMessage.content === 'object' &&
-        'text' in userMessage.content
-      ) {
-        userContent = userMessage.content.text || ''
-      }
-
-      const { finalContent } = await preparePromptContent({
-        conversation,
-        userContent,
-        contextMessages,
-        searchResults: null,
-        userMessage,
-        vision: visionEnabled,
-        imageFiles: [],
-        supportsFunctionCall,
-        modelType: ModelType.Chat
-      })
-
-      // Get MCP tools
-      let mcpTools: MCPToolDefinition[] = []
-      try {
-        const toolDefinitions = await presenter.mcpPresenter.getAllToolDefinitions(enabledMcpTools)
-        if (Array.isArray(toolDefinitions)) {
-          mcpTools = toolDefinitions
-        }
-      } catch (error) {
-        console.warn('Failed to load MCP tool definitions for preview', error)
-      }
-
-      // Get provider and request preview
-      const provider =
-        this.ctx.llmProviderPresenter.getProviderInstance?.(effectiveProviderId) ?? null
-      if (!provider) {
-        throw new Error(`Provider ${effectiveProviderId} not found`)
-      }
-
-      // Type assertion for provider instance
-      const providerInstance = provider as {
-        getRequestPreview: (
-          messages: ChatMessage[],
-          modelId: string,
-          modelConfig: unknown,
-          temperature: number,
-          maxTokens: number,
-          mcpTools: MCPToolDefinition[]
-        ) => Promise<{
-          endpoint: string
-          headers: Record<string, string>
-          body: unknown
-        }>
-      }
-
-      try {
-        const preview = await providerInstance.getRequestPreview(
-          finalContent,
-          effectiveModelId,
-          modelConfig,
-          temperature,
-          maxTokens,
-          mcpTools
-        )
-
-        // Redact sensitive information
-        const { redactRequestPreview } = await import('@/lib/redact')
-        const redacted = redactRequestPreview({
-          headers: preview.headers,
-          body: preview.body
-        })
-
-        return {
-          providerId: effectiveProviderId,
-          modelId: effectiveModelId,
-          endpoint: preview.endpoint,
-          headers: redacted.headers,
-          body: redacted.body,
-          mayNotMatch: true // Always mark as potentially inconsistent since we're reconstructing
-        }
-      } catch (error) {
-        if (error instanceof Error && error.message.includes('not implemented')) {
-          return {
-            notImplemented: true,
-            providerId: effectiveProviderId,
-            modelId: effectiveModelId
-          }
-        }
-        throw error
-      }
-    } catch (error) {
-      console.error('[UtilityHandler] getMessageRequestPreview failed:', error)
-      throw error
-    }
   }
 
   /**

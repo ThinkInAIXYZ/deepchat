@@ -22,9 +22,6 @@ export interface UseChatConfigFieldsOptions {
   thinkingBudget: Ref<number | undefined>
   reasoningEffort: Ref<'minimal' | 'low' | 'medium' | 'high' | undefined>
   verbosity: Ref<'low' | 'medium' | 'high' | undefined>
-  enableSearch: Ref<boolean | undefined>
-  forcedSearch: Ref<boolean | undefined>
-  searchStrategy: Ref<'turbo' | 'max' | undefined>
   providerId: Ref<string | undefined>
 
   // Composables
@@ -33,9 +30,6 @@ export interface UseChatConfigFieldsOptions {
   showThinkingBudget: ComputedRef<boolean>
   thinkingBudgetError: ComputedRef<string>
   budgetRange: Ref<{ min?: number; max?: number; default?: number } | null>
-  showSearchConfig: ComputedRef<boolean>
-  hasForcedSearchOption: ComputedRef<boolean>
-  hasSearchStrategyOption: ComputedRef<boolean>
 
   // Utils
   formatSize: (size: number) => string
@@ -46,9 +40,6 @@ export interface UseChatConfigFieldsOptions {
     (e: 'update:contextLength', value: number): void
     (e: 'update:maxTokens', value: number): void
     (e: 'update:thinkingBudget', value: number | undefined): void
-    (e: 'update:enableSearch', value: boolean | undefined): void
-    (e: 'update:forcedSearch', value: boolean | undefined): void
-    (e: 'update:searchStrategy', value: 'turbo' | 'max' | undefined): void
     (e: 'update:reasoningEffort', value: 'minimal' | 'low' | 'medium' | 'high'): void
     (e: 'update:verbosity', value: 'low' | 'medium' | 'high'): void
   }
@@ -224,31 +215,6 @@ export function useChatConfigFields(options: UseChatConfigFieldsOptions) {
         placeholder: t('settings.model.modelConfig.verbosity.placeholder'),
         getValue: () => options.verbosity.value,
         setValue: (val) => options.emit('update:verbosity', val as 'low' | 'medium' | 'high')
-      })
-    }
-
-    // Search Strategy
-    if (
-      options.showSearchConfig.value &&
-      options.hasSearchStrategyOption.value &&
-      options.enableSearch.value
-    ) {
-      fields.push({
-        key: 'searchStrategy',
-        type: 'select',
-        icon: 'lucide:search',
-        label: t('settings.model.modelConfig.searchStrategy.label'),
-        description: t('settings.model.modelConfig.searchStrategy.description'),
-        options: [
-          {
-            value: 'turbo',
-            label: t('settings.model.modelConfig.searchStrategy.options.turbo')
-          },
-          { value: 'max', label: t('settings.model.modelConfig.searchStrategy.options.max') }
-        ],
-        hint: t('settings.model.modelConfig.searchStrategy.description'),
-        getValue: () => options.searchStrategy.value ?? 'turbo',
-        setValue: (val) => options.emit('update:searchStrategy', val as 'turbo' | 'max')
       })
     }
 

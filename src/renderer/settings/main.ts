@@ -63,23 +63,13 @@ const router = createRouter({
       }
     },
     {
-      path: '/mcp-market',
-      name: 'settings-mcp-market',
-      component: () => import('./components/McpBuiltinMarket.vue'),
-      meta: {
-        titleKey: 'routes.settings-mcp-market',
-        icon: 'lucide:shopping-bag',
-        position: 5
-      }
-    },
-    {
       path: '/acp',
       name: 'settings-acp',
       component: () => import('./components/AcpSettings.vue'),
       meta: {
         titleKey: 'routes.settings-acp',
         icon: 'lucide:shield-check',
-        position: 6
+        position: 5
       }
     },
     {
@@ -89,7 +79,7 @@ const router = createRouter({
       meta: {
         titleKey: 'routes.settings-notifications-hooks',
         icon: 'lucide:bell',
-        position: 6.5
+        position: 5.5
       }
     },
     {
@@ -99,7 +89,7 @@ const router = createRouter({
       meta: {
         titleKey: 'routes.settings-skills',
         icon: 'lucide:wand-sparkles',
-        position: 7
+        position: 6
       }
     },
     {
@@ -109,7 +99,7 @@ const router = createRouter({
       meta: {
         titleKey: 'routes.settings-prompt',
         icon: 'lucide:book-open-text',
-        position: 8
+        position: 7
       }
     },
     {
@@ -119,7 +109,7 @@ const router = createRouter({
       meta: {
         titleKey: 'routes.settings-knowledge-base',
         icon: 'lucide:book-marked',
-        position: 9
+        position: 8
       }
     },
     {
@@ -129,7 +119,7 @@ const router = createRouter({
       meta: {
         titleKey: 'routes.settings-database',
         icon: 'lucide:database',
-        position: 10
+        position: 9
       }
     },
     {
@@ -139,7 +129,7 @@ const router = createRouter({
       meta: {
         titleKey: 'routes.settings-shortcut',
         icon: 'lucide:keyboard',
-        position: 11
+        position: 10
       }
     },
     {
@@ -149,7 +139,7 @@ const router = createRouter({
       meta: {
         titleKey: 'routes.settings-about',
         icon: 'lucide:info',
-        position: 12
+        position: 11
       }
     },
     {

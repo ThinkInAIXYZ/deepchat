@@ -20,6 +20,13 @@ import {
 import { ProviderBatchUpdate } from '@shared/provider-operations'
 import { SearchEngineTemplate } from '@shared/chat'
 import { ModelType } from '@shared/model'
+import {
+  DEFAULT_MODEL_CAPABILITY_FALLBACKS,
+  resolveModelContextLength,
+  resolveModelFunctionCall,
+  resolveModelMaxTokens,
+  resolveModelVision
+} from '@shared/modelConfigDefaults'
 import ElectronStore from 'electron-store'
 import { DEFAULT_PROVIDERS } from './providers'
 import path from 'path'
@@ -76,18 +83,18 @@ interface IAppSettings {
   syncFolderPath?: string // Sync folder path
   lastSyncTime?: number // Last sync time
   customSearchEngines?: string // Custom search engines JSON string
-  soundEnabled?: boolean // Whether sound effects are enabled
   copyWithCotEnabled?: boolean
   loggingEnabled?: boolean // Whether logging is enabled
   floatingButtonEnabled?: boolean // Whether floating button is enabled
   default_system_prompt?: string // Default system prompt
-  webContentLengthLimit?: number // Web content truncation length limit, default 3000 characters
   updateChannel?: string // Update channel: 'stable' | 'beta'
   fontFamily?: string // Custom UI font
   codeFontFamily?: string // Custom code font
   skillsPath?: string // Skills directory path
   enableSkills?: boolean // Skills system global toggle
   hooksNotifications?: HooksNotificationsSettings // Hooks & notifications settings
+  defaultModel?: { providerId: string; modelId: string } // Default model for new conversations
+  defaultVisionModel?: { providerId: string; modelId: string } // Default vision model for image tools
   [key: string]: unknown // Allow arbitrary keys, using unknown type instead of any
 }
 
@@ -145,14 +152,12 @@ export class ConfigPresenter implements IConfigPresenter {
         syncEnabled: false,
         syncFolderPath: path.join(this.userDataPath, 'sync'),
         lastSyncTime: 0,
-        soundEnabled: false,
         copyWithCotEnabled: true,
         loggingEnabled: false,
         floatingButtonEnabled: false,
         fontFamily: '',
         codeFontFamily: '',
         default_system_prompt: '',
-        webContentLengthLimit: 3000,
         skillsPath: path.join(app.getPath('home'), '.deepchat', 'skills'),
         enableSkills: true,
         updateChannel: 'stable', // Default to stable version
@@ -635,17 +640,18 @@ export class ConfigPresenter implements IConfigPresenter {
     return provider.models.map((m) => ({
       id: m.id,
       name: m.display_name || m.name || m.id,
-      contextLength: m.limit?.context ?? 8192,
-      maxTokens: m.limit?.output ?? 4096,
+      contextLength: resolveModelContextLength(m.limit?.context),
+      maxTokens: resolveModelMaxTokens(m.limit?.output),
       provider: providerId,
       providerId,
       group: 'default',
       enabled: false,
       isCustom: false,
-      vision: Array.isArray(m?.modalities?.input) ? m.modalities!.input!.includes('image') : false,
-      functionCall: Boolean(m.tool_call),
+      vision: resolveModelVision(
+        Array.isArray(m?.modalities?.input) ? m.modalities!.input!.includes('image') : undefined
+      ),
+      functionCall: resolveModelFunctionCall(m.tool_call),
       reasoning: Boolean(m.reasoning?.supported),
-      enableSearch: Boolean(m.search?.supported),
       type:
         Array.isArray(m?.modalities?.output) && m.modalities!.output!.includes('image')
           ? ModelType.ImageGeneration
@@ -659,12 +665,8 @@ export class ConfigPresenter implements IConfigPresenter {
       return model
     }
     return {
-      maxTokens: 4096,
-      contextLength: 8192,
+      ...DEFAULT_MODEL_CAPABILITY_FALLBACKS,
       temperature: 0.6,
-      vision: false,
-      functionCall: false,
-      reasoning: false,
       type: ModelType.Chat
     }
   }
@@ -700,8 +702,7 @@ export class ConfigPresenter implements IConfigPresenter {
             // Ensure capability properties are copied
             vision: model.vision || false,
             functionCall: model.functionCall || false,
-            reasoning: model.reasoning || false,
-            enableSearch: model.enableSearch || false
+            reasoning: model.reasoning || false
           }))
 
         return {
@@ -959,18 +960,6 @@ export class ConfigPresenter implements IConfigPresenter {
     }, 1000)
   }
 
-  // Get sound effects switch status
-  getSoundEnabled(): boolean {
-    const value = this.getSetting<boolean>('soundEnabled') ?? false
-    return value === undefined || value === null ? false : value
-  }
-
-  // Set sound effects switch status
-  setSoundEnabled(enabled: boolean): void {
-    this.setSetting('soundEnabled', enabled)
-    eventBus.sendToRenderer(CONFIG_EVENTS.SOUND_ENABLED_CHANGED, SendTarget.ALL_WINDOWS, enabled)
-  }
-
   getCopyWithCotEnabled(): boolean {
     return this.uiSettingsHelper.getCopyWithCotEnabled()
   }
@@ -1038,22 +1027,12 @@ export class ConfigPresenter implements IConfigPresenter {
     return this.mcpConfHelper.setMcpServers(servers)
   }
 
-  // Get default MCP server
-  getMcpDefaultServers(): Promise<string[]> {
-    return this.mcpConfHelper.getMcpDefaultServers()
+  getEnabledMcpServers(): Promise<string[]> {
+    return this.mcpConfHelper.getEnabledMcpServers()
   }
 
-  // Set default MCP server
-  async addMcpDefaultServer(serverName: string): Promise<void> {
-    return this.mcpConfHelper.addMcpDefaultServer(serverName)
-  }
-
-  async removeMcpDefaultServer(serverName: string): Promise<void> {
-    return this.mcpConfHelper.removeMcpDefaultServer(serverName)
-  }
-
-  async toggleMcpDefaultServer(serverName: string): Promise<void> {
-    return this.mcpConfHelper.toggleMcpDefaultServer(serverName)
+  async setMcpServerEnabled(serverName: string, enabled: boolean): Promise<void> {
+    return this.mcpConfHelper.setMcpServerEnabled(serverName, enabled)
   }
 
   // Get MCP enabled status
@@ -1821,6 +1800,22 @@ export class ConfigPresenter implements IConfigPresenter {
 
   getConfirmoHookStatus(): { available: boolean; path: string } {
     return presenter.hooksNotifications.getConfirmoHookStatus()
+  }
+
+  getDefaultModel(): { providerId: string; modelId: string } | undefined {
+    return this.getSetting<{ providerId: string; modelId: string }>('defaultModel')
+  }
+
+  setDefaultModel(model: { providerId: string; modelId: string } | undefined): void {
+    this.setSetting('defaultModel', model)
+  }
+
+  getDefaultVisionModel(): { providerId: string; modelId: string } | undefined {
+    return this.getSetting<{ providerId: string; modelId: string }>('defaultVisionModel')
+  }
+
+  setDefaultVisionModel(model: { providerId: string; modelId: string } | undefined): void {
+    this.setSetting('defaultVisionModel', model)
   }
 }
 

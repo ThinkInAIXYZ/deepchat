@@ -3,7 +3,7 @@ import log from 'electron-log'
 import { spawn } from 'child_process'
 import fs from 'fs'
 import path from 'path'
-import type { IConfigPresenter, ISessionPresenter } from '@shared/presenter'
+import type { IConfigPresenter } from '@shared/presenter'
 import { RuntimeHelper } from '@/lib/runtimeHelper'
 import {
   HookCommandResult,
@@ -21,7 +21,7 @@ const TRUNCATION_SUFFIX = ' ...(truncated)'
 const MAX_RETRIES = 2
 const CONFIRMO_HOOK_RELATIVE_PATH = path.join('.confirmo', 'hooks', 'confirmo-hook.js')
 
-type HookDispatchContext = {
+export type HookDispatchContext = {
   conversationId?: string
   messageId?: string
   promptPreview?: string
@@ -47,6 +47,21 @@ type HookDispatchContext = {
     stack?: string
   } | null
   isTest?: boolean
+}
+
+type HookConversationLookup = {
+  providerId?: string
+  modelId?: string
+  projectDir?: string | null
+}
+
+type HookMessageLookup = {
+  content: unknown
+}
+
+type HooksNotificationsDeps = {
+  getSession?: (sessionId: string) => Promise<HookConversationLookup | null>
+  getMessage?: (messageId: string) => Promise<HookMessageLookup | null>
 }
 
 class SerialQueue {
@@ -93,16 +108,36 @@ export const parseRetryAfterMs = (response: Response, body?: unknown): number | 
 }
 
 const extractPromptPreview = (content: unknown): string => {
-  if (typeof content === 'string') return content
+  // Handle string content (JSON serialized from new agent system)
+  if (typeof content === 'string') {
+    try {
+      const parsed = JSON.parse(content) as unknown
+      return extractFromParsed(parsed)
+    } catch {
+      // Not valid JSON, return as-is
+      return content
+    }
+  }
+  // Handle object content (already parsed)
+  return extractFromParsed(content)
+}
+
+const extractFromParsed = (content: unknown): string => {
   if (!content || typeof content !== 'object') return ''
-  const candidate = content as {
-    text?: string
-    content?: Array<{ content?: string }>
+
+  // Handle UserMessageContent format: { text: string, files: [], ... }
+  const userCandidate = content as { text?: string }
+  if (typeof userCandidate.text === 'string') return userCandidate.text
+
+  // Handle AssistantMessageBlock[] format: array of blocks
+  if (Array.isArray(content)) {
+    const blocks = content as Array<{ type?: string; content?: string }>
+    return blocks
+      .filter((block) => block.type === 'content')
+      .map((block) => block.content || '')
+      .join('')
   }
-  if (typeof candidate.text === 'string') return candidate.text
-  if (Array.isArray(candidate.content)) {
-    return candidate.content.map((block) => block.content || '').join('')
-  }
+
   return ''
 }
 
@@ -129,13 +164,7 @@ export class HooksNotificationsService {
 
   constructor(
     private readonly configPresenter: IConfigPresenter,
-    private readonly deps: {
-      sessionPresenter: ISessionPresenter
-      resolveWorkspaceContext: (
-        conversationId?: string,
-        modelId?: string
-      ) => Promise<{ agentWorkspacePath: string | null }>
-    }
+    private readonly deps: HooksNotificationsDeps
   ) {}
 
   getConfigSnapshot(): HooksNotificationsSettings {
@@ -250,33 +279,35 @@ export class HooksNotificationsService {
     let agentId = context.agentId
     let workdir = context.workdir
 
-    if (conversationId && (!providerId || !modelId)) {
+    if (conversationId && (!providerId || !modelId || !workdir)) {
+      const getSession = this.deps.getSession
       try {
-        const conversation = await this.deps.sessionPresenter.getConversation(conversationId)
-        providerId = providerId ?? conversation.settings.providerId
-        modelId = modelId ?? conversation.settings.modelId
-        if (!agentId && conversation.settings.providerId === 'acp') {
-          agentId = conversation.settings.modelId
+        if (getSession) {
+          const session = await getSession(conversationId)
+          if (session) {
+            providerId = providerId ?? session.providerId
+            modelId = modelId ?? session.modelId
+            workdir = workdir ?? session.projectDir
+            if (!agentId && session.providerId === 'acp') {
+              agentId = session.modelId
+            }
+          }
         }
       } catch (error) {
-        log.warn('[HooksNotifications] Failed to load conversation info:', error)
-      }
-    }
-
-    if (conversationId && !workdir) {
-      try {
-        const resolved = await this.deps.resolveWorkspaceContext(conversationId, modelId)
-        workdir = resolved.agentWorkspacePath ?? null
-      } catch (error) {
-        log.warn('[HooksNotifications] Failed to resolve workdir:', error)
+        log.warn('[HooksNotifications] Failed to load session info:', error)
       }
     }
 
     let promptPreview = context.promptPreview
     if (!promptPreview && context.messageId) {
+      const getMessage = this.deps.getMessage
       try {
-        const message = await this.deps.sessionPresenter.getMessage(context.messageId)
-        promptPreview = extractPromptPreview(message.content)
+        if (getMessage) {
+          const message = await getMessage(context.messageId)
+          if (message) {
+            promptPreview = extractPromptPreview(message.content)
+          }
+        }
       } catch (error) {
         log.warn('[HooksNotifications] Failed to read message for preview:', error)
       }

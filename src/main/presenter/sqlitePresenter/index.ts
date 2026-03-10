@@ -3,7 +3,6 @@ import path from 'path'
 import fs from 'fs'
 import { ConversationsTable } from './tables/conversations'
 import { MessagesTable } from './tables/messages'
-import { AttachmentsTable } from './tables/attachments'
 import {
   ISQLitePresenter,
   SQLITE_MESSAGE,
@@ -14,6 +13,13 @@ import {
 } from '@shared/presenter'
 import { MessageAttachmentsTable } from './tables/messageAttachments'
 import { AcpSessionsTable, type AcpSessionUpsertData } from './tables/acpSessions'
+import { NewSessionsTable } from './tables/newSessions'
+import { NewProjectsTable } from './tables/newProjects'
+import { DeepChatSessionsTable } from './tables/deepchatSessions'
+import { DeepChatMessagesTable } from './tables/deepchatMessages'
+import { DeepChatMessageTracesTable } from './tables/deepchatMessageTraces'
+import { DeepChatMessageSearchResultsTable } from './tables/deepchatMessageSearchResults'
+import { LegacyImportStatusTable } from './tables/legacyImportStatus'
 
 /**
  * 导入模式枚举
@@ -27,9 +33,15 @@ export class SQLitePresenter implements ISQLitePresenter {
   private db!: Database.Database
   private conversationsTable!: ConversationsTable
   private messagesTable!: MessagesTable
-  private attachmentsTable!: AttachmentsTable
   private messageAttachmentsTable!: MessageAttachmentsTable
   private acpSessionsTable!: AcpSessionsTable
+  public newSessionsTable!: NewSessionsTable
+  public newProjectsTable!: NewProjectsTable
+  public deepchatSessionsTable!: DeepChatSessionsTable
+  public deepchatMessagesTable!: DeepChatMessagesTable
+  public deepchatMessageTracesTable!: DeepChatMessageTracesTable
+  public deepchatMessageSearchResultsTable!: DeepChatMessageSearchResultsTable
+  public legacyImportStatusTable!: LegacyImportStatusTable
   private currentVersion: number = 0
   private dbPath: string
   private password?: string
@@ -138,16 +150,25 @@ export class SQLitePresenter implements ISQLitePresenter {
   private initTables() {
     this.conversationsTable = new ConversationsTable(this.db)
     this.messagesTable = new MessagesTable(this.db)
-    this.attachmentsTable = new AttachmentsTable(this.db)
     this.messageAttachmentsTable = new MessageAttachmentsTable(this.db)
     this.acpSessionsTable = new AcpSessionsTable(this.db)
+    this.newSessionsTable = new NewSessionsTable(this.db)
+    this.newProjectsTable = new NewProjectsTable(this.db)
+    this.deepchatSessionsTable = new DeepChatSessionsTable(this.db)
+    this.deepchatMessagesTable = new DeepChatMessagesTable(this.db)
+    this.deepchatMessageTracesTable = new DeepChatMessageTracesTable(this.db)
+    this.deepchatMessageSearchResultsTable = new DeepChatMessageSearchResultsTable(this.db)
+    this.legacyImportStatusTable = new LegacyImportStatusTable(this.db)
 
-    // 创建所有表
-    this.conversationsTable.createTable()
-    this.messagesTable.createTable()
-    this.attachmentsTable.createTable()
-    this.messageAttachmentsTable.createTable()
+    // Create only active tables for the new stack.
     this.acpSessionsTable.createTable()
+    this.newSessionsTable.createTable()
+    this.newProjectsTable.createTable()
+    this.deepchatSessionsTable.createTable()
+    this.deepchatMessagesTable.createTable()
+    this.deepchatMessageTracesTable.createTable()
+    this.deepchatMessageSearchResultsTable.createTable()
+    this.legacyImportStatusTable.createTable()
   }
 
   private initVersionTable() {
@@ -169,11 +190,14 @@ export class SQLitePresenter implements ISQLitePresenter {
     // 获取所有表的迁移脚本
     const migrations = new Map<number, string[]>()
     const tables = [
-      this.conversationsTable,
-      this.messagesTable,
-      this.attachmentsTable,
-      this.messageAttachmentsTable,
-      this.acpSessionsTable
+      this.acpSessionsTable,
+      this.newSessionsTable,
+      this.newProjectsTable,
+      this.deepchatSessionsTable,
+      this.deepchatMessagesTable,
+      this.deepchatMessageTracesTable,
+      this.deepchatMessageSearchResultsTable,
+      this.legacyImportStatusTable
     ]
 
     // 获取最新的迁移版本
@@ -250,6 +274,32 @@ export class SQLitePresenter implements ISQLitePresenter {
       console.error('Failed to reopen database:', error)
       throw error
     }
+  }
+
+  public async clearNewAgentData(): Promise<void> {
+    await this.runTransaction(() => {
+      // Keep project metadata and legacy import status; clear session/message domain data only.
+      this.db.exec(`
+        DELETE FROM deepchat_message_search_results;
+        DELETE FROM deepchat_message_traces;
+        DELETE FROM deepchat_messages;
+        DELETE FROM deepchat_sessions;
+        DELETE FROM new_sessions;
+      `)
+    })
+  }
+
+  public async importLegacyChatDb(
+    sourceDbPath: string,
+    mode: 'increment' | 'overwrite'
+  ): Promise<{
+    importedSessions: number
+    importedMessages: number
+    importedSearchResults: number
+  }> {
+    const { LegacyChatImportService } = await import('../newAgentPresenter/legacyImportService')
+    const service = new LegacyChatImportService(this)
+    return await service.importFromSourceDb(sourceDbPath, mode)
   }
 
   // 创建新对话

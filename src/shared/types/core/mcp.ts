@@ -30,6 +30,7 @@ export interface MCPToolCall {
     icons: string
     description: string
   }
+  conversationId?: string
 }
 
 export type MCPContentItem = MCPTextContent | MCPImageContent | MCPResourceContent

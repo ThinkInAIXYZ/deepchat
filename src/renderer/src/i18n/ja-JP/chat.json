@@ -1,6 +1,6 @@
 {
   "input": {
-    "placeholder": "何か質問は？{'@'}でツール、ファイル、リソースを引用できます...",
+    "placeholder": "DeepChat に何でも聞いてください。{'@'} でファイルをメンション、/ でコマンドを使用できます",
     "fileArea": "ファイルエリア",
     "inputArea": "入力エリア",
     "functionSwitch": "機能スイッチ",
@@ -25,7 +25,15 @@
     "acpModeTooltip": "現在のモード：{mode}",
     "agentWorkspaceCurrent": "現在の作業ディレクトリ: {パス}",
     "agentWorkspaceSelect": "作業ディレクトリを選択",
-    "agentWorkspaceTooltip": "エージェントの作業ディレクトリを設定する"
+    "agentWorkspaceTooltip": "エージェントの作業ディレクトリを設定する",
+    "attach": "添付",
+    "voiceInput": "音声入力",
+    "mcp": {
+      "badge": "MCP {count}",
+      "title": "有効な MCP",
+      "empty": "有効なサービスはありません",
+      "openSettings": "MCP 設定を開く"
+    }
   },
   "features": {
     "webSearch": "ウェブ検索",
@@ -95,11 +103,34 @@
   "mode": {
     "acpAgent": "ACPエージェント",
     "agent": "エージェント",
-    "chat": "チャット",
     "current": "現在のモード: {モード}"
+  },
+  "topbar": {
+    "share": "共有",
+    "more": "その他"
+  },
+  "advancedSettings": {
+    "button": "詳細設定",
+    "title": "詳細設定",
+    "closeHint": "Esc で閉じる",
+    "systemPrompt": "システムプロンプト",
+    "systemPromptPlaceholder": "プリセットを選択",
+    "temperature": "温度",
+    "contextLength": "コンテキスト長",
+    "maxTokens": "最大トークン",
+    "thinkingBudget": "思考予算",
+    "verbosity": "回答の詳しさ",
+    "verbosityPlaceholder": "詳しさを選択",
+    "currentCustomPrompt": "現在のカスタム",
+    "useDefault": "デフォルトを使用"
   },
   "workspace": {
     "collapse": "近い",
+    "sections": {
+      "files": "ファイル",
+      "git": "Git",
+      "artifacts": "Artifacts"
+    },
     "files": {
       "contextMenu": {
         "insertPath": "入力ボックスに挿入",
@@ -109,6 +140,12 @@
       "empty": "まだファイルがありません",
       "loading": "ファイルをロード中...",
       "section": "書類"
+    },
+    "git": {
+      "empty": "表示できる diff はありません",
+      "clean": "ワークツリーはクリーンです",
+      "staged": "ステージ済み",
+      "unstaged": "未ステージ"
     },
     "browser": {
       "section": "ブラウザ",
@@ -169,5 +206,25 @@
       "manage": "管理",
       "title": "スキル"
     }
+  },
+  "compaction": {
+    "compacting": "コンテキストを自動圧縮しています...",
+    "compacted": "コンテキストは自動圧縮されました"
+  },
+  "newThread": {
+    "title": "作成して探索"
+  },
+  "permissionMode": {
+    "default": "デフォルト権限",
+    "fullAccess": "フルアクセス"
+  },
+  "sidebar": {
+    "allAgents": "すべてのエージェント",
+    "expandSidebar": "サイドバーを展開",
+    "collapseSidebar": "サイドバーを折りたたむ",
+    "groupByDate": "日付でグループ化",
+    "groupByProject": "プロジェクトでグループ化",
+    "emptyTitle": "まだ会話がありません",
+    "emptyDescription": "新しいチャットを始めましょう"
   }
 }

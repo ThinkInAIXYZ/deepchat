@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type * as schema from '@agentclientprotocol/sdk/dist/schema.js'
-import { AcpContentMapper } from '@/presenter/agentPresenter/acp'
+import { AcpContentMapper } from '@/presenter/agentPresenter/acp/acpContentMapper'
 
 const createNotification = <T extends schema.SessionNotification['update']>(
   sessionId: string,
@@ -233,5 +233,41 @@ describe('AcpContentMapper mode handling', () => {
 
     const block = result.blocks.find((b) => b.type === 'reasoning_content')
     expect(block?.extra).toMatchObject({ mode_change: 'ask' })
+  })
+})
+
+describe('AcpContentMapper available commands handling', () => {
+  it('normalizes available commands from ACP updates', () => {
+    const mapper = new AcpContentMapper()
+
+    const result = mapper.map(
+      createNotification('session-1', {
+        sessionUpdate: 'available_commands_update',
+        availableCommands: [
+          {
+            name: ' review ',
+            description: ' Run review ',
+            input: { hint: 'ticket id' }
+          },
+          {
+            name: 'plan',
+            description: ''
+          }
+        ]
+      })
+    )
+
+    expect(result.availableCommands).toEqual([
+      {
+        name: 'review',
+        description: 'Run review',
+        input: { hint: 'ticket id' }
+      },
+      {
+        name: 'plan',
+        description: '',
+        input: null
+      }
+    ])
   })
 })

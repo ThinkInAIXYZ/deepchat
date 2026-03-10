@@ -121,9 +121,9 @@ export class McpPresenter implements IMCPPresenter {
       }
 
       // Load configuration
-      const [servers, defaultServers] = await Promise.all([
+      const [servers, enabledServers] = await Promise.all([
         this.configPresenter.getMcpServers(),
-        this.configPresenter.getMcpDefaultServers()
+        this.configPresenter.getEnabledMcpServers()
       ])
 
       // Initialize npm registry (prefer cache if available)
@@ -154,20 +154,19 @@ export class McpPresenter implements IMCPPresenter {
         }
       }
 
-      // If there are default servers, attempt to start them
-      if (defaultServers.length > 0) {
-        for (const serverName of defaultServers) {
+      if (enabledServers.length > 0) {
+        for (const serverName of enabledServers) {
           if (servers[serverName]) {
-            console.log(`[MCP] Attempting to start default server: ${serverName}`)
+            console.log(`[MCP] Attempting to start enabled server: ${serverName}`)
 
             try {
               await this.serverManager.startServer(serverName)
-              console.log(`[MCP] Default server ${serverName} started successfully`)
+              console.log(`[MCP] Enabled server ${serverName} started successfully`)
 
               // Notify renderer process that server has started
               eventBus.send(MCP_EVENTS.SERVER_STARTED, SendTarget.ALL_WINDOWS, serverName)
             } catch (error) {
-              console.error(`[MCP] Failed to start default server ${serverName}:`, error)
+              console.error(`[MCP] Failed to start enabled server ${serverName}:`, error)
             }
           }
         }
@@ -363,24 +362,23 @@ export class McpPresenter implements IMCPPresenter {
     return clientsList
   }
 
-  // Get all default MCP servers
-  getMcpDefaultServers(): Promise<string[]> {
-    return this.configPresenter.getMcpDefaultServers()
+  getEnabledMcpServers(): Promise<string[]> {
+    return this.configPresenter.getEnabledMcpServers()
   }
 
-  // Add default MCP server
-  async addMcpDefaultServer(serverName: string): Promise<void> {
-    await this.configPresenter.addMcpDefaultServer(serverName)
-  }
+  async setMcpServerEnabled(serverName: string, enabled: boolean): Promise<void> {
+    await this.configPresenter.setMcpServerEnabled(serverName, enabled)
 
-  // Remove default MCP server
-  async removeMcpDefaultServer(serverName: string): Promise<void> {
-    await this.configPresenter.removeMcpDefaultServer(serverName)
-  }
+    if (!(await this.configPresenter.getMcpEnabled())) {
+      return
+    }
 
-  // Toggle server default status
-  async toggleMcpDefaultServer(serverName: string): Promise<void> {
-    await this.configPresenter.toggleMcpDefaultServer(serverName)
+    if (enabled) {
+      await this.startServer(serverName)
+      return
+    }
+
+    await this.stopServer(serverName)
   }
 
   // Add MCP server
@@ -586,6 +584,29 @@ export class McpPresenter implements IMCPPresenter {
     return { content: formattedContent, rawData: toolCallResult }
   }
 
+  /**
+   * Pre-check tool permissions without executing the tool
+   * Delegates to ToolManager for the actual permission check
+   */
+  async preCheckToolPermission(request: MCPToolCall): Promise<{
+    needsPermission: true
+    toolName: string
+    serverName: string
+    permissionType: 'read' | 'write' | 'all' | 'command'
+    description: string
+    command?: string
+    commandSignature?: string
+    commandInfo?: {
+      command: string
+      riskLevel: 'low' | 'medium' | 'high' | 'critical'
+      suggestion: string
+      signature?: string
+      baseCommand?: string
+    }
+  } | null> {
+    return await this.toolManager.preCheckToolPermission(request)
+  }
+
   async handleSamplingRequest(request: McpSamplingRequestPayload): Promise<McpSamplingDecision> {
     if (!request || !request.requestId) {
       throw new Error('Invalid sampling request: missing requestId')
@@ -594,7 +615,7 @@ export class McpPresenter implements IMCPPresenter {
     return new Promise<McpSamplingDecision>((resolve, reject) => {
       try {
         this.pendingSamplingRequests.set(request.requestId, { resolve, reject })
-        eventBus.sendToRenderer(MCP_EVENTS.SAMPLING_REQUEST, SendTarget.DEFAULT_TAB, request)
+        eventBus.sendToRenderer(MCP_EVENTS.SAMPLING_REQUEST, SendTarget.DEFAULT_WINDOW, request)
       } catch (error) {
         this.pendingSamplingRequests.delete(request.requestId)
         reject(error instanceof Error ? error : new Error(String(error)))
@@ -1137,10 +1158,27 @@ export class McpPresenter implements IMCPPresenter {
   // Set MCP enabled status
   async setMcpEnabled(enabled: boolean): Promise<void> {
     await this.configPresenter?.setMcpEnabled(enabled)
-  }
 
-  async resetToDefaultServers(): Promise<void> {
-    await this.configPresenter?.getMcpConfHelper().resetToDefaultServers()
+    if (enabled) {
+      const enabledServers = await this.configPresenter.getEnabledMcpServers()
+      for (const serverName of enabledServers) {
+        try {
+          await this.startServer(serverName)
+        } catch (error) {
+          console.error(`[MCP] Failed to start enabled server ${serverName}:`, error)
+        }
+      }
+      return
+    }
+
+    const runningClients = await this.serverManager.getRunningClients()
+    for (const client of runningClients) {
+      try {
+        await this.stopServer(client.serverName)
+      } catch (error) {
+        console.error(`[MCP] Failed to stop server ${client.serverName}:`, error)
+      }
+    }
   }
 
   /**
@@ -1230,13 +1268,14 @@ export class McpPresenter implements IMCPPresenter {
   async grantPermission(
     serverName: string,
     permissionType: 'read' | 'write' | 'all',
-    remember: boolean = false
+    remember: boolean = false,
+    conversationId?: string
   ): Promise<void> {
     try {
       console.log(
-        `[MCP] Granting ${permissionType} permission for server: ${serverName}, remember: ${remember}`
+        `[MCP] Granting ${permissionType} permission for server: ${serverName}, remember: ${remember}, conversationId: ${conversationId}`
       )
-      await this.toolManager.grantPermission(serverName, permissionType, remember)
+      await this.toolManager.grantPermission(serverName, permissionType, remember, conversationId)
       console.log(
         `[MCP] Successfully granted ${permissionType} permission for server: ${serverName}`
       )

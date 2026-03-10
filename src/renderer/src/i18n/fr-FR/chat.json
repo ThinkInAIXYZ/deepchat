@@ -1,6 +1,6 @@
 {
   "input": {
-    "placeholder": "Posez une question ? Vous pouvez citer des outils, des fichiers, des ressources via {'@'}...",
+    "placeholder": "Demandez n'importe quoi à DeepChat, {'@'} pour mentionner des fichiers, / pour les commandes",
     "fileArea": "Zone de fichiers",
     "inputArea": "Zone de saisie",
     "functionSwitch": "Commutateur de fonction",
@@ -25,7 +25,15 @@
     "acpModeTooltip": "Mode actuel : {mode}",
     "agentWorkspaceCurrent": "Répertoire de travail actuel : {path}",
     "agentWorkspaceSelect": "Sélectionnez le répertoire de travail",
-    "agentWorkspaceTooltip": "Définir le répertoire de travail de l'agent"
+    "agentWorkspaceTooltip": "Définir le répertoire de travail de l'agent",
+    "attach": "Joindre",
+    "voiceInput": "Saisie vocale",
+    "mcp": {
+      "badge": "MCP {count}",
+      "title": "MCP activés",
+      "empty": "Aucun service activé",
+      "openSettings": "Ouvrir les paramètres MCP"
+    }
   },
   "features": {
     "webSearch": "Recherche web",
@@ -95,11 +103,34 @@
   "mode": {
     "acpAgent": "Agent ACP",
     "agent": "Agent",
-    "chat": "chat",
-    "current": "Mode actuel : {mode}"
+    "current": "Mode actuel : {mode}"
+  },
+  "topbar": {
+    "share": "Partager",
+    "more": "Plus"
+  },
+  "advancedSettings": {
+    "button": "Avancé",
+    "title": "Paramètres avancés",
+    "closeHint": "Appuyez sur Échap pour fermer",
+    "systemPrompt": "Prompt système",
+    "systemPromptPlaceholder": "Sélectionner un préréglage",
+    "temperature": "Température",
+    "contextLength": "Longueur du contexte",
+    "maxTokens": "Jetons max",
+    "thinkingBudget": "Budget de réflexion",
+    "verbosity": "Niveau de détail",
+    "verbosityPlaceholder": "Sélectionner un niveau de détail",
+    "currentCustomPrompt": "Personnalisé actuel",
+    "useDefault": "Utiliser la valeur par défaut"
   },
   "workspace": {
     "collapse": "fermer",
+    "sections": {
+      "files": "Fichiers",
+      "git": "Git",
+      "artifacts": "Artifacts"
+    },
     "files": {
       "contextMenu": {
         "insertPath": "Insérer dans la zone de saisie",
@@ -109,6 +140,12 @@
       "empty": "Aucun fichier pour l'instant",
       "loading": "Chargement des fichiers...",
       "section": "document"
+    },
+    "git": {
+      "empty": "Aucun diff disponible",
+      "clean": "Arborescence propre",
+      "staged": "Indexé",
+      "unstaged": "Non indexé"
     },
     "browser": {
       "section": "Navigateur",
@@ -169,5 +206,25 @@
       "manage": "gestion",
       "title": "compétences"
     }
+  },
+  "compaction": {
+    "compacting": "Compactage automatique du contexte...",
+    "compacted": "Le contexte a été compacté automatiquement"
+  },
+  "newThread": {
+    "title": "Créer et explorer"
+  },
+  "permissionMode": {
+    "default": "Autorisations par défaut",
+    "fullAccess": "Accès complet"
+  },
+  "sidebar": {
+    "allAgents": "Tous les agents",
+    "expandSidebar": "Développer la barre latérale",
+    "collapseSidebar": "Réduire la barre latérale",
+    "groupByDate": "Grouper par date",
+    "groupByProject": "Grouper par projet",
+    "emptyTitle": "Aucune conversation pour le moment",
+    "emptyDescription": "Commencez une nouvelle discussion pour démarrer"
   }
 }

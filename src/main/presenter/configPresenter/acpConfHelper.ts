@@ -13,7 +13,12 @@ import { McpConfHelper } from './mcpConfHelper'
 const ACP_STORE_VERSION = '2'
 const DEFAULT_PROFILE_NAME = 'Default'
 
-const BUILTIN_ORDER: AcpBuiltinAgentId[] = ['kimi-cli', 'claude-code-acp', 'codex-acp']
+const BUILTIN_ORDER: AcpBuiltinAgentId[] = [
+  'kimi-cli',
+  'claude-code-acp',
+  'codex-acp',
+  'dimcode-acp'
+]
 
 interface BuiltinTemplate {
   name: string
@@ -26,7 +31,7 @@ const BUILTIN_TEMPLATES: Record<AcpBuiltinAgentId, BuiltinTemplate> = {
     defaultProfile: () => ({
       name: DEFAULT_PROFILE_NAME,
       command: 'kimi',
-      args: ['--acp'],
+      args: ['acp'],
       env: {}
     })
   },
@@ -45,6 +50,15 @@ const BUILTIN_TEMPLATES: Record<AcpBuiltinAgentId, BuiltinTemplate> = {
       name: DEFAULT_PROFILE_NAME,
       command: 'npx',
       args: ['-y', '@zed-industries/codex-acp'],
+      env: {}
+    })
+  },
+  'dimcode-acp': {
+    name: 'DimCode',
+    defaultProfile: () => ({
+      name: DEFAULT_PROFILE_NAME,
+      command: 'dim',
+      args: ['acp'],
       env: {}
     })
   }
@@ -658,7 +672,7 @@ export class AcpConfHelper {
   private normalizeBuiltin(agent: AcpBuiltinAgent): AcpBuiltinAgent {
     const template = BUILTIN_TEMPLATES[agent.id]
     const profiles = (agent.profiles || [])
-      .map((profile) => this.normalizeProfile(profile))
+      .map((profile) => this.normalizeBuiltinProfile(agent.id, profile))
       .filter((profile): profile is AcpAgentProfile => Boolean(profile))
 
     if (!profiles.length) {
@@ -678,6 +692,64 @@ export class AcpConfHelper {
       profiles,
       mcpSelections: this.normalizeMcpSelections(agent.mcpSelections)
     }
+  }
+
+  private normalizeBuiltinProfile(
+    agentId: AcpBuiltinAgentId,
+    profile: Partial<AcpAgentProfile> & { id?: string }
+  ): AcpAgentProfile | null {
+    const normalized = this.normalizeProfile(profile)
+    if (!normalized) return null
+
+    if (agentId === 'kimi-cli') {
+      return this.normalizeKimiCliProfile(normalized)
+    }
+
+    return normalized
+  }
+
+  private normalizeKimiCliProfile(profile: AcpAgentProfile): AcpAgentProfile {
+    const originalCommand = profile.command?.toString().trim()
+    if (!originalCommand) {
+      return profile
+    }
+
+    const originalArgs = this.normalizeArgs(profile.args) ?? []
+    const hasDeprecatedInlineFlag = /\s--acp(?:\s|$)/.test(originalCommand)
+    const hasDeprecatedArgFlag = originalArgs.includes('--acp')
+
+    let normalizedCommand = hasDeprecatedInlineFlag
+      ? originalCommand.replace(/\s+--acp(?:\s+|$)/g, ' ').trim()
+      : originalCommand
+
+    if (!normalizedCommand) {
+      normalizedCommand = 'kimi'
+    }
+
+    const isKimiExecutable = this.isKimiExecutableCommand(normalizedCommand)
+    const shouldUpgrade =
+      hasDeprecatedInlineFlag ||
+      hasDeprecatedArgFlag ||
+      (isKimiExecutable && originalArgs.length === 0)
+
+    if (!shouldUpgrade) {
+      return {
+        ...profile,
+        command: normalizedCommand,
+        args: originalArgs.length > 0 ? originalArgs : undefined
+      }
+    }
+
+    return {
+      ...profile,
+      command: normalizedCommand,
+      args: ['acp']
+    }
+  }
+
+  private isKimiExecutableCommand(command: string): boolean {
+    const normalized = command.trim().replace(/\\/g, '/').toLowerCase()
+    return normalized === 'kimi' || normalized.endsWith('/kimi') || normalized.endsWith('/kimi.exe')
   }
 
   private normalizeCustoms(customs?: AcpCustomAgent[]): AcpCustomAgent[] {

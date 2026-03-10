@@ -19,7 +19,7 @@
     "historyPlaceholder": "(Udfyld med Tab)",
     "inputArea": "Indtastningsområde",
     "pasteFiles": "Understøtter kopiering og indsættelse af filer",
-    "placeholder": "Spørg om noget? Du kan referere til værktøjer, filer, ressourcer osv. ved at bruge {'@'}.",
+    "placeholder": "Spørg DeepChat om hvad som helst, {'@'} for at nævne filer, / for kommandoer",
     "promptFilesAdded": "Prompt-filen er blevet tilføjet",
     "promptFilesAddedDesc": "{count} filer er blevet tilføjet successfully",
     "promptFilesError": "Filbehandlingsfejl",
@@ -32,7 +32,15 @@
     "fileArea": "fil område",
     "agentWorkspaceCurrent": "Nuværende arbejdsmappe: {path}",
     "agentWorkspaceSelect": "Vælg arbejdsmappe",
-    "agentWorkspaceTooltip": "Indstil agentens arbejdsmappe"
+    "agentWorkspaceTooltip": "Indstil agentens arbejdsmappe",
+    "attach": "Vedhæft",
+    "voiceInput": "Stemmeinput",
+    "mcp": {
+      "badge": "MCP {count}",
+      "title": "Aktiverede MCP'er",
+      "empty": "Ingen aktiverede tjenester",
+      "openSettings": "Åbn MCP-indstillinger"
+    }
   },
   "mcpUi": {
     "badge": "UI",
@@ -95,11 +103,34 @@
   "mode": {
     "acpAgent": "ACP-agent",
     "agent": "Agent",
-    "chat": "snak",
     "current": "Aktuel tilstand: {mode}"
+  },
+  "topbar": {
+    "share": "Del",
+    "more": "Mere"
+  },
+  "advancedSettings": {
+    "button": "Avanceret",
+    "title": "Avancerede indstillinger",
+    "closeHint": "Tryk Esc for at lukke",
+    "systemPrompt": "Systemprompt",
+    "systemPromptPlaceholder": "Vælg en forudindstilling",
+    "temperature": "Temperatur",
+    "contextLength": "Kontekstlængde",
+    "maxTokens": "Maks. tokens",
+    "thinkingBudget": "Tænkebudget",
+    "verbosity": "Detaljegrad",
+    "verbosityPlaceholder": "Vælg detaljegrad",
+    "currentCustomPrompt": "Aktuel brugerdefineret",
+    "useDefault": "Brug standard"
   },
   "workspace": {
     "collapse": "tæt",
+    "sections": {
+      "files": "Filer",
+      "git": "Git",
+      "artifacts": "Artifacts"
+    },
     "files": {
       "contextMenu": {
         "insertPath": "Indsæt i inputboksen",
@@ -109,6 +140,12 @@
       "empty": "Ingen filer endnu",
       "loading": "Indlæser filer...",
       "section": "dokument"
+    },
+    "git": {
+      "empty": "Ingen diff tilgængelig",
+      "clean": "Arbejdstreet er rent",
+      "staged": "Indekseret",
+      "unstaged": "Ikke indekseret"
     },
     "browser": {
       "section": "Browser",
@@ -169,5 +206,25 @@
       "manage": "ledelse",
       "title": "færdigheder"
     }
+  },
+  "compaction": {
+    "compacting": "Komprimerer automatisk kontekst...",
+    "compacted": "Konteksten blev automatisk komprimeret"
+  },
+  "newThread": {
+    "title": "Byg og udforsk"
+  },
+  "permissionMode": {
+    "default": "Standardtilladelser",
+    "fullAccess": "Fuld adgang"
+  },
+  "sidebar": {
+    "allAgents": "Alle agenter",
+    "expandSidebar": "Udvid sidepanelet",
+    "collapseSidebar": "Skjul sidepanelet",
+    "groupByDate": "Gruppér efter dato",
+    "groupByProject": "Gruppér efter projekt",
+    "emptyTitle": "Ingen samtaler endnu",
+    "emptyDescription": "Start en ny samtale for at komme i gang"
   }
 }

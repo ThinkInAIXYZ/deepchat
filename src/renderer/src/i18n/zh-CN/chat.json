@@ -1,9 +1,11 @@
 {
   "input": {
-    "placeholder": "问点什么？可以通过{'@'}来引用工具、文件、资源...",
+    "placeholder": "向 DeepChat 发送消息，{'@'} 可引用文件，/ 可使用命令",
     "fileArea": "文件区域",
     "inputArea": "输入区域",
     "functionSwitch": "功能开关",
+    "attach": "添加附件",
+    "voiceInput": "语音输入",
     "fileSelect": "选择文件",
     "pasteFiles": "支持复制粘贴文件",
     "dropFiles": "拖拽文件到此处",
@@ -25,7 +27,13 @@
     "acpModeTooltip": "当前模式：{mode}",
     "agentWorkspaceTooltip": "设置 Agent 工作目录",
     "agentWorkspaceSelect": "选择工作目录",
-    "agentWorkspaceCurrent": "当前工作目录：{path}"
+    "agentWorkspaceCurrent": "当前工作目录：{path}",
+    "mcp": {
+      "badge": "MCP {count}",
+      "title": "已启用 MCP",
+      "empty": "暂无已启用服务",
+      "openSettings": "打开 MCP 设置"
+    }
   },
   "features": {
     "webSearch": "联网搜索",
@@ -54,6 +62,10 @@
     "rateLimitImmediately": "立即",
     "rateLimitSeconds": "秒",
     "rateLimitMinutes": "分钟"
+  },
+  "compaction": {
+    "compacting": "正在自动压缩...",
+    "compacted": "上下文已自动压缩"
   },
   "rateLimit": {
     "queueTooltip": "队列中有 {count} 个请求，间隔 {interval} 秒",
@@ -94,9 +106,27 @@
   },
   "mode": {
     "current": "当前模式：{mode}",
-    "chat": "聊天",
     "agent": "Agent",
     "acpAgent": "ACP Agent"
+  },
+  "topbar": {
+    "share": "分享",
+    "more": "更多"
+  },
+  "advancedSettings": {
+    "button": "高级配置",
+    "title": "高级配置",
+    "closeHint": "按 Esc 关闭",
+    "systemPrompt": "系统提示词",
+    "systemPromptPlaceholder": "选择预设",
+    "temperature": "温度",
+    "contextLength": "上下文长度",
+    "maxTokens": "最大输出",
+    "thinkingBudget": "思考预算",
+    "verbosity": "回答详略",
+    "verbosityPlaceholder": "选择详略级别",
+    "currentCustomPrompt": "当前自定义",
+    "useDefault": "使用默认值"
   },
   "audio": {
     "play": "播放",
@@ -123,6 +153,11 @@
   "workspace": {
     "title": "工作区",
     "collapse": "收起",
+    "sections": {
+      "files": "文件",
+      "git": "Git",
+      "artifacts": "Artifacts"
+    },
     "plan": {
       "section": "计划",
       "empty": "暂无任务",
@@ -143,6 +178,12 @@
         "revealInFolder": "在文件管理器中打开",
         "insertPath": "插入到输入框"
       }
+    },
+    "git": {
+      "empty": "暂无可显示的 diff",
+      "clean": "工作区干净",
+      "staged": "已暂存",
+      "unstaged": "未暂存"
     },
     "browser": {
       "section": "浏览器",
@@ -169,5 +210,21 @@
         "aborted": "已中止"
       }
     }
+  },
+  "newThread": {
+    "title": "构建与探索"
+  },
+  "permissionMode": {
+    "default": "默认权限",
+    "fullAccess": "完全访问"
+  },
+  "sidebar": {
+    "allAgents": "所有 Agents",
+    "expandSidebar": "展开侧边栏",
+    "collapseSidebar": "收起侧边栏",
+    "groupByDate": "按时间分组",
+    "groupByProject": "按项目分组",
+    "emptyTitle": "还没有会话",
+    "emptyDescription": "开始一个新会话吧"
   }
 }

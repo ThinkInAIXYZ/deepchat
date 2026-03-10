@@ -373,7 +373,7 @@ export class FloatingButtonPresenter {
           mainWindow.focus()
           console.log('Main window opened from floating button context menu')
         } else {
-          windowPresenter.createShellWindow({ initialTab: { url: 'local://chat' } })
+          windowPresenter.createAppWindow({ initialRoute: 'chat' })
           console.log('Created new main window from floating button context menu')
         }
       }

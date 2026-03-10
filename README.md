@@ -24,20 +24,9 @@
   <a href="./README.zh.md">中文</a> / <a href="./README.md">English</a> / <a href="./README.jp.md">日本語</a>
 </div>
 
-## ❤️Sponsor
-
-[![Zhipu GLM](docs/images/zai.en.png)](https://z.ai/subscribe?ic=8JVLJQFSKB)
-
-This project is sponsored by Z.ai, supporting us with their GLM CODING PLAN.
-GLM CODING PLAN is a subscription service designed for AI coding, starting at just $3/month. It provides access to their flagship GLM-4.7 model across 10+ popular AI coding tools (Claude Code, Cline, Roo Code, etc.), offering developers top-tier, fast, and stable coding experiences.
-Get 10% OFF GLM CODING PLAN：[https://z.ai/subscribe?ic=8JVLJQFSKB](https://z.ai/subscribe?ic=8JVLJQFSKB)
-
----
-
 ## 📑 Table of Contents
 
 - [📑 Table of Contents](#-table-of-contents)
-- [❤️ Sponsor](#-sponsor)
 - [🚀 Project Introduction](#-project-introduction)
 - [💡 Why Choose DeepChat](#-why-choose-deepchat)
 - [🔥 Main Features](#-main-features)

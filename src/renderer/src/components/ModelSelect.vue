@@ -2,54 +2,45 @@
   <div class="space-y-2" :dir="langStore.dir">
     <Input
       v-model="keyword"
-      class="w-full text-sm border-none border-b ring-0 focus-visible:ring-0 rounded-b-none"
+      class="w-full rounded-b-none border-none border-b text-sm ring-0 focus-visible:ring-0"
       :placeholder="t('model.search.placeholder')"
     />
-    <div class="flex flex-col max-h-64 overflow-y-auto">
+    <div class="flex max-h-64 flex-col overflow-y-auto">
       <div v-for="provider in filteredProviders" :key="provider.id">
-        <div class="text-xs text-muted-foreground px-2">{{ provider.name }}</div>
+        <div class="px-2 text-xs text-muted-foreground">{{ provider.name }}</div>
         <div class="p-1">
           <div
             v-for="model in provider.models"
             :key="`${provider.id}-${model.id}`"
             :class="{ 'bg-muted': isSelected(provider.id, model.id) }"
-            class="flex flex-row items-center gap-1 p-2 hover:bg-muted dark:hover:bg-accent rounded-md cursor-pointer"
+            class="flex cursor-pointer flex-row items-center gap-1 rounded-md p-2 hover:bg-muted dark:hover:bg-accent"
             @click="handleModelSelect(provider.id, model)"
           >
             <ModelIcon
               v-if="provider.id === 'acp'"
-              class="w-4 h-4"
+              class="h-4 w-4"
               :model-id="model.id"
               :is-dark="themeStore.isDark"
-            ></ModelIcon>
+            />
             <ModelIcon
               v-else
-              class="w-4 h-4"
+              class="h-4 w-4"
               :model-id="provider.id"
               :is-dark="themeStore.isDark"
-            ></ModelIcon>
-            <span class="text-xs font-bold truncate flex-1">{{ model.name }}</span>
-            <!-- <Badge
-              v-for="tag in getModelTags(model)"
-              :key="tag"
-              variant="outline"
-              class="py-0 rounded-lg"
-              size="sm"
-              >{{ tag }}</Badge
-            > -->
+            />
+            <span class="flex-1 truncate text-xs font-bold">{{ model.name }}</span>
           </div>
         </div>
       </div>
     </div>
   </div>
 </template>
+
 <script setup lang="ts">
+import { computed, ref, type PropType } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { ref, computed, PropType } from 'vue'
 import { Input } from '@shadcn/components/ui/input'
-// import Badge from './ui/badge/Badge.vue'
-import { useChatStore } from '@/stores/chat'
-import { type RENDERER_MODEL_META } from '@shared/presenter'
+import type { RENDERER_MODEL_META } from '@shared/presenter'
 import { ModelType } from '@shared/model'
 import ModelIcon from './icons/ModelIcon.vue'
 import { useProviderStore } from '@/stores/providerStore'
@@ -57,14 +48,15 @@ import { useModelStore } from '@/stores/modelStore'
 import { useThemeStore } from '@/stores/theme'
 import { useLanguageStore } from '@/stores/language'
 import { useChatMode } from '@/components/chat-input/composables/useChatMode'
+
 const { t } = useI18n()
 const keyword = ref('')
-const chatStore = useChatStore()
 const providerStore = useProviderStore()
 const modelStore = useModelStore()
 const themeStore = useThemeStore()
 const langStore = useLanguageStore()
 const chatMode = useChatMode()
+
 const emit = defineEmits<{
   (e: 'update:model', model: RENDERER_MODEL_META, providerId: string): void
 }>()
@@ -72,84 +64,90 @@ const emit = defineEmits<{
 const props = defineProps({
   type: {
     type: Array as PropType<ModelType[]>,
-    default: undefined // ←  explicit for clarity
+    default: undefined
   },
   excludeProviders: {
     type: Array as PropType<string[]>,
     default: () => []
+  },
+  visionOnly: {
+    type: Boolean,
+    default: false
+  },
+  selectedProviderId: {
+    type: String,
+    default: ''
+  },
+  selectedModelId: {
+    type: String,
+    default: ''
   }
 })
+
 const providers = computed(() => {
   const sortedProviders = providerStore.sortedProviders
   const enabledModels = modelStore.enabledModels
   const currentMode = chatMode.currentMode.value
 
-  const orderedProviders = sortedProviders
+  return sortedProviders
     .filter((provider) => provider.enable && !props.excludeProviders.includes(provider.id))
     .map((provider) => {
-      // In 'acp agent' mode, only show ACP provider
       if (currentMode === 'acp agent' && provider.id !== 'acp') {
         return null
       }
-      // In other modes, hide ACP provider
       if (currentMode !== 'acp agent' && provider.id === 'acp') {
         return null
       }
 
-      const enabledProvider = enabledModels.find((ep) => ep.providerId === provider.id)
+      const enabledProvider = enabledModels.find((item) => item.providerId === provider.id)
       if (!enabledProvider || enabledProvider.models.length === 0) {
+        return null
+      }
+
+      const filteredModels = enabledProvider.models.filter((model) => {
+        const matchType =
+          !props.type ||
+          props.type.length === 0 ||
+          (model.type !== undefined && props.type.includes(model.type as ModelType))
+        const matchVision = !props.visionOnly || Boolean(model.vision)
+        return matchType && matchVision
+      })
+
+      if (filteredModels.length === 0) {
         return null
       }
 
       return {
         id: provider.id,
         name: provider.name,
-        models:
-          !props.type || props.type.length === 0
-            ? enabledProvider.models
-            : enabledProvider.models.filter(
-                (model) => model.type !== undefined && props.type!.includes(model.type as ModelType)
-              )
+        models: filteredModels
       }
     })
     .filter(
       (provider): provider is { id: string; name: string; models: RENDERER_MODEL_META[] } =>
-        provider !== null && provider.models.length > 0
+        provider !== null
     )
-
-  return orderedProviders
 })
 
 const filteredProviders = computed(() => {
-  if (!keyword.value) return providers.value.filter((provider) => provider.models.length > 0)
+  if (!keyword.value) {
+    return providers.value
+  }
+
+  const lowerKeyword = keyword.value.toLowerCase()
   return providers.value
     .map((provider) => ({
       ...provider,
-      models: provider.models.filter((model) =>
-        model.name.toLowerCase().includes(keyword.value.toLowerCase())
-      )
+      models: provider.models.filter((model) => model.name.toLowerCase().includes(lowerKeyword))
     }))
     .filter((provider) => provider.models.length > 0)
 })
 
 const isSelected = (providerId: string, modelId: string) => {
-  return chatStore.chatConfig.providerId === providerId && chatStore.chatConfig.modelId === modelId
+  return props.selectedProviderId === providerId && props.selectedModelId === modelId
 }
 
-const handleModelSelect = async (providerId: string, model: RENDERER_MODEL_META) => {
-  // await chatStore.updateChatConfig({
-  //   providerId,
-  //   modelId: model.id,
-  //   contextLength: model.contextLength,
-  //   maxTokens: model.maxTokens
-  // })
+const handleModelSelect = (providerId: string, model: RENDERER_MODEL_META) => {
   emit('update:model', model, providerId)
 }
-
-// const getModelTags = (model: MODEL_META) => {
-//   const tags: string[] = []
-//   if (model.group) tags.push(model.group)
-//   if (model.description) tags.push(model.description)
-//   return tags
-// }
 </script>

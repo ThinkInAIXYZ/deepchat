@@ -13,7 +13,13 @@ export const useSyncStore = defineStore('sync', () => {
   const lastSyncTime = ref(0)
   const isBackingUp = ref(false)
   const isImporting = ref(false)
-  const importResult = ref<{ success: boolean; message: string; count?: number } | null>(null)
+  const importResult = ref<{
+    success: boolean
+    message: string
+    count?: number
+    sourceDbType?: 'agent' | 'chat'
+    importedSessions?: number
+  } | null>(null)
 
   const configPresenter = usePresenter('configPresenter')
   const syncPresenter = usePresenter('syncPresenter')
@@ -75,7 +81,13 @@ export const useSyncStore = defineStore('sync', () => {
   const importData = async (
     backupFile: string,
     mode: 'increment' | 'overwrite' = 'increment'
-  ): Promise<{ success: boolean; message: string; count?: number } | null> => {
+  ): Promise<{
+    success: boolean
+    message: string
+    count?: number
+    sourceDbType?: 'agent' | 'chat'
+    importedSessions?: number
+  } | null> => {
     if (!syncEnabled.value || isImporting.value || !backupFile) return null
 
     isImporting.value = true
@@ -84,6 +96,8 @@ export const useSyncStore = defineStore('sync', () => {
         success: boolean
         message: string
         count?: number
+        sourceDbType?: 'agent' | 'chat'
+        importedSessions?: number
       }
       importResult.value = result.success ? null : result
       return result

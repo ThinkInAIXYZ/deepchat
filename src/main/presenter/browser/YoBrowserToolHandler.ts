@@ -16,32 +16,65 @@ export class YoBrowserToolHandler {
   async callTool(toolName: string, args: Record<string, unknown>): Promise<string> {
     try {
       switch (toolName) {
-        case 'yo_browser_tab_list': {
-          return await this.handleTabList()
-        }
+        case 'yo_browser_window_list':
+        case 'yo_browser_tab_list':
+          return await this.handleWindowList()
+        case 'yo_browser_window_open':
         case 'yo_browser_tab_new': {
           const url = typeof args.url === 'string' ? args.url : undefined
-          return await this.handleTabNew(url)
+          return await this.handleWindowOpen(url)
+        }
+        case 'yo_browser_window_focus': {
+          const windowId = typeof args.windowId === 'number' ? args.windowId : null
+          if (windowId == null) {
+            throw new Error('windowId is required')
+          }
+          return await this.handleWindowFocus(windowId)
+        }
+        case 'yo_browser_window_close': {
+          const windowId = typeof args.windowId === 'number' ? args.windowId : null
+          if (windowId == null) {
+            throw new Error('windowId is required')
+          }
+          return await this.handleWindowClose(windowId)
         }
         case 'yo_browser_tab_activate': {
-          const tabId = typeof args.tabId === 'string' ? args.tabId : ''
-          if (!tabId) {
-            throw new Error('tabId is required')
+          const pageId =
+            typeof args.pageId === 'string'
+              ? args.pageId
+              : typeof args.tabId === 'string'
+                ? args.tabId
+                : ''
+          if (!pageId) {
+            throw new Error('pageId is required')
           }
-          return await this.handleTabActivate(tabId)
+          await this.presenter.activateTab(pageId)
+          return JSON.stringify({ success: true, pageId })
         }
         case 'yo_browser_tab_close': {
-          const tabId = typeof args.tabId === 'string' ? args.tabId : ''
-          if (!tabId) {
-            throw new Error('tabId is required')
+          const pageId =
+            typeof args.pageId === 'string'
+              ? args.pageId
+              : typeof args.tabId === 'string'
+                ? args.tabId
+                : ''
+          if (!pageId) {
+            throw new Error('pageId is required')
           }
-          return await this.handleTabClose(tabId)
+          await this.presenter.closeTab(pageId)
+          return JSON.stringify({ success: true, pageId })
         }
         case 'yo_browser_cdp_send': {
-          const tabId = typeof args.tabId === 'string' ? args.tabId : undefined
+          const windowId = typeof args.windowId === 'number' ? args.windowId : undefined
+          const pageId =
+            typeof args.pageId === 'string'
+              ? args.pageId
+              : typeof args.tabId === 'string'
+                ? args.tabId
+                : undefined
           const method = typeof args.method === 'string' ? args.method : ''
           const params = this.normalizeCdpParams(args.params)
-          return await this.handleCdpSend(tabId, method, params)
+          return await this.handleCdpSend(windowId ?? pageId, method, params)
         }
         default:
           throw new Error(`Unknown YoBrowser tool: ${toolName}`)
@@ -52,63 +85,44 @@ export class YoBrowserToolHandler {
     }
   }
 
-  private async handleTabList(): Promise<string> {
-    const tabs = await this.presenter.listTabs()
-    const activeTab = await this.presenter.getActiveTab()
-    return JSON.stringify({
-      activeTabId: activeTab?.id ?? null,
-      tabs: tabs.map((tab: any) => ({
-        id: tab.id,
-        url: tab.url,
-        title: tab.title,
-        isActive: tab.id === activeTab?.id
-      }))
-    })
+  private async handleWindowList(): Promise<string> {
+    const snapshot = await this.presenter.getBrowserContext()
+    return JSON.stringify(snapshot)
   }
 
-  private async handleTabNew(url?: string): Promise<string> {
-    const tab = await this.presenter.createTab(url)
-    if (!tab) {
-      throw new Error('Failed to create new tab')
+  private async handleWindowOpen(url?: string): Promise<string> {
+    const browserWindow = await this.presenter.openWindow(url)
+    if (!browserWindow) {
+      throw new Error('Failed to open browser window')
     }
-    return JSON.stringify({
-      id: tab.id,
-      url: tab.url,
-      title: tab.title
-    })
+    return JSON.stringify(browserWindow)
   }
 
-  private async handleTabActivate(tabId: string): Promise<string> {
-    await this.presenter.activateTab(tabId)
-    return JSON.stringify({ success: true, tabId })
+  private async handleWindowFocus(windowId: number): Promise<string> {
+    await this.presenter.focusWindow(windowId)
+    return JSON.stringify({ success: true, windowId })
   }
 
-  private async handleTabClose(tabId: string): Promise<string> {
-    await this.presenter.closeTab(tabId)
-    return JSON.stringify({ success: true, tabId })
+  private async handleWindowClose(windowId: number): Promise<string> {
+    await this.presenter.closeWindow(windowId)
+    return JSON.stringify({ success: true, windowId })
   }
 
   private async handleCdpSend(
-    tabId: string | undefined,
+    target: number | string | undefined,
     method: string,
     params: Record<string, unknown>
   ): Promise<string> {
     if (!method) {
       throw new Error('CDP method is required')
     }
-    const browserTab = await this.presenter.getBrowserTab(tabId)
-    if (!browserTab) {
-      throw new Error(tabId ? `Tab ${tabId} not found` : 'No active tab available')
-    }
-    if (tabId) {
-      const resolvedTabId =
-        (browserTab as { tabId?: string; id?: string }).tabId ?? (browserTab as { id?: string }).id
-      if (resolvedTabId !== tabId) {
-        throw new Error(`Tab ${tabId} not found`)
-      }
+
+    const browserPage = await this.presenter.getBrowserTab(target)
+    if (!browserPage) {
+      throw new Error(`Browser target ${String(target)} not found`)
     }
 
-    const response = await browserTab.sendCdpCommand(method, params)
+    const response = await browserPage.sendCdpCommand(method, params)
     return JSON.stringify(response ?? {})
   }
 
@@ -116,6 +130,7 @@ export class YoBrowserToolHandler {
     if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
       return value as Record<string, unknown>
     }
+
     if (typeof value === 'string' && value.trim()) {
       try {
         const parsed = JSON.parse(value)
@@ -126,6 +141,7 @@ export class YoBrowserToolHandler {
         return {}
       }
     }
+
     return {}
   }
 }
