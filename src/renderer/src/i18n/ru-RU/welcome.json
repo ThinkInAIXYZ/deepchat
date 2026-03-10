@@ -33,5 +33,21 @@
     "getStarted": "Начать",
     "next": "Далее",
     "back": "Назад"
+  },
+  "page": {
+    "title": "Добро пожаловать в DeepChat Agent",
+    "description": "Подключите провайдера моделей, чтобы начать",
+    "browseProviders": "Посмотреть всех провайдеров...",
+    "connectAgent": "или подключить агента",
+    "acpTitle": "Настроить ACP-агента",
+    "acpDescription": "Claude Code, Codex, Kimi или вашего собственного",
+    "providers": {
+      "claude": "Claude",
+      "openai": "OpenAI",
+      "deepseek": "DeepSeek",
+      "gemini": "Gemini",
+      "ollama": "Ollama",
+      "openrouter": "OpenRouter"
+    }
   }
 }

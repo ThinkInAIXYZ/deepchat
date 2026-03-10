@@ -7,9 +7,11 @@
       </div>
 
       <!-- Heading -->
-      <h1 class="text-3xl font-semibold text-foreground mb-2">Welcome to DeepChat Agent</h1>
+      <h1 class="text-3xl font-semibold text-foreground mb-2">
+        {{ t('welcome.page.title') }}
+      </h1>
       <p class="text-sm text-muted-foreground text-center max-w-md mb-10">
-        Connect a model provider to start build
+        {{ t('welcome.page.description') }}
       </p>
 
       <!-- Provider grid -->
@@ -21,7 +23,7 @@
           @click="onAddProvider"
         >
           <ModelIcon :model-id="provider.id" custom-class="w-6 h-6" :is-dark="themeStore.isDark" />
-          <span class="text-xs text-foreground/80">{{ provider.name }}</span>
+          <span class="text-xs text-foreground/80">{{ t(provider.nameKey) }}</span>
         </button>
       </div>
 
@@ -29,27 +31,27 @@
         class="text-xs text-muted-foreground hover:text-foreground transition-colors mb-12"
         @click="onAddProvider"
       >
-        Browse all providers...
+        {{ t('welcome.page.browseProviders') }}
       </button>
 
       <!-- ACP agent section (optional) -->
       <div class="flex flex-col items-center gap-3 w-full max-w-sm">
         <div class="flex items-center gap-3 w-full">
           <div class="flex-1 h-px bg-border"></div>
-          <span class="text-xs text-muted-foreground/60">or connect an agent</span>
+          <span class="text-xs text-muted-foreground/60">{{ t('welcome.page.connectAgent') }}</span>
           <div class="flex-1 h-px bg-border"></div>
         </div>
 
         <button
           class="flex items-center gap-3 w-full rounded-xl border border-dashed border-border/60 px-4 py-3 hover:bg-accent/30 hover:border-border transition-all duration-150"
-          @click="onAddProvider"
+          @click="onSetupAcp"
         >
           <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-muted/60 shrink-0">
             <Icon icon="lucide:terminal" class="w-4 h-4 text-muted-foreground" />
           </div>
           <div class="text-left">
-            <p class="text-sm text-foreground/80">Set up an ACP agent</p>
-            <p class="text-xs text-muted-foreground/60">Claude Code, Codex, Kimi, or your own</p>
+            <p class="text-sm text-foreground/80">{{ t('welcome.page.acpTitle') }}</p>
+            <p class="text-xs text-muted-foreground/60">{{ t('welcome.page.acpDescription') }}</p>
           </div>
           <Icon icon="lucide:chevron-right" class="w-4 h-4 text-muted-foreground/40 ml-auto" />
         </button>
@@ -60,27 +62,55 @@
 
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
+import { useI18n } from 'vue-i18n'
 import { usePresenter } from '@/composables/usePresenter'
+import { SETTINGS_EVENTS } from '@/events'
 import { useThemeStore } from '@/stores/theme'
 import ModelIcon from '../icons/ModelIcon.vue'
 
+const { t } = useI18n()
 const windowPresenter = usePresenter('windowPresenter')
 const themeStore = useThemeStore()
 
 const providers = [
-  { id: 'claude', name: 'Claude' },
-  { id: 'openai', name: 'OpenAI' },
-  { id: 'deepseek', name: 'DeepSeek' },
-  { id: 'gemini', name: 'Gemini' },
-  { id: 'ollama', name: 'Ollama' },
-  { id: 'openrouter', name: 'OpenRouter' }
+  { id: 'claude', nameKey: 'welcome.page.providers.claude' },
+  { id: 'openai', nameKey: 'welcome.page.providers.openai' },
+  { id: 'deepseek', nameKey: 'welcome.page.providers.deepseek' },
+  { id: 'gemini', nameKey: 'welcome.page.providers.gemini' },
+  { id: 'ollama', nameKey: 'welcome.page.providers.ollama' },
+  { id: 'openrouter', nameKey: 'welcome.page.providers.openrouter' }
 ]
 
-const onAddProvider = () => {
+type SettingsRouteName = 'settings-provider' | 'settings-acp'
+
+const navigateToSettings = (windowId: number, routeName: SettingsRouteName) => {
+  windowPresenter.sendToWindow(windowId, SETTINGS_EVENTS.NAVIGATE, {
+    routeName
+  })
+}
+
+const openSettings = async (routeName: SettingsRouteName) => {
   const windowId = window.api.getWindowId()
   if (windowId != null) {
-    void windowPresenter.openOrFocusSettingsWindow()
+    await windowPresenter.createSettingsWindow()
+    const settingsWindowId = windowPresenter.getSettingsWindowId()
+    if (settingsWindowId != null) {
+      navigateToSettings(settingsWindowId, routeName)
+      window.setTimeout(() => {
+        if (windowPresenter.getSettingsWindowId() === settingsWindowId) {
+          navigateToSettings(settingsWindowId, routeName)
+        }
+      }, 250)
+    }
   }
+}
+
+const onAddProvider = async () => {
+  await openSettings('settings-provider')
+}
+
+const onSetupAcp = async () => {
+  await openSettings('settings-acp')
 }
 </script>
 
