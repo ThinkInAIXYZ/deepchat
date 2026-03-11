@@ -675,6 +675,23 @@ describe('SkillPresenter', () => {
       expect(loaded).toEqual(extension)
     })
 
+    it('reads raw skill file content by skill name', async () => {
+      ;(fs.readFileSync as Mock).mockImplementation((target: string) => {
+        if (target.endsWith('/test-skill/SKILL.md')) {
+          return '---\nname: test-skill\ndescription: Test\n---\n\nBody'
+        }
+        return 'test'
+      })
+
+      const content = await skillPresenter.readSkillFile('test-skill')
+
+      expect(content).toContain('Body')
+      expect(fs.readFileSync).toHaveBeenCalledWith(
+        expect.stringContaining('/test-skill/SKILL.md'),
+        'utf-8'
+      )
+    })
+
     it('should discover runnable scripts under scripts directory', async () => {
       ;(fs.existsSync as Mock).mockImplementation(
         (target: string) =>

@@ -23,7 +23,6 @@ const DOCUMENT_MIMES = new Set([
 ])
 
 const ALWAYS_BINARY_MIMES = new Set([
-  'application/octet-stream',
   'application/zip',
   'application/x-zip',
   'application/gzip',

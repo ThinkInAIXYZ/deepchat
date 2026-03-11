@@ -431,7 +431,7 @@ export class SkillExecutionService {
 
   private quoteForShell(token: string): string {
     if (process.platform === 'win32') {
-      return `"${token.replace(/"/g, '\\"')}"`
+      return `"${token.replace(/%/g, '%%').replace(/"/g, '\\"')}"`
     }
     return `'${token.replace(/'/g, `'\\''`)}'`
   }

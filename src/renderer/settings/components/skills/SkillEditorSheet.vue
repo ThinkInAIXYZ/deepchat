@@ -46,6 +46,16 @@
                 {{ t('settings.skills.edit.allowedToolsHint') }}
               </p>
             </div>
+
+            <div class="space-y-1.5">
+              <Label for="skill-content">{{ t('settings.skills.edit.content') }}</Label>
+              <Textarea
+                id="skill-content"
+                v-model="editContent"
+                :placeholder="t('settings.skills.edit.placeholder')"
+                class="min-h-48 resize-y font-mono text-xs"
+              />
+            </div>
           </div>
 
           <Separator />
@@ -286,7 +296,7 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const { toast } = useToast()
 const skillsStore = useSkillsStore()
-const filePresenter = usePresenter('filePresenter')
+const skillPresenter = usePresenter('skillPresenter', { safeCall: false })
 
 const isOpen = computed({
   get: () => props.open,
@@ -302,6 +312,7 @@ const nodeRuntime = ref<SkillRuntimePreference>('auto')
 const envRows = ref<EnvRow[]>([])
 const scriptRows = ref<EditableScript[]>([])
 const saving = ref(false)
+const loadRequestId = ref(0)
 
 const createDefaultExtension = (): SkillExtensionConfig => ({
   version: 1,
@@ -318,6 +329,14 @@ const resetRuntimeForm = () => {
   nodeRuntime.value = 'auto'
   envRows.value = [{ id: nanoid(6), key: '', value: '' }]
   scriptRows.value = []
+}
+
+const resetEditorForm = () => {
+  editName.value = ''
+  editDescription.value = ''
+  editAllowedTools.value = ''
+  editContent.value = ''
+  resetRuntimeForm()
 }
 
 const parseSkillContent = (content: string | null): { body: string } => {
@@ -400,23 +419,44 @@ const hydrateRuntimeForm = (extension: SkillExtensionConfig, scripts: SkillScrip
   }))
 }
 
+const isCurrentLoad = (requestId: number, skillName: string) => {
+  return loadRequestId.value === requestId && props.open && props.skill?.name === skillName
+}
+
 const loadSkill = async (skill: SkillMetadata) => {
+  const requestId = ++loadRequestId.value
+  const skillName = skill.name
   editName.value = skill.name
   editDescription.value = skill.description
   editAllowedTools.value = skill.allowedTools?.join(', ') || ''
+  editContent.value = ''
+  resetRuntimeForm()
 
   try {
-    const content = await filePresenter.readFile(skill.path)
+    const content = await skillPresenter.readSkillFile(skillName)
+    if (!isCurrentLoad(requestId, skillName)) {
+      return
+    }
     editContent.value = parseSkillContent(content).body
   } catch (error) {
+    if (!isCurrentLoad(requestId, skillName)) {
+      return
+    }
     console.error('Failed to read skill file:', error)
     editContent.value = ''
   }
 
-  await skillsStore.loadSkillRuntime(skill.name)
+  if (!isCurrentLoad(requestId, skillName)) {
+    return
+  }
+
+  await skillsStore.loadSkillRuntime(skillName)
+  if (!isCurrentLoad(requestId, skillName)) {
+    return
+  }
   hydrateRuntimeForm(
-    skillsStore.skillExtensions[skill.name] ?? createDefaultExtension(),
-    skillsStore.skillScripts[skill.name] ?? []
+    skillsStore.skillExtensions[skillName] ?? createDefaultExtension(),
+    skillsStore.skillScripts[skillName] ?? []
   )
 }
 
@@ -429,7 +469,8 @@ watch(
     }
 
     if (!open) {
-      resetRuntimeForm()
+      loadRequestId.value += 1
+      resetEditorForm()
     }
   },
   { immediate: true }

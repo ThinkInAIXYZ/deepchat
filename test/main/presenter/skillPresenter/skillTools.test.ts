@@ -53,6 +53,7 @@ describe('SkillTools', () => {
       installFromZip: vi.fn().mockResolvedValue({ success: true, skillName: 'test' }),
       installFromUrl: vi.fn().mockResolvedValue({ success: true, skillName: 'test' }),
       uninstallSkill: vi.fn().mockResolvedValue({ success: true, skillName: 'test' }),
+      readSkillFile: vi.fn().mockResolvedValue('---\nname: test\ndescription: Test\n---\n'),
       updateSkillFile: vi.fn().mockResolvedValue({ success: true }),
       getSkillFolderTree: vi.fn().mockResolvedValue([]),
       openSkillsFolder: vi.fn().mockResolvedValue(undefined),

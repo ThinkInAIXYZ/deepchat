@@ -22,6 +22,7 @@ function createDefaultSkillExtension(): SkillExtensionConfig {
 
 export const useSkillsStore = defineStore('skills', () => {
   const skillPresenter = usePresenter('skillPresenter')
+  const skillPresenterStrict = usePresenter('skillPresenter', { safeCall: false })
 
   const skills = ref<SkillMetadata[]>([])
   const skillExtensions = ref<Record<string, SkillExtensionConfig>>({})
@@ -182,7 +183,7 @@ export const useSkillsStore = defineStore('skills', () => {
   }
 
   const saveSkillExtension = async (name: string, config: SkillExtensionConfig): Promise<void> => {
-    await skillPresenter.saveSkillExtension(name, config)
+    await skillPresenterStrict.saveSkillExtension(name, config)
     await loadSkillRuntime(name)
   }
 

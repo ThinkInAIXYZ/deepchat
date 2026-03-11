@@ -1145,7 +1145,7 @@
       "pythonRuntime": "Python Runtime",
       "nodeRuntime": "Node Runtime",
       "envTitle": "Environment Variables",
-      "envWarning": "Masked in the UI only. Values are stored as plain text in the skill sidecar file.",
+      "envWarning": "הערכים מוסתרים רק בממשק המשתמש; הם נשמרים כטקסט רגיל בקובץ ה-sidecar של הכישור.",
       "scriptsTitle": "Bundled Scripts",
       "scriptsHint": "Only scripts under scripts/ can be run via skill_run.",
       "noScripts": "No runnable scripts detected",

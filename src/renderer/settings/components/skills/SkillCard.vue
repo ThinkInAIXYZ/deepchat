@@ -16,7 +16,7 @@
 
       <div class="flex flex-wrap gap-1.5">
         <Badge variant="secondary" class="text-[11px]">
-          {{ t('settings.skills.card.scripts', { count: scripts.length }) }}
+          {{ t('settings.skills.card.scripts', { count: scriptsList.length }) }}
         </Badge>
         <Badge variant="outline" class="text-[11px]">
           {{ t('settings.skills.card.env', { count: envCount }) }}
@@ -74,7 +74,7 @@ const { t } = useI18n()
 const hovering = ref(false)
 
 const envCount = computed(() => Object.keys(props.extension?.env ?? {}).length)
-const scripts = computed(() => props.scripts ?? [])
+const scriptsList = computed(() => props.scripts ?? [])
 
 const runtimeLabel = (value: SkillRuntimePreference | undefined) => {
   const normalized = value ?? 'auto'

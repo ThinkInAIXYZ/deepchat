@@ -765,6 +765,19 @@ export class SkillPresenter implements ISkillPresenter {
     }
   }
 
+  async readSkillFile(name: string): Promise<string> {
+    if (this.metadataCache.size === 0) {
+      await this.discoverSkills()
+    }
+
+    const metadata = this.metadataCache.get(name)
+    if (!metadata) {
+      throw new Error(`Skill "${name}" not found`)
+    }
+
+    return fs.readFileSync(metadata.path, 'utf-8')
+  }
+
   /**
    * Get folder tree for a skill
    */

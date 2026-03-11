@@ -125,6 +125,7 @@ describe('SkillSyncPresenter', () => {
       getMetadataList: vi.fn().mockResolvedValue([]),
       installFromFolder: vi.fn().mockResolvedValue({ success: true }),
       loadSkillContent: vi.fn().mockResolvedValue({ content: '# Skill Content' }),
+      readSkillFile: vi.fn().mockResolvedValue('---\nname: test\ndescription: Test\n---\n'),
       getSkillExtension: vi.fn().mockResolvedValue({
         version: 1,
         env: {},

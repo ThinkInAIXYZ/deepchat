@@ -219,6 +219,7 @@ export class AgentBashHandler {
               outputFilePath,
               error
             })
+            offloaded = false
             output += buffered
           })
       }

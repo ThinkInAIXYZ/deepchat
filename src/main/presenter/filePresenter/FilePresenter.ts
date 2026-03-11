@@ -50,9 +50,7 @@ export class FilePresenter implements IFilePresenter {
   }
 
   async readFile(relativePath: string): Promise<string> {
-    const fullPath = path.isAbsolute(relativePath)
-      ? relativePath
-      : path.join(this.userDataPath, relativePath)
+    const fullPath = await this.resolveUserDataReadPath(relativePath)
     return fs.readFile(fullPath, 'utf-8')
   }
 
@@ -310,6 +308,33 @@ export class FilePresenter implements IFilePresenter {
         'html'
       ].sort()
     }
+  }
+
+  private async resolveUserDataReadPath(relativePath: string): Promise<string> {
+    const normalizedPath = relativePath.trim()
+    if (!normalizedPath) {
+      throw new Error('File path is required')
+    }
+
+    if (path.isAbsolute(normalizedPath)) {
+      throw new Error('Absolute paths are not allowed')
+    }
+
+    const basePath = await fs
+      .realpath(this.userDataPath)
+      .catch(() => path.resolve(this.userDataPath))
+    const candidatePath = path.resolve(this.userDataPath, normalizedPath)
+    const resolvedPath = await fs.realpath(candidatePath).catch(() => candidatePath)
+    const relativeToBase = path.relative(basePath, resolvedPath)
+
+    if (
+      relativeToBase !== '' &&
+      (relativeToBase.startsWith('..') || path.isAbsolute(relativeToBase))
+    ) {
+      throw new Error('File path escapes user data directory')
+    }
+
+    return resolvedPath
   }
 }
 

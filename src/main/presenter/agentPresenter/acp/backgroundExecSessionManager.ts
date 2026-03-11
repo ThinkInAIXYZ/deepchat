@@ -47,6 +47,7 @@ interface BackgroundSession {
   outputFilePath: string | null
   outputWriteQueue: Promise<void>
   totalOutputLength: number
+  offloadFailed: boolean
   stdoutEof: boolean
   stderrEof: boolean
   closePromise: Promise<void>
@@ -138,6 +139,7 @@ export class BackgroundExecSessionManager {
       outputFilePath,
       outputWriteQueue: Promise.resolve(),
       totalOutputLength: 0,
+      offloadFailed: false,
       stdoutEof: false,
       stderrEof: false,
       closePromise,
@@ -187,6 +189,7 @@ export class BackgroundExecSessionManager {
       exitCode: session.exitCode,
       outputLength: session.totalOutputLength,
       offloaded:
+        !session.offloadFailed &&
         session.outputFilePath !== null &&
         session.totalOutputLength > getConfig().offloadThresholdChars
     }))
@@ -202,7 +205,9 @@ export class BackgroundExecSessionManager {
 
     const config = getConfig()
     const isOffloaded =
-      session.outputFilePath !== null && session.totalOutputLength > config.offloadThresholdChars
+      !session.offloadFailed &&
+      session.outputFilePath !== null &&
+      session.totalOutputLength > config.offloadThresholdChars
 
     if (isOffloaded && session.outputFilePath) {
       // Return only last N characters from file
@@ -241,7 +246,9 @@ export class BackgroundExecSessionManager {
 
     const config = getConfig()
     const isOffloaded =
-      session.outputFilePath !== null && session.totalOutputLength > config.offloadThresholdChars
+      !session.offloadFailed &&
+      session.outputFilePath !== null &&
+      session.totalOutputLength > config.offloadThresholdChars
 
     let output: string
     if (isOffloaded && session.outputFilePath) {
@@ -629,6 +636,7 @@ export class BackgroundExecSessionManager {
       .catch((error) => {
         logger.warn(`[BackgroundExec] Failed to write output file (${mode}):`, error)
         if (mode === 'append' && data.length > 0) {
+          session.offloadFailed = true
           session.outputBuffer += data
         }
       })

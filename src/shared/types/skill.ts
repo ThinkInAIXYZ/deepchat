@@ -136,6 +136,7 @@ export interface ISkillPresenter {
   uninstallSkill(name: string): Promise<SkillInstallResult>
 
   // File operations
+  readSkillFile(name: string): Promise<string>
   updateSkillFile(name: string, content: string): Promise<SkillInstallResult>
   getSkillFolderTree(name: string): Promise<SkillFolderNode[]>
   openSkillsFolder(): Promise<void>

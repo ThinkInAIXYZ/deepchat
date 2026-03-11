@@ -1,5 +1,5 @@
 import fs from 'fs'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ISkillPresenter } from '../../../../src/shared/types/skill'
 import { SkillExecutionService } from '../../../../src/main/presenter/skillPresenter/skillExecutionService'
 
@@ -18,6 +18,7 @@ vi.mock('../../../../src/main/presenter/agentPresenter/acp/shellEnvHelper', () =
 describe('SkillExecutionService', () => {
   let skillPresenter: ISkillPresenter
   let service: SkillExecutionService
+  const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform')
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -33,6 +34,7 @@ describe('SkillExecutionService', () => {
           skillRoot: '/skills/ocr'
         }
       ]),
+      readSkillFile: vi.fn().mockResolvedValue('---\nname: ocr\ndescription: OCR helper\n---\n'),
       getSkillExtension: vi.fn().mockResolvedValue({
         version: 1,
         env: { API_KEY: 'secret' },
@@ -51,6 +53,12 @@ describe('SkillExecutionService', () => {
     } as unknown as ISkillPresenter
 
     service = new SkillExecutionService(skillPresenter, {} as never)
+  })
+
+  afterEach(() => {
+    if (originalPlatform) {
+      Object.defineProperty(process, 'platform', originalPlatform)
+    }
   })
 
   it('builds spawn plan with skill root cwd and merged env', async () => {
@@ -102,5 +110,14 @@ describe('SkillExecutionService', () => {
         { conversationId: 'conv-1' }
       )
     ).rejects.toThrow(/not found/)
+  })
+
+  it('escapes percent signs for Windows shell quoting', () => {
+    Object.defineProperty(process, 'platform', {
+      configurable: true,
+      value: 'win32'
+    })
+
+    expect((service as never).quoteForShell('value%"PATH"%')).toBe('"value%%\\"PATH\\"%%"')
   })
 })
