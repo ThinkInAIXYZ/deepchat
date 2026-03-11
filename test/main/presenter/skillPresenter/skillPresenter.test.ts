@@ -33,6 +33,13 @@ vi.mock('fs', () => ({
       isFile: () => true,
       size: 1024
     }),
+    promises: {
+      stat: vi.fn().mockResolvedValue({
+        isFile: () => true,
+        size: 1024
+      }),
+      readFile: vi.fn().mockResolvedValue('test')
+    },
     mkdtempSync: vi.fn().mockReturnValue('/mock/temp/deepchat-skill-123')
   }
 }))
@@ -42,6 +49,11 @@ vi.mock('path', () => ({
     join: vi.fn((...args: string[]) => args.join('/')),
     dirname: vi.fn((p: string) => p.split('/').slice(0, -1).join('/')),
     basename: vi.fn((p: string) => p.split('/').pop() || ''),
+    extname: vi.fn((p: string) => {
+      const base = p.split('/').pop() || ''
+      const idx = base.lastIndexOf('.')
+      return idx >= 0 ? base.slice(idx) : ''
+    }),
     resolve: vi.fn((...args: string[]) => {
       const p = args[args.length - 1]
       if (p.startsWith('/')) return p
@@ -134,6 +146,11 @@ describe('SkillPresenter', () => {
       isFile: () => true,
       size: 1024
     })
+    ;(fs.promises.stat as Mock).mockResolvedValue({
+      isFile: () => true,
+      size: 1024
+    })
+    ;(fs.promises.readFile as Mock).mockResolvedValue('test')
     ;(matter as unknown as Mock).mockReturnValue({
       data: { name: 'test-skill', description: 'Test skill' },
       content: '# Test content'
@@ -319,7 +336,7 @@ describe('SkillPresenter', () => {
   describe('loadSkillContent', () => {
     beforeEach(() => {
       ;(fs.readdirSync as Mock).mockReturnValue([{ name: 'test-skill', isDirectory: () => true }])
-      ;(fs.existsSync as Mock).mockReturnValue(true)
+      ;(fs.existsSync as Mock).mockImplementation((target: string) => !target.includes('/scripts'))
       ;(fs.readFileSync as Mock).mockReturnValue('test content')
       ;(matter as unknown as Mock).mockReturnValue({
         data: { name: 'test-skill', description: 'Test' },
@@ -334,6 +351,9 @@ describe('SkillPresenter', () => {
       expect(content).toBeTruthy()
       expect(content?.name).toBe('test-skill')
       expect(content?.content).toContain('Skill content')
+      expect(content?.content).toContain('Skill root: resolved server-side by `skill_run`.')
+      expect(content?.content).toContain('Recommended base_directory: `<skill_root>`')
+      expect(content?.content).not.toContain('/mock/home/.deepchat/skills/test-skill')
     })
 
     it('should return null for non-existent skill', async () => {
@@ -586,6 +606,105 @@ describe('SkillPresenter', () => {
     })
   })
 
+  describe('saveSkillWithExtension', () => {
+    beforeEach(async () => {
+      ;(fs.readdirSync as Mock).mockReturnValue([{ name: 'test-skill', isDirectory: () => true }])
+      ;(fs.existsSync as Mock).mockImplementation((target: string) => {
+        if (target.endsWith('/.deepchat-meta/test-skill.json')) {
+          return true
+        }
+        return true
+      })
+      ;(fs.readFileSync as Mock).mockImplementation((target: string) => {
+        if (target.endsWith('/.deepchat-meta/test-skill.json')) {
+          return JSON.stringify({
+            version: 1,
+            env: { API_KEY: 'old-secret' },
+            runtimePolicy: { python: 'auto', node: 'auto' },
+            scriptOverrides: {}
+          })
+        }
+        if (target.endsWith('/test-skill/SKILL.md')) {
+          return 'old skill content'
+        }
+        return 'test'
+      })
+      ;(matter as unknown as Mock).mockReturnValue({
+        data: { name: 'test-skill', description: 'Test' },
+        content: ''
+      })
+      await skillPresenter.discoverSkills()
+    })
+
+    it('saves skill content and extension together', async () => {
+      const extension = {
+        version: 1 as const,
+        env: { API_KEY: 'secret' },
+        runtimePolicy: { python: 'builtin' as const, node: 'system' as const },
+        scriptOverrides: {}
+      }
+
+      const result = await skillPresenter.saveSkillWithExtension(
+        'test-skill',
+        'new content',
+        extension
+      )
+
+      expect(result).toEqual({ success: true, skillName: 'test-skill' })
+      expect(fs.writeFileSync).toHaveBeenCalledWith(
+        expect.stringContaining('/test-skill/SKILL.md'),
+        'new content',
+        'utf-8'
+      )
+      expect(fs.writeFileSync).toHaveBeenCalledWith(
+        expect.stringContaining('/.deepchat-meta/test-skill.json'),
+        JSON.stringify(extension, null, 2),
+        'utf-8'
+      )
+    })
+
+    it('rolls back skill content when extension save fails', async () => {
+      const extension = {
+        version: 1 as const,
+        env: { API_KEY: 'secret' },
+        runtimePolicy: { python: 'builtin' as const, node: 'system' as const },
+        scriptOverrides: {}
+      }
+      ;(fs.writeFileSync as Mock).mockImplementation((target: string, content: string) => {
+        if (
+          target.endsWith('/.deepchat-meta/test-skill.json') &&
+          content === JSON.stringify(extension, null, 2)
+        ) {
+          throw new Error('sidecar write failed')
+        }
+      })
+
+      const result = await skillPresenter.saveSkillWithExtension(
+        'test-skill',
+        'new content',
+        extension
+      )
+
+      expect(result.success).toBe(false)
+      expect(result.error).toContain('sidecar write failed')
+      expect(fs.writeFileSync).toHaveBeenCalledWith(
+        expect.stringContaining('/test-skill/SKILL.md'),
+        'old skill content',
+        'utf-8'
+      )
+      expect(fs.writeFileSync).toHaveBeenCalledWith(
+        expect.stringContaining('/.deepchat-meta/test-skill.json'),
+        JSON.stringify({
+          version: 1,
+          env: { API_KEY: 'old-secret' },
+          runtimePolicy: { python: 'auto', node: 'auto' },
+          scriptOverrides: {}
+        }),
+        'utf-8'
+      )
+    })
+  })
+
   describe('getSkillFolderTree', () => {
     beforeEach(async () => {
       ;(fs.readdirSync as Mock).mockReturnValue([{ name: 'test-skill', isDirectory: () => true }])
@@ -620,6 +739,129 @@ describe('SkillPresenter', () => {
 
       expect(Array.isArray(tree)).toBe(true)
       expect(tree.length).toBeGreaterThanOrEqual(0)
+    })
+  })
+
+  describe('skill runtime extensions', () => {
+    beforeEach(async () => {
+      ;(fs.readdirSync as Mock).mockReturnValue([{ name: 'test-skill', isDirectory: () => true }])
+      ;(fs.existsSync as Mock).mockImplementation((target: string) => !target.includes('/scripts'))
+      ;(fs.readFileSync as Mock).mockReturnValue('test')
+      ;(matter as unknown as Mock).mockReturnValue({
+        data: { name: 'test-skill', description: 'Test' },
+        content: ''
+      })
+      await skillPresenter.discoverSkills()
+    })
+
+    it('should save and load sidecar runtime config', async () => {
+      const extension = {
+        version: 1 as const,
+        env: { API_KEY: 'secret' },
+        runtimePolicy: { python: 'builtin' as const, node: 'system' as const },
+        scriptOverrides: {
+          'scripts/run.py': {
+            enabled: false,
+            description: 'Run OCR'
+          }
+        }
+      }
+
+      await skillPresenter.saveSkillExtension('test-skill', extension)
+      ;(fs.existsSync as Mock).mockImplementation(
+        (target: string) =>
+          !target.includes('/scripts') || target.endsWith('/.deepchat-meta/test-skill.json')
+      )
+      ;(fs.readFileSync as Mock).mockImplementation((target: string) => {
+        if (target.endsWith('/.deepchat-meta/test-skill.json')) {
+          return JSON.stringify(extension)
+        }
+        return 'test'
+      })
+
+      const loaded = await skillPresenter.getSkillExtension('test-skill')
+
+      expect(fs.writeFileSync).toHaveBeenCalledWith(
+        expect.stringContaining('/.deepchat-meta/test-skill.json'),
+        JSON.stringify(extension, null, 2),
+        'utf-8'
+      )
+      expect(loaded).toEqual(extension)
+    })
+
+    it('reads raw skill file content by skill name', async () => {
+      ;(fs.promises.readFile as Mock).mockImplementation(async (target: string) => {
+        if (target.endsWith('/test-skill/SKILL.md')) {
+          return '---\nname: test-skill\ndescription: Test\n---\n\nBody'
+        }
+        return 'test'
+      })
+
+      const content = await skillPresenter.readSkillFile('test-skill')
+
+      expect(content).toContain('Body')
+      expect(fs.promises.stat).toHaveBeenCalledWith(expect.stringContaining('/test-skill/SKILL.md'))
+      expect(fs.promises.readFile).toHaveBeenCalledWith(
+        expect.stringContaining('/test-skill/SKILL.md'),
+        'utf-8'
+      )
+    })
+
+    it('rejects oversized raw skill file reads', async () => {
+      ;(fs.promises.stat as Mock).mockResolvedValue({
+        isFile: () => true,
+        size: 6 * 1024 * 1024
+      })
+
+      await expect(skillPresenter.readSkillFile('test-skill')).rejects.toThrow(
+        '[SkillPresenter] Skill file too large: 6291456 bytes (max: 5242880)'
+      )
+
+      expect(fs.promises.readFile).not.toHaveBeenCalled()
+    })
+
+    it('should discover runnable scripts under scripts directory', async () => {
+      ;(fs.existsSync as Mock).mockImplementation(
+        (target: string) =>
+          !target.endsWith('/.deepchat-meta/test-skill.json') || target.includes('/scripts')
+      )
+      ;(fs.readdirSync as Mock).mockImplementation((target: string) => {
+        if (target.endsWith('/skills')) {
+          return [{ name: 'test-skill', isDirectory: () => true }]
+        }
+        if (target.endsWith('/test-skill/scripts')) {
+          return [
+            {
+              name: 'run.py',
+              isDirectory: () => false,
+              isSymbolicLink: () => false
+            }
+          ]
+        }
+        return []
+      })
+
+      const scripts = await skillPresenter.listSkillScripts('test-skill')
+
+      expect(scripts).toEqual([
+        expect.objectContaining({
+          name: 'run.py',
+          relativePath: 'scripts/run.py',
+          runtime: 'python',
+          enabled: true
+        })
+      ])
+    })
+
+    it('should remove sidecar config when uninstalling a skill', async () => {
+      ;(fs.existsSync as Mock).mockReturnValue(true)
+
+      await skillPresenter.uninstallSkill('test-skill')
+
+      expect(fs.rmSync).toHaveBeenCalledWith(
+        expect.stringContaining('/.deepchat-meta/test-skill.json'),
+        { force: true }
+      )
     })
   })
 

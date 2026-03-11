@@ -1139,7 +1139,24 @@
       "placeholder": "在此編輯 skill 內容...",
       "readFailed": "讀取失敗",
       "success": "儲存成功",
-      "title": "編輯 skill"
+      "title": "編輯 skill",
+      "runtimeTitle": "執行環境",
+      "runtimeHint": "為內置腳本選擇 Python 和 Node 的解析策略。",
+      "pythonRuntime": "Python 執行環境",
+      "nodeRuntime": "Node 執行環境",
+      "envTitle": "環境變量",
+      "envWarning": "僅在 UI 中遮罩顯示，實際會以明文寫入 skill sidecar 檔案。",
+      "scriptsTitle": "內置腳本",
+      "scriptsHint": "只有 scripts/ 目錄下的腳本會通過 skill_run 暴露給 agent。",
+      "noScripts": "未發現可執行腳本",
+      "scriptEnabled": "啟用",
+      "scriptDescription": "描述覆蓋",
+      "scriptDescriptionPlaceholder": "可選，顯示給 agent 的腳本說明",
+      "runtime": {
+        "auto": "自動回退",
+        "system": "系統執行環境",
+        "builtin": "內置執行環境"
+      }
     },
     "empty": "暫無 skill",
     "emptyHint": "點擊「新增 skill」按鈕安裝新 skill",
@@ -1256,6 +1273,12 @@
       "syncing": "正在匯入...",
       "title": "外部工具"
     },
-    "title": "Skills設置"
+    "title": "Skills設置",
+    "card": {
+      "scripts": "{count} 個腳本",
+      "env": "{count} 個環境變量",
+      "pythonShort": "Py",
+      "nodeShort": "Node"
+    }
   }
 }

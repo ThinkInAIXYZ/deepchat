@@ -1136,10 +1136,27 @@
       "nameHint": "לאחר יצירת הכישור, השם אינו ניתן לשינוי",
       "namePlaceholder": "שם כישור",
       "noFiles": "אין קובץ",
-      "placeholder": "ערוך כאן את תוכן ה-skill...",
+      "placeholder": "ערוך כאן את תוכן הכישור...",
       "readFailed": "קריאה נכשלה",
       "success": "נשמר בהצלחה",
-      "title": "ערוך כישור"
+      "title": "ערוך כישור",
+      "runtimeTitle": "זמן ריצה",
+      "runtimeHint": "בחר כיצד סקריפטים מצורפים יאתרו את זמני הריצה של Python ו-Node.",
+      "pythonRuntime": "זמן ריצה של Python",
+      "nodeRuntime": "זמן ריצה של Node",
+      "envTitle": "משתני סביבה",
+      "envWarning": "הערכים מוסתרים רק בממשק המשתמש; הם נשמרים כטקסט רגיל בקובץ ה-sidecar של הכישור.",
+      "scriptsTitle": "סקריפטים מצורפים",
+      "scriptsHint": "רק סקריפטים תחת scripts/ ניתנים להרצה דרך skill_run.",
+      "noScripts": "לא זוהו סקריפטים ניתנים להרצה",
+      "scriptEnabled": "מופעל",
+      "scriptDescription": "דריסת תיאור",
+      "scriptDescriptionPlaceholder": "תיאור אופציונלי שיוצג לסוכן",
+      "runtime": {
+        "auto": "גיבוי אוטומטי",
+        "system": "זמן ריצה מערכת",
+        "builtin": "זמן ריצה מובנה"
+      }
     },
     "empty": "אין כישורים",
     "emptyHint": "לחץ על כפתור „הוסף skill“ להתקנת skill חדש",
@@ -1256,6 +1273,12 @@
       "syncing": "מייבא...",
       "title": "כלים חיצוניים"
     },
-    "title": "ניהול כישורים"
+    "title": "ניהול כישורים",
+    "card": {
+      "scripts": "{count} סקריפטים",
+      "env": "{count} משתני סביבה",
+      "pythonShort": "פייתון",
+      "nodeShort": "Node"
+    }
   }
 }

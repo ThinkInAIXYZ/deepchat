@@ -1,25 +1,97 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { usePresenter } from '@/composables/usePresenter'
-import type { SkillMetadata, SkillInstallResult } from '@shared/types/skill'
+import type {
+  SkillMetadata,
+  SkillInstallResult,
+  SkillExtensionConfig,
+  SkillScriptDescriptor
+} from '@shared/types/skill'
+
+function createDefaultSkillExtension(): SkillExtensionConfig {
+  return {
+    version: 1,
+    env: {},
+    runtimePolicy: {
+      python: 'auto',
+      node: 'auto'
+    },
+    scriptOverrides: {}
+  }
+}
 
 export const useSkillsStore = defineStore('skills', () => {
   const skillPresenter = usePresenter('skillPresenter')
+  const skillPresenterStrict = usePresenter('skillPresenter', { safeCall: false })
 
-  // State
   const skills = ref<SkillMetadata[]>([])
+  const skillExtensions = ref<Record<string, SkillExtensionConfig>>({})
+  const skillScripts = ref<Record<string, SkillScriptDescriptor[]>>({})
   const loading = ref(false)
   const error = ref<string | null>(null)
 
-  // Computed
   const skillCount = computed(() => skills.value.length)
 
-  // Actions
+  const loadSkillRuntime = async (name: string) => {
+    try {
+      const [extension, scripts] = await Promise.all([
+        skillPresenter.getSkillExtension(name),
+        skillPresenter.listSkillScripts(name)
+      ])
+
+      skillExtensions.value = {
+        ...skillExtensions.value,
+        [name]: extension ?? createDefaultSkillExtension()
+      }
+      skillScripts.value = {
+        ...skillScripts.value,
+        [name]: scripts ?? []
+      }
+    } catch (e) {
+      console.error(`[SkillsStore] Failed to load runtime config for ${name}:`, e)
+      skillExtensions.value = {
+        ...skillExtensions.value,
+        [name]: createDefaultSkillExtension()
+      }
+      skillScripts.value = {
+        ...skillScripts.value,
+        [name]: []
+      }
+    }
+  }
+
+  const loadSkillRuntimeData = async (items: SkillMetadata[] = skills.value) => {
+    const nextExtensions: Record<string, SkillExtensionConfig> = {}
+    const nextScripts: Record<string, SkillScriptDescriptor[]> = {}
+
+    await Promise.all(
+      items.map(async (skill) => {
+        try {
+          const [extension, scripts] = await Promise.all([
+            skillPresenter.getSkillExtension(skill.name),
+            skillPresenter.listSkillScripts(skill.name)
+          ])
+          nextExtensions[skill.name] = extension ?? createDefaultSkillExtension()
+          nextScripts[skill.name] = scripts ?? []
+        } catch (e) {
+          console.error(`[SkillsStore] Failed to load runtime data for ${skill.name}:`, e)
+          nextExtensions[skill.name] = createDefaultSkillExtension()
+          nextScripts[skill.name] = []
+        }
+      })
+    )
+
+    skillExtensions.value = nextExtensions
+    skillScripts.value = nextScripts
+  }
+
   const loadSkills = async () => {
     loading.value = true
     error.value = null
     try {
-      skills.value = await skillPresenter.getMetadataList()
+      const nextSkills = await skillPresenter.getMetadataList()
+      skills.value = nextSkills
+      await loadSkillRuntimeData(nextSkills)
     } catch (e) {
       error.value = e instanceof Error ? e.message : String(e)
       console.error('[SkillsStore] Failed to load skills:', e)
@@ -110,21 +182,42 @@ export const useSkillsStore = defineStore('skills', () => {
     }
   }
 
+  const saveSkillExtension = async (name: string, config: SkillExtensionConfig): Promise<void> => {
+    await skillPresenterStrict.saveSkillExtension(name, config)
+    await loadSkillRuntime(name)
+  }
+
+  const saveSkillWithExtension = async (
+    name: string,
+    content: string,
+    config: SkillExtensionConfig
+  ): Promise<SkillInstallResult> => {
+    try {
+      const result = await skillPresenterStrict.saveSkillWithExtension(name, content, config)
+      if (result.success) {
+        await loadSkills()
+      }
+      return result
+    } catch (e) {
+      const errorMsg = e instanceof Error ? e.message : String(e)
+      return { success: false, error: errorMsg }
+    }
+  }
+
   const getSkillFolderTree = async (name: string) => {
     return await skillPresenter.getSkillFolderTree(name)
   }
 
   return {
-    // State
     skills,
+    skillExtensions,
+    skillScripts,
     loading,
     error,
-
-    // Computed
     skillCount,
-
-    // Actions
     loadSkills,
+    loadSkillRuntime,
+    loadSkillRuntimeData,
     installFromFolder,
     installFromZip,
     installFromUrl,
@@ -132,6 +225,8 @@ export const useSkillsStore = defineStore('skills', () => {
     getSkillsDir,
     openSkillsFolder,
     updateSkillFile,
+    saveSkillExtension,
+    saveSkillWithExtension,
     getSkillFolderTree
   }
 })

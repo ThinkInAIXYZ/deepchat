@@ -2,6 +2,7 @@ import * as fs from 'fs/promises'
 import * as path from 'path'
 import { RequestError } from '@agentclientprotocol/sdk'
 import type * as schema from '@agentclientprotocol/sdk/dist/schema.js'
+import { buildBinaryReadGuidance, shouldRejectAcpTextRead } from '@/lib/binaryReadGuard'
 
 export interface FsHandlerOptions {
   /** Session's working directory (workspace root). Null = allow all. */
@@ -62,6 +63,14 @@ export class AcpFsHandler {
         throw RequestError.invalidParams(
           { path: params.path, size: stat.size },
           `File too large: ${stat.size} bytes exceeds limit of ${this.maxReadSize}`
+        )
+      }
+
+      const { reject, mimeType } = await shouldRejectAcpTextRead(filePath)
+      if (reject) {
+        throw RequestError.invalidParams(
+          { path: params.path, mimeType },
+          buildBinaryReadGuidance(filePath, mimeType, 'acp')
         )
       }
 
