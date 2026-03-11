@@ -4,6 +4,7 @@ import { ipcMain, Menu, app, screen } from 'electron'
 import { FLOATING_BUTTON_EVENTS } from '@/events'
 import { presenter } from '../index'
 import { IConfigPresenter } from '@shared/presenter'
+import { FLOATING_BUTTON_AVAILABLE } from '@shared/featureFlags'
 
 export class FloatingButtonPresenter {
   private floatingWindow: FloatingButtonWindow | null = null
@@ -21,6 +22,12 @@ export class FloatingButtonPresenter {
    * 初始化悬浮按钮功能
    */
   public async initialize(config?: Partial<FloatingButtonConfig>): Promise<void> {
+    if (!FLOATING_BUTTON_AVAILABLE) {
+      this.destroy()
+      console.log('FloatingButton is temporarily unavailable, skipping initialization')
+      return
+    }
+
     const floatingButtonEnabled = this.configPresenter.getFloatingButtonEnabled()
     try {
       this.config = {
@@ -70,6 +77,12 @@ export class FloatingButtonPresenter {
    * 启用悬浮按钮
    */
   public async enable(): Promise<void> {
+    if (!FLOATING_BUTTON_AVAILABLE) {
+      this.destroy()
+      console.log('FloatingButton is temporarily unavailable, skipping enable')
+      return
+    }
+
     console.log(
       'FloatingButtonPresenter.enable called, current enabled:',
       this.config.enabled,
@@ -93,6 +106,11 @@ export class FloatingButtonPresenter {
    * 设置悬浮按钮启用状态
    */
   public async setEnabled(enabled: boolean): Promise<void> {
+    if (!FLOATING_BUTTON_AVAILABLE) {
+      this.destroy()
+      return
+    }
+
     if (enabled) {
       await this.enable()
     } else {
