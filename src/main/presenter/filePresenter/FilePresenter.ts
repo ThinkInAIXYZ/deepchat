@@ -50,7 +50,9 @@ export class FilePresenter implements IFilePresenter {
   }
 
   async readFile(relativePath: string): Promise<string> {
-    const fullPath = path.join(this.userDataPath, relativePath)
+    const fullPath = path.isAbsolute(relativePath)
+      ? relativePath
+      : path.join(this.userDataPath, relativePath)
     return fs.readFile(fullPath, 'utf-8')
   }
 

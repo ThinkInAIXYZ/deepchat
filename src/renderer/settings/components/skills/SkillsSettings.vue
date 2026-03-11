@@ -44,6 +44,8 @@
               v-for="skill in filteredSkills"
               :key="skill.name"
               :skill="skill"
+              :extension="skillExtensions[skill.name]"
+              :scripts="skillScripts[skill.name] || []"
               @edit="openEditor(skill)"
               @delete="confirmDelete(skill)"
             />
@@ -124,7 +126,7 @@ const { t } = useI18n()
 const { toast } = useToast()
 const skillsStore = useSkillsStore()
 
-const { skills, loading } = storeToRefs(skillsStore)
+const { skills, skillExtensions, skillScripts, loading } = storeToRefs(skillsStore)
 
 // Search
 const searchQuery = ref('')

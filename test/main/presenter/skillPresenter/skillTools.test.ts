@@ -1,10 +1,20 @@
 import { describe, it, expect, beforeEach, vi, Mock } from 'vitest'
 import { SkillTools } from '../../../../src/main/presenter/skillPresenter/skillTools'
-import type { ISkillPresenter, SkillMetadata } from '../../../../src/shared/types/skill'
+import type {
+  ISkillPresenter,
+  SkillExtensionConfig,
+  SkillMetadata
+} from '../../../../src/shared/types/skill'
 
 describe('SkillTools', () => {
   let skillTools: SkillTools
   let mockSkillPresenter: ISkillPresenter
+  const defaultExtension: SkillExtensionConfig = {
+    version: 1,
+    env: {},
+    runtimePolicy: { python: 'auto', node: 'auto' },
+    scriptOverrides: {}
+  }
 
   const mockSkillMetadata: SkillMetadata[] = [
     {
@@ -46,6 +56,9 @@ describe('SkillTools', () => {
       updateSkillFile: vi.fn().mockResolvedValue({ success: true }),
       getSkillFolderTree: vi.fn().mockResolvedValue([]),
       openSkillsFolder: vi.fn().mockResolvedValue(undefined),
+      getSkillExtension: vi.fn().mockResolvedValue(defaultExtension),
+      saveSkillExtension: vi.fn().mockResolvedValue(undefined),
+      listSkillScripts: vi.fn().mockResolvedValue([]),
       getActiveSkills: vi.fn().mockResolvedValue([]),
       setActiveSkills: vi.fn().mockResolvedValue(undefined),
       validateSkillNames: vi.fn().mockImplementation((names: string[]) => {

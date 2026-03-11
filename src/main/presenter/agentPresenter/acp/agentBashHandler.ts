@@ -1,19 +1,23 @@
 import { spawn } from 'child_process'
+import fs from 'fs'
 import path from 'path'
 import os from 'os'
 import { z } from 'zod'
+import logger from '@shared/logger'
 
 // Consider moving to a shared handlers location in future refactoring
 import {
   CommandPermissionRequiredError,
   CommandPermissionService
 } from '../../permission/commandPermissionService'
+import { resolveSessionDir } from '../../sessionPresenter/sessionPaths'
 import { getShellEnvironment, getUserShell } from './shellEnvHelper'
 import { backgroundExecSessionManager } from './backgroundExecSessionManager'
 
-const COMMAND_MAX_OUTPUT_LENGTH = 30000
 const COMMAND_DEFAULT_TIMEOUT_MS = 120000
 const COMMAND_KILL_GRACE_MS = 5000
+const COMMAND_OFFLOAD_THRESHOLD = 10000
+const COMMAND_PREVIEW_CHARS = 12000
 
 const ExecuteCommandArgsSchema = z.object({
   command: z.string().min(1),
@@ -26,6 +30,9 @@ const ExecuteCommandArgsSchema = z.object({
 
 export interface ExecuteCommandOptions {
   conversationId?: string
+  env?: Record<string, string>
+  stdin?: string
+  outputPrefix?: string
 }
 
 export class AgentBashHandler {
@@ -85,10 +92,16 @@ export class AgentBashHandler {
       output: string
       exitCode: number | null
       timedOut: boolean
-      truncated: boolean
+      offloaded: boolean
+      outputFilePath?: string
     }
 
-    result = await this.runShellProcess(command, cwd, timeout ?? COMMAND_DEFAULT_TIMEOUT_MS)
+    result = await this.runShellProcess(
+      command,
+      cwd,
+      timeout ?? COMMAND_DEFAULT_TIMEOUT_MS,
+      options
+    )
 
     const responseLines: string[] = []
     if (result.output) {
@@ -98,8 +111,8 @@ export class AgentBashHandler {
     if (result.timedOut) {
       responseLines.push('Timed out')
     }
-    if (result.truncated) {
-      responseLines.push('Output truncated')
+    if (result.offloaded && result.outputFilePath) {
+      responseLines.push(`Output offloaded: ${result.outputFilePath}`)
     }
     return responseLines.join('\n')
   }
@@ -151,46 +164,63 @@ export class AgentBashHandler {
   private async runShellProcess(
     command: string,
     cwd: string,
-    timeout: number
+    timeout: number,
+    options: ExecuteCommandOptions
   ): Promise<{
     output: string
     exitCode: number | null
     timedOut: boolean
-    truncated: boolean
+    offloaded: boolean
+    outputFilePath?: string
   }> {
     const { shell, args } = getUserShell()
     const shellEnv = await getShellEnvironment()
+    const outputFilePath = this.createOutputFilePath(options.conversationId, options.outputPrefix)
 
     return new Promise((resolve, reject) => {
       const child = spawn(shell, [...args, command], {
         cwd,
         env: {
           ...process.env,
-          ...shellEnv
+          ...shellEnv,
+          ...options.env
         },
-        stdio: ['ignore', 'pipe', 'pipe']
+        stdio: ['pipe', 'pipe', 'pipe']
       })
 
       let output = ''
-      let truncated = false
+      let totalOutputLength = 0
+      let offloaded = false
       let timedOut = false
       let exitCode: number | null = null
+      let outputWriteQueue = Promise.resolve()
       let timeoutId: NodeJS.Timeout | null = null
       let killTimeoutId: NodeJS.Timeout | null = null
 
       const appendOutput = (chunk: string) => {
-        if (truncated) return
-        const remaining = COMMAND_MAX_OUTPUT_LENGTH - output.length
-        if (remaining <= 0) {
-          truncated = true
+        totalOutputLength += chunk.length
+        const shouldOffload =
+          outputFilePath !== null && (offloaded || totalOutputLength > COMMAND_OFFLOAD_THRESHOLD)
+
+        if (!shouldOffload) {
+          output += chunk
           return
         }
-        if (chunk.length <= remaining) {
-          output += chunk
-        } else {
-          output += chunk.slice(0, remaining)
-          truncated = true
-        }
+
+        offloaded = true
+        const buffered = output + chunk
+        output = ''
+        outputWriteQueue = outputWriteQueue
+          .then(async () => {
+            await fs.promises.appendFile(outputFilePath, buffered, 'utf-8')
+          })
+          .catch((error) => {
+            logger.warn('[AgentBashHandler] Failed to offload foreground output', {
+              outputFilePath,
+              error
+            })
+            output += buffered
+          })
       }
 
       child.stdout?.setEncoding('utf-8')
@@ -204,10 +234,15 @@ export class AgentBashHandler {
         appendOutput(data)
       })
 
+      if (options.stdin !== undefined) {
+        child.stdin?.write(options.stdin)
+      }
+      child.stdin?.end()
+
       timeoutId = setTimeout(() => {
         timedOut = true
         try {
-          child.kill()
+          child.kill('SIGTERM')
         } catch {
           // ignore kill errors
         }
@@ -226,22 +261,93 @@ export class AgentBashHandler {
         reject(error)
       })
 
-      child.on('exit', (code, signal) => {
+      child.on('close', async (code, signal) => {
         if (timeoutId) clearTimeout(timeoutId)
         if (killTimeoutId) clearTimeout(killTimeoutId)
+
+        try {
+          await outputWriteQueue
+        } catch {
+          // Already logged when flushing output.
+        }
+
         if (signal && timedOut) {
           exitCode = null
         } else {
           exitCode = code ?? null
         }
+
+        const preview =
+          offloaded && outputFilePath
+            ? this.readLastCharsFromFile(outputFilePath, COMMAND_PREVIEW_CHARS)
+            : output
+
         resolve({
-          output,
+          output: preview,
           exitCode,
           timedOut,
-          truncated
+          offloaded,
+          outputFilePath: outputFilePath ?? undefined
         })
       })
     })
+  }
+
+  private createOutputFilePath(
+    conversationId?: string,
+    outputPrefix: string = 'exec'
+  ): string | null {
+    if (!conversationId) {
+      return null
+    }
+
+    const sessionDir = resolveSessionDir(conversationId)
+    if (!sessionDir) {
+      return null
+    }
+
+    try {
+      fs.mkdirSync(sessionDir, { recursive: true })
+      const safePrefix = outputPrefix.replace(/[^a-zA-Z0-9_-]/g, '_')
+      return path.join(sessionDir, `${safePrefix}_${Date.now()}.log`)
+    } catch (error) {
+      logger.warn('[AgentBashHandler] Failed to prepare output offload path', {
+        conversationId,
+        error
+      })
+      return null
+    }
+  }
+
+  private readLastCharsFromFile(filePath: string, maxChars: number): string {
+    try {
+      const stats = fs.statSync(filePath)
+      const fileSize = stats.size
+      const bytesToRead = Math.min(maxChars * 4, fileSize)
+      const startPosition = Math.max(0, fileSize - bytesToRead)
+      const fd = fs.openSync(filePath, 'r')
+
+      try {
+        const buffer = Buffer.alloc(bytesToRead)
+        const bytesRead = fs.readSync(fd, buffer, 0, bytesToRead, startPosition)
+        if (bytesRead <= 0) {
+          return ''
+        }
+        const content = buffer.subarray(0, bytesRead).toString('utf-8')
+        if (startPosition > 0) {
+          const firstNewline = content.indexOf('\n')
+          if (firstNewline > 0) {
+            return content.slice(firstNewline + 1)
+          }
+        }
+        return content
+      } finally {
+        fs.closeSync(fd)
+      }
+    } catch (error) {
+      logger.warn('[AgentBashHandler] Failed to read offloaded preview', { filePath, error })
+      return ''
+    }
   }
 
   private async executeCommandBackground(
@@ -278,7 +384,8 @@ export class AgentBashHandler {
 
     // Start background session
     const result = await backgroundExecSessionManager.start(conversationId, command, cwd, {
-      timeout: timeout ?? COMMAND_DEFAULT_TIMEOUT_MS
+      timeout: timeout ?? COMMAND_DEFAULT_TIMEOUT_MS,
+      env: options.env
     })
 
     return { status: 'running', sessionId: result.sessionId }

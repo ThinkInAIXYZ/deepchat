@@ -1144,6 +1144,12 @@
       "successMessage": "skill {name} 已成功删除",
       "failed": "删除失败"
     },
+    "card": {
+      "scripts": "{count} 个脚本",
+      "env": "{count} 个环境变量",
+      "pythonShort": "Py",
+      "nodeShort": "Node"
+    },
     "edit": {
       "title": "编辑 skill",
       "placeholder": "在此编辑 skill 内容...",
@@ -1159,6 +1165,23 @@
       "allowedToolsPlaceholder": "Read, Grep, Bash",
       "allowedToolsHint": "逗号分隔的工具名称列表",
       "content": "skill 内容",
+      "runtimeTitle": "运行时",
+      "runtimeHint": "为内置脚本选择 Python 和 Node 的解析策略。",
+      "pythonRuntime": "Python 运行时",
+      "nodeRuntime": "Node 运行时",
+      "envTitle": "环境变量",
+      "envWarning": "仅在 UI 中做遮罩显示，实际会以明文写入 skill sidecar 文件。",
+      "scriptsTitle": "内置脚本",
+      "scriptsHint": "只有 scripts/ 下的脚本会通过 skill_run 暴露给 agent。",
+      "noScripts": "未发现可运行脚本",
+      "scriptEnabled": "启用",
+      "scriptDescription": "描述覆盖",
+      "scriptDescriptionPlaceholder": "可选，显示给 agent 的脚本说明",
+      "runtime": {
+        "auto": "自动回退",
+        "system": "系统运行时",
+        "builtin": "内置运行时"
+      },
       "files": "文件夹内容",
       "noFiles": "无文件"
     },

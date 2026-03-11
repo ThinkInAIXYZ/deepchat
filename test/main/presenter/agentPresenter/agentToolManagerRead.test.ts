@@ -36,7 +36,14 @@ vi.mock('@/presenter', () => ({
     },
     skillPresenter: {
       getActiveSkills: vi.fn().mockResolvedValue([]),
-      getActiveSkillsAllowedTools: vi.fn().mockResolvedValue([])
+      getActiveSkillsAllowedTools: vi.fn().mockResolvedValue([]),
+      listSkillScripts: vi.fn().mockResolvedValue([]),
+      getSkillExtension: vi.fn().mockResolvedValue({
+        version: 1,
+        env: {},
+        runtimePolicy: { python: 'auto', node: 'auto' },
+        scriptOverrides: {}
+      })
     },
     newAgentPresenter: {
       getSession: vi.fn().mockResolvedValue(null)
@@ -145,5 +152,19 @@ describe('AgentToolManager read routing', () => {
 
     expect(result.content).toContain('[Image Metadata]')
     expect(result.content).toContain('No defaultVisionModel configured')
+  })
+
+  it('rejects non-text binary reads without polluting prompt context', async () => {
+    const filePath = path.join(workspaceDir, 'archive.zip')
+    await fs.writeFile(filePath, Buffer.from([0x50, 0x4b, 0x03, 0x04]))
+    ;(presenter.filePresenter.getMimeType as any).mockResolvedValue('application/zip')
+
+    const result = (await manager.callTool('read', { path: 'archive.zip' }, 'conv1')) as {
+      content: string
+    }
+
+    expect(result.content).toContain('Cannot read "archive.zip" as plain text')
+    expect(result.content).toContain('conversion/extraction tool or skill script')
+    expect(presenter.filePresenter.prepareFileCompletely).not.toHaveBeenCalled()
   })
 })

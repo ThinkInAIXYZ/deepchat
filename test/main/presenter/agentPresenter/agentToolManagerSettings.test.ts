@@ -16,7 +16,14 @@ vi.mock('@/presenter', () => ({
   presenter: {
     skillPresenter: {
       getActiveSkills: vi.fn(),
-      getActiveSkillsAllowedTools: vi.fn()
+      getActiveSkillsAllowedTools: vi.fn(),
+      listSkillScripts: vi.fn().mockResolvedValue([]),
+      getSkillExtension: vi.fn().mockResolvedValue({
+        version: 1,
+        env: {},
+        runtimePolicy: { python: 'auto', node: 'auto' },
+        scriptOverrides: {}
+      })
     },
     sessionManager: {
       getSession: vi.fn()
@@ -43,6 +50,8 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
     vi.clearAllMocks()
     ;(presenter.sessionManager.getSession as any).mockResolvedValue(null)
     ;(presenter.newAgentPresenter.getSession as any).mockResolvedValue(null)
+    ;(presenter.skillPresenter.listSkillScripts as any).mockResolvedValue([])
+    ;(presenter.yoBrowserPresenter.toolHandler.getToolDefinitions as any).mockReturnValue([])
   })
 
   it('does not include settings tools when skill is inactive', async () => {
@@ -87,6 +96,34 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
     const names = defs.map((def) => def.function.name)
     expect(names).toContain(CHAT_SETTINGS_TOOL_NAMES.toggle)
     expect(names).not.toContain(CHAT_SETTINGS_TOOL_NAMES.open)
+  })
+
+  it('includes skill_run when an active skill exposes runnable scripts', async () => {
+    ;(presenter.skillPresenter.getActiveSkills as any).mockResolvedValue(['ocr'])
+    ;(presenter.skillPresenter.getActiveSkillsAllowedTools as any).mockResolvedValue([])
+    ;(presenter.skillPresenter.listSkillScripts as any).mockResolvedValue([
+      {
+        name: 'run.py',
+        relativePath: 'scripts/run.py',
+        absolutePath: '/tmp/skills/ocr/scripts/run.py',
+        runtime: 'python',
+        enabled: true
+      }
+    ])
+
+    const manager = new AgentToolManager({
+      agentWorkspacePath: null,
+      configPresenter
+    })
+
+    const defs = await manager.getAllToolDefinitions({
+      chatMode: 'agent',
+      supportsVision: false,
+      agentWorkspacePath: null,
+      conversationId: 'conv-1'
+    })
+
+    expect(defs.map((def) => def.function.name)).toContain('skill_run')
   })
 
   it('resolves workdir from new session first', async () => {

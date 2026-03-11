@@ -1,23 +1,34 @@
 <template>
   <div
-    class="border rounded-md px-3 py-2 bg-card hover:bg-accent/50 transition-colors group grid grid-cols-[auto_1fr_auto] items-center gap-3"
+    class="border rounded-md px-3 py-3 bg-card hover:bg-accent/50 transition-colors group grid grid-cols-[minmax(0,1fr)_auto] gap-3"
     @mouseenter="hovering = true"
     @mouseleave="hovering = false"
   >
-    <!-- Name -->
-    <div class="flex items-center gap-1.5 max-w-[180px]">
-      <Icon icon="lucide:wand-sparkles" class="w-4 h-4 text-primary shrink-0" />
-      <span class="font-medium text-sm truncate">{{ skill.name }}</span>
+    <div class="min-w-0 space-y-2">
+      <div class="flex items-center gap-1.5 min-w-0">
+        <Icon icon="lucide:wand-sparkles" class="w-4 h-4 text-primary shrink-0" />
+        <span class="font-medium text-sm truncate">{{ skill.name }}</span>
+      </div>
+
+      <p class="text-xs text-muted-foreground line-clamp-2">
+        {{ skill.description }}
+      </p>
+
+      <div class="flex flex-wrap gap-1.5">
+        <Badge variant="secondary" class="text-[11px]">
+          {{ t('settings.skills.card.scripts', { count: scripts.length }) }}
+        </Badge>
+        <Badge variant="outline" class="text-[11px]">
+          {{ t('settings.skills.card.env', { count: envCount }) }}
+        </Badge>
+        <Badge variant="outline" class="text-[11px]">
+          {{ runtimeSummary }}
+        </Badge>
+      </div>
     </div>
 
-    <!-- Description -->
-    <p class="text-xs text-muted-foreground truncate">
-      {{ skill.description }}
-    </p>
-
-    <!-- Actions -->
     <div
-      class="flex items-center gap-0.5 transition-opacity"
+      class="flex items-start gap-0.5 transition-opacity"
       :class="{ 'opacity-0 group-hover:opacity-100': !hovering }"
     >
       <Button variant="ghost" size="sm" class="h-7 w-7 p-0" @click="$emit('edit')">
@@ -36,13 +47,22 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
-import type { SkillMetadata } from '@shared/types/skill'
+import { Badge } from '@shadcn/components/ui/badge'
+import type {
+  SkillExtensionConfig,
+  SkillMetadata,
+  SkillRuntimePreference,
+  SkillScriptDescriptor
+} from '@shared/types/skill'
 
-defineProps<{
+const props = defineProps<{
   skill: SkillMetadata
+  extension?: SkillExtensionConfig
+  scripts?: SkillScriptDescriptor[]
 }>()
 
 defineEmits<{
@@ -50,5 +70,19 @@ defineEmits<{
   delete: []
 }>()
 
+const { t } = useI18n()
 const hovering = ref(false)
+
+const envCount = computed(() => Object.keys(props.extension?.env ?? {}).length)
+const scripts = computed(() => props.scripts ?? [])
+
+const runtimeLabel = (value: SkillRuntimePreference | undefined) => {
+  const normalized = value ?? 'auto'
+  return t(`settings.skills.edit.runtime.${normalized}`)
+}
+
+const runtimeSummary = computed(
+  () =>
+    `${t('settings.skills.card.pythonShort')}:${runtimeLabel(props.extension?.runtimePolicy?.python)} / ${t('settings.skills.card.nodeShort')}:${runtimeLabel(props.extension?.runtimePolicy?.node)}`
+)
 </script>

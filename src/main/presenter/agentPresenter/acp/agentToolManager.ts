@@ -7,9 +7,11 @@ import { app, nativeImage } from 'electron'
 import logger from '@shared/logger'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import { presenter } from '@/presenter'
+import { buildBinaryReadGuidance, shouldRejectAgentBinaryRead } from '@/lib/binaryReadGuard'
 import { AgentFileSystemHandler } from './agentFileSystemHandler'
 import { AgentBashHandler } from './agentBashHandler'
 import { SkillTools } from '../../skillPresenter/skillTools'
+import { SkillExecutionService } from '../../skillPresenter/skillExecutionService'
 import { questionToolSchema, QUESTION_TOOL_NAME } from '../tools/questionTool'
 import {
   ChatSettingsToolHandler,
@@ -66,6 +68,7 @@ export class AgentToolManager {
   private readonly commandPermissionHandler?: CommandPermissionService
   private readonly configPresenter: IConfigPresenter
   private skillTools: SkillTools | null = null
+  private skillExecutionService: SkillExecutionService | null = null
   private chatSettingsHandler: ChatSettingsToolHandler | null = null
   private static readonly READ_FILE_AUTO_TRUNCATE_THRESHOLD = 4500
 
@@ -195,6 +198,26 @@ export class AgentToolManager {
 
   private readonly skillSchemas = {
     skill_list: z.object({}),
+    skill_run: z.object({
+      skill: z.string().min(1).describe('Active skill name that owns the script'),
+      script: z
+        .string()
+        .min(1)
+        .describe('Script path under the skill root, usually scripts/<name>.<ext>'),
+      args: z.array(z.string()).optional().default([]).describe('Arguments passed to the script'),
+      stdin: z.string().optional().describe('Optional stdin payload sent to the script'),
+      background: z
+        .boolean()
+        .optional()
+        .default(false)
+        .describe('Run the script in the background and manage it with process tool'),
+      timeoutMs: z
+        .number()
+        .min(100)
+        .max(600000)
+        .optional()
+        .describe('Optional timeout in milliseconds for the script run')
+    }),
     skill_control: z
       .object({
         action: z.enum(['activate', 'deactivate']).describe('The action to perform'),
@@ -266,6 +289,10 @@ export class AgentToolManager {
     if (isAgentMode && this.isSkillsEnabled()) {
       const skillDefs = this.getSkillToolDefinitions()
       defs.push(...skillDefs)
+
+      if (context.conversationId && (await this.hasRunnableSkillScripts(context.conversationId))) {
+        defs.push(this.getSkillRunToolDefinition())
+      }
     }
 
     // 4. DeepChat settings tools (agent mode only, skill gated)
@@ -346,6 +373,10 @@ export class AgentToolManager {
     // Route to Skill tools
     if (this.isSkillTool(toolName)) {
       return await this.callSkillTool(toolName, args, conversationId)
+    }
+
+    if (this.isSkillExecutionTool(toolName)) {
+      return await this.callSkillExecutionTool(toolName, args, conversationId)
     }
 
     // Route to DeepChat settings tools
@@ -626,7 +657,7 @@ export class AgentToolManager {
         if (!sessionId) {
           throw new Error('sessionId is required for poll action')
         }
-        const result = backgroundExecSessionManager.poll(conversationId, sessionId)
+        const result = await backgroundExecSessionManager.poll(conversationId, sessionId)
         return {
           content: JSON.stringify(result, null, 2)
         }
@@ -636,7 +667,12 @@ export class AgentToolManager {
         if (!sessionId) {
           throw new Error('sessionId is required for log action')
         }
-        const result = backgroundExecSessionManager.log(conversationId, sessionId, offset, limit)
+        const result = await backgroundExecSessionManager.log(
+          conversationId,
+          sessionId,
+          offset,
+          limit
+        )
         return {
           content: JSON.stringify(result, null, 2)
         }
@@ -748,6 +784,12 @@ export class AgentToolManager {
             baseDirectory
           )
           const mimeType = await presenter.filePresenter.getMimeType(validPath)
+
+          if (await shouldRejectAgentBinaryRead(validPath, mimeType)) {
+            return {
+              content: buildBinaryReadGuidance(validPath, mimeType, 'agent')
+            }
+          }
 
           if (this.isImageMimeType(mimeType)) {
             return {
@@ -1227,6 +1269,16 @@ export class AgentToolManager {
     return this.chatSettingsHandler
   }
 
+  private getSkillExecutionService(): SkillExecutionService {
+    if (!this.skillExecutionService) {
+      this.skillExecutionService = new SkillExecutionService(
+        presenter.skillPresenter,
+        this.configPresenter
+      )
+    }
+    return this.skillExecutionService
+  }
+
   private getSkillToolDefinitions(): MCPToolDefinition[] {
     const schemas = this.skillSchemas
     return [
@@ -1269,8 +1321,52 @@ export class AgentToolManager {
     ]
   }
 
+  private getSkillRunToolDefinition(): MCPToolDefinition {
+    return {
+      type: 'function',
+      function: {
+        name: 'skill_run',
+        description:
+          'Run a bundled script from an active skill. This is the preferred way to execute skill-local Python, Node, or shell helpers without guessing paths.',
+        parameters: zodToJsonSchema(this.skillSchemas.skill_run) as {
+          type: string
+          properties: Record<string, unknown>
+          required?: string[]
+        }
+      },
+      server: {
+        name: 'agent-skills',
+        icons: '🎯',
+        description: 'Agent Skills management'
+      }
+    }
+  }
+
   private isSkillTool(toolName: string): boolean {
     return toolName === 'skill_list' || toolName === 'skill_control'
+  }
+
+  private isSkillExecutionTool(toolName: string): boolean {
+    return toolName === 'skill_run'
+  }
+
+  private async hasRunnableSkillScripts(conversationId: string): Promise<boolean> {
+    try {
+      const activeSkills = await presenter.skillPresenter.getActiveSkills(conversationId)
+      for (const skillName of activeSkills) {
+        const scripts = await presenter.skillPresenter.listSkillScripts(skillName)
+        if (scripts.some((script) => script.enabled)) {
+          return true
+        }
+      }
+    } catch (error) {
+      logger.warn('[AgentToolManager] Failed to inspect runnable skill scripts', {
+        conversationId,
+        error
+      })
+    }
+
+    return false
   }
 
   /**
@@ -1450,6 +1546,33 @@ export class AgentToolManager {
     }
 
     throw new Error(`Unknown skill tool: ${toolName}`)
+  }
+
+  private async callSkillExecutionTool(
+    toolName: string,
+    args: Record<string, unknown>,
+    conversationId?: string
+  ): Promise<AgentToolCallResult> {
+    if (toolName !== 'skill_run') {
+      throw new Error(`Unknown skill execution tool: ${toolName}`)
+    }
+
+    if (!conversationId) {
+      throw new Error('skill_run requires a conversation ID')
+    }
+
+    const validationResult = this.skillSchemas.skill_run.safeParse(args)
+    if (!validationResult.success) {
+      throw new Error(`Invalid arguments for skill_run: ${validationResult.error.message}`)
+    }
+
+    const result = await this.getSkillExecutionService().execute(validationResult.data, {
+      conversationId
+    })
+
+    return {
+      content: typeof result === 'string' ? result : JSON.stringify(result, null, 2)
+    }
   }
 
   private async callChatSettingsTool(

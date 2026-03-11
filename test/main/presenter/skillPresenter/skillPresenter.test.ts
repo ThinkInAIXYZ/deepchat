@@ -42,6 +42,11 @@ vi.mock('path', () => ({
     join: vi.fn((...args: string[]) => args.join('/')),
     dirname: vi.fn((p: string) => p.split('/').slice(0, -1).join('/')),
     basename: vi.fn((p: string) => p.split('/').pop() || ''),
+    extname: vi.fn((p: string) => {
+      const base = p.split('/').pop() || ''
+      const idx = base.lastIndexOf('.')
+      return idx >= 0 ? base.slice(idx) : ''
+    }),
     resolve: vi.fn((...args: string[]) => {
       const p = args[args.length - 1]
       if (p.startsWith('/')) return p
@@ -319,7 +324,7 @@ describe('SkillPresenter', () => {
   describe('loadSkillContent', () => {
     beforeEach(() => {
       ;(fs.readdirSync as Mock).mockReturnValue([{ name: 'test-skill', isDirectory: () => true }])
-      ;(fs.existsSync as Mock).mockReturnValue(true)
+      ;(fs.existsSync as Mock).mockImplementation((target: string) => !target.includes('/scripts'))
       ;(fs.readFileSync as Mock).mockReturnValue('test content')
       ;(matter as unknown as Mock).mockReturnValue({
         data: { name: 'test-skill', description: 'Test' },
@@ -620,6 +625,98 @@ describe('SkillPresenter', () => {
 
       expect(Array.isArray(tree)).toBe(true)
       expect(tree.length).toBeGreaterThanOrEqual(0)
+    })
+  })
+
+  describe('skill runtime extensions', () => {
+    beforeEach(async () => {
+      ;(fs.readdirSync as Mock).mockReturnValue([{ name: 'test-skill', isDirectory: () => true }])
+      ;(fs.existsSync as Mock).mockImplementation((target: string) => !target.includes('/scripts'))
+      ;(fs.readFileSync as Mock).mockReturnValue('test')
+      ;(matter as unknown as Mock).mockReturnValue({
+        data: { name: 'test-skill', description: 'Test' },
+        content: ''
+      })
+      await skillPresenter.discoverSkills()
+    })
+
+    it('should save and load sidecar runtime config', async () => {
+      const extension = {
+        version: 1 as const,
+        env: { API_KEY: 'secret' },
+        runtimePolicy: { python: 'builtin' as const, node: 'system' as const },
+        scriptOverrides: {
+          'scripts/run.py': {
+            enabled: false,
+            description: 'Run OCR'
+          }
+        }
+      }
+
+      await skillPresenter.saveSkillExtension('test-skill', extension)
+      ;(fs.existsSync as Mock).mockImplementation(
+        (target: string) =>
+          !target.includes('/scripts') || target.endsWith('/.deepchat-meta/test-skill.json')
+      )
+      ;(fs.readFileSync as Mock).mockImplementation((target: string) => {
+        if (target.endsWith('/.deepchat-meta/test-skill.json')) {
+          return JSON.stringify(extension)
+        }
+        return 'test'
+      })
+
+      const loaded = await skillPresenter.getSkillExtension('test-skill')
+
+      expect(fs.writeFileSync).toHaveBeenCalledWith(
+        expect.stringContaining('/.deepchat-meta/test-skill.json'),
+        JSON.stringify(extension, null, 2),
+        'utf-8'
+      )
+      expect(loaded).toEqual(extension)
+    })
+
+    it('should discover runnable scripts under scripts directory', async () => {
+      ;(fs.existsSync as Mock).mockImplementation(
+        (target: string) =>
+          !target.endsWith('/.deepchat-meta/test-skill.json') || target.includes('/scripts')
+      )
+      ;(fs.readdirSync as Mock).mockImplementation((target: string) => {
+        if (target.endsWith('/skills')) {
+          return [{ name: 'test-skill', isDirectory: () => true }]
+        }
+        if (target.endsWith('/test-skill/scripts')) {
+          return [
+            {
+              name: 'run.py',
+              isDirectory: () => false,
+              isSymbolicLink: () => false
+            }
+          ]
+        }
+        return []
+      })
+
+      const scripts = await skillPresenter.listSkillScripts('test-skill')
+
+      expect(scripts).toEqual([
+        expect.objectContaining({
+          name: 'run.py',
+          relativePath: 'scripts/run.py',
+          runtime: 'python',
+          enabled: true
+        })
+      ])
+    })
+
+    it('should remove sidecar config when uninstalling a skill', async () => {
+      ;(fs.existsSync as Mock).mockReturnValue(true)
+
+      await skillPresenter.uninstallSkill('test-skill')
+
+      expect(fs.rmSync).toHaveBeenCalledWith(
+        expect.stringContaining('/.deepchat-meta/test-skill.json'),
+        { force: true }
+      )
     })
   })
 
