@@ -1,24 +1,56 @@
 import { defineComponent } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+type IpcHandler = (_event: unknown, payload: unknown) => void | Promise<void>
+
+const makeRect = (x: number, y: number, width: number, height: number): DOMRect => {
+  return {
+    x,
+    y,
+    width,
+    height,
+    top: y,
+    right: x + width,
+    bottom: y + height,
+    left: x,
+    toJSON: () => ({ x, y, width, height })
+  } as DOMRect
+}
 
 describe('BrowserPanel', () => {
-  const setup = async () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+  })
+
+  const setup = async (options?: {
+    open?: boolean
+    activeTab?: 'browser' | 'workspace'
+    getWindowByIdResult?: unknown
+  }) => {
     vi.resetModules()
 
+    const handlers = new Map<string, IpcHandler>()
     const sidepanelStore = {
-      open: true,
-      activeTab: 'browser'
+      open: options?.open ?? true,
+      activeTab: options?.activeTab ?? 'browser'
     }
 
     const yoBrowserPresenter = {
       attachEmbeddedToWindow: vi.fn().mockResolvedValue(1),
-      getWindowById: vi.fn().mockResolvedValue({
-        id: 1,
-        page: {
-          url: 'about:blank'
+      getWindowById: vi.fn().mockResolvedValue(
+        options?.getWindowByIdResult ?? {
+          id: 1,
+          page: {
+            url: 'about:blank'
+          }
         }
-      }),
+      ),
       getNavigationState: vi.fn().mockResolvedValue({
         canGoBack: false,
         canGoForward: false
@@ -54,8 +86,12 @@ describe('BrowserPanel', () => {
     }
     ;(window as any).electron = {
       ipcRenderer: {
-        on: vi.fn(),
-        removeListener: vi.fn()
+        on: vi.fn((channel: string, handler: IpcHandler) => {
+          handlers.set(channel, handler)
+        }),
+        removeListener: vi.fn((channel: string) => {
+          handlers.delete(channel)
+        })
       }
     }
 
@@ -87,7 +123,7 @@ describe('BrowserPanel', () => {
     })
 
     await flushPromises()
-    return { wrapper }
+    return { wrapper, yoBrowserPresenter, sidepanelStore, handlers }
   }
 
   it('adds accessible labels to browser toolbar controls', async () => {
@@ -99,5 +135,50 @@ describe('BrowserPanel', () => {
     expect(buttons[1].attributes('aria-label')).toBe('common.browser.forward')
     expect(buttons[2].attributes('aria-label')).toBe('common.browser.reload')
     expect(input.attributes('aria-label')).toBe('common.browser.addressLabel')
+  })
+
+  it('waits for a stable rect before first attach and visible bounds sync', async () => {
+    const rects = [makeRect(0, 0, 0, 0), makeRect(24, 48, 320, 480), makeRect(24, 48, 320, 480)]
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(() => {
+      return rects.shift() ?? makeRect(24, 48, 320, 480)
+    })
+
+    const { yoBrowserPresenter } = await setup()
+
+    expect(yoBrowserPresenter.attachEmbeddedToWindow).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(160)
+    await flushPromises()
+
+    expect(yoBrowserPresenter.attachEmbeddedToWindow).toHaveBeenCalledWith(1)
+    expect(yoBrowserPresenter.updateEmbeddedBounds).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({
+        x: 24,
+        y: 48,
+        width: 320,
+        height: 480
+      }),
+      true
+    )
+  })
+
+  it('ignores open requests for a different host window', async () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(
+      makeRect(10, 10, 300, 400)
+    )
+
+    const { yoBrowserPresenter, handlers } = await setup()
+    yoBrowserPresenter.attachEmbeddedToWindow.mockClear()
+    yoBrowserPresenter.updateEmbeddedBounds.mockClear()
+
+    const openRequestedHandler = handlers.get('yo-browser:open-requested')
+    expect(openRequestedHandler).toBeTypeOf('function')
+
+    await openRequestedHandler?.({}, { windowId: 2 })
+    await flushPromises()
+
+    expect(yoBrowserPresenter.attachEmbeddedToWindow).not.toHaveBeenCalled()
+    expect(yoBrowserPresenter.updateEmbeddedBounds).not.toHaveBeenCalled()
   })
 })
