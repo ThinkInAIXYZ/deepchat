@@ -17,6 +17,8 @@ import { getShellEnvironment, getUserShell } from '../agentPresenter/acp/shellEn
 const DEFAULT_TIMEOUT_MS = 120000
 const FOREGROUND_OFFLOAD_THRESHOLD = 10000
 const FOREGROUND_PREVIEW_CHARS = 12000
+const FOREGROUND_KILL_GRACE_MS = 2000
+const FOREGROUND_FORCE_SETTLE_MS = 500
 
 export interface SkillRunRequest {
   skill: string
@@ -332,36 +334,133 @@ export class SkillExecutionService {
       let outputBuffer = ''
       let totalOutputLength = 0
       let offloaded = false
+      let offloadDisabled = outputFilePath === null
+      let activeOutputFilePath = outputFilePath
       let timedOut = false
       let outputWriteQueue = Promise.resolve()
       let timeoutId: NodeJS.Timeout | null = null
+      let killTimeoutId: NodeJS.Timeout | null = null
+      let forceSettleTimeoutId: NodeJS.Timeout | null = null
+      let settled = false
 
-      const queueOutputWrite = (data: string) => {
-        if (!outputFilePath || !data) {
-          outputBuffer += data
+      const cleanupTimers = () => {
+        if (timeoutId) {
+          clearTimeout(timeoutId)
+          timeoutId = null
+        }
+        if (killTimeoutId) {
+          clearTimeout(killTimeoutId)
+          killTimeoutId = null
+        }
+        if (forceSettleTimeoutId) {
+          clearTimeout(forceSettleTimeoutId)
+          forceSettleTimeoutId = null
+        }
+      }
+
+      const settleProcess = async (code: number | null, error?: Error) => {
+        if (settled) {
+          return
+        }
+        settled = true
+        cleanupTimers()
+        child.removeAllListeners('error')
+        child.removeAllListeners('close')
+
+        try {
+          await outputWriteQueue
+        } catch {
+          // Already logged when the queue failed.
+        }
+
+        if (error) {
+          reject(error)
           return
         }
 
+        const preview =
+          offloaded && activeOutputFilePath
+            ? this.readLastCharsFromFile(activeOutputFilePath, FOREGROUND_PREVIEW_CHARS)
+            : outputBuffer
+
+        const lines: string[] = []
+        if (preview.trim()) {
+          lines.push(preview.trimEnd())
+        }
+        lines.push(`Exit Code: ${code ?? 'null'}`)
+        if (timedOut) {
+          lines.push('Timed out')
+        }
+        if (offloaded && activeOutputFilePath) {
+          lines.push(`Output offloaded: ${activeOutputFilePath}`)
+        }
+        resolve(lines.join('\n'))
+      }
+
+      const appendToOutputBuffer = (data: string) => {
+        if (!data) {
+          return
+        }
+
+        outputBuffer += data
+        if (outputBuffer.length > FOREGROUND_PREVIEW_CHARS) {
+          outputBuffer = outputBuffer.slice(-FOREGROUND_PREVIEW_CHARS)
+        }
+      }
+
+      const disableOffload = (data: string) => {
+        const filePreview =
+          offloaded && activeOutputFilePath
+            ? this.readLastCharsFromFile(activeOutputFilePath, FOREGROUND_PREVIEW_CHARS)
+            : ''
+
+        offloaded = false
+        offloadDisabled = true
+        activeOutputFilePath = null
+        outputBuffer = ''
+        appendToOutputBuffer(filePreview)
+        appendToOutputBuffer(data)
+      }
+
+      const queueOutputWrite = (data: string) => {
+        if (offloadDisabled || !activeOutputFilePath || !data) {
+          offloaded = false
+          appendToOutputBuffer(data)
+          return
+        }
+
+        const targetOutputFilePath = activeOutputFilePath
         outputWriteQueue = outputWriteQueue
           .then(async () => {
-            await fs.promises.appendFile(outputFilePath, data, 'utf-8')
+            if (
+              !targetOutputFilePath ||
+              offloadDisabled ||
+              activeOutputFilePath !== targetOutputFilePath
+            ) {
+              appendToOutputBuffer(data)
+              return
+            }
+
+            await fs.promises.appendFile(targetOutputFilePath, data, 'utf-8')
           })
           .catch((error) => {
             logger.warn('[SkillExecutionService] Failed to flush foreground output', {
-              outputFilePath,
+              outputFilePath: targetOutputFilePath,
               error
             })
-            outputBuffer += data
+            disableOffload(data)
           })
       }
 
       const appendOutput = (data: string) => {
         totalOutputLength += data.length
         const shouldOffload =
-          outputFilePath !== null && (offloaded || totalOutputLength > FOREGROUND_OFFLOAD_THRESHOLD)
+          !offloadDisabled &&
+          activeOutputFilePath !== null &&
+          (offloaded || totalOutputLength > FOREGROUND_OFFLOAD_THRESHOLD)
 
         if (!shouldOffload) {
-          outputBuffer += data
+          appendToOutputBuffer(data)
           return
         }
 
@@ -388,39 +487,32 @@ export class SkillExecutionService {
         } catch {
           // ignore kill errors
         }
+
+        killTimeoutId = setTimeout(() => {
+          try {
+            child.kill('SIGKILL')
+          } catch {
+            // ignore kill errors
+          }
+
+          forceSettleTimeoutId = setTimeout(() => {
+            child.stdout?.destroy()
+            child.stderr?.destroy()
+            child.stdin?.destroy()
+            if (typeof child.unref === 'function') {
+              child.unref()
+            }
+            void settleProcess(null)
+          }, FOREGROUND_FORCE_SETTLE_MS)
+        }, FOREGROUND_KILL_GRACE_MS)
       }, timeoutMs)
 
       child.on('error', (error) => {
-        if (timeoutId) clearTimeout(timeoutId)
-        reject(error)
+        void settleProcess(null, error)
       })
 
       child.on('close', async (code) => {
-        if (timeoutId) clearTimeout(timeoutId)
-
-        try {
-          await outputWriteQueue
-        } catch {
-          // Already logged when the queue failed.
-        }
-
-        const preview =
-          offloaded && outputFilePath
-            ? this.readLastCharsFromFile(outputFilePath, FOREGROUND_PREVIEW_CHARS)
-            : outputBuffer
-
-        const lines: string[] = []
-        if (preview.trim()) {
-          lines.push(preview.trimEnd())
-        }
-        lines.push(`Exit Code: ${code ?? 'null'}`)
-        if (timedOut) {
-          lines.push('Timed out')
-        }
-        if (offloaded && outputFilePath) {
-          lines.push(`Output offloaded: ${outputFilePath}`)
-        }
-        resolve(lines.join('\n'))
+        void settleProcess(code ?? null)
       })
     })
   }

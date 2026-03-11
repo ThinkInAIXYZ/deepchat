@@ -47,7 +47,7 @@ interface BackgroundSession {
   outputFilePath: string | null
   outputWriteQueue: Promise<void>
   totalOutputLength: number
-  offloadFailed: boolean
+  offloadDisabled: boolean
   stdoutEof: boolean
   stderrEof: boolean
   closePromise: Promise<void>
@@ -139,7 +139,7 @@ export class BackgroundExecSessionManager {
       outputFilePath,
       outputWriteQueue: Promise.resolve(),
       totalOutputLength: 0,
-      offloadFailed: false,
+      offloadDisabled: false,
       stdoutEof: false,
       stderrEof: false,
       closePromise,
@@ -188,10 +188,7 @@ export class BackgroundExecSessionManager {
       pid: session.child.pid,
       exitCode: session.exitCode,
       outputLength: session.totalOutputLength,
-      offloaded:
-        !session.offloadFailed &&
-        session.outputFilePath !== null &&
-        session.totalOutputLength > getConfig().offloadThresholdChars
+      offloaded: this.hasPersistedOutput(session, getConfig())
     }))
   }
 
@@ -204,14 +201,10 @@ export class BackgroundExecSessionManager {
     await this.waitForSessionDrain(session)
 
     const config = getConfig()
-    const isOffloaded =
-      !session.offloadFailed &&
-      session.outputFilePath !== null &&
-      session.totalOutputLength > config.offloadThresholdChars
+    const isOffloaded = this.hasPersistedOutput(session, config)
 
     if (isOffloaded && session.outputFilePath) {
-      // Return only last N characters from file
-      const output = this.readLastCharsFromFile(session.outputFilePath, config.maxOutputChars)
+      const output = this.getRecentOutputFromSession(session, config.maxOutputChars)
       return {
         status: session.status,
         output,
@@ -245,14 +238,11 @@ export class BackgroundExecSessionManager {
     await this.waitForSessionDrain(session)
 
     const config = getConfig()
-    const isOffloaded =
-      !session.offloadFailed &&
-      session.outputFilePath !== null &&
-      session.totalOutputLength > config.offloadThresholdChars
+    const isOffloaded = this.hasPersistedOutput(session, config)
 
     let output: string
     if (isOffloaded && session.outputFilePath) {
-      output = this.readFromFile(session.outputFilePath, offset, limit)
+      output = this.readOutputFromSession(session, offset, limit, config)
     } else {
       output = session.outputBuffer.slice(offset, offset + limit)
     }
@@ -446,7 +436,9 @@ export class BackgroundExecSessionManager {
     session.totalOutputLength += data.length
 
     const shouldOffload =
-      session.outputFilePath !== null && session.totalOutputLength > config.offloadThresholdChars
+      !session.offloadDisabled &&
+      session.outputFilePath !== null &&
+      session.totalOutputLength > config.offloadThresholdChars
 
     if (shouldOffload) {
       const chunk = session.outputBuffer + data
@@ -537,6 +529,69 @@ export class BackgroundExecSessionManager {
     return buffer.slice(-maxChars)
   }
 
+  private hasPersistedOutput(
+    session: BackgroundSession,
+    config: ReturnType<typeof getConfig>
+  ): boolean {
+    return (
+      session.outputFilePath !== null && session.totalOutputLength > config.offloadThresholdChars
+    )
+  }
+
+  private getPersistedOutputLength(
+    session: BackgroundSession,
+    config: ReturnType<typeof getConfig>
+  ): number {
+    if (!this.hasPersistedOutput(session, config)) {
+      return 0
+    }
+
+    return Math.max(0, session.totalOutputLength - session.outputBuffer.length)
+  }
+
+  private getRecentOutputFromSession(session: BackgroundSession, maxChars: number): string {
+    if (!session.outputFilePath) {
+      return this.getRecentOutput(session.outputBuffer, maxChars)
+    }
+
+    const filePreview = this.readLastCharsFromFile(session.outputFilePath, maxChars)
+    if (!session.outputBuffer) {
+      return filePreview
+    }
+
+    return this.getRecentOutput(filePreview + session.outputBuffer, maxChars)
+  }
+
+  private readOutputFromSession(
+    session: BackgroundSession,
+    offset: number,
+    limit: number,
+    config: ReturnType<typeof getConfig>
+  ): string {
+    if (!session.outputFilePath) {
+      return session.outputBuffer.slice(offset, offset + limit)
+    }
+
+    const persistedLength = this.getPersistedOutputLength(session, config)
+    if (persistedLength <= 0) {
+      return session.outputBuffer.slice(offset, offset + limit)
+    }
+
+    if (offset >= persistedLength) {
+      const bufferOffset = offset - persistedLength
+      return session.outputBuffer.slice(bufferOffset, bufferOffset + limit)
+    }
+
+    const fileLimit = Math.min(limit, persistedLength - offset)
+    const persistedOutput = this.readFromFile(session.outputFilePath, offset, fileLimit)
+    if (persistedOutput.length >= limit) {
+      return persistedOutput
+    }
+
+    const remaining = limit - persistedOutput.length
+    return persistedOutput + session.outputBuffer.slice(0, remaining)
+  }
+
   private readLastCharsFromFile(filePath: string, maxChars: number): string {
     try {
       const stats = fs.statSync(filePath)
@@ -621,6 +676,13 @@ export class BackgroundExecSessionManager {
       return
     }
 
+    if (mode === 'append' && session.offloadDisabled) {
+      if (data) {
+        session.outputBuffer += data
+      }
+      return
+    }
+
     const outputFilePath = session.outputFilePath
     session.outputWriteQueue = session.outputWriteQueue
       .then(async () => {
@@ -636,7 +698,7 @@ export class BackgroundExecSessionManager {
       .catch((error) => {
         logger.warn(`[BackgroundExec] Failed to write output file (${mode}):`, error)
         if (mode === 'append' && data.length > 0) {
-          session.offloadFailed = true
+          session.offloadDisabled = true
           session.outputBuffer += data
         }
       })

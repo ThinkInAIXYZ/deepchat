@@ -1,7 +1,12 @@
+import { EventEmitter } from 'events'
 import fs from 'fs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ISkillPresenter } from '../../../../src/shared/types/skill'
 import { SkillExecutionService } from '../../../../src/main/presenter/skillPresenter/skillExecutionService'
+
+vi.mock('child_process', () => ({
+  spawn: vi.fn()
+}))
 
 vi.mock('electron', () => ({
   app: {
@@ -14,6 +19,8 @@ vi.mock('../../../../src/main/presenter/agentPresenter/acp/shellEnvHelper', () =
   getShellEnvironment: vi.fn().mockResolvedValue({ PATH: '/shell/bin' }),
   getUserShell: vi.fn().mockReturnValue({ shell: '/bin/zsh', args: ['-c'] })
 }))
+
+import { spawn } from 'child_process'
 
 describe('SkillExecutionService', () => {
   let skillPresenter: ISkillPresenter
@@ -41,6 +48,7 @@ describe('SkillExecutionService', () => {
         runtimePolicy: { python: 'auto', node: 'auto' },
         scriptOverrides: {}
       }),
+      saveSkillWithExtension: vi.fn().mockResolvedValue({ success: true, skillName: 'ocr' }),
       listSkillScripts: vi.fn().mockResolvedValue([
         {
           name: 'run.py',
@@ -56,6 +64,7 @@ describe('SkillExecutionService', () => {
   })
 
   afterEach(() => {
+    vi.useRealTimers()
     if (originalPlatform) {
       Object.defineProperty(process, 'platform', originalPlatform)
     }
@@ -119,5 +128,128 @@ describe('SkillExecutionService', () => {
     })
 
     expect((service as never).quoteForShell('value%"PATH"%')).toBe('"value%%\\"PATH\\"%%"')
+  })
+
+  it('escalates to SIGKILL when foreground timeout grace expires', async () => {
+    vi.useFakeTimers()
+
+    class MockStream extends EventEmitter {
+      setEncoding = vi.fn()
+      destroy = vi.fn()
+    }
+
+    class MockChild extends EventEmitter {
+      stdout = new MockStream()
+      stderr = new MockStream()
+      stdin = {
+        write: vi.fn(),
+        end: vi.fn(),
+        destroy: vi.fn()
+      }
+      unref = vi.fn()
+      kill = vi.fn((signal?: NodeJS.Signals) => {
+        if (signal === 'SIGKILL') {
+          this.emit('close', null)
+        }
+        return true
+      })
+    }
+
+    const child = new MockChild()
+    vi.mocked(spawn).mockReturnValue(child as never)
+    vi.spyOn(service as never, 'createForegroundOutputPath' as never).mockReturnValue(null)
+
+    const resultPromise = (service as never).runForeground(
+      {
+        command: 'python',
+        args: ['script.py'],
+        cwd: '/skills/ocr',
+        env: { PATH: '/bin' },
+        shellCommand: 'python script.py',
+        outputPrefix: 'skill_ocr'
+      },
+      10,
+      'conv-1'
+    )
+
+    await vi.advanceTimersByTimeAsync(10)
+    expect(child.kill).toHaveBeenCalledWith('SIGTERM')
+
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(child.kill).toHaveBeenCalledWith('SIGKILL')
+
+    const result = await resultPromise
+    expect(result).toContain('Timed out')
+    expect(result).toContain('Exit Code: null')
+  })
+
+  it('falls back to capped in-memory buffering when foreground offload fails', async () => {
+    class MockStream extends EventEmitter {
+      setEncoding = vi.fn()
+    }
+
+    class MockChild extends EventEmitter {
+      stdout = new MockStream()
+      stderr = new MockStream()
+      stdin = {
+        write: vi.fn(),
+        end: vi.fn(),
+        destroy: vi.fn()
+      }
+      kill = vi.fn()
+    }
+
+    const child = new MockChild()
+    const originalAppendFile = fs.promises.appendFile
+    const appendFileMock = vi.fn().mockRejectedValue(new Error('disk full'))
+    Object.defineProperty(fs.promises, 'appendFile', {
+      configurable: true,
+      value: appendFileMock
+    })
+    const previewSpy = vi
+      .spyOn(service as never, 'readLastCharsFromFile' as never)
+      .mockReturnValue('')
+
+    vi.mocked(spawn).mockReturnValue(child as never)
+    vi.spyOn(service as never, 'createForegroundOutputPath' as never).mockReturnValue(
+      '/mock/session/skill.log'
+    )
+
+    const resultPromise = (service as never).runForeground(
+      {
+        command: 'python',
+        args: ['script.py'],
+        cwd: '/skills/ocr',
+        env: { PATH: '/bin' },
+        shellCommand: 'python script.py',
+        outputPrefix: 'skill_ocr'
+      },
+      1000,
+      'conv-1'
+    )
+
+    const firstChunk = 'a'.repeat(10001)
+    child.stdout.emit('data', firstChunk)
+    await Promise.resolve()
+    await Promise.resolve()
+
+    child.stdout.emit('data', 'tail')
+    child.emit('close', 0)
+
+    try {
+      const result = await resultPromise
+
+      expect(appendFileMock).toHaveBeenCalledTimes(1)
+      expect(previewSpy).toHaveBeenCalledTimes(1)
+      expect(result).not.toContain('Output offloaded:')
+      expect(result).toContain('tail')
+      expect(result).toContain('Exit Code: 0')
+    } finally {
+      Object.defineProperty(fs.promises, 'appendFile', {
+        configurable: true,
+        value: originalAppendFile
+      })
+      previewSpy.mockRestore()
+    }
   })
 })

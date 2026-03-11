@@ -373,8 +373,8 @@ export class SkillPresenter implements ISkillPresenter {
     const scripts = (await this.listSkillScripts(metadata.name)).filter((script) => script.enabled)
     const lines = [
       '## DeepChat Runtime Context',
-      `- Skill root: ${metadata.skillRoot}`,
-      `- Recommended base_directory: ${metadata.skillRoot}`
+      '- Skill root: resolved server-side by `skill_run`.',
+      '- Recommended base_directory: `<skill_root>`'
     ]
 
     if (scripts.length > 0) {
@@ -765,6 +765,67 @@ export class SkillPresenter implements ISkillPresenter {
     }
   }
 
+  async saveSkillWithExtension(
+    name: string,
+    content: string,
+    config: SkillExtensionConfig
+  ): Promise<SkillInstallResult> {
+    this.ensureSkillsDir()
+    if (this.metadataCache.size === 0) {
+      await this.discoverSkills()
+    }
+
+    const metadata = this.metadataCache.get(name)
+    if (!metadata) {
+      return { success: false, error: `Skill "${name}" not found` }
+    }
+
+    const sidecarPath = this.getSidecarPath(name)
+    const previousSkillContent = fs.readFileSync(metadata.path, 'utf-8')
+    const hadSidecar = fs.existsSync(sidecarPath)
+    const previousSidecarContent = hadSidecar ? fs.readFileSync(sidecarPath, 'utf-8') : null
+    const sanitized = sanitizeSkillExtensionConfig(config)
+
+    try {
+      fs.writeFileSync(metadata.path, content, 'utf-8')
+      fs.writeFileSync(sidecarPath, JSON.stringify(sanitized, null, 2), 'utf-8')
+
+      this.contentCache.delete(name)
+      const newMetadata = await this.parseSkillMetadata(metadata.path, name)
+      if (newMetadata) {
+        this.metadataCache.set(name, newMetadata)
+      }
+
+      return { success: true, skillName: name }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error)
+
+      try {
+        fs.writeFileSync(metadata.path, previousSkillContent, 'utf-8')
+        if (hadSidecar && previousSidecarContent !== null) {
+          fs.writeFileSync(sidecarPath, previousSidecarContent, 'utf-8')
+        } else if (fs.existsSync(sidecarPath)) {
+          fs.rmSync(sidecarPath, { force: true })
+        }
+      } catch (rollbackError) {
+        const rollbackMessage =
+          rollbackError instanceof Error ? rollbackError.message : String(rollbackError)
+        logger.warn('[SkillPresenter] Failed to rollback combined skill save', {
+          name,
+          error,
+          rollbackError
+        })
+        return {
+          success: false,
+          error: `${errorMsg} (rollback failed: ${rollbackMessage})`
+        }
+      }
+
+      this.contentCache.delete(name)
+      return { success: false, error: errorMsg }
+    }
+  }
+
   async readSkillFile(name: string): Promise<string> {
     if (this.metadataCache.size === 0) {
       await this.discoverSkills()
@@ -775,7 +836,14 @@ export class SkillPresenter implements ISkillPresenter {
       throw new Error(`Skill "${name}" not found`)
     }
 
-    return fs.readFileSync(metadata.path, 'utf-8')
+    const stats = await fs.promises.stat(metadata.path)
+    if (stats.size > SKILL_CONFIG.SKILL_FILE_MAX_SIZE) {
+      const errorMessage = `[SkillPresenter] Skill file too large: ${stats.size} bytes (max: ${SKILL_CONFIG.SKILL_FILE_MAX_SIZE})`
+      console.error(errorMessage)
+      throw new Error(errorMessage)
+    }
+
+    return await fs.promises.readFile(metadata.path, 'utf-8')
   }
 
   /**

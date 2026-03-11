@@ -132,6 +132,7 @@ describe('SkillSyncPresenter', () => {
         runtimePolicy: { python: 'auto', node: 'auto' },
         scriptOverrides: {}
       }),
+      saveSkillWithExtension: vi.fn().mockResolvedValue({ success: true, skillName: 'test' }),
       saveSkillExtension: vi.fn().mockResolvedValue(undefined),
       listSkillScripts: vi.fn().mockResolvedValue([])
     } as unknown as ISkillPresenter

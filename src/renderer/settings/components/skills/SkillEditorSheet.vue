@@ -524,7 +524,20 @@ const handleSave = async () => {
   saving.value = true
   try {
     const skillContent = buildSkillContent()
-    const contentResult = await skillsStore.updateSkillFile(props.skill.name, skillContent)
+    const runtimeExtension: SkillExtensionConfig = {
+      version: 1,
+      env: buildEnv(),
+      runtimePolicy: {
+        python: pythonRuntime.value,
+        node: nodeRuntime.value
+      },
+      scriptOverrides: buildScriptOverrides()
+    }
+    const contentResult = await skillsStore.saveSkillWithExtension(
+      props.skill.name,
+      skillContent,
+      runtimeExtension
+    )
 
     if (!contentResult.success) {
       toast({
@@ -534,16 +547,6 @@ const handleSave = async () => {
       })
       return
     }
-
-    await skillsStore.saveSkillExtension(props.skill.name, {
-      version: 1,
-      env: buildEnv(),
-      runtimePolicy: {
-        python: pythonRuntime.value,
-        node: nodeRuntime.value
-      },
-      scriptOverrides: buildScriptOverrides()
-    })
 
     toast({
       title: t('settings.skills.edit.success')

@@ -138,6 +138,11 @@ export interface ISkillPresenter {
   // File operations
   readSkillFile(name: string): Promise<string>
   updateSkillFile(name: string, content: string): Promise<SkillInstallResult>
+  saveSkillWithExtension(
+    name: string,
+    content: string,
+    config: SkillExtensionConfig
+  ): Promise<SkillInstallResult>
   getSkillFolderTree(name: string): Promise<SkillFolderNode[]>
   openSkillsFolder(): Promise<void>
   getSkillExtension(name: string): Promise<SkillExtensionConfig>

@@ -187,6 +187,23 @@ export const useSkillsStore = defineStore('skills', () => {
     await loadSkillRuntime(name)
   }
 
+  const saveSkillWithExtension = async (
+    name: string,
+    content: string,
+    config: SkillExtensionConfig
+  ): Promise<SkillInstallResult> => {
+    try {
+      const result = await skillPresenterStrict.saveSkillWithExtension(name, content, config)
+      if (result.success) {
+        await loadSkills()
+      }
+      return result
+    } catch (e) {
+      const errorMsg = e instanceof Error ? e.message : String(e)
+      return { success: false, error: errorMsg }
+    }
+  }
+
   const getSkillFolderTree = async (name: string) => {
     return await skillPresenter.getSkillFolderTree(name)
   }
@@ -209,6 +226,7 @@ export const useSkillsStore = defineStore('skills', () => {
     openSkillsFolder,
     updateSkillFile,
     saveSkillExtension,
+    saveSkillWithExtension,
     getSkillFolderTree
   }
 })
