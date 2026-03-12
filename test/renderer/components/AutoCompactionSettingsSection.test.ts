@@ -135,11 +135,11 @@ describe('AutoCompactionSettingsSection', () => {
     const { wrapper, store } = await setup(true)
 
     await wrapper.get('[data-testid="auto-compaction-threshold-slider"]').trigger('click')
-    await wrapper.findComponent({ name: 'Input' }).vm.$emit('update:modelValue', '4')
+    await wrapper.findComponent({ name: 'Input' }).vm.$emit('update:modelValue', '2.9')
     await wrapper.get('[data-testid="auto-compaction-toggle"]').trigger('click')
 
     expect(store.setAutoCompactionTriggerThreshold).toHaveBeenCalledWith(85)
-    expect(store.setAutoCompactionRetainRecentPairs).toHaveBeenCalledWith(4)
+    expect(store.setAutoCompactionRetainRecentPairs).toHaveBeenCalledWith(2.9)
     expect(store.setAutoCompactionEnabled).toHaveBeenCalledWith(false)
   })
 
@@ -152,5 +152,13 @@ describe('AutoCompactionSettingsSection', () => {
     expect(
       wrapper.get('[data-testid="auto-compaction-retain-pairs-input"]').attributes('disabled')
     ).toBeDefined()
+  })
+
+  it('ignores empty input for retained pairs', async () => {
+    const { wrapper, store } = await setup(true)
+
+    await wrapper.findComponent({ name: 'Input' }).vm.$emit('update:modelValue', '')
+
+    expect(store.setAutoCompactionRetainRecentPairs).not.toHaveBeenCalled()
   })
 })

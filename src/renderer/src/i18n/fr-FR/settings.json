@@ -65,16 +65,16 @@
       "visionModel": "Modèle vision par défaut"
     },
     "autoCompaction": {
-      "title": "Auto Compaction",
-      "enabled": "Enable auto compaction",
-      "description": "When a conversation approaches the model context window limit, DeepChat can summarize older history automatically so the session keeps going. If disabled, overflowing history is dropped directly instead of summarized.",
-      "thresholdLabel": "Trigger threshold",
-      "thresholdMin": "Early ({value}%)",
-      "thresholdMax": "Late ({value}%)",
-      "thresholdDescription": "Start compaction when prompt usage reaches this share of the effective history budget. Lower values create more headroom; higher values preserve more raw context.",
-      "retainPairsLabel": "Retain recent message pairs",
-      "retainPairsValue": "{count} pair(s)",
-      "retainPairsDescription": "Keep the most recent completed user and assistant pairs outside compaction. The current query is not included."
+      "title": "Compression automatique",
+      "enabled": "Activer la compression automatique",
+      "description": "Lorsqu’une conversation approche de la limite de fenêtre de contexte du modèle, DeepChat peut compresser automatiquement l’historique plus ancien afin que la session continue. Si cette option est désactivée, l’historique excédentaire est supprimé directement au lieu d’être résumé.",
+      "thresholdLabel": "Seuil de déclenchement",
+      "thresholdMin": "Tôt ({value}%)",
+      "thresholdMax": "Tard ({value}%)",
+      "thresholdDescription": "Lancer la compression quand l’utilisation du prompt atteint cette part du budget d’historique effectif. Des valeurs plus basses laissent plus de marge ; des valeurs plus élevées conservent davantage de contexte brut.",
+      "retainPairsLabel": "Conserver les paires de messages récentes",
+      "retainPairsValue": "{count} paire(s)",
+      "retainPairsDescription": "Conserver hors compression les dernières paires complètes utilisateur/assistant. La requête actuelle n’est pas incluse."
     }
   },
   "notificationsHooks": {

@@ -141,7 +141,10 @@ const handleThresholdChange = (value: number[] | undefined) => {
 }
 
 const handleRetainRecentPairsInput = (value: string | number) => {
-  const parsed = typeof value === 'string' ? Number.parseInt(value, 10) : value
+  if (value === '') {
+    return
+  }
+  const parsed = typeof value === 'string' ? Number(value) : value
   if (!Number.isFinite(parsed)) {
     return
   }

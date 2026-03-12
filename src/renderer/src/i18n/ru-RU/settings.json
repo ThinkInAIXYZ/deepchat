@@ -65,16 +65,16 @@
       "visionModel": "Визуальная модель по умолчанию"
     },
     "autoCompaction": {
-      "title": "Auto Compaction",
-      "enabled": "Enable auto compaction",
-      "description": "When a conversation approaches the model context window limit, DeepChat can summarize older history automatically so the session keeps going. If disabled, overflowing history is dropped directly instead of summarized.",
-      "thresholdLabel": "Trigger threshold",
-      "thresholdMin": "Early ({value}%)",
-      "thresholdMax": "Late ({value}%)",
-      "thresholdDescription": "Start compaction when prompt usage reaches this share of the effective history budget. Lower values create more headroom; higher values preserve more raw context.",
-      "retainPairsLabel": "Retain recent message pairs",
-      "retainPairsValue": "{count} pair(s)",
-      "retainPairsDescription": "Keep the most recent completed user and assistant pairs outside compaction. The current query is not included."
+      "title": "Автосжатие",
+      "enabled": "Включить автосжатие",
+      "description": "Когда диалог приближается к пределу окна контекста модели, DeepChat может автоматически сжимать более старую историю, чтобы сессия продолжалась. Если функция отключена, история сверх бюджета будет сразу отброшена вместо сжатия.",
+      "thresholdLabel": "Порог срабатывания",
+      "thresholdMin": "Раньше ({value}%)",
+      "thresholdMax": "Позже ({value}%)",
+      "thresholdDescription": "Начинать сжатие, когда использование промпта достигает этой доли эффективного бюджета истории. Меньшие значения оставляют больше запаса, большие значения сохраняют больше исходного контекста.",
+      "retainPairsLabel": "Сохранять последние пары сообщений",
+      "retainPairsValue": "{count} пар",
+      "retainPairsDescription": "Сохранять вне сжатия последние завершённые пары сообщений пользователя и ассистента. Текущий запрос не включается."
     }
   },
   "notificationsHooks": {
