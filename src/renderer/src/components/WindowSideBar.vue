@@ -128,29 +128,17 @@
         <!-- Session list -->
         <div class="flex-1 overflow-y-auto px-1.5">
           <div v-if="pinnedSessions.length > 0" class="pt-2 space-y-0.5">
-            <button
+            <WindowSideBarSessionItem
               v-for="session in pinnedSessions"
               :key="`pinned-${session.id}`"
-              class="flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-left transition-all duration-150"
-              :class="
-                sessionStore.activeSessionId === session.id
-                  ? 'bg-accent text-accent-foreground'
-                  : 'text-foreground/80 hover:bg-accent/50'
-              "
-              @click="handleSessionClick(session)"
-            >
-              <Icon icon="lucide:pin" class="w-3.5 h-3.5 text-yellow-500 shrink-0" />
-              <span class="flex-1 text-sm truncate">{{ session.title }}</span>
-              <span v-if="session.status === 'working'" class="shrink-0">
-                <Icon icon="lucide:loader-2" class="w-3.5 h-3.5 text-primary animate-spin" />
-              </span>
-              <span v-else-if="session.status === 'completed'" class="shrink-0">
-                <Icon icon="lucide:check" class="w-3.5 h-3.5 text-green-500" />
-              </span>
-              <span v-else-if="session.status === 'error'" class="shrink-0">
-                <Icon icon="lucide:alert-circle" class="w-3.5 h-3.5 text-destructive" />
-              </span>
-            </button>
+              :session="session"
+              :active="sessionStore.activeSessionId === session.id"
+              @select="handleSessionClick"
+              @toggle-pin="handleTogglePin"
+              @rename="openRenameDialog"
+              @clear="openClearDialog"
+              @delete="openDeleteDialog"
+            />
           </div>
 
           <!-- Empty state -->
@@ -171,38 +159,76 @@
                 group.labelKey ? t(group.labelKey) : group.label
               }}</span>
             </div>
-            <button
+            <WindowSideBarSessionItem
               v-for="session in group.sessions"
               :key="session.id"
-              class="flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-left transition-all duration-150"
-              :class="
-                sessionStore.activeSessionId === session.id
-                  ? 'bg-accent text-accent-foreground'
-                  : 'text-foreground/80 hover:bg-accent/50'
-              "
-              @click="handleSessionClick(session)"
-            >
-              <span class="flex-1 text-sm truncate">{{ session.title }}</span>
-              <span v-if="session.status === 'working'" class="shrink-0">
-                <Icon icon="lucide:loader-2" class="w-3.5 h-3.5 text-primary animate-spin" />
-              </span>
-              <span v-else-if="session.status === 'completed'" class="shrink-0">
-                <Icon icon="lucide:check" class="w-3.5 h-3.5 text-green-500" />
-              </span>
-              <span v-else-if="session.status === 'error'" class="shrink-0">
-                <Icon icon="lucide:alert-circle" class="w-3.5 h-3.5 text-destructive" />
-              </span>
-            </button>
+              :session="session"
+              :active="sessionStore.activeSessionId === session.id"
+              @select="handleSessionClick"
+              @toggle-pin="handleTogglePin"
+              @rename="openRenameDialog"
+              @clear="openClearDialog"
+              @delete="openDeleteDialog"
+            />
           </template>
         </div>
       </div>
     </div>
   </TooltipProvider>
+
+  <Dialog v-model:open="renameDialogOpen">
+    <DialogContent>
+      <DialogHeader>
+        <DialogTitle>{{ t('dialog.rename.title') }}</DialogTitle>
+        <DialogDescription>{{ t('dialog.rename.description') }}</DialogDescription>
+      </DialogHeader>
+      <Input v-model="renameValue" />
+      <DialogFooter>
+        <Button variant="outline" @click="renameDialogOpen = false">{{
+          t('dialog.cancel')
+        }}</Button>
+        <Button variant="default" @click="handleRenameConfirm">{{ t('dialog.confirm') }}</Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
+
+  <Dialog v-model:open="clearDialogOpen">
+    <DialogContent>
+      <DialogHeader>
+        <DialogTitle>{{ t('dialog.cleanMessages.title') }}</DialogTitle>
+        <DialogDescription>{{ t('dialog.cleanMessages.description') }}</DialogDescription>
+      </DialogHeader>
+      <DialogFooter>
+        <Button variant="outline" @click="clearDialogOpen = false">{{ t('dialog.cancel') }}</Button>
+        <Button variant="destructive" @click="handleClearConfirm">{{
+          t('dialog.cleanMessages.confirm')
+        }}</Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
+
+  <Dialog v-model:open="deleteDialogOpen">
+    <DialogContent>
+      <DialogHeader>
+        <DialogTitle>{{ t('dialog.delete.title') }}</DialogTitle>
+        <DialogDescription>{{ t('dialog.delete.description') }}</DialogDescription>
+      </DialogHeader>
+      <DialogFooter>
+        <Button variant="outline" @click="deleteDialogOpen = false">{{
+          t('dialog.cancel')
+        }}</Button>
+        <Button variant="destructive" @click="handleDeleteConfirm">{{
+          t('dialog.delete.confirm')
+        }}</Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
 </template>
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { Icon } from '@iconify/vue'
+import { Input } from '@shadcn/components/ui/input'
 import {
   Tooltip,
   TooltipContent,
@@ -210,11 +236,20 @@ import {
   TooltipTrigger
 } from '@shadcn/components/ui/tooltip'
 import { Button } from '@shadcn/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '@shadcn/components/ui/dialog'
 import { usePresenter } from '@/composables/usePresenter'
 import { useThemeStore } from '@/stores/theme'
 import { useAgentStore } from '@/stores/ui/agent'
-import { useSessionStore } from '@/stores/ui/session'
+import { useSessionStore, type UISession } from '@/stores/ui/session'
 import ModelIcon from './icons/ModelIcon.vue'
+import WindowSideBarSessionItem from './WindowSideBarSessionItem.vue'
 import { useI18n } from 'vue-i18n'
 
 const windowPresenter = usePresenter('windowPresenter')
@@ -232,6 +267,37 @@ const selectedAgentName = computed(
 
 const pinnedSessions = computed(() => sessionStore.getPinnedSessions(agentStore.selectedAgentId))
 const filteredGroups = computed(() => sessionStore.getFilteredGroups(agentStore.selectedAgentId))
+const renameTargetSession = ref<UISession | null>(null)
+const clearTargetSession = ref<UISession | null>(null)
+const deleteTargetSession = ref<UISession | null>(null)
+const renameValue = ref('')
+
+const renameDialogOpen = computed({
+  get: () => renameTargetSession.value !== null,
+  set: (open: boolean) => {
+    if (!open) {
+      renameTargetSession.value = null
+    }
+  }
+})
+
+const clearDialogOpen = computed({
+  get: () => clearTargetSession.value !== null,
+  set: (open: boolean) => {
+    if (!open) {
+      clearTargetSession.value = null
+    }
+  }
+})
+
+const deleteDialogOpen = computed({
+  get: () => deleteTargetSession.value !== null,
+  set: (open: boolean) => {
+    if (!open) {
+      deleteTargetSession.value = null
+    }
+  }
+})
 
 const openSettings = () => {
   const windowId = window.api.getWindowId()
@@ -241,7 +307,7 @@ const openSettings = () => {
 }
 
 const handleNewChat = () => {
-  sessionStore.closeSession()
+  void sessionStore.closeSession()
 }
 
 const handleAgentSelect = async (id: string | null) => {
@@ -281,7 +347,82 @@ const handleAgentSelect = async (id: string | null) => {
 }
 
 const handleSessionClick = (session: { id: string }) => {
-  sessionStore.selectSession(session.id)
+  void sessionStore.selectSession(session.id)
+}
+
+const closeAllSessionDialogs = () => {
+  renameTargetSession.value = null
+  clearTargetSession.value = null
+  deleteTargetSession.value = null
+}
+
+const openRenameDialog = (session: UISession) => {
+  closeAllSessionDialogs()
+  renameValue.value = session.title
+  renameTargetSession.value = session
+}
+
+const openClearDialog = (session: UISession) => {
+  closeAllSessionDialogs()
+  clearTargetSession.value = session
+}
+
+const openDeleteDialog = (session: UISession) => {
+  closeAllSessionDialogs()
+  deleteTargetSession.value = session
+}
+
+const handleTogglePin = async (session: UISession) => {
+  try {
+    await sessionStore.toggleSessionPinned(session.id, !session.isPinned)
+  } catch (error) {
+    console.error('Failed to toggle pin status:', error)
+  }
+}
+
+const handleRenameConfirm = async () => {
+  const targetSession = renameTargetSession.value
+  if (!targetSession) {
+    return
+  }
+
+  try {
+    await sessionStore.renameSession(targetSession.id, renameValue.value)
+  } catch (error) {
+    console.error(t('common.error.renameChatFailed'), error)
+  }
+
+  renameTargetSession.value = null
+}
+
+const handleClearConfirm = async () => {
+  const targetSession = clearTargetSession.value
+  if (!targetSession) {
+    return
+  }
+
+  try {
+    await sessionStore.clearSessionMessages(targetSession.id)
+  } catch (error) {
+    console.error(t('common.error.cleanMessagesFailed'), error)
+  }
+
+  clearTargetSession.value = null
+}
+
+const handleDeleteConfirm = async () => {
+  const targetSession = deleteTargetSession.value
+  if (!targetSession) {
+    return
+  }
+
+  try {
+    await sessionStore.deleteSession(targetSession.id)
+  } catch (error) {
+    console.error(t('common.error.deleteChatFailed'), error)
+  }
+
+  deleteTargetSession.value = null
 }
 </script>
 
