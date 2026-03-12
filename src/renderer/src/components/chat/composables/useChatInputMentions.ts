@@ -10,6 +10,7 @@ import { useSkillsStore } from '@/stores/skillsStore'
 import SuggestionList from '../mentions/SuggestionList.vue'
 import {
   buildCommandText,
+  filterSlashSuggestionItems,
   flattenPromptResultToText,
   resolveSlashSelectionAction,
   sortSlashSuggestionItems,
@@ -374,17 +375,7 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
   }
 
   const filterSlashItems = (query: string): SlashSuggestionItem[] => {
-    const normalized = query.trim().toLowerCase()
-    if (!normalized) {
-      return slashItems.value.slice(0, 20)
-    }
-
-    return slashItems.value
-      .filter((item) => {
-        if (item.label.toLowerCase().includes(normalized)) return true
-        return item.description?.toLowerCase().includes(normalized)
-      })
-      .slice(0, 20)
+    return filterSlashSuggestionItems(slashItems.value, query)
   }
 
   const createRenderer = () => {

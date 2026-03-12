@@ -16,6 +16,8 @@ export interface SlashSuggestionItem {
   payload: AcpSessionCommand | PromptListEntry | MCPToolDefinition | { name: string }
 }
 
+export const MAX_FILTERED_SLASH_SUGGESTIONS = 20
+
 const SLASH_CATEGORY_RANK: Record<SlashCategory, number> = {
   command: 0,
   skill: 1,
@@ -113,6 +115,24 @@ export const sortSlashSuggestionItems = (items: SlashSuggestionItem[]): SlashSug
     }
     return a.label.localeCompare(b.label)
   })
+}
+
+export const filterSlashSuggestionItems = (
+  items: SlashSuggestionItem[],
+  query: string,
+  limit = MAX_FILTERED_SLASH_SUGGESTIONS
+): SlashSuggestionItem[] => {
+  const normalized = query.trim().toLowerCase()
+  if (!normalized) {
+    return items
+  }
+
+  return items
+    .filter((item) => {
+      if (item.label.toLowerCase().includes(normalized)) return true
+      return item.description?.toLowerCase().includes(normalized)
+    })
+    .slice(0, limit)
 }
 
 export const resolveSlashSelectionAction = (item: SlashSuggestionItem): SlashActionDecision => {

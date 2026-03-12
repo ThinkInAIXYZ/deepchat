@@ -198,6 +198,7 @@ export const TAB_EVENTS = {
 
 // Yo Browser 相关事件
 export const YO_BROWSER_EVENTS = {
+  OPEN_REQUESTED: 'yo-browser:open-requested',
   WINDOW_CREATED: 'yo-browser:window-created',
   WINDOW_UPDATED: 'yo-browser:window-updated',
   WINDOW_CLOSED: 'yo-browser:window-closed',
