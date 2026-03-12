@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import type { MCPToolDefinition, PromptListEntry } from '@shared/presenter'
 import {
+  filterSlashSuggestionItems,
   flattenPromptResultToText,
+  MAX_FILTERED_SLASH_SUGGESTIONS,
   resolveSlashSelectionAction,
   sortSlashSuggestionItems,
   type SlashSuggestionItem
@@ -132,5 +134,52 @@ describe('resolveSlashSelectionAction', () => {
 
     const sorted = sortSlashSuggestionItems(unordered)
     expect(sorted.map((item) => item.category)).toEqual(['command', 'skill', 'prompt', 'tool'])
+  })
+})
+
+describe('filterSlashSuggestionItems', () => {
+  it('keeps the full default slash list when query is empty', () => {
+    const items = sortSlashSuggestionItems([
+      {
+        id: 'command:plan',
+        category: 'command',
+        label: '/plan',
+        payload: { name: 'plan', description: '', input: null }
+      },
+      { id: 'skill:review', category: 'skill', label: 'review', payload: { name: 'review' } },
+      {
+        id: 'prompt:summarize',
+        category: 'prompt',
+        label: 'summarize',
+        payload: { name: 'summarize', client: { name: 'custom', icon: '' } } as PromptListEntry
+      },
+      ...Array.from({ length: 25 }, (_, index) => ({
+        id: `tool:server:tool-${index + 1}`,
+        category: 'tool' as const,
+        label: `tool-${index + 1}`,
+        payload: {} as MCPToolDefinition
+      }))
+    ])
+
+    const filtered = filterSlashSuggestionItems(items, '')
+
+    expect(filtered).toHaveLength(items.length)
+    expect(filtered.at(-1)?.category).toBe('tool')
+    expect(filtered.some((item) => item.label === 'tool-25')).toBe(true)
+  })
+
+  it('keeps query matches capped for non-empty input', () => {
+    const items = Array.from({ length: MAX_FILTERED_SLASH_SUGGESTIONS + 5 }, (_, index) => ({
+      id: `tool:server:tool-${index + 1}`,
+      category: 'tool' as const,
+      label: `tool-${index + 1}`,
+      payload: {} as MCPToolDefinition
+    }))
+
+    const filtered = filterSlashSuggestionItems(items, 'tool')
+
+    expect(filtered).toHaveLength(MAX_FILTERED_SLASH_SUGGESTIONS)
+    expect(filtered[0]?.label).toBe('tool-1')
+    expect(filtered.at(-1)?.label).toBe(`tool-${MAX_FILTERED_SLASH_SUGGESTIONS}`)
   })
 })
