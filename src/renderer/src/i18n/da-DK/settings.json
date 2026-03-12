@@ -63,6 +63,18 @@
       "title": "Standardmodel",
       "chatModel": "Standard chatmodel",
       "visionModel": "Standard visionsmodel"
+    },
+    "autoCompaction": {
+      "title": "Automatisk komprimering",
+      "enabled": "Aktiver automatisk komprimering",
+      "description": "Når en samtale nærmer sig modellens kontekstvindues grænse, kan DeepChat automatisk komprimere ældre historik, så sessionen kan fortsætte. Hvis funktionen er slået fra, bliver historik, der overskrider budgettet, droppet direkte i stedet for komprimeret.",
+      "thresholdLabel": "Udløsningstærskel",
+      "thresholdMin": "Tidligt ({value}%)",
+      "thresholdMax": "Sent ({value}%)",
+      "thresholdDescription": "Start komprimering, når promptforbruget når denne andel af det effektive historikbudget. Lavere værdier giver mere luft; højere værdier bevarer mere rå kontekst.",
+      "retainPairsLabel": "Behold seneste beskedpar",
+      "retainPairsValue": "{count} par",
+      "retainPairsDescription": "Behold de senest fuldførte bruger-/assistent-par uden for komprimeringen. Den aktuelle forespørgsel er ikke inkluderet."
     }
   },
   "data": {

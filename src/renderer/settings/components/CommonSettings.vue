@@ -3,6 +3,7 @@
     <div class="w-full h-full flex flex-col gap-3 p-4">
       <UploadFileSettingsSection />
       <DefaultModelSettingsSection />
+      <AutoCompactionSettingsSection />
       <ProxySettingsSection />
       <SettingToggleRow
         id="auto-scroll-switch"
@@ -35,6 +36,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
+import AutoCompactionSettingsSection from './common/AutoCompactionSettingsSection.vue'
 import ProxySettingsSection from './common/ProxySettingsSection.vue'
 import LoggingSettingsSection from './common/LoggingSettingsSection.vue'
 import SettingToggleRow from './common/SettingToggleRow.vue'

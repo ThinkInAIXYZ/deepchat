@@ -63,6 +63,18 @@
       "title": "デフォルトモデル",
       "chatModel": "デフォルトチャットモデル",
       "visionModel": "デフォルト視覚モデル"
+    },
+    "autoCompaction": {
+      "title": "自動圧縮",
+      "enabled": "自動圧縮を有効化",
+      "description": "会話がモデルのコンテキストウィンドウ上限に近づくと、DeepChat は古い履歴を自動で圧縮してセッションを継続できます。無効にすると、予算を超えた履歴は要約されずにそのまま破棄されます。",
+      "thresholdLabel": "発動しきい値",
+      "thresholdMin": "早め ({value}%)",
+      "thresholdMax": "遅め ({value}%)",
+      "thresholdDescription": "プロンプト使用量が有効な履歴予算のこの割合に達したら圧縮を開始します。低い値ほど余裕が増え、高い値ほど生のコンテキストを多く保持します。",
+      "retainPairsLabel": "直近のメッセージペアを保持",
+      "retainPairsValue": "{count} 組",
+      "retainPairsDescription": "直近で完了したユーザーとアシスタントのペアを圧縮対象から除外して保持します。現在の問い合わせは含みません。"
     }
   },
   "notificationsHooks": {

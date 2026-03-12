@@ -46,6 +46,23 @@ function makeAssistantRecord(orderSeq: number, text: string) {
   }
 }
 
+function makePendingAssistantRecord(orderSeq: number, text: string, id = `assistant-${orderSeq}`) {
+  return {
+    id,
+    sessionId: 's1',
+    orderSeq,
+    role: 'assistant' as const,
+    content: JSON.stringify([
+      { type: 'content', content: text, status: 'success', timestamp: Date.now() }
+    ]),
+    status: 'pending' as const,
+    isContextEdge: 0,
+    metadata: '{}',
+    createdAt: Date.now(),
+    updatedAt: Date.now()
+  }
+}
+
 function createService(options?: {
   summaryState?: SessionSummaryState
   compareAndSetResult?: { applied: boolean; currentState: SessionSummaryState }
@@ -84,7 +101,10 @@ function createService(options?: {
 
   const configPresenter = {
     getModelConfig: vi.fn().mockReturnValue({ contextLength: 4096 }),
-    getSetting: vi.fn().mockReturnValue(undefined)
+    getSetting: vi.fn().mockReturnValue(undefined),
+    getAutoCompactionEnabled: vi.fn().mockReturnValue(true),
+    getAutoCompactionTriggerThreshold: vi.fn().mockReturnValue(80),
+    getAutoCompactionRetainRecentPairs: vi.fn().mockReturnValue(2)
   } as any
 
   const service = new CompactionService(
@@ -148,6 +168,129 @@ describe('CompactionService', () => {
     expect(intent?.summaryBlocks[0]).toContain('Detailed file body')
     expect(intent?.summaryBlocks[0]).toContain('[Attached Image 1]')
     expect(intent?.summaryBlocks[0]).not.toContain('data:image/png')
+  })
+
+  it('returns null when auto compaction is disabled', () => {
+    const { service, messageStore, configPresenter } = createService()
+    configPresenter.getAutoCompactionEnabled.mockReturnValue(false)
+    messageStore.getMessages.mockReturnValue([
+      makeUserRecord(1, 'A'.repeat(120)),
+      makeAssistantRecord(2, 'B'.repeat(120)),
+      makeUserRecord(3, 'C'.repeat(120)),
+      makeAssistantRecord(4, 'D'.repeat(120)),
+      makeUserRecord(5, 'E'.repeat(120)),
+      makeAssistantRecord(6, 'F'.repeat(120))
+    ])
+
+    const intent = service.prepareForNextUserTurn({
+      sessionId: 's1',
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      systemPrompt: '',
+      contextLength: 1000,
+      reserveTokens: 100,
+      supportsVision: false,
+      newUserContent: 'latest turn'
+    })
+
+    expect(intent).toBeNull()
+  })
+
+  it('triggers compaction at the configured threshold before hard overflow', () => {
+    const { service, messageStore, configPresenter } = createService()
+    messageStore.getMessages.mockReturnValue([
+      makeUserRecord(1, 'A'.repeat(100)),
+      makeAssistantRecord(2, 'B'.repeat(100)),
+      makeUserRecord(3, 'C'.repeat(100)),
+      makeAssistantRecord(4, 'D'.repeat(100)),
+      makeUserRecord(5, 'E'.repeat(100)),
+      makeAssistantRecord(6, 'F'.repeat(100))
+    ])
+
+    configPresenter.getAutoCompactionTriggerThreshold.mockReturnValue(100)
+    const noIntentAtFullBudget = service.prepareForNextUserTurn({
+      sessionId: 's1',
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      systemPrompt: '',
+      contextLength: 1000,
+      reserveTokens: 100,
+      supportsVision: false,
+      newUserContent: 'latest turn'
+    })
+
+    configPresenter.getAutoCompactionTriggerThreshold.mockReturnValue(80)
+    const intentAtEightyPercent = service.prepareForNextUserTurn({
+      sessionId: 's1',
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      systemPrompt: '',
+      contextLength: 1000,
+      reserveTokens: 100,
+      supportsVision: false,
+      newUserContent: 'latest turn'
+    })
+
+    expect(noIntentAtFullBudget).toBeNull()
+    expect(intentAtEightyPercent).not.toBeNull()
+  })
+
+  it('retains only the configured recent message pairs for the next user turn', () => {
+    const { service, messageStore, configPresenter } = createService()
+    configPresenter.getAutoCompactionRetainRecentPairs.mockReturnValue(1)
+    messageStore.getMessages.mockReturnValue([
+      makeUserRecord(1, 'A'.repeat(100)),
+      makeAssistantRecord(2, 'B'.repeat(100)),
+      makeUserRecord(3, 'C'.repeat(100)),
+      makeAssistantRecord(4, 'D'.repeat(100)),
+      makeUserRecord(5, 'E'.repeat(100)),
+      makeAssistantRecord(6, 'F'.repeat(100))
+    ])
+
+    const intent = service.prepareForNextUserTurn({
+      sessionId: 's1',
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      systemPrompt: '',
+      contextLength: 700,
+      reserveTokens: 100,
+      supportsVision: false,
+      newUserContent: 'latest turn'
+    })
+
+    expect(intent).not.toBeNull()
+    expect(intent?.summaryBlocks).toHaveLength(2)
+    expect(intent?.targetCursorOrderSeq).toBe(5)
+  })
+
+  it('retains the configured recent pairs plus the resume target turn', () => {
+    const { service, messageStore, configPresenter } = createService()
+    configPresenter.getAutoCompactionRetainRecentPairs.mockReturnValue(1)
+    messageStore.getMessages.mockReturnValue([
+      makeUserRecord(1, 'A'.repeat(100)),
+      makeAssistantRecord(2, 'B'.repeat(100)),
+      makeUserRecord(3, 'C'.repeat(100)),
+      makeAssistantRecord(4, 'D'.repeat(100)),
+      makeUserRecord(5, 'E'.repeat(100)),
+      makeAssistantRecord(6, 'F'.repeat(100)),
+      makeUserRecord(7, 'G'.repeat(100)),
+      makePendingAssistantRecord(8, 'resume body', 'resume-target')
+    ])
+
+    const intent = service.prepareForResumeTurn({
+      sessionId: 's1',
+      messageId: 'resume-target',
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      systemPrompt: '',
+      contextLength: 900,
+      reserveTokens: 100,
+      supportsVision: false
+    })
+
+    expect(intent).not.toBeNull()
+    expect(intent?.summaryBlocks).toHaveLength(2)
+    expect(intent?.targetCursorOrderSeq).toBe(5)
   })
 
   it('returns the newer stored summary when a stale compaction loses the CAS race', async () => {

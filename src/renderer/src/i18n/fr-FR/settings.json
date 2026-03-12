@@ -63,6 +63,18 @@
       "title": "Modèle par défaut",
       "chatModel": "Modèle de chat par défaut",
       "visionModel": "Modèle vision par défaut"
+    },
+    "autoCompaction": {
+      "title": "Compression automatique",
+      "enabled": "Activer la compression automatique",
+      "description": "Lorsqu’une conversation approche de la limite de fenêtre de contexte du modèle, DeepChat peut compresser automatiquement l’historique plus ancien afin que la session continue. Si cette option est désactivée, l’historique excédentaire est supprimé directement au lieu d’être résumé.",
+      "thresholdLabel": "Seuil de déclenchement",
+      "thresholdMin": "Tôt ({value}%)",
+      "thresholdMax": "Tard ({value}%)",
+      "thresholdDescription": "Lancer la compression quand l’utilisation du prompt atteint cette part du budget d’historique effectif. Des valeurs plus basses laissent plus de marge ; des valeurs plus élevées conservent davantage de contexte brut.",
+      "retainPairsLabel": "Conserver les paires de messages récentes",
+      "retainPairsValue": "{count} paire(s)",
+      "retainPairsDescription": "Conserver hors compression les dernières paires complètes utilisateur/assistant. La requête actuelle n’est pas incluse."
     }
   },
   "notificationsHooks": {

@@ -9,6 +9,18 @@
     "searchEngineSelect": "选择搜索引擎",
     "searchPreview": "搜索预览",
     "autoScrollEnabled": "生成时自动滚动",
+    "autoCompaction": {
+      "title": "自动压缩",
+      "enabled": "启用自动压缩",
+      "description": "当对话接近模型上下文窗口限制时，DeepChat 会自动总结较早历史，帮助会话继续进行。关闭后，超出预算的历史将直接丢弃，不再生成摘要。",
+      "thresholdLabel": "触发阈值",
+      "thresholdMin": "提前（{value}%）",
+      "thresholdMax": "延后（{value}%）",
+      "thresholdDescription": "当 prompt 占用达到有效历史预算的这个比例时开始压缩。值越低缓冲越大，值越高保留的原始上下文越多。",
+      "retainPairsLabel": "保留最近消息对",
+      "retainPairsValue": "{count} 对",
+      "retainPairsDescription": "始终保留最近完成的 user 和 assistant 消息对，不参与压缩。当前最后一次 query 不计入其中。"
+    },
     "searchAssistantModel": "助手模型",
     "selectModel": "选择模型",
     "proxyMode": "代理模式",

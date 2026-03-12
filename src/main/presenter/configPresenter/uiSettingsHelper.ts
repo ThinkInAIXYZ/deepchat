@@ -2,6 +2,13 @@ import { eventBus, SendTarget } from '@/eventbus'
 import { CONFIG_EVENTS } from '@/events'
 import fontList from 'font-list'
 
+const AUTO_COMPACTION_TRIGGER_THRESHOLD_DEFAULT = 80
+const AUTO_COMPACTION_TRIGGER_THRESHOLD_MIN = 5
+const AUTO_COMPACTION_TRIGGER_THRESHOLD_MAX = 95
+const AUTO_COMPACTION_RETAIN_RECENT_PAIRS_DEFAULT = 2
+const AUTO_COMPACTION_RETAIN_RECENT_PAIRS_MIN = 1
+const AUTO_COMPACTION_RETAIN_RECENT_PAIRS_MAX = 10
+
 const normalizeFontNameValue = (name: string): string => {
   const trimmed = name
     .replace(/\(.*?\)/g, '')
@@ -59,6 +66,42 @@ export class UiSettingsHelper {
     const boolValue = Boolean(enabled)
     this.setSetting('autoScrollEnabled', boolValue)
     eventBus.send(CONFIG_EVENTS.AUTO_SCROLL_CHANGED, SendTarget.ALL_WINDOWS, boolValue)
+  }
+
+  getAutoCompactionEnabled(): boolean {
+    const value = this.getSetting<boolean>('autoCompactionEnabled')
+    if (value === undefined) return true
+    return Boolean(value)
+  }
+
+  setAutoCompactionEnabled(enabled: boolean): void {
+    this.setSetting('autoCompactionEnabled', Boolean(enabled))
+  }
+
+  getAutoCompactionTriggerThreshold(): number {
+    return this.normalizeAutoCompactionTriggerThreshold(
+      this.getSetting<number>('autoCompactionTriggerThreshold')
+    )
+  }
+
+  setAutoCompactionTriggerThreshold(threshold: number): void {
+    this.setSetting(
+      'autoCompactionTriggerThreshold',
+      this.normalizeAutoCompactionTriggerThreshold(threshold)
+    )
+  }
+
+  getAutoCompactionRetainRecentPairs(): number {
+    return this.normalizeAutoCompactionRetainRecentPairs(
+      this.getSetting<number>('autoCompactionRetainRecentPairs')
+    )
+  }
+
+  setAutoCompactionRetainRecentPairs(count: number): void {
+    this.setSetting(
+      'autoCompactionRetainRecentPairs',
+      this.normalizeAutoCompactionRetainRecentPairs(count)
+    )
   }
 
   getContentProtectionEnabled(): boolean {
@@ -185,5 +228,29 @@ export class UiSettingsHelper {
 
   private normalizeFontName(name: string): string {
     return normalizeFontNameValue(name)
+  }
+
+  private normalizeAutoCompactionTriggerThreshold(value: unknown): number {
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
+      return AUTO_COMPACTION_TRIGGER_THRESHOLD_DEFAULT
+    }
+
+    const rounded = Math.round(value / 5) * 5
+    return Math.min(
+      AUTO_COMPACTION_TRIGGER_THRESHOLD_MAX,
+      Math.max(AUTO_COMPACTION_TRIGGER_THRESHOLD_MIN, rounded)
+    )
+  }
+
+  private normalizeAutoCompactionRetainRecentPairs(value: unknown): number {
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
+      return AUTO_COMPACTION_RETAIN_RECENT_PAIRS_DEFAULT
+    }
+
+    const rounded = Math.round(value)
+    return Math.min(
+      AUTO_COMPACTION_RETAIN_RECENT_PAIRS_MAX,
+      Math.max(AUTO_COMPACTION_RETAIN_RECENT_PAIRS_MIN, rounded)
+    )
   }
 }

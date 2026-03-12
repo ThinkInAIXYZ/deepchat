@@ -63,6 +63,18 @@
       "title": "預設模型",
       "chatModel": "預設聊天模型",
       "visionModel": "預設視覺模型"
+    },
+    "autoCompaction": {
+      "title": "自動壓縮",
+      "enabled": "啟用自動壓縮",
+      "description": "當對話接近模型上下文視窗限制時，DeepChat 會自動壓縮較早的歷史記錄，讓會話可以繼續。關閉後，超出預算的歷史記錄會直接被丟棄，不會生成摘要。",
+      "thresholdLabel": "觸發閾值",
+      "thresholdMin": "提早（{value}%）",
+      "thresholdMax": "延後（{value}%）",
+      "thresholdDescription": "當提示所佔用達到有效歷史預算的這個比例時開始壓縮。數值越低可留出更多緩衝，數值越高則可保留更多原始上下文。",
+      "retainPairsLabel": "保留最近訊息對",
+      "retainPairsValue": "{count} 對",
+      "retainPairsDescription": "始終保留最近完成的使用者和助手訊息對，不參與壓縮。當前最後一次查詢不計入其中。"
     }
   },
   "notificationsHooks": {
