@@ -26,11 +26,11 @@ import { ProviderInstanceManager } from './managers/providerInstanceManager'
 import { ModelManager } from './managers/modelManager'
 import { OllamaManager } from './managers/ollamaManager'
 import { EmbeddingManager } from './managers/embeddingManager'
-import { AgentLoopHandler } from '../agentPresenter/loop'
+import { AgentLoopHandler } from '../agentRuntime/loop/agentLoopHandler'
 import { ModelScopeSyncManager } from './managers/modelScopeSyncManager'
 import type { OllamaProvider } from './providers/ollamaProvider'
 import { ShowResponse } from 'ollama'
-import { AcpSessionPersistence } from '../agentPresenter/acp'
+import { AcpSessionPersistence } from '../agentRuntime/acp'
 import { AcpProvider } from './providers/acpProvider'
 
 export class LLMProviderPresenter implements ILlmProviderPresenter {

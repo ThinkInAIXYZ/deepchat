@@ -11,9 +11,9 @@ import {
   MCPServerConfig
 } from '@shared/presenter'
 import { eventBus, SendTarget } from '@/eventbus'
-import { SYNC_EVENTS } from '@/events'
+import { SESSION_EVENTS, SYNC_EVENTS } from '@/events'
 import { DataImporter } from '../sqlitePresenter/importData'
-import { ImportMode } from '../sqlitePresenter'
+import { ImportMode, SQLitePresenter } from '../sqlitePresenter'
 
 interface PromptStore {
   prompts: Array<{ id?: string; [key: string]: unknown }>
@@ -45,6 +45,8 @@ type BackupDbSource = {
   type: 'agent' | 'chat'
   path: string
 }
+
+type AgentBackupFormat = 'new-domain' | 'legacy'
 
 export class SyncPresenter implements ISyncPresenter {
   private configPresenter: IConfigPresenter
@@ -231,7 +233,10 @@ export class SyncPresenter implements ISyncPresenter {
         'mcp-settings.json'
       )
 
-      if (backupDbSource.type === 'chat') {
+      const agentBackupFormat =
+        backupDbSource.type === 'agent' ? this.detectAgentBackupFormat(backupDbSource.path) : null
+
+      if (backupDbSource.type === 'chat' || agentBackupFormat === 'legacy') {
         this.sqlitePresenter.reopen()
         sqliteClosed = false
         sqliteReopenedForLegacyImport = true
@@ -240,11 +245,25 @@ export class SyncPresenter implements ISyncPresenter {
       let importedConversationCount = 0
 
       if (backupDbSource.type === 'agent') {
-        if (importMode === ImportMode.OVERWRITE) {
+        if (agentBackupFormat === 'legacy') {
+          const summary = await this.sqlitePresenter.importLegacyChatDb(
+            backupDbSource.path,
+            importMode === ImportMode.OVERWRITE ? 'overwrite' : 'increment'
+          )
+          importedConversationCount = summary.importedSessions
+          this.mergeAppSettingsPreservingSync(backupAppSettingsPath, this.APP_SETTINGS_PATH)
+          if (fs.existsSync(backupCustomPromptsPath)) {
+            this.mergePromptStore(backupCustomPromptsPath, this.CUSTOM_PROMPTS_PATH)
+          }
+          if (fs.existsSync(backupSystemPromptsPath)) {
+            this.mergePromptStore(backupSystemPromptsPath, this.SYSTEM_PROMPTS_PATH)
+          }
+          if (fs.existsSync(backupMcpSettingsPath)) {
+            this.mergeMcpSettings(backupMcpSettingsPath, this.MCP_SETTINGS_PATH)
+          }
+        } else if (importMode === ImportMode.OVERWRITE) {
           const backupDb = new Database(backupDbSource.path, { readonly: true })
-          importedConversationCount =
-            this.countTableRows(backupDb, 'new_sessions') ||
-            this.countTableRows(backupDb, 'conversations')
+          importedConversationCount = this.countTableRows(backupDb, 'new_sessions')
           backupDb.close()
 
           this.copyFile(backupDbSource.path, this.DB_PATH)
@@ -266,8 +285,7 @@ export class SyncPresenter implements ISyncPresenter {
           const importer = new DataImporter(backupDbSource.path, this.DB_PATH)
           const summary = await importer.importData()
           importer.close()
-          importedConversationCount =
-            summary.tableCounts.new_sessions || summary.tableCounts.conversations || 0
+          importedConversationCount = summary.tableCounts.new_sessions || 0
 
           this.mergeAppSettingsPreservingSync(backupAppSettingsPath, this.APP_SETTINGS_PATH)
           if (fs.existsSync(backupCustomPromptsPath)) {
@@ -377,7 +395,12 @@ export class SyncPresenter implements ISyncPresenter {
 
       this.emitBackupStatus('collecting')
       const files: Record<string, Uint8Array> = {}
-      files[ZIP_PATHS.agentDb] = new Uint8Array(fs.readFileSync(this.DB_PATH))
+      const portableDbPath = await this.createPortableAgentDbSnapshot()
+      try {
+        files[ZIP_PATHS.agentDb] = new Uint8Array(fs.readFileSync(portableDbPath))
+      } finally {
+        this.cleanupTempFiles([portableDbPath, `${portableDbPath}-wal`, `${portableDbPath}-shm`])
+      }
       files[ZIP_PATHS.appSettings] = new Uint8Array(fs.readFileSync(this.APP_SETTINGS_PATH))
       this.addOptionalFile(files, ZIP_PATHS.customPrompts, this.CUSTOM_PROMPTS_PATH)
       this.addOptionalFile(files, ZIP_PATHS.systemPrompts, this.SYSTEM_PROMPTS_PATH)
@@ -625,11 +648,47 @@ export class SyncPresenter implements ISyncPresenter {
 
   private async broadcastThreadListUpdateAfterImport(): Promise<void> {
     try {
-      const { presenter } = await import('../index')
-      await (presenter?.sessionPresenter as any)?.broadcastThreadListUpdate?.()
+      eventBus.sendToRenderer(SESSION_EVENTS.LIST_UPDATED, SendTarget.ALL_WINDOWS)
     } catch (error) {
       console.warn('Failed to broadcast thread list update after import:', error)
     }
+  }
+
+  private detectAgentBackupFormat(dbPath: string): AgentBackupFormat {
+    const db = new Database(dbPath, { readonly: true })
+    try {
+      const hasNewSessions =
+        this.hasTable(db, 'new_sessions') || this.hasTable(db, 'deepchat_sessions')
+      return hasNewSessions ? 'new-domain' : 'legacy'
+    } finally {
+      db.close()
+    }
+  }
+
+  private async createPortableAgentDbSnapshot(): Promise<string> {
+    const tempDbPath = path.join(app.getPath('temp'), `deepchat-agent-backup-${Date.now()}.db`)
+    const portableDb = new SQLitePresenter(tempDbPath)
+    portableDb.close()
+
+    try {
+      const importer = new DataImporter(this.DB_PATH, tempDbPath)
+      try {
+        await importer.importData()
+      } finally {
+        importer.close()
+      }
+    } finally {
+      portableDb.close()
+    }
+
+    return tempDbPath
+  }
+
+  private hasTable(db: Database.Database, tableName: string): boolean {
+    const row = db
+      .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?")
+      .get(tableName)
+    return Boolean(row)
   }
 
   private async resetShellWindowsToSingleNewChatTab(): Promise<void> {

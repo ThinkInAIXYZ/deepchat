@@ -9,6 +9,7 @@ README*.md
 docs
 resources
 runtime
+archive
 scripts
 build
 *.yaml

@@ -8,6 +8,7 @@ export interface NewSessionRow {
   project_dir: string | null
   is_pinned: number
   is_draft: number
+  active_skills: string
   created_at: number
   updated_at: number
 }
@@ -25,6 +26,8 @@ export class NewSessionsTable extends BaseTable {
         title TEXT NOT NULL,
         project_dir TEXT,
         is_pinned INTEGER DEFAULT 0,
+        is_draft INTEGER NOT NULL DEFAULT 0,
+        active_skills TEXT NOT NULL DEFAULT '[]',
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL
       );
@@ -37,11 +40,14 @@ export class NewSessionsTable extends BaseTable {
     if (version === 11) {
       return `ALTER TABLE new_sessions ADD COLUMN is_draft INTEGER NOT NULL DEFAULT 0;`
     }
+    if (version === 12) {
+      return `ALTER TABLE new_sessions ADD COLUMN active_skills TEXT NOT NULL DEFAULT '[]';`
+    }
     return null
   }
 
   getLatestVersion(): number {
-    return 11
+    return 12
   }
 
   create(
@@ -52,6 +58,7 @@ export class NewSessionsTable extends BaseTable {
     options?: {
       isDraft?: boolean
       isPinned?: boolean
+      activeSkills?: string[]
       createdAt?: number
       updatedAt?: number
     }
@@ -68,9 +75,10 @@ export class NewSessionsTable extends BaseTable {
           project_dir,
           is_pinned,
           is_draft,
+          active_skills,
           created_at,
           updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         id,
@@ -79,6 +87,7 @@ export class NewSessionsTable extends BaseTable {
         projectDir,
         options?.isPinned ? 1 : 0,
         options?.isDraft ? 1 : 0,
+        JSON.stringify(options?.activeSkills ?? []),
         createdAt,
         updatedAt
       )
@@ -114,7 +123,9 @@ export class NewSessionsTable extends BaseTable {
 
   update(
     id: string,
-    fields: Partial<Pick<NewSessionRow, 'title' | 'project_dir' | 'is_pinned' | 'is_draft'>>
+    fields: Partial<
+      Pick<NewSessionRow, 'title' | 'project_dir' | 'is_pinned' | 'is_draft' | 'active_skills'>
+    >
   ): void {
     const setClauses: string[] = []
     const params: unknown[] = []
@@ -134,6 +145,10 @@ export class NewSessionsTable extends BaseTable {
     if (fields.is_draft !== undefined) {
       setClauses.push('is_draft = ?')
       params.push(fields.is_draft)
+    }
+    if (fields.active_skills !== undefined) {
+      setClauses.push('active_skills = ?')
+      params.push(fields.active_skills)
     }
 
     if (setClauses.length === 0) return

@@ -11,6 +11,7 @@
     "resources/**",
     "scripts/**",
     "runtime/**",
+    "archive/**",
     "docs/**",
     "test/**",
     "src/shared/**",

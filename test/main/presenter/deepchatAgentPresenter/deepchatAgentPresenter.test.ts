@@ -49,7 +49,7 @@ vi.mock('@/presenter', () => ({
   }
 }))
 
-vi.mock('@/presenter/agentPresenter/message/systemEnvPromptBuilder', () => ({
+vi.mock('@/presenter/agentRuntime/message/systemEnvPromptBuilder', () => ({
   buildRuntimeCapabilitiesPrompt: vi.fn(() => 'RUNTIME_CAPABILITIES'),
   buildSystemEnvPrompt: vi.fn(
     async (options?: { providerId?: string; modelId?: string; now?: Date }) => {
@@ -69,7 +69,7 @@ vi.mock('@/presenter/deepchatAgentPresenter/process', () => ({
 import { eventBus } from '@/eventbus'
 import { processStream } from '@/presenter/deepchatAgentPresenter/process'
 import { presenter } from '@/presenter'
-import { buildSystemEnvPrompt } from '@/presenter/agentPresenter/message/systemEnvPromptBuilder'
+import { buildSystemEnvPrompt } from '@/presenter/agentRuntime/message/systemEnvPromptBuilder'
 
 function createMockSqlitePresenter() {
   const summaryState = {

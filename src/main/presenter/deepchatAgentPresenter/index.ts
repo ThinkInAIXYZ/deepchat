@@ -29,7 +29,7 @@ import { presenter } from '@/presenter'
 import {
   buildRuntimeCapabilitiesPrompt,
   buildSystemEnvPrompt
-} from '../agentPresenter/message/systemEnvPromptBuilder'
+} from '../agentRuntime/message/systemEnvPromptBuilder'
 import { buildContext, buildResumeContext } from './contextBuilder'
 import { appendSummarySection, CompactionService, type CompactionIntent } from './compactionService'
 import { buildPersistableMessageTracePayload } from './messageTracePayload'

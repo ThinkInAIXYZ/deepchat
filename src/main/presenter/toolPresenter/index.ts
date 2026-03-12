@@ -6,10 +6,10 @@ import type {
   MCPToolCall,
   MCPToolResponse
 } from '@shared/presenter'
-import { resolveToolOffloadTemplatePath } from '../sessionPresenter/sessionPaths'
-import { QUESTION_TOOL_NAME } from '../agentPresenter/tools/questionTool'
+import { resolveToolOffloadTemplatePath } from '../agentRuntime/sessionPaths'
+import { QUESTION_TOOL_NAME } from '../agentRuntime/tools/questionTool'
 import { ToolMapper } from './toolMapper'
-import { AgentToolManager, type AgentToolCallResult } from '../agentPresenter/acp'
+import { AgentToolManager, type AgentToolCallResult } from '../agentRuntime/acp'
 import { jsonrepair } from 'jsonrepair'
 import { CommandPermissionService } from '../permission'
 

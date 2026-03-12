@@ -85,7 +85,20 @@ export class DataImporter {
       .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
       .all() as { name: string }[]
 
-    const preferredOrder = ['conversations', 'messages', 'attachments', 'message_attachments']
+    const preferredOrder = [
+      'new_sessions',
+      'deepchat_sessions',
+      'deepchat_messages',
+      'deepchat_message_traces',
+      'deepchat_message_search_results',
+      'new_projects',
+      'acp_sessions',
+      'legacy_import_status',
+      'conversations',
+      'messages',
+      'attachments',
+      'message_attachments'
+    ]
     const preferredSet = new Set(preferredOrder)
 
     const preferredTables: string[] = []

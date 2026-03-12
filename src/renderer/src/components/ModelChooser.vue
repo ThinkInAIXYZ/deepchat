@@ -77,7 +77,7 @@ import ModelIcon from '@/components/icons/ModelIcon.vue'
 import { ModelType } from '@shared/model'
 import type { RENDERER_MODEL_META } from '@shared/presenter'
 import { Icon } from '@iconify/vue'
-import { useChatMode } from '@/components/chat-input/composables/useChatMode'
+import { useSessionMode } from '@/components/chat-input/composables/useSessionMode'
 
 const { t } = useI18n()
 const keyword = ref('')
@@ -85,7 +85,7 @@ const providerStore = useProviderStore()
 const modelStore = useModelStore()
 const themeStore = useThemeStore()
 const langStore = useLanguageStore()
-const chatMode = useChatMode()
+const sessionMode = useSessionMode()
 
 const emit = defineEmits<{
   (e: 'update:model', model: RENDERER_MODEL_META, providerId: string): void
@@ -113,7 +113,7 @@ const props = defineProps({
 const providers = computed(() => {
   const sortedProviders = providerStore.sortedProviders
   const enabledModels = modelStore.enabledModels
-  const currentMode = chatMode.currentMode.value
+  const currentMode = sessionMode.currentMode.value
 
   const orderedProviders = sortedProviders
     .filter((provider) => provider.enable)

@@ -35,7 +35,7 @@
                 v-if="block.type === 'content'"
                 :block="block"
                 :message-id="currentMessage.id"
-                :thread-id="currentThreadId"
+                :thread-id="currentSessionId"
                 :is-search-result="isSearchResult"
               />
               <MessageBlockThink
@@ -49,7 +49,7 @@
                 v-else-if="block.type === 'tool_call'"
                 :block="block"
                 :message-id="currentMessage.id"
-                :thread-id="currentThreadId"
+                :thread-id="currentSessionId"
               />
               <MessageBlockQuestionRequest
                 v-else-if="block.type === 'action' && block.action_type === 'question_request'"
@@ -58,7 +58,7 @@
               <MessageBlockAction
                 v-else-if="block.type === 'action'"
                 :message-id="currentMessage.id"
-                :conversation-id="currentThreadId"
+                :session-id="currentSessionId"
                 :block="block"
                 @continue="handleBlockContinue"
                 @switch-provider="handleBlockSwitchProvider"
@@ -67,19 +67,19 @@
                 v-else-if="block.type === 'mcp_ui_resource'"
                 :block="block"
                 :message-id="currentMessage.id"
-                :thread-id="currentThreadId"
+                :thread-id="currentSessionId"
               />
               <MessageBlockAudio
                 v-else-if="isAudioBlock(block)"
                 :block="block"
                 :message-id="currentMessage.id"
-                :thread-id="currentThreadId"
+                :thread-id="currentSessionId"
               />
               <MessageBlockImage
                 v-else-if="block.type === 'image'"
                 :block="block"
                 :message-id="currentMessage.id"
-                :thread-id="currentThreadId"
+                :thread-id="currentSessionId"
               />
               <MessageBlockError v-else-if="block.type === 'error'" :block="block" />
             </template>
@@ -239,12 +239,12 @@ const emit = defineEmits<{
   retry: [messageId: string]
   delete: [messageId: string]
   fork: [messageId: string]
-  continue: [conversationId: string, messageId: string]
+  continue: [sessionId: string, messageId: string]
   switchProvider: []
 }>()
 
 // 获取当前会话ID
-const currentThreadId = computed(() => props.message.conversationId || '')
+const currentSessionId = computed(() => props.message.conversationId || '')
 const useLegacyActions = computed(() => props.useLegacyActions !== false)
 const resolvedIsInGeneratingThread = computed(() => props.isInGeneratingThread ?? false)
 const showTrace = computed(() => props.showTrace ?? false)
@@ -444,8 +444,8 @@ const handleSelectionAskAI = () => {
   window.dispatchEvent(new CustomEvent('context-menu-ask-ai', { detail: text }))
 }
 
-const handleBlockContinue = (conversationId: string, messageId: string) => {
-  emit('continue', conversationId, messageId)
+const handleBlockContinue = (sessionId: string, messageId: string) => {
+  emit('continue', sessionId, messageId)
 }
 
 const handleBlockSwitchProvider = () => {

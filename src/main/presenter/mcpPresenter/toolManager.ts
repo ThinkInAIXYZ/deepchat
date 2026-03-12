@@ -429,14 +429,6 @@ export class ToolManager {
             const session = await presenter.newAgentPresenter.getSession(toolCall.conversationId)
             if (session?.agentId?.trim()) {
               agentId = session.agentId.trim()
-            } else {
-              const conversation = await presenter.sessionPresenter.getConversation(
-                toolCall.conversationId
-              )
-              if (typeof conversation?.settings?.modelId === 'string') {
-                const normalized = conversation.settings.modelId.trim()
-                agentId = normalized.length > 0 ? normalized : null
-              }
             }
 
             if (agentId) {

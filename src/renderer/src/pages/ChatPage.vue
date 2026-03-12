@@ -471,7 +471,7 @@ async function onMessageFork(messageId: string) {
   }
 }
 
-async function onMessageContinue(_conversationId: string, messageId: string) {
+async function onMessageContinue(_sessionId: string, messageId: string) {
   if (!messageId) return
   try {
     messageStore.clearStreamingState()

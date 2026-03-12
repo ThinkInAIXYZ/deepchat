@@ -55,7 +55,7 @@ import {
   writeToTerminal,
   killTerminal
 } from './acpInitHelper'
-import { clearShellEnvironmentCache } from '../agentPresenter/acp'
+import { clearShellEnvironmentCache } from '../agentRuntime/acp'
 import type {
   HookEventName,
   HookTestResult,

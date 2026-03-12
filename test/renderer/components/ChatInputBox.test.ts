@@ -16,7 +16,7 @@ const consumePendingSkillsMock = vi.fn(() => {
   pendingSkillsRef.value = []
   return copied
 })
-const applyPendingSkillsToConversationMock = vi.fn().mockResolvedValue(undefined)
+const applyPendingSkillsToSessionMock = vi.fn().mockResolvedValue(undefined)
 
 vi.mock('@tiptap/vue-3', () => {
   class MockEditor {
@@ -113,7 +113,7 @@ vi.mock('@/components/chat-input/composables/useSkillsData', () => ({
     activateSkill: activateSkillMock,
     deactivateSkill: deactivateSkillMock,
     consumePendingSkills: consumePendingSkillsMock,
-    applyPendingSkillsToConversation: applyPendingSkillsToConversationMock
+    applyPendingSkillsToSession: applyPendingSkillsToSessionMock
   })
 }))
 

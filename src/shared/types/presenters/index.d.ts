@@ -42,8 +42,7 @@ export type {
   Session,
   CreateSessionOptions,
   CreateSessionParams,
-  CreateChildSessionParams,
-  ISessionPresenter
+  CreateChildSessionParams
 } from './session.presenter'
 
 // Search types
@@ -72,9 +71,6 @@ export type {
 
 // Tool Presenter types
 export type { IToolPresenter } from './tool.presenter'
-
-// Agent Presenter types
-export type { IAgentPresenter } from './agent.presenter'
 
 // New agent architecture types
 export type { INewAgentPresenter } from './new-agent.presenter'

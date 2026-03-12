@@ -10,9 +10,9 @@ import type {
   SkillScriptDescriptor
 } from '@shared/types/skill'
 import { RuntimeHelper } from '@/lib/runtimeHelper'
-import { resolveSessionDir } from '../sessionPresenter/sessionPaths'
-import { backgroundExecSessionManager } from '../agentPresenter/acp/backgroundExecSessionManager'
-import { getShellEnvironment, getUserShell } from '../agentPresenter/acp/shellEnvHelper'
+import { resolveSessionDir } from '../agentRuntime/sessionPaths'
+import { backgroundExecSessionManager } from '../agentRuntime/acp/backgroundExecSessionManager'
+import { getShellEnvironment, getUserShell } from '../agentRuntime/acp/shellEnvHelper'
 
 const DEFAULT_TIMEOUT_MS = 120000
 const FOREGROUND_OFFLOAD_THRESHOLD = 10000

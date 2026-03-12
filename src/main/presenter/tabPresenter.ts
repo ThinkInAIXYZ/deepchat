@@ -125,10 +125,10 @@ export class TabPresenter implements ITabPresenter {
           if (view) {
             this.detachViewFromWindow(window, view)
           }
-          const conversationId = presenter.sessionPresenter.getActiveConversationIdSync(viewId)
-          if (conversationId) {
-            void presenter.agentPresenter.cleanupConversation(conversationId)
+          const newAgentPresenter = presenter.newAgentPresenter as unknown as {
+            cleanupBoundSessionForWebContents?: (webContentsId: number) => Promise<void>
           }
+          void newAgentPresenter.cleanupBoundSessionForWebContents?.(viewId)
         })
       }
       this.windowTabs.delete(windowId)

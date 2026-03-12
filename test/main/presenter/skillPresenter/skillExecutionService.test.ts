@@ -15,7 +15,7 @@ vi.mock('electron', () => ({
   }
 }))
 
-vi.mock('../../../../src/main/presenter/agentPresenter/acp/shellEnvHelper', () => ({
+vi.mock('../../../../src/main/presenter/agentRuntime/acp/shellEnvHelper', () => ({
   getShellEnvironment: vi.fn().mockResolvedValue({ PATH: '/shell/bin' }),
   getUserShell: vi.fn().mockReturnValue({ shell: '/bin/zsh', args: ['-c'] })
 }))

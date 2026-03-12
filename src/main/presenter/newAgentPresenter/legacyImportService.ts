@@ -347,6 +347,9 @@ export class LegacyChatImportService {
         const isPinned = this.pickNumber(conversation, ['is_pinned']) === 1
         const createdAt = this.pickNumber(conversation, ['created_at']) ?? Date.now()
         const updatedAt = this.pickNumber(conversation, ['updated_at']) ?? createdAt
+        const activeSkills = this.parseJsonStringArray(
+          this.pickString(conversation, ['active_skills']) ?? ''
+        )
 
         let projectDir = this.pickString(conversation, ['agent_workspace_path']) ?? null
         if (!projectDir && agentId !== 'deepchat') {
@@ -366,6 +369,7 @@ export class LegacyChatImportService {
           this.sqlitePresenter.newSessionsTable.create(sessionId, agentId, title, projectDir, {
             isPinned,
             isDraft: false,
+            activeSkills,
             createdAt,
             updatedAt
           })
@@ -713,6 +717,21 @@ export class LegacyChatImportService {
       return null
     } catch {
       return null
+    }
+  }
+
+  private parseJsonStringArray(raw: string): string[] {
+    if (!raw.trim()) {
+      return []
+    }
+    try {
+      const parsed = JSON.parse(raw) as unknown
+      if (!Array.isArray(parsed)) {
+        return []
+      }
+      return parsed.filter((entry): entry is string => typeof entry === 'string')
+    } catch {
+      return []
     }
   }
 

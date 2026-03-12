@@ -288,6 +288,7 @@ export interface SessionRecord {
   projectDir: string | null
   isPinned: boolean
   isDraft?: boolean
+  activeSkills: string[]
   createdAt: number
   updatedAt: number
 }

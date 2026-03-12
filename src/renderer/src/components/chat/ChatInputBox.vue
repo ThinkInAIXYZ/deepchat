@@ -130,8 +130,8 @@ const { t } = useI18n()
 const resolvedPlaceholder = computed(() => props.placeholder?.trim() || t('chat.input.placeholder'))
 let editorInstance: Editor | null = null
 const getEditor = () => editorInstance
-const conversationId = computed(() => props.sessionId)
-const skillsData = useSkillsData(conversationId)
+const sessionIdRef = computed(() => props.sessionId)
+const skillsData = useSkillsData(sessionIdRef)
 const activeSkillNames = computed(() => skillsData.activeSkills.value)
 
 const mentions = useChatInputMentions({
@@ -270,7 +270,7 @@ watch(
   async (sessionId) => {
     if (sessionId) {
       if (skillsData.pendingSkills.value.length > 0) {
-        await skillsData.applyPendingSkillsToConversation(sessionId)
+        await skillsData.applyPendingSkillsToSession(sessionId)
       }
       emit('pending-skills-change', [])
       return

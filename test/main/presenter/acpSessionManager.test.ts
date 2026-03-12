@@ -1,9 +1,10 @@
 import { describe, it, expect, vi } from 'vitest'
-import { AcpSessionManager } from '../../../src/main/presenter/agentPresenter/acp'
+import { AcpSessionManager } from '../../../src/main/presenter/agentRuntime/acp/acpSessionManager'
 
 vi.mock('electron', () => ({
   app: {
-    on: vi.fn()
+    on: vi.fn(),
+    getPath: vi.fn(() => '/tmp')
   }
 }))
 

@@ -2,6 +2,17 @@ import { nanoid } from 'nanoid'
 import type { SQLitePresenter } from '../sqlitePresenter'
 import type { SessionRecord } from '@shared/types/agent-interface'
 
+function parseActiveSkills(raw: string | null | undefined): string[] {
+  if (!raw) return []
+  try {
+    const parsed = JSON.parse(raw) as unknown
+    if (!Array.isArray(parsed)) return []
+    return parsed.filter((entry): entry is string => typeof entry === 'string')
+  } catch {
+    return []
+  }
+}
+
 export class NewSessionManager {
   private sqlitePresenter: SQLitePresenter
   // webContentsId → sessionId
@@ -19,7 +30,8 @@ export class NewSessionManager {
   ): string {
     const id = nanoid()
     this.sqlitePresenter.newSessionsTable.create(id, agentId, title, projectDir, {
-      isDraft: options?.isDraft
+      isDraft: options?.isDraft,
+      activeSkills: []
     })
     return id
   }
@@ -34,6 +46,7 @@ export class NewSessionManager {
       projectDir: row.project_dir,
       isPinned: row.is_pinned === 1,
       isDraft: row.is_draft === 1,
+      activeSkills: parseActiveSkills(row.active_skills),
       createdAt: row.created_at,
       updatedAt: row.updated_at
     }
@@ -48,6 +61,7 @@ export class NewSessionManager {
       projectDir: row.project_dir,
       isPinned: row.is_pinned === 1,
       isDraft: row.is_draft === 1,
+      activeSkills: parseActiveSkills(row.active_skills),
       createdAt: row.created_at,
       updatedAt: row.updated_at
     }))
@@ -55,18 +69,23 @@ export class NewSessionManager {
 
   update(
     id: string,
-    fields: Partial<Pick<SessionRecord, 'title' | 'projectDir' | 'isPinned' | 'isDraft'>>
+    fields: Partial<
+      Pick<SessionRecord, 'title' | 'projectDir' | 'isPinned' | 'isDraft' | 'activeSkills'>
+    >
   ): void {
     const dbFields: {
       title?: string
       project_dir?: string | null
       is_pinned?: number
       is_draft?: number
+      active_skills?: string
     } = {}
     if (fields.title !== undefined) dbFields.title = fields.title
     if (fields.projectDir !== undefined) dbFields.project_dir = fields.projectDir
     if (fields.isPinned !== undefined) dbFields.is_pinned = fields.isPinned ? 1 : 0
     if (fields.isDraft !== undefined) dbFields.is_draft = fields.isDraft ? 1 : 0
+    if (fields.activeSkills !== undefined)
+      dbFields.active_skills = JSON.stringify(fields.activeSkills)
     this.sqlitePresenter.newSessionsTable.update(id, dbFields)
   }
 

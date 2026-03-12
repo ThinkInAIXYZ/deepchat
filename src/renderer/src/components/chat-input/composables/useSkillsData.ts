@@ -19,12 +19,12 @@ import { SKILL_EVENTS } from '@/events'
  *
  * This composable provides:
  * - Access to all available skills from the skills store
- * - Per-conversation active skills management
- * - Pending skills for new threads (applied when conversation is created)
+ * - Per-session active skills management
+ * - Pending skills for new threads (applied when session is created)
  * - Toggle functionality for activating/deactivating skills
  * - Event listeners for real-time updates
  */
-export function useSkillsData(conversationId: Ref<string | null> | ComputedRef<string | null>) {
+export function useSkillsData(sessionId: Ref<string | null> | ComputedRef<string | null>) {
   const skillPresenter = usePresenter('skillPresenter')
   const skillsStore = useSkillsStore()
 
@@ -43,7 +43,7 @@ export function useSkillsData(conversationId: Ref<string | null> | ComputedRef<s
    * Effective active skills - uses pending skills if no conversation, otherwise real active skills
    */
   const effectiveActiveSkills = computed(() => {
-    return conversationId.value ? activeSkills.value : pendingSkills.value
+    return sessionId.value ? activeSkills.value : pendingSkills.value
   })
 
   /**
@@ -69,17 +69,17 @@ export function useSkillsData(conversationId: Ref<string | null> | ComputedRef<s
 
   // === Methods ===
   /**
-   * Load active skills for the current conversation
+   * Load active skills for the current session
    */
   const loadActiveSkills = async () => {
-    if (!conversationId.value) {
+    if (!sessionId.value) {
       activeSkills.value = []
       return
     }
 
     loading.value = true
     try {
-      activeSkills.value = await skillPresenter.getActiveSkills(conversationId.value)
+      activeSkills.value = await skillPresenter.getActiveSkills(sessionId.value)
     } catch (error) {
       console.error('[useSkillsData] Failed to load active skills:', error)
       activeSkills.value = []
@@ -90,11 +90,11 @@ export function useSkillsData(conversationId: Ref<string | null> | ComputedRef<s
 
   /**
    * Toggle a skill's activation state
-   * Works for both existing conversations and pending state
+   * Works for both existing sessions and pending state
    */
   const toggleSkill = async (skillName: string) => {
-    // If no conversation, toggle in pending skills
-    if (!conversationId.value) {
+    // If no session, toggle in pending skills
+    if (!sessionId.value) {
       const isCurrentlyPending = pendingSkills.value.includes(skillName)
       pendingSkills.value = isCurrentlyPending
         ? pendingSkills.value.filter((s) => s !== skillName)
@@ -108,7 +108,7 @@ export function useSkillsData(conversationId: Ref<string | null> | ComputedRef<s
       : [...activeSkills.value, skillName]
 
     try {
-      await skillPresenter.setActiveSkills(conversationId.value, updatedSkills)
+      await skillPresenter.setActiveSkills(sessionId.value, updatedSkills)
       activeSkills.value = updatedSkills
     } catch (error) {
       console.error('[useSkillsData] Failed to toggle skill:', error)
@@ -119,8 +119,8 @@ export function useSkillsData(conversationId: Ref<string | null> | ComputedRef<s
    * Activate a specific skill
    */
   const activateSkill = async (skillName: string) => {
-    // If no conversation, add to pending skills
-    if (!conversationId.value) {
+    // If no session, add to pending skills
+    if (!sessionId.value) {
       if (!pendingSkills.value.includes(skillName)) {
         pendingSkills.value = [...pendingSkills.value, skillName]
       }
@@ -131,7 +131,7 @@ export function useSkillsData(conversationId: Ref<string | null> | ComputedRef<s
 
     const updatedSkills = [...activeSkills.value, skillName]
     try {
-      await skillPresenter.setActiveSkills(conversationId.value, updatedSkills)
+      await skillPresenter.setActiveSkills(sessionId.value, updatedSkills)
       activeSkills.value = updatedSkills
     } catch (error) {
       console.error('[useSkillsData] Failed to activate skill:', error)
@@ -142,8 +142,8 @@ export function useSkillsData(conversationId: Ref<string | null> | ComputedRef<s
    * Deactivate a specific skill
    */
   const deactivateSkill = async (skillName: string) => {
-    // If no conversation, remove from pending skills
-    if (!conversationId.value) {
+    // If no session, remove from pending skills
+    if (!sessionId.value) {
       pendingSkills.value = pendingSkills.value.filter((s) => s !== skillName)
       return
     }
@@ -152,7 +152,7 @@ export function useSkillsData(conversationId: Ref<string | null> | ComputedRef<s
 
     const updatedSkills = activeSkills.value.filter((s) => s !== skillName)
     try {
-      await skillPresenter.setActiveSkills(conversationId.value, updatedSkills)
+      await skillPresenter.setActiveSkills(sessionId.value, updatedSkills)
       activeSkills.value = updatedSkills
     } catch (error) {
       console.error('[useSkillsData] Failed to deactivate skill:', error)
@@ -169,13 +169,13 @@ export function useSkillsData(conversationId: Ref<string | null> | ComputedRef<s
   }
 
   /**
-   * Apply pending skills to a newly created conversation
+   * Apply pending skills to a newly created session
    */
-  const applyPendingSkillsToConversation = async (newConversationId: string) => {
+  const applyPendingSkillsToSession = async (newSessionId: string) => {
     const pending = consumePendingSkills()
     if (pending.length > 0) {
       try {
-        await skillPresenter.setActiveSkills(newConversationId, pending)
+        await skillPresenter.setActiveSkills(newSessionId, pending)
       } catch (error) {
         console.error('[useSkillsData] Failed to apply pending skills:', error)
       }
@@ -187,7 +187,7 @@ export function useSkillsData(conversationId: Ref<string | null> | ComputedRef<s
     _event: IpcRendererEvent,
     payload: { conversationId: string; skills: string[] }
   ) => {
-    if (payload.conversationId === conversationId.value && Array.isArray(payload.skills)) {
+    if (payload.conversationId === sessionId.value && Array.isArray(payload.skills)) {
       // Add newly activated skills
       const currentSet = new Set(activeSkills.value)
       payload.skills.forEach((skill: string) => currentSet.add(skill))
@@ -199,7 +199,7 @@ export function useSkillsData(conversationId: Ref<string | null> | ComputedRef<s
     _event: IpcRendererEvent,
     payload: { conversationId: string; skills: string[] }
   ) => {
-    if (payload.conversationId === conversationId.value && Array.isArray(payload.skills)) {
+    if (payload.conversationId === sessionId.value && Array.isArray(payload.skills)) {
       // Remove deactivated skills
       const deactivatedSet = new Set(payload.skills)
       activeSkills.value = activeSkills.value.filter((s) => !deactivatedSet.has(s))
@@ -207,9 +207,9 @@ export function useSkillsData(conversationId: Ref<string | null> | ComputedRef<s
   }
 
   // === Watchers ===
-  // Watch for conversation changes and reload active skills
+  // Watch for session changes and reload active skills
   watch(
-    () => conversationId.value,
+    () => sessionId.value,
     () => {
       loadActiveSkills()
     },
@@ -255,6 +255,6 @@ export function useSkillsData(conversationId: Ref<string | null> | ComputedRef<s
     activateSkill,
     deactivateSkill,
     consumePendingSkills,
-    applyPendingSkillsToConversation
+    applyPendingSkillsToSession
   }
 }

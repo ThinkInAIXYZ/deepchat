@@ -136,13 +136,17 @@ app.whenReady().then(async () => {
 
 app.on('before-quit', () => {
   if (!presenter) return
-  presenter.sessionPresenter.clearCommandPermissionCache()
+  presenter.commandPermissionService.clearAll()
+  presenter.filePermissionService.clearAll()
+  presenter.settingsPermissionService.clearAll()
 })
 
 // Handle window-all-closed event
 app.on('window-all-closed', () => {
   if (!presenter) return
-  presenter.sessionPresenter.clearCommandPermissionCache()
+  presenter.commandPermissionService.clearAll()
+  presenter.filePermissionService.clearAll()
+  presenter.settingsPermissionService.clearAll()
 
   // Check if there are any non-floating-button windows
   const mainWindows = presenter.windowPresenter.getAllWindows()

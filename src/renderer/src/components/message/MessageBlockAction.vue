@@ -85,12 +85,12 @@ const { t } = useI18n()
 
 const props = defineProps<{
   messageId: string
-  conversationId: string
+  sessionId: string
   block: AssistantMessageBlock
 }>()
 
 const emit = defineEmits<{
-  continue: [conversationId: string, messageId: string]
+  continue: [sessionId: string, messageId: string]
   switchProvider: []
 }>()
 
@@ -139,7 +139,7 @@ const handleSwitchProvider = () => {
 }
 
 const handleClick = () => {
-  emit('continue', props.conversationId, props.messageId)
+  emit('continue', props.sessionId, props.messageId)
 }
 
 onMounted(() => {

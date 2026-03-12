@@ -33,7 +33,7 @@ import {
   buildClientCapabilities,
   type AcpProcessHandle,
   type AcpSessionRecord
-} from '../../agentPresenter/acp'
+} from '../../agentRuntime/acp'
 import { nanoid } from 'nanoid'
 import { presenter } from '@/presenter'
 

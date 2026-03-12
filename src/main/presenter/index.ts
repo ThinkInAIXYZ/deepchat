@@ -19,9 +19,7 @@ import {
   ISQLitePresenter,
   ISyncPresenter,
   ITabPresenter,
-  ISessionPresenter,
   IConversationExporter,
-  IAgentPresenter,
   IUpgradePresenter,
   IWindowPresenter,
   IWorkspacePresenter,
@@ -34,8 +32,6 @@ import {
 } from '@shared/presenter'
 import { eventBus } from '@/eventbus'
 import { LLMProviderPresenter } from './llmProviderPresenter'
-import { SessionPresenter } from './sessionPresenter'
-import { MessageManager } from './sessionPresenter/managers/messageManager'
 import { DevicePresenter } from './devicePresenter'
 import { UpgradePresenter } from './upgradePresenter'
 import { FilePresenter } from './filePresenter/FilePresenter'
@@ -57,8 +53,6 @@ import {
   FilePermissionService,
   SettingsPermissionService
 } from './permission'
-import { AgentPresenter } from './agentPresenter'
-import { SessionManager } from './agentPresenter/session/sessionManager'
 
 import { ConversationExporterService } from './exporter'
 import { SkillPresenter } from './skillPresenter'
@@ -90,11 +84,8 @@ export class Presenter implements IPresenter {
   sqlitePresenter: ISQLitePresenter
   llmproviderPresenter: ILlmProviderPresenter
   configPresenter: IConfigPresenter
-  sessionPresenter: ISessionPresenter
 
   exporter: IConversationExporter
-  agentPresenter: IAgentPresenter & ISessionPresenter
-  sessionManager: SessionManager
   devicePresenter: IDevicePresenter
   upgradePresenter: IUpgradePresenter
   shortcutPresenter: IShortcutPresenter
@@ -138,33 +129,10 @@ export class Presenter implements IPresenter {
     this.commandPermissionService = commandPermissionHandler
     this.filePermissionService = new FilePermissionService()
     this.settingsPermissionService = new SettingsPermissionService()
-    const messageManager = new MessageManager(this.sqlitePresenter)
     this.devicePresenter = new DevicePresenter()
     this.exporter = new ConversationExporterService({
-      sqlitePresenter: this.sqlitePresenter,
       configPresenter: this.configPresenter
     })
-    this.sessionPresenter = new SessionPresenter({
-      messageManager,
-      sqlitePresenter: this.sqlitePresenter,
-      llmProviderPresenter: this.llmproviderPresenter,
-      configPresenter: this.configPresenter,
-      exporter: this.exporter,
-      commandPermissionService: commandPermissionHandler
-    })
-    this.sessionManager = new SessionManager({
-      configPresenter: this.configPresenter,
-      sessionPresenter: this.sessionPresenter
-    })
-    this.agentPresenter = new AgentPresenter({
-      sessionPresenter: this.sessionPresenter,
-      sessionManager: this.sessionManager,
-      sqlitePresenter: this.sqlitePresenter,
-      llmProviderPresenter: this.llmproviderPresenter,
-      configPresenter: this.configPresenter,
-      commandPermissionService: commandPermissionHandler,
-      messageManager
-    }) as unknown as IAgentPresenter & ISessionPresenter
     this.mcpPresenter = new McpPresenter(this.configPresenter)
     this.upgradePresenter = new UpgradePresenter(this.configPresenter)
     this.shortcutPresenter = new ShortcutPresenter(this.configPresenter)
@@ -198,7 +166,10 @@ export class Presenter implements IPresenter {
     })
 
     // Initialize Skill presenter
-    this.skillPresenter = new SkillPresenter(this.configPresenter)
+    this.skillPresenter = new SkillPresenter(
+      this.configPresenter,
+      this.sqlitePresenter as unknown as import('./sqlitePresenter').SQLitePresenter
+    )
 
     // Initialize Skill Sync presenter
     this.skillSyncPresenter = new SkillSyncPresenter(this.skillPresenter, this.configPresenter)

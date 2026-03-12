@@ -32,7 +32,7 @@ import { NewSessionManager } from './sessionManager'
 import { NewMessageManager } from './messageManager'
 import { LegacyChatImportService } from './legacyImportService'
 import { eventBus, SendTarget } from '@/eventbus'
-import { SESSION_EVENTS } from '@/events'
+import { SESSION_EVENTS, TAB_EVENTS } from '@/events'
 import { presenter } from '@/presenter'
 import {
   buildConversationExportContent,
@@ -71,6 +71,10 @@ export class NewAgentPresenter {
       { id: 'deepchat', name: 'DeepChat', type: 'deepchat', enabled: true },
       deepchatAgent
     )
+
+    eventBus.on(TAB_EVENTS.CLOSED, (webContentsId: number) => {
+      void this.cleanupBoundSessionForWebContents(webContentsId)
+    })
   }
 
   // ---- IPC-facing methods ----
@@ -143,6 +147,7 @@ export class NewAgentPresenter {
       projectDir,
       isPinned: false,
       isDraft: false,
+      activeSkills: this.sessionManager.get(sessionId)?.activeSkills ?? [],
       createdAt: Date.now(),
       updatedAt: Date.now(),
       status: state?.status ?? 'idle',
@@ -643,25 +648,25 @@ export class NewAgentPresenter {
     return { filename, content }
   }
 
+  async cleanupBoundSessionForWebContents(webContentsId: number): Promise<void> {
+    const sessionId = this.sessionManager.getActiveSessionId(webContentsId)
+    if (!sessionId) {
+      return
+    }
+
+    await this.cleanupSessionRuntime(sessionId)
+    this.sessionManager.unbindWindow(webContentsId)
+    eventBus.sendToRenderer(SESSION_EVENTS.DEACTIVATED, SendTarget.ALL_WINDOWS, {
+      webContentsId
+    })
+  }
+
   async deleteSession(sessionId: string): Promise<void> {
     const session = this.sessionManager.get(sessionId)
     if (!session) return
+    await this.cleanupSessionRuntime(sessionId)
     const agent = await this.resolveAgentImplementation(session.agentId)
-    const state = await agent.getSessionState(sessionId)
-    let providerId = state?.providerId ?? ''
-    if (!providerId) {
-      const acpAgents = await this.configPresenter.getAcpAgents()
-      if (acpAgents.some((item) => item.id === session.agentId)) {
-        providerId = 'acp'
-      }
-    }
-    if (providerId === 'acp') {
-      await this.llmProviderPresenter.clearAcpSession(sessionId)
-    }
     await agent.destroySession(sessionId)
-    presenter.commandPermissionService.clearConversation(sessionId)
-    presenter.filePermissionService?.clearConversation(sessionId)
-    presenter.settingsPermissionService?.clearConversation(sessionId)
     await this.skillPresenter?.clearNewAgentSessionSkills?.(sessionId)
     this.sessionManager.delete(sessionId)
     eventBus.sendToRenderer(SESSION_EVENTS.LIST_UPDATED, SendTarget.ALL_WINDOWS)
@@ -919,6 +924,49 @@ export class NewAgentPresenter {
     }
 
     throw new Error(`Agent not found: ${agentId}`)
+  }
+
+  private async cleanupSessionRuntime(sessionId: string): Promise<void> {
+    const session = this.sessionManager.get(sessionId)
+    if (!session) {
+      this.clearSessionPermissions(sessionId)
+      return
+    }
+
+    try {
+      const agent = await this.resolveAgentImplementation(session.agentId)
+      await agent.cancelGeneration(sessionId)
+      const providerId = await this.resolveSessionProviderId(sessionId, session.agentId, agent)
+      if (providerId === 'acp') {
+        await this.llmProviderPresenter.clearAcpSession(sessionId)
+      }
+    } catch (error) {
+      console.warn(`[NewAgentPresenter] Failed to cleanup runtime for session ${sessionId}:`, error)
+    } finally {
+      this.clearSessionPermissions(sessionId)
+    }
+  }
+
+  private clearSessionPermissions(sessionId: string): void {
+    presenter.commandPermissionService.clearConversation(sessionId)
+    presenter.filePermissionService?.clearConversation(sessionId)
+    presenter.settingsPermissionService?.clearConversation(sessionId)
+  }
+
+  private async resolveSessionProviderId(
+    sessionId: string,
+    agentId: string,
+    agent: IAgentImplementation
+  ): Promise<string> {
+    const state = await agent.getSessionState(sessionId)
+    let providerId = state?.providerId ?? ''
+    if (!providerId) {
+      const acpAgents = await this.configPresenter.getAcpAgents()
+      if (acpAgents.some((item) => item.id === agentId)) {
+        providerId = 'acp'
+      }
+    }
+    return providerId
   }
 
   private async assertAcpAgent(agentId: string): Promise<void> {

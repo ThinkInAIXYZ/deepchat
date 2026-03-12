@@ -74,7 +74,7 @@ const emit = defineEmits<{
   retry: [messageId: string]
   delete: [messageId: string]
   fork: [messageId: string]
-  continue: [conversationId: string, messageId: string]
+  continue: [sessionId: string, messageId: string]
   trace: [messageId: string]
   editSave: [payload: { messageId: string; text: string }]
 }>()
@@ -101,8 +101,8 @@ const onFork = (messageId: string) => {
   emit('fork', messageId)
 }
 
-const onContinue = (conversationId: string, messageId: string) => {
-  emit('continue', conversationId, messageId)
+const onContinue = (sessionId: string, messageId: string) => {
+  emit('continue', sessionId, messageId)
 }
 
 const onTrace = (messageId: string) => {
