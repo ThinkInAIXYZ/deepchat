@@ -19,8 +19,6 @@ import {
 const SAFETY_MARGIN = 1.2
 const SUMMARIZATION_OVERHEAD_TOKENS = 4096
 const SUMMARY_OUTPUT_TOKENS_CAP = 2048
-const USER_MESSAGE_RAW_TAIL_TURNS = 2
-const RESUME_RAW_TAIL_TURNS = 3
 
 export type ModelSpec = {
   providerId: string
@@ -40,6 +38,12 @@ export type CompactionIntent = {
 export type CompactionExecutionResult = {
   succeeded: boolean
   summaryState: SessionSummaryState
+}
+
+type CompactionSettings = {
+  enabled: boolean
+  triggerThreshold: number
+  retainRecentPairs: number
 }
 
 function composeSections(sections: Array<string | null | undefined>): string {
@@ -207,6 +211,11 @@ export class CompactionService {
     supportsVision: boolean
     newUserContent: string | SendMessageInput
   }): CompactionIntent | null {
+    const settings = this.getCompactionSettings()
+    if (!settings.enabled) {
+      return null
+    }
+
     const sentRecords = this.messageStore
       .getMessages(params.sessionId)
       .filter((record) => record.status === 'sent' && !isCompactionRecord(record))
@@ -215,7 +224,8 @@ export class CompactionService {
     return this.prepareCompaction({
       ...params,
       records: sentRecords,
-      protectedTurnCount: USER_MESSAGE_RAW_TAIL_TURNS,
+      protectedTurnCount: settings.retainRecentPairs,
+      triggerThreshold: settings.triggerThreshold,
       projectedMessages: [createUserChatMessage(params.newUserContent, params.supportsVision)]
     })
   }
@@ -230,6 +240,11 @@ export class CompactionService {
     reserveTokens: number
     supportsVision: boolean
   }): CompactionIntent | null {
+    const settings = this.getCompactionSettings()
+    if (!settings.enabled) {
+      return null
+    }
+
     const allMessages = this.messageStore
       .getMessages(params.sessionId)
       .filter((record) => !isCompactionRecord(record))
@@ -252,7 +267,8 @@ export class CompactionService {
     return this.prepareCompaction({
       ...params,
       records: resumeRecords,
-      protectedTurnCount: RESUME_RAW_TAIL_TURNS,
+      protectedTurnCount: settings.retainRecentPairs + 1,
+      triggerThreshold: settings.triggerThreshold,
       projectedMessages: []
     })
   }
@@ -308,6 +324,7 @@ export class CompactionService {
     supportsVision: boolean
     records: ChatMessageRecord[]
     protectedTurnCount: number
+    triggerThreshold: number
     projectedMessages: ReturnType<typeof createUserChatMessage>[]
   }): CompactionIntent | null {
     const summaryState = this.sessionStore.getSummaryState(params.sessionId)
@@ -336,7 +353,8 @@ export class CompactionService {
       ...params.projectedMessages
     ]
     const requestBudget = Math.floor((params.contextLength - params.reserveTokens) / SAFETY_MARGIN)
-    if (estimateMessagesTokens(projectedPrompt) <= requestBudget) {
+    const triggerBudget = Math.max(0, Math.floor((requestBudget * params.triggerThreshold) / 100))
+    if (estimateMessagesTokens(projectedPrompt) <= triggerBudget) {
       return null
     }
 
@@ -365,6 +383,14 @@ export class CompactionService {
         params.contextLength
       ),
       reserveTokens: params.reserveTokens
+    }
+  }
+
+  private getCompactionSettings(): CompactionSettings {
+    return {
+      enabled: this.configPresenter.getAutoCompactionEnabled(),
+      triggerThreshold: this.configPresenter.getAutoCompactionTriggerThreshold(),
+      retainRecentPairs: this.configPresenter.getAutoCompactionRetainRecentPairs()
     }
   }
 

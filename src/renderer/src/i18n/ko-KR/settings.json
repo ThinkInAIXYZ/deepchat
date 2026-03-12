@@ -63,6 +63,18 @@
       "title": "기본 모델",
       "chatModel": "기본 채팅 모델",
       "visionModel": "기본 비전 모델"
+    },
+    "autoCompaction": {
+      "title": "Auto Compaction",
+      "enabled": "Enable auto compaction",
+      "description": "When a conversation approaches the model context window limit, DeepChat can summarize older history automatically so the session keeps going. If disabled, overflowing history is dropped directly instead of summarized.",
+      "thresholdLabel": "Trigger threshold",
+      "thresholdMin": "Early ({value}%)",
+      "thresholdMax": "Late ({value}%)",
+      "thresholdDescription": "Start compaction when prompt usage reaches this share of the effective history budget. Lower values create more headroom; higher values preserve more raw context.",
+      "retainPairsLabel": "Retain recent message pairs",
+      "retainPairsValue": "{count} pair(s)",
+      "retainPairsDescription": "Keep the most recent completed user and assistant pairs outside compaction. The current query is not included."
     }
   },
   "notificationsHooks": {

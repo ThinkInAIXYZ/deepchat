@@ -84,6 +84,9 @@ interface IAppSettings {
   lastSyncTime?: number // Last sync time
   customSearchEngines?: string // Custom search engines JSON string
   copyWithCotEnabled?: boolean
+  autoCompactionEnabled?: boolean
+  autoCompactionTriggerThreshold?: number
+  autoCompactionRetainRecentPairs?: number
   loggingEnabled?: boolean // Whether logging is enabled
   floatingButtonEnabled?: boolean // Whether floating button is enabled
   default_system_prompt?: string // Default system prompt
@@ -153,6 +156,9 @@ export class ConfigPresenter implements IConfigPresenter {
         syncFolderPath: path.join(this.userDataPath, 'sync'),
         lastSyncTime: 0,
         copyWithCotEnabled: true,
+        autoCompactionEnabled: true,
+        autoCompactionTriggerThreshold: 80,
+        autoCompactionRetainRecentPairs: 2,
         loggingEnabled: false,
         floatingButtonEnabled: false,
         fontFamily: '',
@@ -939,6 +945,30 @@ export class ConfigPresenter implements IConfigPresenter {
 
   setAutoScrollEnabled(enabled: boolean): void {
     this.uiSettingsHelper.setAutoScrollEnabled(enabled)
+  }
+
+  getAutoCompactionEnabled(): boolean {
+    return this.uiSettingsHelper.getAutoCompactionEnabled()
+  }
+
+  setAutoCompactionEnabled(enabled: boolean): void {
+    this.uiSettingsHelper.setAutoCompactionEnabled(enabled)
+  }
+
+  getAutoCompactionTriggerThreshold(): number {
+    return this.uiSettingsHelper.getAutoCompactionTriggerThreshold()
+  }
+
+  setAutoCompactionTriggerThreshold(threshold: number): void {
+    this.uiSettingsHelper.setAutoCompactionTriggerThreshold(threshold)
+  }
+
+  getAutoCompactionRetainRecentPairs(): number {
+    return this.uiSettingsHelper.getAutoCompactionRetainRecentPairs()
+  }
+
+  setAutoCompactionRetainRecentPairs(count: number): void {
+    this.uiSettingsHelper.setAutoCompactionRetainRecentPairs(count)
   }
 
   getContentProtectionEnabled(): boolean {
