@@ -33,5 +33,21 @@
     "getStarted": "Começar",
     "next": "Próximo",
     "back": "Voltar"
+  },
+  "page": {
+    "title": "Boas-vindas ao DeepChat Agent",
+    "description": "Conecte um provedor de modelo para começar",
+    "browseProviders": "Ver todos os provedores...",
+    "connectAgent": "ou conectar um agente",
+    "acpTitle": "Configurar um agente ACP",
+    "acpDescription": "Claude Code, Codex, Kimi ou o seu próprio",
+    "providers": {
+      "claude": "Claude",
+      "openai": "OpenAI",
+      "deepseek": "DeepSeek",
+      "gemini": "Gemini",
+      "ollama": "Ollama",
+      "openrouter": "OpenRouter"
+    }
   }
 }

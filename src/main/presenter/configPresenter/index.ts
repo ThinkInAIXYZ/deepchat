@@ -32,7 +32,7 @@ import { DEFAULT_PROVIDERS } from './providers'
 import path from 'path'
 import { app, nativeTheme, shell, ipcMain } from 'electron'
 import fs from 'fs'
-import { CONFIG_EVENTS, SYSTEM_EVENTS, FLOATING_BUTTON_EVENTS } from '@/events'
+import { CONFIG_EVENTS, SYSTEM_EVENTS, FLOATING_BUTTON_EVENTS, SESSION_EVENTS } from '@/events'
 import { McpConfHelper } from './mcpConfHelper'
 import { presenter } from '@/presenter'
 import { compare } from 'compare-versions'
@@ -84,6 +84,9 @@ interface IAppSettings {
   lastSyncTime?: number // Last sync time
   customSearchEngines?: string // Custom search engines JSON string
   copyWithCotEnabled?: boolean
+  autoCompactionEnabled?: boolean
+  autoCompactionTriggerThreshold?: number
+  autoCompactionRetainRecentPairs?: number
   loggingEnabled?: boolean // Whether logging is enabled
   floatingButtonEnabled?: boolean // Whether floating button is enabled
   default_system_prompt?: string // Default system prompt
@@ -153,6 +156,9 @@ export class ConfigPresenter implements IConfigPresenter {
         syncFolderPath: path.join(this.userDataPath, 'sync'),
         lastSyncTime: 0,
         copyWithCotEnabled: true,
+        autoCompactionEnabled: true,
+        autoCompactionTriggerThreshold: 80,
+        autoCompactionRetainRecentPairs: 2,
         loggingEnabled: false,
         floatingButtonEnabled: false,
         fontFamily: '',
@@ -941,6 +947,30 @@ export class ConfigPresenter implements IConfigPresenter {
     this.uiSettingsHelper.setAutoScrollEnabled(enabled)
   }
 
+  getAutoCompactionEnabled(): boolean {
+    return this.uiSettingsHelper.getAutoCompactionEnabled()
+  }
+
+  setAutoCompactionEnabled(enabled: boolean): void {
+    this.uiSettingsHelper.setAutoCompactionEnabled(enabled)
+  }
+
+  getAutoCompactionTriggerThreshold(): number {
+    return this.uiSettingsHelper.getAutoCompactionTriggerThreshold()
+  }
+
+  setAutoCompactionTriggerThreshold(threshold: number): void {
+    this.uiSettingsHelper.setAutoCompactionTriggerThreshold(threshold)
+  }
+
+  getAutoCompactionRetainRecentPairs(): number {
+    return this.uiSettingsHelper.getAutoCompactionRetainRecentPairs()
+  }
+
+  setAutoCompactionRetainRecentPairs(count: number): void {
+    this.uiSettingsHelper.setAutoCompactionRetainRecentPairs(count)
+  }
+
   getContentProtectionEnabled(): boolean {
     return this.uiSettingsHelper.getContentProtectionEnabled()
   }
@@ -1329,6 +1359,7 @@ export class ConfigPresenter implements IConfigPresenter {
   private notifyAcpAgentsChanged() {
     console.log('[ACP] notifyAcpAgentsChanged: sending MODEL_LIST_CHANGED event for provider "acp"')
     eventBus.sendToRenderer(CONFIG_EVENTS.MODEL_LIST_CHANGED, SendTarget.ALL_WINDOWS, 'acp')
+    eventBus.sendToRenderer(SESSION_EVENTS.LIST_UPDATED, SendTarget.ALL_WINDOWS)
   }
 
   // Provide getMcpConfHelper method to get MCP configuration helper

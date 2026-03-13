@@ -124,7 +124,17 @@ describe('SkillSyncPresenter', () => {
     mockSkillPresenter = {
       getMetadataList: vi.fn().mockResolvedValue([]),
       installFromFolder: vi.fn().mockResolvedValue({ success: true }),
-      loadSkillContent: vi.fn().mockResolvedValue({ content: '# Skill Content' })
+      loadSkillContent: vi.fn().mockResolvedValue({ content: '# Skill Content' }),
+      readSkillFile: vi.fn().mockResolvedValue('---\nname: test\ndescription: Test\n---\n'),
+      getSkillExtension: vi.fn().mockResolvedValue({
+        version: 1,
+        env: {},
+        runtimePolicy: { python: 'auto', node: 'auto' },
+        scriptOverrides: {}
+      }),
+      saveSkillWithExtension: vi.fn().mockResolvedValue({ success: true, skillName: 'test' }),
+      saveSkillExtension: vi.fn().mockResolvedValue(undefined),
+      listSkillScripts: vi.fn().mockResolvedValue([])
     } as unknown as ISkillPresenter
 
     // Create mock config presenter

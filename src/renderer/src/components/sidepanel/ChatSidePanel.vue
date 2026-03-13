@@ -63,12 +63,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onBeforeUnmount, onMounted } from 'vue'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 import { Button } from '@shadcn/components/ui/button'
 import BrowserPanel from './BrowserPanel.vue'
 import WorkspacePanel from './WorkspacePanel.vue'
+import { YO_BROWSER_EVENTS } from '@/events'
 import { useSidepanelStore } from '@/stores/ui/sidepanel'
 
 const props = defineProps<{
@@ -81,6 +82,22 @@ const sidepanelStore = useSidepanelStore()
 
 const shouldShow = computed(() => sidepanelStore.open && Boolean(props.sessionId))
 const panelWidth = computed(() => (shouldShow.value ? sidepanelStore.width : 0))
+
+const handleBrowserOpenRequested = (_event: unknown, payload: unknown) => {
+  const currentWindowId = window.api.getWindowId?.() ?? null
+  const requestedWindowId =
+    payload && typeof payload === 'object' && 'windowId' in payload ? payload.windowId : null
+
+  if (
+    !props.sessionId ||
+    typeof requestedWindowId !== 'number' ||
+    requestedWindowId !== currentWindowId
+  ) {
+    return
+  }
+
+  sidepanelStore.openBrowser()
+}
 
 const startResize = (event: MouseEvent) => {
   const startX = event.clientX
@@ -98,4 +115,15 @@ const startResize = (event: MouseEvent) => {
   window.addEventListener('mousemove', onMouseMove)
   window.addEventListener('mouseup', onMouseUp)
 }
+
+onMounted(() => {
+  window.electron.ipcRenderer.on(YO_BROWSER_EVENTS.OPEN_REQUESTED, handleBrowserOpenRequested)
+})
+
+onBeforeUnmount(() => {
+  window.electron.ipcRenderer.removeListener(
+    YO_BROWSER_EVENTS.OPEN_REQUESTED,
+    handleBrowserOpenRequested
+  )
+})
 </script>

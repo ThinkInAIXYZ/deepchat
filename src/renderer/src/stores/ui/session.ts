@@ -171,6 +171,7 @@ export const useSessionStore = defineStore('session', () => {
     error.value = null
     try {
       const webContentsId = window.api.getWebContentsId()
+      const previousActiveSessionId = activeSessionId.value
       const [result, activeSession] = await Promise.all([
         newAgentPresenter.getSessionList(),
         newAgentPresenter.getActiveSession(webContentsId)
@@ -178,11 +179,14 @@ export const useSessionStore = defineStore('session', () => {
       sessions.value = result.map(mapToUISession)
 
       const nextActiveSessionId = activeSession?.id ?? null
-      if (activeSessionId.value !== nextActiveSessionId) {
-        if (activeSessionId.value && activeSessionId.value !== nextActiveSessionId) {
+      if (previousActiveSessionId !== nextActiveSessionId) {
+        if (previousActiveSessionId && previousActiveSessionId !== nextActiveSessionId) {
           messageStore.clearStreamingState()
         }
         activeSessionId.value = nextActiveSessionId
+      }
+      if (previousActiveSessionId && !nextActiveSessionId && pageRouter.currentRoute === 'chat') {
+        pageRouter.goToNewThread()
       }
     } catch (e) {
       error.value = `Failed to load sessions: ${e}`

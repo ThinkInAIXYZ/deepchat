@@ -235,7 +235,7 @@
       </div>
 
       <!-- 悬浮按钮开关 -->
-      <div class="flex flex-col gap-2 px-2 py-2">
+      <div v-if="FLOATING_BUTTON_AVAILABLE" class="flex flex-col gap-2 px-2 py-2">
         <div class="flex items-center gap-3">
           <span
             class="flex items-center gap-2 text-sm font-medium shrink-0 min-w-[220px]"
@@ -307,6 +307,7 @@ import {
 import { ref, onMounted, watch, computed } from 'vue'
 import { storeToRefs } from 'pinia'
 
+import { FLOATING_BUTTON_AVAILABLE } from '@shared/featureFlags'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import { useLanguageStore } from '@/stores/language'
 import { useFloatingButtonStore } from '@/stores/floatingButton'

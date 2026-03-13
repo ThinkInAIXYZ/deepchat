@@ -63,6 +63,18 @@
       "title": "Модель по умолчанию",
       "chatModel": "Модель чата по умолчанию",
       "visionModel": "Визуальная модель по умолчанию"
+    },
+    "autoCompaction": {
+      "title": "Автосжатие",
+      "enabled": "Включить автосжатие",
+      "description": "Когда диалог приближается к пределу окна контекста модели, DeepChat может автоматически сжимать более старую историю, чтобы сессия продолжалась. Если функция отключена, история сверх бюджета будет сразу отброшена вместо сжатия.",
+      "thresholdLabel": "Порог срабатывания",
+      "thresholdMin": "Раньше ({value}%)",
+      "thresholdMax": "Позже ({value}%)",
+      "thresholdDescription": "Начинать сжатие, когда использование промпта достигает этой доли эффективного бюджета истории. Меньшие значения оставляют больше запаса, большие значения сохраняют больше исходного контекста.",
+      "retainPairsLabel": "Сохранять последние пары сообщений",
+      "retainPairsValue": "{count} пар",
+      "retainPairsDescription": "Сохранять вне сжатия последние завершённые пары сообщений пользователя и ассистента. Текущий запрос не включается."
     }
   },
   "notificationsHooks": {
@@ -1139,7 +1151,24 @@
       "placeholder": "Здесь редактировать содержимое skill...",
       "readFailed": "Ошибка чтения",
       "success": "Успешно сохранено",
-      "title": "Редактировать навык"
+      "title": "Редактировать навык",
+      "runtimeTitle": "Runtime",
+      "runtimeHint": "Select how bundled scripts resolve Python and Node runtimes.",
+      "pythonRuntime": "Python Runtime",
+      "nodeRuntime": "Node Runtime",
+      "envTitle": "Environment Variables",
+      "envWarning": "Masked in the UI only. Values are stored as plain text in the skill sidecar file.",
+      "scriptsTitle": "Bundled Scripts",
+      "scriptsHint": "Only scripts under scripts/ can be run via skill_run.",
+      "noScripts": "No runnable scripts detected",
+      "scriptEnabled": "Enabled",
+      "scriptDescription": "Description Override",
+      "scriptDescriptionPlaceholder": "Optional description shown to the agent",
+      "runtime": {
+        "auto": "Auto fallback",
+        "system": "System runtime",
+        "builtin": "Built-in runtime"
+      }
     },
     "empty": "Временно нет навыков",
     "emptyHint": "Нажмите кнопку «Добавить skill», чтобы установить новый skill",
@@ -1256,6 +1285,12 @@
       "syncing": "Импортируется...",
       "title": "Внешние инструменты"
     },
-    "title": "Управление навыками"
+    "title": "Управление навыками",
+    "card": {
+      "scripts": "{count} scripts",
+      "env": "{count} env",
+      "pythonShort": "Py",
+      "nodeShort": "Node"
+    }
   }
 }

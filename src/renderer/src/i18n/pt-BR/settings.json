@@ -63,6 +63,18 @@
       "title": "Modelo padrão",
       "chatModel": "Modelo de chat padrão",
       "visionModel": "Modelo de visão padrão"
+    },
+    "autoCompaction": {
+      "title": "Compactação automática",
+      "enabled": "Ativar compactação automática",
+      "description": "Quando uma conversa se aproxima do limite da janela de contexto do modelo, o DeepChat pode compactar automaticamente o histórico mais antigo para que a sessão continue. Se estiver desativado, o histórico excedente será descartado diretamente em vez de resumido.",
+      "thresholdLabel": "Limiar de disparo",
+      "thresholdMin": "Mais cedo ({value}%)",
+      "thresholdMax": "Mais tarde ({value}%)",
+      "thresholdDescription": "Inicie a compactação quando o uso do prompt atingir esta parcela do orçamento efetivo de histórico. Valores menores criam mais folga; valores maiores preservam mais contexto bruto.",
+      "retainPairsLabel": "Manter pares de mensagens recentes",
+      "retainPairsValue": "{count} par(es)",
+      "retainPairsDescription": "Mantém fora da compactação os pares mais recentes de usuário e assistente já concluídos. A consulta atual não é incluída."
     }
   },
   "notificationsHooks": {
@@ -1139,7 +1151,24 @@
       "placeholder": "Edite o conteúdo da skill aqui...",
       "readFailed": "Falha na leitura",
       "success": "Salvo com sucesso",
-      "title": "Editar habilidade"
+      "title": "Editar habilidade",
+      "runtimeTitle": "Runtime",
+      "runtimeHint": "Select how bundled scripts resolve Python and Node runtimes.",
+      "pythonRuntime": "Python Runtime",
+      "nodeRuntime": "Node Runtime",
+      "envTitle": "Environment Variables",
+      "envWarning": "Masked in the UI only. Values are stored as plain text in the skill sidecar file.",
+      "scriptsTitle": "Bundled Scripts",
+      "scriptsHint": "Only scripts under scripts/ can be run via skill_run.",
+      "noScripts": "No runnable scripts detected",
+      "scriptEnabled": "Enabled",
+      "scriptDescription": "Description Override",
+      "scriptDescriptionPlaceholder": "Optional description shown to the agent",
+      "runtime": {
+        "auto": "Auto fallback",
+        "system": "System runtime",
+        "builtin": "Built-in runtime"
+      }
     },
     "empty": "Sem skill",
     "emptyHint": "Clique no botão “Adicionar skill” para instalar uma nova skill",
@@ -1256,6 +1285,12 @@
       "syncing": "Importando...",
       "title": "Ferramentas Externas"
     },
-    "title": "Gerenciamento de Habilidades"
+    "title": "Gerenciamento de Habilidades",
+    "card": {
+      "scripts": "{count} scripts",
+      "env": "{count} env",
+      "pythonShort": "Py",
+      "nodeShort": "Node"
+    }
   }
 }

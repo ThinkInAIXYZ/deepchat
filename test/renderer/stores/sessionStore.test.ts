@@ -20,6 +20,12 @@ const setupStore = async () => {
     onRendererTabReady: vi.fn(),
     onRendererTabActivated: vi.fn()
   }
+  const pageRouter = {
+    goToChat: vi.fn(),
+    goToNewThread: vi.fn(),
+    currentRoute: 'chat'
+  }
+  const listeners = new Map<string, Array<(...args: any[]) => void>>()
 
   vi.doMock('pinia', () => ({
     defineStore: (_id: string, setup: () => unknown) => setup
@@ -30,10 +36,7 @@ const setupStore = async () => {
   }))
 
   vi.doMock('@/stores/ui/pageRouter', () => ({
-    usePageRouterStore: () => ({
-      goToChat: vi.fn(),
-      goToNewThread: vi.fn()
-    })
+    usePageRouterStore: () => pageRouter
   }))
   const clearStreamingState = vi.fn()
   vi.doMock('@/stores/ui/message', () => ({
@@ -44,7 +47,11 @@ const setupStore = async () => {
   }))
   ;(window as any).electron = {
     ipcRenderer: {
-      on: vi.fn(),
+      on: vi.fn((event: string, handler: (...args: any[]) => void) => {
+        const handlers = listeners.get(event) ?? []
+        handlers.push(handler)
+        listeners.set(event, handlers)
+      }),
       removeListener: vi.fn()
     }
   }
@@ -53,8 +60,14 @@ const setupStore = async () => {
   }
 
   const { useSessionStore } = await import('@/stores/ui/session')
+  const { SESSION_EVENTS } = await import('@/events')
   const store = useSessionStore()
-  return { store, clearStreamingState, newAgentPresenter }
+  const emitIpc = (event: string, payload?: unknown) => {
+    for (const handler of listeners.get(event) ?? []) {
+      handler(undefined, payload)
+    }
+  }
+  return { store, clearStreamingState, newAgentPresenter, pageRouter, emitIpc, SESSION_EVENTS }
 }
 
 describe('sessionStore.getFilteredGroups', () => {
@@ -190,5 +203,28 @@ describe('sessionStore streaming cleanup', () => {
 
     expect(clearStreamingState).toHaveBeenCalledTimes(1)
     expect(store.activeSessionId.value).toBe('session-b')
+  })
+
+  it('returns to new thread when active session becomes unavailable', async () => {
+    const { store, clearStreamingState, newAgentPresenter, pageRouter } = await setupStore()
+    store.activeSessionId.value = 'session-a'
+    pageRouter.currentRoute = 'chat'
+    newAgentPresenter.getActiveSession.mockResolvedValueOnce(null)
+
+    await store.fetchSessions()
+
+    expect(clearStreamingState).toHaveBeenCalledTimes(1)
+    expect(store.activeSessionId.value).toBeNull()
+    expect(pageRouter.goToNewThread).toHaveBeenCalledTimes(1)
+  })
+
+  it('reloads sessions when the session list update event fires', async () => {
+    const { newAgentPresenter, emitIpc, SESSION_EVENTS } = await setupStore()
+
+    emitIpc(SESSION_EVENTS.LIST_UPDATED)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(newAgentPresenter.getSessionList).toHaveBeenCalledTimes(1)
+    expect(newAgentPresenter.getActiveSession).toHaveBeenCalledTimes(1)
   })
 })

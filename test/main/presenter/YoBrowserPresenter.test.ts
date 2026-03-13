@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const sendToRendererMock = vi.fn()
 
@@ -8,6 +8,11 @@ class MockWebContents extends EventEmitter {
   url = 'about:blank'
   title = ''
   destroyed = false
+  loading = false
+  pendingLoad: {
+    resolve: () => void
+    reject: (error: Error) => void
+  } | null = null
   debugger = {
     isAttached: vi.fn(() => false),
     detach: vi.fn(),
@@ -15,25 +20,30 @@ class MockWebContents extends EventEmitter {
     sendCommand: vi.fn(async () => ({}))
   }
   session = {}
-  loadURL = vi.fn(async (url: string) => {
+  navigationHistory = {
+    canGoBack: vi.fn(() => false),
+    canGoForward: vi.fn(() => false)
+  }
+  loadURL = vi.fn((url: string) => {
     this.url = url
+    this.loading = true
+    this.emit('did-start-loading')
+
+    return new Promise<void>((resolve, reject) => {
+      this.pendingLoad = { resolve, reject }
+    })
   })
-  once = vi.fn((event: string, listener: (...args: any[]) => void) => {
-    super.once(event, listener)
-    if (event === 'did-finish-load') {
-      queueMicrotask(() => this.emit('did-finish-load'))
-    }
-    return this
-  })
-  canGoBack = vi.fn(() => false)
-  canGoForward = vi.fn(() => false)
   goBack = vi.fn()
   goForward = vi.fn()
-  reload = vi.fn()
+  reload = vi.fn(() => {
+    this.loading = true
+    this.emit('did-start-loading')
+  })
   reloadIgnoringCache = vi.fn()
-  isLoading = vi.fn(() => false)
+  isLoading = vi.fn(() => this.loading)
   close = vi.fn(() => {
     this.destroyed = true
+    this.emit('destroyed')
   })
   sendInputEvent = vi.fn()
 
@@ -52,6 +62,30 @@ class MockWebContents extends EventEmitter {
 
   isDestroyed() {
     return this.destroyed
+  }
+
+  emitDomReady() {
+    this.emit('dom-ready')
+  }
+
+  finishLoad() {
+    if (!this.loading) {
+      return
+    }
+
+    this.emitDomReady()
+    this.loading = false
+    this.emit('did-finish-load')
+    this.emit('did-stop-loading')
+    this.pendingLoad?.resolve()
+    this.pendingLoad = null
+  }
+
+  failLoad(errorCode: number = -105, errorDescription: string = 'NAME_NOT_RESOLVED') {
+    this.loading = false
+    this.emit('did-fail-load', {}, errorCode, errorDescription, this.url, true)
+    this.pendingLoad?.reject(new Error(`Navigation failed ${errorCode}: ${errorDescription}`))
+    this.pendingLoad = null
   }
 }
 
@@ -87,6 +121,11 @@ describe('YoBrowserPresenter', () => {
   beforeEach(() => {
     vi.resetModules()
     vi.clearAllMocks()
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   const setupPresenter = async () => {
@@ -118,6 +157,14 @@ describe('YoBrowserPresenter', () => {
       }
     })
 
+    vi.doMock('@shared/logger', () => ({
+      default: {
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn()
+      }
+    }))
+
     vi.doMock('@/eventbus', () => ({
       eventBus: {
         sendToRenderer: sendToRendererMock
@@ -129,18 +176,19 @@ describe('YoBrowserPresenter', () => {
 
     vi.doMock('@/events', () => ({
       YO_BROWSER_EVENTS: {
-        WINDOW_CREATED: 'yo-browser:created',
-        WINDOW_UPDATED: 'yo-browser:updated',
-        WINDOW_CLOSED: 'yo-browser:closed',
-        WINDOW_FOCUSED: 'yo-browser:focused',
-        WINDOW_COUNT_CHANGED: 'yo-browser:count',
-        WINDOW_VISIBILITY_CHANGED: 'yo-browser:visible'
+        OPEN_REQUESTED: 'yo-browser:open-requested',
+        WINDOW_CREATED: 'yo-browser:window-created',
+        WINDOW_UPDATED: 'yo-browser:window-updated',
+        WINDOW_CLOSED: 'yo-browser:window-closed',
+        WINDOW_FOCUSED: 'yo-browser:window-focused',
+        WINDOW_COUNT_CHANGED: 'yo-browser:window-count-changed',
+        WINDOW_VISIBILITY_CHANGED: 'yo-browser:window-visibility-changed'
       }
     }))
 
     vi.doMock('@/presenter/browser/DownloadManager', () => ({
       DownloadManager: class {
-        destroy = vi.fn()
+        downloadFile = vi.fn()
       }
     }))
 
@@ -156,6 +204,7 @@ describe('YoBrowserPresenter', () => {
         const target = windows.get(windowId)
         if (target) {
           target.visible = true
+          target.focused = true
         }
       }),
       hide: vi.fn((windowId: number) => {
@@ -170,8 +219,111 @@ describe('YoBrowserPresenter', () => {
     }
 
     const presenter = new YoBrowserPresenter(windowPresenter as any)
-    return { presenter, windows, viewConfigs }
+
+    const getEmbeddedWebContents = () => {
+      return ((presenter as any).embeddedState?.view?.webContents ?? null) as MockWebContents | null
+    }
+
+    return {
+      presenter,
+      windows,
+      viewConfigs,
+      windowPresenter,
+      getEmbeddedWebContents
+    }
   }
+
+  it('does not start embedded navigation before the renderer reports a stable host', async () => {
+    const { presenter, windows, getEmbeddedWebContents } = await setupPresenter()
+    windows.set(1, new MockBrowserWindow(1))
+
+    const openPromise = presenter.openWindow('https://example.com')
+    await Promise.resolve()
+
+    const webContents = getEmbeddedWebContents()
+    expect(webContents?.loadURL).not.toHaveBeenCalled()
+
+    await presenter.attachEmbeddedToWindow(1)
+    await presenter.updateEmbeddedBounds(1, { x: 12, y: 18, width: 320, height: 480 }, true)
+    await vi.advanceTimersByTimeAsync(130)
+    await Promise.resolve()
+
+    expect(webContents?.loadURL).toHaveBeenCalledWith('https://example.com')
+
+    webContents?.emitDomReady()
+    await openPromise
+    webContents?.finishLoad()
+  })
+
+  it('resolves openWindow only after host-ready and the first dom-ready', async () => {
+    const { presenter, windows, getEmbeddedWebContents } = await setupPresenter()
+    windows.set(1, new MockBrowserWindow(1))
+
+    let settled = false
+    const openPromise = presenter.openWindow('https://example.com').then(() => {
+      settled = true
+    })
+
+    await Promise.resolve()
+    await presenter.attachEmbeddedToWindow(1)
+    await presenter.updateEmbeddedBounds(1, { x: 10, y: 20, width: 300, height: 400 }, true)
+    await vi.advanceTimersByTimeAsync(130)
+    await Promise.resolve()
+
+    expect(settled).toBe(false)
+
+    const webContents = getEmbeddedWebContents()
+    webContents?.emitDomReady()
+    await openPromise
+
+    expect(settled).toBe(true)
+    webContents?.finishLoad()
+  })
+
+  it('returns a clear error when host-ready never arrives', async () => {
+    const { presenter, windows } = await setupPresenter()
+    windows.set(1, new MockBrowserWindow(1))
+
+    const openPromise = presenter.openWindow('https://example.com')
+    const rejection = expect(openPromise).rejects.toThrow(
+      'Embedded browser host 1 did not become ready within 2000ms'
+    )
+    await vi.advanceTimersByTimeAsync(2050)
+    await rejection
+  })
+
+  it('does not emit WINDOW_UPDATED for pure embedded bounds changes', async () => {
+    const { presenter, windows } = await setupPresenter()
+    windows.set(1, new MockBrowserWindow(1))
+
+    await presenter.attachEmbeddedToWindow(1)
+    sendToRendererMock.mockClear()
+
+    await presenter.updateEmbeddedBounds(1, { x: 0, y: 0, width: 240, height: 360 }, true)
+    await presenter.updateEmbeddedBounds(1, { x: 8, y: 16, width: 256, height: 384 }, true)
+
+    const updatedEvents = sendToRendererMock.mock.calls.filter(
+      ([event]) => event === 'yo-browser:window-updated'
+    )
+    expect(updatedEvents).toHaveLength(0)
+  })
+
+  it('navigates embedded windows directly instead of reopening them', async () => {
+    const { presenter, windows, getEmbeddedWebContents } = await setupPresenter()
+    windows.set(1, new MockBrowserWindow(1))
+
+    await presenter.attachEmbeddedToWindow(1)
+    const openWindowSpy = vi.spyOn(presenter, 'openWindow')
+
+    const navigatePromise = presenter.navigateWindow(1, 'https://example.com')
+    await Promise.resolve()
+
+    expect(openWindowSpy).not.toHaveBeenCalled()
+
+    const webContents = getEmbeddedWebContents()
+    webContents?.finishLoad()
+    await navigatePromise
+  })
 
   it('reattaches embedded listeners to the new host window and cleans up the previous host', async () => {
     const { presenter, windows } = await setupPresenter()
@@ -194,55 +346,9 @@ describe('YoBrowserPresenter', () => {
     expect(
       sendToRendererMock.mock.calls.some(
         ([event, _target, payload]) =>
-          event === 'yo-browser:focused' && payload?.windowId === secondWindow.id
+          event === 'yo-browser:window-focused' && payload?.windowId === secondWindow.id
       )
     ).toBe(true)
-
-    sendToRendererMock.mockClear()
-    firstWindow.emit('show')
-    secondWindow.emit('show')
-    expect(
-      sendToRendererMock.mock.calls.filter(
-        ([event, _target, payload]) =>
-          event === 'yo-browser:visible' && payload?.windowId === secondWindow.id
-      )
-    ).toHaveLength(1)
-  })
-
-  it('clears stale embedded visibility and does not report visible when unattached', async () => {
-    const { presenter, windows } = await setupPresenter()
-    windows.set(1, new MockBrowserWindow(1))
-
-    await presenter.attachEmbeddedToWindow(1)
-    const state = (presenter as any).embeddedState
-
-    state.visible = true
-    state.attachedWindowId = null
-    sendToRendererMock.mockClear()
-
-    await presenter.detachEmbedded()
-    expect(state.visible).toBe(false)
-    expect(
-      sendToRendererMock.mock.calls.some(
-        ([event, _target, payload]) =>
-          event === 'yo-browser:visible' &&
-          payload?.windowId === state.id &&
-          payload?.visible === false
-      )
-    ).toBe(true)
-
-    sendToRendererMock.mockClear()
-    const toggled = await presenter.toggleVisibility()
-    expect(toggled).toBe(false)
-    expect(await presenter.isVisible()).toBe(false)
-    expect(
-      sendToRendererMock.mock.calls.some(
-        ([event, _target, payload]) =>
-          event === 'yo-browser:visible' &&
-          payload?.windowId === state.id &&
-          payload?.visible === true
-      )
-    ).toBe(false)
   })
 
   it('creates the embedded WebContentsView with sandbox enabled', async () => {

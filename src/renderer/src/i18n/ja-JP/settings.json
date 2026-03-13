@@ -63,6 +63,18 @@
       "title": "デフォルトモデル",
       "chatModel": "デフォルトチャットモデル",
       "visionModel": "デフォルト視覚モデル"
+    },
+    "autoCompaction": {
+      "title": "自動圧縮",
+      "enabled": "自動圧縮を有効化",
+      "description": "会話がモデルのコンテキストウィンドウ上限に近づくと、DeepChat は古い履歴を自動で圧縮してセッションを継続できます。無効にすると、予算を超えた履歴は要約されずにそのまま破棄されます。",
+      "thresholdLabel": "発動しきい値",
+      "thresholdMin": "早め ({value}%)",
+      "thresholdMax": "遅め ({value}%)",
+      "thresholdDescription": "プロンプト使用量が有効な履歴予算のこの割合に達したら圧縮を開始します。低い値ほど余裕が増え、高い値ほど生のコンテキストを多く保持します。",
+      "retainPairsLabel": "直近のメッセージペアを保持",
+      "retainPairsValue": "{count} 組",
+      "retainPairsDescription": "直近で完了したユーザーとアシスタントのペアを圧縮対象から除外して保持します。現在の問い合わせは含みません。"
     }
   },
   "notificationsHooks": {
@@ -1139,7 +1151,24 @@
       "placeholder": "ここで skill 内容を編集...",
       "readFailed": "読み取り失敗",
       "success": "保存しました",
-      "title": "スキル編集"
+      "title": "スキル編集",
+      "runtimeTitle": "Runtime",
+      "runtimeHint": "Select how bundled scripts resolve Python and Node runtimes.",
+      "pythonRuntime": "Python Runtime",
+      "nodeRuntime": "Node Runtime",
+      "envTitle": "Environment Variables",
+      "envWarning": "Masked in the UI only. Values are stored as plain text in the skill sidecar file.",
+      "scriptsTitle": "Bundled Scripts",
+      "scriptsHint": "Only scripts under scripts/ can be run via skill_run.",
+      "noScripts": "No runnable scripts detected",
+      "scriptEnabled": "Enabled",
+      "scriptDescription": "Description Override",
+      "scriptDescriptionPlaceholder": "Optional description shown to the agent",
+      "runtime": {
+        "auto": "Auto fallback",
+        "system": "System runtime",
+        "builtin": "Built-in runtime"
+      }
     },
     "empty": "スキルなし",
     "emptyHint": "「「スキル追加」ボタンをクリックして新しいスキルをインストール」",
@@ -1256,6 +1285,12 @@
       "syncing": "インポート中…",
       "title": "外部ツール"
     },
-    "title": "スキル管理"
+    "title": "スキル管理",
+    "card": {
+      "scripts": "{count} scripts",
+      "env": "{count} env",
+      "pythonShort": "Py",
+      "nodeShort": "Node"
+    }
   }
 }

@@ -33,5 +33,21 @@
     "getStarted": "開始使用",
     "next": "下一步",
     "back": "返回"
+  },
+  "page": {
+    "title": "歡迎使用 DeepChat Agent",
+    "description": "連接一個模型服務提供者即可開始使用",
+    "browseProviders": "瀏覽所有服務提供者...",
+    "connectAgent": "或連接一個 Agent",
+    "acpTitle": "設定 ACP Agent",
+    "acpDescription": "Claude Code、Codex、Kimi，或你自己的 Agent",
+    "providers": {
+      "claude": "Claude",
+      "openai": "OpenAI",
+      "deepseek": "DeepSeek",
+      "gemini": "Gemini",
+      "ollama": "Ollama",
+      "openrouter": "OpenRouter"
+    }
   }
 }

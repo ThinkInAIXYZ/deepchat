@@ -597,6 +597,12 @@ export interface IConfigPresenter {
   // Auto scroll settings
   getAutoScrollEnabled(): boolean
   setAutoScrollEnabled(enabled: boolean): void
+  getAutoCompactionEnabled(): boolean
+  setAutoCompactionEnabled(enabled: boolean): void
+  getAutoCompactionTriggerThreshold(): number
+  setAutoCompactionTriggerThreshold(threshold: number): void
+  getAutoCompactionRetainRecentPairs(): number
+  setAutoCompactionRetainRecentPairs(count: number): void
   // Screen sharing protection settings
   getContentProtectionEnabled(): boolean
   setContentProtectionEnabled(enabled: boolean): void

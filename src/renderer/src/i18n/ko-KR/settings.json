@@ -63,6 +63,18 @@
       "title": "기본 모델",
       "chatModel": "기본 채팅 모델",
       "visionModel": "기본 비전 모델"
+    },
+    "autoCompaction": {
+      "title": "자동 압축",
+      "enabled": "자동 압축 사용",
+      "description": "대화가 모델 컨텍스트 창 한도에 가까워지면 DeepChat이 오래된 기록을 자동으로 압축해 세션을 계속 이어갈 수 있습니다. 이 옵션을 끄면 예산을 초과한 기록은 요약하지 않고 바로 버립니다.",
+      "thresholdLabel": "트리거 임계값",
+      "thresholdMin": "빠르게 ({value}%)",
+      "thresholdMax": "늦게 ({value}%)",
+      "thresholdDescription": "프롬프트 사용량이 유효 기록 예산의 이 비율에 도달하면 압축을 시작합니다. 값이 낮을수록 여유가 커지고, 값이 높을수록 원본 컨텍스트를 더 많이 보존합니다.",
+      "retainPairsLabel": "최근 메시지 쌍 유지",
+      "retainPairsValue": "{count}쌍",
+      "retainPairsDescription": "가장 최근에 완료된 사용자와 어시스턴트 메시지 쌍은 압축 대상에서 제외합니다. 현재 질의는 포함되지 않습니다."
     }
   },
   "notificationsHooks": {
@@ -1139,7 +1151,24 @@
       "placeholder": "여기서 skill 내용을 편집하세요...",
       "readFailed": "읽기 실패",
       "success": "저장 성공",
-      "title": "스킬 편집"
+      "title": "스킬 편집",
+      "runtimeTitle": "Runtime",
+      "runtimeHint": "Select how bundled scripts resolve Python and Node runtimes.",
+      "pythonRuntime": "Python Runtime",
+      "nodeRuntime": "Node Runtime",
+      "envTitle": "Environment Variables",
+      "envWarning": "Masked in the UI only. Values are stored as plain text in the skill sidecar file.",
+      "scriptsTitle": "Bundled Scripts",
+      "scriptsHint": "Only scripts under scripts/ can be run via skill_run.",
+      "noScripts": "No runnable scripts detected",
+      "scriptEnabled": "Enabled",
+      "scriptDescription": "Description Override",
+      "scriptDescriptionPlaceholder": "Optional description shown to the agent",
+      "runtime": {
+        "auto": "Auto fallback",
+        "system": "System runtime",
+        "builtin": "Built-in runtime"
+      }
     },
     "empty": "스킬 없음",
     "emptyHint": "\\\"skill 추가\\\" 버튼을 클릭하여 새 skill을 설치하세요.",
@@ -1256,6 +1285,12 @@
     },
     "title": "스킬 관리",
     "openFolder": "폴더 열기",
-    "search": "검색 skill..."
+    "search": "검색 skill...",
+    "card": {
+      "scripts": "{count} scripts",
+      "env": "{count} env",
+      "pythonShort": "Py",
+      "nodeShort": "Node"
+    }
   }
 }

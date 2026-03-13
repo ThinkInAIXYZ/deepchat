@@ -122,8 +122,22 @@ export class YoBrowserToolHandler {
       throw new Error(`Browser target ${String(target)} not found`)
     }
 
-    const response = await browserPage.sendCdpCommand(method, params)
-    return JSON.stringify(response ?? {})
+    try {
+      const response = await browserPage.sendCdpCommand(method, params)
+      return JSON.stringify(response ?? {})
+    } catch (error) {
+      if (error instanceof Error && error.name === 'YoBrowserNotReadyError') {
+        logger.warn('[YoBrowser] tool blocked:not-ready', {
+          toolName: 'yo_browser_cdp_send',
+          target: target ?? 'active',
+          method,
+          pageId: browserPage.pageId,
+          url: browserPage.url,
+          status: browserPage.status
+        })
+      }
+      throw error
+    }
   }
 
   private normalizeCdpParams(value: unknown): Record<string, unknown> {

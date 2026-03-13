@@ -63,6 +63,18 @@
       "title": "Standardmodel",
       "chatModel": "Standard chatmodel",
       "visionModel": "Standard visionsmodel"
+    },
+    "autoCompaction": {
+      "title": "Automatisk komprimering",
+      "enabled": "Aktiver automatisk komprimering",
+      "description": "Når en samtale nærmer sig modellens kontekstvindues grænse, kan DeepChat automatisk komprimere ældre historik, så sessionen kan fortsætte. Hvis funktionen er slået fra, bliver historik, der overskrider budgettet, droppet direkte i stedet for komprimeret.",
+      "thresholdLabel": "Udløsningstærskel",
+      "thresholdMin": "Tidligt ({value}%)",
+      "thresholdMax": "Sent ({value}%)",
+      "thresholdDescription": "Start komprimering, når promptforbruget når denne andel af det effektive historikbudget. Lavere værdier giver mere luft; højere værdier bevarer mere rå kontekst.",
+      "retainPairsLabel": "Behold seneste beskedpar",
+      "retainPairsValue": "{count} par",
+      "retainPairsDescription": "Behold de senest fuldførte bruger-/assistent-par uden for komprimeringen. Den aktuelle forespørgsel er ikke inkluderet."
     }
   },
   "data": {
@@ -1085,7 +1097,24 @@
       "placeholder": "Redigér skill-indhold her...",
       "readFailed": "Læsning fejlede",
       "success": "Gemmes succesfuldt",
-      "title": "Rediger færdighed"
+      "title": "Rediger færdighed",
+      "runtimeTitle": "Runtime",
+      "runtimeHint": "Select how bundled scripts resolve Python and Node runtimes.",
+      "pythonRuntime": "Python Runtime",
+      "nodeRuntime": "Node Runtime",
+      "envTitle": "Environment Variables",
+      "envWarning": "Masked in the UI only. Values are stored as plain text in the skill sidecar file.",
+      "scriptsTitle": "Bundled Scripts",
+      "scriptsHint": "Only scripts under scripts/ can be run via skill_run.",
+      "noScripts": "No runnable scripts detected",
+      "scriptEnabled": "Enabled",
+      "scriptDescription": "Description Override",
+      "scriptDescriptionPlaceholder": "Optional description shown to the agent",
+      "runtime": {
+        "auto": "Auto fallback",
+        "system": "System runtime",
+        "builtin": "Built-in runtime"
+      }
     },
     "empty": "Ingen færdigheder",
     "emptyHint": "Klik på knappen „Tilføj skill“ for at installere en ny skill",
@@ -1202,7 +1231,13 @@
       "syncing": "Importerer...",
       "title": "Eksterne værktøjer"
     },
-    "title": "Færdighedsstyring"
+    "title": "Færdighedsstyring",
+    "card": {
+      "scripts": "{count} scripts",
+      "env": "{count} env",
+      "pythonShort": "Py",
+      "nodeShort": "Node"
+    }
   },
   "notificationsHooks": {
     "commands": {

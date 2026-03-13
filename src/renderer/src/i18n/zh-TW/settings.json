@@ -63,6 +63,18 @@
       "title": "預設模型",
       "chatModel": "預設聊天模型",
       "visionModel": "預設視覺模型"
+    },
+    "autoCompaction": {
+      "title": "自動壓縮",
+      "enabled": "啟用自動壓縮",
+      "description": "當對話接近模型上下文視窗限制時，DeepChat 會自動整理較早歷史，幫助會話繼續進行。關閉後，超出預算的歷史將直接丟棄，不再產生摘要。",
+      "thresholdLabel": "觸發閾值",
+      "thresholdMin": "提前（{value}%）",
+      "thresholdMax": "延後（{value}%）",
+      "thresholdDescription": "當 prompt 佔用達到有效歷史預算的這個比例時開始壓縮。值越低緩衝越大，值越高保留的原始上下文越多。",
+      "retainPairsLabel": "保留最近訊息對",
+      "retainPairsValue": "{count} 對",
+      "retainPairsDescription": "始終保留最近完成的 user 和 assistant 訊息對，不參與壓縮。當前最後一次 query 不計入其中。"
     }
   },
   "notificationsHooks": {
@@ -1139,7 +1151,24 @@
       "placeholder": "在此編輯 skill 內容...",
       "readFailed": "讀取失敗",
       "success": "儲存成功",
-      "title": "編輯 skill"
+      "title": "編輯 skill",
+      "runtimeTitle": "執行環境",
+      "runtimeHint": "為內建腳本選擇 Python 和 Node 的解析策略。",
+      "pythonRuntime": "Python 執行環境",
+      "nodeRuntime": "Node 執行環境",
+      "envTitle": "環境變數",
+      "envWarning": "僅在 UI 中遮罩顯示，實際會以明文寫入 skill sidecar 檔案。",
+      "scriptsTitle": "內建腳本",
+      "scriptsHint": "只有 scripts/ 目錄下的腳本會透過 skill_run 暴露給 agent。",
+      "noScripts": "未發現可執行腳本",
+      "scriptEnabled": "啟用",
+      "scriptDescription": "描述覆寫",
+      "scriptDescriptionPlaceholder": "可選，顯示給 agent 的腳本說明",
+      "runtime": {
+        "auto": "自動回退",
+        "system": "系統執行環境",
+        "builtin": "內建執行環境"
+      }
     },
     "empty": "暫無 skill",
     "emptyHint": "點擊「添加 skill」按鈕安裝新 skill",
@@ -1256,6 +1285,12 @@
       "syncing": "正在匯入...",
       "title": "外部工具"
     },
-    "title": "Skills設定"
+    "title": "Skills設定",
+    "card": {
+      "scripts": "{count} 個腳本",
+      "env": "{count} 個環境變數",
+      "pythonShort": "Py",
+      "nodeShort": "Node"
+    }
   }
 }

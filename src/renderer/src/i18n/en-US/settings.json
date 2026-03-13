@@ -9,6 +9,18 @@
     "searchEngineSelect": "Select search engine",
     "searchPreview": "Search Preview",
     "autoScrollEnabled": "Auto-scroll while generating",
+    "autoCompaction": {
+      "title": "Auto Compaction",
+      "enabled": "Enable auto compaction",
+      "description": "When a conversation approaches the model context window limit, DeepChat can summarize older history automatically so the session keeps going. If disabled, overflowing history is dropped directly instead of summarized.",
+      "thresholdLabel": "Trigger threshold",
+      "thresholdMin": "Early ({value}%)",
+      "thresholdMax": "Late ({value}%)",
+      "thresholdDescription": "Start compaction when prompt usage reaches this share of the effective history budget. Lower values create more headroom; higher values preserve more raw context.",
+      "retainPairsLabel": "Retain recent message pairs",
+      "retainPairsValue": "{count} pair(s)",
+      "retainPairsDescription": "Keep the most recent completed user and assistant pairs outside compaction. The current query is not included."
+    },
     "searchAssistantModel": "Assistant Model",
     "selectModel": "Select Model",
     "proxyMode": "Proxy Mode",
@@ -1144,6 +1156,12 @@
       "successMessage": "Skill {name} has been deleted successfully",
       "failed": "Deletion Failed"
     },
+    "card": {
+      "scripts": "{count} scripts",
+      "env": "{count} env",
+      "pythonShort": "Py",
+      "nodeShort": "Node"
+    },
     "edit": {
       "title": "Edit Skill",
       "placeholder": "Edit skill content here...",
@@ -1159,6 +1177,23 @@
       "allowedToolsPlaceholder": "Read, Grep, Bash",
       "allowedToolsHint": "Comma-separated list of tool names",
       "content": "Skill Content",
+      "runtimeTitle": "Runtime",
+      "runtimeHint": "Select how bundled scripts resolve Python and Node runtimes.",
+      "pythonRuntime": "Python Runtime",
+      "nodeRuntime": "Node Runtime",
+      "envTitle": "Environment Variables",
+      "envWarning": "Masked in the UI only. Values are stored as plain text in the skill sidecar file.",
+      "scriptsTitle": "Bundled Scripts",
+      "scriptsHint": "Only scripts under scripts/ can be run via skill_run.",
+      "noScripts": "No runnable scripts detected",
+      "scriptEnabled": "Enabled",
+      "scriptDescription": "Description Override",
+      "scriptDescriptionPlaceholder": "Optional description shown to the agent",
+      "runtime": {
+        "auto": "Auto fallback",
+        "system": "System runtime",
+        "builtin": "Built-in runtime"
+      },
       "files": "Folder Contents",
       "noFiles": "No files"
     },

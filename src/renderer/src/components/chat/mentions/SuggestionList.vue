@@ -46,19 +46,7 @@ const props = defineProps<{
 const selectedIndex = ref(0)
 const itemElements = ref<(HTMLButtonElement | null)[]>([])
 
-const filteredItems = computed(() => {
-  const query = props.query.trim().toLowerCase()
-  if (!query) {
-    return props.items.slice(0, 20)
-  }
-
-  return props.items
-    .filter((item) => {
-      if (item.label.toLowerCase().includes(query)) return true
-      return item.description?.toLowerCase().includes(query)
-    })
-    .slice(0, 20)
-})
+const filteredItems = computed(() => props.items)
 
 watch(
   () => filteredItems.value.length,

@@ -192,12 +192,16 @@ describe('NewAgentPresenter', () => {
       expect(result.title).toBe('Hello world')
       expect(result.projectDir).toBe('/tmp/proj')
       expect(result.status).toBe('idle')
-      expect(deepChatAgent.initSession).toHaveBeenCalledWith('mock-session-id', {
-        providerId: 'openai',
-        modelId: 'gpt-4',
-        projectDir: '/tmp/proj',
-        permissionMode: 'full_access'
-      })
+      expect(deepChatAgent.initSession).toHaveBeenCalledWith(
+        'mock-session-id',
+        expect.objectContaining({
+          agentId: 'deepchat',
+          providerId: 'openai',
+          modelId: 'gpt-4',
+          projectDir: '/tmp/proj',
+          permissionMode: 'full_access'
+        })
+      )
       await new Promise((r) => setTimeout(r, 0))
       expect(deepChatAgent.processMessage).toHaveBeenCalledWith(
         'mock-session-id',
@@ -224,12 +228,16 @@ describe('NewAgentPresenter', () => {
     it('calls agent.initSession and processMessage', async () => {
       await presenter.createSession({ agentId: 'deepchat', message: 'Hello' }, 1)
 
-      expect(deepChatAgent.initSession).toHaveBeenCalledWith('mock-session-id', {
-        providerId: 'openai',
-        modelId: 'gpt-4',
-        projectDir: null,
-        permissionMode: 'full_access'
-      })
+      expect(deepChatAgent.initSession).toHaveBeenCalledWith(
+        'mock-session-id',
+        expect.objectContaining({
+          agentId: 'deepchat',
+          providerId: 'openai',
+          modelId: 'gpt-4',
+          projectDir: null,
+          permissionMode: 'full_access'
+        })
+      )
       // processMessage is called non-blocking, so we give it a tick
       await new Promise((r) => setTimeout(r, 0))
       expect(deepChatAgent.processMessage).toHaveBeenCalledWith(
@@ -254,12 +262,16 @@ describe('NewAgentPresenter', () => {
     it('uses default provider/model from config when not specified', async () => {
       await presenter.createSession({ agentId: 'deepchat', message: 'Hi' }, 1)
 
-      expect(deepChatAgent.initSession).toHaveBeenCalledWith(expect.any(String), {
-        providerId: 'openai',
-        modelId: 'gpt-4',
-        projectDir: null,
-        permissionMode: 'full_access'
-      })
+      expect(deepChatAgent.initSession).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          agentId: 'deepchat',
+          providerId: 'openai',
+          modelId: 'gpt-4',
+          projectDir: null,
+          permissionMode: 'full_access'
+        })
+      )
     })
 
     it('uses input provider/model when specified', async () => {
@@ -268,12 +280,16 @@ describe('NewAgentPresenter', () => {
         1
       )
 
-      expect(deepChatAgent.initSession).toHaveBeenCalledWith(expect.any(String), {
-        providerId: 'anthropic',
-        modelId: 'claude-3',
-        projectDir: null,
-        permissionMode: 'full_access'
-      })
+      expect(deepChatAgent.initSession).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          agentId: 'deepchat',
+          providerId: 'anthropic',
+          modelId: 'claude-3',
+          projectDir: null,
+          permissionMode: 'full_access'
+        })
+      )
     })
 
     it('uses input permission mode when specified', async () => {
@@ -288,12 +304,16 @@ describe('NewAgentPresenter', () => {
         1
       )
 
-      expect(deepChatAgent.initSession).toHaveBeenCalledWith(expect.any(String), {
-        providerId: 'anthropic',
-        modelId: 'claude-3',
-        projectDir: null,
-        permissionMode: 'default'
-      })
+      expect(deepChatAgent.initSession).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          agentId: 'deepchat',
+          providerId: 'anthropic',
+          modelId: 'claude-3',
+          projectDir: null,
+          permissionMode: 'default'
+        })
+      )
     })
 
     it('passes generationSettings to agent.initSession', async () => {
@@ -312,19 +332,23 @@ describe('NewAgentPresenter', () => {
         1
       )
 
-      expect(deepChatAgent.initSession).toHaveBeenCalledWith(expect.any(String), {
-        providerId: 'openai',
-        modelId: 'gpt-4',
-        projectDir: null,
-        permissionMode: 'full_access',
-        generationSettings: {
-          systemPrompt: 'Custom prompt',
-          temperature: 1.1,
-          contextLength: 8192,
-          maxTokens: 2048,
-          reasoningEffort: 'low'
-        }
-      })
+      expect(deepChatAgent.initSession).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          agentId: 'deepchat',
+          providerId: 'openai',
+          modelId: 'gpt-4',
+          projectDir: null,
+          permissionMode: 'full_access',
+          generationSettings: {
+            systemPrompt: 'Custom prompt',
+            temperature: 1.1,
+            contextLength: 8192,
+            maxTokens: 2048,
+            reasoningEffort: 'low'
+          }
+        })
+      )
     })
 
     it('throws when no provider/model available', async () => {
@@ -524,12 +548,16 @@ describe('NewAgentPresenter', () => {
         projectDir: '/tmp/workspace'
       })
 
-      expect(deepChatAgent.initSession).toHaveBeenCalledWith('mock-session-id', {
-        providerId: 'acp',
-        modelId: 'acp-coder',
-        projectDir: '/tmp/workspace',
-        permissionMode: 'full_access'
-      })
+      expect(deepChatAgent.initSession).toHaveBeenCalledWith(
+        'mock-session-id',
+        expect.objectContaining({
+          agentId: 'acp-coder',
+          providerId: 'acp',
+          modelId: 'acp-coder',
+          projectDir: '/tmp/workspace',
+          permissionMode: 'full_access'
+        })
+      )
       expect(llmProviderPresenter.prepareAcpSession).toHaveBeenCalledWith(
         'mock-session-id',
         'acp-coder',
@@ -601,6 +629,85 @@ describe('NewAgentPresenter', () => {
       expect(sessions[0].providerId).toBe('openai')
       expect(sessions[0].modelId).toBe('gpt-4')
     })
+
+    it('skips sessions whose agent implementation cannot be resolved', async () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      sqlitePresenter.newSessionsTable.list.mockReturnValue([
+        {
+          id: 'missing-agent',
+          agent_id: 'disabled-agent',
+          title: 'Disabled',
+          project_dir: null,
+          is_pinned: 0,
+          created_at: 1000,
+          updated_at: 2000
+        },
+        {
+          id: 's1',
+          agent_id: 'deepchat',
+          title: 'Chat 1',
+          project_dir: null,
+          is_pinned: 0,
+          created_at: 1000,
+          updated_at: 2000
+        }
+      ])
+
+      const sessions = await presenter.getSessionList()
+
+      expect(sessions).toHaveLength(1)
+      expect(sessions[0].id).toBe('s1')
+      expect(warnSpy).toHaveBeenCalledWith(
+        '[NewAgentPresenter] Skipping unavailable session id=missing-agent agent=disabled-agent:',
+        expect.any(Error)
+      )
+      warnSpy.mockRestore()
+    })
+
+    it('skips sessions whose state loading fails', async () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      sqlitePresenter.newSessionsTable.list.mockReturnValue([
+        {
+          id: 'broken-state',
+          agent_id: 'deepchat',
+          title: 'Broken',
+          project_dir: null,
+          is_pinned: 0,
+          created_at: 1000,
+          updated_at: 2000
+        },
+        {
+          id: 'healthy-state',
+          agent_id: 'deepchat',
+          title: 'Healthy',
+          project_dir: null,
+          is_pinned: 0,
+          created_at: 1001,
+          updated_at: 2001
+        }
+      ])
+      deepChatAgent.getSessionState.mockImplementation(async (sessionId: string) => {
+        if (sessionId === 'broken-state') {
+          throw new Error('state failed')
+        }
+        return {
+          status: 'idle',
+          providerId: 'openai',
+          modelId: 'gpt-4',
+          permissionMode: 'full_access'
+        }
+      })
+
+      const sessions = await presenter.getSessionList()
+
+      expect(sessions).toHaveLength(1)
+      expect(sessions[0].id).toBe('healthy-state')
+      expect(warnSpy).toHaveBeenCalledWith(
+        '[NewAgentPresenter] Skipping unavailable session id=broken-state agent=deepchat:',
+        expect.any(Error)
+      )
+      warnSpy.mockRestore()
+    })
   })
 
   describe('getSession', () => {
@@ -623,6 +730,26 @@ describe('NewAgentPresenter', () => {
     it('returns null for unknown session', async () => {
       sqlitePresenter.newSessionsTable.get.mockReturnValue(undefined)
       expect(await presenter.getSession('unknown')).toBeNull()
+    })
+
+    it('returns null when session agent is unavailable', async () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      sqlitePresenter.newSessionsTable.get.mockReturnValue({
+        id: 's-disabled',
+        agent_id: 'disabled-agent',
+        title: 'Disabled',
+        project_dir: null,
+        is_pinned: 0,
+        created_at: 1000,
+        updated_at: 2000
+      })
+
+      expect(await presenter.getSession('s-disabled')).toBeNull()
+      expect(warnSpy).toHaveBeenCalledWith(
+        '[NewAgentPresenter] Skipping unavailable session id=s-disabled agent=disabled-agent:',
+        expect.any(Error)
+      )
+      warnSpy.mockRestore()
     })
   })
 
@@ -1125,6 +1252,39 @@ describe('NewAgentPresenter', () => {
       const session = await presenter.getActiveSession(1)
       expect(session).not.toBeNull()
       expect(session!.id).toBe('s1')
+    })
+
+    it('returns null and clears binding when bound session becomes unavailable', async () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+      await presenter.activateSession(1, 's-disabled')
+      sqlitePresenter.newSessionsTable.get.mockReturnValueOnce({
+        id: 's-disabled',
+        agent_id: 'disabled-agent',
+        title: 'Disabled',
+        project_dir: null,
+        is_pinned: 0,
+        created_at: 1000,
+        updated_at: 2000
+      })
+
+      await expect(presenter.getActiveSession(1)).resolves.toBeNull()
+
+      sqlitePresenter.newSessionsTable.get.mockReturnValue({
+        id: 's-disabled',
+        agent_id: 'deepchat',
+        title: 'Recovered',
+        project_dir: null,
+        is_pinned: 0,
+        created_at: 1000,
+        updated_at: 2000
+      })
+      await expect(presenter.getActiveSession(1)).resolves.toBeNull()
+      expect(warnSpy).toHaveBeenCalledWith(
+        '[NewAgentPresenter] Skipping unavailable session id=s-disabled agent=disabled-agent:',
+        expect.any(Error)
+      )
+      warnSpy.mockRestore()
     })
   })
 })

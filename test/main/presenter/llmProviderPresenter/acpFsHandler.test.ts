@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import * as fs from 'fs/promises'
 import * as path from 'path'
 import * as os from 'os'
-import { AcpFsHandler } from '@/presenter/agentPresenter/acp'
+import { AcpFsHandler } from '@/presenter/agentPresenter/acp/acpFsHandler'
 
 describe('AcpFsHandler', () => {
   let testDir: string
@@ -143,6 +143,30 @@ describe('AcpFsHandler', () => {
           sessionId: 'test-session'
         })
       ).rejects.toThrow(/File too large/)
+    })
+
+    it('rejects image files for text reads', async () => {
+      const testFile = path.join(testDir, 'image.png')
+      await fs.writeFile(testFile, Buffer.from([0x89, 0x50, 0x4e, 0x47]))
+
+      await expect(
+        handler.readTextFile({
+          path: testFile,
+          sessionId: 'test-session'
+        })
+      ).rejects.toThrow(/only supports text files/i)
+    })
+
+    it('rejects pdf files for text reads', async () => {
+      const testFile = path.join(testDir, 'report.pdf')
+      await fs.writeFile(testFile, Buffer.from('%PDF-1.7'))
+
+      await expect(
+        handler.readTextFile({
+          path: testFile,
+          sessionId: 'test-session'
+        })
+      ).rejects.toThrow(/only supports text files/i)
     })
   })
 

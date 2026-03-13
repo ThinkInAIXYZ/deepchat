@@ -14,6 +14,10 @@ declare global {
       toRelativePath?(filePath: string, baseDir?: string): string
       formatPathForInput?(filePath: string): string
     }
+    __deepchatDev?: {
+      goToWelcome(): boolean
+      clearWelcomeOverride(): boolean
+    }
     floatingButtonAPI: typeof floatingButtonAPI
   }
 }

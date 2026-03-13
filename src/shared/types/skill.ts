@@ -34,6 +34,36 @@ export interface SkillContent {
   content: string
 }
 
+export type SkillRuntimePreference = 'auto' | 'system' | 'builtin'
+
+export interface SkillRuntimePolicy {
+  python: SkillRuntimePreference
+  node: SkillRuntimePreference
+}
+
+export interface SkillScriptOverride {
+  enabled?: boolean
+  description?: string
+}
+
+export interface SkillExtensionConfig {
+  version: 1
+  env: Record<string, string>
+  runtimePolicy: SkillRuntimePolicy
+  scriptOverrides: Record<string, SkillScriptOverride>
+}
+
+export type SkillScriptRuntime = 'python' | 'node' | 'shell'
+
+export interface SkillScriptDescriptor {
+  name: string
+  relativePath: string
+  absolutePath: string
+  runtime: SkillScriptRuntime
+  enabled: boolean
+  description?: string
+}
+
 /**
  * Skill installation result
  */
@@ -106,9 +136,18 @@ export interface ISkillPresenter {
   uninstallSkill(name: string): Promise<SkillInstallResult>
 
   // File operations
+  readSkillFile(name: string): Promise<string>
   updateSkillFile(name: string, content: string): Promise<SkillInstallResult>
+  saveSkillWithExtension(
+    name: string,
+    content: string,
+    config: SkillExtensionConfig
+  ): Promise<SkillInstallResult>
   getSkillFolderTree(name: string): Promise<SkillFolderNode[]>
   openSkillsFolder(): Promise<void>
+  getSkillExtension(name: string): Promise<SkillExtensionConfig>
+  saveSkillExtension(name: string, config: SkillExtensionConfig): Promise<void>
+  listSkillScripts(name: string): Promise<SkillScriptDescriptor[]>
 
   // Session state management
   getActiveSkills(conversationId: string): Promise<string[]>

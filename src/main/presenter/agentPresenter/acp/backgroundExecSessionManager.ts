@@ -47,8 +47,12 @@ interface BackgroundSession {
   outputFilePath: string | null
   outputWriteQueue: Promise<void>
   totalOutputLength: number
+  offloadDisabled: boolean
   stdoutEof: boolean
   stderrEof: boolean
+  closePromise: Promise<void>
+  resolveClose: () => void
+  closeSettled: boolean
   killTimeoutId?: NodeJS.Timeout
 }
 
@@ -117,6 +121,11 @@ export class BackgroundExecSessionManager {
       stdio: ['pipe', 'pipe', 'pipe']
     })
 
+    let resolveClose = () => {}
+    const closePromise = new Promise<void>((resolve) => {
+      resolveClose = resolve
+    })
+
     const now = Date.now()
     const session: BackgroundSession = {
       sessionId,
@@ -130,15 +139,19 @@ export class BackgroundExecSessionManager {
       outputFilePath,
       outputWriteQueue: Promise.resolve(),
       totalOutputLength: 0,
+      offloadDisabled: false,
       stdoutEof: false,
-      stderrEof: false
+      stderrEof: false,
+      closePromise,
+      resolveClose,
+      closeSettled: false
     }
 
     // Set up output handling
     this.setupOutputHandling(session, config)
 
-    // Set up process exit handling
-    this.setupExitHandling(session, config)
+    // Set up process lifecycle handling
+    this.setupProcessLifecycle(session)
 
     // Set up timeout
     const timeout = options?.timeout ?? config.timeoutSec * 1000
@@ -175,26 +188,23 @@ export class BackgroundExecSessionManager {
       pid: session.child.pid,
       exitCode: session.exitCode,
       outputLength: session.totalOutputLength,
-      offloaded:
-        session.outputFilePath !== null &&
-        session.totalOutputLength > getConfig().offloadThresholdChars
+      offloaded: this.hasPersistedOutput(session, getConfig())
     }))
   }
 
   /**
    * Poll for new output (returns recent output only)
    */
-  poll(conversationId: string, sessionId: string): PollResult {
+  async poll(conversationId: string, sessionId: string): Promise<PollResult> {
     const session = this.getSession(conversationId, sessionId)
     session.lastAccessedAt = Date.now()
+    await this.waitForSessionDrain(session)
 
     const config = getConfig()
-    const isOffloaded =
-      session.outputFilePath !== null && session.totalOutputLength > config.offloadThresholdChars
+    const isOffloaded = this.hasPersistedOutput(session, config)
 
     if (isOffloaded && session.outputFilePath) {
-      // Return only last N characters from file
-      const output = this.readLastCharsFromFile(session.outputFilePath, config.maxOutputChars)
+      const output = this.getRecentOutputFromSession(session, config.maxOutputChars)
       return {
         status: session.status,
         output,
@@ -217,17 +227,22 @@ export class BackgroundExecSessionManager {
   /**
    * Get full output log with pagination
    */
-  log(conversationId: string, sessionId: string, offset = 0, limit = 1000): LogResult {
+  async log(
+    conversationId: string,
+    sessionId: string,
+    offset = 0,
+    limit = 1000
+  ): Promise<LogResult> {
     const session = this.getSession(conversationId, sessionId)
     session.lastAccessedAt = Date.now()
+    await this.waitForSessionDrain(session)
 
     const config = getConfig()
-    const isOffloaded =
-      session.outputFilePath !== null && session.totalOutputLength > config.offloadThresholdChars
+    const isOffloaded = this.hasPersistedOutput(session, config)
 
     let output: string
     if (isOffloaded && session.outputFilePath) {
-      output = this.readFromFile(session.outputFilePath, offset, limit)
+      output = this.readOutputFromSession(session, offset, limit, config)
     } else {
       output = session.outputBuffer.slice(offset, offset + limit)
     }
@@ -305,6 +320,8 @@ export class BackgroundExecSessionManager {
     // Kill if still running
     if (session.status === 'running') {
       await this.killInternal(session, 'remove')
+    } else {
+      await session.closePromise
     }
 
     // Ensure queued writes are completed before deleting files.
@@ -419,7 +436,9 @@ export class BackgroundExecSessionManager {
     session.totalOutputLength += data.length
 
     const shouldOffload =
-      session.outputFilePath !== null && session.totalOutputLength > config.offloadThresholdChars
+      !session.offloadDisabled &&
+      session.outputFilePath !== null &&
+      session.totalOutputLength > config.offloadThresholdChars
 
     if (shouldOffload) {
       const chunk = session.outputBuffer + data
@@ -431,11 +450,21 @@ export class BackgroundExecSessionManager {
     }
   }
 
-  private setupExitHandling(
-    session: BackgroundSession,
-    config: ReturnType<typeof getConfig>
-  ): void {
-    session.child.on('exit', (code, signal) => {
+  private setupProcessLifecycle(session: BackgroundSession): void {
+    session.child.on('error', (error) => {
+      if (session.status === 'running') {
+        session.status = 'error'
+      }
+      session.errorMessage = error.message
+      logger.error(`[BackgroundExec] Session ${session.sessionId} error:`, error)
+      queueMicrotask(() => {
+        if (!session.closeSettled && session.exitCode === undefined) {
+          void this.finalizeSession(session, null, null)
+        }
+      })
+    })
+
+    session.child.on('close', (code, signal) => {
       if (session.killTimeoutId) {
         clearTimeout(session.killTimeoutId)
       }
@@ -449,32 +478,7 @@ export class BackgroundExecSessionManager {
       }
 
       session.exitCode = code ?? undefined
-
-      // Flush any remaining output
-      if (session.outputFilePath && session.totalOutputLength > config.offloadThresholdChars) {
-        try {
-          const remainingStdout = session.child.stdout?.read?.()
-          const remainingStderr = session.child.stderr?.read?.()
-          if (remainingStdout) {
-            this.appendOutput(session, remainingStdout.toString('utf-8'), config)
-          }
-          if (remainingStderr) {
-            this.appendOutput(session, remainingStderr.toString('utf-8'), config)
-          }
-        } catch (error) {
-          logger.warn(`[BackgroundExec] Failed to flush remaining output:`, error)
-        }
-      }
-
-      logger.info(
-        `[BackgroundExec] Session ${session.sessionId} exited with code ${code}, signal ${signal}`
-      )
-    })
-
-    session.child.on('error', (error) => {
-      session.status = 'error'
-      session.errorMessage = error.message
-      logger.error(`[BackgroundExec] Session ${session.sessionId} error:`, error)
+      void this.finalizeSession(session, code, signal)
     })
   }
 
@@ -494,7 +498,7 @@ export class BackgroundExecSessionManager {
         resolve() // Timeout, will force kill
       }, 2000)
 
-      session.child.once('exit', () => {
+      session.child.once('close', () => {
         clearTimeout(timeout)
         resolve()
       })
@@ -517,12 +521,75 @@ export class BackgroundExecSessionManager {
       }
     }
 
-    session.status = 'killed'
+    await session.closePromise
   }
 
   private getRecentOutput(buffer: string, maxChars: number): string {
     if (buffer.length <= maxChars) return buffer
     return buffer.slice(-maxChars)
+  }
+
+  private hasPersistedOutput(
+    session: BackgroundSession,
+    config: ReturnType<typeof getConfig>
+  ): boolean {
+    return (
+      session.outputFilePath !== null && session.totalOutputLength > config.offloadThresholdChars
+    )
+  }
+
+  private getPersistedOutputLength(
+    session: BackgroundSession,
+    config: ReturnType<typeof getConfig>
+  ): number {
+    if (!this.hasPersistedOutput(session, config)) {
+      return 0
+    }
+
+    return Math.max(0, session.totalOutputLength - session.outputBuffer.length)
+  }
+
+  private getRecentOutputFromSession(session: BackgroundSession, maxChars: number): string {
+    if (!session.outputFilePath) {
+      return this.getRecentOutput(session.outputBuffer, maxChars)
+    }
+
+    const filePreview = this.readLastCharsFromFile(session.outputFilePath, maxChars)
+    if (!session.outputBuffer) {
+      return filePreview
+    }
+
+    return this.getRecentOutput(filePreview + session.outputBuffer, maxChars)
+  }
+
+  private readOutputFromSession(
+    session: BackgroundSession,
+    offset: number,
+    limit: number,
+    config: ReturnType<typeof getConfig>
+  ): string {
+    if (!session.outputFilePath) {
+      return session.outputBuffer.slice(offset, offset + limit)
+    }
+
+    const persistedLength = this.getPersistedOutputLength(session, config)
+    if (persistedLength <= 0) {
+      return session.outputBuffer.slice(offset, offset + limit)
+    }
+
+    if (offset >= persistedLength) {
+      const bufferOffset = offset - persistedLength
+      return session.outputBuffer.slice(bufferOffset, bufferOffset + limit)
+    }
+
+    const fileLimit = Math.min(limit, persistedLength - offset)
+    const persistedOutput = this.readFromFile(session.outputFilePath, offset, fileLimit)
+    if (persistedOutput.length >= limit) {
+      return persistedOutput
+    }
+
+    const remaining = limit - persistedOutput.length
+    return persistedOutput + session.outputBuffer.slice(0, remaining)
   }
 
   private readLastCharsFromFile(filePath: string, maxChars: number): string {
@@ -609,6 +676,13 @@ export class BackgroundExecSessionManager {
       return
     }
 
+    if (mode === 'append' && session.offloadDisabled) {
+      if (data) {
+        session.outputBuffer += data
+      }
+      return
+    }
+
     const outputFilePath = session.outputFilePath
     session.outputWriteQueue = session.outputWriteQueue
       .then(async () => {
@@ -624,9 +698,39 @@ export class BackgroundExecSessionManager {
       .catch((error) => {
         logger.warn(`[BackgroundExec] Failed to write output file (${mode}):`, error)
         if (mode === 'append' && data.length > 0) {
+          session.offloadDisabled = true
           session.outputBuffer += data
         }
       })
+  }
+
+  private async waitForSessionDrain(session: BackgroundSession): Promise<void> {
+    if (session.status === 'running') {
+      return
+    }
+
+    await session.closePromise
+  }
+
+  private async finalizeSession(
+    session: BackgroundSession,
+    code: number | null,
+    signal: NodeJS.Signals | null
+  ): Promise<void> {
+    try {
+      await session.outputWriteQueue.catch((error) => {
+        logger.warn('[BackgroundExec] Failed while draining output queue:', error)
+      })
+    } finally {
+      if (!session.closeSettled) {
+        session.closeSettled = true
+        session.resolveClose()
+      }
+    }
+
+    logger.info(
+      `[BackgroundExec] Session ${session.sessionId} closed with code ${code}, signal ${signal}`
+    )
   }
 
   private resolveUtf8ByteRange(

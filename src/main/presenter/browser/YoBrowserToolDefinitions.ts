@@ -69,7 +69,7 @@ export function getYoBrowserToolDefinitions(): MCPToolDefinition[] {
     ),
     toDefinition(
       'yo_browser_window_open',
-      'Open a new browser window with an optional URL',
+      'Open the embedded browser in the current chat window side panel and optionally navigate to a URL',
       yoBrowserSchemas.window_open
     ),
     toDefinition(

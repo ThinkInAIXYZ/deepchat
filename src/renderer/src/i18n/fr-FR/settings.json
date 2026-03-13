@@ -63,6 +63,18 @@
       "title": "Modèle par défaut",
       "chatModel": "Modèle de chat par défaut",
       "visionModel": "Modèle vision par défaut"
+    },
+    "autoCompaction": {
+      "title": "Compression automatique",
+      "enabled": "Activer la compression automatique",
+      "description": "Lorsqu’une conversation approche de la limite de fenêtre de contexte du modèle, DeepChat peut compresser automatiquement l’historique plus ancien afin que la session continue. Si cette option est désactivée, l’historique excédentaire est supprimé directement au lieu d’être résumé.",
+      "thresholdLabel": "Seuil de déclenchement",
+      "thresholdMin": "Tôt ({value}%)",
+      "thresholdMax": "Tard ({value}%)",
+      "thresholdDescription": "Lancer la compression quand l’utilisation du prompt atteint cette part du budget d’historique effectif. Des valeurs plus basses laissent plus de marge ; des valeurs plus élevées conservent davantage de contexte brut.",
+      "retainPairsLabel": "Conserver les paires de messages récentes",
+      "retainPairsValue": "{count} paire(s)",
+      "retainPairsDescription": "Conserver hors compression les dernières paires complètes utilisateur/assistant. La requête actuelle n’est pas incluse."
     }
   },
   "notificationsHooks": {
@@ -1139,7 +1151,24 @@
       "placeholder": "Éditez le contenu de la compétence ici...",
       "readFailed": "Lecture échouée",
       "success": "Enregistré avec succès",
-      "title": "Modifier compétence"
+      "title": "Modifier compétence",
+      "runtimeTitle": "Runtime",
+      "runtimeHint": "Select how bundled scripts resolve Python and Node runtimes.",
+      "pythonRuntime": "Python Runtime",
+      "nodeRuntime": "Node Runtime",
+      "envTitle": "Environment Variables",
+      "envWarning": "Masked in the UI only. Values are stored as plain text in the skill sidecar file.",
+      "scriptsTitle": "Bundled Scripts",
+      "scriptsHint": "Only scripts under scripts/ can be run via skill_run.",
+      "noScripts": "No runnable scripts detected",
+      "scriptEnabled": "Enabled",
+      "scriptDescription": "Description Override",
+      "scriptDescriptionPlaceholder": "Optional description shown to the agent",
+      "runtime": {
+        "auto": "Auto fallback",
+        "system": "System runtime",
+        "builtin": "Built-in runtime"
+      }
     },
     "empty": "Aucune compétence pour le moment",
     "emptyHint": "Cliquez sur le bouton « Ajouter une compétence » pour installer une nouvelle compétence",
@@ -1256,6 +1285,12 @@
       "title": "Outils externes",
       "noToolsFound": "Aucun outil externe détecté"
     },
-    "title": "Gestion des compétences"
+    "title": "Gestion des compétences",
+    "card": {
+      "scripts": "{count} scripts",
+      "env": "{count} env",
+      "pythonShort": "Py",
+      "nodeShort": "Node"
+    }
   }
 }

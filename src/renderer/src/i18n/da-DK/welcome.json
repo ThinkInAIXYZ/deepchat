@@ -33,5 +33,21 @@
     "getStarted": "Kom i gang",
     "next": "Næste",
     "back": "Tilbage"
+  },
+  "page": {
+    "title": "Velkommen til DeepChat Agent",
+    "description": "Tilslut en modeludbyder for at komme i gang",
+    "browseProviders": "Gennemse alle udbydere...",
+    "connectAgent": "eller tilslut en agent",
+    "acpTitle": "Sæt en ACP-agent op",
+    "acpDescription": "Claude Code, Codex, Kimi eller din egen",
+    "providers": {
+      "claude": "Claude",
+      "openai": "OpenAI",
+      "deepseek": "DeepSeek",
+      "gemini": "Gemini",
+      "ollama": "Ollama",
+      "openrouter": "OpenRouter"
+    }
   }
 }
