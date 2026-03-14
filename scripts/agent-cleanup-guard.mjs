@@ -35,7 +35,6 @@ const RENDERER_PROTECTED_DIRS = [
 ]
 
 const ALLOWED_BASELINE = new Set([
-  'src/main/presenter/deepchatAgentPresenter/toolOutputGuard.ts|../sessionPresenter/sessionPaths',
   'src/renderer/src/pages/ChatPage.vue|@shared/chat',
   'src/renderer/src/pages/NewThreadPage.vue|@shared/chat',
   'src/renderer/src/stores/ui/message.ts|@shared/chat',

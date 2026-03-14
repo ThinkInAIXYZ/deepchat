@@ -3,8 +3,8 @@ import path from 'path'
 import { approximateTokenSize } from 'tokenx'
 import type { MCPToolDefinition } from '@shared/presenter'
 import type { ChatMessage } from '@shared/types/core/chat-message'
+import { resolveToolOffloadPath } from '@/lib/agentRuntime/sessionPaths'
 import { estimateMessagesTokens } from './contextBuilder'
-import { resolveToolOffloadPath } from '../sessionPresenter/sessionPaths'
 
 const TOOL_OUTPUT_OFFLOAD_THRESHOLD = 5000
 const TOOL_OUTPUT_PREVIEW_LENGTH = 1024
