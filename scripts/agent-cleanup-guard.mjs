@@ -35,7 +35,6 @@ const RENDERER_PROTECTED_DIRS = [
 ]
 
 const ALLOWED_BASELINE = new Set([
-  'src/main/presenter/deepchatAgentPresenter/index.ts|../agentPresenter/message/systemEnvPromptBuilder',
   'src/main/presenter/deepchatAgentPresenter/toolOutputGuard.ts|../sessionPresenter/sessionPaths',
   'src/renderer/src/pages/ChatPage.vue|@shared/chat',
   'src/renderer/src/pages/NewThreadPage.vue|@shared/chat',
@@ -127,9 +126,20 @@ async function collectFiles(entryPath) {
 }
 
 function classifyViolation(filePath, specifier) {
-  if (isProtectedPath(filePath, MAIN_PROTECTED_DIRS) && specifier.startsWith('.')) {
-    const resolved = path.resolve(path.dirname(filePath), specifier)
-    if (LEGACY_MAIN_DIRS.some((legacyDir) => isUnder(resolved, legacyDir))) {
+  if (isProtectedPath(filePath, MAIN_PROTECTED_DIRS)) {
+    if (specifier.startsWith('.')) {
+      const resolved = path.resolve(path.dirname(filePath), specifier)
+      if (LEGACY_MAIN_DIRS.some((legacyDir) => isUnder(resolved, legacyDir))) {
+        return 'legacy-main'
+      }
+    }
+
+    if (
+      specifier === '@/presenter/agentPresenter' ||
+      specifier.startsWith('@/presenter/agentPresenter/') ||
+      specifier === '@/presenter/sessionPresenter' ||
+      specifier.startsWith('@/presenter/sessionPresenter/')
+    ) {
       return 'legacy-main'
     }
   }

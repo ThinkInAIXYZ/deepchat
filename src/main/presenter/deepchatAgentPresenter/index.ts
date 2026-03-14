@@ -25,11 +25,11 @@ import { nanoid } from 'nanoid'
 import type { SQLitePresenter } from '../sqlitePresenter'
 import { eventBus, SendTarget } from '@/eventbus'
 import { SESSION_EVENTS, STREAM_EVENTS } from '@/events'
-import { presenter } from '@/presenter'
 import {
   buildRuntimeCapabilitiesPrompt,
   buildSystemEnvPrompt
-} from '../agentPresenter/message/systemEnvPromptBuilder'
+} from '@/lib/agentRuntime/systemEnvPromptBuilder'
+import { presenter } from '@/presenter'
 import { buildContext, buildResumeContext } from './contextBuilder'
 import { appendSummarySection, CompactionService, type CompactionIntent } from './compactionService'
 import { buildPersistableMessageTracePayload } from './messageTracePayload'

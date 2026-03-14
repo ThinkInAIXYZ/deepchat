@@ -49,7 +49,7 @@ vi.mock('@/presenter', () => ({
   }
 }))
 
-vi.mock('@/presenter/agentPresenter/message/systemEnvPromptBuilder', () => ({
+vi.mock('@/lib/agentRuntime/systemEnvPromptBuilder', () => ({
   buildRuntimeCapabilitiesPrompt: vi.fn(() => 'RUNTIME_CAPABILITIES'),
   buildSystemEnvPrompt: vi.fn(
     async (options?: { providerId?: string; modelId?: string; now?: Date }) => {
@@ -69,7 +69,7 @@ vi.mock('@/presenter/deepchatAgentPresenter/process', () => ({
 import { eventBus } from '@/eventbus'
 import { processStream } from '@/presenter/deepchatAgentPresenter/process'
 import { presenter } from '@/presenter'
-import { buildSystemEnvPrompt } from '@/presenter/agentPresenter/message/systemEnvPromptBuilder'
+import { buildSystemEnvPrompt } from '@/lib/agentRuntime/systemEnvPromptBuilder'
 
 function createMockSqlitePresenter() {
   const summaryState = {
@@ -184,6 +184,9 @@ function createMockConfigPresenter() {
     supportsVerbosityCapability: vi.fn().mockReturnValue(true),
     getVerbosityDefault: vi.fn().mockReturnValue('medium'),
     getSkillsEnabled: vi.fn().mockReturnValue(true),
+    getAutoCompactionEnabled: vi.fn().mockReturnValue(true),
+    getAutoCompactionTriggerThreshold: vi.fn().mockReturnValue(80),
+    getAutoCompactionRetainRecentPairs: vi.fn().mockReturnValue(2),
     getSetting: vi.fn().mockReturnValue(undefined)
   } as any
 }
