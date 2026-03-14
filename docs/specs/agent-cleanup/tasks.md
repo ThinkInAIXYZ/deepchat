@@ -53,7 +53,7 @@ all items should be addressed in one batch.
 ### Recommended Next PR Order
 
 - [ ] `0A` Inventory only, docs only
-- [ ] `0B` Add static guardrails only
+- [x] `0B` Add static guardrails only
 - [ ] `1A` Extract `questionTool` helper only
 - [ ] `1B` Extract system env prompt helper only
 - [ ] `1C` Extract session path helper and narrow `MCPToolDefinition` / `SearchResult` imports
@@ -62,8 +62,8 @@ all items should be addressed in one batch.
 ## Batch 0
 
 - [x] Add spec artifacts under `docs/specs/agent-cleanup/`
-- [ ] Add static dependency guard script
-- [ ] Wire guard script into `pnpm run lint`
+- [x] Add static dependency guard script
+- [x] Wire guard script into `pnpm run lint`
 
 ## Batch 1
 
