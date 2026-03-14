@@ -1,5 +1,5 @@
 import { ref, type Ref } from 'vue'
-import type { MessageFile } from '@shared/chat'
+import type { MessageFile } from '@shared/types/agent-interface'
 import { usePresenter } from '@/composables/usePresenter'
 import { useToast } from '@/components/use-toast'
 import { calculateImageTokens, getClipboardImageInfo, imageFileToBase64 } from '@/lib/image'

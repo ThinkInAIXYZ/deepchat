@@ -82,10 +82,10 @@ import { useMessageStore } from '@/stores/ui/message'
 import { useModelStore } from '@/stores/modelStore'
 import { usePresenter } from '@/composables/usePresenter'
 import type { Message } from '@shared/chat'
-import type { MessageFile } from '@shared/chat'
 import type {
   ChatMessageRecord,
   AssistantMessageBlock,
+  MessageFile,
   MessageMetadata,
   ToolInteractionResponse
 } from '@shared/types/agent-interface'

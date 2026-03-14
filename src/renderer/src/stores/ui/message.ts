@@ -2,8 +2,11 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { usePresenter } from '@/composables/usePresenter'
 import { STREAM_EVENTS } from '@/events'
-import type { ChatMessageRecord, AssistantMessageBlock } from '@shared/types/agent-interface'
-import type { MessageFile } from '@shared/chat'
+import type {
+  ChatMessageRecord,
+  AssistantMessageBlock,
+  MessageFile
+} from '@shared/types/agent-interface'
 import { useSessionStore } from './session'
 
 // --- Store ---

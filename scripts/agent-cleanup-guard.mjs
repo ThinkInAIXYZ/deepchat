@@ -36,14 +36,8 @@ const RENDERER_PROTECTED_DIRS = [
 
 const ALLOWED_BASELINE = new Set([
   'src/renderer/src/pages/ChatPage.vue|@shared/chat',
-  'src/renderer/src/pages/NewThreadPage.vue|@shared/chat',
-  'src/renderer/src/stores/ui/message.ts|@shared/chat',
-  'src/renderer/src/stores/ui/session.ts|@shared/chat',
-  'src/renderer/src/components/chat/ChatAttachmentItem.vue|@shared/chat',
-  'src/renderer/src/components/chat/ChatInputBox.vue|@shared/chat',
   'src/renderer/src/components/chat/MessageList.vue|@shared/chat',
   'src/renderer/src/components/chat/messageListItems.ts|@shared/chat',
-  'src/renderer/src/components/chat/composables/useChatInputFiles.ts|@shared/chat',
   'src/renderer/src/components/message/MessageBlockAction.vue|@shared/chat',
   'src/renderer/src/components/message/MessageBlockAudio.vue|@shared/chat',
   'src/renderer/src/components/message/MessageBlockContent.vue|@shared/chat',
