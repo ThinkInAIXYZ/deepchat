@@ -89,7 +89,10 @@
 </template>
 
 <script setup lang="ts">
-import { UserMessage, UserMessageMentionBlock } from '@shared/chat'
+import type {
+  DisplayUserMessage,
+  DisplayUserMessageMentionBlock
+} from '@/components/chat/messageListItems'
 import { Icon } from '@iconify/vue'
 import MessageInfo from './MessageInfo.vue'
 import ChatAttachmentItem from '../chat/ChatAttachmentItem.vue'
@@ -102,7 +105,7 @@ import { ref, watch, onMounted, nextTick, onBeforeUnmount } from 'vue'
 const windowPresenter = usePresenter('windowPresenter')
 
 const props = defineProps<{
-  message: UserMessage
+  message: DisplayUserMessage
 }>()
 
 const isEditMode = ref(false)
@@ -204,7 +207,7 @@ const handleAction = (action: 'delete' | 'copy') => {
   }
 }
 
-const handleMentionClick = async (_block: UserMessageMentionBlock) => {
+const handleMentionClick = async (_block: DisplayUserMessageMentionBlock) => {
   return
 }
 

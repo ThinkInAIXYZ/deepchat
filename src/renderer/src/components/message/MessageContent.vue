@@ -30,20 +30,23 @@
 import { computed } from 'vue'
 import { Icon } from '@iconify/vue'
 import type {
-  UserMessageTextBlock,
-  UserMessageMentionBlock,
-  UserMessageCodeBlock
-} from '@shared/chat'
+  DisplayUserMessageCodeBlock,
+  DisplayUserMessageMentionBlock,
+  DisplayUserMessageTextBlock
+} from '@/components/chat/messageListItems'
 import { useLanguageStore } from '@/stores/language'
 
-type ContentBlock = UserMessageTextBlock | UserMessageMentionBlock | UserMessageCodeBlock
+type ContentBlock =
+  | DisplayUserMessageTextBlock
+  | DisplayUserMessageMentionBlock
+  | DisplayUserMessageCodeBlock
 
 const props = defineProps<{
   content: ContentBlock[]
 }>()
 
 const emit = defineEmits<{
-  mentionClick: [block: UserMessageMentionBlock]
+  mentionClick: [block: DisplayUserMessageMentionBlock]
 }>()
 const langStore = useLanguageStore()
 // 计算属性：处理内容块
@@ -52,7 +55,7 @@ const contentBlocks = computed(() => {
 })
 
 // 处理 mention 点击事件
-const handleMentionClick = (block: UserMessageMentionBlock) => {
+const handleMentionClick = (block: DisplayUserMessageMentionBlock) => {
   emit('mentionClick', block)
 }
 
@@ -75,7 +78,7 @@ const getMentionIcon = (category: string) => {
   return iconMap[category] || iconMap.default
 }
 
-const getMentionLabel = (block: UserMessageMentionBlock) => {
+const getMentionLabel = (block: DisplayUserMessageMentionBlock) => {
   if (block.category === 'prompts') {
     return block.id || block.content
   }
@@ -85,7 +88,7 @@ const getMentionLabel = (block: UserMessageMentionBlock) => {
   return block.content
 }
 
-const getMentionTitle = (block: UserMessageMentionBlock) => {
+const getMentionTitle = (block: DisplayUserMessageMentionBlock) => {
   if (block.category === 'context') {
     return block.id || ''
   }
