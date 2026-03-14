@@ -71,7 +71,12 @@ import { useI18n } from 'vue-i18n'
 import { TooltipProvider } from '@shadcn/components/ui/tooltip'
 import ChatTopBar from '@/components/chat/ChatTopBar.vue'
 import MessageList from '@/components/chat/MessageList.vue'
-import { type DisplayMessage } from '@/components/chat/messageListItems'
+import type {
+  DisplayAssistantMessageBlock,
+  DisplayMessage,
+  DisplayMessageUsage,
+  DisplayUserMessageContent
+} from '@/components/chat/messageListItems'
 import ChatInputBox from '@/components/chat/ChatInputBox.vue'
 import ChatInputToolbar from '@/components/chat/ChatInputToolbar.vue'
 import ChatStatusBar from '@/components/chat/ChatStatusBar.vue'
@@ -81,7 +86,6 @@ import { useSessionStore } from '@/stores/ui/session'
 import { useMessageStore } from '@/stores/ui/message'
 import { useModelStore } from '@/stores/modelStore'
 import { usePresenter } from '@/composables/usePresenter'
-import type { Message } from '@shared/chat'
 import type {
   ChatMessageRecord,
   AssistantMessageBlock,
@@ -147,21 +151,39 @@ watch(
   { immediate: true }
 )
 
-// Map ChatMessageRecord → old Message format for MessageList
-function parseMessageContent(record: ChatMessageRecord): Message['content'] {
+function parseUserMessageContent(record: ChatMessageRecord): DisplayUserMessageContent {
   try {
-    return JSON.parse(record.content) as Message['content']
+    const parsed = JSON.parse(record.content) as DisplayUserMessageContent
+    if (parsed && typeof parsed === 'object') {
+      return {
+        text: parsed.text ?? '',
+        files: parsed.files ?? [],
+        links: parsed.links ?? [],
+        search: parsed.search ?? false,
+        think: parsed.think ?? false,
+        continue: parsed.continue,
+        resources: parsed.resources,
+        prompts: parsed.prompts,
+        content: parsed.content
+      }
+    }
+  } catch {}
+
+  return {
+    text: '',
+    files: [],
+    links: [],
+    search: false,
+    think: false
+  }
+}
+
+function parseAssistantMessageContent(record: ChatMessageRecord): DisplayAssistantMessageBlock[] {
+  try {
+    const parsed = JSON.parse(record.content) as DisplayAssistantMessageBlock[]
+    return Array.isArray(parsed) ? parsed : []
   } catch {
-    if (record.role === 'assistant') {
-      return []
-    }
-    return {
-      text: '',
-      files: [],
-      links: [],
-      search: false,
-      think: false
-    }
+    return []
   }
 }
 
@@ -182,7 +204,7 @@ function resolveAssistantModelName(modelId: string): string {
   return found?.model?.name || modelId
 }
 
-function buildUsage(metadata: MessageMetadata): Message['usage'] {
+function buildUsage(metadata: MessageMetadata): DisplayMessageUsage {
   return {
     context_usage: 0,
     tokens_per_second: metadata.tokensPerSecond ?? 0,
@@ -201,11 +223,8 @@ function toDisplayMessage(record: ChatMessageRecord): DisplayMessage {
   const modelId = metadata.model || sessionStore.activeSession?.modelId || ''
   const providerId = metadata.provider || sessionStore.activeSession?.providerId || ''
   const modelName = record.role === 'assistant' ? resolveAssistantModelName(modelId) : ''
-
-  return {
+  const baseMessage = {
     id: record.id,
-    content: parseMessageContent(record),
-    role: record.role,
     timestamp: record.createdAt,
     avatar: '',
     name: record.role === 'user' ? 'You' : 'Assistant',
@@ -221,6 +240,20 @@ function toDisplayMessage(record: ChatMessageRecord): DisplayMessage {
     messageType: metadata.messageType === 'compaction' ? 'compaction' : 'normal',
     compactionStatus: metadata.compactionStatus,
     summaryUpdatedAt: metadata.summaryUpdatedAt ?? null
+  } as const
+
+  if (record.role === 'assistant') {
+    return {
+      ...baseMessage,
+      role: 'assistant',
+      content: parseAssistantMessageContent(record)
+    }
+  }
+
+  return {
+    ...baseMessage,
+    role: 'user',
+    content: parseUserMessageContent(record)
   }
 }
 
@@ -232,7 +265,7 @@ function toStreamingMessage(
   const modelId = sessionStore.activeSession?.modelId ?? ''
   return {
     id: messageId ? `__streaming__:${messageId}` : '__streaming__',
-    content: blocks,
+    content: blocks as DisplayAssistantMessageBlock[],
     role: 'assistant',
     timestamp: Date.now(),
     avatar: '',
