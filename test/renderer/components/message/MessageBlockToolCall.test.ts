@@ -2,7 +2,7 @@ import { mount } from '@vue/test-utils'
 import { defineComponent } from 'vue'
 import { describe, it, expect, vi } from 'vitest'
 import MessageBlockToolCall from '@/components/message/MessageBlockToolCall.vue'
-import type { AssistantMessageBlock } from '@shared/chat'
+import type { DisplayAssistantMessageBlock } from '@/components/chat/messageListItems'
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
@@ -42,7 +42,9 @@ vi.mock('markstream-vue', () => ({
   })
 }))
 
-const createBlock = (overrides: Partial<AssistantMessageBlock> = {}): AssistantMessageBlock => ({
+const createBlock = (
+  overrides: Partial<DisplayAssistantMessageBlock> = {}
+): DisplayAssistantMessageBlock => ({
   type: 'tool_call',
   status: 'success',
   timestamp: Date.now(),

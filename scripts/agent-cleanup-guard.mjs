@@ -31,20 +31,12 @@ const RENDERER_PROTECTED_DIRS = [
   path.join(ROOT, 'src/renderer/src/pages/NewThreadPage.vue'),
   path.join(ROOT, 'src/renderer/src/stores/ui'),
   path.join(ROOT, 'src/renderer/src/components/chat'),
-  path.join(ROOT, 'src/renderer/src/components/message')
+  path.join(ROOT, 'src/renderer/src/components/message'),
+  path.join(ROOT, 'src/renderer/src/composables/useArtifacts.ts'),
+  path.join(ROOT, 'src/renderer/src/components/sidepanel/WorkspacePanel.vue')
 ]
 
 const ALLOWED_BASELINE = new Set([
-  'src/renderer/src/components/message/MessageBlockAction.vue|@shared/chat',
-  'src/renderer/src/components/message/MessageBlockAudio.vue|@shared/chat',
-  'src/renderer/src/components/message/MessageBlockContent.vue|@shared/chat',
-  'src/renderer/src/components/message/MessageBlockError.vue|@shared/chat',
-  'src/renderer/src/components/message/MessageBlockImage.vue|@shared/chat',
-  'src/renderer/src/components/message/MessageBlockMcpUi.vue|@shared/chat',
-  'src/renderer/src/components/message/MessageBlockPlan.vue|@shared/chat',
-  'src/renderer/src/components/message/MessageBlockQuestionRequest.vue|@shared/chat',
-  'src/renderer/src/components/message/MessageBlockThink.vue|@shared/chat',
-  'src/renderer/src/components/message/MessageBlockToolCall.vue|@shared/chat',
   'src/renderer/src/components/message/MessageMinimap.vue|@shared/chat'
 ])
 
@@ -149,7 +141,9 @@ async function findViolations() {
     ...(await collectFiles(path.join(ROOT, 'src/renderer/src/pages/NewThreadPage.vue'))),
     ...(await collectFiles(path.join(ROOT, 'src/renderer/src/stores/ui'))),
     ...(await collectFiles(path.join(ROOT, 'src/renderer/src/components/chat'))),
-    ...(await collectFiles(path.join(ROOT, 'src/renderer/src/components/message')))
+    ...(await collectFiles(path.join(ROOT, 'src/renderer/src/components/message'))),
+    ...(await collectFiles(path.join(ROOT, 'src/renderer/src/composables/useArtifacts.ts'))),
+    ...(await collectFiles(path.join(ROOT, 'src/renderer/src/components/sidepanel/WorkspacePanel.vue')))
   ]
 
   const violations = []

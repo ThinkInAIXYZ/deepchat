@@ -23,10 +23,10 @@
 import { computed } from 'vue'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
-import { AssistantMessageBlock } from '@shared/chat'
+import type { DisplayAssistantMessageBlock } from '@/components/chat/messageListItems'
 
 const props = defineProps<{
-  block: AssistantMessageBlock
+  block: DisplayAssistantMessageBlock
 }>()
 
 const { t } = useI18n()

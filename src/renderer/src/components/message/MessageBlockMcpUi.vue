@@ -52,11 +52,11 @@ import { Icon } from '@iconify/vue'
 import { Badge } from '@shadcn/components/ui/badge'
 import { useI18n } from 'vue-i18n'
 import type { UIActionResult } from '@mcp-ui/client'
-import { AssistantMessageBlock } from '@shared/chat'
 import { usePresenter } from '@/composables/usePresenter'
+import type { DisplayAssistantMessageBlock } from '@/components/chat/messageListItems'
 
 const props = defineProps<{
-  block: AssistantMessageBlock
+  block: DisplayAssistantMessageBlock
   messageId?: string
   threadId?: string
 }>()

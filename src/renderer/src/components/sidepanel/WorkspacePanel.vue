@@ -140,8 +140,8 @@ import type {
   WorkspaceGitFileChange,
   WorkspaceGitState
 } from '@shared/presenter'
-import type { AssistantMessageBlock } from '@shared/chat'
 import type { ChatMessageRecord } from '@shared/types/agent-interface'
+import type { DisplayAssistantMessageBlock } from '@/components/chat/messageListItems'
 
 const props = defineProps<{
   sessionId: string
@@ -177,7 +177,9 @@ const sessionState = computed(() => sidepanelStore.getSessionState(props.session
 
 const parseAssistantBlocks = (record: ChatMessageRecord) => {
   try {
-    return JSON.parse(record.content) as Array<Pick<AssistantMessageBlock, 'content' | 'status'>>
+    return JSON.parse(record.content) as Array<
+      Pick<DisplayAssistantMessageBlock, 'content' | 'status'>
+    >
   } catch {
     return []
   }

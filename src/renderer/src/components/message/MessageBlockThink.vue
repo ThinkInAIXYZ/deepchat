@@ -13,10 +13,10 @@ import { useI18n } from 'vue-i18n'
 import { ThinkContent } from '@/components/think-content'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { usePresenter } from '@/composables/usePresenter'
-import { AssistantMessageBlock } from '@shared/chat'
+import type { DisplayAssistantMessageBlock } from '@/components/chat/messageListItems'
 import { useThrottleFn } from '@vueuse/core'
 const props = defineProps<{
-  block: AssistantMessageBlock
+  block: DisplayAssistantMessageBlock
   usage: {
     reasoning_start_time: number
     reasoning_end_time: number

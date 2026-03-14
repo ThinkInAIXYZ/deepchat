@@ -34,11 +34,11 @@
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { computed, ref } from 'vue'
-import { AssistantMessageBlock } from '@shared/chat'
+import type { DisplayAssistantMessageBlock } from '@/components/chat/messageListItems'
 const { t } = useI18n()
 
 const props = defineProps<{
-  block: AssistantMessageBlock
+  block: DisplayAssistantMessageBlock
 }>()
 
 const isExpanded = ref(false)
