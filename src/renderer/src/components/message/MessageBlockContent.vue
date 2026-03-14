@@ -26,7 +26,7 @@
 import { ref, nextTick, watch, onMounted } from 'vue'
 
 import { usePresenter } from '@/composables/usePresenter'
-import { SearchResult } from '@shared/presenter'
+import type { SearchResult } from '@shared/types/core/search'
 
 const newAgentPresenter = usePresenter('newAgentPresenter')
 const searchResults = ref<SearchResult[]>([])
@@ -37,7 +37,8 @@ import ToolCallPreview from '../artifacts/ToolCallPreview.vue'
 import { useBlockContent } from '@/composables/useArtifacts'
 import { useArtifactStore } from '@/stores/artifact'
 import MarkdownRenderer from '@/components/markdown/MarkdownRenderer.vue'
-import { AssistantMessageBlock } from '@shared/chat'
+import type { AssistantMessageBlock } from '@shared/chat'
+
 const artifactStore = useArtifactStore()
 const props = defineProps<{
   block: AssistantMessageBlock

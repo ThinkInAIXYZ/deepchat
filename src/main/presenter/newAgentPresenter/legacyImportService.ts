@@ -8,7 +8,7 @@ import type {
   LegacyImportStatus,
   UserMessageContent
 } from '@shared/types/agent-interface'
-import type { SearchResult } from '@shared/presenter'
+import type { SearchResult } from '@shared/types/core/search'
 
 type LegacyRow = Record<string, unknown>
 

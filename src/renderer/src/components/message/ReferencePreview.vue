@@ -36,7 +36,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { Icon } from '@iconify/vue'
-import { SearchResult } from '@shared/presenter'
+import type { SearchResult } from '@shared/types/core/search'
 
 const props = defineProps<{
   show: boolean

@@ -7,7 +7,7 @@ import type {
   AssistantMessageBlock,
   MessageMetadata
 } from '@shared/types/agent-interface'
-import type { SearchResult } from '@shared/presenter'
+import type { SearchResult } from '@shared/types/core/search'
 import type { DeepChatMessageRow } from '../sqlitePresenter/tables/deepchatMessages'
 
 export class DeepChatMessageStore {
