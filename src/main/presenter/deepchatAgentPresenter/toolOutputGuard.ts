@@ -1,8 +1,8 @@
 import fs from 'fs/promises'
 import path from 'path'
 import { approximateTokenSize } from 'tokenx'
-import type { MCPToolDefinition } from '@shared/presenter'
 import type { ChatMessage } from '@shared/types/core/chat-message'
+import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import { resolveToolOffloadPath } from '@/lib/agentRuntime/sessionPaths'
 import { estimateMessagesTokens } from './contextBuilder'
 
