@@ -163,7 +163,10 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import { AssistantMessage, AssistantMessageBlock } from '@shared/chat'
+import type {
+  DisplayAssistantMessage,
+  DisplayAssistantMessageBlock
+} from '@/components/chat/messageListItems'
 import MessageBlockContent from './MessageBlockContent.vue'
 import MessageBlockThink from './MessageBlockThink.vue'
 import MessageBlockToolCall from './MessageBlockToolCall.vue'
@@ -199,7 +202,7 @@ import {
 } from '@shadcn/components/ui/context-menu'
 import { useThemeStore } from '@/stores/theme'
 const props = defineProps<{
-  message: AssistantMessage
+  message: DisplayAssistantMessage
   isCapturingImage: boolean
   useLegacyActions?: boolean
   isInGeneratingThread?: boolean
@@ -212,7 +215,7 @@ const { t } = useI18n()
 
 const AUDIO_EXTENSIONS = ['.mp3', '.wav', '.m4a', '.aac', '.flac', '.ogg', '.opus', '.webm']
 
-const isAudioBlock = (block: AssistantMessageBlock): boolean => {
+const isAudioBlock = (block: DisplayAssistantMessageBlock): boolean => {
   if (block.type === 'audio') return true
   if (block.type !== 'image') return false
   const mimeType = block.image_data?.mimeType?.toLowerCase() || ''
@@ -277,12 +280,12 @@ const currentMessage = computed(() => {
 // 计算当前消息的所有变体（包括缓存中的，过滤掉主消息本身）
 const allVariants = computed(() => {
   const messageVariants = props.message.variants || []
-  const variantsById = new Map<string, AssistantMessage>()
+  const variantsById = new Map<string, DisplayAssistantMessage>()
 
   // 只添加真正的变体（is_variant !== 0），过滤掉主消息本身
   messageVariants.forEach((variant) => {
-    if (variant.is_variant !== 0) {
-      variantsById.set(variant.id, variant as AssistantMessage)
+    if (variant.role === 'assistant' && variant.is_variant !== 0) {
+      variantsById.set(variant.id, variant)
     }
   })
 
@@ -295,11 +298,11 @@ const totalVariants = computed(() => allVariants.value.length + 1)
 // 获取当前显示的内容
 const currentContent = computed(() => {
   if (currentVariantIndex.value === 0) {
-    return props.message.content as AssistantMessageBlock[]
+    return props.message.content as DisplayAssistantMessageBlock[]
   }
 
   const variant = allVariants.value[currentVariantIndex.value - 1]
-  return (variant?.content || props.message.content) as AssistantMessageBlock[]
+  return (variant?.content || props.message.content) as DisplayAssistantMessageBlock[]
 })
 
 // 监听 allVariants 长度变化，用于新变体生成时的自动切换和持久化

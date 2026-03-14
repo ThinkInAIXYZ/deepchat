@@ -45,7 +45,6 @@ const ALLOWED_BASELINE = new Set([
   'src/renderer/src/components/message/MessageBlockQuestionRequest.vue|@shared/chat',
   'src/renderer/src/components/message/MessageBlockThink.vue|@shared/chat',
   'src/renderer/src/components/message/MessageBlockToolCall.vue|@shared/chat',
-  'src/renderer/src/components/message/MessageItemAssistant.vue|@shared/chat',
   'src/renderer/src/components/message/MessageMinimap.vue|@shared/chat'
 ])
 
