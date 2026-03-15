@@ -25,8 +25,9 @@ As of March 15, 2026:
 - `llmProviderPresenter/providers/**` still has a small provider-layer global presenter surface,
   with MCP tool conversion and ACP registry lookup now detached; remaining usage is limited to
   adjacent `devicePresenter` / `oauthPresenter` access
-- `SkillPresenter` now reads session state through an injected port; only the old-session
-  `activeSkills` fallback semantics remain to be retired
+- `SkillPresenter` now reads session state through an injected new-session port; old-session
+  `activeSkills` fallback semantics have been retired, and imported `legacy-session-*` skills are
+  repaired back into `new_sessions.active_skills` on first access
 
 Target end-state:
 
@@ -86,7 +87,8 @@ Target end-state:
 - `Presenter` default legacy wiring
 - `main/index` direct legacy session cleanup call
 - `llmProviderPresenter/providers/**` provider-layer presenter globals
-- `SkillPresenter` old-session conversation fallback
+- `SkillPresenter` old-session conversation fallback has been retired; legacy `active_skills`
+  remains import-only data
 
 ### Import-Only Compatibility To Keep
 
@@ -100,7 +102,7 @@ Target end-state:
 - retirement/deletion of old `agentPresenter` / `sessionPresenter` folders
 - provider-layer global presenter access outside `agentPresenter/**`, including
   `llmProviderPresenter/providers/**`
-- old-session `SkillPresenter` fallback to legacy conversation settings
+- one-time imported legacy-session skill repair via `legacy_import_status` marker
 
 ## Safety Rules
 

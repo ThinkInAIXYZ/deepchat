@@ -90,7 +90,7 @@ items should be addressed in one batch.
 - [x] `D` Remove provider-layer `presenter.mcpPresenter` access from
   `llmProviderPresenter/providers/**`
 - [x] `E` Add explicit ownership seam for `SkillPresenter` session state access
-- [ ] `F` Remove `SkillPresenter` old-session fallback to legacy conversation settings
+- [x] `F` Remove `SkillPresenter` old-session fallback to legacy conversation settings
 
 ## Batch 0
 
@@ -183,4 +183,6 @@ items should be addressed in one batch.
 - [x] `SkillPresenter` no longer reads `presenter.updateLegacyConversationSettings()` directly
 - [x] `SkillPresenter` no longer reads `presenter.sqlitePresenter` directly
 - [x] ownership and semantic retirement are split: seam first, fallback removal later
-- [ ] old-session `activeSkills` still resolve through the injected legacy conversation path
+- [x] old-session `activeSkills` no longer resolve through legacy conversation settings
+- [x] imported `legacy-session-*` skills repair back into `new_sessions.active_skills` on first
+  access

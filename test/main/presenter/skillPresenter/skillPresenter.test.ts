@@ -7,13 +7,14 @@ const { newSessionActiveSkillsStore, skillSessionStatePort } = vi.hoisted(() => 
   newSessionActiveSkillsStore: new Map<string, string[]>(),
   skillSessionStatePort: {
     hasNewSession: vi.fn(),
-    getLegacyConversation: vi.fn(),
-    updateLegacyConversationSettings: vi.fn(),
     getPersistedNewSessionSkills: vi.fn((conversationId: string) => {
       return newSessionActiveSkillsStore.get(conversationId) ?? []
     }),
     setPersistedNewSessionSkills: vi.fn((conversationId: string, skills: string[]) => {
       newSessionActiveSkillsStore.set(conversationId, [...skills])
+    }),
+    repairImportedLegacySessionSkills: vi.fn(async (conversationId: string) => {
+      return newSessionActiveSkillsStore.get(conversationId) ?? []
     })
   }
 }))
@@ -159,8 +160,9 @@ describe('SkillPresenter', () => {
       content: '# Test content'
     })
     ;(skillSessionStatePort.hasNewSession as Mock).mockResolvedValue(false)
-    ;(skillSessionStatePort.getLegacyConversation as Mock).mockResolvedValue(null)
-    ;(skillSessionStatePort.updateLegacyConversationSettings as Mock).mockResolvedValue(undefined)
+    ;(skillSessionStatePort.repairImportedLegacySessionSkills as Mock).mockImplementation(
+      async (conversationId: string) => newSessionActiveSkillsStore.get(conversationId) ?? []
+    )
 
     skillPresenter = new SkillPresenter(mockConfigPresenter, skillSessionStatePort as any)
   })
@@ -877,10 +879,10 @@ describe('SkillPresenter', () => {
       const active = await skillPresenter.getActiveSkills('new-session-1')
 
       expect(active).toEqual([])
-      expect(skillSessionStatePort.getLegacyConversation).not.toHaveBeenCalled()
       expect(skillSessionStatePort.getPersistedNewSessionSkills).toHaveBeenCalledWith(
         'new-session-1'
       )
+      expect(skillSessionStatePort.repairImportedLegacySessionSkills).not.toHaveBeenCalled()
     })
 
     it('returns persisted active skills for new agent sessions', async () => {
@@ -898,7 +900,6 @@ describe('SkillPresenter', () => {
       const active = await skillPresenter.getActiveSkills('new-session-2')
 
       expect(active).toEqual(['skill-1'])
-      expect(skillSessionStatePort.updateLegacyConversationSettings).not.toHaveBeenCalled()
       expect(skillSessionStatePort.setPersistedNewSessionSkills).toHaveBeenCalledWith(
         'new-session-2',
         ['skill-1']
@@ -926,19 +927,14 @@ describe('SkillPresenter', () => {
       )
     })
 
-    it('should return active skills for a conversation', async () => {
-      ;(skillSessionStatePort.getLegacyConversation as Mock).mockResolvedValue({
-        settings: { activeSkills: ['skill-1', 'skill-2'] }
-      })
-      // Setup skills in metadata cache with proper matter mock
+    it('repairs imported legacy sessions when persisted skills are empty', async () => {
+      ;(skillSessionStatePort.hasNewSession as Mock).mockResolvedValue(true)
       ;(fs.readdirSync as Mock).mockReturnValue([
         { name: 'skill-1', isDirectory: () => true },
         { name: 'skill-2', isDirectory: () => true }
       ])
       ;(fs.existsSync as Mock).mockReturnValue(true)
       ;(fs.readFileSync as Mock).mockReturnValue('test')
-
-      // Matter mock returns name matching directory name
       let callIndex = 0
       ;(matter as unknown as Mock).mockImplementation(() => {
         callIndex++
@@ -947,28 +943,32 @@ describe('SkillPresenter', () => {
         }
         return { data: { name: 'skill-2', description: 'Test 2' }, content: '' }
       })
+      ;(skillSessionStatePort.repairImportedLegacySessionSkills as Mock).mockImplementation(
+        async (conversationId: string) => {
+          newSessionActiveSkillsStore.set(conversationId, ['skill-1', 'skill-2'])
+          return ['skill-1', 'skill-2']
+        }
+      )
 
       await skillPresenter.discoverSkills()
 
-      const active = await skillPresenter.getActiveSkills('conv-123')
+      const active = await skillPresenter.getActiveSkills('legacy-session-conv-123')
 
       expect(active).toEqual(['skill-1', 'skill-2'])
+      expect(skillSessionStatePort.repairImportedLegacySessionSkills).toHaveBeenCalledWith(
+        'legacy-session-conv-123'
+      )
     })
 
-    it('should return empty array if conversation has no active skills', async () => {
-      ;(skillSessionStatePort.getLegacyConversation as Mock).mockResolvedValue({
-        settings: {}
-      })
-
+    it('returns empty array for retired raw legacy conversations', async () => {
       const active = await skillPresenter.getActiveSkills('conv-123')
 
       expect(active).toEqual([])
+      expect(skillSessionStatePort.repairImportedLegacySessionSkills).not.toHaveBeenCalled()
     })
 
-    it('should filter out non-existent skills', async () => {
-      ;(skillSessionStatePort.getLegacyConversation as Mock).mockResolvedValue({
-        settings: { activeSkills: ['exists', 'removed'] }
-      })
+    it('filters invalid skills after imported legacy session repair', async () => {
+      ;(skillSessionStatePort.hasNewSession as Mock).mockResolvedValue(true)
       ;(fs.readdirSync as Mock).mockReturnValue([{ name: 'exists', isDirectory: () => true }])
       ;(fs.existsSync as Mock).mockReturnValue(true)
       ;(fs.readFileSync as Mock).mockReturnValue('test')
@@ -976,12 +976,21 @@ describe('SkillPresenter', () => {
         data: { name: 'exists', description: 'Test' },
         content: ''
       })
+      ;(skillSessionStatePort.repairImportedLegacySessionSkills as Mock).mockImplementation(
+        async (conversationId: string) => {
+          newSessionActiveSkillsStore.set(conversationId, ['exists', 'removed'])
+          return ['exists', 'removed']
+        }
+      )
       await skillPresenter.discoverSkills()
 
-      const active = await skillPresenter.getActiveSkills('conv-123')
+      const active = await skillPresenter.getActiveSkills('legacy-session-conv-456')
 
       expect(active).toEqual(['exists'])
-      expect(skillSessionStatePort.updateLegacyConversationSettings).toHaveBeenCalled()
+      expect(skillSessionStatePort.setPersistedNewSessionSkills).toHaveBeenCalledWith(
+        'legacy-session-conv-456',
+        ['exists']
+      )
     })
   })
 
@@ -1000,69 +1009,39 @@ describe('SkillPresenter', () => {
       await skillPresenter.discoverSkills()
     })
 
-    it('should set active skills for a conversation', async () => {
-      ;(skillSessionStatePort.getLegacyConversation as Mock).mockResolvedValue({
-        settings: { activeSkills: [] }
-      })
-      ;(skillSessionStatePort.updateLegacyConversationSettings as Mock).mockResolvedValue(undefined)
-
+    it('does not persist skill state for retired raw legacy conversations', async () => {
       await skillPresenter.setActiveSkills('conv-123', ['skill-1'])
 
-      expect(skillSessionStatePort.updateLegacyConversationSettings).toHaveBeenCalledWith(
-        'conv-123',
-        expect.objectContaining({ activeSkills: expect.any(Array) })
-      )
+      expect(skillSessionStatePort.setPersistedNewSessionSkills).not.toHaveBeenCalled()
     })
 
-    it('should emit activated event when skills are activated', async () => {
-      ;(skillSessionStatePort.getLegacyConversation as Mock).mockResolvedValue({
-        settings: { activeSkills: [] }
-      })
-
+    it('does not emit activated event for retired raw legacy conversations', async () => {
       await skillPresenter.setActiveSkills('conv-123', ['skill-1'])
 
-      expect(eventBus.sendToRenderer).toHaveBeenCalledWith(
+      expect(eventBus.sendToRenderer).not.toHaveBeenCalledWith(
         SKILL_EVENTS.ACTIVATED,
         'all',
-        expect.objectContaining({
-          conversationId: 'conv-123',
-          skills: expect.arrayContaining(['skill-1'])
-        })
+        expect.anything()
       )
     })
 
-    it('should emit deactivated event when skills are deactivated', async () => {
-      ;(skillSessionStatePort.getLegacyConversation as Mock).mockResolvedValue({
-        settings: { activeSkills: ['skill-1', 'skill-2'] }
-      })
-      ;(matter as unknown as Mock).mockImplementation(() => ({
-        data: { name: 'skill-2', description: 'Test' },
-        content: ''
-      }))
-
+    it('does not emit deactivated event for retired raw legacy conversations', async () => {
       await skillPresenter.setActiveSkills('conv-123', ['skill-2'])
 
-      expect(eventBus.sendToRenderer).toHaveBeenCalledWith(
+      expect(eventBus.sendToRenderer).not.toHaveBeenCalledWith(
         SKILL_EVENTS.DEACTIVATED,
         'all',
-        expect.objectContaining({
-          conversationId: 'conv-123',
-          skills: expect.arrayContaining(['skill-1'])
-        })
+        expect.anything()
       )
     })
 
     it('persists active skills for new-agent sessions', async () => {
       ;(skillSessionStatePort.hasNewSession as Mock).mockResolvedValue(true)
-      ;(skillSessionStatePort.getLegacyConversation as Mock).mockResolvedValue({
-        settings: { activeSkills: [] }
-      })
 
       await skillPresenter.setActiveSkills('new-session-3', ['skill-1'])
       const active = await skillPresenter.getActiveSkills('new-session-3')
 
       expect(active).toEqual(['skill-1'])
-      expect(skillSessionStatePort.updateLegacyConversationSettings).not.toHaveBeenCalled()
       expect(skillSessionStatePort.setPersistedNewSessionSkills).toHaveBeenCalledWith(
         'new-session-3',
         ['skill-1']
@@ -1151,22 +1130,22 @@ describe('SkillPresenter', () => {
       await skillPresenter.discoverSkills()
     })
 
-    it('should return union of allowed tools from active skills', async () => {
-      ;(skillSessionStatePort.getLegacyConversation as Mock).mockResolvedValue({
-        settings: { activeSkills: ['skill-with-tools'] }
-      })
+    it('returns union of allowed tools for repaired imported legacy sessions', async () => {
+      ;(skillSessionStatePort.hasNewSession as Mock).mockResolvedValue(true)
+      ;(skillSessionStatePort.repairImportedLegacySessionSkills as Mock).mockImplementation(
+        async (conversationId: string) => {
+          newSessionActiveSkillsStore.set(conversationId, ['skill-with-tools'])
+          return ['skill-with-tools']
+        }
+      )
 
-      const tools = await skillPresenter.getActiveSkillsAllowedTools('conv-123')
+      const tools = await skillPresenter.getActiveSkillsAllowedTools('legacy-session-conv-123')
 
       expect(tools).toContain('read')
       expect(tools).toContain('write')
     })
 
-    it('should return empty array when no active skills', async () => {
-      ;(skillSessionStatePort.getLegacyConversation as Mock).mockResolvedValue({
-        settings: { activeSkills: [] }
-      })
-
+    it('returns empty array for retired raw legacy conversations', async () => {
       const tools = await skillPresenter.getActiveSkillsAllowedTools('conv-123')
 
       expect(tools).toEqual([])

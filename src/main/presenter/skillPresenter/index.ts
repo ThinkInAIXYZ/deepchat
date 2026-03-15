@@ -4,7 +4,7 @@ import fs from 'fs'
 import { FSWatcher, watch } from 'chokidar'
 import matter from 'gray-matter'
 import { unzipSync } from 'fflate'
-import type { CONVERSATION, CONVERSATION_SETTINGS, IConfigPresenter } from '@shared/presenter'
+import type { IConfigPresenter } from '@shared/presenter'
 import {
   ISkillPresenter,
   SkillMetadata,
@@ -61,13 +61,9 @@ const DEFAULT_RUNTIME_POLICY: SkillRuntimePolicy = {
 
 export interface SkillSessionStatePort {
   hasNewSession(conversationId: string): Promise<boolean>
-  getLegacyConversation(conversationId: string): Promise<CONVERSATION | null>
-  updateLegacyConversationSettings(
-    conversationId: string,
-    settings: Partial<CONVERSATION_SETTINGS>
-  ): Promise<void>
   getPersistedNewSessionSkills(conversationId: string): string[]
   setPersistedNewSessionSkills(conversationId: string, skills: string[]): void
+  repairImportedLegacySessionSkills(conversationId: string): Promise<string[]>
 }
 
 function createDefaultSkillExtensionConfig(): SkillExtensionConfig {
@@ -151,6 +147,7 @@ export class SkillPresenter implements ISkillPresenter {
   private initialized: boolean = false
   // Prevent concurrent discovery calls (race condition protection)
   private discoveryPromise: Promise<SkillMetadata[]> | null = null
+  private legacySkillRetirementWarnings: Set<string> = new Set()
 
   constructor(
     private readonly configPresenter: IConfigPresenter,
@@ -997,12 +994,44 @@ export class SkillPresenter implements ISkillPresenter {
     }
   }
 
+  private isImportedLegacySessionId(conversationId: string): boolean {
+    return conversationId.startsWith('legacy-session-')
+  }
+
+  private async loadNewSessionSkills(conversationId: string): Promise<string[]> {
+    const persistedSkills = this.getPersistedNewSessionSkills(conversationId)
+    if (persistedSkills.length > 0 || !this.isImportedLegacySessionId(conversationId)) {
+      return persistedSkills
+    }
+
+    try {
+      return await this.sessionStatePort.repairImportedLegacySessionSkills(conversationId)
+    } catch (error) {
+      console.warn(
+        `[SkillPresenter] Failed to repair imported legacy session skills for ${conversationId}:`,
+        error
+      )
+      return persistedSkills
+    }
+  }
+
+  private warnLegacySkillRetired(conversationId: string): void {
+    if (this.legacySkillRetirementWarnings.has(conversationId)) {
+      return
+    }
+
+    this.legacySkillRetirementWarnings.add(conversationId)
+    logger.warn('[SkillPresenter] Ignoring skill state update for retired legacy conversation.', {
+      conversationId
+    })
+  }
+
   /**
    * Get active skills for a conversation
    */
   async getActiveSkills(conversationId: string): Promise<string[]> {
     if (await this.isNewAgentSession(conversationId)) {
-      const skills = this.getPersistedNewSessionSkills(conversationId)
+      const skills = await this.loadNewSessionSkills(conversationId)
       const validSkills = await this.validateSkillNames(skills)
       if (validSkills.length !== skills.length) {
         this.setPersistedNewSessionSkills(conversationId, validSkills)
@@ -1010,22 +1039,7 @@ export class SkillPresenter implements ISkillPresenter {
       return validSkills
     }
 
-    try {
-      const conversation = await this.sessionStatePort.getLegacyConversation(conversationId)
-      const activeSkills = conversation?.settings?.activeSkills || []
-      const validSkills = await this.validateSkillNames(activeSkills)
-
-      if (validSkills.length !== activeSkills.length) {
-        await this.sessionStatePort.updateLegacyConversationSettings(conversationId, {
-          activeSkills: validSkills
-        })
-      }
-
-      return validSkills
-    } catch (error) {
-      console.error(`[SkillPresenter] Error getting active skills for ${conversationId}:`, error)
-      return []
-    }
+    return []
   }
 
   /**
@@ -1034,20 +1048,18 @@ export class SkillPresenter implements ISkillPresenter {
   async setActiveSkills(conversationId: string, skills: string[]): Promise<void> {
     try {
       const isNewSession = await this.isNewAgentSession(conversationId)
-      const previousSkills = await this.getActiveSkills(conversationId)
-      const previousSet = new Set(previousSkills)
-
       // Validate skill names
       const validSkills = await this.validateSkillNames(skills)
+      if (!isNewSession) {
+        this.warnLegacySkillRetired(conversationId)
+        return
+      }
+
+      const previousSkills = await this.getActiveSkills(conversationId)
+      const previousSet = new Set(previousSkills)
       const validSet = new Set(validSkills)
 
-      if (isNewSession) {
-        this.setPersistedNewSessionSkills(conversationId, validSkills)
-      } else {
-        await this.sessionStatePort.updateLegacyConversationSettings(conversationId, {
-          activeSkills: validSkills
-        })
-      }
+      this.setPersistedNewSessionSkills(conversationId, validSkills)
 
       const activated = validSkills.filter((skill) => !previousSet.has(skill))
       const deactivated = previousSkills.filter((skill) => !validSet.has(skill))

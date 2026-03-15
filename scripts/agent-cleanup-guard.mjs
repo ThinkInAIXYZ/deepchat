@@ -227,6 +227,18 @@ async function findViolations() {
       })
     }
 
+    if (
+      isProtectedPath(filePath, [path.join(ROOT, 'src/main/presenter/skillPresenter')]) &&
+      (source.includes('getLegacyConversation') || source.includes('updateLegacyConversationSettings'))
+    ) {
+      violations.push({
+        kind: 'skill-legacy-fallback',
+        file,
+        specifier: 'legacy conversation skills',
+        key: `${file}|skill-legacy-fallback`
+      })
+    }
+
     if (isProtectedPath(filePath, LEGACY_AGENT_RUNTIME_PROTECTED_DIRS)) {
       for (const legacyGlobal of LEGACY_AGENT_RUNTIME_GLOBALS) {
         if (!source.includes(`presenter.${legacyGlobal}`)) {

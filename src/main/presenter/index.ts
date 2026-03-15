@@ -281,10 +281,6 @@ export class Presenter implements IPresenter {
           return false
         }
       },
-      getLegacyConversation: async (conversationId) =>
-        await this.getLegacyConversation(conversationId),
-      updateLegacyConversationSettings: async (conversationId, settings) =>
-        await this.updateLegacyConversationSettings(conversationId, settings),
       getPersistedNewSessionSkills: (conversationId) =>
         (
           this.sqlitePresenter as unknown as import('./sqlitePresenter').SQLitePresenter
@@ -292,7 +288,13 @@ export class Presenter implements IPresenter {
       setPersistedNewSessionSkills: (conversationId, skills) =>
         (
           this.sqlitePresenter as unknown as import('./sqlitePresenter').SQLitePresenter
-        ).newSessionsTable?.updateActiveSkills(conversationId, skills)
+        ).newSessionsTable?.updateActiveSkills(conversationId, skills),
+      repairImportedLegacySessionSkills: async (conversationId) => {
+        const newAgentPresenter = this.newAgentPresenter as INewAgentPresenter & {
+          repairImportedLegacySessionSkills?: (sessionId: string) => Promise<string[]>
+        }
+        return (await newAgentPresenter.repairImportedLegacySessionSkills?.(conversationId)) ?? []
+      }
     }
 
     // Initialize Skill presenter

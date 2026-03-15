@@ -247,12 +247,13 @@ Rollback:
 
 ### Batch F
 
-- Remove `SkillPresenter` old-session `activeSkills` fallback to legacy conversation settings once
-  the remaining legacy runtime paths no longer depend on it.
+- Retire `SkillPresenter` old-session `activeSkills` fallback to legacy conversation settings.
+- Preserve imported `legacy-session-*` skills by writing them on fresh import and repairing older
+  imported sessions on first access.
 - Target end-state: new runtime no longer writes skill state into old conversations; legacy tables
   remain import-only sources.
 
 Rollback:
 
-- Keep the ownership seam and route old-session skill reads/writes back through legacy
-  conversation settings.
+- Keep the ownership seam, disable lazy repair, and route old-session skill reads/writes back
+  through legacy conversation settings.

@@ -13,6 +13,7 @@ import type { SearchResult } from '@shared/types/core/search'
 type LegacyRow = Record<string, unknown>
 
 const IMPORT_KEY = 'legacy_chat_db_import_v1'
+const SKILL_REPAIR_KEY = 'legacy_chat_skill_repair_v1'
 
 const DEFAULT_USER_CONTENT: UserMessageContent = {
   text: '',
@@ -26,6 +27,7 @@ export class LegacyChatImportService {
   private readonly sqlitePresenter: SQLitePresenter
   private readonly sourceDbPath: string
   private runningPromise: Promise<LegacyImportStatus> | null = null
+  private skillRepairPromise: Promise<void> | null = null
 
   constructor(sqlitePresenter: SQLitePresenter, sourceDbPath?: string) {
     this.sqlitePresenter = sqlitePresenter
@@ -52,6 +54,21 @@ export class LegacyChatImportService {
 
   async retry(): Promise<LegacyImportStatus> {
     return this.start(true)
+  }
+
+  async repairImportedLegacySessionSkills(sessionId: string): Promise<string[]> {
+    const normalizedSessionId = sessionId?.trim()
+    if (!normalizedSessionId.startsWith('legacy-session-')) {
+      return this.sqlitePresenter.newSessionsTable.getActiveSkills(normalizedSessionId)
+    }
+
+    const currentSkills = this.sqlitePresenter.newSessionsTable.getActiveSkills(normalizedSessionId)
+    if (currentSkills.length > 0) {
+      return currentSkills
+    }
+
+    await this.ensureImportedLegacySkillRepair()
+    return this.sqlitePresenter.newSessionsTable.getActiveSkills(normalizedSessionId)
   }
 
   async importFromSourceDb(
@@ -347,6 +364,9 @@ export class LegacyChatImportService {
         const isPinned = this.pickNumber(conversation, ['is_pinned']) === 1
         const createdAt = this.pickNumber(conversation, ['created_at']) ?? Date.now()
         const updatedAt = this.pickNumber(conversation, ['updated_at']) ?? createdAt
+        const importedActiveSkills = this.parseStringArray(
+          this.pickString(conversation, ['active_skills']) ?? ''
+        )
 
         let projectDir = this.pickString(conversation, ['agent_workspace_path']) ?? null
         if (!projectDir && agentId !== 'deepchat') {
@@ -366,6 +386,7 @@ export class LegacyChatImportService {
           this.sqlitePresenter.newSessionsTable.create(sessionId, agentId, title, projectDir, {
             isPinned,
             isDraft: false,
+            activeSkills: importedActiveSkills,
             createdAt,
             updatedAt
           })
@@ -740,5 +761,132 @@ export class LegacyChatImportService {
       }
     }
     return null
+  }
+
+  private parseStringArray(raw: string): string[] {
+    if (!raw.trim()) {
+      return []
+    }
+
+    try {
+      const parsed = JSON.parse(raw) as unknown
+      return Array.isArray(parsed)
+        ? parsed.filter((item): item is string => typeof item === 'string')
+        : []
+    } catch {
+      return []
+    }
+  }
+
+  private async ensureImportedLegacySkillRepair(): Promise<void> {
+    const status = this.sqlitePresenter.legacyImportStatusTable.get(SKILL_REPAIR_KEY)
+    if (status?.status === 'completed') {
+      return
+    }
+
+    if (this.skillRepairPromise) {
+      await this.skillRepairPromise
+      return
+    }
+
+    this.skillRepairPromise = (async () => {
+      const startedAt = status?.started_at ?? Date.now()
+      this.sqlitePresenter.legacyImportStatusTable.upsert(SKILL_REPAIR_KEY, {
+        status: 'running',
+        sourceDbPath: this.sourceDbPath,
+        startedAt,
+        finishedAt: null,
+        importedSessions: status?.imported_sessions ?? 0,
+        importedMessages: 0,
+        importedSearchResults: 0,
+        error: null,
+        updatedAt: Date.now()
+      })
+
+      try {
+        const repairedSessions = await this.backfillImportedLegacySessionSkills()
+        const finishedAt = Date.now()
+        this.sqlitePresenter.legacyImportStatusTable.upsert(SKILL_REPAIR_KEY, {
+          status: 'completed',
+          sourceDbPath: this.sourceDbPath,
+          startedAt,
+          finishedAt,
+          importedSessions: repairedSessions,
+          importedMessages: 0,
+          importedSearchResults: 0,
+          error: null,
+          updatedAt: finishedAt
+        })
+      } catch (error) {
+        const finishedAt = Date.now()
+        this.sqlitePresenter.legacyImportStatusTable.upsert(SKILL_REPAIR_KEY, {
+          status: 'failed',
+          sourceDbPath: this.sourceDbPath,
+          startedAt,
+          finishedAt,
+          importedSessions: status?.imported_sessions ?? 0,
+          importedMessages: 0,
+          importedSearchResults: 0,
+          error: error instanceof Error ? error.message : String(error),
+          updatedAt: finishedAt
+        })
+        throw error
+      }
+    })().finally(() => {
+      this.skillRepairPromise = null
+    })
+
+    await this.skillRepairPromise
+  }
+
+  private async backfillImportedLegacySessionSkills(): Promise<number> {
+    try {
+      const total = await this.sqlitePresenter.getConversationCount()
+      if (total <= 0) {
+        return 0
+      }
+
+      const pageSize = 200
+      const totalPages = Math.ceil(total / pageSize)
+      let repairedSessions = 0
+
+      for (let page = 1; page <= totalPages; page += 1) {
+        const { list } = await this.sqlitePresenter.getConversationList(page, pageSize)
+        await this.sqlitePresenter.runTransaction(() => {
+          for (const conversation of list) {
+            const legacySkills = Array.isArray(conversation.settings?.activeSkills)
+              ? conversation.settings.activeSkills.filter(
+                  (item): item is string => typeof item === 'string'
+                )
+              : []
+            if (legacySkills.length === 0) {
+              continue
+            }
+
+            const sessionId = this.toLegacySessionId(conversation.id)
+            const sessionRow = this.sqlitePresenter.newSessionsTable.get(sessionId)
+            if (!sessionRow) {
+              continue
+            }
+
+            const currentSkills = this.sqlitePresenter.newSessionsTable.getActiveSkills(sessionId)
+            if (currentSkills.length > 0) {
+              continue
+            }
+
+            this.sqlitePresenter.newSessionsTable.updateActiveSkills(sessionId, legacySkills)
+            repairedSessions += 1
+          }
+        })
+      }
+
+      return repairedSessions
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      if (message.includes('no such table')) {
+        return 0
+      }
+      throw error
+    }
   }
 }

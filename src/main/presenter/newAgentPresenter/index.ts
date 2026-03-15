@@ -452,6 +452,10 @@ export class NewAgentPresenter {
     this.legacyImportService.startInBackground(false)
   }
 
+  async repairImportedLegacySessionSkills(sessionId: string): Promise<string[]> {
+    return await this.legacyImportService.repairImportedLegacySessionSkills(sessionId)
+  }
+
   async listMessageTraces(messageId: string): Promise<MessageTraceRecord[]> {
     if (!messageId?.trim()) return []
     return this.sqlitePresenter.deepchatMessageTracesTable
