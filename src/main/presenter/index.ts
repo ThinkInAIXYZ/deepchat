@@ -137,7 +137,11 @@ export class Presenter implements IPresenter {
     // 初始化各个 Presenter 实例及其依赖
     this.windowPresenter = new WindowPresenter(this.configPresenter)
     this.tabPresenter = new TabPresenter(this.windowPresenter)
-    this.llmproviderPresenter = new LLMProviderPresenter(this.configPresenter, this.sqlitePresenter)
+    this.llmproviderPresenter = new LLMProviderPresenter(
+      this.configPresenter,
+      this.sqlitePresenter,
+      () => this.sessionManager
+    )
     const commandPermissionHandler = new CommandPermissionService()
     this.commandPermissionService = commandPermissionHandler
     this.filePermissionService = new FilePermissionService()

@@ -55,7 +55,7 @@ export class StreamGenerationHandler extends BaseHandler {
     try {
       state.isCancelled = false
       // Normal flow: skip lock acquisition (lock is only for permission resume)
-      await presenter.sessionManager.startLoop(conversationId, state.message.id, {
+      await this.sessionRuntime.startLoop(conversationId, state.message.id, {
         skipLockAcquisition: true
       })
 
@@ -65,11 +65,10 @@ export class StreamGenerationHandler extends BaseHandler {
         selectedVariantsMap
       )
 
-      const { chatMode, agentWorkspacePath } =
-        await presenter.sessionManager.resolveWorkspaceContext(
-          conversationId,
-          conversation.settings.modelId
-        )
+      const { chatMode, agentWorkspacePath } = await this.sessionRuntime.resolveWorkspaceContext(
+        conversationId,
+        conversation.settings.modelId
+      )
       if (chatMode === 'agent' && agentWorkspacePath) {
         conversation.settings.agentWorkspacePath = agentWorkspacePath
       }
@@ -159,7 +158,7 @@ export class StreamGenerationHandler extends BaseHandler {
     try {
       state.isCancelled = false
       // Normal flow: skip lock acquisition (lock is only for permission resume)
-      await presenter.sessionManager.startLoop(conversationId, state.message.id, {
+      await this.sessionRuntime.startLoop(conversationId, state.message.id, {
         skipLockAcquisition: true
       })
 

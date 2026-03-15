@@ -4,11 +4,10 @@ import type { ILlmProviderPresenter, IMCPPresenter, IToolPresenter } from '@shar
 import { PermissionHandler } from '@/presenter/agentPresenter/permission/permissionHandler'
 import { CommandPermissionService } from '@/presenter/permission'
 import { presenter } from '@/presenter'
-import type { ThreadHandlerContext } from '@/presenter/searchPresenter/handlers/baseHandler'
+import type { ThreadHandlerContext } from '@/presenter/agentPresenter/types/handlerContext'
 import type { StreamGenerationHandler } from '@/presenter/agentPresenter/streaming/streamGenerationHandler'
 import type { LLMEventHandler } from '@/presenter/agentPresenter/streaming/llmEventHandler'
 import type { MessageManager } from '@/presenter/sessionPresenter/managers/messageManager'
-import type { SearchManager } from '@/presenter/searchPresenter/managers/searchManager'
 import type { GeneratingMessageState } from '@/presenter/agentPresenter/streaming/types'
 
 const sessionState = vi.hoisted(() => ({
@@ -142,7 +141,7 @@ const createPermissionHandler = (options: {
     messageManager,
     llmProviderPresenter: options.llmProviderPresenter ?? ({} as ILlmProviderPresenter),
     configPresenter: {} as never,
-    searchManager: {} as SearchManager
+    sessionRuntime: presenter.sessionManager as never
   }
 
   const generatingMessages = new Map<string, GeneratingMessageState>()

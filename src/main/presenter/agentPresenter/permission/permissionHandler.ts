@@ -163,7 +163,7 @@ export class PermissionHandler extends BaseHandler {
 
       // Step 2: Remove this permission from pending list (only if we actually updated something)
       if (updatedCount > 0) {
-        presenter.sessionManager.removePendingPermission(conversationId, messageId, toolCallId)
+        this.sessionRuntime.removePendingPermission(conversationId, messageId, toolCallId)
         this.notifyFrontendPermissionUpdate(conversationId, messageId)
       } else {
         console.warn(
@@ -189,8 +189,8 @@ export class PermissionHandler extends BaseHandler {
             parsedPermissionRequest,
             granted
           )
-          presenter.sessionManager.clearPendingPermission(conversationId)
-          presenter.sessionManager.setStatus(conversationId, 'generating')
+          this.sessionRuntime.clearPendingPermission(conversationId)
+          this.sessionRuntime.setStatus(conversationId, 'generating')
           return
         }
       }
@@ -265,7 +265,7 @@ export class PermissionHandler extends BaseHandler {
       }
 
       // Step 6: All permissions resolved - try to acquire resume lock and execute
-      const lockAcquired = presenter.sessionManager.acquirePermissionResumeLock(
+      const lockAcquired = this.sessionRuntime.acquirePermissionResumeLock(
         conversationId,
         messageId
       )
@@ -285,7 +285,7 @@ export class PermissionHandler extends BaseHandler {
       try {
         const conversationId = await this.getConversationIdFromMessage(messageId)
         if (conversationId) {
-          presenter.sessionManager.releasePermissionResumeLock(conversationId)
+          this.sessionRuntime.releasePermissionResumeLock(conversationId)
         }
       } catch (lockError) {
         console.warn('[PermissionHandler] Failed to release lock during error handling:', lockError)
@@ -453,15 +453,15 @@ export class PermissionHandler extends BaseHandler {
 
     // CRITICAL SECTION: Lock must be held throughout this entire method
     // Early-exit checks: Validate session state before proceeding
-    const session = presenter.sessionManager.getSessionSync(conversationId)
+    const session = this.sessionRuntime.getSessionSync(conversationId)
     if (!session) {
       console.warn('[PermissionHandler] Session not found, skipping resume:', conversationId)
-      presenter.sessionManager.releasePermissionResumeLock(conversationId)
+      this.sessionRuntime.releasePermissionResumeLock(conversationId)
       return
     }
 
     // Verify the lock is still valid (same message)
-    const currentLock = presenter.sessionManager.getPermissionResumeLock(conversationId)
+    const currentLock = this.sessionRuntime.getPermissionResumeLock(conversationId)
     if (!currentLock || currentLock.messageId !== messageId) {
       console.warn(
         '[PermissionHandler] Lock mismatch or expired, skipping resume. Expected:',
@@ -471,38 +471,38 @@ export class PermissionHandler extends BaseHandler {
       )
       // CRITICAL: Always release lock if we don't proceed - it was acquired in handlePermissionResponse
       if (currentLock) {
-        presenter.sessionManager.releasePermissionResumeLock(conversationId)
+        this.sessionRuntime.releasePermissionResumeLock(conversationId)
       }
       return
     }
 
     // Ensure status is appropriate for tool execution
     // Transition from waiting_permission to generating since we're resuming
-    const currentStatus = presenter.sessionManager.getStatus(conversationId)
+    const currentStatus = this.sessionRuntime.getStatus(conversationId)
     if (currentStatus === 'waiting_permission') {
       console.log('[PermissionHandler] Transitioning session from waiting_permission to generating')
-      presenter.sessionManager.setStatus(conversationId, 'generating')
+      this.sessionRuntime.setStatus(conversationId, 'generating')
     } else if (
       currentStatus === 'idle' &&
-      presenter.sessionManager.hasPendingPermissions(conversationId, messageId)
+      this.sessionRuntime.hasPendingPermissions(conversationId, messageId)
     ) {
       console.warn(
         '[PermissionHandler] Session was idle during permission resume, forcing generating status'
       )
-      presenter.sessionManager.setStatus(conversationId, 'generating')
+      this.sessionRuntime.setStatus(conversationId, 'generating')
     } else if (currentStatus !== 'generating') {
       console.warn(
         '[PermissionHandler] Session status not suitable for resume. Status:',
         currentStatus
       )
-      presenter.sessionManager.releasePermissionResumeLock(conversationId)
+      this.sessionRuntime.releasePermissionResumeLock(conversationId)
       return
     }
 
     try {
       // Step 1: Start the agent loop with pending permissions preservation
       // skipLockAcquisition: PermissionHandler already holds the lock
-      await presenter.sessionManager.startLoop(conversationId, messageId, {
+      await this.sessionRuntime.startLoop(conversationId, messageId, {
         preservePendingPermissions: true,
         skipLockAcquisition: true
       })
@@ -525,7 +525,7 @@ export class PermissionHandler extends BaseHandler {
         )
         await this.resumeStreamCompletion(conversationId, messageId)
         // SINGLE EXIT POINT: Release lock
-        presenter.sessionManager.releasePermissionResumeLock(conversationId)
+        this.sessionRuntime.releasePermissionResumeLock(conversationId)
         return
       }
 
@@ -575,7 +575,7 @@ export class PermissionHandler extends BaseHandler {
           '[PermissionHandler] Tool(s) executed but more permissions pending, releasing lock and waiting'
         )
         // SINGLE EXIT POINT: Release lock
-        presenter.sessionManager.releasePermissionResumeLock(conversationId)
+        this.sessionRuntime.releasePermissionResumeLock(conversationId)
         this.notifyFrontendPermissionUpdate(conversationId, messageId)
         return
       }
@@ -583,7 +583,7 @@ export class PermissionHandler extends BaseHandler {
       // Step 8: All permissions resolved, continue with stream completion
       await this.continueAfterToolsExecuted(state, conversationId, messageId)
       // SINGLE EXIT POINT: Release lock after successful completion
-      presenter.sessionManager.releasePermissionResumeLock(conversationId)
+      this.sessionRuntime.releasePermissionResumeLock(conversationId)
     } catch (error) {
       console.error('[PermissionHandler] Failed to resume tool execution:', error)
       this.generatingMessages.delete(messageId)
@@ -598,7 +598,7 @@ export class PermissionHandler extends BaseHandler {
       }
 
       // SINGLE EXIT POINT: Ensure lock is released on error
-      presenter.sessionManager.releasePermissionResumeLock(conversationId)
+      this.sessionRuntime.releasePermissionResumeLock(conversationId)
       throw error
     }
   }
@@ -733,11 +733,10 @@ export class PermissionHandler extends BaseHandler {
 
       let toolDef: MCPToolDefinition | undefined
       try {
-        const { chatMode, agentWorkspacePath } =
-          await presenter.sessionManager.resolveWorkspaceContext(
-            conversationId,
-            conversation.settings.modelId
-          )
+        const { chatMode, agentWorkspacePath } = await this.sessionRuntime.resolveWorkspaceContext(
+          conversationId,
+          conversation.settings.modelId
+        )
         const toolDefinitions = await this.getToolPresenter().getAllToolDefinitions({
           enabledMcpTools: conversation.settings.enabledMcpTools,
           chatMode,
@@ -813,7 +812,7 @@ export class PermissionHandler extends BaseHandler {
       // Check if permission is required again
       if (toolRawData?.requiresPermission) {
         // Add this permission to pending list and set session status
-        presenter.sessionManager.addPendingPermission(conversationId, {
+        this.sessionRuntime.addPendingPermission(conversationId, {
           messageId: state.message.id,
           toolCallId: toolCall.id,
           permissionType:
@@ -824,7 +823,7 @@ export class PermissionHandler extends BaseHandler {
               | 'command') || 'read',
           payload: toolRawData.permissionRequest ?? {}
         })
-        presenter.sessionManager.setStatus(conversationId, 'waiting_permission')
+        this.sessionRuntime.setStatus(conversationId, 'waiting_permission')
 
         await this.llmEventHandler.handleLLMAgentResponse({
           eventId: state.message.id,
@@ -949,7 +948,7 @@ export class PermissionHandler extends BaseHandler {
 
       const conversationId = message.conversationId
       // Permission denied flow: skip lock acquisition (not part of permission resume critical section)
-      await presenter.sessionManager.startLoop(conversationId, messageId, {
+      await this.sessionRuntime.startLoop(conversationId, messageId, {
         preservePendingPermissions: true,
         skipLockAcquisition: true
       })
@@ -1215,8 +1214,7 @@ export class PermissionHandler extends BaseHandler {
    */
   private notifyFrontendPermissionUpdate(conversationId: string, messageId: string): void {
     try {
-      const pendingPermissions =
-        presenter.sessionManager.getPendingPermissions(conversationId) ?? []
+      const pendingPermissions = this.sessionRuntime.getPendingPermissions(conversationId) ?? []
       const nextPermission = pendingPermissions[0]
       console.log('[PermissionHandler] Notifying frontend of permission update:', {
         conversationId,

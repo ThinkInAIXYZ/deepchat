@@ -173,3 +173,16 @@ Rollback:
 Rollback:
 
 - Restore legacy wiring in startup/shutdown if regressions are found.
+
+## Legacy Agent Runtime Micro-Batches
+
+### Batch A
+
+- Introduce an internal session runtime port for legacy `agentPresenter` handlers.
+- Remove direct `presenter.sessionManager` reads from `PermissionHandler`,
+  `LLMEventHandler`, `StreamGenerationHandler`, `AgentLoopHandler`, and `AgentPresenter`.
+- Keep `toolPresenter` / `mcpPresenter` / `windowPresenter` globals out of scope for this slice.
+
+Rollback:
+
+- Restore handler access to `presenter.sessionManager` and remove the runtime-port seam.

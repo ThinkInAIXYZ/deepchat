@@ -1,12 +1,14 @@
 import type { IConfigPresenter, ILlmProviderPresenter, ISQLitePresenter } from '@shared/presenter'
 import type { CONVERSATION } from '@shared/presenter'
 import type { MessageManager } from '../../sessionPresenter/managers/messageManager'
+import type { AgentSessionRuntimePort } from '../session/sessionRuntimePort'
 
 export type ThreadHandlerContext = {
   sqlitePresenter: ISQLitePresenter
   messageManager: MessageManager
   llmProviderPresenter: ILlmProviderPresenter
   configPresenter: IConfigPresenter
+  sessionRuntime: AgentSessionRuntimePort
 }
 
 export class BaseHandler {
@@ -30,6 +32,10 @@ export class BaseHandler {
 
   protected get configPresenter(): IConfigPresenter {
     return this.ctx.configPresenter
+  }
+
+  protected get sessionRuntime(): AgentSessionRuntimePort {
+    return this.ctx.sessionRuntime
   }
 
   protected async getMessage(messageId: string) {

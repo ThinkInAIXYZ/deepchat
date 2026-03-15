@@ -32,6 +32,7 @@ import type { OllamaProvider } from './providers/ollamaProvider'
 import { ShowResponse } from 'ollama'
 import { AcpSessionPersistence } from '../agentPresenter/acp'
 import { AcpProvider } from './providers/acpProvider'
+import type { AgentSessionRuntimePort } from '../agentPresenter/session/sessionRuntimePort'
 
 export class LLMProviderPresenter implements ILlmProviderPresenter {
   private currentProviderId: string | null = null
@@ -48,7 +49,14 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
   private readonly modelScopeSyncManager: ModelScopeSyncManager
   private readonly acpSessionPersistence: AcpSessionPersistence
 
-  constructor(configPresenter: IConfigPresenter, sqlitePresenter: ISQLitePresenter) {
+  constructor(
+    configPresenter: IConfigPresenter,
+    sqlitePresenter: ISQLitePresenter,
+    getSessionRuntime?: () => Pick<
+      AgentSessionRuntimePort,
+      'getSession' | 'resolveWorkspaceContext'
+    >
+  ) {
     this.rateLimitManager = new RateLimitManager(configPresenter)
     this.acpSessionPersistence = new AcpSessionPersistence(sqlitePresenter)
     this.providerInstanceManager = new ProviderInstanceManager({
@@ -80,7 +88,24 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
       getProviderInstance: this.getProviderInstance.bind(this),
       activeStreams: this.activeStreams,
       canStartNewStream: this.canStartNewStream.bind(this),
-      rateLimitManager: this.rateLimitManager
+      rateLimitManager: this.rateLimitManager,
+      sessionRuntime: {
+        getSession: async (agentId) => {
+          if (!getSessionRuntime) {
+            throw new Error('Legacy session runtime is unavailable')
+          }
+          return await getSessionRuntime().getSession(agentId)
+        },
+        resolveWorkspaceContext: async (conversationId, modelId) => {
+          if (!getSessionRuntime) {
+            return {
+              chatMode: 'agent',
+              agentWorkspacePath: null
+            }
+          }
+          return await getSessionRuntime().resolveWorkspaceContext(conversationId, modelId)
+        }
+      } satisfies Pick<AgentSessionRuntimePort, 'getSession' | 'resolveWorkspaceContext'>
     })
 
     this.rateLimitManager.initializeProviderRateLimitConfigs()

@@ -18,6 +18,7 @@ As of March 15, 2026:
 - renderer active chat path is clean and guarded
 - renderer dead code has been archived under `archives/code/`
 - the next cleanup focus is the main compatibility layer
+- legacy `agentPresenter` runtime no longer reads `presenter.sessionManager` directly
 
 Target end-state:
 
@@ -87,6 +88,8 @@ Target end-state:
 
 - export-path type coupling in `newAgentPresenter`
 - retirement/deletion of old `agentPresenter` / `sessionPresenter` folders
+- global presenter access inside legacy runtime for `toolPresenter` / `mcpPresenter` /
+  `windowPresenter`
 
 ## Safety Rules
 

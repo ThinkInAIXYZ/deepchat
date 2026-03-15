@@ -32,6 +32,8 @@ const MAIN_COMPAT_PROTECTED_DIRS = [
   path.join(ROOT, 'src/main/presenter/syncPresenter/index.ts')
 ]
 
+const LEGACY_AGENT_RUNTIME_PROTECTED_DIRS = [path.join(ROOT, 'src/main/presenter/agentPresenter')]
+
 const RENDERER_PROTECTED_DIRS = [
   path.join(ROOT, 'src/renderer/src/pages/ChatPage.vue'),
   path.join(ROOT, 'src/renderer/src/pages/NewThreadPage.vue'),
@@ -143,6 +145,7 @@ async function findViolations() {
     ...(await collectFiles(path.join(ROOT, 'src/main/presenter/deepchatAgentPresenter'))),
     ...(await collectFiles(path.join(ROOT, 'src/main/presenter/skillPresenter'))),
     ...(await collectFiles(path.join(ROOT, 'src/main/presenter/mcpPresenter/toolManager.ts'))),
+    ...(await collectFiles(path.join(ROOT, 'src/main/presenter/agentPresenter'))),
     ...(await collectFiles(path.join(ROOT, 'src/renderer/src/pages/ChatPage.vue'))),
     ...(await collectFiles(path.join(ROOT, 'src/renderer/src/pages/NewThreadPage.vue'))),
     ...(await collectFiles(path.join(ROOT, 'src/renderer/src/stores/ui'))),
@@ -191,6 +194,18 @@ async function findViolations() {
         file,
         specifier: 'presenter.sessionPresenter',
         key: `${file}|legacy-session-access`
+      })
+    }
+
+    if (
+      isProtectedPath(filePath, LEGACY_AGENT_RUNTIME_PROTECTED_DIRS) &&
+      source.includes('presenter.sessionManager.')
+    ) {
+      violations.push({
+        kind: 'agent-global-session-manager',
+        file,
+        specifier: 'presenter.sessionManager',
+        key: `${file}|agent-global-session-manager`
       })
     }
   }

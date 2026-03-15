@@ -59,10 +59,16 @@ vi.mock('@/eventbus', () => ({
 // Mock presenter
 vi.mock('@/presenter', () => ({
   presenter: {
+    toolPresenter: {
+      getAllToolDefinitions: vi.fn().mockResolvedValue([]),
+      preCheckToolPermission: vi.fn().mockResolvedValue(null),
+      callTool: vi.fn().mockResolvedValue({ content: 'Mock tool response', rawData: {} })
+    },
     mcpPresenter: {
       getAllToolDefinitions: vi.fn().mockResolvedValue([]),
       callTool: vi.fn().mockResolvedValue({ content: 'Mock tool response', rawData: {} })
-    }
+    },
+    yoBrowserPresenter: {}
   }
 }))
 
@@ -76,6 +82,17 @@ vi.mock('@/presenter/proxyConfig', () => ({
 describe('LLMProviderPresenter Integration Tests', () => {
   let llmProviderPresenter: LLMProviderPresenter
   let mockConfigPresenter: ConfigPresenter
+  const mockSessionRuntime = {
+    getSession: vi.fn().mockResolvedValue({
+      resolved: {
+        modelId: 'mock-gpt-thinking'
+      }
+    }),
+    resolveWorkspaceContext: vi.fn().mockResolvedValue({
+      chatMode: 'agent',
+      agentWorkspacePath: null
+    })
+  }
   const mockSqlitePresenter: ISQLitePresenter = {
     getAcpSession: vi.fn().mockResolvedValue(null),
     upsertAcpSession: vi.fn().mockResolvedValue(undefined),
@@ -172,9 +189,22 @@ describe('LLMProviderPresenter Integration Tests', () => {
     mockConfigPresenter.getCustomModels = vi.fn().mockReturnValue([])
     mockConfigPresenter.getProviderModels = vi.fn().mockReturnValue([])
     mockConfigPresenter.getModelStatus = vi.fn().mockReturnValue(true)
+    mockSessionRuntime.getSession.mockResolvedValue({
+      resolved: {
+        modelId: 'mock-gpt-thinking'
+      }
+    })
+    mockSessionRuntime.resolveWorkspaceContext.mockResolvedValue({
+      chatMode: 'agent',
+      agentWorkspacePath: null
+    })
 
     // Create new instance for each test
-    llmProviderPresenter = new LLMProviderPresenter(mockConfigPresenter, mockSqlitePresenter)
+    llmProviderPresenter = new LLMProviderPresenter(
+      mockConfigPresenter,
+      mockSqlitePresenter,
+      () => mockSessionRuntime
+    )
   })
 
   afterEach(async () => {
@@ -609,7 +639,11 @@ describe('LLMProviderPresenter Integration Tests', () => {
         removeCustomModel: vi.fn()
       } as unknown as ConfigPresenter
 
-      const invalidLlmProvider = new LLMProviderPresenter(invalidMockConfig, mockSqlitePresenter)
+      const invalidLlmProvider = new LLMProviderPresenter(
+        invalidMockConfig,
+        mockSqlitePresenter,
+        () => mockSessionRuntime
+      )
 
       const result = await invalidLlmProvider.check('invalid-test')
       expect(result.isOk).toBe(false)

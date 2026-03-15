@@ -46,13 +46,15 @@ items should be addressed in one batch.
 
 - [ ] `src/main/presenter/skillPresenter/index.ts` -> old-session fallback through
   `presenter.sessionPresenter.getConversation/updateConversationSettings`
-- [ ] `src/main/presenter/skillPresenter/index.ts` -> new-session skills still need persistence in
+- [x] `src/main/presenter/skillPresenter/index.ts` -> new-session skills persisted in
   `new_sessions.active_skills`
-- [ ] `src/main/presenter/skillPresenter/skillExecutionService.ts` -> `../sessionPresenter/sessionPaths`, `../agentPresenter/acp/backgroundExecSessionManager`, `../agentPresenter/acp/shellEnvHelper`
-- [ ] `src/main/presenter/mcpPresenter/toolManager.ts` -> global `input_chatMode` and `presenter.sessionPresenter.getConversation`
-- [ ] `src/main/presenter/index.ts` -> still default-wires legacy `SessionPresenter` and
-  `AgentPresenter`
-- [ ] `src/main/index.ts` -> still directly clears legacy `sessionPresenter` permission cache
+- [x] `src/main/presenter/skillPresenter/skillExecutionService.ts` moved off legacy helper
+  ownership
+- [x] `src/main/presenter/mcpPresenter/toolManager.ts` no longer depends on global
+  `input_chatMode`
+- [x] `src/main/presenter/index.ts` and `src/main/index.ts` no longer force legacy runtime on the
+  new primary path
+- [x] `src/main/presenter/agentPresenter/**` no longer reads `presenter.sessionManager` directly
 
 ### Import-Only Compatibility To Keep
 
@@ -73,6 +75,7 @@ items should be addressed in one batch.
 - [ ] `M2` Extract skill runtime neutral helpers
 - [ ] `M3` Decouple MCP ACP gating from global chat mode / legacy session fallback
 - [ ] `M4` Reduce startup wiring to import-only boundaries
+- [x] `A` Remove `presenter.sessionManager` from legacy `agentPresenter` internals
 
 ## Batch 0
 
@@ -98,22 +101,29 @@ items should be addressed in one batch.
 
 ## Main Batch 0
 
-- [ ] Update docs to classify main residuals as active compatibility / import-only / retirement
-- [ ] Extend static guard to main compatibility modules
+- [x] Update docs to classify main residuals as active compatibility / import-only / retirement
+- [x] Extend static guard to main compatibility modules
 
 ## Main Batch 1
 
-- [ ] Add `active_skills` persistence to `new_sessions`
-- [ ] Make `SkillPresenter` persist new-session active skills
-- [ ] Keep old-session fallback unchanged
+- [x] Add `active_skills` persistence to `new_sessions`
+- [x] Make `SkillPresenter` persist new-session active skills
+- [x] Keep old-session fallback unchanged
 
 ## Main Batch 2
 
-- [ ] Move skill runtime helpers out of legacy presenter folders
+- [x] Move skill runtime helpers out of legacy presenter folders
 
 ## Main Batch 3
 
-- [ ] Remove new-session ACP runtime gating dependence on `input_chatMode`
+- [x] Remove new-session ACP runtime gating dependence on `input_chatMode`
+
+## Legacy Agent Runtime Batch
+
+- [x] Add internal `AgentSessionRuntimePort`
+- [x] Inject session runtime into legacy handlers
+- [x] Remove direct `presenter.sessionManager` access from `agentPresenter/**`
+- [x] Extend cleanup guard to block new `presenter.sessionManager` access in legacy runtime
 
 ## Batch 4
 

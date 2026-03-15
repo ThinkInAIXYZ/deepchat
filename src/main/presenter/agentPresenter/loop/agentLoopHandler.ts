@@ -8,6 +8,7 @@ import { RateLimitManager } from '@/presenter/llmProviderPresenter/managers/rate
 import { ToolCallProcessor } from './toolCallProcessor'
 import { ToolPresenter } from '../../toolPresenter'
 import { getAgentFilteredTools } from '../../mcpPresenter/agentMcpFilter'
+import type { AgentSessionRuntimePort } from '../session/sessionRuntimePort'
 
 interface AgentLoopHandlerOptions {
   configPresenter: IConfigPresenter
@@ -15,6 +16,7 @@ interface AgentLoopHandlerOptions {
   activeStreams: Map<string, StreamState>
   canStartNewStream: () => boolean
   rateLimitManager: RateLimitManager
+  sessionRuntime: Pick<AgentSessionRuntimePort, 'getSession' | 'resolveWorkspaceContext'>
 }
 
 export class AgentLoopHandler {
@@ -29,7 +31,7 @@ export class AgentLoopHandler {
         let modelId: string | undefined
         if (context.conversationId) {
           try {
-            const session = await presenter.sessionManager.getSession(context.conversationId)
+            const session = await this.options.sessionRuntime.getSession(context.conversationId)
             modelId = session?.resolved.modelId
           } catch {
             // Ignore errors, modelId will be undefined
@@ -100,7 +102,7 @@ export class AgentLoopHandler {
     conversationId?: string,
     modelId?: string
   ): Promise<{ chatMode: 'agent' | 'acp agent'; agentWorkspacePath: string | null }> {
-    return presenter.sessionManager.resolveWorkspaceContext(conversationId, modelId)
+    return this.options.sessionRuntime.resolveWorkspaceContext(conversationId, modelId)
   }
 
   private notifyWorkspaceFilesChanged(conversationId?: string): void {

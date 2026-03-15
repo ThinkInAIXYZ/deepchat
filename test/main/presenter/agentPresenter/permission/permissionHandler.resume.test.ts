@@ -2,9 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AssistantMessage, AssistantMessageBlock } from '@shared/chat'
 import type { ILlmProviderPresenter, IMCPPresenter, IToolPresenter } from '@shared/presenter'
 import { PermissionHandler } from '@/presenter/agentPresenter/permission/permissionHandler'
-import type { ThreadHandlerContext } from '@/presenter/searchPresenter/handlers/baseHandler'
+import type { ThreadHandlerContext } from '@/presenter/agentPresenter/types/handlerContext'
 import type { MessageManager } from '@/presenter/sessionPresenter/managers/messageManager'
-import type { SearchManager } from '@/presenter/searchPresenter/managers/searchManager'
 import type { StreamGenerationHandler } from '@/presenter/agentPresenter/streaming/streamGenerationHandler'
 import type { LLMEventHandler } from '@/presenter/agentPresenter/streaming/llmEventHandler'
 import type { GeneratingMessageState } from '@/presenter/agentPresenter/streaming/types'
@@ -114,7 +113,7 @@ describe('PermissionHandler resume behavior', () => {
       messageManager,
       llmProviderPresenter: {} as never,
       configPresenter: {} as never,
-      searchManager: {} as SearchManager
+      sessionRuntime: presenterMock.sessionManager as never
     }
 
     const generatingMessages = new Map<string, GeneratingMessageState>()
