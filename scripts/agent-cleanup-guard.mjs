@@ -41,7 +41,7 @@ const RENDERER_PROTECTED_DIRS = [
   path.join(ROOT, 'src/renderer/src/components/sidepanel/WorkspacePanel.vue')
 ]
 
-const ALLOWED_BASELINE = new Set(['src/main/presenter/mcpPresenter/toolManager.ts|global-chat-mode'])
+const ALLOWED_BASELINE = new Set()
 
 function toPosix(value) {
   return value.split(path.sep).join('/')
