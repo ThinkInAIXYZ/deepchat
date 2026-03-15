@@ -28,7 +28,8 @@ const MAIN_PROTECTED_DIRS = [
 
 const MAIN_COMPAT_PROTECTED_DIRS = [
   path.join(ROOT, 'src/main/presenter/skillPresenter'),
-  path.join(ROOT, 'src/main/presenter/mcpPresenter/toolManager.ts')
+  path.join(ROOT, 'src/main/presenter/mcpPresenter/toolManager.ts'),
+  path.join(ROOT, 'src/main/presenter/syncPresenter/index.ts')
 ]
 
 const RENDERER_PROTECTED_DIRS = [
@@ -178,6 +179,18 @@ async function findViolations() {
         file,
         specifier: 'input_chatMode',
         key: `${file}|global-chat-mode`
+      })
+    }
+
+    if (
+      isProtectedPath(filePath, MAIN_COMPAT_PROTECTED_DIRS) &&
+      source.includes('presenter.sessionPresenter.')
+    ) {
+      violations.push({
+        kind: 'legacy-session-access',
+        file,
+        specifier: 'presenter.sessionPresenter',
+        key: `${file}|legacy-session-access`
       })
     }
   }

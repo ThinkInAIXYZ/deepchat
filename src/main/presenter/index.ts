@@ -4,6 +4,8 @@ import { BrowserWindow, ipcMain, IpcMainInvokeEvent, app } from 'electron'
 import { WindowPresenter } from './windowPresenter'
 import { ShortcutPresenter } from './shortcutPresenter'
 import {
+  CONVERSATION,
+  CONVERSATION_SETTINGS,
   IConfigPresenter,
   IDeeplinkPresenter,
   IDevicePresenter,
@@ -59,6 +61,7 @@ import {
 } from './permission'
 import { AgentPresenter } from './agentPresenter'
 import { SessionManager } from './agentPresenter/session/sessionManager'
+import type { SessionContext } from './agentPresenter/session/sessionContext'
 
 import { ConversationExporterService } from './exporter'
 import { SkillPresenter } from './skillPresenter'
@@ -90,7 +93,6 @@ export class Presenter implements IPresenter {
   sqlitePresenter: ISQLitePresenter
   llmproviderPresenter: ILlmProviderPresenter
   configPresenter: IConfigPresenter
-  sessionPresenter: ISessionPresenter
 
   exporter: IConversationExporter
   devicePresenter: IDevicePresenter
@@ -120,6 +122,7 @@ export class Presenter implements IPresenter {
   filePermissionService: FilePermissionService
   settingsPermissionService: SettingsPermissionService
   private legacyMessageManager: MessageManager
+  private legacySessionPresenter?: SessionPresenter
   private legacyAgentPresenter?: IAgentPresenter & ISessionPresenter
   private legacySessionManager?: SessionManager
 
@@ -145,14 +148,6 @@ export class Presenter implements IPresenter {
     this.exporter = new ConversationExporterService({
       sqlitePresenter: this.sqlitePresenter,
       configPresenter: this.configPresenter
-    })
-    this.sessionPresenter = new SessionPresenter({
-      messageManager,
-      sqlitePresenter: this.sqlitePresenter,
-      llmProviderPresenter: this.llmproviderPresenter,
-      configPresenter: this.configPresenter,
-      exporter: this.exporter,
-      commandPermissionService: commandPermissionHandler
     })
     this.mcpPresenter = new McpPresenter(this.configPresenter)
     this.upgradePresenter = new UpgradePresenter(this.configPresenter)
@@ -232,8 +227,35 @@ export class Presenter implements IPresenter {
     return this.ensureLegacyAgentRuntime().agentPresenter
   }
 
+  get sessionPresenter(): ISessionPresenter {
+    return this.getLegacySessionPresenter()
+  }
+
   get sessionManager(): SessionManager {
     return this.ensureLegacyAgentRuntime().sessionManager
+  }
+
+  getActiveLegacyConversationIdSync(webContentsId: number): string | null {
+    return this.legacySessionPresenter?.getActiveConversationIdSync(webContentsId) ?? null
+  }
+
+  getLegacyRuntimeSessionSync(conversationId: string): SessionContext | null {
+    return this.legacySessionManager?.getSessionSync(conversationId) ?? null
+  }
+
+  async getLegacyConversation(conversationId: string): Promise<CONVERSATION | null> {
+    return await this.getLegacySessionPresenter().getConversation(conversationId)
+  }
+
+  async updateLegacyConversationSettings(
+    conversationId: string,
+    settings: Partial<CONVERSATION_SETTINGS>
+  ): Promise<void> {
+    await this.getLegacySessionPresenter().updateConversationSettings(conversationId, settings)
+  }
+
+  async broadcastLegacyThreadListUpdate(): Promise<void> {
+    await this.getLegacySessionPresenter().broadcastThreadListUpdate()
   }
 
   async cleanupLegacyConversationRuntime(conversationId: string): Promise<void> {
@@ -258,13 +280,13 @@ export class Presenter implements IPresenter {
     if (!this.legacySessionManager) {
       this.legacySessionManager = new SessionManager({
         configPresenter: this.configPresenter,
-        sessionPresenter: this.sessionPresenter
+        sessionPresenter: this.getLegacySessionPresenter()
       })
     }
 
     if (!this.legacyAgentPresenter) {
       this.legacyAgentPresenter = new AgentPresenter({
-        sessionPresenter: this.sessionPresenter,
+        sessionPresenter: this.getLegacySessionPresenter(),
         sessionManager: this.legacySessionManager,
         sqlitePresenter: this.sqlitePresenter,
         llmProviderPresenter: this.llmproviderPresenter,
@@ -278,6 +300,22 @@ export class Presenter implements IPresenter {
       agentPresenter: this.legacyAgentPresenter,
       sessionManager: this.legacySessionManager
     }
+  }
+
+  private getLegacySessionPresenter(): SessionPresenter {
+    if (!this.legacySessionPresenter) {
+      this.legacySessionPresenter = new SessionPresenter({
+        messageManager: this.legacyMessageManager,
+        sqlitePresenter: this.sqlitePresenter,
+        llmProviderPresenter: this.llmproviderPresenter,
+        configPresenter: this.configPresenter,
+        exporter: this.exporter,
+        commandPermissionService: this.commandPermissionService
+      })
+    }
+
+    this.legacySessionPresenter.initializeLegacyRuntime()
+    return this.legacySessionPresenter
   }
 
   public static getInstance(lifecycleManager: ILifecycleManager): Presenter {

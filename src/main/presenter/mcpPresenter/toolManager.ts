@@ -297,7 +297,7 @@ export class ToolManager {
     }
 
     try {
-      const conversation = await presenter.sessionPresenter.getConversation(sessionId)
+      const conversation = await presenter.getLegacyConversation(sessionId)
       return this.mapLegacyConversationToAcpContext(conversation)
     } catch (error) {
       console.warn('[ToolManager] Failed to resolve legacy session MCP context:', error)

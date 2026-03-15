@@ -126,7 +126,14 @@ vi.mock('../../../../src/main/presenter', () => ({
           newSessionActiveSkillsStore.set(conversationId, [...skills])
         })
       }
-    }
+    },
+    getLegacyConversation: vi.fn((conversationId: string) =>
+      presenter.sessionPresenter.getConversation(conversationId)
+    ),
+    updateLegacyConversationSettings: vi.fn(
+      (conversationId: string, settings: Record<string, unknown>) =>
+        presenter.sessionPresenter.updateConversationSettings(conversationId, settings)
+    )
   }
 }))
 

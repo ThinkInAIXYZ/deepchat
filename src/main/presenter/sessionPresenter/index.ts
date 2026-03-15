@@ -39,6 +39,7 @@ export class SessionPresenter implements ISessionPresenter {
   private exporter: IConversationExporter
   private commandPermissionService: CommandPermissionService
   private activeConversationBindings: Map<number, string> = new Map()
+  private legacyRuntimeInitialized = false
 
   constructor(options: {
     messageManager?: MessageManager
@@ -61,6 +62,15 @@ export class SessionPresenter implements ISessionPresenter {
       messageManager: this.messageManager,
       activeConversationBindings: this.activeConversationBindings
     })
+  }
+
+  initializeLegacyRuntime(): void {
+    if (this.legacyRuntimeInitialized) {
+      return
+    }
+
+    this.legacyRuntimeInitialized = true
+
     // Clean up conversation bindings when a bound renderer is closed.
     eventBus.on(TAB_EVENTS.CLOSED, (webContentsId: number) => {
       const activeConversationId = this.getActiveConversationIdSync(webContentsId)
@@ -91,7 +101,7 @@ export class SessionPresenter implements ISessionPresenter {
     })
 
     // 初始化时处理所有未完成的消息
-    this.messageManager.initializeUnfinishedMessages()
+    void this.messageManager.initializeUnfinishedMessages()
   }
 
   async createSession(params: CreateSessionParams): Promise<string> {
@@ -1032,8 +1042,8 @@ export class SessionPresenter implements ISessionPresenter {
           ? 'floating'
           : 'main'
     const sessionContext =
-      typeof presenter?.sessionManager?.getSessionSync === 'function'
-        ? presenter.sessionManager.getSessionSync(conversation.id)
+      typeof presenter?.getLegacyRuntimeSessionSync === 'function'
+        ? presenter.getLegacyRuntimeSessionSync(conversation.id)
         : null
     const settings = conversation.settings as unknown as Omit<
       Session['config'],

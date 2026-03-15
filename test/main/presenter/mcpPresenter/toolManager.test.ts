@@ -13,7 +13,10 @@ const presenterMocks = vi.hoisted(() => ({
   },
   sessionPresenter: {
     getConversation: vi.fn()
-  }
+  },
+  getLegacyConversation: vi.fn((conversationId: string) =>
+    presenterMocks.sessionPresenter.getConversation(conversationId)
+  )
 }))
 
 vi.mock('@/eventbus', () => ({

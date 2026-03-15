@@ -1000,12 +1000,12 @@ export class SkillPresenter implements ISkillPresenter {
     }
 
     try {
-      const conversation = await presenter.sessionPresenter.getConversation(conversationId)
+      const conversation = await presenter.getLegacyConversation(conversationId)
       const activeSkills = conversation?.settings?.activeSkills || []
       const validSkills = await this.validateSkillNames(activeSkills)
 
       if (validSkills.length !== activeSkills.length) {
-        await presenter.sessionPresenter.updateConversationSettings(conversationId, {
+        await presenter.updateLegacyConversationSettings(conversationId, {
           activeSkills: validSkills
         })
       }
@@ -1033,7 +1033,7 @@ export class SkillPresenter implements ISkillPresenter {
       if (isNewSession) {
         this.setPersistedNewSessionSkills(conversationId, validSkills)
       } else {
-        await presenter.sessionPresenter.updateConversationSettings(conversationId, {
+        await presenter.updateLegacyConversationSettings(conversationId, {
           activeSkills: validSkills
         })
       }
