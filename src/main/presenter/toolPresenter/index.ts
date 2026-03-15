@@ -6,7 +6,7 @@ import type {
   MCPToolResponse
 } from '@shared/presenter'
 import { resolveToolOffloadTemplatePath } from '../sessionPresenter/sessionPaths'
-import { QUESTION_TOOL_NAME } from '../agentPresenter/tools/questionTool'
+import { QUESTION_TOOL_NAME } from '@/lib/agentRuntime/questionTool'
 import { ToolMapper } from './toolMapper'
 import { AgentToolManager, type AgentToolCallResult } from '../agentPresenter/acp'
 import type { AgentToolRuntimePort } from '../agentPresenter/runtimePorts'

@@ -27,7 +27,10 @@ import {
   buildSkillsPrompt,
   getSkillsAllowedTools
 } from './skillsPromptBuilder'
-import { buildRuntimeCapabilitiesPrompt, buildSystemEnvPrompt } from './systemEnvPromptBuilder'
+import {
+  buildRuntimeCapabilitiesPrompt,
+  buildSystemEnvPrompt
+} from '@/lib/agentRuntime/systemEnvPromptBuilder'
 import type { AgentPromptRuntimePort } from '../runtimePorts'
 
 export type PendingToolCall = {

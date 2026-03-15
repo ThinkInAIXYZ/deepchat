@@ -36,6 +36,8 @@ items should be addressed in one batch.
 - [x] Active chat pages, stores, message list, and live block path no longer import
   `@shared/chat`
 - [x] Archived dead renderer code -> `src/renderer/src/components/message/MessageMinimap.vue` moved to `archives/code/dead-renderer-batch-1/`
+- [x] Archived renderer mock reference suite -> moved to `archives/code/dead-code-batch-2/`
+- [x] Archived dead main shims / orphan barrels -> moved to `archives/code/dead-code-batch-2/`
 
 ### Secondary Renderer Residuals
 

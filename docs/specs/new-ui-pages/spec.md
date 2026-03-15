@@ -4,13 +4,13 @@
 
 Three page components driven by the Page Router. No fallback to old ChatView — this is a full replacement.
 
-## Reference Files
+## Archived Reference Files
 
-| Page | Mock File |
+| Page | Archived Mock File |
 |------|-----------|
-| WelcomePage | `components/mock/MockWelcomePage.vue` |
-| NewThreadPage | `components/NewThreadMock.vue` |
-| ChatPage | `components/mock/MockChatPage.vue` |
+| WelcomePage | `archives/code/dead-code-batch-2/src/renderer/src/components/mock/MockWelcomePage.vue` |
+| NewThreadPage | `archives/code/dead-code-batch-2/src/renderer/src/components/NewThreadMock.vue` |
+| ChatPage | `archives/code/dead-code-batch-2/src/renderer/src/components/mock/MockChatPage.vue` |
 
 ## File Locations
 
@@ -84,7 +84,7 @@ onMounted(async () => {
 
 ## 2. WelcomePage
 
-**Mock reference**: `MockWelcomePage.vue` (copy layout and classes exactly)
+**Archived mock reference**: `dead-code-batch-2/.../MockWelcomePage.vue`
 
 **Layout**:
 ```
@@ -133,7 +133,7 @@ onMounted(async () => {
 
 ## 3. NewThreadPage
 
-**Mock reference**: `NewThreadMock.vue` (copy layout and classes exactly)
+**Archived mock reference**: `dead-code-batch-2/.../NewThreadMock.vue`
 
 **Layout**:
 ```
@@ -188,7 +188,7 @@ const handleSubmit = (message: string) => {
 
 ## 4. ChatPage
 
-**Mock reference**: `MockChatPage.vue` (copy layout and classes exactly)
+**Archived mock reference**: `dead-code-batch-2/.../MockChatPage.vue`
 
 **Props**:
 ```typescript

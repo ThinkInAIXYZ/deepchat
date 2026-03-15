@@ -11,7 +11,7 @@ import { AgentFileSystemHandler } from './agentFileSystemHandler'
 import { AgentBashHandler } from './agentBashHandler'
 import { SkillTools } from '../../skillPresenter/skillTools'
 import { SkillExecutionService } from '../../skillPresenter/skillExecutionService'
-import { questionToolSchema, QUESTION_TOOL_NAME } from '../tools/questionTool'
+import { questionToolSchema, QUESTION_TOOL_NAME } from '@/lib/agentRuntime/questionTool'
 import {
   ChatSettingsToolHandler,
   buildChatSettingsToolDefinitions,
