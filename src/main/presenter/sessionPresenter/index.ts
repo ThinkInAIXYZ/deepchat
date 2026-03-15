@@ -65,7 +65,7 @@ export class SessionPresenter implements ISessionPresenter {
     eventBus.on(TAB_EVENTS.CLOSED, (webContentsId: number) => {
       const activeConversationId = this.getActiveConversationIdSync(webContentsId)
       if (activeConversationId) {
-        void presenter.agentPresenter.cleanupConversation(activeConversationId)
+        void presenter.cleanupLegacyConversationRuntime(activeConversationId)
         this.commandPermissionService.clearConversation(activeConversationId)
         presenter.filePermissionService?.clearConversation(activeConversationId)
         presenter.settingsPermissionService?.clearConversation(activeConversationId)
@@ -574,7 +574,7 @@ export class SessionPresenter implements ISessionPresenter {
   }
 
   async deleteConversation(conversationId: string): Promise<void> {
-    await presenter.agentPresenter.cleanupConversation(conversationId)
+    await presenter.cleanupLegacyConversationRuntime(conversationId)
     this.commandPermissionService.clearConversation(conversationId)
     presenter.filePermissionService?.clearConversation(conversationId)
     presenter.settingsPermissionService?.clearConversation(conversationId)

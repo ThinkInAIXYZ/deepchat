@@ -127,7 +127,7 @@ export class TabPresenter implements ITabPresenter {
           }
           const conversationId = presenter.sessionPresenter.getActiveConversationIdSync(viewId)
           if (conversationId) {
-            void presenter.agentPresenter.cleanupConversation(conversationId)
+            void presenter.cleanupLegacyConversationRuntime(conversationId)
           }
         })
       }

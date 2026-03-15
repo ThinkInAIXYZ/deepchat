@@ -93,8 +93,6 @@ export class Presenter implements IPresenter {
   sessionPresenter: ISessionPresenter
 
   exporter: IConversationExporter
-  agentPresenter: IAgentPresenter & ISessionPresenter
-  sessionManager: SessionManager
   devicePresenter: IDevicePresenter
   upgradePresenter: IUpgradePresenter
   shortcutPresenter: IShortcutPresenter
@@ -121,6 +119,9 @@ export class Presenter implements IPresenter {
   commandPermissionService: CommandPermissionService
   filePermissionService: FilePermissionService
   settingsPermissionService: SettingsPermissionService
+  private legacyMessageManager: MessageManager
+  private legacyAgentPresenter?: IAgentPresenter & ISessionPresenter
+  private legacySessionManager?: SessionManager
 
   private constructor(lifecycleManager: ILifecycleManager) {
     // Store lifecycle manager reference for component access
@@ -139,6 +140,7 @@ export class Presenter implements IPresenter {
     this.filePermissionService = new FilePermissionService()
     this.settingsPermissionService = new SettingsPermissionService()
     const messageManager = new MessageManager(this.sqlitePresenter)
+    this.legacyMessageManager = messageManager
     this.devicePresenter = new DevicePresenter()
     this.exporter = new ConversationExporterService({
       sqlitePresenter: this.sqlitePresenter,
@@ -152,19 +154,6 @@ export class Presenter implements IPresenter {
       exporter: this.exporter,
       commandPermissionService: commandPermissionHandler
     })
-    this.sessionManager = new SessionManager({
-      configPresenter: this.configPresenter,
-      sessionPresenter: this.sessionPresenter
-    })
-    this.agentPresenter = new AgentPresenter({
-      sessionPresenter: this.sessionPresenter,
-      sessionManager: this.sessionManager,
-      sqlitePresenter: this.sqlitePresenter,
-      llmProviderPresenter: this.llmproviderPresenter,
-      configPresenter: this.configPresenter,
-      commandPermissionService: commandPermissionHandler,
-      messageManager
-    }) as unknown as IAgentPresenter & ISessionPresenter
     this.mcpPresenter = new McpPresenter(this.configPresenter)
     this.upgradePresenter = new UpgradePresenter(this.configPresenter)
     this.shortcutPresenter = new ShortcutPresenter(this.configPresenter)
@@ -237,6 +226,58 @@ export class Presenter implements IPresenter {
     })
 
     this.setupEventBus() // 设置事件总线监听
+  }
+
+  get agentPresenter(): IAgentPresenter & ISessionPresenter {
+    return this.ensureLegacyAgentRuntime().agentPresenter
+  }
+
+  get sessionManager(): SessionManager {
+    return this.ensureLegacyAgentRuntime().sessionManager
+  }
+
+  async cleanupLegacyConversationRuntime(conversationId: string): Promise<void> {
+    if (this.legacyAgentPresenter) {
+      await this.legacyAgentPresenter.cleanupConversation(conversationId)
+      return
+    }
+
+    this.legacySessionManager?.removeSession(conversationId)
+
+    try {
+      await this.llmproviderPresenter.clearAcpSession(conversationId)
+    } catch (error) {
+      console.warn('[Presenter] Failed to clear legacy ACP session:', error)
+    }
+  }
+
+  private ensureLegacyAgentRuntime(): {
+    agentPresenter: IAgentPresenter & ISessionPresenter
+    sessionManager: SessionManager
+  } {
+    if (!this.legacySessionManager) {
+      this.legacySessionManager = new SessionManager({
+        configPresenter: this.configPresenter,
+        sessionPresenter: this.sessionPresenter
+      })
+    }
+
+    if (!this.legacyAgentPresenter) {
+      this.legacyAgentPresenter = new AgentPresenter({
+        sessionPresenter: this.sessionPresenter,
+        sessionManager: this.legacySessionManager,
+        sqlitePresenter: this.sqlitePresenter,
+        llmProviderPresenter: this.llmproviderPresenter,
+        configPresenter: this.configPresenter,
+        commandPermissionService: this.commandPermissionService,
+        messageManager: this.legacyMessageManager
+      }) as unknown as IAgentPresenter & ISessionPresenter
+    }
+
+    return {
+      agentPresenter: this.legacyAgentPresenter,
+      sessionManager: this.legacySessionManager
+    }
   }
 
   public static getInstance(lifecycleManager: ILifecycleManager): Presenter {
