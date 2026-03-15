@@ -1,34 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AgentLoopHandler } from '@/presenter/agentPresenter/loop/agentLoopHandler'
 
-const presenterMock = vi.hoisted(() => ({
-  toolPresenter: {
-    getAllToolDefinitions: vi.fn().mockResolvedValue([
-      {
-        function: {
-          name: 'read'
-        },
-        server: {
-          name: 'agent-filesystem',
-          icons: '',
-          description: 'Filesystem'
-        }
-      }
-    ]),
-    preCheckToolPermission: vi.fn().mockResolvedValue(null),
-    callTool: vi.fn().mockResolvedValue({
-      content: 'ok',
-      rawData: {}
-    })
-  },
-  mcpPresenter: {},
-  yoBrowserPresenter: {}
-}))
-
-vi.mock('@/presenter', () => ({
-  presenter: presenterMock
-}))
-
 vi.mock('@/eventbus', () => ({
   eventBus: {
     sendToRenderer: vi.fn()
@@ -44,6 +16,25 @@ describe('AgentLoopHandler session runtime wiring', () => {
   })
 
   it('resolves model and workspace through injected session runtime in tool processing', async () => {
+    const toolPresenter = {
+      getAllToolDefinitions: vi.fn().mockResolvedValue([
+        {
+          function: {
+            name: 'read'
+          },
+          server: {
+            name: 'agent-filesystem',
+            icons: '',
+            description: 'Filesystem'
+          }
+        }
+      ]),
+      preCheckToolPermission: vi.fn().mockResolvedValue(null),
+      callTool: vi.fn().mockResolvedValue({
+        content: 'ok',
+        rawData: {}
+      })
+    }
     const sessionRuntime = {
       getSession: vi.fn().mockResolvedValue({
         resolved: {
@@ -61,7 +52,8 @@ describe('AgentLoopHandler session runtime wiring', () => {
       activeStreams: new Map(),
       canStartNewStream: vi.fn().mockReturnValue(true),
       rateLimitManager: {} as any,
-      sessionRuntime
+      sessionRuntime,
+      getToolPresenter: () => toolPresenter as any
     })
 
     const processor = (handler as any).toolCallProcessor.process({
@@ -92,6 +84,6 @@ describe('AgentLoopHandler session runtime wiring', () => {
       'conv-loop',
       'model-from-session'
     )
-    expect(presenterMock.toolPresenter.getAllToolDefinitions).toHaveBeenCalled()
+    expect(toolPresenter.getAllToolDefinitions).toHaveBeenCalled()
   })
 })

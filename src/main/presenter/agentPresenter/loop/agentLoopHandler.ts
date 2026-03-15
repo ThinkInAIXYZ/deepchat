@@ -1,12 +1,16 @@
-import { ChatMessage, IConfigPresenter, LLMAgentEvent, MCPToolCall } from '@shared/presenter'
-import { presenter } from '@/presenter'
+import {
+  ChatMessage,
+  IConfigPresenter,
+  IToolPresenter,
+  LLMAgentEvent,
+  MCPToolCall
+} from '@shared/presenter'
 import { eventBus, SendTarget } from '@/eventbus'
 import { WORKSPACE_EVENTS } from '@/events'
 import { BaseLLMProvider } from '@/presenter/llmProviderPresenter/baseProvider'
 import { StreamState } from './loopState'
 import { RateLimitManager } from '@/presenter/llmProviderPresenter/managers/rateLimitManager'
 import { ToolCallProcessor } from './toolCallProcessor'
-import { ToolPresenter } from '../../toolPresenter'
 import { getAgentFilteredTools } from '../../mcpPresenter/agentMcpFilter'
 import type { AgentSessionRuntimePort } from '../session/sessionRuntimePort'
 
@@ -17,11 +21,11 @@ interface AgentLoopHandlerOptions {
   canStartNewStream: () => boolean
   rateLimitManager: RateLimitManager
   sessionRuntime: Pick<AgentSessionRuntimePort, 'getSession' | 'resolveWorkspaceContext'>
+  getToolPresenter: () => IToolPresenter
 }
 
 export class AgentLoopHandler {
   private readonly toolCallProcessor: ToolCallProcessor
-  private toolPresenter: ToolPresenter | null = null
   private currentSupportsVision = false
 
   constructor(private readonly options: AgentLoopHandlerOptions) {
@@ -57,7 +61,11 @@ export class AgentLoopHandler {
         return await this.getToolPresenter().callTool(request)
       },
       preCheckToolPermission: async (request: MCPToolCall) => {
-        return await this.getToolPresenter().preCheckToolPermission(request)
+        const toolPresenter = this.getToolPresenter()
+        if (!toolPresenter.preCheckToolPermission) {
+          return null
+        }
+        return await toolPresenter.preCheckToolPermission(request)
       },
       onToolCallFinished: ({ toolServerName, conversationId }) => {
         if (toolServerName !== 'agent-filesystem') return
@@ -66,30 +74,12 @@ export class AgentLoopHandler {
     })
   }
 
-  /**
-   * Lazy initialization of ToolPresenter
-   * This is needed because ToolPresenter depends on mcpPresenter and yoBrowserPresenter
-   * which are created after LLMProviderPresenter in the Presenter initialization order
-   */
-  private getToolPresenter(): ToolPresenter {
-    if (!this.toolPresenter) {
-      if (presenter.toolPresenter) {
-        this.toolPresenter = presenter.toolPresenter as ToolPresenter
-        return this.toolPresenter
-      }
-      // Check if presenter is fully initialized
-      if (!presenter.mcpPresenter || !presenter.yoBrowserPresenter) {
-        throw new Error(
-          'ToolPresenter dependencies not initialized. mcpPresenter and yoBrowserPresenter must be initialized first.'
-        )
-      }
-      this.toolPresenter = new ToolPresenter({
-        mcpPresenter: presenter.mcpPresenter,
-        yoBrowserPresenter: presenter.yoBrowserPresenter,
-        configPresenter: this.options.configPresenter
-      })
+  private getToolPresenter(): IToolPresenter {
+    const toolPresenter = this.options.getToolPresenter()
+    if (!toolPresenter) {
+      throw new Error('ToolPresenter is unavailable')
     }
-    return this.toolPresenter
+    return toolPresenter
   }
 
   /**
@@ -127,10 +117,10 @@ export class AgentLoopHandler {
   }
 
   private async filterToolsForChatMode(
-    tools: Awaited<ReturnType<ToolPresenter['getAllToolDefinitions']>>,
+    tools: Awaited<ReturnType<IToolPresenter['getAllToolDefinitions']>>,
     chatMode: 'agent' | 'acp agent',
     agentId?: string
-  ): Promise<Awaited<ReturnType<ToolPresenter['getAllToolDefinitions']>>> {
+  ): Promise<Awaited<ReturnType<IToolPresenter['getAllToolDefinitions']>>> {
     if (chatMode !== 'acp agent') return tools
     if (!agentId) return []
 

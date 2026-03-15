@@ -186,3 +186,15 @@ Rollback:
 Rollback:
 
 - Restore handler access to `presenter.sessionManager` and remove the runtime-port seam.
+
+### Batch B
+
+- Inject `IToolPresenter` into legacy `agentPresenter` runtime instead of reading
+  `presenter.toolPresenter`.
+- Cover `PermissionHandler`, `StreamGenerationHandler`, `messageBuilder`, `AgentLoopHandler`,
+  `LLMProviderPresenter` wiring, and legacy `AgentPresenter` construction.
+- Keep `mcpPresenter` / `windowPresenter` globals out of scope for this slice.
+
+Rollback:
+
+- Restore legacy runtime tool access to `presenter.toolPresenter`.

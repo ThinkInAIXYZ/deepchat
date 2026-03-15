@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AssistantMessage, AssistantMessageBlock } from '@shared/chat'
-import type { ILlmProviderPresenter, IMCPPresenter, IToolPresenter } from '@shared/presenter'
+import type { ILlmProviderPresenter, IMCPPresenter } from '@shared/presenter'
 import { PermissionHandler } from '@/presenter/agentPresenter/permission/permissionHandler'
 import type { ThreadHandlerContext } from '@/presenter/agentPresenter/types/handlerContext'
 import type { MessageManager } from '@/presenter/sessionPresenter/managers/messageManager'
@@ -113,7 +113,12 @@ describe('PermissionHandler resume behavior', () => {
       messageManager,
       llmProviderPresenter: {} as never,
       configPresenter: {} as never,
-      sessionRuntime: presenterMock.sessionManager as never
+      sessionRuntime: presenterMock.sessionManager as never,
+      toolPresenter: {
+        getAllToolDefinitions: vi.fn(),
+        callTool: vi.fn(),
+        buildToolSystemPrompt: vi.fn()
+      } as never
     }
 
     const generatingMessages = new Map<string, GeneratingMessageState>()
@@ -132,12 +137,6 @@ describe('PermissionHandler resume behavior', () => {
       generatingMessages,
       llmProviderPresenter: {} as ILlmProviderPresenter,
       getMcpPresenter: () => ({ grantPermission: vi.fn() }) as unknown as IMCPPresenter,
-      getToolPresenter: () =>
-        ({
-          getAllToolDefinitions: vi.fn(),
-          callTool: vi.fn(),
-          buildToolSystemPrompt: vi.fn()
-        }) as unknown as IToolPresenter,
       streamGenerationHandler: {} as StreamGenerationHandler,
       llmEventHandler: {} as LLMEventHandler,
       commandPermissionHandler: new CommandPermissionService()

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AssistantMessage, AssistantMessageBlock } from '@shared/chat'
-import type { ILlmProviderPresenter, IMCPPresenter, IToolPresenter } from '@shared/presenter'
+import type { ILlmProviderPresenter, IMCPPresenter } from '@shared/presenter'
 import { PermissionHandler } from '@/presenter/agentPresenter/permission/permissionHandler'
 import { CommandPermissionService } from '@/presenter/permission'
 import { presenter } from '@/presenter'
@@ -141,7 +141,12 @@ const createPermissionHandler = (options: {
     messageManager,
     llmProviderPresenter: options.llmProviderPresenter ?? ({} as ILlmProviderPresenter),
     configPresenter: {} as never,
-    sessionRuntime: presenter.sessionManager as never
+    sessionRuntime: presenter.sessionManager as never,
+    toolPresenter: {
+      getAllToolDefinitions: vi.fn(),
+      callTool: vi.fn(),
+      buildToolSystemPrompt: vi.fn()
+    } as never
   }
 
   const generatingMessages = new Map<string, GeneratingMessageState>()
@@ -164,12 +169,6 @@ const createPermissionHandler = (options: {
         grantPermission: vi.fn(),
         isServerRunning: vi.fn().mockResolvedValue(true)
       }) as unknown as IMCPPresenter,
-    getToolPresenter: () =>
-      ({
-        getAllToolDefinitions: vi.fn(),
-        callTool: vi.fn(),
-        buildToolSystemPrompt: vi.fn()
-      }) as unknown as IToolPresenter,
     streamGenerationHandler: {} as StreamGenerationHandler,
     llmEventHandler: {} as LLMEventHandler,
     commandPermissionHandler: new CommandPermissionService()

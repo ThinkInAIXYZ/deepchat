@@ -208,6 +208,18 @@ async function findViolations() {
         key: `${file}|agent-global-session-manager`
       })
     }
+
+    if (
+      isProtectedPath(filePath, LEGACY_AGENT_RUNTIME_PROTECTED_DIRS) &&
+      source.includes('presenter.toolPresenter')
+    ) {
+      violations.push({
+        kind: 'agent-global-tool-presenter',
+        file,
+        specifier: 'presenter.toolPresenter',
+        key: `${file}|agent-global-tool-presenter`
+      })
+    }
   }
 
   violations.sort((left, right) => left.key.localeCompare(right.key))

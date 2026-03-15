@@ -55,6 +55,7 @@ items should be addressed in one batch.
 - [x] `src/main/presenter/index.ts` and `src/main/index.ts` no longer force legacy runtime on the
   new primary path
 - [x] `src/main/presenter/agentPresenter/**` no longer reads `presenter.sessionManager` directly
+- [x] `src/main/presenter/agentPresenter/**` no longer reads `presenter.toolPresenter` directly
 
 ### Import-Only Compatibility To Keep
 
@@ -124,6 +125,9 @@ items should be addressed in one batch.
 - [x] Inject session runtime into legacy handlers
 - [x] Remove direct `presenter.sessionManager` access from `agentPresenter/**`
 - [x] Extend cleanup guard to block new `presenter.sessionManager` access in legacy runtime
+- [x] Inject `IToolPresenter` into legacy runtime main path
+- [x] Remove direct `presenter.toolPresenter` access from `agentPresenter/**`
+- [x] Extend cleanup guard to block new `presenter.toolPresenter` access in legacy runtime
 
 ## Batch 4
 

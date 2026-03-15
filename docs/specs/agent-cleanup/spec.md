@@ -19,6 +19,7 @@ As of March 15, 2026:
 - renderer dead code has been archived under `archives/code/`
 - the next cleanup focus is the main compatibility layer
 - legacy `agentPresenter` runtime no longer reads `presenter.sessionManager` directly
+- legacy `agentPresenter` runtime no longer reads `presenter.toolPresenter` directly
 
 Target end-state:
 
@@ -88,8 +89,7 @@ Target end-state:
 
 - export-path type coupling in `newAgentPresenter`
 - retirement/deletion of old `agentPresenter` / `sessionPresenter` folders
-- global presenter access inside legacy runtime for `toolPresenter` / `mcpPresenter` /
-  `windowPresenter`
+- global presenter access inside legacy runtime for `mcpPresenter` / `windowPresenter`
 
 ## Safety Rules
 

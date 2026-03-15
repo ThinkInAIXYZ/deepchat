@@ -12,6 +12,7 @@ import {
   ModelScopeMcpSyncResult,
   IConfigPresenter,
   ISQLitePresenter,
+  IToolPresenter,
   AcpWorkdirInfo,
   AcpDebugRequest,
   AcpDebugRunResult
@@ -55,7 +56,8 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     getSessionRuntime?: () => Pick<
       AgentSessionRuntimePort,
       'getSession' | 'resolveWorkspaceContext'
-    >
+    >,
+    getToolPresenter?: () => IToolPresenter
   ) {
     this.rateLimitManager = new RateLimitManager(configPresenter)
     this.acpSessionPersistence = new AcpSessionPersistence(sqlitePresenter)
@@ -89,6 +91,12 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
       activeStreams: this.activeStreams,
       canStartNewStream: this.canStartNewStream.bind(this),
       rateLimitManager: this.rateLimitManager,
+      getToolPresenter: () => {
+        if (!getToolPresenter) {
+          throw new Error('ToolPresenter is unavailable')
+        }
+        return getToolPresenter()
+      },
       sessionRuntime: {
         getSession: async (agentId) => {
           if (!getSessionRuntime) {

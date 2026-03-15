@@ -56,20 +56,22 @@ vi.mock('@/eventbus', () => ({
   }
 }))
 
+const presenterRuntimeMock = vi.hoisted(() => ({
+  toolPresenter: {
+    getAllToolDefinitions: vi.fn().mockResolvedValue([]),
+    preCheckToolPermission: vi.fn().mockResolvedValue(null),
+    callTool: vi.fn().mockResolvedValue({ content: 'Mock tool response', rawData: {} })
+  },
+  mcpPresenter: {
+    getAllToolDefinitions: vi.fn().mockResolvedValue([]),
+    callTool: vi.fn().mockResolvedValue({ content: 'Mock tool response', rawData: {} })
+  },
+  yoBrowserPresenter: {}
+}))
+
 // Mock presenter
 vi.mock('@/presenter', () => ({
-  presenter: {
-    toolPresenter: {
-      getAllToolDefinitions: vi.fn().mockResolvedValue([]),
-      preCheckToolPermission: vi.fn().mockResolvedValue(null),
-      callTool: vi.fn().mockResolvedValue({ content: 'Mock tool response', rawData: {} })
-    },
-    mcpPresenter: {
-      getAllToolDefinitions: vi.fn().mockResolvedValue([]),
-      callTool: vi.fn().mockResolvedValue({ content: 'Mock tool response', rawData: {} })
-    },
-    yoBrowserPresenter: {}
-  }
+  presenter: presenterRuntimeMock
 }))
 
 // Mock proxy config
@@ -203,7 +205,8 @@ describe('LLMProviderPresenter Integration Tests', () => {
     llmProviderPresenter = new LLMProviderPresenter(
       mockConfigPresenter,
       mockSqlitePresenter,
-      () => mockSessionRuntime
+      () => mockSessionRuntime,
+      () => presenterRuntimeMock.toolPresenter as any
     )
   })
 
@@ -642,7 +645,8 @@ describe('LLMProviderPresenter Integration Tests', () => {
       const invalidLlmProvider = new LLMProviderPresenter(
         invalidMockConfig,
         mockSqlitePresenter,
-        () => mockSessionRuntime
+        () => mockSessionRuntime,
+        () => presenterRuntimeMock.toolPresenter as any
       )
 
       const result = await invalidLlmProvider.check('invalid-test')

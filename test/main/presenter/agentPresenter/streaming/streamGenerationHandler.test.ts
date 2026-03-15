@@ -87,7 +87,12 @@ describe('StreamGenerationHandler session runtime wiring', () => {
         }),
         getSetting: vi.fn().mockReturnValue(false)
       } as any,
-      sessionRuntime
+      sessionRuntime,
+      toolPresenter: {
+        getAllToolDefinitions: vi.fn().mockResolvedValue([]),
+        buildToolSystemPrompt: vi.fn().mockReturnValue(''),
+        callTool: vi.fn()
+      } as any
     }
     const llmEventHandler = {
       handleLLMAgentResponse: vi.fn().mockResolvedValue(undefined),

@@ -3,7 +3,6 @@ import type { AssistantMessage, AssistantMessageBlock } from '@shared/chat'
 import type {
   ILlmProviderPresenter,
   IMCPPresenter,
-  IToolPresenter,
   MCPToolDefinition,
   MCPToolResponse
 } from '@shared/presenter'
@@ -72,7 +71,6 @@ function canBatchUpdate(
 export class PermissionHandler extends BaseHandler {
   private readonly generatingMessages: Map<string, GeneratingMessageState>
   private readonly getMcpPresenter: () => IMCPPresenter
-  private readonly getToolPresenter: () => IToolPresenter
   private readonly streamGenerationHandler: StreamGenerationHandler
   private readonly llmEventHandler: LLMEventHandler
   private readonly commandPermissionHandler: CommandPermissionService
@@ -83,7 +81,6 @@ export class PermissionHandler extends BaseHandler {
       generatingMessages: Map<string, GeneratingMessageState>
       llmProviderPresenter: ILlmProviderPresenter
       getMcpPresenter: () => IMCPPresenter
-      getToolPresenter: () => IToolPresenter
       streamGenerationHandler: StreamGenerationHandler
       llmEventHandler: LLMEventHandler
       commandPermissionHandler: CommandPermissionService
@@ -92,7 +89,6 @@ export class PermissionHandler extends BaseHandler {
     super(context)
     this.generatingMessages = options.generatingMessages
     this.getMcpPresenter = options.getMcpPresenter
-    this.getToolPresenter = options.getToolPresenter
     this.streamGenerationHandler = options.streamGenerationHandler
     this.llmEventHandler = options.llmEventHandler
     this.commandPermissionHandler = options.commandPermissionHandler
@@ -102,7 +98,6 @@ export class PermissionHandler extends BaseHandler {
   private assertDependencies(): void {
     void this.generatingMessages
     void this.getMcpPresenter
-    void this.getToolPresenter
     void this.streamGenerationHandler
     void this.llmEventHandler
     void this.commandPermissionHandler
@@ -737,7 +732,7 @@ export class PermissionHandler extends BaseHandler {
           conversationId,
           conversation.settings.modelId
         )
-        const toolDefinitions = await this.getToolPresenter().getAllToolDefinitions({
+        const toolDefinitions = await this.toolPresenter.getAllToolDefinitions({
           enabledMcpTools: conversation.settings.enabledMcpTools,
           chatMode,
           supportsVision: false,
@@ -778,7 +773,7 @@ export class PermissionHandler extends BaseHandler {
       let toolContent = ''
       let toolRawData: MCPToolResponse | null = null
       try {
-        const toolCallResult = await this.getToolPresenter().callTool({
+        const toolCallResult = await this.toolPresenter.callTool({
           id: toolCall.id,
           type: 'function',
           function: {

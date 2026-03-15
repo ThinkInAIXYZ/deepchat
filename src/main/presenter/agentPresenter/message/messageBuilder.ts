@@ -2,7 +2,13 @@ import { approximateTokenSize } from 'tokenx'
 import { presenter } from '@/presenter'
 import { AssistantMessage, Message, MessageFile, UserMessageContent } from '@shared/chat'
 import { ModelType } from '@shared/model'
-import { CONVERSATION, ModelConfig, SearchResult, ChatMessage } from '@shared/presenter'
+import {
+  CONVERSATION,
+  IToolPresenter,
+  ModelConfig,
+  SearchResult,
+  ChatMessage
+} from '@shared/presenter'
 import type { MCPToolDefinition } from '@shared/presenter'
 
 import { modelCapabilities } from '../../configPresenter/modelCapabilities'
@@ -43,6 +49,7 @@ export interface PreparePromptContentParams {
   imageFiles: MessageFile[]
   supportsFunctionCall: boolean
   modelType?: ModelType
+  toolPresenter: IToolPresenter
 }
 
 export interface ContinueToolCallContextParams {
@@ -111,7 +118,8 @@ export async function preparePromptContent({
   vision,
   imageFiles,
   supportsFunctionCall,
-  modelType
+  modelType,
+  toolPresenter
 }: PreparePromptContentParams): Promise<{
   finalContent: ChatMessage[]
   promptTokens: number
@@ -137,7 +145,7 @@ export async function preparePromptContent({
 
   const { providerId, modelId } = conversation.settings
   const supportsVision = modelCapabilities.supportsVision(providerId, modelId)
-  const toolCallCenter = new ToolCallCenter(presenter.toolPresenter)
+  const toolCallCenter = new ToolCallCenter(toolPresenter)
   let toolDefinitions: MCPToolDefinition[] = []
   let effectiveEnabledMcpTools = enabledMcpTools
 

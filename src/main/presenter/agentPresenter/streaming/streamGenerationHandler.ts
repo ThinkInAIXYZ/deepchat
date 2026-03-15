@@ -96,7 +96,8 @@ export class StreamGenerationHandler extends BaseHandler {
         vision: Boolean(modelConfig?.vision),
         imageFiles: modelConfig?.vision ? imageFiles : [],
         supportsFunctionCall: modelConfig.functionCall,
-        modelType: modelConfig.type
+        modelType: modelConfig.type,
+        toolPresenter: this.toolPresenter
       })
 
       this.throwIfCancelled(state.message.id)
@@ -239,7 +240,8 @@ export class StreamGenerationHandler extends BaseHandler {
         vision: false,
         imageFiles: [],
         supportsFunctionCall: modelConfig.functionCall,
-        modelType: modelConfig.type
+        modelType: modelConfig.type,
+        toolPresenter: this.toolPresenter
       })
 
       await this.updateGenerationState(state, promptTokens)

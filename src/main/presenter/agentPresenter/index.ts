@@ -5,6 +5,7 @@ import type {
   ILlmProviderPresenter,
   ISessionPresenter,
   ISQLitePresenter,
+  IToolPresenter,
   MESSAGE_METADATA
 } from '@shared/presenter'
 import type { AssistantMessage, AssistantMessageBlock, UserMessageContent } from '@shared/chat'
@@ -32,6 +33,7 @@ type AgentPresenterDependencies = {
   sqlitePresenter: ISQLitePresenter
   llmProviderPresenter: ILlmProviderPresenter
   configPresenter: IConfigPresenter
+  toolPresenter: IToolPresenter
   commandPermissionService: CommandPermissionService
   messageManager?: MessageManager
 }
@@ -98,7 +100,8 @@ export class AgentPresenter implements IAgentPresenter {
       messageManager: this.messageManager,
       llmProviderPresenter: this.llmProviderPresenter,
       configPresenter: this.configPresenter,
-      sessionRuntime: this.sessionRuntime
+      sessionRuntime: this.sessionRuntime,
+      toolPresenter: options.toolPresenter
     }
 
     this.contentBufferHandler = new ContentBufferHandler({
@@ -131,7 +134,6 @@ export class AgentPresenter implements IAgentPresenter {
       generatingMessages: this.generatingMessages,
       llmProviderPresenter: this.llmProviderPresenter,
       getMcpPresenter: () => presenter.mcpPresenter,
-      getToolPresenter: () => presenter.toolPresenter,
       streamGenerationHandler: this.streamGenerationHandler,
       llmEventHandler: this.llmEventHandler,
       commandPermissionHandler: this.commandPermissionService

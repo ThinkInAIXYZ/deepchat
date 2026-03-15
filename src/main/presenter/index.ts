@@ -140,7 +140,8 @@ export class Presenter implements IPresenter {
     this.llmproviderPresenter = new LLMProviderPresenter(
       this.configPresenter,
       this.sqlitePresenter,
-      () => this.sessionManager
+      () => this.sessionManager,
+      () => this.toolPresenter
     )
     const commandPermissionHandler = new CommandPermissionService()
     this.commandPermissionService = commandPermissionHandler
@@ -295,6 +296,7 @@ export class Presenter implements IPresenter {
         sqlitePresenter: this.sqlitePresenter,
         llmProviderPresenter: this.llmproviderPresenter,
         configPresenter: this.configPresenter,
+        toolPresenter: this.toolPresenter,
         commandPermissionService: this.commandPermissionService,
         messageManager: this.legacyMessageManager
       }) as unknown as IAgentPresenter & ISessionPresenter
