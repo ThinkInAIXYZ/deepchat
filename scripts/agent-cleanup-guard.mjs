@@ -41,12 +41,7 @@ const RENDERER_PROTECTED_DIRS = [
   path.join(ROOT, 'src/renderer/src/components/sidepanel/WorkspacePanel.vue')
 ]
 
-const ALLOWED_BASELINE = new Set([
-  'src/main/presenter/mcpPresenter/toolManager.ts|global-chat-mode',
-  'src/main/presenter/skillPresenter/skillExecutionService.ts|../agentPresenter/acp/backgroundExecSessionManager',
-  'src/main/presenter/skillPresenter/skillExecutionService.ts|../agentPresenter/acp/shellEnvHelper',
-  'src/main/presenter/skillPresenter/skillExecutionService.ts|../sessionPresenter/sessionPaths'
-])
+const ALLOWED_BASELINE = new Set(['src/main/presenter/mcpPresenter/toolManager.ts|global-chat-mode'])
 
 function toPosix(value) {
   return value.split(path.sep).join('/')
