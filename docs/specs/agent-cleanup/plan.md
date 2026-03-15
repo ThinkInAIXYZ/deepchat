@@ -1,259 +1,39 @@
-# Agent Cleanup Plan
+# Agent Cleanup Checkpoint
 
-## Immediate Micro-Batches
+## Summary
 
-As of March 14, 2026, cleanup execution is split into smaller reviewable slices.
+This workstream is paused after the main cleanup milestones were completed and dead code was
+archived.
 
-### Batch 0A
+Done:
 
-- Inventory only.
-- Record current legacy coupling in the new primary flow and compatibility layer.
-- Record the current main-to-renderer event contract and freeze its payload/ordering assumptions.
-- No runtime, renderer, DB, IPC, or CI wiring changes.
+- shared helper ownership moved to `src/main/lib/agentRuntime`
+- active renderer chat path moved off legacy message protocol
+- renderer dead code archived in `archives/code/dead-renderer-batch-1/`
+- renderer mock/orphan dead code archived in `archives/code/dead-code-batch-2/`
+- new-session skill state moved to `new_sessions.active_skills`
+- legacy `agentPresenter/**` removed from global presenter access
+- provider-layer MCP global access removed
 
-Rollback:
+## Keep For Now
 
-- Revert docs only.
+- `LegacyChatImportService`
+- legacy import hook / status tracking
+- old `conversations/messages` tables as import-only sources
+- `scripts/agent-cleanup-guard.mjs` as anti-regression protection
 
-Event safety gate:
+## Resume Order Later
 
-- No cleanup batch may change `STREAM_EVENTS` or `SESSION_EVENTS` names, payload fields, or sender
-  ordering until the renderer listeners are migrated in a dedicated event batch.
-- In particular, `stream:end` must keep its current dual meaning ("stream finished" and "refresh
-  persisted message from DB") until a separate refresh event exists and the renderer stops relying
-  on `loadMessages()` for that path.
+When cleanup resumes, use this order:
 
-### Batch 0B
+1. clear the remaining export-only / non-active-path type coupling
+2. inventory and reduce adjacent provider globals
+3. run a final retirement audit on old presenter runtime wiring
+4. only then consider deleting old legacy folders or old import tables
 
-- Add the static dependency guard script.
-- Wire the guard into `pnpm run lint`.
-- Do not combine with helper extraction or renderer protocol work.
+## Default Rules
 
-Rollback:
-
-- Remove the guard script from `package.json`.
-
-## Batch 0
-
-- Add `docs/specs/agent-cleanup/{spec,plan,tasks}.md`.
-- Batch 0 is now split into 0A and 0B above.
-
-Rollback:
-
-- Remove the guard script from `package.json`.
-
-## Batch 1
-
-Batch 1 is split into independent helper/type moves. Each slice should ship alone.
-
-### Batch 1A
-
-- Extract only the question-tool schema/parser to a neutral module.
-- Update `deepchatAgentPresenter/dispatch.ts` to use the neutral helper.
-- No renderer, DB, or `MCPToolDefinition`/`SearchResult` changes.
-
-Rollback:
-
-- Point `deepchatAgentPresenter/dispatch.ts` back to `agentPresenter/tools/questionTool`.
-
-### Batch 1B
-
-- Extract only the runtime/system env prompt builder to a neutral module.
-- Update `deepchatAgentPresenter/index.ts` to use the neutral helper.
-- No session path, renderer, DB, or compatibility-layer changes.
-
-Rollback:
-
-- Point `deepchatAgentPresenter/index.ts` back to
-  `agentPresenter/message/systemEnvPromptBuilder`.
-
-### Batch 1C
-
-- Extract only session offload/session path helper ownership.
-- Introduce standalone `core/search` and direct `core/mcp` imports where needed.
-- Keep legacy files as thin re-export shims if required.
-
-Rollback:
-
-- Restore imports to `sessionPresenter/sessionPaths` and shared presenter barrels.
-
-- Extract shared helpers to neutral modules:
-  - runtime/system env prompt builder
-  - question tool schema/parser
-  - session offload/session path helper
-- Keep legacy files as thin re-export shims so old code keeps working.
-- Move new primary-flow code to direct `core` type imports for MCP/search instead of legacy
-  presenter barrels.
-
-Rollback:
-
-- Point new-flow imports back to legacy helper modules.
-
-## Batch 2
-
-- Expand `agent-interface` message block/user content types to cover the block variants already
-  rendered by the new UI.
-- Replace new UI `@shared/chat` imports with `agent-interface` + renderer-local display types.
-- Remove `ChatPage` runtime adaptation to legacy message protocol.
-
-Rollback:
-
-- Restore new UI imports to `@shared/chat`.
-
-## Batch 3
-
-- Persist `activeSkills` in `new_sessions`.
-- Make `SkillPresenter` read/write new-session skills from the new session domain.
-- Remove new-session skill fallback to legacy `sessionPresenter`.
-- Remove new-session ACP gating dependence on global `input_chatMode`.
-- Move shared runtime helpers used by `skillExecutionService` out of legacy folders.
-
-Rollback:
-
-- Keep DB column and route reads/writes back through legacy fallback.
-
-## Batch 4
-
-- Re-audit remaining runtime references to legacy presenter/session modules.
-- Retire legacy runtime wiring only after batches 0-3 are stable.
-- Keep only legacy data import compatibility; do not preserve old runtime ownership beyond that.
-
-Rollback:
-
-- Restore legacy presenter construction or shared type exposure if runtime regressions are found.
-
-## Main Runtime Micro-Batches
-
-### Main Batch 0
-
-- Update docs to classify main residuals as active compatibility / import-only / retirement.
-- Extend the static guard to `skillPresenter` and `mcpPresenter/toolManager`.
-- Track current legacy helper imports and `input_chatMode` access as main baseline violations.
-
-Rollback:
-
-- Revert docs and guard updates only.
-
-### Main Batch 1
-
-- Add `new_sessions.active_skills`.
-- Make `SkillPresenter` persist new-session skills in `new_sessions`.
-- Keep old-session fallback unchanged in this slice.
-
-Rollback:
-
-- Keep the DB column and route new-session skill reads/writes back to in-memory state if needed.
-
-### Main Batch 2
-
-- Move session-dir / shell-env / background-exec helpers used by `skillExecutionService` into a
-  neutral runtime module.
-- Keep old helper paths as temporary shims if needed.
-
-Rollback:
-
-- Restore imports to legacy helper modules.
-
-### Main Batch 3
-
-- Remove `mcpPresenter/toolManager` dependence on global `input_chatMode`.
-- Resolve ACP gating from session context first; keep legacy conversation fallback only on legacy
-  paths.
-
-Rollback:
-
-- Restore the old `input_chatMode` gate and legacy conversation lookup.
-
-### Main Batch 4
-
-- Audit `Presenter` default wiring and `main/index` shutdown cleanup.
-- Strip old `SessionPresenter` / `AgentPresenter` from the new primary path once import-only
-  compatibility is proven stable.
-
-Rollback:
-
-- Restore legacy wiring in startup/shutdown if regressions are found.
-
-### Main Batch 5
-
-- Inventory provider-layer presenter globals in `llmProviderPresenter/providers/**`.
-- Inventory `SkillPresenter` old-session fallback and legacy conversation writes.
-- Do not change runtime behavior in this slice; record the smallest safe follow-up batches only.
-
-Rollback:
-
-- Revert docs only.
-
-## Legacy Agent Runtime Micro-Batches
-
-### Batch A
-
-- Introduce an internal session runtime port for legacy `agentPresenter` handlers.
-- Remove direct `presenter.sessionManager` reads from `PermissionHandler`,
-  `LLMEventHandler`, `StreamGenerationHandler`, `AgentLoopHandler`, and `AgentPresenter`.
-- Keep `toolPresenter` / `mcpPresenter` / `windowPresenter` globals out of scope for this slice.
-
-Rollback:
-
-- Restore handler access to `presenter.sessionManager` and remove the runtime-port seam.
-
-### Batch B
-
-- Inject `IToolPresenter` into legacy `agentPresenter` runtime instead of reading
-  `presenter.toolPresenter`.
-- Cover `PermissionHandler`, `StreamGenerationHandler`, `messageBuilder`, `AgentLoopHandler`,
-  `LLMProviderPresenter` wiring, and legacy `AgentPresenter` construction.
-- Keep `mcpPresenter` / `windowPresenter` globals out of scope for this slice.
-
-Rollback:
-
-- Restore legacy runtime tool access to `presenter.toolPresenter`.
-
-### Batch C
-
-- Add private legacy runtime ports:
-  - `AgentMcpRuntimePort`
-  - `AgentPromptRuntimePort`
-  - `AgentPermissionRuntimePort`
-  - `AgentToolRuntimePort`
-- Remove the remaining direct `presenter.*` reads from `src/main/presenter/agentPresenter/**`.
-- Keep `llmProviderPresenter/providers/**` global presenter access out of scope for this slice.
-
-Rollback:
-
-- Restore direct presenter access in legacy main-loop and ACP handlers, then remove the runtime
-  ports if regressions are found.
-
-### Batch D
-
-- Remove provider-layer `presenter.mcpPresenter` access from `llmProviderPresenter/providers/**`.
-- Keep adjacent globals like `devicePresenter` and `oauthPresenter` out of scope unless a touched
-  provider constructor already needs the same port seam.
-
-Rollback:
-
-- Restore provider-layer MCP conversion and ACP registry lookup to the current presenter singleton.
-
-### Batch E
-
-- Add an explicit `SkillSessionStatePort`-style seam for `SkillPresenter`.
-- Move singleton access (`newAgentPresenter`, `sqlitePresenter`, legacy conversation helpers) behind
-  injected runtime methods first.
-- Keep old-session fallback behavior unchanged in this slice.
-
-Rollback:
-
-- Restore direct presenter singleton access inside `SkillPresenter`.
-
-### Batch F
-
-- Retire `SkillPresenter` old-session `activeSkills` fallback to legacy conversation settings.
-- Preserve imported `legacy-session-*` skills by writing them on fresh import and repairing older
-  imported sessions on first access.
-- Target end-state: new runtime no longer writes skill state into old conversations; legacy tables
-  remain import-only sources.
-
-Rollback:
-
-- Keep the ownership seam, disable lazy repair, and route old-session skill reads/writes back
-  through legacy conversation settings.
+1. One cleanup slice per PR.
+2. Do not mix event-contract changes with runtime decoupling.
+3. Do not remove import-only compatibility during routine refactors.
+4. Prefer archiving dead code before hard deletion.

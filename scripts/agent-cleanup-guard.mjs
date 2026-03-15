@@ -21,20 +21,29 @@ const LEGACY_MAIN_DIRS = [
   path.join(ROOT, 'src/main/presenter/sessionPresenter')
 ]
 
-const MAIN_PROTECTED_DIRS = [
+const PRIMARY_MAIN_GUARD_PATHS = [
   path.join(ROOT, 'src/main/presenter/newAgentPresenter'),
-  path.join(ROOT, 'src/main/presenter/deepchatAgentPresenter')
-]
-
-const MAIN_COMPAT_PROTECTED_DIRS = [
+  path.join(ROOT, 'src/main/presenter/deepchatAgentPresenter'),
   path.join(ROOT, 'src/main/presenter/skillPresenter'),
   path.join(ROOT, 'src/main/presenter/mcpPresenter/toolManager.ts'),
   path.join(ROOT, 'src/main/presenter/syncPresenter/index.ts')
 ]
 
-const PROVIDER_LAYER_PROTECTED_DIRS = [path.join(ROOT, 'src/main/presenter/llmProviderPresenter/providers')]
+const RENDERER_CHAT_GUARD_PATHS = [
+  path.join(ROOT, 'src/renderer/src/pages/ChatPage.vue'),
+  path.join(ROOT, 'src/renderer/src/pages/NewThreadPage.vue'),
+  path.join(ROOT, 'src/renderer/src/stores/ui'),
+  path.join(ROOT, 'src/renderer/src/components/chat'),
+  path.join(ROOT, 'src/renderer/src/components/message'),
+  path.join(ROOT, 'src/renderer/src/composables/useArtifacts.ts'),
+  path.join(ROOT, 'src/renderer/src/components/sidepanel/WorkspacePanel.vue')
+]
 
-const LEGACY_AGENT_RUNTIME_PROTECTED_DIRS = [path.join(ROOT, 'src/main/presenter/agentPresenter')]
+const LEGACY_AGENT_RUNTIME_DIR = path.join(ROOT, 'src/main/presenter/agentPresenter')
+const PROVIDER_LAYER_DIR = path.join(ROOT, 'src/main/presenter/llmProviderPresenter/providers')
+const SKILL_PRESENTER_DIR = path.join(ROOT, 'src/main/presenter/skillPresenter')
+const MCP_TOOL_MANAGER_FILE = path.join(ROOT, 'src/main/presenter/mcpPresenter/toolManager.ts')
+
 const LEGACY_AGENT_RUNTIME_GLOBALS = [
   'sessionManager',
   'toolPresenter',
@@ -50,18 +59,6 @@ const LEGACY_AGENT_RUNTIME_GLOBALS = [
   'llmproviderPresenter',
   'windowPresenter'
 ]
-
-const RENDERER_PROTECTED_DIRS = [
-  path.join(ROOT, 'src/renderer/src/pages/ChatPage.vue'),
-  path.join(ROOT, 'src/renderer/src/pages/NewThreadPage.vue'),
-  path.join(ROOT, 'src/renderer/src/stores/ui'),
-  path.join(ROOT, 'src/renderer/src/components/chat'),
-  path.join(ROOT, 'src/renderer/src/components/message'),
-  path.join(ROOT, 'src/renderer/src/composables/useArtifacts.ts'),
-  path.join(ROOT, 'src/renderer/src/components/sidepanel/WorkspacePanel.vue')
-]
-
-const ALLOWED_BASELINE = new Set()
 
 function toPosix(value) {
   return value.split(path.sep).join('/')
@@ -127,180 +124,125 @@ async function collectFiles(entryPath) {
   return files
 }
 
-function classifyViolation(filePath, specifier) {
-  if (isProtectedPath(filePath, [...MAIN_PROTECTED_DIRS, ...MAIN_COMPAT_PROTECTED_DIRS])) {
-    if (specifier.startsWith('.')) {
-      const resolved = path.resolve(path.dirname(filePath), specifier)
-      if (LEGACY_MAIN_DIRS.some((legacyDir) => isUnder(resolved, legacyDir))) {
-        return 'legacy-main'
-      }
-    }
-
-    if (
-      specifier === '@/presenter/agentPresenter' ||
-      specifier.startsWith('@/presenter/agentPresenter/') ||
-      specifier === '@/presenter/sessionPresenter' ||
-      specifier.startsWith('@/presenter/sessionPresenter/')
-    ) {
-      return 'legacy-main'
-    }
+function isLegacyMainImport(filePath, specifier) {
+  if (!isProtectedPath(filePath, PRIMARY_MAIN_GUARD_PATHS)) {
+    return false
   }
 
-  if (
-    isProtectedPath(filePath, RENDERER_PROTECTED_DIRS) &&
-    (specifier === '@shared/chat' || specifier.startsWith('@shared/chat/'))
-  ) {
-    return 'legacy-chat'
+  if (specifier.startsWith('.')) {
+    const resolved = path.resolve(path.dirname(filePath), specifier)
+    return LEGACY_MAIN_DIRS.some((legacyDir) => isUnder(resolved, legacyDir))
   }
 
-  return null
+  return (
+    specifier === '@/presenter/agentPresenter' ||
+    specifier.startsWith('@/presenter/agentPresenter/') ||
+    specifier === '@/presenter/sessionPresenter' ||
+    specifier.startsWith('@/presenter/sessionPresenter/')
+  )
+}
+
+function buildViolation(kind, filePath, specifier) {
+  return {
+    kind,
+    file: relativePath(filePath),
+    specifier
+  }
 }
 
 async function findViolations() {
-  const files = [
-    ...(await collectFiles(path.join(ROOT, 'src/main/presenter/newAgentPresenter'))),
-    ...(await collectFiles(path.join(ROOT, 'src/main/presenter/deepchatAgentPresenter'))),
-    ...(await collectFiles(path.join(ROOT, 'src/main/presenter/skillPresenter'))),
-    ...(await collectFiles(path.join(ROOT, 'src/main/presenter/mcpPresenter/toolManager.ts'))),
-    ...(await collectFiles(path.join(ROOT, 'src/main/presenter/llmProviderPresenter/providers'))),
-    ...(await collectFiles(path.join(ROOT, 'src/main/presenter/agentPresenter'))),
-    ...(await collectFiles(path.join(ROOT, 'src/renderer/src/pages/ChatPage.vue'))),
-    ...(await collectFiles(path.join(ROOT, 'src/renderer/src/pages/NewThreadPage.vue'))),
-    ...(await collectFiles(path.join(ROOT, 'src/renderer/src/stores/ui'))),
-    ...(await collectFiles(path.join(ROOT, 'src/renderer/src/components/chat'))),
-    ...(await collectFiles(path.join(ROOT, 'src/renderer/src/components/message'))),
-    ...(await collectFiles(path.join(ROOT, 'src/renderer/src/composables/useArtifacts.ts'))),
-    ...(await collectFiles(path.join(ROOT, 'src/renderer/src/components/sidepanel/WorkspacePanel.vue')))
+  const scanRoots = [
+    path.join(ROOT, 'src/main/presenter/newAgentPresenter'),
+    path.join(ROOT, 'src/main/presenter/deepchatAgentPresenter'),
+    path.join(ROOT, 'src/main/presenter/skillPresenter'),
+    path.join(ROOT, 'src/main/presenter/mcpPresenter/toolManager.ts'),
+    path.join(ROOT, 'src/main/presenter/syncPresenter/index.ts'),
+    path.join(ROOT, 'src/main/presenter/llmProviderPresenter/providers'),
+    path.join(ROOT, 'src/main/presenter/agentPresenter'),
+    path.join(ROOT, 'src/renderer/src/pages/ChatPage.vue'),
+    path.join(ROOT, 'src/renderer/src/pages/NewThreadPage.vue'),
+    path.join(ROOT, 'src/renderer/src/stores/ui'),
+    path.join(ROOT, 'src/renderer/src/components/chat'),
+    path.join(ROOT, 'src/renderer/src/components/message'),
+    path.join(ROOT, 'src/renderer/src/composables/useArtifacts.ts'),
+    path.join(ROOT, 'src/renderer/src/components/sidepanel/WorkspacePanel.vue')
   ]
 
+  const fileSet = new Set()
+  for (const entry of scanRoots) {
+    for (const file of await collectFiles(entry)) {
+      fileSet.add(file)
+    }
+  }
+
   const violations = []
-  for (const filePath of files) {
-    const file = relativePath(filePath)
+  for (const filePath of [...fileSet].sort()) {
     const source = await fs.readFile(filePath, 'utf8')
+
     for (const specifier of extractModuleSpecifiers(source)) {
-      const kind = classifyViolation(filePath, specifier)
-      if (!kind) {
-        continue
+      if (isLegacyMainImport(filePath, specifier)) {
+        violations.push(buildViolation('legacy-main-import', filePath, specifier))
       }
 
-      violations.push({
-        kind,
-        file,
-        specifier,
-        key: `${file}|${specifier}`
-      })
+      if (
+        isProtectedPath(filePath, RENDERER_CHAT_GUARD_PATHS) &&
+        (specifier === '@shared/chat' || specifier.startsWith('@shared/chat/'))
+      ) {
+        violations.push(buildViolation('legacy-chat-import', filePath, specifier))
+      }
+    }
+
+    if (filePath === MCP_TOOL_MANAGER_FILE && source.includes('input_chatMode')) {
+      violations.push(buildViolation('global-chat-mode', filePath, 'input_chatMode'))
     }
 
     if (
-      isProtectedPath(filePath, [path.join(ROOT, 'src/main/presenter/mcpPresenter/toolManager.ts')]) &&
-      source.includes('input_chatMode')
-    ) {
-      violations.push({
-        kind: 'global-chat-mode',
-        file,
-        specifier: 'input_chatMode',
-        key: `${file}|global-chat-mode`
-      })
-    }
-
-    if (
-      isProtectedPath(filePath, MAIN_COMPAT_PROTECTED_DIRS) &&
+      isProtectedPath(filePath, PRIMARY_MAIN_GUARD_PATHS) &&
       source.includes('presenter.sessionPresenter.')
     ) {
-      violations.push({
-        kind: 'legacy-session-access',
-        file,
-        specifier: 'presenter.sessionPresenter',
-        key: `${file}|legacy-session-access`
-      })
+      violations.push(buildViolation('legacy-session-access', filePath, 'presenter.sessionPresenter'))
+    }
+
+    if (isProtectedPath(filePath, [SKILL_PRESENTER_DIR]) && /\bpresenter\./.test(source)) {
+      violations.push(buildViolation('skill-global-presenter', filePath, 'presenter.*'))
     }
 
     if (
-      isProtectedPath(filePath, [path.join(ROOT, 'src/main/presenter/skillPresenter')]) &&
-      /\bpresenter\./.test(source)
-    ) {
-      violations.push({
-        kind: 'skill-global-presenter',
-        file,
-        specifier: 'presenter.*',
-        key: `${file}|skill-global-presenter`
-      })
-    }
-
-    if (
-      isProtectedPath(filePath, [path.join(ROOT, 'src/main/presenter/skillPresenter')]) &&
+      isProtectedPath(filePath, [SKILL_PRESENTER_DIR]) &&
       (source.includes('getLegacyConversation') || source.includes('updateLegacyConversationSettings'))
     ) {
-      violations.push({
-        kind: 'skill-legacy-fallback',
-        file,
-        specifier: 'legacy conversation skills',
-        key: `${file}|skill-legacy-fallback`
-      })
+      violations.push(buildViolation('skill-legacy-fallback', filePath, 'legacy conversation skills'))
     }
 
-    if (isProtectedPath(filePath, LEGACY_AGENT_RUNTIME_PROTECTED_DIRS)) {
+    if (isProtectedPath(filePath, [LEGACY_AGENT_RUNTIME_DIR])) {
       for (const legacyGlobal of LEGACY_AGENT_RUNTIME_GLOBALS) {
-        if (!source.includes(`presenter.${legacyGlobal}`)) {
-          continue
+        if (source.includes(`presenter.${legacyGlobal}`)) {
+          violations.push(
+            buildViolation(`agent-global-${legacyGlobal}`, filePath, `presenter.${legacyGlobal}`)
+          )
         }
-
-        violations.push({
-          kind: `agent-global-${legacyGlobal}`,
-          file,
-          specifier: `presenter.${legacyGlobal}`,
-          key: `${file}|agent-global-${legacyGlobal}`
-        })
       }
     }
 
-    if (isProtectedPath(filePath, PROVIDER_LAYER_PROTECTED_DIRS) && source.includes('presenter.mcpPresenter')) {
-      violations.push({
-        kind: 'provider-global-mcp',
-        file,
-        specifier: 'presenter.mcpPresenter',
-        key: `${file}|provider-global-mcp`
-      })
+    if (isProtectedPath(filePath, [PROVIDER_LAYER_DIR]) && source.includes('presenter.mcpPresenter')) {
+      violations.push(buildViolation('provider-global-mcp', filePath, 'presenter.mcpPresenter'))
     }
   }
 
-  violations.sort((left, right) => left.key.localeCompare(right.key))
   return violations
-}
-
-function printViolationList(title, violations) {
-  if (violations.length === 0) {
-    return
-  }
-
-  console.error(title)
-  for (const violation of violations) {
-    console.error(`- [${violation.kind}] ${violation.file} -> ${violation.specifier}`)
-  }
 }
 
 async function main() {
   const violations = await findViolations()
-  const unexpected = violations.filter((violation) => !ALLOWED_BASELINE.has(violation.key))
-  const removedFromBaseline = [...ALLOWED_BASELINE]
-    .filter((key) => !violations.some((violation) => violation.key === key))
-    .sort()
-
-  if (unexpected.length > 0) {
-    console.error('Agent cleanup guard failed. New legacy coupling was introduced.')
-    printViolationList('Unexpected violations:', unexpected)
+  if (violations.length > 0) {
+    console.error('Agent cleanup guard failed.')
+    for (const violation of violations) {
+      console.error(`- [${violation.kind}] ${violation.file} -> ${violation.specifier}`)
+    }
     process.exit(1)
   }
 
-  if (removedFromBaseline.length > 0) {
-    console.log('Agent cleanup guard note: some baseline violations were removed.')
-    for (const key of removedFromBaseline) {
-      console.log(`- ${key}`)
-    }
-    console.log('You can shrink the allowlist in scripts/agent-cleanup-guard.mjs in a follow-up.')
-  }
-
-  console.log(`Agent cleanup guard passed. Baseline violations tracked: ${violations.length}.`)
+  console.log('Agent cleanup guard passed. Baseline violations tracked: 0.')
 }
 
 main().catch((error) => {
