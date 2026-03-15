@@ -13,6 +13,12 @@ Current primary flow:
 Legacy compatibility remains import-only for old session data. Old `conversations` / `messages`
 tables are kept as migration sources during this cleanup and are not removed in this workstream.
 
+As of March 15, 2026:
+
+- renderer active chat path is clean and guarded
+- renderer dead code has been archived under `archives/code/`
+- the next cleanup focus is the main compatibility layer
+
 Target end-state:
 
 - legacy runtime logic is removed from the new primary flow
@@ -60,6 +66,27 @@ Target end-state:
 ### Batch 4
 
 - Re-audit runtime references and retire legacy-only runtime wiring that is no longer needed.
+
+## Main Compatibility Classification
+
+### Active Compatibility Layer
+
+- `SkillPresenter`
+- `skillExecutionService`
+- `mcpPresenter/toolManager`
+- `Presenter` default legacy wiring
+- `main/index` direct legacy session cleanup call
+
+### Import-Only Compatibility To Keep
+
+- `LegacyChatImportService`
+- legacy import hook / status tracking
+- old `conversations` / `messages` tables as import sources
+
+### Deferred Until Runtime Cleanup Completes
+
+- export-path type coupling in `newAgentPresenter`
+- retirement/deletion of old `agentPresenter` / `sessionPresenter` folders
 
 ## Safety Rules
 

@@ -372,6 +372,9 @@ function createMockConfigPresenter() {
       .fn()
       .mockReturnValue({ temperature: 0.7, maxTokens: 4096, contextLength: 128000 }),
     getDefaultSystemPrompt: vi.fn().mockResolvedValue('You are a helpful assistant.'),
+    getAutoCompactionEnabled: vi.fn().mockReturnValue(true),
+    getAutoCompactionTriggerThreshold: vi.fn().mockReturnValue(80),
+    getAutoCompactionRetainRecentPairs: vi.fn().mockReturnValue(2),
     supportsReasoningCapability: vi.fn().mockReturnValue(false),
     getThinkingBudgetRange: vi.fn().mockReturnValue({}),
     supportsReasoningEffortCapability: vi.fn().mockReturnValue(false),

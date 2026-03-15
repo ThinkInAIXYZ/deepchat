@@ -121,3 +121,55 @@ Rollback:
 Rollback:
 
 - Restore legacy presenter construction or shared type exposure if runtime regressions are found.
+
+## Main Runtime Micro-Batches
+
+### Main Batch 0
+
+- Update docs to classify main residuals as active compatibility / import-only / retirement.
+- Extend the static guard to `skillPresenter` and `mcpPresenter/toolManager`.
+- Track current legacy helper imports and `input_chatMode` access as main baseline violations.
+
+Rollback:
+
+- Revert docs and guard updates only.
+
+### Main Batch 1
+
+- Add `new_sessions.active_skills`.
+- Make `SkillPresenter` persist new-session skills in `new_sessions`.
+- Keep old-session fallback unchanged in this slice.
+
+Rollback:
+
+- Keep the DB column and route new-session skill reads/writes back to in-memory state if needed.
+
+### Main Batch 2
+
+- Move session-dir / shell-env / background-exec helpers used by `skillExecutionService` into a
+  neutral runtime module.
+- Keep old helper paths as temporary shims if needed.
+
+Rollback:
+
+- Restore imports to legacy helper modules.
+
+### Main Batch 3
+
+- Remove `mcpPresenter/toolManager` dependence on global `input_chatMode`.
+- Resolve ACP gating from session context first; keep legacy conversation fallback only on legacy
+  paths.
+
+Rollback:
+
+- Restore the old `input_chatMode` gate and legacy conversation lookup.
+
+### Main Batch 4
+
+- Audit `Presenter` default wiring and `main/index` shutdown cleanup.
+- Strip old `SessionPresenter` / `AgentPresenter` from the new primary path once import-only
+  compatibility is proven stable.
+
+Rollback:
+
+- Restore legacy wiring in startup/shutdown if regressions are found.

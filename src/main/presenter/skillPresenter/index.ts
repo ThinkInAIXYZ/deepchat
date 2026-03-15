@@ -22,6 +22,7 @@ import { SKILL_EVENTS } from '@/events'
 import { presenter } from '@/presenter'
 import logger from '@shared/logger'
 import { normalizeSkillAllowedTools } from './toolNameMapping'
+import type { SQLitePresenter } from '../sqlitePresenter'
 
 /**
  * Skill system configuration constants
@@ -137,7 +138,6 @@ export class SkillPresenter implements ISkillPresenter {
   private sidecarDir: string
   private metadataCache: Map<string, SkillMetadata> = new Map()
   private contentCache: Map<string, SkillContent> = new Map()
-  private newAgentActiveSkills: Map<string, string[]> = new Map()
   private watcher: FSWatcher | null = null
   private initialized: boolean = false
   // Prevent concurrent discovery calls (race condition protection)
@@ -991,10 +991,10 @@ export class SkillPresenter implements ISkillPresenter {
    */
   async getActiveSkills(conversationId: string): Promise<string[]> {
     if (await this.isNewAgentSession(conversationId)) {
-      const skills = this.newAgentActiveSkills.get(conversationId) ?? []
+      const skills = this.getPersistedNewSessionSkills(conversationId)
       const validSkills = await this.validateSkillNames(skills)
       if (validSkills.length !== skills.length) {
-        this.newAgentActiveSkills.set(conversationId, validSkills)
+        this.setPersistedNewSessionSkills(conversationId, validSkills)
       }
       return validSkills
     }
@@ -1031,7 +1031,7 @@ export class SkillPresenter implements ISkillPresenter {
       const validSet = new Set(validSkills)
 
       if (isNewSession) {
-        this.newAgentActiveSkills.set(conversationId, validSkills)
+        this.setPersistedNewSessionSkills(conversationId, validSkills)
       } else {
         await presenter.sessionPresenter.updateConversationSettings(conversationId, {
           activeSkills: validSkills
@@ -1061,7 +1061,7 @@ export class SkillPresenter implements ISkillPresenter {
   }
 
   async clearNewAgentSessionSkills(conversationId: string): Promise<void> {
-    this.newAgentActiveSkills.delete(conversationId)
+    this.setPersistedNewSessionSkills(conversationId, [])
   }
 
   /**
@@ -1269,5 +1269,23 @@ export class SkillPresenter implements ISkillPresenter {
     }
 
     return acc
+  }
+
+  private getPersistedNewSessionSkills(conversationId: string): string[] {
+    const sqlitePresenter = presenter.sqlitePresenter as SQLitePresenter | undefined
+    try {
+      return sqlitePresenter?.newSessionsTable?.getActiveSkills(conversationId) ?? []
+    } catch (error) {
+      console.warn(
+        `[SkillPresenter] Failed to read persisted active skills for ${conversationId}:`,
+        error
+      )
+      return []
+    }
+  }
+
+  private setPersistedNewSessionSkills(conversationId: string, skills: string[]): void {
+    const sqlitePresenter = presenter.sqlitePresenter as SQLitePresenter | undefined
+    sqlitePresenter?.newSessionsTable?.updateActiveSkills(conversationId, skills)
   }
 }

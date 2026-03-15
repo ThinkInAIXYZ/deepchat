@@ -8,6 +8,7 @@ export interface NewSessionRow {
   project_dir: string | null
   is_pinned: number
   is_draft: number
+  active_skills: string
   created_at: number
   updated_at: number
 }
@@ -37,11 +38,14 @@ export class NewSessionsTable extends BaseTable {
     if (version === 11) {
       return `ALTER TABLE new_sessions ADD COLUMN is_draft INTEGER NOT NULL DEFAULT 0;`
     }
+    if (version === 15) {
+      return `ALTER TABLE new_sessions ADD COLUMN active_skills TEXT NOT NULL DEFAULT '[]';`
+    }
     return null
   }
 
   getLatestVersion(): number {
-    return 11
+    return 15
   }
 
   create(
@@ -52,6 +56,7 @@ export class NewSessionsTable extends BaseTable {
     options?: {
       isDraft?: boolean
       isPinned?: boolean
+      activeSkills?: string[]
       createdAt?: number
       updatedAt?: number
     }
@@ -68,9 +73,10 @@ export class NewSessionsTable extends BaseTable {
           project_dir,
           is_pinned,
           is_draft,
+          active_skills,
           created_at,
           updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         id,
@@ -79,6 +85,7 @@ export class NewSessionsTable extends BaseTable {
         projectDir,
         options?.isPinned ? 1 : 0,
         options?.isDraft ? 1 : 0,
+        JSON.stringify(options?.activeSkills ?? []),
         createdAt,
         updatedAt
       )
@@ -114,7 +121,9 @@ export class NewSessionsTable extends BaseTable {
 
   update(
     id: string,
-    fields: Partial<Pick<NewSessionRow, 'title' | 'project_dir' | 'is_pinned' | 'is_draft'>>
+    fields: Partial<
+      Pick<NewSessionRow, 'title' | 'project_dir' | 'is_pinned' | 'is_draft' | 'active_skills'>
+    >
   ): void {
     const setClauses: string[] = []
     const params: unknown[] = []
@@ -135,6 +144,10 @@ export class NewSessionsTable extends BaseTable {
       setClauses.push('is_draft = ?')
       params.push(fields.is_draft)
     }
+    if (fields.active_skills !== undefined) {
+      setClauses.push('active_skills = ?')
+      params.push(fields.active_skills)
+    }
 
     if (setClauses.length === 0) return
 
@@ -147,5 +160,32 @@ export class NewSessionsTable extends BaseTable {
 
   delete(id: string): void {
     this.db.prepare('DELETE FROM new_sessions WHERE id = ?').run(id)
+  }
+
+  getActiveSkills(id: string): string[] {
+    const row = this.db.prepare('SELECT active_skills FROM new_sessions WHERE id = ?').get(id) as
+      | { active_skills?: string | null }
+      | undefined
+
+    return this.parseActiveSkills(row?.active_skills)
+  }
+
+  updateActiveSkills(id: string, activeSkills: string[]): void {
+    this.update(id, { active_skills: JSON.stringify(activeSkills) })
+  }
+
+  private parseActiveSkills(raw: string | null | undefined): string[] {
+    if (!raw) {
+      return []
+    }
+
+    try {
+      const parsed = JSON.parse(raw) as unknown
+      return Array.isArray(parsed)
+        ? parsed.filter((item): item is string => typeof item === 'string')
+        : []
+    } catch {
+      return []
+    }
   }
 }

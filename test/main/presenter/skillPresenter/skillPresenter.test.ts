@@ -3,6 +3,10 @@ import type { IConfigPresenter } from '../../../../src/shared/presenter'
 import type { SkillMetadata } from '../../../../src/shared/types/skill'
 import { app } from 'electron'
 
+const { newSessionActiveSkillsStore } = vi.hoisted(() => ({
+  newSessionActiveSkillsStore: new Map<string, string[]>()
+}))
+
 // Mock external dependencies
 vi.mock('electron', () => ({
   app: {
@@ -112,6 +116,16 @@ vi.mock('../../../../src/main/presenter', () => ({
     },
     newAgentPresenter: {
       getSession: vi.fn()
+    },
+    sqlitePresenter: {
+      newSessionsTable: {
+        getActiveSkills: vi.fn((conversationId: string) => {
+          return newSessionActiveSkillsStore.get(conversationId) ?? []
+        }),
+        updateActiveSkills: vi.fn((conversationId: string, skills: string[]) => {
+          newSessionActiveSkillsStore.set(conversationId, [...skills])
+        })
+      }
     }
   }
 }))
@@ -133,6 +147,7 @@ describe('SkillPresenter', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    newSessionActiveSkillsStore.clear()
 
     mockConfigPresenter = {
       getSkillsPath: vi.fn().mockReturnValue('')
@@ -875,9 +890,12 @@ describe('SkillPresenter', () => {
 
       expect(active).toEqual([])
       expect(presenter.sessionPresenter.getConversation).not.toHaveBeenCalled()
+      expect(presenter.sqlitePresenter.newSessionsTable.getActiveSkills).toHaveBeenCalledWith(
+        'new-session-1'
+      )
     })
 
-    it('returns in-memory active skills for new agent sessions', async () => {
+    it('returns persisted active skills for new agent sessions', async () => {
       ;(presenter.newAgentPresenter.getSession as Mock).mockResolvedValue({
         id: 'new-session-2'
       })
@@ -895,6 +913,33 @@ describe('SkillPresenter', () => {
 
       expect(active).toEqual(['skill-1'])
       expect(presenter.sessionPresenter.updateConversationSettings).not.toHaveBeenCalled()
+      expect(presenter.sqlitePresenter.newSessionsTable.updateActiveSkills).toHaveBeenCalledWith(
+        'new-session-2',
+        ['skill-1']
+      )
+    })
+
+    it('filters invalid persisted skills for new agent sessions', async () => {
+      ;(presenter.newAgentPresenter.getSession as Mock).mockResolvedValue({
+        id: 'new-session-2b'
+      })
+      newSessionActiveSkillsStore.set('new-session-2b', ['exists', 'removed'])
+      ;(fs.readdirSync as Mock).mockReturnValue([{ name: 'exists', isDirectory: () => true }])
+      ;(fs.existsSync as Mock).mockReturnValue(true)
+      ;(fs.readFileSync as Mock).mockReturnValue('test')
+      ;(matter as unknown as Mock).mockReturnValue({
+        data: { name: 'exists', description: 'Test' },
+        content: ''
+      })
+      await skillPresenter.discoverSkills()
+
+      const active = await skillPresenter.getActiveSkills('new-session-2b')
+
+      expect(active).toEqual(['exists'])
+      expect(presenter.sqlitePresenter.newSessionsTable.updateActiveSkills).toHaveBeenCalledWith(
+        'new-session-2b',
+        ['exists']
+      )
     })
 
     it('should return active skills for a conversation', async () => {
@@ -1023,7 +1068,7 @@ describe('SkillPresenter', () => {
       )
     })
 
-    it('uses in-memory storage for new-agent sessions', async () => {
+    it('persists active skills for new-agent sessions', async () => {
       ;(presenter.newAgentPresenter.getSession as Mock).mockResolvedValue({
         id: 'new-session-3'
       })
@@ -1036,6 +1081,47 @@ describe('SkillPresenter', () => {
 
       expect(active).toEqual(['skill-1'])
       expect(presenter.sessionPresenter.updateConversationSettings).not.toHaveBeenCalled()
+      expect(presenter.sqlitePresenter.newSessionsTable.updateActiveSkills).toHaveBeenCalledWith(
+        'new-session-3',
+        ['skill-1']
+      )
+    })
+  })
+
+  describe('clearNewAgentSessionSkills', () => {
+    it('keeps persisted active skills across presenter instances', async () => {
+      ;(presenter.newAgentPresenter.getSession as Mock).mockResolvedValue({
+        id: 'new-session-4a'
+      })
+      ;(fs.readdirSync as Mock).mockReturnValue([{ name: 'skill-1', isDirectory: () => true }])
+      ;(fs.existsSync as Mock).mockReturnValue(true)
+      ;(fs.readFileSync as Mock).mockReturnValue('test')
+      ;(matter as unknown as Mock).mockReturnValue({
+        data: { name: 'skill-1', description: 'Test' },
+        content: ''
+      })
+      await skillPresenter.discoverSkills()
+
+      await skillPresenter.setActiveSkills('new-session-4a', ['skill-1'])
+      skillPresenter.destroy()
+
+      const rehydratedPresenter = new SkillPresenter(mockConfigPresenter)
+      const active = await rehydratedPresenter.getActiveSkills('new-session-4a')
+
+      expect(active).toEqual(['skill-1'])
+      rehydratedPresenter.destroy()
+    })
+
+    it('clears persisted active skills for new-agent sessions', async () => {
+      newSessionActiveSkillsStore.set('new-session-4', ['skill-1'])
+
+      await skillPresenter.clearNewAgentSessionSkills('new-session-4')
+
+      expect(newSessionActiveSkillsStore.get('new-session-4')).toEqual([])
+      expect(presenter.sqlitePresenter.newSessionsTable.updateActiveSkills).toHaveBeenCalledWith(
+        'new-session-4',
+        []
+      )
     })
   })
 

@@ -2,8 +2,8 @@
 
 ## Current Inventory
 
-Baseline recorded on March 14, 2026. This section is read-only inventory and does not imply that
-all items should be addressed in one batch.
+Baseline updated on March 15, 2026. This section is read-only inventory and does not imply that all
+items should be addressed in one batch.
 
 ### Event Contract Baseline
 
@@ -18,47 +18,61 @@ all items should be addressed in one batch.
 
 ### Primary Flow Reverse Imports
 
-- [ ] `src/main/presenter/deepchatAgentPresenter/index.ts` -> `../agentPresenter/message/systemEnvPromptBuilder`
-- [ ] `src/main/presenter/deepchatAgentPresenter/dispatch.ts` -> `../agentPresenter/tools/questionTool`
-- [ ] `src/main/presenter/deepchatAgentPresenter/toolOutputGuard.ts` -> `../sessionPresenter/sessionPaths`
+- [x] `src/main/presenter/deepchatAgentPresenter/index.ts` moved off legacy prompt helper
+- [x] `src/main/presenter/deepchatAgentPresenter/dispatch.ts` moved off legacy question-tool helper
+- [x] `src/main/presenter/deepchatAgentPresenter/toolOutputGuard.ts` moved off legacy
+  `sessionPaths`
 
 ### Primary Flow Type-Source Coupling
 
-- [ ] `src/main/presenter/deepchatAgentPresenter/types.ts` -> `MCPToolDefinition` from `@shared/presenter`
-- [ ] `src/main/presenter/deepchatAgentPresenter/toolOutputGuard.ts` -> `MCPToolDefinition` from `@shared/presenter`
-- [ ] `src/main/presenter/deepchatAgentPresenter/dispatch.ts` -> `MCPToolDefinition` and `SearchResult` from `@shared/presenter`
-- [ ] `src/main/presenter/deepchatAgentPresenter/messageStore.ts` -> `SearchResult` from `@shared/presenter`
-- [ ] `src/main/presenter/newAgentPresenter/index.ts` -> `Message` from `@shared/chat`, `SearchResult` from `@shared/presenter`
-- [ ] `src/main/presenter/newAgentPresenter/legacyImportService.ts` -> `SearchResult` from `@shared/presenter`
+- [x] `deepchatAgentPresenter` moved to direct `core/mcp`
+- [x] new-flow search result usage moved to `core/search`
+- [ ] `src/main/presenter/newAgentPresenter/index.ts` still imports `Message` from `@shared/chat`
+  for export-only conversion
 
 ### New UI Legacy Message Protocol Imports
 
-- [ ] Pages -> `src/renderer/src/pages/ChatPage.vue`, `src/renderer/src/pages/NewThreadPage.vue`
-- [ ] Stores -> `src/renderer/src/stores/ui/message.ts`, `src/renderer/src/stores/ui/session.ts`
-- [ ] Chat components -> `src/renderer/src/components/chat/ChatAttachmentItem.vue`, `src/renderer/src/components/chat/ChatInputBox.vue`, `src/renderer/src/components/chat/MessageList.vue`, `src/renderer/src/components/chat/messageListItems.ts`, `src/renderer/src/components/chat/composables/useChatInputFiles.ts`
-- [ ] Message components -> `src/renderer/src/components/message/MessageBlockAction.vue`, `src/renderer/src/components/message/MessageBlockAudio.vue`, `src/renderer/src/components/message/MessageBlockContent.vue`, `src/renderer/src/components/message/MessageBlockError.vue`, `src/renderer/src/components/message/MessageBlockImage.vue`, `src/renderer/src/components/message/MessageBlockMcpUi.vue`, `src/renderer/src/components/message/MessageBlockPlan.vue`, `src/renderer/src/components/message/MessageBlockQuestionRequest.vue`, `src/renderer/src/components/message/MessageBlockThink.vue`, `src/renderer/src/components/message/MessageBlockToolCall.vue`, `src/renderer/src/components/message/MessageContent.vue`, `src/renderer/src/components/message/MessageItemAssistant.vue`, `src/renderer/src/components/message/MessageItemUser.vue`
+- [x] Active chat pages, stores, message list, and live block path no longer import
+  `@shared/chat`
 - [x] Archived dead renderer code -> `src/renderer/src/components/message/MessageMinimap.vue` moved to `archives/code/dead-renderer-batch-1/`
 
-### Secondary Renderer Type Coupling
+### Secondary Renderer Residuals
 
-- [ ] `src/renderer/src/components/message/MessageBlockContent.vue` -> `SearchResult` from `@shared/presenter`
-- [ ] `src/renderer/src/components/message/ReferencePreview.vue` -> `SearchResult` from `@shared/presenter`
-- [ ] `src/renderer/src/stores/reference.ts` -> `SearchResult` from `@shared/presenter`
+- [x] `SearchResult` moved to `core/search`
+- [ ] `src/renderer/settings/components/prompt/PromptEditorSheet.vue` still imports `MessageFile`
+  from `@shared/chat` outside the active chat path
 
 ### Compatibility Layer Runtime Fallbacks
 
-- [ ] `src/main/presenter/skillPresenter/index.ts` -> `presenter.sessionPresenter.getConversation/updateConversationSettings`
+- [ ] `src/main/presenter/skillPresenter/index.ts` -> old-session fallback through
+  `presenter.sessionPresenter.getConversation/updateConversationSettings`
+- [ ] `src/main/presenter/skillPresenter/index.ts` -> new-session skills still need persistence in
+  `new_sessions.active_skills`
 - [ ] `src/main/presenter/skillPresenter/skillExecutionService.ts` -> `../sessionPresenter/sessionPaths`, `../agentPresenter/acp/backgroundExecSessionManager`, `../agentPresenter/acp/shellEnvHelper`
 - [ ] `src/main/presenter/mcpPresenter/toolManager.ts` -> global `input_chatMode` and `presenter.sessionPresenter.getConversation`
+- [ ] `src/main/presenter/index.ts` -> still default-wires legacy `SessionPresenter` and
+  `AgentPresenter`
+- [ ] `src/main/index.ts` -> still directly clears legacy `sessionPresenter` permission cache
+
+### Import-Only Compatibility To Keep
+
+- [x] `LegacyChatImportService`
+- [x] legacy import hook / status tracking
+- [x] old `conversations/messages` tables kept as import sources
 
 ### Recommended Next PR Order
 
-- [ ] `0A` Inventory only, docs only
+- [x] `0A` Inventory only, docs only
 - [x] `0B` Add static guardrails only
-- [ ] `1A` Extract `questionTool` helper only
-- [ ] `1B` Extract system env prompt helper only
-- [ ] `1C` Extract session path helper and narrow `MCPToolDefinition` / `SearchResult` imports
-- [ ] `4` Remove remaining legacy runtime logic after import-only compatibility is proven stable
+- [x] `1A` Extract `questionTool` helper only
+- [x] `1B` Extract system env prompt helper only
+- [x] `1C` Extract session path helper and narrow `MCPToolDefinition` / `SearchResult` imports
+- [x] `2` Clear active renderer chat path and archive dead renderer code
+- [ ] `M0` Add main compatibility baseline and guardrails
+- [ ] `M1` Persist new-session `activeSkills`
+- [ ] `M2` Extract skill runtime neutral helpers
+- [ ] `M3` Decouple MCP ACP gating from global chat mode / legacy session fallback
+- [ ] `M4` Reduce startup wiring to import-only boundaries
 
 ## Batch 0
 
@@ -68,26 +82,38 @@ all items should be addressed in one batch.
 
 ## Batch 1
 
-- [ ] Extract neutral runtime prompt builder
-- [ ] Extract neutral question-tool helper
-- [ ] Extract neutral session path helper
-- [ ] Update new-flow imports to neutral helpers
-- [ ] Add standalone `SearchResult` core type
-- [ ] Update new-flow imports to `core/mcp` and `core/search`
+- [x] Extract neutral runtime prompt builder
+- [x] Extract neutral question-tool helper
+- [x] Extract neutral session path helper
+- [x] Update new-flow imports to neutral helpers
+- [x] Add standalone `SearchResult` core type
+- [x] Update new-flow imports to `core/mcp` and `core/search`
 
 ## Batch 2
 
-- [ ] Extend `agent-interface` message protocol for currently rendered blocks
-- [ ] Introduce renderer-local display message types
-- [ ] Remove new UI direct imports from `@shared/chat`
+- [x] Extend `agent-interface` message protocol for currently rendered blocks
+- [x] Introduce renderer-local display message types
+- [x] Remove new UI direct imports from `@shared/chat` on the active path
+- [x] Archive dead renderer residuals outside the active path
 
-## Batch 3
+## Main Batch 0
+
+- [ ] Update docs to classify main residuals as active compatibility / import-only / retirement
+- [ ] Extend static guard to main compatibility modules
+
+## Main Batch 1
 
 - [ ] Add `active_skills` persistence to `new_sessions`
 - [ ] Make `SkillPresenter` persist new-session active skills
-- [ ] Remove new-session fallback to legacy conversation settings
-- [ ] Remove new-session ACP runtime gating dependence on `input_chatMode`
+- [ ] Keep old-session fallback unchanged
+
+## Main Batch 2
+
 - [ ] Move skill runtime helpers out of legacy presenter folders
+
+## Main Batch 3
+
+- [ ] Remove new-session ACP runtime gating dependence on `input_chatMode`
 
 ## Batch 4
 

@@ -26,6 +26,11 @@ const MAIN_PROTECTED_DIRS = [
   path.join(ROOT, 'src/main/presenter/deepchatAgentPresenter')
 ]
 
+const MAIN_COMPAT_PROTECTED_DIRS = [
+  path.join(ROOT, 'src/main/presenter/skillPresenter'),
+  path.join(ROOT, 'src/main/presenter/mcpPresenter/toolManager.ts')
+]
+
 const RENDERER_PROTECTED_DIRS = [
   path.join(ROOT, 'src/renderer/src/pages/ChatPage.vue'),
   path.join(ROOT, 'src/renderer/src/pages/NewThreadPage.vue'),
@@ -36,7 +41,12 @@ const RENDERER_PROTECTED_DIRS = [
   path.join(ROOT, 'src/renderer/src/components/sidepanel/WorkspacePanel.vue')
 ]
 
-const ALLOWED_BASELINE = new Set([])
+const ALLOWED_BASELINE = new Set([
+  'src/main/presenter/mcpPresenter/toolManager.ts|global-chat-mode',
+  'src/main/presenter/skillPresenter/skillExecutionService.ts|../agentPresenter/acp/backgroundExecSessionManager',
+  'src/main/presenter/skillPresenter/skillExecutionService.ts|../agentPresenter/acp/shellEnvHelper',
+  'src/main/presenter/skillPresenter/skillExecutionService.ts|../sessionPresenter/sessionPaths'
+])
 
 function toPosix(value) {
   return value.split(path.sep).join('/')
@@ -103,7 +113,7 @@ async function collectFiles(entryPath) {
 }
 
 function classifyViolation(filePath, specifier) {
-  if (isProtectedPath(filePath, MAIN_PROTECTED_DIRS)) {
+  if (isProtectedPath(filePath, [...MAIN_PROTECTED_DIRS, ...MAIN_COMPAT_PROTECTED_DIRS])) {
     if (specifier.startsWith('.')) {
       const resolved = path.resolve(path.dirname(filePath), specifier)
       if (LEGACY_MAIN_DIRS.some((legacyDir) => isUnder(resolved, legacyDir))) {
@@ -135,6 +145,8 @@ async function findViolations() {
   const files = [
     ...(await collectFiles(path.join(ROOT, 'src/main/presenter/newAgentPresenter'))),
     ...(await collectFiles(path.join(ROOT, 'src/main/presenter/deepchatAgentPresenter'))),
+    ...(await collectFiles(path.join(ROOT, 'src/main/presenter/skillPresenter'))),
+    ...(await collectFiles(path.join(ROOT, 'src/main/presenter/mcpPresenter/toolManager.ts'))),
     ...(await collectFiles(path.join(ROOT, 'src/renderer/src/pages/ChatPage.vue'))),
     ...(await collectFiles(path.join(ROOT, 'src/renderer/src/pages/NewThreadPage.vue'))),
     ...(await collectFiles(path.join(ROOT, 'src/renderer/src/stores/ui'))),
@@ -146,6 +158,7 @@ async function findViolations() {
 
   const violations = []
   for (const filePath of files) {
+    const file = relativePath(filePath)
     const source = await fs.readFile(filePath, 'utf8')
     for (const specifier of extractModuleSpecifiers(source)) {
       const kind = classifyViolation(filePath, specifier)
@@ -153,12 +166,23 @@ async function findViolations() {
         continue
       }
 
-      const file = relativePath(filePath)
       violations.push({
         kind,
         file,
         specifier,
         key: `${file}|${specifier}`
+      })
+    }
+
+    if (
+      isProtectedPath(filePath, [path.join(ROOT, 'src/main/presenter/mcpPresenter/toolManager.ts')]) &&
+      source.includes('input_chatMode')
+    ) {
+      violations.push({
+        kind: 'global-chat-mode',
+        file,
+        specifier: 'input_chatMode',
+        key: `${file}|global-chat-mode`
       })
     }
   }
