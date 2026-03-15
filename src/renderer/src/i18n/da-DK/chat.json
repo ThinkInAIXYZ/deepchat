@@ -60,17 +60,6 @@
     "rateLimitWaiting": "Anmodningsfrekvensbegrænsning, venter i kø...",
     "thinking": "Tænker..."
   },
-  "navigation": {
-    "assistantMessage": "Assistentens svar",
-    "noMessages": "Ingen nyheder endnu",
-    "noResults": "Ingen matchende besked fundet",
-    "searchPlaceholder": "Søg beskeder...",
-    "searchResults": "Fundet {count} resultater, i alt {total} beskeder",
-    "title": "Beskednavigation",
-    "totalMessages": "I alt {count} beskeder",
-    "unknownMessage": "Ukendt besked",
-    "userMessage": "Brugermeddelelse"
-  },
   "notify": {
     "generationComplete": "Generering fuldført",
     "generationError": "Generering mislykkedes"

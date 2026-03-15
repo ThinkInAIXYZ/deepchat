@@ -36,9 +36,7 @@ const RENDERER_PROTECTED_DIRS = [
   path.join(ROOT, 'src/renderer/src/components/sidepanel/WorkspacePanel.vue')
 ]
 
-const ALLOWED_BASELINE = new Set([
-  'src/renderer/src/components/message/MessageMinimap.vue|@shared/chat'
-])
+const ALLOWED_BASELINE = new Set([])
 
 function toPosix(value) {
   return value.split(path.sep).join('/')

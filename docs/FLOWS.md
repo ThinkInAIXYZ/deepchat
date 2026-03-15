@@ -138,8 +138,7 @@ sequenceDiagram
     participant LLM as LLMProviderPresenter (Main)
     participant LLMH as LLMEventHandler (Main)
     participant Sched as StreamUpdateScheduler (Main)
-    participant Cache as messageRuntimeCache (Renderer)
-    participant List as MessageList/Minimap (Renderer)
+    participant List as MessageList (Renderer)
 
     UI->>Store: send(message)
     Store->>IPC: presenter:call(agentPresenter.sendMessage)
@@ -149,8 +148,7 @@ sequenceDiagram
     LLM-->>LLMH: stream chunks
     LLMH->>Sched: enqueueDelta(content/tool_call/usage)
     Sched-->>Store: STREAM_EVENTS.RESPONSE (init/delta)
-    Store->>Cache: cacheMessage/ensureMessageId
-    Cache-->>List: messageItems/minimapMessages
+    Store-->>List: update messageItems
     LLMH-->>Sched: flushAll(final)
     Sched-->>Store: STREAM_EVENTS.RESPONSE (final)
     LLMH-->>Store: STREAM_EVENTS.END/ERROR
@@ -162,7 +160,7 @@ sequenceDiagram
 - AgentPresenter.sendMessage: `src/main/presenter/agentPresenter/index.ts`
 - StreamGenerationHandler.startStreamCompletion: `src/main/presenter/agentPresenter/streaming/streamGenerationHandler.ts`
 - LLMEventHandler + StreamUpdateScheduler: `src/main/presenter/agentPresenter/streaming/llmEventHandler.ts`, `src/main/presenter/agentPresenter/streaming/streamUpdateScheduler.ts`
-- MessageList/Minimap: `src/renderer/src/components/message/MessageList.vue`, `src/renderer/src/components/message/MessageMinimap.vue`
+- MessageList: `src/renderer/src/components/chat/MessageList.vue`
 
 ## 3. Agent Loop 详细流程
 
