@@ -1,4 +1,4 @@
-import { SearchResult } from '@shared/presenter'
+import type { SearchResult } from '@shared/types/core/search'
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 

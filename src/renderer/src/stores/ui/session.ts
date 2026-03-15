@@ -6,9 +6,9 @@ import { SESSION_EVENTS } from '@/events'
 import type {
   SessionWithState,
   CreateSessionInput,
+  MessageFile,
   SendMessageInput
 } from '@shared/types/agent-interface'
-import type { MessageFile } from '@shared/chat'
 import { downloadBlob } from '@/lib/download'
 import { usePageRouterStore } from './pageRouter'
 import { useMessageStore } from './message'

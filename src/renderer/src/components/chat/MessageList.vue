@@ -21,14 +21,14 @@
         </div>
         <MessageItemUser
           v-else-if="item.role === 'user'"
-          :message="item as UserMessage"
+          :message="item as DisplayUserMessage"
           @retry="onRetry"
           @delete="onDelete"
           @edit-save="onEditSave"
         />
         <MessageItemAssistant
           v-else-if="item.role === 'assistant'"
-          :message="item as AssistantMessage"
+          :message="item as DisplayAssistantMessage"
           :use-legacy-actions="false"
           :is-in-generating-thread="isGenerating"
           :show-trace="traceMessageIdSet.has(item.id)"
@@ -48,12 +48,13 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import type { UserMessage, AssistantMessage } from '@shared/chat'
 import MessageItemAssistant from '@/components/message/MessageItemAssistant.vue'
 import MessageItemUser from '@/components/message/MessageItemUser.vue'
 import { useMessageCapture } from '@/composables/message/useMessageCapture'
 import {
+  type DisplayAssistantMessage,
   isCompactionMessageItem,
+  type DisplayUserMessage,
   type DisplayMessage,
   type MessageListItem
 } from './messageListItems'

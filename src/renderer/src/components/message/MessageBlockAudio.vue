@@ -33,8 +33,8 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { Icon } from '@iconify/vue'
-import { AssistantMessageBlock } from '@shared/chat'
 import { useI18n } from 'vue-i18n'
+import type { DisplayAssistantMessageBlock } from '@/components/chat/messageListItems'
 
 const keyMap = {
   'mcp.sampling.contentType.audio': 'Audio',
@@ -51,7 +51,7 @@ const t = (() => {
 })()
 
 const props = defineProps<{
-  block: AssistantMessageBlock
+  block: DisplayAssistantMessageBlock
   messageId?: string
   threadId?: string
 }>()

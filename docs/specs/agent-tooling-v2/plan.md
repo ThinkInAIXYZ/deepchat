@@ -40,14 +40,14 @@
 5. `src/main/presenter/toolPresenter/index.ts`（tool prompt 与路由提示）
 6. `src/main/presenter/agentPresenter/message/messageBuilder.ts`（system prompt 拼接）
 7. `src/main/presenter/agentPresenter/message/skillsPromptBuilder.ts`（skills allowedTools 接入）
-8. `src/main/presenter/agentPresenter/message/systemEnvPromptBuilder.ts`（新增 env prompt 生成）
+8. `src/main/lib/agentRuntime/systemEnvPromptBuilder.ts`（env prompt 生成）
 9. 与上述模块直接相关的测试与文档
 
 明确不改动：
 
 1. `src/main/presenter/browser/**`
 2. `src/main/presenter/agentPresenter/acp/chatSettingsTools.ts`
-3. `src/main/presenter/agentPresenter/tools/questionTool.ts`
+3. `src/main/lib/agentRuntime/questionTool.ts`
 4. `src/main/presenter/mcpPresenter/**`
 
 ## 2. 设计决策
@@ -287,7 +287,7 @@ canonical：
    - 保证 system prompt 固定顺序拼接。
 3. `src/main/presenter/agentPresenter/message/skillsPromptBuilder.ts`
    - `getSkillsAllowedTools()` 使用 canonicalized allowed tools。
-4. `src/main/presenter/agentPresenter/message/systemEnvPromptBuilder.ts`（新增）
+4. `src/main/lib/agentRuntime/systemEnvPromptBuilder.ts`
    - 统一生成 env prompt（模型、系统、仓库、AGENTS.md）。
 
 拼接顺序（固定）：

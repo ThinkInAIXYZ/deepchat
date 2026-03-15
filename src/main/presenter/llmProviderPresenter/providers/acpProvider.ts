@@ -35,7 +35,7 @@ import {
   type AcpSessionRecord
 } from '../../agentPresenter/acp'
 import { nanoid } from 'nanoid'
-import { presenter } from '@/presenter'
+import type { ProviderMcpRuntimePort } from '../runtimePorts'
 
 type EventQueue = {
   push: (event: LLMCoreStreamEvent | null) => void
@@ -68,9 +68,10 @@ export class AcpProvider extends BaseLLMProvider {
   constructor(
     provider: LLM_PROVIDER,
     configPresenter: IConfigPresenter,
-    sessionPersistence: AcpSessionPersistence
+    sessionPersistence: AcpSessionPersistence,
+    mcpRuntime?: ProviderMcpRuntimePort
   ) {
-    super(provider, configPresenter)
+    super(provider, configPresenter, mcpRuntime)
     this.sessionPersistence = sessionPersistence
     this.processManager = new AcpProcessManager({
       providerId: provider.id,
@@ -78,12 +79,12 @@ export class AcpProvider extends BaseLLMProvider {
       getNpmRegistry: async () => {
         // Get npm registry from MCP presenter's server manager
         // This will use the fastest registry from speed test
-        return presenter.mcpPresenter.getNpmRegistry?.() ?? null
+        return this.mcpRuntime?.getNpmRegistry?.() ?? null
       },
       getUvRegistry: async () => {
         // Get uv registry from MCP presenter's server manager
         // This will use the fastest registry from speed test
-        return presenter.mcpPresenter.getUvRegistry?.() ?? null
+        return this.mcpRuntime?.getUvRegistry?.() ?? null
       }
     })
     this.sessionManager = new AcpSessionManager({

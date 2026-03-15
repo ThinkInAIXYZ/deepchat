@@ -1,4 +1,5 @@
 import { AssistantMessageBlock, Message } from '../../chat'
+import type { SearchResult } from '../core/search'
 
 /**
  * Thread/Conversation Presenter Interface
@@ -82,17 +83,7 @@ export interface MESSAGE {
   is_context_edge?: boolean
 }
 
-export interface SearchResult {
-  title: string
-  url: string
-  snippet?: string
-  favicon?: string
-  content?: string
-  description?: string
-  icon?: string
-  rank?: number
-  searchId?: string
-}
+export type { SearchResult }
 
 export interface IThreadPresenter {
   // Basic conversation operations

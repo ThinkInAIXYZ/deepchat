@@ -3,16 +3,24 @@ import type {
   IAgentPresenter,
   IConfigPresenter,
   ILlmProviderPresenter,
+  IMCPPresenter,
   ISessionPresenter,
+  ISkillPresenter,
   ISQLitePresenter,
+  IToolPresenter,
   MESSAGE_METADATA
 } from '@shared/presenter'
 import type { AssistantMessage, AssistantMessageBlock, UserMessageContent } from '@shared/chat'
 import { eventBus, SendTarget } from '@/eventbus'
 import { STREAM_EVENTS } from '@/events'
-import { presenter } from '@/presenter'
 import type { SessionContextResolved } from './session/sessionContext'
 import type { SessionManager } from './session/sessionManager'
+import type { AgentSessionRuntimePort } from './session/sessionRuntimePort'
+import type {
+  AgentMcpRuntimePort,
+  AgentPermissionRuntimePort,
+  AgentPromptRuntimePort
+} from './runtimePorts'
 import { MessageManager } from '../sessionPresenter/managers/messageManager'
 import type { ThreadHandlerContext } from './types/handlerContext'
 import { CommandPermissionService } from '../permission/commandPermissionService'
@@ -31,7 +39,11 @@ type AgentPresenterDependencies = {
   sqlitePresenter: ISQLitePresenter
   llmProviderPresenter: ILlmProviderPresenter
   configPresenter: IConfigPresenter
+  mcpPresenter: IMCPPresenter
+  skillPresenter: ISkillPresenter
+  toolPresenter: IToolPresenter
   commandPermissionService: CommandPermissionService
+  permissionRuntime: AgentPermissionRuntimePort
   messageManager?: MessageManager
 }
 
@@ -51,6 +63,10 @@ export class AgentPresenter implements IAgentPresenter {
   private permissionHandler: PermissionHandler
   private utilityHandler: UtilityHandler
   private streamUpdateScheduler: StreamUpdateScheduler
+  private readonly sessionRuntime: AgentSessionRuntimePort
+  private readonly mcpRuntime: AgentMcpRuntimePort
+  private readonly promptRuntime: AgentPromptRuntimePort
+  private readonly permissionRuntime: AgentPermissionRuntimePort
 
   constructor(options: AgentPresenterDependencies) {
     this.sessionPresenter = options.sessionPresenter
@@ -60,6 +76,49 @@ export class AgentPresenter implements IAgentPresenter {
     this.configPresenter = options.configPresenter
     this.messageManager = options.messageManager ?? new MessageManager(options.sqlitePresenter)
     this.commandPermissionService = options.commandPermissionService
+    this.permissionRuntime = options.permissionRuntime
+    this.sessionRuntime = {
+      getSession: (agentId) => this.sessionManager.getSession(agentId),
+      getSessionSync: (agentId) => this.sessionManager.getSessionSync(agentId),
+      resolveWorkspaceContext: (conversationId, modelId) =>
+        this.sessionManager.resolveWorkspaceContext(conversationId, modelId),
+      startLoop: (agentId, messageId, runtimeOptions) =>
+        this.sessionManager.startLoop(agentId, messageId, runtimeOptions),
+      setStatus: (agentId, status) => this.sessionManager.setStatus(agentId, status),
+      getStatus: (agentId) => this.sessionManager.getStatus(agentId),
+      updateRuntime: (agentId, updates) => this.sessionManager.updateRuntime(agentId, updates),
+      incrementToolCallCount: (agentId) => this.sessionManager.incrementToolCallCount(agentId),
+      clearPendingPermission: (agentId) => this.sessionManager.clearPendingPermission(agentId),
+      clearPendingQuestion: (agentId) => this.sessionManager.clearPendingQuestion(agentId),
+      addPendingPermission: (agentId, permission) =>
+        this.sessionManager.addPendingPermission(agentId, permission),
+      removePendingPermission: (agentId, messageId, toolCallId) =>
+        this.sessionManager.removePendingPermission(agentId, messageId, toolCallId),
+      getPendingPermissions: (agentId) => this.sessionManager.getPendingPermissions(agentId),
+      hasPendingPermissions: (agentId, messageId) =>
+        this.sessionManager.hasPendingPermissions(agentId, messageId),
+      acquirePermissionResumeLock: (agentId, messageId) =>
+        this.sessionManager.acquirePermissionResumeLock(agentId, messageId),
+      releasePermissionResumeLock: (agentId) =>
+        this.sessionManager.releasePermissionResumeLock(agentId),
+      getPermissionResumeLock: (agentId) => this.sessionManager.getPermissionResumeLock(agentId)
+    }
+    this.mcpRuntime = {
+      callTool: (request) => options.mcpPresenter.callTool(request),
+      grantPermission: (serverName, permissionType, remember, conversationId) =>
+        options.mcpPresenter.grantPermission(serverName, permissionType, remember, conversationId),
+      isServerRunning: (serverName) => options.mcpPresenter.isServerRunning(serverName)
+    }
+    this.promptRuntime = {
+      getInputChatMode: async () =>
+        options.configPresenter.getSetting<string>('input_chatMode') ?? undefined,
+      getSkillsEnabled: () => options.configPresenter.getSkillsEnabled(),
+      getActiveSkills: (conversationId) => options.skillPresenter.getActiveSkills(conversationId),
+      loadSkillContent: (name) => options.skillPresenter.loadSkillContent(name),
+      getMetadataPrompt: () => options.skillPresenter.getMetadataPrompt(),
+      getActiveSkillsAllowedTools: (conversationId) =>
+        options.skillPresenter.getActiveSkillsAllowedTools(conversationId)
+    }
 
     this.streamUpdateScheduler = new StreamUpdateScheduler({
       messageManager: this.messageManager
@@ -69,7 +128,12 @@ export class AgentPresenter implements IAgentPresenter {
       sqlitePresenter: this.sqlitePresenter,
       messageManager: this.messageManager,
       llmProviderPresenter: this.llmProviderPresenter,
-      configPresenter: this.configPresenter
+      configPresenter: this.configPresenter,
+      sessionRuntime: this.sessionRuntime,
+      toolPresenter: options.toolPresenter,
+      mcpRuntime: this.mcpRuntime,
+      promptRuntime: this.promptRuntime,
+      permissionRuntime: this.permissionRuntime
     }
 
     this.contentBufferHandler = new ContentBufferHandler({
@@ -89,6 +153,7 @@ export class AgentPresenter implements IAgentPresenter {
       contentBufferHandler: this.contentBufferHandler,
       toolCallHandler: this.toolCallHandler,
       streamUpdateScheduler: this.streamUpdateScheduler,
+      sessionRuntime: this.sessionRuntime,
       onConversationUpdated: (state) => this.handleConversationUpdates(state)
     })
 
@@ -99,9 +164,6 @@ export class AgentPresenter implements IAgentPresenter {
 
     this.permissionHandler = new PermissionHandler(handlerContext, {
       generatingMessages: this.generatingMessages,
-      llmProviderPresenter: this.llmProviderPresenter,
-      getMcpPresenter: () => presenter.mcpPresenter,
-      getToolPresenter: () => presenter.toolPresenter,
       streamGenerationHandler: this.streamGenerationHandler,
       llmEventHandler: this.llmEventHandler,
       commandPermissionHandler: this.commandPermissionService
@@ -393,8 +455,8 @@ export class AgentPresenter implements IAgentPresenter {
     if (message.status === 'pending') {
       await this.messageManager.updateMessageStatus(messageId, 'sent')
     }
-    presenter.sessionManager.clearPendingQuestion(message.conversationId)
-    presenter.sessionManager.setStatus(message.conversationId, 'idle')
+    this.sessionRuntime.clearPendingQuestion(message.conversationId)
+    this.sessionRuntime.setStatus(message.conversationId, 'idle')
   }
 
   private async resolvePendingQuestionIfNeeded(

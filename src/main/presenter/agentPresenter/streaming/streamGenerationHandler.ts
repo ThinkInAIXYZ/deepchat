@@ -12,7 +12,6 @@ import type { CONVERSATION, MCPToolResponse } from '@shared/presenter'
 import { buildUserMessageContext, formatUserMessageContent } from '../message/messageFormatter'
 import { preparePromptContent } from '../message/messageBuilder'
 import type { GeneratingMessageState } from './types'
-import { presenter } from '@/presenter'
 import { BaseHandler, type ThreadHandlerContext } from '../types/handlerContext'
 import type { LLMEventHandler } from './llmEventHandler'
 import { LoopOrchestrator } from '../loop/loopOrchestrator'
@@ -55,7 +54,7 @@ export class StreamGenerationHandler extends BaseHandler {
     try {
       state.isCancelled = false
       // Normal flow: skip lock acquisition (lock is only for permission resume)
-      await presenter.sessionManager.startLoop(conversationId, state.message.id, {
+      await this.sessionRuntime.startLoop(conversationId, state.message.id, {
         skipLockAcquisition: true
       })
 
@@ -65,11 +64,10 @@ export class StreamGenerationHandler extends BaseHandler {
         selectedVariantsMap
       )
 
-      const { chatMode, agentWorkspacePath } =
-        await presenter.sessionManager.resolveWorkspaceContext(
-          conversationId,
-          conversation.settings.modelId
-        )
+      const { chatMode, agentWorkspacePath } = await this.sessionRuntime.resolveWorkspaceContext(
+        conversationId,
+        conversation.settings.modelId
+      )
       if (chatMode === 'agent' && agentWorkspacePath) {
         conversation.settings.agentWorkspacePath = agentWorkspacePath
       }
@@ -97,7 +95,9 @@ export class StreamGenerationHandler extends BaseHandler {
         vision: Boolean(modelConfig?.vision),
         imageFiles: modelConfig?.vision ? imageFiles : [],
         supportsFunctionCall: modelConfig.functionCall,
-        modelType: modelConfig.type
+        modelType: modelConfig.type,
+        toolPresenter: this.toolPresenter,
+        promptRuntime: this.promptRuntime
       })
 
       this.throwIfCancelled(state.message.id)
@@ -159,7 +159,7 @@ export class StreamGenerationHandler extends BaseHandler {
     try {
       state.isCancelled = false
       // Normal flow: skip lock acquisition (lock is only for permission resume)
-      await presenter.sessionManager.startLoop(conversationId, state.message.id, {
+      await this.sessionRuntime.startLoop(conversationId, state.message.id, {
         skipLockAcquisition: true
       })
 
@@ -190,7 +190,7 @@ export class StreamGenerationHandler extends BaseHandler {
         if (!toolCall.id || !toolCall.name || !toolCall.params) {
           console.warn('[StreamGenerationHandler] Tool call parameters incomplete')
         } else {
-          toolCallResponse = await presenter.mcpPresenter.callTool({
+          toolCallResponse = await this.mcpRuntime.callTool({
             id: toolCall.id,
             type: 'function',
             function: {
@@ -240,7 +240,9 @@ export class StreamGenerationHandler extends BaseHandler {
         vision: false,
         imageFiles: [],
         supportsFunctionCall: modelConfig.functionCall,
-        modelType: modelConfig.type
+        modelType: modelConfig.type,
+        toolPresenter: this.toolPresenter,
+        promptRuntime: this.promptRuntime
       })
 
       await this.updateGenerationState(state, promptTokens)

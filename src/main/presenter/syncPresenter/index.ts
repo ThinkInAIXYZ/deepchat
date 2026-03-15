@@ -626,7 +626,7 @@ export class SyncPresenter implements ISyncPresenter {
   private async broadcastThreadListUpdateAfterImport(): Promise<void> {
     try {
       const { presenter } = await import('../index')
-      await (presenter?.sessionPresenter as any)?.broadcastThreadListUpdate?.()
+      await presenter?.broadcastLegacyThreadListUpdate?.()
     } catch (error) {
       console.warn('Failed to broadcast thread list update after import:', error)
     }

@@ -115,6 +115,15 @@ registerCoreHooks(lifecycleManager)
 
 // Initialize presenter after ready
 let presenter: Presenter
+
+function clearPresenterPermissionCaches(activePresenter?: Presenter): void {
+  if (!activePresenter) return
+
+  activePresenter.commandPermissionService.clearAll()
+  activePresenter.filePermissionService.clearAll()
+  activePresenter.settingsPermissionService.clearAll()
+}
+
 // Start the lifecycle management system instead of using app.whenReady()
 app.whenReady().then(async () => {
   // Set app user model id for windows
@@ -135,14 +144,13 @@ app.whenReady().then(async () => {
 })
 
 app.on('before-quit', () => {
-  if (!presenter) return
-  presenter.sessionPresenter.clearCommandPermissionCache()
+  clearPresenterPermissionCaches(presenter)
 })
 
 // Handle window-all-closed event
 app.on('window-all-closed', () => {
+  clearPresenterPermissionCaches(presenter)
   if (!presenter) return
-  presenter.sessionPresenter.clearCommandPermissionCache()
 
   // Check if there are any non-floating-button windows
   const mainWindows = presenter.windowPresenter.getAllWindows()

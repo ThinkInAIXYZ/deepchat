@@ -6,19 +6,19 @@ import path from 'path'
 import { app, nativeImage } from 'electron'
 import logger from '@shared/logger'
 import type { ChatMessage } from '@shared/types/core/chat-message'
-import { presenter } from '@/presenter'
 import { buildBinaryReadGuidance, shouldRejectAgentBinaryRead } from '@/lib/binaryReadGuard'
 import { AgentFileSystemHandler } from './agentFileSystemHandler'
 import { AgentBashHandler } from './agentBashHandler'
 import { SkillTools } from '../../skillPresenter/skillTools'
 import { SkillExecutionService } from '../../skillPresenter/skillExecutionService'
-import { questionToolSchema, QUESTION_TOOL_NAME } from '../tools/questionTool'
+import { questionToolSchema, QUESTION_TOOL_NAME } from '@/lib/agentRuntime/questionTool'
 import {
   ChatSettingsToolHandler,
   buildChatSettingsToolDefinitions,
   CHAT_SETTINGS_SKILL_NAME,
   CHAT_SETTINGS_TOOL_NAMES
 } from './chatSettingsTools'
+import type { AgentToolRuntimePort } from '../runtimePorts'
 
 // Consider moving to a shared handlers location in future refactoring
 import {
@@ -59,6 +59,7 @@ interface AgentToolManagerOptions {
   agentWorkspacePath: string | null
   configPresenter: IConfigPresenter
   commandPermissionHandler?: CommandPermissionService
+  runtimePort: AgentToolRuntimePort
 }
 
 export class AgentToolManager {
@@ -67,6 +68,7 @@ export class AgentToolManager {
   private bashHandler: AgentBashHandler | null = null
   private readonly commandPermissionHandler?: CommandPermissionService
   private readonly configPresenter: IConfigPresenter
+  private readonly runtimePort: AgentToolRuntimePort
   private skillTools: SkillTools | null = null
   private skillExecutionService: SkillExecutionService | null = null
   private chatSettingsHandler: ChatSettingsToolHandler | null = null
@@ -237,6 +239,7 @@ export class AgentToolManager {
     this.agentWorkspacePath = options.agentWorkspacePath
     this.configPresenter = options.configPresenter
     this.commandPermissionHandler = options.commandPermissionHandler
+    this.runtimePort = options.runtimePort
     if (this.agentWorkspacePath) {
       this.fileSystemHandler = new AgentFileSystemHandler([this.agentWorkspacePath])
       this.bashHandler = new AgentBashHandler(
@@ -298,9 +301,9 @@ export class AgentToolManager {
     // 4. DeepChat settings tools (agent mode only, skill gated)
     if (isAgentMode && this.isSkillsEnabled() && context.conversationId) {
       try {
-        const activeSkills = await presenter.skillPresenter.getActiveSkills(context.conversationId)
+        const activeSkills = await this.getSkillPresenter().getActiveSkills(context.conversationId)
         if (activeSkills.includes(CHAT_SETTINGS_SKILL_NAME)) {
-          const allowedTools = await presenter.skillPresenter.getActiveSkillsAllowedTools(
+          const allowedTools = await this.getSkillPresenter().getActiveSkillsAllowedTools(
             context.conversationId
           )
           const requiredSettingsTools = Object.values(CHAT_SETTINGS_TOOL_NAMES)
@@ -325,7 +328,7 @@ export class AgentToolManager {
     // 5. YoBrowser CDP tools (agent mode only)
     if (isAgentMode) {
       try {
-        defs.push(...presenter.yoBrowserPresenter.toolHandler.getToolDefinitions())
+        defs.push(...this.getYoBrowserToolHandler().getToolDefinitions())
       } catch (error) {
         logger.warn('[AgentToolManager] Failed to load YoBrowser tools', { error })
       }
@@ -386,7 +389,7 @@ export class AgentToolManager {
 
     // Route to YoBrowser CDP tools
     if (toolName.startsWith('yo_browser_')) {
-      const response = await presenter.yoBrowserPresenter.toolHandler.callTool(toolName, args)
+      const response = await this.getYoBrowserToolHandler().callTool(toolName, args)
       return {
         content: response
       }
@@ -397,40 +400,10 @@ export class AgentToolManager {
 
   private async getWorkdirForConversation(conversationId: string): Promise<string | null> {
     try {
-      const session = await presenter?.newAgentPresenter?.getSession(conversationId)
-      const normalized = session?.projectDir?.trim()
-      if (normalized) {
-        return normalized
-      }
-    } catch (error) {
-      logger.warn('[AgentToolManager] Failed to resolve new session workdir:', {
-        conversationId,
-        error
-      })
-    }
-
-    try {
-      const session = await presenter?.sessionManager?.getSession(conversationId)
-      if (!session?.resolved) {
-        return null
-      }
-
-      const resolved = session.resolved
-
-      if (resolved.chatMode === 'acp agent') {
-        const modelId = resolved.modelId
-        const map = resolved.acpWorkdirMap
-        return modelId && map ? (map[modelId] ?? null) : null
-      }
-
-      if (resolved.chatMode === 'agent') {
-        return resolved.agentWorkspacePath ?? null
-      }
-
-      return null
+      return await this.runtimePort.resolveConversationWorkdir(conversationId)
     } catch (error) {
       if (!this.isConversationNotFoundError(error)) {
-        logger.warn('[AgentToolManager] Failed to resolve legacy conversation workdir:', {
+        logger.warn('[AgentToolManager] Failed to resolve conversation workdir:', {
           conversationId,
           error
         })
@@ -783,7 +756,7 @@ export class AgentToolManager {
             readArgs.path,
             baseDirectory
           )
-          const mimeType = await presenter.filePresenter.getMimeType(validPath)
+          const mimeType = await this.getFilePresenter().getMimeType(validPath)
 
           if (await shouldRejectAgentBinaryRead(validPath, mimeType)) {
             return {
@@ -810,7 +783,7 @@ export class AgentToolManager {
             }
           }
 
-          const prepared = await presenter.filePresenter.prepareFileCompletely(
+          const prepared = await this.getFilePresenter().prepareFileCompletely(
             validPath,
             mimeType,
             'llm-friendly'
@@ -1016,7 +989,7 @@ export class AgentToolManager {
     addPath(app.getPath('temp'))
 
     if (conversationId) {
-      const approved = presenter.filePermissionService?.getApprovedPaths(conversationId) ?? []
+      const approved = this.runtimePort.getApprovedFilePaths?.(conversationId) ?? []
       for (const approvedPath of approved) {
         addPath(approvedPath)
       }
@@ -1162,7 +1135,7 @@ export class AgentToolManager {
         defaultVisionModel.modelId,
         defaultVisionModel.providerId
       )
-      const response = await presenter.llmproviderPresenter.generateCompletionStandalone(
+      const response = await this.getLlmProviderPresenter().generateCompletionStandalone(
         defaultVisionModel.providerId,
         messages,
         defaultVisionModel.modelId,
@@ -1242,17 +1215,33 @@ export class AgentToolManager {
     return this.configPresenter.getSkillsEnabled()
   }
 
+  private getSkillPresenter() {
+    return this.runtimePort.getSkillPresenter()
+  }
+
+  private getYoBrowserToolHandler() {
+    return this.runtimePort.getYoBrowserToolHandler()
+  }
+
+  private getFilePresenter() {
+    return this.runtimePort.getFilePresenter()
+  }
+
+  private getLlmProviderPresenter() {
+    return this.runtimePort.getLlmProviderPresenter()
+  }
+
   private async isChatSettingsSkillActive(conversationId?: string): Promise<boolean> {
     if (!conversationId || !this.isSkillsEnabled()) {
       return false
     }
-    const activeSkills = await presenter.skillPresenter.getActiveSkills(conversationId)
+    const activeSkills = await this.getSkillPresenter().getActiveSkills(conversationId)
     return activeSkills.includes(CHAT_SETTINGS_SKILL_NAME)
   }
 
   private getSkillTools(): SkillTools {
     if (!this.skillTools) {
-      this.skillTools = new SkillTools(presenter.skillPresenter)
+      this.skillTools = new SkillTools(this.getSkillPresenter())
     }
     return this.skillTools
   }
@@ -1261,9 +1250,12 @@ export class AgentToolManager {
     if (!this.chatSettingsHandler) {
       this.chatSettingsHandler = new ChatSettingsToolHandler({
         configPresenter: this.configPresenter,
-        skillPresenter: presenter.skillPresenter,
-        sessionPresenter: presenter.sessionPresenter,
-        windowPresenter: presenter.windowPresenter
+        skillPresenter: this.getSkillPresenter(),
+        windowRuntime: {
+          createSettingsWindow: () => this.runtimePort.createSettingsWindow(),
+          sendToWindow: (windowId, channel, ...args) =>
+            this.runtimePort.sendToWindow(windowId, channel, ...args)
+        }
       })
     }
     return this.chatSettingsHandler
@@ -1272,7 +1264,7 @@ export class AgentToolManager {
   private getSkillExecutionService(): SkillExecutionService {
     if (!this.skillExecutionService) {
       this.skillExecutionService = new SkillExecutionService(
-        presenter.skillPresenter,
+        this.getSkillPresenter(),
         this.configPresenter
       )
     }
@@ -1352,9 +1344,9 @@ export class AgentToolManager {
 
   private async hasRunnableSkillScripts(conversationId: string): Promise<boolean> {
     try {
-      const activeSkills = await presenter.skillPresenter.getActiveSkills(conversationId)
+      const activeSkills = await this.getSkillPresenter().getActiveSkills(conversationId)
       for (const skillName of activeSkills) {
-        const scripts = await presenter.skillPresenter.listSkillScripts(skillName)
+        const scripts = await this.getSkillPresenter().listSkillScripts(skillName)
         if (scripts.some((script) => script.enabled)) {
           return true
         }
@@ -1601,7 +1593,7 @@ export class AgentToolManager {
       const shouldCheckPermission = await this.isChatSettingsSkillActive(conversationId)
       if (shouldCheckPermission && conversationId) {
         const approved =
-          presenter.settingsPermissionService?.consumeApproval(conversationId, toolName) ?? false
+          this.runtimePort.consumeSettingsApproval?.(conversationId, toolName) ?? false
         if (!approved) {
           const responseContent = 'components.messageBlockPermissionRequest.description.write'
           return {

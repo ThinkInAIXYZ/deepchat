@@ -23,6 +23,7 @@ import sharp from 'sharp'
 import { proxyConfig } from '../../proxyConfig'
 import { ProxyAgent } from 'undici'
 import { modelCapabilities } from '../../configPresenter/modelCapabilities'
+import type { ProviderMcpRuntimePort } from '../runtimePorts'
 
 const OPENAI_REASONING_MODELS = [
   'o4-mini',
@@ -62,8 +63,12 @@ export class OpenAIResponsesProvider extends BaseLLMProvider {
   // 添加不支持 OpenAI 标准接口的供应商黑名单
   private static readonly NO_MODELS_API_LIST: string[] = []
 
-  constructor(provider: LLM_PROVIDER, configPresenter: IConfigPresenter) {
-    super(provider, configPresenter)
+  constructor(
+    provider: LLM_PROVIDER,
+    configPresenter: IConfigPresenter,
+    mcpRuntime?: ProviderMcpRuntimePort
+  ) {
+    super(provider, configPresenter, mcpRuntime)
     this.createOpenAIClient()
     if (OpenAIResponsesProvider.NO_MODELS_API_LIST.includes(this.provider.id.toLowerCase())) {
       this.isNoModelsApi = true
@@ -573,7 +578,7 @@ export class OpenAIResponsesProvider extends BaseLLMProvider {
     }
     const apiTools =
       tools.length > 0 && supportsFunctionCall
-        ? await presenter.mcpPresenter.mcpToolsToOpenAIResponsesTools(tools, this.provider.id)
+        ? await this.mcpRuntime?.mcpToolsToOpenAIResponsesTools(tools, this.provider.id)
         : undefined
 
     const requestParams: OpenAI.Responses.ResponseCreateParams = {

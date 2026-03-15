@@ -1,9 +1,4 @@
-import { presenter } from '@/presenter'
-import { SkillPresenter } from '../../skillPresenter'
-
-function isSkillsEnabled(): boolean {
-  return presenter.configPresenter.getSkillsEnabled()
-}
+import type { AgentPromptRuntimePort } from '../runtimePorts'
 
 /**
  * Build the skills prompt section for the system prompt.
@@ -12,14 +7,16 @@ function isSkillsEnabled(): boolean {
  * @param conversationId - The conversation ID to get active skills for
  * @returns A formatted string containing all active skill contents, or empty string if no skills active
  */
-export async function buildSkillsPrompt(conversationId: string): Promise<string> {
+export async function buildSkillsPrompt(
+  promptRuntime: AgentPromptRuntimePort,
+  conversationId: string
+): Promise<string> {
   try {
-    if (!isSkillsEnabled()) {
+    if (!promptRuntime.getSkillsEnabled()) {
       return ''
     }
 
-    const skillPresenter = presenter.skillPresenter as SkillPresenter
-    const activeSkills = await skillPresenter.getActiveSkills(conversationId)
+    const activeSkills = await promptRuntime.getActiveSkills(conversationId)
 
     if (activeSkills.length === 0) {
       return ''
@@ -28,7 +25,7 @@ export async function buildSkillsPrompt(conversationId: string): Promise<string>
     const skillContents: string[] = []
 
     for (const skillName of activeSkills) {
-      const skillContent = await skillPresenter.loadSkillContent(skillName)
+      const skillContent = await promptRuntime.loadSkillContent(skillName)
       if (skillContent && skillContent.content) {
         skillContents.push(`## Skill: ${skillName}\n\n${skillContent.content}`)
       }
@@ -50,14 +47,15 @@ export async function buildSkillsPrompt(conversationId: string): Promise<string>
  * Lists available skills and how to activate them.
  * Delegates to skillPresenter.getMetadataPrompt() to avoid code duplication.
  */
-export async function buildSkillsMetadataPrompt(): Promise<string> {
+export async function buildSkillsMetadataPrompt(
+  promptRuntime: AgentPromptRuntimePort
+): Promise<string> {
   try {
-    if (!isSkillsEnabled()) {
+    if (!promptRuntime.getSkillsEnabled()) {
       return ''
     }
 
-    const skillPresenter = presenter.skillPresenter as SkillPresenter
-    return await skillPresenter.getMetadataPrompt()
+    return await promptRuntime.getMetadataPrompt()
   } catch (error) {
     console.warn('[SkillsPromptBuilder] Failed to build skills metadata prompt:', error)
     return ''
@@ -71,14 +69,16 @@ export async function buildSkillsMetadataPrompt(): Promise<string> {
  * @param conversationId - The conversation ID
  * @returns Array of allowed tool names from active skills
  */
-export async function getSkillsAllowedTools(conversationId: string): Promise<string[]> {
+export async function getSkillsAllowedTools(
+  promptRuntime: AgentPromptRuntimePort,
+  conversationId: string
+): Promise<string[]> {
   try {
-    if (!isSkillsEnabled()) {
+    if (!promptRuntime.getSkillsEnabled()) {
       return []
     }
 
-    const skillPresenter = presenter.skillPresenter as SkillPresenter
-    return await skillPresenter.getActiveSkillsAllowedTools(conversationId)
+    return await promptRuntime.getActiveSkillsAllowedTools(conversationId)
   } catch (error) {
     console.warn('[SkillsPromptBuilder] Failed to get skills allowed tools:', error)
     return []

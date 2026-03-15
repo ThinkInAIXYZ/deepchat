@@ -15,7 +15,7 @@
 
 ## T2 新增统一 Env Prompt Builder
 
-- [ ] 新增 `src/main/presenter/agentPresenter/message/systemEnvPromptBuilder.ts`。
+- [ ] 新增 `src/main/lib/agentRuntime/systemEnvPromptBuilder.ts`。
 - [ ] 实现 `buildSystemEnvPrompt(...)`，输出固定格式：
   - 模型名 + 模型 ID
   - `<env>`：workdir、git repo、platform、date

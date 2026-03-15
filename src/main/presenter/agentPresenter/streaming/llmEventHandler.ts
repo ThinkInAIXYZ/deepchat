@@ -4,12 +4,12 @@ import type { AssistantMessageBlock } from '@shared/chat'
 import { finalizeAssistantMessageBlocks } from '@shared/chat/messageBlocks'
 import type { LLMAgentEventData, MESSAGE_METADATA } from '@shared/presenter'
 import { approximateTokenSize } from 'tokenx'
-import { presenter } from '@/presenter'
 import type { MessageManager } from '../../sessionPresenter/managers/messageManager'
 import type { GeneratingMessageState } from './types'
 import type { ContentBufferHandler } from './contentBufferHandler'
 import type { ToolCallHandler } from '../loop/toolCallHandler'
 import type { StreamUpdateScheduler } from './streamUpdateScheduler'
+import type { AgentSessionRuntimePort } from '../session/sessionRuntimePort'
 
 type ConversationUpdateHandler = (state: GeneratingMessageState) => Promise<void>
 
@@ -27,6 +27,7 @@ export class LLMEventHandler {
   private readonly contentBufferHandler: ContentBufferHandler
   private readonly toolCallHandler: ToolCallHandler
   private readonly streamUpdateScheduler: StreamUpdateScheduler
+  private readonly sessionRuntime: AgentSessionRuntimePort
   private readonly onConversationUpdated?: ConversationUpdateHandler
   private readonly errorByEventId: Map<string, HookErrorSnapshot> = new Map()
 
@@ -36,6 +37,7 @@ export class LLMEventHandler {
     contentBufferHandler: ContentBufferHandler
     toolCallHandler: ToolCallHandler
     streamUpdateScheduler: StreamUpdateScheduler
+    sessionRuntime: AgentSessionRuntimePort
     onConversationUpdated?: ConversationUpdateHandler
   }) {
     this.generatingMessages = options.generatingMessages
@@ -43,6 +45,7 @@ export class LLMEventHandler {
     this.contentBufferHandler = options.contentBufferHandler
     this.toolCallHandler = options.toolCallHandler
     this.streamUpdateScheduler = options.streamUpdateScheduler
+    this.sessionRuntime = options.sessionRuntime
     this.onConversationUpdated = options.onConversationUpdated
   }
 
@@ -156,7 +159,7 @@ export class LLMEventHandler {
 
       switch (tool_call) {
         case 'start':
-          presenter.sessionManager.incrementToolCallCount(state.conversationId)
+          this.sessionRuntime.incrementToolCallCount(state.conversationId)
           await this.toolCallHandler.processToolCallStart(state, msg, currentTime)
           break
         case 'update':
@@ -164,7 +167,7 @@ export class LLMEventHandler {
           await this.toolCallHandler.processToolCallUpdate(state, msg)
           break
         case 'permission-required':
-          presenter.sessionManager.addPendingPermission(state.conversationId, {
+          this.sessionRuntime.addPendingPermission(state.conversationId, {
             messageId: eventId,
             toolCallId: tool_call_id || '',
             permissionType:
@@ -172,17 +175,17 @@ export class LLMEventHandler {
               'read',
             payload: msg.permission_request ?? {}
           })
-          presenter.sessionManager.setStatus(state.conversationId, 'waiting_permission')
+          this.sessionRuntime.setStatus(state.conversationId, 'waiting_permission')
           await this.toolCallHandler.processToolCallPermission(state, msg, currentTime)
           break
         case 'question-required':
-          presenter.sessionManager.updateRuntime(state.conversationId, {
+          this.sessionRuntime.updateRuntime(state.conversationId, {
             pendingQuestion: {
               messageId: eventId,
               toolCallId: tool_call_id || ''
             }
           })
-          presenter.sessionManager.setStatus(state.conversationId, 'waiting_question')
+          this.sessionRuntime.setStatus(state.conversationId, 'waiting_question')
           await this.toolCallHandler.processQuestionRequest(state, msg, currentTime)
           break
         case 'permission-granted':
@@ -367,15 +370,15 @@ export class LLMEventHandler {
 
     if (state) {
       this.generatingMessages.delete(eventId)
-      presenter.sessionManager.setStatus(state.conversationId, 'error')
-      presenter.sessionManager.clearPendingPermission(state.conversationId)
-      presenter.sessionManager.clearPendingQuestion(state.conversationId)
+      this.sessionRuntime.setStatus(state.conversationId, 'error')
+      this.sessionRuntime.clearPendingPermission(state.conversationId)
+      this.sessionRuntime.clearPendingQuestion(state.conversationId)
     } else {
       const message = await this.messageManager.getMessage(eventId)
       if (message) {
-        presenter.sessionManager.setStatus(message.conversationId, 'error')
-        presenter.sessionManager.clearPendingPermission(message.conversationId)
-        presenter.sessionManager.clearPendingQuestion(message.conversationId)
+        this.sessionRuntime.setStatus(message.conversationId, 'error')
+        this.sessionRuntime.clearPendingPermission(message.conversationId)
+        this.sessionRuntime.clearPendingQuestion(message.conversationId)
       }
     }
 
@@ -433,9 +436,9 @@ export class LLMEventHandler {
           // Question tool ends the assistant message even when waiting for user input.
           await this.messageManager.updateMessageStatus(eventId, 'sent')
         }
-        presenter.sessionManager.setStatus(state.conversationId, 'waiting_permission')
+        this.sessionRuntime.setStatus(state.conversationId, 'waiting_permission')
         if (!hasPendingPermissions) {
-          presenter.sessionManager.setStatus(state.conversationId, 'waiting_question')
+          this.sessionRuntime.setStatus(state.conversationId, 'waiting_question')
         }
         await this.streamUpdateScheduler.flushAll(eventId, 'final')
         this.generatingMessages.delete(eventId)
@@ -445,9 +448,9 @@ export class LLMEventHandler {
       }
 
       await this.finalizeMessage(state, eventId, Boolean(userStop))
-      presenter.sessionManager.setStatus(state.conversationId, 'idle')
-      presenter.sessionManager.clearPendingPermission(state.conversationId)
-      presenter.sessionManager.clearPendingQuestion(state.conversationId)
+      this.sessionRuntime.setStatus(state.conversationId, 'idle')
+      this.sessionRuntime.clearPendingPermission(state.conversationId)
+      this.sessionRuntime.clearPendingQuestion(state.conversationId)
     }
 
     try {

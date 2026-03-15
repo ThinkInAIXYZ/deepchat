@@ -6,20 +6,20 @@ This document tracks the development progress of new UI feature implementation. 
 
 **Architecture Design**: [new-ui-implementation-plan.md](../../architecture/new-ui-implementation-plan.md)
 
-## Mock Reference File List
+## Archived Reference File List
 
-| Mock File | Purpose | Target Replacement |
+| Archived Mock File | Purpose | Target Replacement |
 |-----------|---------|-------------------|
-| `components/mock/MockWelcomePage.vue` | Welcome page | `pages/WelcomePage.vue` |
-| `components/NewThreadMock.vue` | NewThread page | `pages/NewThreadPage.vue` |
-| `components/mock/MockChatPage.vue` | Chat page | `pages/ChatPage.vue` |
-| `components/mock/MockTopBar.vue` | Top bar | `components/chat/ChatTopBar.vue` |
-| `components/mock/MockMessageList.vue` | Message list | `components/chat/MessageList.vue` |
-| `components/mock/MockInputBox.vue` | Input box | `components/chat/ChatInputBox.vue` |
-| `components/mock/MockInputToolbar.vue` | Input toolbar | `components/chat/ChatInputToolbar.vue` |
-| `components/mock/MockStatusBar.vue` | Status bar | `components/chat/ChatStatusBar.vue` |
+| `archives/code/dead-code-batch-2/src/renderer/src/components/mock/MockWelcomePage.vue` | Welcome page | `pages/WelcomePage.vue` |
+| `archives/code/dead-code-batch-2/src/renderer/src/components/NewThreadMock.vue` | NewThread page | `pages/NewThreadPage.vue` |
+| `archives/code/dead-code-batch-2/src/renderer/src/components/mock/MockChatPage.vue` | Chat page | `pages/ChatPage.vue` |
+| `archives/code/dead-code-batch-2/src/renderer/src/components/mock/MockTopBar.vue` | Top bar | `components/chat/ChatTopBar.vue` |
+| `archives/code/dead-code-batch-2/src/renderer/src/components/mock/MockMessageList.vue` | Message list | `components/chat/MessageList.vue` |
+| `archives/code/dead-code-batch-2/src/renderer/src/components/mock/MockInputBox.vue` | Input box | `components/chat/ChatInputBox.vue` |
+| `archives/code/dead-code-batch-2/src/renderer/src/components/mock/MockInputToolbar.vue` | Input toolbar | `components/chat/ChatInputToolbar.vue` |
+| `archives/code/dead-code-batch-2/src/renderer/src/components/mock/MockStatusBar.vue` | Status bar | `components/chat/ChatStatusBar.vue` |
 | `components/WindowSideBar.vue` | Sidebar | (refactored in place) |
-| `composables/useMockViewState.ts` | State management | Replaced by stores |
+| `archives/code/dead-code-batch-2/src/renderer/src/composables/useMockViewState.ts` | State management | Replaced by stores |
 
 ---
 
@@ -240,15 +240,15 @@ This document tracks the development progress of new UI feature implementation. 
 
 ### 5.5 Cleanup
 
-- [ ] Delete `components/mock/MockWelcomePage.vue`
-- [ ] Delete `components/mock/MockChatPage.vue`
-- [ ] Delete `components/mock/MockTopBar.vue`
-- [ ] Delete `components/mock/MockMessageList.vue`
-- [ ] Delete `components/mock/MockInputBox.vue`
-- [ ] Delete `components/mock/MockInputToolbar.vue`
-- [ ] Delete `components/mock/MockStatusBar.vue`
-- [ ] Delete `components/NewThreadMock.vue`
-- [ ] Delete `composables/useMockViewState.ts`
+- [x] Archive `components/mock/MockWelcomePage.vue` -> `archives/code/dead-code-batch-2/`
+- [x] Archive `components/mock/MockChatPage.vue` -> `archives/code/dead-code-batch-2/`
+- [x] Archive `components/mock/MockTopBar.vue` -> `archives/code/dead-code-batch-2/`
+- [x] Archive `components/mock/MockMessageList.vue` -> `archives/code/dead-code-batch-2/`
+- [x] Archive `components/mock/MockInputBox.vue` -> `archives/code/dead-code-batch-2/`
+- [x] Archive `components/mock/MockInputToolbar.vue` -> `archives/code/dead-code-batch-2/`
+- [x] Archive `components/mock/MockStatusBar.vue` -> `archives/code/dead-code-batch-2/`
+- [x] Archive `components/NewThreadMock.vue` -> `archives/code/dead-code-batch-2/`
+- [x] Archive `composables/useMockViewState.ts` -> `archives/code/dead-code-batch-2/`
 
 ---
 

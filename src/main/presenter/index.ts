@@ -4,6 +4,8 @@ import { BrowserWindow, ipcMain, IpcMainInvokeEvent, app } from 'electron'
 import { WindowPresenter } from './windowPresenter'
 import { ShortcutPresenter } from './shortcutPresenter'
 import {
+  CONVERSATION,
+  CONVERSATION_SETTINGS,
   IConfigPresenter,
   IDeeplinkPresenter,
   IDevicePresenter,
@@ -59,9 +61,15 @@ import {
 } from './permission'
 import { AgentPresenter } from './agentPresenter'
 import { SessionManager } from './agentPresenter/session/sessionManager'
+import type { SessionContext } from './agentPresenter/session/sessionContext'
+import type {
+  AgentPermissionRuntimePort,
+  AgentToolRuntimePort
+} from './agentPresenter/runtimePorts'
 
 import { ConversationExporterService } from './exporter'
 import { SkillPresenter } from './skillPresenter'
+import type { SkillSessionStatePort } from './skillPresenter'
 import { SkillSyncPresenter } from './skillSyncPresenter'
 import { HooksNotificationsService } from './hooksNotifications'
 import { NewSessionHooksBridge } from './hooksNotifications/newSessionBridge'
@@ -90,11 +98,8 @@ export class Presenter implements IPresenter {
   sqlitePresenter: ISQLitePresenter
   llmproviderPresenter: ILlmProviderPresenter
   configPresenter: IConfigPresenter
-  sessionPresenter: ISessionPresenter
 
   exporter: IConversationExporter
-  agentPresenter: IAgentPresenter & ISessionPresenter
-  sessionManager: SessionManager
   devicePresenter: IDevicePresenter
   upgradePresenter: IUpgradePresenter
   shortcutPresenter: IShortcutPresenter
@@ -121,6 +126,11 @@ export class Presenter implements IPresenter {
   commandPermissionService: CommandPermissionService
   filePermissionService: FilePermissionService
   settingsPermissionService: SettingsPermissionService
+  private readonly legacyPermissionRuntime: AgentPermissionRuntimePort
+  private legacyMessageManager: MessageManager
+  private legacySessionPresenter?: SessionPresenter
+  private legacyAgentPresenter?: IAgentPresenter & ISessionPresenter
+  private legacySessionManager?: SessionManager
 
   private constructor(lifecycleManager: ILifecycleManager) {
     // Store lifecycle manager reference for component access
@@ -133,38 +143,45 @@ export class Presenter implements IPresenter {
     // 初始化各个 Presenter 实例及其依赖
     this.windowPresenter = new WindowPresenter(this.configPresenter)
     this.tabPresenter = new TabPresenter(this.windowPresenter)
-    this.llmproviderPresenter = new LLMProviderPresenter(this.configPresenter, this.sqlitePresenter)
+    this.llmproviderPresenter = new LLMProviderPresenter(
+      this.configPresenter,
+      this.sqlitePresenter,
+      () => this.sessionManager,
+      () => this.toolPresenter,
+      {
+        mcpToolsToAnthropicTools: (mcpTools, serverName) =>
+          this.mcpPresenter.mcpToolsToAnthropicTools(mcpTools, serverName),
+        mcpToolsToGeminiTools: (mcpTools, serverName) =>
+          this.mcpPresenter.mcpToolsToGeminiTools(mcpTools, serverName),
+        mcpToolsToOpenAITools: (mcpTools, serverName) =>
+          this.mcpPresenter.mcpToolsToOpenAITools(mcpTools, serverName),
+        mcpToolsToOpenAIResponsesTools: (mcpTools, serverName) =>
+          this.mcpPresenter.mcpToolsToOpenAIResponsesTools(mcpTools, serverName),
+        getNpmRegistry: () => this.mcpPresenter.getNpmRegistry?.() ?? null,
+        getUvRegistry: () => this.mcpPresenter.getUvRegistry?.() ?? null
+      }
+    )
     const commandPermissionHandler = new CommandPermissionService()
     this.commandPermissionService = commandPermissionHandler
     this.filePermissionService = new FilePermissionService()
     this.settingsPermissionService = new SettingsPermissionService()
+    this.legacyPermissionRuntime = {
+      approveFileAccess: (conversationId, paths, remember) =>
+        this.filePermissionService.approve(conversationId, paths, remember),
+      getApprovedFilePaths: (conversationId) =>
+        this.filePermissionService.getApprovedPaths(conversationId),
+      approveSettingsAccess: (conversationId, toolName, remember) =>
+        this.settingsPermissionService.approve(conversationId, toolName, remember),
+      consumeSettingsApproval: (conversationId, toolName) =>
+        this.settingsPermissionService.consumeApproval(conversationId, toolName)
+    }
     const messageManager = new MessageManager(this.sqlitePresenter)
+    this.legacyMessageManager = messageManager
     this.devicePresenter = new DevicePresenter()
     this.exporter = new ConversationExporterService({
       sqlitePresenter: this.sqlitePresenter,
       configPresenter: this.configPresenter
     })
-    this.sessionPresenter = new SessionPresenter({
-      messageManager,
-      sqlitePresenter: this.sqlitePresenter,
-      llmProviderPresenter: this.llmproviderPresenter,
-      configPresenter: this.configPresenter,
-      exporter: this.exporter,
-      commandPermissionService: commandPermissionHandler
-    })
-    this.sessionManager = new SessionManager({
-      configPresenter: this.configPresenter,
-      sessionPresenter: this.sessionPresenter
-    })
-    this.agentPresenter = new AgentPresenter({
-      sessionPresenter: this.sessionPresenter,
-      sessionManager: this.sessionManager,
-      sqlitePresenter: this.sqlitePresenter,
-      llmProviderPresenter: this.llmproviderPresenter,
-      configPresenter: this.configPresenter,
-      commandPermissionService: commandPermissionHandler,
-      messageManager
-    }) as unknown as IAgentPresenter & ISessionPresenter
     this.mcpPresenter = new McpPresenter(this.configPresenter)
     this.upgradePresenter = new UpgradePresenter(this.configPresenter)
     this.shortcutPresenter = new ShortcutPresenter(this.configPresenter)
@@ -189,16 +206,99 @@ export class Presenter implements IPresenter {
     // Initialize generic Workspace presenter (for all Agent modes)
     this.workspacePresenter = new WorkspacePresenter(this.filePresenter)
 
+    const agentToolRuntime: AgentToolRuntimePort = {
+      resolveConversationWorkdir: async (conversationId) => {
+        try {
+          const session = await this.newAgentPresenter?.getSession(conversationId)
+          const normalized = session?.projectDir?.trim()
+          if (normalized) {
+            return normalized
+          }
+        } catch (error) {
+          console.warn('[Presenter] Failed to resolve new session workdir:', {
+            conversationId,
+            error
+          })
+        }
+
+        const legacySession = await this.sessionManager.getSession(conversationId)
+        if (!legacySession?.resolved) {
+          return null
+        }
+
+        const resolved = legacySession.resolved
+        if (resolved.chatMode === 'acp agent') {
+          const modelId = resolved.modelId
+          const map = resolved.acpWorkdirMap
+          return modelId && map ? (map[modelId] ?? null) : null
+        }
+
+        if (resolved.chatMode === 'agent') {
+          return resolved.agentWorkspacePath ?? null
+        }
+
+        return null
+      },
+      getSkillPresenter: () => this.skillPresenter,
+      getYoBrowserToolHandler: () => this.yoBrowserPresenter.toolHandler,
+      getFilePresenter: () => ({
+        getMimeType: (filePath) => this.filePresenter.getMimeType(filePath),
+        prepareFileCompletely: (absPath, typeInfo, contentType) =>
+          this.filePresenter.prepareFileCompletely(absPath, typeInfo, contentType)
+      }),
+      getLlmProviderPresenter: () => ({
+        generateCompletionStandalone: (providerId, messages, modelId, temperature, maxTokens) =>
+          this.llmproviderPresenter.generateCompletionStandalone(
+            providerId,
+            messages,
+            modelId,
+            temperature,
+            maxTokens
+          )
+      }),
+      createSettingsWindow: () => this.windowPresenter.createSettingsWindow(),
+      sendToWindow: (windowId, channel, ...args) =>
+        this.windowPresenter.sendToWindow(windowId, channel, ...args),
+      getApprovedFilePaths: (conversationId) =>
+        this.legacyPermissionRuntime.getApprovedFilePaths?.(conversationId) ?? [],
+      consumeSettingsApproval: (conversationId, toolName) =>
+        this.legacyPermissionRuntime.consumeSettingsApproval?.(conversationId, toolName) ?? false
+    }
+
     // Initialize unified Tool presenter (for routing MCP and Agent tools)
     this.toolPresenter = new ToolPresenter({
       mcpPresenter: this.mcpPresenter,
-      yoBrowserPresenter: this.yoBrowserPresenter,
       configPresenter: this.configPresenter,
-      commandPermissionHandler
+      commandPermissionHandler,
+      agentToolRuntime
     })
 
+    const skillSessionStatePort: SkillSessionStatePort = {
+      hasNewSession: async (conversationId) => {
+        try {
+          return Boolean(await this.newAgentPresenter?.getSession(conversationId))
+        } catch {
+          return false
+        }
+      },
+      getPersistedNewSessionSkills: (conversationId) =>
+        (
+          this.sqlitePresenter as unknown as import('./sqlitePresenter').SQLitePresenter
+        ).newSessionsTable?.getActiveSkills(conversationId) ?? [],
+      setPersistedNewSessionSkills: (conversationId, skills) =>
+        (
+          this.sqlitePresenter as unknown as import('./sqlitePresenter').SQLitePresenter
+        ).newSessionsTable?.updateActiveSkills(conversationId, skills),
+      repairImportedLegacySessionSkills: async (conversationId) => {
+        const newAgentPresenter = this.newAgentPresenter as INewAgentPresenter & {
+          repairImportedLegacySessionSkills?: (sessionId: string) => Promise<string[]>
+        }
+        return (await newAgentPresenter.repairImportedLegacySessionSkills?.(conversationId)) ?? []
+      }
+    }
+
     // Initialize Skill presenter
-    this.skillPresenter = new SkillPresenter(this.configPresenter)
+    this.skillPresenter = new SkillPresenter(this.configPresenter, skillSessionStatePort)
 
     // Initialize Skill Sync presenter
     this.skillSyncPresenter = new SkillSyncPresenter(this.skillPresenter, this.configPresenter)
@@ -237,6 +337,105 @@ export class Presenter implements IPresenter {
     })
 
     this.setupEventBus() // 设置事件总线监听
+  }
+
+  get agentPresenter(): IAgentPresenter & ISessionPresenter {
+    return this.ensureLegacyAgentRuntime().agentPresenter
+  }
+
+  get sessionPresenter(): ISessionPresenter {
+    return this.getLegacySessionPresenter()
+  }
+
+  get sessionManager(): SessionManager {
+    return this.ensureLegacyAgentRuntime().sessionManager
+  }
+
+  getActiveLegacyConversationIdSync(webContentsId: number): string | null {
+    return this.legacySessionPresenter?.getActiveConversationIdSync(webContentsId) ?? null
+  }
+
+  getLegacyRuntimeSessionSync(conversationId: string): SessionContext | null {
+    return this.legacySessionManager?.getSessionSync(conversationId) ?? null
+  }
+
+  async getLegacyConversation(conversationId: string): Promise<CONVERSATION | null> {
+    return await this.getLegacySessionPresenter().getConversation(conversationId)
+  }
+
+  async updateLegacyConversationSettings(
+    conversationId: string,
+    settings: Partial<CONVERSATION_SETTINGS>
+  ): Promise<void> {
+    await this.getLegacySessionPresenter().updateConversationSettings(conversationId, settings)
+  }
+
+  async broadcastLegacyThreadListUpdate(): Promise<void> {
+    await this.getLegacySessionPresenter().broadcastThreadListUpdate()
+  }
+
+  async cleanupLegacyConversationRuntime(conversationId: string): Promise<void> {
+    if (this.legacyAgentPresenter) {
+      await this.legacyAgentPresenter.cleanupConversation(conversationId)
+      return
+    }
+
+    this.legacySessionManager?.removeSession(conversationId)
+
+    try {
+      await this.llmproviderPresenter.clearAcpSession(conversationId)
+    } catch (error) {
+      console.warn('[Presenter] Failed to clear legacy ACP session:', error)
+    }
+  }
+
+  private ensureLegacyAgentRuntime(): {
+    agentPresenter: IAgentPresenter & ISessionPresenter
+    sessionManager: SessionManager
+  } {
+    if (!this.legacySessionManager) {
+      this.legacySessionManager = new SessionManager({
+        configPresenter: this.configPresenter,
+        sessionPresenter: this.getLegacySessionPresenter()
+      })
+    }
+
+    if (!this.legacyAgentPresenter) {
+      this.legacyAgentPresenter = new AgentPresenter({
+        sessionPresenter: this.getLegacySessionPresenter(),
+        sessionManager: this.legacySessionManager,
+        sqlitePresenter: this.sqlitePresenter,
+        llmProviderPresenter: this.llmproviderPresenter,
+        configPresenter: this.configPresenter,
+        mcpPresenter: this.mcpPresenter,
+        skillPresenter: this.skillPresenter,
+        toolPresenter: this.toolPresenter,
+        commandPermissionService: this.commandPermissionService,
+        permissionRuntime: this.legacyPermissionRuntime,
+        messageManager: this.legacyMessageManager
+      }) as unknown as IAgentPresenter & ISessionPresenter
+    }
+
+    return {
+      agentPresenter: this.legacyAgentPresenter,
+      sessionManager: this.legacySessionManager
+    }
+  }
+
+  private getLegacySessionPresenter(): SessionPresenter {
+    if (!this.legacySessionPresenter) {
+      this.legacySessionPresenter = new SessionPresenter({
+        messageManager: this.legacyMessageManager,
+        sqlitePresenter: this.sqlitePresenter,
+        llmProviderPresenter: this.llmproviderPresenter,
+        configPresenter: this.configPresenter,
+        exporter: this.exporter,
+        commandPermissionService: this.commandPermissionService
+      })
+    }
+
+    this.legacySessionPresenter.initializeLegacyRuntime()
+    return this.legacySessionPresenter
   }
 
   public static getInstance(lifecycleManager: ILifecycleManager): Presenter {

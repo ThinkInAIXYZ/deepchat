@@ -111,18 +111,18 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
-import { AssistantMessageBlock } from '@shared/chat'
 import { computed, ref } from 'vue'
 import { CodeBlockNode } from 'markstream-vue'
 import { useThemeStore } from '@/stores/theme'
 import { getLanguageFromFilename } from '@shared/utils/codeLanguage'
+import type { DisplayAssistantMessageBlock } from '@/components/chat/messageListItems'
 
 const { t } = useI18n()
 
 const themeStore = useThemeStore()
 
 const props = defineProps<{
-  block: AssistantMessageBlock
+  block: DisplayAssistantMessageBlock
   messageId?: string
   threadId?: string
 }>()

@@ -2,6 +2,12 @@ import { describe, expect, it, vi } from 'vitest'
 import { defineComponent, h, reactive } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 
+const passthrough = (name: string) =>
+  defineComponent({
+    name,
+    template: '<div><slot /></div>'
+  })
+
 const chatInputTriggerAttachMock = vi.fn()
 const chatInputPendingSkillsSnapshotRef: { value: string[] } = { value: [] }
 
@@ -113,15 +119,24 @@ const setup = async (options?: {
     usePresenter: (name: string) =>
       name === 'configPresenter' ? configPresenter : newAgentPresenter
   }))
+  vi.doMock('vue-i18n', () => ({
+    useI18n: () => ({
+      t: (key: string) => key,
+      locale: { value: 'zh-CN' }
+    })
+  }))
 
   vi.doMock('@/components/chat/ChatInputBox.vue', () => ({
     default: createChatInputBoxStub()
   }))
   vi.doMock('@/components/chat/ChatInputToolbar.vue', () => ({
-    default: defineComponent({ name: 'ChatInputToolbar', template: '<div />' })
+    default: passthrough('ChatInputToolbar')
   }))
   vi.doMock('@/components/chat/ChatStatusBar.vue', () => ({
-    default: defineComponent({ name: 'ChatStatusBar', template: '<div />' })
+    default: passthrough('ChatStatusBar')
+  }))
+  vi.doMock('@shadcn/components/ui/tooltip', () => ({
+    TooltipProvider: passthrough('TooltipProvider')
   }))
 
   const NewThreadPage = (await import('@/pages/NewThreadPage.vue')).default

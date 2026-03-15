@@ -14,22 +14,18 @@ import type {
 } from '@shared/types/agent-interface'
 import type { MCPToolCall, MCPToolResponse } from '@shared/types/core/mcp'
 import type { ChatMessage } from '@shared/types/core/chat-message'
-import type {
-  IConfigPresenter,
-  ILlmProviderPresenter,
-  MCPToolDefinition,
-  ModelConfig
-} from '@shared/presenter'
+import type { IConfigPresenter, ILlmProviderPresenter, ModelConfig } from '@shared/presenter'
+import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
 import { nanoid } from 'nanoid'
 import type { SQLitePresenter } from '../sqlitePresenter'
 import { eventBus, SendTarget } from '@/eventbus'
 import { SESSION_EVENTS, STREAM_EVENTS } from '@/events'
-import { presenter } from '@/presenter'
 import {
   buildRuntimeCapabilitiesPrompt,
   buildSystemEnvPrompt
-} from '../agentPresenter/message/systemEnvPromptBuilder'
+} from '@/lib/agentRuntime/systemEnvPromptBuilder'
+import { presenter } from '@/presenter'
 import { buildContext, buildResumeContext } from './contextBuilder'
 import { appendSummarySection, CompactionService, type CompactionIntent } from './compactionService'
 import { buildPersistableMessageTracePayload } from './messageTracePayload'
@@ -1018,7 +1014,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
             modelConfig: ModelConfig,
             temperature: number,
             maxTokens: number,
-            tools: import('@shared/presenter').MCPToolDefinition[]
+            tools: import('@shared/types/core/mcp').MCPToolDefinition[]
           ) => AsyncGenerator<import('@shared/types/core/llm-events').LLMCoreStreamEvent>
         }
       }

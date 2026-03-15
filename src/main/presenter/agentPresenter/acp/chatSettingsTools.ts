@@ -8,11 +8,10 @@ import type {
   OpenChatSettingsSection,
   MCPToolDefinition,
   IConfigPresenter,
-  ISkillPresenter,
-  ISessionPresenter,
-  IWindowPresenter
+  ISkillPresenter
 } from '@shared/presenter'
 import { SETTINGS_EVENTS } from '@/events'
+import type { AgentToolRuntimePort } from '../runtimePorts'
 
 export const CHAT_SETTINGS_SKILL_NAME = 'deepchat-settings'
 export const CHAT_SETTINGS_TOOL_NAMES = {
@@ -170,8 +169,7 @@ export class ChatSettingsToolHandler {
     private readonly options: {
       configPresenter: IConfigPresenter
       skillPresenter: ISkillPresenter
-      sessionPresenter: ISessionPresenter
-      windowPresenter: IWindowPresenter
+      windowRuntime: Pick<AgentToolRuntimePort, 'createSettingsWindow' | 'sendToWindow'>
     }
   ) {}
 
@@ -366,7 +364,7 @@ export class ChatSettingsToolHandler {
     const normalizedSection = normalizeSection(section)
     const routeName = normalizedSection ? SETTINGS_ROUTE_NAMES[normalizedSection] : undefined
 
-    const windowId = await this.options.windowPresenter.createSettingsWindow()
+    const windowId = await this.options.windowRuntime.createSettingsWindow()
     if (!windowId) {
       return {
         ok: false,
@@ -376,7 +374,7 @@ export class ChatSettingsToolHandler {
     }
 
     if (routeName) {
-      this.options.windowPresenter.sendToWindow(windowId, SETTINGS_EVENTS.NAVIGATE, {
+      this.options.windowRuntime.sendToWindow(windowId, SETTINGS_EVENTS.NAVIGATE, {
         routeName,
         section: normalizedSection
       })

@@ -18,12 +18,12 @@ import type {
   ToolInteractionResult
 } from '@shared/types/agent-interface'
 import type { Message } from '@shared/chat'
+import type { SearchResult } from '@shared/types/core/search'
 import type {
   IConfigPresenter,
   ILlmProviderPresenter,
   ISkillPresenter,
-  CONVERSATION,
-  SearchResult
+  CONVERSATION
 } from '@shared/presenter'
 import type { SQLitePresenter } from '../sqlitePresenter'
 import type { DeepChatAgentPresenter } from '../deepchatAgentPresenter'
@@ -450,6 +450,10 @@ export class NewAgentPresenter {
 
   async startLegacyImport(): Promise<void> {
     this.legacyImportService.startInBackground(false)
+  }
+
+  async repairImportedLegacySessionSkills(sessionId: string): Promise<string[]> {
+    return await this.legacyImportService.repairImportedLegacySessionSkills(sessionId)
   }
 
   async listMessageTraces(messageId: string): Promise<MessageTraceRecord[]> {

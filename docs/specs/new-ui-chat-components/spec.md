@@ -4,15 +4,15 @@
 
 Chat components handle message display, input, and status configuration during active sessions. Each component's visual design must match its mock counterpart exactly.
 
-## Reference Files
+## Archived Reference Files
 
-| Component | Mock File |
+| Component | Archived Mock File |
 |-----------|-----------|
-| ChatTopBar | `components/mock/MockTopBar.vue` |
-| MessageList | `components/mock/MockMessageList.vue` |
-| InputBox | `components/mock/MockInputBox.vue` |
-| InputToolbar | `components/mock/MockInputToolbar.vue` |
-| StatusBar | `components/mock/MockStatusBar.vue` |
+| ChatTopBar | `archives/code/dead-code-batch-2/src/renderer/src/components/mock/MockTopBar.vue` |
+| MessageList | `archives/code/dead-code-batch-2/src/renderer/src/components/mock/MockMessageList.vue` |
+| InputBox | `archives/code/dead-code-batch-2/src/renderer/src/components/mock/MockInputBox.vue` |
+| InputToolbar | `archives/code/dead-code-batch-2/src/renderer/src/components/mock/MockInputToolbar.vue` |
+| StatusBar | `archives/code/dead-code-batch-2/src/renderer/src/components/mock/MockStatusBar.vue` |
 
 ## File Locations
 
@@ -29,7 +29,7 @@ src/renderer/src/components/chat/
 
 ## 1. ChatTopBar
 
-**Mock reference**: `MockTopBar.vue` (copy layout and classes exactly)
+**Archived mock reference**: `dead-code-batch-2/.../MockTopBar.vue`
 
 **Layout**:
 ```
@@ -57,7 +57,7 @@ interface Props {
 
 ## 2. MessageList
 
-**Mock reference**: `MockMessageList.vue` (copy layout and classes exactly)
+**Archived mock reference**: `dead-code-batch-2/.../MockMessageList.vue`
 
 **Layout**:
 ```
@@ -96,7 +96,7 @@ Note: The existing `useChatStore` already handles message fetching and caching v
 
 ## 3. ChatInputBox
 
-**Mock reference**: `MockInputBox.vue` (copy layout and classes exactly)
+**Archived mock reference**: `dead-code-batch-2/.../MockInputBox.vue`
 
 **Layout**:
 ```
@@ -133,7 +133,7 @@ interface Emits {
 
 ## 4. ChatInputToolbar
 
-**Mock reference**: `MockInputToolbar.vue` (copy layout and classes exactly)
+**Archived mock reference**: `dead-code-batch-2/.../MockInputToolbar.vue`
 
 **Layout**:
 ```
@@ -159,7 +159,7 @@ interface Emits {
 
 ## 5. ChatStatusBar
 
-**Mock reference**: `MockStatusBar.vue` (copy layout and classes exactly)
+**Archived mock reference**: `dead-code-batch-2/.../MockStatusBar.vue`
 
 **Layout**:
 ```

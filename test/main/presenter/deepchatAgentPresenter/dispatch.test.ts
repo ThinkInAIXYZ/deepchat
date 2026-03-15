@@ -8,7 +8,7 @@ import { createState } from '@/presenter/deepchatAgentPresenter/types'
 import type { MCPToolDefinition } from '@shared/presenter'
 import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
 import { ToolOutputGuard } from '@/presenter/deepchatAgentPresenter/toolOutputGuard'
-import { QUESTION_TOOL_NAME } from '@/presenter/agentPresenter/tools/questionTool'
+import { QUESTION_TOOL_NAME } from '@/lib/agentRuntime/questionTool'
 
 vi.mock('@/eventbus', () => ({
   eventBus: { sendToRenderer: vi.fn() },

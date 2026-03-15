@@ -78,15 +78,15 @@
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
-import { AssistantMessageBlock } from '@shared/chat'
 import { ref, onMounted, onUnmounted } from 'vue'
+import type { DisplayAssistantMessageBlock } from '@/components/chat/messageListItems'
 
 const { t } = useI18n()
 
 const props = defineProps<{
   messageId: string
   conversationId: string
-  block: AssistantMessageBlock
+  block: DisplayAssistantMessageBlock
 }>()
 
 const emit = defineEmits<{

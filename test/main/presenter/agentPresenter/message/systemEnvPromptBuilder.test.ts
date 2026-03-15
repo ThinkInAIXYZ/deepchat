@@ -6,7 +6,7 @@ import logger from '@shared/logger'
 import {
   buildRuntimeCapabilitiesPrompt,
   buildSystemEnvPrompt
-} from '@/presenter/agentPresenter/message/systemEnvPromptBuilder'
+} from '@/lib/agentRuntime/systemEnvPromptBuilder'
 
 vi.mock('node:fs', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:fs')>()

@@ -7,7 +7,8 @@ import {
   MCPContentItem,
   MCPTextContent,
   IConfigPresenter,
-  Resource
+  Resource,
+  CONVERSATION
 } from '@shared/presenter'
 import { ServerManager } from './serverManager'
 import { McpClient } from './mcpClient'
@@ -270,6 +271,76 @@ export class ToolManager {
     return 'write'
   }
 
+  private async resolveAcpSessionContext(conversationId?: string): Promise<{
+    agentId: string
+    providerId: string
+    projectDir: string | null
+  } | null> {
+    const sessionId = conversationId?.trim()
+    if (!sessionId) {
+      return null
+    }
+
+    try {
+      const session = await presenter.newAgentPresenter.getSession(sessionId)
+      const agentId = session?.agentId?.trim()
+      const providerId = session?.providerId?.trim()
+      if (session && providerId === 'acp' && agentId) {
+        return {
+          agentId,
+          providerId,
+          projectDir: session.projectDir?.trim() || null
+        }
+      }
+    } catch (error) {
+      console.warn('[ToolManager] Failed to resolve new session MCP context:', error)
+    }
+
+    try {
+      const conversation = await presenter.getLegacyConversation(sessionId)
+      return this.mapLegacyConversationToAcpContext(conversation)
+    } catch (error) {
+      console.warn('[ToolManager] Failed to resolve legacy session MCP context:', error)
+      return null
+    }
+  }
+
+  private mapLegacyConversationToAcpContext(conversation: CONVERSATION | null | undefined): {
+    agentId: string
+    providerId: string
+    projectDir: string | null
+  } | null {
+    const settings = conversation?.settings
+    if (!settings) {
+      return null
+    }
+
+    const providerId = typeof settings.providerId === 'string' ? settings.providerId.trim() : ''
+    const chatMode = settings.chatMode
+    const isAcpConversation = providerId === 'acp' || chatMode === 'acp agent'
+    if (!isAcpConversation) {
+      return null
+    }
+
+    const agentId = typeof settings.modelId === 'string' ? settings.modelId.trim() : ''
+    if (!agentId) {
+      return null
+    }
+
+    const directProjectDir =
+      typeof settings.agentWorkspacePath === 'string' ? settings.agentWorkspacePath.trim() : ''
+    const mappedProjectDir =
+      typeof settings.acpWorkdirMap?.[agentId] === 'string'
+        ? settings.acpWorkdirMap[agentId]?.trim()
+        : ''
+
+    return {
+      agentId,
+      providerId: providerId || 'acp',
+      projectDir: directProjectDir || mappedProjectDir || null
+    }
+  }
+
   // 检查工具调用权限
   private checkToolPermission(
     originalToolName: string,
@@ -419,45 +490,30 @@ export class ToolManager {
       const { client: targetClient, originalName } = targetInfo
       const toolServerName = targetClient.serverName
 
-      // ACP agent-level MCP access control (only applies in "acp agent" chat mode)
+      // ACP agent-level MCP access control resolves from session context, not global chat mode.
       if (toolCall.conversationId) {
-        const chatMode = this.configPresenter.getSetting<'agent' | 'acp agent'>('input_chatMode')
-        if (chatMode === 'acp agent') {
-          try {
-            let agentId: string | null = null
-
-            const session = await presenter.newAgentPresenter.getSession(toolCall.conversationId)
-            if (session?.agentId?.trim()) {
-              agentId = session.agentId.trim()
-            } else {
-              const conversation = await presenter.sessionPresenter.getConversation(
-                toolCall.conversationId
+        try {
+          const acpContext = await this.resolveAcpSessionContext(toolCall.conversationId)
+          if (acpContext?.providerId === 'acp' && acpContext.agentId) {
+            const acpAgents = await this.configPresenter.getAcpAgents()
+            if (acpAgents.some((item) => item.id === acpContext.agentId)) {
+              const selections = await this.configPresenter.getAgentMcpSelections(
+                acpContext.agentId
               )
-              if (typeof conversation?.settings?.modelId === 'string') {
-                const normalized = conversation.settings.modelId.trim()
-                agentId = normalized.length > 0 ? normalized : null
-              }
-            }
-
-            if (agentId) {
-              const acpAgents = await this.configPresenter.getAcpAgents()
-              if (acpAgents.some((item) => item.id === agentId)) {
-                const selections = await this.configPresenter.getAgentMcpSelections(agentId)
-                if (!selections?.length || !selections.includes(toolServerName)) {
-                  return {
-                    toolCallId: toolCall.id,
-                    content: `MCP server '${toolServerName}' is not allowed for ACP agent '${agentId}'. Configure MCP access in ACP settings.`,
-                    isError: true
-                  }
+              if (!selections?.length || !selections.includes(toolServerName)) {
+                return {
+                  toolCallId: toolCall.id,
+                  content: `MCP server '${toolServerName}' is not allowed for ACP agent '${acpContext.agentId}'. Configure MCP access in ACP settings.`,
+                  isError: true
                 }
               }
             }
-          } catch (error) {
-            console.warn(
-              '[ToolManager] Failed to resolve ACP agent context for MCP access control:',
-              error
-            )
           }
+        } catch (error) {
+          console.warn(
+            '[ToolManager] Failed to resolve ACP agent context for MCP access control:',
+            error
+          )
         }
       }
 

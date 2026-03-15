@@ -28,7 +28,7 @@
 </template>
 
 <script setup lang="ts">
-import type { MessageFile } from '@shared/chat'
+import type { MessageFile } from '@shared/types/agent-interface'
 import { Icon } from '@iconify/vue'
 import { computed } from 'vue'
 import { getMimeTypeIcon } from '@/lib/utils'

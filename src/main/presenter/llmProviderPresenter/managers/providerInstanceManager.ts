@@ -37,6 +37,7 @@ import { VoiceAIProvider } from '../providers/voiceAIProvider'
 import { RateLimitManager } from './rateLimitManager'
 import { StreamState } from '../types'
 import { AcpSessionPersistence } from '../../agentPresenter/acp'
+import type { ProviderMcpRuntimePort } from '../runtimePorts'
 
 type ProviderConstructor = new (
   provider: LLM_PROVIDER,
@@ -51,6 +52,7 @@ interface ProviderInstanceManagerOptions {
   getCurrentProviderId: () => string | null
   setCurrentProviderId: (providerId: string | null) => void
   acpSessionPersistence?: AcpSessionPersistence
+  mcpRuntime?: ProviderMcpRuntimePort
 }
 
 export class ProviderInstanceManager {
@@ -408,11 +410,12 @@ export class ProviderInstanceManager {
         return new AcpProvider(
           provider,
           this.options.configPresenter,
-          this.options.acpSessionPersistence
+          this.options.acpSessionPersistence,
+          this.options.mcpRuntime
         )
       }
 
-      return new ProviderClass(provider, this.options.configPresenter)
+      return new ProviderClass(provider, this.options.configPresenter, this.options.mcpRuntime)
     } catch (error) {
       console.error(`Failed to create provider instance for ${provider.id}:`, error)
       return undefined

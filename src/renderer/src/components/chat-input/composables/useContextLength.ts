@@ -2,7 +2,7 @@
 import { computed, Ref, unref } from 'vue'
 
 // === Types ===
-import type { MessageFile } from '@shared/chat'
+import type { MessageFile } from '@shared/types/agent-interface'
 import type { MaybeRef } from 'vue'
 
 // === Utils ===
@@ -25,7 +25,7 @@ export function useContextLength(options: ContextLengthOptions) {
     return (
       approximateTokenSize(inputText.value) +
       selectedFiles.value.reduce((acc, file) => {
-        return acc + file.token
+        return acc + (file.token ?? 0)
       }, 0)
     )
   })

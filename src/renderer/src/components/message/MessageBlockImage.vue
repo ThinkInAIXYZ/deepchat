@@ -62,9 +62,9 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { Icon } from '@iconify/vue'
-import { AssistantMessageBlock } from '@shared/chat'
 import { useI18n } from 'vue-i18n'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@shadcn/components/ui/dialog'
+import type { DisplayAssistantMessageBlock } from '@/components/chat/messageListItems'
 
 const keyMap = {
   'image.title': '生成的图片',
@@ -85,7 +85,7 @@ const t = (() => {
 })()
 
 const props = defineProps<{
-  block: AssistantMessageBlock
+  block: DisplayAssistantMessageBlock
   messageId?: string
   threadId?: string
 }>()

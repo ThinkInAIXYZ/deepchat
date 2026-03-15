@@ -1,9 +1,50 @@
 import { mount } from '@vue/test-utils'
-import { describe, it, expect } from 'vitest'
+import { defineComponent } from 'vue'
+import { describe, it, expect, vi } from 'vitest'
 import MessageBlockToolCall from '@/components/message/MessageBlockToolCall.vue'
-import type { AssistantMessageBlock } from '@shared/chat'
+import type { DisplayAssistantMessageBlock } from '@/components/chat/messageListItems'
 
-const createBlock = (overrides: Partial<AssistantMessageBlock> = {}): AssistantMessageBlock => ({
+vi.mock('vue-i18n', () => ({
+  useI18n: () => ({
+    t: (key: string, params?: { count?: number }) => {
+      if (key === 'toolCall.replacementsCount') {
+        return `${params?.count ?? 0} replacements`
+      }
+      return key
+    }
+  })
+}))
+
+vi.mock('@/stores/theme', () => ({
+  useThemeStore: () => ({
+    isDark: false
+  })
+}))
+
+vi.mock('markstream-vue', () => ({
+  CodeBlockNode: defineComponent({
+    name: 'CodeBlockNode',
+    props: {
+      node: {
+        type: Object,
+        required: true
+      },
+      isDark: {
+        type: Boolean,
+        default: false
+      },
+      showHeader: {
+        type: Boolean,
+        default: true
+      }
+    },
+    template: '<div class="code-block-stub"></div>'
+  })
+}))
+
+const createBlock = (
+  overrides: Partial<DisplayAssistantMessageBlock> = {}
+): DisplayAssistantMessageBlock => ({
   type: 'tool_call',
   status: 'success',
   timestamp: Date.now(),
@@ -28,15 +69,6 @@ describe('MessageBlockToolCall', () => {
         block: createBlock({
           tool_call: { name: 'edit_text', response }
         })
-      },
-      global: {
-        stubs: {
-          CodeBlockNode: {
-            name: 'CodeBlockNode',
-            props: ['node', 'isDark'],
-            template: '<div class="code-block-stub"></div>'
-          }
-        }
       }
     })
 

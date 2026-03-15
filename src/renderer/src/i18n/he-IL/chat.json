@@ -72,17 +72,6 @@
     "generationComplete": "היצירה הושלמה",
     "generationError": "היצירה נכשלה"
   },
-  "navigation": {
-    "title": "ניווט בהודעות",
-    "searchPlaceholder": "חפש הודעות...",
-    "noResults": "לא נמצאו הודעות תואמות",
-    "noMessages": "אין הודעות עדיין",
-    "totalMessages": "{count} הודעות סה\"כ",
-    "searchResults": "נמצאו {count} תוצאות בתוך {total} הודעות",
-    "userMessage": "הודעת משתמש",
-    "assistantMessage": "תשובת עוזר",
-    "unknownMessage": "הודעה לא ידועה"
-  },
   "mcpUi": {
     "title": "ממשק MCP",
     "badge": "UI",

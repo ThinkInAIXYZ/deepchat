@@ -91,6 +91,12 @@ const setup = async () => {
   vi.doMock('@/composables/usePresenter', () => ({
     usePresenter: () => newAgentPresenter
   }))
+  vi.doMock('vue-i18n', () => ({
+    useI18n: () => ({
+      t: (key: string) => key,
+      locale: { value: 'zh-CN' }
+    })
+  }))
   vi.doMock('@shadcn/components/ui/tooltip', () => ({
     TooltipProvider: passthrough('TooltipProvider')
   }))

@@ -12,6 +12,7 @@ import {
   ModelScopeMcpSyncResult,
   IConfigPresenter,
   ISQLitePresenter,
+  IToolPresenter,
   AcpWorkdirInfo,
   AcpDebugRequest,
   AcpDebugRunResult
@@ -32,6 +33,8 @@ import type { OllamaProvider } from './providers/ollamaProvider'
 import { ShowResponse } from 'ollama'
 import { AcpSessionPersistence } from '../agentPresenter/acp'
 import { AcpProvider } from './providers/acpProvider'
+import type { AgentSessionRuntimePort } from '../agentPresenter/session/sessionRuntimePort'
+import type { ProviderMcpRuntimePort } from './runtimePorts'
 
 export class LLMProviderPresenter implements ILlmProviderPresenter {
   private currentProviderId: string | null = null
@@ -48,7 +51,16 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
   private readonly modelScopeSyncManager: ModelScopeSyncManager
   private readonly acpSessionPersistence: AcpSessionPersistence
 
-  constructor(configPresenter: IConfigPresenter, sqlitePresenter: ISQLitePresenter) {
+  constructor(
+    configPresenter: IConfigPresenter,
+    sqlitePresenter: ISQLitePresenter,
+    getSessionRuntime?: () => Pick<
+      AgentSessionRuntimePort,
+      'getSession' | 'resolveWorkspaceContext'
+    >,
+    getToolPresenter?: () => IToolPresenter,
+    mcpRuntime?: ProviderMcpRuntimePort
+  ) {
     this.rateLimitManager = new RateLimitManager(configPresenter)
     this.acpSessionPersistence = new AcpSessionPersistence(sqlitePresenter)
     this.providerInstanceManager = new ProviderInstanceManager({
@@ -59,7 +71,8 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
       setCurrentProviderId: (providerId) => {
         this.currentProviderId = providerId
       },
-      acpSessionPersistence: this.acpSessionPersistence
+      acpSessionPersistence: this.acpSessionPersistence,
+      mcpRuntime
     })
     this.modelManager = new ModelManager({
       configPresenter,
@@ -80,7 +93,30 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
       getProviderInstance: this.getProviderInstance.bind(this),
       activeStreams: this.activeStreams,
       canStartNewStream: this.canStartNewStream.bind(this),
-      rateLimitManager: this.rateLimitManager
+      rateLimitManager: this.rateLimitManager,
+      getToolPresenter: () => {
+        if (!getToolPresenter) {
+          throw new Error('ToolPresenter is unavailable')
+        }
+        return getToolPresenter()
+      },
+      sessionRuntime: {
+        getSession: async (agentId) => {
+          if (!getSessionRuntime) {
+            throw new Error('Legacy session runtime is unavailable')
+          }
+          return await getSessionRuntime().getSession(agentId)
+        },
+        resolveWorkspaceContext: async (conversationId, modelId) => {
+          if (!getSessionRuntime) {
+            return {
+              chatMode: 'agent',
+              agentWorkspacePath: null
+            }
+          }
+          return await getSessionRuntime().resolveWorkspaceContext(conversationId, modelId)
+        }
+      } satisfies Pick<AgentSessionRuntimePort, 'getSession' | 'resolveWorkspaceContext'>
     })
 
     this.rateLimitManager.initializeProviderRateLimitConfigs()

@@ -3,6 +3,22 @@ import type { IConfigPresenter } from '../../../../src/shared/presenter'
 import type { SkillMetadata } from '../../../../src/shared/types/skill'
 import { app } from 'electron'
 
+const { newSessionActiveSkillsStore, skillSessionStatePort } = vi.hoisted(() => ({
+  newSessionActiveSkillsStore: new Map<string, string[]>(),
+  skillSessionStatePort: {
+    hasNewSession: vi.fn(),
+    getPersistedNewSessionSkills: vi.fn((conversationId: string) => {
+      return newSessionActiveSkillsStore.get(conversationId) ?? []
+    }),
+    setPersistedNewSessionSkills: vi.fn((conversationId: string, skills: string[]) => {
+      newSessionActiveSkillsStore.set(conversationId, [...skills])
+    }),
+    repairImportedLegacySessionSkills: vi.fn(async (conversationId: string) => {
+      return newSessionActiveSkillsStore.get(conversationId) ?? []
+    })
+  }
+}))
+
 // Mock external dependencies
 vi.mock('electron', () => ({
   app: {
@@ -104,18 +120,6 @@ vi.mock('../../../../src/main/events', () => ({
   }
 }))
 
-vi.mock('../../../../src/main/presenter', () => ({
-  presenter: {
-    sessionPresenter: {
-      getConversation: vi.fn(),
-      updateConversationSettings: vi.fn()
-    },
-    newAgentPresenter: {
-      getSession: vi.fn()
-    }
-  }
-}))
-
 // Import mocked modules
 import fs from 'fs'
 import path from 'path'
@@ -124,7 +128,6 @@ import { watch } from 'chokidar'
 import { unzipSync } from 'fflate'
 import { eventBus } from '../../../../src/main/eventbus'
 import { SKILL_EVENTS } from '../../../../src/main/events'
-import { presenter } from '../../../../src/main/presenter'
 import { SkillPresenter } from '../../../../src/main/presenter/skillPresenter/index'
 
 describe('SkillPresenter', () => {
@@ -133,6 +136,7 @@ describe('SkillPresenter', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    newSessionActiveSkillsStore.clear()
 
     mockConfigPresenter = {
       getSkillsPath: vi.fn().mockReturnValue('')
@@ -155,9 +159,12 @@ describe('SkillPresenter', () => {
       data: { name: 'test-skill', description: 'Test skill' },
       content: '# Test content'
     })
-    ;(presenter.newAgentPresenter.getSession as Mock).mockResolvedValue(null)
+    ;(skillSessionStatePort.hasNewSession as Mock).mockResolvedValue(false)
+    ;(skillSessionStatePort.repairImportedLegacySessionSkills as Mock).mockImplementation(
+      async (conversationId: string) => newSessionActiveSkillsStore.get(conversationId) ?? []
+    )
 
-    skillPresenter = new SkillPresenter(mockConfigPresenter)
+    skillPresenter = new SkillPresenter(mockConfigPresenter, skillSessionStatePort as any)
   })
 
   afterEach(() => {
@@ -172,7 +179,7 @@ describe('SkillPresenter', () => {
     it('should use configured skills path when provided', () => {
       ;(mockConfigPresenter.getSkillsPath as Mock).mockReturnValue('/custom/skills/path')
 
-      const presenter = new SkillPresenter(mockConfigPresenter)
+      const presenter = new SkillPresenter(mockConfigPresenter, skillSessionStatePort as any)
       expect(mockConfigPresenter.getSkillsPath).toHaveBeenCalled()
       presenter.destroy()
     })
@@ -180,7 +187,7 @@ describe('SkillPresenter', () => {
     it('should create skills directory if it does not exist', () => {
       ;(fs.existsSync as Mock).mockReturnValue(false)
 
-      const presenter = new SkillPresenter(mockConfigPresenter)
+      const presenter = new SkillPresenter(mockConfigPresenter, skillSessionStatePort as any)
       expect(fs.mkdirSync).toHaveBeenCalledWith(expect.any(String), { recursive: true })
       presenter.destroy()
     })
@@ -193,7 +200,7 @@ describe('SkillPresenter', () => {
         return '/mock/' + name
       })
 
-      const presenter = new SkillPresenter(mockConfigPresenter)
+      const presenter = new SkillPresenter(mockConfigPresenter, skillSessionStatePort as any)
       await expect(presenter.getSkillsDir()).resolves.toBe('/mock/home/.deepchat/skills')
       presenter.destroy()
     })
@@ -867,20 +874,19 @@ describe('SkillPresenter', () => {
 
   describe('getActiveSkills', () => {
     it('should return empty skills for new agent sessions', async () => {
-      ;(presenter.newAgentPresenter.getSession as Mock).mockResolvedValue({
-        id: 'new-session-1'
-      })
+      ;(skillSessionStatePort.hasNewSession as Mock).mockResolvedValue(true)
 
       const active = await skillPresenter.getActiveSkills('new-session-1')
 
       expect(active).toEqual([])
-      expect(presenter.sessionPresenter.getConversation).not.toHaveBeenCalled()
+      expect(skillSessionStatePort.getPersistedNewSessionSkills).toHaveBeenCalledWith(
+        'new-session-1'
+      )
+      expect(skillSessionStatePort.repairImportedLegacySessionSkills).not.toHaveBeenCalled()
     })
 
-    it('returns in-memory active skills for new agent sessions', async () => {
-      ;(presenter.newAgentPresenter.getSession as Mock).mockResolvedValue({
-        id: 'new-session-2'
-      })
+    it('returns persisted active skills for new agent sessions', async () => {
+      ;(skillSessionStatePort.hasNewSession as Mock).mockResolvedValue(true)
       ;(fs.readdirSync as Mock).mockReturnValue([{ name: 'skill-1', isDirectory: () => true }])
       ;(fs.existsSync as Mock).mockReturnValue(true)
       ;(fs.readFileSync as Mock).mockReturnValue('test')
@@ -894,52 +900,15 @@ describe('SkillPresenter', () => {
       const active = await skillPresenter.getActiveSkills('new-session-2')
 
       expect(active).toEqual(['skill-1'])
-      expect(presenter.sessionPresenter.updateConversationSettings).not.toHaveBeenCalled()
+      expect(skillSessionStatePort.setPersistedNewSessionSkills).toHaveBeenCalledWith(
+        'new-session-2',
+        ['skill-1']
+      )
     })
 
-    it('should return active skills for a conversation', async () => {
-      ;(presenter.sessionPresenter.getConversation as Mock).mockResolvedValue({
-        settings: { activeSkills: ['skill-1', 'skill-2'] }
-      })
-      // Setup skills in metadata cache with proper matter mock
-      ;(fs.readdirSync as Mock).mockReturnValue([
-        { name: 'skill-1', isDirectory: () => true },
-        { name: 'skill-2', isDirectory: () => true }
-      ])
-      ;(fs.existsSync as Mock).mockReturnValue(true)
-      ;(fs.readFileSync as Mock).mockReturnValue('test')
-
-      // Matter mock returns name matching directory name
-      let callIndex = 0
-      ;(matter as unknown as Mock).mockImplementation(() => {
-        callIndex++
-        if (callIndex === 1) {
-          return { data: { name: 'skill-1', description: 'Test 1' }, content: '' }
-        }
-        return { data: { name: 'skill-2', description: 'Test 2' }, content: '' }
-      })
-
-      await skillPresenter.discoverSkills()
-
-      const active = await skillPresenter.getActiveSkills('conv-123')
-
-      expect(active).toEqual(['skill-1', 'skill-2'])
-    })
-
-    it('should return empty array if conversation has no active skills', async () => {
-      ;(presenter.sessionPresenter.getConversation as Mock).mockResolvedValue({
-        settings: {}
-      })
-
-      const active = await skillPresenter.getActiveSkills('conv-123')
-
-      expect(active).toEqual([])
-    })
-
-    it('should filter out non-existent skills', async () => {
-      ;(presenter.sessionPresenter.getConversation as Mock).mockResolvedValue({
-        settings: { activeSkills: ['exists', 'removed'] }
-      })
+    it('filters invalid persisted skills for new agent sessions', async () => {
+      ;(skillSessionStatePort.hasNewSession as Mock).mockResolvedValue(true)
+      newSessionActiveSkillsStore.set('new-session-2b', ['exists', 'removed'])
       ;(fs.readdirSync as Mock).mockReturnValue([{ name: 'exists', isDirectory: () => true }])
       ;(fs.existsSync as Mock).mockReturnValue(true)
       ;(fs.readFileSync as Mock).mockReturnValue('test')
@@ -949,10 +918,79 @@ describe('SkillPresenter', () => {
       })
       await skillPresenter.discoverSkills()
 
-      const active = await skillPresenter.getActiveSkills('conv-123')
+      const active = await skillPresenter.getActiveSkills('new-session-2b')
 
       expect(active).toEqual(['exists'])
-      expect(presenter.sessionPresenter.updateConversationSettings).toHaveBeenCalled()
+      expect(skillSessionStatePort.setPersistedNewSessionSkills).toHaveBeenCalledWith(
+        'new-session-2b',
+        ['exists']
+      )
+    })
+
+    it('repairs imported legacy sessions when persisted skills are empty', async () => {
+      ;(skillSessionStatePort.hasNewSession as Mock).mockResolvedValue(true)
+      ;(fs.readdirSync as Mock).mockReturnValue([
+        { name: 'skill-1', isDirectory: () => true },
+        { name: 'skill-2', isDirectory: () => true }
+      ])
+      ;(fs.existsSync as Mock).mockReturnValue(true)
+      ;(fs.readFileSync as Mock).mockReturnValue('test')
+      let callIndex = 0
+      ;(matter as unknown as Mock).mockImplementation(() => {
+        callIndex++
+        if (callIndex === 1) {
+          return { data: { name: 'skill-1', description: 'Test 1' }, content: '' }
+        }
+        return { data: { name: 'skill-2', description: 'Test 2' }, content: '' }
+      })
+      ;(skillSessionStatePort.repairImportedLegacySessionSkills as Mock).mockImplementation(
+        async (conversationId: string) => {
+          newSessionActiveSkillsStore.set(conversationId, ['skill-1', 'skill-2'])
+          return ['skill-1', 'skill-2']
+        }
+      )
+
+      await skillPresenter.discoverSkills()
+
+      const active = await skillPresenter.getActiveSkills('legacy-session-conv-123')
+
+      expect(active).toEqual(['skill-1', 'skill-2'])
+      expect(skillSessionStatePort.repairImportedLegacySessionSkills).toHaveBeenCalledWith(
+        'legacy-session-conv-123'
+      )
+    })
+
+    it('returns empty array for retired raw legacy conversations', async () => {
+      const active = await skillPresenter.getActiveSkills('conv-123')
+
+      expect(active).toEqual([])
+      expect(skillSessionStatePort.repairImportedLegacySessionSkills).not.toHaveBeenCalled()
+    })
+
+    it('filters invalid skills after imported legacy session repair', async () => {
+      ;(skillSessionStatePort.hasNewSession as Mock).mockResolvedValue(true)
+      ;(fs.readdirSync as Mock).mockReturnValue([{ name: 'exists', isDirectory: () => true }])
+      ;(fs.existsSync as Mock).mockReturnValue(true)
+      ;(fs.readFileSync as Mock).mockReturnValue('test')
+      ;(matter as unknown as Mock).mockReturnValue({
+        data: { name: 'exists', description: 'Test' },
+        content: ''
+      })
+      ;(skillSessionStatePort.repairImportedLegacySessionSkills as Mock).mockImplementation(
+        async (conversationId: string) => {
+          newSessionActiveSkillsStore.set(conversationId, ['exists', 'removed'])
+          return ['exists', 'removed']
+        }
+      )
+      await skillPresenter.discoverSkills()
+
+      const active = await skillPresenter.getActiveSkills('legacy-session-conv-456')
+
+      expect(active).toEqual(['exists'])
+      expect(skillSessionStatePort.setPersistedNewSessionSkills).toHaveBeenCalledWith(
+        'legacy-session-conv-456',
+        ['exists']
+      )
     })
   })
 
@@ -971,71 +1009,81 @@ describe('SkillPresenter', () => {
       await skillPresenter.discoverSkills()
     })
 
-    it('should set active skills for a conversation', async () => {
-      ;(presenter.sessionPresenter.getConversation as Mock).mockResolvedValue({
-        settings: { activeSkills: [] }
-      })
-      ;(presenter.sessionPresenter.updateConversationSettings as Mock).mockResolvedValue(undefined)
-
+    it('does not persist skill state for retired raw legacy conversations', async () => {
       await skillPresenter.setActiveSkills('conv-123', ['skill-1'])
 
-      expect(presenter.sessionPresenter.updateConversationSettings).toHaveBeenCalledWith(
-        'conv-123',
-        expect.objectContaining({ activeSkills: expect.any(Array) })
-      )
+      expect(skillSessionStatePort.setPersistedNewSessionSkills).not.toHaveBeenCalled()
     })
 
-    it('should emit activated event when skills are activated', async () => {
-      ;(presenter.sessionPresenter.getConversation as Mock).mockResolvedValue({
-        settings: { activeSkills: [] }
-      })
-
+    it('does not emit activated event for retired raw legacy conversations', async () => {
       await skillPresenter.setActiveSkills('conv-123', ['skill-1'])
 
-      expect(eventBus.sendToRenderer).toHaveBeenCalledWith(
+      expect(eventBus.sendToRenderer).not.toHaveBeenCalledWith(
         SKILL_EVENTS.ACTIVATED,
         'all',
-        expect.objectContaining({
-          conversationId: 'conv-123',
-          skills: expect.arrayContaining(['skill-1'])
-        })
+        expect.anything()
       )
     })
 
-    it('should emit deactivated event when skills are deactivated', async () => {
-      ;(presenter.sessionPresenter.getConversation as Mock).mockResolvedValue({
-        settings: { activeSkills: ['skill-1', 'skill-2'] }
-      })
-      ;(matter as unknown as Mock).mockImplementation(() => ({
-        data: { name: 'skill-2', description: 'Test' },
-        content: ''
-      }))
-
+    it('does not emit deactivated event for retired raw legacy conversations', async () => {
       await skillPresenter.setActiveSkills('conv-123', ['skill-2'])
 
-      expect(eventBus.sendToRenderer).toHaveBeenCalledWith(
+      expect(eventBus.sendToRenderer).not.toHaveBeenCalledWith(
         SKILL_EVENTS.DEACTIVATED,
         'all',
-        expect.objectContaining({
-          conversationId: 'conv-123',
-          skills: expect.arrayContaining(['skill-1'])
-        })
+        expect.anything()
       )
     })
 
-    it('uses in-memory storage for new-agent sessions', async () => {
-      ;(presenter.newAgentPresenter.getSession as Mock).mockResolvedValue({
-        id: 'new-session-3'
-      })
-      ;(presenter.sessionPresenter.getConversation as Mock).mockResolvedValue({
-        settings: { activeSkills: [] }
-      })
+    it('persists active skills for new-agent sessions', async () => {
+      ;(skillSessionStatePort.hasNewSession as Mock).mockResolvedValue(true)
 
       await skillPresenter.setActiveSkills('new-session-3', ['skill-1'])
       const active = await skillPresenter.getActiveSkills('new-session-3')
 
       expect(active).toEqual(['skill-1'])
-      expect(presenter.sessionPresenter.updateConversationSettings).not.toHaveBeenCalled()
+      expect(skillSessionStatePort.setPersistedNewSessionSkills).toHaveBeenCalledWith(
+        'new-session-3',
+        ['skill-1']
+      )
+    })
+  })
+
+  describe('clearNewAgentSessionSkills', () => {
+    it('keeps persisted active skills across presenter instances', async () => {
+      ;(skillSessionStatePort.hasNewSession as Mock).mockResolvedValue(true)
+      ;(fs.readdirSync as Mock).mockReturnValue([{ name: 'skill-1', isDirectory: () => true }])
+      ;(fs.existsSync as Mock).mockReturnValue(true)
+      ;(fs.readFileSync as Mock).mockReturnValue('test')
+      ;(matter as unknown as Mock).mockReturnValue({
+        data: { name: 'skill-1', description: 'Test' },
+        content: ''
+      })
+      await skillPresenter.discoverSkills()
+
+      await skillPresenter.setActiveSkills('new-session-4a', ['skill-1'])
+      skillPresenter.destroy()
+
+      const rehydratedPresenter = new SkillPresenter(
+        mockConfigPresenter,
+        skillSessionStatePort as any
+      )
+      const active = await rehydratedPresenter.getActiveSkills('new-session-4a')
+
+      expect(active).toEqual(['skill-1'])
+      rehydratedPresenter.destroy()
+    })
+
+    it('clears persisted active skills for new-agent sessions', async () => {
+      newSessionActiveSkillsStore.set('new-session-4', ['skill-1'])
+
+      await skillPresenter.clearNewAgentSessionSkills('new-session-4')
+
+      expect(newSessionActiveSkillsStore.get('new-session-4')).toEqual([])
+      expect(skillSessionStatePort.setPersistedNewSessionSkills).toHaveBeenCalledWith(
+        'new-session-4',
+        []
+      )
     })
   })
 
@@ -1082,22 +1130,22 @@ describe('SkillPresenter', () => {
       await skillPresenter.discoverSkills()
     })
 
-    it('should return union of allowed tools from active skills', async () => {
-      ;(presenter.sessionPresenter.getConversation as Mock).mockResolvedValue({
-        settings: { activeSkills: ['skill-with-tools'] }
-      })
+    it('returns union of allowed tools for repaired imported legacy sessions', async () => {
+      ;(skillSessionStatePort.hasNewSession as Mock).mockResolvedValue(true)
+      ;(skillSessionStatePort.repairImportedLegacySessionSkills as Mock).mockImplementation(
+        async (conversationId: string) => {
+          newSessionActiveSkillsStore.set(conversationId, ['skill-with-tools'])
+          return ['skill-with-tools']
+        }
+      )
 
-      const tools = await skillPresenter.getActiveSkillsAllowedTools('conv-123')
+      const tools = await skillPresenter.getActiveSkillsAllowedTools('legacy-session-conv-123')
 
       expect(tools).toContain('read')
       expect(tools).toContain('write')
     })
 
-    it('should return empty array when no active skills', async () => {
-      ;(presenter.sessionPresenter.getConversation as Mock).mockResolvedValue({
-        settings: { activeSkills: [] }
-      })
-
+    it('returns empty array for retired raw legacy conversations', async () => {
       const tools = await skillPresenter.getActiveSkillsAllowedTools('conv-123')
 
       expect(tools).toEqual([])

@@ -15,8 +15,8 @@ import { DEFAULT_MODEL_CONTEXT_LENGTH, DEFAULT_MODEL_MAX_TOKENS } from '@shared/
 import { createStreamEvent } from '@shared/types/core/llm-events'
 import { BaseLLMProvider, SUMMARY_TITLES_PROMPT } from '../baseProvider'
 import { Ollama, Message, ShowResponse } from 'ollama'
-import { presenter } from '@/presenter'
 import { EMBEDDING_TEST_KEY, isNormalized } from '@/utils/vector'
+import type { ProviderMcpRuntimePort } from '../runtimePorts'
 
 // Define Ollama tool type
 interface OllamaTool {
@@ -40,8 +40,12 @@ interface OllamaTool {
 
 export class OllamaProvider extends BaseLLMProvider {
   private ollama: Ollama
-  constructor(provider: LLM_PROVIDER, configPresenter: IConfigPresenter) {
-    super(provider, configPresenter)
+  constructor(
+    provider: LLM_PROVIDER,
+    configPresenter: IConfigPresenter,
+    mcpRuntime?: ProviderMcpRuntimePort
+  ) {
+    super(provider, configPresenter, mcpRuntime)
     if (this.provider.apiKey) {
       this.ollama = new Ollama({
         host: this.provider.baseUrl,
@@ -437,10 +441,8 @@ export class OllamaProvider extends BaseLLMProvider {
 
   // 辅助方法：将 MCP 工具转换为 Ollama 工具格式
   private async convertToOllamaTools(mcpTools: MCPToolDefinition[]): Promise<OllamaTool[]> {
-    const openAITools = await presenter.mcpPresenter.mcpToolsToOpenAITools(
-      mcpTools,
-      this.provider.id
-    )
+    const openAITools =
+      (await this.mcpRuntime?.mcpToolsToOpenAITools(mcpTools, this.provider.id)) ?? []
     return openAITools.map((rawTool) => {
       const tool = rawTool as unknown as {
         function: {

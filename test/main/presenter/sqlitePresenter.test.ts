@@ -64,4 +64,46 @@ describe('SQLitePresenter legacy schema bootstrap', () => {
     expect(columnNames.has('parent_conversation_id')).toBe(true)
     checkDb.close()
   })
+
+  it('migrates new_sessions active_skills when schema version is already at 14', async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-sqlite-presenter-'))
+    tempDirs.push(tempDir)
+
+    const dbPath = path.join(tempDir, 'agent.db')
+    const bootstrapDb = new Database(dbPath)
+    bootstrapDb.exec(`
+      CREATE TABLE IF NOT EXISTS schema_versions (
+        version INTEGER PRIMARY KEY,
+        applied_at INTEGER NOT NULL
+      );
+      INSERT INTO schema_versions (version, applied_at) VALUES (14, ${Date.now()});
+      CREATE TABLE IF NOT EXISTS new_sessions (
+        id TEXT PRIMARY KEY,
+        agent_id TEXT NOT NULL,
+        title TEXT NOT NULL,
+        project_dir TEXT,
+        is_pinned INTEGER DEFAULT 0,
+        is_draft INTEGER NOT NULL DEFAULT 0,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+    `)
+    bootstrapDb.close()
+
+    const presenter = new SQLitePresenter(dbPath)
+    presenter.close()
+
+    const checkDb = new Database(dbPath)
+    const newSessionColumns = checkDb.prepare('PRAGMA table_info(new_sessions)').all() as Array<{
+      name: string
+    }>
+    const columnNames = new Set(newSessionColumns.map((column) => column.name))
+    expect(columnNames.has('active_skills')).toBe(true)
+
+    const versions = checkDb
+      .prepare('SELECT version FROM schema_versions ORDER BY version ASC')
+      .all() as Array<{ version: number }>
+    expect(versions.map((row) => row.version)).toContain(15)
+    checkDb.close()
+  })
 })

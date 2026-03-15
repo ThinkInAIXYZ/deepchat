@@ -10,7 +10,6 @@ import {
 } from '@shared/presenter'
 import { createStreamEvent } from '@shared/types/core/llm-events'
 import { BaseLLMProvider, SUMMARY_TITLES_PROMPT } from '../baseProvider'
-import { presenter } from '@/presenter'
 import { BedrockClient, ListFoundationModelsCommand } from '@aws-sdk/client-bedrock'
 import {
   BedrockRuntimeClient,
@@ -20,14 +19,19 @@ import {
 } from '@aws-sdk/client-bedrock-runtime'
 import Anthropic from '@anthropic-ai/sdk'
 import { Usage } from '@anthropic-ai/sdk/resources/messages'
+import type { ProviderMcpRuntimePort } from '../runtimePorts'
 
 export class AwsBedrockProvider extends BaseLLMProvider {
   private bedrock!: BedrockClient
   private bedrockRuntime!: BedrockRuntimeClient
   private defaultModel = 'anthropic.claude-3-5-sonnet-20240620-v1:0'
 
-  constructor(provider: AWS_BEDROCK_PROVIDER, configPresenter: IConfigPresenter) {
-    super(provider, configPresenter)
+  constructor(
+    provider: AWS_BEDROCK_PROVIDER,
+    configPresenter: IConfigPresenter,
+    mcpRuntime?: ProviderMcpRuntimePort
+  ) {
+    super(provider, configPresenter, mcpRuntime)
     this.init()
   }
 
@@ -629,7 +633,7 @@ ${text}
       // 将MCP工具转换为Anthropic工具格式
       const anthropicTools =
         mcpTools.length > 0
-          ? await presenter.mcpPresenter.mcpToolsToAnthropicTools(mcpTools, this.provider.id)
+          ? await this.mcpRuntime?.mcpToolsToAnthropicTools(mcpTools, this.provider.id)
           : undefined
 
       // 创建基本请求参数

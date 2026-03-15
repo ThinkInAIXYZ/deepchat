@@ -72,17 +72,6 @@
     "generationComplete": "Geração concluída",
     "generationError": "Falha na geração"
   },
-  "navigation": {
-    "title": "Navegação de Mensagens",
-    "searchPlaceholder": "Buscar mensagens...",
-    "noResults": "Nenhuma mensagem encontrada",
-    "noMessages": "Nenhuma mensagem ainda",
-    "totalMessages": "Total de {count} mensagens",
-    "searchResults": "Encontrados {count} resultados em {total} mensagens",
-    "userMessage": "Mensagem do usuário",
-    "assistantMessage": "Resposta do assistente",
-    "unknownMessage": "Mensagem desconhecida"
-  },
   "toolCall": {
     "title": "Chamada de ferramenta",
     "calling": "Chamada de ferramenta em andamento",

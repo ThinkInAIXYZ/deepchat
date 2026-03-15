@@ -33,11 +33,7 @@ vi.mock('openai', () => {
 })
 
 vi.mock('@/presenter', () => ({
-  presenter: {
-    mcpPresenter: {
-      mcpToolsToOpenAIResponsesTools: mockMcpToolsToOpenAIResponsesTools
-    }
-  }
+  presenter: {}
 }))
 
 vi.mock('@/eventbus', () => ({
@@ -82,6 +78,10 @@ const createAsyncStream = (chunks: Array<Record<string, unknown>>) => ({
     }
   }
 })
+
+const mcpRuntime = {
+  mcpToolsToOpenAIResponsesTools: mockMcpToolsToOpenAIResponsesTools
+}
 
 describe('OpenAIResponsesProvider tool call id mapping', () => {
   const mockProvider: LLM_PROVIDER = {
@@ -179,7 +179,11 @@ describe('OpenAIResponsesProvider tool call id mapping', () => {
       ])
     )
 
-    const provider = new OpenAIResponsesProvider(mockProvider, mockConfigPresenter)
+    const provider = new OpenAIResponsesProvider(
+      mockProvider,
+      mockConfigPresenter,
+      mcpRuntime as any
+    )
     ;(provider as any).isInitialized = true
 
     const events = []
@@ -208,6 +212,7 @@ describe('OpenAIResponsesProvider tool call id mapping', () => {
     expect(endEvent?.tool_call_id).toBe('call_123')
     expect(endEvent?.tool_call_arguments_complete).toBe('{"city":"shanghai"}')
     expect(stopEvent?.stop_reason).toBe('tool_use')
+    expect(mockMcpToolsToOpenAIResponsesTools).toHaveBeenCalledWith(tools, mockProvider.id)
   })
 
   it('uses unified fallback defaults when model list lacks capability metadata', async () => {
@@ -215,7 +220,11 @@ describe('OpenAIResponsesProvider tool call id mapping', () => {
       data: [{ id: 'gpt-4.1' }]
     })
 
-    const provider = new OpenAIResponsesProvider(mockProvider, mockConfigPresenter)
+    const provider = new OpenAIResponsesProvider(
+      mockProvider,
+      mockConfigPresenter,
+      mcpRuntime as any
+    )
     const models = await (provider as any).fetchOpenAIModels()
 
     expect(models).toEqual([
@@ -265,7 +274,11 @@ describe('OpenAIResponsesProvider tool call id mapping', () => {
       ])
     )
 
-    const provider = new OpenAIResponsesProvider(mockProvider, mockConfigPresenter)
+    const provider = new OpenAIResponsesProvider(
+      mockProvider,
+      mockConfigPresenter,
+      mcpRuntime as any
+    )
     ;(provider as any).isInitialized = true
 
     const events = []
@@ -326,7 +339,11 @@ describe('OpenAIResponsesProvider tool call id mapping', () => {
       ])
     )
 
-    const provider = new OpenAIResponsesProvider(mockProvider, mockConfigPresenter)
+    const provider = new OpenAIResponsesProvider(
+      mockProvider,
+      mockConfigPresenter,
+      mcpRuntime as any
+    )
     ;(provider as any).isInitialized = true
 
     for await (const _event of provider.coreStream(

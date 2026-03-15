@@ -104,8 +104,7 @@ import { useAgentStore } from '@/stores/ui/agent'
 import { useModelStore } from '@/stores/modelStore'
 import { useDraftStore } from '@/stores/ui/draft'
 import { usePresenter } from '@/composables/usePresenter'
-import type { MessageFile as ChatMessageFile } from '@shared/chat'
-import type { MessageFile as AgentMessageFile } from '@shared/types/agent-interface'
+import type { MessageFile } from '@shared/types/agent-interface'
 
 const projectStore = useProjectStore()
 const sessionStore = useSessionStore()
@@ -117,7 +116,7 @@ const newAgentPresenter = usePresenter('newAgentPresenter')
 const { t } = useI18n()
 
 const message = ref('')
-const attachedFiles = ref<ChatMessageFile[]>([])
+const attachedFiles = ref<MessageFile[]>([])
 const pendingSkills = ref<string[]>([])
 const chatInputRef = ref<{
   triggerAttach: () => void
@@ -198,34 +197,16 @@ async function onCommandSubmit(command: string) {
   await submitText(text, files)
 }
 
-const toAgentMessageFiles = (files: ChatMessageFile[]): AgentMessageFile[] =>
-  files.map((file) => ({
-    ...file,
-    metadata: file.metadata
-      ? {
-          ...file.metadata,
-          fileCreated: file.metadata.fileCreated
-            ? new Date(file.metadata.fileCreated as Date | string | number)
-            : undefined,
-          fileModified: file.metadata.fileModified
-            ? new Date(file.metadata.fileModified as Date | string | number)
-            : undefined
-        }
-      : undefined
-  }))
-
-async function submitText(text: string, files: ChatMessageFile[]) {
+async function submitText(text: string, files: MessageFile[]) {
   if (!text.trim()) return
 
   const agentId = agentStore.selectedAgentId ?? 'deepchat'
   const isAcp = agentId !== 'deepchat'
-  const normalizedFiles = toAgentMessageFiles(files)
-
   if (isAcp && acpDraftSessionId.value) {
     await sessionStore.selectSession(acpDraftSessionId.value)
     await sessionStore.sendMessage(acpDraftSessionId.value, {
       text,
-      files: normalizedFiles
+      files
     })
     return
   }
@@ -252,7 +233,7 @@ async function submitText(text: string, files: ChatMessageFile[]) {
 
   await sessionStore.createSession({
     message: text,
-    files: normalizedFiles,
+    files,
     projectDir: projectStore.selectedProject?.path,
     agentId,
     providerId,
@@ -267,7 +248,7 @@ function onAttach() {
   chatInputRef.value?.triggerAttach()
 }
 
-function onFilesChange(files: ChatMessageFile[]) {
+function onFilesChange(files: MessageFile[]) {
   attachedFiles.value = files
 }
 

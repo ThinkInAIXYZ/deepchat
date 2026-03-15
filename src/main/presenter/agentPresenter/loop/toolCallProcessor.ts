@@ -10,7 +10,7 @@ import fs from 'fs/promises'
 import path from 'path'
 import { isNonRetryableError } from './errorClassification'
 import { resolveToolOffloadPath } from '../../sessionPresenter/sessionPaths'
-import { parseQuestionToolArgs, QUESTION_TOOL_NAME } from '../tools/questionTool'
+import { parseQuestionToolArgs, QUESTION_TOOL_NAME } from '@/lib/agentRuntime/questionTool'
 
 interface ToolCallProcessorOptions {
   getAllToolDefinitions: (context: ToolCallExecutionContext) => Promise<MCPToolDefinition[]>

@@ -15,6 +15,7 @@ import { presenter } from '@/presenter'
 import { Usage } from '@anthropic-ai/sdk/resources'
 import { proxyConfig } from '../../proxyConfig'
 import { ProxyAgent } from 'undici'
+import type { ProviderMcpRuntimePort } from '../runtimePorts'
 
 const OAUTH_MODEL_LIST = {
   data: [
@@ -84,8 +85,12 @@ export class AnthropicProvider extends BaseLLMProvider {
   private isOAuthMode = false
   private defaultModel = 'claude-sonnet-4-5-20250929'
 
-  constructor(provider: LLM_PROVIDER, configPresenter: IConfigPresenter) {
-    super(provider, configPresenter)
+  constructor(
+    provider: LLM_PROVIDER,
+    configPresenter: IConfigPresenter,
+    mcpRuntime?: ProviderMcpRuntimePort
+  ) {
+    super(provider, configPresenter, mcpRuntime)
     this.init()
   }
 
@@ -1014,7 +1019,7 @@ ${context}
       // 将MCP工具转换为Anthropic工具格式
       const anthropicTools =
         mcpTools.length > 0
-          ? await presenter.mcpPresenter.mcpToolsToAnthropicTools(mcpTools, this.provider.id)
+          ? await this.mcpRuntime?.mcpToolsToAnthropicTools(mcpTools, this.provider.id)
           : undefined
 
       // 创建基本请求参数
@@ -1243,7 +1248,7 @@ ${context}
       // 将MCP工具转换为Anthropic工具格式
       const anthropicTools =
         mcpTools.length > 0
-          ? await presenter.mcpPresenter.mcpToolsToAnthropicTools(mcpTools, this.provider.id)
+          ? await this.mcpRuntime?.mcpToolsToAnthropicTools(mcpTools, this.provider.id)
           : undefined
 
       // 创建基本请求参数

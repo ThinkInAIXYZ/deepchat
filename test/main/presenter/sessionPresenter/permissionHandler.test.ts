@@ -1,14 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AssistantMessage, AssistantMessageBlock } from '@shared/chat'
-import type { ILlmProviderPresenter, IMCPPresenter, IToolPresenter } from '@shared/presenter'
+import type { ILlmProviderPresenter } from '@shared/presenter'
 import { PermissionHandler } from '@/presenter/agentPresenter/permission/permissionHandler'
 import { CommandPermissionService } from '@/presenter/permission'
 import { presenter } from '@/presenter'
-import type { ThreadHandlerContext } from '@/presenter/searchPresenter/handlers/baseHandler'
+import type { ThreadHandlerContext } from '@/presenter/agentPresenter/types/handlerContext'
 import type { StreamGenerationHandler } from '@/presenter/agentPresenter/streaming/streamGenerationHandler'
 import type { LLMEventHandler } from '@/presenter/agentPresenter/streaming/llmEventHandler'
 import type { MessageManager } from '@/presenter/sessionPresenter/managers/messageManager'
-import type { SearchManager } from '@/presenter/searchPresenter/managers/searchManager'
 import type { GeneratingMessageState } from '@/presenter/agentPresenter/streaming/types'
 
 const sessionState = vi.hoisted(() => ({
@@ -93,12 +92,6 @@ const presenterMock = vi.hoisted(() => ({
     getSessionSync: vi.fn((agentId: string) => {
       return sessionState.sessions.get(agentId) ?? null
     })
-  },
-  filePermissionService: {
-    approve: vi.fn()
-  },
-  settingsPermissionService: {
-    approve: vi.fn()
   }
 }))
 
@@ -142,7 +135,29 @@ const createPermissionHandler = (options: {
     messageManager,
     llmProviderPresenter: options.llmProviderPresenter ?? ({} as ILlmProviderPresenter),
     configPresenter: {} as never,
-    searchManager: {} as SearchManager
+    sessionRuntime: presenter.sessionManager as never,
+    toolPresenter: {
+      getAllToolDefinitions: vi.fn(),
+      callTool: vi.fn(),
+      buildToolSystemPrompt: vi.fn()
+    } as never,
+    mcpRuntime: {
+      grantPermission: vi.fn(),
+      isServerRunning: vi.fn().mockResolvedValue(true),
+      callTool: vi.fn()
+    } as never,
+    promptRuntime: {
+      getInputChatMode: vi.fn(),
+      getSkillsEnabled: vi.fn(),
+      getActiveSkills: vi.fn(),
+      loadSkillContent: vi.fn(),
+      getMetadataPrompt: vi.fn(),
+      getActiveSkillsAllowedTools: vi.fn()
+    } as never,
+    permissionRuntime: {
+      approveFileAccess: vi.fn(),
+      approveSettingsAccess: vi.fn()
+    } as never
   }
 
   const generatingMessages = new Map<string, GeneratingMessageState>()
@@ -159,18 +174,6 @@ const createPermissionHandler = (options: {
 
   const handler = new PermissionHandler(ctx, {
     generatingMessages,
-    llmProviderPresenter: options.llmProviderPresenter ?? ({} as ILlmProviderPresenter),
-    getMcpPresenter: () =>
-      ({
-        grantPermission: vi.fn(),
-        isServerRunning: vi.fn().mockResolvedValue(true)
-      }) as unknown as IMCPPresenter,
-    getToolPresenter: () =>
-      ({
-        getAllToolDefinitions: vi.fn(),
-        callTool: vi.fn(),
-        buildToolSystemPrompt: vi.fn()
-      }) as unknown as IToolPresenter,
     streamGenerationHandler: {} as StreamGenerationHandler,
     llmEventHandler: {} as LLMEventHandler,
     commandPermissionHandler: new CommandPermissionService()

@@ -1,8 +1,13 @@
 import { approximateTokenSize } from 'tokenx'
-import { presenter } from '@/presenter'
 import { AssistantMessage, Message, MessageFile, UserMessageContent } from '@shared/chat'
 import { ModelType } from '@shared/model'
-import { CONVERSATION, ModelConfig, SearchResult, ChatMessage } from '@shared/presenter'
+import {
+  CONVERSATION,
+  IToolPresenter,
+  ModelConfig,
+  SearchResult,
+  ChatMessage
+} from '@shared/presenter'
 import type { MCPToolDefinition } from '@shared/presenter'
 
 import { modelCapabilities } from '../../configPresenter/modelCapabilities'
@@ -22,7 +27,11 @@ import {
   buildSkillsPrompt,
   getSkillsAllowedTools
 } from './skillsPromptBuilder'
-import { buildRuntimeCapabilitiesPrompt, buildSystemEnvPrompt } from './systemEnvPromptBuilder'
+import {
+  buildRuntimeCapabilitiesPrompt,
+  buildSystemEnvPrompt
+} from '@/lib/agentRuntime/systemEnvPromptBuilder'
+import type { AgentPromptRuntimePort } from '../runtimePorts'
 
 export type PendingToolCall = {
   id: string
@@ -43,6 +52,8 @@ export interface PreparePromptContentParams {
   imageFiles: MessageFile[]
   supportsFunctionCall: boolean
   modelType?: ModelType
+  toolPresenter: IToolPresenter
+  promptRuntime: AgentPromptRuntimePort
 }
 
 export interface ContinueToolCallContextParams {
@@ -111,7 +122,9 @@ export async function preparePromptContent({
   vision,
   imageFiles,
   supportsFunctionCall,
-  modelType
+  modelType,
+  toolPresenter,
+  promptRuntime
 }: PreparePromptContentParams): Promise<{
   finalContent: ChatMessage[]
   promptTokens: number
@@ -124,7 +137,7 @@ export async function preparePromptContent({
   }
 
   const rawChatMode = conversation.settings.chatMode
-  const rawFallback = await presenter.configPresenter.getSetting<string>('input_chatMode')
+  const rawFallback = await promptRuntime.getInputChatMode()
   const chatMode: 'agent' | 'acp agent' =
     normalizeChatMode(rawChatMode) ?? normalizeChatMode(rawFallback) ?? 'agent'
 
@@ -137,12 +150,12 @@ export async function preparePromptContent({
 
   const { providerId, modelId } = conversation.settings
   const supportsVision = modelCapabilities.supportsVision(providerId, modelId)
-  const toolCallCenter = new ToolCallCenter(presenter.toolPresenter)
+  const toolCallCenter = new ToolCallCenter(toolPresenter)
   let toolDefinitions: MCPToolDefinition[] = []
   let effectiveEnabledMcpTools = enabledMcpTools
 
   if (!isImageGeneration && chatMode === 'agent') {
-    const skillsAllowedTools = await getSkillsAllowedTools(conversation.id)
+    const skillsAllowedTools = await getSkillsAllowedTools(promptRuntime, conversation.id)
     effectiveEnabledMcpTools = mergeToolSelections(enabledMcpTools, skillsAllowedTools)
   }
 
@@ -170,8 +183,8 @@ export async function preparePromptContent({
   if (!isImageGeneration && chatMode === 'agent') {
     runtimePrompt = buildRuntimeCapabilitiesPrompt()
     try {
-      skillsMetadataPrompt = await buildSkillsMetadataPrompt()
-      skillsPrompt = await buildSkillsPrompt(conversation.id)
+      skillsMetadataPrompt = await buildSkillsMetadataPrompt(promptRuntime)
+      skillsPrompt = await buildSkillsPrompt(promptRuntime, conversation.id)
     } catch (error) {
       console.warn('AgentPresenter: Failed to build skills prompt', error)
     }
