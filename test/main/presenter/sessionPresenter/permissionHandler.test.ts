@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AssistantMessage, AssistantMessageBlock } from '@shared/chat'
-import type { ILlmProviderPresenter, IMCPPresenter } from '@shared/presenter'
+import type { ILlmProviderPresenter } from '@shared/presenter'
 import { PermissionHandler } from '@/presenter/agentPresenter/permission/permissionHandler'
 import { CommandPermissionService } from '@/presenter/permission'
 import { presenter } from '@/presenter'
@@ -92,12 +92,6 @@ const presenterMock = vi.hoisted(() => ({
     getSessionSync: vi.fn((agentId: string) => {
       return sessionState.sessions.get(agentId) ?? null
     })
-  },
-  filePermissionService: {
-    approve: vi.fn()
-  },
-  settingsPermissionService: {
-    approve: vi.fn()
   }
 }))
 
@@ -146,6 +140,23 @@ const createPermissionHandler = (options: {
       getAllToolDefinitions: vi.fn(),
       callTool: vi.fn(),
       buildToolSystemPrompt: vi.fn()
+    } as never,
+    mcpRuntime: {
+      grantPermission: vi.fn(),
+      isServerRunning: vi.fn().mockResolvedValue(true),
+      callTool: vi.fn()
+    } as never,
+    promptRuntime: {
+      getInputChatMode: vi.fn(),
+      getSkillsEnabled: vi.fn(),
+      getActiveSkills: vi.fn(),
+      loadSkillContent: vi.fn(),
+      getMetadataPrompt: vi.fn(),
+      getActiveSkillsAllowedTools: vi.fn()
+    } as never,
+    permissionRuntime: {
+      approveFileAccess: vi.fn(),
+      approveSettingsAccess: vi.fn()
     } as never
   }
 
@@ -163,12 +174,6 @@ const createPermissionHandler = (options: {
 
   const handler = new PermissionHandler(ctx, {
     generatingMessages,
-    llmProviderPresenter: options.llmProviderPresenter ?? ({} as ILlmProviderPresenter),
-    getMcpPresenter: () =>
-      ({
-        grantPermission: vi.fn(),
-        isServerRunning: vi.fn().mockResolvedValue(true)
-      }) as unknown as IMCPPresenter,
     streamGenerationHandler: {} as StreamGenerationHandler,
     llmEventHandler: {} as LLMEventHandler,
     commandPermissionHandler: new CommandPermissionService()

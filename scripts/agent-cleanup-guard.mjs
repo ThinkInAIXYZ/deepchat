@@ -33,6 +33,21 @@ const MAIN_COMPAT_PROTECTED_DIRS = [
 ]
 
 const LEGACY_AGENT_RUNTIME_PROTECTED_DIRS = [path.join(ROOT, 'src/main/presenter/agentPresenter')]
+const LEGACY_AGENT_RUNTIME_GLOBALS = [
+  'sessionManager',
+  'toolPresenter',
+  'mcpPresenter',
+  'configPresenter',
+  'skillPresenter',
+  'filePermissionService',
+  'settingsPermissionService',
+  'newAgentPresenter',
+  'sessionPresenter',
+  'yoBrowserPresenter',
+  'filePresenter',
+  'llmproviderPresenter',
+  'windowPresenter'
+]
 
 const RENDERER_PROTECTED_DIRS = [
   path.join(ROOT, 'src/renderer/src/pages/ChatPage.vue'),
@@ -197,28 +212,19 @@ async function findViolations() {
       })
     }
 
-    if (
-      isProtectedPath(filePath, LEGACY_AGENT_RUNTIME_PROTECTED_DIRS) &&
-      source.includes('presenter.sessionManager.')
-    ) {
-      violations.push({
-        kind: 'agent-global-session-manager',
-        file,
-        specifier: 'presenter.sessionManager',
-        key: `${file}|agent-global-session-manager`
-      })
-    }
+    if (isProtectedPath(filePath, LEGACY_AGENT_RUNTIME_PROTECTED_DIRS)) {
+      for (const legacyGlobal of LEGACY_AGENT_RUNTIME_GLOBALS) {
+        if (!source.includes(`presenter.${legacyGlobal}`)) {
+          continue
+        }
 
-    if (
-      isProtectedPath(filePath, LEGACY_AGENT_RUNTIME_PROTECTED_DIRS) &&
-      source.includes('presenter.toolPresenter')
-    ) {
-      violations.push({
-        kind: 'agent-global-tool-presenter',
-        file,
-        specifier: 'presenter.toolPresenter',
-        key: `${file}|agent-global-tool-presenter`
-      })
+        violations.push({
+          kind: `agent-global-${legacyGlobal}`,
+          file,
+          specifier: `presenter.${legacyGlobal}`,
+          key: `${file}|agent-global-${legacyGlobal}`
+        })
+      }
     }
   }
 

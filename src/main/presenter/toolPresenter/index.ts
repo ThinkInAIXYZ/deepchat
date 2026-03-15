@@ -1,7 +1,6 @@
 import type {
   IConfigPresenter,
   IMCPPresenter,
-  IYoBrowserPresenter,
   MCPToolDefinition,
   MCPToolCall,
   MCPToolResponse
@@ -10,6 +9,7 @@ import { resolveToolOffloadTemplatePath } from '../sessionPresenter/sessionPaths
 import { QUESTION_TOOL_NAME } from '../agentPresenter/tools/questionTool'
 import { ToolMapper } from './toolMapper'
 import { AgentToolManager, type AgentToolCallResult } from '../agentPresenter/acp'
+import type { AgentToolRuntimePort } from '../agentPresenter/runtimePorts'
 import { jsonrepair } from 'jsonrepair'
 import { CommandPermissionService } from '../permission'
 
@@ -54,9 +54,9 @@ export interface IToolPresenter {
 
 interface ToolPresenterOptions {
   mcpPresenter: IMCPPresenter
-  yoBrowserPresenter: IYoBrowserPresenter
   configPresenter: IConfigPresenter
   commandPermissionHandler?: CommandPermissionService
+  agentToolRuntime: AgentToolRuntimePort
 }
 
 /**
@@ -102,7 +102,8 @@ export class ToolPresenter implements IToolPresenter {
       this.agentToolManager = new AgentToolManager({
         agentWorkspacePath,
         configPresenter: this.options.configPresenter,
-        commandPermissionHandler: this.options.commandPermissionHandler
+        commandPermissionHandler: this.options.commandPermissionHandler,
+        runtimePort: this.options.agentToolRuntime
       })
     }
 

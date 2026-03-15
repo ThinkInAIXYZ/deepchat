@@ -62,6 +62,10 @@ import {
 import { AgentPresenter } from './agentPresenter'
 import { SessionManager } from './agentPresenter/session/sessionManager'
 import type { SessionContext } from './agentPresenter/session/sessionContext'
+import type {
+  AgentPermissionRuntimePort,
+  AgentToolRuntimePort
+} from './agentPresenter/runtimePorts'
 
 import { ConversationExporterService } from './exporter'
 import { SkillPresenter } from './skillPresenter'
@@ -121,6 +125,7 @@ export class Presenter implements IPresenter {
   commandPermissionService: CommandPermissionService
   filePermissionService: FilePermissionService
   settingsPermissionService: SettingsPermissionService
+  private readonly legacyPermissionRuntime: AgentPermissionRuntimePort
   private legacyMessageManager: MessageManager
   private legacySessionPresenter?: SessionPresenter
   private legacyAgentPresenter?: IAgentPresenter & ISessionPresenter
@@ -147,6 +152,16 @@ export class Presenter implements IPresenter {
     this.commandPermissionService = commandPermissionHandler
     this.filePermissionService = new FilePermissionService()
     this.settingsPermissionService = new SettingsPermissionService()
+    this.legacyPermissionRuntime = {
+      approveFileAccess: (conversationId, paths, remember) =>
+        this.filePermissionService.approve(conversationId, paths, remember),
+      getApprovedFilePaths: (conversationId) =>
+        this.filePermissionService.getApprovedPaths(conversationId),
+      approveSettingsAccess: (conversationId, toolName, remember) =>
+        this.settingsPermissionService.approve(conversationId, toolName, remember),
+      consumeSettingsApproval: (conversationId, toolName) =>
+        this.settingsPermissionService.consumeApproval(conversationId, toolName)
+    }
     const messageManager = new MessageManager(this.sqlitePresenter)
     this.legacyMessageManager = messageManager
     this.devicePresenter = new DevicePresenter()
@@ -178,12 +193,71 @@ export class Presenter implements IPresenter {
     // Initialize generic Workspace presenter (for all Agent modes)
     this.workspacePresenter = new WorkspacePresenter(this.filePresenter)
 
+    const agentToolRuntime: AgentToolRuntimePort = {
+      resolveConversationWorkdir: async (conversationId) => {
+        try {
+          const session = await this.newAgentPresenter?.getSession(conversationId)
+          const normalized = session?.projectDir?.trim()
+          if (normalized) {
+            return normalized
+          }
+        } catch (error) {
+          console.warn('[Presenter] Failed to resolve new session workdir:', {
+            conversationId,
+            error
+          })
+        }
+
+        const legacySession = await this.sessionManager.getSession(conversationId)
+        if (!legacySession?.resolved) {
+          return null
+        }
+
+        const resolved = legacySession.resolved
+        if (resolved.chatMode === 'acp agent') {
+          const modelId = resolved.modelId
+          const map = resolved.acpWorkdirMap
+          return modelId && map ? (map[modelId] ?? null) : null
+        }
+
+        if (resolved.chatMode === 'agent') {
+          return resolved.agentWorkspacePath ?? null
+        }
+
+        return null
+      },
+      getSkillPresenter: () => this.skillPresenter,
+      getYoBrowserToolHandler: () => this.yoBrowserPresenter.toolHandler,
+      getFilePresenter: () => ({
+        getMimeType: (filePath) => this.filePresenter.getMimeType(filePath),
+        prepareFileCompletely: (absPath, typeInfo, contentType) =>
+          this.filePresenter.prepareFileCompletely(absPath, typeInfo, contentType)
+      }),
+      getLlmProviderPresenter: () => ({
+        generateCompletionStandalone: (providerId, messages, modelId, temperature, maxTokens) =>
+          this.llmproviderPresenter.generateCompletionStandalone(
+            providerId,
+            messages,
+            modelId,
+            temperature,
+            maxTokens
+          )
+      }),
+      createSettingsWindow: () => this.windowPresenter.createSettingsWindow(),
+      sendToWindow: (windowId, channel, ...args) =>
+        this.windowPresenter.sendToWindow(windowId, channel, ...args),
+      getApprovedFilePaths: (conversationId) =>
+        this.legacyPermissionRuntime.getApprovedFilePaths?.(conversationId) ?? [],
+      consumeSettingsApproval: (conversationId, toolName) =>
+        this.legacyPermissionRuntime.consumeSettingsApproval?.(conversationId, toolName) ?? false
+    }
+
     // Initialize unified Tool presenter (for routing MCP and Agent tools)
     this.toolPresenter = new ToolPresenter({
       mcpPresenter: this.mcpPresenter,
-      yoBrowserPresenter: this.yoBrowserPresenter,
       configPresenter: this.configPresenter,
-      commandPermissionHandler
+      commandPermissionHandler,
+      agentToolRuntime
     })
 
     // Initialize Skill presenter
@@ -296,8 +370,11 @@ export class Presenter implements IPresenter {
         sqlitePresenter: this.sqlitePresenter,
         llmProviderPresenter: this.llmproviderPresenter,
         configPresenter: this.configPresenter,
+        mcpPresenter: this.mcpPresenter,
+        skillPresenter: this.skillPresenter,
         toolPresenter: this.toolPresenter,
         commandPermissionService: this.commandPermissionService,
+        permissionRuntime: this.legacyPermissionRuntime,
         messageManager: this.legacyMessageManager
       }) as unknown as IAgentPresenter & ISessionPresenter
     }

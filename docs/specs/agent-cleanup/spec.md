@@ -20,6 +20,8 @@ As of March 15, 2026:
 - the next cleanup focus is the main compatibility layer
 - legacy `agentPresenter` runtime no longer reads `presenter.sessionManager` directly
 - legacy `agentPresenter` runtime no longer reads `presenter.toolPresenter` directly
+- legacy `agentPresenter/**` no longer reads global `presenter.*` directly; remaining global
+  presenter access is outside that folder and stays out of scope for now
 
 Target end-state:
 
@@ -89,7 +91,8 @@ Target end-state:
 
 - export-path type coupling in `newAgentPresenter`
 - retirement/deletion of old `agentPresenter` / `sessionPresenter` folders
-- global presenter access inside legacy runtime for `mcpPresenter` / `windowPresenter`
+- provider-layer global presenter access outside `agentPresenter/**`, including
+  `llmProviderPresenter/providers/**`
 
 ## Safety Rules
 
@@ -149,8 +152,9 @@ batch exists.
 
 1. `useMessageStore` treats `stream:end` as the trigger to reload persisted messages, not just as a
    terminal stream signal.
-2. `ChatPage` still adapts `ChatMessageRecord` and streaming blocks into legacy `@shared/chat`
-   message shapes before rendering.
+2. The renderer now uses `agent-interface` + local display message types on the active chat path,
+   so stream payload identity must still keep matching persisted `conversationId` / `messageId`
+   records.
 3. Event payload identity currently relies on `conversationId` and `messageId` matching DB records.
 4. The order "emit stream update -> persist/finalize -> emit end/error" must remain stable within a
    cleanup slice unless the renderer listener is migrated in the same dedicated batch.

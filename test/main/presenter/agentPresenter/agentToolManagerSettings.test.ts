@@ -4,7 +4,6 @@ import {
   CHAT_SETTINGS_SKILL_NAME,
   CHAT_SETTINGS_TOOL_NAMES
 } from '@/presenter/agentPresenter/acp/chatSettingsTools'
-import { presenter } from '@/presenter'
 
 vi.mock('electron', () => ({
   app: {
@@ -12,56 +11,61 @@ vi.mock('electron', () => ({
   }
 }))
 
-vi.mock('@/presenter', () => ({
-  presenter: {
-    skillPresenter: {
-      getActiveSkills: vi.fn(),
-      getActiveSkillsAllowedTools: vi.fn(),
-      listSkillScripts: vi.fn().mockResolvedValue([]),
-      getSkillExtension: vi.fn().mockResolvedValue({
-        version: 1,
-        env: {},
-        runtimePolicy: { python: 'auto', node: 'auto' },
-        scriptOverrides: {}
-      })
-    },
-    sessionManager: {
-      getSession: vi.fn()
-    },
-    newAgentPresenter: {
-      getSession: vi.fn()
-    },
-    yoBrowserPresenter: {
-      toolHandler: {
-        getToolDefinitions: vi.fn().mockReturnValue([])
-      }
-    },
-    sessionPresenter: {},
-    windowPresenter: {}
-  }
-}))
-
 describe('AgentToolManager DeepChat settings tool gating', () => {
   const configPresenter = {
     getSkillsEnabled: () => true
   } as any
+  const skillPresenter = {
+    getActiveSkills: vi.fn(),
+    getActiveSkillsAllowedTools: vi.fn(),
+    listSkillScripts: vi.fn().mockResolvedValue([]),
+    getSkillExtension: vi.fn().mockResolvedValue({
+      version: 1,
+      env: {},
+      runtimePolicy: { python: 'auto', node: 'auto' },
+      scriptOverrides: {}
+    })
+  } as any
+  const resolveConversationWorkdir = vi.fn()
+  const getToolDefinitions = vi.fn().mockReturnValue([])
+
+  const buildManager = () =>
+    new AgentToolManager({
+      agentWorkspacePath: null,
+      configPresenter,
+      runtimePort: {
+        resolveConversationWorkdir,
+        getSkillPresenter: () => skillPresenter,
+        getYoBrowserToolHandler: () => ({
+          getToolDefinitions,
+          callTool: vi.fn()
+        }),
+        getFilePresenter: () => ({
+          getMimeType: vi.fn(),
+          prepareFileCompletely: vi.fn()
+        }),
+        getLlmProviderPresenter: () => ({
+          generateCompletionStandalone: vi.fn()
+        }),
+        createSettingsWindow: vi.fn(),
+        sendToWindow: vi.fn().mockReturnValue(true),
+        getApprovedFilePaths: vi.fn().mockReturnValue([]),
+        consumeSettingsApproval: vi.fn().mockReturnValue(false)
+      }
+    })
 
   beforeEach(() => {
     vi.clearAllMocks()
-    ;(presenter.sessionManager.getSession as any).mockResolvedValue(null)
-    ;(presenter.newAgentPresenter.getSession as any).mockResolvedValue(null)
-    ;(presenter.skillPresenter.listSkillScripts as any).mockResolvedValue([])
-    ;(presenter.yoBrowserPresenter.toolHandler.getToolDefinitions as any).mockReturnValue([])
+    resolveConversationWorkdir.mockResolvedValue(null)
+    skillPresenter.listSkillScripts.mockResolvedValue([])
+    getToolDefinitions.mockReturnValue([])
   })
 
   it('does not include settings tools when skill is inactive', async () => {
-    ;(presenter.skillPresenter.getActiveSkills as any).mockResolvedValue([])
-    ;(presenter.skillPresenter.getActiveSkillsAllowedTools as any).mockResolvedValue([])
+    skillPresenter.getActiveSkills.mockResolvedValue([])
+    skillPresenter.getActiveSkillsAllowedTools.mockResolvedValue([])
 
-    const manager = new AgentToolManager({
-      agentWorkspacePath: null,
-      configPresenter
-    })
+    const manager = buildManager()
 
     const defs = await manager.getAllToolDefinitions({
       chatMode: 'agent',
@@ -76,15 +80,10 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
   })
 
   it('includes settings tools when skill is active and allowed', async () => {
-    ;(presenter.skillPresenter.getActiveSkills as any).mockResolvedValue([CHAT_SETTINGS_SKILL_NAME])
-    ;(presenter.skillPresenter.getActiveSkillsAllowedTools as any).mockResolvedValue([
-      CHAT_SETTINGS_TOOL_NAMES.toggle
-    ])
+    skillPresenter.getActiveSkills.mockResolvedValue([CHAT_SETTINGS_SKILL_NAME])
+    skillPresenter.getActiveSkillsAllowedTools.mockResolvedValue([CHAT_SETTINGS_TOOL_NAMES.toggle])
 
-    const manager = new AgentToolManager({
-      agentWorkspacePath: null,
-      configPresenter
-    })
+    const manager = buildManager()
 
     const defs = await manager.getAllToolDefinitions({
       chatMode: 'agent',
@@ -99,9 +98,9 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
   })
 
   it('includes skill_run when an active skill exposes runnable scripts', async () => {
-    ;(presenter.skillPresenter.getActiveSkills as any).mockResolvedValue(['ocr'])
-    ;(presenter.skillPresenter.getActiveSkillsAllowedTools as any).mockResolvedValue([])
-    ;(presenter.skillPresenter.listSkillScripts as any).mockResolvedValue([
+    skillPresenter.getActiveSkills.mockResolvedValue(['ocr'])
+    skillPresenter.getActiveSkillsAllowedTools.mockResolvedValue([])
+    skillPresenter.listSkillScripts.mockResolvedValue([
       {
         name: 'run.py',
         relativePath: 'scripts/run.py',
@@ -111,10 +110,7 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
       }
     ])
 
-    const manager = new AgentToolManager({
-      agentWorkspacePath: null,
-      configPresenter
-    })
+    const manager = buildManager()
 
     const defs = await manager.getAllToolDefinitions({
       chatMode: 'agent',
@@ -127,18 +123,12 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
   })
 
   it('resolves workdir from new session first', async () => {
-    ;(presenter.newAgentPresenter.getSession as any).mockResolvedValue({
-      id: 'new-session-1',
-      projectDir: '/tmp/new-session-workdir'
-    })
+    resolveConversationWorkdir.mockResolvedValue('/tmp/new-session-workdir')
 
-    const manager = new AgentToolManager({
-      agentWorkspacePath: null,
-      configPresenter
-    })
+    const manager = buildManager()
 
     const workdir = await (manager as any).getWorkdirForConversation('new-session-1')
     expect(workdir).toBe('/tmp/new-session-workdir')
-    expect(presenter.sessionManager.getSession).not.toHaveBeenCalled()
+    expect(resolveConversationWorkdir).toHaveBeenCalledWith('new-session-1')
   })
 })

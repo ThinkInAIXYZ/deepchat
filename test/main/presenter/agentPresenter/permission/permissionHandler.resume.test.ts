@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AssistantMessage, AssistantMessageBlock } from '@shared/chat'
-import type { ILlmProviderPresenter, IMCPPresenter } from '@shared/presenter'
 import { PermissionHandler } from '@/presenter/agentPresenter/permission/permissionHandler'
 import type { ThreadHandlerContext } from '@/presenter/agentPresenter/types/handlerContext'
 import type { MessageManager } from '@/presenter/sessionPresenter/managers/messageManager'
@@ -9,28 +8,13 @@ import type { LLMEventHandler } from '@/presenter/agentPresenter/streaming/llmEv
 import type { GeneratingMessageState } from '@/presenter/agentPresenter/streaming/types'
 import { CommandPermissionService } from '@/presenter/permission'
 
-const presenterMock = vi.hoisted(() => ({
-  sessionManager: {
-    removePendingPermission: vi.fn(),
-    acquirePermissionResumeLock: vi.fn(),
-    releasePermissionResumeLock: vi.fn(),
-    getPendingPermissions: vi.fn().mockReturnValue([]),
-    clearPendingPermission: vi.fn(),
-    setStatus: vi.fn()
-  },
-  filePermissionService: {
-    approve: vi.fn()
-  }
-}))
-
 vi.mock('@/presenter', () => ({
-  presenter: presenterMock
+  presenter: {}
 }))
 
 describe('PermissionHandler resume behavior', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    presenterMock.sessionManager.acquirePermissionResumeLock.mockReturnValue(true)
   })
 
   it('resumes all resolved tool calls after the final permission decision', async () => {
@@ -108,17 +92,43 @@ describe('PermissionHandler resume behavior', () => {
       handleMessageError: vi.fn()
     } as unknown as MessageManager
 
+    const sessionRuntime = {
+      removePendingPermission: vi.fn(),
+      acquirePermissionResumeLock: vi.fn().mockReturnValue(true),
+      releasePermissionResumeLock: vi.fn(),
+      getPendingPermissions: vi.fn().mockReturnValue([]),
+      clearPendingPermission: vi.fn(),
+      setStatus: vi.fn()
+    }
+    const mcpRuntime = {
+      grantPermission: vi.fn(),
+      isServerRunning: vi.fn().mockResolvedValue(true)
+    }
+    const permissionRuntime = {
+      approveFileAccess: vi.fn()
+    }
+
     const ctx: ThreadHandlerContext = {
       sqlitePresenter: {} as never,
       messageManager,
       llmProviderPresenter: {} as never,
       configPresenter: {} as never,
-      sessionRuntime: presenterMock.sessionManager as never,
+      sessionRuntime: sessionRuntime as never,
       toolPresenter: {
         getAllToolDefinitions: vi.fn(),
         callTool: vi.fn(),
         buildToolSystemPrompt: vi.fn()
-      } as never
+      } as never,
+      mcpRuntime: mcpRuntime as never,
+      promptRuntime: {
+        getInputChatMode: vi.fn(),
+        getSkillsEnabled: vi.fn(),
+        getActiveSkills: vi.fn(),
+        loadSkillContent: vi.fn(),
+        getMetadataPrompt: vi.fn(),
+        getActiveSkillsAllowedTools: vi.fn()
+      } as never,
+      permissionRuntime: permissionRuntime as never
     }
 
     const generatingMessages = new Map<string, GeneratingMessageState>()
@@ -135,8 +145,6 @@ describe('PermissionHandler resume behavior', () => {
 
     const handler = new PermissionHandler(ctx, {
       generatingMessages,
-      llmProviderPresenter: {} as ILlmProviderPresenter,
-      getMcpPresenter: () => ({ grantPermission: vi.fn() }) as unknown as IMCPPresenter,
       streamGenerationHandler: {} as StreamGenerationHandler,
       llmEventHandler: {} as LLMEventHandler,
       commandPermissionHandler: new CommandPermissionService()

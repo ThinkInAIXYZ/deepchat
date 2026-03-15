@@ -33,15 +33,50 @@ describe('ToolPresenter', () => {
       getAllToolDefinitions: vi.fn().mockResolvedValue(mcpDefs),
       callTool: vi.fn()
     } as any
-    const yoBrowserPresenter = {
-      getToolDefinitions: vi.fn().mockResolvedValue([buildToolDefinition('shared', 'yo-browser')])
-    } as any
+
+    const configPresenter = {
+      getSkillsEnabled: vi.fn().mockReturnValue(false),
+      getSkillsPath: vi.fn().mockReturnValue('C:\\\\skills'),
+      getDefaultVisionModel: vi.fn(),
+      getModelConfig: vi.fn()
+    }
 
     const toolPresenter = new ToolPresenter({
       mcpPresenter,
-      yoBrowserPresenter,
-      configPresenter: {} as any,
-      commandPermissionHandler: new CommandPermissionService()
+      configPresenter: configPresenter as any,
+      commandPermissionHandler: new CommandPermissionService(),
+      agentToolRuntime: {
+        resolveConversationWorkdir: vi.fn().mockResolvedValue(null),
+        getSkillPresenter: () =>
+          ({
+            getActiveSkills: vi.fn().mockResolvedValue([]),
+            getActiveSkillsAllowedTools: vi.fn().mockResolvedValue([]),
+            listSkillScripts: vi.fn().mockResolvedValue([]),
+            getSkillExtension: vi.fn().mockResolvedValue({
+              version: 1,
+              env: {},
+              runtimePolicy: { python: 'auto', node: 'auto' },
+              scriptOverrides: {}
+            })
+          }) as any,
+        getYoBrowserToolHandler: () => ({
+          getToolDefinitions: vi
+            .fn()
+            .mockReturnValue([buildToolDefinition('shared', 'yo-browser')]),
+          callTool: vi.fn()
+        }),
+        getFilePresenter: () => ({
+          getMimeType: vi.fn(),
+          prepareFileCompletely: vi.fn()
+        }),
+        getLlmProviderPresenter: () => ({
+          generateCompletionStandalone: vi.fn()
+        }),
+        createSettingsWindow: vi.fn(),
+        sendToWindow: vi.fn().mockReturnValue(true),
+        getApprovedFilePaths: vi.fn().mockReturnValue([]),
+        consumeSettingsApproval: vi.fn().mockReturnValue(false)
+      }
     })
 
     const defs = await toolPresenter.getAllToolDefinitions({
@@ -60,15 +95,48 @@ describe('ToolPresenter', () => {
       getAllToolDefinitions: vi.fn().mockResolvedValue([]),
       callTool: vi.fn()
     } as any
-    const yoBrowserPresenter = {
-      getToolDefinitions: vi.fn().mockResolvedValue([])
-    } as any
+    const configPresenter = {
+      getSkillsEnabled: vi.fn().mockReturnValue(false),
+      getSkillsPath: vi.fn().mockReturnValue('C:\\\\skills'),
+      getDefaultVisionModel: vi.fn(),
+      getModelConfig: vi.fn()
+    }
+    const runtimePort = {
+      resolveConversationWorkdir: vi.fn().mockResolvedValue(null),
+      getSkillPresenter: () =>
+        ({
+          getActiveSkills: vi.fn().mockResolvedValue([]),
+          getActiveSkillsAllowedTools: vi.fn().mockResolvedValue([]),
+          listSkillScripts: vi.fn().mockResolvedValue([]),
+          getSkillExtension: vi.fn().mockResolvedValue({
+            version: 1,
+            env: {},
+            runtimePolicy: { python: 'auto', node: 'auto' },
+            scriptOverrides: {}
+          })
+        }) as any,
+      getYoBrowserToolHandler: () => ({
+        getToolDefinitions: vi.fn().mockReturnValue([]),
+        callTool: vi.fn()
+      }),
+      getFilePresenter: () => ({
+        getMimeType: vi.fn(),
+        prepareFileCompletely: vi.fn()
+      }),
+      getLlmProviderPresenter: () => ({
+        generateCompletionStandalone: vi.fn()
+      }),
+      createSettingsWindow: vi.fn(),
+      sendToWindow: vi.fn().mockReturnValue(true),
+      getApprovedFilePaths: vi.fn().mockReturnValue([]),
+      consumeSettingsApproval: vi.fn().mockReturnValue(false)
+    }
 
     const toolPresenter = new ToolPresenter({
       mcpPresenter,
-      yoBrowserPresenter,
-      configPresenter: {} as any,
-      commandPermissionHandler: new CommandPermissionService()
+      configPresenter: configPresenter as any,
+      commandPermissionHandler: new CommandPermissionService(),
+      agentToolRuntime: runtimePort as any
     })
 
     await toolPresenter.getAllToolDefinitions({
@@ -85,12 +153,12 @@ describe('ToolPresenter', () => {
       id: 'tool-1',
       type: 'function',
       function: {
-        name: 'read_file',
+        name: 'read',
         arguments: '{"path":"foo",}'
       },
       conversationId: 'conv-1'
     })
 
-    expect(callToolSpy).toHaveBeenCalledWith('read_file', { path: 'foo' }, 'conv-1')
+    expect(callToolSpy).toHaveBeenCalledWith('read', { path: 'foo' }, 'conv-1')
   })
 })

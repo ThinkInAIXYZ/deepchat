@@ -1,11 +1,5 @@
-import { presenter } from '@/presenter'
 import type { AssistantMessage, AssistantMessageBlock } from '@shared/chat'
-import type {
-  ILlmProviderPresenter,
-  IMCPPresenter,
-  MCPToolDefinition,
-  MCPToolResponse
-} from '@shared/presenter'
+import type { MCPToolDefinition, MCPToolResponse } from '@shared/presenter'
 import { buildPostToolExecutionContext, type PendingToolCall } from '../message/messageBuilder'
 import type { GeneratingMessageState } from '../streaming/types'
 import type { StreamGenerationHandler } from '../streaming/streamGenerationHandler'
@@ -70,7 +64,6 @@ function canBatchUpdate(
 
 export class PermissionHandler extends BaseHandler {
   private readonly generatingMessages: Map<string, GeneratingMessageState>
-  private readonly getMcpPresenter: () => IMCPPresenter
   private readonly streamGenerationHandler: StreamGenerationHandler
   private readonly llmEventHandler: LLMEventHandler
   private readonly commandPermissionHandler: CommandPermissionService
@@ -79,8 +72,6 @@ export class PermissionHandler extends BaseHandler {
     context: ThreadHandlerContext,
     options: {
       generatingMessages: Map<string, GeneratingMessageState>
-      llmProviderPresenter: ILlmProviderPresenter
-      getMcpPresenter: () => IMCPPresenter
       streamGenerationHandler: StreamGenerationHandler
       llmEventHandler: LLMEventHandler
       commandPermissionHandler: CommandPermissionService
@@ -88,7 +79,6 @@ export class PermissionHandler extends BaseHandler {
   ) {
     super(context)
     this.generatingMessages = options.generatingMessages
-    this.getMcpPresenter = options.getMcpPresenter
     this.streamGenerationHandler = options.streamGenerationHandler
     this.llmEventHandler = options.llmEventHandler
     this.commandPermissionHandler = options.commandPermissionHandler
@@ -97,7 +87,6 @@ export class PermissionHandler extends BaseHandler {
 
   private assertDependencies(): void {
     void this.generatingMessages
-    void this.getMcpPresenter
     void this.streamGenerationHandler
     void this.llmEventHandler
     void this.commandPermissionHandler
@@ -215,7 +204,7 @@ export class PermissionHandler extends BaseHandler {
             // Mark as denied and continue
             await this.updatePermissionBlocks(messageId, toolCallId, false, permissionType)
           } else {
-            presenter.filePermissionService?.approve(conversationId, paths, remember)
+            this.permissionRuntime.approveFileAccess?.(conversationId, paths, remember)
           }
         } else if (serverName === 'deepchat-settings') {
           const parsedPermissionRequest = this.parsePermissionRequest(targetPermissionBlock)
@@ -229,12 +218,12 @@ export class PermissionHandler extends BaseHandler {
             console.warn('[PermissionHandler] Missing tool name in settings permission request')
             await this.updatePermissionBlocks(messageId, toolCallId, false, permissionType)
           } else {
-            presenter.settingsPermissionService?.approve(conversationId, toolName, remember)
+            this.permissionRuntime.approveSettingsAccess?.(conversationId, toolName, remember)
           }
         } else {
           // MCP server permission
           try {
-            await this.getMcpPresenter().grantPermission(
+            await this.mcpRuntime.grantPermission(
               serverName,
               permissionType,
               remember,
@@ -1073,7 +1062,7 @@ export class PermissionHandler extends BaseHandler {
     return new Promise((resolve) => {
       const checkReady = async () => {
         try {
-          const isRunning = await this.getMcpPresenter().isServerRunning(serverName)
+          const isRunning = await this.mcpRuntime.isServerRunning(serverName)
           if (isRunning) {
             setTimeout(() => resolve(), 200)
             return

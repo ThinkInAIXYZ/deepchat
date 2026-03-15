@@ -5,14 +5,6 @@ import type { AgentSessionRuntimePort } from '@/presenter/agentPresenter/session
 import type { MessageManager } from '@/presenter/sessionPresenter/managers/messageManager'
 import type { GeneratingMessageState } from '@/presenter/agentPresenter/streaming/types'
 
-vi.mock('@/presenter', () => ({
-  presenter: {
-    mcpPresenter: {
-      callTool: vi.fn()
-    }
-  }
-}))
-
 vi.mock('@/presenter/agentPresenter/message/messageBuilder', () => ({
   preparePromptContent: vi.fn().mockResolvedValue({
     finalContent: [{ role: 'user', content: 'hello' }],
@@ -92,7 +84,21 @@ describe('StreamGenerationHandler session runtime wiring', () => {
         getAllToolDefinitions: vi.fn().mockResolvedValue([]),
         buildToolSystemPrompt: vi.fn().mockReturnValue(''),
         callTool: vi.fn()
-      } as any
+      } as any,
+      mcpRuntime: {
+        callTool: vi.fn(),
+        grantPermission: vi.fn(),
+        isServerRunning: vi.fn()
+      } as any,
+      promptRuntime: {
+        getInputChatMode: vi.fn(),
+        getSkillsEnabled: vi.fn().mockReturnValue(false),
+        getActiveSkills: vi.fn(),
+        loadSkillContent: vi.fn(),
+        getMetadataPrompt: vi.fn(),
+        getActiveSkillsAllowedTools: vi.fn().mockResolvedValue([])
+      } as any,
+      permissionRuntime: {} as any
     }
     const llmEventHandler = {
       handleLLMAgentResponse: vi.fn().mockResolvedValue(undefined),

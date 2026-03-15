@@ -22,10 +22,6 @@ describe('ChatSettingsToolHandler', () => {
     getActiveSkills: vi.fn()
   } as any
 
-  const sessionPresenter = {
-    updateConversationSettings: vi.fn()
-  } as any
-
   const windowPresenter = {
     createSettingsWindow: vi.fn(),
     sendToWindow: vi.fn()
@@ -35,8 +31,7 @@ describe('ChatSettingsToolHandler', () => {
     new ChatSettingsToolHandler({
       configPresenter,
       skillPresenter,
-      sessionPresenter,
-      windowPresenter
+      windowRuntime: windowPresenter
     })
 
   beforeEach(() => {
@@ -46,7 +41,6 @@ describe('ChatSettingsToolHandler', () => {
     configPresenter.setTheme.mockResolvedValue(false)
     configPresenter.getSkillsEnabled.mockReturnValue(true)
     skillPresenter.getActiveSkills.mockResolvedValue([CHAT_SETTINGS_SKILL_NAME])
-    sessionPresenter.updateConversationSettings.mockResolvedValue(undefined)
     windowPresenter.createSettingsWindow.mockResolvedValue(1)
     windowPresenter.sendToWindow.mockReturnValue(true)
   })

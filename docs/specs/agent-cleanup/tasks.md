@@ -13,7 +13,8 @@ items should be addressed in one batch.
 - [x] Capture the current renderer assumptions:
   - `useMessageStore` clears stream state and reloads DB records on `stream:end/error`
   - `stream:end` is also used as a message refresh signal today
-  - `ChatPage` still adapts `ChatMessageRecord` into legacy `@shared/chat` render inputs
+  - active chat rendering now uses local display message types, but still depends on stable
+    `conversationId` / `messageId` identity for DB reload
 - [ ] Keep event payloads and emit ordering unchanged in batches `0B`, `1A`, `1B`, and `1C`
 
 ### Primary Flow Reverse Imports
@@ -56,6 +57,8 @@ items should be addressed in one batch.
   new primary path
 - [x] `src/main/presenter/agentPresenter/**` no longer reads `presenter.sessionManager` directly
 - [x] `src/main/presenter/agentPresenter/**` no longer reads `presenter.toolPresenter` directly
+- [x] `src/main/presenter/agentPresenter/**` no longer reads any global `presenter.*` directly
+- [ ] provider-layer globals outside `agentPresenter/**` remain out of scope for this workstream
 
 ### Import-Only Compatibility To Keep
 
@@ -71,12 +74,14 @@ items should be addressed in one batch.
 - [x] `1B` Extract system env prompt helper only
 - [x] `1C` Extract session path helper and narrow `MCPToolDefinition` / `SearchResult` imports
 - [x] `2` Clear active renderer chat path and archive dead renderer code
-- [ ] `M0` Add main compatibility baseline and guardrails
-- [ ] `M1` Persist new-session `activeSkills`
-- [ ] `M2` Extract skill runtime neutral helpers
-- [ ] `M3` Decouple MCP ACP gating from global chat mode / legacy session fallback
-- [ ] `M4` Reduce startup wiring to import-only boundaries
+- [x] `M0` Add main compatibility baseline and guardrails
+- [x] `M1` Persist new-session `activeSkills`
+- [x] `M2` Extract skill runtime neutral helpers
+- [x] `M3` Decouple MCP ACP gating from global chat mode / legacy session fallback
+- [x] `M4` Reduce startup wiring to import-only boundaries
 - [x] `A` Remove `presenter.sessionManager` from legacy `agentPresenter` internals
+- [x] `B` Remove `presenter.toolPresenter` from legacy `agentPresenter` internals
+- [x] `C` Remove remaining `presenter.*` access from legacy `agentPresenter/**`
 
 ## Batch 0
 
@@ -128,6 +133,21 @@ items should be addressed in one batch.
 - [x] Inject `IToolPresenter` into legacy runtime main path
 - [x] Remove direct `presenter.toolPresenter` access from `agentPresenter/**`
 - [x] Extend cleanup guard to block new `presenter.toolPresenter` access in legacy runtime
+- [x] Add internal `AgentMcpRuntimePort`
+- [x] Add internal `AgentPromptRuntimePort`
+- [x] Add internal `AgentPermissionRuntimePort`
+- [x] Add internal `AgentToolRuntimePort`
+- [x] Remove direct `presenter.mcpPresenter` access from `agentPresenter/**`
+- [x] Remove direct `presenter.configPresenter` / `presenter.skillPresenter` access from
+  `agentPresenter/message/**`
+- [x] Remove direct `presenter.filePermissionService` / `presenter.settingsPermissionService`
+  access from legacy ACP runtime
+- [x] Remove direct `presenter.newAgentPresenter` / `presenter.sessionManager` access from
+  `agentPresenter/acp/agentToolManager.ts`
+- [x] Remove direct `presenter.yoBrowserPresenter` / `presenter.filePresenter` /
+  `presenter.llmproviderPresenter` / `presenter.windowPresenter` access from
+  `agentPresenter/acp/agentToolManager.ts`
+- [x] Extend cleanup guard to block new global `presenter.*` access in legacy runtime
 
 ## Batch 4
 

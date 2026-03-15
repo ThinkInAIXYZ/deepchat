@@ -12,7 +12,6 @@ import type { CONVERSATION, MCPToolResponse } from '@shared/presenter'
 import { buildUserMessageContext, formatUserMessageContent } from '../message/messageFormatter'
 import { preparePromptContent } from '../message/messageBuilder'
 import type { GeneratingMessageState } from './types'
-import { presenter } from '@/presenter'
 import { BaseHandler, type ThreadHandlerContext } from '../types/handlerContext'
 import type { LLMEventHandler } from './llmEventHandler'
 import { LoopOrchestrator } from '../loop/loopOrchestrator'
@@ -97,7 +96,8 @@ export class StreamGenerationHandler extends BaseHandler {
         imageFiles: modelConfig?.vision ? imageFiles : [],
         supportsFunctionCall: modelConfig.functionCall,
         modelType: modelConfig.type,
-        toolPresenter: this.toolPresenter
+        toolPresenter: this.toolPresenter,
+        promptRuntime: this.promptRuntime
       })
 
       this.throwIfCancelled(state.message.id)
@@ -190,7 +190,7 @@ export class StreamGenerationHandler extends BaseHandler {
         if (!toolCall.id || !toolCall.name || !toolCall.params) {
           console.warn('[StreamGenerationHandler] Tool call parameters incomplete')
         } else {
-          toolCallResponse = await presenter.mcpPresenter.callTool({
+          toolCallResponse = await this.mcpRuntime.callTool({
             id: toolCall.id,
             type: 'function',
             function: {
@@ -241,7 +241,8 @@ export class StreamGenerationHandler extends BaseHandler {
         imageFiles: [],
         supportsFunctionCall: modelConfig.functionCall,
         modelType: modelConfig.type,
-        toolPresenter: this.toolPresenter
+        toolPresenter: this.toolPresenter,
+        promptRuntime: this.promptRuntime
       })
 
       await this.updateGenerationState(state, promptTokens)

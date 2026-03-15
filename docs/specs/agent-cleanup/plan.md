@@ -198,3 +198,18 @@ Rollback:
 Rollback:
 
 - Restore legacy runtime tool access to `presenter.toolPresenter`.
+
+### Batch C
+
+- Add private legacy runtime ports:
+  - `AgentMcpRuntimePort`
+  - `AgentPromptRuntimePort`
+  - `AgentPermissionRuntimePort`
+  - `AgentToolRuntimePort`
+- Remove the remaining direct `presenter.*` reads from `src/main/presenter/agentPresenter/**`.
+- Keep `llmProviderPresenter/providers/**` global presenter access out of scope for this slice.
+
+Rollback:
+
+- Restore direct presenter access in legacy main-loop and ACP handlers, then remove the runtime
+  ports if regressions are found.
