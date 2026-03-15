@@ -45,8 +45,8 @@ items should be addressed in one batch.
 
 ### Compatibility Layer Runtime Fallbacks
 
-- [ ] `src/main/presenter/skillPresenter/index.ts` -> old-session fallback through
-  `presenter.sessionPresenter.getConversation/updateConversationSettings`
+- [ ] `src/main/presenter/skillPresenter/index.ts` -> old-session fallback through injected session
+  state port to legacy conversation settings
 - [x] `src/main/presenter/skillPresenter/index.ts` -> new-session skills persisted in
   `new_sessions.active_skills`
 - [x] `src/main/presenter/skillPresenter/skillExecutionService.ts` moved off legacy helper
@@ -89,7 +89,7 @@ items should be addressed in one batch.
 - [x] `C` Remove remaining `presenter.*` access from legacy `agentPresenter/**`
 - [x] `D` Remove provider-layer `presenter.mcpPresenter` access from
   `llmProviderPresenter/providers/**`
-- [ ] `E` Add explicit ownership seam for `SkillPresenter` session state access
+- [x] `E` Add explicit ownership seam for `SkillPresenter` session state access
 - [ ] `F` Remove `SkillPresenter` old-session fallback to legacy conversation settings
 
 ## Batch 0
@@ -178,9 +178,9 @@ items should be addressed in one batch.
 
 ## SkillPresenter Inventory
 
-- [ ] `isNewAgentSession()` still probes `presenter.newAgentPresenter.getSession()`
-- [ ] `getActiveSkills()` still falls back to `presenter.getLegacyConversation()`
-- [ ] `setActiveSkills()` still falls back to `presenter.updateLegacyConversationSettings()`
-- [ ] new-session persistence already uses `new_sessions.active_skills` through
-  `sqlitePresenter.newSessionsTable`
-- [ ] ownership and semantic retirement should be split: seam first, fallback removal later
+- [x] `SkillPresenter` no longer reads `presenter.newAgentPresenter` directly
+- [x] `SkillPresenter` no longer reads `presenter.getLegacyConversation()` directly
+- [x] `SkillPresenter` no longer reads `presenter.updateLegacyConversationSettings()` directly
+- [x] `SkillPresenter` no longer reads `presenter.sqlitePresenter` directly
+- [x] ownership and semantic retirement are split: seam first, fallback removal later
+- [ ] old-session `activeSkills` still resolve through the injected legacy conversation path

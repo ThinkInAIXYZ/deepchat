@@ -215,6 +215,18 @@ async function findViolations() {
       })
     }
 
+    if (
+      isProtectedPath(filePath, [path.join(ROOT, 'src/main/presenter/skillPresenter')]) &&
+      /\bpresenter\./.test(source)
+    ) {
+      violations.push({
+        kind: 'skill-global-presenter',
+        file,
+        specifier: 'presenter.*',
+        key: `${file}|skill-global-presenter`
+      })
+    }
+
     if (isProtectedPath(filePath, LEGACY_AGENT_RUNTIME_PROTECTED_DIRS)) {
       for (const legacyGlobal of LEGACY_AGENT_RUNTIME_GLOBALS) {
         if (!source.includes(`presenter.${legacyGlobal}`)) {

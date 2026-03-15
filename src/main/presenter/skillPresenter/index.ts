@@ -4,7 +4,7 @@ import fs from 'fs'
 import { FSWatcher, watch } from 'chokidar'
 import matter from 'gray-matter'
 import { unzipSync } from 'fflate'
-import type { IConfigPresenter } from '@shared/presenter'
+import type { CONVERSATION, CONVERSATION_SETTINGS, IConfigPresenter } from '@shared/presenter'
 import {
   ISkillPresenter,
   SkillMetadata,
@@ -19,10 +19,8 @@ import {
 } from '@shared/types/skill'
 import { eventBus, SendTarget } from '@/eventbus'
 import { SKILL_EVENTS } from '@/events'
-import { presenter } from '@/presenter'
 import logger from '@shared/logger'
 import { normalizeSkillAllowedTools } from './toolNameMapping'
-import type { SQLitePresenter } from '../sqlitePresenter'
 
 /**
  * Skill system configuration constants
@@ -59,6 +57,17 @@ const SUPPORTED_SCRIPT_EXTENSIONS: Record<string, SkillScriptRuntime> = {
 const DEFAULT_RUNTIME_POLICY: SkillRuntimePolicy = {
   python: 'auto',
   node: 'auto'
+}
+
+export interface SkillSessionStatePort {
+  hasNewSession(conversationId: string): Promise<boolean>
+  getLegacyConversation(conversationId: string): Promise<CONVERSATION | null>
+  updateLegacyConversationSettings(
+    conversationId: string,
+    settings: Partial<CONVERSATION_SETTINGS>
+  ): Promise<void>
+  getPersistedNewSessionSkills(conversationId: string): string[]
+  setPersistedNewSessionSkills(conversationId: string, skills: string[]): void
 }
 
 function createDefaultSkillExtensionConfig(): SkillExtensionConfig {
@@ -143,7 +152,10 @@ export class SkillPresenter implements ISkillPresenter {
   // Prevent concurrent discovery calls (race condition protection)
   private discoveryPromise: Promise<SkillMetadata[]> | null = null
 
-  constructor(private readonly configPresenter: IConfigPresenter) {
+  constructor(
+    private readonly configPresenter: IConfigPresenter,
+    private readonly sessionStatePort: SkillSessionStatePort
+  ) {
     // Skills directory: ~/.deepchat/skills/
     this.skillsDir = this.resolveSkillsDir()
     this.sidecarDir = path.join(this.skillsDir, SKILL_CONFIG.SIDECAR_DIR)
@@ -979,8 +991,7 @@ export class SkillPresenter implements ISkillPresenter {
 
   private async isNewAgentSession(conversationId: string): Promise<boolean> {
     try {
-      const session = await presenter?.newAgentPresenter?.getSession(conversationId)
-      return Boolean(session)
+      return await this.sessionStatePort.hasNewSession(conversationId)
     } catch {
       return false
     }
@@ -1000,12 +1011,12 @@ export class SkillPresenter implements ISkillPresenter {
     }
 
     try {
-      const conversation = await presenter.getLegacyConversation(conversationId)
+      const conversation = await this.sessionStatePort.getLegacyConversation(conversationId)
       const activeSkills = conversation?.settings?.activeSkills || []
       const validSkills = await this.validateSkillNames(activeSkills)
 
       if (validSkills.length !== activeSkills.length) {
-        await presenter.updateLegacyConversationSettings(conversationId, {
+        await this.sessionStatePort.updateLegacyConversationSettings(conversationId, {
           activeSkills: validSkills
         })
       }
@@ -1033,7 +1044,7 @@ export class SkillPresenter implements ISkillPresenter {
       if (isNewSession) {
         this.setPersistedNewSessionSkills(conversationId, validSkills)
       } else {
-        await presenter.updateLegacyConversationSettings(conversationId, {
+        await this.sessionStatePort.updateLegacyConversationSettings(conversationId, {
           activeSkills: validSkills
         })
       }
@@ -1272,9 +1283,8 @@ export class SkillPresenter implements ISkillPresenter {
   }
 
   private getPersistedNewSessionSkills(conversationId: string): string[] {
-    const sqlitePresenter = presenter.sqlitePresenter as SQLitePresenter | undefined
     try {
-      return sqlitePresenter?.newSessionsTable?.getActiveSkills(conversationId) ?? []
+      return this.sessionStatePort.getPersistedNewSessionSkills(conversationId)
     } catch (error) {
       console.warn(
         `[SkillPresenter] Failed to read persisted active skills for ${conversationId}:`,
@@ -1285,7 +1295,6 @@ export class SkillPresenter implements ISkillPresenter {
   }
 
   private setPersistedNewSessionSkills(conversationId: string, skills: string[]): void {
-    const sqlitePresenter = presenter.sqlitePresenter as SQLitePresenter | undefined
-    sqlitePresenter?.newSessionsTable?.updateActiveSkills(conversationId, skills)
+    this.sessionStatePort.setPersistedNewSessionSkills(conversationId, skills)
   }
 }

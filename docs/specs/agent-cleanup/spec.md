@@ -25,8 +25,8 @@ As of March 15, 2026:
 - `llmProviderPresenter/providers/**` still has a small provider-layer global presenter surface,
   with MCP tool conversion and ACP registry lookup now detached; remaining usage is limited to
   adjacent `devicePresenter` / `oauthPresenter` access
-- `SkillPresenter` still keeps old-session `activeSkills` fallback through legacy conversation
-  settings; only new-session skills are fully detached today
+- `SkillPresenter` now reads session state through an injected port; only the old-session
+  `activeSkills` fallback semantics remain to be retired
 
 Target end-state:
 

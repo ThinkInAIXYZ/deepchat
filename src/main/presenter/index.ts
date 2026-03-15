@@ -69,6 +69,7 @@ import type {
 
 import { ConversationExporterService } from './exporter'
 import { SkillPresenter } from './skillPresenter'
+import type { SkillSessionStatePort } from './skillPresenter'
 import { SkillSyncPresenter } from './skillSyncPresenter'
 import { HooksNotificationsService } from './hooksNotifications'
 import { NewSessionHooksBridge } from './hooksNotifications/newSessionBridge'
@@ -272,8 +273,30 @@ export class Presenter implements IPresenter {
       agentToolRuntime
     })
 
+    const skillSessionStatePort: SkillSessionStatePort = {
+      hasNewSession: async (conversationId) => {
+        try {
+          return Boolean(await this.newAgentPresenter?.getSession(conversationId))
+        } catch {
+          return false
+        }
+      },
+      getLegacyConversation: async (conversationId) =>
+        await this.getLegacyConversation(conversationId),
+      updateLegacyConversationSettings: async (conversationId, settings) =>
+        await this.updateLegacyConversationSettings(conversationId, settings),
+      getPersistedNewSessionSkills: (conversationId) =>
+        (
+          this.sqlitePresenter as unknown as import('./sqlitePresenter').SQLitePresenter
+        ).newSessionsTable?.getActiveSkills(conversationId) ?? [],
+      setPersistedNewSessionSkills: (conversationId, skills) =>
+        (
+          this.sqlitePresenter as unknown as import('./sqlitePresenter').SQLitePresenter
+        ).newSessionsTable?.updateActiveSkills(conversationId, skills)
+    }
+
     // Initialize Skill presenter
-    this.skillPresenter = new SkillPresenter(this.configPresenter)
+    this.skillPresenter = new SkillPresenter(this.configPresenter, skillSessionStatePort)
 
     // Initialize Skill Sync presenter
     this.skillSyncPresenter = new SkillSyncPresenter(this.skillPresenter, this.configPresenter)
