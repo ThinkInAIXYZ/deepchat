@@ -16,6 +16,7 @@ import { eventBus, SendTarget } from '@/eventbus'
 import { CONFIG_EVENTS } from '@/events'
 import logger from '@shared/logger'
 import { resolveRequestTraceContext, type ProviderRequestTracePayload } from './requestTrace'
+import type { ProviderMcpRuntimePort } from './runtimePorts'
 
 /**
  * Base LLM Provider Abstract Class
@@ -39,15 +40,21 @@ export abstract class BaseLLMProvider {
   protected customModels: MODEL_META[] = []
   protected isInitialized: boolean = false
   protected configPresenter: IConfigPresenter
+  protected readonly mcpRuntime?: ProviderMcpRuntimePort
 
   protected defaultHeaders: Record<string, string> = {
     'HTTP-Referer': 'https://deepchatai.cn',
     'X-Title': 'DeepChat'
   }
 
-  constructor(provider: LLM_PROVIDER, configPresenter: IConfigPresenter) {
+  constructor(
+    provider: LLM_PROVIDER,
+    configPresenter: IConfigPresenter,
+    mcpRuntime?: ProviderMcpRuntimePort
+  ) {
     this.provider = provider
     this.configPresenter = configPresenter
+    this.mcpRuntime = mcpRuntime
     this.defaultHeaders = DevicePresenter.getDefaultHeaders()
 
     // Initialize models and customModels from cached config data

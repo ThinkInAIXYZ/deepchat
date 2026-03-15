@@ -32,6 +32,8 @@ const MAIN_COMPAT_PROTECTED_DIRS = [
   path.join(ROOT, 'src/main/presenter/syncPresenter/index.ts')
 ]
 
+const PROVIDER_LAYER_PROTECTED_DIRS = [path.join(ROOT, 'src/main/presenter/llmProviderPresenter/providers')]
+
 const LEGACY_AGENT_RUNTIME_PROTECTED_DIRS = [path.join(ROOT, 'src/main/presenter/agentPresenter')]
 const LEGACY_AGENT_RUNTIME_GLOBALS = [
   'sessionManager',
@@ -160,6 +162,7 @@ async function findViolations() {
     ...(await collectFiles(path.join(ROOT, 'src/main/presenter/deepchatAgentPresenter'))),
     ...(await collectFiles(path.join(ROOT, 'src/main/presenter/skillPresenter'))),
     ...(await collectFiles(path.join(ROOT, 'src/main/presenter/mcpPresenter/toolManager.ts'))),
+    ...(await collectFiles(path.join(ROOT, 'src/main/presenter/llmProviderPresenter/providers'))),
     ...(await collectFiles(path.join(ROOT, 'src/main/presenter/agentPresenter'))),
     ...(await collectFiles(path.join(ROOT, 'src/renderer/src/pages/ChatPage.vue'))),
     ...(await collectFiles(path.join(ROOT, 'src/renderer/src/pages/NewThreadPage.vue'))),
@@ -225,6 +228,15 @@ async function findViolations() {
           key: `${file}|agent-global-${legacyGlobal}`
         })
       }
+    }
+
+    if (isProtectedPath(filePath, PROVIDER_LAYER_PROTECTED_DIRS) && source.includes('presenter.mcpPresenter')) {
+      violations.push({
+        kind: 'provider-global-mcp',
+        file,
+        specifier: 'presenter.mcpPresenter',
+        key: `${file}|provider-global-mcp`
+      })
     }
   }
 

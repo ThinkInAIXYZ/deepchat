@@ -174,6 +174,16 @@ Rollback:
 
 - Restore legacy wiring in startup/shutdown if regressions are found.
 
+### Main Batch 5
+
+- Inventory provider-layer presenter globals in `llmProviderPresenter/providers/**`.
+- Inventory `SkillPresenter` old-session fallback and legacy conversation writes.
+- Do not change runtime behavior in this slice; record the smallest safe follow-up batches only.
+
+Rollback:
+
+- Revert docs only.
+
 ## Legacy Agent Runtime Micro-Batches
 
 ### Batch A
@@ -213,3 +223,36 @@ Rollback:
 
 - Restore direct presenter access in legacy main-loop and ACP handlers, then remove the runtime
   ports if regressions are found.
+
+### Batch D
+
+- Remove provider-layer `presenter.mcpPresenter` access from `llmProviderPresenter/providers/**`.
+- Keep adjacent globals like `devicePresenter` and `oauthPresenter` out of scope unless a touched
+  provider constructor already needs the same port seam.
+
+Rollback:
+
+- Restore provider-layer MCP conversion and ACP registry lookup to the current presenter singleton.
+
+### Batch E
+
+- Add an explicit `SkillSessionStatePort`-style seam for `SkillPresenter`.
+- Move singleton access (`newAgentPresenter`, `sqlitePresenter`, legacy conversation helpers) behind
+  injected runtime methods first.
+- Keep old-session fallback behavior unchanged in this slice.
+
+Rollback:
+
+- Restore direct presenter singleton access inside `SkillPresenter`.
+
+### Batch F
+
+- Remove `SkillPresenter` old-session `activeSkills` fallback to legacy conversation settings once
+  the remaining legacy runtime paths no longer depend on it.
+- Target end-state: new runtime no longer writes skill state into old conversations; legacy tables
+  remain import-only sources.
+
+Rollback:
+
+- Keep the ownership seam and route old-session skill reads/writes back through legacy
+  conversation settings.

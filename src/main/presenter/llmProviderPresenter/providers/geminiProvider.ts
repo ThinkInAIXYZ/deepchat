@@ -1,4 +1,3 @@
-import { presenter } from '@/presenter'
 import {
   Content,
   FunctionCallingConfigMode,
@@ -29,6 +28,7 @@ import { BaseLLMProvider, SUMMARY_TITLES_PROMPT } from '../baseProvider'
 import { modelCapabilities } from '../../configPresenter/modelCapabilities'
 import { eventBus, SendTarget } from '@/eventbus'
 import { CONFIG_EVENTS } from '@/events'
+import type { ProviderMcpRuntimePort } from '../runtimePorts'
 
 // Mapping from simple keys to API HarmCategory constants
 const keyToHarmCategoryMap: Record<string, HarmCategory> = {
@@ -52,8 +52,12 @@ const safetySettingKeys = Object.keys(keyToHarmCategoryMap)
 export class GeminiProvider extends BaseLLMProvider {
   private genAI: GoogleGenAI
 
-  constructor(provider: LLM_PROVIDER, configPresenter: IConfigPresenter) {
-    super(provider, configPresenter)
+  constructor(
+    provider: LLM_PROVIDER,
+    configPresenter: IConfigPresenter,
+    mcpRuntime?: ProviderMcpRuntimePort
+  ) {
+    super(provider, configPresenter, mcpRuntime)
     this.genAI = new GoogleGenAI({
       apiKey: this.provider.apiKey,
       httpOptions: { baseUrl: this.provider.baseUrl }
@@ -834,7 +838,7 @@ export class GeminiProvider extends BaseLLMProvider {
 
     // Load MCP tools if available
     if (mcpTools.length > 0)
-      geminiTools = await presenter.mcpPresenter.mcpToolsToGeminiTools(mcpTools, this.provider.id)
+      geminiTools = (await this.mcpRuntime?.mcpToolsToGeminiTools(mcpTools, this.provider.id)) ?? []
 
     // 格式化消息为Gemini格式
     const formattedParts = this.formatGeminiMessages(messages)

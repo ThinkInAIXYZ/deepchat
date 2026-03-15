@@ -58,6 +58,11 @@ items should be addressed in one batch.
 - [x] `src/main/presenter/agentPresenter/**` no longer reads `presenter.sessionManager` directly
 - [x] `src/main/presenter/agentPresenter/**` no longer reads `presenter.toolPresenter` directly
 - [x] `src/main/presenter/agentPresenter/**` no longer reads any global `presenter.*` directly
+- [x] `src/main/presenter/llmProviderPresenter/providers/**` no longer reads
+  `presenter.mcpPresenter`
+- [ ] adjacent provider-layer globals remain in scope for later review:
+  `presenter.devicePresenter` in OpenAI providers, `presenter.oauthPresenter` in Anthropic, and
+  ACP registry lookup in `acpProvider`
 - [ ] provider-layer globals outside `agentPresenter/**` remain out of scope for this workstream
 
 ### Import-Only Compatibility To Keep
@@ -82,6 +87,10 @@ items should be addressed in one batch.
 - [x] `A` Remove `presenter.sessionManager` from legacy `agentPresenter` internals
 - [x] `B` Remove `presenter.toolPresenter` from legacy `agentPresenter` internals
 - [x] `C` Remove remaining `presenter.*` access from legacy `agentPresenter/**`
+- [x] `D` Remove provider-layer `presenter.mcpPresenter` access from
+  `llmProviderPresenter/providers/**`
+- [ ] `E` Add explicit ownership seam for `SkillPresenter` session state access
+- [ ] `F` Remove `SkillPresenter` old-session fallback to legacy conversation settings
 
 ## Batch 0
 
@@ -153,3 +162,25 @@ items should be addressed in one batch.
 
 - [ ] Audit remaining legacy runtime references
 - [ ] Retire safe legacy-only runtime wiring
+
+## Provider-Layer Inventory
+
+- [x] `acpProvider.ts` -> `presenter.mcpPresenter.getNpmRegistry/getUvRegistry`
+- [x] `anthropicProvider.ts` -> `presenter.mcpPresenter.mcpToolsToAnthropicTools` (2 sites)
+- [x] `awsBedrockProvider.ts` -> `presenter.mcpPresenter.mcpToolsToAnthropicTools`
+- [x] `geminiProvider.ts` -> `presenter.mcpPresenter.mcpToolsToGeminiTools`
+- [x] `ollamaProvider.ts` -> `presenter.mcpPresenter.mcpToolsToOpenAITools`
+- [x] `openAICompatibleProvider.ts` -> `presenter.mcpPresenter.mcpToolsToOpenAITools`
+- [x] `openAIResponsesProvider.ts` -> `presenter.mcpPresenter.mcpToolsToOpenAIResponsesTools`
+- [x] `vertexProvider.ts` -> `presenter.mcpPresenter.mcpToolsToGeminiTools`
+- [ ] `anthropicProvider.ts` -> `presenter.oauthPresenter.getAnthropicAccessToken`
+- [ ] `openAICompatibleProvider.ts` / `openAIResponsesProvider.ts` -> `presenter.devicePresenter`
+
+## SkillPresenter Inventory
+
+- [ ] `isNewAgentSession()` still probes `presenter.newAgentPresenter.getSession()`
+- [ ] `getActiveSkills()` still falls back to `presenter.getLegacyConversation()`
+- [ ] `setActiveSkills()` still falls back to `presenter.updateLegacyConversationSettings()`
+- [ ] new-session persistence already uses `new_sessions.active_skills` through
+  `sqlitePresenter.newSessionsTable`
+- [ ] ownership and semantic retirement should be split: seam first, fallback removal later

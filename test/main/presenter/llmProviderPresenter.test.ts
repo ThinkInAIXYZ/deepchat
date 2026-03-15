@@ -206,7 +206,8 @@ describe('LLMProviderPresenter Integration Tests', () => {
       mockConfigPresenter,
       mockSqlitePresenter,
       () => mockSessionRuntime,
-      () => presenterRuntimeMock.toolPresenter as any
+      () => presenterRuntimeMock.toolPresenter as any,
+      presenterRuntimeMock.mcpPresenter as any
     )
   })
 
@@ -646,7 +647,8 @@ describe('LLMProviderPresenter Integration Tests', () => {
         invalidMockConfig,
         mockSqlitePresenter,
         () => mockSessionRuntime,
-        () => presenterRuntimeMock.toolPresenter as any
+        () => presenterRuntimeMock.toolPresenter as any,
+        presenterRuntimeMock.mcpPresenter as any
       )
 
       const result = await invalidLlmProvider.check('invalid-test')

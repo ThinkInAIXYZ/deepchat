@@ -34,6 +34,7 @@ import { ShowResponse } from 'ollama'
 import { AcpSessionPersistence } from '../agentPresenter/acp'
 import { AcpProvider } from './providers/acpProvider'
 import type { AgentSessionRuntimePort } from '../agentPresenter/session/sessionRuntimePort'
+import type { ProviderMcpRuntimePort } from './runtimePorts'
 
 export class LLMProviderPresenter implements ILlmProviderPresenter {
   private currentProviderId: string | null = null
@@ -57,7 +58,8 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
       AgentSessionRuntimePort,
       'getSession' | 'resolveWorkspaceContext'
     >,
-    getToolPresenter?: () => IToolPresenter
+    getToolPresenter?: () => IToolPresenter,
+    mcpRuntime?: ProviderMcpRuntimePort
   ) {
     this.rateLimitManager = new RateLimitManager(configPresenter)
     this.acpSessionPersistence = new AcpSessionPersistence(sqlitePresenter)
@@ -69,7 +71,8 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
       setCurrentProviderId: (providerId) => {
         this.currentProviderId = providerId
       },
-      acpSessionPersistence: this.acpSessionPersistence
+      acpSessionPersistence: this.acpSessionPersistence,
+      mcpRuntime
     })
     this.modelManager = new ModelManager({
       configPresenter,

@@ -22,6 +22,11 @@ As of March 15, 2026:
 - legacy `agentPresenter` runtime no longer reads `presenter.toolPresenter` directly
 - legacy `agentPresenter/**` no longer reads global `presenter.*` directly; remaining global
   presenter access is outside that folder and stays out of scope for now
+- `llmProviderPresenter/providers/**` still has a small provider-layer global presenter surface,
+  with MCP tool conversion and ACP registry lookup now detached; remaining usage is limited to
+  adjacent `devicePresenter` / `oauthPresenter` access
+- `SkillPresenter` still keeps old-session `activeSkills` fallback through legacy conversation
+  settings; only new-session skills are fully detached today
 
 Target end-state:
 
@@ -80,6 +85,8 @@ Target end-state:
 - `mcpPresenter/toolManager`
 - `Presenter` default legacy wiring
 - `main/index` direct legacy session cleanup call
+- `llmProviderPresenter/providers/**` provider-layer presenter globals
+- `SkillPresenter` old-session conversation fallback
 
 ### Import-Only Compatibility To Keep
 
@@ -93,6 +100,7 @@ Target end-state:
 - retirement/deletion of old `agentPresenter` / `sessionPresenter` folders
 - provider-layer global presenter access outside `agentPresenter/**`, including
   `llmProviderPresenter/providers/**`
+- old-session `SkillPresenter` fallback to legacy conversation settings
 
 ## Safety Rules
 
