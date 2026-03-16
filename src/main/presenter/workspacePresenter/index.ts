@@ -3,6 +3,9 @@ import fs from 'fs'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
 import { shell } from 'electron'
+import { FSWatcher, watch } from 'chokidar'
+import { eventBus, SendTarget } from '@/eventbus'
+import { WORKSPACE_EVENTS } from '@/events'
 import { readDirectoryShallow } from './directoryReader'
 import { searchWorkspaceFiles } from './workspaceFileSearch'
 import type {
@@ -13,7 +16,10 @@ import type {
   WorkspaceFilePreviewKind,
   WorkspaceGitChangeType,
   WorkspaceGitDiff,
-  WorkspaceGitState
+  WorkspaceGitState,
+  WorkspaceInvalidationEvent,
+  WorkspaceInvalidationKind,
+  WorkspaceInvalidationSource
 } from '@shared/presenter'
 
 const execFileAsync = promisify(execFile)
@@ -30,44 +36,351 @@ const TEXT_LIKE_MIME_TYPES = new Set([
   'application/x-httpd-php'
 ])
 
+const WATCH_IGNORED_DIRS = [
+  'node_modules',
+  'dist',
+  'build',
+  '__pycache__',
+  '.venv',
+  'venv',
+  '.idea',
+  '.vscode',
+  '.cache',
+  'coverage',
+  '.next',
+  '.nuxt',
+  'out',
+  '.turbo'
+] as const
+
+const WATCH_DEBOUNCE_MS = 120
+const WATCH_STABILITY_THRESHOLD_MS = 250
+const WATCH_POLL_INTERVAL_MS = 100
+
+type WorkspaceWatchRuntime = {
+  workspacePath: string
+  refCount: number
+  contentWatcher: FSWatcher
+  gitWatcher: FSWatcher | null
+  gitWatchKey: string | null
+  debounceTimer: NodeJS.Timeout | null
+  pendingKind: WorkspaceInvalidationKind | null
+  pendingSource: WorkspaceInvalidationSource | null
+  disposed: boolean
+}
+
+const getInvalidationPriority = (kind: WorkspaceInvalidationKind): number => {
+  switch (kind) {
+    case 'full':
+      return 3
+    case 'fs':
+      return 2
+    case 'git':
+      return 1
+    default:
+      return 0
+  }
+}
+
+/**
+ * Workspace lifecycle contract:
+ * - Main process owns workspace invalidation production.
+ * - Content watcher emits `fs`, git metadata watcher emits `git`.
+ * - Renderer consumes invalidation events and decides whether to run a full or git-only refresh.
+ * - `registerWorkspace` remains a pure security boundary; `watchWorkspace` controls watcher lifetime.
+ */
 export class WorkspacePresenter implements IWorkspacePresenter {
-  // Allowed workspace paths (registered by Agent and ACP sessions)
   private readonly allowedPaths = new Set<string>()
   private readonly filePresenter: IFilePresenter
+  private readonly watchRuntimes = new Map<string, WorkspaceWatchRuntime>()
 
   constructor(filePresenter: IFilePresenter) {
     this.filePresenter = filePresenter
   }
 
-  /**
-   * Register a workspace path as allowed for reading
-   * Returns Promise to ensure IPC call completion
-   */
   async registerWorkspace(workspacePath: string): Promise<void> {
     const normalized = path.resolve(workspacePath)
     this.allowedPaths.add(normalized)
   }
 
-  /**
-   * Register a workdir path as allowed for reading (ACP alias)
-   */
   async registerWorkdir(workdir: string): Promise<void> {
     await this.registerWorkspace(workdir)
   }
 
-  /**
-   * Unregister a workspace path
-   */
   async unregisterWorkspace(workspacePath: string): Promise<void> {
     const normalized = path.resolve(workspacePath)
     this.allowedPaths.delete(normalized)
   }
 
-  /**
-   * Unregister a workdir path (ACP alias)
-   */
   async unregisterWorkdir(workdir: string): Promise<void> {
     await this.unregisterWorkspace(workdir)
+  }
+
+  async watchWorkspace(workspacePath: string): Promise<void> {
+    const normalized = path.resolve(workspacePath)
+    if (!this.isPathAllowed(normalized)) {
+      console.warn(`[Workspace] Blocked watch attempt for unauthorized path: ${workspacePath}`)
+      return
+    }
+
+    const existing = this.watchRuntimes.get(normalized)
+    if (existing) {
+      existing.refCount += 1
+      return
+    }
+
+    const runtime: WorkspaceWatchRuntime = {
+      workspacePath: normalized,
+      refCount: 1,
+      contentWatcher: this.createContentWatcher(normalized),
+      gitWatcher: null,
+      gitWatchKey: null,
+      debounceTimer: null,
+      pendingKind: null,
+      pendingSource: null,
+      disposed: false
+    }
+
+    this.watchRuntimes.set(normalized, runtime)
+    await this.refreshGitWatcher(runtime)
+  }
+
+  async unwatchWorkspace(workspacePath: string): Promise<void> {
+    const normalized = path.resolve(workspacePath)
+    const runtime = this.watchRuntimes.get(normalized)
+    if (!runtime) {
+      return
+    }
+
+    runtime.refCount -= 1
+    if (runtime.refCount > 0) {
+      return
+    }
+
+    this.watchRuntimes.delete(normalized)
+    await this.disposeRuntime(runtime)
+  }
+
+  destroy(): void {
+    const runtimes = Array.from(this.watchRuntimes.values())
+    this.watchRuntimes.clear()
+    for (const runtime of runtimes) {
+      void this.disposeRuntime(runtime)
+    }
+  }
+
+  private createContentWatcher(workspacePath: string): FSWatcher {
+    const watcher = watch(workspacePath, {
+      ignoreInitial: true,
+      atomic: true,
+      followSymlinks: false,
+      ignored: (watchPath) => this.shouldIgnoreContentWatchPath(watchPath),
+      awaitWriteFinish: {
+        stabilityThreshold: WATCH_STABILITY_THRESHOLD_MS,
+        pollInterval: WATCH_POLL_INTERVAL_MS
+      }
+    })
+
+    watcher.on('all', (_eventName, targetPath) => {
+      const runtime = this.watchRuntimes.get(workspacePath)
+      if (!runtime || runtime.disposed) {
+        return
+      }
+
+      if (this.isGitDirectoryEvent(targetPath)) {
+        void this.refreshGitWatcher(runtime)
+        this.scheduleInvalidation(runtime, 'full', 'watcher')
+        return
+      }
+
+      this.scheduleInvalidation(runtime, 'fs', 'watcher')
+    })
+
+    watcher.on('error', (error) => {
+      console.error(`[Workspace] Content watcher error for ${workspacePath}:`, error)
+    })
+
+    return watcher
+  }
+
+  private shouldIgnoreContentWatchPath(watchPath: string): boolean {
+    const normalizedPath = path.normalize(watchPath)
+    if (normalizedPath.includes(`${path.sep}.git${path.sep}`)) {
+      return true
+    }
+
+    const baseName = path.basename(normalizedPath)
+    if (WATCH_IGNORED_DIRS.includes(baseName as (typeof WATCH_IGNORED_DIRS)[number])) {
+      return true
+    }
+
+    return WATCH_IGNORED_DIRS.some((segment) =>
+      normalizedPath.includes(`${path.sep}${segment}${path.sep}`)
+    )
+  }
+
+  private isGitDirectoryEvent(targetPath: string): boolean {
+    return path.basename(path.normalize(targetPath)) === '.git'
+  }
+
+  private scheduleInvalidation(
+    runtime: WorkspaceWatchRuntime,
+    kind: WorkspaceInvalidationKind,
+    source: WorkspaceInvalidationSource
+  ): void {
+    if (runtime.disposed) {
+      return
+    }
+
+    if (
+      !runtime.pendingKind ||
+      getInvalidationPriority(kind) >= getInvalidationPriority(runtime.pendingKind)
+    ) {
+      runtime.pendingKind = kind
+      runtime.pendingSource = source
+    }
+
+    if (runtime.debounceTimer) {
+      clearTimeout(runtime.debounceTimer)
+    }
+
+    runtime.debounceTimer = setTimeout(() => {
+      runtime.debounceTimer = null
+
+      const currentRuntime = this.watchRuntimes.get(runtime.workspacePath)
+      if (!currentRuntime || currentRuntime !== runtime || runtime.disposed) {
+        return
+      }
+
+      const payload: WorkspaceInvalidationEvent = {
+        workspacePath: runtime.workspacePath,
+        kind: runtime.pendingKind ?? kind,
+        source: runtime.pendingSource ?? source
+      }
+      runtime.pendingKind = null
+      runtime.pendingSource = null
+      this.emitInvalidation(payload)
+    }, WATCH_DEBOUNCE_MS)
+  }
+
+  private emitInvalidation(payload: WorkspaceInvalidationEvent): void {
+    eventBus.sendToRenderer(WORKSPACE_EVENTS.INVALIDATED, SendTarget.ALL_WINDOWS, payload)
+  }
+
+  private async refreshGitWatcher(runtime: WorkspaceWatchRuntime): Promise<void> {
+    const metadata = await this.resolveGitWatchMetadata(runtime.workspacePath)
+
+    if (runtime.disposed || this.watchRuntimes.get(runtime.workspacePath) !== runtime) {
+      return
+    }
+
+    const nextWatchKey = metadata ? metadata.paths.join('\0') : null
+    if (runtime.gitWatchKey === nextWatchKey) {
+      return
+    }
+
+    const previousWatcher = runtime.gitWatcher
+    runtime.gitWatcher = null
+    runtime.gitWatchKey = nextWatchKey
+
+    if (previousWatcher) {
+      await previousWatcher.close()
+    }
+
+    if (!metadata) {
+      return
+    }
+
+    const gitWatcher = watch(metadata.paths, {
+      ignoreInitial: true,
+      atomic: true,
+      followSymlinks: false,
+      awaitWriteFinish: {
+        stabilityThreshold: WATCH_STABILITY_THRESHOLD_MS,
+        pollInterval: WATCH_POLL_INTERVAL_MS
+      }
+    })
+
+    gitWatcher.on('all', () => {
+      const currentRuntime = this.watchRuntimes.get(runtime.workspacePath)
+      if (!currentRuntime || currentRuntime !== runtime || runtime.disposed) {
+        return
+      }
+      this.scheduleInvalidation(runtime, 'git', 'watcher')
+    })
+
+    gitWatcher.on('error', (error) => {
+      console.error(`[Workspace] Git watcher error for ${runtime.workspacePath}:`, error)
+    })
+
+    if (runtime.disposed || this.watchRuntimes.get(runtime.workspacePath) !== runtime) {
+      await gitWatcher.close()
+      return
+    }
+
+    runtime.gitWatcher = gitWatcher
+  }
+
+  private async resolveGitWatchMetadata(
+    workspacePath: string
+  ): Promise<{ repoRoot: string; paths: string[] } | null> {
+    const repoRoot = await this.resolveGitWorkspace(workspacePath)
+    if (!repoRoot) {
+      return null
+    }
+
+    const [headPath, indexPath, packedRefsPath, refsPath] = await Promise.all([
+      this.resolveGitPath(workspacePath, 'HEAD'),
+      this.resolveGitPath(workspacePath, 'index'),
+      this.resolveGitPath(workspacePath, 'packed-refs'),
+      this.resolveGitPath(workspacePath, 'refs')
+    ])
+
+    const paths = Array.from(
+      new Set(
+        [headPath, indexPath, packedRefsPath, refsPath].filter(
+          (value): value is string => typeof value === 'string'
+        )
+      )
+    )
+    if (paths.length === 0) {
+      return null
+    }
+
+    return { repoRoot, paths }
+  }
+
+  private async resolveGitPath(workspacePath: string, key: string): Promise<string | null> {
+    try {
+      const value = await this.runGitCommand(workspacePath, ['rev-parse', '--git-path', key])
+      const resolved = value?.split(/\r?\n/)[0]?.trim()
+      if (!resolved) {
+        return null
+      }
+
+      return path.isAbsolute(resolved)
+        ? path.normalize(resolved)
+        : path.normalize(path.resolve(workspacePath, resolved))
+    } catch {
+      return null
+    }
+  }
+
+  private async disposeRuntime(runtime: WorkspaceWatchRuntime): Promise<void> {
+    runtime.disposed = true
+
+    if (runtime.debounceTimer) {
+      clearTimeout(runtime.debounceTimer)
+      runtime.debounceTimer = null
+    }
+
+    const closures: Array<Promise<void>> = [runtime.contentWatcher.close()]
+    if (runtime.gitWatcher) {
+      closures.push(runtime.gitWatcher.close())
+      runtime.gitWatcher = null
+    }
+
+    await Promise.allSettled(closures)
   }
 
   /**
@@ -258,12 +571,7 @@ export class WorkspacePresenter implements IWorkspacePresenter {
     }
   }
 
-  /**
-   * Read directory (shallow, only first level)
-   * Use expandDirectory to load subdirectory contents
-   */
   async readDirectory(dirPath: string): Promise<WorkspaceFileNode[]> {
-    // Security check: only allow reading within registered workspaces
     if (!this.isPathAllowed(dirPath)) {
       console.warn(`[Workspace] Blocked read attempt for unauthorized path: ${dirPath}`)
       return []
@@ -271,12 +579,7 @@ export class WorkspacePresenter implements IWorkspacePresenter {
     return readDirectoryShallow(dirPath)
   }
 
-  /**
-   * Expand a directory to load its children (lazy loading)
-   * @param dirPath Directory path to expand
-   */
   async expandDirectory(dirPath: string): Promise<WorkspaceFileNode[]> {
-    // Security check: only allow reading within registered workspaces
     if (!this.isPathAllowed(dirPath)) {
       console.warn(`[Workspace] Blocked expand attempt for unauthorized path: ${dirPath}`)
       return []
@@ -284,11 +587,7 @@ export class WorkspacePresenter implements IWorkspacePresenter {
     return readDirectoryShallow(dirPath)
   }
 
-  /**
-   * Reveal a file or directory in the system file manager
-   */
   async revealFileInFolder(filePath: string): Promise<void> {
-    // Security check: only allow revealing within registered workspaces
     if (!this.isPathAllowed(filePath)) {
       console.warn(`[Workspace] Blocked reveal attempt for unauthorized path: ${filePath}`)
       return
@@ -303,9 +602,6 @@ export class WorkspacePresenter implements IWorkspacePresenter {
     }
   }
 
-  /**
-   * Open a file or directory with the system default application
-   */
   async openFile(filePath: string): Promise<void> {
     if (!this.isPathAllowed(filePath)) {
       console.warn(`[Workspace] Blocked open attempt for unauthorized path: ${filePath}`)
@@ -324,9 +620,6 @@ export class WorkspacePresenter implements IWorkspacePresenter {
     }
   }
 
-  /**
-   * Read file preview data for the sidepanel viewer.
-   */
   async readFilePreview(filePath: string): Promise<WorkspaceFilePreview | null> {
     if (!this.isPathAllowed(filePath)) {
       console.warn(`[Workspace] Blocked preview attempt for unauthorized path: ${filePath}`)
@@ -363,9 +656,6 @@ export class WorkspacePresenter implements IWorkspacePresenter {
     }
   }
 
-  /**
-   * Read git status for the current workspace.
-   */
   async getGitStatus(workspacePath: string): Promise<WorkspaceGitState | null> {
     if (!this.isPathAllowed(workspacePath)) {
       console.warn(`[Workspace] Blocked git status attempt for unauthorized path: ${workspacePath}`)
@@ -425,9 +715,6 @@ export class WorkspacePresenter implements IWorkspacePresenter {
     }
   }
 
-  /**
-   * Read git diff for the current workspace and optional file.
-   */
   async getGitDiff(workspacePath: string, filePath?: string): Promise<WorkspaceGitDiff | null> {
     if (!this.isPathAllowed(workspacePath)) {
       console.warn(`[Workspace] Blocked git diff attempt for unauthorized path: ${workspacePath}`)
@@ -466,15 +753,11 @@ export class WorkspacePresenter implements IWorkspacePresenter {
     }
   }
 
-  /**
-   * Search workspace files by query (query does not include @)
-   */
   async searchFiles(workspacePath: string, query: string): Promise<WorkspaceFileNode[]> {
     if (!this.isPathAllowed(workspacePath)) {
       console.warn(`[Workspace] Blocked search attempt for unauthorized path: ${workspacePath}`)
       return []
     }
-    const results = await searchWorkspaceFiles(workspacePath, query)
-    return results
+    return await searchWorkspaceFiles(workspacePath, query)
   }
 }

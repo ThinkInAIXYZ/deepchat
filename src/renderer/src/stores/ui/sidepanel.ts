@@ -180,6 +180,11 @@ export const useSidepanelStore = defineStore('sidepanel', () => {
     state.selectedArtifactContext = null
   }
 
+  const clearFile = (sessionId: string) => {
+    const state = ensureSessionState(sessionId)
+    state.selectedFilePath = null
+  }
+
   const clearDiff = (sessionId: string) => {
     const state = ensureSessionState(sessionId)
     state.selectedDiffPath = null
@@ -203,6 +208,7 @@ export const useSidepanelStore = defineStore('sidepanel', () => {
     selectFile,
     selectDiff,
     clearArtifact,
+    clearFile,
     clearDiff
   }
 })

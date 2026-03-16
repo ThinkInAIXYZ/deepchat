@@ -82,6 +82,16 @@ export type WorkspaceGitDiff = {
   unstaged: string
 }
 
+export type WorkspaceInvalidationKind = 'fs' | 'git' | 'full'
+
+export type WorkspaceInvalidationSource = 'watcher' | 'fallback' | 'lifecycle'
+
+export type WorkspaceInvalidationEvent = {
+  workspacePath: string
+  kind: WorkspaceInvalidationKind
+  source: WorkspaceInvalidationSource
+}
+
 /**
  * Workspace Presenter interface
  */
@@ -109,6 +119,18 @@ export interface IWorkspacePresenter {
    * @param workdir Workspace directory path
    */
   unregisterWorkdir(workdir: string): Promise<void>
+
+  /**
+   * Start watching a workspace for file-system and git invalidation events.
+   * @param workspacePath Workspace directory path
+   */
+  watchWorkspace(workspacePath: string): Promise<void>
+
+  /**
+   * Stop watching a workspace.
+   * @param workspacePath Workspace directory path
+   */
+  unwatchWorkspace(workspacePath: string): Promise<void>
 
   /**
    * Read directory (shallow, only first level)
