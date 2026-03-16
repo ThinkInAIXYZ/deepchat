@@ -9,6 +9,8 @@ function createMockSqlitePresenter() {
       create: vi.fn(),
       get: vi.fn(),
       list: vi.fn().mockReturnValue([]),
+      getDisabledAgentTools: vi.fn().mockReturnValue([]),
+      updateDisabledAgentTools: vi.fn(),
       update: vi.fn(),
       delete: vi.fn()
     }

@@ -57,11 +57,13 @@ function createMockSqlitePresenter() {
           : undefined
       }),
       getActiveSkills: vi.fn((id: string) => sessionStore.get(id)?.activeSkills ?? []),
+      getDisabledAgentTools: vi.fn().mockReturnValue([]),
       updateActiveSkills: vi.fn((id: string, activeSkills: string[]) => {
         const row = sessionStore.get(id)
         if (!row) return
         row.activeSkills = [...activeSkills]
-      })
+      }),
+      updateDisabledAgentTools: vi.fn()
     },
     deepchatSessionsTable: {
       get: vi.fn(() => undefined),

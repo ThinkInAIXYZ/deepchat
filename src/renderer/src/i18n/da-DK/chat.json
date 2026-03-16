@@ -40,6 +40,21 @@
       "title": "Aktiverede MCP'er",
       "empty": "Ingen aktiverede tjenester",
       "openSettings": "Åbn MCP-indstillinger"
+    },
+    "tools": {
+      "badge": "Tools",
+      "title": "Tools",
+      "mcpSection": "MCP",
+      "builtinSection": "Built-in Tools",
+      "loading": "Loading tools...",
+      "builtinEmpty": "No built-in tools available",
+      "groups": {
+        "agentFilesystem": "Agent Filesystem",
+        "agentCore": "Agent Core",
+        "agentSkills": "Agent Skills",
+        "deepchatSettings": "DeepChat Settings",
+        "yobrowser": "YoBrowser"
+      }
     }
   },
   "mcpUi": {

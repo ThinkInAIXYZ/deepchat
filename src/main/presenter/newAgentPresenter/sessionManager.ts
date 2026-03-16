@@ -15,11 +15,12 @@ export class NewSessionManager {
     agentId: string,
     title: string,
     projectDir: string | null,
-    options?: { isDraft?: boolean }
+    options?: { isDraft?: boolean; disabledAgentTools?: string[] }
   ): string {
     const id = nanoid()
     this.sqlitePresenter.newSessionsTable.create(id, agentId, title, projectDir, {
-      isDraft: options?.isDraft
+      isDraft: options?.isDraft,
+      disabledAgentTools: options?.disabledAgentTools
     })
     return id
   }
@@ -72,6 +73,14 @@ export class NewSessionManager {
 
   delete(id: string): void {
     this.sqlitePresenter.newSessionsTable.delete(id)
+  }
+
+  getDisabledAgentTools(id: string): string[] {
+    return this.sqlitePresenter.newSessionsTable.getDisabledAgentTools(id)
+  }
+
+  updateDisabledAgentTools(id: string, disabledAgentTools: string[]): void {
+    this.sqlitePresenter.newSessionsTable.updateDisabledAgentTools(id, disabledAgentTools)
   }
 
   // Window binding management

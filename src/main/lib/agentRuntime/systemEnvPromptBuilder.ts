@@ -12,6 +12,12 @@ export interface BuildSystemEnvPromptOptions {
   agentsFilePath?: string
 }
 
+export interface RuntimeCapabilitiesPromptOptions {
+  hasYoBrowser?: boolean
+  hasExec?: boolean
+  hasProcess?: boolean
+}
+
 function resolveModelDisplayName(providerId: string, modelId: string): string | undefined {
   try {
     const models = presenter.configPresenter?.getProviderModels?.(providerId) || []
@@ -86,14 +92,33 @@ async function readAgentsInstructions(sourcePath: string): Promise<string> {
   }
 }
 
-export function buildRuntimeCapabilitiesPrompt(): string {
-  return [
-    '## Runtime Capabilities',
-    '- YoBrowser tools are available for browser automation when needed.',
-    '- Use exec(background: true) to start long-running terminal commands.',
-    '- Use process(list|poll|log|write|kill|remove) to manage background terminal sessions.',
-    '- Before launching another long-running command, prefer process action "list" to inspect existing sessions.'
-  ].join('\n')
+export function buildRuntimeCapabilitiesPrompt(
+  options: RuntimeCapabilitiesPromptOptions = {
+    hasYoBrowser: true,
+    hasExec: true,
+    hasProcess: true
+  }
+): string {
+  const lines = ['## Runtime Capabilities']
+
+  if (options.hasYoBrowser) {
+    lines.push('- YoBrowser tools are available for browser automation when needed.')
+  }
+  if (options.hasExec) {
+    lines.push('- Use exec(background: true) to start long-running terminal commands.')
+  }
+  if (options.hasProcess) {
+    lines.push(
+      '- Use process(list|poll|log|write|kill|remove) to manage background terminal sessions.'
+    )
+  }
+  if (options.hasExec && options.hasProcess) {
+    lines.push(
+      '- Before launching another long-running command, prefer process action "list" to inspect existing sessions.'
+    )
+  }
+
+  return lines.length > 1 ? lines.join('\n') : ''
 }
 
 export async function buildSystemEnvPrompt(

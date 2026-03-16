@@ -16,6 +16,7 @@ export interface IToolPresenter {
    */
   getAllToolDefinitions(context: {
     enabledMcpTools?: string[]
+    disabledAgentTools?: string[]
     chatMode?: 'agent' | 'acp agent'
     supportsVision?: boolean
     agentWorkspacePath?: string | null
@@ -60,5 +61,8 @@ export interface IToolPresenter {
   /**
    * Build system prompt section for tool-related behavior.
    */
-  buildToolSystemPrompt(context: { conversationId?: string }): string
+  buildToolSystemPrompt(context: {
+    conversationId?: string
+    toolDefinitions?: MCPToolDefinition[]
+  }): string
 }

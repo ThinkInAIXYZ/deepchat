@@ -9,6 +9,7 @@ export interface NewSessionRow {
   is_pinned: number
   is_draft: number
   active_skills: string
+  disabled_agent_tools: string
   created_at: number
   updated_at: number
 }
@@ -26,6 +27,9 @@ export class NewSessionsTable extends BaseTable {
         title TEXT NOT NULL,
         project_dir TEXT,
         is_pinned INTEGER DEFAULT 0,
+        is_draft INTEGER NOT NULL DEFAULT 0,
+        active_skills TEXT NOT NULL DEFAULT '[]',
+        disabled_agent_tools TEXT NOT NULL DEFAULT '[]',
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL
       );
@@ -41,11 +45,14 @@ export class NewSessionsTable extends BaseTable {
     if (version === 15) {
       return `ALTER TABLE new_sessions ADD COLUMN active_skills TEXT NOT NULL DEFAULT '[]';`
     }
+    if (version === 16) {
+      return `ALTER TABLE new_sessions ADD COLUMN disabled_agent_tools TEXT NOT NULL DEFAULT '[]';`
+    }
     return null
   }
 
   getLatestVersion(): number {
-    return 15
+    return 16
   }
 
   create(
@@ -57,6 +64,7 @@ export class NewSessionsTable extends BaseTable {
       isDraft?: boolean
       isPinned?: boolean
       activeSkills?: string[]
+      disabledAgentTools?: string[]
       createdAt?: number
       updatedAt?: number
     }
@@ -74,9 +82,10 @@ export class NewSessionsTable extends BaseTable {
           is_pinned,
           is_draft,
           active_skills,
+          disabled_agent_tools,
           created_at,
           updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         id,
@@ -86,6 +95,7 @@ export class NewSessionsTable extends BaseTable {
         options?.isPinned ? 1 : 0,
         options?.isDraft ? 1 : 0,
         JSON.stringify(options?.activeSkills ?? []),
+        JSON.stringify(options?.disabledAgentTools ?? []),
         createdAt,
         updatedAt
       )
@@ -122,7 +132,15 @@ export class NewSessionsTable extends BaseTable {
   update(
     id: string,
     fields: Partial<
-      Pick<NewSessionRow, 'title' | 'project_dir' | 'is_pinned' | 'is_draft' | 'active_skills'>
+      Pick<
+        NewSessionRow,
+        | 'title'
+        | 'project_dir'
+        | 'is_pinned'
+        | 'is_draft'
+        | 'active_skills'
+        | 'disabled_agent_tools'
+      >
     >
   ): void {
     const setClauses: string[] = []
@@ -147,6 +165,10 @@ export class NewSessionsTable extends BaseTable {
     if (fields.active_skills !== undefined) {
       setClauses.push('active_skills = ?')
       params.push(fields.active_skills)
+    }
+    if (fields.disabled_agent_tools !== undefined) {
+      setClauses.push('disabled_agent_tools = ?')
+      params.push(fields.disabled_agent_tools)
     }
 
     if (setClauses.length === 0) return
@@ -174,7 +196,23 @@ export class NewSessionsTable extends BaseTable {
     this.update(id, { active_skills: JSON.stringify(activeSkills) })
   }
 
+  getDisabledAgentTools(id: string): string[] {
+    const row = this.db
+      .prepare('SELECT disabled_agent_tools FROM new_sessions WHERE id = ?')
+      .get(id) as { disabled_agent_tools?: string | null } | undefined
+
+    return this.parseStringArray(row?.disabled_agent_tools)
+  }
+
+  updateDisabledAgentTools(id: string, disabledAgentTools: string[]): void {
+    this.update(id, { disabled_agent_tools: JSON.stringify(disabledAgentTools) })
+  }
+
   private parseActiveSkills(raw: string | null | undefined): string[] {
+    return this.parseStringArray(raw)
+  }
+
+  private parseStringArray(raw: string | null | undefined): string[] {
     if (!raw) {
       return []
     }

@@ -245,9 +245,11 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     try {
       const generationSettings = await this.getEffectiveSessionGenerationSettings(sessionId)
       const maxTokens = generationSettings.maxTokens
+      const tools = await this.loadToolDefinitionsForSession(sessionId, projectDir)
       const baseSystemPrompt = await this.buildSystemPromptWithSkills(
         sessionId,
-        generationSettings.systemPrompt
+        generationSettings.systemPrompt,
+        tools
       )
       const historyRecords = this.messageStore
         .getMessages(sessionId)
@@ -343,7 +345,8 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
         messageId: assistantMessageId,
         messages,
         projectDir,
-        promptPreview: normalizedInput.text
+        promptPreview: normalizedInput.text,
+        tools
       })
       this.applyProcessResultStatus(sessionId, result)
     } catch (err) {
@@ -1190,9 +1193,12 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       this.setSessionStatus(sessionId, 'generating')
       const generationSettings = await this.getEffectiveSessionGenerationSettings(sessionId)
       const maxTokens = generationSettings.maxTokens
+      const projectDir = this.resolveProjectDir(sessionId)
+      const tools = await this.loadToolDefinitionsForSession(sessionId, projectDir)
       const baseSystemPrompt = await this.buildSystemPromptWithSkills(
         sessionId,
-        generationSettings.systemPrompt
+        generationSettings.systemPrompt,
+        tools
       )
       const summaryState = await this.resolveCompactionStateForResumeTurn({
         sessionId,
@@ -1218,9 +1224,6 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
           fallbackProtectedTurnCount: 1
         }
       )
-      const projectDir = this.resolveProjectDir(sessionId)
-      const tools = await this.loadToolDefinitionsForSession(sessionId, projectDir)
-
       if (budgetToolCall?.id && budgetToolCall.name) {
         const resumeBudget = this.fitResumeBudgetForToolCall({
           resumeContext,
@@ -1278,7 +1281,8 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
 
   private async buildSystemPromptWithSkills(
     sessionId: string,
-    basePrompt: string
+    basePrompt: string,
+    toolDefinitions: MCPToolDefinition[]
   ): Promise<string> {
     const normalizedBase = basePrompt?.trim() ?? ''
     const state = this.runtimeState.get(sessionId)
@@ -1331,6 +1335,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
 
     const normalizedAvailableSkills = this.normalizeSkillNames(availableSkillNames)
     const normalizedActiveSkills = this.normalizeSkillNames(activeSkillNames)
+    const agentToolNames = this.getAgentToolNames(toolDefinitions)
     const fingerprint = this.buildSystemPromptFingerprint({
       providerId,
       modelId,
@@ -1338,7 +1343,8 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       basePrompt: normalizedBase,
       skillsEnabled,
       availableSkillNames: normalizedAvailableSkills,
-      activeSkillNames: normalizedActiveSkills
+      activeSkillNames: normalizedActiveSkills,
+      toolSignature: this.buildToolSignature(toolDefinitions)
     })
 
     const cachedPrompt = this.systemPromptCache.get(sessionId)
@@ -1350,9 +1356,19 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       return cachedPrompt.prompt
     }
 
-    const runtimePrompt = buildRuntimeCapabilitiesPrompt()
+    const runtimePrompt = buildRuntimeCapabilitiesPrompt({
+      hasYoBrowser: toolDefinitions.some(
+        (tool) => tool.source === 'agent' && tool.server.name === 'yobrowser'
+      ),
+      hasExec: agentToolNames.has('exec'),
+      hasProcess: agentToolNames.has('process')
+    })
     const skillsMetadataPrompt = skillsEnabled
-      ? this.buildSkillsMetadataPrompt(normalizedAvailableSkills)
+      ? this.buildSkillsMetadataPrompt(normalizedAvailableSkills, {
+          canListSkills: agentToolNames.has('skill_list'),
+          canControlSkills: agentToolNames.has('skill_control'),
+          canRunSkillScripts: agentToolNames.has('skill_run')
+        })
       : ''
 
     let skillsPrompt = ''
@@ -1390,7 +1406,10 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     let toolingPrompt = ''
     if (this.toolPresenter) {
       try {
-        toolingPrompt = this.toolPresenter.buildToolSystemPrompt({ conversationId: sessionId })
+        toolingPrompt = this.toolPresenter.buildToolSystemPrompt({
+          conversationId: sessionId,
+          toolDefinitions
+        })
       } catch (error) {
         console.warn(
           `[DeepChatAgent] Failed to build tooling prompt for session ${sessionId}:`,
@@ -1424,21 +1443,53 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       .join('\n\n')
   }
 
-  private buildSkillsMetadataPrompt(availableSkillNames: string[]): string {
-    const lines = [
-      '## Skills',
-      'If you may need specialized guidance, call `skill_list` first to inspect available skills and activation status.',
-      'After identifying a matching skill, call `skill_control` to activate or deactivate it before proceeding.'
-    ]
+  private buildSkillsMetadataPrompt(
+    availableSkillNames: string[],
+    capabilities: {
+      canListSkills: boolean
+      canControlSkills: boolean
+      canRunSkillScripts: boolean
+    }
+  ): string {
+    if (
+      !capabilities.canListSkills &&
+      !capabilities.canControlSkills &&
+      !capabilities.canRunSkillScripts
+    ) {
+      return ''
+    }
+
+    const lines = ['## Skills']
+    let hasContent = false
+
+    if (capabilities.canListSkills) {
+      lines.push(
+        'If you may need specialized guidance, call `skill_list` to inspect available skills and activation status.'
+      )
+      hasContent = true
+    }
+    if (capabilities.canControlSkills) {
+      lines.push(
+        'After identifying a matching skill, call `skill_control` to activate or deactivate it before proceeding.'
+      )
+      hasContent = true
+    }
+    if (capabilities.canRunSkillScripts) {
+      lines.push(
+        'Use `skill_run` to execute bundled helper scripts from active skills when a skill provides them.'
+      )
+      hasContent = true
+    }
 
     if (availableSkillNames.length > 0) {
       lines.push('Installed skill names:')
       lines.push(...availableSkillNames.map((name) => `- ${name}`))
-    } else {
+      hasContent = true
+    } else if (hasContent) {
       lines.push('Installed skill names: (none)')
     }
 
-    return lines.join('\n')
+    return hasContent ? lines.join('\n') : ''
   }
 
   private buildActiveSkillsPrompt(skillSections: string[]): string {
@@ -1467,6 +1518,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     skillsEnabled: boolean
     availableSkillNames: string[]
     activeSkillNames: string[]
+    toolSignature: string[]
   }): string {
     return JSON.stringify({
       providerId: params.providerId,
@@ -1475,8 +1527,22 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       basePrompt: params.basePrompt,
       skillsEnabled: params.skillsEnabled,
       availableSkillNames: params.availableSkillNames,
-      activeSkillNames: params.activeSkillNames
+      activeSkillNames: params.activeSkillNames,
+      toolSignature: params.toolSignature
     })
+  }
+
+  private getAgentToolNames(toolDefinitions: MCPToolDefinition[]): Set<string> {
+    return new Set(
+      toolDefinitions.filter((tool) => tool.source === 'agent').map((tool) => tool.function.name)
+    )
+  }
+
+  private buildToolSignature(toolDefinitions: MCPToolDefinition[]): string[] {
+    return toolDefinitions
+      .filter((tool) => tool.source === 'agent')
+      .map((tool) => `${tool.server.name}:${tool.function.name}`)
+      .sort((left, right) => left.localeCompare(right))
   }
 
   private buildLocalDayKey(now: Date): string {
@@ -1484,6 +1550,10 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     const month = String(now.getMonth() + 1).padStart(2, '0')
     const day = String(now.getDate()).padStart(2, '0')
     return `${year}-${month}-${day}`
+  }
+
+  public invalidateSessionSystemPromptCache(sessionId: string): void {
+    this.invalidateSystemPromptCache(sessionId)
   }
 
   private invalidateSystemPromptCache(sessionId: string): void {
@@ -2191,6 +2261,21 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       return true
     })
 
+    if (!toolDefinition) {
+      const disabledAgentTools = this.getDisabledAgentTools(sessionId)
+      if (disabledAgentTools.includes(toolName)) {
+        return {
+          responseText: `Tool '${toolName}' is disabled for the current session.`,
+          isError: true
+        }
+      }
+
+      return {
+        responseText: `Tool '${toolName}' is no longer available in the current session.`,
+        isError: true
+      }
+    }
+
     const request: MCPToolCall = {
       id: toolCall.id || '',
       type: 'function',
@@ -2250,6 +2335,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
 
     try {
       return await this.toolPresenter.getAllToolDefinitions({
+        disabledAgentTools: this.getDisabledAgentTools(sessionId),
         chatMode: 'agent',
         conversationId: sessionId,
         agentWorkspacePath: projectDir
@@ -2258,6 +2344,10 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       console.error('[DeepChatAgent] failed to fetch tool definitions:', error)
       return []
     }
+  }
+
+  private getDisabledAgentTools(sessionId: string): string[] {
+    return this.sqlitePresenter.newSessionsTable?.getDisabledAgentTools(sessionId) ?? []
   }
 
   private fitResumeBudgetForToolCall(params: {

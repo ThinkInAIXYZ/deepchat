@@ -80,6 +80,8 @@ export class NewAgentPresenter {
     console.log(`[NewAgentPresenter] createSession agent=${agentId} webContentsId=${webContentsId}`)
     const projectDir = input.projectDir?.trim() ? input.projectDir.trim() : null
     const normalizedInput = this.normalizeCreateSessionInput(input)
+    const disabledAgentTools =
+      agentId === 'deepchat' ? this.normalizeDisabledAgentTools(input.disabledAgentTools) : []
 
     const agent = await this.resolveAgentImplementation(agentId)
 
@@ -98,7 +100,10 @@ export class NewAgentPresenter {
 
     // Create session record
     const title = normalizedInput.text.slice(0, 50) || 'New Chat'
-    const sessionId = this.sessionManager.create(agentId, title, projectDir, { isDraft: false })
+    const sessionId = this.sessionManager.create(agentId, title, projectDir, {
+      isDraft: false,
+      disabledAgentTools
+    })
     console.log(`[NewAgentPresenter] session created id=${sessionId} title="${title}"`)
 
     // Initialize agent-side session
@@ -793,6 +798,38 @@ export class NewAgentPresenter {
     return await agent.getGenerationSettings(sessionId)
   }
 
+  async getSessionDisabledAgentTools(sessionId: string): Promise<string[]> {
+    const session = this.sessionManager.get(sessionId)
+    if (!session) {
+      throw new Error(`Session not found: ${sessionId}`)
+    }
+
+    return this.sessionManager.getDisabledAgentTools(sessionId)
+  }
+
+  async updateSessionDisabledAgentTools(
+    sessionId: string,
+    disabledAgentTools: string[]
+  ): Promise<string[]> {
+    const session = this.sessionManager.get(sessionId)
+    if (!session) {
+      throw new Error(`Session not found: ${sessionId}`)
+    }
+
+    const normalized = this.normalizeDisabledAgentTools(disabledAgentTools)
+    this.sessionManager.updateDisabledAgentTools(sessionId, normalized)
+
+    const agent = await this.resolveAgentImplementation(session.agentId)
+    if (
+      'invalidateSessionSystemPromptCache' in agent &&
+      typeof agent.invalidateSessionSystemPromptCache === 'function'
+    ) {
+      agent.invalidateSessionSystemPromptCache(sessionId)
+    }
+
+    return normalized
+  }
+
   async updateSessionGenerationSettings(
     sessionId: string,
     settings: Partial<SessionGenerationSettings>
@@ -1361,5 +1398,20 @@ export class NewAgentPresenter {
       ? input.files.filter((file): file is MessageFile => Boolean(file))
       : []
     return { text, files }
+  }
+
+  private normalizeDisabledAgentTools(disabledAgentTools?: string[]): string[] {
+    if (!Array.isArray(disabledAgentTools)) {
+      return []
+    }
+
+    return Array.from(
+      new Set(
+        disabledAgentTools
+          .filter((item): item is string => typeof item === 'string')
+          .map((item) => item.trim())
+          .filter(Boolean)
+      )
+    ).sort((left, right) => left.localeCompare(right))
   }
 }

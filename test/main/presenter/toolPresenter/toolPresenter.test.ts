@@ -161,4 +161,215 @@ describe('ToolPresenter', () => {
 
     expect(callToolSpy).toHaveBeenCalledWith('read', { path: 'foo' }, 'conv-1')
   })
+
+  it('filters disabled agent tools while preserving MCP tools', async () => {
+    const mcpDefs = [buildToolDefinition('shared', 'mcp'), buildToolDefinition('mcp_only', 'mcp')]
+    const mcpPresenter = {
+      getAllToolDefinitions: vi.fn().mockResolvedValue(mcpDefs),
+      callTool: vi.fn()
+    } as any
+    const configPresenter = {
+      getSkillsEnabled: vi.fn().mockReturnValue(false),
+      getSkillsPath: vi.fn().mockReturnValue('C:\\\\skills'),
+      getDefaultVisionModel: vi.fn(),
+      getModelConfig: vi.fn()
+    }
+    const runtimePort = {
+      resolveConversationWorkdir: vi.fn().mockResolvedValue(null),
+      getSkillPresenter: () =>
+        ({
+          getActiveSkills: vi.fn().mockResolvedValue([]),
+          getActiveSkillsAllowedTools: vi.fn().mockResolvedValue([]),
+          listSkillScripts: vi.fn().mockResolvedValue([]),
+          getSkillExtension: vi.fn().mockResolvedValue({
+            version: 1,
+            env: {},
+            runtimePolicy: { python: 'auto', node: 'auto' },
+            scriptOverrides: {}
+          })
+        }) as any,
+      getYoBrowserToolHandler: () => ({
+        getToolDefinitions: vi.fn().mockReturnValue([]),
+        callTool: vi.fn()
+      }),
+      getFilePresenter: () => ({
+        getMimeType: vi.fn(),
+        prepareFileCompletely: vi.fn()
+      }),
+      getLlmProviderPresenter: () => ({
+        generateCompletionStandalone: vi.fn()
+      }),
+      createSettingsWindow: vi.fn(),
+      sendToWindow: vi.fn().mockReturnValue(true),
+      getApprovedFilePaths: vi.fn().mockReturnValue([]),
+      consumeSettingsApproval: vi.fn().mockReturnValue(false)
+    }
+
+    const toolPresenter = new ToolPresenter({
+      mcpPresenter,
+      configPresenter: configPresenter as any,
+      commandPermissionHandler: new CommandPermissionService(),
+      agentToolRuntime: runtimePort as any
+    })
+
+    const defs = await toolPresenter.getAllToolDefinitions({
+      disabledAgentTools: ['read', 'exec'],
+      chatMode: 'agent',
+      supportsVision: false,
+      agentWorkspacePath: 'C:\\\\workspace'
+    })
+
+    expect(defs.some((tool) => tool.function.name === 'mcp_only' && tool.source === 'mcp')).toBe(
+      true
+    )
+    expect(defs.some((tool) => tool.function.name === 'read')).toBe(false)
+    expect(defs.some((tool) => tool.function.name === 'exec')).toBe(false)
+  })
+
+  it('omits YoBrowser prompt text when no yobrowser tools are enabled', () => {
+    const mcpPresenter = {
+      getAllToolDefinitions: vi.fn().mockResolvedValue([]),
+      callTool: vi.fn()
+    } as any
+    const configPresenter = {
+      getSkillsEnabled: vi.fn().mockReturnValue(false),
+      getSkillsPath: vi.fn().mockReturnValue('C:\\\\skills'),
+      getDefaultVisionModel: vi.fn(),
+      getModelConfig: vi.fn()
+    }
+
+    const toolPresenter = new ToolPresenter({
+      mcpPresenter,
+      configPresenter: configPresenter as any,
+      commandPermissionHandler: new CommandPermissionService(),
+      agentToolRuntime: {
+        resolveConversationWorkdir: vi.fn().mockResolvedValue(null),
+        getSkillPresenter: () =>
+          ({
+            getActiveSkills: vi.fn().mockResolvedValue([]),
+            getActiveSkillsAllowedTools: vi.fn().mockResolvedValue([]),
+            listSkillScripts: vi.fn().mockResolvedValue([]),
+            getSkillExtension: vi.fn().mockResolvedValue({
+              version: 1,
+              env: {},
+              runtimePolicy: { python: 'auto', node: 'auto' },
+              scriptOverrides: {}
+            })
+          }) as any,
+        getYoBrowserToolHandler: () => ({
+          getToolDefinitions: vi.fn().mockReturnValue([]),
+          callTool: vi.fn()
+        }),
+        getFilePresenter: () => ({
+          getMimeType: vi.fn(),
+          prepareFileCompletely: vi.fn()
+        }),
+        getLlmProviderPresenter: () => ({
+          generateCompletionStandalone: vi.fn()
+        }),
+        createSettingsWindow: vi.fn(),
+        sendToWindow: vi.fn().mockReturnValue(true),
+        getApprovedFilePaths: vi.fn().mockReturnValue([]),
+        consumeSettingsApproval: vi.fn().mockReturnValue(false)
+      } as any
+    })
+
+    const withoutYoBrowser = toolPresenter.buildToolSystemPrompt({
+      conversationId: 'conv-1',
+      toolDefinitions: [
+        {
+          ...buildToolDefinition('read', 'agent-filesystem'),
+          source: 'agent'
+        }
+      ]
+    })
+    const withYoBrowser = toolPresenter.buildToolSystemPrompt({
+      conversationId: 'conv-1',
+      toolDefinitions: [
+        {
+          ...buildToolDefinition('read', 'agent-filesystem'),
+          source: 'agent'
+        },
+        {
+          ...buildToolDefinition('yo_browser_cdp_send', 'yobrowser'),
+          source: 'agent'
+        }
+      ]
+    })
+
+    expect(withoutYoBrowser).not.toContain('YoBrowser')
+    expect(withYoBrowser).toContain('YoBrowser')
+    expect(withYoBrowser).toContain('yo_browser_cdp_send')
+  })
+
+  it('includes question guidance only when deepchat_question is enabled', () => {
+    const mcpPresenter = {
+      getAllToolDefinitions: vi.fn().mockResolvedValue([]),
+      callTool: vi.fn()
+    } as any
+    const configPresenter = {
+      getSkillsEnabled: vi.fn().mockReturnValue(false),
+      getSkillsPath: vi.fn().mockReturnValue('C:\\\\skills'),
+      getDefaultVisionModel: vi.fn(),
+      getModelConfig: vi.fn()
+    }
+
+    const toolPresenter = new ToolPresenter({
+      mcpPresenter,
+      configPresenter: configPresenter as any,
+      commandPermissionHandler: new CommandPermissionService(),
+      agentToolRuntime: {
+        resolveConversationWorkdir: vi.fn().mockResolvedValue(null),
+        getSkillPresenter: () =>
+          ({
+            getActiveSkills: vi.fn().mockResolvedValue([]),
+            getActiveSkillsAllowedTools: vi.fn().mockResolvedValue([]),
+            listSkillScripts: vi.fn().mockResolvedValue([]),
+            getSkillExtension: vi.fn().mockResolvedValue({
+              version: 1,
+              env: {},
+              runtimePolicy: { python: 'auto', node: 'auto' },
+              scriptOverrides: {}
+            })
+          }) as any,
+        getYoBrowserToolHandler: () => ({
+          getToolDefinitions: vi.fn().mockReturnValue([]),
+          callTool: vi.fn()
+        }),
+        getFilePresenter: () => ({
+          getMimeType: vi.fn(),
+          prepareFileCompletely: vi.fn()
+        }),
+        getLlmProviderPresenter: () => ({
+          generateCompletionStandalone: vi.fn()
+        }),
+        createSettingsWindow: vi.fn(),
+        sendToWindow: vi.fn().mockReturnValue(true),
+        getApprovedFilePaths: vi.fn().mockReturnValue([]),
+        consumeSettingsApproval: vi.fn().mockReturnValue(false)
+      } as any
+    })
+
+    const withoutQuestion = toolPresenter.buildToolSystemPrompt({
+      conversationId: 'conv-1',
+      toolDefinitions: [
+        {
+          ...buildToolDefinition('read', 'agent-filesystem'),
+          source: 'agent'
+        }
+      ]
+    })
+    const withQuestion = toolPresenter.buildToolSystemPrompt({
+      conversationId: 'conv-1',
+      toolDefinitions: [
+        {
+          ...buildToolDefinition('deepchat_question', 'agent-core'),
+          source: 'agent'
+        }
+      ]
+    })
+
+    expect(withoutQuestion).not.toContain('deepchat_question')
+    expect(withQuestion).toContain('deepchat_question')
+  })
 })
