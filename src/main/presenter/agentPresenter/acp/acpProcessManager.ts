@@ -19,7 +19,7 @@ import { buildClientCapabilities } from './acpCapabilities'
 import { AcpFsHandler } from './acpFsHandler'
 import { AcpTerminalManager } from './acpTerminalManager'
 import { eventBus, SendTarget } from '@/eventbus'
-import { ACP_WORKSPACE_EVENTS, WORKSPACE_EVENTS } from '@/events'
+import { ACP_WORKSPACE_EVENTS } from '@/events'
 
 export interface AcpProcessHandle extends AgentProcessHandle {
   child: ChildProcessWithoutNullStreams
@@ -137,14 +137,6 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
       return fallbackHandler
     }
     return handler
-  }
-
-  private notifyWorkspaceFilesChanged(sessionId: string): void {
-    const conversationId = this.sessionConversations.get(sessionId)
-    if (!conversationId) return
-    eventBus.sendToRenderer(WORKSPACE_EVENTS.FILES_CHANGED, SendTarget.ALL_WINDOWS, {
-      conversationId
-    })
   }
 
   /**
@@ -897,19 +889,11 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
       // File system operations
       readTextFile: async (params) => {
         const handler = this.getFsHandler(params.sessionId)
-        try {
-          return await handler.readTextFile(params)
-        } finally {
-          this.notifyWorkspaceFilesChanged(params.sessionId)
-        }
+        return await handler.readTextFile(params)
       },
       writeTextFile: async (params) => {
         const handler = this.getFsHandler(params.sessionId)
-        try {
-          return await handler.writeTextFile(params)
-        } finally {
-          this.notifyWorkspaceFilesChanged(params.sessionId)
-        }
+        return await handler.writeTextFile(params)
       },
       // Terminal operations
       createTerminal: async (params) => {

@@ -67,6 +67,9 @@ export type {
   WorkspaceGitFileChange,
   WorkspaceGitState,
   WorkspaceGitDiff,
+  WorkspaceInvalidationKind,
+  WorkspaceInvalidationSource,
+  WorkspaceInvalidationEvent,
   IWorkspacePresenter
 } from './workspace'
 

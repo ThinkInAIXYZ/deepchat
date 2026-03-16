@@ -256,7 +256,8 @@ export const LIFECYCLE_EVENTS = {
 
 // Workspace events
 export const WORKSPACE_EVENTS = {
-  FILES_CHANGED: 'workspace:files-changed' // File tree changed
+  INVALIDATED: 'workspace:files-changed', // Workspace invalidation event
+  FILES_CHANGED: 'workspace:files-changed' // Legacy alias
 }
 
 // ACP-specific workspace events

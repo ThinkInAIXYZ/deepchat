@@ -566,6 +566,7 @@ export class Presenter implements IPresenter {
     this.syncPresenter.destroy() // 销毁同步相关资源
     this.notificationPresenter.clearAllNotifications() // 清除所有通知
     this.knowledgePresenter.destroy() // 释放所有数据库连接
+    ;(this.workspacePresenter as WorkspacePresenter).destroy() // 销毁 Workspace watchers
     ;(this.skillPresenter as SkillPresenter).destroy() // 销毁 Skills 相关资源
     ;(this.skillSyncPresenter as SkillSyncPresenter).destroy() // 销毁 Skill Sync 相关资源
     // 注意: trayPresenter.destroy() 在 main/index.ts 的 will-quit 事件中处理
