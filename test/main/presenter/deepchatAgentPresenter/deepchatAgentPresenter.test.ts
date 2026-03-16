@@ -69,7 +69,10 @@ vi.mock('@/presenter/deepchatAgentPresenter/process', () => ({
 import { eventBus } from '@/eventbus'
 import { processStream } from '@/presenter/deepchatAgentPresenter/process'
 import { presenter } from '@/presenter'
-import { buildSystemEnvPrompt } from '@/lib/agentRuntime/systemEnvPromptBuilder'
+import {
+  buildRuntimeCapabilitiesPrompt,
+  buildSystemEnvPrompt
+} from '@/lib/agentRuntime/systemEnvPromptBuilder'
 
 function createMockSqlitePresenter() {
   const summaryState = {
@@ -79,7 +82,8 @@ function createMockSqlitePresenter() {
   }
   return {
     newSessionsTable: {
-      get: vi.fn()
+      get: vi.fn(),
+      getDisabledAgentTools: vi.fn().mockReturnValue([])
     },
     deepchatSessionsTable: {
       create: vi.fn(),
@@ -853,6 +857,28 @@ describe('DeepChatAgentPresenter', () => {
         getActiveSkills: ReturnType<typeof vi.fn>
         loadSkillContent: ReturnType<typeof vi.fn>
       }
+      toolPresenter.getAllToolDefinitions.mockResolvedValueOnce([
+        {
+          type: 'function',
+          source: 'agent',
+          function: {
+            name: 'skill_list',
+            description: 'skill list',
+            parameters: { type: 'object', properties: {} }
+          },
+          server: { name: 'agent-skills', icons: '', description: '' }
+        },
+        {
+          type: 'function',
+          source: 'agent',
+          function: {
+            name: 'skill_control',
+            description: 'skill control',
+            parameters: { type: 'object', properties: {} }
+          },
+          server: { name: 'agent-skills', icons: '', description: '' }
+        }
+      ])
       toolPresenter.buildToolSystemPrompt.mockReturnValue('TOOLING_BLOCK')
       skillPresenter.getMetadataList.mockResolvedValue([{ name: 'skill-a', description: 'desc-a' }])
       skillPresenter.getActiveSkills.mockResolvedValue(['skill-a'])
@@ -885,6 +911,81 @@ describe('DeepChatAgentPresenter', () => {
       expect(systemPrompt).toContain('`skill_list`')
       expect(systemPrompt).toContain('`skill_control`')
       expect(systemPrompt).not.toContain('desc-a')
+    })
+
+    it('derives runtime capabilities from the current enabled agent tools', async () => {
+      const runtimeBuilder = buildRuntimeCapabilitiesPrompt as ReturnType<typeof vi.fn>
+      toolPresenter.getAllToolDefinitions.mockResolvedValueOnce([
+        {
+          type: 'function',
+          source: 'agent',
+          function: {
+            name: 'exec',
+            description: 'exec',
+            parameters: { type: 'object', properties: {} }
+          },
+          server: { name: 'agent-filesystem', icons: '', description: '' }
+        },
+        {
+          type: 'function',
+          source: 'agent',
+          function: {
+            name: 'skill_list',
+            description: 'skill list',
+            parameters: { type: 'object', properties: {} }
+          },
+          server: { name: 'agent-skills', icons: '', description: '' }
+        }
+      ])
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.processMessage('s1', 'Inspect tools')
+
+      expect(runtimeBuilder).toHaveBeenCalledWith({
+        hasYoBrowser: false,
+        hasExec: true,
+        hasProcess: false
+      })
+      expect(toolPresenter.buildToolSystemPrompt).toHaveBeenCalledWith({
+        conversationId: 's1',
+        toolDefinitions: expect.arrayContaining([
+          expect.objectContaining({
+            function: expect.objectContaining({ name: 'exec' })
+          })
+        ])
+      })
+    })
+
+    it('omits skill metadata when skill management tools are unavailable', async () => {
+      const skillPresenter = presenter.skillPresenter as {
+        getMetadataList: ReturnType<typeof vi.fn>
+        getActiveSkills: ReturnType<typeof vi.fn>
+        loadSkillContent: ReturnType<typeof vi.fn>
+      }
+
+      skillPresenter.getMetadataList.mockResolvedValue([{ name: 'skill-a' }])
+      skillPresenter.getActiveSkills.mockResolvedValue([])
+      toolPresenter.getAllToolDefinitions.mockResolvedValueOnce([
+        {
+          type: 'function',
+          source: 'agent',
+          function: {
+            name: 'exec',
+            description: 'exec',
+            parameters: { type: 'object', properties: {} }
+          },
+          server: { name: 'agent-filesystem', icons: '', description: '' }
+        }
+      ])
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.processMessage('s1', 'No skill tools')
+
+      const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      const systemPrompt = String(callArgs.messages[0].content)
+
+      expect(systemPrompt).not.toContain('## Skills')
+      expect(systemPrompt).not.toContain('- skill-a')
     })
 
     it('transitions status: idle → generating → idle', async () => {
@@ -1847,6 +1948,18 @@ describe('DeepChatAgentPresenter', () => {
         content: 'done',
         rawData: { content: 'done', isError: false }
       })
+      toolPresenter.getAllToolDefinitions.mockResolvedValueOnce([
+        {
+          type: 'function',
+          source: 'agent',
+          function: {
+            name: 'write_file',
+            description: 'write file',
+            parameters: { type: 'object', properties: {} }
+          },
+          server: { name: 'agent-filesystem', icons: '', description: '' }
+        }
+      ])
 
       const result = await agent.respondToolInteraction('s1', 'm1', 'tc1', {
         kind: 'permission',
@@ -2118,6 +2231,28 @@ describe('DeepChatAgentPresenter', () => {
 
       const mode = await agent.getPermissionMode('s2')
       expect(mode).toBe('default')
+    })
+  })
+
+  describe('disabled tools', () => {
+    it('returns a disabled error when a deferred tool call is no longer enabled', async () => {
+      sqlitePresenter.newSessionsTable.getDisabledAgentTools.mockReturnValue(['exec'])
+      toolPresenter.getAllToolDefinitions.mockResolvedValueOnce([])
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+
+      const result = await (agent as any).executeDeferredToolCall('s1', {
+        id: 'tc1',
+        name: 'exec',
+        params: '{"command":"npm test"}'
+      })
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          isError: true,
+          responseText: "Tool 'exec' is disabled for the current session."
+        })
+      )
     })
   })
 })

@@ -33,6 +33,21 @@
       "title": "已啟用 MCP",
       "empty": "暫無已啟用服務",
       "openSettings": "打開 MCP 設置"
+    },
+    "tools": {
+      "badge": "Tools",
+      "title": "Tools",
+      "mcpSection": "MCP",
+      "builtinSection": "內置工具",
+      "loading": "正在載入工具...",
+      "builtinEmpty": "暫無可用內置工具",
+      "groups": {
+        "agentFilesystem": "檔案系統",
+        "agentCore": "核心工具",
+        "agentSkills": "技能工具",
+        "deepchatSettings": "DeepChat 設定",
+        "yobrowser": "YoBrowser"
+      }
     }
   },
   "features": {

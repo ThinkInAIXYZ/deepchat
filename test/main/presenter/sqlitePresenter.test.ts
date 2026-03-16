@@ -99,11 +99,32 @@ describe('SQLitePresenter legacy schema bootstrap', () => {
     }>
     const columnNames = new Set(newSessionColumns.map((column) => column.name))
     expect(columnNames.has('active_skills')).toBe(true)
+    expect(columnNames.has('disabled_agent_tools')).toBe(true)
 
     const versions = checkDb
       .prepare('SELECT version FROM schema_versions ORDER BY version ASC')
       .all() as Array<{ version: number }>
-    expect(versions.map((row) => row.version)).toContain(15)
+    expect(versions.map((row) => row.version)).toContain(16)
+    checkDb.close()
+  })
+
+  it('creates fresh new_sessions tables with disabled_agent_tools column', async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-sqlite-presenter-'))
+    tempDirs.push(tempDir)
+
+    const dbPath = path.join(tempDir, 'agent.db')
+    const presenter = new SQLitePresenter(dbPath)
+    presenter.close()
+
+    const checkDb = new Database(dbPath)
+    const newSessionColumns = checkDb.prepare('PRAGMA table_info(new_sessions)').all() as Array<{
+      name: string
+    }>
+    const columnNames = new Set(newSessionColumns.map((column) => column.name))
+
+    expect(columnNames.has('is_draft')).toBe(true)
+    expect(columnNames.has('active_skills')).toBe(true)
+    expect(columnNames.has('disabled_agent_tools')).toBe(true)
     checkDb.close()
   })
 })

@@ -1,78 +1,321 @@
 <template>
-  <Popover v-if="mcpEnabled" v-model:open="panelOpen">
+  <Popover v-model:open="panelOpen">
     <PopoverTrigger as-child>
       <Button
         variant="ghost"
         size="sm"
         class="h-6 px-2 gap-1 text-xs text-muted-foreground hover:text-foreground backdrop-blur-lg"
-        :title="t('chat.input.mcp.title')"
-        :aria-label="t('chat.input.mcp.title')"
+        :title="triggerTitle"
+        :aria-label="triggerTitle"
       >
-        <span>{{ t('chat.input.mcp.badge', { count: enabledServerCount }) }}</span>
+        <span>{{ triggerLabel }}</span>
         <Icon icon="lucide:chevron-down" class="h-3 w-3" />
       </Button>
     </PopoverTrigger>
 
-    <PopoverContent align="end" class="w-72 p-0">
-      <div class="border-b px-3 py-2">
-        <div class="flex items-center justify-between gap-2">
-          <div class="text-sm font-medium">
-            {{ t('chat.input.mcp.title') }}
+    <PopoverContent align="end" class="w-80 overflow-hidden p-0">
+      <template v-if="isDeepchatContext">
+        <div class="border-b px-3 py-2">
+          <div class="flex items-center justify-between gap-2">
+            <div class="text-sm font-medium">
+              {{ t('chat.input.tools.title') }}
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              class="h-7 w-7 p-0 text-muted-foreground"
+              :title="t('chat.input.mcp.openSettings')"
+              :aria-label="t('chat.input.mcp.openSettings')"
+              @click="openSettings"
+            >
+              <Icon icon="lucide:settings-2" class="h-3.5 w-3.5" />
+            </Button>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            class="h-7 w-7 p-0 text-muted-foreground"
-            :title="t('chat.input.mcp.openSettings')"
-            :aria-label="t('chat.input.mcp.openSettings')"
-            @click="openSettings"
+        </div>
+
+        <div class="h-[22rem] overflow-y-auto">
+          <div class="px-3 py-3">
+            <div
+              class="mb-3 flex items-center justify-between text-[11px] font-medium uppercase tracking-wide text-muted-foreground"
+            >
+              <span>{{ t('chat.input.tools.builtinSection') }}</span>
+            </div>
+
+            <div v-if="toolsLoading" class="text-xs text-muted-foreground">
+              {{ t('chat.input.tools.loading') }}
+            </div>
+
+            <div
+              v-else-if="groupedAgentTools.length === 0"
+              class="rounded-lg border border-dashed px-3 py-3 text-xs text-muted-foreground"
+            >
+              {{ t('chat.input.tools.builtinEmpty') }}
+            </div>
+
+            <div v-else class="space-y-4">
+              <div v-for="group in groupedAgentTools" :key="group.name" class="space-y-2">
+                <div class="flex items-center justify-between gap-3">
+                  <div
+                    class="text-[11px] font-medium uppercase tracking-wide text-muted-foreground"
+                  >
+                    {{ group.label }}
+                  </div>
+
+                  <Switch
+                    :model-value="isGroupEnabled(group)"
+                    :disabled="isGroupPending(group)"
+                    :aria-label="group.label"
+                    @update:model-value="(value) => setGroupEnabled(group, value)"
+                  />
+                </div>
+
+                <div class="flex flex-wrap gap-2">
+                  <Button
+                    v-for="tool in group.tools"
+                    :key="tool.function.name"
+                    variant="outline"
+                    size="sm"
+                    class="h-7 rounded-md px-2.5 text-xs shadow-none transition-colors"
+                    :class="
+                      isToolEnabled(tool.function.name)
+                        ? 'border-primary bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground'
+                        : 'border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground'
+                    "
+                    :disabled="isToolPending(tool.function.name)"
+                    @click="toggleAgentTool(tool.function.name)"
+                  >
+                    {{ tool.function.name }}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="border-t px-3 py-3">
+            <div class="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              {{ t('chat.input.tools.mcpSection') }}
+            </div>
+
+            <div
+              v-if="enabledServers.length === 0"
+              class="rounded-lg border border-dashed px-3 py-3 text-xs text-muted-foreground"
+            >
+              {{ t('chat.input.mcp.empty') }}
+            </div>
+
+            <div v-else class="space-y-1">
+              <div
+                v-for="server in enabledServers"
+                :key="server.name"
+                class="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs"
+              >
+                <span class="shrink-0">{{ server.icons }}</span>
+                <span class="min-w-0 flex-1 truncate" :title="getServerLabel(server.name)">
+                  {{ getServerLabel(server.name) }}
+                </span>
+                <span class="shrink-0 text-muted-foreground">
+                  {{ getServerToolsCount(server.name) }}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </template>
+
+      <template v-else>
+        <div class="border-b px-3 py-2">
+          <div class="flex items-center justify-between gap-2">
+            <div class="text-sm font-medium">
+              {{ t('chat.input.mcp.title') }}
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              class="h-7 w-7 p-0 text-muted-foreground"
+              :title="t('chat.input.mcp.openSettings')"
+              :aria-label="t('chat.input.mcp.openSettings')"
+              @click="openSettings"
+            >
+              <Icon icon="lucide:settings-2" class="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        </div>
+
+        <div v-if="enabledServers.length === 0" class="px-3 py-4 text-xs text-muted-foreground">
+          {{ t('chat.input.mcp.empty') }}
+        </div>
+
+        <div v-else class="max-h-64 space-y-1 overflow-y-auto px-2 py-2">
+          <div
+            v-for="server in enabledServers"
+            :key="server.name"
+            class="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs"
           >
-            <Icon icon="lucide:settings-2" class="h-3.5 w-3.5" />
-          </Button>
+            <span class="shrink-0">{{ server.icons }}</span>
+            <span class="min-w-0 flex-1 truncate" :title="getServerLabel(server.name)">
+              {{ getServerLabel(server.name) }}
+            </span>
+            <span class="shrink-0 text-muted-foreground">
+              {{ getServerToolsCount(server.name) }}
+            </span>
+          </div>
         </div>
-      </div>
-
-      <div v-if="enabledServers.length === 0" class="px-3 py-4 text-xs text-muted-foreground">
-        {{ t('chat.input.mcp.empty') }}
-      </div>
-
-      <div v-else class="max-h-64 space-y-1 overflow-y-auto px-2 py-2">
-        <div
-          v-for="server in enabledServers"
-          :key="server.name"
-          class="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs"
-        >
-          <span class="shrink-0">{{ server.icons }}</span>
-          <span class="min-w-0 flex-1 truncate" :title="getServerLabel(server.name)">
-            {{ getServerLabel(server.name) }}
-          </span>
-          <span class="shrink-0 text-muted-foreground">
-            {{ getServerToolsCount(server.name) }}
-          </span>
-        </div>
-      </div>
+      </template>
     </PopoverContent>
   </Popover>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@shadcn/components/ui/popover'
+import { Switch } from '@shadcn/components/ui/switch'
+import type { MCPToolDefinition } from '@shared/presenter'
 import { SETTINGS_EVENTS } from '@/events'
 import { usePresenter } from '@/composables/usePresenter'
 import { useMcpStore } from '@/stores/mcp'
+import { useSessionStore } from '@/stores/ui/session'
+import { useDraftStore } from '@/stores/ui/draft'
+import { useAgentStore } from '@/stores/ui/agent'
+import { useProjectStore } from '@/stores/ui/project'
+
+type ToolGroup = {
+  name: string
+  label: string
+  tools: MCPToolDefinition[]
+}
+
+const GROUP_ORDER = [
+  'agent-filesystem',
+  'agent-core',
+  'agent-skills',
+  'deepchat-settings',
+  'yobrowser'
+]
 
 const { t } = useI18n()
 const mcpStore = useMcpStore()
+const sessionStore = useSessionStore()
+const draftStore = useDraftStore()
+const agentStore = useAgentStore()
+const projectStore = useProjectStore()
 const windowPresenter = usePresenter('windowPresenter')
-const panelOpen = ref(false)
+const toolPresenter = usePresenter('toolPresenter')
+const newAgentPresenter = usePresenter('newAgentPresenter')
 
-const mcpEnabled = computed(() => mcpStore.mcpEnabled)
+const panelOpen = ref(false)
+const toolsLoading = ref(false)
+const agentTools = ref<MCPToolDefinition[]>([])
+const disabledToolNames = ref<string[]>([])
+const pendingToolNames = ref<string[]>([])
+let latestLoadToken = 0
+
 const enabledServers = computed(() => mcpStore.enabledServers)
 const enabledServerCount = computed(() => mcpStore.enabledServerCount)
+
+const currentAgentId = computed(() => {
+  if (sessionStore.hasActiveSession) {
+    return sessionStore.activeSession?.agentId ?? 'deepchat'
+  }
+  return agentStore.selectedAgentId ?? 'deepchat'
+})
+
+const isDeepchatContext = computed(() => currentAgentId.value === 'deepchat')
+const deepchatSessionId = computed(() =>
+  isDeepchatContext.value && sessionStore.hasActiveSession ? sessionStore.activeSessionId : null
+)
+const workspacePath = computed(() => {
+  if (sessionStore.hasActiveSession) {
+    const projectDir = sessionStore.activeSession?.projectDir?.trim()
+    return projectDir ? projectDir : null
+  }
+
+  const selectedProjectPath = projectStore.selectedProject?.path?.trim()
+  return selectedProjectPath ? selectedProjectPath : null
+})
+
+const triggerTitle = computed(() =>
+  isDeepchatContext.value ? t('chat.input.tools.title') : t('chat.input.mcp.title')
+)
+const triggerLabel = computed(() =>
+  isDeepchatContext.value
+    ? t('chat.input.tools.badge')
+    : t('chat.input.mcp.badge', { count: enabledServerCount.value })
+)
+
+const normalizeToolNames = (toolNames: string[] | null | undefined): string[] => {
+  if (!Array.isArray(toolNames)) {
+    return []
+  }
+
+  return Array.from(
+    new Set(
+      toolNames
+        .filter((item): item is string => typeof item === 'string')
+        .map((item) => item.trim())
+        .filter(Boolean)
+    )
+  ).sort((left, right) => left.localeCompare(right))
+}
+
+const getGroupLabel = (serverName: string) => {
+  switch (serverName) {
+    case 'agent-filesystem':
+      return t('chat.input.tools.groups.agentFilesystem')
+    case 'agent-core':
+      return t('chat.input.tools.groups.agentCore')
+    case 'agent-skills':
+      return t('chat.input.tools.groups.agentSkills')
+    case 'deepchat-settings':
+      return t('chat.input.tools.groups.deepchatSettings')
+    case 'yobrowser':
+      return t('chat.input.tools.groups.yobrowser')
+    default:
+      return serverName
+  }
+}
+
+const groupedAgentTools = computed<ToolGroup[]>(() => {
+  const groups = new Map<string, MCPToolDefinition[]>()
+
+  for (const tool of agentTools.value) {
+    const existing = groups.get(tool.server.name) ?? []
+    existing.push(tool)
+    groups.set(tool.server.name, existing)
+  }
+
+  return Array.from(groups.entries())
+    .map(([name, tools]) => ({
+      name,
+      label: getGroupLabel(name),
+      tools: [...tools].sort((left, right) => left.function.name.localeCompare(right.function.name))
+    }))
+    .sort((left, right) => {
+      const leftIndex = GROUP_ORDER.indexOf(left.name)
+      const rightIndex = GROUP_ORDER.indexOf(right.name)
+
+      if (leftIndex >= 0 && rightIndex >= 0) {
+        return leftIndex - rightIndex
+      }
+      if (leftIndex >= 0) {
+        return -1
+      }
+      if (rightIndex >= 0) {
+        return 1
+      }
+      return left.name.localeCompare(right.name)
+    })
+})
+
+const isToolEnabled = (toolName: string) => !disabledToolNames.value.includes(toolName)
+const isToolPending = (toolName: string) => pendingToolNames.value.includes(toolName)
+const getGroupToolNames = (group: ToolGroup) => group.tools.map((tool) => tool.function.name)
+const isGroupEnabled = (group: ToolGroup) =>
+  getGroupToolNames(group).some((toolName) => isToolEnabled(toolName))
+const isGroupPending = (group: ToolGroup) =>
+  getGroupToolNames(group).some((toolName) => isToolPending(toolName))
 
 const getServerLabel = (serverName: string) => {
   return t(`mcp.inmemory.${serverName}.name`, serverName)
@@ -80,6 +323,71 @@ const getServerLabel = (serverName: string) => {
 
 const getServerToolsCount = (serverName: string) => {
   return mcpStore.tools.filter((tool) => tool.server.name === serverName).length
+}
+
+const setToolsPending = (toolNames: string[], pending: boolean) => {
+  const normalizedToolNames = normalizeToolNames(toolNames)
+  if (pending) {
+    pendingToolNames.value = normalizeToolNames([...pendingToolNames.value, ...normalizedToolNames])
+    return
+  }
+
+  const pendingSet = new Set(normalizedToolNames)
+  pendingToolNames.value = pendingToolNames.value.filter((name) => !pendingSet.has(name))
+}
+
+const syncDraftDisabledTools = () => {
+  if (!isDeepchatContext.value || deepchatSessionId.value) {
+    return
+  }
+  disabledToolNames.value = normalizeToolNames(draftStore.disabledAgentTools)
+}
+
+const loadDeepchatTools = async () => {
+  if (!isDeepchatContext.value) {
+    agentTools.value = []
+    disabledToolNames.value = []
+    toolsLoading.value = false
+    return
+  }
+
+  const loadToken = ++latestLoadToken
+  toolsLoading.value = true
+
+  try {
+    const [toolDefinitions, persistedDisabledTools] = await Promise.all([
+      toolPresenter.getAllToolDefinitions({
+        chatMode: 'agent',
+        conversationId: deepchatSessionId.value ?? undefined,
+        agentWorkspacePath: workspacePath.value
+      }),
+      deepchatSessionId.value
+        ? newAgentPresenter.getSessionDisabledAgentTools(deepchatSessionId.value)
+        : Promise.resolve([...draftStore.disabledAgentTools])
+    ])
+
+    if (loadToken !== latestLoadToken) {
+      return
+    }
+
+    agentTools.value = Array.isArray(toolDefinitions)
+      ? toolDefinitions.filter((tool) => tool.source === 'agent')
+      : []
+    disabledToolNames.value = normalizeToolNames(
+      Array.isArray(persistedDisabledTools) ? persistedDisabledTools : draftStore.disabledAgentTools
+    )
+  } catch (error) {
+    if (loadToken !== latestLoadToken) {
+      return
+    }
+    console.warn('[McpIndicator] Failed to load deepchat tools:', error)
+    agentTools.value = []
+    syncDraftDisabledTools()
+  } finally {
+    if (loadToken === latestLoadToken) {
+      toolsLoading.value = false
+    }
+  }
 }
 
 const navigateToMcpSettings = (windowId: number) => {
@@ -101,4 +409,90 @@ const openSettings = async () => {
   }
   panelOpen.value = false
 }
+
+const persistDisabledTools = async (nextList: string[], affectedToolNames: string[]) => {
+  if (!deepchatSessionId.value) {
+    draftStore.disabledAgentTools = nextList
+    disabledToolNames.value = nextList
+    return
+  }
+
+  setToolsPending(affectedToolNames, true)
+  try {
+    const persisted = await newAgentPresenter.updateSessionDisabledAgentTools(
+      deepchatSessionId.value,
+      nextList
+    )
+    disabledToolNames.value = normalizeToolNames(Array.isArray(persisted) ? persisted : nextList)
+  } catch (error) {
+    console.warn('[McpIndicator] Failed to update disabled tools:', error)
+  } finally {
+    setToolsPending(affectedToolNames, false)
+  }
+}
+
+const toggleAgentTool = async (toolName: string) => {
+  if (!isDeepchatContext.value || isToolPending(toolName)) {
+    return
+  }
+
+  const nextDisabledTools = new Set(disabledToolNames.value)
+  if (nextDisabledTools.has(toolName)) {
+    nextDisabledTools.delete(toolName)
+  } else {
+    nextDisabledTools.add(toolName)
+  }
+
+  const nextList = Array.from(nextDisabledTools).sort((left, right) => left.localeCompare(right))
+  await persistDisabledTools(nextList, [toolName])
+}
+
+const setGroupEnabled = async (group: ToolGroup, enabled: boolean) => {
+  if (!isDeepchatContext.value || isGroupPending(group)) {
+    return
+  }
+
+  const groupToolNames = getGroupToolNames(group)
+  const nextDisabledTools = new Set(disabledToolNames.value)
+
+  for (const toolName of groupToolNames) {
+    if (enabled) {
+      nextDisabledTools.delete(toolName)
+    } else {
+      nextDisabledTools.add(toolName)
+    }
+  }
+
+  const nextList = Array.from(nextDisabledTools).sort((left, right) => left.localeCompare(right))
+  if (nextList.join('\n') === disabledToolNames.value.join('\n')) {
+    return
+  }
+
+  await persistDisabledTools(nextList, groupToolNames)
+}
+
+watch(
+  () => [isDeepchatContext.value, deepchatSessionId.value, workspacePath.value] as const,
+  () => {
+    void loadDeepchatTools()
+  },
+  { immediate: true }
+)
+
+watch(
+  () => draftStore.disabledAgentTools,
+  () => {
+    syncDraftDisabledTools()
+  },
+  { deep: true }
+)
+
+watch(
+  () => panelOpen.value,
+  (open) => {
+    if (open && isDeepchatContext.value) {
+      void loadDeepchatTools()
+    }
+  }
+)
 </script>

@@ -81,6 +81,8 @@ function createMockSqlitePresenter() {
       ),
       get: vi.fn((id: string) => sessionsStore.get(id)),
       list: vi.fn(() => Array.from(sessionsStore.values())),
+      getDisabledAgentTools: vi.fn().mockReturnValue([]),
+      updateDisabledAgentTools: vi.fn(),
       update: vi.fn(),
       delete: vi.fn((id: string) => sessionsStore.delete(id))
     },

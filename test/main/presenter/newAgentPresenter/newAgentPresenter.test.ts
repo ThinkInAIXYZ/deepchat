@@ -43,6 +43,7 @@ function createMockDeepChatAgent() {
   return {
     initSession: vi.fn().mockResolvedValue(undefined),
     destroySession: vi.fn().mockResolvedValue(undefined),
+    invalidateSessionSystemPromptCache: vi.fn(),
     getSessionState: vi.fn().mockResolvedValue({
       status: 'idle',
       providerId: 'openai',
@@ -119,6 +120,8 @@ function createMockSqlitePresenter() {
       create: vi.fn(),
       get: vi.fn(),
       list: vi.fn().mockReturnValue([]),
+      getDisabledAgentTools: vi.fn().mockReturnValue([]),
+      updateDisabledAgentTools: vi.fn(),
       update: vi.fn(),
       delete: vi.fn()
     },
@@ -347,6 +350,28 @@ describe('NewAgentPresenter', () => {
             maxTokens: 2048,
             reasoningEffort: 'low'
           }
+        })
+      )
+    })
+
+    it('persists disabled agent tools for deepchat sessions', async () => {
+      await presenter.createSession(
+        {
+          agentId: 'deepchat',
+          message: 'Hi',
+          disabledAgentTools: ['exec', 'exec', 'yo_browser_cdp_send']
+        },
+        1
+      )
+
+      expect(sqlitePresenter.newSessionsTable.create).toHaveBeenCalledWith(
+        'mock-session-id',
+        'deepchat',
+        'Hi',
+        null,
+        expect.objectContaining({
+          isDraft: false,
+          disabledAgentTools: ['exec', 'yo_browser_cdp_send']
         })
       )
     })
@@ -973,6 +998,53 @@ describe('NewAgentPresenter', () => {
       await expect(
         presenter.updateSessionGenerationSettings('unknown', { temperature: 1 })
       ).rejects.toThrow('Session not found: unknown')
+    })
+  })
+
+  describe('disabled agent tools', () => {
+    it('reads disabled agent tools from session storage', async () => {
+      sqlitePresenter.newSessionsTable.get.mockReturnValue({
+        id: 's1',
+        agent_id: 'deepchat',
+        title: 'Test',
+        project_dir: null,
+        is_pinned: 0,
+        created_at: 1000,
+        updated_at: 1000
+      })
+      sqlitePresenter.newSessionsTable.getDisabledAgentTools.mockReturnValue([
+        'exec',
+        'yo_browser_cdp_send'
+      ])
+
+      const disabledTools = await presenter.getSessionDisabledAgentTools('s1')
+
+      expect(disabledTools).toEqual(['exec', 'yo_browser_cdp_send'])
+    })
+
+    it('updates disabled agent tools and invalidates the deepchat prompt cache', async () => {
+      sqlitePresenter.newSessionsTable.get.mockReturnValue({
+        id: 's1',
+        agent_id: 'deepchat',
+        title: 'Test',
+        project_dir: null,
+        is_pinned: 0,
+        created_at: 1000,
+        updated_at: 1000
+      })
+
+      const disabledTools = await presenter.updateSessionDisabledAgentTools('s1', [
+        'yo_browser_cdp_send',
+        'exec',
+        'exec'
+      ])
+
+      expect(disabledTools).toEqual(['exec', 'yo_browser_cdp_send'])
+      expect(sqlitePresenter.newSessionsTable.updateDisabledAgentTools).toHaveBeenCalledWith('s1', [
+        'exec',
+        'yo_browser_cdp_send'
+      ])
+      expect(deepChatAgent.invalidateSessionSystemPromptCache).toHaveBeenCalledWith('s1')
     })
   })
 

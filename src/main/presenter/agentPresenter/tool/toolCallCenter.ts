@@ -7,6 +7,7 @@ import type {
 
 export type ToolCallContext = {
   enabledMcpTools?: string[]
+  disabledAgentTools?: string[]
   chatMode?: 'agent' | 'acp agent'
   supportsVision?: boolean
   agentWorkspacePath?: string | null
@@ -24,7 +25,10 @@ export class ToolCallCenter {
     return this.toolPresenter.callTool(request)
   }
 
-  buildToolSystemPrompt(context: { conversationId?: string }): string {
+  buildToolSystemPrompt(context: {
+    conversationId?: string
+    toolDefinitions?: MCPToolDefinition[]
+  }): string {
     return this.toolPresenter.buildToolSystemPrompt(context)
   }
 }

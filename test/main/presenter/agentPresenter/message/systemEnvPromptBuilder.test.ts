@@ -107,6 +107,28 @@ describe('systemEnvPromptBuilder', () => {
     expect(prompt).toContain('process(list|poll|log|write|kill|remove)')
   })
 
+  it('omits runtime capability lines when related tools are unavailable', () => {
+    const prompt = buildRuntimeCapabilitiesPrompt({
+      hasYoBrowser: false,
+      hasExec: false,
+      hasProcess: false
+    })
+
+    expect(prompt).toBe('')
+  })
+
+  it('builds a partial runtime capabilities prompt when only exec is enabled', () => {
+    const prompt = buildRuntimeCapabilitiesPrompt({
+      hasYoBrowser: false,
+      hasExec: true,
+      hasProcess: false
+    })
+
+    expect(prompt).toContain('exec(background: true)')
+    expect(prompt).not.toContain('YoBrowser')
+    expect(prompt).not.toContain('process(list|poll|log|write|kill|remove)')
+  })
+
   it('falls back to unknown provider/model identity', async () => {
     const workdir = path.resolve(path.sep, 'workspace', 'deepchat')
     const prompt = await buildSystemEnvPrompt({

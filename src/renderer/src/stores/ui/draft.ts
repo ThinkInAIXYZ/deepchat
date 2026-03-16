@@ -22,6 +22,7 @@ export const useDraftStore = defineStore('draft', () => {
   const reasoningEffort = ref<SessionGenerationSettings['reasoningEffort'] | undefined>(undefined)
   const verbosity = ref<SessionGenerationSettings['verbosity'] | undefined>(undefined)
   const permissionMode = ref<PermissionMode>('full_access')
+  const disabledAgentTools = ref<string[]>([])
 
   // --- Actions ---
 
@@ -47,6 +48,7 @@ export const useDraftStore = defineStore('draft', () => {
       providerId: providerId.value,
       modelId: modelId.value,
       permissionMode: permissionMode.value,
+      disabledAgentTools: [...disabledAgentTools.value],
       generationSettings: toGenerationSettings()
     }
   }
@@ -91,6 +93,7 @@ export const useDraftStore = defineStore('draft', () => {
     projectDir.value = undefined
     agentId.value = 'deepchat'
     permissionMode.value = 'full_access'
+    disabledAgentTools.value = []
     resetGenerationSettings()
   }
 
@@ -107,6 +110,7 @@ export const useDraftStore = defineStore('draft', () => {
     reasoningEffort,
     verbosity,
     permissionMode,
+    disabledAgentTools,
     toGenerationSettings,
     toCreateInput,
     updateGenerationSettings,

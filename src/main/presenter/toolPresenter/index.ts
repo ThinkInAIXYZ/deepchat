@@ -42,6 +42,7 @@ interface PreCheckedPermissionResult {
 export interface IToolPresenter {
   getAllToolDefinitions(context: {
     enabledMcpTools?: string[]
+    disabledAgentTools?: string[]
     chatMode?: 'agent' | 'acp agent'
     supportsVision?: boolean
     agentWorkspacePath?: string | null
@@ -49,7 +50,10 @@ export interface IToolPresenter {
   }): Promise<MCPToolDefinition[]>
   callTool(request: MCPToolCall): Promise<{ content: unknown; rawData: MCPToolResponse }>
   preCheckToolPermission?(request: MCPToolCall): Promise<PreCheckedPermissionResult | null>
-  buildToolSystemPrompt(context: { conversationId?: string }): string
+  buildToolSystemPrompt(context: {
+    conversationId?: string
+    toolDefinitions?: MCPToolDefinition[]
+  }): string
 }
 
 interface ToolPresenterOptions {
@@ -57,6 +61,30 @@ interface ToolPresenterOptions {
   configPresenter: IConfigPresenter
   commandPermissionHandler?: CommandPermissionService
   agentToolRuntime: AgentToolRuntimePort
+}
+
+const FILESYSTEM_TOOL_ORDER = ['read', 'write', 'edit', 'find', 'grep', 'ls', 'exec', 'process']
+const OFFLOAD_TOOL_NAMES = new Set(['exec', 'ls', 'find', 'grep', 'yo_browser_cdp_send'])
+
+const withToolSource = (tools: MCPToolDefinition[], source: 'mcp' | 'agent'): MCPToolDefinition[] =>
+  tools.map((tool) => ({
+    ...tool,
+    source
+  }))
+
+const normalizeToolNames = (toolNames?: string[]): string[] => {
+  if (!Array.isArray(toolNames)) {
+    return []
+  }
+
+  return Array.from(
+    new Set(
+      toolNames
+        .filter((item): item is string => typeof item === 'string')
+        .map((item) => item.trim())
+        .filter(Boolean)
+    )
+  )
 }
 
 /**
@@ -79,6 +107,7 @@ export class ToolPresenter implements IToolPresenter {
    */
   async getAllToolDefinitions(context: {
     enabledMcpTools?: string[]
+    disabledAgentTools?: string[]
     chatMode?: 'agent' | 'acp agent'
     supportsVision?: boolean
     agentWorkspacePath?: string | null
@@ -92,7 +121,10 @@ export class ToolPresenter implements IToolPresenter {
     const agentWorkspacePath = context.agentWorkspacePath || null
 
     // 1. Get MCP tools
-    const mcpDefs = await this.options.mcpPresenter.getAllToolDefinitions(context.enabledMcpTools)
+    const mcpDefs = withToolSource(
+      await this.options.mcpPresenter.getAllToolDefinitions(context.enabledMcpTools),
+      'mcp'
+    )
     defs.push(...mcpDefs)
     this.mapper.registerTools(mcpDefs, 'mcp')
 
@@ -108,19 +140,26 @@ export class ToolPresenter implements IToolPresenter {
     }
 
     try {
-      const agentDefs = await this.agentToolManager.getAllToolDefinitions({
-        chatMode,
-        supportsVision,
-        agentWorkspacePath,
-        conversationId: context.conversationId
-      })
-      const filteredAgentDefs = agentDefs.filter((tool) => {
+      const agentDefs = withToolSource(
+        await this.agentToolManager.getAllToolDefinitions({
+          chatMode,
+          supportsVision,
+          agentWorkspacePath,
+          conversationId: context.conversationId
+        }),
+        'agent'
+      )
+      const disabledAgentToolSet = new Set(normalizeToolNames(context.disabledAgentTools))
+      const dedupedAgentDefs = agentDefs.filter((tool) => {
         if (!this.mapper.hasTool(tool.function.name)) return true
         console.warn(
           `[ToolPresenter] Tool name conflict for '${tool.function.name}', preferring MCP tool.`
         )
         return false
       })
+      const filteredAgentDefs = dedupedAgentDefs.filter(
+        (tool) => !disabledAgentToolSet.has(tool.function.name)
+      )
       defs.push(...filteredAgentDefs)
       this.mapper.registerTools(filteredAgentDefs, 'agent')
     } catch (error) {
@@ -251,20 +290,179 @@ export class ToolPresenter implements IToolPresenter {
     return response
   }
 
-  buildToolSystemPrompt(context: { conversationId?: string }): string {
+  buildToolSystemPrompt(context: {
+    conversationId?: string
+    toolDefinitions?: MCPToolDefinition[]
+  }): string {
     const conversationId = context.conversationId || '<conversationId>'
     const offloadPath =
       resolveToolOffloadTemplatePath(conversationId) ??
       '~/.deepchat/sessions/<conversationId>/tool_<toolCallId>.offload'
+    const toolDefinitions =
+      context.toolDefinitions?.filter((tool) => tool.source === 'agent') ?? this.getFallbackTools()
+    const toolNames = new Set(toolDefinitions.map((tool) => tool.function.name))
+    const groupedTools = new Map<string, MCPToolDefinition[]>()
+
+    for (const tool of toolDefinitions) {
+      const existing = groupedTools.get(tool.server.name) ?? []
+      existing.push(tool)
+      groupedTools.set(tool.server.name, existing)
+    }
+
+    const sections = [
+      this.buildFilesystemPrompt(toolNames, offloadPath),
+      this.buildQuestionPrompt(toolNames),
+      this.buildSkillsPrompt(toolNames),
+      this.buildSettingsPrompt(groupedTools.get('deepchat-settings') ?? []),
+      this.buildYoBrowserPrompt(groupedTools.get('yobrowser') ?? [])
+    ]
+
+    return sections.filter(Boolean).join('\n\n')
+  }
+
+  private getFallbackTools(): MCPToolDefinition[] {
+    return FILESYSTEM_TOOL_ORDER.map((name) => ({
+      type: 'function' as const,
+      source: 'agent' as const,
+      function: {
+        name,
+        description: '',
+        parameters: { type: 'object', properties: {} }
+      },
+      server: {
+        name: 'agent-filesystem',
+        icons: '',
+        description: ''
+      }
+    })).concat([
+      {
+        type: 'function' as const,
+        source: 'agent' as const,
+        function: {
+          name: QUESTION_TOOL_NAME,
+          description: '',
+          parameters: { type: 'object', properties: {} }
+        },
+        server: {
+          name: 'agent-core',
+          icons: '',
+          description: ''
+        }
+      }
+    ])
+  }
+
+  private buildFilesystemPrompt(toolNames: Set<string>, offloadPath: string): string {
+    const filesystemTools = FILESYSTEM_TOOL_ORDER.filter((toolName) => toolNames.has(toolName))
+    if (filesystemTools.length === 0) {
+      return ''
+    }
+
+    const lines = [
+      '## File and Command Tools',
+      `Use canonical Agent tool names only: ${filesystemTools.join(', ')}.`,
+      'Legacy or disabled Agent tool names are not available.'
+    ]
+
+    const searchSteps = ['find', 'grep'].filter((toolName) => toolNames.has(toolName))
+    const mutationSteps = ['edit', 'write'].filter((toolName) => toolNames.has(toolName))
+    const flow: string[] = []
+    if (searchSteps.length > 0) {
+      flow.push(searchSteps.join('/'))
+    }
+    if (toolNames.has('read')) {
+      flow.push('read')
+    }
+    if (mutationSteps.length > 0) {
+      flow.push(mutationSteps.join('/'))
+    }
+    if (flow.length >= 2) {
+      lines.push(`Recommended code task flow: ${flow.join(' -> ')}.`)
+    }
+
+    const hasOffloadTools = Array.from(toolNames).some((toolName) =>
+      OFFLOAD_TOOL_NAMES.has(toolName)
+    )
+    if (hasOffloadTools) {
+      lines.push('Tool outputs may be offloaded when large.')
+      lines.push(`When you see an offload stub, the full output is stored at: ${offloadPath}`)
+      if (toolNames.has('read')) {
+        lines.push('Use `read` to inspect that path when you need the full output.')
+      }
+    }
+
+    return lines.join('\n')
+  }
+
+  private buildQuestionPrompt(toolNames: Set<string>): string {
+    if (!toolNames.has(QUESTION_TOOL_NAME)) {
+      return ''
+    }
 
     return [
-      'Use canonical Agent tool names only: read, write, edit, find, grep, ls, exec, process.',
-      'Legacy tool names are not available and will fail with Unknown Agent tool.',
-      'Recommended sequence for code tasks: find/grep -> read -> edit/write.',
-      'Tool outputs may be offloaded when large.',
-      `When you see an offload stub, read the full output from: ${offloadPath}`,
-      'Use file tools to read that path. Access is limited to the current conversation session.',
-      `If you need user confirmation or choices, ask with the ${QUESTION_TOOL_NAME} tool.`
+      '## User Interaction',
+      `If you need user confirmation or a structured choice, ask with the ${QUESTION_TOOL_NAME} tool.`
     ].join('\n')
+  }
+
+  private buildSkillsPrompt(toolNames: Set<string>): string {
+    const lines = ['## Skill Tools']
+    let hasContent = false
+
+    if (toolNames.has('skill_list')) {
+      lines.push('- Use `skill_list` to inspect available skills and activation status.')
+      hasContent = true
+    }
+    if (toolNames.has('skill_control')) {
+      lines.push('- Use `skill_control` to activate or deactivate skills before continuing.')
+      hasContent = true
+    }
+    if (toolNames.has('skill_run')) {
+      lines.push('- Use `skill_run` to execute bundled scripts from active skills.')
+      hasContent = true
+    }
+
+    return hasContent ? lines.join('\n') : ''
+  }
+
+  private buildSettingsPrompt(tools: MCPToolDefinition[]): string {
+    if (tools.length === 0) {
+      return ''
+    }
+
+    const names = tools.map((tool) => `\`${tool.function.name}\``).join(', ')
+    return [
+      '## DeepChat Settings Tools',
+      `DeepChat settings tools are available in this session: ${names}.`,
+      'Prefer these tools over describing manual settings steps when a direct change is possible.'
+    ].join('\n')
+  }
+
+  private buildYoBrowserPrompt(tools: MCPToolDefinition[]): string {
+    if (tools.length === 0) {
+      return ''
+    }
+
+    const toolNames = new Set(tools.map((tool) => tool.function.name))
+    const lines = [
+      '## YoBrowser Tools',
+      `Available YoBrowser tools: ${tools.map((tool) => `\`${tool.function.name}\``).join(', ')}.`
+    ]
+
+    if (toolNames.has('yo_browser_window_list')) {
+      lines.push('- Use `yo_browser_window_list` to inspect current browser windows before acting.')
+    }
+    if (toolNames.has('yo_browser_window_open')) {
+      lines.push(
+        '- Use `yo_browser_window_open` when you need a browser window for web exploration.'
+      )
+    }
+    if (toolNames.has('yo_browser_cdp_send')) {
+      lines.push(
+        '- Use `yo_browser_cdp_send` for DOM inspection, scripted interaction, and screenshots.'
+      )
+    }
+
+    return lines.join('\n')
   }
 }

@@ -76,6 +76,7 @@ const setup = async (options?: {
     providerId: undefined as string | undefined,
     modelId: undefined as string | undefined,
     permissionMode: 'full_access' as const,
+    disabledAgentTools: [] as string[],
     systemPrompt: undefined as string | undefined,
     temperature: undefined as number | undefined,
     contextLength: undefined as number | undefined,
@@ -213,6 +214,7 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
     ]
     draftStore.providerId = 'openai'
     draftStore.modelId = 'gpt-4'
+    draftStore.disabledAgentTools = ['exec', 'yo_browser_cdp_send']
     ;(draftStore.toGenerationSettings as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
       systemPrompt: 'Preset prompt',
       temperature: 1.2,
@@ -231,6 +233,7 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
         message: 'hello deepchat',
         files: [{ name: 'plan.md', path: '/tmp/workspace/plan.md', mimeType: 'text/markdown' }],
         agentId: 'deepchat',
+        disabledAgentTools: ['exec', 'yo_browser_cdp_send'],
         generationSettings: {
           systemPrompt: 'Preset prompt',
           temperature: 1.2,

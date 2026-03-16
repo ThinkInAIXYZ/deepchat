@@ -329,6 +329,7 @@ export interface CreateSessionInput {
   modelId?: string
   permissionMode?: PermissionMode
   activeSkills?: string[]
+  disabledAgentTools?: string[]
   generationSettings?: Partial<SessionGenerationSettings>
 }
 

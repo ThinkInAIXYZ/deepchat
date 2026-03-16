@@ -2,6 +2,7 @@
 
 export interface MCPToolDefinition {
   type: string
+  source?: 'mcp' | 'agent'
   function: {
     name: string
     description: string

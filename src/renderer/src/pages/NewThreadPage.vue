@@ -239,6 +239,7 @@ async function submitText(text: string, files: MessageFile[]) {
     providerId,
     modelId,
     permissionMode: draftStore.permissionMode,
+    disabledAgentTools: agentId === 'deepchat' ? [...draftStore.disabledAgentTools] : undefined,
     generationSettings: draftStore.toGenerationSettings(),
     activeSkills: dedupedPendingSkills.length > 0 ? dedupedPendingSkills : undefined
   })
@@ -323,6 +324,7 @@ onMounted(() => {
   draftStore.providerId = undefined
   draftStore.modelId = undefined
   draftStore.permissionMode = 'full_access'
+  draftStore.disabledAgentTools = []
   draftStore.resetGenerationSettings()
 })
 </script>
