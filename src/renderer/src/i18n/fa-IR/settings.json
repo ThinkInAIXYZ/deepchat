@@ -258,6 +258,35 @@
       "messages": "{count} پیام",
       "empty": "هنوز داده‌ای برای نمایش جزئیات وجود ندارد."
     },
+    "rtk": {
+      "title": "صرفه‌جویی RTK",
+      "description": "تخمین توکن‌هایی که RTK در اجرای فرمان‌های بومی DeepChat مانع رسیدنشان به بافت مدل شده است.",
+      "actions": {
+        "retry": "تلاش دوباره"
+      },
+      "status": {
+        "disabled": "غیرفعال",
+        "checking": "در حال بررسی",
+        "healthy": "آماده",
+        "unhealthy": "غیرقابل استفاده"
+      },
+      "descriptionDisabled": "RTK برای این نشست برنامه خاموش است، بنابراین فرمان‌ها از مسیر اجرای عادی عبور می‌کنند.",
+      "descriptionChecking": "DeepChat در حال بررسی است که آیا RTK در محیط فعلی به‌درستی اجرا می‌شود یا نه.",
+      "descriptionHealthy": "RTK برای اجرای فرمان‌های بومی DeepChat فعال است.",
+      "descriptionUnhealthy": "بررسی سلامت RTK هنگام شروع اجرا ناموفق بود و برای این نشست برنامه غیرفعال شده است.",
+      "sourceLabel": "منبع زمان‌اجرا: {source}",
+      "source": {
+        "bundled": "داخلی",
+        "system": "سیستمی",
+        "none": "ناموجود"
+      },
+      "summary": {
+        "savedTokens": "توکن‌های ذخیره‌شده",
+        "commands": "فرمان‌های ثبت‌شده",
+        "avgSavingsPct": "میانگین صرفه‌جویی",
+        "outputTokens": "خروجی پالایش‌شده"
+      }
+    },
     "unavailable": "ناموجود"
   },
   "model": {

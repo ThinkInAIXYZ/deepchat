@@ -3,7 +3,7 @@
  * Types for the unified tool routing presenter
  */
 
-import type { MCPToolDefinition, MCPToolCall, MCPToolResponse } from './legacy.presenters'
+import type { MCPToolDefinition, MCPToolCall, MCPToolResponse } from '../core/mcp'
 
 /**
  * Tool Presenter interface

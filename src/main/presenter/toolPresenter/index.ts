@@ -63,8 +63,8 @@ interface ToolPresenterOptions {
   agentToolRuntime: AgentToolRuntimePort
 }
 
-const FILESYSTEM_TOOL_ORDER = ['read', 'write', 'edit', 'find', 'grep', 'ls', 'exec', 'process']
-const OFFLOAD_TOOL_NAMES = new Set(['exec', 'ls', 'find', 'grep', 'yo_browser_cdp_send'])
+const FILESYSTEM_TOOL_ORDER = ['read', 'write', 'edit', 'exec', 'process']
+const OFFLOAD_TOOL_NAMES = new Set(['exec', 'yo_browser_cdp_send'])
 
 const withToolSource = (tools: MCPToolDefinition[], source: 'mcp' | 'agent'): MCPToolDefinition[] =>
   tools.map((tool) => ({
@@ -205,15 +205,13 @@ export class ToolPresenter implements IToolPresenter {
       }
       const response = await this.agentToolManager.callTool(toolName, args, request.conversationId)
       const resolvedResponse = this.resolveAgentToolResponse(response)
+      const rawData = resolvedResponse.rawData ?? {}
       return {
         content: resolvedResponse.content,
         rawData: {
+          ...rawData,
           toolCallId: request.id,
-          content: resolvedResponse.rawData?.content ?? resolvedResponse.content,
-          isError: resolvedResponse.rawData?.isError,
-          toolResult: resolvedResponse.rawData?.toolResult,
-          requiresPermission: resolvedResponse.rawData?.requiresPermission,
-          permissionRequest: resolvedResponse.rawData?.permissionRequest
+          content: rawData.content ?? resolvedResponse.content
         }
       }
     }
@@ -364,20 +362,23 @@ export class ToolPresenter implements IToolPresenter {
       'Legacy or disabled Agent tool names are not available.'
     ]
 
-    const searchSteps = ['find', 'grep'].filter((toolName) => toolNames.has(toolName))
-    const mutationSteps = ['edit', 'write'].filter((toolName) => toolNames.has(toolName))
-    const flow: string[] = []
-    if (searchSteps.length > 0) {
-      flow.push(searchSteps.join('/'))
+    if (toolNames.has('exec')) {
+      lines.push(
+        'Use `exec` for file discovery, content search, git, build, test, lint, package manager, and other CLI workflows.'
+      )
+      lines.push(
+        'Prefer shell patterns like `rg -n`, `rg --files`, `find . -name ...`, `ls`, and `tree` inside `exec`.'
+      )
     }
-    if (toolNames.has('read')) {
-      flow.push('read')
+    if (toolNames.has('exec') && toolNames.has('read') && toolNames.has('edit')) {
+      lines.push(
+        'Recommended file task flow: `exec` for discovery/search -> `read` -> `edit`/`write`.'
+      )
     }
-    if (mutationSteps.length > 0) {
-      flow.push(mutationSteps.join('/'))
-    }
-    if (flow.length >= 2) {
-      lines.push(`Recommended code task flow: ${flow.join(' -> ')}.`)
+    if (toolNames.has('process')) {
+      lines.push(
+        'Use `process` to monitor, write to, or terminate long-running background `exec` tasks.'
+      )
     }
 
     const hasOffloadTools = Array.from(toolNames).some((toolName) =>

@@ -46,6 +46,9 @@ type DeferredToolExecutionResult = {
   responseText: string
   isError: boolean
   offloadPath?: string
+  rtkApplied?: boolean
+  rtkMode?: 'rewrite' | 'direct' | 'bypass'
+  rtkFallbackReason?: string
   requiresPermission?: boolean
   permissionRequest?: PendingToolInteraction['permission']
   terminalError?: string
@@ -503,7 +506,12 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
             blocks,
             toolCall.id,
             execution.responseText,
-            execution.isError
+            execution.isError,
+            {
+              rtkApplied: execution.rtkApplied,
+              rtkMode: execution.rtkMode,
+              rtkFallbackReason: execution.rtkFallbackReason
+            }
           )
           resumeBudgetToolCall = {
             id: toolCall.id,
@@ -2178,13 +2186,27 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     blocks: AssistantMessageBlock[],
     toolCallId: string,
     responseText: string,
-    isError: boolean
+    isError: boolean,
+    rtkMetadata?: {
+      rtkApplied?: boolean
+      rtkMode?: 'rewrite' | 'direct' | 'bypass'
+      rtkFallbackReason?: string
+    }
   ): void {
     const toolBlock = blocks.find(
       (block) => block.type === 'tool_call' && block.tool_call?.id === toolCallId
     )
     if (!toolBlock?.tool_call) return
     toolBlock.tool_call.response = responseText
+    if (typeof rtkMetadata?.rtkApplied === 'boolean') {
+      toolBlock.tool_call.rtkApplied = rtkMetadata.rtkApplied
+    }
+    if (rtkMetadata?.rtkMode) {
+      toolBlock.tool_call.rtkMode = rtkMetadata.rtkMode
+    }
+    if (rtkMetadata?.rtkFallbackReason) {
+      toolBlock.tool_call.rtkFallbackReason = rtkMetadata.rtkFallbackReason
+    }
     toolBlock.status = isError ? 'error' : 'success'
   }
 
@@ -2314,7 +2336,10 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       return {
         responseText: prepared.content,
         isError: Boolean(rawData.isError),
-        offloadPath: prepared.offloadPath
+        offloadPath: prepared.offloadPath,
+        rtkApplied: rawData.rtkApplied,
+        rtkMode: rawData.rtkMode,
+        rtkFallbackReason: rawData.rtkFallbackReason
       }
     } catch (error) {
       const errorText = error instanceof Error ? error.message : String(error)

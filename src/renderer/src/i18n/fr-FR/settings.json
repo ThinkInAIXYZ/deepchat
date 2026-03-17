@@ -258,6 +258,35 @@
       "messages": "{count} messages",
       "empty": "Aucune donnée de répartition à afficher pour le moment."
     },
+    "rtk": {
+      "title": "Économies RTK",
+      "description": "Estimation des tokens que RTK a empêchés d’atteindre le contexte du modèle pendant l’exécution des commandes natives de DeepChat.",
+      "actions": {
+        "retry": "Relancer la vérification"
+      },
+      "status": {
+        "disabled": "Désactivé",
+        "checking": "Vérification",
+        "healthy": "Opérationnel",
+        "unhealthy": "Indisponible"
+      },
+      "descriptionDisabled": "RTK est désactivé pour cette session de l’application, les commandes suivent donc le chemin d’exécution normal.",
+      "descriptionChecking": "DeepChat vérifie si RTK peut fonctionner correctement dans l’environnement actuel.",
+      "descriptionHealthy": "RTK est actif pour l’exécution des commandes natives de DeepChat.",
+      "descriptionUnhealthy": "La vérification de santé de RTK au démarrage a échoué et RTK a été désactivé pour cette session de l’application.",
+      "sourceLabel": "Source du runtime : {source}",
+      "source": {
+        "bundled": "Intégré",
+        "system": "Système",
+        "none": "Non disponible"
+      },
+      "summary": {
+        "savedTokens": "Tokens économisés",
+        "commands": "Commandes suivies",
+        "avgSavingsPct": "Économie moyenne",
+        "outputTokens": "Sortie filtrée"
+      }
+    },
     "unavailable": "Indisponible"
   },
   "model": {

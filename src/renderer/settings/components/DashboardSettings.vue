@@ -435,6 +435,114 @@
           </CardContent>
         </Card>
 
+        <Card
+          data-testid="rtk-card"
+          class="overflow-hidden border-border/70 bg-card/90 backdrop-blur-sm"
+        >
+          <CardHeader class="pb-4">
+            <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+              <div class="space-y-1">
+                <CardTitle>{{ t('settings.dashboard.rtk.title') }}</CardTitle>
+                <CardDescription>
+                  {{ t('settings.dashboard.rtk.description') }}
+                </CardDescription>
+              </div>
+              <div class="flex items-center gap-2">
+                <Badge
+                  data-testid="rtk-status-badge"
+                  variant="secondary"
+                  :class="rtkStatusBadgeClass"
+                >
+                  {{ rtkStatusLabel }}
+                </Badge>
+                <Button
+                  v-if="dashboard.rtk.health === 'unhealthy'"
+                  data-testid="rtk-retry-button"
+                  variant="outline"
+                  size="sm"
+                  :disabled="isRetryingRtk"
+                  @click="void retryRtkHealthCheck()"
+                >
+                  {{ t('settings.dashboard.rtk.actions.retry') }}
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent class="space-y-4">
+            <div
+              v-if="rtkStatusDescription"
+              data-testid="rtk-status-copy"
+              class="rounded-2xl border border-border/40 bg-muted/10 px-4 py-3 text-sm text-muted-foreground"
+            >
+              <p>{{ rtkStatusDescription }}</p>
+            </div>
+
+            <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <div
+                data-testid="rtk-summary-saved"
+                class="rounded-xl border border-border/40 bg-muted/5 px-4 py-3"
+              >
+                <p
+                  class="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground"
+                >
+                  {{ t('settings.dashboard.rtk.summary.savedTokens') }}
+                </p>
+                <p
+                  class="mt-1 text-lg font-semibold tracking-tight"
+                  :title="formatFullTokens(dashboard.rtk.summary.totalSavedTokens)"
+                >
+                  {{ formatTokens(dashboard.rtk.summary.totalSavedTokens) }}
+                </p>
+              </div>
+
+              <div
+                data-testid="rtk-summary-commands"
+                class="rounded-xl border border-border/40 bg-muted/5 px-4 py-3"
+              >
+                <p
+                  class="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground"
+                >
+                  {{ t('settings.dashboard.rtk.summary.commands') }}
+                </p>
+                <p class="mt-1 text-lg font-semibold tracking-tight">
+                  {{ formatCount(dashboard.rtk.summary.totalCommands) }}
+                </p>
+              </div>
+
+              <div
+                data-testid="rtk-summary-rate"
+                class="rounded-xl border border-border/40 bg-muted/5 px-4 py-3"
+              >
+                <p
+                  class="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground"
+                >
+                  {{ t('settings.dashboard.rtk.summary.avgSavingsPct') }}
+                </p>
+                <p class="mt-1 text-lg font-semibold tracking-tight">
+                  {{ formatPercent(dashboard.rtk.summary.avgSavingsPct / 100) }}
+                </p>
+              </div>
+
+              <div
+                data-testid="rtk-summary-output"
+                class="rounded-xl border border-border/40 bg-muted/5 px-4 py-3"
+              >
+                <p
+                  class="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground"
+                >
+                  {{ t('settings.dashboard.rtk.summary.outputTokens') }}
+                </p>
+                <p
+                  class="mt-1 text-lg font-semibold tracking-tight"
+                  :title="formatFullTokens(dashboard.rtk.summary.totalOutputTokens)"
+                >
+                  {{ formatTokens(dashboard.rtk.summary.totalOutputTokens) }}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         <div class="grid gap-4 2xl:grid-cols-2">
           <Card class="border-border/70 bg-card/90 backdrop-blur-sm">
             <CardHeader class="pb-4">
@@ -621,6 +729,7 @@ const { t, locale } = useI18n()
 const newAgentPresenter = usePresenter('newAgentPresenter')
 
 const isLoading = ref(true)
+const isRetryingRtk = ref(false)
 const errorMessage = ref('')
 const dashboard = ref<UsageDashboardData | null>(null)
 const nostalgiaStatIndex = ref(0)
@@ -635,6 +744,59 @@ const TOKEN_USAGE_CHART_HEIGHT = 184
 const NOSTALGIA_ROTATION_INTERVAL = 4000
 
 const hasData = computed(() => (dashboard.value?.summary.messageCount ?? 0) > 0)
+
+const rtkStatusLabel = computed(() => {
+  if (!dashboard.value?.rtk.enabled) {
+    return t('settings.dashboard.rtk.status.disabled')
+  }
+
+  if (dashboard.value.rtk.health === 'healthy') {
+    return rtkSourceLabel.value
+  }
+
+  return t(`settings.dashboard.rtk.status.${dashboard.value.rtk.health}`)
+})
+
+const rtkSourceLabel = computed(() => {
+  const source = dashboard.value?.rtk.source ?? 'none'
+  return t(`settings.dashboard.rtk.source.${source}`)
+})
+
+const rtkStatusDescription = computed(() => {
+  if (!dashboard.value) {
+    return ''
+  }
+
+  if (!dashboard.value.rtk.enabled) {
+    return t('settings.dashboard.rtk.descriptionDisabled')
+  }
+
+  if (dashboard.value.rtk.health === 'unhealthy') {
+    return dashboard.value.rtk.failureMessage || t('settings.dashboard.rtk.descriptionUnhealthy')
+  }
+
+  if (dashboard.value.rtk.health === 'checking') {
+    return t('settings.dashboard.rtk.descriptionChecking')
+  }
+
+  return ''
+})
+
+const rtkStatusBadgeClass = computed(() => {
+  if (!dashboard.value?.rtk.enabled) {
+    return 'border-border/60 text-muted-foreground'
+  }
+
+  if (dashboard.value.rtk.health === 'healthy') {
+    return 'border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+  }
+
+  if (dashboard.value.rtk.health === 'unhealthy') {
+    return 'border-destructive/20 bg-destructive/10 text-destructive'
+  }
+
+  return 'border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-300'
+})
 
 const tokenUsageChartConfig = computed<ChartConfig>(() => ({
   input: {
@@ -909,6 +1071,23 @@ async function loadDashboard(): Promise<void> {
       syncNostalgiaRotation()
       scheduleRefresh()
     }
+  }
+}
+
+async function retryRtkHealthCheck(): Promise<void> {
+  if (isRetryingRtk.value) {
+    return
+  }
+
+  try {
+    isRetryingRtk.value = true
+    await newAgentPresenter.retryRtkHealthCheck()
+    await loadDashboard()
+  } catch (error) {
+    errorMessage.value =
+      error instanceof Error ? error.message : t('settings.dashboard.error.description')
+  } finally {
+    isRetryingRtk.value = false
   }
 }
 

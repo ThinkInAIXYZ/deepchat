@@ -95,6 +95,9 @@ export type AssistantMessageBlock = {
     name?: string
     params?: string
     response?: string
+    rtkApplied?: boolean
+    rtkMode?: 'rewrite' | 'direct' | 'bypass'
+    rtkFallbackReason?: string
     server_name?: string
     server_icons?: string
     server_description?: string

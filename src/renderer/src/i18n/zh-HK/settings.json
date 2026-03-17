@@ -258,6 +258,35 @@
       "messages": "{count} 條消息",
       "empty": "暫時還沒有可展示的明細資料。"
     },
+    "rtk": {
+      "title": "RTK 節省",
+      "description": "展示 RTK 在 DeepChat 原生命令執行鏈路裡，估算攔下了多少沒有進入模型上下文的 token。",
+      "actions": {
+        "retry": "重試檢測"
+      },
+      "status": {
+        "disabled": "已停用",
+        "checking": "檢測中",
+        "healthy": "可用",
+        "unhealthy": "不可用"
+      },
+      "descriptionDisabled": "當前應用會話裡 RTK 已關閉，命令會繼續走原始執行路徑。",
+      "descriptionChecking": "DeepChat 正在檢測 RTK 是否能在當前環境裡正常運行。",
+      "descriptionHealthy": "RTK 已接入 DeepChat 原生命令執行。",
+      "descriptionUnhealthy": "RTK 啟動健康檢查失敗，當前應用會話內已自動停用。",
+      "sourceLabel": "運行時來源：{source}",
+      "source": {
+        "bundled": "內置",
+        "system": "系統",
+        "none": "不可用"
+      },
+      "summary": {
+        "savedTokens": "節省 Token",
+        "commands": "已跟蹤命令",
+        "avgSavingsPct": "平均節省率",
+        "outputTokens": "過濾後輸出"
+      }
+    },
     "unavailable": "暫無"
   },
   "model": {

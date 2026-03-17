@@ -10,6 +10,7 @@ import type {
   SkillScriptDescriptor
 } from '@shared/types/skill'
 import { backgroundExecSessionManager } from '@/lib/agentRuntime/backgroundExecSessionManager'
+import { rtkRuntimeService } from '@/lib/agentRuntime/rtkRuntimeService'
 import { getShellEnvironment, getUserShell } from '@/lib/agentRuntime/shellEnvHelper'
 import { resolveSessionDir } from '@/lib/agentRuntime/sessionPaths'
 import { RuntimeHelper } from '@/lib/runtimeHelper'
@@ -33,6 +34,13 @@ export interface SkillRunOptions {
   conversationId: string
 }
 
+interface SkillExecutionResult {
+  output: string | { status: 'running'; sessionId: string }
+  rtkApplied: boolean
+  rtkMode: 'rewrite' | 'direct' | 'bypass'
+  rtkFallbackReason?: string
+}
+
 interface RuntimeCommand {
   command: string
   argsPrefix?: string[]
@@ -46,6 +54,7 @@ interface SpawnPlan {
   env: Record<string, string>
   shellCommand: string
   outputPrefix: string
+  spawnMode: 'direct' | 'shell'
 }
 
 function toStringEnv(input: NodeJS.ProcessEnv | Record<string, string>): Record<string, string> {
@@ -56,19 +65,20 @@ function toStringEnv(input: NodeJS.ProcessEnv | Record<string, string>): Record<
 
 export class SkillExecutionService {
   private readonly runtimeHelper = RuntimeHelper.getInstance()
+  private readonly configPresenter?: Pick<IConfigPresenter, 'getSetting'>
 
   constructor(
     private readonly skillPresenter: ISkillPresenter,
-    _configPresenter: IConfigPresenter
+    configPresenter: IConfigPresenter
   ) {
+    this.configPresenter = configPresenter
     this.runtimeHelper.initializeRuntimes()
   }
 
-  async execute(
-    input: SkillRunRequest,
-    options: SkillRunOptions
-  ): Promise<string | { status: 'running'; sessionId: string }> {
-    const plan = await this.buildSpawnPlan(input, options.conversationId)
+  async execute(input: SkillRunRequest, options: SkillRunOptions): Promise<SkillExecutionResult> {
+    const plan = await this.preparePlanForExecution(
+      await this.buildSpawnPlan(input, options.conversationId)
+    )
     const timeoutMs = input.timeoutMs ?? DEFAULT_TIMEOUT_MS
 
     if (input.background) {
@@ -91,10 +101,18 @@ export class SkillExecutionService {
         )
       }
 
-      return { status: 'running', sessionId: result.sessionId }
+      return {
+        output: { status: 'running', sessionId: result.sessionId },
+        rtkApplied: plan.spawnMode === 'shell',
+        rtkMode: plan.spawnMode === 'shell' ? 'rewrite' : 'bypass'
+      }
     }
 
-    return await this.runForeground(plan, timeoutMs, options.conversationId, input.stdin)
+    return {
+      output: await this.runForeground(plan, timeoutMs, options.conversationId, input.stdin),
+      rtkApplied: plan.spawnMode === 'shell',
+      rtkMode: plan.spawnMode === 'shell' ? 'rewrite' : 'bypass'
+    }
   }
 
   private async buildSpawnPlan(input: SkillRunRequest, conversationId: string): Promise<SpawnPlan> {
@@ -138,7 +156,8 @@ export class SkillExecutionService {
       cwd: metadata.skillRoot,
       env: mergedEnv,
       shellCommand: this.buildShellCommand(runtime.command, args),
-      outputPrefix: `skillrun_${input.skill.replace(/[^a-zA-Z0-9_-]/g, '_')}`
+      outputPrefix: `skillrun_${input.skill.replace(/[^a-zA-Z0-9_-]/g, '_')}`,
+      spawnMode: 'direct'
     }
   }
 
@@ -324,7 +343,10 @@ export class SkillExecutionService {
     const outputFilePath = this.createForegroundOutputPath(conversationId, plan.outputPrefix)
 
     return await new Promise((resolve, reject) => {
-      const child = spawn(plan.command, plan.args, {
+      const shellRuntime = plan.spawnMode === 'shell' ? getUserShell() : null
+      const command = shellRuntime ? shellRuntime.shell : plan.command
+      const args = shellRuntime ? [...shellRuntime.args, plan.shellCommand] : plan.args
+      const child = spawn(command, args, {
         cwd: plan.cwd,
         env: plan.env,
         stdio: ['pipe', 'pipe', 'pipe'],
@@ -515,6 +537,32 @@ export class SkillExecutionService {
         void settleProcess(code ?? null)
       })
     })
+  }
+
+  private async preparePlanForExecution(plan: SpawnPlan): Promise<SpawnPlan> {
+    if (!this.configPresenter || typeof this.configPresenter.getSetting !== 'function') {
+      return plan
+    }
+
+    const prepared = await rtkRuntimeService.prepareShellCommand(
+      plan.shellCommand,
+      plan.env,
+      this.configPresenter
+    )
+
+    if (!prepared.rewritten) {
+      return {
+        ...plan,
+        env: prepared.env
+      }
+    }
+
+    return {
+      ...plan,
+      env: prepared.env,
+      shellCommand: prepared.command,
+      spawnMode: 'shell'
+    }
   }
 
   private buildShellCommand(command: string, args: string[]): string {

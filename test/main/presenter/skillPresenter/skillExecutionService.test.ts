@@ -20,7 +20,24 @@ vi.mock('../../../../src/main/lib/agentRuntime/shellEnvHelper', () => ({
   getUserShell: vi.fn().mockReturnValue({ shell: '/bin/zsh', args: ['-c'] })
 }))
 
+vi.mock('../../../../src/main/lib/agentRuntime/rtkRuntimeService', () => ({
+  rtkRuntimeService: {
+    prepareShellCommand: vi
+      .fn()
+      .mockImplementation(async (command: string, env: Record<string, string>) => ({
+        originalCommand: command,
+        command,
+        env,
+        rewritten: false,
+        usedRtk: false,
+        rtkApplied: false,
+        rtkMode: 'bypass'
+      }))
+  }
+}))
+
 import { spawn } from 'child_process'
+import { rtkRuntimeService } from '../../../../src/main/lib/agentRuntime/rtkRuntimeService'
 
 describe('SkillExecutionService', () => {
   let skillPresenter: ISkillPresenter
@@ -60,7 +77,9 @@ describe('SkillExecutionService', () => {
       ])
     } as unknown as ISkillPresenter
 
-    service = new SkillExecutionService(skillPresenter, {} as never)
+    service = new SkillExecutionService(skillPresenter, {
+      getSetting: vi.fn().mockReturnValue(true)
+    } as never)
   })
 
   afterEach(() => {
@@ -107,6 +126,32 @@ describe('SkillExecutionService', () => {
       command: '/runtime/uv',
       mode: 'uv'
     })
+  })
+
+  it('switches to shell spawn mode when RTK rewrites the command', async () => {
+    vi.mocked(rtkRuntimeService.prepareShellCommand).mockResolvedValueOnce({
+      originalCommand: 'node /skills/ocr/scripts/run.py',
+      command: 'rtk run -- node /skills/ocr/scripts/run.py',
+      env: { PATH: '/shell/bin', API_KEY: 'secret', RTK_DB_PATH: '/mock/rtk.db' },
+      rewritten: true,
+      usedRtk: true,
+      rtkApplied: true,
+      rtkMode: 'rewrite'
+    })
+
+    const preparedPlan = await (service as never).preparePlanForExecution({
+      command: 'node',
+      args: ['/skills/ocr/scripts/run.py'],
+      cwd: '/skills/ocr',
+      env: { PATH: '/shell/bin', API_KEY: 'secret' },
+      shellCommand: 'node /skills/ocr/scripts/run.py',
+      outputPrefix: 'skill_ocr',
+      spawnMode: 'direct'
+    })
+
+    expect(preparedPlan.spawnMode).toBe('shell')
+    expect(preparedPlan.shellCommand).toBe('rtk run -- node /skills/ocr/scripts/run.py')
+    expect(preparedPlan.env.RTK_DB_PATH).toBe('/mock/rtk.db')
   })
 
   it('rejects scripts that are not declared under scripts directory', async () => {

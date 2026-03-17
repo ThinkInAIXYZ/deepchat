@@ -258,6 +258,35 @@
       "messages": "{count} הודעות",
       "empty": "עדיין אין נתוני פירוט להצגה."
     },
+    "rtk": {
+      "title": "חיסכון RTK",
+      "description": "הערכה של מספר הטוקנים ש-RTK מנע מלהגיע להקשר המודל במהלך הרצת הפקודות המובנות של DeepChat.",
+      "actions": {
+        "retry": "נסה שוב"
+      },
+      "status": {
+        "disabled": "מושבת",
+        "checking": "בודק",
+        "healthy": "תקין",
+        "unhealthy": "לא זמין"
+      },
+      "descriptionDisabled": "RTK כבוי עבור סשן היישום הזה, ולכן הפקודות רצות במסלול הביצוע הרגיל.",
+      "descriptionChecking": "DeepChat בודק אם RTK יכול לפעול כראוי בסביבה הנוכחית.",
+      "descriptionHealthy": "RTK פעיל עבור הרצת הפקודות המובנות של DeepChat.",
+      "descriptionUnhealthy": "בדיקת התקינות של RTK בעת ההפעלה נכשלה, והוא הושבת עבור סשן היישום הזה.",
+      "sourceLabel": "מקור סביבת הריצה: {source}",
+      "source": {
+        "bundled": "מובנה",
+        "system": "מערכת",
+        "none": "לא זמין"
+      },
+      "summary": {
+        "savedTokens": "טוקנים שנחסכו",
+        "commands": "פקודות שנרשמו",
+        "avgSavingsPct": "חיסכון ממוצע",
+        "outputTokens": "פלט מסונן"
+      }
+    },
     "unavailable": "לא זמין"
   },
   "model": {

@@ -54,6 +54,9 @@ import {
   resolveUsageModelId,
   resolveUsageProviderId
 } from '../usageStats'
+import { rtkRuntimeService } from '@/lib/agentRuntime/rtkRuntimeService'
+
+const RETIRED_DEFAULT_AGENT_TOOLS = new Set(['find', 'grep', 'ls'])
 
 export class NewAgentPresenter {
   private agentRegistry: AgentRegistry
@@ -494,6 +497,14 @@ export class NewAgentPresenter {
     return await this.usageStatsBackfillPromise
   }
 
+  async startRtkHealthCheck(): Promise<void> {
+    await rtkRuntimeService.startHealthCheck()
+  }
+
+  async retryRtkHealthCheck(): Promise<void> {
+    await rtkRuntimeService.retryHealthCheck()
+  }
+
   async getUsageDashboard(): Promise<UsageDashboardData> {
     const backfillStatus = this.getUsageStatsBackfillStatus()
     const usageStatsTable = this.sqlitePresenter.deepchatUsageStatsTable
@@ -553,7 +564,8 @@ export class NewAgentPresenter {
       },
       calendar,
       providerBreakdown,
-      modelBreakdown
+      modelBreakdown,
+      rtk: await rtkRuntimeService.getDashboardData(this.configPresenter)
     }
   }
 
@@ -1656,7 +1668,7 @@ export class NewAgentPresenter {
         disabledAgentTools
           .filter((item): item is string => typeof item === 'string')
           .map((item) => item.trim())
-          .filter(Boolean)
+          .filter((item) => Boolean(item) && !RETIRED_DEFAULT_AGENT_TOOLS.has(item))
       )
     ).sort((left, right) => left.localeCompare(right))
   }

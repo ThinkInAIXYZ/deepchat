@@ -204,6 +204,35 @@
       "messages": "{count} beskeder",
       "empty": "Der er endnu ingen fordelingsdata."
     },
+    "rtk": {
+      "title": "RTK-besparelser",
+      "description": "Estimerede tokens, som RTK forhindrede i at nå modelkonteksten under DeepChats indbyggede kommandokørsel.",
+      "actions": {
+        "retry": "Prøv igen"
+      },
+      "status": {
+        "disabled": "Deaktiveret",
+        "checking": "Kontrollerer",
+        "healthy": "Klar",
+        "unhealthy": "Utilgængelig"
+      },
+      "descriptionDisabled": "RTK er slået fra i denne appsession, så kommandoer kører via den normale eksekveringssti.",
+      "descriptionChecking": "DeepChat kontrollerer, om RTK kan køre korrekt i det aktuelle miljø.",
+      "descriptionHealthy": "RTK er aktiv for DeepChats indbyggede kommandokørsel.",
+      "descriptionUnhealthy": "RTK bestod ikke sin opstartskontrol og er blevet deaktiveret i denne appsession.",
+      "sourceLabel": "Runtime-kilde: {source}",
+      "source": {
+        "bundled": "Indbygget",
+        "system": "System",
+        "none": "Ikke tilgængelig"
+      },
+      "summary": {
+        "savedTokens": "Sparede tokens",
+        "commands": "Registrerede kommandoer",
+        "avgSavingsPct": "Gennemsnitlig besparelse",
+        "outputTokens": "Filtreret output"
+      }
+    },
     "unavailable": "Ikke tilgængelig"
   },
   "model": {
