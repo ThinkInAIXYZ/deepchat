@@ -75,6 +75,7 @@ type UsageStatsRow = {
 
 function aggregateUsageRows(rows: UsageStatsRow[]) {
   let messageCount = 0
+  const sessionIds = new Set<string>()
   let inputTokens = 0
   let outputTokens = 0
   let totalTokens = 0
@@ -84,6 +85,7 @@ function aggregateUsageRows(rows: UsageStatsRow[]) {
 
   for (const row of rows) {
     messageCount += 1
+    sessionIds.add(row.session_id)
     inputTokens += row.input_tokens
     outputTokens += row.output_tokens
     totalTokens += row.total_tokens
@@ -96,6 +98,7 @@ function aggregateUsageRows(rows: UsageStatsRow[]) {
 
   return {
     messageCount,
+    sessionCount: sessionIds.size,
     inputTokens,
     outputTokens,
     totalTokens,
@@ -266,6 +269,25 @@ function createMockSqlitePresenter() {
     },
     getSummary() {
       return aggregateUsageRows(Array.from(usageStats.values()))
+    },
+    getMostActiveDay() {
+      const buckets = new Map<string, number>()
+
+      for (const row of usageStats.values()) {
+        buckets.set(row.usage_date, (buckets.get(row.usage_date) ?? 0) + 1)
+      }
+
+      const rows = Array.from(buckets.entries())
+        .map(([date, messageCount]) => ({ date, messageCount }))
+        .sort((left, right) => {
+          if (right.messageCount !== left.messageCount) {
+            return right.messageCount - left.messageCount
+          }
+
+          return left.date.localeCompare(right.date)
+        })
+
+      return rows[0] ?? { date: null, messageCount: 0 }
     },
     getDailyCalendarRows(dateFrom: string) {
       const buckets = new Map<
@@ -492,8 +514,141 @@ describe('NewAgentPresenter usage dashboard', () => {
     const dashboard = await presenter.getUsageDashboard()
 
     expect(dashboard.summary.messageCount).toBe(0)
+    expect(dashboard.summary.sessionCount).toBe(0)
     expect(dashboard.summary.totalTokens).toBe(0)
+    expect(dashboard.summary.mostActiveDay).toEqual({ date: null, messageCount: 0 })
     expect(dashboard.providerBreakdown).toEqual([])
     expect(dashboard.calendar).toHaveLength(365)
+  })
+
+  it('returns session count and most active day from usage stats summary', async () => {
+    const { presenter, sqlitePresenter } = createPresenter()
+
+    sqlitePresenter.deepchatUsageStatsTable.upsert({
+      messageId: 'message-1',
+      sessionId: 'session-1',
+      usageDate: '2026-03-03',
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      inputTokens: 120,
+      outputTokens: 80,
+      totalTokens: 200,
+      cachedInputTokens: 0,
+      estimatedCostUsd: 0.01,
+      source: 'live',
+      createdAt: Date.UTC(2026, 2, 3, 8, 0, 0),
+      updatedAt: Date.UTC(2026, 2, 3, 8, 0, 1)
+    })
+    sqlitePresenter.deepchatUsageStatsTable.upsert({
+      messageId: 'message-2',
+      sessionId: 'session-1',
+      usageDate: '2026-03-03',
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      inputTokens: 60,
+      outputTokens: 40,
+      totalTokens: 100,
+      cachedInputTokens: 0,
+      estimatedCostUsd: 0.004,
+      source: 'live',
+      createdAt: Date.UTC(2026, 2, 3, 8, 1, 0),
+      updatedAt: Date.UTC(2026, 2, 3, 8, 1, 1)
+    })
+    sqlitePresenter.deepchatUsageStatsTable.upsert({
+      messageId: 'message-3',
+      sessionId: 'session-2',
+      usageDate: '2026-03-04',
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      inputTokens: 30,
+      outputTokens: 20,
+      totalTokens: 50,
+      cachedInputTokens: 0,
+      estimatedCostUsd: 0.002,
+      source: 'live',
+      createdAt: Date.UTC(2026, 2, 4, 8, 0, 0),
+      updatedAt: Date.UTC(2026, 2, 4, 8, 0, 1)
+    })
+
+    const dashboard = await presenter.getUsageDashboard()
+
+    expect(dashboard.summary.messageCount).toBe(3)
+    expect(dashboard.summary.sessionCount).toBe(2)
+    expect(dashboard.summary.mostActiveDay).toEqual({
+      date: '2026-03-03',
+      messageCount: 2
+    })
+  })
+
+  it('uses the earlier date when the most active day is tied on message count', async () => {
+    const { presenter, sqlitePresenter } = createPresenter()
+
+    sqlitePresenter.deepchatUsageStatsTable.upsert({
+      messageId: 'message-1',
+      sessionId: 'session-1',
+      usageDate: '2026-03-05',
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      inputTokens: 10,
+      outputTokens: 10,
+      totalTokens: 20,
+      cachedInputTokens: 0,
+      estimatedCostUsd: null,
+      source: 'live',
+      createdAt: Date.UTC(2026, 2, 5, 8, 0, 0),
+      updatedAt: Date.UTC(2026, 2, 5, 8, 0, 1)
+    })
+    sqlitePresenter.deepchatUsageStatsTable.upsert({
+      messageId: 'message-2',
+      sessionId: 'session-1',
+      usageDate: '2026-03-05',
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      inputTokens: 10,
+      outputTokens: 10,
+      totalTokens: 20,
+      cachedInputTokens: 0,
+      estimatedCostUsd: null,
+      source: 'live',
+      createdAt: Date.UTC(2026, 2, 5, 8, 1, 0),
+      updatedAt: Date.UTC(2026, 2, 5, 8, 1, 1)
+    })
+    sqlitePresenter.deepchatUsageStatsTable.upsert({
+      messageId: 'message-3',
+      sessionId: 'session-2',
+      usageDate: '2026-03-06',
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      inputTokens: 10,
+      outputTokens: 10,
+      totalTokens: 20,
+      cachedInputTokens: 0,
+      estimatedCostUsd: null,
+      source: 'live',
+      createdAt: Date.UTC(2026, 2, 6, 8, 0, 0),
+      updatedAt: Date.UTC(2026, 2, 6, 8, 0, 1)
+    })
+    sqlitePresenter.deepchatUsageStatsTable.upsert({
+      messageId: 'message-4',
+      sessionId: 'session-2',
+      usageDate: '2026-03-06',
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      inputTokens: 10,
+      outputTokens: 10,
+      totalTokens: 20,
+      cachedInputTokens: 0,
+      estimatedCostUsd: null,
+      source: 'live',
+      createdAt: Date.UTC(2026, 2, 6, 8, 1, 0),
+      updatedAt: Date.UTC(2026, 2, 6, 8, 1, 1)
+    })
+
+    const dashboard = await presenter.getUsageDashboard()
+
+    expect(dashboard.summary.mostActiveDay).toEqual({
+      date: '2026-03-05',
+      messageCount: 2
+    })
   })
 })

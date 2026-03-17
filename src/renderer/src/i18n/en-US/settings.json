@@ -189,15 +189,15 @@
   "dashboard": {
     "badge": "Usage Dashboard",
     "title": "Usage Dashboard",
-    "description": "Track token usage, cache hits, and estimated cost. Token and cost figures are estimated from public information, and some providers or historical messages may be missing, so treat these figures as reference only.",
+    "description": "Track token usage, cache hits, and estimated cost. Token and cost figures are estimated from public information, and some providers or earlier messages may be incomplete, so treat these figures as reference only.",
     "actions": {
       "refresh": "Refresh"
     },
     "backfill": {
-      "runningTitle": "Initializing historical stats",
-      "runningDescription": "You can already view collected data while the remaining messages are being scanned.",
-      "failedTitle": "Historical stats initialization failed",
-      "failedDescription": "Please reopen this page or restart the app to retry."
+      "runningTitle": "Updating usage data",
+      "runningDescription": "Usage data is still being updated in the background. Current results are already available.",
+      "failedTitle": "Failed to update usage data",
+      "failedDescription": "Refresh this page or try again later."
     },
     "error": {
       "title": "Failed to load dashboard",
@@ -205,8 +205,8 @@
     },
     "empty": {
       "title": "No usage stats yet",
-      "description": "History will be initialized once from current messages, and new usage will keep accumulating from now on.",
-      "historyNote": "Historical cache data is unavailable, so old records use 0 cached tokens."
+      "description": "Token usage, cache hits, and estimated cost will appear here once usage data is available.",
+      "historyNote": "Token and cost figures are estimated from public information. Some providers or earlier messages may be incomplete, so treat these figures as reference only."
     },
     "summary": {
       "totalTokens": "Total tokens",
@@ -230,7 +230,19 @@
       "withDeepChatDaysSentence": "You are on day {days} with DeepChat.",
       "withDeepChatDaysDescription": "Based on your earliest usage record from {date}.",
       "withDeepChatDaysDescriptionUnavailable": "No usage record yet.",
-      "tokenUsage": "Token usage"
+      "tokenUsage": "Token usage",
+      "nostalgiaLabel": "Echoes",
+      "nostalgiaDaysValue": "{days} days",
+      "nostalgiaSessionsValue": "{count} sessions",
+      "nostalgiaMessagesValue": "{count} messages",
+      "nostalgiaDaysDetailLabel": "Days together",
+      "nostalgiaDaysDetail": "You and DeepChat have spent {days} days together.",
+      "nostalgiaSessionsDetailLabel": "Sessions",
+      "nostalgiaSessionsDetail": "You have shared {count} sessions together.",
+      "nostalgiaMessagesDetailLabel": "Messages",
+      "nostalgiaMessagesDetail": "You have exchanged {count} messages.",
+      "nostalgiaMostActiveDayLabel": "Most active day",
+      "nostalgiaMostActiveDayDetail": "{date} was your most active day, with {count} messages."
     },
     "calendar": {
       "title": "Contribution Calendar",

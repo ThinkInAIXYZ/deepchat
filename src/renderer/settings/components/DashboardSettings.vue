@@ -72,10 +72,11 @@
 
       <section v-if="isLoading && !dashboard" class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <div
-          class="h-56 animate-pulse rounded-2xl border border-border bg-muted/40 md:col-span-2 xl:col-span-2"
+          class="h-[17rem] animate-pulse rounded-2xl border border-border bg-muted/40 md:col-span-2 xl:col-span-3"
         ></div>
-        <div class="h-56 animate-pulse rounded-2xl border border-border bg-muted/40"></div>
-        <div class="h-56 animate-pulse rounded-2xl border border-border bg-muted/40"></div>
+        <div
+          class="h-[17rem] animate-pulse rounded-2xl border border-border bg-muted/40 md:col-span-2 xl:col-span-1"
+        ></div>
       </section>
 
       <template v-else-if="dashboard">
@@ -83,252 +84,256 @@
           <Card
             v-if="tokenUsageCard"
             data-testid="summary-card-tokenUsage"
-            class="h-full overflow-hidden border-border/70 bg-card/90 backdrop-blur-sm md:col-span-2 xl:col-span-2"
-          >
-            <CardHeader class="space-y-1 pb-2">
-              <CardDescription>{{ t('settings.dashboard.summary.tokenUsage') }}</CardDescription>
-            </CardHeader>
-            <CardContent
-              class="grid gap-5 pt-0 md:grid-cols-[minmax(0,180px)_minmax(0,1fr)] md:items-center"
-            >
-              <div class="flex justify-center md:justify-start">
-                <div
-                  data-testid="total-tokens-donut"
-                  class="w-full max-w-[172px]"
-                  :style="{
-                    '--vis-donut-background-color': 'hsl(var(--muted))',
-                    '--vis-dark-donut-background-color': 'hsl(var(--muted))'
-                  }"
-                >
-                  <ChartContainer
-                    :config="totalTokensChartConfig"
-                    class="aspect-auto h-[152px] w-full"
-                  >
-                    <div class="relative h-full">
-                      <VisSingleContainer
-                        :data="tokenUsageCard.segments"
-                        :height="TOTAL_TOKENS_DONUT_HEIGHT"
-                        :margin="{ top: 10, bottom: 10, left: 10, right: 10 }"
-                      >
-                        <VisDonut
-                          :value="totalTokenSegmentValue"
-                          :color="totalTokenSegmentColor"
-                          :radius="TOTAL_TOKENS_DONUT_RADIUS"
-                          :arc-width="TOTAL_TOKENS_DONUT_ARC_WIDTH"
-                          :pad-angle="0.03"
-                          :corner-radius="12"
-                          :show-background="true"
-                        />
-                      </VisSingleContainer>
-
-                      <div
-                        class="pointer-events-none absolute inset-0 flex flex-col items-center justify-center"
-                      >
-                        <p
-                          class="text-xl font-semibold tracking-tight"
-                          :title="formatFullTokens(tokenUsageCard.totalTokens)"
-                        >
-                          {{ formatTokens(tokenUsageCard.totalTokens) }}
-                        </p>
-                        <p
-                          class="mt-1 text-[8px] uppercase tracking-[0.12em] text-muted-foreground"
-                        >
-                          {{ t('settings.dashboard.summary.totalTokens') }}
-                        </p>
-                      </div>
-                    </div>
-                  </ChartContainer>
-                </div>
-              </div>
-
-              <div
-                data-testid="token-usage-list"
-                class="rounded-xl border border-border/50 bg-muted/10 px-3"
-              >
-                <div class="flex items-center justify-between gap-3 py-2.5">
-                  <span class="text-sm font-medium text-foreground">
-                    {{ t('settings.dashboard.summary.totalTokens') }}
-                  </span>
-                  <span
-                    class="shrink-0 text-sm font-semibold tracking-tight"
-                    :title="formatFullTokens(tokenUsageCard.totalTokens)"
-                  >
-                    {{ formatTokens(tokenUsageCard.totalTokens) }}
-                  </span>
-                </div>
-
-                <div
-                  data-testid="total-tokens-input-row"
-                  class="flex items-center justify-between gap-3 border-t border-border/40 py-2.5"
-                >
-                  <div class="flex min-w-0 items-center gap-2">
-                    <span
-                      class="h-2.5 w-2.5 shrink-0 rounded-full bg-[hsl(var(--usage-low))]"
-                    ></span>
-                    <span class="whitespace-normal text-sm font-medium leading-4">
-                      {{ t('settings.dashboard.summary.inputTokensLabel') }}
-                    </span>
-                  </div>
-                  <div class="flex shrink-0 items-baseline gap-2">
-                    <span
-                      class="text-sm font-semibold tracking-tight"
-                      :title="formatFullTokens(tokenUsageCard.inputTokens)"
-                    >
-                      {{ formatTokens(tokenUsageCard.inputTokens) }}
-                    </span>
-                    <span
-                      data-testid="total-tokens-input-ratio"
-                      class="text-xs font-medium text-muted-foreground"
-                    >
-                      {{ formatPercent(tokenUsageCard.inputRatio) }}
-                    </span>
-                  </div>
-                </div>
-
-                <div
-                  data-testid="total-tokens-output-row"
-                  class="flex items-center justify-between gap-3 border-t border-border/40 py-2.5"
-                >
-                  <div class="flex min-w-0 items-center gap-2">
-                    <span
-                      class="h-2.5 w-2.5 shrink-0 rounded-full bg-[hsl(var(--usage-mid))]"
-                    ></span>
-                    <span class="whitespace-normal text-sm font-medium leading-4">
-                      {{ t('settings.dashboard.summary.outputTokensLabel') }}
-                    </span>
-                  </div>
-                  <div class="flex shrink-0 items-baseline gap-2">
-                    <span
-                      class="text-sm font-semibold tracking-tight"
-                      :title="formatFullTokens(tokenUsageCard.outputTokens)"
-                    >
-                      {{ formatTokens(tokenUsageCard.outputTokens) }}
-                    </span>
-                    <span
-                      data-testid="total-tokens-output-ratio"
-                      class="text-xs font-medium text-muted-foreground"
-                    >
-                      {{ formatPercent(tokenUsageCard.outputRatio) }}
-                    </span>
-                  </div>
-                </div>
-
-                <div
-                  data-testid="cached-tokens-cached-row"
-                  class="flex items-center justify-between gap-3 border-t border-border/40 py-2.5"
-                >
-                  <div class="flex min-w-0 items-center gap-2">
-                    <span
-                      class="h-2.5 w-2.5 shrink-0 rounded-full bg-[hsl(var(--usage-low) / 0.75)]"
-                    ></span>
-                    <span class="whitespace-normal text-sm font-medium leading-4">
-                      {{ t('settings.dashboard.summary.cachedTokensCachedLabel') }}
-                    </span>
-                  </div>
-                  <div class="flex shrink-0 items-baseline gap-2">
-                    <span
-                      class="text-sm font-semibold tracking-tight"
-                      :title="formatFullTokens(tokenUsageCard.cachedTokens)"
-                    >
-                      {{ formatTokens(tokenUsageCard.cachedTokens) }}
-                    </span>
-                    <span
-                      data-testid="cached-tokens-cached-ratio"
-                      class="text-xs font-medium text-muted-foreground"
-                    >
-                      {{ formatPercent(tokenUsageCard.cachedRatio) }}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card
-            v-if="estimatedCostCard"
-            data-testid="summary-card-estimatedCost"
-            class="flex h-full flex-col overflow-hidden border-border/70 bg-card/90 backdrop-blur-sm"
+            class="h-full overflow-hidden border-border/70 bg-card/90 backdrop-blur-sm md:col-span-2 xl:col-span-3"
           >
             <CardHeader class="space-y-1 pb-1">
-              <CardDescription>{{ t('settings.dashboard.summary.estimatedCost') }}</CardDescription>
-              <CardTitle class="text-xl font-semibold tracking-tight">
-                {{ formatCurrency(estimatedCostCard.totalCost) }}
-              </CardTitle>
+              <CardDescription>{{ t('settings.dashboard.summary.tokenUsage') }}</CardDescription>
             </CardHeader>
-            <CardContent class="flex flex-1 flex-col justify-between space-y-2 pt-0">
+            <CardContent class="space-y-4 pt-0">
               <div
-                data-testid="estimated-cost-area-chart"
-                class="rounded-lg border border-border/50 bg-muted/10 px-2.5 py-2"
+                data-testid="token-usage-trend-chart"
+                class="token-usage-trend-grid rounded-xl border border-border/40 bg-muted/10 px-3 py-3"
               >
-                <ChartContainer :config="estimatedCostChartConfig" class="aspect-auto h-14 w-full">
+                <ChartContainer
+                  :config="tokenUsageChartConfig"
+                  class="aspect-auto h-[184px] w-full"
+                >
                   <VisXYContainer
-                    :data="estimatedCostCard.chartData"
-                    :height="ESTIMATED_COST_CHART_HEIGHT"
-                    :padding="{ top: 4, bottom: 2, left: 0, right: 0 }"
+                    :data="tokenUsageCard.chartData"
+                    :height="TOKEN_USAGE_CHART_HEIGHT"
+                    :padding="{ top: 12, bottom: 14, left: 0, right: 0 }"
                     :margin="{ top: 0, bottom: 0, left: 0, right: 0 }"
-                    :x-domain="[0, Math.max(estimatedCostCard.chartData.length - 1, 1)]"
-                    :y-domain="estimatedCostCard.yDomain"
+                    :x-domain="[0, Math.max(tokenUsageCard.chartData.length - 1, 1)]"
+                    :y-domain="tokenUsageCard.yDomain"
                   >
-                    <ChartCrosshair :hide-when-far-from-pointer="true" />
+                    <ChartCrosshair
+                      :data="tokenUsageCard.chartData"
+                      :hide-when-far-from-pointer="true"
+                      :tooltip="tokenUsageTooltip?.component"
+                      :template="tokenUsageTooltipTemplate"
+                      :x="tokenTrendXAccessor"
+                      :y="tokenTrendYAccessors"
+                    />
+                    <ChartTooltip
+                      ref="tokenUsageTooltip"
+                      :attributes="{ 'data-testid': 'token-usage-tooltip' }"
+                    />
                     <VisArea
-                      :x="costTrendXAccessor"
-                      :y="costTrendYAccessor"
+                      :x="tokenTrendXAccessor"
+                      :y="tokenTrendInputAccessor"
                       :curve-type="CurveType.MonotoneX"
-                      :color="estimatedCostAreaColor"
-                      :opacity="0.24"
+                      :color="tokenTrendAreaColor('input')"
+                      :opacity="0.08"
                       :line="true"
-                      :line-color="estimatedCostLineColor"
-                      :line-width="2.1"
+                      :line-color="tokenTrendLineColor('input')"
+                      :line-width="2.2"
+                    />
+                    <VisArea
+                      :x="tokenTrendXAccessor"
+                      :y="tokenTrendOutputAccessor"
+                      :curve-type="CurveType.MonotoneX"
+                      :color="tokenTrendAreaColor('output')"
+                      :opacity="0.04"
+                      :line="true"
+                      :line-color="tokenTrendLineColor('output')"
+                      :line-width="1.9"
+                    />
+                    <VisArea
+                      :x="tokenTrendXAccessor"
+                      :y="tokenTrendCachedAccessor"
+                      :curve-type="CurveType.MonotoneX"
+                      :color="tokenTrendAreaColor('cached')"
+                      :opacity="0.05"
+                      :line="true"
+                      :line-color="tokenTrendLineColor('cached')"
+                      :line-width="1.9"
+                    />
+                    <VisArea
+                      :x="tokenTrendXAccessor"
+                      :y="tokenTrendCostAccessor"
+                      :curve-type="CurveType.MonotoneX"
+                      :color="tokenTrendAreaColor('cost')"
+                      :opacity="0.04"
+                      :line="true"
+                      :line-color="tokenTrendLineColor('cost')"
+                      :line-width="1.9"
                     />
                   </VisXYContainer>
                 </ChartContainer>
               </div>
 
-              <p
-                v-if="estimatedCostCard.hasRecentCost"
-                data-testid="estimated-cost-trend-label"
-                class="text-[10px] text-muted-foreground"
-              >
-                {{ t('settings.dashboard.summary.estimatedCostTrendLabel') }}
-              </p>
-              <p
-                v-else
-                data-testid="estimated-cost-trend-empty"
-                class="text-[10px] text-muted-foreground"
-              >
-                {{ t('settings.dashboard.summary.estimatedCostTrendEmpty') }}
-              </p>
+              <div data-testid="token-usage-list" class="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+                <div
+                  data-testid="token-usage-total-row"
+                  class="rounded-lg border border-border/30 bg-muted/5 px-3 py-2.5"
+                >
+                  <p
+                    class="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground"
+                  >
+                    {{ t('settings.dashboard.summary.totalTokens') }}
+                  </p>
+                  <p
+                    class="mt-1 text-sm font-semibold tracking-tight"
+                    :title="formatFullTokens(tokenUsageCard.totalTokens)"
+                  >
+                    {{ formatTokens(tokenUsageCard.totalTokens) }}
+                  </p>
+                </div>
+
+                <div
+                  data-testid="total-tokens-input-row"
+                  class="rounded-lg border border-border/30 bg-muted/5 px-3 py-2.5"
+                >
+                  <div class="flex min-w-0 items-center gap-2">
+                    <span
+                      data-testid="token-usage-input-dot"
+                      class="h-2.5 w-2.5 shrink-0 rounded-full border border-card shadow-[0_0_0_1px_hsl(var(--border)/0.18)]"
+                      :style="tokenUsageMetricDotStyle('input')"
+                    ></span>
+                    <span
+                      class="truncate text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground"
+                    >
+                      {{ t('settings.dashboard.summary.inputTokensLabel') }}
+                    </span>
+                  </div>
+                  <p
+                    class="mt-1 text-sm font-semibold tracking-tight"
+                    :title="formatFullTokens(tokenUsageCard.inputTokens)"
+                  >
+                    {{ formatTokens(tokenUsageCard.inputTokens) }}
+                  </p>
+                  <p
+                    data-testid="total-tokens-input-ratio"
+                    class="text-[11px] font-medium text-muted-foreground"
+                  >
+                    {{ formatPercent(tokenUsageCard.inputRatio) }}
+                  </p>
+                </div>
+
+                <div
+                  data-testid="total-tokens-output-row"
+                  class="rounded-lg border border-border/30 bg-muted/5 px-3 py-2.5"
+                >
+                  <div class="flex min-w-0 items-center gap-2">
+                    <span
+                      data-testid="token-usage-output-dot"
+                      class="h-2.5 w-2.5 shrink-0 rounded-full border border-card shadow-[0_0_0_1px_hsl(var(--border)/0.18)]"
+                      :style="tokenUsageMetricDotStyle('output')"
+                    ></span>
+                    <span
+                      class="truncate text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground"
+                    >
+                      {{ t('settings.dashboard.summary.outputTokensLabel') }}
+                    </span>
+                  </div>
+                  <p
+                    class="mt-1 text-sm font-semibold tracking-tight"
+                    :title="formatFullTokens(tokenUsageCard.outputTokens)"
+                  >
+                    {{ formatTokens(tokenUsageCard.outputTokens) }}
+                  </p>
+                  <p
+                    data-testid="total-tokens-output-ratio"
+                    class="text-[11px] font-medium text-muted-foreground"
+                  >
+                    {{ formatPercent(tokenUsageCard.outputRatio) }}
+                  </p>
+                </div>
+
+                <div
+                  data-testid="cached-tokens-cached-row"
+                  class="rounded-lg border border-border/30 bg-muted/5 px-3 py-2.5"
+                >
+                  <div class="flex min-w-0 items-center gap-2">
+                    <span
+                      data-testid="token-usage-cached-dot"
+                      class="h-2.5 w-2.5 shrink-0 rounded-full border border-card shadow-[0_0_0_1px_hsl(var(--border)/0.18)]"
+                      :style="tokenUsageMetricDotStyle('cached')"
+                    ></span>
+                    <span
+                      class="truncate text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground"
+                    >
+                      {{ t('settings.dashboard.summary.cachedTokensCachedLabel') }}
+                    </span>
+                  </div>
+                  <p
+                    class="mt-1 text-sm font-semibold tracking-tight"
+                    :title="formatFullTokens(tokenUsageCard.cachedTokens)"
+                  >
+                    {{ formatTokens(tokenUsageCard.cachedTokens) }}
+                  </p>
+                  <p
+                    data-testid="cached-tokens-cached-ratio"
+                    class="text-[11px] font-medium text-muted-foreground"
+                  >
+                    {{ formatPercent(tokenUsageCard.cachedRatio) }}
+                  </p>
+                </div>
+
+                <div
+                  data-testid="token-usage-cost-row"
+                  class="rounded-lg border border-border/30 bg-muted/5 px-3 py-2.5"
+                >
+                  <div class="flex min-w-0 items-center gap-2">
+                    <span
+                      data-testid="token-usage-cost-dot"
+                      class="h-2.5 w-2.5 shrink-0 rounded-full border border-card shadow-[0_0_0_1px_hsl(var(--border)/0.18)]"
+                      :style="tokenUsageMetricDotStyle('cost')"
+                    ></span>
+                    <span
+                      class="truncate text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground"
+                    >
+                      {{ t('settings.dashboard.summary.estimatedCost') }}
+                    </span>
+                  </div>
+                  <p class="mt-1 text-sm font-semibold tracking-tight">
+                    {{ formatCurrency(tokenUsageCard.totalCost) }}
+                  </p>
+                  <p class="text-[11px] font-medium text-muted-foreground">
+                    {{ t('settings.dashboard.summary.estimatedCostTrendLabel') }}
+                  </p>
+                </div>
+              </div>
             </CardContent>
           </Card>
 
           <Card
-            v-if="withDeepChatDaysCard"
-            data-testid="summary-card-withDeepChatDays"
-            class="flex h-full flex-col overflow-hidden border-border/70 bg-card/90 backdrop-blur-sm"
+            v-if="nostalgiaCard"
+            data-testid="summary-card-nostalgia"
+            class="flex h-full flex-col overflow-hidden border-border/70 bg-card/90 backdrop-blur-sm md:col-span-2 xl:col-span-1"
           >
             <CardHeader class="space-y-1 pb-1">
-              <CardDescription>{{
-                t('settings.dashboard.summary.withDeepChatDaysLabel')
-              }}</CardDescription>
-              <CardTitle
-                data-testid="with-deepchat-days-value"
-                class="break-words whitespace-normal text-xl font-semibold leading-tight tracking-tight sm:text-2xl"
-              >
-                {{ withDeepChatDaysCard.value }}
+              <CardTitle class="break-words whitespace-normal text-base leading-tight">
+                {{ t('settings.dashboard.summary.nostalgiaLabel') }}
               </CardTitle>
             </CardHeader>
-            <CardContent class="flex flex-1 flex-col justify-between space-y-2 pt-0">
-              <p
-                v-if="withDeepChatDaysCard.sentence"
-                class="whitespace-normal text-sm font-medium leading-5"
-              >
-                {{ withDeepChatDaysCard.sentence }}
-              </p>
-              <p
-                class="rounded-lg bg-muted/10 px-2.5 py-2 text-[10px] leading-[1.125rem] text-muted-foreground"
-              >
-                {{ withDeepChatDaysCard.description }}
-              </p>
+            <CardContent
+              class="flex flex-1 flex-col gap-3 pt-0 md:grid md:grid-cols-[minmax(0,14rem)_minmax(0,1fr)] md:items-start md:gap-4 xl:flex xl:flex-col"
+            >
+              <div class="flex min-h-[4.5rem] items-start md:min-h-[5rem] sm:min-h-[5rem]">
+                <Transition name="nostalgia-fade" mode="out-in">
+                  <CardTitle
+                    :key="activeNostalgiaStat?.id ?? 'unavailable'"
+                    data-testid="nostalgia-rotating-value"
+                    class="break-words whitespace-normal text-2xl font-semibold leading-tight tracking-tight sm:text-3xl"
+                  >
+                    {{ activeNostalgiaStat?.value ?? t('settings.dashboard.unavailable') }}
+                  </CardTitle>
+                </Transition>
+              </div>
+
+              <div data-testid="nostalgia-details" class="space-y-2 md:pt-0.5">
+                <div
+                  v-for="item in nostalgiaCard.details"
+                  :key="item.id"
+                  :data-testid="`nostalgia-detail-${item.id}`"
+                  class="rounded-lg border border-border/30 bg-muted/5 px-3 py-2.5"
+                >
+                  <p class="break-words whitespace-normal text-sm leading-6">
+                    {{ item.content }}
+                  </p>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </section>
@@ -430,7 +435,7 @@
           </CardContent>
         </Card>
 
-        <div class="grid gap-4 xl:grid-cols-2">
+        <div class="grid gap-4 2xl:grid-cols-2">
           <Card class="border-border/70 bg-card/90 backdrop-blur-sm">
             <CardHeader class="pb-4">
               <CardTitle>{{ t('settings.dashboard.breakdown.providerTitle') }}</CardTitle>
@@ -448,68 +453,40 @@
               <div
                 v-else
                 data-testid="provider-breakdown-scroll"
-                class="max-h-[420px] overflow-y-auto pr-2"
+                class="max-h-[420px] overflow-y-auto pr-1"
               >
-                <div class="min-w-[540px]">
+                <div data-testid="provider-breakdown-chart">
                   <div
-                    class="relative"
-                    :style="{ height: `${providerBreakdownCard.chartHeight}px` }"
+                    v-for="item in providerBreakdownCard.rows"
+                    :key="item.id"
+                    class="border-b border-border/40 py-3 last:border-b-0"
                   >
                     <div
-                      data-testid="provider-breakdown-chart"
-                      class="absolute inset-y-0"
-                      :style="breakdownChartRegionStyle"
+                      class="space-y-2.5 md:grid md:grid-cols-[minmax(0,180px)_minmax(0,1fr)_88px] md:items-center md:gap-4 md:space-y-0"
                     >
-                      <ChartContainer
-                        :config="providerBreakdownChartConfig"
-                        class="aspect-auto h-full w-full"
-                      >
-                        <VisXYContainer
-                          :data="providerBreakdownCard.rows"
-                          :height="providerBreakdownCard.chartHeight"
-                          :padding="breakdownChartPadding"
-                          :margin="{ top: 0, bottom: 0, left: 0, right: 0 }"
-                          :x-domain="providerBreakdownCard.xDomain"
-                          :y-domain="providerBreakdownCard.yDomain"
-                          y-direction="south"
-                        >
-                          <VisStackedBar
-                            :x="breakdownIndexAccessor"
-                            :y="breakdownStackedAccessors"
-                            :orientation="Orientation.Horizontal"
-                            :bar-padding="0.72"
-                            :bar-max-width="18"
-                            :rounded-corners="999"
-                            :color="providerBreakdownBarColor"
-                          />
-                        </VisXYContainer>
-                      </ChartContainer>
-                    </div>
-
-                    <div class="pointer-events-none absolute inset-0">
-                      <div
-                        v-for="item in providerBreakdownCard.rows"
-                        :key="item.id"
-                        class="grid items-center gap-4 border-b border-border/40 last:border-b-0"
-                        :style="breakdownRowGridStyle"
-                      >
-                        <div class="min-w-0">
-                          <p class="truncate text-sm font-medium">{{ item.label }}</p>
-                          <p class="text-xs text-muted-foreground">
-                            {{
-                              t('settings.dashboard.breakdown.messages', {
-                                count: item.messageCount
-                              })
-                            }}
-                          </p>
+                      <div class="min-w-0">
+                        <p class="truncate text-sm font-medium">{{ item.label }}</p>
+                        <p class="text-xs text-muted-foreground">
+                          {{
+                            t('settings.dashboard.breakdown.messages', {
+                              count: item.messageCount
+                            })
+                          }}
+                        </p>
+                      </div>
+                      <div class="min-w-0 md:px-1">
+                        <div class="h-1.5 rounded-full bg-muted/35">
+                          <div
+                            class="h-full rounded-full bg-[hsl(var(--usage-low)/0.9)]"
+                            :style="breakdownBarStyle(item.barRatio)"
+                          ></div>
                         </div>
-                        <div></div>
-                        <div class="text-right text-xs text-muted-foreground">
-                          <p :title="formatFullTokens(item.totalTokens)">
-                            {{ formatTokens(item.totalTokens) }}
-                          </p>
-                          <p>{{ formatCurrency(item.estimatedCostUsd) }}</p>
-                        </div>
+                      </div>
+                      <div class="text-right text-xs text-muted-foreground">
+                        <p :title="formatFullTokens(item.totalTokens)">
+                          {{ formatTokens(item.totalTokens) }}
+                        </p>
+                        <p>{{ formatCurrency(item.estimatedCostUsd) }}</p>
                       </div>
                     </div>
                   </div>
@@ -535,64 +512,39 @@
               <div
                 v-else
                 data-testid="model-breakdown-scroll"
-                class="max-h-[420px] overflow-y-auto pr-2"
+                class="max-h-[420px] overflow-y-auto pr-1"
               >
-                <div class="min-w-[540px]">
-                  <div class="relative" :style="{ height: `${modelBreakdownCard.chartHeight}px` }">
+                <div data-testid="model-breakdown-chart">
+                  <div
+                    v-for="item in modelBreakdownCard.rows"
+                    :key="item.id"
+                    class="border-b border-border/40 py-3 last:border-b-0"
+                  >
                     <div
-                      data-testid="model-breakdown-chart"
-                      class="absolute inset-y-0"
-                      :style="breakdownChartRegionStyle"
+                      class="space-y-2.5 md:grid md:grid-cols-[minmax(0,180px)_minmax(0,1fr)_88px] md:items-center md:gap-4 md:space-y-0"
                     >
-                      <ChartContainer
-                        :config="modelBreakdownChartConfig"
-                        class="aspect-auto h-full w-full"
-                      >
-                        <VisXYContainer
-                          :data="modelBreakdownCard.rows"
-                          :height="modelBreakdownCard.chartHeight"
-                          :padding="breakdownChartPadding"
-                          :margin="{ top: 0, bottom: 0, left: 0, right: 0 }"
-                          :x-domain="modelBreakdownCard.xDomain"
-                          :y-domain="modelBreakdownCard.yDomain"
-                          y-direction="south"
+                      <div class="min-w-0">
+                        <p class="truncate text-sm font-medium">{{ item.label }}</p>
+                        <p
+                          v-if="item.secondaryLabel"
+                          class="truncate text-xs text-muted-foreground"
                         >
-                          <VisStackedBar
-                            :x="breakdownIndexAccessor"
-                            :y="breakdownStackedAccessors"
-                            :orientation="Orientation.Horizontal"
-                            :bar-padding="0.72"
-                            :bar-max-width="18"
-                            :rounded-corners="999"
-                            :color="modelBreakdownBarColor"
-                          />
-                        </VisXYContainer>
-                      </ChartContainer>
-                    </div>
-
-                    <div class="pointer-events-none absolute inset-0">
-                      <div
-                        v-for="item in modelBreakdownCard.rows"
-                        :key="item.id"
-                        class="grid items-center gap-4 border-b border-border/40 last:border-b-0"
-                        :style="breakdownRowGridStyle"
-                      >
-                        <div class="min-w-0">
-                          <p class="truncate text-sm font-medium">{{ item.label }}</p>
-                          <p
-                            v-if="item.secondaryLabel"
-                            class="truncate text-xs text-muted-foreground"
-                          >
-                            {{ item.secondaryLabel }}
-                          </p>
+                          {{ item.secondaryLabel }}
+                        </p>
+                      </div>
+                      <div class="min-w-0 md:px-1">
+                        <div class="h-1.5 rounded-full bg-muted/35">
+                          <div
+                            class="h-full rounded-full bg-[hsl(var(--usage-low)/0.9)]"
+                            :style="breakdownBarStyle(item.barRatio)"
+                          ></div>
                         </div>
-                        <div></div>
-                        <div class="text-right text-xs text-muted-foreground">
-                          <p :title="formatFullTokens(item.totalTokens)">
-                            {{ formatTokens(item.totalTokens) }}
-                          </p>
-                          <p>{{ formatCurrency(item.estimatedCostUsd) }}</p>
-                        </div>
+                      </div>
+                      <div class="text-right text-xs text-muted-foreground">
+                        <p :title="formatFullTokens(item.totalTokens)">
+                          {{ formatTokens(item.totalTokens) }}
+                        </p>
+                        <p>{{ formatCurrency(item.estimatedCostUsd) }}</p>
                       </div>
                     </div>
                   </div>
@@ -607,11 +559,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, h, onBeforeUnmount, onMounted, ref, render } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
-import { CurveType, Orientation } from '@unovis/ts'
-import { VisArea, VisDonut, VisSingleContainer, VisStackedBar, VisXYContainer } from '@unovis/vue'
+import { CurveType } from '@unovis/ts'
+import type { Tooltip as UnovisTooltip } from '@unovis/ts'
+import { VisArea, VisXYContainer } from '@unovis/vue'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { Button } from '@shadcn/components/ui/button'
 import { Badge } from '@shadcn/components/ui/badge'
@@ -622,22 +575,29 @@ import {
   CardHeader,
   CardTitle
 } from '@shadcn/components/ui/card'
-import { ChartContainer, ChartCrosshair } from '@shadcn/components/ui/chart'
+import {
+  ChartContainer,
+  ChartCrosshair,
+  ChartTooltip,
+  ChartTooltipContent
+} from '@shadcn/components/ui/chart'
 import type { ChartConfig } from '@shadcn/components/ui/chart'
 import type { UsageDashboardCalendarDay, UsageDashboardData } from '@shared/types/agent-interface'
 import { usePresenter } from '@/composables/usePresenter'
 
 type CalendarCell = UsageDashboardCalendarDay | null
-type TotalTokenSegmentKey = 'input' | 'output'
-type TotalTokenSegment = {
-  key: TotalTokenSegmentKey
-  value: number
-}
-type CostTrendPoint = {
+type TokenUsageTrendKey = 'input' | 'output' | 'cached' | 'cost'
+type TokenUsageTrendPoint = {
   index: number
   date: string
+  inputTokens: number
+  outputTokens: number
+  cachedTokens: number
   cost: number
-  displayCost: number
+  inputValue: number
+  outputValue: number
+  cachedValue: number
+  costValue: number
 }
 type BreakdownChartRow = {
   id: string
@@ -646,7 +606,15 @@ type BreakdownChartRow = {
   messageCount: number
   totalTokens: number
   estimatedCostUsd: number | null
-  index: number
+  barRatio: number
+}
+type NostalgiaRotatingStat = {
+  id: 'days' | 'sessions' | 'messages'
+  value: string
+}
+type NostalgiaDetailItem = {
+  id: 'days' | 'sessions' | 'messages' | 'most-active-day'
+  content: string
 }
 
 const { t, locale } = useI18n()
@@ -655,50 +623,34 @@ const newAgentPresenter = usePresenter('newAgentPresenter')
 const isLoading = ref(true)
 const errorMessage = ref('')
 const dashboard = ref<UsageDashboardData | null>(null)
+const nostalgiaStatIndex = ref(0)
+const tokenUsageTooltip = ref<{ component?: UnovisTooltip } | null>(null)
 let refreshTimer: number | null = null
+let nostalgiaRotationTimer: number | null = null
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000
 const COST_TREND_DAYS = 30
-const TOTAL_TOKENS_DONUT_HEIGHT = 152
-const TOTAL_TOKENS_DONUT_RADIUS = 48
-const TOTAL_TOKENS_DONUT_ARC_WIDTH = 10
-const ESTIMATED_COST_CHART_HEIGHT = 44
-const BREAKDOWN_ROW_HEIGHT = 64
-const BREAKDOWN_LABEL_WIDTH = 176
-const BREAKDOWN_METRIC_WIDTH = 96
-const BREAKDOWN_CHART_GAP = 16
+const TOKEN_USAGE_CHART_HEIGHT = 184
+const NOSTALGIA_ROTATION_INTERVAL = 4000
 
 const hasData = computed(() => (dashboard.value?.summary.messageCount ?? 0) > 0)
 
-const totalTokensChartConfig = computed<ChartConfig>(() => ({
+const tokenUsageChartConfig = computed<ChartConfig>(() => ({
   input: {
     label: t('settings.dashboard.summary.inputTokensLabel'),
-    color: 'hsl(var(--usage-low))'
+    color: 'var(--chart-1)'
   },
   output: {
     label: t('settings.dashboard.summary.outputTokensLabel'),
-    color: 'hsl(var(--usage-mid))'
-  }
-}))
-
-const estimatedCostChartConfig = computed<ChartConfig>(() => ({
+    color: 'hsl(278 72% 72%)'
+  },
+  cached: {
+    label: t('settings.dashboard.summary.cachedTokensCachedLabel'),
+    color: 'hsl(var(--usage-low) / 0.92)'
+  },
   cost: {
     label: t('settings.dashboard.summary.estimatedCost'),
-    color: 'hsl(var(--chart-3))'
-  }
-}))
-
-const providerBreakdownChartConfig = computed<ChartConfig>(() => ({
-  tokens: {
-    label: t('settings.dashboard.summary.totalTokens'),
-    color: 'hsl(var(--chart-1))'
-  }
-}))
-
-const modelBreakdownChartConfig = computed<ChartConfig>(() => ({
-  tokens: {
-    label: t('settings.dashboard.summary.totalTokens'),
-    color: 'hsl(var(--chart-3))'
+    color: 'hsl(162 72% 48%)'
   }
 }))
 
@@ -708,31 +660,6 @@ const tokenUsageCard = computed(() => {
   }
 
   const summary = dashboard.value.summary
-  const inputTokens = Math.max(summary.inputTokens, 0)
-  const outputTokens = Math.max(summary.outputTokens, 0)
-  const cachedTokens = Math.min(inputTokens, Math.max(summary.cachedInputTokens, 0))
-  const denominator = Math.max(summary.totalTokens, 1)
-
-  return {
-    totalTokens: summary.totalTokens,
-    inputTokens,
-    outputTokens,
-    cachedTokens,
-    inputRatio: inputTokens / denominator,
-    outputRatio: outputTokens / denominator,
-    cachedRatio: inputTokens > 0 ? cachedTokens / inputTokens : 0,
-    segments: [
-      { key: 'input', value: inputTokens },
-      { key: 'output', value: outputTokens }
-    ] as TotalTokenSegment[]
-  }
-})
-
-const estimatedCostCard = computed(() => {
-  if (!dashboard.value) {
-    return null
-  }
-
   const recentDays = dashboard.value.calendar.slice(-COST_TREND_DAYS)
   const normalizedDays =
     recentDays.length >= 2
@@ -742,63 +669,136 @@ const estimatedCostCard = computed(() => {
         : [
             {
               date: '',
+              inputTokens: 0,
+              outputTokens: 0,
+              cachedInputTokens: 0,
               estimatedCostUsd: null
             },
             {
               date: '',
+              inputTokens: 0,
+              outputTokens: 0,
+              cachedInputTokens: 0,
               estimatedCostUsd: null
             }
           ]
-
-  const points = normalizedDays.map((day, index) => ({
+  const inputTokens = Math.max(summary.inputTokens, 0)
+  const outputTokens = Math.max(summary.outputTokens, 0)
+  const totalTokens = Math.max(summary.totalTokens, 0)
+  const cachedTokens = Math.min(inputTokens, Math.max(summary.cachedInputTokens, 0))
+  const totalDenominator = Math.max(totalTokens, 1)
+  const rawPoints = normalizedDays.map((day, index) => ({
     index,
     date: day.date,
-    cost: Math.max(day.estimatedCostUsd ?? 0, 0),
-    displayCost: Math.max(day.estimatedCostUsd ?? 0, 0)
+    inputTokens: Math.max(day.inputTokens ?? 0, 0),
+    outputTokens: Math.max(day.outputTokens ?? 0, 0),
+    cachedTokens: Math.max(day.cachedInputTokens ?? 0, 0),
+    cost: Math.max(day.estimatedCostUsd ?? 0, 0)
   }))
-  const hasRecentCost = points.some((point) => point.cost > 0)
-  const chartData = hasRecentCost
-    ? points
-    : points.map((point) => ({
-        ...point,
-        displayCost: 0.5
-      }))
-  const maxCost = hasRecentCost ? Math.max(...points.map((point) => point.cost), 0) : 1
+  const maxInput = Math.max(...rawPoints.map((point) => point.inputTokens), 0)
+  const maxOutput = Math.max(...rawPoints.map((point) => point.outputTokens), 0)
+  const maxCached = Math.max(...rawPoints.map((point) => point.cachedTokens), 0)
+  const maxCost = Math.max(...rawPoints.map((point) => point.cost), 0)
+  const chartData = rawPoints.map((point) => ({
+    ...point,
+    inputValue: maxInput > 0 ? (point.inputTokens / maxInput) * 100 : 0,
+    outputValue: maxOutput > 0 ? (point.outputTokens / maxOutput) * 100 : 0,
+    cachedValue: maxCached > 0 ? (point.cachedTokens / maxCached) * 100 : 0,
+    costValue: maxCost > 0 ? (point.cost / maxCost) * 100 : 0
+  }))
 
   return {
-    totalCost: dashboard.value.summary.estimatedCostUsd,
-    hasRecentCost,
+    totalTokens,
+    inputTokens,
+    outputTokens,
+    cachedTokens,
+    totalCost: summary.estimatedCostUsd,
+    inputRatio: inputTokens / totalDenominator,
+    outputRatio: outputTokens / totalDenominator,
+    cachedRatio: inputTokens > 0 ? cachedTokens / inputTokens : 0,
     chartData,
-    yDomain: [0, hasRecentCost ? Math.max(maxCost * 1.12, 0.001) : 1] as [number, number]
+    yDomain: [0, 108] as [number, number]
   }
 })
 
-const withDeepChatDaysCard = computed(() => {
+const nostalgiaCard = computed(() => {
   if (!dashboard.value) {
     return null
   }
 
   const days = getDaysWithDeepChat(dashboard.value.recordingStartedAt)
-
-  if (days === null) {
-    return {
-      value: t('settings.dashboard.unavailable'),
-      sentence: null,
-      description: t('settings.dashboard.summary.withDeepChatDaysDescriptionUnavailable')
-    }
-  }
-
-  const formattedDays = new Intl.NumberFormat(locale.value).format(days)
+  const summary = dashboard.value.summary
+  const formattedDays = days === null ? t('settings.dashboard.unavailable') : formatCount(days)
+  const formattedSessions = formatCount(summary.sessionCount)
+  const formattedMessages = formatCount(summary.messageCount)
+  const mostActiveDayText = summary.mostActiveDay.date
+    ? t('settings.dashboard.summary.nostalgiaMostActiveDayDetail', {
+        date: formatDateKey(summary.mostActiveDay.date),
+        count: formatCount(summary.mostActiveDay.messageCount)
+      })
+    : t('settings.dashboard.unavailable')
+  const rotatingStats = [
+    days === null
+      ? null
+      : ({
+          id: 'days',
+          value: t('settings.dashboard.summary.nostalgiaDaysValue', {
+            days: formattedDays
+          })
+        } satisfies NostalgiaRotatingStat),
+    {
+      id: 'sessions',
+      value: t('settings.dashboard.summary.nostalgiaSessionsValue', {
+        count: formattedSessions
+      })
+    } satisfies NostalgiaRotatingStat,
+    {
+      id: 'messages',
+      value: t('settings.dashboard.summary.nostalgiaMessagesValue', {
+        count: formattedMessages
+      })
+    } satisfies NostalgiaRotatingStat
+  ].filter((item): item is NostalgiaRotatingStat => item !== null)
 
   return {
-    value: t('settings.dashboard.summary.withDeepChatDaysValue', {
-      days: formattedDays
-    }),
-    sentence: t('settings.dashboard.summary.withDeepChatDaysSentence', {
-      days: formattedDays
-    }),
-    description: formatWithDeepChatDaysDescription(dashboard.value.recordingStartedAt)
+    rotatingStats,
+    details: [
+      {
+        id: 'days',
+        content:
+          days === null
+            ? t('settings.dashboard.unavailable')
+            : t('settings.dashboard.summary.nostalgiaDaysDetail', {
+                days: formattedDays
+              })
+      },
+      {
+        id: 'sessions',
+        content: t('settings.dashboard.summary.nostalgiaSessionsDetail', {
+          count: formattedSessions
+        })
+      },
+      {
+        id: 'messages',
+        content: t('settings.dashboard.summary.nostalgiaMessagesDetail', {
+          count: formattedMessages
+        })
+      },
+      {
+        id: 'most-active-day',
+        content: mostActiveDayText
+      }
+    ] satisfies NostalgiaDetailItem[]
   }
+})
+
+const activeNostalgiaStat = computed<NostalgiaRotatingStat | null>(() => {
+  const stats = nostalgiaCard.value?.rotatingStats ?? []
+  if (stats.length === 0) {
+    return null
+  }
+
+  return stats[nostalgiaStatIndex.value % stats.length]
 })
 
 const calendarWeeks = computed<CalendarCell[][]>(() => {
@@ -879,23 +879,6 @@ const modelBreakdownCard = computed(() =>
   )
 )
 
-const breakdownChartPadding = {
-  top: 18,
-  bottom: 18,
-  left: 0,
-  right: 0
-}
-
-const breakdownChartRegionStyle = {
-  left: `${BREAKDOWN_LABEL_WIDTH + BREAKDOWN_CHART_GAP}px`,
-  right: `${BREAKDOWN_METRIC_WIDTH + BREAKDOWN_CHART_GAP}px`
-}
-
-const breakdownRowGridStyle = {
-  height: `${BREAKDOWN_ROW_HEIGHT}px`,
-  gridTemplateColumns: `${BREAKDOWN_LABEL_WIDTH}px minmax(0, 1fr) ${BREAKDOWN_METRIC_WIDTH}px`
-}
-
 async function loadDashboard(): Promise<void> {
   try {
     isLoading.value = true
@@ -906,6 +889,7 @@ async function loadDashboard(): Promise<void> {
       error instanceof Error ? error.message : t('settings.dashboard.error.description')
   } finally {
     isLoading.value = false
+    syncNostalgiaRotation()
     scheduleRefresh()
   }
 }
@@ -931,26 +915,20 @@ function buildBreakdownCard(
   secondaryLabel: (item: UsageDashboardData['providerBreakdown'][number]) => string | null
 ): {
   rows: BreakdownChartRow[]
-  chartHeight: number
-  xDomain: [number, number]
-  yDomain: [number, number]
 } {
-  const rows = items.map((item, index) => ({
+  const maxTokens = Math.max(1, ...items.map((item) => item.totalTokens))
+  const rows = items.map((item) => ({
     id: item.id,
     label: item.label,
     secondaryLabel: secondaryLabel(item),
     messageCount: item.messageCount,
     totalTokens: item.totalTokens,
     estimatedCostUsd: item.estimatedCostUsd,
-    index
+    barRatio: item.totalTokens > 0 ? item.totalTokens / maxTokens : 0
   }))
-  const maxTokens = Math.max(1, ...rows.map((item) => item.totalTokens))
 
   return {
-    rows,
-    chartHeight: Math.max(rows.length * BREAKDOWN_ROW_HEIGHT, BREAKDOWN_ROW_HEIGHT),
-    xDomain: [0, maxTokens * 1.06] as [number, number],
-    yDomain: [-0.5, Math.max(rows.length - 0.5, 0.5)] as [number, number]
+    rows
   }
 }
 
@@ -1001,6 +979,10 @@ function formatFullTokens(value: number): string {
   return new Intl.NumberFormat(locale.value).format(value)
 }
 
+function formatCount(value: number): string {
+  return new Intl.NumberFormat(locale.value).format(value)
+}
+
 function formatPercent(value: number): string {
   return new Intl.NumberFormat(locale.value, {
     style: 'percent',
@@ -1018,14 +1000,6 @@ function formatCurrency(value: number | null): string {
     currency: 'USD',
     maximumFractionDigits: value >= 1 ? 2 : 4
   }).format(value)
-}
-
-function formatDate(value: number | null): string {
-  if (!value) {
-    return t('settings.dashboard.unavailable')
-  }
-
-  return new Intl.DateTimeFormat(locale.value, { dateStyle: 'medium' }).format(new Date(value))
 }
 
 function formatDateKey(dateKey: string): string {
@@ -1048,45 +1022,132 @@ function getDaysWithDeepChat(value: number | null): number | null {
   return Math.max(1, diffDays)
 }
 
-function formatWithDeepChatDaysDescription(value: number | null): string {
-  if (!value) {
-    return t('settings.dashboard.summary.withDeepChatDaysDescriptionUnavailable')
+const tokenTrendXAccessor = (point: TokenUsageTrendPoint): number => point.index
+const tokenTrendInputAccessor = (point: TokenUsageTrendPoint): number => point.inputValue
+const tokenTrendOutputAccessor = (point: TokenUsageTrendPoint): number => point.outputValue
+const tokenTrendCachedAccessor = (point: TokenUsageTrendPoint): number => point.cachedValue
+const tokenTrendCostAccessor = (point: TokenUsageTrendPoint): number => point.costValue
+const tokenTrendYAccessors = [
+  tokenTrendInputAccessor,
+  tokenTrendOutputAccessor,
+  tokenTrendCachedAccessor,
+  tokenTrendCostAccessor
+]
+
+function tokenTrendAreaColor(series: TokenUsageTrendKey): string {
+  switch (series) {
+    case 'input':
+      return 'var(--chart-1)'
+    case 'output':
+      return 'hsl(278 72% 72%)'
+    case 'cached':
+      return 'hsl(var(--usage-low) / 0.92)'
+    case 'cost':
+      return 'hsl(162 72% 48%)'
+  }
+}
+
+function tokenTrendLineColor(series: TokenUsageTrendKey): string {
+  switch (series) {
+    case 'input':
+      return 'var(--chart-1)'
+    case 'output':
+      return 'hsl(278 72% 72%)'
+    case 'cached':
+      return 'hsl(var(--usage-low) / 0.92)'
+    case 'cost':
+      return 'hsl(162 72% 48%)'
+  }
+}
+
+function tokenUsageMetricDotStyle(series: TokenUsageTrendKey): { backgroundColor: string } {
+  return {
+    backgroundColor: tokenTrendLineColor(series)
+  }
+}
+
+function tokenUsageTooltipDateLabel(value: number | Date): string {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return new Intl.DateTimeFormat(locale.value, { dateStyle: 'medium' }).format(value)
   }
 
-  return t('settings.dashboard.summary.withDeepChatDaysDescription', {
-    date: formatDate(value)
-  })
+  return t('settings.dashboard.unavailable')
 }
 
-function totalTokenSegmentValue(segment: TotalTokenSegment): number {
-  return segment.value
+function renderTokenUsageTooltipContent(point: TokenUsageTrendPoint): HTMLElement {
+  const container = document.createElement('div')
+
+  render(
+    h(ChartTooltipContent, {
+      config: tokenUsageChartConfig.value,
+      x: point.date ? new Date(`${point.date}T00:00:00`) : new Date('invalid'),
+      labelFormatter: tokenUsageTooltipDateLabel,
+      payload: {
+        input: point.inputTokens,
+        output: point.outputTokens,
+        cached: point.cachedTokens,
+        cost: formatCurrency(point.cost)
+      }
+    }),
+    container
+  )
+
+  return (container.firstElementChild as HTMLElement | null) ?? container
 }
 
-function totalTokenSegmentColor(segment: TotalTokenSegment): string {
-  return `var(--color-${segment.key})`
+function tokenUsageTooltipTemplate(
+  datum: TokenUsageTrendPoint | undefined,
+  _x: number | Date,
+  data: TokenUsageTrendPoint[],
+  leftNearestDatumIndex?: number
+): HTMLElement | undefined {
+  const point =
+    datum ??
+    (typeof leftNearestDatumIndex === 'number' && leftNearestDatumIndex >= 0
+      ? data[leftNearestDatumIndex]
+      : undefined)
+
+  if (!point) {
+    return undefined
+  }
+
+  return renderTokenUsageTooltipContent(point)
 }
 
-const costTrendXAccessor = (point: CostTrendPoint): number => point.index
-const costTrendYAccessor = (point: CostTrendPoint): number => point.displayCost
+function breakdownBarStyle(barRatio: number): { width: string } {
+  if (barRatio <= 0) {
+    return { width: '0%' }
+  }
 
-function estimatedCostAreaColor(): string {
-  return 'var(--color-primary-400)'
+  return {
+    width: `${Math.max(barRatio * 100, 1.25)}%`
+  }
 }
 
-function estimatedCostLineColor(): string {
-  return 'var(--color-primary-500)'
-}
+function syncNostalgiaRotation(): void {
+  const statCount = nostalgiaCard.value?.rotatingStats.length ?? 0
 
-const breakdownIndexAccessor = (item: BreakdownChartRow): number => item.index
+  if (statCount > 1) {
+    nostalgiaStatIndex.value %= statCount
 
-const breakdownStackedAccessors = [(item: BreakdownChartRow) => item.totalTokens]
+    if (nostalgiaRotationTimer === null) {
+      nostalgiaRotationTimer = window.setInterval(() => {
+        const currentCount = nostalgiaCard.value?.rotatingStats.length ?? 0
+        if (currentCount > 1) {
+          nostalgiaStatIndex.value = (nostalgiaStatIndex.value + 1) % currentCount
+        }
+      }, NOSTALGIA_ROTATION_INTERVAL)
+    }
 
-function providerBreakdownBarColor(): string {
-  return 'var(--color-tokens)'
-}
+    return
+  }
 
-function modelBreakdownBarColor(): string {
-  return 'var(--color-tokens)'
+  if (nostalgiaRotationTimer !== null) {
+    window.clearInterval(nostalgiaRotationTimer)
+    nostalgiaRotationTimer = null
+  }
+
+  nostalgiaStatIndex.value = 0
 }
 
 onMounted(() => {
@@ -1098,10 +1159,25 @@ onBeforeUnmount(() => {
     window.clearTimeout(refreshTimer)
     refreshTimer = null
   }
+
+  if (nostalgiaRotationTimer) {
+    window.clearInterval(nostalgiaRotationTimer)
+    nostalgiaRotationTimer = null
+  }
 })
 </script>
 
 <style scoped>
+.nostalgia-fade-enter-active,
+.nostalgia-fade-leave-active {
+  transition: opacity 220ms ease;
+}
+
+.nostalgia-fade-enter-from,
+.nostalgia-fade-leave-to {
+  opacity: 0;
+}
+
 .calendar-cell {
   width: 12px;
   height: 12px;
@@ -1117,6 +1193,18 @@ onBeforeUnmount(() => {
 
 .calendar-month-label {
   min-width: 14px;
+}
+
+.token-usage-trend-grid {
+  background-image:
+    linear-gradient(to right, hsl(var(--border) / 0.2) 1px, transparent 1px),
+    linear-gradient(to bottom, hsl(var(--border) / 0.2) 1px, transparent 1px);
+  background-size:
+    64px 100%,
+    100% 38px;
+  background-position:
+    0 0,
+    0 100%;
 }
 
 :deep([data-slot='chart']) .unovis-xy-container,

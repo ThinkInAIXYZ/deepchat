@@ -135,15 +135,15 @@
   "dashboard": {
     "badge": "Usage Dashboard",
     "title": "Usage Dashboard",
-    "description": "Vis tokenforbrug, cachetræf og estimerede omkostninger. Token- og prisdata estimeres ud fra offentligt tilgængelige oplysninger, og nogle udbydere eller historiske beskeder kan mangle data, så tallene er kun vejledende.",
+    "description": "Vis tokenforbrug, cachetræf og estimerede omkostninger. Token- og omkostningsdata er estimeret ud fra offentligt tilgængelige oplysninger, og nogle udbydere eller ældre beskeder kan mangle data, så tallene er kun vejledende.",
     "actions": {
       "refresh": "Refresh"
     },
     "backfill": {
-      "runningTitle": "Initializing historical stats",
-      "runningDescription": "You can already view collected data while the remaining messages are being scanned.",
-      "failedTitle": "Historical stats initialization failed",
-      "failedDescription": "Please reopen this page or restart the app to retry."
+      "runningTitle": "Opdaterer brugsdata",
+      "runningDescription": "Brugsdata opdateres stadig i baggrunden. De aktuelle resultater kan allerede ses.",
+      "failedTitle": "Kunne ikke opdatere brugsdata",
+      "failedDescription": "Opdater siden eller prøv igen senere."
     },
     "error": {
       "title": "Failed to load dashboard",
@@ -151,8 +151,8 @@
     },
     "empty": {
       "title": "No usage stats yet",
-      "description": "History will be initialized once from current messages, and new usage will keep accumulating from now on.",
-      "historyNote": "Historical cache data is unavailable, so old records use 0 cached tokens."
+      "description": "Når der findes brugsdata, vises tokenforbrug, cachetræf og estimerede omkostninger her.",
+      "historyNote": "Token- og omkostningsdata er estimeret ud fra offentligt tilgængelige oplysninger. Nogle udbydere eller ældre beskeder kan mangle data, så tallene er kun vejledende."
     },
     "summary": {
       "totalTokens": "Total tokens",
@@ -176,7 +176,19 @@
       "withDeepChatDaysSentence": "Du er nu på dag {days} med DeepChat.",
       "withDeepChatDaysDescription": "Baseret på din tidligste registrerede brug fra {date}.",
       "withDeepChatDaysDescriptionUnavailable": "Der er endnu ingen brugsregistreringer.",
-      "tokenUsage": "Tokenforbrug"
+      "tokenUsage": "Tokenforbrug",
+      "nostalgiaLabel": "Gamle minder",
+      "nostalgiaDaysValue": "{days} dage",
+      "nostalgiaSessionsValue": "{count} samtaler",
+      "nostalgiaMessagesValue": "{count} beskeder",
+      "nostalgiaDaysDetailLabel": "Tid sammen",
+      "nostalgiaDaysDetail": "Du og DeepChat har tilbragt {days} dage sammen.",
+      "nostalgiaSessionsDetailLabel": "Samtaler",
+      "nostalgiaSessionsDetail": "I har haft {count} samtaler sammen.",
+      "nostalgiaMessagesDetailLabel": "Beskeder",
+      "nostalgiaMessagesDetail": "I har udvekslet {count} beskeder.",
+      "nostalgiaMostActiveDayLabel": "Mest aktive dag",
+      "nostalgiaMostActiveDayDetail": "{date} var din mest aktive dag med {count} beskeder."
     },
     "calendar": {
       "title": "Contribution Calendar",

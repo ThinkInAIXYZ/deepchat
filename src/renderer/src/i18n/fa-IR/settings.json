@@ -189,15 +189,15 @@
   "dashboard": {
     "badge": "Usage Dashboard",
     "title": "Usage Dashboard",
-    "description": "مصرف توکن، نرخ اصابت کش و هزینه تخمینی را نمایش می‌دهد. داده‌های توکن و هزینه بر پایه اطلاعات عمومی برآورد می‌شوند و ممکن است برای برخی ارائه‌دهندگان یا پیام‌های تاریخی ناقص باشند، بنابراین فقط برای مرجع هستند.",
+    "description": "مصرف توکن، نرخ اصابت کش و هزینهٔ تخمینی را نمایش می‌دهد. داده‌های توکن و هزینه بر پایهٔ اطلاعات عمومی برآورد می‌شوند و ممکن است برخی ارائه‌دهندگان یا پیام‌های قدیمی‌تر دادهٔ کاملی نداشته باشند؛ این ارقام فقط برای مرجع هستند.",
     "actions": {
       "refresh": "Refresh"
     },
     "backfill": {
-      "runningTitle": "Initializing historical stats",
-      "runningDescription": "You can already view collected data while the remaining messages are being scanned.",
-      "failedTitle": "Historical stats initialization failed",
-      "failedDescription": "Please reopen this page or restart the app to retry."
+      "runningTitle": "در حال به‌روزرسانی داده‌های مصرف",
+      "runningDescription": "داده‌های مصرف هنوز در پس‌زمینه در حال به‌روزرسانی هستند. نتایج فعلی از همین حالا قابل مشاهده‌اند.",
+      "failedTitle": "به‌روزرسانی داده‌های مصرف ناموفق بود",
+      "failedDescription": "این صفحه را تازه‌سازی کنید یا بعداً دوباره تلاش کنید."
     },
     "error": {
       "title": "Failed to load dashboard",
@@ -205,8 +205,8 @@
     },
     "empty": {
       "title": "No usage stats yet",
-      "description": "History will be initialized once from current messages, and new usage will keep accumulating from now on.",
-      "historyNote": "Historical cache data is unavailable, so old records use 0 cached tokens."
+      "description": "وقتی داده‌های مصرف در دسترس باشند، مصرف توکن، نرخ اصابت کش و هزینهٔ تخمینی در اینجا نمایش داده می‌شود.",
+      "historyNote": "داده‌های توکن و هزینه بر پایهٔ اطلاعات عمومی برآورد می‌شوند. ممکن است برخی ارائه‌دهندگان یا پیام‌های قدیمی‌تر دادهٔ کاملی نداشته باشند؛ این ارقام فقط برای مرجع هستند."
     },
     "summary": {
       "totalTokens": "Total tokens",
@@ -230,7 +230,19 @@
       "withDeepChatDaysSentence": "اکنون در روز {days} همراهی با DeepChat هستید.",
       "withDeepChatDaysDescription": "بر پایهٔ قدیمی‌ترین رکورد استفادهٔ شما در {date}.",
       "withDeepChatDaysDescriptionUnavailable": "هنوز هیچ رکورد استفاده‌ای وجود ندارد.",
-      "tokenUsage": "مصرف توکن"
+      "tokenUsage": "مصرف توکن",
+      "nostalgiaLabel": "یادها",
+      "nostalgiaDaysValue": "{days} روز",
+      "nostalgiaSessionsValue": "{count} نشست",
+      "nostalgiaMessagesValue": "{count} پیام",
+      "nostalgiaDaysDetailLabel": "مدت همراهی",
+      "nostalgiaDaysDetail": "شما {days} روز را با DeepChat گذرانده‌اید.",
+      "nostalgiaSessionsDetailLabel": "نشست‌ها",
+      "nostalgiaSessionsDetail": "با هم {count} نشست داشته‌اید.",
+      "nostalgiaMessagesDetailLabel": "پیام‌ها",
+      "nostalgiaMessagesDetail": "{count} پیام با هم ردوبدل کرده‌اید.",
+      "nostalgiaMostActiveDayLabel": "فعال‌ترین روز",
+      "nostalgiaMostActiveDayDetail": "{date} فعال‌ترین روز شما بود و {count} پیام در آن ثبت شد."
     },
     "calendar": {
       "title": "Contribution Calendar",

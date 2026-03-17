@@ -20,6 +20,7 @@ export interface DeepChatUsageStatsRow {
 
 type AggregateRow = {
   message_count: number
+  session_count: number
   input_tokens: number | null
   output_tokens: number | null
   total_tokens: number | null
@@ -30,11 +31,17 @@ type AggregateRow = {
 
 export interface DeepChatUsageStatsSummary {
   messageCount: number
+  sessionCount: number
   inputTokens: number
   outputTokens: number
   totalTokens: number
   cachedInputTokens: number
   estimatedCostUsd: number | null
+}
+
+export interface DeepChatUsageStatsMostActiveDay {
+  date: string | null
+  messageCount: number
 }
 
 export interface DeepChatUsageStatsCalendarRow {
@@ -60,6 +67,7 @@ export interface DeepChatUsageStatsBreakdownRow {
 function normalizeAggregate(row: AggregateRow | undefined): DeepChatUsageStatsSummary {
   return {
     messageCount: row?.message_count ?? 0,
+    sessionCount: row?.session_count ?? 0,
     inputTokens: row?.input_tokens ?? 0,
     outputTokens: row?.output_tokens ?? 0,
     totalTokens: row?.total_tokens ?? 0,
@@ -185,6 +193,7 @@ export class DeepChatUsageStatsTable extends BaseTable {
       .prepare(
         `SELECT
           COUNT(*) AS message_count,
+          COUNT(DISTINCT session_id) AS session_count,
           SUM(input_tokens) AS input_tokens,
           SUM(output_tokens) AS output_tokens,
           SUM(total_tokens) AS total_tokens,
@@ -196,6 +205,25 @@ export class DeepChatUsageStatsTable extends BaseTable {
       .get() as AggregateRow | undefined
 
     return normalizeAggregate(row)
+  }
+
+  getMostActiveDay(): DeepChatUsageStatsMostActiveDay {
+    const row = this.db
+      .prepare(
+        `SELECT
+          usage_date AS date,
+          COUNT(*) AS message_count
+        FROM deepchat_usage_stats
+        GROUP BY usage_date
+        ORDER BY message_count DESC, usage_date ASC
+        LIMIT 1`
+      )
+      .get() as { date: string | null; message_count: number | null } | undefined
+
+    return {
+      date: row?.date ?? null,
+      messageCount: row?.message_count ?? 0
+    }
   }
 
   getDailyCalendarRows(dateFrom: string): DeepChatUsageStatsCalendarRow[] {

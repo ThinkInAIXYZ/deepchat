@@ -189,15 +189,15 @@
   "dashboard": {
     "badge": "Usage Dashboard",
     "title": "Usage Dashboard",
-    "description": "토큰 사용량, 캐시 적중, 예상 비용을 집계합니다. 토큰 및 비용 데이터는 공개 정보를 바탕으로 추정되며, 일부 공급자나 과거 메시지에서는 누락될 수 있으므로 참고용으로만 봐주세요.",
+    "description": "토큰 사용량, 캐시 적중, 예상 비용을 보여줍니다. 토큰 및 비용 데이터는 공개 정보를 바탕으로 추정되며, 일부 제공업체나 이전 메시지 데이터가 누락될 수 있으므로 참고용으로만 활용해 주세요.",
     "actions": {
       "refresh": "Refresh"
     },
     "backfill": {
-      "runningTitle": "Initializing historical stats",
-      "runningDescription": "You can already view collected data while the remaining messages are being scanned.",
-      "failedTitle": "Historical stats initialization failed",
-      "failedDescription": "Please reopen this page or restart the app to retry."
+      "runningTitle": "사용 데이터 업데이트 중",
+      "runningDescription": "사용 데이터가 아직 백그라운드에서 업데이트되고 있습니다. 현재 집계된 결과는 먼저 확인할 수 있습니다.",
+      "failedTitle": "사용 데이터 업데이트 실패",
+      "failedDescription": "이 페이지를 새로고침하거나 나중에 다시 시도해 주세요."
     },
     "error": {
       "title": "Failed to load dashboard",
@@ -205,8 +205,8 @@
     },
     "empty": {
       "title": "No usage stats yet",
-      "description": "History will be initialized once from current messages, and new usage will keep accumulating from now on.",
-      "historyNote": "Historical cache data is unavailable, so old records use 0 cached tokens."
+      "description": "사용 데이터가 생기면 토큰 사용량, 캐시 적중, 예상 비용이 여기에 표시됩니다.",
+      "historyNote": "토큰 및 비용 데이터는 공개 정보를 바탕으로 추정됩니다. 일부 제공업체나 이전 메시지 데이터가 누락될 수 있으므로 참고용으로만 활용해 주세요."
     },
     "summary": {
       "totalTokens": "Total tokens",
@@ -230,7 +230,19 @@
       "withDeepChatDaysSentence": "DeepChat와 함께한 지 {days}일째예요.",
       "withDeepChatDaysDescription": "가장 이른 사용 기록인 {date}를 기준으로 계산해요.",
       "withDeepChatDaysDescriptionUnavailable": "아직 사용 기록이 없어요.",
-      "tokenUsage": "Token 사용량"
+      "tokenUsage": "토큰 사용량",
+      "nostalgiaLabel": "지난 기록",
+      "nostalgiaDaysValue": "{days}일",
+      "nostalgiaSessionsValue": "{count}개 세션",
+      "nostalgiaMessagesValue": "{count}개 메시지",
+      "nostalgiaDaysDetailLabel": "함께한 시간",
+      "nostalgiaDaysDetail": "DeepChat과 함께 {days}일을 보냈어요.",
+      "nostalgiaSessionsDetailLabel": "세션 수",
+      "nostalgiaSessionsDetail": "함께한 세션은 총 {count}개예요.",
+      "nostalgiaMessagesDetailLabel": "메시지 수",
+      "nostalgiaMessagesDetail": "서로 주고받은 메시지는 {count}개예요.",
+      "nostalgiaMostActiveDayLabel": "가장 활발했던 날",
+      "nostalgiaMostActiveDayDetail": "{date}은 가장 활발했던 날로, 메시지가 {count}개 있었어요."
     },
     "calendar": {
       "title": "Contribution Calendar",

@@ -189,15 +189,15 @@
   "dashboard": {
     "badge": "Usage Dashboard",
     "title": "Usage Dashboard",
-    "description": "Affiche la consommation de tokens, les accès au cache et le coût estimé. Les données de tokens et de coût sont estimées à partir d’informations publiques ; certains fournisseurs ou anciens messages peuvent être incomplets, donc ces chiffres sont fournis à titre indicatif.",
+    "description": "Affiche la consommation de tokens, les accès au cache et le coût estimé. Les données de tokens et de coût sont estimées à partir d’informations publiques ; certains fournisseurs ou messages plus anciens peuvent être incomplets, donc ces chiffres sont fournis à titre indicatif.",
     "actions": {
       "refresh": "Refresh"
     },
     "backfill": {
-      "runningTitle": "Initializing historical stats",
-      "runningDescription": "You can already view collected data while the remaining messages are being scanned.",
-      "failedTitle": "Historical stats initialization failed",
-      "failedDescription": "Please reopen this page or restart the app to retry."
+      "runningTitle": "Mise à jour des données d’utilisation",
+      "runningDescription": "Les données d’utilisation sont encore en cours de mise à jour en arrière-plan. Les résultats actuels sont déjà consultables.",
+      "failedTitle": "Échec de la mise à jour des données d’utilisation",
+      "failedDescription": "Actualisez cette page ou réessayez plus tard."
     },
     "error": {
       "title": "Failed to load dashboard",
@@ -205,8 +205,8 @@
     },
     "empty": {
       "title": "No usage stats yet",
-      "description": "History will be initialized once from current messages, and new usage will keep accumulating from now on.",
-      "historyNote": "Historical cache data is unavailable, so old records use 0 cached tokens."
+      "description": "La consommation de tokens, les accès au cache et le coût estimé apparaîtront ici dès que des données d’utilisation seront disponibles.",
+      "historyNote": "Les données de tokens et de coût sont estimées à partir d’informations publiques. Certains fournisseurs ou messages plus anciens peuvent être incomplets, donc ces chiffres sont fournis à titre indicatif."
     },
     "summary": {
       "totalTokens": "Total tokens",
@@ -230,7 +230,19 @@
       "withDeepChatDaysSentence": "Vous en êtes à votre {days}e jour avec DeepChat.",
       "withDeepChatDaysDescription": "Calculé à partir de votre premier enregistrement d’utilisation, le {date}.",
       "withDeepChatDaysDescriptionUnavailable": "Aucun enregistrement d’utilisation pour le moment.",
-      "tokenUsage": "Utilisation des tokens"
+      "tokenUsage": "Utilisation des tokens",
+      "nostalgiaLabel": "Souvenirs",
+      "nostalgiaDaysValue": "{days} jours",
+      "nostalgiaSessionsValue": "{count} sessions",
+      "nostalgiaMessagesValue": "{count} messages",
+      "nostalgiaDaysDetailLabel": "Temps ensemble",
+      "nostalgiaDaysDetail": "Vous et DeepChat avez passé {days} jours ensemble.",
+      "nostalgiaSessionsDetailLabel": "Sessions",
+      "nostalgiaSessionsDetail": "Vous avez partagé {count} sessions ensemble.",
+      "nostalgiaMessagesDetailLabel": "Messages",
+      "nostalgiaMessagesDetail": "Vous avez échangé {count} messages.",
+      "nostalgiaMostActiveDayLabel": "Jour le plus actif",
+      "nostalgiaMostActiveDayDetail": "{date} a été votre journée la plus active, avec {count} messages."
     },
     "calendar": {
       "title": "Contribution Calendar",

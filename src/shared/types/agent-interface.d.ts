@@ -269,12 +269,17 @@ export interface UsageStatsBackfillStatus {
 
 export interface UsageDashboardSummary {
   messageCount: number
+  sessionCount: number
   inputTokens: number
   outputTokens: number
   totalTokens: number
   cachedInputTokens: number
   cacheHitRate: number
   estimatedCostUsd: number | null
+  mostActiveDay: {
+    date: string | null
+    messageCount: number
+  }
 }
 
 export interface UsageDashboardCalendarDay {

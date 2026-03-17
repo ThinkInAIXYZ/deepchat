@@ -189,15 +189,15 @@
   "dashboard": {
     "badge": "Usage Dashboard",
     "title": "Usage Dashboard",
-    "description": "Показывает расход токенов, попадания в кэш и оценочную стоимость. Данные по токенам и стоимости оцениваются по публичной информации, а для некоторых провайдеров или старых сообщений могут быть неполными, поэтому используйте эти значения только как справочные.",
+    "description": "Показывает расход токенов, попадания в кэш и оценочную стоимость. Данные по токенам и стоимости рассчитываются на основе открытой информации; у некоторых провайдеров или более ранних сообщений данные могут отсутствовать, поэтому используйте эти значения только как ориентир.",
     "actions": {
       "refresh": "Refresh"
     },
     "backfill": {
-      "runningTitle": "Initializing historical stats",
-      "runningDescription": "You can already view collected data while the remaining messages are being scanned.",
-      "failedTitle": "Historical stats initialization failed",
-      "failedDescription": "Please reopen this page or restart the app to retry."
+      "runningTitle": "Обновление данных об использовании",
+      "runningDescription": "Данные об использовании всё ещё обновляются в фоновом режиме. Текущие результаты уже доступны для просмотра.",
+      "failedTitle": "Не удалось обновить данные об использовании",
+      "failedDescription": "Обновите эту страницу или попробуйте позже."
     },
     "error": {
       "title": "Failed to load dashboard",
@@ -205,8 +205,8 @@
     },
     "empty": {
       "title": "No usage stats yet",
-      "description": "History will be initialized once from current messages, and new usage will keep accumulating from now on.",
-      "historyNote": "Historical cache data is unavailable, so old records use 0 cached tokens."
+      "description": "Расход токенов, попадания в кэш и оценочная стоимость появятся здесь, когда будут доступны данные об использовании.",
+      "historyNote": "Данные по токенам и стоимости рассчитываются на основе открытой информации. У некоторых провайдеров или более ранних сообщений данные могут отсутствовать, поэтому используйте эти значения только как ориентир."
     },
     "summary": {
       "totalTokens": "Total tokens",
@@ -230,7 +230,19 @@
       "withDeepChatDaysSentence": "Вы уже {days}‑й день с DeepChat.",
       "withDeepChatDaysDescription": "На основе вашей самой ранней записи об использовании от {date}.",
       "withDeepChatDaysDescriptionUnavailable": "Записей об использовании пока нет.",
-      "tokenUsage": "Расход токенов"
+      "tokenUsage": "Расход токенов",
+      "nostalgiaLabel": "Былое",
+      "nostalgiaDaysValue": "{days} дн.",
+      "nostalgiaSessionsValue": "{count} сессий",
+      "nostalgiaMessagesValue": "{count} сообщений",
+      "nostalgiaDaysDetailLabel": "Вместе",
+      "nostalgiaDaysDetail": "Вы и DeepChat уже {days} дней вместе.",
+      "nostalgiaSessionsDetailLabel": "Сессии",
+      "nostalgiaSessionsDetail": "Вы провели вместе {count} сессий.",
+      "nostalgiaMessagesDetailLabel": "Сообщения",
+      "nostalgiaMessagesDetail": "Вы обменялись {count} сообщениями.",
+      "nostalgiaMostActiveDayLabel": "Самый активный день",
+      "nostalgiaMostActiveDayDetail": "{date} был вашим самым активным днём: {count} сообщений."
     },
     "calendar": {
       "title": "Contribution Calendar",

@@ -189,15 +189,15 @@
   "dashboard": {
     "badge": "使用看板",
     "title": "使用看板",
-    "description": "統計 token 消耗、快取命中與估算價格。token 和費用資料會依據公開資訊估算，部分供應商和歷史訊息資料可能缺漏，僅供參考。",
+    "description": "統計 token 消耗、快取命中與估算價格。token 和費用資料基於公開資訊估算，部分供應商或較早訊息資料可能缺失，僅供參考。",
     "actions": {
       "refresh": "重新整理"
     },
     "backfill": {
-      "runningTitle": "正在初始化歷史統計",
-      "runningDescription": "剩餘訊息仍在背景掃描，目前已統計的資料可以先查看。",
-      "failedTitle": "歷史統計初始化失敗",
-      "failedDescription": "請重新開啟此頁面或重新啟動應用後再試。"
+      "runningTitle": "正在更新使用資料",
+      "runningDescription": "使用資料仍在背景整理，當前結果可以先查看。",
+      "failedTitle": "使用資料更新失敗",
+      "failedDescription": "請重新整理此頁面或稍後再試。"
     },
     "error": {
       "title": "載入看板失敗",
@@ -205,8 +205,8 @@
     },
     "empty": {
       "title": "暫無統計資料",
-      "description": "歷史訊息會進行一次性初始化，之後新產生的消耗會持續累積。",
-      "historyNote": "歷史快取命中資料不可得，因此舊記錄的快取 token 固定為 0。"
+      "description": "有使用資料後，這裡會顯示 token 消耗、快取命中和估算價格。",
+      "historyNote": "token 和費用資料基於公開資訊估算，部分供應商或較早訊息資料可能缺失，僅供參考。"
     },
     "summary": {
       "totalTokens": "總 Token",
@@ -230,7 +230,19 @@
       "withDeepChatDaysSentence": "你已經和 DeepChat 一起度過了 {days} 天",
       "withDeepChatDaysDescription": "基於你最早的一筆使用記錄：{date}。",
       "withDeepChatDaysDescriptionUnavailable": "暫時還沒有使用記錄。",
-      "tokenUsage": "Token 消耗"
+      "tokenUsage": "Token 消耗",
+      "nostalgiaLabel": "前塵往事",
+      "nostalgiaDaysValue": "{days} 天",
+      "nostalgiaSessionsValue": "{count} 個會話",
+      "nostalgiaMessagesValue": "{count} 則訊息",
+      "nostalgiaDaysDetailLabel": "一起走過",
+      "nostalgiaDaysDetail": "你已經和 DeepChat 一起度過了 {days} 天。",
+      "nostalgiaSessionsDetailLabel": "會話總數",
+      "nostalgiaSessionsDetail": "你們一起進行了 {count} 個會話。",
+      "nostalgiaMessagesDetailLabel": "訊息總數",
+      "nostalgiaMessagesDetail": "彼此傳送了 {count} 則訊息。",
+      "nostalgiaMostActiveDayLabel": "最活躍的一天",
+      "nostalgiaMostActiveDayDetail": "{date}是你最活躍的一天，共有 {count} 則訊息。"
     },
     "calendar": {
       "title": "Contribution Calendar",

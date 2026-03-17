@@ -498,6 +498,7 @@ export class NewAgentPresenter {
     const backfillStatus = this.getUsageStatsBackfillStatus()
     const usageStatsTable = this.sqlitePresenter.deepchatUsageStatsTable
     const summaryRow = usageStatsTable.getSummary()
+    const mostActiveDay = usageStatsTable.getMostActiveDay()
     const recordingStartedAt = usageStatsTable.getRecordingStartedAt()
     const cacheHitRate =
       summaryRow.inputTokens > 0 ? summaryRow.cachedInputTokens / summaryRow.inputTokens : 0
@@ -541,12 +542,14 @@ export class NewAgentPresenter {
       backfillStatus,
       summary: {
         messageCount: summaryRow.messageCount,
+        sessionCount: summaryRow.sessionCount,
         inputTokens: summaryRow.inputTokens,
         outputTokens: summaryRow.outputTokens,
         totalTokens: summaryRow.totalTokens,
         cachedInputTokens: summaryRow.cachedInputTokens,
         cacheHitRate,
-        estimatedCostUsd: summaryRow.estimatedCostUsd
+        estimatedCostUsd: summaryRow.estimatedCostUsd,
+        mostActiveDay
       },
       calendar,
       providerBreakdown,
