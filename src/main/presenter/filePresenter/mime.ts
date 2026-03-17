@@ -112,8 +112,9 @@ export const getMimeTypeAdapterMap = (): Map<string, FileAdapterConstructor> => 
 export const detectMimeType = async (filePath: string): Promise<string> => {
   try {
     const mimeType = lookup(filePath)
+    const ext = path.extname(filePath).toLowerCase()
 
-    if (mimeType === 'video/mp2t' && TYPESCRIPT_EXTENSIONS.has(path.extname(filePath))) {
+    if (mimeType === 'video/mp2t' && TYPESCRIPT_EXTENSIONS.has(ext)) {
       return (await isLikelyTextFile(filePath)) ? 'application/typescript' : mimeType
     }
 

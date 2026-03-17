@@ -259,32 +259,32 @@
       "empty": "表示できる内訳データはまだありません。"
     },
     "rtk": {
-      "title": "RTK Savings",
-      "description": "Estimated tokens prevented from reaching the model context by RTK during DeepChat native command execution.",
+      "title": "RTK節約量",
+      "description": "DeepChat のネイティブなコマンド実行時に、RTK がモデルコンテキストへ到達するのを防いだ推定トークン数です。",
       "actions": {
-        "retry": "Retry check"
+        "retry": "再確認"
       },
       "status": {
-        "disabled": "Disabled",
-        "checking": "Checking",
-        "healthy": "Healthy",
-        "unhealthy": "Unavailable"
+        "disabled": "無効",
+        "checking": "確認中",
+        "healthy": "正常",
+        "unhealthy": "利用不可"
       },
-      "descriptionDisabled": "RTK is turned off for this app session, so commands run through the normal execution path.",
-      "descriptionChecking": "DeepChat is verifying whether RTK can run correctly in the current environment.",
-      "descriptionHealthy": "RTK is active for DeepChat native command execution.",
-      "descriptionUnhealthy": "RTK failed its startup health check and has been disabled for this app session.",
-      "sourceLabel": "Runtime source: {source}",
+      "descriptionDisabled": "このアプリセッションでは RTK が無効になっているため、コマンドは通常の実行経路で実行されます。",
+      "descriptionChecking": "DeepChat は現在の環境で RTK が正しく動作するか確認しています。",
+      "descriptionHealthy": "RTK は DeepChat のネイティブなコマンド実行で有効です。",
+      "descriptionUnhealthy": "RTK の起動時ヘルスチェックに失敗したため、このアプリセッションでは無効化されています。",
+      "sourceLabel": "ランタイムソース: {source}",
       "source": {
-        "bundled": "Bundled",
-        "system": "System",
-        "none": "Not available"
+        "bundled": "同梱",
+        "system": "システム",
+        "none": "利用不可"
       },
       "summary": {
-        "savedTokens": "Saved tokens",
-        "commands": "Tracked commands",
-        "avgSavingsPct": "Average savings",
-        "outputTokens": "Filtered output"
+        "savedTokens": "節約されたトークン",
+        "commands": "記録されたコマンド",
+        "avgSavingsPct": "平均削減率",
+        "outputTokens": "フィルタ後の出力"
       }
     },
     "unavailable": "該当なし"

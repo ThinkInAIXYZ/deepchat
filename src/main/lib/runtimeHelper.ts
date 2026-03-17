@@ -398,7 +398,9 @@ export class RuntimeHelper {
     }
 
     // RTK command handling (all platforms)
-    if (basename === 'rtk') {
+    const normalizedRtkBasename =
+      process.platform === 'win32' ? basename.toLowerCase().replace(/\.exe$/, '') : basename
+    if (normalizedRtkBasename === 'rtk') {
       if (!this.rtkRuntimePath) {
         return command
       }

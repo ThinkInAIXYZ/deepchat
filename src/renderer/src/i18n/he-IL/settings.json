@@ -259,32 +259,32 @@
       "empty": "עדיין אין נתוני פירוט להצגה."
     },
     "rtk": {
-      "title": "RTK Savings",
-      "description": "Estimated tokens prevented from reaching the model context by RTK during DeepChat native command execution.",
+      "title": "חיסכון RTK",
+      "description": "הערכה של מספר הטוקנים ש-RTK מנע מלהגיע להקשר המודל במהלך הרצת הפקודות המובנות של DeepChat.",
       "actions": {
-        "retry": "Retry check"
+        "retry": "נסה שוב"
       },
       "status": {
-        "disabled": "Disabled",
-        "checking": "Checking",
-        "healthy": "Healthy",
-        "unhealthy": "Unavailable"
+        "disabled": "מושבת",
+        "checking": "בודק",
+        "healthy": "תקין",
+        "unhealthy": "לא זמין"
       },
-      "descriptionDisabled": "RTK is turned off for this app session, so commands run through the normal execution path.",
-      "descriptionChecking": "DeepChat is verifying whether RTK can run correctly in the current environment.",
-      "descriptionHealthy": "RTK is active for DeepChat native command execution.",
-      "descriptionUnhealthy": "RTK failed its startup health check and has been disabled for this app session.",
-      "sourceLabel": "Runtime source: {source}",
+      "descriptionDisabled": "RTK כבוי עבור סשן היישום הזה, ולכן הפקודות רצות במסלול הביצוע הרגיל.",
+      "descriptionChecking": "DeepChat בודק אם RTK יכול לפעול כראוי בסביבה הנוכחית.",
+      "descriptionHealthy": "RTK פעיל עבור הרצת הפקודות המובנות של DeepChat.",
+      "descriptionUnhealthy": "בדיקת התקינות של RTK בעת ההפעלה נכשלה, והוא הושבת עבור סשן היישום הזה.",
+      "sourceLabel": "מקור סביבת הריצה: {source}",
       "source": {
-        "bundled": "Bundled",
-        "system": "System",
-        "none": "Not available"
+        "bundled": "מובנה",
+        "system": "מערכת",
+        "none": "לא זמין"
       },
       "summary": {
-        "savedTokens": "Saved tokens",
-        "commands": "Tracked commands",
-        "avgSavingsPct": "Average savings",
-        "outputTokens": "Filtered output"
+        "savedTokens": "טוקנים שנחסכו",
+        "commands": "פקודות שנרשמו",
+        "avgSavingsPct": "חיסכון ממוצע",
+        "outputTokens": "פלט מסונן"
       }
     },
     "unavailable": "לא זמין"

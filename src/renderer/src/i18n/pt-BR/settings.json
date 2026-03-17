@@ -259,32 +259,32 @@
       "empty": "Ainda não há dados detalhados para exibir."
     },
     "rtk": {
-      "title": "RTK Savings",
-      "description": "Estimated tokens prevented from reaching the model context by RTK during DeepChat native command execution.",
+      "title": "Economia do RTK",
+      "description": "Estimativa de tokens que o RTK impediu de chegar ao contexto do modelo durante a execução nativa de comandos do DeepChat.",
       "actions": {
-        "retry": "Retry check"
+        "retry": "Verificar novamente"
       },
       "status": {
-        "disabled": "Disabled",
-        "checking": "Checking",
-        "healthy": "Healthy",
-        "unhealthy": "Unavailable"
+        "disabled": "Desativado",
+        "checking": "Verificando",
+        "healthy": "Operacional",
+        "unhealthy": "Indisponível"
       },
-      "descriptionDisabled": "RTK is turned off for this app session, so commands run through the normal execution path.",
-      "descriptionChecking": "DeepChat is verifying whether RTK can run correctly in the current environment.",
-      "descriptionHealthy": "RTK is active for DeepChat native command execution.",
-      "descriptionUnhealthy": "RTK failed its startup health check and has been disabled for this app session.",
-      "sourceLabel": "Runtime source: {source}",
+      "descriptionDisabled": "O RTK está desativado nesta sessão do app, então os comandos seguem o fluxo normal de execução.",
+      "descriptionChecking": "O DeepChat está verificando se o RTK pode ser executado corretamente no ambiente atual.",
+      "descriptionHealthy": "O RTK está ativo para a execução nativa de comandos do DeepChat.",
+      "descriptionUnhealthy": "A verificação de integridade do RTK na inicialização falhou e ele foi desativado nesta sessão do app.",
+      "sourceLabel": "Origem do runtime: {source}",
       "source": {
-        "bundled": "Bundled",
-        "system": "System",
-        "none": "Not available"
+        "bundled": "Embutido",
+        "system": "Sistema",
+        "none": "Indisponível"
       },
       "summary": {
-        "savedTokens": "Saved tokens",
-        "commands": "Tracked commands",
-        "avgSavingsPct": "Average savings",
-        "outputTokens": "Filtered output"
+        "savedTokens": "Tokens economizados",
+        "commands": "Comandos rastreados",
+        "avgSavingsPct": "Economia média",
+        "outputTokens": "Saída filtrada"
       }
     },
     "unavailable": "Indisponível"

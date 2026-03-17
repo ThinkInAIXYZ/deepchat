@@ -259,32 +259,32 @@
       "empty": "هنوز داده‌ای برای نمایش جزئیات وجود ندارد."
     },
     "rtk": {
-      "title": "RTK Savings",
-      "description": "Estimated tokens prevented from reaching the model context by RTK during DeepChat native command execution.",
+      "title": "صرفه‌جویی RTK",
+      "description": "تخمین توکن‌هایی که RTK در اجرای فرمان‌های بومی DeepChat مانع رسیدنشان به بافت مدل شده است.",
       "actions": {
-        "retry": "Retry check"
+        "retry": "تلاش دوباره"
       },
       "status": {
-        "disabled": "Disabled",
-        "checking": "Checking",
-        "healthy": "Healthy",
-        "unhealthy": "Unavailable"
+        "disabled": "غیرفعال",
+        "checking": "در حال بررسی",
+        "healthy": "آماده",
+        "unhealthy": "غیرقابل استفاده"
       },
-      "descriptionDisabled": "RTK is turned off for this app session, so commands run through the normal execution path.",
-      "descriptionChecking": "DeepChat is verifying whether RTK can run correctly in the current environment.",
-      "descriptionHealthy": "RTK is active for DeepChat native command execution.",
-      "descriptionUnhealthy": "RTK failed its startup health check and has been disabled for this app session.",
-      "sourceLabel": "Runtime source: {source}",
+      "descriptionDisabled": "RTK برای این نشست برنامه خاموش است، بنابراین فرمان‌ها از مسیر اجرای عادی عبور می‌کنند.",
+      "descriptionChecking": "DeepChat در حال بررسی است که آیا RTK در محیط فعلی به‌درستی اجرا می‌شود یا نه.",
+      "descriptionHealthy": "RTK برای اجرای فرمان‌های بومی DeepChat فعال است.",
+      "descriptionUnhealthy": "بررسی سلامت RTK هنگام شروع اجرا ناموفق بود و برای این نشست برنامه غیرفعال شده است.",
+      "sourceLabel": "منبع زمان‌اجرا: {source}",
       "source": {
-        "bundled": "Bundled",
-        "system": "System",
-        "none": "Not available"
+        "bundled": "داخلی",
+        "system": "سیستمی",
+        "none": "ناموجود"
       },
       "summary": {
-        "savedTokens": "Saved tokens",
-        "commands": "Tracked commands",
-        "avgSavingsPct": "Average savings",
-        "outputTokens": "Filtered output"
+        "savedTokens": "توکن‌های ذخیره‌شده",
+        "commands": "فرمان‌های ثبت‌شده",
+        "avgSavingsPct": "میانگین صرفه‌جویی",
+        "outputTokens": "خروجی پالایش‌شده"
       }
     },
     "unavailable": "ناموجود"

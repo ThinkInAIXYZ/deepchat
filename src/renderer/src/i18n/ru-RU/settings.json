@@ -259,32 +259,32 @@
       "empty": "Данных для разбивки пока нет."
     },
     "rtk": {
-      "title": "RTK Savings",
-      "description": "Estimated tokens prevented from reaching the model context by RTK during DeepChat native command execution.",
+      "title": "Экономия RTK",
+      "description": "Оценка количества токенов, которым RTK не дал попасть в контекст модели во время нативного выполнения команд DeepChat.",
       "actions": {
-        "retry": "Retry check"
+        "retry": "Повторить проверку"
       },
       "status": {
-        "disabled": "Disabled",
-        "checking": "Checking",
-        "healthy": "Healthy",
-        "unhealthy": "Unavailable"
+        "disabled": "Отключено",
+        "checking": "Проверка",
+        "healthy": "Исправно",
+        "unhealthy": "Недоступно"
       },
-      "descriptionDisabled": "RTK is turned off for this app session, so commands run through the normal execution path.",
-      "descriptionChecking": "DeepChat is verifying whether RTK can run correctly in the current environment.",
-      "descriptionHealthy": "RTK is active for DeepChat native command execution.",
-      "descriptionUnhealthy": "RTK failed its startup health check and has been disabled for this app session.",
-      "sourceLabel": "Runtime source: {source}",
+      "descriptionDisabled": "RTK отключён для этой сессии приложения, поэтому команды выполняются по обычному пути.",
+      "descriptionChecking": "DeepChat проверяет, может ли RTK корректно работать в текущем окружении.",
+      "descriptionHealthy": "RTK активен для нативного выполнения команд DeepChat.",
+      "descriptionUnhealthy": "Проверка состояния RTK при запуске не прошла, поэтому он был отключён для этой сессии приложения.",
+      "sourceLabel": "Источник среды выполнения: {source}",
       "source": {
-        "bundled": "Bundled",
-        "system": "System",
-        "none": "Not available"
+        "bundled": "Встроенный",
+        "system": "Системный",
+        "none": "Недоступно"
       },
       "summary": {
-        "savedTokens": "Saved tokens",
-        "commands": "Tracked commands",
-        "avgSavingsPct": "Average savings",
-        "outputTokens": "Filtered output"
+        "savedTokens": "Сэкономленные токены",
+        "commands": "Отслеженные команды",
+        "avgSavingsPct": "Средняя экономия",
+        "outputTokens": "Отфильтрованный вывод"
       }
     },
     "unavailable": "Недоступно"

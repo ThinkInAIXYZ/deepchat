@@ -259,32 +259,32 @@
       "empty": "표시할 세부 통계가 아직 없어요."
     },
     "rtk": {
-      "title": "RTK Savings",
-      "description": "Estimated tokens prevented from reaching the model context by RTK during DeepChat native command execution.",
+      "title": "RTK 절감량",
+      "description": "DeepChat 기본 명령 실행 중 RTK가 모델 컨텍스트에 도달하지 못하게 막은 것으로 추정되는 토큰 수입니다.",
       "actions": {
-        "retry": "Retry check"
+        "retry": "다시 확인"
       },
       "status": {
-        "disabled": "Disabled",
-        "checking": "Checking",
-        "healthy": "Healthy",
-        "unhealthy": "Unavailable"
+        "disabled": "비활성화됨",
+        "checking": "확인 중",
+        "healthy": "정상",
+        "unhealthy": "사용 불가"
       },
-      "descriptionDisabled": "RTK is turned off for this app session, so commands run through the normal execution path.",
-      "descriptionChecking": "DeepChat is verifying whether RTK can run correctly in the current environment.",
-      "descriptionHealthy": "RTK is active for DeepChat native command execution.",
-      "descriptionUnhealthy": "RTK failed its startup health check and has been disabled for this app session.",
-      "sourceLabel": "Runtime source: {source}",
+      "descriptionDisabled": "이 앱 세션에서는 RTK가 꺼져 있으므로 명령이 일반 실행 경로로 처리됩니다.",
+      "descriptionChecking": "DeepChat이 현재 환경에서 RTK가 올바르게 실행될 수 있는지 확인하고 있습니다.",
+      "descriptionHealthy": "RTK가 DeepChat 기본 명령 실행에 활성화되어 있습니다.",
+      "descriptionUnhealthy": "RTK 시작 상태 검사에 실패하여 이 앱 세션에서는 비활성화되었습니다.",
+      "sourceLabel": "런타임 소스: {source}",
       "source": {
-        "bundled": "Bundled",
-        "system": "System",
-        "none": "Not available"
+        "bundled": "번들 제공",
+        "system": "시스템",
+        "none": "사용 불가"
       },
       "summary": {
-        "savedTokens": "Saved tokens",
-        "commands": "Tracked commands",
-        "avgSavingsPct": "Average savings",
-        "outputTokens": "Filtered output"
+        "savedTokens": "절감된 토큰",
+        "commands": "추적된 명령",
+        "avgSavingsPct": "평균 절감률",
+        "outputTokens": "필터링된 출력"
       }
     },
     "unavailable": "해당 없음"

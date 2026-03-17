@@ -22,6 +22,16 @@ describe('detectMimeType', () => {
     await expect(detectMimeType(filePath)).resolves.toBe('application/typescript')
   })
 
+  it('treats uppercase TypeScript extensions as application/typescript', async () => {
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-mime-'))
+    tempDirs.push(tempDir)
+
+    const filePath = path.join(tempDir, 'IPC.TS')
+    await fs.writeFile(filePath, 'export const ipc = true\n', 'utf-8')
+
+    await expect(detectMimeType(filePath)).resolves.toBe('application/typescript')
+  })
+
   it('keeps binary transport stream files as video/mp2t', async () => {
     const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-mime-'))
     tempDirs.push(tempDir)
