@@ -78,7 +78,7 @@
     }
   },
   "notificationsHooks": {
-    "title": "通知とフック",
+    "title": "フック",
     "description": "Webhook 通知とライフサイクルフックを設定します。",
     "events": {
       "title": "イベント",
@@ -185,6 +185,80 @@
       "description": "Cookie やローカル ストレージをメイン アプリケーションと共有しない独立したブラウザ サンドボックス。ここで、YoBrowser のデータをワンクリックでクリアできます。",
       "title": "YoBrowser サンドボックス"
     }
+  },
+  "dashboard": {
+    "badge": "使用ダッシュボード",
+    "title": "使用ダッシュボード",
+    "description": "token 消費、キャッシュヒット、推定コストを集計します。token と費用のデータは公開情報をもとに推定しており、一部のプロバイダーや過去のメッセージでは欠損する場合があるため、参考値としてご利用ください。",
+    "actions": {
+      "refresh": "更新"
+    },
+    "backfill": {
+      "runningTitle": "使用データを更新しています",
+      "runningDescription": "使用データはバックグラウンドで引き続き更新中です。現在の結果は先に確認できます。",
+      "failedTitle": "使用データの更新に失敗しました",
+      "failedDescription": "このページを再読み込みするか、しばらくしてから再試行してください。"
+    },
+    "error": {
+      "title": "ダッシュボードの読み込みに失敗しました",
+      "description": "しばらくしてからもう一度お試しください。"
+    },
+    "empty": {
+      "title": "使用統計はまだありません",
+      "description": "使用データが利用可能になると、token 消費、キャッシュヒット、推定コストがここに表示されます。",
+      "historyNote": "token と費用のデータは公開情報をもとに推定しています。一部のプロバイダーや過去のメッセージでは欠損する場合があるため、参考値としてご利用ください。"
+    },
+    "summary": {
+      "totalTokens": "総 token",
+      "totalTokensDescription": "総 token に占める入力 / 出力 token の構成を表示します。",
+      "inputTokensLabel": "入力",
+      "outputTokensLabel": "出力",
+      "cachedTokens": "キャッシュ token",
+      "cachedTokensDescription": "provider のキャッシュから返された prompt token。",
+      "cachedTokensCachedLabel": "キャッシュ",
+      "cachedTokensUncachedLabel": "未キャッシュ",
+      "cacheHitRate": "キャッシュヒット率",
+      "cacheHitRateDescription": "キャッシュされた prompt token を総入力 token で割った割合です。",
+      "estimatedCost": "推定コスト",
+      "estimatedCostDescription": "provider の価格、または AIHubMix の代替価格をもとに米ドルで推定したコストです。",
+      "estimatedCostTrendLabel": "直近30日間の推移",
+      "estimatedCostTrendEmpty": "直近30日間のコスト記録はありません。",
+      "recordingStartedAt": "記録開始時点",
+      "recordingStartedAtDescription": "このダッシュボードに現在保存されている最も古い使用記録です。",
+      "withDeepChatDaysLabel": "一緒に過ごした日数",
+      "withDeepChatDaysValue": "{days}日",
+      "withDeepChatDaysSentence": "DeepChatと過ごして{days}日目です。",
+      "withDeepChatDaysDescription": "最も古い使用記録（{date}）をもとに計算しています。",
+      "withDeepChatDaysDescriptionUnavailable": "まだ使用記録がありません。",
+      "tokenUsage": "Token 消費",
+      "nostalgiaLabel": "これまでの記録",
+      "nostalgiaDaysValue": "{days}日",
+      "nostalgiaSessionsValue": "{count}件のセッション",
+      "nostalgiaMessagesValue": "{count}件のメッセージ",
+      "nostalgiaDaysDetailLabel": "一緒に過ごした日々",
+      "nostalgiaDaysDetail": "あなたはDeepChatと{days}日を一緒に過ごしました。",
+      "nostalgiaSessionsDetailLabel": "セッション数",
+      "nostalgiaSessionsDetail": "一緒に{count}件のセッションを重ねました。",
+      "nostalgiaMessagesDetailLabel": "メッセージ数",
+      "nostalgiaMessagesDetail": "{count}件のメッセージをやり取りしました。",
+      "nostalgiaMostActiveDayLabel": "最もアクティブな日",
+      "nostalgiaMostActiveDayDetail": "{date}は最も活発な一日で、{count}件のメッセージがありました。"
+    },
+    "calendar": {
+      "title": "コントリビューションカレンダー",
+      "description": "直近 365 日の token 消費を日ごとに集計します。",
+      "legend": "少ない順から多い順",
+      "tooltip": "{date}: {tokens} token"
+    },
+    "breakdown": {
+      "providerTitle": "プロバイダー別ランキング",
+      "providerDescription": "推定コスト順で、同率の場合は総トークン数順です。",
+      "modelTitle": "モデル別ランキング",
+      "modelDescription": "推定コスト順、同率時は総トークン数順の上位10モデルです。",
+      "messages": "{count}件のメッセージ",
+      "empty": "表示できる内訳データはまだありません。"
+    },
+    "unavailable": "該当なし"
   },
   "model": {
     "title": "モデル設定",

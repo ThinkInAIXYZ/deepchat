@@ -225,5 +225,8 @@ function buildUsageSnapshot(state: StreamState): Record<string, number> {
   if (typeof state.metadata.outputTokens === 'number') {
     usage.outputTokens = state.metadata.outputTokens
   }
+  if (typeof state.metadata.cachedInputTokens === 'number') {
+    usage.cachedInputTokens = state.metadata.cachedInputTokens
+  }
   return usage
 }

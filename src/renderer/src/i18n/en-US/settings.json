@@ -78,7 +78,7 @@
     }
   },
   "notificationsHooks": {
-    "title": "Notifications & Hooks",
+    "title": "Hooks",
     "description": "Configure webhook notifications and lifecycle hooks.",
     "events": {
       "title": "Events",
@@ -185,6 +185,80 @@
       "description": "An independent browser sandbox that does not share cookies and local storage with the main application. \nYoBrowser data can be cleared with one click here.",
       "title": "YoBrowser Sandbox"
     }
+  },
+  "dashboard": {
+    "badge": "Usage Dashboard",
+    "title": "Usage Dashboard",
+    "description": "Track token usage, cache hits, and estimated cost. Token and cost figures are estimated from public information, and some providers or earlier messages may be incomplete, so treat these figures as reference only.",
+    "actions": {
+      "refresh": "Refresh"
+    },
+    "backfill": {
+      "runningTitle": "Updating usage data",
+      "runningDescription": "Usage data is still being updated in the background. Current results are already available.",
+      "failedTitle": "Failed to update usage data",
+      "failedDescription": "Refresh this page or try again later."
+    },
+    "error": {
+      "title": "Failed to load dashboard",
+      "description": "Please try again later."
+    },
+    "empty": {
+      "title": "No usage stats yet",
+      "description": "Token usage, cache hits, and estimated cost will appear here once usage data is available.",
+      "historyNote": "Token and cost figures are estimated from public information. Some providers or earlier messages may be incomplete, so treat these figures as reference only."
+    },
+    "summary": {
+      "totalTokens": "Total tokens",
+      "totalTokensDescription": "Shows how input and output tokens contribute to the total.",
+      "inputTokensLabel": "Input",
+      "outputTokensLabel": "Output",
+      "cachedTokens": "Cached tokens",
+      "cachedTokensDescription": "Prompt tokens served from provider cache.",
+      "cachedTokensCachedLabel": "Cached",
+      "cachedTokensUncachedLabel": "Uncached",
+      "cacheHitRate": "Cache hit rate",
+      "cacheHitRateDescription": "Cached prompt tokens divided by total input tokens.",
+      "estimatedCost": "Estimated cost",
+      "estimatedCostDescription": "Estimated in USD using provider pricing or AIHubMix fallback pricing.",
+      "estimatedCostTrendLabel": "Trend over the last 30 days",
+      "estimatedCostTrendEmpty": "No cost recorded in the last 30 days.",
+      "recordingStartedAt": "Recording started",
+      "recordingStartedAtDescription": "The earliest usage record currently stored in this dashboard.",
+      "withDeepChatDaysLabel": "Days together",
+      "withDeepChatDaysValue": "{days} days",
+      "withDeepChatDaysSentence": "You are on day {days} with DeepChat.",
+      "withDeepChatDaysDescription": "Based on your earliest usage record from {date}.",
+      "withDeepChatDaysDescriptionUnavailable": "No usage record yet.",
+      "tokenUsage": "Token usage",
+      "nostalgiaLabel": "Echoes",
+      "nostalgiaDaysValue": "{days} days",
+      "nostalgiaSessionsValue": "{count} sessions",
+      "nostalgiaMessagesValue": "{count} messages",
+      "nostalgiaDaysDetailLabel": "Days together",
+      "nostalgiaDaysDetail": "You and DeepChat have spent {days} days together.",
+      "nostalgiaSessionsDetailLabel": "Sessions",
+      "nostalgiaSessionsDetail": "You have shared {count} sessions together.",
+      "nostalgiaMessagesDetailLabel": "Messages",
+      "nostalgiaMessagesDetail": "You have exchanged {count} messages.",
+      "nostalgiaMostActiveDayLabel": "Most active day",
+      "nostalgiaMostActiveDayDetail": "{date} was your most active day, with {count} messages."
+    },
+    "calendar": {
+      "title": "Contribution Calendar",
+      "description": "Daily token usage over the last 365 days.",
+      "legend": "Less to more",
+      "tooltip": "{date}: {tokens} tokens"
+    },
+    "breakdown": {
+      "providerTitle": "Top providers",
+      "providerDescription": "Ranked by estimated cost, then by total tokens.",
+      "modelTitle": "Top models",
+      "modelDescription": "Top 10 models by estimated cost, then by total tokens.",
+      "messages": "{count} messages",
+      "empty": "No breakdown data yet."
+    },
+    "unavailable": "N/A"
   },
   "model": {
     "title": "Model Settings",

@@ -1,7 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { DeepChatMessageStore } from '@/presenter/deepchatAgentPresenter/messageStore'
+import logger from '@shared/logger'
 
 vi.mock('nanoid', () => ({ nanoid: vi.fn(() => 'mock-msg-id') }))
+vi.mock('@shared/logger', () => ({
+  default: {
+    error: vi.fn()
+  }
+}))
 
 function createMockSqlitePresenter() {
   return {
@@ -21,6 +27,9 @@ function createMockSqlitePresenter() {
       deleteFromOrderSeq: vi.fn(),
       recoverPendingMessages: vi.fn().mockReturnValue(0)
     },
+    deepchatSessionsTable: {
+      get: vi.fn()
+    },
     deepchatMessageTracesTable: {
       insert: vi.fn().mockReturnValue(1),
       listByMessageId: vi.fn().mockReturnValue([]),
@@ -33,6 +42,9 @@ function createMockSqlitePresenter() {
       listByMessageId: vi.fn().mockReturnValue([]),
       deleteByMessageIds: vi.fn(),
       deleteBySessionId: vi.fn()
+    },
+    deepchatUsageStatsTable: {
+      upsert: vi.fn()
     }
   } as any
 }
@@ -106,6 +118,80 @@ describe('DeepChatMessageStore', () => {
         JSON.stringify(blocks),
         'sent',
         metadata
+      )
+    })
+
+    it('persists usage stats for assistant messages with usage metadata', () => {
+      sqlitePresenter.deepchatMessagesTable.get.mockReturnValue({
+        id: 'm1',
+        session_id: 's1',
+        role: 'assistant',
+        created_at: 1000,
+        updated_at: 2000
+      })
+      sqlitePresenter.deepchatSessionsTable.get.mockReturnValue({
+        provider_id: 'openai',
+        model_id: 'gpt-4o'
+      })
+
+      store.finalizeAssistantMessage(
+        'm1',
+        [],
+        JSON.stringify({
+          inputTokens: 120,
+          outputTokens: 30,
+          totalTokens: 150,
+          cachedInputTokens: 20
+        })
+      )
+
+      expect(sqlitePresenter.deepchatUsageStatsTable.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          messageId: 'm1',
+          sessionId: 's1',
+          providerId: 'openai',
+          modelId: 'gpt-4o',
+          inputTokens: 120,
+          outputTokens: 30,
+          totalTokens: 150,
+          cachedInputTokens: 20,
+          source: 'live'
+        })
+      )
+    })
+
+    it('swallows usage stats persistence failures and logs them', () => {
+      sqlitePresenter.deepchatMessagesTable.get.mockReturnValue({
+        id: 'm1',
+        session_id: 's1',
+        role: 'assistant',
+        created_at: 1000,
+        updated_at: 2000
+      })
+      sqlitePresenter.deepchatSessionsTable.get.mockReturnValue({
+        provider_id: 'openai',
+        model_id: 'gpt-4o'
+      })
+      sqlitePresenter.deepchatUsageStatsTable.upsert.mockImplementation(() => {
+        throw new Error('boom')
+      })
+
+      expect(() =>
+        store.finalizeAssistantMessage(
+          'm1',
+          [],
+          JSON.stringify({
+            inputTokens: 120,
+            outputTokens: 30,
+            totalTokens: 150,
+            cachedInputTokens: 20
+          })
+        )
+      ).not.toThrow()
+      expect(logger.error).toHaveBeenCalledWith(
+        'Failed to persist deepchat usage stats',
+        { messageId: 'm1', source: 'live' },
+        expect.any(Error)
       )
     })
   })

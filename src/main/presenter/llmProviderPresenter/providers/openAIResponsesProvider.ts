@@ -57,6 +57,22 @@ const SUPPORTED_IMAGE_SIZES = {
 // 添加可设置尺寸的模型列表
 const SIZE_CONFIGURABLE_MODELS = ['gpt-image-1', 'gpt-4o-image', 'gpt-4o-all']
 
+function getOpenAIResponseCachedTokens(
+  usage:
+    | {
+        input_tokens_details?: {
+          cached_tokens?: number
+        }
+      }
+    | null
+    | undefined
+): number | undefined {
+  const cachedTokens = usage?.input_tokens_details?.cached_tokens
+  return typeof cachedTokens === 'number' && Number.isFinite(cachedTokens)
+    ? cachedTokens
+    : undefined
+}
+
 export class OpenAIResponsesProvider extends BaseLLMProvider {
   protected openai!: OpenAI
   private isNoModelsApi: boolean = false
@@ -521,7 +537,8 @@ export class OpenAIResponsesProvider extends BaseLLMProvider {
             yield createStreamEvent.usage({
               prompt_tokens: result.usage.input_tokens || 0,
               completion_tokens: result.usage.output_tokens || 0,
-              total_tokens: result.usage.total_tokens || 0
+              total_tokens: result.usage.total_tokens || 0,
+              cached_tokens: getOpenAIResponseCachedTokens(result.usage)
             })
           }
 
@@ -645,6 +662,7 @@ export class OpenAIResponsesProvider extends BaseLLMProvider {
           prompt_tokens: number
           completion_tokens: number
           total_tokens: number
+          cached_tokens?: number
         }
       | undefined = undefined
 
@@ -954,7 +972,8 @@ export class OpenAIResponsesProvider extends BaseLLMProvider {
           usage = {
             prompt_tokens: response.usage.input_tokens || 0,
             completion_tokens: response.usage.output_tokens || 0,
-            total_tokens: response.usage.total_tokens || 0
+            total_tokens: response.usage.total_tokens || 0,
+            cached_tokens: getOpenAIResponseCachedTokens(response.usage)
           }
           yield createStreamEvent.usage(usage)
         }

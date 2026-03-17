@@ -132,6 +132,80 @@
       "title": "YoBrowser Sandbox"
     }
   },
+  "dashboard": {
+    "badge": "Brugsoverblik",
+    "title": "Brugsoverblik",
+    "description": "Vis tokenforbrug, cachetræf og estimerede omkostninger. Token- og omkostningsdata er estimeret ud fra offentligt tilgængelige oplysninger, og nogle udbydere eller ældre beskeder kan mangle data, så tallene er kun vejledende.",
+    "actions": {
+      "refresh": "Opdater"
+    },
+    "backfill": {
+      "runningTitle": "Opdaterer brugsdata",
+      "runningDescription": "Brugsdata opdateres stadig i baggrunden. De aktuelle resultater kan allerede ses.",
+      "failedTitle": "Kunne ikke opdatere brugsdata",
+      "failedDescription": "Opdater siden eller prøv igen senere."
+    },
+    "error": {
+      "title": "Kunne ikke indlæse oversigten",
+      "description": "Prøv igen senere."
+    },
+    "empty": {
+      "title": "Ingen brugsstatistik endnu",
+      "description": "Når der findes brugsdata, vises tokenforbrug, cachetræf og estimerede omkostninger her.",
+      "historyNote": "Token- og omkostningsdata er estimeret ud fra offentligt tilgængelige oplysninger. Nogle udbydere eller ældre beskeder kan mangle data, så tallene er kun vejledende."
+    },
+    "summary": {
+      "totalTokens": "Samlede tokens",
+      "totalTokensDescription": "Viser hvordan input- og outputtokens fordeler sig i det samlede forbrug.",
+      "inputTokensLabel": "Input",
+      "outputTokensLabel": "Output",
+      "cachedTokens": "Cachelagrede tokens",
+      "cachedTokensDescription": "Prompt-tokens leveret fra udbyderens cache.",
+      "cachedTokensCachedLabel": "Cachelagret",
+      "cachedTokensUncachedLabel": "Ikke cachelagret",
+      "cacheHitRate": "Cachetræfrate",
+      "cacheHitRateDescription": "Cachelagrede prompt-tokens divideret med alle inputtokens.",
+      "estimatedCost": "Estimeret pris",
+      "estimatedCostDescription": "Anslået pris i USD ud fra udbyderens priser eller AIHubMix som reserve.",
+      "estimatedCostTrendLabel": "Udvikling de seneste 30 dage",
+      "estimatedCostTrendEmpty": "Ingen registreret omkostning de seneste 30 dage.",
+      "recordingStartedAt": "Første registrering",
+      "recordingStartedAtDescription": "Den tidligste brugsregistrering, der aktuelt findes i denne oversigt.",
+      "withDeepChatDaysLabel": "Dage sammen",
+      "withDeepChatDaysValue": "{days} dage",
+      "withDeepChatDaysSentence": "Du er nu på dag {days} med DeepChat.",
+      "withDeepChatDaysDescription": "Baseret på din tidligste registrerede brug fra {date}.",
+      "withDeepChatDaysDescriptionUnavailable": "Der er endnu ingen brugsregistreringer.",
+      "tokenUsage": "Tokenforbrug",
+      "nostalgiaLabel": "Gamle minder",
+      "nostalgiaDaysValue": "{days} dage",
+      "nostalgiaSessionsValue": "{count} samtaler",
+      "nostalgiaMessagesValue": "{count} beskeder",
+      "nostalgiaDaysDetailLabel": "Tid sammen",
+      "nostalgiaDaysDetail": "Du og DeepChat har tilbragt {days} dage sammen.",
+      "nostalgiaSessionsDetailLabel": "Samtaler",
+      "nostalgiaSessionsDetail": "I har haft {count} samtaler sammen.",
+      "nostalgiaMessagesDetailLabel": "Beskeder",
+      "nostalgiaMessagesDetail": "I har udvekslet {count} beskeder.",
+      "nostalgiaMostActiveDayLabel": "Mest aktive dag",
+      "nostalgiaMostActiveDayDetail": "{date} var din mest aktive dag med {count} beskeder."
+    },
+    "calendar": {
+      "title": "Bidragskalender",
+      "description": "Dagligt tokenforbrug de seneste 365 dage.",
+      "legend": "Fra lav til høj",
+      "tooltip": "{date}: {tokens} tokens"
+    },
+    "breakdown": {
+      "providerTitle": "Udbyderrangliste",
+      "providerDescription": "Sorteret først efter estimeret pris og derefter efter samlede tokens.",
+      "modelTitle": "Modelrangliste",
+      "modelDescription": "Top 10 modeller efter estimeret pris og derefter samlede tokens.",
+      "messages": "{count} beskeder",
+      "empty": "Der er endnu ingen fordelingsdata."
+    },
+    "unavailable": "Ikke tilgængelig"
+  },
   "model": {
     "title": "Modelindstillinger",
     "systemPrompt": {
@@ -1291,6 +1365,6 @@
       "success": "succes",
       "testing": "Tester..."
     },
-    "title": "Notifikationer og Hooks"
+    "title": "Hooks"
   }
 }

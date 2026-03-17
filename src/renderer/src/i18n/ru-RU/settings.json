@@ -78,7 +78,7 @@
     }
   },
   "notificationsHooks": {
-    "title": "Уведомления и хуки",
+    "title": "Хуки",
     "description": "Настройте webhook-уведомления и хуки жизненного цикла.",
     "events": {
       "title": "События",
@@ -185,6 +185,80 @@
       "description": "Независимая песочница браузера, которая не использует файлы cookie и локальное хранилище совместно с основным приложением. Данные YoBrowser можно очистить одним щелчком мыши здесь.",
       "title": "Песочница YoBrowser"
     }
+  },
+  "dashboard": {
+    "badge": "Панель использования",
+    "title": "Панель использования",
+    "description": "Показывает расход токенов, попадания в кэш и оценочную стоимость. Данные по токенам и стоимости рассчитываются на основе открытой информации; у некоторых провайдеров или более ранних сообщений данные могут отсутствовать, поэтому используйте эти значения только как ориентир.",
+    "actions": {
+      "refresh": "Обновить"
+    },
+    "backfill": {
+      "runningTitle": "Обновление данных об использовании",
+      "runningDescription": "Данные об использовании всё ещё обновляются в фоновом режиме. Текущие результаты уже доступны для просмотра.",
+      "failedTitle": "Не удалось обновить данные об использовании",
+      "failedDescription": "Обновите эту страницу или попробуйте позже."
+    },
+    "error": {
+      "title": "Не удалось загрузить панель",
+      "description": "Попробуйте позже."
+    },
+    "empty": {
+      "title": "Статистики использования пока нет",
+      "description": "Расход токенов, попадания в кэш и оценочная стоимость появятся здесь, когда будут доступны данные об использовании.",
+      "historyNote": "Данные по токенам и стоимости рассчитываются на основе открытой информации. У некоторых провайдеров или более ранних сообщений данные могут отсутствовать, поэтому используйте эти значения только как ориентир."
+    },
+    "summary": {
+      "totalTokens": "Всего токенов",
+      "totalTokensDescription": "Показывает долю входных и выходных токенов в общем объёме.",
+      "inputTokensLabel": "Вход",
+      "outputTokensLabel": "Выход",
+      "cachedTokens": "Токены из кэша",
+      "cachedTokensDescription": "Токены промпта, полученные из кэша провайдера.",
+      "cachedTokensCachedLabel": "Кэш",
+      "cachedTokensUncachedLabel": "Без кэша",
+      "cacheHitRate": "Доля попаданий в кэш",
+      "cacheHitRateDescription": "Токены промпта из кэша, делённые на общее число входных токенов.",
+      "estimatedCost": "Оценочная стоимость",
+      "estimatedCostDescription": "Оценка в долларах США по тарифам провайдера или резервным тарифам AIHubMix.",
+      "estimatedCostTrendLabel": "Тренд за последние 30 дней",
+      "estimatedCostTrendEmpty": "За последние 30 дней расходов не зафиксировано.",
+      "recordingStartedAt": "Начало учёта",
+      "recordingStartedAtDescription": "Самая ранняя запись об использовании, которая сейчас хранится в этой панели.",
+      "withDeepChatDaysLabel": "Дней вместе",
+      "withDeepChatDaysValue": "{days} дней",
+      "withDeepChatDaysSentence": "Вы уже {days}‑й день с DeepChat.",
+      "withDeepChatDaysDescription": "На основе вашей самой ранней записи об использовании от {date}.",
+      "withDeepChatDaysDescriptionUnavailable": "Записей об использовании пока нет.",
+      "tokenUsage": "Расход токенов",
+      "nostalgiaLabel": "Былое",
+      "nostalgiaDaysValue": "{days} дн.",
+      "nostalgiaSessionsValue": "{count} сессий",
+      "nostalgiaMessagesValue": "{count} сообщений",
+      "nostalgiaDaysDetailLabel": "Вместе",
+      "nostalgiaDaysDetail": "Вы и DeepChat уже {days} дней вместе.",
+      "nostalgiaSessionsDetailLabel": "Сессии",
+      "nostalgiaSessionsDetail": "Вы провели вместе {count} сессий.",
+      "nostalgiaMessagesDetailLabel": "Сообщения",
+      "nostalgiaMessagesDetail": "Вы обменялись {count} сообщениями.",
+      "nostalgiaMostActiveDayLabel": "Самый активный день",
+      "nostalgiaMostActiveDayDetail": "{date} был вашим самым активным днём: {count} сообщений."
+    },
+    "calendar": {
+      "title": "Календарь активности",
+      "description": "Ежедневный расход токенов за последние 365 дней.",
+      "legend": "От меньшего к большему",
+      "tooltip": "{date}: {tokens} токенов"
+    },
+    "breakdown": {
+      "providerTitle": "Рейтинг провайдеров",
+      "providerDescription": "Сначала по оценочной стоимости, затем по общему числу токенов.",
+      "modelTitle": "Рейтинг моделей",
+      "modelDescription": "Топ-10 моделей по оценочной стоимости, затем по общему числу токенов.",
+      "messages": "{count} сообщений",
+      "empty": "Данных для разбивки пока нет."
+    },
+    "unavailable": "Недоступно"
   },
   "model": {
     "title": "Настройки модели",

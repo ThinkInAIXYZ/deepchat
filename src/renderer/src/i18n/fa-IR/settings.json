@@ -78,7 +78,7 @@
     }
   },
   "notificationsHooks": {
-    "title": "اعلان‌ها و هوک‌ها",
+    "title": "هوک‌ها",
     "description": "پیکربندی اعلان‌های وب‌هوک و هوک‌های چرخهٔ عمر.",
     "events": {
       "title": "رویدادها",
@@ -185,6 +185,80 @@
       "description": "یک سندباکس مرورگر مستقل که کوکی‌ها و فضای ذخیره‌سازی محلی را با برنامه اصلی به اشتراک نمی‌گذارد. داده های YoBrowser را می توان با یک کلیک در اینجا پاک کرد.",
       "title": "YoBrowser Sandbox"
     }
+  },
+  "dashboard": {
+    "badge": "داشبورد مصرف",
+    "title": "داشبورد مصرف",
+    "description": "مصرف توکن، نرخ اصابت کش و هزینهٔ تخمینی را نمایش می‌دهد. داده‌های توکن و هزینه بر پایهٔ اطلاعات عمومی برآورد می‌شوند و ممکن است برخی ارائه‌دهندگان یا پیام‌های قدیمی‌تر دادهٔ کاملی نداشته باشند؛ این ارقام فقط برای مرجع هستند.",
+    "actions": {
+      "refresh": "به‌روزرسانی"
+    },
+    "backfill": {
+      "runningTitle": "در حال به‌روزرسانی داده‌های مصرف",
+      "runningDescription": "داده‌های مصرف هنوز در پس‌زمینه در حال به‌روزرسانی هستند. نتایج فعلی از همین حالا قابل مشاهده‌اند.",
+      "failedTitle": "به‌روزرسانی داده‌های مصرف ناموفق بود",
+      "failedDescription": "این صفحه را تازه‌سازی کنید یا بعداً دوباره تلاش کنید."
+    },
+    "error": {
+      "title": "بارگذاری داشبورد ناموفق بود",
+      "description": "لطفاً بعداً دوباره تلاش کنید."
+    },
+    "empty": {
+      "title": "هنوز آماری از مصرف وجود ندارد",
+      "description": "وقتی داده‌های مصرف در دسترس باشند، مصرف توکن، نرخ اصابت کش و هزینهٔ تخمینی در اینجا نمایش داده می‌شود.",
+      "historyNote": "داده‌های توکن و هزینه بر پایهٔ اطلاعات عمومی برآورد می‌شوند. ممکن است برخی ارائه‌دهندگان یا پیام‌های قدیمی‌تر دادهٔ کاملی نداشته باشند؛ این ارقام فقط برای مرجع هستند."
+    },
+    "summary": {
+      "totalTokens": "مجموع توکن‌ها",
+      "totalTokensDescription": "نشان می‌دهد توکن‌های ورودی و خروجی چه سهمی از مجموع دارند.",
+      "inputTokensLabel": "ورودی",
+      "outputTokensLabel": "خروجی",
+      "cachedTokens": "توکن‌های کش‌شده",
+      "cachedTokensDescription": "توکن‌های پرامپتی که از کش ارائه‌دهنده پاسخ داده شده‌اند.",
+      "cachedTokensCachedLabel": "کش‌شده",
+      "cachedTokensUncachedLabel": "بدون کش",
+      "cacheHitRate": "نرخ اصابت کش",
+      "cacheHitRateDescription": "نسبت توکن‌های کش‌شدهٔ پرامپت به کل توکن‌های ورودی.",
+      "estimatedCost": "هزینهٔ تخمینی",
+      "estimatedCostDescription": "برآورد به دلار آمریکا بر اساس قیمت‌گذاری ارائه‌دهنده یا قیمت جایگزین AIHubMix.",
+      "estimatedCostTrendLabel": "روند ۳۰ روز گذشته",
+      "estimatedCostTrendEmpty": "در ۳۰ روز گذشته هیچ هزینه‌ای ثبت نشده است.",
+      "recordingStartedAt": "شروع ثبت",
+      "recordingStartedAtDescription": "قدیمی‌ترین رکورد مصرفی که اکنون در این داشبورد نگه‌داری می‌شود.",
+      "withDeepChatDaysLabel": "روزهای همراهی",
+      "withDeepChatDaysValue": "{days} روز",
+      "withDeepChatDaysSentence": "اکنون در روز {days} همراهی با DeepChat هستید.",
+      "withDeepChatDaysDescription": "بر پایهٔ قدیمی‌ترین رکورد استفادهٔ شما در {date}.",
+      "withDeepChatDaysDescriptionUnavailable": "هنوز هیچ رکورد استفاده‌ای وجود ندارد.",
+      "tokenUsage": "مصرف توکن",
+      "nostalgiaLabel": "یادها",
+      "nostalgiaDaysValue": "{days} روز",
+      "nostalgiaSessionsValue": "{count} نشست",
+      "nostalgiaMessagesValue": "{count} پیام",
+      "nostalgiaDaysDetailLabel": "مدت همراهی",
+      "nostalgiaDaysDetail": "شما {days} روز را با DeepChat گذرانده‌اید.",
+      "nostalgiaSessionsDetailLabel": "نشست‌ها",
+      "nostalgiaSessionsDetail": "با هم {count} نشست داشته‌اید.",
+      "nostalgiaMessagesDetailLabel": "پیام‌ها",
+      "nostalgiaMessagesDetail": "{count} پیام با هم ردوبدل کرده‌اید.",
+      "nostalgiaMostActiveDayLabel": "فعال‌ترین روز",
+      "nostalgiaMostActiveDayDetail": "{date} فعال‌ترین روز شما بود و {count} پیام در آن ثبت شد."
+    },
+    "calendar": {
+      "title": "تقویم مشارکت",
+      "description": "مصرف روزانهٔ توکن در ۳۶۵ روز گذشته.",
+      "legend": "کم به زیاد",
+      "tooltip": "{date}: {tokens} توکن"
+    },
+    "breakdown": {
+      "providerTitle": "رتبه‌بندی ارائه‌دهنده‌ها",
+      "providerDescription": "ابتدا بر اساس هزینهٔ تخمینی و سپس بر اساس مجموع توکن‌ها مرتب شده است.",
+      "modelTitle": "رتبه‌بندی مدل‌ها",
+      "modelDescription": "۱۰ مدل برتر بر اساس هزینهٔ تخمینی و سپس مجموع توکن‌ها.",
+      "messages": "{count} پیام",
+      "empty": "هنوز داده‌ای برای نمایش جزئیات وجود ندارد."
+    },
+    "unavailable": "ناموجود"
   },
   "model": {
     "title": "تنظیمات مدل",

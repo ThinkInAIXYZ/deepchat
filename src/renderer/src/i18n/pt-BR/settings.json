@@ -78,7 +78,7 @@
     }
   },
   "notificationsHooks": {
-    "title": "Notificações e hooks",
+    "title": "Hooks",
     "description": "Configure notificações de webhook e hooks de ciclo de vida.",
     "events": {
       "title": "Eventos",
@@ -185,6 +185,80 @@
       "description": "Uma sandbox de navegador independente que não compartilha cookies e armazenamento local com o aplicativo principal. Os dados do YoBrowser podem ser apagados com um clique aqui.",
       "title": "Caixa de areia YoBrowser"
     }
+  },
+  "dashboard": {
+    "badge": "Painel de uso",
+    "title": "Painel de uso",
+    "description": "Mostra o consumo de tokens, os acertos de cache e o custo estimado. Os dados de tokens e custo são estimados com base em informações públicas, e alguns provedores ou mensagens mais antigas podem estar incompletos, então use esses números apenas como referência.",
+    "actions": {
+      "refresh": "Atualizar"
+    },
+    "backfill": {
+      "runningTitle": "Atualizando dados de uso",
+      "runningDescription": "Os dados de uso ainda estão sendo atualizados em segundo plano. Os resultados atuais já podem ser consultados.",
+      "failedTitle": "Falha ao atualizar os dados de uso",
+      "failedDescription": "Atualize esta página ou tente novamente mais tarde."
+    },
+    "error": {
+      "title": "Falha ao carregar o painel",
+      "description": "Tente novamente mais tarde."
+    },
+    "empty": {
+      "title": "Ainda não há estatísticas de uso",
+      "description": "O consumo de tokens, os acertos de cache e o custo estimado aparecerão aqui assim que houver dados de uso.",
+      "historyNote": "Os dados de tokens e custo são estimados com base em informações públicas. Alguns provedores ou mensagens mais antigas podem estar incompletos, então use esses números apenas como referência."
+    },
+    "summary": {
+      "totalTokens": "Total de tokens",
+      "totalTokensDescription": "Mostra a participação dos tokens de entrada e saída no total.",
+      "inputTokensLabel": "Entrada",
+      "outputTokensLabel": "Saída",
+      "cachedTokens": "Tokens em cache",
+      "cachedTokensDescription": "Tokens de prompt atendidos pelo cache do provedor.",
+      "cachedTokensCachedLabel": "Em cache",
+      "cachedTokensUncachedLabel": "Sem cache",
+      "cacheHitRate": "Taxa de acerto do cache",
+      "cacheHitRateDescription": "Tokens de prompt em cache divididos pelo total de tokens de entrada.",
+      "estimatedCost": "Custo estimado",
+      "estimatedCostDescription": "Estimado em USD com base no preço do provedor ou no preço de fallback da AIHubMix.",
+      "estimatedCostTrendLabel": "Tendência dos últimos 30 dias",
+      "estimatedCostTrendEmpty": "Nenhum custo registrado nos últimos 30 dias.",
+      "recordingStartedAt": "Início do registro",
+      "recordingStartedAtDescription": "O registro de uso mais antigo atualmente armazenado neste painel.",
+      "withDeepChatDaysLabel": "Dias juntos",
+      "withDeepChatDaysValue": "{days} dias",
+      "withDeepChatDaysSentence": "Você está no dia {days} com o DeepChat.",
+      "withDeepChatDaysDescription": "Com base no seu registro de uso mais antigo, em {date}.",
+      "withDeepChatDaysDescriptionUnavailable": "Ainda não há registros de uso.",
+      "tokenUsage": "Uso de tokens",
+      "nostalgiaLabel": "Memórias",
+      "nostalgiaDaysValue": "{days} dias",
+      "nostalgiaSessionsValue": "{count} sessões",
+      "nostalgiaMessagesValue": "{count} mensagens",
+      "nostalgiaDaysDetailLabel": "Tempo juntos",
+      "nostalgiaDaysDetail": "Você e o DeepChat já passaram {days} dias juntos.",
+      "nostalgiaSessionsDetailLabel": "Sessões",
+      "nostalgiaSessionsDetail": "Vocês compartilharam {count} sessões juntos.",
+      "nostalgiaMessagesDetailLabel": "Mensagens",
+      "nostalgiaMessagesDetail": "Vocês trocaram {count} mensagens.",
+      "nostalgiaMostActiveDayLabel": "Dia mais ativo",
+      "nostalgiaMostActiveDayDetail": "{date} foi o seu dia mais ativo, com {count} mensagens."
+    },
+    "calendar": {
+      "title": "Calendário de contribuições",
+      "description": "Uso diário de tokens nos últimos 365 dias.",
+      "legend": "De menos para mais",
+      "tooltip": "{date}: {tokens} tokens"
+    },
+    "breakdown": {
+      "providerTitle": "Ranking por provedor",
+      "providerDescription": "Ordenado primeiro por custo estimado e depois por total de tokens.",
+      "modelTitle": "Ranking por modelo",
+      "modelDescription": "Top 10 modelos por custo estimado e depois por total de tokens.",
+      "messages": "{count} mensagens",
+      "empty": "Ainda não há dados detalhados para exibir."
+    },
+    "unavailable": "Indisponível"
   },
   "model": {
     "title": "Configurações do Modelo",

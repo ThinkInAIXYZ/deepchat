@@ -232,6 +232,7 @@ export interface MessageMetadata {
   totalTokens?: number
   inputTokens?: number
   outputTokens?: number
+  cachedInputTokens?: number
   generationTime?: number
   firstTokenTime?: number
   reasoningStartTime?: number
@@ -256,6 +257,60 @@ export interface ChatMessageRecord {
   traceCount?: number
   createdAt: number
   updatedAt: number
+}
+
+export interface UsageStatsBackfillStatus {
+  status: 'idle' | 'running' | 'completed' | 'failed'
+  startedAt: number | null
+  finishedAt: number | null
+  error: string | null
+  updatedAt: number
+}
+
+export interface UsageDashboardSummary {
+  messageCount: number
+  sessionCount: number
+  inputTokens: number
+  outputTokens: number
+  totalTokens: number
+  cachedInputTokens: number
+  cacheHitRate: number
+  estimatedCostUsd: number | null
+  mostActiveDay: {
+    date: string | null
+    messageCount: number
+  }
+}
+
+export interface UsageDashboardCalendarDay {
+  date: string
+  messageCount: number
+  inputTokens: number
+  outputTokens: number
+  totalTokens: number
+  cachedInputTokens: number
+  estimatedCostUsd: number | null
+  level: 0 | 1 | 2 | 3 | 4
+}
+
+export interface UsageDashboardBreakdownItem {
+  id: string
+  label: string
+  messageCount: number
+  inputTokens: number
+  outputTokens: number
+  totalTokens: number
+  cachedInputTokens: number
+  estimatedCostUsd: number | null
+}
+
+export interface UsageDashboardData {
+  recordingStartedAt: number | null
+  backfillStatus: UsageStatsBackfillStatus
+  summary: UsageDashboardSummary
+  calendar: UsageDashboardCalendarDay[]
+  providerBreakdown: UsageDashboardBreakdownItem[]
+  modelBreakdown: UsageDashboardBreakdownItem[]
 }
 
 export interface MessageTraceRecord {

@@ -115,6 +115,8 @@
     "@lingual/i18n-check": "0.8.12",
     "@mcp-ui/client": "^5.13.3",
     "@pinia/colada": "^0.20.0",
+    "@unovis/ts": "1.6.4",
+    "@unovis/vue": "1.6.4",
     "@tailwindcss/typography": "^0.5.19",
     "@tailwindcss/vite": "^4.1.18",
     "@tiptap/core": "^2.11.7",

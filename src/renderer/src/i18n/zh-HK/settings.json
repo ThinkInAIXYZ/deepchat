@@ -78,7 +78,7 @@
     }
   },
   "notificationsHooks": {
-    "title": "通知與 Hooks",
+    "title": "Hooks",
     "description": "配置 webhook 通知與生命週期 Hooks。",
     "events": {
       "title": "事件",
@@ -185,6 +185,80 @@
       "description": "獨立的瀏覽器沙盒，不與主應用共享 Cookie 和本地存儲。\n可在此一鍵清空 YoBrowser 數據。",
       "title": "YoBrowser 沙盒"
     }
+  },
+  "dashboard": {
+    "badge": "使用看板",
+    "title": "使用看板",
+    "description": "統計 token 消耗、緩存命中與估算價格。token 和費用資料基於公開資訊估算，部分供應商或較早訊息資料可能缺失，僅供參考。",
+    "actions": {
+      "refresh": "刷新"
+    },
+    "backfill": {
+      "runningTitle": "正在更新使用數據",
+      "runningDescription": "使用數據仍在背景整理，當前結果可以先查看。",
+      "failedTitle": "使用數據更新失敗",
+      "failedDescription": "請重新整理此頁面或稍後再試。"
+    },
+    "error": {
+      "title": "載入看板失敗",
+      "description": "請稍後再試。"
+    },
+    "empty": {
+      "title": "暫無統計資料",
+      "description": "有使用數據後，這裡會顯示 token 消耗、緩存命中和估算價格。",
+      "historyNote": "token 和費用資料基於公開資訊估算，部分供應商或較早訊息資料可能缺失，僅供參考。"
+    },
+    "summary": {
+      "totalTokens": "總 Token",
+      "totalTokensDescription": "展示輸入與輸出 token 在總量中的佔比。",
+      "inputTokensLabel": "輸入",
+      "outputTokensLabel": "輸出",
+      "cachedTokens": "緩存 Token",
+      "cachedTokensDescription": "由 provider 緩存命中的 prompt token。",
+      "cachedTokensCachedLabel": "緩存命中",
+      "cachedTokensUncachedLabel": "未命中",
+      "cacheHitRate": "緩存命中率",
+      "cacheHitRateDescription": "緩存 prompt token 佔總輸入 token 的比例。",
+      "estimatedCost": "估算價格",
+      "estimatedCostDescription": "按目前 provider 價格或 AIHubMix 回退價格估算的美元成本。",
+      "estimatedCostTrendLabel": "最近 30 天趨勢",
+      "estimatedCostTrendEmpty": "最近 30 天還沒有成本記錄。",
+      "recordingStartedAt": "統計開始時間",
+      "recordingStartedAtDescription": "目前看板中最早一條 usage 記錄的時間。",
+      "withDeepChatDaysLabel": "陪伴天數",
+      "withDeepChatDaysValue": "{days} 天",
+      "withDeepChatDaysSentence": "你已經和 DeepChat 一起度過了 {days} 天",
+      "withDeepChatDaysDescription": "基於你最早的一條使用記錄：{date}。",
+      "withDeepChatDaysDescriptionUnavailable": "暫時還沒有使用記錄。",
+      "tokenUsage": "Token 消耗",
+      "nostalgiaLabel": "前塵往事",
+      "nostalgiaDaysValue": "{days} 天",
+      "nostalgiaSessionsValue": "{count} 個會話",
+      "nostalgiaMessagesValue": "{count} 條消息",
+      "nostalgiaDaysDetailLabel": "一起走過",
+      "nostalgiaDaysDetail": "你已經和 DeepChat 一起度過了 {days} 天。",
+      "nostalgiaSessionsDetailLabel": "會話總數",
+      "nostalgiaSessionsDetail": "你們一起進行了 {count} 個會話。",
+      "nostalgiaMessagesDetailLabel": "消息總數",
+      "nostalgiaMessagesDetail": "彼此發送了 {count} 條消息。",
+      "nostalgiaMostActiveDayLabel": "最活躍的一天",
+      "nostalgiaMostActiveDayDetail": "{date}是你最活躍的一天，共有 {count} 條消息。"
+    },
+    "calendar": {
+      "title": "Contribution Calendar",
+      "description": "最近 365 天按日統計的 token 消耗。",
+      "legend": "少到多",
+      "tooltip": "{date}：{tokens} token"
+    },
+    "breakdown": {
+      "providerTitle": "供應商排行",
+      "providerDescription": "先按估算價格排序，再按總 token 排序。",
+      "modelTitle": "模型排行",
+      "modelDescription": "按估算價格和總 token 排序的前 10 個模型。",
+      "messages": "{count} 條消息",
+      "empty": "暫時還沒有可展示的明細資料。"
+    },
+    "unavailable": "暫無"
   },
   "model": {
     "title": "模型設置",

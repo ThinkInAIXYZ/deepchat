@@ -123,6 +123,7 @@ export function accumulate(state: StreamState, event: LLMCoreStreamEvent): void 
       state.metadata.inputTokens = event.usage.prompt_tokens
       state.metadata.outputTokens = event.usage.completion_tokens
       state.metadata.totalTokens = event.usage.total_tokens
+      state.metadata.cachedInputTokens = event.usage.cached_tokens
       break
     }
     case 'stop': {

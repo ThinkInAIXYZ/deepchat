@@ -78,7 +78,7 @@
     }
   },
   "notificationsHooks": {
-    "title": "התראות ו‑Hooks",
+    "title": "Hooks",
     "description": "הגדרת התראות webhook ו‑hooks של מחזור החיים.",
     "events": {
       "title": "אירועים",
@@ -185,6 +185,80 @@
       "description": "ארגז חול עצמאי של דפדפן שאינו חולק עוגיות ואחסון מקומי עם האפליקציה הראשית. ניתן לנקות את נתוני YoBrowser בלחיצה אחת כאן.",
       "title": "ארגז חול של YoBrowser"
     }
+  },
+  "dashboard": {
+    "badge": "לוח שימוש",
+    "title": "לוח שימוש",
+    "description": "מציג שימוש בטוקנים, פגיעות מטמון ועלות משוערת. נתוני הטוקנים והעלות מוערכים על סמך מידע ציבורי, וחלק מהספקים או מההודעות המוקדמות יותר עשויים להיות חסרים, לכן יש להתייחס לנתונים כהערכה בלבד.",
+    "actions": {
+      "refresh": "רענון"
+    },
+    "backfill": {
+      "runningTitle": "מעדכן נתוני שימוש",
+      "runningDescription": "נתוני השימוש עדיין מתעדכנים ברקע. אפשר כבר לעיין בתוצאות הנוכחיות.",
+      "failedTitle": "עדכון נתוני השימוש נכשל",
+      "failedDescription": "רענן את הדף הזה או נסה שוב מאוחר יותר."
+    },
+    "error": {
+      "title": "טעינת לוח השימוש נכשלה",
+      "description": "נסה שוב מאוחר יותר."
+    },
+    "empty": {
+      "title": "עדיין אין נתוני שימוש",
+      "description": "שימוש בטוקנים, פגיעות מטמון ועלות משוערת יוצגו כאן ברגע שנתוני השימוש יהיו זמינים.",
+      "historyNote": "נתוני הטוקנים והעלות מוערכים על סמך מידע ציבורי. חלק מהספקים או מההודעות המוקדמות יותר עשויים להיות חסרים, לכן יש להתייחס לנתונים כהערכה בלבד."
+    },
+    "summary": {
+      "totalTokens": "סך כל הטוקנים",
+      "totalTokensDescription": "מציג את החלוקה של טוקני הקלט והפלט מתוך הסך הכולל.",
+      "inputTokensLabel": "קלט",
+      "outputTokensLabel": "פלט",
+      "cachedTokens": "טוקנים מהמטמון",
+      "cachedTokensDescription": "טוקני פרומפט שסופקו ממטמון הספק.",
+      "cachedTokensCachedLabel": "במטמון",
+      "cachedTokensUncachedLabel": "ללא מטמון",
+      "cacheHitRate": "שיעור פגיעות מטמון",
+      "cacheHitRateDescription": "טוקני פרומפט מהמטמון חלקי כלל טוקני הקלט.",
+      "estimatedCost": "עלות משוערת",
+      "estimatedCostDescription": "עלות משוערת בדולרים לפי תמחור הספק או תמחור הגיבוי של AIHubMix.",
+      "estimatedCostTrendLabel": "מגמה ב־30 הימים האחרונים",
+      "estimatedCostTrendEmpty": "לא נרשמה עלות ב־30 הימים האחרונים.",
+      "recordingStartedAt": "תחילת הרישום",
+      "recordingStartedAtDescription": "רשומת השימוש המוקדמת ביותר השמורה כעת בלוח זה.",
+      "withDeepChatDaysLabel": "ימים יחד",
+      "withDeepChatDaysValue": "{days} ימים",
+      "withDeepChatDaysSentence": "זה היום ה־{days} שלך עם DeepChat.",
+      "withDeepChatDaysDescription": "מבוסס על רשומת השימוש המוקדמת ביותר שלך מ־{date}.",
+      "withDeepChatDaysDescriptionUnavailable": "עדיין אין רשומות שימוש.",
+      "tokenUsage": "שימוש בטוקנים",
+      "nostalgiaLabel": "זיכרונות",
+      "nostalgiaDaysValue": "{days} ימים",
+      "nostalgiaSessionsValue": "{count} שיחות",
+      "nostalgiaMessagesValue": "{count} הודעות",
+      "nostalgiaDaysDetailLabel": "הזמן יחד",
+      "nostalgiaDaysDetail": "אתם ו-DeepChat כבר {days} ימים יחד.",
+      "nostalgiaSessionsDetailLabel": "שיחות",
+      "nostalgiaSessionsDetail": "קיימתם יחד {count} שיחות.",
+      "nostalgiaMessagesDetailLabel": "הודעות",
+      "nostalgiaMessagesDetail": "החלפתם {count} הודעות.",
+      "nostalgiaMostActiveDayLabel": "היום הפעיל ביותר",
+      "nostalgiaMostActiveDayDetail": "{date} היה היום הפעיל ביותר שלך, עם {count} הודעות."
+    },
+    "calendar": {
+      "title": "לוח תרומות",
+      "description": "צריכת טוקנים יומית ב־365 הימים האחרונים.",
+      "legend": "מפחות ליותר",
+      "tooltip": "{date}: {tokens} טוקנים"
+    },
+    "breakdown": {
+      "providerTitle": "דירוג ספקים",
+      "providerDescription": "מדורג קודם לפי עלות משוערת ולאחר מכן לפי סך הטוקנים.",
+      "modelTitle": "דירוג מודלים",
+      "modelDescription": "10 המודלים המובילים לפי עלות משוערת ולאחר מכן לפי סך הטוקנים.",
+      "messages": "{count} הודעות",
+      "empty": "עדיין אין נתוני פירוט להצגה."
+    },
+    "unavailable": "לא זמין"
   },
   "model": {
     "title": "הגדרות מודל",
