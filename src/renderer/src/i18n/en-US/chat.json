@@ -218,6 +218,19 @@
   "newThread": {
     "title": "Build and explore"
   },
+  "floatingWidget": {
+    "title": "DeepChat",
+    "collapse": "Collapse floating sessions",
+    "empty": "No DeepChat sessions yet",
+    "executing": "active",
+    "sessionCount": "{count} sessions",
+    "untitled": "New Chat",
+    "status": {
+      "inProgress": "In progress",
+      "done": "Done",
+      "error": "Error"
+    }
+  },
   "permissionMode": {
     "default": "Default permissions",
     "fullAccess": "Full access"

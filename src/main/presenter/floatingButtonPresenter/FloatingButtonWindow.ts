@@ -2,14 +2,22 @@ import { BrowserWindow, screen } from 'electron'
 import path from 'path'
 import { FloatingButtonConfig, FloatingButtonState } from './types'
 import logger from '../../../shared/logger'
-import { platform } from '@electron-toolkit/utils'
+import {
+  FLOATING_WIDGET_LAYOUT,
+  inferDockSide,
+  type FloatingWidgetDockSide,
+  type WidgetRect
+} from './layout'
 import windowStateManager from 'electron-window-state'
+
+const FLOATING_WIDGET_WINDOW_OPACITY = 1
 
 export class FloatingButtonWindow {
   private window: BrowserWindow | null = null
   private config: FloatingButtonConfig
   private state: FloatingButtonState
-  private windowState: any
+  private windowState: ReturnType<typeof windowStateManager>
+  private dockSide: FloatingWidgetDockSide
 
   constructor(config: FloatingButtonConfig) {
     this.config = config
@@ -18,38 +26,39 @@ export class FloatingButtonWindow {
       bounds: {
         x: 0,
         y: 0,
-        width: config.size.width,
-        height: config.size.height
+        width: FLOATING_WIDGET_LAYOUT.collapsedIdle.width,
+        height: FLOATING_WIDGET_LAYOUT.collapsedIdle.height
       }
     }
-
-    // 初始化窗口状态管理器
+    this.dockSide = config.position.endsWith('left') ? 'left' : 'right'
     this.windowState = windowStateManager({
       file: 'floating-button-window-state.json',
-      defaultWidth: config.size.width,
-      defaultHeight: config.size.height
+      defaultWidth: FLOATING_WIDGET_LAYOUT.collapsedIdle.width,
+      defaultHeight: FLOATING_WIDGET_LAYOUT.collapsedIdle.height
     })
   }
 
-  /**
-   * 创建悬浮窗口
-   */
   public async create(): Promise<void> {
     if (this.window) {
       return
     }
 
     try {
-      // 根据环境选择正确的预加载脚本路径
       const isDev = process.env.NODE_ENV === 'development'
+      const initialBounds = this.resolveInitialBounds()
+      this.dockSide = inferDockSide(
+        initialBounds,
+        screen.getDisplayMatching(initialBounds).workArea
+      )
 
       this.window = new BrowserWindow({
-        x: this.windowState.x,
-        y: this.windowState.y,
-        width: this.windowState.width,
-        height: this.windowState.height,
+        x: initialBounds.x,
+        y: initialBounds.y,
+        width: initialBounds.width,
+        height: initialBounds.height,
         frame: false,
-        transparent: platform.isMacOS,
+        transparent: true,
+        backgroundColor: '#00000000',
         alwaysOnTop: this.config.alwaysOnTop,
         skipTaskbar: true,
         resizable: false,
@@ -57,37 +66,33 @@ export class FloatingButtonWindow {
         maximizable: false,
         closable: false,
         show: false,
-        movable: true, // 允许拖拽,
+        movable: true,
+        hasShadow: false,
         autoHideMenuBar: true,
-        vibrancy: 'under-window',
-        visualEffectState: 'followWindow',
+        roundedCorners: true,
         webPreferences: {
           nodeIntegration: false,
           contextIsolation: true,
           preload: path.join(__dirname, '../preload/floating.mjs'),
-          webSecurity: false, // 开发模式下允许跨域
-          devTools: isDev, // 开发模式下启用开发者工具
-          sandbox: false // 禁用沙盒模式，确保预加载脚本能正常工作
+          webSecurity: false,
+          devTools: isDev,
+          sandbox: false
         }
       })
+
       this.windowState.manage(this.window)
       this.window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
-      this.window.setAlwaysOnTop(true, 'floating')
-      // 设置窗口透明度
-      this.window.setOpacity(this.config.opacity)
+      this.window.setAlwaysOnTop(this.config.alwaysOnTop, 'floating')
+      this.window.setOpacity(FLOATING_WIDGET_WINDOW_OPACITY)
+      this.setBounds(initialBounds)
 
-      // 加载悬浮按钮页面
       if (isDev) {
         await this.window.loadURL('http://localhost:5173/floating/')
-        // 开发模式下可选择性打开开发者工具（暂时禁用，避免影响拖拽）
-        this.window.webContents.openDevTools({ mode: 'detach' })
       } else {
         await this.window.loadFile(path.join(__dirname, '../renderer/floating/index.html'))
       }
 
-      // 监听窗口事件
       this.setupWindowEvents()
-
       logger.info('FloatingButtonWindow created successfully')
     } catch (error) {
       logger.error('Failed to create FloatingButtonWindow:', error)
@@ -95,9 +100,6 @@ export class FloatingButtonWindow {
     }
   }
 
-  /**
-   * 显示悬浮窗口
-   */
   public show(): void {
     if (!this.window) {
       return
@@ -108,9 +110,6 @@ export class FloatingButtonWindow {
     logger.debug('FloatingButtonWindow shown')
   }
 
-  /**
-   * 隐藏悬浮窗口
-   */
   public hide(): void {
     if (!this.window) {
       return
@@ -121,9 +120,6 @@ export class FloatingButtonWindow {
     logger.debug('FloatingButtonWindow hidden')
   }
 
-  /**
-   * 销毁悬浮窗口
-   */
   public destroy(): void {
     if (this.window) {
       this.window.destroy()
@@ -133,47 +129,23 @@ export class FloatingButtonWindow {
     }
   }
 
-  /**
-   * 更新配置
-   */
   public updateConfig(config: Partial<FloatingButtonConfig>): void {
     this.config = { ...this.config, ...config }
+    if (!this.window) {
+      return
+    }
 
-    if (this.window) {
-      // 更新窗口属性
-      if (config.size) {
-        this.window.setSize(this.config.size.width, this.config.size.height)
-        this.state.bounds.width = this.config.size.width
-        this.state.bounds.height = this.config.size.height
-      }
+    this.window.setOpacity(FLOATING_WIDGET_WINDOW_OPACITY)
 
-      if (config.position || config.offset) {
-        const position = this.getDefaultPosition()
-        this.window.setPosition(position.x, position.y)
-        this.state.bounds.x = position.x
-        this.state.bounds.y = position.y
-      }
-
-      if (config.opacity !== undefined) {
-        this.window.setOpacity(this.config.opacity)
-      }
-
-      if (config.alwaysOnTop !== undefined) {
-        this.window.setAlwaysOnTop(this.config.alwaysOnTop, 'floating')
-      }
+    if (config.alwaysOnTop !== undefined) {
+      this.window.setAlwaysOnTop(this.config.alwaysOnTop, 'floating')
     }
   }
 
-  /**
-   * 获取当前状态
-   */
   public getState(): FloatingButtonState {
     return { ...this.state }
   }
 
-  /**
-   * 检查窗口是否存在
-   */
   public exists(): boolean {
     return this.window !== null && !this.window.isDestroyed()
   }
@@ -182,42 +154,95 @@ export class FloatingButtonWindow {
     return this.window
   }
 
-  /**
-   * 获取默认位置（右下角）
-   */
-  private getDefaultPosition(): { x: number; y: number } {
-    const primaryDisplay = screen.getPrimaryDisplay()
-    const { workArea } = primaryDisplay
-
+  public getBounds(): WidgetRect | null {
+    if (!this.window || this.window.isDestroyed()) {
+      return null
+    }
+    const bounds = this.window.getBounds()
     return {
-      x: workArea.width - this.config.size.width - 20,
-      y: workArea.height - this.config.size.height - 20
+      x: bounds.x,
+      y: bounds.y,
+      width: bounds.width,
+      height: bounds.height
     }
   }
 
-  /**
-   * 设置窗口事件监听
-   */
+  public setBounds(bounds: WidgetRect): void {
+    if (!this.window || this.window.isDestroyed()) {
+      return
+    }
+
+    this.window.setBounds(bounds)
+    this.state.bounds = { ...bounds }
+  }
+
+  public getDockSide(): FloatingWidgetDockSide {
+    return this.dockSide
+  }
+
+  public setDockSide(dockSide: FloatingWidgetDockSide): void {
+    this.dockSide = dockSide
+  }
+
+  private resolveInitialBounds(): WidgetRect {
+    const defaultPosition = this.getDefaultPosition()
+    const width = FLOATING_WIDGET_LAYOUT.collapsedIdle.width
+    const height = FLOATING_WIDGET_LAYOUT.collapsedIdle.height
+    const initialX = typeof this.windowState.x === 'number' ? this.windowState.x : defaultPosition.x
+    const initialY = typeof this.windowState.y === 'number' ? this.windowState.y : defaultPosition.y
+    const targetDisplay = screen.getDisplayNearestPoint({ x: initialX, y: initialY })
+    const { workArea } = targetDisplay
+    const x = Math.max(workArea.x, Math.min(initialX, workArea.x + workArea.width - width))
+    const y = Math.max(workArea.y, Math.min(initialY, workArea.y + workArea.height - height))
+
+    return {
+      x,
+      y,
+      width,
+      height
+    }
+  }
+
+  private getDefaultPosition(): { x: number; y: number } {
+    const primaryDisplay = screen.getPrimaryDisplay()
+    const { workArea } = primaryDisplay
+    const width = FLOATING_WIDGET_LAYOUT.collapsedIdle.width
+    const height = FLOATING_WIDGET_LAYOUT.collapsedIdle.height
+    const isRight = this.config.position.endsWith('right')
+    const isBottom = this.config.position.startsWith('bottom')
+
+    return {
+      x: isRight
+        ? workArea.x + workArea.width - width - this.config.offset.x
+        : workArea.x + this.config.offset.x,
+      y: isBottom
+        ? workArea.y + workArea.height - height - this.config.offset.y
+        : workArea.y + this.config.offset.y
+    }
+  }
+
   private setupWindowEvents(): void {
     if (!this.window) {
       return
     }
 
-    // 窗口关闭事件
     this.window.on('closed', () => {
       this.window = null
       this.state.isVisible = false
     })
 
-    // 窗口移动事件
     this.window.on('moved', () => {
-      if (this.window) {
-        const bounds = this.window.getBounds()
-        this.state.bounds.x = bounds.x
-        this.state.bounds.y = bounds.y
+      if (!this.window) {
+        return
+      }
+
+      const bounds = this.window.getBounds()
+      this.state.bounds = {
+        x: bounds.x,
+        y: bounds.y,
+        width: bounds.width,
+        height: bounds.height
       }
     })
-
-    // 注意：悬浮按钮点击事件的 IPC 处理器在主进程的 index.ts 中设置
   }
 }

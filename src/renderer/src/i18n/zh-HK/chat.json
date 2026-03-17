@@ -230,5 +230,18 @@
     "groupByProject": "按專案分組",
     "emptyTitle": "還沒有對話",
     "emptyDescription": "開始一個新對話吧"
+  },
+  "floatingWidget": {
+    "title": "DeepChat",
+    "collapse": "收起懸浮會話列表",
+    "empty": "目前還沒有 DeepChat 會話",
+    "executing": "進行中",
+    "sessionCount": "{count} 個會話",
+    "untitled": "新會話",
+    "status": {
+      "inProgress": "進行中",
+      "done": "已完成",
+      "error": "錯誤"
+    }
   }
 }

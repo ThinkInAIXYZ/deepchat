@@ -149,7 +149,7 @@ export class NewAgentPresenter {
       webContentsId,
       sessionId
     })
-    eventBus.sendToRenderer(SESSION_EVENTS.LIST_UPDATED, SendTarget.ALL_WINDOWS)
+    this.emitSessionListUpdated()
 
     if (input.activeSkills && input.activeSkills.length > 0 && this.skillPresenter) {
       await this.skillPresenter.setActiveSkills(sessionId, input.activeSkills)
@@ -228,7 +228,7 @@ export class NewAgentPresenter {
     }
 
     await this.llmProviderPresenter.prepareAcpSession(record.id, agentId, projectDir)
-    eventBus.sendToRenderer(SESSION_EVENTS.LIST_UPDATED, SendTarget.ALL_WINDOWS)
+    this.emitSessionListUpdated()
 
     const state = await agent.getSessionState(record.id)
     return {
@@ -247,7 +247,7 @@ export class NewAgentPresenter {
     if (session.isDraft) {
       const title = normalizedInput.text.trim().slice(0, 50) || 'New Chat'
       this.sessionManager.update(sessionId, { isDraft: false, title })
-      eventBus.sendToRenderer(SESSION_EVENTS.LIST_UPDATED, SendTarget.ALL_WINDOWS)
+      this.emitSessionListUpdated()
       session = this.sessionManager.get(sessionId)
       if (!session) throw new Error(`Session not found: ${sessionId}`)
     }
@@ -362,7 +362,7 @@ export class NewAgentPresenter {
       throw error
     }
 
-    eventBus.sendToRenderer(SESSION_EVENTS.LIST_UPDATED, SendTarget.ALL_WINDOWS)
+    this.emitSessionListUpdated()
 
     const record = this.sessionManager.get(targetSessionId)
     if (!record) {
@@ -690,7 +690,7 @@ export class NewAgentPresenter {
     }
 
     this.sessionManager.update(sessionId, { title: normalized })
-    eventBus.sendToRenderer(SESSION_EVENTS.LIST_UPDATED, SendTarget.ALL_WINDOWS)
+    this.emitSessionListUpdated()
   }
 
   async toggleSessionPinned(sessionId: string, pinned: boolean): Promise<void> {
@@ -700,7 +700,7 @@ export class NewAgentPresenter {
     }
 
     this.sessionManager.update(sessionId, { isPinned: pinned })
-    eventBus.sendToRenderer(SESSION_EVENTS.LIST_UPDATED, SendTarget.ALL_WINDOWS)
+    this.emitSessionListUpdated()
   }
 
   async clearSessionMessages(sessionId: string): Promise<void> {
@@ -715,7 +715,7 @@ export class NewAgentPresenter {
     }
 
     await agent.clearMessages(sessionId)
-    eventBus.sendToRenderer(SESSION_EVENTS.LIST_UPDATED, SendTarget.ALL_WINDOWS)
+    this.emitSessionListUpdated()
   }
 
   async exportSession(
@@ -773,7 +773,7 @@ export class NewAgentPresenter {
     presenter.settingsPermissionService?.clearConversation(sessionId)
     await this.skillPresenter?.clearNewAgentSessionSkills?.(sessionId)
     this.sessionManager.delete(sessionId)
-    eventBus.sendToRenderer(SESSION_EVENTS.LIST_UPDATED, SendTarget.ALL_WINDOWS)
+    this.emitSessionListUpdated()
   }
 
   async cancelGeneration(sessionId: string): Promise<void> {
@@ -882,7 +882,7 @@ export class NewAgentPresenter {
       providerId: state?.providerId ?? nextProviderId,
       modelId: state?.modelId ?? nextModelId
     }
-    eventBus.sendToRenderer(SESSION_EVENTS.LIST_UPDATED, SendTarget.ALL_WINDOWS)
+    this.emitSessionListUpdated()
     return updated
   }
 
@@ -997,9 +997,19 @@ export class NewAgentPresenter {
       if (latest.title !== initialTitle) return
 
       this.sessionManager.update(sessionId, { title: normalized })
-      eventBus.sendToRenderer(SESSION_EVENTS.LIST_UPDATED, SendTarget.ALL_WINDOWS)
+      this.emitSessionListUpdated()
     } catch (error) {
       console.warn(`[NewAgentPresenter] title generation skipped for session=${sessionId}:`, error)
+    }
+  }
+
+  private emitSessionListUpdated(): void {
+    eventBus.sendToRenderer(SESSION_EVENTS.LIST_UPDATED, SendTarget.ALL_WINDOWS)
+
+    try {
+      void presenter.floatingButtonPresenter.refreshWidgetState()
+    } catch (error) {
+      console.warn('[NewAgentPresenter] Failed to refresh floating widget state:', error)
     }
   }
 

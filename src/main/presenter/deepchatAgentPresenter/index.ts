@@ -2547,6 +2547,12 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       sessionId,
       status
     })
+
+    try {
+      void presenter.floatingButtonPresenter.refreshWidgetState()
+    } catch (error) {
+      console.warn('[DeepChatAgent] Failed to refresh floating widget state:', error)
+    }
   }
 
   private emitMessageRefresh(sessionId: string, messageId: string): void {

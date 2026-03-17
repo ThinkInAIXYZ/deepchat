@@ -186,9 +186,22 @@ export const SKILL_SYNC_EVENTS = {
 // 悬浮按钮相关事件
 export const FLOATING_BUTTON_EVENTS = {
   CLICKED: 'floating-button:clicked', // 悬浮按钮被点击
+  RIGHT_CLICKED: 'floating-button:right-clicked', // 悬浮按钮被右键点击
   VISIBILITY_CHANGED: 'floating-button:visibility-changed', // 悬浮按钮显示状态改变
   POSITION_CHANGED: 'floating-button:position-changed', // 悬浮按钮位置改变
-  ENABLED_CHANGED: 'floating-button:enabled-changed' // 悬浮按钮启用状态改变
+  ENABLED_CHANGED: 'floating-button:enabled-changed', // 悬浮按钮启用状态改变
+  SNAPSHOT_REQUEST: 'floating-button:snapshot-request',
+  SNAPSHOT_UPDATED: 'floating-button:snapshot-updated',
+  LANGUAGE_REQUEST: 'floating-button:language-request',
+  LANGUAGE_CHANGED: 'floating-button:language-changed',
+  THEME_REQUEST: 'floating-button:theme-request',
+  THEME_CHANGED: 'floating-button:theme-changed',
+  TOGGLE_EXPANDED: 'floating-button:toggle-expanded',
+  SET_EXPANDED: 'floating-button:set-expanded',
+  OPEN_SESSION: 'floating-button:open-session',
+  DRAG_START: 'floating-button:drag-start',
+  DRAG_MOVE: 'floating-button:drag-move',
+  DRAG_END: 'floating-button:drag-end'
 }
 
 // Dialog相关事件

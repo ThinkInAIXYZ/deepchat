@@ -225,6 +225,15 @@ export const FLOATING_BUTTON_EVENTS = {
   VISIBILITY_CHANGED: 'floating-button:visibility-changed', // 悬浮按钮显示状态改变
   POSITION_CHANGED: 'floating-button:position-changed', // 悬浮按钮位置改变
   ENABLED_CHANGED: 'floating-button:enabled-changed', // 悬浮按钮启用状态改变
+  SNAPSHOT_REQUEST: 'floating-button:snapshot-request',
+  SNAPSHOT_UPDATED: 'floating-button:snapshot-updated',
+  LANGUAGE_REQUEST: 'floating-button:language-request',
+  LANGUAGE_CHANGED: 'floating-button:language-changed',
+  THEME_REQUEST: 'floating-button:theme-request',
+  THEME_CHANGED: 'floating-button:theme-changed',
+  TOGGLE_EXPANDED: 'floating-button:toggle-expanded',
+  SET_EXPANDED: 'floating-button:set-expanded',
+  OPEN_SESSION: 'floating-button:open-session',
   DRAG_START: 'floating-button:drag-start', // 悬浮按钮开始拖拽
   DRAG_MOVE: 'floating-button:drag-move', // 悬浮按钮拖拽移动
   DRAG_END: 'floating-button:drag-end' // 悬浮按钮结束拖拽
