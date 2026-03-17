@@ -96,7 +96,7 @@ const setup = async (options?: {
         buildTool('read', 'agent-filesystem'),
         buildTool('exec', 'agent-filesystem'),
         buildTool('deepchat_question', 'agent-core'),
-        buildTool('yo_browser_cdp_send', 'yobrowser'),
+        buildTool('cdp_send', 'yobrowser'),
         buildTool('mcp_tool', 'demo-server', 'mcp')
       ])
   }

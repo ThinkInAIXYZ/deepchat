@@ -21,13 +21,7 @@ import type { ISkillPresenter } from '../skill'
 import type { ISkillSyncPresenter } from '../skillSync'
 import type { INewAgentPresenter } from './new-agent.presenter'
 import type { IProjectPresenter } from './project.presenter'
-import type {
-  BrowserTabInfo,
-  BrowserContextSnapshot,
-  BrowserWindowInfo,
-  DownloadInfo,
-  ScreenshotOptions
-} from '../browser'
+import type { BrowserPageInfo, DownloadInfo, ScreenshotOptions, YoBrowserStatus } from '../browser'
 
 export type SQLITE_MESSAGE = {
   id: string
@@ -193,21 +187,16 @@ export interface TabData {
   closable: boolean
   url: string
   icon?: string
-  browserTabId?: string
-}
-
-export interface BrowserContextSnapshot {
-  activeWindowId: number | null
-  windows: BrowserWindowInfo[]
 }
 
 export interface IYoBrowserPresenter {
   initialize(): Promise<void>
-  ensureWindow(): Promise<number | null>
-  openWindow(url?: string): Promise<BrowserWindowInfo | null>
-  attachEmbeddedToWindow(windowId: number): Promise<number | null>
-  updateEmbeddedBounds(
-    windowId: number,
+  getBrowserStatus(sessionId: string): Promise<YoBrowserStatus>
+  loadUrl(sessionId: string, url: string, timeoutMs?: number): Promise<YoBrowserStatus>
+  attachSessionBrowser(sessionId: string, hostWindowId: number): Promise<boolean>
+  updateSessionBrowserBounds(
+    sessionId: string,
+    hostWindowId: number,
     bounds: {
       x: number
       y: number
@@ -216,41 +205,27 @@ export interface IYoBrowserPresenter {
     },
     visible: boolean
   ): Promise<void>
-  detachEmbedded(): Promise<void>
-  focusWindow(windowId: number): Promise<void>
-  closeWindow(windowId: number): Promise<void>
-  listWindows(): Promise<BrowserWindowInfo[]>
-  getActiveWindow(): Promise<BrowserWindowInfo | null>
-  getWindowById(windowId: number): Promise<BrowserWindowInfo | null>
-  navigateWindow(windowId: number, url: string, timeoutMs?: number): Promise<void>
-  hasWindow(): Promise<boolean>
-  show(shouldFocus?: boolean): Promise<void>
-  hide(): Promise<void>
-  toggleVisibility(): Promise<boolean>
-  isVisible(): Promise<boolean>
-  listTabs(): Promise<BrowserTabInfo[]>
-  getActiveTab(): Promise<BrowserTabInfo | null>
-  createTab(url?: string): Promise<BrowserTabInfo | null>
-  navigateTab(tabId: string, url: string): Promise<void>
-  activateTab(tabId: string): Promise<void>
-  closeTab(tabId: string): Promise<void>
-  reuseTab(url: string): Promise<BrowserTabInfo | null>
-  goBack(target?: string | number): Promise<void>
-  goForward(target?: string | number): Promise<void>
-  reload(target?: string | number): Promise<void>
-  getBrowserContext(): Promise<BrowserContextSnapshot>
-  getNavigationState(target?: string | number): Promise<{
+  detachSessionBrowser(sessionId: string): Promise<void>
+  destroySessionBrowser(sessionId: string): Promise<void>
+  goBack(sessionId: string): Promise<void>
+  goForward(sessionId: string): Promise<void>
+  reload(sessionId: string): Promise<void>
+  getNavigationState(sessionId: string): Promise<{
     canGoBack: boolean
     canGoForward: boolean
   }>
-  getTabIdByViewId(viewId: number): Promise<string | null>
-  captureScreenshot(target: string | number, options?: ScreenshotOptions): Promise<string>
+  captureScreenshot(sessionId: string, options?: ScreenshotOptions): Promise<string>
+  getBrowserPage(sessionId: string): Promise<BrowserPageInfo | null>
   startDownload(url: string, savePath?: string): Promise<DownloadInfo>
   clearSandboxData(): Promise<void>
   shutdown(): Promise<void>
   readonly toolHandler: {
     getToolDefinitions(): any[]
-    callTool(toolName: string, args: Record<string, unknown>): Promise<string>
+    callTool(
+      toolName: string,
+      args: Record<string, unknown>,
+      conversationId?: string
+    ): Promise<string>
   }
 }
 
@@ -353,7 +328,6 @@ export interface ITabPresenter {
   registerFloatingWindow(webContentsId: number, webContents: Electron.WebContents): void
   unregisterFloatingWindow(webContentsId: number): void
   resetTabToBlank(tabId: number): Promise<void>
-  setTabBrowserId(tabId: number, browserTabId: string): void
   destroy(): Promise<void>
 }
 

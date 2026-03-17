@@ -57,6 +57,11 @@ import {
 import { rtkRuntimeService } from '@/lib/agentRuntime/rtkRuntimeService'
 
 const RETIRED_DEFAULT_AGENT_TOOLS = new Set(['find', 'grep', 'ls'])
+const LEGACY_AGENT_TOOL_NAME_MAP: Record<string, string> = {
+  yo_browser_cdp_send: 'cdp_send',
+  yo_browser_window_open: 'load_url',
+  yo_browser_window_list: 'get_browser_status'
+}
 
 export class NewAgentPresenter {
   private agentRegistry: AgentRegistry
@@ -1668,6 +1673,7 @@ export class NewAgentPresenter {
         disabledAgentTools
           .filter((item): item is string => typeof item === 'string')
           .map((item) => item.trim())
+          .map((item) => LEGACY_AGENT_TOOL_NAME_MAP[item] ?? item)
           .filter((item) => Boolean(item) && !RETIRED_DEFAULT_AGENT_TOOLS.has(item))
       )
     ).sort((left, right) => left.localeCompare(right))

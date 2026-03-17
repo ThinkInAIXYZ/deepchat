@@ -3,18 +3,11 @@ import { zodToJsonSchema } from 'zod-to-json-schema'
 import type { MCPToolDefinition } from '@shared/presenter'
 
 const yoBrowserSchemas = {
-  window_list: z.object({}),
-  window_open: z.object({
-    url: z.string().url().optional().describe('Optional URL to open in the new browser window')
-  }),
-  window_focus: z.object({
-    windowId: z.number().int().positive().describe('Browser window ID')
-  }),
-  window_close: z.object({
-    windowId: z.number().int().positive().describe('Browser window ID')
+  get_browser_status: z.object({}),
+  load_url: z.object({
+    url: z.string().url().describe('URL to load in the session browser')
   }),
   cdp_send: z.object({
-    windowId: z.number().int().positive().optional().describe('Optional browser window ID'),
     method: z
       .enum([
         'Page.navigate',
@@ -35,6 +28,8 @@ const yoBrowserSchemas = {
       .describe('Parameters for the selected CDP method')
   })
 }
+
+export const YO_BROWSER_TOOL_NAMES = ['load_url', 'get_browser_status', 'cdp_send'] as const
 
 function asParameters(schema: z.ZodTypeAny) {
   return zodToJsonSchema(schema) as {
@@ -63,28 +58,18 @@ function toDefinition(name: string, description: string, schema: z.ZodTypeAny): 
 export function getYoBrowserToolDefinitions(): MCPToolDefinition[] {
   return [
     toDefinition(
-      'yo_browser_window_list',
-      'List all browser windows and identify the active window',
-      yoBrowserSchemas.window_list
+      'get_browser_status',
+      'Get the current session browser status',
+      yoBrowserSchemas.get_browser_status
     ),
     toDefinition(
-      'yo_browser_window_open',
-      'Open the embedded browser in the current chat window side panel and optionally navigate to a URL',
-      yoBrowserSchemas.window_open
+      'load_url',
+      'Create the session browser on demand and load a URL into it',
+      yoBrowserSchemas.load_url
     ),
     toDefinition(
-      'yo_browser_window_focus',
-      'Focus an existing browser window',
-      yoBrowserSchemas.window_focus
-    ),
-    toDefinition(
-      'yo_browser_window_close',
-      'Close an existing browser window',
-      yoBrowserSchemas.window_close
-    ),
-    toDefinition(
-      'yo_browser_cdp_send',
-      'Send a Chrome DevTools Protocol (CDP) command to a browser window page',
+      'cdp_send',
+      'Send a Chrome DevTools Protocol (CDP) command to the current session browser page',
       yoBrowserSchemas.cdp_send
     )
   ]

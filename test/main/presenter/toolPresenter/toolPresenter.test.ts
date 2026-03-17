@@ -294,7 +294,7 @@ describe('ToolPresenter', () => {
           source: 'agent'
         },
         {
-          ...buildToolDefinition('yo_browser_cdp_send', 'yobrowser'),
+          ...buildToolDefinition('cdp_send', 'yobrowser'),
           source: 'agent'
         }
       ]
@@ -302,7 +302,7 @@ describe('ToolPresenter', () => {
 
     expect(withoutYoBrowser).not.toContain('YoBrowser')
     expect(withYoBrowser).toContain('YoBrowser')
-    expect(withYoBrowser).toContain('yo_browser_cdp_send')
+    expect(withYoBrowser).toContain('cdp_send')
   })
 
   it('includes question guidance only when deepchat_question is enabled', () => {

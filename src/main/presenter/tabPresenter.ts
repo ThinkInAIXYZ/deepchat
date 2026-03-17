@@ -73,19 +73,6 @@ export class TabPresenter implements ITabPresenter {
     })
   }
 
-  setTabBrowserId(tabId: number, browserTabId: string): void {
-    const state = this.tabState.get(tabId)
-    if (state) {
-      state.browserTabId = browserTabId
-      const windowId = this.tabWindowMap.get(tabId)
-      if (windowId !== undefined) {
-        this.notifyWindowTabsUpdate(windowId).catch((error) => {
-          console.warn(`Failed to sync browser tab id for window ${windowId}:`, error)
-        })
-      }
-    }
-  }
-
   private onWindowSizeChange(windowId: number) {
     const views = this.windowTabs.get(windowId)
     const window = BrowserWindow.fromId(windowId)
@@ -638,15 +625,6 @@ export class TabPresenter implements ITabPresenter {
   ): void {
     // 处理外部链接
     webContents.setWindowOpenHandler(({ url }) => {
-      const state = this.tabState.get(tabId)
-      // 如果是 browser tab，在当前 tab 导航
-      if (state?.browserTabId) {
-        presenter.yoBrowserPresenter.navigateTab(state.browserTabId, url).catch((error: Error) => {
-          console.error(`[TabPresenter] Failed to navigate browser tab:`, error)
-        })
-        return { action: 'deny' }
-      }
-      // Chat tab: 使用系统默认浏览器打开链接
       shell.openExternal(url)
       return { action: 'deny' }
     })

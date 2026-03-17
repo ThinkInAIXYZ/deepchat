@@ -359,7 +359,7 @@ describe('NewAgentPresenter', () => {
         {
           agentId: 'deepchat',
           message: 'Hi',
-          disabledAgentTools: ['exec', 'exec', 'yo_browser_cdp_send']
+          disabledAgentTools: ['exec', 'exec', 'cdp_send']
         },
         1
       )
@@ -371,7 +371,7 @@ describe('NewAgentPresenter', () => {
         null,
         expect.objectContaining({
           isDraft: false,
-          disabledAgentTools: ['exec', 'yo_browser_cdp_send']
+          disabledAgentTools: expect.arrayContaining(['cdp_send', 'exec'])
         })
       )
     })
@@ -1012,14 +1012,11 @@ describe('NewAgentPresenter', () => {
         created_at: 1000,
         updated_at: 1000
       })
-      sqlitePresenter.newSessionsTable.getDisabledAgentTools.mockReturnValue([
-        'exec',
-        'yo_browser_cdp_send'
-      ])
+      sqlitePresenter.newSessionsTable.getDisabledAgentTools.mockReturnValue(['exec', 'cdp_send'])
 
       const disabledTools = await presenter.getSessionDisabledAgentTools('s1')
 
-      expect(disabledTools).toEqual(['exec', 'yo_browser_cdp_send'])
+      expect(disabledTools).toEqual(['exec', 'cdp_send'])
     })
 
     it('updates disabled agent tools and invalidates the deepchat prompt cache', async () => {
@@ -1036,15 +1033,15 @@ describe('NewAgentPresenter', () => {
       const disabledTools = await presenter.updateSessionDisabledAgentTools('s1', [
         'grep',
         'ls',
-        'yo_browser_cdp_send',
+        'cdp_send',
         'exec',
         'exec'
       ])
 
-      expect(disabledTools).toEqual(['exec', 'yo_browser_cdp_send'])
+      expect(disabledTools).toEqual(['cdp_send', 'exec'])
       expect(sqlitePresenter.newSessionsTable.updateDisabledAgentTools).toHaveBeenCalledWith('s1', [
-        'exec',
-        'yo_browser_cdp_send'
+        'cdp_send',
+        'exec'
       ])
       expect(deepChatAgent.invalidateSessionSystemPromptCache).toHaveBeenCalledWith('s1')
     })

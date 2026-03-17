@@ -220,87 +220,109 @@ describe('YoBrowserPresenter', () => {
 
     const presenter = new YoBrowserPresenter(windowPresenter as any)
 
-    const getEmbeddedWebContents = () => {
-      return ((presenter as any).embeddedState?.view?.webContents ?? null) as MockWebContents | null
+    const getSessionWebContents = (sessionId: string) => {
+      return ((presenter as any).sessionBrowsers.get(sessionId)?.view?.webContents ??
+        null) as MockWebContents | null
     }
 
     return {
       presenter,
       windows,
       viewConfigs,
-      windowPresenter,
-      getEmbeddedWebContents
+      getSessionWebContents
     }
   }
 
-  it('does not start embedded navigation before the renderer reports a stable host', async () => {
-    const { presenter, windows, getEmbeddedWebContents } = await setupPresenter()
+  it('does not start session navigation before the renderer reports a stable host', async () => {
+    const { presenter, windows, getSessionWebContents } = await setupPresenter()
     windows.set(1, new MockBrowserWindow(1))
 
-    const openPromise = presenter.openWindow('https://example.com')
+    const loadPromise = presenter.loadUrl('session-a', 'https://example.com')
     await Promise.resolve()
 
-    const webContents = getEmbeddedWebContents()
+    const webContents = getSessionWebContents('session-a')
     expect(webContents?.loadURL).not.toHaveBeenCalled()
 
-    await presenter.attachEmbeddedToWindow(1)
-    await presenter.updateEmbeddedBounds(1, { x: 12, y: 18, width: 320, height: 480 }, true)
+    await presenter.attachSessionBrowser('session-a', 1)
+    await presenter.updateSessionBrowserBounds(
+      'session-a',
+      1,
+      { x: 12, y: 18, width: 320, height: 480 },
+      true
+    )
     await vi.advanceTimersByTimeAsync(130)
     await Promise.resolve()
 
     expect(webContents?.loadURL).toHaveBeenCalledWith('https://example.com')
 
     webContents?.emitDomReady()
-    await openPromise
+    await loadPromise
     webContents?.finishLoad()
   })
 
-  it('resolves openWindow only after host-ready and the first dom-ready', async () => {
-    const { presenter, windows, getEmbeddedWebContents } = await setupPresenter()
+  it('resolves loadUrl only after host-ready and the first dom-ready', async () => {
+    const { presenter, windows, getSessionWebContents } = await setupPresenter()
     windows.set(1, new MockBrowserWindow(1))
 
     let settled = false
-    const openPromise = presenter.openWindow('https://example.com').then(() => {
+    const loadPromise = presenter.loadUrl('session-a', 'https://example.com').then(() => {
       settled = true
     })
 
     await Promise.resolve()
-    await presenter.attachEmbeddedToWindow(1)
-    await presenter.updateEmbeddedBounds(1, { x: 10, y: 20, width: 300, height: 400 }, true)
+    await presenter.attachSessionBrowser('session-a', 1)
+    await presenter.updateSessionBrowserBounds(
+      'session-a',
+      1,
+      { x: 10, y: 20, width: 300, height: 400 },
+      true
+    )
     await vi.advanceTimersByTimeAsync(130)
     await Promise.resolve()
 
     expect(settled).toBe(false)
 
-    const webContents = getEmbeddedWebContents()
+    const webContents = getSessionWebContents('session-a')
     webContents?.emitDomReady()
-    await openPromise
+    await loadPromise
 
     expect(settled).toBe(true)
     webContents?.finishLoad()
   })
 
-  it('returns a clear error when host-ready never arrives', async () => {
+  it('returns a clear error when session host-ready never arrives', async () => {
     const { presenter, windows } = await setupPresenter()
     windows.set(1, new MockBrowserWindow(1))
 
-    const openPromise = presenter.openWindow('https://example.com')
-    const rejection = expect(openPromise).rejects.toThrow(
-      'Embedded browser host 1 did not become ready within 2000ms'
+    const loadPromise = presenter.loadUrl('session-a', 'https://example.com')
+    const rejection = expect(loadPromise).rejects.toThrow(
+      'Session browser host 1 did not become ready within 2000ms'
     )
     await vi.advanceTimersByTimeAsync(2050)
     await rejection
   })
 
-  it('does not emit WINDOW_UPDATED for pure embedded bounds changes', async () => {
+  it('does not emit WINDOW_UPDATED for pure bounds changes', async () => {
     const { presenter, windows } = await setupPresenter()
     windows.set(1, new MockBrowserWindow(1))
 
-    await presenter.attachEmbeddedToWindow(1)
+    void presenter.loadUrl('session-a', 'https://example.com')
+    await Promise.resolve()
+    await presenter.attachSessionBrowser('session-a', 1)
     sendToRendererMock.mockClear()
 
-    await presenter.updateEmbeddedBounds(1, { x: 0, y: 0, width: 240, height: 360 }, true)
-    await presenter.updateEmbeddedBounds(1, { x: 8, y: 16, width: 256, height: 384 }, true)
+    await presenter.updateSessionBrowserBounds(
+      'session-a',
+      1,
+      { x: 0, y: 0, width: 240, height: 360 },
+      true
+    )
+    await presenter.updateSessionBrowserBounds(
+      'session-a',
+      1,
+      { x: 8, y: 16, width: 256, height: 384 },
+      true
+    )
 
     const updatedEvents = sendToRendererMock.mock.calls.filter(
       ([event]) => event === 'yo-browser:window-updated'
@@ -308,54 +330,51 @@ describe('YoBrowserPresenter', () => {
     expect(updatedEvents).toHaveLength(0)
   })
 
-  it('navigates embedded windows directly instead of reopening them', async () => {
-    const { presenter, windows, getEmbeddedWebContents } = await setupPresenter()
+  it('keeps session browsers isolated when switching the attached session', async () => {
+    const { presenter, windows, getSessionWebContents } = await setupPresenter()
     windows.set(1, new MockBrowserWindow(1))
 
-    await presenter.attachEmbeddedToWindow(1)
-    const openWindowSpy = vi.spyOn(presenter, 'openWindow')
-
-    const navigatePromise = presenter.navigateWindow(1, 'https://example.com')
+    const firstLoad = presenter.loadUrl('session-a', 'https://example.com/a')
     await Promise.resolve()
+    await presenter.attachSessionBrowser('session-a', 1)
+    await presenter.updateSessionBrowserBounds(
+      'session-a',
+      1,
+      { x: 10, y: 10, width: 300, height: 400 },
+      true
+    )
+    await vi.advanceTimersByTimeAsync(130)
+    getSessionWebContents('session-a')?.emitDomReady()
+    await firstLoad
 
-    expect(openWindowSpy).not.toHaveBeenCalled()
+    const secondLoad = presenter.loadUrl('session-b', 'https://example.com/b')
+    await Promise.resolve()
+    await presenter.attachSessionBrowser('session-b', 1)
+    await presenter.updateSessionBrowserBounds(
+      'session-b',
+      1,
+      { x: 10, y: 10, width: 300, height: 400 },
+      true
+    )
+    await vi.advanceTimersByTimeAsync(130)
+    getSessionWebContents('session-b')?.emitDomReady()
+    await secondLoad
 
-    const webContents = getEmbeddedWebContents()
-    webContents?.finishLoad()
-    await navigatePromise
-  })
+    const firstStatus = await presenter.getBrowserStatus('session-a')
+    const secondStatus = await presenter.getBrowserStatus('session-b')
 
-  it('reattaches embedded listeners to the new host window and cleans up the previous host', async () => {
-    const { presenter, windows } = await setupPresenter()
-    const firstWindow = new MockBrowserWindow(1)
-    const secondWindow = new MockBrowserWindow(2)
-    windows.set(1, firstWindow)
-    windows.set(2, secondWindow)
-
-    await presenter.attachEmbeddedToWindow(1)
-    const state = (presenter as any).embeddedState
-
-    await presenter.attachEmbeddedToWindow(2)
-    expect(firstWindow.contentView.removeChildView).toHaveBeenCalledWith(state.view)
-
-    sendToRendererMock.mockClear()
-    firstWindow.emit('focus')
-    expect(sendToRendererMock).not.toHaveBeenCalled()
-
-    secondWindow.emit('focus')
-    expect(
-      sendToRendererMock.mock.calls.some(
-        ([event, _target, payload]) =>
-          event === 'yo-browser:window-focused' && payload?.windowId === secondWindow.id
-      )
-    ).toBe(true)
+    expect(firstStatus.initialized).toBe(true)
+    expect(firstStatus.visible).toBe(false)
+    expect(secondStatus.initialized).toBe(true)
+    expect(secondStatus.visible).toBe(true)
   })
 
   it('creates the embedded WebContentsView with sandbox enabled', async () => {
     const { presenter, windows, viewConfigs } = await setupPresenter()
     windows.set(1, new MockBrowserWindow(1))
 
-    await presenter.attachEmbeddedToWindow(1)
+    void presenter.loadUrl('session-a', 'https://example.com')
+    await Promise.resolve()
 
     expect(viewConfigs).toHaveLength(1)
     expect(viewConfigs[0]?.webPreferences).toMatchObject({

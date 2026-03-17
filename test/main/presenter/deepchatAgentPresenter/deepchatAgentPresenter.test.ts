@@ -1992,7 +1992,7 @@ describe('DeepChatAgentPresenter', () => {
             timestamp: 1,
             tool_call: {
               id: 'tc1',
-              name: 'yo_browser_cdp_send',
+              name: 'cdp_send',
               params: '{"method":"Page.captureScreenshot"}',
               response: ''
             }
@@ -2005,7 +2005,7 @@ describe('DeepChatAgentPresenter', () => {
             content: 'Need permission',
             tool_call: {
               id: 'tc1',
-              name: 'yo_browser_cdp_send',
+              name: 'cdp_send',
               params: '{"method":"Page.captureScreenshot"}'
             },
             extra: {
@@ -2014,7 +2014,7 @@ describe('DeepChatAgentPresenter', () => {
               permissionRequest: JSON.stringify({
                 permissionType: 'write',
                 description: 'Need permission',
-                toolName: 'yo_browser_cdp_send',
+                toolName: 'cdp_send',
                 serverName: 'yo-browser'
               })
             }
@@ -2025,7 +2025,7 @@ describe('DeepChatAgentPresenter', () => {
         {
           type: 'function',
           function: {
-            name: 'yo_browser_cdp_send',
+            name: 'cdp_send',
             description: 'CDP send',
             parameters: { type: 'object', properties: {} }
           },
@@ -2066,7 +2066,7 @@ describe('DeepChatAgentPresenter', () => {
             timestamp: 1,
             tool_call: {
               id: 'tc1',
-              name: 'yo_browser_cdp_send',
+              name: 'cdp_send',
               params: '{"method":"Page.captureScreenshot"}',
               response: ''
             }
@@ -2079,7 +2079,7 @@ describe('DeepChatAgentPresenter', () => {
             content: 'Need permission',
             tool_call: {
               id: 'tc1',
-              name: 'yo_browser_cdp_send',
+              name: 'cdp_send',
               params: '{"method":"Page.captureScreenshot"}'
             },
             extra: {
@@ -2088,7 +2088,7 @@ describe('DeepChatAgentPresenter', () => {
               permissionRequest: JSON.stringify({
                 permissionType: 'write',
                 description: 'Need permission',
-                toolName: 'yo_browser_cdp_send',
+                toolName: 'cdp_send',
                 serverName: 'yo-browser'
               })
             }
@@ -2099,7 +2099,7 @@ describe('DeepChatAgentPresenter', () => {
         {
           type: 'function',
           function: {
-            name: 'yo_browser_cdp_send',
+            name: 'cdp_send',
             description: 'CDP send',
             parameters: { type: 'object', properties: {} }
           },

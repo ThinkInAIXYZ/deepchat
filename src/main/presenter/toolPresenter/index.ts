@@ -12,6 +12,7 @@ import { AgentToolManager, type AgentToolCallResult } from '../agentPresenter/ac
 import type { AgentToolRuntimePort } from '../agentPresenter/runtimePorts'
 import { jsonrepair } from 'jsonrepair'
 import { CommandPermissionService } from '../permission'
+import { YO_BROWSER_TOOL_NAMES } from '../browser/YoBrowserToolDefinitions'
 
 interface PreCheckedPermissionResult {
   needsPermission: true
@@ -64,7 +65,8 @@ interface ToolPresenterOptions {
 }
 
 const FILESYSTEM_TOOL_ORDER = ['read', 'write', 'edit', 'exec', 'process']
-const OFFLOAD_TOOL_NAMES = new Set(['exec', 'yo_browser_cdp_send'])
+const OFFLOAD_TOOL_NAMES = new Set(['exec', 'cdp_send'])
+const RESERVED_AGENT_TOOL_NAMES = new Set<string>(YO_BROWSER_TOOL_NAMES)
 
 const withToolSource = (tools: MCPToolDefinition[], source: 'mcp' | 'agent'): MCPToolDefinition[] =>
   tools.map((tool) => ({
@@ -122,7 +124,9 @@ export class ToolPresenter implements IToolPresenter {
 
     // 1. Get MCP tools
     const mcpDefs = withToolSource(
-      await this.options.mcpPresenter.getAllToolDefinitions(context.enabledMcpTools),
+      (await this.options.mcpPresenter.getAllToolDefinitions(context.enabledMcpTools)).filter(
+        (tool) => !RESERVED_AGENT_TOOL_NAMES.has(tool.function.name)
+      ),
       'mcp'
     )
     defs.push(...mcpDefs)
@@ -450,18 +454,14 @@ export class ToolPresenter implements IToolPresenter {
       `Available YoBrowser tools: ${tools.map((tool) => `\`${tool.function.name}\``).join(', ')}.`
     ]
 
-    if (toolNames.has('yo_browser_window_list')) {
-      lines.push('- Use `yo_browser_window_list` to inspect current browser windows before acting.')
+    if (toolNames.has('get_browser_status')) {
+      lines.push('- Use `get_browser_status` to inspect the current session browser state.')
     }
-    if (toolNames.has('yo_browser_window_open')) {
-      lines.push(
-        '- Use `yo_browser_window_open` when you need a browser window for web exploration.'
-      )
+    if (toolNames.has('load_url')) {
+      lines.push('- Use `load_url` to lazily create the session browser and navigate to a page.')
     }
-    if (toolNames.has('yo_browser_cdp_send')) {
-      lines.push(
-        '- Use `yo_browser_cdp_send` for DOM inspection, scripted interaction, and screenshots.'
-      )
+    if (toolNames.has('cdp_send')) {
+      lines.push('- Use `cdp_send` for DOM inspection, scripted interaction, and screenshots.')
     }
 
     return lines.join('\n')

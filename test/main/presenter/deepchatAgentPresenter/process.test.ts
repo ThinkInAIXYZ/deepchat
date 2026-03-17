@@ -218,7 +218,7 @@ describe('processStream', () => {
           yield {
             type: 'tool_call_start',
             tool_call_id: 'tc1',
-            tool_call_name: 'yo_browser_cdp_send'
+            tool_call_name: 'cdp_send'
           } as LLMCoreStreamEvent
           yield {
             type: 'tool_call_end',
@@ -234,11 +234,11 @@ describe('processStream', () => {
       })()
     }) as unknown as ProcessParams['coreStream']
 
-    const toolPresenter = createMockToolPresenter({ yo_browser_cdp_send: longScreenshot })
+    const toolPresenter = createMockToolPresenter({ cdp_send: longScreenshot })
     const params = createParams({
       coreStream,
       toolPresenter,
-      tools: [makeTool('yo_browser_cdp_send')]
+      tools: [makeTool('cdp_send')]
     })
 
     const promise = processStream(params)
@@ -533,7 +533,7 @@ describe('processStream', () => {
         yield {
           type: 'tool_call_start',
           tool_call_id: 'tc1',
-          tool_call_name: 'yo_browser_cdp_send'
+          tool_call_name: 'cdp_send'
         } as LLMCoreStreamEvent
         yield {
           type: 'tool_call_end',
@@ -545,11 +545,11 @@ describe('processStream', () => {
     }) as unknown as ProcessParams['coreStream']
 
     const longScreenshot = JSON.stringify({ data: 'x'.repeat(7000) })
-    const toolPresenter = createMockToolPresenter({ yo_browser_cdp_send: longScreenshot })
+    const toolPresenter = createMockToolPresenter({ cdp_send: longScreenshot })
     const params = createParams({
       coreStream,
       toolPresenter,
-      tools: [makeTool('yo_browser_cdp_send')],
+      tools: [makeTool('cdp_send')],
       modelConfig: { contextLength: 1 } as any,
       maxTokens: 1
     })

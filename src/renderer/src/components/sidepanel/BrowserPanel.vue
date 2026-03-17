@@ -57,30 +57,47 @@ import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 import { Button } from '@shadcn/components/ui/button'
 import { Input } from '@shadcn/components/ui/input'
-import BrowserPlaceholder from '@browser/components/BrowserPlaceholder.vue'
-import type { BrowserWindowInfo } from '@shared/types/browser'
+import BrowserPlaceholder from './BrowserPlaceholder.vue'
+import type { YoBrowserStatus } from '@shared/types/browser'
 import { usePresenter } from '@/composables/usePresenter'
 import { YO_BROWSER_EVENTS } from '@/events'
 import { useSidepanelStore } from '@/stores/ui/sidepanel'
+import { useSessionStore } from '@/stores/ui/session'
+
+const props = defineProps<{
+  sessionId: string | null
+}>()
 
 const { t } = useI18n()
 const sidepanelStore = useSidepanelStore()
+const sessionStore = useSessionStore()
 const yoBrowserPresenter = usePresenter('yoBrowserPresenter')
 
 const containerRef = ref<HTMLElement | null>(null)
 const hostWindowId = ref<number | null>(null)
-const browserWindowId = ref<number | null>(null)
+const browserStatus = ref<YoBrowserStatus>({
+  initialized: false,
+  page: null,
+  canGoBack: false,
+  canGoForward: false,
+  visible: false,
+  loading: false
+})
 const currentUrl = ref('about:blank')
 const urlInput = ref('')
 const canGoBack = ref(false)
 const canGoForward = ref(false)
 const lastSyncedBounds = ref<Rectangle | null>(null)
+const pendingBrowserDestroySessionIds = new Set<string>()
 let visibilityRunId = 0
 
 const STABLE_RECT_SAMPLE_MS = 48
 const STABLE_RECT_TIMEOUT_MS = 1500
 
-const showPlaceholder = computed(() => currentUrl.value === 'about:blank')
+const currentSessionId = computed(() => props.sessionId?.trim() || '')
+const showPlaceholder = computed(
+  () => !browserStatus.value.initialized || currentUrl.value === 'about:blank'
+)
 const isBrowserPanelVisible = computed(
   () => sidepanelStore.open && sidepanelStore.activeTab === 'browser'
 )
@@ -107,34 +124,41 @@ const callPresenter = async <T,>(
   return result as T | null
 }
 
-const resolveWindowId = (payload: unknown): number | null => {
-  if (typeof payload === 'number') {
-    return payload
+const resolvePayloadSessionId = (payload: unknown): string => {
+  if (!payload || typeof payload !== 'object') {
+    return ''
   }
 
+  const typedPayload = payload as { sessionId?: unknown }
+  return typeof typedPayload.sessionId === 'string' ? typedPayload.sessionId : ''
+}
+
+const resolvePayloadWindowId = (payload: unknown): number | null => {
   if (!payload || typeof payload !== 'object') {
     return null
   }
 
-  if ('windowId' in payload && typeof payload.windowId === 'number') {
-    return payload.windowId
-  }
-
-  if (
-    'window' in payload &&
-    payload.window &&
-    typeof payload.window === 'object' &&
-    'id' in payload.window &&
-    typeof payload.window.id === 'number'
-  ) {
-    return payload.window.id
-  }
-
-  return null
+  const typedPayload = payload as { windowId?: unknown }
+  return typeof typedPayload.windowId === 'number' ? typedPayload.windowId : null
 }
 
-const isCurrentHostWindow = (windowId: number | null) => {
-  return windowId != null && hostWindowId.value != null && windowId === hostWindowId.value
+const getSessionUiStatus = (sessionId: string) => {
+  return sessionStore.sessions.find((session) => session.id === sessionId)?.status ?? null
+}
+
+const resetBrowserState = () => {
+  browserStatus.value = {
+    initialized: false,
+    page: null,
+    canGoBack: false,
+    canGoForward: false,
+    visible: false,
+    loading: false
+  }
+  currentUrl.value = 'about:blank'
+  urlInput.value = ''
+  canGoBack.value = false
+  canGoForward.value = false
 }
 
 const captureContainerBounds = (): Rectangle | null => {
@@ -187,35 +211,39 @@ const waitForStableRect = async (runId: number): Promise<Rectangle | null> => {
   return null
 }
 
-const loadState = async () => {
-  if (hostWindowId.value == null) {
+const loadState = async (sessionId: string = currentSessionId.value) => {
+  if (!sessionId) {
+    resetBrowserState()
     return
   }
 
-  const browserWindow = await callPresenter<BrowserWindowInfo>(
-    'getWindowById',
-    yoBrowserPresenter.getWindowById(hostWindowId.value)
+  const status = await callPresenter<YoBrowserStatus>(
+    'getBrowserStatus',
+    yoBrowserPresenter.getBrowserStatus(sessionId)
   )
-  browserWindowId.value = browserWindow?.id ?? null
-  currentUrl.value = browserWindow?.page.url || 'about:blank'
+  if (sessionId !== currentSessionId.value) {
+    return
+  }
+
+  if (!status) {
+    resetBrowserState()
+    return
+  }
+
+  browserStatus.value = status
+  currentUrl.value = status.page?.url || 'about:blank'
   urlInput.value = currentUrl.value === 'about:blank' ? '' : currentUrl.value
-
-  if (browserWindowId.value == null) {
-    canGoBack.value = false
-    canGoForward.value = false
-    return
-  }
-
-  const navigationState = await callPresenter<{ canGoBack: boolean; canGoForward: boolean }>(
-    'getNavigationState',
-    yoBrowserPresenter.getNavigationState(browserWindowId.value)
-  )
-  canGoBack.value = Boolean(navigationState?.canGoBack)
-  canGoForward.value = Boolean(navigationState?.canGoForward)
+  canGoBack.value = status.canGoBack
+  canGoForward.value = status.canGoForward
 }
 
 const syncVisibleBounds = async () => {
-  if (hostWindowId.value == null || browserWindowId.value == null || !isBrowserPanelVisible.value) {
+  if (
+    hostWindowId.value == null ||
+    !currentSessionId.value ||
+    !browserStatus.value.initialized ||
+    !isBrowserPanelVisible.value
+  ) {
     return
   }
 
@@ -226,15 +254,20 @@ const syncVisibleBounds = async () => {
 
   lastSyncedBounds.value = rect
   await callPresenter(
-    'updateEmbeddedBounds',
-    yoBrowserPresenter.updateEmbeddedBounds(hostWindowId.value, rect, true)
+    'updateSessionBrowserBounds',
+    yoBrowserPresenter.updateSessionBrowserBounds(
+      currentSessionId.value,
+      hostWindowId.value,
+      rect,
+      true
+    )
   )
 }
 
-const hideEmbedded = async () => {
+const hideEmbedded = async (sessionId: string = currentSessionId.value) => {
   visibilityRunId += 1
 
-  if (hostWindowId.value == null || browserWindowId.value == null) {
+  if (!sessionId) {
     return
   }
 
@@ -246,15 +279,27 @@ const hideEmbedded = async () => {
       height: 0
     }
 
-  await callPresenter(
-    'updateEmbeddedBounds(hidden)',
-    yoBrowserPresenter.updateEmbeddedBounds(hostWindowId.value, hiddenBounds, false)
-  )
-  await callPresenter('detachEmbedded', yoBrowserPresenter.detachEmbedded())
+  if (hostWindowId.value != null) {
+    await callPresenter(
+      'updateSessionBrowserBounds(hidden)',
+      yoBrowserPresenter.updateSessionBrowserBounds(
+        sessionId,
+        hostWindowId.value,
+        hiddenBounds,
+        false
+      )
+    )
+  }
+  await callPresenter('detachSessionBrowser', yoBrowserPresenter.detachSessionBrowser(sessionId))
 }
 
 const ensureVisibleAttachment = async () => {
-  if (hostWindowId.value == null || !isBrowserPanelVisible.value) {
+  if (
+    hostWindowId.value == null ||
+    !currentSessionId.value ||
+    !browserStatus.value.initialized ||
+    !isBrowserPanelVisible.value
+  ) {
     return
   }
 
@@ -271,41 +316,51 @@ const ensureVisibleAttachment = async () => {
     return
   }
 
-  const attachedWindowId = await callPresenter<number>(
-    'attachEmbeddedToWindow',
-    yoBrowserPresenter.attachEmbeddedToWindow(hostWindowId.value)
+  const attached = await callPresenter<boolean>(
+    'attachSessionBrowser',
+    yoBrowserPresenter.attachSessionBrowser(currentSessionId.value, hostWindowId.value)
   )
-  if (attachedWindowId == null || runId !== visibilityRunId) {
+  if (!attached || runId !== visibilityRunId) {
     return
   }
 
-  browserWindowId.value = attachedWindowId
   lastSyncedBounds.value = stableRect
   await callPresenter(
-    'updateEmbeddedBounds(visible)',
-    yoBrowserPresenter.updateEmbeddedBounds(hostWindowId.value, stableRect, true)
+    'updateSessionBrowserBounds(visible)',
+    yoBrowserPresenter.updateSessionBrowserBounds(
+      currentSessionId.value,
+      hostWindowId.value,
+      stableRect,
+      true
+    )
   )
-  await loadState()
+  await loadState(currentSessionId.value)
 }
 
 const handleBrowserEvent = async (_event: unknown, payload: unknown) => {
-  if (!isBrowserPanelVisible.value || !isCurrentHostWindow(resolveWindowId(payload))) {
+  if (resolvePayloadSessionId(payload) !== currentSessionId.value) {
     return
   }
 
-  await loadState()
+  await loadState(currentSessionId.value)
 }
 
 const handleOpenRequested = async (_event: unknown, payload: unknown) => {
-  if (!isCurrentHostWindow(resolveWindowId(payload)) || !isBrowserPanelVisible.value) {
+  if (
+    resolvePayloadSessionId(payload) !== currentSessionId.value ||
+    hostWindowId.value == null ||
+    resolvePayloadWindowId(payload) !== hostWindowId.value
+  ) {
     return
   }
 
   console.info('[BrowserPanel] panel open requested', {
     windowId: hostWindowId.value
   })
-  await loadState()
-  await ensureVisibleAttachment()
+  await loadState(currentSessionId.value)
+  if (isBrowserPanelVisible.value) {
+    await ensureVisibleAttachment()
+  }
 }
 
 const normalizeUrl = (value: string) => {
@@ -320,7 +375,7 @@ const normalizeUrl = (value: string) => {
 }
 
 const navigate = async () => {
-  if (hostWindowId.value == null) {
+  if (!currentSessionId.value) {
     return
   }
 
@@ -329,75 +384,97 @@ const navigate = async () => {
     return
   }
 
-  if (browserWindowId.value == null) {
-    await ensureVisibleAttachment()
-  }
-
-  if (browserWindowId.value == null) {
-    return
-  }
-
-  const result = await callPresenter<void>(
-    'navigateWindow',
-    yoBrowserPresenter.navigateWindow(browserWindowId.value, nextUrl)
+  const result = await callPresenter<YoBrowserStatus>(
+    'loadUrl',
+    yoBrowserPresenter.loadUrl(currentSessionId.value, nextUrl)
   )
   if (result === null) {
     return
   }
 
-  await loadState()
+  browserStatus.value = result
+  await loadState(currentSessionId.value)
 }
 
 const goBack = async () => {
-  if (browserWindowId.value == null) {
+  if (!currentSessionId.value || !browserStatus.value.initialized) {
     return
   }
 
   const result = await callPresenter<void>(
     'goBack',
-    yoBrowserPresenter.goBack(browserWindowId.value)
+    yoBrowserPresenter.goBack(currentSessionId.value)
   )
   if (result === null) {
     return
   }
 
-  await loadState()
+  await loadState(currentSessionId.value)
 }
 
 const goForward = async () => {
-  if (browserWindowId.value == null) {
+  if (!currentSessionId.value || !browserStatus.value.initialized) {
     return
   }
 
   const result = await callPresenter<void>(
     'goForward',
-    yoBrowserPresenter.goForward(browserWindowId.value)
+    yoBrowserPresenter.goForward(currentSessionId.value)
   )
   if (result === null) {
     return
   }
 
-  await loadState()
+  await loadState(currentSessionId.value)
 }
 
 const reloadPage = async () => {
-  if (browserWindowId.value == null) {
+  if (!currentSessionId.value || !browserStatus.value.initialized) {
     return
   }
 
   const result = await callPresenter<void>(
     'reload',
-    yoBrowserPresenter.reload(browserWindowId.value)
+    yoBrowserPresenter.reload(currentSessionId.value)
   )
   if (result === null) {
     return
   }
 
-  await loadState()
+  await loadState(currentSessionId.value)
+}
+
+const cleanupInactiveSession = async (sessionId: string) => {
+  if (!sessionId) {
+    return
+  }
+
+  await hideEmbedded(sessionId)
+  if (getSessionUiStatus(sessionId) === 'working') {
+    pendingBrowserDestroySessionIds.add(sessionId)
+    return
+  }
+
+  pendingBrowserDestroySessionIds.delete(sessionId)
+  await callPresenter('destroySessionBrowser', yoBrowserPresenter.destroySessionBrowser(sessionId))
+}
+
+const flushPendingSessionDestroys = async () => {
+  for (const sessionId of Array.from(pendingBrowserDestroySessionIds)) {
+    if (getSessionUiStatus(sessionId) === 'working') {
+      continue
+    }
+
+    pendingBrowserDestroySessionIds.delete(sessionId)
+    await callPresenter(
+      'destroySessionBrowser',
+      yoBrowserPresenter.destroySessionBrowser(sessionId)
+    )
+  }
 }
 
 useResizeObserver(containerRef, () => {
-  if (!isBrowserPanelVisible.value || browserWindowId.value == null) {
+  if (!isBrowserPanelVisible.value || !browserStatus.value.initialized) {
     return
   }
 
@@ -406,13 +483,43 @@ useResizeObserver(containerRef, () => {
 
 watch(isBrowserPanelVisible, (visible) => {
   if (visible) {
-    void loadState()
+    void loadState(currentSessionId.value)
     void ensureVisibleAttachment()
     return
   }
 
-  void hideEmbedded()
+  void hideEmbedded(currentSessionId.value)
 })
+
+watch(
+  () => props.sessionId,
+  (nextSessionId, previousSessionId) => {
+    if (previousSessionId && previousSessionId !== nextSessionId) {
+      void cleanupInactiveSession(previousSessionId)
+    }
+
+    if (!nextSessionId) {
+      resetBrowserState()
+      return
+    }
+
+    void loadState(nextSessionId)
+    if (isBrowserPanelVisible.value) {
+      void ensureVisibleAttachment()
+    }
+  },
+  { immediate: true }
+)
+
+watch(
+  () => sessionStore.sessions.map((session) => `${session.id}:${session.status}`).join('|'),
+  () => {
+    void flushPendingSessionDestroys()
+    if (currentSessionId.value) {
+      void loadState(currentSessionId.value)
+    }
+  }
+)
 
 onMounted(async () => {
   hostWindowId.value = window.api.getWindowId?.() ?? null
@@ -423,14 +530,16 @@ onMounted(async () => {
   window.electron.ipcRenderer.on(YO_BROWSER_EVENTS.WINDOW_FOCUSED, handleBrowserEvent)
   window.electron.ipcRenderer.on(YO_BROWSER_EVENTS.WINDOW_VISIBILITY_CHANGED, handleBrowserEvent)
 
-  await loadState()
+  if (currentSessionId.value) {
+    await loadState(currentSessionId.value)
+  }
   if (isBrowserPanelVisible.value) {
     await ensureVisibleAttachment()
   }
 })
 
 onBeforeUnmount(() => {
-  void hideEmbedded()
+  void hideEmbedded(currentSessionId.value)
   window.electron.ipcRenderer.removeListener(YO_BROWSER_EVENTS.OPEN_REQUESTED, handleOpenRequested)
   window.electron.ipcRenderer.removeListener(YO_BROWSER_EVENTS.WINDOW_CREATED, handleBrowserEvent)
   window.electron.ipcRenderer.removeListener(YO_BROWSER_EVENTS.WINDOW_UPDATED, handleBrowserEvent)

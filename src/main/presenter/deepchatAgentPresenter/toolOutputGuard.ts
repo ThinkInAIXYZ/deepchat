@@ -8,7 +8,7 @@ import { estimateMessagesTokens } from './contextBuilder'
 
 const TOOL_OUTPUT_OFFLOAD_THRESHOLD = 5000
 const TOOL_OUTPUT_PREVIEW_LENGTH = 1024
-const TOOLS_REQUIRING_OFFLOAD = new Set(['exec', 'ls', 'find', 'grep'])
+const TOOLS_REQUIRING_OFFLOAD = new Set(['exec', 'ls', 'find', 'grep', 'cdp_send'])
 
 type ToolMessageUpdateMode = 'append' | 'replace'
 
@@ -208,7 +208,7 @@ export class ToolOutputGuard {
   }
 
   private requiresOffload(toolName: string): boolean {
-    return TOOLS_REQUIRING_OFFLOAD.has(toolName) || toolName.startsWith('yo_browser_')
+    return TOOLS_REQUIRING_OFFLOAD.has(toolName)
   }
 
   private withToolMessage(

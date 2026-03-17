@@ -1,64 +1,66 @@
-# YoBrowser Optimization（UI + CDP 工具）
+# YoBrowser Session 单实例收敛
 
 ## 背景
 
-当前 YoBrowser 在 Workspace 侧边栏存在 UI 问题：
-- `src/renderer/src/components/workspace/WorkspaceView.vue` 在 `agent` 模式下总会渲染 `WorkspaceBrowserTabs` 分区，即便没有任何 tab，也会出现一块空区域。
+当前 YoBrowser 还保留了多 window / 多 tab 的旧抽象，但实际运行时已经收敛为单个 sidepanel browser host。继续暴露 `open / close / focus / list`、windowId、tabId 等接口，只会增加状态分叉和错误恢复成本。
 
-## 目标（Goals）
+同时，session 切换后 browser 的回收策略需要和会话状态对齐：如果旧 session 仍在 `working`，切走时只能先 detach，不能立刻销毁，否则会打断本轮工具调用。
 
-1. **UI**：只有存在 YoBrowser tabs 时，Workspace 侧边栏才显示 Browser Tabs 分区。
-2. **Agent 工具直接注入**：YoBrowser 工具（`yo_browser_*`）在 agent 模式下直接可用，无需激活任何 skill。
+## 目标
 
-## 非目标（Non-Goals）
+1. 每个 session 最多持有一个 YoBrowser `webContents`。
+2. agent 仅暴露 3 个裸工具名：`load_url`、`get_browser_status`、`cdp_send`。
+3. `load_url` 首次调用时懒创建 browser，并自动完成 sidepanel attach 流程。
+4. session 切换时按会话状态销毁：
+   - 非 `working`：立即 detach 并销毁。
+   - `working`：先 detach，待状态结束后再销毁。
+5. 下线旧独立 browser shell，只保留聊天右侧 sidepanel 的 YoBrowser。
 
-- 不调整 YoBrowser window 的 UI、尺寸、布局、位置策略。
-- 不修改 `BrowserContextBuilder.buildSystemPrompt` 的注入策略（不做减少/压缩/裁剪）。
-- 不改造其他 agent 工具（filesystem/bash/mcp 等）。
-- 不使用 skills 系统来控制 YoBrowser 工具的可见性。
+## 非目标
 
-## 用户故事（User Stories）
+- 不扩成通用多窗口 browser 系统。
+- 不保留旧 `yo_browser_*` 别名兼容。
+- 不让 `cdp_send` 自动创建 browser；必须先 `load_url`。
+- 不额外重构通用 window presenter 架构。
 
-- 作为用户，我不希望在没有任何浏览器 tab 的情况下，Workspace 侧边栏仍出现空的 Browser Tabs 分区。
-- 作为 agent 用户，我希望 YoBrowser 自动化能力以 CDP 为核心，工具在 agent 模式下直接可用。
+## 用户故事
 
-## 约束与假设（Constraints & Assumptions）
+- 作为 agent 用户，我希望 browser 工具是直接、稳定、少状态的，不需要理解 window/tab 多实体模型。
+- 作为使用多会话的用户，我希望切换 session 时前一个 session 的 browser 不串到当前会话。
+- 作为正在执行 browser 工具的用户，我希望切走会话不会打断仍在运行中的 browser 操作。
 
-- YoBrowser 现有实现已经基于 Electron Debugger/CDP（`CDPManager`, `BrowserTab.ensureSession()`）。
-- 安全边界：`local://` URL 禁止绑定 CDP（`BrowserTab` 现有逻辑已做限制）。
+## 约束与假设
 
-## 验收标准（Acceptance Criteria）
+- “正在 loading” 统一按当前 session 状态 `working` 处理。
+- 一个 session 同时只允许一个 sidepanel browser 实例。
+- `cdp_send` 永远绑定当前 tool call 的 `conversationId`。
+- `load_url`、`get_browser_status`、`cdp_send` 视为内建保留工具名，MCP 不得覆盖。
 
-### A. UI：Workspace Browser Tabs 展示逻辑
+## 验收标准
 
-- [ ] `src/renderer/src/components/workspace/WorkspaceView.vue` 仅在 `chatMode === 'agent' && yoBrowserStore.tabCount > 0` 时渲染 `WorkspaceBrowserTabs`。
-- [ ] 当 `tabCount === 0` 时，不显示 Browser Tabs 分区（不保留空白区域）。
+### A. 工具面
 
-### B. 工具：YoBrowser CDP 工具直接注入（agent 模式）
+- [ ] agent tool definitions 仅包含 `load_url`、`get_browser_status`、`cdp_send`。
+- [ ] 旧 `yo_browser_*` 名称调用时返回 unknown tool。
+- [ ] `cdp_send` 若 session browser 尚未初始化，返回明确错误，要求先 `load_url`。
 
-- [ ] agent tool definitions 中包含 `yo_browser_*` 工具（agent 模式下直接可用）。
-- [ ] agent 的 tool call 路由正确处理 `yo_browser_*` 工具（`toolName.startsWith('yo_browser_')`）。
-- [ ] 不依赖 skills 系统（不检查 `activeSkills`）。
+### B. Session 生命周期
 
-### C. 工具实现：CDP 方式 + 合适的参数定义
+- [ ] `load_url` 首次调用时才创建对应 session 的 browser。
+- [ ] 不同 session 持有各自独立 browser state，不共享 page / visibility / attach 状态。
+- [ ] session 切换时，旧 session 若非 `working`，立即 destroy。
+- [ ] session 切换时，旧 session 若为 `working`，仅 detach；该 session 结束后再 destroy。
 
-- [ ] 工具集合：
-  - `yo_browser_tab_list`：列出 tabs 与 active tab。
-  - `yo_browser_tab_new`：创建新 tab（可选 url）。
-  - `yo_browser_tab_activate`：激活 tab。
-  - `yo_browser_tab_close`：关闭 tab。
-  - `yo_browser_cdp_send`：向指定/当前 tab 的 CDP session 发送 `{ method, params }`。
-- [ ] 参数 schema 符合 CDP 使用方式（method、params 等）。
-- [ ] 保留安全边界：`local://` 禁止 CDP attach。
+### C. UI 与事件
 
-### D. Prompt/Context
+- [ ] Renderer 仅响应当前 `sessionId` 的 YoBrowser 事件。
+- [ ] 切换 session 后，browser panel 不显示前一个 session 的状态。
+- [ ] 旧独立 browser shell 入口不再可用。
 
-- [ ] `BrowserContextBuilder.buildSystemPrompt` 的注入保持现状（不做减少/压缩/裁剪）。
+### D. 文档与接口
 
-### E. 兼容性
-
-- [ ] 不涉及数据迁移。
-- [ ] 现有 YoBrowser UI/窗口/Tab 生命周期保持可用。
+- [ ] `IYoBrowserPresenter` 与共享类型收敛到 session-aware 单实例接口。
+- [ ] 架构文档与本 spec 使用新工具名与新生命周期语义。
 
 ## Open Questions
 
