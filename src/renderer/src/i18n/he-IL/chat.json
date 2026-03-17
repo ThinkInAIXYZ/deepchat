@@ -230,5 +230,18 @@
     "groupByProject": "קבץ לפי פרויקט",
     "emptyTitle": "עדיין אין שיחות",
     "emptyDescription": "התחילו שיחה חדשה כדי להתחיל"
+  },
+  "floatingWidget": {
+    "title": "DeepChat",
+    "collapse": "כווץ את הסשנים הצפים",
+    "empty": "עדיין אין סשנים של DeepChat",
+    "executing": "פעיל",
+    "sessionCount": "{count} סשנים",
+    "untitled": "צ'אט חדש",
+    "status": {
+      "inProgress": "בתהליך",
+      "done": "הושלם",
+      "error": "שגיאה"
+    }
   }
 }

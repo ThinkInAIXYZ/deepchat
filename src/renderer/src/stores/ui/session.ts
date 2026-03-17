@@ -396,6 +396,7 @@ export const useSessionStore = defineStore('session', () => {
           messageStore.clearStreamingState()
         }
         activeSessionId.value = msg.sessionId
+        pageRouter.goToChat(msg.sessionId)
         void tabPresenter.onRendererTabActivated(msg.sessionId)
       }
     }

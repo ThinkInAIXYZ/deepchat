@@ -230,5 +230,18 @@
     "groupByProject": "プロジェクトでグループ化",
     "emptyTitle": "まだ会話がありません",
     "emptyDescription": "新しいチャットを始めましょう"
+  },
+  "floatingWidget": {
+    "title": "DeepChat",
+    "collapse": "フローティングセッションを折りたたむ",
+    "empty": "DeepChat セッションはまだありません",
+    "executing": "アクティブ",
+    "sessionCount": "{count}件のセッション",
+    "untitled": "新しいチャット",
+    "status": {
+      "inProgress": "進行中",
+      "done": "完了",
+      "error": "エラー"
+    }
   }
 }

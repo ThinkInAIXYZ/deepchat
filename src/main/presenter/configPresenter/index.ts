@@ -763,6 +763,12 @@ export class ConfigPresenter implements IConfigPresenter {
     this.setSetting('language', language)
     // Trigger language change event (need to notify all tabs)
     eventBus.sendToRenderer(CONFIG_EVENTS.LANGUAGE_CHANGED, SendTarget.ALL_WINDOWS, language)
+
+    try {
+      presenter.floatingButtonPresenter.refreshLanguage()
+    } catch (error) {
+      console.error('Failed to refresh floating widget language:', error)
+    }
   }
 
   // Get system language and match supported language list
@@ -1476,6 +1482,12 @@ export class ConfigPresenter implements IConfigPresenter {
       // 只有当主题设置为 system 时，才需要通知渲染进程系统主题变化
       if (nativeTheme.themeSource === 'system') {
         eventBus.sendToMain(SYSTEM_EVENTS.SYSTEM_THEME_UPDATED, nativeTheme.shouldUseDarkColors)
+
+        try {
+          void presenter.floatingButtonPresenter.refreshTheme()
+        } catch (error) {
+          console.error('Failed to refresh floating widget theme:', error)
+        }
       }
     })
   }
@@ -1485,6 +1497,13 @@ export class ConfigPresenter implements IConfigPresenter {
     this.setSetting('appTheme', theme)
     // 通知所有窗口主题已更改
     eventBus.sendToRenderer(CONFIG_EVENTS.THEME_CHANGED, SendTarget.ALL_WINDOWS, theme)
+
+    try {
+      void presenter.floatingButtonPresenter.refreshTheme()
+    } catch (error) {
+      console.error('Failed to refresh floating widget theme:', error)
+    }
+
     return nativeTheme.shouldUseDarkColors
   }
 

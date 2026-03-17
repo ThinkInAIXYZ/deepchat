@@ -230,5 +230,18 @@
     "groupByProject": "Agrupar por projeto",
     "emptyTitle": "Ainda não há conversas",
     "emptyDescription": "Inicie um novo chat para começar"
+  },
+  "floatingWidget": {
+    "title": "DeepChat",
+    "collapse": "Recolher sessões flutuantes",
+    "empty": "Ainda não há sessões do DeepChat",
+    "executing": "ativo",
+    "sessionCount": "{count} sessões",
+    "untitled": "Novo chat",
+    "status": {
+      "inProgress": "Em andamento",
+      "done": "Concluído",
+      "error": "Erro"
+    }
   }
 }

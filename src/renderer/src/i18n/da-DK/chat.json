@@ -230,5 +230,18 @@
     "groupByProject": "Gruppér efter projekt",
     "emptyTitle": "Ingen samtaler endnu",
     "emptyDescription": "Start en ny samtale for at komme i gang"
+  },
+  "floatingWidget": {
+    "title": "DeepChat",
+    "collapse": "Skjul flydende sessioner",
+    "empty": "Ingen DeepChat-sessioner endnu",
+    "executing": "aktiv",
+    "sessionCount": "{count} sessioner",
+    "untitled": "Ny chat",
+    "status": {
+      "inProgress": "I gang",
+      "done": "Færdig",
+      "error": "Fejl"
+    }
   }
 }

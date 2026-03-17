@@ -1,1 +1,1 @@
-export const FLOATING_BUTTON_AVAILABLE = false
+export const FLOATING_BUTTON_AVAILABLE = true

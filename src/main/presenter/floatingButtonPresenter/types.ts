@@ -52,5 +52,5 @@ export const DEFAULT_FLOATING_BUTTON_CONFIG: FloatingButtonConfig = {
     height: 60
   },
   alwaysOnTop: true,
-  opacity: 0.8
+  opacity: 1
 }
