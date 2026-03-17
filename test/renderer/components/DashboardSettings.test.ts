@@ -90,6 +90,12 @@ async function setup(data: UsageDashboardData) {
         if (key === 'settings.dashboard.breakdown.messages') {
           return `${params?.count ?? 0} messages`
         }
+        if (key === 'settings.dashboard.summary.inputTokensLabel') {
+          return 'Input'
+        }
+        if (key === 'settings.dashboard.summary.outputTokensLabel') {
+          return 'Output'
+        }
         if (key === 'settings.dashboard.summary.withDeepChatDaysLabel') {
           return 'Days together'
         }
@@ -192,8 +198,21 @@ describe('DashboardSettings', () => {
     expect(wrapper.text()).toContain('OpenAI')
     expect(wrapper.text()).toContain('GPT-4o')
     expect(wrapper.text()).toContain('1.2k')
+    expect(wrapper.text()).toContain('Input')
+    expect(wrapper.text()).toContain('Output')
+    expect(wrapper.text()).toContain('66.7%')
+    expect(wrapper.text()).toContain('33.3%')
+    expect(wrapper.text()).not.toContain('Shows the composition of input and output tokens.')
     expect(wrapper.text()).toContain('You are on day 17 with DeepChat.')
     expect(wrapper.text()).not.toContain('settings.dashboard.summary.cacheHitRate')
+    expect(wrapper.find('[data-testid="summary-card-totalTokens"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="total-tokens-donut"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="summary-card-totalTokens"]').html()).toContain(
+      'whitespace-normal'
+    )
+    expect(wrapper.find('[data-testid="summary-card-totalTokens"]').html()).not.toContain(
+      'truncate'
+    )
     expect(wrapper.find('[data-testid="provider-breakdown-scroll"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="model-breakdown-scroll"]').exists()).toBe(true)
     expect(wrapper.find('[title="1,200"]').exists()).toBe(true)
@@ -201,6 +220,26 @@ describe('DashboardSettings', () => {
     expect(wrapper.find('[data-testid="summary-card-withDeepChatDays"]').html()).toContain(
       'whitespace-normal'
     )
+  })
+
+  it('renders an empty donut with 0% ratios when total tokens are zero', async () => {
+    const { wrapper } = await setup(
+      buildDashboard({
+        summary: {
+          messageCount: 1,
+          inputTokens: 0,
+          outputTokens: 0,
+          totalTokens: 0,
+          cachedInputTokens: 0,
+          cacheHitRate: 0,
+          estimatedCostUsd: null
+        }
+      })
+    )
+
+    expect(wrapper.find('[data-testid="summary-card-totalTokens"]').text()).toContain('0')
+    expect(wrapper.find('[data-testid="total-tokens-input-ratio"]').text()).toBe('0%')
+    expect(wrapper.find('[data-testid="total-tokens-output-ratio"]').text()).toBe('0%')
   })
 
   it('renders N/A for days together when the first usage record is unavailable', async () => {

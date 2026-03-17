@@ -214,7 +214,9 @@
     },
     "summary": {
       "totalTokens": "Total tokens",
-      "totalTokensDescription": "All recorded tokens consumed by assistant messages.",
+      "totalTokensDescription": "총 token 중 입력과 출력 token의 비율을 보여줘요.",
+      "inputTokensLabel": "입력",
+      "outputTokensLabel": "출력",
       "cachedTokens": "Cached tokens",
       "cachedTokensDescription": "Prompt tokens served from provider cache.",
       "cacheHitRate": "Cache hit rate",

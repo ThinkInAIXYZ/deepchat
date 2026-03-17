@@ -1,7 +1,9 @@
 <template>
   <ScrollArea class="w-full h-full">
     <div class="mx-auto flex w-full max-w-7xl flex-col gap-6 p-4">
-      <section class="dashboard-hero rounded-3xl border border-border/70 p-5 shadow-sm">
+      <section
+        class="rounded-3xl border border-border/70 bg-card/90 p-5 shadow-sm backdrop-blur-sm"
+      >
         <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div class="space-y-2">
             <Badge variant="secondary" class="w-fit">
@@ -86,6 +88,127 @@
 
       <template v-else-if="dashboard">
         <section v-if="hasData" class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <Card
+            v-if="totalTokensCard"
+            data-testid="summary-card-totalTokens"
+            class="overflow-hidden border-border/70 bg-card/90 backdrop-blur-sm"
+          >
+            <CardHeader class="space-y-2 pb-3">
+              <CardDescription>{{ t('settings.dashboard.summary.totalTokens') }}</CardDescription>
+            </CardHeader>
+            <CardContent class="pt-0">
+              <div class="flex flex-col items-center gap-5">
+                <div class="relative flex h-32 w-32 shrink-0 items-center justify-center">
+                  <svg
+                    viewBox="0 0 120 120"
+                    class="h-full w-full -rotate-90"
+                    data-testid="total-tokens-donut"
+                  >
+                    <circle
+                      cx="60"
+                      cy="60"
+                      :r="TOKEN_DONUT_RADIUS"
+                      fill="none"
+                      stroke="hsl(var(--muted))"
+                      stroke-linecap="round"
+                      :stroke-width="TOKEN_DONUT_STROKE"
+                    />
+                    <circle
+                      cx="60"
+                      cy="60"
+                      :r="TOKEN_DONUT_RADIUS"
+                      fill="none"
+                      stroke="hsl(var(--usage-low))"
+                      stroke-linecap="round"
+                      :stroke-width="TOKEN_DONUT_STROKE"
+                      :stroke-dasharray="`${totalTokensCard.inputLength} ${TOKEN_DONUT_CIRCUMFERENCE}`"
+                      stroke-dashoffset="0"
+                    />
+                    <circle
+                      cx="60"
+                      cy="60"
+                      :r="TOKEN_DONUT_RADIUS"
+                      fill="none"
+                      stroke="hsl(var(--usage-mid))"
+                      stroke-linecap="round"
+                      :stroke-width="TOKEN_DONUT_STROKE"
+                      :stroke-dasharray="`${totalTokensCard.outputLength} ${TOKEN_DONUT_CIRCUMFERENCE}`"
+                      :stroke-dashoffset="`${-totalTokensCard.inputLength}`"
+                    />
+                  </svg>
+                  <div
+                    class="pointer-events-none absolute inset-0 flex flex-col items-center justify-center"
+                  >
+                    <p
+                      class="text-2xl font-semibold tracking-tight"
+                      :title="formatFullTokens(totalTokensCard.totalTokens)"
+                    >
+                      {{ formatTokens(totalTokensCard.totalTokens) }}
+                    </p>
+                  </div>
+                </div>
+
+                <div class="w-full space-y-3">
+                  <div
+                    data-testid="total-tokens-input-row"
+                    class="flex items-start justify-between gap-4 rounded-lg px-1 py-1"
+                  >
+                    <div class="flex min-w-0 items-center gap-2">
+                      <span
+                        class="h-2.5 w-2.5 shrink-0 rounded-full bg-[hsl(var(--usage-low))]"
+                      ></span>
+                      <span class="whitespace-normal text-sm font-medium leading-5">
+                        {{ t('settings.dashboard.summary.inputTokensLabel') }}
+                      </span>
+                    </div>
+                    <div class="shrink-0 text-right">
+                      <p
+                        class="text-base font-semibold leading-none"
+                        :title="formatFullTokens(totalTokensCard.inputTokens)"
+                      >
+                        {{ formatTokens(totalTokensCard.inputTokens) }}
+                      </p>
+                      <p
+                        data-testid="total-tokens-input-ratio"
+                        class="mt-1 text-xs text-muted-foreground"
+                      >
+                        {{ formatPercent(totalTokensCard.inputRatio) }}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div
+                    data-testid="total-tokens-output-row"
+                    class="flex items-start justify-between gap-4 rounded-lg border-t border-border/50 px-1 pt-3"
+                  >
+                    <div class="flex min-w-0 items-center gap-2">
+                      <span
+                        class="h-2.5 w-2.5 shrink-0 rounded-full bg-[hsl(var(--usage-mid))]"
+                      ></span>
+                      <span class="whitespace-normal text-sm font-medium leading-5">
+                        {{ t('settings.dashboard.summary.outputTokensLabel') }}
+                      </span>
+                    </div>
+                    <div class="shrink-0 text-right">
+                      <p
+                        class="text-base font-semibold leading-none"
+                        :title="formatFullTokens(totalTokensCard.outputTokens)"
+                      >
+                        {{ formatTokens(totalTokensCard.outputTokens) }}
+                      </p>
+                      <p
+                        data-testid="total-tokens-output-ratio"
+                        class="mt-1 text-xs text-muted-foreground"
+                      >
+                        {{ formatPercent(totalTokensCard.outputRatio) }}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           <Card
             v-for="card in summaryCards"
             :key="card.key"
@@ -339,8 +462,36 @@ const errorMessage = ref('')
 const dashboard = ref<UsageDashboardData | null>(null)
 let refreshTimer: number | null = null
 const MS_PER_DAY = 24 * 60 * 60 * 1000
+const TOKEN_DONUT_RADIUS = 38
+const TOKEN_DONUT_STROKE = 10
+const TOKEN_DONUT_CIRCUMFERENCE = 2 * Math.PI * TOKEN_DONUT_RADIUS
 
 const hasData = computed(() => (dashboard.value?.summary.messageCount ?? 0) > 0)
+const totalTokensCard = computed(() => {
+  if (!dashboard.value) {
+    return null
+  }
+
+  const summary = dashboard.value.summary
+  const denominator = Math.max(summary.totalTokens, 1)
+  const inputRatio = Math.max(summary.inputTokens, 0) / denominator
+  const outputRatio = Math.max(summary.outputTokens, 0) / denominator
+  const inputLength = Math.min(TOKEN_DONUT_CIRCUMFERENCE, inputRatio * TOKEN_DONUT_CIRCUMFERENCE)
+  const outputLength = Math.min(
+    Math.max(0, TOKEN_DONUT_CIRCUMFERENCE - inputLength),
+    outputRatio * TOKEN_DONUT_CIRCUMFERENCE
+  )
+
+  return {
+    totalTokens: summary.totalTokens,
+    inputTokens: summary.inputTokens,
+    outputTokens: summary.outputTokens,
+    inputRatio,
+    outputRatio,
+    inputLength,
+    outputLength
+  }
+})
 
 const summaryCards = computed(() => {
   if (!dashboard.value) {
@@ -349,13 +500,6 @@ const summaryCards = computed(() => {
 
   const summary = dashboard.value.summary
   return [
-    {
-      key: 'totalTokens',
-      label: t('settings.dashboard.summary.totalTokens'),
-      value: formatTokens(summary.totalTokens),
-      tooltip: formatFullTokens(summary.totalTokens),
-      description: t('settings.dashboard.summary.totalTokensDescription')
-    },
     {
       key: 'cachedTokens',
       label: t('settings.dashboard.summary.cachedTokens'),
@@ -536,6 +680,13 @@ function formatFullTokens(value: number): string {
   return new Intl.NumberFormat(locale.value).format(value)
 }
 
+function formatPercent(value: number): string {
+  return new Intl.NumberFormat(locale.value, {
+    style: 'percent',
+    maximumFractionDigits: 1
+  }).format(value)
+}
+
 function formatCurrency(value: number | null): string {
   if (value === null || Number.isNaN(value)) {
     return t('settings.dashboard.unavailable')
@@ -609,12 +760,6 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.dashboard-hero {
-  background:
-    radial-gradient(circle at top right, hsl(var(--usage-low) / 0.18), transparent 32%),
-    linear-gradient(135deg, var(--muted), transparent 55%), var(--card);
-}
-
 .calendar-cell {
   width: 12px;
   height: 12px;

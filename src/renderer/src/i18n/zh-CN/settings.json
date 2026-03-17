@@ -214,7 +214,9 @@
     },
     "summary": {
       "totalTokens": "总 Token",
-      "totalTokensDescription": "已记录 assistant 消息累计消耗的全部 token。",
+      "totalTokensDescription": "展示输入与输出 token 在总量中的占比。",
+      "inputTokensLabel": "输入",
+      "outputTokensLabel": "输出",
       "cachedTokens": "缓存 Token",
       "cachedTokensDescription": "由 provider 缓存命中的 prompt token。",
       "cacheHitRate": "缓存命中率",

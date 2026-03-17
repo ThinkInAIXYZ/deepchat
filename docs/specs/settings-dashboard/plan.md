@@ -36,6 +36,7 @@
 - Keep the visual language aligned with the current project theme.
 - Show loading, empty, running backfill, and failed backfill states.
 - Render four summary cards only; remove the cache hit rate card from the dashboard overview.
+- Replace the total-token number card with a renderer-only donut card that visualizes input/output ratio without adding chart dependencies.
 - Reuse `recordingStartedAt` to render a locale-specific "days with DeepChat" summary card in the renderer.
 - Keep provider/model ranking queries unchanged, but constrain the rendered lists with internal scrolling.
 - Translate changed dashboard copy per locale instead of falling back to English sentence structure.

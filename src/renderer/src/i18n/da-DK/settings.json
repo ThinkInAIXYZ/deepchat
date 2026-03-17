@@ -160,7 +160,9 @@
     },
     "summary": {
       "totalTokens": "Total tokens",
-      "totalTokensDescription": "All recorded tokens consumed by assistant messages.",
+      "totalTokensDescription": "Viser hvordan input- og outputtokens fordeler sig i det samlede forbrug.",
+      "inputTokensLabel": "Input",
+      "outputTokensLabel": "Output",
       "cachedTokens": "Cached tokens",
       "cachedTokensDescription": "Prompt tokens served from provider cache.",
       "cacheHitRate": "Cache hit rate",
