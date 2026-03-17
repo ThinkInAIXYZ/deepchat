@@ -19,6 +19,7 @@ import { DeepChatSessionsTable } from './tables/deepchatSessions'
 import { DeepChatMessagesTable } from './tables/deepchatMessages'
 import { DeepChatMessageTracesTable } from './tables/deepchatMessageTraces'
 import { DeepChatMessageSearchResultsTable } from './tables/deepchatMessageSearchResults'
+import { DeepChatUsageStatsTable } from './tables/deepchatUsageStats'
 import { LegacyImportStatusTable } from './tables/legacyImportStatus'
 
 /**
@@ -41,6 +42,7 @@ export class SQLitePresenter implements ISQLitePresenter {
   public deepchatMessagesTable!: DeepChatMessagesTable
   public deepchatMessageTracesTable!: DeepChatMessageTracesTable
   public deepchatMessageSearchResultsTable!: DeepChatMessageSearchResultsTable
+  public deepchatUsageStatsTable!: DeepChatUsageStatsTable
   public legacyImportStatusTable!: LegacyImportStatusTable
   private currentVersion: number = 0
   private dbPath: string
@@ -158,6 +160,7 @@ export class SQLitePresenter implements ISQLitePresenter {
     this.deepchatMessagesTable = new DeepChatMessagesTable(this.db)
     this.deepchatMessageTracesTable = new DeepChatMessageTracesTable(this.db)
     this.deepchatMessageSearchResultsTable = new DeepChatMessageSearchResultsTable(this.db)
+    this.deepchatUsageStatsTable = new DeepChatUsageStatsTable(this.db)
     this.legacyImportStatusTable = new LegacyImportStatusTable(this.db)
 
     // Create only active tables for the new stack.
@@ -168,6 +171,7 @@ export class SQLitePresenter implements ISQLitePresenter {
     this.deepchatMessagesTable.createTable()
     this.deepchatMessageTracesTable.createTable()
     this.deepchatMessageSearchResultsTable.createTable()
+    this.deepchatUsageStatsTable.createTable()
     this.legacyImportStatusTable.createTable()
   }
 
@@ -197,6 +201,7 @@ export class SQLitePresenter implements ISQLitePresenter {
       this.deepchatMessagesTable,
       this.deepchatMessageTracesTable,
       this.deepchatMessageSearchResultsTable,
+      this.deepchatUsageStatsTable,
       this.legacyImportStatusTable
     ]
 
@@ -283,6 +288,7 @@ export class SQLitePresenter implements ISQLitePresenter {
         DELETE FROM deepchat_message_search_results;
         DELETE FROM deepchat_message_traces;
         DELETE FROM deepchat_messages;
+        DELETE FROM deepchat_usage_stats;
         DELETE FROM deepchat_sessions;
         DELETE FROM new_sessions;
       `)

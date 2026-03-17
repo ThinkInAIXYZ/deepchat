@@ -172,7 +172,10 @@ describe('OpenAIResponsesProvider tool call id mapping', () => {
             usage: {
               input_tokens: 10,
               output_tokens: 5,
-              total_tokens: 15
+              total_tokens: 15,
+              input_tokens_details: {
+                cached_tokens: 4
+              }
             }
           }
         }
@@ -201,6 +204,7 @@ describe('OpenAIResponsesProvider tool call id mapping', () => {
     const startEvent = events.find((event) => event.type === 'tool_call_start')
     const chunkEvent = events.find((event) => event.type === 'tool_call_chunk')
     const endEvent = events.find((event) => event.type === 'tool_call_end')
+    const usageEvent = events.find((event) => event.type === 'usage')
     const stopEvent = events.find((event) => event.type === 'stop')
 
     expect(startEvent).toBeDefined()
@@ -211,6 +215,12 @@ describe('OpenAIResponsesProvider tool call id mapping', () => {
     expect(endEvent).toBeDefined()
     expect(endEvent?.tool_call_id).toBe('call_123')
     expect(endEvent?.tool_call_arguments_complete).toBe('{"city":"shanghai"}')
+    expect(usageEvent).toMatchObject({
+      type: 'usage',
+      usage: expect.objectContaining({
+        cached_tokens: 4
+      })
+    })
     expect(stopEvent?.stop_reason).toBe('tool_use')
     expect(mockMcpToolsToOpenAIResponsesTools).toHaveBeenCalledWith(tools, mockProvider.id)
   })

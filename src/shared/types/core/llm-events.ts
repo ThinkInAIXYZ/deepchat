@@ -57,6 +57,7 @@ export interface UsageStreamEvent {
     prompt_tokens: number
     completion_tokens: number
     total_tokens: number
+    cached_tokens?: number
   }
 }
 
@@ -134,6 +135,7 @@ export const createStreamEvent = {
     prompt_tokens: number
     completion_tokens: number
     total_tokens: number
+    cached_tokens?: number
   }): UsageStreamEvent => ({
     type: 'usage',
     usage

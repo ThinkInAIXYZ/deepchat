@@ -15,6 +15,16 @@ export interface DeepChatMessageRow {
   trace_count?: number
 }
 
+export interface DeepChatMessageUsageCandidateRow {
+  id: string
+  session_id: string
+  metadata: string
+  created_at: number
+  updated_at: number
+  provider_id: string | null
+  model_id: string | null
+}
+
 export class DeepChatMessagesTable extends BaseTable {
   constructor(db: Database.Database) {
     super(db, 'deepchat_messages')
@@ -182,6 +192,26 @@ export class DeepChatMessagesTable extends BaseTable {
       .prepare('SELECT MAX(order_seq) as max_seq FROM deepchat_messages WHERE session_id = ?')
       .get(sessionId) as { max_seq: number | null }
     return row.max_seq ?? 0
+  }
+
+  listAssistantUsageCandidates(): DeepChatMessageUsageCandidateRow[] {
+    return this.db
+      .prepare(
+        `SELECT
+          m.id,
+          m.session_id,
+          m.metadata,
+          m.created_at,
+          m.updated_at,
+          s.provider_id,
+          s.model_id
+        FROM deepchat_messages m
+        LEFT JOIN deepchat_sessions s
+          ON s.id = m.session_id
+        WHERE m.role = 'assistant'
+        ORDER BY m.created_at ASC`
+      )
+      .all() as DeepChatMessageUsageCandidateRow[]
   }
 
   getLastUserMessageBeforeOrAtOrderSeq(

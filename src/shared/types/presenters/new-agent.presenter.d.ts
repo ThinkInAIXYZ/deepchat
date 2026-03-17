@@ -10,7 +10,8 @@ import type {
   LegacyImportStatus,
   SendMessageInput,
   ToolInteractionResponse,
-  ToolInteractionResult
+  ToolInteractionResult,
+  UsageDashboardData
 } from '../agent-interface'
 import type { SearchResult } from './thread.presenter'
 
@@ -81,4 +82,5 @@ export interface INewAgentPresenter {
     sessionId: string,
     settings: Partial<SessionGenerationSettings>
   ): Promise<SessionGenerationSettings>
+  getUsageDashboard(): Promise<UsageDashboardData>
 }

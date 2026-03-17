@@ -66,6 +66,28 @@ const SUPPORTED_IMAGE_SIZES = {
 // Add list of models with configurable sizes
 const SIZE_CONFIGURABLE_MODELS = ['gpt-image-1', 'gpt-4o-image', 'gpt-4o-all']
 
+function getOpenAIChatCachedTokens(usage: unknown): number | undefined {
+  if (!usage || typeof usage !== 'object') {
+    return undefined
+  }
+
+  const promptTokensDetails = (usage as { prompt_tokens_details?: unknown }).prompt_tokens_details
+  const inputTokensDetails = (usage as { input_tokens_details?: unknown }).input_tokens_details
+  const promptCachedTokens =
+    promptTokensDetails && typeof promptTokensDetails === 'object'
+      ? (promptTokensDetails as { cached_tokens?: unknown }).cached_tokens
+      : undefined
+  const inputCachedTokens =
+    inputTokensDetails && typeof inputTokensDetails === 'object'
+      ? (inputTokensDetails as { cached_tokens?: unknown }).cached_tokens
+      : undefined
+  const cachedTokens =
+    typeof promptCachedTokens === 'number' ? promptCachedTokens : inputCachedTokens
+  return typeof cachedTokens === 'number' && Number.isFinite(cachedTokens)
+    ? cachedTokens
+    : undefined
+}
+
 export class OpenAICompatibleProvider extends BaseLLMProvider {
   protected openai!: OpenAI
   protected isNoModelsApi: boolean = false
@@ -976,7 +998,8 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
             yield createStreamEvent.usage({
               prompt_tokens: result.usage.input_tokens || 0,
               completion_tokens: result.usage.output_tokens || 0,
-              total_tokens: result.usage.total_tokens || 0
+              total_tokens: result.usage.total_tokens || 0,
+              cached_tokens: getOpenAIChatCachedTokens(result.usage)
             })
           }
 
@@ -1142,6 +1165,7 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
           prompt_tokens: number
           completion_tokens: number
           total_tokens: number
+          cached_tokens?: number
         }
       | undefined = undefined
 
@@ -1156,7 +1180,10 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
 
       // 1. 处理非内容事件 (如 usage, reasoning, tool_calls)
       if (chunk.usage) {
-        usage = chunk.usage
+        usage = {
+          ...chunk.usage,
+          cached_tokens: getOpenAIChatCachedTokens(chunk.usage)
+        }
       }
 
       // 原生 reasoning 内容处理（直接产出）

@@ -53,6 +53,16 @@ const router = createRouter({
       }
     },
     {
+      path: '/dashboard',
+      name: 'settings-dashboard',
+      component: () => import('./components/DashboardSettings.vue'),
+      meta: {
+        titleKey: 'routes.settings-dashboard',
+        icon: 'lucide:layout-dashboard',
+        position: 3.5
+      }
+    },
+    {
       path: '/mcp',
       name: 'settings-mcp',
       component: () => import('./components/McpSettings.vue'),

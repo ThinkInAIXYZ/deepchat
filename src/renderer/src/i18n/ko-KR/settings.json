@@ -186,6 +186,60 @@
       "title": "요브라우저 샌드박스"
     }
   },
+  "dashboard": {
+    "badge": "Usage Dashboard",
+    "title": "Usage Dashboard",
+    "description": "Track total tokens, cached tokens and estimated cost from a one-time historical backfill plus all new messages.",
+    "actions": {
+      "refresh": "Refresh"
+    },
+    "notes": {
+      "backfill": "Includes a one-time backfill from current messages.",
+      "cache": "Historical cache data is unavailable, so old records use 0 cached tokens."
+    },
+    "backfill": {
+      "runningTitle": "Initializing historical stats",
+      "runningDescription": "You can already view collected data while the remaining messages are being scanned.",
+      "failedTitle": "Historical stats initialization failed",
+      "failedDescription": "Please reopen this page or restart the app to retry."
+    },
+    "error": {
+      "title": "Failed to load dashboard",
+      "description": "Please try again later."
+    },
+    "empty": {
+      "title": "No usage stats yet",
+      "description": "History will be initialized once from current messages, and new usage will keep accumulating from now on.",
+      "historyNote": "Historical cache data is unavailable, so old records use 0 cached tokens."
+    },
+    "summary": {
+      "totalTokens": "Total tokens",
+      "totalTokensDescription": "All recorded tokens consumed by assistant messages.",
+      "cachedTokens": "Cached tokens",
+      "cachedTokensDescription": "Prompt tokens served from provider cache.",
+      "cacheHitRate": "Cache hit rate",
+      "cacheHitRateDescription": "Cached prompt tokens divided by total input tokens.",
+      "estimatedCost": "Estimated cost",
+      "estimatedCostDescription": "Estimated in USD using provider pricing or AIHubMix fallback pricing.",
+      "recordingStartedAt": "Recording started",
+      "recordingStartedAtDescription": "The earliest usage record currently stored in this dashboard."
+    },
+    "calendar": {
+      "title": "Contribution Calendar",
+      "description": "Daily token usage over the last 365 days.",
+      "legend": "Less to more",
+      "tooltip": "{date}: {tokens} tokens"
+    },
+    "breakdown": {
+      "providerTitle": "Provider Breakdown",
+      "providerDescription": "Ranked by estimated cost, then by total tokens.",
+      "modelTitle": "Model Breakdown",
+      "modelDescription": "Top 10 models by estimated cost, then by total tokens.",
+      "messages": "{count} messages",
+      "empty": "No breakdown data yet."
+    },
+    "unavailable": "N/A"
+  },
   "model": {
     "title": "모델 설정",
     "systemPrompt": {

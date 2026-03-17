@@ -15,7 +15,10 @@ import type {
   SessionCompactionState,
   SessionGenerationSettings,
   ToolInteractionResponse,
-  ToolInteractionResult
+  ToolInteractionResult,
+  UsageDashboardData,
+  UsageDashboardBreakdownItem,
+  UsageStatsBackfillStatus
 } from '@shared/types/agent-interface'
 import type { Message } from '@shared/chat'
 import type { SearchResult } from '@shared/types/core/search'
@@ -39,6 +42,18 @@ import {
   generateExportFilename,
   type ConversationExportFormat
 } from '../exporter/formats/conversationExporter'
+import {
+  DASHBOARD_STATS_BACKFILL_KEY,
+  buildUsageDashboardCalendar,
+  buildUsageStatsRecord,
+  getModelLabel,
+  getProviderLabel,
+  isUsageBackfillRunningStale,
+  normalizeUsageStatsBackfillStatus,
+  parseMessageMetadata as parseUsageMetadata,
+  resolveUsageModelId,
+  resolveUsageProviderId
+} from '../usageStats'
 
 export class NewAgentPresenter {
   private agentRegistry: AgentRegistry
@@ -49,6 +64,7 @@ export class NewAgentPresenter {
   private configPresenter: IConfigPresenter
   private legacyImportService: LegacyChatImportService
   private skillPresenter?: Pick<ISkillPresenter, 'setActiveSkills' | 'clearNewAgentSessionSkills'>
+  private usageStatsBackfillPromise: Promise<void> | null = null
 
   constructor(
     deepchatAgent: DeepChatAgentPresenter,
@@ -455,6 +471,87 @@ export class NewAgentPresenter {
 
   async startLegacyImport(): Promise<void> {
     this.legacyImportService.startInBackground(false)
+  }
+
+  async startUsageStatsBackfill(): Promise<void> {
+    const currentStatus = this.getUsageStatsBackfillStatus()
+    if (currentStatus.status === 'completed') {
+      return
+    }
+
+    if (currentStatus.status === 'running' && !isUsageBackfillRunningStale(currentStatus)) {
+      return
+    }
+
+    if (this.usageStatsBackfillPromise) {
+      return await this.usageStatsBackfillPromise
+    }
+
+    this.usageStatsBackfillPromise = this.runUsageStatsBackfill().finally(() => {
+      this.usageStatsBackfillPromise = null
+    })
+
+    return await this.usageStatsBackfillPromise
+  }
+
+  async getUsageDashboard(): Promise<UsageDashboardData> {
+    const backfillStatus = this.getUsageStatsBackfillStatus()
+    const usageStatsTable = this.sqlitePresenter.deepchatUsageStatsTable
+    const summaryRow = usageStatsTable.getSummary()
+    const recordingStartedAt = usageStatsTable.getRecordingStartedAt()
+    const cacheHitRate =
+      summaryRow.inputTokens > 0 ? summaryRow.cachedInputTokens / summaryRow.inputTokens : 0
+
+    const dateFrom = new Date()
+    dateFrom.setHours(0, 0, 0, 0)
+    dateFrom.setDate(dateFrom.getDate() - 364)
+
+    const calendar = buildUsageDashboardCalendar(
+      usageStatsTable.getDailyCalendarRows(this.toLocalDateKey(dateFrom.getTime()))
+    )
+
+    const providerBreakdown = this.sortUsageBreakdown(
+      usageStatsTable.getProviderBreakdownRows().map((row) => ({
+        id: row.id,
+        label: getProviderLabel(this.configPresenter, row.id),
+        messageCount: row.messageCount,
+        inputTokens: row.inputTokens,
+        outputTokens: row.outputTokens,
+        totalTokens: row.totalTokens,
+        cachedInputTokens: row.cachedInputTokens,
+        estimatedCostUsd: row.estimatedCostUsd
+      }))
+    )
+
+    const modelBreakdown = this.sortUsageBreakdown(
+      usageStatsTable.getModelBreakdownRows(10).map((row) => ({
+        id: row.id,
+        label: getModelLabel('', row.id),
+        messageCount: row.messageCount,
+        inputTokens: row.inputTokens,
+        outputTokens: row.outputTokens,
+        totalTokens: row.totalTokens,
+        cachedInputTokens: row.cachedInputTokens,
+        estimatedCostUsd: row.estimatedCostUsd
+      }))
+    )
+
+    return {
+      recordingStartedAt,
+      backfillStatus,
+      summary: {
+        messageCount: summaryRow.messageCount,
+        inputTokens: summaryRow.inputTokens,
+        outputTokens: summaryRow.outputTokens,
+        totalTokens: summaryRow.totalTokens,
+        cachedInputTokens: summaryRow.cachedInputTokens,
+        cacheHitRate,
+        estimatedCostUsd: summaryRow.estimatedCostUsd
+      },
+      calendar,
+      providerBreakdown,
+      modelBreakdown
+    }
   }
 
   async repairImportedLegacySessionSkills(sessionId: string): Promise<string[]> {
@@ -1205,6 +1302,7 @@ export class NewAgentPresenter {
     totalTokens?: number
     inputTokens?: number
     outputTokens?: number
+    cachedInputTokens?: number
     generationTime?: number
     firstTokenTime?: number
     tokensPerSecond?: number
@@ -1218,6 +1316,8 @@ export class NewAgentPresenter {
         totalTokens: typeof parsed.totalTokens === 'number' ? parsed.totalTokens : undefined,
         inputTokens: typeof parsed.inputTokens === 'number' ? parsed.inputTokens : undefined,
         outputTokens: typeof parsed.outputTokens === 'number' ? parsed.outputTokens : undefined,
+        cachedInputTokens:
+          typeof parsed.cachedInputTokens === 'number' ? parsed.cachedInputTokens : undefined,
         generationTime:
           typeof parsed.generationTime === 'number' ? parsed.generationTime : undefined,
         firstTokenTime:
@@ -1230,6 +1330,139 @@ export class NewAgentPresenter {
     } catch {
       return {}
     }
+  }
+
+  private async runUsageStatsBackfill(): Promise<void> {
+    const startedAt = Date.now()
+    this.setUsageStatsBackfillStatus({
+      status: 'running',
+      startedAt,
+      finishedAt: null,
+      error: null,
+      updatedAt: startedAt
+    })
+
+    try {
+      const usageStatsTable = this.sqlitePresenter.deepchatUsageStatsTable
+      const candidates = this.sqlitePresenter.deepchatMessagesTable.listAssistantUsageCandidates()
+
+      let processedCount = 0
+      for (const row of candidates) {
+        const metadata = parseUsageMetadata(row.metadata)
+        if (metadata.messageType === 'compaction') {
+          continue
+        }
+
+        const providerId = resolveUsageProviderId(metadata, row.provider_id)
+        const modelId = resolveUsageModelId(metadata, row.model_id)
+        if (!providerId || !modelId) {
+          continue
+        }
+
+        const usageRecord = buildUsageStatsRecord({
+          messageId: row.id,
+          sessionId: row.session_id,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+          providerId,
+          modelId,
+          metadata: {
+            ...metadata,
+            cachedInputTokens: 0
+          },
+          source: 'backfill'
+        })
+
+        if (!usageRecord) {
+          continue
+        }
+
+        usageStatsTable.upsert(usageRecord)
+        processedCount += 1
+
+        if (processedCount % 200 === 0) {
+          this.setUsageStatsBackfillStatus({
+            status: 'running',
+            startedAt,
+            finishedAt: null,
+            error: null,
+            updatedAt: Date.now()
+          })
+          await this.yieldToEventLoop()
+        }
+      }
+
+      this.setUsageStatsBackfillStatus({
+        status: 'completed',
+        startedAt,
+        finishedAt: Date.now(),
+        error: null,
+        updatedAt: Date.now()
+      })
+    } catch (error) {
+      this.setUsageStatsBackfillStatus({
+        status: 'failed',
+        startedAt,
+        finishedAt: Date.now(),
+        error: error instanceof Error ? error.message : String(error),
+        updatedAt: Date.now()
+      })
+      throw error
+    }
+  }
+
+  private getUsageStatsBackfillStatus(): UsageStatsBackfillStatus {
+    const normalized = this.normalizeUsageStatsBackfillStatus(
+      this.configPresenter.getSetting<UsageStatsBackfillStatus>(DASHBOARD_STATS_BACKFILL_KEY)
+    )
+    if (normalized.status === 'failed' && normalized.error === 'Usage stats backfill timed out') {
+      this.configPresenter.setSetting(DASHBOARD_STATS_BACKFILL_KEY, normalized)
+    }
+    return normalized
+  }
+
+  private setUsageStatsBackfillStatus(status: UsageStatsBackfillStatus): void {
+    this.configPresenter.setSetting(DASHBOARD_STATS_BACKFILL_KEY, status)
+  }
+
+  private normalizeUsageStatsBackfillStatus(status: unknown): UsageStatsBackfillStatus {
+    const normalized = normalizeUsageStatsBackfillStatus(status)
+    if (isUsageBackfillRunningStale(normalized)) {
+      return {
+        status: 'failed',
+        startedAt: normalized.startedAt,
+        finishedAt: normalized.finishedAt,
+        error: normalized.error ?? 'Usage stats backfill timed out',
+        updatedAt: Date.now()
+      }
+    }
+    return normalized
+  }
+
+  private sortUsageBreakdown(items: UsageDashboardBreakdownItem[]): UsageDashboardBreakdownItem[] {
+    return [...items].sort((left, right) => {
+      const leftCost = left.estimatedCostUsd ?? -1
+      const rightCost = right.estimatedCostUsd ?? -1
+      if (rightCost !== leftCost) {
+        return rightCost - leftCost
+      }
+      if (right.totalTokens !== left.totalTokens) {
+        return right.totalTokens - left.totalTokens
+      }
+      return left.label.localeCompare(right.label)
+    })
+  }
+
+  private toLocalDateKey(timestamp: number): string {
+    const date = new Date(timestamp)
+    const year = date.getFullYear()
+    const month = `${date.getMonth() + 1}`.padStart(2, '0')
+    const day = `${date.getDate()}`.padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+
+  private async yieldToEventLoop(): Promise<void> {
+    await new Promise<void>((resolve) => setTimeout(resolve, 0))
   }
 
   private buildTitleMessages(

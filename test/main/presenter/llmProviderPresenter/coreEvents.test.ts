@@ -63,7 +63,8 @@ describe('LLMCoreStreamEvent Factory Functions', () => {
       const usage = {
         prompt_tokens: 10,
         completion_tokens: 20,
-        total_tokens: 30
+        total_tokens: 30,
+        cached_tokens: 6
       }
       const event = createStreamEvent.usage(usage)
 

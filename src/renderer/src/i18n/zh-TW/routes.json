@@ -15,5 +15,6 @@
   "playground": "Playground 實驗室",
   "settings-acp": "ACP Agent",
   "settings-skills": "Skills設定",
-  "settings-notifications-hooks": "通知與 Hooks"
+  "settings-notifications-hooks": "通知與 Hooks",
+  "settings-dashboard": "資料看板"
 }

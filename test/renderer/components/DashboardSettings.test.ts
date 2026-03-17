@@ -1,0 +1,180 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { defineComponent, ref } from 'vue'
+import { flushPromises, mount } from '@vue/test-utils'
+import type { UsageDashboardData } from '@shared/types/agent-interface'
+
+const passthrough = (name: string) =>
+  defineComponent({
+    name,
+    template: '<div><slot /></div>'
+  })
+
+const buttonStub = defineComponent({
+  name: 'Button',
+  emits: ['click'],
+  template: '<button @click="$emit(\'click\')"><slot /></button>'
+})
+
+function buildDashboard(overrides: Partial<UsageDashboardData> = {}): UsageDashboardData {
+  return {
+    recordingStartedAt: Date.UTC(2026, 2, 1),
+    backfillStatus: {
+      status: 'completed',
+      startedAt: Date.UTC(2026, 2, 1),
+      finishedAt: Date.UTC(2026, 2, 1, 0, 0, 5),
+      error: null,
+      updatedAt: Date.UTC(2026, 2, 1, 0, 0, 5)
+    },
+    summary: {
+      messageCount: 2,
+      inputTokens: 800,
+      outputTokens: 400,
+      totalTokens: 1200,
+      cachedInputTokens: 200,
+      cacheHitRate: 0.25,
+      estimatedCostUsd: 0.0123
+    },
+    calendar: Array.from({ length: 28 }, (_, index) => ({
+      date: `2026-03-${`${index + 1}`.padStart(2, '0')}`,
+      messageCount: index % 4 === 0 ? 1 : 0,
+      inputTokens: index % 4 === 0 ? 40 : 0,
+      outputTokens: index % 4 === 0 ? 20 : 0,
+      totalTokens: index % 4 === 0 ? 60 : 0,
+      cachedInputTokens: index % 8 === 0 ? 10 : 0,
+      estimatedCostUsd: index % 4 === 0 ? 0.0006 : null,
+      level: index % 4 === 0 ? 3 : 0
+    })),
+    providerBreakdown: [
+      {
+        id: 'openai',
+        label: 'OpenAI',
+        messageCount: 2,
+        inputTokens: 800,
+        outputTokens: 400,
+        totalTokens: 1200,
+        cachedInputTokens: 200,
+        estimatedCostUsd: 0.0123
+      }
+    ],
+    modelBreakdown: [
+      {
+        id: 'gpt-4o',
+        label: 'GPT-4o',
+        messageCount: 2,
+        inputTokens: 800,
+        outputTokens: 400,
+        totalTokens: 1200,
+        cachedInputTokens: 200,
+        estimatedCostUsd: 0.0123
+      }
+    ],
+    ...overrides
+  }
+}
+
+async function setup(data: UsageDashboardData) {
+  vi.resetModules()
+  const getUsageDashboard = vi.fn().mockResolvedValue(data)
+
+  vi.doMock('@/composables/usePresenter', () => ({
+    usePresenter: () => ({
+      getUsageDashboard
+    })
+  }))
+
+  vi.doMock('vue-i18n', () => ({
+    useI18n: () => ({
+      locale: ref('en-US'),
+      t: (key: string, params?: Record<string, unknown>) => {
+        if (key === 'settings.dashboard.unavailable') return 'N/A'
+        if (key === 'settings.dashboard.breakdown.messages') {
+          return `${params?.count ?? 0} messages`
+        }
+        if (key === 'settings.dashboard.calendar.tooltip') {
+          return `${params?.date}: ${params?.tokens}`
+        }
+        return key
+      }
+    })
+  }))
+
+  const DashboardSettings = (
+    await import('../../../src/renderer/settings/components/DashboardSettings.vue')
+  ).default
+
+  const wrapper = mount(DashboardSettings, {
+    global: {
+      stubs: {
+        ScrollArea: passthrough('ScrollArea'),
+        Button: buttonStub,
+        Badge: passthrough('Badge'),
+        Card: passthrough('Card'),
+        CardContent: passthrough('CardContent'),
+        CardDescription: passthrough('CardDescription'),
+        CardHeader: passthrough('CardHeader'),
+        CardTitle: passthrough('CardTitle'),
+        Icon: defineComponent({ name: 'Icon', template: '<i />' })
+      }
+    }
+  })
+
+  await flushPromises()
+
+  return {
+    wrapper,
+    getUsageDashboard
+  }
+}
+
+describe('DashboardSettings', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('renders the empty state when no stats are available', async () => {
+    const { wrapper } = await setup(
+      buildDashboard({
+        summary: {
+          messageCount: 0,
+          inputTokens: 0,
+          outputTokens: 0,
+          totalTokens: 0,
+          cachedInputTokens: 0,
+          cacheHitRate: 0,
+          estimatedCostUsd: null
+        },
+        providerBreakdown: [],
+        modelBreakdown: []
+      })
+    )
+
+    expect(wrapper.find('[data-testid="dashboard-empty"]').exists()).toBe(true)
+  })
+
+  it('renders the backfill banner while historical stats are initializing', async () => {
+    const { wrapper } = await setup(
+      buildDashboard({
+        backfillStatus: {
+          status: 'running',
+          startedAt: Date.UTC(2026, 2, 1),
+          finishedAt: null,
+          error: null,
+          updatedAt: Date.UTC(2026, 2, 1, 0, 0, 5)
+        }
+      })
+    )
+
+    expect(wrapper.find('[data-testid="dashboard-backfill-banner"]').exists()).toBe(true)
+  })
+
+  it('renders summary cards and breakdown rows when stats exist', async () => {
+    const { wrapper, getUsageDashboard } = await setup(buildDashboard())
+
+    expect(getUsageDashboard).toHaveBeenCalledTimes(1)
+    expect(wrapper.text()).toContain('OpenAI')
+    expect(wrapper.text()).toContain('GPT-4o')
+    expect(wrapper.text()).toContain('1.2k')
+    expect(wrapper.find('[title="1,200"]').exists()).toBe(true)
+    expect(wrapper.findAll('[data-testid="calendar-cell"]').length).toBeGreaterThan(0)
+  })
+})

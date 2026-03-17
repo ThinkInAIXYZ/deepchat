@@ -186,6 +186,60 @@
       "title": "YoBrowser 沙盒"
     }
   },
+  "dashboard": {
+    "badge": "使用看板",
+    "title": "使用看板",
+    "description": "統計一次性歷史初始化和後續新消息的 token 消耗、緩存命中與估算價格。",
+    "actions": {
+      "refresh": "刷新"
+    },
+    "notes": {
+      "backfill": "包含一次性歷史初始化，來源僅限目前消息表。",
+      "cache": "歷史緩存命中資料不可得，因此舊記錄的緩存 token 固定為 0。"
+    },
+    "backfill": {
+      "runningTitle": "正在初始化歷史統計",
+      "runningDescription": "剩餘消息仍在背景掃描，目前已統計的資料可以先查看。",
+      "failedTitle": "歷史統計初始化失敗",
+      "failedDescription": "請重新打開此頁面或重啟應用後重試。"
+    },
+    "error": {
+      "title": "載入看板失敗",
+      "description": "請稍後再試。"
+    },
+    "empty": {
+      "title": "暫無統計資料",
+      "description": "歷史消息會進行一次性初始化，之後新產生的消耗會持續累積。",
+      "historyNote": "歷史緩存命中資料不可得，因此舊記錄的緩存 token 固定為 0。"
+    },
+    "summary": {
+      "totalTokens": "總 Token",
+      "totalTokensDescription": "已記錄 assistant 消息累計消耗的全部 token。",
+      "cachedTokens": "緩存 Token",
+      "cachedTokensDescription": "由 provider 緩存命中的 prompt token。",
+      "cacheHitRate": "緩存命中率",
+      "cacheHitRateDescription": "緩存 prompt token 佔總輸入 token 的比例。",
+      "estimatedCost": "估算價格",
+      "estimatedCostDescription": "按目前 provider 價格或 AIHubMix 回退價格估算的美元成本。",
+      "recordingStartedAt": "統計開始時間",
+      "recordingStartedAtDescription": "目前看板中最早一條 usage 記錄的時間。"
+    },
+    "calendar": {
+      "title": "Contribution Calendar",
+      "description": "最近 365 天按日統計的 token 消耗。",
+      "legend": "少到多",
+      "tooltip": "{date}：{tokens} token"
+    },
+    "breakdown": {
+      "providerTitle": "Provider 排行",
+      "providerDescription": "先按估算價格排序，再按總 token 排序。",
+      "modelTitle": "Model 排行",
+      "modelDescription": "按估算價格和總 token 排序的前 10 個模型。",
+      "messages": "{count} 條消息",
+      "empty": "暫時還沒有可展示的拆分資料。"
+    },
+    "unavailable": "暫無"
+  },
   "model": {
     "title": "模型設置",
     "systemPrompt": {

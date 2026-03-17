@@ -186,6 +186,60 @@
       "clearFailedDescription": "请重试或查看日志获取更多信息。"
     }
   },
+  "dashboard": {
+    "badge": "使用看板",
+    "title": "使用看板",
+    "description": "统计一次性历史初始化和后续新消息的 token 消耗、缓存命中与估算价格。",
+    "actions": {
+      "refresh": "刷新"
+    },
+    "notes": {
+      "backfill": "包含一次性历史初始化，来源仅限当前消息表。",
+      "cache": "历史缓存命中数据不可得，因此旧记录的缓存 token 固定为 0。"
+    },
+    "backfill": {
+      "runningTitle": "正在初始化历史统计",
+      "runningDescription": "剩余消息仍在后台扫描，当前已统计的数据可以先查看。",
+      "failedTitle": "历史统计初始化失败",
+      "failedDescription": "请重新打开此页面或重启应用后重试。"
+    },
+    "error": {
+      "title": "加载看板失败",
+      "description": "请稍后再试。"
+    },
+    "empty": {
+      "title": "暂无统计数据",
+      "description": "历史消息会进行一次性初始化，之后新产生的消耗会持续累计。",
+      "historyNote": "历史缓存命中数据不可得，因此旧记录的缓存 token 固定为 0。"
+    },
+    "summary": {
+      "totalTokens": "总 Token",
+      "totalTokensDescription": "已记录 assistant 消息累计消耗的全部 token。",
+      "cachedTokens": "缓存 Token",
+      "cachedTokensDescription": "由 provider 缓存命中的 prompt token。",
+      "cacheHitRate": "缓存命中率",
+      "cacheHitRateDescription": "缓存 prompt token 占总输入 token 的比例。",
+      "estimatedCost": "估算价格",
+      "estimatedCostDescription": "按当前 provider 价格或 AIHubMix 回退价格估算的美元成本。",
+      "recordingStartedAt": "统计开始时间",
+      "recordingStartedAtDescription": "当前看板中最早一条 usage 记录的时间。"
+    },
+    "calendar": {
+      "title": "Contribution Calendar",
+      "description": "最近 365 天按日统计的 token 消耗。",
+      "legend": "少到多",
+      "tooltip": "{date}：{tokens} token"
+    },
+    "breakdown": {
+      "providerTitle": "Provider 排行",
+      "providerDescription": "先按估算价格排序，再按总 token 排序。",
+      "modelTitle": "Model 排行",
+      "modelDescription": "按估算价格和总 token 排序的前 10 个模型。",
+      "messages": "{count} 条消息",
+      "empty": "暂时还没有可展示的拆分数据。"
+    },
+    "unavailable": "暂无"
+  },
   "model": {
     "title": "模型设置",
     "systemPrompt": {

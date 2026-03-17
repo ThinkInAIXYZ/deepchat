@@ -9,6 +9,12 @@ import type {
 } from '@shared/types/agent-interface'
 import type { SearchResult } from '@shared/types/core/search'
 import type { DeepChatMessageRow } from '../sqlitePresenter/tables/deepchatMessages'
+import {
+  buildUsageStatsRecord,
+  parseMessageMetadata,
+  resolveUsageModelId,
+  resolveUsageProviderId
+} from '../usageStats'
 
 export class DeepChatMessageStore {
   private sqlitePresenter: SQLitePresenter
@@ -81,6 +87,7 @@ export class DeepChatMessageStore {
       'sent',
       metadata
     )
+    this.persistUsageStats(messageId, metadata, 'live')
   }
 
   updateCompactionMessage(
@@ -112,6 +119,7 @@ export class DeepChatMessageStore {
       'error',
       metadata
     )
+    this.persistUsageStats(messageId, metadata, 'live')
   }
 
   getMessages(sessionId: string): ChatMessageRecord[] {
@@ -375,5 +383,51 @@ export class DeepChatMessageStore {
       compactionStatus: status,
       summaryUpdatedAt
     }
+  }
+
+  private persistUsageStats(
+    messageId: string,
+    metadataRaw: string,
+    source: 'backfill' | 'live'
+  ): void {
+    const usageStatsTable = this.sqlitePresenter.deepchatUsageStatsTable
+    if (!usageStatsTable) {
+      return
+    }
+
+    const messageRow = this.sqlitePresenter.deepchatMessagesTable.get(messageId)
+    if (!messageRow || messageRow.role !== 'assistant') {
+      return
+    }
+
+    const metadata = parseMessageMetadata(metadataRaw)
+    if (metadata.messageType === 'compaction') {
+      return
+    }
+
+    const sessionRow = this.sqlitePresenter.deepchatSessionsTable.get(messageRow.session_id)
+    const providerId = resolveUsageProviderId(metadata, sessionRow?.provider_id)
+    const modelId = resolveUsageModelId(metadata, sessionRow?.model_id)
+
+    if (!providerId || !modelId) {
+      return
+    }
+
+    const usageRecord = buildUsageStatsRecord({
+      messageId: messageRow.id,
+      sessionId: messageRow.session_id,
+      createdAt: messageRow.created_at,
+      updatedAt: messageRow.updated_at,
+      providerId,
+      modelId,
+      metadata,
+      source
+    })
+
+    if (!usageRecord) {
+      return
+    }
+
+    usageStatsTable.upsert(usageRecord)
   }
 }
