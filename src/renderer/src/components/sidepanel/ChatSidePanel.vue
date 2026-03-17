@@ -57,7 +57,7 @@
         :session-id="props.sessionId"
         :workspace-path="props.workspacePath"
       />
-      <BrowserPanel v-else />
+      <BrowserPanel v-else :session-id="props.sessionId" />
     </aside>
   </div>
 </template>
@@ -87,9 +87,12 @@ const handleBrowserOpenRequested = (_event: unknown, payload: unknown) => {
   const currentWindowId = window.api.getWindowId?.() ?? null
   const requestedWindowId =
     payload && typeof payload === 'object' && 'windowId' in payload ? payload.windowId : null
+  const requestedSessionId =
+    payload && typeof payload === 'object' && 'sessionId' in payload ? payload.sessionId : null
 
   if (
     !props.sessionId ||
+    requestedSessionId !== props.sessionId ||
     typeof requestedWindowId !== 'number' ||
     requestedWindowId !== currentWindowId
   ) {

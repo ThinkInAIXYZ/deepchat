@@ -542,9 +542,9 @@ describe('dispatch', () => {
       tempHome = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-dispatch-offload-'))
       getPathSpy = vi.spyOn(app, 'getPath').mockReturnValue(tempHome)
 
-      const tools = [makeTool('yo_browser_cdp_send')]
+      const tools = [makeTool('cdp_send')]
       const longScreenshot = JSON.stringify({ data: 'x'.repeat(7000) })
-      const toolPresenter = createMockToolPresenter({ yo_browser_cdp_send: longScreenshot })
+      const toolPresenter = createMockToolPresenter({ cdp_send: longScreenshot })
       const conversation: any[] = []
 
       state.blocks.push({
@@ -553,16 +553,16 @@ describe('dispatch', () => {
         status: 'pending',
         timestamp: Date.now(),
         tool_call: {
-          id: 'tc1',
-          name: 'yo_browser_cdp_send',
+          id: 'function.cdp_send:11',
+          name: 'cdp_send',
           params: '{"method":"Page.captureScreenshot"}',
           response: ''
         }
       })
       state.completedToolCalls = [
         {
-          id: 'tc1',
-          name: 'yo_browser_cdp_send',
+          id: 'function.cdp_send:11',
+          name: 'cdp_send',
           arguments: '{"method":"Page.captureScreenshot"}'
         }
       ]
@@ -584,7 +584,8 @@ describe('dispatch', () => {
       expect(executed.terminalError).toBeUndefined()
       const toolMessage = conversation.find((message: any) => message.role === 'tool')
       expect(toolMessage.content).toContain('[Tool output offloaded]')
-      expect(toolMessage.content).toContain('tool_tc1.offload')
+      expect(toolMessage.content).toContain('tool_function.cdp_send_11.offload')
+      expect(toolMessage.content).not.toContain(':11.offload')
       expect(toolMessage.content).not.toContain(tempHome!)
       expect(state.blocks[0].tool_call?.response).toContain('[Tool output offloaded]')
       expect(state.blocks[0].status).toBe('success')
@@ -595,9 +596,9 @@ describe('dispatch', () => {
       getPathSpy = vi.spyOn(app, 'getPath').mockReturnValue(tempHome)
       const writeFileSpy = vi.spyOn(fs, 'writeFile').mockRejectedValueOnce(new Error('disk full'))
 
-      const tools = [makeTool('yo_browser_cdp_send')]
+      const tools = [makeTool('cdp_send')]
       const longScreenshot = JSON.stringify({ data: 'x'.repeat(7000) })
-      const toolPresenter = createMockToolPresenter({ yo_browser_cdp_send: longScreenshot })
+      const toolPresenter = createMockToolPresenter({ cdp_send: longScreenshot })
       const conversation: any[] = []
 
       state.blocks.push({
@@ -607,7 +608,7 @@ describe('dispatch', () => {
         timestamp: Date.now(),
         tool_call: {
           id: 'tc1',
-          name: 'yo_browser_cdp_send',
+          name: 'cdp_send',
           params: '{"method":"Page.captureScreenshot"}',
           response: ''
         }
@@ -615,7 +616,7 @@ describe('dispatch', () => {
       state.completedToolCalls = [
         {
           id: 'tc1',
-          name: 'yo_browser_cdp_send',
+          name: 'cdp_send',
           arguments: '{"method":"Page.captureScreenshot"}'
         }
       ]
@@ -645,9 +646,9 @@ describe('dispatch', () => {
       tempHome = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-dispatch-offload-clean-'))
       getPathSpy = vi.spyOn(app, 'getPath').mockReturnValue(tempHome)
 
-      const tools = [makeTool('yo_browser_cdp_send')]
+      const tools = [makeTool('cdp_send')]
       const longScreenshot = JSON.stringify({ data: 'x'.repeat(7000) })
-      const toolPresenter = createMockToolPresenter({ yo_browser_cdp_send: longScreenshot })
+      const toolPresenter = createMockToolPresenter({ cdp_send: longScreenshot })
       const conversation: any[] = []
 
       state.blocks.push({
@@ -657,7 +658,7 @@ describe('dispatch', () => {
         timestamp: Date.now(),
         tool_call: {
           id: 'tc1',
-          name: 'yo_browser_cdp_send',
+          name: 'cdp_send',
           params: '{"method":"Page.captureScreenshot"}',
           response: ''
         }
@@ -665,7 +666,7 @@ describe('dispatch', () => {
       state.completedToolCalls = [
         {
           id: 'tc1',
-          name: 'yo_browser_cdp_send',
+          name: 'cdp_send',
           arguments: '{"method":"Page.captureScreenshot"}'
         }
       ]
@@ -696,9 +697,9 @@ describe('dispatch', () => {
       tempHome = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-dispatch-terminal-clean-'))
       getPathSpy = vi.spyOn(app, 'getPath').mockReturnValue(tempHome)
 
-      const tools = [makeTool('yo_browser_cdp_send')]
+      const tools = [makeTool('cdp_send')]
       const longScreenshot = JSON.stringify({ data: 'x'.repeat(7000) })
-      const toolPresenter = createMockToolPresenter({ yo_browser_cdp_send: longScreenshot })
+      const toolPresenter = createMockToolPresenter({ cdp_send: longScreenshot })
       const conversation: any[] = []
       const hooks = {
         onPreToolUse: vi.fn(),
@@ -714,7 +715,7 @@ describe('dispatch', () => {
         timestamp: Date.now(),
         tool_call: {
           id: 'tc1',
-          name: 'yo_browser_cdp_send',
+          name: 'cdp_send',
           params: '{"method":"Page.captureScreenshot"}',
           response: ''
         }
@@ -722,7 +723,7 @@ describe('dispatch', () => {
       state.completedToolCalls = [
         {
           id: 'tc1',
-          name: 'yo_browser_cdp_send',
+          name: 'cdp_send',
           arguments: '{"method":"Page.captureScreenshot"}'
         }
       ]
@@ -747,7 +748,7 @@ describe('dispatch', () => {
       expect(state.blocks[0].status).toBe('error')
       expect(hooks.onPostToolUseFailure).toHaveBeenCalledWith({
         callId: 'tc1',
-        name: 'yo_browser_cdp_send',
+        name: 'cdp_send',
         params: '{"method":"Page.captureScreenshot"}',
         error: expect.stringContaining('remaining context window is too small')
       })

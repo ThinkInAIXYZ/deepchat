@@ -19,18 +19,13 @@ export interface BrowserPageInfo {
   updatedAt: number
 }
 
-// Deprecated alias kept temporarily while in-tree callers migrate to page/window semantics.
-export interface BrowserTabInfo extends BrowserPageInfo {
-  isActive?: boolean
-}
-
-export interface BrowserWindowInfo {
-  id: number
-  page: BrowserPageInfo
-  isFocused: boolean
-  isVisible: boolean
-  createdAt: number
-  updatedAt: number
+export interface YoBrowserStatus {
+  initialized: boolean
+  page: BrowserPageInfo | null
+  canGoBack: boolean
+  canGoForward: boolean
+  visible: boolean
+  loading: boolean
 }
 
 export interface ScreenshotOptions {
@@ -62,16 +57,4 @@ export interface BrowserToolDefinition {
   description: string
   inputSchema: Record<string, unknown>
   requiresVision?: boolean
-}
-
-export type BrowserEvent =
-  | { type: 'window-created'; window: BrowserWindowInfo }
-  | { type: 'window-updated'; window: BrowserWindowInfo }
-  | { type: 'window-focused'; windowId: number | null }
-  | { type: 'window-closed'; windowId: number }
-  | { type: 'window-visibility-changed'; windowId: number; visible: boolean }
-
-export interface BrowserContextSnapshot {
-  activeWindowId: number | null
-  windows: BrowserWindowInfo[]
 }

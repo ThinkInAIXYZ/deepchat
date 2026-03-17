@@ -93,7 +93,7 @@ const QUESTION_ERROR_KEY = 'common.error.invalidQuestionRequest'
 
 // Tools that require offload when output exceeds threshold
 // Tools not in this list will never trigger offload (e.g., read has its own pagination)
-const TOOLS_REQUIRING_OFFLOAD = new Set(['exec', 'ls', 'find', 'grep', 'yo_browser_cdp_send'])
+const TOOLS_REQUIRING_OFFLOAD = new Set(['exec', 'ls', 'find', 'grep', 'cdp_send'])
 
 export class ToolCallProcessor {
   constructor(private readonly options: ToolCallProcessorOptions) {}

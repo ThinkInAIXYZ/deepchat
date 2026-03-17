@@ -19,6 +19,7 @@ import {
   CHAT_SETTINGS_TOOL_NAMES
 } from './chatSettingsTools'
 import type { AgentToolRuntimePort } from '../runtimePorts'
+import { YO_BROWSER_TOOL_NAMES } from '../../browser/YoBrowserToolDefinitions'
 
 // Consider moving to a shared handlers location in future refactoring
 import {
@@ -66,6 +67,7 @@ interface AgentToolManagerOptions {
 }
 
 export class AgentToolManager {
+  private static readonly YO_BROWSER_TOOL_NAME_SET = new Set<string>(YO_BROWSER_TOOL_NAMES)
   private agentWorkspacePath: string | null
   private fileSystemHandler: AgentFileSystemHandler | null = null
   private bashHandler: AgentBashHandler | null = null
@@ -393,8 +395,8 @@ export class AgentToolManager {
     }
 
     // Route to YoBrowser CDP tools
-    if (toolName.startsWith('yo_browser_')) {
-      const response = await this.getYoBrowserToolHandler().callTool(toolName, args)
+    if (AgentToolManager.YO_BROWSER_TOOL_NAME_SET.has(toolName)) {
+      const response = await this.getYoBrowserToolHandler().callTool(toolName, args, conversationId)
       return {
         content: response
       }

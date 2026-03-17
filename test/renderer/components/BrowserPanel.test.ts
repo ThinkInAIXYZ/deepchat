@@ -18,6 +18,21 @@ const makeRect = (x: number, y: number, width: number, height: number): DOMRect 
   } as DOMRect
 }
 
+const defaultBrowserStatus = {
+  initialized: true,
+  page: {
+    id: 'page-1',
+    url: 'about:blank',
+    status: 'idle' as const,
+    createdAt: 1,
+    updatedAt: 1
+  },
+  canGoBack: false,
+  canGoForward: false,
+  visible: false,
+  loading: false
+}
+
 describe('BrowserPanel', () => {
   beforeEach(() => {
     vi.useFakeTimers()
@@ -31,7 +46,9 @@ describe('BrowserPanel', () => {
   const setup = async (options?: {
     open?: boolean
     activeTab?: 'browser' | 'workspace'
-    getWindowByIdResult?: unknown
+    sessionId?: string
+    browserStatus?: typeof defaultBrowserStatus
+    sessions?: Array<{ id: string; status: string }>
   }) => {
     vi.resetModules()
 
@@ -40,27 +57,20 @@ describe('BrowserPanel', () => {
       open: options?.open ?? true,
       activeTab: options?.activeTab ?? 'browser'
     }
+    const sessionStore = {
+      sessions: options?.sessions ?? [{ id: options?.sessionId ?? 'session-a', status: 'none' }]
+    }
 
     const yoBrowserPresenter = {
-      attachEmbeddedToWindow: vi.fn().mockResolvedValue(1),
-      getWindowById: vi.fn().mockResolvedValue(
-        options?.getWindowByIdResult ?? {
-          id: 1,
-          page: {
-            url: 'about:blank'
-          }
-        }
-      ),
-      getNavigationState: vi.fn().mockResolvedValue({
-        canGoBack: false,
-        canGoForward: false
-      }),
-      updateEmbeddedBounds: vi.fn().mockResolvedValue(undefined),
-      navigateWindow: vi.fn().mockResolvedValue(undefined),
+      getBrowserStatus: vi.fn().mockResolvedValue(options?.browserStatus ?? defaultBrowserStatus),
+      attachSessionBrowser: vi.fn().mockResolvedValue(true),
+      updateSessionBrowserBounds: vi.fn().mockResolvedValue(undefined),
+      loadUrl: vi.fn().mockResolvedValue(options?.browserStatus ?? defaultBrowserStatus),
       goBack: vi.fn().mockResolvedValue(undefined),
       goForward: vi.fn().mockResolvedValue(undefined),
       reload: vi.fn().mockResolvedValue(undefined),
-      detachEmbedded: vi.fn().mockResolvedValue(undefined)
+      detachSessionBrowser: vi.fn().mockResolvedValue(undefined),
+      destroySessionBrowser: vi.fn().mockResolvedValue(undefined)
     }
 
     vi.doMock('vue-i18n', () => ({
@@ -75,6 +85,10 @@ describe('BrowserPanel', () => {
 
     vi.doMock('@/stores/ui/sidepanel', () => ({
       useSidepanelStore: () => sidepanelStore
+    }))
+
+    vi.doMock('@/stores/ui/session', () => ({
+      useSessionStore: () => sessionStore
     }))
 
     vi.doMock('@/composables/usePresenter', () => ({
@@ -97,6 +111,9 @@ describe('BrowserPanel', () => {
 
     const BrowserPanel = (await import('@/components/sidepanel/BrowserPanel.vue')).default
     const wrapper = mount(BrowserPanel, {
+      props: {
+        sessionId: options?.sessionId ?? 'session-a'
+      },
       global: {
         stubs: {
           Button: defineComponent({
@@ -123,7 +140,7 @@ describe('BrowserPanel', () => {
     })
 
     await flushPromises()
-    return { wrapper, yoBrowserPresenter, sidepanelStore, handlers }
+    return { wrapper, yoBrowserPresenter, handlers }
   }
 
   it('adds accessible labels to browser toolbar controls', async () => {
@@ -145,13 +162,14 @@ describe('BrowserPanel', () => {
 
     const { yoBrowserPresenter } = await setup()
 
-    expect(yoBrowserPresenter.attachEmbeddedToWindow).not.toHaveBeenCalled()
+    expect(yoBrowserPresenter.attachSessionBrowser).not.toHaveBeenCalled()
 
     await vi.advanceTimersByTimeAsync(160)
     await flushPromises()
 
-    expect(yoBrowserPresenter.attachEmbeddedToWindow).toHaveBeenCalledWith(1)
-    expect(yoBrowserPresenter.updateEmbeddedBounds).toHaveBeenCalledWith(
+    expect(yoBrowserPresenter.attachSessionBrowser).toHaveBeenCalledWith('session-a', 1)
+    expect(yoBrowserPresenter.updateSessionBrowserBounds).toHaveBeenCalledWith(
+      'session-a',
       1,
       expect.objectContaining({
         x: 24,
@@ -163,22 +181,23 @@ describe('BrowserPanel', () => {
     )
   })
 
-  it('ignores open requests for a different host window', async () => {
+  it('ignores open requests for a different host window or session', async () => {
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(
       makeRect(10, 10, 300, 400)
     )
 
     const { yoBrowserPresenter, handlers } = await setup()
-    yoBrowserPresenter.attachEmbeddedToWindow.mockClear()
-    yoBrowserPresenter.updateEmbeddedBounds.mockClear()
+    yoBrowserPresenter.attachSessionBrowser.mockClear()
+    yoBrowserPresenter.updateSessionBrowserBounds.mockClear()
 
     const openRequestedHandler = handlers.get('yo-browser:open-requested')
     expect(openRequestedHandler).toBeTypeOf('function')
 
-    await openRequestedHandler?.({}, { windowId: 2 })
+    await openRequestedHandler?.({}, { sessionId: 'session-b', windowId: 1 })
+    await openRequestedHandler?.({}, { sessionId: 'session-a', windowId: 2 })
     await flushPromises()
 
-    expect(yoBrowserPresenter.attachEmbeddedToWindow).not.toHaveBeenCalled()
-    expect(yoBrowserPresenter.updateEmbeddedBounds).not.toHaveBeenCalled()
+    expect(yoBrowserPresenter.attachSessionBrowser).not.toHaveBeenCalled()
+    expect(yoBrowserPresenter.updateSessionBrowserBounds).not.toHaveBeenCalled()
   })
 })

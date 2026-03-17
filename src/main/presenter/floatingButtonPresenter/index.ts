@@ -29,6 +29,8 @@ type DragRuntimeState = {
   startY: number
   windowX: number
   windowY: number
+  windowWidth: number
+  windowHeight: number
 }
 
 export class FloatingButtonPresenter {
@@ -37,6 +39,8 @@ export class FloatingButtonPresenter {
   private configPresenter: IConfigPresenter
   private snapshot: FloatingWidgetSnapshot = { ...EMPTY_SNAPSHOT }
   private layoutAnimationTimer: ReturnType<typeof setInterval> | null = null
+  private isDragging = false
+  private pendingLayoutSync = false
 
   constructor(configPresenter: IConfigPresenter) {
     this.configPresenter = configPresenter
@@ -75,6 +79,8 @@ export class FloatingButtonPresenter {
   public destroy(): void {
     this.config.enabled = false
     this.snapshot = { ...EMPTY_SNAPSHOT }
+    this.isDragging = false
+    this.pendingLayoutSync = false
     this.stopLayoutAnimation()
 
     ipcMain.removeHandler(FLOATING_BUTTON_EVENTS.SNAPSHOT_REQUEST)
@@ -250,21 +256,23 @@ export class FloatingButtonPresenter {
         return
       }
 
+      this.stopLayoutAnimation()
+      const stableBounds = this.getSnapshotBounds(bounds)
+      this.floatingWindow.setBounds(stableBounds)
+      this.isDragging = true
+
       dragState = {
         startX: x,
         startY: y,
-        windowX: bounds.x,
-        windowY: bounds.y
+        windowX: stableBounds.x,
+        windowY: stableBounds.y,
+        windowWidth: stableBounds.width,
+        windowHeight: stableBounds.height
       }
     })
 
     ipcMain.on(FLOATING_BUTTON_EVENTS.DRAG_MOVE, (_event, { x, y }: { x: number; y: number }) => {
       if (!dragState || !this.floatingWindow?.exists()) {
-        return
-      }
-
-      const bounds = this.floatingWindow.getBounds()
-      if (!bounds) {
         return
       }
 
@@ -274,28 +282,38 @@ export class FloatingButtonPresenter {
       this.floatingWindow.setBounds({
         x: dragState.windowX + deltaX,
         y: dragState.windowY + deltaY,
-        width: bounds.width,
-        height: bounds.height
+        width: dragState.windowWidth,
+        height: dragState.windowHeight
       })
     })
 
     ipcMain.on(FLOATING_BUTTON_EVENTS.DRAG_END, () => {
       if (!dragState || !this.floatingWindow?.exists()) {
+        this.isDragging = false
         dragState = null
         return
       }
 
       const bounds = this.floatingWindow.getBounds()
       if (!bounds) {
+        this.isDragging = false
         dragState = null
         return
       }
 
-      const currentDisplay = screen.getDisplayMatching(bounds)
-      const snapped = snapWidgetBoundsToEdge(bounds, currentDisplay.workArea)
+      const stableBounds = {
+        x: bounds.x,
+        y: bounds.y,
+        width: dragState.windowWidth,
+        height: dragState.windowHeight
+      }
+      const currentDisplay = screen.getDisplayMatching(stableBounds)
+      const snapped = snapWidgetBoundsToEdge(stableBounds, currentDisplay.workArea)
       this.floatingWindow.setDockSide(snapped.dockSide)
       this.floatingWindow.setBounds(snapped)
+      this.isDragging = false
       dragState = null
+      this.flushPendingLayoutSync()
     })
   }
 
@@ -321,19 +339,17 @@ export class FloatingButtonPresenter {
       return
     }
 
+    if (this.isDragging) {
+      this.pendingLayoutSync = true
+      return
+    }
+
     const bounds = this.floatingWindow.getBounds()
     if (!bounds) {
       return
     }
 
-    const currentDisplay = screen.getDisplayMatching(bounds)
-    const dockSide = this.floatingWindow.getDockSide()
-    const nextBounds = repositionWidgetForResize(
-      bounds,
-      getWidgetSizeForSnapshot(this.snapshot),
-      currentDisplay.workArea,
-      dockSide
-    )
+    const nextBounds = this.getSnapshotBounds(bounds)
 
     if (!animate || this.areBoundsEqual(bounds, nextBounds)) {
       this.stopLayoutAnimation()
@@ -393,6 +409,29 @@ export class FloatingButtonPresenter {
       clearInterval(this.layoutAnimationTimer)
       this.layoutAnimationTimer = null
     }
+  }
+
+  private flushPendingLayoutSync(): void {
+    if (!this.pendingLayoutSync) {
+      return
+    }
+
+    this.pendingLayoutSync = false
+    this.applyWindowLayout()
+  }
+
+  private getSnapshotBounds(bounds: WidgetRect): WidgetRect {
+    if (!this.floatingWindow) {
+      return bounds
+    }
+
+    const currentDisplay = screen.getDisplayMatching(bounds)
+    return repositionWidgetForResize(
+      bounds,
+      getWidgetSizeForSnapshot(this.snapshot),
+      currentDisplay.workArea,
+      this.floatingWindow.getDockSide()
+    )
   }
 
   private easeInOutCubic(progress: number): number {

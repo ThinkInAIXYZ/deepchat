@@ -13,129 +13,61 @@ export class YoBrowserToolHandler {
     return getYoBrowserToolDefinitions()
   }
 
-  async callTool(toolName: string, args: Record<string, unknown>): Promise<string> {
+  async callTool(
+    toolName: string,
+    args: Record<string, unknown>,
+    conversationId?: string
+  ): Promise<string> {
     try {
+      const sessionId = conversationId?.trim()
+      if (!sessionId) {
+        throw new Error('conversationId is required for YoBrowser tools')
+      }
+
       switch (toolName) {
-        case 'yo_browser_window_list':
-        case 'yo_browser_tab_list':
-          return await this.handleWindowList()
-        case 'yo_browser_window_open':
-        case 'yo_browser_tab_new': {
-          const url = typeof args.url === 'string' ? args.url : undefined
-          return await this.handleWindowOpen(url)
-        }
-        case 'yo_browser_window_focus': {
-          const windowId = typeof args.windowId === 'number' ? args.windowId : null
-          if (windowId == null) {
-            throw new Error('windowId is required')
+        case 'get_browser_status':
+          return JSON.stringify(await this.presenter.getBrowserStatus(sessionId))
+        case 'load_url': {
+          const url = typeof args.url === 'string' ? args.url : ''
+          if (!url) {
+            throw new Error('url is required')
           }
-          return await this.handleWindowFocus(windowId)
+          return JSON.stringify(await this.presenter.loadUrl(sessionId, url))
         }
-        case 'yo_browser_window_close': {
-          const windowId = typeof args.windowId === 'number' ? args.windowId : null
-          if (windowId == null) {
-            throw new Error('windowId is required')
-          }
-          return await this.handleWindowClose(windowId)
-        }
-        case 'yo_browser_tab_activate': {
-          const pageId =
-            typeof args.pageId === 'string'
-              ? args.pageId
-              : typeof args.tabId === 'string'
-                ? args.tabId
-                : ''
-          if (!pageId) {
-            throw new Error('pageId is required')
-          }
-          await this.presenter.activateTab(pageId)
-          return JSON.stringify({ success: true, pageId })
-        }
-        case 'yo_browser_tab_close': {
-          const pageId =
-            typeof args.pageId === 'string'
-              ? args.pageId
-              : typeof args.tabId === 'string'
-                ? args.tabId
-                : ''
-          if (!pageId) {
-            throw new Error('pageId is required')
-          }
-          await this.presenter.closeTab(pageId)
-          return JSON.stringify({ success: true, pageId })
-        }
-        case 'yo_browser_cdp_send': {
-          const windowId = typeof args.windowId === 'number' ? args.windowId : undefined
-          const pageId =
-            typeof args.pageId === 'string'
-              ? args.pageId
-              : typeof args.tabId === 'string'
-                ? args.tabId
-                : undefined
+        case 'cdp_send': {
           const method = typeof args.method === 'string' ? args.method : ''
-          const params = this.normalizeCdpParams(args.params)
-          return await this.handleCdpSend(windowId ?? pageId, method, params)
+          if (!method) {
+            throw new Error('CDP method is required')
+          }
+
+          const page = await this.presenter.getBrowserPage(sessionId)
+          if (!page) {
+            throw new Error(`Session browser for ${sessionId} is not initialized`)
+          }
+
+          try {
+            const params = this.normalizeCdpParams(args.params)
+            const response = await this.presenter.sendCdpCommand(sessionId, method, params)
+            return JSON.stringify(response ?? {})
+          } catch (error) {
+            if (error instanceof Error && error.name === 'YoBrowserNotReadyError') {
+              logger.warn('[YoBrowser] tool blocked:not-ready', {
+                toolName: 'cdp_send',
+                sessionId,
+                method,
+                pageId: page.id,
+                url: page.url,
+                status: page.status
+              })
+            }
+            throw error
+          }
         }
         default:
           throw new Error(`Unknown YoBrowser tool: ${toolName}`)
       }
     } catch (error) {
       logger.error('[YoBrowserToolHandler] Tool execution failed', { toolName, error })
-      throw error
-    }
-  }
-
-  private async handleWindowList(): Promise<string> {
-    const snapshot = await this.presenter.getBrowserContext()
-    return JSON.stringify(snapshot)
-  }
-
-  private async handleWindowOpen(url?: string): Promise<string> {
-    const browserWindow = await this.presenter.openWindow(url)
-    if (!browserWindow) {
-      throw new Error('Failed to open browser window')
-    }
-    return JSON.stringify(browserWindow)
-  }
-
-  private async handleWindowFocus(windowId: number): Promise<string> {
-    await this.presenter.focusWindow(windowId)
-    return JSON.stringify({ success: true, windowId })
-  }
-
-  private async handleWindowClose(windowId: number): Promise<string> {
-    await this.presenter.closeWindow(windowId)
-    return JSON.stringify({ success: true, windowId })
-  }
-
-  private async handleCdpSend(
-    target: number | string | undefined,
-    method: string,
-    params: Record<string, unknown>
-  ): Promise<string> {
-    if (!method) {
-      throw new Error('CDP method is required')
-    }
-
-    const browserPage = await this.presenter.getBrowserTab(target)
-    if (!browserPage) {
-      throw new Error(`Browser target ${String(target)} not found`)
-    }
-
-    try {
-      const response = await browserPage.sendCdpCommand(method, params)
-      return JSON.stringify(response ?? {})
-    } catch (error) {
-      if (error instanceof Error && error.name === 'YoBrowserNotReadyError') {
-        logger.warn('[YoBrowser] tool blocked:not-ready', {
-          toolName: 'yo_browser_cdp_send',
-          target: target ?? 'active',
-          method,
-          pageId: browserPage.pageId,
-          url: browserPage.url,
-          status: browserPage.status
-        })
-      }
       throw error
     }
   }

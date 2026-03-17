@@ -65,7 +65,7 @@ describe('ToolCallProcessor tool output offload', () => {
     const events: any[] = []
     for await (const event of processor.process({
       eventId: 'event-1',
-      toolCalls: [{ id: 'tool-1', name: 'exec', arguments: '{}' }],
+      toolCalls: [{ id: 'tool:1', name: 'exec', arguments: '{}' }],
       enabledMcpTools: [],
       conversationMessages,
       modelConfig,
@@ -88,7 +88,7 @@ describe('ToolCallProcessor tool output offload', () => {
       '.deepchat',
       'sessions',
       conversationId,
-      'tool_tool-1.offload'
+      'tool_tool_1.offload'
     )
     expect(stub).toContain('[Tool output offloaded]')
     expect(stub).toContain(`Total characters: ${longOutput.length}`)

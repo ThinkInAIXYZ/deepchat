@@ -624,16 +624,15 @@ class AgentFileSystemHandler {
 
 ### YoBrowser CDP 工具
 
-YoBrowser 提供基于 Chrome DevTools Protocol (CDP) 的最小工具集，在 agent 模式下直接可用。
+YoBrowser 在 agent 模式下直接提供 session 级单实例 browser 能力，每个 session 最多绑定一个 sidepanel browser。
 
 **可用工具**：
-- `yo_browser_tab_list` - 列出所有浏览器 tabs
-- `yo_browser_tab_new` - 创建新 tab
-- `yo_browser_tab_activate` - 激活指定 tab
-- `yo_browser_tab_close` - 关闭 tab
-- `yo_browser_cdp_send` - 发送 CDP 命令
+- `load_url` - 懒创建当前 session 的 browser 并导航到目标 URL
+- `get_browser_status` - 返回当前 session browser 的页面、导航和可见性状态
+- `cdp_send` - 向当前 session browser 发送 CDP 命令
 
-**安全约束**：
+**约束**：
+- `cdp_send` 不会自动创建 browser；必须先调用 `load_url`
 - `local://` URL 禁止 CDP attach（在 `BrowserTab.ensureSession()` 中检查）
 - 所有 CDP 命令通过 `webContents.debugger.sendCommand()` 执行
 
