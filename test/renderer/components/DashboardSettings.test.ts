@@ -82,6 +82,19 @@ async function setup(data: UsageDashboardData) {
     })
   }))
 
+  vi.doMock('@shadcn/components/ui/chart', () => ({
+    ChartContainer: passthrough('ChartContainer'),
+    ChartCrosshair: passthrough('ChartCrosshair')
+  }))
+
+  vi.doMock('@unovis/vue', () => ({
+    VisSingleContainer: passthrough('VisSingleContainer'),
+    VisXYContainer: passthrough('VisXYContainer'),
+    VisDonut: passthrough('VisDonut'),
+    VisArea: passthrough('VisArea'),
+    VisStackedBar: passthrough('VisStackedBar')
+  }))
+
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({
       locale: ref('en-US'),
@@ -101,6 +114,9 @@ async function setup(data: UsageDashboardData) {
         }
         if (key === 'settings.dashboard.summary.outputTokensLabel') {
           return 'Output'
+        }
+        if (key === 'settings.dashboard.summary.tokenUsage') {
+          return 'Token usage'
         }
         if (key === 'settings.dashboard.summary.estimatedCostTrendLabel') {
           return 'Trend over the last 30 days'
@@ -218,27 +234,20 @@ describe('DashboardSettings', () => {
     expect(wrapper.text()).toContain('66.7%')
     expect(wrapper.text()).toContain('33.3%')
     expect(wrapper.text()).toContain('Cached')
-    expect(wrapper.text()).toContain('Uncached')
     expect(wrapper.text()).toContain('25%')
-    expect(wrapper.text()).toContain('75%')
     expect(wrapper.text()).toContain('17 days')
     expect(wrapper.text()).toContain('You are on day 17 with DeepChat.')
     expect(wrapper.text()).not.toContain('settings.dashboard.summary.cacheHitRate')
-    expect(wrapper.find('[data-testid="summary-card-totalTokens"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="summary-card-cachedTokens"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="summary-card-tokenUsage"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="summary-card-estimatedCost"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="total-tokens-donut"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="cached-tokens-bar"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="estimated-cost-sparkline"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="cached-tokens-bar"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="estimated-cost-area-chart"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="estimated-cost-trend-label"]').text()).toBe(
       'Trend over the last 30 days'
     )
-    expect(wrapper.find('[data-testid="summary-card-totalTokens"]').html()).toContain(
-      'whitespace-normal'
-    )
-    expect(wrapper.find('[data-testid="summary-card-totalTokens"]').html()).not.toContain(
-      'truncate'
-    )
+    expect(wrapper.find('[data-testid="provider-breakdown-chart"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="model-breakdown-chart"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="provider-breakdown-scroll"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="model-breakdown-scroll"]').exists()).toBe(true)
     expect(wrapper.find('[title="1,200"]').exists()).toBe(true)
@@ -264,12 +273,12 @@ describe('DashboardSettings', () => {
       })
     )
 
-    expect(wrapper.find('[data-testid="summary-card-totalTokens"]').text()).toContain('0')
+    expect(wrapper.find('[data-testid="summary-card-tokenUsage"]').text()).toContain('0')
     expect(wrapper.find('[data-testid="total-tokens-input-ratio"]').text()).toBe('0%')
     expect(wrapper.find('[data-testid="total-tokens-output-ratio"]').text()).toBe('0%')
   })
 
-  it('renders an empty cached ratio bar when input tokens are zero', async () => {
+  it('renders cached token ratio without uncached rows when input tokens are zero', async () => {
     const { wrapper } = await setup(
       buildDashboard({
         summary: {
@@ -284,9 +293,9 @@ describe('DashboardSettings', () => {
       })
     )
 
-    expect(wrapper.find('[data-testid="cached-tokens-bar"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="cached-tokens-bar"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="cached-tokens-cached-ratio"]').text()).toBe('0%')
-    expect(wrapper.find('[data-testid="cached-tokens-uncached-ratio"]').text()).toBe('0%')
+    expect(wrapper.find('[data-testid="cached-tokens-uncached-ratio"]').exists()).toBe(false)
   })
 
   it('renders an empty cost trend when the last 30 days have no cost data', async () => {
@@ -305,7 +314,7 @@ describe('DashboardSettings', () => {
       })
     )
 
-    expect(wrapper.find('[data-testid="estimated-cost-sparkline"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="estimated-cost-area-chart"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="estimated-cost-trend-empty"]').text()).toBe(
       'No cost recorded in the last 30 days.'
     )

@@ -189,13 +189,9 @@
   "dashboard": {
     "badge": "使用看板",
     "title": "使用看板",
-    "description": "統計一次性歷史初始化和後續新訊息的 token 消耗、快取命中與估算價格。",
+    "description": "統計 token 消耗、快取命中與估算價格。token 和費用資料會依據公開資訊估算，部分供應商和歷史訊息資料可能缺漏，僅供參考。",
     "actions": {
       "refresh": "重新整理"
-    },
-    "notes": {
-      "backfill": "包含一次性歷史初始化，來源僅限目前訊息表。",
-      "cache": "歷史快取命中資料不可得，因此舊記錄的快取 token 固定為 0。"
     },
     "backfill": {
       "runningTitle": "正在初始化歷史統計",
@@ -233,7 +229,8 @@
       "withDeepChatDaysValue": "{days} 天",
       "withDeepChatDaysSentence": "你已經和 DeepChat 一起度過了 {days} 天",
       "withDeepChatDaysDescription": "基於你最早的一筆使用記錄：{date}。",
-      "withDeepChatDaysDescriptionUnavailable": "暫時還沒有使用記錄。"
+      "withDeepChatDaysDescriptionUnavailable": "暫時還沒有使用記錄。",
+      "tokenUsage": "Token 消耗"
     },
     "calendar": {
       "title": "Contribution Calendar",

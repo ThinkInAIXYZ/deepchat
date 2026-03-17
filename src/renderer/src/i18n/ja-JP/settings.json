@@ -189,13 +189,9 @@
   "dashboard": {
     "badge": "Usage Dashboard",
     "title": "Usage Dashboard",
-    "description": "Track total tokens, cached tokens and estimated cost from a one-time historical backfill plus all new messages.",
+    "description": "token 消費、キャッシュヒット、推定コストを集計します。token と費用のデータは公開情報をもとに推定しており、一部のプロバイダーや過去メッセージでは欠損する場合があるため、参考値としてご利用ください。",
     "actions": {
       "refresh": "Refresh"
-    },
-    "notes": {
-      "backfill": "Includes a one-time backfill from current messages.",
-      "cache": "Historical cache data is unavailable, so old records use 0 cached tokens."
     },
     "backfill": {
       "runningTitle": "Initializing historical stats",
@@ -233,7 +229,8 @@
       "withDeepChatDaysValue": "{days}日",
       "withDeepChatDaysSentence": "DeepChatと過ごして{days}日目です。",
       "withDeepChatDaysDescription": "最も古い使用記録（{date}）をもとに計算しています。",
-      "withDeepChatDaysDescriptionUnavailable": "まだ使用記録がありません。"
+      "withDeepChatDaysDescriptionUnavailable": "まだ使用記録がありません。",
+      "tokenUsage": "Token 消費"
     },
     "calendar": {
       "title": "Contribution Calendar",

@@ -189,13 +189,9 @@
   "dashboard": {
     "badge": "Usage Dashboard",
     "title": "Usage Dashboard",
-    "description": "Track total tokens, cached tokens and estimated cost from a one-time historical backfill plus all new messages.",
+    "description": "مصرف توکن، نرخ اصابت کش و هزینه تخمینی را نمایش می‌دهد. داده‌های توکن و هزینه بر پایه اطلاعات عمومی برآورد می‌شوند و ممکن است برای برخی ارائه‌دهندگان یا پیام‌های تاریخی ناقص باشند، بنابراین فقط برای مرجع هستند.",
     "actions": {
       "refresh": "Refresh"
-    },
-    "notes": {
-      "backfill": "Includes a one-time backfill from current messages.",
-      "cache": "Historical cache data is unavailable, so old records use 0 cached tokens."
     },
     "backfill": {
       "runningTitle": "Initializing historical stats",
@@ -233,7 +229,8 @@
       "withDeepChatDaysValue": "{days} روز",
       "withDeepChatDaysSentence": "اکنون در روز {days} همراهی با DeepChat هستید.",
       "withDeepChatDaysDescription": "بر پایهٔ قدیمی‌ترین رکورد استفادهٔ شما در {date}.",
-      "withDeepChatDaysDescriptionUnavailable": "هنوز هیچ رکورد استفاده‌ای وجود ندارد."
+      "withDeepChatDaysDescriptionUnavailable": "هنوز هیچ رکورد استفاده‌ای وجود ندارد.",
+      "tokenUsage": "مصرف توکن"
     },
     "calendar": {
       "title": "Contribution Calendar",

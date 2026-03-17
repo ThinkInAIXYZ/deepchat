@@ -189,13 +189,9 @@
   "dashboard": {
     "badge": "Usage Dashboard",
     "title": "Usage Dashboard",
-    "description": "Track total tokens, cached tokens and estimated cost from a one-time historical backfill plus all new messages.",
+    "description": "Показывает расход токенов, попадания в кэш и оценочную стоимость. Данные по токенам и стоимости оцениваются по публичной информации, а для некоторых провайдеров или старых сообщений могут быть неполными, поэтому используйте эти значения только как справочные.",
     "actions": {
       "refresh": "Refresh"
-    },
-    "notes": {
-      "backfill": "Includes a one-time backfill from current messages.",
-      "cache": "Historical cache data is unavailable, so old records use 0 cached tokens."
     },
     "backfill": {
       "runningTitle": "Initializing historical stats",
@@ -233,7 +229,8 @@
       "withDeepChatDaysValue": "{days} дней",
       "withDeepChatDaysSentence": "Вы уже {days}‑й день с DeepChat.",
       "withDeepChatDaysDescription": "На основе вашей самой ранней записи об использовании от {date}.",
-      "withDeepChatDaysDescriptionUnavailable": "Записей об использовании пока нет."
+      "withDeepChatDaysDescriptionUnavailable": "Записей об использовании пока нет.",
+      "tokenUsage": "Расход токенов"
     },
     "calendar": {
       "title": "Contribution Calendar",

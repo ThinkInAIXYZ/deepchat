@@ -36,9 +36,11 @@
 - Keep the visual language aligned with the current project theme.
 - Show loading, empty, running backfill, and failed backfill states.
 - Render four summary cards only; remove the cache hit rate card from the dashboard overview.
-- Replace the total-token number card with a renderer-only donut card that visualizes input/output ratio without adding chart dependencies.
-- Visualize cached input tokens with a renderer-only mini ratio bar for cached versus uncached input.
-- Visualize estimated cost with a renderer-only 30-day sparkline while keeping the total cost as the primary value.
+- Adopt the official `shadcn-vue chart` component with `Unovis` for dashboard chart rendering.
+- Rebuild the overview layout as `1 large + 3 small`, with total tokens as the hero chart.
+- Replace the total-token number card with a donut-based hero chart that visualizes input/output ratio.
+- Visualize cached input tokens with a compact horizontal stacked bar for cached versus uncached input.
+- Visualize estimated cost with a 30-day area chart while keeping the total cost as the primary value.
 - Reuse `recordingStartedAt` to render a locale-specific, number-first "days with DeepChat" summary card in the renderer.
-- Keep provider/model ranking queries unchanged, but constrain the rendered lists with internal scrolling.
+- Keep provider/model ranking queries unchanged, but render them as horizontal token bar charts with internal scrolling.
 - Translate changed dashboard copy per locale instead of falling back to English sentence structure.

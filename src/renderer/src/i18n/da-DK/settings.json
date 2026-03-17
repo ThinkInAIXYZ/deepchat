@@ -135,13 +135,9 @@
   "dashboard": {
     "badge": "Usage Dashboard",
     "title": "Usage Dashboard",
-    "description": "Track total tokens, cached tokens and estimated cost from a one-time historical backfill plus all new messages.",
+    "description": "Vis tokenforbrug, cachetræf og estimerede omkostninger. Token- og prisdata estimeres ud fra offentligt tilgængelige oplysninger, og nogle udbydere eller historiske beskeder kan mangle data, så tallene er kun vejledende.",
     "actions": {
       "refresh": "Refresh"
-    },
-    "notes": {
-      "backfill": "Includes a one-time backfill from current messages.",
-      "cache": "Historical cache data is unavailable, so old records use 0 cached tokens."
     },
     "backfill": {
       "runningTitle": "Initializing historical stats",
@@ -179,7 +175,8 @@
       "withDeepChatDaysValue": "{days} dage",
       "withDeepChatDaysSentence": "Du er nu på dag {days} med DeepChat.",
       "withDeepChatDaysDescription": "Baseret på din tidligste registrerede brug fra {date}.",
-      "withDeepChatDaysDescriptionUnavailable": "Der er endnu ingen brugsregistreringer."
+      "withDeepChatDaysDescriptionUnavailable": "Der er endnu ingen brugsregistreringer.",
+      "tokenUsage": "Tokenforbrug"
     },
     "calendar": {
       "title": "Contribution Calendar",

@@ -189,13 +189,9 @@
   "dashboard": {
     "badge": "Usage Dashboard",
     "title": "Usage Dashboard",
-    "description": "Track total tokens, cached tokens and estimated cost from a one-time historical backfill plus all new messages.",
+    "description": "Track token usage, cache hits, and estimated cost. Token and cost figures are estimated from public information, and some providers or historical messages may be missing, so treat these figures as reference only.",
     "actions": {
       "refresh": "Refresh"
-    },
-    "notes": {
-      "backfill": "Includes a one-time backfill from current messages.",
-      "cache": "Historical cache data is unavailable, so old records use 0 cached tokens."
     },
     "backfill": {
       "runningTitle": "Initializing historical stats",
@@ -233,7 +229,8 @@
       "withDeepChatDaysValue": "{days} days",
       "withDeepChatDaysSentence": "You are on day {days} with DeepChat.",
       "withDeepChatDaysDescription": "Based on your earliest usage record from {date}.",
-      "withDeepChatDaysDescriptionUnavailable": "No usage record yet."
+      "withDeepChatDaysDescriptionUnavailable": "No usage record yet.",
+      "tokenUsage": "Token usage"
     },
     "calendar": {
       "title": "Contribution Calendar",
