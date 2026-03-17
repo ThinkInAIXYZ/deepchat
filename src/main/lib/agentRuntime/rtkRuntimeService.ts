@@ -607,15 +607,16 @@ export class RtkRuntimeService {
 
     const tempRoot = fs.mkdtempSync(path.join(this.getPathImpl('temp'), 'deepchat-rtk-health-'))
     try {
-      fs.writeFileSync(path.join(tempRoot, 'health.txt'), 'ok', 'utf-8')
+      const healthFilePath = path.join(tempRoot, 'health.txt')
+      fs.writeFileSync(healthFilePath, 'ok', 'utf-8')
       const smokeDbPath = path.join(tempRoot, 'tracking.db')
       const smokeEnv = await this.createRuntimeEnv({}, smokeDbPath)
-      const smoke = await this.runCommandImpl(candidate.command, ['ls', tempRoot], {
+      const smoke = await this.runCommandImpl(candidate.command, ['read', healthFilePath], {
         cwd: tempRoot,
         env: smokeEnv,
         timeoutMs: RTK_HEALTH_TIMEOUT_MS
       })
-      if (smoke.code !== 0) {
+      if (smoke.code !== 0 || !smoke.stdout.trim()) {
         throw new RtkHealthCheckError(
           'smoke',
           smoke.stderr.trim() || smoke.stdout.trim() || 'rtk smoke test failed'
