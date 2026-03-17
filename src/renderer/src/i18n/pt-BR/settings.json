@@ -78,7 +78,7 @@
     }
   },
   "notificationsHooks": {
-    "title": "Notificações e hooks",
+    "title": "Hooks",
     "description": "Configure notificações de webhook e hooks de ciclo de vida.",
     "events": {
       "title": "Eventos",
@@ -187,11 +187,11 @@
     }
   },
   "dashboard": {
-    "badge": "Usage Dashboard",
-    "title": "Usage Dashboard",
+    "badge": "Painel de uso",
+    "title": "Painel de uso",
     "description": "Mostra o consumo de tokens, os acertos de cache e o custo estimado. Os dados de tokens e custo são estimados com base em informações públicas, e alguns provedores ou mensagens mais antigas podem estar incompletos, então use esses números apenas como referência.",
     "actions": {
-      "refresh": "Refresh"
+      "refresh": "Atualizar"
     },
     "backfill": {
       "runningTitle": "Atualizando dados de uso",
@@ -200,31 +200,31 @@
       "failedDescription": "Atualize esta página ou tente novamente mais tarde."
     },
     "error": {
-      "title": "Failed to load dashboard",
-      "description": "Please try again later."
+      "title": "Falha ao carregar o painel",
+      "description": "Tente novamente mais tarde."
     },
     "empty": {
-      "title": "No usage stats yet",
+      "title": "Ainda não há estatísticas de uso",
       "description": "O consumo de tokens, os acertos de cache e o custo estimado aparecerão aqui assim que houver dados de uso.",
       "historyNote": "Os dados de tokens e custo são estimados com base em informações públicas. Alguns provedores ou mensagens mais antigas podem estar incompletos, então use esses números apenas como referência."
     },
     "summary": {
-      "totalTokens": "Total tokens",
+      "totalTokens": "Total de tokens",
       "totalTokensDescription": "Mostra a participação dos tokens de entrada e saída no total.",
       "inputTokensLabel": "Entrada",
       "outputTokensLabel": "Saída",
-      "cachedTokens": "Cached tokens",
-      "cachedTokensDescription": "Prompt tokens served from provider cache.",
+      "cachedTokens": "Tokens em cache",
+      "cachedTokensDescription": "Tokens de prompt atendidos pelo cache do provedor.",
       "cachedTokensCachedLabel": "Em cache",
       "cachedTokensUncachedLabel": "Sem cache",
-      "cacheHitRate": "Cache hit rate",
-      "cacheHitRateDescription": "Cached prompt tokens divided by total input tokens.",
-      "estimatedCost": "Estimated cost",
-      "estimatedCostDescription": "Estimated in USD using provider pricing or AIHubMix fallback pricing.",
+      "cacheHitRate": "Taxa de acerto do cache",
+      "cacheHitRateDescription": "Tokens de prompt em cache divididos pelo total de tokens de entrada.",
+      "estimatedCost": "Custo estimado",
+      "estimatedCostDescription": "Estimado em USD com base no preço do provedor ou no preço de fallback da AIHubMix.",
       "estimatedCostTrendLabel": "Tendência dos últimos 30 dias",
       "estimatedCostTrendEmpty": "Nenhum custo registrado nos últimos 30 dias.",
-      "recordingStartedAt": "Recording started",
-      "recordingStartedAtDescription": "The earliest usage record currently stored in this dashboard.",
+      "recordingStartedAt": "Início do registro",
+      "recordingStartedAtDescription": "O registro de uso mais antigo atualmente armazenado neste painel.",
       "withDeepChatDaysLabel": "Dias juntos",
       "withDeepChatDaysValue": "{days} dias",
       "withDeepChatDaysSentence": "Você está no dia {days} com o DeepChat.",
@@ -245,9 +245,9 @@
       "nostalgiaMostActiveDayDetail": "{date} foi o seu dia mais ativo, com {count} mensagens."
     },
     "calendar": {
-      "title": "Contribution Calendar",
-      "description": "Daily token usage over the last 365 days.",
-      "legend": "Less to more",
+      "title": "Calendário de contribuições",
+      "description": "Uso diário de tokens nos últimos 365 dias.",
+      "legend": "De menos para mais",
       "tooltip": "{date}: {tokens} tokens"
     },
     "breakdown": {
@@ -258,7 +258,7 @@
       "messages": "{count} mensagens",
       "empty": "Ainda não há dados detalhados para exibir."
     },
-    "unavailable": "N/A"
+    "unavailable": "Indisponível"
   },
   "model": {
     "title": "Configurações do Modelo",

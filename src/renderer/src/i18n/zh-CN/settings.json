@@ -78,7 +78,7 @@
     }
   },
   "notificationsHooks": {
-    "title": "通知与Hooks",
+    "title": "Hooks",
     "description": "配置 webhook 通知与生命周期 hooks。",
     "events": {
       "title": "事件",
@@ -245,15 +245,15 @@
       "nostalgiaMostActiveDayDetail": "{date}是你最活跃的一天，共有 {count} 条消息。"
     },
     "calendar": {
-      "title": "Contribution Calendar",
+      "title": "贡献日历",
       "description": "最近 365 天按日统计的 token 消耗。",
       "legend": "少到多",
       "tooltip": "{date}：{tokens} token"
     },
     "breakdown": {
-      "providerTitle": "Provider 排行",
+      "providerTitle": "提供者排行",
       "providerDescription": "先按估算价格排序，再按总 token 排序。",
-      "modelTitle": "Model 排行",
+      "modelTitle": "模型排行",
       "modelDescription": "按估算价格和总 token 排序的前 10 个模型。",
       "messages": "{count} 条消息",
       "empty": "暂时还没有可展示的明细数据。"

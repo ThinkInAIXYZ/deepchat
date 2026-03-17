@@ -19,13 +19,13 @@ const colorConfig = computed(() => {
 
 <template>
   <Primitive
-    v-if="colorConfig.length"
+    v-if="id && colorConfig.length"
     as="style"
   >
     {{ Object.entries(THEMES)
       .map(
         ([theme, prefix]) => `
-${prefix} [data-chart=${id}] {
+${prefix} [data-chart="${id}"] {
 ${colorConfig
   .map(([key, itemConfig]) => {
     const color

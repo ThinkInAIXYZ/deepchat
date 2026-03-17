@@ -8,6 +8,7 @@ import type {
   MessageMetadata
 } from '@shared/types/agent-interface'
 import type { SearchResult } from '@shared/types/core/search'
+import logger from '@shared/logger'
 import type { DeepChatMessageRow } from '../sqlitePresenter/tables/deepchatMessages'
 import {
   buildUsageStatsRecord,
@@ -400,34 +401,39 @@ export class DeepChatMessageStore {
       return
     }
 
-    const metadata = parseMessageMetadata(metadataRaw)
-    if (metadata.messageType === 'compaction') {
+    try {
+      const metadata = parseMessageMetadata(metadataRaw)
+      if (metadata.messageType === 'compaction') {
+        return
+      }
+
+      const sessionRow = this.sqlitePresenter.deepchatSessionsTable.get(messageRow.session_id)
+      const providerId = resolveUsageProviderId(metadata, sessionRow?.provider_id)
+      const modelId = resolveUsageModelId(metadata, sessionRow?.model_id)
+
+      if (!providerId || !modelId) {
+        return
+      }
+
+      const usageRecord = buildUsageStatsRecord({
+        messageId: messageRow.id,
+        sessionId: messageRow.session_id,
+        createdAt: messageRow.created_at,
+        updatedAt: messageRow.updated_at,
+        providerId,
+        modelId,
+        metadata,
+        source
+      })
+
+      if (!usageRecord) {
+        return
+      }
+
+      usageStatsTable.upsert(usageRecord)
+    } catch (error) {
+      logger.error('Failed to persist deepchat usage stats', { messageId, source }, error)
       return
     }
-
-    const sessionRow = this.sqlitePresenter.deepchatSessionsTable.get(messageRow.session_id)
-    const providerId = resolveUsageProviderId(metadata, sessionRow?.provider_id)
-    const modelId = resolveUsageModelId(metadata, sessionRow?.model_id)
-
-    if (!providerId || !modelId) {
-      return
-    }
-
-    const usageRecord = buildUsageStatsRecord({
-      messageId: messageRow.id,
-      sessionId: messageRow.session_id,
-      createdAt: messageRow.created_at,
-      updatedAt: messageRow.updated_at,
-      providerId,
-      modelId,
-      metadata,
-      source
-    })
-
-    if (!usageRecord) {
-      return
-    }
-
-    usageStatsTable.upsert(usageRecord)
   }
 }

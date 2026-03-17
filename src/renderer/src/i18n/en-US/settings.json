@@ -78,7 +78,7 @@
     }
   },
   "notificationsHooks": {
-    "title": "Notifications & Hooks",
+    "title": "Hooks",
     "description": "Configure webhook notifications and lifecycle hooks.",
     "events": {
       "title": "Events",

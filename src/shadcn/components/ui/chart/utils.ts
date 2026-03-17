@@ -6,9 +6,25 @@ import { h, render } from "vue"
 // Simple cache using a Map to store serialized object keys
 const cache = new Map<string, string>()
 
-// Convert object to a consistent string key
+function stableNormalize(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) => stableNormalize(item))
+  }
+
+  if (value && typeof value === 'object') {
+    return Object.keys(value as Record<string, unknown>)
+      .sort()
+      .reduce<Record<string, unknown>>((normalized, key) => {
+        normalized[key] = stableNormalize((value as Record<string, unknown>)[key])
+        return normalized
+      }, {})
+  }
+
+  return value
+}
+
 function serializeKey(key: Record<string, any>): string {
-  return JSON.stringify(key, Object.keys(key).sort())
+  return JSON.stringify(stableNormalize(key))
 }
 
 interface Constructor<P = any> {

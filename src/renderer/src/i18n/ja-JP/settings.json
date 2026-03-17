@@ -78,7 +78,7 @@
     }
   },
   "notificationsHooks": {
-    "title": "通知とフック",
+    "title": "フック",
     "description": "Webhook 通知とライフサイクルフックを設定します。",
     "events": {
       "title": "イベント",
@@ -187,11 +187,11 @@
     }
   },
   "dashboard": {
-    "badge": "Usage Dashboard",
-    "title": "Usage Dashboard",
+    "badge": "使用ダッシュボード",
+    "title": "使用ダッシュボード",
     "description": "token 消費、キャッシュヒット、推定コストを集計します。token と費用のデータは公開情報をもとに推定しており、一部のプロバイダーや過去のメッセージでは欠損する場合があるため、参考値としてご利用ください。",
     "actions": {
-      "refresh": "Refresh"
+      "refresh": "更新"
     },
     "backfill": {
       "runningTitle": "使用データを更新しています",
@@ -200,31 +200,31 @@
       "failedDescription": "このページを再読み込みするか、しばらくしてから再試行してください。"
     },
     "error": {
-      "title": "Failed to load dashboard",
-      "description": "Please try again later."
+      "title": "ダッシュボードの読み込みに失敗しました",
+      "description": "しばらくしてからもう一度お試しください。"
     },
     "empty": {
-      "title": "No usage stats yet",
+      "title": "使用統計はまだありません",
       "description": "使用データが利用可能になると、token 消費、キャッシュヒット、推定コストがここに表示されます。",
       "historyNote": "token と費用のデータは公開情報をもとに推定しています。一部のプロバイダーや過去のメッセージでは欠損する場合があるため、参考値としてご利用ください。"
     },
     "summary": {
-      "totalTokens": "Total tokens",
+      "totalTokens": "総 token",
       "totalTokensDescription": "総 token に占める入力 / 出力 token の構成を表示します。",
       "inputTokensLabel": "入力",
       "outputTokensLabel": "出力",
-      "cachedTokens": "Cached tokens",
-      "cachedTokensDescription": "Prompt tokens served from provider cache.",
+      "cachedTokens": "キャッシュ token",
+      "cachedTokensDescription": "provider のキャッシュから返された prompt token。",
       "cachedTokensCachedLabel": "キャッシュ",
       "cachedTokensUncachedLabel": "未キャッシュ",
-      "cacheHitRate": "Cache hit rate",
-      "cacheHitRateDescription": "Cached prompt tokens divided by total input tokens.",
-      "estimatedCost": "Estimated cost",
-      "estimatedCostDescription": "Estimated in USD using provider pricing or AIHubMix fallback pricing.",
+      "cacheHitRate": "キャッシュヒット率",
+      "cacheHitRateDescription": "キャッシュされた prompt token を総入力 token で割った割合です。",
+      "estimatedCost": "推定コスト",
+      "estimatedCostDescription": "provider の価格、または AIHubMix の代替価格をもとに米ドルで推定したコストです。",
       "estimatedCostTrendLabel": "直近30日間の推移",
       "estimatedCostTrendEmpty": "直近30日間のコスト記録はありません。",
-      "recordingStartedAt": "Recording started",
-      "recordingStartedAtDescription": "The earliest usage record currently stored in this dashboard.",
+      "recordingStartedAt": "記録開始時点",
+      "recordingStartedAtDescription": "このダッシュボードに現在保存されている最も古い使用記録です。",
       "withDeepChatDaysLabel": "一緒に過ごした日数",
       "withDeepChatDaysValue": "{days}日",
       "withDeepChatDaysSentence": "DeepChatと過ごして{days}日目です。",
@@ -245,10 +245,10 @@
       "nostalgiaMostActiveDayDetail": "{date}は最も活発な一日で、{count}件のメッセージがありました。"
     },
     "calendar": {
-      "title": "Contribution Calendar",
-      "description": "Daily token usage over the last 365 days.",
-      "legend": "Less to more",
-      "tooltip": "{date}: {tokens} tokens"
+      "title": "コントリビューションカレンダー",
+      "description": "直近 365 日の token 消費を日ごとに集計します。",
+      "legend": "少ない順から多い順",
+      "tooltip": "{date}: {tokens} token"
     },
     "breakdown": {
       "providerTitle": "プロバイダー別ランキング",
@@ -258,7 +258,7 @@
       "messages": "{count}件のメッセージ",
       "empty": "表示できる内訳データはまだありません。"
     },
-    "unavailable": "N/A"
+    "unavailable": "該当なし"
   },
   "model": {
     "title": "モデル設定",

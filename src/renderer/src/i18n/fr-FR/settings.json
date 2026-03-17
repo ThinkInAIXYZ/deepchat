@@ -78,7 +78,7 @@
     }
   },
   "notificationsHooks": {
-    "title": "Notifications et hooks",
+    "title": "Hooks",
     "description": "Configurer les notifications webhook et les hooks du cycle de vie.",
     "events": {
       "title": "Événements",
@@ -187,11 +187,11 @@
     }
   },
   "dashboard": {
-    "badge": "Usage Dashboard",
-    "title": "Usage Dashboard",
+    "badge": "Tableau de bord d'utilisation",
+    "title": "Tableau de bord d'utilisation",
     "description": "Affiche la consommation de tokens, les accès au cache et le coût estimé. Les données de tokens et de coût sont estimées à partir d’informations publiques ; certains fournisseurs ou messages plus anciens peuvent être incomplets, donc ces chiffres sont fournis à titre indicatif.",
     "actions": {
-      "refresh": "Refresh"
+      "refresh": "Actualiser"
     },
     "backfill": {
       "runningTitle": "Mise à jour des données d’utilisation",
@@ -200,31 +200,31 @@
       "failedDescription": "Actualisez cette page ou réessayez plus tard."
     },
     "error": {
-      "title": "Failed to load dashboard",
-      "description": "Please try again later."
+      "title": "Échec du chargement du tableau de bord",
+      "description": "Veuillez réessayer plus tard."
     },
     "empty": {
-      "title": "No usage stats yet",
+      "title": "Pas encore de statistiques d'utilisation",
       "description": "La consommation de tokens, les accès au cache et le coût estimé apparaîtront ici dès que des données d’utilisation seront disponibles.",
       "historyNote": "Les données de tokens et de coût sont estimées à partir d’informations publiques. Certains fournisseurs ou messages plus anciens peuvent être incomplets, donc ces chiffres sont fournis à titre indicatif."
     },
     "summary": {
-      "totalTokens": "Total tokens",
+      "totalTokens": "Total des tokens",
       "totalTokensDescription": "Affiche la part des tokens d’entrée et de sortie dans le total.",
       "inputTokensLabel": "Entrée",
       "outputTokensLabel": "Sortie",
-      "cachedTokens": "Cached tokens",
-      "cachedTokensDescription": "Prompt tokens served from provider cache.",
+      "cachedTokens": "Tokens en cache",
+      "cachedTokensDescription": "Tokens de prompt servis depuis le cache du fournisseur.",
       "cachedTokensCachedLabel": "En cache",
       "cachedTokensUncachedLabel": "Sans cache",
-      "cacheHitRate": "Cache hit rate",
-      "cacheHitRateDescription": "Cached prompt tokens divided by total input tokens.",
-      "estimatedCost": "Estimated cost",
-      "estimatedCostDescription": "Estimated in USD using provider pricing or AIHubMix fallback pricing.",
+      "cacheHitRate": "Taux de cache",
+      "cacheHitRateDescription": "Tokens de prompt en cache divisés par le total des tokens d'entrée.",
+      "estimatedCost": "Coût estimé",
+      "estimatedCostDescription": "Estimation en USD à partir des tarifs du fournisseur ou du tarif de secours AIHubMix.",
       "estimatedCostTrendLabel": "Tendance sur les 30 derniers jours",
       "estimatedCostTrendEmpty": "Aucun coût enregistré sur les 30 derniers jours.",
-      "recordingStartedAt": "Recording started",
-      "recordingStartedAtDescription": "The earliest usage record currently stored in this dashboard.",
+      "recordingStartedAt": "Début de l'enregistrement",
+      "recordingStartedAtDescription": "Le plus ancien enregistrement d'utilisation actuellement stocké dans ce tableau de bord.",
       "withDeepChatDaysLabel": "Jours ensemble",
       "withDeepChatDaysValue": "{days} jours",
       "withDeepChatDaysSentence": "Vous en êtes à votre {days}e jour avec DeepChat.",
@@ -245,10 +245,10 @@
       "nostalgiaMostActiveDayDetail": "{date} a été votre journée la plus active, avec {count} messages."
     },
     "calendar": {
-      "title": "Contribution Calendar",
-      "description": "Daily token usage over the last 365 days.",
-      "legend": "Less to more",
-      "tooltip": "{date}: {tokens} tokens"
+      "title": "Calendrier de contribution",
+      "description": "Consommation quotidienne de tokens sur les 365 derniers jours.",
+      "legend": "De moins à plus",
+      "tooltip": "{date} : {tokens} tokens"
     },
     "breakdown": {
       "providerTitle": "Classement des fournisseurs",
@@ -258,7 +258,7 @@
       "messages": "{count} messages",
       "empty": "Aucune donnée de répartition à afficher pour le moment."
     },
-    "unavailable": "N/A"
+    "unavailable": "Indisponible"
   },
   "model": {
     "title": "Paramètres du modèle",

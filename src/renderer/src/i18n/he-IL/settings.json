@@ -78,7 +78,7 @@
     }
   },
   "notificationsHooks": {
-    "title": "התראות ו‑Hooks",
+    "title": "Hooks",
     "description": "הגדרת התראות webhook ו‑hooks של מחזור החיים.",
     "events": {
       "title": "אירועים",
@@ -187,11 +187,11 @@
     }
   },
   "dashboard": {
-    "badge": "Usage Dashboard",
-    "title": "Usage Dashboard",
+    "badge": "לוח שימוש",
+    "title": "לוח שימוש",
     "description": "מציג שימוש בטוקנים, פגיעות מטמון ועלות משוערת. נתוני הטוקנים והעלות מוערכים על סמך מידע ציבורי, וחלק מהספקים או מההודעות המוקדמות יותר עשויים להיות חסרים, לכן יש להתייחס לנתונים כהערכה בלבד.",
     "actions": {
-      "refresh": "Refresh"
+      "refresh": "רענון"
     },
     "backfill": {
       "runningTitle": "מעדכן נתוני שימוש",
@@ -200,31 +200,31 @@
       "failedDescription": "רענן את הדף הזה או נסה שוב מאוחר יותר."
     },
     "error": {
-      "title": "Failed to load dashboard",
-      "description": "Please try again later."
+      "title": "טעינת לוח השימוש נכשלה",
+      "description": "נסה שוב מאוחר יותר."
     },
     "empty": {
-      "title": "No usage stats yet",
+      "title": "עדיין אין נתוני שימוש",
       "description": "שימוש בטוקנים, פגיעות מטמון ועלות משוערת יוצגו כאן ברגע שנתוני השימוש יהיו זמינים.",
       "historyNote": "נתוני הטוקנים והעלות מוערכים על סמך מידע ציבורי. חלק מהספקים או מההודעות המוקדמות יותר עשויים להיות חסרים, לכן יש להתייחס לנתונים כהערכה בלבד."
     },
     "summary": {
-      "totalTokens": "Total tokens",
+      "totalTokens": "סך כל הטוקנים",
       "totalTokensDescription": "מציג את החלוקה של טוקני הקלט והפלט מתוך הסך הכולל.",
       "inputTokensLabel": "קלט",
       "outputTokensLabel": "פלט",
-      "cachedTokens": "Cached tokens",
-      "cachedTokensDescription": "Prompt tokens served from provider cache.",
+      "cachedTokens": "טוקנים מהמטמון",
+      "cachedTokensDescription": "טוקני פרומפט שסופקו ממטמון הספק.",
       "cachedTokensCachedLabel": "במטמון",
       "cachedTokensUncachedLabel": "ללא מטמון",
-      "cacheHitRate": "Cache hit rate",
-      "cacheHitRateDescription": "Cached prompt tokens divided by total input tokens.",
-      "estimatedCost": "Estimated cost",
-      "estimatedCostDescription": "Estimated in USD using provider pricing or AIHubMix fallback pricing.",
+      "cacheHitRate": "שיעור פגיעות מטמון",
+      "cacheHitRateDescription": "טוקני פרומפט מהמטמון חלקי כלל טוקני הקלט.",
+      "estimatedCost": "עלות משוערת",
+      "estimatedCostDescription": "עלות משוערת בדולרים לפי תמחור הספק או תמחור הגיבוי של AIHubMix.",
       "estimatedCostTrendLabel": "מגמה ב־30 הימים האחרונים",
       "estimatedCostTrendEmpty": "לא נרשמה עלות ב־30 הימים האחרונים.",
-      "recordingStartedAt": "Recording started",
-      "recordingStartedAtDescription": "The earliest usage record currently stored in this dashboard.",
+      "recordingStartedAt": "תחילת הרישום",
+      "recordingStartedAtDescription": "רשומת השימוש המוקדמת ביותר השמורה כעת בלוח זה.",
       "withDeepChatDaysLabel": "ימים יחד",
       "withDeepChatDaysValue": "{days} ימים",
       "withDeepChatDaysSentence": "זה היום ה־{days} שלך עם DeepChat.",
@@ -245,10 +245,10 @@
       "nostalgiaMostActiveDayDetail": "{date} היה היום הפעיל ביותר שלך, עם {count} הודעות."
     },
     "calendar": {
-      "title": "Contribution Calendar",
-      "description": "Daily token usage over the last 365 days.",
-      "legend": "Less to more",
-      "tooltip": "{date}: {tokens} tokens"
+      "title": "לוח תרומות",
+      "description": "צריכת טוקנים יומית ב־365 הימים האחרונים.",
+      "legend": "מפחות ליותר",
+      "tooltip": "{date}: {tokens} טוקנים"
     },
     "breakdown": {
       "providerTitle": "דירוג ספקים",
@@ -258,7 +258,7 @@
       "messages": "{count} הודעות",
       "empty": "עדיין אין נתוני פירוט להצגה."
     },
-    "unavailable": "N/A"
+    "unavailable": "לא זמין"
   },
   "model": {
     "title": "הגדרות מודל",

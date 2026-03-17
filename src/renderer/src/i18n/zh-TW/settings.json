@@ -78,7 +78,7 @@
     }
   },
   "notificationsHooks": {
-    "title": "通知與 Hooks",
+    "title": "Hooks",
     "description": "設定 webhook 通知與生命週期 Hooks。",
     "events": {
       "title": "事件",
@@ -245,7 +245,7 @@
       "nostalgiaMostActiveDayDetail": "{date}是你最活躍的一天，共有 {count} 則訊息。"
     },
     "calendar": {
-      "title": "Contribution Calendar",
+      "title": "貢獻日曆",
       "description": "最近 365 天按日統計的 token 消耗。",
       "legend": "少到多",
       "tooltip": "{date}：{tokens} token"

@@ -1,11 +1,11 @@
 <script lang="ts">
-import type { HTMLAttributes } from "vue"
-import type { ChartConfig } from "."
-import { useId } from "reka-ui"
-import { computed, toRefs } from "vue"
+import type { HTMLAttributes } from 'vue'
+import type { ChartConfig } from '.'
+import { useId } from 'reka-ui'
+import { computed, toRefs } from 'vue'
 import { cn } from '@shadcn/lib/utils'
-import { provideChartContext } from "."
-import ChartStyle from "./ChartStyle.vue"
+import { provideChartContext } from '.'
+import ChartStyle from './ChartStyle.vue'
 </script>
 
 <script setup lang="ts">
@@ -28,8 +28,8 @@ const uniqueId = useId()
 const chartId = computed(() => `chart-${props.id || uniqueId.replace(/:/g, "")}`)
 
 provideChartContext({
-  id: uniqueId,
-  config,
+  id: chartId.value,
+  config
 })
 </script>
 
@@ -53,7 +53,7 @@ provideChartContext({
       '--vis-font-family': 'var(--font-sans)',
     }"
   >
-    <slot :id="uniqueId" :config="config" />
+    <slot :id="chartId" :config="config" />
     <ChartStyle :id="chartId" />
   </div>
 </template>

@@ -625,6 +625,7 @@ const errorMessage = ref('')
 const dashboard = ref<UsageDashboardData | null>(null)
 const nostalgiaStatIndex = ref(0)
 const tokenUsageTooltip = ref<{ component?: UnovisTooltip } | null>(null)
+let isDashboardMounted = false
 let refreshTimer: number | null = null
 let nostalgiaRotationTimer: number | null = null
 
@@ -638,7 +639,7 @@ const hasData = computed(() => (dashboard.value?.summary.messageCount ?? 0) > 0)
 const tokenUsageChartConfig = computed<ChartConfig>(() => ({
   input: {
     label: t('settings.dashboard.summary.inputTokensLabel'),
-    color: 'var(--chart-1)'
+    color: 'var(--primary-600)'
   },
   output: {
     label: t('settings.dashboard.summary.outputTokensLabel'),
@@ -880,17 +881,34 @@ const modelBreakdownCard = computed(() =>
 )
 
 async function loadDashboard(): Promise<void> {
+  if (!isDashboardMounted) {
+    return
+  }
+
+  let shouldFinalizeLoad = false
+
   try {
     isLoading.value = true
     errorMessage.value = ''
-    dashboard.value = await newAgentPresenter.getUsageDashboard()
+    const nextDashboard = await newAgentPresenter.getUsageDashboard()
+    if (!isDashboardMounted) {
+      return
+    }
+    dashboard.value = nextDashboard
+    shouldFinalizeLoad = true
   } catch (error) {
+    if (!isDashboardMounted) {
+      return
+    }
     errorMessage.value =
       error instanceof Error ? error.message : t('settings.dashboard.error.description')
+    shouldFinalizeLoad = true
   } finally {
-    isLoading.value = false
-    syncNostalgiaRotation()
-    scheduleRefresh()
+    if (shouldFinalizeLoad && isDashboardMounted) {
+      isLoading.value = false
+      syncNostalgiaRotation()
+      scheduleRefresh()
+    }
   }
 }
 
@@ -900,12 +918,15 @@ function scheduleRefresh(): void {
     refreshTimer = null
   }
 
-  if (!dashboard.value) {
+  if (!isDashboardMounted || !dashboard.value) {
     return
   }
 
   const delay = dashboard.value.backfillStatus.status === 'running' ? 3000 : 15000
   refreshTimer = window.setTimeout(() => {
+    if (!isDashboardMounted) {
+      return
+    }
     void loadDashboard()
   }, delay)
 }
@@ -1037,7 +1058,7 @@ const tokenTrendYAccessors = [
 function tokenTrendAreaColor(series: TokenUsageTrendKey): string {
   switch (series) {
     case 'input':
-      return 'var(--chart-1)'
+      return 'var(--primary-600)'
     case 'output':
       return 'hsl(278 72% 72%)'
     case 'cached':
@@ -1050,7 +1071,7 @@ function tokenTrendAreaColor(series: TokenUsageTrendKey): string {
 function tokenTrendLineColor(series: TokenUsageTrendKey): string {
   switch (series) {
     case 'input':
-      return 'var(--chart-1)'
+      return 'var(--primary-600)'
     case 'output':
       return 'hsl(278 72% 72%)'
     case 'cached':
@@ -1125,6 +1146,14 @@ function breakdownBarStyle(barRatio: number): { width: string } {
 }
 
 function syncNostalgiaRotation(): void {
+  if (!isDashboardMounted) {
+    if (nostalgiaRotationTimer !== null) {
+      window.clearInterval(nostalgiaRotationTimer)
+      nostalgiaRotationTimer = null
+    }
+    return
+  }
+
   const statCount = nostalgiaCard.value?.rotatingStats.length ?? 0
 
   if (statCount > 1) {
@@ -1132,6 +1161,9 @@ function syncNostalgiaRotation(): void {
 
     if (nostalgiaRotationTimer === null) {
       nostalgiaRotationTimer = window.setInterval(() => {
+        if (!isDashboardMounted) {
+          return
+        }
         const currentCount = nostalgiaCard.value?.rotatingStats.length ?? 0
         if (currentCount > 1) {
           nostalgiaStatIndex.value = (nostalgiaStatIndex.value + 1) % currentCount
@@ -1151,10 +1183,13 @@ function syncNostalgiaRotation(): void {
 }
 
 onMounted(() => {
+  isDashboardMounted = true
   void loadDashboard()
 })
 
 onBeforeUnmount(() => {
+  isDashboardMounted = false
+
   if (refreshTimer) {
     window.clearTimeout(refreshTimer)
     refreshTimer = null

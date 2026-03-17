@@ -169,9 +169,14 @@ function buildDashboard(overrides: Partial<UsageDashboardData> = {}): UsageDashb
   }
 }
 
-async function setup(data: UsageDashboardData) {
+async function setup(
+  data: UsageDashboardData,
+  options: {
+    getUsageDashboard?: ReturnType<typeof vi.fn>
+  } = {}
+) {
   vi.resetModules()
-  const getUsageDashboard = vi.fn().mockResolvedValue(data)
+  const getUsageDashboard = options.getUsageDashboard ?? vi.fn().mockResolvedValue(data)
 
   vi.doMock('@/composables/usePresenter', () => ({
     usePresenter: () => ({
@@ -375,7 +380,7 @@ describe('DashboardSettings', () => {
     expect(wrapper.findComponent({ name: 'ChartCrosshair' }).exists()).toBe(true)
     expect(wrapper.find('[data-testid="token-usage-input-dot"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="token-usage-input-dot"]').attributes('style')).toContain(
-      'var(--chart-1)'
+      'var(--primary-600)'
     )
     expect(wrapper.find('[data-testid="token-usage-output-dot"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="token-usage-cached-dot"]').exists()).toBe(true)
@@ -602,6 +607,26 @@ describe('DashboardSettings', () => {
     expect(vi.getTimerCount()).toBeGreaterThan(0)
 
     wrapper.unmount()
+
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('does not reschedule timers when an async dashboard load resolves after unmount', async () => {
+    let resolveDashboard: ((value: UsageDashboardData) => void) | null = null
+    const getUsageDashboard = vi.fn().mockImplementation(
+      () =>
+        new Promise<UsageDashboardData>((resolve) => {
+          resolveDashboard = resolve
+        })
+    )
+
+    const { wrapper } = await setup(buildDashboard(), { getUsageDashboard })
+
+    expect(getUsageDashboard).toHaveBeenCalledTimes(1)
+
+    wrapper.unmount()
+    resolveDashboard?.(buildDashboard())
+    await flushPromises()
 
     expect(vi.getTimerCount()).toBe(0)
   })

@@ -133,11 +133,11 @@
     }
   },
   "dashboard": {
-    "badge": "Usage Dashboard",
-    "title": "Usage Dashboard",
+    "badge": "Brugsoverblik",
+    "title": "Brugsoverblik",
     "description": "Vis tokenforbrug, cachetræf og estimerede omkostninger. Token- og omkostningsdata er estimeret ud fra offentligt tilgængelige oplysninger, og nogle udbydere eller ældre beskeder kan mangle data, så tallene er kun vejledende.",
     "actions": {
-      "refresh": "Refresh"
+      "refresh": "Opdater"
     },
     "backfill": {
       "runningTitle": "Opdaterer brugsdata",
@@ -146,31 +146,31 @@
       "failedDescription": "Opdater siden eller prøv igen senere."
     },
     "error": {
-      "title": "Failed to load dashboard",
-      "description": "Please try again later."
+      "title": "Kunne ikke indlæse oversigten",
+      "description": "Prøv igen senere."
     },
     "empty": {
-      "title": "No usage stats yet",
+      "title": "Ingen brugsstatistik endnu",
       "description": "Når der findes brugsdata, vises tokenforbrug, cachetræf og estimerede omkostninger her.",
       "historyNote": "Token- og omkostningsdata er estimeret ud fra offentligt tilgængelige oplysninger. Nogle udbydere eller ældre beskeder kan mangle data, så tallene er kun vejledende."
     },
     "summary": {
-      "totalTokens": "Total tokens",
+      "totalTokens": "Samlede tokens",
       "totalTokensDescription": "Viser hvordan input- og outputtokens fordeler sig i det samlede forbrug.",
       "inputTokensLabel": "Input",
       "outputTokensLabel": "Output",
-      "cachedTokens": "Cached tokens",
-      "cachedTokensDescription": "Prompt tokens served from provider cache.",
+      "cachedTokens": "Cachelagrede tokens",
+      "cachedTokensDescription": "Prompt-tokens leveret fra udbyderens cache.",
       "cachedTokensCachedLabel": "Cachelagret",
       "cachedTokensUncachedLabel": "Ikke cachelagret",
-      "cacheHitRate": "Cache hit rate",
-      "cacheHitRateDescription": "Cached prompt tokens divided by total input tokens.",
-      "estimatedCost": "Estimated cost",
-      "estimatedCostDescription": "Estimated in USD using provider pricing or AIHubMix fallback pricing.",
+      "cacheHitRate": "Cachetræfrate",
+      "cacheHitRateDescription": "Cachelagrede prompt-tokens divideret med alle inputtokens.",
+      "estimatedCost": "Estimeret pris",
+      "estimatedCostDescription": "Anslået pris i USD ud fra udbyderens priser eller AIHubMix som reserve.",
       "estimatedCostTrendLabel": "Udvikling de seneste 30 dage",
       "estimatedCostTrendEmpty": "Ingen registreret omkostning de seneste 30 dage.",
-      "recordingStartedAt": "Recording started",
-      "recordingStartedAtDescription": "The earliest usage record currently stored in this dashboard.",
+      "recordingStartedAt": "Første registrering",
+      "recordingStartedAtDescription": "Den tidligste brugsregistrering, der aktuelt findes i denne oversigt.",
       "withDeepChatDaysLabel": "Dage sammen",
       "withDeepChatDaysValue": "{days} dage",
       "withDeepChatDaysSentence": "Du er nu på dag {days} med DeepChat.",
@@ -191,9 +191,9 @@
       "nostalgiaMostActiveDayDetail": "{date} var din mest aktive dag med {count} beskeder."
     },
     "calendar": {
-      "title": "Contribution Calendar",
-      "description": "Daily token usage over the last 365 days.",
-      "legend": "Less to more",
+      "title": "Bidragskalender",
+      "description": "Dagligt tokenforbrug de seneste 365 dage.",
+      "legend": "Fra lav til høj",
       "tooltip": "{date}: {tokens} tokens"
     },
     "breakdown": {
@@ -204,7 +204,7 @@
       "messages": "{count} beskeder",
       "empty": "Der er endnu ingen fordelingsdata."
     },
-    "unavailable": "N/A"
+    "unavailable": "Ikke tilgængelig"
   },
   "model": {
     "title": "Modelindstillinger",
@@ -1365,6 +1365,6 @@
       "success": "succes",
       "testing": "Tester..."
     },
-    "title": "Notifikationer og Hooks"
+    "title": "Hooks"
   }
 }

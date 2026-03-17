@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { HTMLAttributes } from "vue"
+import type { HTMLAttributes } from 'vue'
 import { computed, onMounted, ref } from "vue"
 import { cn } from '@shadcn/lib/utils'
 import { useChart } from "."
@@ -18,8 +18,8 @@ const { id, config } = useChart()
 
 const payload = computed(() => Object.entries(config.value).map(([key]) => {
   return {
-    key: props.nameKey || key,
-    itemConfig: config.value[key],
+    key,
+    itemConfig: config.value[key]
   }
 }))
 

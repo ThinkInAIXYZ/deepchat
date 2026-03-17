@@ -78,7 +78,7 @@
     }
   },
   "notificationsHooks": {
-    "title": "通知與 Hooks",
+    "title": "Hooks",
     "description": "配置 webhook 通知與生命週期 Hooks。",
     "events": {
       "title": "事件",
