@@ -68,8 +68,10 @@ const { electronState, floatingWindowState, presenterState, sendToRendererMock, 
     }
   })
 
+const BrowserWindow = vi.hoisted(() => class BrowserWindow {})
+
 vi.mock('electron', () => ({
-  BrowserWindow: class BrowserWindow {},
+  BrowserWindow,
   ipcMain: {
     on: vi.fn((channel: string, handler: (...args: unknown[]) => unknown) => {
       electronState.eventHandlers.set(channel, handler)

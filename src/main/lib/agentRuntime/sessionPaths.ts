@@ -1,3 +1,4 @@
+import { createHash } from 'crypto'
 import { app } from 'electron'
 import path from 'path'
 
@@ -46,7 +47,7 @@ export function resolveToolOffloadTemplatePath(conversationId: string): string |
 }
 
 function sanitizeToolCallIdForOffload(toolCallId: string): string {
-  const sanitized = Array.from(toolCallId.trim(), (char) => {
+  const sanitizedBase = Array.from(toolCallId.trim(), (char) => {
     const charCode = char.charCodeAt(0)
     if (charCode <= 0x1f || INVALID_WINDOWS_SEGMENT_CHARS.has(char)) {
       return '_'
@@ -56,6 +57,9 @@ function sanitizeToolCallIdForOffload(toolCallId: string): string {
   })
     .join('')
     .replace(TRAILING_WINDOWS_SEGMENT_CHARS, '')
+
+  const fingerprint = createHash('sha1').update(toolCallId).digest('hex').slice(0, 8)
+  const sanitized = [sanitizedBase || 'tool_call', fingerprint].filter(Boolean).join('_')
 
   return sanitized || 'tool_call'
 }
