@@ -38,8 +38,10 @@ export interface ExecuteCommandOptions {
 }
 
 interface PreparedCommand {
+  originalCommand: string
   command: string
   env: Record<string, string>
+  rewritten: boolean
   rtkApplied: boolean
   rtkMode: 'rewrite' | 'direct' | 'bypass'
   rtkFallbackReason?: string
@@ -128,6 +130,39 @@ export class AgentBashHandler {
         env: prepared.env
       }
     )
+
+    const fallbackReason = this.getRtkCapabilityFallbackReason(result.output)
+    if (
+      prepared.rewritten &&
+      !result.timedOut &&
+      result.exitCode !== null &&
+      result.exitCode !== 0 &&
+      fallbackReason
+    ) {
+      logger.warn(
+        '[AgentBashHandler] Falling back to original command after RTK capability error',
+        {
+          command,
+          rewrittenCommand: prepared.command,
+          originalCommand: prepared.originalCommand,
+          fallbackReason
+        }
+      )
+
+      result = await this.runShellProcess(
+        prepared.originalCommand,
+        cwd,
+        timeout ?? COMMAND_DEFAULT_TIMEOUT_MS,
+        {
+          ...options,
+          env: prepared.env
+        }
+      )
+
+      prepared.rtkApplied = false
+      prepared.rtkMode = 'bypass'
+      prepared.rtkFallbackReason = fallbackReason
+    }
 
     const responseLines: string[] = []
     if (result.output) {
@@ -441,8 +476,10 @@ export class AgentBashHandler {
     const baseEnv = env ?? {}
     if (!this.configPresenter) {
       return {
+        originalCommand: command,
         command,
         env: baseEnv,
+        rewritten: false,
         rtkApplied: false,
         rtkMode: 'bypass',
         rtkFallbackReason: 'RTK settings are unavailable'
@@ -455,12 +492,28 @@ export class AgentBashHandler {
       this.configPresenter
     )
     return {
+      originalCommand: prepared.originalCommand,
       command: prepared.command,
       env: prepared.env,
+      rewritten: prepared.rewritten,
       rtkApplied: prepared.rtkApplied,
       rtkMode: prepared.rtkMode,
       rtkFallbackReason: prepared.rtkFallbackReason
     }
+  }
+
+  private getRtkCapabilityFallbackReason(output: string): string | undefined {
+    const normalized = output.toLowerCase()
+    if (normalized.includes('rtk find does not support compound predicates or actions')) {
+      return 'RTK capability fallback after rewrite failure: unsupported find compound predicates or actions'
+    }
+    if (normalized.includes('unsupported predicate')) {
+      return 'RTK capability fallback after rewrite failure: unsupported predicate'
+    }
+    if (normalized.includes('unsupported action')) {
+      return 'RTK capability fallback after rewrite failure: unsupported action'
+    }
+    return undefined
   }
 
   /**

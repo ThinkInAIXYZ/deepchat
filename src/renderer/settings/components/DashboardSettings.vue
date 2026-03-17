@@ -470,6 +470,7 @@
           </CardHeader>
           <CardContent class="space-y-4">
             <div
+              v-if="rtkStatusDescription"
               data-testid="rtk-status-copy"
               class="rounded-2xl border border-border/40 bg-muted/10 px-4 py-3 text-sm text-muted-foreground"
             >
@@ -778,7 +779,7 @@ const rtkStatusDescription = computed(() => {
     return t('settings.dashboard.rtk.descriptionChecking')
   }
 
-  return t('settings.dashboard.rtk.descriptionHealthy')
+  return ''
 })
 
 const rtkStatusBadgeClass = computed(() => {

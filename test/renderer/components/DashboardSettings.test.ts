@@ -246,9 +246,6 @@ async function setup(
         if (key === 'settings.dashboard.rtk.descriptionChecking') {
           return 'DeepChat is verifying whether RTK can run.'
         }
-        if (key === 'settings.dashboard.rtk.descriptionHealthy') {
-          return 'RTK is active for DeepChat native command execution.'
-        }
         if (key === 'settings.dashboard.rtk.descriptionUnhealthy') {
           return 'RTK failed startup health checks.'
         }
@@ -479,9 +476,7 @@ describe('DashboardSettings', () => {
     expect(wrapper.find('[data-testid="rtk-summary-saved"]').text()).toContain('3.8k')
     expect(wrapper.find('[data-testid="rtk-summary-commands"]').text()).toContain('12')
     expect(wrapper.find('[data-testid="rtk-summary-rate"]').text()).toContain('76%')
-    expect(wrapper.find('[data-testid="rtk-status-copy"]').text()).toContain(
-      'RTK is active for DeepChat native command execution.'
-    )
+    expect(wrapper.find('[data-testid="rtk-status-copy"]').exists()).toBe(false)
   })
 
   it('shows RTK retry action when health check fails', async () => {

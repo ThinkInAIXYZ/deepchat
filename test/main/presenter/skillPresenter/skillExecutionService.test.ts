@@ -25,10 +25,13 @@ vi.mock('../../../../src/main/lib/agentRuntime/rtkRuntimeService', () => ({
     prepareShellCommand: vi
       .fn()
       .mockImplementation(async (command: string, env: Record<string, string>) => ({
+        originalCommand: command,
         command,
         env,
         rewritten: false,
-        usedRtk: false
+        usedRtk: false,
+        rtkApplied: false,
+        rtkMode: 'bypass'
       }))
   }
 }))
@@ -127,10 +130,13 @@ describe('SkillExecutionService', () => {
 
   it('switches to shell spawn mode when RTK rewrites the command', async () => {
     vi.mocked(rtkRuntimeService.prepareShellCommand).mockResolvedValueOnce({
+      originalCommand: 'node /skills/ocr/scripts/run.py',
       command: 'rtk run -- node /skills/ocr/scripts/run.py',
       env: { PATH: '/shell/bin', API_KEY: 'secret', RTK_DB_PATH: '/mock/rtk.db' },
       rewritten: true,
-      usedRtk: true
+      usedRtk: true,
+      rtkApplied: true,
+      rtkMode: 'rewrite'
     })
 
     const preparedPlan = await (service as never).preparePlanForExecution({

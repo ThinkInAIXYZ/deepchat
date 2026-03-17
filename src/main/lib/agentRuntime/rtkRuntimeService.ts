@@ -48,6 +48,7 @@ interface RtkRuntimeHealthState {
 }
 
 interface PrepareShellCommandResult {
+  originalCommand: string
   command: string
   env: Record<string, string>
   rewritten: boolean
@@ -314,6 +315,7 @@ export class RtkRuntimeService {
 
     if (!this.isEffectivelyEnabled(configPresenter)) {
       return {
+        originalCommand: rawCommand,
         command: rawCommand,
         env: preparedEnv,
         rewritten: false,
@@ -327,6 +329,7 @@ export class RtkRuntimeService {
     const runtime = this.resolvedRuntime
     if (!runtime) {
       return {
+        originalCommand: rawCommand,
         command: rawCommand,
         env: preparedEnv,
         rewritten: false,
@@ -339,12 +342,27 @@ export class RtkRuntimeService {
 
     if (this.isRtkCommand(rawCommand)) {
       return {
+        originalCommand: rawCommand,
         command: rawCommand,
         env: preparedEnv,
         rewritten: false,
         usedRtk: true,
         rtkApplied: true,
         rtkMode: 'direct'
+      }
+    }
+
+    const bypassReason = this.getRewriteBypassReason(rawCommand)
+    if (bypassReason) {
+      return {
+        originalCommand: rawCommand,
+        command: rawCommand,
+        env: preparedEnv,
+        rewritten: false,
+        usedRtk: false,
+        rtkApplied: false,
+        rtkMode: 'bypass',
+        rtkFallbackReason: bypassReason
       }
     }
 
@@ -359,6 +377,7 @@ export class RtkRuntimeService {
         if (rewritten) {
           this.recordRuntimeSuccess()
           return {
+            originalCommand: rawCommand,
             command: rewritten,
             env: preparedEnv,
             rewritten: true,
@@ -372,6 +391,7 @@ export class RtkRuntimeService {
       if (rewriteResult.code === 1) {
         this.recordRuntimeSuccess()
         return {
+          originalCommand: rawCommand,
           command: rawCommand,
           env: preparedEnv,
           rewritten: false,
@@ -386,6 +406,7 @@ export class RtkRuntimeService {
         rewriteResult.stderr.trim() || rewriteResult.stdout.trim() || 'rtk rewrite failed'
       this.recordRuntimeFailure('rewrite', failureMessage)
       return {
+        originalCommand: rawCommand,
         command: rawCommand,
         env: preparedEnv,
         rewritten: false,
@@ -398,6 +419,7 @@ export class RtkRuntimeService {
       const failureMessage = getErrorMessage(error)
       this.recordRuntimeFailure('rewrite', failureMessage)
       return {
+        originalCommand: rawCommand,
         command: rawCommand,
         env: preparedEnv,
         rewritten: false,
@@ -731,6 +753,27 @@ export class RtkRuntimeService {
     const firstToken = token?.[1] || token?.[2] || token?.[3] || ''
     const normalized = path.basename(firstToken).toLowerCase()
     return normalized === 'rtk' || normalized === 'rtk.exe'
+  }
+
+  private getRewriteBypassReason(command: string): string | undefined {
+    if (!/\bfind(?:\.exe)?\b/i.test(command)) {
+      return undefined
+    }
+
+    const unsupportedPatterns = [
+      /(^|[\s(])-(?:o|a)(?=$|\s|[|)&;])/,
+      /\\\(/,
+      /\\\)/,
+      /(^|[\s(])!(?=$|\s|[|)&;])/,
+      /(^|[\s(])-not(?=$|\s|[|)&;])/,
+      /(^|[\s(])-(?:exec|delete|printf|print0)(?=$|\s|[|)&;])/
+    ]
+
+    if (!unsupportedPatterns.some((pattern) => pattern.test(command))) {
+      return undefined
+    }
+
+    return 'Bypassed RTK rewrite: unsupported find compound predicates or actions'
   }
 
   private describeBypassReason(
