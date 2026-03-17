@@ -11,6 +11,7 @@ export class RuntimeHelper {
   private nodeRuntimePath: string | null = null
   private uvRuntimePath: string | null = null
   private ripgrepRuntimePath: string | null = null
+  private rtkRuntimePath: string | null = null
   private runtimesInitialized: boolean = false
 
   private constructor() {
@@ -31,9 +32,16 @@ export class RuntimeHelper {
    * Initialize runtime paths (idempotent operation)
    * Caches Node.js, UV and Ripgrep runtime paths to avoid repeated filesystem checks
    */
-  public initializeRuntimes(): void {
-    if (this.runtimesInitialized) {
+  public initializeRuntimes(force: boolean = false): void {
+    if (this.runtimesInitialized && !force) {
       return
+    }
+
+    if (force) {
+      this.nodeRuntimePath = null
+      this.uvRuntimePath = null
+      this.ripgrepRuntimePath = null
+      this.rtkRuntimePath = null
     }
 
     const runtimeBasePath = path
@@ -96,7 +104,29 @@ export class RuntimeHelper {
       }
     }
 
+    // Check if RTK runtime file exists
+    const rtkRuntimePath = path.join(runtimeBasePath, 'rtk')
+    if (process.platform === 'win32') {
+      const rtkExe = path.join(rtkRuntimePath, 'rtk.exe')
+      if (fs.existsSync(rtkExe)) {
+        this.rtkRuntimePath = rtkRuntimePath
+      } else {
+        this.rtkRuntimePath = null
+      }
+    } else {
+      const rtkBin = path.join(rtkRuntimePath, 'rtk')
+      if (fs.existsSync(rtkBin)) {
+        this.rtkRuntimePath = rtkRuntimePath
+      } else {
+        this.rtkRuntimePath = null
+      }
+    }
+
     this.runtimesInitialized = true
+  }
+
+  public refreshRuntimes(): void {
+    this.initializeRuntimes(true)
   }
 
   /**
@@ -121,6 +151,83 @@ export class RuntimeHelper {
    */
   public getRipgrepRuntimePath(): string | null {
     return this.ripgrepRuntimePath
+  }
+
+  /**
+   * Get RTK runtime path
+   * @returns RTK runtime path or null if not found
+   */
+  public getRtkRuntimePath(): string | null {
+    return this.rtkRuntimePath
+  }
+
+  public getBundledRuntimeBinPaths(): string[] {
+    this.initializeRuntimes()
+
+    const candidates: string[] = []
+
+    if (this.nodeRuntimePath) {
+      candidates.push(
+        process.platform === 'win32' ? this.nodeRuntimePath : path.join(this.nodeRuntimePath, 'bin')
+      )
+    }
+    if (this.uvRuntimePath) {
+      candidates.push(this.uvRuntimePath)
+    }
+    if (this.ripgrepRuntimePath) {
+      candidates.push(this.ripgrepRuntimePath)
+    }
+    if (this.rtkRuntimePath) {
+      candidates.push(this.rtkRuntimePath)
+    }
+
+    const seen = new Set<string>()
+    return candidates.filter((candidate) => {
+      if (!candidate || !fs.existsSync(candidate)) {
+        return false
+      }
+      const normalized = process.platform === 'win32' ? candidate.toLowerCase() : candidate
+      if (seen.has(normalized)) {
+        return false
+      }
+      seen.add(normalized)
+      return true
+    })
+  }
+
+  public prependBundledRuntimeToEnv(env: Record<string, string>): Record<string, string> {
+    const runtimePaths = this.getBundledRuntimeBinPaths()
+    if (runtimePaths.length === 0) {
+      return { ...env }
+    }
+
+    const separator = process.platform === 'win32' ? ';' : ':'
+    const nextEnv = { ...env }
+    const existingPath =
+      nextEnv.PATH ||
+      nextEnv.Path ||
+      process.env.PATH ||
+      process.env.Path ||
+      this.getDefaultPaths(app.getPath('home')).join(separator)
+
+    const entries = existingPath.split(separator).filter(Boolean)
+    const seen = new Set<string>()
+    const merged = [...runtimePaths, ...entries].filter((entry) => {
+      const normalized = process.platform === 'win32' ? entry.toLowerCase() : entry
+      if (seen.has(normalized)) {
+        return false
+      }
+      seen.add(normalized)
+      return true
+    })
+
+    const value = merged.join(separator)
+    nextEnv.PATH = value
+    if (process.platform === 'win32') {
+      nextEnv.Path = value
+    }
+
+    return nextEnv
   }
 
   /**
@@ -286,6 +393,35 @@ export class RuntimeHelper {
           return command
         } else {
           return rgPath
+        }
+      }
+    }
+
+    // RTK command handling (all platforms)
+    if (basename === 'rtk') {
+      if (!this.rtkRuntimePath) {
+        return command
+      }
+
+      if (process.platform === 'win32') {
+        const rtkPath = path.join(this.rtkRuntimePath, 'rtk.exe')
+        if (checkExists) {
+          if (fs.existsSync(rtkPath)) {
+            return rtkPath
+          }
+          return command
+        } else {
+          return rtkPath
+        }
+      } else {
+        const rtkPath = path.join(this.rtkRuntimePath, 'rtk')
+        if (checkExists) {
+          if (fs.existsSync(rtkPath)) {
+            return rtkPath
+          }
+          return command
+        } else {
+          return rtkPath
         }
       }
     }

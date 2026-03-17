@@ -4,6 +4,8 @@ import path from 'path'
 import os from 'os'
 import { z } from 'zod'
 import logger from '@shared/logger'
+import type { IConfigPresenter } from '@shared/presenter'
+import { rtkRuntimeService } from '@/lib/agentRuntime/rtkRuntimeService'
 
 // Consider moving to a shared handlers location in future refactoring
 import {
@@ -35,11 +37,24 @@ export interface ExecuteCommandOptions {
   outputPrefix?: string
 }
 
+interface PreparedCommand {
+  command: string
+  env: Record<string, string>
+  rtkApplied: boolean
+  rtkMode: 'rewrite' | 'direct' | 'bypass'
+  rtkFallbackReason?: string
+}
+
 export class AgentBashHandler {
   private allowedDirectories: string[]
   private readonly commandPermissionHandler?: CommandPermissionService
+  private readonly configPresenter?: Pick<IConfigPresenter, 'getSetting'>
 
-  constructor(allowedDirectories: string[], commandPermissionHandler?: CommandPermissionService) {
+  constructor(
+    allowedDirectories: string[],
+    commandPermissionHandler?: CommandPermissionService,
+    configPresenter?: Pick<IConfigPresenter, 'getSetting'>
+  ) {
     if (allowedDirectories.length === 0) {
       throw new Error('At least one allowed directory must be provided')
     }
@@ -47,12 +62,18 @@ export class AgentBashHandler {
       this.normalizePath(path.resolve(this.expandHome(dir)))
     )
     this.commandPermissionHandler = commandPermissionHandler
+    this.configPresenter = configPresenter
   }
 
   async executeCommand(
     args: unknown,
     options: ExecuteCommandOptions = {}
-  ): Promise<string | { status: 'running'; sessionId: string }> {
+  ): Promise<{
+    output: string | { status: 'running'; sessionId: string }
+    rtkApplied: boolean
+    rtkMode: 'rewrite' | 'direct' | 'bypass'
+    rtkFallbackReason?: string
+  }> {
     const parsed = ExecuteCommandArgsSchema.safeParse(args)
     if (!parsed.success) {
       throw new Error(`Invalid arguments: ${parsed.error}`)
@@ -96,11 +117,16 @@ export class AgentBashHandler {
       outputFilePath?: string
     }
 
+    const prepared = await this.prepareCommand(command, options.env)
+
     result = await this.runShellProcess(
-      command,
+      prepared.command,
       cwd,
       timeout ?? COMMAND_DEFAULT_TIMEOUT_MS,
-      options
+      {
+        ...options,
+        env: prepared.env
+      }
     )
 
     const responseLines: string[] = []
@@ -114,7 +140,12 @@ export class AgentBashHandler {
     if (result.offloaded && result.outputFilePath) {
       responseLines.push(`Output offloaded: ${result.outputFilePath}`)
     }
-    return responseLines.join('\n')
+    return {
+      output: responseLines.join('\n'),
+      rtkApplied: prepared.rtkApplied,
+      rtkMode: prepared.rtkMode,
+      rtkFallbackReason: prepared.rtkFallbackReason
+    }
   }
 
   private normalizePath(p: string): string {
@@ -356,7 +387,12 @@ export class AgentBashHandler {
     timeout: number | undefined,
     cwd: string,
     options: ExecuteCommandOptions
-  ): Promise<{ status: 'running'; sessionId: string }> {
+  ): Promise<{
+    output: { status: 'running'; sessionId: string }
+    rtkApplied: boolean
+    rtkMode: 'rewrite' | 'direct' | 'bypass'
+    rtkFallbackReason?: string
+  }> {
     const conversationId = options.conversationId
 
     if (!conversationId) {
@@ -383,13 +419,48 @@ export class AgentBashHandler {
       }
     }
 
-    // Start background session
-    const result = await backgroundExecSessionManager.start(conversationId, command, cwd, {
+    const prepared = await this.prepareCommand(command, options.env)
+
+    const result = await backgroundExecSessionManager.start(conversationId, prepared.command, cwd, {
       timeout: timeout ?? COMMAND_DEFAULT_TIMEOUT_MS,
-      env: options.env
+      env: prepared.env
     })
 
-    return { status: 'running', sessionId: result.sessionId }
+    return {
+      output: { status: 'running', sessionId: result.sessionId },
+      rtkApplied: prepared.rtkApplied,
+      rtkMode: prepared.rtkMode,
+      rtkFallbackReason: prepared.rtkFallbackReason
+    }
+  }
+
+  private async prepareCommand(
+    command: string,
+    env?: Record<string, string>
+  ): Promise<PreparedCommand> {
+    const baseEnv = env ?? {}
+    if (!this.configPresenter) {
+      return {
+        command,
+        env: baseEnv,
+        rtkApplied: false,
+        rtkMode: 'bypass',
+        rtkFallbackReason: 'RTK settings are unavailable'
+      }
+    }
+
+    const prepared = await rtkRuntimeService.prepareShellCommand(
+      command,
+      baseEnv,
+      this.configPresenter
+    )
+    return {
+      command: prepared.command,
+      env: prepared.env,
+      rtkApplied: prepared.rtkApplied,
+      rtkMode: prepared.rtkMode,
+      rtkFallbackReason: prepared.rtkFallbackReason
+    }
   }
 
   /**

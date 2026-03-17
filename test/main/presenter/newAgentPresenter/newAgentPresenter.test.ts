@@ -1034,6 +1034,8 @@ describe('NewAgentPresenter', () => {
       })
 
       const disabledTools = await presenter.updateSessionDisabledAgentTools('s1', [
+        'grep',
+        'ls',
         'yo_browser_cdp_send',
         'exec',
         'exec'

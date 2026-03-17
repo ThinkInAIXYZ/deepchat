@@ -14,6 +14,13 @@
           </template>
           <template v-else>{{ functionLabel }}</template>
         </span>
+        <span
+          v-if="showRtkBadge"
+          data-testid="tool-call-rtk-badge"
+          class="shrink-0 rounded border border-emerald-500/20 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-emerald-700 dark:text-emerald-300"
+        >
+          RTK
+        </span>
       </div>
     </div>
 
@@ -254,8 +261,17 @@ const responseLayoutClass = computed(() => {
 
 const isTerminalTool = computed(() => {
   const name = props.block.tool_call?.name?.toLowerCase() || ''
-  return name.includes('terminal') || name.includes('command') || name.includes('exec')
+  return (
+    name.includes('terminal') ||
+    name.includes('command') ||
+    name.includes('exec') ||
+    name.includes('skill_run')
+  )
 })
+
+const showRtkBadge = computed(
+  () => isTerminalTool.value && props.block.tool_call?.rtkApplied === true
+)
 
 const paramsCopyText = ref(t('common.copy'))
 const responseCopyText = ref(t('common.copy'))

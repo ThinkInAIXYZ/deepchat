@@ -168,11 +168,25 @@ function updateToolCallBlock(
   blocks: AssistantMessageBlock[],
   toolCallId: string,
   response: string,
-  isError: boolean
+  isError: boolean,
+  rtkMetadata?: {
+    rtkApplied?: boolean
+    rtkMode?: 'rewrite' | 'direct' | 'bypass'
+    rtkFallbackReason?: string
+  }
 ): void {
   const block = blocks.find((b) => b.type === 'tool_call' && b.tool_call?.id === toolCallId)
   if (block?.tool_call) {
     block.tool_call.response = response
+    if (typeof rtkMetadata?.rtkApplied === 'boolean') {
+      block.tool_call.rtkApplied = rtkMetadata.rtkApplied
+    }
+    if (rtkMetadata?.rtkMode) {
+      block.tool_call.rtkMode = rtkMetadata.rtkMode
+    }
+    if (rtkMetadata?.rtkFallbackReason) {
+      block.tool_call.rtkFallbackReason = rtkMetadata.rtkFallbackReason
+    }
     block.status = isError ? 'error' : 'success'
   }
 }
@@ -606,7 +620,11 @@ export async function executeTools(
         tool_call_id: tc.id,
         content: toolMessageContent
       })
-      updateToolCallBlock(state.blocks, tc.id, toolMessageContent, isToolError)
+      updateToolCallBlock(state.blocks, tc.id, toolMessageContent, isToolError, {
+        rtkApplied: toolRawData.rtkApplied,
+        rtkMode: toolRawData.rtkMode,
+        rtkFallbackReason: toolRawData.rtkFallbackReason
+      })
       if (isToolError) {
         hooks?.onPostToolUseFailure?.({
           callId: tc.id,

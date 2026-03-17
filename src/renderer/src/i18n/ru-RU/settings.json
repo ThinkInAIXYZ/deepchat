@@ -258,6 +258,35 @@
       "messages": "{count} сообщений",
       "empty": "Данных для разбивки пока нет."
     },
+    "rtk": {
+      "title": "RTK Savings",
+      "description": "Estimated tokens prevented from reaching the model context by RTK during DeepChat native command execution.",
+      "actions": {
+        "retry": "Retry check"
+      },
+      "status": {
+        "disabled": "Disabled",
+        "checking": "Checking",
+        "healthy": "Healthy",
+        "unhealthy": "Unavailable"
+      },
+      "descriptionDisabled": "RTK is turned off for this app session, so commands run through the normal execution path.",
+      "descriptionChecking": "DeepChat is verifying whether RTK can run correctly in the current environment.",
+      "descriptionHealthy": "RTK is active for DeepChat native command execution.",
+      "descriptionUnhealthy": "RTK failed its startup health check and has been disabled for this app session.",
+      "sourceLabel": "Runtime source: {source}",
+      "source": {
+        "bundled": "Bundled",
+        "system": "System",
+        "none": "Not available"
+      },
+      "summary": {
+        "savedTokens": "Saved tokens",
+        "commands": "Tracked commands",
+        "avgSavingsPct": "Average savings",
+        "outputTokens": "Filtered output"
+      }
+    },
     "unavailable": "Недоступно"
   },
   "model": {

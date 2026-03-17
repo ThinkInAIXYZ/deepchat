@@ -37,6 +37,34 @@ vi.mock('@/presenter', () => ({
   }
 }))
 
+vi.mock('@/lib/agentRuntime/rtkRuntimeService', () => ({
+  rtkRuntimeService: {
+    startHealthCheck: vi.fn().mockResolvedValue(undefined),
+    retryHealthCheck: vi.fn().mockResolvedValue(undefined),
+    getDashboardData: vi.fn().mockResolvedValue({
+      scope: 'deepchat',
+      enabled: true,
+      effectiveEnabled: true,
+      available: true,
+      health: 'healthy',
+      checkedAt: Date.UTC(2026, 2, 1, 12, 0, 0),
+      source: 'bundled',
+      failureStage: null,
+      failureMessage: null,
+      summary: {
+        totalCommands: 0,
+        totalInputTokens: 0,
+        totalOutputTokens: 0,
+        totalSavedTokens: 0,
+        avgSavingsPct: 0,
+        totalTimeMs: 0,
+        avgTimeMs: 0
+      },
+      daily: []
+    })
+  }
+}))
+
 type SessionRow = {
   id: string
   provider_id: string

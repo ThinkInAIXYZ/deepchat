@@ -33,6 +33,9 @@ export interface AgentToolCallResult {
     content?: string
     isError?: boolean
     toolResult?: unknown
+    rtkApplied?: boolean
+    rtkMode?: 'rewrite' | 'direct' | 'bypass'
+    rtkFallbackReason?: string
     requiresPermission?: boolean
     permissionRequest?: {
       toolName: string
@@ -244,7 +247,8 @@ export class AgentToolManager {
       this.fileSystemHandler = new AgentFileSystemHandler([this.agentWorkspacePath])
       this.bashHandler = new AgentBashHandler(
         [this.agentWorkspacePath],
-        this.commandPermissionHandler
+        this.commandPermissionHandler,
+        this.configPresenter
       )
     }
   }
@@ -270,7 +274,8 @@ export class AgentToolManager {
         this.fileSystemHandler = new AgentFileSystemHandler([effectiveWorkspacePath])
         this.bashHandler = new AgentBashHandler(
           [effectiveWorkspacePath],
-          this.commandPermissionHandler
+          this.commandPermissionHandler,
+          this.configPresenter
         )
       } else {
         this.fileSystemHandler = null
@@ -460,63 +465,10 @@ export class AgentToolManager {
       {
         type: 'function',
         function: {
-          name: 'ls',
-          description: 'List files and directories in a path.',
-          parameters: zodToJsonSchema(schemas.ls) as {
-            type: string
-            properties: Record<string, unknown>
-            required?: string[]
-          }
-        },
-        server: {
-          name: 'agent-filesystem',
-          icons: '📁',
-          description: 'Agent FileSystem tools'
-        }
-      },
-      {
-        type: 'function',
-        function: {
           name: 'edit',
           description:
-            'Make precise edits to a file by replacing exact text strings. Set replaceAll=false to only replace the first match.',
+            'Make precise text or line replacements in a file by matching exact text strings. Set replaceAll=false to replace only the first match.',
           parameters: zodToJsonSchema(schemas.edit) as {
-            type: string
-            properties: Record<string, unknown>
-            required?: string[]
-          }
-        },
-        server: {
-          name: 'agent-filesystem',
-          icons: '📁',
-          description: 'Agent FileSystem tools'
-        }
-      },
-      {
-        type: 'function',
-        function: {
-          name: 'find',
-          description:
-            'Search for files using glob patterns (e.g., **/*.ts, src/**/*.js). Automatically excludes common directories like node_modules and .git.',
-          parameters: zodToJsonSchema(schemas.find) as {
-            type: string
-            properties: Record<string, unknown>
-            required?: string[]
-          }
-        },
-        server: {
-          name: 'agent-filesystem',
-          icons: '📁',
-          description: 'Agent FileSystem tools'
-        }
-      },
-      {
-        type: 'function',
-        function: {
-          name: 'grep',
-          description:
-            'Search file contents using a regular expression. The pattern must be safe and not exceed 1000 characters to prevent ReDoS (Regular Expression Denial of Service) attacks.',
-          parameters: zodToJsonSchema(schemas.grep) as {
             type: string
             properties: Record<string, unknown>
             required?: string[]
@@ -935,9 +887,18 @@ export class AgentToolManager {
               conversationId
             }
           )
+          const content =
+            typeof commandResult.output === 'string'
+              ? commandResult.output
+              : JSON.stringify(commandResult.output)
           return {
-            content:
-              typeof commandResult === 'string' ? commandResult : JSON.stringify(commandResult)
+            content,
+            rawData: {
+              content,
+              rtkApplied: commandResult.rtkApplied,
+              rtkMode: commandResult.rtkMode,
+              rtkFallbackReason: commandResult.rtkFallbackReason
+            }
           }
         }
         default:
@@ -1561,9 +1522,17 @@ export class AgentToolManager {
     const result = await this.getSkillExecutionService().execute(validationResult.data, {
       conversationId
     })
+    const content =
+      typeof result.output === 'string' ? result.output : JSON.stringify(result.output, null, 2)
 
     return {
-      content: typeof result === 'string' ? result : JSON.stringify(result, null, 2)
+      content,
+      rawData: {
+        content,
+        rtkApplied: result.rtkApplied,
+        rtkMode: result.rtkMode,
+        rtkFallbackReason: result.rtkFallbackReason
+      }
     }
   }
 

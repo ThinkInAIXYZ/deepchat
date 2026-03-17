@@ -98,4 +98,22 @@ describe('MessageBlockToolCall', () => {
     expect(wrapper.findComponent({ name: 'CodeBlockNode' }).exists()).toBe(false)
     expect(wrapper.find('pre').text()).toContain('plain output')
   })
+
+  it('shows an RTK badge for command-style tool calls when RTK was applied', () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          tool_call: {
+            name: 'exec',
+            response: 'ok',
+            rtkApplied: true,
+            rtkMode: 'rewrite'
+          }
+        })
+      }
+    })
+
+    expect(wrapper.find('[data-testid="tool-call-rtk-badge"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="tool-call-rtk-badge"]').text()).toBe('RTK')
+  })
 })

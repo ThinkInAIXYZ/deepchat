@@ -63,6 +63,9 @@ export interface MCPToolResponse {
   _meta?: Record<string, unknown>
   isError?: boolean
   toolResult?: unknown
+  rtkApplied?: boolean
+  rtkMode?: 'rewrite' | 'direct' | 'bypass'
+  rtkFallbackReason?: string
   requiresPermission?: boolean
   permissionRequest?: {
     toolName: string
