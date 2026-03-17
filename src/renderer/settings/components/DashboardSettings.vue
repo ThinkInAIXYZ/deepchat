@@ -210,19 +210,195 @@
           </Card>
 
           <Card
-            v-for="card in summaryCards"
-            :key="card.key"
-            :data-testid="`summary-card-${card.key}`"
+            v-if="cachedTokensCard"
+            data-testid="summary-card-cachedTokens"
             class="overflow-hidden border-border/70 bg-card/90 backdrop-blur-sm"
           >
             <CardHeader class="space-y-2 pb-3">
-              <CardDescription>{{ card.label }}</CardDescription>
-              <CardTitle :class="card.valueClass ?? 'text-2xl'" :title="card.tooltip">
-                {{ card.value }}
+              <CardDescription>{{ t('settings.dashboard.summary.cachedTokens') }}</CardDescription>
+              <CardTitle class="text-3xl" :title="formatFullTokens(cachedTokensCard.cachedTokens)">
+                {{ formatTokens(cachedTokensCard.cachedTokens) }}
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <p class="text-xs text-muted-foreground">{{ card.description }}</p>
+            <CardContent class="space-y-4">
+              <div
+                data-testid="cached-tokens-bar"
+                class="overflow-hidden rounded-full bg-muted"
+                style="height: 10px"
+              >
+                <div class="flex h-full w-full">
+                  <div
+                    data-testid="cached-tokens-bar-cached"
+                    class="h-full bg-[hsl(var(--usage-low))]"
+                    :style="{ width: `${cachedTokensCard.cachedRatio * 100}%` }"
+                  ></div>
+                  <div
+                    data-testid="cached-tokens-bar-uncached"
+                    class="h-full bg-muted-foreground/20"
+                    :style="{ width: `${cachedTokensCard.uncachedRatio * 100}%` }"
+                  ></div>
+                </div>
+              </div>
+
+              <div class="space-y-3">
+                <div
+                  data-testid="cached-tokens-cached-row"
+                  class="flex items-start justify-between gap-4 rounded-lg px-1 py-1"
+                >
+                  <div class="flex min-w-0 items-center gap-2">
+                    <span
+                      class="h-2.5 w-2.5 shrink-0 rounded-full bg-[hsl(var(--usage-low))]"
+                    ></span>
+                    <span class="whitespace-normal text-sm font-medium leading-5">
+                      {{ t('settings.dashboard.summary.cachedTokensCachedLabel') }}
+                    </span>
+                  </div>
+                  <div class="shrink-0 text-right">
+                    <p
+                      class="text-base font-semibold leading-none"
+                      :title="formatFullTokens(cachedTokensCard.cachedTokens)"
+                    >
+                      {{ formatTokens(cachedTokensCard.cachedTokens) }}
+                    </p>
+                    <p
+                      data-testid="cached-tokens-cached-ratio"
+                      class="mt-1 text-xs text-muted-foreground"
+                    >
+                      {{ formatPercent(cachedTokensCard.cachedRatio) }}
+                    </p>
+                  </div>
+                </div>
+
+                <div
+                  data-testid="cached-tokens-uncached-row"
+                  class="flex items-start justify-between gap-4 rounded-lg border-t border-border/50 px-1 pt-3"
+                >
+                  <div class="flex min-w-0 items-center gap-2">
+                    <span class="h-2.5 w-2.5 shrink-0 rounded-full bg-muted-foreground/50"></span>
+                    <span class="whitespace-normal text-sm font-medium leading-5">
+                      {{ t('settings.dashboard.summary.cachedTokensUncachedLabel') }}
+                    </span>
+                  </div>
+                  <div class="shrink-0 text-right">
+                    <p
+                      class="text-base font-semibold leading-none"
+                      :title="formatFullTokens(cachedTokensCard.uncachedTokens)"
+                    >
+                      {{ formatTokens(cachedTokensCard.uncachedTokens) }}
+                    </p>
+                    <p
+                      data-testid="cached-tokens-uncached-ratio"
+                      class="mt-1 text-xs text-muted-foreground"
+                    >
+                      {{ formatPercent(cachedTokensCard.uncachedRatio) }}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card
+            v-if="estimatedCostCard"
+            data-testid="summary-card-estimatedCost"
+            class="overflow-hidden border-border/70 bg-card/90 backdrop-blur-sm"
+          >
+            <CardHeader class="space-y-2 pb-3">
+              <CardDescription>{{ t('settings.dashboard.summary.estimatedCost') }}</CardDescription>
+              <CardTitle class="text-3xl">
+                {{ formatCurrency(estimatedCostCard.totalCost) }}
+              </CardTitle>
+            </CardHeader>
+            <CardContent class="space-y-4">
+              <div class="overflow-hidden rounded-xl bg-muted/20 px-2 py-3">
+                <svg
+                  viewBox="0 0 240 64"
+                  class="h-16 w-full"
+                  data-testid="estimated-cost-sparkline"
+                  preserveAspectRatio="none"
+                >
+                  <line
+                    x1="6"
+                    :y1="COST_SPARKLINE_HEIGHT - COST_SPARKLINE_PADDING"
+                    :x2="COST_SPARKLINE_WIDTH - COST_SPARKLINE_PADDING"
+                    :y2="COST_SPARKLINE_HEIGHT - COST_SPARKLINE_PADDING"
+                    stroke="hsl(var(--border) / 0.9)"
+                    stroke-dasharray="3 4"
+                    stroke-linecap="round"
+                  />
+                  <path
+                    :d="estimatedCostCard.linePath"
+                    fill="none"
+                    stroke="hsl(var(--foreground) / 0.7)"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2.25"
+                  />
+                  <circle
+                    v-for="(point, index) in estimatedCostCard.points"
+                    :key="`estimated-cost-point-${index}`"
+                    :cx="point.x"
+                    :cy="point.y"
+                    r="1.8"
+                    fill="hsl(var(--background))"
+                    stroke="hsl(var(--foreground) / 0.62)"
+                    stroke-width="1.35"
+                  />
+                  <circle
+                    v-if="estimatedCostCard.hasRecentCost && estimatedCostCard.lastPoint"
+                    :cx="estimatedCostCard.lastPoint.x"
+                    :cy="estimatedCostCard.lastPoint.y"
+                    r="3.2"
+                    fill="hsl(var(--foreground))"
+                    stroke="hsl(var(--background))"
+                    stroke-width="2"
+                  />
+                </svg>
+              </div>
+
+              <p
+                v-if="estimatedCostCard.hasRecentCost"
+                data-testid="estimated-cost-trend-label"
+                class="text-xs text-muted-foreground"
+              >
+                {{ t('settings.dashboard.summary.estimatedCostTrendLabel') }}
+              </p>
+              <p
+                v-else
+                data-testid="estimated-cost-trend-empty"
+                class="text-xs text-muted-foreground"
+              >
+                {{ t('settings.dashboard.summary.estimatedCostTrendEmpty') }}
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card
+            v-if="withDeepChatDaysCard"
+            data-testid="summary-card-withDeepChatDays"
+            class="overflow-hidden border-border/70 bg-card/90 backdrop-blur-sm"
+          >
+            <CardHeader class="space-y-2 pb-3">
+              <CardDescription>{{
+                t('settings.dashboard.summary.withDeepChatDaysLabel')
+              }}</CardDescription>
+              <CardTitle
+                data-testid="with-deepchat-days-value"
+                class="break-words whitespace-normal text-3xl leading-tight md:text-4xl"
+              >
+                {{ withDeepChatDaysCard.value }}
+              </CardTitle>
+            </CardHeader>
+            <CardContent class="space-y-2">
+              <p
+                v-if="withDeepChatDaysCard.sentence"
+                class="whitespace-normal text-sm font-medium leading-6"
+              >
+                {{ withDeepChatDaysCard.sentence }}
+              </p>
+              <p class="whitespace-normal text-xs leading-5 text-muted-foreground">
+                {{ withDeepChatDaysCard.description }}
+              </p>
             </CardContent>
           </Card>
         </section>
@@ -453,6 +629,7 @@ import type { UsageDashboardCalendarDay, UsageDashboardData } from '@shared/type
 import { usePresenter } from '@/composables/usePresenter'
 
 type CalendarCell = UsageDashboardCalendarDay | null
+type SparklinePoint = { x: number; y: number }
 
 const { t, locale } = useI18n()
 const newAgentPresenter = usePresenter('newAgentPresenter')
@@ -465,6 +642,10 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000
 const TOKEN_DONUT_RADIUS = 38
 const TOKEN_DONUT_STROKE = 10
 const TOKEN_DONUT_CIRCUMFERENCE = 2 * Math.PI * TOKEN_DONUT_RADIUS
+const COST_TREND_DAYS = 30
+const COST_SPARKLINE_WIDTH = 240
+const COST_SPARKLINE_HEIGHT = 64
+const COST_SPARKLINE_PADDING = 6
 
 const hasData = computed(() => (dashboard.value?.summary.messageCount ?? 0) > 0)
 const totalTokensCard = computed(() => {
@@ -493,36 +674,70 @@ const totalTokensCard = computed(() => {
   }
 })
 
-const summaryCards = computed(() => {
+const cachedTokensCard = computed(() => {
   if (!dashboard.value) {
-    return []
+    return null
   }
 
   const summary = dashboard.value.summary
-  return [
-    {
-      key: 'cachedTokens',
-      label: t('settings.dashboard.summary.cachedTokens'),
-      value: formatTokens(summary.cachedInputTokens),
-      tooltip: formatFullTokens(summary.cachedInputTokens),
-      description: t('settings.dashboard.summary.cachedTokensDescription')
-    },
-    {
-      key: 'estimatedCost',
-      label: t('settings.dashboard.summary.estimatedCost'),
-      value: formatCurrency(summary.estimatedCostUsd),
-      tooltip: undefined,
-      description: t('settings.dashboard.summary.estimatedCostDescription')
-    },
-    {
-      key: 'withDeepChatDays',
-      label: t('settings.dashboard.summary.withDeepChatDaysLabel'),
-      value: formatWithDeepChatDays(dashboard.value.recordingStartedAt),
-      tooltip: undefined,
-      description: formatWithDeepChatDaysDescription(dashboard.value.recordingStartedAt),
-      valueClass: 'break-words whitespace-normal text-base leading-6 md:text-lg'
+  const inputTokens = Math.max(summary.inputTokens, 0)
+  const cachedTokens = Math.min(inputTokens, Math.max(summary.cachedInputTokens, 0))
+  const uncachedTokens = Math.max(0, inputTokens - cachedTokens)
+
+  return {
+    cachedTokens,
+    uncachedTokens,
+    cachedRatio: inputTokens > 0 ? cachedTokens / inputTokens : 0,
+    uncachedRatio: inputTokens > 0 ? uncachedTokens / inputTokens : 0
+  }
+})
+
+const estimatedCostCard = computed(() => {
+  if (!dashboard.value) {
+    return null
+  }
+
+  const recentCosts = dashboard.value.calendar
+    .slice(-COST_TREND_DAYS)
+    .map((day) => Math.max(day.estimatedCostUsd ?? 0, 0))
+  const hasRecentCost = recentCosts.some((value) => value > 0)
+  const points = buildSparklinePoints(recentCosts, hasRecentCost)
+
+  return {
+    totalCost: dashboard.value.summary.estimatedCostUsd,
+    hasRecentCost,
+    linePath: buildSparklineLinePath(points),
+    points,
+    lastPoint: points[points.length - 1] ?? null
+  }
+})
+
+const withDeepChatDaysCard = computed(() => {
+  if (!dashboard.value) {
+    return null
+  }
+
+  const days = getDaysWithDeepChat(dashboard.value.recordingStartedAt)
+
+  if (days === null) {
+    return {
+      value: t('settings.dashboard.unavailable'),
+      sentence: null,
+      description: t('settings.dashboard.summary.withDeepChatDaysDescriptionUnavailable')
     }
-  ]
+  }
+
+  const formattedDays = new Intl.NumberFormat(locale.value).format(days)
+
+  return {
+    value: t('settings.dashboard.summary.withDeepChatDaysValue', {
+      days: formattedDays
+    }),
+    sentence: t('settings.dashboard.summary.withDeepChatDaysSentence', {
+      days: formattedDays
+    }),
+    description: formatWithDeepChatDaysDescription(dashboard.value.recordingStartedAt)
+  }
 })
 
 const calendarWeeks = computed<CalendarCell[][]>(() => {
@@ -726,17 +941,6 @@ function getDaysWithDeepChat(value: number | null): number | null {
   return Math.max(1, diffDays)
 }
 
-function formatWithDeepChatDays(value: number | null): string {
-  const days = getDaysWithDeepChat(value)
-  if (days === null) {
-    return t('settings.dashboard.unavailable')
-  }
-
-  return t('settings.dashboard.summary.withDeepChatDaysSentence', {
-    days: new Intl.NumberFormat(locale.value).format(days)
-  })
-}
-
 function formatWithDeepChatDaysDescription(value: number | null): string {
   if (!value) {
     return t('settings.dashboard.summary.withDeepChatDaysDescriptionUnavailable')
@@ -745,6 +949,49 @@ function formatWithDeepChatDaysDescription(value: number | null): string {
   return t('settings.dashboard.summary.withDeepChatDaysDescription', {
     date: formatDate(value)
   })
+}
+
+function buildSparklinePoints(values: number[], hasRecentCost: boolean): SparklinePoint[] {
+  const normalizedValues =
+    values.length >= 2 ? values : values.length === 1 ? [values[0], values[0]] : [0, 0]
+  const chartWidth = COST_SPARKLINE_WIDTH - COST_SPARKLINE_PADDING * 2
+  const chartHeight = COST_SPARKLINE_HEIGHT - COST_SPARKLINE_PADDING * 2
+
+  if (!hasRecentCost) {
+    return normalizedValues.map((_, index) => ({
+      x: COST_SPARKLINE_PADDING + (index / Math.max(1, normalizedValues.length - 1)) * chartWidth,
+      y: COST_SPARKLINE_HEIGHT - COST_SPARKLINE_PADDING
+    }))
+  }
+
+  const minValue = Math.min(...normalizedValues)
+  const maxValue = Math.max(...normalizedValues)
+
+  return normalizedValues.map((value, index) => {
+    const x =
+      COST_SPARKLINE_PADDING + (index / Math.max(1, normalizedValues.length - 1)) * chartWidth
+    const y =
+      maxValue === minValue
+        ? COST_SPARKLINE_PADDING + chartHeight / 2
+        : COST_SPARKLINE_PADDING +
+          chartHeight -
+          ((value - minValue) / Math.max(1e-9, maxValue - minValue)) * chartHeight
+
+    return { x, y }
+  })
+}
+
+function buildSparklineLinePath(points: SparklinePoint[]): string {
+  return points
+    .map(
+      (point, index) =>
+        `${index === 0 ? 'M' : 'L'} ${formatSvgNumber(point.x)} ${formatSvgNumber(point.y)}`
+    )
+    .join(' ')
+}
+
+function formatSvgNumber(value: number): string {
+  return value.toFixed(2)
 }
 
 onMounted(() => {

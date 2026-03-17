@@ -90,14 +90,29 @@ async function setup(data: UsageDashboardData) {
         if (key === 'settings.dashboard.breakdown.messages') {
           return `${params?.count ?? 0} messages`
         }
+        if (key === 'settings.dashboard.summary.cachedTokensCachedLabel') {
+          return 'Cached'
+        }
+        if (key === 'settings.dashboard.summary.cachedTokensUncachedLabel') {
+          return 'Uncached'
+        }
         if (key === 'settings.dashboard.summary.inputTokensLabel') {
           return 'Input'
         }
         if (key === 'settings.dashboard.summary.outputTokensLabel') {
           return 'Output'
         }
+        if (key === 'settings.dashboard.summary.estimatedCostTrendLabel') {
+          return 'Trend over the last 30 days'
+        }
+        if (key === 'settings.dashboard.summary.estimatedCostTrendEmpty') {
+          return 'No cost recorded in the last 30 days.'
+        }
         if (key === 'settings.dashboard.summary.withDeepChatDaysLabel') {
           return 'Days together'
+        }
+        if (key === 'settings.dashboard.summary.withDeepChatDaysValue') {
+          return `${params?.days ?? '0'} days`
         }
         if (key === 'settings.dashboard.summary.withDeepChatDaysSentence') {
           return `You are on day ${params?.days ?? '0'} with DeepChat.`
@@ -202,11 +217,22 @@ describe('DashboardSettings', () => {
     expect(wrapper.text()).toContain('Output')
     expect(wrapper.text()).toContain('66.7%')
     expect(wrapper.text()).toContain('33.3%')
-    expect(wrapper.text()).not.toContain('Shows the composition of input and output tokens.')
+    expect(wrapper.text()).toContain('Cached')
+    expect(wrapper.text()).toContain('Uncached')
+    expect(wrapper.text()).toContain('25%')
+    expect(wrapper.text()).toContain('75%')
+    expect(wrapper.text()).toContain('17 days')
     expect(wrapper.text()).toContain('You are on day 17 with DeepChat.')
     expect(wrapper.text()).not.toContain('settings.dashboard.summary.cacheHitRate')
     expect(wrapper.find('[data-testid="summary-card-totalTokens"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="summary-card-cachedTokens"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="summary-card-estimatedCost"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="total-tokens-donut"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="cached-tokens-bar"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="estimated-cost-sparkline"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="estimated-cost-trend-label"]').text()).toBe(
+      'Trend over the last 30 days'
+    )
     expect(wrapper.find('[data-testid="summary-card-totalTokens"]').html()).toContain(
       'whitespace-normal'
     )
@@ -220,6 +246,7 @@ describe('DashboardSettings', () => {
     expect(wrapper.find('[data-testid="summary-card-withDeepChatDays"]').html()).toContain(
       'whitespace-normal'
     )
+    expect(wrapper.find('[data-testid="with-deepchat-days-value"]').text()).toBe('17 days')
   })
 
   it('renders an empty donut with 0% ratios when total tokens are zero', async () => {
@@ -242,6 +269,48 @@ describe('DashboardSettings', () => {
     expect(wrapper.find('[data-testid="total-tokens-output-ratio"]').text()).toBe('0%')
   })
 
+  it('renders an empty cached ratio bar when input tokens are zero', async () => {
+    const { wrapper } = await setup(
+      buildDashboard({
+        summary: {
+          messageCount: 1,
+          inputTokens: 0,
+          outputTokens: 400,
+          totalTokens: 400,
+          cachedInputTokens: 0,
+          cacheHitRate: 0,
+          estimatedCostUsd: 0.0123
+        }
+      })
+    )
+
+    expect(wrapper.find('[data-testid="cached-tokens-bar"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="cached-tokens-cached-ratio"]').text()).toBe('0%')
+    expect(wrapper.find('[data-testid="cached-tokens-uncached-ratio"]').text()).toBe('0%')
+  })
+
+  it('renders an empty cost trend when the last 30 days have no cost data', async () => {
+    const { wrapper } = await setup(
+      buildDashboard({
+        calendar: Array.from({ length: 28 }, (_, index) => ({
+          date: `2026-03-${`${index + 1}`.padStart(2, '0')}`,
+          messageCount: 0,
+          inputTokens: 0,
+          outputTokens: 0,
+          totalTokens: 0,
+          cachedInputTokens: 0,
+          estimatedCostUsd: null,
+          level: 0 as const
+        }))
+      })
+    )
+
+    expect(wrapper.find('[data-testid="estimated-cost-sparkline"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="estimated-cost-trend-empty"]').text()).toBe(
+      'No cost recorded in the last 30 days.'
+    )
+  })
+
   it('renders N/A for days together when the first usage record is unavailable', async () => {
     const { wrapper } = await setup(
       buildDashboard({
@@ -254,5 +323,6 @@ describe('DashboardSettings', () => {
     expect(summaryCard.exists()).toBe(true)
     expect(summaryCard.text()).toContain('N/A')
     expect(summaryCard.text()).toContain('No usage record yet.')
+    expect(summaryCard.text()).not.toContain('You are on day')
   })
 })
