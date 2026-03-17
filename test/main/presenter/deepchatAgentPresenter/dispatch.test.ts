@@ -553,7 +553,7 @@ describe('dispatch', () => {
         status: 'pending',
         timestamp: Date.now(),
         tool_call: {
-          id: 'tc1',
+          id: 'function.cdp_send:11',
           name: 'cdp_send',
           params: '{"method":"Page.captureScreenshot"}',
           response: ''
@@ -561,7 +561,7 @@ describe('dispatch', () => {
       })
       state.completedToolCalls = [
         {
-          id: 'tc1',
+          id: 'function.cdp_send:11',
           name: 'cdp_send',
           arguments: '{"method":"Page.captureScreenshot"}'
         }
@@ -584,7 +584,8 @@ describe('dispatch', () => {
       expect(executed.terminalError).toBeUndefined()
       const toolMessage = conversation.find((message: any) => message.role === 'tool')
       expect(toolMessage.content).toContain('[Tool output offloaded]')
-      expect(toolMessage.content).toContain('tool_tc1.offload')
+      expect(toolMessage.content).toContain('tool_function.cdp_send_11.offload')
+      expect(toolMessage.content).not.toContain(':11.offload')
       expect(toolMessage.content).not.toContain(tempHome!)
       expect(state.blocks[0].tool_call?.response).toContain('[Tool output offloaded]')
       expect(state.blocks[0].status).toBe('success')
