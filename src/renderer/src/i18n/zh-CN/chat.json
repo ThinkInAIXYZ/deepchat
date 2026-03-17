@@ -218,6 +218,19 @@
   "newThread": {
     "title": "构建与探索"
   },
+  "floatingWidget": {
+    "title": "DeepChat",
+    "collapse": "收起悬浮会话列表",
+    "empty": "当前还没有 DeepChat 会话",
+    "executing": "进行中",
+    "sessionCount": "{count} 个会话",
+    "untitled": "新会话",
+    "status": {
+      "inProgress": "进行中",
+      "done": "已完成",
+      "error": "错误"
+    }
+  },
   "permissionMode": {
     "default": "默认权限",
     "fullAccess": "完全访问"

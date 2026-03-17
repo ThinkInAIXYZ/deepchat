@@ -230,5 +230,18 @@
     "groupByProject": "Группировать по проекту",
     "emptyTitle": "Пока нет диалогов",
     "emptyDescription": "Начните новый чат, чтобы приступить"
+  },
+  "floatingWidget": {
+    "title": "DeepChat",
+    "collapse": "Свернуть плавающие сессии",
+    "empty": "Пока нет сессий DeepChat",
+    "executing": "активно",
+    "sessionCount": "{count} сессий",
+    "untitled": "Новый чат",
+    "status": {
+      "inProgress": "В процессе",
+      "done": "Готово",
+      "error": "Ошибка"
+    }
   }
 }

@@ -230,5 +230,18 @@
     "groupByProject": "프로젝트별 그룹화",
     "emptyTitle": "아직 대화가 없습니다",
     "emptyDescription": "새 대화를 시작해 보세요"
+  },
+  "floatingWidget": {
+    "title": "DeepChat",
+    "collapse": "플로팅 세션 접기",
+    "empty": "아직 DeepChat 세션이 없습니다",
+    "executing": "활성",
+    "sessionCount": "{count}개 세션",
+    "untitled": "새 채팅",
+    "status": {
+      "inProgress": "진행 중",
+      "done": "완료",
+      "error": "오류"
+    }
   }
 }

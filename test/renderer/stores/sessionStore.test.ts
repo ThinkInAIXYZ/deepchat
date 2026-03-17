@@ -227,4 +227,16 @@ describe('sessionStore streaming cleanup', () => {
     expect(newAgentPresenter.getSessionList).toHaveBeenCalledTimes(1)
     expect(newAgentPresenter.getActiveSession).toHaveBeenCalledTimes(1)
   })
+
+  it('routes to chat when an external session activation targets this renderer', async () => {
+    const { store, pageRouter, emitIpc, SESSION_EVENTS } = await setupStore()
+
+    emitIpc(SESSION_EVENTS.ACTIVATED, {
+      webContentsId: 1,
+      sessionId: 'session-external'
+    })
+
+    expect(store.activeSessionId.value).toBe('session-external')
+    expect(pageRouter.goToChat).toHaveBeenCalledWith('session-external')
+  })
 })

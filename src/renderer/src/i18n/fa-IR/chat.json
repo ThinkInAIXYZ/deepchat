@@ -230,5 +230,18 @@
     "groupByProject": "گروه‌بندی بر اساس پروژه",
     "emptyTitle": "هنوز گفت‌وگویی وجود ندارد",
     "emptyDescription": "برای شروع، یک گفت‌وگوی جدید آغاز کنید"
+  },
+  "floatingWidget": {
+    "title": "DeepChat",
+    "collapse": "جمع کردن نشست‌های شناور",
+    "empty": "هنوز هیچ نشست DeepChat وجود ندارد",
+    "executing": "فعال",
+    "sessionCount": "{count} نشست",
+    "untitled": "گفت‌وگوی جدید",
+    "status": {
+      "inProgress": "در حال انجام",
+      "done": "انجام شد",
+      "error": "خطا"
+    }
   }
 }
