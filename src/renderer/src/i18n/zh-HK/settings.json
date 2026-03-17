@@ -222,7 +222,11 @@
       "estimatedCost": "估算價格",
       "estimatedCostDescription": "按目前 provider 價格或 AIHubMix 回退價格估算的美元成本。",
       "recordingStartedAt": "統計開始時間",
-      "recordingStartedAtDescription": "目前看板中最早一條 usage 記錄的時間。"
+      "recordingStartedAtDescription": "目前看板中最早一條 usage 記錄的時間。",
+      "withDeepChatDaysLabel": "陪伴天數",
+      "withDeepChatDaysSentence": "你已經和 DeepChat 一起度過了 {days} 天",
+      "withDeepChatDaysDescription": "基於你最早的一條使用記錄：{date}。",
+      "withDeepChatDaysDescriptionUnavailable": "暫時還沒有使用記錄。"
     },
     "calendar": {
       "title": "Contribution Calendar",
@@ -231,12 +235,12 @@
       "tooltip": "{date}：{tokens} token"
     },
     "breakdown": {
-      "providerTitle": "Provider 排行",
+      "providerTitle": "供應商排行",
       "providerDescription": "先按估算價格排序，再按總 token 排序。",
-      "modelTitle": "Model 排行",
+      "modelTitle": "模型排行",
       "modelDescription": "按估算價格和總 token 排序的前 10 個模型。",
       "messages": "{count} 條消息",
-      "empty": "暫時還沒有可展示的拆分資料。"
+      "empty": "暫時還沒有可展示的明細資料。"
     },
     "unavailable": "暫無"
   },

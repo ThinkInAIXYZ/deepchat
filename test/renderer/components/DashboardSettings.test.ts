@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, ref } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import type { UsageDashboardData } from '@shared/types/agent-interface'
@@ -17,13 +17,13 @@ const buttonStub = defineComponent({
 
 function buildDashboard(overrides: Partial<UsageDashboardData> = {}): UsageDashboardData {
   return {
-    recordingStartedAt: Date.UTC(2026, 2, 1),
+    recordingStartedAt: new Date(2026, 2, 1, 12, 0, 0).getTime(),
     backfillStatus: {
       status: 'completed',
-      startedAt: Date.UTC(2026, 2, 1),
-      finishedAt: Date.UTC(2026, 2, 1, 0, 0, 5),
+      startedAt: new Date(2026, 2, 1, 12, 0, 0).getTime(),
+      finishedAt: new Date(2026, 2, 1, 12, 0, 5).getTime(),
       error: null,
-      updatedAt: Date.UTC(2026, 2, 1, 0, 0, 5)
+      updatedAt: new Date(2026, 2, 1, 12, 0, 5).getTime()
     },
     summary: {
       messageCount: 2,
@@ -90,6 +90,18 @@ async function setup(data: UsageDashboardData) {
         if (key === 'settings.dashboard.breakdown.messages') {
           return `${params?.count ?? 0} messages`
         }
+        if (key === 'settings.dashboard.summary.withDeepChatDaysLabel') {
+          return 'Days together'
+        }
+        if (key === 'settings.dashboard.summary.withDeepChatDaysSentence') {
+          return `You are on day ${params?.days ?? '0'} with DeepChat.`
+        }
+        if (key === 'settings.dashboard.summary.withDeepChatDaysDescription') {
+          return `Based on your earliest usage record from ${params?.date ?? 'unknown'}.`
+        }
+        if (key === 'settings.dashboard.summary.withDeepChatDaysDescriptionUnavailable') {
+          return 'No usage record yet.'
+        }
         if (key === 'settings.dashboard.calendar.tooltip') {
           return `${params?.date}: ${params?.tokens}`
         }
@@ -129,6 +141,12 @@ async function setup(data: UsageDashboardData) {
 describe('DashboardSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(2026, 2, 17, 12, 0, 0))
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   it('renders the empty state when no stats are available', async () => {
@@ -156,10 +174,10 @@ describe('DashboardSettings', () => {
       buildDashboard({
         backfillStatus: {
           status: 'running',
-          startedAt: Date.UTC(2026, 2, 1),
+          startedAt: new Date(2026, 2, 1, 12, 0, 0).getTime(),
           finishedAt: null,
           error: null,
-          updatedAt: Date.UTC(2026, 2, 1, 0, 0, 5)
+          updatedAt: new Date(2026, 2, 1, 12, 0, 5).getTime()
         }
       })
     )
@@ -174,7 +192,28 @@ describe('DashboardSettings', () => {
     expect(wrapper.text()).toContain('OpenAI')
     expect(wrapper.text()).toContain('GPT-4o')
     expect(wrapper.text()).toContain('1.2k')
+    expect(wrapper.text()).toContain('You are on day 17 with DeepChat.')
+    expect(wrapper.text()).not.toContain('settings.dashboard.summary.cacheHitRate')
+    expect(wrapper.find('[data-testid="provider-breakdown-scroll"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="model-breakdown-scroll"]').exists()).toBe(true)
     expect(wrapper.find('[title="1,200"]').exists()).toBe(true)
     expect(wrapper.findAll('[data-testid="calendar-cell"]').length).toBeGreaterThan(0)
+    expect(wrapper.find('[data-testid="summary-card-withDeepChatDays"]').html()).toContain(
+      'whitespace-normal'
+    )
+  })
+
+  it('renders N/A for days together when the first usage record is unavailable', async () => {
+    const { wrapper } = await setup(
+      buildDashboard({
+        recordingStartedAt: null
+      })
+    )
+
+    const summaryCard = wrapper.find('[data-testid="summary-card-withDeepChatDays"]')
+
+    expect(summaryCard.exists()).toBe(true)
+    expect(summaryCard.text()).toContain('N/A')
+    expect(summaryCard.text()).toContain('No usage record yet.')
   })
 })

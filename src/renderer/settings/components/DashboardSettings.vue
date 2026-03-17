@@ -76,24 +76,25 @@
         <p class="mt-1 text-sm text-muted-foreground">{{ errorMessage }}</p>
       </section>
 
-      <section v-if="isLoading && !dashboard" class="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+      <section v-if="isLoading && !dashboard" class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <div
-          v-for="index in 5"
+          v-for="index in 4"
           :key="index"
           class="h-32 animate-pulse rounded-2xl border border-border bg-muted/40"
         ></div>
       </section>
 
       <template v-else-if="dashboard">
-        <section v-if="hasData" class="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <section v-if="hasData" class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <Card
             v-for="card in summaryCards"
             :key="card.key"
+            :data-testid="`summary-card-${card.key}`"
             class="overflow-hidden border-border/70 bg-card/90 backdrop-blur-sm"
           >
             <CardHeader class="space-y-2 pb-3">
               <CardDescription>{{ card.label }}</CardDescription>
-              <CardTitle class="text-2xl" :title="card.tooltip">
+              <CardTitle :class="card.valueClass ?? 'text-2xl'" :title="card.tooltip">
                 {{ card.value }}
               </CardTitle>
             </CardHeader>
@@ -208,7 +209,7 @@
                 {{ t('settings.dashboard.breakdown.providerDescription') }}
               </CardDescription>
             </CardHeader>
-            <CardContent class="space-y-3">
+            <CardContent>
               <div
                 v-if="dashboard.providerBreakdown.length === 0"
                 class="rounded-2xl border border-dashed border-border/70 p-4 text-sm text-muted-foreground"
@@ -216,29 +217,39 @@
                 {{ t('settings.dashboard.breakdown.empty') }}
               </div>
               <div
-                v-for="item in dashboard.providerBreakdown"
-                :key="item.id"
-                class="rounded-2xl border border-border/70 p-3"
+                v-else
+                data-testid="provider-breakdown-scroll"
+                class="max-h-[420px] space-y-3 overflow-y-auto pr-2"
               >
-                <div class="flex items-center justify-between gap-3">
-                  <div class="min-w-0">
-                    <p class="truncate text-sm font-medium">{{ item.label }}</p>
-                    <p class="text-xs text-muted-foreground">
-                      {{ t('settings.dashboard.breakdown.messages', { count: item.messageCount }) }}
-                    </p>
+                <div
+                  v-for="item in dashboard.providerBreakdown"
+                  :key="item.id"
+                  class="rounded-2xl border border-border/70 p-3"
+                >
+                  <div class="flex items-center justify-between gap-3">
+                    <div class="min-w-0">
+                      <p class="truncate text-sm font-medium">{{ item.label }}</p>
+                      <p class="text-xs text-muted-foreground">
+                        {{
+                          t('settings.dashboard.breakdown.messages', { count: item.messageCount })
+                        }}
+                      </p>
+                    </div>
+                    <div class="text-right text-xs text-muted-foreground">
+                      <p :title="formatFullTokens(item.totalTokens)">
+                        {{ formatTokens(item.totalTokens) }}
+                      </p>
+                      <p>{{ formatCurrency(item.estimatedCostUsd) }}</p>
+                    </div>
                   </div>
-                  <div class="text-right text-xs text-muted-foreground">
-                    <p :title="formatFullTokens(item.totalTokens)">
-                      {{ formatTokens(item.totalTokens) }}
-                    </p>
-                    <p>{{ formatCurrency(item.estimatedCostUsd) }}</p>
+                  <div class="mt-3 h-2 rounded-full bg-muted">
+                    <div
+                      class="h-full rounded-full bg-[hsl(var(--usage-low))]"
+                      :style="{
+                        width: `${getBreakdownWidth(item.totalTokens, providerMaxTokens)}%`
+                      }"
+                    ></div>
                   </div>
-                </div>
-                <div class="mt-3 h-2 rounded-full bg-muted">
-                  <div
-                    class="h-full rounded-full bg-[hsl(var(--usage-low))]"
-                    :style="{ width: `${getBreakdownWidth(item.totalTokens, providerMaxTokens)}%` }"
-                  ></div>
                 </div>
               </div>
             </CardContent>
@@ -251,7 +262,7 @@
                 {{ t('settings.dashboard.breakdown.modelDescription') }}
               </CardDescription>
             </CardHeader>
-            <CardContent class="space-y-3">
+            <CardContent>
               <div
                 v-if="dashboard.modelBreakdown.length === 0"
                 class="rounded-2xl border border-dashed border-border/70 p-4 text-sm text-muted-foreground"
@@ -259,29 +270,38 @@
                 {{ t('settings.dashboard.breakdown.empty') }}
               </div>
               <div
-                v-for="item in dashboard.modelBreakdown"
-                :key="item.id"
-                class="rounded-2xl border border-border/70 p-3"
+                v-else
+                data-testid="model-breakdown-scroll"
+                class="max-h-[420px] space-y-3 overflow-y-auto pr-2"
               >
-                <div class="flex items-center justify-between gap-3">
-                  <div class="min-w-0">
-                    <p class="truncate text-sm font-medium">{{ item.label }}</p>
-                    <p v-if="item.label !== item.id" class="truncate text-xs text-muted-foreground">
-                      {{ item.id }}
-                    </p>
+                <div
+                  v-for="item in dashboard.modelBreakdown"
+                  :key="item.id"
+                  class="rounded-2xl border border-border/70 p-3"
+                >
+                  <div class="flex items-center justify-between gap-3">
+                    <div class="min-w-0">
+                      <p class="truncate text-sm font-medium">{{ item.label }}</p>
+                      <p
+                        v-if="item.label !== item.id"
+                        class="truncate text-xs text-muted-foreground"
+                      >
+                        {{ item.id }}
+                      </p>
+                    </div>
+                    <div class="text-right text-xs text-muted-foreground">
+                      <p :title="formatFullTokens(item.totalTokens)">
+                        {{ formatTokens(item.totalTokens) }}
+                      </p>
+                      <p>{{ formatCurrency(item.estimatedCostUsd) }}</p>
+                    </div>
                   </div>
-                  <div class="text-right text-xs text-muted-foreground">
-                    <p :title="formatFullTokens(item.totalTokens)">
-                      {{ formatTokens(item.totalTokens) }}
-                    </p>
-                    <p>{{ formatCurrency(item.estimatedCostUsd) }}</p>
+                  <div class="mt-3 h-2 rounded-full bg-muted">
+                    <div
+                      class="h-full rounded-full bg-[hsl(var(--usage-mid))]"
+                      :style="{ width: `${getBreakdownWidth(item.totalTokens, modelMaxTokens)}%` }"
+                    ></div>
                   </div>
-                </div>
-                <div class="mt-3 h-2 rounded-full bg-muted">
-                  <div
-                    class="h-full rounded-full bg-[hsl(var(--usage-mid))]"
-                    :style="{ width: `${getBreakdownWidth(item.totalTokens, modelMaxTokens)}%` }"
-                  ></div>
                 </div>
               </div>
             </CardContent>
@@ -318,6 +338,7 @@ const isLoading = ref(true)
 const errorMessage = ref('')
 const dashboard = ref<UsageDashboardData | null>(null)
 let refreshTimer: number | null = null
+const MS_PER_DAY = 24 * 60 * 60 * 1000
 
 const hasData = computed(() => (dashboard.value?.summary.messageCount ?? 0) > 0)
 
@@ -343,13 +364,6 @@ const summaryCards = computed(() => {
       description: t('settings.dashboard.summary.cachedTokensDescription')
     },
     {
-      key: 'cacheHitRate',
-      label: t('settings.dashboard.summary.cacheHitRate'),
-      value: formatPercent(summary.cacheHitRate),
-      tooltip: undefined,
-      description: t('settings.dashboard.summary.cacheHitRateDescription')
-    },
-    {
       key: 'estimatedCost',
       label: t('settings.dashboard.summary.estimatedCost'),
       value: formatCurrency(summary.estimatedCostUsd),
@@ -357,11 +371,12 @@ const summaryCards = computed(() => {
       description: t('settings.dashboard.summary.estimatedCostDescription')
     },
     {
-      key: 'recordingStartedAt',
-      label: t('settings.dashboard.summary.recordingStartedAt'),
-      value: formatDate(dashboard.value.recordingStartedAt),
+      key: 'withDeepChatDays',
+      label: t('settings.dashboard.summary.withDeepChatDaysLabel'),
+      value: formatWithDeepChatDays(dashboard.value.recordingStartedAt),
       tooltip: undefined,
-      description: t('settings.dashboard.summary.recordingStartedAtDescription')
+      description: formatWithDeepChatDaysDescription(dashboard.value.recordingStartedAt),
+      valueClass: 'break-words whitespace-normal text-base leading-6 md:text-lg'
     }
   ]
 })
@@ -521,13 +536,6 @@ function formatFullTokens(value: number): string {
   return new Intl.NumberFormat(locale.value).format(value)
 }
 
-function formatPercent(value: number): string {
-  return new Intl.NumberFormat(locale.value, {
-    style: 'percent',
-    maximumFractionDigits: 1
-  }).format(value)
-}
-
 function formatCurrency(value: number | null): string {
   if (value === null || Number.isNaN(value)) {
     return t('settings.dashboard.unavailable')
@@ -551,6 +559,41 @@ function formatDateKey(dateKey: string): string {
   return new Intl.DateTimeFormat(locale.value, { dateStyle: 'medium' }).format(
     new Date(`${dateKey}T00:00:00`)
   )
+}
+
+function getDaysWithDeepChat(value: number | null): number | null {
+  if (!value) {
+    return null
+  }
+
+  const startedAt = new Date(value)
+  const today = new Date()
+  const startedAtDay = new Date(startedAt.getFullYear(), startedAt.getMonth(), startedAt.getDate())
+  const todayDay = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+  const diffDays = Math.floor((todayDay.getTime() - startedAtDay.getTime()) / MS_PER_DAY) + 1
+
+  return Math.max(1, diffDays)
+}
+
+function formatWithDeepChatDays(value: number | null): string {
+  const days = getDaysWithDeepChat(value)
+  if (days === null) {
+    return t('settings.dashboard.unavailable')
+  }
+
+  return t('settings.dashboard.summary.withDeepChatDaysSentence', {
+    days: new Intl.NumberFormat(locale.value).format(days)
+  })
+}
+
+function formatWithDeepChatDaysDescription(value: number | null): string {
+  if (!value) {
+    return t('settings.dashboard.summary.withDeepChatDaysDescriptionUnavailable')
+  }
+
+  return t('settings.dashboard.summary.withDeepChatDaysDescription', {
+    date: formatDate(value)
+  })
 }
 
 onMounted(() => {

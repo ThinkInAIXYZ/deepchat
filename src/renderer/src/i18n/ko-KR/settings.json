@@ -222,7 +222,11 @@
       "estimatedCost": "Estimated cost",
       "estimatedCostDescription": "Estimated in USD using provider pricing or AIHubMix fallback pricing.",
       "recordingStartedAt": "Recording started",
-      "recordingStartedAtDescription": "The earliest usage record currently stored in this dashboard."
+      "recordingStartedAtDescription": "The earliest usage record currently stored in this dashboard.",
+      "withDeepChatDaysLabel": "함께한 날",
+      "withDeepChatDaysSentence": "DeepChat와 함께한 지 {days}일째예요.",
+      "withDeepChatDaysDescription": "가장 이른 사용 기록인 {date}를 기준으로 계산해요.",
+      "withDeepChatDaysDescriptionUnavailable": "아직 사용 기록이 없어요."
     },
     "calendar": {
       "title": "Contribution Calendar",
@@ -231,12 +235,12 @@
       "tooltip": "{date}: {tokens} tokens"
     },
     "breakdown": {
-      "providerTitle": "Provider Breakdown",
-      "providerDescription": "Ranked by estimated cost, then by total tokens.",
-      "modelTitle": "Model Breakdown",
-      "modelDescription": "Top 10 models by estimated cost, then by total tokens.",
-      "messages": "{count} messages",
-      "empty": "No breakdown data yet."
+      "providerTitle": "프로바이더별 순위",
+      "providerDescription": "예상 비용이 높은 순, 같으면 총 토큰 수 순으로 정렬해요.",
+      "modelTitle": "모델별 순위",
+      "modelDescription": "예상 비용과 총 토큰 수 기준 상위 10개 모델이에요.",
+      "messages": "메시지 {count}개",
+      "empty": "표시할 세부 통계가 아직 없어요."
     },
     "unavailable": "N/A"
   },

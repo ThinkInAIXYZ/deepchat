@@ -222,7 +222,11 @@
       "estimatedCost": "Estimated cost",
       "estimatedCostDescription": "Estimated in USD using provider pricing or AIHubMix fallback pricing.",
       "recordingStartedAt": "Recording started",
-      "recordingStartedAtDescription": "The earliest usage record currently stored in this dashboard."
+      "recordingStartedAtDescription": "The earliest usage record currently stored in this dashboard.",
+      "withDeepChatDaysLabel": "一緒に過ごした日数",
+      "withDeepChatDaysSentence": "DeepChatと過ごして{days}日目です。",
+      "withDeepChatDaysDescription": "最も古い使用記録（{date}）をもとに計算しています。",
+      "withDeepChatDaysDescriptionUnavailable": "まだ使用記録がありません。"
     },
     "calendar": {
       "title": "Contribution Calendar",
@@ -231,12 +235,12 @@
       "tooltip": "{date}: {tokens} tokens"
     },
     "breakdown": {
-      "providerTitle": "Provider Breakdown",
-      "providerDescription": "Ranked by estimated cost, then by total tokens.",
-      "modelTitle": "Model Breakdown",
-      "modelDescription": "Top 10 models by estimated cost, then by total tokens.",
-      "messages": "{count} messages",
-      "empty": "No breakdown data yet."
+      "providerTitle": "プロバイダー別ランキング",
+      "providerDescription": "推定コスト順で、同率の場合は総トークン数順です。",
+      "modelTitle": "モデル別ランキング",
+      "modelDescription": "推定コスト順、同率時は総トークン数順の上位10モデルです。",
+      "messages": "{count}件のメッセージ",
+      "empty": "表示できる内訳データはまだありません。"
     },
     "unavailable": "N/A"
   },

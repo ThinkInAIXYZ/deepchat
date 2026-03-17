@@ -168,7 +168,11 @@
       "estimatedCost": "Estimated cost",
       "estimatedCostDescription": "Estimated in USD using provider pricing or AIHubMix fallback pricing.",
       "recordingStartedAt": "Recording started",
-      "recordingStartedAtDescription": "The earliest usage record currently stored in this dashboard."
+      "recordingStartedAtDescription": "The earliest usage record currently stored in this dashboard.",
+      "withDeepChatDaysLabel": "Dage sammen",
+      "withDeepChatDaysSentence": "Du er nu på dag {days} med DeepChat.",
+      "withDeepChatDaysDescription": "Baseret på din tidligste registrerede brug fra {date}.",
+      "withDeepChatDaysDescriptionUnavailable": "Der er endnu ingen brugsregistreringer."
     },
     "calendar": {
       "title": "Contribution Calendar",
@@ -177,12 +181,12 @@
       "tooltip": "{date}: {tokens} tokens"
     },
     "breakdown": {
-      "providerTitle": "Provider Breakdown",
-      "providerDescription": "Ranked by estimated cost, then by total tokens.",
-      "modelTitle": "Model Breakdown",
-      "modelDescription": "Top 10 models by estimated cost, then by total tokens.",
-      "messages": "{count} messages",
-      "empty": "No breakdown data yet."
+      "providerTitle": "Udbyderrangliste",
+      "providerDescription": "Sorteret først efter estimeret pris og derefter efter samlede tokens.",
+      "modelTitle": "Modelrangliste",
+      "modelDescription": "Top 10 modeller efter estimeret pris og derefter samlede tokens.",
+      "messages": "{count} beskeder",
+      "empty": "Der er endnu ingen fordelingsdata."
     },
     "unavailable": "N/A"
   },

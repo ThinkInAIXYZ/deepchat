@@ -222,7 +222,11 @@
       "estimatedCost": "Estimated cost",
       "estimatedCostDescription": "Estimated in USD using provider pricing or AIHubMix fallback pricing.",
       "recordingStartedAt": "Recording started",
-      "recordingStartedAtDescription": "The earliest usage record currently stored in this dashboard."
+      "recordingStartedAtDescription": "The earliest usage record currently stored in this dashboard.",
+      "withDeepChatDaysLabel": "Days together",
+      "withDeepChatDaysSentence": "You are on day {days} with DeepChat.",
+      "withDeepChatDaysDescription": "Based on your earliest usage record from {date}.",
+      "withDeepChatDaysDescriptionUnavailable": "No usage record yet."
     },
     "calendar": {
       "title": "Contribution Calendar",
@@ -231,9 +235,9 @@
       "tooltip": "{date}: {tokens} tokens"
     },
     "breakdown": {
-      "providerTitle": "Provider Breakdown",
+      "providerTitle": "Top providers",
       "providerDescription": "Ranked by estimated cost, then by total tokens.",
-      "modelTitle": "Model Breakdown",
+      "modelTitle": "Top models",
       "modelDescription": "Top 10 models by estimated cost, then by total tokens.",
       "messages": "{count} messages",
       "empty": "No breakdown data yet."

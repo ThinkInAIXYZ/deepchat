@@ -18,7 +18,10 @@ Add a dedicated dashboard page under settings to show token usage, cached token 
 - Historical backfill sets cached input tokens to `0`.
 - New assistant message finalization and error finalization upsert usage rows into `deepchat_usage_stats`.
 - Price estimation uses current provider pricing first and falls back to `aihubmix` for the same model id when needed.
-- The page contains overview cards, a 365-day contribution calendar, and provider/model breakdowns.
+- The page contains four overview cards: total tokens, cached tokens, estimated cost, and days with DeepChat.
+- The "days with DeepChat" card is derived from the earliest recorded usage date and rendered with locale-specific phrasing.
+- The page contains a 365-day contribution calendar and provider/model breakdowns.
+- Provider and model breakdown cards support internal scrolling without growing the full page indefinitely.
 
 ## Non-Goals
 

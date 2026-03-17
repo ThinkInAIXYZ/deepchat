@@ -222,7 +222,11 @@
       "estimatedCost": "估算价格",
       "estimatedCostDescription": "按当前 provider 价格或 AIHubMix 回退价格估算的美元成本。",
       "recordingStartedAt": "统计开始时间",
-      "recordingStartedAtDescription": "当前看板中最早一条 usage 记录的时间。"
+      "recordingStartedAtDescription": "当前看板中最早一条 usage 记录的时间。",
+      "withDeepChatDaysLabel": "陪伴天数",
+      "withDeepChatDaysSentence": "你已经和 DeepChat 一起度过了 {days} 天",
+      "withDeepChatDaysDescription": "基于你最早的一条使用记录：{date}。",
+      "withDeepChatDaysDescriptionUnavailable": "暂时还没有使用记录。"
     },
     "calendar": {
       "title": "Contribution Calendar",
@@ -236,7 +240,7 @@
       "modelTitle": "Model 排行",
       "modelDescription": "按估算价格和总 token 排序的前 10 个模型。",
       "messages": "{count} 条消息",
-      "empty": "暂时还没有可展示的拆分数据。"
+      "empty": "暂时还没有可展示的明细数据。"
     },
     "unavailable": "暂无"
   },
