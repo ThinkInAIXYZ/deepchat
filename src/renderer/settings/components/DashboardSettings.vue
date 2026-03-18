@@ -1,38 +1,30 @@
 <template>
   <ScrollArea class="h-full w-full">
     <div class="mx-auto flex w-full max-w-7xl flex-col gap-6 p-4">
-      <section
-        class="rounded-3xl border border-border/70 bg-card/90 p-5 shadow-sm backdrop-blur-sm"
-      >
-        <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div class="space-y-2">
-            <Badge variant="secondary" class="w-fit">
-              {{ t('settings.dashboard.badge') }}
-            </Badge>
-            <div class="space-y-1">
-              <h2 class="text-2xl font-semibold tracking-tight">
-                {{ t('settings.dashboard.title') }}
-              </h2>
-              <p class="max-w-3xl text-sm text-muted-foreground">
-                {{ t('settings.dashboard.description') }}
-              </p>
-            </div>
-          </div>
-          <Button
-            variant="outline"
-            class="w-fit"
-            :disabled="isLoading"
-            @click="void loadDashboard()"
-          >
-            <Icon
-              icon="lucide:refresh-cw"
-              class="h-4 w-4"
-              :class="isLoading ? 'animate-spin' : ''"
-            />
-            {{ t('settings.dashboard.actions.refresh') }}
-          </Button>
+      <div class="flex items-start gap-3 px-2 py-2">
+        <div class="min-w-0 flex-1">
+          <h2 class="text-sm font-medium text-foreground">
+            {{ t('settings.dashboard.title') }}
+          </h2>
+          <p class="mt-1 max-w-3xl text-xs leading-5 text-muted-foreground">
+            {{ t('settings.dashboard.description') }}
+          </p>
         </div>
-      </section>
+        <Button
+          variant="outline"
+          size="sm"
+          class="shrink-0"
+          :disabled="isLoading"
+          @click="void loadDashboard()"
+        >
+          <Icon
+            icon="lucide:refresh-cw"
+            class="mr-2 h-4 w-4"
+            :class="isLoading ? 'animate-spin' : ''"
+          />
+          {{ t('settings.dashboard.actions.refresh') }}
+        </Button>
+      </div>
 
       <section
         v-if="dashboard?.backfillStatus.status === 'running'"

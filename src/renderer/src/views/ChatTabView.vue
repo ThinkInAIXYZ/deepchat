@@ -41,9 +41,9 @@ onMounted(async () => {
       pageRouter.initialize(),
       sessionStore.fetchSessions(),
       agentStore.fetchAgents(),
-      modelStore.initialize()
+      modelStore.initialize(),
+      projectStore.fetchProjects()
     ])
-    projectStore.fetchProjects()
   } finally {
     isReady.value = true
   }

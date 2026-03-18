@@ -439,3 +439,12 @@ export interface Project {
   icon: string | null
   lastAccessedAt: number
 }
+
+export interface EnvironmentSummary {
+  path: string
+  name: string
+  sessionCount: number
+  lastUsedAt: number
+  isTemp: boolean
+  exists: boolean
+}

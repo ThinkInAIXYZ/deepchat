@@ -16,5 +16,6 @@
   "settings-acp": "ACP 프록시",
   "settings-skills": "Skills",
   "settings-notifications-hooks": "훅",
-  "settings-dashboard": "Dashboard"
+  "settings-dashboard": "Dashboard",
+  "settings-environments": "환경"
 }

@@ -16,5 +16,6 @@
   "settings-acp": "ACP-агент",
   "settings-skills": "Skills",
   "settings-notifications-hooks": "Хуки",
-  "settings-dashboard": "Панель"
+  "settings-dashboard": "Панель",
+  "settings-environments": "Окружения"
 }

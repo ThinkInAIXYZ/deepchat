@@ -44,14 +44,18 @@ const setup = async (options?: {
     projectDir: string
     permissionMode?: string
   }) => Promise<{ id: string } | null>
+  selectedProject?: {
+    path: string
+    name: string
+  }
 }) => {
   vi.resetModules()
   chatInputTriggerAttachMock.mockReset()
   chatInputPendingSkillsSnapshotRef.value = []
 
   const projectStore = reactive({
-    selectedProject: { path: '/tmp/workspace', name: 'workspace' },
-    selectedProjectName: 'workspace',
+    selectedProject: options?.selectedProject ?? { path: '/tmp/workspace', name: 'workspace' },
+    selectedProjectName: options?.selectedProject?.name ?? 'workspace',
     projects: [],
     selectProject: vi.fn(),
     openFolderPicker: vi.fn()
@@ -173,6 +177,21 @@ const setup = async (options?: {
 }
 
 describe('NewThreadPage ACP draft session bootstrap', () => {
+  it('uses the preselected project path when default project selection is already applied', async () => {
+    const { newAgentPresenter } = await setup({
+      selectedProject: {
+        path: '/tmp/default-workspace',
+        name: 'default-workspace'
+      }
+    })
+
+    expect(newAgentPresenter.ensureAcpDraftSession).toHaveBeenCalledWith({
+      agentId: 'acp-agent',
+      projectDir: '/tmp/default-workspace',
+      permissionMode: 'full_access'
+    })
+  })
+
   it('ensures ACP draft session and passes session-id to ChatInputBox', async () => {
     const { wrapper, newAgentPresenter } = await setup()
 

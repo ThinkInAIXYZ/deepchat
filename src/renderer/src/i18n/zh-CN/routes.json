@@ -16,5 +16,6 @@
   "settings-acp": "ACP Agent",
   "settings-skills": "Skills设置",
   "settings-notifications-hooks": "Hooks",
-  "settings-dashboard": "数据看板"
+  "settings-dashboard": "数据看板",
+  "settings-environments": "目录环境"
 }

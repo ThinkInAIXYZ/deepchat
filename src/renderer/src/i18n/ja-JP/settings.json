@@ -1395,5 +1395,49 @@
       "pythonShort": "Py",
       "nodeShort": "Node"
     }
+  },
+  "environments": {
+    "title": "環境",
+    "description": "セッションで使用したプロジェクトディレクトリを確認し、すばやく開いたり、新しいチャットのデフォルトとして設定できます。",
+    "default": {
+      "title": "デフォルトディレクトリ",
+      "description": "新しいチャットではこのディレクトリが事前選択されますが、手動選択が優先されます。",
+      "empty": "デフォルトディレクトリは設定されていません。"
+    },
+    "history": {
+      "title": "履歴",
+      "description": "ここには実際にセッションで使われたディレクトリだけが表示されます。"
+    },
+    "temp": {
+      "title": "Temp ディレクトリ",
+      "description": "システムの一時領域またはアプリ管理のワークスペース配下のディレクトリはここにまとめられ、既定では非表示です。"
+    },
+    "actions": {
+      "refresh": "更新",
+      "showMissing": "存在しないディレクトリを表示",
+      "open": "開く",
+      "setDefault": "デフォルトに設定",
+      "clearDefault": "デフォルトを解除",
+      "showTemp": "Temp を表示",
+      "hideTemp": "Temp を隠す"
+    },
+    "badges": {
+      "default": "デフォルト",
+      "temp": "Temp",
+      "missing": "見つかりません",
+      "notInHistory": "履歴外"
+    },
+    "meta": {
+      "sessions": "{count} 件のセッション",
+      "lastUsed": "最終使用: {value}",
+      "never": "未使用"
+    },
+    "empty": {
+      "regular": "表示できる環境はありません。",
+      "temp": "Temp 環境はまだありません。"
+    },
+    "errors": {
+      "openTitle": "ディレクトリを開けませんでした"
+    }
   }
 }

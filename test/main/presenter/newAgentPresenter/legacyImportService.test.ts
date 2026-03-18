@@ -104,6 +104,9 @@ function createMockSqlitePresenter() {
     deepchatMessageSearchResultsTable: {
       listByMessageId: vi.fn(() => []),
       insert: vi.fn()
+    },
+    newEnvironmentsTable: {
+      rebuildFromSessions: vi.fn()
     }
   }
 }
@@ -143,6 +146,33 @@ describe('LegacyChatImportService', () => {
         activeSkills: ['skill-1', 'skill-2']
       })
     )
+    expect(sqlitePresenter.newEnvironmentsTable.rebuildFromSessions).toHaveBeenCalledTimes(1)
+  })
+
+  it('imports legacy conversation workdir as the project directory', async () => {
+    await (service as any).importRows({
+      conversations: [
+        {
+          conv_id: 'conv-workdir',
+          title: 'ACP Imported Chat',
+          provider_id: 'acp',
+          model_id: 'agent-1',
+          workdir: '/legacy/workdir'
+        }
+      ],
+      messageRows: [],
+      attachmentRows: [],
+      acpSessionRows: []
+    })
+
+    expect(sqlitePresenter.newSessionsTable.create).toHaveBeenCalledWith(
+      'legacy-session-conv-workdir',
+      'agent-1',
+      'ACP Imported Chat',
+      '/legacy/workdir',
+      expect.any(Object)
+    )
+    expect(sqlitePresenter.newEnvironmentsTable.rebuildFromSessions).toHaveBeenCalledTimes(1)
   })
 
   it('repairs previously imported legacy sessions on first access', async () => {

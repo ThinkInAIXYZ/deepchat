@@ -1395,5 +1395,49 @@
       "pythonShort": "Py",
       "nodeShort": "Node"
     }
+  },
+  "environments": {
+    "title": "Ambientes",
+    "description": "Veja os diretórios de projeto usados pelas suas sessões, abra-os rapidamente ou defina um deles como padrão para novas conversas.",
+    "default": {
+      "title": "Diretório padrão",
+      "description": "Novas conversas pré-selecionam este diretório, a menos que você escolha outro manualmente.",
+      "empty": "Nenhum diretório padrão foi definido."
+    },
+    "history": {
+      "title": "Histórico",
+      "description": "Somente os diretórios realmente usados por sessões são listados aqui."
+    },
+    "temp": {
+      "title": "Diretórios Temp",
+      "description": "Diretórios sob a raiz temporária ou em workspaces gerenciados pelo aplicativo são agrupados aqui e ficam ocultos por padrão."
+    },
+    "actions": {
+      "refresh": "Atualizar",
+      "showMissing": "Mostrar diretórios ausentes",
+      "open": "Abrir",
+      "setDefault": "Definir como padrão",
+      "clearDefault": "Limpar padrão",
+      "showTemp": "Mostrar Temp",
+      "hideTemp": "Ocultar Temp"
+    },
+    "badges": {
+      "default": "Padrão",
+      "temp": "Temp",
+      "missing": "Ausente",
+      "notInHistory": "Fora do histórico"
+    },
+    "meta": {
+      "sessions": "{count} sessões",
+      "lastUsed": "Último uso: {value}",
+      "never": "Nunca"
+    },
+    "empty": {
+      "regular": "Nenhum ambiente para mostrar.",
+      "temp": "Ainda não há ambientes Temp."
+    },
+    "errors": {
+      "openTitle": "Falha ao abrir diretório"
+    }
   }
 }

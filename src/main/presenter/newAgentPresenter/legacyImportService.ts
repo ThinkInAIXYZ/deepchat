@@ -368,7 +368,7 @@ export class LegacyChatImportService {
           this.pickString(conversation, ['active_skills']) ?? ''
         )
 
-        let projectDir = this.pickString(conversation, ['agent_workspace_path']) ?? null
+        let projectDir = this.pickString(conversation, ['agent_workspace_path', 'workdir']) ?? null
         if (!projectDir && agentId !== 'deepchat') {
           const workdirMap = this.parseJsonRecord(
             this.pickString(conversation, ['acp_workdir_map']) ?? ''
@@ -535,6 +535,7 @@ export class LegacyChatImportService {
         }
       }
     })
+    this.sqlitePresenter.newEnvironmentsTable.rebuildFromSessions()
 
     return {
       importedSessions,

@@ -285,10 +285,12 @@ export class Presenter implements IPresenter {
         (
           this.sqlitePresenter as unknown as import('./sqlitePresenter').SQLitePresenter
         ).newSessionsTable?.getActiveSkills(conversationId) ?? [],
-      setPersistedNewSessionSkills: (conversationId, skills) =>
-        (
-          this.sqlitePresenter as unknown as import('./sqlitePresenter').SQLitePresenter
-        ).newSessionsTable?.updateActiveSkills(conversationId, skills),
+      setPersistedNewSessionSkills: (conversationId, skills) => {
+        const sqlitePresenter = this
+          .sqlitePresenter as unknown as import('./sqlitePresenter').SQLitePresenter
+        sqlitePresenter.newSessionsTable?.updateActiveSkills(conversationId, skills)
+        sqlitePresenter.newEnvironmentsTable?.syncForSession(conversationId)
+      },
       repairImportedLegacySessionSkills: async (conversationId) => {
         const newAgentPresenter = this.newAgentPresenter as INewAgentPresenter & {
           repairImportedLegacySessionSkills?: (sessionId: string) => Promise<string[]>
