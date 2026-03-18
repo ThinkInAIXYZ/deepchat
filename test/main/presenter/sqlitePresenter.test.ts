@@ -125,6 +125,11 @@ describe('SQLitePresenter legacy schema bootstrap', () => {
     expect(columnNames.has('is_draft')).toBe(true)
     expect(columnNames.has('active_skills')).toBe(true)
     expect(columnNames.has('disabled_agent_tools')).toBe(true)
+
+    const versions = checkDb
+      .prepare('SELECT version FROM schema_versions ORDER BY version ASC')
+      .all() as Array<{ version: number }>
+    expect(versions.map((row) => row.version)).toEqual(expect.arrayContaining([11, 15, 16]))
     checkDb.close()
   })
 })

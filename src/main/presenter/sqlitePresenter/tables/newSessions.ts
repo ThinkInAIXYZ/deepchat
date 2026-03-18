@@ -27,9 +27,6 @@ export class NewSessionsTable extends BaseTable {
         title TEXT NOT NULL,
         project_dir TEXT,
         is_pinned INTEGER DEFAULT 0,
-        is_draft INTEGER NOT NULL DEFAULT 0,
-        active_skills TEXT NOT NULL DEFAULT '[]',
-        disabled_agent_tools TEXT NOT NULL DEFAULT '[]',
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL
       );
