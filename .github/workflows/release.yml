@@ -88,8 +88,27 @@ jobs:
 
             core.setOutput('tag', tag)
 
-  build-windows:
+  validate-main-ancestor:
     needs: resolve-tag
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-tag.outputs.sha }}
+          fetch-depth: 0
+
+      - name: Validate tagged commit is mirrored on main
+        env:
+          RELEASE_SHA: ${{ needs.resolve-tag.outputs.sha }}
+        run: |
+          git fetch origin main --prune
+          if ! git merge-base --is-ancestor "${RELEASE_SHA}" origin/main; then
+            echo "Release tags must point to commits already reachable from origin/main." >&2
+            exit 1
+          fi
+
+  build-windows:
+    needs: [resolve-tag, validate-main-ancestor]
     runs-on: windows-latest
     strategy:
       matrix:
@@ -153,7 +172,7 @@ jobs:
             !dist/win-arm64-unpacked
 
   build-linux:
-    needs: resolve-tag
+    needs: [resolve-tag, validate-main-ancestor]
     runs-on: ubuntu-22.04
     strategy:
       matrix:
@@ -209,7 +228,7 @@ jobs:
             !dist/linux-unpacked
 
   build-mac:
-    needs: resolve-tag
+    needs: [resolve-tag, validate-main-ancestor]
     runs-on: macos-15
     strategy:
       matrix:

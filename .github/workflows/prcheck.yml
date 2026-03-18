@@ -7,6 +7,34 @@ on:
       - dev
 
 jobs:
+  main-release-guard:
+    if: github.base_ref == 'main'
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Validate release branch naming
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          if [[ "${HEAD_REF}" != release/* ]]; then
+            echo "PRs targeting main must come from release/<version> branches." >&2
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Validate release head exists on dev
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          git fetch origin dev --prune
+          if ! git merge-base --is-ancestor "${HEAD_SHA}" origin/dev; then
+            echo "Release PR head must already exist on origin/dev." >&2
+            exit 1
+          fi
+
   build-check:
     runs-on: ubuntu-22.04
     strategy:

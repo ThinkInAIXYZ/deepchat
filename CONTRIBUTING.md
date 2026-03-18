@@ -27,6 +27,14 @@ We use GitHub to host code, to track issues and feature requests, as well as acc
 - Create a new feature branch named `feature/featurename`
 - Merge the feature branch back to `dev` branch upon completion
 
+#### Maintainer Release Flow
+
+- Keep `dev` as the integration branch and `main` as the stable mirror.
+- Cut a short-lived `release/<version>` branch from an existing commit on `dev`.
+- Open `release/<version> -> main` for review and CI, but do not use the GitHub merge button to land it.
+- After review, fast-forward `main` locally and then create the release tag on the same commit.
+- See [docs/release-flow.md](./docs/release-flow.md) for the full maintainer procedure and guardrails.
+
 ### External Contributors
 
 1. Fork this repository to your personal account
@@ -170,6 +178,7 @@ We use GitHub to host code, to track issues and feature requests, as well as acc
 3. Verify format + lint + typecheck + relevant tests locally; note anything not run.
 4. Target the `dev` branch; external contributors should fork-first and open PRs against `dev`.
 5. At least one maintainer approval is required before merge.
+6. PRs targeting `main` are reserved for `release/<version>` branches and are review-only; maintainers land them with the documented `ff-only` flow in [docs/release-flow.md](./docs/release-flow.md).
 
 ## Any Questions?
 
