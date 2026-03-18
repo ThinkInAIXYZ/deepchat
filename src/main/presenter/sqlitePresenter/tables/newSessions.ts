@@ -20,15 +20,41 @@ export class NewSessionsTable extends BaseTable {
   }
 
   getCreateTableSQL(): string {
+    return this.getCreateTableSQLForVersion(0)
+  }
+
+  override createTable(): void {
+    if (this.tableExists()) {
+      return
+    }
+
+    this.db.exec(this.getCreateTableSQLForVersion(this.getRecordedSchemaVersion()))
+  }
+
+  private getCreateTableSQLForVersion(version: number): string {
+    const columns = [
+      'id TEXT PRIMARY KEY',
+      'agent_id TEXT NOT NULL',
+      'title TEXT NOT NULL',
+      'project_dir TEXT',
+      'is_pinned INTEGER DEFAULT 0'
+    ]
+
+    if (version >= 11) {
+      columns.push('is_draft INTEGER NOT NULL DEFAULT 0')
+    }
+    if (version >= 15) {
+      columns.push("active_skills TEXT NOT NULL DEFAULT '[]'")
+    }
+    if (version >= 16) {
+      columns.push("disabled_agent_tools TEXT NOT NULL DEFAULT '[]'")
+    }
+
+    columns.push('created_at INTEGER NOT NULL', 'updated_at INTEGER NOT NULL')
+
     return `
       CREATE TABLE IF NOT EXISTS new_sessions (
-        id TEXT PRIMARY KEY,
-        agent_id TEXT NOT NULL,
-        title TEXT NOT NULL,
-        project_dir TEXT,
-        is_pinned INTEGER DEFAULT 0,
-        created_at INTEGER NOT NULL,
-        updated_at INTEGER NOT NULL
+        ${columns.join(',\n        ')}
       );
       CREATE INDEX IF NOT EXISTS idx_new_sessions_agent ON new_sessions(agent_id);
       CREATE INDEX IF NOT EXISTS idx_new_sessions_updated ON new_sessions(updated_at DESC);

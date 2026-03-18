@@ -27,6 +27,22 @@ export abstract class BaseTable {
     return !!result
   }
 
+  protected getRecordedSchemaVersion(): number {
+    const versionTable = this.db
+      .prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='schema_versions'`)
+      .get() as { name: string } | undefined
+
+    if (!versionTable) {
+      return 0
+    }
+
+    const result = this.db.prepare('SELECT MAX(version) as version FROM schema_versions').get() as
+      | { version: number | null }
+      | undefined
+
+    return result?.version ?? 0
+  }
+
   // 执行表创建
   public createTable(): void {
     if (!this.tableExists()) {
