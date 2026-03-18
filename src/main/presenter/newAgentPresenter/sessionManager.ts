@@ -22,6 +22,7 @@ export class NewSessionManager {
       isDraft: options?.isDraft,
       disabledAgentTools: options?.disabledAgentTools
     })
+    this.sqlitePresenter.newEnvironmentsTable.syncPath(projectDir)
     return id
   }
 
@@ -58,6 +59,13 @@ export class NewSessionManager {
     id: string,
     fields: Partial<Pick<SessionRecord, 'title' | 'projectDir' | 'isPinned' | 'isDraft'>>
   ): void {
+    const current = this.sqlitePresenter.newSessionsTable.get(id)
+    if (!current) {
+      return
+    }
+
+    const affectedPaths = new Set(this.sqlitePresenter.newEnvironmentsTable.listPathsForSession(id))
+
     const dbFields: {
       title?: string
       project_dir?: string | null
@@ -69,10 +77,22 @@ export class NewSessionManager {
     if (fields.isPinned !== undefined) dbFields.is_pinned = fields.isPinned ? 1 : 0
     if (fields.isDraft !== undefined) dbFields.is_draft = fields.isDraft ? 1 : 0
     this.sqlitePresenter.newSessionsTable.update(id, dbFields)
+
+    for (const path of this.sqlitePresenter.newEnvironmentsTable.listPathsForSession(id)) {
+      affectedPaths.add(path)
+    }
+
+    for (const path of affectedPaths) {
+      this.sqlitePresenter.newEnvironmentsTable.syncPath(path)
+    }
   }
 
   delete(id: string): void {
+    const affectedPaths = this.sqlitePresenter.newEnvironmentsTable.listPathsForSession(id)
     this.sqlitePresenter.newSessionsTable.delete(id)
+    for (const path of affectedPaths) {
+      this.sqlitePresenter.newEnvironmentsTable.syncPath(path)
+    }
   }
 
   getDisabledAgentTools(id: string): string[] {
@@ -81,6 +101,7 @@ export class NewSessionManager {
 
   updateDisabledAgentTools(id: string, disabledAgentTools: string[]): void {
     this.sqlitePresenter.newSessionsTable.updateDisabledAgentTools(id, disabledAgentTools)
+    this.sqlitePresenter.newEnvironmentsTable.syncForSession(id)
   }
 
   // Window binding management

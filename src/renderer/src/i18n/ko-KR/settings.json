@@ -1395,5 +1395,49 @@
       "pythonShort": "Py",
       "nodeShort": "Node"
     }
+  },
+  "environments": {
+    "title": "환경",
+    "description": "세션에서 사용한 프로젝트 디렉터리를 보고, 빠르게 열거나 새 채팅의 기본 디렉터리로 설정할 수 있습니다.",
+    "default": {
+      "title": "기본 디렉터리",
+      "description": "새 채팅은 이 디렉터리를 먼저 선택하지만, 수동 선택은 그대로 우선합니다.",
+      "empty": "기본 디렉터리가 설정되지 않았습니다."
+    },
+    "history": {
+      "title": "기록",
+      "description": "실제로 세션에서 사용된 디렉터리만 여기에 표시됩니다."
+    },
+    "temp": {
+      "title": "Temp 디렉터리",
+      "description": "시스템 임시 루트나 앱이 관리하는 워크스페이스 아래의 디렉터리는 여기로 묶이며 기본적으로 숨겨집니다."
+    },
+    "actions": {
+      "refresh": "새로고침",
+      "showMissing": "없는 디렉터리 표시",
+      "open": "열기",
+      "setDefault": "기본값으로 설정",
+      "clearDefault": "기본값 해제",
+      "showTemp": "Temp 표시",
+      "hideTemp": "Temp 숨기기"
+    },
+    "badges": {
+      "default": "기본값",
+      "temp": "Temp",
+      "missing": "없음",
+      "notInHistory": "기록에 없음"
+    },
+    "meta": {
+      "sessions": "{count}개 세션",
+      "lastUsed": "최근 사용: {value}",
+      "never": "없음"
+    },
+    "empty": {
+      "regular": "표시할 환경이 없습니다.",
+      "temp": "Temp 환경이 아직 없습니다."
+    },
+    "errors": {
+      "openTitle": "디렉터리를 열지 못했습니다"
+    }
   }
 }

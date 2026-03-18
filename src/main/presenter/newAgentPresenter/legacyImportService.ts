@@ -368,7 +368,7 @@ export class LegacyChatImportService {
           this.pickString(conversation, ['active_skills']) ?? ''
         )
 
-        let projectDir = this.pickString(conversation, ['agent_workspace_path']) ?? null
+        let projectDir = this.pickString(conversation, ['agent_workspace_path', 'workdir']) ?? null
         if (!projectDir && agentId !== 'deepchat') {
           const workdirMap = this.parseJsonRecord(
             this.pickString(conversation, ['acp_workdir_map']) ?? ''
@@ -535,6 +535,15 @@ export class LegacyChatImportService {
         }
       }
     })
+    try {
+      // newEnvironmentsTable.rebuildFromSessions only refreshes derived environment metadata.
+      this.sqlitePresenter.newEnvironmentsTable.rebuildFromSessions()
+    } catch (error) {
+      console.error('[LegacyChatImport] Failed to rebuild environments after import:', {
+        error,
+        message: error instanceof Error ? error.message : String(error)
+      })
+    }
 
     return {
       importedSessions,

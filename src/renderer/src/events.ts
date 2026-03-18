@@ -31,7 +31,8 @@ export const CONFIG_EVENTS = {
   THEME_CHANGED: 'config:theme-changed',
   FONT_SIZE_CHANGED: 'config:font-size-changed',
   DEFAULT_SYSTEM_PROMPT_CHANGED: 'config:default-system-prompt-changed',
-  CUSTOM_PROMPTS_CHANGED: 'config:custom-prompts-changed'
+  CUSTOM_PROMPTS_CHANGED: 'config:custom-prompts-changed',
+  DEFAULT_PROJECT_PATH_CHANGED: 'config:default-project-path-changed'
 }
 
 // 会话相关事件

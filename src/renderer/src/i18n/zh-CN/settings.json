@@ -1395,5 +1395,49 @@
       "skip": "跳过",
       "importSelected": "导入所选"
     }
+  },
+  "environments": {
+    "title": "目录环境",
+    "description": "查看会话使用过的项目目录，并快速打开或设为默认目录。",
+    "default": {
+      "title": "默认目录",
+      "description": "新会话会优先预选这里，而不是强制覆盖你的手动选择。",
+      "empty": "当前未设置默认目录。"
+    },
+    "history": {
+      "title": "历史目录",
+      "description": "这里只展示真正被会话使用过的目录。"
+    },
+    "temp": {
+      "title": "Temp 目录",
+      "description": "位于系统临时目录或应用托管工作区下的环境会收纳到这里，默认折叠。"
+    },
+    "actions": {
+      "refresh": "刷新",
+      "showMissing": "显示不存在目录",
+      "open": "打开",
+      "setDefault": "设为默认",
+      "clearDefault": "清除默认",
+      "showTemp": "显示 Temp",
+      "hideTemp": "收起 Temp"
+    },
+    "badges": {
+      "default": "默认",
+      "temp": "Temp",
+      "missing": "目录不存在",
+      "notInHistory": "不在历史中"
+    },
+    "meta": {
+      "sessions": "{count} 个会话",
+      "lastUsed": "最近使用：{value}",
+      "never": "从未"
+    },
+    "empty": {
+      "regular": "暂无可展示的目录环境。",
+      "temp": "当前没有 Temp 目录环境。"
+    },
+    "errors": {
+      "openTitle": "打开目录失败"
+    }
   }
 }

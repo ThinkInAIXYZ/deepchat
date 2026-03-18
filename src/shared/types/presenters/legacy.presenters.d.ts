@@ -732,6 +732,8 @@ export interface IConfigPresenter {
   setDefaultModel(model: { providerId: string; modelId: string } | undefined): void
   getDefaultVisionModel(): { providerId: string; modelId: string } | undefined
   setDefaultVisionModel(model: { providerId: string; modelId: string } | undefined): void
+  getDefaultProjectPath(): string | null
+  setDefaultProjectPath(path: string | null): void
 
   // Atomic operation interfaces
   updateProviderAtomic(id: string, updates: Partial<LLM_PROVIDER>): boolean

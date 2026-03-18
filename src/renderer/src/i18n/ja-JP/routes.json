@@ -16,5 +16,6 @@
   "settings-acp": "ACPエージェント",
   "settings-skills": "Skills",
   "settings-notifications-hooks": "フック",
-  "settings-dashboard": "Dashboard"
+  "settings-dashboard": "Dashboard",
+  "settings-environments": "環境"
 }

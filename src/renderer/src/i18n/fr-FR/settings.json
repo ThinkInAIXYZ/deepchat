@@ -1395,5 +1395,49 @@
       "pythonShort": "Py",
       "nodeShort": "Node"
     }
+  },
+  "environments": {
+    "title": "Environnements",
+    "description": "Consultez les dossiers de projet utilisés par vos sessions, ouvrez-les rapidement ou définissez-en un par défaut pour les nouvelles discussions.",
+    "default": {
+      "title": "Dossier par défaut",
+      "description": "Les nouvelles discussions présélectionnent ce dossier, sauf si vous en choisissez un autre manuellement.",
+      "empty": "Aucun dossier par défaut n'est défini."
+    },
+    "history": {
+      "title": "Historique",
+      "description": "Seuls les dossiers réellement utilisés par des sessions sont listés ici."
+    },
+    "temp": {
+      "title": "Dossiers Temp",
+      "description": "Les dossiers sous la racine temporaire ou dans les espaces de travail gérés par l'application sont regroupés ici et masqués par défaut."
+    },
+    "actions": {
+      "refresh": "Actualiser",
+      "showMissing": "Afficher les dossiers manquants",
+      "open": "Ouvrir",
+      "setDefault": "Définir par défaut",
+      "clearDefault": "Retirer le défaut",
+      "showTemp": "Afficher Temp",
+      "hideTemp": "Masquer Temp"
+    },
+    "badges": {
+      "default": "Par défaut",
+      "temp": "Temp",
+      "missing": "Manquant",
+      "notInHistory": "Hors historique"
+    },
+    "meta": {
+      "sessions": "{count} sessions",
+      "lastUsed": "Dernière utilisation : {value}",
+      "never": "Jamais"
+    },
+    "empty": {
+      "regular": "Aucun environnement à afficher.",
+      "temp": "Aucun environnement Temp pour le moment."
+    },
+    "errors": {
+      "openTitle": "Échec de l'ouverture du dossier"
+    }
   }
 }

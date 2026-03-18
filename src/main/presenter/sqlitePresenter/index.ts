@@ -13,6 +13,7 @@ import {
 } from '@shared/presenter'
 import { MessageAttachmentsTable } from './tables/messageAttachments'
 import { AcpSessionsTable, type AcpSessionUpsertData } from './tables/acpSessions'
+import { NewEnvironmentsTable } from './tables/newEnvironments'
 import { NewSessionsTable } from './tables/newSessions'
 import { NewProjectsTable } from './tables/newProjects'
 import { DeepChatSessionsTable } from './tables/deepchatSessions'
@@ -36,6 +37,7 @@ export class SQLitePresenter implements ISQLitePresenter {
   private messagesTable!: MessagesTable
   private messageAttachmentsTable!: MessageAttachmentsTable
   private acpSessionsTable!: AcpSessionsTable
+  public newEnvironmentsTable!: NewEnvironmentsTable
   public newSessionsTable!: NewSessionsTable
   public newProjectsTable!: NewProjectsTable
   public deepchatSessionsTable!: DeepChatSessionsTable
@@ -154,6 +156,7 @@ export class SQLitePresenter implements ISQLitePresenter {
     this.messagesTable = new MessagesTable(this.db)
     this.messageAttachmentsTable = new MessageAttachmentsTable(this.db)
     this.acpSessionsTable = new AcpSessionsTable(this.db)
+    this.newEnvironmentsTable = new NewEnvironmentsTable(this.db)
     this.newSessionsTable = new NewSessionsTable(this.db)
     this.newProjectsTable = new NewProjectsTable(this.db)
     this.deepchatSessionsTable = new DeepChatSessionsTable(this.db)
@@ -165,6 +168,7 @@ export class SQLitePresenter implements ISQLitePresenter {
 
     // Create only active tables for the new stack.
     this.acpSessionsTable.createTable()
+    this.newEnvironmentsTable.createTable()
     this.newSessionsTable.createTable()
     this.newProjectsTable.createTable()
     this.deepchatSessionsTable.createTable()
@@ -195,6 +199,7 @@ export class SQLitePresenter implements ISQLitePresenter {
     const migrations = new Map<number, string[]>()
     const tables = [
       this.acpSessionsTable,
+      this.newEnvironmentsTable,
       this.newSessionsTable,
       this.newProjectsTable,
       this.deepchatSessionsTable,
@@ -290,6 +295,7 @@ export class SQLitePresenter implements ISQLitePresenter {
         DELETE FROM deepchat_messages;
         DELETE FROM deepchat_usage_stats;
         DELETE FROM deepchat_sessions;
+        DELETE FROM new_environments;
         DELETE FROM new_sessions;
       `)
     })
@@ -495,7 +501,14 @@ export class SQLitePresenter implements ISQLitePresenter {
     agentId: string,
     data: AcpSessionUpsertData
   ): Promise<void> {
+    const affectedPaths = new Set(this.newEnvironmentsTable.listPathsForSession(conversationId))
     await this.acpSessionsTable.upsert(conversationId, agentId, data)
+    for (const path of this.newEnvironmentsTable.listPathsForSession(conversationId)) {
+      affectedPaths.add(path)
+    }
+    for (const path of affectedPaths) {
+      this.newEnvironmentsTable.syncPath(path)
+    }
   }
 
   public async updateAcpSessionId(
@@ -511,7 +524,14 @@ export class SQLitePresenter implements ISQLitePresenter {
     agentId: string,
     workdir: string | null
   ): Promise<void> {
+    const affectedPaths = new Set(this.newEnvironmentsTable.listPathsForSession(conversationId))
     await this.acpSessionsTable.updateWorkdir(conversationId, agentId, workdir)
+    for (const path of this.newEnvironmentsTable.listPathsForSession(conversationId)) {
+      affectedPaths.add(path)
+    }
+    for (const path of affectedPaths) {
+      this.newEnvironmentsTable.syncPath(path)
+    }
   }
 
   public async updateAcpSessionStatus(
@@ -523,10 +543,18 @@ export class SQLitePresenter implements ISQLitePresenter {
   }
 
   public async deleteAcpSessions(conversationId: string): Promise<void> {
+    const affectedPaths = this.newEnvironmentsTable.listPathsForSession(conversationId)
     await this.acpSessionsTable.deleteByConversation(conversationId)
+    for (const path of affectedPaths) {
+      this.newEnvironmentsTable.syncPath(path)
+    }
   }
 
   public async deleteAcpSession(conversationId: string, agentId: string): Promise<void> {
+    const affectedPaths = this.newEnvironmentsTable.listPathsForSession(conversationId)
     await this.acpSessionsTable.deleteByConversationAndAgent(conversationId, agentId)
+    for (const path of affectedPaths) {
+      this.newEnvironmentsTable.syncPath(path)
+    }
   }
 }

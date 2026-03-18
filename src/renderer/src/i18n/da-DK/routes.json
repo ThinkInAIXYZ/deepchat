@@ -16,5 +16,6 @@
   "settings-acp": "ACP-agenter",
   "settings-skills": "Skills",
   "settings-notifications-hooks": "Hooks",
-  "settings-dashboard": "Dashboard"
+  "settings-dashboard": "Dashboard",
+  "settings-environments": "Miljøer"
 }

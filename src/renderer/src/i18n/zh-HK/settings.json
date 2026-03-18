@@ -1395,5 +1395,49 @@
       "pythonShort": "Py",
       "nodeShort": "Node"
     }
+  },
+  "environments": {
+    "title": "目錄環境",
+    "description": "查看會話使用過的專案目錄，並快速打開或設為預設目錄。",
+    "default": {
+      "title": "預設目錄",
+      "description": "新會話會優先預選這裡，而不是強制覆蓋你的手動選擇。",
+      "empty": "目前未設置預設目錄。"
+    },
+    "history": {
+      "title": "歷史目錄",
+      "description": "這裡只顯示真正被會話使用過的目錄。"
+    },
+    "temp": {
+      "title": "Temp 目錄",
+      "description": "位於系統臨時目錄或應用管理工作區下的環境會收納到這裡，預設收起。"
+    },
+    "actions": {
+      "refresh": "重新整理",
+      "showMissing": "顯示不存在目錄",
+      "open": "打開",
+      "setDefault": "設為預設",
+      "clearDefault": "清除預設",
+      "showTemp": "顯示 Temp",
+      "hideTemp": "收起 Temp"
+    },
+    "badges": {
+      "default": "預設",
+      "temp": "Temp",
+      "missing": "目錄不存在",
+      "notInHistory": "不在歷史中"
+    },
+    "meta": {
+      "sessions": "{count} 個會話",
+      "lastUsed": "最近使用：{value}",
+      "never": "從未"
+    },
+    "empty": {
+      "regular": "暫無可顯示的目錄環境。",
+      "temp": "目前沒有 Temp 目錄環境。"
+    },
+    "errors": {
+      "openTitle": "打開目錄失敗"
+    }
   }
 }

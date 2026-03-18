@@ -43,6 +43,16 @@ const router = createRouter({
       }
     },
     {
+      path: '/environments',
+      name: 'settings-environments',
+      component: () => import('./components/EnvironmentsSettings.vue'),
+      meta: {
+        titleKey: 'routes.settings-environments',
+        icon: 'lucide:folders',
+        position: 2.5
+      }
+    },
+    {
       path: '/provider/:providerId?',
       name: 'settings-provider',
       component: () => import('./components/ModelProviderSettings.vue'),

@@ -1395,5 +1395,49 @@
       "testing": "Tester..."
     },
     "title": "Hooks"
+  },
+  "environments": {
+    "title": "Miljøer",
+    "description": "Se projektmapper, som dine sessioner har brugt, og åbn dem hurtigt eller sæt en som standard for nye chats.",
+    "default": {
+      "title": "Standardmappe",
+      "description": "Nye chats forvælger denne mappe, medmindre du manuelt vælger en anden.",
+      "empty": "Ingen standardmappe er angivet."
+    },
+    "history": {
+      "title": "Historik",
+      "description": "Kun mapper, der faktisk er brugt af sessioner, vises her."
+    },
+    "temp": {
+      "title": "Temp-mapper",
+      "description": "Mapper under midlertidige rødder eller app-administrerede arbejdsområder grupperes her og skjules som standard."
+    },
+    "actions": {
+      "refresh": "Opdater",
+      "showMissing": "Vis manglende mapper",
+      "open": "Åbn",
+      "setDefault": "Sæt som standard",
+      "clearDefault": "Ryd standard",
+      "showTemp": "Vis Temp",
+      "hideTemp": "Skjul Temp"
+    },
+    "badges": {
+      "default": "Standard",
+      "temp": "Temp",
+      "missing": "Mangler",
+      "notInHistory": "Ikke i historik"
+    },
+    "meta": {
+      "sessions": "{count} sessioner",
+      "lastUsed": "Sidst brugt: {value}",
+      "never": "Aldrig"
+    },
+    "empty": {
+      "regular": "Ingen miljøer at vise.",
+      "temp": "Ingen Temp-miljøer endnu."
+    },
+    "errors": {
+      "openTitle": "Kunne ikke åbne mappe"
+    }
   }
 }

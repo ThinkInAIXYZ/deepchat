@@ -98,6 +98,7 @@ interface IAppSettings {
   hooksNotifications?: HooksNotificationsSettings // Hooks & notifications settings
   defaultModel?: { providerId: string; modelId: string } // Default model for new conversations
   defaultVisionModel?: { providerId: string; modelId: string } // Default vision model for image tools
+  defaultProjectPath?: string | null
   [key: string]: unknown // Allow arbitrary keys, using unknown type instead of any
 }
 
@@ -1866,6 +1867,19 @@ export class ConfigPresenter implements IConfigPresenter {
 
   setDefaultVisionModel(model: { providerId: string; modelId: string } | undefined): void {
     this.setSetting('defaultVisionModel', model)
+  }
+
+  getDefaultProjectPath(): string | null {
+    const path = this.getSetting<string | null>('defaultProjectPath')
+    return path?.trim() ? path.trim() : null
+  }
+
+  setDefaultProjectPath(projectPath: string | null): void {
+    const normalized = projectPath?.trim() ? projectPath.trim() : null
+    this.setSetting('defaultProjectPath', normalized)
+    eventBus.sendToRenderer(CONFIG_EVENTS.DEFAULT_PROJECT_PATH_CHANGED, SendTarget.ALL_WINDOWS, {
+      path: normalized
+    })
   }
 }
 

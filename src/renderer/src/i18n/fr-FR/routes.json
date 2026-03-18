@@ -16,5 +16,6 @@
   "settings-acp": "Agent ACP",
   "settings-skills": "Skills",
   "settings-notifications-hooks": "Hooks",
-  "settings-dashboard": "Tableau de bord"
+  "settings-dashboard": "Tableau de bord",
+  "settings-environments": "Environnements"
 }

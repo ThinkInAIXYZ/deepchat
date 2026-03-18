@@ -1395,5 +1395,49 @@
       "skip": "Skip",
       "importSelected": "Import Selected"
     }
+  },
+  "environments": {
+    "title": "Environments",
+    "description": "Review project directories used by your sessions, open them quickly, or set one as the default for new chats.",
+    "default": {
+      "title": "Default Directory",
+      "description": "New chats preselect this directory unless you manually choose a different one.",
+      "empty": "No default directory is set."
+    },
+    "history": {
+      "title": "History",
+      "description": "Only directories that were actually used by sessions are listed here."
+    },
+    "temp": {
+      "title": "Temp Directories",
+      "description": "Directories under temp roots or app-managed workspaces are grouped here and hidden by default."
+    },
+    "actions": {
+      "refresh": "Refresh",
+      "showMissing": "Show Missing",
+      "open": "Open",
+      "setDefault": "Set Default",
+      "clearDefault": "Clear Default",
+      "showTemp": "Show Temp",
+      "hideTemp": "Hide Temp"
+    },
+    "badges": {
+      "default": "Default",
+      "temp": "Temp",
+      "missing": "Missing",
+      "notInHistory": "Not in History"
+    },
+    "meta": {
+      "sessions": "{count} sessions",
+      "lastUsed": "Last used: {value}",
+      "never": "Never"
+    },
+    "empty": {
+      "regular": "No environments to show.",
+      "temp": "No temp environments yet."
+    },
+    "errors": {
+      "openTitle": "Failed to Open Directory"
+    }
   }
 }
