@@ -14,6 +14,10 @@ on:
 permissions:
   contents: write
 
+env:
+  RTK_INSTALL_GITHUB_TOKEN: ${{ secrets.RTK_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
+  RTK_INSTALL_GITHUB_TOKEN_SOURCE: ${{ secrets.RTK_GITHUB_TOKEN != '' && 'RTK_GITHUB_TOKEN' || 'GITHUB_TOKEN' }}
+
 jobs:
   resolve-tag:
     runs-on: ubuntu-latest
@@ -148,8 +152,15 @@ jobs:
           npm_config_platform: win32
           npm_config_arch: ${{ matrix.arch }}
 
+      - name: Report RTK install token source
+        shell: bash
+        run: |
+          echo "RTK runtime install token source: ${RTK_INSTALL_GITHUB_TOKEN_SOURCE}"
+
       - name: Install Node Runtime
         run: pnpm run installRuntime:win:${{ matrix.arch }}
+        env:
+          GITHUB_TOKEN: ${{ env.RTK_INSTALL_GITHUB_TOKEN }}
 
       - name: Build Windows
         run: |
@@ -266,8 +277,15 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
+      - name: Report RTK install token source
+        shell: bash
+        run: |
+          echo "RTK runtime install token source: ${RTK_INSTALL_GITHUB_TOKEN_SOURCE}"
+
       - name: Install Node Runtime
         run: pnpm run installRuntime:mac:${{ matrix.arch }}
+        env:
+          GITHUB_TOKEN: ${{ env.RTK_INSTALL_GITHUB_TOKEN }}
 
       - name: Build Mac
         run: |
