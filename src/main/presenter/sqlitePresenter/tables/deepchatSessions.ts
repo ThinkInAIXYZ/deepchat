@@ -42,12 +42,48 @@ export class DeepChatSessionsTable extends BaseTable {
   }
 
   getCreateTableSQL(): string {
+    return this.getCreateTableSQLForVersion(0)
+  }
+
+  override createTable(): void {
+    if (this.tableExists()) {
+      return
+    }
+
+    this.db.exec(this.getCreateTableSQLForVersion(this.getRecordedSchemaVersion()))
+  }
+
+  private getCreateTableSQLForVersion(version: number): string {
+    const columns = [
+      'id TEXT PRIMARY KEY',
+      'provider_id TEXT NOT NULL',
+      'model_id TEXT NOT NULL',
+      "permission_mode TEXT NOT NULL DEFAULT 'full_access'"
+    ]
+
+    if (version >= 12) {
+      columns.push(
+        'system_prompt TEXT',
+        'temperature REAL',
+        'context_length INTEGER',
+        'max_tokens INTEGER',
+        'thinking_budget INTEGER',
+        'reasoning_effort TEXT',
+        'verbosity TEXT'
+      )
+    }
+
+    if (version >= 14) {
+      columns.push(
+        'summary_text TEXT',
+        'summary_cursor_order_seq INTEGER NOT NULL DEFAULT 1',
+        'summary_updated_at INTEGER'
+      )
+    }
+
     return `
       CREATE TABLE IF NOT EXISTS deepchat_sessions (
-        id TEXT PRIMARY KEY,
-        provider_id TEXT NOT NULL,
-        model_id TEXT NOT NULL,
-        permission_mode TEXT NOT NULL DEFAULT 'full_access'
+        ${columns.join(',\n        ')}
       );
     `
   }
