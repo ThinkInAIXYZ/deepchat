@@ -131,13 +131,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { Switch } from '@shadcn/components/ui/switch'
 import { useToast } from '@/components/use-toast'
+import { usePresenter } from '@/composables/usePresenter'
 import { useProjectStore } from '@/stores/ui/project'
 import type { EnvironmentSummary } from '@shared/types/agent-interface'
 
@@ -148,9 +149,11 @@ type EnvironmentListItem = EnvironmentSummary & {
 const { t, locale } = useI18n()
 const { toast } = useToast()
 const projectStore = useProjectStore()
+const projectPresenter = usePresenter('projectPresenter', { safeCall: false })
 
 const isLoading = ref(false)
 const showMissing = ref(false)
+const syntheticDefaultExists = ref(true)
 
 const sortEnvironments = (list: EnvironmentListItem[]) =>
   [...list].sort((left, right) => {
@@ -163,6 +166,37 @@ const sortEnvironments = (list: EnvironmentListItem[]) =>
   })
 
 const defaultProjectPath = computed(() => projectStore.defaultProjectPath)
+
+const syncSyntheticDefaultExists = async () => {
+  const currentPath = defaultProjectPath.value
+  if (!currentPath) {
+    syntheticDefaultExists.value = true
+    return
+  }
+
+  const matchedEnvironment = projectStore.environments.find(
+    (environment) => environment.path === currentPath
+  )
+  if (matchedEnvironment) {
+    syntheticDefaultExists.value = matchedEnvironment.exists
+    return
+  }
+
+  try {
+    const exists = await projectPresenter.pathExists(currentPath)
+    if (defaultProjectPath.value === currentPath) {
+      syntheticDefaultExists.value = exists
+    }
+  } catch (error) {
+    console.warn('[EnvironmentsSettings] Failed to resolve synthetic default path existence:', {
+      path: currentPath,
+      error
+    })
+    if (defaultProjectPath.value === currentPath) {
+      syntheticDefaultExists.value = true
+    }
+  }
+}
 
 const syntheticDefaultEnvironment = computed<EnvironmentListItem | null>(() => {
   if (!defaultProjectPath.value) {
@@ -182,20 +216,22 @@ const syntheticDefaultEnvironment = computed<EnvironmentListItem | null>(() => {
     sessionCount: 0,
     lastUsedAt: 0,
     isTemp: false,
-    exists: true,
+    exists: syntheticDefaultExists.value,
     isSyntheticDefault: true
   }
 })
 
+const shouldShowEnvironment = (environment: EnvironmentListItem) =>
+  (!environment.isTemp || environment.path === defaultProjectPath.value) &&
+  (showMissing.value || environment.exists)
+
 const visibleEnvironments = computed(() =>
-  sortEnvironments([
-    ...projectStore.environments.filter(
-      (environment) =>
-        (!environment.isTemp || environment.path === defaultProjectPath.value) &&
-        (showMissing.value || environment.exists)
-    ),
-    ...(syntheticDefaultEnvironment.value ? [syntheticDefaultEnvironment.value] : [])
-  ])
+  sortEnvironments(
+    [
+      ...projectStore.environments,
+      ...(syntheticDefaultEnvironment.value ? [syntheticDefaultEnvironment.value] : [])
+    ].filter(shouldShowEnvironment)
+  )
 )
 
 const formatDate = (timestamp: number) => {
@@ -245,4 +281,12 @@ const handleClearDefault = async () => {
 onMounted(() => {
   void refreshData()
 })
+
+watch(
+  [defaultProjectPath, () => projectStore.environments],
+  () => {
+    void syncSyntheticDefaultExists()
+  },
+  { immediate: true, deep: true }
+)
 </script>

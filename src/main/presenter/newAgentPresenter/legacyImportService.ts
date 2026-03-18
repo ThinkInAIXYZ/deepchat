@@ -535,7 +535,15 @@ export class LegacyChatImportService {
         }
       }
     })
-    this.sqlitePresenter.newEnvironmentsTable.rebuildFromSessions()
+    try {
+      // newEnvironmentsTable.rebuildFromSessions only refreshes derived environment metadata.
+      this.sqlitePresenter.newEnvironmentsTable.rebuildFromSessions()
+    } catch (error) {
+      console.error('[LegacyChatImport] Failed to rebuild environments after import:', {
+        error,
+        message: error instanceof Error ? error.message : String(error)
+      })
+    }
 
     return {
       importedSessions,

@@ -90,6 +90,7 @@ const createTranslator = () => (key: string, params?: Record<string, unknown>) =
 
 async function setup(overrides?: {
   defaultProjectPath?: string | null
+  pathExists?: boolean
   environments?: Array<{
     path: string
     name: string
@@ -133,6 +134,11 @@ async function setup(overrides?: {
 
   vi.doMock('@/stores/ui/project', () => ({
     useProjectStore: () => projectStore
+  }))
+  vi.doMock('@/composables/usePresenter', () => ({
+    usePresenter: () => ({
+      pathExists: vi.fn().mockResolvedValue(overrides?.pathExists ?? true)
+    })
   }))
   vi.doMock('@/components/use-toast', () => ({
     useToast: () => ({ toast })
@@ -292,6 +298,24 @@ describe('EnvironmentsSettings', () => {
 
     expect(wrapper.text()).toContain('Not in history')
     expect(wrapper.text()).not.toContain('/work/app')
+  })
+
+  it('hides missing synthetic defaults until the missing filter is enabled', async () => {
+    const { wrapper } = await setup({
+      defaultProjectPath: '/work/missing-default',
+      pathExists: false,
+      environments: []
+    })
+
+    expect(wrapper.text()).not.toContain('/work/missing-default')
+    expect(wrapper.find('[data-testid="environments-empty"]').exists()).toBe(true)
+
+    await wrapper.get('[data-testid="missing-toggle"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('/work/missing-default')
+    expect(wrapper.text()).toContain('Missing')
+    expect(wrapper.text()).toContain('Not in history')
   })
 
   it('renders empty states when no environments are available', async () => {

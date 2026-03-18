@@ -184,6 +184,17 @@ describe('ProjectPresenter', () => {
     })
   })
 
+  describe('pathExists', () => {
+    it('delegates path existence checks to the filesystem', async () => {
+      existsSyncMock.mockReturnValue(true)
+
+      await expect(presenter.pathExists('/work/hello-world')).resolves.toBe(true)
+      await expect(presenter.pathExists('')).resolves.toBe(false)
+
+      expect(existsSyncMock).toHaveBeenCalledWith('/work/hello-world')
+    })
+  })
+
   describe('selectDirectory', () => {
     it('returns null when user cancels', async () => {
       devicePresenter.selectDirectory.mockResolvedValue({ canceled: true, filePaths: [] })

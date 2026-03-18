@@ -52,6 +52,15 @@ export class ProjectPresenter {
     }))
   }
 
+  async pathExists(targetPath: string): Promise<boolean> {
+    const normalizedPath = targetPath?.trim()
+    if (!normalizedPath) {
+      return false
+    }
+
+    return fs.existsSync(normalizedPath)
+  }
+
   async openDirectory(dirPath: string): Promise<void> {
     const normalizedPath = dirPath?.trim()
     if (!normalizedPath) {
