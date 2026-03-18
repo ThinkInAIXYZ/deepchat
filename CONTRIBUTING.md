@@ -32,8 +32,10 @@ We use GitHub to host code, to track issues and feature requests, as well as acc
 - Keep `dev` as the integration branch and `main` as the stable mirror.
 - Cut a short-lived `release/<version>` branch from an existing commit on `dev`.
 - Open `release/<version> -> main` for review and CI, but do not use the GitHub merge button to land it.
-- After review, fast-forward `main` locally and then create the release tag on the same commit.
-- See [docs/release-flow.md](./docs/release-flow.md) for the full maintainer procedure and guardrails.
+- macOS and Linux maintainers can land the approved release with `pnpm run release:ff -- release/<version> --tag v<version>`.
+- Windows maintainers must use the documented manual release steps instead of `pnpm run release:ff`.
+- Create the release tag on the same commit after `main` has been fast-forwarded.
+- See [docs/release-flow.md](./docs/release-flow.md) for the full maintainer procedure, manual fallback, and guardrails.
 
 ### External Contributors
 

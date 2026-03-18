@@ -6,7 +6,7 @@ This document defines the maintainer release flow for DeepChat without rewriting
 
 - Keep `dev` as the only long-lived integration branch.
 - Keep `main` as a stable mirror of reviewed release commits.
-- Keep releases tag-driven through [`.github/workflows/release.yml`](/Users/zerob13/Documents/deepchat/.github/workflows/release.yml).
+- Keep releases tag-driven through [`.github/workflows/release.yml`](../.github/workflows/release.yml).
 - Avoid creating new merge commits on `main`.
 
 ## Branch Roles
@@ -52,7 +52,7 @@ This document defines the maintainer release flow for DeepChat without rewriting
 
    Use `--force-with-lease` only because the release branch is a disposable review branch that must stay identical to a commit already on `dev`.
 
-5. After the PR is approved, fast-forward `main` locally.
+5. After the PR is approved, fast-forward `main` locally on macOS or Linux.
 
    ```bash
    pnpm run release:ff -- release/v1.0.0-beta.4 --tag v1.0.0-beta.4
@@ -65,6 +65,8 @@ This document defines the maintainer release flow for DeepChat without rewriting
    - `origin/main` is an ancestor of the target commit
    - `main` can be updated with `git merge --ff-only`
 
+   Windows maintainers should skip this helper and use the manual release sequence below.
+
 6. Create and push the release tag on the same commit.
 
    ```bash
@@ -73,6 +75,67 @@ This document defines the maintainer release flow for DeepChat without rewriting
    ```
 
 7. Delete the temporary release branch after the release is published.
+
+   ```bash
+   git push origin --delete release/v1.0.0-beta.4
+   git branch -d release/v1.0.0-beta.4
+   ```
+
+## Manual Release Sequence
+
+Use this sequence when the automatic helper is unavailable, especially on Windows. It updates `origin/main` directly from the reviewed release commit and does not depend on the state of your local `main`.
+
+1. Fetch the latest release refs.
+
+   ```bash
+   git fetch origin main dev --prune
+   ```
+
+2. Resolve the reviewed release commit and record it as `TARGET_SHA`.
+
+   ```bash
+   git rev-parse origin/release/v1.0.0-beta.4^{commit}
+   # or
+   git rev-parse release/v1.0.0-beta.4^{commit}
+   # or
+   git rev-parse <target-ref>^{commit}
+   ```
+
+3. Confirm the release commit already exists on `origin/dev`.
+
+   ```bash
+   git merge-base --is-ancestor <TARGET_SHA> origin/dev
+   ```
+
+4. Confirm `origin/main` can be fast-forwarded to the reviewed release commit.
+
+   ```bash
+   git merge-base --is-ancestor origin/main <TARGET_SHA>
+   ```
+
+5. Confirm the release tag does not already exist locally or on `origin`.
+
+   ```bash
+   git rev-parse --verify --quiet refs/tags/v1.0.0-beta.4
+   git ls-remote --exit-code --tags origin refs/tags/v1.0.0-beta.4
+   ```
+
+   Both commands should report that the tag is missing before you continue.
+
+6. Fast-forward `origin/main` directly to the reviewed release commit.
+
+   ```bash
+   git push origin <TARGET_SHA>:refs/heads/main
+   ```
+
+7. Create and push the release tag on the same commit.
+
+   ```bash
+   git tag v1.0.0-beta.4 <TARGET_SHA>
+   git push origin refs/tags/v1.0.0-beta.4
+   ```
+
+8. Delete the temporary release branch after the release is published.
 
    ```bash
    git push origin --delete release/v1.0.0-beta.4

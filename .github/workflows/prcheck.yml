@@ -6,6 +6,9 @@ on:
       - main
       - dev
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
 jobs:
   main-release-guard:
     if: github.base_ref == 'main'
@@ -20,7 +23,7 @@ jobs:
             exit 1
           fi
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
@@ -43,12 +46,13 @@ jobs:
         include:
           - arch: x64
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '22.13.1'
+          package-manager-cache: false
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v2

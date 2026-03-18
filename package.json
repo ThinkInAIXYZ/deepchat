@@ -31,7 +31,7 @@
     "dev:inspect": "electron-vite dev --watch --inspect=9229",
     "dev:linux": "electron-vite dev --watch --noSandbox",
     "build": "pnpm run typecheck && electron-vite build",
-    "release:ff": "bash scripts/release-fast-forward.sh",
+    "release:ff": "node scripts/release-fast-forward.mjs",
     "postinstall": "electron-builder install-app-deps && simple-git-hooks",
     "build:unpack": "pnpm run build && electron-builder --dir",
     "build:win": "pnpm run build && electron-builder --win",
