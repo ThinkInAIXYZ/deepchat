@@ -29,6 +29,13 @@ type ProgressInfo = {
   total: number
 }
 
+type PresenterStatusSnapshot = {
+  status: PresenterUpdateStatus
+  progress: ProgressInfo | null
+  error: string | null
+  updateInfo: UpdateInfo | null
+}
+
 const toUpdateInfo = (info: UpdateInfo | null | undefined): UpdateInfo | null => {
   if (!info) return null
 
@@ -54,6 +61,8 @@ export const useUpgradeStore = defineStore('upgrade', () => {
   const isSilent = ref(true)
   const platform = ref<string | null>(null)
   const listenersReady = ref(false)
+  let externalMutationToken = 0
+  let latestSyncRequestId = 0
 
   const isWindows = computed(() => platform.value === 'win32')
 
@@ -96,18 +105,34 @@ export const useUpgradeStore = defineStore('upgrade', () => {
       : null
   }
 
-  const syncFromPresenterStatus = () => {
-    const status = upgradeP.getUpdateStatus()
-    applyStatus(status.status, status.updateInfo, status.error)
-    applyProgress(status.progress)
-    return status.status
+  const syncFromPresenterStatus = async (): Promise<PresenterUpdateStatus> => {
+    const requestId = ++latestSyncRequestId
+    const mutationTokenBeforeRequest = externalMutationToken
+    const snapshot = (await upgradeP.getUpdateStatus()) as PresenterStatusSnapshot | null
+
+    if (!snapshot || snapshot.status == null) {
+      return rawStatus.value
+    }
+
+    if (requestId !== latestSyncRequestId || externalMutationToken !== mutationTokenBeforeRequest) {
+      return rawStatus.value
+    }
+
+    applyStatus(snapshot.status, snapshot.updateInfo, snapshot.error, 'sync')
+    applyProgress(snapshot.progress)
+    return snapshot.status
   }
 
   const applyStatus = (
     status: PresenterUpdateStatus,
     info?: UpdateInfo | null,
-    error?: string | null
+    error?: string | null,
+    source: 'external' | 'sync' = 'external'
   ) => {
+    if (source === 'external') {
+      externalMutationToken += 1
+    }
+
     rawStatus.value = status
 
     if (info !== undefined) {
@@ -172,7 +197,7 @@ export const useUpgradeStore = defineStore('upgrade', () => {
 
     try {
       await upgradeP.checkUpdate()
-      return syncFromPresenterStatus()
+      return await syncFromPresenterStatus()
     } catch (error) {
       console.error('Failed to check update:', error)
       applyStatus('error', updateInfo.value, error instanceof Error ? error.message : String(error))
@@ -258,7 +283,7 @@ export const useUpgradeStore = defineStore('upgrade', () => {
   }
 
   setupUpdateListener()
-  syncFromPresenterStatus()
+  void syncFromPresenterStatus()
 
   return {
     hasUpdate,

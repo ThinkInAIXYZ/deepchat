@@ -287,8 +287,8 @@ const handleExternalCheckUpdate = async () => {
   await handlePrimaryAction()
 }
 
-const syncUpdateStatus = () => {
-  upgrade.refreshStatus()
+const syncUpdateStatus = async () => {
+  await upgrade.refreshStatus()
 }
 
 const openExternalLink = (url: string) => {
@@ -302,15 +302,15 @@ const openExternalLink = (url: string) => {
 onMounted(async () => {
   appVersion.value = await devicePresenter.getAppVersion()
   updateChannel.value = await configPresenter.getUpdateChannel()
-  syncUpdateStatus()
+  await syncUpdateStatus()
   window.electron?.ipcRenderer?.on(SETTINGS_EVENTS.CHECK_FOR_UPDATES, handleExternalCheckUpdate)
 })
 
 watch(
   () => route.name,
-  (routeName) => {
+  async (routeName) => {
     if (routeName === 'settings-about') {
-      syncUpdateStatus()
+      await syncUpdateStatus()
     }
   }
 )

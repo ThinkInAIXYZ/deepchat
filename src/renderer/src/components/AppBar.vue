@@ -107,6 +107,7 @@ const handleInstallUpdate = async () => {
 }
 
 onMounted(() => {
+  void upgrade.refreshStatus()
   devicePresenter.getDeviceInfo().then((deviceInfo) => {
     isMacOS.value = deviceInfo.platform === 'darwin'
   })

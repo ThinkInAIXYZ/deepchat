@@ -58,7 +58,7 @@ describe('useUpgradeStore', () => {
     vi.clearAllMocks()
     statusChangedHandlers.clear()
 
-    upgradePresenterMock.getUpdateStatus.mockReturnValue({
+    upgradePresenterMock.getUpdateStatus.mockResolvedValue({
       status: 'not-available',
       progress: null,
       error: null,
@@ -79,7 +79,7 @@ describe('useUpgradeStore', () => {
   it('keeps manual checks in available state until install is clicked', async () => {
     const store = useUpgradeStore()
 
-    upgradePresenterMock.getUpdateStatus.mockReturnValue({
+    upgradePresenterMock.getUpdateStatus.mockResolvedValue({
       status: 'available',
       progress: null,
       error: null,
@@ -95,15 +95,64 @@ describe('useUpgradeStore', () => {
     expect(upgradePresenterMock.startDownloadUpdate).not.toHaveBeenCalled()
   })
 
-  it('shows the topbar entry after the update is downloaded', () => {
+  it('hydrates downloaded state from async presenter status', async () => {
+    const store = useUpgradeStore()
+
+    upgradePresenterMock.getUpdateStatus.mockResolvedValue({
+      status: 'downloaded',
+      progress: null,
+      error: null,
+      updateInfo: createUpdateInfo()
+    })
+
+    const result = await store.refreshStatus()
+
+    expect(result).toBe('downloaded')
+    expect(store.updateState).toBe('ready_to_install')
+    expect(store.shouldShowTopbarInstallButton).toBe(true)
+    expect(store.hasUpdate).toBe(true)
+  })
+
+  it('hydrates downloading progress from async presenter status', async () => {
+    const store = useUpgradeStore()
+
+    upgradePresenterMock.getUpdateStatus.mockResolvedValue({
+      status: 'downloading',
+      progress: {
+        percent: 42,
+        bytesPerSecond: 1024,
+        transferred: 420,
+        total: 1000
+      },
+      error: null,
+      updateInfo: createUpdateInfo()
+    })
+
+    const result = await store.refreshStatus()
+
+    expect(result).toBe('downloading')
+    expect(store.updateState).toBe('downloading')
+    expect(store.isDownloading).toBe(true)
+    expect(store.updateProgress).toEqual({
+      percent: 42,
+      bytesPerSecond: 1024,
+      transferred: 420,
+      total: 1000
+    })
+  })
+
+  it('keeps the current state when presenter status snapshot is empty', async () => {
     const store = useUpgradeStore()
     const handler = statusChangedHandlers.get('update:status-changed')
 
     handler?.({}, { status: 'downloaded', info: createUpdateInfo() })
+    upgradePresenterMock.getUpdateStatus.mockResolvedValue(null)
 
+    const result = await store.refreshStatus()
+
+    expect(result).toBe('downloaded')
     expect(store.updateState).toBe('ready_to_install')
     expect(store.shouldShowTopbarInstallButton).toBe(true)
-    expect(store.hasUpdate).toBe(true)
   })
 
   it('exposes manual download fallback when update download fails', () => {
