@@ -205,7 +205,7 @@ export const useUpgradeStore = defineStore('upgrade', () => {
     }
   }
 
-  const startUpdate = async (type: 'github' | 'netdisk') => {
+  const startUpdate = async (type: 'github' | 'official') => {
     try {
       return await upgradeP.goDownloadUpgrade(type)
     } catch (error) {
@@ -214,7 +214,7 @@ export const useUpgradeStore = defineStore('upgrade', () => {
     }
   }
 
-  const handleUpdate = async (type: 'github' | 'netdisk' | 'auto') => {
+  const handleUpdate = async (type: 'github' | 'official' | 'auto') => {
     isUpdating.value = true
     try {
       if (isReadyToInstall.value) {

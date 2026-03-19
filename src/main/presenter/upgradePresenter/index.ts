@@ -16,6 +16,7 @@ const { autoUpdater } = electronUpdater
 
 const GITHUB_OWNER = 'ThinkInAIXYZ'
 const GITHUB_REPO = 'deepchat'
+const OFFICIAL_DOWNLOAD_URL = 'https://deepchatai.cn/#/download'
 const UPDATE_CHANNEL_STABLE = 'stable'
 const UPDATE_CHANNEL_BETA = 'beta'
 
@@ -66,7 +67,7 @@ const toVersionInfo = (info: UpdateInfo): VersionInfo => {
     releaseDate: info.releaseDate || '',
     releaseNotes: formatReleaseNotes(info.releaseNotes),
     githubUrl: releaseUrl,
-    downloadUrl: releaseUrl
+    downloadUrl: OFFICIAL_DOWNLOAD_URL
   }
 }
 
@@ -346,15 +347,15 @@ export class UpgradePresenter implements IUpgradePresenter {
     }
   }
 
-  async goDownloadUpgrade(type: 'github' | 'netdisk'): Promise<void> {
-    const fallbackUrl = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases`
+  async goDownloadUpgrade(type: 'github' | 'official'): Promise<void> {
+    const githubFallbackUrl = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases`
     if (type === 'github') {
-      const url = this._versionInfo?.githubUrl || fallbackUrl
+      const url = this._versionInfo?.githubUrl || githubFallbackUrl
       if (url) {
         shell.openExternal(url)
       }
-    } else if (type === 'netdisk') {
-      const url = this._versionInfo?.downloadUrl || fallbackUrl
+    } else if (type === 'official') {
+      const url = this._versionInfo?.downloadUrl || OFFICIAL_DOWNLOAD_URL
       if (url) {
         shell.openExternal(url)
       }

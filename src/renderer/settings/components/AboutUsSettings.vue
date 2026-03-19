@@ -84,7 +84,7 @@
 
         <div
           v-if="upgrade.showManualDownloadOptions"
-          class="mt-2 flex w-full max-w-xl flex-col items-center gap-3"
+          class="mt-2 flex w-full max-w-xl flex-col items-center gap-1"
         >
           <p class="text-center text-xs text-muted-foreground">
             {{ t('update.autoUpdateFailed') }}
@@ -92,24 +92,6 @@
           <p v-if="upgrade.updateError" class="text-center text-xs text-muted-foreground/80">
             {{ upgrade.updateError }}
           </p>
-          <div class="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              class="text-xs"
-              @click="handleManualDownload('github')"
-            >
-              {{ t('update.githubDownload') }}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              class="text-xs"
-              @click="handleManualDownload('netdisk')"
-            >
-              {{ t('update.netdiskDownload') }}
-            </Button>
-          </div>
         </div>
 
         <div class="mt-2 flex flex-wrap justify-center gap-2">
@@ -126,6 +108,26 @@
           <Button variant="outline" size="sm" class="mb-2 text-xs" @click="openDisclaimerDialog">
             <Icon icon="lucide:info" class="mr-1 h-3 w-3" />
             {{ t('about.disclaimerButton') }}
+          </Button>
+
+          <Button
+            v-if="upgrade.showManualDownloadOptions"
+            variant="outline"
+            size="sm"
+            class="mb-2 text-xs"
+            @click="handleManualDownload('github')"
+          >
+            {{ t('update.githubDownload') }}
+          </Button>
+
+          <Button
+            v-if="upgrade.showManualDownloadOptions"
+            variant="outline"
+            size="sm"
+            class="mb-2 text-xs"
+            @click="handleManualDownload('official')"
+          >
+            {{ t('update.officialDownload') }}
           </Button>
 
           <Button
@@ -279,7 +281,7 @@ const handlePrimaryAction = async () => {
   }
 }
 
-const handleManualDownload = async (type: 'github' | 'netdisk') => {
+const handleManualDownload = async (type: 'github' | 'official') => {
   await upgrade.handleUpdate(type)
 }
 
