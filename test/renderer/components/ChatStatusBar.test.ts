@@ -18,8 +18,12 @@ const passthrough = (name: string) =>
 
 const ButtonStub = defineComponent({
   name: 'Button',
+  props: {
+    disabled: { type: Boolean, default: false }
+  },
   emits: ['click'],
-  template: '<button @click="$emit(\'click\')"><slot /></button>'
+  template:
+    '<button v-bind="$attrs" :disabled="disabled" @click="$emit(\'click\')"><slot /></button>'
 })
 
 const SliderStub = defineComponent({
@@ -45,6 +49,7 @@ const setup = async (options: SetupOptions = {}) => {
 
   const modelLookup = new Map([
     ['gpt-4', { model: { id: 'gpt-4', name: 'GPT-4' } }],
+    ['claude-3-5-sonnet', { model: { id: 'claude-3-5-sonnet', name: 'Claude 3.5 Sonnet' } }],
     ['acp-agent', { model: { id: 'acp-agent', name: 'ACP Agent' } }],
     ['dimcode-acp', { model: { id: 'dimcode-acp', name: 'DimCode - Default' } }]
   ])
@@ -60,6 +65,10 @@ const setup = async (options: SetupOptions = {}) => {
         models: [{ id: 'gpt-4', name: 'GPT-4' }]
       },
       {
+        providerId: 'anthropic',
+        models: [{ id: 'claude-3-5-sonnet', name: 'Claude 3.5 Sonnet' }]
+      },
+      {
         providerId: 'acp',
         models: [
           { id: 'acp-agent', name: 'ACP Agent' },
@@ -68,6 +77,14 @@ const setup = async (options: SetupOptions = {}) => {
       }
     ],
     findModelByIdOrName: vi.fn((value: string) => modelLookup.get(value) ?? null)
+  })
+
+  const providerStore = reactive({
+    sortedProviders: [
+      { id: 'openai', name: 'OpenAI', enable: true },
+      { id: 'anthropic', name: 'Anthropic', enable: true },
+      { id: 'acp', name: 'ACP', enable: true }
+    ]
   })
 
   const agentId = options.agentId ?? 'deepchat'
@@ -174,6 +191,9 @@ const setup = async (options: SetupOptions = {}) => {
   vi.doMock('@/stores/modelStore', () => ({
     useModelStore: () => modelStore
   }))
+  vi.doMock('@/stores/providerStore', () => ({
+    useProviderStore: () => providerStore
+  }))
   vi.doMock('@/stores/ui/agent', () => ({
     useAgentStore: () => agentStore
   }))
@@ -195,13 +215,20 @@ const setup = async (options: SetupOptions = {}) => {
   vi.doMock('@iconify/vue', () => ({
     Icon: defineComponent({
       name: 'Icon',
-      template: '<span class="icon-stub" />'
+      props: {
+        icon: { type: String, default: '' }
+      },
+      template: '<span class="icon-stub" :data-icon="icon" />'
     })
   }))
   vi.doMock('@/components/chat-input/McpIndicator.vue', () => ({
     default: defineComponent({
       name: 'McpIndicator',
-      template: '<div class="mcp-indicator-stub" />'
+      props: {
+        showSystemPromptSection: { type: Boolean, default: false }
+      },
+      template:
+        '<div class="mcp-indicator-stub" :data-show-system-prompt-section="String(showSystemPromptSection)" />'
     })
   }))
 
@@ -216,6 +243,9 @@ const setup = async (options: SetupOptions = {}) => {
         DropdownMenuContent: passthrough('DropdownMenuContent'),
         DropdownMenuItem: passthrough('DropdownMenuItem'),
         DropdownMenuTrigger: passthrough('DropdownMenuTrigger'),
+        Popover: passthrough('Popover'),
+        PopoverContent: passthrough('PopoverContent'),
+        PopoverTrigger: passthrough('PopoverTrigger'),
         Select: passthrough('Select'),
         SelectContent: passthrough('SelectContent'),
         SelectItem: passthrough('SelectItem'),
@@ -244,23 +274,31 @@ const setup = async (options: SetupOptions = {}) => {
   }
 }
 
-describe('ChatStatusBar advanced settings', () => {
-  it('shows advanced settings in default agent and hides in ACP', async () => {
+describe('ChatStatusBar model and session panels', () => {
+  it('passes system prompt section to the unified session panel in deepchat and hides it in ACP', async () => {
     const deepchat = await setup({ agentId: 'deepchat', hasActiveSession: false })
-    expect((deepchat.wrapper.vm as any).showAdvancedSettingsButton).toBe(true)
+    expect(
+      deepchat.wrapper.find('.mcp-indicator-stub').attributes('data-show-system-prompt-section')
+    ).toBe('true')
 
     const acp = await setup({ agentId: 'acp-agent', hasActiveSession: false })
-    expect((acp.wrapper.vm as any).showAdvancedSettingsButton).toBe(false)
+    expect(
+      acp.wrapper.find('.mcp-indicator-stub').attributes('data-show-system-prompt-section')
+    ).toBe('false')
   })
 
-  it('shows effort selector only when model capability supports it', async () => {
+  it('shows reasoning effort controls only when model capability supports it', async () => {
     const enabled = await setup({
       hasActiveSession: true,
       activeProviderId: 'openai',
       activeModelId: 'gpt-4',
       supportsEffort: true
     })
-    expect((enabled.wrapper.vm as any).showEffortSelector).toBe(true)
+    await (enabled.wrapper.vm as any).openModelSettings('openai', 'gpt-4')
+    await flushPromises()
+
+    expect((enabled.wrapper.vm as any).showReasoningEffort).toBe(true)
+    expect(enabled.wrapper.text()).toContain('settings.model.modelConfig.reasoningEffort.label')
 
     const disabled = await setup({
       hasActiveSession: true,
@@ -268,10 +306,16 @@ describe('ChatStatusBar advanced settings', () => {
       activeModelId: 'gpt-4',
       supportsEffort: false
     })
-    expect((disabled.wrapper.vm as any).showEffortSelector).toBe(false)
+    await (disabled.wrapper.vm as any).openModelSettings('openai', 'gpt-4')
+    await flushPromises()
+
+    expect((disabled.wrapper.vm as any).showReasoningEffort).toBe(false)
+    expect(disabled.wrapper.text()).not.toContain(
+      'settings.model.modelConfig.reasoningEffort.label'
+    )
   })
 
-  it('uses unified defaults for draft advanced settings', async () => {
+  it('uses unified defaults for draft model settings', async () => {
     const { wrapper } = await setup({ agentId: 'deepchat', hasActiveSession: false })
 
     expect((wrapper.vm as any).localSettings.contextLength).toBe(16000)
@@ -385,25 +429,5 @@ describe('ChatStatusBar advanced settings', () => {
     })
 
     expect(wrapper.find('.model-icon-stub').attributes('data-model-id')).toBe('dimcode-acp')
-  })
-
-  it('keeps advanced modal open when clicking advanced select portal content', async () => {
-    const { wrapper } = await setup({ agentId: 'deepchat', hasActiveSession: false })
-
-    ;(wrapper.vm as any).toggleAdvancedSettings()
-    await flushPromises()
-    expect((wrapper.vm as any).isAdvancedOpen).toBe(true)
-
-    const portal = document.createElement('div')
-    portal.className = 'advanced-settings-portal-content'
-    const option = document.createElement('button')
-    portal.appendChild(option)
-    document.body.appendChild(portal)
-
-    option.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
-    await flushPromises()
-
-    expect((wrapper.vm as any).isAdvancedOpen).toBe(true)
-    portal.remove()
   })
 })

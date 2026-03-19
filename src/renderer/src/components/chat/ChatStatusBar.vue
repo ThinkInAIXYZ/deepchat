@@ -1,9 +1,9 @@
 <template>
-  <div :class="['relative w-full', props.maxWidthClass]">
-    <div class="w-full flex items-center justify-between px-1 py-2">
+  <div :class="['w-full', props.maxWidthClass]">
+    <div class="flex w-full items-center justify-between px-1 py-2">
       <div class="flex items-center gap-1">
-        <DropdownMenu v-if="!isModelSelectionLocked">
-          <DropdownMenuTrigger as-child>
+        <Popover v-if="!isModelSelectionLocked" v-model:open="isModelPanelOpen">
+          <PopoverTrigger as-child>
             <Button
               variant="ghost"
               size="sm"
@@ -17,23 +17,280 @@
               <span>{{ displayModelName }}</span>
               <Icon icon="lucide:chevron-down" class="w-3 h-3" />
             </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" class="min-w-0 max-h-64 overflow-y-auto">
-            <template v-for="group in flatModels" :key="group.providerId + '/' + group.model.id">
-              <DropdownMenuItem
-                class="gap-2 text-xs py-1.5 px-2"
-                @click="selectModel(group.providerId, group.model.id)"
+          </PopoverTrigger>
+
+          <PopoverContent
+            align="start"
+            :class="[
+              'max-w-[calc(100vw-1rem)] overflow-hidden p-0',
+              isModelSettingsExpanded ? 'w-[40rem]' : 'w-[22rem]'
+            ]"
+          >
+            <div class="flex max-h-[28rem]">
+              <div
+                :class="[
+                  'flex min-w-0 flex-col',
+                  isModelSettingsExpanded ? 'w-[19rem] border-r' : 'w-full'
+                ]"
               >
-                <ModelIcon
-                  :model-id="resolveModelIconId(group.providerId, group.model.id)"
-                  custom-class="w-3.5 h-3.5"
-                  :is-dark="themeStore.isDark"
-                />
-                <span>{{ group.model.name }}</span>
-              </DropdownMenuItem>
-            </template>
-          </DropdownMenuContent>
-        </DropdownMenu>
+                <div class="border-b px-3 py-3">
+                  <div class="text-sm font-medium">{{ t('common.selectModel') }}</div>
+                  <Input
+                    data-model-search-input="true"
+                    v-model="modelSearchKeyword"
+                    class="mt-3 h-8 text-xs"
+                    :placeholder="t('model.search.placeholder')"
+                  />
+                </div>
+
+                <div class="max-h-[24rem] overflow-y-auto px-2 py-2">
+                  <div
+                    v-if="filteredModelGroups.length === 0"
+                    class="rounded-lg border border-dashed px-3 py-6 text-center text-xs text-muted-foreground"
+                  >
+                    {{ t('chat.modelPicker.empty') }}
+                  </div>
+
+                  <div v-else class="space-y-4">
+                    <div
+                      v-for="group in filteredModelGroups"
+                      :key="group.providerId"
+                      class="space-y-1.5"
+                    >
+                      <div
+                        class="px-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground"
+                      >
+                        {{ group.providerName }}
+                      </div>
+
+                      <div class="space-y-1">
+                        <button
+                          v-for="model in group.models"
+                          :key="`${group.providerId}-${model.id}`"
+                          type="button"
+                          :class="[
+                            'flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs transition-colors hover:bg-muted/70',
+                            isModelSelected(group.providerId, model.id) ? 'bg-muted/80' : ''
+                          ]"
+                          @click="handleModelQuickSelect(group.providerId, model.id)"
+                        >
+                          <ModelIcon
+                            :model-id="resolveModelIconId(group.providerId, model.id)"
+                            custom-class="w-3.5 h-3.5 shrink-0"
+                            :is-dark="themeStore.isDark"
+                          />
+                          <div class="min-w-0 flex-1">
+                            <div class="truncate font-medium">{{ model.name }}</div>
+                            <div class="truncate text-[11px] text-muted-foreground">
+                              {{ model.id }}
+                            </div>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            class="h-7 w-7 shrink-0 p-0 text-muted-foreground hover:text-foreground"
+                            :aria-label="t('settings.model.title')"
+                            :title="t('settings.model.title')"
+                            @click.stop="openModelSettings(group.providerId, model.id)"
+                          >
+                            <Icon icon="lucide:settings-2" class="h-3.5 w-3.5" />
+                          </Button>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div v-if="isModelSettingsExpanded" class="flex w-[21rem] min-w-0 flex-col">
+                <div class="border-b px-3 py-3">
+                  <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0">
+                      <div class="text-sm font-medium">{{ t('settings.model.title') }}</div>
+                      <div class="mt-1 truncate text-xs font-medium">
+                        {{ modelSettingsModelName }}
+                      </div>
+                      <div class="truncate text-[11px] text-muted-foreground">
+                        {{ modelSettingsProviderText }}
+                      </div>
+                    </div>
+
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      class="h-7 w-7 shrink-0 p-0 text-muted-foreground hover:text-foreground"
+                      :aria-label="t('common.close')"
+                      :title="t('common.close')"
+                      @click="collapseModelSettings"
+                    >
+                      <Icon icon="lucide:x" class="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+
+                <div class="max-h-[24rem] overflow-y-auto px-3 py-3">
+                  <div
+                    v-if="!isModelSettingsReady"
+                    class="rounded-lg border border-dashed px-3 py-6 text-center text-xs text-muted-foreground"
+                  >
+                    {{ t('common.loading') }}
+                  </div>
+
+                  <div v-else-if="localSettings" class="space-y-4">
+                    <div class="space-y-1.5">
+                      <div class="flex items-center justify-between gap-2">
+                        <label class="text-xs font-medium">{{
+                          t('chat.advancedSettings.temperature')
+                        }}</label>
+                        <Input
+                          class="h-7 w-20 text-xs tabular-nums"
+                          type="number"
+                          :min="TEMPERATURE_MIN"
+                          :max="TEMPERATURE_MAX"
+                          step="0.1"
+                          :model-value="localSettings.temperature.toFixed(1)"
+                          @update:model-value="onTemperatureInput"
+                        />
+                      </div>
+                      <Slider
+                        :model-value="[localSettings.temperature]"
+                        :min="TEMPERATURE_MIN"
+                        :max="TEMPERATURE_MAX"
+                        :step="0.1"
+                        @update:model-value="onTemperatureSlider"
+                      />
+                    </div>
+
+                    <div class="space-y-1.5">
+                      <div class="flex items-center justify-between gap-2">
+                        <label class="text-xs font-medium">{{
+                          t('chat.advancedSettings.contextLength')
+                        }}</label>
+                        <Input
+                          class="h-7 w-24 text-xs tabular-nums"
+                          type="number"
+                          :min="CONTEXT_LENGTH_MIN"
+                          :max="contextLengthLimit"
+                          :step="1024"
+                          :model-value="localSettings.contextLength.toString()"
+                          @update:model-value="onContextLengthInput"
+                        />
+                      </div>
+                      <Slider
+                        :model-value="[localSettings.contextLength]"
+                        :min="CONTEXT_LENGTH_MIN"
+                        :max="contextLengthLimit"
+                        :step="1024"
+                        @update:model-value="onContextLengthSlider"
+                      />
+                    </div>
+
+                    <div class="space-y-1.5">
+                      <div class="flex items-center justify-between gap-2">
+                        <label class="text-xs font-medium">{{
+                          t('chat.advancedSettings.maxTokens')
+                        }}</label>
+                        <Input
+                          class="h-7 w-24 text-xs tabular-nums"
+                          type="number"
+                          :min="MAX_TOKENS_MIN"
+                          :max="maxTokensSliderLimit"
+                          :step="128"
+                          :model-value="localSettings.maxTokens.toString()"
+                          @update:model-value="onMaxTokensInput"
+                        />
+                      </div>
+                      <Slider
+                        :model-value="[localSettings.maxTokens]"
+                        :min="MAX_TOKENS_MIN"
+                        :max="maxTokensSliderLimit"
+                        :step="128"
+                        @update:model-value="onMaxTokensSlider"
+                      />
+                    </div>
+
+                    <div v-if="showReasoningEffort" class="space-y-1.5">
+                      <label class="text-xs font-medium">{{
+                        t('settings.model.modelConfig.reasoningEffort.label')
+                      }}</label>
+                      <Select
+                        :model-value="localSettings.reasoningEffort ?? effortOptions[0]?.value"
+                        @update:model-value="onReasoningEffortSelect($event as string)"
+                      >
+                        <SelectTrigger class="h-8 text-xs">
+                          <SelectValue
+                            :placeholder="
+                              t('settings.model.modelConfig.reasoningEffort.placeholder')
+                            "
+                          />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem
+                            v-for="option in effortOptions"
+                            :key="option.value"
+                            :value="option.value"
+                          >
+                            {{ option.label }}
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div v-if="showVerbosity" class="space-y-1.5">
+                      <label class="text-xs font-medium">{{
+                        t('settings.model.modelConfig.verbosity.label')
+                      }}</label>
+                      <Select
+                        :model-value="localSettings.verbosity ?? 'medium'"
+                        @update:model-value="onVerbositySelect($event as string)"
+                      >
+                        <SelectTrigger class="h-8 text-xs">
+                          <SelectValue
+                            :placeholder="t('settings.model.modelConfig.verbosity.placeholder')"
+                          />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="low">{{
+                            t('settings.model.modelConfig.verbosity.options.low')
+                          }}</SelectItem>
+                          <SelectItem value="medium">{{
+                            t('settings.model.modelConfig.verbosity.options.medium')
+                          }}</SelectItem>
+                          <SelectItem value="high">{{
+                            t('settings.model.modelConfig.verbosity.options.high')
+                          }}</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div v-if="showThinkingBudget" class="space-y-1.5">
+                      <div class="flex items-center justify-between">
+                        <label class="text-xs font-medium">{{
+                          t('chat.advancedSettings.thinkingBudget')
+                        }}</label>
+                        <span class="text-[11px] text-muted-foreground">
+                          {{ thinkingBudgetHint }}
+                        </span>
+                      </div>
+                      <Input
+                        class="h-8 text-xs"
+                        type="number"
+                        :min="budgetRange?.min"
+                        :max="budgetRange?.max"
+                        :step="128"
+                        :model-value="localSettings.thinkingBudget?.toString() ?? ''"
+                        @update:model-value="onThinkingBudgetInput"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </PopoverContent>
+        </Popover>
+
         <Button
           v-else
           variant="ghost"
@@ -48,268 +305,86 @@
           />
           <span>{{ displayModelName }}</span>
         </Button>
-
-        <DropdownMenu v-if="showEffortSelector">
-          <DropdownMenuTrigger as-child>
-            <Button
-              variant="ghost"
-              size="sm"
-              class="h-6 px-2 gap-1 text-xs text-muted-foreground hover:text-foreground backdrop-blur-lg"
-            >
-              <Icon icon="lucide:gauge" class="w-3.5 h-3.5" />
-              <span>{{ currentEffortLabel }}</span>
-              <Icon icon="lucide:chevron-down" class="w-3 h-3" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" class="min-w-0">
-            <DropdownMenuItem
-              v-for="option in effortOptions"
-              :key="option.value"
-              class="text-xs py-1.5 px-2"
-              @click="selectEffort(option.value)"
-            >
-              {{ option.label }}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
       </div>
 
       <div class="flex items-center gap-1">
-        <McpIndicator />
-
-        <Button
-          v-if="showAdvancedSettingsButton"
-          ref="advancedButtonRef"
-          variant="ghost"
-          size="sm"
-          class="h-6 w-6 p-0 text-muted-foreground hover:text-foreground backdrop-blur-lg"
-          :aria-label="t('chat.advancedSettings.button')"
-          :title="t('chat.advancedSettings.button')"
-          @click="toggleAdvancedSettings"
-        >
-          <Icon icon="lucide:sliders-horizontal" class="w-3.5 h-3.5" />
-        </Button>
+        <McpIndicator
+          :show-system-prompt-section="showSystemPromptSection"
+          :system-prompt-options="systemPromptMenuOptions"
+          :selected-system-prompt-id="selectedSystemPromptId"
+          :show-custom-system-prompt-badge="selectedSystemPromptId === '__custom__'"
+          @select-system-prompt="onSystemPromptSelect"
+          @open-change="handleSessionPanelOpenChange"
+        />
 
         <DropdownMenu v-if="canSelectPermissionMode">
           <DropdownMenuTrigger as-child>
             <Button
               variant="ghost"
               size="sm"
-              class="h-6 px-2 gap-1.5 text-xs text-muted-foreground hover:text-foreground backdrop-blur-lg"
+              :class="[
+                'h-6 px-2 gap-1.5 text-xs backdrop-blur-lg',
+                permissionMode === 'full_access'
+                  ? 'text-orange-500 hover:text-orange-600'
+                  : 'text-muted-foreground hover:text-foreground'
+              ]"
             >
-              <Icon icon="lucide:shield" class="w-3.5 h-3.5" />
+              <Icon :icon="permissionIcon" class="w-3.5 h-3.5" />
               <span>{{ permissionModeLabel }}</span>
               <Icon icon="lucide:chevron-down" class="w-3 h-3" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" class="min-w-0">
+          <DropdownMenuContent align="end" class="min-w-48">
             <DropdownMenuItem
-              class="text-xs py-1.5 px-2"
-              :disabled="permissionMode === 'full_access'"
-              @click="selectPermissionMode('full_access')"
+              v-for="option in permissionOptions"
+              :key="option.value"
+              class="gap-2 text-xs py-1.5 px-2"
+              @select="selectPermissionMode(option.value)"
             >
-              {{ t('chat.permissionMode.fullAccess') }}
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              class="text-xs py-1.5 px-2"
-              :disabled="permissionMode === 'default'"
-              @click="selectPermissionMode('default')"
-            >
-              {{ t('chat.permissionMode.default') }}
+              <Icon :icon="option.icon" :class="['h-3.5 w-3.5 shrink-0', option.iconClass]" />
+              <span class="flex-1">{{ option.label }}</span>
+              <Icon
+                v-if="permissionMode === option.value"
+                icon="lucide:check"
+                class="h-3.5 w-3.5 shrink-0"
+              />
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+
         <Button
           v-else
           variant="ghost"
           size="sm"
-          class="h-6 px-2 gap-1.5 text-xs text-muted-foreground hover:text-foreground backdrop-blur-lg"
+          :class="[
+            'h-6 px-2 gap-1.5 text-xs backdrop-blur-lg disabled:opacity-100',
+            permissionMode === 'full_access'
+              ? 'text-orange-500 hover:text-orange-600'
+              : 'text-muted-foreground hover:text-foreground'
+          ]"
           :disabled="true"
         >
-          <Icon icon="lucide:shield" class="w-3.5 h-3.5" />
-          <span>{{ t('chat.permissionMode.fullAccess') }}</span>
+          <Icon :icon="permissionIcon" class="w-3.5 h-3.5" />
+          <span>{{ permissionModeLabel }}</span>
         </Button>
-      </div>
-    </div>
-
-    <div
-      v-if="isAdvancedOpen && showAdvancedSettingsButton && localSettings"
-      ref="advancedOverlayRef"
-      class="absolute bottom-full left-1/2 z-30 mb-2 w-full -translate-x-1/2 rounded-xl border bg-card/95 p-4 shadow-lg backdrop-blur-lg"
-    >
-      <div class="flex items-center justify-between text-xs text-muted-foreground">
-        <div class="flex items-center gap-2">
-          <Icon icon="lucide:sliders-horizontal" class="h-4 w-4" />
-          <span>{{ t('chat.advancedSettings.title') }}</span>
-        </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          class="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
-          :aria-label="t('common.close')"
-          :title="t('common.close')"
-          @click="closeAdvancedSettings"
-        >
-          <Icon icon="lucide:x" class="h-3.5 w-3.5" />
-        </Button>
-      </div>
-
-      <div class="mt-4 space-y-4">
-        <div class="space-y-1.5">
-          <div class="flex items-center justify-between">
-            <label class="text-xs font-medium">{{ t('chat.advancedSettings.systemPrompt') }}</label>
-            <span
-              v-if="selectedSystemPromptId === '__custom__'"
-              class="text-[11px] text-muted-foreground"
-            >
-              {{ t('chat.advancedSettings.currentCustomPrompt') }}
-            </span>
-          </div>
-          <Select
-            :model-value="selectedSystemPromptId"
-            @update:model-value="onSystemPromptSelect($event as string)"
-          >
-            <SelectTrigger class="h-8 text-xs">
-              <SelectValue :placeholder="t('chat.advancedSettings.systemPromptPlaceholder')" />
-            </SelectTrigger>
-            <SelectContent class="advanced-settings-portal-content">
-              <SelectItem
-                v-for="option in systemPromptOptions"
-                :key="option.id"
-                :value="option.id"
-                :disabled="option.disabled"
-              >
-                {{ option.label }}
-              </SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div class="space-y-1.5">
-          <div class="flex items-center justify-between gap-2">
-            <label class="text-xs font-medium">{{ t('chat.advancedSettings.temperature') }}</label>
-            <Input
-              class="h-7 w-20 text-xs tabular-nums"
-              type="number"
-              :min="TEMPERATURE_MIN"
-              :max="TEMPERATURE_MAX"
-              step="0.1"
-              :model-value="localSettings.temperature.toFixed(1)"
-              @update:model-value="onTemperatureInput"
-            />
-          </div>
-          <Slider
-            :model-value="[localSettings.temperature]"
-            :min="TEMPERATURE_MIN"
-            :max="TEMPERATURE_MAX"
-            :step="0.1"
-            @update:model-value="onTemperatureSlider"
-          />
-        </div>
-
-        <div class="space-y-1.5">
-          <div class="flex items-center justify-between gap-2">
-            <label class="text-xs font-medium">{{
-              t('chat.advancedSettings.contextLength')
-            }}</label>
-            <Input
-              class="h-7 w-24 text-xs tabular-nums"
-              type="number"
-              :min="CONTEXT_LENGTH_MIN"
-              :max="contextLengthLimit"
-              :step="1024"
-              :model-value="localSettings.contextLength.toString()"
-              @update:model-value="onContextLengthInput"
-            />
-          </div>
-          <Slider
-            :model-value="[localSettings.contextLength]"
-            :min="CONTEXT_LENGTH_MIN"
-            :max="contextLengthLimit"
-            :step="1024"
-            @update:model-value="onContextLengthSlider"
-          />
-        </div>
-
-        <div class="space-y-1.5">
-          <div class="flex items-center justify-between gap-2">
-            <label class="text-xs font-medium">{{ t('chat.advancedSettings.maxTokens') }}</label>
-            <Input
-              class="h-7 w-24 text-xs tabular-nums"
-              type="number"
-              :min="MAX_TOKENS_MIN"
-              :max="maxTokensSliderLimit"
-              :step="128"
-              :model-value="localSettings.maxTokens.toString()"
-              @update:model-value="onMaxTokensInput"
-            />
-          </div>
-          <Slider
-            :model-value="[localSettings.maxTokens]"
-            :min="MAX_TOKENS_MIN"
-            :max="maxTokensSliderLimit"
-            :step="128"
-            @update:model-value="onMaxTokensSlider"
-          />
-        </div>
-
-        <div v-if="showThinkingBudget" class="space-y-1.5">
-          <div class="flex items-center justify-between">
-            <label class="text-xs font-medium">{{
-              t('chat.advancedSettings.thinkingBudget')
-            }}</label>
-            <span class="text-[11px] text-muted-foreground">{{ thinkingBudgetHint }}</span>
-          </div>
-          <Input
-            class="h-8 text-xs"
-            type="number"
-            :min="budgetRange?.min"
-            :max="budgetRange?.max"
-            :step="128"
-            :model-value="localSettings.thinkingBudget?.toString() ?? ''"
-            @update:model-value="onThinkingBudgetInput"
-          />
-        </div>
-
-        <div v-if="showVerbosity" class="space-y-1.5">
-          <label class="text-xs font-medium">{{ t('chat.advancedSettings.verbosity') }}</label>
-          <Select
-            :model-value="localSettings.verbosity ?? 'medium'"
-            @update:model-value="onVerbositySelect($event as string)"
-          >
-            <SelectTrigger class="h-8 text-xs">
-              <SelectValue :placeholder="t('chat.advancedSettings.verbosityPlaceholder')" />
-            </SelectTrigger>
-            <SelectContent class="advanced-settings-portal-content">
-              <SelectItem value="low">{{
-                t('settings.model.modelConfig.verbosity.options.low')
-              }}</SelectItem>
-              <SelectItem value="medium">{{
-                t('settings.model.modelConfig.verbosity.options.medium')
-              }}</SelectItem>
-              <SelectItem value="high">{{
-                t('settings.model.modelConfig.verbosity.options.high')
-              }}</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
-import { Slider } from '@shadcn/components/ui/slider'
-import { Input } from '@shadcn/components/ui/input'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger
 } from '@shadcn/components/ui/dropdown-menu'
+import { Input } from '@shadcn/components/ui/input'
+import { Popover, PopoverContent, PopoverTrigger } from '@shadcn/components/ui/popover'
 import {
   Select,
   SelectContent,
@@ -317,17 +392,18 @@ import {
   SelectTrigger,
   SelectValue
 } from '@shadcn/components/ui/select'
-import { Icon } from '@iconify/vue'
-import ModelIcon from '../icons/ModelIcon.vue'
-import McpIndicator from '@/components/chat-input/McpIndicator.vue'
-import { useThemeStore } from '@/stores/theme'
-import { useModelStore } from '@/stores/modelStore'
-import { useAgentStore } from '@/stores/ui/agent'
-import { useSessionStore } from '@/stores/ui/session'
-import { useDraftStore } from '@/stores/ui/draft'
-import { usePresenter } from '@/composables/usePresenter'
+import { Slider } from '@shadcn/components/ui/slider'
 import type { RENDERER_MODEL_META, SystemPrompt } from '@shared/presenter'
 import type { PermissionMode, SessionGenerationSettings } from '@shared/types/agent-interface'
+import McpIndicator from '@/components/chat-input/McpIndicator.vue'
+import ModelIcon from '@/components/icons/ModelIcon.vue'
+import { usePresenter } from '@/composables/usePresenter'
+import { useModelStore } from '@/stores/modelStore'
+import { useProviderStore } from '@/stores/providerStore'
+import { useThemeStore } from '@/stores/theme'
+import { useAgentStore } from '@/stores/ui/agent'
+import { useDraftStore } from '@/stores/ui/draft'
+import { useSessionStore } from '@/stores/ui/session'
 
 const props = withDefaults(
   defineProps<{
@@ -350,6 +426,12 @@ type SystemPromptOption = {
   disabled?: boolean
 }
 
+type GroupedModelList = {
+  providerId: string
+  providerName: string
+  models: RENDERER_MODEL_META[]
+}
+
 const TEMPERATURE_MIN = 0
 const TEMPERATURE_MAX = 2
 const CONTEXT_LENGTH_MIN = 2048
@@ -357,6 +439,7 @@ const MAX_TOKENS_MIN = 128
 
 const themeStore = useThemeStore()
 const modelStore = useModelStore()
+const providerStore = useProviderStore()
 const agentStore = useAgentStore()
 const sessionStore = useSessionStore()
 const draftStore = useDraftStore()
@@ -365,21 +448,21 @@ const newAgentPresenter = usePresenter('newAgentPresenter')
 const { t } = useI18n()
 
 const draftModelSelection = ref<ModelSelection | null>(null)
-let draftModelSyncToken = 0
 const permissionMode = ref<PermissionMode>('full_access')
-let permissionSyncToken = 0
-
-const isAdvancedOpen = ref(false)
-const advancedOverlayRef = ref<HTMLElement | null>(null)
-const advancedButtonRef = ref<HTMLElement | { $el?: unknown } | null>(null)
 const localSettings = ref<SessionGenerationSettings | null>(null)
 const systemPromptList = ref<SystemPrompt[]>([])
+const isModelPanelOpen = ref(false)
+const isModelSettingsExpanded = ref(false)
+const modelSearchKeyword = ref('')
+const modelSettingsSelection = ref<ModelSelection | null>(null)
 
 const capabilitySupportsReasoning = ref<boolean | null>(null)
 const capabilityBudgetRange = ref<{ min?: number; max?: number; default?: number } | null>(null)
 const capabilitySupportsEffort = ref<boolean | null>(null)
 const capabilitySupportsVerbosity = ref<boolean | null>(null)
 
+let draftModelSyncToken = 0
+let permissionSyncToken = 0
 let generationSyncToken = 0
 let generationPersistTimer: ReturnType<typeof setTimeout> | null = null
 let pendingGenerationPatch: Partial<SessionGenerationSettings> = {}
@@ -425,6 +508,105 @@ const effectiveModelSelection = computed<ModelSelection | null>(() => {
   return draftModelSelection.value
 })
 
+const canSelectPermissionMode = computed(() => !isAcpAgent.value)
+
+const providerNameMap = computed(() => {
+  const map = new Map<string, string>()
+  providerStore.sortedProviders.forEach((provider) => {
+    map.set(provider.id, provider.name)
+  })
+  return map
+})
+
+const modelGroups = computed<GroupedModelList[]>(() => {
+  const groupsById = new Map(
+    modelStore.enabledModels
+      .filter((group) => group.providerId !== 'acp')
+      .map((group) => [group.providerId, group.models] as const)
+  )
+
+  const result: GroupedModelList[] = []
+
+  providerStore.sortedProviders
+    .filter((provider) => provider.enable && provider.id !== 'acp')
+    .forEach((provider) => {
+      const models = groupsById.get(provider.id)
+      if (!models || models.length === 0) {
+        return
+      }
+      result.push({
+        providerId: provider.id,
+        providerName: provider.name,
+        models
+      })
+      groupsById.delete(provider.id)
+    })
+
+  Array.from(groupsById.entries())
+    .sort(([left], [right]) => left.localeCompare(right))
+    .forEach(([providerId, models]) => {
+      result.push({
+        providerId,
+        providerName: providerNameMap.value.get(providerId) ?? providerId,
+        models
+      })
+    })
+
+  return result
+})
+
+const filteredModelGroups = computed<GroupedModelList[]>(() => {
+  const keyword = modelSearchKeyword.value.trim().toLowerCase()
+  if (!keyword) {
+    return modelGroups.value
+  }
+
+  return modelGroups.value
+    .map((group) => {
+      const providerMatched = `${group.providerName} ${group.providerId}`
+        .toLowerCase()
+        .includes(keyword)
+      return {
+        ...group,
+        models: providerMatched
+          ? group.models
+          : group.models.filter((model) =>
+              `${model.name} ${model.id}`.toLowerCase().includes(keyword)
+            )
+      }
+    })
+    .filter((group) => group.models.length > 0)
+})
+
+const modelSettingsTarget = computed<ModelSelection | null>(() => {
+  return modelSettingsSelection.value ?? effectiveModelSelection.value
+})
+
+const permissionModeLabel = computed(() =>
+  permissionMode.value === 'default'
+    ? t('chat.permissionMode.default')
+    : t('chat.permissionMode.fullAccess')
+)
+
+const permissionIcon = computed(() =>
+  permissionMode.value === 'full_access' ? 'lucide:shield-alert' : 'lucide:shield'
+)
+
+const permissionOptions = computed(() => [
+  {
+    value: 'default' as const,
+    label: t('chat.permissionMode.default'),
+    icon: 'lucide:shield',
+    iconClass: 'text-muted-foreground'
+  },
+  {
+    value: 'full_access' as const,
+    label: t('chat.permissionMode.fullAccess'),
+    icon: 'lucide:shield-alert',
+    iconClass: 'text-orange-500'
+  }
+])
+
 const isModelSelection = (value: unknown): value is ModelSelection => {
   if (!value || typeof value !== 'object') return false
   const candidate = value as { providerId?: unknown; modelId?: unknown }
@@ -450,16 +632,6 @@ const toFiniteNumber = (value: unknown): number | undefined => {
   return value
 }
 
-const resolveDomElement = (value: HTMLElement | { $el?: unknown } | null): HTMLElement | null => {
-  if (!value) {
-    return null
-  }
-  if (value instanceof HTMLElement) {
-    return value
-  }
-  return value.$el instanceof HTMLElement ? value.$el : null
-}
-
 const parseNumericInput = (value: string | number): number | undefined => {
   const normalized = typeof value === 'string' ? value.trim() : String(value)
   if (!normalized) {
@@ -472,14 +644,33 @@ const parseNumericInput = (value: string | number): number | undefined => {
   return numeric
 }
 
+const findEnabledModelMeta = (providerId: string, modelId: string): RENDERER_MODEL_META | null => {
+  const group = modelStore.enabledModels.find((item) => item.providerId === providerId)
+  return group?.models.find((model) => model.id === modelId) ?? null
+}
+
+const usesBinaryReasoningEffort = (
+  providerId?: string | null,
+  modelId?: string | null
+): boolean => {
+  const normalizedProviderId = providerId?.toLowerCase()
+  const normalizedModelId = modelId?.toLowerCase() ?? ''
+  return (
+    normalizedProviderId === 'grok' ||
+    normalizedProviderId === 'xai' ||
+    normalizedModelId.includes('grok-3-mini')
+  )
+}
+
 const normalizeReasoningEffort = (
   providerId: string,
+  modelId: string | undefined,
   value: unknown
 ): SessionGenerationSettings['reasoningEffort'] | undefined => {
   if (!isReasoningEffort(value)) {
     return undefined
   }
-  if (providerId !== 'grok') {
+  if (!usesBinaryReasoningEffort(providerId, modelId)) {
     return value
   }
   if (value === 'low' || value === 'high') {
@@ -489,14 +680,11 @@ const normalizeReasoningEffort = (
 }
 
 const findEnabledModel = (providerId: string, modelId: string): ModelSelection | null => {
-  for (const group of modelStore.enabledModels) {
-    if (group.providerId !== providerId) continue
-    const hit = group.models.find((model) => model.id === modelId)
-    if (hit) {
-      return { providerId: group.providerId, modelId: hit.id }
-    }
+  const hit = findEnabledModelMeta(providerId, modelId)
+  if (!hit) {
+    return null
   }
-  return null
+  return { providerId, modelId: hit.id }
 }
 
 const pickFirstEnabledModel = (): ModelSelection | null => {
@@ -516,10 +704,34 @@ const pickFirstEnabledModel = (): ModelSelection | null => {
   return null
 }
 
-const resolveModelName = (modelId: string): string => {
+const resolveModelName = (providerId?: string | null, modelId?: string | null): string => {
+  if (!modelId) {
+    return ''
+  }
+  if (providerId) {
+    const hit = findEnabledModelMeta(providerId, modelId)
+    if (hit) {
+      return hit.name
+    }
+  }
   const found = modelStore.findModelByIdOrName(modelId)
   if (found) return found.model.name
   return modelId
+}
+
+const resolveModelIconId = (providerId?: string | null, modelId?: string | null): string => {
+  if (providerId === 'acp' && modelId) {
+    return modelId
+  }
+  return providerId || 'anthropic'
+}
+
+const clearPendingGenerationPersist = () => {
+  if (generationPersistTimer) {
+    clearTimeout(generationPersistTimer)
+    generationPersistTimer = null
+  }
+  pendingGenerationPatch = {}
 }
 
 const getCurrentLimits = () => {
@@ -549,6 +761,190 @@ const maxTokensSliderLimit = computed(() => {
   const baseLimit = getCurrentLimits().maxTokensLimit
   const contextLimit = localSettings.value?.contextLength ?? contextLengthLimit.value
   return Math.max(MAX_TOKENS_MIN, Math.min(baseLimit, contextLimit))
+})
+
+const budgetRange = computed(() => capabilityBudgetRange.value)
+
+const thinkingBudgetHint = computed(() => {
+  const value = localSettings.value?.thinkingBudget
+  if (value === undefined) {
+    return t('chat.advancedSettings.useDefault')
+  }
+  return String(value)
+})
+
+const showThinkingBudget = computed(() => {
+  if (!localSettings.value) {
+    return false
+  }
+  return (
+    capabilitySupportsReasoning.value === true && capabilityBudgetRange.value?.max !== undefined
+  )
+})
+
+const showVerbosity = computed(
+  () =>
+    !isAcpAgent.value && capabilitySupportsVerbosity.value === true && Boolean(localSettings.value)
+)
+
+const showReasoningEffort = computed(
+  () => !isAcpAgent.value && capabilitySupportsEffort.value === true && Boolean(localSettings.value)
+)
+
+const effortOptions = computed(() => {
+  const selection = effectiveModelSelection.value
+  if (usesBinaryReasoningEffort(selection?.providerId, selection?.modelId)) {
+    return [
+      {
+        value: 'low' as const,
+        label: t('settings.model.modelConfig.reasoningEffort.options.low')
+      },
+      {
+        value: 'high' as const,
+        label: t('settings.model.modelConfig.reasoningEffort.options.high')
+      }
+    ]
+  }
+
+  return [
+    {
+      value: 'minimal' as const,
+      label: t('settings.model.modelConfig.reasoningEffort.options.minimal')
+    },
+    {
+      value: 'low' as const,
+      label: t('settings.model.modelConfig.reasoningEffort.options.low')
+    },
+    {
+      value: 'medium' as const,
+      label: t('settings.model.modelConfig.reasoningEffort.options.medium')
+    },
+    {
+      value: 'high' as const,
+      label: t('settings.model.modelConfig.reasoningEffort.options.high')
+    }
+  ]
+})
+
+const systemPromptOptions = computed<SystemPromptOption[]>(() => {
+  const presetOptions: SystemPromptOption[] = [
+    {
+      id: 'empty',
+      label: t('promptSetting.emptySystemPromptOption'),
+      content: ''
+    },
+    ...systemPromptList.value.map((prompt) => ({
+      id: prompt.id,
+      label: prompt.name,
+      content: prompt.content
+    }))
+  ]
+
+  const currentPrompt = localSettings.value?.systemPrompt ?? ''
+  if (!currentPrompt) {
+    return presetOptions
+  }
+
+  const matched = presetOptions.find((option) => option.content === currentPrompt)
+  if (matched) {
+    return presetOptions
+  }
+
+  return [
+    {
+      id: '__custom__',
+      label: t('chat.advancedSettings.currentCustomPrompt'),
+      content: currentPrompt,
+      disabled: true
+    },
+    ...presetOptions
+  ]
+})
+
+const systemPromptMenuOptions = computed(() =>
+  systemPromptOptions.value.map((option) => ({
+    id: option.id,
+    label: option.label,
+    disabled: option.disabled
+  }))
+)
+
+const selectedSystemPromptId = computed(() => {
+  if (!localSettings.value) {
+    return 'empty'
+  }
+  const currentPrompt = localSettings.value.systemPrompt
+  const matched = systemPromptOptions.value.find((option) => option.content === currentPrompt)
+  return matched?.id ?? 'empty'
+})
+
+const showSystemPromptSection = computed(() => !isAcpAgent.value && Boolean(localSettings.value))
+
+const modelSettingsModelName = computed(() => {
+  return resolveModelName(
+    modelSettingsTarget.value?.providerId ?? null,
+    modelSettingsTarget.value?.modelId ?? null
+  )
+})
+
+const modelSettingsProviderText = computed(() => {
+  const selection = modelSettingsTarget.value
+  if (!selection) {
+    return ''
+  }
+  const providerName = providerNameMap.value.get(selection.providerId) ?? selection.providerId
+  return `${providerName} / ${selection.modelId}`
+})
+
+const isModelSettingsReady = computed(() => {
+  if (!isModelSettingsExpanded.value) {
+    return false
+  }
+  const target = modelSettingsTarget.value
+  const effective = effectiveModelSelection.value
+  if (!target || !effective) {
+    return false
+  }
+  return (
+    target.providerId === effective.providerId &&
+    target.modelId === effective.modelId &&
+    Boolean(localSettings.value)
+  )
+})
+
+const displayIconId = computed(() => {
+  if (hasActiveSession.value) {
+    return resolveModelIconId(
+      activeSessionSelection.value?.providerId || draftModelSelection.value?.providerId,
+      activeSessionSelection.value?.modelId || draftModelSelection.value?.modelId
+    )
+  }
+  if (isAcpAgent.value) {
+    return resolveModelIconId('acp', agentStore.selectedAgentId)
+  }
+  return resolveModelIconId(
+    draftModelSelection.value?.providerId,
+    draftModelSelection.value?.modelId
+  )
+})
+
+const displayModelName = computed(() => {
+  if (hasActiveSession.value) {
+    const selection = activeSessionSelection.value ?? draftModelSelection.value
+    if (selection?.modelId) {
+      return resolveModelName(selection.providerId, selection.modelId)
+    }
+    return t('common.selectModel')
+  }
+  if (isAcpAgent.value) {
+    const agent = agentStore.selectedAgent
+    return agent?.name ?? agentStore.selectedAgentId ?? 'ACP Agent'
+  }
+  const selection = draftModelSelection.value
+  if (selection?.modelId) {
+    return resolveModelName(selection.providerId, selection.modelId)
+  }
+  return t('common.selectModel')
 })
 
 const syncDraftModelSelection = async () => {
@@ -596,108 +992,6 @@ const syncDraftModelSelection = async () => {
   if (token !== draftModelSyncToken) return
   applyDraftSelection(pickFirstEnabledModel())
 }
-
-watch(
-  [hasActiveSession, isAcpAgent, () => agentStore.selectedAgentId, () => modelStore.enabledModels],
-  () => {
-    if (hasActiveSession.value) return
-    void syncDraftModelSelection()
-  },
-  { immediate: true, deep: true }
-)
-
-const canSelectPermissionMode = computed(() => !isAcpAgent.value)
-
-watch(
-  [() => sessionStore.activeSessionId, canSelectPermissionMode, () => draftStore.permissionMode],
-  async ([sessionId, canSelect, draftPermissionMode]) => {
-    const token = ++permissionSyncToken
-    if (!canSelect) {
-      permissionMode.value = 'full_access'
-      return
-    }
-
-    if (!sessionId) {
-      permissionMode.value = draftPermissionMode === 'default' ? 'default' : 'full_access'
-      return
-    }
-
-    try {
-      const mode = await newAgentPresenter.getPermissionMode(sessionId)
-      if (token !== permissionSyncToken) return
-      permissionMode.value = mode === 'default' ? 'default' : 'full_access'
-    } catch (error) {
-      console.warn('[ChatStatusBar] Failed to load permission mode:', error)
-      if (token !== permissionSyncToken) return
-      permissionMode.value = 'full_access'
-    }
-  },
-  { immediate: true }
-)
-
-const resolveModelIconId = (providerId?: string | null, modelId?: string | null): string => {
-  if (providerId === 'acp' && modelId) {
-    return modelId
-  }
-  return providerId || 'anthropic'
-}
-
-const displayIconId = computed(() => {
-  if (hasActiveSession.value) {
-    return resolveModelIconId(
-      activeSessionSelection.value?.providerId || draftModelSelection.value?.providerId,
-      activeSessionSelection.value?.modelId || draftModelSelection.value?.modelId
-    )
-  }
-  if (isAcpAgent.value) {
-    return resolveModelIconId('acp', agentStore.selectedAgentId)
-  }
-  return resolveModelIconId(
-    draftModelSelection.value?.providerId,
-    draftModelSelection.value?.modelId
-  )
-})
-
-const displayModelName = computed(() => {
-  if (hasActiveSession.value) {
-    const modelId = activeSessionSelection.value?.modelId || draftModelSelection.value?.modelId
-    if (modelId) {
-      return resolveModelName(modelId)
-    }
-    return 'Select model'
-  }
-  if (isAcpAgent.value) {
-    const agent = agentStore.selectedAgent
-    return agent?.name ?? agentStore.selectedAgentId ?? 'ACP Agent'
-  }
-  const modelId = draftModelSelection.value?.modelId
-  if (modelId) {
-    return resolveModelName(modelId)
-  }
-  return 'Select model'
-})
-
-const flatModels = computed(() => {
-  if (isAcpAgent.value) {
-    const targetModelId = lockedAcpModelId.value
-    const acpGroup = modelStore.enabledModels.find((group) => group.providerId === 'acp')
-    if (!targetModelId || !acpGroup) return []
-    return acpGroup.models
-      .filter((model) => model.id === targetModelId)
-      .map((model) => ({ providerId: 'acp', model }))
-  }
-
-  const result: { providerId: string; model: RENDERER_MODEL_META }[] = []
-  for (const group of modelStore.enabledModels) {
-    if (group.providerId === 'acp') {
-      continue
-    }
-    for (const model of group.models) {
-      result.push({ providerId: group.providerId, model })
-    }
-  }
-  return result
-})
 
 const resolveDefaultGenerationSettings = async (
   providerId: string,
@@ -749,6 +1043,7 @@ const resolveDefaultGenerationSettings = async (
   if (supportsEffort) {
     const effort = normalizeReasoningEffort(
       providerId,
+      modelId,
       modelConfig.reasoningEffort ??
         configPresenter.getReasoningEffortDefault?.(providerId, modelId)
     )
@@ -772,6 +1067,7 @@ const resolveDefaultGenerationSettings = async (
 
 const mergeDraftOverrides = (
   providerId: string,
+  modelId: string,
   defaults: SessionGenerationSettings
 ): SessionGenerationSettings => {
   const next: SessionGenerationSettings = {
@@ -784,7 +1080,9 @@ const mergeDraftOverrides = (
       ? { thinkingBudget: draftStore.thinkingBudget }
       : {}),
     ...(draftStore.reasoningEffort !== undefined
-      ? { reasoningEffort: normalizeReasoningEffort(providerId, draftStore.reasoningEffort) }
+      ? {
+          reasoningEffort: normalizeReasoningEffort(providerId, modelId, draftStore.reasoningEffort)
+        }
       : {}),
     ...(draftStore.verbosity !== undefined ? { verbosity: draftStore.verbosity } : {})
   }
@@ -827,14 +1125,6 @@ const fetchCapabilities = async (providerId: string, modelId: string): Promise<v
     capabilitySupportsEffort.value = null
     capabilitySupportsVerbosity.value = null
   }
-}
-
-const clearPendingGenerationPersist = () => {
-  if (generationPersistTimer) {
-    clearTimeout(generationPersistTimer)
-    generationPersistTimer = null
-  }
-  pendingGenerationPatch = {}
 }
 
 const flushGenerationPatch = async () => {
@@ -943,7 +1233,6 @@ const syncGenerationSettings = async () => {
     capabilityBudgetRange.value = null
     capabilitySupportsEffort.value = null
     capabilitySupportsVerbosity.value = null
-    isAdvancedOpen.value = false
     return
   }
 
@@ -983,8 +1272,53 @@ const syncGenerationSettings = async () => {
   if (token !== generationSyncToken) {
     return
   }
-  localSettings.value = mergeDraftOverrides(selection.providerId, defaults)
+  localSettings.value = mergeDraftOverrides(selection.providerId, selection.modelId, defaults)
 }
+
+const reloadSystemPrompts = async () => {
+  try {
+    systemPromptList.value = await configPresenter.getSystemPrompts()
+  } catch (error) {
+    console.warn('[ChatStatusBar] Failed to load system prompt options:', error)
+    systemPromptList.value = []
+  }
+}
+
+watch(
+  [hasActiveSession, isAcpAgent, () => agentStore.selectedAgentId, () => modelStore.enabledModels],
+  () => {
+    if (hasActiveSession.value) return
+    void syncDraftModelSelection()
+  },
+  { immediate: true, deep: true }
+)
+
+watch(
+  [() => sessionStore.activeSessionId, canSelectPermissionMode, () => draftStore.permissionMode],
+  async ([sessionId, canSelect, draftPermissionMode]) => {
+    const token = ++permissionSyncToken
+    if (!canSelect) {
+      permissionMode.value = 'full_access'
+      return
+    }
+
+    if (!sessionId) {
+      permissionMode.value = draftPermissionMode === 'default' ? 'default' : 'full_access'
+      return
+    }
+
+    try {
+      const mode = await newAgentPresenter.getPermissionMode(sessionId)
+      if (token !== permissionSyncToken) return
+      permissionMode.value = mode === 'default' ? 'default' : 'full_access'
+    } catch (error) {
+      console.warn('[ChatStatusBar] Failed to load permission mode:', error)
+      if (token !== permissionSyncToken) return
+      permissionMode.value = 'full_access'
+    }
+  },
+  { immediate: true }
+)
 
 watch(
   [
@@ -1001,203 +1335,45 @@ watch(
   { immediate: true }
 )
 
-const reloadSystemPrompts = async () => {
-  try {
-    systemPromptList.value = await configPresenter.getSystemPrompts()
-  } catch (error) {
-    console.warn('[ChatStatusBar] Failed to load system prompt options:', error)
-    systemPromptList.value = []
-  }
-}
+watch(isModelPanelOpen, (open) => {
+  if (open) {
+    modelSearchKeyword.value = ''
+    isModelSettingsExpanded.value = false
+    modelSettingsSelection.value = effectiveModelSelection.value
+      ? { ...effectiveModelSelection.value }
+      : null
 
-const systemPromptOptions = computed<SystemPromptOption[]>(() => {
-  const presetOptions: SystemPromptOption[] = [
-    {
-      id: 'empty',
-      label: t('promptSetting.emptySystemPromptOption'),
-      content: ''
-    },
-    ...systemPromptList.value.map((prompt) => ({
-      id: prompt.id,
-      label: prompt.name,
-      content: prompt.content
-    }))
-  ]
-
-  const currentPrompt = localSettings.value?.systemPrompt ?? ''
-  if (!currentPrompt) {
-    return presetOptions
-  }
-
-  const matched = presetOptions.find((option) => option.content === currentPrompt)
-  if (matched) {
-    return presetOptions
-  }
-
-  return [
-    {
-      id: '__custom__',
-      label: t('chat.advancedSettings.currentCustomPrompt'),
-      content: currentPrompt,
-      disabled: true
-    },
-    ...presetOptions
-  ]
-})
-
-const selectedSystemPromptId = computed(() => {
-  if (!localSettings.value) {
-    return 'empty'
-  }
-  const currentPrompt = localSettings.value.systemPrompt
-  const matched = systemPromptOptions.value.find((option) => option.content === currentPrompt)
-  return matched?.id ?? 'empty'
-})
-
-watch(isAdvancedOpen, (open) => {
-  if (!open) {
-    return
-  }
-  void reloadSystemPrompts()
-})
-
-const showAdvancedSettingsButton = computed(() => !isAcpAgent.value && Boolean(localSettings.value))
-
-const showThinkingBudget = computed(() => {
-  if (!localSettings.value) {
-    return false
-  }
-  return (
-    capabilitySupportsReasoning.value === true && capabilityBudgetRange.value?.max !== undefined
-  )
-})
-
-const budgetRange = computed(() => capabilityBudgetRange.value)
-
-const thinkingBudgetHint = computed(() => {
-  const value = localSettings.value?.thinkingBudget
-  if (value === undefined) {
-    return t('chat.advancedSettings.useDefault')
-  }
-  return String(value)
-})
-
-const showVerbosity = computed(
-  () =>
-    !isAcpAgent.value && capabilitySupportsVerbosity.value === true && Boolean(localSettings.value)
-)
-
-const showEffortSelector = computed(
-  () => !isAcpAgent.value && capabilitySupportsEffort.value === true && Boolean(localSettings.value)
-)
-
-const effortOptions = computed(() => {
-  const providerId = effectiveModelSelection.value?.providerId
-  if (providerId === 'grok') {
-    return [
-      {
-        value: 'low' as const,
-        label: t('settings.model.modelConfig.reasoningEffort.options.low')
-      },
-      {
-        value: 'high' as const,
-        label: t('settings.model.modelConfig.reasoningEffort.options.high')
-      }
-    ]
-  }
-
-  return [
-    {
-      value: 'minimal' as const,
-      label: t('settings.model.modelConfig.reasoningEffort.options.minimal')
-    },
-    {
-      value: 'low' as const,
-      label: t('settings.model.modelConfig.reasoningEffort.options.low')
-    },
-    {
-      value: 'medium' as const,
-      label: t('settings.model.modelConfig.reasoningEffort.options.medium')
-    },
-    {
-      value: 'high' as const,
-      label: t('settings.model.modelConfig.reasoningEffort.options.high')
-    }
-  ]
-})
-
-const currentEffortLabel = computed(() => {
-  const effort = localSettings.value?.reasoningEffort
-  if (!effort) {
-    return t('chat.advancedSettings.useDefault')
-  }
-  const option = effortOptions.value.find((item) => item.value === effort)
-  return option?.label ?? effort
-})
-
-const permissionModeLabel = computed(() =>
-  permissionMode.value === 'default'
-    ? t('chat.permissionMode.default')
-    : t('chat.permissionMode.fullAccess')
-)
-
-const handleDocumentMouseDown = (event: MouseEvent) => {
-  if (!isAdvancedOpen.value) {
-    return
-  }
-  const target = event.target as Node | null
-  if (!target) {
+    void nextTick(() => {
+      const input = document.querySelector<HTMLInputElement>('[data-model-search-input="true"]')
+      input?.focus()
+    })
     return
   }
 
-  if (target instanceof Element && target.closest('.advanced-settings-portal-content')) {
-    return
-  }
-
-  if (advancedOverlayRef.value?.contains(target)) {
-    return
-  }
-  const advancedButtonEl = resolveDomElement(advancedButtonRef.value)
-  if (advancedButtonEl?.contains(target)) {
-    return
-  }
-
-  closeAdvancedSettings()
-}
-
-const handleDocumentKeydown = (event: KeyboardEvent) => {
-  if (!isAdvancedOpen.value) {
-    return
-  }
-  if (event.key === 'Escape') {
-    closeAdvancedSettings()
-  }
-}
-
-onMounted(() => {
-  document.addEventListener('mousedown', handleDocumentMouseDown)
-  document.addEventListener('keydown', handleDocumentKeydown)
+  modelSearchKeyword.value = ''
+  isModelSettingsExpanded.value = false
 })
 
 onBeforeUnmount(() => {
-  document.removeEventListener('mousedown', handleDocumentMouseDown)
-  document.removeEventListener('keydown', handleDocumentKeydown)
   clearPendingGenerationPersist()
 })
 
-function toggleAdvancedSettings() {
-  if (!showAdvancedSettingsButton.value) {
+function isModelSelected(providerId: string, modelId: string) {
+  return (
+    effectiveModelSelection.value?.providerId === providerId &&
+    effectiveModelSelection.value?.modelId === modelId
+  )
+}
+
+async function changeModelSelection(providerId: string, modelId: string) {
+  if (isModelSelectionLocked.value) {
     return
   }
-  isAdvancedOpen.value = !isAdvancedOpen.value
-}
 
-function closeAdvancedSettings() {
-  isAdvancedOpen.value = false
-}
-
-async function selectModel(providerId: string, modelId: string) {
-  if (isModelSelectionLocked.value) {
+  if (
+    effectiveModelSelection.value?.providerId === providerId &&
+    effectiveModelSelection.value?.modelId === modelId
+  ) {
     return
   }
 
@@ -1214,25 +1390,34 @@ async function selectModel(providerId: string, modelId: string) {
     return
   }
 
-  if (!hasActiveSession.value) {
-    draftModelSelection.value = { providerId, modelId }
-    draftStore.providerId = providerId
-    draftStore.modelId = modelId
-    await configPresenter.setSetting('preferredModel', { providerId, modelId })
-  }
+  draftModelSelection.value = { providerId, modelId }
+  draftStore.providerId = providerId
+  draftStore.modelId = modelId
+  await configPresenter.setSetting('preferredModel', { providerId, modelId })
 }
 
-function selectEffort(value: 'minimal' | 'low' | 'medium' | 'high') {
-  if (!localSettings.value) {
-    return
-  }
+async function handleModelQuickSelect(providerId: string, modelId: string) {
+  modelSettingsSelection.value = { providerId, modelId }
+  isModelSettingsExpanded.value = false
+  isModelPanelOpen.value = false
+  await changeModelSelection(providerId, modelId)
+}
 
-  const providerId = effectiveModelSelection.value?.providerId
-  const normalized = normalizeReasoningEffort(providerId ?? '', value)
-  if (!normalized) {
+async function openModelSettings(providerId: string, modelId: string) {
+  modelSettingsSelection.value = { providerId, modelId }
+  isModelSettingsExpanded.value = true
+  await changeModelSelection(providerId, modelId)
+}
+
+function collapseModelSettings() {
+  isModelSettingsExpanded.value = false
+}
+
+function handleSessionPanelOpenChange(open: boolean) {
+  if (!open || !showSystemPromptSection.value) {
     return
   }
-  updateLocalGenerationSettings({ reasoningEffort: normalized })
+  void reloadSystemPrompts()
 }
 
 function onSystemPromptSelect(optionId: string) {
@@ -1332,6 +1517,20 @@ function onThinkingBudgetInput(value: string | number) {
   updateLocalGenerationSettings({ thinkingBudget: budget })
 }
 
+function onReasoningEffortSelect(value: string) {
+  if (!localSettings.value) {
+    return
+  }
+
+  const providerId = effectiveModelSelection.value?.providerId
+  const modelId = effectiveModelSelection.value?.modelId
+  const normalized = normalizeReasoningEffort(providerId ?? '', modelId, value)
+  if (!normalized) {
+    return
+  }
+  updateLocalGenerationSettings({ reasoningEffort: normalized })
+}
+
 function onVerbositySelect(value: string) {
   if (!localSettings.value || !isVerbosity(value)) {
     return
@@ -1355,4 +1554,16 @@ async function selectPermissionMode(mode: PermissionMode) {
     console.warn('[ChatStatusBar] Failed to set permission mode:', error)
   }
 }
+
+defineExpose({
+  localSettings,
+  permissionMode,
+  showSystemPromptSection,
+  showReasoningEffort,
+  onTemperatureSlider,
+  selectModel: changeModelSelection,
+  openModelSettings,
+  isModelSettingsExpanded,
+  modelSettingsSelection
+})
 </script>

@@ -189,6 +189,9 @@
     },
     "title": "arbejdsrum"
   },
+  "modelPicker": {
+    "empty": "Ingen modeller fundet"
+  },
   "audio": {
     "play": "Afspil",
     "pause": "Pause"

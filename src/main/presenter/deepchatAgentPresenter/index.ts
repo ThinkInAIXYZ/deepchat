@@ -1696,7 +1696,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       const rawEffort =
         modelConfig.reasoningEffort ??
         this.configPresenter.getReasoningEffortDefault?.(providerId, modelId)
-      const normalizedEffort = this.normalizeReasoningEffort(providerId, rawEffort)
+      const normalizedEffort = this.normalizeReasoningEffort(providerId, modelId, rawEffort)
       if (normalizedEffort) {
         defaults.reasoningEffort = normalizedEffort
       }
@@ -1806,8 +1806,8 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
         : next.reasoningEffort
       const defaultEffort = this.configPresenter.getReasoningEffortDefault?.(providerId, modelId)
       const normalizedEffort =
-        this.normalizeReasoningEffort(providerId, fromPatch) ??
-        this.normalizeReasoningEffort(providerId, defaultEffort)
+        this.normalizeReasoningEffort(providerId, modelId, fromPatch) ??
+        this.normalizeReasoningEffort(providerId, modelId, defaultEffort)
       if (normalizedEffort) {
         next.reasoningEffort = normalizedEffort
       } else {
@@ -1839,12 +1839,20 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
 
   private normalizeReasoningEffort(
     providerId: string,
+    modelId: string | undefined,
     value: unknown
   ): SessionGenerationSettings['reasoningEffort'] | undefined {
     if (!isReasoningEffort(value)) {
       return undefined
     }
-    if (providerId !== 'grok') {
+    const normalizedProviderId = providerId.toLowerCase()
+    const normalizedModelId = modelId?.toLowerCase() ?? ''
+    const usesBinaryReasoningEffort =
+      normalizedProviderId === 'grok' ||
+      normalizedProviderId === 'xai' ||
+      normalizedModelId.includes('grok-3-mini')
+
+    if (!usesBinaryReasoningEffort) {
       return value
     }
     if (value === 'low' || value === 'high') {

@@ -227,7 +227,7 @@
               </SelectTrigger>
               <SelectContent>
                 <!-- Grok models only support low and high -->
-                <template v-if="props.providerId === 'grok'">
+                <template v-if="usesBinaryReasoningEffort">
                   <SelectItem value="low">{{
                     t('settings.model.modelConfig.reasoningEffort.options.low')
                   }}</SelectItem>
@@ -790,6 +790,15 @@ const isDeepSeekV31Model = computed(() => {
 const isGeminiProvider = computed(() => props.providerId?.toLowerCase() === 'gemini')
 
 const supportsReasoningEffort = computed(() => capabilitySupportsEffort.value === true)
+const usesBinaryReasoningEffort = computed(() => {
+  const normalizedProviderId = props.providerId?.toLowerCase()
+  const normalizedModelId = props.modelId?.toLowerCase() ?? ''
+  return (
+    normalizedProviderId === 'grok' ||
+    normalizedProviderId === 'xai' ||
+    normalizedModelId.includes('grok-3-mini')
+  )
+})
 
 const showThinkingBudget = computed(() => {
   const hasReasoning = config.value.reasoning

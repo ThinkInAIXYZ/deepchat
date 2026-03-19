@@ -189,6 +189,9 @@
     },
     "title": "espace de travail"
   },
+  "modelPicker": {
+    "empty": "Aucun modèle trouvé"
+  },
   "audio": {
     "play": "Lire",
     "pause": "Pause"

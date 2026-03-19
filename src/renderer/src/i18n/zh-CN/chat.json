@@ -132,6 +132,9 @@
     "currentCustomPrompt": "当前自定义",
     "useDefault": "使用默认值"
   },
+  "modelPicker": {
+    "empty": "未找到模型"
+  },
   "audio": {
     "play": "播放",
     "pause": "暂停"

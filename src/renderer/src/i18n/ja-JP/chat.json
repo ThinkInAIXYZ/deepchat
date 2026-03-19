@@ -189,6 +189,9 @@
     },
     "title": "ワークスペース"
   },
+  "modelPicker": {
+    "empty": "モデルが見つかりません"
+  },
   "audio": {
     "play": "再生",
     "pause": "一時停止"

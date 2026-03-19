@@ -16,6 +16,25 @@ export type SearchDefaults = {
   strategy?: 'turbo' | 'max'
 }
 
+type ReasoningCapability = NonNullable<ProviderModel['reasoning']>
+
+const OPENAI_REASONING_EFFORT_MODEL_FAMILIES = ['o1', 'o3', 'o4-mini', 'gpt-5']
+const OPENAI_VERBOSITY_MODEL_FAMILIES = ['gpt-5']
+const GROK_REASONING_EFFORT_MODEL_FAMILIES = ['grok-3-mini']
+
+const normalizeCapabilityModelId = (modelId: string): string => {
+  const normalizedModelId = modelId.toLowerCase()
+  return normalizedModelId.includes('/')
+    ? normalizedModelId.slice(normalizedModelId.lastIndexOf('/') + 1)
+    : normalizedModelId
+}
+
+const matchesModelFamily = (modelId: string, families: string[]): boolean =>
+  families.some(
+    (family) =>
+      modelId === family || modelId.startsWith(`${family}-`) || modelId.startsWith(`${family}.`)
+  )
+
 export class ModelCapabilities {
   private index: Map<string, Map<string, ProviderModel>> = new Map()
 
@@ -89,14 +108,64 @@ export class ModelCapabilities {
     return resolved
   }
 
+  private getFallbackReasoning(
+    _providerId: string,
+    modelId: string
+  ): ReasoningCapability | undefined {
+    const normalizedModelId = normalizeCapabilityModelId(modelId)
+
+    if (matchesModelFamily(normalizedModelId, OPENAI_REASONING_EFFORT_MODEL_FAMILIES)) {
+      return {
+        supported: true,
+        default: true,
+        effort: 'medium',
+        ...(matchesModelFamily(normalizedModelId, OPENAI_VERBOSITY_MODEL_FAMILIES)
+          ? { verbosity: 'medium' as const }
+          : {})
+      }
+    }
+
+    if (matchesModelFamily(normalizedModelId, GROK_REASONING_EFFORT_MODEL_FAMILIES)) {
+      return {
+        supported: true,
+        default: true,
+        effort: 'low'
+      }
+    }
+
+    return undefined
+  }
+
+  private getReasoningCapability(
+    providerId: string,
+    modelId: string
+  ): ReasoningCapability | undefined {
+    const dbReasoning = this.getModel(providerId, modelId)?.reasoning
+    const fallbackReasoning = this.getFallbackReasoning(providerId, modelId)
+
+    if (!dbReasoning) {
+      return fallbackReasoning
+    }
+
+    if (!fallbackReasoning) {
+      return dbReasoning
+    }
+
+    return {
+      supported: dbReasoning.supported ?? fallbackReasoning.supported,
+      default: dbReasoning.default ?? fallbackReasoning.default,
+      budget: dbReasoning.budget ?? fallbackReasoning.budget,
+      effort: dbReasoning.effort ?? fallbackReasoning.effort,
+      verbosity: dbReasoning.verbosity ?? fallbackReasoning.verbosity
+    }
+  }
+
   supportsReasoning(providerId: string, modelId: string): boolean {
-    const m = this.getModel(providerId, modelId)
-    return m?.reasoning?.supported === true
+    return this.getReasoningCapability(providerId, modelId)?.supported === true
   }
 
   getThinkingBudgetRange(providerId: string, modelId: string): ThinkingBudgetRange {
-    const m = this.getModel(providerId, modelId)
-    const b = m?.reasoning?.budget
+    const b = this.getReasoningCapability(providerId, modelId)?.budget
     if (!b) return {}
     const out: ThinkingBudgetRange = {}
     if (typeof b.default === 'number') out.default = b.default
@@ -111,27 +180,25 @@ export class ModelCapabilities {
   }
 
   supportsReasoningEffort(providerId: string, modelId: string): boolean {
-    const m = this.getModel(providerId, modelId)
-    return typeof m?.reasoning?.effort === 'string'
+    const reasoning = this.getReasoningCapability(providerId, modelId)
+    return reasoning?.supported !== false && typeof reasoning?.effort === 'string'
   }
 
   supportsVerbosity(providerId: string, modelId: string): boolean {
-    const m = this.getModel(providerId, modelId)
-    return typeof m?.reasoning?.verbosity === 'string'
+    const reasoning = this.getReasoningCapability(providerId, modelId)
+    return reasoning?.supported !== false && typeof reasoning?.verbosity === 'string'
   }
 
   getReasoningEffortDefault(
     providerId: string,
     modelId: string
   ): 'minimal' | 'low' | 'medium' | 'high' | undefined {
-    const m = this.getModel(providerId, modelId)
-    const v = m?.reasoning?.effort
+    const v = this.getReasoningCapability(providerId, modelId)?.effort
     return v === 'minimal' || v === 'low' || v === 'medium' || v === 'high' ? v : undefined
   }
 
   getVerbosityDefault(providerId: string, modelId: string): 'low' | 'medium' | 'high' | undefined {
-    const m = this.getModel(providerId, modelId)
-    const v = m?.reasoning?.verbosity
+    const v = this.getReasoningCapability(providerId, modelId)?.verbosity
     return v === 'low' || v === 'medium' || v === 'high' ? v : undefined
   }
 

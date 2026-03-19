@@ -193,6 +193,9 @@
     },
     "title": "工作區"
   },
+  "modelPicker": {
+    "empty": "未找到模型"
+  },
   "audio": {
     "play": "播放",
     "pause": "暫停"
