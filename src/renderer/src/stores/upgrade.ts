@@ -50,6 +50,17 @@ const toUpdateInfo = (info: UpdateInfo | null | undefined): UpdateInfo | null =>
   }
 }
 
+const toProgressInfo = (progress: ProgressInfo | null | undefined): ProgressInfo | null => {
+  if (!progress) return null
+
+  return {
+    percent: progress.percent,
+    bytesPerSecond: progress.bytesPerSecond,
+    transferred: progress.transferred,
+    total: progress.total
+  }
+}
+
 export const useUpgradeStore = defineStore('upgrade', () => {
   const upgradeP = usePresenter('upgradePresenter')
   const devicePresenter = usePresenter('devicePresenter')
@@ -96,33 +107,44 @@ export const useUpgradeStore = defineStore('upgrade', () => {
     () => rawStatus.value === 'error' && Boolean(updateInfo.value)
   )
 
-  const applyProgress = (progress?: ProgressInfo | null) => {
-    updateProgress.value = progress
-      ? {
-          percent: progress.percent,
-          bytesPerSecond: progress.bytesPerSecond,
-          transferred: progress.transferred,
-          total: progress.total
-        }
-      : null
+  const applyProgress = (
+    progress?: ProgressInfo | null,
+    source: 'external' | 'sync' = 'external',
+    mutationToken = externalMutationToken
+  ) => {
+    if (source === 'external') {
+      externalMutationToken += 1
+    } else if (mutationToken !== externalMutationToken) {
+      return
+    }
+
+    updateProgress.value = toProgressInfo(progress)
   }
 
   const syncFromPresenterStatus = async (): Promise<PresenterUpdateStatus> => {
     const requestId = ++latestSyncRequestId
     const mutationTokenBeforeRequest = externalMutationToken
-    const snapshot = (await upgradeP.getUpdateStatus()) as PresenterStatusSnapshot | null
+    try {
+      const snapshot = (await upgradeP.getUpdateStatus()) as PresenterStatusSnapshot | null
 
-    if (!snapshot || snapshot.status == null) {
+      if (!snapshot || snapshot.status == null) {
+        return rawStatus.value
+      }
+
+      if (
+        requestId !== latestSyncRequestId ||
+        externalMutationToken !== mutationTokenBeforeRequest
+      ) {
+        return rawStatus.value
+      }
+
+      applyStatus(snapshot.status, snapshot.updateInfo, snapshot.error, 'sync')
+      applyProgress(snapshot.progress, 'sync', mutationTokenBeforeRequest)
+      return snapshot.status
+    } catch (error) {
+      console.error('Failed to sync update status:', error)
       return rawStatus.value
     }
-
-    if (requestId !== latestSyncRequestId || externalMutationToken !== mutationTokenBeforeRequest) {
-      return rawStatus.value
-    }
-
-    applyStatus(snapshot.status, snapshot.updateInfo, snapshot.error, 'sync')
-    applyProgress(snapshot.progress)
-    return snapshot.status
   }
 
   const applyStatus = (
@@ -252,17 +274,16 @@ export const useUpgradeStore = defineStore('upgrade', () => {
   }
 
   const handleProgress = (_: unknown, progressData: Record<string, any>) => {
-    if (!progressData) {
-      updateProgress.value = null
-      return
-    }
-
-    updateProgress.value = {
-      percent: progressData.percent || 0,
-      bytesPerSecond: progressData.bytesPerSecond || 0,
-      transferred: progressData.transferred || 0,
-      total: progressData.total || 0
-    }
+    applyProgress(
+      progressData
+        ? {
+            percent: progressData.percent || 0,
+            bytesPerSecond: progressData.bytesPerSecond || 0,
+            transferred: progressData.transferred || 0,
+            total: progressData.total || 0
+          }
+        : null
+    )
   }
 
   const handleWillRestart = () => {
@@ -290,7 +311,9 @@ export const useUpgradeStore = defineStore('upgrade', () => {
   }
 
   setupUpdateListener()
-  void syncFromPresenterStatus()
+  void syncFromPresenterStatus().catch((error) => {
+    console.error('Failed to sync update status:', error)
+  })
 
   return {
     hasUpdate,

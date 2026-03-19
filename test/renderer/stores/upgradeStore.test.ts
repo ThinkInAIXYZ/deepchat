@@ -168,6 +168,86 @@ describe('useUpgradeStore', () => {
     })
   })
 
+  it('does not let stale sync snapshots overwrite newer progress events', async () => {
+    const store = useUpgradeStore()
+    const statusHandler = statusChangedHandlers.get('update:status-changed')
+    const progressHandler = statusChangedHandlers.get('update:progress')
+    let resolveSnapshot:
+      | ((value: {
+          status: 'downloading'
+          progress: {
+            percent: number
+            bytesPerSecond: number
+            transferred: number
+            total: number
+          }
+          error: null
+          updateInfo: ReturnType<typeof createUpdateInfo>
+        }) => void)
+      | null = null
+
+    statusHandler?.({}, { status: 'downloading', info: createUpdateInfo() })
+    upgradePresenterMock.getUpdateStatus.mockReturnValueOnce(
+      new Promise<{
+        status: 'downloading'
+        progress: {
+          percent: number
+          bytesPerSecond: number
+          transferred: number
+          total: number
+        }
+        error: null
+        updateInfo: ReturnType<typeof createUpdateInfo>
+      }>((resolve) => {
+        resolveSnapshot = resolve
+      })
+    )
+
+    const refreshPromise = store.refreshStatus()
+
+    progressHandler?.({}, { percent: 75, bytesPerSecond: 2048, transferred: 750, total: 1000 })
+
+    resolveSnapshot?.({
+      status: 'downloading',
+      progress: {
+        percent: 42,
+        bytesPerSecond: 1024,
+        transferred: 420,
+        total: 1000
+      },
+      error: null,
+      updateInfo: createUpdateInfo()
+    })
+
+    const result = await refreshPromise
+
+    expect(result).toBe('downloading')
+    expect(store.updateState).toBe('downloading')
+    expect(store.updateProgress).toEqual({
+      percent: 75,
+      bytesPerSecond: 2048,
+      transferred: 750,
+      total: 1000
+    })
+  })
+
+  it('returns the current state when syncing presenter status fails', async () => {
+    const store = useUpgradeStore()
+    const statusHandler = statusChangedHandlers.get('update:status-changed')
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    statusHandler?.({}, { status: 'downloaded', info: createUpdateInfo() })
+    upgradePresenterMock.getUpdateStatus.mockRejectedValueOnce(new Error('sync failed'))
+
+    const result = await store.refreshStatus()
+
+    expect(result).toBe('downloaded')
+    expect(store.updateState).toBe('ready_to_install')
+    expect(consoleErrorSpy).toHaveBeenCalledWith('Failed to sync update status:', expect.any(Error))
+
+    consoleErrorSpy.mockRestore()
+  })
+
   it('keeps the current state when presenter status snapshot is empty', async () => {
     const store = useUpgradeStore()
     const handler = statusChangedHandlers.get('update:status-changed')
