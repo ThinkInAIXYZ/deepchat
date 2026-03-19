@@ -27,6 +27,16 @@
 - 创建新的功能分支，命名格式为 `feature/featurename`
 - 开发完成后将功能分支合并到 `dev` 分支
 
+#### 维护者发布流程
+
+- 保持 `dev` 为集成分支，`main` 为稳定镜像分支。
+- 从 `dev` 上已有的待发布提交切出短生命周期 `release/<version>` 分支。
+- 提交 `release/<version> -> main` PR 仅用于评审和 CI，请不要用 GitHub merge 按钮合并。
+- macOS 和 Linux 维护者可使用 `pnpm run release:ff -- release/<version> --tag v<version>` 落地发布。
+- Windows 维护者不要使用 `pnpm run release:ff`，请改走手动发布流程。
+- `main` fast-forward 完成后，再在同一提交上创建 release tag。
+- 完整流程、手动兜底方式与约束请见 [docs/release-flow.md](./docs/release-flow.md)。
+
 ### 外部贡献者
 
 1. Fork 本仓库到您的个人账号
@@ -170,6 +180,7 @@ pnpm run dev
 3. 本地确认 format + lint + typecheck + 相关测试，如未执行请在 PR 备注。
 4. 目标分支为 `dev`；外部贡献者请先 Fork，再向 `dev` 提 PR。
 5. 至少需一位维护者批准后合并。
+6. 指向 `main` 的 PR 仅保留给 `release/<version>` 分支做评审与 CI，实际发布请按 [docs/release-flow.md](./docs/release-flow.md) 中的 `ff-only` 流程执行。
 
 ## 有问题？
 

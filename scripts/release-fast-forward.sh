@@ -7,6 +7,7 @@ usage() {
 Usage: scripts/release-fast-forward.sh <target-ref> [--tag <tag>] [--remote <remote>]
 
 Fast-forward origin/main to a reviewed release branch or commit that already exists on origin/dev.
+Windows is not supported by this helper. Follow the manual release steps in CONTRIBUTING.md, CONTRIBUTING.zh.md, or docs/release-flow.md instead.
 
 Examples:
   scripts/release-fast-forward.sh release/v1.0.0-beta.4

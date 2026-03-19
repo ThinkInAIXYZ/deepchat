@@ -15,6 +15,7 @@ permissions:
   contents: write
 
 env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
   RTK_INSTALL_GITHUB_TOKEN: ${{ secrets.RTK_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
   RTK_INSTALL_GITHUB_TOKEN_SOURCE: ${{ secrets.RTK_GITHUB_TOKEN != '' && 'RTK_GITHUB_TOKEN' || 'GITHUB_TOKEN' }}
 
@@ -27,7 +28,7 @@ jobs:
     steps:
       - name: Resolve tag
         id: resolve
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const isDispatch = context.eventName === 'workflow_dispatch'
@@ -96,7 +97,7 @@ jobs:
     needs: resolve-tag
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: ${{ needs.resolve-tag.outputs.sha }}
           fetch-depth: 0
@@ -121,15 +122,16 @@ jobs:
           - arch: x64
             platform: win-x64
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: ${{ needs.resolve-tag.outputs.sha }}
           fetch-depth: 1
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '22.13.1'
+          package-manager-cache: false
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v2
@@ -174,7 +176,7 @@ jobs:
           VITE_PROVIDER_DB_URL: ${{ secrets.CDN_PROVIDER_DB_URL }}
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: deepchat-${{ matrix.platform }}
           path: |
@@ -192,15 +194,16 @@ jobs:
           - arch: x64
             platform: linux-x64
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: ${{ needs.resolve-tag.outputs.sha }}
           fetch-depth: 1
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '22.13.1'
+          package-manager-cache: false
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v2
@@ -231,7 +234,7 @@ jobs:
           VITE_PROVIDER_DB_URL: ${{ secrets.CDN_PROVIDER_DB_URL }}
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: deepchat-${{ matrix.platform }}
           path: |
@@ -250,15 +253,16 @@ jobs:
           - arch: arm64
             platform: mac-arm64
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: ${{ needs.resolve-tag.outputs.sha }}
           fetch-depth: 1
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '22.13.1'
+          package-manager-cache: false
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v2
@@ -306,7 +310,7 @@ jobs:
           VITE_PROVIDER_DB_URL: ${{ secrets.CDN_PROVIDER_DB_URL }}
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: deepchat-${{ matrix.platform }}
           path: |
@@ -322,7 +326,7 @@ jobs:
       - build-mac
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: ${{ needs.resolve-tag.outputs.sha }}
           fetch-depth: 1
@@ -369,7 +373,7 @@ jobs:
           fi
 
       - name: Download build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: artifacts
 
