@@ -38,6 +38,10 @@ describe('ModelCapabilities reasoning fallbacks', () => {
             { id: 'openai/gpt-5.4', reasoning: { supported: true, default: true } }
           ]
         },
+        '302ai': {
+          id: '302ai',
+          models: [{ id: 'gpt-5-thinking', reasoning: { supported: true, default: true } }]
+        },
         xai: {
           id: 'xai',
           models: [{ id: 'grok-3-mini-fast-beta', reasoning: { supported: true, default: true } }]
@@ -85,5 +89,15 @@ describe('ModelCapabilities reasoning fallbacks', () => {
 
     expect(capabilities.supportsReasoningEffort('xai', 'grok-3-mini-fast-beta')).toBe(true)
     expect(capabilities.getReasoningEffortDefault('xai', 'grok-3-mini-fast-beta')).toBe('low')
+  })
+
+  it('does not synthesize OpenAI-only defaults for non-OpenAI providers', () => {
+    const capabilities = new ModelCapabilities()
+
+    expect(capabilities.supportsReasoning('302ai', 'gpt-5-thinking')).toBe(true)
+    expect(capabilities.supportsReasoningEffort('302ai', 'gpt-5-thinking')).toBe(false)
+    expect(capabilities.getReasoningEffortDefault('302ai', 'gpt-5-thinking')).toBeUndefined()
+    expect(capabilities.supportsVerbosity('302ai', 'gpt-5-thinking')).toBe(false)
+    expect(capabilities.getVerbosityDefault('302ai', 'gpt-5-thinking')).toBeUndefined()
   })
 })

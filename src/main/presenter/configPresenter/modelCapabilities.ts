@@ -20,6 +20,7 @@ type ReasoningCapability = NonNullable<ProviderModel['reasoning']>
 
 const OPENAI_REASONING_EFFORT_MODEL_FAMILIES = ['o1', 'o3', 'o4-mini', 'gpt-5']
 const OPENAI_VERBOSITY_MODEL_FAMILIES = ['gpt-5']
+const OPENAI_REASONING_FALLBACK_PROVIDERS = new Set(['openai', 'azure'])
 const GROK_REASONING_EFFORT_MODEL_FAMILIES = ['grok-3-mini']
 
 const normalizeCapabilityModelId = (modelId: string): string => {
@@ -27,6 +28,10 @@ const normalizeCapabilityModelId = (modelId: string): string => {
   return normalizedModelId.includes('/')
     ? normalizedModelId.slice(normalizedModelId.lastIndexOf('/') + 1)
     : normalizedModelId
+}
+
+const normalizeCapabilityProviderId = (providerId: string): string => {
+  return resolveProviderIdAlias(providerId.toLowerCase())?.toLowerCase() ?? providerId.toLowerCase()
 }
 
 const matchesModelFamily = (modelId: string, families: string[]): boolean =>
@@ -109,12 +114,20 @@ export class ModelCapabilities {
   }
 
   private getFallbackReasoning(
-    _providerId: string,
+    providerId: string,
     modelId: string
   ): ReasoningCapability | undefined {
+    const normalizedProviderId = normalizeCapabilityProviderId(providerId)
+    const normalizedRawModelId = modelId.toLowerCase()
     const normalizedModelId = normalizeCapabilityModelId(modelId)
+    const allowsOpenAIFallback =
+      OPENAI_REASONING_FALLBACK_PROVIDERS.has(normalizedProviderId) ||
+      normalizedRawModelId.startsWith('openai/')
 
-    if (matchesModelFamily(normalizedModelId, OPENAI_REASONING_EFFORT_MODEL_FAMILIES)) {
+    if (
+      allowsOpenAIFallback &&
+      matchesModelFamily(normalizedModelId, OPENAI_REASONING_EFFORT_MODEL_FAMILIES)
+    ) {
       return {
         supported: true,
         default: true,

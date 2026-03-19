@@ -8,6 +8,9 @@ type SetupOptions = {
   activeProviderId?: string
   activeModelId?: string
   supportsEffort?: boolean
+  setSessionModelError?: Error
+  defaultModel?: { providerId: string; modelId: string } | null
+  preferredModel?: { providerId: string; modelId: string } | null
 }
 
 const passthrough = (name: string) =>
@@ -113,7 +116,9 @@ const setup = async (options: SetupOptions = {}) => {
           status: 'idle'
         }
       : null,
-    setSessionModel: vi.fn().mockResolvedValue(undefined)
+    setSessionModel: options.setSessionModelError
+      ? vi.fn().mockRejectedValue(options.setSessionModelError)
+      : vi.fn().mockResolvedValue(undefined)
   })
 
   const draftStore = reactive({
@@ -134,8 +139,11 @@ const setup = async (options: SetupOptions = {}) => {
 
   const configPresenter = {
     getSetting: vi.fn().mockImplementation((key: string) => {
+      if (key === 'preferredModel') {
+        return Promise.resolve(options.preferredModel)
+      }
       if (key === 'defaultModel') {
-        return Promise.resolve({ providerId: 'openai', modelId: 'gpt-4' })
+        return Promise.resolve(options.defaultModel ?? { providerId: 'openai', modelId: 'gpt-4' })
       }
       return Promise.resolve(undefined)
     }),
@@ -322,6 +330,19 @@ describe('ChatStatusBar model and session panels', () => {
     expect((wrapper.vm as any).localSettings.maxTokens).toBe(4096)
   })
 
+  it('prefers preferredModel over defaultModel for draft selection', async () => {
+    const { wrapper, draftStore } = await setup({
+      agentId: 'deepchat',
+      hasActiveSession: false,
+      defaultModel: { providerId: 'openai', modelId: 'gpt-4' },
+      preferredModel: { providerId: 'anthropic', modelId: 'claude-3-5-sonnet' }
+    })
+
+    expect(draftStore.providerId).toBe('anthropic')
+    expect(draftStore.modelId).toBe('claude-3-5-sonnet')
+    expect((wrapper.vm as any).displayModelName).toBe('Claude 3.5 Sonnet')
+  })
+
   it('debounces generation setting persistence to a single session update', async () => {
     vi.useFakeTimers()
 
@@ -401,6 +422,25 @@ describe('ChatStatusBar model and session panels', () => {
 
     expect(newAgentPresenter.getSessionGenerationSettings).toHaveBeenCalledWith('s1')
     expect((wrapper.vm as any).localSettings).toEqual(nextSettings)
+  })
+
+  it('clears model settings panel state when switching models is rejected', async () => {
+    const { wrapper } = await setup({
+      agentId: 'deepchat',
+      hasActiveSession: true,
+      activeProviderId: 'openai',
+      activeModelId: 'gpt-4',
+      setSessionModelError: new Error('Cannot switch model while session is generating.')
+    })
+
+    await (wrapper.vm as any).openModelSettings('anthropic', 'claude-3-5-sonnet')
+    await flushPromises()
+
+    expect((wrapper.vm as any).isModelSettingsExpanded).toBe(false)
+    expect((wrapper.vm as any).modelSettingsSelection).toEqual({
+      providerId: 'openai',
+      modelId: 'gpt-4'
+    })
   })
 
   it('updates draft model and preferred model when no active session', async () => {

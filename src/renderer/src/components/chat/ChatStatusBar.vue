@@ -64,27 +64,31 @@
                       </div>
 
                       <div class="space-y-1">
-                        <button
+                        <div
                           v-for="model in group.models"
                           :key="`${group.providerId}-${model.id}`"
-                          type="button"
-                          :class="[
-                            'flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs transition-colors hover:bg-muted/70',
-                            isModelSelected(group.providerId, model.id) ? 'bg-muted/80' : ''
-                          ]"
-                          @click="handleModelQuickSelect(group.providerId, model.id)"
+                          class="flex items-center gap-1"
                         >
-                          <ModelIcon
-                            :model-id="resolveModelIconId(group.providerId, model.id)"
-                            custom-class="w-3.5 h-3.5 shrink-0"
-                            :is-dark="themeStore.isDark"
-                          />
-                          <div class="min-w-0 flex-1">
-                            <div class="truncate font-medium">{{ model.name }}</div>
-                            <div class="truncate text-[11px] text-muted-foreground">
-                              {{ model.id }}
+                          <button
+                            type="button"
+                            :class="[
+                              'flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-2 text-left text-xs transition-colors hover:bg-muted/70',
+                              isModelSelected(group.providerId, model.id) ? 'bg-muted/80' : ''
+                            ]"
+                            @click="handleModelQuickSelect(group.providerId, model.id)"
+                          >
+                            <ModelIcon
+                              :model-id="resolveModelIconId(group.providerId, model.id)"
+                              custom-class="w-3.5 h-3.5 shrink-0"
+                              :is-dark="themeStore.isDark"
+                            />
+                            <div class="min-w-0 flex-1">
+                              <div class="truncate font-medium">{{ model.name }}</div>
+                              <div class="truncate text-[11px] text-muted-foreground">
+                                {{ model.id }}
+                              </div>
                             </div>
-                          </div>
+                          </button>
                           <Button
                             type="button"
                             variant="ghost"
@@ -96,7 +100,7 @@
                           >
                             <Icon icon="lucide:settings-2" class="h-3.5 w-3.5" />
                           </Button>
-                        </button>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -966,22 +970,22 @@ const syncDraftModelSelection = async () => {
   }
 
   try {
-    const defaultModel = (await configPresenter.getSetting('defaultModel')) as unknown
-    if (token !== draftModelSyncToken) return
-    if (isModelSelection(defaultModel)) {
-      const resolvedDefault = findEnabledModel(defaultModel.providerId, defaultModel.modelId)
-      if (resolvedDefault) {
-        applyDraftSelection(resolvedDefault)
-        return
-      }
-    }
-
     const preferredModel = (await configPresenter.getSetting('preferredModel')) as unknown
     if (token !== draftModelSyncToken) return
     if (isModelSelection(preferredModel)) {
       const resolvedPreferred = findEnabledModel(preferredModel.providerId, preferredModel.modelId)
       if (resolvedPreferred) {
         applyDraftSelection(resolvedPreferred)
+        return
+      }
+    }
+
+    const defaultModel = (await configPresenter.getSetting('defaultModel')) as unknown
+    if (token !== draftModelSyncToken) return
+    if (isModelSelection(defaultModel)) {
+      const resolvedDefault = findEnabledModel(defaultModel.providerId, defaultModel.modelId)
+      if (resolvedDefault) {
+        applyDraftSelection(resolvedDefault)
         return
       }
     }
@@ -1335,13 +1339,15 @@ watch(
   { immediate: true }
 )
 
+function getEffectiveModelSelectionSnapshot(): ModelSelection | null {
+  return effectiveModelSelection.value ? { ...effectiveModelSelection.value } : null
+}
+
 watch(isModelPanelOpen, (open) => {
   if (open) {
     modelSearchKeyword.value = ''
     isModelSettingsExpanded.value = false
-    modelSettingsSelection.value = effectiveModelSelection.value
-      ? { ...effectiveModelSelection.value }
-      : null
+    modelSettingsSelection.value = getEffectiveModelSelectionSnapshot()
 
     void nextTick(() => {
       const input = document.querySelector<HTMLInputElement>('[data-model-search-input="true"]')
@@ -1352,6 +1358,7 @@ watch(isModelPanelOpen, (open) => {
 
   modelSearchKeyword.value = ''
   isModelSettingsExpanded.value = false
+  modelSettingsSelection.value = getEffectiveModelSelectionSnapshot()
 })
 
 onBeforeUnmount(() => {
@@ -1365,48 +1372,72 @@ function isModelSelected(providerId: string, modelId: string) {
   )
 }
 
-async function changeModelSelection(providerId: string, modelId: string) {
+async function changeModelSelection(providerId: string, modelId: string): Promise<boolean> {
   if (isModelSelectionLocked.value) {
-    return
+    return false
   }
 
   if (
     effectiveModelSelection.value?.providerId === providerId &&
     effectiveModelSelection.value?.modelId === modelId
   ) {
-    return
+    return true
   }
 
   if (hasActiveSession.value) {
     const sessionId = sessionStore.activeSessionId
     if (!sessionId) {
-      return
+      return false
     }
     try {
       await sessionStore.setSessionModel(sessionId, providerId, modelId)
+      return true
     } catch (error) {
       console.warn('[ChatStatusBar] Failed to switch active session model:', error)
+      return false
     }
-    return
   }
 
-  draftModelSelection.value = { providerId, modelId }
-  draftStore.providerId = providerId
-  draftStore.modelId = modelId
-  await configPresenter.setSetting('preferredModel', { providerId, modelId })
+  const previousDraftSelection = draftModelSelection.value ? { ...draftModelSelection.value } : null
+  const previousDraftProviderId = draftStore.providerId
+  const previousDraftModelId = draftStore.modelId
+
+  try {
+    draftModelSelection.value = { providerId, modelId }
+    draftStore.providerId = providerId
+    draftStore.modelId = modelId
+    await configPresenter.setSetting('preferredModel', { providerId, modelId })
+    return true
+  } catch (error) {
+    draftModelSelection.value = previousDraftSelection
+    draftStore.providerId = previousDraftProviderId
+    draftStore.modelId = previousDraftModelId
+    console.warn('[ChatStatusBar] Failed to switch draft model:', error)
+    return false
+  }
 }
 
 async function handleModelQuickSelect(providerId: string, modelId: string) {
+  const changed = await changeModelSelection(providerId, modelId)
+  if (!changed) {
+    return
+  }
+
   modelSettingsSelection.value = { providerId, modelId }
   isModelSettingsExpanded.value = false
   isModelPanelOpen.value = false
-  await changeModelSelection(providerId, modelId)
 }
 
 async function openModelSettings(providerId: string, modelId: string) {
+  const changed = await changeModelSelection(providerId, modelId)
+  if (!changed) {
+    modelSettingsSelection.value = getEffectiveModelSelectionSnapshot()
+    isModelSettingsExpanded.value = false
+    return
+  }
+
   modelSettingsSelection.value = { providerId, modelId }
   isModelSettingsExpanded.value = true
-  await changeModelSelection(providerId, modelId)
 }
 
 function collapseModelSettings() {
