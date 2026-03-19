@@ -440,6 +440,7 @@ const TEMPERATURE_MIN = 0
 const TEMPERATURE_MAX = 2
 const CONTEXT_LENGTH_MIN = 2048
 const MAX_TOKENS_MIN = 128
+const BINARY_REASONING_EFFORT_MODEL_FAMILIES = ['grok-3-mini']
 
 const themeStore = useThemeStore()
 const modelStore = useModelStore()
@@ -454,6 +455,7 @@ const { t } = useI18n()
 const draftModelSelection = ref<ModelSelection | null>(null)
 const permissionMode = ref<PermissionMode>('full_access')
 const localSettings = ref<SessionGenerationSettings | null>(null)
+const loadedSettingsSelection = ref<ModelSelection | null>(null)
 const systemPromptList = ref<SystemPrompt[]>([])
 const isModelPanelOpen = ref(false)
 const isModelSettingsExpanded = ref(false)
@@ -653,28 +655,33 @@ const findEnabledModelMeta = (providerId: string, modelId: string): RENDERER_MOD
   return group?.models.find((model) => model.id === modelId) ?? null
 }
 
-const usesBinaryReasoningEffort = (
-  providerId?: string | null,
-  modelId?: string | null
-): boolean => {
-  const normalizedProviderId = providerId?.toLowerCase()
+const normalizeReasoningModelId = (modelId?: string | null): string => {
   const normalizedModelId = modelId?.toLowerCase() ?? ''
-  return (
-    normalizedProviderId === 'grok' ||
-    normalizedProviderId === 'xai' ||
-    normalizedModelId.includes('grok-3-mini')
-  )
+  return normalizedModelId.includes('/')
+    ? normalizedModelId.slice(normalizedModelId.lastIndexOf('/') + 1)
+    : normalizedModelId
 }
 
+const matchesReasoningModelFamily = (modelId: string, families: string[]): boolean =>
+  families.some(
+    (family) =>
+      modelId === family || modelId.startsWith(`${family}-`) || modelId.startsWith(`${family}.`)
+  )
+
+const usesBinaryReasoningEffort = (modelId?: string | null): boolean =>
+  matchesReasoningModelFamily(
+    normalizeReasoningModelId(modelId),
+    BINARY_REASONING_EFFORT_MODEL_FAMILIES
+  )
+
 const normalizeReasoningEffort = (
-  providerId: string,
   modelId: string | undefined,
   value: unknown
 ): SessionGenerationSettings['reasoningEffort'] | undefined => {
   if (!isReasoningEffort(value)) {
     return undefined
   }
-  if (!usesBinaryReasoningEffort(providerId, modelId)) {
+  if (!usesBinaryReasoningEffort(modelId)) {
     return value
   }
   if (value === 'low' || value === 'high') {
@@ -797,7 +804,7 @@ const showReasoningEffort = computed(
 
 const effortOptions = computed(() => {
   const selection = effectiveModelSelection.value
-  if (usesBinaryReasoningEffort(selection?.providerId, selection?.modelId)) {
+  if (usesBinaryReasoningEffort(selection?.modelId)) {
     return [
       {
         value: 'low' as const,
@@ -906,12 +913,15 @@ const isModelSettingsReady = computed(() => {
   }
   const target = modelSettingsTarget.value
   const effective = effectiveModelSelection.value
+  const loadedSelection = loadedSettingsSelection.value
   if (!target || !effective) {
     return false
   }
   return (
     target.providerId === effective.providerId &&
     target.modelId === effective.modelId &&
+    loadedSelection?.providerId === effective.providerId &&
+    loadedSelection?.modelId === effective.modelId &&
     Boolean(localSettings.value)
   )
 })
@@ -1046,7 +1056,6 @@ const resolveDefaultGenerationSettings = async (
     configPresenter.supportsReasoningEffortCapability?.(providerId, modelId) === true
   if (supportsEffort) {
     const effort = normalizeReasoningEffort(
-      providerId,
       modelId,
       modelConfig.reasoningEffort ??
         configPresenter.getReasoningEffortDefault?.(providerId, modelId)
@@ -1070,7 +1079,6 @@ const resolveDefaultGenerationSettings = async (
 }
 
 const mergeDraftOverrides = (
-  providerId: string,
   modelId: string,
   defaults: SessionGenerationSettings
 ): SessionGenerationSettings => {
@@ -1085,7 +1093,7 @@ const mergeDraftOverrides = (
       : {}),
     ...(draftStore.reasoningEffort !== undefined
       ? {
-          reasoningEffort: normalizeReasoningEffort(providerId, modelId, draftStore.reasoningEffort)
+          reasoningEffort: normalizeReasoningEffort(modelId, draftStore.reasoningEffort)
         }
       : {}),
     ...(draftStore.verbosity !== undefined ? { verbosity: draftStore.verbosity } : {})
@@ -1230,9 +1238,11 @@ const updateLocalGenerationSettings = (patch: Partial<SessionGenerationSettings>
 const syncGenerationSettings = async () => {
   const token = ++generationSyncToken
   clearPendingGenerationPersist()
+  loadedSettingsSelection.value = null
 
   if (isAcpAgent.value) {
     localSettings.value = null
+    loadedSettingsSelection.value = null
     capabilitySupportsReasoning.value = null
     capabilityBudgetRange.value = null
     capabilitySupportsEffort.value = null
@@ -1243,6 +1253,7 @@ const syncGenerationSettings = async () => {
   const selection = effectiveModelSelection.value
   if (!selection) {
     localSettings.value = null
+    loadedSettingsSelection.value = null
     return
   }
 
@@ -1260,11 +1271,17 @@ const syncGenerationSettings = async () => {
       }
       if (settings) {
         localSettings.value = { ...settings }
+        loadedSettingsSelection.value = { ...selection }
       } else {
-        localSettings.value = await resolveDefaultGenerationSettings(
+        const defaults = await resolveDefaultGenerationSettings(
           selection.providerId,
           selection.modelId
         )
+        if (token !== generationSyncToken) {
+          return
+        }
+        localSettings.value = defaults
+        loadedSettingsSelection.value = { ...selection }
       }
       return
     } catch (error) {
@@ -1276,7 +1293,8 @@ const syncGenerationSettings = async () => {
   if (token !== generationSyncToken) {
     return
   }
-  localSettings.value = mergeDraftOverrides(selection.providerId, selection.modelId, defaults)
+  localSettings.value = mergeDraftOverrides(selection.modelId, defaults)
+  loadedSettingsSelection.value = { ...selection }
 }
 
 const reloadSystemPrompts = async () => {
@@ -1553,9 +1571,8 @@ function onReasoningEffortSelect(value: string) {
     return
   }
 
-  const providerId = effectiveModelSelection.value?.providerId
   const modelId = effectiveModelSelection.value?.modelId
-  const normalized = normalizeReasoningEffort(providerId ?? '', modelId, value)
+  const normalized = normalizeReasoningEffort(modelId, value)
   if (!normalized) {
     return
   }

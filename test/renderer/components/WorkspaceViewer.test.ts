@@ -1,13 +1,31 @@
-import { defineComponent } from 'vue'
 import { mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
+import { defineComponent } from 'vue'
 
 describe('WorkspaceViewer', () => {
-  const setup = async () => {
+  const setup = async (options?: {
+    sessionState?: {
+      selectedArtifactContext: {
+        threadId: string
+        messageId: string
+        artifactId: string
+      } | null
+      selectedFilePath: string | null
+      selectedDiffPath: string | null
+      viewMode: 'preview' | 'code'
+      sections: {
+        files: boolean
+        git: boolean
+        artifacts: boolean
+      }
+    }
+    props?: Record<string, unknown>
+  }) => {
     vi.resetModules()
 
-    const sidepanelStore = {
-      getSessionState: vi.fn(() => ({
+    const sessionState =
+      options?.sessionState ??
+      ({
         selectedArtifactContext: {
           threadId: 'thread-1',
           messageId: 'message-1',
@@ -21,9 +39,14 @@ describe('WorkspaceViewer', () => {
           git: false,
           artifacts: true
         }
-      })),
+      } as const)
+
+    const sidepanelStore = {
+      getSessionState: vi.fn(() => sessionState),
       setViewMode: vi.fn()
     }
+
+    const openFileMock = vi.fn().mockResolvedValue(undefined)
 
     vi.doMock('vue-i18n', () => ({
       useI18n: () => ({
@@ -37,48 +60,40 @@ describe('WorkspaceViewer', () => {
 
     vi.doMock('@/composables/usePresenter', () => ({
       usePresenter: () => ({
-        openFile: vi.fn().mockResolvedValue(undefined)
+        openFile: openFileMock
       })
     }))
 
-    vi.doMock('@/composables/useArtifactCodeEditor', () => ({
-      useArtifactCodeEditor: vi.fn()
+    vi.doMock('@/components/sidepanel/viewer/WorkspaceCodePane.vue', () => ({
+      default: defineComponent({
+        name: 'WorkspaceCodePane',
+        props: {
+          source: {
+            type: Object,
+            required: true
+          }
+        },
+        template: '<div data-testid="code-pane">{{ source.type }}</div>'
+      })
     }))
 
-    vi.doMock('@/components/artifacts/CodeArtifact.vue', () => ({
+    vi.doMock('@/components/sidepanel/viewer/WorkspacePreviewPane.vue', () => ({
       default: defineComponent({
-        name: 'CodeArtifact',
-        template: '<div />'
+        name: 'WorkspacePreviewPane',
+        props: {
+          previewKind: {
+            type: String,
+            required: true
+          }
+        },
+        template: '<div data-testid="preview-pane">{{ previewKind }}</div>'
       })
     }))
-    vi.doMock('@/components/artifacts/MarkdownArtifact.vue', () => ({
+
+    vi.doMock('@/components/sidepanel/viewer/WorkspaceInfoPane.vue', () => ({
       default: defineComponent({
-        name: 'MarkdownArtifact',
-        template: '<div />'
-      })
-    }))
-    vi.doMock('@/components/artifacts/HTMLArtifact.vue', () => ({
-      default: defineComponent({
-        name: 'HTMLArtifact',
-        template: '<div />'
-      })
-    }))
-    vi.doMock('@/components/artifacts/SvgArtifact.vue', () => ({
-      default: defineComponent({
-        name: 'SvgArtifact',
-        template: '<div />'
-      })
-    }))
-    vi.doMock('@/components/artifacts/MermaidArtifact.vue', () => ({
-      default: defineComponent({
-        name: 'MermaidArtifact',
-        template: '<div />'
-      })
-    }))
-    vi.doMock('@/components/artifacts/ReactArtifact.vue', () => ({
-      default: defineComponent({
-        name: 'ReactArtifact',
-        template: '<div />'
+        name: 'WorkspaceInfoPane',
+        template: '<div data-testid="info-pane">info</div>'
       })
     }))
 
@@ -96,7 +111,8 @@ describe('WorkspaceViewer', () => {
         filePreview: null,
         gitDiff: null,
         loadingFilePreview: false,
-        loadingGitDiff: false
+        loadingGitDiff: false,
+        ...options?.props
       },
       global: {
         stubs: {
@@ -109,13 +125,218 @@ describe('WorkspaceViewer', () => {
       }
     })
 
-    return { wrapper }
+    return { wrapper, sidepanelStore, openFileMock }
   }
 
-  it('shows raw artifact content when no preview component is available', async () => {
+  it('shows raw artifact preview through preview pane fallback', async () => {
     const { wrapper } = await setup()
 
-    expect(wrapper.find('pre').exists()).toBe(true)
-    expect(wrapper.find('pre').text()).toContain('fallback content')
+    expect(wrapper.get('[data-testid="preview-pane"]').text()).toContain('raw')
+    expect(wrapper.text()).toContain('artifacts.preview')
+    expect(wrapper.text()).toContain('artifacts.code')
+  })
+
+  it('renders code pane only for text files', async () => {
+    const { wrapper } = await setup({
+      sessionState: {
+        selectedArtifactContext: null,
+        selectedFilePath: 'C:/repo/src/app.ts',
+        selectedDiffPath: null,
+        viewMode: 'preview',
+        sections: {
+          files: true,
+          git: false,
+          artifacts: true
+        }
+      },
+      props: {
+        artifact: null,
+        filePreview: {
+          path: 'C:/repo/src/app.ts',
+          relativePath: 'src/app.ts',
+          name: 'app.ts',
+          mimeType: 'application/typescript',
+          kind: 'text',
+          content: 'export const app = 1',
+          language: 'ts',
+          metadata: {
+            fileName: 'app.ts',
+            fileSize: 18,
+            fileCreated: new Date('2024-01-01T00:00:00Z'),
+            fileModified: new Date('2024-01-02T00:00:00Z')
+          }
+        }
+      }
+    })
+
+    expect(wrapper.find('[data-testid="code-pane"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="preview-pane"]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('artifacts.preview')
+    expect(wrapper.text()).not.toContain('artifacts.code')
+  })
+
+  it('shows preview and code tabs for markdown files', async () => {
+    const { wrapper, sidepanelStore } = await setup({
+      sessionState: {
+        selectedArtifactContext: null,
+        selectedFilePath: 'C:/repo/README.md',
+        selectedDiffPath: null,
+        viewMode: 'preview',
+        sections: {
+          files: true,
+          git: false,
+          artifacts: true
+        }
+      },
+      props: {
+        artifact: null,
+        filePreview: {
+          path: 'C:/repo/README.md',
+          relativePath: 'README.md',
+          name: 'README.md',
+          mimeType: 'text/markdown',
+          kind: 'markdown',
+          content: '# Hello',
+          language: 'markdown',
+          metadata: {
+            fileName: 'README.md',
+            fileSize: 7,
+            fileCreated: new Date('2024-01-01T00:00:00Z'),
+            fileModified: new Date('2024-01-02T00:00:00Z')
+          }
+        }
+      }
+    })
+
+    expect(wrapper.get('[data-testid="preview-pane"]').text()).toContain('markdown')
+
+    const codeButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('artifacts.code'))
+    expect(codeButton).toBeTruthy()
+
+    await codeButton!.trigger('click')
+    expect(sidepanelStore.setViewMode).toHaveBeenCalledWith('thread-1', 'code')
+  })
+
+  it('shows preview only for pdf files', async () => {
+    const { wrapper } = await setup({
+      sessionState: {
+        selectedArtifactContext: null,
+        selectedFilePath: 'C:/repo/manual.pdf',
+        selectedDiffPath: null,
+        viewMode: 'preview',
+        sections: {
+          files: true,
+          git: false,
+          artifacts: true
+        }
+      },
+      props: {
+        artifact: null,
+        filePreview: {
+          path: 'C:/repo/manual.pdf',
+          relativePath: 'manual.pdf',
+          name: 'manual.pdf',
+          mimeType: 'application/pdf',
+          kind: 'pdf',
+          content: 'page one',
+          previewUrl: 'workspace-preview://root-id/manual.pdf',
+          metadata: {
+            fileName: 'manual.pdf',
+            fileSize: 1024,
+            fileCreated: new Date('2024-01-01T00:00:00Z'),
+            fileModified: new Date('2024-01-02T00:00:00Z')
+          }
+        }
+      }
+    })
+
+    expect(wrapper.get('[data-testid="preview-pane"]').text()).toContain('pdf')
+    expect(wrapper.find('[data-testid="code-pane"]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('artifacts.preview')
+    expect(wrapper.text()).not.toContain('artifacts.code')
+  })
+
+  it('shows preview and code tabs for svg files', async () => {
+    const { wrapper, sidepanelStore } = await setup({
+      sessionState: {
+        selectedArtifactContext: null,
+        selectedFilePath: 'C:/repo/diagram.svg',
+        selectedDiffPath: null,
+        viewMode: 'preview',
+        sections: {
+          files: true,
+          git: false,
+          artifacts: true
+        }
+      },
+      props: {
+        artifact: null,
+        filePreview: {
+          path: 'C:/repo/diagram.svg',
+          relativePath: 'diagram.svg',
+          name: 'diagram.svg',
+          mimeType: 'image/svg+xml',
+          kind: 'svg',
+          content: '<svg></svg>',
+          previewUrl: 'workspace-preview://root-id/diagram.svg',
+          language: 'svg',
+          metadata: {
+            fileName: 'diagram.svg',
+            fileSize: 256,
+            fileCreated: new Date('2024-01-01T00:00:00Z'),
+            fileModified: new Date('2024-01-02T00:00:00Z')
+          }
+        }
+      }
+    })
+
+    expect(wrapper.get('[data-testid="preview-pane"]').text()).toContain('svg')
+
+    const codeButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('artifacts.code'))
+    expect(codeButton).toBeTruthy()
+
+    await codeButton!.trigger('click')
+    expect(sidepanelStore.setViewMode).toHaveBeenCalledWith('thread-1', 'code')
+  })
+
+  it('shows info pane for unsupported files', async () => {
+    const { wrapper } = await setup({
+      sessionState: {
+        selectedArtifactContext: null,
+        selectedFilePath: 'C:/repo/archive.zip',
+        selectedDiffPath: null,
+        viewMode: 'preview',
+        sections: {
+          files: true,
+          git: false,
+          artifacts: true
+        }
+      },
+      props: {
+        artifact: null,
+        filePreview: {
+          path: 'C:/repo/archive.zip',
+          relativePath: 'archive.zip',
+          name: 'archive.zip',
+          mimeType: 'application/zip',
+          kind: 'binary',
+          content: '',
+          metadata: {
+            fileName: 'archive.zip',
+            fileSize: 4096,
+            fileCreated: new Date('2024-01-01T00:00:00Z'),
+            fileModified: new Date('2024-01-02T00:00:00Z')
+          }
+        }
+      }
+    })
+
+    expect(wrapper.find('[data-testid="info-pane"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="preview-pane"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="code-pane"]').exists()).toBe(false)
   })
 })

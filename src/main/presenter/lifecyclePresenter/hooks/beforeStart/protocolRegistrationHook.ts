@@ -1,6 +1,6 @@
 /**
  * Protocol registration hook for init phase
- * Registers deepcdn and imgcache protocols
+ * Registers deepcdn, imgcache, and workspace preview protocols
  */
 
 import { protocol, app } from 'electron'
@@ -9,6 +9,58 @@ import path from 'path'
 import fs from 'fs'
 import { is } from '@electron-toolkit/utils'
 import { LifecyclePhase } from '@shared/lifecycle'
+import {
+  resolveWorkspacePreviewRequest,
+  WORKSPACE_PREVIEW_PROTOCOL
+} from '@/presenter/workspacePresenter/workspacePreviewProtocol'
+
+const getMimeTypeForPath = (filePath: string): string => {
+  const extension = path.extname(filePath).toLowerCase()
+
+  switch (extension) {
+    case '.html':
+    case '.htm':
+    case '.xhtml':
+      return 'text/html'
+    case '.css':
+      return 'text/css'
+    case '.js':
+    case '.mjs':
+      return 'text/javascript'
+    case '.json':
+    case '.map':
+      return 'application/json'
+    case '.pdf':
+      return 'application/pdf'
+    case '.svg':
+      return 'image/svg+xml'
+    case '.png':
+      return 'image/png'
+    case '.gif':
+      return 'image/gif'
+    case '.webp':
+      return 'image/webp'
+    case '.jpg':
+    case '.jpeg':
+      return 'image/jpeg'
+    case '.bmp':
+      return 'image/bmp'
+    case '.ico':
+      return 'image/x-icon'
+    case '.avif':
+      return 'image/avif'
+    case '.woff':
+      return 'font/woff'
+    case '.woff2':
+      return 'font/woff2'
+    case '.ttf':
+      return 'font/ttf'
+    case '.otf':
+      return 'font/otf'
+    default:
+      return 'application/octet-stream'
+  }
+}
 
 export const protocolRegistrationHook: LifecycleHook = {
   name: 'protocol-registration',
@@ -120,6 +172,47 @@ export const protocolRegistrationHook: LifecycleHook = {
         })
       } catch (error: unknown) {
         console.error('protocolRegistrationHook: Error handling imgcache request:', error)
+        const errorMessage = error instanceof Error ? error.message : String(error)
+        return new Response(`Server error: ${errorMessage}`, {
+          status: 500,
+          headers: { 'Content-Type': 'text/plain' }
+        })
+      }
+    })
+
+    protocol.handle(WORKSPACE_PREVIEW_PROTOCOL, (request) => {
+      try {
+        const fullPath = resolveWorkspacePreviewRequest(request.url)
+        if (!fullPath) {
+          return new Response('Forbidden', {
+            status: 403,
+            headers: { 'Content-Type': 'text/plain' }
+          })
+        }
+
+        if (!fs.existsSync(fullPath) || fs.statSync(fullPath).isDirectory()) {
+          console.warn(
+            `protocolRegistrationHook: ${WORKSPACE_PREVIEW_PROTOCOL} handler: File not found: ${fullPath}`
+          )
+          return new Response(`File not found: ${fullPath}`, {
+            status: 404,
+            headers: { 'Content-Type': 'text/plain' }
+          })
+        }
+
+        const fileContent = fs.readFileSync(fullPath)
+        return new Response(fileContent, {
+          headers: {
+            'Cache-Control': 'no-store',
+            'Content-Type': getMimeTypeForPath(fullPath),
+            'X-Content-Type-Options': 'nosniff'
+          }
+        })
+      } catch (error: unknown) {
+        console.error(
+          `protocolRegistrationHook: Error handling ${WORKSPACE_PREVIEW_PROTOCOL} request:`,
+          error
+        )
         const errorMessage = error instanceof Error ? error.message : String(error)
         return new Response(`Server error: ${errorMessage}`, {
           status: 500,

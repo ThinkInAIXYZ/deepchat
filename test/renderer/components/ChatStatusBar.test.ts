@@ -2,6 +2,23 @@ import { describe, expect, it, vi } from 'vitest'
 import { defineComponent, reactive } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 
+type ReasoningEffort = 'minimal' | 'low' | 'medium' | 'high'
+type TestGenerationSettings = {
+  systemPrompt: string
+  temperature: number
+  contextLength: number
+  maxTokens: number
+  thinkingBudget: number
+  reasoningEffort: ReasoningEffort
+  verbosity: 'low' | 'medium' | 'high'
+}
+
+type ExtraModelGroup = {
+  providerId: string
+  providerName: string
+  models: Array<{ id: string; name: string }>
+}
+
 type SetupOptions = {
   agentId?: string
   hasActiveSession?: boolean
@@ -11,6 +28,19 @@ type SetupOptions = {
   setSessionModelError?: Error
   defaultModel?: { providerId: string; modelId: string } | null
   preferredModel?: { providerId: string; modelId: string } | null
+  extraModelGroups?: ExtraModelGroup[]
+  reasoningEffortDefault?: ReasoningEffort
+  sessionSettings?: Partial<TestGenerationSettings>
+}
+
+const createDeferred = <T>() => {
+  let resolve!: (value: T) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res
+    reject = rej
+  })
+  return { promise, resolve, reject }
 }
 
 const passthrough = (name: string) =>
@@ -50,35 +80,43 @@ const InputStub = defineComponent({
 const setup = async (options: SetupOptions = {}) => {
   vi.resetModules()
 
+  const extraModelGroups = options.extraModelGroups ?? []
+  const reasoningEffortDefault = options.reasoningEffortDefault ?? 'medium'
+  const baseModelGroups = [
+    {
+      providerId: 'openai',
+      models: [{ id: 'gpt-4', name: 'GPT-4' }]
+    },
+    {
+      providerId: 'anthropic',
+      models: [{ id: 'claude-3-5-sonnet', name: 'Claude 3.5 Sonnet' }]
+    },
+    {
+      providerId: 'acp',
+      models: [
+        { id: 'acp-agent', name: 'ACP Agent' },
+        { id: 'dimcode-acp', name: 'DimCode - Default' }
+      ]
+    }
+  ]
   const modelLookup = new Map([
     ['gpt-4', { model: { id: 'gpt-4', name: 'GPT-4' } }],
     ['claude-3-5-sonnet', { model: { id: 'claude-3-5-sonnet', name: 'Claude 3.5 Sonnet' } }],
     ['acp-agent', { model: { id: 'acp-agent', name: 'ACP Agent' } }],
     ['dimcode-acp', { model: { id: 'dimcode-acp', name: 'DimCode - Default' } }]
   ])
+  extraModelGroups.forEach((group) => {
+    group.models.forEach((model) => {
+      modelLookup.set(model.id, { model })
+    })
+  })
 
   const themeStore = reactive({
     isDark: false
   })
 
   const modelStore = reactive({
-    enabledModels: [
-      {
-        providerId: 'openai',
-        models: [{ id: 'gpt-4', name: 'GPT-4' }]
-      },
-      {
-        providerId: 'anthropic',
-        models: [{ id: 'claude-3-5-sonnet', name: 'Claude 3.5 Sonnet' }]
-      },
-      {
-        providerId: 'acp',
-        models: [
-          { id: 'acp-agent', name: 'ACP Agent' },
-          { id: 'dimcode-acp', name: 'DimCode - Default' }
-        ]
-      }
-    ],
+    enabledModels: [...baseModelGroups, ...extraModelGroups],
     findModelByIdOrName: vi.fn((value: string) => modelLookup.get(value) ?? null)
   })
 
@@ -87,7 +125,13 @@ const setup = async (options: SetupOptions = {}) => {
       { id: 'openai', name: 'OpenAI', enable: true },
       { id: 'anthropic', name: 'Anthropic', enable: true },
       { id: 'acp', name: 'ACP', enable: true }
-    ]
+    ].concat(
+      extraModelGroups.map((group) => ({
+        id: group.providerId,
+        name: group.providerName,
+        enable: true
+      }))
+    )
   })
 
   const agentId = options.agentId ?? 'deepchat'
@@ -153,14 +197,14 @@ const setup = async (options: SetupOptions = {}) => {
       contextLength: 16000,
       maxTokens: 4096,
       thinkingBudget: 512,
-      reasoningEffort: 'medium',
+      reasoningEffort: reasoningEffortDefault,
       verbosity: 'medium'
     }),
     getDefaultSystemPrompt: vi.fn().mockResolvedValue('Default prompt'),
     supportsReasoningCapability: vi.fn().mockReturnValue(true),
     getThinkingBudgetRange: vi.fn().mockReturnValue({ min: 0, max: 8192, default: 512 }),
     supportsReasoningEffortCapability: vi.fn().mockReturnValue(options.supportsEffort ?? true),
-    getReasoningEffortDefault: vi.fn().mockReturnValue('medium'),
+    getReasoningEffortDefault: vi.fn().mockReturnValue(reasoningEffortDefault),
     supportsVerbosityCapability: vi.fn().mockReturnValue(true),
     getVerbosityDefault: vi.fn().mockReturnValue('medium'),
     getSystemPrompts: vi.fn().mockResolvedValue([
@@ -172,14 +216,15 @@ const setup = async (options: SetupOptions = {}) => {
     ])
   }
 
-  const baseSessionSettings = {
+  const baseSessionSettings: TestGenerationSettings = {
     systemPrompt: 'Default prompt',
     temperature: 0.7,
     contextLength: 16000,
     maxTokens: 4096,
     thinkingBudget: 512,
-    reasoningEffort: 'medium' as const,
-    verbosity: 'medium' as const
+    reasoningEffort: 'medium',
+    verbosity: 'medium',
+    ...options.sessionSettings
   }
 
   const newAgentPresenter = {
@@ -320,6 +365,97 @@ describe('ChatStatusBar model and session panels', () => {
     expect((disabled.wrapper.vm as any).showReasoningEffort).toBe(false)
     expect(disabled.wrapper.text()).not.toContain(
       'settings.model.modelConfig.reasoningEffort.label'
+    )
+  })
+
+  it('keeps showing loading until settings finish loading for the current model selection', async () => {
+    const { wrapper, sessionStore, newAgentPresenter } = await setup({
+      hasActiveSession: true,
+      activeProviderId: 'openai',
+      activeModelId: 'gpt-4'
+    })
+    const pendingSettings = createDeferred<TestGenerationSettings>()
+    const nextSettings: TestGenerationSettings = {
+      systemPrompt: 'Anthropic prompt',
+      temperature: 0.3,
+      contextLength: 32000,
+      maxTokens: 2048,
+      thinkingBudget: 256,
+      reasoningEffort: 'low',
+      verbosity: 'high'
+    }
+
+    sessionStore.setSessionModel.mockImplementation(async () => {
+      if (sessionStore.activeSession) {
+        sessionStore.activeSession.providerId = 'anthropic'
+        sessionStore.activeSession.modelId = 'claude-3-5-sonnet'
+      }
+    })
+    newAgentPresenter.getSessionGenerationSettings.mockClear()
+    newAgentPresenter.getSessionGenerationSettings.mockImplementation(() => pendingSettings.promise)
+
+    await (wrapper.vm as any).openModelSettings('anthropic', 'claude-3-5-sonnet')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('common.loading')
+    expect(wrapper.text()).not.toContain('chat.advancedSettings.temperature')
+
+    pendingSettings.resolve(nextSettings)
+    await flushPromises()
+
+    expect(wrapper.text()).not.toContain('common.loading')
+    expect((wrapper.vm as any).localSettings).toEqual(nextSettings)
+  })
+
+  it('keeps non-grok-3-mini xAI models on the full reasoning effort scale', async () => {
+    const { wrapper } = await setup({
+      hasActiveSession: false,
+      preferredModel: { providerId: 'xai', modelId: 'grok-4' },
+      defaultModel: { providerId: 'xai', modelId: 'grok-4' },
+      extraModelGroups: [
+        {
+          providerId: 'xai',
+          providerName: 'xAI',
+          models: [{ id: 'grok-4', name: 'Grok 4' }]
+        }
+      ],
+      reasoningEffortDefault: 'minimal'
+    })
+
+    await (wrapper.vm as any).openModelSettings('xai', 'grok-4')
+    await flushPromises()
+
+    expect((wrapper.vm as any).localSettings.reasoningEffort).toBe('minimal')
+    expect(wrapper.text()).toContain('settings.model.modelConfig.reasoningEffort.options.minimal')
+    expect(wrapper.text()).toContain('settings.model.modelConfig.reasoningEffort.options.medium')
+  })
+
+  it('keeps grok-3-mini models on binary reasoning effort options', async () => {
+    const { wrapper } = await setup({
+      hasActiveSession: false,
+      preferredModel: { providerId: 'xai', modelId: 'grok-3-mini-fast-beta' },
+      defaultModel: { providerId: 'xai', modelId: 'grok-3-mini-fast-beta' },
+      extraModelGroups: [
+        {
+          providerId: 'xai',
+          providerName: 'xAI',
+          models: [{ id: 'grok-3-mini-fast-beta', name: 'Grok 3 Mini Fast Beta' }]
+        }
+      ],
+      reasoningEffortDefault: 'minimal'
+    })
+
+    await (wrapper.vm as any).openModelSettings('xai', 'grok-3-mini-fast-beta')
+    await flushPromises()
+
+    expect((wrapper.vm as any).localSettings.reasoningEffort).toBe('low')
+    expect(wrapper.text()).toContain('settings.model.modelConfig.reasoningEffort.options.low')
+    expect(wrapper.text()).toContain('settings.model.modelConfig.reasoningEffort.options.high')
+    expect(wrapper.text()).not.toContain(
+      'settings.model.modelConfig.reasoningEffort.options.minimal'
+    )
+    expect(wrapper.text()).not.toContain(
+      'settings.model.modelConfig.reasoningEffort.options.medium'
     )
   })
 
