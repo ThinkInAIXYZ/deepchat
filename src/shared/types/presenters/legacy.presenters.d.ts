@@ -10,6 +10,7 @@ import type {
   HooksNotificationsSettings
 } from '../../hooksNotifications'
 import type { NowledgeMemThread, NowledgeMemExportSummary } from '../nowledgeMem'
+import type { AcpConfigState } from './llmprovider.presenter'
 import { ProviderChange, ProviderBatchUpdate } from './provider-operations'
 import type { AgentSessionLifecycleStatus } from './agent-provider'
 import type { IAgentPresenter } from './agent.presenter'
@@ -1092,6 +1093,7 @@ export interface ILlmProviderPresenter {
       }
     | undefined
   >
+  getAcpProcessConfigOptions(agentId: string, workdir: string): Promise<AcpConfigState | null>
   setAcpPreferredProcessMode(agentId: string, workdir: string, modeId: string): Promise<void>
   setAcpSessionMode(conversationId: string, modeId: string): Promise<void>
   prepareAcpSession(conversationId: string, agentId: string, workdir: string): Promise<void>
@@ -1099,6 +1101,12 @@ export interface ILlmProviderPresenter {
     current: string
     available: Array<{ id: string; name: string; description: string }>
   } | null>
+  getAcpSessionConfigOptions(conversationId: string): Promise<AcpConfigState | null>
+  setAcpSessionConfigOption(
+    conversationId: string,
+    configId: string,
+    value: string | boolean
+  ): Promise<AcpConfigState | null>
   getAcpSessionCommands(conversationId: string): Promise<
     Array<{
       name: string

@@ -13,6 +13,7 @@ import type {
   ToolInteractionResult,
   UsageDashboardData
 } from '../agent-interface'
+import type { AcpConfigState } from './llmprovider.presenter'
 import type { SearchResult } from './thread.presenter'
 
 export interface INewAgentPresenter {
@@ -69,6 +70,12 @@ export interface INewAgentPresenter {
       input?: { hint: string } | null
     }>
   >
+  getAcpSessionConfigOptions(sessionId: string): Promise<AcpConfigState | null>
+  setAcpSessionConfigOption(
+    sessionId: string,
+    configId: string,
+    value: string | boolean
+  ): Promise<AcpConfigState | null>
   getPermissionMode(sessionId: string): Promise<PermissionMode>
   setPermissionMode(sessionId: string, mode: PermissionMode): Promise<void>
   setSessionModel(sessionId: string, providerId: string, modelId: string): Promise<SessionWithState>

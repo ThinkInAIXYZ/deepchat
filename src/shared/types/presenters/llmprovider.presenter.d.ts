@@ -171,6 +171,29 @@ export interface ModelScopeMcpSyncResult {
   errors: string[]
 }
 
+export type AcpConfigOptionValue = {
+  value: string
+  label: string
+  description?: string | null
+  groupId?: string | null
+  groupLabel?: string | null
+}
+
+export type AcpConfigOption = {
+  id: string
+  label: string
+  description?: string | null
+  type: 'select' | 'boolean'
+  category?: string | null
+  currentValue: string | boolean
+  options?: AcpConfigOptionValue[]
+}
+
+export type AcpConfigState = {
+  source: 'configOptions' | 'legacy'
+  options: AcpConfigOption[]
+}
+
 export interface ILlmProviderPresenter {
   setProviders(provider: LLM_PROVIDER[]): void
   getProviders(): LLM_PROVIDER[]
@@ -277,6 +300,7 @@ export interface ILlmProviderPresenter {
       }
     | undefined
   >
+  getAcpProcessConfigOptions(agentId: string, workdir: string): Promise<AcpConfigState | null>
   setAcpPreferredProcessMode(agentId: string, workdir: string, modeId: string): Promise<void>
   setAcpSessionMode(conversationId: string, modeId: string): Promise<void>
   prepareAcpSession(conversationId: string, agentId: string, workdir: string): Promise<void>
@@ -284,6 +308,12 @@ export interface ILlmProviderPresenter {
     current: string
     available: Array<{ id: string; name: string; description: string }>
   } | null>
+  getAcpSessionConfigOptions(conversationId: string): Promise<AcpConfigState | null>
+  setAcpSessionConfigOption(
+    conversationId: string,
+    configId: string,
+    value: string | boolean
+  ): Promise<AcpConfigState | null>
   getAcpSessionCommands(conversationId: string): Promise<
     Array<{
       name: string

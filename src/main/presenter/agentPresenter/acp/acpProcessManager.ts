@@ -9,15 +9,22 @@ import type {
   ClientSideConnection as ClientSideConnectionType,
   Client
 } from '@agentclientprotocol/sdk'
-import type * as schema from '@agentclientprotocol/sdk/dist/schema.js'
+import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
 import type { Stream } from '@agentclientprotocol/sdk/dist/stream.js'
-import type { AcpAgentConfig } from '@shared/presenter'
+import type { AcpAgentConfig, AcpConfigState } from '@shared/presenter'
 import type { AgentProcessHandle, AgentProcessManager } from './types'
 import { getShellEnvironment } from './shellEnvHelper'
 import { RuntimeHelper } from '@/lib/runtimeHelper'
 import { buildClientCapabilities } from './acpCapabilities'
 import { AcpFsHandler } from './acpFsHandler'
 import { AcpTerminalManager } from './acpTerminalManager'
+import {
+  createEmptyAcpConfigState,
+  getAcpConfigOptionByCategory,
+  getLegacyModeState,
+  normalizeAcpConfigState,
+  updateAcpConfigStateValue
+} from './acpConfigState'
 import { eventBus, SendTarget } from '@/eventbus'
 import { ACP_WORKSPACE_EVENTS } from '@/events'
 
@@ -30,6 +37,7 @@ export interface AcpProcessHandle extends AgentProcessHandle {
   boundConversationId?: string
   /** The working directory this process was spawned with */
   workdir: string
+  configState?: AcpConfigState
   availableModes?: Array<{ id: string; name: string; description: string }>
   currentModeId?: string
   mcpCapabilities?: schema.McpCapabilities
@@ -244,8 +252,11 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
         handle.boundConversationId = undefined
         handle.workdir = resolvedWorkdir
         this.handles.set(warmupKey, handle)
-        void this.fetchProcessModes(handle).catch((error) => {
-          console.warn(`[ACP] Failed to fetch modes during warmup for agent ${agent.id}:`, error)
+        void this.fetchProcessConfigState(handle).catch((error) => {
+          console.warn(
+            `[ACP] Failed to fetch config options during warmup for agent ${agent.id}:`,
+            error
+          )
         })
         this.applyPreferredMode(handle, preferredModeId)
         console.info(
@@ -273,6 +284,13 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     const existingWarmup = this.findReusableHandle(agent.id, resolvedWorkdir)
     if (existingWarmup && this.isHandleAlive(existingWarmup)) {
       existingWarmup.currentModeId = modeId
+      const modeOption = getAcpConfigOptionByCategory(existingWarmup.configState, 'mode')
+      if (modeOption?.type === 'select') {
+        existingWarmup.configState =
+          updateAcpConfigStateValue(existingWarmup.configState, modeOption.id, modeId) ??
+          existingWarmup.configState
+        this.notifyConfigOptionsReady(existingWarmup)
+      }
       this.notifyModesReady(existingWarmup)
     }
   }
@@ -300,6 +318,25 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
       return false
     }
     handle.currentModeId = modeId
+    const modeOption = getAcpConfigOptionByCategory(handle.configState, 'mode')
+    if (modeOption?.type === 'select') {
+      handle.configState =
+        updateAcpConfigStateValue(handle.configState, modeOption.id, modeId) ?? handle.configState
+      this.notifyConfigOptionsReady(handle, conversationId)
+    }
+    return true
+  }
+
+  updateBoundProcessConfigState(conversationId: string, configState: AcpConfigState): boolean {
+    const handle = this.boundHandles.get(conversationId)
+    if (!handle || !this.isHandleAlive(handle)) {
+      return false
+    }
+    handle.configState = configState
+    const legacyModeState = getLegacyModeState(configState)
+    handle.availableModes = legacyModeState?.availableModes
+    handle.currentModeId = legacyModeState?.currentModeId ?? handle.currentModeId
+    this.notifyConfigOptionsReady(handle, conversationId)
     return true
   }
 
@@ -403,6 +440,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
 
     // Immediately notify renderer if modes are already known
     this.notifyModesReady(handle, conversationId)
+    this.notifyConfigOptionsReady(handle, conversationId)
     console.info(
       `[ACP] Bound process for agent ${agentId} to conversation ${conversationId} (pid=${handle.pid}, workdir=${handle.workdir})`
     )
@@ -436,10 +474,30 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     const handle = candidates[0]
     if (!handle) return undefined
 
+    const legacyModeState = getLegacyModeState(handle.configState)
+    if (legacyModeState) {
+      return {
+        availableModes: legacyModeState.availableModes,
+        currentModeId: legacyModeState.currentModeId ?? handle.currentModeId
+      }
+    }
+
     return {
       availableModes: handle.availableModes,
       currentModeId: handle.currentModeId
     }
+  }
+
+  getProcessConfigState(agentId: string, workdir?: string): AcpConfigState | undefined {
+    const resolvedWorkdir = this.resolveWorkdir(workdir)
+    const candidates = this.getHandlesByAgent(agentId).filter(
+      (handle) => handle.workdir === resolvedWorkdir && this.isHandleAlive(handle)
+    )
+    const handle = candidates[0]
+    if (!handle) {
+      return undefined
+    }
+    return handle.configState ?? createEmptyAcpConfigState('legacy')
   }
 
   registerSessionListener(
@@ -538,14 +596,9 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
       // Log Agent capabilities from initialization
       const resultData = initResult as unknown as {
         sessionId?: string
-        models?: {
-          availableModels?: Array<{ modelId: string }>
-          currentModelId?: string
-        }
-        modes?: {
-          availableModes?: Array<{ id: string }>
-          currentModeId?: string
-        }
+        configOptions?: schema.SessionConfigOption[] | null
+        models?: schema.SessionModelState | null
+        modes?: schema.SessionModeState | null
         agentCapabilities?: {
           mcpCapabilities?: schema.McpCapabilities
           loadSession?: boolean
@@ -569,19 +622,22 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
         console.info(`[ACP] Available models: ${resultData.models.availableModels?.length ?? 0}`)
         console.info(`[ACP] Current model: ${resultData.models.currentModelId}`)
       }
-      const initAvailableModes = resultData.modes?.availableModes?.map(
-        (m: { id: string; name?: string; description?: string }) => ({
-          id: m.id,
-          name: m.name ?? m.id,
-          description: m.description ?? ''
-        })
-      )
+      const initAvailableModes = resultData.modes?.availableModes?.map((m) => ({
+        id: m.id,
+        name: m.name ?? m.id,
+        description: m.description ?? ''
+      }))
       if (initAvailableModes) {
         console.info(
           `[ACP] Available modes: ${JSON.stringify(initAvailableModes.map((m) => m.id) ?? [])}`
         )
         console.info(`[ACP] Current mode: ${resultData.modes?.currentModeId}`)
       }
+      handleSeed.configState = normalizeAcpConfigState({
+        configOptions: resultData.configOptions,
+        models: resultData.models,
+        modes: resultData.modes
+      })
       handleSeed.availableModes = initAvailableModes
       handleSeed.currentModeId = resultData.modes?.currentModeId
     } catch (error) {
@@ -615,6 +671,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
       state: 'warmup',
       boundConversationId: undefined,
       workdir,
+      configState: handleSeed.configState ?? createEmptyAcpConfigState('legacy'),
       availableModes: handleSeed.availableModes,
       currentModeId: handleSeed.currentModeId,
       mcpCapabilities: handleSeed.mcpCapabilities,
@@ -949,7 +1006,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     }
   }
 
-  private async fetchProcessModes(handle: AcpProcessHandle): Promise<void> {
+  private async fetchProcessConfigState(handle: AcpProcessHandle): Promise<void> {
     if (!this.isHandleAlive(handle)) return
     try {
       const response = await handle.connection.newSession({
@@ -960,26 +1017,33 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
         this.registerSessionWorkdir(response.sessionId, handle.workdir)
       }
 
-      const modes = response.modes
-      if (modes?.availableModes?.length) {
-        handle.availableModes = modes.availableModes.map((mode) => ({
-          id: mode.id,
-          name: mode.name ?? mode.id,
-          description: mode.description ?? ''
-        }))
-        // Preserve user-selected preferred mode if it exists in the available list
+      handle.configState = normalizeAcpConfigState({
+        configOptions: response.configOptions,
+        models: response.models,
+        modes: response.modes
+      })
+
+      const legacyModeState = getLegacyModeState(handle.configState)
+      if (legacyModeState?.availableModes?.length) {
+        handle.availableModes = legacyModeState.availableModes
         if (
           handle.currentModeId &&
-          handle.availableModes.some((m) => m.id === handle.currentModeId)
+          handle.availableModes.some((mode) => mode.id === handle.currentModeId)
         ) {
-          // keep preferred
-        } else if (modes.currentModeId) {
-          handle.currentModeId = modes.currentModeId
+          const modeOption = getAcpConfigOptionByCategory(handle.configState, 'mode')
+          if (modeOption?.type === 'select') {
+            handle.configState =
+              updateAcpConfigStateValue(handle.configState, modeOption.id, handle.currentModeId) ??
+              handle.configState
+          }
+        } else if (legacyModeState.currentModeId) {
+          handle.currentModeId = legacyModeState.currentModeId
         } else {
           handle.currentModeId = handle.availableModes[0]?.id ?? handle.currentModeId
         }
         this.notifyModesReady(handle)
       }
+      this.notifyConfigOptionsReady(handle)
 
       if (response.sessionId) {
         try {
@@ -993,7 +1057,10 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
         }
       }
     } catch (error) {
-      console.warn(`[ACP] Warmup session failed to fetch modes for agent ${handle.agentId}:`, error)
+      console.warn(
+        `[ACP] Warmup session failed to fetch config options for agent ${handle.agentId}:`,
+        error
+      )
     }
   }
 
@@ -1007,6 +1074,19 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
       current: handle.currentModeId ?? 'default',
       available: handle.availableModes
     })
+  }
+
+  private notifyConfigOptionsReady(handle: AcpProcessHandle, conversationId?: string): void {
+    eventBus.sendToRenderer(
+      ACP_WORKSPACE_EVENTS.SESSION_CONFIG_OPTIONS_READY,
+      SendTarget.ALL_WINDOWS,
+      {
+        conversationId: conversationId ?? handle.boundConversationId,
+        agentId: handle.agentId,
+        workdir: handle.workdir,
+        configState: handle.configState ?? createEmptyAcpConfigState('legacy')
+      }
+    )
   }
 
   private getHandlesByAgent(agentId: string): AcpProcessHandle[] {
@@ -1061,6 +1141,13 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
   private applyPreferredMode(handle: AcpProcessHandle, preferredModeId?: string): void {
     if (!preferredModeId) return
     handle.currentModeId = preferredModeId
+    const modeOption = getAcpConfigOptionByCategory(handle.configState, 'mode')
+    if (modeOption?.type === 'select') {
+      handle.configState =
+        updateAcpConfigStateValue(handle.configState, modeOption.id, preferredModeId) ??
+        handle.configState
+      this.notifyConfigOptionsReady(handle)
+    }
     this.notifyModesReady(handle)
   }
 

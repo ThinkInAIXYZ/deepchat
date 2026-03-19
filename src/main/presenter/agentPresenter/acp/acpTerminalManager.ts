@@ -2,7 +2,7 @@ import { spawn } from 'node-pty'
 import type { IPty } from 'node-pty'
 import { nanoid } from 'nanoid'
 import { RequestError } from '@agentclientprotocol/sdk'
-import type * as schema from '@agentclientprotocol/sdk/dist/schema.js'
+import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
 
 interface TerminalState {
   id: string
@@ -154,9 +154,7 @@ export class AcpTerminalManager {
   /**
    * Kill a terminal command without releasing the terminal.
    */
-  async killTerminal(
-    params: schema.KillTerminalCommandRequest
-  ): Promise<schema.KillTerminalResponse> {
+  async killTerminal(params: schema.KillTerminalRequest): Promise<schema.KillTerminalResponse> {
     const state = this.getTerminal(params.terminalId)
 
     if (!state.killed && !state.exitStatus) {

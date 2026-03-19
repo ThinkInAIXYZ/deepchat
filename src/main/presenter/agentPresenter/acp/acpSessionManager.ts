@@ -1,5 +1,5 @@
 import { app } from 'electron'
-import type { AcpAgentConfig, IConfigPresenter } from '@shared/presenter'
+import type { AcpAgentConfig, AcpConfigState, IConfigPresenter } from '@shared/presenter'
 import type { AgentSessionState } from './types'
 import type {
   AcpProcessManager,
@@ -11,7 +11,14 @@ import type { ClientSideConnection as ClientSideConnectionType } from '@agentcli
 import { AcpSessionPersistence } from './acpSessionPersistence'
 import { convertMcpConfigToAcpFormat } from './mcpConfigConverter'
 import { filterMcpServersByTransportSupport } from './mcpTransportFilter'
-import type * as schema from '@agentclientprotocol/sdk/dist/schema.js'
+import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
+import {
+  createEmptyAcpConfigState,
+  getAcpConfigOptionByCategory,
+  getLegacyModeState,
+  normalizeAcpConfigState,
+  updateAcpConfigStateValue
+} from './acpConfigState'
 
 interface AcpSessionManagerOptions {
   providerId: string
@@ -29,6 +36,7 @@ export interface AcpSessionRecord extends AgentSessionState {
   connection: ClientSideConnectionType
   detachHandlers: Array<() => void>
   workdir: string
+  configState?: AcpConfigState
   availableModes?: Array<{ id: string; name: string; description: string }>
   currentModeId?: string
   availableCommands?: Array<{
@@ -203,9 +211,15 @@ export class AcpSessionManager {
         console.warn('[ACP] Failed to persist session metadata:', error)
       })
 
-    const availableModes = session.availableModes ?? handle.availableModes
+    let configState =
+      session.configState ?? handle.configState ?? createEmptyAcpConfigState('legacy')
+    const legacyModeState = getLegacyModeState(configState)
+    const availableModes =
+      session.availableModes ?? legacyModeState?.availableModes ?? handle.availableModes
     // Prefer handle.currentModeId (which may contain preferredMode from warmup) over session default
-    let currentModeId = handle.currentModeId ?? session.currentModeId
+    let currentModeId =
+      handle.currentModeId ?? session.currentModeId ?? legacyModeState?.currentModeId
+    handle.configState = configState
     handle.availableModes = availableModes
     handle.currentModeId = currentModeId
 
@@ -221,6 +235,12 @@ export class AcpSessionManager {
           sessionId: session.sessionId,
           modeId: currentModeId
         })
+        const modeOption = getAcpConfigOptionByCategory(configState, 'mode')
+        if (modeOption?.type === 'select') {
+          configState =
+            updateAcpConfigStateValue(configState, modeOption.id, currentModeId) ?? configState
+          handle.configState = configState
+        }
         console.info(
           `[ACP] Applied preferred mode "${currentModeId}" to session ${session.sessionId} for conversation ${conversationId}`
         )
@@ -246,6 +266,7 @@ export class AcpSessionManager {
       connection: handle.connection,
       detachHandlers: detachListeners,
       workdir,
+      configState,
       availableModes,
       currentModeId
     }
@@ -276,6 +297,7 @@ export class AcpSessionManager {
     workdir: string
   ): Promise<{
     sessionId: string
+    configState: AcpConfigState
     availableModes?: Array<{ id: string; name: string; description: string }>
     currentModeId?: string
   }> {
@@ -330,13 +352,15 @@ export class AcpSessionManager {
       )
       const persistedSessionId = persistedSession?.sessionId?.trim() || null
 
-      type SessionModes = {
-        availableModes?: Array<{ id: string; name: string; description?: string | null }>
-        currentModeId?: string
-      }
-
       let sessionId = ''
-      let modes: SessionModes | undefined
+      let configState = handle.configState ?? createEmptyAcpConfigState('legacy')
+      let responseModeState:
+        | {
+            availableModes?: Array<{ id: string; name: string; description?: string | null }>
+            currentModeId?: string
+          }
+        | undefined
+      let sessionResponse: schema.LoadSessionResponse | schema.NewSessionResponse | undefined
 
       const canLoadSession = Boolean(handle.supportsLoadSession)
       if (canLoadSession && persistedSessionId) {
@@ -347,7 +371,13 @@ export class AcpSessionManager {
             sessionId: persistedSessionId
           })
           sessionId = persistedSessionId
-          modes = loadResponse.modes ?? undefined
+          sessionResponse = loadResponse
+          responseModeState = loadResponse.modes ?? undefined
+          configState = normalizeAcpConfigState({
+            configOptions: loadResponse.configOptions,
+            models: loadResponse.models,
+            modes: loadResponse.modes
+          })
           console.info(
             `[ACP] Loaded persisted session ${sessionId} for conversation ${conversationId} (agent ${agent.id})`
           )
@@ -365,19 +395,33 @@ export class AcpSessionManager {
           mcpServers
         })
         sessionId = response.sessionId
-        modes = response.modes ?? undefined
+        sessionResponse = response
+        responseModeState = response.modes ?? undefined
+        configState = normalizeAcpConfigState({
+          configOptions: response.configOptions,
+          models: response.models,
+          modes: response.modes
+        })
       }
+
+      if (!sessionResponse) {
+        throw new Error('[ACP] Session initialization did not return a response payload')
+      }
+
+      const legacyModeState = getLegacyModeState(configState)
 
       // Extract modes from response if available
       const availableModes =
-        modes?.availableModes?.map((m) => ({
-          id: m.id,
-          name: m.name ?? m.id,
-          description: m.description ?? ''
-        })) ?? handle.availableModes
+        legacyModeState?.availableModes ??
+        responseModeState?.availableModes?.map((mode) => ({
+          id: mode.id,
+          name: mode.name ?? mode.id,
+          description: mode.description ?? ''
+        })) ??
+        handle.availableModes
 
       const preferredModeId = handle.currentModeId
-      const responseModeId = modes?.currentModeId
+      const responseModeId = legacyModeState?.currentModeId ?? responseModeState?.currentModeId
       let currentModeId = preferredModeId
       if (
         !currentModeId ||
@@ -386,6 +430,13 @@ export class AcpSessionManager {
         currentModeId = responseModeId ?? currentModeId ?? availableModes?.[0]?.id
       }
 
+      const modeOption = getAcpConfigOptionByCategory(configState, 'mode')
+      if (modeOption?.type === 'select' && currentModeId) {
+        configState =
+          updateAcpConfigStateValue(configState, modeOption.id, currentModeId) ?? configState
+      }
+
+      handle.configState = configState
       handle.availableModes = availableModes
       handle.currentModeId = currentModeId
 
@@ -403,6 +454,7 @@ export class AcpSessionManager {
 
       return {
         sessionId,
+        configState,
         availableModes,
         currentModeId
       }

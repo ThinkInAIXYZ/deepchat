@@ -60,7 +60,7 @@
     "update-shadcn": "node scripts/update-shadcn.js"
   },
   "dependencies": {
-    "@agentclientprotocol/sdk": "^0.5.1",
+    "@agentclientprotocol/sdk": "^0.16.1",
     "@anthropic-ai/sdk": "^0.53.0",
     "@antv/infographic": "^0.2.7",
     "@aws-sdk/client-bedrock": "^3.958.0",
@@ -116,8 +116,6 @@
     "@lingual/i18n-check": "0.8.12",
     "@mcp-ui/client": "^5.13.3",
     "@pinia/colada": "^0.20.0",
-    "@unovis/ts": "1.6.4",
-    "@unovis/vue": "1.6.4",
     "@tailwindcss/typography": "^0.5.19",
     "@tailwindcss/vite": "^4.1.18",
     "@tiptap/core": "^2.11.7",
@@ -137,6 +135,8 @@
     "@types/node": "^22.19.3",
     "@types/xlsx": "^0.0.35",
     "@typescript/native-preview": "7.0.0-dev.20260115.1",
+    "@unovis/ts": "1.6.4",
+    "@unovis/vue": "1.6.4",
     "@vee-validate/zod": "^4.15.1",
     "@vitejs/plugin-vue": "^6.0.3",
     "@vitest/ui": "^3.2.4",

@@ -1,4 +1,4 @@
-import type * as schema from '@agentclientprotocol/sdk/dist/schema.js'
+import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
 import type { MCPServerConfig } from '@shared/presenter'
 
 const normalizeStringRecordToArray = (
