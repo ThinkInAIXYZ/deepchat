@@ -3,6 +3,18 @@ import { z } from 'zod'
 // ---------- Zod Schemas ----------
 
 // Capability sub-schemas
+export const ReasoningEffortSchema = z.enum(['minimal', 'low', 'medium', 'high'])
+export type ReasoningEffort = z.infer<typeof ReasoningEffortSchema>
+
+export const VerbositySchema = z.enum(['low', 'medium', 'high'])
+export type Verbosity = z.infer<typeof VerbositySchema>
+
+export const ReasoningModeSchema = z.enum(['budget', 'effort', 'level', 'fixed', 'mixed'])
+export type ReasoningMode = z.infer<typeof ReasoningModeSchema>
+
+export const ReasoningVisibilitySchema = z.enum(['hidden', 'summary', 'full', 'mixed'])
+export type ReasoningVisibility = z.infer<typeof ReasoningVisibilitySchema>
+
 export const ReasoningSchema = z
   .object({
     supported: z.boolean().optional(),
@@ -14,8 +26,45 @@ export const ReasoningSchema = z
         max: z.number().int().optional()
       })
       .optional(),
-    effort: z.enum(['minimal', 'low', 'medium', 'high']).optional(),
-    verbosity: z.enum(['low', 'medium', 'high']).optional()
+    effort: ReasoningEffortSchema.optional(),
+    verbosity: VerbositySchema.optional()
+  })
+  .optional()
+
+export const ReasoningBudgetSchema = z
+  .object({
+    default: z.number().int().optional(),
+    min: z.number().int().optional(),
+    max: z.number().int().optional(),
+    auto: z.number().int().optional(),
+    off: z.number().int().optional(),
+    unit: z.string().optional()
+  })
+  .optional()
+
+export const ExtraReasoningSchema = z
+  .object({
+    supported: z.boolean().optional(),
+    default_enabled: z.boolean().optional(),
+    mode: ReasoningModeSchema.optional(),
+    budget: ReasoningBudgetSchema,
+    effort: ReasoningEffortSchema.optional(),
+    effort_options: z.array(ReasoningEffortSchema).optional(),
+    verbosity: VerbositySchema.optional(),
+    verbosity_options: z.array(VerbositySchema).optional(),
+    level: z.string().optional(),
+    level_options: z.array(z.string()).optional(),
+    interleaved: z.boolean().optional(),
+    summaries: z.boolean().optional(),
+    visibility: ReasoningVisibilitySchema.optional(),
+    continuation: z.array(z.string()).optional(),
+    notes: z.array(z.string()).optional()
+  })
+  .optional()
+
+export const ExtraCapabilitiesSchema = z
+  .object({
+    reasoning: ExtraReasoningSchema
   })
   .optional()
 
@@ -47,6 +96,7 @@ export const ModelSchema = z.object({
   temperature: z.boolean().optional(),
   tool_call: z.boolean().optional(),
   reasoning: ReasoningSchema,
+  extra_capabilities: ExtraCapabilitiesSchema,
   search: SearchSchema,
   attachment: z.boolean().optional(),
   open_weights: z.boolean().optional(),
@@ -76,6 +126,31 @@ export const ProviderAggregateSchema = z.object({
 })
 
 export type ProviderAggregate = z.infer<typeof ProviderAggregateSchema>
+
+export type ReasoningPortrait = {
+  supported?: boolean
+  defaultEnabled?: boolean
+  mode?: ReasoningMode
+  budget?: {
+    default?: number
+    min?: number
+    max?: number
+    auto?: number
+    off?: number
+    unit?: string
+  }
+  effort?: ReasoningEffort
+  effortOptions?: ReasoningEffort[]
+  verbosity?: Verbosity
+  verbosityOptions?: Verbosity[]
+  level?: string
+  levelOptions?: string[]
+  interleaved?: boolean
+  summaries?: boolean
+  visibility?: ReasoningVisibility
+  continuation?: string[]
+  notes?: string[]
+}
 
 // ---------- Helpers ----------
 
@@ -127,33 +202,79 @@ function getStringNumberRecord(obj: unknown): Record<string, string | number> | 
   return Object.keys(out).length ? out : undefined
 }
 
-type ReasoningEffort = 'minimal' | 'low' | 'medium' | 'high'
-type Verbosity = 'low' | 'medium' | 'high'
 type ModelTypeValue = 'chat' | 'embedding' | 'rerank' | 'imageGeneration'
 
 function getEffortValue(v: unknown): ReasoningEffort | undefined {
-  if (typeof v !== 'string') return undefined
-  switch (v) {
-    case 'minimal':
-    case 'low':
-    case 'medium':
-    case 'high':
-      return v
-    default:
-      return undefined
-  }
+  const parsed = ReasoningEffortSchema.safeParse(v)
+  return parsed.success ? parsed.data : undefined
 }
 
 function getVerbosityValue(v: unknown): Verbosity | undefined {
-  if (typeof v !== 'string') return undefined
-  switch (v) {
-    case 'low':
-    case 'medium':
-    case 'high':
-      return v
-    default:
-      return undefined
+  const parsed = VerbositySchema.safeParse(v)
+  return parsed.success ? parsed.data : undefined
+}
+
+function getReasoningModeValue(v: unknown): ReasoningMode | undefined {
+  const parsed = ReasoningModeSchema.safeParse(v)
+  return parsed.success ? parsed.data : undefined
+}
+
+function getReasoningVisibilityValue(v: unknown): ReasoningVisibility | undefined {
+  const parsed = ReasoningVisibilitySchema.safeParse(v)
+  return parsed.success ? parsed.data : undefined
+}
+
+function getNonEmptyStringArray(obj: Record<string, unknown>, key: string): string[] | undefined {
+  const values = getStringArray(obj, key)
+  return values && values.length > 0 ? values : undefined
+}
+
+function getOptionalStringArray(value: unknown): string[] | undefined {
+  if (typeof value === 'string') {
+    const normalized = value.trim()
+    return normalized ? [normalized] : undefined
   }
+  if (!Array.isArray(value)) return undefined
+  const values = value.filter((item) => typeof item === 'string' && item.trim()) as string[]
+  return values.length > 0 ? values : undefined
+}
+
+function getReasoningBudget(obj: unknown):
+  | {
+      default?: number
+      min?: number
+      max?: number
+      auto?: number
+      off?: number
+      unit?: string
+    }
+  | undefined {
+  if (!isRecord(obj)) return undefined
+
+  const budget: {
+    default?: number
+    min?: number
+    max?: number
+    auto?: number
+    off?: number
+    unit?: string
+  } = {}
+
+  const def = getNumber(obj, 'default')
+  const min = getNumber(obj, 'min')
+  const max = getNumber(obj, 'max')
+  const auto = getNumber(obj, 'auto')
+  const off = getNumber(obj, 'off')
+  const unit = getString(obj, 'unit')
+
+  if (typeof def === 'number') budget.default = def
+  if (typeof min === 'number') budget.min = min
+  if (typeof max === 'number') budget.max = max
+  if (typeof auto === 'number') budget.auto = auto
+  if (typeof off === 'number') budget.off = off
+  if (unit) budget.unit = unit
+
+  return Object.keys(budget).length > 0 ? budget : undefined
 }
 
 function getModelTypeValue(v: unknown): ModelTypeValue | undefined {
@@ -192,18 +313,16 @@ function getReasoning(obj: unknown): ProviderModel['reasoning'] {
   if (!isRecord(obj)) return undefined
   const supported = getBoolean(obj, 'supported')
   const defEnabled = getBoolean(obj, 'default')
-  const budgetVal = (obj as Record<string, unknown>)['budget']
-  let budget: { default?: number; min?: number; max?: number } | undefined
-  if (isRecord(budgetVal)) {
-    const def = getNumber(budgetVal, 'default')
-    const min = getNumber(budgetVal, 'min')
-    const max = getNumber(budgetVal, 'max')
-    const out: { default?: number; min?: number; max?: number } = {}
-    if (typeof def === 'number') out.default = def
-    if (typeof min === 'number') out.min = min
-    if (typeof max === 'number') out.max = max
-    if (out.default !== undefined || out.min !== undefined || out.max !== undefined) budget = out
-  }
+  const rawBudget = getReasoningBudget((obj as Record<string, unknown>)['budget'])
+  const budget =
+    rawBudget &&
+    (rawBudget.default !== undefined || rawBudget.min !== undefined || rawBudget.max !== undefined)
+      ? {
+          ...(rawBudget.default !== undefined ? { default: rawBudget.default } : {}),
+          ...(rawBudget.min !== undefined ? { min: rawBudget.min } : {}),
+          ...(rawBudget.max !== undefined ? { max: rawBudget.max } : {})
+        }
+      : undefined
   const effort = getEffortValue((obj as any)['effort'])
   const verbosity = getVerbosityValue((obj as any)['verbosity'])
 
@@ -215,6 +334,79 @@ function getReasoning(obj: unknown): ProviderModel['reasoning'] {
     verbosity !== undefined
   )
     return { supported, default: defEnabled, budget, effort, verbosity }
+  return undefined
+}
+
+function getExtraReasoning(
+  obj: unknown
+): NonNullable<ProviderModel['extra_capabilities']>['reasoning'] {
+  if (!isRecord(obj)) return undefined
+
+  const supported = getBoolean(obj, 'supported')
+  const default_enabled = getBoolean(obj, 'default_enabled')
+  const mode = getReasoningModeValue(obj['mode'])
+  const budget = getReasoningBudget(obj['budget'])
+  const effort = getEffortValue(obj['effort'])
+  const effort_options = getNonEmptyStringArray(obj, 'effort_options')?.filter(
+    (value) => ReasoningEffortSchema.safeParse(value).success
+  ) as ReasoningEffort[] | undefined
+  const verbosity = getVerbosityValue(obj['verbosity'])
+  const verbosity_options = getNonEmptyStringArray(obj, 'verbosity_options')?.filter(
+    (value) => VerbositySchema.safeParse(value).success
+  ) as Verbosity[] | undefined
+  const level = getString(obj, 'level')
+  const level_options = getNonEmptyStringArray(obj, 'level_options')
+  const interleaved = getBoolean(obj, 'interleaved')
+  const summaries = getBoolean(obj, 'summaries')
+  const visibility = getReasoningVisibilityValue(obj['visibility'])
+  const continuation = getOptionalStringArray(obj['continuation'])
+  const notes = getOptionalStringArray(obj['notes'])
+
+  if (
+    supported !== undefined ||
+    default_enabled !== undefined ||
+    mode !== undefined ||
+    budget !== undefined ||
+    effort !== undefined ||
+    effort_options !== undefined ||
+    verbosity !== undefined ||
+    verbosity_options !== undefined ||
+    level !== undefined ||
+    level_options !== undefined ||
+    interleaved !== undefined ||
+    summaries !== undefined ||
+    visibility !== undefined ||
+    continuation !== undefined ||
+    notes !== undefined
+  ) {
+    return {
+      supported,
+      default_enabled,
+      mode,
+      budget,
+      effort,
+      effort_options,
+      verbosity,
+      verbosity_options,
+      level,
+      level_options,
+      interleaved,
+      summaries,
+      visibility,
+      continuation,
+      notes
+    }
+  }
+
+  return undefined
+}
+
+function getExtraCapabilities(obj: unknown): ProviderModel['extra_capabilities'] {
+  if (!isRecord(obj)) return undefined
+  const reasoning = getExtraReasoning(obj['reasoning'])
+  if (reasoning) {
+    return { reasoning }
+  }
   return undefined
 }
 
@@ -290,6 +482,7 @@ export function sanitizeAggregate(input: unknown): ProviderAggregate | null {
         temperature: getBoolean(rm, 'temperature'),
         tool_call: getBoolean(rm, 'tool_call'),
         reasoning: getReasoning(rm['reasoning']),
+        extra_capabilities: getExtraCapabilities(rm['extra_capabilities']),
         search: getSearch(rm['search']),
         attachment: getBoolean(rm, 'attachment'),
         open_weights: getBoolean(rm, 'open_weights'),

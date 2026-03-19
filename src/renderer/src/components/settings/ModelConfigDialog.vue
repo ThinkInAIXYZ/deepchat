@@ -226,30 +226,13 @@
                 />
               </SelectTrigger>
               <SelectContent>
-                <!-- Grok models only support low and high -->
-                <template v-if="usesBinaryReasoningEffort">
-                  <SelectItem value="low">{{
-                    t('settings.model.modelConfig.reasoningEffort.options.low')
-                  }}</SelectItem>
-                  <SelectItem value="high">{{
-                    t('settings.model.modelConfig.reasoningEffort.options.high')
-                  }}</SelectItem>
-                </template>
-                <!-- Other models support all four options -->
-                <template v-else>
-                  <SelectItem value="minimal">{{
-                    t('settings.model.modelConfig.reasoningEffort.options.minimal')
-                  }}</SelectItem>
-                  <SelectItem value="low">{{
-                    t('settings.model.modelConfig.reasoningEffort.options.low')
-                  }}</SelectItem>
-                  <SelectItem value="medium">{{
-                    t('settings.model.modelConfig.reasoningEffort.options.medium')
-                  }}</SelectItem>
-                  <SelectItem value="high">{{
-                    t('settings.model.modelConfig.reasoningEffort.options.high')
-                  }}</SelectItem>
-                </template>
+                <SelectItem
+                  v-for="option in reasoningEffortOptions"
+                  :key="option.value"
+                  :value="option.value"
+                >
+                  {{ option.label }}
+                </SelectItem>
               </SelectContent>
             </Select>
             <p class="text-xs text-muted-foreground">
@@ -265,15 +248,13 @@
                 <SelectValue :placeholder="t('settings.model.modelConfig.verbosity.placeholder')" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="low">{{
-                  t('settings.model.modelConfig.verbosity.options.low')
-                }}</SelectItem>
-                <SelectItem value="medium">{{
-                  t('settings.model.modelConfig.verbosity.options.medium')
-                }}</SelectItem>
-                <SelectItem value="high">{{
-                  t('settings.model.modelConfig.verbosity.options.high')
-                }}</SelectItem>
+                <SelectItem
+                  v-for="option in verbosityOptions"
+                  :key="option.value"
+                  :value="option.value"
+                >
+                  {{ option.label }}
+                </SelectItem>
               </SelectContent>
             </Select>
             <p class="text-xs text-muted-foreground">
@@ -385,6 +366,7 @@ import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import { ApiEndpointType, ModelType } from '@shared/model'
 import type { ModelConfig } from '@shared/presenter'
+import type { ReasoningPortrait } from '@shared/types/model-db'
 import {
   DEFAULT_MODEL_CONTEXT_LENGTH,
   DEFAULT_MODEL_FUNCTION_CALL,
@@ -494,6 +476,14 @@ const createDefaultConfig = (): ModelConfig => ({
   verbosity: 'medium'
 })
 
+const DEFAULT_REASONING_EFFORT_OPTIONS: Array<'minimal' | 'low' | 'medium' | 'high'> = [
+  'minimal',
+  'low',
+  'medium',
+  'high'
+]
+const DEFAULT_VERBOSITY_OPTIONS: Array<'low' | 'medium' | 'high'> = ['low', 'medium', 'high']
+
 // 配置数据
 const config = ref<ModelConfig>(createDefaultConfig())
 const modelNameField = ref(props.modelName ?? '')
@@ -522,6 +512,145 @@ const mutualExclusiveAction = ref<{
 
 // 错误信息
 const errors = ref<Record<string, string>>({})
+const capabilityReasoningPortrait = ref<ReasoningPortrait | null>(null)
+
+const isReasoningEffort = (value: unknown): value is 'minimal' | 'low' | 'medium' | 'high' =>
+  value === 'minimal' || value === 'low' || value === 'medium' || value === 'high'
+
+const isVerbosity = (value: unknown): value is 'low' | 'medium' | 'high' =>
+  value === 'low' || value === 'medium' || value === 'high'
+
+const getReasoningEffortOptions = (
+  portrait: ReasoningPortrait | null | undefined
+): Array<'minimal' | 'low' | 'medium' | 'high'> => {
+  if (
+    !portrait ||
+    portrait.mode === 'budget' ||
+    portrait.mode === 'level' ||
+    portrait.mode === 'fixed'
+  ) {
+    return []
+  }
+
+  const options = portrait?.effortOptions?.filter(isReasoningEffort)
+  if (options && options.length > 0) {
+    return options
+  }
+  return portrait.mode !== 'mixed' && isReasoningEffort(portrait?.effort)
+    ? [...DEFAULT_REASONING_EFFORT_OPTIONS]
+    : []
+}
+
+const getVerbosityOptions = (
+  portrait: ReasoningPortrait | null | undefined
+): Array<'low' | 'medium' | 'high'> => {
+  const options = portrait?.verbosityOptions?.filter(isVerbosity)
+  if (options && options.length > 0) {
+    return options
+  }
+  return isVerbosity(portrait?.verbosity) ? [...DEFAULT_VERBOSITY_OPTIONS] : []
+}
+
+const hasReasoningEffortSupport = (portrait: ReasoningPortrait | null | undefined): boolean =>
+  portrait?.supported !== false && getReasoningEffortOptions(portrait).length > 0
+
+const hasVerbositySupport = (portrait: ReasoningPortrait | null | undefined): boolean =>
+  portrait?.supported !== false && getVerbosityOptions(portrait).length > 0
+
+const hasThinkingBudgetSupport = (portrait: ReasoningPortrait | null | undefined): boolean =>
+  Boolean(
+    portrait &&
+    portrait.mode !== 'effort' &&
+    portrait.mode !== 'level' &&
+    portrait.mode !== 'fixed' &&
+    portrait.budget &&
+    (portrait.budget.default !== undefined ||
+      portrait.budget.min !== undefined ||
+      portrait.budget.max !== undefined ||
+      portrait.budget.auto !== undefined ||
+      portrait.budget.off !== undefined)
+  )
+
+const normalizeReasoningEffortValue = (
+  portrait: ReasoningPortrait | null | undefined,
+  value: unknown
+): 'minimal' | 'low' | 'medium' | 'high' | undefined => {
+  if (!isReasoningEffort(value)) {
+    return undefined
+  }
+
+  const options = getReasoningEffortOptions(portrait)
+  if (options.length === 0) {
+    return value
+  }
+
+  if (options.includes(value)) {
+    return value
+  }
+
+  return isReasoningEffort(portrait?.effort) && options.includes(portrait.effort)
+    ? portrait.effort
+    : undefined
+}
+
+const normalizeVerbosityValue = (
+  portrait: ReasoningPortrait | null | undefined,
+  value: unknown
+): 'low' | 'medium' | 'high' | undefined => {
+  if (!isVerbosity(value)) {
+    return undefined
+  }
+
+  const options = getVerbosityOptions(portrait)
+  if (options.length === 0) {
+    return value
+  }
+
+  if (options.includes(value)) {
+    return value
+  }
+
+  return isVerbosity(portrait?.verbosity) && options.includes(portrait.verbosity)
+    ? portrait.verbosity
+    : undefined
+}
+
+const normalizeThinkingBudgetValue = (
+  portrait: ReasoningPortrait | null | undefined,
+  value: number,
+  min?: number,
+  max?: number
+): number => {
+  const roundedValue = Math.round(value)
+  if (isThinkingBudgetSentinel(portrait, roundedValue)) {
+    return roundedValue
+  }
+
+  let nextValue = roundedValue
+  if (typeof min === 'number') {
+    nextValue = Math.max(nextValue, Math.round(min))
+  }
+  if (typeof max === 'number') {
+    nextValue = Math.min(nextValue, Math.round(max))
+  }
+  return nextValue
+}
+
+const isThinkingBudgetSentinel = (
+  portrait: ReasoningPortrait | null | undefined,
+  value: number
+): boolean => {
+  const roundedValue = Math.round(value)
+  const sentinelValues = new Set<number>()
+
+  if (typeof portrait?.budget?.default === 'number')
+    sentinelValues.add(Math.round(portrait.budget.default))
+  if (typeof portrait?.budget?.auto === 'number')
+    sentinelValues.add(Math.round(portrait.budget.auto))
+  if (typeof portrait?.budget?.off === 'number') sentinelValues.add(Math.round(portrait.budget.off))
+
+  return sentinelValues.has(roundedValue)
+}
 
 const providerCustomModelList = computed(() => {
   if (!props.providerId) return []
@@ -608,16 +737,20 @@ const loadConfig = async () => {
   await fetchCapabilities()
 
   if (config.value.isUserDefined !== true) {
-    if (capabilitySupportsEffort.value === true && config.value.reasoningEffort === undefined) {
-      if (capabilityEffortDefault.value) {
-        config.value.reasoningEffort = capabilityEffortDefault.value
-      }
+    const normalizedEffort = normalizeReasoningEffortValue(
+      capabilityReasoningPortrait.value,
+      config.value.reasoningEffort ?? capabilityEffortDefault.value
+    )
+    if (supportsReasoningEffort.value) {
+      config.value.reasoningEffort = normalizedEffort
     }
 
-    if (capabilitySupportsVerbosity.value === true && config.value.verbosity === undefined) {
-      if (capabilityVerbosityDefault.value) {
-        config.value.verbosity = capabilityVerbosityDefault.value
-      }
+    const normalizedVerbosity = normalizeVerbosityValue(
+      capabilityReasoningPortrait.value,
+      config.value.verbosity ?? capabilityVerbosityDefault.value
+    )
+    if (supportsVerbosity.value) {
+      config.value.verbosity = normalizedVerbosity
     }
   }
 
@@ -626,6 +759,13 @@ const loadConfig = async () => {
     if (range && typeof range.default === 'number') {
       config.value.thinkingBudget = range.default
     }
+  } else {
+    config.value.thinkingBudget = normalizeThinkingBudgetValue(
+      capabilityReasoningPortrait.value,
+      config.value.thinkingBudget,
+      capabilityReasoningPortrait.value?.budget?.min,
+      capabilityReasoningPortrait.value?.budget?.max
+    )
   }
 }
 
@@ -787,23 +927,26 @@ const isDeepSeekV31Model = computed(() => {
   return modelId.includes('deepseek-v3.1') || modelId.includes('deepseek-v3-1')
 })
 
-const isGeminiProvider = computed(() => props.providerId?.toLowerCase() === 'gemini')
-
-const supportsReasoningEffort = computed(() => capabilitySupportsEffort.value === true)
-const usesBinaryReasoningEffort = computed(() => {
-  const normalizedProviderId = props.providerId?.toLowerCase()
-  const normalizedModelId = props.modelId?.toLowerCase() ?? ''
-  return (
-    normalizedProviderId === 'grok' ||
-    normalizedProviderId === 'xai' ||
-    normalizedModelId.includes('grok-3-mini')
-  )
-})
+const supportsReasoningEffort = computed(() =>
+  hasReasoningEffortSupport(capabilityReasoningPortrait.value)
+)
+const reasoningEffortOptions = computed(() =>
+  getReasoningEffortOptions(capabilityReasoningPortrait.value).map((value) => ({
+    value,
+    label: t(`settings.model.modelConfig.reasoningEffort.options.${value}`)
+  }))
+)
+const verbosityOptions = computed(() =>
+  getVerbosityOptions(capabilityReasoningPortrait.value).map((value) => ({
+    value,
+    label: t(`settings.model.modelConfig.verbosity.options.${value}`)
+  }))
+)
 
 const showThinkingBudget = computed(() => {
   const hasReasoning = config.value.reasoning
   const supported = capabilitySupportsReasoning.value === true
-  const hasRange = !!thinkingBudgetRange.value && thinkingBudgetRange.value.max !== undefined
+  const hasRange = hasThinkingBudgetSupport(capabilityReasoningPortrait.value)
   return hasReasoning && supported && hasRange
 })
 
@@ -816,26 +959,36 @@ const capabilityVerbosityDefault = ref<'low' | 'medium' | 'high' | undefined>(un
 
 const fetchCapabilities = async () => {
   if (!props.providerId || !props.modelId) {
+    capabilityReasoningPortrait.value = null
     capabilitySupportsReasoning.value = null
     capabilityBudgetRange.value = null
+    capabilitySupportsEffort.value = null
+    capabilityEffortDefault.value = undefined
+    capabilitySupportsVerbosity.value = null
+    capabilityVerbosityDefault.value = undefined
     return
   }
   try {
-    const [sr, br, se, ed, sv, vd] = await Promise.all([
-      configPresenter.supportsReasoningCapability?.(props.providerId, props.modelId),
-      configPresenter.getThinkingBudgetRange?.(props.providerId, props.modelId),
-      configPresenter.supportsReasoningEffortCapability?.(props.providerId, props.modelId),
-      configPresenter.getReasoningEffortDefault?.(props.providerId, props.modelId),
-      configPresenter.supportsVerbosityCapability?.(props.providerId, props.modelId),
-      configPresenter.getVerbosityDefault?.(props.providerId, props.modelId)
-    ])
-    capabilitySupportsReasoning.value = typeof sr === 'boolean' ? sr : null
-    capabilityBudgetRange.value = br || {}
-    capabilitySupportsEffort.value = typeof se === 'boolean' ? se : null
-    capabilityEffortDefault.value = ed
-    capabilitySupportsVerbosity.value = typeof sv === 'boolean' ? sv : null
-    capabilityVerbosityDefault.value = vd
+    const portrait =
+      (await configPresenter.getReasoningPortrait?.(props.providerId, props.modelId)) ?? null
+    capabilityReasoningPortrait.value = portrait
+    capabilitySupportsReasoning.value =
+      typeof portrait?.supported === 'boolean' ? portrait.supported : null
+    capabilityBudgetRange.value = portrait?.budget
+      ? {
+          ...(typeof portrait.budget.min === 'number' ? { min: portrait.budget.min } : {}),
+          ...(typeof portrait.budget.max === 'number' ? { max: portrait.budget.max } : {}),
+          ...(typeof portrait.budget.default === 'number'
+            ? { default: portrait.budget.default }
+            : {})
+        }
+      : null
+    capabilitySupportsEffort.value = hasReasoningEffortSupport(portrait)
+    capabilityEffortDefault.value = normalizeReasoningEffortValue(portrait, portrait?.effort)
+    capabilitySupportsVerbosity.value = hasVerbositySupport(portrait)
+    capabilityVerbosityDefault.value = normalizeVerbosityValue(portrait, portrait?.verbosity)
   } catch {
+    capabilityReasoningPortrait.value = null
     capabilitySupportsReasoning.value = null
     capabilityBudgetRange.value = null
     capabilitySupportsEffort.value = null
@@ -864,7 +1017,7 @@ const genericThinkingBudgetError = computed(() => {
     return t('settings.model.modelConfig.thinkingBudget.validation.required')
   }
   if (!range) return ''
-  if (isGeminiProvider.value && value === -1) {
+  if (isThinkingBudgetSentinel(capabilityReasoningPortrait.value, value)) {
     return ''
   }
   if (range.min !== undefined && value < range.min) {

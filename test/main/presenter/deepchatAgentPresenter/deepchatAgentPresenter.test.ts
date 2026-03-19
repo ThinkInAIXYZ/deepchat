@@ -181,6 +181,26 @@ function createMockConfigPresenter() {
     }),
     getDefaultModel: vi.fn().mockReturnValue({ providerId: 'openai', modelId: 'gpt-4' }),
     getDefaultSystemPrompt: vi.fn().mockResolvedValue('You are a helpful assistant.'),
+    getReasoningPortrait: vi.fn().mockImplementation((providerId: string, modelId: string) => {
+      if (providerId === 'gemini' && modelId === 'gemini-2.5-pro') {
+        return {
+          supported: true,
+          defaultEnabled: true,
+          mode: 'budget',
+          budget: { min: 0, max: 8192, default: -1, auto: -1, off: 0 }
+        }
+      }
+      return {
+        supported: true,
+        defaultEnabled: true,
+        mode: 'effort',
+        budget: { min: 0, max: 8192, default: 512 },
+        effort: 'medium',
+        effortOptions: ['minimal', 'low', 'medium', 'high'],
+        verbosity: 'medium',
+        verbosityOptions: ['low', 'medium', 'high']
+      }
+    }),
     supportsReasoningCapability: vi.fn().mockReturnValue(true),
     getThinkingBudgetRange: vi.fn().mockReturnValue({ min: 0, max: 8192, default: 512 }),
     supportsReasoningEffortCapability: vi.fn().mockReturnValue(true),
@@ -1183,6 +1203,66 @@ describe('DeepChatAgentPresenter', () => {
       )
     })
 
+    it('preserves portrait sentinel budgets when updating generation settings', async () => {
+      configPresenter.getThinkingBudgetRange.mockReturnValue({ min: 0, max: 24576, default: -1 })
+
+      await agent.initSession('s1', { providerId: 'gemini', modelId: 'gemini-2.5-pro' })
+
+      const updated = await agent.updateGenerationSettings('s1', {
+        thinkingBudget: -1
+      })
+
+      expect(updated.thinkingBudget).toBe(-1)
+      expect(sqlitePresenter.deepchatSessionsTable.updateGenerationSettings).toHaveBeenCalledWith(
+        's1',
+        expect.objectContaining({
+          thinkingBudget: -1
+        })
+      )
+    })
+
+    it('normalizes reasoning effort by portrait option set instead of provider id', async () => {
+      configPresenter.getReasoningPortrait.mockImplementation(
+        (providerId: string, modelId: string) => {
+          if (providerId === 'xai' && modelId === 'grok-3-mini-fast-beta') {
+            return {
+              supported: true,
+              defaultEnabled: true,
+              mode: 'effort',
+              effort: 'low',
+              effortOptions: ['low', 'high'],
+              verbosity: 'medium',
+              verbosityOptions: ['low', 'medium', 'high']
+            }
+          }
+          return {
+            supported: true,
+            defaultEnabled: true,
+            mode: 'effort',
+            budget: { min: 0, max: 8192, default: 512 },
+            effort: 'medium',
+            effortOptions: ['minimal', 'low', 'medium', 'high'],
+            verbosity: 'medium',
+            verbosityOptions: ['low', 'medium', 'high']
+          }
+        }
+      )
+
+      await agent.initSession('s1', { providerId: 'xai', modelId: 'grok-3-mini-fast-beta' })
+
+      const updated = await agent.updateGenerationSettings('s1', {
+        reasoningEffort: 'minimal'
+      })
+
+      expect(updated.reasoningEffort).toBe('low')
+      expect(sqlitePresenter.deepchatSessionsTable.updateGenerationSettings).toHaveBeenCalledWith(
+        's1',
+        expect.objectContaining({
+          reasoningEffort: 'low'
+        })
+      )
+    })
+
     it('falls back from old DB rows with null generation fields', async () => {
       sqlitePresenter.deepchatSessionsTable.get.mockReturnValue({
         id: 's2',
@@ -2047,7 +2127,8 @@ describe('DeepChatAgentPresenter', () => {
         sqlitePresenter.deepchatMessagesTable.updateContent.mock.calls[0][1]
       )
       expect(updatedBlocks[0].tool_call.response).toContain('[Tool output offloaded]')
-      expect(updatedBlocks[0].tool_call.response).toContain('tool_tc1.offload')
+      expect(updatedBlocks[0].tool_call.response).toContain('tool_tc1')
+      expect(updatedBlocks[0].tool_call.response).toContain('.offload')
       expect(updatedBlocks[0].tool_call.response).not.toContain(tempHome!)
       expect(updatedBlocks[0].status).toBe('success')
       expect(processStream).toHaveBeenCalledTimes(1)

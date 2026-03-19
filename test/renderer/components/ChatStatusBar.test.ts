@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { defineComponent, reactive } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
+import type { ReasoningPortrait } from '../../../src/shared/types/model-db'
 
 type ReasoningEffort = 'minimal' | 'low' | 'medium' | 'high'
 type TestGenerationSettings = {
@@ -31,6 +32,7 @@ type SetupOptions = {
   extraModelGroups?: ExtraModelGroup[]
   reasoningEffortDefault?: ReasoningEffort
   sessionSettings?: Partial<TestGenerationSettings>
+  reasoningPortrait?: ReasoningPortrait | null
 }
 
 const createDeferred = <T>() => {
@@ -82,6 +84,22 @@ const setup = async (options: SetupOptions = {}) => {
 
   const extraModelGroups = options.extraModelGroups ?? []
   const reasoningEffortDefault = options.reasoningEffortDefault ?? 'medium'
+  const reasoningPortrait =
+    options.reasoningPortrait ??
+    ({
+      supported: true,
+      defaultEnabled: true,
+      mode: 'effort',
+      budget: { min: 0, max: 8192, default: 512 },
+      ...(options.supportsEffort === false
+        ? {}
+        : {
+            effort: reasoningEffortDefault,
+            effortOptions: ['minimal', 'low', 'medium', 'high'] as ReasoningEffort[]
+          }),
+      verbosity: 'medium',
+      verbosityOptions: ['low', 'medium', 'high'] as Array<'low' | 'medium' | 'high'>
+    } satisfies ReasoningPortrait)
   const baseModelGroups = [
     {
       providerId: 'openai',
@@ -200,6 +218,7 @@ const setup = async (options: SetupOptions = {}) => {
       reasoningEffort: reasoningEffortDefault,
       verbosity: 'medium'
     }),
+    getReasoningPortrait: vi.fn().mockResolvedValue(reasoningPortrait),
     getDefaultSystemPrompt: vi.fn().mockResolvedValue('Default prompt'),
     supportsReasoningCapability: vi.fn().mockReturnValue(true),
     getThinkingBudgetRange: vi.fn().mockReturnValue({ min: 0, max: 8192, default: 512 }),
@@ -419,7 +438,16 @@ describe('ChatStatusBar model and session panels', () => {
           models: [{ id: 'grok-4', name: 'Grok 4' }]
         }
       ],
-      reasoningEffortDefault: 'minimal'
+      reasoningEffortDefault: 'minimal',
+      reasoningPortrait: {
+        supported: true,
+        defaultEnabled: true,
+        mode: 'effort',
+        effort: 'minimal',
+        effortOptions: ['minimal', 'low', 'medium', 'high'],
+        verbosity: 'medium',
+        verbosityOptions: ['low', 'medium', 'high']
+      }
     })
 
     await (wrapper.vm as any).openModelSettings('xai', 'grok-4')
@@ -442,7 +470,16 @@ describe('ChatStatusBar model and session panels', () => {
           models: [{ id: 'grok-3-mini-fast-beta', name: 'Grok 3 Mini Fast Beta' }]
         }
       ],
-      reasoningEffortDefault: 'minimal'
+      reasoningEffortDefault: 'minimal',
+      reasoningPortrait: {
+        supported: true,
+        defaultEnabled: true,
+        mode: 'effort',
+        effort: 'low',
+        effortOptions: ['low', 'high'],
+        verbosity: 'medium',
+        verbosityOptions: ['low', 'medium', 'high']
+      }
     })
 
     await (wrapper.vm as any).openModelSettings('xai', 'grok-3-mini-fast-beta')

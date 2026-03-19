@@ -247,7 +247,7 @@
                         t('settings.model.modelConfig.verbosity.label')
                       }}</label>
                       <Select
-                        :model-value="localSettings.verbosity ?? 'medium'"
+                        :model-value="localSettings.verbosity ?? verbosityOptions[0]?.value"
                         @update:model-value="onVerbositySelect($event as string)"
                       >
                         <SelectTrigger class="h-8 text-xs">
@@ -256,15 +256,13 @@
                           />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="low">{{
-                            t('settings.model.modelConfig.verbosity.options.low')
-                          }}</SelectItem>
-                          <SelectItem value="medium">{{
-                            t('settings.model.modelConfig.verbosity.options.medium')
-                          }}</SelectItem>
-                          <SelectItem value="high">{{
-                            t('settings.model.modelConfig.verbosity.options.high')
-                          }}</SelectItem>
+                          <SelectItem
+                            v-for="option in verbosityOptions"
+                            :key="option.value"
+                            :value="option.value"
+                          >
+                            {{ option.label }}
+                          </SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -399,6 +397,7 @@ import {
 import { Slider } from '@shadcn/components/ui/slider'
 import type { RENDERER_MODEL_META, SystemPrompt } from '@shared/presenter'
 import type { PermissionMode, SessionGenerationSettings } from '@shared/types/agent-interface'
+import type { ReasoningPortrait } from '@shared/types/model-db'
 import McpIndicator from '@/components/chat-input/McpIndicator.vue'
 import ModelIcon from '@/components/icons/ModelIcon.vue'
 import { usePresenter } from '@/composables/usePresenter'
@@ -440,7 +439,17 @@ const TEMPERATURE_MIN = 0
 const TEMPERATURE_MAX = 2
 const CONTEXT_LENGTH_MIN = 2048
 const MAX_TOKENS_MIN = 128
-const BINARY_REASONING_EFFORT_MODEL_FAMILIES = ['grok-3-mini']
+const DEFAULT_REASONING_EFFORT_OPTIONS: SessionGenerationSettings['reasoningEffort'][] = [
+  'minimal',
+  'low',
+  'medium',
+  'high'
+]
+const DEFAULT_VERBOSITY_OPTIONS: SessionGenerationSettings['verbosity'][] = [
+  'low',
+  'medium',
+  'high'
+]
 
 const themeStore = useThemeStore()
 const modelStore = useModelStore()
@@ -463,6 +472,7 @@ const modelSearchKeyword = ref('')
 const modelSettingsSelection = ref<ModelSelection | null>(null)
 
 const capabilitySupportsReasoning = ref<boolean | null>(null)
+const capabilityReasoningPortrait = ref<ReasoningPortrait | null>(null)
 const capabilityBudgetRange = ref<{ min?: number; max?: number; default?: number } | null>(null)
 const capabilitySupportsEffort = ref<boolean | null>(null)
 const capabilitySupportsVerbosity = ref<boolean | null>(null)
@@ -619,10 +629,10 @@ const isModelSelection = (value: unknown): value is ModelSelection => {
   return typeof candidate.providerId === 'string' && typeof candidate.modelId === 'string'
 }
 
-const isReasoningEffort = (value: unknown): value is SessionGenerationSettings['reasoningEffort'] =>
+const isReasoningEffort = (value: unknown): value is 'minimal' | 'low' | 'medium' | 'high' =>
   value === 'minimal' || value === 'low' || value === 'medium' || value === 'high'
 
-const isVerbosity = (value: unknown): value is SessionGenerationSettings['verbosity'] =>
+const isVerbosity = (value: unknown): value is 'low' | 'medium' | 'high' =>
   value === 'low' || value === 'medium' || value === 'high'
 
 const clamp = (value: number, min: number, max: number): number => {
@@ -655,39 +665,128 @@ const findEnabledModelMeta = (providerId: string, modelId: string): RENDERER_MOD
   return group?.models.find((model) => model.id === modelId) ?? null
 }
 
-const normalizeReasoningModelId = (modelId?: string | null): string => {
-  const normalizedModelId = modelId?.toLowerCase() ?? ''
-  return normalizedModelId.includes('/')
-    ? normalizedModelId.slice(normalizedModelId.lastIndexOf('/') + 1)
-    : normalizedModelId
+const getReasoningEffortOptions = (
+  portrait: ReasoningPortrait | null | undefined
+): SessionGenerationSettings['reasoningEffort'][] => {
+  if (
+    !portrait ||
+    portrait.mode === 'budget' ||
+    portrait.mode === 'level' ||
+    portrait.mode === 'fixed'
+  ) {
+    return []
+  }
+
+  const options = portrait?.effortOptions?.filter(isReasoningEffort)
+  if (options && options.length > 0) {
+    return options
+  }
+  return portrait.mode !== 'mixed' && isReasoningEffort(portrait?.effort)
+    ? [...DEFAULT_REASONING_EFFORT_OPTIONS]
+    : []
 }
 
-const matchesReasoningModelFamily = (modelId: string, families: string[]): boolean =>
-  families.some(
-    (family) =>
-      modelId === family || modelId.startsWith(`${family}-`) || modelId.startsWith(`${family}.`)
-  )
+const getVerbosityOptions = (
+  portrait: ReasoningPortrait | null | undefined
+): SessionGenerationSettings['verbosity'][] => {
+  const options = portrait?.verbosityOptions?.filter(isVerbosity)
+  if (options && options.length > 0) {
+    return options
+  }
+  return isVerbosity(portrait?.verbosity) ? [...DEFAULT_VERBOSITY_OPTIONS] : []
+}
 
-const usesBinaryReasoningEffort = (modelId?: string | null): boolean =>
-  matchesReasoningModelFamily(
-    normalizeReasoningModelId(modelId),
-    BINARY_REASONING_EFFORT_MODEL_FAMILIES
+const supportsReasoningEffort = (portrait: ReasoningPortrait | null | undefined): boolean =>
+  portrait?.supported !== false && getReasoningEffortOptions(portrait).length > 0
+
+const supportsVerbosity = (portrait: ReasoningPortrait | null | undefined): boolean =>
+  portrait?.supported !== false && getVerbosityOptions(portrait).length > 0
+
+const hasThinkingBudgetSupport = (portrait: ReasoningPortrait | null | undefined): boolean =>
+  Boolean(
+    portrait &&
+    portrait.mode !== 'effort' &&
+    portrait.mode !== 'level' &&
+    portrait.mode !== 'fixed' &&
+    portrait.budget &&
+    (portrait.budget.default !== undefined ||
+      portrait.budget.min !== undefined ||
+      portrait.budget.max !== undefined ||
+      portrait.budget.auto !== undefined ||
+      portrait.budget.off !== undefined)
   )
 
 const normalizeReasoningEffort = (
-  modelId: string | undefined,
+  portrait: ReasoningPortrait | null | undefined,
   value: unknown
 ): SessionGenerationSettings['reasoningEffort'] | undefined => {
   if (!isReasoningEffort(value)) {
     return undefined
   }
-  if (!usesBinaryReasoningEffort(modelId)) {
+
+  const options = getReasoningEffortOptions(portrait)
+  if (options.length === 0) {
     return value
   }
-  if (value === 'low' || value === 'high') {
+
+  if (options.includes(value)) {
     return value
   }
-  return value === 'minimal' ? 'low' : 'high'
+
+  return isReasoningEffort(portrait?.effort) && options.includes(portrait.effort)
+    ? portrait.effort
+    : undefined
+}
+
+const normalizeVerbosity = (
+  portrait: ReasoningPortrait | null | undefined,
+  value: unknown
+): SessionGenerationSettings['verbosity'] | undefined => {
+  if (!isVerbosity(value)) {
+    return undefined
+  }
+
+  const options = getVerbosityOptions(portrait)
+  if (options.length === 0) {
+    return value
+  }
+
+  if (options.includes(value)) {
+    return value
+  }
+
+  return isVerbosity(portrait?.verbosity) && options.includes(portrait.verbosity)
+    ? portrait.verbosity
+    : undefined
+}
+
+const normalizeThinkingBudget = (
+  portrait: ReasoningPortrait | null | undefined,
+  value: number,
+  min?: number,
+  max?: number
+): number => {
+  const roundedValue = Math.round(value)
+  const sentinelValues = new Set<number>()
+
+  if (typeof portrait?.budget?.default === 'number')
+    sentinelValues.add(Math.round(portrait.budget.default))
+  if (typeof portrait?.budget?.auto === 'number')
+    sentinelValues.add(Math.round(portrait.budget.auto))
+  if (typeof portrait?.budget?.off === 'number') sentinelValues.add(Math.round(portrait.budget.off))
+
+  if (sentinelValues.has(roundedValue)) {
+    return roundedValue
+  }
+
+  let nextValue = roundedValue
+  if (typeof min === 'number') {
+    nextValue = Math.max(nextValue, Math.round(min))
+  }
+  if (typeof max === 'number') {
+    nextValue = Math.min(nextValue, Math.round(max))
+  }
+  return nextValue
 }
 
 const findEnabledModel = (providerId: string, modelId: string): ModelSelection | null => {
@@ -789,52 +888,37 @@ const showThinkingBudget = computed(() => {
     return false
   }
   return (
-    capabilitySupportsReasoning.value === true && capabilityBudgetRange.value?.max !== undefined
+    capabilitySupportsReasoning.value === true &&
+    hasThinkingBudgetSupport(capabilityReasoningPortrait.value)
   )
 })
 
 const showVerbosity = computed(
   () =>
-    !isAcpAgent.value && capabilitySupportsVerbosity.value === true && Boolean(localSettings.value)
+    !isAcpAgent.value &&
+    supportsVerbosity(capabilityReasoningPortrait.value) &&
+    Boolean(localSettings.value)
 )
 
 const showReasoningEffort = computed(
-  () => !isAcpAgent.value && capabilitySupportsEffort.value === true && Boolean(localSettings.value)
+  () =>
+    !isAcpAgent.value &&
+    supportsReasoningEffort(capabilityReasoningPortrait.value) &&
+    Boolean(localSettings.value)
 )
 
 const effortOptions = computed(() => {
-  const selection = effectiveModelSelection.value
-  if (usesBinaryReasoningEffort(selection?.modelId)) {
-    return [
-      {
-        value: 'low' as const,
-        label: t('settings.model.modelConfig.reasoningEffort.options.low')
-      },
-      {
-        value: 'high' as const,
-        label: t('settings.model.modelConfig.reasoningEffort.options.high')
-      }
-    ]
-  }
+  return getReasoningEffortOptions(capabilityReasoningPortrait.value).map((value) => ({
+    value,
+    label: t(`settings.model.modelConfig.reasoningEffort.options.${value}`)
+  }))
+})
 
-  return [
-    {
-      value: 'minimal' as const,
-      label: t('settings.model.modelConfig.reasoningEffort.options.minimal')
-    },
-    {
-      value: 'low' as const,
-      label: t('settings.model.modelConfig.reasoningEffort.options.low')
-    },
-    {
-      value: 'medium' as const,
-      label: t('settings.model.modelConfig.reasoningEffort.options.medium')
-    },
-    {
-      value: 'high' as const,
-      label: t('settings.model.modelConfig.reasoningEffort.options.high')
-    }
-  ]
+const verbosityOptions = computed(() => {
+  return getVerbosityOptions(capabilityReasoningPortrait.value).map((value) => ({
+    value,
+    label: t(`settings.model.modelConfig.verbosity.options.${value}`)
+  }))
 })
 
 const systemPromptOptions = computed<SystemPromptOption[]>(() => {
@@ -1013,6 +1097,7 @@ const resolveDefaultGenerationSettings = async (
 ): Promise<SessionGenerationSettings> => {
   const modelConfig = configPresenter.getModelConfig(modelId, providerId)
   const defaultSystemPrompt = await configPresenter.getDefaultSystemPrompt()
+  const portrait = (await configPresenter.getReasoningPortrait?.(providerId, modelId)) ?? null
   const limits = getCurrentLimits()
 
   const defaults: SessionGenerationSettings = {
@@ -1035,42 +1120,32 @@ const resolveDefaultGenerationSettings = async (
   }
   defaults.maxTokens = Math.min(defaults.maxTokens, defaults.contextLength)
 
-  const supportsReasoning =
-    configPresenter.supportsReasoningCapability?.(providerId, modelId) === true
-  if (supportsReasoning) {
-    const range = configPresenter.getThinkingBudgetRange?.(providerId, modelId) ?? {}
+  if (portrait?.supported === true && hasThinkingBudgetSupport(portrait)) {
+    const range = portrait.budget ?? {}
     const defaultBudget = toFiniteNumber(modelConfig.thinkingBudget ?? range.default)
     if (defaultBudget !== undefined) {
-      let budget = Math.round(defaultBudget)
-      if (typeof range.min === 'number') {
-        budget = Math.max(budget, Math.round(range.min))
-      }
-      if (typeof range.max === 'number') {
-        budget = Math.min(budget, Math.round(range.max))
-      }
-      defaults.thinkingBudget = budget
+      defaults.thinkingBudget = normalizeThinkingBudget(
+        portrait,
+        Math.round(defaultBudget),
+        range.min,
+        range.max
+      )
     }
   }
 
-  const supportsEffort =
-    configPresenter.supportsReasoningEffortCapability?.(providerId, modelId) === true
-  if (supportsEffort) {
+  if (supportsReasoningEffort(portrait)) {
     const effort = normalizeReasoningEffort(
-      modelId,
-      modelConfig.reasoningEffort ??
-        configPresenter.getReasoningEffortDefault?.(providerId, modelId)
+      portrait,
+      modelConfig.reasoningEffort ?? portrait?.effort
     )
     if (effort) {
       defaults.reasoningEffort = effort
     }
   }
 
-  const supportsVerbosity =
-    configPresenter.supportsVerbosityCapability?.(providerId, modelId) === true
-  if (supportsVerbosity) {
-    const verbosity =
-      modelConfig.verbosity ?? configPresenter.getVerbosityDefault?.(providerId, modelId)
-    if (isVerbosity(verbosity)) {
+  if (supportsVerbosity(portrait)) {
+    const verbosity = normalizeVerbosity(portrait, modelConfig.verbosity ?? portrait?.verbosity)
+    if (verbosity) {
       defaults.verbosity = verbosity
     }
   }
@@ -1079,8 +1154,8 @@ const resolveDefaultGenerationSettings = async (
 }
 
 const mergeDraftOverrides = (
-  modelId: string,
-  defaults: SessionGenerationSettings
+  defaults: SessionGenerationSettings,
+  portrait: ReasoningPortrait | null
 ): SessionGenerationSettings => {
   const next: SessionGenerationSettings = {
     ...defaults,
@@ -1093,7 +1168,7 @@ const mergeDraftOverrides = (
       : {}),
     ...(draftStore.reasoningEffort !== undefined
       ? {
-          reasoningEffort: normalizeReasoningEffort(modelId, draftStore.reasoningEffort)
+          reasoningEffort: normalizeReasoningEffort(portrait, draftStore.reasoningEffort)
         }
       : {}),
     ...(draftStore.verbosity !== undefined ? { verbosity: draftStore.verbosity } : {})
@@ -1112,27 +1187,48 @@ const mergeDraftOverrides = (
     Math.min(limits.maxTokensLimit, next.contextLength)
   )
 
+  if (next.thinkingBudget !== undefined) {
+    next.thinkingBudget = normalizeThinkingBudget(
+      portrait,
+      next.thinkingBudget,
+      portrait?.budget?.min,
+      portrait?.budget?.max
+    )
+  }
+
+  if (next.reasoningEffort !== undefined) {
+    next.reasoningEffort = normalizeReasoningEffort(portrait, next.reasoningEffort)
+  }
+
+  if (next.verbosity !== undefined) {
+    next.verbosity = normalizeVerbosity(portrait, next.verbosity)
+  }
+
   return next
 }
 
 const fetchCapabilities = async (providerId: string, modelId: string): Promise<void> => {
   try {
-    const [supportsReasoning, budgetRange, supportsEffort, supportsVerbosity] = await Promise.all([
-      configPresenter.supportsReasoningCapability?.(providerId, modelId),
-      configPresenter.getThinkingBudgetRange?.(providerId, modelId),
-      configPresenter.supportsReasoningEffortCapability?.(providerId, modelId),
-      configPresenter.supportsVerbosityCapability?.(providerId, modelId)
-    ])
+    const portrait = (await configPresenter.getReasoningPortrait?.(providerId, modelId)) ?? null
 
+    capabilityReasoningPortrait.value = portrait
     capabilitySupportsReasoning.value =
-      typeof supportsReasoning === 'boolean' ? supportsReasoning : null
-    capabilityBudgetRange.value = budgetRange ?? null
-    capabilitySupportsEffort.value = typeof supportsEffort === 'boolean' ? supportsEffort : null
-    capabilitySupportsVerbosity.value =
-      typeof supportsVerbosity === 'boolean' ? supportsVerbosity : null
+      typeof portrait?.supported === 'boolean' ? portrait.supported : null
+    capabilityBudgetRange.value = portrait?.budget
+      ? {
+          ...(typeof portrait.budget.min === 'number' ? { min: portrait.budget.min } : {}),
+          ...(typeof portrait.budget.max === 'number' ? { max: portrait.budget.max } : {}),
+          ...(typeof portrait.budget.default === 'number'
+            ? { default: portrait.budget.default }
+            : {})
+        }
+      : null
+    capabilitySupportsEffort.value = supportsReasoningEffort(portrait)
+    capabilitySupportsVerbosity.value = supportsVerbosity(portrait)
   } catch (error) {
     console.warn('[ChatStatusBar] Failed to fetch model capabilities:', error)
     capabilitySupportsReasoning.value = null
+    capabilityReasoningPortrait.value = null
     capabilityBudgetRange.value = null
     capabilitySupportsEffort.value = null
     capabilitySupportsVerbosity.value = null
@@ -1244,6 +1340,7 @@ const syncGenerationSettings = async () => {
     localSettings.value = null
     loadedSettingsSelection.value = null
     capabilitySupportsReasoning.value = null
+    capabilityReasoningPortrait.value = null
     capabilityBudgetRange.value = null
     capabilitySupportsEffort.value = null
     capabilitySupportsVerbosity.value = null
@@ -1254,6 +1351,11 @@ const syncGenerationSettings = async () => {
   if (!selection) {
     localSettings.value = null
     loadedSettingsSelection.value = null
+    capabilityReasoningPortrait.value = null
+    capabilitySupportsReasoning.value = null
+    capabilityBudgetRange.value = null
+    capabilitySupportsEffort.value = null
+    capabilitySupportsVerbosity.value = null
     return
   }
 
@@ -1293,7 +1395,7 @@ const syncGenerationSettings = async () => {
   if (token !== generationSyncToken) {
     return
   }
-  localSettings.value = mergeDraftOverrides(selection.modelId, defaults)
+  localSettings.value = mergeDraftOverrides(defaults, capabilityReasoningPortrait.value)
   loadedSettingsSelection.value = { ...selection }
 }
 
@@ -1556,13 +1658,12 @@ function onThinkingBudgetInput(value: string | number) {
   }
 
   const range = budgetRange.value
-  let budget = Math.round(numeric)
-  if (typeof range?.min === 'number') {
-    budget = Math.max(budget, Math.round(range.min))
-  }
-  if (typeof range?.max === 'number') {
-    budget = Math.min(budget, Math.round(range.max))
-  }
+  const budget = normalizeThinkingBudget(
+    capabilityReasoningPortrait.value,
+    Math.round(numeric),
+    range?.min,
+    range?.max
+  )
   updateLocalGenerationSettings({ thinkingBudget: budget })
 }
 
@@ -1571,8 +1672,7 @@ function onReasoningEffortSelect(value: string) {
     return
   }
 
-  const modelId = effectiveModelSelection.value?.modelId
-  const normalized = normalizeReasoningEffort(modelId, value)
+  const normalized = normalizeReasoningEffort(capabilityReasoningPortrait.value, value)
   if (!normalized) {
     return
   }
@@ -1580,10 +1680,14 @@ function onReasoningEffortSelect(value: string) {
 }
 
 function onVerbositySelect(value: string) {
-  if (!localSettings.value || !isVerbosity(value)) {
+  if (!localSettings.value) {
     return
   }
-  updateLocalGenerationSettings({ verbosity: value })
+  const normalized = normalizeVerbosity(capabilityReasoningPortrait.value, value)
+  if (!normalized) {
+    return
+  }
+  updateLocalGenerationSettings({ verbosity: normalized })
 }
 
 async function selectPermissionMode(mode: PermissionMode) {

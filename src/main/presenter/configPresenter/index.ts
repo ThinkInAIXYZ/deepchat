@@ -40,7 +40,7 @@ import { defaultShortcutKey, ShortcutKeySetting } from './shortcutKeySettings'
 import { ModelConfigHelper } from './modelConfig'
 import { KnowledgeConfHelper } from './knowledgeConfHelper'
 import { providerDbLoader } from './providerDbLoader'
-import { ProviderAggregate } from '@shared/types/model-db'
+import { ProviderAggregate, ReasoningPortrait } from '@shared/types/model-db'
 import { modelCapabilities } from './modelCapabilities'
 import { ProviderHelper } from './providerHelper'
 import { ModelStatusHelper } from './modelStatusHelper'
@@ -295,6 +295,10 @@ export class ConfigPresenter implements IConfigPresenter {
 
   supportsReasoningCapability(providerId: string, modelId: string): boolean {
     return modelCapabilities.supportsReasoning(providerId, modelId)
+  }
+
+  getReasoningPortrait(providerId: string, modelId: string): ReasoningPortrait | null {
+    return modelCapabilities.getReasoningPortrait(providerId, modelId)
   }
 
   getThinkingBudgetRange(
