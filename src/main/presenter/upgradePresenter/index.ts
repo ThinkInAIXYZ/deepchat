@@ -120,6 +120,9 @@ export class UpgradePresenter implements IUpgradePresenter {
       console.log('无可用更新')
       this._lock = false
       this._status = 'not-available'
+      this._error = null
+      this._progress = null
+      this._versionInfo = null
       eventBus.sendToRenderer(UPDATE_EVENTS.STATUS_CHANGED, SendTarget.ALL_WINDOWS, {
         status: this._status,
         type: this._lastCheckType
@@ -129,7 +132,10 @@ export class UpgradePresenter implements IUpgradePresenter {
     // 有可用更新
     autoUpdater.on('update-available', (info) => {
       console.log('检测到新版本', info)
+      this._lock = false
       this._versionInfo = toVersionInfo(info)
+      this._error = null
+      this._progress = null
 
       if (this._previousUpdateFailed) {
         console.log('上次更新失败，本次不进行自动更新，改为手动更新')
@@ -148,8 +154,10 @@ export class UpgradePresenter implements IUpgradePresenter {
         status: this._status,
         info: this._versionInfo
       })
-      // 检测到更新后自动开始下载
-      this.startDownloadUpdate()
+
+      if (this._lastCheckType === 'autoCheck') {
+        this.startDownloadUpdate()
+      }
     })
 
     // 下载进度
@@ -174,6 +182,7 @@ export class UpgradePresenter implements IUpgradePresenter {
       console.log('更新下载完成', info)
       this._lock = false
       this._status = 'downloaded'
+      this._error = null
 
       if (!this._versionInfo) {
         this._versionInfo = toVersionInfo(info)
@@ -292,7 +301,9 @@ export class UpgradePresenter implements IUpgradePresenter {
 
     try {
       this._status = 'checking'
-      this._lastCheckType = type
+      this._error = null
+      this._progress = null
+      this._lastCheckType = type ?? 'manualCheck'
       eventBus.sendToRenderer(UPDATE_EVENTS.STATUS_CHANGED, SendTarget.ALL_WINDOWS, {
         status: this._status
       })

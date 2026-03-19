@@ -10,6 +10,10 @@
   "autoUpdate": "자동 업데이트",
   "downloading": "다운로드",
   "installNow": "지금 설치",
+  "installUpdate": "업데이트 설치",
+  "versionAvailable": "{version} is available",
+  "autoUpdateFailed": "Automatic update failed. Please use the manual download links below.",
+  "topbarButton": "Update",
   "restarting": "다시 시작",
   "alreadyUpToDate": "이미 최신 버전입니다",
   "alreadyUpToDateDesc": "현재 DeepChat은 최신 버전으로 업데이트되어 있으며, 업데이트가 필요하지 않습니다."

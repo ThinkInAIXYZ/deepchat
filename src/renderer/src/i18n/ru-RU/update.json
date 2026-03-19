@@ -10,6 +10,10 @@
   "autoUpdate": "Автоматическое обновление",
   "downloading": "Загрузка",
   "installNow": "Установить",
+  "installUpdate": "Установить обновление",
+  "versionAvailable": "{version} is available",
+  "autoUpdateFailed": "Automatic update failed. Please use the manual download links below.",
+  "topbarButton": "Update",
   "restarting": "Перезапуск",
   "alreadyUpToDate": "Уже обновлено",
   "alreadyUpToDateDesc": "Ваш DeepChat уже обновлен до последней версии, обновление не требуется."

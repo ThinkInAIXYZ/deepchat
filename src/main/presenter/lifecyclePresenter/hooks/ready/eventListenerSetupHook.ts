@@ -7,7 +7,7 @@ import { app } from 'electron'
 import { optimizer } from '@electron-toolkit/utils'
 import { LifecycleHook, LifecycleContext } from '@shared/presenter'
 import { eventBus } from '@/eventbus'
-import { WINDOW_EVENTS, TRAY_EVENTS, FLOATING_BUTTON_EVENTS } from '@/events'
+import { WINDOW_EVENTS, TRAY_EVENTS, FLOATING_BUTTON_EVENTS, SETTINGS_EVENTS } from '@/events'
 import { handleShowHiddenWindow } from '@/utils'
 import { presenter } from '@/presenter'
 import { LifecyclePhase } from '@shared/lifecycle'
@@ -66,16 +66,42 @@ export const eventListenerSetupHook: LifecycleHook = {
     })
 
     // Tray check for updates
-    eventBus.on(TRAY_EVENTS.CHECK_FOR_UPDATES, () => {
-      const allWindows = presenter.windowPresenter.getAllWindows()
+    eventBus.on(TRAY_EVENTS.CHECK_FOR_UPDATES, async () => {
+      try {
+        const settingsWindowId = await presenter.windowPresenter.createSettingsWindow()
+        if (settingsWindowId == null) {
+          console.warn('eventListenerSetupHook: Failed to open settings window for update check.')
+          return
+        }
 
-      // Find target window (focused window or first window)
-      const targetWindow = presenter.windowPresenter.getFocusedWindow() || allWindows![0]
-      presenter.windowPresenter.show(targetWindow.id)
-      targetWindow.focus() // Ensure window is on top
+        const navigateToAbout = () => {
+          presenter.windowPresenter.sendToWindow(settingsWindowId, SETTINGS_EVENTS.NAVIGATE, {
+            routeName: 'settings-about'
+          })
+        }
 
-      // Trigger update
-      presenter.upgradePresenter.checkUpdate()
+        const triggerUpdateCheck = () => {
+          presenter.windowPresenter.sendToWindow(
+            settingsWindowId,
+            SETTINGS_EVENTS.CHECK_FOR_UPDATES
+          )
+        }
+
+        navigateToAbout()
+        triggerUpdateCheck()
+
+        setTimeout(() => {
+          if (presenter.windowPresenter.getSettingsWindowId() === settingsWindowId) {
+            navigateToAbout()
+            triggerUpdateCheck()
+          }
+        }, 250)
+      } catch (error) {
+        console.error(
+          'eventListenerSetupHook: Failed to route tray update check to settings window:',
+          error
+        )
+      }
     })
 
     // Listen for show/hide window events (triggered from tray or shortcut or floating window)
