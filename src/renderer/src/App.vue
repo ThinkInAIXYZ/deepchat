@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref, watch, onBeforeUnmount, computed } from 'vue'
 import { RouterView, useRoute, useRouter } from 'vue-router'
-import UpdateDialog from './components/ui/UpdateDialog.vue'
 import { usePresenter } from './composables/usePresenter'
 import SelectedTextContextMenu from './components/message/SelectedTextContextMenu.vue'
 import { useArtifactStore } from './stores/artifact'
@@ -372,8 +371,6 @@ onBeforeUnmount(() => {
         </div>
       </div>
     </div>
-    <!-- Global update dialog -->
-    <UpdateDialog />
     <!-- Global message dialog -->
     <MessageDialog />
     <McpSamplingDialog />

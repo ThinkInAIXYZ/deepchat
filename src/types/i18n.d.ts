@@ -1794,7 +1794,7 @@ declare module 'vue-i18n' {
     releaseNotes: string
     later: string
     githubDownload: string
-    netdiskDownload: string
+    officialDownload: string
     checkUpdate: string
     downloading: string
     installNow: string

@@ -16,6 +16,7 @@ const { autoUpdater } = electronUpdater
 
 const GITHUB_OWNER = 'ThinkInAIXYZ'
 const GITHUB_REPO = 'deepchat'
+const OFFICIAL_DOWNLOAD_URL = 'https://deepchatai.cn/#/download'
 const UPDATE_CHANNEL_STABLE = 'stable'
 const UPDATE_CHANNEL_BETA = 'beta'
 
@@ -66,7 +67,7 @@ const toVersionInfo = (info: UpdateInfo): VersionInfo => {
     releaseDate: info.releaseDate || '',
     releaseNotes: formatReleaseNotes(info.releaseNotes),
     githubUrl: releaseUrl,
-    downloadUrl: releaseUrl
+    downloadUrl: OFFICIAL_DOWNLOAD_URL
   }
 }
 
@@ -120,6 +121,9 @@ export class UpgradePresenter implements IUpgradePresenter {
       console.log('无可用更新')
       this._lock = false
       this._status = 'not-available'
+      this._error = null
+      this._progress = null
+      this._versionInfo = null
       eventBus.sendToRenderer(UPDATE_EVENTS.STATUS_CHANGED, SendTarget.ALL_WINDOWS, {
         status: this._status,
         type: this._lastCheckType
@@ -129,7 +133,10 @@ export class UpgradePresenter implements IUpgradePresenter {
     // 有可用更新
     autoUpdater.on('update-available', (info) => {
       console.log('检测到新版本', info)
+      this._lock = false
       this._versionInfo = toVersionInfo(info)
+      this._error = null
+      this._progress = null
 
       if (this._previousUpdateFailed) {
         console.log('上次更新失败，本次不进行自动更新，改为手动更新')
@@ -148,8 +155,10 @@ export class UpgradePresenter implements IUpgradePresenter {
         status: this._status,
         info: this._versionInfo
       })
-      // 检测到更新后自动开始下载
-      this.startDownloadUpdate()
+
+      if (this._lastCheckType === 'autoCheck') {
+        this.startDownloadUpdate()
+      }
     })
 
     // 下载进度
@@ -172,23 +181,7 @@ export class UpgradePresenter implements IUpgradePresenter {
     // 下载完成
     autoUpdater.on('update-downloaded', (info) => {
       console.log('更新下载完成', info)
-      this._lock = false
-      this._status = 'downloaded'
-
-      if (!this._versionInfo) {
-        this._versionInfo = toVersionInfo(info)
-      }
-
-      // 写入更新标记文件
-      this.writeUpdateMarker(this._versionInfo?.version || info.version)
-
-      // 确保保存完整的更新信息
-      console.log('使用已保存的版本信息:', this._versionInfo)
-
-      eventBus.sendToRenderer(UPDATE_EVENTS.STATUS_CHANGED, SendTarget.ALL_WINDOWS, {
-        status: this._status,
-        info: this._versionInfo // 使用已保存的版本信息
-      })
+      this.markUpdateDownloaded(info)
     })
 
     // 监听应用获得焦点事件
@@ -269,6 +262,28 @@ export class UpgradePresenter implements IUpgradePresenter {
     }
   }
 
+  private markUpdateDownloaded(info?: UpdateInfo): void {
+    this._lock = false
+    this._status = 'downloaded'
+    this._error = null
+    this._progress = null
+
+    if (!this._versionInfo && info) {
+      this._versionInfo = toVersionInfo(info)
+    }
+
+    if (!this._versionInfo) {
+      console.warn('Downloaded update is missing version info, skipping renderer broadcast.')
+      return
+    }
+
+    this.writeUpdateMarker(this._versionInfo.version)
+    eventBus.sendToRenderer(UPDATE_EVENTS.STATUS_CHANGED, SendTarget.ALL_WINDOWS, {
+      status: this._status,
+      info: this._versionInfo
+    })
+  }
+
   // 处理应用获得焦点事件
   private handleAppFocus(): void {
     const now = Date.now()
@@ -292,7 +307,9 @@ export class UpgradePresenter implements IUpgradePresenter {
 
     try {
       this._status = 'checking'
-      this._lastCheckType = type
+      this._error = null
+      this._progress = null
+      this._lastCheckType = type ?? 'manualCheck'
       eventBus.sendToRenderer(UPDATE_EVENTS.STATUS_CHANGED, SendTarget.ALL_WINDOWS, {
         status: this._status
       })
@@ -330,15 +347,15 @@ export class UpgradePresenter implements IUpgradePresenter {
     }
   }
 
-  async goDownloadUpgrade(type: 'github' | 'netdisk'): Promise<void> {
-    const fallbackUrl = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases`
+  async goDownloadUpgrade(type: 'github' | 'official'): Promise<void> {
+    const githubFallbackUrl = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases`
     if (type === 'github') {
-      const url = this._versionInfo?.githubUrl || fallbackUrl
+      const url = this._versionInfo?.githubUrl || githubFallbackUrl
       if (url) {
         shell.openExternal(url)
       }
-    } else if (type === 'netdisk') {
-      const url = this._versionInfo?.downloadUrl || fallbackUrl
+    } else if (type === 'official') {
+      const url = this._versionInfo?.downloadUrl || OFFICIAL_DOWNLOAD_URL
       if (url) {
         shell.openExternal(url)
       }
@@ -356,7 +373,26 @@ export class UpgradePresenter implements IUpgradePresenter {
         status: this._status,
         info: this._versionInfo // 使用已保存的版本信息
       })
-      autoUpdater.downloadUpdate()
+      void autoUpdater
+        .downloadUpdate()
+        .then(() => {
+          if (this._status !== 'downloaded') {
+            console.log(
+              'downloadUpdate resolved before update-downloaded event, applying fallback downloaded status'
+            )
+            this.markUpdateDownloaded()
+          }
+        })
+        .catch((error: Error | unknown) => {
+          this._lock = false
+          this._status = 'error'
+          this._error = error instanceof Error ? error.message : String(error)
+          eventBus.sendToRenderer(UPDATE_EVENTS.STATUS_CHANGED, SendTarget.ALL_WINDOWS, {
+            status: this._status,
+            error: this._error,
+            info: this._versionInfo
+          })
+        })
       return true
     } catch (error: Error | unknown) {
       this._status = 'error'

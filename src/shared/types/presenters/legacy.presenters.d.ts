@@ -1394,7 +1394,7 @@ export interface IUpgradePresenter {
       downloadUrl: string | undefined
     } | null
   }
-  goDownloadUpgrade(type: 'github' | 'netdisk'): Promise<void>
+  goDownloadUpgrade(type: 'github' | 'official'): Promise<void>
   startDownloadUpdate(): boolean
   restartToUpdate(): boolean
   restartApp(): void

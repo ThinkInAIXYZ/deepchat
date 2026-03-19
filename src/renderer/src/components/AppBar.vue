@@ -8,6 +8,17 @@
       class="h-full shrink-0 w-0 flex-1 flex select-none text-center text-sm font-medium flex-row items-center justify-start window-drag-region"
     >
       <div v-if="!isFullscreened && isMacOS" class="shrink-0 w-20 h-full window-drag-region"></div>
+      <Button
+        v-if="showUpdateButton"
+        variant="default"
+        size="sm"
+        class="window-no-drag-region shrink-0 h-5 rounded-full px-2 text-[10px] font-medium shadow-none"
+        :class="isMacOS ? 'ml-2' : 'ml-3'"
+        :disabled="upgrade.isRestarting"
+        @click="handleInstallUpdate"
+      >
+        {{ upgrade.isRestarting ? t('update.restarting') : t('update.topbarButton') }}
+      </Button>
       <div class="flex-1"></div>
 
       <Button
@@ -40,7 +51,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
 import MaximizeIcon from './icons/MaximizeIcon.vue'
 import RestoreIcon from './icons/RestoreIcon.vue'
 import CloseIcon from './icons/CloseIcon.vue'
@@ -50,16 +61,23 @@ import { Button } from '@shadcn/components/ui/button'
 import { useLanguageStore } from '@/stores/language'
 import { useI18n } from 'vue-i18n'
 import { WINDOW_EVENTS } from '@/events'
+import { useUpgradeStore } from '@/stores/upgrade'
+import { useRoute } from 'vue-router'
 
 const langStore = useLanguageStore()
 const windowPresenter = usePresenter('windowPresenter')
 const devicePresenter = usePresenter('devicePresenter')
+const upgrade = useUpgradeStore()
+const route = useRoute()
 
 const { t } = useI18n()
 
 const isMacOS = ref(false)
 const isMaximized = ref(false)
 const isFullscreened = ref(false)
+const showUpdateButton = computed(
+  () => route.name !== 'welcome' && upgrade.shouldShowTopbarInstallButton
+)
 
 const { ipcRenderer } = window.electron
 
@@ -84,7 +102,12 @@ const closeWindow = () => {
   }
 }
 
+const handleInstallUpdate = async () => {
+  await upgrade.handleUpdate('auto')
+}
+
 onMounted(() => {
+  void upgrade.refreshStatus()
   devicePresenter.getDeviceInfo().then((deviceInfo) => {
     isMacOS.value = deviceInfo.platform === 'darwin'
   })
