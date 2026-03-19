@@ -180,24 +180,7 @@ export class UpgradePresenter implements IUpgradePresenter {
     // 下载完成
     autoUpdater.on('update-downloaded', (info) => {
       console.log('更新下载完成', info)
-      this._lock = false
-      this._status = 'downloaded'
-      this._error = null
-
-      if (!this._versionInfo) {
-        this._versionInfo = toVersionInfo(info)
-      }
-
-      // 写入更新标记文件
-      this.writeUpdateMarker(this._versionInfo?.version || info.version)
-
-      // 确保保存完整的更新信息
-      console.log('使用已保存的版本信息:', this._versionInfo)
-
-      eventBus.sendToRenderer(UPDATE_EVENTS.STATUS_CHANGED, SendTarget.ALL_WINDOWS, {
-        status: this._status,
-        info: this._versionInfo // 使用已保存的版本信息
-      })
+      this.markUpdateDownloaded(info)
     })
 
     // 监听应用获得焦点事件
@@ -276,6 +259,28 @@ export class UpgradePresenter implements IUpgradePresenter {
     } catch (error) {
       console.error('写入更新标记文件失败', error)
     }
+  }
+
+  private markUpdateDownloaded(info?: UpdateInfo): void {
+    this._lock = false
+    this._status = 'downloaded'
+    this._error = null
+    this._progress = null
+
+    if (!this._versionInfo && info) {
+      this._versionInfo = toVersionInfo(info)
+    }
+
+    if (!this._versionInfo) {
+      console.warn('Downloaded update is missing version info, skipping renderer broadcast.')
+      return
+    }
+
+    this.writeUpdateMarker(this._versionInfo.version)
+    eventBus.sendToRenderer(UPDATE_EVENTS.STATUS_CHANGED, SendTarget.ALL_WINDOWS, {
+      status: this._status,
+      info: this._versionInfo
+    })
   }
 
   // 处理应用获得焦点事件
@@ -367,7 +372,26 @@ export class UpgradePresenter implements IUpgradePresenter {
         status: this._status,
         info: this._versionInfo // 使用已保存的版本信息
       })
-      autoUpdater.downloadUpdate()
+      void autoUpdater
+        .downloadUpdate()
+        .then(() => {
+          if (this._status !== 'downloaded') {
+            console.log(
+              'downloadUpdate resolved before update-downloaded event, applying fallback downloaded status'
+            )
+            this.markUpdateDownloaded()
+          }
+        })
+        .catch((error: Error | unknown) => {
+          this._lock = false
+          this._status = 'error'
+          this._error = error instanceof Error ? error.message : String(error)
+          eventBus.sendToRenderer(UPDATE_EVENTS.STATUS_CHANGED, SendTarget.ALL_WINDOWS, {
+            status: this._status,
+            error: this._error,
+            info: this._versionInfo
+          })
+        })
       return true
     } catch (error: Error | unknown) {
       this._status = 'error'
