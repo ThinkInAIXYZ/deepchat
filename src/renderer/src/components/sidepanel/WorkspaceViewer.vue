@@ -46,7 +46,10 @@
     </div>
 
     <div class="min-h-0 flex-1 overflow-hidden">
-      <div v-if="paneKind === 'empty'" class="flex h-full items-center justify-center px-6">
+      <div
+        v-if="paneKind === 'empty' && !(activeSource === 'file' && props.loadingFilePreview)"
+        class="flex h-full items-center justify-center px-6"
+      >
         <div class="text-center text-sm text-muted-foreground">
           {{ emptyMessage }}
         </div>

@@ -14,7 +14,7 @@
                 custom-class="w-3.5 h-3.5"
                 :is-dark="themeStore.isDark"
               />
-              <span>{{ displayModelName }}</span>
+              <span>{{ displayModelText }}</span>
               <Icon icon="lucide:chevron-down" class="w-3 h-3" />
             </Button>
           </PopoverTrigger>
@@ -23,22 +23,21 @@
             align="start"
             :class="[
               'max-w-[calc(100vw-1rem)] overflow-hidden p-0',
-              isModelSettingsExpanded ? 'w-[40rem]' : 'w-[22rem]'
+              isModelSettingsExpanded ? 'w-[38rem]' : 'w-[20rem]'
             ]"
           >
             <div class="flex max-h-[28rem]">
               <div
                 :class="[
                   'flex min-w-0 flex-col',
-                  isModelSettingsExpanded ? 'w-[19rem] border-r' : 'w-full'
+                  isModelSettingsExpanded ? 'w-[18rem] border-r' : 'w-full'
                 ]"
               >
-                <div class="border-b px-3 py-3">
-                  <div class="text-sm font-medium">{{ t('common.selectModel') }}</div>
+                <div class="border-b px-2.5 py-2">
                   <Input
                     data-model-search-input="true"
                     v-model="modelSearchKeyword"
-                    class="mt-3 h-8 text-xs"
+                    class="h-7 border-0 bg-transparent px-3 text-xs shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
                     :placeholder="t('model.search.placeholder')"
                   />
                 </div>
@@ -51,14 +50,14 @@
                     {{ t('chat.modelPicker.empty') }}
                   </div>
 
-                  <div v-else class="space-y-4">
+                  <div v-else class="space-y-3">
                     <div
                       v-for="group in filteredModelGroups"
                       :key="group.providerId"
-                      class="space-y-1.5"
+                      class="space-y-1"
                     >
                       <div
-                        class="px-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground"
+                        class="px-2 text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground"
                       >
                         {{ group.providerName }}
                       </div>
@@ -72,8 +71,10 @@
                           <button
                             type="button"
                             :class="[
-                              'flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-2 text-left text-xs transition-colors hover:bg-muted/70',
-                              isModelSelected(group.providerId, model.id) ? 'bg-muted/80' : ''
+                              'flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-left text-xs transition-colors',
+                              isModelSelected(group.providerId, model.id)
+                                ? 'bg-muted/60 text-foreground'
+                                : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
                             ]"
                             @click="handleModelQuickSelect(group.providerId, model.id)"
                           >
@@ -82,23 +83,18 @@
                               custom-class="w-3.5 h-3.5 shrink-0"
                               :is-dark="themeStore.isDark"
                             />
-                            <div class="min-w-0 flex-1">
-                              <div class="truncate font-medium">{{ model.name }}</div>
-                              <div class="truncate text-[11px] text-muted-foreground">
-                                {{ model.id }}
-                              </div>
-                            </div>
+                            <span class="min-w-0 flex-1 truncate font-medium">{{ model.id }}</span>
                           </button>
                           <Button
                             type="button"
                             variant="ghost"
                             size="sm"
-                            class="h-7 w-7 shrink-0 p-0 text-muted-foreground hover:text-foreground"
-                            :aria-label="t('settings.model.title')"
-                            :title="t('settings.model.title')"
+                            class="h-8 w-8 shrink-0 p-0 text-muted-foreground hover:text-foreground"
+                            :aria-label="t('chat.advancedSettings.button')"
+                            :title="t('chat.advancedSettings.button')"
                             @click.stop="openModelSettings(group.providerId, model.id)"
                           >
-                            <Icon icon="lucide:settings-2" class="h-3.5 w-3.5" />
+                            <Icon icon="lucide:chevron-right" class="h-3.5 w-3.5" />
                           </Button>
                         </div>
                       </div>
@@ -305,7 +301,7 @@
             custom-class="w-3.5 h-3.5"
             :is-dark="themeStore.isDark"
           />
-          <span>{{ displayModelName }}</span>
+          <span>{{ displayModelText }}</span>
         </Button>
       </div>
 
@@ -964,8 +960,21 @@ const systemPromptMenuOptions = computed(() =>
   }))
 )
 
+const hasLoadedGenerationSettingsForCurrentSelection = computed(() => {
+  const loadedSelection = loadedSettingsSelection.value
+  const effectiveSelection = effectiveModelSelection.value
+
+  return Boolean(
+    localSettings.value &&
+    loadedSelection &&
+    effectiveSelection &&
+    loadedSelection.providerId === effectiveSelection.providerId &&
+    loadedSelection.modelId === effectiveSelection.modelId
+  )
+})
+
 const selectedSystemPromptId = computed(() => {
-  if (!localSettings.value) {
+  if (!hasLoadedGenerationSettingsForCurrentSelection.value || !localSettings.value) {
     return 'empty'
   }
   const currentPrompt = localSettings.value.systemPrompt
@@ -973,7 +982,9 @@ const selectedSystemPromptId = computed(() => {
   return matched?.id ?? 'empty'
 })
 
-const showSystemPromptSection = computed(() => !isAcpAgent.value && Boolean(localSettings.value))
+const showSystemPromptSection = computed(
+  () => !isAcpAgent.value && hasLoadedGenerationSettingsForCurrentSelection.value
+)
 
 const modelSettingsModelName = computed(() => {
   return resolveModelName(
@@ -1026,21 +1037,20 @@ const displayIconId = computed(() => {
   )
 })
 
-const displayModelName = computed(() => {
+const displayModelText = computed(() => {
   if (hasActiveSession.value) {
     const selection = activeSessionSelection.value ?? draftModelSelection.value
     if (selection?.modelId) {
-      return resolveModelName(selection.providerId, selection.modelId)
+      return selection.modelId
     }
     return t('common.selectModel')
   }
   if (isAcpAgent.value) {
-    const agent = agentStore.selectedAgent
-    return agent?.name ?? agentStore.selectedAgentId ?? 'ACP Agent'
+    return agentStore.selectedAgentId ?? 'ACP Agent'
   }
   const selection = draftModelSelection.value
   if (selection?.modelId) {
-    return resolveModelName(selection.providerId, selection.modelId)
+    return selection.modelId
   }
   return t('common.selectModel')
 })
@@ -1572,7 +1582,7 @@ function handleSessionPanelOpenChange(open: boolean) {
 }
 
 function onSystemPromptSelect(optionId: string) {
-  if (!localSettings.value) {
+  if (!hasLoadedGenerationSettingsForCurrentSelection.value || !localSettings.value) {
     return
   }
   const option = systemPromptOptions.value.find((item) => item.id === optionId)

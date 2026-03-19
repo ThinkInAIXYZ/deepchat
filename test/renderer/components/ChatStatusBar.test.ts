@@ -58,7 +58,7 @@ const ButtonStub = defineComponent({
   },
   emits: ['click'],
   template:
-    '<button v-bind="$attrs" :disabled="disabled" @click="$emit(\'click\')"><slot /></button>'
+    '<button v-bind="$attrs" :disabled="disabled" @click="$emit(\'click\', $event)"><slot /></button>'
 })
 
 const SliderStub = defineComponent({
@@ -329,8 +329,7 @@ const setup = async (options: SetupOptions = {}) => {
             modelId: { type: String, default: '' }
           },
           template: '<div class="model-icon-stub" :data-model-id="modelId" />'
-        }),
-        Icon: true
+        })
       }
     }
   })
@@ -357,6 +356,34 @@ describe('ChatStatusBar model and session panels', () => {
     expect(
       acp.wrapper.find('.mcp-indicator-stub').attributes('data-show-system-prompt-section')
     ).toBe('false')
+  })
+
+  it('renders compact model ids in the trigger and list, and keeps chevron actions for settings', async () => {
+    const { wrapper } = await setup({
+      agentId: 'deepchat',
+      hasActiveSession: false,
+      defaultModel: { providerId: 'openai', modelId: 'gpt-4' },
+      preferredModel: { providerId: 'openai', modelId: 'gpt-4' }
+    })
+
+    expect((wrapper.vm as any).displayModelText).toBe('gpt-4')
+    expect(wrapper.text()).toContain('gpt-4')
+    expect(wrapper.text()).toContain('claude-3-5-sonnet')
+    expect(wrapper.text()).not.toContain('GPT-4')
+    expect(wrapper.text()).not.toContain('Claude 3.5 Sonnet')
+
+    const actionButtons = wrapper.findAll('button[title="chat.advancedSettings.button"]')
+    expect(actionButtons.length).toBeGreaterThan(0)
+    expect(
+      wrapper
+        .findAll('.icon-stub')
+        .some((icon) => icon.attributes('data-icon') === 'lucide:chevron-right')
+    ).toBe(true)
+
+    await actionButtons[0].trigger('click')
+    await flushPromises()
+
+    expect((wrapper.vm as any).isModelSettingsExpanded).toBe(true)
   })
 
   it('shows reasoning effort controls only when model capability supports it', async () => {
@@ -418,12 +445,19 @@ describe('ChatStatusBar model and session panels', () => {
 
     expect(wrapper.text()).toContain('common.loading')
     expect(wrapper.text()).not.toContain('chat.advancedSettings.temperature')
+    expect((wrapper.vm as any).showSystemPromptSection).toBe(false)
+    expect((wrapper.vm as any).selectedSystemPromptId).toBe('empty')
+    expect(wrapper.find('.mcp-indicator-stub').attributes('data-show-system-prompt-section')).toBe(
+      'false'
+    )
 
     pendingSettings.resolve(nextSettings)
     await flushPromises()
 
     expect(wrapper.text()).not.toContain('common.loading')
     expect((wrapper.vm as any).localSettings).toEqual(nextSettings)
+    expect((wrapper.vm as any).showSystemPromptSection).toBe(true)
+    expect((wrapper.vm as any).selectedSystemPromptId).toBe('__custom__')
   })
 
   it('keeps non-grok-3-mini xAI models on the full reasoning effort scale', async () => {
@@ -513,7 +547,7 @@ describe('ChatStatusBar model and session panels', () => {
 
     expect(draftStore.providerId).toBe('anthropic')
     expect(draftStore.modelId).toBe('claude-3-5-sonnet')
-    expect((wrapper.vm as any).displayModelName).toBe('Claude 3.5 Sonnet')
+    expect((wrapper.vm as any).displayModelText).toBe('claude-3-5-sonnet')
   })
 
   it('debounces generation setting persistence to a single session update', async () => {

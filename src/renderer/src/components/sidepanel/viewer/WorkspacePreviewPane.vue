@@ -80,6 +80,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { ArtifactState } from '@/stores/artifact'
 import type { WorkspaceFilePreview } from '@shared/presenter'
 import type { WorkspacePreviewKind } from '../composables/useWorkspaceViewerModel'
@@ -94,6 +95,8 @@ const props = defineProps<{
   artifact?: ArtifactState | null
   filePreview?: WorkspaceFilePreview | null
 }>()
+
+const { t } = useI18n()
 
 const artifactBlock = computed(() => {
   if (!props.artifact) {
@@ -134,7 +137,9 @@ const fileBlock = computed(() => {
 
 const resolvedBlock = computed(() => artifactBlock.value ?? fileBlock.value)
 const resolvedContent = computed(() => props.artifact?.content ?? props.filePreview?.content ?? '')
-const resolvedTitle = computed(() => props.artifact?.title ?? props.filePreview?.name ?? 'preview')
+const resolvedTitle = computed(
+  () => props.artifact?.title ?? props.filePreview?.name ?? t('artifacts.preview')
+)
 const imageSrc = computed(() => props.filePreview?.content || props.filePreview?.thumbnail || '')
 const documentPreviewUrl = computed(() => {
   if (!props.filePreview?.previewUrl) {
