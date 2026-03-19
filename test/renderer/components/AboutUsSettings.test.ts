@@ -111,6 +111,21 @@ vi.mock('vue-router', () => ({
 describe('AboutUsSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    Object.assign(upgradeStoreMock, {
+      shouldShowUpdateNotes: true,
+      updateInfo: {
+        version: '1.0.0-beta.4',
+        releaseNotes: '- Added floating window'
+      },
+      showManualDownloadOptions: true,
+      updateError: 'network failed',
+      isChecking: false,
+      isDownloading: false,
+      isRestarting: false,
+      updateProgress: null,
+      isReadyToInstall: false,
+      updateState: 'error'
+    })
     Object.assign(window, {
       electron: {
         ipcRenderer: {
@@ -161,5 +176,100 @@ describe('AboutUsSettings', () => {
     await officialButton!.trigger('click')
 
     expect(upgradeStoreMock.handleUpdate).toHaveBeenCalledWith('official')
+  })
+
+  it('subscribes to tray update checks before initial presenter calls resolve', async () => {
+    let resolveAppVersion: ((value: string) => void) | null = null
+    presenterMocks.devicePresenter.getAppVersion.mockReturnValueOnce(
+      new Promise<string>((resolve) => {
+        resolveAppVersion = resolve
+      })
+    )
+
+    const { default: AboutUsSettings } =
+      await import('../../../src/renderer/settings/components/AboutUsSettings.vue')
+
+    const wrapper = mount(AboutUsSettings, {
+      global: {
+        stubs: {
+          Button: buttonStub,
+          Icon: true,
+          Dialog: passthroughStub('Dialog'),
+          DialogContent: passthroughStub('DialogContent'),
+          DialogDescription: passthroughStub('DialogDescription'),
+          DialogFooter: passthroughStub('DialogFooter'),
+          DialogHeader: passthroughStub('DialogHeader'),
+          DialogTitle: passthroughStub('DialogTitle'),
+          Select: passthroughStub('Select'),
+          SelectContent: passthroughStub('SelectContent'),
+          SelectItem: passthroughStub('SelectItem'),
+          SelectTrigger: passthroughStub('SelectTrigger'),
+          SelectValue: passthroughStub('SelectValue'),
+          NodeRenderer: passthroughStub('NodeRenderer')
+        }
+      }
+    })
+
+    const registration = vi
+      .mocked(window.electron.ipcRenderer.on)
+      .mock.calls.find(([event]) => event === 'settings:check-for-updates')
+
+    expect(registration).toBeTruthy()
+
+    const handler = registration?.[1] as () => Promise<void>
+    await handler()
+
+    expect(upgradeStoreMock.checkUpdate).toHaveBeenCalledWith(false)
+
+    resolveAppVersion?.('1.0.0-beta.3')
+    await flushPromises()
+    wrapper.unmount()
+  })
+
+  it('does not trigger install flow for external check requests when update is ready to install', async () => {
+    upgradeStoreMock.showManualDownloadOptions = false
+    upgradeStoreMock.updateError = null
+    upgradeStoreMock.isReadyToInstall = true
+    upgradeStoreMock.updateState = 'ready_to_install'
+
+    const { default: AboutUsSettings } =
+      await import('../../../src/renderer/settings/components/AboutUsSettings.vue')
+
+    const wrapper = mount(AboutUsSettings, {
+      global: {
+        stubs: {
+          Button: buttonStub,
+          Icon: true,
+          Dialog: passthroughStub('Dialog'),
+          DialogContent: passthroughStub('DialogContent'),
+          DialogDescription: passthroughStub('DialogDescription'),
+          DialogFooter: passthroughStub('DialogFooter'),
+          DialogHeader: passthroughStub('DialogHeader'),
+          DialogTitle: passthroughStub('DialogTitle'),
+          Select: passthroughStub('Select'),
+          SelectContent: passthroughStub('SelectContent'),
+          SelectItem: passthroughStub('SelectItem'),
+          SelectTrigger: passthroughStub('SelectTrigger'),
+          SelectValue: passthroughStub('SelectValue'),
+          NodeRenderer: passthroughStub('NodeRenderer')
+        }
+      }
+    })
+
+    await flushPromises()
+
+    const registration = vi
+      .mocked(window.electron.ipcRenderer.on)
+      .mock.calls.find(([event]) => event === 'settings:check-for-updates')
+
+    expect(registration).toBeTruthy()
+
+    const handler = registration?.[1] as () => Promise<void>
+    await handler()
+
+    expect(upgradeStoreMock.handleUpdate).not.toHaveBeenCalled()
+    expect(upgradeStoreMock.checkUpdate).not.toHaveBeenCalled()
+
+    wrapper.unmount()
   })
 })

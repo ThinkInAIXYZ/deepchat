@@ -286,6 +286,14 @@ const handleManualDownload = async (type: 'github' | 'official') => {
 }
 
 const handleExternalCheckUpdate = async () => {
+  if (upgrade.isChecking || upgrade.isDownloading || upgrade.isRestarting) {
+    return
+  }
+
+  if (upgrade.updateState === 'available' || upgrade.isReadyToInstall) {
+    return
+  }
+
   await handlePrimaryAction()
 }
 
@@ -302,10 +310,10 @@ const openExternalLink = (url: string) => {
 }
 
 onMounted(async () => {
+  window.electron?.ipcRenderer?.on(SETTINGS_EVENTS.CHECK_FOR_UPDATES, handleExternalCheckUpdate)
   appVersion.value = await devicePresenter.getAppVersion()
   updateChannel.value = await configPresenter.getUpdateChannel()
   await syncUpdateStatus()
-  window.electron?.ipcRenderer?.on(SETTINGS_EVENTS.CHECK_FOR_UPDATES, handleExternalCheckUpdate)
 })
 
 watch(

@@ -36,6 +36,8 @@ type PresenterStatusSnapshot = {
   updateInfo: UpdateInfo | null
 }
 
+const DEFAULT_UPDATE_ERROR = 'Update error'
+
 const toUpdateInfo = (info: UpdateInfo | null | undefined): UpdateInfo | null => {
   if (!info) return null
 
@@ -174,7 +176,7 @@ export const useUpgradeStore = defineStore('upgrade', () => {
     }
 
     if (status === 'error') {
-      updateError.value = error || '更新出错'
+      updateError.value = error || DEFAULT_UPDATE_ERROR
       isRestarting.value = false
       return
     }
@@ -196,6 +198,7 @@ export const useUpgradeStore = defineStore('upgrade', () => {
     if (isChecking.value) return rawStatus.value
 
     try {
+      applyStatus('checking', updateInfo.value, null)
       await upgradeP.checkUpdate()
       return await syncFromPresenterStatus()
     } catch (error) {
@@ -267,7 +270,11 @@ export const useUpgradeStore = defineStore('upgrade', () => {
   }
 
   const handleError = (_: unknown, errorData: Record<string, any>) => {
-    applyStatus(updateInfo.value ? 'error' : null, updateInfo.value, errorData?.error || '更新出错')
+    applyStatus(
+      updateInfo.value ? 'error' : null,
+      updateInfo.value,
+      errorData?.error || DEFAULT_UPDATE_ERROR
+    )
   }
 
   const setupUpdateListener = () => {

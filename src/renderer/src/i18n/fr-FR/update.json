@@ -11,9 +11,9 @@
   "downloading": "Téléchargement",
   "installNow": "Installer maintenant",
   "installUpdate": "Installer la mise à jour",
-  "versionAvailable": "{version} is available",
-  "autoUpdateFailed": "Automatic update failed. Please use the manual download links below.",
-  "topbarButton": "Update",
+  "versionAvailable": "{version} est disponible",
+  "autoUpdateFailed": "La mise à jour automatique a échoué. Veuillez utiliser les liens de téléchargement manuels ci-dessous.",
+  "topbarButton": "Mettre à jour",
   "restarting": "Redémarrage",
   "alreadyUpToDate": "Déjà à jour",
   "alreadyUpToDateDesc": "Votre DeepChat est déjà à jour avec la dernière version, aucune mise à jour n'est nécessaire."

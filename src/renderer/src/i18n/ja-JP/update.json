@@ -11,9 +11,9 @@
   "downloading": "ダウンロード",
   "installNow": "今すぐインストール",
   "installUpdate": "アップデートをインストール",
-  "versionAvailable": "{version} is available",
-  "autoUpdateFailed": "Automatic update failed. Please use the manual download links below.",
-  "topbarButton": "Update",
+  "versionAvailable": "{version} が利用可能です",
+  "autoUpdateFailed": "自動更新に失敗しました。以下の手動ダウンロードリンクを使用してください。",
+  "topbarButton": "更新",
   "restarting": "再起動",
   "alreadyUpToDate": "すでに最新です",
   "alreadyUpToDateDesc": "現在、DeepChatは最新バージョンに更新されており、更新は必要ありません。"

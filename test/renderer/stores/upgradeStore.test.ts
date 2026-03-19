@@ -113,6 +113,33 @@ describe('useUpgradeStore', () => {
     expect(store.hasUpdate).toBe(true)
   })
 
+  it('marks checking immediately and coalesces repeated manual checks before presenter reply', async () => {
+    const store = useUpgradeStore()
+    let resolveCheck: (() => void) | null = null
+
+    upgradePresenterMock.checkUpdate.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        resolveCheck = resolve
+      })
+    )
+
+    const firstCheck = store.checkUpdate(false)
+
+    expect(store.updateState).toBe('checking')
+    expect(store.isChecking).toBe(true)
+
+    const secondCheck = await store.checkUpdate(false)
+
+    expect(secondCheck).toBe('checking')
+    expect(upgradePresenterMock.checkUpdate).toHaveBeenCalledTimes(1)
+
+    resolveCheck?.()
+
+    const firstResult = await firstCheck
+    expect(firstResult).toBe('not-available')
+    expect(store.updateState).toBe('idle')
+  })
+
   it('hydrates downloading progress from async presenter status', async () => {
     const store = useUpgradeStore()
 
