@@ -1,7 +1,7 @@
 import { usePresenter } from '@/composables/usePresenter'
 import { UPDATE_EVENTS } from '@/events'
 import { defineStore } from 'pinia'
-import { computed, onMounted, ref } from 'vue'
+import { computed, ref } from 'vue'
 
 type PresenterUpdateStatus =
   | 'checking'
@@ -85,6 +85,24 @@ export const useUpgradeStore = defineStore('upgrade', () => {
     () => rawStatus.value === 'error' && Boolean(updateInfo.value)
   )
 
+  const applyProgress = (progress?: ProgressInfo | null) => {
+    updateProgress.value = progress
+      ? {
+          percent: progress.percent,
+          bytesPerSecond: progress.bytesPerSecond,
+          transferred: progress.transferred,
+          total: progress.total
+        }
+      : null
+  }
+
+  const syncFromPresenterStatus = () => {
+    const status = upgradeP.getUpdateStatus()
+    applyStatus(status.status, status.updateInfo, status.error)
+    applyProgress(status.progress)
+    return status.status
+  }
+
   const applyStatus = (
     status: PresenterUpdateStatus,
     info?: UpdateInfo | null,
@@ -135,20 +153,6 @@ export const useUpgradeStore = defineStore('upgrade', () => {
       isRestarting.value = false
       return
     }
-  }
-
-  const syncFromPresenterStatus = () => {
-    const status = upgradeP.getUpdateStatus()
-    applyStatus(status.status, status.updateInfo, status.error)
-    updateProgress.value = status.progress
-      ? {
-          percent: status.progress.percent,
-          bytesPerSecond: status.progress.bytesPerSecond,
-          transferred: status.progress.transferred,
-          total: status.progress.total
-        }
-      : null
-    return status.status
   }
 
   const loadDeviceInfo = async () => {
@@ -253,10 +257,8 @@ export const useUpgradeStore = defineStore('upgrade', () => {
     window.electron.ipcRenderer.on(UPDATE_EVENTS.ERROR, handleError)
   }
 
-  onMounted(() => {
-    setupUpdateListener()
-    syncFromPresenterStatus()
-  })
+  setupUpdateListener()
+  syncFromPresenterStatus()
 
   return {
     hasUpdate,
@@ -274,6 +276,7 @@ export const useUpgradeStore = defineStore('upgrade', () => {
     shouldShowUpdateNotes,
     shouldShowTopbarInstallButton,
     showManualDownloadOptions,
+    refreshStatus: syncFromPresenterStatus,
     checkUpdate,
     startUpdate,
     handleUpdate

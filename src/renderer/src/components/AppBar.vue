@@ -10,10 +10,10 @@
       <div v-if="!isFullscreened && isMacOS" class="shrink-0 w-20 h-full window-drag-region"></div>
       <Button
         v-if="showUpdateButton"
-        variant="outline"
+        variant="default"
         size="sm"
-        class="window-no-drag-region shrink-0 h-7 rounded-md px-3 text-xs font-medium"
-        :class="isMacOS ? 'ml-1' : 'ml-3'"
+        class="window-no-drag-region shrink-0 h-5 rounded-full px-2 text-[10px] font-medium shadow-none"
+        :class="isMacOS ? 'ml-2' : 'ml-3'"
         :disabled="upgrade.isRestarting"
         @click="handleInstallUpdate"
       >

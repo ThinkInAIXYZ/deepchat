@@ -188,7 +188,7 @@
 
 <script setup lang="ts">
 import { usePresenter } from '@/composables/usePresenter'
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Button } from '@shadcn/components/ui/button'
 import { Icon } from '@iconify/vue'
@@ -214,11 +214,13 @@ import type { AcceptableValue } from 'reka-ui'
 import { useThemeStore } from '@/stores/theme'
 import { useToast } from '@/components/use-toast'
 import { SETTINGS_EVENTS } from '@/events'
+import { useRoute } from 'vue-router'
 
 const { t } = useI18n()
 const { toast } = useToast()
 const themeStore = useThemeStore()
 const languageStore = useLanguageStore()
+const route = useRoute()
 const devicePresenter = usePresenter('devicePresenter')
 const configPresenter = usePresenter('configPresenter')
 const appVersion = ref('')
@@ -285,6 +287,10 @@ const handleExternalCheckUpdate = async () => {
   await handlePrimaryAction()
 }
 
+const syncUpdateStatus = () => {
+  upgrade.refreshStatus()
+}
+
 const openExternalLink = (url: string) => {
   if (window.api?.openExternal) {
     window.api.openExternal(url)
@@ -296,8 +302,18 @@ const openExternalLink = (url: string) => {
 onMounted(async () => {
   appVersion.value = await devicePresenter.getAppVersion()
   updateChannel.value = await configPresenter.getUpdateChannel()
+  syncUpdateStatus()
   window.electron?.ipcRenderer?.on(SETTINGS_EVENTS.CHECK_FOR_UPDATES, handleExternalCheckUpdate)
 })
+
+watch(
+  () => route.name,
+  (routeName) => {
+    if (routeName === 'settings-about') {
+      syncUpdateStatus()
+    }
+  }
+)
 
 onBeforeUnmount(() => {
   window.electron?.ipcRenderer?.removeListener(
