@@ -10,12 +10,14 @@
 
       <div class="flex items-center gap-2">
         <div
-          v-if="canToggleViewMode"
+          v-if="shouldShowTabs"
           class="flex items-center rounded-lg bg-muted p-0.5 text-xs text-muted-foreground"
         >
           <button
             class="rounded-md px-2 py-1 transition-colors"
-            :class="viewMode === 'preview' ? 'bg-background text-foreground shadow-sm' : ''"
+            :class="
+              effectiveViewMode === 'preview' ? 'bg-background text-foreground shadow-sm' : ''
+            "
             type="button"
             @click="sidepanelStore.setViewMode(props.sessionId, 'preview')"
           >
@@ -23,7 +25,7 @@
           </button>
           <button
             class="rounded-md px-2 py-1 transition-colors"
-            :class="viewMode === 'code' ? 'bg-background text-foreground shadow-sm' : ''"
+            :class="effectiveViewMode === 'code' ? 'bg-background text-foreground shadow-sm' : ''"
             type="button"
             @click="sidepanelStore.setViewMode(props.sessionId, 'code')"
           >
@@ -32,7 +34,7 @@
         </div>
 
         <Button
-          v-if="props.filePreview"
+          v-if="openFilePath"
           variant="outline"
           size="sm"
           class="h-7 text-xs"
@@ -45,14 +47,23 @@
 
     <div class="min-h-0 flex-1 overflow-hidden">
       <div
-        v-if="isEmpty"
-        class="flex h-full items-center justify-center px-6 text-center text-sm text-muted-foreground"
+        v-if="paneKind === 'empty' && !(activeSource === 'file' && props.loadingFilePreview)"
+        class="flex h-full items-center justify-center px-6"
       >
-        {{ t('chat.workspace.title') }}
+        <div class="text-center text-sm text-muted-foreground">
+          {{ emptyMessage }}
+        </div>
       </div>
 
       <div
-        v-else-if="activeSource === 'git-diff'"
+        v-else-if="activeSource === 'file' && props.loadingFilePreview"
+        class="flex h-full items-center justify-center px-6 text-center text-sm text-muted-foreground"
+      >
+        {{ t('chat.workspace.files.loading') }}
+      </div>
+
+      <div
+        v-else-if="paneKind === 'git-diff'"
         class="h-full overflow-auto bg-background px-4 py-3 font-mono text-xs leading-6"
       >
         <template v-if="props.loadingGitDiff">
@@ -87,87 +98,42 @@
         </template>
       </div>
 
+      <WorkspaceCodePane v-else-if="paneKind === 'code' && codeSource" :source="codeSource" />
+
+      <WorkspacePreviewPane
+        v-else-if="paneKind === 'preview' && previewKind"
+        :preview-kind="previewKind"
+        :artifact="previewArtifact"
+        :file-preview="previewFilePreview"
+      />
+
+      <WorkspaceInfoPane
+        v-else-if="paneKind === 'info' && props.filePreview"
+        :file-preview="props.filePreview"
+      />
+
       <div
-        v-else-if="showCodeView"
-        ref="codeEditorRef"
-        class="h-full min-h-[30px] overflow-auto bg-background text-xs"
-      ></div>
-
-      <div v-else-if="activeSource === 'file' && props.filePreview" class="h-full overflow-auto">
-        <template v-if="props.loadingFilePreview">
-          <div class="flex h-full items-center justify-center text-sm text-muted-foreground">
-            {{ t('chat.workspace.files.loading') }}
-          </div>
-        </template>
-        <template v-else-if="props.filePreview.kind === 'image'">
-          <div class="flex h-full items-center justify-center bg-muted/20 p-4">
-            <img
-              :src="props.filePreview.content || props.filePreview.thumbnail"
-              :alt="props.filePreview.name"
-              class="max-h-full max-w-full rounded-md object-contain shadow-sm"
-            />
-          </div>
-        </template>
-        <template v-else-if="props.filePreview.kind === 'binary'">
-          <div class="space-y-2 p-4 text-sm">
-            <div class="text-muted-foreground">{{ props.filePreview.mimeType }}</div>
-            <div class="text-muted-foreground">
-              {{
-                t('common.size.bytes', {
-                  count: Math.max(0, Number(props.filePreview.metadata.fileSize) || 0)
-                })
-              }}
-            </div>
-          </div>
-        </template>
-        <template v-else-if="previewBlock && previewComponent">
-          <component
-            :is="previewComponent"
-            :block="previewBlock"
-            :is-preview="true"
-            viewport-size="desktop"
-            class="h-full"
-          />
-        </template>
-        <template v-else>
-          <pre class="whitespace-pre-wrap break-words p-4 text-sm leading-6">{{
-            props.filePreview.content
-          }}</pre>
-        </template>
-      </div>
-
-      <div v-else-if="activeSource === 'artifact' && previewBlock" class="h-full overflow-auto">
-        <component
-          v-if="previewComponent"
-          :is="previewComponent"
-          :block="previewBlock"
-          :is-preview="true"
-          viewport-size="desktop"
-          class="h-full"
-        />
-        <pre v-else class="whitespace-pre-wrap break-words p-4 text-sm leading-6">{{
-          previewBlock.content
-        }}</pre>
+        v-else
+        class="flex h-full items-center justify-center px-6 text-center text-sm text-muted-foreground"
+      >
+        {{ t('chat.workspace.title') }}
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Button } from '@shadcn/components/ui/button'
 import { usePresenter } from '@/composables/usePresenter'
-import { useArtifactCodeEditor } from '@/composables/useArtifactCodeEditor'
 import { useSidepanelStore } from '@/stores/ui/sidepanel'
 import type { ArtifactState } from '@/stores/artifact'
 import type { WorkspaceFilePreview, WorkspaceGitDiff } from '@shared/presenter'
-import CodeArtifact from '@/components/artifacts/CodeArtifact.vue'
-import MarkdownArtifact from '@/components/artifacts/MarkdownArtifact.vue'
-import HTMLArtifact from '@/components/artifacts/HTMLArtifact.vue'
-import SvgArtifact from '@/components/artifacts/SvgArtifact.vue'
-import MermaidArtifact from '@/components/artifacts/MermaidArtifact.vue'
-import ReactArtifact from '@/components/artifacts/ReactArtifact.vue'
+import { useWorkspaceViewerModel } from './composables/useWorkspaceViewerModel'
+import WorkspaceCodePane from './viewer/WorkspaceCodePane.vue'
+import WorkspacePreviewPane from './viewer/WorkspacePreviewPane.vue'
+import WorkspaceInfoPane from './viewer/WorkspaceInfoPane.vue'
 
 const props = defineProps<{
   sessionId: string
@@ -181,103 +147,30 @@ const props = defineProps<{
 const { t } = useI18n()
 const sidepanelStore = useSidepanelStore()
 const workspacePresenter = usePresenter('workspacePresenter')
-const codeEditorRef = ref<HTMLElement | null>(null)
 
 const sessionState = computed(() => sidepanelStore.getSessionState(props.sessionId))
-const viewMode = computed(() => sessionState.value.viewMode)
+const { activeSource, effectiveViewMode, paneKind, previewKind, shouldShowTabs } =
+  useWorkspaceViewerModel({
+    artifact: computed(() => props.artifact),
+    filePreview: computed(() => props.filePreview),
+    sessionState
+  })
 
-const activeSource = computed<'artifact' | 'file' | 'git-diff' | null>(() => {
-  if (sessionState.value.selectedDiffPath) {
-    return 'git-diff'
-  }
-  if (sessionState.value.selectedFilePath) {
-    return props.filePreview ? 'file' : null
-  }
-  if (sessionState.value.selectedArtifactContext && props.artifact) {
-    return 'artifact'
-  }
-  return null
-})
-
-const codeArtifact = computed<ArtifactState | null>(() => {
-  if (activeSource.value === 'artifact') {
-    return props.artifact
+const getPathBasename = (value: string | null | undefined) => {
+  if (!value) {
+    return ''
   }
 
-  if (activeSource.value !== 'file' || !props.filePreview) {
-    return null
-  }
-
-  const preview = props.filePreview
-  const artifactType =
-    preview.kind === 'markdown'
-      ? 'text/markdown'
-      : preview.kind === 'html'
-        ? 'text/html'
-        : preview.kind === 'svg'
-          ? 'image/svg+xml'
-          : 'application/vnd.ant.code'
-
-  return {
-    id: preview.path,
-    type: artifactType,
-    title: preview.name,
-    language: preview.language ?? undefined,
-    content: preview.content,
-    status: 'loaded'
-  }
-})
-
-useArtifactCodeEditor(
-  codeArtifact as never,
-  codeEditorRef,
-  computed(() => viewMode.value === 'preview') as never,
-  computed(() => true) as never
-)
-
-const previewComponent = computed(() => {
-  const target = codeArtifact.value
-  if (!target) return null
-
-  switch (target.type) {
-    case 'application/vnd.ant.code':
-      return CodeArtifact
-    case 'text/markdown':
-      return MarkdownArtifact
-    case 'text/html':
-      return HTMLArtifact
-    case 'image/svg+xml':
-      return SvgArtifact
-    case 'application/vnd.ant.mermaid':
-      return MermaidArtifact
-    case 'application/vnd.ant.react':
-      return ReactArtifact
-    default:
-      return null
-  }
-})
-
-const previewBlock = computed(() => {
-  const target = codeArtifact.value
-  if (!target) {
-    return null
-  }
-
-  return {
-    content: target.content,
-    artifact: {
-      type: target.type,
-      title: target.title
-    }
-  }
-})
+  const segments = value.split(/[\\/]+/).filter(Boolean)
+  return segments[segments.length - 1] || value
+}
 
 const viewerTitle = computed(() => {
   if (activeSource.value === 'artifact') {
     return props.artifact?.title || t('chat.workspace.title')
   }
   if (activeSource.value === 'file') {
-    return props.filePreview?.name || t('chat.workspace.title')
+    return props.filePreview?.name || getPathBasename(sessionState.value.selectedFilePath)
   }
   if (activeSource.value === 'git-diff') {
     return props.gitDiff?.relativePath || t('chat.workspace.sections.git')
@@ -287,7 +180,7 @@ const viewerTitle = computed(() => {
 
 const viewerSubtitle = computed(() => {
   if (activeSource.value === 'file') {
-    return props.filePreview?.relativePath || ''
+    return props.filePreview?.relativePath || sessionState.value.selectedFilePath || ''
   }
   if (activeSource.value === 'git-diff') {
     return t('chat.workspace.sections.git')
@@ -295,26 +188,67 @@ const viewerSubtitle = computed(() => {
   return ''
 })
 
-const canToggleViewMode = computed(() => {
-  if (activeSource.value === 'artifact') {
-    return true
+const previewArtifact = computed(() => {
+  return activeSource.value === 'artifact' ? props.artifact : null
+})
+
+const previewFilePreview = computed(() => {
+  return activeSource.value === 'file' ? props.filePreview : null
+})
+
+const codeSource = computed(() => {
+  if (activeSource.value === 'artifact' && props.artifact) {
+    return {
+      id: props.artifact.id,
+      content: props.artifact.content,
+      language: props.artifact.language ?? null,
+      type: props.artifact.type
+    }
   }
 
   if (activeSource.value !== 'file' || !props.filePreview) {
-    return false
+    return null
   }
 
-  return props.filePreview.kind !== 'binary' && props.filePreview.kind !== 'image'
+  const preview = props.filePreview
+  const type =
+    preview.kind === 'markdown'
+      ? 'text/markdown'
+      : preview.kind === 'html'
+        ? 'text/html'
+        : preview.kind === 'svg'
+          ? 'image/svg+xml'
+          : preview.mimeType || 'application/vnd.ant.code'
+
+  return {
+    id: preview.path,
+    content: preview.content,
+    language: preview.language ?? null,
+    type
+  }
 })
 
-const showCodeView = computed(() => canToggleViewMode.value && viewMode.value === 'code')
-const isEmpty = computed(() => activeSource.value == null)
+const openFilePath = computed(() => {
+  if (activeSource.value !== 'file') {
+    return null
+  }
+
+  return props.filePreview?.path ?? sessionState.value.selectedFilePath
+})
+
+const emptyMessage = computed(() => {
+  if (activeSource.value === 'file' && !props.loadingFilePreview) {
+    return t('chat.workspace.files.empty')
+  }
+
+  return t('chat.workspace.title')
+})
 
 const handleOpenFile = async () => {
-  if (!props.filePreview) {
+  if (!openFilePath.value) {
     return
   }
 
-  await workspacePresenter.openFile(props.filePreview.path)
+  await workspacePresenter.openFile(openFilePath.value)
 }
 </script>

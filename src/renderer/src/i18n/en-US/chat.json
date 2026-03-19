@@ -132,6 +132,9 @@
     "currentCustomPrompt": "Current custom",
     "useDefault": "Use default"
   },
+  "modelPicker": {
+    "empty": "No models found"
+  },
   "audio": {
     "play": "Play",
     "pause": "Pause"

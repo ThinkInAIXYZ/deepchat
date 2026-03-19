@@ -14,7 +14,8 @@ const ButtonStub = defineComponent({
     disabled: { type: Boolean, default: false }
   },
   emits: ['click'],
-  template: '<button :disabled="disabled" @click="$emit(\'click\')"><slot /></button>'
+  template:
+    '<button v-bind="$attrs" :disabled="disabled" @click="$emit(\'click\')"><slot /></button>'
 })
 
 const SwitchStub = defineComponent({
@@ -146,13 +147,16 @@ const setup = async (options?: {
         }
 
         const translations: Record<string, string> = {
+          'chat.advancedSettings.title': 'Advanced Settings',
+          'chat.advancedSettings.systemPrompt': 'System Prompt',
+          'chat.advancedSettings.systemPromptPlaceholder': 'Select preset',
+          'chat.advancedSettings.currentCustomPrompt': 'Current custom',
           'chat.input.mcp.title': 'Enabled MCP',
           'chat.input.mcp.empty': 'No enabled services',
           'chat.input.mcp.openSettings': 'Open MCP settings',
           'chat.input.tools.badge': 'Tools',
           'chat.input.tools.title': 'Tools',
           'chat.input.tools.mcpSection': 'MCP',
-          'chat.input.tools.builtinSection': 'Built-in Tools',
           'chat.input.tools.loading': 'Loading tools...',
           'chat.input.tools.builtinEmpty': 'No built-in tools available',
           'chat.input.tools.groups.agentFilesystem': 'Agent Filesystem',
@@ -182,6 +186,11 @@ const setup = async (options?: {
         Popover: passthrough('Popover'),
         PopoverTrigger: passthrough('PopoverTrigger'),
         PopoverContent: passthrough('PopoverContent'),
+        Select: passthrough('Select'),
+        SelectContent: passthrough('SelectContent'),
+        SelectItem: passthrough('SelectItem'),
+        SelectTrigger: passthrough('SelectTrigger'),
+        SelectValue: passthrough('SelectValue'),
         Icon: true
       }
     }
@@ -198,19 +207,17 @@ const setup = async (options?: {
 }
 
 describe('McpIndicator', () => {
-  it('renders Tools badge for deepchat and toggles session-scoped built-in tools', async () => {
+  it('renders icon-only trigger for deepchat and keeps built-in tools session scoped', async () => {
     const { wrapper, newAgentPresenter } = await setup({
       hasActiveSession: true,
       activeAgentId: 'deepchat'
     })
 
     const buttons = wrapper.findAll('button')
-    expect(buttons[0].text()).toContain('Tools')
-    expect(wrapper.text()).toContain('Built-in Tools')
+    expect(buttons[0].text()).toBe('')
+    expect(wrapper.text()).toContain('Tools')
     expect(wrapper.text()).not.toContain('MCP 1')
-    expect(wrapper.text().indexOf('Built-in Tools')).toBeLessThan(
-      wrapper.text().indexOf('demo-server')
-    )
+    expect(wrapper.text().indexOf('Tools')).toBeLessThan(wrapper.text().indexOf('demo-server'))
 
     const execButton = buttons.find((button) => button.text() === 'exec')
     expect(execButton).toBeTruthy()
@@ -268,7 +275,7 @@ describe('McpIndicator', () => {
 
     const buttons = wrapper.findAll('button')
     expect(buttons[0].text()).toContain('MCP 1')
-    expect(wrapper.text()).not.toContain('Built-in Tools')
+    expect(wrapper.text()).not.toContain('Tools')
     expect(toolPresenter.getAllToolDefinitions).not.toHaveBeenCalled()
   })
 

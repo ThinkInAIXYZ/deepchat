@@ -8,6 +8,11 @@ import { eventBus, SendTarget } from '@/eventbus'
 import { WORKSPACE_EVENTS } from '@/events'
 import { readDirectoryShallow } from './directoryReader'
 import { searchWorkspaceFiles } from './workspaceFileSearch'
+import {
+  createWorkspacePreviewUrl,
+  registerWorkspacePreviewRoot,
+  unregisterWorkspacePreviewRoot
+} from './workspacePreviewProtocol'
 import type {
   IFilePresenter,
   IWorkspacePresenter,
@@ -101,6 +106,7 @@ export class WorkspacePresenter implements IWorkspacePresenter {
   async registerWorkspace(workspacePath: string): Promise<void> {
     const normalized = path.resolve(workspacePath)
     this.allowedPaths.add(normalized)
+    registerWorkspacePreviewRoot(normalized)
   }
 
   async registerWorkdir(workdir: string): Promise<void> {
@@ -110,6 +116,7 @@ export class WorkspacePresenter implements IWorkspacePresenter {
   async unregisterWorkspace(workspacePath: string): Promise<void> {
     const normalized = path.resolve(workspacePath)
     this.allowedPaths.delete(normalized)
+    unregisterWorkspacePreviewRoot(normalized)
   }
 
   async unregisterWorkdir(workdir: string): Promise<void> {
@@ -449,6 +456,10 @@ export class WorkspacePresenter implements IWorkspacePresenter {
       return 'html'
     }
 
+    if (mimeType === 'application/pdf') {
+      return 'pdf'
+    }
+
     if (mimeType === 'image/svg+xml') {
       return 'svg'
     }
@@ -478,6 +489,18 @@ export class WorkspacePresenter implements IWorkspacePresenter {
 
     const extension = path.extname(filePath).slice(1).toLowerCase()
     return extension || null
+  }
+
+  private resolvePreviewUrl(
+    workspaceRoot: string | null,
+    filePath: string,
+    kind: WorkspaceFilePreviewKind
+  ): string | undefined {
+    if (!workspaceRoot || (kind !== 'html' && kind !== 'pdf' && kind !== 'svg')) {
+      return undefined
+    }
+
+    return createWorkspacePreviewUrl(workspaceRoot, filePath) ?? undefined
   }
 
   private async runGitCommand(workspacePath: string, args: string[]): Promise<string | null> {
@@ -644,6 +667,7 @@ export class WorkspacePresenter implements IWorkspacePresenter {
         mimeType: preparedFile.mimeType,
         kind,
         content: kind === 'image' ? (preparedFile.thumbnail ?? '') : (preparedFile.content ?? ''),
+        previewUrl: this.resolvePreviewUrl(workspaceRoot, preparedFile.path, kind),
         thumbnail: preparedFile.thumbnail,
         language: this.inferLanguage(filePath, kind),
         metadata: {

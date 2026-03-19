@@ -8,12 +8,69 @@ import {
 } from '@shared/modelConfigDefaults'
 import ElectronStore from 'electron-store'
 import { providerDbLoader } from './providerDbLoader'
-import { isImageInputSupported, ProviderModel } from '@shared/types/model-db'
+import {
+  isImageInputSupported,
+  ProviderModel,
+  ReasoningPortrait,
+  type ReasoningEffort,
+  type Verbosity
+} from '@shared/types/model-db'
 import { resolveProviderId } from './providerId'
+import { modelCapabilities } from './modelCapabilities'
 
 const SPECIAL_CONCAT_CHAR = '-_-'
 
 const MODEL_CONFIG_META_KEY = '__meta__'
+
+const isReasoningEffort = (value: unknown): value is ReasoningEffort =>
+  value === 'minimal' || value === 'low' || value === 'medium' || value === 'high'
+
+const isVerbosity = (value: unknown): value is Verbosity =>
+  value === 'low' || value === 'medium' || value === 'high'
+
+const normalizeReasoningEffortValue = (
+  portrait: ReasoningPortrait | null,
+  value: unknown
+): ReasoningEffort | undefined => {
+  if (!isReasoningEffort(value)) {
+    return undefined
+  }
+
+  const options = portrait?.effortOptions?.filter(isReasoningEffort)
+  if (!options || options.length === 0) {
+    return value
+  }
+
+  if (options.includes(value)) {
+    return value
+  }
+
+  return isReasoningEffort(portrait?.effort) && options.includes(portrait.effort)
+    ? portrait.effort
+    : undefined
+}
+
+const normalizeVerbosityValue = (
+  portrait: ReasoningPortrait | null,
+  value: unknown
+): Verbosity | undefined => {
+  if (!isVerbosity(value)) {
+    return undefined
+  }
+
+  const options = portrait?.verbosityOptions?.filter(isVerbosity)
+  if (!options || options.length === 0) {
+    return value
+  }
+
+  if (options.includes(value)) {
+    return value
+  }
+
+  return isVerbosity(portrait?.verbosity) && options.includes(portrait.verbosity)
+    ? portrait.verbosity
+    : undefined
+}
 
 interface ModelConfigStoreMeta {
   lastRefreshVersion?: string
@@ -83,23 +140,32 @@ export class ModelConfigHelper {
     return ModelType.Chat
   }
 
-  private buildConfigFromProviderModel(model: ProviderModel): ModelConfig {
+  private buildConfigFromProviderModel(model: ProviderModel, providerId: string): ModelConfig {
+    const portrait = modelCapabilities.getReasoningPortrait(providerId, model.id)
+    const reasoningEnabled =
+      portrait?.defaultEnabled ?? model.reasoning?.default ?? portrait?.supported ?? false
+    const thinkingBudget =
+      portrait?.budget?.default ?? model.reasoning?.budget?.default ?? undefined
+    const reasoningEffort = normalizeReasoningEffortValue(
+      portrait,
+      portrait?.effort ?? model.reasoning?.effort
+    )
+    const verbosity = normalizeVerbosityValue(
+      portrait,
+      portrait?.verbosity ?? model.reasoning?.verbosity
+    )
+
     return {
       maxTokens: resolveModelMaxTokens(model.limit?.output),
       contextLength: resolveModelContextLength(model.limit?.context),
       temperature: 0.6,
       vision: isImageInputSupported(model),
       functionCall: resolveModelFunctionCall(model.tool_call),
-      reasoning: Boolean(model.reasoning?.supported ?? false),
+      reasoning: Boolean(reasoningEnabled),
       type: this.inferModelType(model),
-      thinkingBudget: model.reasoning?.budget?.default ?? undefined,
-      reasoningEffort: (model.reasoning?.effort ?? undefined) as
-        | 'minimal'
-        | 'low'
-        | 'medium'
-        | 'high'
-        | undefined,
-      verbosity: (model.reasoning?.verbosity ?? undefined) as 'low' | 'medium' | 'high' | undefined,
+      thinkingBudget,
+      reasoningEffort,
+      verbosity,
       enableSearch: Boolean(model.search?.supported ?? false),
       forcedSearch: Boolean(model.search?.forced_search ?? false),
       searchStrategy: (model.search?.search_strategy ?? 'turbo') as
@@ -333,12 +399,6 @@ export class ModelConfigHelper {
       return finalUserConfig
     }
 
-    if (storedConfig && storedSource) {
-      const finalStoredConfig = { ...storedConfig }
-      finalStoredConfig.isUserDefined = false
-      return finalStoredConfig
-    }
-
     let finalConfig: ModelConfig | null = null
 
     // 严格匹配：仅当提供 providerId 时从 Provider DB 查找
@@ -348,11 +408,16 @@ export class ModelConfigHelper {
     const providerEntry = resolvedProviderId ? providers?.[resolvedProviderId] : undefined
     const providerFound = Boolean(providerEntry)
 
-    if (normProviderId && providerEntry && Array.isArray(providerEntry.models)) {
+    if (
+      normProviderId &&
+      resolvedProviderId &&
+      providerEntry &&
+      Array.isArray(providerEntry.models)
+    ) {
       for (let i = 0; i < providerEntry.models.length; i += 1) {
         const candidate = providerEntry.models[i]
         if (candidate && candidate.id === normModelId) {
-          finalConfig = this.buildConfigFromProviderModel(candidate)
+          finalConfig = this.buildConfigFromProviderModel(candidate, resolvedProviderId)
           break
         }
       }
@@ -369,7 +434,7 @@ export class ModelConfigHelper {
         for (let j = 0; j < candidateProvider.models.length; j += 1) {
           const candidateModel = candidateProvider.models[j]
           if (candidateModel && candidateModel.id === normModelId) {
-            finalConfig = this.buildConfigFromProviderModel(candidateModel)
+            finalConfig = this.buildConfigFromProviderModel(candidateModel, candidateProvider.id)
             break
           }
         }
@@ -393,6 +458,28 @@ export class ModelConfigHelper {
         forcedSearch: false,
         searchStrategy: 'turbo',
         maxCompletionTokens: undefined
+      }
+    }
+
+    if (storedConfig && storedSource && storedSource !== 'user') {
+      finalConfig = {
+        ...finalConfig,
+        maxTokens: storedConfig.maxTokens ?? finalConfig.maxTokens,
+        contextLength: storedConfig.contextLength ?? finalConfig.contextLength,
+        temperature: storedConfig.temperature ?? finalConfig.temperature,
+        vision: storedConfig.vision ?? finalConfig.vision,
+        functionCall: storedConfig.functionCall ?? finalConfig.functionCall,
+        type: storedConfig.type ?? finalConfig.type,
+        maxCompletionTokens: storedConfig.maxCompletionTokens ?? finalConfig.maxCompletionTokens,
+        conversationId: storedConfig.conversationId ?? finalConfig.conversationId,
+        apiEndpoint: storedConfig.apiEndpoint ?? finalConfig.apiEndpoint,
+        enableSearch: storedConfig.enableSearch ?? finalConfig.enableSearch,
+        forcedSearch: storedConfig.forcedSearch ?? finalConfig.forcedSearch,
+        searchStrategy: storedConfig.searchStrategy ?? finalConfig.searchStrategy,
+        reasoning: finalConfig.reasoning,
+        thinkingBudget: finalConfig.thinkingBudget,
+        reasoningEffort: finalConfig.reasoningEffort,
+        verbosity: finalConfig.verbosity
       }
     }
 

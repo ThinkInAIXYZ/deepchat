@@ -19,10 +19,77 @@ async function ensureDir(dir) {
 
 const PROVIDER_ID_REGEX = /^[a-z0-9][a-z0-9-_]*$/
 const MODEL_ID_REGEX = /^[a-zA-Z0-9][a-zA-Z0-9\-_.:/]*$/
+const REASONING_EFFORT_VALUES = ['minimal', 'low', 'medium', 'high']
+const VERBOSITY_VALUES = ['low', 'medium', 'high']
+const REASONING_MODE_VALUES = ['budget', 'effort', 'level', 'fixed', 'mixed']
+const REASONING_VISIBILITY_VALUES = ['hidden', 'summary', 'full', 'mixed']
 const isValidLowercaseProviderId = (id) =>
   typeof id === 'string' && id === id.toLowerCase() && PROVIDER_ID_REGEX.test(id)
 const isValidModelId = (id) =>
   typeof id === 'string' && MODEL_ID_REGEX.test(id)
+
+const sanitizeStringArray = (value) => {
+  if (typeof value === 'string') {
+    const normalized = value.trim()
+    return normalized ? [normalized] : undefined
+  }
+  if (!Array.isArray(value)) return undefined
+  const values = value.filter((item) => typeof item === 'string' && item.trim())
+  return values.length ? values : undefined
+}
+
+const sanitizeReasoningBudget = (value) => {
+  if (!value || typeof value !== 'object') return undefined
+  const budget = {}
+  if (typeof value.default === 'number' && Number.isFinite(value.default)) budget.default = value.default
+  if (typeof value.min === 'number' && Number.isFinite(value.min)) budget.min = value.min
+  if (typeof value.max === 'number' && Number.isFinite(value.max)) budget.max = value.max
+  if (typeof value.auto === 'number' && Number.isFinite(value.auto)) budget.auto = value.auto
+  if (typeof value.off === 'number' && Number.isFinite(value.off)) budget.off = value.off
+  if (typeof value.unit === 'string') budget.unit = value.unit
+  return Object.keys(budget).length ? budget : undefined
+}
+
+const sanitizeReasoningOptions = (value, allowedValues) => {
+  if (!Array.isArray(value)) return undefined
+  const values = value.filter((item) => typeof item === 'string' && allowedValues.includes(item))
+  return values.length ? values : undefined
+}
+
+const sanitizeExtraReasoning = (value) => {
+  if (!value || typeof value !== 'object') return undefined
+  const reasoning = {}
+  if (typeof value.supported === 'boolean') reasoning.supported = value.supported
+  if (typeof value.default_enabled === 'boolean') reasoning.default_enabled = value.default_enabled
+  if (typeof value.mode === 'string' && REASONING_MODE_VALUES.includes(value.mode)) {
+    reasoning.mode = value.mode
+  }
+  const budget = sanitizeReasoningBudget(value.budget)
+  if (budget) reasoning.budget = budget
+  if (typeof value.effort === 'string' && REASONING_EFFORT_VALUES.includes(value.effort)) {
+    reasoning.effort = value.effort
+  }
+  const effortOptions = sanitizeReasoningOptions(value.effort_options, REASONING_EFFORT_VALUES)
+  if (effortOptions) reasoning.effort_options = effortOptions
+  if (typeof value.verbosity === 'string' && VERBOSITY_VALUES.includes(value.verbosity)) {
+    reasoning.verbosity = value.verbosity
+  }
+  const verbosityOptions = sanitizeReasoningOptions(value.verbosity_options, VERBOSITY_VALUES)
+  if (verbosityOptions) reasoning.verbosity_options = verbosityOptions
+  if (typeof value.level === 'string') reasoning.level = value.level
+  const levelOptions = sanitizeStringArray(value.level_options)
+  if (levelOptions) reasoning.level_options = levelOptions
+  if (typeof value.interleaved === 'boolean') reasoning.interleaved = value.interleaved
+  if (typeof value.summaries === 'boolean') reasoning.summaries = value.summaries
+  if (typeof value.visibility === 'string' && REASONING_VISIBILITY_VALUES.includes(value.visibility)) {
+    reasoning.visibility = value.visibility
+  }
+  const continuation = sanitizeStringArray(value.continuation)
+  if (continuation) reasoning.continuation = continuation
+  const notes = sanitizeStringArray(value.notes)
+  if (notes) reasoning.notes = notes
+  return Object.keys(reasoning).length ? reasoning : undefined
+}
 
 function sanitizeAggregateJson(json) {
   if (!json || typeof json !== 'object') return null
@@ -88,6 +155,12 @@ function sanitizeAggregateJson(json) {
         if (Object.keys(rs).length) reasoning = rs
       }
 
+      let extra_capabilities
+      const extraReasoning = sanitizeExtraReasoning(m.extra_capabilities?.reasoning)
+      if (extraReasoning) {
+        extra_capabilities = { reasoning: extraReasoning }
+      }
+
       // search (new schema)
       let search
       const s = m.search
@@ -127,6 +200,7 @@ function sanitizeAggregateJson(json) {
         temperature: typeof m.temperature === 'boolean' ? m.temperature : undefined,
         tool_call: typeof m.tool_call === 'boolean' ? m.tool_call : undefined,
         reasoning,
+        extra_capabilities,
         search,
         attachment: typeof m.attachment === 'boolean' ? m.attachment : undefined,
         open_weights: typeof m.open_weights === 'boolean' ? m.open_weights : undefined,

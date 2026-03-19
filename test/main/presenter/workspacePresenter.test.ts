@@ -47,6 +47,9 @@ vi.mock('electron', () => ({
   shell: {
     showItemInFolder: vi.fn(),
     openPath: vi.fn().mockResolvedValue('')
+  },
+  protocol: {
+    registerSchemesAsPrivileged: vi.fn()
   }
 }))
 
@@ -95,6 +98,22 @@ vi.mock('../../../src/main/events', () => ({
 
 import { WorkspacePresenter } from '../../../src/main/presenter/workspacePresenter'
 import { WORKSPACE_EVENTS } from '../../../src/main/events'
+import {
+  createWorkspacePreviewUrl,
+  registerWorkspacePreviewRoot,
+  resetWorkspacePreviewProtocolState,
+  resolveWorkspacePreviewRequest,
+  unregisterWorkspacePreviewRoot,
+  WORKSPACE_PREVIEW_PROTOCOL
+} from '../../../src/main/presenter/workspacePresenter/workspacePreviewProtocol'
+
+beforeEach(() => {
+  resetWorkspacePreviewProtocolState()
+})
+
+afterEach(() => {
+  resetWorkspacePreviewProtocolState()
+})
 
 describe('WorkspacePresenter watchers', () => {
   let workspacePath: string
@@ -209,5 +228,162 @@ describe('WorkspacePresenter watchers', () => {
 
     expect(contentWatcher.close).toHaveBeenCalledTimes(1)
     expect(gitWatcher.close).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('WorkspacePresenter readFilePreview', () => {
+  let workspacePath: string
+
+  beforeEach(() => {
+    workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-workspace-preview-'))
+  })
+
+  afterEach(() => {
+    fs.rmSync(workspacePath, { recursive: true, force: true })
+  })
+
+  it('classifies html, pdf, and svg files with workspace preview URLs', async () => {
+    const prepareFileCompletely = vi
+      .fn()
+      .mockResolvedValueOnce({
+        path: path.join(workspacePath, 'index.html'),
+        name: 'index.html',
+        mimeType: 'text/html',
+        content: '<html></html>',
+        thumbnail: '',
+        metadata: {
+          fileName: 'index.html',
+          fileSize: 13,
+          fileCreated: new Date('2024-01-01T00:00:00Z'),
+          fileModified: new Date('2024-01-02T00:00:00Z')
+        }
+      })
+      .mockResolvedValueOnce({
+        path: path.join(workspacePath, 'manual.pdf'),
+        name: 'manual.pdf',
+        mimeType: 'application/pdf',
+        content: 'page 1',
+        thumbnail: '',
+        metadata: {
+          fileName: 'manual.pdf',
+          fileSize: 2048,
+          fileCreated: new Date('2024-01-01T00:00:00Z'),
+          fileModified: new Date('2024-01-02T00:00:00Z')
+        }
+      })
+      .mockResolvedValueOnce({
+        path: path.join(workspacePath, 'diagram.svg'),
+        name: 'diagram.svg',
+        mimeType: 'image/svg+xml',
+        content: '<svg></svg>',
+        thumbnail: '',
+        metadata: {
+          fileName: 'diagram.svg',
+          fileSize: 128,
+          fileCreated: new Date('2024-01-01T00:00:00Z'),
+          fileModified: new Date('2024-01-02T00:00:00Z')
+        }
+      })
+
+    const presenter = new WorkspacePresenter({
+      prepareFileCompletely
+    } as any)
+
+    const htmlPath = path.join(workspacePath, 'index.html')
+    const pdfPath = path.join(workspacePath, 'manual.pdf')
+    const svgPath = path.join(workspacePath, 'diagram.svg')
+    fs.writeFileSync(htmlPath, '<html></html>')
+    fs.writeFileSync(pdfPath, 'pdf')
+    fs.writeFileSync(svgPath, '<svg></svg>')
+
+    await presenter.registerWorkspace(workspacePath)
+
+    const htmlPreview = await presenter.readFilePreview(htmlPath)
+    const pdfPreview = await presenter.readFilePreview(pdfPath)
+    const svgPreview = await presenter.readFilePreview(svgPath)
+
+    expect(htmlPreview?.kind).toBe('html')
+    expect(htmlPreview?.previewUrl).toBe(createWorkspacePreviewUrl(workspacePath, htmlPath))
+    expect(pdfPreview?.kind).toBe('pdf')
+    expect(pdfPreview?.previewUrl).toBe(createWorkspacePreviewUrl(workspacePath, pdfPath))
+    expect(pdfPreview?.content).toBe('page 1')
+    expect(svgPreview?.kind).toBe('svg')
+    expect(svgPreview?.previewUrl).toBe(createWorkspacePreviewUrl(workspacePath, svgPath))
+  })
+
+  it('keeps unsupported files as binary without previewUrl', async () => {
+    const prepareFileCompletely = vi.fn().mockResolvedValue({
+      path: path.join(workspacePath, 'archive.zip'),
+      name: 'archive.zip',
+      mimeType: 'application/zip',
+      content: '',
+      thumbnail: '',
+      metadata: {
+        fileName: 'archive.zip',
+        fileSize: 4096,
+        fileCreated: new Date('2024-01-01T00:00:00Z'),
+        fileModified: new Date('2024-01-02T00:00:00Z')
+      }
+    })
+
+    const presenter = new WorkspacePresenter({
+      prepareFileCompletely
+    } as any)
+
+    const zipPath = path.join(workspacePath, 'archive.zip')
+    fs.writeFileSync(zipPath, 'zip')
+
+    await presenter.registerWorkspace(workspacePath)
+
+    const preview = await presenter.readFilePreview(zipPath)
+
+    expect(preview?.kind).toBe('binary')
+    expect(preview?.previewUrl).toBeUndefined()
+  })
+})
+
+describe('workspacePreviewProtocol helpers', () => {
+  let workspacePath: string
+
+  beforeEach(() => {
+    workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-workspace-protocol-'))
+    fs.mkdirSync(path.join(workspacePath, 'docs', 'assets'), { recursive: true })
+  })
+
+  afterEach(() => {
+    fs.rmSync(workspacePath, { recursive: true, force: true })
+  })
+
+  it('resolves registered workspace URLs and preserves relative asset paths', () => {
+    const htmlPath = path.join(workspacePath, 'docs', 'index.html')
+    const cssPath = path.join(workspacePath, 'docs', 'assets', 'app.css')
+    fs.writeFileSync(htmlPath, '<html></html>')
+    fs.writeFileSync(cssPath, 'body {}')
+
+    registerWorkspacePreviewRoot(workspacePath)
+
+    const previewUrl = createWorkspacePreviewUrl(workspacePath, htmlPath)
+    expect(previewUrl).toMatch(new RegExp(`^${WORKSPACE_PREVIEW_PROTOCOL}://`))
+    expect(resolveWorkspacePreviewRequest(previewUrl!)).toBe(path.normalize(htmlPath))
+
+    const assetUrl = new URL('assets/app.css', previewUrl!).href
+    expect(resolveWorkspacePreviewRequest(assetUrl)).toBe(path.normalize(cssPath))
+  })
+
+  it('rejects unregistered roots and outside-root preview URLs', () => {
+    const htmlPath = path.join(workspacePath, 'docs', 'index.html')
+    fs.writeFileSync(htmlPath, '<html></html>')
+
+    registerWorkspacePreviewRoot(workspacePath)
+
+    const previewUrl = createWorkspacePreviewUrl(workspacePath, htmlPath)
+
+    unregisterWorkspacePreviewRoot(workspacePath)
+    expect(resolveWorkspacePreviewRequest(previewUrl!)).toBeNull()
+
+    registerWorkspacePreviewRoot(workspacePath)
+    expect(
+      createWorkspacePreviewUrl(workspacePath, path.join(workspacePath, '..', 'outside.txt'))
+    ).toBeNull()
   })
 })

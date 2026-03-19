@@ -4,12 +4,21 @@
       <Button
         variant="ghost"
         size="sm"
-        class="h-6 px-2 gap-1 text-xs text-muted-foreground hover:text-foreground backdrop-blur-lg"
+        :class="
+          isDeepchatContext
+            ? 'h-6 w-6 p-0 text-muted-foreground hover:text-foreground backdrop-blur-lg'
+            : 'h-6 px-2 gap-1 text-xs text-muted-foreground hover:text-foreground backdrop-blur-lg'
+        "
         :title="triggerTitle"
         :aria-label="triggerTitle"
       >
-        <span>{{ triggerLabel }}</span>
-        <Icon icon="lucide:chevron-down" class="h-3 w-3" />
+        <template v-if="isDeepchatContext">
+          <Icon icon="lucide:sliders-horizontal" class="h-3.5 w-3.5" />
+        </template>
+        <template v-else>
+          <span>{{ triggerLabel }}</span>
+          <Icon icon="lucide:chevron-down" class="h-3 w-3" />
+        </template>
       </Button>
     </PopoverTrigger>
 
@@ -18,7 +27,7 @@
         <div class="border-b px-3 py-2">
           <div class="flex items-center justify-between gap-2">
             <div class="text-sm font-medium">
-              {{ t('chat.input.tools.title') }}
+              {{ t('chat.advancedSettings.title') }}
             </div>
             <Button
               variant="ghost"
@@ -33,12 +42,42 @@
           </div>
         </div>
 
-        <div class="h-[22rem] overflow-y-auto">
-          <div class="px-3 py-3">
+        <div class="max-h-[24rem] overflow-y-auto">
+          <div v-if="showSystemPromptSection" class="border-b px-3 py-3">
+            <div class="flex items-center justify-between gap-2">
+              <div class="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                {{ t('chat.advancedSettings.systemPrompt') }}
+              </div>
+              <span v-if="showCustomSystemPromptBadge" class="text-[11px] text-muted-foreground">
+                {{ t('chat.advancedSettings.currentCustomPrompt') }}
+              </span>
+            </div>
+
+            <Select
+              :model-value="selectedSystemPromptId"
+              @update:model-value="emit('select-system-prompt', $event as string)"
+            >
+              <SelectTrigger class="mt-3 h-8 text-xs">
+                <SelectValue :placeholder="t('chat.advancedSettings.systemPromptPlaceholder')" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem
+                  v-for="option in systemPromptOptions"
+                  :key="option.id"
+                  :value="option.id"
+                  :disabled="option.disabled"
+                >
+                  {{ option.label }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div class="border-b px-3 py-3">
             <div
               class="mb-3 flex items-center justify-between text-[11px] font-medium uppercase tracking-wide text-muted-foreground"
             >
-              <span>{{ t('chat.input.tools.builtinSection') }}</span>
+              <span>{{ t('chat.input.tools.title') }}</span>
             </div>
 
             <div v-if="toolsLoading" class="text-xs text-muted-foreground">
@@ -91,7 +130,7 @@
             </div>
           </div>
 
-          <div class="border-t px-3 py-3">
+          <div class="px-3 py-3">
             <div class="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
               {{ t('chat.input.tools.mcpSection') }}
             </div>
@@ -171,6 +210,13 @@ import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@shadcn/components/ui/popover'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@shadcn/components/ui/select'
 import { Switch } from '@shadcn/components/ui/switch'
 import type { MCPToolDefinition } from '@shared/presenter'
 import { SETTINGS_EVENTS } from '@/events'
@@ -187,6 +233,12 @@ type ToolGroup = {
   tools: MCPToolDefinition[]
 }
 
+type SystemPromptMenuOption = {
+  id: string
+  label: string
+  disabled?: boolean
+}
+
 const GROUP_ORDER = [
   'agent-filesystem',
   'agent-core',
@@ -194,6 +246,26 @@ const GROUP_ORDER = [
   'deepchat-settings',
   'yobrowser'
 ]
+
+const props = withDefaults(
+  defineProps<{
+    showSystemPromptSection?: boolean
+    systemPromptOptions?: SystemPromptMenuOption[]
+    selectedSystemPromptId?: string
+    showCustomSystemPromptBadge?: boolean
+  }>(),
+  {
+    showSystemPromptSection: false,
+    systemPromptOptions: () => [],
+    selectedSystemPromptId: 'empty',
+    showCustomSystemPromptBadge: false
+  }
+)
+
+const emit = defineEmits<{
+  (e: 'select-system-prompt', optionId: string): void
+  (e: 'open-change', open: boolean): void
+}>()
 
 const { t } = useI18n()
 const mcpStore = useMcpStore()
@@ -237,13 +309,9 @@ const workspacePath = computed(() => {
 })
 
 const triggerTitle = computed(() =>
-  isDeepchatContext.value ? t('chat.input.tools.title') : t('chat.input.mcp.title')
+  isDeepchatContext.value ? t('chat.advancedSettings.title') : t('chat.input.mcp.title')
 )
-const triggerLabel = computed(() =>
-  isDeepchatContext.value
-    ? t('chat.input.tools.badge')
-    : t('chat.input.mcp.badge', { count: enabledServerCount.value })
-)
+const triggerLabel = computed(() => t('chat.input.mcp.badge', { count: enabledServerCount.value }))
 
 const normalizeToolNames = (toolNames: string[] | null | undefined): string[] => {
   if (!Array.isArray(toolNames)) {
@@ -490,6 +558,7 @@ watch(
 watch(
   () => panelOpen.value,
   (open) => {
+    emit('open-change', open)
     if (open && isDeepchatContext.value) {
       void loadDeepchatTools()
     }

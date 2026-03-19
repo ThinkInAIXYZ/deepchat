@@ -17,6 +17,7 @@ import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { IConfigPresenter, ILlmProviderPresenter, ModelConfig } from '@shared/presenter'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
+import type { ReasoningPortrait } from '@shared/types/model-db'
 import { nanoid } from 'nanoid'
 import type { SQLitePresenter } from '../sqlitePresenter'
 import { eventBus, SendTarget } from '@/eventbus'
@@ -83,10 +84,10 @@ const TEMPERATURE_MAX = 2
 const CONTEXT_LENGTH_MIN = 2048
 const MAX_TOKENS_MIN = 128
 
-const isReasoningEffort = (value: unknown): value is SessionGenerationSettings['reasoningEffort'] =>
+const isReasoningEffort = (value: unknown): value is 'minimal' | 'low' | 'medium' | 'high' =>
   value === 'minimal' || value === 'low' || value === 'medium' || value === 'high'
 
-const isVerbosity = (value: unknown): value is SessionGenerationSettings['verbosity'] =>
+const isVerbosity = (value: unknown): value is 'low' | 'medium' | 'high' =>
   value === 'low' || value === 'medium' || value === 'high'
 
 export class DeepChatAgentPresenter implements IAgentImplementation {
@@ -1682,7 +1683,9 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
         modelConfig.thinkingBudget ?? budgetRange.default ?? undefined
       )
       if (defaultBudget !== undefined) {
-        defaults.thinkingBudget = this.clampNumberWithOptionalRange(
+        defaults.thinkingBudget = this.normalizeThinkingBudget(
+          providerId,
+          modelId,
           Math.round(defaultBudget),
           budgetRange.min,
           budgetRange.max
@@ -1696,7 +1699,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       const rawEffort =
         modelConfig.reasoningEffort ??
         this.configPresenter.getReasoningEffortDefault?.(providerId, modelId)
-      const normalizedEffort = this.normalizeReasoningEffort(providerId, rawEffort)
+      const normalizedEffort = this.normalizeReasoningEffort(providerId, modelId, rawEffort)
       if (normalizedEffort) {
         defaults.reasoningEffort = normalizedEffort
       }
@@ -1707,8 +1710,9 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     if (supportsVerbosity) {
       const rawVerbosity =
         modelConfig.verbosity ?? this.configPresenter.getVerbosityDefault?.(providerId, modelId)
-      if (isVerbosity(rawVerbosity)) {
-        defaults.verbosity = rawVerbosity
+      const normalizedVerbosity = this.normalizeVerbosity(providerId, modelId, rawVerbosity)
+      if (normalizedVerbosity) {
+        defaults.verbosity = normalizedVerbosity
       }
     }
 
@@ -1781,14 +1785,18 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
         if (numeric === undefined) {
           delete next.thinkingBudget
         } else {
-          next.thinkingBudget = this.clampNumberWithOptionalRange(
+          next.thinkingBudget = this.normalizeThinkingBudget(
+            providerId,
+            modelId,
             Math.round(numeric),
             budgetRange.min,
             budgetRange.max
           )
         }
       } else if (next.thinkingBudget !== undefined) {
-        next.thinkingBudget = this.clampNumberWithOptionalRange(
+        next.thinkingBudget = this.normalizeThinkingBudget(
+          providerId,
+          modelId,
           Math.round(next.thinkingBudget),
           budgetRange.min,
           budgetRange.max
@@ -1806,8 +1814,8 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
         : next.reasoningEffort
       const defaultEffort = this.configPresenter.getReasoningEffortDefault?.(providerId, modelId)
       const normalizedEffort =
-        this.normalizeReasoningEffort(providerId, fromPatch) ??
-        this.normalizeReasoningEffort(providerId, defaultEffort)
+        this.normalizeReasoningEffort(providerId, modelId, fromPatch) ??
+        this.normalizeReasoningEffort(providerId, modelId, defaultEffort)
       if (normalizedEffort) {
         next.reasoningEffort = normalizedEffort
       } else {
@@ -1824,9 +1832,11 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
         ? patch.verbosity
         : next.verbosity
       const defaultVerbosity = this.configPresenter.getVerbosityDefault?.(providerId, modelId)
-      const candidate = isVerbosity(fromPatch) ? fromPatch : defaultVerbosity
-      if (isVerbosity(candidate)) {
-        next.verbosity = candidate
+      const normalizedVerbosity =
+        this.normalizeVerbosity(providerId, modelId, fromPatch) ??
+        this.normalizeVerbosity(providerId, modelId, defaultVerbosity)
+      if (normalizedVerbosity) {
+        next.verbosity = normalizedVerbosity
       } else {
         delete next.verbosity
       }
@@ -1839,18 +1849,88 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
 
   private normalizeReasoningEffort(
     providerId: string,
+    modelId: string | undefined,
     value: unknown
   ): SessionGenerationSettings['reasoningEffort'] | undefined {
     if (!isReasoningEffort(value)) {
       return undefined
     }
-    if (providerId !== 'grok') {
-      return value
+    const normalizedValue = value
+
+    if (!modelId) {
+      return normalizedValue
     }
-    if (value === 'low' || value === 'high') {
-      return value
+
+    const portrait = this.getReasoningPortrait(providerId, modelId)
+    const options = portrait?.effortOptions?.filter(isReasoningEffort)
+    if (!options || options.length === 0) {
+      return normalizedValue
     }
-    return value === 'minimal' ? 'low' : 'high'
+
+    if (options.includes(normalizedValue)) {
+      return normalizedValue
+    }
+
+    const defaultEffort = portrait?.effort
+    if (defaultEffort && isReasoningEffort(defaultEffort) && options.includes(defaultEffort)) {
+      return defaultEffort
+    }
+
+    return undefined
+  }
+
+  private normalizeVerbosity(
+    providerId: string,
+    modelId: string,
+    value: unknown
+  ): SessionGenerationSettings['verbosity'] | undefined {
+    if (!isVerbosity(value)) {
+      return undefined
+    }
+    const normalizedValue = value
+
+    const portrait = this.getReasoningPortrait(providerId, modelId)
+    const options = portrait?.verbosityOptions?.filter(isVerbosity)
+    if (!options || options.length === 0) {
+      return normalizedValue
+    }
+
+    if (options.includes(normalizedValue)) {
+      return normalizedValue
+    }
+
+    const defaultVerbosity = portrait?.verbosity
+    if (defaultVerbosity && isVerbosity(defaultVerbosity) && options.includes(defaultVerbosity)) {
+      return defaultVerbosity
+    }
+
+    return undefined
+  }
+
+  private getReasoningPortrait(providerId: string, modelId: string): ReasoningPortrait | null {
+    return this.configPresenter.getReasoningPortrait?.(providerId, modelId) ?? null
+  }
+
+  private normalizeThinkingBudget(
+    providerId: string,
+    modelId: string,
+    value: number,
+    min?: number,
+    max?: number
+  ): number {
+    const roundedValue = Math.round(value)
+    const budget = this.getReasoningPortrait(providerId, modelId)?.budget
+    const sentinelValues = new Set<number>()
+
+    if (typeof budget?.default === 'number') sentinelValues.add(Math.round(budget.default))
+    if (typeof budget?.auto === 'number') sentinelValues.add(Math.round(budget.auto))
+    if (typeof budget?.off === 'number') sentinelValues.add(Math.round(budget.off))
+
+    if (sentinelValues.has(roundedValue)) {
+      return roundedValue
+    }
+
+    return this.clampNumberWithOptionalRange(roundedValue, min, max)
   }
 
   private toFiniteNumber(value: unknown): number | undefined {

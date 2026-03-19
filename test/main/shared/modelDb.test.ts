@@ -1,0 +1,125 @@
+import { describe, expect, it } from 'vitest'
+import { sanitizeAggregate } from '../../../src/shared/types/model-db'
+
+describe('sanitizeAggregate', () => {
+  it('keeps extra_capabilities.reasoning portraits alongside legacy reasoning', () => {
+    const aggregate = sanitizeAggregate({
+      providers: {
+        openai: {
+          id: 'openai',
+          models: [
+            {
+              id: 'gpt-5',
+              reasoning: {
+                supported: true,
+                default: true,
+                effort: 'medium'
+              },
+              extra_capabilities: {
+                reasoning: {
+                  supported: true,
+                  default_enabled: true,
+                  mode: 'effort',
+                  effort: 'medium',
+                  effort_options: ['minimal', 'low', 'medium', 'high'],
+                  verbosity: 'medium',
+                  verbosity_options: ['low', 'medium', 'high'],
+                  visibility: 'hidden',
+                  continuation: ['thought_signatures'],
+                  notes: ['portrait note']
+                }
+              }
+            }
+          ]
+        }
+      }
+    })
+
+    const model = aggregate?.providers.openai.models[0]
+    expect(model?.reasoning).toEqual({
+      supported: true,
+      default: true,
+      effort: 'medium'
+    })
+    expect(model?.extra_capabilities?.reasoning).toEqual({
+      supported: true,
+      default_enabled: true,
+      mode: 'effort',
+      effort: 'medium',
+      effort_options: ['minimal', 'low', 'medium', 'high'],
+      verbosity: 'medium',
+      verbosity_options: ['low', 'medium', 'high'],
+      visibility: 'hidden',
+      continuation: ['thought_signatures'],
+      notes: ['portrait note']
+    })
+  })
+
+  it('preserves budget, level and fixed portrait variants', () => {
+    const aggregate = sanitizeAggregate({
+      providers: {
+        demo: {
+          id: 'demo',
+          models: [
+            {
+              id: 'gemini-2.5-pro',
+              extra_capabilities: {
+                reasoning: {
+                  supported: true,
+                  default_enabled: true,
+                  mode: 'budget',
+                  budget: { min: 0, max: 24576, default: -1, auto: -1, off: 0, unit: 'tokens' }
+                }
+              }
+            },
+            {
+              id: 'gemini-3-flash-preview',
+              extra_capabilities: {
+                reasoning: {
+                  supported: true,
+                  default_enabled: true,
+                  mode: 'level',
+                  level: 'high',
+                  level_options: ['minimal', 'low', 'medium', 'high']
+                }
+              }
+            },
+            {
+              id: 'gpt-5-pro',
+              extra_capabilities: {
+                reasoning: {
+                  supported: true,
+                  default_enabled: true,
+                  mode: 'fixed',
+                  effort: 'high',
+                  verbosity: 'medium',
+                  verbosity_options: ['low', 'medium', 'high']
+                }
+              }
+            }
+          ]
+        }
+      }
+    })
+
+    expect(aggregate?.providers.demo.models[0].extra_capabilities?.reasoning?.budget).toEqual({
+      min: 0,
+      max: 24576,
+      default: -1,
+      auto: -1,
+      off: 0,
+      unit: 'tokens'
+    })
+    expect(aggregate?.providers.demo.models[1].extra_capabilities?.reasoning).toMatchObject({
+      mode: 'level',
+      level: 'high',
+      level_options: ['minimal', 'low', 'medium', 'high']
+    })
+    expect(aggregate?.providers.demo.models[2].extra_capabilities?.reasoning).toMatchObject({
+      mode: 'fixed',
+      effort: 'high',
+      verbosity: 'medium',
+      verbosity_options: ['low', 'medium', 'high']
+    })
+  })
+})

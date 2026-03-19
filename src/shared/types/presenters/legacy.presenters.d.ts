@@ -490,6 +490,8 @@ export interface INotificationPresenter {
   clearAllNotifications(): void
 }
 
+import type { ReasoningPortrait } from '../model-db'
+
 export interface IConfigPresenter {
   getSetting<T>(key: string): T | undefined
   setSetting<T>(key: string, value: T): void
@@ -500,6 +502,7 @@ export interface IConfigPresenter {
   getProviderModels(providerId: string): MODEL_META[]
   getDbProviderModels(providerId: string): RENDERER_MODEL_META[]
   supportsReasoningCapability?(providerId: string, modelId: string): boolean
+  getReasoningPortrait?(providerId: string, modelId: string): ReasoningPortrait | null
   getThinkingBudgetRange?(
     providerId: string,
     modelId: string

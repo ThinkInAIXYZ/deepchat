@@ -25,7 +25,14 @@ export type WorkspaceFileNode = {
   expanded?: boolean
 }
 
-export type WorkspaceFilePreviewKind = 'text' | 'markdown' | 'html' | 'svg' | 'image' | 'binary'
+export type WorkspaceFilePreviewKind =
+  | 'text'
+  | 'markdown'
+  | 'html'
+  | 'pdf'
+  | 'svg'
+  | 'image'
+  | 'binary'
 
 export type WorkspaceFileMetadata = {
   fileName: string
@@ -42,6 +49,7 @@ export type WorkspaceFilePreview = {
   mimeType: string
   kind: WorkspaceFilePreviewKind
   content: string
+  previewUrl?: string
   thumbnail?: string
   language?: string | null
   metadata: WorkspaceFileMetadata
