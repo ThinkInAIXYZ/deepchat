@@ -21,7 +21,7 @@
           data-testid="tool-call-summary"
           ref="summaryElement"
           :class="[
-            'tool-call-summary text-[11px] leading-none',
+            'tool-call-summary text-[11px]',
             { 'tool-call-summary--overflowing': isSummaryOverflowing }
           ]"
           :title="isSummaryOverflowing ? summaryText : undefined"
@@ -82,7 +82,7 @@
               data-testid="tool-call-params"
               class="rounded-md border bg-background text-xs p-2 min-h-0 max-h-20 overflow-auto"
             >
-              {{ safeParamsText }}
+              {{ paramsText }}
             </div>
           </div>
 
@@ -161,65 +161,41 @@ const props = defineProps<{
 }>()
 
 type ExpansionSource = 'auto' | 'manual' | null
-type SanitizedParamValue = string | number | boolean | null
-type SanitizedParamRecord = Record<string, SanitizedParamValue>
-
-const PARAM_REDACTION_PLACEHOLDER = '[redacted]'
-const MAX_SAFE_PARAM_VALUE_LENGTH = 120
-
-const SAFE_TOOL_PARAM_KEYS = {
-  read: ['path', 'offset', 'limit'],
-  write: ['path'],
-  edit: ['path', 'replaceAll'],
-  edit_text: ['path'],
-  text_replace: ['path'],
-  ls: ['path', 'depth'],
-  find: ['path', 'maxResults'],
-  grep: ['path', 'filePattern', 'recursive', 'caseSensitive', 'contextLines', 'maxResults'],
-  exec: ['description', 'cwd', 'background', 'timeoutMs', 'yieldMs'],
-  process: ['action', 'offset', 'limit', 'eof'],
-  skill_run: ['skill', 'script', 'background', 'timeoutMs']
-} as const
-
-type SafeToolContractName = keyof typeof SAFE_TOOL_PARAM_KEYS
-
-const SAFE_TOOL_SUMMARY_KEYS: Record<SafeToolContractName, readonly string[]> = {
-  read: ['path'],
-  write: ['path'],
-  edit: ['path'],
-  edit_text: ['path'],
-  text_replace: ['path'],
-  ls: ['path'],
-  find: ['path'],
-  grep: ['path', 'filePattern'],
-  exec: ['description', 'cwd'],
-  process: ['action'],
-  skill_run: ['skill', 'script']
-}
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 
 const normalizeInlineText = (value: string): string => value.replace(/\s+/g, ' ').trim()
 
-const sanitizeAllowedParamValue = (value: unknown): SanitizedParamValue => {
+const extractFirstSummaryValue = (value: unknown): unknown => {
+  if (Array.isArray(value)) {
+    return value.length > 0 ? value[0] : ''
+  }
+  if (isRecord(value)) {
+    const entries = Object.entries(value)
+    return entries.length > 0 ? entries[0][1] : ''
+  }
+  return value
+}
+
+const formatSummaryValue = (value: unknown): string => {
   if (typeof value === 'string') {
-    const normalizedValue = normalizeInlineText(value)
-    if (!normalizedValue || normalizedValue.length > MAX_SAFE_PARAM_VALUE_LENGTH) {
-      return PARAM_REDACTION_PLACEHOLDER
-    }
-    return normalizedValue
+    return normalizeInlineText(value)
   }
-
-  if (typeof value === 'number') {
-    return Number.isFinite(value) ? value : PARAM_REDACTION_PLACEHOLDER
+  if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
+    return String(value)
   }
-
-  if (typeof value === 'boolean' || value === null) {
-    return value
+  if (value === null) {
+    return 'null'
   }
-
-  return PARAM_REDACTION_PLACEHOLDER
+  if (value === undefined) {
+    return ''
+  }
+  try {
+    return normalizeInlineText(JSON.stringify(value))
+  } catch {
+    return normalizeInlineText(String(value))
+  }
 }
 
 const coerceNumericParam = (value: unknown): number | null => {
@@ -272,13 +248,13 @@ const expandedToolTitle = computed(() => {
   return `${serverName}.${toolName}`
 })
 
-const rawParamsText = computed(() => props.block.tool_call?.params ?? '')
+const paramsText = computed(() => props.block.tool_call?.params ?? '')
 const responseText = computed(() => props.block.tool_call?.response ?? '')
-const hasRawParams = computed(() => rawParamsText.value.trim().length > 0)
+const hasParams = computed(() => paramsText.value.trim().length > 0)
 const hasResponse = computed(() => responseText.value.trim().length > 0)
 
 const parsedParams = computed(() => {
-  const raw = rawParamsText.value.trim()
+  const raw = paramsText.value.trim()
   if (!raw) {
     return {
       isJson: false,
@@ -307,67 +283,13 @@ const rawToolName = computed(() => props.block.tool_call?.name?.trim().toLowerCa
 const matchesToolContractName = (toolName: string, expectedName: string): boolean =>
   toolName === expectedName || toolName.endsWith(`_${expectedName}`)
 
-const safeToolContractName = computed<SafeToolContractName | null>(() => {
-  const toolName = rawToolName.value
-  const safeToolNames = Object.keys(SAFE_TOOL_PARAM_KEYS) as SafeToolContractName[]
-
-  for (const safeToolName of safeToolNames) {
-    if (matchesToolContractName(toolName, safeToolName)) {
-      return safeToolName
-    }
-  }
-
-  return null
-})
-
-const sanitizedParamsRecord = computed<SanitizedParamRecord | null>(() => {
-  if (!safeToolContractName.value || !isRecord(parsedParams.value.value)) {
-    return null
-  }
-
-  const sanitizedRecord: SanitizedParamRecord = {}
-  const safeKeys = SAFE_TOOL_PARAM_KEYS[safeToolContractName.value]
-
-  for (const key of safeKeys) {
-    if (Object.prototype.hasOwnProperty.call(parsedParams.value.value, key)) {
-      sanitizedRecord[key] = sanitizeAllowedParamValue(parsedParams.value.value[key])
-    }
-  }
-
-  return Object.keys(sanitizedRecord).length > 0 ? sanitizedRecord : null
-})
-
-const safeParamsText = computed(() => {
-  if (!hasRawParams.value) return ''
-  if (!parsedParams.value.isJson || !safeToolContractName.value || !sanitizedParamsRecord.value) {
-    return PARAM_REDACTION_PLACEHOLDER
-  }
-  return JSON.stringify(sanitizedParamsRecord.value, null, 2)
-})
-
-const hasParams = computed(() => safeParamsText.value.trim().length > 0)
-
 const summaryText = computed(() => {
-  if (!hasRawParams.value) return ''
-  if (!safeToolContractName.value || !sanitizedParamsRecord.value) {
-    return PARAM_REDACTION_PLACEHOLDER
+  const raw = paramsText.value.trim()
+  if (!raw) return ''
+  if (!parsedParams.value.isJson) {
+    return normalizeInlineText(raw)
   }
-
-  for (const key of SAFE_TOOL_SUMMARY_KEYS[safeToolContractName.value]) {
-    const value = sanitizedParamsRecord.value[key]
-
-    if (typeof value === 'string') {
-      return value
-    }
-    if (typeof value === 'number' || typeof value === 'boolean') {
-      return String(value)
-    }
-    if (value === null) {
-      return 'null'
-    }
-  }
-
-  return normalizeInlineText(JSON.stringify(sanitizedParamsRecord.value))
+  return formatSummaryValue(extractFirstSummaryValue(parsedParams.value.value))
 })
 
 const updateSummaryOverflow = () => {
@@ -481,7 +403,7 @@ const diffData = computed(() => {
 })
 
 const paramsPath = computed(() => {
-  const params = rawParamsText.value
+  const params = paramsText.value
   if (!params) return ''
   try {
     const parsed = JSON.parse(params) as { path?: unknown }
@@ -600,9 +522,9 @@ const copyParams = async () => {
   if (!hasParams.value) return
   try {
     if (window.api?.copyText) {
-      window.api.copyText(safeParamsText.value)
+      window.api.copyText(paramsText.value)
     } else {
-      await navigator.clipboard.writeText(safeParamsText.value)
+      await navigator.clipboard.writeText(paramsText.value)
     }
     paramsCopyText.value = t('common.copySuccess')
     setTimeout(() => {
@@ -643,9 +565,13 @@ const copyResponse = async () => {
 .tool-call-summary {
   flex: 1 1 auto;
   min-width: 0;
+  display: block;
   overflow: hidden;
   white-space: nowrap;
-  color: hsl(var(--foreground) / 0.56);
+  line-height: 1.2;
+  padding-block: 1px;
+  color: hsl(var(--muted-foreground) / 0.9);
+  font-weight: 400;
 }
 
 .tool-call-summary--overflowing {

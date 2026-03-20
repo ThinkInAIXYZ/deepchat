@@ -148,7 +148,7 @@ describe('MessageBlockToolCall', () => {
     expect(wrapper.get('[data-testid="tool-call-summary"]').text()).toBe('C:/repo/src/main.ts')
   })
 
-  it('redacts summaries for tools outside the allowlist', () => {
+  it('uses the first query value as summary text', () => {
     const wrapper = mount(MessageBlockToolCall, {
       props: {
         block: createBlock({
@@ -160,11 +160,13 @@ describe('MessageBlockToolCall', () => {
       }
     })
 
-    expect(wrapper.get('[data-testid="tool-call-summary"]').text()).toBe('[redacted]')
+    expect(wrapper.get('[data-testid="tool-call-summary"]').text()).toBe(
+      'today bilibili hot videos'
+    )
     expect(wrapper.get('[data-testid="tool-call-name"]').classes()).toContain('shrink-0')
   })
 
-  it('redacts nested values for non-allowlisted tools', () => {
+  it('stringifies nested first parameter values into a single-line summary', () => {
     const wrapper = mount(MessageBlockToolCall, {
       props: {
         block: createBlock({
@@ -176,10 +178,12 @@ describe('MessageBlockToolCall', () => {
       }
     })
 
-    expect(wrapper.get('[data-testid="tool-call-summary"]').text()).toBe('[redacted]')
+    expect(wrapper.get('[data-testid="tool-call-summary"]').text()).toBe(
+      '{"foo":"bar","nested":{"ok":true}}'
+    )
   })
 
-  it('redacts non-json params instead of showing raw input', () => {
+  it('falls back to raw params when the summary source is not JSON', () => {
     const wrapper = mount(MessageBlockToolCall, {
       props: {
         block: createBlock({
@@ -191,18 +195,20 @@ describe('MessageBlockToolCall', () => {
       }
     })
 
-    expect(wrapper.get('[data-testid="tool-call-summary"]').text()).toBe('[redacted]')
+    expect(wrapper.get('[data-testid="tool-call-summary"]').text()).toBe(
+      'raw-shell-command --flag value'
+    )
   })
 
-  it('only adds the summary fade when the sanitized text actually overflows', async () => {
-    const sanitizedSummary = 'C:/workspace/' + 'nested/'.repeat(8) + 'MessageBlockToolCall.vue'
+  it('only adds the summary fade when the text actually overflows', async () => {
+    const summaryValue = 'C:/workspace/' + 'nested/'.repeat(8) + 'MessageBlockToolCall.vue'
     const wrapper = mount(MessageBlockToolCall, {
       props: {
         block: createBlock({
           tool_call: {
             name: 'exec',
             params: JSON.stringify({
-              cwd: sanitizedSummary
+              cwd: summaryValue
             })
           }
         })
@@ -226,7 +232,7 @@ describe('MessageBlockToolCall', () => {
     await nextTick()
 
     expect(summary.classes()).toContain('tool-call-summary--overflowing')
-    expect(summary.attributes('title')).toBe(sanitizedSummary)
+    expect(summary.attributes('title')).toBe(summaryValue)
   })
 
   it('keeps the collapsed label to tool name only even when a server name exists', () => {
@@ -299,11 +305,11 @@ describe('MessageBlockToolCall', () => {
       }
     })
 
-    expect(wrapper.get('[data-testid="tool-call-summary"]').text()).toBe('{"background":true}')
+    expect(wrapper.get('[data-testid="tool-call-summary"]').text()).toBe('pnpm run dev')
     expect(wrapper.get('[data-testid="tool-call-rtk-badge"]').text()).toBe('RTK')
   })
 
-  it('renders sanitized params in the expanded panel instead of raw tool input', async () => {
+  it('renders raw params in the expanded panel', async () => {
     const wrapper = mount(MessageBlockToolCall, {
       props: {
         block: createBlock({
@@ -320,9 +326,10 @@ describe('MessageBlockToolCall', () => {
 
     const paramsPanel = wrapper.get('[data-testid="tool-call-params"]').text()
 
-    expect(paramsPanel).toContain('"background": true')
-    expect(paramsPanel).not.toContain('pnpm run dev')
-    expect(paramsPanel).not.toContain('"command"')
+    expect(paramsPanel).toBe('{"command":"pnpm run dev","background":true}')
+    expect(paramsPanel).toContain('pnpm run dev')
+    expect(paramsPanel).toContain('"background":true')
+    expect(paramsPanel).toContain('"command":"pnpm run dev"')
   })
 
   it('renders a dedicated running ring instead of the legacy pulse icon', () => {
