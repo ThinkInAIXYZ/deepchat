@@ -36,6 +36,41 @@ const MAX_SPLASH_ACTIVITIES = 3
 export class SplashWindowManager implements ISplashWindowManager {
   private splashWindow: BrowserWindow | null = null
   private activities = new Map<string, SplashActivityItem>()
+  private readonly onHookExecuted = (data: HookExecutedEventData) => {
+    if (!this.isStartupPhase(data.phase)) {
+      return
+    }
+
+    this.upsertActivity(data.phase, data.name, 'running')
+  }
+  private readonly onHookCompleted = (data: HookExecutedEventData) => {
+    if (!this.isStartupPhase(data.phase)) {
+      return
+    }
+
+    this.upsertActivity(data.phase, data.name, 'completed')
+  }
+  private readonly onHookFailed = (data: HookFailedEventData) => {
+    if (!this.isStartupPhase(data.phase)) {
+      return
+    }
+
+    this.upsertActivity(data.phase, data.name, 'failed')
+  }
+  private readonly onErrorOccurred = (data: ErrorOccurredEventData) => {
+    if (!this.isStartupPhase(data.phase)) {
+      return
+    }
+
+    this.activities.set(`error:${data.phase}`, {
+      key: `error:${data.phase}`,
+      name: 'startup-error',
+      status: 'failed',
+      updatedAt: Date.now()
+    })
+    this.pruneActivities()
+    this.emitState()
+  }
 
   constructor() {
     this.setupLifecycleListeners()
@@ -128,6 +163,14 @@ export class SplashWindowManager implements ISplashWindowManager {
    * Close the splash window
    */
   async close(): Promise<void> {
+    eventBus.off(LIFECYCLE_EVENTS.HOOK_EXECUTED, this.onHookExecuted)
+    eventBus.off(LIFECYCLE_EVENTS.HOOK_COMPLETED, this.onHookCompleted)
+    eventBus.off(LIFECYCLE_EVENTS.HOOK_FAILED, this.onHookFailed)
+    eventBus.off(LIFECYCLE_EVENTS.ERROR_OCCURRED, this.onErrorOccurred)
+
+    this.activities.clear()
+    this.emitState()
+
     if (!this.splashWindow || this.splashWindow.isDestroyed()) {
       return
     }
@@ -155,44 +198,10 @@ export class SplashWindowManager implements ISplashWindowManager {
   }
 
   private setupLifecycleListeners(): void {
-    eventBus.on(LIFECYCLE_EVENTS.HOOK_EXECUTED, (data: HookExecutedEventData) => {
-      if (!this.isStartupPhase(data.phase)) {
-        return
-      }
-
-      this.upsertActivity(data.phase, data.name, 'running')
-    })
-
-    eventBus.on(LIFECYCLE_EVENTS.HOOK_COMPLETED, (data: HookExecutedEventData) => {
-      if (!this.isStartupPhase(data.phase)) {
-        return
-      }
-
-      this.upsertActivity(data.phase, data.name, 'completed')
-    })
-
-    eventBus.on(LIFECYCLE_EVENTS.HOOK_FAILED, (data: HookFailedEventData) => {
-      if (!this.isStartupPhase(data.phase)) {
-        return
-      }
-
-      this.upsertActivity(data.phase, data.name, 'failed')
-    })
-
-    eventBus.on(LIFECYCLE_EVENTS.ERROR_OCCURRED, (data: ErrorOccurredEventData) => {
-      if (!this.isStartupPhase(data.phase)) {
-        return
-      }
-
-      this.activities.set(`error:${data.phase}`, {
-        key: `error:${data.phase}`,
-        name: 'startup-error',
-        status: 'failed',
-        updatedAt: Date.now()
-      })
-      this.pruneActivities()
-      this.emitState()
-    })
+    eventBus.on(LIFECYCLE_EVENTS.HOOK_EXECUTED, this.onHookExecuted)
+    eventBus.on(LIFECYCLE_EVENTS.HOOK_COMPLETED, this.onHookCompleted)
+    eventBus.on(LIFECYCLE_EVENTS.HOOK_FAILED, this.onHookFailed)
+    eventBus.on(LIFECYCLE_EVENTS.ERROR_OCCURRED, this.onErrorOccurred)
   }
 
   private isStartupPhase(phase: LifecyclePhase | null): phase is LifecyclePhase {
