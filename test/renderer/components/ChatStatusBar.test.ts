@@ -870,6 +870,107 @@ describe('ChatStatusBar model and session panels', () => {
     expect((wrapper.vm as any).acpConfigReadOnly).toBe(true)
   })
 
+  it('shows ACP badge loading while warmup config is pending without cache', async () => {
+    const pendingWarmup = createDeferred<AcpConfigState | null>()
+    const { wrapper, llmproviderPresenter, agentStore, projectStore } = await setup({
+      agentId: 'deepchat',
+      hasActiveSession: false
+    })
+
+    llmproviderPresenter.getAcpProcessConfigOptions.mockImplementation(() => pendingWarmup.promise)
+    projectStore.selectedProject = { path: '/tmp/workspace' }
+    agentStore.selectedAgentId = 'acp-agent'
+    await flushPromises()
+
+    expect(llmproviderPresenter.warmupAcpProcess).toHaveBeenLastCalledWith(
+      'acp-agent',
+      '/tmp/workspace'
+    )
+    expect(wrapper.find('.acp-agent-badge').exists()).toBe(true)
+    expect(wrapper.find('.acp-agent-loading-indicator').exists()).toBe(true)
+    expect(wrapper.findAll('.acp-inline-option')).toHaveLength(0)
+    expect(wrapper.find('.acp-overflow-button').exists()).toBe(false)
+    expect((wrapper.vm as any).isAcpConfigLoading).toBe(true)
+
+    pendingWarmup.resolve(createAcpConfigState())
+    await flushPromises()
+  })
+
+  it('clears ACP badge loading when the current warmup config-ready event arrives', async () => {
+    const pendingWarmup = createDeferred<AcpConfigState | null>()
+    const processConfig = createAcpConfigState({}, 'gpt-5')
+    const { wrapper, llmproviderPresenter, agentStore, projectStore, ipcRenderer } = await setup({
+      agentId: 'deepchat',
+      hasActiveSession: false
+    })
+
+    llmproviderPresenter.getAcpProcessConfigOptions.mockImplementation(() => pendingWarmup.promise)
+    projectStore.selectedProject = { path: '/tmp/workspace' }
+    agentStore.selectedAgentId = 'acp-agent'
+    await flushPromises()
+
+    expect((wrapper.vm as any).isAcpConfigLoading).toBe(true)
+
+    ipcRenderer?.emit(ACP_WORKSPACE_EVENTS.SESSION_CONFIG_OPTIONS_READY, {
+      agentId: 'acp-agent',
+      workdir: '/tmp/workspace',
+      configState: processConfig
+    })
+    await flushPromises()
+
+    expect((wrapper.vm as any).isAcpConfigLoading).toBe(false)
+    expect(wrapper.find('.acp-agent-loading-indicator').exists()).toBe(false)
+    expect(wrapper.findAll('.acp-inline-option')).toHaveLength(3)
+
+    pendingWarmup.resolve(processConfig)
+    await flushPromises()
+  })
+
+  it('keeps ACP badge loading when an old agent warmup event arrives after switching agents', async () => {
+    const pendingWarmup = createDeferred<AcpConfigState | null>()
+    const claudeConfig = createAcpConfigState({}, 'gpt-5-mini')
+    const { wrapper, llmproviderPresenter, agentStore, projectStore, ipcRenderer } = await setup({
+      agentId: 'deepchat',
+      hasActiveSession: false
+    })
+
+    llmproviderPresenter.getAcpProcessConfigOptions.mockImplementation(() => pendingWarmup.promise)
+    projectStore.selectedProject = { path: '/tmp/workspace' }
+
+    agentStore.selectedAgentId = 'codex'
+    await flushPromises()
+    expect((wrapper.vm as any).isAcpConfigLoading).toBe(true)
+
+    agentStore.selectedAgentId = 'claude'
+    await flushPromises()
+
+    expect((wrapper.vm as any).isAcpConfigLoading).toBe(true)
+    expect((wrapper.vm as any).acpConfigState).toBeNull()
+
+    ipcRenderer?.emit(ACP_WORKSPACE_EVENTS.SESSION_CONFIG_OPTIONS_READY, {
+      agentId: 'codex',
+      workdir: '/tmp/workspace',
+      configState: createAcpConfigState({}, 'gpt-5')
+    })
+    await flushPromises()
+
+    expect((wrapper.vm as any).isAcpConfigLoading).toBe(true)
+    expect((wrapper.vm as any).acpConfigState).toBeNull()
+
+    ipcRenderer?.emit(ACP_WORKSPACE_EVENTS.SESSION_CONFIG_OPTIONS_READY, {
+      agentId: 'claude',
+      workdir: '/tmp/workspace',
+      configState: claudeConfig
+    })
+    await flushPromises()
+
+    expect((wrapper.vm as any).isAcpConfigLoading).toBe(false)
+    expect((wrapper.vm as any).acpConfigState.options[0].currentValue).toBe('gpt-5-mini')
+
+    pendingWarmup.resolve(claudeConfig)
+    await flushPromises()
+  })
+
   it('shows ACP warmup config inline before session id is ready', async () => {
     const processConfig = createAcpConfigState({}, 'gpt-5')
     const { wrapper, llmproviderPresenter } = await setup({
@@ -1038,6 +1139,8 @@ describe('ChatStatusBar model and session panels', () => {
     expect(newAgentPresenter.getAcpSessionConfigOptions).toHaveBeenCalledWith('draft-1')
     expect(wrapper.text()).toContain('gpt-5-mini')
     expect((wrapper.vm as any).acpConfigReadOnly).toBe(false)
+    ;(wrapper.vm as any).onAcpInlineOptionOpenChange('model', true)
+    expect((wrapper.vm as any).acpInlineOpenOptionId).toBe('model')
 
     await wrapper
       .find('.acp-inline-option-item[data-option-id="model"][data-value="gpt-5"]')
@@ -1049,6 +1152,7 @@ describe('ChatStatusBar model and session panels', () => {
       'model',
       'gpt-5'
     )
+    expect((wrapper.vm as any).acpInlineOpenOptionId).toBeNull()
     expect((wrapper.vm as any).acpConfigState.options[0].currentValue).toBe('gpt-5')
   })
 })
