@@ -1,8 +1,13 @@
 import { IConfigPresenter, LLM_PROVIDER, LLMResponse } from '@shared/presenter'
 import { OpenAICompatibleProvider } from './openAICompatibleProvider'
+import type { ProviderMcpRuntimePort } from '../runtimePorts'
 export class OpenAIProvider extends OpenAICompatibleProvider {
-  constructor(provider: LLM_PROVIDER, configPresenter: IConfigPresenter) {
-    super(provider, configPresenter)
+  constructor(
+    provider: LLM_PROVIDER,
+    configPresenter: IConfigPresenter,
+    mcpRuntime?: ProviderMcpRuntimePort
+  ) {
+    super(provider, configPresenter, mcpRuntime)
   }
 
   async completions(

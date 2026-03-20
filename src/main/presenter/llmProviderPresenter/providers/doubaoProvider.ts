@@ -17,6 +17,7 @@ import {
 import { OpenAICompatibleProvider } from './openAICompatibleProvider'
 import { providerDbLoader } from '../../configPresenter/providerDbLoader'
 import { modelCapabilities } from '../../configPresenter/modelCapabilities'
+import type { ProviderMcpRuntimePort } from '../runtimePorts'
 
 export class DoubaoProvider extends OpenAICompatibleProvider {
   // List of models that support thinking parameter
@@ -30,9 +31,13 @@ export class DoubaoProvider extends OpenAICompatibleProvider {
     'doubao-1-5-thinking-pro-m-250428'
   ]
 
-  constructor(provider: LLM_PROVIDER, configPresenter: IConfigPresenter) {
+  constructor(
+    provider: LLM_PROVIDER,
+    configPresenter: IConfigPresenter,
+    mcpRuntime?: ProviderMcpRuntimePort
+  ) {
     // Initialize Doubao model configuration
-    super(provider, configPresenter)
+    super(provider, configPresenter, mcpRuntime)
   }
 
   private supportsThinking(modelId: string): boolean {

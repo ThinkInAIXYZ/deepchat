@@ -11,6 +11,7 @@ import {
 } from '@shared/presenter'
 import { DEFAULT_MODEL_CONTEXT_LENGTH, DEFAULT_MODEL_MAX_TOKENS } from '@shared/modelConfigDefaults'
 import { OpenAICompatibleProvider } from './openAICompatibleProvider'
+import type { ProviderMcpRuntimePort } from '../runtimePorts'
 
 // Define interface for SiliconCloud API key response
 interface SiliconCloudKeyResponse {
@@ -46,8 +47,12 @@ export class SiliconcloudProvider extends OpenAICompatibleProvider {
     'pro/deepseek-ai/deepseek-v3.1'
   ]
 
-  constructor(provider: LLM_PROVIDER, configPresenter: IConfigPresenter) {
-    super(provider, configPresenter)
+  constructor(
+    provider: LLM_PROVIDER,
+    configPresenter: IConfigPresenter,
+    mcpRuntime?: ProviderMcpRuntimePort
+  ) {
+    super(provider, configPresenter, mcpRuntime)
   }
 
   /**

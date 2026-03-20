@@ -3,10 +3,15 @@ import { OpenAICompatibleProvider } from './openAICompatibleProvider'
 import { proxyConfig } from '@/presenter/proxyConfig'
 import { ProxyAgent } from 'undici'
 import OpenAI from 'openai'
+import type { ProviderMcpRuntimePort } from '../runtimePorts'
 
 export class AihubmixProvider extends OpenAICompatibleProvider {
-  constructor(provider: LLM_PROVIDER, configPresenter: IConfigPresenter) {
-    super(provider, configPresenter)
+  constructor(
+    provider: LLM_PROVIDER,
+    configPresenter: IConfigPresenter,
+    mcpRuntime?: ProviderMcpRuntimePort
+  ) {
+    super(provider, configPresenter, mcpRuntime)
   }
 
   protected createOpenAIClient(): void {

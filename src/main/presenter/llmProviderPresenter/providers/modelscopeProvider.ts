@@ -8,6 +8,7 @@ import {
   ModelScopeMcpSyncOptions
 } from '@shared/presenter'
 import { OpenAICompatibleProvider } from './openAICompatibleProvider'
+import type { ProviderMcpRuntimePort } from '../runtimePorts'
 
 // Define interface for ModelScope MCP API response
 export interface ModelScopeMcpServerResponse {
@@ -46,8 +47,12 @@ export interface ModelScopeMcpServer {
 }
 
 export class ModelscopeProvider extends OpenAICompatibleProvider {
-  constructor(provider: LLM_PROVIDER, configPresenter: IConfigPresenter) {
-    super(provider, configPresenter)
+  constructor(
+    provider: LLM_PROVIDER,
+    configPresenter: IConfigPresenter,
+    mcpRuntime?: ProviderMcpRuntimePort
+  ) {
+    super(provider, configPresenter, mcpRuntime)
   }
 
   async completions(

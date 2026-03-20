@@ -7,6 +7,7 @@ import {
   IConfigPresenter
 } from '@shared/presenter'
 import { OpenAICompatibleProvider } from './openAICompatibleProvider'
+import type { ProviderMcpRuntimePort } from '../runtimePorts'
 
 // Define interface for 302AI API balance response
 interface _302AIBalanceResponse {
@@ -38,8 +39,12 @@ interface _302AIModelResponse {
 }
 
 export class _302AIProvider extends OpenAICompatibleProvider {
-  constructor(provider: LLM_PROVIDER, configPresenter: IConfigPresenter) {
-    super(provider, configPresenter)
+  constructor(
+    provider: LLM_PROVIDER,
+    configPresenter: IConfigPresenter,
+    mcpRuntime?: ProviderMcpRuntimePort
+  ) {
+    super(provider, configPresenter, mcpRuntime)
   }
 
   async completions(

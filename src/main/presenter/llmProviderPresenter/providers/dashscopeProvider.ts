@@ -11,10 +11,15 @@ import {
 import { DEFAULT_MODEL_CONTEXT_LENGTH, DEFAULT_MODEL_MAX_TOKENS } from '@shared/modelConfigDefaults'
 import { OpenAICompatibleProvider } from './openAICompatibleProvider'
 import { modelCapabilities } from '../../configPresenter/modelCapabilities'
+import type { ProviderMcpRuntimePort } from '../runtimePorts'
 
 export class DashscopeProvider extends OpenAICompatibleProvider {
-  constructor(provider: LLM_PROVIDER, configPresenter: IConfigPresenter) {
-    super(provider, configPresenter)
+  constructor(
+    provider: LLM_PROVIDER,
+    configPresenter: IConfigPresenter,
+    mcpRuntime?: ProviderMcpRuntimePort
+  ) {
+    super(provider, configPresenter, mcpRuntime)
   }
 
   private supportsEnableThinking(modelId: string): boolean {
