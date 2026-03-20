@@ -75,7 +75,7 @@
         </ChatInputBox>
 
         <!-- Status bar -->
-        <ChatStatusBar />
+        <ChatStatusBar :acp-draft-session-id="acpDraftSessionId" />
       </div>
     </div>
   </TooltipProvider>

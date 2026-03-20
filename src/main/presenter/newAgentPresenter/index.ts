@@ -23,6 +23,7 @@ import type {
 import type { Message } from '@shared/chat'
 import type { SearchResult } from '@shared/types/core/search'
 import type {
+  AcpConfigState,
   IConfigPresenter,
   ILlmProviderPresenter,
   ISkillPresenter,
@@ -826,19 +827,36 @@ export class NewAgentPresenter {
   > {
     const session = this.sessionManager.get(sessionId)
     if (!session) return []
-    const agent = await this.resolveAgentImplementation(session.agentId)
-    const state = await agent.getSessionState(sessionId)
-    let providerId = state?.providerId ?? ''
-    if (!providerId) {
-      const acpAgents = await this.configPresenter.getAcpAgents()
-      if (acpAgents.some((item) => item.id === session.agentId)) {
-        providerId = 'acp'
-      }
-    }
-    if (providerId !== 'acp') {
+    if (!(await this.isAcpBackedSession(sessionId, session.agentId))) {
       return []
     }
     return await this.llmProviderPresenter.getAcpSessionCommands(sessionId)
+  }
+
+  async getAcpSessionConfigOptions(sessionId: string): Promise<AcpConfigState | null> {
+    const session = this.sessionManager.get(sessionId)
+    if (!session) {
+      return null
+    }
+    if (!(await this.isAcpBackedSession(sessionId, session.agentId))) {
+      return null
+    }
+    return await this.llmProviderPresenter.getAcpSessionConfigOptions(sessionId)
+  }
+
+  async setAcpSessionConfigOption(
+    sessionId: string,
+    configId: string,
+    value: string | boolean
+  ): Promise<AcpConfigState | null> {
+    const session = this.sessionManager.get(sessionId)
+    if (!session) {
+      throw new Error(`Session not found: ${sessionId}`)
+    }
+    if (!(await this.isAcpBackedSession(sessionId, session.agentId))) {
+      throw new Error('ACP session config options are only available for ACP sessions.')
+    }
+    return await this.llmProviderPresenter.setAcpSessionConfigOption(sessionId, configId, value)
   }
 
   async getPermissionMode(sessionId: string): Promise<PermissionMode> {
@@ -1094,6 +1112,19 @@ export class NewAgentPresenter {
     if (!acpAgents.some((agent) => agent.id === agentId)) {
       throw new Error(`Agent ${agentId} is not an ACP agent.`)
     }
+  }
+
+  private async isAcpBackedSession(sessionId: string, agentId: string): Promise<boolean> {
+    const agent = await this.resolveAgentImplementation(agentId)
+    const state = await agent.getSessionState(sessionId)
+    let providerId = state?.providerId ?? ''
+    if (!providerId) {
+      const acpAgents = await this.configPresenter.getAcpAgents()
+      if (acpAgents.some((item) => item.id === agentId)) {
+        providerId = 'acp'
+      }
+    }
+    return providerId === 'acp'
   }
 
   private async findReusableDraftSession(

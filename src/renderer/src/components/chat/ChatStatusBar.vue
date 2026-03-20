@@ -1,8 +1,79 @@
 <template>
   <div :class="['w-full', props.maxWidthClass]">
     <div class="flex w-full items-center justify-between px-1 py-2">
-      <div class="flex items-center gap-1">
-        <Popover v-if="!isModelSelectionLocked" v-model:open="isModelPanelOpen">
+      <div class="flex min-w-0 items-center gap-1">
+        <template v-if="isAcpAgent">
+          <div
+            class="acp-agent-badge flex h-6 min-w-0 items-center gap-1 rounded-full px-2 text-xs text-muted-foreground backdrop-blur-lg"
+          >
+            <ModelIcon
+              :model-id="acpAgentIconId"
+              custom-class="w-3.5 h-3.5 shrink-0"
+              :is-dark="themeStore.isDark"
+            />
+            <span class="truncate">{{ acpAgentLabel }}</span>
+          </div>
+
+          <Popover v-for="option in acpInlineOptions" :key="option.id">
+            <PopoverTrigger as-child>
+              <Button
+                variant="ghost"
+                size="sm"
+                :title="getAcpOptionDisplayValue(option)"
+                :data-option-id="option.id"
+                class="acp-inline-option h-6 max-w-[9rem] min-w-0 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground backdrop-blur-lg"
+                :disabled="acpConfigReadOnly || isAcpOptionSaving(option.id)"
+              >
+                <span class="truncate">{{ getAcpOptionDisplayValue(option) }}</span>
+                <Icon icon="lucide:chevron-down" class="h-3 w-3 shrink-0" />
+              </Button>
+            </PopoverTrigger>
+
+            <PopoverContent align="start" class="w-56 overflow-hidden p-0">
+              <div class="border-b px-3 py-2">
+                <div
+                  :data-option-id="option.id"
+                  class="acp-inline-option-title text-sm font-medium"
+                >
+                  {{ option.label }}
+                </div>
+              </div>
+
+              <div
+                v-if="(option.options?.length ?? 0) > 0"
+                class="max-h-60 overflow-y-auto px-2 py-2"
+              >
+                <button
+                  v-for="entry in option.options ?? []"
+                  :key="`${option.id}-${entry.value}`"
+                  type="button"
+                  :data-option-id="option.id"
+                  :data-value="entry.value"
+                  :disabled="
+                    acpConfigReadOnly ||
+                    isAcpOptionSaving(option.id) ||
+                    String(option.currentValue) === entry.value
+                  "
+                  :class="[
+                    'acp-inline-option-item flex w-full items-center rounded-md px-2 py-1.5 text-left text-xs transition-colors disabled:pointer-events-none disabled:opacity-60',
+                    String(option.currentValue) === entry.value
+                      ? 'bg-muted/60 text-foreground'
+                      : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
+                  ]"
+                  @click="onAcpSelectOption(option.id, entry.value)"
+                >
+                  {{ entry.value }}
+                </button>
+              </div>
+
+              <div v-else class="px-3 py-4 text-xs text-muted-foreground">
+                {{ t('chat.modelPicker.empty') }}
+              </div>
+            </PopoverContent>
+          </Popover>
+        </template>
+
+        <Popover v-else-if="showModelPopover" v-model:open="isModelPanelOpen">
           <PopoverTrigger as-child>
             <Button
               variant="ghost"
@@ -306,6 +377,73 @@
       </div>
 
       <div class="flex items-center gap-1">
+        <Popover v-if="isAcpAgent && acpOverflowOptions.length > 0">
+          <PopoverTrigger as-child>
+            <Button
+              variant="ghost"
+              size="sm"
+              class="acp-overflow-button h-6 w-6 px-0 text-xs text-muted-foreground hover:text-foreground backdrop-blur-lg"
+              :title="t('chat.advancedSettings.button')"
+              :aria-label="t('chat.advancedSettings.button')"
+            >
+              <Icon icon="lucide:settings-2" class="h-3.5 w-3.5" />
+            </Button>
+          </PopoverTrigger>
+
+          <PopoverContent align="end" class="w-[18rem] p-0">
+            <div class="border-b px-3 py-3">
+              <div class="text-sm font-medium">{{ t('chat.advancedSettings.title') }}</div>
+            </div>
+
+            <div class="max-h-[24rem] space-y-3 overflow-y-auto px-3 py-3">
+              <div
+                v-for="option in acpOverflowOptions"
+                :key="option.id"
+                :data-option-id="option.id"
+                class="acp-overflow-option flex items-center justify-between gap-3"
+              >
+                <label class="min-w-0 flex-1 truncate text-xs font-medium">
+                  {{ option.label }}
+                </label>
+
+                <Select
+                  v-if="option.type === 'select'"
+                  :model-value="String(option.currentValue)"
+                  @update:model-value="onAcpSelectOption(option.id, $event as string)"
+                >
+                  <SelectTrigger
+                    :disabled="acpConfigReadOnly || isAcpOptionSaving(option.id)"
+                    class="h-8 w-[9rem] text-xs"
+                  >
+                    <span class="truncate">{{ getAcpOptionDisplayValue(option) }}</span>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem
+                      v-for="entry in option.options ?? []"
+                      :key="`${option.id}-${entry.value}`"
+                      :value="entry.value"
+                    >
+                      {{ entry.value }}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <Button
+                  v-else
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  class="h-8 min-w-[6rem] text-xs"
+                  :disabled="acpConfigReadOnly || isAcpOptionSaving(option.id)"
+                  @click="onAcpBooleanOption(option.id, !Boolean(option.currentValue))"
+                >
+                  <span class="truncate">{{ getAcpOptionDisplayValue(option) }}</span>
+                </Button>
+              </div>
+            </div>
+          </PopoverContent>
+        </Popover>
+
         <McpIndicator
           :show-system-prompt-section="showSystemPromptSection"
           :system-prompt-options="systemPromptMenuOptions"
@@ -315,7 +453,7 @@
           @open-change="handleSessionPanelOpenChange"
         />
 
-        <DropdownMenu v-if="canSelectPermissionMode">
+        <DropdownMenu v-if="!isAcpAgent">
           <DropdownMenuTrigger as-child>
             <Button
               variant="ghost"
@@ -349,29 +487,13 @@
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-
-        <Button
-          v-else
-          variant="ghost"
-          size="sm"
-          :class="[
-            'h-6 px-2 gap-1.5 text-xs backdrop-blur-lg disabled:opacity-100',
-            permissionMode === 'full_access'
-              ? 'text-orange-500 hover:text-orange-600'
-              : 'text-muted-foreground hover:text-foreground'
-          ]"
-          :disabled="true"
-        >
-          <Icon :icon="permissionIcon" class="w-3.5 h-3.5" />
-          <span>{{ permissionModeLabel }}</span>
-        </Button>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
@@ -391,7 +513,12 @@ import {
   SelectValue
 } from '@shadcn/components/ui/select'
 import { Slider } from '@shadcn/components/ui/slider'
-import type { RENDERER_MODEL_META, SystemPrompt } from '@shared/presenter'
+import type {
+  AcpConfigOption,
+  AcpConfigState,
+  RENDERER_MODEL_META,
+  SystemPrompt
+} from '@shared/presenter'
 import type { PermissionMode, SessionGenerationSettings } from '@shared/types/agent-interface'
 import type { ReasoningPortrait } from '@shared/types/model-db'
 import McpIndicator from '@/components/chat-input/McpIndicator.vue'
@@ -402,13 +529,17 @@ import { useProviderStore } from '@/stores/providerStore'
 import { useThemeStore } from '@/stores/theme'
 import { useAgentStore } from '@/stores/ui/agent'
 import { useDraftStore } from '@/stores/ui/draft'
+import { useProjectStore } from '@/stores/ui/project'
 import { useSessionStore } from '@/stores/ui/session'
+import { ACP_WORKSPACE_EVENTS } from '@/events'
 
 const props = withDefaults(
   defineProps<{
+    acpDraftSessionId?: string | null
     maxWidthClass?: string
   }>(),
   {
+    acpDraftSessionId: null,
     maxWidthClass: 'max-w-2xl'
   }
 )
@@ -435,6 +566,7 @@ const TEMPERATURE_MIN = 0
 const TEMPERATURE_MAX = 2
 const CONTEXT_LENGTH_MIN = 2048
 const MAX_TOKENS_MIN = 128
+const ACP_INLINE_OPTION_LIMIT = 3
 const DEFAULT_REASONING_EFFORT_OPTIONS: SessionGenerationSettings['reasoningEffort'][] = [
   'minimal',
   'low',
@@ -453,7 +585,9 @@ const providerStore = useProviderStore()
 const agentStore = useAgentStore()
 const sessionStore = useSessionStore()
 const draftStore = useDraftStore()
+const projectStore = useProjectStore()
 const configPresenter = usePresenter('configPresenter')
+const llmproviderPresenter = usePresenter('llmproviderPresenter')
 const newAgentPresenter = usePresenter('newAgentPresenter')
 const { t } = useI18n()
 
@@ -466,6 +600,10 @@ const isModelPanelOpen = ref(false)
 const isModelSettingsExpanded = ref(false)
 const modelSearchKeyword = ref('')
 const modelSettingsSelection = ref<ModelSelection | null>(null)
+const acpConfigState = ref<AcpConfigState | null>(null)
+const acpConfigLoadedRequestKey = ref<string | null>(null)
+const acpOptionSavingIds = ref<string[]>([])
+const acpConfigCacheByAgent = new Map<string, AcpConfigState>()
 
 const capabilitySupportsReasoning = ref<boolean | null>(null)
 const capabilityReasoningPortrait = ref<ReasoningPortrait | null>(null)
@@ -476,6 +614,7 @@ const capabilitySupportsVerbosity = ref<boolean | null>(null)
 let draftModelSyncToken = 0
 let permissionSyncToken = 0
 let generationSyncToken = 0
+let acpConfigSyncToken = 0
 let generationPersistTimer: ReturnType<typeof setTimeout> | null = null
 let pendingGenerationPatch: Partial<SessionGenerationSettings> = {}
 let generationPersistRequestToken = 0
@@ -490,6 +629,29 @@ const isAcpAgent = computed(() => {
   return agentId !== null && agentId !== 'deepchat'
 })
 
+const activeAcpAgentId = computed(() => {
+  if (hasActiveSession.value && sessionStore.activeSession?.providerId === 'acp') {
+    return sessionStore.activeSession.modelId || null
+  }
+  const selectedAgentId = agentStore.selectedAgentId
+  return selectedAgentId && selectedAgentId !== 'deepchat' ? selectedAgentId : null
+})
+
+const activeAcpSessionId = computed(() => {
+  if (hasActiveSession.value && sessionStore.activeSession?.providerId === 'acp') {
+    return sessionStore.activeSessionId
+  }
+  const draftSessionId = props.acpDraftSessionId?.trim()
+  return draftSessionId ? draftSessionId : null
+})
+
+const acpWorkspacePath = computed(() => {
+  if (hasActiveSession.value && sessionStore.activeSession?.providerId === 'acp') {
+    return sessionStore.activeSession.projectDir?.trim() || null
+  }
+  return projectStore.selectedProject?.path?.trim() || null
+})
+
 const lockedAcpModelId = computed(() => {
   if (hasActiveSession.value && sessionStore.activeSession?.providerId === 'acp') {
     return sessionStore.activeSession.modelId || null
@@ -499,6 +661,9 @@ const lockedAcpModelId = computed(() => {
 })
 
 const isModelSelectionLocked = computed(() => isAcpAgent.value && Boolean(lockedAcpModelId.value))
+const showModelPopover = computed(
+  () => !isAcpAgent.value || Boolean(activeAcpSessionId.value || acpWorkspacePath.value)
+)
 
 const activeSessionSelection = computed<ModelSelection | null>(() => {
   const active = sessionStore.activeSession
@@ -594,6 +759,88 @@ const modelSettingsTarget = computed<ModelSelection | null>(() => {
   return modelSettingsSelection.value ?? effectiveModelSelection.value
 })
 
+const acpConfigCacheKey = computed(() => {
+  if (!isAcpAgent.value || activeAcpSessionId.value) {
+    return null
+  }
+  return activeAcpAgentId.value
+})
+
+const acpConfigRequestKey = computed(() => {
+  if (!isAcpAgent.value) {
+    return null
+  }
+  if (activeAcpSessionId.value) {
+    return `session:${activeAcpSessionId.value}`
+  }
+  if (acpConfigCacheKey.value && acpWorkspacePath.value) {
+    return `process:${acpConfigCacheKey.value}::${acpWorkspacePath.value}`
+  }
+  if (acpConfigCacheKey.value) {
+    return `agent:${acpConfigCacheKey.value}`
+  }
+  return null
+})
+
+const getCachedAcpConfigState = (agentId?: string | null): AcpConfigState | null => {
+  if (!agentId) {
+    return null
+  }
+  return acpConfigCacheByAgent.get(agentId) ?? null
+}
+
+const setCachedAcpConfigState = (
+  agentId: string | null | undefined,
+  state: AcpConfigState | null | undefined
+): void => {
+  if (!agentId || !state) {
+    return
+  }
+  acpConfigCacheByAgent.set(agentId, state)
+}
+
+const acpConfigOptions = computed(() => acpConfigState.value?.options ?? [])
+const isAcpSessionConfigLoaded = computed(() => {
+  if (!activeAcpSessionId.value) {
+    return false
+  }
+
+  return acpConfigLoadedRequestKey.value === acpConfigRequestKey.value
+})
+
+const acpConfigReadOnly = computed(() => {
+  if (!isAcpAgent.value) {
+    return false
+  }
+
+  if (!activeAcpSessionId.value) {
+    return true
+  }
+
+  return !isAcpSessionConfigLoaded.value
+})
+const acpInlineOptions = computed(() =>
+  acpConfigOptions.value
+    .filter((option) => option.type === 'select')
+    .slice(0, ACP_INLINE_OPTION_LIMIT)
+)
+const acpOverflowOptions = computed(() => {
+  const inlineIds = new Set(acpInlineOptions.value.map((option) => option.id))
+  return acpConfigOptions.value.filter((option) => !inlineIds.has(option.id))
+})
+const acpAgentLabel = computed(() => {
+  const modelId = activeAcpAgentId.value ?? agentStore.selectedAgentId
+  return (
+    resolveModelName('acp', modelId) ||
+    agentStore.selectedAgent?.name ||
+    modelId ||
+    t('chat.mode.acpAgent')
+  )
+})
+const acpAgentIconId = computed(() =>
+  resolveModelIconId('acp', activeAcpAgentId.value ?? agentStore.selectedAgentId)
+)
+
 const permissionModeLabel = computed(() =>
   permissionMode.value === 'default'
     ? t('chat.permissionMode.default')
@@ -654,6 +901,72 @@ const parseNumericInput = (value: string | number): number | undefined => {
     return undefined
   }
   return numeric
+}
+
+const isAcpConfigOptionValue = (
+  value: unknown
+): value is NonNullable<AcpConfigOption['options']>[number] => {
+  if (!value || typeof value !== 'object') {
+    return false
+  }
+  const candidate = value as Record<string, unknown>
+  return typeof candidate.value === 'string' && typeof candidate.label === 'string'
+}
+
+const isAcpConfigOption = (value: unknown): value is AcpConfigOption => {
+  if (!value || typeof value !== 'object') {
+    return false
+  }
+  const candidate = value as Record<string, unknown>
+  if (
+    typeof candidate.id !== 'string' ||
+    typeof candidate.label !== 'string' ||
+    (candidate.type !== 'select' && candidate.type !== 'boolean')
+  ) {
+    return false
+  }
+  if (!('currentValue' in candidate)) {
+    return false
+  }
+  if (candidate.type === 'select' && candidate.options !== undefined) {
+    return Array.isArray(candidate.options) && candidate.options.every(isAcpConfigOptionValue)
+  }
+  return true
+}
+
+const isAcpConfigState = (value: unknown): value is AcpConfigState => {
+  if (!value || typeof value !== 'object') {
+    return false
+  }
+  const candidate = value as Record<string, unknown>
+  return (
+    (candidate.source === 'configOptions' || candidate.source === 'legacy') &&
+    Array.isArray(candidate.options) &&
+    candidate.options.every(isAcpConfigOption)
+  )
+}
+
+const getAcpOptionCurrentLabel = (option?: AcpConfigOption | null): string | null => {
+  if (!option) {
+    return null
+  }
+  if (option.type !== 'select') {
+    return null
+  }
+  const currentValue = typeof option.currentValue === 'string' ? option.currentValue : ''
+  return option.options?.find((entry) => entry.value === currentValue)?.label ?? currentValue
+}
+
+const getAcpOptionDisplayValue = (option: AcpConfigOption): string => {
+  if (option.type === 'boolean') {
+    return t(option.currentValue ? 'common.enabled' : 'common.disabled')
+  }
+
+  if (typeof option.currentValue === 'string' && option.currentValue.trim()) {
+    return option.currentValue
+  }
+
+  return getAcpOptionCurrentLabel(option) ?? ''
 }
 
 const findEnabledModelMeta = (providerId: string, modelId: string): RENDERER_MODEL_META | null => {
@@ -1038,15 +1351,15 @@ const displayIconId = computed(() => {
 })
 
 const displayModelText = computed(() => {
+  if (isAcpAgent.value) {
+    return acpAgentLabel.value
+  }
   if (hasActiveSession.value) {
     const selection = activeSessionSelection.value ?? draftModelSelection.value
     if (selection?.modelId) {
       return selection.modelId
     }
     return t('common.selectModel')
-  }
-  if (isAcpAgent.value) {
-    return agentStore.selectedAgentId ?? 'ACP Agent'
   }
   const selection = draftModelSelection.value
   if (selection?.modelId) {
@@ -1409,12 +1722,145 @@ const syncGenerationSettings = async () => {
   loadedSettingsSelection.value = { ...selection }
 }
 
+const syncAcpConfigOptions = async () => {
+  const token = ++acpConfigSyncToken
+  const requestKey = acpConfigRequestKey.value
+
+  if (!isAcpAgent.value || !requestKey) {
+    acpConfigState.value = null
+    acpConfigLoadedRequestKey.value = null
+    return
+  }
+
+  const agentId = activeAcpAgentId.value
+
+  if (activeAcpSessionId.value) {
+    acpConfigState.value = null
+    acpConfigLoadedRequestKey.value = null
+
+    try {
+      const state = await newAgentPresenter.getAcpSessionConfigOptions(activeAcpSessionId.value)
+      if (token !== acpConfigSyncToken || acpConfigRequestKey.value !== requestKey) {
+        return
+      }
+      acpConfigState.value = state
+      acpConfigLoadedRequestKey.value = requestKey
+      setCachedAcpConfigState(agentId, state)
+      return
+    } catch (error) {
+      console.warn('[ChatStatusBar] Failed to load ACP session config options:', error)
+      if (token !== acpConfigSyncToken || acpConfigRequestKey.value !== requestKey) {
+        return
+      }
+      acpConfigState.value = null
+      acpConfigLoadedRequestKey.value = null
+      return
+    }
+  }
+
+  acpConfigLoadedRequestKey.value = null
+  acpConfigState.value = getCachedAcpConfigState(agentId)
+
+  if (agentId) {
+    try {
+      try {
+        await llmproviderPresenter.warmupAcpProcess(agentId, acpWorkspacePath.value ?? undefined)
+      } catch (error) {
+        console.warn('[ChatStatusBar] Failed to warmup ACP process:', error)
+      }
+
+      const state = await llmproviderPresenter.getAcpProcessConfigOptions(
+        agentId,
+        acpWorkspacePath.value ?? undefined
+      )
+      if (token !== acpConfigSyncToken || acpConfigRequestKey.value !== requestKey) {
+        return
+      }
+
+      if (!state) {
+        acpConfigState.value = getCachedAcpConfigState(agentId)
+        return
+      }
+
+      setCachedAcpConfigState(agentId, state)
+      acpConfigState.value = state
+    } catch (error) {
+      console.warn('[ChatStatusBar] Failed to load ACP process config options:', error)
+      if (token !== acpConfigSyncToken || acpConfigRequestKey.value !== requestKey) {
+        return
+      }
+      acpConfigState.value = getCachedAcpConfigState(agentId)
+    }
+  }
+}
+
+const updateAcpConfigOption = async (configId: string, value: string | boolean) => {
+  const sessionId = activeAcpSessionId.value
+  const agentId = activeAcpAgentId.value
+  if (!sessionId || !isAcpSessionConfigLoaded.value) {
+    return
+  }
+
+  if (acpOptionSavingIds.value.includes(configId)) {
+    return
+  }
+
+  acpOptionSavingIds.value = [...acpOptionSavingIds.value, configId]
+  try {
+    const updated = await newAgentPresenter.setAcpSessionConfigOption(sessionId, configId, value)
+    setCachedAcpConfigState(agentId, updated)
+    if (activeAcpSessionId.value !== sessionId) {
+      return
+    }
+    acpConfigState.value = updated
+  } catch (error) {
+    console.warn('[ChatStatusBar] Failed to update ACP config option:', error)
+  } finally {
+    acpOptionSavingIds.value = acpOptionSavingIds.value.filter((id) => id !== configId)
+  }
+}
+
+const isAcpOptionSaving = (configId: string) => acpOptionSavingIds.value.includes(configId)
+
 const reloadSystemPrompts = async () => {
   try {
     systemPromptList.value = await configPresenter.getSystemPrompts()
   } catch (error) {
     console.warn('[ChatStatusBar] Failed to load system prompt options:', error)
     systemPromptList.value = []
+  }
+}
+
+const handleAcpConfigOptionsReady = (_event: unknown, payload?: Record<string, unknown>) => {
+  if (!payload || !isAcpAgent.value) {
+    return
+  }
+
+  const conversationId = typeof payload.conversationId === 'string' ? payload.conversationId : ''
+  const agentId = typeof payload.agentId === 'string' ? payload.agentId : ''
+
+  if (!isAcpConfigState(payload.configState)) {
+    return
+  }
+
+  if (conversationId) {
+    if (activeAcpSessionId.value !== conversationId) {
+      return
+    }
+    setCachedAcpConfigState(agentId || activeAcpAgentId.value, payload.configState)
+    acpConfigState.value = payload.configState
+    acpConfigLoadedRequestKey.value = `session:${conversationId}`
+    return
+  }
+
+  if (!agentId || activeAcpAgentId.value !== agentId) {
+    return
+  }
+
+  setCachedAcpConfigState(agentId, payload.configState)
+
+  if (!activeAcpSessionId.value) {
+    acpConfigState.value = payload.configState
   }
 }
 
@@ -1469,6 +1915,23 @@ watch(
   { immediate: true }
 )
 
+watch(
+  [
+    () => sessionStore.activeSessionId,
+    () => sessionStore.activeSession?.providerId,
+    () => sessionStore.activeSession?.modelId,
+    () => sessionStore.activeSession?.projectDir,
+    () => agentStore.selectedAgentId,
+    () => projectStore.selectedProject?.path,
+    () => props.acpDraftSessionId,
+    () => isAcpAgent.value
+  ],
+  () => {
+    void syncAcpConfigOptions()
+  },
+  { immediate: true }
+)
+
 function getEffectiveModelSelectionSnapshot(): ModelSelection | null {
   return effectiveModelSelection.value ? { ...effectiveModelSelection.value } : null
 }
@@ -1478,6 +1941,10 @@ watch(isModelPanelOpen, (open) => {
     modelSearchKeyword.value = ''
     isModelSettingsExpanded.value = false
     modelSettingsSelection.value = getEffectiveModelSelectionSnapshot()
+
+    if (isAcpAgent.value) {
+      return
+    }
 
     void nextTick(() => {
       const input = document.querySelector<HTMLInputElement>('[data-model-search-input="true"]')
@@ -1493,6 +1960,17 @@ watch(isModelPanelOpen, (open) => {
 
 onBeforeUnmount(() => {
   clearPendingGenerationPersist()
+  window.electron?.ipcRenderer?.removeListener?.(
+    ACP_WORKSPACE_EVENTS.SESSION_CONFIG_OPTIONS_READY,
+    handleAcpConfigOptionsReady
+  )
+})
+
+onMounted(() => {
+  window.electron?.ipcRenderer?.on?.(
+    ACP_WORKSPACE_EVENTS.SESSION_CONFIG_OPTIONS_READY,
+    handleAcpConfigOptionsReady
+  )
 })
 
 function isModelSelected(providerId: string, modelId: string) {
@@ -1700,6 +2178,17 @@ function onVerbositySelect(value: string) {
   updateLocalGenerationSettings({ verbosity: normalized })
 }
 
+function onAcpSelectOption(configId: string, value: string) {
+  if (!value) {
+    return
+  }
+  void updateAcpConfigOption(configId, value)
+}
+
+function onAcpBooleanOption(configId: string, value: boolean) {
+  void updateAcpConfigOption(configId, value)
+}
+
 async function selectPermissionMode(mode: PermissionMode) {
   if (!canSelectPermissionMode.value) return
   if (permissionMode.value === mode) return
@@ -1718,6 +2207,7 @@ async function selectPermissionMode(mode: PermissionMode) {
 }
 
 defineExpose({
+  acpConfigState,
   localSettings,
   permissionMode,
   showSystemPromptSection,

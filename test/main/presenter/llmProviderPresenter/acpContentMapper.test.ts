@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import type * as schema from '@agentclientprotocol/sdk/dist/schema.js'
+import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
 import { AcpContentMapper } from '@/presenter/agentPresenter/acp/acpContentMapper'
 
 const createNotification = <T extends schema.SessionNotification['update']>(
@@ -8,14 +8,6 @@ const createNotification = <T extends schema.SessionNotification['update']>(
 ): schema.SessionNotification => ({
   sessionId,
   update
-})
-
-const textContent = (text: string): schema.ToolCallContent => ({
-  type: 'content',
-  content: {
-    type: 'text',
-    text
-  }
 })
 
 describe('AcpContentMapper tool call handling', () => {
@@ -28,7 +20,8 @@ describe('AcpContentMapper tool call handling', () => {
         sessionUpdate: 'tool_call',
         toolCallId,
         title: 'write_file',
-        status: 'in_progress'
+        status: 'in_progress',
+        rawInput: { path: '/tmp' }
       })
     )
 
@@ -39,37 +32,20 @@ describe('AcpContentMapper tool call handling', () => {
       tool_call_name: 'write_file'
     })
 
-    const chunk = mapper.map(
-      createNotification('session-1', {
-        sessionUpdate: 'tool_call_update',
-        toolCallId,
-        status: 'in_progress',
-        content: [textContent('{"path":')]
-      })
-    )
-
-    const chunkEvent = chunk.events.find((event) => event.type === 'tool_call_chunk')
+    const chunkEvent = start.events.find((event) => event.type === 'tool_call_chunk')
     expect(chunkEvent).toMatchObject({
       type: 'tool_call_chunk',
       tool_call_id: toolCallId,
-      tool_call_arguments_chunk: '{"path":'
+      tool_call_arguments_chunk: '{"path":"/tmp"}'
     })
 
     const completion = mapper.map(
       createNotification('session-1', {
         sessionUpdate: 'tool_call_update',
         toolCallId,
-        status: 'completed',
-        content: [textContent('"/tmp"}')]
+        status: 'completed'
       })
     )
-
-    const completionChunk = completion.events.find((event) => event.type === 'tool_call_chunk')
-    expect(completionChunk).toMatchObject({
-      type: 'tool_call_chunk',
-      tool_call_id: toolCallId,
-      tool_call_arguments_chunk: '"/tmp"}'
-    })
 
     const endEvent = completion.events.find((event) => event.type === 'tool_call_end')
     expect(endEvent).toMatchObject({
@@ -137,7 +113,7 @@ describe('AcpContentMapper plan handling', () => {
     })
   })
 
-  it('emits reasoning event with formatted plan', () => {
+  it('emits a plan block alongside the structured plan entries', () => {
     const mapper = new AcpContentMapper()
 
     const result = mapper.map(
@@ -152,12 +128,18 @@ describe('AcpContentMapper plan handling', () => {
 
     const reasoningEvent = result.events.find((e) => e.type === 'reasoning')
     expect(reasoningEvent).toBeTruthy()
-    expect(reasoningEvent?.reasoning_content).toContain('Plan:')
-    expect(reasoningEvent?.reasoning_content).toContain('Step 1')
-    expect(reasoningEvent?.reasoning_content).toContain('Step 2')
+    expect(reasoningEvent?.reasoning_content).toBe('')
+
+    const planBlock = result.blocks.find((block) => block.type === 'plan')
+    expect(planBlock?.extra).toMatchObject({
+      plan_entries: [
+        { content: 'Step 1', status: 'completed', priority: null },
+        { content: 'Step 2', status: 'in_progress', priority: null }
+      ]
+    })
   })
 
-  it('includes status icons in formatted plan', () => {
+  it('preserves plan entry statuses in the structured payload', () => {
     const mapper = new AcpContentMapper()
 
     const result = mapper.map(
@@ -171,10 +153,11 @@ describe('AcpContentMapper plan handling', () => {
       })
     )
 
-    const reasoningEvent = result.events.find((e) => e.type === 'reasoning')
-    expect(reasoningEvent?.reasoning_content).toContain('●') // completed
-    expect(reasoningEvent?.reasoning_content).toContain('◐') // in_progress
-    expect(reasoningEvent?.reasoning_content).toContain('○') // pending
+    expect(result.planEntries).toEqual([
+      { content: 'Done task', status: 'completed', priority: null },
+      { content: 'Current task', status: 'in_progress', priority: null },
+      { content: 'Future task', status: 'pending', priority: null }
+    ])
   })
 
   it('handles empty plan entries gracefully', () => {
@@ -269,5 +252,75 @@ describe('AcpContentMapper available commands handling', () => {
         input: null
       }
     ])
+  })
+})
+
+describe('AcpContentMapper config options handling', () => {
+  it('normalizes config_option_update payloads into config state', () => {
+    const mapper = new AcpContentMapper()
+
+    const result = mapper.map(
+      createNotification('session-1', {
+        sessionUpdate: 'config_option_update',
+        configOptions: [
+          {
+            id: 'model',
+            name: 'Model',
+            category: 'model',
+            type: 'select',
+            currentValue: 'gpt-5',
+            options: [
+              { value: 'gpt-5', name: 'gpt-5' },
+              { value: 'gpt-5-mini', name: 'gpt-5-mini' }
+            ]
+          },
+          {
+            id: 'safe_edits',
+            name: 'Safe Edits',
+            type: 'boolean',
+            currentValue: true
+          }
+        ]
+      })
+    )
+
+    expect(result.configState).toEqual({
+      source: 'configOptions',
+      options: [
+        {
+          id: 'model',
+          label: 'Model',
+          description: null,
+          category: 'model',
+          type: 'select',
+          currentValue: 'gpt-5',
+          options: [
+            {
+              value: 'gpt-5',
+              label: 'gpt-5',
+              description: null,
+              groupId: null,
+              groupLabel: null
+            },
+            {
+              value: 'gpt-5-mini',
+              label: 'gpt-5-mini',
+              description: null,
+              groupId: null,
+              groupLabel: null
+            }
+          ]
+        },
+        {
+          id: 'safe_edits',
+          label: 'Safe Edits',
+          description: null,
+          type: 'boolean',
+          category: null,
+          currentValue: true
+        }
+      ]
+    })
+    expect(result.events).toHaveLength(0)
   })
 })

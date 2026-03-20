@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 import { defineComponent, reactive } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
+import { ACP_WORKSPACE_EVENTS } from '@/events'
 import type { ReasoningPortrait } from '../../../src/shared/types/model-db'
+import type { AcpConfigState } from '../../../src/shared/types/presenters'
 
 type ReasoningEffort = 'minimal' | 'low' | 'medium' | 'high'
 type TestGenerationSettings = {
@@ -25,6 +27,7 @@ type SetupOptions = {
   hasActiveSession?: boolean
   activeProviderId?: string
   activeModelId?: string
+  activeProjectDir?: string | null
   supportsEffort?: boolean
   setSessionModelError?: Error
   defaultModel?: { providerId: string; modelId: string } | null
@@ -33,6 +36,10 @@ type SetupOptions = {
   reasoningEffortDefault?: ReasoningEffort
   sessionSettings?: Partial<TestGenerationSettings>
   reasoningPortrait?: ReasoningPortrait | null
+  projectPath?: string | null
+  acpDraftSessionId?: string | null
+  acpProcessConfig?: AcpConfigState | null
+  acpSessionConfig?: AcpConfigState | null
 }
 
 const createDeferred = <T>() => {
@@ -77,6 +84,99 @@ const InputStub = defineComponent({
   },
   emits: ['update:modelValue'],
   template: '<input class="input-stub" />'
+})
+
+const SelectStub = defineComponent({
+  name: 'Select',
+  props: {
+    modelValue: { type: [String, Boolean], default: undefined }
+  },
+  emits: ['update:modelValue'],
+  template: '<div class="select-stub" :data-model-value="String(modelValue ?? \'\')"><slot /></div>'
+})
+
+const SwitchStub = defineComponent({
+  name: 'Switch',
+  props: {
+    modelValue: { type: Boolean, default: false },
+    disabled: { type: Boolean, default: false }
+  },
+  emits: ['update:modelValue'],
+  template:
+    '<button class="switch-stub" :data-model-value="String(modelValue)" :disabled="disabled" @click="$emit(\'update:modelValue\', !modelValue)" />'
+})
+
+const createAcpConfigState = (
+  overrides: Partial<AcpConfigState> = {},
+  modelValue = 'gpt-5'
+): AcpConfigState => ({
+  source: 'configOptions',
+  options: [
+    {
+      id: 'model',
+      label: 'Model',
+      type: 'select',
+      category: 'model',
+      currentValue: modelValue,
+      options: [
+        { value: 'gpt-5', label: 'gpt-5' },
+        { value: 'gpt-5-mini', label: 'gpt-5-mini' }
+      ]
+    },
+    {
+      id: 'thought_level',
+      label: 'Thought Level',
+      type: 'select',
+      category: 'thought_level',
+      currentValue: 'medium',
+      options: [
+        { value: 'low', label: 'low' },
+        { value: 'medium', label: 'medium' },
+        { value: 'high', label: 'high' }
+      ]
+    },
+    {
+      id: 'mode',
+      label: 'Mode',
+      type: 'select',
+      category: 'mode',
+      currentValue: 'code',
+      options: [
+        { value: 'code', label: 'code' },
+        { value: 'ask', label: 'ask' }
+      ]
+    },
+    {
+      id: 'safe_edits',
+      label: 'Safe Edits',
+      type: 'boolean',
+      currentValue: true
+    }
+  ],
+  ...overrides
+})
+
+const createOverflowAcpConfigState = (): AcpConfigState => ({
+  source: 'configOptions',
+  options: [
+    ...createAcpConfigState().options,
+    {
+      id: 'extra_select',
+      label: 'Extra Select',
+      type: 'select',
+      currentValue: 'strict',
+      options: [
+        { value: 'strict', label: 'Strict' },
+        { value: 'relaxed', label: 'Relaxed' }
+      ]
+    },
+    {
+      id: 'extra_toggle',
+      label: 'Extra Toggle',
+      type: 'boolean',
+      currentValue: false
+    }
+  ]
 })
 
 const setup = async (options: SetupOptions = {}) => {
@@ -175,6 +275,7 @@ const setup = async (options: SetupOptions = {}) => {
           id: 's1',
           providerId: options.activeProviderId ?? 'openai',
           modelId: options.activeModelId ?? 'gpt-4',
+          projectDir: options.activeProjectDir ?? options.projectPath ?? null,
           status: 'idle'
         }
       : null,
@@ -197,6 +298,14 @@ const setup = async (options: SetupOptions = {}) => {
     updateGenerationSettings: vi.fn((patch: Record<string, unknown>) =>
       Object.assign(draftStore, patch)
     )
+  })
+
+  const projectStore = reactive({
+    selectedProject: options.projectPath
+      ? {
+          path: options.projectPath
+        }
+      : null
   })
 
   const configPresenter = {
@@ -250,11 +359,57 @@ const setup = async (options: SetupOptions = {}) => {
     getPermissionMode: vi.fn().mockResolvedValue('full_access'),
     setPermissionMode: vi.fn().mockResolvedValue(undefined),
     getSessionGenerationSettings: vi.fn().mockResolvedValue(baseSessionSettings),
+    getAcpSessionConfigOptions: vi.fn().mockResolvedValue(options.acpSessionConfig ?? null),
+    setAcpSessionConfigOption: vi
+      .fn()
+      .mockImplementation(async (_sessionId: string, configId: string, value: string | boolean) => {
+        const currentState = options.acpSessionConfig ?? createAcpConfigState()
+        return {
+          ...currentState,
+          options: currentState.options.map((option) =>
+            option.id === configId ? { ...option, currentValue: value } : option
+          )
+        } satisfies AcpConfigState
+      }),
     updateSessionGenerationSettings: vi
       .fn()
       .mockImplementation((_: string, patch: any) =>
         Promise.resolve({ ...baseSessionSettings, ...patch })
       )
+  }
+
+  const llmproviderPresenter = {
+    warmupAcpProcess: vi.fn().mockResolvedValue(undefined),
+    getAcpProcessConfigOptions: vi.fn().mockResolvedValue(options.acpProcessConfig ?? null)
+  }
+
+  const ipcListeners = new Map<string, Set<(event: unknown, payload?: unknown) => void>>()
+  ;(
+    window as typeof window & {
+      electron?: {
+        ipcRenderer?: {
+          on: ReturnType<typeof vi.fn>
+          removeListener: ReturnType<typeof vi.fn>
+          emit: (channel: string, payload?: unknown) => void
+        }
+      }
+    }
+  ).electron = {
+    ipcRenderer: {
+      on: vi.fn((channel: string, handler: (event: unknown, payload?: unknown) => void) => {
+        const handlers = ipcListeners.get(channel) ?? new Set()
+        handlers.add(handler)
+        ipcListeners.set(channel, handlers)
+      }),
+      removeListener: vi.fn(
+        (channel: string, handler: (event: unknown, payload?: unknown) => void) => {
+          ipcListeners.get(channel)?.delete(handler)
+        }
+      ),
+      emit: (channel: string, payload?: unknown) => {
+        ipcListeners.get(channel)?.forEach((handler) => handler({}, payload))
+      }
+    }
   }
 
   vi.doMock('@/stores/theme', () => ({
@@ -275,9 +430,15 @@ const setup = async (options: SetupOptions = {}) => {
   vi.doMock('@/stores/ui/draft', () => ({
     useDraftStore: () => draftStore
   }))
+  vi.doMock('@/stores/ui/project', () => ({
+    useProjectStore: () => projectStore
+  }))
   vi.doMock('@/composables/usePresenter', () => ({
-    usePresenter: (name: string) =>
-      name === 'configPresenter' ? configPresenter : newAgentPresenter
+    usePresenter: (name: string) => {
+      if (name === 'configPresenter') return configPresenter
+      if (name === 'llmproviderPresenter') return llmproviderPresenter
+      return newAgentPresenter
+    }
   }))
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({
@@ -306,6 +467,9 @@ const setup = async (options: SetupOptions = {}) => {
 
   const ChatStatusBar = (await import('@/components/chat/ChatStatusBar.vue')).default
   const wrapper = mount(ChatStatusBar, {
+    props: {
+      acpDraftSessionId: options.acpDraftSessionId ?? null
+    },
     global: {
       stubs: {
         Button: ButtonStub,
@@ -318,11 +482,12 @@ const setup = async (options: SetupOptions = {}) => {
         Popover: passthrough('Popover'),
         PopoverContent: passthrough('PopoverContent'),
         PopoverTrigger: passthrough('PopoverTrigger'),
-        Select: passthrough('Select'),
+        Select: SelectStub,
         SelectContent: passthrough('SelectContent'),
         SelectItem: passthrough('SelectItem'),
         SelectTrigger: passthrough('SelectTrigger'),
         SelectValue: passthrough('SelectValue'),
+        Switch: SwitchStub,
         ModelIcon: defineComponent({
           name: 'ModelIcon',
           props: {
@@ -339,9 +504,13 @@ const setup = async (options: SetupOptions = {}) => {
   return {
     wrapper,
     newAgentPresenter,
+    llmproviderPresenter,
+    agentStore,
     sessionStore,
     draftStore,
-    configPresenter
+    configPresenter,
+    projectStore,
+    ipcRenderer: window.electron?.ipcRenderer
   }
 }
 
@@ -351,11 +520,13 @@ describe('ChatStatusBar model and session panels', () => {
     expect(
       deepchat.wrapper.find('.mcp-indicator-stub').attributes('data-show-system-prompt-section')
     ).toBe('true')
+    expect(deepchat.wrapper.text()).toContain('chat.permissionMode.fullAccess')
 
     const acp = await setup({ agentId: 'acp-agent', hasActiveSession: false })
     expect(
       acp.wrapper.find('.mcp-indicator-stub').attributes('data-show-system-prompt-section')
     ).toBe('false')
+    expect(acp.wrapper.text()).not.toContain('chat.permissionMode.fullAccess')
   })
 
   it('renders compact model ids in the trigger and list, and keeps chevron actions for settings', async () => {
@@ -676,5 +847,208 @@ describe('ChatStatusBar model and session panels', () => {
     })
 
     expect(wrapper.find('.model-icon-stub').attributes('data-model-id')).toBe('dimcode-acp')
+  })
+
+  it('shows only the ACP badge and MCP when no ACP config data is available', async () => {
+    const { wrapper, llmproviderPresenter } = await setup({
+      agentId: 'acp-agent',
+      hasActiveSession: false,
+      projectPath: null,
+      acpProcessConfig: null
+    })
+
+    expect(llmproviderPresenter.warmupAcpProcess).toHaveBeenCalledWith('acp-agent', undefined)
+    expect(llmproviderPresenter.getAcpProcessConfigOptions).toHaveBeenCalledWith(
+      'acp-agent',
+      undefined
+    )
+    expect(wrapper.find('.acp-agent-badge').exists()).toBe(true)
+    expect(wrapper.findAll('.acp-inline-option')).toHaveLength(0)
+    expect(wrapper.find('.acp-overflow-button').exists()).toBe(false)
+    expect(wrapper.find('.mcp-indicator-stub').exists()).toBe(true)
+    expect(wrapper.text()).not.toContain('chat.permissionMode.fullAccess')
+    expect((wrapper.vm as any).acpConfigReadOnly).toBe(true)
+  })
+
+  it('shows ACP warmup config inline before session id is ready', async () => {
+    const processConfig = createAcpConfigState({}, 'gpt-5')
+    const { wrapper, llmproviderPresenter } = await setup({
+      agentId: 'acp-agent',
+      hasActiveSession: false,
+      projectPath: '/tmp/workspace',
+      acpProcessConfig: processConfig
+    })
+
+    expect(llmproviderPresenter.warmupAcpProcess).toHaveBeenCalledWith(
+      'acp-agent',
+      '/tmp/workspace'
+    )
+    expect(llmproviderPresenter.getAcpProcessConfigOptions).toHaveBeenCalledWith(
+      'acp-agent',
+      '/tmp/workspace'
+    )
+    expect(wrapper.findAll('.acp-inline-option')).toHaveLength(3)
+    expect(wrapper.find('.acp-inline-option[data-option-id="model"]').exists()).toBe(true)
+    expect(wrapper.find('.acp-inline-option[data-option-id="thought_level"]').exists()).toBe(true)
+    expect(wrapper.find('.acp-inline-option[data-option-id="mode"]').exists()).toBe(true)
+    expect(wrapper.find('.acp-inline-option[data-option-id="safe_edits"]').exists()).toBe(false)
+    expect(wrapper.find('.acp-overflow-button').exists()).toBe(true)
+    expect(wrapper.findAll('.acp-overflow-option')).toHaveLength(1)
+    expect(wrapper.find('.acp-overflow-option[data-option-id="safe_edits"]').exists()).toBe(true)
+    expect(wrapper.find('.acp-inline-option-title[data-option-id="model"]').text()).toBe('Model')
+    expect(wrapper.find('.acp-inline-option-title[data-option-id="thought_level"]').text()).toBe(
+      'Thought Level'
+    )
+    expect(wrapper.find('.acp-inline-option-title[data-option-id="mode"]').text()).toBe('Mode')
+    const statusGroups = wrapper.findAll('div.flex.items-center.gap-1')
+    const rightActions = statusGroups.at(-1)
+    expect(rightActions?.element.lastElementChild?.classList.contains('mcp-indicator-stub')).toBe(
+      true
+    )
+    expect((wrapper.vm as any).acpConfigReadOnly).toBe(true)
+  })
+
+  it('isolates warmup config cache by ACP agent id', async () => {
+    const codexConfig = createAcpConfigState({}, 'gpt-5')
+    const claudeConfig = createAcpConfigState({}, 'gpt-5-mini')
+    const pendingWarmup = createDeferred<AcpConfigState | null>()
+    const { wrapper, llmproviderPresenter, agentStore, ipcRenderer } = await setup({
+      agentId: 'codex',
+      hasActiveSession: false,
+      projectPath: '/tmp/workspace',
+      acpProcessConfig: codexConfig
+    })
+
+    expect((wrapper.vm as any).acpConfigState.options[0].currentValue).toBe('gpt-5')
+    expect(wrapper.find('.acp-inline-option[data-option-id="model"]').attributes('title')).toBe(
+      'gpt-5'
+    )
+
+    llmproviderPresenter.getAcpProcessConfigOptions.mockImplementation(() => pendingWarmup.promise)
+
+    agentStore.selectedAgentId = 'claude'
+    await flushPromises()
+
+    expect(wrapper.findAll('.acp-inline-option')).toHaveLength(0)
+    expect(wrapper.find('.acp-overflow-button').exists()).toBe(false)
+    expect((wrapper.vm as any).acpConfigState).toBeNull()
+
+    ipcRenderer?.emit(ACP_WORKSPACE_EVENTS.SESSION_CONFIG_OPTIONS_READY, {
+      agentId: 'codex',
+      workdir: '/tmp/workspace',
+      configState: codexConfig
+    })
+    await flushPromises()
+
+    expect(wrapper.findAll('.acp-inline-option')).toHaveLength(0)
+    expect((wrapper.vm as any).acpConfigState).toBeNull()
+
+    ipcRenderer?.emit(ACP_WORKSPACE_EVENTS.SESSION_CONFIG_OPTIONS_READY, {
+      agentId: 'claude',
+      workdir: '/tmp/workspace',
+      configState: claudeConfig
+    })
+    await flushPromises()
+
+    expect(wrapper.findAll('.acp-inline-option')).toHaveLength(3)
+    expect((wrapper.vm as any).acpConfigState.options[0].currentValue).toBe('gpt-5-mini')
+    expect(wrapper.find('.acp-inline-option[data-option-id="model"]').attributes('title')).toBe(
+      'gpt-5-mini'
+    )
+
+    agentStore.selectedAgentId = 'codex'
+    await flushPromises()
+
+    expect(wrapper.findAll('.acp-inline-option')).toHaveLength(3)
+    expect((wrapper.vm as any).acpConfigState.options[0].currentValue).toBe('gpt-5')
+    expect(wrapper.find('.acp-inline-option[data-option-id="model"]').attributes('title')).toBe(
+      'gpt-5'
+    )
+
+    pendingWarmup.resolve(codexConfig)
+    await flushPromises()
+  })
+
+  it('moves ACP overflow options into the gear popover', async () => {
+    const { wrapper } = await setup({
+      agentId: 'acp-agent',
+      hasActiveSession: false,
+      projectPath: '/tmp/workspace',
+      acpProcessConfig: createOverflowAcpConfigState()
+    })
+
+    expect(wrapper.findAll('.acp-inline-option')).toHaveLength(3)
+    expect(wrapper.find('.acp-overflow-button').exists()).toBe(true)
+    expect(wrapper.findAll('.acp-overflow-option')).toHaveLength(3)
+    expect(wrapper.find('.acp-overflow-option[data-option-id="safe_edits"]').exists()).toBe(true)
+    expect(wrapper.find('.acp-overflow-option[data-option-id="extra_select"]').exists()).toBe(true)
+    expect(wrapper.find('.acp-overflow-option[data-option-id="extra_toggle"]').exists()).toBe(true)
+  })
+
+  it('keeps ACP session config read-only until session config finishes loading', async () => {
+    const processConfig = createAcpConfigState({}, 'gpt-5')
+    const sessionConfig = createAcpConfigState({}, 'gpt-5-mini')
+    const pendingSessionConfig = createDeferred<AcpConfigState | null>()
+    const { wrapper, newAgentPresenter } = await setup({
+      agentId: 'acp-agent',
+      hasActiveSession: false,
+      projectPath: '/tmp/workspace',
+      acpProcessConfig: processConfig
+    })
+
+    newAgentPresenter.getAcpSessionConfigOptions.mockImplementation(
+      () => pendingSessionConfig.promise
+    )
+
+    await wrapper.setProps({ acpDraftSessionId: 'draft-1' })
+    await flushPromises()
+
+    expect(newAgentPresenter.getAcpSessionConfigOptions).toHaveBeenCalledWith('draft-1')
+    expect((wrapper.vm as any).acpConfigState).toBeNull()
+    expect((wrapper.vm as any).acpConfigReadOnly).toBe(true)
+    expect(wrapper.findAll('.acp-inline-option')).toHaveLength(0)
+
+    pendingSessionConfig.resolve(sessionConfig)
+    await flushPromises()
+
+    expect((wrapper.vm as any).acpConfigState.options[0].currentValue).toBe('gpt-5-mini')
+    expect((wrapper.vm as any).acpConfigReadOnly).toBe(false)
+    expect(wrapper.find('.acp-inline-option[data-option-id="model"]').attributes('title')).toBe(
+      'gpt-5-mini'
+    )
+  })
+
+  it('switches from warmup config to session config and writes ACP options through the session presenter', async () => {
+    const processConfig = createAcpConfigState({}, 'gpt-5')
+    const sessionConfig = createAcpConfigState({}, 'gpt-5-mini')
+    const { wrapper, newAgentPresenter } = await setup({
+      agentId: 'acp-agent',
+      hasActiveSession: false,
+      projectPath: '/tmp/workspace',
+      acpProcessConfig: processConfig,
+      acpSessionConfig: sessionConfig
+    })
+
+    expect(wrapper.text()).toContain('gpt-5')
+    expect((wrapper.vm as any).acpConfigReadOnly).toBe(true)
+
+    await wrapper.setProps({ acpDraftSessionId: 'draft-1' })
+    await flushPromises()
+
+    expect(newAgentPresenter.getAcpSessionConfigOptions).toHaveBeenCalledWith('draft-1')
+    expect(wrapper.text()).toContain('gpt-5-mini')
+    expect((wrapper.vm as any).acpConfigReadOnly).toBe(false)
+
+    await wrapper
+      .find('.acp-inline-option-item[data-option-id="model"][data-value="gpt-5"]')
+      .trigger('click')
+    await flushPromises()
+
+    expect(newAgentPresenter.setAcpSessionConfigOption).toHaveBeenCalledWith(
+      'draft-1',
+      'model',
+      'gpt-5'
+    )
+    expect((wrapper.vm as any).acpConfigState.options[0].currentValue).toBe('gpt-5')
   })
 })

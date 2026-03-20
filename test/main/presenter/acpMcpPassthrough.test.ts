@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import type * as schema from '@agentclientprotocol/sdk/dist/schema.js'
+import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
 import { convertMcpConfigToAcpFormat } from '../../../src/main/presenter/agentPresenter/acp/mcpConfigConverter'
 import { filterMcpServersByTransportSupport } from '../../../src/main/presenter/agentPresenter/acp/mcpTransportFilter'
 import { AcpSessionManager } from '../../../src/main/presenter/agentPresenter/acp/acpSessionManager'
@@ -123,6 +123,22 @@ describe('AcpSessionManager loadSession fallback behavior', () => {
       getAgentMcpSelections: vi.fn().mockResolvedValue([]),
       getMcpServers: vi.fn().mockResolvedValue({})
     }) as any
+  const createWarmupConfigState = () => ({
+    source: 'configOptions' as const,
+    options: [
+      {
+        id: 'model',
+        label: 'Model',
+        type: 'select' as const,
+        category: 'model',
+        currentValue: 'gpt-5',
+        options: [
+          { value: 'gpt-5', label: 'gpt-5' },
+          { value: 'gpt-5-mini', label: 'gpt-5-mini' }
+        ]
+      }
+    ]
+  })
 
   it('prefers loadSession when agent supports it and persisted session exists', async () => {
     const manager = new AcpSessionManager({
@@ -134,8 +150,10 @@ describe('AcpSessionManager loadSession fallback behavior', () => {
       configPresenter: createBaseConfigPresenter()
     })
 
+    const warmupConfigState = createWarmupConfigState()
     const handle = {
       supportsLoadSession: true,
+      configState: warmupConfigState,
       connection: {
         loadSession: vi.fn().mockResolvedValue({}),
         newSession: vi.fn().mockResolvedValue({ sessionId: 'new-1' })
@@ -159,6 +177,7 @@ describe('AcpSessionManager loadSession fallback behavior', () => {
     })
     expect(handle.connection.newSession).not.toHaveBeenCalled()
     expect(result.sessionId).toBe('persisted-1')
+    expect(result.configState).toEqual(warmupConfigState)
   })
 
   it('falls back to newSession when loadSession fails', async () => {
@@ -225,5 +244,40 @@ describe('AcpSessionManager loadSession fallback behavior', () => {
     expect(handle.connection.loadSession).not.toHaveBeenCalled()
     expect(handle.connection.newSession).toHaveBeenCalledTimes(1)
     expect(result.sessionId).toBe('new-3')
+  })
+
+  it('keeps warmup config when newSession returns no config payload', async () => {
+    const manager = new AcpSessionManager({
+      providerId: 'acp',
+      processManager: {} as any,
+      sessionPersistence: {
+        getSessionData: vi.fn().mockResolvedValue(null)
+      } as any,
+      configPresenter: createBaseConfigPresenter()
+    })
+
+    const warmupConfigState = createWarmupConfigState()
+    const handle = {
+      supportsLoadSession: false,
+      configState: warmupConfigState,
+      connection: {
+        loadSession: vi.fn().mockResolvedValue({}),
+        newSession: vi.fn().mockResolvedValue({ sessionId: 'new-4' })
+      },
+      availableModes: [],
+      currentModeId: null,
+      mcpCapabilities: {}
+    } as any
+
+    const result = await (manager as any).initializeSession(
+      handle,
+      'conv-warmup-config',
+      { id: 'agent1', name: 'Agent 1' },
+      '/tmp'
+    )
+
+    expect(handle.connection.newSession).toHaveBeenCalledTimes(1)
+    expect(result.sessionId).toBe('new-4')
+    expect(result.configState).toEqual(warmupConfigState)
   })
 })

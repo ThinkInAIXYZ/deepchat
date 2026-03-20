@@ -5,6 +5,9 @@
 
 // LLM Provider types
 export type {
+  AcpConfigOption,
+  AcpConfigOptionValue,
+  AcpConfigState,
   ILlmProviderPresenter,
   LLM_PROVIDER,
   LLM_PROVIDER_BASE,

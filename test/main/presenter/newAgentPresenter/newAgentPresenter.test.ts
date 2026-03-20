@@ -103,7 +103,43 @@ function createMockLlmProviderPresenter() {
       .fn()
       .mockResolvedValue([
         { name: 'review', description: 'run review', input: { hint: 'ticket id' } }
-      ])
+      ]),
+    getAcpSessionConfigOptions: vi.fn().mockResolvedValue({
+      source: 'configOptions',
+      options: [
+        {
+          id: 'model',
+          label: 'Model',
+          type: 'select',
+          category: 'model',
+          currentValue: 'gpt-5',
+          options: [
+            { value: 'gpt-5', label: 'gpt-5' },
+            { value: 'gpt-5-mini', label: 'gpt-5-mini' }
+          ]
+        }
+      ]
+    }),
+    setAcpSessionConfigOption: vi
+      .fn()
+      .mockImplementation(
+        async (_sessionId: string, configId: string, value: string | boolean) => ({
+          source: 'configOptions',
+          options: [
+            {
+              id: configId,
+              label: 'Model',
+              type: 'select',
+              category: 'model',
+              currentValue: value,
+              options: [
+                { value: 'gpt-5', label: 'gpt-5' },
+                { value: 'gpt-5-mini', label: 'gpt-5-mini' }
+              ]
+            }
+          ]
+        })
+      )
   } as any
 }
 
@@ -128,6 +164,11 @@ function createMockSqlitePresenter() {
     newProjectsTable: {
       getAll: vi.fn().mockReturnValue([]),
       getRecent: vi.fn().mockReturnValue([])
+    },
+    newEnvironmentsTable: {
+      syncPath: vi.fn(),
+      listPathsForSession: vi.fn().mockReturnValue([]),
+      syncForSession: vi.fn()
     },
     deepchatSessionsTable: {
       create: vi.fn(),
@@ -1300,6 +1341,81 @@ describe('NewAgentPresenter', () => {
       expect(llmProviderPresenter.getAcpSessionCommands).toHaveBeenCalledWith('s-acp')
       expect(commands).toHaveLength(1)
       expect(commands[0].name).toBe('review')
+    })
+  })
+
+  describe('ACP session config options', () => {
+    it('returns null for non-ACP sessions', async () => {
+      sqlitePresenter.newSessionsTable.get.mockReturnValue({
+        id: 's1',
+        agent_id: 'deepchat',
+        title: 'Test',
+        project_dir: null,
+        is_pinned: 0,
+        created_at: 1000,
+        updated_at: 1000
+      })
+
+      const result = await presenter.getAcpSessionConfigOptions('s1')
+
+      expect(result).toBeNull()
+      expect(llmProviderPresenter.getAcpSessionConfigOptions).not.toHaveBeenCalled()
+    })
+
+    it('proxies ACP session config option reads for ACP-backed sessions', async () => {
+      sqlitePresenter.newSessionsTable.get.mockReturnValue({
+        id: 's-acp',
+        agent_id: 'acp-coder',
+        title: 'ACP',
+        project_dir: '/tmp/workspace',
+        is_pinned: 0,
+        created_at: 1000,
+        updated_at: 1000
+      })
+      configPresenter.getAcpAgents.mockResolvedValue([
+        { id: 'acp-coder', name: 'ACP Coder', command: 'acp-coder' }
+      ])
+      deepChatAgent.getSessionState.mockResolvedValue({
+        status: 'idle',
+        providerId: 'acp',
+        modelId: 'acp-coder',
+        permissionMode: 'full_access'
+      })
+
+      const result = await presenter.getAcpSessionConfigOptions('s-acp')
+
+      expect(llmProviderPresenter.getAcpSessionConfigOptions).toHaveBeenCalledWith('s-acp')
+      expect(result?.options[0].currentValue).toBe('gpt-5')
+    })
+
+    it('writes ACP session config options through llmProviderPresenter', async () => {
+      sqlitePresenter.newSessionsTable.get.mockReturnValue({
+        id: 's-acp',
+        agent_id: 'acp-coder',
+        title: 'ACP',
+        project_dir: '/tmp/workspace',
+        is_pinned: 0,
+        created_at: 1000,
+        updated_at: 1000
+      })
+      configPresenter.getAcpAgents.mockResolvedValue([
+        { id: 'acp-coder', name: 'ACP Coder', command: 'acp-coder' }
+      ])
+      deepChatAgent.getSessionState.mockResolvedValue({
+        status: 'idle',
+        providerId: 'acp',
+        modelId: 'acp-coder',
+        permissionMode: 'full_access'
+      })
+
+      const result = await presenter.setAcpSessionConfigOption('s-acp', 'model', 'gpt-5-mini')
+
+      expect(llmProviderPresenter.setAcpSessionConfigOption).toHaveBeenCalledWith(
+        's-acp',
+        'model',
+        'gpt-5-mini'
+      )
+      expect(result?.options[0].currentValue).toBe('gpt-5-mini')
     })
   })
 

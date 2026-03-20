@@ -1,6 +1,8 @@
-import type * as schema from '@agentclientprotocol/sdk/dist/schema.js'
+import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
+import type { AcpConfigState } from '@shared/presenter'
 import type { AssistantMessageBlock } from '@shared/chat'
 import { createStreamEvent, type LLMCoreStreamEvent } from '@shared/types/core/llm-events'
+import { normalizeAcpConfigState } from './acpConfigState'
 
 export interface PlanEntry {
   content: string
@@ -21,6 +23,8 @@ export interface MappedContent {
     description: string
     input?: { hint: string } | null
   }>
+  /** Unified ACP session config state */
+  configState?: AcpConfigState
 }
 
 interface ToolCallState {
@@ -67,6 +71,13 @@ export class AcpContentMapper {
           JSON.stringify(update.availableCommands?.map((c) => c.name) ?? [])
         )
         this.handleAvailableCommandsUpdate(update, payload)
+        break
+      case 'config_option_update':
+        this.handleConfigOptionUpdate(update, payload)
+        break
+      case 'session_info_update':
+      case 'usage_update':
+        // These updates are useful for stateful clients but do not affect chat rendering.
         break
       case 'user_message_chunk':
         // ignore echo
@@ -266,6 +277,18 @@ export class AcpContentMapper {
       .filter((command): command is NonNullable<typeof command> => command !== null)
 
     payload.availableCommands = commands
+  }
+
+  private handleConfigOptionUpdate(
+    update: Extract<
+      schema.SessionNotification['update'],
+      { sessionUpdate: 'config_option_update' }
+    >,
+    payload: MappedContent
+  ) {
+    payload.configState = normalizeAcpConfigState({
+      configOptions: update.configOptions
+    })
   }
 
   private formatToolCallContent(

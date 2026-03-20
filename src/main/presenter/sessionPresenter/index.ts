@@ -934,13 +934,13 @@ export class SessionPresenter implements ISessionPresenter {
     await this.llmProviderPresenter.setAcpWorkdir(conversationId, agentId, workdir)
   }
 
-  async warmupAcpProcess(agentId: string, workdir: string): Promise<void> {
+  async warmupAcpProcess(agentId: string, workdir?: string): Promise<void> {
     await this.llmProviderPresenter.warmupAcpProcess(agentId, workdir)
   }
 
   async getAcpProcessModes(
     agentId: string,
-    workdir: string
+    workdir?: string
   ): Promise<
     | {
         availableModes?: Array<{ id: string; name: string; description: string }>

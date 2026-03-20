@@ -13,6 +13,7 @@ import {
   IConfigPresenter,
   ISQLitePresenter,
   IToolPresenter,
+  AcpConfigState,
   AcpWorkdirInfo,
   AcpDebugRequest,
   AcpDebugRunResult
@@ -520,7 +521,7 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     await this.acpSessionPersistence.updateWorkdir(conversationId, agentId, trimmed)
   }
 
-  async warmupAcpProcess(agentId: string, workdir: string): Promise<void> {
+  async warmupAcpProcess(agentId: string, workdir?: string): Promise<void> {
     const provider = this.getAcpProviderInstance()
     if (!provider) return
     try {
@@ -539,7 +540,7 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
 
   async getAcpProcessModes(
     agentId: string,
-    workdir: string
+    workdir?: string
   ): Promise<
     | {
         availableModes?: Array<{ id: string; name: string; description: string }>
@@ -552,6 +553,17 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
       return undefined
     }
     return provider.getProcessModes(agentId, workdir)
+  }
+
+  async getAcpProcessConfigOptions(
+    agentId: string,
+    workdir?: string
+  ): Promise<AcpConfigState | null> {
+    const provider = this.getAcpProviderInstance()
+    if (!provider) {
+      return null
+    }
+    return provider.getProcessConfigOptions(agentId, workdir)
   }
 
   async setAcpPreferredProcessMode(agentId: string, workdir: string, modeId: string) {
@@ -586,6 +598,26 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
       return null
     }
     return await provider.getSessionModes(conversationId)
+  }
+
+  async getAcpSessionConfigOptions(conversationId: string): Promise<AcpConfigState | null> {
+    const provider = this.getAcpProviderInstance()
+    if (!provider) {
+      return null
+    }
+    return await provider.getSessionConfigOptions(conversationId)
+  }
+
+  async setAcpSessionConfigOption(
+    conversationId: string,
+    configId: string,
+    value: string | boolean
+  ): Promise<AcpConfigState | null> {
+    const provider = this.getAcpProviderInstance()
+    if (!provider) {
+      throw new Error('[ACP] ACP provider not found')
+    }
+    return await provider.setSessionConfigOption(conversationId, configId, value)
   }
 
   async getAcpSessionCommands(conversationId: string): Promise<
