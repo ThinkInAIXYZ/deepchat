@@ -1,5 +1,6 @@
 import { LLM_PROVIDER, MODEL_META, IConfigPresenter } from '@shared/presenter'
 import { OpenAICompatibleProvider } from './openAICompatibleProvider'
+import type { ProviderMcpRuntimePort } from '../runtimePorts'
 
 /**
  * PoeProvider integrates Poe's OpenAI-compatible API surface with the shared
@@ -11,8 +12,12 @@ import { OpenAICompatibleProvider } from './openAICompatibleProvider'
  * tweak metadata so the renderer can present a clearer group name.
  */
 export class PoeProvider extends OpenAICompatibleProvider {
-  constructor(provider: LLM_PROVIDER, configPresenter: IConfigPresenter) {
-    super(provider, configPresenter)
+  constructor(
+    provider: LLM_PROVIDER,
+    configPresenter: IConfigPresenter,
+    mcpRuntime?: ProviderMcpRuntimePort
+  ) {
+    super(provider, configPresenter, mcpRuntime)
   }
 
   protected async fetchOpenAIModels(options?: { timeout: number }): Promise<MODEL_META[]> {

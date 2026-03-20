@@ -396,7 +396,8 @@ export async function executeTools(
   toolOutputGuard: ToolOutputGuard,
   contextLength: number,
   maxTokens: number,
-  hooks?: ProcessHooks
+  hooks?: ProcessHooks,
+  providerId?: string
 ): Promise<{
   executed: number
   pendingInteractions: PendingToolInteraction[]
@@ -445,7 +446,8 @@ export async function executeTools(
       type: 'function',
       function: { name: tc.name, arguments: tc.arguments },
       server: toolDef?.server,
-      conversationId: io.sessionId
+      conversationId: io.sessionId,
+      providerId: providerId?.trim() || undefined
     }
 
     const toolContext = {

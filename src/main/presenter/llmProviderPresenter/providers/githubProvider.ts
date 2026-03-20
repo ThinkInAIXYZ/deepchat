@@ -8,10 +8,15 @@ import {
 import { DEFAULT_MODEL_CONTEXT_LENGTH, DEFAULT_MODEL_MAX_TOKENS } from '@shared/modelConfigDefaults'
 import { OpenAICompatibleProvider } from './openAICompatibleProvider'
 import { ModelsPage } from 'openai/resources'
+import type { ProviderMcpRuntimePort } from '../runtimePorts'
 
 export class GithubProvider extends OpenAICompatibleProvider {
-  constructor(provider: LLM_PROVIDER, configPresenter: IConfigPresenter) {
-    super(provider, configPresenter)
+  constructor(
+    provider: LLM_PROVIDER,
+    configPresenter: IConfigPresenter,
+    mcpRuntime?: ProviderMcpRuntimePort
+  ) {
+    super(provider, configPresenter, mcpRuntime)
   }
   protected async fetchOpenAIModels(options?: { timeout: number }): Promise<MODEL_META[]> {
     const response = (await this.openai.models.list(options)) as ModelsPage & {

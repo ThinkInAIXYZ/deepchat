@@ -7,6 +7,7 @@ import {
 } from '@shared/presenter'
 import { OpenAICompatibleProvider } from './openAICompatibleProvider'
 import { SUMMARY_TITLES_PROMPT } from '../baseProvider'
+import type { ProviderMcpRuntimePort } from '../runtimePorts'
 
 // Define interface for DeepSeek API key response
 interface DeepSeekBalanceResponse {
@@ -20,8 +21,12 @@ interface DeepSeekBalanceResponse {
 }
 
 export class DeepseekProvider extends OpenAICompatibleProvider {
-  constructor(provider: LLM_PROVIDER, configPresenter: IConfigPresenter) {
-    super(provider, configPresenter)
+  constructor(
+    provider: LLM_PROVIDER,
+    configPresenter: IConfigPresenter,
+    mcpRuntime?: ProviderMcpRuntimePort
+  ) {
+    super(provider, configPresenter, mcpRuntime)
   }
 
   async completions(

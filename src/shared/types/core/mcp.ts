@@ -32,6 +32,7 @@ export interface MCPToolCall {
     description: string
   }
   conversationId?: string
+  providerId?: string
 }
 
 export type MCPContentItem = MCPTextContent | MCPImageContent | MCPResourceContent

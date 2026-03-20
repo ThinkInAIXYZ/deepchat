@@ -14,10 +14,15 @@ import {
 import { OpenAICompatibleProvider } from './openAICompatibleProvider'
 import { providerDbLoader } from '../../configPresenter/providerDbLoader'
 import { modelCapabilities } from '../../configPresenter/modelCapabilities'
+import type { ProviderMcpRuntimePort } from '../runtimePorts'
 
 export class O3fanProvider extends OpenAICompatibleProvider {
-  constructor(provider: LLM_PROVIDER, configPresenter: IConfigPresenter) {
-    super(provider, configPresenter)
+  constructor(
+    provider: LLM_PROVIDER,
+    configPresenter: IConfigPresenter,
+    mcpRuntime?: ProviderMcpRuntimePort
+  ) {
+    super(provider, configPresenter, mcpRuntime)
   }
 
   protected async fetchOpenAIModels(): Promise<MODEL_META[]> {

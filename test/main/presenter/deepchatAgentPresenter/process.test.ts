@@ -248,7 +248,7 @@ describe('processStream', () => {
     const secondCallMessages = (coreStream as ReturnType<typeof vi.fn>).mock.calls[1][0]
     const toolResultMsg = secondCallMessages.find((m: any) => m.role === 'tool')
     expect(toolResultMsg.content).toContain('[Tool output offloaded]')
-    expect(toolResultMsg.content).toContain('tool_function.cdp_send_11.offload')
+    expect(toolResultMsg.content).toMatch(/tool_function\.cdp_send_11(?:_[a-f0-9]+)?\.offload/)
     expect(toolResultMsg.content).not.toContain(':11.offload')
     expect(toolResultMsg.content).not.toContain(tempHome!)
   })

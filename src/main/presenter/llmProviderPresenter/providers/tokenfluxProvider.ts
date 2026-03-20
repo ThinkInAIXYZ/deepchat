@@ -7,6 +7,7 @@ import {
   IConfigPresenter
 } from '@shared/presenter'
 import { OpenAICompatibleProvider } from './openAICompatibleProvider'
+import type { ProviderMcpRuntimePort } from '../runtimePorts'
 
 // Define interface for TokenFlux API model response
 interface TokenFluxModelResponse {
@@ -30,8 +31,12 @@ interface TokenFluxModelsResponse {
 }
 
 export class TokenFluxProvider extends OpenAICompatibleProvider {
-  constructor(provider: LLM_PROVIDER, configPresenter: IConfigPresenter) {
-    super(provider, configPresenter)
+  constructor(
+    provider: LLM_PROVIDER,
+    configPresenter: IConfigPresenter,
+    mcpRuntime?: ProviderMcpRuntimePort
+  ) {
+    super(provider, configPresenter, mcpRuntime)
   }
 
   async completions(

@@ -2351,6 +2351,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     }
 
     const projectDir = this.resolveProjectDir(sessionId)
+    const sessionState = await this.getSessionState(sessionId)
     const toolDefinitions = await this.loadToolDefinitionsForSession(sessionId, projectDir)
 
     const toolDefinition = toolDefinitions.find((definition) => {
@@ -2386,7 +2387,8 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
         arguments: toolCall.params || '{}'
       },
       server: toolDefinition?.server,
-      conversationId: sessionId
+      conversationId: sessionId,
+      providerId: sessionState?.providerId?.trim() || undefined
     }
 
     try {

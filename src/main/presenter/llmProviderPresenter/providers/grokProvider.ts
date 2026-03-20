@@ -1,6 +1,7 @@
 import { LLM_PROVIDER, LLMResponse, ChatMessage, IConfigPresenter } from '@shared/presenter'
 import { OpenAICompatibleProvider } from './openAICompatibleProvider'
 import { ModelConfig, MCPToolDefinition, LLMCoreStreamEvent } from '@shared/presenter'
+import type { ProviderMcpRuntimePort } from '../runtimePorts'
 
 export class GrokProvider extends OpenAICompatibleProvider {
   // Image generation model ID
@@ -13,8 +14,12 @@ export class GrokProvider extends OpenAICompatibleProvider {
   // Models that support reasoning_effort parameter (grok-4 does not)
   private static readonly REASONING_EFFORT_MODELS: string[] = ['grok-3-mini', 'grok-3-mini-fast']
 
-  constructor(provider: LLM_PROVIDER, configPresenter: IConfigPresenter) {
-    super(provider, configPresenter)
+  constructor(
+    provider: LLM_PROVIDER,
+    configPresenter: IConfigPresenter,
+    mcpRuntime?: ProviderMcpRuntimePort
+  ) {
+    super(provider, configPresenter, mcpRuntime)
   }
 
   // Check if it's an image model

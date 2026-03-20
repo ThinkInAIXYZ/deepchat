@@ -14,11 +14,16 @@ import {
 import { OpenAICompatibleProvider } from './openAICompatibleProvider'
 import { providerDbLoader } from '../../configPresenter/providerDbLoader'
 import { modelCapabilities } from '../../configPresenter/modelCapabilities'
+import type { ProviderMcpRuntimePort } from '../runtimePorts'
 
 export class ZhipuProvider extends OpenAICompatibleProvider {
-  constructor(provider: LLM_PROVIDER, configPresenter: IConfigPresenter) {
+  constructor(
+    provider: LLM_PROVIDER,
+    configPresenter: IConfigPresenter,
+    mcpRuntime?: ProviderMcpRuntimePort
+  ) {
     // Initialize Zhipu AI model configuration
-    super(provider, configPresenter)
+    super(provider, configPresenter, mcpRuntime)
   }
 
   protected async fetchOpenAIModels(): Promise<MODEL_META[]> {
