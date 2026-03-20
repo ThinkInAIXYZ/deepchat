@@ -116,6 +116,7 @@
                   <div class="min-w-0">
                     <CardTitle class="text-base flex items-center gap-2 min-w-0">
                       <AcpAgentIcon
+                        :agent-id="agent.id"
                         :icon="agent.icon"
                         :alt="agent.name"
                         :fallback-text="agent.name"
@@ -462,6 +463,7 @@
                 class="rounded-xl border px-4 py-4 bg-card flex items-start gap-4"
               >
                 <AcpAgentIcon
+                  :agent-id="agent.id"
                   :icon="agent.icon"
                   :alt="agent.name"
                   :fallback-text="agent.name"

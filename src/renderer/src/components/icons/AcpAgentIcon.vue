@@ -8,6 +8,7 @@ const iconMarkupCache = new Map<string, Promise<string | null>>()
 
 const props = withDefaults(
   defineProps<{
+    agentId?: string
     icon?: string
     alt?: string
     customClass?: string
@@ -15,6 +16,7 @@ const props = withDefaults(
     fallbackText?: string
   }>(),
   {
+    agentId: '',
     icon: '',
     alt: '',
     customClass: 'w-4 h-4',
@@ -67,17 +69,22 @@ const loadSvgMarkup = async () => {
   }
 
   try {
-    let pending = iconMarkupCache.get(icon)
+    const agentId = props.agentId.trim()
+    if (!agentId) {
+      return
+    }
+
+    let pending = iconMarkupCache.get(agentId)
     if (!pending) {
       pending = configPresenter
-        .getAcpRegistryIconMarkup(icon)
+        .getAcpRegistryIconMarkup(agentId, icon)
         .then((markup) => (markup ? normalizeSvgMarkup(markup) : null))
         .catch((error) => {
-          iconMarkupCache.delete(icon)
+          iconMarkupCache.delete(agentId)
           throw error
         })
 
-      iconMarkupCache.set(icon, pending)
+      iconMarkupCache.set(agentId, pending)
     }
 
     const markup = await pending
@@ -99,7 +106,7 @@ const handleImageError = () => {
 }
 
 watch(
-  () => props.icon,
+  () => [props.agentId, props.icon],
   () => {
     void loadSvgMarkup()
   },

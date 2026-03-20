@@ -18,6 +18,7 @@ describe('AcpAgentIcon', () => {
     const AcpAgentIcon = (await import('@/components/icons/AcpAgentIcon.vue')).default
     const wrapper = mount(AcpAgentIcon, {
       props: {
+        agentId: 'claude-acp',
         icon: 'https://cdn.agentclientprotocol.com/registry/v1/latest/claude-acp.svg',
         alt: 'Claude Agent'
       }
@@ -26,6 +27,7 @@ describe('AcpAgentIcon', () => {
     await flushPromises()
 
     expect(getAcpRegistryIconMarkup).toHaveBeenCalledWith(
+      'claude-acp',
       'https://cdn.agentclientprotocol.com/registry/v1/latest/claude-acp.svg'
     )
     expect(wrapper.find('.acp-registry-icon svg').exists()).toBe(true)

@@ -10,9 +10,12 @@ import type {
 import { SVGSanitizer } from '@/lib/svgSanitizer'
 import {
   ACP_REGISTRY_CACHE_TTL_MS,
-  ACP_REGISTRY_ICON_PREFIX,
+  ACP_REGISTRY_ICON_CACHE_DIRNAME,
+  ACP_REGISTRY_ICON_RESOURCE_DIR,
+  ACP_REGISTRY_RESOURCE_DIR,
   ACP_REGISTRY_RESOURCE_PATH,
   ACP_REGISTRY_URL,
+  getAcpRegistryIconFileName,
   isAcpRegistryIconUrl
 } from './acpRegistryConstants'
 
@@ -189,6 +192,7 @@ export class AcpRegistryService {
   private readonly cacheDir: string
   private readonly cacheFilePath: string
   private readonly metaFilePath: string
+  private readonly iconCacheDir: string
   private readonly svgSanitizer = new SVGSanitizer()
   private readonly iconMarkupCache = new Map<string, Promise<string | null>>()
   private manifest: RegistryManifest | null = null
@@ -198,11 +202,11 @@ export class AcpRegistryService {
     this.cacheDir = path.join(userDataPath, 'acp-registry')
     this.cacheFilePath = path.join(this.cacheDir, 'registry.json')
     this.metaFilePath = path.join(this.cacheDir, 'meta.json')
+    this.iconCacheDir = path.join(this.cacheDir, ACP_REGISTRY_ICON_CACHE_DIRNAME)
 
     try {
-      if (!fs.existsSync(this.cacheDir)) {
-        fs.mkdirSync(this.cacheDir, { recursive: true })
-      }
+      fs.mkdirSync(this.cacheDir, { recursive: true })
+      fs.mkdirSync(this.iconCacheDir, { recursive: true })
     } catch (error) {
       console.warn('[ACP Registry] Failed to create cache directory:', error)
     }
@@ -232,20 +236,25 @@ export class AcpRegistryService {
     return this.listAgents()
   }
 
-  async getIconMarkup(iconUrl: string): Promise<string | null> {
-    const normalizedUrl = iconUrl.trim()
-    if (!isAcpRegistryIconUrl(normalizedUrl)) {
+  async getIconMarkup(agentId: string, iconUrl?: string): Promise<string | null> {
+    const normalizedAgentId = agentId.trim()
+    const normalizedIconUrl = iconUrl?.trim()
+    if (!normalizedAgentId) {
       return null
     }
 
-    let pending = this.iconMarkupCache.get(normalizedUrl)
+    if (normalizedIconUrl && !isAcpRegistryIconUrl(normalizedIconUrl)) {
+      return null
+    }
+
+    let pending = this.iconMarkupCache.get(normalizedAgentId)
     if (!pending) {
-      pending = this.fetchAndSanitizeIconMarkup(normalizedUrl).catch((error) => {
-        this.iconMarkupCache.delete(normalizedUrl)
-        console.warn('[ACP Registry] Failed to fetch icon markup:', normalizedUrl, error)
+      pending = this.loadIconMarkupFromDisk(normalizedAgentId).catch((error) => {
+        this.iconMarkupCache.delete(normalizedAgentId)
+        console.warn('[ACP Registry] Failed to load icon markup:', normalizedAgentId, error)
         return null
       })
-      this.iconMarkupCache.set(normalizedUrl, pending)
+      this.iconMarkupCache.set(normalizedAgentId, pending)
     }
 
     return await pending
@@ -295,12 +304,7 @@ export class AcpRegistryService {
   }
 
   private loadFromBuiltIn(): RegistryManifest | null {
-    const candidatePaths = [
-      path.join(app.getAppPath(), ...ACP_REGISTRY_RESOURCE_PATH),
-      path.join(process.cwd(), ...ACP_REGISTRY_RESOURCE_PATH)
-    ]
-
-    for (const candidate of candidatePaths) {
+    for (const candidate of this.getBuiltInManifestCandidatePaths()) {
       try {
         if (!fs.existsSync(candidate)) {
           continue
@@ -367,6 +371,12 @@ export class AcpRegistryService {
       fs.writeFileSync(tmpPath, JSON.stringify(normalized, null, 2), 'utf-8')
       fs.renameSync(tmpPath, this.cacheFilePath)
 
+      try {
+        await this.syncIconCache(normalized)
+      } catch (error) {
+        console.warn('[ACP Registry] Failed to sync icon cache after manifest refresh:', error)
+      }
+
       this.writeMeta({
         version: normalized.version,
         lastUpdated: now,
@@ -385,9 +395,81 @@ export class AcpRegistryService {
     }
   }
 
-  private async fetchAndSanitizeIconMarkup(iconUrl: string): Promise<string | null> {
-    if (!iconUrl.startsWith(ACP_REGISTRY_ICON_PREFIX)) {
+  private getBuiltInResourceRoots(): string[] {
+    return [
+      path.join(app.getAppPath(), ...ACP_REGISTRY_RESOURCE_DIR),
+      path.join(process.cwd(), ...ACP_REGISTRY_RESOURCE_DIR)
+    ]
+  }
+
+  private getBuiltInManifestCandidatePaths(): string[] {
+    return this.getBuiltInResourceRoots().map((root) =>
+      path.join(root, path.basename(ACP_REGISTRY_RESOURCE_PATH.at(-1)!))
+    )
+  }
+
+  private getBuiltInIconCandidatePaths(agentId: string): string[] {
+    const filename = getAcpRegistryIconFileName(agentId)
+    return this.getBuiltInResourceRoots().map((root) =>
+      path.join(root, path.basename(ACP_REGISTRY_ICON_RESOURCE_DIR.at(-1)!), filename)
+    )
+  }
+
+  private getCachedIconPath(agentId: string): string {
+    return path.join(this.iconCacheDir, getAcpRegistryIconFileName(agentId))
+  }
+
+  private resolveLocalIconPath(agentId: string): string | null {
+    const cachedPath = this.getCachedIconPath(agentId)
+    if (fs.existsSync(cachedPath)) {
+      return cachedPath
+    }
+
+    for (const candidate of this.getBuiltInIconCandidatePaths(agentId)) {
+      if (fs.existsSync(candidate)) {
+        return candidate
+      }
+    }
+
+    return null
+  }
+
+  private async loadIconMarkupFromDisk(agentId: string): Promise<string | null> {
+    const iconPath = this.resolveLocalIconPath(agentId)
+    if (!iconPath) {
       return null
+    }
+
+    try {
+      const content = await fs.promises.readFile(iconPath, 'utf-8')
+      const sanitized = this.svgSanitizer.sanitize(content)
+      if (!sanitized) {
+        return null
+      }
+      return this.decorateIconMarkup(sanitized)
+    } catch (error) {
+      console.warn('[ACP Registry] Failed to read icon from disk:', iconPath, error)
+      return null
+    }
+  }
+
+  private async syncIconCache(manifest: RegistryManifest): Promise<void> {
+    fs.mkdirSync(this.iconCacheDir, { recursive: true })
+
+    const cacheableAgents = manifest.agents.filter(
+      (agent) => agent.icon && isAcpRegistryIconUrl(agent.icon.trim())
+    )
+    const expectedAgentIds = new Set(cacheableAgents.map((agent) => agent.id))
+
+    await Promise.allSettled(cacheableAgents.map((agent) => this.syncAgentIcon(agent)))
+    this.pruneStaleIconCache(expectedAgentIds)
+    this.iconMarkupCache.clear()
+  }
+
+  private async syncAgentIcon(agent: AcpRegistryAgent): Promise<void> {
+    const iconUrl = agent.icon?.trim()
+    if (!iconUrl || !isAcpRegistryIconUrl(iconUrl)) {
+      return
     }
 
     const controller = new AbortController()
@@ -399,18 +481,41 @@ export class AcpRegistryService {
       })
 
       if (!response.ok) {
-        return null
+        throw new Error(`Failed to fetch icon: ${response.status} ${response.statusText}`)
       }
 
       const text = await response.text()
       const sanitized = this.svgSanitizer.sanitize(text)
       if (!sanitized) {
-        return null
+        throw new Error(`Failed to sanitize icon for agent ${agent.id}`)
       }
 
-      return this.decorateIconMarkup(sanitized)
+      const iconPath = this.getCachedIconPath(agent.id)
+      const tmpPath = `${iconPath}.tmp`
+      fs.writeFileSync(tmpPath, sanitized, 'utf-8')
+      fs.renameSync(tmpPath, iconPath)
     } finally {
       clearTimeout(timeout)
+    }
+  }
+
+  private pruneStaleIconCache(expectedAgentIds: Set<string>): void {
+    try {
+      const files = fs.readdirSync(this.iconCacheDir)
+      for (const file of files) {
+        if (!file.endsWith('.svg')) {
+          continue
+        }
+
+        const agentId = file.slice(0, -4)
+        if (expectedAgentIds.has(agentId)) {
+          continue
+        }
+
+        fs.rmSync(path.join(this.iconCacheDir, file), { force: true })
+      }
+    } catch (error) {
+      console.warn('[ACP Registry] Failed to prune stale icon cache:', error)
     }
   }
 

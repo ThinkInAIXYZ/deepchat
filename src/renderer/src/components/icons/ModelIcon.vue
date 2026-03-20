@@ -271,6 +271,7 @@ const handleIconError = () => {
 <template>
   <AcpAgentIcon
     v-if="useDynamicAcpRegistryIcon"
+    :agent-id="props.modelId"
     :icon="dynamicAgentIcon"
     :alt="props.modelId"
     :fallback-text="props.modelId"

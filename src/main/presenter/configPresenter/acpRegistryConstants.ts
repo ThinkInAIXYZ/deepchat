@@ -5,7 +5,13 @@ export const ACP_REGISTRY_ICON_PREFIX = 'https://cdn.agentclientprotocol.com/reg
 
 export const ACP_REGISTRY_CACHE_TTL_MS = 60 * 60 * 1000
 
+export const ACP_REGISTRY_RESOURCE_DIR = ['resources', 'acp-registry'] as const
+
 export const ACP_REGISTRY_RESOURCE_PATH = ['resources', 'acp-registry', 'registry.json'] as const
+
+export const ACP_REGISTRY_ICON_RESOURCE_DIR = ['resources', 'acp-registry', 'icons'] as const
+
+export const ACP_REGISTRY_ICON_CACHE_DIRNAME = 'icons'
 
 export const ACP_LEGACY_AGENT_ID_ALIASES: Record<string, string> = {
   'kimi-cli': 'kimi',
@@ -19,3 +25,5 @@ export const resolveAcpAgentAlias = (agentId: string): string =>
 
 export const isAcpRegistryIconUrl = (iconUrl: string): boolean =>
   iconUrl.startsWith(ACP_REGISTRY_ICON_PREFIX) && iconUrl.endsWith('.svg')
+
+export const getAcpRegistryIconFileName = (agentId: string): string => `${agentId}.svg`
