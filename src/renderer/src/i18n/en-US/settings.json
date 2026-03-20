@@ -1065,6 +1065,8 @@
     "useBuiltinRuntimeTitle": "Use DeepChat Built-in Runtime",
     "useBuiltinRuntimeDescription": "When enabled, bypasses system node and uv commands, using DeepChat's bundled versions.",
     "enableToAccess": "Enable ACP to configure agents.",
+    "registryInstallEntry": "Install Agent",
+    "registryInstallEntryDescription": "Search and install agents from the ACP Registry, then come back here to enable and configure them.",
     "addCustomAgent": "Add Custom Agent",
     "customEmpty": "No custom agents yet.",
     "customDeleteConfirm": "Delete custom agent \"{name}\"?",
@@ -1082,6 +1084,24 @@
     "mcpAccessTitle": "Allowed MCP Servers",
     "mcpAccessEmpty": "There is currently no optional MCP.",
     "mcpAccessBadge": "MCP {count}",
+    "sharedMcpTitle": "Shared MCP",
+    "sharedMcpDescription": "All ACP agents share the same MCP access selection.",
+    "installedSectionTitle": "Installed Agents",
+    "installedSectionDescription": "Only installed registry agents appear here for enablement, inspection, and env overrides.",
+    "installedCount": "{count} installed",
+    "installedEmptyTitle": "No installed registry agents yet",
+    "installedEmptyDescription": "Install an agent from the ACP Registry first, then configure it here.",
+    "registryOverlayEmpty": "No agents match the current filters.",
+    "registryInstallAction": "Install",
+    "registryInstallTitle": "ACP Registry",
+    "registryInstallDescription": "Search, filter, and install ACP agents. Configure them back in settings after installation.",
+    "registryLearnMore": "Learn More",
+    "registryRepository": "Repository",
+    "installFilters": {
+      "all": "All",
+      "installed": "Installed",
+      "notInstalled": "Not Installed"
+    },
     "loading": "Loading ACP data...",
     "none": "None",
     "saveSuccess": "Configuration saved",
@@ -1193,7 +1213,29 @@
         "notification": "Notification",
         "permission": "Permission",
         "error": "Error"
-      }
+      },
+      "healthCheck": "Health Check",
+      "healthChecking": "Checking...",
+      "healthCheckFailed": "Health check failed"
+    },
+    "registryCount": "{count} agents",
+    "registryEmpty": "No registry agents are available for the current filters.",
+    "registryRefresh": "Refresh Registry",
+    "registryRepair": "Repair",
+    "registrySearchPlaceholder": "Search ACP Registry Agents...",
+    "filters": {
+      "all": "All statuses",
+      "enabled": "Enabled only",
+      "installed": "Installed only",
+      "attention": "Needs attention"
+    },
+    "envOverrideTitle": "Environment Variable Overrides",
+    "envOverridePlaceholder": "One KEY=VALUE per line",
+    "installState": {
+      "installed": "Installed",
+      "installing": "Installing",
+      "error": "Install failed",
+      "notInstalled": "Not installed"
     }
   },
   "rateLimit": {

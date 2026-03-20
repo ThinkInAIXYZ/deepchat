@@ -157,6 +157,38 @@ describeIfSqlite('SQLitePresenter legacy schema bootstrap', () => {
     checkDb.close()
   })
 
+  it('migrates ACP agent aliases without requiring legacy conversations tables', async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-sqlite-presenter-'))
+    tempDirs.push(tempDir)
+
+    const dbPath = path.join(tempDir, 'agent.db')
+    const presenter = new SQLitePresenterCtor(dbPath)
+
+    presenter.newSessionsTable.create('session-1', 'kimi-cli', 'Recovered session', null)
+    presenter.deepchatSessionsTable.create('session-1', 'acp', 'kimi-cli')
+    await presenter.upsertAcpSession('conversation-1', 'kimi-cli', {
+      sessionId: 'acp-session-1',
+      status: 'active'
+    })
+
+    await expect(
+      presenter.migrateAcpAgentReferences({
+        'kimi-cli': 'kimi'
+      })
+    ).resolves.toBeUndefined()
+
+    expect(presenter.newSessionsTable.get('session-1')?.agent_id).toBe('kimi')
+    expect(presenter.deepchatSessionsTable.get('session-1')?.model_id).toBe('kimi')
+    expect(await presenter.getAcpSession('conversation-1', 'kimi-cli')).toBeNull()
+    expect(await presenter.getAcpSession('conversation-1', 'kimi')).toMatchObject({
+      conversationId: 'conversation-1',
+      agentId: 'kimi',
+      sessionId: 'acp-session-1'
+    })
+
+    presenter.close()
+  })
+
   it('recreates new_sessions with applied columns when schema version is already 16', async () => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-sqlite-presenter-'))
     tempDirs.push(tempDir)

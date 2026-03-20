@@ -45,6 +45,7 @@ import {
 } from '../../agentPresenter/acp'
 import { nanoid } from 'nanoid'
 import type { ProviderMcpRuntimePort } from '../runtimePorts'
+import { resolveAcpAgentAlias } from '@/presenter/configPresenter/acpRegistryConstants'
 
 type EventQueue = {
   push: (event: LLMCoreStreamEvent | null) => void
@@ -125,7 +126,9 @@ export class AcpProvider extends BaseLLMProvider {
     this.sessionPersistence = sessionPersistence
     this.processManager = new AcpProcessManager({
       providerId: provider.id,
-      getUseBuiltinRuntime: () => this.configPresenter.getAcpUseBuiltinRuntime(),
+      resolveLaunchSpec: (agentId, workdir) =>
+        this.configPresenter.resolveAcpLaunchSpec(agentId, workdir),
+      getAgentState: (agentId) => this.configPresenter.getAcpAgentState(agentId),
       getNpmRegistry: async () => {
         // Get npm registry from MCP presenter's server manager
         // This will use the fastest registry from speed test
@@ -169,7 +172,7 @@ export class AcpProvider extends BaseLLMProvider {
           isCustom: true,
           contextLength: 8192,
           maxTokens: 4096,
-          description: agent.command,
+          description: agent.description || agent.command,
           functionCall: true,
           reasoning: false,
           enableSearch: false,
@@ -513,11 +516,11 @@ export class AcpProvider extends BaseLLMProvider {
         currentModeId?: string
       }
     | undefined {
-    return this.processManager.getProcessModes(agentId, workdir) ?? undefined
+    return this.processManager.getProcessModes(resolveAcpAgentAlias(agentId), workdir) ?? undefined
   }
 
   public getProcessConfigOptions(agentId: string, workdir?: string): AcpConfigState | null {
-    return this.processManager.getProcessConfigState(agentId, workdir) ?? null
+    return this.processManager.getProcessConfigState(resolveAcpAgentAlias(agentId), workdir) ?? null
   }
 
   public async setPreferredProcessMode(agentId: string, workdir: string, modeId: string) {
@@ -535,8 +538,9 @@ export class AcpProvider extends BaseLLMProvider {
   }
 
   public async runDebugAction(request: AcpDebugRequest): Promise<AcpDebugRunResult> {
+    const resolvedAgentId = resolveAcpAgentAlias(request.agentId)
     const agent = (await this.configPresenter.getAcpAgents()).find(
-      (item) => item.id === request.agentId
+      (item) => item.id === resolvedAgentId
     )
     if (!agent) {
       throw new Error(`[ACP] Agent not found: ${request.agentId}`)
@@ -1253,7 +1257,8 @@ export class AcpProvider extends BaseLLMProvider {
 
   private async getAgentById(agentId: string): Promise<AcpAgentConfig | null> {
     const agents = await this.configPresenter.getAcpAgents()
-    return agents.find((agent) => agent.id === agentId) ?? null
+    const resolvedId = resolveAcpAgentAlias(agentId)
+    return agents.find((agent) => agent.id === resolvedId) ?? null
   }
 
   private async initWhenEnabled(): Promise<void> {

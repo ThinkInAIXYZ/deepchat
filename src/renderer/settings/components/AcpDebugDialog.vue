@@ -30,6 +30,17 @@
               }}
             </span>
           </div>
+          <Button
+            size="sm"
+            variant="outline"
+            class="h-8"
+            :disabled="loading"
+            @click="runHealthCheck"
+          >
+            {{
+              loading ? t('settings.acp.debug.healthChecking') : t('settings.acp.debug.healthCheck')
+            }}
+          </Button>
           <Button size="sm" variant="ghost" class="h-8" @click="clearEvents">
             {{ t('settings.acp.debug.clearHistory') }}
           </Button>
@@ -50,7 +61,7 @@
                 ? 'border-primary bg-primary/5'
                 : 'border-border hover:border-primary/60'
             "
-            :disabled="!processReady && method.value !== 'initialize'"
+            :disabled="!processReady"
             @click="selectMethod(method.value)"
           >
             <div class="text-sm font-medium leading-tight">{{ method.label }}</div>
@@ -200,10 +211,11 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const { toast } = useToast()
 const llmProviderPresenter = usePresenter('llmproviderPresenter')
+const configPresenter = usePresenter('configPresenter')
 const devicePresenter = usePresenter('devicePresenter')
 const uiSettingsStore = useUiSettingsStore()
 
-const selectedMethod = ref<AcpDebugRequest['action']>('initialize')
+const selectedMethod = ref<AcpDebugRequest['action']>('newSession')
 const payloadText = ref('')
 const workdirPath = ref('')
 const customMethod = ref('')
@@ -236,10 +248,6 @@ function createDebugSessionId() {
 }
 
 const methodOptions = computed(() => [
-  {
-    value: 'initialize' as const,
-    label: t('settings.acp.debug.methods.initialize')
-  },
   {
     value: 'newSession' as const,
     label: t('settings.acp.debug.methods.newSession')
@@ -468,8 +476,6 @@ const handleSend = async () => {
       title: t('settings.acp.debug.needInitialize'),
       variant: 'destructive'
     })
-    selectedMethod.value = 'initialize'
-    resetPayload()
     return
   }
 
@@ -514,6 +520,71 @@ const handleSend = async () => {
   }
 }
 
+const runHealthCheck = async () => {
+  clearEvents()
+  debugSessionId.value = ''
+  loading.value = true
+  try {
+    await configPresenter.ensureAcpAgentInstalled(props.agentId)
+
+    const initializeResult = await llmProviderPresenter.runAcpDebugAction({
+      agentId: props.agentId,
+      action: 'initialize',
+      payload: templateForMethod('initialize'),
+      workdir: workdirPath.value || undefined,
+      webContentsId: webContentsId || undefined
+    })
+    appendEvents(initializeResult.events ?? [])
+
+    if (initializeResult.status === 'error') {
+      throw new Error(initializeResult.error || t('settings.acp.debug.requestFailed'))
+    }
+
+    processReady.value = true
+
+    const newSessionResult = await llmProviderPresenter.runAcpDebugAction({
+      agentId: props.agentId,
+      action: 'newSession',
+      payload: applyWorkdirToPayload(templateForMethod('newSession')),
+      workdir: workdirPath.value || undefined,
+      webContentsId: webContentsId || undefined
+    })
+    appendEvents(newSessionResult.events ?? [])
+
+    if (newSessionResult.status === 'error') {
+      throw new Error(newSessionResult.error || t('settings.acp.debug.requestFailed'))
+    }
+
+    const newSessionId = newSessionResult.sessionId
+
+    const cancelResult = await llmProviderPresenter.runAcpDebugAction({
+      agentId: props.agentId,
+      action: 'cancel',
+      payload: templateForMethod('cancel'),
+      sessionId: newSessionId,
+      workdir: workdirPath.value || undefined,
+      webContentsId: webContentsId || undefined
+    })
+    appendEvents(cancelResult.events ?? [])
+
+    if (newSessionId && cancelResult.status !== 'ok') {
+      debugSessionId.value = newSessionId
+    }
+
+    selectedMethod.value = 'newSession'
+    resetPayload()
+  } catch (error) {
+    processReady.value = false
+    toast({
+      title: t('settings.acp.debug.healthCheckFailed'),
+      description: error instanceof Error ? error.message : String(error),
+      variant: 'destructive'
+    })
+  } finally {
+    loading.value = false
+  }
+}
+
 const handleSelectWorkdir = async () => {
   const result = await devicePresenter.selectDirectory()
   if (result?.canceled || !result.filePaths?.length) return
@@ -550,7 +621,7 @@ watch(
     if (open) {
       clearEvents()
       processReady.value = false
-      selectedMethod.value = 'initialize'
+      selectedMethod.value = 'newSession'
       customMethod.value = ''
       debugSessionId.value = createDebugSessionId()
       await nextTick()

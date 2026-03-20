@@ -377,6 +377,18 @@ export interface Agent {
   name: string
   type: 'deepchat' | 'acp'
   enabled: boolean
+  icon?: string
+  description?: string
+  source?: 'registry' | 'manual'
+  installState?: {
+    status: 'not_installed' | 'installing' | 'installed' | 'error'
+    distributionType?: 'binary' | 'npx' | 'uvx' | 'manual' | null
+    version?: string | null
+    installedAt?: number | null
+    lastCheckedAt?: number | null
+    installDir?: string | null
+    error?: string | null
+  } | null
 }
 
 export interface SessionRecord {

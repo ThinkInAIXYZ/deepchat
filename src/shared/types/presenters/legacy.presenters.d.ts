@@ -431,6 +431,7 @@ export interface ISQLitePresenter {
   ): Promise<void>
   deleteAcpSessions(conversationId: string): Promise<void>
   deleteAcpSession(conversationId: string, agentId: string): Promise<void>
+  migrateAcpAgentReferences(aliasMap: Record<string, string>): Promise<void>
 }
 
 export interface IOAuthPresenter {
@@ -618,6 +619,27 @@ export interface IConfigPresenter {
   // ACP configuration methods
   getAcpEnabled(): Promise<boolean>
   setAcpEnabled(enabled: boolean): Promise<void>
+  listAcpRegistryAgents(): Promise<AcpRegistryAgent[]>
+  refreshAcpRegistry(force?: boolean): Promise<AcpRegistryAgent[]>
+  getAcpRegistryIconMarkup(agentId: string, iconUrl?: string): Promise<string | null>
+  getAcpAgentState(agentId: string): Promise<AcpAgentState | null>
+  setAcpAgentEnabled(agentId: string, enabled: boolean): Promise<void>
+  setAcpAgentEnvOverride(agentId: string, env: Record<string, string>): Promise<void>
+  ensureAcpAgentInstalled(agentId: string): Promise<AcpAgentInstallState>
+  repairAcpAgent(agentId: string): Promise<AcpAgentInstallState>
+  getAcpAgentInstallStatus(agentId: string): Promise<AcpAgentInstallState | null>
+  listManualAcpAgents(): Promise<AcpManualAgent[]>
+  addManualAcpAgent(
+    agent: Omit<AcpManualAgent, 'id' | 'source'> & { id?: string }
+  ): Promise<AcpManualAgent>
+  updateManualAcpAgent(
+    agentId: string,
+    updates: Partial<Omit<AcpManualAgent, 'id' | 'source'>>
+  ): Promise<AcpManualAgent | null>
+  removeManualAcpAgent(agentId: string): Promise<boolean>
+  resolveAcpLaunchSpec(agentId: string, workdir?: string): Promise<AcpResolvedLaunchSpec>
+  getAcpSharedMcpSelections(): Promise<string[]>
+  setAcpSharedMcpSelections(mcpIds: string[]): Promise<void>
   // Nowledge-mem configuration methods
   getNowledgeMemConfig(): Promise<{
     baseUrl: string
@@ -625,41 +647,7 @@ export interface IConfigPresenter {
     timeout: number
   } | null>
   setNowledgeMemConfig(config: { baseUrl: string; apiKey?: string; timeout: number }): Promise<void>
-  getAcpUseBuiltinRuntime(): Promise<boolean>
-  setAcpUseBuiltinRuntime(enabled: boolean): Promise<void>
-  setAcpAgents(agents: AcpAgentConfig[]): Promise<AcpAgentConfig[]>
   getAcpAgents(): Promise<AcpAgentConfig[]>
-  addAcpAgent(agent: Omit<AcpAgentConfig, 'id'> & { id?: string }): Promise<AcpAgentConfig>
-  updateAcpAgent(
-    agentId: string,
-    updates: Partial<Omit<AcpAgentConfig, 'id'>>
-  ): Promise<AcpAgentConfig | null>
-  removeAcpAgent(agentId: string): Promise<boolean>
-  getAcpBuiltinAgents(): Promise<AcpBuiltinAgent[]>
-  getAcpCustomAgents(): Promise<AcpCustomAgent[]>
-  addAcpBuiltinProfile(
-    agentId: AcpBuiltinAgentId,
-    profile: Omit<AcpAgentProfile, 'id'>,
-    options?: { activate?: boolean }
-  ): Promise<AcpAgentProfile>
-  updateAcpBuiltinProfile(
-    agentId: AcpBuiltinAgentId,
-    profileId: string,
-    updates: Partial<Omit<AcpAgentProfile, 'id'>>
-  ): Promise<AcpAgentProfile | null>
-  removeAcpBuiltinProfile(agentId: AcpBuiltinAgentId, profileId: string): Promise<boolean>
-  setAcpBuiltinActiveProfile(agentId: AcpBuiltinAgentId, profileId: string): Promise<void>
-  setAcpBuiltinEnabled(agentId: AcpBuiltinAgentId, enabled: boolean): Promise<void>
-  addCustomAcpAgent(
-    agent: Omit<AcpCustomAgent, 'id' | 'enabled'> & { id?: string; enabled?: boolean }
-  ): Promise<AcpCustomAgent>
-  updateCustomAcpAgent(
-    agentId: string,
-    updates: Partial<Omit<AcpCustomAgent, 'id'>>
-  ): Promise<AcpCustomAgent | null>
-  removeCustomAcpAgent(agentId: string): Promise<boolean>
-  setCustomAcpAgentEnabled(agentId: string, enabled: boolean): Promise<void>
-  initializeAcpAgent(agentId: string, isBuiltin: boolean): Promise<void>
   getAgentMcpSelections(agentId: string, isBuiltin?: boolean): Promise<string[]>
   setAgentMcpSelections(agentId: string, isBuiltin: boolean, mcpIds: string[]): Promise<void>
   addMcpToAgent(agentId: string, isBuiltin: boolean, mcpId: string): Promise<void>
@@ -876,7 +864,15 @@ export interface AcpDebugRunResult {
   events: AcpDebugEventEntry[]
 }
 
-export type AcpBuiltinAgentId = 'kimi-cli' | 'claude-code-acp' | 'codex-acp' | 'dimcode-acp'
+export type AcpLegacyBuiltinAgentId = 'kimi-cli' | 'claude-code-acp' | 'codex-acp' | 'dimcode-acp'
+
+export type AcpBuiltinAgentId = AcpLegacyBuiltinAgentId
+
+export type AcpAgentSource = 'registry' | 'manual'
+
+export type AcpRegistryDistributionType = 'binary' | 'npx' | 'uvx'
+
+export type AcpAgentInstallStatus = 'not_installed' | 'installing' | 'installed' | 'error'
 
 export interface AcpAgentProfile {
   id: string
@@ -887,7 +883,7 @@ export interface AcpAgentProfile {
 }
 
 export interface AcpBuiltinAgent {
-  id: AcpBuiltinAgentId
+  id: AcpLegacyBuiltinAgentId
   name: string
   enabled: boolean
   activeProfileId: string | null
@@ -926,6 +922,92 @@ export interface AcpAgentConfig {
   command: string
   args?: string[]
   env?: Record<string, string>
+  description?: string
+  icon?: string
+  source?: AcpAgentSource
+  installState?: AcpAgentInstallState | null
+}
+
+export interface AcpRegistryBinaryDistribution {
+  archive: string
+  cmd: string
+  args?: string[]
+  env?: Record<string, string>
+}
+
+export interface AcpRegistryPackageDistribution {
+  package: string
+  args?: string[]
+  env?: Record<string, string>
+}
+
+export interface AcpRegistryDistribution {
+  binary?: Record<string, AcpRegistryBinaryDistribution>
+  npx?: AcpRegistryPackageDistribution
+  uvx?: AcpRegistryPackageDistribution
+}
+
+export interface AcpAgentInstallState {
+  status: AcpAgentInstallStatus
+  distributionType?: AcpRegistryDistributionType | 'manual' | null
+  version?: string | null
+  installedAt?: number | null
+  lastCheckedAt?: number | null
+  installDir?: string | null
+  error?: string | null
+}
+
+export interface AcpAgentState {
+  agentId: string
+  enabled: boolean
+  envOverride?: Record<string, string>
+  updatedAt: number
+}
+
+export interface AcpAgentEnvOverride {
+  agentId: string
+  env: Record<string, string>
+}
+
+export interface AcpRegistryAgent {
+  id: string
+  name: string
+  version: string
+  description?: string
+  repository?: string
+  website?: string
+  authors?: string[]
+  license?: string
+  icon?: string
+  distribution: AcpRegistryDistribution
+  source: 'registry'
+  enabled: boolean
+  envOverride?: Record<string, string>
+  installState?: AcpAgentInstallState | null
+}
+
+export interface AcpManualAgent {
+  id: string
+  name: string
+  command: string
+  args?: string[]
+  env?: Record<string, string>
+  enabled: boolean
+  description?: string
+  icon?: string
+  source: 'manual'
+}
+
+export interface AcpResolvedLaunchSpec {
+  agentId: string
+  source: AcpAgentSource
+  distributionType: AcpRegistryDistributionType | 'manual'
+  version?: string
+  command: string
+  args: string[]
+  env: Record<string, string>
+  cwd?: string
+  installDir?: string | null
 }
 
 export interface AcpSessionEntity {

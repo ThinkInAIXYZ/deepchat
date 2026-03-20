@@ -7,6 +7,12 @@ vi.mock('@/stores/providerStore', () => ({
   })
 }))
 
+vi.mock('@/stores/ui/agent', () => ({
+  useAgentStore: () => ({
+    agents: []
+  })
+}))
+
 describe('ModelIcon', () => {
   it('resolves dimcode-acp to the DimCode icon', async () => {
     const ModelIcon = (await import('@/components/icons/ModelIcon.vue')).default
@@ -19,7 +25,7 @@ describe('ModelIcon', () => {
 
     const image = wrapper.get('img')
 
-    expect(image.attributes('alt')).toBe('dimcode-acp')
+    expect(image.attributes('alt')).toBe('dimcode')
     expect(image.attributes('src')).toBe(dimcodeIcon)
   })
 })

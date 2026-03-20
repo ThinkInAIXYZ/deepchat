@@ -11,6 +11,10 @@ export interface UIAgent {
   name: string
   type: 'deepchat' | 'acp'
   enabled: boolean
+  icon?: string
+  description?: string
+  source?: 'registry' | 'manual'
+  installState?: Agent['installState']
 }
 
 // --- Store ---
@@ -39,7 +43,11 @@ export const useAgentStore = defineStore('agent', () => {
         id: a.id,
         name: a.name,
         type: a.type,
-        enabled: a.enabled
+        enabled: a.enabled,
+        icon: a.icon,
+        description: a.description,
+        source: a.source,
+        installState: a.installState ?? null
       }))
     } catch (e) {
       error.value = `Failed to load agents: ${e}`

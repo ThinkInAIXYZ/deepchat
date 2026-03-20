@@ -1216,11 +1216,53 @@
       "send": "發送請求",
       "sending": "發送中...",
       "title": "ACP 調試",
-      "workdirPlaceholder": "留空使用默認工作目錄"
+      "workdirPlaceholder": "留空使用默認工作目錄",
+      "healthCheck": "健康檢查",
+      "healthChecking": "檢查中...",
+      "healthCheckFailed": "健康檢查失敗"
     },
     "mcpAccessBadge": "MCP {count}",
     "mcpAccessEmpty": "暫無可選 MCP。",
-    "mcpAccessTitle": "可用 MCP"
+    "mcpAccessTitle": "可用 MCP",
+    "registryCount": "{count} 個 Agent",
+    "registryEmpty": "目前篩選條件下沒有可用的 Registry Agent。",
+    "registryRefresh": "重新整理 Registry",
+    "registryRepair": "修復",
+    "registrySearchPlaceholder": "搜尋 ACP Registry Agent...",
+    "filters": {
+      "all": "全部狀態",
+      "enabled": "僅看已啟用",
+      "installed": "僅看已安裝",
+      "attention": "僅看待處理"
+    },
+    "envOverrideTitle": "環境變數覆蓋",
+    "envOverridePlaceholder": "每行一個 KEY=VALUE",
+    "installState": {
+      "installed": "已安裝",
+      "installing": "安裝中",
+      "error": "安裝失敗",
+      "notInstalled": "未安裝"
+    },
+    "registryInstallEntry": "安裝 Agent",
+    "registryInstallEntryDescription": "從 ACP Registry 搜尋並安裝 Agent，安裝完成後再回到這裡啟用和配置。",
+    "sharedMcpTitle": "共享 MCP",
+    "sharedMcpDescription": "所有 ACP Agent 共用一份 MCP 存取設定。",
+    "installedSectionTitle": "已安裝 Agent",
+    "installedSectionDescription": "只有已安裝的 Registry Agent 才會出現在這裡進行啟用、調試和環境變數覆蓋。",
+    "installedCount": "已安裝 {count} 個",
+    "installedEmptyTitle": "還沒有已安裝的 Registry Agent",
+    "installedEmptyDescription": "先從 ACP Registry 安裝 Agent，安裝後才會在這裡顯示可配置介面。",
+    "registryOverlayEmpty": "目前篩選條件下沒有可安裝的 Agent。",
+    "registryInstallAction": "安裝",
+    "registryInstallTitle": "ACP Registry",
+    "registryInstallDescription": "搜尋、篩選並安裝 ACP Agent。安裝完成後回到設定頁配置。",
+    "registryLearnMore": "了解更多",
+    "registryRepository": "倉庫",
+    "installFilters": {
+      "all": "全部",
+      "installed": "已安裝",
+      "notInstalled": "未安裝"
+    }
   },
   "skills": {
     "addSkill": "新增技能",

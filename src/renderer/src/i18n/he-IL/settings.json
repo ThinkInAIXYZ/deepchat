@@ -1190,11 +1190,53 @@
       "send": "שלח בקשה",
       "sending": "שְׁלִיחָה...",
       "title": "איתור באגים של ACP",
-      "workdirPlaceholder": "השאר ריק כדי להשתמש בספריית העבודה המוגדרת כברירת מחדל"
+      "workdirPlaceholder": "השאר ריק כדי להשתמש בספריית העבודה המוגדרת כברירת מחדל",
+      "healthCheck": "בדיקת תקינות",
+      "healthChecking": "בודק...",
+      "healthCheckFailed": "בדיקת התקינות נכשלה"
     },
     "mcpAccessBadge": "MCP {count}",
     "mcpAccessEmpty": "כרגע אין MCP אופציונלי.",
-    "mcpAccessTitle": "MCPs זמינים"
+    "mcpAccessTitle": "MCPs זמינים",
+    "registryCount": "{count} סוכנים",
+    "registryEmpty": "אין סוכני Registry זמינים לפי המסננים הנוכחיים.",
+    "registryRefresh": "רענון Registry",
+    "registryRepair": "תיקון",
+    "registrySearchPlaceholder": "חיפוש סוכני ACP Registry...",
+    "filters": {
+      "all": "כל המצבים",
+      "enabled": "מופעלים בלבד",
+      "installed": "מותקנים בלבד",
+      "attention": "דורשים טיפול"
+    },
+    "envOverrideTitle": "דריסת משתני סביבה",
+    "envOverridePlaceholder": "שורה אחת לכל KEY=VALUE",
+    "installState": {
+      "installed": "מותקן",
+      "installing": "בהתקנה",
+      "error": "ההתקנה נכשלה",
+      "notInstalled": "לא מותקן"
+    },
+    "registryInstallEntry": "התקנת Agent",
+    "registryInstallEntryDescription": "חפש והתקן סוכנים מ-ACP Registry, ואז חזור לכאן כדי להפעיל ולהגדיר אותם.",
+    "sharedMcpTitle": "MCP משותף",
+    "sharedMcpDescription": "כל סוכני ACP חולקים את אותה בחירת גישה ל-MCP.",
+    "installedSectionTitle": "סוכנים מותקנים",
+    "installedSectionDescription": "רק סוכני Registry מותקנים יופיעו כאן להפעלה, בדיקה ודריסת משתני סביבה.",
+    "installedCount": "{count} מותקנים",
+    "installedEmptyTitle": "עדיין אין סוכני Registry מותקנים",
+    "installedEmptyDescription": "התקן תחילה סוכן מ-ACP Registry, ואז הגדר אותו כאן.",
+    "registryOverlayEmpty": "אין סוכנים שתואמים למסננים הנוכחיים.",
+    "registryInstallAction": "התקן",
+    "registryInstallTitle": "ACP Registry",
+    "registryInstallDescription": "חיפוש, סינון והתקנה של סוכני ACP. לאחר ההתקנה חזור להגדרות כדי להגדיר אותם.",
+    "registryLearnMore": "מידע נוסף",
+    "registryRepository": "מאגר",
+    "installFilters": {
+      "all": "הכול",
+      "installed": "מותקנים",
+      "notInstalled": "לא מותקנים"
+    }
   },
   "rateLimit": {
     "title": "מגבלת קצב (Rate Limit)",

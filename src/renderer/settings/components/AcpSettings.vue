@@ -1,7 +1,7 @@
 <template>
   <div class="w-full h-full flex flex-col">
-    <div class="shrink-0 px-4 pt-4">
-      <div class="flex items-center justify-between">
+    <div class="shrink-0 px-4 pt-4 space-y-4">
+      <div class="flex items-center justify-between gap-4">
         <div>
           <div class="font-medium">{{ t('settings.acp.enabledTitle') }}</div>
           <p class="text-xs text-muted-foreground">
@@ -16,148 +16,189 @@
           @update:model-value="handleToggle"
         />
       </div>
-      <div v-if="acpEnabled" class="flex items-center justify-between mt-4">
-        <div>
-          <div class="font-medium">{{ t('settings.acp.useBuiltinRuntimeTitle') }}</div>
+
+      <div
+        v-if="acpEnabled"
+        class="rounded-xl border bg-muted/20 px-4 py-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"
+      >
+        <div class="space-y-1">
+          <div class="text-sm font-semibold">{{ t('settings.acp.registryInstallEntry') }}</div>
           <p class="text-xs text-muted-foreground">
-            {{ t('settings.acp.useBuiltinRuntimeDescription') }}
+            {{ t('settings.acp.registryInstallEntryDescription') }}
           </p>
         </div>
-        <Switch
-          dir="ltr"
-          :model-value="useBuiltinRuntime"
-          class="scale-125"
-          :disabled="togglingUseBuiltinRuntime"
-          @update:model-value="handleUseBuiltinRuntimeToggle"
-        />
+        <div class="flex items-center gap-2">
+          <Button variant="outline" @click="openRegistryDialog">
+            <Icon icon="lucide:download" class="h-4 w-4 mr-2" />
+            {{ t('settings.acp.registryInstallEntry') }}
+          </Button>
+        </div>
       </div>
-      <Separator class="mt-3" />
+
+      <Separator />
     </div>
 
     <div class="flex-1 overflow-y-auto">
       <div v-if="acpEnabled" class="p-4 space-y-6">
+        <Collapsible v-if="showSharedMcpSection" v-model:open="sharedMcpOpen" class="space-y-4">
+          <div class="flex items-start justify-between gap-4">
+            <div>
+              <div class="text-xl font-semibold">{{ t('settings.acp.sharedMcpTitle') }}</div>
+              <p class="text-sm text-muted-foreground">
+                {{ t('settings.acp.sharedMcpDescription') }}
+              </p>
+            </div>
+            <div class="flex items-center gap-2">
+              <Badge variant="outline">
+                {{ t('settings.acp.mcpAccessBadge', { count: sharedMcpCount }) }}
+              </Badge>
+              <Button size="sm" variant="outline" @click="sharedMcpOpen = !sharedMcpOpen">
+                {{ sharedMcpOpen ? t('common.collapse') : t('common.expand') }}
+              </Button>
+            </div>
+          </div>
+
+          <CollapsibleContent>
+            <Card>
+              <CardContent class="pt-6">
+                <AgentMcpSelector @update:selections="handleSharedMcpUpdated" />
+              </CardContent>
+            </Card>
+          </CollapsibleContent>
+        </Collapsible>
+
         <section class="space-y-4">
           <div class="flex items-start justify-between gap-4">
             <div>
-              <div class="text-xl font-semibold">
-                {{ t('settings.acp.builtinSectionTitle') }}
-              </div>
+              <div class="text-xl font-semibold">{{ t('settings.acp.installedSectionTitle') }}</div>
               <p class="text-sm text-muted-foreground">
-                {{ t('settings.acp.builtinSectionDescription') }}
+                {{ t('settings.acp.installedSectionDescription') }}
               </p>
+            </div>
+            <div class="flex items-center gap-2">
+              <Badge variant="outline">
+                {{ t('settings.acp.installedCount', { count: installedRegistryAgents.length }) }}
+              </Badge>
+              <Button size="sm" variant="outline" @click="openRegistryDialog">
+                {{ t('settings.acp.registryInstallEntry') }}
+              </Button>
             </div>
           </div>
 
           <div
-            v-if="loading && !builtins.length"
+            v-if="loading && !installedRegistryAgents.length"
             class="text-sm text-muted-foreground text-center py-8"
           >
             {{ t('settings.acp.loading') }}
           </div>
 
-          <div v-else class="grid gap-3 md:grid-cols-2">
-            <Card v-for="agent in builtins" :key="agent.id">
+          <Card v-else-if="!installedRegistryAgents.length" class="border-dashed">
+            <CardContent class="py-10">
+              <div class="max-w-md mx-auto text-center space-y-3">
+                <div class="text-base font-semibold">
+                  {{ t('settings.acp.installedEmptyTitle') }}
+                </div>
+                <p class="text-sm text-muted-foreground">
+                  {{ t('settings.acp.installedEmptyDescription') }}
+                </p>
+                <Button @click="openRegistryDialog">
+                  <Icon icon="lucide:download" class="h-4 w-4 mr-2" />
+                  {{ t('settings.acp.registryInstallEntry') }}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          <div v-else class="grid gap-3 xl:grid-cols-2">
+            <Card v-for="agent in installedRegistryAgents" :key="agent.id">
               <CardHeader class="pb-2">
                 <div class="flex items-start justify-between gap-3">
-                  <div>
-                    <CardTitle class="text-base flex items-center gap-2">
-                      <span>{{ agent.name }}</span>
-                      <TooltipProvider v-if="getMcpSelectionCount(agent) > 0">
-                        <Tooltip>
-                          <TooltipTrigger as-child>
-                            <Badge variant="secondary">
-                              {{
-                                t('settings.acp.mcpAccessBadge', {
-                                  count: getMcpSelectionCount(agent)
-                                })
-                              }}
-                            </Badge>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>{{ getMcpSelectionTooltip(agent) }}</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                      <Badge v-if="!agent.enabled" variant="outline">
-                        {{ t('settings.acp.disabledBadge') }}
+                  <div class="min-w-0">
+                    <CardTitle class="text-base flex items-center gap-2 min-w-0">
+                      <AcpAgentIcon
+                        :agent-id="agent.id"
+                        :icon="agent.icon"
+                        :alt="agent.name"
+                        :fallback-text="agent.name"
+                        custom-class="h-5 w-5"
+                      />
+                      <span class="truncate">{{ agent.name }}</span>
+                      <Badge :class="installBadgeClass(agent)" variant="outline">
+                        {{ installBadgeLabel(agent) }}
+                      </Badge>
+                      <Badge v-if="agent.enabled" variant="secondary">
+                        {{ t('common.enabled') }}
                       </Badge>
                     </CardTitle>
-                    <CardDescription class="text-xs">
-                      {{ t('settings.acp.builtinHint', { name: agent.name }) }}
+                    <CardDescription class="text-xs mt-1">
+                      {{ agent.description || t('settings.acp.builtinHint', { name: agent.name }) }}
                     </CardDescription>
                   </div>
                   <Switch
                     :model-value="agent.enabled"
-                    :disabled="isBuiltinPending(agent.id) || loading"
-                    @update:model-value="(value) => handleBuiltinToggle(agent, value)"
+                    :disabled="Boolean(agentPending[agent.id])"
+                    @update:model-value="(value) => toggleRegistryAgent(agent, Boolean(value))"
                   />
                 </div>
               </CardHeader>
-              <CardContent class="space-y-3 text-sm">
-                <div class="space-y-1">
+              <CardContent class="space-y-3">
+                <div class="text-xs text-muted-foreground space-y-1">
+                  <div class="flex items-start gap-1">
+                    <span class="font-semibold">{{ t('settings.model.form.id.label') }}:</span>
+                    <span class="truncate">{{ agent.id }}</span>
+                  </div>
+                  <div class="flex items-start gap-1">
+                    <span class="font-semibold">{{ t('settings.about.version') }}:</span>
+                    <span class="truncate">{{ agent.version }}</span>
+                  </div>
+                  <div class="flex items-start gap-1">
+                    <span class="font-semibold">{{ t('settings.acp.command') }}:</span>
+                    <span class="truncate">{{ buildPreviewCommand(agent) }}</span>
+                  </div>
+                </div>
+
+                <div class="space-y-2">
                   <div class="text-xs font-semibold text-muted-foreground">
-                    {{ t('settings.acp.activeProfile') }}
+                    {{ t('settings.acp.envOverrideTitle') }}
                   </div>
-                  <Select
-                    :model-value="agent.activeProfileId || undefined"
-                    :disabled="!agent.enabled || isBuiltinPending(agent.id)"
-                    @update:model-value="
-                      (value) =>
-                        typeof value === 'string' && handleActiveProfileChange(agent, value)
-                    "
-                  >
-                    <SelectTrigger class="w-full">
-                      <SelectValue :placeholder="t('settings.acp.profilePlaceholder')" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem
-                        v-for="profile in agent.profiles"
-                        :key="profile.id"
-                        :value="profile.id"
-                      >
-                        {{ profile.name }}
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div class="text-xs text-muted-foreground space-y-1 overflow-hidden">
-                  <div class="flex items-start gap-1 overflow-hidden">
-                    <span class="font-semibold">CMD:</span>
-                    <span class="truncate" :title="getActiveProfile(agent)?.command || undefined">
-                      {{ getActiveProfile(agent)?.command ?? '—' }}
-                    </span>
+                  <Textarea
+                    v-model="envDrafts[agent.id]"
+                    class="min-h-[92px] font-mono text-xs"
+                    :placeholder="t('settings.acp.envOverridePlaceholder')"
+                  />
+                  <div class="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      :disabled="Boolean(agentPending[agent.id])"
+                      @click="saveEnvOverride(agent)"
+                    >
+                      {{ t('common.save') }}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      :disabled="Boolean(agentPending[agent.id])"
+                      @click="clearEnvOverride(agent)"
+                    >
+                      {{ t('common.clear') }}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      :disabled="Boolean(agentPending[agent.id])"
+                      @click="repairRegistryAgent(agent)"
+                    >
+                      {{ t('settings.acp.registryRepair') }}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      @click="openInspector(agent.id, agent.name)"
+                    >
+                      {{ t('settings.acp.debug.entry') }}
+                    </Button>
                   </div>
-                  <div class="flex items-start gap-1 overflow-hidden">
-                    <span class="font-semibold">ARGS:</span>
-                    <span class="truncate" :title="formatArgs(getActiveProfile(agent)?.args)">
-                      {{ formatArgs(getActiveProfile(agent)?.args) }}
-                    </span>
-                  </div>
-                </div>
-                <AgentMcpSelector
-                  :agent-id="agent.id"
-                  :is-builtin="true"
-                  @update:selections="() => loadAcpData()"
-                />
-                <div class="flex flex-wrap gap-2">
-                  <Button size="sm" variant="outline" @click="openProfileManager(agent)">
-                    {{ t('settings.acp.manageProfiles') }}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    :disabled="isInitializing(agent.id, true)"
-                    @click="handleInitializeAgent(agent.id, true)"
-                  >
-                    {{
-                      isInitializing(agent.id, true)
-                        ? t('settings.acp.initializing')
-                        : t('settings.acp.initialize')
-                    }}
-                  </Button>
-                  <Button size="sm" variant="outline" @click="openDebugDialog(agent)">
-                    {{ t('settings.acp.debug.entry') }}
-                  </Button>
                 </div>
               </CardContent>
             </Card>
@@ -166,176 +207,344 @@
 
         <Separator />
 
-        <section class="space-y-4">
+        <Collapsible v-model:open="manualSectionOpen" class="space-y-4">
           <div class="flex items-start justify-between gap-4">
             <div>
-              <div class="text-xl font-semibold">
-                {{ t('settings.acp.customSectionTitle') }}
-              </div>
+              <div class="text-xl font-semibold">{{ t('settings.acp.customSectionTitle') }}</div>
               <p class="text-sm text-muted-foreground">
                 {{ t('settings.acp.customSectionDescription') }}
               </p>
             </div>
-            <Button size="sm" @click="openCustomAgentDialog()">
-              {{ t('settings.acp.addCustomAgent') }}
-            </Button>
+            <div class="flex items-center gap-2">
+              <Button size="sm" variant="outline" @click="manualSectionOpen = !manualSectionOpen">
+                {{ manualSectionOpen ? t('common.collapse') : t('common.expand') }}
+              </Button>
+              <Button size="sm" @click="openManualDialog()">
+                {{ t('settings.acp.addCustomAgent') }}
+              </Button>
+            </div>
           </div>
 
-          <div
-            v-if="loading && !customAgents.length"
-            class="text-sm text-muted-foreground text-center py-8"
-          >
-            {{ t('settings.acp.loading') }}
-          </div>
-          <div
-            v-else-if="!customAgents.length"
-            class="text-sm text-muted-foreground text-center py-8"
-          >
-            {{ t('settings.acp.customEmpty') }}
-          </div>
-          <div v-else class="space-y-3">
-            <Card v-for="agent in customAgents" :key="agent.id">
-              <CardHeader class="pb-2">
-                <div class="flex items-start justify-between gap-3">
-                  <div class="min-w-0">
-                    <CardTitle class="text-base truncate" :title="agent.name">
-                      <span>{{ agent.name }}</span>
-                      <TooltipProvider v-if="getMcpSelectionCount(agent) > 0">
-                        <Tooltip>
-                          <TooltipTrigger as-child>
-                            <Badge class="ml-2" variant="secondary">
-                              {{
-                                t('settings.acp.mcpAccessBadge', {
-                                  count: getMcpSelectionCount(agent)
-                                })
-                              }}
-                            </Badge>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>{{ getMcpSelectionTooltip(agent) }}</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    </CardTitle>
-                    <CardDescription
-                      class="text-xs text-muted-foreground truncate"
-                      :title="agent.command"
-                    >
-                      {{ agent.command }}
-                    </CardDescription>
+          <CollapsibleContent class="space-y-3">
+            <div
+              v-if="loading && !manualAgents.length"
+              class="text-sm text-muted-foreground text-center py-8"
+            >
+              {{ t('settings.acp.loading') }}
+            </div>
+
+            <div
+              v-else-if="!manualAgents.length"
+              class="text-sm text-muted-foreground text-center py-8"
+            >
+              {{ t('settings.acp.customEmpty') }}
+            </div>
+
+            <div v-else class="space-y-3">
+              <Card v-for="agent in manualAgents" :key="agent.id">
+                <CardHeader class="pb-2">
+                  <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0">
+                      <CardTitle class="text-base truncate">{{ agent.name }}</CardTitle>
+                      <CardDescription class="text-xs truncate">
+                        {{ agent.command }}
+                      </CardDescription>
+                    </div>
+                    <Switch
+                      :model-value="agent.enabled"
+                      :disabled="Boolean(agentPending[agent.id])"
+                      @update:model-value="(value) => toggleManualAgent(agent, Boolean(value))"
+                    />
                   </div>
-                  <Switch
-                    :model-value="agent.enabled"
-                    :disabled="isCustomPending(agent.id)"
-                    @update:model-value="(value) => handleCustomToggle(agent, value)"
-                  />
-                </div>
-              </CardHeader>
-              <CardContent class="text-xs space-y-1 text-muted-foreground overflow-hidden">
-                <div class="flex items-start gap-1 overflow-hidden">
-                  <span class="font-semibold">CMD:</span>
-                  <span class="truncate" :title="agent.command">{{ agent.command }}</span>
-                </div>
-                <div class="flex items-start gap-1 overflow-hidden">
-                  <span class="font-semibold">ARGS:</span>
-                  <span class="truncate" :title="formatArgs(agent.args)">
-                    {{ formatArgs(agent.args) }}
-                  </span>
-                </div>
-                <AgentMcpSelector
-                  :agent-id="agent.id"
-                  :is-builtin="false"
-                  class="pt-2"
-                  @update:selections="() => loadAcpData()"
-                />
-                <div class="flex gap-2 pt-2">
-                  <Button size="sm" variant="ghost" @click="openCustomAgentDialog(agent)">
-                    {{ t('common.edit') }}
-                  </Button>
-                  <Button size="sm" variant="ghost" @click="deleteCustomAgent(agent)">
-                    {{ t('common.delete') }}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    :disabled="isInitializing(agent.id, false)"
-                    @click="handleInitializeAgent(agent.id, false)"
-                  >
-                    {{
-                      isInitializing(agent.id, false)
-                        ? t('settings.acp.initializing')
-                        : t('settings.acp.initialize')
-                    }}
-                  </Button>
-                  <Button size="sm" variant="outline" @click="openDebugDialog(agent)">
-                    {{ t('settings.acp.debug.entry') }}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </section>
+                </CardHeader>
+                <CardContent class="space-y-3">
+                  <div class="text-xs text-muted-foreground space-y-1">
+                    <div class="flex items-start gap-1">
+                      <span class="font-semibold">{{ t('settings.acp.args') }}:</span>
+                      <span class="truncate">{{ formatArgs(agent.args) }}</span>
+                    </div>
+                    <div v-if="showSharedMcpSection" class="flex items-start gap-1">
+                      <span class="font-semibold">{{ t('settings.acp.mcpAccessTitle') }}:</span>
+                      <span class="truncate">
+                        {{
+                          sharedMcpCount
+                            ? t('settings.acp.mcpAccessBadge', { count: sharedMcpCount })
+                            : t('settings.acp.none')
+                        }}
+                      </span>
+                    </div>
+                  </div>
+                  <div class="flex flex-wrap gap-2">
+                    <Button size="sm" variant="ghost" @click="openManualDialog(agent)">
+                      {{ t('common.edit') }}
+                    </Button>
+                    <Button size="sm" variant="ghost" @click="confirmAndDeleteManualAgent(agent)">
+                      {{ t('common.delete') }}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      @click="openInspector(agent.id, agent.name)"
+                    >
+                      {{ t('settings.acp.debug.entry') }}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
       </div>
+
       <div v-else class="p-6 text-sm text-muted-foreground text-center">
         {{ t('settings.acp.enableToAccess') }}
       </div>
     </div>
 
-    <AcpProfileManagerDialog
-      :open="profileManagerState.open"
-      :agent="profileManagerAgent"
-      @update:open="(value) => (profileManagerState.open = value)"
-      @add-profile="handleManagerAdd"
-      @edit-profile="handleManagerEdit"
-      @delete-profile="handleManagerDelete"
-      @set-active="handleManagerActivate"
-    />
+    <Dialog :open="manualDialog.open" @update:open="(value) => (manualDialog.open = value)">
+      <DialogContent class="sm:max-w-[560px]">
+        <DialogHeader>
+          <DialogTitle>
+            {{
+              manualDialog.agentId
+                ? t('settings.acp.profileDialog.editCustomTitle')
+                : t('settings.acp.profileDialog.addCustomTitle')
+            }}
+          </DialogTitle>
+          <DialogDescription>
+            {{ t('settings.acp.profileDialog.customHint') }}
+          </DialogDescription>
+        </DialogHeader>
 
-    <AcpProfileDialog
-      :open="profileDialogState.open"
-      :title="profileDialogState.title"
-      :description="profileDialogState.description"
-      :kind="profileDialogState.kind"
-      :profile="profileDialogState.profile"
-      :saving="savingProfile"
-      :confirm-label="profileDialogState.confirmLabel"
-      @update:open="(value) => (profileDialogState.open = value)"
-      @save="handleProfileSave"
-    />
+        <div class="space-y-4">
+          <div class="space-y-2">
+            <Label>{{ t('settings.acp.profileDialog.agentName') }}</Label>
+            <Input
+              v-model="manualDialog.name"
+              :placeholder="t('settings.acp.profileDialog.agentNamePlaceholder')"
+            />
+          </div>
+          <div class="space-y-2">
+            <Label>{{ t('settings.acp.command') }}</Label>
+            <Input
+              v-model="manualDialog.command"
+              :placeholder="t('settings.acp.commandPlaceholder')"
+            />
+          </div>
+          <div class="space-y-2">
+            <Label>{{ t('settings.acp.args') }}</Label>
+            <Textarea
+              v-model="manualDialogArgsText"
+              class="min-h-[96px] font-mono text-xs"
+              :placeholder="t('settings.mcp.serverForm.argsPlaceholder')"
+            />
+          </div>
+          <div class="space-y-2">
+            <Label>{{ t('settings.acp.env') }}</Label>
+            <Textarea
+              v-model="manualDialog.env"
+              class="min-h-[120px] font-mono text-xs"
+              :placeholder="t('settings.acp.envOverridePlaceholder')"
+            />
+          </div>
+          <div class="flex items-center justify-between rounded-md border px-3 py-2">
+            <div class="text-sm text-muted-foreground">{{ t('common.enabled') }}</div>
+            <Switch v-model="manualDialog.enabled" />
+          </div>
+        </div>
 
-    <AcpTerminalDialog
-      :open="terminalDialogOpen"
-      @update:open="(value) => (terminalDialogOpen = value)"
-      @dependencies-required="handleDependenciesRequired"
-    />
+        <DialogFooter>
+          <Button variant="ghost" @click="manualDialog.open = false">
+            {{ t('common.cancel') }}
+          </Button>
+          <Button :disabled="manualSaving" @click="saveManualAgent">
+            {{ manualSaving ? t('common.saving') : t('common.save') }}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
 
-    <AcpDependencyDialog
-      :open="dependencyDialogOpen"
-      :dependencies="missingDependencies"
-      @update:open="(value) => (dependencyDialogOpen = value)"
-    />
+    <Dialog :open="registryDialog.open" @update:open="(value) => (registryDialog.open = value)">
+      <DialogContent hide-close class="sm:max-w-[760px] p-0 overflow-hidden">
+        <div class="flex flex-col max-h-[80vh]">
+          <DialogHeader class="px-5 pt-5 pb-4 border-b space-y-4 text-left">
+            <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+              <div class="space-y-1">
+                <DialogTitle>{{ t('settings.acp.registryInstallTitle') }}</DialogTitle>
+                <DialogDescription>
+                  {{ t('settings.acp.registryInstallDescription') }}
+                </DialogDescription>
+              </div>
+              <div class="flex items-center gap-2 self-end lg:self-start">
+                <Button as-child size="sm" variant="outline" class="hidden sm:inline-flex">
+                  <a
+                    href="https://agentclientprotocol.com/get-started/registry"
+                    target="_blank"
+                    rel="noreferrer noopener"
+                  >
+                    {{ t('settings.acp.registryLearnMore') }}
+                    <Icon icon="lucide:external-link" class="h-4 w-4 ml-2" />
+                  </a>
+                </Button>
+                <Button size="sm" variant="outline" :disabled="refreshing" @click="refreshRegistry">
+                  <Icon
+                    :icon="refreshing ? 'lucide:loader' : 'lucide:refresh-cw'"
+                    class="h-4 w-4 mr-2"
+                    :class="refreshing ? 'animate-spin' : ''"
+                  />
+                  {{ t('settings.acp.registryRefresh') }}
+                </Button>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  class="h-9 w-9"
+                  :aria-label="t('settings.acp.debug.close')"
+                  @click="registryDialog.open = false"
+                >
+                  <Icon icon="lucide:x" class="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            <div class="space-y-3">
+              <div class="relative">
+                <Icon
+                  icon="lucide:search"
+                  class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground"
+                />
+                <Input
+                  v-model="registryDialog.search"
+                  class="pl-10"
+                  :placeholder="t('settings.acp.registrySearchPlaceholder')"
+                />
+              </div>
+
+              <div class="flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  :variant="registryDialog.filter === 'all' ? 'default' : 'outline'"
+                  @click="registryDialog.filter = 'all'"
+                >
+                  {{ t('settings.acp.installFilters.all') }}
+                </Button>
+                <Button
+                  size="sm"
+                  :variant="registryDialog.filter === 'installed' ? 'default' : 'outline'"
+                  @click="registryDialog.filter = 'installed'"
+                >
+                  {{ t('settings.acp.installFilters.installed') }}
+                </Button>
+                <Button
+                  size="sm"
+                  :variant="registryDialog.filter === 'not_installed' ? 'default' : 'outline'"
+                  @click="registryDialog.filter = 'not_installed'"
+                >
+                  {{ t('settings.acp.installFilters.notInstalled') }}
+                </Button>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div class="flex-1 overflow-y-auto px-5 py-4">
+            <div
+              v-if="loading && !registryAgents.length"
+              class="text-sm text-muted-foreground text-center py-12"
+            >
+              {{ t('settings.acp.loading') }}
+            </div>
+
+            <div
+              v-else-if="!filteredRegistryCatalogAgents.length"
+              class="text-sm text-muted-foreground text-center py-12"
+            >
+              {{ t('settings.acp.registryOverlayEmpty') }}
+            </div>
+
+            <div v-else class="space-y-3">
+              <div
+                v-for="agent in filteredRegistryCatalogAgents"
+                :key="agent.id"
+                class="rounded-xl border px-4 py-4 bg-card flex items-start gap-4"
+              >
+                <AcpAgentIcon
+                  :agent-id="agent.id"
+                  :icon="agent.icon"
+                  :alt="agent.name"
+                  :fallback-text="agent.name"
+                  custom-class="h-12 w-12 rounded-xl"
+                />
+
+                <div class="min-w-0 flex-1 space-y-3">
+                  <div class="flex items-start justify-between gap-4">
+                    <div class="min-w-0 space-y-1">
+                      <div class="flex items-center gap-2 min-w-0">
+                        <div class="text-lg font-semibold truncate">{{ agent.name }}</div>
+                        <span class="text-sm text-muted-foreground shrink-0">
+                          v{{ agent.version }}
+                        </span>
+                      </div>
+                      <p class="text-sm text-muted-foreground line-clamp-2">
+                        {{
+                          agent.description || t('settings.acp.builtinHint', { name: agent.name })
+                        }}
+                      </p>
+                    </div>
+
+                    <Button
+                      size="sm"
+                      :variant="registryActionVariant(agent)"
+                      :disabled="isRegistryActionDisabled(agent)"
+                      @click="handleRegistryCatalogAction(agent)"
+                    >
+                      <Icon
+                        :icon="registryActionIcon(agent)"
+                        class="h-4 w-4 mr-2"
+                        :class="registryActionSpins(agent) ? 'animate-spin' : ''"
+                      />
+                      {{ registryActionLabel(agent) }}
+                    </Button>
+                  </div>
+
+                  <div class="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                    <span>{{ t('settings.model.form.id.label') }}: {{ agent.id }}</span>
+                    <Badge :class="installBadgeClass(agent)" variant="outline">
+                      {{ installBadgeLabel(agent) }}
+                    </Badge>
+                    <a
+                      v-if="agent.repository"
+                      :href="agent.repository"
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      class="inline-flex items-center gap-1 hover:text-foreground transition-colors"
+                    >
+                      {{ t('settings.acp.registryRepository') }}
+                      <Icon icon="lucide:external-link" class="h-3.5 w-3.5" />
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
 
     <AcpDebugDialog
-      :open="debugDialogState.open"
-      :agent-id="debugDialogState.agentId"
-      :agent-name="debugDialogState.agentName"
-      @update:open="(value) => (debugDialogState.open = value)"
+      :open="debugDialog.open"
+      :agent-id="debugDialog.agentId"
+      :agent-name="debugDialog.agentName"
+      @update:open="(value) => (debugDialog.open = value)"
     />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
-import type {
-  AcpAgentProfile,
-  AcpBuiltinAgent,
-  AcpBuiltinAgentId,
-  AcpCustomAgent,
-  MCPServerConfig
-} from '@shared/presenter'
+import { computed, onMounted, reactive, ref } from 'vue'
+import type { AcpManualAgent, AcpRegistryAgent } from '@shared/presenter'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/components/use-toast'
 import { usePresenter } from '@/composables/usePresenter'
+import { Icon } from '@iconify/vue'
 import {
   Card,
   CardContent,
@@ -347,224 +556,226 @@ import { Badge } from '@shadcn/components/ui/badge'
 import { Button } from '@shadcn/components/ui/button'
 import { Switch } from '@shadcn/components/ui/switch'
 import { Separator } from '@shadcn/components/ui/separator'
+import { Input } from '@shadcn/components/ui/input'
+import { Textarea } from '@shadcn/components/ui/textarea'
+import { Label } from '@shadcn/components/ui/label'
+import { Collapsible, CollapsibleContent } from '@shadcn/components/ui/collapsible'
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger
-} from '@shadcn/components/ui/tooltip'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from '@shadcn/components/ui/select'
-import AcpProfileDialog from './AcpProfileDialog.vue'
-import AcpProfileManagerDialog from './AcpProfileManagerDialog.vue'
-import AcpTerminalDialog from './AcpTerminalDialog.vue'
-import AcpDependencyDialog from './AcpDependencyDialog.vue'
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '@shadcn/components/ui/dialog'
 import AcpDebugDialog from './AcpDebugDialog.vue'
 import AgentMcpSelector from '@/components/mcp-config/AgentMcpSelector.vue'
+import AcpAgentIcon from '@/components/icons/AcpAgentIcon.vue'
 
 const { t } = useI18n()
 const { toast } = useToast()
-
 const configPresenter = usePresenter('configPresenter')
-const llmProviderPresenter = usePresenter('llmproviderPresenter')
+
+type RegistryDialogFilter = 'all' | 'installed' | 'not_installed'
 
 const acpEnabled = ref(false)
 const toggling = ref(false)
-const useBuiltinRuntime = ref(false)
-const togglingUseBuiltinRuntime = ref(false)
 const loading = ref(false)
-const builtins = ref<AcpBuiltinAgent[]>([])
-const customAgents = ref<AcpCustomAgent[]>([])
-const savingProfile = ref(false)
-const mcpServers = ref<Record<string, MCPServerConfig>>({})
+const refreshing = ref(false)
+const manualSaving = ref(false)
+const manualSectionOpen = ref(false)
+const sharedMcpOpen = ref(false)
+const sharedMcpCount = ref(0)
 
-const builtinPending = reactive<Record<string, boolean>>({})
-const customPending = reactive<Record<string, boolean>>({})
-const initializing = reactive<Record<string, boolean>>({})
-const terminalDialogOpen = ref(false)
-const dependencyDialogOpen = ref(false)
-const missingDependencies = ref<
-  Array<{
-    name: string
-    description: string
-    platform?: string[]
-    checkCommand?: string
-    checkPaths?: string[]
-    installCommands?: {
-      winget?: string
-      chocolatey?: string
-      scoop?: string
-    }
-    downloadUrl?: string
-    requiredFor?: string[]
-  }>
->([])
-const debugDialogState = reactive({
+const registryAgents = ref<AcpRegistryAgent[]>([])
+const manualAgents = ref<AcpManualAgent[]>([])
+const envDrafts = reactive<Record<string, string>>({})
+const agentPending = reactive<Record<string, boolean>>({})
+
+const debugDialog = reactive({
   open: false,
   agentId: '',
   agentName: ''
 })
 
-const profileDialogState = reactive({
+const manualDialog = reactive({
   open: false,
-  mode: 'builtin-add' as ProfileDialogMode,
-  kind: 'builtin' as ProfileKind,
-  title: '',
-  description: '',
-  confirmLabel: '',
-  builtinId: null as AcpBuiltinAgentId | null,
-  customId: null as string | null,
-  profileId: null as string | null,
-  profile: null as ProfilePayload | null
+  agentId: '',
+  name: '',
+  command: '',
+  args: [] as string[],
+  env: '',
+  enabled: true
 })
 
-const profileManagerState = reactive({
+const registryDialog = reactive({
   open: false,
-  agentId: null as AcpBuiltinAgentId | null
+  search: '',
+  filter: 'all' as RegistryDialogFilter
 })
 
-const profileManagerAgent = computed(() =>
-  profileManagerState.agentId
-    ? (builtins.value.find((agent) => agent.id === profileManagerState.agentId) ?? null)
-    : null
+const parseEnvBlock = (value: string): Record<string, string> => {
+  return Object.fromEntries(
+    value
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        const separatorIndex = line.indexOf('=')
+        if (separatorIndex === -1) {
+          return [line, '']
+        }
+        return [line.slice(0, separatorIndex).trim(), line.slice(separatorIndex + 1)]
+      })
+      .filter(([key]) => key.length > 0)
+  )
+}
+
+const stringifyEnvBlock = (env?: Record<string, string>) =>
+  Object.entries(env ?? {})
+    .map(([key, value]) => `${key}=${value}`)
+    .join('\n')
+
+const formatArgs = (args?: string[]) => (args?.length ? args.join(' ') : t('settings.acp.none'))
+
+const manualDialogArgsText = computed({
+  get: () => manualDialog.args.join('\n'),
+  set: (value: string) => {
+    manualDialog.args = value
+      .split(/\r?\n/)
+      .map((item) => item.trim())
+      .filter(Boolean)
+  }
+})
+
+const buildPreviewCommand = (agent: AcpRegistryAgent) => {
+  if (agent.distribution.binary) {
+    const firstBinary = Object.values(agent.distribution.binary)[0]
+    if (firstBinary) {
+      return firstBinary.args?.length
+        ? `${firstBinary.cmd} ${formatArgs(firstBinary.args)}`
+        : firstBinary.cmd
+    }
+  }
+
+  if (agent.distribution.npx) {
+    return agent.distribution.npx.args?.length
+      ? `npx -y ${agent.distribution.npx.package} ${formatArgs(agent.distribution.npx.args)}`
+      : `npx -y ${agent.distribution.npx.package}`
+  }
+
+  if (agent.distribution.uvx) {
+    return agent.distribution.uvx.args?.length
+      ? `uvx ${agent.distribution.uvx.package} ${formatArgs(agent.distribution.uvx.args)}`
+      : `uvx ${agent.distribution.uvx.package}`
+  }
+
+  return t('settings.acp.none')
+}
+
+const installBadgeLabel = (agent: AcpRegistryAgent) => {
+  const status = agent.installState?.status ?? 'not_installed'
+  if (status === 'installed') return t('settings.acp.installState.installed')
+  if (status === 'installing') return t('settings.acp.installState.installing')
+  if (status === 'error') return t('settings.acp.installState.error')
+  return t('settings.acp.installState.notInstalled')
+}
+
+const installBadgeClass = (agent: AcpRegistryAgent) => {
+  const status = agent.installState?.status ?? 'not_installed'
+  if (status === 'installed') return 'border-emerald-500/40 text-emerald-600'
+  if (status === 'installing') return 'border-amber-500/40 text-amber-600'
+  if (status === 'error') return 'border-destructive/40 text-destructive'
+  return ''
+}
+
+const installedRegistryAgents = computed(() =>
+  registryAgents.value.filter((agent) => agent.installState?.status === 'installed')
 )
 
-const activeProfileMap = computed<Record<string, AcpAgentProfile | null>>(() => {
-  const map: Record<string, AcpAgentProfile | null> = {}
-  builtins.value.forEach((agent) => {
-    const profile =
-      agent.profiles.find((item) => item.id === agent.activeProfileId) ?? agent.profiles[0] ?? null
-    map[agent.id] = profile
+const showSharedMcpSection = computed(
+  () => installedRegistryAgents.value.length > 0 || manualAgents.value.length > 0
+)
+
+const filteredRegistryCatalogAgents = computed(() => {
+  const keyword = registryDialog.search.trim().toLowerCase()
+
+  return registryAgents.value.filter((agent) => {
+    const matchKeyword =
+      !keyword ||
+      agent.name.toLowerCase().includes(keyword) ||
+      agent.id.toLowerCase().includes(keyword) ||
+      (agent.description ?? '').toLowerCase().includes(keyword)
+
+    if (!matchKeyword) {
+      return false
+    }
+
+    if (registryDialog.filter === 'installed') {
+      return agent.installState?.status === 'installed'
+    }
+
+    if (registryDialog.filter === 'not_installed') {
+      return agent.installState?.status !== 'installed'
+    }
+
+    return true
   })
-  return map
 })
 
-const isBuiltinPending = (id: string) => Boolean(builtinPending[id])
-const isCustomPending = (id: string) => Boolean(customPending[id])
-
-const setBuiltinPending = (id: string, state: boolean) => {
-  if (state) builtinPending[id] = true
-  else delete builtinPending[id]
-}
-
-const setCustomPending = (id: string, state: boolean) => {
-  if (state) customPending[id] = true
-  else delete customPending[id]
-}
-
-type ProfileKind = 'builtin' | 'custom'
-type ProfileDialogMode = 'builtin-add' | 'builtin-edit' | 'custom-add' | 'custom-edit'
-type ProfilePayload = Omit<AcpAgentProfile, 'id'>
-
-const getActiveProfile = (agent: AcpBuiltinAgent) => activeProfileMap.value[agent.id]
-
-const formatArgs = (args?: string[] | null) => {
-  if (!args || !args.length) {
-    return t('settings.acp.none')
+const setAgentPending = (agentId: string, pending: boolean) => {
+  if (pending) {
+    agentPending[agentId] = true
+  } else {
+    delete agentPending[agentId]
   }
-  const filtered = args
-    .map((arg) => arg?.trim())
-    .filter((arg): arg is string => Boolean(arg && arg.length))
-  if (!filtered.length) {
-    return t('settings.acp.none')
-  }
-  return filtered.join(' ')
 }
 
-const handleError = (error: unknown, descriptionKey?: string) => {
+const handleError = (error: unknown, description?: string) => {
   console.error('[ACP] settings error:', error)
   toast({
     title: t('settings.acp.saveFailed'),
-    description: descriptionKey
-      ? t(descriptionKey)
-      : error instanceof Error
-        ? error.message
-        : String(error),
+    description:
+      description ?? (error instanceof Error ? error.message : t('common.error.requestFailed')),
     variant: 'destructive'
   })
 }
 
-const loadAcpEnabled = async () => {
-  try {
-    acpEnabled.value = await configPresenter.getAcpEnabled()
-  } catch (error) {
-    handleError(error)
-  }
+const syncEnvDrafts = (agents: AcpRegistryAgent[]) => {
+  agents.forEach((agent) => {
+    envDrafts[agent.id] = stringifyEnvBlock(agent.envOverride)
+  })
 }
 
-const loadAcpUseBuiltinRuntime = async () => {
-  try {
-    useBuiltinRuntime.value = await configPresenter.getAcpUseBuiltinRuntime()
-  } catch (error) {
-    handleError(error)
-  }
-}
-
-const handleUseBuiltinRuntimeToggle = async (enabled: boolean) => {
-  if (togglingUseBuiltinRuntime.value) return
-  togglingUseBuiltinRuntime.value = true
-  try {
-    await configPresenter.setAcpUseBuiltinRuntime(enabled)
-    useBuiltinRuntime.value = enabled
-  } catch (error) {
-    handleError(error)
-    useBuiltinRuntime.value = !enabled
-  } finally {
-    togglingUseBuiltinRuntime.value = false
-  }
+const loadSharedMcpCount = async () => {
+  sharedMcpCount.value = (await configPresenter.getAcpSharedMcpSelections()).length
 }
 
 const loadAcpData = async () => {
-  if (!acpEnabled.value) {
-    builtins.value = []
-    customAgents.value = []
-    return
-  }
   loading.value = true
   try {
-    const [builtinList, customList] = await Promise.all([
-      configPresenter.getAcpBuiltinAgents(),
-      configPresenter.getAcpCustomAgents()
+    acpEnabled.value = await configPresenter.getAcpEnabled()
+    if (!acpEnabled.value) {
+      registryAgents.value = []
+      manualAgents.value = []
+      sharedMcpCount.value = 0
+      return
+    }
+
+    const [registryList, manualList] = await Promise.all([
+      configPresenter.listAcpRegistryAgents(),
+      configPresenter.listManualAcpAgents()
     ])
-    builtins.value = builtinList
-    customAgents.value = customList
+
+    registryAgents.value = registryList
+    manualAgents.value = manualList
+    syncEnvDrafts(registryList)
+    await loadSharedMcpCount()
   } catch (error) {
     handleError(error)
   } finally {
     loading.value = false
   }
-}
-
-const loadMcpServers = async () => {
-  try {
-    mcpServers.value = (await configPresenter.getMcpServers()) ?? {}
-  } catch (error) {
-    console.warn('[ACP] Failed to load MCP servers for selection UI:', error)
-    mcpServers.value = {}
-  }
-}
-
-const getMcpSelectionCount = (agent: { mcpSelections?: string[] }) =>
-  agent.mcpSelections?.length ?? 0
-
-const getMcpSelectionTooltip = (agent: { mcpSelections?: string[] }) => {
-  const selections = agent.mcpSelections ?? []
-  const labels = selections.map((name) => {
-    const config = mcpServers.value[name]
-    if (!config) return name
-    return `${config.icons} ${name}`
-  })
-  return labels.join(', ')
-}
-
-const refreshAfterMutation = async () => {
-  await llmProviderPresenter.refreshModels('acp')
-  await loadAcpData()
 }
 
 const handleToggle = async (enabled: boolean) => {
@@ -574,293 +785,215 @@ const handleToggle = async (enabled: boolean) => {
     await configPresenter.setAcpEnabled(enabled)
     acpEnabled.value = enabled
     if (enabled) {
-      await refreshAfterMutation()
-    } else {
-      builtins.value = []
-      customAgents.value = []
-      await llmProviderPresenter.refreshModels('acp')
+      await loadAcpData()
     }
   } catch (error) {
     handleError(error)
-    acpEnabled.value = !enabled
   } finally {
     toggling.value = false
   }
 }
 
-const handleBuiltinToggle = async (agent: AcpBuiltinAgent, enabled: boolean) => {
-  setBuiltinPending(agent.id, true)
+const refreshRegistry = async () => {
+  refreshing.value = true
   try {
-    await configPresenter.setAcpBuiltinEnabled(agent.id, enabled)
-    await refreshAfterMutation()
+    registryAgents.value = await configPresenter.refreshAcpRegistry(true)
+    syncEnvDrafts(registryAgents.value)
   } catch (error) {
     handleError(error)
   } finally {
-    setBuiltinPending(agent.id, false)
+    refreshing.value = false
   }
 }
 
-const handleActiveProfileChange = async (agent: AcpBuiltinAgent, profileId: string) => {
-  setBuiltinPending(agent.id, true)
+const handleSharedMcpUpdated = (selections: string[]) => {
+  sharedMcpCount.value = selections.length
+}
+
+const toggleRegistryAgent = async (agent: AcpRegistryAgent, enabled: boolean) => {
+  setAgentPending(agent.id, true)
   try {
-    await configPresenter.setAcpBuiltinActiveProfile(agent.id, profileId)
-    await refreshAfterMutation()
-    toast({ title: t('settings.acp.profileSwitched') })
+    await configPresenter.setAcpAgentEnabled(agent.id, enabled)
+    await loadAcpData()
   } catch (error) {
     handleError(error)
   } finally {
-    setBuiltinPending(agent.id, false)
+    setAgentPending(agent.id, false)
   }
 }
 
-const ensureProfilePayload = (input?: Partial<ProfilePayload> | null): ProfilePayload => ({
-  name: input?.name ?? '',
-  command: input?.command ?? '',
-  args: input?.args && input.args.length ? [...input.args] : undefined,
-  env: input?.env ? { ...input.env } : undefined
-})
-
-const openBuiltinProfileDialog = (agent: AcpBuiltinAgent, profile?: AcpAgentProfile) => {
-  profileDialogState.mode = profile ? 'builtin-edit' : 'builtin-add'
-  profileDialogState.kind = 'builtin'
-  profileDialogState.title = profile
-    ? t('settings.acp.profileDialog.editBuiltinTitle', { name: agent.name })
-    : t('settings.acp.profileDialog.addBuiltinTitle', { name: agent.name })
-  profileDialogState.description = t('settings.acp.profileDialog.builtinHint')
-  profileDialogState.confirmLabel = t('common.save')
-  profileDialogState.builtinId = agent.id
-  profileDialogState.customId = null
-  profileDialogState.profileId = profile?.id ?? null
-  profileDialogState.profile = ensureProfilePayload(profile ?? getActiveProfile(agent) ?? null)
-  profileDialogState.open = true
-}
-
-const openCustomAgentDialog = (agent?: AcpCustomAgent) => {
-  profileDialogState.mode = agent ? 'custom-edit' : 'custom-add'
-  profileDialogState.kind = 'custom'
-  profileDialogState.title = agent
-    ? t('settings.acp.profileDialog.editCustomTitle')
-    : t('settings.acp.profileDialog.addCustomTitle')
-  profileDialogState.description = t('settings.acp.profileDialog.customHint')
-  profileDialogState.confirmLabel = t('common.save')
-  profileDialogState.builtinId = null
-  profileDialogState.customId = agent?.id ?? null
-  profileDialogState.profileId = null
-  profileDialogState.profile = ensureProfilePayload(agent ?? null)
-  profileDialogState.open = true
-}
-
-const openDebugDialog = (agent: { id: string; name: string }) => {
-  debugDialogState.agentId = agent.id
-  debugDialogState.agentName = agent.name
-  debugDialogState.open = true
-}
-
-const handleProfileSave = async (payload: ProfilePayload) => {
-  if (!profileDialogState.open) return
-  savingProfile.value = true
+const saveEnvOverride = async (agent: AcpRegistryAgent) => {
+  setAgentPending(agent.id, true)
   try {
-    switch (profileDialogState.mode) {
-      case 'builtin-add':
-        await configPresenter.addAcpBuiltinProfile(profileDialogState.builtinId!, payload, {
-          activate: true
-        })
-        break
-      case 'builtin-edit':
-        await configPresenter.updateAcpBuiltinProfile(
-          profileDialogState.builtinId!,
-          profileDialogState.profileId!,
-          payload
-        )
-        break
-      case 'custom-add':
-        await configPresenter.addCustomAcpAgent({
-          id: profileDialogState.customId ?? undefined,
-          name: payload.name,
-          command: payload.command,
-          args: payload.args,
-          env: payload.env
-        })
-        break
-      case 'custom-edit':
-        await configPresenter.updateCustomAcpAgent(profileDialogState.customId!, payload)
-        break
-    }
-    await refreshAfterMutation()
-    profileDialogState.open = false
+    await configPresenter.setAcpAgentEnvOverride(agent.id, parseEnvBlock(envDrafts[agent.id] ?? ''))
+    await loadAcpData()
     toast({ title: t('settings.acp.saveSuccess') })
   } catch (error) {
     handleError(error)
   } finally {
-    savingProfile.value = false
+    setAgentPending(agent.id, false)
   }
 }
 
-const openProfileManager = (agent: AcpBuiltinAgent) => {
-  profileManagerState.agentId = agent.id
-  profileManagerState.open = true
+const clearEnvOverride = async (agent: AcpRegistryAgent) => {
+  envDrafts[agent.id] = ''
+  await saveEnvOverride(agent)
 }
 
-const handleManagerAdd = (agentId: AcpBuiltinAgentId) => {
-  const agent = builtins.value.find((item) => item.id === agentId)
-  if (agent) {
-    openBuiltinProfileDialog(agent)
-  }
-}
-
-const handleManagerEdit = ({
-  agentId,
-  profile
-}: {
-  agentId: AcpBuiltinAgentId
-  profile: AcpAgentProfile
-}) => {
-  const agent = builtins.value.find((item) => item.id === agentId)
-  if (agent) {
-    openBuiltinProfileDialog(agent, profile)
-  }
-}
-
-const handleManagerDelete = async ({
-  agentId,
-  profile
-}: {
-  agentId: AcpBuiltinAgentId
-  profile: AcpAgentProfile
-}) => {
-  const confirmed = window.confirm(
-    t('settings.acp.profileManager.deleteConfirm', { name: profile.name })
-  )
-  if (!confirmed) return
-
+const installRegistryAgent = async (agent: AcpRegistryAgent) => {
+  setAgentPending(agent.id, true)
   try {
-    const removed = await configPresenter.removeAcpBuiltinProfile(agentId, profile.id)
-    if (!removed) {
-      toast({
-        title: t('settings.acp.profileManager.cannotDeleteTitle'),
-        description: t('settings.acp.profileManager.cannotDeleteDesc'),
-        variant: 'destructive'
-      })
+    if (agent.installState?.status === 'error') {
+      await configPresenter.repairAcpAgent(agent.id)
+    } else {
+      await configPresenter.ensureAcpAgentInstalled(agent.id)
+    }
+    await loadAcpData()
+  } catch (error) {
+    handleError(error)
+  } finally {
+    setAgentPending(agent.id, false)
+  }
+}
+
+const repairRegistryAgent = async (agent: AcpRegistryAgent) => {
+  setAgentPending(agent.id, true)
+  try {
+    await configPresenter.repairAcpAgent(agent.id)
+    await loadAcpData()
+  } catch (error) {
+    handleError(error)
+  } finally {
+    setAgentPending(agent.id, false)
+  }
+}
+
+const openInspector = (agentId: string, agentName: string) => {
+  debugDialog.agentId = agentId
+  debugDialog.agentName = agentName
+  debugDialog.open = true
+}
+
+const openManualDialog = (agent?: AcpManualAgent) => {
+  manualDialog.agentId = agent?.id ?? ''
+  manualDialog.name = agent?.name ?? ''
+  manualDialog.command = agent?.command ?? ''
+  manualDialog.args = [...(agent?.args ?? [])]
+  manualDialog.env = stringifyEnvBlock(agent?.env)
+  manualDialog.enabled = agent?.enabled ?? true
+  manualDialog.open = true
+}
+
+const saveManualAgent = async () => {
+  if (!manualDialog.name.trim() || !manualDialog.command.trim()) {
+    toast({
+      title: t('settings.acp.missingFieldsTitle'),
+      description: t('settings.acp.missingFieldsDesc'),
+      variant: 'destructive'
+    })
+    return
+  }
+
+  manualSaving.value = true
+  try {
+    const payload = {
+      name: manualDialog.name.trim(),
+      command: manualDialog.command.trim(),
+      args: manualDialog.args.length ? [...manualDialog.args] : undefined,
+      env: parseEnvBlock(manualDialog.env),
+      enabled: manualDialog.enabled
+    }
+
+    if (manualDialog.agentId) {
+      await configPresenter.updateManualAcpAgent(manualDialog.agentId, payload)
+    } else {
+      await configPresenter.addManualAcpAgent(payload)
+    }
+
+    manualDialog.open = false
+    await loadAcpData()
+    toast({ title: t('settings.acp.saveSuccess') })
+  } catch (error) {
+    handleError(error)
+  } finally {
+    manualSaving.value = false
+  }
+}
+
+const toggleManualAgent = async (agent: AcpManualAgent, enabled: boolean) => {
+  setAgentPending(agent.id, true)
+  try {
+    await configPresenter.updateManualAcpAgent(agent.id, { enabled })
+    await loadAcpData()
+  } catch (error) {
+    handleError(error)
+  } finally {
+    setAgentPending(agent.id, false)
+  }
+}
+
+const deleteManualAgent = async (agent: AcpManualAgent) => {
+  try {
+    await configPresenter.removeManualAcpAgent(agent.id)
+    await loadAcpData()
+  } catch (error) {
+    handleError(error)
+  }
+}
+
+const confirmAndDeleteManualAgent = async (agent: AcpManualAgent) => {
+  if (typeof window !== 'undefined' && typeof window.confirm === 'function') {
+    const confirmed = window.confirm(t('settings.acp.customDeleteConfirm', { name: agent.name }))
+    if (!confirmed) {
       return
     }
-    await refreshAfterMutation()
-    toast({ title: t('settings.acp.deleteSuccess') })
-  } catch (error) {
-    handleError(error)
   }
+
+  await deleteManualAgent(agent)
 }
 
-const handleManagerActivate = async ({
-  agentId,
-  profileId
-}: {
-  agentId: AcpBuiltinAgentId
-  profileId: string
-}) => {
-  const agent = builtins.value.find((item) => item.id === agentId)
-  if (!agent) return
-  await handleActiveProfileChange(agent, profileId)
+const openRegistryDialog = () => {
+  registryDialog.open = true
 }
 
-const handleCustomToggle = async (agent: AcpCustomAgent, enabled: boolean) => {
-  setCustomPending(agent.id, true)
-  try {
-    await configPresenter.setCustomAcpAgentEnabled(agent.id, enabled)
-    await refreshAfterMutation()
-  } catch (error) {
-    handleError(error)
-  } finally {
-    setCustomPending(agent.id, false)
+const registryActionLabel = (agent: AcpRegistryAgent) => {
+  const status = agent.installState?.status ?? 'not_installed'
+  if (status === 'installed') return t('settings.acp.installState.installed')
+  if (status === 'installing') return t('settings.acp.installState.installing')
+  if (status === 'error') return t('settings.acp.registryRepair')
+  return t('settings.acp.registryInstallAction')
+}
+
+const registryActionVariant = (agent: AcpRegistryAgent) => {
+  const status = agent.installState?.status ?? 'not_installed'
+  return status === 'installed' ? 'outline' : 'default'
+}
+
+const registryActionIcon = (agent: AcpRegistryAgent) => {
+  const status = agent.installState?.status ?? 'not_installed'
+  if (status === 'installed') return 'lucide:check'
+  if (status === 'installing') return 'lucide:loader'
+  if (status === 'error') return 'lucide:wrench'
+  return 'lucide:download'
+}
+
+const registryActionSpins = (agent: AcpRegistryAgent) => {
+  return agent.installState?.status === 'installing'
+}
+
+const isRegistryActionDisabled = (agent: AcpRegistryAgent) => {
+  const status = agent.installState?.status ?? 'not_installed'
+  return Boolean(agentPending[agent.id]) || status === 'installing' || status === 'installed'
+}
+
+const handleRegistryCatalogAction = async (agent: AcpRegistryAgent) => {
+  if (isRegistryActionDisabled(agent)) {
+    return
   }
+  await installRegistryAgent(agent)
 }
 
-const deleteCustomAgent = async (agent: AcpCustomAgent) => {
-  const confirmed = window.confirm(t('settings.acp.customDeleteConfirm', { name: agent.name }))
-  if (!confirmed) return
-  try {
-    await configPresenter.removeCustomAcpAgent(agent.id)
-    await refreshAfterMutation()
-    toast({ title: t('settings.acp.deleteSuccess') })
-  } catch (error) {
-    handleError(error)
-  }
-}
-
-const isInitializing = (agentId: string, isBuiltin: boolean): boolean => {
-  const key = `${isBuiltin ? 'builtin' : 'custom'}-${agentId}`
-  return Boolean(initializing[key])
-}
-
-const setInitializing = (agentId: string, isBuiltin: boolean, state: boolean) => {
-  const key = `${isBuiltin ? 'builtin' : 'custom'}-${agentId}`
-  if (state) {
-    initializing[key] = true
-  } else {
-    delete initializing[key]
-  }
-}
-
-const handleDependenciesRequired = (dependencies: typeof missingDependencies.value) => {
-  console.log('[AcpSettings] Dependencies required:', dependencies)
-  missingDependencies.value = dependencies
-  dependencyDialogOpen.value = true
-  terminalDialogOpen.value = false
-}
-
-const handleInitializeAgent = async (agentId: string, isBuiltin: boolean) => {
-  if (isInitializing(agentId, isBuiltin)) return
-
-  setInitializing(agentId, isBuiltin, true)
-  try {
-    // Open terminal dialog first
-    console.log('[AcpSettings] Opening terminal dialog for agent initialization')
-    terminalDialogOpen.value = true
-
-    // Wait for dialog to open, terminal to initialize, and IPC listeners to be set up
-    // The terminal initialization takes ~150ms + fitting attempts
-    // The main process delays start event by 500ms to ensure listeners are ready
-    // So we wait a bit longer to ensure everything is ready
-    await new Promise((resolve) => setTimeout(resolve, 600))
-
-    console.log('[AcpSettings] Starting agent initialization')
-    // Start initialization (output will be streamed to terminal)
-    await configPresenter.initializeAcpAgent(agentId, isBuiltin)
-
-    // Note: Success/error will be shown in terminal, not via toast
-  } catch (error) {
-    console.error('[AcpSettings] Agent initialization failed:', error)
-    handleError(error, 'settings.acp.initializeFailed')
-    terminalDialogOpen.value = false
-  } finally {
-    setInitializing(agentId, isBuiltin, false)
-  }
-}
-
-watch(
-  () => profileDialogState.open,
-  (open) => {
-    if (!open) {
-      profileDialogState.builtinId = null
-      profileDialogState.customId = null
-      profileDialogState.profileId = null
-      profileDialogState.profile = null
-    }
-  }
-)
-
-watch(
-  () => profileManagerState.open,
-  (open) => {
-    if (!open) {
-      profileManagerState.agentId = null
-    }
-  }
-)
-
-onMounted(async () => {
-  await loadAcpEnabled()
-  await loadAcpUseBuiltinRuntime()
-  await loadAcpData()
-  await loadMcpServers()
+onMounted(() => {
+  void loadAcpData()
 })
 </script>

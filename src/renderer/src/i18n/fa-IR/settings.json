@@ -1216,11 +1216,53 @@
       "send": "ارسال درخواست",
       "sending": "ارسال...",
       "title": "اشکال زدایی ACP",
-      "workdirPlaceholder": "برای استفاده از دایرکتوری کاری پیش فرض، خالی بگذارید"
+      "workdirPlaceholder": "برای استفاده از دایرکتوری کاری پیش فرض، خالی بگذارید",
+      "healthCheck": "بررسی سلامت",
+      "healthChecking": "در حال بررسی...",
+      "healthCheckFailed": "بررسی سلامت ناموفق بود"
     },
     "mcpAccessBadge": "MCP {count}",
     "mcpAccessEmpty": "در حال حاضر هیچ MCP اختیاری وجود ندارد.",
-    "mcpAccessTitle": "MCPهای موجود"
+    "mcpAccessTitle": "MCPهای موجود",
+    "registryCount": "{count} عامل",
+    "registryEmpty": "هیچ عامل Registryای با فیلترهای فعلی در دسترس نیست.",
+    "registryRefresh": "نوسازی Registry",
+    "registryRepair": "تعمیر",
+    "registrySearchPlaceholder": "جست‌وجوی عامل ACP Registry...",
+    "filters": {
+      "all": "همه وضعیت‌ها",
+      "enabled": "فقط فعال‌ها",
+      "installed": "فقط نصب‌شده‌ها",
+      "attention": "فقط نیازمند رسیدگی"
+    },
+    "envOverrideTitle": "بازنویسی متغیرهای محیطی",
+    "envOverridePlaceholder": "در هر خط یک KEY=VALUE",
+    "installState": {
+      "installed": "نصب‌شده",
+      "installing": "در حال نصب",
+      "error": "نصب ناموفق",
+      "notInstalled": "نصب‌نشده"
+    },
+    "registryInstallEntry": "نصب عامل",
+    "registryInstallEntryDescription": "عامل‌ها را از ACP Registry جست‌وجو و نصب کنید، سپس برای فعال‌سازی و پیکربندی به اینجا برگردید.",
+    "sharedMcpTitle": "MCP مشترک",
+    "sharedMcpDescription": "همه عامل‌های ACP از یک انتخاب دسترسی MCP مشترک استفاده می‌کنند.",
+    "installedSectionTitle": "عامل‌های نصب‌شده",
+    "installedSectionDescription": "فقط عامل‌های Registry نصب‌شده برای فعال‌سازی، بررسی و بازنویسی متغیرهای محیطی در اینجا نمایش داده می‌شوند.",
+    "installedCount": "{count} نصب‌شده",
+    "installedEmptyTitle": "هنوز هیچ عامل Registryای نصب نشده است",
+    "installedEmptyDescription": "ابتدا یک عامل را از ACP Registry نصب کنید، سپس آن را اینجا پیکربندی کنید.",
+    "registryOverlayEmpty": "هیچ عاملی با فیلترهای فعلی مطابقت ندارد.",
+    "registryInstallAction": "نصب",
+    "registryInstallTitle": "ACP Registry",
+    "registryInstallDescription": "عامل‌های ACP را جست‌وجو، فیلتر و نصب کنید. پس از نصب برای پیکربندی به تنظیمات برگردید.",
+    "registryLearnMore": "اطلاعات بیشتر",
+    "registryRepository": "مخزن",
+    "installFilters": {
+      "all": "همه",
+      "installed": "نصب‌شده",
+      "notInstalled": "نصب‌نشده"
+    }
   },
   "skills": {
     "addSkill": "افزودن مهارت",
