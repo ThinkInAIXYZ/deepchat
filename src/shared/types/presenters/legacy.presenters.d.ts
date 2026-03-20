@@ -1082,10 +1082,10 @@ export interface ILlmProviderPresenter {
   ): Promise<string>
   getAcpWorkdir(conversationId: string, agentId: string): Promise<AcpWorkdirInfo>
   setAcpWorkdir(conversationId: string, agentId: string, workdir: string | null): Promise<void>
-  warmupAcpProcess(agentId: string, workdir: string): Promise<void>
+  warmupAcpProcess(agentId: string, workdir?: string): Promise<void>
   getAcpProcessModes(
     agentId: string,
-    workdir: string
+    workdir?: string
   ): Promise<
     | {
         availableModes?: Array<{ id: string; name: string; description: string }>
@@ -1093,7 +1093,7 @@ export interface ILlmProviderPresenter {
       }
     | undefined
   >
-  getAcpProcessConfigOptions(agentId: string, workdir: string): Promise<AcpConfigState | null>
+  getAcpProcessConfigOptions(agentId: string, workdir?: string): Promise<AcpConfigState | null>
   setAcpPreferredProcessMode(agentId: string, workdir: string, modeId: string): Promise<void>
   setAcpSessionMode(conversationId: string, modeId: string): Promise<void>
   prepareAcpSession(conversationId: string, agentId: string, workdir: string): Promise<void>

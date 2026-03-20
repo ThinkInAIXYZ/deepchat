@@ -521,7 +521,7 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     await this.acpSessionPersistence.updateWorkdir(conversationId, agentId, trimmed)
   }
 
-  async warmupAcpProcess(agentId: string, workdir: string): Promise<void> {
+  async warmupAcpProcess(agentId: string, workdir?: string): Promise<void> {
     const provider = this.getAcpProviderInstance()
     if (!provider) return
     try {
@@ -540,7 +540,7 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
 
   async getAcpProcessModes(
     agentId: string,
-    workdir: string
+    workdir?: string
   ): Promise<
     | {
         availableModes?: Array<{ id: string; name: string; description: string }>
@@ -557,7 +557,7 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
 
   async getAcpProcessConfigOptions(
     agentId: string,
-    workdir: string
+    workdir?: string
   ): Promise<AcpConfigState | null> {
     const provider = this.getAcpProviderInstance()
     if (!provider) {

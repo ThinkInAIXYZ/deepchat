@@ -107,6 +107,14 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
   private readonly fsHandlers = new Map<string, AcpFsHandler>()
   private readonly agentLocks = new Map<string, Promise<void>>()
   private readonly preferredModes = new Map<string, string>()
+  private readonly latestConfigStates = new Map<string, AcpConfigState>()
+  private readonly latestModeSnapshots = new Map<
+    string,
+    {
+      availableModes?: Array<{ id: string; name: string; description: string }>
+      currentModeId?: string
+    }
+  >()
   private shuttingDown = false
 
   constructor(options: AcpProcessManagerOptions) {
@@ -324,6 +332,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
         updateAcpConfigStateValue(handle.configState, modeOption.id, modeId) ?? handle.configState
       this.notifyConfigOptionsReady(handle, conversationId)
     }
+    this.syncAgentCache(handle)
     return true
   }
 
@@ -336,6 +345,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     const legacyModeState = getLegacyModeState(configState)
     handle.availableModes = legacyModeState?.availableModes
     handle.currentModeId = legacyModeState?.currentModeId ?? handle.currentModeId
+    this.syncAgentCache(handle)
     this.notifyConfigOptionsReady(handle, conversationId)
     return true
   }
@@ -467,12 +477,10 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
         currentModeId?: string
       }
     | undefined {
-    const resolvedWorkdir = this.resolveWorkdir(workdir)
-    const candidates = this.getHandlesByAgent(agentId).filter(
-      (handle) => handle.workdir === resolvedWorkdir && this.isHandleAlive(handle)
-    )
-    const handle = candidates[0]
-    if (!handle) return undefined
+    const handle = this.getScopedHandle(agentId, workdir)
+    if (!handle) {
+      return this.latestModeSnapshots.get(agentId)
+    }
 
     const legacyModeState = getLegacyModeState(handle.configState)
     if (legacyModeState) {
@@ -489,15 +497,11 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
   }
 
   getProcessConfigState(agentId: string, workdir?: string): AcpConfigState | undefined {
-    const resolvedWorkdir = this.resolveWorkdir(workdir)
-    const candidates = this.getHandlesByAgent(agentId).filter(
-      (handle) => handle.workdir === resolvedWorkdir && this.isHandleAlive(handle)
-    )
-    const handle = candidates[0]
-    if (!handle) {
-      return undefined
+    const handle = this.getScopedHandle(agentId, workdir)
+    if (handle) {
+      return handle.configState ?? createEmptyAcpConfigState('legacy')
     }
-    return handle.configState ?? createEmptyAcpConfigState('legacy')
+    return this.latestConfigStates.get(agentId)
   }
 
   registerSessionListener(
@@ -1043,6 +1047,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
         }
         this.notifyModesReady(handle)
       }
+      this.syncAgentCache(handle)
       this.notifyConfigOptionsReady(handle)
 
       if (response.sessionId) {
@@ -1087,6 +1092,44 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
         configState: handle.configState ?? createEmptyAcpConfigState('legacy')
       }
     )
+  }
+
+  private getScopedHandle(agentId: string, workdir?: string): AcpProcessHandle | undefined {
+    const aliveHandles = this.getHandlesByAgent(agentId).filter((handle) =>
+      this.isHandleAlive(handle)
+    )
+    if (!aliveHandles.length) {
+      return undefined
+    }
+
+    const trimmedWorkdir = workdir?.trim()
+    if (!trimmedWorkdir) {
+      return aliveHandles[0]
+    }
+
+    const resolvedWorkdir = this.resolveWorkdir(trimmedWorkdir)
+    return aliveHandles.find((handle) => handle.workdir === resolvedWorkdir)
+  }
+
+  private syncAgentCache(
+    handle: Pick<AcpProcessHandle, 'agentId' | 'configState' | 'availableModes' | 'currentModeId'>
+  ): void {
+    if (handle.configState) {
+      this.latestConfigStates.set(handle.agentId, handle.configState)
+    }
+
+    const legacyModeState = getLegacyModeState(handle.configState)
+    const availableModes = legacyModeState?.availableModes ?? handle.availableModes
+    const currentModeId = legacyModeState?.currentModeId ?? handle.currentModeId
+
+    if (!availableModes?.length && !currentModeId) {
+      return
+    }
+
+    this.latestModeSnapshots.set(handle.agentId, {
+      availableModes,
+      currentModeId
+    })
   }
 
   private getHandlesByAgent(agentId: string): AcpProcessHandle[] {
@@ -1148,6 +1191,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
         handle.configState
       this.notifyConfigOptionsReady(handle)
     }
+    this.syncAgentCache(handle)
     this.notifyModesReady(handle)
   }
 

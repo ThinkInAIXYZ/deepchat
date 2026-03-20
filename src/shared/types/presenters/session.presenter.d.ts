@@ -155,10 +155,10 @@ export interface ISessionPresenter extends IThreadPresenter {
 
   getAcpWorkdir(conversationId: string, agentId: string): Promise<AcpWorkdirInfo>
   setAcpWorkdir(conversationId: string, agentId: string, workdir: string | null): Promise<void>
-  warmupAcpProcess(agentId: string, workdir: string): Promise<void>
+  warmupAcpProcess(agentId: string, workdir?: string): Promise<void>
   getAcpProcessModes(
     agentId: string,
-    workdir: string
+    workdir?: string
   ): Promise<{ availableModes?: any; currentModeId?: string } | undefined>
   setAcpPreferredProcessMode(agentId: string, workdir: string, modeId: string): Promise<void>
   setAcpSessionMode(conversationId: string, modeId: string): Promise<void>

@@ -468,7 +468,7 @@ export class AcpProvider extends BaseLLMProvider {
     this.emitSessionCommandsReady(conversationId, agent.id, session.availableCommands ?? [])
   }
 
-  public async warmupProcess(agentId: string, workdir: string): Promise<void> {
+  public async warmupProcess(agentId: string, workdir?: string): Promise<void> {
     const agent = await this.getAgentById(agentId)
     if (!agent) return
 
@@ -481,7 +481,7 @@ export class AcpProvider extends BaseLLMProvider {
 
   public getProcessModes(
     agentId: string,
-    workdir: string
+    workdir?: string
   ):
     | {
         availableModes?: Array<{ id: string; name: string; description: string }>
@@ -491,7 +491,7 @@ export class AcpProvider extends BaseLLMProvider {
     return this.processManager.getProcessModes(agentId, workdir) ?? undefined
   }
 
-  public getProcessConfigOptions(agentId: string, workdir: string): AcpConfigState | null {
+  public getProcessConfigOptions(agentId: string, workdir?: string): AcpConfigState | null {
     return this.processManager.getProcessConfigState(agentId, workdir) ?? null
   }
 
