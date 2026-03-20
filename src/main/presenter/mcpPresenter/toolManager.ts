@@ -7,8 +7,7 @@ import {
   MCPContentItem,
   MCPTextContent,
   IConfigPresenter,
-  Resource,
-  CONVERSATION
+  Resource
 } from '@shared/presenter'
 import { ServerManager } from './serverManager'
 import { McpClient } from './mcpClient'
@@ -292,52 +291,11 @@ export class ToolManager {
           projectDir: session.projectDir?.trim() || null
         }
       }
+
+      return null
     } catch (error) {
       console.warn('[ToolManager] Failed to resolve new session MCP context:', error)
-    }
-
-    try {
-      const conversation = await presenter.getLegacyConversation(sessionId)
-      return this.mapLegacyConversationToAcpContext(conversation)
-    } catch (error) {
-      console.warn('[ToolManager] Failed to resolve legacy session MCP context:', error)
       return null
-    }
-  }
-
-  private mapLegacyConversationToAcpContext(conversation: CONVERSATION | null | undefined): {
-    agentId: string
-    providerId: string
-    projectDir: string | null
-  } | null {
-    const settings = conversation?.settings
-    if (!settings) {
-      return null
-    }
-
-    const providerId = typeof settings.providerId === 'string' ? settings.providerId.trim() : ''
-    const chatMode = settings.chatMode
-    const isAcpConversation = providerId === 'acp' || chatMode === 'acp agent'
-    if (!isAcpConversation) {
-      return null
-    }
-
-    const agentId = typeof settings.modelId === 'string' ? settings.modelId.trim() : ''
-    if (!agentId) {
-      return null
-    }
-
-    const directProjectDir =
-      typeof settings.agentWorkspacePath === 'string' ? settings.agentWorkspacePath.trim() : ''
-    const mappedProjectDir =
-      typeof settings.acpWorkdirMap?.[agentId] === 'string'
-        ? settings.acpWorkdirMap[agentId]?.trim()
-        : ''
-
-    return {
-      agentId,
-      providerId: providerId || 'acp',
-      projectDir: directProjectDir || mappedProjectDir || null
     }
   }
 

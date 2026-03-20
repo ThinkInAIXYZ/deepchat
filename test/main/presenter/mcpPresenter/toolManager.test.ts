@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const eventBusMocks = vi.hoisted(() => ({
   on: vi.fn(),
@@ -10,13 +10,7 @@ const eventBusMocks = vi.hoisted(() => ({
 const presenterMocks = vi.hoisted(() => ({
   newAgentPresenter: {
     getSession: vi.fn()
-  },
-  sessionPresenter: {
-    getConversation: vi.fn()
-  },
-  getLegacyConversation: vi.fn((conversationId: string) =>
-    presenterMocks.sessionPresenter.getConversation(conversationId)
-  )
+  }
 }))
 
 vi.mock('@/eventbus', () => ({
@@ -44,8 +38,15 @@ vi.mock('@/presenter', () => ({
 import { ToolManager } from '../../../../src/main/presenter/mcpPresenter/toolManager'
 
 describe('ToolManager ACP MCP access control', () => {
+  let warnSpy: ReturnType<typeof vi.spyOn>
+
   beforeEach(() => {
     vi.clearAllMocks()
+    warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+  })
+
+  afterEach(() => {
+    warnSpy.mockRestore()
   })
 
   function createClient(serverName: string) {
@@ -132,30 +133,10 @@ describe('ToolManager ACP MCP access control', () => {
     expect(configPresenter.getAgentMcpSelections).toHaveBeenCalledWith('agent-1')
   })
 
-  it('falls back to legacy conversation ACP context when new session is missing', async () => {
-    const client = createClient('legacy-server')
-    const configPresenter = createConfigPresenter('legacy-server')
-    configPresenter.getAcpAgents.mockResolvedValue([{ id: 'agent-legacy', name: 'Legacy Agent' }])
-    configPresenter.getAgentMcpSelections.mockResolvedValue(['legacy-server'])
-
+  it('treats missing new session context as non-ACP and still executes the tool', async () => {
+    const client = createClient('open-server')
+    const configPresenter = createConfigPresenter('open-server')
     presenterMocks.newAgentPresenter.getSession.mockResolvedValue(null)
-    presenterMocks.sessionPresenter.getConversation.mockResolvedValue({
-      id: 'conv-1',
-      title: 'Legacy',
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-      settings: {
-        providerId: 'acp',
-        modelId: 'agent-legacy',
-        chatMode: 'acp agent',
-        agentWorkspacePath: '/workspace/legacy',
-        systemPrompt: '',
-        temperature: 0.7,
-        contextLength: 32000,
-        maxTokens: 8000,
-        artifacts: 0
-      }
-    })
 
     const manager = new ToolManager(
       configPresenter as never,
@@ -177,8 +158,12 @@ describe('ToolManager ACP MCP access control', () => {
     expect(result.isError).toBe(false)
     expect(result.content).toBe('ok')
     expect(client.callTool).toHaveBeenCalledWith('echo', {})
-    expect(presenterMocks.sessionPresenter.getConversation).toHaveBeenCalledWith('conv-1')
-    expect(configPresenter.getAgentMcpSelections).toHaveBeenCalledWith('agent-legacy')
+    expect(configPresenter.getAgentMcpSelections).not.toHaveBeenCalled()
+    expect(
+      warnSpy.mock.calls.some((call) =>
+        String(call[0]).includes('Failed to resolve legacy session MCP context')
+      )
+    ).toBe(false)
   })
 
   it('skips ACP selection gating for non-ACP sessions', async () => {

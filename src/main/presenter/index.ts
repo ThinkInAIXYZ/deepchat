@@ -4,7 +4,6 @@ import { BrowserWindow, ipcMain, IpcMainInvokeEvent, app } from 'electron'
 import { WindowPresenter } from './windowPresenter'
 import { ShortcutPresenter } from './shortcutPresenter'
 import {
-  CONVERSATION,
   CONVERSATION_SETTINGS,
   IConfigPresenter,
   IDeeplinkPresenter,
@@ -359,10 +358,6 @@ export class Presenter implements IPresenter {
 
   getLegacyRuntimeSessionSync(conversationId: string): SessionContext | null {
     return this.legacySessionManager?.getSessionSync(conversationId) ?? null
-  }
-
-  async getLegacyConversation(conversationId: string): Promise<CONVERSATION | null> {
-    return await this.getLegacySessionPresenter().getConversation(conversationId)
   }
 
   async updateLegacyConversationSettings(
