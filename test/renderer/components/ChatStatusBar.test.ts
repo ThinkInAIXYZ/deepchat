@@ -985,6 +985,39 @@ describe('ChatStatusBar model and session panels', () => {
     expect(wrapper.find('.acp-overflow-option[data-option-id="extra_toggle"]').exists()).toBe(true)
   })
 
+  it('keeps ACP session config read-only until session config finishes loading', async () => {
+    const processConfig = createAcpConfigState({}, 'gpt-5')
+    const sessionConfig = createAcpConfigState({}, 'gpt-5-mini')
+    const pendingSessionConfig = createDeferred<AcpConfigState | null>()
+    const { wrapper, newAgentPresenter } = await setup({
+      agentId: 'acp-agent',
+      hasActiveSession: false,
+      projectPath: '/tmp/workspace',
+      acpProcessConfig: processConfig
+    })
+
+    newAgentPresenter.getAcpSessionConfigOptions.mockImplementation(
+      () => pendingSessionConfig.promise
+    )
+
+    await wrapper.setProps({ acpDraftSessionId: 'draft-1' })
+    await flushPromises()
+
+    expect(newAgentPresenter.getAcpSessionConfigOptions).toHaveBeenCalledWith('draft-1')
+    expect((wrapper.vm as any).acpConfigState).toBeNull()
+    expect((wrapper.vm as any).acpConfigReadOnly).toBe(true)
+    expect(wrapper.findAll('.acp-inline-option')).toHaveLength(0)
+
+    pendingSessionConfig.resolve(sessionConfig)
+    await flushPromises()
+
+    expect((wrapper.vm as any).acpConfigState.options[0].currentValue).toBe('gpt-5-mini')
+    expect((wrapper.vm as any).acpConfigReadOnly).toBe(false)
+    expect(wrapper.find('.acp-inline-option[data-option-id="model"]').attributes('title')).toBe(
+      'gpt-5-mini'
+    )
+  })
+
   it('switches from warmup config to session config and writes ACP options through the session presenter', async () => {
     const processConfig = createAcpConfigState({}, 'gpt-5')
     const sessionConfig = createAcpConfigState({}, 'gpt-5-mini')

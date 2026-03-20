@@ -16,6 +16,7 @@ import {
   createEmptyAcpConfigState,
   getAcpConfigOptionByCategory,
   getLegacyModeState,
+  hasAcpConfigStateData,
   normalizeAcpConfigState,
   updateAcpConfigStateValue
 } from './acpConfigState'
@@ -373,11 +374,14 @@ export class AcpSessionManager {
           sessionId = persistedSessionId
           sessionResponse = loadResponse
           responseModeState = loadResponse.modes ?? undefined
-          configState = normalizeAcpConfigState({
+          const loadedConfigState = normalizeAcpConfigState({
             configOptions: loadResponse.configOptions,
             models: loadResponse.models,
             modes: loadResponse.modes
           })
+          if (hasAcpConfigStateData(loadedConfigState)) {
+            configState = loadedConfigState
+          }
           console.info(
             `[ACP] Loaded persisted session ${sessionId} for conversation ${conversationId} (agent ${agent.id})`
           )
@@ -397,11 +401,14 @@ export class AcpSessionManager {
         sessionId = response.sessionId
         sessionResponse = response
         responseModeState = response.modes ?? undefined
-        configState = normalizeAcpConfigState({
+        const nextConfigState = normalizeAcpConfigState({
           configOptions: response.configOptions,
           models: response.models,
           modes: response.modes
         })
+        if (hasAcpConfigStateData(nextConfigState)) {
+          configState = nextConfigState
+        }
       }
 
       if (!sessionResponse) {

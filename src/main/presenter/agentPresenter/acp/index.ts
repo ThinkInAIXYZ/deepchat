@@ -18,6 +18,7 @@ export {
   getAcpConfigOption,
   getAcpConfigOptionByCategory,
   getAcpConfigOptionLabel,
+  hasAcpConfigStateData,
   getLegacyModeState,
   normalizeAcpConfigState,
   updateAcpConfigStateValue

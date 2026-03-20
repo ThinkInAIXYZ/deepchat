@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { AcpProvider } from '../../../src/main/presenter/llmProviderPresenter/providers/acpProvider'
+import { LEGACY_MODE_CONFIG_ID } from '../../../src/main/presenter/agentPresenter/acp'
 import { ACP_WORKSPACE_EVENTS } from '../../../src/main/events'
 import { eventBus, SendTarget } from '@/eventbus'
 import type { AcpConfigState } from '../../../src/shared/types/presenters'
@@ -350,6 +351,109 @@ describe('AcpProvider runDebugAction error handling', () => {
         workdir: '/tmp/workspace',
         configState: nextState
       }
+    )
+  })
+
+  it('preserves legacy mode options when setSessionConfigOption only returns config options', async () => {
+    const initialConfig: AcpConfigState = {
+      source: 'configOptions',
+      options: [
+        {
+          id: LEGACY_MODE_CONFIG_ID,
+          label: 'Mode',
+          description: null,
+          type: 'select',
+          category: 'mode',
+          currentValue: 'code',
+          options: [
+            { value: 'code', label: 'code' },
+            { value: 'ask', label: 'ask' }
+          ]
+        },
+        {
+          id: 'safe_edits',
+          label: 'Safe Edits',
+          description: null,
+          type: 'boolean',
+          category: null,
+          currentValue: false
+        }
+      ]
+    }
+    const session = {
+      sessionId: 's-2',
+      agentId: 'agent1',
+      workdir: '/tmp/workspace',
+      currentModeId: 'code',
+      availableModes: [{ id: 'code', name: 'code', description: '' }],
+      configState: initialConfig,
+      connection: {
+        setSessionConfigOption: vi.fn().mockResolvedValue({
+          configOptions: [
+            {
+              id: 'safe_edits',
+              name: 'Safe Edits',
+              type: 'boolean',
+              currentValue: true
+            }
+          ]
+        })
+      }
+    }
+
+    const provider = Object.create(AcpProvider.prototype) as any
+    provider.sessionManager = {
+      getSession: vi.fn().mockReturnValue(session)
+    }
+    provider.processManager = {
+      updateBoundProcessConfigState: vi.fn().mockReturnValue(true)
+    }
+    provider.emitSessionModesReady = vi.fn()
+    provider.emitSessionConfigOptionsReady = vi.fn()
+
+    const nextState = await provider.setSessionConfigOption('conv-2', 'safe_edits', true)
+
+    expect(nextState).toEqual({
+      source: 'configOptions',
+      options: [
+        {
+          id: LEGACY_MODE_CONFIG_ID,
+          label: 'Mode',
+          description: null,
+          type: 'select',
+          category: 'mode',
+          currentValue: 'code',
+          options: [
+            {
+              value: 'code',
+              label: 'code'
+            },
+            {
+              value: 'ask',
+              label: 'ask'
+            }
+          ]
+        },
+        {
+          id: 'safe_edits',
+          label: 'Safe Edits',
+          description: null,
+          type: 'boolean',
+          category: null,
+          currentValue: true
+        }
+      ]
+    })
+    expect(session.configState).toEqual(nextState)
+    expect(provider.emitSessionModesReady).toHaveBeenCalledWith(
+      'conv-2',
+      'agent1',
+      '/tmp/workspace',
+      'code',
+      [
+        { id: 'code', name: 'code', description: '' },
+        { id: 'ask', name: 'ask', description: '' }
+      ]
     )
   })
 })

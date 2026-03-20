@@ -35,6 +35,7 @@ import {
   getAcpConfigOption,
   getAcpConfigOptionByCategory,
   getLegacyModeState,
+  hasAcpConfigStateData,
   LEGACY_MODEL_CONFIG_ID,
   LEGACY_MODE_CONFIG_ID,
   normalizeAcpConfigState,
@@ -54,6 +55,30 @@ type EventQueue = {
 type PermissionRequestContext = {
   agent: AcpAgentConfig
   conversationId: string
+}
+
+const preserveLegacyConfigOptions = (
+  currentState: AcpConfigState | null | undefined,
+  incomingState: AcpConfigState
+): AcpConfigState => {
+  const incomingIds = new Set(incomingState.options.map((option) => option.id))
+  const incomingCategories = new Set(
+    incomingState.options
+      .map((option) => option.category)
+      .filter((category): category is string => Boolean(category))
+  )
+  const legacyOptions =
+    currentState?.options.filter(
+      (option) =>
+        (option.id === LEGACY_MODEL_CONFIG_ID || option.id === LEGACY_MODE_CONFIG_ID) &&
+        !incomingIds.has(option.id) &&
+        (!option.category || !incomingCategories.has(option.category))
+    ) ?? []
+
+  return {
+    source: incomingState.source,
+    options: [...legacyOptions, ...incomingState.options]
+  }
 }
 
 type PendingPermissionState = {
@@ -1408,9 +1433,14 @@ export class AcpProvider extends BaseLLMProvider {
               configId,
               value
             })
-      nextConfigState = normalizeAcpConfigState({
+      const normalizedResponse = normalizeAcpConfigState({
         configOptions: response.configOptions
       })
+      nextConfigState = hasAcpConfigStateData(normalizedResponse)
+        ? preserveLegacyConfigOptions(session.configState, normalizedResponse)
+        : (updateAcpConfigStateValue(session.configState, configId, value) ??
+          session.configState ??
+          null)
     }
 
     if (!nextConfigState) {

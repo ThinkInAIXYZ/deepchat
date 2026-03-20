@@ -130,6 +130,10 @@ export const normalizeAcpConfigState = (input: NormalizableConfigStateInput): Ac
   }
 }
 
+export const hasAcpConfigStateData = (
+  state: AcpConfigState | null | undefined
+): state is AcpConfigState => Boolean(state?.options.length)
+
 export const getAcpConfigOption = (
   state: AcpConfigState | null | undefined,
   configId: string

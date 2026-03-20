@@ -601,6 +601,7 @@ const isModelSettingsExpanded = ref(false)
 const modelSearchKeyword = ref('')
 const modelSettingsSelection = ref<ModelSelection | null>(null)
 const acpConfigState = ref<AcpConfigState | null>(null)
+const acpConfigLoadedRequestKey = ref<string | null>(null)
 const acpOptionSavingIds = ref<string[]>([])
 const acpConfigCacheByAgent = new Map<string, AcpConfigState>()
 
@@ -799,7 +800,25 @@ const setCachedAcpConfigState = (
 }
 
 const acpConfigOptions = computed(() => acpConfigState.value?.options ?? [])
-const acpConfigReadOnly = computed(() => isAcpAgent.value && !activeAcpSessionId.value)
+const isAcpSessionConfigLoaded = computed(() => {
+  if (!activeAcpSessionId.value) {
+    return false
+  }
+
+  return acpConfigLoadedRequestKey.value === acpConfigRequestKey.value
+})
+
+const acpConfigReadOnly = computed(() => {
+  if (!isAcpAgent.value) {
+    return false
+  }
+
+  if (!activeAcpSessionId.value) {
+    return true
+  }
+
+  return !isAcpSessionConfigLoaded.value
+})
 const acpInlineOptions = computed(() =>
   acpConfigOptions.value
     .filter((option) => option.type === 'select')
@@ -1709,18 +1728,23 @@ const syncAcpConfigOptions = async () => {
 
   if (!isAcpAgent.value || !requestKey) {
     acpConfigState.value = null
+    acpConfigLoadedRequestKey.value = null
     return
   }
 
   const agentId = activeAcpAgentId.value
 
   if (activeAcpSessionId.value) {
+    acpConfigState.value = null
+    acpConfigLoadedRequestKey.value = null
+
     try {
       const state = await newAgentPresenter.getAcpSessionConfigOptions(activeAcpSessionId.value)
       if (token !== acpConfigSyncToken || acpConfigRequestKey.value !== requestKey) {
         return
       }
       acpConfigState.value = state
+      acpConfigLoadedRequestKey.value = requestKey
       setCachedAcpConfigState(agentId, state)
       return
     } catch (error) {
@@ -1729,10 +1753,12 @@ const syncAcpConfigOptions = async () => {
         return
       }
       acpConfigState.value = null
+      acpConfigLoadedRequestKey.value = null
       return
     }
   }
 
+  acpConfigLoadedRequestKey.value = null
   acpConfigState.value = getCachedAcpConfigState(agentId)
 
   if (agentId) {
@@ -1771,7 +1797,7 @@ const syncAcpConfigOptions = async () => {
 const updateAcpConfigOption = async (configId: string, value: string | boolean) => {
   const sessionId = activeAcpSessionId.value
   const agentId = activeAcpAgentId.value
-  if (!sessionId) {
+  if (!sessionId || !isAcpSessionConfigLoaded.value) {
     return
   }
 
@@ -1823,6 +1849,7 @@ const handleAcpConfigOptionsReady = (_event: unknown, payload?: Record<string, u
     }
     setCachedAcpConfigState(agentId || activeAcpAgentId.value, payload.configState)
     acpConfigState.value = payload.configState
+    acpConfigLoadedRequestKey.value = `session:${conversationId}`
     return
   }
 
