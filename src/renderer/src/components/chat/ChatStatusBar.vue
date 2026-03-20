@@ -602,6 +602,7 @@ const modelSearchKeyword = ref('')
 const modelSettingsSelection = ref<ModelSelection | null>(null)
 const acpConfigState = ref<AcpConfigState | null>(null)
 const acpOptionSavingIds = ref<string[]>([])
+const acpConfigCacheByAgent = new Map<string, AcpConfigState>()
 
 const capabilitySupportsReasoning = ref<boolean | null>(null)
 const capabilityReasoningPortrait = ref<ReasoningPortrait | null>(null)
@@ -757,21 +758,45 @@ const modelSettingsTarget = computed<ModelSelection | null>(() => {
   return modelSettingsSelection.value ?? effectiveModelSelection.value
 })
 
-const acpConfigSourceKey = computed(() => {
+const acpConfigCacheKey = computed(() => {
+  if (!isAcpAgent.value || activeAcpSessionId.value) {
+    return null
+  }
+  return activeAcpAgentId.value
+})
+
+const acpConfigRequestKey = computed(() => {
   if (!isAcpAgent.value) {
     return null
   }
   if (activeAcpSessionId.value) {
     return `session:${activeAcpSessionId.value}`
   }
-  if (activeAcpAgentId.value && acpWorkspacePath.value) {
-    return `process:${activeAcpAgentId.value}::${acpWorkspacePath.value}`
+  if (acpConfigCacheKey.value && acpWorkspacePath.value) {
+    return `process:${acpConfigCacheKey.value}::${acpWorkspacePath.value}`
   }
-  if (activeAcpAgentId.value) {
-    return `agent:${activeAcpAgentId.value}`
+  if (acpConfigCacheKey.value) {
+    return `agent:${acpConfigCacheKey.value}`
   }
   return null
 })
+
+const getCachedAcpConfigState = (agentId?: string | null): AcpConfigState | null => {
+  if (!agentId) {
+    return null
+  }
+  return acpConfigCacheByAgent.get(agentId) ?? null
+}
+
+const setCachedAcpConfigState = (
+  agentId: string | null | undefined,
+  state: AcpConfigState | null | undefined
+): void => {
+  if (!agentId || !state) {
+    return
+  }
+  acpConfigCacheByAgent.set(agentId, state)
+}
 
 const acpConfigOptions = computed(() => acpConfigState.value?.options ?? [])
 const acpConfigReadOnly = computed(() => isAcpAgent.value && !activeAcpSessionId.value)
@@ -1680,24 +1705,27 @@ const syncGenerationSettings = async () => {
 
 const syncAcpConfigOptions = async () => {
   const token = ++acpConfigSyncToken
-  const sourceKey = acpConfigSourceKey.value
+  const requestKey = acpConfigRequestKey.value
 
-  if (!isAcpAgent.value || !sourceKey) {
+  if (!isAcpAgent.value || !requestKey) {
     acpConfigState.value = null
     return
   }
 
+  const agentId = activeAcpAgentId.value
+
   if (activeAcpSessionId.value) {
     try {
       const state = await newAgentPresenter.getAcpSessionConfigOptions(activeAcpSessionId.value)
-      if (token !== acpConfigSyncToken || acpConfigSourceKey.value !== sourceKey) {
+      if (token !== acpConfigSyncToken || acpConfigRequestKey.value !== requestKey) {
         return
       }
       acpConfigState.value = state
+      setCachedAcpConfigState(agentId, state)
       return
     } catch (error) {
       console.warn('[ChatStatusBar] Failed to load ACP session config options:', error)
-      if (token !== acpConfigSyncToken || acpConfigSourceKey.value !== sourceKey) {
+      if (token !== acpConfigSyncToken || acpConfigRequestKey.value !== requestKey) {
         return
       }
       acpConfigState.value = null
@@ -1705,37 +1733,44 @@ const syncAcpConfigOptions = async () => {
     }
   }
 
-  if (activeAcpAgentId.value) {
+  acpConfigState.value = getCachedAcpConfigState(agentId)
+
+  if (agentId) {
     try {
       try {
-        await llmproviderPresenter.warmupAcpProcess(
-          activeAcpAgentId.value,
-          acpWorkspacePath.value ?? undefined
-        )
+        await llmproviderPresenter.warmupAcpProcess(agentId, acpWorkspacePath.value ?? undefined)
       } catch (error) {
         console.warn('[ChatStatusBar] Failed to warmup ACP process:', error)
       }
 
       const state = await llmproviderPresenter.getAcpProcessConfigOptions(
-        activeAcpAgentId.value,
+        agentId,
         acpWorkspacePath.value ?? undefined
       )
-      if (token !== acpConfigSyncToken || acpConfigSourceKey.value !== sourceKey) {
+      if (token !== acpConfigSyncToken || acpConfigRequestKey.value !== requestKey) {
         return
       }
+
+      if (!state) {
+        acpConfigState.value = getCachedAcpConfigState(agentId)
+        return
+      }
+
+      setCachedAcpConfigState(agentId, state)
       acpConfigState.value = state
     } catch (error) {
       console.warn('[ChatStatusBar] Failed to load ACP process config options:', error)
-      if (token !== acpConfigSyncToken || acpConfigSourceKey.value !== sourceKey) {
+      if (token !== acpConfigSyncToken || acpConfigRequestKey.value !== requestKey) {
         return
       }
-      acpConfigState.value = null
+      acpConfigState.value = getCachedAcpConfigState(agentId)
     }
   }
 }
 
 const updateAcpConfigOption = async (configId: string, value: string | boolean) => {
   const sessionId = activeAcpSessionId.value
+  const agentId = activeAcpAgentId.value
   if (!sessionId) {
     return
   }
@@ -1747,6 +1782,7 @@ const updateAcpConfigOption = async (configId: string, value: string | boolean) 
   acpOptionSavingIds.value = [...acpOptionSavingIds.value, configId]
   try {
     const updated = await newAgentPresenter.setAcpSessionConfigOption(sessionId, configId, value)
+    setCachedAcpConfigState(agentId, updated)
     if (activeAcpSessionId.value !== sessionId) {
       return
     }
@@ -1774,30 +1810,31 @@ const handleAcpConfigOptionsReady = (_event: unknown, payload?: Record<string, u
     return
   }
 
-  const sourceKey = acpConfigSourceKey.value
-  if (!sourceKey) {
-    return
-  }
-
   const conversationId = typeof payload.conversationId === 'string' ? payload.conversationId : ''
   const agentId = typeof payload.agentId === 'string' ? payload.agentId : ''
-  const workdir = typeof payload.workdir === 'string' ? payload.workdir : ''
-
-  if (conversationId) {
-    if (sourceKey !== `session:${conversationId}`) {
-      return
-    }
-  } else if (sourceKey === `agent:${agentId}`) {
-    // Agent-scoped cache fallback intentionally ignores workdir.
-  } else if (sourceKey !== `process:${agentId}::${workdir}`) {
-    return
-  }
 
   if (!isAcpConfigState(payload.configState)) {
     return
   }
 
-  acpConfigState.value = payload.configState
+  if (conversationId) {
+    if (activeAcpSessionId.value !== conversationId) {
+      return
+    }
+    setCachedAcpConfigState(agentId || activeAcpAgentId.value, payload.configState)
+    acpConfigState.value = payload.configState
+    return
+  }
+
+  if (!agentId || activeAcpAgentId.value !== agentId) {
+    return
+  }
+
+  setCachedAcpConfigState(agentId, payload.configState)
+
+  if (!activeAcpSessionId.value) {
+    acpConfigState.value = payload.configState
+  }
 }
 
 watch(

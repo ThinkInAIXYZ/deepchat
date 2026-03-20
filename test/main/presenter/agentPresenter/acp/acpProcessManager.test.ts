@@ -84,6 +84,20 @@ describe('AcpProcessManager config cache fallback', () => {
     })
   })
 
+  it('does not return another agent cache entry when the requested agent has no snapshot', () => {
+    const manager = createManager()
+    const configState = createConfigState('gpt-5-mini', 'ask')
+
+    ;(manager as any).latestConfigStates.set('agent-1', configState)
+    ;(manager as any).latestModeSnapshots.set('agent-1', {
+      availableModes: [{ id: 'ask', name: 'Ask', description: '' }],
+      currentModeId: 'ask'
+    })
+
+    expect(manager.getProcessConfigState('agent-2', '/tmp/missing')).toBeUndefined()
+    expect(manager.getProcessModes('agent-2', '/tmp/missing')).toBeUndefined()
+  })
+
   it('refreshes the agent cache when bound session config changes', () => {
     const manager = createManager()
     const handle = {

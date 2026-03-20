@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { defineComponent, reactive } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
+import { ACP_WORKSPACE_EVENTS } from '@/events'
 import type { ReasoningPortrait } from '../../../src/shared/types/model-db'
 import type { AcpConfigState } from '../../../src/shared/types/presenters'
 
@@ -504,6 +505,7 @@ const setup = async (options: SetupOptions = {}) => {
     wrapper,
     newAgentPresenter,
     llmproviderPresenter,
+    agentStore,
     sessionStore,
     draftStore,
     configPresenter,
@@ -904,6 +906,67 @@ describe('ChatStatusBar model and session panels', () => {
       true
     )
     expect((wrapper.vm as any).acpConfigReadOnly).toBe(true)
+  })
+
+  it('isolates warmup config cache by ACP agent id', async () => {
+    const codexConfig = createAcpConfigState({}, 'gpt-5')
+    const claudeConfig = createAcpConfigState({}, 'gpt-5-mini')
+    const pendingWarmup = createDeferred<AcpConfigState | null>()
+    const { wrapper, llmproviderPresenter, agentStore, ipcRenderer } = await setup({
+      agentId: 'codex',
+      hasActiveSession: false,
+      projectPath: '/tmp/workspace',
+      acpProcessConfig: codexConfig
+    })
+
+    expect((wrapper.vm as any).acpConfigState.options[0].currentValue).toBe('gpt-5')
+    expect(wrapper.find('.acp-inline-option[data-option-id="model"]').attributes('title')).toBe(
+      'gpt-5'
+    )
+
+    llmproviderPresenter.getAcpProcessConfigOptions.mockImplementation(() => pendingWarmup.promise)
+
+    agentStore.selectedAgentId = 'claude'
+    await flushPromises()
+
+    expect(wrapper.findAll('.acp-inline-option')).toHaveLength(0)
+    expect(wrapper.find('.acp-overflow-button').exists()).toBe(false)
+    expect((wrapper.vm as any).acpConfigState).toBeNull()
+
+    ipcRenderer?.emit(ACP_WORKSPACE_EVENTS.SESSION_CONFIG_OPTIONS_READY, {
+      agentId: 'codex',
+      workdir: '/tmp/workspace',
+      configState: codexConfig
+    })
+    await flushPromises()
+
+    expect(wrapper.findAll('.acp-inline-option')).toHaveLength(0)
+    expect((wrapper.vm as any).acpConfigState).toBeNull()
+
+    ipcRenderer?.emit(ACP_WORKSPACE_EVENTS.SESSION_CONFIG_OPTIONS_READY, {
+      agentId: 'claude',
+      workdir: '/tmp/workspace',
+      configState: claudeConfig
+    })
+    await flushPromises()
+
+    expect(wrapper.findAll('.acp-inline-option')).toHaveLength(3)
+    expect((wrapper.vm as any).acpConfigState.options[0].currentValue).toBe('gpt-5-mini')
+    expect(wrapper.find('.acp-inline-option[data-option-id="model"]').attributes('title')).toBe(
+      'gpt-5-mini'
+    )
+
+    agentStore.selectedAgentId = 'codex'
+    await flushPromises()
+
+    expect(wrapper.findAll('.acp-inline-option')).toHaveLength(3)
+    expect((wrapper.vm as any).acpConfigState.options[0].currentValue).toBe('gpt-5')
+    expect(wrapper.find('.acp-inline-option[data-option-id="model"]').attributes('title')).toBe(
+      'gpt-5'
+    )
+
+    pendingWarmup.resolve(codexConfig)
+    await flushPromises()
   })
 
   it('moves ACP overflow options into the gear popover', async () => {
