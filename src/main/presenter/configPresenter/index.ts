@@ -1151,6 +1151,10 @@ export class ConfigPresenter implements IConfigPresenter {
     return agents
   }
 
+  async getAcpRegistryIconMarkup(iconUrl: string): Promise<string | null> {
+    return await this.acpRegistryService.getIconMarkup(iconUrl)
+  }
+
   async getAcpAgentState(agentId: string): Promise<AcpAgentState | null> {
     return this.acpConfHelper.getAgentState(agentId)
   }

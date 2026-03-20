@@ -1,16 +1,19 @@
 import fs from 'fs'
 import path from 'path'
-import { app } from 'electron'
+import { app, net } from 'electron'
 import type {
   AcpRegistryAgent,
   AcpRegistryBinaryDistribution,
   AcpRegistryDistribution,
   AcpRegistryPackageDistribution
 } from '@shared/presenter'
+import { SVGSanitizer } from '@/lib/svgSanitizer'
 import {
   ACP_REGISTRY_CACHE_TTL_MS,
+  ACP_REGISTRY_ICON_PREFIX,
   ACP_REGISTRY_RESOURCE_PATH,
-  ACP_REGISTRY_URL
+  ACP_REGISTRY_URL,
+  isAcpRegistryIconUrl
 } from './acpRegistryConstants'
 
 type RegistryCacheMeta = {
@@ -186,6 +189,8 @@ export class AcpRegistryService {
   private readonly cacheDir: string
   private readonly cacheFilePath: string
   private readonly metaFilePath: string
+  private readonly svgSanitizer = new SVGSanitizer()
+  private readonly iconMarkupCache = new Map<string, Promise<string | null>>()
   private manifest: RegistryManifest | null = null
 
   constructor() {
@@ -225,6 +230,25 @@ export class AcpRegistryService {
   async refresh(force = false): Promise<AcpRegistryAgent[]> {
     await this.refreshIfNeeded(force)
     return this.listAgents()
+  }
+
+  async getIconMarkup(iconUrl: string): Promise<string | null> {
+    const normalizedUrl = iconUrl.trim()
+    if (!isAcpRegistryIconUrl(normalizedUrl)) {
+      return null
+    }
+
+    let pending = this.iconMarkupCache.get(normalizedUrl)
+    if (!pending) {
+      pending = this.fetchAndSanitizeIconMarkup(normalizedUrl).catch((error) => {
+        this.iconMarkupCache.delete(normalizedUrl)
+        console.warn('[ACP Registry] Failed to fetch icon markup:', normalizedUrl, error)
+        return null
+      })
+      this.iconMarkupCache.set(normalizedUrl, pending)
+    }
+
+    return await pending
   }
 
   private getManifest(): RegistryManifest {
@@ -359,5 +383,64 @@ export class AcpRegistryService {
     } finally {
       clearTimeout(timeout)
     }
+  }
+
+  private async fetchAndSanitizeIconMarkup(iconUrl: string): Promise<string | null> {
+    if (!iconUrl.startsWith(ACP_REGISTRY_ICON_PREFIX)) {
+      return null
+    }
+
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 10000)
+
+    try {
+      const response = await net.fetch(iconUrl, {
+        signal: controller.signal
+      })
+
+      if (!response.ok) {
+        return null
+      }
+
+      const text = await response.text()
+      const sanitized = this.svgSanitizer.sanitize(text)
+      if (!sanitized) {
+        return null
+      }
+
+      return this.decorateIconMarkup(sanitized)
+    } finally {
+      clearTimeout(timeout)
+    }
+  }
+
+  private decorateIconMarkup(markup: string): string {
+    return markup.replace(/<svg\b([^>]*)>/i, (_match, attrs: string) => {
+      let nextAttrs = attrs
+
+      if (!/\sfocusable\s*=/.test(nextAttrs)) {
+        nextAttrs += ' focusable="false"'
+      }
+
+      if (!/\saria-hidden\s*=/.test(nextAttrs)) {
+        nextAttrs += ' aria-hidden="true"'
+      }
+
+      if (!/\scolor\s*=/.test(nextAttrs)) {
+        nextAttrs += ' color="currentColor"'
+      }
+
+      if (/\sstyle\s*=\s*["'][^"']*["']/i.test(nextAttrs)) {
+        nextAttrs = nextAttrs.replace(
+          /\sstyle\s*=\s*(["'])([^"']*)\1/i,
+          (_styleMatch, quote: string, styleValue: string) =>
+            ` style=${quote}color: currentColor; ${styleValue}${quote}`
+        )
+      } else {
+        nextAttrs += ' style="color: currentColor;"'
+      }
+
+      return `<svg${nextAttrs}>`
+    })
   }
 }

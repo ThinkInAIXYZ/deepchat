@@ -621,6 +621,7 @@ export interface IConfigPresenter {
   setAcpEnabled(enabled: boolean): Promise<void>
   listAcpRegistryAgents(): Promise<AcpRegistryAgent[]>
   refreshAcpRegistry(force?: boolean): Promise<AcpRegistryAgent[]>
+  getAcpRegistryIconMarkup(iconUrl: string): Promise<string | null>
   getAcpAgentState(agentId: string): Promise<AcpAgentState | null>
   setAcpAgentEnabled(agentId: string, enabled: boolean): Promise<void>
   setAcpAgentEnvOverride(agentId: string, env: Record<string, string>): Promise<void>

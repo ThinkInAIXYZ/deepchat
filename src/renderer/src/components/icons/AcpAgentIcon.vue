@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { usePresenter } from '@/composables/usePresenter'
 
 const ACP_REGISTRY_ICON_PREFIX = 'https://cdn.agentclientprotocol.com/registry/'
 
-const iconMarkupCache = new Map<string, Promise<string>>()
+const iconMarkupCache = new Map<string, Promise<string | null>>()
 
 const props = withDefaults(
   defineProps<{
@@ -25,6 +26,7 @@ const props = withDefaults(
 const svgMarkup = ref('')
 const imageLoadFailed = ref(false)
 const requestSeq = ref(0)
+const configPresenter = usePresenter('configPresenter')
 
 const isThemeableRegistryIcon = computed(() => {
   const icon = props.icon.trim()
@@ -67,13 +69,9 @@ const loadSvgMarkup = async () => {
   try {
     let pending = iconMarkupCache.get(icon)
     if (!pending) {
-      pending = fetch(icon)
-        .then(async (response) => {
-          if (!response.ok) {
-            throw new Error(`Failed to load ACP icon: ${response.status}`)
-          }
-          return normalizeSvgMarkup(await response.text())
-        })
+      pending = configPresenter
+        .getAcpRegistryIconMarkup(icon)
+        .then((markup) => (markup ? normalizeSvgMarkup(markup) : null))
         .catch((error) => {
           iconMarkupCache.delete(icon)
           throw error
@@ -86,7 +84,7 @@ const loadSvgMarkup = async () => {
     if (seq !== requestSeq.value) {
       return
     }
-    svgMarkup.value = markup
+    svgMarkup.value = markup ?? ''
   } catch (error) {
     if (seq !== requestSeq.value) {
       return
@@ -135,9 +133,19 @@ watch(
 </template>
 
 <style scoped>
+.acp-registry-icon {
+  display: block;
+  color: inherit;
+}
+
 .acp-registry-icon :deep(svg) {
   width: 100%;
   height: 100%;
   display: block;
+  color: inherit;
+}
+
+.acp-registry-icon :deep(*) {
+  color: inherit;
 }
 </style>
