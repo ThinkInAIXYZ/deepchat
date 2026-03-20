@@ -16,5 +16,8 @@
   "success": "sucesso",
   "title": "Chamada de ferramenta",
   "terminalOutput": "Saída terminal",
+  "badge": {
+    "rtk": "RTK"
+  },
   "replacementsCount": "Substituídas {count} ocorrências"
 }

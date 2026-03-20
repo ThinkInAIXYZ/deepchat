@@ -16,5 +16,8 @@
   "success": "성공",
   "title": "도구 호출",
   "terminalOutput": "터미널 출력",
+  "badge": {
+    "rtk": "RTK"
+  },
   "replacementsCount": "{count}개 치환 완료"
 }

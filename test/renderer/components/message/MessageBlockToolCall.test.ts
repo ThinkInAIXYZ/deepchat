@@ -1,14 +1,32 @@
 import { mount } from '@vue/test-utils'
-import { defineComponent } from 'vue'
-import { describe, it, expect, vi } from 'vitest'
+import { defineComponent, nextTick } from 'vue'
+import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest'
 import MessageBlockToolCall from '@/components/message/MessageBlockToolCall.vue'
 import type { DisplayAssistantMessageBlock } from '@/components/chat/messageListItems'
+
+const originalResizeObserver = globalThis.ResizeObserver
+let resizeObserverCallback: ResizeObserverCallback | null = null
+
+class MockResizeObserver {
+  constructor(callback: ResizeObserverCallback) {
+    resizeObserverCallback = callback
+  }
+
+  observe() {}
+
+  unobserve() {}
+
+  disconnect() {}
+}
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
     t: (key: string, params?: { count?: number }) => {
       if (key === 'toolCall.replacementsCount') {
         return `${params?.count ?? 0} replacements`
+      }
+      if (key === 'toolCall.badge.rtk') {
+        return 'RTK'
       }
       return key
     }
@@ -48,11 +66,27 @@ const createBlock = (
   type: 'tool_call',
   status: 'success',
   timestamp: Date.now(),
+  ...overrides,
   tool_call: {
     name: 'edit_text',
-    response: ''
-  },
-  ...overrides
+    response: '',
+    ...(overrides.tool_call ?? {})
+  }
+})
+
+beforeEach(() => {
+  resizeObserverCallback = null
+  globalThis.ResizeObserver = MockResizeObserver as unknown as typeof ResizeObserver
+})
+
+afterEach(() => {
+  if (originalResizeObserver) {
+    globalThis.ResizeObserver = originalResizeObserver
+    return
+  }
+
+  delete (globalThis as typeof globalThis & { ResizeObserver?: typeof ResizeObserver })
+    .ResizeObserver
 })
 
 describe('MessageBlockToolCall', () => {
@@ -99,6 +133,146 @@ describe('MessageBlockToolCall', () => {
     expect(wrapper.find('pre').text()).toContain('plain output')
   })
 
+  it('shows the first string parameter value as summary text', () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          tool_call: {
+            name: 'read',
+            params: '{"path":"C:/repo/src/main.ts","line":1}'
+          }
+        })
+      }
+    })
+
+    expect(wrapper.get('[data-testid="tool-call-summary"]').text()).toBe('C:/repo/src/main.ts')
+  })
+
+  it('uses the first query value as summary text', () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          tool_call: {
+            name: 'search',
+            params: '{"query":"today bilibili hot videos","limit":10}'
+          }
+        })
+      }
+    })
+
+    expect(wrapper.get('[data-testid="tool-call-summary"]').text()).toBe(
+      'today bilibili hot videos'
+    )
+    expect(wrapper.get('[data-testid="tool-call-name"]').classes()).toContain('shrink-0')
+  })
+
+  it('stringifies nested first parameter values into a single-line summary', () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          tool_call: {
+            name: 'custom_tool',
+            params: '{"payload":{"foo":"bar","nested":{"ok":true}},"other":1}'
+          }
+        })
+      }
+    })
+
+    expect(wrapper.get('[data-testid="tool-call-summary"]').text()).toBe(
+      '{"foo":"bar","nested":{"ok":true}}'
+    )
+  })
+
+  it('falls back to raw params when the summary source is not JSON', () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          tool_call: {
+            name: 'exec',
+            params: 'raw-shell-command --flag value'
+          }
+        })
+      }
+    })
+
+    expect(wrapper.get('[data-testid="tool-call-summary"]').text()).toBe(
+      'raw-shell-command --flag value'
+    )
+  })
+
+  it('only adds the summary fade when the text actually overflows', async () => {
+    const summaryValue = 'C:/workspace/' + 'nested/'.repeat(8) + 'MessageBlockToolCall.vue'
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          tool_call: {
+            name: 'exec',
+            params: JSON.stringify({
+              cwd: summaryValue
+            })
+          }
+        })
+      }
+    })
+
+    const summary = wrapper.get('[data-testid="tool-call-summary"]')
+
+    expect(summary.classes()).not.toContain('tool-call-summary--overflowing')
+
+    Object.defineProperty(summary.element, 'clientWidth', {
+      configurable: true,
+      value: 80
+    })
+    Object.defineProperty(summary.element, 'scrollWidth', {
+      configurable: true,
+      value: 160
+    })
+
+    resizeObserverCallback?.([] as ResizeObserverEntry[], {} as ResizeObserver)
+    await nextTick()
+
+    expect(summary.classes()).toContain('tool-call-summary--overflowing')
+    expect(summary.attributes('title')).toBe(summaryValue)
+  })
+
+  it('keeps the collapsed label to tool name only even when a server name exists', () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          tool_call: {
+            name: 'exec',
+            server_name: 'agent-filesystem',
+            params: '{"command":"pnpm run dev"}'
+          }
+        })
+      }
+    })
+
+    expect(wrapper.get('[data-testid="tool-call-name"]').text()).toBe('exec')
+    expect(wrapper.find('[data-testid="tool-call-expanded-title"]').exists()).toBe(false)
+  })
+
+  it('shows the server-qualified title only inside the expanded panel', async () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          tool_call: {
+            name: 'exec',
+            server_name: 'agent/agent-filesystem',
+            params: '{"command":"pnpm run dev"}',
+            response: 'ok'
+          }
+        })
+      }
+    })
+
+    await wrapper.get('[data-testid="tool-call-trigger"]').trigger('click')
+
+    expect(wrapper.get('[data-testid="tool-call-expanded-title"]').text()).toContain(
+      'agent-filesystem.exec'
+    )
+  })
+
   it('shows an RTK badge for command-style tool calls when RTK was applied', () => {
     const wrapper = mount(MessageBlockToolCall, {
       props: {
@@ -115,5 +289,331 @@ describe('MessageBlockToolCall', () => {
 
     expect(wrapper.find('[data-testid="tool-call-rtk-badge"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="tool-call-rtk-badge"]').text()).toBe('RTK')
+  })
+
+  it('shows summary text alongside the RTK badge', () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          tool_call: {
+            name: 'exec',
+            params: '{"command":"pnpm run dev","background":true}',
+            rtkApplied: true,
+            rtkMode: 'rewrite'
+          }
+        })
+      }
+    })
+
+    expect(wrapper.get('[data-testid="tool-call-summary"]').text()).toBe('pnpm run dev')
+    expect(wrapper.get('[data-testid="tool-call-rtk-badge"]').text()).toBe('RTK')
+  })
+
+  it('renders raw params in the expanded panel', async () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          tool_call: {
+            name: 'exec',
+            params: '{"command":"pnpm run dev","background":true}',
+            response: 'ok'
+          }
+        })
+      }
+    })
+
+    await wrapper.get('[data-testid="tool-call-trigger"]').trigger('click')
+
+    const paramsPanel = wrapper.get('[data-testid="tool-call-params"]').text()
+
+    expect(paramsPanel).toBe('{"command":"pnpm run dev","background":true}')
+    expect(paramsPanel).toContain('pnpm run dev')
+    expect(paramsPanel).toContain('"background":true')
+    expect(paramsPanel).toContain('"command":"pnpm run dev"')
+  })
+
+  it('renders a dedicated running ring instead of the legacy pulse icon', () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          status: 'loading',
+          tool_call: {
+            name: 'exec',
+            params: '{"command":"pnpm run dev"}'
+          }
+        })
+      }
+    })
+
+    expect(wrapper.find('[data-testid="tool-call-running-indicator"]').exists()).toBe(true)
+    expect(wrapper.html()).not.toContain('animate-pulse')
+  })
+
+  it('auto expands process tool calls while loading and collapses them when finished', async () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          status: 'loading',
+          tool_call: {
+            id: 'process-1',
+            name: 'process',
+            params: '{"action":"poll","sessionId":"session-1"}',
+            response: 'still running'
+          }
+        })
+      }
+    })
+
+    await nextTick()
+    expect(wrapper.find('[data-testid="tool-call-details"]').exists()).toBe(true)
+
+    await wrapper.setProps({
+      block: createBlock({
+        status: 'success',
+        tool_call: {
+          id: 'process-1',
+          name: 'process',
+          params: '{"action":"poll","sessionId":"session-1"}',
+          response: 'done'
+        }
+      })
+    })
+    await nextTick()
+
+    expect(wrapper.find('[data-testid="tool-call-details"]').exists()).toBe(false)
+  })
+
+  it('auto expands background exec calls while loading and collapses them when finished', async () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          status: 'loading',
+          tool_call: {
+            id: 'exec-bg-1',
+            name: 'exec',
+            params: '{"command":"pnpm run dev","background":true}',
+            response: 'booting'
+          }
+        })
+      }
+    })
+
+    await nextTick()
+    expect(wrapper.find('[data-testid="tool-call-details"]').exists()).toBe(true)
+
+    await wrapper.setProps({
+      block: createBlock({
+        status: 'success',
+        tool_call: {
+          id: 'exec-bg-1',
+          name: 'exec',
+          params: '{"command":"pnpm run dev","background":true}',
+          response: 'done'
+        }
+      })
+    })
+    await nextTick()
+
+    expect(wrapper.find('[data-testid="tool-call-details"]').exists()).toBe(false)
+  })
+
+  it('auto expands background skill_run calls while loading and collapses them when finished', async () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          status: 'loading',
+          tool_call: {
+            id: 'skill-run-bg-1',
+            name: 'skill_run',
+            params: '{"skill":"checks","script":"scripts/run.ts","background":true}',
+            response: 'booting'
+          }
+        })
+      }
+    })
+
+    await nextTick()
+    expect(wrapper.find('[data-testid="tool-call-details"]').exists()).toBe(true)
+
+    await wrapper.setProps({
+      block: createBlock({
+        status: 'success',
+        tool_call: {
+          id: 'skill-run-bg-1',
+          name: 'skill_run',
+          params: '{"skill":"checks","script":"scripts/run.ts","background":true}',
+          response: 'done'
+        }
+      })
+    })
+    await nextTick()
+
+    expect(wrapper.find('[data-testid="tool-call-details"]').exists()).toBe(false)
+  })
+
+  it('auto expands exec calls with a long timeout', async () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          status: 'loading',
+          tool_call: {
+            id: 'exec-timeout-1',
+            name: 'exec',
+            params: '{"command":"pnpm test","timeoutMs":10000}',
+            response: 'running'
+          }
+        })
+      }
+    })
+
+    await nextTick()
+
+    expect(wrapper.find('[data-testid="tool-call-details"]').exists()).toBe(true)
+  })
+
+  it('auto expands skill_run calls with a long timeout', async () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          status: 'loading',
+          tool_call: {
+            id: 'skill-run-timeout-1',
+            name: 'skill_run',
+            params: '{"skill":"checks","script":"scripts/run.ts","timeoutMs":10000}',
+            response: 'running'
+          }
+        })
+      }
+    })
+
+    await nextTick()
+
+    expect(wrapper.find('[data-testid="tool-call-details"]').exists()).toBe(true)
+  })
+
+  it('auto expands renamed exec tool calls that keep the exec contract', async () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          status: 'loading',
+          tool_call: {
+            id: 'exec-renamed-1',
+            name: 'agent-filesystem_exec',
+            params: '{"command":"pnpm run dev","background":true}',
+            response: 'booting'
+          }
+        })
+      }
+    })
+
+    await nextTick()
+
+    expect(wrapper.find('[data-testid="tool-call-details"]').exists()).toBe(true)
+  })
+
+  it('auto expands renamed process tool calls while loading and collapses them when finished', async () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          status: 'loading',
+          tool_call: {
+            id: 'process-renamed-1',
+            name: 'agent-filesystem_process',
+            params: '{"action":"poll","sessionId":"session-1"}',
+            response: 'still running'
+          }
+        })
+      }
+    })
+
+    await nextTick()
+    expect(wrapper.find('[data-testid="tool-call-details"]').exists()).toBe(true)
+
+    await wrapper.setProps({
+      block: createBlock({
+        status: 'success',
+        tool_call: {
+          id: 'process-renamed-1',
+          name: 'agent-filesystem_process',
+          params: '{"action":"poll","sessionId":"session-1"}',
+          response: 'done'
+        }
+      })
+    })
+    await nextTick()
+
+    expect(wrapper.find('[data-testid="tool-call-details"]').exists()).toBe(false)
+  })
+
+  it('re-applies auto expand when the loading tool call identity changes', async () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          status: 'loading',
+          tool_call: {
+            id: 'exec-bg-identity-1',
+            name: 'exec',
+            params: '{"background":true}',
+            response: 'booting'
+          }
+        })
+      }
+    })
+
+    await nextTick()
+    expect(wrapper.find('[data-testid="tool-call-details"]').exists()).toBe(true)
+
+    await wrapper.setProps({
+      block: createBlock({
+        status: 'loading',
+        tool_call: {
+          id: 'exec-bg-identity-2',
+          name: 'exec',
+          params: '{"background":true}',
+          response: 'still booting'
+        }
+      })
+    })
+    await nextTick()
+
+    expect(wrapper.find('[data-testid="tool-call-details"]').exists()).toBe(true)
+  })
+
+  it('does not re-auto-expand after the user manually closes an auto-expanded block', async () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          status: 'loading',
+          tool_call: {
+            id: 'process-2',
+            name: 'process',
+            params: '{"action":"log","sessionId":"session-2"}',
+            response: 'line 1'
+          }
+        })
+      }
+    })
+
+    await nextTick()
+    expect(wrapper.find('[data-testid="tool-call-details"]').exists()).toBe(true)
+
+    await wrapper.get('[data-testid="tool-call-trigger"]').trigger('click')
+    await nextTick()
+    expect(wrapper.find('[data-testid="tool-call-details"]').exists()).toBe(false)
+
+    await wrapper.setProps({
+      block: createBlock({
+        status: 'loading',
+        tool_call: {
+          id: 'process-2',
+          name: 'process',
+          params: '{"action":"log","sessionId":"session-2"}',
+          response: 'line 1\nline 2'
+        }
+      })
+    })
+    await nextTick()
+
+    expect(wrapper.find('[data-testid="tool-call-details"]').exists()).toBe(false)
   })
 })

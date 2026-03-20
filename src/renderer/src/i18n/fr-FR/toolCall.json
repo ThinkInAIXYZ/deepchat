@@ -16,5 +16,8 @@
   "success": "succès",
   "title": "Appel d'outil",
   "terminalOutput": "Sortie terminale",
+  "badge": {
+    "rtk": "RTK"
+  },
   "replacementsCount": "Terminé {count} remplacement(s)"
 }
