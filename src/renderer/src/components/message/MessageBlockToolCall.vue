@@ -294,12 +294,17 @@ const updateSummaryOverflow = () => {
   isSummaryOverflowing.value = element.scrollWidth - element.clientWidth > 1
 }
 
-const normalizedToolName = computed(() =>
-  (props.block.tool_call?.name ?? '').replace(/[_-]/g, '').toLowerCase()
-)
+const rawToolName = computed(() => props.block.tool_call?.name?.trim().toLowerCase() ?? '')
 
-const isExecTool = computed(() => normalizedToolName.value === 'exec')
-const isProcessTool = computed(() => normalizedToolName.value === 'process')
+const matchesToolContractName = (toolName: string, expectedName: string): boolean =>
+  toolName === expectedName || toolName.endsWith(`_${expectedName}`)
+
+const isExecTool = computed(() => {
+  const toolName = rawToolName.value
+  return matchesToolContractName(toolName, 'exec') || matchesToolContractName(toolName, 'skill_run')
+})
+
+const isProcessTool = computed(() => matchesToolContractName(rawToolName.value, 'process'))
 
 const shouldAutoExpand = computed(() => {
   if (props.block.status !== 'loading') return false

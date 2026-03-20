@@ -387,6 +387,40 @@ describe('MessageBlockToolCall', () => {
     expect(wrapper.find('[data-testid="tool-call-details"]').exists()).toBe(false)
   })
 
+  it('auto expands background skill_run calls while loading and collapses them when finished', async () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          status: 'loading',
+          tool_call: {
+            id: 'skill-run-bg-1',
+            name: 'skill_run',
+            params: '{"skill":"checks","script":"scripts/run.ts","background":true}',
+            response: 'booting'
+          }
+        })
+      }
+    })
+
+    await nextTick()
+    expect(wrapper.find('[data-testid="tool-call-details"]').exists()).toBe(true)
+
+    await wrapper.setProps({
+      block: createBlock({
+        status: 'success',
+        tool_call: {
+          id: 'skill-run-bg-1',
+          name: 'skill_run',
+          params: '{"skill":"checks","script":"scripts/run.ts","background":true}',
+          response: 'done'
+        }
+      })
+    })
+    await nextTick()
+
+    expect(wrapper.find('[data-testid="tool-call-details"]').exists()).toBe(false)
+  })
+
   it('auto expands exec calls with a long timeout', async () => {
     const wrapper = mount(MessageBlockToolCall, {
       props: {
@@ -405,6 +439,80 @@ describe('MessageBlockToolCall', () => {
     await nextTick()
 
     expect(wrapper.find('[data-testid="tool-call-details"]').exists()).toBe(true)
+  })
+
+  it('auto expands skill_run calls with a long timeout', async () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          status: 'loading',
+          tool_call: {
+            id: 'skill-run-timeout-1',
+            name: 'skill_run',
+            params: '{"skill":"checks","script":"scripts/run.ts","timeoutMs":10000}',
+            response: 'running'
+          }
+        })
+      }
+    })
+
+    await nextTick()
+
+    expect(wrapper.find('[data-testid="tool-call-details"]').exists()).toBe(true)
+  })
+
+  it('auto expands renamed exec tool calls that keep the exec contract', async () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          status: 'loading',
+          tool_call: {
+            id: 'exec-renamed-1',
+            name: 'agent-filesystem_exec',
+            params: '{"command":"pnpm run dev","background":true}',
+            response: 'booting'
+          }
+        })
+      }
+    })
+
+    await nextTick()
+
+    expect(wrapper.find('[data-testid="tool-call-details"]').exists()).toBe(true)
+  })
+
+  it('auto expands renamed process tool calls while loading and collapses them when finished', async () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          status: 'loading',
+          tool_call: {
+            id: 'process-renamed-1',
+            name: 'agent-filesystem_process',
+            params: '{"action":"poll","sessionId":"session-1"}',
+            response: 'still running'
+          }
+        })
+      }
+    })
+
+    await nextTick()
+    expect(wrapper.find('[data-testid="tool-call-details"]').exists()).toBe(true)
+
+    await wrapper.setProps({
+      block: createBlock({
+        status: 'success',
+        tool_call: {
+          id: 'process-renamed-1',
+          name: 'agent-filesystem_process',
+          params: '{"action":"poll","sessionId":"session-1"}',
+          response: 'done'
+        }
+      })
+    })
+    await nextTick()
+
+    expect(wrapper.find('[data-testid="tool-call-details"]').exists()).toBe(false)
   })
 
   it('does not re-auto-expand after the user manually closes an auto-expanded block', async () => {
