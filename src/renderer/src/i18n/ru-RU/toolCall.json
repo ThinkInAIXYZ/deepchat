@@ -16,5 +16,8 @@
   "success": "успех",
   "title": "Вызов инструмента",
   "terminalOutput": "Выходной терминал",
+  "badge": {
+    "rtk": "RTK"
+  },
   "replacementsCount": "Выполнено {count} замен"
 }

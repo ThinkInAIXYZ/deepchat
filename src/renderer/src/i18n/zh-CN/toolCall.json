@@ -10,6 +10,9 @@
   "params": "函数参数",
   "responseData": "函数响应",
   "terminalOutput": "终端输出",
+  "badge": {
+    "rtk": "RTK"
+  },
   "replacementsCount": "已完成 {count} 处替换",
   "fileOperation": "文件操作",
   "fileRead": "读取文件",

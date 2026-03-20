@@ -16,5 +16,8 @@
   "success": "succes",
   "title": "Værktøjskald",
   "terminalOutput": "Terminaludgang",
+  "badge": {
+    "rtk": "RTK"
+  },
   "replacementsCount": "Udført {count} erstatninger"
 }

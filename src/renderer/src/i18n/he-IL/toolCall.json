@@ -16,5 +16,8 @@
   "fileWrite": "לכתוב קובץ",
   "success": "הַצלָחָה",
   "terminalOutput": "פלט מסוף",
+  "badge": {
+    "rtk": "RTK"
+  },
   "replacementsCount": "הושלמו {count} החלפות"
 }

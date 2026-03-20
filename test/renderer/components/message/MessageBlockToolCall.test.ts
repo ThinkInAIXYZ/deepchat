@@ -25,6 +25,9 @@ vi.mock('vue-i18n', () => ({
       if (key === 'toolCall.replacementsCount') {
         return `${params?.count ?? 0} replacements`
       }
+      if (key === 'toolCall.badge.rtk') {
+        return 'RTK'
+      }
       return key
     }
   })
@@ -145,7 +148,7 @@ describe('MessageBlockToolCall', () => {
     expect(wrapper.get('[data-testid="tool-call-summary"]').text()).toBe('C:/repo/src/main.ts')
   })
 
-  it('uses the first query value as summary text', () => {
+  it('redacts summaries for tools outside the allowlist', () => {
     const wrapper = mount(MessageBlockToolCall, {
       props: {
         block: createBlock({
@@ -157,13 +160,11 @@ describe('MessageBlockToolCall', () => {
       }
     })
 
-    expect(wrapper.get('[data-testid="tool-call-summary"]').text()).toBe(
-      'today bilibili hot videos'
-    )
+    expect(wrapper.get('[data-testid="tool-call-summary"]').text()).toBe('[redacted]')
     expect(wrapper.get('[data-testid="tool-call-name"]').classes()).toContain('shrink-0')
   })
 
-  it('stringifies nested first parameter values into a single-line summary', () => {
+  it('redacts nested values for non-allowlisted tools', () => {
     const wrapper = mount(MessageBlockToolCall, {
       props: {
         block: createBlock({
@@ -175,12 +176,10 @@ describe('MessageBlockToolCall', () => {
       }
     })
 
-    expect(wrapper.get('[data-testid="tool-call-summary"]').text()).toBe(
-      '{"foo":"bar","nested":{"ok":true}}'
-    )
+    expect(wrapper.get('[data-testid="tool-call-summary"]').text()).toBe('[redacted]')
   })
 
-  it('falls back to raw params when the summary source is not JSON', () => {
+  it('redacts non-json params instead of showing raw input', () => {
     const wrapper = mount(MessageBlockToolCall, {
       props: {
         block: createBlock({
@@ -192,18 +191,19 @@ describe('MessageBlockToolCall', () => {
       }
     })
 
-    expect(wrapper.get('[data-testid="tool-call-summary"]').text()).toBe(
-      'raw-shell-command --flag value'
-    )
+    expect(wrapper.get('[data-testid="tool-call-summary"]').text()).toBe('[redacted]')
   })
 
-  it('only adds the summary fade when the text actually overflows', async () => {
+  it('only adds the summary fade when the sanitized text actually overflows', async () => {
+    const sanitizedSummary = 'C:/workspace/' + 'nested/'.repeat(8) + 'MessageBlockToolCall.vue'
     const wrapper = mount(MessageBlockToolCall, {
       props: {
         block: createBlock({
           tool_call: {
             name: 'exec',
-            params: '{"command":"pnpm run dev"}'
+            params: JSON.stringify({
+              cwd: sanitizedSummary
+            })
           }
         })
       }
@@ -226,6 +226,7 @@ describe('MessageBlockToolCall', () => {
     await nextTick()
 
     expect(summary.classes()).toContain('tool-call-summary--overflowing')
+    expect(summary.attributes('title')).toBe(sanitizedSummary)
   })
 
   it('keeps the collapsed label to tool name only even when a server name exists', () => {
@@ -298,8 +299,30 @@ describe('MessageBlockToolCall', () => {
       }
     })
 
-    expect(wrapper.get('[data-testid="tool-call-summary"]').text()).toBe('pnpm run dev')
+    expect(wrapper.get('[data-testid="tool-call-summary"]').text()).toBe('{"background":true}')
     expect(wrapper.get('[data-testid="tool-call-rtk-badge"]').text()).toBe('RTK')
+  })
+
+  it('renders sanitized params in the expanded panel instead of raw tool input', async () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          tool_call: {
+            name: 'exec',
+            params: '{"command":"pnpm run dev","background":true}',
+            response: 'ok'
+          }
+        })
+      }
+    })
+
+    await wrapper.get('[data-testid="tool-call-trigger"]').trigger('click')
+
+    const paramsPanel = wrapper.get('[data-testid="tool-call-params"]').text()
+
+    expect(paramsPanel).toContain('"background": true')
+    expect(paramsPanel).not.toContain('pnpm run dev')
+    expect(paramsPanel).not.toContain('"command"')
   })
 
   it('renders a dedicated running ring instead of the legacy pulse icon', () => {
@@ -513,6 +536,40 @@ describe('MessageBlockToolCall', () => {
     await nextTick()
 
     expect(wrapper.find('[data-testid="tool-call-details"]').exists()).toBe(false)
+  })
+
+  it('re-applies auto expand when the loading tool call identity changes', async () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          status: 'loading',
+          tool_call: {
+            id: 'exec-bg-identity-1',
+            name: 'exec',
+            params: '{"background":true}',
+            response: 'booting'
+          }
+        })
+      }
+    })
+
+    await nextTick()
+    expect(wrapper.find('[data-testid="tool-call-details"]').exists()).toBe(true)
+
+    await wrapper.setProps({
+      block: createBlock({
+        status: 'loading',
+        tool_call: {
+          id: 'exec-bg-identity-2',
+          name: 'exec',
+          params: '{"background":true}',
+          response: 'still booting'
+        }
+      })
+    })
+    await nextTick()
+
+    expect(wrapper.find('[data-testid="tool-call-details"]').exists()).toBe(true)
   })
 
   it('does not re-auto-expand after the user manually closes an auto-expanded block', async () => {

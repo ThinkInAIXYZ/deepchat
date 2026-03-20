@@ -16,5 +16,8 @@
   "success": "موفقیت",
   "title": "تماس ابزار",
   "terminalOutput": "خروجی ترمینال",
+  "badge": {
+    "rtk": "RTK"
+  },
   "replacementsCount": "{count} مورد جایگزین شد"
 }

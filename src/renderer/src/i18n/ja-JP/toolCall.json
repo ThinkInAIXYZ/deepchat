@@ -16,5 +16,8 @@
   "success": "成功",
   "title": "ツール呼び出し",
   "terminalOutput": "端子出力",
+  "badge": {
+    "rtk": "RTK"
+  },
   "replacementsCount": "{count}か所の置換を完了しました"
 }
