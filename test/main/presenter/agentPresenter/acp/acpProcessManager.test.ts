@@ -36,7 +36,14 @@ describe('AcpProcessManager config cache fallback', () => {
   const createManager = () =>
     new AcpProcessManager({
       providerId: 'acp',
-      getUseBuiltinRuntime: vi.fn().mockResolvedValue(false)
+      resolveLaunchSpec: vi.fn().mockResolvedValue({
+        agentId: 'agent-1',
+        source: 'manual',
+        distributionType: 'manual',
+        command: 'agent',
+        args: [],
+        env: {}
+      })
     })
 
   const createConfigState = (model = 'gpt-5', mode = 'code') => ({

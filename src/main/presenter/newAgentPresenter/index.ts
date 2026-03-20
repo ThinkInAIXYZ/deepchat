@@ -56,6 +56,7 @@ import {
   resolveUsageProviderId
 } from '../usageStats'
 import { rtkRuntimeService } from '@/lib/agentRuntime/rtkRuntimeService'
+import { resolveAcpAgentAlias } from '../configPresenter/acpRegistryConstants'
 
 const RETIRED_DEFAULT_AGENT_TOOLS = new Set(['find', 'grep', 'ls'])
 const LEGACY_AGENT_TOOL_NAME_MAP: Record<string, string> = {
@@ -686,7 +687,11 @@ export class NewAgentPresenter {
       id: agent.id,
       name: agent.name,
       type: 'acp',
-      enabled: true
+      enabled: true,
+      icon: agent.icon,
+      description: agent.description,
+      source: agent.source,
+      installState: agent.installState ?? null
     }))
 
     const map = new Map<string, Agent>()
@@ -1094,12 +1099,14 @@ export class NewAgentPresenter {
   }
 
   private async resolveAgentImplementation(agentId: string): Promise<IAgentImplementation> {
-    if (this.agentRegistry.has(agentId)) {
-      return this.agentRegistry.resolve(agentId)
+    const resolvedAgentId = resolveAcpAgentAlias(agentId)
+
+    if (this.agentRegistry.has(resolvedAgentId)) {
+      return this.agentRegistry.resolve(resolvedAgentId)
     }
 
     const acpAgents = await this.configPresenter.getAcpAgents()
-    const isAcpAgent = acpAgents.some((agent) => agent.id === agentId)
+    const isAcpAgent = acpAgents.some((agent) => agent.id === resolvedAgentId)
     if (isAcpAgent) {
       return this.agentRegistry.resolve('deepchat')
     }
@@ -1108,19 +1115,21 @@ export class NewAgentPresenter {
   }
 
   private async assertAcpAgent(agentId: string): Promise<void> {
+    const resolvedAgentId = resolveAcpAgentAlias(agentId)
     const acpAgents = await this.configPresenter.getAcpAgents()
-    if (!acpAgents.some((agent) => agent.id === agentId)) {
+    if (!acpAgents.some((agent) => agent.id === resolvedAgentId)) {
       throw new Error(`Agent ${agentId} is not an ACP agent.`)
     }
   }
 
   private async isAcpBackedSession(sessionId: string, agentId: string): Promise<boolean> {
+    const resolvedAgentId = resolveAcpAgentAlias(agentId)
     const agent = await this.resolveAgentImplementation(agentId)
     const state = await agent.getSessionState(sessionId)
     let providerId = state?.providerId ?? ''
     if (!providerId) {
       const acpAgents = await this.configPresenter.getAcpAgents()
-      if (acpAgents.some((item) => item.id === agentId)) {
+      if (acpAgents.some((item) => item.id === resolvedAgentId)) {
         providerId = 'acp'
       }
     }

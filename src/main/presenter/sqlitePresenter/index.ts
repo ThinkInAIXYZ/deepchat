@@ -557,4 +557,67 @@ export class SQLitePresenter implements ISQLitePresenter {
       this.newEnvironmentsTable.syncPath(path)
     }
   }
+
+  public async migrateAcpAgentReferences(aliasMap: Record<string, string>): Promise<void> {
+    const entries = Object.entries(aliasMap).filter(([from, to]) => from && to && from !== to)
+    if (!entries.length) {
+      return
+    }
+
+    await this.runTransaction(() => {
+      for (const [from, to] of entries) {
+        this.db.prepare('UPDATE new_sessions SET agent_id = ? WHERE agent_id = ?').run(to, from)
+        this.db.prepare('UPDATE acp_sessions SET agent_id = ? WHERE agent_id = ?').run(to, from)
+        this.db
+          .prepare(
+            `UPDATE conversations
+             SET model_id = ?
+             WHERE provider_id = 'acp' AND model_id = ?`
+          )
+          .run(to, from)
+      }
+
+      const conversationRows = this.db
+        .prepare(
+          `SELECT id, acp_workdir_map
+           FROM conversations
+           WHERE acp_workdir_map IS NOT NULL
+             AND TRIM(acp_workdir_map) != ''`
+        )
+        .all() as Array<{ id: string; acp_workdir_map: string | null }>
+
+      for (const row of conversationRows) {
+        if (!row.acp_workdir_map) {
+          continue
+        }
+
+        try {
+          const parsed = JSON.parse(row.acp_workdir_map) as Record<string, unknown>
+          let changed = false
+
+          for (const [from, to] of entries) {
+            if (parsed[from] !== undefined && parsed[to] === undefined) {
+              parsed[to] = parsed[from]
+              delete parsed[from]
+              changed = true
+            } else if (parsed[from] !== undefined) {
+              delete parsed[from]
+              changed = true
+            }
+          }
+
+          if (changed) {
+            this.db
+              .prepare('UPDATE conversations SET acp_workdir_map = ? WHERE id = ?')
+              .run(JSON.stringify(parsed), row.id)
+          }
+        } catch (error) {
+          console.warn('[SQLitePresenter] Failed to migrate acp_workdir_map for conversation:', {
+            conversationId: row.id,
+            error
+          })
+        }
+      }
+    })
+  }
 }

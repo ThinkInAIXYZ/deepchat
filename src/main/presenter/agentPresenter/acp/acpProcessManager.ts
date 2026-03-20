@@ -11,7 +11,12 @@ import type {
 } from '@agentclientprotocol/sdk'
 import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
 import type { Stream } from '@agentclientprotocol/sdk/dist/stream.js'
-import type { AcpAgentConfig, AcpConfigState } from '@shared/presenter'
+import type {
+  AcpAgentConfig,
+  AcpAgentState,
+  AcpConfigState,
+  AcpResolvedLaunchSpec
+} from '@shared/presenter'
 import type { AgentProcessHandle, AgentProcessManager } from './types'
 import { getShellEnvironment } from './shellEnvHelper'
 import { RuntimeHelper } from '@/lib/runtimeHelper'
@@ -46,7 +51,8 @@ export interface AcpProcessHandle extends AgentProcessHandle {
 
 interface AcpProcessManagerOptions {
   providerId: string
-  getUseBuiltinRuntime: () => Promise<boolean>
+  resolveLaunchSpec: (agentId: string, workdir?: string) => Promise<AcpResolvedLaunchSpec>
+  getAgentState?: (agentId: string) => Promise<AcpAgentState | null>
   getNpmRegistry?: () => Promise<string | null>
   getUvRegistry?: () => Promise<string | null>
 }
@@ -92,7 +98,11 @@ export const parseLoadSessionCapability = (initializeResult: unknown): boolean |
 
 export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, AcpAgentConfig> {
   private readonly providerId: string
-  private readonly getUseBuiltinRuntime: () => Promise<boolean>
+  private readonly resolveLaunchSpec: (
+    agentId: string,
+    workdir?: string
+  ) => Promise<AcpResolvedLaunchSpec>
+  private readonly getAgentState?: (agentId: string) => Promise<AcpAgentState | null>
   private readonly getNpmRegistry?: () => Promise<string | null>
   private readonly getUvRegistry?: () => Promise<string | null>
   private readonly handles = new Map<string, AcpProcessHandle>()
@@ -119,7 +129,8 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
 
   constructor(options: AcpProcessManagerOptions) {
     this.providerId = options.providerId
-    this.getUseBuiltinRuntime = options.getUseBuiltinRuntime
+    this.resolveLaunchSpec = options.resolveLaunchSpec
+    this.getAgentState = options.getAgentState
     this.getNpmRegistry = options.getNpmRegistry
     this.getUvRegistry = options.getUvRegistry
   }
@@ -720,25 +731,26 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
   ): Promise<ChildProcessWithoutNullStreams> {
     // Initialize runtime paths if not already done
     this.runtimeHelper.initializeRuntimes()
-
-    // Get useBuiltinRuntime configuration
-    const useBuiltinRuntime = await this.getUseBuiltinRuntime()
+    const launchSpec = await this.resolveLaunchSpec(agent.id, workdir)
+    const agentState = await this.getAgentState?.(agent.id)
 
     // Validate command
-    if (!agent.command || agent.command.trim().length === 0) {
+    if (!launchSpec.command || launchSpec.command.trim().length === 0) {
       throw new Error(`[ACP] Invalid command for agent ${agent.id}: command is empty`)
     }
 
     // Handle path expansion (including ~ and environment variables)
-    let expandedCommand = this.runtimeHelper.expandPath(agent.command)
-    let expandedArgs = (agent.args ?? []).map((arg) =>
+    const useBundledRuntime =
+      launchSpec.distributionType === 'npx' || launchSpec.distributionType === 'uvx'
+    const expandedCommand = this.runtimeHelper.expandPath(launchSpec.command)
+    const expandedArgs = (launchSpec.args ?? []).map((arg) =>
       typeof arg === 'string' ? this.runtimeHelper.expandPath(arg) : arg
     )
 
     // Replace command with runtime version if needed
     const processedCommand = this.runtimeHelper.replaceWithRuntimeCommand(
       expandedCommand,
-      useBuiltinRuntime,
+      useBundledRuntime,
       true
     )
 
@@ -751,14 +763,15 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
 
     // Log command processing for debugging
     console.info(`[ACP] Spawning process for agent ${agent.id}:`, {
-      originalCommand: agent.command,
+      originalCommand: launchSpec.command,
       processedCommand,
-      args: agent.args ?? []
+      args: launchSpec.args ?? [],
+      distributionType: launchSpec.distributionType
     })
 
-    if (processedCommand !== agent.command) {
+    if (processedCommand !== launchSpec.command) {
       console.info(
-        `[ACP] Command replaced for agent ${agent.id}: "${agent.command}" -> "${processedCommand}"`
+        `[ACP] Command replaced for agent ${agent.id}: "${launchSpec.command}" -> "${processedCommand}"`
       )
     }
 
@@ -817,45 +830,16 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     // Merge all paths (priority: shell PATH > existing PATH > default paths)
     const allPaths = [...existingPaths, ...defaultPaths]
 
-    // Add runtime paths only when using builtin runtime
-    if (useBuiltinRuntime) {
-      const uvRuntimePath = this.runtimeHelper.getUvRuntimePath()
-      const nodeRuntimePath = this.runtimeHelper.getNodeRuntimePath()
-      if (process.platform === 'win32') {
-        // Windows platform only adds node and uv paths
-        if (uvRuntimePath) {
-          allPaths.unshift(uvRuntimePath)
-          console.info(`[ACP] Added UV runtime path to PATH: ${uvRuntimePath}`)
-        }
-        if (nodeRuntimePath) {
-          allPaths.unshift(nodeRuntimePath)
-          console.info(`[ACP] Added Node runtime path to PATH: ${nodeRuntimePath}`)
-        }
-      } else {
-        // Other platforms priority: node > uv
-        if (uvRuntimePath) {
-          allPaths.unshift(uvRuntimePath)
-          console.info(`[ACP] Added UV runtime path to PATH: ${uvRuntimePath}`)
-        }
-        if (nodeRuntimePath) {
-          const nodeBinPath = path.join(nodeRuntimePath, 'bin')
-          allPaths.unshift(nodeBinPath)
-          console.info(`[ACP] Added Node bin path to PATH: ${nodeBinPath}`)
-        }
-      }
-    }
-
     // Normalize and set PATH
     const normalized = this.runtimeHelper.normalizePathEnv(allPaths)
     pathKey = normalized.key
     pathValue = normalized.value
     env[pathKey] = pathValue
 
-    // Add custom environment variables
-    if (agent.env) {
-      Object.entries(agent.env).forEach(([key, value]) => {
+    // Merge distribution/base environment variables first.
+    if (launchSpec.env) {
+      Object.entries(launchSpec.env).forEach(([key, value]) => {
         if (value !== undefined && value !== '') {
-          // If it's a PATH-related variable, merge into main PATH
           if (['PATH', 'Path', 'path'].includes(key)) {
             const currentPathKey = process.platform === 'win32' ? 'Path' : 'PATH'
             const separator = process.platform === 'win32' ? ';' : ':'
@@ -869,8 +853,13 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
       })
     }
 
-    // Add registry environment variables when using builtin runtime
-    if (useBuiltinRuntime) {
+    if (useBundledRuntime) {
+      const withRuntimePaths = this.runtimeHelper.prependBundledRuntimeToEnv(env)
+      Object.assign(env, withRuntimePaths)
+
+      env.ACP_IDE = 'deepchat'
+      env.DEEPCHAT_ACP_AGENT_ID = agent.id
+
       if (this.getNpmRegistry) {
         const npmRegistry = await this.getNpmRegistry()
         if (npmRegistry && npmRegistry !== '') {
@@ -887,21 +876,28 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
       }
     }
 
+    const userEnvOverride = agentState?.envOverride
+    if (userEnvOverride) {
+      Object.entries(userEnvOverride).forEach(([key, value]) => {
+        if (value !== undefined && value !== '') {
+          env[key] = value
+        }
+      })
+    }
+
     const mergedEnv = env
 
     console.info(`[ACP] Environment variables for agent ${agent.id}:`, {
       pathKey,
       pathValue,
-      hasCustomEnv: !!agent.env,
-      customEnvKeys: agent.env ? Object.keys(agent.env) : []
+      distributionEnvKeys: Object.keys(launchSpec.env ?? {}),
+      userOverrideKeys: Object.keys(userEnvOverride ?? {})
     })
 
     // Use the provided workdir as cwd if it exists, otherwise fall back to home directory
-    let cwd = workdir
-    if (!fs.existsSync(workdir)) {
-      console.warn(
-        `[ACP] Workdir "${workdir}" does not exist for agent ${agent.id}, using HOME_DIR`
-      )
+    let cwd = launchSpec.cwd?.trim() ? launchSpec.cwd : workdir
+    if (!fs.existsSync(cwd)) {
+      console.warn(`[ACP] Workdir "${cwd}" does not exist for agent ${agent.id}, using HOME_DIR`)
       cwd = HOME_DIR
     }
     console.info(`[ACP] Using workdir as cwd for agent ${agent.id}: ${cwd}`)

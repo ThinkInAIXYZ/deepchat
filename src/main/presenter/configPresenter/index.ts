@@ -12,10 +12,11 @@ import {
   IModelConfig,
   BuiltinKnowledgeConfig,
   AcpAgentConfig,
-  AcpAgentProfile,
-  AcpBuiltinAgent,
-  AcpBuiltinAgentId,
-  AcpCustomAgent
+  AcpAgentInstallState,
+  AcpAgentState,
+  AcpManualAgent,
+  AcpRegistryAgent,
+  AcpResolvedLaunchSpec
 } from '@shared/presenter'
 import { ProviderBatchUpdate } from '@shared/provider-operations'
 import { SearchEngineTemplate } from '@shared/chat'
@@ -30,7 +31,7 @@ import {
 import ElectronStore from 'electron-store'
 import { DEFAULT_PROVIDERS } from './providers'
 import path from 'path'
-import { app, nativeTheme, shell, ipcMain } from 'electron'
+import { app, nativeTheme, shell } from 'electron'
 import fs from 'fs'
 import { CONFIG_EVENTS, SYSTEM_EVENTS, FLOATING_BUTTON_EVENTS, SESSION_EVENTS } from '@/events'
 import { McpConfHelper } from './mcpConfHelper'
@@ -48,14 +49,10 @@ import { ProviderModelHelper, PROVIDER_MODELS_DIR } from './providerModelHelper'
 import { SystemPromptHelper, DEFAULT_SYSTEM_PROMPT } from './systemPromptHelper'
 import { UiSettingsHelper } from './uiSettingsHelper'
 import { AcpConfHelper } from './acpConfHelper'
+import { AcpRegistryService } from './acpRegistryService'
+import { AcpLaunchSpecService } from './acpLaunchSpecService'
 import { AcpProvider } from '../llmProviderPresenter/providers/acpProvider'
-import {
-  initializeBuiltinAgent,
-  initializeCustomAgent,
-  writeToTerminal,
-  killTerminal
-} from './acpInitHelper'
-import { clearShellEnvironmentCache } from '../agentPresenter/acp'
+import { resolveAcpAgentAlias } from './acpRegistryConstants'
 import type {
   HookEventName,
   HookTestResult,
@@ -99,6 +96,7 @@ interface IAppSettings {
   defaultModel?: { providerId: string; modelId: string } // Default model for new conversations
   defaultVisionModel?: { providerId: string; modelId: string } // Default vision model for image tools
   defaultProjectPath?: string | null
+  acpRegistryMigrationVersion?: number
   [key: string]: unknown // Allow arbitrary keys, using unknown type instead of any
 }
 
@@ -127,6 +125,8 @@ export class ConfigPresenter implements IConfigPresenter {
   private currentAppVersion: string
   private mcpConfHelper: McpConfHelper // Use MCP configuration helper
   private acpConfHelper: AcpConfHelper
+  private acpRegistryService: AcpRegistryService
+  private acpLaunchSpecService: AcpLaunchSpecService
   private modelConfigHelper: ModelConfigHelper // Model configuration helper
   private knowledgeConfHelper: KnowledgeConfHelper // Knowledge configuration helper
   private providerHelper: ProviderHelper
@@ -225,8 +225,14 @@ export class ConfigPresenter implements IConfigPresenter {
     this.mcpConfHelper = new McpConfHelper()
 
     this.acpConfHelper = new AcpConfHelper({ mcpConfHelper: this.mcpConfHelper })
+    this.acpRegistryService = new AcpRegistryService()
+    this.acpLaunchSpecService = new AcpLaunchSpecService(
+      path.join(this.userDataPath, 'acp-registry')
+    )
     this.syncAcpProviderEnabled(this.acpConfHelper.getGlobalEnabled())
-    this.setupIpcHandlers()
+    void this.acpRegistryService.initialize().then(() => {
+      this.notifyAcpAgentsChanged()
+    })
 
     // Initialize model configuration helper
     this.modelConfigHelper = new ModelConfigHelper(this.currentAppVersion)
@@ -270,15 +276,6 @@ export class ConfigPresenter implements IConfigPresenter {
     if (newProviders.length > 0) {
       this.setProviders([...existingProviders, ...newProviders])
     }
-  }
-
-  private setupIpcHandlers() {
-    ipcMain.on('acp-terminal:input', (_event, data: string) => {
-      writeToTerminal(data)
-    })
-    ipcMain.on('acp-terminal:kill', () => {
-      killTerminal()
-    })
   }
 
   private initProviderModelsDir(): void {
@@ -1130,194 +1127,187 @@ export class ConfigPresenter implements IConfigPresenter {
     this.notifyAcpAgentsChanged()
   }
 
-  async getAcpUseBuiltinRuntime(): Promise<boolean> {
-    return this.acpConfHelper.getUseBuiltinRuntime()
-  }
-
-  async setAcpUseBuiltinRuntime(enabled: boolean): Promise<void> {
-    this.acpConfHelper.setUseBuiltinRuntime(enabled)
-    // Clear shell environment cache when useBuiltinRuntime changes
-    // This ensures fresh environment variables are fetched if user switches back to system runtime
-    clearShellEnvironmentCache()
-  }
-
   // ===================== ACP configuration methods =====================
+  async listAcpRegistryAgents(): Promise<AcpRegistryAgent[]> {
+    const registryAgents = this.acpRegistryService.listAgents()
+    const registryStates = this.acpConfHelper.getRegistryStates()
+    const installStates = this.acpConfHelper.getInstallStates()
+
+    return registryAgents.map((agent) => {
+      const state = registryStates[agent.id]
+      return {
+        ...agent,
+        enabled: state?.enabled ?? false,
+        envOverride: state?.envOverride,
+        installState: installStates[agent.id] ?? null
+      }
+    })
+  }
+
+  async refreshAcpRegistry(force = true): Promise<AcpRegistryAgent[]> {
+    await this.acpRegistryService.refresh(force)
+    const agents = await this.listAcpRegistryAgents()
+    this.notifyAcpAgentsChanged()
+    return agents
+  }
+
+  async getAcpAgentState(agentId: string): Promise<AcpAgentState | null> {
+    return this.acpConfHelper.getAgentState(agentId)
+  }
+
+  async setAcpAgentEnabled(agentId: string, enabled: boolean): Promise<void> {
+    const resolvedId = resolveAcpAgentAlias(agentId)
+    this.acpConfHelper.setAgentEnabled(resolvedId, enabled)
+    this.handleAcpAgentsMutated([resolvedId])
+
+    if (enabled) {
+      void this.ensureAcpAgentInstalled(resolvedId).catch((error) => {
+        console.warn(`[ACP] Failed to preinstall registry agent ${resolvedId}:`, error)
+      })
+    }
+  }
+
+  async setAcpAgentEnvOverride(agentId: string, env: Record<string, string>): Promise<void> {
+    const resolvedId = resolveAcpAgentAlias(agentId)
+    const installState = this.acpConfHelper.getInstallState(resolvedId)
+    if (installState?.status !== 'installed') {
+      throw new Error(`ACP registry agent is not installed: ${resolvedId}`)
+    }
+    this.acpConfHelper.setAgentEnvOverride(resolvedId, env)
+    this.handleAcpAgentsMutated([resolvedId])
+  }
+
+  async ensureAcpAgentInstalled(agentId: string): Promise<AcpAgentInstallState> {
+    const registryAgent = this.getRegistryAgentOrThrow(agentId)
+    const currentState = this.acpConfHelper.getInstallState(registryAgent.id)
+    const installingState: AcpAgentInstallState = {
+      status: 'installing',
+      version: registryAgent.version,
+      distributionType:
+        this.acpLaunchSpecService.selectRegistryDistribution(registryAgent)?.type ?? undefined,
+      lastCheckedAt: Date.now(),
+      installedAt: currentState?.installedAt ?? null,
+      installDir: currentState?.installDir ?? null,
+      error: null
+    }
+    this.acpConfHelper.setInstallState(registryAgent.id, installingState)
+    this.notifyAcpAgentsChanged()
+
+    const installedState = await this.acpLaunchSpecService.ensureRegistryAgentInstalled(
+      registryAgent,
+      currentState
+    )
+    this.acpConfHelper.setInstallState(registryAgent.id, installedState)
+    this.notifyAcpAgentsChanged()
+    return installedState
+  }
+
+  async repairAcpAgent(agentId: string): Promise<AcpAgentInstallState> {
+    const registryAgent = this.getRegistryAgentOrThrow(agentId)
+    const currentState = this.acpConfHelper.getInstallState(registryAgent.id)
+    const installedState = await this.acpLaunchSpecService.ensureRegistryAgentInstalled(
+      registryAgent,
+      currentState,
+      { repair: true }
+    )
+    this.acpConfHelper.setInstallState(registryAgent.id, installedState)
+    this.handleAcpAgentsMutated([registryAgent.id])
+    return installedState
+  }
+
+  async getAcpAgentInstallStatus(agentId: string): Promise<AcpAgentInstallState | null> {
+    return this.acpConfHelper.getInstallState(agentId)
+  }
+
+  async listManualAcpAgents(): Promise<AcpManualAgent[]> {
+    return this.acpConfHelper.getManualAgents()
+  }
+
+  async addManualAcpAgent(
+    agent: Omit<AcpManualAgent, 'id' | 'source'> & { id?: string }
+  ): Promise<AcpManualAgent> {
+    const created = this.acpConfHelper.addManualAgent(agent)
+    this.handleAcpAgentsMutated([created.id])
+    return created
+  }
+
+  async updateManualAcpAgent(
+    agentId: string,
+    updates: Partial<Omit<AcpManualAgent, 'id' | 'source'>>
+  ): Promise<AcpManualAgent | null> {
+    const updated = this.acpConfHelper.updateManualAgent(agentId, updates)
+    if (updated) {
+      this.handleAcpAgentsMutated([updated.id])
+    }
+    return updated
+  }
+
+  async removeManualAcpAgent(agentId: string): Promise<boolean> {
+    const removed = this.acpConfHelper.removeManualAgent(agentId)
+    if (removed) {
+      this.handleAcpAgentsMutated([agentId])
+    }
+    return removed
+  }
+
   async getAcpAgents(): Promise<AcpAgentConfig[]> {
-    return this.acpConfHelper.getEnabledAgents()
-  }
-
-  async setAcpAgents(agents: AcpAgentConfig[]): Promise<AcpAgentConfig[]> {
-    const sanitizedAgents = this.acpConfHelper.replaceWithLegacyAgents(agents)
-    this.handleAcpAgentsMutated(sanitizedAgents.map((agent) => agent.id))
-    return sanitizedAgents
-  }
-
-  async addAcpAgent(agent: Omit<AcpAgentConfig, 'id'> & { id?: string }): Promise<AcpAgentConfig> {
-    const created = this.acpConfHelper.addLegacyAgent(agent)
-    this.handleAcpAgentsMutated([created.id])
-    return created
-  }
-
-  async updateAcpAgent(
-    agentId: string,
-    updates: Partial<Omit<AcpAgentConfig, 'id'>>
-  ): Promise<AcpAgentConfig | null> {
-    const updated = this.acpConfHelper.updateLegacyAgent(agentId, updates)
-    if (updated) {
-      this.handleAcpAgentsMutated([agentId])
-    }
-    return updated
-  }
-
-  async removeAcpAgent(agentId: string): Promise<boolean> {
-    const removed = this.acpConfHelper.removeLegacyAgent(agentId)
-    if (removed) {
-      this.handleAcpAgentsMutated([agentId])
-    }
-    return removed
-  }
-
-  async getAcpBuiltinAgents(): Promise<AcpBuiltinAgent[]> {
-    return this.acpConfHelper.getBuiltins()
-  }
-
-  async getAcpCustomAgents(): Promise<AcpCustomAgent[]> {
-    return this.acpConfHelper.getCustoms()
-  }
-
-  /**
-   * Initialize an ACP agent with terminal output streaming
-   */
-  async initializeAcpAgent(agentId: string, isBuiltin: boolean): Promise<void> {
-    const useBuiltinRuntime = await this.getAcpUseBuiltinRuntime()
-
-    // Get npm and uv registry from MCP presenter
-    let npmRegistry: string | null = null
-    let uvRegistry: string | null = null
-    try {
-      const mcpPresenter = presenter.mcpPresenter
-      if (mcpPresenter) {
-        npmRegistry = mcpPresenter.getNpmRegistry?.() ?? null
-        uvRegistry = mcpPresenter.getUvRegistry?.() ?? null
-      }
-    } catch (error) {
-      console.warn('[ACP Init] Failed to get registry from MCP presenter:', error)
+    const acpEnabled = this.acpConfHelper.getGlobalEnabled()
+    if (!acpEnabled) {
+      return []
     }
 
-    // Get settings window webContents for streaming output
-    const windowPresenter = presenter.windowPresenter as any
-    const settingsWindow = windowPresenter?.settingsWindow
-    const webContents =
-      settingsWindow && !settingsWindow.isDestroyed() ? settingsWindow.webContents : undefined
+    const [registryAgents, manualAgents] = await Promise.all([
+      this.listAcpRegistryAgents(),
+      this.listManualAcpAgents()
+    ])
 
-    if (isBuiltin) {
-      // Get builtin agent and its active profile
-      const builtins = await this.getAcpBuiltinAgents()
-      const agent = builtins.find((a) => a.id === agentId)
-      if (!agent) {
-        throw new Error(`Built-in agent not found: ${agentId}`)
-      }
+    const enabledRegistryAgents = registryAgents
+      .filter((agent) => agent.enabled && agent.installState?.status === 'installed')
+      .map((agent) => this.buildRegistryAgentConfig(agent))
 
-      const activeProfile = agent.profiles.find((p) => p.id === agent.activeProfileId)
-      if (!activeProfile) {
-        throw new Error(`No active profile found for agent: ${agentId}`)
-      }
+    const enabledManualAgents = manualAgents
+      .filter((agent) => agent.enabled)
+      .map((agent) => this.buildManualAgentConfig(agent))
 
-      const result = await initializeBuiltinAgent(
-        agentId as AcpBuiltinAgentId,
-        activeProfile,
-        useBuiltinRuntime,
-        npmRegistry,
-        uvRegistry,
-        webContents
-      )
-      // If initialization returns null, it means dependencies are missing
-      // The event has already been sent to frontend, just return without error
-      if (result === null) {
-        return
-      }
-    } else {
-      // Get custom agent
-      const customs = await this.getAcpCustomAgents()
-      const agent = customs.find((a) => a.id === agentId)
-      if (!agent) {
-        throw new Error(`Custom agent not found: ${agentId}`)
-      }
+    return [...enabledRegistryAgents, ...enabledManualAgents]
+  }
 
-      await initializeCustomAgent(agent, useBuiltinRuntime, npmRegistry, uvRegistry, webContents)
+  async resolveAcpLaunchSpec(agentId: string, _workdir?: string): Promise<AcpResolvedLaunchSpec> {
+    const resolvedId = resolveAcpAgentAlias(agentId)
+    const manualAgent = this.acpConfHelper
+      .getManualAgents()
+      .find((agent) => agent.id === resolvedId)
+    if (manualAgent) {
+      return this.acpLaunchSpecService.resolveManualLaunchSpec(manualAgent)
     }
-  }
 
-  async addAcpBuiltinProfile(
-    agentId: AcpBuiltinAgentId,
-    profile: Omit<AcpAgentProfile, 'id'>,
-    options?: { activate?: boolean }
-  ): Promise<AcpAgentProfile> {
-    const created = this.acpConfHelper.addBuiltinProfile(agentId, profile, options)
-    this.handleAcpAgentsMutated([agentId])
-    return created
-  }
+    const registryAgent = this.getRegistryAgentOrThrow(resolvedId)
+    const installState = this.acpConfHelper.getInstallState(registryAgent.id)
+    const launchSpec = await this.acpLaunchSpecService.resolveRegistryLaunchSpec(
+      registryAgent,
+      installState
+    )
 
-  async updateAcpBuiltinProfile(
-    agentId: AcpBuiltinAgentId,
-    profileId: string,
-    updates: Partial<Omit<AcpAgentProfile, 'id'>>
-  ): Promise<AcpAgentProfile | null> {
-    const updated = this.acpConfHelper.updateBuiltinProfile(agentId, profileId, updates)
-    if (updated) {
-      this.handleAcpAgentsMutated([agentId])
+    const nextInstallState: AcpAgentInstallState = {
+      status: 'installed',
+      distributionType: launchSpec.distributionType,
+      version: launchSpec.version,
+      lastCheckedAt: Date.now(),
+      installedAt: installState?.installedAt ?? Date.now(),
+      installDir: launchSpec.installDir ?? null,
+      error: null
     }
-    return updated
+    this.acpConfHelper.setInstallState(resolvedId, nextInstallState)
+    return launchSpec
   }
 
-  async removeAcpBuiltinProfile(agentId: AcpBuiltinAgentId, profileId: string): Promise<boolean> {
-    const removed = this.acpConfHelper.removeBuiltinProfile(agentId, profileId)
-    if (removed) {
-      this.handleAcpAgentsMutated([agentId])
-    }
-    return removed
+  async getAcpSharedMcpSelections(): Promise<string[]> {
+    return this.acpConfHelper.getSharedMcpSelections()
   }
 
-  async setAcpBuiltinActiveProfile(agentId: AcpBuiltinAgentId, profileId: string): Promise<void> {
-    this.acpConfHelper.setBuiltinActiveProfile(agentId, profileId)
-    this.handleAcpAgentsMutated([agentId])
-  }
-
-  async setAcpBuiltinEnabled(agentId: AcpBuiltinAgentId, enabled: boolean): Promise<void> {
-    this.acpConfHelper.setBuiltinEnabled(agentId, enabled)
-    this.handleAcpAgentsMutated([agentId])
-  }
-
-  async addCustomAcpAgent(
-    agent: Omit<AcpCustomAgent, 'id' | 'enabled'> & { id?: string; enabled?: boolean }
-  ): Promise<AcpCustomAgent> {
-    const created = this.acpConfHelper.addCustomAgent(agent)
-    this.handleAcpAgentsMutated([created.id])
-    return created
-  }
-
-  async updateCustomAcpAgent(
-    agentId: string,
-    updates: Partial<Omit<AcpCustomAgent, 'id'>>
-  ): Promise<AcpCustomAgent | null> {
-    const updated = this.acpConfHelper.updateCustomAgent(agentId, updates)
-    if (updated) {
-      this.handleAcpAgentsMutated([agentId])
-    }
-    return updated
-  }
-
-  async removeCustomAcpAgent(agentId: string): Promise<boolean> {
-    const removed = this.acpConfHelper.removeCustomAgent(agentId)
-    if (removed) {
-      this.handleAcpAgentsMutated([agentId])
-    }
-    return removed
-  }
-
-  async setCustomAcpAgentEnabled(agentId: string, enabled: boolean): Promise<void> {
-    this.acpConfHelper.setCustomAgentEnabled(agentId, enabled)
-    this.handleAcpAgentsMutated([agentId])
+  async setAcpSharedMcpSelections(mcpIds: string[]): Promise<void> {
+    await this.acpConfHelper.setSharedMcpSelections(mcpIds)
+    this.handleAcpAgentsMutated()
   }
 
   async getAgentMcpSelections(agentId: string, isBuiltin?: boolean): Promise<string[]> {
@@ -1330,17 +1320,54 @@ export class ConfigPresenter implements IConfigPresenter {
     mcpIds: string[]
   ): Promise<void> {
     await this.acpConfHelper.setAgentMcpSelections(agentId, isBuiltin, mcpIds)
-    this.handleAcpAgentsMutated([agentId])
+    this.handleAcpAgentsMutated()
   }
 
   async addMcpToAgent(agentId: string, isBuiltin: boolean, mcpId: string): Promise<void> {
     await this.acpConfHelper.addMcpToAgent(agentId, isBuiltin, mcpId)
-    this.handleAcpAgentsMutated([agentId])
+    this.handleAcpAgentsMutated()
   }
 
   async removeMcpFromAgent(agentId: string, isBuiltin: boolean, mcpId: string): Promise<void> {
     await this.acpConfHelper.removeMcpFromAgent(agentId, isBuiltin, mcpId)
-    this.handleAcpAgentsMutated([agentId])
+    this.handleAcpAgentsMutated()
+  }
+
+  private buildRegistryAgentConfig(agent: AcpRegistryAgent): AcpAgentConfig {
+    const preview = this.acpLaunchSpecService.buildRegistryPreview(agent)
+    return {
+      id: agent.id,
+      name: agent.name,
+      command: preview.command,
+      args: preview.args,
+      description: agent.description,
+      icon: agent.icon,
+      source: 'registry',
+      installState: agent.installState ?? null
+    }
+  }
+
+  private buildManualAgentConfig(agent: AcpManualAgent): AcpAgentConfig {
+    return {
+      id: agent.id,
+      name: agent.name,
+      command: agent.command,
+      args: agent.args,
+      env: agent.env,
+      description: agent.description,
+      icon: agent.icon,
+      source: 'manual',
+      installState: null
+    }
+  }
+
+  private getRegistryAgentOrThrow(agentId: string): AcpRegistryAgent {
+    const resolvedId = resolveAcpAgentAlias(agentId)
+    const agent = this.acpRegistryService.getAgent(resolvedId)
+    if (!agent) {
+      throw new Error(`ACP registry agent not found: ${resolvedId}`)
+    }
+    return agent
   }
 
   private handleAcpAgentsMutated(agentIds?: string[]) {

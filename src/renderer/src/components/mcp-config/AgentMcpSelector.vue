@@ -1,15 +1,10 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { usePresenter } from '@/composables/usePresenter'
 import { Checkbox } from '@shadcn/components/ui/checkbox'
 import { useToast } from '@/components/use-toast'
 import type { MCPServerConfig } from '@shared/presenter'
-
-const props = defineProps<{
-  agentId: string
-  isBuiltin: boolean
-}>()
 
 const emit = defineEmits<{
   'update:selections': [selections: string[]]
@@ -31,12 +26,11 @@ const selectableServers = computed(() =>
 const selectionSet = computed(() => new Set(selections.value))
 
 const load = async () => {
-  if (!props.agentId) return
   loading.value = true
   try {
     const [servers, currentSelections] = await Promise.all([
       configPresenter.getMcpServers(),
-      configPresenter.getAgentMcpSelections(props.agentId, props.isBuiltin)
+      configPresenter.getAcpSharedMcpSelections()
     ])
 
     availableServers.value = Object.entries(servers ?? {}).map(([name, config]) => ({
@@ -54,10 +48,9 @@ const persist = async (
   nextSelections: string[],
   previousSelections: string[] = selections.value
 ) => {
-  if (!props.agentId) return
   saving.value = true
   try {
-    await configPresenter.setAgentMcpSelections(props.agentId, props.isBuiltin, nextSelections)
+    await configPresenter.setAcpSharedMcpSelections(nextSelections)
     emit('update:selections', nextSelections)
   } catch (error) {
     selections.value = previousSelections
@@ -86,13 +79,6 @@ const toggleServer = async (serverName: string, checked: boolean) => {
     throw error
   }
 }
-
-watch(
-  () => [props.agentId, props.isBuiltin],
-  () => {
-    void load()
-  }
-)
 
 onMounted(() => {
   void load()
