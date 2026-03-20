@@ -27,6 +27,8 @@ type RegistryDistributionSelection =
       }
     }
 
+const SAFE_INSTALL_SEGMENT_PATTERN = /^[A-Za-z0-9._-]+$/
+
 const sanitizeRelativePath = (input: string): string => {
   const trimmed = input.replace(/^\.\/+/, '').trim()
   const normalized = path.posix.normalize(trimmed.replace(/\\/g, '/'))
@@ -34,6 +36,14 @@ const sanitizeRelativePath = (input: string): string => {
     throw new Error(`Unsafe archive path: ${input}`)
   }
   return normalized
+}
+
+const sanitizeInstallSegment = (value: string, label: string): string => {
+  const trimmed = value.trim()
+  if (!trimmed || !SAFE_INSTALL_SEGMENT_PATTERN.test(trimmed)) {
+    throw new Error(`Unsafe ACP registry ${label}: ${value}`)
+  }
+  return trimmed
 }
 
 const ensureDir = (dir: string): void => {
@@ -273,7 +283,20 @@ export class AcpLaunchSpecService {
   }
 
   private getBinaryInstallDir(agent: AcpRegistryAgent): string {
-    return path.join(this.installRoot, agent.id, agent.version)
+    const safeAgentId = sanitizeInstallSegment(agent.id, 'agent id')
+    const safeVersion = sanitizeInstallSegment(agent.version, 'agent version')
+    const installDir = path.join(this.installRoot, safeAgentId, safeVersion)
+    const resolvedInstallDir = path.resolve(installDir)
+    const resolvedInstallRoot = path.resolve(this.installRoot)
+
+    if (
+      resolvedInstallDir !== resolvedInstallRoot &&
+      !resolvedInstallDir.startsWith(`${resolvedInstallRoot}${path.sep}`)
+    ) {
+      throw new Error(`Unsafe ACP install directory for ${agent.id}@${agent.version}`)
+    }
+
+    return resolvedInstallDir
   }
 
   private resolveInstalledBinaryPath(installDir: string, cmd: string): string | null {
@@ -309,7 +332,8 @@ export class AcpLaunchSpecService {
   }
 
   private async downloadArchive(url: string, agent: AcpRegistryAgent): Promise<string> {
-    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), `deepchat-acp-${agent.id}-`))
+    const safeAgentId = sanitizeInstallSegment(agent.id, 'agent id')
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), `deepchat-acp-${safeAgentId}-`))
     const archivePath = path.join(tempDir, path.basename(new URL(url).pathname))
     const response = await fetch(url)
     if (!response.ok) {
@@ -349,11 +373,23 @@ export class AcpLaunchSpecService {
     const listed = execFileSync('tar', ['-tf', archivePath], {
       encoding: 'utf-8'
     })
-    listed
-      .split(/\r?\n/)
-      .filter((entry) => entry.trim().length > 0)
-      .forEach((entry) => {
-        sanitizeRelativePath(entry)
-      })
+    const verboseListed = execFileSync('tar', ['-tvf', archivePath], {
+      encoding: 'utf-8'
+    })
+
+    const entries = listed.split(/\r?\n/).filter((entry) => entry.trim().length > 0)
+    const verboseEntries = verboseListed.split(/\r?\n/).filter((entry) => entry.trim().length > 0)
+
+    if (entries.length !== verboseEntries.length) {
+      throw new Error('Failed to validate tar archive entries')
+    }
+
+    entries.forEach((entry, index) => {
+      const type = verboseEntries[index]?.[0]
+      if (type !== '-' && type !== 'd') {
+        throw new Error(`Unsupported tar entry type for ${entry}`)
+      }
+      sanitizeRelativePath(entry)
+    })
   }
 }

@@ -9,6 +9,7 @@ import type {
   UserMessageContent
 } from '@shared/types/agent-interface'
 import type { SearchResult } from '@shared/types/core/search'
+import { resolveAcpAgentAlias } from '@/presenter/configPresenter/acpRegistryConstants'
 
 type LegacyRow = Record<string, unknown>
 
@@ -343,9 +344,10 @@ export class LegacyChatImportService {
     const acpWorkdirByConversationAndAgent = new Map<string, string>()
     for (const row of payload.acpSessionRows) {
       const conversationId = this.pickString(row, ['conversation_id'])
-      const agentId = this.pickString(row, ['agent_id'])
+      const rawAgentId = this.pickString(row, ['agent_id'])
       const workdir = this.pickString(row, ['workdir'])
-      if (!conversationId || !agentId || !workdir) continue
+      if (!conversationId || !rawAgentId || !workdir) continue
+      const agentId = resolveAcpAgentAlias(rawAgentId)
       acpWorkdirByConversationAndAgent.set(`${conversationId}::${agentId}`, workdir)
     }
 
@@ -359,7 +361,8 @@ export class LegacyChatImportService {
         const sessionId = this.toLegacySessionId(oldConversationId)
         const title = this.pickString(conversation, ['title']) || 'Imported Chat'
         const providerId = this.pickString(conversation, ['provider_id']) || 'openai'
-        const modelId = this.pickString(conversation, ['model_id']) || 'gpt-4'
+        const rawModelId = this.pickString(conversation, ['model_id']) || 'gpt-4'
+        const modelId = providerId === 'acp' ? resolveAcpAgentAlias(rawModelId) : rawModelId
         const agentId = providerId === 'acp' && modelId ? modelId : 'deepchat'
         const isPinned = this.pickNumber(conversation, ['is_pinned']) === 1
         const createdAt = this.pickNumber(conversation, ['created_at']) ?? Date.now()
@@ -373,8 +376,16 @@ export class LegacyChatImportService {
           const workdirMap = this.parseJsonRecord(
             this.pickString(conversation, ['acp_workdir_map']) ?? ''
           )
-          if (workdirMap && typeof workdirMap[agentId] === 'string') {
-            projectDir = workdirMap[agentId] as string
+          if (workdirMap) {
+            for (const [legacyAgentId, legacyWorkdir] of Object.entries(workdirMap)) {
+              if (
+                resolveAcpAgentAlias(legacyAgentId) === agentId &&
+                typeof legacyWorkdir === 'string'
+              ) {
+                projectDir = legacyWorkdir
+                break
+              }
+            }
           }
         }
         if (!projectDir && agentId !== 'deepchat') {

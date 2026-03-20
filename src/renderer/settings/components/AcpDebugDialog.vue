@@ -522,6 +522,7 @@ const handleSend = async () => {
 
 const runHealthCheck = async () => {
   clearEvents()
+  debugSessionId.value = ''
   loading.value = true
   try {
     await configPresenter.ensureAcpAgentInstalled(props.agentId)
@@ -554,19 +555,21 @@ const runHealthCheck = async () => {
       throw new Error(newSessionResult.error || t('settings.acp.debug.requestFailed'))
     }
 
-    if (newSessionResult.sessionId) {
-      debugSessionId.value = newSessionResult.sessionId
-    }
+    const newSessionId = newSessionResult.sessionId
 
     const cancelResult = await llmProviderPresenter.runAcpDebugAction({
       agentId: props.agentId,
       action: 'cancel',
       payload: templateForMethod('cancel'),
-      sessionId: debugSessionId.value,
+      sessionId: newSessionId,
       workdir: workdirPath.value || undefined,
       webContentsId: webContentsId || undefined
     })
     appendEvents(cancelResult.events ?? [])
+
+    if (newSessionId && cancelResult.status !== 'ok') {
+      debugSessionId.value = newSessionId
+    }
 
     selectedMethod.value = 'newSession'
     resetPayload()

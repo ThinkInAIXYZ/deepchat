@@ -230,9 +230,14 @@ export class ConfigPresenter implements IConfigPresenter {
       path.join(this.userDataPath, 'acp-registry')
     )
     this.syncAcpProviderEnabled(this.acpConfHelper.getGlobalEnabled())
-    void this.acpRegistryService.initialize().then(() => {
-      this.notifyAcpAgentsChanged()
-    })
+    void this.acpRegistryService
+      .initialize()
+      .then(() => {
+        this.notifyAcpAgentsChanged()
+      })
+      .catch((error) => {
+        console.error('[ACP] Failed to initialize registry service:', error)
+      })
 
     // Initialize model configuration helper
     this.modelConfigHelper = new ModelConfigHelper(this.currentAppVersion)
@@ -1197,26 +1202,71 @@ export class ConfigPresenter implements IConfigPresenter {
     this.acpConfHelper.setInstallState(registryAgent.id, installingState)
     this.notifyAcpAgentsChanged()
 
-    const installedState = await this.acpLaunchSpecService.ensureRegistryAgentInstalled(
-      registryAgent,
-      currentState
-    )
-    this.acpConfHelper.setInstallState(registryAgent.id, installedState)
-    this.notifyAcpAgentsChanged()
-    return installedState
+    try {
+      const installedState = await this.acpLaunchSpecService.ensureRegistryAgentInstalled(
+        registryAgent,
+        currentState
+      )
+      this.acpConfHelper.setInstallState(registryAgent.id, installedState)
+      this.notifyAcpAgentsChanged()
+      return installedState
+    } catch (error) {
+      const failedState: AcpAgentInstallState = {
+        status: 'error',
+        version: registryAgent.version,
+        distributionType:
+          this.acpLaunchSpecService.selectRegistryDistribution(registryAgent)?.type ?? undefined,
+        lastCheckedAt: Date.now(),
+        installedAt: currentState?.installedAt ?? null,
+        installDir: currentState?.installDir ?? null,
+        error: error instanceof Error ? error.message : String(error)
+      }
+      this.acpConfHelper.setInstallState(registryAgent.id, failedState)
+      this.notifyAcpAgentsChanged()
+      throw error
+    }
   }
 
   async repairAcpAgent(agentId: string): Promise<AcpAgentInstallState> {
     const registryAgent = this.getRegistryAgentOrThrow(agentId)
     const currentState = this.acpConfHelper.getInstallState(registryAgent.id)
-    const installedState = await this.acpLaunchSpecService.ensureRegistryAgentInstalled(
-      registryAgent,
-      currentState,
-      { repair: true }
-    )
-    this.acpConfHelper.setInstallState(registryAgent.id, installedState)
-    this.handleAcpAgentsMutated([registryAgent.id])
-    return installedState
+    const repairingState: AcpAgentInstallState = {
+      status: 'installing',
+      version: registryAgent.version,
+      distributionType:
+        this.acpLaunchSpecService.selectRegistryDistribution(registryAgent)?.type ?? undefined,
+      lastCheckedAt: Date.now(),
+      installedAt: currentState?.installedAt ?? null,
+      installDir: currentState?.installDir ?? null,
+      error: null
+    }
+    this.acpConfHelper.setInstallState(registryAgent.id, repairingState)
+    this.notifyAcpAgentsChanged()
+
+    try {
+      const installedState = await this.acpLaunchSpecService.ensureRegistryAgentInstalled(
+        registryAgent,
+        currentState,
+        { repair: true }
+      )
+      this.acpConfHelper.setInstallState(registryAgent.id, installedState)
+      this.handleAcpAgentsMutated([registryAgent.id])
+      return installedState
+    } catch (error) {
+      const failedState: AcpAgentInstallState = {
+        status: 'error',
+        version: registryAgent.version,
+        distributionType:
+          this.acpLaunchSpecService.selectRegistryDistribution(registryAgent)?.type ?? undefined,
+        lastCheckedAt: Date.now(),
+        installedAt: currentState?.installedAt ?? null,
+        installDir: currentState?.installDir ?? null,
+        error: error instanceof Error ? error.message : String(error)
+      }
+      this.acpConfHelper.setInstallState(registryAgent.id, failedState)
+      this.notifyAcpAgentsChanged()
+      throw error
+    }
   }
 
   async getAcpAgentInstallStatus(agentId: string): Promise<AcpAgentInstallState | null> {

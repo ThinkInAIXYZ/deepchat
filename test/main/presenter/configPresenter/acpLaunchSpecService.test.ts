@@ -86,4 +86,39 @@ describe('AcpLaunchSpecService', () => {
       installDir: null
     })
   })
+
+  it('rejects unsafe registry install path segments', async () => {
+    const service = createService()
+    const platformMap: Record<string, string> = {
+      darwin: 'darwin',
+      linux: 'linux',
+      win32: 'windows'
+    }
+    const archMap: Record<string, string> = {
+      arm64: 'aarch64',
+      x64: 'x86_64'
+    }
+    const platformKey = `${platformMap[process.platform]}-${archMap[process.arch]}`
+
+    await expect(
+      service.ensureRegistryAgentInstalled(
+        {
+          id: '../escape',
+          name: 'Unsafe Agent',
+          version: '1.0.0',
+          distribution: {
+            binary: {
+              [platformKey]: {
+                archive: 'https://example.com/unsafe.tar.gz',
+                cmd: './unsafe-agent'
+              }
+            }
+          },
+          source: 'registry',
+          enabled: false
+        },
+        null
+      )
+    ).rejects.toThrow('Unsafe ACP registry agent id')
+  })
 })

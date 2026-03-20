@@ -558,6 +558,23 @@ export class SQLitePresenter implements ISQLitePresenter {
     }
   }
 
+  private hasTable(tableName: string): boolean {
+    const row = this.db
+      .prepare(`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?`)
+      .get(tableName) as { 1: number } | undefined
+
+    return Boolean(row)
+  }
+
+  private hasColumn(tableName: string, columnName: string): boolean {
+    if (!this.hasTable(tableName)) {
+      return false
+    }
+
+    const rows = this.db.prepare(`PRAGMA table_info(${tableName})`).all() as Array<{ name: string }>
+    return rows.some((row) => row.name === columnName)
+  }
+
   public async migrateAcpAgentReferences(aliasMap: Record<string, string>): Promise<void> {
     const entries = Object.entries(aliasMap).filter(([from, to]) => from && to && from !== to)
     if (!entries.length) {
@@ -565,57 +582,42 @@ export class SQLitePresenter implements ISQLitePresenter {
     }
 
     await this.runTransaction(() => {
+      const hasNewSessions = this.hasTable('new_sessions')
+      const hasAcpSessions = this.hasTable('acp_sessions')
+      const hasDeepchatSessionModelRef =
+        this.hasTable('deepchat_sessions') &&
+        this.hasColumn('deepchat_sessions', 'provider_id') &&
+        this.hasColumn('deepchat_sessions', 'model_id')
+
       for (const [from, to] of entries) {
-        this.db.prepare('UPDATE new_sessions SET agent_id = ? WHERE agent_id = ?').run(to, from)
-        this.db.prepare('UPDATE acp_sessions SET agent_id = ? WHERE agent_id = ?').run(to, from)
-        this.db
-          .prepare(
-            `UPDATE conversations
-             SET model_id = ?
-             WHERE provider_id = 'acp' AND model_id = ?`
-          )
-          .run(to, from)
-      }
-
-      const conversationRows = this.db
-        .prepare(
-          `SELECT id, acp_workdir_map
-           FROM conversations
-           WHERE acp_workdir_map IS NOT NULL
-             AND TRIM(acp_workdir_map) != ''`
-        )
-        .all() as Array<{ id: string; acp_workdir_map: string | null }>
-
-      for (const row of conversationRows) {
-        if (!row.acp_workdir_map) {
-          continue
+        if (hasNewSessions) {
+          this.db.prepare('UPDATE new_sessions SET agent_id = ? WHERE agent_id = ?').run(to, from)
         }
 
-        try {
-          const parsed = JSON.parse(row.acp_workdir_map) as Record<string, unknown>
-          let changed = false
+        if (hasAcpSessions) {
+          this.db
+            .prepare(
+              `DELETE FROM acp_sessions
+               WHERE agent_id = ?
+                 AND EXISTS (
+                   SELECT 1
+                   FROM acp_sessions AS existing
+                   WHERE existing.conversation_id = acp_sessions.conversation_id
+                     AND existing.agent_id = ?
+                 )`
+            )
+            .run(from, to)
+          this.db.prepare('UPDATE acp_sessions SET agent_id = ? WHERE agent_id = ?').run(to, from)
+        }
 
-          for (const [from, to] of entries) {
-            if (parsed[from] !== undefined && parsed[to] === undefined) {
-              parsed[to] = parsed[from]
-              delete parsed[from]
-              changed = true
-            } else if (parsed[from] !== undefined) {
-              delete parsed[from]
-              changed = true
-            }
-          }
-
-          if (changed) {
-            this.db
-              .prepare('UPDATE conversations SET acp_workdir_map = ? WHERE id = ?')
-              .run(JSON.stringify(parsed), row.id)
-          }
-        } catch (error) {
-          console.warn('[SQLitePresenter] Failed to migrate acp_workdir_map for conversation:', {
-            conversationId: row.id,
-            error
-          })
+        if (hasDeepchatSessionModelRef) {
+          this.db
+            .prepare(
+              `UPDATE deepchat_sessions
+               SET model_id = ?
+               WHERE provider_id = 'acp' AND model_id = ?`
+            )
+            .run(to, from)
         }
       }
     })

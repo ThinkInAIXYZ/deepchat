@@ -177,6 +177,14 @@ const normalizeManifest = (value: unknown): RegistryManifest | null => {
   const agents = rawAgents
     .map((agent) => normalizeAgent(agent))
     .filter((agent): agent is AcpRegistryAgent => Boolean(agent))
+  const agentIds = new Set<string>()
+
+  for (const agent of agents) {
+    if (agentIds.has(agent.id)) {
+      return null
+    }
+    agentIds.add(agent.id)
+  }
 
   if (!version || agents.length === 0) {
     return null

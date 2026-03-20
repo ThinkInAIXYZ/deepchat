@@ -180,4 +180,29 @@ describe('AcpRegistryService', () => {
     const markup = await service.getIconMarkup('claude-acp', manifest.agents[0].icon)
     expect(markup).toContain('currentColor')
   })
+
+  it('rejects manifests with duplicate agent ids', async () => {
+    const duplicateManifest: RegistryManifestFixture = {
+      version: '1',
+      agents: [createManifest('claude-acp').agents[0], createManifest('claude-acp').agents[0]]
+    }
+    const emptyAppRoot = path.join(tempRoot, 'empty-app-root')
+    const emptyCwd = path.join(tempRoot, 'empty-cwd')
+    fs.mkdirSync(emptyAppRoot, { recursive: true })
+    fs.mkdirSync(emptyCwd, { recursive: true })
+    mockGetAppPath.mockReturnValue(emptyAppRoot)
+    vi.spyOn(process, 'cwd').mockReturnValue(emptyCwd)
+    const globalFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      text: vi.fn().mockResolvedValue(JSON.stringify(duplicateManifest))
+    })
+    vi.stubGlobal('fetch', globalFetch)
+
+    const AcpRegistryService = await importService()
+    const service = new AcpRegistryService()
+
+    await expect(service.refresh(true)).rejects.toThrow(
+      '[ACP Registry] No registry snapshot is available.'
+    )
+  })
 })

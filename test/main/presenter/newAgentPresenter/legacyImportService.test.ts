@@ -175,6 +175,44 @@ describe('LegacyChatImportService', () => {
     expect(sqlitePresenter.newEnvironmentsTable.rebuildFromSessions).toHaveBeenCalledTimes(1)
   })
 
+  it('maps legacy ACP agent aliases while importing sessions and workdirs', async () => {
+    await (service as any).importRows({
+      conversations: [
+        {
+          conv_id: 'conv-kimi',
+          title: 'ACP Imported Chat',
+          provider_id: 'acp',
+          model_id: 'kimi-cli',
+          acp_workdir_map: '{"kimi-cli":"/legacy/kimi"}'
+        }
+      ],
+      messageRows: [],
+      attachmentRows: [],
+      acpSessionRows: [
+        {
+          conversation_id: 'conv-kimi',
+          agent_id: 'kimi-cli',
+          workdir: '/legacy/kimi-from-session'
+        }
+      ]
+    })
+
+    expect(sqlitePresenter.newSessionsTable.create).toHaveBeenCalledWith(
+      'legacy-session-conv-kimi',
+      'kimi',
+      'ACP Imported Chat',
+      '/legacy/kimi',
+      expect.any(Object)
+    )
+    expect(sqlitePresenter.deepchatSessionsTable.create).toHaveBeenCalledWith(
+      'legacy-session-conv-kimi',
+      'acp',
+      'kimi',
+      'full_access',
+      expect.any(Object)
+    )
+  })
+
   it('keeps the import successful when rebuilding environments fails', async () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     sqlitePresenter.newEnvironmentsTable.rebuildFromSessions.mockImplementation(() => {

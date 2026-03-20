@@ -13,6 +13,8 @@ export const ACP_REGISTRY_ICON_RESOURCE_DIR = ['resources', 'acp-registry', 'ico
 
 export const ACP_REGISTRY_ICON_CACHE_DIRNAME = 'icons'
 
+const ACP_REGISTRY_FILE_SEGMENT_PATTERN = /^[A-Za-z0-9._-]+$/
+
 export const ACP_LEGACY_AGENT_ID_ALIASES: Record<string, string> = {
   'kimi-cli': 'kimi',
   'claude-code-acp': 'claude-acp',
@@ -26,4 +28,13 @@ export const resolveAcpAgentAlias = (agentId: string): string =>
 export const isAcpRegistryIconUrl = (iconUrl: string): boolean =>
   iconUrl.startsWith(ACP_REGISTRY_ICON_PREFIX) && iconUrl.endsWith('.svg')
 
-export const getAcpRegistryIconFileName = (agentId: string): string => `${agentId}.svg`
+export const sanitizeAcpRegistryFileSegment = (value: string): string => {
+  const trimmed = value.trim()
+  if (!trimmed || !ACP_REGISTRY_FILE_SEGMENT_PATTERN.test(trimmed)) {
+    throw new Error(`Unsafe ACP registry file segment: ${value}`)
+  }
+  return trimmed
+}
+
+export const getAcpRegistryIconFileName = (agentId: string): string =>
+  `${sanitizeAcpRegistryFileSegment(agentId)}.svg`

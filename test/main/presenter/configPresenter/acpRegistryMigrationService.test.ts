@@ -74,6 +74,13 @@ describe('AcpRegistryMigrationService', () => {
           id: 'codex-acp',
           enabled: true,
           installState: {
+            status: 'installing'
+          }
+        },
+        {
+          id: 'junie',
+          enabled: true,
+          installState: {
             status: 'installed'
           }
         },
@@ -92,8 +99,9 @@ describe('AcpRegistryMigrationService', () => {
 
     await service.compensateEnabledRegistryAgentInstalls()
 
-    expect(configPresenter.ensureAcpAgentInstalled).toHaveBeenCalledTimes(2)
+    expect(configPresenter.ensureAcpAgentInstalled).toHaveBeenCalledTimes(3)
     expect(configPresenter.ensureAcpAgentInstalled).toHaveBeenNthCalledWith(1, 'kimi')
     expect(configPresenter.ensureAcpAgentInstalled).toHaveBeenNthCalledWith(2, 'claude-acp')
+    expect(configPresenter.ensureAcpAgentInstalled).toHaveBeenNthCalledWith(3, 'codex-acp')
   })
 })

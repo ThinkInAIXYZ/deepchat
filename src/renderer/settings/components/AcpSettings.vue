@@ -144,15 +144,15 @@
               <CardContent class="space-y-3">
                 <div class="text-xs text-muted-foreground space-y-1">
                   <div class="flex items-start gap-1">
-                    <span class="font-semibold">ID:</span>
+                    <span class="font-semibold">{{ t('settings.model.form.id.label') }}:</span>
                     <span class="truncate">{{ agent.id }}</span>
                   </div>
                   <div class="flex items-start gap-1">
-                    <span class="font-semibold">VER:</span>
+                    <span class="font-semibold">{{ t('settings.about.version') }}:</span>
                     <span class="truncate">{{ agent.version }}</span>
                   </div>
                   <div class="flex items-start gap-1">
-                    <span class="font-semibold">CMD:</span>
+                    <span class="font-semibold">{{ t('settings.acp.command') }}:</span>
                     <span class="truncate">{{ buildPreviewCommand(agent) }}</span>
                   </div>
                 </div>
@@ -260,11 +260,11 @@
                 <CardContent class="space-y-3">
                   <div class="text-xs text-muted-foreground space-y-1">
                     <div class="flex items-start gap-1">
-                      <span class="font-semibold">ARGS:</span>
+                      <span class="font-semibold">{{ t('settings.acp.args') }}:</span>
                       <span class="truncate">{{ formatArgs(agent.args) }}</span>
                     </div>
                     <div v-if="showSharedMcpSection" class="flex items-start gap-1">
-                      <span class="font-semibold">MCP:</span>
+                      <span class="font-semibold">{{ t('settings.acp.mcpAccessTitle') }}:</span>
                       <span class="truncate">
                         {{
                           sharedMcpCount
@@ -278,7 +278,7 @@
                     <Button size="sm" variant="ghost" @click="openManualDialog(agent)">
                       {{ t('common.edit') }}
                     </Button>
-                    <Button size="sm" variant="ghost" @click="deleteManualAgent(agent)">
+                    <Button size="sm" variant="ghost" @click="confirmAndDeleteManualAgent(agent)">
                       {{ t('common.delete') }}
                     </Button>
                     <Button
@@ -333,7 +333,11 @@
           </div>
           <div class="space-y-2">
             <Label>{{ t('settings.acp.args') }}</Label>
-            <Input v-model="manualDialog.args" :placeholder="t('settings.acp.argsPlaceholder')" />
+            <Textarea
+              v-model="manualDialogArgsText"
+              class="min-h-[96px] font-mono text-xs"
+              :placeholder="t('settings.mcp.serverForm.argsPlaceholder')"
+            />
           </div>
           <div class="space-y-2">
             <Label>{{ t('settings.acp.env') }}</Label>
@@ -502,7 +506,7 @@
                   </div>
 
                   <div class="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                    <span>ID: {{ agent.id }}</span>
+                    <span>{{ t('settings.model.form.id.label') }}: {{ agent.id }}</span>
                     <Badge :class="installBadgeClass(agent)" variant="outline">
                       {{ installBadgeLabel(agent) }}
                     </Badge>
@@ -599,7 +603,7 @@ const manualDialog = reactive({
   agentId: '',
   name: '',
   command: '',
-  args: '',
+  args: [] as string[],
   env: '',
   enabled: true
 })
@@ -632,28 +636,38 @@ const stringifyEnvBlock = (env?: Record<string, string>) =>
     .map(([key, value]) => `${key}=${value}`)
     .join('\n')
 
-const parseArgs = (value: string): string[] | undefined => {
-  const matches = value.match(/(?:[^\s"]+|"[^"]*")+/g) ?? []
-  const cleaned = matches.map((item) => item.replace(/^"|"$/g, '').trim()).filter(Boolean)
-  return cleaned.length > 0 ? cleaned : undefined
-}
-
 const formatArgs = (args?: string[]) => (args?.length ? args.join(' ') : t('settings.acp.none'))
+
+const manualDialogArgsText = computed({
+  get: () => manualDialog.args.join('\n'),
+  set: (value: string) => {
+    manualDialog.args = value
+      .split(/\r?\n/)
+      .map((item) => item.trim())
+      .filter(Boolean)
+  }
+})
 
 const buildPreviewCommand = (agent: AcpRegistryAgent) => {
   if (agent.distribution.binary) {
     const firstBinary = Object.values(agent.distribution.binary)[0]
     if (firstBinary) {
-      return `${firstBinary.cmd} ${formatArgs(firstBinary.args)}`
+      return firstBinary.args?.length
+        ? `${firstBinary.cmd} ${formatArgs(firstBinary.args)}`
+        : firstBinary.cmd
     }
   }
 
   if (agent.distribution.npx) {
-    return `npx -y ${agent.distribution.npx.package} ${formatArgs(agent.distribution.npx.args)}`
+    return agent.distribution.npx.args?.length
+      ? `npx -y ${agent.distribution.npx.package} ${formatArgs(agent.distribution.npx.args)}`
+      : `npx -y ${agent.distribution.npx.package}`
   }
 
   if (agent.distribution.uvx) {
-    return `uvx ${agent.distribution.uvx.package} ${formatArgs(agent.distribution.uvx.args)}`
+    return agent.distribution.uvx.args?.length
+      ? `uvx ${agent.distribution.uvx.package} ${formatArgs(agent.distribution.uvx.args)}`
+      : `uvx ${agent.distribution.uvx.package}`
   }
 
   return t('settings.acp.none')
@@ -864,7 +878,7 @@ const openManualDialog = (agent?: AcpManualAgent) => {
   manualDialog.agentId = agent?.id ?? ''
   manualDialog.name = agent?.name ?? ''
   manualDialog.command = agent?.command ?? ''
-  manualDialog.args = agent?.args?.join(' ') ?? ''
+  manualDialog.args = [...(agent?.args ?? [])]
   manualDialog.env = stringifyEnvBlock(agent?.env)
   manualDialog.enabled = agent?.enabled ?? true
   manualDialog.open = true
@@ -885,7 +899,7 @@ const saveManualAgent = async () => {
     const payload = {
       name: manualDialog.name.trim(),
       command: manualDialog.command.trim(),
-      args: parseArgs(manualDialog.args),
+      args: manualDialog.args.length ? [...manualDialog.args] : undefined,
       env: parseEnvBlock(manualDialog.env),
       enabled: manualDialog.enabled
     }
@@ -925,6 +939,17 @@ const deleteManualAgent = async (agent: AcpManualAgent) => {
   } catch (error) {
     handleError(error)
   }
+}
+
+const confirmAndDeleteManualAgent = async (agent: AcpManualAgent) => {
+  if (typeof window !== 'undefined' && typeof window.confirm === 'function') {
+    const confirmed = window.confirm(t('settings.acp.customDeleteConfirm', { name: agent.name }))
+    if (!confirmed) {
+      return
+    }
+  }
+
+  await deleteManualAgent(agent)
 }
 
 const openRegistryDialog = () => {

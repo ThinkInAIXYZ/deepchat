@@ -7,11 +7,20 @@ const OUTPUT_PATH = path.join(OUTPUT_DIR, 'registry.json')
 const ICON_OUTPUT_DIR = path.join(OUTPUT_DIR, 'icons')
 const ICON_TMP_DIR = path.join(OUTPUT_DIR, '.icons-tmp')
 const ACP_REGISTRY_ICON_PREFIX = 'https://cdn.agentclientprotocol.com/registry/'
+const SAFE_ICON_ID_PATTERN = /^[A-Za-z0-9._-]+$/
 
 const isCacheableRegistryIcon = (icon) =>
   typeof icon === 'string' &&
   icon.startsWith(ACP_REGISTRY_ICON_PREFIX) &&
   icon.endsWith('.svg')
+
+const sanitizeAgentId = (agentId) => {
+  const normalized = typeof agentId === 'string' ? agentId.trim() : ''
+  if (!normalized || !SAFE_ICON_ID_PATTERN.test(normalized)) {
+    throw new Error(`Unsafe ACP agent id for icon cache: ${agentId}`)
+  }
+  return normalized
+}
 
 const writeManifest = async (parsed) => {
   const tmpPath = `${OUTPUT_PATH}.tmp`
@@ -30,13 +39,14 @@ const downloadIcons = async (parsed) => {
 
   await Promise.all(
     iconAgents.map(async (agent) => {
+      const safeAgentId = sanitizeAgentId(agent.id)
       const response = await fetch(agent.icon)
       if (!response.ok) {
         throw new Error(`Failed to fetch ACP icon ${agent.id}: ${response.status} ${response.statusText}`)
       }
 
       const text = await response.text()
-      await fs.writeFile(path.join(ICON_TMP_DIR, `${agent.id}.svg`), text, 'utf-8')
+      await fs.writeFile(path.join(ICON_TMP_DIR, `${safeAgentId}.svg`), text, 'utf-8')
     })
   )
 

@@ -4,7 +4,7 @@ import { usePresenter } from '@/composables/usePresenter'
 
 const ACP_REGISTRY_ICON_PREFIX = 'https://cdn.agentclientprotocol.com/registry/'
 
-const iconMarkupCache = new Map<string, Promise<string | null>>()
+const iconMarkupCache = new Map<string, string | Promise<string>>()
 
 const props = withDefaults(
   defineProps<{
@@ -48,7 +48,9 @@ const shouldRenderInlineSvg = computed(
   () => Boolean(svgMarkup.value) && isThemeableRegistryIcon.value
 )
 
-const shouldRenderImage = computed(() => Boolean(props.icon.trim()) && !shouldRenderInlineSvg.value)
+const shouldRenderImage = computed(
+  () => Boolean(props.icon.trim()) && !shouldRenderInlineSvg.value && !isThemeableRegistryIcon.value
+)
 
 const normalizeSvgMarkup = (markup: string): string => {
   const trimmed = markup.trim()
@@ -60,38 +62,51 @@ const normalizeSvgMarkup = (markup: string): string => {
 
 const loadSvgMarkup = async () => {
   const icon = props.icon.trim()
+  const agentId = props.agentId.trim()
   const seq = ++requestSeq.value
   svgMarkup.value = ''
   imageLoadFailed.value = false
 
-  if (!icon || !isThemeableRegistryIcon.value) {
+  if (!icon || !agentId || !isThemeableRegistryIcon.value) {
     return
   }
 
   try {
-    const agentId = props.agentId.trim()
-    if (!agentId) {
+    const cacheKey = `${agentId}:${icon}`
+    const cached = iconMarkupCache.get(cacheKey)
+    if (typeof cached === 'string') {
+      if (seq === requestSeq.value) {
+        svgMarkup.value = cached
+      }
       return
     }
 
-    let pending = iconMarkupCache.get(agentId)
+    let pending = cached
     if (!pending) {
       pending = configPresenter
         .getAcpRegistryIconMarkup(agentId, icon)
-        .then((markup) => (markup ? normalizeSvgMarkup(markup) : null))
+        .then((markup) => {
+          const normalized = markup ? normalizeSvgMarkup(markup) : ''
+          if (normalized) {
+            iconMarkupCache.set(cacheKey, normalized)
+          } else {
+            iconMarkupCache.delete(cacheKey)
+          }
+          return normalized
+        })
         .catch((error) => {
-          iconMarkupCache.delete(agentId)
+          iconMarkupCache.delete(cacheKey)
           throw error
         })
 
-      iconMarkupCache.set(agentId, pending)
+      iconMarkupCache.set(cacheKey, pending)
     }
 
     const markup = await pending
     if (seq !== requestSeq.value) {
       return
     }
-    svgMarkup.value = markup ?? ''
+    svgMarkup.value = markup
   } catch (error) {
     if (seq !== requestSeq.value) {
       return

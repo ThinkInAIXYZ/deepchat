@@ -46,7 +46,7 @@ export class AcpRegistryMigrationService {
       }
 
       const status = agent.installState?.status ?? 'not_installed'
-      if (status === 'installed' || status === 'installing') {
+      if (status === 'installed') {
         continue
       }
 
