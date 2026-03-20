@@ -226,7 +226,7 @@
       "license": "Apache-2.0",
       "distribution": {
         "uvx": {
-          "package": "crow-cli==0.1.14",
+          "package": "crow-cli",
           "args": [
             "acp"
           ]

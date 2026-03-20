@@ -12,9 +12,19 @@
               :is-dark="themeStore.isDark"
             />
             <span class="truncate">{{ acpAgentLabel }}</span>
+            <Icon
+              v-if="isAcpConfigLoading"
+              icon="lucide:loader-2"
+              class="acp-agent-loading-indicator h-3 w-3 shrink-0 animate-spin"
+            />
           </div>
 
-          <Popover v-for="option in acpInlineOptions" :key="option.id">
+          <Popover
+            v-for="option in acpInlineOptions"
+            :key="option.id"
+            :open="acpInlineOpenOptionId === option.id"
+            @update:open="onAcpInlineOptionOpenChange(option.id, $event)"
+          >
             <PopoverTrigger as-child>
               <Button
                 variant="ghost"
@@ -602,6 +612,8 @@ const modelSearchKeyword = ref('')
 const modelSettingsSelection = ref<ModelSelection | null>(null)
 const acpConfigState = ref<AcpConfigState | null>(null)
 const acpConfigLoadedRequestKey = ref<string | null>(null)
+const acpConfigLoadingRequestKey = ref<string | null>(null)
+const acpInlineOpenOptionId = ref<string | null>(null)
 const acpOptionSavingIds = ref<string[]>([])
 const acpConfigCacheByAgent = new Map<string, AcpConfigState>()
 
@@ -793,13 +805,21 @@ const setCachedAcpConfigState = (
   agentId: string | null | undefined,
   state: AcpConfigState | null | undefined
 ): void => {
-  if (!agentId || !state) {
+  if (!agentId || !hasAcpConfigStateData(state)) {
     return
   }
   acpConfigCacheByAgent.set(agentId, state)
 }
 
 const acpConfigOptions = computed(() => acpConfigState.value?.options ?? [])
+const isAcpConfigLoading = computed(() => {
+  if (!isAcpAgent.value || activeAcpSessionId.value) {
+    return false
+  }
+
+  const requestKey = acpConfigRequestKey.value
+  return Boolean(requestKey && acpConfigLoadingRequestKey.value === requestKey)
+})
 const isAcpSessionConfigLoaded = computed(() => {
   if (!activeAcpSessionId.value) {
     return false
@@ -840,6 +860,32 @@ const acpAgentLabel = computed(() => {
 const acpAgentIconId = computed(() =>
   resolveModelIconId('acp', activeAcpAgentId.value ?? agentStore.selectedAgentId)
 )
+
+const setAcpConfigLoadingRequest = (requestKey: string | null | undefined): void => {
+  acpConfigLoadingRequestKey.value = requestKey?.trim() ? requestKey : null
+}
+
+const clearAcpConfigLoadingRequest = (requestKey?: string | null): void => {
+  if (!requestKey || acpConfigLoadingRequestKey.value === requestKey) {
+    acpConfigLoadingRequestKey.value = null
+  }
+}
+
+const matchesCurrentAcpWarmupTarget = (
+  agentId: string | null | undefined,
+  workdir: string | null | undefined
+): boolean => {
+  if (activeAcpSessionId.value || !agentId || activeAcpAgentId.value !== agentId) {
+    return false
+  }
+
+  const expectedWorkdir = acpWorkspacePath.value?.trim()
+  if (!expectedWorkdir) {
+    return true
+  }
+
+  return workdir?.trim() === expectedWorkdir
+}
 
 const permissionModeLabel = computed(() =>
   permissionMode.value === 'default'
@@ -945,6 +991,9 @@ const isAcpConfigState = (value: unknown): value is AcpConfigState => {
     candidate.options.every(isAcpConfigOption)
   )
 }
+
+const hasAcpConfigStateData = (state: AcpConfigState | null | undefined): state is AcpConfigState =>
+  Boolean(state?.options.length)
 
 const getAcpOptionCurrentLabel = (option?: AcpConfigOption | null): string | null => {
   if (!option) {
@@ -1725,16 +1774,19 @@ const syncGenerationSettings = async () => {
 const syncAcpConfigOptions = async () => {
   const token = ++acpConfigSyncToken
   const requestKey = acpConfigRequestKey.value
+  acpInlineOpenOptionId.value = null
 
   if (!isAcpAgent.value || !requestKey) {
     acpConfigState.value = null
     acpConfigLoadedRequestKey.value = null
+    clearAcpConfigLoadingRequest()
     return
   }
 
   const agentId = activeAcpAgentId.value
 
   if (activeAcpSessionId.value) {
+    clearAcpConfigLoadingRequest()
     acpConfigState.value = null
     acpConfigLoadedRequestKey.value = null
 
@@ -1746,6 +1798,7 @@ const syncAcpConfigOptions = async () => {
       acpConfigState.value = state
       acpConfigLoadedRequestKey.value = requestKey
       setCachedAcpConfigState(agentId, state)
+      clearAcpConfigLoadingRequest(requestKey)
       return
     } catch (error) {
       console.warn('[ChatStatusBar] Failed to load ACP session config options:', error)
@@ -1754,18 +1807,28 @@ const syncAcpConfigOptions = async () => {
       }
       acpConfigState.value = null
       acpConfigLoadedRequestKey.value = null
+      clearAcpConfigLoadingRequest(requestKey)
       return
     }
   }
 
   acpConfigLoadedRequestKey.value = null
-  acpConfigState.value = getCachedAcpConfigState(agentId)
+  const cachedState = getCachedAcpConfigState(agentId)
+  acpConfigState.value = cachedState
+
+  if (hasAcpConfigStateData(cachedState)) {
+    clearAcpConfigLoadingRequest(requestKey)
+  } else {
+    setAcpConfigLoadingRequest(requestKey)
+  }
 
   if (agentId) {
     try {
+      let warmupFailed = false
       try {
         await llmproviderPresenter.warmupAcpProcess(agentId, acpWorkspacePath.value ?? undefined)
       } catch (error) {
+        warmupFailed = true
         console.warn('[ChatStatusBar] Failed to warmup ACP process:', error)
       }
 
@@ -1777,19 +1840,24 @@ const syncAcpConfigOptions = async () => {
         return
       }
 
-      if (!state) {
+      if (!hasAcpConfigStateData(state)) {
         acpConfigState.value = getCachedAcpConfigState(agentId)
+        if (warmupFailed) {
+          clearAcpConfigLoadingRequest(requestKey)
+        }
         return
       }
 
       setCachedAcpConfigState(agentId, state)
       acpConfigState.value = state
+      clearAcpConfigLoadingRequest(requestKey)
     } catch (error) {
       console.warn('[ChatStatusBar] Failed to load ACP process config options:', error)
       if (token !== acpConfigSyncToken || acpConfigRequestKey.value !== requestKey) {
         return
       }
       acpConfigState.value = getCachedAcpConfigState(agentId)
+      clearAcpConfigLoadingRequest(requestKey)
     }
   }
 }
@@ -1838,6 +1906,7 @@ const handleAcpConfigOptionsReady = (_event: unknown, payload?: Record<string, u
 
   const conversationId = typeof payload.conversationId === 'string' ? payload.conversationId : ''
   const agentId = typeof payload.agentId === 'string' ? payload.agentId : ''
+  const workdir = typeof payload.workdir === 'string' ? payload.workdir : ''
 
   if (!isAcpConfigState(payload.configState)) {
     return
@@ -1850,10 +1919,11 @@ const handleAcpConfigOptionsReady = (_event: unknown, payload?: Record<string, u
     setCachedAcpConfigState(agentId || activeAcpAgentId.value, payload.configState)
     acpConfigState.value = payload.configState
     acpConfigLoadedRequestKey.value = `session:${conversationId}`
+    clearAcpConfigLoadingRequest(`session:${conversationId}`)
     return
   }
 
-  if (!agentId || activeAcpAgentId.value !== agentId) {
+  if (!matchesCurrentAcpWarmupTarget(agentId, workdir)) {
     return
   }
 
@@ -1861,6 +1931,7 @@ const handleAcpConfigOptionsReady = (_event: unknown, payload?: Record<string, u
 
   if (!activeAcpSessionId.value) {
     acpConfigState.value = payload.configState
+    clearAcpConfigLoadingRequest(acpConfigRequestKey.value)
   }
 }
 
@@ -1930,6 +2001,15 @@ watch(
     void syncAcpConfigOptions()
   },
   { immediate: true }
+)
+
+watch(
+  () => acpInlineOptions.value.map((option) => option.id),
+  (optionIds) => {
+    if (acpInlineOpenOptionId.value && !optionIds.includes(acpInlineOpenOptionId.value)) {
+      acpInlineOpenOptionId.value = null
+    }
+  }
 )
 
 function getEffectiveModelSelectionSnapshot(): ModelSelection | null {
@@ -2178,10 +2258,22 @@ function onVerbositySelect(value: string) {
   updateLocalGenerationSettings({ verbosity: normalized })
 }
 
+function onAcpInlineOptionOpenChange(optionId: string, open: boolean) {
+  if (open) {
+    acpInlineOpenOptionId.value = optionId
+    return
+  }
+
+  if (acpInlineOpenOptionId.value === optionId) {
+    acpInlineOpenOptionId.value = null
+  }
+}
+
 function onAcpSelectOption(configId: string, value: string) {
   if (!value) {
     return
   }
+  acpInlineOpenOptionId.value = null
   void updateAcpConfigOption(configId, value)
 }
 
