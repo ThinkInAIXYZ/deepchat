@@ -155,6 +155,29 @@ const createAcpConfigState = (
   ...overrides
 })
 
+const createOverflowAcpConfigState = (): AcpConfigState => ({
+  source: 'configOptions',
+  options: [
+    ...createAcpConfigState().options,
+    {
+      id: 'extra_select',
+      label: 'Extra Select',
+      type: 'select',
+      currentValue: 'strict',
+      options: [
+        { value: 'strict', label: 'Strict' },
+        { value: 'relaxed', label: 'Relaxed' }
+      ]
+    },
+    {
+      id: 'extra_toggle',
+      label: 'Extra Toggle',
+      type: 'boolean',
+      currentValue: false
+    }
+  ]
+})
+
 const setup = async (options: SetupOptions = {}) => {
   vi.resetModules()
 
@@ -355,6 +378,7 @@ const setup = async (options: SetupOptions = {}) => {
   }
 
   const llmproviderPresenter = {
+    warmupAcpProcess: vi.fn().mockResolvedValue(undefined),
     getAcpProcessConfigOptions: vi.fn().mockResolvedValue(options.acpProcessConfig ?? null)
   }
 
@@ -494,11 +518,13 @@ describe('ChatStatusBar model and session panels', () => {
     expect(
       deepchat.wrapper.find('.mcp-indicator-stub').attributes('data-show-system-prompt-section')
     ).toBe('true')
+    expect(deepchat.wrapper.text()).toContain('chat.permissionMode.fullAccess')
 
     const acp = await setup({ agentId: 'acp-agent', hasActiveSession: false })
     expect(
       acp.wrapper.find('.mcp-indicator-stub').attributes('data-show-system-prompt-section')
     ).toBe('false')
+    expect(acp.wrapper.text()).not.toContain('chat.permissionMode.fullAccess')
   })
 
   it('renders compact model ids in the trigger and list, and keeps chevron actions for settings', async () => {
@@ -821,7 +847,28 @@ describe('ChatStatusBar model and session panels', () => {
     expect(wrapper.find('.model-icon-stub').attributes('data-model-id')).toBe('dimcode-acp')
   })
 
-  it('shows ACP warmup config in draft mode before session id is ready', async () => {
+  it('shows only the ACP badge and MCP when no ACP config data is available', async () => {
+    const { wrapper, llmproviderPresenter } = await setup({
+      agentId: 'acp-agent',
+      hasActiveSession: false,
+      projectPath: null,
+      acpProcessConfig: null
+    })
+
+    expect(llmproviderPresenter.warmupAcpProcess).toHaveBeenCalledWith('acp-agent', undefined)
+    expect(llmproviderPresenter.getAcpProcessConfigOptions).toHaveBeenCalledWith(
+      'acp-agent',
+      undefined
+    )
+    expect(wrapper.find('.acp-agent-badge').exists()).toBe(true)
+    expect(wrapper.findAll('.acp-inline-option')).toHaveLength(0)
+    expect(wrapper.find('.acp-overflow-button').exists()).toBe(false)
+    expect(wrapper.find('.mcp-indicator-stub').exists()).toBe(true)
+    expect(wrapper.text()).not.toContain('chat.permissionMode.fullAccess')
+    expect((wrapper.vm as any).acpConfigReadOnly).toBe(true)
+  })
+
+  it('shows ACP warmup config inline before session id is ready', async () => {
     const processConfig = createAcpConfigState({}, 'gpt-5')
     const { wrapper, llmproviderPresenter } = await setup({
       agentId: 'acp-agent',
@@ -830,14 +877,49 @@ describe('ChatStatusBar model and session panels', () => {
       acpProcessConfig: processConfig
     })
 
+    expect(llmproviderPresenter.warmupAcpProcess).toHaveBeenCalledWith(
+      'acp-agent',
+      '/tmp/workspace'
+    )
     expect(llmproviderPresenter.getAcpProcessConfigOptions).toHaveBeenCalledWith(
       'acp-agent',
       '/tmp/workspace'
     )
-    expect((wrapper.vm as any).displayModelText).toBe('acp-agent / gpt-5')
+    expect(wrapper.findAll('.acp-inline-option')).toHaveLength(3)
+    expect(wrapper.find('.acp-inline-option[data-option-id="model"]').exists()).toBe(true)
+    expect(wrapper.find('.acp-inline-option[data-option-id="thought_level"]').exists()).toBe(true)
+    expect(wrapper.find('.acp-inline-option[data-option-id="mode"]').exists()).toBe(true)
+    expect(wrapper.find('.acp-inline-option[data-option-id="safe_edits"]').exists()).toBe(false)
+    expect(wrapper.find('.acp-overflow-button').exists()).toBe(true)
+    expect(wrapper.findAll('.acp-overflow-option')).toHaveLength(1)
+    expect(wrapper.find('.acp-overflow-option[data-option-id="safe_edits"]').exists()).toBe(true)
+    expect(wrapper.find('.acp-inline-option-title[data-option-id="model"]').text()).toBe('Model')
+    expect(wrapper.find('.acp-inline-option-title[data-option-id="thought_level"]').text()).toBe(
+      'Thought Level'
+    )
+    expect(wrapper.find('.acp-inline-option-title[data-option-id="mode"]').text()).toBe('Mode')
+    const statusGroups = wrapper.findAll('div.flex.items-center.gap-1')
+    const rightActions = statusGroups.at(-1)
+    expect(rightActions?.element.lastElementChild?.classList.contains('mcp-indicator-stub')).toBe(
+      true
+    )
     expect((wrapper.vm as any).acpConfigReadOnly).toBe(true)
-    expect(wrapper.text()).toContain('settings.acp.title')
-    expect(wrapper.text()).toContain('Model')
+  })
+
+  it('moves ACP overflow options into the gear popover', async () => {
+    const { wrapper } = await setup({
+      agentId: 'acp-agent',
+      hasActiveSession: false,
+      projectPath: '/tmp/workspace',
+      acpProcessConfig: createOverflowAcpConfigState()
+    })
+
+    expect(wrapper.findAll('.acp-inline-option')).toHaveLength(3)
+    expect(wrapper.find('.acp-overflow-button').exists()).toBe(true)
+    expect(wrapper.findAll('.acp-overflow-option')).toHaveLength(3)
+    expect(wrapper.find('.acp-overflow-option[data-option-id="safe_edits"]').exists()).toBe(true)
+    expect(wrapper.find('.acp-overflow-option[data-option-id="extra_select"]').exists()).toBe(true)
+    expect(wrapper.find('.acp-overflow-option[data-option-id="extra_toggle"]').exists()).toBe(true)
   })
 
   it('switches from warmup config to session config and writes ACP options through the session presenter', async () => {
@@ -851,20 +933,19 @@ describe('ChatStatusBar model and session panels', () => {
       acpSessionConfig: sessionConfig
     })
 
-    expect((wrapper.vm as any).displayModelText).toBe('acp-agent / gpt-5')
+    expect(wrapper.text()).toContain('gpt-5')
     expect((wrapper.vm as any).acpConfigReadOnly).toBe(true)
 
     await wrapper.setProps({ acpDraftSessionId: 'draft-1' })
     await flushPromises()
 
     expect(newAgentPresenter.getAcpSessionConfigOptions).toHaveBeenCalledWith('draft-1')
-    expect((wrapper.vm as any).displayModelText).toBe('acp-agent / gpt-5-mini')
+    expect(wrapper.text()).toContain('gpt-5-mini')
     expect((wrapper.vm as any).acpConfigReadOnly).toBe(false)
 
-    const selects = wrapper.findAllComponents(SelectStub)
-    expect(selects.length).toBeGreaterThan(0)
-
-    selects[0].vm.$emit('update:modelValue', 'gpt-5')
+    await wrapper
+      .find('.acp-inline-option-item[data-option-id="model"][data-value="gpt-5"]')
+      .trigger('click')
     await flushPromises()
 
     expect(newAgentPresenter.setAcpSessionConfigOption).toHaveBeenCalledWith(

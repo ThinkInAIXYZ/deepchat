@@ -1,8 +1,79 @@
 <template>
   <div :class="['w-full', props.maxWidthClass]">
     <div class="flex w-full items-center justify-between px-1 py-2">
-      <div class="flex items-center gap-1">
-        <Popover v-if="showModelPopover" v-model:open="isModelPanelOpen">
+      <div class="flex min-w-0 items-center gap-1">
+        <template v-if="isAcpAgent">
+          <div
+            class="acp-agent-badge flex h-6 min-w-0 items-center gap-1 rounded-full px-2 text-xs text-muted-foreground backdrop-blur-lg"
+          >
+            <ModelIcon
+              :model-id="acpAgentIconId"
+              custom-class="w-3.5 h-3.5 shrink-0"
+              :is-dark="themeStore.isDark"
+            />
+            <span class="truncate">{{ acpAgentLabel }}</span>
+          </div>
+
+          <Popover v-for="option in acpInlineOptions" :key="option.id">
+            <PopoverTrigger as-child>
+              <Button
+                variant="ghost"
+                size="sm"
+                :title="getAcpOptionDisplayValue(option)"
+                :data-option-id="option.id"
+                class="acp-inline-option h-6 max-w-[9rem] min-w-0 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground backdrop-blur-lg"
+                :disabled="acpConfigReadOnly || isAcpOptionSaving(option.id)"
+              >
+                <span class="truncate">{{ getAcpOptionDisplayValue(option) }}</span>
+                <Icon icon="lucide:chevron-down" class="h-3 w-3 shrink-0" />
+              </Button>
+            </PopoverTrigger>
+
+            <PopoverContent align="start" class="w-56 overflow-hidden p-0">
+              <div class="border-b px-3 py-2">
+                <div
+                  :data-option-id="option.id"
+                  class="acp-inline-option-title text-sm font-medium"
+                >
+                  {{ option.label }}
+                </div>
+              </div>
+
+              <div
+                v-if="(option.options?.length ?? 0) > 0"
+                class="max-h-60 overflow-y-auto px-2 py-2"
+              >
+                <button
+                  v-for="entry in option.options ?? []"
+                  :key="`${option.id}-${entry.value}`"
+                  type="button"
+                  :data-option-id="option.id"
+                  :data-value="entry.value"
+                  :disabled="
+                    acpConfigReadOnly ||
+                    isAcpOptionSaving(option.id) ||
+                    String(option.currentValue) === entry.value
+                  "
+                  :class="[
+                    'acp-inline-option-item flex w-full items-center rounded-md px-2 py-1.5 text-left text-xs transition-colors disabled:pointer-events-none disabled:opacity-60',
+                    String(option.currentValue) === entry.value
+                      ? 'bg-muted/60 text-foreground'
+                      : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
+                  ]"
+                  @click="onAcpSelectOption(option.id, entry.value)"
+                >
+                  {{ entry.value }}
+                </button>
+              </div>
+
+              <div v-else class="px-3 py-4 text-xs text-muted-foreground">
+                {{ t('chat.modelPicker.empty') }}
+              </div>
+            </PopoverContent>
+          </Popover>
+        </template>
+
+        <Popover v-else-if="showModelPopover" v-model:open="isModelPanelOpen">
           <PopoverTrigger as-child>
             <Button
               variant="ghost"
@@ -23,79 +94,10 @@
             align="start"
             :class="[
               'max-w-[calc(100vw-1rem)] overflow-hidden p-0',
-              isAcpAgent ? 'w-[21rem]' : isModelSettingsExpanded ? 'w-[38rem]' : 'w-[20rem]'
+              isModelSettingsExpanded ? 'w-[38rem]' : 'w-[20rem]'
             ]"
           >
-            <div v-if="isAcpAgent" class="flex max-h-[28rem] flex-col">
-              <div class="border-b px-3 py-3">
-                <div class="text-sm font-medium">{{ t('settings.acp.title') }}</div>
-                <div class="mt-1 truncate text-[11px] text-muted-foreground">
-                  {{ displayModelText }}
-                </div>
-              </div>
-
-              <div class="max-h-[24rem] overflow-y-auto px-3 py-3">
-                <div
-                  v-if="!acpConfigLoaded"
-                  class="rounded-lg border border-dashed px-3 py-6 text-center text-xs text-muted-foreground"
-                >
-                  {{ t('common.loading') }}
-                </div>
-
-                <div
-                  v-else-if="acpDisplayOptions.length === 0"
-                  class="rounded-lg border border-dashed px-3 py-6 text-center text-xs text-muted-foreground"
-                >
-                  {{ t('chat.modelPicker.empty') }}
-                </div>
-
-                <div v-else class="space-y-4">
-                  <div v-for="option in acpDisplayOptions" :key="option.id" class="space-y-1.5">
-                    <div class="space-y-0.5">
-                      <label class="text-xs font-medium">{{ option.label }}</label>
-                      <div
-                        v-if="option.description"
-                        class="text-[11px] leading-5 text-muted-foreground"
-                      >
-                        {{ option.description }}
-                      </div>
-                    </div>
-
-                    <Select
-                      v-if="option.type === 'select'"
-                      :model-value="String(option.currentValue)"
-                      @update:model-value="onAcpSelectOption(option.id, $event as string)"
-                    >
-                      <SelectTrigger
-                        class="h-8 text-xs"
-                        :disabled="acpConfigReadOnly || isAcpOptionSaving(option.id)"
-                      >
-                        <SelectValue :placeholder="option.label" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem
-                          v-for="entry in option.options ?? []"
-                          :key="`${option.id}-${entry.value}`"
-                          :value="entry.value"
-                        >
-                          {{ entry.label }}
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-
-                    <div v-else class="flex items-center justify-end rounded-lg border px-3 py-2">
-                      <Switch
-                        :model-value="Boolean(option.currentValue)"
-                        :disabled="acpConfigReadOnly || isAcpOptionSaving(option.id)"
-                        @update:model-value="onAcpBooleanOption(option.id, Boolean($event))"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div v-else class="flex max-h-[28rem]">
+            <div class="flex max-h-[28rem]">
               <div
                 :class="[
                   'flex min-w-0 flex-col',
@@ -375,6 +377,73 @@
       </div>
 
       <div class="flex items-center gap-1">
+        <Popover v-if="isAcpAgent && acpOverflowOptions.length > 0">
+          <PopoverTrigger as-child>
+            <Button
+              variant="ghost"
+              size="sm"
+              class="acp-overflow-button h-6 w-6 px-0 text-xs text-muted-foreground hover:text-foreground backdrop-blur-lg"
+              :title="t('chat.advancedSettings.button')"
+              :aria-label="t('chat.advancedSettings.button')"
+            >
+              <Icon icon="lucide:settings-2" class="h-3.5 w-3.5" />
+            </Button>
+          </PopoverTrigger>
+
+          <PopoverContent align="end" class="w-[18rem] p-0">
+            <div class="border-b px-3 py-3">
+              <div class="text-sm font-medium">{{ t('chat.advancedSettings.title') }}</div>
+            </div>
+
+            <div class="max-h-[24rem] space-y-3 overflow-y-auto px-3 py-3">
+              <div
+                v-for="option in acpOverflowOptions"
+                :key="option.id"
+                :data-option-id="option.id"
+                class="acp-overflow-option flex items-center justify-between gap-3"
+              >
+                <label class="min-w-0 flex-1 truncate text-xs font-medium">
+                  {{ option.label }}
+                </label>
+
+                <Select
+                  v-if="option.type === 'select'"
+                  :model-value="String(option.currentValue)"
+                  @update:model-value="onAcpSelectOption(option.id, $event as string)"
+                >
+                  <SelectTrigger
+                    :disabled="acpConfigReadOnly || isAcpOptionSaving(option.id)"
+                    class="h-8 w-[9rem] text-xs"
+                  >
+                    <span class="truncate">{{ getAcpOptionDisplayValue(option) }}</span>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem
+                      v-for="entry in option.options ?? []"
+                      :key="`${option.id}-${entry.value}`"
+                      :value="entry.value"
+                    >
+                      {{ entry.value }}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <Button
+                  v-else
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  class="h-8 min-w-[6rem] text-xs"
+                  :disabled="acpConfigReadOnly || isAcpOptionSaving(option.id)"
+                  @click="onAcpBooleanOption(option.id, !Boolean(option.currentValue))"
+                >
+                  <span class="truncate">{{ getAcpOptionDisplayValue(option) }}</span>
+                </Button>
+              </div>
+            </div>
+          </PopoverContent>
+        </Popover>
+
         <McpIndicator
           :show-system-prompt-section="showSystemPromptSection"
           :system-prompt-options="systemPromptMenuOptions"
@@ -384,7 +453,7 @@
           @open-change="handleSessionPanelOpenChange"
         />
 
-        <DropdownMenu v-if="canSelectPermissionMode">
+        <DropdownMenu v-if="!isAcpAgent">
           <DropdownMenuTrigger as-child>
             <Button
               variant="ghost"
@@ -418,22 +487,6 @@
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-
-        <Button
-          v-else
-          variant="ghost"
-          size="sm"
-          :class="[
-            'h-6 px-2 gap-1.5 text-xs backdrop-blur-lg disabled:opacity-100',
-            permissionMode === 'full_access'
-              ? 'text-orange-500 hover:text-orange-600'
-              : 'text-muted-foreground hover:text-foreground'
-          ]"
-          :disabled="true"
-        >
-          <Icon :icon="permissionIcon" class="w-3.5 h-3.5" />
-          <span>{{ permissionModeLabel }}</span>
-        </Button>
       </div>
     </div>
   </div>
@@ -460,7 +513,6 @@ import {
   SelectValue
 } from '@shadcn/components/ui/select'
 import { Slider } from '@shadcn/components/ui/slider'
-import { Switch } from '@shadcn/components/ui/switch'
 import type {
   AcpConfigOption,
   AcpConfigState,
@@ -514,6 +566,7 @@ const TEMPERATURE_MIN = 0
 const TEMPERATURE_MAX = 2
 const CONTEXT_LENGTH_MIN = 2048
 const MAX_TOKENS_MIN = 128
+const ACP_INLINE_OPTION_LIMIT = 3
 const DEFAULT_REASONING_EFFORT_OPTIONS: SessionGenerationSettings['reasoningEffort'][] = [
   'minimal',
   'low',
@@ -548,7 +601,6 @@ const isModelSettingsExpanded = ref(false)
 const modelSearchKeyword = ref('')
 const modelSettingsSelection = ref<ModelSelection | null>(null)
 const acpConfigState = ref<AcpConfigState | null>(null)
-const acpConfigLoadedKey = ref<string | null>(null)
 const acpOptionSavingIds = ref<string[]>([])
 
 const capabilitySupportsReasoning = ref<boolean | null>(null)
@@ -715,35 +767,35 @@ const acpConfigSourceKey = computed(() => {
   if (activeAcpAgentId.value && acpWorkspacePath.value) {
     return `process:${activeAcpAgentId.value}::${acpWorkspacePath.value}`
   }
+  if (activeAcpAgentId.value) {
+    return `agent:${activeAcpAgentId.value}`
+  }
   return null
 })
 
-const acpConfigLoaded = computed(() => acpConfigLoadedKey.value === acpConfigSourceKey.value)
 const acpConfigOptions = computed(() => acpConfigState.value?.options ?? [])
 const acpConfigReadOnly = computed(() => isAcpAgent.value && !activeAcpSessionId.value)
-
-const acpDisplayOptions = computed(() => {
-  return acpConfigOptions.value
-    .map((option, index) => ({ option, index }))
-    .sort((left, right) => {
-      const getPriority = (category?: string | null) => {
-        if (category === 'model') return 0
-        if (category === 'thought_level') return 1
-        return 2
-      }
-      const priorityDiff = getPriority(left.option.category) - getPriority(right.option.category)
-      if (priorityDiff !== 0) {
-        return priorityDiff
-      }
-      return left.index - right.index
-    })
-    .map(({ option }) => option)
+const acpInlineOptions = computed(() =>
+  acpConfigOptions.value
+    .filter((option) => option.type === 'select')
+    .slice(0, ACP_INLINE_OPTION_LIMIT)
+)
+const acpOverflowOptions = computed(() => {
+  const inlineIds = new Set(acpInlineOptions.value.map((option) => option.id))
+  return acpConfigOptions.value.filter((option) => !inlineIds.has(option.id))
 })
-
-const acpCurrentModelLabel = computed(() => {
-  const modelOption = acpConfigOptions.value.find((option) => option.category === 'model')
-  return getAcpOptionCurrentLabel(modelOption)
+const acpAgentLabel = computed(() => {
+  const modelId = activeAcpAgentId.value ?? agentStore.selectedAgentId
+  return (
+    resolveModelName('acp', modelId) ||
+    agentStore.selectedAgent?.name ||
+    modelId ||
+    t('chat.mode.acpAgent')
+  )
 })
+const acpAgentIconId = computed(() =>
+  resolveModelIconId('acp', activeAcpAgentId.value ?? agentStore.selectedAgentId)
+)
 
 const permissionModeLabel = computed(() =>
   permissionMode.value === 'default'
@@ -859,6 +911,18 @@ const getAcpOptionCurrentLabel = (option?: AcpConfigOption | null): string | nul
   }
   const currentValue = typeof option.currentValue === 'string' ? option.currentValue : ''
   return option.options?.find((entry) => entry.value === currentValue)?.label ?? currentValue
+}
+
+const getAcpOptionDisplayValue = (option: AcpConfigOption): string => {
+  if (option.type === 'boolean') {
+    return t(option.currentValue ? 'common.enabled' : 'common.disabled')
+  }
+
+  if (typeof option.currentValue === 'string' && option.currentValue.trim()) {
+    return option.currentValue
+  }
+
+  return getAcpOptionCurrentLabel(option) ?? ''
 }
 
 const findEnabledModelMeta = (providerId: string, modelId: string): RENDERER_MODEL_META | null => {
@@ -1244,8 +1308,7 @@ const displayIconId = computed(() => {
 
 const displayModelText = computed(() => {
   if (isAcpAgent.value) {
-    const agentId = activeAcpAgentId.value ?? agentStore.selectedAgent?.name ?? 'ACP Agent'
-    return acpCurrentModelLabel.value ? `${agentId} / ${acpCurrentModelLabel.value}` : agentId
+    return acpAgentLabel.value
   }
   if (hasActiveSession.value) {
     const selection = activeSessionSelection.value ?? draftModelSelection.value
@@ -1618,11 +1681,9 @@ const syncGenerationSettings = async () => {
 const syncAcpConfigOptions = async () => {
   const token = ++acpConfigSyncToken
   const sourceKey = acpConfigSourceKey.value
-  acpConfigLoadedKey.value = null
 
   if (!isAcpAgent.value || !sourceKey) {
     acpConfigState.value = null
-    acpConfigLoadedKey.value = sourceKey
     return
   }
 
@@ -1633,7 +1694,6 @@ const syncAcpConfigOptions = async () => {
         return
       }
       acpConfigState.value = state
-      acpConfigLoadedKey.value = sourceKey
       return
     } catch (error) {
       console.warn('[ChatStatusBar] Failed to load ACP session config options:', error)
@@ -1641,29 +1701,35 @@ const syncAcpConfigOptions = async () => {
         return
       }
       acpConfigState.value = null
-      acpConfigLoadedKey.value = sourceKey
       return
     }
   }
 
-  if (activeAcpAgentId.value && acpWorkspacePath.value) {
+  if (activeAcpAgentId.value) {
     try {
+      try {
+        await llmproviderPresenter.warmupAcpProcess(
+          activeAcpAgentId.value,
+          acpWorkspacePath.value ?? undefined
+        )
+      } catch (error) {
+        console.warn('[ChatStatusBar] Failed to warmup ACP process:', error)
+      }
+
       const state = await llmproviderPresenter.getAcpProcessConfigOptions(
         activeAcpAgentId.value,
-        acpWorkspacePath.value
+        acpWorkspacePath.value ?? undefined
       )
       if (token !== acpConfigSyncToken || acpConfigSourceKey.value !== sourceKey) {
         return
       }
       acpConfigState.value = state
-      acpConfigLoadedKey.value = sourceKey
     } catch (error) {
       console.warn('[ChatStatusBar] Failed to load ACP process config options:', error)
       if (token !== acpConfigSyncToken || acpConfigSourceKey.value !== sourceKey) {
         return
       }
       acpConfigState.value = null
-      acpConfigLoadedKey.value = sourceKey
     }
   }
 }
@@ -1685,7 +1751,6 @@ const updateAcpConfigOption = async (configId: string, value: string | boolean) 
       return
     }
     acpConfigState.value = updated
-    acpConfigLoadedKey.value = acpConfigSourceKey.value
   } catch (error) {
     console.warn('[ChatStatusBar] Failed to update ACP config option:', error)
   } finally {
@@ -1722,6 +1787,8 @@ const handleAcpConfigOptionsReady = (_event: unknown, payload?: Record<string, u
     if (sourceKey !== `session:${conversationId}`) {
       return
     }
+  } else if (sourceKey === `agent:${agentId}`) {
+    // Agent-scoped cache fallback intentionally ignores workdir.
   } else if (sourceKey !== `process:${agentId}::${workdir}`) {
     return
   }
@@ -1731,7 +1798,6 @@ const handleAcpConfigOptionsReady = (_event: unknown, payload?: Record<string, u
   }
 
   acpConfigState.value = payload.configState
-  acpConfigLoadedKey.value = sourceKey
 }
 
 watch(

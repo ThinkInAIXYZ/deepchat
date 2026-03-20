@@ -58,6 +58,12 @@
 1. 有 `draftSessionId` 或活动 ACP session 时，走 session 级读写
 2. 仅有 process warmup 数据时，面板只读
 
+UI refinement：
+
+1. ACP 状态栏隐藏 permission mode 入口，右侧只保留 `更多` 与最右侧 `MCP`
+2. inline 只展示前 3 个 `select` 类型配置，触发器复用 MCP 风格的 ghost button + popover header
+3. `boolean` 与剩余配置统一进入 `更多` 面板，不再 inline 展示
+
 ## 3. 分阶段实施
 
 ### Phase 1：SDK 与主进程兼容
