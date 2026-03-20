@@ -139,7 +139,9 @@ describe('dispatch', () => {
         'full_access',
         new ToolOutputGuard(),
         32000,
-        1024
+        1024,
+        undefined,
+        'openai'
       )
 
       expect(executed.executed).toBe(1)
@@ -148,7 +150,8 @@ describe('dispatch', () => {
           id: 'tc1',
           function: { name: 'get_weather', arguments: '{}' },
           server: tools[0].server,
-          conversationId: 's1'
+          conversationId: 's1',
+          providerId: 'openai'
         })
       )
 
@@ -584,7 +587,7 @@ describe('dispatch', () => {
       expect(executed.terminalError).toBeUndefined()
       const toolMessage = conversation.find((message: any) => message.role === 'tool')
       expect(toolMessage.content).toContain('[Tool output offloaded]')
-      expect(toolMessage.content).toContain('tool_function.cdp_send_11.offload')
+      expect(toolMessage.content).toMatch(/tool_function\.cdp_send_11(?:_[a-f0-9]+)?\.offload/)
       expect(toolMessage.content).not.toContain(':11.offload')
       expect(toolMessage.content).not.toContain(tempHome!)
       expect(state.blocks[0].tool_call?.response).toContain('[Tool output offloaded]')

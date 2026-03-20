@@ -2335,5 +2335,38 @@ describe('DeepChatAgentPresenter', () => {
         })
       )
     })
+
+    it('passes providerId when executing a deferred MCP tool call', async () => {
+      toolPresenter.getAllToolDefinitions.mockResolvedValueOnce([
+        {
+          type: 'function',
+          function: {
+            name: 'echo',
+            description: 'Echo tool',
+            parameters: { type: 'object', properties: {} }
+          },
+          server: { name: 'test-server', icons: '', description: '' }
+        }
+      ])
+      toolPresenter.callTool.mockResolvedValueOnce({
+        content: 'tool result',
+        rawData: { toolCallId: 'tc1', content: 'tool result', isError: false }
+      })
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+
+      await (agent as any).executeDeferredToolCall('s1', {
+        id: 'tc1',
+        name: 'echo',
+        params: '{}'
+      })
+
+      expect(toolPresenter.callTool).toHaveBeenCalledWith(
+        expect.objectContaining({
+          conversationId: 's1',
+          providerId: 'openai'
+        })
+      )
+    })
   })
 })

@@ -151,7 +151,8 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
         params.toolOutputGuard,
         modelConfig.contextLength > 0 ? modelConfig.contextLength : UNKNOWN_CONTEXT_LIMIT,
         maxTokens,
-        hooks
+        hooks,
+        providerId
       )
       toolCallCount += executed.executed
       echo.flush()

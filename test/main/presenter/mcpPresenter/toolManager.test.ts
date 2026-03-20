@@ -123,7 +123,8 @@ describe('ToolManager ACP MCP access control', () => {
         name: 'echo',
         arguments: '{}'
       },
-      conversationId: 'session-1'
+      conversationId: 'session-1',
+      providerId: 'acp'
     })
 
     expect(result.isError).toBe(true)
@@ -133,7 +134,7 @@ describe('ToolManager ACP MCP access control', () => {
     expect(configPresenter.getAgentMcpSelections).toHaveBeenCalledWith('agent-1')
   })
 
-  it('treats missing new session context as non-ACP and still executes the tool', async () => {
+  it('skips ACP session resolution when provider hint is non-ACP', async () => {
     const client = createClient('open-server')
     const configPresenter = createConfigPresenter('open-server')
     presenterMocks.newAgentPresenter.getSession.mockResolvedValue(null)
@@ -152,12 +153,14 @@ describe('ToolManager ACP MCP access control', () => {
         name: 'echo',
         arguments: '{}'
       },
-      conversationId: 'conv-1'
+      conversationId: 'conv-1',
+      providerId: 'openai'
     })
 
     expect(result.isError).toBe(false)
     expect(result.content).toBe('ok')
     expect(client.callTool).toHaveBeenCalledWith('echo', {})
+    expect(presenterMocks.newAgentPresenter.getSession).not.toHaveBeenCalled()
     expect(configPresenter.getAgentMcpSelections).not.toHaveBeenCalled()
     expect(
       warnSpy.mock.calls.some((call) =>
@@ -204,6 +207,35 @@ describe('ToolManager ACP MCP access control', () => {
     expect(result.isError).toBe(false)
     expect(result.content).toBe('ok')
     expect(client.callTool).toHaveBeenCalledWith('echo', {})
+    expect(configPresenter.getAgentMcpSelections).not.toHaveBeenCalled()
+  })
+
+  it('treats missing provider hint as a fallback to new session resolution', async () => {
+    const client = createClient('open-server')
+    const configPresenter = createConfigPresenter('open-server')
+    presenterMocks.newAgentPresenter.getSession.mockResolvedValue(null)
+
+    const manager = new ToolManager(
+      configPresenter as never,
+      {
+        getRunningClients: vi.fn().mockResolvedValue([client])
+      } as never
+    )
+
+    const result = await manager.callTool({
+      id: 'tool-4',
+      type: 'function',
+      function: {
+        name: 'echo',
+        arguments: '{}'
+      },
+      conversationId: 'conv-fallback'
+    })
+
+    expect(result.isError).toBe(false)
+    expect(result.content).toBe('ok')
+    expect(client.callTool).toHaveBeenCalledWith('echo', {})
+    expect(presenterMocks.newAgentPresenter.getSession).toHaveBeenCalledWith('conv-fallback')
     expect(configPresenter.getAgentMcpSelections).not.toHaveBeenCalled()
   })
 })

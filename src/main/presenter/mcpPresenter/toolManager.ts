@@ -447,9 +447,12 @@ export class ToolManager {
 
       const { client: targetClient, originalName } = targetInfo
       const toolServerName = targetClient.serverName
+      const hintedProviderId = toolCall.providerId?.trim()
+      const shouldResolveAcpContext =
+        Boolean(toolCall.conversationId) && (!hintedProviderId || hintedProviderId === 'acp')
 
       // ACP agent-level MCP access control resolves from session context, not global chat mode.
-      if (toolCall.conversationId) {
+      if (shouldResolveAcpContext && toolCall.conversationId) {
         try {
           const acpContext = await this.resolveAcpSessionContext(toolCall.conversationId)
           if (acpContext?.providerId === 'acp' && acpContext.agentId) {
