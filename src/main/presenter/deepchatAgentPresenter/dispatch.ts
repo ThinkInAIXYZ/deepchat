@@ -7,7 +7,13 @@ import type { SearchResult } from '@shared/types/core/search'
 import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
 import type { AssistantMessageBlock, PermissionMode } from '@shared/types/agent-interface'
 import { parseQuestionToolArgs, QUESTION_TOOL_NAME } from '../../lib/agentRuntime/questionTool'
-import type { IoParams, PendingToolInteraction, ProcessHooks, StreamState } from './types'
+import type {
+  InterleavedReasoningConfig,
+  IoParams,
+  PendingToolInteraction,
+  ProcessHooks,
+  StreamState
+} from './types'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import { nanoid } from 'nanoid'
 import type { ToolOutputGuard } from './toolOutputGuard'
@@ -46,15 +52,6 @@ function extractReasoningFromBlocks(blocks: AssistantMessageBlock[]): string {
     .filter((b) => b.type === 'reasoning_content')
     .map((b) => b.content || '')
     .join('')
-}
-
-function requiresReasoningField(modelId: string): boolean {
-  const lower = modelId.toLowerCase()
-  return (
-    lower.includes('deepseek-reasoner') ||
-    lower.includes('kimi-k2-thinking') ||
-    lower.includes('glm-4.7')
-  )
 }
 
 function toolResponseToText(content: string | MCPContentItem[]): string {
@@ -391,6 +388,7 @@ export async function executeTools(
   tools: MCPToolDefinition[],
   toolPresenter: IToolPresenter,
   modelId: string,
+  interleavedReasoning: InterleavedReasoningConfig,
   io: IoParams,
   permissionMode: PermissionMode,
   toolOutputGuard: ToolOutputGuard,
@@ -425,10 +423,25 @@ export async function executeTools(
     }))
   }
 
-  if (requiresReasoningField(modelId)) {
-    const reasoning = extractReasoningFromBlocks(iterationBlocks)
-    if (reasoning) {
-      assistantMessage.reasoning_content = reasoning
+  const reasoning = extractReasoningFromBlocks(iterationBlocks)
+  if (interleavedReasoning.preserveReasoningContent && reasoning) {
+    assistantMessage.reasoning_content = reasoning
+  } else if (
+    reasoning &&
+    interleavedReasoning.reasoningSupported &&
+    !interleavedReasoning.forcedBySessionSetting &&
+    !interleavedReasoning.portraitInterleaved
+  ) {
+    const gapPayload = {
+      providerId: providerId?.trim() || 'unknown-provider',
+      modelId,
+      providerDbSourceUrl: interleavedReasoning.providerDbSourceUrl,
+      reasoningContentLength: reasoning.length,
+      toolCallCount: state.completedToolCalls.length
+    }
+    hooks?.onInterleavedReasoningGap?.(gapPayload)
+    if (!hooks?.onInterleavedReasoningGap) {
+      console.warn('[DeepChatDispatch] Missing interleaved reasoning portrait:', gapPayload)
     }
   }
 

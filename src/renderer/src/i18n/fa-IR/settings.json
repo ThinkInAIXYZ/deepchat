@@ -354,6 +354,10 @@
         "description": "آیا مدل از توانایی استدلال پشتیبانی می کند؟",
         "label": "توانایی استدلال"
       },
+      "interleavedThinking": {
+        "label": "Interleaved Thinking",
+        "description": "کنترل می‌کند که این مدل پیام‌های reasoning و tool-call را با منطق Interleaved Thinking پردازش کند یا نه. مقادیر پیش‌فرض provider به‌صورت خودکار اعمال می‌شوند."
+      },
       "thinkingBudget": {
         "label": "بودجه تفکر",
         "description": "حداکثر طول توکن فرایند تفکر را تنظیم کنید تا عمق استدلال کنترل شود",

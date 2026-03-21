@@ -214,6 +214,22 @@
             <Switch :model-value="config.reasoning" @update:model-value="handleReasoningToggle" />
           </div>
 
+          <div v-if="showInterleavedThinking" class="flex items-center justify-between gap-4">
+            <div class="space-y-0.5">
+              <Label>{{ t('settings.model.modelConfig.interleavedThinking.label') }}</Label>
+              <p class="text-xs text-muted-foreground">
+                {{ t('settings.model.modelConfig.interleavedThinking.description') }}
+              </p>
+            </div>
+            <Switch
+              data-setting-control="interleavedThinking-toggle"
+              :model-value="config.forceInterleavedThinkingCompat === true"
+              @update:model-value="
+                (value) => (config.forceInterleavedThinkingCompat = Boolean(value))
+              "
+            />
+          </div>
+
           <!-- 推理努力程度 (支持推理努力程度的模型显示) -->
           <div v-if="supportsReasoningEffort" class="space-y-2">
             <Label for="reasoningEffort">{{
@@ -470,6 +486,7 @@ const createDefaultConfig = (): ModelConfig => ({
   vision: DEFAULT_MODEL_VISION,
   functionCall: DEFAULT_MODEL_FUNCTION_CALL,
   reasoning: false,
+  forceInterleavedThinkingCompat: undefined,
   type: ModelType.Chat,
   apiEndpoint: ApiEndpointType.Chat,
   reasoningEffort: 'medium',
@@ -736,6 +753,13 @@ const loadConfig = async () => {
 
   await fetchCapabilities()
 
+  if (
+    config.value.forceInterleavedThinkingCompat === undefined &&
+    capabilityReasoningPortrait.value?.interleaved === true
+  ) {
+    config.value.forceInterleavedThinkingCompat = true
+  }
+
   if (config.value.isUserDefined !== true) {
     const normalizedEffort = normalizeReasoningEffortValue(
       capabilityReasoningPortrait.value,
@@ -948,6 +972,18 @@ const showThinkingBudget = computed(() => {
   const supported = capabilitySupportsReasoning.value === true
   const hasRange = hasThinkingBudgetSupport(capabilityReasoningPortrait.value)
   return hasReasoning && supported && hasRange
+})
+
+const showInterleavedThinking = computed(() => {
+  if (!isOpenAICompatibleProvider.value || isResponsesProvider.value) {
+    return false
+  }
+
+  return (
+    capabilitySupportsReasoning.value === true ||
+    capabilityReasoningPortrait.value?.interleaved === true ||
+    typeof config.value.forceInterleavedThinkingCompat === 'boolean'
+  )
 })
 
 const capabilitySupportsReasoning = ref<boolean | null>(null)

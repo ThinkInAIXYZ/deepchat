@@ -138,6 +138,8 @@
     "maxTokens": "Máx. de tokens",
     "thinkingBudget": "Orçamento de raciocínio",
     "verbosity": "Nível de detalhe",
+    "forceInterleavedThinkingCompat": "Interleaved Thinking",
+    "forceInterleavedThinkingCompatDescription": "Controla se esta sessão trata mensagens de raciocínio e tool-call com Interleaved Thinking.",
     "verbosityPlaceholder": "Selecione o nível de detalhe",
     "currentCustomPrompt": "Personalização atual",
     "useDefault": "Usar padrão",

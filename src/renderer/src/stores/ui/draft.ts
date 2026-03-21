@@ -21,6 +21,7 @@ export const useDraftStore = defineStore('draft', () => {
   const thinkingBudget = ref<number | undefined>(undefined)
   const reasoningEffort = ref<SessionGenerationSettings['reasoningEffort'] | undefined>(undefined)
   const verbosity = ref<SessionGenerationSettings['verbosity'] | undefined>(undefined)
+  const forceInterleavedThinkingCompat = ref<boolean | undefined>(undefined)
   const permissionMode = ref<PermissionMode>('full_access')
   const disabledAgentTools = ref<string[]>([])
 
@@ -36,6 +37,9 @@ export const useDraftStore = defineStore('draft', () => {
     if (thinkingBudget.value !== undefined) settings.thinkingBudget = thinkingBudget.value
     if (reasoningEffort.value !== undefined) settings.reasoningEffort = reasoningEffort.value
     if (verbosity.value !== undefined) settings.verbosity = verbosity.value
+    if (forceInterleavedThinkingCompat.value !== undefined) {
+      settings.forceInterleavedThinkingCompat = forceInterleavedThinkingCompat.value
+    }
 
     return Object.keys(settings).length > 0 ? settings : undefined
   }
@@ -75,6 +79,9 @@ export const useDraftStore = defineStore('draft', () => {
     if (Object.prototype.hasOwnProperty.call(settings, 'verbosity')) {
       verbosity.value = settings.verbosity
     }
+    if (Object.prototype.hasOwnProperty.call(settings, 'forceInterleavedThinkingCompat')) {
+      forceInterleavedThinkingCompat.value = settings.forceInterleavedThinkingCompat
+    }
   }
 
   function resetGenerationSettings(): void {
@@ -85,6 +92,7 @@ export const useDraftStore = defineStore('draft', () => {
     thinkingBudget.value = undefined
     reasoningEffort.value = undefined
     verbosity.value = undefined
+    forceInterleavedThinkingCompat.value = undefined
   }
 
   function reset(): void {
@@ -109,6 +117,7 @@ export const useDraftStore = defineStore('draft', () => {
     thinkingBudget,
     reasoningEffort,
     verbosity,
+    forceInterleavedThinkingCompat,
     permissionMode,
     disabledAgentTools,
     toGenerationSettings,

@@ -154,17 +154,26 @@ async function resolveModel(): Promise<{ providerId: string; modelId: string } |
     return draftModel
   }
 
-  // 1. defaultModel from settings
+  // 1. preferredModel (last user selection)
+  const preferredModel = (await configPresenter.getSetting('preferredModel')) as
+    | { providerId: string; modelId: string }
+    | undefined
+  const resolvedPreferredModel = getEnabledModel(
+    preferredModel?.providerId,
+    preferredModel?.modelId
+  )
+  if (resolvedPreferredModel) {
+    return resolvedPreferredModel
+  }
+
+  // 2. defaultModel from settings
   const defaultModel = (await configPresenter.getSetting('defaultModel')) as
     | { providerId: string; modelId: string }
     | undefined
-  if (defaultModel?.providerId && defaultModel?.modelId) return defaultModel
-
-  // 2. preferredModel (last user selection)
-  const preferred = (await configPresenter.getSetting('preferredModel')) as
-    | { providerId: string; modelId: string }
-    | undefined
-  if (preferred?.providerId && preferred?.modelId) return preferred
+  const resolvedDefaultModel = getEnabledModel(defaultModel?.providerId, defaultModel?.modelId)
+  if (resolvedDefaultModel) {
+    return resolvedDefaultModel
+  }
 
   // 3. First available enabled model
   for (const group of modelStore.enabledModels) {

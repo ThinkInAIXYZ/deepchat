@@ -354,6 +354,10 @@
         "description": "모델이 추론 능력을 지원합니까?",
         "label": "추론 능력"
       },
+      "interleavedThinking": {
+        "label": "Interleaved Thinking",
+        "description": "이 모델이 reasoning 및 tool-call 메시지를 Interleaved Thinking 방식으로 처리할지 제어합니다. provider 기본값이 있으면 자동으로 적용됩니다."
+      },
       "thinkingBudget": {
         "label": "사고 예산",
         "description": "사고 과정의 최대 토큰 길이를 설정하여 추론 깊이를 제어",

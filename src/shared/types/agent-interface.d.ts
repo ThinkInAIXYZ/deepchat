@@ -23,6 +23,7 @@ export interface SessionGenerationSettings {
   thinkingBudget?: number
   reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
   verbosity?: 'low' | 'medium' | 'high'
+  forceInterleavedThinkingCompat?: boolean
 }
 
 export interface DeepChatSessionState {

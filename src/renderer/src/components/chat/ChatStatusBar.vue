@@ -540,6 +540,31 @@
                         {{ getNumericInputErrorMessage('thinkingBudget') }}
                       </p>
                     </div>
+
+                    <div class="space-y-1.5">
+                      <div class="flex items-start justify-between gap-3">
+                        <div class="min-w-0">
+                          <label class="text-xs font-medium">
+                            {{ t('chat.advancedSettings.forceInterleavedThinkingCompat') }}
+                          </label>
+                          <p class="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                            {{
+                              t('chat.advancedSettings.forceInterleavedThinkingCompatDescription')
+                            }}
+                          </p>
+                        </div>
+                        <Switch
+                          data-setting-control="forceInterleavedThinkingCompat-toggle"
+                          :model-value="isInterleavedThinkingEnabled"
+                          :aria-label="
+                            t('chat.advancedSettings.toggleValue', {
+                              label: t('chat.advancedSettings.forceInterleavedThinkingCompat')
+                            })
+                          "
+                          @update:model-value="onInterleavedThinkingToggle(Boolean($event))"
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1455,6 +1480,9 @@ const contextLengthInputValue = computed(() => getNumericInputValue('contextLeng
 const maxTokensInputValue = computed(() => getNumericInputValue('maxTokens'))
 const thinkingBudgetInputValue = computed(() => getNumericInputValue('thinkingBudget'))
 const isThinkingBudgetEnabled = computed(() => localSettings.value?.thinkingBudget !== undefined)
+const isInterleavedThinkingEnabled = computed(
+  () => localSettings.value?.forceInterleavedThinkingCompat === true
+)
 
 const thinkingBudgetHint = computed(() => {
   if (!isThinkingBudgetEnabled.value) {
@@ -1689,7 +1717,7 @@ const resolveDefaultGenerationSettings = async (
   providerId: string,
   modelId: string
 ): Promise<SessionGenerationSettings> => {
-  const modelConfig = configPresenter.getModelConfig(modelId, providerId)
+  const modelConfig = await configPresenter.getModelConfig(modelId, providerId)
   const defaultSystemPrompt = await configPresenter.getDefaultSystemPrompt()
   const portrait = (await configPresenter.getReasoningPortrait?.(providerId, modelId)) ?? null
   const contextLengthDefault = toValidNonNegativeInteger(modelConfig.contextLength) ?? 32000
@@ -1704,6 +1732,16 @@ const resolveDefaultGenerationSettings = async (
       maxTokensDefault <= contextLengthDefault
         ? maxTokensDefault
         : Math.min(4096, contextLengthDefault)
+  }
+
+  const interleavedThinkingDefault =
+    typeof modelConfig.forceInterleavedThinkingCompat === 'boolean'
+      ? modelConfig.forceInterleavedThinkingCompat
+      : portrait?.interleaved === true
+        ? true
+        : undefined
+  if (typeof interleavedThinkingDefault === 'boolean') {
+    defaults.forceInterleavedThinkingCompat = interleavedThinkingDefault
   }
 
   if (portrait?.supported === true && hasThinkingBudgetSupport(portrait)) {
@@ -1832,6 +1870,9 @@ const updateLocalGenerationSettings = (patch: Partial<SessionGenerationSettings>
   }
   if (Object.prototype.hasOwnProperty.call(patch, 'verbosity')) {
     normalizedPatch.verbosity = next.verbosity
+  }
+  if (Object.prototype.hasOwnProperty.call(patch, 'forceInterleavedThinkingCompat')) {
+    normalizedPatch.forceInterleavedThinkingCompat = next.forceInterleavedThinkingCompat
   }
 
   scheduleGenerationPersist(normalizedPatch)
@@ -2227,7 +2268,8 @@ async function changeModelSelection(providerId: string, modelId: string): Promis
     maxTokens: draftStore.maxTokens,
     thinkingBudget: draftStore.thinkingBudget,
     reasoningEffort: draftStore.reasoningEffort,
-    verbosity: draftStore.verbosity
+    verbosity: draftStore.verbosity,
+    forceInterleavedThinkingCompat: draftStore.forceInterleavedThinkingCompat
   } as Partial<SessionGenerationSettings>
   const clearedDraftModelOverrides = {
     temperature: undefined,
@@ -2235,7 +2277,8 @@ async function changeModelSelection(providerId: string, modelId: string): Promis
     maxTokens: undefined,
     thinkingBudget: undefined,
     reasoningEffort: undefined,
-    verbosity: undefined
+    verbosity: undefined,
+    forceInterleavedThinkingCompat: undefined
   } as Partial<SessionGenerationSettings>
 
   try {
@@ -2497,6 +2540,15 @@ function onVerbositySelect(value: string) {
     return
   }
   updateLocalGenerationSettings({ verbosity: normalized })
+}
+
+function onInterleavedThinkingToggle(enabled: boolean) {
+  if (!localSettings.value) {
+    return
+  }
+  updateLocalGenerationSettings({
+    forceInterleavedThinkingCompat: enabled
+  })
 }
 
 function onAcpInlineOptionOpenChange(optionId: string, open: boolean) {

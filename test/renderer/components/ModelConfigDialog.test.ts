@@ -13,6 +13,7 @@ type SetupOptions = {
   providerId: string
   modelId: string
   modelName: string
+  providerApiType?: string
   modelConfig?: Record<string, unknown>
   reasoningPortrait?: ReasoningPortrait | null
 }
@@ -52,7 +53,7 @@ const setup = async (options: SetupOptions) => {
   })
 
   const providerStore = reactive({
-    providers: [{ id: options.providerId, apiType: 'openai-compatible' }]
+    providers: [{ id: options.providerId, apiType: options.providerApiType ?? 'openai-compatible' }]
   })
 
   const configPresenter = {
@@ -119,6 +120,56 @@ const setup = async (options: SetupOptions) => {
 }
 
 describe('ModelConfigDialog reasoning portraits', () => {
+  it('shows interleaved thinking when an OpenAI-compatible model defaults to interleaved mode', async () => {
+    const { wrapper } = await setup({
+      providerId: 'zenmux',
+      modelId: 'moonshotai/kimi-k2.5',
+      modelName: 'Kimi K2.5',
+      modelConfig: {
+        reasoning: true,
+        forceInterleavedThinkingCompat: true
+      },
+      reasoningPortrait: {
+        supported: true,
+        defaultEnabled: true,
+        interleaved: true,
+        mode: 'effort',
+        effort: 'medium',
+        effortOptions: ['minimal', 'low', 'medium', 'high'],
+        verbosity: 'medium',
+        verbosityOptions: ['low', 'medium', 'high']
+      }
+    })
+
+    expect(wrapper.text()).toContain('settings.model.modelConfig.interleavedThinking.label')
+    expect(wrapper.text()).toContain('settings.model.modelConfig.interleavedThinking.description')
+  })
+
+  it('hides interleaved thinking for Responses providers', async () => {
+    const { wrapper } = await setup({
+      providerId: 'openai',
+      modelId: 'gpt-5',
+      modelName: 'GPT-5',
+      providerApiType: 'openai-responses',
+      modelConfig: {
+        reasoning: true,
+        forceInterleavedThinkingCompat: true
+      },
+      reasoningPortrait: {
+        supported: true,
+        defaultEnabled: true,
+        interleaved: true,
+        mode: 'effort',
+        effort: 'medium',
+        effortOptions: ['minimal', 'low', 'medium', 'high'],
+        verbosity: 'medium',
+        verbosityOptions: ['low', 'medium', 'high']
+      }
+    })
+
+    expect(wrapper.text()).not.toContain('settings.model.modelConfig.interleavedThinking.label')
+  })
+
   it('renders full effort options for non-grok-3-mini xAI portraits', async () => {
     const { wrapper } = await setup({
       providerId: 'xai',

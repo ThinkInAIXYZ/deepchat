@@ -146,6 +146,7 @@ export class ModelConfigHelper {
       portrait?.defaultEnabled ?? model.reasoning?.default ?? portrait?.supported ?? false
     const thinkingBudget =
       portrait?.budget?.default ?? model.reasoning?.budget?.default ?? undefined
+    const forceInterleavedThinkingCompat = portrait?.interleaved === true ? true : undefined
     const reasoningEffort = normalizeReasoningEffortValue(
       portrait,
       portrait?.effort ?? model.reasoning?.effort
@@ -164,6 +165,7 @@ export class ModelConfigHelper {
       reasoning: Boolean(reasoningEnabled),
       type: this.inferModelType(model),
       thinkingBudget,
+      forceInterleavedThinkingCompat,
       reasoningEffort,
       verbosity,
       enableSearch: Boolean(model.search?.supported ?? false),
@@ -452,6 +454,7 @@ export class ModelConfigHelper {
         type: ModelType.Chat,
         apiEndpoint: ApiEndpointType.Chat,
         thinkingBudget: undefined,
+        forceInterleavedThinkingCompat: undefined,
         reasoningEffort: undefined,
         verbosity: undefined,
         enableSearch: false,
@@ -478,6 +481,7 @@ export class ModelConfigHelper {
         searchStrategy: storedConfig.searchStrategy ?? finalConfig.searchStrategy,
         reasoning: finalConfig.reasoning,
         thinkingBudget: finalConfig.thinkingBudget,
+        forceInterleavedThinkingCompat: finalConfig.forceInterleavedThinkingCompat,
         reasoningEffort: finalConfig.reasoningEffort,
         verbosity: finalConfig.verbosity
       }

@@ -47,10 +47,11 @@ import { PendingInputCoordinator } from './pendingInputCoordinator'
 import { DeepChatPendingInputStore } from './pendingInputStore'
 import { processStream } from './process'
 import { DeepChatSessionStore, type SessionSummaryState } from './sessionStore'
-import type { PendingToolInteraction, ProcessResult } from './types'
+import type { InterleavedReasoningConfig, PendingToolInteraction, ProcessResult } from './types'
 import { ToolOutputGuard } from './toolOutputGuard'
 import type { ProviderRequestTracePayload } from '../llmProviderPresenter/requestTrace'
 import type { NewSessionHooksBridge } from '../hooksNotifications/newSessionBridge'
+import { providerDbLoader } from '../configPresenter/providerDbLoader'
 
 type PendingInteractionEntry = {
   interaction: PendingToolInteraction
@@ -85,6 +86,7 @@ type PersistedSessionGenerationRow = {
   thinking_budget: number | null
   reasoning_effort: SessionGenerationSettings['reasoningEffort'] | null
   verbosity: SessionGenerationSettings['verbosity'] | null
+  force_interleaved_thinking_compat: number | null
 }
 
 type SystemPromptCacheEntry = {
@@ -346,6 +348,11 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
 
     try {
       const generationSettings = await this.getEffectiveSessionGenerationSettings(sessionId)
+      const interleavedReasoning = this.resolveInterleavedReasoningConfig(
+        state.providerId,
+        state.modelId,
+        generationSettings
+      )
       const maxTokens = generationSettings.maxTokens
       const tools = await this.loadToolDefinitionsForSession(sessionId, projectDir)
       const baseSystemPrompt = await this.buildSystemPromptWithSkills(
@@ -372,6 +379,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
         contextLength: generationSettings.contextLength,
         reserveTokens: maxTokens,
         supportsVision,
+        preserveInterleavedReasoning: interleavedReasoning.preserveReasoningContent,
         newUserContent: normalizedInput
       })
       let userMessageId: string
@@ -428,7 +436,8 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
         supportsVision,
         {
           summaryCursorOrderSeq: summaryState.summaryCursorOrderSeq,
-          historyRecords
+          historyRecords,
+          preserveInterleavedReasoning: interleavedReasoning.preserveReasoningContent
         }
       )
 
@@ -453,7 +462,8 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
         messages,
         projectDir,
         promptPreview: normalizedInput.text,
-        tools
+        tools,
+        interleavedReasoning
       })
       this.applyProcessResultStatus(sessionId, result)
       if (result?.status === 'completed') {
@@ -759,7 +769,10 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     }
 
     this.sessionStore.updateSessionModel(sessionId, nextProviderId, nextModelId)
-    this.sessionStore.updateGenerationSettings(sessionId, sanitized)
+    this.sessionStore.updateGenerationSettings(
+      sessionId,
+      this.buildPersistedGenerationSettingsReplacement(sanitized)
+    )
     this.sessionGenerationSettings.set(sessionId, sanitized)
     this.invalidateSystemPromptCache(sessionId)
   }
@@ -801,7 +814,10 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     const current = await this.getEffectiveSessionGenerationSettings(sessionId)
     const sanitized = await this.sanitizeGenerationSettings(providerId, modelId, settings, current)
     this.sessionGenerationSettings.set(sessionId, sanitized)
-    this.sessionStore.updateGenerationSettings(sessionId, sanitized)
+    this.sessionStore.updateGenerationSettings(
+      sessionId,
+      this.buildPersistedGenerationSettingsPatch(settings, sanitized)
+    )
     if (Object.prototype.hasOwnProperty.call(settings, 'systemPrompt')) {
       this.invalidateSystemPromptCache(sessionId)
     }
@@ -1122,6 +1138,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     tools?: MCPToolDefinition[]
     initialBlocks?: AssistantMessageBlock[]
     promptPreview?: string
+    interleavedReasoning?: InterleavedReasoningConfig
   }): Promise<ProcessResult> {
     const {
       sessionId,
@@ -1130,7 +1147,8 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       projectDir,
       tools: providedTools,
       initialBlocks,
-      promptPreview
+      promptPreview,
+      interleavedReasoning: providedInterleavedReasoning
     } = args
     const state = this.runtimeState.get(sessionId)
     if (!state) {
@@ -1153,6 +1171,9 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     ).getProviderInstance(state.providerId)
 
     const generationSettings = await this.getEffectiveSessionGenerationSettings(sessionId)
+    const interleavedReasoning =
+      providedInterleavedReasoning ??
+      this.resolveInterleavedReasoningConfig(state.providerId, state.modelId, generationSettings)
     const baseModelConfig = this.configPresenter.getModelConfig(state.modelId, state.providerId)
     const modelConfig: ModelConfig = {
       ...baseModelConfig,
@@ -1262,6 +1283,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
         modelConfig,
         temperature,
         maxTokens,
+        interleavedReasoning,
         permissionMode: state.permissionMode,
         toolOutputGuard: this.toolOutputGuard,
         initialBlocks,
@@ -1305,6 +1327,25 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
               projectDir,
               permission,
               tool
+            })
+          },
+          onInterleavedReasoningGap: (gap) => {
+            console.warn(
+              `[DeepChatAgent] Interleaved reasoning gap detected for ${gap.providerId}/${gap.modelId}. Update provider DB metadata at ${gap.providerDbSourceUrl}.`
+            )
+            if (!traceEnabled) {
+              return
+            }
+            persistMessageTrace({
+              sessionId,
+              messageId,
+              providerId: state.providerId,
+              modelId: state.modelId,
+              payload: {
+                endpoint: 'deepchat://interleaved-reasoning-gap',
+                headers: {},
+                body: gap
+              }
             })
           }
         },
@@ -1460,6 +1501,11 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
 
       this.setSessionStatus(sessionId, 'generating')
       const generationSettings = await this.getEffectiveSessionGenerationSettings(sessionId)
+      const interleavedReasoning = this.resolveInterleavedReasoningConfig(
+        state.providerId,
+        state.modelId,
+        generationSettings
+      )
       const maxTokens = generationSettings.maxTokens
       const projectDir = this.resolveProjectDir(sessionId)
       const tools = await this.loadToolDefinitionsForSession(sessionId, projectDir)
@@ -1476,7 +1522,8 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
         systemPrompt: baseSystemPrompt,
         contextLength: generationSettings.contextLength,
         reserveTokens: maxTokens,
-        supportsVision: this.supportsVision(state.providerId, state.modelId)
+        supportsVision: this.supportsVision(state.providerId, state.modelId),
+        preserveInterleavedReasoning: interleavedReasoning.preserveReasoningContent
       })
       const systemPrompt = appendSummarySection(baseSystemPrompt, summaryState.summaryText)
       let resumeContext = buildResumeContext(
@@ -1489,7 +1536,8 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
         this.supportsVision(state.providerId, state.modelId),
         {
           summaryCursorOrderSeq: summaryState.summaryCursorOrderSeq,
-          fallbackProtectedTurnCount: 1
+          fallbackProtectedTurnCount: 1,
+          preserveInterleavedReasoning: interleavedReasoning.preserveReasoningContent
         }
       )
       if (budgetToolCall?.id && budgetToolCall.name) {
@@ -1534,7 +1582,8 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
         messages: resumeContext,
         projectDir,
         tools,
-        initialBlocks
+        initialBlocks,
+        interleavedReasoning
       })
       this.applyProcessResultStatus(sessionId, result)
       if (result?.status === 'completed') {
@@ -1903,8 +1952,60 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     if (sessionRow.verbosity !== null) {
       patch.verbosity = sessionRow.verbosity
     }
+    if (typeof sessionRow.force_interleaved_thinking_compat === 'number') {
+      patch.forceInterleavedThinkingCompat = sessionRow.force_interleaved_thinking_compat === 1
+    }
 
     return patch
+  }
+
+  private buildPersistedGenerationSettingsPatch(
+    requestedPatch: Partial<SessionGenerationSettings>,
+    sanitized: SessionGenerationSettings
+  ): Partial<SessionGenerationSettings> {
+    const patch: Partial<SessionGenerationSettings> = {}
+
+    if (Object.prototype.hasOwnProperty.call(requestedPatch, 'systemPrompt')) {
+      patch.systemPrompt = sanitized.systemPrompt
+    }
+    if (Object.prototype.hasOwnProperty.call(requestedPatch, 'temperature')) {
+      patch.temperature = sanitized.temperature
+    }
+    if (Object.prototype.hasOwnProperty.call(requestedPatch, 'contextLength')) {
+      patch.contextLength = sanitized.contextLength
+    }
+    if (Object.prototype.hasOwnProperty.call(requestedPatch, 'maxTokens')) {
+      patch.maxTokens = sanitized.maxTokens
+    }
+    if (Object.prototype.hasOwnProperty.call(requestedPatch, 'thinkingBudget')) {
+      patch.thinkingBudget = sanitized.thinkingBudget
+    }
+    if (Object.prototype.hasOwnProperty.call(requestedPatch, 'reasoningEffort')) {
+      patch.reasoningEffort = sanitized.reasoningEffort
+    }
+    if (Object.prototype.hasOwnProperty.call(requestedPatch, 'verbosity')) {
+      patch.verbosity = sanitized.verbosity
+    }
+    if (Object.prototype.hasOwnProperty.call(requestedPatch, 'forceInterleavedThinkingCompat')) {
+      patch.forceInterleavedThinkingCompat = sanitized.forceInterleavedThinkingCompat
+    }
+
+    return patch
+  }
+
+  private buildPersistedGenerationSettingsReplacement(
+    settings: SessionGenerationSettings
+  ): Partial<SessionGenerationSettings> {
+    return {
+      systemPrompt: settings.systemPrompt,
+      temperature: settings.temperature,
+      contextLength: settings.contextLength,
+      maxTokens: settings.maxTokens,
+      thinkingBudget: settings.thinkingBudget,
+      reasoningEffort: settings.reasoningEffort,
+      verbosity: settings.verbosity,
+      forceInterleavedThinkingCompat: settings.forceInterleavedThinkingCompat
+    }
   }
 
   private async buildDefaultGenerationSettings(
@@ -1912,6 +2013,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     modelId: string
   ): Promise<SessionGenerationSettings> {
     const modelConfig = this.configPresenter.getModelConfig(modelId, providerId)
+    const portrait = this.getReasoningPortrait(providerId, modelId)
     const defaultSystemPrompt = await this.configPresenter.getDefaultSystemPrompt()
     const contextLengthDefault = toValidNonNegativeInteger(modelConfig.contextLength) ?? 32000
     const maxTokensDefault =
@@ -1925,6 +2027,16 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
         maxTokensDefault <= contextLengthDefault
           ? maxTokensDefault
           : Math.min(4096, contextLengthDefault)
+    }
+
+    const interleavedThinkingDefault =
+      typeof modelConfig.forceInterleavedThinkingCompat === 'boolean'
+        ? modelConfig.forceInterleavedThinkingCompat
+        : portrait?.interleaved === true
+          ? true
+          : undefined
+    if (typeof interleavedThinkingDefault === 'boolean') {
+      defaults.forceInterleavedThinkingCompat = interleavedThinkingDefault
     }
 
     const supportsReasoning =
@@ -2077,7 +2189,42 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       delete next.verbosity
     }
 
+    if (Object.prototype.hasOwnProperty.call(patch, 'forceInterleavedThinkingCompat')) {
+      if (typeof patch.forceInterleavedThinkingCompat === 'boolean') {
+        next.forceInterleavedThinkingCompat = patch.forceInterleavedThinkingCompat
+      } else {
+        delete next.forceInterleavedThinkingCompat
+      }
+    } else if (typeof base.forceInterleavedThinkingCompat !== 'boolean') {
+      delete next.forceInterleavedThinkingCompat
+    }
+
     return next
+  }
+
+  private resolveInterleavedReasoningConfig(
+    providerId: string,
+    modelId: string,
+    generationSettings: SessionGenerationSettings
+  ): InterleavedReasoningConfig {
+    const portrait = this.getReasoningPortrait(providerId, modelId)
+    const explicitSessionSetting =
+      typeof generationSettings.forceInterleavedThinkingCompat === 'boolean'
+        ? generationSettings.forceInterleavedThinkingCompat
+        : undefined
+    const forcedBySessionSetting = explicitSessionSetting === true
+    const portraitInterleaved = portrait?.interleaved === true
+    const reasoningSupported =
+      this.configPresenter.supportsReasoningCapability?.(providerId, modelId) === true
+
+    return {
+      preserveReasoningContent:
+        explicitSessionSetting !== undefined ? explicitSessionSetting : portraitInterleaved,
+      forcedBySessionSetting,
+      portraitInterleaved,
+      reasoningSupported,
+      providerDbSourceUrl: providerDbLoader.getSourceUrl()
+    }
   }
 
   private normalizeReasoningEffort(
@@ -2737,6 +2884,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     contextLength: number
     reserveTokens: number
     supportsVision: boolean
+    preserveInterleavedReasoning: boolean
   }): Promise<SessionSummaryState> {
     const intent = this.compactionService.prepareForResumeTurn(params)
     return await this.applyCompactionIntent(params.sessionId, intent)

@@ -138,6 +138,8 @@
     "maxTokens": "מקסימום טוקנים",
     "thinkingBudget": "תקציב חשיבה",
     "verbosity": "רמת פירוט",
+    "forceInterleavedThinkingCompat": "Interleaved Thinking",
+    "forceInterleavedThinkingCompatDescription": "קובע אם בסשן הזה הודעות reasoning ו-tool-call יעובדו באמצעות Interleaved Thinking.",
     "verbosityPlaceholder": "בחר רמת פירוט",
     "currentCustomPrompt": "מותאם נוכחי",
     "useDefault": "השתמש בברירת מחדל",

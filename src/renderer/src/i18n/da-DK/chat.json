@@ -138,6 +138,8 @@
     "maxTokens": "Maks. tokens",
     "thinkingBudget": "Tænkebudget",
     "verbosity": "Detaljegrad",
+    "forceInterleavedThinkingCompat": "Interleaved Thinking",
+    "forceInterleavedThinkingCompatDescription": "Styrer, om denne session håndterer beskeder med ræsonnering og tool-calls med Interleaved Thinking.",
     "verbosityPlaceholder": "Vælg detaljegrad",
     "currentCustomPrompt": "Aktuel brugerdefineret",
     "useDefault": "Brug standard",

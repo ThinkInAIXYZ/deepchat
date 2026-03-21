@@ -142,6 +142,8 @@
     "maxTokens": "最大輸出",
     "thinkingBudget": "思考預算",
     "verbosity": "回答詳略",
+    "forceInterleavedThinkingCompat": "Interleaved Thinking",
+    "forceInterleavedThinkingCompatDescription": "控制目前對話是否以 Interleaved Thinking 方式處理 reasoning 與 tool-call 訊息。",
     "verbosityPlaceholder": "選擇詳略等級",
     "currentCustomPrompt": "目前自訂",
     "useDefault": "使用預設值",

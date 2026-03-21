@@ -138,6 +138,8 @@
     "maxTokens": "최대 토큰",
     "thinkingBudget": "사고 예산",
     "verbosity": "응답 상세도",
+    "forceInterleavedThinkingCompat": "Interleaved Thinking",
+    "forceInterleavedThinkingCompatDescription": "이 세션에서 reasoning 및 tool-call 메시지를 Interleaved Thinking 방식으로 처리할지 제어합니다.",
     "verbosityPlaceholder": "상세도 선택",
     "currentCustomPrompt": "현재 사용자 지정",
     "useDefault": "기본값 사용",

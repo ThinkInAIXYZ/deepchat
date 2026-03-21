@@ -209,6 +209,7 @@ export class CompactionService {
     contextLength: number
     reserveTokens: number
     supportsVision: boolean
+    preserveInterleavedReasoning: boolean
     newUserContent: string | SendMessageInput
   }): CompactionIntent | null {
     const settings = this.getCompactionSettings()
@@ -239,6 +240,7 @@ export class CompactionService {
     contextLength: number
     reserveTokens: number
     supportsVision: boolean
+    preserveInterleavedReasoning: boolean
   }): CompactionIntent | null {
     const settings = this.getCompactionSettings()
     if (!settings.enabled) {
@@ -322,6 +324,7 @@ export class CompactionService {
     contextLength: number
     reserveTokens: number
     supportsVision: boolean
+    preserveInterleavedReasoning: boolean
     records: ChatMessageRecord[]
     protectedTurnCount: number
     triggerThreshold: number
@@ -335,7 +338,11 @@ export class CompactionService {
       return null
     }
 
-    const turns = buildHistoryTurns(scopedRecords, params.supportsVision)
+    const turns = buildHistoryTurns(
+      scopedRecords,
+      params.supportsVision,
+      params.preserveInterleavedReasoning
+    )
     if (turns.length === 0) {
       return null
     }

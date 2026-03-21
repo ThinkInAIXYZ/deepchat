@@ -354,6 +354,10 @@
         "description": "O modelo suporta capacidade de raciocínio?",
         "label": "Capacidade de raciocínio"
       },
+      "interleavedThinking": {
+        "label": "Interleaved Thinking",
+        "description": "Controla se este modelo trata mensagens de raciocínio e tool-call com Interleaved Thinking. Os padrões do provedor são aplicados automaticamente."
+      },
       "thinkingBudget": {
         "label": "Orçamento de Pensamento",
         "description": "Defina o comprimento máximo de tokens do processo de pensamento para controlar a profundidade do raciocínio",

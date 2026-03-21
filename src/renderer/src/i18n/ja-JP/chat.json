@@ -138,6 +138,8 @@
     "maxTokens": "最大トークン",
     "thinkingBudget": "思考予算",
     "verbosity": "回答の詳しさ",
+    "forceInterleavedThinkingCompat": "Interleaved Thinking",
+    "forceInterleavedThinkingCompatDescription": "このセッションで reasoning と tool-call メッセージを Interleaved Thinking として処理するかを制御します。",
     "verbosityPlaceholder": "詳しさを選択",
     "currentCustomPrompt": "現在のカスタム",
     "useDefault": "デフォルトを使用",

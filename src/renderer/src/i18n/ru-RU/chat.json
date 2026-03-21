@@ -138,6 +138,8 @@
     "maxTokens": "Макс. токенов",
     "thinkingBudget": "Бюджет размышления",
     "verbosity": "Детализация ответа",
+    "forceInterleavedThinkingCompat": "Interleaved Thinking",
+    "forceInterleavedThinkingCompatDescription": "Определяет, будет ли эта сессия обрабатывать сообщения рассуждений и tool-call в режиме Interleaved Thinking.",
     "verbosityPlaceholder": "Выберите уровень детализации",
     "currentCustomPrompt": "Текущий пользовательский",
     "useDefault": "Использовать по умолчанию",

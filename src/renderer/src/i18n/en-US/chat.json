@@ -142,6 +142,8 @@
     "maxTokens": "Max Tokens",
     "thinkingBudget": "Thinking Budget",
     "verbosity": "Verbosity",
+    "forceInterleavedThinkingCompat": "Interleaved Thinking",
+    "forceInterleavedThinkingCompatDescription": "Controls whether this session handles reasoning and tool-call messages with Interleaved Thinking.",
     "verbosityPlaceholder": "Select verbosity",
     "currentCustomPrompt": "Current custom",
     "useDefault": "Use default",

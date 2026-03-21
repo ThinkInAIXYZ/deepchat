@@ -2,6 +2,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { ModelConfigHelper } from '../../../src/main/presenter/configPresenter/modelConfig'
 import { ModelType } from '../../../src/shared/model'
 import { ModelConfig } from '../../../src/shared/presenter'
+import { providerDbLoader } from '../../../src/main/presenter/configPresenter/providerDbLoader'
+import { modelCapabilities } from '../../../src/main/presenter/configPresenter/modelCapabilities'
 
 // Mock electron-store with in-memory storage
 const mockStores = new Map<string, Record<string, any>>()
@@ -455,6 +457,55 @@ describe('Model Configuration Tests', () => {
 
       expect(modelConfigHelper.hasUserConfig(testKey, testProvider)).toBe(true)
       // Note: afterEach will clean this up for subsequent tests
+    })
+  })
+
+  describe('Interleaved Thinking Defaults', () => {
+    it('derives interleaved thinking from the provider reasoning portrait', () => {
+      const getDbSpy = vi.spyOn(providerDbLoader, 'getDb').mockReturnValue({
+        providers: {
+          zenmux: {
+            id: 'zenmux',
+            models: [{ id: 'moonshotai/kimi-k2.5', tool_call: true }]
+          }
+        }
+      } as any)
+      const portraitSpy = vi.spyOn(modelCapabilities, 'getReasoningPortrait').mockReturnValue({
+        supported: true,
+        defaultEnabled: true,
+        interleaved: true,
+        mode: 'effort',
+        effort: 'medium',
+        effortOptions: ['minimal', 'low', 'medium', 'high'],
+        verbosity: 'medium',
+        verbosityOptions: ['low', 'medium', 'high']
+      })
+
+      const config = modelConfigHelper.getModelConfig('moonshotai/kimi-k2.5', 'zenmux')
+
+      expect(config.forceInterleavedThinkingCompat).toBe(true)
+      expect(config.isUserDefined).toBe(false)
+
+      portraitSpy.mockRestore()
+      getDbSpy.mockRestore()
+    })
+
+    it('keeps explicit user overrides for interleaved thinking', () => {
+      modelConfigHelper.setModelConfig('moonshotai/kimi-k2.5', 'zenmux', {
+        maxTokens: 8192,
+        contextLength: 128000,
+        temperature: 0.7,
+        vision: false,
+        functionCall: true,
+        reasoning: true,
+        forceInterleavedThinkingCompat: false,
+        type: ModelType.Chat
+      })
+
+      const config = modelConfigHelper.getModelConfig('moonshotai/kimi-k2.5', 'zenmux')
+
+      expect(config.forceInterleavedThinkingCompat).toBe(false)
+      expect(config.isUserDefined).toBe(true)
     })
   })
 })

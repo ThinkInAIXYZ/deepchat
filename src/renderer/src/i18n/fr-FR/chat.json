@@ -138,6 +138,8 @@
     "maxTokens": "Jetons max",
     "thinkingBudget": "Budget de réflexion",
     "verbosity": "Niveau de détail",
+    "forceInterleavedThinkingCompat": "Interleaved Thinking",
+    "forceInterleavedThinkingCompatDescription": "Détermine si cette session traite les messages de raisonnement et d'appel d'outil avec Interleaved Thinking.",
     "verbosityPlaceholder": "Sélectionner un niveau de détail",
     "currentCustomPrompt": "Personnalisé actuel",
     "useDefault": "Utiliser la valeur par défaut",

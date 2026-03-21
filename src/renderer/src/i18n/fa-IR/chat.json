@@ -138,6 +138,8 @@
     "maxTokens": "حداکثر توکن",
     "thinkingBudget": "بودجه تفکر",
     "verbosity": "میزان جزئیات پاسخ",
+    "forceInterleavedThinkingCompat": "Interleaved Thinking",
+    "forceInterleavedThinkingCompatDescription": "کنترل می‌کند که این نشست پیام‌های reasoning و tool-call را با منطق Interleaved Thinking پردازش کند یا نه.",
     "verbosityPlaceholder": "سطح جزئیات را انتخاب کنید",
     "currentCustomPrompt": "سفارشی فعلی",
     "useDefault": "استفاده از پیش‌فرض",

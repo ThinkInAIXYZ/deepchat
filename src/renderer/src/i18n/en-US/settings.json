@@ -354,6 +354,10 @@
         "description": "Does the model support reasoning ability?",
         "label": "Reasoning ability"
       },
+      "interleavedThinking": {
+        "label": "Interleaved Thinking",
+        "description": "Controls whether this model handles reasoning and tool-call messages with Interleaved Thinking. Provider defaults are applied automatically."
+      },
       "thinkingBudget": {
         "label": "Thinking Budget",
         "description": "Set the maximum token length of the thinking process to control reasoning depth",
