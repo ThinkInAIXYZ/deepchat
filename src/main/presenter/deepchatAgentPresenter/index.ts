@@ -4,6 +4,7 @@ import type {
   DeepChatSessionState,
   IAgentImplementation,
   MessageFile,
+  PendingSessionInputRecord,
   PermissionMode,
   SendMessageInput,
   SessionCompactionState,
@@ -27,10 +28,12 @@ import {
   buildSystemEnvPrompt
 } from '@/lib/agentRuntime/systemEnvPromptBuilder'
 import { presenter } from '@/presenter'
-import { buildContext, buildResumeContext } from './contextBuilder'
+import { buildContext, buildResumeContext, createUserChatMessage } from './contextBuilder'
 import { appendSummarySection, CompactionService, type CompactionIntent } from './compactionService'
 import { buildPersistableMessageTracePayload } from './messageTracePayload'
 import { DeepChatMessageStore } from './messageStore'
+import { PendingInputCoordinator } from './pendingInputCoordinator'
+import { DeepChatPendingInputStore } from './pendingInputStore'
 import { processStream } from './process'
 import { DeepChatSessionStore, type SessionSummaryState } from './sessionStore'
 import type { PendingToolInteraction, ProcessResult } from './types'
@@ -97,6 +100,8 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
   private readonly toolPresenter: IToolPresenter | null
   private readonly sessionStore: DeepChatSessionStore
   private readonly messageStore: DeepChatMessageStore
+  private readonly pendingInputStore: DeepChatPendingInputStore
+  private readonly pendingInputCoordinator: PendingInputCoordinator
   private readonly runtimeState: Map<string, DeepChatSessionState> = new Map()
   private readonly sessionGenerationSettings: Map<string, SessionGenerationSettings> = new Map()
   private readonly abortControllers: Map<string, AbortController> = new Map()
@@ -106,6 +111,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
   private readonly sessionCompactionStates: Map<string, SessionCompactionState> = new Map()
   private readonly interactionLocks: Set<string> = new Set()
   private readonly resumingMessages: Set<string> = new Set()
+  private readonly drainingPendingQueues: Set<string> = new Set()
   private readonly compactionService: CompactionService
   private readonly toolOutputGuard: ToolOutputGuard
   private readonly hooksBridge?: NewSessionHooksBridge
@@ -123,6 +129,8 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     this.toolPresenter = toolPresenter ?? null
     this.sessionStore = new DeepChatSessionStore(sqlitePresenter)
     this.messageStore = new DeepChatMessageStore(sqlitePresenter)
+    this.pendingInputStore = new DeepChatPendingInputStore(sqlitePresenter)
+    this.pendingInputCoordinator = new PendingInputCoordinator(this.pendingInputStore)
     this.compactionService = new CompactionService(
       this.sessionStore,
       this.messageStore,
@@ -135,6 +143,13 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     const recovered = this.messageStore.recoverPendingMessages()
     if (recovered > 0) {
       console.log(`DeepChatAgent: recovered ${recovered} pending messages to error status`)
+    }
+
+    const recoveredPendingInputs = this.pendingInputCoordinator.recoverClaimedInputsAfterRestart()
+    if (recoveredPendingInputs > 0) {
+      console.log(
+        `DeepChatAgent: recovered ${recoveredPendingInputs} sessions with claimed pending inputs`
+      )
     }
   }
 
@@ -190,6 +205,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       this.abortControllers.delete(sessionId)
     }
 
+    this.pendingInputCoordinator.deleteBySession(sessionId)
     this.messageStore.deleteBySession(sessionId)
     this.sessionStore.delete(sessionId)
     this.runtimeState.delete(sessionId)
@@ -198,6 +214,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     this.sessionProjectDirs.delete(sessionId)
     this.systemPromptCache.delete(sessionId)
     this.sessionCompactionStates.delete(sessionId)
+    this.drainingPendingQueues.delete(sessionId)
   }
 
   async getSessionState(sessionId: string): Promise<DeepChatSessionState | null> {
@@ -226,10 +243,72 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     return { ...rebuilt }
   }
 
+  async listPendingInputs(sessionId: string): Promise<PendingSessionInputRecord[]> {
+    return this.pendingInputCoordinator.listPendingInputs(sessionId)
+  }
+
+  async queuePendingInput(
+    sessionId: string,
+    content: string | SendMessageInput
+  ): Promise<PendingSessionInputRecord> {
+    const state = await this.getSessionState(sessionId)
+    if (!state) {
+      throw new Error(`Session ${sessionId} not found`)
+    }
+
+    const record = this.pendingInputCoordinator.queuePendingInput(sessionId, content)
+    void this.drainPendingQueueIfPossible(sessionId, 'enqueue')
+    return record
+  }
+
+  async updateQueuedInput(
+    sessionId: string,
+    itemId: string,
+    content: string | SendMessageInput
+  ): Promise<PendingSessionInputRecord> {
+    await this.ensureSessionReadyForPendingInputMutation(sessionId)
+    return this.pendingInputCoordinator.updateQueuedInput(sessionId, itemId, content)
+  }
+
+  async moveQueuedInput(
+    sessionId: string,
+    itemId: string,
+    toIndex: number
+  ): Promise<PendingSessionInputRecord[]> {
+    await this.ensureSessionReadyForPendingInputMutation(sessionId)
+    return this.pendingInputCoordinator.moveQueuedInput(sessionId, itemId, toIndex)
+  }
+
+  async convertPendingInputToSteer(
+    sessionId: string,
+    itemId: string
+  ): Promise<PendingSessionInputRecord> {
+    await this.ensureSessionReadyForPendingInputMutation(sessionId)
+    return this.pendingInputCoordinator.convertPendingInputToSteer(sessionId, itemId)
+  }
+
+  async deletePendingInput(sessionId: string, itemId: string): Promise<void> {
+    await this.ensureSessionReadyForPendingInputMutation(sessionId)
+    this.pendingInputCoordinator.deletePendingInput(sessionId, itemId)
+  }
+
+  async resumePendingQueue(sessionId: string): Promise<void> {
+    const state = await this.getSessionState(sessionId)
+    if (!state) {
+      throw new Error(`Session ${sessionId} not found`)
+    }
+
+    void this.drainPendingQueueIfPossible(sessionId, 'resume')
+  }
+
   async processMessage(
     sessionId: string,
     content: string | SendMessageInput,
-    context?: { projectDir?: string | null; emitRefreshBeforeStream?: boolean }
+    context?: {
+      projectDir?: string | null
+      emitRefreshBeforeStream?: boolean
+      pendingQueueItemId?: string
+    }
   ): Promise<void> {
     const state = this.runtimeState.get(sessionId)
     if (!state) throw new Error(`Session ${sessionId} not found`)
@@ -245,6 +324,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     )
 
     this.setSessionStatus(sessionId, 'generating')
+    let consumedPendingQueueItem = false
 
     try {
       const generationSettings = await this.getEffectiveSessionGenerationSettings(sessionId)
@@ -340,6 +420,11 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
         assistantOrderSeq
       )
 
+      if (context?.pendingQueueItemId) {
+        this.pendingInputCoordinator.consumeQueuedInput(sessionId, context.pendingQueueItemId)
+        consumedPendingQueueItem = true
+      }
+
       if (context?.emitRefreshBeforeStream) {
         this.emitMessageRefresh(sessionId, assistantMessageId || userMessageId)
       }
@@ -353,8 +438,21 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
         tools
       })
       this.applyProcessResultStatus(sessionId, result)
+      if (result?.status === 'completed') {
+        void this.drainPendingQueueIfPossible(sessionId, 'completed')
+      }
     } catch (err) {
       console.error('[DeepChatAgent] processMessage error:', err)
+      if (context?.pendingQueueItemId && !consumedPendingQueueItem) {
+        try {
+          this.pendingInputCoordinator.releaseClaimedQueueInput(
+            sessionId,
+            context.pendingQueueItemId
+          )
+        } catch (releaseError) {
+          console.warn('[DeepChatAgent] failed to release claimed queue input:', releaseError)
+        }
+      }
       const errorMessage = err instanceof Error ? err.message : String(err)
       this.dispatchHook('Stop', {
         sessionId,
@@ -583,6 +681,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
         emitResolvedToolHook?.()
         this.messageStore.updateMessageStatus(messageId, 'sent')
         this.setSessionStatus(sessionId, 'idle')
+        void this.drainPendingQueueIfPossible(sessionId, 'question_other')
         return { resumed: false, waitingForUserMessage: true }
       }
 
@@ -884,6 +983,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     }
 
     await this.cancelGeneration(sessionId)
+    this.pendingInputCoordinator.deleteBySession(sessionId)
     this.messageStore.deleteBySession(sessionId)
     this.resetSummaryState(sessionId)
     this.setSessionStatus(sessionId, 'idle')
@@ -900,6 +1000,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     if (this.hasPendingInteractions(sessionId)) {
       throw new Error('Please resolve pending tool interactions before retrying.')
     }
+    this.assertNoActivePendingInputs(sessionId)
 
     const target = await this.messageStore.getMessage(messageId)
     if (!target) {
@@ -931,6 +1032,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
   }
 
   async deleteMessage(sessionId: string, messageId: string): Promise<void> {
+    this.assertNoActivePendingInputs(sessionId)
     const target = await this.messageStore.getMessage(messageId)
     if (!target) {
       throw new Error(`Message ${messageId} not found`)
@@ -950,6 +1052,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     messageId: string,
     text: string
   ): Promise<ChatMessageRecord> {
+    this.assertNoActivePendingInputs(sessionId)
     const target = await this.messageStore.getMessage(messageId)
     if (!target) {
       throw new Error(`Message ${messageId} not found`)
@@ -1045,6 +1148,9 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     }
 
     const traceEnabled = this.configPresenter.getSetting<boolean>('traceDebugEnabled') === true
+    const pendingInputCoordinator = this.pendingInputCoordinator
+    const injectSteerInputsIntoRequest = this.injectSteerInputsIntoRequest.bind(this)
+    const persistMessageTrace = this.persistMessageTrace.bind(this)
     if (traceEnabled) {
       const traceAwareConfig = modelConfig as ModelConfig & {
         requestTraceContext?: {
@@ -1055,7 +1161,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       traceAwareConfig.requestTraceContext = {
         enabled: true,
         persist: async (payload: ProviderRequestTracePayload) => {
-          this.persistMessageTrace({
+          persistMessageTrace({
             sessionId,
             messageId,
             providerId: state.providerId,
@@ -1070,6 +1176,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     const maxTokens = generationSettings.maxTokens
 
     const tools = providedTools ?? (await this.loadToolDefinitionsForSession(sessionId, projectDir))
+    const supportsVision = this.supportsVision(state.providerId, state.modelId)
 
     const abortController = new AbortController()
     this.abortControllers.set(sessionId, abortController)
@@ -1088,7 +1195,49 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
         messages,
         tools,
         toolPresenter: this.toolPresenter,
-        coreStream: provider.coreStream.bind(provider),
+        coreStream: async function* (
+          requestMessages,
+          requestModelId,
+          requestModelConfig,
+          requestTemperature,
+          requestMaxTokens,
+          requestTools
+        ) {
+          const claimedSteerBatch = pendingInputCoordinator.claimSteerBatchForNextLoop(sessionId)
+          const injectedMessages = injectSteerInputsIntoRequest(
+            requestMessages,
+            claimedSteerBatch,
+            supportsVision
+          )
+
+          let didConsumeSteerBatch = false
+
+          try {
+            for await (const event of provider.coreStream(
+              injectedMessages,
+              requestModelId,
+              requestModelConfig,
+              requestTemperature,
+              requestMaxTokens,
+              requestTools
+            )) {
+              if (!didConsumeSteerBatch && claimedSteerBatch.length > 0) {
+                pendingInputCoordinator.consumeClaimedSteerBatch(sessionId)
+                didConsumeSteerBatch = true
+              }
+              yield event
+            }
+
+            if (!didConsumeSteerBatch && claimedSteerBatch.length > 0) {
+              pendingInputCoordinator.consumeClaimedSteerBatch(sessionId)
+            }
+          } catch (error) {
+            if (!didConsumeSteerBatch && claimedSteerBatch.length > 0) {
+              pendingInputCoordinator.releaseClaimedInputs(sessionId)
+            }
+            throw error
+          }
+        },
         providerId: state.providerId,
         modelId: state.modelId,
         modelConfig,
@@ -1151,6 +1300,75 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       const active = this.abortControllers.get(sessionId)
       if (active === abortController) {
         this.abortControllers.delete(sessionId)
+      }
+    }
+  }
+
+  private injectSteerInputsIntoRequest(
+    messages: ChatMessage[],
+    steerInputs: PendingSessionInputRecord[],
+    supportsVision: boolean
+  ): ChatMessage[] {
+    if (steerInputs.length === 0) {
+      return messages
+    }
+
+    const steerMessages = steerInputs.map((input) =>
+      createUserChatMessage(input.payload, supportsVision)
+    )
+    const clonedMessages = [...messages]
+    const lastMessage = clonedMessages[clonedMessages.length - 1]
+
+    if (lastMessage?.role === 'user') {
+      return [...clonedMessages.slice(0, -1), ...steerMessages, lastMessage]
+    }
+
+    return [...clonedMessages, ...steerMessages]
+  }
+
+  private async drainPendingQueueIfPossible(
+    sessionId: string,
+    _reason: 'enqueue' | 'resume' | 'completed' | 'question_other'
+  ): Promise<boolean> {
+    if (this.drainingPendingQueues.has(sessionId)) {
+      return false
+    }
+
+    const state = await this.getSessionState(sessionId)
+    if (!state || state.status !== 'idle') {
+      return false
+    }
+    if (this.hasPendingInteractions(sessionId)) {
+      return false
+    }
+
+    const nextQueuedInput = this.pendingInputCoordinator.getNextQueuedInput(sessionId)
+    if (!nextQueuedInput) {
+      return false
+    }
+
+    this.drainingPendingQueues.add(sessionId)
+    try {
+      const claimedInput = this.pendingInputCoordinator.claimQueuedInput(
+        sessionId,
+        nextQueuedInput.id
+      )
+      await this.processMessage(sessionId, claimedInput.payload, {
+        projectDir: this.resolveProjectDir(sessionId),
+        pendingQueueItemId: claimedInput.id
+      })
+      return true
+    } catch (error) {
+      console.error('[DeepChatAgent] drainPendingQueueIfPossible error:', error)
+      return false
+    } finally {
+      this.drainingPendingQueues.delete(sessionId)
+      if (
+        this.pendingInputCoordinator.getNextQueuedInput(sessionId) &&
+        (await this.getSessionState(sessionId))?.status === 'idle' &&
+        !this.hasPendingInteractions(sessionId)
+      ) {
+        void this.drainPendingQueueIfPossible(sessionId, 'completed')
       }
     }
   }
@@ -1278,6 +1496,9 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
         initialBlocks
       })
       this.applyProcessResultStatus(sessionId, result)
+      if (result?.status === 'completed') {
+        void this.drainPendingQueueIfPossible(sessionId, 'completed')
+      }
       return true
     } catch (error) {
       console.error('[DeepChatAgent] resumeAssistantMessage error:', error)
@@ -1975,6 +2196,20 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       return 4096
     }
     return Math.max(MAX_TOKENS_MIN, Math.round(configured))
+  }
+
+  private async ensureSessionReadyForPendingInputMutation(sessionId: string): Promise<void> {
+    const state = await this.getSessionState(sessionId)
+    if (!state) {
+      throw new Error(`Session ${sessionId} not found`)
+    }
+  }
+
+  private assertNoActivePendingInputs(sessionId: string): void {
+    if (!this.pendingInputCoordinator.hasActiveInputs(sessionId)) {
+      return
+    }
+    throw new Error('Please clear the waiting lane before mutating chat history.')
   }
 
   private parseAssistantBlocks(rawContent: string): AssistantMessageBlock[] {

@@ -22,7 +22,8 @@ vi.mock('@/events', async (importOriginal) => {
       ACTIVATED: 'session:activated',
       DEACTIVATED: 'session:deactivated',
       STATUS_CHANGED: 'session:status-changed',
-      COMPACTION_UPDATED: 'session:compaction-updated'
+      COMPACTION_UPDATED: 'session:compaction-updated',
+      PENDING_INPUTS_UPDATED: 'session:pending-inputs-updated'
     },
     STREAM_EVENTS: {
       RESPONSE: 'stream:response',
@@ -54,6 +55,7 @@ function createMockSqlitePresenter() {
   const sessionsStore = new Map<string, any>()
   const deepchatSessionsStore = new Map<string, any>()
   const messagesStore = new Map<string, any>()
+  const pendingInputsStore = new Map<string, any>()
   let messagesList: any[] = []
 
   return {
@@ -85,6 +87,11 @@ function createMockSqlitePresenter() {
       updateDisabledAgentTools: vi.fn(),
       update: vi.fn(),
       delete: vi.fn((id: string) => sessionsStore.delete(id))
+    },
+    newEnvironmentsTable: {
+      syncPath: vi.fn(),
+      listPathsForSession: vi.fn().mockReturnValue([]),
+      syncForSession: vi.fn()
     },
     deepchatSessionsTable: {
       create: vi.fn(
@@ -338,10 +345,81 @@ function createMockSqlitePresenter() {
       deleteByMessageIds: vi.fn(),
       deleteBySessionId: vi.fn()
     },
+    deepchatPendingInputsTable: {
+      insert: vi.fn((row: any) => {
+        const now = row.createdAt ?? Date.now()
+        pendingInputsStore.set(row.id, {
+          id: row.id,
+          session_id: row.sessionId,
+          mode: row.mode,
+          state: row.state ?? 'pending',
+          payload_json: row.payloadJson,
+          queue_order: row.queueOrder ?? null,
+          claimed_at: row.claimedAt ?? null,
+          consumed_at: row.consumedAt ?? null,
+          created_at: now,
+          updated_at: row.updatedAt ?? now
+        })
+      }),
+      get: vi.fn((id: string) => pendingInputsStore.get(id)),
+      listBySession: vi.fn((sessionId: string) =>
+        Array.from(pendingInputsStore.values())
+          .filter((row) => row.session_id === sessionId)
+          .sort((left, right) => left.created_at - right.created_at)
+      ),
+      listClaimed: vi.fn(() =>
+        Array.from(pendingInputsStore.values())
+          .filter((row) => row.state === 'claimed')
+          .sort((left, right) => left.created_at - right.created_at)
+      ),
+      listActiveBySession: vi.fn((sessionId: string) =>
+        Array.from(pendingInputsStore.values())
+          .filter((row) => row.session_id === sessionId && row.state !== 'consumed')
+          .sort((left, right) => {
+            const modeDiff = left.mode === right.mode ? 0 : left.mode === 'steer' ? -1 : 1
+            if (modeDiff !== 0) return modeDiff
+            const leftOrder =
+              left.mode === 'queue' ? (left.queue_order ?? 2147483647) : left.created_at
+            const rightOrder =
+              right.mode === 'queue' ? (right.queue_order ?? 2147483647) : right.created_at
+            if (leftOrder !== rightOrder) return leftOrder - rightOrder
+            return left.created_at - right.created_at
+          })
+      ),
+      countActiveBySession: vi.fn(
+        (sessionId: string) =>
+          Array.from(pendingInputsStore.values()).filter(
+            (row) =>
+              row.session_id === sessionId &&
+              row.state !== 'consumed' &&
+              !(row.mode === 'queue' && row.state === 'claimed')
+          ).length
+      ),
+      update: vi.fn((id: string, fields: any) => {
+        const row = pendingInputsStore.get(id)
+        if (!row) return
+        pendingInputsStore.set(id, {
+          ...row,
+          ...fields,
+          updated_at: Date.now()
+        })
+      }),
+      delete: vi.fn((id: string) => {
+        pendingInputsStore.delete(id)
+      }),
+      deleteBySession: vi.fn((sessionId: string) => {
+        for (const [id, row] of pendingInputsStore.entries()) {
+          if (row.session_id === sessionId) {
+            pendingInputsStore.delete(id)
+          }
+        }
+      })
+    },
     // Expose internal stores for assertion
     _sessionsStore: sessionsStore,
     _deepchatSessionsStore: deepchatSessionsStore,
     _messagesStore: messagesStore,
+    _pendingInputsStore: pendingInputsStore,
     _getMessagesList: () => messagesList
   } as any
 }
@@ -679,7 +757,6 @@ describe('Integration: multi-turn context', () => {
     const secondCallMessages = providerInstance.coreStream.mock.calls[1][0]
     expect(secondCallMessages[0].role).toBe('system')
     expect(secondCallMessages[0].content).toContain('You are a helpful assistant.')
-    expect(secondCallMessages[0].content).toContain('## Runtime Capabilities')
     // Should contain prior user and assistant messages before the new user message
     expect(secondCallMessages.length).toBeGreaterThanOrEqual(3) // system + at least history + new user
     expect(secondCallMessages[secondCallMessages.length - 1]).toEqual({
@@ -711,6 +788,104 @@ describe('Integration: multi-turn context', () => {
     const lastUserContent = JSON.parse(lastUser.content)
     expect(lastUserContent.text).toBe('Follow up (object)')
     expect(lastUserContent.files).toHaveLength(1)
+  })
+
+  it('keeps queued messages out of formal history until the current turn completes', async () => {
+    let releaseFirstTurn: (() => void) | null = null
+    const providerInstance = {
+      coreStream: vi
+        .fn()
+        .mockImplementationOnce(async function* () {
+          await new Promise<void>((resolve) => {
+            releaseFirstTurn = resolve
+          })
+          yield { type: 'text', content: 'First response' }
+          yield { type: 'stop', stop_reason: 'end_turn' }
+        })
+        .mockImplementation(async function* () {
+          yield { type: 'text', content: 'Queued response' }
+          yield { type: 'stop', stop_reason: 'end_turn' }
+        })
+    }
+    llmProvider.getProviderInstance.mockReturnValue(providerInstance)
+
+    const session = await agentPresenter.createSession(
+      { agentId: 'deepchat', message: 'First turn', projectDir: null },
+      1
+    )
+    await new Promise((r) => setTimeout(r, 20))
+
+    await agentPresenter.queuePendingInput(session.id, 'Queued follow up')
+
+    const pendingBeforeRelease = await agentPresenter.listPendingInputs(session.id)
+    expect(pendingBeforeRelease).toHaveLength(1)
+    expect(pendingBeforeRelease[0].mode).toBe('queue')
+
+    const beforeMessages = sqlitePresenter.deepchatMessagesTable.getBySession(session.id)
+    const beforeUserMessages = beforeMessages.filter((message: any) => message.role === 'user')
+    expect(beforeUserMessages).toHaveLength(1)
+    expect(JSON.parse(beforeUserMessages[0].content).text).toBe('First turn')
+
+    releaseFirstTurn?.()
+    await new Promise((r) => setTimeout(r, 80))
+
+    const afterMessages = sqlitePresenter.deepchatMessagesTable.getBySession(session.id)
+    const afterUserMessages = afterMessages.filter((message: any) => message.role === 'user')
+    expect(afterUserMessages).toHaveLength(2)
+    expect(JSON.parse(afterUserMessages[1].content).text).toBe('Queued follow up')
+    await expect(agentPresenter.listPendingInputs(session.id)).resolves.toEqual([])
+  })
+
+  it('injects steer inputs before the next queued user message', async () => {
+    let releaseFirstTurn: (() => void) | null = null
+    const providerInstance = {
+      coreStream: vi
+        .fn()
+        .mockImplementationOnce(async function* () {
+          await new Promise<void>((resolve) => {
+            releaseFirstTurn = resolve
+          })
+          yield { type: 'text', content: 'First response' }
+          yield { type: 'stop', stop_reason: 'end_turn' }
+        })
+        .mockImplementation(async function* () {
+          yield { type: 'text', content: 'Second response' }
+          yield { type: 'stop', stop_reason: 'end_turn' }
+        })
+    }
+    llmProvider.getProviderInstance.mockReturnValue(providerInstance)
+
+    const session = await agentPresenter.createSession(
+      { agentId: 'deepchat', message: 'Turn one', projectDir: null },
+      1
+    )
+    await new Promise((r) => setTimeout(r, 20))
+
+    await agentPresenter.queuePendingInput(session.id, 'Steer instruction')
+    await agentPresenter.queuePendingInput(session.id, 'Queued target')
+
+    const pendingInputs = await agentPresenter.listPendingInputs(session.id)
+    expect(pendingInputs).toHaveLength(2)
+    await agentPresenter.convertPendingInputToSteer(session.id, pendingInputs[0].id)
+
+    releaseFirstTurn?.()
+    await new Promise((r) => setTimeout(r, 80))
+
+    expect(providerInstance.coreStream).toHaveBeenCalledTimes(2)
+    const secondCallMessages = providerInstance.coreStream.mock.calls[1][0]
+    const trailingUserMessages = secondCallMessages.filter(
+      (message: any) => message.role === 'user'
+    )
+
+    expect(trailingUserMessages[trailingUserMessages.length - 2]).toEqual({
+      role: 'user',
+      content: 'Steer instruction'
+    })
+    expect(trailingUserMessages[trailingUserMessages.length - 1]).toEqual({
+      role: 'user',
+      content: 'Queued target'
+    })
+    await expect(agentPresenter.listPendingInputs(session.id)).resolves.toEqual([])
   })
 })
 

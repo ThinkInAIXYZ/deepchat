@@ -59,6 +59,26 @@ export interface IAgentImplementation {
     context?: { projectDir?: string | null; emitRefreshBeforeStream?: boolean }
   ): Promise<void>
 
+  /** Manage waiting lane inputs */
+  listPendingInputs?(sessionId: string): Promise<PendingSessionInputRecord[]>
+  queuePendingInput?(
+    sessionId: string,
+    content: string | SendMessageInput
+  ): Promise<PendingSessionInputRecord>
+  updateQueuedInput?(
+    sessionId: string,
+    itemId: string,
+    content: string | SendMessageInput
+  ): Promise<PendingSessionInputRecord>
+  moveQueuedInput?(
+    sessionId: string,
+    itemId: string,
+    toIndex: number
+  ): Promise<PendingSessionInputRecord[]>
+  convertPendingInputToSteer?(sessionId: string, itemId: string): Promise<PendingSessionInputRecord>
+  deletePendingInput?(sessionId: string, itemId: string): Promise<void>
+  resumePendingQueue?(sessionId: string): Promise<void>
+
   /** Cancel an in-progress generation */
   cancelGeneration(sessionId: string): Promise<void>
 
@@ -164,6 +184,22 @@ export interface MessageFile {
 export interface SendMessageInput {
   text: string
   files?: MessageFile[]
+}
+
+export type PendingSessionInputMode = 'queue' | 'steer'
+export type PendingSessionInputState = 'pending' | 'claimed' | 'consumed'
+
+export interface PendingSessionInputRecord {
+  id: string
+  sessionId: string
+  mode: PendingSessionInputMode
+  state: PendingSessionInputState
+  payload: SendMessageInput
+  queueOrder: number | null
+  claimedAt: number | null
+  consumedAt: number | null
+  createdAt: number
+  updatedAt: number
 }
 
 export type AssistantBlockType =

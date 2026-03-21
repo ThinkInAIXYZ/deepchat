@@ -28,6 +28,8 @@
     "agentWorkspaceTooltip": "Definir diretório de trabalho do agente",
     "attach": "Anexar",
     "voiceInput": "Entrada de voz",
+    "queue": "Enfileirar",
+    "stop": "Parar",
     "mcp": {
       "badge": "MCP {count}",
       "title": "MCPs habilitados",
@@ -49,6 +51,18 @@
         "yobrowser": "YoBrowser"
       }
     }
+  },
+  "pendingInput": {
+    "steer": "Direcionamento",
+    "queueCount": "Fila {count}/{max}",
+    "resumeQueue": "Retomar fila",
+    "toSteer": "Direcionar",
+    "locked": "Bloqueado",
+    "reorder": "Reordenar",
+    "files": "{count} arquivos",
+    "attachmentsOnly": "{count} anexos",
+    "empty": "Mensagem vazia",
+    "limitReached": "A área de espera está cheia ({max})."
   },
   "features": {
     "webSearch": "Busca na Web",

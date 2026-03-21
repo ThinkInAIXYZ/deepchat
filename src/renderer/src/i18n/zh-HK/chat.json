@@ -28,6 +28,8 @@
     "agentWorkspaceTooltip": "設置 Agent 工作目錄",
     "attach": "添加附件",
     "voiceInput": "語音輸入",
+    "queue": "加入佇列",
+    "stop": "停止",
     "mcp": {
       "badge": "MCP {count}",
       "title": "已啟用 MCP",
@@ -49,6 +51,18 @@
         "yobrowser": "YoBrowser"
       }
     }
+  },
+  "pendingInput": {
+    "steer": "引導",
+    "queueCount": "佇列 {count}/{max}",
+    "resumeQueue": "繼續佇列",
+    "toSteer": "引導",
+    "locked": "已鎖定",
+    "reorder": "調整順序",
+    "files": "{count} 個文件",
+    "attachmentsOnly": "{count} 個附件",
+    "empty": "空訊息",
+    "limitReached": "等待區已滿（{max} 條）。"
   },
   "features": {
     "webSearch": "網絡搜索",

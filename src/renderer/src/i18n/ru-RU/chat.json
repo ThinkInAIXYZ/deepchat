@@ -28,6 +28,8 @@
     "agentWorkspaceTooltip": "Установить рабочий каталог агента",
     "attach": "Прикрепить",
     "voiceInput": "Голосовой ввод",
+    "queue": "В очередь",
+    "stop": "Стоп",
     "mcp": {
       "badge": "MCP {count}",
       "title": "Включённые MCP",
@@ -49,6 +51,18 @@
         "yobrowser": "YoBrowser"
       }
     }
+  },
+  "pendingInput": {
+    "steer": "Направление",
+    "queueCount": "Очередь {count}/{max}",
+    "resumeQueue": "Продолжить очередь",
+    "toSteer": "Направить",
+    "locked": "Заблокировано",
+    "reorder": "Изменить порядок",
+    "files": "{count} файлов",
+    "attachmentsOnly": "{count} вложений",
+    "empty": "Пустое сообщение",
+    "limitReached": "Область ожидания заполнена ({max})."
   },
   "features": {
     "webSearch": "Поиск в интернете",

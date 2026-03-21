@@ -37,24 +37,31 @@
       </Tooltip>
 
       <!-- Send button -->
-      <Button
-        v-if="!isGenerating"
-        size="icon"
-        class="h-7 w-7 rounded-full"
-        :disabled="sendDisabled"
-        @click="$emit('send')"
-      >
-        <Icon icon="lucide:arrow-up" class="w-4 h-4" />
-      </Button>
-      <Button
-        v-else
-        variant="outline"
-        size="icon"
-        class="h-7 w-7 rounded-full"
-        @click="$emit('stop')"
-      >
-        <Icon icon="lucide:square" class="w-4 h-4 text-red-500" />
-      </Button>
+      <Tooltip v-if="isGenerating && !hasText">
+        <TooltipTrigger as-child>
+          <Button variant="outline" size="icon" class="h-7 w-7 rounded-full" @click="$emit('stop')">
+            <Icon icon="lucide:square" class="w-4 h-4 text-red-500" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>
+          <p>{{ t('chat.input.stop') }}</p>
+        </TooltipContent>
+      </Tooltip>
+      <Tooltip v-else>
+        <TooltipTrigger as-child>
+          <Button
+            size="icon"
+            class="h-7 w-7 rounded-full"
+            :disabled="sendDisabled"
+            @click="$emit('send')"
+          >
+            <Icon icon="lucide:arrow-up" class="w-4 h-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>
+          <p>{{ t('chat.input.queue') }}</p>
+        </TooltipContent>
+      </Tooltip>
     </div>
   </div>
 </template>
@@ -68,11 +75,13 @@ import { useI18n } from 'vue-i18n'
 withDefaults(
   defineProps<{
     isGenerating?: boolean
+    hasText?: boolean
     sendDisabled?: boolean
     showVoiceInput?: boolean
   }>(),
   {
     isGenerating: false,
+    hasText: false,
     sendDisabled: false,
     showVoiceInput: false
   }

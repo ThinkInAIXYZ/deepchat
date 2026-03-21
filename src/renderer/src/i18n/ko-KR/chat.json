@@ -28,6 +28,8 @@
     "agentWorkspaceTooltip": "에이전트 작업 디렉터리 설정",
     "attach": "첨부",
     "voiceInput": "음성 입력",
+    "queue": "대기열에 추가",
+    "stop": "중지",
     "mcp": {
       "badge": "MCP {count}",
       "title": "활성화된 MCP",
@@ -49,6 +51,18 @@
         "yobrowser": "YoBrowser"
       }
     }
+  },
+  "pendingInput": {
+    "steer": "유도",
+    "queueCount": "대기열 {count}/{max}",
+    "resumeQueue": "대기열 재개",
+    "toSteer": "유도",
+    "locked": "잠김",
+    "reorder": "순서 변경",
+    "files": "파일 {count}개",
+    "attachmentsOnly": "첨부 {count}개",
+    "empty": "빈 메시지",
+    "limitReached": "대기 영역이 가득 찼습니다 ({max})."
   },
   "features": {
     "webSearch": "웹 검색",

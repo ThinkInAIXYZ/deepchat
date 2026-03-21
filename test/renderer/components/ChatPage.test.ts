@@ -61,6 +61,21 @@ const setup = async () => {
     addOptimisticUserMessage: vi.fn()
   })
 
+  const pendingInputStore = reactive({
+    items: [],
+    steerItems: [],
+    queueItems: [],
+    isAtCapacity: false,
+    loadPendingInputs: vi.fn().mockResolvedValue(undefined),
+    queueInput: vi.fn().mockResolvedValue(undefined),
+    updateQueueInput: vi.fn().mockResolvedValue(undefined),
+    moveQueueInput: vi.fn().mockResolvedValue(undefined),
+    convertToSteer: vi.fn().mockResolvedValue(undefined),
+    deleteInput: vi.fn().mockResolvedValue(undefined),
+    resumeQueue: vi.fn().mockResolvedValue(undefined),
+    clear: vi.fn()
+  })
+
   const modelStore = reactive({
     findModelByIdOrName: vi.fn((id: string) => ({
       model: {
@@ -84,6 +99,9 @@ const setup = async () => {
   }))
   vi.doMock('@/stores/ui/message', () => ({
     useMessageStore: () => messageStore
+  }))
+  vi.doMock('@/stores/ui/pendingInput', () => ({
+    usePendingInputStore: () => pendingInputStore
   }))
   vi.doMock('@/stores/modelStore', () => ({
     useModelStore: () => modelStore
@@ -128,6 +146,9 @@ const setup = async () => {
   }))
   vi.doMock('@/components/chat/ChatInputToolbar.vue', () => ({
     default: passthrough('ChatInputToolbar')
+  }))
+  vi.doMock('@/components/chat/PendingInputLane.vue', () => ({
+    default: passthrough('PendingInputLane')
   }))
   vi.doMock('@/components/chat/ChatStatusBar.vue', () => ({
     default: passthrough('ChatStatusBar')

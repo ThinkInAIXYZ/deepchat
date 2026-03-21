@@ -28,6 +28,8 @@
     "agentWorkspaceTooltip": "הגדר את ספריית העבודה של הסוכן",
     "attach": "צרף",
     "voiceInput": "קלט קולי",
+    "queue": "הוסף לתור",
+    "stop": "עצור",
     "mcp": {
       "badge": "MCP {count}",
       "title": "MCP פעילים",
@@ -49,6 +51,18 @@
         "yobrowser": "YoBrowser"
       }
     }
+  },
+  "pendingInput": {
+    "steer": "הכוונה",
+    "queueCount": "תור {count}/{max}",
+    "resumeQueue": "המשך תור",
+    "toSteer": "להנחות",
+    "locked": "נעול",
+    "reorder": "שנה סדר",
+    "files": "{count} קבצים",
+    "attachmentsOnly": "{count} קבצים מצורפים",
+    "empty": "הודעה ריקה",
+    "limitReached": "אזור ההמתנה מלא ({max})."
   },
   "features": {
     "webSearch": "חיפוש אינטרנט",

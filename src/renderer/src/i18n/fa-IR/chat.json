@@ -28,6 +28,8 @@
     "agentWorkspaceTooltip": "دایرکتوری کاری عامل را تنظیم کنید",
     "attach": "پیوست",
     "voiceInput": "ورودی صوتی",
+    "queue": "افزودن به صف",
+    "stop": "توقف",
     "mcp": {
       "badge": "MCP {count}",
       "title": "MCPهای فعال",
@@ -49,6 +51,18 @@
         "yobrowser": "YoBrowser"
       }
     }
+  },
+  "pendingInput": {
+    "steer": "هدایت",
+    "queueCount": "صف {count}/{max}",
+    "resumeQueue": "ادامه صف",
+    "toSteer": "هدایت",
+    "locked": "قفل‌شده",
+    "reorder": "تغییر ترتیب",
+    "files": "{count} فایل",
+    "attachmentsOnly": "{count} پیوست",
+    "empty": "پیام خالی",
+    "limitReached": "بخش انتظار پر است ({max})."
   },
   "features": {
     "webSearch": "جستجوی وب",

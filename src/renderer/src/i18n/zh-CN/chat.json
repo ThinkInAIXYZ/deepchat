@@ -6,6 +6,8 @@
     "functionSwitch": "功能开关",
     "attach": "添加附件",
     "voiceInput": "语音输入",
+    "queue": "加入队列",
+    "stop": "停止",
     "fileSelect": "选择文件",
     "pasteFiles": "支持复制粘贴文件",
     "dropFiles": "拖拽文件到此处",
@@ -49,6 +51,18 @@
         "yobrowser": "YoBrowser"
       }
     }
+  },
+  "pendingInput": {
+    "steer": "Steer",
+    "queueCount": "Queue {count}/{max}",
+    "resumeQueue": "继续队列",
+    "toSteer": "Steer",
+    "locked": "已锁定",
+    "reorder": "调整顺序",
+    "files": "{count} 个文件",
+    "attachmentsOnly": "{count} 个附件",
+    "empty": "空消息",
+    "limitReached": "等待区已满（{max} 条）。"
   },
   "features": {
     "webSearch": "联网搜索",

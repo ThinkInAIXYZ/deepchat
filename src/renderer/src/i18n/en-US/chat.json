@@ -6,6 +6,8 @@
     "functionSwitch": "Function Switch",
     "attach": "Attach",
     "voiceInput": "Voice input",
+    "queue": "Queue",
+    "stop": "Stop",
     "fileSelect": "Select File",
     "pasteFiles": "Paste files from clipboard",
     "dropFiles": "Drop files here",
@@ -49,6 +51,18 @@
         "yobrowser": "YoBrowser"
       }
     }
+  },
+  "pendingInput": {
+    "steer": "Steer",
+    "queueCount": "Queue {count}/{max}",
+    "resumeQueue": "Resume queue",
+    "toSteer": "Steer",
+    "locked": "Locked",
+    "reorder": "Reorder",
+    "files": "{count} files",
+    "attachmentsOnly": "{count} attachments",
+    "empty": "Empty message",
+    "limitReached": "Waiting lane is full ({max})."
   },
   "features": {
     "webSearch": "Web Search",

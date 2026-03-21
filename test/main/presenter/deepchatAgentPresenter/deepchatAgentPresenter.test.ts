@@ -21,7 +21,8 @@ vi.mock('@/events', () => ({
     ACTIVATED: 'session:activated',
     DEACTIVATED: 'session:deactivated',
     STATUS_CHANGED: 'session:status-changed',
-    COMPACTION_UPDATED: 'session:compaction-updated'
+    COMPACTION_UPDATED: 'session:compaction-updated',
+    PENDING_INPUTS_UPDATED: 'session:pending-inputs-updated'
   },
   STREAM_EVENTS: {
     RESPONSE: 'stream:response',
@@ -147,6 +148,17 @@ function createMockSqlitePresenter() {
       listByMessageId: vi.fn().mockReturnValue([]),
       deleteByMessageIds: vi.fn(),
       deleteBySessionId: vi.fn()
+    },
+    deepchatPendingInputsTable: {
+      insert: vi.fn(),
+      get: vi.fn(),
+      listBySession: vi.fn().mockReturnValue([]),
+      listClaimed: vi.fn().mockReturnValue([]),
+      listActiveBySession: vi.fn().mockReturnValue([]),
+      countActiveBySession: vi.fn().mockReturnValue(0),
+      update: vi.fn(),
+      delete: vi.fn(),
+      deleteBySession: vi.fn()
     }
   } as any
 }

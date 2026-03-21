@@ -28,6 +28,8 @@
     "agentWorkspaceTooltip": "エージェントの作業ディレクトリを設定する",
     "attach": "添付",
     "voiceInput": "音声入力",
+    "queue": "キューに追加",
+    "stop": "停止",
     "mcp": {
       "badge": "MCP {count}",
       "title": "有効な MCP",
@@ -49,6 +51,18 @@
         "yobrowser": "YoBrowser"
       }
     }
+  },
+  "pendingInput": {
+    "steer": "誘導",
+    "queueCount": "キュー {count}/{max}",
+    "resumeQueue": "キューを再開",
+    "toSteer": "誘導",
+    "locked": "固定",
+    "reorder": "並べ替え",
+    "files": "{count} 件のファイル",
+    "attachmentsOnly": "{count} 件の添付ファイル",
+    "empty": "空のメッセージ",
+    "limitReached": "待機レーンがいっぱいです（{max}件）。"
   },
   "features": {
     "webSearch": "ウェブ検索",

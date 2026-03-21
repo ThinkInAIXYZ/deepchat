@@ -28,6 +28,8 @@
     "agentWorkspaceTooltip": "Définir le répertoire de travail de l'agent",
     "attach": "Joindre",
     "voiceInput": "Saisie vocale",
+    "queue": "Ajouter à la file",
+    "stop": "Arrêter",
     "mcp": {
       "badge": "MCP {count}",
       "title": "MCP activés",
@@ -49,6 +51,18 @@
         "yobrowser": "YoBrowser"
       }
     }
+  },
+  "pendingInput": {
+    "steer": "Guidage",
+    "queueCount": "File {count}/{max}",
+    "resumeQueue": "Reprendre la file",
+    "toSteer": "Guider",
+    "locked": "Verrouillé",
+    "reorder": "Réorganiser",
+    "files": "{count} fichiers",
+    "attachmentsOnly": "{count} pièces jointes",
+    "empty": "Message vide",
+    "limitReached": "La zone d'attente est pleine ({max})."
   },
   "features": {
     "webSearch": "Recherche web",
