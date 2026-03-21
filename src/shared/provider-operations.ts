@@ -41,7 +41,6 @@ export const REBUILD_REQUIRED_FIELDS = [
   'apiKey',
   'copilotClientId',
   'baseUrl',
-  'authMode',
   'oauthToken',
   'accessKeyId', // AWS Bedrock
   'secretAccessKey', // AWS Bedrock

@@ -4,7 +4,6 @@ import * as http from 'http'
 import { URL } from 'url'
 import { createGitHubCopilotOAuth } from './githubCopilotOAuth'
 import { getGlobalGitHubCopilotDeviceFlow } from './githubCopilotDeviceFlow'
-import { createAnthropicOAuth } from './anthropicOAuth'
 import { eventBus } from '@/eventbus'
 
 export interface OAuthConfig {
@@ -169,96 +168,6 @@ export class OAuthPresenter {
         console.error('[GitHub Copilot][OAuth][ERROR] Stack trace:', error.stack)
       }
       return false
-    }
-  }
-
-  /**
-   * Check if Anthropic OAuth credentials exist
-   */
-  async hasAnthropicCredentials(): Promise<boolean> {
-    try {
-      const anthropicOAuth = createAnthropicOAuth()
-      return await anthropicOAuth.hasCredentials()
-    } catch (error) {
-      console.error('Failed to check Anthropic credentials:', error)
-      return false
-    }
-  }
-
-  /**
-   * Get valid Anthropic access token
-   */
-  async getAnthropicAccessToken(): Promise<string | null> {
-    try {
-      const anthropicOAuth = createAnthropicOAuth()
-      return await anthropicOAuth.getValidAccessToken()
-    } catch (error) {
-      console.error('Failed to get Anthropic access token:', error)
-      return null
-    }
-  }
-
-  /**
-   * Clear Anthropic OAuth credentials
-   */
-  async clearAnthropicCredentials(): Promise<void> {
-    try {
-      const anthropicOAuth = createAnthropicOAuth()
-      await anthropicOAuth.clearCredentials()
-    } catch (error) {
-      console.error('Failed to clear Anthropic credentials:', error)
-      throw error
-    }
-  }
-
-  /**
-   * Start Anthropic OAuth flow (external browser)
-   */
-  async startAnthropicOAuthFlow(): Promise<string> {
-    try {
-      console.log('Starting Anthropic OAuth flow with external browser')
-      const anthropicOAuth = createAnthropicOAuth()
-      const authUrl = await anthropicOAuth.startOAuthFlow()
-      console.log('OAuth URL opened in external browser:', authUrl)
-      return authUrl
-    } catch (error) {
-      console.error('Failed to start Anthropic OAuth flow:', error)
-      throw error
-    }
-  }
-
-  /**
-   * Complete Anthropic OAuth flow (using user-provided code)
-   */
-  async completeAnthropicOAuthWithCode(code: string): Promise<boolean> {
-    try {
-      console.log('Completing Anthropic OAuth with user-provided code')
-      const anthropicOAuth = createAnthropicOAuth()
-      const accessToken = await anthropicOAuth.completeOAuthWithCode(code)
-
-      if (!accessToken) {
-        console.error('Failed to get access token from code exchange')
-        return false
-      }
-
-      console.log('Successfully obtained access token')
-      return true
-    } catch (error) {
-      console.error('Failed to complete Anthropic OAuth with code:', error)
-      return false
-    }
-  }
-
-  /**
-   * Cancel Anthropic OAuth flow
-   */
-  async cancelAnthropicOAuthFlow(): Promise<void> {
-    try {
-      console.log('Cancelling Anthropic OAuth flow')
-      const anthropicOAuth = createAnthropicOAuth()
-      anthropicOAuth.cancelOAuthFlow()
-    } catch (error) {
-      console.error('Failed to cancel Anthropic OAuth flow:', error)
     }
   }
 

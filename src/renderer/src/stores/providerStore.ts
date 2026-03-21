@@ -207,17 +207,6 @@ export const useProviderStore = defineStore('provider', () => {
     return updateProviderConfig(providerId, updates)
   }
 
-  const updateProviderAuth = async (
-    providerId: string,
-    authMode?: 'apikey' | 'oauth',
-    oauthToken?: string
-  ) => {
-    const updates: Partial<LLM_PROVIDER> = {}
-    if (authMode !== undefined) updates.authMode = authMode
-    if (oauthToken !== undefined) updates.oauthToken = oauthToken
-    return updateProviderConfig(providerId, updates)
-  }
-
   const updateProvidersOrder = async (newProviders: LLM_PROVIDER[]) => {
     try {
       const enabledList = newProviders.filter((provider) => provider.enable)
@@ -442,7 +431,6 @@ export const useProviderStore = defineStore('provider', () => {
     updateProvider,
     updateProviderConfig,
     updateProviderApi,
-    updateProviderAuth,
     updateProviderStatus,
     updateProvidersOrder,
     optimizeProviderOrder,

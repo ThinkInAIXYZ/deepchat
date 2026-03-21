@@ -439,12 +439,6 @@ export interface IOAuthPresenter {
   startOAuthLogin(providerId: string, config: OAuthConfig): Promise<boolean>
   startGitHubCopilotLogin(providerId: string): Promise<boolean>
   startGitHubCopilotDeviceFlowLogin(providerId: string): Promise<boolean>
-  startAnthropicOAuthFlow(): Promise<string>
-  completeAnthropicOAuthWithCode(code: string): Promise<boolean>
-  cancelAnthropicOAuthFlow(): Promise<void>
-  hasAnthropicCredentials(): Promise<boolean>
-  getAnthropicAccessToken(): Promise<string | null>
-  clearAnthropicCredentials(): Promise<void>
 }
 
 export interface OAuthConfig {
@@ -779,7 +773,6 @@ export type LLM_PROVIDER = {
   enabledModels?: string[]
   disabledModels?: string[]
   custom?: boolean
-  authMode?: 'apikey' | 'oauth' // Authentication mode
   oauthToken?: string // OAuth token
   rateLimit?: {
     enabled: boolean

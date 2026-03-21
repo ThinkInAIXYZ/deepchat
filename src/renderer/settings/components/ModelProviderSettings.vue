@@ -169,14 +169,6 @@
         :provider="activeProvider"
         class="flex-1"
       />
-      <AnthropicProviderSettingsDetail
-        v-else-if="activeProvider.id === 'anthropic'"
-        :key="`anthropic-${activeProvider.id}`"
-        :provider="activeProvider"
-        class="flex-1"
-        @auth-success="handleAnthropicAuthSuccess"
-        @auth-error="handleAnthropicAuthError"
-      />
       <BedrockProviderSettingsDetail
         v-else-if="activeProvider.apiType === 'aws-bedrock'"
         :key="`bedrock-${activeProvider.id}`"
@@ -218,7 +210,6 @@ import draggable from 'vuedraggable'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { useThemeStore } from '@/stores/theme'
 import { useLanguageStore } from '@/stores/language'
-import AnthropicProviderSettingsDetail from './AnthropicProviderSettingsDetail.vue'
 import { onMounted } from 'vue'
 
 const route = useRoute()
@@ -385,19 +376,6 @@ const openAddProviderDialog = () => {
 const handleProviderAdded = (provider: LLM_PROVIDER) => {
   // 添加成功后，自动选择新添加的provider
   setActiveProvider(provider.id)
-}
-
-const handleAnthropicAuthSuccess = async () => {
-  // 处理 Anthropic 认证成功后的逻辑
-  console.log('Anthropic auth success')
-  // 刷新模型列表以获取最新的授权状态
-  await modelStore.refreshAllModels()
-}
-
-const handleAnthropicAuthError = (error: string) => {
-  // 处理 Anthropic 认证失败后的逻辑
-  console.error('Anthropic auth error:', error)
-  // 可以在这里添加用户友好的错误提示
 }
 
 onMounted(async () => {

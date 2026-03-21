@@ -56,7 +56,6 @@ export type LLM_PROVIDER = {
   enabledModels?: string[]
   disabledModels?: string[]
   custom?: boolean
-  authMode?: 'apikey' | 'oauth'
   oauthToken?: string
   websites?: {
     official: string

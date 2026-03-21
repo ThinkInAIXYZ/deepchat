@@ -116,6 +116,26 @@ const defaultProviders = DEFAULT_PROVIDERS.map((provider) => ({
 }))
 
 const PROVIDERS_STORE_KEY = 'providers'
+type AnthropicLegacyProvider = LLM_PROVIDER & { authMode?: 'apikey' | 'oauth' }
+
+export const normalizeAnthropicProviderForApiOnly = (
+  provider: AnthropicLegacyProvider,
+  fallbackBaseUrl = 'https://api.anthropic.com'
+): LLM_PROVIDER => {
+  if (provider.id !== 'anthropic') {
+    return provider
+  }
+
+  const normalized: AnthropicLegacyProvider = {
+    ...provider,
+    baseUrl: provider.baseUrl || fallbackBaseUrl
+  }
+
+  delete normalized.authMode
+  delete normalized.oauthToken
+
+  return normalized
+}
 
 export class ConfigPresenter implements IConfigPresenter {
   private store: ElectronStore<IAppSettings>
@@ -271,6 +291,7 @@ export class ConfigPresenter implements IConfigPresenter {
 
     // Migrate minimax provider from OpenAI format to Anthropic format
     this.migrateMinimaxProvider()
+    this.migrateAnthropicProviderToApiOnly()
 
     const existingProviders = this.getSetting<LLM_PROVIDER[]>(PROVIDERS_STORE_KEY) || []
     const newProviders = defaultProviders.filter(
@@ -522,6 +543,36 @@ export class ConfigPresenter implements IConfigPresenter {
         (provider) => provider.id !== 'minimax-an'
       )
       this.setProviders(filteredProviders)
+    }
+  }
+
+  private migrateAnthropicProviderToApiOnly(): void {
+    const providers = this.getProviders()
+    const defaultAnthropic = defaultProviders.find((provider) => provider.id === 'anthropic')
+    const fallbackBaseUrl = defaultAnthropic?.baseUrl || 'https://api.anthropic.com'
+    let hasChanges = false
+
+    const normalizedProviders = providers.map((provider) => {
+      if (provider.id !== 'anthropic') {
+        return provider
+      }
+
+      const legacyProvider = provider as AnthropicLegacyProvider
+      const normalized = normalizeAnthropicProviderForApiOnly(legacyProvider, fallbackBaseUrl)
+
+      if (
+        Object.prototype.hasOwnProperty.call(legacyProvider, 'authMode') ||
+        legacyProvider.oauthToken !== undefined ||
+        normalized.baseUrl !== legacyProvider.baseUrl
+      ) {
+        hasChanges = true
+      }
+
+      return normalized
+    })
+
+    if (hasChanges) {
+      this.setProviders(normalizedProviders)
     }
   }
 
