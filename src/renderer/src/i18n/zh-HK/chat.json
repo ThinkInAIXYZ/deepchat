@@ -144,7 +144,16 @@
     "verbosity": "回答詳略",
     "verbosityPlaceholder": "選擇詳略等級",
     "currentCustomPrompt": "目前自訂",
-    "useDefault": "使用預設值"
+    "useDefault": "使用預設值",
+    "decreaseValue": "減少 {label}",
+    "increaseValue": "增加 {label}",
+    "toggleValue": "切換 {label}",
+    "validation": {
+      "finiteNumber": "必須是有限數字",
+      "nonNegativeInteger": "必須是非負整數",
+      "contextLengthAtLeastMaxTokens": "必須大於或等於最大輸出",
+      "maxTokensWithinContextLength": "必須小於或等於上下文長度"
+    }
   },
   "workspace": {
     "collapse": "收起",

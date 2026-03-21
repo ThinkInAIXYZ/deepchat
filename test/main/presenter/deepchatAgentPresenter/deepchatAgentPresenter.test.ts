@@ -1231,7 +1231,7 @@ describe('DeepChatAgentPresenter', () => {
       await expect(agent.getGenerationSettings('unknown')).resolves.toBeNull()
     })
 
-    it('updates generation settings with sanitize and clamp', async () => {
+    it('updates generation settings with minimal validation and keeps invalid fields unchanged', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
 
       const updated = await agent.updateGenerationSettings('s1', {
@@ -1243,40 +1243,54 @@ describe('DeepChatAgentPresenter', () => {
         verbosity: 'invalid' as any
       })
 
-      expect(updated.temperature).toBe(2)
-      expect(updated.contextLength).toBe(2048)
-      expect(updated.maxTokens).toBe(2048)
-      expect(updated.thinkingBudget).toBe(0)
+      expect(updated.temperature).toBe(9)
+      expect(updated.contextLength).toBe(128000)
+      expect(updated.maxTokens).toBe(4096)
+      expect(updated.thinkingBudget).toBe(512)
       expect(updated.reasoningEffort).toBe('minimal')
       expect(updated.verbosity).toBe('medium')
 
       expect(sqlitePresenter.deepchatSessionsTable.updateGenerationSettings).toHaveBeenCalledWith(
         's1',
         expect.objectContaining({
-          temperature: 2,
-          contextLength: 2048,
-          maxTokens: 2048,
-          thinkingBudget: 0,
+          temperature: 9,
+          contextLength: 128000,
+          maxTokens: 4096,
+          thinkingBudget: 512,
           reasoningEffort: 'minimal',
           verbosity: 'medium'
         })
       )
     })
 
-    it('preserves portrait sentinel budgets when updating generation settings', async () => {
-      configPresenter.getThinkingBudgetRange.mockReturnValue({ min: 0, max: 24576, default: -1 })
+    it('treats legacy negative thinking budget rows as disabled and ignores new negative updates', async () => {
+      sqlitePresenter.deepchatSessionsTable.get.mockReturnValue({
+        id: 's2',
+        provider_id: 'gemini',
+        model_id: 'gemini-2.5-pro',
+        permission_mode: 'full_access',
+        system_prompt: 'You are a helpful assistant.',
+        temperature: 0.7,
+        context_length: 128000,
+        max_tokens: 4096,
+        thinking_budget: -1,
+        reasoning_effort: 'medium',
+        verbosity: 'medium'
+      })
 
-      await agent.initSession('s1', { providerId: 'gemini', modelId: 'gemini-2.5-pro' })
+      const persisted = await agent.getGenerationSettings('s2')
+      expect(persisted).not.toHaveProperty('thinkingBudget')
 
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       const updated = await agent.updateGenerationSettings('s1', {
         thinkingBudget: -1
       })
 
-      expect(updated.thinkingBudget).toBe(-1)
+      expect(updated.thinkingBudget).toBe(512)
       expect(sqlitePresenter.deepchatSessionsTable.updateGenerationSettings).toHaveBeenCalledWith(
         's1',
         expect.objectContaining({
-          thinkingBudget: -1
+          thinkingBudget: 512
         })
       )
     })

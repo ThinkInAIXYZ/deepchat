@@ -144,7 +144,16 @@
     "verbosity": "Verbosity",
     "verbosityPlaceholder": "Select verbosity",
     "currentCustomPrompt": "Current custom",
-    "useDefault": "Use default"
+    "useDefault": "Use default",
+    "decreaseValue": "Decrease {label}",
+    "increaseValue": "Increase {label}",
+    "toggleValue": "Toggle {label}",
+    "validation": {
+      "finiteNumber": "Must be a finite number",
+      "nonNegativeInteger": "Must be a non-negative integer",
+      "contextLengthAtLeastMaxTokens": "Must be greater than or equal to Max Tokens",
+      "maxTokensWithinContextLength": "Must be less than or equal to Context Length"
+    }
   },
   "modelPicker": {
     "empty": "No models found"

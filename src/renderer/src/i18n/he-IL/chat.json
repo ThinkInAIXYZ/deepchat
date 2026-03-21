@@ -140,7 +140,16 @@
     "verbosity": "רמת פירוט",
     "verbosityPlaceholder": "בחר רמת פירוט",
     "currentCustomPrompt": "מותאם נוכחי",
-    "useDefault": "השתמש בברירת מחדל"
+    "useDefault": "השתמש בברירת מחדל",
+    "decreaseValue": "הקטן את {label}",
+    "increaseValue": "הגדל את {label}",
+    "toggleValue": "הפעל או כבה את {label}",
+    "validation": {
+      "finiteNumber": "חייב להיות מספר סופי",
+      "nonNegativeInteger": "חייב להיות מספר שלם לא שלילי",
+      "contextLengthAtLeastMaxTokens": "חייב להיות גדול או שווה למספר הטוקנים המרבי",
+      "maxTokensWithinContextLength": "חייב להיות קטן או שווה לאורך ההקשר"
+    }
   },
   "workspace": {
     "collapse": "לִסְגוֹר",

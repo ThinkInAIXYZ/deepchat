@@ -221,75 +221,191 @@
 
                   <div v-else-if="localSettings" class="space-y-4">
                     <div class="space-y-1.5">
-                      <div class="flex items-center justify-between gap-2">
-                        <label class="text-xs font-medium">{{
-                          t('chat.advancedSettings.temperature')
-                        }}</label>
+                      <label class="text-xs font-medium">{{
+                        t('chat.advancedSettings.temperature')
+                      }}</label>
+                      <div class="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          class="h-8 w-8 shrink-0"
+                          data-setting-control="temperature"
+                          data-setting-action="decrement"
+                          :aria-label="
+                            t('chat.advancedSettings.decreaseValue', {
+                              label: t('chat.advancedSettings.temperature')
+                            })
+                          "
+                          :disabled="hasNumericInputError('temperature')"
+                          @click="stepTemperature(-1)"
+                        >
+                          <Icon icon="lucide:minus" class="h-3 w-3" />
+                        </Button>
                         <Input
-                          class="h-7 w-20 text-xs tabular-nums"
+                          :class="[
+                            'h-8 flex-1 text-xs tabular-nums',
+                            hasNumericInputError('temperature') ? 'border-destructive' : ''
+                          ]"
+                          data-setting-control="temperature"
                           type="number"
-                          :min="TEMPERATURE_MIN"
-                          :max="TEMPERATURE_MAX"
-                          step="0.1"
-                          :model-value="localSettings.temperature.toFixed(1)"
+                          :step="TEMPERATURE_STEP"
+                          :aria-invalid="hasNumericInputError('temperature')"
+                          :model-value="temperatureInputValue"
+                          @focus="startNumericInputEdit('temperature')"
                           @update:model-value="onTemperatureInput"
+                          @blur="commitTemperatureInput"
+                          @keydown.enter.prevent="commitTemperatureInput"
                         />
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          class="h-8 w-8 shrink-0"
+                          data-setting-control="temperature"
+                          data-setting-action="increment"
+                          :aria-label="
+                            t('chat.advancedSettings.increaseValue', {
+                              label: t('chat.advancedSettings.temperature')
+                            })
+                          "
+                          :disabled="hasNumericInputError('temperature')"
+                          @click="stepTemperature(1)"
+                        >
+                          <Icon icon="lucide:plus" class="h-3 w-3" />
+                        </Button>
                       </div>
-                      <Slider
-                        :model-value="[localSettings.temperature]"
-                        :min="TEMPERATURE_MIN"
-                        :max="TEMPERATURE_MAX"
-                        :step="0.1"
-                        @update:model-value="onTemperatureSlider"
-                      />
+                      <p
+                        v-if="getNumericInputErrorMessage('temperature')"
+                        class="text-[11px] text-destructive"
+                      >
+                        {{ getNumericInputErrorMessage('temperature') }}
+                      </p>
                     </div>
 
                     <div class="space-y-1.5">
-                      <div class="flex items-center justify-between gap-2">
-                        <label class="text-xs font-medium">{{
-                          t('chat.advancedSettings.contextLength')
-                        }}</label>
+                      <label class="text-xs font-medium">{{
+                        t('chat.advancedSettings.contextLength')
+                      }}</label>
+                      <div class="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          class="h-8 w-8 shrink-0"
+                          data-setting-control="contextLength"
+                          data-setting-action="decrement"
+                          :aria-label="
+                            t('chat.advancedSettings.decreaseValue', {
+                              label: t('chat.advancedSettings.contextLength')
+                            })
+                          "
+                          :disabled="
+                            hasNumericInputError('contextLength') ||
+                            localSettings.contextLength <= 0
+                          "
+                          @click="stepContextLength(-1)"
+                        >
+                          <Icon icon="lucide:minus" class="h-3 w-3" />
+                        </Button>
                         <Input
-                          class="h-7 w-24 text-xs tabular-nums"
+                          :class="[
+                            'h-8 flex-1 text-xs tabular-nums',
+                            hasNumericInputError('contextLength') ? 'border-destructive' : ''
+                          ]"
+                          data-setting-control="contextLength"
                           type="number"
-                          :min="CONTEXT_LENGTH_MIN"
-                          :max="contextLengthLimit"
-                          :step="1024"
-                          :model-value="localSettings.contextLength.toString()"
+                          :step="CONTEXT_LENGTH_STEP"
+                          :aria-invalid="hasNumericInputError('contextLength')"
+                          :model-value="contextLengthInputValue"
+                          @focus="startNumericInputEdit('contextLength')"
                           @update:model-value="onContextLengthInput"
+                          @blur="commitContextLengthInput"
+                          @keydown.enter.prevent="commitContextLengthInput"
                         />
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          class="h-8 w-8 shrink-0"
+                          data-setting-control="contextLength"
+                          data-setting-action="increment"
+                          :aria-label="
+                            t('chat.advancedSettings.increaseValue', {
+                              label: t('chat.advancedSettings.contextLength')
+                            })
+                          "
+                          :disabled="hasNumericInputError('contextLength')"
+                          @click="stepContextLength(1)"
+                        >
+                          <Icon icon="lucide:plus" class="h-3 w-3" />
+                        </Button>
                       </div>
-                      <Slider
-                        :model-value="[localSettings.contextLength]"
-                        :min="CONTEXT_LENGTH_MIN"
-                        :max="contextLengthLimit"
-                        :step="1024"
-                        @update:model-value="onContextLengthSlider"
-                      />
+                      <p
+                        v-if="getNumericInputErrorMessage('contextLength')"
+                        class="text-[11px] text-destructive"
+                      >
+                        {{ getNumericInputErrorMessage('contextLength') }}
+                      </p>
                     </div>
 
                     <div class="space-y-1.5">
-                      <div class="flex items-center justify-between gap-2">
-                        <label class="text-xs font-medium">{{
-                          t('chat.advancedSettings.maxTokens')
-                        }}</label>
+                      <label class="text-xs font-medium">{{
+                        t('chat.advancedSettings.maxTokens')
+                      }}</label>
+                      <div class="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          class="h-8 w-8 shrink-0"
+                          data-setting-control="maxTokens"
+                          data-setting-action="decrement"
+                          :aria-label="
+                            t('chat.advancedSettings.decreaseValue', {
+                              label: t('chat.advancedSettings.maxTokens')
+                            })
+                          "
+                          :disabled="
+                            hasNumericInputError('maxTokens') || localSettings.maxTokens <= 0
+                          "
+                          @click="stepMaxTokens(-1)"
+                        >
+                          <Icon icon="lucide:minus" class="h-3 w-3" />
+                        </Button>
                         <Input
-                          class="h-7 w-24 text-xs tabular-nums"
+                          :class="[
+                            'h-8 flex-1 text-xs tabular-nums',
+                            hasNumericInputError('maxTokens') ? 'border-destructive' : ''
+                          ]"
+                          data-setting-control="maxTokens"
                           type="number"
-                          :min="MAX_TOKENS_MIN"
-                          :max="maxTokensSliderLimit"
-                          :step="128"
-                          :model-value="localSettings.maxTokens.toString()"
+                          :step="MAX_TOKENS_STEP"
+                          :aria-invalid="hasNumericInputError('maxTokens')"
+                          :model-value="maxTokensInputValue"
+                          @focus="startNumericInputEdit('maxTokens')"
                           @update:model-value="onMaxTokensInput"
+                          @blur="commitMaxTokensInput"
+                          @keydown.enter.prevent="commitMaxTokensInput"
                         />
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          class="h-8 w-8 shrink-0"
+                          data-setting-control="maxTokens"
+                          data-setting-action="increment"
+                          :aria-label="
+                            t('chat.advancedSettings.increaseValue', {
+                              label: t('chat.advancedSettings.maxTokens')
+                            })
+                          "
+                          :disabled="hasNumericInputError('maxTokens')"
+                          @click="stepMaxTokens(1)"
+                        >
+                          <Icon icon="lucide:plus" class="h-3 w-3" />
+                        </Button>
                       </div>
-                      <Slider
-                        :model-value="[localSettings.maxTokens]"
-                        :min="MAX_TOKENS_MIN"
-                        :max="maxTokensSliderLimit"
-                        :step="128"
-                        @update:model-value="onMaxTokensSlider"
-                      />
+                      <p
+                        v-if="getNumericInputErrorMessage('maxTokens')"
+                        class="text-[11px] text-destructive"
+                      >
+                        {{ getNumericInputErrorMessage('maxTokens') }}
+                      </p>
                     </div>
 
                     <div v-if="showReasoningEffort" class="space-y-1.5">
@@ -349,19 +465,80 @@
                         <label class="text-xs font-medium">{{
                           t('chat.advancedSettings.thinkingBudget')
                         }}</label>
-                        <span class="text-[11px] text-muted-foreground">
-                          {{ thinkingBudgetHint }}
-                        </span>
+                        <div class="flex items-center gap-2">
+                          <span v-if="thinkingBudgetHint" class="text-[11px] text-muted-foreground">
+                            {{ thinkingBudgetHint }}
+                          </span>
+                          <Switch
+                            data-setting-control="thinkingBudget-toggle"
+                            :model-value="isThinkingBudgetEnabled"
+                            :aria-label="
+                              t('chat.advancedSettings.toggleValue', {
+                                label: t('chat.advancedSettings.thinkingBudget')
+                              })
+                            "
+                            @update:model-value="onThinkingBudgetToggle(Boolean($event))"
+                          />
+                        </div>
                       </div>
-                      <Input
-                        class="h-8 text-xs"
-                        type="number"
-                        :min="budgetRange?.min"
-                        :max="budgetRange?.max"
-                        :step="128"
-                        :model-value="localSettings.thinkingBudget?.toString() ?? ''"
-                        @update:model-value="onThinkingBudgetInput"
-                      />
+                      <div v-if="isThinkingBudgetEnabled" class="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          class="h-8 w-8 shrink-0"
+                          data-setting-control="thinkingBudget"
+                          data-setting-action="decrement"
+                          :aria-label="
+                            t('chat.advancedSettings.decreaseValue', {
+                              label: t('chat.advancedSettings.thinkingBudget')
+                            })
+                          "
+                          :disabled="
+                            hasNumericInputError('thinkingBudget') ||
+                            (localSettings.thinkingBudget ?? 0) <= 0
+                          "
+                          @click="stepThinkingBudget(-1)"
+                        >
+                          <Icon icon="lucide:minus" class="h-3 w-3" />
+                        </Button>
+                        <Input
+                          :class="[
+                            'h-8 flex-1 text-xs tabular-nums',
+                            hasNumericInputError('thinkingBudget') ? 'border-destructive' : ''
+                          ]"
+                          data-setting-control="thinkingBudget"
+                          type="number"
+                          :step="THINKING_BUDGET_STEP"
+                          :aria-invalid="hasNumericInputError('thinkingBudget')"
+                          :model-value="thinkingBudgetInputValue"
+                          @focus="startNumericInputEdit('thinkingBudget')"
+                          @update:model-value="onThinkingBudgetInput"
+                          @blur="commitThinkingBudgetInput"
+                          @keydown.enter.prevent="commitThinkingBudgetInput"
+                        />
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          class="h-8 w-8 shrink-0"
+                          data-setting-control="thinkingBudget"
+                          data-setting-action="increment"
+                          :aria-label="
+                            t('chat.advancedSettings.increaseValue', {
+                              label: t('chat.advancedSettings.thinkingBudget')
+                            })
+                          "
+                          :disabled="hasNumericInputError('thinkingBudget')"
+                          @click="stepThinkingBudget(1)"
+                        >
+                          <Icon icon="lucide:plus" class="h-3 w-3" />
+                        </Button>
+                      </div>
+                      <p
+                        v-if="getNumericInputErrorMessage('thinkingBudget')"
+                        class="text-[11px] text-destructive"
+                      >
+                        {{ getNumericInputErrorMessage('thinkingBudget') }}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -522,7 +699,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@shadcn/components/ui/select'
-import { Slider } from '@shadcn/components/ui/slider'
+import { Switch } from '@shadcn/components/ui/switch'
 import type {
   AcpConfigOption,
   AcpConfigState,
@@ -531,6 +708,14 @@ import type {
 } from '@shared/presenter'
 import type { PermissionMode, SessionGenerationSettings } from '@shared/types/agent-interface'
 import type { ReasoningPortrait } from '@shared/types/model-db'
+import {
+  normalizeLegacyThinkingBudgetValue,
+  parseFiniteNumericValue,
+  toValidNonNegativeInteger,
+  type GenerationNumericField,
+  type GenerationNumericValidationCode,
+  validateGenerationNumericField
+} from '@shared/utils/generationSettingsValidation'
 import McpIndicator from '@/components/chat-input/McpIndicator.vue'
 import ModelIcon from '@/components/icons/ModelIcon.vue'
 import { usePresenter } from '@/composables/usePresenter'
@@ -572,10 +757,10 @@ type GroupedModelList = {
   models: RENDERER_MODEL_META[]
 }
 
-const TEMPERATURE_MIN = 0
-const TEMPERATURE_MAX = 2
-const CONTEXT_LENGTH_MIN = 2048
-const MAX_TOKENS_MIN = 128
+const TEMPERATURE_STEP = 0.1
+const CONTEXT_LENGTH_STEP = 1024
+const MAX_TOKENS_STEP = 128
+const THINKING_BUDGET_STEP = 128
 const ACP_INLINE_OPTION_LIMIT = 3
 const DEFAULT_REASONING_EFFORT_OPTIONS: SessionGenerationSettings['reasoningEffort'][] = [
   'minimal',
@@ -616,12 +801,24 @@ const acpConfigLoadingRequestKey = ref<string | null>(null)
 const acpInlineOpenOptionId = ref<string | null>(null)
 const acpOptionSavingIds = ref<string[]>([])
 const acpConfigCacheByAgent = new Map<string, AcpConfigState>()
+const activeNumericInput = ref<GenerationNumericField | null>(null)
+const numericInputDrafts = ref<Record<GenerationNumericField, string>>({
+  temperature: '',
+  contextLength: '',
+  maxTokens: '',
+  thinkingBudget: ''
+})
+const numericInputErrors = ref<
+  Record<GenerationNumericField, GenerationNumericValidationCode | null>
+>({
+  temperature: null,
+  contextLength: null,
+  maxTokens: null,
+  thinkingBudget: null
+})
 
 const capabilitySupportsReasoning = ref<boolean | null>(null)
 const capabilityReasoningPortrait = ref<ReasoningPortrait | null>(null)
-const capabilityBudgetRange = ref<{ min?: number; max?: number; default?: number } | null>(null)
-const capabilitySupportsEffort = ref<boolean | null>(null)
-const capabilitySupportsVerbosity = ref<boolean | null>(null)
 
 let draftModelSyncToken = 0
 let permissionSyncToken = 0
@@ -630,6 +827,7 @@ let acpConfigSyncToken = 0
 let generationPersistTimer: ReturnType<typeof setTimeout> | null = null
 let pendingGenerationPatch: Partial<SessionGenerationSettings> = {}
 let generationPersistRequestToken = 0
+let generationLocalRevision = 0
 
 const hasActiveSession = computed(() => sessionStore.hasActiveSession)
 
@@ -924,29 +1122,104 @@ const isReasoningEffort = (value: unknown): value is 'minimal' | 'low' | 'medium
 const isVerbosity = (value: unknown): value is 'low' | 'medium' | 'high' =>
   value === 'low' || value === 'medium' || value === 'high'
 
-const clamp = (value: number, min: number, max: number): number => {
-  if (value < min) return min
-  if (value > max) return max
-  return value
+const getCommittedNumericInputValue = (field: GenerationNumericField): string => {
+  if (!localSettings.value) {
+    return ''
+  }
+
+  switch (field) {
+    case 'temperature':
+      return String(localSettings.value.temperature)
+    case 'contextLength':
+      return String(localSettings.value.contextLength)
+    case 'maxTokens':
+      return String(localSettings.value.maxTokens)
+    case 'thinkingBudget': {
+      const value = localSettings.value.thinkingBudget
+      return value === undefined ? '' : String(value)
+    }
+  }
 }
 
-const toFiniteNumber = (value: unknown): number | undefined => {
-  if (typeof value !== 'number' || Number.isNaN(value) || !Number.isFinite(value)) {
-    return undefined
-  }
-  return value
+const syncNumericInputDraft = (field: GenerationNumericField): void => {
+  numericInputDrafts.value[field] = getCommittedNumericInputValue(field)
 }
 
-const parseNumericInput = (value: string | number): number | undefined => {
-  const normalized = typeof value === 'string' ? value.trim() : String(value)
-  if (!normalized) {
-    return undefined
+const clearNumericInputError = (field: GenerationNumericField): void => {
+  numericInputErrors.value[field] = null
+}
+
+const setNumericInputError = (
+  field: GenerationNumericField,
+  code: GenerationNumericValidationCode
+): void => {
+  numericInputErrors.value[field] = code
+}
+
+const resetNumericInputFieldState = (field: GenerationNumericField): void => {
+  clearNumericInputError(field)
+  syncNumericInputDraft(field)
+}
+
+const resetNumericInputState = (): void => {
+  activeNumericInput.value = null
+  resetNumericInputFieldState('temperature')
+  resetNumericInputFieldState('contextLength')
+  resetNumericInputFieldState('maxTokens')
+  resetNumericInputFieldState('thinkingBudget')
+}
+
+const hasNumericInputError = (field: GenerationNumericField): boolean =>
+  numericInputErrors.value[field] !== null
+
+const startNumericInputEdit = (field: GenerationNumericField): void => {
+  activeNumericInput.value = field
+  if (!hasNumericInputError(field)) {
+    syncNumericInputDraft(field)
   }
-  const numeric = Number(normalized)
-  if (!Number.isFinite(numeric)) {
-    return undefined
+}
+
+const setNumericInputDraft = (field: GenerationNumericField, value: string | number): void => {
+  if (activeNumericInput.value !== field) {
+    activeNumericInput.value = field
   }
-  return numeric
+  const nextValue = typeof value === 'string' ? value : String(value)
+  if (numericInputDrafts.value[field] !== nextValue) {
+    generationLocalRevision += 1
+  }
+  numericInputDrafts.value[field] = nextValue
+  clearNumericInputError(field)
+}
+
+const stopNumericInputEdit = (field: GenerationNumericField): void => {
+  if (activeNumericInput.value === field) {
+    activeNumericInput.value = null
+  }
+}
+
+const getNumericInputValue = (field: GenerationNumericField): string => {
+  if (activeNumericInput.value === field || hasNumericInputError(field)) {
+    return numericInputDrafts.value[field]
+  }
+  return getCommittedNumericInputValue(field)
+}
+
+const getNumericInputErrorMessage = (field: GenerationNumericField): string => {
+  const code = numericInputErrors.value[field]
+  if (!code) {
+    return ''
+  }
+
+  switch (code) {
+    case 'finite_number':
+      return t('chat.advancedSettings.validation.finiteNumber')
+    case 'non_negative_integer':
+      return t('chat.advancedSettings.validation.nonNegativeInteger')
+    case 'context_length_below_max_tokens':
+      return t('chat.advancedSettings.validation.contextLengthAtLeastMaxTokens')
+    case 'max_tokens_exceed_context_length':
+      return t('chat.advancedSettings.validation.maxTokensWithinContextLength')
+  }
 }
 
 const isAcpConfigOptionValue = (
@@ -1118,35 +1391,6 @@ const normalizeVerbosity = (
     : undefined
 }
 
-const normalizeThinkingBudget = (
-  portrait: ReasoningPortrait | null | undefined,
-  value: number,
-  min?: number,
-  max?: number
-): number => {
-  const roundedValue = Math.round(value)
-  const sentinelValues = new Set<number>()
-
-  if (typeof portrait?.budget?.default === 'number')
-    sentinelValues.add(Math.round(portrait.budget.default))
-  if (typeof portrait?.budget?.auto === 'number')
-    sentinelValues.add(Math.round(portrait.budget.auto))
-  if (typeof portrait?.budget?.off === 'number') sentinelValues.add(Math.round(portrait.budget.off))
-
-  if (sentinelValues.has(roundedValue)) {
-    return roundedValue
-  }
-
-  let nextValue = roundedValue
-  if (typeof min === 'number') {
-    nextValue = Math.max(nextValue, Math.round(min))
-  }
-  if (typeof max === 'number') {
-    nextValue = Math.min(nextValue, Math.round(max))
-  }
-  return nextValue
-}
-
 const findEnabledModel = (providerId: string, modelId: string): ModelSelection | null => {
   const hit = findEnabledModelMeta(providerId, modelId)
   if (!hit) {
@@ -1202,43 +1446,21 @@ const clearPendingGenerationPersist = () => {
   pendingGenerationPatch = {}
 }
 
-const getCurrentLimits = () => {
-  const selection = effectiveModelSelection.value
-  if (!selection) {
-    return {
-      contextLengthLimit: 32000,
-      maxTokensLimit: 8192
-    }
-  }
-
-  const modelConfig = configPresenter.getModelConfig(selection.modelId, selection.providerId)
-  const contextLengthLimit = Math.max(
-    CONTEXT_LENGTH_MIN,
-    Math.round(toFiniteNumber(modelConfig.contextLength) ?? 32000)
-  )
-  const maxTokensLimit = Math.max(
-    MAX_TOKENS_MIN,
-    Math.round(toFiniteNumber(modelConfig.maxTokens) ?? 4096)
-  )
-  return { contextLengthLimit, maxTokensLimit }
+const invalidateGenerationPersistResponses = () => {
+  generationPersistRequestToken += 1
 }
 
-const contextLengthLimit = computed(() => getCurrentLimits().contextLengthLimit)
-
-const maxTokensSliderLimit = computed(() => {
-  const baseLimit = getCurrentLimits().maxTokensLimit
-  const contextLimit = localSettings.value?.contextLength ?? contextLengthLimit.value
-  return Math.max(MAX_TOKENS_MIN, Math.min(baseLimit, contextLimit))
-})
-
-const budgetRange = computed(() => capabilityBudgetRange.value)
+const temperatureInputValue = computed(() => getNumericInputValue('temperature'))
+const contextLengthInputValue = computed(() => getNumericInputValue('contextLength'))
+const maxTokensInputValue = computed(() => getNumericInputValue('maxTokens'))
+const thinkingBudgetInputValue = computed(() => getNumericInputValue('thinkingBudget'))
+const isThinkingBudgetEnabled = computed(() => localSettings.value?.thinkingBudget !== undefined)
 
 const thinkingBudgetHint = computed(() => {
-  const value = localSettings.value?.thinkingBudget
-  if (value === undefined) {
-    return t('chat.advancedSettings.useDefault')
+  if (!isThinkingBudgetEnabled.value) {
+    return t('common.disabled')
   }
-  return String(value)
+  return ''
 })
 
 const showThinkingBudget = computed(() => {
@@ -1470,38 +1692,26 @@ const resolveDefaultGenerationSettings = async (
   const modelConfig = configPresenter.getModelConfig(modelId, providerId)
   const defaultSystemPrompt = await configPresenter.getDefaultSystemPrompt()
   const portrait = (await configPresenter.getReasoningPortrait?.(providerId, modelId)) ?? null
-  const limits = getCurrentLimits()
+  const contextLengthDefault = toValidNonNegativeInteger(modelConfig.contextLength) ?? 32000
+  const maxTokensDefault =
+    toValidNonNegativeInteger(modelConfig.maxTokens) ?? Math.min(4096, contextLengthDefault)
 
   const defaults: SessionGenerationSettings = {
     systemPrompt: defaultSystemPrompt ?? '',
-    temperature: clamp(
-      toFiniteNumber(modelConfig.temperature) ?? 0.7,
-      TEMPERATURE_MIN,
-      TEMPERATURE_MAX
-    ),
-    contextLength: clamp(
-      Math.round(toFiniteNumber(modelConfig.contextLength) ?? limits.contextLengthLimit),
-      CONTEXT_LENGTH_MIN,
-      limits.contextLengthLimit
-    ),
-    maxTokens: clamp(
-      Math.round(toFiniteNumber(modelConfig.maxTokens) ?? Math.min(4096, limits.maxTokensLimit)),
-      MAX_TOKENS_MIN,
-      limits.maxTokensLimit
-    )
+    temperature: parseFiniteNumericValue(modelConfig.temperature) ?? 0.7,
+    contextLength: contextLengthDefault,
+    maxTokens:
+      maxTokensDefault <= contextLengthDefault
+        ? maxTokensDefault
+        : Math.min(4096, contextLengthDefault)
   }
-  defaults.maxTokens = Math.min(defaults.maxTokens, defaults.contextLength)
 
   if (portrait?.supported === true && hasThinkingBudgetSupport(portrait)) {
-    const range = portrait.budget ?? {}
-    const defaultBudget = toFiniteNumber(modelConfig.thinkingBudget ?? range.default)
+    const defaultBudget = normalizeLegacyThinkingBudgetValue(
+      modelConfig.thinkingBudget ?? portrait.budget?.default
+    )
     if (defaultBudget !== undefined) {
-      defaults.thinkingBudget = normalizeThinkingBudget(
-        portrait,
-        Math.round(defaultBudget),
-        range.min,
-        range.max
-      )
+      defaults.thinkingBudget = defaultBudget
     }
   }
 
@@ -1525,60 +1735,6 @@ const resolveDefaultGenerationSettings = async (
   return defaults
 }
 
-const mergeDraftOverrides = (
-  defaults: SessionGenerationSettings,
-  portrait: ReasoningPortrait | null
-): SessionGenerationSettings => {
-  const next: SessionGenerationSettings = {
-    ...defaults,
-    ...(draftStore.systemPrompt !== undefined ? { systemPrompt: draftStore.systemPrompt } : {}),
-    ...(draftStore.temperature !== undefined ? { temperature: draftStore.temperature } : {}),
-    ...(draftStore.contextLength !== undefined ? { contextLength: draftStore.contextLength } : {}),
-    ...(draftStore.maxTokens !== undefined ? { maxTokens: draftStore.maxTokens } : {}),
-    ...(draftStore.thinkingBudget !== undefined
-      ? { thinkingBudget: draftStore.thinkingBudget }
-      : {}),
-    ...(draftStore.reasoningEffort !== undefined
-      ? {
-          reasoningEffort: normalizeReasoningEffort(portrait, draftStore.reasoningEffort)
-        }
-      : {}),
-    ...(draftStore.verbosity !== undefined ? { verbosity: draftStore.verbosity } : {})
-  }
-
-  const limits = getCurrentLimits()
-  next.temperature = clamp(next.temperature, TEMPERATURE_MIN, TEMPERATURE_MAX)
-  next.contextLength = clamp(
-    Math.round(next.contextLength),
-    CONTEXT_LENGTH_MIN,
-    limits.contextLengthLimit
-  )
-  next.maxTokens = clamp(
-    Math.round(next.maxTokens),
-    MAX_TOKENS_MIN,
-    Math.min(limits.maxTokensLimit, next.contextLength)
-  )
-
-  if (next.thinkingBudget !== undefined) {
-    next.thinkingBudget = normalizeThinkingBudget(
-      portrait,
-      next.thinkingBudget,
-      portrait?.budget?.min,
-      portrait?.budget?.max
-    )
-  }
-
-  if (next.reasoningEffort !== undefined) {
-    next.reasoningEffort = normalizeReasoningEffort(portrait, next.reasoningEffort)
-  }
-
-  if (next.verbosity !== undefined) {
-    next.verbosity = normalizeVerbosity(portrait, next.verbosity)
-  }
-
-  return next
-}
-
 const fetchCapabilities = async (providerId: string, modelId: string): Promise<void> => {
   try {
     const portrait = (await configPresenter.getReasoningPortrait?.(providerId, modelId)) ?? null
@@ -1586,24 +1742,10 @@ const fetchCapabilities = async (providerId: string, modelId: string): Promise<v
     capabilityReasoningPortrait.value = portrait
     capabilitySupportsReasoning.value =
       typeof portrait?.supported === 'boolean' ? portrait.supported : null
-    capabilityBudgetRange.value = portrait?.budget
-      ? {
-          ...(typeof portrait.budget.min === 'number' ? { min: portrait.budget.min } : {}),
-          ...(typeof portrait.budget.max === 'number' ? { max: portrait.budget.max } : {}),
-          ...(typeof portrait.budget.default === 'number'
-            ? { default: portrait.budget.default }
-            : {})
-        }
-      : null
-    capabilitySupportsEffort.value = supportsReasoningEffort(portrait)
-    capabilitySupportsVerbosity.value = supportsVerbosity(portrait)
   } catch (error) {
     console.warn('[ChatStatusBar] Failed to fetch model capabilities:', error)
     capabilitySupportsReasoning.value = null
     capabilityReasoningPortrait.value = null
-    capabilityBudgetRange.value = null
-    capabilitySupportsEffort.value = null
-    capabilitySupportsVerbosity.value = null
   }
 }
 
@@ -1623,25 +1765,29 @@ const flushGenerationPatch = async () => {
   }
 
   const requestToken = ++generationPersistRequestToken
+  const localRevisionAtRequest = generationLocalRevision
   try {
     const updated = await newAgentPresenter.updateSessionGenerationSettings(sessionId, patch)
     if (requestToken !== generationPersistRequestToken) {
       return
     }
-    if (!localSettings.value) {
-      localSettings.value = { ...updated }
+    if (localRevisionAtRequest !== generationLocalRevision) {
       return
     }
-    localSettings.value = {
-      ...localSettings.value,
-      ...updated
-    }
+    localSettings.value = { ...updated }
+    resetNumericInputState()
   } catch (error) {
     console.warn('[ChatStatusBar] Failed to update generation settings:', error)
   }
 }
 
 const scheduleGenerationPersist = (patch: Partial<SessionGenerationSettings>) => {
+  if (!sessionStore.activeSessionId) {
+    clearPendingGenerationPersist()
+    draftStore.updateGenerationSettings(patch)
+    return
+  }
+
   pendingGenerationPatch = { ...pendingGenerationPatch, ...patch }
   if (generationPersistTimer) {
     clearTimeout(generationPersistTimer)
@@ -1656,24 +1802,12 @@ const updateLocalGenerationSettings = (patch: Partial<SessionGenerationSettings>
     return
   }
   generationSyncToken += 1
+  generationLocalRevision += 1
 
-  const limits = getCurrentLimits()
   const next: SessionGenerationSettings = {
     ...localSettings.value,
     ...patch
   }
-
-  next.temperature = clamp(next.temperature, TEMPERATURE_MIN, TEMPERATURE_MAX)
-  next.contextLength = clamp(
-    Math.round(next.contextLength),
-    CONTEXT_LENGTH_MIN,
-    limits.contextLengthLimit
-  )
-  next.maxTokens = clamp(
-    Math.round(next.maxTokens),
-    MAX_TOKENS_MIN,
-    Math.min(limits.maxTokensLimit, next.contextLength)
-  )
 
   localSettings.value = next
 
@@ -1706,6 +1840,8 @@ const updateLocalGenerationSettings = (patch: Partial<SessionGenerationSettings>
 const syncGenerationSettings = async () => {
   const token = ++generationSyncToken
   clearPendingGenerationPersist()
+  invalidateGenerationPersistResponses()
+  resetNumericInputState()
   loadedSettingsSelection.value = null
 
   if (isAcpAgent.value) {
@@ -1713,9 +1849,6 @@ const syncGenerationSettings = async () => {
     loadedSettingsSelection.value = null
     capabilitySupportsReasoning.value = null
     capabilityReasoningPortrait.value = null
-    capabilityBudgetRange.value = null
-    capabilitySupportsEffort.value = null
-    capabilitySupportsVerbosity.value = null
     return
   }
 
@@ -1725,9 +1858,6 @@ const syncGenerationSettings = async () => {
     loadedSettingsSelection.value = null
     capabilityReasoningPortrait.value = null
     capabilitySupportsReasoning.value = null
-    capabilityBudgetRange.value = null
-    capabilitySupportsEffort.value = null
-    capabilitySupportsVerbosity.value = null
     return
   }
 
@@ -1767,7 +1897,7 @@ const syncGenerationSettings = async () => {
   if (token !== generationSyncToken) {
     return
   }
-  localSettings.value = mergeDraftOverrides(defaults, capabilityReasoningPortrait.value)
+  localSettings.value = defaults
   loadedSettingsSelection.value = { ...selection }
 }
 
@@ -2040,6 +2170,7 @@ watch(isModelPanelOpen, (open) => {
 
 onBeforeUnmount(() => {
   clearPendingGenerationPersist()
+  invalidateGenerationPersistResponses()
   window.electron?.ipcRenderer?.removeListener?.(
     ACP_WORKSPACE_EVENTS.SESSION_CONFIG_OPTIONS_READY,
     handleAcpConfigOptionsReady
@@ -2089,8 +2220,27 @@ async function changeModelSelection(providerId: string, modelId: string): Promis
   const previousDraftSelection = draftModelSelection.value ? { ...draftModelSelection.value } : null
   const previousDraftProviderId = draftStore.providerId
   const previousDraftModelId = draftStore.modelId
+  const previousDraftGenerationSettings = {
+    systemPrompt: draftStore.systemPrompt,
+    temperature: draftStore.temperature,
+    contextLength: draftStore.contextLength,
+    maxTokens: draftStore.maxTokens,
+    thinkingBudget: draftStore.thinkingBudget,
+    reasoningEffort: draftStore.reasoningEffort,
+    verbosity: draftStore.verbosity
+  } as Partial<SessionGenerationSettings>
+  const clearedDraftModelOverrides = {
+    temperature: undefined,
+    contextLength: undefined,
+    maxTokens: undefined,
+    thinkingBudget: undefined,
+    reasoningEffort: undefined,
+    verbosity: undefined
+  } as Partial<SessionGenerationSettings>
 
   try {
+    clearPendingGenerationPersist()
+    draftStore.updateGenerationSettings(clearedDraftModelOverrides)
     draftModelSelection.value = { providerId, modelId }
     draftStore.providerId = providerId
     draftStore.modelId = modelId
@@ -2100,6 +2250,7 @@ async function changeModelSelection(providerId: string, modelId: string): Promis
     draftModelSelection.value = previousDraftSelection
     draftStore.providerId = previousDraftProviderId
     draftStore.modelId = previousDraftModelId
+    draftStore.updateGenerationSettings(previousDraftGenerationSettings)
     console.warn('[ChatStatusBar] Failed to switch draft model:', error)
     return false
   }
@@ -2150,89 +2301,179 @@ function onSystemPromptSelect(optionId: string) {
   updateLocalGenerationSettings({ systemPrompt: option.content })
 }
 
-function onTemperatureSlider(values: number[]) {
-  const next = values[0]
-  if (!localSettings.value || typeof next !== 'number') {
+const getNumericValidationContext = (
+  field: GenerationNumericField
+): Pick<SessionGenerationSettings, 'contextLength' | 'maxTokens'> => ({
+  contextLength:
+    field === 'contextLength'
+      ? (localSettings.value?.contextLength ?? 0)
+      : (localSettings.value?.contextLength ?? 0),
+  maxTokens:
+    field === 'maxTokens'
+      ? (localSettings.value?.maxTokens ?? 0)
+      : (localSettings.value?.maxTokens ?? 0)
+})
+
+const commitNumericField = (
+  field: GenerationNumericField,
+  rawValue: string | number
+): number | undefined => {
+  if (!localSettings.value) {
+    stopNumericInputEdit(field)
+    resetNumericInputFieldState(field)
+    return undefined
+  }
+
+  const error = validateGenerationNumericField(field, rawValue, getNumericValidationContext(field))
+  if (error) {
+    stopNumericInputEdit(field)
+    setNumericInputError(field, error)
+    return undefined
+  }
+
+  const numeric = parseFiniteNumericValue(rawValue)
+  if (numeric === undefined) {
+    stopNumericInputEdit(field)
+    setNumericInputError(field, field === 'temperature' ? 'finite_number' : 'non_negative_integer')
+    return undefined
+  }
+
+  stopNumericInputEdit(field)
+  clearNumericInputError(field)
+  return numeric
+}
+
+const roundTemperatureStepValue = (value: number): number => Number(value.toFixed(10))
+
+function stepTemperature(direction: -1 | 1) {
+  if (!localSettings.value) {
     return
   }
-  updateLocalGenerationSettings({ temperature: Number(next.toFixed(1)) })
+  if (hasNumericInputError('temperature')) {
+    return
+  }
+  const next = roundTemperatureStepValue(
+    localSettings.value.temperature + direction * TEMPERATURE_STEP
+  )
+  updateLocalGenerationSettings({ temperature: next })
+  resetNumericInputFieldState('temperature')
 }
 
 function onTemperatureInput(value: string | number) {
+  setNumericInputDraft('temperature', value)
+}
+
+function commitTemperatureInput() {
+  const next = commitNumericField('temperature', numericInputDrafts.value.temperature)
+  if (next === undefined) {
+    return
+  }
+  updateLocalGenerationSettings({ temperature: next })
+  resetNumericInputFieldState('temperature')
+}
+
+function stepContextLength(direction: -1 | 1) {
   if (!localSettings.value) {
     return
   }
-  const numeric = parseNumericInput(value)
-  if (numeric === undefined) {
+  if (hasNumericInputError('contextLength')) {
     return
   }
-  const next = clamp(numeric, TEMPERATURE_MIN, TEMPERATURE_MAX)
-  updateLocalGenerationSettings({ temperature: Number(next.toFixed(1)) })
-}
-
-function onContextLengthSlider(values: number[]) {
-  const next = values[0]
-  if (!localSettings.value || typeof next !== 'number') {
+  const next = Math.max(0, localSettings.value.contextLength + direction * CONTEXT_LENGTH_STEP)
+  const committed = commitNumericField('contextLength', next)
+  if (committed === undefined) {
     return
   }
-  updateLocalGenerationSettings({ contextLength: Math.round(next) })
+  updateLocalGenerationSettings({ contextLength: committed })
+  resetNumericInputFieldState('contextLength')
 }
 
 function onContextLengthInput(value: string | number) {
+  setNumericInputDraft('contextLength', value)
+}
+
+function commitContextLengthInput() {
+  const next = commitNumericField('contextLength', numericInputDrafts.value.contextLength)
+  if (next === undefined) {
+    return
+  }
+  updateLocalGenerationSettings({ contextLength: next })
+  resetNumericInputFieldState('contextLength')
+}
+
+function stepMaxTokens(direction: -1 | 1) {
   if (!localSettings.value) {
     return
   }
-  const numeric = parseNumericInput(value)
-  if (numeric === undefined) {
+  if (hasNumericInputError('maxTokens')) {
     return
   }
-  const next = clamp(Math.round(numeric), CONTEXT_LENGTH_MIN, contextLengthLimit.value)
-  updateLocalGenerationSettings({ contextLength: next })
-}
-
-function onMaxTokensSlider(values: number[]) {
-  const next = values[0]
-  if (!localSettings.value || typeof next !== 'number') {
+  const next = Math.max(0, localSettings.value.maxTokens + direction * MAX_TOKENS_STEP)
+  const committed = commitNumericField('maxTokens', next)
+  if (committed === undefined) {
     return
   }
-  updateLocalGenerationSettings({ maxTokens: Math.round(next) })
+  updateLocalGenerationSettings({ maxTokens: committed })
+  resetNumericInputFieldState('maxTokens')
 }
 
 function onMaxTokensInput(value: string | number) {
-  if (!localSettings.value) {
-    return
-  }
-  const numeric = parseNumericInput(value)
-  if (numeric === undefined) {
-    return
-  }
-  const next = clamp(Math.round(numeric), MAX_TOKENS_MIN, maxTokensSliderLimit.value)
-  updateLocalGenerationSettings({ maxTokens: next })
+  setNumericInputDraft('maxTokens', value)
 }
 
-function onThinkingBudgetInput(value: string | number) {
+function commitMaxTokensInput() {
+  const next = commitNumericField('maxTokens', numericInputDrafts.value.maxTokens)
+  if (next === undefined) {
+    return
+  }
+  updateLocalGenerationSettings({ maxTokens: next })
+  resetNumericInputFieldState('maxTokens')
+}
+
+function onThinkingBudgetToggle(enabled: boolean) {
   if (!localSettings.value) {
     return
   }
-  const normalized = typeof value === 'string' ? value.trim() : String(value)
-  if (!normalized) {
+  if (!enabled) {
+    stopNumericInputEdit('thinkingBudget')
+    resetNumericInputFieldState('thinkingBudget')
     updateLocalGenerationSettings({ thinkingBudget: undefined })
     return
   }
 
-  const numeric = Number(normalized)
-  if (!Number.isFinite(numeric)) {
+  const preferred = normalizeLegacyThinkingBudgetValue(localSettings.value.thinkingBudget) ?? 0
+  updateLocalGenerationSettings({ thinkingBudget: preferred })
+  resetNumericInputFieldState('thinkingBudget')
+}
+
+function stepThinkingBudget(direction: -1 | 1) {
+  if (!localSettings.value) {
     return
   }
+  if (hasNumericInputError('thinkingBudget')) {
+    return
+  }
+  const current = localSettings.value.thinkingBudget ?? 0
+  const next = Math.max(0, current + direction * THINKING_BUDGET_STEP)
+  const committed = commitNumericField('thinkingBudget', next)
+  if (committed === undefined) {
+    return
+  }
+  updateLocalGenerationSettings({ thinkingBudget: committed })
+  resetNumericInputFieldState('thinkingBudget')
+}
 
-  const range = budgetRange.value
-  const budget = normalizeThinkingBudget(
-    capabilityReasoningPortrait.value,
-    Math.round(numeric),
-    range?.min,
-    range?.max
-  )
-  updateLocalGenerationSettings({ thinkingBudget: budget })
+function onThinkingBudgetInput(value: string | number) {
+  setNumericInputDraft('thinkingBudget', value)
+}
+
+function commitThinkingBudgetInput() {
+  const next = commitNumericField('thinkingBudget', numericInputDrafts.value.thinkingBudget)
+  if (next === undefined) {
+    return
+  }
+  updateLocalGenerationSettings({ thinkingBudget: next })
+  resetNumericInputFieldState('thinkingBudget')
 }
 
 function onReasoningEffortSelect(value: string) {
@@ -2304,7 +2545,19 @@ defineExpose({
   permissionMode,
   showSystemPromptSection,
   showReasoningEffort,
-  onTemperatureSlider,
+  onTemperatureInput,
+  commitTemperatureInput,
+  onContextLengthInput,
+  commitContextLengthInput,
+  onMaxTokensInput,
+  commitMaxTokensInput,
+  onThinkingBudgetInput,
+  commitThinkingBudgetInput,
+  onThinkingBudgetToggle,
+  stepTemperature,
+  stepContextLength,
+  stepMaxTokens,
+  stepThinkingBudget,
   selectModel: changeModelSelection,
   openModelSettings,
   isModelSettingsExpanded,

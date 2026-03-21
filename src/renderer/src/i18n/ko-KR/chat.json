@@ -140,7 +140,16 @@
     "verbosity": "응답 상세도",
     "verbosityPlaceholder": "상세도 선택",
     "currentCustomPrompt": "현재 사용자 지정",
-    "useDefault": "기본값 사용"
+    "useDefault": "기본값 사용",
+    "decreaseValue": "{label} 줄이기",
+    "increaseValue": "{label} 늘리기",
+    "toggleValue": "{label} 켜기 또는 끄기",
+    "validation": {
+      "finiteNumber": "유한한 숫자여야 합니다",
+      "nonNegativeInteger": "0 이상의 정수여야 합니다",
+      "contextLengthAtLeastMaxTokens": "최대 출력 이상이어야 합니다",
+      "maxTokensWithinContextLength": "컨텍스트 길이 이하여야 합니다"
+    }
   },
   "workspace": {
     "collapse": "닫다",

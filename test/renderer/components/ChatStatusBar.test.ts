@@ -11,9 +11,9 @@ type TestGenerationSettings = {
   temperature: number
   contextLength: number
   maxTokens: number
-  thinkingBudget: number
-  reasoningEffort: ReasoningEffort
-  verbosity: 'low' | 'medium' | 'high'
+  thinkingBudget?: number
+  reasoningEffort?: ReasoningEffort
+  verbosity?: 'low' | 'medium' | 'high'
 }
 
 type ExtraModelGroup = {
@@ -34,7 +34,8 @@ type SetupOptions = {
   preferredModel?: { providerId: string; modelId: string } | null
   extraModelGroups?: ExtraModelGroup[]
   reasoningEffortDefault?: ReasoningEffort
-  sessionSettings?: Partial<TestGenerationSettings>
+  sessionSettings?: Partial<TestGenerationSettings> | null
+  draftGenerationSettings?: Partial<TestGenerationSettings>
   reasoningPortrait?: ReasoningPortrait | null
   projectPath?: string | null
   acpDraftSessionId?: string | null
@@ -68,22 +69,14 @@ const ButtonStub = defineComponent({
     '<button v-bind="$attrs" :disabled="disabled" @click="$emit(\'click\', $event)"><slot /></button>'
 })
 
-const SliderStub = defineComponent({
-  name: 'Slider',
-  props: {
-    modelValue: { type: Array, default: () => [] }
-  },
-  emits: ['update:modelValue'],
-  template: '<div class="slider-stub" />'
-})
-
 const InputStub = defineComponent({
   name: 'Input',
   props: {
-    modelValue: { type: String, default: '' }
+    modelValue: { type: [String, Number], default: '' }
   },
   emits: ['update:modelValue'],
-  template: '<input class="input-stub" />'
+  template:
+    '<input class="input-stub" v-bind="$attrs" :value="modelValue ?? \'\'" @input="$emit(\'update:modelValue\', $event.target.value)" />'
 })
 
 const SelectStub = defineComponent({
@@ -103,7 +96,7 @@ const SwitchStub = defineComponent({
   },
   emits: ['update:modelValue'],
   template:
-    '<button class="switch-stub" :data-model-value="String(modelValue)" :disabled="disabled" @click="$emit(\'update:modelValue\', !modelValue)" />'
+    '<button class="switch-stub" v-bind="$attrs" :data-model-value="String(modelValue)" :disabled="disabled" @click="$emit(\'update:modelValue\', !modelValue)" />'
 })
 
 const createAcpConfigState = (
@@ -189,7 +182,7 @@ const setup = async (options: SetupOptions = {}) => {
     ({
       supported: true,
       defaultEnabled: true,
-      mode: 'effort',
+      mode: 'mixed',
       budget: { min: 0, max: 8192, default: 512 },
       ...(options.supportsEffort === false
         ? {}
@@ -295,9 +288,19 @@ const setup = async (options: SetupOptions = {}) => {
     thinkingBudget: undefined as number | undefined,
     reasoningEffort: undefined as 'minimal' | 'low' | 'medium' | 'high' | undefined,
     verbosity: undefined as 'low' | 'medium' | 'high' | undefined,
+    ...options.draftGenerationSettings,
     updateGenerationSettings: vi.fn((patch: Record<string, unknown>) =>
       Object.assign(draftStore, patch)
-    )
+    ),
+    resetGenerationSettings: vi.fn(() => {
+      draftStore.systemPrompt = undefined
+      draftStore.temperature = undefined
+      draftStore.contextLength = undefined
+      draftStore.maxTokens = undefined
+      draftStore.thinkingBudget = undefined
+      draftStore.reasoningEffort = undefined
+      draftStore.verbosity = undefined
+    })
   })
 
   const projectStore = reactive({
@@ -355,10 +358,13 @@ const setup = async (options: SetupOptions = {}) => {
     ...options.sessionSettings
   }
 
+  const sessionSettingsResult =
+    options.sessionSettings === null ? null : ({ ...baseSessionSettings } as TestGenerationSettings)
+
   const newAgentPresenter = {
     getPermissionMode: vi.fn().mockResolvedValue('full_access'),
     setPermissionMode: vi.fn().mockResolvedValue(undefined),
-    getSessionGenerationSettings: vi.fn().mockResolvedValue(baseSessionSettings),
+    getSessionGenerationSettings: vi.fn().mockResolvedValue(sessionSettingsResult),
     getAcpSessionConfigOptions: vi.fn().mockResolvedValue(options.acpSessionConfig ?? null),
     setAcpSessionConfigOption: vi
       .fn()
@@ -473,7 +479,6 @@ const setup = async (options: SetupOptions = {}) => {
     global: {
       stubs: {
         Button: ButtonStub,
-        Slider: SliderStub,
         Input: InputStub,
         DropdownMenu: passthrough('DropdownMenu'),
         DropdownMenuContent: passthrough('DropdownMenuContent'),
@@ -512,6 +517,29 @@ const setup = async (options: SetupOptions = {}) => {
     projectStore,
     ipcRenderer: window.electron?.ipcRenderer
   }
+}
+
+const findNumericInput = (wrapper: Awaited<ReturnType<typeof setup>>['wrapper'], control: string) =>
+  wrapper.find(`input[data-setting-control="${control}"]`)
+
+const findNumericButton = (
+  wrapper: Awaited<ReturnType<typeof setup>>['wrapper'],
+  control: string,
+  action: 'increment' | 'decrement'
+) => wrapper.find(`button[data-setting-control="${control}"][data-setting-action="${action}"]`)
+
+const findThinkingBudgetToggle = (wrapper: Awaited<ReturnType<typeof setup>>['wrapper']) =>
+  wrapper.find('.switch-stub[data-setting-control="thinkingBudget-toggle"]')
+
+const commitNumericInput = async (
+  wrapper: Awaited<ReturnType<typeof setup>>['wrapper'],
+  control: string,
+  value: string
+) => {
+  const input = findNumericInput(wrapper, control)
+  await input.trigger('focus')
+  await input.setValue(value)
+  await input.trigger('blur')
 }
 
 describe('ChatStatusBar model and session panels', () => {
@@ -704,8 +732,154 @@ describe('ChatStatusBar model and session panels', () => {
   it('uses unified defaults for draft model settings', async () => {
     const { wrapper } = await setup({ agentId: 'deepchat', hasActiveSession: false })
 
+    expect((wrapper.vm as any).localSettings.temperature).toBe(0.7)
     expect((wrapper.vm as any).localSettings.contextLength).toBe(16000)
     expect((wrapper.vm as any).localSettings.maxTokens).toBe(4096)
+    expect((wrapper.vm as any).localSettings.thinkingBudget).toBe(512)
+  })
+
+  it('ignores existing draft generation overrides when loading draft model defaults', async () => {
+    const { wrapper, draftStore } = await setup({
+      agentId: 'deepchat',
+      hasActiveSession: false,
+      draftGenerationSettings: {
+        temperature: 1.9,
+        contextLength: 64000,
+        maxTokens: 8192,
+        thinkingBudget: 2048
+      }
+    })
+
+    expect(draftStore.temperature).toBe(1.9)
+    expect(draftStore.contextLength).toBe(64000)
+    expect((wrapper.vm as any).localSettings.temperature).toBe(0.7)
+    expect((wrapper.vm as any).localSettings.contextLength).toBe(16000)
+    expect((wrapper.vm as any).localSettings.maxTokens).toBe(4096)
+    expect((wrapper.vm as any).localSettings.thinkingBudget).toBe(512)
+  })
+
+  it('falls back to model defaults when the active session has no saved generation settings', async () => {
+    const { wrapper, newAgentPresenter } = await setup({
+      agentId: 'deepchat',
+      hasActiveSession: true,
+      activeProviderId: 'openai',
+      activeModelId: 'gpt-4',
+      sessionSettings: null
+    })
+
+    expect(newAgentPresenter.getSessionGenerationSettings).toHaveBeenCalledWith('s1')
+    expect((wrapper.vm as any).localSettings).toEqual({
+      systemPrompt: 'Default prompt',
+      temperature: 0.7,
+      contextLength: 16000,
+      maxTokens: 4096,
+      thinkingBudget: 512,
+      reasoningEffort: 'medium',
+      verbosity: 'medium'
+    })
+  })
+
+  it('steps numeric settings with buttons and blocks invalid relation commits', async () => {
+    const { wrapper } = await setup({ agentId: 'deepchat', hasActiveSession: false })
+    await (wrapper.vm as any).openModelSettings('openai', 'gpt-4')
+    await flushPromises()
+
+    await findNumericButton(wrapper, 'temperature', 'increment').trigger('click')
+    expect((wrapper.vm as any).localSettings.temperature).toBe(0.8)
+
+    await findNumericButton(wrapper, 'contextLength', 'decrement').trigger('click')
+    expect((wrapper.vm as any).localSettings.contextLength).toBe(14976)
+
+    await findNumericButton(wrapper, 'thinkingBudget', 'increment').trigger('click')
+    expect((wrapper.vm as any).localSettings.thinkingBudget).toBe(640)
+
+    await commitNumericInput(wrapper, 'contextLength', '2048')
+    expect((wrapper.vm as any).localSettings.contextLength).toBe(14976)
+    expect((wrapper.vm as any).localSettings.maxTokens).toBe(4096)
+    expect((findNumericInput(wrapper, 'contextLength').element as HTMLInputElement).value).toBe(
+      '2048'
+    )
+    expect(wrapper.text()).toContain(
+      'chat.advancedSettings.validation.contextLengthAtLeastMaxTokens'
+    )
+
+    await commitNumericInput(wrapper, 'maxTokens', '2048')
+    expect((wrapper.vm as any).localSettings.maxTokens).toBe(2048)
+
+    await commitNumericInput(wrapper, 'contextLength', '2048')
+    expect((wrapper.vm as any).localSettings.contextLength).toBe(2048)
+  })
+
+  it('keeps invalid numeric drafts visible and only commits valid values', async () => {
+    const { wrapper, draftStore } = await setup({ agentId: 'deepchat', hasActiveSession: false })
+    await (wrapper.vm as any).openModelSettings('openai', 'gpt-4')
+    await flushPromises()
+
+    const temperatureInput = findNumericInput(wrapper, 'temperature')
+    await temperatureInput.trigger('focus')
+    await temperatureInput.setValue('-3.2')
+
+    expect((wrapper.vm as any).localSettings.temperature).toBe(0.7)
+    expect((temperatureInput.element as HTMLInputElement).value).toBe('-3.2')
+
+    await temperatureInput.trigger('blur')
+    expect((wrapper.vm as any).localSettings.temperature).toBe(-3.2)
+    expect(draftStore.temperature).toBe(-3.2)
+
+    await commitNumericInput(wrapper, 'contextLength', '100.5')
+    await commitNumericInput(wrapper, 'maxTokens', '999999')
+
+    expect((wrapper.vm as any).localSettings.contextLength).toBe(16000)
+    expect((wrapper.vm as any).localSettings.maxTokens).toBe(4096)
+    expect((findNumericInput(wrapper, 'contextLength').element as HTMLInputElement).value).toBe(
+      '100.5'
+    )
+    expect((findNumericInput(wrapper, 'maxTokens').element as HTMLInputElement).value).toBe(
+      '999999'
+    )
+    expect(wrapper.text()).toContain('chat.advancedSettings.validation.nonNegativeInteger')
+    expect(wrapper.text()).toContain(
+      'chat.advancedSettings.validation.maxTokensWithinContextLength'
+    )
+    expect(draftStore.contextLength).toBeUndefined()
+    expect(draftStore.maxTokens).toBeUndefined()
+  })
+
+  it('treats negative thinking budget sentinels as switch-off state', async () => {
+    const { wrapper, configPresenter } = await setup({
+      agentId: 'deepchat',
+      hasActiveSession: false,
+      reasoningPortrait: {
+        supported: true,
+        defaultEnabled: true,
+        mode: 'budget',
+        budget: { min: 0, max: 8192, default: -1, auto: -1 },
+        verbosity: 'medium',
+        verbosityOptions: ['low', 'medium', 'high']
+      }
+    })
+    configPresenter.getModelConfig.mockReturnValue({
+      temperature: 0.7,
+      contextLength: 16000,
+      maxTokens: 4096,
+      thinkingBudget: -1,
+      verbosity: 'medium'
+    })
+
+    await (wrapper.vm as any).openModelSettings('anthropic', 'claude-3-5-sonnet')
+    await flushPromises()
+
+    expect(findThinkingBudgetToggle(wrapper).attributes('data-model-value')).toBe('false')
+    expect(findNumericInput(wrapper, 'thinkingBudget').exists()).toBe(false)
+    expect(wrapper.text()).toContain('common.disabled')
+
+    await findThinkingBudgetToggle(wrapper).trigger('click')
+    expect(findThinkingBudgetToggle(wrapper).attributes('data-model-value')).toBe('true')
+    expect((wrapper.vm as any).localSettings.thinkingBudget).toBe(0)
+
+    await findThinkingBudgetToggle(wrapper).trigger('click')
+    expect(findThinkingBudgetToggle(wrapper).attributes('data-model-value')).toBe('false')
+    expect((wrapper.vm as any).localSettings.thinkingBudget).toBeUndefined()
   })
 
   it('prefers preferredModel over defaultModel for draft selection', async () => {
@@ -729,10 +903,12 @@ describe('ChatStatusBar model and session panels', () => {
       activeProviderId: 'openai',
       activeModelId: 'gpt-4'
     })
+    await (wrapper.vm as any).openModelSettings('openai', 'gpt-4')
+    await flushPromises()
 
-    ;(wrapper.vm as any).onTemperatureSlider([0.9])
-    ;(wrapper.vm as any).onTemperatureSlider([1.1])
-    ;(wrapper.vm as any).onTemperatureSlider([1.2])
+    await commitNumericInput(wrapper, 'temperature', '0.9')
+    await commitNumericInput(wrapper, 'temperature', '1.1')
+    await commitNumericInput(wrapper, 'temperature', '1.2')
 
     vi.advanceTimersByTime(299)
     await flushPromises()
@@ -746,6 +922,138 @@ describe('ChatStatusBar model and session panels', () => {
       's1',
       expect.objectContaining({ temperature: 1.2 })
     )
+
+    vi.runOnlyPendingTimers()
+    vi.useRealTimers()
+  })
+
+  it('turns thinking budget off with the switch and clears the persisted field', async () => {
+    vi.useFakeTimers()
+
+    const { wrapper, newAgentPresenter } = await setup({
+      hasActiveSession: true,
+      activeProviderId: 'openai',
+      activeModelId: 'gpt-4'
+    })
+    await (wrapper.vm as any).openModelSettings('openai', 'gpt-4')
+    await flushPromises()
+
+    await findThinkingBudgetToggle(wrapper).trigger('click')
+    expect((wrapper.vm as any).localSettings.thinkingBudget).toBeUndefined()
+
+    vi.advanceTimersByTime(300)
+    await flushPromises()
+
+    expect(newAgentPresenter.updateSessionGenerationSettings).toHaveBeenCalledWith(
+      's1',
+      expect.objectContaining({ thinkingBudget: undefined })
+    )
+
+    vi.runOnlyPendingTimers()
+    vi.useRealTimers()
+  })
+
+  it('keeps invalid drafts and field errors when an older session response returns later', async () => {
+    vi.useFakeTimers()
+
+    const firstResponse = createDeferred<TestGenerationSettings>()
+
+    const { wrapper, newAgentPresenter } = await setup({
+      hasActiveSession: true,
+      activeProviderId: 'openai',
+      activeModelId: 'gpt-4'
+    })
+
+    newAgentPresenter.updateSessionGenerationSettings.mockImplementation(
+      () => firstResponse.promise
+    )
+
+    await (wrapper.vm as any).openModelSettings('openai', 'gpt-4')
+    await flushPromises()
+
+    await commitNumericInput(wrapper, 'temperature', '1.1')
+    vi.advanceTimersByTime(300)
+    await flushPromises()
+
+    await commitNumericInput(wrapper, 'contextLength', '100.5')
+
+    firstResponse.resolve({
+      systemPrompt: 'Default prompt',
+      temperature: 1.1,
+      contextLength: 16000,
+      maxTokens: 4096,
+      thinkingBudget: 512,
+      reasoningEffort: 'medium',
+      verbosity: 'medium'
+    })
+    await flushPromises()
+
+    expect((wrapper.vm as any).localSettings.temperature).toBe(1.1)
+    expect((wrapper.vm as any).localSettings.contextLength).toBe(16000)
+    expect((findNumericInput(wrapper, 'contextLength').element as HTMLInputElement).value).toBe(
+      '100.5'
+    )
+    expect(wrapper.text()).toContain('chat.advancedSettings.validation.nonNegativeInteger')
+
+    vi.runOnlyPendingTimers()
+    vi.useRealTimers()
+  })
+
+  it('keeps thinking budget off when an older session response returns later', async () => {
+    vi.useFakeTimers()
+
+    const firstResponse = createDeferred<TestGenerationSettings>()
+    const secondResponse = createDeferred<TestGenerationSettings>()
+    const responseQueue = [firstResponse.promise, secondResponse.promise]
+
+    const { wrapper, newAgentPresenter } = await setup({
+      hasActiveSession: true,
+      activeProviderId: 'openai',
+      activeModelId: 'gpt-4'
+    })
+
+    newAgentPresenter.updateSessionGenerationSettings.mockImplementation(
+      () => responseQueue.shift() ?? Promise.reject(new Error('missing mocked response'))
+    )
+
+    await (wrapper.vm as any).openModelSettings('openai', 'gpt-4')
+    await flushPromises()
+
+    await findNumericButton(wrapper, 'thinkingBudget', 'increment').trigger('click')
+    vi.advanceTimersByTime(300)
+    await flushPromises()
+
+    await findThinkingBudgetToggle(wrapper).trigger('click')
+
+    firstResponse.resolve({
+      systemPrompt: 'Default prompt',
+      temperature: 0.7,
+      contextLength: 16000,
+      maxTokens: 4096,
+      thinkingBudget: 640,
+      reasoningEffort: 'medium',
+      verbosity: 'medium'
+    })
+    await flushPromises()
+
+    expect((wrapper.vm as any).localSettings.thinkingBudget).toBeUndefined()
+    expect(findThinkingBudgetToggle(wrapper).attributes('data-model-value')).toBe('false')
+
+    vi.advanceTimersByTime(300)
+    await flushPromises()
+
+    secondResponse.resolve({
+      systemPrompt: 'Default prompt',
+      temperature: 0.7,
+      contextLength: 16000,
+      maxTokens: 4096,
+      reasoningEffort: 'medium',
+      verbosity: 'medium'
+    } as TestGenerationSettings)
+    await flushPromises()
+
+    expect((wrapper.vm as any).localSettings.thinkingBudget).toBeUndefined()
+    expect(findThinkingBudgetToggle(wrapper).attributes('data-model-value')).toBe('false')
 
     vi.runOnlyPendingTimers()
     vi.useRealTimers()
@@ -836,6 +1144,58 @@ describe('ChatStatusBar model and session panels', () => {
       providerId: 'anthropic',
       modelId: 'claude-3-5-sonnet'
     })
+  })
+
+  it('resets draft numeric overrides when switching models without an active session', async () => {
+    const { wrapper, draftStore, configPresenter } = await setup({
+      agentId: 'deepchat',
+      hasActiveSession: false
+    })
+    configPresenter.getModelConfig.mockImplementation((modelId: string, providerId: string) => {
+      if (providerId === 'anthropic' && modelId === 'claude-3-5-sonnet') {
+        return {
+          temperature: 0.2,
+          contextLength: 32000,
+          maxTokens: 2048,
+          thinkingBudget: 256,
+          reasoningEffort: 'low',
+          verbosity: 'high'
+        }
+      }
+      return {
+        temperature: 0.7,
+        contextLength: 16000,
+        maxTokens: 4096,
+        thinkingBudget: 512,
+        reasoningEffort: 'medium',
+        verbosity: 'medium'
+      }
+    })
+    ;(wrapper.vm as any).onTemperatureInput('1.5')
+    ;(wrapper.vm as any).commitTemperatureInput()
+    ;(wrapper.vm as any).onContextLengthInput('8192')
+    ;(wrapper.vm as any).commitContextLengthInput()
+    ;(wrapper.vm as any).onMaxTokensInput('1024')
+    ;(wrapper.vm as any).commitMaxTokensInput()
+    ;(wrapper.vm as any).onThinkingBudgetInput('1024')
+    ;(wrapper.vm as any).commitThinkingBudgetInput()
+
+    expect(draftStore.temperature).toBe(1.5)
+    expect(draftStore.contextLength).toBe(8192)
+    expect(draftStore.maxTokens).toBe(1024)
+    expect(draftStore.thinkingBudget).toBe(1024)
+
+    await (wrapper.vm as any).selectModel('anthropic', 'claude-3-5-sonnet')
+    await flushPromises()
+
+    expect(draftStore.temperature).toBeUndefined()
+    expect(draftStore.contextLength).toBeUndefined()
+    expect(draftStore.maxTokens).toBeUndefined()
+    expect(draftStore.thinkingBudget).toBeUndefined()
+    expect((wrapper.vm as any).localSettings.temperature).toBe(0.2)
+    expect((wrapper.vm as any).localSettings.contextLength).toBe(32000)
+    expect((wrapper.vm as any).localSettings.maxTokens).toBe(2048)
+    expect((wrapper.vm as any).localSettings.thinkingBudget).toBe(256)
   })
 
   it('uses ACP model id for the displayed icon', async () => {

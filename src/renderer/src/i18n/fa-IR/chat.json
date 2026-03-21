@@ -140,7 +140,16 @@
     "verbosity": "میزان جزئیات پاسخ",
     "verbosityPlaceholder": "سطح جزئیات را انتخاب کنید",
     "currentCustomPrompt": "سفارشی فعلی",
-    "useDefault": "استفاده از پیش‌فرض"
+    "useDefault": "استفاده از پیش‌فرض",
+    "decreaseValue": "کاهش {label}",
+    "increaseValue": "افزایش {label}",
+    "toggleValue": "روشن یا خاموش کردن {label}",
+    "validation": {
+      "finiteNumber": "باید یک عدد متناهی باشد",
+      "nonNegativeInteger": "باید یک عدد صحیح نامنفی باشد",
+      "contextLengthAtLeastMaxTokens": "باید بزرگ‌تر یا مساوی حداکثر توکن‌ها باشد",
+      "maxTokensWithinContextLength": "باید کوچک‌تر یا مساوی طول زمینه باشد"
+    }
   },
   "workspace": {
     "collapse": "بستن",

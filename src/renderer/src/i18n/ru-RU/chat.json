@@ -140,7 +140,16 @@
     "verbosity": "Детализация ответа",
     "verbosityPlaceholder": "Выберите уровень детализации",
     "currentCustomPrompt": "Текущий пользовательский",
-    "useDefault": "Использовать по умолчанию"
+    "useDefault": "Использовать по умолчанию",
+    "decreaseValue": "Уменьшить {label}",
+    "increaseValue": "Увеличить {label}",
+    "toggleValue": "Включить или выключить {label}",
+    "validation": {
+      "finiteNumber": "Должно быть конечным числом",
+      "nonNegativeInteger": "Должно быть неотрицательным целым числом",
+      "contextLengthAtLeastMaxTokens": "Должно быть больше или равно максимальному числу токенов",
+      "maxTokensWithinContextLength": "Должно быть меньше или равно длине контекста"
+    }
   },
   "workspace": {
     "collapse": "закрывать",

@@ -140,7 +140,16 @@
     "verbosity": "Nível de detalhe",
     "verbosityPlaceholder": "Selecione o nível de detalhe",
     "currentCustomPrompt": "Personalização atual",
-    "useDefault": "Usar padrão"
+    "useDefault": "Usar padrão",
+    "decreaseValue": "Diminuir {label}",
+    "increaseValue": "Aumentar {label}",
+    "toggleValue": "Ativar ou desativar {label}",
+    "validation": {
+      "finiteNumber": "Deve ser um número finito",
+      "nonNegativeInteger": "Deve ser um inteiro não negativo",
+      "contextLengthAtLeastMaxTokens": "Deve ser maior ou igual ao Máximo de saída",
+      "maxTokensWithinContextLength": "Deve ser menor ou igual ao Tamanho de contexto"
+    }
   },
   "workspace": {
     "collapse": "fechar",

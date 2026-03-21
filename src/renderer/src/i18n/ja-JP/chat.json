@@ -140,7 +140,16 @@
     "verbosity": "回答の詳しさ",
     "verbosityPlaceholder": "詳しさを選択",
     "currentCustomPrompt": "現在のカスタム",
-    "useDefault": "デフォルトを使用"
+    "useDefault": "デフォルトを使用",
+    "decreaseValue": "{label}を減らす",
+    "increaseValue": "{label}を増やす",
+    "toggleValue": "{label}のオン・オフを切り替える",
+    "validation": {
+      "finiteNumber": "有限の数値である必要があります",
+      "nonNegativeInteger": "0以上の整数である必要があります",
+      "contextLengthAtLeastMaxTokens": "最大トークン数以上である必要があります",
+      "maxTokensWithinContextLength": "コンテキスト長以下である必要があります"
+    }
   },
   "workspace": {
     "collapse": "近い",

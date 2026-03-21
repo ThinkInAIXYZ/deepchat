@@ -19,6 +19,12 @@ import type { IConfigPresenter, ILlmProviderPresenter, ModelConfig } from '@shar
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
 import type { ReasoningPortrait } from '@shared/types/model-db'
+import {
+  normalizeLegacyThinkingBudgetValue,
+  parseFiniteNumericValue,
+  toValidNonNegativeInteger,
+  validateGenerationNumericField
+} from '@shared/utils/generationSettingsValidation'
 import { nanoid } from 'nanoid'
 import type { SQLitePresenter } from '../sqlitePresenter'
 import { eventBus, SendTarget } from '@/eventbus'
@@ -86,11 +92,6 @@ type SystemPromptCacheEntry = {
   dayKey: string
   fingerprint: string
 }
-
-const TEMPERATURE_MIN = 0
-const TEMPERATURE_MAX = 2
-const CONTEXT_LENGTH_MIN = 2048
-const MAX_TOKENS_MIN = 128
 
 const isReasoningEffort = (value: unknown): value is 'minimal' | 'low' | 'medium' | 'high' =>
   value === 'minimal' || value === 'low' || value === 'medium' || value === 'high'
@@ -1894,7 +1895,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       patch.maxTokens = sessionRow.max_tokens
     }
     if (sessionRow.thinking_budget !== null) {
-      patch.thinkingBudget = sessionRow.thinking_budget
+      patch.thinkingBudget = normalizeLegacyThinkingBudgetValue(sessionRow.thinking_budget)
     }
     if (sessionRow.reasoning_effort !== null) {
       patch.reasoningEffort = sessionRow.reasoning_effort
@@ -1912,45 +1913,29 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
   ): Promise<SessionGenerationSettings> {
     const modelConfig = this.configPresenter.getModelConfig(modelId, providerId)
     const defaultSystemPrompt = await this.configPresenter.getDefaultSystemPrompt()
-    const contextLengthLimit = this.getContextLengthLimit(modelConfig)
-    const maxTokensLimit = this.getMaxTokensLimit(modelConfig)
+    const contextLengthDefault = toValidNonNegativeInteger(modelConfig.contextLength) ?? 32000
+    const maxTokensDefault =
+      toValidNonNegativeInteger(modelConfig.maxTokens) ?? Math.min(4096, contextLengthDefault)
 
     const defaults: SessionGenerationSettings = {
       systemPrompt: defaultSystemPrompt ?? '',
-      temperature: this.clampNumber(
-        modelConfig.temperature ?? 0.7,
-        TEMPERATURE_MIN,
-        TEMPERATURE_MAX
-      ),
-      contextLength: this.clampInteger(
-        modelConfig.contextLength ?? contextLengthLimit,
-        CONTEXT_LENGTH_MIN,
-        contextLengthLimit
-      ),
-      maxTokens: this.clampInteger(
-        modelConfig.maxTokens ?? Math.min(4096, maxTokensLimit),
-        MAX_TOKENS_MIN,
-        maxTokensLimit
-      )
+      temperature: parseFiniteNumericValue(modelConfig.temperature) ?? 0.7,
+      contextLength: contextLengthDefault,
+      maxTokens:
+        maxTokensDefault <= contextLengthDefault
+          ? maxTokensDefault
+          : Math.min(4096, contextLengthDefault)
     }
-
-    defaults.maxTokens = Math.min(defaults.maxTokens, defaults.contextLength)
 
     const supportsReasoning =
       this.configPresenter.supportsReasoningCapability?.(providerId, modelId) === true
     if (supportsReasoning) {
-      const budgetRange = this.configPresenter.getThinkingBudgetRange?.(providerId, modelId) ?? {}
-      const defaultBudget = this.toFiniteNumber(
-        modelConfig.thinkingBudget ?? budgetRange.default ?? undefined
+      const defaultBudget = normalizeLegacyThinkingBudgetValue(
+        modelConfig.thinkingBudget ??
+          this.configPresenter.getThinkingBudgetRange?.(providerId, modelId)?.default
       )
       if (defaultBudget !== undefined) {
-        defaults.thinkingBudget = this.normalizeThinkingBudget(
-          providerId,
-          modelId,
-          Math.round(defaultBudget),
-          budgetRange.min,
-          budgetRange.max
-        )
+        defaults.thinkingBudget = defaultBudget
       }
     }
 
@@ -1989,10 +1974,6 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     const base = baseSettings
       ? { ...baseSettings }
       : await this.buildDefaultGenerationSettings(providerId, modelId)
-    const modelConfig = this.configPresenter.getModelConfig(modelId, providerId)
-    const contextLengthLimit = this.getContextLengthLimit(modelConfig)
-    const maxTokensLimit = this.getMaxTokensLimit(modelConfig)
-
     const next: SessionGenerationSettings = { ...base }
 
     if (Object.prototype.hasOwnProperty.call(patch, 'systemPrompt')) {
@@ -2001,67 +1982,58 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     }
 
     if (Object.prototype.hasOwnProperty.call(patch, 'temperature')) {
-      const numeric = this.toFiniteNumber(patch.temperature)
-      next.temperature = this.clampNumber(
-        numeric ?? base.temperature,
-        TEMPERATURE_MIN,
-        TEMPERATURE_MAX
-      )
+      const numeric = parseFiniteNumericValue(patch.temperature)
+      if (numeric !== undefined) {
+        next.temperature = numeric
+      }
     }
 
+    const parsedContextLength = parseFiniteNumericValue(patch.contextLength)
+    const parsedMaxTokens = parseFiniteNumericValue(patch.maxTokens)
+    const nextContextReference =
+      Object.prototype.hasOwnProperty.call(patch, 'contextLength') &&
+      toValidNonNegativeInteger(parsedContextLength) !== undefined
+        ? toValidNonNegativeInteger(parsedContextLength)
+        : next.contextLength
+    const nextMaxTokensReference =
+      Object.prototype.hasOwnProperty.call(patch, 'maxTokens') &&
+      toValidNonNegativeInteger(parsedMaxTokens) !== undefined
+        ? toValidNonNegativeInteger(parsedMaxTokens)
+        : next.maxTokens
+
     if (Object.prototype.hasOwnProperty.call(patch, 'contextLength')) {
-      const numeric = this.toFiniteNumber(patch.contextLength)
-      next.contextLength = this.clampInteger(
-        Math.round(numeric ?? base.contextLength),
-        CONTEXT_LENGTH_MIN,
-        contextLengthLimit
-      )
-    } else {
-      next.contextLength = this.clampInteger(
-        next.contextLength,
-        CONTEXT_LENGTH_MIN,
-        contextLengthLimit
-      )
+      const error = validateGenerationNumericField('contextLength', patch.contextLength, {
+        maxTokens: nextMaxTokensReference
+      })
+      const numeric = toValidNonNegativeInteger(parsedContextLength)
+      if (!error && numeric !== undefined) {
+        next.contextLength = numeric
+      }
     }
 
     if (Object.prototype.hasOwnProperty.call(patch, 'maxTokens')) {
-      const numeric = this.toFiniteNumber(patch.maxTokens)
-      next.maxTokens = this.clampInteger(
-        Math.round(numeric ?? base.maxTokens),
-        MAX_TOKENS_MIN,
-        maxTokensLimit
-      )
-    } else {
-      next.maxTokens = this.clampInteger(next.maxTokens, MAX_TOKENS_MIN, maxTokensLimit)
+      const error = validateGenerationNumericField('maxTokens', patch.maxTokens, {
+        contextLength: nextContextReference
+      })
+      const numeric = toValidNonNegativeInteger(parsedMaxTokens)
+      if (!error && numeric !== undefined) {
+        next.maxTokens = numeric
+      }
     }
-    next.maxTokens = Math.min(next.maxTokens, next.contextLength)
 
     const supportsReasoning =
       this.configPresenter.supportsReasoningCapability?.(providerId, modelId) === true
     if (supportsReasoning) {
-      const budgetRange = this.configPresenter.getThinkingBudgetRange?.(providerId, modelId) ?? {}
       if (Object.prototype.hasOwnProperty.call(patch, 'thinkingBudget')) {
         const raw = patch.thinkingBudget
-        const numeric = this.toFiniteNumber(raw)
-        if (numeric === undefined) {
+        if (raw === undefined) {
           delete next.thinkingBudget
-        } else {
-          next.thinkingBudget = this.normalizeThinkingBudget(
-            providerId,
-            modelId,
-            Math.round(numeric),
-            budgetRange.min,
-            budgetRange.max
-          )
+        } else if (!validateGenerationNumericField('thinkingBudget', raw)) {
+          const numeric = toValidNonNegativeInteger(raw)
+          if (numeric !== undefined) {
+            next.thinkingBudget = numeric
+          }
         }
-      } else if (next.thinkingBudget !== undefined) {
-        next.thinkingBudget = this.normalizeThinkingBudget(
-          providerId,
-          modelId,
-          Math.round(next.thinkingBudget),
-          budgetRange.min,
-          budgetRange.max
-        )
       }
     } else {
       delete next.thinkingBudget
@@ -2170,72 +2142,6 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
 
   private getReasoningPortrait(providerId: string, modelId: string): ReasoningPortrait | null {
     return this.configPresenter.getReasoningPortrait?.(providerId, modelId) ?? null
-  }
-
-  private normalizeThinkingBudget(
-    providerId: string,
-    modelId: string,
-    value: number,
-    min?: number,
-    max?: number
-  ): number {
-    const roundedValue = Math.round(value)
-    const budget = this.getReasoningPortrait(providerId, modelId)?.budget
-    const sentinelValues = new Set<number>()
-
-    if (typeof budget?.default === 'number') sentinelValues.add(Math.round(budget.default))
-    if (typeof budget?.auto === 'number') sentinelValues.add(Math.round(budget.auto))
-    if (typeof budget?.off === 'number') sentinelValues.add(Math.round(budget.off))
-
-    if (sentinelValues.has(roundedValue)) {
-      return roundedValue
-    }
-
-    return this.clampNumberWithOptionalRange(roundedValue, min, max)
-  }
-
-  private toFiniteNumber(value: unknown): number | undefined {
-    if (typeof value !== 'number' || Number.isNaN(value) || !Number.isFinite(value)) {
-      return undefined
-    }
-    return value
-  }
-
-  private clampNumber(value: number, min: number, max: number): number {
-    if (value < min) return min
-    if (value > max) return max
-    return value
-  }
-
-  private clampInteger(value: number, min: number, max: number): number {
-    return Math.round(this.clampNumber(value, min, max))
-  }
-
-  private clampNumberWithOptionalRange(value: number, min?: number, max?: number): number {
-    let next = value
-    if (typeof min === 'number' && Number.isFinite(min)) {
-      next = Math.max(next, Math.round(min))
-    }
-    if (typeof max === 'number' && Number.isFinite(max)) {
-      next = Math.min(next, Math.round(max))
-    }
-    return next
-  }
-
-  private getContextLengthLimit(modelConfig: ModelConfig): number {
-    const configured = this.toFiniteNumber(modelConfig.contextLength)
-    if (configured === undefined) {
-      return 32000
-    }
-    return Math.max(CONTEXT_LENGTH_MIN, Math.round(configured))
-  }
-
-  private getMaxTokensLimit(modelConfig: ModelConfig): number {
-    const configured = this.toFiniteNumber(modelConfig.maxTokens)
-    if (configured === undefined) {
-      return 4096
-    }
-    return Math.max(MAX_TOKENS_MIN, Math.round(configured))
   }
 
   private async ensureSessionReadyForPendingInputMutation(sessionId: string): Promise<void> {

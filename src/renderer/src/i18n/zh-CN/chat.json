@@ -144,7 +144,16 @@
     "verbosity": "回答详略",
     "verbosityPlaceholder": "选择详略级别",
     "currentCustomPrompt": "当前自定义",
-    "useDefault": "使用默认值"
+    "useDefault": "使用默认值",
+    "decreaseValue": "减少 {label}",
+    "increaseValue": "增加 {label}",
+    "toggleValue": "切换 {label}",
+    "validation": {
+      "finiteNumber": "必须是有限数字",
+      "nonNegativeInteger": "必须是非负整数",
+      "contextLengthAtLeastMaxTokens": "必须大于或等于最大输出",
+      "maxTokensWithinContextLength": "必须小于或等于上下文长度"
+    }
   },
   "modelPicker": {
     "empty": "未找到模型"
