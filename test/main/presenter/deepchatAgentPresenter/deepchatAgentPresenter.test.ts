@@ -1165,6 +1165,27 @@ describe('DeepChatAgentPresenter', () => {
       expect(callArgs.tools).toEqual([])
     })
 
+    it('passes preserveInterleavedReasoning into next-turn compaction checks', async () => {
+      const prepareForNextUserTurn = vi
+        .spyOn((agent as any).compactionService, 'prepareForNextUserTurn')
+        .mockReturnValue(null)
+
+      await agent.initSession('s1', {
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        generationSettings: {
+          forceInterleavedThinkingCompat: true
+        }
+      })
+      await agent.processMessage('s1', 'Hello')
+
+      expect(prepareForNextUserTurn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          preserveInterleavedReasoning: true
+        })
+      )
+    })
+
     it('injects request trace context when trace debug is enabled', async () => {
       configPresenter.getSetting.mockImplementation((key: string) =>
         key === 'traceDebugEnabled' ? true : undefined

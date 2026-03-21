@@ -440,4 +440,85 @@ describeIfSqlite('SQLitePresenter legacy schema bootstrap', () => {
     })
     checkDb.close()
   })
+
+  it('migrates force_interleaved_thinking_compat when schema version is already 18', async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-sqlite-presenter-'))
+    tempDirs.push(tempDir)
+
+    const dbPath = path.join(tempDir, 'agent.db')
+    const bootstrapDb = new DatabaseCtor(dbPath)
+    bootstrapDb.exec(`
+      CREATE TABLE IF NOT EXISTS schema_versions (
+        version INTEGER PRIMARY KEY,
+        applied_at INTEGER NOT NULL
+      );
+      INSERT INTO schema_versions (version, applied_at) VALUES (18, ${Date.now()});
+      CREATE TABLE IF NOT EXISTS deepchat_sessions (
+        id TEXT PRIMARY KEY,
+        provider_id TEXT NOT NULL,
+        model_id TEXT NOT NULL,
+        permission_mode TEXT NOT NULL DEFAULT 'full_access',
+        system_prompt TEXT,
+        temperature REAL,
+        context_length INTEGER,
+        max_tokens INTEGER,
+        thinking_budget INTEGER,
+        reasoning_effort TEXT,
+        verbosity TEXT,
+        summary_text TEXT,
+        summary_cursor_order_seq INTEGER NOT NULL DEFAULT 1,
+        summary_updated_at INTEGER
+      );
+      INSERT INTO deepchat_sessions (
+        id,
+        provider_id,
+        model_id,
+        permission_mode,
+        system_prompt,
+        summary_text,
+        summary_cursor_order_seq
+      ) VALUES (
+        'session-1',
+        'openai',
+        'gpt-4o',
+        'full_access',
+        NULL,
+        NULL,
+        1
+      );
+    `)
+    bootstrapDb.close()
+
+    const presenter = new SQLitePresenterCtor(dbPath)
+    presenter.deepchatSessionsTable.updateGenerationSettings('session-1', {
+      forceInterleavedThinkingCompat: true
+    })
+    presenter.close()
+
+    const checkDb = new DatabaseCtor(dbPath)
+    const deepchatColumns = checkDb.prepare('PRAGMA table_info(deepchat_sessions)').all() as Array<{
+      name: string
+    }>
+    const columnNames = new Set(deepchatColumns.map((column) => column.name))
+
+    expect(columnNames.has('force_interleaved_thinking_compat')).toBe(true)
+
+    const row = checkDb
+      .prepare('SELECT force_interleaved_thinking_compat FROM deepchat_sessions WHERE id = ?')
+      .get('session-1') as
+      | {
+          force_interleaved_thinking_compat: number | null
+        }
+      | undefined
+
+    expect(row).toEqual({
+      force_interleaved_thinking_compat: 1
+    })
+
+    const versions = checkDb
+      .prepare('SELECT version FROM schema_versions ORDER BY version ASC')
+      .all() as Array<{ version: number }>
+    expect(versions.map((entry) => entry.version)).toContain(19)
+    checkDb.close()
+  })
 })

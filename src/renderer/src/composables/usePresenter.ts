@@ -38,12 +38,9 @@ function safeSerialize(obj: unknown): unknown {
   for (const key in obj) {
     if (Object.prototype.hasOwnProperty.call(obj, key)) {
       const value = (obj as Record<string, unknown>)[key]
-      // 跳过函数、Symbol和其他不可序列化的值
-      if (
-        typeof value !== 'function' &&
-        typeof value !== 'symbol' &&
-        typeof value !== 'undefined'
-      ) {
+      // Skip non-cloneable callable/symbol values, but preserve undefined so
+      // partial update payloads can explicitly clear fields across IPC.
+      if (typeof value !== 'function' && typeof value !== 'symbol') {
         serialized[key] = safeSerialize(value)
       }
     }

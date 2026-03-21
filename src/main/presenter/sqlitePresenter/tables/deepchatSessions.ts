@@ -83,7 +83,7 @@ export class DeepChatSessionsTable extends BaseTable {
       )
     }
 
-    if (version >= 17) {
+    if (version >= 19) {
       columns.push('force_interleaved_thinking_compat INTEGER')
     }
 
@@ -113,7 +113,7 @@ export class DeepChatSessionsTable extends BaseTable {
         ALTER TABLE deepchat_sessions ADD COLUMN summary_updated_at INTEGER;
       `
     }
-    if (version === 17) {
+    if (version === 19) {
       return `
         ALTER TABLE deepchat_sessions ADD COLUMN force_interleaved_thinking_compat INTEGER;
       `
@@ -122,7 +122,7 @@ export class DeepChatSessionsTable extends BaseTable {
   }
 
   getLatestVersion(): number {
-    return 17
+    return 19
   }
 
   create(

@@ -379,6 +379,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
         contextLength: generationSettings.contextLength,
         reserveTokens: maxTokens,
         supportsVision,
+        preserveInterleavedReasoning: interleavedReasoning.preserveReasoningContent,
         newUserContent: normalizedInput
       })
       let userMessageId: string
@@ -1521,7 +1522,8 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
         systemPrompt: baseSystemPrompt,
         contextLength: generationSettings.contextLength,
         reserveTokens: maxTokens,
-        supportsVision: this.supportsVision(state.providerId, state.modelId)
+        supportsVision: this.supportsVision(state.providerId, state.modelId),
+        preserveInterleavedReasoning: interleavedReasoning.preserveReasoningContent
       })
       const systemPrompt = appendSummarySection(baseSystemPrompt, summaryState.summaryText)
       let resumeContext = buildResumeContext(
@@ -2866,6 +2868,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     contextLength: number
     reserveTokens: number
     supportsVision: boolean
+    preserveInterleavedReasoning: boolean
   }): Promise<SessionSummaryState> {
     const intent = this.compactionService.prepareForResumeTurn(params)
     return await this.applyCompactionIntent(params.sessionId, intent)

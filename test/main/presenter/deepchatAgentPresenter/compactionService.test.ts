@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import * as contextBuilderModule from '@/presenter/deepchatAgentPresenter/contextBuilder'
 import {
   appendSummarySection,
   CompactionService,
@@ -9,6 +10,15 @@ import type { SessionSummaryState } from '@/presenter/deepchatAgentPresenter/ses
 vi.mock('tokenx', () => ({
   approximateTokenSize: vi.fn((text: string) => text.length)
 }))
+
+vi.mock('@/presenter/deepchatAgentPresenter/contextBuilder', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@/presenter/deepchatAgentPresenter/contextBuilder')>()
+  return {
+    ...actual,
+    buildHistoryTurns: vi.fn(actual.buildHistoryTurns)
+  }
+})
 
 function makeUserRecord(
   orderSeq: number,
@@ -37,6 +47,40 @@ function makeAssistantRecord(orderSeq: number, text: string) {
     role: 'assistant' as const,
     content: JSON.stringify([
       { type: 'content', content: text, status: 'success', timestamp: Date.now() }
+    ]),
+    status: 'sent' as const,
+    isContextEdge: 0,
+    metadata: '{}',
+    createdAt: Date.now(),
+    updatedAt: Date.now()
+  }
+}
+
+function makeAssistantWithReasoningAndToolRecord(
+  orderSeq: number,
+  text: string,
+  reasoning: string,
+  toolResponse: string
+) {
+  return {
+    id: `assistant-${orderSeq}`,
+    sessionId: 's1',
+    orderSeq,
+    role: 'assistant' as const,
+    content: JSON.stringify([
+      { type: 'reasoning_content', content: reasoning, status: 'success', timestamp: Date.now() },
+      { type: 'content', content: text, status: 'success', timestamp: Date.now() },
+      {
+        type: 'tool_call',
+        status: 'success',
+        timestamp: Date.now(),
+        tool_call: {
+          id: `tc-${orderSeq}`,
+          name: 'search',
+          params: '{}',
+          response: toolResponse
+        }
+      }
     ]),
     status: 'sent' as const,
     isContextEdge: 0,
@@ -161,6 +205,7 @@ describe('CompactionService', () => {
       contextLength: 900,
       reserveTokens: 256,
       supportsVision: true,
+      preserveInterleavedReasoning: false,
       newUserContent: 'Next turn'
     })
 
@@ -190,6 +235,7 @@ describe('CompactionService', () => {
       contextLength: 1000,
       reserveTokens: 100,
       supportsVision: false,
+      preserveInterleavedReasoning: false,
       newUserContent: 'latest turn'
     })
 
@@ -216,6 +262,7 @@ describe('CompactionService', () => {
       contextLength: 1000,
       reserveTokens: 100,
       supportsVision: false,
+      preserveInterleavedReasoning: false,
       newUserContent: 'latest turn'
     })
 
@@ -228,6 +275,7 @@ describe('CompactionService', () => {
       contextLength: 1000,
       reserveTokens: 100,
       supportsVision: false,
+      preserveInterleavedReasoning: false,
       newUserContent: 'latest turn'
     })
 
@@ -255,12 +303,53 @@ describe('CompactionService', () => {
       contextLength: 700,
       reserveTokens: 100,
       supportsVision: false,
+      preserveInterleavedReasoning: false,
       newUserContent: 'latest turn'
     })
 
     expect(intent).not.toBeNull()
     expect(intent?.summaryBlocks).toHaveLength(2)
     expect(intent?.targetCursorOrderSeq).toBe(5)
+  })
+
+  it('passes preserveInterleavedReasoning through to buildHistoryTurns', () => {
+    const { service, messageStore } = createService()
+    messageStore.getMessages.mockReturnValue([
+      makeUserRecord(1, 'turn one'),
+      makeAssistantWithReasoningAndToolRecord(2, 'tool finished', 'R'.repeat(420), 'tool result'),
+      makeUserRecord(3, 'turn two'),
+      makeAssistantRecord(4, 'reply two'),
+      makeUserRecord(5, 'turn three'),
+      makeAssistantRecord(6, 'reply three')
+    ])
+
+    const buildHistoryTurns = vi.mocked(contextBuilderModule.buildHistoryTurns)
+
+    service.prepareForNextUserTurn({
+      sessionId: 's1',
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      systemPrompt: '',
+      contextLength: 450,
+      reserveTokens: 100,
+      supportsVision: false,
+      preserveInterleavedReasoning: false,
+      newUserContent: 'next turn'
+    })
+    service.prepareForNextUserTurn({
+      sessionId: 's1',
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      systemPrompt: '',
+      contextLength: 450,
+      reserveTokens: 100,
+      supportsVision: false,
+      preserveInterleavedReasoning: true,
+      newUserContent: 'next turn'
+    })
+
+    expect(buildHistoryTurns).toHaveBeenNthCalledWith(1, expect.any(Array), false, false)
+    expect(buildHistoryTurns).toHaveBeenNthCalledWith(2, expect.any(Array), false, true)
   })
 
   it('retains the configured recent pairs plus the resume target turn', () => {
@@ -285,7 +374,8 @@ describe('CompactionService', () => {
       systemPrompt: '',
       contextLength: 900,
       reserveTokens: 100,
-      supportsVision: false
+      supportsVision: false,
+      preserveInterleavedReasoning: false
     })
 
     expect(intent).not.toBeNull()
