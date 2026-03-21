@@ -56,6 +56,7 @@ export default defineConfig({
       )
     },
     optimizeDeps: {
+      exclude: ['markstream-vue', 'stream-monaco'],
       include: [
         'monaco-editor',
         'axios'
