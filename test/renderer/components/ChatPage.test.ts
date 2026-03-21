@@ -8,7 +8,31 @@ const passthrough = (name: string) =>
     template: '<div><slot /></div>'
   })
 
-const setup = async () => {
+const buildAssistantMessage = (content: unknown) => ({
+  id: 'm1',
+  sessionId: 's1',
+  orderSeq: 1,
+  role: 'assistant' as const,
+  content: JSON.stringify(content),
+  status: 'sent' as const,
+  isContextEdge: 0,
+  metadata: JSON.stringify({
+    model: 'dimcode-acp',
+    provider: 'acp',
+    reasoningStartTime: 1_200,
+    reasoningEndTime: 4_500
+  }),
+  traceCount: 0,
+  createdAt: 1,
+  updatedAt: 1
+})
+
+type SetupOptions = {
+  messages?: Array<Record<string, unknown>>
+  pendingInputStorePatch?: Record<string, unknown>
+}
+
+const setup = async (options: SetupOptions = {}) => {
   vi.resetModules()
 
   const sessionStore = reactive({
@@ -26,32 +50,15 @@ const setup = async () => {
   })
 
   const messageStore = reactive({
-    messages: [
-      {
-        id: 'm1',
-        sessionId: 's1',
-        orderSeq: 1,
-        role: 'assistant' as const,
-        content: JSON.stringify([
-          {
-            type: 'reasoning_content',
-            content: 'thinking',
-            status: 'success',
-            timestamp: 1
-          }
-        ]),
-        status: 'sent' as const,
-        isContextEdge: 0,
-        metadata: JSON.stringify({
-          model: 'dimcode-acp',
-          provider: 'acp',
-          reasoningStartTime: 1_200,
-          reasoningEndTime: 4_500
-        }),
-        traceCount: 0,
-        createdAt: 1,
-        updatedAt: 1
-      }
+    messages: options.messages ?? [
+      buildAssistantMessage([
+        {
+          type: 'reasoning_content',
+          content: 'thinking',
+          status: 'success',
+          timestamp: 1
+        }
+      ])
     ],
     isStreaming: false,
     streamingBlocks: [],
@@ -73,7 +80,8 @@ const setup = async () => {
     convertToSteer: vi.fn().mockResolvedValue(undefined),
     deleteInput: vi.fn().mockResolvedValue(undefined),
     resumeQueue: vi.fn().mockResolvedValue(undefined),
-    clear: vi.fn()
+    clear: vi.fn(),
+    ...options.pendingInputStorePatch
   })
 
   const modelStore = reactive({
@@ -142,19 +150,28 @@ const setup = async () => {
     })
   }))
   vi.doMock('@/components/chat/ChatInputBox.vue', () => ({
-    default: passthrough('ChatInputBox')
+    default: defineComponent({
+      name: 'ChatInputBox',
+      template: '<div class="chat-input-box-stub"><slot name="toolbar" /></div>'
+    })
   }))
   vi.doMock('@/components/chat/ChatInputToolbar.vue', () => ({
     default: passthrough('ChatInputToolbar')
   }))
   vi.doMock('@/components/chat/PendingInputLane.vue', () => ({
-    default: passthrough('PendingInputLane')
+    default: defineComponent({
+      name: 'PendingInputLane',
+      template: '<div class="pending-input-lane-stub" />'
+    })
   }))
   vi.doMock('@/components/chat/ChatStatusBar.vue', () => ({
     default: passthrough('ChatStatusBar')
   }))
   vi.doMock('@/components/chat/ChatToolInteractionOverlay.vue', () => ({
-    default: passthrough('ChatToolInteractionOverlay')
+    default: defineComponent({
+      name: 'ChatToolInteractionOverlay',
+      template: '<div class="chat-tool-interaction-overlay-stub" />'
+    })
   }))
   vi.doMock('@/components/trace/TraceDialog.vue', () => ({
     default: passthrough('TraceDialog')
@@ -189,5 +206,76 @@ describe('ChatPage', () => {
     expect(messages).toHaveLength(1)
     expect(messages[0].usage.reasoning_start_time).toBe(1_200)
     expect(messages[0].usage.reasoning_end_time).toBe(4_500)
+  })
+
+  it('keeps pending lane visible below the tool interaction overlay', async () => {
+    const { wrapper } = await setup({
+      messages: [
+        buildAssistantMessage([
+          {
+            type: 'action',
+            action_type: 'question_request',
+            status: 'pending',
+            tool_call: {
+              id: 'tool-1',
+              name: 'question',
+              params: '{}'
+            }
+          }
+        ])
+      ],
+      pendingInputStorePatch: {
+        items: [
+          {
+            id: 'p1',
+            mode: 'queue',
+            payload: { text: 'queued', files: [] }
+          }
+        ],
+        queueItems: [
+          {
+            id: 'p1',
+            mode: 'queue',
+            payload: { text: 'queued', files: [] }
+          }
+        ]
+      }
+    })
+
+    const html = wrapper.html()
+    expect(wrapper.find('.chat-tool-interaction-overlay-stub').exists()).toBe(true)
+    expect(wrapper.find('.pending-input-lane-stub').exists()).toBe(true)
+    expect(wrapper.find('.chat-input-box-stub').exists()).toBe(false)
+    expect(html.indexOf('chat-tool-interaction-overlay-stub')).toBeLessThan(
+      html.indexOf('pending-input-lane-stub')
+    )
+  })
+
+  it('renders pending lane above the input box when no tool interaction is active', async () => {
+    const { wrapper } = await setup({
+      pendingInputStorePatch: {
+        items: [
+          {
+            id: 'p1',
+            mode: 'queue',
+            payload: { text: 'queued', files: [] }
+          }
+        ],
+        queueItems: [
+          {
+            id: 'p1',
+            mode: 'queue',
+            payload: { text: 'queued', files: [] }
+          }
+        ]
+      }
+    })
+
+    const html = wrapper.html()
+    expect(wrapper.find('.pending-input-lane-stub').exists()).toBe(true)
+    expect(wrapper.find('.chat-input-box-stub').exists()).toBe(true)
+    expect(html.indexOf('pending-input-lane-stub')).toBeLessThan(
+      html.indexOf('chat-input-box-stub')
+    )
   })
 })

@@ -38,7 +38,7 @@
             :queue-items="pendingInputStore.queueItems"
             :disable-steer-action="pendingInputStore.isAtCapacity"
             :show-resume-queue="showResumePendingQueue"
-            class="mb-2"
+            class="mb-1.5"
             @update-queue="onPendingInputUpdate"
             @move-queue="onPendingInputMove"
             @convert-queue-to-steer="onPendingInputConvert"
