@@ -142,6 +142,8 @@
     "maxTokens": "Max Tokens",
     "thinkingBudget": "Thinking Budget",
     "verbosity": "Verbosity",
+    "forceInterleavedThinkingCompat": "Force Interleaved Thinking Compatibility",
+    "forceInterleavedThinkingCompatDescription": "Use when an OpenAI-compatible reasoning model requires reasoning_content on assistant tool-call messages.",
     "verbosityPlaceholder": "Select verbosity",
     "currentCustomPrompt": "Current custom",
     "useDefault": "Use default",

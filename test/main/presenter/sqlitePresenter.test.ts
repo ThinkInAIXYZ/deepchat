@@ -417,23 +417,26 @@ describeIfSqlite('SQLitePresenter legacy schema bootstrap', () => {
     expect(columnNames.has('system_prompt')).toBe(true)
     expect(columnNames.has('summary_text')).toBe(true)
     expect(columnNames.has('summary_cursor_order_seq')).toBe(true)
+    expect(columnNames.has('force_interleaved_thinking_compat')).toBe(true)
 
     const row = checkDb
       .prepare(
-        'SELECT system_prompt, summary_text, summary_cursor_order_seq FROM deepchat_sessions WHERE id = ?'
+        'SELECT system_prompt, summary_text, summary_cursor_order_seq, force_interleaved_thinking_compat FROM deepchat_sessions WHERE id = ?'
       )
       .get('session-1') as
       | {
           system_prompt: string | null
           summary_text: string | null
           summary_cursor_order_seq: number
+          force_interleaved_thinking_compat: number | null
         }
       | undefined
 
     expect(row).toEqual({
       system_prompt: null,
       summary_text: null,
-      summary_cursor_order_seq: 1
+      summary_cursor_order_seq: 1,
+      force_interleaved_thinking_compat: null
     })
     checkDb.close()
   })

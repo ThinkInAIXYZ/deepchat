@@ -138,6 +138,8 @@
     "maxTokens": "Máx. de tokens",
     "thinkingBudget": "Orçamento de raciocínio",
     "verbosity": "Nível de detalhe",
+    "forceInterleavedThinkingCompat": "Forcar compatibilidade com Interleaved Thinking",
+    "forceInterleavedThinkingCompatDescription": "Use quando um modelo de raciocinio compativel com OpenAI exigir reasoning_content nas mensagens de tool-call do assistente.",
     "verbosityPlaceholder": "Selecione o nível de detalhe",
     "currentCustomPrompt": "Personalização atual",
     "useDefault": "Usar padrão",

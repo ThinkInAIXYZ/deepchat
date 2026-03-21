@@ -12,6 +12,14 @@ import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
 import type { DeepChatMessageStore } from './messageStore'
 import type { ToolOutputGuard } from './toolOutputGuard'
 
+export interface InterleavedReasoningConfig {
+  preserveReasoningContent: boolean
+  forcedBySessionSetting: boolean
+  portraitInterleaved: boolean
+  reasoningSupported: boolean
+  providerDbSourceUrl: string
+}
+
 export interface ToolCallResult {
   id: string
   name: string
@@ -61,6 +69,13 @@ export interface ProcessHooks {
       params?: string
     }
   ) => void
+  onInterleavedReasoningGap?: (gap: {
+    providerId: string
+    modelId: string
+    providerDbSourceUrl: string
+    reasoningContentLength: number
+    toolCallCount: number
+  }) => void
 }
 
 export interface PendingToolInteraction {
@@ -126,6 +141,7 @@ export interface ProcessParams {
   modelConfig: ModelConfig
   temperature: number
   maxTokens: number
+  interleavedReasoning: InterleavedReasoningConfig
   permissionMode: PermissionMode
   toolOutputGuard: ToolOutputGuard
   initialBlocks?: AssistantMessageBlock[]

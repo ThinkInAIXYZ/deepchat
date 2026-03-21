@@ -138,6 +138,8 @@
     "maxTokens": "最大トークン",
     "thinkingBudget": "思考予算",
     "verbosity": "回答の詳しさ",
+    "forceInterleavedThinkingCompat": "Interleaved Thinking互換を強制",
+    "forceInterleavedThinkingCompatDescription": "OpenAI互換の推論モデルで、assistant の tool-call メッセージに reasoning_content が必要な場合に使用します。",
     "verbosityPlaceholder": "詳しさを選択",
     "currentCustomPrompt": "現在のカスタム",
     "useDefault": "デフォルトを使用",

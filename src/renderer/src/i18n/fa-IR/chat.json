@@ -138,6 +138,8 @@
     "maxTokens": "حداکثر توکن",
     "thinkingBudget": "بودجه تفکر",
     "verbosity": "میزان جزئیات پاسخ",
+    "forceInterleavedThinkingCompat": "اجبار سازگاری با تفکر درهم‌تنیده",
+    "forceInterleavedThinkingCompatDescription": "وقتی استفاده کنید که یک مدل استدلالی سازگار با OpenAI نیاز دارد در پیام‌های tool-call دستیار، reasoning_content ارسال شود.",
     "verbosityPlaceholder": "سطح جزئیات را انتخاب کنید",
     "currentCustomPrompt": "سفارشی فعلی",
     "useDefault": "استفاده از پیش‌فرض",

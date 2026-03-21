@@ -138,6 +138,8 @@
     "maxTokens": "Jetons max",
     "thinkingBudget": "Budget de réflexion",
     "verbosity": "Niveau de détail",
+    "forceInterleavedThinkingCompat": "Forcer la compatibilite Interleaved Thinking",
+    "forceInterleavedThinkingCompatDescription": "A utiliser lorsqu'un modele de raisonnement compatible OpenAI exige reasoning_content dans les messages d'appel d'outil de l'assistant.",
     "verbosityPlaceholder": "Sélectionner un niveau de détail",
     "currentCustomPrompt": "Personnalisé actuel",
     "useDefault": "Utiliser la valeur par défaut",

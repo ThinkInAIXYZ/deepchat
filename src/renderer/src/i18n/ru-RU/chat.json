@@ -138,6 +138,8 @@
     "maxTokens": "Макс. токенов",
     "thinkingBudget": "Бюджет размышления",
     "verbosity": "Детализация ответа",
+    "forceInterleavedThinkingCompat": "Принудительная совместимость с interleaved thinking",
+    "forceInterleavedThinkingCompatDescription": "Используйте, когда совместимая с OpenAI рассуждающая модель требует reasoning_content в сообщениях assistant с tool-call.",
     "verbosityPlaceholder": "Выберите уровень детализации",
     "currentCustomPrompt": "Текущий пользовательский",
     "useDefault": "Использовать по умолчанию",

@@ -3,7 +3,11 @@ import fs from 'fs/promises'
 import os from 'os'
 import path from 'path'
 import { app } from 'electron'
-import type { StreamState, IoParams } from '@/presenter/deepchatAgentPresenter/types'
+import type {
+  InterleavedReasoningConfig,
+  IoParams,
+  StreamState
+} from '@/presenter/deepchatAgentPresenter/types'
 import { createState } from '@/presenter/deepchatAgentPresenter/types'
 import type { MCPToolDefinition } from '@shared/presenter'
 import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
@@ -37,7 +41,11 @@ vi.mock('@/presenter', () => ({
   }
 }))
 
-import { executeTools, finalize, finalizeError } from '@/presenter/deepchatAgentPresenter/dispatch'
+import {
+  executeTools as executeToolsInternal,
+  finalize,
+  finalizeError
+} from '@/presenter/deepchatAgentPresenter/dispatch'
 import { eventBus } from '@/eventbus'
 
 function createIo(overrides?: Partial<IoParams>): IoParams {
@@ -83,6 +91,48 @@ function createMockToolPresenter(responses: Record<string, string> = {}): IToolP
     }),
     buildToolSystemPrompt: vi.fn().mockReturnValue('')
   } as unknown as IToolPresenter
+}
+
+const DEFAULT_INTERLEAVED_REASONING: InterleavedReasoningConfig = {
+  preserveReasoningContent: false,
+  forcedBySessionSetting: false,
+  portraitInterleaved: false,
+  reasoningSupported: false,
+  providerDbSourceUrl: 'https://example.com/provider-db.json'
+}
+
+async function executeTools(
+  state: StreamState,
+  conversation: any[],
+  prevBlockCount: number,
+  tools: MCPToolDefinition[],
+  toolPresenter: IToolPresenter,
+  modelId: string,
+  io: IoParams,
+  permissionMode: 'default' | 'full_access',
+  toolOutputGuard: ToolOutputGuard,
+  contextLength: number,
+  maxTokens: number,
+  hooks?: Parameters<typeof executeToolsInternal>[12],
+  providerId?: string,
+  interleavedReasoning: InterleavedReasoningConfig = DEFAULT_INTERLEAVED_REASONING
+) {
+  return executeToolsInternal(
+    state,
+    conversation,
+    prevBlockCount,
+    tools,
+    toolPresenter,
+    modelId,
+    interleavedReasoning,
+    io,
+    permissionMode,
+    toolOutputGuard,
+    contextLength,
+    maxTokens,
+    hooks,
+    providerId
+  )
 }
 
 describe('dispatch', () => {
@@ -292,7 +342,7 @@ describe('dispatch', () => {
       expect(state.blocks[0].tool_call!.server_description).toBe('Test server')
     })
 
-    it('includes reasoning_content for deepseek-reasoner models', async () => {
+    it('includes reasoning_content when interleaved compatibility is enabled', async () => {
       const tools = [makeTool('search')]
       const toolPresenter = createMockToolPresenter({ search: 'result' })
       const conversation: any[] = []
@@ -318,19 +368,26 @@ describe('dispatch', () => {
         0,
         tools,
         toolPresenter,
-        'deepseek-reasoner',
+        'gpt-4',
         io,
         'full_access',
         new ToolOutputGuard(),
         32000,
-        1024
+        1024,
+        undefined,
+        undefined,
+        {
+          ...DEFAULT_INTERLEAVED_REASONING,
+          preserveReasoningContent: true,
+          portraitInterleaved: true
+        }
       )
 
       const assistantMsg = conversation.find((m: any) => m.role === 'assistant')
       expect(assistantMsg.reasoning_content).toBe('Let me think...')
     })
 
-    it('does not include reasoning_content for non-reasoning models', async () => {
+    it('does not include reasoning_content when compatibility is disabled', async () => {
       const tools = [makeTool('search')]
       const toolPresenter = createMockToolPresenter({ search: 'result' })
       const conversation: any[] = []
@@ -366,6 +423,61 @@ describe('dispatch', () => {
 
       const assistantMsg = conversation.find((m: any) => m.role === 'assistant')
       expect(assistantMsg.reasoning_content).toBeUndefined()
+    })
+
+    it('reports an interleaved reasoning gap when reasoning exists but compatibility is unavailable', async () => {
+      const tools = [makeTool('search')]
+      const toolPresenter = createMockToolPresenter({ search: 'result' })
+      const conversation: any[] = []
+      const hooks = {
+        onInterleavedReasoningGap: vi.fn()
+      }
+
+      state.blocks.push({
+        type: 'reasoning_content',
+        content: 'Thinking...',
+        status: 'pending',
+        timestamp: Date.now()
+      })
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: { id: 'tc1', name: 'search', params: '{}', response: '' }
+      })
+      state.completedToolCalls = [{ id: 'tc1', name: 'search', arguments: '{}' }]
+
+      await executeTools(
+        state,
+        conversation,
+        0,
+        tools,
+        toolPresenter,
+        'gpt-4',
+        io,
+        'full_access',
+        new ToolOutputGuard(),
+        32000,
+        1024,
+        hooks,
+        'zenmux',
+        {
+          ...DEFAULT_INTERLEAVED_REASONING,
+          reasoningSupported: true,
+          providerDbSourceUrl: 'https://example.com/dist/all.json'
+        }
+      )
+
+      const assistantMsg = conversation.find((message: any) => message.role === 'assistant')
+      expect(assistantMsg.reasoning_content).toBeUndefined()
+      expect(hooks.onInterleavedReasoningGap).toHaveBeenCalledWith({
+        providerId: 'zenmux',
+        modelId: 'gpt-4',
+        providerDbSourceUrl: 'https://example.com/dist/all.json',
+        reasoningContentLength: 'Thinking...'.length,
+        toolCallCount: 1
+      })
     })
 
     it('handles tool error', async () => {

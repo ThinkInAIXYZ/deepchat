@@ -129,6 +129,40 @@ function makeAssistantWithToolRecord(
   }
 }
 
+function makeAssistantWithReasoningAndToolRecord(
+  orderSeq: number,
+  text: string,
+  reasoning: string,
+  toolResponse: string
+) {
+  return {
+    id: `asst-${orderSeq}`,
+    sessionId: 's1',
+    orderSeq,
+    role: 'assistant' as const,
+    content: JSON.stringify([
+      { type: 'reasoning_content', content: reasoning, status: 'success', timestamp: Date.now() },
+      { type: 'content', content: text, status: 'success', timestamp: Date.now() },
+      {
+        type: 'tool_call',
+        status: 'success',
+        timestamp: Date.now(),
+        tool_call: {
+          id: `tc-${orderSeq}`,
+          name: 'example_tool',
+          params: '{"foo":"bar"}',
+          response: toolResponse
+        }
+      }
+    ]),
+    status: 'sent' as const,
+    isContextEdge: 0,
+    metadata: '{}',
+    createdAt: Date.now(),
+    updatedAt: Date.now()
+  }
+}
+
 describe('truncateContext', () => {
   it('returns all messages when within budget', () => {
     const history = [
@@ -297,6 +331,63 @@ describe('buildContext', () => {
       role: 'assistant',
       content: 'Let me think...The answer is 42'
     })
+  })
+
+  it('preserves reasoning_content separately for settled tool calls when enabled', () => {
+    const messages = [
+      makeUserRecord(1, 'Use a tool'),
+      makeAssistantWithReasoningAndToolRecord(2, 'Tool finished', 'Let me think...', 'All good')
+    ]
+    const store = createMockMessageStore(messages)
+    const result = buildContext('s1', 'next', '', 10000, 4096, store, false, {
+      preserveInterleavedReasoning: true
+    })
+
+    expect(result).toEqual([
+      { role: 'user', content: 'Use a tool' },
+      {
+        role: 'assistant',
+        content: 'Tool finished',
+        reasoning_content: 'Let me think...',
+        tool_calls: [
+          {
+            id: 'tc-2',
+            type: 'function',
+            function: { name: 'example_tool', arguments: '{"foo":"bar"}' }
+          }
+        ]
+      },
+      { role: 'tool', tool_call_id: 'tc-2', content: 'All good' },
+      { role: 'user', content: 'next' }
+    ])
+  })
+
+  it('does not preserve reasoning_content separately for settled tool calls when disabled', () => {
+    const messages = [
+      makeUserRecord(1, 'Use a tool'),
+      makeAssistantWithReasoningAndToolRecord(2, 'Tool finished', 'Let me think...', 'All good')
+    ]
+    const store = createMockMessageStore(messages)
+    const result = buildContext('s1', 'next', '', 10000, 4096, store, false, {
+      preserveInterleavedReasoning: false
+    })
+
+    expect(result).toEqual([
+      { role: 'user', content: 'Use a tool' },
+      {
+        role: 'assistant',
+        content: 'Tool finished',
+        tool_calls: [
+          {
+            id: 'tc-2',
+            type: 'function',
+            function: { name: 'example_tool', arguments: '{"foo":"bar"}' }
+          }
+        ]
+      },
+      { role: 'tool', tool_call_id: 'tc-2', content: 'All good' },
+      { role: 'user', content: 'next' }
+    ])
   })
 
   it('truncates oldest history when over context limit', () => {

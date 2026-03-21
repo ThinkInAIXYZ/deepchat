@@ -138,6 +138,8 @@
     "maxTokens": "최대 토큰",
     "thinkingBudget": "사고 예산",
     "verbosity": "응답 상세도",
+    "forceInterleavedThinkingCompat": "Interleaved Thinking 호환성 강제",
+    "forceInterleavedThinkingCompatDescription": "OpenAI 호환 추론 모델이 assistant tool-call 메시지에 reasoning_content를 요구할 때 사용합니다.",
     "verbosityPlaceholder": "상세도 선택",
     "currentCustomPrompt": "현재 사용자 지정",
     "useDefault": "기본값 사용",

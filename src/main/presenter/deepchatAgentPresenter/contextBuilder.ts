@@ -15,6 +15,7 @@ export type ContextBuildOptions = {
   summaryCursorOrderSeq?: number
   historyRecords?: ChatMessageRecord[]
   fallbackProtectedTurnCount?: number
+  preserveInterleavedReasoning?: boolean
 }
 
 type TokenizedTurn = {
@@ -216,7 +217,8 @@ export function estimateMessagesTokens(messages: ChatMessage[]): number {
  */
 export function recordToChatMessages(
   record: ChatMessageRecord,
-  supportsVision: boolean
+  supportsVision: boolean,
+  preserveInterleavedReasoning: boolean = false
 ): ChatMessage[] {
   if (isCompactionRecord(record)) {
     return []
@@ -228,8 +230,16 @@ export function recordToChatMessages(
   }
 
   const blocks = JSON.parse(record.content) as AssistantMessageBlock[]
-  const text = blocks
+  const combinedText = blocks
     .filter((block) => block.type === 'content' || block.type === 'reasoning_content')
+    .map((block) => block.content)
+    .join('')
+  const text = blocks
+    .filter((block) => block.type === 'content')
+    .map((block) => block.content)
+    .join('')
+  const reasoning = blocks
+    .filter((block) => block.type === 'reasoning_content')
     .map((block) => block.content)
     .join('')
 
@@ -244,7 +254,7 @@ export function recordToChatMessages(
   )
 
   if (toolCallBlocks.length === 0) {
-    return [{ role: 'assistant', content: text }]
+    return [{ role: 'assistant', content: combinedText }]
   }
 
   const toolCalls: NonNullable<ChatMessage['tool_calls']> = []
@@ -261,13 +271,16 @@ export function recordToChatMessages(
   }
 
   if (toolCalls.length === 0) {
-    return [{ role: 'assistant', content: text }]
+    return [{ role: 'assistant', content: combinedText }]
   }
 
   const assistantMessage: ChatMessage = {
     role: 'assistant',
     content: text,
     tool_calls: toolCalls
+  }
+  if (preserveInterleavedReasoning && reasoning) {
+    assistantMessage.reasoning_content = reasoning
   }
 
   const result: ChatMessage[] = [assistantMessage]
@@ -284,7 +297,8 @@ export function recordToChatMessages(
 
 export function buildHistoryTurns(
   records: ChatMessageRecord[],
-  supportsVision: boolean
+  supportsVision: boolean,
+  preserveInterleavedReasoning: boolean = false
 ): HistoryTurn[] {
   const sortedRecords = [...records].sort((a, b) => a.orderSeq - b.orderSeq)
   const turns: ChatMessageRecord[][] = []
@@ -310,7 +324,9 @@ export function buildHistoryTurns(
   }
 
   return turns.map((turnRecords) => {
-    const messages = turnRecords.flatMap((record) => recordToChatMessages(record, supportsVision))
+    const messages = turnRecords.flatMap((record) =>
+      recordToChatMessages(record, supportsVision, preserveInterleavedReasoning)
+    )
     return {
       records: turnRecords,
       messages,
@@ -440,7 +456,11 @@ export function buildContext(
     options.historyRecords ??
     messageStore.getMessages(sessionId).filter((message) => message.status === 'sent')
   const historyRecords = filterRecordsFromCursor(sentRecords, options.summaryCursorOrderSeq ?? 1)
-  const historyTurns = buildHistoryTurns(historyRecords, supportsVision)
+  const historyTurns = buildHistoryTurns(
+    historyRecords,
+    supportsVision,
+    options.preserveInterleavedReasoning ?? false
+  )
 
   const newUserMessage = createUserChatMessage(newUserContent, supportsVision)
   const systemPromptTokens = systemPrompt ? approximateTokenSize(systemPrompt) : 0
@@ -530,7 +550,11 @@ export function buildResumeContext(
     return message.orderSeq >= cursor
   })
 
-  const historyTurns = buildHistoryTurns(historyRecords, supportsVision)
+  const historyTurns = buildHistoryTurns(
+    historyRecords,
+    supportsVision,
+    options.preserveInterleavedReasoning ?? false
+  )
   const systemPromptTokens = systemPrompt ? approximateTokenSize(systemPrompt) : 0
   const available = contextLength - systemPromptTokens - reserveTokens
   const selectedHistory = selectTurnHistory(

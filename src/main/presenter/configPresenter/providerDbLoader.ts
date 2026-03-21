@@ -77,6 +77,10 @@ export class ProviderDbLoader {
     return provider.models.find((m) => m.id === modelId)
   }
 
+  getSourceUrl(): string {
+    return this.readMeta()?.sourceUrl?.trim() || this.getProviderDbUrl()
+  }
+
   private loadFromCache(): ProviderAggregate | null {
     try {
       if (!fs.existsSync(this.cacheFilePath)) return null

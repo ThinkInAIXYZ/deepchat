@@ -1223,6 +1223,44 @@ describe('DeepChatAgentPresenter', () => {
       expect(callArgs.modelConfig.requestTraceContext).toBeUndefined()
       expect(sqlitePresenter.deepchatMessageTracesTable.insert).not.toHaveBeenCalled()
     })
+
+    it('persists interleaved reasoning gaps into traces when trace debug is enabled', async () => {
+      configPresenter.getSetting.mockImplementation((key: string) =>
+        key === 'traceDebugEnabled' ? true : undefined
+      )
+      ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async (args) => {
+        args.hooks?.onInterleavedReasoningGap?.({
+          providerId: 'zenmux',
+          modelId: 'moonshotai/kimi-k2.5',
+          providerDbSourceUrl: 'https://example.com/dist/all.json',
+          reasoningContentLength: 42,
+          toolCallCount: 1
+        })
+        return { status: 'completed' }
+      })
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.processMessage('s1', 'Hello')
+
+      expect(sqlitePresenter.deepchatMessageTracesTable.insert).toHaveBeenCalledTimes(1)
+      const inserted = sqlitePresenter.deepchatMessageTracesTable.insert.mock.calls[0][0]
+      const body = JSON.parse(inserted.bodyJson) as {
+        providerId: string
+        modelId: string
+        providerDbSourceUrl: string
+        reasoningContentLength: number
+        toolCallCount: number
+      }
+
+      expect(inserted.endpoint).toBe('deepchat://interleaved-reasoning-gap')
+      expect(body).toEqual({
+        providerId: 'zenmux',
+        modelId: 'moonshotai/kimi-k2.5',
+        providerDbSourceUrl: 'https://example.com/dist/all.json',
+        reasoningContentLength: 42,
+        toolCallCount: 1
+      })
+    })
   })
 
   describe('generation settings', () => {
@@ -1263,6 +1301,51 @@ describe('DeepChatAgentPresenter', () => {
       )
     })
 
+    it('persists and restores forceInterleavedThinkingCompat', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+
+      const enabled = await agent.updateGenerationSettings('s1', {
+        forceInterleavedThinkingCompat: true
+      })
+
+      expect(enabled.forceInterleavedThinkingCompat).toBe(true)
+      expect(
+        sqlitePresenter.deepchatSessionsTable.updateGenerationSettings
+      ).toHaveBeenLastCalledWith(
+        's1',
+        expect.objectContaining({
+          forceInterleavedThinkingCompat: true
+        })
+      )
+
+      const cleared = await agent.updateGenerationSettings('s1', {
+        forceInterleavedThinkingCompat: undefined
+      })
+
+      expect(cleared.forceInterleavedThinkingCompat).toBeUndefined()
+      const clearedPatch =
+        sqlitePresenter.deepchatSessionsTable.updateGenerationSettings.mock.calls.at(-1)?.[1]
+      expect(clearedPatch).toHaveProperty('forceInterleavedThinkingCompat', undefined)
+
+      sqlitePresenter.deepchatSessionsTable.get.mockReturnValue({
+        id: 's2',
+        provider_id: 'openai',
+        model_id: 'gpt-4',
+        permission_mode: 'full_access',
+        system_prompt: null,
+        temperature: null,
+        context_length: null,
+        max_tokens: null,
+        thinking_budget: null,
+        reasoning_effort: null,
+        verbosity: null,
+        force_interleaved_thinking_compat: 1
+      })
+
+      const persisted = await agent.getGenerationSettings('s2')
+      expect(persisted?.forceInterleavedThinkingCompat).toBe(true)
+    })
+
     it('treats legacy negative thinking budget rows as disabled and ignores new negative updates', async () => {
       sqlitePresenter.deepchatSessionsTable.get.mockReturnValue({
         id: 's2',
@@ -1275,7 +1358,8 @@ describe('DeepChatAgentPresenter', () => {
         max_tokens: 4096,
         thinking_budget: -1,
         reasoning_effort: 'medium',
-        verbosity: 'medium'
+        verbosity: 'medium',
+        force_interleaved_thinking_compat: null
       })
 
       const persisted = await agent.getGenerationSettings('s2')
@@ -1349,7 +1433,8 @@ describe('DeepChatAgentPresenter', () => {
         max_tokens: null,
         thinking_budget: null,
         reasoning_effort: null,
-        verbosity: null
+        verbosity: null,
+        force_interleaved_thinking_compat: null
       })
 
       const settings = await agent.getGenerationSettings('s2')
