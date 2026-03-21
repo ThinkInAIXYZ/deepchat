@@ -4,10 +4,13 @@ import path from 'path'
 import { nanoid } from 'nanoid'
 import logger from '@shared/logger'
 import { getShellEnvironment, getUserShell } from './shellEnvHelper'
+import { terminateProcessTree } from './processTree'
 import { resolveSessionDir } from './sessionPaths'
 
 // Configuration with environment variable support
-const getConfig = () => ({
+const FOREGROUND_PREVIEW_CHARS = 12000
+
+export const getBackgroundExecConfig = () => ({
   backgroundMs: parseInt(process.env.PI_BASH_YIELD_MS || '10000', 10),
   timeoutSec: parseInt(process.env.PI_BASH_TIMEOUT_SEC || '1800', 10),
   cleanupMs: parseInt(process.env.PI_BASH_JOB_TTL_MS || '1800000', 10),
@@ -21,6 +24,8 @@ const getConfig = () => ({
   offloadThresholdChars: 10000 // Offload to file when output exceeds this
 })
 
+const getConfig = getBackgroundExecConfig
+
 export interface SessionMeta {
   sessionId: string
   command: string
@@ -31,7 +36,21 @@ export interface SessionMeta {
   exitCode?: number
   outputLength: number
   offloaded: boolean
+  timedOut?: boolean
 }
+
+export interface SessionCompletionResult {
+  status: 'done' | 'error' | 'killed'
+  output: string
+  exitCode: number | null
+  offloaded: boolean
+  outputFilePath?: string
+  timedOut: boolean
+}
+
+export type WaitForCompletionOrYieldResult =
+  | { kind: 'running'; sessionId: string }
+  | { kind: 'completed'; result: SessionCompletionResult }
 
 interface BackgroundSession {
   sessionId: string
@@ -54,6 +73,7 @@ interface BackgroundSession {
   resolveClose: () => void
   closeSettled: boolean
   killTimeoutId?: NodeJS.Timeout
+  timedOut: boolean
 }
 
 interface StartSessionResult {
@@ -67,6 +87,7 @@ interface PollResult {
   exitCode?: number
   offloaded?: boolean
   outputFilePath?: string
+  timedOut?: boolean
 }
 
 interface LogResult {
@@ -76,6 +97,7 @@ interface LogResult {
   exitCode?: number
   offloaded?: boolean
   outputFilePath?: string
+  timedOut?: boolean
 }
 
 export class BackgroundExecSessionManager {
@@ -93,6 +115,7 @@ export class BackgroundExecSessionManager {
     options?: {
       timeout?: number
       env?: Record<string, string>
+      outputPrefix?: string
     }
   ): Promise<StartSessionResult> {
     const config = getConfig()
@@ -105,7 +128,9 @@ export class BackgroundExecSessionManager {
       fs.mkdirSync(sessionDir, { recursive: true })
     }
 
-    const outputFilePath = sessionDir ? path.join(sessionDir, `bgexec_${sessionId}.log`) : null
+    const outputFilePath = sessionDir
+      ? this.createOutputFilePath(sessionDir, sessionId, options?.outputPrefix)
+      : null
 
     const child = spawn(shell, [...args, command], {
       cwd,
@@ -140,7 +165,8 @@ export class BackgroundExecSessionManager {
       stderrEof: false,
       closePromise,
       resolveClose,
-      closeSettled: false
+      closeSettled: false,
+      timedOut: false
     }
 
     this.setupOutputHandling(session, config)
@@ -176,7 +202,8 @@ export class BackgroundExecSessionManager {
       pid: session.child.pid,
       exitCode: session.exitCode,
       outputLength: session.totalOutputLength,
-      offloaded: this.hasPersistedOutput(session, getConfig())
+      offloaded: this.hasPersistedOutput(session, getConfig()),
+      timedOut: session.timedOut
     }))
   }
 
@@ -195,7 +222,8 @@ export class BackgroundExecSessionManager {
         output,
         exitCode: session.exitCode,
         offloaded: true,
-        outputFilePath: session.outputFilePath
+        outputFilePath: session.outputFilePath,
+        timedOut: session.timedOut
       }
     }
 
@@ -204,7 +232,8 @@ export class BackgroundExecSessionManager {
       status: session.status,
       output,
       exitCode: session.exitCode,
-      offloaded: false
+      offloaded: false,
+      timedOut: session.timedOut
     }
   }
 
@@ -234,8 +263,53 @@ export class BackgroundExecSessionManager {
       totalLength: session.totalOutputLength,
       exitCode: session.exitCode,
       offloaded: isOffloaded,
-      outputFilePath: session.outputFilePath || undefined
+      outputFilePath: session.outputFilePath || undefined,
+      timedOut: session.timedOut
     }
+  }
+
+  async waitForCompletionOrYield(
+    conversationId: string,
+    sessionId: string,
+    yieldMs = getConfig().backgroundMs
+  ): Promise<WaitForCompletionOrYieldResult> {
+    const session = this.getSession(conversationId, sessionId)
+    session.lastAccessedAt = Date.now()
+
+    if (session.status !== 'running') {
+      return {
+        kind: 'completed',
+        result: await this.getCompletionResult(conversationId, sessionId)
+      }
+    }
+
+    await Promise.race([
+      session.closePromise,
+      new Promise((resolve) => setTimeout(resolve, Math.max(0, yieldMs)))
+    ])
+
+    if (session.status !== 'running') {
+      return {
+        kind: 'completed',
+        result: await this.getCompletionResult(conversationId, sessionId)
+      }
+    }
+
+    return {
+      kind: 'running',
+      sessionId
+    }
+  }
+
+  async getCompletionResult(
+    conversationId: string,
+    sessionId: string,
+    previewChars = FOREGROUND_PREVIEW_CHARS
+  ): Promise<SessionCompletionResult> {
+    const session = this.getSession(conversationId, sessionId)
+    session.lastAccessedAt = Date.now()
+    await this.waitForSessionDrain(session)
+    return this.buildCompletionResult(session, previewChars)
   }
 
   write(conversationId: string, sessionId: string, data: string, eof = false): void {
@@ -446,31 +520,15 @@ export class BackgroundExecSessionManager {
       clearTimeout(session.killTimeoutId)
     }
 
-    const gracefulKill = new Promise<void>((resolve) => {
-      const timeout = setTimeout(() => {
-        resolve()
-      }, 2000)
+    if (reason === 'timeout') {
+      session.timedOut = true
+    }
+    session.status = 'killed'
 
-      session.child.once('close', () => {
-        clearTimeout(timeout)
-        resolve()
-      })
-
-      try {
-        session.child.kill('SIGTERM')
-      } catch {
-        resolve()
-      }
-    })
-
-    await gracefulKill
-
-    if (session.status === 'running') {
-      try {
-        session.child.kill('SIGKILL')
-      } catch (error) {
-        logger.warn(`[BackgroundExec] Failed to force kill session ${session.sessionId}:`, error)
-      }
+    const closed = await terminateProcessTree(session.child, { graceMs: 2000 })
+    if (!closed && !session.closeSettled) {
+      session.exitCode = undefined
+      await this.finalizeSession(session, null, 'SIGKILL')
     }
 
     await session.closePromise
@@ -680,6 +738,37 @@ export class BackgroundExecSessionManager {
     logger.info(
       `[BackgroundExec] Session ${session.sessionId} closed with code ${code}, signal ${signal}`
     )
+  }
+
+  private buildCompletionResult(
+    session: BackgroundSession,
+    previewChars: number
+  ): SessionCompletionResult {
+    const config = getConfig()
+    const offloaded = this.hasPersistedOutput(session, config)
+    const output =
+      offloaded && session.outputFilePath
+        ? this.getRecentOutputFromSession(session, previewChars)
+        : this.getRecentOutput(session.outputBuffer, previewChars)
+
+    return {
+      status: session.status === 'running' ? 'killed' : session.status,
+      output,
+      exitCode: session.exitCode ?? null,
+      offloaded,
+      outputFilePath: session.outputFilePath || undefined,
+      timedOut: session.timedOut
+    }
+  }
+
+  private createOutputFilePath(
+    sessionDir: string,
+    sessionId: string,
+    outputPrefix?: string
+  ): string {
+    const rawPrefix = outputPrefix?.trim() || 'bgexec'
+    const safePrefix = rawPrefix.replace(/[^a-zA-Z0-9_-]/g, '_')
+    return path.join(sessionDir, `${safePrefix}_${sessionId}.log`)
   }
 
   private resolveUtf8ByteRange(

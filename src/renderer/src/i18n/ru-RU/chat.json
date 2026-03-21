@@ -54,15 +54,15 @@
   },
   "pendingInput": {
     "steer": "Направление",
-    "queueCount": "Очередь {count}/{max}",
-    "resumeQueue": "Продолжить очередь",
+    "queueCount": "В ожидании {count}/{max}",
+    "resumeQueue": "Продолжить отправку",
     "toSteer": "Направить",
-    "locked": "Заблокировано",
+    "locked": "Зафиксировано",
     "reorder": "Изменить порядок",
     "files": "{count} файлов",
     "attachmentsOnly": "{count} вложений",
     "empty": "Пустое сообщение",
-    "limitReached": "Область ожидания заполнена ({max})."
+    "limitReached": "Область ожидания заполнена (макс. {max})."
   },
   "features": {
     "webSearch": "Поиск в интернете",

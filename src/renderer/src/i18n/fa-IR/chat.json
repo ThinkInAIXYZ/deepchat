@@ -54,15 +54,15 @@
   },
   "pendingInput": {
     "steer": "هدایت",
-    "queueCount": "صف {count}/{max}",
-    "resumeQueue": "ادامه صف",
-    "toSteer": "هدایت",
+    "queueCount": "در انتظار ارسال {count}/{max}",
+    "resumeQueue": "ادامه ارسال",
+    "toSteer": "تبدیل به هدایت",
     "locked": "قفل‌شده",
     "reorder": "تغییر ترتیب",
     "files": "{count} فایل",
     "attachmentsOnly": "{count} پیوست",
     "empty": "پیام خالی",
-    "limitReached": "بخش انتظار پر است ({max})."
+    "limitReached": "بخش انتظار پر است (حداکثر {max})."
   },
   "features": {
     "webSearch": "جستجوی وب",

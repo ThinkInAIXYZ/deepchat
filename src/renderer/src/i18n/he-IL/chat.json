@@ -54,15 +54,15 @@
   },
   "pendingInput": {
     "steer": "הכוונה",
-    "queueCount": "תור {count}/{max}",
-    "resumeQueue": "המשך תור",
-    "toSteer": "להנחות",
+    "queueCount": "ממתין לשליחה {count}/{max}",
+    "resumeQueue": "המשך שליחה",
+    "toSteer": "הפוך להכוונה",
     "locked": "נעול",
     "reorder": "שנה סדר",
     "files": "{count} קבצים",
     "attachmentsOnly": "{count} קבצים מצורפים",
     "empty": "הודעה ריקה",
-    "limitReached": "אזור ההמתנה מלא ({max})."
+    "limitReached": "אזור ההמתנה מלא (מקסימום {max})."
   },
   "features": {
     "webSearch": "חיפוש אינטרנט",

@@ -54,15 +54,15 @@
   },
   "pendingInput": {
     "steer": "Guidage",
-    "queueCount": "File {count}/{max}",
-    "resumeQueue": "Reprendre la file",
+    "queueCount": "En attente {count}/{max}",
+    "resumeQueue": "Reprendre l'envoi",
     "toSteer": "Guider",
     "locked": "Verrouillé",
     "reorder": "Réorganiser",
     "files": "{count} fichiers",
     "attachmentsOnly": "{count} pièces jointes",
     "empty": "Message vide",
-    "limitReached": "La zone d'attente est pleine ({max})."
+    "limitReached": "La zone d'attente est pleine (max. {max})."
   },
   "features": {
     "webSearch": "Recherche web",

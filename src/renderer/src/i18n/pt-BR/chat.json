@@ -54,15 +54,15 @@
   },
   "pendingInput": {
     "steer": "Direcionamento",
-    "queueCount": "Fila {count}/{max}",
-    "resumeQueue": "Retomar fila",
+    "queueCount": "Pendentes {count}/{max}",
+    "resumeQueue": "Retomar envio",
     "toSteer": "Direcionar",
     "locked": "Bloqueado",
     "reorder": "Reordenar",
     "files": "{count} arquivos",
     "attachmentsOnly": "{count} anexos",
     "empty": "Mensagem vazia",
-    "limitReached": "A área de espera está cheia ({max})."
+    "limitReached": "A área de espera está cheia (máx. {max})."
   },
   "features": {
     "webSearch": "Busca na Web",

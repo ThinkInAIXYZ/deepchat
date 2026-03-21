@@ -1,4 +1,4 @@
-import { computed, ref } from 'vue'
+import { computed, onScopeDispose, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { usePresenter } from '@/composables/usePresenter'
 import { SESSION_EVENTS } from '@/events'
@@ -132,15 +132,20 @@ export const usePendingInputStore = defineStore('pendingInput', () => {
     error.value = null
   }
 
-  window.electron.ipcRenderer.on(
-    SESSION_EVENTS.PENDING_INPUTS_UPDATED,
-    (_: unknown, msg: { sessionId: string }) => {
-      if (!msg?.sessionId || msg.sessionId !== currentSessionId.value) {
-        return
-      }
-      void loadPendingInputs(msg.sessionId)
+  const pendingInputsHandler = (_: unknown, msg: { sessionId: string }) => {
+    if (!msg?.sessionId || msg.sessionId !== currentSessionId.value) {
+      return
     }
-  )
+    void loadPendingInputs(msg.sessionId)
+  }
+
+  window.electron.ipcRenderer.on(SESSION_EVENTS.PENDING_INPUTS_UPDATED, pendingInputsHandler)
+  onScopeDispose(() => {
+    window.electron.ipcRenderer.removeListener(
+      SESSION_EVENTS.PENDING_INPUTS_UPDATED,
+      pendingInputsHandler
+    )
+  })
 
   return {
     currentSessionId,

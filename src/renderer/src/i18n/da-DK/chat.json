@@ -61,15 +61,15 @@
   },
   "pendingInput": {
     "steer": "Styring",
-    "queueCount": "Kø {count}/{max}",
-    "resumeQueue": "Fortsæt kø",
-    "toSteer": "Styr",
+    "queueCount": "Afventer {count}/{max}",
+    "resumeQueue": "Fortsæt afsendelse",
+    "toSteer": "Brug til styring",
     "locked": "Låst",
     "reorder": "Omarranger",
     "files": "{count} filer",
     "attachmentsOnly": "{count} vedhæftede filer",
     "empty": "Tom besked",
-    "limitReached": "Ventefeltet er fuldt ({max})."
+    "limitReached": "Venteområdet er fuldt (maks. {max})."
   },
   "mcpUi": {
     "badge": "UI",

@@ -33,6 +33,7 @@ describe('BackgroundExecSessionManager', () => {
   })
 
   afterEach(() => {
+    vi.useRealTimers()
     vi.restoreAllMocks()
     ;(manager as never).sessions.clear()
   })
@@ -55,6 +56,7 @@ describe('BackgroundExecSessionManager', () => {
     closePromise: Promise.resolve(),
     resolveClose: () => {},
     closeSettled: true,
+    timedOut: false,
     ...overrides
   })
 
@@ -122,5 +124,64 @@ describe('BackgroundExecSessionManager', () => {
         value: originalAppendFile
       })
     }
+  })
+
+  it('waits for completion and returns a completion snapshot before cleanup', async () => {
+    const session = createSession({
+      status: 'done',
+      outputBuffer: 'build complete'
+    })
+    setSession(session)
+
+    const result = await manager.waitForCompletionOrYield('conv-1', 'bg_123', 10)
+
+    expect(result).toEqual({
+      kind: 'completed',
+      result: {
+        status: 'done',
+        output: 'build complete',
+        exitCode: null,
+        offloaded: true,
+        outputFilePath: '/mock/session/bgexec_bg_123.log',
+        timedOut: false
+      }
+    })
+  })
+
+  it('returns running when the session outlives the yield window', async () => {
+    vi.useFakeTimers()
+
+    const session = createSession({
+      status: 'running',
+      closePromise: new Promise<void>(() => {})
+    })
+    setSession(session)
+
+    const resultPromise = manager.waitForCompletionOrYield('conv-1', 'bg_123', 10)
+    await vi.advanceTimersByTimeAsync(10)
+
+    await expect(resultPromise).resolves.toEqual({
+      kind: 'running',
+      sessionId: 'bg_123'
+    })
+  })
+
+  it('exposes timedOut metadata through poll and log', async () => {
+    const session = createSession({
+      status: 'killed',
+      outputBuffer: 'timeout tail',
+      totalOutputLength: 12,
+      timedOut: true,
+      outputFilePath: null
+    })
+    setSession(session)
+
+    const poll = await manager.poll('conv-1', 'bg_123')
+    const log = await manager.log('conv-1', 'bg_123', 0, 20)
+
+    expect(poll.timedOut).toBe(true)
+    expect(log.timedOut).toBe(true)
+    expect(poll.output).toBe('timeout tail')
+    expect(log.output).toBe('timeout tail')
   })
 })

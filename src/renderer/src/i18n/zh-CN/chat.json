@@ -53,16 +53,16 @@
     }
   },
   "pendingInput": {
-    "steer": "Steer",
-    "queueCount": "Queue {count}/{max}",
-    "resumeQueue": "继续队列",
-    "toSteer": "Steer",
+    "steer": "引导",
+    "queueCount": "待发 {count}/{max}",
+    "resumeQueue": "继续发送",
+    "toSteer": "转为引导",
     "locked": "已锁定",
     "reorder": "调整顺序",
     "files": "{count} 个文件",
     "attachmentsOnly": "{count} 个附件",
     "empty": "空消息",
-    "limitReached": "等待区已满（{max} 条）。"
+    "limitReached": "等待区已满（最多 {max} 条）。"
   },
   "features": {
     "webSearch": "联网搜索",

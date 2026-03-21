@@ -123,4 +123,29 @@ describe('pendingInput store', () => {
     expect(store.loading).toBe(false)
     expect(store.error).toBeNull()
   })
+
+  it('removes the pending inputs listener when the store is disposed', async () => {
+    const { store } = await setupStore()
+    const ipcRenderer = (
+      window as typeof window & {
+        electron: {
+          ipcRenderer: {
+            on: ReturnType<typeof vi.fn>
+            removeListener: ReturnType<typeof vi.fn>
+          }
+        }
+      }
+    ).electron.ipcRenderer
+
+    expect(ipcRenderer.on).toHaveBeenCalledTimes(1)
+
+    const [eventName, pendingInputsHandler] = ipcRenderer.on.mock.calls[0]
+
+    expect(eventName).toBe('session:pending-inputs-updated')
+    expect(typeof pendingInputsHandler).toBe('function')
+
+    store.$dispose()
+
+    expect(ipcRenderer.removeListener).toHaveBeenCalledWith(eventName, pendingInputsHandler)
+  })
 })

@@ -54,15 +54,15 @@
   },
   "pendingInput": {
     "steer": "誘導",
-    "queueCount": "キュー {count}/{max}",
-    "resumeQueue": "キューを再開",
-    "toSteer": "誘導",
-    "locked": "固定",
+    "queueCount": "送信待ち {count}/{max}",
+    "resumeQueue": "送信を再開",
+    "toSteer": "誘導にする",
+    "locked": "ロック済み",
     "reorder": "並べ替え",
     "files": "{count} 件のファイル",
     "attachmentsOnly": "{count} 件の添付ファイル",
     "empty": "空のメッセージ",
-    "limitReached": "待機レーンがいっぱいです（{max}件）。"
+    "limitReached": "待機レーンがいっぱいです（最大{max}件）。"
   },
   "features": {
     "webSearch": "ウェブ検索",

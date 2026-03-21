@@ -105,7 +105,9 @@ export function buildRuntimeCapabilitiesPrompt(
     lines.push('- YoBrowser tools are available for browser automation when needed.')
   }
   if (options.hasExec) {
-    lines.push('- Use exec(background: true) to start long-running terminal commands.')
+    lines.push(
+      '- Use exec(background: true) to explicitly detach long-running terminal commands; foreground exec may also return a running session after its yield window.'
+    )
   }
   if (options.hasProcess) {
     lines.push(

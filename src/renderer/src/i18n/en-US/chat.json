@@ -54,15 +54,15 @@
   },
   "pendingInput": {
     "steer": "Steer",
-    "queueCount": "Queue {count}/{max}",
-    "resumeQueue": "Resume queue",
+    "queueCount": "Queued {count}/{max}",
+    "resumeQueue": "Resume sending",
     "toSteer": "Steer",
     "locked": "Locked",
     "reorder": "Reorder",
     "files": "{count} files",
     "attachmentsOnly": "{count} attachments",
     "empty": "Empty message",
-    "limitReached": "Waiting lane is full ({max})."
+    "limitReached": "Waiting lane is full (max {max})."
   },
   "features": {
     "webSearch": "Web Search",

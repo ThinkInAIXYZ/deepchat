@@ -54,15 +54,15 @@
   },
   "pendingInput": {
     "steer": "유도",
-    "queueCount": "대기열 {count}/{max}",
-    "resumeQueue": "대기열 재개",
-    "toSteer": "유도",
-    "locked": "잠김",
+    "queueCount": "전송 대기 {count}/{max}",
+    "resumeQueue": "전송 계속",
+    "toSteer": "유도로 전환",
+    "locked": "잠금됨",
     "reorder": "순서 변경",
     "files": "파일 {count}개",
     "attachmentsOnly": "첨부 {count}개",
     "empty": "빈 메시지",
-    "limitReached": "대기 영역이 가득 찼습니다 ({max})."
+    "limitReached": "대기 영역이 가득 찼습니다 (최대 {max}개)."
   },
   "features": {
     "webSearch": "웹 검색",
