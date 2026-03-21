@@ -355,8 +355,8 @@
         "label": "Capacité de raisonnement"
       },
       "interleavedThinking": {
-        "label": "Interleaved Thinking",
-        "description": "Détermine si ce modèle traite les messages de raisonnement et d'appel d'outil avec Interleaved Thinking. Les valeurs fournies par le provider s'appliquent automatiquement."
+        "label": "Pensée entrelacée",
+        "description": "Détermine si ce modèle traite les messages de raisonnement et d'appel d'outil avec la pensée entrelacée. Les valeurs par défaut du fournisseur s'appliquent automatiquement."
       },
       "thinkingBudget": {
         "label": "Budget de réflexion",

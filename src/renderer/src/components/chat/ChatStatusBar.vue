@@ -1717,7 +1717,7 @@ const resolveDefaultGenerationSettings = async (
   providerId: string,
   modelId: string
 ): Promise<SessionGenerationSettings> => {
-  const modelConfig = configPresenter.getModelConfig(modelId, providerId)
+  const modelConfig = await configPresenter.getModelConfig(modelId, providerId)
   const defaultSystemPrompt = await configPresenter.getDefaultSystemPrompt()
   const portrait = (await configPresenter.getReasoningPortrait?.(providerId, modelId)) ?? null
   const contextLengthDefault = toValidNonNegativeInteger(modelConfig.contextLength) ?? 32000

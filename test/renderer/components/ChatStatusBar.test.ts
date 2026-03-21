@@ -326,7 +326,7 @@ const setup = async (options: SetupOptions = {}) => {
       return Promise.resolve(undefined)
     }),
     setSetting: vi.fn().mockResolvedValue(undefined),
-    getModelConfig: vi.fn().mockReturnValue({
+    getModelConfig: vi.fn().mockResolvedValue({
       temperature: 0.7,
       contextLength: 16000,
       maxTokens: 4096,
@@ -746,6 +746,27 @@ describe('ChatStatusBar model and session panels', () => {
     expect((wrapper.vm as any).localSettings.contextLength).toBe(16000)
     expect((wrapper.vm as any).localSettings.maxTokens).toBe(4096)
     expect((wrapper.vm as any).localSettings.thinkingBudget).toBe(512)
+  })
+
+  it('awaits async model config values for draft model settings', async () => {
+    const { wrapper } = await setup({
+      agentId: 'deepchat',
+      hasActiveSession: false,
+      modelConfig: {
+        temperature: 1,
+        contextLength: 8192,
+        maxTokens: 2048,
+        thinkingBudget: 512,
+        forceInterleavedThinkingCompat: true,
+        reasoningEffort: 'medium',
+        verbosity: 'medium'
+      }
+    })
+
+    expect((wrapper.vm as any).localSettings.temperature).toBe(1)
+    expect((wrapper.vm as any).localSettings.contextLength).toBe(8192)
+    expect((wrapper.vm as any).localSettings.maxTokens).toBe(2048)
+    expect((wrapper.vm as any).localSettings.forceInterleavedThinkingCompat).toBe(true)
   })
 
   it('shows interleaved thinking as enabled when the provider portrait requires it', async () => {

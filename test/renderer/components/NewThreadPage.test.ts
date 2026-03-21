@@ -48,6 +48,8 @@ const setup = async (options?: {
     path: string
     name: string
   }
+  defaultModel?: { providerId: string; modelId: string }
+  preferredModel?: { providerId: string; modelId: string }
 }) => {
   vi.resetModules()
   chatInputTriggerAttachMock.mockReset()
@@ -93,7 +95,15 @@ const setup = async (options?: {
   })
 
   const configPresenter = {
-    getSetting: vi.fn().mockResolvedValue(undefined)
+    getSetting: vi.fn((key: string) => {
+      if (key === 'defaultModel') {
+        return Promise.resolve(options?.defaultModel)
+      }
+      if (key === 'preferredModel') {
+        return Promise.resolve(options?.preferredModel)
+      }
+      return Promise.resolve(undefined)
+    })
   }
 
   const newAgentPresenter = {
@@ -259,6 +269,92 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
           contextLength: 8192,
           maxTokens: 2048
         }
+      })
+    )
+  })
+
+  it('prefers preferredModel over defaultModel when creating a deepchat session', async () => {
+    const { wrapper, sessionStore, agentStore, modelStore } = await setup({
+      defaultModel: { providerId: 'openai', modelId: 'gpt-4' },
+      preferredModel: { providerId: 'zenmux', modelId: 'moonshotai/kimi-k2.5' }
+    })
+
+    agentStore.selectedAgentId = 'deepchat'
+    modelStore.enabledModels = [
+      {
+        providerId: 'openai',
+        models: [{ id: 'gpt-4', name: 'GPT-4' }]
+      },
+      {
+        providerId: 'zenmux',
+        models: [{ id: 'moonshotai/kimi-k2.5', name: 'Kimi K2.5' }]
+      }
+    ]
+    ;(wrapper.vm as any).message = 'hello preferred model'
+
+    await (wrapper.vm as any).onSubmit()
+    await flushPromises()
+
+    expect(sessionStore.createSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerId: 'zenmux',
+        modelId: 'moonshotai/kimi-k2.5'
+      })
+    )
+  })
+
+  it('falls back to defaultModel when preferredModel is not enabled', async () => {
+    const { wrapper, sessionStore, agentStore, modelStore } = await setup({
+      defaultModel: { providerId: 'openai', modelId: 'gpt-4' },
+      preferredModel: { providerId: 'zenmux', modelId: 'moonshotai/kimi-k2.5' }
+    })
+
+    agentStore.selectedAgentId = 'deepchat'
+    modelStore.enabledModels = [
+      {
+        providerId: 'openai',
+        models: [{ id: 'gpt-4', name: 'GPT-4' }]
+      }
+    ]
+    ;(wrapper.vm as any).message = 'hello default model'
+
+    await (wrapper.vm as any).onSubmit()
+    await flushPromises()
+
+    expect(sessionStore.createSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerId: 'openai',
+        modelId: 'gpt-4'
+      })
+    )
+  })
+
+  it('falls back to the first enabled model when saved models are unavailable', async () => {
+    const { wrapper, sessionStore, agentStore, modelStore } = await setup({
+      defaultModel: { providerId: 'openai', modelId: 'gpt-4' },
+      preferredModel: { providerId: 'zenmux', modelId: 'moonshotai/kimi-k2.5' }
+    })
+
+    agentStore.selectedAgentId = 'deepchat'
+    modelStore.enabledModels = [
+      {
+        providerId: 'anthropic',
+        models: [{ id: 'claude-3-5-sonnet', name: 'Claude 3.5 Sonnet' }]
+      },
+      {
+        providerId: 'openai',
+        models: [{ id: 'gpt-4.1', name: 'GPT-4.1' }]
+      }
+    ]
+    ;(wrapper.vm as any).message = 'hello first enabled model'
+
+    await (wrapper.vm as any).onSubmit()
+    await flushPromises()
+
+    expect(sessionStore.createSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerId: 'anthropic',
+        modelId: 'claude-3-5-sonnet'
       })
     )
   })
