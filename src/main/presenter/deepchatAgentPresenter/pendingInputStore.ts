@@ -37,16 +37,26 @@ export class DeepChatPendingInputStore {
   }
 
   createQueueInput(sessionId: string, input: string | SendMessageInput): PendingSessionInputRecord {
+    return this.createQueueInputWithState(sessionId, input, 'pending')
+  }
+
+  createQueueInputWithState(
+    sessionId: string,
+    input: string | SendMessageInput,
+    state: PendingSessionInputState
+  ): PendingSessionInputRecord {
     const normalized = normalizeInput(input)
     const id = nanoid()
     const nextQueueOrder = this.getNextQueueOrder(sessionId)
+    const claimedAt = state === 'claimed' ? Date.now() : null
     this.sqlitePresenter.deepchatPendingInputsTable.insert({
       id,
       sessionId,
       mode: 'queue',
-      state: 'pending',
+      state,
       payloadJson: JSON.stringify(normalized),
-      queueOrder: nextQueueOrder
+      queueOrder: nextQueueOrder,
+      claimedAt
     })
     const row = this.sqlitePresenter.deepchatPendingInputsTable.get(id)
     if (!row) {

@@ -36,30 +36,24 @@
         </TooltipContent>
       </Tooltip>
 
-      <!-- Send button -->
-      <Tooltip v-if="isGenerating && !hasActiveInput">
-        <TooltipTrigger as-child>
-          <Button variant="outline" size="icon" class="h-7 w-7 rounded-full" @click="$emit('stop')">
-            <Icon icon="lucide:square" class="w-4 h-4 text-red-500" />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>
-          <p>{{ t('chat.input.stop') }}</p>
-        </TooltipContent>
-      </Tooltip>
-      <Tooltip v-else>
+      <!-- Primary action button -->
+      <Tooltip :key="buttonMode">
         <TooltipTrigger as-child>
           <Button
+            :variant="buttonMode === 'stop' ? 'outline' : 'default'"
             size="icon"
             class="h-7 w-7 rounded-full"
-            :disabled="sendDisabled"
-            @click="$emit('send')"
+            :disabled="buttonMode === 'send' ? sendDisabled : false"
+            @click="handlePrimaryAction"
           >
-            <Icon icon="lucide:arrow-up" class="w-4 h-4" />
+            <Icon
+              :icon="buttonMode === 'stop' ? 'lucide:square' : 'lucide:arrow-up'"
+              :class="buttonMode === 'stop' ? 'w-4 h-4 text-red-500' : 'w-4 h-4'"
+            />
           </Button>
         </TooltipTrigger>
         <TooltipContent>
-          <p>{{ t('chat.input.queue') }}</p>
+          <p>{{ buttonMode === 'stop' ? t('chat.input.stop') : t('chat.input.queue') }}</p>
         </TooltipContent>
       </Tooltip>
     </div>
@@ -90,7 +84,7 @@ const props = withDefaults(
   }
 )
 
-defineEmits<{
+const emit = defineEmits<{
   send: []
   attach: []
   stop: []
@@ -98,4 +92,15 @@ defineEmits<{
 
 const { t } = useI18n()
 const hasActiveInput = computed(() => props.hasInput || props.hasText)
+const buttonMode = computed<'send' | 'stop'>(() =>
+  props.isGenerating && !hasActiveInput.value ? 'stop' : 'send'
+)
+
+function handlePrimaryAction() {
+  if (buttonMode.value === 'stop') {
+    emit('stop')
+    return
+  }
+  emit('send')
+}
 </script>

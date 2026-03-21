@@ -3,8 +3,6 @@ import { createState } from './types'
 import { accumulate } from './accumulator'
 import { startEcho } from './echo'
 import { executeTools, finalize, finalizeError, finalizePaused } from './dispatch'
-import { eventBus, SendTarget } from '@/eventbus'
-import { STREAM_EVENTS } from '@/events'
 
 const MAX_TOOL_CALLS = 128
 const UNKNOWN_CONTEXT_LIMIT = Number.MAX_SAFE_INTEGER
@@ -16,6 +14,8 @@ const CONTEXT_WINDOW_ERROR_PATTERNS = [
   'maximum context length',
   'reduce the length'
 ]
+const USER_CANCELED_GENERATION_ERROR = 'common.error.userCanceledGeneration'
+const NO_MODEL_RESPONSE_ERROR = 'common.error.noModelResponse'
 
 function isContextWindowErrorMessage(message: string): boolean {
   const normalized = message.toLowerCase()
@@ -96,24 +96,11 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
         if (io.abortSignal.aborted) {
           console.log(`[ProcessStream] aborted after ${eventCount} events`)
           echo.stop()
-          for (const block of state.blocks) {
-            if (block.status === 'pending') block.status = 'error'
-          }
-          io.messageStore.setMessageError(
-            io.messageId,
-            state.blocks,
-            JSON.stringify(state.metadata)
-          )
-          eventBus.sendToRenderer(STREAM_EVENTS.ERROR, SendTarget.ALL_WINDOWS, {
-            conversationId: io.sessionId,
-            eventId: io.messageId,
-            messageId: io.messageId,
-            error: 'Generation cancelled'
-          })
+          finalizeError(state, io, USER_CANCELED_GENERATION_ERROR)
           return {
             status: 'aborted' as const,
             stopReason: 'user_stop',
-            errorMessage: 'Generation cancelled',
+            errorMessage: USER_CANCELED_GENERATION_ERROR,
             usage: buildUsageSnapshot(state)
           }
         }
@@ -125,7 +112,15 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
       )
 
       // Break conditions: not tool_use, abort, no completed tool calls
-      if (io.abortSignal.aborted) break
+      if (io.abortSignal.aborted) {
+        finalizeError(state, io, USER_CANCELED_GENERATION_ERROR)
+        return {
+          status: 'aborted' as const,
+          stopReason: 'user_stop',
+          errorMessage: USER_CANCELED_GENERATION_ERROR,
+          usage: buildUsageSnapshot(state)
+        }
+      }
       if (state.stopReason !== 'tool_use') break
       if (state.completedToolCalls.length === 0) break
 
@@ -182,10 +177,27 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
       }
 
       // Check abort after tool execution
-      if (io.abortSignal.aborted) break
+      if (io.abortSignal.aborted) {
+        finalizeError(state, io, USER_CANCELED_GENERATION_ERROR)
+        return {
+          status: 'aborted' as const,
+          stopReason: 'user_stop',
+          errorMessage: USER_CANCELED_GENERATION_ERROR,
+          usage: buildUsageSnapshot(state)
+        }
+      }
     }
 
     // Finalize
+    if (io.abortSignal.aborted) {
+      finalizeError(state, io, USER_CANCELED_GENERATION_ERROR)
+      return {
+        status: 'aborted' as const,
+        stopReason: 'user_stop',
+        errorMessage: USER_CANCELED_GENERATION_ERROR,
+        usage: buildUsageSnapshot(state)
+      }
+    }
     if (state.stopReason === 'error') {
       const streamErrorMessage = getLatestErrorMessage(state)
       if (streamErrorMessage && isContextWindowErrorMessage(streamErrorMessage)) {
@@ -195,6 +207,16 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
           status: 'error' as const,
           terminalError: streamErrorMessage
         }
+      }
+    }
+    if (state.blocks.length === 0) {
+      finalizeError(state, io, NO_MODEL_RESPONSE_ERROR)
+      return {
+        status: 'error' as const,
+        terminalError: NO_MODEL_RESPONSE_ERROR,
+        stopReason: 'error',
+        errorMessage: NO_MODEL_RESPONSE_ERROR,
+        usage: buildUsageSnapshot(state)
       }
     }
     finalize(state, io)
