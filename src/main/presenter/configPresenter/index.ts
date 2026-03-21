@@ -117,18 +117,61 @@ const defaultProviders = DEFAULT_PROVIDERS.map((provider) => ({
 
 const PROVIDERS_STORE_KEY = 'providers'
 type AnthropicLegacyProvider = LLM_PROVIDER & { authMode?: 'apikey' | 'oauth' }
+type ModelSelection = { providerId: string; modelId: string }
+type AnthropicModelSettingKey = 'defaultModel' | 'assistantModel' | 'defaultVisionModel'
+
+const ANTHROPIC_MODEL_SETTING_KEYS: AnthropicModelSettingKey[] = [
+  'defaultModel',
+  'assistantModel',
+  'defaultVisionModel'
+]
+
+const hasLegacyAnthropicOAuthState = (provider: AnthropicLegacyProvider): boolean =>
+  Object.prototype.hasOwnProperty.call(provider, 'authMode') || provider.oauthToken !== undefined
+
+const hasAnthropicApiCredential = (
+  provider: AnthropicLegacyProvider,
+  envApiKey = process.env.ANTHROPIC_API_KEY
+): boolean => Boolean(provider.apiKey?.trim() || envApiKey?.trim())
+
+const isModelSelection = (value: unknown): value is ModelSelection => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return false
+  }
+
+  const record = value as Record<string, unknown>
+  return typeof record.providerId === 'string' && typeof record.modelId === 'string'
+}
+
+export const getAnthropicModelSelectionKeysToClear = (
+  settings: Partial<
+    Record<
+      AnthropicModelSettingKey | 'preferredModel',
+      { providerId: string; modelId: string } | undefined
+    >
+  >
+): AnthropicModelSettingKey[] =>
+  ANTHROPIC_MODEL_SETTING_KEYS.filter((key) => {
+    const selection = settings[key]
+    return isModelSelection(selection) && selection.providerId === 'anthropic'
+  })
 
 export const normalizeAnthropicProviderForApiOnly = (
   provider: AnthropicLegacyProvider,
-  fallbackBaseUrl = 'https://api.anthropic.com'
+  fallbackBaseUrl = 'https://api.anthropic.com',
+  envApiKey = process.env.ANTHROPIC_API_KEY
 ): LLM_PROVIDER => {
   if (provider.id !== 'anthropic') {
     return provider
   }
 
+  const shouldDisable =
+    hasLegacyAnthropicOAuthState(provider) && !hasAnthropicApiCredential(provider, envApiKey)
+
   const normalized: AnthropicLegacyProvider = {
     ...provider,
-    baseUrl: provider.baseUrl || fallbackBaseUrl
+    baseUrl: provider.baseUrl || fallbackBaseUrl,
+    enable: shouldDisable ? false : provider.enable
   }
 
   delete normalized.authMode
@@ -550,7 +593,9 @@ export class ConfigPresenter implements IConfigPresenter {
     const providers = this.getProviders()
     const defaultAnthropic = defaultProviders.find((provider) => provider.id === 'anthropic')
     const fallbackBaseUrl = defaultAnthropic?.baseUrl || 'https://api.anthropic.com'
+    const envApiKey = process.env.ANTHROPIC_API_KEY
     let hasChanges = false
+    let shouldClearAnthropicSelections = false
 
     const normalizedProviders = providers.map((provider) => {
       if (provider.id !== 'anthropic') {
@@ -558,14 +603,25 @@ export class ConfigPresenter implements IConfigPresenter {
       }
 
       const legacyProvider = provider as AnthropicLegacyProvider
-      const normalized = normalizeAnthropicProviderForApiOnly(legacyProvider, fallbackBaseUrl)
+      const normalized = normalizeAnthropicProviderForApiOnly(
+        legacyProvider,
+        fallbackBaseUrl,
+        envApiKey
+      )
+      const shouldDisableForMissingCredential =
+        hasLegacyAnthropicOAuthState(legacyProvider) &&
+        !hasAnthropicApiCredential(legacyProvider, envApiKey)
 
       if (
-        Object.prototype.hasOwnProperty.call(legacyProvider, 'authMode') ||
-        legacyProvider.oauthToken !== undefined ||
+        hasLegacyAnthropicOAuthState(legacyProvider) ||
+        normalized.enable !== legacyProvider.enable ||
         normalized.baseUrl !== legacyProvider.baseUrl
       ) {
         hasChanges = true
+      }
+
+      if (shouldDisableForMissingCredential) {
+        shouldClearAnthropicSelections = true
       }
 
       return normalized
@@ -573,6 +629,20 @@ export class ConfigPresenter implements IConfigPresenter {
 
     if (hasChanges) {
       this.setProviders(normalizedProviders)
+    }
+
+    if (shouldClearAnthropicSelections) {
+      const keysToClear = getAnthropicModelSelectionKeysToClear({
+        defaultModel: this.getSetting('defaultModel'),
+        assistantModel: this.getSetting('assistantModel'),
+        defaultVisionModel: this.getSetting('defaultVisionModel'),
+        preferredModel: this.getSetting('preferredModel')
+      })
+
+      for (const key of keysToClear) {
+        this.store.delete(key)
+        eventBus.sendToMain(CONFIG_EVENTS.SETTING_CHANGED, key, undefined)
+      }
     }
   }
 

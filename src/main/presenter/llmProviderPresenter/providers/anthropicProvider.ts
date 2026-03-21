@@ -59,7 +59,7 @@ export class AnthropicProvider extends BaseLLMProvider {
         const fetchOptions: { dispatcher?: ProxyAgent } = {}
 
         if (proxyUrl) {
-          console.log(`[Anthropic Provider] Using proxy: ${proxyUrl}`)
+          console.log('[Anthropic Provider] Proxy enabled')
           const proxyAgent = new ProxyAgent(proxyUrl)
           fetchOptions.dispatcher = proxyAgent
         }
