@@ -41,6 +41,7 @@ import { eventBus } from '@/eventbus'
 
 function createMockMessageStore() {
   return {
+    getMessage: vi.fn().mockReturnValue(null),
     updateAssistantContent: vi.fn(),
     finalizeAssistantMessage: vi.fn(),
     setMessageError: vi.fn()
@@ -430,6 +431,63 @@ describe('processStream', () => {
         messageId: 'm1',
         eventId: 'm1',
         error: 'Generation cancelled'
+      })
+    )
+  })
+
+  it('does not finalize user-cancel twice when the message is already cancelled', async () => {
+    const abortController = new AbortController()
+    messageStore.getMessage.mockReturnValue({
+      id: 'm1',
+      role: 'assistant',
+      status: 'error',
+      content: JSON.stringify([
+        {
+          type: 'content',
+          content: 'Partial',
+          status: 'error',
+          timestamp: Date.now()
+        },
+        {
+          type: 'error',
+          content: 'common.error.userCanceledGeneration',
+          status: 'error',
+          timestamp: Date.now()
+        }
+      ])
+    })
+
+    const coreStream = vi.fn(function () {
+      return (async function* () {
+        abortController.abort()
+        yield { type: 'text', content: 'ignored' } as LLMCoreStreamEvent
+      })()
+    }) as unknown as ProcessParams['coreStream']
+
+    const params = createParams({
+      coreStream,
+      io: {
+        sessionId: 's1',
+        messageId: 'm1',
+        messageStore,
+        abortSignal: abortController.signal
+      }
+    })
+
+    const promise = processStream(params)
+    await vi.runAllTimersAsync()
+    const result = await promise
+
+    expect(result.status).toBe('aborted')
+    expect(messageStore.setMessageError).not.toHaveBeenCalled()
+    expect(eventBus.sendToRenderer).not.toHaveBeenCalledWith(
+      'stream:error',
+      'all',
+      expect.objectContaining({
+        conversationId: 's1',
+        messageId: 'm1',
+        eventId: 'm1',
+        error: 'common.error.userCanceledGeneration'
       })
     )
   })

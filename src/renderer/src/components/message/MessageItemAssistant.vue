@@ -29,7 +29,10 @@
         <div class="flex flex-col w-full space-y-1.5">
           <MessageInfo :name="currentMessage.model_name" :timestamp="currentMessage.timestamp" />
           <Spinner
-            v-if="currentContent.length === 0 && message.status === 'pending'"
+            v-if="
+              currentContent.length === 0 &&
+              (currentMessage?.status ?? message.status) === 'pending'
+            "
             class="size-3 text-muted-foreground"
           />
           <div v-else class="flex flex-col w-full gap-1.5" data-message-content="true">

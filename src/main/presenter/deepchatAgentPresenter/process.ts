@@ -1,4 +1,5 @@
-import type { ProcessParams, ProcessResult, StreamState } from './types'
+import type { AssistantMessageBlock } from '@shared/types/agent-interface'
+import type { IoParams, ProcessParams, ProcessResult, StreamState } from './types'
 import { createState } from './types'
 import { accumulate } from './accumulator'
 import { startEcho } from './echo'
@@ -37,6 +38,47 @@ function stripTrailingErrorBlock(state: StreamState, message: string): void {
   if (lastBlock?.type === 'error' && lastBlock.content === message) {
     state.blocks.pop()
   }
+}
+
+function parseAssistantBlocks(rawContent: string): AssistantMessageBlock[] {
+  try {
+    const parsed = JSON.parse(rawContent) as AssistantMessageBlock[]
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+function isTerminalPendingStatus(status: AssistantMessageBlock['status']): boolean {
+  return status === 'pending' || status === 'loading'
+}
+
+function isUserCanceledAlreadyFinalized(io: IoParams): boolean {
+  const message = io.messageStore.getMessage(io.messageId)
+  if (!message || message.role !== 'assistant' || message.status !== 'error') {
+    return false
+  }
+
+  const blocks = parseAssistantBlocks(message.content)
+  if (blocks.length === 0) {
+    return false
+  }
+
+  if (blocks.some((block) => isTerminalPendingStatus(block.status))) {
+    return false
+  }
+
+  return blocks.some(
+    (block) => block.type === 'error' && block.content === USER_CANCELED_GENERATION_ERROR
+  )
+}
+
+function finalizeUserCanceledErrorIfNeeded(state: StreamState, io: IoParams): void {
+  if (isUserCanceledAlreadyFinalized(io)) {
+    return
+  }
+
+  finalizeError(state, io, USER_CANCELED_GENERATION_ERROR)
 }
 
 /**
@@ -96,7 +138,7 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
         if (io.abortSignal.aborted) {
           console.log(`[ProcessStream] aborted after ${eventCount} events`)
           echo.stop()
-          finalizeError(state, io, USER_CANCELED_GENERATION_ERROR)
+          finalizeUserCanceledErrorIfNeeded(state, io)
           return {
             status: 'aborted' as const,
             stopReason: 'user_stop',
@@ -113,7 +155,7 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
 
       // Break conditions: not tool_use, abort, no completed tool calls
       if (io.abortSignal.aborted) {
-        finalizeError(state, io, USER_CANCELED_GENERATION_ERROR)
+        finalizeUserCanceledErrorIfNeeded(state, io)
         return {
           status: 'aborted' as const,
           stopReason: 'user_stop',
@@ -178,7 +220,7 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
 
       // Check abort after tool execution
       if (io.abortSignal.aborted) {
-        finalizeError(state, io, USER_CANCELED_GENERATION_ERROR)
+        finalizeUserCanceledErrorIfNeeded(state, io)
         return {
           status: 'aborted' as const,
           stopReason: 'user_stop',
@@ -190,7 +232,7 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
 
     // Finalize
     if (io.abortSignal.aborted) {
-      finalizeError(state, io, USER_CANCELED_GENERATION_ERROR)
+      finalizeUserCanceledErrorIfNeeded(state, io)
       return {
         status: 'aborted' as const,
         stopReason: 'user_stop',

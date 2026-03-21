@@ -163,4 +163,29 @@ describe('MessageItemAssistant', () => {
 
     expect(wrapper.find('[data-testid="spinner"]').exists()).toBe(true)
   })
+
+  it('renders a spinner for the currently displayed pending variant', async () => {
+    const variant = {
+      ...createMessage('pending', []),
+      id: 'm1-variant',
+      is_variant: 1
+    }
+
+    const wrapper = mount(MessageItemAssistant, {
+      props: {
+        message: {
+          ...createMessage('sent', []),
+          variants: [variant]
+        },
+        isCapturingImage: false,
+        useLegacyActions: true
+      },
+      global
+    })
+
+    wrapper.vm.handleAction('next')
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('[data-testid="spinner"]').exists()).toBe(true)
+  })
 })

@@ -223,18 +223,31 @@ export class DeepChatPendingInputStore {
   }
 
   private getNextQueueOrder(sessionId: string): number {
-    const queueRows = this.getPendingQueueRows(sessionId)
+    const queueRows = this.getQueueRows(sessionId)
     if (queueRows.length === 0) {
       return 1
     }
-    return (queueRows[queueRows.length - 1].queue_order ?? 0) + 1
+    return Math.max(...queueRows.map((row) => row.queue_order ?? 0)) + 1
+  }
+
+  private getQueueRows(sessionId: string): DeepChatPendingInputRow[] {
+    return this.sqlitePresenter.deepchatPendingInputsTable
+      .listBySession(sessionId)
+      .filter((row) => row.mode === 'queue')
+      .sort((left, right) => {
+        const leftQueueOrder = left.queue_order ?? Number.MAX_SAFE_INTEGER
+        const rightQueueOrder = right.queue_order ?? Number.MAX_SAFE_INTEGER
+
+        if (leftQueueOrder !== rightQueueOrder) {
+          return leftQueueOrder - rightQueueOrder
+        }
+
+        return left.created_at - right.created_at
+      })
   }
 
   private getPendingQueueRows(sessionId: string): DeepChatPendingInputRow[] {
-    return this.sqlitePresenter.deepchatPendingInputsTable
-      .listActiveBySession(sessionId)
-      .filter((row) => row.mode === 'queue' && row.state === 'pending')
-      .sort((left, right) => (left.queue_order ?? 0) - (right.queue_order ?? 0))
+    return this.getQueueRows(sessionId).filter((row) => row.state === 'pending')
   }
 
   private getSteerRows(sessionId: string): DeepChatPendingInputRow[] {
