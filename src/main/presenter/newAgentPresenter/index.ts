@@ -181,11 +181,19 @@ export class NewAgentPresenter {
       modelId: state?.modelId ?? modelId
     }
 
-    // Process the first message (non-blocking) after returning session ID
-    console.log(`[NewAgentPresenter] firing processMessage (non-blocking)`)
-    agent.processMessage(sessionId, normalizedInput, { projectDir }).catch((err) => {
-      console.error('[NewAgentPresenter] processMessage failed:', err)
-    })
+    // Queue the first message (non-blocking) after returning session ID
+    if (normalizedInput.text.trim() || (normalizedInput.files?.length ?? 0) > 0) {
+      console.log(`[NewAgentPresenter] firing queuePendingInput (non-blocking)`)
+      if (agent.queuePendingInput) {
+        agent.queuePendingInput(sessionId, normalizedInput).catch((err) => {
+          console.error('[NewAgentPresenter] queuePendingInput failed:', err)
+        })
+      } else {
+        agent.processMessage(sessionId, normalizedInput, { projectDir }).catch((err) => {
+          console.error('[NewAgentPresenter] processMessage failed:', err)
+        })
+      }
+    }
     void this.generateSessionTitle(sessionId, title, providerId, modelId)
 
     return sessionResult
@@ -272,9 +280,116 @@ export class NewAgentPresenter {
       }
     }
     this.assertAcpSessionHasWorkdir(providerId, session.projectDir ?? null)
+    if (agent.queuePendingInput) {
+      await agent.queuePendingInput(sessionId, normalizedInput)
+      return
+    }
     await agent.processMessage(sessionId, normalizedInput, {
       projectDir: session.projectDir ?? null
     })
+  }
+
+  async listPendingInputs(sessionId: string) {
+    const session = this.sessionManager.get(sessionId)
+    if (!session) {
+      throw new Error(`Session not found: ${sessionId}`)
+    }
+    const agent = await this.resolveAgentImplementation(session.agentId)
+    if (!agent.listPendingInputs) {
+      return []
+    }
+    return await agent.listPendingInputs(sessionId)
+  }
+
+  async queuePendingInput(sessionId: string, content: string | SendMessageInput) {
+    const session = this.sessionManager.get(sessionId)
+    if (!session) {
+      throw new Error(`Session not found: ${sessionId}`)
+    }
+
+    let currentSession = session
+    const normalizedInput = this.normalizeSendMessageInput(content)
+    if (currentSession.isDraft) {
+      const title = normalizedInput.text.trim().slice(0, 50) || 'New Chat'
+      this.sessionManager.update(sessionId, { isDraft: false, title })
+      this.emitSessionListUpdated()
+      currentSession = this.sessionManager.get(sessionId) ?? currentSession
+    }
+
+    const agent = await this.resolveAgentImplementation(currentSession.agentId)
+    if (!agent.queuePendingInput) {
+      throw new Error(`Agent ${currentSession.agentId} does not support pending inputs.`)
+    }
+
+    let providerId = (await agent.getSessionState(sessionId))?.providerId ?? ''
+    if (!providerId) {
+      const acpAgents = await this.configPresenter.getAcpAgents()
+      if (acpAgents.some((item) => item.id === currentSession.agentId)) {
+        providerId = 'acp'
+      }
+    }
+    this.assertAcpSessionHasWorkdir(providerId, currentSession.projectDir ?? null)
+    return await agent.queuePendingInput(sessionId, normalizedInput)
+  }
+
+  async updateQueuedInput(sessionId: string, itemId: string, content: string | SendMessageInput) {
+    const session = this.sessionManager.get(sessionId)
+    if (!session) {
+      throw new Error(`Session not found: ${sessionId}`)
+    }
+    const agent = await this.resolveAgentImplementation(session.agentId)
+    if (!agent.updateQueuedInput) {
+      throw new Error(`Agent ${session.agentId} does not support pending input edits.`)
+    }
+    return await agent.updateQueuedInput(sessionId, itemId, this.normalizeSendMessageInput(content))
+  }
+
+  async moveQueuedInput(sessionId: string, itemId: string, toIndex: number) {
+    const session = this.sessionManager.get(sessionId)
+    if (!session) {
+      throw new Error(`Session not found: ${sessionId}`)
+    }
+    const agent = await this.resolveAgentImplementation(session.agentId)
+    if (!agent.moveQueuedInput) {
+      throw new Error(`Agent ${session.agentId} does not support pending input sorting.`)
+    }
+    return await agent.moveQueuedInput(sessionId, itemId, toIndex)
+  }
+
+  async convertPendingInputToSteer(sessionId: string, itemId: string) {
+    const session = this.sessionManager.get(sessionId)
+    if (!session) {
+      throw new Error(`Session not found: ${sessionId}`)
+    }
+    const agent = await this.resolveAgentImplementation(session.agentId)
+    if (!agent.convertPendingInputToSteer) {
+      throw new Error(`Agent ${session.agentId} does not support steer conversion.`)
+    }
+    return await agent.convertPendingInputToSteer(sessionId, itemId)
+  }
+
+  async deletePendingInput(sessionId: string, itemId: string): Promise<void> {
+    const session = this.sessionManager.get(sessionId)
+    if (!session) {
+      throw new Error(`Session not found: ${sessionId}`)
+    }
+    const agent = await this.resolveAgentImplementation(session.agentId)
+    if (!agent.deletePendingInput) {
+      throw new Error(`Agent ${session.agentId} does not support pending input deletion.`)
+    }
+    await agent.deletePendingInput(sessionId, itemId)
+  }
+
+  async resumePendingQueue(sessionId: string): Promise<void> {
+    const session = this.sessionManager.get(sessionId)
+    if (!session) {
+      throw new Error(`Session not found: ${sessionId}`)
+    }
+    const agent = await this.resolveAgentImplementation(session.agentId)
+    if (!agent.resumePendingQueue) {
+      throw new Error(`Agent ${session.agentId} does not support pending queue resume.`)
+    }
+    await agent.resumePendingQueue(sessionId)
   }
 
   async retryMessage(sessionId: string, messageId: string): Promise<void> {

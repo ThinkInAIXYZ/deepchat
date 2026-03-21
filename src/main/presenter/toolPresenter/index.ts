@@ -373,6 +373,9 @@ export class ToolPresenter implements IToolPresenter {
       lines.push(
         'Prefer shell patterns like `rg -n`, `rg --files`, `find . -name ...`, `ls`, and `tree` inside `exec`.'
       )
+      lines.push(
+        'Use `background: true` when you know a command should detach immediately; otherwise a foreground `exec` may yield a running `sessionId` after `yieldMs`.'
+      )
     }
     if (toolNames.has('exec') && toolNames.has('read') && toolNames.has('edit')) {
       lines.push(
@@ -381,7 +384,7 @@ export class ToolPresenter implements IToolPresenter {
     }
     if (toolNames.has('process')) {
       lines.push(
-        'Use `process` to monitor, write to, or terminate long-running background `exec` tasks.'
+        'Use `process` to monitor, write to, or terminate long-running `exec` tasks that returned a running `sessionId`.'
       )
     }
 

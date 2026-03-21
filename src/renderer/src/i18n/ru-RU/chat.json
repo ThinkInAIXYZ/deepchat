@@ -28,6 +28,8 @@
     "agentWorkspaceTooltip": "Установить рабочий каталог агента",
     "attach": "Прикрепить",
     "voiceInput": "Голосовой ввод",
+    "queue": "В очередь",
+    "stop": "Стоп",
     "mcp": {
       "badge": "MCP {count}",
       "title": "Включённые MCP",
@@ -49,6 +51,18 @@
         "yobrowser": "YoBrowser"
       }
     }
+  },
+  "pendingInput": {
+    "steer": "Направление",
+    "queueCount": "В ожидании {count}/{max}",
+    "resumeQueue": "Продолжить отправку",
+    "toSteer": "Направить",
+    "locked": "Зафиксировано",
+    "reorder": "Изменить порядок",
+    "files": "{count} файлов",
+    "attachmentsOnly": "{count} вложений",
+    "empty": "Пустое сообщение",
+    "limitReached": "Область ожидания заполнена (макс. {max})."
   },
   "features": {
     "webSearch": "Поиск в интернете",
@@ -126,7 +140,16 @@
     "verbosity": "Детализация ответа",
     "verbosityPlaceholder": "Выберите уровень детализации",
     "currentCustomPrompt": "Текущий пользовательский",
-    "useDefault": "Использовать по умолчанию"
+    "useDefault": "Использовать по умолчанию",
+    "decreaseValue": "Уменьшить {label}",
+    "increaseValue": "Увеличить {label}",
+    "toggleValue": "Включить или выключить {label}",
+    "validation": {
+      "finiteNumber": "Должно быть конечным числом",
+      "nonNegativeInteger": "Должно быть неотрицательным целым числом",
+      "contextLengthAtLeastMaxTokens": "Должно быть больше или равно максимальному числу токенов",
+      "maxTokensWithinContextLength": "Должно быть меньше или равно длине контекста"
+    }
   },
   "workspace": {
     "collapse": "закрывать",

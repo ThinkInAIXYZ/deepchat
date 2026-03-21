@@ -37,42 +37,54 @@
       </Tooltip>
 
       <!-- Send button -->
-      <Button
-        v-if="!isGenerating"
-        size="icon"
-        class="h-7 w-7 rounded-full"
-        :disabled="sendDisabled"
-        @click="$emit('send')"
-      >
-        <Icon icon="lucide:arrow-up" class="w-4 h-4" />
-      </Button>
-      <Button
-        v-else
-        variant="outline"
-        size="icon"
-        class="h-7 w-7 rounded-full"
-        @click="$emit('stop')"
-      >
-        <Icon icon="lucide:square" class="w-4 h-4 text-red-500" />
-      </Button>
+      <Tooltip v-if="isGenerating && !hasActiveInput">
+        <TooltipTrigger as-child>
+          <Button variant="outline" size="icon" class="h-7 w-7 rounded-full" @click="$emit('stop')">
+            <Icon icon="lucide:square" class="w-4 h-4 text-red-500" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>
+          <p>{{ t('chat.input.stop') }}</p>
+        </TooltipContent>
+      </Tooltip>
+      <Tooltip v-else>
+        <TooltipTrigger as-child>
+          <Button
+            size="icon"
+            class="h-7 w-7 rounded-full"
+            :disabled="sendDisabled"
+            @click="$emit('send')"
+          >
+            <Icon icon="lucide:arrow-up" class="w-4 h-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>
+          <p>{{ t('chat.input.queue') }}</p>
+        </TooltipContent>
+      </Tooltip>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import { Button } from '@shadcn/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@shadcn/components/ui/tooltip'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     isGenerating?: boolean
+    hasInput?: boolean
+    hasText?: boolean
     sendDisabled?: boolean
     showVoiceInput?: boolean
   }>(),
   {
     isGenerating: false,
+    hasInput: false,
+    hasText: false,
     sendDisabled: false,
     showVoiceInput: false
   }
@@ -85,4 +97,5 @@ defineEmits<{
 }>()
 
 const { t } = useI18n()
+const hasActiveInput = computed(() => props.hasInput || props.hasText)
 </script>

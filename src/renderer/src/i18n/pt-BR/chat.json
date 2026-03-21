@@ -28,6 +28,8 @@
     "agentWorkspaceTooltip": "Definir diretório de trabalho do agente",
     "attach": "Anexar",
     "voiceInput": "Entrada de voz",
+    "queue": "Enfileirar",
+    "stop": "Parar",
     "mcp": {
       "badge": "MCP {count}",
       "title": "MCPs habilitados",
@@ -49,6 +51,18 @@
         "yobrowser": "YoBrowser"
       }
     }
+  },
+  "pendingInput": {
+    "steer": "Direcionamento",
+    "queueCount": "Pendentes {count}/{max}",
+    "resumeQueue": "Retomar envio",
+    "toSteer": "Direcionar",
+    "locked": "Bloqueado",
+    "reorder": "Reordenar",
+    "files": "{count} arquivos",
+    "attachmentsOnly": "{count} anexos",
+    "empty": "Mensagem vazia",
+    "limitReached": "A área de espera está cheia (máx. {max})."
   },
   "features": {
     "webSearch": "Busca na Web",
@@ -126,7 +140,16 @@
     "verbosity": "Nível de detalhe",
     "verbosityPlaceholder": "Selecione o nível de detalhe",
     "currentCustomPrompt": "Personalização atual",
-    "useDefault": "Usar padrão"
+    "useDefault": "Usar padrão",
+    "decreaseValue": "Diminuir {label}",
+    "increaseValue": "Aumentar {label}",
+    "toggleValue": "Ativar ou desativar {label}",
+    "validation": {
+      "finiteNumber": "Deve ser um número finito",
+      "nonNegativeInteger": "Deve ser um inteiro não negativo",
+      "contextLengthAtLeastMaxTokens": "Deve ser maior ou igual ao Máximo de saída",
+      "maxTokensWithinContextLength": "Deve ser menor ou igual ao Tamanho de contexto"
+    }
   },
   "workspace": {
     "collapse": "fechar",

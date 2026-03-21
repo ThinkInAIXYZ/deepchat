@@ -28,6 +28,8 @@
     "agentWorkspaceTooltip": "Définir le répertoire de travail de l'agent",
     "attach": "Joindre",
     "voiceInput": "Saisie vocale",
+    "queue": "Ajouter à la file",
+    "stop": "Arrêter",
     "mcp": {
       "badge": "MCP {count}",
       "title": "MCP activés",
@@ -49,6 +51,18 @@
         "yobrowser": "YoBrowser"
       }
     }
+  },
+  "pendingInput": {
+    "steer": "Guidage",
+    "queueCount": "En attente {count}/{max}",
+    "resumeQueue": "Reprendre l'envoi",
+    "toSteer": "Guider",
+    "locked": "Verrouillé",
+    "reorder": "Réorganiser",
+    "files": "{count} fichiers",
+    "attachmentsOnly": "{count} pièces jointes",
+    "empty": "Message vide",
+    "limitReached": "La zone d'attente est pleine (max. {max})."
   },
   "features": {
     "webSearch": "Recherche web",
@@ -126,7 +140,16 @@
     "verbosity": "Niveau de détail",
     "verbosityPlaceholder": "Sélectionner un niveau de détail",
     "currentCustomPrompt": "Personnalisé actuel",
-    "useDefault": "Utiliser la valeur par défaut"
+    "useDefault": "Utiliser la valeur par défaut",
+    "decreaseValue": "Réduire {label}",
+    "increaseValue": "Augmenter {label}",
+    "toggleValue": "Activer ou désactiver {label}",
+    "validation": {
+      "finiteNumber": "Doit être un nombre fini",
+      "nonNegativeInteger": "Doit être un entier positif ou nul",
+      "contextLengthAtLeastMaxTokens": "Doit être supérieur ou égal au nombre maximal de tokens",
+      "maxTokensWithinContextLength": "Doit être inférieur ou égal à la longueur de contexte"
+    }
   },
   "workspace": {
     "collapse": "fermer",

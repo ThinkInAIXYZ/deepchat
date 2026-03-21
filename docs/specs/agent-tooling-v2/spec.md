@@ -75,7 +75,7 @@
 
 | 工具 | 必填参数 | 可选参数 | 说明 |
 |---|---|---|---|
-| `exec` | `command: string` | `cwd?: string`, `timeoutMs?: number`, `background?: boolean`, `yieldMs?: number` | 命令执行；长任务建议后台。 |
+| `exec` | `command: string` | `cwd?: string`, `timeoutMs?: number`, `background?: boolean`, `yieldMs?: number` | 命令执行；前台仅等待 yield 窗口，超时后自动转后台并返回 `sessionId`。 |
 | `process` | `action: enum` | `sessionId?: string`, `offset?: number`, `limit?: number`, `data?: string`, `eof?: boolean` | 后台会话管理（list/poll/log/write/kill/clear/remove）。 |
 
 约束：

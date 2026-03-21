@@ -8,6 +8,7 @@ import type {
   SessionGenerationSettings,
   SessionCompactionState,
   LegacyImportStatus,
+  PendingSessionInputRecord,
   SendMessageInput,
   ToolInteractionResponse,
   ToolInteractionResult,
@@ -23,6 +24,24 @@ export interface INewAgentPresenter {
     projectDir: string
     permissionMode?: PermissionMode
   }): Promise<SessionWithState>
+  listPendingInputs(sessionId: string): Promise<PendingSessionInputRecord[]>
+  queuePendingInput(
+    sessionId: string,
+    content: string | SendMessageInput
+  ): Promise<PendingSessionInputRecord>
+  updateQueuedInput(
+    sessionId: string,
+    itemId: string,
+    content: string | SendMessageInput
+  ): Promise<PendingSessionInputRecord>
+  moveQueuedInput(
+    sessionId: string,
+    itemId: string,
+    toIndex: number
+  ): Promise<PendingSessionInputRecord[]>
+  convertPendingInputToSteer(sessionId: string, itemId: string): Promise<PendingSessionInputRecord>
+  deletePendingInput(sessionId: string, itemId: string): Promise<void>
+  resumePendingQueue(sessionId: string): Promise<void>
   sendMessage(sessionId: string, content: string | SendMessageInput): Promise<void>
   retryMessage(sessionId: string, messageId: string): Promise<void>
   deleteMessage(sessionId: string, messageId: string): Promise<void>

@@ -35,6 +35,8 @@
     "agentWorkspaceTooltip": "Indstil agentens arbejdsmappe",
     "attach": "Vedhæft",
     "voiceInput": "Stemmeinput",
+    "queue": "Læg i kø",
+    "stop": "Stop",
     "mcp": {
       "badge": "MCP {count}",
       "title": "Aktiverede MCP'er",
@@ -56,6 +58,18 @@
         "yobrowser": "YoBrowser"
       }
     }
+  },
+  "pendingInput": {
+    "steer": "Styring",
+    "queueCount": "Afventer {count}/{max}",
+    "resumeQueue": "Fortsæt afsendelse",
+    "toSteer": "Brug til styring",
+    "locked": "Låst",
+    "reorder": "Omarranger",
+    "files": "{count} filer",
+    "attachmentsOnly": "{count} vedhæftede filer",
+    "empty": "Tom besked",
+    "limitReached": "Venteområdet er fuldt (maks. {max})."
   },
   "mcpUi": {
     "badge": "UI",
@@ -126,7 +140,16 @@
     "verbosity": "Detaljegrad",
     "verbosityPlaceholder": "Vælg detaljegrad",
     "currentCustomPrompt": "Aktuel brugerdefineret",
-    "useDefault": "Brug standard"
+    "useDefault": "Brug standard",
+    "decreaseValue": "Reducer {label}",
+    "increaseValue": "Øg {label}",
+    "toggleValue": "Slå {label} til eller fra",
+    "validation": {
+      "finiteNumber": "Skal være et endeligt tal",
+      "nonNegativeInteger": "Skal være et ikke-negativt heltal",
+      "contextLengthAtLeastMaxTokens": "Skal være større end eller lig med maksimumtokens",
+      "maxTokensWithinContextLength": "Skal være mindre end eller lig med kontekstlængden"
+    }
   },
   "workspace": {
     "collapse": "tæt",

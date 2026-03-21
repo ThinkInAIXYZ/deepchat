@@ -28,6 +28,8 @@
     "agentWorkspaceTooltip": "エージェントの作業ディレクトリを設定する",
     "attach": "添付",
     "voiceInput": "音声入力",
+    "queue": "キューに追加",
+    "stop": "停止",
     "mcp": {
       "badge": "MCP {count}",
       "title": "有効な MCP",
@@ -49,6 +51,18 @@
         "yobrowser": "YoBrowser"
       }
     }
+  },
+  "pendingInput": {
+    "steer": "誘導",
+    "queueCount": "送信待ち {count}/{max}",
+    "resumeQueue": "送信を再開",
+    "toSteer": "誘導にする",
+    "locked": "ロック済み",
+    "reorder": "並べ替え",
+    "files": "{count} 件のファイル",
+    "attachmentsOnly": "{count} 件の添付ファイル",
+    "empty": "空のメッセージ",
+    "limitReached": "待機レーンがいっぱいです（最大{max}件）。"
   },
   "features": {
     "webSearch": "ウェブ検索",
@@ -126,7 +140,16 @@
     "verbosity": "回答の詳しさ",
     "verbosityPlaceholder": "詳しさを選択",
     "currentCustomPrompt": "現在のカスタム",
-    "useDefault": "デフォルトを使用"
+    "useDefault": "デフォルトを使用",
+    "decreaseValue": "{label}を減らす",
+    "increaseValue": "{label}を増やす",
+    "toggleValue": "{label}のオン・オフを切り替える",
+    "validation": {
+      "finiteNumber": "有限の数値である必要があります",
+      "nonNegativeInteger": "0以上の整数である必要があります",
+      "contextLengthAtLeastMaxTokens": "最大トークン数以上である必要があります",
+      "maxTokensWithinContextLength": "コンテキスト長以下である必要があります"
+    }
   },
   "workspace": {
     "collapse": "近い",

@@ -17,6 +17,11 @@ export type ContextBuildOptions = {
   fallbackProtectedTurnCount?: number
 }
 
+type TokenizedTurn = {
+  messages: ChatMessage[]
+  tokens: number
+}
+
 export type HistoryTurn = {
   records: ChatMessageRecord[]
   messages: ChatMessage[]
@@ -314,8 +319,37 @@ export function buildHistoryTurns(
   })
 }
 
-function flattenTurns(turns: HistoryTurn[]): ChatMessage[] {
+function flattenTurns(turns: TokenizedTurn[]): ChatMessage[] {
   return turns.flatMap((turn) => turn.messages)
+}
+
+function buildChatMessageTurns(messages: ChatMessage[]): TokenizedTurn[] {
+  const turns: ChatMessage[][] = []
+  let currentTurn: ChatMessage[] = []
+
+  for (const message of messages) {
+    if (message.role === 'user' && currentTurn.length > 0) {
+      turns.push(currentTurn)
+      currentTurn = [message]
+      continue
+    }
+
+    if (currentTurn.length === 0) {
+      currentTurn = [message]
+      continue
+    }
+
+    currentTurn.push(message)
+  }
+
+  if (currentTurn.length > 0) {
+    turns.push(currentTurn)
+  }
+
+  return turns.map((turnMessages) => ({
+    messages: turnMessages,
+    tokens: estimateMessagesTokens(turnMessages)
+  }))
 }
 
 /**
@@ -355,7 +389,7 @@ export function truncateContext(history: ChatMessage[], availableTokens: number)
 }
 
 function selectTurnHistory(
-  turns: HistoryTurn[],
+  turns: TokenizedTurn[],
   availableTokens: number,
   fallbackProtectedTurnCount: number
 ): ChatMessage[] {
@@ -425,6 +459,47 @@ export function buildContext(
   messages.push(...selectedHistory)
   messages.push(newUserMessage)
   return messages
+}
+
+export function fitMessagesToContextWindow(
+  messages: ChatMessage[],
+  contextLength: number,
+  reserveTokens: number,
+  protectedTailCount: number = 0
+): ChatMessage[] {
+  if (messages.length === 0) {
+    return []
+  }
+
+  const leadingSystemMessage = messages[0]?.role === 'system' ? messages[0] : null
+  const conversationMessages = leadingSystemMessage ? messages.slice(1) : [...messages]
+  const clampedProtectedTailCount = Math.max(
+    0,
+    Math.min(protectedTailCount, conversationMessages.length)
+  )
+  const protectedTail =
+    clampedProtectedTailCount > 0 ? conversationMessages.slice(-clampedProtectedTailCount) : []
+  const historyPrefix =
+    clampedProtectedTailCount > 0
+      ? conversationMessages.slice(0, -clampedProtectedTailCount)
+      : conversationMessages
+
+  const systemTokens = leadingSystemMessage ? estimateMessagesTokens([leadingSystemMessage]) : 0
+  const protectedTailTokens = protectedTail.length > 0 ? estimateMessagesTokens(protectedTail) : 0
+  const availableHistoryTokens = contextLength - systemTokens - protectedTailTokens - reserveTokens
+  const selectedHistory = selectTurnHistory(
+    buildChatMessageTurns(historyPrefix),
+    availableHistoryTokens,
+    0
+  )
+
+  const result: ChatMessage[] = []
+  if (leadingSystemMessage) {
+    result.push(leadingSystemMessage)
+  }
+  result.push(...selectedHistory)
+  result.push(...protectedTail)
+  return result
 }
 
 export function buildResumeContext(

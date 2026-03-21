@@ -21,7 +21,8 @@ vi.mock('@/events', () => ({
     ACTIVATED: 'session:activated',
     DEACTIVATED: 'session:deactivated',
     STATUS_CHANGED: 'session:status-changed',
-    COMPACTION_UPDATED: 'session:compaction-updated'
+    COMPACTION_UPDATED: 'session:compaction-updated',
+    PENDING_INPUTS_UPDATED: 'session:pending-inputs-updated'
   },
   STREAM_EVENTS: {
     RESPONSE: 'stream:response',
@@ -147,6 +148,17 @@ function createMockSqlitePresenter() {
       listByMessageId: vi.fn().mockReturnValue([]),
       deleteByMessageIds: vi.fn(),
       deleteBySessionId: vi.fn()
+    },
+    deepchatPendingInputsTable: {
+      insert: vi.fn(),
+      get: vi.fn(),
+      listBySession: vi.fn().mockReturnValue([]),
+      listClaimed: vi.fn().mockReturnValue([]),
+      listActiveBySession: vi.fn().mockReturnValue([]),
+      countActiveBySession: vi.fn().mockReturnValue(0),
+      update: vi.fn(),
+      delete: vi.fn(),
+      deleteBySession: vi.fn()
     }
   } as any
 }
@@ -291,6 +303,54 @@ describe('DeepChatAgentPresenter', () => {
 
       expect(consoleSpy).toHaveBeenCalledWith(
         'DeepChatAgent: recovered 1 pending messages to error status'
+      )
+      consoleSpy.mockRestore()
+    })
+
+    it('only recovers claimed pending inputs for sessions that still exist', () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+      sqlitePresenter.deepchatPendingInputsTable.listClaimed.mockReturnValue([
+        {
+          id: 'pending-existing',
+          session_id: 's1',
+          mode: 'queue',
+          state: 'claimed',
+          payload_json: '{"text":"hello","files":[]}',
+          queue_order: 1,
+          claimed_at: 123,
+          consumed_at: null,
+          created_at: 1,
+          updated_at: 1
+        },
+        {
+          id: 'pending-missing',
+          session_id: 'missing-session',
+          mode: 'queue',
+          state: 'claimed',
+          payload_json: '{"text":"orphan","files":[]}',
+          queue_order: 2,
+          claimed_at: 456,
+          consumed_at: null,
+          created_at: 2,
+          updated_at: 2
+        }
+      ])
+      sqlitePresenter.deepchatSessionsTable.get.mockImplementation((sessionId: string) =>
+        sessionId === 's1' ? { id: 's1' } : null
+      )
+
+      new DeepChatAgentPresenter(llmProvider, configPresenter, sqlitePresenter, toolPresenter)
+
+      expect(sqlitePresenter.deepchatPendingInputsTable.update).toHaveBeenCalledTimes(1)
+      expect(sqlitePresenter.deepchatPendingInputsTable.update).toHaveBeenCalledWith(
+        'pending-existing',
+        {
+          state: 'pending',
+          claimed_at: null
+        }
+      )
+      expect(consoleSpy).toHaveBeenCalledWith(
+        'DeepChatAgent: recovered 1 sessions with claimed pending inputs'
       )
       consoleSpy.mockRestore()
     })
@@ -1171,7 +1231,7 @@ describe('DeepChatAgentPresenter', () => {
       await expect(agent.getGenerationSettings('unknown')).resolves.toBeNull()
     })
 
-    it('updates generation settings with sanitize and clamp', async () => {
+    it('updates generation settings with minimal validation and keeps invalid fields unchanged', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
 
       const updated = await agent.updateGenerationSettings('s1', {
@@ -1183,40 +1243,54 @@ describe('DeepChatAgentPresenter', () => {
         verbosity: 'invalid' as any
       })
 
-      expect(updated.temperature).toBe(2)
-      expect(updated.contextLength).toBe(2048)
-      expect(updated.maxTokens).toBe(2048)
-      expect(updated.thinkingBudget).toBe(0)
+      expect(updated.temperature).toBe(9)
+      expect(updated.contextLength).toBe(128000)
+      expect(updated.maxTokens).toBe(4096)
+      expect(updated.thinkingBudget).toBe(512)
       expect(updated.reasoningEffort).toBe('minimal')
       expect(updated.verbosity).toBe('medium')
 
       expect(sqlitePresenter.deepchatSessionsTable.updateGenerationSettings).toHaveBeenCalledWith(
         's1',
         expect.objectContaining({
-          temperature: 2,
-          contextLength: 2048,
-          maxTokens: 2048,
-          thinkingBudget: 0,
+          temperature: 9,
+          contextLength: 128000,
+          maxTokens: 4096,
+          thinkingBudget: 512,
           reasoningEffort: 'minimal',
           verbosity: 'medium'
         })
       )
     })
 
-    it('preserves portrait sentinel budgets when updating generation settings', async () => {
-      configPresenter.getThinkingBudgetRange.mockReturnValue({ min: 0, max: 24576, default: -1 })
+    it('treats legacy negative thinking budget rows as disabled and ignores new negative updates', async () => {
+      sqlitePresenter.deepchatSessionsTable.get.mockReturnValue({
+        id: 's2',
+        provider_id: 'gemini',
+        model_id: 'gemini-2.5-pro',
+        permission_mode: 'full_access',
+        system_prompt: 'You are a helpful assistant.',
+        temperature: 0.7,
+        context_length: 128000,
+        max_tokens: 4096,
+        thinking_budget: -1,
+        reasoning_effort: 'medium',
+        verbosity: 'medium'
+      })
 
-      await agent.initSession('s1', { providerId: 'gemini', modelId: 'gemini-2.5-pro' })
+      const persisted = await agent.getGenerationSettings('s2')
+      expect(persisted).not.toHaveProperty('thinkingBudget')
 
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       const updated = await agent.updateGenerationSettings('s1', {
         thinkingBudget: -1
       })
 
-      expect(updated.thinkingBudget).toBe(-1)
+      expect(updated.thinkingBudget).toBe(512)
       expect(sqlitePresenter.deepchatSessionsTable.updateGenerationSettings).toHaveBeenCalledWith(
         's1',
         expect.objectContaining({
-          thinkingBudget: -1
+          thinkingBudget: 512
         })
       )
     })

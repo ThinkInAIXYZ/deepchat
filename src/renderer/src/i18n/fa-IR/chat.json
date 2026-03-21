@@ -28,6 +28,8 @@
     "agentWorkspaceTooltip": "دایرکتوری کاری عامل را تنظیم کنید",
     "attach": "پیوست",
     "voiceInput": "ورودی صوتی",
+    "queue": "افزودن به صف",
+    "stop": "توقف",
     "mcp": {
       "badge": "MCP {count}",
       "title": "MCPهای فعال",
@@ -49,6 +51,18 @@
         "yobrowser": "YoBrowser"
       }
     }
+  },
+  "pendingInput": {
+    "steer": "هدایت",
+    "queueCount": "در انتظار ارسال {count}/{max}",
+    "resumeQueue": "ادامه ارسال",
+    "toSteer": "تبدیل به هدایت",
+    "locked": "قفل‌شده",
+    "reorder": "تغییر ترتیب",
+    "files": "{count} فایل",
+    "attachmentsOnly": "{count} پیوست",
+    "empty": "پیام خالی",
+    "limitReached": "بخش انتظار پر است (حداکثر {max})."
   },
   "features": {
     "webSearch": "جستجوی وب",
@@ -126,7 +140,16 @@
     "verbosity": "میزان جزئیات پاسخ",
     "verbosityPlaceholder": "سطح جزئیات را انتخاب کنید",
     "currentCustomPrompt": "سفارشی فعلی",
-    "useDefault": "استفاده از پیش‌فرض"
+    "useDefault": "استفاده از پیش‌فرض",
+    "decreaseValue": "کاهش {label}",
+    "increaseValue": "افزایش {label}",
+    "toggleValue": "روشن یا خاموش کردن {label}",
+    "validation": {
+      "finiteNumber": "باید یک عدد متناهی باشد",
+      "nonNegativeInteger": "باید یک عدد صحیح نامنفی باشد",
+      "contextLengthAtLeastMaxTokens": "باید بزرگ‌تر یا مساوی حداکثر توکن‌ها باشد",
+      "maxTokensWithinContextLength": "باید کوچک‌تر یا مساوی طول زمینه باشد"
+    }
   },
   "workspace": {
     "collapse": "بستن",

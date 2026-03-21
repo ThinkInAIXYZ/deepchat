@@ -5,6 +5,8 @@ import os from 'os'
 import { z } from 'zod'
 import logger from '@shared/logger'
 import type { IConfigPresenter } from '@shared/presenter'
+import { getBackgroundExecConfig } from '@/lib/agentRuntime/backgroundExecSessionManager'
+import { terminateProcessTree } from '@/lib/agentRuntime/processTree'
 import { rtkRuntimeService } from '@/lib/agentRuntime/rtkRuntimeService'
 
 // Consider moving to a shared handlers location in future refactoring
@@ -47,6 +49,22 @@ interface PreparedCommand {
   rtkFallbackReason?: string
 }
 
+interface CompletedShellProcessResult {
+  kind: 'completed'
+  output: string
+  exitCode: number | null
+  timedOut: boolean
+  offloaded: boolean
+  outputFilePath?: string
+}
+
+interface RunningShellProcessResult {
+  kind: 'running'
+  sessionId: string
+}
+
+type ShellProcessResult = CompletedShellProcessResult | RunningShellProcessResult
+
 export class AgentBashHandler {
   private allowedDirectories: string[]
   private readonly commandPermissionHandler?: CommandPermissionService
@@ -81,7 +99,7 @@ export class AgentBashHandler {
       throw new Error(`Invalid arguments: ${parsed.error}`)
     }
 
-    const { command, timeout, background, cwd: requestedCwd } = parsed.data
+    const { command, timeout, background, cwd: requestedCwd, yieldMs } = parsed.data
     const cwd = this.resolveWorkingDirectory(requestedCwd)
 
     // Handle background execution
@@ -111,13 +129,7 @@ export class AgentBashHandler {
       }
     }
 
-    let result: {
-      output: string
-      exitCode: number | null
-      timedOut: boolean
-      offloaded: boolean
-      outputFilePath?: string
-    }
+    let result: ShellProcessResult
 
     const prepared = await this.prepareCommand(command, options.env)
 
@@ -127,9 +139,19 @@ export class AgentBashHandler {
       timeout ?? COMMAND_DEFAULT_TIMEOUT_MS,
       {
         ...options,
-        env: prepared.env
+        env: prepared.env,
+        yieldMs
       }
     )
+
+    if (result.kind === 'running') {
+      return {
+        output: { status: 'running', sessionId: result.sessionId },
+        rtkApplied: prepared.rtkApplied,
+        rtkMode: prepared.rtkMode,
+        rtkFallbackReason: prepared.rtkFallbackReason
+      }
+    }
 
     const fallbackReason = this.getRtkCapabilityFallbackReason(result.output)
     if (
@@ -155,28 +177,27 @@ export class AgentBashHandler {
         timeout ?? COMMAND_DEFAULT_TIMEOUT_MS,
         {
           ...options,
-          env: prepared.env
+          env: prepared.env,
+          yieldMs
         }
       )
 
       prepared.rtkApplied = false
       prepared.rtkMode = 'bypass'
       prepared.rtkFallbackReason = fallbackReason
+
+      if (result.kind === 'running') {
+        return {
+          output: { status: 'running', sessionId: result.sessionId },
+          rtkApplied: prepared.rtkApplied,
+          rtkMode: prepared.rtkMode,
+          rtkFallbackReason: prepared.rtkFallbackReason
+        }
+      }
     }
 
-    const responseLines: string[] = []
-    if (result.output) {
-      responseLines.push(result.output.trimEnd())
-    }
-    responseLines.push(`Exit Code: ${result.exitCode ?? 'null'}`)
-    if (result.timedOut) {
-      responseLines.push('Timed out')
-    }
-    if (result.offloaded && result.outputFilePath) {
-      responseLines.push(`Output offloaded: ${result.outputFilePath}`)
-    }
     return {
-      output: responseLines.join('\n'),
+      output: this.formatCompletedResult(result),
       rtkApplied: prepared.rtkApplied,
       rtkMode: prepared.rtkMode,
       rtkFallbackReason: prepared.rtkFallbackReason
@@ -231,14 +252,76 @@ export class AgentBashHandler {
     command: string,
     cwd: string,
     timeout: number,
+    options: ExecuteCommandOptions & { yieldMs?: number }
+  ): Promise<ShellProcessResult> {
+    if (options.conversationId) {
+      return await this.runManagedShellProcess(command, cwd, timeout, options)
+    }
+
+    return await this.runDetachedShellProcess(command, cwd, timeout, options)
+  }
+
+  private async runManagedShellProcess(
+    command: string,
+    cwd: string,
+    timeout: number,
+    options: ExecuteCommandOptions & { yieldMs?: number }
+  ): Promise<ShellProcessResult> {
+    const conversationId = options.conversationId
+    if (!conversationId) {
+      throw new Error('Managed shell process requires a conversation ID')
+    }
+
+    const session = await backgroundExecSessionManager.start(conversationId, command, cwd, {
+      timeout,
+      env: options.env,
+      outputPrefix: options.outputPrefix
+    })
+
+    backgroundExecSessionManager.write(conversationId, session.sessionId, options.stdin ?? '', true)
+
+    const yielded = await backgroundExecSessionManager.waitForCompletionOrYield(
+      conversationId,
+      session.sessionId,
+      options.yieldMs ?? getBackgroundExecConfig().backgroundMs
+    )
+
+    if (yielded.kind === 'running') {
+      return yielded
+    }
+
+    const shouldCleanupSession = !yielded.result.offloaded
+
+    try {
+      return {
+        kind: 'completed',
+        output: yielded.result.output,
+        exitCode: yielded.result.exitCode,
+        timedOut: yielded.result.timedOut,
+        offloaded: yielded.result.offloaded,
+        outputFilePath: yielded.result.outputFilePath
+      }
+    } finally {
+      if (shouldCleanupSession) {
+        await backgroundExecSessionManager
+          .remove(conversationId, session.sessionId)
+          .catch((error) => {
+            logger.warn('[AgentBashHandler] Failed to cleanup completed foreground exec session', {
+              conversationId,
+              sessionId: session.sessionId,
+              error
+            })
+          })
+      }
+    }
+  }
+
+  private async runDetachedShellProcess(
+    command: string,
+    cwd: string,
+    timeout: number,
     options: ExecuteCommandOptions
-  ): Promise<{
-    output: string
-    exitCode: number | null
-    timedOut: boolean
-    offloaded: boolean
-    outputFilePath?: string
-  }> {
+  ): Promise<CompletedShellProcessResult> {
     const { shell, args } = getUserShell()
     const shellEnv = await getShellEnvironment()
     const outputFilePath = this.createOutputFilePath(options.conversationId, options.outputPrefix)
@@ -251,17 +334,38 @@ export class AgentBashHandler {
           ...shellEnv,
           ...options.env
         },
+        detached: process.platform !== 'win32',
         stdio: ['pipe', 'pipe', 'pipe']
       })
 
+      let settled = false
       let output = ''
       let totalOutputLength = 0
       let offloaded = false
       let timedOut = false
-      let exitCode: number | null = null
       let outputWriteQueue = Promise.resolve()
       let timeoutId: NodeJS.Timeout | null = null
-      let killTimeoutId: NodeJS.Timeout | null = null
+
+      const cleanupTimeout = () => {
+        if (timeoutId) {
+          clearTimeout(timeoutId)
+          timeoutId = null
+        }
+      }
+
+      const settle = async (payload: CompletedShellProcessResult) => {
+        if (settled) return
+        settled = true
+        cleanupTimeout()
+
+        try {
+          await outputWriteQueue
+        } catch {
+          // Already logged when flushing output.
+        }
+
+        resolve(payload)
+      }
 
       const appendOutput = (chunk: string) => {
         totalOutputLength += chunk.length
@@ -308,56 +412,63 @@ export class AgentBashHandler {
 
       timeoutId = setTimeout(() => {
         timedOut = true
-        try {
-          child.kill('SIGTERM')
-        } catch {
-          // ignore kill errors
-        }
-        killTimeoutId = setTimeout(() => {
-          try {
-            child.kill('SIGKILL')
-          } catch {
-            // ignore kill errors
+        void terminateProcessTree(child, { graceMs: COMMAND_KILL_GRACE_MS }).then((closed) => {
+          if (closed || settled) {
+            return
           }
-        }, COMMAND_KILL_GRACE_MS)
+
+          const preview =
+            offloaded && outputFilePath
+              ? this.readLastCharsFromFile(outputFilePath, COMMAND_PREVIEW_CHARS)
+              : output
+
+          void settle({
+            kind: 'completed',
+            output: preview,
+            exitCode: null,
+            timedOut: true,
+            offloaded,
+            outputFilePath: outputFilePath ?? undefined
+          })
+        })
       }, timeout)
 
       child.on('error', (error) => {
-        if (timeoutId) clearTimeout(timeoutId)
-        if (killTimeoutId) clearTimeout(killTimeoutId)
+        cleanupTimeout()
         reject(error)
       })
 
       child.on('close', async (code, signal) => {
-        if (timeoutId) clearTimeout(timeoutId)
-        if (killTimeoutId) clearTimeout(killTimeoutId)
-
-        try {
-          await outputWriteQueue
-        } catch {
-          // Already logged when flushing output.
-        }
-
-        if (signal && timedOut) {
-          exitCode = null
-        } else {
-          exitCode = code ?? null
-        }
-
         const preview =
           offloaded && outputFilePath
             ? this.readLastCharsFromFile(outputFilePath, COMMAND_PREVIEW_CHARS)
             : output
 
-        resolve({
+        void settle({
+          kind: 'completed',
           output: preview,
-          exitCode,
+          exitCode: signal && timedOut ? null : (code ?? null),
           timedOut,
           offloaded,
           outputFilePath: outputFilePath ?? undefined
         })
       })
     })
+  }
+
+  private formatCompletedResult(result: CompletedShellProcessResult): string {
+    const responseLines: string[] = []
+    if (result.output) {
+      responseLines.push(result.output.trimEnd())
+    }
+    responseLines.push(`Exit Code: ${result.exitCode ?? 'null'}`)
+    if (result.timedOut) {
+      responseLines.push('Timed out')
+    }
+    if (result.offloaded && result.outputFilePath) {
+      responseLines.push(`Output offloaded: ${result.outputFilePath}`)
+    }
+    return responseLines.join('\n')
   }
 
   private createOutputFilePath(
@@ -458,8 +569,13 @@ export class AgentBashHandler {
 
     const result = await backgroundExecSessionManager.start(conversationId, prepared.command, cwd, {
       timeout: timeout ?? COMMAND_DEFAULT_TIMEOUT_MS,
-      env: prepared.env
+      env: prepared.env,
+      outputPrefix: options.outputPrefix
     })
+
+    if (options.stdin !== undefined) {
+      backgroundExecSessionManager.write(conversationId, result.sessionId, options.stdin, true)
+    }
 
     return {
       output: { status: 'running', sessionId: result.sessionId },

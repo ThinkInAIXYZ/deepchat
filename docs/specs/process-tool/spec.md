@@ -14,6 +14,15 @@ As an AI agent, I want to start a command in the background so that I can run lo
 - Command returns immediately with a `sessionId` and `status: "running"`
 - Process continues running after tool returns
 
+### US-1.1: Foreground Yield To Background
+As an AI agent, I want a foreground `exec` call to yield into a background session when it runs too long, so that the loop can continue without restarting the command.
+
+**Acceptance Criteria:**
+- Foreground `exec` waits only until `yieldMs` (or the default yield window)
+- If the command finishes within that window, it returns the normal foreground result
+- If the command is still running after that window, the same process is kept alive and `exec` returns `status: "running"` with a `sessionId`
+- The yielded session is manageable through `process`
+
 ### US-2: Monitor Background Output
 As an AI agent, I want to poll the output of a background command so that I can monitor its progress.
 

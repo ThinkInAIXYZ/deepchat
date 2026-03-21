@@ -6,7 +6,6 @@ import { SESSION_EVENTS } from '@/events'
 import type {
   SessionWithState,
   CreateSessionInput,
-  MessageFile,
   SendMessageInput
 } from '@shared/types/agent-interface'
 import { downloadBlob } from '@/lib/download'
@@ -201,14 +200,6 @@ export const useSessionStore = defineStore('session', () => {
       const webContentsId = window.api.getWebContentsId()
       const session = await newAgentPresenter.createSession(input, webContentsId)
       activeSessionId.value = session.id
-
-      if (input.message?.trim()) {
-        messageStore.addOptimisticUserMessage(
-          session.id,
-          input.message,
-          (input.files ?? []) as MessageFile[]
-        )
-      }
 
       await fetchSessions()
       pageRouter.goToChat(session.id)

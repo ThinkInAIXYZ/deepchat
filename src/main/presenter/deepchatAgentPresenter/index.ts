@@ -4,6 +4,7 @@ import type {
   DeepChatSessionState,
   IAgentImplementation,
   MessageFile,
+  PendingSessionInputRecord,
   PermissionMode,
   SendMessageInput,
   SessionCompactionState,
@@ -18,6 +19,12 @@ import type { IConfigPresenter, ILlmProviderPresenter, ModelConfig } from '@shar
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
 import type { ReasoningPortrait } from '@shared/types/model-db'
+import {
+  normalizeLegacyThinkingBudgetValue,
+  parseFiniteNumericValue,
+  toValidNonNegativeInteger,
+  validateGenerationNumericField
+} from '@shared/utils/generationSettingsValidation'
 import { nanoid } from 'nanoid'
 import type { SQLitePresenter } from '../sqlitePresenter'
 import { eventBus, SendTarget } from '@/eventbus'
@@ -27,10 +34,17 @@ import {
   buildSystemEnvPrompt
 } from '@/lib/agentRuntime/systemEnvPromptBuilder'
 import { presenter } from '@/presenter'
-import { buildContext, buildResumeContext } from './contextBuilder'
+import {
+  buildContext,
+  buildResumeContext,
+  createUserChatMessage,
+  fitMessagesToContextWindow
+} from './contextBuilder'
 import { appendSummarySection, CompactionService, type CompactionIntent } from './compactionService'
 import { buildPersistableMessageTracePayload } from './messageTracePayload'
 import { DeepChatMessageStore } from './messageStore'
+import { PendingInputCoordinator } from './pendingInputCoordinator'
+import { DeepChatPendingInputStore } from './pendingInputStore'
 import { processStream } from './process'
 import { DeepChatSessionStore, type SessionSummaryState } from './sessionStore'
 import type { PendingToolInteraction, ProcessResult } from './types'
@@ -79,11 +93,6 @@ type SystemPromptCacheEntry = {
   fingerprint: string
 }
 
-const TEMPERATURE_MIN = 0
-const TEMPERATURE_MAX = 2
-const CONTEXT_LENGTH_MIN = 2048
-const MAX_TOKENS_MIN = 128
-
 const isReasoningEffort = (value: unknown): value is 'minimal' | 'low' | 'medium' | 'high' =>
   value === 'minimal' || value === 'low' || value === 'medium' || value === 'high'
 
@@ -97,6 +106,8 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
   private readonly toolPresenter: IToolPresenter | null
   private readonly sessionStore: DeepChatSessionStore
   private readonly messageStore: DeepChatMessageStore
+  private readonly pendingInputStore: DeepChatPendingInputStore
+  private readonly pendingInputCoordinator: PendingInputCoordinator
   private readonly runtimeState: Map<string, DeepChatSessionState> = new Map()
   private readonly sessionGenerationSettings: Map<string, SessionGenerationSettings> = new Map()
   private readonly abortControllers: Map<string, AbortController> = new Map()
@@ -106,6 +117,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
   private readonly sessionCompactionStates: Map<string, SessionCompactionState> = new Map()
   private readonly interactionLocks: Set<string> = new Set()
   private readonly resumingMessages: Set<string> = new Set()
+  private readonly drainingPendingQueues: Set<string> = new Set()
   private readonly compactionService: CompactionService
   private readonly toolOutputGuard: ToolOutputGuard
   private readonly hooksBridge?: NewSessionHooksBridge
@@ -123,6 +135,8 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     this.toolPresenter = toolPresenter ?? null
     this.sessionStore = new DeepChatSessionStore(sqlitePresenter)
     this.messageStore = new DeepChatMessageStore(sqlitePresenter)
+    this.pendingInputStore = new DeepChatPendingInputStore(sqlitePresenter)
+    this.pendingInputCoordinator = new PendingInputCoordinator(this.pendingInputStore)
     this.compactionService = new CompactionService(
       this.sessionStore,
       this.messageStore,
@@ -135,6 +149,13 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     const recovered = this.messageStore.recoverPendingMessages()
     if (recovered > 0) {
       console.log(`DeepChatAgent: recovered ${recovered} pending messages to error status`)
+    }
+
+    const recoveredPendingInputs = this.pendingInputCoordinator.recoverClaimedInputsAfterRestart()
+    if (recoveredPendingInputs > 0) {
+      console.log(
+        `DeepChatAgent: recovered ${recoveredPendingInputs} sessions with claimed pending inputs`
+      )
     }
   }
 
@@ -190,6 +211,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       this.abortControllers.delete(sessionId)
     }
 
+    this.pendingInputCoordinator.deleteBySession(sessionId)
     this.messageStore.deleteBySession(sessionId)
     this.sessionStore.delete(sessionId)
     this.runtimeState.delete(sessionId)
@@ -198,6 +220,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     this.sessionProjectDirs.delete(sessionId)
     this.systemPromptCache.delete(sessionId)
     this.sessionCompactionStates.delete(sessionId)
+    this.drainingPendingQueues.delete(sessionId)
   }
 
   async getSessionState(sessionId: string): Promise<DeepChatSessionState | null> {
@@ -226,10 +249,84 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     return { ...rebuilt }
   }
 
+  async listPendingInputs(sessionId: string): Promise<PendingSessionInputRecord[]> {
+    return this.pendingInputCoordinator.listPendingInputs(sessionId)
+  }
+
+  async queuePendingInput(
+    sessionId: string,
+    content: string | SendMessageInput
+  ): Promise<PendingSessionInputRecord> {
+    const state = await this.getSessionState(sessionId)
+    if (!state) {
+      throw new Error(`Session ${sessionId} not found`)
+    }
+
+    const record = this.pendingInputCoordinator.queuePendingInput(sessionId, content)
+    if (this.isAwaitingToolQuestionFollowUp(sessionId)) {
+      const claimedFollowUp = this.pendingInputCoordinator.claimQueuedInput(sessionId, record.id)
+      void this.processMessage(sessionId, claimedFollowUp.payload, {
+        projectDir: this.resolveProjectDir(sessionId),
+        pendingQueueItemId: claimedFollowUp.id
+      })
+      return claimedFollowUp
+    }
+
+    void this.drainPendingQueueIfPossible(sessionId, 'enqueue')
+    return record
+  }
+
+  async updateQueuedInput(
+    sessionId: string,
+    itemId: string,
+    content: string | SendMessageInput
+  ): Promise<PendingSessionInputRecord> {
+    await this.ensureSessionReadyForPendingInputMutation(sessionId)
+    return this.pendingInputCoordinator.updateQueuedInput(sessionId, itemId, content)
+  }
+
+  async moveQueuedInput(
+    sessionId: string,
+    itemId: string,
+    toIndex: number
+  ): Promise<PendingSessionInputRecord[]> {
+    await this.ensureSessionReadyForPendingInputMutation(sessionId)
+    return this.pendingInputCoordinator.moveQueuedInput(sessionId, itemId, toIndex)
+  }
+
+  async convertPendingInputToSteer(
+    sessionId: string,
+    itemId: string
+  ): Promise<PendingSessionInputRecord> {
+    await this.ensureSessionReadyForPendingInputMutation(sessionId)
+    return this.pendingInputCoordinator.convertPendingInputToSteer(sessionId, itemId)
+  }
+
+  async deletePendingInput(sessionId: string, itemId: string): Promise<void> {
+    await this.ensureSessionReadyForPendingInputMutation(sessionId)
+    this.pendingInputCoordinator.deletePendingInput(sessionId, itemId)
+  }
+
+  async resumePendingQueue(sessionId: string): Promise<void> {
+    const state = await this.getSessionState(sessionId)
+    if (!state) {
+      throw new Error(`Session ${sessionId} not found`)
+    }
+    if (this.isAwaitingToolQuestionFollowUp(sessionId)) {
+      return
+    }
+
+    void this.drainPendingQueueIfPossible(sessionId, 'resume')
+  }
+
   async processMessage(
     sessionId: string,
     content: string | SendMessageInput,
-    context?: { projectDir?: string | null; emitRefreshBeforeStream?: boolean }
+    context?: {
+      projectDir?: string | null
+      emitRefreshBeforeStream?: boolean
+      pendingQueueItemId?: string
+    }
   ): Promise<void> {
     const state = this.runtimeState.get(sessionId)
     if (!state) throw new Error(`Session ${sessionId} not found`)
@@ -245,6 +342,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     )
 
     this.setSessionStatus(sessionId, 'generating')
+    let consumedPendingQueueItem = false
 
     try {
       const generationSettings = await this.getEffectiveSessionGenerationSettings(sessionId)
@@ -340,6 +438,11 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
         assistantOrderSeq
       )
 
+      if (context?.pendingQueueItemId) {
+        this.pendingInputCoordinator.consumeQueuedInput(sessionId, context.pendingQueueItemId)
+        consumedPendingQueueItem = true
+      }
+
       if (context?.emitRefreshBeforeStream) {
         this.emitMessageRefresh(sessionId, assistantMessageId || userMessageId)
       }
@@ -353,8 +456,21 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
         tools
       })
       this.applyProcessResultStatus(sessionId, result)
+      if (result?.status === 'completed') {
+        void this.drainPendingQueueIfPossible(sessionId, 'completed')
+      }
     } catch (err) {
       console.error('[DeepChatAgent] processMessage error:', err)
+      if (context?.pendingQueueItemId && !consumedPendingQueueItem) {
+        try {
+          this.pendingInputCoordinator.releaseClaimedQueueInput(
+            sessionId,
+            context.pendingQueueItemId
+          )
+        } catch (releaseError) {
+          console.warn('[DeepChatAgent] failed to release claimed queue input:', releaseError)
+        }
+      }
       const errorMessage = err instanceof Error ? err.message : String(err)
       this.dispatchHook('Stop', {
         sessionId,
@@ -884,6 +1000,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     }
 
     await this.cancelGeneration(sessionId)
+    this.pendingInputCoordinator.deleteBySession(sessionId)
     this.messageStore.deleteBySession(sessionId)
     this.resetSummaryState(sessionId)
     this.setSessionStatus(sessionId, 'idle')
@@ -900,6 +1017,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     if (this.hasPendingInteractions(sessionId)) {
       throw new Error('Please resolve pending tool interactions before retrying.')
     }
+    this.assertNoActivePendingInputs(sessionId)
 
     const target = await this.messageStore.getMessage(messageId)
     if (!target) {
@@ -931,6 +1049,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
   }
 
   async deleteMessage(sessionId: string, messageId: string): Promise<void> {
+    this.assertNoActivePendingInputs(sessionId)
     const target = await this.messageStore.getMessage(messageId)
     if (!target) {
       throw new Error(`Message ${messageId} not found`)
@@ -950,6 +1069,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     messageId: string,
     text: string
   ): Promise<ChatMessageRecord> {
+    this.assertNoActivePendingInputs(sessionId)
     const target = await this.messageStore.getMessage(messageId)
     if (!target) {
       throw new Error(`Message ${messageId} not found`)
@@ -1045,6 +1165,9 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     }
 
     const traceEnabled = this.configPresenter.getSetting<boolean>('traceDebugEnabled') === true
+    const pendingInputCoordinator = this.pendingInputCoordinator
+    const injectSteerInputsIntoRequest = this.injectSteerInputsIntoRequest.bind(this)
+    const persistMessageTrace = this.persistMessageTrace.bind(this)
     if (traceEnabled) {
       const traceAwareConfig = modelConfig as ModelConfig & {
         requestTraceContext?: {
@@ -1055,7 +1178,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       traceAwareConfig.requestTraceContext = {
         enabled: true,
         persist: async (payload: ProviderRequestTracePayload) => {
-          this.persistMessageTrace({
+          persistMessageTrace({
             sessionId,
             messageId,
             providerId: state.providerId,
@@ -1070,6 +1193,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     const maxTokens = generationSettings.maxTokens
 
     const tools = providedTools ?? (await this.loadToolDefinitionsForSession(sessionId, projectDir))
+    const supportsVision = this.supportsVision(state.providerId, state.modelId)
 
     const abortController = new AbortController()
     this.abortControllers.set(sessionId, abortController)
@@ -1088,7 +1212,51 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
         messages,
         tools,
         toolPresenter: this.toolPresenter,
-        coreStream: provider.coreStream.bind(provider),
+        coreStream: async function* (
+          requestMessages,
+          requestModelId,
+          requestModelConfig,
+          requestTemperature,
+          requestMaxTokens,
+          requestTools
+        ) {
+          const claimedSteerBatch = pendingInputCoordinator.claimSteerBatchForNextLoop(sessionId)
+          const injectedMessages = injectSteerInputsIntoRequest(
+            requestMessages,
+            claimedSteerBatch,
+            supportsVision,
+            requestModelConfig.contextLength,
+            requestMaxTokens
+          )
+
+          let didConsumeSteerBatch = false
+
+          try {
+            for await (const event of provider.coreStream(
+              injectedMessages,
+              requestModelId,
+              requestModelConfig,
+              requestTemperature,
+              requestMaxTokens,
+              requestTools
+            )) {
+              if (!didConsumeSteerBatch && claimedSteerBatch.length > 0) {
+                pendingInputCoordinator.consumeClaimedSteerBatch(sessionId)
+                didConsumeSteerBatch = true
+              }
+              yield event
+            }
+
+            if (!didConsumeSteerBatch && claimedSteerBatch.length > 0) {
+              pendingInputCoordinator.consumeClaimedSteerBatch(sessionId)
+            }
+          } catch (error) {
+            if (!didConsumeSteerBatch && claimedSteerBatch.length > 0) {
+              pendingInputCoordinator.releaseClaimedInputs(sessionId)
+            }
+            throw error
+          }
+        },
         providerId: state.providerId,
         modelId: state.modelId,
         modelConfig,
@@ -1153,6 +1321,97 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
         this.abortControllers.delete(sessionId)
       }
     }
+  }
+
+  private injectSteerInputsIntoRequest(
+    messages: ChatMessage[],
+    steerInputs: PendingSessionInputRecord[],
+    supportsVision: boolean,
+    contextLength: number,
+    reserveTokens: number
+  ): ChatMessage[] {
+    if (steerInputs.length === 0) {
+      return messages
+    }
+
+    const steerMessages = steerInputs.map((input) =>
+      createUserChatMessage(input.payload, supportsVision)
+    )
+    const clonedMessages = [...messages]
+    const lastMessage = clonedMessages[clonedMessages.length - 1]
+    const trailingUserCount = lastMessage?.role === 'user' ? 1 : 0
+    const injectedMessages =
+      trailingUserCount > 0
+        ? [...clonedMessages.slice(0, -1), ...steerMessages, lastMessage]
+        : [...clonedMessages, ...steerMessages]
+
+    return fitMessagesToContextWindow(
+      injectedMessages,
+      contextLength,
+      reserveTokens,
+      steerMessages.length + trailingUserCount
+    )
+  }
+
+  private async drainPendingQueueIfPossible(
+    sessionId: string,
+    reason: 'enqueue' | 'resume' | 'completed'
+  ): Promise<boolean> {
+    if (this.drainingPendingQueues.has(sessionId)) {
+      return false
+    }
+
+    const state = await this.getSessionState(sessionId)
+    if (!state || !this.canDrainPendingQueueFromStatus(state.status, reason)) {
+      return false
+    }
+    if (this.isAwaitingToolQuestionFollowUp(sessionId)) {
+      return false
+    }
+    if (this.hasPendingInteractions(sessionId)) {
+      return false
+    }
+
+    const nextQueuedInput = this.pendingInputCoordinator.getNextQueuedInput(sessionId)
+    if (!nextQueuedInput) {
+      return false
+    }
+
+    this.drainingPendingQueues.add(sessionId)
+    try {
+      const claimedInput = this.pendingInputCoordinator.claimQueuedInput(
+        sessionId,
+        nextQueuedInput.id
+      )
+      await this.processMessage(sessionId, claimedInput.payload, {
+        projectDir: this.resolveProjectDir(sessionId),
+        pendingQueueItemId: claimedInput.id
+      })
+      return true
+    } catch (error) {
+      console.error('[DeepChatAgent] drainPendingQueueIfPossible error:', error)
+      return false
+    } finally {
+      this.drainingPendingQueues.delete(sessionId)
+      if (
+        this.pendingInputCoordinator.getNextQueuedInput(sessionId) &&
+        (await this.getSessionState(sessionId))?.status === 'idle' &&
+        !this.hasPendingInteractions(sessionId)
+      ) {
+        void this.drainPendingQueueIfPossible(sessionId, 'completed')
+      }
+    }
+  }
+
+  private canDrainPendingQueueFromStatus(
+    status: DeepChatSessionState['status'],
+    reason: 'enqueue' | 'resume' | 'completed'
+  ): boolean {
+    if (status === 'idle') {
+      return true
+    }
+
+    return (reason === 'enqueue' || reason === 'resume') && status === 'error'
   }
 
   private applyProcessResultStatus(
@@ -1278,6 +1537,9 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
         initialBlocks
       })
       this.applyProcessResultStatus(sessionId, result)
+      if (result?.status === 'completed') {
+        void this.drainPendingQueueIfPossible(sessionId, 'completed')
+      }
       return true
     } catch (error) {
       console.error('[DeepChatAgent] resumeAssistantMessage error:', error)
@@ -1633,7 +1895,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       patch.maxTokens = sessionRow.max_tokens
     }
     if (sessionRow.thinking_budget !== null) {
-      patch.thinkingBudget = sessionRow.thinking_budget
+      patch.thinkingBudget = normalizeLegacyThinkingBudgetValue(sessionRow.thinking_budget)
     }
     if (sessionRow.reasoning_effort !== null) {
       patch.reasoningEffort = sessionRow.reasoning_effort
@@ -1651,45 +1913,29 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
   ): Promise<SessionGenerationSettings> {
     const modelConfig = this.configPresenter.getModelConfig(modelId, providerId)
     const defaultSystemPrompt = await this.configPresenter.getDefaultSystemPrompt()
-    const contextLengthLimit = this.getContextLengthLimit(modelConfig)
-    const maxTokensLimit = this.getMaxTokensLimit(modelConfig)
+    const contextLengthDefault = toValidNonNegativeInteger(modelConfig.contextLength) ?? 32000
+    const maxTokensDefault =
+      toValidNonNegativeInteger(modelConfig.maxTokens) ?? Math.min(4096, contextLengthDefault)
 
     const defaults: SessionGenerationSettings = {
       systemPrompt: defaultSystemPrompt ?? '',
-      temperature: this.clampNumber(
-        modelConfig.temperature ?? 0.7,
-        TEMPERATURE_MIN,
-        TEMPERATURE_MAX
-      ),
-      contextLength: this.clampInteger(
-        modelConfig.contextLength ?? contextLengthLimit,
-        CONTEXT_LENGTH_MIN,
-        contextLengthLimit
-      ),
-      maxTokens: this.clampInteger(
-        modelConfig.maxTokens ?? Math.min(4096, maxTokensLimit),
-        MAX_TOKENS_MIN,
-        maxTokensLimit
-      )
+      temperature: parseFiniteNumericValue(modelConfig.temperature) ?? 0.7,
+      contextLength: contextLengthDefault,
+      maxTokens:
+        maxTokensDefault <= contextLengthDefault
+          ? maxTokensDefault
+          : Math.min(4096, contextLengthDefault)
     }
-
-    defaults.maxTokens = Math.min(defaults.maxTokens, defaults.contextLength)
 
     const supportsReasoning =
       this.configPresenter.supportsReasoningCapability?.(providerId, modelId) === true
     if (supportsReasoning) {
-      const budgetRange = this.configPresenter.getThinkingBudgetRange?.(providerId, modelId) ?? {}
-      const defaultBudget = this.toFiniteNumber(
-        modelConfig.thinkingBudget ?? budgetRange.default ?? undefined
+      const defaultBudget = normalizeLegacyThinkingBudgetValue(
+        modelConfig.thinkingBudget ??
+          this.configPresenter.getThinkingBudgetRange?.(providerId, modelId)?.default
       )
       if (defaultBudget !== undefined) {
-        defaults.thinkingBudget = this.normalizeThinkingBudget(
-          providerId,
-          modelId,
-          Math.round(defaultBudget),
-          budgetRange.min,
-          budgetRange.max
-        )
+        defaults.thinkingBudget = defaultBudget
       }
     }
 
@@ -1728,10 +1974,6 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     const base = baseSettings
       ? { ...baseSettings }
       : await this.buildDefaultGenerationSettings(providerId, modelId)
-    const modelConfig = this.configPresenter.getModelConfig(modelId, providerId)
-    const contextLengthLimit = this.getContextLengthLimit(modelConfig)
-    const maxTokensLimit = this.getMaxTokensLimit(modelConfig)
-
     const next: SessionGenerationSettings = { ...base }
 
     if (Object.prototype.hasOwnProperty.call(patch, 'systemPrompt')) {
@@ -1740,67 +1982,58 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     }
 
     if (Object.prototype.hasOwnProperty.call(patch, 'temperature')) {
-      const numeric = this.toFiniteNumber(patch.temperature)
-      next.temperature = this.clampNumber(
-        numeric ?? base.temperature,
-        TEMPERATURE_MIN,
-        TEMPERATURE_MAX
-      )
+      const numeric = parseFiniteNumericValue(patch.temperature)
+      if (numeric !== undefined) {
+        next.temperature = numeric
+      }
     }
 
+    const parsedContextLength = parseFiniteNumericValue(patch.contextLength)
+    const parsedMaxTokens = parseFiniteNumericValue(patch.maxTokens)
+    const nextContextReference =
+      Object.prototype.hasOwnProperty.call(patch, 'contextLength') &&
+      toValidNonNegativeInteger(parsedContextLength) !== undefined
+        ? toValidNonNegativeInteger(parsedContextLength)
+        : next.contextLength
+    const nextMaxTokensReference =
+      Object.prototype.hasOwnProperty.call(patch, 'maxTokens') &&
+      toValidNonNegativeInteger(parsedMaxTokens) !== undefined
+        ? toValidNonNegativeInteger(parsedMaxTokens)
+        : next.maxTokens
+
     if (Object.prototype.hasOwnProperty.call(patch, 'contextLength')) {
-      const numeric = this.toFiniteNumber(patch.contextLength)
-      next.contextLength = this.clampInteger(
-        Math.round(numeric ?? base.contextLength),
-        CONTEXT_LENGTH_MIN,
-        contextLengthLimit
-      )
-    } else {
-      next.contextLength = this.clampInteger(
-        next.contextLength,
-        CONTEXT_LENGTH_MIN,
-        contextLengthLimit
-      )
+      const error = validateGenerationNumericField('contextLength', patch.contextLength, {
+        maxTokens: nextMaxTokensReference
+      })
+      const numeric = toValidNonNegativeInteger(parsedContextLength)
+      if (!error && numeric !== undefined) {
+        next.contextLength = numeric
+      }
     }
 
     if (Object.prototype.hasOwnProperty.call(patch, 'maxTokens')) {
-      const numeric = this.toFiniteNumber(patch.maxTokens)
-      next.maxTokens = this.clampInteger(
-        Math.round(numeric ?? base.maxTokens),
-        MAX_TOKENS_MIN,
-        maxTokensLimit
-      )
-    } else {
-      next.maxTokens = this.clampInteger(next.maxTokens, MAX_TOKENS_MIN, maxTokensLimit)
+      const error = validateGenerationNumericField('maxTokens', patch.maxTokens, {
+        contextLength: nextContextReference
+      })
+      const numeric = toValidNonNegativeInteger(parsedMaxTokens)
+      if (!error && numeric !== undefined) {
+        next.maxTokens = numeric
+      }
     }
-    next.maxTokens = Math.min(next.maxTokens, next.contextLength)
 
     const supportsReasoning =
       this.configPresenter.supportsReasoningCapability?.(providerId, modelId) === true
     if (supportsReasoning) {
-      const budgetRange = this.configPresenter.getThinkingBudgetRange?.(providerId, modelId) ?? {}
       if (Object.prototype.hasOwnProperty.call(patch, 'thinkingBudget')) {
         const raw = patch.thinkingBudget
-        const numeric = this.toFiniteNumber(raw)
-        if (numeric === undefined) {
+        if (raw === undefined) {
           delete next.thinkingBudget
-        } else {
-          next.thinkingBudget = this.normalizeThinkingBudget(
-            providerId,
-            modelId,
-            Math.round(numeric),
-            budgetRange.min,
-            budgetRange.max
-          )
+        } else if (!validateGenerationNumericField('thinkingBudget', raw)) {
+          const numeric = toValidNonNegativeInteger(raw)
+          if (numeric !== undefined) {
+            next.thinkingBudget = numeric
+          }
         }
-      } else if (next.thinkingBudget !== undefined) {
-        next.thinkingBudget = this.normalizeThinkingBudget(
-          providerId,
-          modelId,
-          Math.round(next.thinkingBudget),
-          budgetRange.min,
-          budgetRange.max
-        )
       }
     } else {
       delete next.thinkingBudget
@@ -1911,70 +2144,18 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     return this.configPresenter.getReasoningPortrait?.(providerId, modelId) ?? null
   }
 
-  private normalizeThinkingBudget(
-    providerId: string,
-    modelId: string,
-    value: number,
-    min?: number,
-    max?: number
-  ): number {
-    const roundedValue = Math.round(value)
-    const budget = this.getReasoningPortrait(providerId, modelId)?.budget
-    const sentinelValues = new Set<number>()
-
-    if (typeof budget?.default === 'number') sentinelValues.add(Math.round(budget.default))
-    if (typeof budget?.auto === 'number') sentinelValues.add(Math.round(budget.auto))
-    if (typeof budget?.off === 'number') sentinelValues.add(Math.round(budget.off))
-
-    if (sentinelValues.has(roundedValue)) {
-      return roundedValue
+  private async ensureSessionReadyForPendingInputMutation(sessionId: string): Promise<void> {
+    const state = await this.getSessionState(sessionId)
+    if (!state) {
+      throw new Error(`Session ${sessionId} not found`)
     }
-
-    return this.clampNumberWithOptionalRange(roundedValue, min, max)
   }
 
-  private toFiniteNumber(value: unknown): number | undefined {
-    if (typeof value !== 'number' || Number.isNaN(value) || !Number.isFinite(value)) {
-      return undefined
+  private assertNoActivePendingInputs(sessionId: string): void {
+    if (!this.pendingInputCoordinator.hasActiveInputs(sessionId)) {
+      return
     }
-    return value
-  }
-
-  private clampNumber(value: number, min: number, max: number): number {
-    if (value < min) return min
-    if (value > max) return max
-    return value
-  }
-
-  private clampInteger(value: number, min: number, max: number): number {
-    return Math.round(this.clampNumber(value, min, max))
-  }
-
-  private clampNumberWithOptionalRange(value: number, min?: number, max?: number): number {
-    let next = value
-    if (typeof min === 'number' && Number.isFinite(min)) {
-      next = Math.max(next, Math.round(min))
-    }
-    if (typeof max === 'number' && Number.isFinite(max)) {
-      next = Math.min(next, Math.round(max))
-    }
-    return next
-  }
-
-  private getContextLengthLimit(modelConfig: ModelConfig): number {
-    const configured = this.toFiniteNumber(modelConfig.contextLength)
-    if (configured === undefined) {
-      return 32000
-    }
-    return Math.max(CONTEXT_LENGTH_MIN, Math.round(configured))
-  }
-
-  private getMaxTokensLimit(modelConfig: ModelConfig): number {
-    const configured = this.toFiniteNumber(modelConfig.maxTokens)
-    if (configured === undefined) {
-      return 4096
-    }
-    return Math.max(MAX_TOKENS_MIN, Math.round(configured))
+    throw new Error('Please clear the waiting lane before mutating chat history.')
   }
 
   private parseAssistantBlocks(rawContent: string): AssistantMessageBlock[] {
@@ -2518,6 +2699,33 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       }
     }
     return false
+  }
+
+  private isAwaitingToolQuestionFollowUp(sessionId: string): boolean {
+    const messages = this.messageStore.getMessages(sessionId)
+    let latestUserOrderSeq = 0
+
+    for (const message of messages) {
+      if (message.role === 'user') {
+        latestUserOrderSeq = Math.max(latestUserOrderSeq, message.orderSeq)
+      }
+    }
+
+    return messages.some((message) => {
+      if (message.role !== 'assistant' || message.orderSeq <= latestUserOrderSeq) {
+        return false
+      }
+
+      return this.parseAssistantBlocks(message.content).some(
+        (block) =>
+          block.type === 'action' &&
+          block.action_type === 'question_request' &&
+          block.status === 'success' &&
+          block.extra?.needsUserAction === false &&
+          block.extra?.questionResolution === 'replied' &&
+          typeof block.extra?.answerText !== 'string'
+      )
+    })
   }
 
   private async resolveCompactionStateForResumeTurn(params: {

@@ -28,6 +28,8 @@
     "agentWorkspaceTooltip": "הגדר את ספריית העבודה של הסוכן",
     "attach": "צרף",
     "voiceInput": "קלט קולי",
+    "queue": "הוסף לתור",
+    "stop": "עצור",
     "mcp": {
       "badge": "MCP {count}",
       "title": "MCP פעילים",
@@ -49,6 +51,18 @@
         "yobrowser": "YoBrowser"
       }
     }
+  },
+  "pendingInput": {
+    "steer": "הכוונה",
+    "queueCount": "ממתין לשליחה {count}/{max}",
+    "resumeQueue": "המשך שליחה",
+    "toSteer": "הפוך להכוונה",
+    "locked": "נעול",
+    "reorder": "שנה סדר",
+    "files": "{count} קבצים",
+    "attachmentsOnly": "{count} קבצים מצורפים",
+    "empty": "הודעה ריקה",
+    "limitReached": "אזור ההמתנה מלא (מקסימום {max})."
   },
   "features": {
     "webSearch": "חיפוש אינטרנט",
@@ -126,7 +140,16 @@
     "verbosity": "רמת פירוט",
     "verbosityPlaceholder": "בחר רמת פירוט",
     "currentCustomPrompt": "מותאם נוכחי",
-    "useDefault": "השתמש בברירת מחדל"
+    "useDefault": "השתמש בברירת מחדל",
+    "decreaseValue": "הקטן את {label}",
+    "increaseValue": "הגדל את {label}",
+    "toggleValue": "הפעל או כבה את {label}",
+    "validation": {
+      "finiteNumber": "חייב להיות מספר סופי",
+      "nonNegativeInteger": "חייב להיות מספר שלם לא שלילי",
+      "contextLengthAtLeastMaxTokens": "חייב להיות גדול או שווה למספר הטוקנים המרבי",
+      "maxTokensWithinContextLength": "חייב להיות קטן או שווה לאורך ההקשר"
+    }
   },
   "workspace": {
     "collapse": "לִסְגוֹר",

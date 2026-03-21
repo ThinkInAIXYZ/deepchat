@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import {
   buildContext,
   buildResumeContext,
+  fitMessagesToContextWindow,
   truncateContext
 } from '@/presenter/deepchatAgentPresenter/contextBuilder'
 
@@ -500,6 +501,29 @@ describe('buildResumeContext', () => {
     expect(result.slice(-2)).toEqual([
       { role: 'user', content: 'recent user' },
       { role: 'assistant', content: 'partial answer' }
+    ])
+  })
+})
+
+describe('fitMessagesToContextWindow', () => {
+  it('drops older history before protected steer and queued user tail', () => {
+    const result = fitMessagesToContextWindow(
+      [
+        { role: 'system', content: 'Sys' },
+        { role: 'user', content: 'A'.repeat(40) },
+        { role: 'assistant', content: 'B'.repeat(40) },
+        { role: 'user', content: 'Steer instruction' },
+        { role: 'user', content: 'Queued target' }
+      ],
+      14,
+      4,
+      2
+    )
+
+    expect(result).toEqual([
+      { role: 'system', content: 'Sys' },
+      { role: 'user', content: 'Steer instruction' },
+      { role: 'user', content: 'Queued target' }
     ])
   })
 })

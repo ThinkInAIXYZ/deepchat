@@ -125,6 +125,7 @@ describe('systemEnvPromptBuilder', () => {
     })
 
     expect(prompt).toContain('exec(background: true)')
+    expect(prompt).toContain('yield window')
     expect(prompt).not.toContain('YoBrowser')
     expect(prompt).not.toContain('process(list|poll|log|write|kill|remove)')
   })

@@ -33,7 +33,19 @@
             :processing="isHandlingInteraction"
             @respond="onToolInteractionRespond"
           />
-          <template v-else>
+          <PendingInputLane
+            :steer-items="pendingInputStore.steerItems"
+            :queue-items="pendingInputStore.queueItems"
+            :disable-steer-action="pendingInputStore.isAtCapacity"
+            :show-resume-queue="showResumePendingQueue"
+            class="mb-1.5"
+            @update-queue="onPendingInputUpdate"
+            @move-queue="onPendingInputMove"
+            @convert-queue-to-steer="onPendingInputConvert"
+            @delete-queue="onPendingInputDelete"
+            @resume-queue="onResumePendingQueue"
+          />
+          <template v-if="!activePendingInteraction">
             <ChatInputBox
               ref="chatInputRef"
               v-model="message"
@@ -50,7 +62,8 @@
               <template #toolbar>
                 <ChatInputToolbar
                   :is-generating="isGenerating"
-                  :send-disabled="isAcpWorkdirMissing || !message.trim()"
+                  :has-input="hasDraftInput"
+                  :send-disabled="isQueueSubmitDisabled"
                   @attach="onAttach"
                   @send="onSubmit"
                   @stop="onStop"
@@ -79,11 +92,13 @@ import type {
 } from '@/components/chat/messageListItems'
 import ChatInputBox from '@/components/chat/ChatInputBox.vue'
 import ChatInputToolbar from '@/components/chat/ChatInputToolbar.vue'
+import PendingInputLane from '@/components/chat/PendingInputLane.vue'
 import ChatStatusBar from '@/components/chat/ChatStatusBar.vue'
 import ChatToolInteractionOverlay from '@/components/chat/ChatToolInteractionOverlay.vue'
 import TraceDialog from '@/components/trace/TraceDialog.vue'
 import { useSessionStore } from '@/stores/ui/session'
 import { useMessageStore } from '@/stores/ui/message'
+import { usePendingInputStore } from '@/stores/ui/pendingInput'
 import { useModelStore } from '@/stores/modelStore'
 import { usePresenter } from '@/composables/usePresenter'
 import type {
@@ -100,6 +115,7 @@ const props = defineProps<{
 
 const sessionStore = useSessionStore()
 const messageStore = useMessageStore()
+const pendingInputStore = usePendingInputStore()
 const modelStore = useModelStore()
 const newAgentPresenter = usePresenter('newAgentPresenter')
 const { t } = useI18n()
@@ -116,7 +132,6 @@ const isAcpWorkdirMissing = computed(() => {
   }
   return !activeSession.projectDir?.trim()
 })
-const isInputSubmitDisabled = computed(() => isAcpWorkdirMissing.value || isGenerating.value)
 
 // --- Auto-scroll ---
 const scrollContainer = ref<HTMLDivElement>()
@@ -143,10 +158,12 @@ watch(
   () => props.sessionId,
   async (id) => {
     if (id) {
-      await messageStore.loadMessages(id)
+      await Promise.all([messageStore.loadMessages(id), pendingInputStore.loadPendingInputs(id)])
       await nextTick()
       scrollToBottom()
+      return
     }
+    pendingInputStore.clear()
   },
   { immediate: true }
 )
@@ -391,31 +408,78 @@ const pendingInteractions = computed<PendingInteractionView[]>(() => {
 })
 
 const activePendingInteraction = computed(() => pendingInteractions.value[0] ?? null)
+const isAwaitingToolQuestionFollowUp = computed(() => {
+  let latestUserOrderSeq = 0
+
+  for (const message of messageStore.messages) {
+    if (message.role === 'user') {
+      latestUserOrderSeq = Math.max(latestUserOrderSeq, message.orderSeq)
+    }
+  }
+
+  return messageStore.messages.some((message) => {
+    if (message.role !== 'assistant' || message.orderSeq <= latestUserOrderSeq) {
+      return false
+    }
+
+    return parseAssistantBlocks(message.content).some(
+      (block) =>
+        block.type === 'action' &&
+        block.action_type === 'question_request' &&
+        block.status === 'success' &&
+        block.extra?.needsUserAction === false &&
+        block.extra?.questionResolution === 'replied' &&
+        typeof block.extra?.answerText !== 'string'
+    )
+  })
+})
+const hasInputText = computed(() => Boolean(message.value.trim()))
+const hasAttachments = computed(() => attachedFiles.value.length > 0)
+const hasDraftInput = computed(() => hasInputText.value || hasAttachments.value)
+const isQueueSubmitDisabled = computed(
+  () =>
+    isAcpWorkdirMissing.value ||
+    !hasDraftInput.value ||
+    Boolean(activePendingInteraction.value) ||
+    isHandlingInteraction.value ||
+    pendingInputStore.isAtCapacity
+)
+const isInputSubmitDisabled = computed(
+  () =>
+    isAcpWorkdirMissing.value ||
+    Boolean(activePendingInteraction.value) ||
+    isHandlingInteraction.value ||
+    pendingInputStore.isAtCapacity ||
+    !hasDraftInput.value
+)
+const showResumePendingQueue = computed(
+  () =>
+    !isGenerating.value &&
+    !activePendingInteraction.value &&
+    !isAwaitingToolQuestionFollowUp.value &&
+    pendingInputStore.queueItems.length > 0
+)
 
 async function onSubmit() {
-  if (isGenerating.value) return
   if (isAcpWorkdirMissing.value) return
   if (activePendingInteraction.value || isHandlingInteraction.value) return
   const text = message.value.trim()
-  if (!text) return
   const files = [...attachedFiles.value]
+  if (!text && files.length === 0) return
+  await pendingInputStore.queueInput(props.sessionId, { text, files })
   message.value = ''
   attachedFiles.value = []
-  messageStore.addOptimisticUserMessage(props.sessionId, text, files)
-  await sessionStore.sendMessage(props.sessionId, { text, files })
 }
 
 async function onCommandSubmit(command: string) {
-  if (isGenerating.value) return
   if (isAcpWorkdirMissing.value) return
   if (activePendingInteraction.value || isHandlingInteraction.value) return
   const text = command.trim()
   if (!text) return
 
   const files = [...attachedFiles.value]
+  await pendingInputStore.queueInput(props.sessionId, { text, files })
   attachedFiles.value = []
-  messageStore.addOptimisticUserMessage(props.sessionId, text, files)
-  await sessionStore.sendMessage(props.sessionId, { text, files })
 }
 
 function onAttach() {
@@ -519,11 +583,40 @@ function onMessageTrace(messageId: string) {
   traceMessageId.value = messageId
 }
 
+async function onPendingInputUpdate(payload: { itemId: string; text: string }) {
+  const target = pendingInputStore.queueItems.find((item) => item.id === payload.itemId)
+  if (!target) {
+    return
+  }
+
+  await pendingInputStore.updateQueueInput(props.sessionId, payload.itemId, {
+    text: payload.text,
+    files: target.payload.files ?? []
+  })
+}
+
+async function onPendingInputMove(payload: { itemId: string; toIndex: number }) {
+  await pendingInputStore.moveQueueInput(props.sessionId, payload.itemId, payload.toIndex)
+}
+
+async function onPendingInputConvert(itemId: string) {
+  await pendingInputStore.convertToSteer(props.sessionId, itemId)
+}
+
+async function onPendingInputDelete(itemId: string) {
+  await pendingInputStore.deleteInput(props.sessionId, itemId)
+}
+
+async function onResumePendingQueue() {
+  await pendingInputStore.resumeQueue(props.sessionId)
+}
+
 onMounted(() => {
   window.addEventListener('context-menu-ask-ai', handleContextMenuAskAI)
 })
 
 onUnmounted(() => {
   window.removeEventListener('context-menu-ask-ai', handleContextMenuAskAI)
+  pendingInputStore.clear()
 })
 </script>

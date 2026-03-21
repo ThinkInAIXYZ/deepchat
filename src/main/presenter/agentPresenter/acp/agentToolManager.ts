@@ -178,7 +178,7 @@ export class AgentToolManager {
         .min(100)
         .optional()
         .describe(
-          'Maximum time in milliseconds to wait for command output in foreground mode (default 120s). Ignored when background is true.'
+          'Foreground grace window in milliseconds before auto-backgrounding the command and returning a sessionId (defaults to PI_BASH_YIELD_MS or 10000). Ignored when background is true.'
         )
     }),
     process: z.object({
@@ -487,7 +487,7 @@ export class AgentToolManager {
         function: {
           name: 'exec',
           description:
-            'Execute a shell command in the workspace directory. For long-running commands (builds, tests, servers, installations), use background: true to run asynchronously and get a session ID. Then use the process tool to poll output, send input, or manage the session.',
+            'Execute a shell command in the workspace directory. Use background: true when you know the command should detach immediately. Otherwise foreground exec waits briefly, and long-running commands may auto-background and return a session ID for use with the process tool.',
           parameters: zodToJsonSchema(schemas.exec) as {
             type: string
             properties: Record<string, unknown>
@@ -505,7 +505,7 @@ export class AgentToolManager {
         function: {
           name: 'process',
           description:
-            'Manage background exec sessions created by exec with background: true. Use poll to check output and status, log to get full output with pagination, write to send input to stdin, kill to terminate, and remove to clean up completed sessions.',
+            'Manage background exec sessions created by explicit background exec calls or by long-running foreground exec calls that yielded a sessionId. Use poll to check output and status, log to get full output with pagination, write to send input to stdin, kill to terminate, and remove to clean up completed sessions.',
           parameters: zodToJsonSchema(schemas.process) as {
             type: string
             properties: Record<string, unknown>

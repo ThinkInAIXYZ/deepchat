@@ -6,6 +6,8 @@
     "functionSwitch": "Function Switch",
     "attach": "Attach",
     "voiceInput": "Voice input",
+    "queue": "Queue",
+    "stop": "Stop",
     "fileSelect": "Select File",
     "pasteFiles": "Paste files from clipboard",
     "dropFiles": "Drop files here",
@@ -49,6 +51,18 @@
         "yobrowser": "YoBrowser"
       }
     }
+  },
+  "pendingInput": {
+    "steer": "Steer",
+    "queueCount": "Queued {count}/{max}",
+    "resumeQueue": "Resume sending",
+    "toSteer": "Steer",
+    "locked": "Locked",
+    "reorder": "Reorder",
+    "files": "{count} files",
+    "attachmentsOnly": "{count} attachments",
+    "empty": "Empty message",
+    "limitReached": "Waiting lane is full (max {max})."
   },
   "features": {
     "webSearch": "Web Search",
@@ -130,7 +144,16 @@
     "verbosity": "Verbosity",
     "verbosityPlaceholder": "Select verbosity",
     "currentCustomPrompt": "Current custom",
-    "useDefault": "Use default"
+    "useDefault": "Use default",
+    "decreaseValue": "Decrease {label}",
+    "increaseValue": "Increase {label}",
+    "toggleValue": "Toggle {label}",
+    "validation": {
+      "finiteNumber": "Must be a finite number",
+      "nonNegativeInteger": "Must be a non-negative integer",
+      "contextLengthAtLeastMaxTokens": "Must be greater than or equal to Max Tokens",
+      "maxTokensWithinContextLength": "Must be less than or equal to Context Length"
+    }
   },
   "modelPicker": {
     "empty": "No models found"
