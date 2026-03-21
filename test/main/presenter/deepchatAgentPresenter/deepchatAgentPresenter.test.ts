@@ -1322,31 +1322,62 @@ describe('DeepChatAgentPresenter', () => {
       )
     })
 
-    it('persists and restores forceInterleavedThinkingCompat', async () => {
-      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
-
-      const enabled = await agent.updateGenerationSettings('s1', {
+    it('inherits interleaved thinking defaults and allows explicit session disable', async () => {
+      configPresenter.getModelConfig.mockReturnValue({
+        temperature: 0.7,
+        maxTokens: 4096,
+        contextLength: 128000,
+        thinkingBudget: 512,
+        reasoningEffort: 'medium',
+        verbosity: 'medium',
         forceInterleavedThinkingCompat: true
       })
+      configPresenter.getReasoningPortrait.mockReturnValue({
+        supported: true,
+        defaultEnabled: true,
+        mode: 'effort',
+        interleaved: true,
+        budget: { min: 0, max: 8192, default: 512 },
+        effort: 'medium',
+        effortOptions: ['minimal', 'low', 'medium', 'high'],
+        verbosity: 'medium',
+        verbosityOptions: ['low', 'medium', 'high']
+      })
 
-      expect(enabled.forceInterleavedThinkingCompat).toBe(true)
-      expect(
-        sqlitePresenter.deepchatSessionsTable.updateGenerationSettings
-      ).toHaveBeenLastCalledWith(
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+
+      const defaults = await agent.getGenerationSettings('s1')
+      expect(defaults?.forceInterleavedThinkingCompat).toBe(true)
+      expect(sqlitePresenter.deepchatSessionsTable.create).toHaveBeenCalledWith(
         's1',
+        'openai',
+        'gpt-4',
+        'full_access',
         expect.objectContaining({
           forceInterleavedThinkingCompat: true
         })
       )
 
-      const cleared = await agent.updateGenerationSettings('s1', {
-        forceInterleavedThinkingCompat: undefined
+      const disabled = await agent.updateGenerationSettings('s1', {
+        forceInterleavedThinkingCompat: false
       })
 
-      expect(cleared.forceInterleavedThinkingCompat).toBeUndefined()
-      const clearedPatch =
-        sqlitePresenter.deepchatSessionsTable.updateGenerationSettings.mock.calls.at(-1)?.[1]
-      expect(clearedPatch).toHaveProperty('forceInterleavedThinkingCompat', undefined)
+      expect(disabled.forceInterleavedThinkingCompat).toBe(false)
+      expect(
+        sqlitePresenter.deepchatSessionsTable.updateGenerationSettings
+      ).toHaveBeenLastCalledWith(
+        's1',
+        expect.objectContaining({
+          forceInterleavedThinkingCompat: false
+        })
+      )
+
+      const interleavedConfig = (agent as any).resolveInterleavedReasoningConfig(
+        'openai',
+        'gpt-4',
+        disabled
+      )
+      expect(interleavedConfig.preserveReasoningContent).toBe(false)
 
       sqlitePresenter.deepchatSessionsTable.get.mockReturnValue({
         id: 's2',
@@ -1360,11 +1391,11 @@ describe('DeepChatAgentPresenter', () => {
         thinking_budget: null,
         reasoning_effort: null,
         verbosity: null,
-        force_interleaved_thinking_compat: 1
+        force_interleaved_thinking_compat: 0
       })
 
       const persisted = await agent.getGenerationSettings('s2')
-      expect(persisted?.forceInterleavedThinkingCompat).toBe(true)
+      expect(persisted?.forceInterleavedThinkingCompat).toBe(false)
     })
 
     it('treats legacy negative thinking budget rows as disabled and ignores new negative updates', async () => {

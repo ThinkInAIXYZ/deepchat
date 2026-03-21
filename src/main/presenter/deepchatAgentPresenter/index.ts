@@ -2013,6 +2013,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     modelId: string
   ): Promise<SessionGenerationSettings> {
     const modelConfig = this.configPresenter.getModelConfig(modelId, providerId)
+    const portrait = this.getReasoningPortrait(providerId, modelId)
     const defaultSystemPrompt = await this.configPresenter.getDefaultSystemPrompt()
     const contextLengthDefault = toValidNonNegativeInteger(modelConfig.contextLength) ?? 32000
     const maxTokensDefault =
@@ -2026,6 +2027,16 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
         maxTokensDefault <= contextLengthDefault
           ? maxTokensDefault
           : Math.min(4096, contextLengthDefault)
+    }
+
+    const interleavedThinkingDefault =
+      typeof modelConfig.forceInterleavedThinkingCompat === 'boolean'
+        ? modelConfig.forceInterleavedThinkingCompat
+        : portrait?.interleaved === true
+          ? true
+          : undefined
+    if (typeof interleavedThinkingDefault === 'boolean') {
+      defaults.forceInterleavedThinkingCompat = interleavedThinkingDefault
     }
 
     const supportsReasoning =
@@ -2179,12 +2190,12 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     }
 
     if (Object.prototype.hasOwnProperty.call(patch, 'forceInterleavedThinkingCompat')) {
-      if (patch.forceInterleavedThinkingCompat === true) {
-        next.forceInterleavedThinkingCompat = true
+      if (typeof patch.forceInterleavedThinkingCompat === 'boolean') {
+        next.forceInterleavedThinkingCompat = patch.forceInterleavedThinkingCompat
       } else {
         delete next.forceInterleavedThinkingCompat
       }
-    } else if (base.forceInterleavedThinkingCompat !== true) {
+    } else if (typeof base.forceInterleavedThinkingCompat !== 'boolean') {
       delete next.forceInterleavedThinkingCompat
     }
 
@@ -2197,13 +2208,18 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     generationSettings: SessionGenerationSettings
   ): InterleavedReasoningConfig {
     const portrait = this.getReasoningPortrait(providerId, modelId)
-    const forcedBySessionSetting = generationSettings.forceInterleavedThinkingCompat === true
+    const explicitSessionSetting =
+      typeof generationSettings.forceInterleavedThinkingCompat === 'boolean'
+        ? generationSettings.forceInterleavedThinkingCompat
+        : undefined
+    const forcedBySessionSetting = explicitSessionSetting === true
     const portraitInterleaved = portrait?.interleaved === true
     const reasoningSupported =
       this.configPresenter.supportsReasoningCapability?.(providerId, modelId) === true
 
     return {
-      preserveReasoningContent: forcedBySessionSetting || portraitInterleaved,
+      preserveReasoningContent:
+        explicitSessionSetting !== undefined ? explicitSessionSetting : portraitInterleaved,
       forcedBySessionSetting,
       portraitInterleaved,
       reasoningSupported,

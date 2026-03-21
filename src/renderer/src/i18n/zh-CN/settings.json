@@ -362,6 +362,10 @@
         "label": "推理能力",
         "description": "模型是否支持推理能力"
       },
+      "interleavedThinking": {
+        "label": "Interleaved Thinking",
+        "description": "控制该模型是否按 Interleaved Thinking 方式处理 reasoning 与 tool-call 消息。若 provider 已声明支持，会默认自动启用。"
+      },
       "thinkingBudget": {
         "label": "思考预算",
         "description": "设置思考过程的最大 token 长度，用于控制模型推理时的思考深度",

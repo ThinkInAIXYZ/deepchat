@@ -354,6 +354,10 @@
         "description": "モデルは推論能力をサポートしていますか？",
         "label": "推論能力"
       },
+      "interleavedThinking": {
+        "label": "Interleaved Thinking",
+        "description": "このモデルで reasoning と tool-call メッセージを Interleaved Thinking として処理するかを制御します。プロバイダーの既定値がある場合は自動的に適用されます。"
+      },
       "thinkingBudget": {
         "label": "思考予算",
         "description": "思考プロセスの最大トークン長を設定し、推論の深さを制御します",

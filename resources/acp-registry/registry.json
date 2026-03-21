@@ -40,7 +40,7 @@
     {
       "id": "auggie",
       "name": "Auggie CLI",
-      "version": "0.20.0",
+      "version": "0.20.1",
       "description": "Augment Code's powerful software agent, backed by industry-leading context engine",
       "repository": "https://github.com/augmentcode/auggie",
       "website": "https://www.augmentcode.com/",
@@ -51,7 +51,7 @@
       "icon": "https://cdn.agentclientprotocol.com/registry/v1/latest/auggie.svg",
       "distribution": {
         "npx": {
-          "package": "@augmentcode/auggie@0.20.0",
+          "package": "@augmentcode/auggie@0.20.1",
           "args": [
             "--acp"
           ],
@@ -99,7 +99,7 @@
     {
       "id": "cline",
       "name": "Cline",
-      "version": "2.8.2",
+      "version": "2.9.0",
       "description": "Autonomous coding agent CLI - capable of creating/editing files, running commands, using the browser, and more",
       "repository": "https://github.com/cline/cline",
       "website": "https://cline.bot/cli",
@@ -110,7 +110,7 @@
       "icon": "https://cdn.agentclientprotocol.com/registry/v1/latest/cline.svg",
       "distribution": {
         "npx": {
-          "package": "cline@2.8.2",
+          "package": "cline@2.9.0",
           "args": [
             "--acp"
           ]
@@ -333,7 +333,7 @@
     {
       "id": "factory-droid",
       "name": "Factory Droid",
-      "version": "0.82.0",
+      "version": "0.83.0",
       "description": "Factory Droid - AI coding agent powered by Factory AI",
       "website": "https://factory.ai/product/cli",
       "authors": [
@@ -342,7 +342,7 @@
       "license": "proprietary",
       "distribution": {
         "npx": {
-          "package": "droid@0.82.0",
+          "package": "droid@0.83.0",
           "args": [
             "exec",
             "--output-format",
@@ -359,7 +359,7 @@
     {
       "id": "fast-agent",
       "name": "fast-agent",
-      "version": "0.6.2",
+      "version": "0.6.3",
       "description": "Code and build agents with comprehensive multi-provider support",
       "repository": "https://github.com/evalstate/fast-agent",
       "website": "https://fast-agent.ai",
@@ -369,7 +369,7 @@
       "license": "Apache 2.0",
       "distribution": {
         "uvx": {
-          "package": "fast-agent-acp==0.6.2",
+          "package": "fast-agent-acp==0.6.3",
           "args": [
             "-x"
           ]
@@ -401,7 +401,7 @@
     {
       "id": "github-copilot-cli",
       "name": "GitHub Copilot",
-      "version": "1.0.9",
+      "version": "1.0.10",
       "description": "GitHub's AI pair programmer",
       "repository": "https://github.com/github/copilot-cli",
       "website": "https://github.com/features/copilot/cli/",
@@ -411,7 +411,7 @@
       "license": "proprietary",
       "distribution": {
         "npx": {
-          "package": "@github/copilot@1.0.9",
+          "package": "@github/copilot@1.0.10",
           "args": [
             "--acp"
           ]
@@ -526,7 +526,7 @@
     {
       "id": "kilo",
       "name": "Kilo",
-      "version": "7.0.51",
+      "version": "7.1.0",
       "description": "The open source coding agent",
       "repository": "https://github.com/Kilo-Org/kilocode",
       "website": "https://kilo.ai/",
@@ -538,35 +538,35 @@
       "distribution": {
         "binary": {
           "darwin-aarch64": {
-            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.0.51/kilo-darwin-arm64.zip",
+            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.1.0/kilo-darwin-arm64.zip",
             "cmd": "./kilo",
             "args": [
               "acp"
             ]
           },
           "darwin-x86_64": {
-            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.0.51/kilo-darwin-x64.zip",
+            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.1.0/kilo-darwin-x64.zip",
             "cmd": "./kilo",
             "args": [
               "acp"
             ]
           },
           "linux-aarch64": {
-            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.0.51/kilo-linux-arm64.tar.gz",
+            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.1.0/kilo-linux-arm64.tar.gz",
             "cmd": "./kilo",
             "args": [
               "acp"
             ]
           },
           "linux-x86_64": {
-            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.0.51/kilo-linux-x64.tar.gz",
+            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.1.0/kilo-linux-x64.tar.gz",
             "cmd": "./kilo",
             "args": [
               "acp"
             ]
           },
           "windows-x86_64": {
-            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.0.51/kilo-windows-x64.zip",
+            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.1.0/kilo-windows-x64.zip",
             "cmd": "./kilo.exe",
             "args": [
               "acp"
@@ -574,7 +574,7 @@
           }
         },
         "npx": {
-          "package": "@kilocode/cli@7.0.51",
+          "package": "@kilocode/cli@7.1.0",
           "args": [
             "acp"
           ]
@@ -690,7 +690,7 @@
     {
       "id": "nova",
       "name": "Nova",
-      "version": "1.0.82",
+      "version": "1.0.83",
       "description": "Nova by Compass AI - a fully-fledged software engineer at your command",
       "repository": "https://github.com/Compass-Agentic-Platform/nova",
       "website": "https://www.compassap.ai/portfolio/nova.html",
@@ -701,7 +701,7 @@
       "icon": "https://cdn.agentclientprotocol.com/registry/v1/latest/nova.svg",
       "distribution": {
         "npx": {
-          "package": "@compass-ai/nova@1.0.82",
+          "package": "@compass-ai/nova@1.0.83",
           "args": [
             "acp"
           ]

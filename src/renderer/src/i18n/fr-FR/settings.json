@@ -354,6 +354,10 @@
         "description": "Le modèle prend-il en charge la capacité de raisonnement?",
         "label": "Capacité de raisonnement"
       },
+      "interleavedThinking": {
+        "label": "Interleaved Thinking",
+        "description": "Détermine si ce modèle traite les messages de raisonnement et d'appel d'outil avec Interleaved Thinking. Les valeurs fournies par le provider s'appliquent automatiquement."
+      },
       "thinkingBudget": {
         "label": "Budget de réflexion",
         "description": "Définir la longueur maximale de jeton du processus de réflexion pour contrôler la profondeur du raisonnement",

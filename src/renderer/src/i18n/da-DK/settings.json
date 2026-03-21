@@ -300,6 +300,10 @@
         "description": "Understøtter modellen ræsonnering?",
         "label": "Ræsonnering"
       },
+      "interleavedThinking": {
+        "label": "Interleaved Thinking",
+        "description": "Styrer, om denne model håndterer beskeder med ræsonnering og tool-calls med Interleaved Thinking. Leverandørens standarder anvendes automatisk."
+      },
       "thinkingBudget": {
         "label": "Tænke-budget",
         "description": "Angiv den maksimale tokenlængde for tænkningen for at styre ræsonneringsdybden",

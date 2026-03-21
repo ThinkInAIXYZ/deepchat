@@ -354,6 +354,10 @@
         "description": "האם המודל תומך ביכולת חשיבה (Reasoning)?",
         "label": "יכולת חשיבה"
       },
+      "interleavedThinking": {
+        "label": "Interleaved Thinking",
+        "description": "קובע אם המודל הזה יעבד הודעות reasoning ו-tool-call באמצעות Interleaved Thinking. ברירות המחדל של הספק מוחלות אוטומטית."
+      },
       "thinkingBudget": {
         "label": "תקציב חשיבה",
         "description": "הגדר את אורך הטוקנים המקסימלי לתהליך החשיבה כדי לשלוט בעומק החשיבה",

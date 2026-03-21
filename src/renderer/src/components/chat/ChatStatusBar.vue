@@ -555,15 +555,13 @@
                         </div>
                         <Switch
                           data-setting-control="forceInterleavedThinkingCompat-toggle"
-                          :model-value="isForceInterleavedThinkingCompatEnabled"
+                          :model-value="isInterleavedThinkingEnabled"
                           :aria-label="
                             t('chat.advancedSettings.toggleValue', {
                               label: t('chat.advancedSettings.forceInterleavedThinkingCompat')
                             })
                           "
-                          @update:model-value="
-                            onForceInterleavedThinkingCompatToggle(Boolean($event))
-                          "
+                          @update:model-value="onInterleavedThinkingToggle(Boolean($event))"
                         />
                       </div>
                     </div>
@@ -1482,7 +1480,7 @@ const contextLengthInputValue = computed(() => getNumericInputValue('contextLeng
 const maxTokensInputValue = computed(() => getNumericInputValue('maxTokens'))
 const thinkingBudgetInputValue = computed(() => getNumericInputValue('thinkingBudget'))
 const isThinkingBudgetEnabled = computed(() => localSettings.value?.thinkingBudget !== undefined)
-const isForceInterleavedThinkingCompatEnabled = computed(
+const isInterleavedThinkingEnabled = computed(
   () => localSettings.value?.forceInterleavedThinkingCompat === true
 )
 
@@ -1734,6 +1732,16 @@ const resolveDefaultGenerationSettings = async (
       maxTokensDefault <= contextLengthDefault
         ? maxTokensDefault
         : Math.min(4096, contextLengthDefault)
+  }
+
+  const interleavedThinkingDefault =
+    typeof modelConfig.forceInterleavedThinkingCompat === 'boolean'
+      ? modelConfig.forceInterleavedThinkingCompat
+      : portrait?.interleaved === true
+        ? true
+        : undefined
+  if (typeof interleavedThinkingDefault === 'boolean') {
+    defaults.forceInterleavedThinkingCompat = interleavedThinkingDefault
   }
 
   if (portrait?.supported === true && hasThinkingBudgetSupport(portrait)) {
@@ -2534,12 +2542,12 @@ function onVerbositySelect(value: string) {
   updateLocalGenerationSettings({ verbosity: normalized })
 }
 
-function onForceInterleavedThinkingCompatToggle(enabled: boolean) {
+function onInterleavedThinkingToggle(enabled: boolean) {
   if (!localSettings.value) {
     return
   }
   updateLocalGenerationSettings({
-    forceInterleavedThinkingCompat: enabled ? true : undefined
+    forceInterleavedThinkingCompat: enabled
   })
 }
 

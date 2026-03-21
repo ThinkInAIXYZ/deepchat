@@ -12,6 +12,7 @@ type TestGenerationSettings = {
   contextLength: number
   maxTokens: number
   thinkingBudget?: number
+  forceInterleavedThinkingCompat?: boolean
   reasoningEffort?: ReasoningEffort
   verbosity?: 'low' | 'medium' | 'high'
 }
@@ -34,6 +35,7 @@ type SetupOptions = {
   preferredModel?: { providerId: string; modelId: string } | null
   extraModelGroups?: ExtraModelGroup[]
   reasoningEffortDefault?: ReasoningEffort
+  modelConfig?: Partial<TestGenerationSettings>
   sessionSettings?: Partial<TestGenerationSettings> | null
   draftGenerationSettings?: Partial<TestGenerationSettings>
   reasoningPortrait?: ReasoningPortrait | null
@@ -286,6 +288,7 @@ const setup = async (options: SetupOptions = {}) => {
     contextLength: undefined as number | undefined,
     maxTokens: undefined as number | undefined,
     thinkingBudget: undefined as number | undefined,
+    forceInterleavedThinkingCompat: undefined as boolean | undefined,
     reasoningEffort: undefined as 'minimal' | 'low' | 'medium' | 'high' | undefined,
     verbosity: undefined as 'low' | 'medium' | 'high' | undefined,
     ...options.draftGenerationSettings,
@@ -298,6 +301,7 @@ const setup = async (options: SetupOptions = {}) => {
       draftStore.contextLength = undefined
       draftStore.maxTokens = undefined
       draftStore.thinkingBudget = undefined
+      draftStore.forceInterleavedThinkingCompat = undefined
       draftStore.reasoningEffort = undefined
       draftStore.verbosity = undefined
     })
@@ -327,8 +331,10 @@ const setup = async (options: SetupOptions = {}) => {
       contextLength: 16000,
       maxTokens: 4096,
       thinkingBudget: 512,
+      forceInterleavedThinkingCompat: undefined,
       reasoningEffort: reasoningEffortDefault,
-      verbosity: 'medium'
+      verbosity: 'medium',
+      ...options.modelConfig
     }),
     getReasoningPortrait: vi.fn().mockResolvedValue(reasoningPortrait),
     getDefaultSystemPrompt: vi.fn().mockResolvedValue('Default prompt'),
@@ -353,6 +359,7 @@ const setup = async (options: SetupOptions = {}) => {
     contextLength: 16000,
     maxTokens: 4096,
     thinkingBudget: 512,
+    forceInterleavedThinkingCompat: undefined,
     reasoningEffort: 'medium',
     verbosity: 'medium',
     ...options.sessionSettings
@@ -530,6 +537,9 @@ const findNumericButton = (
 
 const findThinkingBudgetToggle = (wrapper: Awaited<ReturnType<typeof setup>>['wrapper']) =>
   wrapper.find('.switch-stub[data-setting-control="thinkingBudget-toggle"]')
+
+const findInterleavedThinkingToggle = (wrapper: Awaited<ReturnType<typeof setup>>['wrapper']) =>
+  wrapper.find('.switch-stub[data-setting-control="forceInterleavedThinkingCompat-toggle"]')
 
 const commitNumericInput = async (
   wrapper: Awaited<ReturnType<typeof setup>>['wrapper'],
@@ -736,6 +746,29 @@ describe('ChatStatusBar model and session panels', () => {
     expect((wrapper.vm as any).localSettings.contextLength).toBe(16000)
     expect((wrapper.vm as any).localSettings.maxTokens).toBe(4096)
     expect((wrapper.vm as any).localSettings.thinkingBudget).toBe(512)
+  })
+
+  it('shows interleaved thinking as enabled when the provider portrait requires it', async () => {
+    const { wrapper } = await setup({
+      agentId: 'deepchat',
+      hasActiveSession: false,
+      reasoningPortrait: {
+        supported: true,
+        defaultEnabled: true,
+        interleaved: true,
+        mode: 'effort',
+        effort: 'medium',
+        effortOptions: ['minimal', 'low', 'medium', 'high'],
+        verbosity: 'medium',
+        verbosityOptions: ['low', 'medium', 'high']
+      }
+    })
+
+    await (wrapper.vm as any).openModelSettings('openai', 'gpt-4')
+    await flushPromises()
+
+    expect((wrapper.vm as any).localSettings.forceInterleavedThinkingCompat).toBe(true)
+    expect(findInterleavedThinkingToggle(wrapper).attributes('data-model-value')).toBe('true')
   })
 
   it('ignores existing draft generation overrides when loading draft model defaults', async () => {
@@ -947,6 +980,48 @@ describe('ChatStatusBar model and session panels', () => {
     expect(newAgentPresenter.updateSessionGenerationSettings).toHaveBeenCalledWith(
       's1',
       expect.objectContaining({ thinkingBudget: undefined })
+    )
+
+    vi.runOnlyPendingTimers()
+    vi.useRealTimers()
+  })
+
+  it('sends an explicit false when interleaved thinking is turned off', async () => {
+    vi.useFakeTimers()
+
+    const { wrapper, newAgentPresenter } = await setup({
+      hasActiveSession: true,
+      activeProviderId: 'openai',
+      activeModelId: 'gpt-4',
+      sessionSettings: null,
+      modelConfig: {
+        forceInterleavedThinkingCompat: true
+      },
+      reasoningPortrait: {
+        supported: true,
+        defaultEnabled: true,
+        interleaved: true,
+        mode: 'effort',
+        effort: 'medium',
+        effortOptions: ['minimal', 'low', 'medium', 'high'],
+        verbosity: 'medium',
+        verbosityOptions: ['low', 'medium', 'high']
+      }
+    })
+    await (wrapper.vm as any).openModelSettings('openai', 'gpt-4')
+    await flushPromises()
+
+    await findInterleavedThinkingToggle(wrapper).trigger('click')
+    expect((wrapper.vm as any).localSettings.forceInterleavedThinkingCompat).toBe(false)
+
+    vi.advanceTimersByTime(300)
+    await flushPromises()
+
+    expect(newAgentPresenter.updateSessionGenerationSettings).toHaveBeenCalledWith(
+      's1',
+      expect.objectContaining({
+        forceInterleavedThinkingCompat: false
+      })
     )
 
     vi.runOnlyPendingTimers()
