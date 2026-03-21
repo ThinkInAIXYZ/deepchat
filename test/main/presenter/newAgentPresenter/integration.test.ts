@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NewAgentPresenter } from '@/presenter/newAgentPresenter/index'
 import { DeepChatAgentPresenter } from '@/presenter/deepchatAgentPresenter/index'
+import { estimateMessagesTokens } from '@/presenter/deepchatAgentPresenter/contextBuilder'
 import { NewSessionHooksBridge } from '@/presenter/hooksNotifications/newSessionBridge'
 
 vi.mock('nanoid', () => {
@@ -711,6 +712,7 @@ describe('Integration: multi-turn context', () => {
   let sqlitePresenter: ReturnType<typeof createMockSqlitePresenter>
   let llmProvider: ReturnType<typeof createMockLlmProviderPresenter>
   let configPresenter: ReturnType<typeof createMockConfigPresenter>
+  let deepchatAgent: DeepChatAgentPresenter
   let agentPresenter: NewAgentPresenter
 
   beforeEach(() => {
@@ -719,7 +721,7 @@ describe('Integration: multi-turn context', () => {
     llmProvider = createMockLlmProviderPresenter()
     configPresenter = createMockConfigPresenter()
 
-    const deepchatAgent = new DeepChatAgentPresenter(
+    deepchatAgent = new DeepChatAgentPresenter(
       llmProvider,
       configPresenter,
       sqlitePresenter,
@@ -885,6 +887,257 @@ describe('Integration: multi-turn context', () => {
       role: 'user',
       content: 'Queued target'
     })
+    await expect(agentPresenter.listPendingInputs(session.id)).resolves.toEqual([])
+  })
+
+  it('rebudgets long steer inputs before streaming the next queued turn', async () => {
+    let releaseFirstTurn: (() => void) | null = null
+    const firstPrompt = 'P'.repeat(2000)
+    const firstResponse = 'R'.repeat(2000)
+    const steerFileContent = 'S'.repeat(8000)
+    const providerInstance = {
+      coreStream: vi
+        .fn()
+        .mockImplementationOnce(async function* () {
+          await new Promise<void>((resolve) => {
+            releaseFirstTurn = resolve
+          })
+          yield { type: 'text', content: firstResponse }
+          yield { type: 'stop', stop_reason: 'end_turn' }
+        })
+        .mockImplementation(async function* () {
+          yield { type: 'text', content: 'Second response' }
+          yield { type: 'stop', stop_reason: 'end_turn' }
+        })
+    }
+    llmProvider.getProviderInstance.mockReturnValue(providerInstance)
+
+    const session = await agentPresenter.createSession(
+      { agentId: 'deepchat', message: firstPrompt, projectDir: null },
+      1
+    )
+    await new Promise((r) => setTimeout(r, 20))
+
+    await agentPresenter.updateSessionGenerationSettings(session.id, {
+      contextLength: 2048,
+      maxTokens: 128
+    })
+
+    await agentPresenter.queuePendingInput(session.id, {
+      text: 'Steer with attachment',
+      files: [
+        {
+          name: 'steer.txt',
+          path: '/tmp/steer.txt',
+          mimeType: 'text/plain',
+          content: steerFileContent
+        } as any
+      ]
+    })
+    await agentPresenter.queuePendingInput(session.id, 'Queued target')
+
+    const pendingInputs = await agentPresenter.listPendingInputs(session.id)
+    expect(pendingInputs).toHaveLength(2)
+    await agentPresenter.convertPendingInputToSteer(session.id, pendingInputs[0].id)
+
+    releaseFirstTurn?.()
+    await new Promise((r) => setTimeout(r, 80))
+
+    expect(providerInstance.coreStream).toHaveBeenCalledTimes(2)
+    const secondCallMessages = providerInstance.coreStream.mock.calls[1][0]
+    const secondCallContents = secondCallMessages.map((message: any) =>
+      typeof message.content === 'string' ? message.content : JSON.stringify(message.content)
+    )
+    const trailingUserMessages = secondCallMessages.filter(
+      (message: any) => message.role === 'user'
+    )
+
+    expect(secondCallContents).not.toContain(firstPrompt)
+    expect(secondCallContents).not.toContain(firstResponse)
+    expect(estimateMessagesTokens(secondCallMessages) + 128).toBeLessThanOrEqual(2048)
+    expect(trailingUserMessages[trailingUserMessages.length - 2].content).toEqual(
+      expect.stringContaining('[Attached File 1]')
+    )
+    expect(trailingUserMessages[trailingUserMessages.length - 2].content).toEqual(
+      expect.stringContaining('steer.txt')
+    )
+    expect(trailingUserMessages[trailingUserMessages.length - 1]).toEqual({
+      role: 'user',
+      content: 'Queued target'
+    })
+  })
+
+  it('pauses queued prompts until a tool follow-up answer is actually sent', async () => {
+    const providerInstance = {
+      coreStream: vi.fn(async function* (messages: any[]) {
+        const lastUserMessage = messages.filter((message) => message.role === 'user').at(-1)
+        yield {
+          type: 'text',
+          content: `Handled: ${
+            typeof lastUserMessage?.content === 'string' ? lastUserMessage.content : 'unknown'
+          }`
+        }
+        yield { type: 'stop', stop_reason: 'end_turn' }
+      })
+    }
+    llmProvider.getProviderInstance.mockReturnValue(providerInstance)
+
+    await deepchatAgent.initSession('s-follow-up', { providerId: 'openai', modelId: 'gpt-4' })
+    ;(deepchatAgent as any).runtimeState.get('s-follow-up').status = 'generating'
+
+    await deepchatAgent.queuePendingInput('s-follow-up', 'Older queued prompt')
+    expect(await deepchatAgent.listPendingInputs('s-follow-up')).toHaveLength(1)
+
+    sqlitePresenter.deepchatMessagesTable.insert({
+      id: 'm-follow-up',
+      sessionId: 's-follow-up',
+      orderSeq: 1,
+      role: 'assistant',
+      content: JSON.stringify([
+        {
+          type: 'tool_call',
+          status: 'pending',
+          timestamp: 1,
+          tool_call: { id: 'tc-follow-up', name: 'ask_question', params: '{}', response: '' }
+        },
+        {
+          type: 'action',
+          action_type: 'question_request',
+          status: 'pending',
+          timestamp: 2,
+          content: 'Need more detail',
+          tool_call: { id: 'tc-follow-up', name: 'ask_question', params: '{}' },
+          extra: {
+            needsUserAction: true,
+            questionText: 'Need more detail'
+          }
+        }
+      ]),
+      status: 'pending'
+    })
+
+    await expect(
+      deepchatAgent.respondToolInteraction('s-follow-up', 'm-follow-up', 'tc-follow-up', {
+        kind: 'question_other'
+      })
+    ).resolves.toEqual({ resumed: false, waitingForUserMessage: true })
+
+    await new Promise((r) => setTimeout(r, 20))
+    expect(providerInstance.coreStream).not.toHaveBeenCalled()
+    await expect(deepchatAgent.listPendingInputs('s-follow-up')).resolves.toHaveLength(1)
+
+    await deepchatAgent.resumePendingQueue('s-follow-up')
+    await new Promise((r) => setTimeout(r, 20))
+    expect(providerInstance.coreStream).not.toHaveBeenCalled()
+    await expect(deepchatAgent.listPendingInputs('s-follow-up')).resolves.toHaveLength(1)
+
+    await deepchatAgent.queuePendingInput('s-follow-up', 'Actual follow-up answer')
+    await new Promise((r) => setTimeout(r, 80))
+
+    expect(providerInstance.coreStream).toHaveBeenCalledTimes(2)
+    const firstFollowUpCall = providerInstance.coreStream.mock.calls[0][0]
+    const secondQueuedCall = providerInstance.coreStream.mock.calls[1][0]
+    expect(firstFollowUpCall.filter((message: any) => message.role === 'user').at(-1)).toEqual({
+      role: 'user',
+      content: 'Actual follow-up answer'
+    })
+    expect(secondQueuedCall.filter((message: any) => message.role === 'user').at(-1)).toEqual({
+      role: 'user',
+      content: 'Older queued prompt'
+    })
+
+    const userMessagesAfterFollowUp = sqlitePresenter.deepchatMessagesTable
+      .getBySession('s-follow-up')
+      .filter((message: any) => message.role === 'user')
+    expect(userMessagesAfterFollowUp).toHaveLength(2)
+    expect(JSON.parse(userMessagesAfterFollowUp[0].content).text).toBe('Actual follow-up answer')
+    expect(JSON.parse(userMessagesAfterFollowUp[1].content).text).toBe('Older queued prompt')
+    await expect(deepchatAgent.listPendingInputs('s-follow-up')).resolves.toEqual([])
+  })
+
+  it('sendMessage starts a fresh turn from an errored session', async () => {
+    const providerInstance = {
+      coreStream: vi
+        .fn()
+        .mockImplementationOnce(async function* () {
+          throw new Error('provider offline')
+        })
+        .mockImplementation(async function* () {
+          yield { type: 'text', content: 'Recovered response' }
+          yield { type: 'stop', stop_reason: 'end_turn' }
+        })
+    }
+    llmProvider.getProviderInstance.mockReturnValue(providerInstance)
+
+    const session = await agentPresenter.createSession(
+      { agentId: 'deepchat', message: 'Fail first', projectDir: null },
+      1
+    )
+    await new Promise((r) => setTimeout(r, 50))
+
+    const failedSession = await agentPresenter.getSession(session.id)
+    expect(failedSession?.status).toBe('error')
+
+    await agentPresenter.sendMessage(session.id, 'Recover after error')
+    await new Promise((r) => setTimeout(r, 80))
+
+    const recoveredSession = await agentPresenter.getSession(session.id)
+    expect(recoveredSession?.status).toBe('idle')
+    expect(providerInstance.coreStream).toHaveBeenCalledTimes(2)
+
+    const messages = sqlitePresenter.deepchatMessagesTable.getBySession(session.id)
+    const userMessages = messages.filter((message: any) => message.role === 'user')
+    expect(userMessages).toHaveLength(2)
+    expect(JSON.parse(userMessages[1].content).text).toBe('Recover after error')
+    await expect(agentPresenter.listPendingInputs(session.id)).resolves.toEqual([])
+  })
+
+  it('resumePendingQueue drains queued turns after a session error', async () => {
+    let releaseFirstTurn: (() => void) | null = null
+    const providerInstance = {
+      coreStream: vi
+        .fn()
+        .mockImplementationOnce(async function* () {
+          await new Promise<void>((resolve) => {
+            releaseFirstTurn = resolve
+          })
+          throw new Error('network down')
+        })
+        .mockImplementation(async function* () {
+          yield { type: 'text', content: 'Recovered queued response' }
+          yield { type: 'stop', stop_reason: 'end_turn' }
+        })
+    }
+    llmProvider.getProviderInstance.mockReturnValue(providerInstance)
+
+    const session = await agentPresenter.createSession(
+      { agentId: 'deepchat', message: 'Turn that errors', projectDir: null },
+      1
+    )
+    await new Promise((r) => setTimeout(r, 20))
+
+    await agentPresenter.queuePendingInput(session.id, 'Queued while failing')
+    releaseFirstTurn?.()
+    await new Promise((r) => setTimeout(r, 80))
+
+    const failedSession = await agentPresenter.getSession(session.id)
+    expect(failedSession?.status).toBe('error')
+
+    const pendingAfterError = await agentPresenter.listPendingInputs(session.id)
+    expect(pendingAfterError).toHaveLength(1)
+    expect(pendingAfterError[0].mode).toBe('queue')
+
+    await agentPresenter.resumePendingQueue(session.id)
+    await new Promise((r) => setTimeout(r, 80))
+
+    const recoveredSession = await agentPresenter.getSession(session.id)
+    expect(recoveredSession?.status).toBe('idle')
+    expect(providerInstance.coreStream).toHaveBeenCalledTimes(2)
+
+    const messages = sqlitePresenter.deepchatMessagesTable.getBySession(session.id)
+    const userMessages = messages.filter((message: any) => message.role === 'user')
+    expect(userMessages).toHaveLength(2)
+    expect(JSON.parse(userMessages[1].content).text).toBe('Queued while failing')
     await expect(agentPresenter.listPendingInputs(session.id)).resolves.toEqual([])
   })
 })

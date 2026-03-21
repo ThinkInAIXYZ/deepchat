@@ -152,15 +152,48 @@ const setup = async (options: SetupOptions = {}) => {
   vi.doMock('@/components/chat/ChatInputBox.vue', () => ({
     default: defineComponent({
       name: 'ChatInputBox',
+      props: {
+        files: {
+          type: Array,
+          default: () => []
+        },
+        submitDisabled: {
+          type: Boolean,
+          default: false
+        }
+      },
       template: '<div class="chat-input-box-stub"><slot name="toolbar" /></div>'
     })
   }))
   vi.doMock('@/components/chat/ChatInputToolbar.vue', () => ({
-    default: passthrough('ChatInputToolbar')
+    default: defineComponent({
+      name: 'ChatInputToolbar',
+      props: {
+        isGenerating: {
+          type: Boolean,
+          default: false
+        },
+        hasInput: {
+          type: Boolean,
+          default: false
+        },
+        sendDisabled: {
+          type: Boolean,
+          default: false
+        }
+      },
+      template: '<div class="chat-input-toolbar-stub" />'
+    })
   }))
   vi.doMock('@/components/chat/PendingInputLane.vue', () => ({
     default: defineComponent({
       name: 'PendingInputLane',
+      props: {
+        showResumeQueue: {
+          type: Boolean,
+          default: false
+        }
+      },
       template: '<div class="pending-input-lane-stub" />'
     })
   }))
@@ -188,7 +221,8 @@ const setup = async (options: SetupOptions = {}) => {
 
   return {
     wrapper,
-    messageStore
+    messageStore,
+    pendingInputStore
   }
 }
 
@@ -274,8 +308,72 @@ describe('ChatPage', () => {
     const html = wrapper.html()
     expect(wrapper.find('.pending-input-lane-stub').exists()).toBe(true)
     expect(wrapper.find('.chat-input-box-stub').exists()).toBe(true)
+    expect(wrapper.findComponent({ name: 'PendingInputLane' }).props('showResumeQueue')).toBe(true)
     expect(html.indexOf('pending-input-lane-stub')).toBeLessThan(
       html.indexOf('chat-input-box-stub')
     )
+  })
+
+  it('hides resume queue while waiting for a tool follow-up answer', async () => {
+    const { wrapper } = await setup({
+      messages: [
+        buildAssistantMessage([
+          {
+            type: 'action',
+            action_type: 'question_request',
+            status: 'success',
+            tool_call: {
+              id: 'tool-1',
+              name: 'question',
+              params: '{}'
+            },
+            extra: {
+              needsUserAction: false,
+              questionResolution: 'replied'
+            }
+          }
+        ])
+      ],
+      pendingInputStorePatch: {
+        items: [
+          {
+            id: 'p1',
+            mode: 'queue',
+            payload: { text: 'queued', files: [] }
+          }
+        ],
+        queueItems: [
+          {
+            id: 'p1',
+            mode: 'queue',
+            payload: { text: 'queued', files: [] }
+          }
+        ]
+      }
+    })
+
+    expect(wrapper.findComponent({ name: 'PendingInputLane' }).props('showResumeQueue')).toBe(false)
+  })
+
+  it('allows queueing attachment-only drafts', async () => {
+    const { wrapper, pendingInputStore } = await setup()
+    const file = { name: 'a.txt', path: '/tmp/a.txt', mimeType: 'text/plain' }
+
+    const inputBox = wrapper.findComponent({ name: 'ChatInputBox' })
+    inputBox.vm.$emit('update:files', [file])
+    await flushPromises()
+
+    const toolbar = wrapper.findComponent({ name: 'ChatInputToolbar' })
+    expect(toolbar.props('hasInput')).toBe(true)
+    expect(toolbar.props('sendDisabled')).toBe(false)
+    expect(inputBox.props('submitDisabled')).toBe(false)
+
+    inputBox.vm.$emit('submit')
+    await flushPromises()
+
+    expect(pendingInputStore.queueInput).toHaveBeenCalledWith('s1', {
+      text: '',
+      files: [file]
+    })
   })
 })

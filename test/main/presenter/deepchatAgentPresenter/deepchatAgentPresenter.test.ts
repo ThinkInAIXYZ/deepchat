@@ -306,6 +306,54 @@ describe('DeepChatAgentPresenter', () => {
       )
       consoleSpy.mockRestore()
     })
+
+    it('only recovers claimed pending inputs for sessions that still exist', () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+      sqlitePresenter.deepchatPendingInputsTable.listClaimed.mockReturnValue([
+        {
+          id: 'pending-existing',
+          session_id: 's1',
+          mode: 'queue',
+          state: 'claimed',
+          payload_json: '{"text":"hello","files":[]}',
+          queue_order: 1,
+          claimed_at: 123,
+          consumed_at: null,
+          created_at: 1,
+          updated_at: 1
+        },
+        {
+          id: 'pending-missing',
+          session_id: 'missing-session',
+          mode: 'queue',
+          state: 'claimed',
+          payload_json: '{"text":"orphan","files":[]}',
+          queue_order: 2,
+          claimed_at: 456,
+          consumed_at: null,
+          created_at: 2,
+          updated_at: 2
+        }
+      ])
+      sqlitePresenter.deepchatSessionsTable.get.mockImplementation((sessionId: string) =>
+        sessionId === 's1' ? { id: 's1' } : null
+      )
+
+      new DeepChatAgentPresenter(llmProvider, configPresenter, sqlitePresenter, toolPresenter)
+
+      expect(sqlitePresenter.deepchatPendingInputsTable.update).toHaveBeenCalledTimes(1)
+      expect(sqlitePresenter.deepchatPendingInputsTable.update).toHaveBeenCalledWith(
+        'pending-existing',
+        {
+          state: 'pending',
+          claimed_at: null
+        }
+      )
+      expect(consoleSpy).toHaveBeenCalledWith(
+        'DeepChatAgent: recovered 1 sessions with claimed pending inputs'
+      )
+      consoleSpy.mockRestore()
+    })
   })
 
   describe('initSession', () => {

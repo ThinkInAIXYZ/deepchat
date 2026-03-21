@@ -175,13 +175,21 @@ export class DeepChatPendingInputStore {
 
   recoverClaimedInputs(): string[] {
     const rows = this.listClaimedRows()
+    const recoveredSessionIds = new Set<string>()
+
     for (const row of rows) {
+      if (!this.sqlitePresenter.deepchatSessionsTable.get(row.session_id)) {
+        continue
+      }
+
       this.sqlitePresenter.deepchatPendingInputsTable.update(row.id, {
         state: 'pending',
         claimed_at: null
       })
+      recoveredSessionIds.add(row.session_id)
     }
-    return Array.from(new Set(rows.map((row) => row.session_id)))
+
+    return Array.from(recoveredSessionIds)
   }
 
   consumeClaimedSteerBatch(sessionId: string): number {

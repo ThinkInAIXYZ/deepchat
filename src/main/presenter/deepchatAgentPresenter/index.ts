@@ -28,7 +28,12 @@ import {
   buildSystemEnvPrompt
 } from '@/lib/agentRuntime/systemEnvPromptBuilder'
 import { presenter } from '@/presenter'
-import { buildContext, buildResumeContext, createUserChatMessage } from './contextBuilder'
+import {
+  buildContext,
+  buildResumeContext,
+  createUserChatMessage,
+  fitMessagesToContextWindow
+} from './contextBuilder'
 import { appendSummarySection, CompactionService, type CompactionIntent } from './compactionService'
 import { buildPersistableMessageTracePayload } from './messageTracePayload'
 import { DeepChatMessageStore } from './messageStore'
@@ -257,6 +262,15 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     }
 
     const record = this.pendingInputCoordinator.queuePendingInput(sessionId, content)
+    if (this.isAwaitingToolQuestionFollowUp(sessionId)) {
+      const claimedFollowUp = this.pendingInputCoordinator.claimQueuedInput(sessionId, record.id)
+      void this.processMessage(sessionId, claimedFollowUp.payload, {
+        projectDir: this.resolveProjectDir(sessionId),
+        pendingQueueItemId: claimedFollowUp.id
+      })
+      return claimedFollowUp
+    }
+
     void this.drainPendingQueueIfPossible(sessionId, 'enqueue')
     return record
   }
@@ -296,6 +310,9 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     const state = await this.getSessionState(sessionId)
     if (!state) {
       throw new Error(`Session ${sessionId} not found`)
+    }
+    if (this.isAwaitingToolQuestionFollowUp(sessionId)) {
+      return
     }
 
     void this.drainPendingQueueIfPossible(sessionId, 'resume')
@@ -681,7 +698,6 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
         emitResolvedToolHook?.()
         this.messageStore.updateMessageStatus(messageId, 'sent')
         this.setSessionStatus(sessionId, 'idle')
-        void this.drainPendingQueueIfPossible(sessionId, 'question_other')
         return { resumed: false, waitingForUserMessage: true }
       }
 
@@ -1207,7 +1223,9 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
           const injectedMessages = injectSteerInputsIntoRequest(
             requestMessages,
             claimedSteerBatch,
-            supportsVision
+            supportsVision,
+            requestModelConfig.contextLength,
+            requestMaxTokens
           )
 
           let didConsumeSteerBatch = false
@@ -1307,7 +1325,9 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
   private injectSteerInputsIntoRequest(
     messages: ChatMessage[],
     steerInputs: PendingSessionInputRecord[],
-    supportsVision: boolean
+    supportsVision: boolean,
+    contextLength: number,
+    reserveTokens: number
   ): ChatMessage[] {
     if (steerInputs.length === 0) {
       return messages
@@ -1318,24 +1338,33 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     )
     const clonedMessages = [...messages]
     const lastMessage = clonedMessages[clonedMessages.length - 1]
+    const trailingUserCount = lastMessage?.role === 'user' ? 1 : 0
+    const injectedMessages =
+      trailingUserCount > 0
+        ? [...clonedMessages.slice(0, -1), ...steerMessages, lastMessage]
+        : [...clonedMessages, ...steerMessages]
 
-    if (lastMessage?.role === 'user') {
-      return [...clonedMessages.slice(0, -1), ...steerMessages, lastMessage]
-    }
-
-    return [...clonedMessages, ...steerMessages]
+    return fitMessagesToContextWindow(
+      injectedMessages,
+      contextLength,
+      reserveTokens,
+      steerMessages.length + trailingUserCount
+    )
   }
 
   private async drainPendingQueueIfPossible(
     sessionId: string,
-    _reason: 'enqueue' | 'resume' | 'completed' | 'question_other'
+    reason: 'enqueue' | 'resume' | 'completed'
   ): Promise<boolean> {
     if (this.drainingPendingQueues.has(sessionId)) {
       return false
     }
 
     const state = await this.getSessionState(sessionId)
-    if (!state || state.status !== 'idle') {
+    if (!state || !this.canDrainPendingQueueFromStatus(state.status, reason)) {
+      return false
+    }
+    if (this.isAwaitingToolQuestionFollowUp(sessionId)) {
       return false
     }
     if (this.hasPendingInteractions(sessionId)) {
@@ -1371,6 +1400,17 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
         void this.drainPendingQueueIfPossible(sessionId, 'completed')
       }
     }
+  }
+
+  private canDrainPendingQueueFromStatus(
+    status: DeepChatSessionState['status'],
+    reason: 'enqueue' | 'resume' | 'completed'
+  ): boolean {
+    if (status === 'idle') {
+      return true
+    }
+
+    return (reason === 'enqueue' || reason === 'resume') && status === 'error'
   }
 
   private applyProcessResultStatus(
@@ -2753,6 +2793,33 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       }
     }
     return false
+  }
+
+  private isAwaitingToolQuestionFollowUp(sessionId: string): boolean {
+    const messages = this.messageStore.getMessages(sessionId)
+    let latestUserOrderSeq = 0
+
+    for (const message of messages) {
+      if (message.role === 'user') {
+        latestUserOrderSeq = Math.max(latestUserOrderSeq, message.orderSeq)
+      }
+    }
+
+    return messages.some((message) => {
+      if (message.role !== 'assistant' || message.orderSeq <= latestUserOrderSeq) {
+        return false
+      }
+
+      return this.parseAssistantBlocks(message.content).some(
+        (block) =>
+          block.type === 'action' &&
+          block.action_type === 'question_request' &&
+          block.status === 'success' &&
+          block.extra?.needsUserAction === false &&
+          block.extra?.questionResolution === 'replied' &&
+          typeof block.extra?.answerText !== 'string'
+      )
+    })
   }
 
   private async resolveCompactionStateForResumeTurn(params: {

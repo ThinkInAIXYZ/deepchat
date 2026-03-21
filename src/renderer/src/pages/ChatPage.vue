@@ -62,7 +62,7 @@
               <template #toolbar>
                 <ChatInputToolbar
                   :is-generating="isGenerating"
-                  :has-text="hasInputText"
+                  :has-input="hasDraftInput"
                   :send-disabled="isQueueSubmitDisabled"
                   @attach="onAttach"
                   @send="onSubmit"
@@ -408,11 +408,38 @@ const pendingInteractions = computed<PendingInteractionView[]>(() => {
 })
 
 const activePendingInteraction = computed(() => pendingInteractions.value[0] ?? null)
+const isAwaitingToolQuestionFollowUp = computed(() => {
+  let latestUserOrderSeq = 0
+
+  for (const message of messageStore.messages) {
+    if (message.role === 'user') {
+      latestUserOrderSeq = Math.max(latestUserOrderSeq, message.orderSeq)
+    }
+  }
+
+  return messageStore.messages.some((message) => {
+    if (message.role !== 'assistant' || message.orderSeq <= latestUserOrderSeq) {
+      return false
+    }
+
+    return parseAssistantBlocks(message.content).some(
+      (block) =>
+        block.type === 'action' &&
+        block.action_type === 'question_request' &&
+        block.status === 'success' &&
+        block.extra?.needsUserAction === false &&
+        block.extra?.questionResolution === 'replied' &&
+        typeof block.extra?.answerText !== 'string'
+    )
+  })
+})
 const hasInputText = computed(() => Boolean(message.value.trim()))
+const hasAttachments = computed(() => attachedFiles.value.length > 0)
+const hasDraftInput = computed(() => hasInputText.value || hasAttachments.value)
 const isQueueSubmitDisabled = computed(
   () =>
     isAcpWorkdirMissing.value ||
-    !hasInputText.value ||
+    !hasDraftInput.value ||
     Boolean(activePendingInteraction.value) ||
     isHandlingInteraction.value ||
     pendingInputStore.isAtCapacity
@@ -423,12 +450,13 @@ const isInputSubmitDisabled = computed(
     Boolean(activePendingInteraction.value) ||
     isHandlingInteraction.value ||
     pendingInputStore.isAtCapacity ||
-    !hasInputText.value
+    !hasDraftInput.value
 )
 const showResumePendingQueue = computed(
   () =>
     !isGenerating.value &&
     !activePendingInteraction.value &&
+    !isAwaitingToolQuestionFollowUp.value &&
     pendingInputStore.queueItems.length > 0
 )
 
@@ -436,8 +464,8 @@ async function onSubmit() {
   if (isAcpWorkdirMissing.value) return
   if (activePendingInteraction.value || isHandlingInteraction.value) return
   const text = message.value.trim()
-  if (!text) return
   const files = [...attachedFiles.value]
+  if (!text && files.length === 0) return
   await pendingInputStore.queueInput(props.sessionId, { text, files })
   message.value = ''
   attachedFiles.value = []

@@ -24,15 +24,25 @@ export const usePendingInputStore = defineStore('pendingInput', () => {
   const isAtCapacity = computed(() => activeCount.value >= MAX_PENDING_INPUTS)
 
   async function loadPendingInputs(sessionId: string): Promise<void> {
-    currentSessionId.value = sessionId
+    const requestedId = sessionId
+    currentSessionId.value = requestedId
     loading.value = true
     error.value = null
     try {
-      items.value = await newAgentPresenter.listPendingInputs(sessionId)
+      const loadedItems = await newAgentPresenter.listPendingInputs(requestedId)
+      if (requestedId !== currentSessionId.value) {
+        return
+      }
+      items.value = loadedItems
     } catch (e) {
+      if (requestedId !== currentSessionId.value) {
+        return
+      }
       error.value = `Failed to load pending inputs: ${e}`
     } finally {
-      loading.value = false
+      if (requestedId === currentSessionId.value) {
+        loading.value = false
+      }
     }
   }
 
