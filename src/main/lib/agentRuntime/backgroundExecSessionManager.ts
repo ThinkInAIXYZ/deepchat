@@ -139,6 +139,7 @@ export class BackgroundExecSessionManager {
         ...shellEnv,
         ...options?.env
       },
+      detached: process.platform !== 'win32',
       stdio: ['pipe', 'pipe', 'pipe']
     })
 
@@ -283,10 +284,20 @@ export class BackgroundExecSessionManager {
       }
     }
 
-    await Promise.race([
-      session.closePromise,
-      new Promise((resolve) => setTimeout(resolve, Math.max(0, yieldMs)))
-    ])
+    let yieldTimer: NodeJS.Timeout | null = null
+
+    try {
+      await Promise.race([
+        session.closePromise,
+        new Promise((resolve) => {
+          yieldTimer = setTimeout(resolve, Math.max(0, yieldMs))
+        })
+      ])
+    } finally {
+      if (yieldTimer) {
+        clearTimeout(yieldTimer)
+      }
+    }
 
     if (session.status !== 'running') {
       return {

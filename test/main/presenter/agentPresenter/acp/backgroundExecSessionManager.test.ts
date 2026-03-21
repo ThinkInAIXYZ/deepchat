@@ -166,6 +166,36 @@ describe('BackgroundExecSessionManager', () => {
     })
   })
 
+  it('clears the yield timer when the session closes before the yield window elapses', async () => {
+    vi.useFakeTimers()
+
+    const clearTimeoutSpy = vi.spyOn(globalThis, 'clearTimeout')
+    const session = createSession({
+      status: 'running',
+      outputBuffer: 'build complete'
+    })
+
+    session.closePromise = Promise.resolve().then(() => {
+      session.status = 'done'
+    })
+
+    setSession(session)
+
+    await expect(manager.waitForCompletionOrYield('conv-1', 'bg_123', 1000)).resolves.toEqual({
+      kind: 'completed',
+      result: {
+        status: 'done',
+        output: 'build complete',
+        exitCode: null,
+        offloaded: true,
+        outputFilePath: '/mock/session/bgexec_bg_123.log',
+        timedOut: false
+      }
+    })
+
+    expect(clearTimeoutSpy).toHaveBeenCalledTimes(1)
+  })
+
   it('exposes timedOut metadata through poll and log', async () => {
     const session = createSession({
       status: 'killed',

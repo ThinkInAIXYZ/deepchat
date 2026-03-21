@@ -204,6 +204,7 @@ describe('AgentBashHandler', () => {
     const waitSpy = vi
       .spyOn(backgroundExecSessionManager, 'waitForCompletionOrYield')
       .mockResolvedValue({ kind: 'running', sessionId: 'bg_yield' })
+    const writeSpy = vi.spyOn(backgroundExecSessionManager, 'write').mockImplementation(() => {})
     const removeSpy = vi.spyOn(backgroundExecSessionManager, 'remove').mockResolvedValue()
 
     const result = await handler.executeCommand(
@@ -217,6 +218,7 @@ describe('AgentBashHandler', () => {
       }
     )
 
+    expect(writeSpy).toHaveBeenCalledWith('conv-1', 'bg_yield', '', true)
     expect(startSpy).toHaveBeenCalledWith(
       'conv-1',
       'bun run dev caps gpt-4o',
@@ -247,6 +249,7 @@ describe('AgentBashHandler', () => {
       sessionId: 'bg_done',
       status: 'running'
     })
+    const writeSpy = vi.spyOn(backgroundExecSessionManager, 'write').mockImplementation(() => {})
     vi.spyOn(backgroundExecSessionManager, 'waitForCompletionOrYield').mockResolvedValue({
       kind: 'completed',
       result: {
@@ -269,8 +272,56 @@ describe('AgentBashHandler', () => {
       }
     )
 
+    expect(writeSpy).toHaveBeenCalledWith('conv-1', 'bg_done', '', true)
     expect(removeSpy).toHaveBeenCalledWith('conv-1', 'bg_done')
     expect(result.output).toContain('usage')
     expect(result.output).toContain('Exit Code: 0')
+  })
+
+  it('keeps completed foreground sessions when output was offloaded', async () => {
+    const handler = new AgentBashHandler(['/workspace'])
+
+    vi.spyOn(handler as never, 'prepareCommand' as never).mockResolvedValue({
+      originalCommand: 'pnpm test --reporter=json',
+      command: 'pnpm test --reporter=json',
+      env: { PATH: '/bin' },
+      rewritten: false,
+      rtkApplied: false,
+      rtkMode: 'bypass'
+    })
+
+    vi.spyOn(backgroundExecSessionManager, 'start').mockResolvedValue({
+      sessionId: 'bg_offloaded',
+      status: 'running'
+    })
+    vi.spyOn(backgroundExecSessionManager, 'waitForCompletionOrYield').mockResolvedValue({
+      kind: 'completed',
+      result: {
+        status: 'done',
+        output: 'last lines',
+        exitCode: 0,
+        offloaded: true,
+        outputFilePath: '/tmp/bgexec_bg_offloaded.log',
+        timedOut: false
+      }
+    })
+    const writeSpy = vi.spyOn(backgroundExecSessionManager, 'write').mockImplementation(() => {})
+    const removeSpy = vi.spyOn(backgroundExecSessionManager, 'remove').mockResolvedValue()
+
+    const result = await handler.executeCommand(
+      {
+        command: 'pnpm test --reporter=json',
+        description: 'Run tests'
+      },
+      {
+        conversationId: 'conv-1'
+      }
+    )
+
+    expect(writeSpy).toHaveBeenCalledWith('conv-1', 'bg_offloaded', '', true)
+    expect(removeSpy).not.toHaveBeenCalled()
+    expect(result.output).toContain('last lines')
+    expect(result.output).toContain('Exit Code: 0')
+    expect(result.output).toContain('Output offloaded: /tmp/bgexec_bg_offloaded.log')
   })
 })

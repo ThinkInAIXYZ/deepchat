@@ -52,6 +52,67 @@ async function spawnAndWait(command: string, args: string[]): Promise<void> {
   })
 }
 
+async function spawnAndCapture(command: string, args: string[]): Promise<string> {
+  return await new Promise<string>((resolve) => {
+    let output = ''
+
+    try {
+      const child = spawn(command, args, { stdio: ['ignore', 'pipe', 'ignore'] })
+      child.stdout?.on('data', (chunk: Buffer | string) => {
+        output += chunk.toString()
+      })
+      child.on('error', () => resolve(''))
+      child.on('close', () => resolve(output))
+    } catch {
+      resolve('')
+    }
+  })
+}
+
+async function listChildPids(pid: number): Promise<number[]> {
+  const output = await spawnAndCapture('pgrep', ['-P', `${pid}`])
+  return output
+    .split(/\r?\n/)
+    .map((line) => Number.parseInt(line.trim(), 10))
+    .filter((childPid) => Number.isInteger(childPid) && childPid > 0)
+}
+
+async function collectDescendantPids(pid: number): Promise<number[]> {
+  const descendants: number[] = []
+  const pending = [pid]
+  const seen = new Set<number>()
+
+  while (pending.length > 0) {
+    const currentPid = pending.pop()
+    if (!currentPid) {
+      continue
+    }
+
+    const childPids = await listChildPids(currentPid)
+    for (const childPid of childPids) {
+      if (seen.has(childPid)) {
+        continue
+      }
+
+      seen.add(childPid)
+      descendants.push(childPid)
+      pending.push(childPid)
+    }
+  }
+
+  return descendants
+}
+
+async function signalDescendantsRecursively(
+  pid: number,
+  childSignal: '-TERM' | '-KILL'
+): Promise<void> {
+  const descendants = await collectDescendantPids(pid)
+  for (const descendantPid of descendants.reverse()) {
+    await spawnAndWait('kill', [childSignal, `${descendantPid}`])
+  }
+}
+
 async function signalProcessTree(pid: number, signal: 'SIGTERM' | 'SIGKILL'): Promise<void> {
   if (process.platform === 'win32') {
     const args = ['/PID', `${pid}`, '/T', '/F']
@@ -60,12 +121,15 @@ async function signalProcessTree(pid: number, signal: 'SIGTERM' | 'SIGKILL'): Pr
   }
 
   const childSignal = signal === 'SIGKILL' ? '-KILL' : '-TERM'
-  await spawnAndWait('pkill', [childSignal, '-P', `${pid}`])
-
   try {
-    process.kill(pid, signal)
+    process.kill(-pid, signal)
   } catch {
-    // Process may have already exited.
+    await signalDescendantsRecursively(pid, childSignal)
+    try {
+      process.kill(pid, signal)
+    } catch {
+      // Process may have already exited.
+    }
   }
 }
 

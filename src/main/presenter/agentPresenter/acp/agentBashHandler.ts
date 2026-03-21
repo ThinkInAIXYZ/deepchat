@@ -278,9 +278,7 @@ export class AgentBashHandler {
       outputPrefix: options.outputPrefix
     })
 
-    if (options.stdin !== undefined) {
-      backgroundExecSessionManager.write(conversationId, session.sessionId, options.stdin, true)
-    }
+    backgroundExecSessionManager.write(conversationId, session.sessionId, options.stdin ?? '', true)
 
     const yielded = await backgroundExecSessionManager.waitForCompletionOrYield(
       conversationId,
@@ -292,6 +290,8 @@ export class AgentBashHandler {
       return yielded
     }
 
+    const shouldCleanupSession = !yielded.result.offloaded
+
     try {
       return {
         kind: 'completed',
@@ -302,15 +302,17 @@ export class AgentBashHandler {
         outputFilePath: yielded.result.outputFilePath
       }
     } finally {
-      await backgroundExecSessionManager
-        .remove(conversationId, session.sessionId)
-        .catch((error) => {
-          logger.warn('[AgentBashHandler] Failed to cleanup completed foreground exec session', {
-            conversationId,
-            sessionId: session.sessionId,
-            error
+      if (shouldCleanupSession) {
+        await backgroundExecSessionManager
+          .remove(conversationId, session.sessionId)
+          .catch((error) => {
+            logger.warn('[AgentBashHandler] Failed to cleanup completed foreground exec session', {
+              conversationId,
+              sessionId: session.sessionId,
+              error
+            })
           })
-        })
+      }
     }
   }
 
@@ -332,6 +334,7 @@ export class AgentBashHandler {
           ...shellEnv,
           ...options.env
         },
+        detached: process.platform !== 'win32',
         stdio: ['pipe', 'pipe', 'pipe']
       })
 
