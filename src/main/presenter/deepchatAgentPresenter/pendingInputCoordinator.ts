@@ -1,6 +1,10 @@
 import { eventBus, SendTarget } from '@/eventbus'
 import { SESSION_EVENTS } from '@/events'
-import type { PendingSessionInputRecord, SendMessageInput } from '@shared/types/agent-interface'
+import type {
+  PendingSessionInputRecord,
+  PendingSessionInputState,
+  SendMessageInput
+} from '@shared/types/agent-interface'
 import { DeepChatPendingInputStore } from './pendingInputStore'
 
 const MAX_ACTIVE_PENDING_INPUTS = 5
@@ -29,10 +33,17 @@ export class PendingInputCoordinator {
 
   queuePendingInput(
     sessionId: string,
-    input: string | SendMessageInput
+    input: string | SendMessageInput,
+    options?: {
+      state?: PendingSessionInputState
+    }
   ): PendingSessionInputRecord {
     this.ensureWithinLimit(sessionId)
-    const record = this.store.createQueueInput(sessionId, normalizeInput(input))
+    const record = this.store.createQueueInputWithState(
+      sessionId,
+      normalizeInput(input),
+      options?.state ?? 'pending'
+    )
     this.emitUpdated(sessionId)
     return record
   }

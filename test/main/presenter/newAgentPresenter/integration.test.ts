@@ -792,6 +792,77 @@ describe('Integration: multi-turn context', () => {
     expect(lastUserContent.files).toHaveLength(1)
   })
 
+  it('persists the initial user message before the first assistant stream responds', async () => {
+    let releaseFirstTurn: (() => void) | null = null
+    const providerInstance = {
+      coreStream: vi.fn().mockImplementationOnce(async function* () {
+        await new Promise<void>((resolve) => {
+          releaseFirstTurn = resolve
+        })
+        yield { type: 'text', content: 'First response' }
+        yield { type: 'stop', stop_reason: 'end_turn' }
+      })
+    }
+    llmProvider.getProviderInstance.mockReturnValue(providerInstance)
+
+    const session = await agentPresenter.createSession(
+      { agentId: 'deepchat', message: 'First turn', projectDir: null },
+      1
+    )
+    await new Promise((r) => setTimeout(r, 20))
+
+    const messagesBeforeStream = sqlitePresenter.deepchatMessagesTable.getBySession(session.id)
+    const userMessagesBeforeStream = messagesBeforeStream.filter(
+      (message: any) => message.role === 'user'
+    )
+    expect(userMessagesBeforeStream).toHaveLength(1)
+    expect(JSON.parse(userMessagesBeforeStream[0].content).text).toBe('First turn')
+
+    releaseFirstTurn?.()
+    await new Promise((r) => setTimeout(r, 80))
+  })
+
+  it('keeps immediately runnable sends out of the visible pending queue', async () => {
+    let releaseSecondTurn: (() => void) | null = null
+    const providerInstance = {
+      coreStream: vi
+        .fn()
+        .mockImplementationOnce(async function* () {
+          yield { type: 'text', content: 'First response' }
+          yield { type: 'stop', stop_reason: 'end_turn' }
+        })
+        .mockImplementationOnce(async function* () {
+          await new Promise<void>((resolve) => {
+            releaseSecondTurn = resolve
+          })
+          yield { type: 'text', content: 'Second response' }
+          yield { type: 'stop', stop_reason: 'end_turn' }
+        })
+    }
+    llmProvider.getProviderInstance.mockReturnValue(providerInstance)
+
+    const session = await agentPresenter.createSession(
+      { agentId: 'deepchat', message: 'First turn', projectDir: null },
+      1
+    )
+    await new Promise((r) => setTimeout(r, 80))
+
+    await agentPresenter.sendMessage(session.id, 'Immediate follow up')
+    await new Promise((r) => setTimeout(r, 20))
+
+    await expect(agentPresenter.listPendingInputs(session.id)).resolves.toEqual([])
+
+    const messagesDuringSecondTurn = sqlitePresenter.deepchatMessagesTable.getBySession(session.id)
+    const userMessagesDuringSecondTurn = messagesDuringSecondTurn.filter(
+      (message: any) => message.role === 'user'
+    )
+    expect(userMessagesDuringSecondTurn).toHaveLength(2)
+    expect(JSON.parse(userMessagesDuringSecondTurn[1].content).text).toBe('Immediate follow up')
+
+    releaseSecondTurn?.()
+    await new Promise((r) => setTimeout(r, 80))
+  })
+
   it('keeps queued messages out of formal history until the current turn completes', async () => {
     let releaseFirstTurn: (() => void) | null = null
     const providerInstance = {
@@ -1172,7 +1243,20 @@ describe('Integration: crash recovery', () => {
     )
 
     expect(sqlitePresenter.deepchatMessagesTable.getByStatus).toHaveBeenCalledWith('pending')
-    expect(sqlitePresenter.deepchatMessagesTable.updateStatus).toHaveBeenCalledTimes(2)
+    expect(sqlitePresenter.deepchatMessagesTable.updateContentAndStatus).toHaveBeenCalledTimes(2)
+    const [messageId, contentJson, status] =
+      sqlitePresenter.deepchatMessagesTable.updateContentAndStatus.mock.calls[0]
+    expect(messageId).toBe('m1')
+    expect(status).toBe('error')
+    expect(JSON.parse(contentJson)).toEqual([
+      { type: 'content', status: 'error', timestamp: 1 },
+      {
+        type: 'error',
+        content: 'common.error.sessionInterrupted',
+        status: 'error',
+        timestamp: expect.any(Number)
+      }
+    ])
     expect(consoleSpy).toHaveBeenCalledWith(
       'DeepChatAgent: recovered 2 pending messages to error status'
     )

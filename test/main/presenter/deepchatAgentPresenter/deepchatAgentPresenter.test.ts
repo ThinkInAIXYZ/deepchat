@@ -1096,6 +1096,53 @@ describe('DeepChatAgentPresenter', () => {
       })
     })
 
+    it('emits a refresh for the persisted user message before streaming starts', async () => {
+      let refreshCountAtStreamStart = 0
+      ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async () => {
+        refreshCountAtStreamStart = (
+          eventBus.sendToRenderer as ReturnType<typeof vi.fn>
+        ).mock.calls.filter((call: any[]) => call[0] === 'stream:end').length
+        return { status: 'completed' }
+      })
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.processMessage('s1', 'Hello')
+
+      expect(refreshCountAtStreamStart).toBe(1)
+    })
+
+    it('finalizes the assistant placeholder when streaming setup fails', async () => {
+      ;(processStream as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('LLM failed'))
+      sqlitePresenter.deepchatMessagesTable.get.mockReturnValue({
+        id: 'mock-msg-id',
+        session_id: 's1',
+        order_seq: 2,
+        role: 'assistant',
+        content: '[]',
+        status: 'pending',
+        is_context_edge: 0,
+        metadata: null,
+        created_at: 1,
+        updated_at: 1
+      })
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.processMessage('s1', 'Hello')
+
+      const [messageId, contentJson, status] =
+        sqlitePresenter.deepchatMessagesTable.updateContentAndStatus.mock.calls[0]
+      expect(messageId).toBe('mock-msg-id')
+      expect(status).toBe('error')
+      expect(JSON.parse(contentJson)).toEqual([
+        {
+          type: 'error',
+          content: 'LLM failed',
+          status: 'error',
+          timestamp: expect.any(Number)
+        }
+      ])
+    })
+
     it('throws for unknown session', async () => {
       await expect(agent.processMessage('unknown', 'hi')).rejects.toThrow(
         'Session unknown not found'
@@ -1691,6 +1738,145 @@ describe('DeepChatAgentPresenter', () => {
 
       const state = await agent.getSessionState('s1')
       expect(state!.status).toBe('idle')
+    })
+
+    it('finalizes the active assistant message on stop', async () => {
+      let resolveRun: ((value: any) => void) | null = null
+      ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveRun = resolve
+          })
+      )
+      sqlitePresenter.deepchatMessagesTable.get.mockReturnValue({
+        id: 'mock-msg-id',
+        session_id: 's1',
+        order_seq: 2,
+        role: 'assistant',
+        content: '[]',
+        status: 'pending',
+        is_context_edge: 0,
+        metadata: null,
+        created_at: 1,
+        updated_at: 1
+      })
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      const processPromise = agent.processMessage('s1', 'Hello')
+      await new Promise((resolve) => setTimeout(resolve, 10))
+
+      await agent.cancelGeneration('s1')
+      resolveRun?.({
+        status: 'aborted',
+        stopReason: 'user_stop',
+        errorMessage: 'common.error.userCanceledGeneration'
+      })
+      await processPromise
+
+      const [messageId, contentJson, status] =
+        sqlitePresenter.deepchatMessagesTable.updateContentAndStatus.mock.calls[0]
+      expect(messageId).toBe('mock-msg-id')
+      expect(status).toBe('error')
+      expect(JSON.parse(contentJson)).toEqual([
+        {
+          type: 'error',
+          content: 'common.error.userCanceledGeneration',
+          status: 'error',
+          timestamp: expect.any(Number)
+        }
+      ])
+      expect((await agent.getSessionState('s1'))!.status).toBe('idle')
+    })
+
+    it('ignores stale run completion after a newer turn starts', async () => {
+      let resolveFirstRun: ((value: any) => void) | null = null
+      ;(processStream as ReturnType<typeof vi.fn>)
+        .mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              resolveFirstRun = resolve
+            })
+        )
+        .mockResolvedValueOnce({
+          status: 'completed',
+          stopReason: 'complete'
+        })
+      sqlitePresenter.deepchatMessagesTable.get.mockReturnValue({
+        id: 'mock-msg-id',
+        session_id: 's1',
+        order_seq: 2,
+        role: 'assistant',
+        content: '[]',
+        status: 'pending',
+        is_context_edge: 0,
+        metadata: null,
+        created_at: 1,
+        updated_at: 1
+      })
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      const firstProcess = agent.processMessage('s1', 'First')
+      await new Promise((resolve) => setTimeout(resolve, 10))
+
+      await agent.cancelGeneration('s1')
+      await agent.processMessage('s1', 'Second')
+
+      resolveFirstRun?.({
+        status: 'aborted',
+        stopReason: 'user_stop',
+        errorMessage: 'common.error.userCanceledGeneration'
+      })
+      await firstProcess
+
+      const stopCalls = hookDispatcher.dispatchEvent.mock.calls.filter(
+        (call: any[]) => call[0] === 'Stop'
+      )
+      expect(stopCalls).toHaveLength(2)
+      expect(stopCalls[0][1]).toEqual(
+        expect.objectContaining({
+          stop: expect.objectContaining({ reason: 'user_stop', userStop: true })
+        })
+      )
+      expect(stopCalls[1][1]).toEqual(
+        expect.objectContaining({
+          stop: expect.objectContaining({ reason: 'complete', userStop: false })
+        })
+      )
+    })
+  })
+
+  describe('queuePendingInput', () => {
+    it('claims immediately runnable turns instead of exposing a queued item first', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+
+      const claimedRecord = {
+        id: 'q1',
+        sessionId: 's1',
+        mode: 'queue',
+        state: 'claimed',
+        payload: { text: 'Hello', files: [] },
+        queueOrder: 1,
+        claimedAt: 1,
+        consumedAt: null,
+        createdAt: 1,
+        updatedAt: 1
+      }
+      const queueSpy = vi
+        .spyOn((agent as any).pendingInputCoordinator, 'queuePendingInput')
+        .mockReturnValue(claimedRecord)
+      const processSpy = vi.spyOn(agent, 'processMessage').mockResolvedValue()
+
+      const result = await agent.queuePendingInput('s1', 'Hello')
+
+      expect(queueSpy).toHaveBeenCalledWith('s1', 'Hello', { state: 'claimed' })
+      expect(processSpy).toHaveBeenCalledWith(
+        's1',
+        claimedRecord.payload,
+        expect.objectContaining({
+          pendingQueueItemId: claimedRecord.id
+        })
+      )
+      expect(result).toBe(claimedRecord)
     })
   })
 

@@ -17,6 +17,7 @@ import type {
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import { nanoid } from 'nanoid'
 import type { ToolOutputGuard } from './toolOutputGuard'
+import { buildTerminalErrorBlocks } from './messageStore'
 
 type PermissionType = 'read' | 'write' | 'all' | 'command'
 
@@ -734,17 +735,7 @@ export function finalize(state: StreamState, io: IoParams): void {
 
 export function finalizeError(state: StreamState, io: IoParams, error: unknown): void {
   const errorMessage = error instanceof Error ? error.message : String(error)
-  const errorBlock: AssistantMessageBlock = {
-    type: 'error',
-    content: errorMessage,
-    status: 'error',
-    timestamp: Date.now()
-  }
-  state.blocks.push(errorBlock)
-
-  for (const block of state.blocks) {
-    if (block.status === 'pending') block.status = 'error'
-  }
+  state.blocks = buildTerminalErrorBlocks(state.blocks, errorMessage)
 
   const endTime = Date.now()
   state.metadata.generationTime = endTime - state.startTime

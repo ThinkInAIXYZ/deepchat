@@ -429,7 +429,7 @@ describe('DeepChatMessageStore', () => {
   })
 
   describe('recoverPendingMessages', () => {
-    it('marks non-interaction pending messages as error', () => {
+    it('marks non-interaction pending messages as error with terminal content', () => {
       sqlitePresenter.deepchatMessagesTable.getByStatus.mockReturnValue([
         {
           id: 'm1',
@@ -460,7 +460,48 @@ describe('DeepChatMessageStore', () => {
       ])
 
       expect(store.recoverPendingMessages()).toBe(1)
-      expect(sqlitePresenter.deepchatMessagesTable.updateStatus).toHaveBeenCalledWith('m2', 'error')
+      const [messageId, contentJson, status] =
+        sqlitePresenter.deepchatMessagesTable.updateContentAndStatus.mock.calls[0]
+      expect(messageId).toBe('m2')
+      expect(status).toBe('error')
+      expect(JSON.parse(contentJson)).toEqual([
+        {
+          type: 'content',
+          status: 'error',
+          timestamp: 1,
+          content: 'streaming'
+        },
+        {
+          type: 'error',
+          content: 'common.error.sessionInterrupted',
+          status: 'error',
+          timestamp: expect.any(Number)
+        }
+      ])
+    })
+
+    it('adds an explicit error block when pending assistant content is empty', () => {
+      sqlitePresenter.deepchatMessagesTable.getByStatus.mockReturnValue([
+        {
+          id: 'm3',
+          role: 'assistant',
+          content: '[]'
+        }
+      ])
+
+      expect(store.recoverPendingMessages()).toBe(1)
+      const [messageId, contentJson, status] =
+        sqlitePresenter.deepchatMessagesTable.updateContentAndStatus.mock.calls[0]
+      expect(messageId).toBe('m3')
+      expect(status).toBe('error')
+      expect(JSON.parse(contentJson)).toEqual([
+        {
+          type: 'error',
+          content: 'common.error.sessionInterrupted',
+          status: 'error',
+          timestamp: expect.any(Number)
+        }
+      ])
     })
   })
 })

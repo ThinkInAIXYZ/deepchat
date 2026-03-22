@@ -17,6 +17,40 @@ import {
   resolveUsageProviderId
 } from '../usageStats'
 
+function shouldConvertPendingBlockToError(
+  status: AssistantMessageBlock['status']
+): status is 'pending' | 'loading' {
+  return status === 'pending' || status === 'loading'
+}
+
+export function buildTerminalErrorBlocks(
+  blocks: AssistantMessageBlock[],
+  errorMessage: string
+): AssistantMessageBlock[] {
+  const normalizedBlocks: AssistantMessageBlock[] = Array.isArray(blocks)
+    ? blocks.map(
+        (block): AssistantMessageBlock =>
+          shouldConvertPendingBlockToError(block.status)
+            ? { ...block, status: 'error' as const }
+            : block
+      )
+    : []
+
+  const lastBlock = normalizedBlocks[normalizedBlocks.length - 1]
+  if (lastBlock?.type === 'error' && lastBlock.content === errorMessage) {
+    return normalizedBlocks
+  }
+
+  normalizedBlocks.push({
+    type: 'error',
+    content: errorMessage,
+    status: 'error',
+    timestamp: Date.now()
+  })
+
+  return normalizedBlocks
+}
+
 export class DeepChatMessageStore {
   private sqlitePresenter: SQLitePresenter
 
@@ -317,7 +351,17 @@ export class DeepChatMessageStore {
       if (this.shouldKeepPending(row)) {
         continue
       }
-      this.sqlitePresenter.deepchatMessagesTable.updateStatus(row.id, 'error')
+      if (row.role === 'assistant') {
+        const blocks = this.parseAssistantBlocks(row.content)
+        const recoveredBlocks = buildTerminalErrorBlocks(blocks, 'common.error.sessionInterrupted')
+        this.sqlitePresenter.deepchatMessagesTable.updateContentAndStatus(
+          row.id,
+          JSON.stringify(recoveredBlocks),
+          'error'
+        )
+      } else {
+        this.sqlitePresenter.deepchatMessagesTable.updateStatus(row.id, 'error')
+      }
       recoveredCount += 1
     }
     return recoveredCount
@@ -327,22 +371,15 @@ export class DeepChatMessageStore {
     if (row.role !== 'assistant') {
       return false
     }
-    try {
-      const blocks = JSON.parse(row.content) as AssistantMessageBlock[]
-      if (!Array.isArray(blocks)) {
-        return false
-      }
-      return blocks.some(
-        (block) =>
-          block.type === 'action' &&
-          (block.action_type === 'tool_call_permission' ||
-            block.action_type === 'question_request') &&
-          block.status === 'pending' &&
-          block.extra?.needsUserAction !== false
-      )
-    } catch {
-      return false
-    }
+    const blocks = this.parseAssistantBlocks(row.content)
+    return blocks.some(
+      (block) =>
+        block.type === 'action' &&
+        (block.action_type === 'tool_call_permission' ||
+          block.action_type === 'question_request') &&
+        block.status === 'pending' &&
+        block.extra?.needsUserAction !== false
+    )
   }
 
   private toRecord(row: DeepChatMessageRow): ChatMessageRecord {
@@ -358,6 +395,15 @@ export class DeepChatMessageStore {
       traceCount: row.trace_count ?? 0,
       createdAt: row.created_at,
       updatedAt: row.updated_at
+    }
+  }
+
+  private parseAssistantBlocks(rawContent: string): AssistantMessageBlock[] {
+    try {
+      const parsed = JSON.parse(rawContent) as AssistantMessageBlock[]
+      return Array.isArray(parsed) ? parsed : []
+    } catch {
+      return []
     }
   }
 
