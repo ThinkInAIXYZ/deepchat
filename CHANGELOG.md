@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.0.0-beta.5 (2026-03-22)
+- 优化启动 Splash 窗口与 ACP 配置加载提示，启动过程更直观
+- 支持 ACP Registry 搜索安装与 ACP 模型选择，ACP Agent 配置体验继续完善
+- 新增会话 steer / queue 能力，支持待发送消息排队、转向与恢复处理
+- 打磨工具调用卡片、状态栏控制与更新入口，整体交互更顺手
+- 修复 OpenAI Compatible MCP 工具、interleaved thinking，以及队列与 stop 状态同步等问题
+
 ## v1.0.0-beta.4 (2026-03-18)
 - 新增浮动窗口，全新效果一目了然
 - 增加用户仪表盘，token使用一目了然
