@@ -228,16 +228,6 @@ function exportToMarkdown(conversation: CONVERSATION, messages: Message[]): stri
             }
             lines.push('')
             break
-          case 'mcp_ui_resource':
-            if (block.mcp_ui_resource) {
-              lines.push('### 🧩 MCP UI 资源')
-              lines.push('')
-              lines.push(
-                `资源: ${block.mcp_ui_resource.uri} (${block.mcp_ui_resource.mimeType ?? ''})`
-              )
-              lines.push('')
-            }
-            break
           case 'image':
             lines.push('### 🖼️ 图片')
             lines.push('*[图片内容]*')
@@ -458,17 +448,6 @@ function exportToHtml(conversation: CONVERSATION, messages: Message[]): string {
               })
             )
             break
-          case 'mcp_ui_resource':
-            if (block.mcp_ui_resource) {
-              blockLines.push(
-                ...renderTemplate(templates.assistantContent, {
-                  content: formatInlineHtml(
-                    `MCP UI 资源: ${block.mcp_ui_resource.uri} (${block.mcp_ui_resource.mimeType ?? ''})`
-                  )
-                })
-              )
-            }
-            break
           case 'image':
             blockLines.push(...renderTemplate(templates.assistantImage))
             break
@@ -644,13 +623,6 @@ function exportToText(conversation: CONVERSATION, messages: Message[]): string {
               lines.push(`找到 ${block.extra.total} 个搜索结果`)
             }
             lines.push('')
-            break
-          case 'mcp_ui_resource':
-            if (block.mcp_ui_resource) {
-              lines.push('[MCP UI 资源]')
-              lines.push(`${block.mcp_ui_resource.uri} (${block.mcp_ui_resource.mimeType ?? ''})`)
-              lines.push('')
-            }
             break
           case 'image':
             lines.push('[图片内容]')

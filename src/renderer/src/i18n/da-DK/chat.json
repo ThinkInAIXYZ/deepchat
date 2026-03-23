@@ -71,12 +71,6 @@
     "empty": "Tom besked",
     "limitReached": "Venteområdet er fuldt (maks. {max})."
   },
-  "mcpUi": {
-    "badge": "UI",
-    "collapse": "Skjul",
-    "expand": "udvide",
-    "title": "MCP-brugergrænseflade"
-  },
   "messages": {
     "rateLimitEstimated": "Forventet ventetid",
     "rateLimitImmediately": "med det samme",

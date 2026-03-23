@@ -69,12 +69,6 @@
                 @continue="handleBlockContinue"
                 @switch-provider="handleBlockSwitchProvider"
               />
-              <MessageBlockMcpUi
-                v-else-if="block.type === 'mcp_ui_resource'"
-                :block="block"
-                :message-id="currentMessage.id"
-                :thread-id="currentThreadId"
-              />
               <MessageBlockAudio
                 v-else-if="isAudioBlock(block)"
                 :block="block"
@@ -187,7 +181,6 @@ import MessageBlockAction from './MessageBlockAction.vue'
 import { useI18n } from 'vue-i18n'
 import MessageBlockImage from './MessageBlockImage.vue'
 import MessageBlockAudio from './MessageBlockAudio.vue'
-import MessageBlockMcpUi from './MessageBlockMcpUi.vue'
 import MessageBlockPlan from './MessageBlockPlan.vue'
 
 import {

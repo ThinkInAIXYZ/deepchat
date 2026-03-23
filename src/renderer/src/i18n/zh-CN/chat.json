@@ -105,12 +105,6 @@
     "generationComplete": "生成完毕",
     "generationError": "生成失败"
   },
-  "mcpUi": {
-    "title": "MCP UI",
-    "badge": "UI",
-    "expand": "展开",
-    "collapse": "收起"
-  },
   "toolCall": {
     "title": "工具调用",
     "calling": "工具调用中",

@@ -112,12 +112,6 @@
     "params": "Paramètres",
     "responseData": "Données de réponse"
   },
-  "mcpUi": {
-    "badge": "Interface utilisateur",
-    "collapse": "fermer",
-    "expand": "Développer",
-    "title": "MCP UI"
-  },
   "mode": {
     "acpAgent": "Agent ACP",
     "agent": "Agent",

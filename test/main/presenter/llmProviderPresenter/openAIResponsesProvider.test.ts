@@ -315,6 +315,153 @@ describe('OpenAIResponsesProvider tool call id mapping', () => {
     expect(stopEvent?.stop_reason).toBe('tool_use')
   })
 
+  it('serializes assistant history as shorthand text instead of input_text parts', async () => {
+    mockResponsesCreate.mockResolvedValue(
+      createAsyncStream([
+        {
+          type: 'response.completed',
+          response: {
+            usage: {
+              input_tokens: 4,
+              output_tokens: 2,
+              total_tokens: 6
+            }
+          }
+        }
+      ])
+    )
+
+    const provider = new OpenAIResponsesProvider(
+      mockProvider,
+      mockConfigPresenter,
+      mcpRuntime as any
+    )
+    ;(provider as any).isInitialized = true
+
+    const historyMessages: ChatMessage[] = [
+      { role: 'system', content: 'system prompt' },
+      { role: 'user', content: 'hi' },
+      { role: 'assistant', content: 'Hi! What can I help you with today?' },
+      { role: 'user', content: '你是谁' }
+    ]
+
+    for await (const _event of provider.coreStream(
+      historyMessages,
+      'gpt-5.3-codex',
+      modelConfig,
+      0.7,
+      512,
+      []
+    )) {
+      // consume stream
+    }
+
+    const requestParams = mockResponsesCreate.mock.calls[0][0] as {
+      input: Array<Record<string, unknown>>
+    }
+
+    expect(requestParams.input).toEqual([
+      {
+        role: 'system',
+        content: [{ type: 'input_text', text: 'system prompt' }]
+      },
+      {
+        role: 'user',
+        content: [{ type: 'input_text', text: 'hi' }]
+      },
+      {
+        role: 'assistant',
+        content: 'Hi! What can I help you with today?'
+      },
+      {
+        role: 'user',
+        content: [{ type: 'input_text', text: '你是谁' }]
+      }
+    ])
+  })
+
+  it('flattens assistant content parts to text and omits unsupported images', async () => {
+    mockResponsesCreate.mockResolvedValue(
+      createAsyncStream([
+        {
+          type: 'response.completed',
+          response: {
+            usage: {
+              input_tokens: 7,
+              output_tokens: 2,
+              total_tokens: 9
+            }
+          }
+        }
+      ])
+    )
+
+    const provider = new OpenAIResponsesProvider(
+      mockProvider,
+      mockConfigPresenter,
+      mcpRuntime as any
+    )
+    ;(provider as any).isInitialized = true
+
+    const historyMessages: ChatMessage[] = [
+      { role: 'user', content: 'show history' },
+      {
+        role: 'assistant',
+        content: [
+          { type: 'text', text: 'Line 1. ' },
+          { type: 'text', text: 'Line 2.' }
+        ]
+      },
+      {
+        role: 'assistant',
+        content: [
+          { type: 'text', text: 'Look ' },
+          { type: 'image_url', image_url: { url: 'https://example.com/image.png' } },
+          { type: 'text', text: 'here.' }
+        ]
+      },
+      {
+        role: 'assistant',
+        content: [{ type: 'image_url', image_url: { url: 'https://example.com/only-image.png' } }]
+      },
+      { role: 'user', content: 'continue' }
+    ]
+
+    for await (const _event of provider.coreStream(
+      historyMessages,
+      'gpt-5.3-codex',
+      modelConfig,
+      0.7,
+      512,
+      []
+    )) {
+      // consume stream
+    }
+
+    const requestParams = mockResponsesCreate.mock.calls[0][0] as {
+      input: Array<Record<string, unknown>>
+    }
+
+    expect(requestParams.input).toEqual([
+      {
+        role: 'user',
+        content: [{ type: 'input_text', text: 'show history' }]
+      },
+      {
+        role: 'assistant',
+        content: 'Line 1. Line 2.'
+      },
+      {
+        role: 'assistant',
+        content: 'Look here.'
+      },
+      {
+        role: 'user',
+        content: [{ type: 'input_text', text: 'continue' }]
+      }
+    ])
+  })
+
   it('emits request trace with final endpoint, headers and body', async () => {
     const persist = vi.fn()
     const traceAwareConfig = {
