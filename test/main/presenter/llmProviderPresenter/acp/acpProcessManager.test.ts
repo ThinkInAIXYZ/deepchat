@@ -1,3 +1,4 @@
+import path from 'path'
 import { describe, expect, it, vi } from 'vitest'
 import {
   AcpProcessManager,
@@ -218,7 +219,7 @@ describe('AcpProcessManager config cache fallback', () => {
       expect.objectContaining({
         sessionId: 'missing-session',
         command: 'pwd',
-        cwd: '/tmp/deepchat-acp/sessions'
+        cwd: expect.stringContaining(path.join('deepchat-acp', 'sessions'))
       })
     )
   })

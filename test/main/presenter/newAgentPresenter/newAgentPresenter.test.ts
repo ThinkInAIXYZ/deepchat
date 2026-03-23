@@ -542,6 +542,36 @@ describe('NewAgentPresenter', () => {
         }
       )
     })
+
+    it('aborts ACP session creation when workdir sync fails', async () => {
+      configPresenter.getAcpAgents.mockResolvedValue([
+        { id: 'acp-coder', name: 'ACP Coder', command: 'acp-coder' }
+      ])
+      deepChatAgent.getSessionState.mockResolvedValue({
+        status: 'idle',
+        providerId: 'acp',
+        modelId: 'acp-coder',
+        permissionMode: 'full_access'
+      })
+      llmProviderPresenter.setAcpWorkdir.mockRejectedValueOnce(new Error('sync failed'))
+
+      await expect(
+        presenter.createSession(
+          {
+            agentId: 'acp-coder',
+            message: 'Hello ACP',
+            projectDir: '/tmp/workspace',
+            providerId: 'acp',
+            modelId: 'acp-coder'
+          },
+          1
+        )
+      ).rejects.toThrow('sync failed')
+
+      expect(deepChatAgent.destroySession).toHaveBeenCalledWith('mock-session-id')
+      expect(sqlitePresenter.newSessionsTable.delete).toHaveBeenCalledWith('mock-session-id')
+      expect(deepChatAgent.processMessage).not.toHaveBeenCalled()
+    })
   })
 
   describe('sendMessage', () => {

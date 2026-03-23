@@ -1,4 +1,5 @@
 import fs from 'fs'
+import path from 'path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AcpTerminalManager } from '@/presenter/llmProviderPresenter/acp/acpTerminalManager'
 import { spawn } from 'node-pty'
@@ -14,6 +15,14 @@ vi.mock('electron', () => ({
 }))
 
 describe('AcpTerminalManager', () => {
+  const getShellExpectation = () =>
+    process.platform === 'win32'
+      ? expect.stringMatching(/powershell/i)
+      : expect.stringMatching(/bash/i)
+
+  const getArgsExpectation = (command: string) =>
+    process.platform === 'win32' ? ['-NoLogo', '-Command', command] : ['-c', command]
+
   const createPty = () => ({
     onData: vi.fn(),
     onExit: vi.fn(),
@@ -36,10 +45,10 @@ describe('AcpTerminalManager', () => {
     })
 
     expect(spawn).toHaveBeenCalledWith(
-      '/bin/bash',
-      ['-c', 'pwd'],
+      getShellExpectation(),
+      getArgsExpectation('pwd'),
       expect.objectContaining({
-        cwd: '/tmp/workspace'
+        cwd: expect.stringContaining(path.normalize('/tmp/workspace'))
       })
     )
   })
@@ -52,14 +61,14 @@ describe('AcpTerminalManager', () => {
       command: 'pwd'
     })
 
-    expect(fs.mkdirSync).toHaveBeenCalledWith('/tmp/deepchat-acp/terminals', {
+    expect(fs.mkdirSync).toHaveBeenCalledWith(path.normalize('/tmp/deepchat-acp/terminals'), {
       recursive: true
     })
     expect(spawn).toHaveBeenCalledWith(
-      '/bin/bash',
-      ['-c', 'pwd'],
+      getShellExpectation(),
+      getArgsExpectation('pwd'),
       expect.objectContaining({
-        cwd: '/tmp/deepchat-acp/terminals'
+        cwd: expect.stringContaining(path.normalize('/tmp/deepchat-acp/terminals'))
       })
     )
   })

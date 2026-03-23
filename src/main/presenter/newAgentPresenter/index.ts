@@ -150,7 +150,12 @@ export class NewAgentPresenter {
     if (input.generationSettings) {
       initConfig.generationSettings = input.generationSettings
     }
-    await this.initializeSessionRuntime(agent, sessionId, initConfig)
+    try {
+      await this.initializeSessionRuntime(agent, sessionId, initConfig)
+    } catch (error) {
+      await this.cleanupFailedSessionInitialization(agent, sessionId)
+      throw error
+    }
     console.log(`[NewAgentPresenter] agent.initSession done`)
 
     // Bind to window and emit activated
@@ -224,13 +229,18 @@ export class NewAgentPresenter {
       const sessionId = this.sessionManager.create(agentId, 'New Chat', projectDir, {
         isDraft: true
       })
-      await this.ensureSessionRuntimeInitialized(agent, sessionId, {
-        agentId,
-        providerId: 'acp',
-        modelId: agentId,
-        projectDir,
-        permissionMode
-      })
+      try {
+        await this.ensureSessionRuntimeInitialized(agent, sessionId, {
+          agentId,
+          providerId: 'acp',
+          modelId: agentId,
+          projectDir,
+          permissionMode
+        })
+      } catch (error) {
+        await this.cleanupFailedSessionInitialization(agent, sessionId)
+        throw error
+      }
       record = this.sessionManager.get(sessionId)
       if (!record) {
         throw new Error(`Failed to read created ACP draft session: ${sessionId}`)
@@ -1377,7 +1387,24 @@ export class NewAgentPresenter {
         projectDir: normalizedProjectDir,
         error
       })
+      throw error
     }
+  }
+
+  private async cleanupFailedSessionInitialization(
+    agent: IAgentImplementation,
+    sessionId: string
+  ): Promise<void> {
+    try {
+      await agent.destroySession(sessionId)
+    } catch (cleanupError) {
+      console.warn(
+        `[NewAgentPresenter] Failed to cleanup session runtime after initialization error ${sessionId}:`,
+        cleanupError
+      )
+    }
+
+    this.sessionManager.delete(sessionId)
   }
 
   private buildExportConversation(

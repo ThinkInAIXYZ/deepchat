@@ -181,7 +181,29 @@ export class SkillExecutionService {
       const resolvedWorkdir = await this.resolveConversationWorkdir(conversationId)
       const normalizedWorkdir = resolvedWorkdir?.trim()
       if (normalizedWorkdir) {
-        return path.resolve(normalizedWorkdir)
+        const resolvedPath = path.resolve(normalizedWorkdir)
+        try {
+          const stat = await fs.promises.stat(resolvedPath)
+          if (stat.isDirectory()) {
+            return resolvedPath
+          }
+          logger.warn(
+            '[SkillExecutionService] Conversation workdir is not a directory, falling back to skill root',
+            {
+              conversationId,
+              invalidWorkdir: resolvedPath
+            }
+          )
+        } catch (error) {
+          logger.warn(
+            '[SkillExecutionService] Conversation workdir is invalid, falling back to skill root',
+            {
+              conversationId,
+              invalidWorkdir: resolvedPath,
+              error
+            }
+          )
+        }
       }
     } catch (error) {
       logger.warn('[SkillExecutionService] Failed to resolve conversation workdir', {

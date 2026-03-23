@@ -48,6 +48,9 @@ describe('SkillExecutionService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.spyOn(fs, 'existsSync').mockReturnValue(false)
+    vi.mocked(fs.promises.stat).mockResolvedValue({
+      isDirectory: () => true
+    } as never)
 
     skillPresenter = {
       getActiveSkills: vi.fn().mockResolvedValue(['ocr']),
@@ -122,6 +125,26 @@ describe('SkillExecutionService', () => {
 
   it('falls back to skill root cwd when the session workdir is unavailable', async () => {
     resolveConversationWorkdir.mockResolvedValueOnce(null)
+    vi.spyOn(service as never, 'resolveRuntimeCommand' as never).mockResolvedValue({
+      command: 'uv',
+      mode: 'uv'
+    })
+
+    const plan = await (service as never).buildSpawnPlan(
+      {
+        skill: 'ocr',
+        script: 'scripts/run.py'
+      },
+      'conv-1'
+    )
+
+    expect(plan.cwd).toBe('/skills/ocr')
+  })
+
+  it('falls back to skill root cwd when the resolved session workdir is not a directory', async () => {
+    vi.mocked(fs.promises.stat).mockResolvedValueOnce({
+      isDirectory: () => false
+    } as never)
     vi.spyOn(service as never, 'resolveRuntimeCommand' as never).mockResolvedValue({
       command: 'uv',
       mode: 'uv'
