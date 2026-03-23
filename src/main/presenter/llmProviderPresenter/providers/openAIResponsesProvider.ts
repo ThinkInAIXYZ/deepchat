@@ -220,6 +220,20 @@ export class OpenAIResponsesProvider extends BaseLLMProvider {
         continue
       }
 
+      if (msg.role === 'assistant') {
+        const assistantContent = this.flattenAssistantContent(msg.content)
+        if (!assistantContent) {
+          continue
+        }
+
+        // Responses API assistant history does not accept input_text content parts.
+        result.push({
+          role: 'assistant',
+          content: assistantContent
+        })
+        continue
+      }
+
       const content: OpenAI.Responses.ResponseInputMessageContentList = []
 
       if (msg.content !== undefined) {
@@ -254,6 +268,25 @@ export class OpenAIResponsesProvider extends BaseLLMProvider {
     }
 
     return result
+  }
+
+  private flattenAssistantContent(content: ChatMessage['content']): string | null {
+    if (typeof content === 'string') {
+      return content.length > 0 ? content : null
+    }
+
+    if (!Array.isArray(content)) {
+      return null
+    }
+
+    const textContent = content.reduce((result, part) => {
+      if (part.type !== 'text' || part.text.length === 0) {
+        return result
+      }
+      return `${result}${part.text}`
+    }, '')
+
+    return textContent.length > 0 ? textContent : null
   }
 
   // OpenAI完成方法
