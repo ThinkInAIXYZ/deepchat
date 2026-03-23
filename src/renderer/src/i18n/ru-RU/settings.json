@@ -318,6 +318,11 @@
     "provider": "Поставщик услуг",
     "providerSetting": "Настройки поставщика услуг",
     "selectModel": "Выберите модель",
+    "form": {
+      "id": {
+        "label": "Идентификатор"
+      }
+    },
     "modelConfig": {
       "cancel": "Отмена",
       "contextLength": {

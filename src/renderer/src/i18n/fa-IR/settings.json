@@ -318,6 +318,11 @@
     "provider": "فراهم‌کننده خدمات",
     "providerSetting": "تنظیمات فراهم‌کننده خدمات",
     "selectModel": "انتخاب مدل",
+    "form": {
+      "id": {
+        "label": "شناسه"
+      }
+    },
     "modelConfig": {
       "cancel": "لغو کردن",
       "contextLength": {

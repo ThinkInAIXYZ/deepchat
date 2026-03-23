@@ -318,6 +318,11 @@
     "provider": "服務商",
     "providerSetting": "服務商設置",
     "selectModel": "選擇模型",
+    "form": {
+      "id": {
+        "label": "識別碼"
+      }
+    },
     "modelConfig": {
       "cancel": "取消",
       "contextLength": {

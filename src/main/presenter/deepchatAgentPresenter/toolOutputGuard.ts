@@ -12,6 +12,19 @@ const TOOLS_REQUIRING_OFFLOAD = new Set(['exec', 'ls', 'find', 'grep', 'cdp_send
 
 type ToolMessageUpdateMode = 'append' | 'replace'
 
+export interface ToolBatchOutputCandidate {
+  toolCallId: string
+  toolName: string
+  responseText: string
+  isError: boolean
+  offloadPath?: string
+}
+
+export interface ToolBatchOutputFitItem extends ToolBatchOutputCandidate {
+  contextResponseText: string
+  downgraded: boolean
+}
+
 export type PreparedToolOutputResult =
   | {
       kind: 'ok'
@@ -40,6 +53,17 @@ export type ToolOutputGuardResult =
       message: string
     }
 
+export type ToolBatchOutputFitResult =
+  | {
+      kind: 'ok'
+      results: ToolBatchOutputFitItem[]
+    }
+  | {
+      kind: 'terminal_error'
+      message: string
+      results: ToolBatchOutputFitItem[]
+    }
+
 interface PrepareToolOutputParams {
   sessionId: string
   toolCallId: string
@@ -66,6 +90,10 @@ interface FitToolErrorParams extends ContextBudgetParams {
   toolName: string
   errorMessage: string
   mode?: ToolMessageUpdateMode
+}
+
+interface FitToolBatchOutputsParams extends ContextBudgetParams {
+  results: ToolBatchOutputCandidate[]
 }
 
 export class ToolOutputGuard {
@@ -140,6 +168,101 @@ export class ToolOutputGuard {
     })
     await this.cleanupOffloadedOutput(prepared.offloadPath)
     return overflowResult
+  }
+
+  async fitToolBatchOutputs(params: FitToolBatchOutputsParams): Promise<ToolBatchOutputFitResult> {
+    if (params.results.length === 0) {
+      return {
+        kind: 'ok',
+        results: []
+      }
+    }
+
+    const fittedResults: ToolBatchOutputFitItem[] = params.results.map((result) => ({
+      ...result,
+      contextResponseText: result.responseText,
+      downgraded: false
+    }))
+
+    if (
+      this.hasContextBudget({
+        conversationMessages: this.withToolBatchMessages(
+          params.conversationMessages,
+          fittedResults
+        ),
+        toolDefinitions: params.toolDefinitions,
+        contextLength: params.contextLength,
+        maxTokens: params.maxTokens
+      })
+    ) {
+      return {
+        kind: 'ok',
+        results: fittedResults
+      }
+    }
+
+    for (let index = fittedResults.length - 1; index >= 0; index -= 1) {
+      const current = fittedResults[index]
+      const displayResponseText = this.buildTerminalErrorMessage(
+        current.toolCallId,
+        current.toolName
+      )
+      const downgradedBase: ToolBatchOutputFitItem = {
+        ...current,
+        responseText: displayResponseText,
+        contextResponseText: '',
+        isError: true,
+        downgraded: true
+      }
+
+      const contextResponseCandidates = this.buildBatchFailureContextCandidates(
+        current.toolCallId,
+        current.toolName
+      )
+
+      for (const contextResponseText of contextResponseCandidates) {
+        fittedResults[index] = {
+          ...downgradedBase,
+          contextResponseText
+        }
+
+        if (
+          this.hasContextBudget({
+            conversationMessages: this.withToolBatchMessages(
+              params.conversationMessages,
+              fittedResults
+            ),
+            toolDefinitions: params.toolDefinitions,
+            contextLength: params.contextLength,
+            maxTokens: params.maxTokens
+          })
+        ) {
+          await this.cleanupOffloadedResults(fittedResults.filter((result) => result.downgraded))
+          return {
+            kind: 'ok',
+            results: fittedResults.map((result) =>
+              result.downgraded ? { ...result, offloadPath: undefined } : result
+            )
+          }
+        }
+      }
+
+      fittedResults[index] = downgradedBase
+    }
+
+    await this.cleanupOffloadedResults(fittedResults)
+
+    return {
+      kind: 'terminal_error',
+      message: this.buildTerminalErrorMessage(
+        fittedResults[0].toolCallId,
+        fittedResults[0].toolName
+      ),
+      results: fittedResults.map((result) => ({
+        ...result,
+        offloadPath: undefined
+      }))
+    }
   }
 
   hasContextBudget(params: ContextBudgetParams): boolean {
@@ -252,6 +375,28 @@ export class ToolOutputGuard {
     ]
   }
 
+  private withToolBatchMessages(
+    conversationMessages: ChatMessage[],
+    results: ToolBatchOutputFitItem[]
+  ): ChatMessage[] {
+    if (results.length === 0) {
+      return conversationMessages
+    }
+
+    return [
+      ...conversationMessages,
+      ...results.map((result) => ({
+        role: 'tool' as const,
+        tool_call_id: result.toolCallId,
+        content: result.contextResponseText
+      }))
+    ]
+  }
+
+  private async cleanupOffloadedResults(results: ToolBatchOutputCandidate[]): Promise<void> {
+    await Promise.all(results.map((result) => this.cleanupOffloadedOutput(result.offloadPath)))
+  }
+
   private buildOffloadStub(rawContent: string, filePath: string): string {
     const preview = rawContent.slice(0, TOOL_OUTPUT_PREVIEW_LENGTH)
     return [
@@ -269,5 +414,16 @@ export class ToolOutputGuard {
 
   private buildTerminalErrorMessage(toolCallId: string, toolName: string): string {
     return `The tool call with ID ${toolCallId} and name ${toolName} failed because the remaining context window is too small to continue this turn.`
+  }
+
+  private buildBatchFailureContextCandidates(toolCallId: string, toolName: string): string[] {
+    return Array.from(
+      new Set([
+        this.buildTerminalErrorMessage(toolCallId, toolName),
+        'Error: context window too small.',
+        'Error',
+        ''
+      ])
+    )
   }
 }

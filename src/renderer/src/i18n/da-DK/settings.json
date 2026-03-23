@@ -264,6 +264,11 @@
     "provider": "Tjenesteudbyder",
     "providerSetting": "Udbyderindstillinger",
     "selectModel": "Vælg en model",
+    "form": {
+      "id": {
+        "label": "Identifikator"
+      }
+    },
     "modelConfig": {
       "cancel": "Annuller",
       "contextLength": {

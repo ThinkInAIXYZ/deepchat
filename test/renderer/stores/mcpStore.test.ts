@@ -121,4 +121,30 @@ describe('useMcpStore toggleServer rollback', () => {
     expect(mcpPresenterMock.startServer).not.toHaveBeenCalled()
     expect(mcpPresenterMock.stopServer).not.toHaveBeenCalled()
   })
+
+  it('hides enabled servers when MCP is globally disabled', () => {
+    const store = useMcpStore()
+
+    store.config = {
+      mcpServers: {
+        demo: {
+          command: 'demo-command',
+          args: [],
+          env: {},
+          descriptions: 'Demo server',
+          icons: 'D',
+          autoApprove: [],
+          disable: false,
+          type: 'stdio',
+          enabled: true
+        }
+      },
+      mcpEnabled: false,
+      ready: true
+    }
+
+    expect(store.serverList).toHaveLength(1)
+    expect(store.enabledServers).toEqual([])
+    expect(store.enabledServerCount).toBe(0)
+  })
 })

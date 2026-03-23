@@ -10,23 +10,27 @@
 - Provider 报错会出现在主进程日志, 但 UI 未必能看到错误信息.
 - `directory_tree` 无深度限制, 可能产生巨量输出, 触发 10MB 限制.
 - 工具返回过大时会被直接注入到 LLM 上下文, 容易导致请求失败.
+- 多个 tool call 在单次 loop 内各自不大, 但累计后仍可能挤爆上下文窗口, 尤其是 `read` 一次读取大量文件时.
 
 ## 目标
 
 - 让生成失败时的错误信息可见并可追溯.
 - 给 `directory_tree` 增加深度控制, 最大不超过 3.
 - 对过大的工具输出做 offload, 用小的 stub 替代进入上下文.
+- 当同一轮多个 tool 结果累计超窗时, 保留能放下的前缀结果, 将尾部结果统一降级为固定失败文案并继续后续模型调用.
 
 ## 非目标
 
 - 不改动或替换 `agentPresenter/tool` 下的 `ToolRegistry`/`toolRouter`.
 - 不改变 MCP UI 资源与搜索结果的解析逻辑.
+- 不改 legacy `AgentPresenter` 链路, 本次仅覆盖新 session agent.
 
 ## 用户故事
 
 1. 作为用户, 我希望生成失败时能在 UI 直接看到原始错误文本.
 2. 作为模型, 我希望能指定目录树深度, 避免一次输出过大.
 3. 作为系统, 我希望工具输出过大时自动 offload, 仍可在需要时读取完整内容.
+4. 作为模型, 我希望当同一批 tool 结果累计超窗时, 能明确知道哪些尾部 tool 因上下文不足而失败, 从而调整下一步策略.
 
 ## 验收标准
 
@@ -57,3 +61,17 @@
 - 模型可以通过文件类工具读取上述路径.
 - 文件类读取工具仅放行当前会话 `conversationId` 对应目录.
 - `tool_call_response_raw` 不被改写, 避免影响 MCP UI/搜索结果处理.
+
+### 同轮批量尾部降级
+
+- 仅在新 session agent 链路启用.
+- 同一轮多个已完成 tool call 在准备进入下一次上下文前, 必须作为一个 batch 统一做预算拟合.
+- 如果所有结果都能放下, 保持原样进入上下文.
+- 如果累计超窗, 系统从该 batch 的尾部开始逐个降级为固定失败文案:
+  - `The tool call with ID <id> and name <name> failed because the remaining context window is too small to continue this turn.`
+- 降级的 tool 视为失败:
+  - assistant tool_call block 显示固定失败文案
+  - 不保留 search block / search result 持久化
+  - 不保留成功型 hooks
+- 经过尾部降级后只要 batch 可以放进上下文, 就继续后续模型调用.
+- 如果把该 batch 所有 tool 都降级为固定失败文案后仍无法放进上下文, 保持 terminal error 兜底, 结束该 turn.

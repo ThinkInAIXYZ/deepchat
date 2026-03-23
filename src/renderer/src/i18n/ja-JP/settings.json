@@ -318,6 +318,11 @@
     "provider": "サービスプロバイダー",
     "providerSetting": "サービスプロバイダーの設定",
     "selectModel": "モデルを選択します",
+    "form": {
+      "id": {
+        "label": "識別子"
+      }
+    },
     "modelConfig": {
       "cancel": "キャンセル",
       "contextLength": {

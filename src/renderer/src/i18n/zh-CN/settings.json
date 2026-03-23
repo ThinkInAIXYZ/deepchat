@@ -318,6 +318,11 @@
     "providerSetting": "服务商设置",
     "configureModel": "配置模型",
     "addModel": "添加模型",
+    "form": {
+      "id": {
+        "label": "标识符"
+      }
+    },
     "modelConfig": {
       "title": "自定义模型参数",
       "description": "请注意，此配置仅对当前模型有效，不会影响其他模型，请谨慎修改，错误的参数可能导致模型无法正常工作。",

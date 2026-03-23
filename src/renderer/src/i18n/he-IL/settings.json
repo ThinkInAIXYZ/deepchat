@@ -318,6 +318,11 @@
     "provider": "ספק שירות",
     "providerSetting": "הגדרות ספק שירות",
     "selectModel": "בחר מודל",
+    "form": {
+      "id": {
+        "label": "מזהה"
+      }
+    },
     "modelConfig": {
       "cancel": "ביטול",
       "contextLength": {

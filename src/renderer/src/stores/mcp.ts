@@ -401,7 +401,9 @@ export const useMcpStore = defineStore('mcp', () => {
       return 0 // 保持原有顺序
     })
   })
-  const enabledServers = computed(() => serverList.value.filter((server) => server.enabled))
+  const enabledServers = computed(() =>
+    config.value.mcpEnabled ? serverList.value.filter((server) => server.enabled) : []
+  )
   const enabledServerCount = computed(() => enabledServers.value.length)
 
   // 工具数量

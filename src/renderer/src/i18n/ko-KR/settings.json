@@ -318,6 +318,11 @@
     "provider": "서비스 제공 업체",
     "providerSetting": "서비스 제공 업체 설정",
     "selectModel": "모델 선택",
+    "form": {
+      "id": {
+        "label": "식별자"
+      }
+    },
     "modelConfig": {
       "cancel": "취소",
       "contextLength": {
