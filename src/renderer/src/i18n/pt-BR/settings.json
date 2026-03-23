@@ -318,6 +318,11 @@
     "provider": "Provedor de serviço",
     "providerSetting": "Configurações do provedor de serviço",
     "selectModel": "Selecionar um modelo",
+    "form": {
+      "id": {
+        "label": "Identificador"
+      }
+    },
     "modelConfig": {
       "cancel": "Cancelar",
       "contextLength": {

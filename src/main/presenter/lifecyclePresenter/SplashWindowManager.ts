@@ -5,7 +5,7 @@
 import path from 'path'
 import { BrowserWindow, nativeImage } from 'electron'
 import { eventBus } from '../../eventbus'
-import { LIFECYCLE_EVENTS } from '@/events'
+import { LIFECYCLE_EVENTS, WINDOW_EVENTS } from '@/events'
 import { ISplashWindowManager } from '@shared/presenter'
 import { is } from '@electron-toolkit/utils'
 import icon from '../../../../resources/icon.png?asset' // 应用图标 (macOS/Linux)
@@ -32,10 +32,15 @@ interface SplashUpdatePayload {
 }
 
 const MAX_SPLASH_ACTIVITIES = 3
+const SPLASH_SHOW_DELAY_MS = 200
 
 export class SplashWindowManager implements ISplashWindowManager {
   private splashWindow: BrowserWindow | null = null
   private activities = new Map<string, SplashActivityItem>()
+  private splashReadyToShow = false
+  private splashShowDelayElapsed = false
+  private suppressSplashShow = false
+  private splashShowDelayTimer: ReturnType<typeof setTimeout> | null = null
   private readonly onHookExecuted = (data: HookExecutedEventData) => {
     if (!this.isStartupPhase(data.phase)) {
       return
@@ -71,6 +76,14 @@ export class SplashWindowManager implements ISplashWindowManager {
     this.pruneActivities()
     this.emitState()
   }
+  private readonly onMainWindowCreated = () => {
+    if (this.isVisible()) {
+      return
+    }
+
+    this.suppressSplashShow = true
+    this.clearSplashShowDelayTimer()
+  }
 
   constructor() {
     this.setupLifecycleListeners()
@@ -83,6 +96,17 @@ export class SplashWindowManager implements ISplashWindowManager {
     if (this.splashWindow) {
       return
     }
+
+    this.splashReadyToShow = false
+    this.splashShowDelayElapsed = false
+    this.suppressSplashShow = false
+    this.clearSplashShowDelayTimer()
+    eventBus.on(WINDOW_EVENTS.WINDOW_CREATED, this.onMainWindowCreated)
+
+    this.splashShowDelayTimer = setTimeout(() => {
+      this.splashShowDelayElapsed = true
+      this.maybeShowSplash()
+    }, SPLASH_SHOW_DELAY_MS)
 
     const iconFile = nativeImage.createFromPath(process.platform === 'win32' ? iconWin : icon)
 
@@ -107,9 +131,9 @@ export class SplashWindowManager implements ISplashWindowManager {
         }
       })
 
-      // Show the window
       this.splashWindow.on('ready-to-show', () => {
-        this.splashWindow?.show()
+        this.splashReadyToShow = true
+        this.maybeShowSplash()
       })
 
       this.splashWindow.webContents.on('did-finish-load', () => {
@@ -125,9 +149,12 @@ export class SplashWindowManager implements ISplashWindowManager {
 
       // Handle window closed event6
       this.splashWindow.on('closed', () => {
+        this.clearSplashShowDelayTimer()
         this.splashWindow = null
       })
     } catch (error) {
+      eventBus.off(WINDOW_EVENTS.WINDOW_CREATED, this.onMainWindowCreated)
+      this.clearSplashShowDelayTimer()
       console.error('Failed to create splash window:', error)
       throw error
     }
@@ -167,9 +194,11 @@ export class SplashWindowManager implements ISplashWindowManager {
     eventBus.off(LIFECYCLE_EVENTS.HOOK_COMPLETED, this.onHookCompleted)
     eventBus.off(LIFECYCLE_EVENTS.HOOK_FAILED, this.onHookFailed)
     eventBus.off(LIFECYCLE_EVENTS.ERROR_OCCURRED, this.onErrorOccurred)
+    eventBus.off(WINDOW_EVENTS.WINDOW_CREATED, this.onMainWindowCreated)
 
     this.activities.clear()
     this.emitState()
+    this.clearSplashShowDelayTimer()
 
     if (!this.splashWindow || this.splashWindow.isDestroyed()) {
       return
@@ -250,5 +279,26 @@ export class SplashWindowManager implements ISplashWindowManager {
     }
 
     this.splashWindow.webContents.send('splash-update', payload)
+  }
+
+  private maybeShowSplash(): void {
+    if (
+      !this.splashWindow ||
+      this.splashWindow.isDestroyed() ||
+      this.suppressSplashShow ||
+      !this.splashReadyToShow ||
+      !this.splashShowDelayElapsed
+    ) {
+      return
+    }
+
+    this.splashWindow.show()
+  }
+
+  private clearSplashShowDelayTimer(): void {
+    if (this.splashShowDelayTimer) {
+      clearTimeout(this.splashShowDelayTimer)
+      this.splashShowDelayTimer = null
+    }
   }
 }

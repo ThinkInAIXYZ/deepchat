@@ -318,6 +318,11 @@
     "providerSetting": "服務提供者設定",
     "configureModel": "設定模型",
     "addModel": "新增模型",
+    "form": {
+      "id": {
+        "label": "識別碼"
+      }
+    },
     "modelConfig": {
       "cancel": "取消",
       "contextLength": {
