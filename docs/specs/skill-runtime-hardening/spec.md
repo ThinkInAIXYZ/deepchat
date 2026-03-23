@@ -17,7 +17,7 @@ Add runtime-aware skill extensions without changing external `SKILL.md` formats.
 - Acceptance:
   - Only scripts under `<skillRoot>/scripts/` can be executed.
   - The runtime picks system `uv`/`node` first, then falls back to DeepChat bundled runtimes.
-  - Python scripts run from the skill root and honor `pyproject.toml` via `uv run --project`.
+  - Skill scripts execute from the current session workdir when available, while Python still honors `pyproject.toml` via `uv run --project <skillRoot>`.
 
 ### US-3: Prevent prompt pollution from binary file reads
 - As an agent, reading an image or binary file through text-file APIs does not inject raw bytes into prompt context.
@@ -28,7 +28,7 @@ Add runtime-aware skill extensions without changing external `SKILL.md` formats.
 ### US-4: Guide the model toward stable skill execution
 - As an agent, active skill instructions clearly include absolute paths, script inventory, and the preferred execution tool.
 - Acceptance:
-  - Active skill prompt includes `skillRoot`, recommended `base_directory`, runnable scripts, and explicit guardrails against inline `python -c` / `node -e`.
+  - Active skill prompt includes `skillRoot`, skill root env vars, recommended `base_directory`, runnable scripts, and explicit guardrails against inline `python -c` / `node -e`.
 
 ### US-5: Keep process output after process exit
 - As an agent, command output is still available when a child process writes a large payload right before exiting.

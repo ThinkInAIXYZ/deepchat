@@ -442,6 +442,7 @@ function createMockLlmProviderPresenter() {
     generateText: vi.fn().mockResolvedValue({
       content: ['## Current Goal', '- Continue the conversation'].join('\n')
     }),
+    setAcpWorkdir: vi.fn().mockResolvedValue(undefined),
     summaryTitles: vi.fn().mockResolvedValue('Generated Integration Title')
   } as any
 }

@@ -150,7 +150,7 @@ export class NewAgentPresenter {
     if (input.generationSettings) {
       initConfig.generationSettings = input.generationSettings
     }
-    await agent.initSession(sessionId, initConfig)
+    await this.initializeSessionRuntime(agent, sessionId, initConfig)
     console.log(`[NewAgentPresenter] agent.initSession done`)
 
     // Bind to window and emit activated
@@ -280,6 +280,12 @@ export class NewAgentPresenter {
       }
     }
     this.assertAcpSessionHasWorkdir(providerId, session.projectDir ?? null)
+    await this.syncAcpSessionWorkdir(
+      providerId,
+      sessionId,
+      session.agentId,
+      session.projectDir ?? null
+    )
     if (agent.queuePendingInput) {
       await agent.queuePendingInput(sessionId, normalizedInput)
       return
@@ -329,6 +335,12 @@ export class NewAgentPresenter {
       }
     }
     this.assertAcpSessionHasWorkdir(providerId, currentSession.projectDir ?? null)
+    await this.syncAcpSessionWorkdir(
+      providerId,
+      sessionId,
+      currentSession.agentId,
+      currentSession.projectDir ?? null
+    )
     return await agent.queuePendingInput(sessionId, normalizedInput)
   }
 
@@ -465,7 +477,7 @@ export class NewAgentPresenter {
     )
 
     try {
-      await agent.initSession(targetSessionId, {
+      await this.initializeSessionRuntime(agent, targetSessionId, {
         agentId: sourceSession.agentId,
         providerId: sourceState.providerId,
         modelId: sourceState.modelId,
@@ -1296,7 +1308,7 @@ export class NewAgentPresenter {
   ): Promise<void> {
     const state = await agent.getSessionState(sessionId)
     if (!state) {
-      await agent.initSession(sessionId, config)
+      await this.initializeSessionRuntime(agent, sessionId, config)
       return
     }
 
@@ -1306,6 +1318,65 @@ export class NewAgentPresenter {
       agent.setPermissionMode
     ) {
       await agent.setPermissionMode(sessionId, config.permissionMode)
+    }
+
+    await this.syncAcpSessionWorkdir(
+      config.providerId,
+      sessionId,
+      config.agentId ?? config.modelId,
+      config.projectDir
+    )
+  }
+
+  private async initializeSessionRuntime(
+    agent: IAgentImplementation,
+    sessionId: string,
+    config: {
+      agentId?: string
+      providerId: string
+      modelId: string
+      projectDir?: string | null
+      permissionMode: PermissionMode
+      generationSettings?: Partial<SessionGenerationSettings>
+    }
+  ): Promise<void> {
+    await agent.initSession(sessionId, config)
+    await this.syncAcpSessionWorkdir(
+      config.providerId,
+      sessionId,
+      config.agentId ?? config.modelId,
+      config.projectDir ?? null
+    )
+  }
+
+  private async syncAcpSessionWorkdir(
+    providerId: string,
+    conversationId: string,
+    agentId: string,
+    projectDir?: string | null
+  ): Promise<void> {
+    if (providerId !== 'acp') {
+      return
+    }
+
+    const normalizedProjectDir = projectDir?.trim()
+    if (!normalizedProjectDir) {
+      return
+    }
+
+    try {
+      await this.llmProviderPresenter.setAcpWorkdir(
+        conversationId,
+        resolveAcpAgentAlias(agentId),
+        normalizedProjectDir
+      )
+    } catch (error) {
+      console.warn('[NewAgentPresenter] Failed to sync ACP workdir for session:', {
+        conversationId,
+        agentId,
+        projectDir: normalizedProjectDir,
+        error
+      })
     }
   }
 

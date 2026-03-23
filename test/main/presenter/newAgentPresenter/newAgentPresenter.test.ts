@@ -97,6 +97,7 @@ function createMockLlmProviderPresenter() {
     generateText: vi.fn().mockResolvedValue({
       content: ['## Current Goal', '- Continue the conversation'].join('\n')
     }),
+    setAcpWorkdir: vi.fn().mockResolvedValue(undefined),
     prepareAcpSession: vi.fn().mockResolvedValue(undefined),
     clearAcpSession: vi.fn().mockResolvedValue(undefined),
     getAcpSessionCommands: vi
@@ -504,6 +505,43 @@ describe('NewAgentPresenter', () => {
         title: 'Async Generated Title'
       })
     })
+
+    it('syncs ACP workdir persistence before the first ACP message runs', async () => {
+      configPresenter.getAcpAgents.mockResolvedValue([
+        { id: 'acp-coder', name: 'ACP Coder', command: 'acp-coder' }
+      ])
+      deepChatAgent.getSessionState.mockResolvedValue({
+        status: 'idle',
+        providerId: 'acp',
+        modelId: 'acp-coder',
+        permissionMode: 'full_access'
+      })
+
+      await presenter.createSession(
+        {
+          agentId: 'acp-coder',
+          message: 'Hello ACP',
+          projectDir: '/tmp/workspace',
+          providerId: 'acp',
+          modelId: 'acp-coder'
+        },
+        1
+      )
+
+      expect(llmProviderPresenter.setAcpWorkdir).toHaveBeenCalledWith(
+        'mock-session-id',
+        'acp-coder',
+        '/tmp/workspace'
+      )
+      await new Promise((r) => setTimeout(r, 0))
+      expect(deepChatAgent.processMessage).toHaveBeenCalledWith(
+        'mock-session-id',
+        { text: 'Hello ACP', files: [] },
+        {
+          projectDir: '/tmp/workspace'
+        }
+      )
+    })
   })
 
   describe('sendMessage', () => {
@@ -548,6 +586,11 @@ describe('NewAgentPresenter', () => {
         {
           projectDir: '/tmp/workspace'
         }
+      )
+      expect(llmProviderPresenter.setAcpWorkdir).toHaveBeenCalledWith(
+        's-draft',
+        'acp-coder',
+        '/tmp/workspace'
       )
     })
 

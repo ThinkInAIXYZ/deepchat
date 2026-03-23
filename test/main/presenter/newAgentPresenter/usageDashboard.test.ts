@@ -157,6 +157,7 @@ function createMockLlmProviderPresenter() {
   return {
     summaryTitles: vi.fn().mockResolvedValue('Usage Dashboard'),
     generateText: vi.fn().mockResolvedValue({ content: '' }),
+    setAcpWorkdir: vi.fn().mockResolvedValue(undefined),
     prepareAcpSession: vi.fn().mockResolvedValue(undefined),
     clearAcpSession: vi.fn().mockResolvedValue(undefined),
     getAcpSessionCommands: vi.fn().mockResolvedValue([])

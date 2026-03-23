@@ -1,6 +1,9 @@
+import fs from 'fs'
+import path from 'path'
 import { spawn } from 'node-pty'
 import type { IPty } from 'node-pty'
 import { nanoid } from 'nanoid'
+import { app } from 'electron'
 import { RequestError } from '@agentclientprotocol/sdk'
 import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
 
@@ -34,6 +37,27 @@ export class AcpTerminalManager {
   private readonly terminals = new Map<string, TerminalState>()
   private readonly defaultMaxOutputBytes = 1024 * 1024 // 1MB default
 
+  private resolveTerminalCwd(cwd?: string | null): string {
+    const normalized = cwd?.trim()
+    if (normalized) {
+      return path.resolve(normalized)
+    }
+
+    const fallbackDir = path.join(app.getPath('temp'), 'deepchat-acp', 'terminals')
+    try {
+      fs.mkdirSync(fallbackDir, { recursive: true })
+      console.warn(`[ACP Terminal] Missing cwd, using fallback directory: ${fallbackDir}`)
+      return fallbackDir
+    } catch (error) {
+      const tempDir = app.getPath('temp')
+      console.warn(
+        `[ACP Terminal] Failed to create fallback directory, using temp path instead: ${tempDir}`,
+        error
+      )
+      return tempDir
+    }
+  }
+
   /**
    * Create a new terminal to execute a command.
    */
@@ -42,6 +66,7 @@ export class AcpTerminalManager {
   ): Promise<schema.CreateTerminalResponse> {
     const id = `term_${nanoid(12)}`
     const maxOutputBytes = params.outputByteLimit ?? this.defaultMaxOutputBytes
+    const cwd = this.resolveTerminalCwd(params.cwd)
 
     let exitResolve!: (status: { exitCode?: number | null; signal?: string | null }) => void
     const exitPromise = new Promise<{ exitCode?: number | null; signal?: string | null }>(
@@ -75,7 +100,7 @@ export class AcpTerminalManager {
       name: 'xterm-256color',
       cols: 120,
       rows: 30,
-      cwd: params.cwd ?? process.cwd(),
+      cwd,
       env
     })
 

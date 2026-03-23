@@ -135,4 +135,91 @@ describe('AcpProcessManager config cache fallback', () => {
       currentModeId: 'ask'
     })
   })
+
+  it('uses the session workdir as terminal cwd when the agent does not provide one', async () => {
+    const manager = createManager()
+    const createTerminal = vi.fn().mockResolvedValue({ terminalId: 'term-1' })
+
+    ;(manager as any).terminalManager = {
+      createTerminal,
+      terminalOutput: vi.fn(),
+      waitForTerminalExit: vi.fn(),
+      killTerminal: vi.fn(),
+      releaseTerminal: vi.fn()
+    }
+    ;(manager as any).sessionWorkdirs.set('session-1', '/tmp/workspace')
+
+    const client = (manager as any).createClientProxy()
+
+    await client.createTerminal({
+      sessionId: 'session-1',
+      command: 'pwd'
+    })
+
+    expect(createTerminal).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionId: 'session-1',
+        command: 'pwd',
+        cwd: '/tmp/workspace'
+      })
+    )
+  })
+
+  it('keeps an explicit terminal cwd when the agent provides one', async () => {
+    const manager = createManager()
+    const createTerminal = vi.fn().mockResolvedValue({ terminalId: 'term-1' })
+
+    ;(manager as any).terminalManager = {
+      createTerminal,
+      terminalOutput: vi.fn(),
+      waitForTerminalExit: vi.fn(),
+      killTerminal: vi.fn(),
+      releaseTerminal: vi.fn()
+    }
+    ;(manager as any).sessionWorkdirs.set('session-1', '/tmp/workspace')
+
+    const client = (manager as any).createClientProxy()
+
+    await client.createTerminal({
+      sessionId: 'session-1',
+      command: 'pwd',
+      cwd: '/tmp/custom'
+    })
+
+    expect(createTerminal).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionId: 'session-1',
+        command: 'pwd',
+        cwd: '/tmp/custom'
+      })
+    )
+  })
+
+  it('falls back to the ACP temp workdir instead of process.cwd() when session workdir is missing', async () => {
+    const manager = createManager()
+    const createTerminal = vi.fn().mockResolvedValue({ terminalId: 'term-1' })
+
+    ;(manager as any).terminalManager = {
+      createTerminal,
+      terminalOutput: vi.fn(),
+      waitForTerminalExit: vi.fn(),
+      killTerminal: vi.fn(),
+      releaseTerminal: vi.fn()
+    }
+
+    const client = (manager as any).createClientProxy()
+
+    await client.createTerminal({
+      sessionId: 'missing-session',
+      command: 'pwd'
+    })
+
+    expect(createTerminal).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionId: 'missing-session',
+        command: 'pwd',
+        cwd: '/tmp/deepchat-acp/sessions'
+      })
+    )
+  })
 })
