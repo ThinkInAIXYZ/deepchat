@@ -79,9 +79,6 @@ export type {
 // Tool Presenter types
 export type { IToolPresenter } from './tool.presenter'
 
-// Agent Presenter types
-export type { IAgentPresenter } from './agent.presenter'
-
 // New agent architecture types
 export type { INewAgentPresenter } from './new-agent.presenter'
 export type { IProjectPresenter } from './project.presenter'

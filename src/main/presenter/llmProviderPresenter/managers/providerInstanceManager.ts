@@ -36,7 +36,7 @@ import { O3fanProvider } from '../providers/o3fanProvider'
 import { VoiceAIProvider } from '../providers/voiceAIProvider'
 import { RateLimitManager } from './rateLimitManager'
 import { StreamState } from '../types'
-import { AcpSessionPersistence } from '../../agentPresenter/acp'
+import { AcpSessionPersistence } from '../acp'
 import type { ProviderMcpRuntimePort } from '../runtimePorts'
 
 type ProviderConstructor = new (

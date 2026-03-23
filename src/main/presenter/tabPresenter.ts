@@ -112,9 +112,9 @@ export class TabPresenter implements ITabPresenter {
           if (view) {
             this.detachViewFromWindow(window, view)
           }
-          const conversationId = presenter.getActiveLegacyConversationIdSync(viewId)
+          const conversationId = presenter.getActiveConversationIdSync(viewId)
           if (conversationId) {
-            void presenter.cleanupLegacyConversationRuntime(conversationId)
+            void presenter.cleanupConversationRuntimeArtifacts(conversationId)
           }
         })
       }

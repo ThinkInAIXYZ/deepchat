@@ -1,6 +1,6 @@
 import { AssistantMessageBlock, Message, UserMessageContent } from '@shared/chat'
 import { CONVERSATION } from '@shared/presenter'
-import { getNormalizedUserMessageText } from '../../agentPresenter/message/messageFormatter'
+import { getNormalizedUserMessageText } from '../../sessionPresenter/messageFormatter'
 import { NowledgeMemMessage, NowledgeMemThread } from '@shared/types/nowledgeMem'
 
 export function generateNowledgeMemExportFilename(

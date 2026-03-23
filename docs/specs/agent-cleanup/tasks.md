@@ -1,4 +1,4 @@
-# Agent Cleanup Checkpoint Tasks
+# Agent Cleanup Final Tasks
 
 ## Completed
 
@@ -6,31 +6,37 @@
 - [x] Moved shared runtime helpers out of legacy presenter folders
 - [x] Moved active renderer chat path off `@shared/chat`
 - [x] Archived dead renderer path code in `archives/code/dead-renderer-batch-1/`
-- [x] Archived renderer mock/orphan dead code in `archives/code/dead-code-batch-2/`
+- [x] Archived renderer mock/orphan code in `archives/code/dead-code-batch-2/`
 - [x] Persisted new-session skills in `new_sessions.active_skills`
 - [x] Retired old-session skill fallback to legacy conversation settings
-- [x] Removed global `presenter.*` access from `agentPresenter/**`
+- [x] Removed global `presenter.*` access from legacy runtime modules
 - [x] Removed provider-layer `presenter.mcpPresenter` access
-- [x] Reduced startup/runtime legacy wiring on the new primary path
+- [x] Removed live legacy `AgentPresenter` runtime wiring
+- [x] Removed public `agentPresenter` / `sessionPresenter` IPC exposure
+- [x] Removed `ILlmProviderPresenter.startStreamCompletion()`
+- [x] Migrated retained ACP helpers to `src/main/presenter/llmProviderPresenter/acp/`
+- [x] Migrated retained agent tools to `src/main/presenter/toolPresenter/agentTools/`
+- [x] Migrated retained message formatting helper to `src/main/presenter/sessionPresenter/`
+- [x] Archived retired source and tests in `archives/code/legacy-agentpresenter-retirement/`
+- [x] Refreshed active architecture / flow / navigation docs
 
 ## Kept Intentionally
 
 - [x] `LegacyChatImportService`
 - [x] legacy import hook / status tracking
-- [x] old `conversations/messages` tables as import-only sources
+- [x] old `conversations/messages` tables
+- [x] `SessionPresenter` as internal compatibility/data adapter
 - [x] `scripts/agent-cleanup-guard.mjs`
 
 ## Remaining Backlog
 
-- [ ] `src/main/presenter/newAgentPresenter/index.ts` still has export-only `@shared/chat` coupling
-- [ ] `src/renderer/settings/components/prompt/PromptEditorSheet.vue` still imports `MessageFile`
-  from `@shared/chat` outside the active chat path
-- [ ] adjacent provider globals remain for later review:
-  - `presenter.devicePresenter` in OpenAI providers
-  - `presenter.oauthPresenter` in Anthropic
-- [ ] final retirement audit for old runtime folders and wiring
+- [ ] remove export-only `@shared/chat` coupling in `src/main/presenter/newAgentPresenter/index.ts`
+- [ ] remove non-active renderer residual import in `PromptEditorSheet`
+- [ ] review adjacent provider globals such as `devicePresenter` / `oauthPresenter`
+- [ ] normalize older historical specs that still mention retired legacy paths
 
 ## Archive Batches
 
 - [x] `archives/code/dead-renderer-batch-1/`
 - [x] `archives/code/dead-code-batch-2/`
+- [x] `archives/code/legacy-agentpresenter-retirement/`

@@ -563,7 +563,8 @@ export class AgentToolManager {
       throw new Error('process tool requires a conversation ID')
     }
 
-    const { backgroundExecSessionManager } = await import('./backgroundExecSessionManager')
+    const { backgroundExecSessionManager } =
+      await import('@/lib/agentRuntime/backgroundExecSessionManager')
 
     const validationResult = this.fileSystemSchemas.process.safeParse(args)
     if (!validationResult.success) {

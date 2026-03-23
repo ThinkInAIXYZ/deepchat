@@ -1,9 +1,9 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { AgentToolManager } from '@/presenter/agentPresenter/acp/agentToolManager'
+import { AgentToolManager } from '@/presenter/toolPresenter/agentTools/agentToolManager'
 import {
   CHAT_SETTINGS_SKILL_NAME,
   CHAT_SETTINGS_TOOL_NAMES
-} from '@/presenter/agentPresenter/acp/chatSettingsTools'
+} from '@/presenter/toolPresenter/agentTools/chatSettingsTools'
 
 vi.mock('electron', () => ({
   app: {

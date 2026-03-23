@@ -1,7 +1,7 @@
 import path from 'path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { backgroundExecSessionManager } from '../../../../../src/main/lib/agentRuntime/backgroundExecSessionManager'
-import { AgentBashHandler } from '../../../../../src/main/presenter/agentPresenter/acp/agentBashHandler'
+import { AgentBashHandler } from '../../../../../src/main/presenter/toolPresenter/agentTools/agentBashHandler'
 
 describe('AgentBashHandler', () => {
   const workspaceRoot = path.resolve('/workspace')

@@ -5,11 +5,11 @@ import type {
   MCPToolCall,
   MCPToolResponse
 } from '@shared/presenter'
-import { resolveToolOffloadTemplatePath } from '../sessionPresenter/sessionPaths'
+import { resolveToolOffloadTemplatePath } from '@/lib/agentRuntime/sessionPaths'
 import { QUESTION_TOOL_NAME } from '@/lib/agentRuntime/questionTool'
 import { ToolMapper } from './toolMapper'
-import { AgentToolManager, type AgentToolCallResult } from '../agentPresenter/acp'
-import type { AgentToolRuntimePort } from '../agentPresenter/runtimePorts'
+import { AgentToolManager, type AgentToolCallResult } from './agentTools'
+import type { AgentToolRuntimePort } from './runtimePorts'
 import { jsonrepair } from 'jsonrepair'
 import { CommandPermissionService } from '../permission'
 import { YO_BROWSER_TOOL_NAMES } from '../browser/YoBrowserToolDefinitions'

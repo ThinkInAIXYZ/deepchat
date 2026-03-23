@@ -104,6 +104,12 @@ function extractModuleSpecifiers(source) {
 }
 
 async function collectFiles(entryPath) {
+  try {
+    await fs.access(entryPath)
+  } catch {
+    return []
+  }
+
   const stats = await fs.stat(entryPath)
   if (stats.isFile()) {
     return isSourceFile(entryPath) ? [entryPath] : []
@@ -158,7 +164,6 @@ async function findViolations() {
     path.join(ROOT, 'src/main/presenter/mcpPresenter/toolManager.ts'),
     path.join(ROOT, 'src/main/presenter/syncPresenter/index.ts'),
     path.join(ROOT, 'src/main/presenter/llmProviderPresenter/providers'),
-    path.join(ROOT, 'src/main/presenter/agentPresenter'),
     path.join(ROOT, 'src/renderer/src/pages/ChatPage.vue'),
     path.join(ROOT, 'src/renderer/src/pages/NewThreadPage.vue'),
     path.join(ROOT, 'src/renderer/src/stores/ui'),
