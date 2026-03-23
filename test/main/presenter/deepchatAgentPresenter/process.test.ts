@@ -39,8 +39,17 @@ vi.mock('@/presenter', () => ({
 import { processStream } from '@/presenter/deepchatAgentPresenter/process'
 import { eventBus } from '@/eventbus'
 
+const DEFAULT_INTERLEAVED_REASONING = {
+  preserveReasoningContent: false,
+  forcedBySessionSetting: false,
+  portraitInterleaved: false,
+  reasoningSupported: false,
+  providerDbSourceUrl: 'https://example.com/provider-db.json'
+} as const
+
 function createMockMessageStore() {
   return {
+    addSearchResult: vi.fn(),
     getMessage: vi.fn().mockReturnValue(null),
     updateAssistantContent: vi.fn(),
     finalizeAssistantMessage: vi.fn(),
@@ -122,6 +131,7 @@ describe('processStream', () => {
       modelConfig: {} as any,
       temperature: 0.7,
       maxTokens: 4096,
+      interleavedReasoning: DEFAULT_INTERLEAVED_REASONING,
       permissionMode: 'full_access',
       toolOutputGuard: new ToolOutputGuard(),
       io: {
@@ -309,6 +319,75 @@ describe('processStream', () => {
     expect(coreStream).toHaveBeenCalledTimes(2)
   })
 
+  it('continues the next provider turn after downgrading an overflow tail tool result', async () => {
+    let callCount = 0
+    const toolPresenter = createMockToolPresenter()
+
+    ;(toolPresenter.callTool as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce({
+        content: 'a'.repeat(60),
+        rawData: { toolCallId: 'tc1', content: 'a'.repeat(60), isError: false }
+      })
+      .mockResolvedValueOnce({
+        content: 'b'.repeat(4000),
+        rawData: { toolCallId: 'tc2', content: 'b'.repeat(4000), isError: false }
+      })
+
+    const coreStream = vi.fn(function () {
+      callCount++
+      if (callCount === 1) {
+        return (async function* () {
+          yield {
+            type: 'tool_call_start',
+            tool_call_id: 'tc1',
+            tool_call_name: 'read'
+          } as LLMCoreStreamEvent
+          yield {
+            type: 'tool_call_end',
+            tool_call_id: 'tc1',
+            tool_call_arguments_complete: '{"path":"a.txt"}'
+          } as LLMCoreStreamEvent
+          yield {
+            type: 'tool_call_start',
+            tool_call_id: 'tc2',
+            tool_call_name: 'read'
+          } as LLMCoreStreamEvent
+          yield {
+            type: 'tool_call_end',
+            tool_call_id: 'tc2',
+            tool_call_arguments_complete: '{"path":"b.txt"}'
+          } as LLMCoreStreamEvent
+          yield { type: 'stop', stop_reason: 'tool_use' } as LLMCoreStreamEvent
+        })()
+      }
+
+      return (async function* () {
+        yield { type: 'text', content: 'Continued answer' } as LLMCoreStreamEvent
+        yield { type: 'stop', stop_reason: 'complete' } as LLMCoreStreamEvent
+      })()
+    }) as unknown as ProcessParams['coreStream']
+
+    const params = createParams({
+      coreStream,
+      toolPresenter,
+      tools: [makeTool('read')],
+      modelConfig: { contextLength: 260 } as any,
+      maxTokens: 32
+    })
+
+    const promise = processStream(params)
+    await vi.runAllTimersAsync()
+    await promise
+
+    expect(coreStream).toHaveBeenCalledTimes(2)
+    const secondCallMessages = (coreStream as ReturnType<typeof vi.fn>).mock.calls[1][0]
+    const toolMessages = secondCallMessages.filter((message: any) => message.role === 'tool')
+    expect(toolMessages).toHaveLength(2)
+    expect(toolMessages[0].content).toBe('a'.repeat(60))
+    expect(toolMessages[1].content).toContain('remaining context window is too small')
+    expect(messageStore.finalizeAssistantMessage).toHaveBeenCalled()
+  })
+
   it('multi-turn tool loop', async () => {
     let callCount = 0
     const toolPresenter = createMockToolPresenter({ get_weather: 'Sunny' })
@@ -430,7 +509,7 @@ describe('processStream', () => {
         conversationId: 's1',
         messageId: 'm1',
         eventId: 'm1',
-        error: 'Generation cancelled'
+        error: 'common.error.userCanceledGeneration'
       })
     )
   })
@@ -543,8 +622,8 @@ describe('processStream', () => {
     await promise
 
     expect(toolPresenter.callTool).toHaveBeenCalledTimes(1)
-    // Should still finalize (abort detected after executeTools, before next loop)
-    expect(messageStore.finalizeAssistantMessage).toHaveBeenCalled()
+    expect(messageStore.setMessageError).toHaveBeenCalled()
+    expect(messageStore.finalizeAssistantMessage).not.toHaveBeenCalled()
   })
 
   it('stream error event → finalizeError', async () => {

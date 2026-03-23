@@ -16,10 +16,26 @@ import type {
 } from './types'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import { nanoid } from 'nanoid'
-import type { ToolOutputGuard } from './toolOutputGuard'
+import type { ToolBatchOutputFitItem, ToolOutputGuard } from './toolOutputGuard'
 import { buildTerminalErrorBlocks } from './messageStore'
 
 type PermissionType = 'read' | 'write' | 'all' | 'command'
+
+type ExtractedSearchPayload = ReturnType<typeof extractSearchPayload>
+
+type StagedToolResult = {
+  toolCallId: string
+  toolName: string
+  toolArgs: string
+  responseText: string
+  isError: boolean
+  offloadPath?: string
+  searchPayload: ExtractedSearchPayload
+  rtkApplied?: boolean
+  rtkMode?: 'rewrite' | 'direct' | 'bypass'
+  rtkFallbackReason?: string
+  postHookKind: 'success' | 'failure'
+}
 
 type PermissionRequestLike = {
   toolName?: string
@@ -187,6 +203,90 @@ function updateToolCallBlock(
     }
     block.status = isError ? 'error' : 'success'
   }
+}
+
+function persistToolExecutionState(io: IoParams, state: StreamState): void {
+  if (!state.dirty) {
+    return
+  }
+
+  flushBlocksToRenderer(io, state.blocks)
+  io.messageStore.updateAssistantContent(io.messageId, state.blocks)
+  state.dirty = false
+}
+
+function applyFinalizedToolResults(params: {
+  stagedResults: StagedToolResult[]
+  fittedResults: ToolBatchOutputFitItem[]
+  conversation: ChatMessage[]
+  state: StreamState
+  io: IoParams
+  hooks?: ProcessHooks
+  appendToConversation: boolean
+}): void {
+  const { stagedResults, fittedResults, conversation, state, io, hooks, appendToConversation } =
+    params
+
+  for (let index = 0; index < stagedResults.length; index += 1) {
+    const stagedResult = stagedResults[index]
+    const fittedResult = fittedResults[index]
+    if (!fittedResult) {
+      continue
+    }
+
+    if (appendToConversation) {
+      conversation.push({
+        role: 'tool',
+        tool_call_id: fittedResult.toolCallId,
+        content: fittedResult.responseText
+      })
+    }
+
+    if (!fittedResult.downgraded && stagedResult.searchPayload) {
+      state.blocks.push(stagedResult.searchPayload.block)
+      for (const result of stagedResult.searchPayload.results) {
+        io.messageStore.addSearchResult({
+          sessionId: io.sessionId,
+          messageId: io.messageId,
+          searchId: result.searchId,
+          rank: typeof result.rank === 'number' ? result.rank : null,
+          result
+        })
+      }
+    }
+
+    updateToolCallBlock(
+      state.blocks,
+      fittedResult.toolCallId,
+      fittedResult.responseText,
+      fittedResult.isError,
+      fittedResult.downgraded
+        ? undefined
+        : {
+            rtkApplied: stagedResult.rtkApplied,
+            rtkMode: stagedResult.rtkMode,
+            rtkFallbackReason: stagedResult.rtkFallbackReason
+          }
+    )
+
+    if (fittedResult.isError) {
+      hooks?.onPostToolUseFailure?.({
+        callId: stagedResult.toolCallId,
+        name: stagedResult.toolName,
+        params: stagedResult.toolArgs,
+        error: fittedResult.responseText
+      })
+    } else if (stagedResult.postHookKind === 'success') {
+      hooks?.onPostToolUse?.({
+        callId: stagedResult.toolCallId,
+        name: stagedResult.toolName,
+        params: stagedResult.toolArgs,
+        response: fittedResult.responseText
+      })
+    }
+  }
+
+  state.dirty = true
 }
 
 function isPermissionType(value: unknown): value is PermissionType {
@@ -450,6 +550,7 @@ export async function executeTools(
 
   let executed = 0
   const pendingInteractions: PendingToolInteraction[] = []
+  const stagedResults: StagedToolResult[] = []
 
   for (const tc of state.completedToolCalls) {
     if (io.abortSignal.aborted) break
@@ -486,8 +587,7 @@ export async function executeTools(
           updateToolCallBlock(state.blocks, tc.id, errorText, true)
           state.dirty = true
           executed += 1
-          flushBlocksToRenderer(io, state.blocks)
-          io.messageStore.updateAssistantContent(io.messageId, state.blocks)
+          persistToolExecutionState(io, state)
           continue
         }
 
@@ -584,100 +684,83 @@ export async function executeTools(
         toolContext.name,
         toolContext.serverName
       )
-      if (searchPayload) {
-        state.blocks.push(searchPayload.block)
-        for (const result of searchPayload.results) {
-          io.messageStore.addSearchResult({
-            sessionId: io.sessionId,
-            messageId: io.messageId,
-            searchId: result.searchId,
-            rank: typeof result.rank === 'number' ? result.rank : null,
-            result
-          })
-        }
-      }
 
       const responseText = toolResponseToText(toolRawData.content)
-      const guardedResult = await toolOutputGuard.guardToolOutput({
+      const preparedResult = await toolOutputGuard.prepareToolOutput({
         sessionId: io.sessionId,
         toolCallId: tc.id,
         toolName: toolContext.name,
-        rawContent: responseText,
-        conversationMessages: conversation,
-        toolDefinitions: tools,
-        contextLength,
-        maxTokens
+        rawContent: responseText
       })
+      const stagedResponseText =
+        preparedResult.kind === 'tool_error' ? preparedResult.message : preparedResult.content
+      const stagedIsError = preparedResult.kind === 'tool_error' || toolRawData.isError === true
 
-      if (guardedResult.kind === 'terminal_error') {
-        updateToolCallBlock(state.blocks, tc.id, guardedResult.message, true)
-        hooks?.onPostToolUseFailure?.({
-          callId: tc.id,
-          name: tc.name,
-          params: tc.arguments,
-          error: guardedResult.message
-        })
-        state.dirty = true
-        executed += 1
-        flushBlocksToRenderer(io, state.blocks)
-        io.messageStore.updateAssistantContent(io.messageId, state.blocks)
-        return {
-          executed,
-          pendingInteractions,
-          terminalError: guardedResult.message
-        }
-      }
-
-      const isToolError = guardedResult.kind === 'tool_error' || toolRawData.isError === true
-      const toolMessageContent =
-        guardedResult.kind === 'tool_error' ? guardedResult.message : guardedResult.content
-      conversation.push({
-        role: 'tool',
-        tool_call_id: tc.id,
-        content: toolMessageContent
-      })
-      updateToolCallBlock(state.blocks, tc.id, toolMessageContent, isToolError, {
+      stagedResults.push({
+        toolCallId: tc.id,
+        toolName: tc.name,
+        toolArgs: tc.arguments,
+        responseText: stagedResponseText,
+        isError: stagedIsError,
+        offloadPath: preparedResult.kind === 'ok' ? preparedResult.offloadPath : undefined,
+        searchPayload,
         rtkApplied: toolRawData.rtkApplied,
         rtkMode: toolRawData.rtkMode,
-        rtkFallbackReason: toolRawData.rtkFallbackReason
+        rtkFallbackReason: toolRawData.rtkFallbackReason,
+        postHookKind: stagedIsError ? 'failure' : 'success'
       })
-      if (isToolError) {
-        hooks?.onPostToolUseFailure?.({
-          callId: tc.id,
-          name: tc.name,
-          params: tc.arguments,
-          error: toolMessageContent
-        })
-      } else {
-        hooks?.onPostToolUse?.({
-          callId: tc.id,
-          name: tc.name,
-          params: tc.arguments,
-          response: toolMessageContent
-        })
-      }
+      executed += 1
     } catch (err) {
       const errorText = err instanceof Error ? err.message : String(err)
-      conversation.push({
-        role: 'tool',
-        tool_call_id: tc.id,
-        content: `Error: ${errorText}`
+      stagedResults.push({
+        toolCallId: tc.id,
+        toolName: tc.name,
+        toolArgs: tc.arguments,
+        responseText: `Error: ${errorText}`,
+        isError: true,
+        searchPayload: null,
+        postHookKind: 'failure'
       })
-      updateToolCallBlock(state.blocks, tc.id, `Error: ${errorText}`, true)
-      hooks?.onPostToolUseFailure?.({
-        callId: tc.id,
-        name: tc.name,
-        params: tc.arguments,
-        error: `Error: ${errorText}`
-      })
+      executed += 1
     }
-
-    state.dirty = true
-    executed += 1
-    flushBlocksToRenderer(io, state.blocks)
-    io.messageStore.updateAssistantContent(io.messageId, state.blocks)
   }
 
+  if (stagedResults.length > 0) {
+    const fittedResults = await toolOutputGuard.fitToolBatchOutputs({
+      conversationMessages: conversation,
+      results: stagedResults.map((result) => ({
+        toolCallId: result.toolCallId,
+        toolName: result.toolName,
+        responseText: result.responseText,
+        isError: result.isError,
+        offloadPath: result.offloadPath
+      })),
+      toolDefinitions: tools,
+      contextLength,
+      maxTokens
+    })
+
+    applyFinalizedToolResults({
+      stagedResults,
+      fittedResults: fittedResults.results,
+      conversation,
+      state,
+      io,
+      hooks,
+      appendToConversation: fittedResults.kind === 'ok'
+    })
+    persistToolExecutionState(io, state)
+
+    if (fittedResults.kind === 'terminal_error') {
+      return {
+        executed,
+        pendingInteractions,
+        terminalError: fittedResults.message
+      }
+    }
+  }
+
+  persistToolExecutionState(io, state)
   return { executed, pendingInteractions }
 }
 

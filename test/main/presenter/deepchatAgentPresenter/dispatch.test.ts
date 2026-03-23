@@ -53,6 +53,7 @@ function createIo(overrides?: Partial<IoParams>): IoParams {
     sessionId: 's1',
     messageId: 'm1',
     messageStore: {
+      addSearchResult: vi.fn(),
       updateAssistantContent: vi.fn(),
       finalizeAssistantMessage: vi.fn(),
       setMessageError: vi.fn()
@@ -757,7 +758,216 @@ describe('dispatch', () => {
       expect(state.blocks[0].status).toBe('error')
     })
 
-    it('marks the tool as error when offload succeeds but context budget cannot fit the stub', async () => {
+    it('keeps the largest prefix of tool results and downgrades the overflow tail', async () => {
+      const tools = [makeTool('read')]
+      const toolPresenter = createMockToolPresenter()
+      const hooks = {
+        onPreToolUse: vi.fn(),
+        onPermissionRequest: vi.fn(),
+        onPostToolUse: vi.fn(),
+        onPostToolUseFailure: vi.fn()
+      }
+      const conversation: any[] = []
+
+      ;(toolPresenter.callTool as ReturnType<typeof vi.fn>)
+        .mockResolvedValueOnce({
+          content: 'a'.repeat(60),
+          rawData: { toolCallId: 'tc1', content: 'a'.repeat(60), isError: false }
+        })
+        .mockResolvedValueOnce({
+          content: 'b'.repeat(4000),
+          rawData: { toolCallId: 'tc2', content: 'b'.repeat(4000), isError: false }
+        })
+
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: { id: 'tc1', name: 'read', params: '{"path":"a.txt"}', response: '' }
+      })
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: { id: 'tc2', name: 'read', params: '{"path":"b.txt"}', response: '' }
+      })
+      state.completedToolCalls = [
+        { id: 'tc1', name: 'read', arguments: '{"path":"a.txt"}' },
+        { id: 'tc2', name: 'read', arguments: '{"path":"b.txt"}' }
+      ]
+
+      const executed = await executeTools(
+        state,
+        conversation,
+        0,
+        tools,
+        toolPresenter,
+        'gpt-4',
+        io,
+        'full_access',
+        new ToolOutputGuard(),
+        260,
+        32,
+        hooks
+      )
+
+      const toolMessages = conversation.filter((message: any) => message.role === 'tool')
+      expect(executed.terminalError).toBeUndefined()
+      expect(toolMessages).toHaveLength(2)
+      expect(toolMessages[0].content).toBe('a'.repeat(60))
+      expect(toolMessages[1].content).toContain('remaining context window is too small')
+      expect(state.blocks[0].status).toBe('success')
+      expect(state.blocks[0].tool_call?.response).toBe('a'.repeat(60))
+      expect(state.blocks[1].status).toBe('error')
+      expect(state.blocks[1].tool_call?.response).toContain('remaining context window is too small')
+      expect(hooks.onPostToolUse).toHaveBeenCalledTimes(1)
+      expect(hooks.onPostToolUseFailure).toHaveBeenCalledTimes(1)
+    })
+
+    it('cleans offload files when a tail tool is downgraded during batch fitting', async () => {
+      tempHome = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-dispatch-tail-offload-'))
+      getPathSpy = vi.spyOn(app, 'getPath').mockReturnValue(tempHome)
+
+      const tools = [makeTool('read'), makeTool('exec')]
+      const toolPresenter = createMockToolPresenter()
+      const conversation: any[] = []
+
+      ;(toolPresenter.callTool as ReturnType<typeof vi.fn>)
+        .mockResolvedValueOnce({
+          content: 'a'.repeat(60),
+          rawData: { toolCallId: 'tc1', content: 'a'.repeat(60), isError: false }
+        })
+        .mockResolvedValueOnce({
+          content: 'x'.repeat(7000),
+          rawData: { toolCallId: 'tc2', content: 'x'.repeat(7000), isError: false }
+        })
+
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: { id: 'tc1', name: 'read', params: '{"path":"a.txt"}', response: '' }
+      })
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: { id: 'tc2', name: 'exec', params: '{"command":"ls"}', response: '' }
+      })
+      state.completedToolCalls = [
+        { id: 'tc1', name: 'read', arguments: '{"path":"a.txt"}' },
+        { id: 'tc2', name: 'exec', arguments: '{"command":"ls"}' }
+      ]
+
+      const executed = await executeTools(
+        state,
+        conversation,
+        0,
+        tools,
+        toolPresenter,
+        'gpt-4',
+        io,
+        'full_access',
+        new ToolOutputGuard(),
+        260,
+        32
+      )
+
+      expect(executed.terminalError).toBeUndefined()
+      expect(state.blocks[1].tool_call?.response).toContain('remaining context window is too small')
+      expect(state.blocks[1].tool_call?.response).not.toContain('[Tool output offloaded]')
+      await expect(
+        fs.access(path.join(tempHome, '.deepchat', 'sessions', 's1', 'tool_tc2.offload'))
+      ).rejects.toThrow()
+    })
+
+    it('drops search side effects for downgraded tail tool results', async () => {
+      const tools = [makeTool('read'), makeTool('search_docs')]
+      const toolPresenter = createMockToolPresenter()
+      const conversation: any[] = []
+      const searchResource = JSON.stringify({
+        title: 'Example',
+        url: 'https://example.com',
+        content: 'x'.repeat(4000),
+        description: 'x'.repeat(4000)
+      })
+
+      ;(toolPresenter.callTool as ReturnType<typeof vi.fn>)
+        .mockResolvedValueOnce({
+          content: 'a'.repeat(60),
+          rawData: { toolCallId: 'tc1', content: 'a'.repeat(60), isError: false }
+        })
+        .mockResolvedValueOnce({
+          content: [
+            {
+              type: 'resource',
+              resource: {
+                uri: 'https://example.com',
+                mimeType: 'application/deepchat-webpage',
+                text: searchResource
+              }
+            }
+          ],
+          rawData: {
+            toolCallId: 'tc2',
+            content: [
+              {
+                type: 'resource',
+                resource: {
+                  uri: 'https://example.com',
+                  mimeType: 'application/deepchat-webpage',
+                  text: searchResource
+                }
+              }
+            ],
+            isError: false
+          }
+        })
+
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: { id: 'tc1', name: 'read', params: '{"path":"a.txt"}', response: '' }
+      })
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: { id: 'tc2', name: 'search_docs', params: '{"q":"x"}', response: '' }
+      })
+      state.completedToolCalls = [
+        { id: 'tc1', name: 'read', arguments: '{"path":"a.txt"}' },
+        { id: 'tc2', name: 'search_docs', arguments: '{"q":"x"}' }
+      ]
+
+      const executed = await executeTools(
+        state,
+        conversation,
+        0,
+        tools,
+        toolPresenter,
+        'gpt-4',
+        io,
+        'full_access',
+        new ToolOutputGuard(),
+        260,
+        32
+      )
+
+      expect(executed.terminalError).toBeUndefined()
+      expect(state.blocks.find((block) => block.type === 'search')).toBeUndefined()
+      expect(state.blocks[1].tool_call?.response).toContain('remaining context window is too small')
+      expect((io.messageStore as any).addSearchResult).not.toHaveBeenCalled()
+    })
+
+    it('marks the tool as error when offload succeeds but context budget cannot fit the result', async () => {
       tempHome = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-dispatch-offload-clean-'))
       getPathSpy = vi.spyOn(app, 'getPath').mockReturnValue(tempHome)
 
@@ -801,7 +1011,7 @@ describe('dispatch', () => {
       )
 
       const toolMessage = conversation.find((message: any) => message.role === 'tool')
-      expect(toolMessage.content).toContain('remaining context window is insufficient')
+      expect(toolMessage.content).toContain('remaining context window is too small')
       expect(state.blocks[0].status).toBe('error')
       await expect(
         fs.access(path.join(tempHome, '.deepchat', 'sessions', 's1', 'tool_tc1.offload'))

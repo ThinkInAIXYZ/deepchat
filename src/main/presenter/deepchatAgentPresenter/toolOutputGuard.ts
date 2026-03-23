@@ -12,6 +12,18 @@ const TOOLS_REQUIRING_OFFLOAD = new Set(['exec', 'ls', 'find', 'grep', 'cdp_send
 
 type ToolMessageUpdateMode = 'append' | 'replace'
 
+export interface ToolBatchOutputCandidate {
+  toolCallId: string
+  toolName: string
+  responseText: string
+  isError: boolean
+  offloadPath?: string
+}
+
+export interface ToolBatchOutputFitItem extends ToolBatchOutputCandidate {
+  downgraded: boolean
+}
+
 export type PreparedToolOutputResult =
   | {
       kind: 'ok'
@@ -40,6 +52,17 @@ export type ToolOutputGuardResult =
       message: string
     }
 
+export type ToolBatchOutputFitResult =
+  | {
+      kind: 'ok'
+      results: ToolBatchOutputFitItem[]
+    }
+  | {
+      kind: 'terminal_error'
+      message: string
+      results: ToolBatchOutputFitItem[]
+    }
+
 interface PrepareToolOutputParams {
   sessionId: string
   toolCallId: string
@@ -66,6 +89,10 @@ interface FitToolErrorParams extends ContextBudgetParams {
   toolName: string
   errorMessage: string
   mode?: ToolMessageUpdateMode
+}
+
+interface FitToolBatchOutputsParams extends ContextBudgetParams {
+  results: ToolBatchOutputCandidate[]
 }
 
 export class ToolOutputGuard {
@@ -140,6 +167,81 @@ export class ToolOutputGuard {
     })
     await this.cleanupOffloadedOutput(prepared.offloadPath)
     return overflowResult
+  }
+
+  async fitToolBatchOutputs(params: FitToolBatchOutputsParams): Promise<ToolBatchOutputFitResult> {
+    if (params.results.length === 0) {
+      return {
+        kind: 'ok',
+        results: []
+      }
+    }
+
+    const fittedResults: ToolBatchOutputFitItem[] = params.results.map((result) => ({
+      ...result,
+      downgraded: false
+    }))
+
+    if (
+      this.hasContextBudget({
+        conversationMessages: this.withToolBatchMessages(
+          params.conversationMessages,
+          fittedResults
+        ),
+        toolDefinitions: params.toolDefinitions,
+        contextLength: params.contextLength,
+        maxTokens: params.maxTokens
+      })
+    ) {
+      return {
+        kind: 'ok',
+        results: fittedResults
+      }
+    }
+
+    for (let index = fittedResults.length - 1; index >= 0; index -= 1) {
+      const current = fittedResults[index]
+      fittedResults[index] = {
+        ...current,
+        responseText: this.buildTerminalErrorMessage(current.toolCallId, current.toolName),
+        isError: true,
+        downgraded: true
+      }
+
+      if (
+        this.hasContextBudget({
+          conversationMessages: this.withToolBatchMessages(
+            params.conversationMessages,
+            fittedResults
+          ),
+          toolDefinitions: params.toolDefinitions,
+          contextLength: params.contextLength,
+          maxTokens: params.maxTokens
+        })
+      ) {
+        await this.cleanupOffloadedResults(fittedResults.filter((result) => result.downgraded))
+        return {
+          kind: 'ok',
+          results: fittedResults.map((result) =>
+            result.downgraded ? { ...result, offloadPath: undefined } : result
+          )
+        }
+      }
+    }
+
+    await this.cleanupOffloadedResults(fittedResults)
+
+    return {
+      kind: 'terminal_error',
+      message: this.buildTerminalErrorMessage(
+        fittedResults[0].toolCallId,
+        fittedResults[0].toolName
+      ),
+      results: fittedResults.map((result) => ({
+        ...result,
+        offloadPath: undefined
+      }))
+    }
   }
 
   hasContextBudget(params: ContextBudgetParams): boolean {
@@ -250,6 +352,28 @@ export class ToolOutputGuard {
         content
       }
     ]
+  }
+
+  private withToolBatchMessages(
+    conversationMessages: ChatMessage[],
+    results: ToolBatchOutputCandidate[]
+  ): ChatMessage[] {
+    if (results.length === 0) {
+      return conversationMessages
+    }
+
+    return [
+      ...conversationMessages,
+      ...results.map((result) => ({
+        role: 'tool' as const,
+        tool_call_id: result.toolCallId,
+        content: result.responseText
+      }))
+    ]
+  }
+
+  private async cleanupOffloadedResults(results: ToolBatchOutputCandidate[]): Promise<void> {
+    await Promise.all(results.map((result) => this.cleanupOffloadedOutput(result.offloadPath)))
   }
 
   private buildOffloadStub(rawContent: string, filePath: string): string {
