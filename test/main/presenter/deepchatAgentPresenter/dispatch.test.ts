@@ -3,12 +3,14 @@ import fs from 'fs/promises'
 import os from 'os'
 import path from 'path'
 import { app } from 'electron'
+import { approximateTokenSize } from 'tokenx'
 import type {
   InterleavedReasoningConfig,
   IoParams,
   StreamState
 } from '@/presenter/deepchatAgentPresenter/types'
 import { createState } from '@/presenter/deepchatAgentPresenter/types'
+import { estimateMessagesTokens } from '@/presenter/deepchatAgentPresenter/contextBuilder'
 import type { MCPToolDefinition } from '@shared/presenter'
 import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
 import { ToolOutputGuard } from '@/presenter/deepchatAgentPresenter/toolOutputGuard'
@@ -824,6 +826,98 @@ describe('dispatch', () => {
       expect(state.blocks[1].tool_call?.response).toContain('remaining context window is too small')
       expect(hooks.onPostToolUse).toHaveBeenCalledTimes(1)
       expect(hooks.onPostToolUseFailure).toHaveBeenCalledTimes(1)
+    })
+
+    it('keeps the fitting prefix when a short overflow tail is downgraded', async () => {
+      const tools = [makeTool('read')]
+      const toolPresenter = createMockToolPresenter()
+      const conversation: any[] = []
+
+      ;(toolPresenter.callTool as ReturnType<typeof vi.fn>)
+        .mockResolvedValueOnce({
+          content: 'a'.repeat(40),
+          rawData: { toolCallId: 'tc1', content: 'a'.repeat(40), isError: false }
+        })
+        .mockResolvedValueOnce({
+          content: 'b'.repeat(40),
+          rawData: { toolCallId: 'tc2', content: 'b'.repeat(40), isError: false }
+        })
+        .mockResolvedValueOnce({
+          content: 'OK',
+          rawData: { toolCallId: 'tc3', content: 'OK', isError: false }
+        })
+
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: { id: 'tc1', name: 'read', params: '{"path":"a.txt"}', response: '' }
+      })
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: { id: 'tc2', name: 'read', params: '{"path":"b.txt"}', response: '' }
+      })
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: { id: 'tc3', name: 'read', params: '{"path":"c.txt"}', response: '' }
+      })
+      state.completedToolCalls = [
+        { id: 'tc1', name: 'read', arguments: '{"path":"a.txt"}' },
+        { id: 'tc2', name: 'read', arguments: '{"path":"b.txt"}' },
+        { id: 'tc3', name: 'read', arguments: '{"path":"c.txt"}' }
+      ]
+
+      const assistantMessage = {
+        role: 'assistant' as const,
+        content: '',
+        tool_calls: state.completedToolCalls.map((tc) => ({
+          id: tc.id,
+          type: 'function' as const,
+          function: { name: tc.name, arguments: tc.arguments }
+        }))
+      }
+      const fittingPrefixMessages = [
+        assistantMessage,
+        { role: 'tool' as const, tool_call_id: 'tc1', content: 'a'.repeat(40) },
+        { role: 'tool' as const, tool_call_id: 'tc2', content: 'b'.repeat(40) }
+      ]
+      const toolDefinitionTokens = tools.reduce(
+        (total, tool) => total + approximateTokenSize(JSON.stringify(tool)),
+        0
+      )
+      const contextLength = estimateMessagesTokens(fittingPrefixMessages) + toolDefinitionTokens
+
+      const executed = await executeTools(
+        state,
+        conversation,
+        0,
+        tools,
+        toolPresenter,
+        'gpt-4',
+        io,
+        'full_access',
+        new ToolOutputGuard(),
+        contextLength,
+        0
+      )
+
+      const toolMessages = conversation.filter((message: any) => message.role === 'tool')
+      expect(executed.terminalError).toBeUndefined()
+      expect(toolMessages).toHaveLength(3)
+      expect(toolMessages[0].content).toBe('a'.repeat(40))
+      expect(toolMessages[1].content).toBe('b'.repeat(40))
+      expect(toolMessages[2].content).toBe('')
+      expect(state.blocks[0].status).toBe('success')
+      expect(state.blocks[1].status).toBe('success')
+      expect(state.blocks[2].status).toBe('error')
+      expect(state.blocks[2].tool_call?.response).toContain('remaining context window is too small')
     })
 
     it('cleans offload files when a tail tool is downgraded during batch fitting', async () => {

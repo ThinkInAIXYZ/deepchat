@@ -643,7 +643,10 @@ export class WindowPresenter implements IWindowPresenter {
       if (!appWindow.isDestroyed()) {
         appWindow.show()
         appWindow.focus()
-        eventBus.sendToMain(WINDOW_EVENTS.WINDOW_CREATED, windowId)
+        eventBus.sendToMain(WINDOW_EVENTS.WINDOW_CREATED, {
+          windowId,
+          isMainWindow: windowId === this.mainWindowId
+        })
       } else {
         console.warn(`Window ${windowId} was destroyed before ready-to-show.`)
       }

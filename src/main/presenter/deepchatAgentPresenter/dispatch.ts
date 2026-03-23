@@ -238,7 +238,7 @@ function applyFinalizedToolResults(params: {
       conversation.push({
         role: 'tool',
         tool_call_id: fittedResult.toolCallId,
-        content: fittedResult.responseText
+        content: fittedResult.contextResponseText
       })
     }
 

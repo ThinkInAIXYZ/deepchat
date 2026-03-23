@@ -112,10 +112,53 @@ describe('SplashWindowManager display gating', () => {
     expect(splashWindow).toBeTruthy()
 
     splashWindow.emit('ready-to-show')
-    eventBus.sendToMain(WINDOW_EVENTS.WINDOW_CREATED, 1)
+    eventBus.sendToMain(WINDOW_EVENTS.WINDOW_CREATED, {
+      windowId: 1,
+      isMainWindow: true
+    })
     await vi.advanceTimersByTimeAsync(200)
 
+    expect(splashWindow.close).toHaveBeenCalledTimes(1)
     expect(splashWindow.show).not.toHaveBeenCalled()
     expect(manager.isVisible()).toBe(false)
+  })
+
+  it('does not suppress the splash when a non-main window is created first', async () => {
+    const { SplashWindowManager } =
+      await import('../../../../src/main/presenter/lifecyclePresenter/SplashWindowManager')
+
+    manager = new SplashWindowManager()
+    await manager.create()
+
+    const splashWindow = createdWindows[0]
+    expect(splashWindow).toBeTruthy()
+
+    splashWindow.emit('ready-to-show')
+    eventBus.sendToMain(WINDOW_EVENTS.WINDOW_CREATED, {
+      windowId: 2,
+      isMainWindow: false
+    })
+    await vi.advanceTimersByTimeAsync(200)
+
+    expect(splashWindow.close).not.toHaveBeenCalled()
+    expect(splashWindow.show).toHaveBeenCalledTimes(1)
+    expect(manager.isVisible()).toBe(true)
+  })
+
+  it('closes a hidden splash immediately without waiting for the 500ms transition delay', async () => {
+    const { SplashWindowManager } =
+      await import('../../../../src/main/presenter/lifecyclePresenter/SplashWindowManager')
+
+    manager = new SplashWindowManager()
+    await manager.create()
+
+    const splashWindow = createdWindows[0]
+    expect(splashWindow).toBeTruthy()
+
+    const closePromise = manager.close()
+    await Promise.resolve()
+
+    expect(splashWindow.close).toHaveBeenCalledTimes(1)
+    await closePromise
   })
 })

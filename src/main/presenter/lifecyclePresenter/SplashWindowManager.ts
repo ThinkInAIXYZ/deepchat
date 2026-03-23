@@ -31,6 +31,14 @@ interface SplashUpdatePayload {
   activities: Array<Pick<SplashActivityItem, 'key' | 'name' | 'status'>>
 }
 
+type WindowCreatedPayload =
+  | number
+  | {
+      windowId?: number
+      isMainWindow?: boolean
+      windowType?: string
+    }
+
 const MAX_SPLASH_ACTIVITIES = 3
 const SPLASH_SHOW_DELAY_MS = 200
 
@@ -76,13 +84,15 @@ export class SplashWindowManager implements ISplashWindowManager {
     this.pruneActivities()
     this.emitState()
   }
-  private readonly onMainWindowCreated = () => {
-    if (this.isVisible()) {
+  private readonly onMainWindowCreated = (payload?: WindowCreatedPayload) => {
+    if (!this.shouldSuppressForWindowCreated(payload) || this.isVisible()) {
       return
     }
 
     this.suppressSplashShow = true
     this.clearSplashShowDelayTimer()
+    eventBus.off(WINDOW_EVENTS.WINDOW_CREATED, this.onMainWindowCreated)
+    this.closeHiddenSplashWindow()
   }
 
   constructor() {
@@ -152,6 +162,10 @@ export class SplashWindowManager implements ISplashWindowManager {
         this.clearSplashShowDelayTimer()
         this.splashWindow = null
       })
+
+      if (this.suppressSplashShow) {
+        this.closeHiddenSplashWindow()
+      }
     } catch (error) {
       eventBus.off(WINDOW_EVENTS.WINDOW_CREATED, this.onMainWindowCreated)
       this.clearSplashShowDelayTimer()
@@ -205,8 +219,10 @@ export class SplashWindowManager implements ISplashWindowManager {
     }
 
     try {
-      // Add a small delay for smooth transition
-      await new Promise((resolve) => setTimeout(resolve, 500))
+      if (this.splashWindow.isVisible()) {
+        // Add a small delay for smooth transition when the splash is actually visible.
+        await new Promise((resolve) => setTimeout(resolve, 500))
+      }
 
       this.splashWindow.close()
       this.splashWindow = null
@@ -299,6 +315,26 @@ export class SplashWindowManager implements ISplashWindowManager {
     if (this.splashShowDelayTimer) {
       clearTimeout(this.splashShowDelayTimer)
       this.splashShowDelayTimer = null
+    }
+  }
+
+  private shouldSuppressForWindowCreated(payload?: WindowCreatedPayload): boolean {
+    if (!payload || typeof payload === 'number') {
+      return false
+    }
+
+    return payload.isMainWindow === true || payload.windowType === 'main'
+  }
+
+  private closeHiddenSplashWindow(): void {
+    if (!this.splashWindow || this.splashWindow.isDestroyed() || this.splashWindow.isVisible()) {
+      return
+    }
+
+    try {
+      this.splashWindow.close()
+    } catch (error) {
+      console.error('Failed to close hidden splash window:', error)
     }
   }
 }

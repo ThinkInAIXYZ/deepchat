@@ -21,6 +21,7 @@ export interface ToolBatchOutputCandidate {
 }
 
 export interface ToolBatchOutputFitItem extends ToolBatchOutputCandidate {
+  contextResponseText: string
   downgraded: boolean
 }
 
@@ -179,6 +180,7 @@ export class ToolOutputGuard {
 
     const fittedResults: ToolBatchOutputFitItem[] = params.results.map((result) => ({
       ...result,
+      contextResponseText: result.responseText,
       downgraded: false
     }))
 
@@ -201,32 +203,51 @@ export class ToolOutputGuard {
 
     for (let index = fittedResults.length - 1; index >= 0; index -= 1) {
       const current = fittedResults[index]
-      fittedResults[index] = {
+      const displayResponseText = this.buildTerminalErrorMessage(
+        current.toolCallId,
+        current.toolName
+      )
+      const downgradedBase: ToolBatchOutputFitItem = {
         ...current,
-        responseText: this.buildTerminalErrorMessage(current.toolCallId, current.toolName),
+        responseText: displayResponseText,
+        contextResponseText: '',
         isError: true,
         downgraded: true
       }
 
-      if (
-        this.hasContextBudget({
-          conversationMessages: this.withToolBatchMessages(
-            params.conversationMessages,
-            fittedResults
-          ),
-          toolDefinitions: params.toolDefinitions,
-          contextLength: params.contextLength,
-          maxTokens: params.maxTokens
-        })
-      ) {
-        await this.cleanupOffloadedResults(fittedResults.filter((result) => result.downgraded))
-        return {
-          kind: 'ok',
-          results: fittedResults.map((result) =>
-            result.downgraded ? { ...result, offloadPath: undefined } : result
-          )
+      const contextResponseCandidates = this.buildBatchFailureContextCandidates(
+        current.toolCallId,
+        current.toolName
+      )
+
+      for (const contextResponseText of contextResponseCandidates) {
+        fittedResults[index] = {
+          ...downgradedBase,
+          contextResponseText
+        }
+
+        if (
+          this.hasContextBudget({
+            conversationMessages: this.withToolBatchMessages(
+              params.conversationMessages,
+              fittedResults
+            ),
+            toolDefinitions: params.toolDefinitions,
+            contextLength: params.contextLength,
+            maxTokens: params.maxTokens
+          })
+        ) {
+          await this.cleanupOffloadedResults(fittedResults.filter((result) => result.downgraded))
+          return {
+            kind: 'ok',
+            results: fittedResults.map((result) =>
+              result.downgraded ? { ...result, offloadPath: undefined } : result
+            )
+          }
         }
       }
+
+      fittedResults[index] = downgradedBase
     }
 
     await this.cleanupOffloadedResults(fittedResults)
@@ -356,7 +377,7 @@ export class ToolOutputGuard {
 
   private withToolBatchMessages(
     conversationMessages: ChatMessage[],
-    results: ToolBatchOutputCandidate[]
+    results: ToolBatchOutputFitItem[]
   ): ChatMessage[] {
     if (results.length === 0) {
       return conversationMessages
@@ -367,7 +388,7 @@ export class ToolOutputGuard {
       ...results.map((result) => ({
         role: 'tool' as const,
         tool_call_id: result.toolCallId,
-        content: result.responseText
+        content: result.contextResponseText
       }))
     ]
   }
@@ -393,5 +414,16 @@ export class ToolOutputGuard {
 
   private buildTerminalErrorMessage(toolCallId: string, toolName: string): string {
     return `The tool call with ID ${toolCallId} and name ${toolName} failed because the remaining context window is too small to continue this turn.`
+  }
+
+  private buildBatchFailureContextCandidates(toolCallId: string, toolName: string): string[] {
+    return Array.from(
+      new Set([
+        this.buildTerminalErrorMessage(toolCallId, toolName),
+        'Error: context window too small.',
+        'Error',
+        ''
+      ])
+    )
   }
 }
