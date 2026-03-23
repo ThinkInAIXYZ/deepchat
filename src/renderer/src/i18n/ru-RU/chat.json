@@ -112,12 +112,6 @@
     "params": "Параметры",
     "responseData": "Данные ответа"
   },
-  "mcpUi": {
-    "badge": "пользовательский интерфейс",
-    "collapse": "закрывать",
-    "expand": "Расширять",
-    "title": "MCP UI"
-  },
   "mode": {
     "acpAgent": "Агент АШП",
     "agent": "Агент",

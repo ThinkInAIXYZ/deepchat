@@ -112,12 +112,6 @@
     "params": "パラメータ",
     "responseData": "レスポンスデータ"
   },
-  "mcpUi": {
-    "badge": "UI",
-    "collapse": "折りたたむ",
-    "expand": "展開",
-    "title": "MCP UI"
-  },
   "mode": {
     "acpAgent": "ACPエージェント",
     "agent": "エージェント",

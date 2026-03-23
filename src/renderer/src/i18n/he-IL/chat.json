@@ -101,12 +101,6 @@
     "generationComplete": "היצירה הושלמה",
     "generationError": "היצירה נכשלה"
   },
-  "mcpUi": {
-    "title": "ממשק MCP",
-    "badge": "UI",
-    "expand": "הרחב",
-    "collapse": "צמצם"
-  },
   "toolCall": {
     "title": "קריאה לכלי",
     "calling": "קריאה לכלי בתהליך",

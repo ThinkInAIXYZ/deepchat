@@ -105,12 +105,6 @@
     "generationComplete": "Generation is complete",
     "generationError": "Generation failed"
   },
-  "mcpUi": {
-    "title": "MCP UI",
-    "badge": "UI",
-    "expand": "Expand",
-    "collapse": "Collapse"
-  },
   "toolCall": {
     "title": "Tool Call",
     "calling": "Tool call in progress",

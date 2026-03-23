@@ -114,7 +114,6 @@
     "@iconify-json/vscode-icons": "^1.2.37",
     "@iconify/vue": "^5.0.0",
     "@lingual/i18n-check": "0.8.12",
-    "@mcp-ui/client": "^5.13.3",
     "@pinia/colada": "^0.20.0",
     "@tailwindcss/typography": "^0.5.19",
     "@tailwindcss/vite": "^4.1.18",

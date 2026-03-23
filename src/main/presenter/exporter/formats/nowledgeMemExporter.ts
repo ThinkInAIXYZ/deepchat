@@ -120,12 +120,6 @@ export function convertDeepChatToNowledgeMemFormat(
             content += '[Image Content]\n'
             break
 
-          case 'mcp_ui_resource':
-            if (block.mcp_ui_resource) {
-              content += `[MCP Resource] ${block.mcp_ui_resource.uri}\n`
-            }
-            break
-
           case 'error':
             if (block.content) {
               content += `[Error] ${block.content}\n`

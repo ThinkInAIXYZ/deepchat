@@ -135,7 +135,6 @@ describe('MessageItemAssistant', () => {
       MessageBlockAction: componentStub('MessageBlockAction'),
       MessageBlockImage: componentStub('MessageBlockImage'),
       MessageBlockAudio: componentStub('MessageBlockAudio'),
-      MessageBlockMcpUi: componentStub('MessageBlockMcpUi'),
       MessageBlockPlan: componentStub('MessageBlockPlan')
     }
   }

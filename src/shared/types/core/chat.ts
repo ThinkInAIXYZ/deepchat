@@ -57,7 +57,6 @@ export type AssistantMessageBlock = {
     | 'image'
     | 'audio'
     | 'artifact-thinking'
-    | 'mcp_ui_resource'
   content?: string
   extra?: Record<string, string | number | object[] | boolean>
   status:
@@ -82,13 +81,6 @@ export type AssistantMessageBlock = {
       | 'application/vnd.ant.mermaid'
       | 'application/vnd.ant.react'
     language?: string
-  }
-  mcp_ui_resource?: {
-    uri: string
-    mimeType: 'text/html' | 'text/uri-list' | 'application/vnd.mcp-ui.remote-dom'
-    text?: string
-    blob?: string
-    _meta?: Record<string, unknown>
   }
   tool_call?: {
     id?: string

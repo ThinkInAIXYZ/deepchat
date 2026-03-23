@@ -22,7 +22,7 @@
 ## 非目标
 
 - 不改动或替换 `agentPresenter/tool` 下的 `ToolRegistry`/`toolRouter`.
-- 不改变 MCP UI 资源与搜索结果的解析逻辑.
+- 不改变搜索结果的解析逻辑.
 - 不改 legacy `AgentPresenter` 链路, 本次仅覆盖新 session agent.
 
 ## 用户故事
@@ -60,7 +60,7 @@
   - 完整文件的绝对路径
 - 模型可以通过文件类工具读取上述路径.
 - 文件类读取工具仅放行当前会话 `conversationId` 对应目录.
-- `tool_call_response_raw` 不被改写, 避免影响 MCP UI/搜索结果处理.
+- `tool_call_response_raw` 不被改写, 避免影响搜索结果处理.
 
 ### 同轮批量尾部降级
 
