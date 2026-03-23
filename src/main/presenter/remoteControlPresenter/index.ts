@@ -66,6 +66,11 @@ export class RemoteControlPresenter {
   async saveTelegramSettings(input: TelegramRemoteSettings): Promise<TelegramRemoteSettings> {
     const normalized = normalizeTelegramSettingsInput(input)
     const currentHooksConfig = this.deps.getHooksNotificationsConfig()
+    const currentRemoteConfig = this.bindingStore.getTelegramConfig()
+    const currentBotToken = currentHooksConfig.telegram.botToken.trim()
+    const shouldClearFatalError =
+      currentRemoteConfig.enabled !== normalized.remoteEnabled ||
+      currentBotToken !== normalized.botToken
 
     this.deps.setHooksNotificationsConfig({
       ...currentHooksConfig,
@@ -77,6 +82,7 @@ export class RemoteControlPresenter {
       enabled: normalized.remoteEnabled,
       allowlist: normalized.allowedUserIds,
       streamMode: normalized.streamMode,
+      lastFatalError: shouldClearFatalError ? null : config.lastFatalError,
       pairing: {
         code: normalized.pairCode,
         expiresAt: normalized.pairCodeExpiresAt
@@ -92,9 +98,14 @@ export class RemoteControlPresenter {
   async getTelegramStatus(): Promise<TelegramRemoteStatus> {
     const remoteConfig = this.bindingStore.getTelegramConfig()
     const hooksConfig = this.deps.getHooksNotificationsConfig().telegram
-    const runtimeStatus = this.getEffectivePollerStatus(hooksConfig.botToken, remoteConfig.enabled)
+    const runtimeStatus = this.getEffectivePollerStatus(
+      hooksConfig.botToken,
+      remoteConfig.enabled,
+      remoteConfig.lastFatalError
+    )
 
     return {
+      enabled: remoteConfig.enabled,
       state: runtimeStatus.state,
       pollOffset: remoteConfig.pollOffset,
       bindingCount: Object.keys(remoteConfig.bindings).length,
@@ -184,7 +195,7 @@ export class RemoteControlPresenter {
       authGuard,
       runner,
       bindingStore: this.bindingStore,
-      getPollerStatus: () => this.getEffectivePollerStatus(botToken, true)
+      getPollerStatus: () => this.getEffectivePollerStatus(botToken, true, null)
     })
 
     this.telegramPoller = new TelegramPoller({
@@ -194,6 +205,11 @@ export class RemoteControlPresenter {
       bindingStore: this.bindingStore,
       onStatusChange: (snapshot) => {
         this.telegramPollerStatus = snapshot
+      },
+      onFatalError: (message) => {
+        void this.enqueueRuntimeOperation(async () => {
+          await this.disableTelegramRuntimeForFatalError(botToken, message)
+        })
       }
     })
 
@@ -223,9 +239,18 @@ export class RemoteControlPresenter {
 
   private getEffectivePollerStatus(
     botToken: string,
-    remoteEnabled: boolean
+    remoteEnabled: boolean,
+    lastFatalError: string | null
   ): TelegramPollerStatusSnapshot {
     if (!remoteEnabled) {
+      if (lastFatalError) {
+        return {
+          state: 'error',
+          lastError: lastFatalError,
+          botUser: null
+        }
+      }
+
       return {
         state: 'disabled',
         lastError: null,
@@ -242,6 +267,31 @@ export class RemoteControlPresenter {
     }
 
     return { ...this.telegramPollerStatus }
+  }
+
+  private async disableTelegramRuntimeForFatalError(
+    botToken: string,
+    errorMessage: string
+  ): Promise<void> {
+    const currentHooksConfig = this.deps.getHooksNotificationsConfig().telegram
+    const currentRemoteConfig = this.bindingStore.getTelegramConfig()
+
+    if (!currentRemoteConfig.enabled || currentHooksConfig.botToken.trim() !== botToken) {
+      return
+    }
+
+    this.bindingStore.updateTelegramConfig((config) => ({
+      ...config,
+      enabled: false,
+      lastFatalError: errorMessage
+    }))
+
+    await this.stopTelegramRuntime()
+    this.telegramPollerStatus = {
+      state: 'error',
+      lastError: errorMessage,
+      botUser: null
+    }
   }
 
   private enqueueRuntimeOperation(operation: () => Promise<void>): Promise<void> {

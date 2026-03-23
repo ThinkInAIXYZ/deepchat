@@ -27,6 +27,7 @@ export interface TelegramRemoteSettings {
 }
 
 export interface TelegramRemoteStatus {
+  enabled: boolean
   state: TelegramRemoteRuntimeState
   pollOffset: number
   bindingCount: number

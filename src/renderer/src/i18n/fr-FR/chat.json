@@ -248,6 +248,14 @@
     "allAgents": "Tous les agents",
     "expandSidebar": "Développer la barre latérale",
     "collapseSidebar": "Réduire la barre latérale",
+    "remoteControlStatus": {
+      "disabled": "Contrôle à distance désactivé",
+      "stopped": "Contrôle à distance arrêté",
+      "starting": "Démarrage du contrôle à distance",
+      "running": "Contrôle à distance en cours",
+      "backoff": "Nouvelle tentative du contrôle à distance",
+      "error": "Erreur du contrôle à distance"
+    },
     "groupByDate": "Grouper par date",
     "groupByProject": "Grouper par projet",
     "emptyTitle": "Aucune conversation pour le moment",

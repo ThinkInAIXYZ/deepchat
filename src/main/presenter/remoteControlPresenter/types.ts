@@ -33,6 +33,7 @@ export interface TelegramRemoteRuntimeConfig {
   allowlist: number[]
   streamMode: TelegramStreamMode
   pollOffset: number
+  lastFatalError: string | null
   pairing: TelegramPairingState
   bindings: Record<string, TelegramEndpointBinding>
 }
@@ -79,6 +80,7 @@ export const createDefaultRemoteControlConfig = (): RemoteControlConfig => ({
     allowlist: [],
     streamMode: 'draft',
     pollOffset: 0,
+    lastFatalError: null,
     pairing: {
       code: null,
       expiresAt: null
@@ -107,6 +109,7 @@ const TelegramRemoteRuntimeConfigSchema = z
     allowlist: z.array(z.union([z.number(), z.string()])).optional(),
     streamMode: z.enum(['draft', 'final']).optional(),
     pollOffset: z.number().int().nonnegative().optional(),
+    lastFatalError: z.string().nullable().optional(),
     pairing: TelegramPairingStateSchema.optional(),
     bindings: z.record(z.string(), TelegramEndpointBindingSchema).optional()
   })
@@ -162,6 +165,7 @@ export const normalizeRemoteControlConfig = (input: unknown): RemoteControlConfi
         typeof telegram.pollOffset === 'number' && telegram.pollOffset >= 0
           ? telegram.pollOffset
           : defaults.telegram.pollOffset,
+      lastFatalError: telegram.lastFatalError?.trim() || null,
       pairing: {
         code: telegram.pairing?.code?.trim() || null,
         expiresAt:

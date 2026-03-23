@@ -248,6 +248,14 @@
     "allAgents": "Alle agenter",
     "expandSidebar": "Udvid sidepanelet",
     "collapseSidebar": "Skjul sidepanelet",
+    "remoteControlStatus": {
+      "disabled": "Fjernstyring er deaktiveret",
+      "stopped": "Fjernstyring er stoppet",
+      "starting": "Fjernstyring starter",
+      "running": "Fjernstyring kører",
+      "backoff": "Fjernstyring prøver igen",
+      "error": "Fjernstyringsfejl"
+    },
     "groupByDate": "Gruppér efter dato",
     "groupByProject": "Gruppér efter projekt",
     "emptyTitle": "Ingen samtaler endnu",

@@ -261,6 +261,14 @@
     "allAgents": "All Agents",
     "expandSidebar": "Expand sidebar",
     "collapseSidebar": "Collapse sidebar",
+    "remoteControlStatus": {
+      "disabled": "Remote control disabled",
+      "stopped": "Remote control stopped",
+      "starting": "Remote control starting",
+      "running": "Remote control running",
+      "backoff": "Remote control retrying",
+      "error": "Remote control error"
+    },
     "groupByDate": "Group by date",
     "groupByProject": "Group by project",
     "emptyTitle": "No conversations yet",

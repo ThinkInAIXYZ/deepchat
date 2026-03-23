@@ -1,16 +1,27 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { HookEventName, HooksNotificationsSettings } from '@shared/hooksNotifications'
+import type { TelegramPollerStatusSnapshot } from '@/presenter/remoteControlPresenter/types'
 
-const pollerInstances: Array<{ start: ReturnType<typeof vi.fn>; stop: ReturnType<typeof vi.fn> }> =
-  []
+type MockPollerDeps = {
+  onStatusChange?: (snapshot: TelegramPollerStatusSnapshot) => void
+  onFatalError?: (message: string) => void
+}
+
+const pollerInstances: Array<{
+  start: ReturnType<typeof vi.fn>
+  stop: ReturnType<typeof vi.fn>
+  deps: MockPollerDeps
+}> = []
 let pollerStartImplementation: () => Promise<void> = async () => {}
 
 vi.mock('@/presenter/remoteControlPresenter/telegram/telegramPoller', () => ({
   TelegramPoller: class MockTelegramPoller {
     readonly start = vi.fn(() => pollerStartImplementation())
     readonly stop = vi.fn().mockResolvedValue(undefined)
+    readonly deps: MockPollerDeps
 
-    constructor() {
+    constructor(deps: MockPollerDeps) {
+      this.deps = deps
       pollerInstances.push(this)
     }
   }
@@ -155,5 +166,52 @@ describe('RemoteControlPresenter', () => {
 
     resolveStart?.()
     await initializePromise
+  })
+
+  it('auto-disables remote control after a fatal poller failure', async () => {
+    const configPresenter = createConfigPresenter()
+    let hooksConfig = createHooksConfig()
+
+    const presenter = new RemoteControlPresenter({
+      configPresenter: configPresenter as any,
+      newAgentPresenter: {} as any,
+      deepchatAgentPresenter: {} as any,
+      windowPresenter: {} as any,
+      tabPresenter: {} as any,
+      getHooksNotificationsConfig: () => hooksConfig,
+      setHooksNotificationsConfig: (nextConfig) => {
+        hooksConfig = nextConfig
+        return nextConfig
+      },
+      testTelegramHookNotification: vi.fn().mockResolvedValue({
+        success: true,
+        durationMs: 0
+      })
+    })
+
+    await presenter.initialize()
+
+    pollerInstances[0].deps.onFatalError?.('Conflict: terminated by other getUpdates request')
+
+    await vi.waitFor(async () => {
+      await expect(presenter.getTelegramStatus()).resolves.toEqual(
+        expect.objectContaining({
+          enabled: false,
+          state: 'error',
+          lastError: 'Conflict: terminated by other getUpdates request'
+        })
+      )
+    })
+
+    expect(configPresenter.setSetting).toHaveBeenCalledWith(
+      'remoteControl',
+      expect.objectContaining({
+        telegram: expect.objectContaining({
+          enabled: false,
+          lastFatalError: 'Conflict: terminated by other getUpdates request'
+        })
+      })
+    )
+    expect(pollerInstances[0].stop).toHaveBeenCalledTimes(1)
   })
 })

@@ -24,6 +24,7 @@ type TelegramPollerDeps = {
   router: RemoteCommandRouter
   bindingStore: RemoteBindingStore
   onStatusChange?: (snapshot: TelegramPollerStatusSnapshot) => void
+  onFatalError?: (message: string) => void
 }
 
 export class TelegramPoller {
@@ -105,11 +106,12 @@ export class TelegramPoller {
         }
 
         const lastError = error instanceof Error ? error.message : String(error)
-        if (this.isTerminalConflictError(error)) {
+        if (this.isFatalPollError(error)) {
           this.setStatus({
             state: 'error',
             lastError
           })
+          this.deps.onFatalError?.(lastError)
           return
         }
 
@@ -252,9 +254,11 @@ export class TelegramPoller {
     }
   }
 
-  private isTerminalConflictError(error: unknown): boolean {
+  private isFatalPollError(error: unknown): boolean {
     if (error instanceof TelegramApiRequestError) {
-      return error.code === 409
+      return typeof error.code === 'number' && error.code >= 400 && error.code < 500
+        ? error.code !== 429
+        : false
     }
 
     if (!(error instanceof Error)) {

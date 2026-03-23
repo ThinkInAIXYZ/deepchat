@@ -261,6 +261,14 @@
     "allAgents": "所有 Agents",
     "expandSidebar": "展开侧边栏",
     "collapseSidebar": "收起侧边栏",
+    "remoteControlStatus": {
+      "disabled": "远程控制已禁用",
+      "stopped": "远程控制已停止",
+      "starting": "远程控制启动中",
+      "running": "远程控制运行中",
+      "backoff": "远程控制重试中",
+      "error": "远程控制错误"
+    },
     "groupByDate": "按时间分组",
     "groupByProject": "按项目分组",
     "emptyTitle": "还没有会话",
