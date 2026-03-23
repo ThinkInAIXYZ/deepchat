@@ -1297,9 +1297,9 @@
       "scriptDescription": "Description Override",
       "scriptDescriptionPlaceholder": "Optional description shown to the agent",
       "runtime": {
-        "auto": "Auto fallback",
-        "system": "System runtime",
-        "builtin": "Built-in runtime"
+        "auto": "Repli automatique",
+        "system": "Runtime système",
+        "builtin": "Runtime intégré"
       }
     },
     "empty": "Aucune compétence pour le moment",
@@ -1468,5 +1468,54 @@
     "errors": {
       "openTitle": "Échec de l'ouverture du dossier"
     }
+  },
+  "deepchatAgents": {
+    "title": "Agents DeepChat",
+    "description": "Gérez les agents DeepChat et les valeurs par défaut qu'ils injectent dans les nouvelles sessions.",
+    "builtIn": "Intégré",
+    "editTitle": "Modifier l'agent DeepChat",
+    "createTitle": "Créer un agent DeepChat",
+    "unnamed": "Agent sans nom",
+    "name": "Nom",
+    "namePlaceholder": "Par exemple : Rédaction / Recherche / Traduction",
+    "enabledLabel": "Activé",
+    "descriptionLabel": "Description",
+    "descriptionPlaceholder": "Note facultative sur l'usage de cet agent",
+    "avatarTitle": "Avatar",
+    "avatarDefault": "Par défaut",
+    "avatarDefaultDesc": "DeepChat conserve son icône intégrée. Les autres agents utilisent un avatar textuel.",
+    "avatarLucide": "Icône Lucide",
+    "avatarLucideDesc": "Choisissez une icône Lucide et définissez les couleurs clair/sombre.",
+    "avatarMonogram": "Monogramme",
+    "avatarMonogramDesc": "Utilisez deux lettres latines ou le premier caractère CJK.",
+    "lucideIcon": "Nom de l'icône Lucide",
+    "lightColor": "Couleur claire",
+    "darkColor": "Couleur sombre",
+    "monogramText": "Monogramme",
+    "monogramPlaceholder": "Par exemple : WR / 研",
+    "backgroundColor": "Couleur d'arrière-plan",
+    "modelsTitle": "Valeurs par défaut du modèle",
+    "chatModel": "Modèle de chat par défaut",
+    "assistantModel": "Modèle d'assistant",
+    "visionModel": "Modèle de vision",
+    "temperature": "Température",
+    "contextLength": "Longueur du contexte",
+    "maxTokens": "Nombre max. de tokens",
+    "thinkingBudget": "Budget de réflexion",
+    "reasoningEffort": "Niveau de raisonnement",
+    "verbosity": "Niveau de détail",
+    "interleaved": "Forcer la compatibilité avec le raisonnement intercalé",
+    "systemPrompt": "Prompt système par défaut",
+    "systemPromptPlaceholder": "Laissez vide pour utiliser un prompt système vide",
+    "permissionMode": "Autorisation par défaut",
+    "permissionFullAccess": "Accès complet",
+    "permissionDefault": "Autorisation par défaut",
+    "toolsTitle": "Outils intégrés",
+    "compactionTitle": "Compaction automatique",
+    "compactionEnabled": "Activer la compaction automatique",
+    "compactionDescription": "Ces valeurs ne s'appliquent qu'aux futures sessions DeepChat.",
+    "compactionThreshold": "Seuil de déclenchement",
+    "compactionRetainPairs": "Conserver les dernières paires",
+    "deleteConfirm": "Supprimer l'agent « {name} » ? Son historique sera rattaché à l'agent DeepChat intégré."
   }
 }

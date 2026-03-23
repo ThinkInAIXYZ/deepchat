@@ -1297,9 +1297,9 @@
       "scriptDescription": "Description Override",
       "scriptDescriptionPlaceholder": "Optional description shown to the agent",
       "runtime": {
-        "auto": "Auto fallback",
-        "system": "System runtime",
-        "builtin": "Built-in runtime"
+        "auto": "자동 대체",
+        "system": "시스템 런타임",
+        "builtin": "내장 런타임"
       }
     },
     "empty": "스킬 없음",
@@ -1468,5 +1468,54 @@
     "errors": {
       "openTitle": "디렉터리를 열지 못했습니다"
     }
+  },
+  "deepchatAgents": {
+    "title": "DeepChat 에이전트",
+    "description": "DeepChat 에이전트와 새 세션에 적용할 기본값을 관리합니다.",
+    "builtIn": "내장",
+    "editTitle": "DeepChat 에이전트 편집",
+    "createTitle": "DeepChat 에이전트 만들기",
+    "unnamed": "이름 없는 에이전트",
+    "name": "이름",
+    "namePlaceholder": "예: 작성 / 리서치 / 번역",
+    "enabledLabel": "사용",
+    "descriptionLabel": "설명",
+    "descriptionPlaceholder": "이 에이전트의 용도를 설명하는 선택 메모",
+    "avatarTitle": "아바타",
+    "avatarDefault": "기본값",
+    "avatarDefaultDesc": "DeepChat은 기본 아이콘을 유지하고, 다른 에이전트는 문자 아바타를 사용합니다.",
+    "avatarLucide": "Lucide 아이콘",
+    "avatarLucideDesc": "Lucide 아이콘을 고르고 라이트/다크 색상을 설정합니다.",
+    "avatarMonogram": "문자 아바타",
+    "avatarMonogramDesc": "라틴 문자 2개 또는 첫 번째 CJK 문자를 사용합니다.",
+    "lucideIcon": "Lucide 아이콘 이름",
+    "lightColor": "라이트 색상",
+    "darkColor": "다크 색상",
+    "monogramText": "문자 아바타",
+    "monogramPlaceholder": "예: WR / 研",
+    "backgroundColor": "배경색",
+    "modelsTitle": "모델 기본값",
+    "chatModel": "기본 대화 모델",
+    "assistantModel": "보조 모델",
+    "visionModel": "비전 모델",
+    "temperature": "온도",
+    "contextLength": "컨텍스트 길이",
+    "maxTokens": "최대 토큰",
+    "thinkingBudget": "사고 예산",
+    "reasoningEffort": "추론 강도",
+    "verbosity": "응답 상세도",
+    "interleaved": "인터리브드 사고 호환 강제",
+    "systemPrompt": "기본 시스템 프롬프트",
+    "systemPromptPlaceholder": "빈 시스템 프롬프트를 쓰려면 비워 두세요",
+    "permissionMode": "기본 권한",
+    "permissionFullAccess": "전체 접근",
+    "permissionDefault": "기본 권한",
+    "toolsTitle": "내장 도구",
+    "compactionTitle": "자동 압축",
+    "compactionEnabled": "자동 압축 사용",
+    "compactionDescription": "이 기본값은 앞으로 만드는 DeepChat 세션에만 적용됩니다.",
+    "compactionThreshold": "트리거 임계값",
+    "compactionRetainPairs": "최근 페어 유지",
+    "deleteConfirm": "에이전트 \"{name}\"을(를) 삭제할까요? 기록은 내장 DeepChat 에이전트로 이동합니다."
   }
 }

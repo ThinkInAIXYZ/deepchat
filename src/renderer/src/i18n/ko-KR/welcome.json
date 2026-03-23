@@ -49,5 +49,12 @@
       "ollama": "Ollama",
       "openrouter": "OpenRouter"
     }
+  },
+  "agentPage": {
+    "title": "에이전트 선택",
+    "description": "DeepChat 에이전트는 새 세션의 기본값을 정합니다. ACP 에이전트는 기존 동작을 유지합니다.",
+    "deepchatType": "DeepChat 에이전트",
+    "newDeepChatAgent": "새 DeepChat 에이전트",
+    "manageAgents": "에이전트 관리"
   }
 }

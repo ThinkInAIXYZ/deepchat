@@ -49,5 +49,12 @@
       "ollama": "Ollama",
       "openrouter": "OpenRouter"
     }
+  },
+  "agentPage": {
+    "title": "Choisir un agent",
+    "description": "Un agent DeepChat définit les valeurs par défaut des nouvelles sessions. Les agents ACP conservent leur comportement actuel.",
+    "deepchatType": "Agent DeepChat",
+    "newDeepChatAgent": "Nouvel agent DeepChat",
+    "manageAgents": "Gérer les agents"
   }
 }

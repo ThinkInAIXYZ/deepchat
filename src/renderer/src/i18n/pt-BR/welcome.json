@@ -49,5 +49,12 @@
       "ollama": "Ollama",
       "openrouter": "OpenRouter"
     }
+  },
+  "agentPage": {
+    "title": "Escolha um agente",
+    "description": "Um agente do DeepChat define os padrões das novas sessões. Os agentes ACP mantêm o comportamento atual.",
+    "deepchatType": "Agente do DeepChat",
+    "newDeepChatAgent": "Novo agente do DeepChat",
+    "manageAgents": "Gerenciar agentes"
   }
 }

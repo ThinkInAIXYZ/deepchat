@@ -49,5 +49,12 @@
       "ollama": "Ollama",
       "openrouter": "OpenRouter"
     }
+  },
+  "agentPage": {
+    "title": "בחירת סוכן",
+    "description": "סוכן DeepChat קובע את ברירות המחדל לשיחות חדשות. סוכני ACP שומרים על ההתנהגות הקיימת שלהם.",
+    "deepchatType": "סוכן DeepChat",
+    "newDeepChatAgent": "סוכן DeepChat חדש",
+    "manageAgents": "ניהול סוכנים"
   }
 }

@@ -83,6 +83,16 @@ const router = createRouter({
       }
     },
     {
+      path: '/deepchat-agents',
+      name: 'settings-deepchat-agents',
+      component: () => import('./components/DeepChatAgentsSettings.vue'),
+      meta: {
+        titleKey: 'routes.settings-deepchat-agents',
+        icon: 'lucide:bot',
+        position: 4.5
+      }
+    },
+    {
       path: '/acp',
       name: 'settings-acp',
       component: () => import('./components/AcpSettings.vue'),

@@ -731,7 +731,11 @@ import type {
   RENDERER_MODEL_META,
   SystemPrompt
 } from '@shared/presenter'
-import type { PermissionMode, SessionGenerationSettings } from '@shared/types/agent-interface'
+import type {
+  DeepChatAgentConfig,
+  PermissionMode,
+  SessionGenerationSettings
+} from '@shared/types/agent-interface'
 import type { ReasoningPortrait } from '@shared/types/model-db'
 import {
   normalizeLegacyThinkingBudgetValue,
@@ -855,13 +859,58 @@ let generationPersistRequestToken = 0
 let generationLocalRevision = 0
 
 const hasActiveSession = computed(() => sessionStore.hasActiveSession)
+const availableAgents = computed(() => (Array.isArray(agentStore.agents) ? agentStore.agents : []))
+const inferAgentType = (agentId: string | null | undefined): 'deepchat' | 'acp' | null => {
+  if (!agentId) {
+    return null
+  }
+
+  const matchedAgent = availableAgents.value.find((agent) => agent.id === agentId)
+  const selectedAgent =
+    agentStore.selectedAgent && agentStore.selectedAgent.id === agentId
+      ? agentStore.selectedAgent
+      : null
+  const explicitType = matchedAgent?.agentType ?? matchedAgent?.type ?? selectedAgent?.type
+  if (explicitType === 'deepchat' || explicitType === 'acp') {
+    return explicitType
+  }
+
+  return agentId === 'deepchat' ? 'deepchat' : 'acp'
+}
+
+const resolveDeepChatAgentConfig = async (agentId: string): Promise<DeepChatAgentConfig> => {
+  if (typeof configPresenter.resolveDeepChatAgentConfig === 'function') {
+    return configPresenter.resolveDeepChatAgentConfig(agentId)
+  }
+
+  const defaultSystemPrompt =
+    (typeof configPresenter.getDefaultSystemPrompt === 'function'
+      ? await configPresenter.getDefaultSystemPrompt()
+      : await configPresenter.getSetting?.('default_system_prompt')) ?? ''
+
+  return {
+    defaultModelPreset: undefined,
+    systemPrompt: typeof defaultSystemPrompt === 'string' ? defaultSystemPrompt : '',
+    permissionMode: 'full_access',
+    disabledAgentTools: []
+  }
+}
+
+const selectedAgentType = computed<'deepchat' | 'acp' | null>(() => {
+  return inferAgentType(agentStore.selectedAgentId)
+})
+const selectedDeepChatAgentId = computed(() => {
+  if (selectedAgentType.value === 'acp') {
+    return null
+  }
+  return agentStore.selectedAgentId ?? 'deepchat'
+})
 
 const isAcpAgent = computed(() => {
   if (hasActiveSession.value) {
     return sessionStore.activeSession?.providerId === 'acp'
   }
-  const agentId = agentStore.selectedAgentId
-  return agentId !== null && agentId !== 'deepchat'
+  return selectedAgentType.value === 'acp'
 })
 
 const activeAcpAgentId = computed(() => {
@@ -869,7 +918,7 @@ const activeAcpAgentId = computed(() => {
     return sessionStore.activeSession.modelId || null
   }
   const selectedAgentId = agentStore.selectedAgentId
-  return selectedAgentId && selectedAgentId !== 'deepchat' ? selectedAgentId : null
+  return selectedAgentType.value === 'acp' ? selectedAgentId : null
 })
 
 const activeAcpSessionId = computed(() => {
@@ -892,7 +941,7 @@ const lockedAcpModelId = computed(() => {
     return sessionStore.activeSession.modelId || null
   }
   const selectedAgentId = agentStore.selectedAgentId
-  return selectedAgentId && selectedAgentId !== 'deepchat' ? selectedAgentId : null
+  return selectedAgentType.value === 'acp' ? selectedAgentId : null
 })
 
 const isModelSelectionLocked = computed(() => isAcpAgent.value && Boolean(lockedAcpModelId.value))
@@ -915,7 +964,9 @@ const effectiveModelSelection = computed<ModelSelection | null>(() => {
   }
   if (isAcpAgent.value) {
     const agentId = agentStore.selectedAgentId
-    return agentId && agentId !== 'deepchat' ? { providerId: 'acp', modelId: agentId } : null
+    return selectedAgentType.value === 'acp' && agentId
+      ? { providerId: 'acp', modelId: agentId }
+      : null
   }
   return draftModelSelection.value
 })
@@ -1680,12 +1731,32 @@ const syncDraftModelSelection = async () => {
   if (isAcpAgent.value) {
     const agentId = agentStore.selectedAgentId
     applyDraftSelection(
-      agentId && agentId !== 'deepchat' ? { providerId: 'acp', modelId: agentId } : null
+      selectedAgentType.value === 'acp' && agentId ? { providerId: 'acp', modelId: agentId } : null
     )
     return
   }
 
   try {
+    const currentDraft = findEnabledModel(draftStore.providerId || '', draftStore.modelId || '')
+    if (currentDraft) {
+      applyDraftSelection(currentDraft)
+      return
+    }
+
+    const deepChatAgentId = selectedDeepChatAgentId.value ?? 'deepchat'
+    const agentConfig = await resolveDeepChatAgentConfig(deepChatAgentId)
+    if (token !== draftModelSyncToken) return
+    if (isModelSelection(agentConfig.defaultModelPreset)) {
+      const resolvedAgentDefault = findEnabledModel(
+        agentConfig.defaultModelPreset.providerId,
+        agentConfig.defaultModelPreset.modelId
+      )
+      if (resolvedAgentDefault) {
+        applyDraftSelection(resolvedAgentDefault)
+        return
+      }
+    }
+
     const preferredModel = (await configPresenter.getSetting('preferredModel')) as unknown
     if (token !== draftModelSyncToken) return
     if (isModelSelection(preferredModel)) {
@@ -1715,23 +1786,32 @@ const syncDraftModelSelection = async () => {
 
 const resolveDefaultGenerationSettings = async (
   providerId: string,
-  modelId: string
+  modelId: string,
+  agentId: string = 'deepchat'
 ): Promise<SessionGenerationSettings> => {
+  const agentConfig = await resolveDeepChatAgentConfig(agentId)
   const modelConfig = await configPresenter.getModelConfig(modelId, providerId)
-  const defaultSystemPrompt = await configPresenter.getDefaultSystemPrompt()
   const portrait = (await configPresenter.getReasoningPortrait?.(providerId, modelId)) ?? null
+  const preset = agentConfig.defaultModelPreset
+  const presetMatches = preset?.providerId === providerId && preset?.modelId === modelId
   const contextLengthDefault = toValidNonNegativeInteger(modelConfig.contextLength) ?? 32000
   const maxTokensDefault =
     toValidNonNegativeInteger(modelConfig.maxTokens) ?? Math.min(4096, contextLengthDefault)
 
   const defaults: SessionGenerationSettings = {
-    systemPrompt: defaultSystemPrompt ?? '',
-    temperature: parseFiniteNumericValue(modelConfig.temperature) ?? 0.7,
-    contextLength: contextLengthDefault,
+    systemPrompt: agentConfig.systemPrompt ?? '',
+    temperature:
+      (presetMatches ? parseFiniteNumericValue(preset?.temperature) : undefined) ??
+      parseFiniteNumericValue(modelConfig.temperature) ??
+      0.7,
+    contextLength:
+      (presetMatches ? toValidNonNegativeInteger(preset?.contextLength) : undefined) ??
+      contextLengthDefault,
     maxTokens:
-      maxTokensDefault <= contextLengthDefault
+      (presetMatches ? toValidNonNegativeInteger(preset?.maxTokens) : undefined) ??
+      (maxTokensDefault <= contextLengthDefault
         ? maxTokensDefault
-        : Math.min(4096, contextLengthDefault)
+        : Math.min(4096, contextLengthDefault))
   }
 
   const interleavedThinkingDefault =
@@ -1746,7 +1826,9 @@ const resolveDefaultGenerationSettings = async (
 
   if (portrait?.supported === true && hasThinkingBudgetSupport(portrait)) {
     const defaultBudget = normalizeLegacyThinkingBudgetValue(
-      modelConfig.thinkingBudget ?? portrait.budget?.default
+      (presetMatches ? preset?.thinkingBudget : undefined) ??
+        modelConfig.thinkingBudget ??
+        portrait.budget?.default
     )
     if (defaultBudget !== undefined) {
       defaults.thinkingBudget = defaultBudget
@@ -1756,7 +1838,9 @@ const resolveDefaultGenerationSettings = async (
   if (supportsReasoningEffort(portrait)) {
     const effort = normalizeReasoningEffort(
       portrait,
-      modelConfig.reasoningEffort ?? portrait?.effort
+      (presetMatches ? preset?.reasoningEffort : undefined) ??
+        modelConfig.reasoningEffort ??
+        portrait?.effort
     )
     if (effort) {
       defaults.reasoningEffort = effort
@@ -1764,10 +1848,19 @@ const resolveDefaultGenerationSettings = async (
   }
 
   if (supportsVerbosity(portrait)) {
-    const verbosity = normalizeVerbosity(portrait, modelConfig.verbosity ?? portrait?.verbosity)
+    const verbosity = normalizeVerbosity(
+      portrait,
+      (presetMatches ? preset?.verbosity : undefined) ??
+        modelConfig.verbosity ??
+        portrait?.verbosity
+    )
     if (verbosity) {
       defaults.verbosity = verbosity
     }
+  }
+
+  if (presetMatches && typeof preset?.forceInterleavedThinkingCompat === 'boolean') {
+    defaults.forceInterleavedThinkingCompat = preset.forceInterleavedThinkingCompat
   }
 
   return defaults
@@ -1920,7 +2013,8 @@ const syncGenerationSettings = async () => {
       } else {
         const defaults = await resolveDefaultGenerationSettings(
           selection.providerId,
-          selection.modelId
+          selection.modelId,
+          sessionStore.activeSession?.agentId ?? 'deepchat'
         )
         if (token !== generationSyncToken) {
           return
@@ -1934,7 +2028,11 @@ const syncGenerationSettings = async () => {
     }
   }
 
-  const defaults = await resolveDefaultGenerationSettings(selection.providerId, selection.modelId)
+  const defaults = await resolveDefaultGenerationSettings(
+    selection.providerId,
+    selection.modelId,
+    selectedDeepChatAgentId.value ?? 'deepchat'
+  )
   if (token !== generationSyncToken) {
     return
   }

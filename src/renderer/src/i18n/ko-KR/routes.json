@@ -17,5 +17,6 @@
   "settings-skills": "Skills",
   "settings-notifications-hooks": "훅",
   "settings-dashboard": "Dashboard",
-  "settings-environments": "환경"
+  "settings-environments": "환경",
+  "settings-deepchat-agents": "DeepChat 에이전트"
 }

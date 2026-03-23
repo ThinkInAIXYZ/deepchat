@@ -1297,9 +1297,9 @@
       "scriptDescription": "Description Override",
       "scriptDescriptionPlaceholder": "Optional description shown to the agent",
       "runtime": {
-        "auto": "Auto fallback",
-        "system": "System runtime",
-        "builtin": "Built-in runtime"
+        "auto": "自動フォールバック",
+        "system": "システムランタイム",
+        "builtin": "内蔵ランタイム"
       }
     },
     "empty": "スキルなし",
@@ -1468,5 +1468,54 @@
     "errors": {
       "openTitle": "ディレクトリを開けませんでした"
     }
+  },
+  "deepchatAgents": {
+    "title": "DeepChatエージェント",
+    "description": "DeepChatエージェントと、新しいセッションに適用する既定値を管理します。",
+    "builtIn": "内蔵",
+    "editTitle": "DeepChatエージェントを編集",
+    "createTitle": "DeepChatエージェントを作成",
+    "unnamed": "名称未設定のエージェント",
+    "name": "名称",
+    "namePlaceholder": "例: 執筆 / 調査 / 翻訳",
+    "enabledLabel": "有効",
+    "descriptionLabel": "説明",
+    "descriptionPlaceholder": "このエージェントの用途を補足する任意のメモ",
+    "avatarTitle": "アバター",
+    "avatarDefault": "デフォルト",
+    "avatarDefaultDesc": "DeepChat は内蔵アイコンを使用し、他のエージェントは文字アバターを使用します。",
+    "avatarLucide": "Lucide アイコン",
+    "avatarLucideDesc": "Lucide アイコンを選び、ライト/ダーク用の色を設定します。",
+    "avatarMonogram": "文字アバター",
+    "avatarMonogramDesc": "英字2文字、または最初の CJK 文字を使用します。",
+    "lucideIcon": "Lucide アイコン名",
+    "lightColor": "ライト時の色",
+    "darkColor": "ダーク時の色",
+    "monogramText": "文字アバター",
+    "monogramPlaceholder": "例: WR / 研",
+    "backgroundColor": "背景色",
+    "modelsTitle": "モデルの既定値",
+    "chatModel": "既定の会話モデル",
+    "assistantModel": "アシスタントモデル",
+    "visionModel": "ビジョンモデル",
+    "temperature": "温度",
+    "contextLength": "コンテキスト長",
+    "maxTokens": "最大トークン数",
+    "thinkingBudget": "思考予算",
+    "reasoningEffort": "推論強度",
+    "verbosity": "詳細度",
+    "interleaved": "インターリーブ思考互換を強制",
+    "systemPrompt": "既定のシステムプロンプト",
+    "systemPromptPlaceholder": "空欄のシステムプロンプトにする場合は空のままにします",
+    "permissionMode": "既定の権限",
+    "permissionFullAccess": "フルアクセス",
+    "permissionDefault": "既定の権限",
+    "toolsTitle": "内蔵ツール",
+    "compactionTitle": "自動圧縮",
+    "compactionEnabled": "自動圧縮を有効にする",
+    "compactionDescription": "これらの既定値は、今後作成する DeepChat セッションにのみ適用されます。",
+    "compactionThreshold": "発動しきい値",
+    "compactionRetainPairs": "保持する直近ペア数",
+    "deleteConfirm": "エージェント「{name}」を削除しますか？ その履歴は内蔵 DeepChat エージェントに戻されます。"
   }
 }

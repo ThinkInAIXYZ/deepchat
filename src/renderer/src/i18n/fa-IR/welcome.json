@@ -49,5 +49,12 @@
       "ollama": "Ollama",
       "openrouter": "OpenRouter"
     }
+  },
+  "agentPage": {
+    "title": "یک ایجنت انتخاب کنید",
+    "description": "ایجنت DeepChat پیش‌فرض‌های نشست‌های جدید را تعیین می‌کند. ایجنت‌های ACP رفتار فعلی خود را حفظ می‌کنند.",
+    "deepchatType": "ایجنت DeepChat",
+    "newDeepChatAgent": "ایجنت جدید DeepChat",
+    "manageAgents": "مدیریت ایجنت‌ها"
   }
 }

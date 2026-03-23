@@ -1243,9 +1243,9 @@
       "scriptDescription": "Description Override",
       "scriptDescriptionPlaceholder": "Optional description shown to the agent",
       "runtime": {
-        "auto": "Auto fallback",
-        "system": "System runtime",
-        "builtin": "Built-in runtime"
+        "auto": "Automatisk fallback",
+        "system": "System-runtime",
+        "builtin": "Indbygget runtime"
       }
     },
     "empty": "Ingen færdigheder",
@@ -1468,5 +1468,54 @@
     "errors": {
       "openTitle": "Kunne ikke åbne mappe"
     }
+  },
+  "deepchatAgents": {
+    "title": "DeepChat-agenter",
+    "description": "Administrer DeepChat-agenter og de standardværdier, de bruger i nye sessioner.",
+    "builtIn": "Indbygget",
+    "editTitle": "Rediger DeepChat-agent",
+    "createTitle": "Opret DeepChat-agent",
+    "unnamed": "Unavngiven agent",
+    "name": "Navn",
+    "namePlaceholder": "For eksempel: Skribent / Research / Oversæt",
+    "enabledLabel": "Aktiveret",
+    "descriptionLabel": "Beskrivelse",
+    "descriptionPlaceholder": "Valgfri note om, hvad denne agent bruges til",
+    "avatarTitle": "Avatar",
+    "avatarDefault": "Standard",
+    "avatarDefaultDesc": "DeepChat beholder det indbyggede ikon. Andre agenter bruger en tekstavatar.",
+    "avatarLucide": "Lucide-ikon",
+    "avatarLucideDesc": "Vælg et Lucide-ikon, og angiv farver til lys/mørk tilstand.",
+    "avatarMonogram": "Monogram",
+    "avatarMonogramDesc": "Brug to latinske bogstaver eller det første CJK-tegn.",
+    "lucideIcon": "Lucide-ikonnavn",
+    "lightColor": "Lys farve",
+    "darkColor": "Mørk farve",
+    "monogramText": "Monogram",
+    "monogramPlaceholder": "For eksempel: WR / 研",
+    "backgroundColor": "Baggrundsfarve",
+    "modelsTitle": "Modelstandarder",
+    "chatModel": "Standard chatmodel",
+    "assistantModel": "Assistentmodel",
+    "visionModel": "Visionsmodel",
+    "temperature": "Temperatur",
+    "contextLength": "Kontekstlængde",
+    "maxTokens": "Maks. tokens",
+    "thinkingBudget": "Tænkningsbudget",
+    "reasoningEffort": "Ræsonnementsniveau",
+    "verbosity": "Detaljegrad",
+    "interleaved": "Gennemtving kompatibilitet for interleaved thinking",
+    "systemPrompt": "Standard systemprompt",
+    "systemPromptPlaceholder": "Lad stå tomt for en tom systemprompt",
+    "permissionMode": "Standardtilladelse",
+    "permissionFullAccess": "Fuld adgang",
+    "permissionDefault": "Standardtilladelse",
+    "toolsTitle": "Indbyggede værktøjer",
+    "compactionTitle": "Automatisk komprimering",
+    "compactionEnabled": "Aktivér automatisk komprimering",
+    "compactionDescription": "Disse standarder påvirker kun fremtidige DeepChat-sessioner.",
+    "compactionThreshold": "Udløsningstærskel",
+    "compactionRetainPairs": "Behold seneste par",
+    "deleteConfirm": "Slet agenten \"{name}\"? Dens historik falder tilbage til den indbyggede DeepChat-agent."
   }
 }

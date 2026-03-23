@@ -55,7 +55,7 @@ export function buildFloatingWidgetSnapshot(
   expanded: boolean
 ): FloatingWidgetSnapshot {
   const mappedSessions: FloatingWidgetSessionItem[] = sessions
-    .filter((session) => session.agentId === 'deepchat' && !session.isDraft)
+    .filter((session) => session.providerId !== 'acp' && !session.isDraft)
     .map((session) => ({
       id: session.id,
       title: session.title.trim(),

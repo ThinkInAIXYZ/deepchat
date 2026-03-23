@@ -66,6 +66,8 @@ import { NewSessionHooksBridge } from './hooksNotifications/newSessionBridge'
 import { NewAgentPresenter } from './newAgentPresenter'
 import { DeepChatAgentPresenter } from './deepchatAgentPresenter'
 import { ProjectPresenter } from './projectPresenter'
+import { AgentRepository } from './agentRepository'
+import type { SQLitePresenter } from './sqlitePresenter'
 
 // IPC调用上下文接口
 interface IPCCallContext {
@@ -126,6 +128,12 @@ export class Presenter implements IPresenter {
     const context = lifecycleManager.getLifecycleContext()
     this.configPresenter = context.config as IConfigPresenter
     this.sqlitePresenter = context.database as ISQLitePresenter
+    const agentRepository = new AgentRepository(this.sqlitePresenter as unknown as SQLitePresenter)
+    ;(
+      this.configPresenter as IConfigPresenter & {
+        setAgentRepository?: (repository: AgentRepository) => void
+      }
+    ).setAgentRepository?.(agentRepository)
 
     // 初始化各个 Presenter 实例及其依赖
     this.windowPresenter = new WindowPresenter(this.configPresenter)

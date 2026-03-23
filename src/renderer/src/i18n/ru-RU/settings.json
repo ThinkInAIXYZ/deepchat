@@ -1297,9 +1297,9 @@
       "scriptDescription": "Description Override",
       "scriptDescriptionPlaceholder": "Optional description shown to the agent",
       "runtime": {
-        "auto": "Auto fallback",
-        "system": "System runtime",
-        "builtin": "Built-in runtime"
+        "auto": "Автопереход",
+        "system": "Системная среда выполнения",
+        "builtin": "Встроенная среда выполнения"
       }
     },
     "empty": "Временно нет навыков",
@@ -1468,5 +1468,54 @@
     "errors": {
       "openTitle": "Не удалось открыть каталог"
     }
+  },
+  "deepchatAgents": {
+    "title": "Агенты DeepChat",
+    "description": "Управляйте агентами DeepChat и значениями по умолчанию, которые они применяют к новым сессиям.",
+    "builtIn": "Встроенный",
+    "editTitle": "Редактировать агент DeepChat",
+    "createTitle": "Создать агент DeepChat",
+    "unnamed": "Агент без имени",
+    "name": "Название",
+    "namePlaceholder": "Например: Писатель / Исследование / Перевод",
+    "enabledLabel": "Включен",
+    "descriptionLabel": "Описание",
+    "descriptionPlaceholder": "Необязательная заметка о назначении этого агента",
+    "avatarTitle": "Аватар",
+    "avatarDefault": "По умолчанию",
+    "avatarDefaultDesc": "DeepChat сохраняет встроенную иконку. Остальные агенты используют текстовый аватар.",
+    "avatarLucide": "Иконка Lucide",
+    "avatarLucideDesc": "Выберите иконку Lucide и задайте цвета для светлой и тёмной темы.",
+    "avatarMonogram": "Монограмма",
+    "avatarMonogramDesc": "Используйте две латинские буквы или первый символ CJK.",
+    "lucideIcon": "Имя иконки Lucide",
+    "lightColor": "Цвет для светлой темы",
+    "darkColor": "Цвет для тёмной темы",
+    "monogramText": "Монограмма",
+    "monogramPlaceholder": "Например: WR / 研",
+    "backgroundColor": "Цвет фона",
+    "modelsTitle": "Параметры модели по умолчанию",
+    "chatModel": "Модель чата по умолчанию",
+    "assistantModel": "Модель помощника",
+    "visionModel": "Визуальная модель",
+    "temperature": "Температура",
+    "contextLength": "Длина контекста",
+    "maxTokens": "Макс. токенов",
+    "thinkingBudget": "Бюджет мышления",
+    "reasoningEffort": "Уровень рассуждения",
+    "verbosity": "Степень подробности",
+    "interleaved": "Принудительная совместимость с чередующимся рассуждением",
+    "systemPrompt": "Системный промпт по умолчанию",
+    "systemPromptPlaceholder": "Оставьте пустым, чтобы использовать пустой системный промпт",
+    "permissionMode": "Разрешения по умолчанию",
+    "permissionFullAccess": "Полный доступ",
+    "permissionDefault": "Стандартные разрешения",
+    "toolsTitle": "Встроенные инструменты",
+    "compactionTitle": "Автосжатие",
+    "compactionEnabled": "Включить автосжатие",
+    "compactionDescription": "Эти значения влияют только на будущие сессии DeepChat.",
+    "compactionThreshold": "Порог срабатывания",
+    "compactionRetainPairs": "Сохранять последние пары",
+    "deleteConfirm": "Удалить агента «{name}»? Его история будет возвращена встроенному агенту DeepChat."
   }
 }

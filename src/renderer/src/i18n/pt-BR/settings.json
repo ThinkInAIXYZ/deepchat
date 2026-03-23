@@ -1297,9 +1297,9 @@
       "scriptDescription": "Description Override",
       "scriptDescriptionPlaceholder": "Optional description shown to the agent",
       "runtime": {
-        "auto": "Auto fallback",
-        "system": "System runtime",
-        "builtin": "Built-in runtime"
+        "auto": "Retorno automático",
+        "system": "Runtime do sistema",
+        "builtin": "Runtime integrado"
       }
     },
     "empty": "Sem skill",
@@ -1468,5 +1468,54 @@
     "errors": {
       "openTitle": "Falha ao abrir diretório"
     }
+  },
+  "deepchatAgents": {
+    "title": "Agentes do DeepChat",
+    "description": "Gerencie os agentes do DeepChat e os padrões que eles aplicam às novas sessões.",
+    "builtIn": "Integrado",
+    "editTitle": "Editar agente do DeepChat",
+    "createTitle": "Criar agente do DeepChat",
+    "unnamed": "Agente sem nome",
+    "name": "Nome",
+    "namePlaceholder": "Por exemplo: Escrita / Pesquisa / Tradução",
+    "enabledLabel": "Ativado",
+    "descriptionLabel": "Descrição",
+    "descriptionPlaceholder": "Observação opcional sobre para que este agente serve",
+    "avatarTitle": "Avatar",
+    "avatarDefault": "Padrão",
+    "avatarDefaultDesc": "O DeepChat mantém o ícone integrado. Os outros agentes usam um avatar textual.",
+    "avatarLucide": "Ícone Lucide",
+    "avatarLucideDesc": "Escolha um ícone Lucide e defina as cores para claro/escuro.",
+    "avatarMonogram": "Monograma",
+    "avatarMonogramDesc": "Use duas letras latinas ou o primeiro caractere CJK.",
+    "lucideIcon": "Nome do ícone Lucide",
+    "lightColor": "Cor clara",
+    "darkColor": "Cor escura",
+    "monogramText": "Monograma",
+    "monogramPlaceholder": "Por exemplo: WR / 研",
+    "backgroundColor": "Cor de fundo",
+    "modelsTitle": "Padrões do modelo",
+    "chatModel": "Modelo de chat padrão",
+    "assistantModel": "Modelo auxiliar",
+    "visionModel": "Modelo de visão",
+    "temperature": "Temperatura",
+    "contextLength": "Tamanho do contexto",
+    "maxTokens": "Máx. de tokens",
+    "thinkingBudget": "Orçamento de raciocínio",
+    "reasoningEffort": "Nível de raciocínio",
+    "verbosity": "Nível de detalhamento",
+    "interleaved": "Forçar compatibilidade com raciocínio intercalado",
+    "systemPrompt": "Prompt de sistema padrão",
+    "systemPromptPlaceholder": "Deixe em branco para usar um prompt de sistema vazio",
+    "permissionMode": "Permissão padrão",
+    "permissionFullAccess": "Acesso total",
+    "permissionDefault": "Permissão padrão",
+    "toolsTitle": "Ferramentas internas",
+    "compactionTitle": "Compactação automática",
+    "compactionEnabled": "Ativar compactação automática",
+    "compactionDescription": "Esses padrões afetam apenas futuras sessões do DeepChat.",
+    "compactionThreshold": "Limite de ativação",
+    "compactionRetainPairs": "Manter pares recentes",
+    "deleteConfirm": "Excluir o agente \"{name}\"? O histórico dele voltará para o agente DeepChat integrado."
   }
 }

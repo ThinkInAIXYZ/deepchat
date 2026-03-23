@@ -151,7 +151,11 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       this.sessionStore,
       this.messageStore,
       this.llmProviderPresenter,
-      this.configPresenter
+      this.configPresenter,
+      async (sessionId) => {
+        const agentId = this.getSessionAgentId(sessionId) ?? 'deepchat'
+        return await this.configPresenter.resolveDeepChatAgentConfig(agentId)
+      }
     )
     this.toolOutputGuard = new ToolOutputGuard()
     this.hooksBridge = hooksBridge
@@ -388,7 +392,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
         think: false
       }
 
-      const compactionIntent = this.compactionService.prepareForNextUserTurn({
+      const compactionIntent = await this.compactionService.prepareForNextUserTurn({
         sessionId,
         providerId: state.providerId,
         modelId: state.modelId,
@@ -2997,7 +3001,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     supportsVision: boolean
     preserveInterleavedReasoning: boolean
   }): Promise<SessionSummaryState> {
-    const intent = this.compactionService.prepareForResumeTurn(params)
+    const intent = await this.compactionService.prepareForResumeTurn(params)
     return await this.applyCompactionIntent(params.sessionId, intent)
   }
 

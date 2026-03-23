@@ -49,5 +49,12 @@
       "ollama": "Ollama",
       "openrouter": "OpenRouter"
     }
+  },
+  "agentPage": {
+    "title": "Vælg en agent",
+    "description": "En DeepChat-agent angiver standarderne for nye sessioner. ACP-agenter bevarer deres nuværende adfærd.",
+    "deepchatType": "DeepChat-agent",
+    "newDeepChatAgent": "Ny DeepChat-agent",
+    "manageAgents": "Administrer agenter"
   }
 }

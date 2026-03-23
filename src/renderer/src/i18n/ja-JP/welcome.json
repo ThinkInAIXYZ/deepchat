@@ -49,5 +49,12 @@
       "ollama": "Ollama",
       "openrouter": "OpenRouter"
     }
+  },
+  "agentPage": {
+    "title": "エージェントを選択",
+    "description": "DeepChatエージェントは新しいセッションの既定値を決めます。ACPエージェントは既存の動作を保ちます。",
+    "deepchatType": "DeepChatエージェント",
+    "newDeepChatAgent": "新しいDeepChatエージェント",
+    "manageAgents": "エージェントを管理"
   }
 }

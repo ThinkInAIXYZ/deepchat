@@ -22,6 +22,13 @@ import type { ISkillSyncPresenter } from '../skillSync'
 import type { INewAgentPresenter } from './new-agent.presenter'
 import type { IProjectPresenter } from './project.presenter'
 import type { BrowserPageInfo, DownloadInfo, ScreenshotOptions, YoBrowserStatus } from '../browser'
+import type {
+  Agent,
+  AgentType,
+  CreateDeepChatAgentInput,
+  DeepChatAgentConfig,
+  UpdateDeepChatAgentInput
+} from '../agent-interface'
 
 export type SQLITE_MESSAGE = {
   id: string
@@ -632,6 +639,14 @@ export interface IConfigPresenter {
   resolveAcpLaunchSpec(agentId: string, workdir?: string): Promise<AcpResolvedLaunchSpec>
   getAcpSharedMcpSelections(): Promise<string[]>
   setAcpSharedMcpSelections(mcpIds: string[]): Promise<void>
+  listAgents(): Promise<Agent[]>
+  getAgent(agentId: string): Promise<Agent | null>
+  getAgentType(agentId: string): Promise<AgentType | null>
+  getDeepChatAgentConfig(agentId: string): Promise<DeepChatAgentConfig | null>
+  resolveDeepChatAgentConfig(agentId: string): Promise<DeepChatAgentConfig>
+  createDeepChatAgent(input: CreateDeepChatAgentInput): Promise<Agent>
+  updateDeepChatAgent(agentId: string, updates: UpdateDeepChatAgentInput): Promise<Agent | null>
+  deleteDeepChatAgent(agentId: string): Promise<boolean>
   // Nowledge-mem configuration methods
   getNowledgeMemConfig(): Promise<{
     baseUrl: string

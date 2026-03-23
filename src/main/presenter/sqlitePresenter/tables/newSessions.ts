@@ -231,6 +231,12 @@ export class NewSessionsTable extends BaseTable {
     this.update(id, { disabled_agent_tools: JSON.stringify(disabledAgentTools) })
   }
 
+  reassignAgentId(fromAgentId: string, toAgentId: string): void {
+    this.db
+      .prepare('UPDATE new_sessions SET agent_id = ?, updated_at = ? WHERE agent_id = ?')
+      .run(toAgentId, Date.now(), fromAgentId)
+  }
+
   private parseActiveSkills(raw: string | null | undefined): string[] {
     return this.parseStringArray(raw)
   }

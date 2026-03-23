@@ -58,7 +58,7 @@
           :files="attachedFiles"
           :session-id="acpDraftSessionId"
           :workspace-path="projectStore.selectedProject?.path ?? null"
-          :is-acp-session="(agentStore.selectedAgentId ?? 'deepchat') !== 'deepchat'"
+          :is-acp-session="isAcpSelectedAgent"
           :submit-disabled="isAcpWorkdirMissing"
           @update:files="onFilesChange"
           @pending-skills-change="onPendingSkillsChange"
@@ -104,7 +104,11 @@ import { useAgentStore } from '@/stores/ui/agent'
 import { useModelStore } from '@/stores/modelStore'
 import { useDraftStore } from '@/stores/ui/draft'
 import { usePresenter } from '@/composables/usePresenter'
-import type { MessageFile } from '@shared/types/agent-interface'
+import type {
+  DeepChatAgentConfig,
+  MessageFile,
+  SessionGenerationSettings
+} from '@shared/types/agent-interface'
 
 const projectStore = useProjectStore()
 const sessionStore = useSessionStore()
@@ -125,12 +129,43 @@ const chatInputRef = ref<{
 const acpDraftSessionId = ref<string | null>(null)
 const lastAcpDraftKey = ref<string | null>(null)
 const acpDraftRequestSeq = ref(0)
+const availableAgents = computed(() => (Array.isArray(agentStore.agents) ? agentStore.agents : []))
+const resolveAgentType = (agentId: string | null | undefined): 'deepchat' | 'acp' => {
+  if (!agentId) {
+    return 'deepchat'
+  }
+
+  const matchedAgent = availableAgents.value.find((agent) => agent.id === agentId)
+  const selectedAgent =
+    agentStore.selectedAgent && agentStore.selectedAgent.id === agentId
+      ? agentStore.selectedAgent
+      : null
+  const explicitType = matchedAgent?.agentType ?? matchedAgent?.type ?? selectedAgent?.type
+  if (explicitType === 'deepchat' || explicitType === 'acp') {
+    return explicitType
+  }
+
+  return agentId === 'deepchat' ? 'deepchat' : 'acp'
+}
+const selectedAgent = computed(() => {
+  const selectedAgentId = agentStore.selectedAgentId ?? 'deepchat'
+  const matchedAgent = availableAgents.value.find((agent) => agent.id === selectedAgentId)
+  if (matchedAgent) {
+    return matchedAgent
+  }
+
+  if (agentStore.selectedAgent && agentStore.selectedAgent.id === selectedAgentId) {
+    return agentStore.selectedAgent
+  }
+
+  return { id: selectedAgentId, type: resolveAgentType(selectedAgentId) }
+})
+const isAcpSelectedAgent = computed(() => selectedAgent.value.type === 'acp')
 const selectedProjectName = computed(
   () => projectStore.selectedProject?.name ?? t('common.project.select')
 )
 const isAcpWorkdirMissing = computed(() => {
-  const selectedAgentId = agentStore.selectedAgentId ?? 'deepchat'
-  if (selectedAgentId === 'deepchat') {
+  if (!isAcpSelectedAgent.value) {
     return false
   }
   return !projectStore.selectedProject?.path?.trim()
@@ -209,8 +244,11 @@ async function onCommandSubmit(command: string) {
 async function submitText(text: string, files: MessageFile[]) {
   if (!text.trim()) return
 
-  const agentId = agentStore.selectedAgentId ?? 'deepchat'
-  const isAcp = agentId !== 'deepchat'
+  const agentId = selectedAgent.value.id
+  const isAcp = isAcpSelectedAgent.value
+  const draftPermissionMode = draftStore.permissionMode
+  const draftDisabledAgentTools = [...draftStore.disabledAgentTools]
+  const draftGenerationSettings = draftStore.toGenerationSettings()
   if (isAcp && acpDraftSessionId.value) {
     await sessionStore.selectSession(acpDraftSessionId.value)
     await sessionStore.sendMessage(acpDraftSessionId.value, {
@@ -247,11 +285,92 @@ async function submitText(text: string, files: MessageFile[]) {
     agentId,
     providerId,
     modelId,
-    permissionMode: draftStore.permissionMode,
-    disabledAgentTools: agentId === 'deepchat' ? [...draftStore.disabledAgentTools] : undefined,
-    generationSettings: draftStore.toGenerationSettings(),
+    permissionMode: draftPermissionMode,
+    disabledAgentTools: isAcp ? undefined : draftDisabledAgentTools,
+    generationSettings: draftGenerationSettings,
     activeSkills: dedupedPendingSkills.length > 0 ? dedupedPendingSkills : undefined
   })
+}
+
+const buildDraftGenerationSettings = (
+  config: DeepChatAgentConfig
+): Partial<SessionGenerationSettings> => {
+  const preset = config.defaultModelPreset
+  const settings: Partial<SessionGenerationSettings> = {
+    systemPrompt: config.systemPrompt ?? ''
+  }
+
+  if (typeof preset?.temperature === 'number') {
+    settings.temperature = preset.temperature
+  }
+  if (typeof preset?.contextLength === 'number') {
+    settings.contextLength = preset.contextLength
+  }
+  if (typeof preset?.maxTokens === 'number') {
+    settings.maxTokens = preset.maxTokens
+  }
+  if (typeof preset?.thinkingBudget === 'number') {
+    settings.thinkingBudget = preset.thinkingBudget
+  }
+  if (preset?.reasoningEffort) {
+    settings.reasoningEffort = preset.reasoningEffort
+  }
+  if (preset?.verbosity) {
+    settings.verbosity = preset.verbosity
+  }
+  if (typeof preset?.forceInterleavedThinkingCompat === 'boolean') {
+    settings.forceInterleavedThinkingCompat = preset.forceInterleavedThinkingCompat
+  }
+
+  return settings
+}
+
+const resolveDeepChatAgentConfig = async (agentId: string): Promise<DeepChatAgentConfig> => {
+  if (typeof configPresenter.resolveDeepChatAgentConfig === 'function') {
+    return configPresenter.resolveDeepChatAgentConfig(agentId)
+  }
+
+  const systemPrompt = await configPresenter.getSetting?.('default_system_prompt')
+
+  return {
+    defaultModelPreset: undefined,
+    systemPrompt: typeof systemPrompt === 'string' ? systemPrompt : '',
+    permissionMode: 'full_access',
+    disabledAgentTools: []
+  }
+}
+
+const applyDraftDefaultsForSelectedAgent = async (): Promise<void> => {
+  const agentId = selectedAgent.value.id
+  draftStore.agentId = agentId
+  draftStore.projectDir = projectStore.selectedProject?.path
+  draftStore.providerId = undefined
+  draftStore.modelId = undefined
+  draftStore.permissionMode = 'full_access'
+  draftStore.disabledAgentTools = []
+  draftStore.systemPrompt = undefined
+  draftStore.temperature = undefined
+  draftStore.contextLength = undefined
+  draftStore.maxTokens = undefined
+  draftStore.thinkingBudget = undefined
+  draftStore.reasoningEffort = undefined
+  draftStore.verbosity = undefined
+  draftStore.forceInterleavedThinkingCompat = undefined
+
+  if (selectedAgent.value.type === 'acp') {
+    draftStore.providerId = 'acp'
+    draftStore.modelId = agentId
+    draftStore.permissionMode = 'full_access'
+    draftStore.disabledAgentTools = []
+    return
+  }
+
+  const config = await resolveDeepChatAgentConfig(agentId)
+  draftStore.providerId = config.defaultModelPreset?.providerId
+  draftStore.modelId = config.defaultModelPreset?.modelId
+  draftStore.permissionMode = config.permissionMode === 'default' ? 'default' : 'full_access'
+  draftStore.disabledAgentTools = [...(config.disabledAgentTools ?? [])]
+  Object.assign(draftStore, buildDraftGenerationSettings(config))
 }
 
 function onAttach() {
@@ -318,7 +437,7 @@ watch(
   () => [agentStore.selectedAgentId, projectStore.selectedProject?.path] as const,
   ([selectedAgentId, projectPath]) => {
     acpDraftRequestSeq.value += 1
-    if (!selectedAgentId || selectedAgentId === 'deepchat' || !projectPath?.trim()) {
+    if (!selectedAgentId || selectedAgent.value.type === 'deepchat' || !projectPath?.trim()) {
       acpDraftSessionId.value = null
       lastAcpDraftKey.value = null
       return
@@ -328,12 +447,23 @@ watch(
   { immediate: true }
 )
 
+watch(
+  () => [selectedAgent.value.id, selectedAgent.value.type] as const,
+  () => {
+    void applyDraftDefaultsForSelectedAgent()
+  },
+  { immediate: true }
+)
+
+watch(
+  () => projectStore.selectedProject?.path,
+  (projectDir) => {
+    draftStore.projectDir = projectDir
+  },
+  { immediate: true }
+)
+
 onMounted(() => {
-  // Keep new-thread selection page-scoped: start each NewThread page with no manual override.
-  draftStore.providerId = undefined
-  draftStore.modelId = undefined
-  draftStore.permissionMode = 'full_access'
-  draftStore.disabledAgentTools = []
-  draftStore.resetGenerationSettings()
+  draftStore.projectDir = projectStore.selectedProject?.path
 })
 </script>

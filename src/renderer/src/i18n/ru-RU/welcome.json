@@ -49,5 +49,12 @@
       "ollama": "Ollama",
       "openrouter": "OpenRouter"
     }
+  },
+  "agentPage": {
+    "title": "Выберите агента",
+    "description": "Агент DeepChat задаёт значения по умолчанию для новых сессий. Агенты ACP сохраняют текущее поведение.",
+    "deepchatType": "Агент DeepChat",
+    "newDeepChatAgent": "Новый агент DeepChat",
+    "manageAgents": "Управление агентами"
   }
 }

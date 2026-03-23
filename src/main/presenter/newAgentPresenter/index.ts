@@ -106,17 +106,44 @@ export class NewAgentPresenter {
     console.log(`[NewAgentPresenter] createSession agent=${agentId} webContentsId=${webContentsId}`)
     const projectDir = input.projectDir?.trim() ? input.projectDir.trim() : null
     const normalizedInput = this.normalizeCreateSessionInput(input)
+    const agentType = await this.getAgentType(agentId)
+    const deepChatAgentConfig =
+      agentType === 'deepchat'
+        ? await this.configPresenter.resolveDeepChatAgentConfig(agentId)
+        : null
     const disabledAgentTools =
-      agentId === 'deepchat' ? this.normalizeDisabledAgentTools(input.disabledAgentTools) : []
+      agentType === 'deepchat'
+        ? this.normalizeDisabledAgentTools(
+            input.disabledAgentTools ?? deepChatAgentConfig?.disabledAgentTools
+          )
+        : []
 
     const agent = await this.resolveAgentImplementation(agentId)
 
     // Resolve provider/model
     const defaultModel = this.configPresenter.getDefaultModel()
-    const providerId = input.providerId ?? defaultModel?.providerId ?? ''
-    const modelId = input.modelId ?? defaultModel?.modelId ?? ''
+    const providerId =
+      input.providerId ??
+      deepChatAgentConfig?.defaultModelPreset?.providerId ??
+      defaultModel?.providerId ??
+      ''
+    const modelId =
+      input.modelId ??
+      deepChatAgentConfig?.defaultModelPreset?.modelId ??
+      defaultModel?.modelId ??
+      ''
     const permissionMode: PermissionMode =
-      input.permissionMode === 'default' ? 'default' : 'full_access'
+      input.permissionMode !== undefined
+        ? input.permissionMode === 'default'
+          ? 'default'
+          : 'full_access'
+        : deepChatAgentConfig?.permissionMode === 'default'
+          ? 'default'
+          : 'full_access'
+    const generationSettings = this.mergeDeepChatDefaultGenerationSettings(
+      deepChatAgentConfig,
+      input.generationSettings
+    )
     console.log(`[NewAgentPresenter] resolved provider=${providerId} model=${modelId}`)
 
     if (!providerId || !modelId) {
@@ -147,8 +174,8 @@ export class NewAgentPresenter {
       projectDir,
       permissionMode
     }
-    if (input.generationSettings) {
-      initConfig.generationSettings = input.generationSettings
+    if (generationSettings) {
+      initConfig.generationSettings = generationSettings
     }
     try {
       await this.initializeSessionRuntime(agent, sessionId, initConfig)
@@ -284,8 +311,7 @@ export class NewAgentPresenter {
     const state = await agent.getSessionState(sessionId)
     let providerId = state?.providerId ?? ''
     if (!providerId) {
-      const acpAgents = await this.configPresenter.getAcpAgents()
-      if (acpAgents.some((item) => item.id === session.agentId)) {
+      if ((await this.getAgentType(session.agentId)) === 'acp') {
         providerId = 'acp'
       }
     }
@@ -339,8 +365,7 @@ export class NewAgentPresenter {
 
     let providerId = (await agent.getSessionState(sessionId))?.providerId ?? ''
     if (!providerId) {
-      const acpAgents = await this.configPresenter.getAcpAgents()
-      if (acpAgents.some((item) => item.id === currentSession.agentId)) {
+      if ((await this.getAgentType(currentSession.agentId)) === 'acp') {
         providerId = 'acp'
       }
     }
@@ -753,19 +778,20 @@ export class NewAgentPresenter {
     return this.messageManager.getMessage(messageId)
   }
 
-  async translateText(text: string, locale?: string): Promise<string> {
+  async translateText(text: string, locale?: string, agentId?: string): Promise<string> {
     const input = text?.trim()
     if (!input) {
       return ''
     }
 
-    const assistantModel = this.configPresenter.getSetting<{
-      providerId: string
-      modelId: string
-    }>('assistantModel')
     const defaultModel = this.configPresenter.getDefaultModel()
-    const providerId = assistantModel?.providerId || defaultModel?.providerId || ''
-    const modelId = assistantModel?.modelId || defaultModel?.modelId || ''
+    const assistantSelection = await this.resolveAssistantModelSelection(
+      agentId ?? 'deepchat',
+      defaultModel?.providerId || '',
+      defaultModel?.modelId || ''
+    )
+    const providerId = assistantSelection.providerId
+    const modelId = assistantSelection.modelId
     if (!providerId || !modelId) {
       throw new Error('No provider or model configured. Please set a default model in settings.')
     }
@@ -818,24 +844,12 @@ export class NewAgentPresenter {
   }
 
   async getAgents(): Promise<Agent[]> {
-    const builtins = this.agentRegistry.getAll()
-    const acpAgents = await this.configPresenter.getAcpAgents()
-    const acpList: Agent[] = acpAgents.map((agent) => ({
-      id: agent.id,
-      name: agent.name,
-      type: 'acp',
-      enabled: true,
-      icon: agent.icon,
-      description: agent.description,
-      source: agent.source,
-      installState: agent.installState ?? null
-    }))
+    const [agents, acpEnabled] = await Promise.all([
+      this.configPresenter.listAgents(),
+      this.configPresenter.getAcpEnabled()
+    ])
 
-    const map = new Map<string, Agent>()
-    for (const item of [...builtins, ...acpList]) {
-      map.set(item.id, item)
-    }
-    return Array.from(map.values())
+    return agents.filter((agent) => agent.type === 'deepchat' || acpEnabled)
   }
 
   async renameSession(sessionId: string, title: string): Promise<void> {
@@ -895,7 +909,7 @@ export class NewAgentPresenter {
     const providerId = state?.providerId?.trim() ?? ''
     const modelId = state?.modelId?.trim() ?? ''
 
-    const conversation = this.buildExportConversation(
+    const conversation = await this.buildExportConversation(
       session,
       providerId,
       modelId,
@@ -919,8 +933,7 @@ export class NewAgentPresenter {
     const state = await agent.getSessionState(sessionId)
     let providerId = state?.providerId ?? ''
     if (!providerId) {
-      const acpAgents = await this.configPresenter.getAcpAgents()
-      if (acpAgents.some((item) => item.id === session.agentId)) {
+      if ((await this.getAgentType(session.agentId)) === 'acp') {
         providerId = 'acp'
       }
     }
@@ -1041,8 +1054,7 @@ export class NewAgentPresenter {
       throw new Error('setSessionModel requires providerId and modelId.')
     }
 
-    const acpAgents = await this.configPresenter.getAcpAgents()
-    if (session.agentId !== 'deepchat' && acpAgents.some((item) => item.id === session.agentId)) {
+    if ((await this.getAgentType(session.agentId)) === 'acp') {
       throw new Error('ACP session model is locked.')
     }
 
@@ -1141,12 +1153,13 @@ export class NewAgentPresenter {
       const titleMessages = this.buildTitleMessages(records)
       if (titleMessages.length === 0) return
 
-      const assistantModel = this.configPresenter.getSetting<{
-        providerId: string
-        modelId: string
-      }>('assistantModel')
-      const preferredProviderId = assistantModel?.providerId || fallbackProviderId
-      const preferredModelId = assistantModel?.modelId || fallbackModelId
+      const assistantSelection = await this.resolveAssistantModelSelection(
+        currentSession.agentId,
+        fallbackProviderId,
+        fallbackModelId
+      )
+      const preferredProviderId = assistantSelection.providerId
+      const preferredModelId = assistantSelection.modelId
 
       let generatedTitle: string
       try {
@@ -1242,9 +1255,8 @@ export class NewAgentPresenter {
       return this.agentRegistry.resolve(resolvedAgentId)
     }
 
-    const acpAgents = await this.configPresenter.getAcpAgents()
-    const isAcpAgent = acpAgents.some((agent) => agent.id === resolvedAgentId)
-    if (isAcpAgent) {
+    const agentType = await this.getAgentType(resolvedAgentId)
+    if (agentType === 'deepchat' || agentType === 'acp') {
       return this.agentRegistry.resolve('deepchat')
     }
 
@@ -1253,10 +1265,76 @@ export class NewAgentPresenter {
 
   private async assertAcpAgent(agentId: string): Promise<void> {
     const resolvedAgentId = resolveAcpAgentAlias(agentId)
-    const acpAgents = await this.configPresenter.getAcpAgents()
-    if (!acpAgents.some((agent) => agent.id === resolvedAgentId)) {
+    if ((await this.getAgentType(resolvedAgentId)) !== 'acp') {
       throw new Error(`Agent ${agentId} is not an ACP agent.`)
     }
+  }
+
+  private async getAgentType(agentId: string): Promise<'deepchat' | 'acp' | null> {
+    return await this.configPresenter.getAgentType(resolveAcpAgentAlias(agentId))
+  }
+
+  private async resolveAssistantModelSelection(
+    agentId: string,
+    fallbackProviderId: string,
+    fallbackModelId: string
+  ): Promise<{ providerId: string; modelId: string }> {
+    if ((await this.getAgentType(agentId)) === 'deepchat') {
+      const config = await this.configPresenter.resolveDeepChatAgentConfig(agentId)
+      const providerId = config.assistantModel?.providerId?.trim()
+      const modelId = config.assistantModel?.modelId?.trim()
+      if (providerId && modelId) {
+        return {
+          providerId,
+          modelId
+        }
+      }
+    }
+
+    return {
+      providerId: fallbackProviderId,
+      modelId: fallbackModelId
+    }
+  }
+
+  private mergeDeepChatDefaultGenerationSettings(
+    config: Awaited<ReturnType<IConfigPresenter['resolveDeepChatAgentConfig']>> | null,
+    overrides?: Partial<SessionGenerationSettings>
+  ): Partial<SessionGenerationSettings> | undefined {
+    const preset = config?.defaultModelPreset
+    const defaults: Partial<SessionGenerationSettings> = {}
+
+    if (typeof config?.systemPrompt === 'string') {
+      defaults.systemPrompt = config.systemPrompt
+    }
+    if (typeof preset?.temperature === 'number') {
+      defaults.temperature = preset.temperature
+    }
+    if (typeof preset?.contextLength === 'number') {
+      defaults.contextLength = preset.contextLength
+    }
+    if (typeof preset?.maxTokens === 'number') {
+      defaults.maxTokens = preset.maxTokens
+    }
+    if (typeof preset?.thinkingBudget === 'number') {
+      defaults.thinkingBudget = preset.thinkingBudget
+    }
+    if (preset?.reasoningEffort) {
+      defaults.reasoningEffort = preset.reasoningEffort
+    }
+    if (preset?.verbosity) {
+      defaults.verbosity = preset.verbosity
+    }
+    if (typeof preset?.forceInterleavedThinkingCompat === 'boolean') {
+      defaults.forceInterleavedThinkingCompat = preset.forceInterleavedThinkingCompat
+    }
+
+    const merged = {
+      ...defaults,
+      ...overrides
+    }
+
+    return Object.keys(merged).length > 0 ? merged : undefined
   }
 
   private async isAcpBackedSession(sessionId: string, agentId: string): Promise<boolean> {
@@ -1265,8 +1343,7 @@ export class NewAgentPresenter {
     const state = await agent.getSessionState(sessionId)
     let providerId = state?.providerId ?? ''
     if (!providerId) {
-      const acpAgents = await this.configPresenter.getAcpAgents()
-      if (acpAgents.some((item) => item.id === resolvedAgentId)) {
+      if ((await this.getAgentType(resolvedAgentId)) === 'acp') {
         providerId = 'acp'
       }
     }
@@ -1407,14 +1484,15 @@ export class NewAgentPresenter {
     this.sessionManager.delete(sessionId)
   }
 
-  private buildExportConversation(
+  private async buildExportConversation(
     session: SessionRecord,
     providerId: string,
     modelId: string,
     generationSettings: SessionGenerationSettings | null
-  ): CONVERSATION {
-    const resolvedProviderId = providerId || (session.agentId !== 'deepchat' ? 'acp' : '')
-    const resolvedModelId = modelId || (session.agentId !== 'deepchat' ? session.agentId : '')
+  ): Promise<CONVERSATION> {
+    const isAcpAgent = (await this.getAgentType(session.agentId)) === 'acp'
+    const resolvedProviderId = providerId || (isAcpAgent ? 'acp' : '')
+    const resolvedModelId = modelId || (isAcpAgent ? session.agentId : '')
     const modelConfig =
       resolvedProviderId && resolvedModelId
         ? this.configPresenter.getModelConfig(resolvedModelId, resolvedProviderId)

@@ -3,7 +3,8 @@ import type {
   ChatMessageRecord,
   SendMessageInput,
   AssistantMessageBlock,
-  MessageMetadata
+  MessageMetadata,
+  DeepChatAgentConfig
 } from '@shared/types/agent-interface'
 import type { IConfigPresenter, ILlmProviderPresenter } from '@shared/presenter'
 import type { DeepChatMessageStore } from './messageStore'
@@ -198,10 +199,13 @@ export class CompactionService {
     private readonly sessionStore: DeepChatSessionStore,
     private readonly messageStore: DeepChatMessageStore,
     private readonly llmProviderPresenter: ILlmProviderPresenter,
-    private readonly configPresenter: IConfigPresenter
+    private readonly configPresenter: IConfigPresenter,
+    private readonly resolveSessionConfig: (
+      sessionId: string
+    ) => Promise<DeepChatAgentConfig> = async () => ({})
   ) {}
 
-  prepareForNextUserTurn(params: {
+  async prepareForNextUserTurn(params: {
     sessionId: string
     providerId: string
     modelId: string
@@ -211,8 +215,8 @@ export class CompactionService {
     supportsVision: boolean
     preserveInterleavedReasoning: boolean
     newUserContent: string | SendMessageInput
-  }): CompactionIntent | null {
-    const settings = this.getCompactionSettings()
+  }): Promise<CompactionIntent | null> {
+    const settings = await this.getCompactionSettings(params.sessionId)
     if (!settings.enabled) {
       return null
     }
@@ -231,7 +235,7 @@ export class CompactionService {
     })
   }
 
-  prepareForResumeTurn(params: {
+  async prepareForResumeTurn(params: {
     sessionId: string
     messageId: string
     providerId: string
@@ -241,8 +245,8 @@ export class CompactionService {
     reserveTokens: number
     supportsVision: boolean
     preserveInterleavedReasoning: boolean
-  }): CompactionIntent | null {
-    const settings = this.getCompactionSettings()
+  }): Promise<CompactionIntent | null> {
+    const settings = await this.getCompactionSettings(params.sessionId)
     if (!settings.enabled) {
       return null
     }
@@ -278,6 +282,7 @@ export class CompactionService {
   async applyCompaction(intent: CompactionIntent): Promise<CompactionExecutionResult> {
     try {
       const nextSummary = await this.generateRollingSummary({
+        sessionId: intent.sessionId,
         previousSummary: intent.previousState.summaryText,
         summaryBlocks: intent.summaryBlocks,
         currentModel: intent.currentModel,
@@ -393,11 +398,12 @@ export class CompactionService {
     }
   }
 
-  private getCompactionSettings(): CompactionSettings {
+  private async getCompactionSettings(sessionId: string): Promise<CompactionSettings> {
+    const config = await this.resolveSessionConfig(sessionId)
     return {
-      enabled: this.configPresenter.getAutoCompactionEnabled(),
-      triggerThreshold: this.configPresenter.getAutoCompactionTriggerThreshold(),
-      retainRecentPairs: this.configPresenter.getAutoCompactionRetainRecentPairs()
+      enabled: config.autoCompactionEnabled ?? true,
+      triggerThreshold: config.autoCompactionTriggerThreshold ?? 80,
+      retainRecentPairs: config.autoCompactionRetainRecentPairs ?? 2
     }
   }
 
@@ -414,10 +420,11 @@ export class CompactionService {
     }
   }
 
-  private getAssistantModelSpec(currentModel: ModelSpec): ModelSpec | null {
-    const assistantModel = this.configPresenter.getSetting<{ providerId: string; modelId: string }>(
-      'assistantModel'
-    )
+  private async getAssistantModelSpec(
+    sessionId: string,
+    currentModel: ModelSpec
+  ): Promise<ModelSpec | null> {
+    const assistantModel = (await this.resolveSessionConfig(sessionId)).assistantModel
     const providerId = assistantModel?.providerId?.trim()
     const modelId = assistantModel?.modelId?.trim()
     if (!providerId || !modelId) {
@@ -484,13 +491,14 @@ export class CompactionService {
   }
 
   private async generateRollingSummary(params: {
+    sessionId: string
     previousSummary: string | null
     summaryBlocks: string[]
     currentModel: ModelSpec
     reserveTokens: number
   }): Promise<string> {
     const currentModel = params.currentModel
-    const assistantModel = this.getAssistantModelSpec(currentModel)
+    const assistantModel = await this.getAssistantModelSpec(params.sessionId, currentModel)
     const previousSummaryTokens = approximateTokenSize(params.previousSummary || '')
     const blockTokens = params.summaryBlocks.reduce(
       (total, block) => total + approximateTokenSize(block),
