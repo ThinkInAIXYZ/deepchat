@@ -1468,5 +1468,52 @@
     "errors": {
       "openTitle": "打開目錄失敗"
     }
+  },
+  "remote": {
+    "title": "遠端",
+    "description": "設定 Telegram 遠端控制與 Telegram Hook 通知。",
+    "telegram": {
+      "title": "Telegram",
+      "description": "使用同一個 Telegram Bot 管理遠端控制與 Hook 投遞。",
+      "botToken": "Bot Token",
+      "botTokenPlaceholder": "Telegram Bot Token"
+    },
+    "remoteControl": {
+      "title": "遠端控制",
+      "description": "允許已授權的 Telegram 使用者遠端繼續 DeepChat 會話。",
+      "streamMode": "串流模式",
+      "streamModeDraft": "草稿串流",
+      "streamModeFinal": "僅最終結果",
+      "allowedUserIds": "允許的使用者 ID",
+      "allowedUserIdsPlaceholder": "例如 123456789, 987654321",
+      "pairCode": "配對碼",
+      "noPairCode": "目前沒有有效配對碼",
+      "generatePairCode": "產生",
+      "clearPairCode": "清除",
+      "pairCodeExpiresAt": "到期時間：{time}",
+      "clearBindings": "清除綁定",
+      "clearBindingsResult": "已清除 {count} 個綁定。"
+    },
+    "hooks": {
+      "title": "Telegram Hooks",
+      "description": "重用同一個 Telegram Bot 傳送 Hook 通知。",
+      "chatId": "Chat ID",
+      "chatIdPlaceholder": "例如 123456789",
+      "threadId": "Thread ID（可選）",
+      "threadIdPlaceholder": "可選的 Thread ID"
+    },
+    "status": {
+      "title": "執行狀態",
+      "botUser": "Bot 使用者：{username} ({id})",
+      "bindings": "綁定數：{count}，輪詢偏移：{pollOffset}",
+      "states": {
+        "disabled": "已停用",
+        "stopped": "已停止",
+        "starting": "啟動中",
+        "running": "執行中",
+        "backoff": "失敗後重試中",
+        "error": "錯誤"
+      }
+    }
   }
 }

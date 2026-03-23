@@ -21,6 +21,7 @@ import type { ISkillPresenter } from '../skill'
 import type { ISkillSyncPresenter } from '../skillSync'
 import type { INewAgentPresenter } from './new-agent.presenter'
 import type { IProjectPresenter } from './project.presenter'
+import type { IRemoteControlPresenter } from './remote-control.presenter'
 import type { BrowserPageInfo, DownloadInfo, ScreenshotOptions, YoBrowserStatus } from '../browser'
 
 export type SQLITE_MESSAGE = {
@@ -474,6 +475,7 @@ export interface IPresenter {
   skillSyncPresenter: ISkillSyncPresenter
   newAgentPresenter: INewAgentPresenter
   projectPresenter: IProjectPresenter
+  remoteControlPresenter: IRemoteControlPresenter
   init(): void
   destroy(): void
 }

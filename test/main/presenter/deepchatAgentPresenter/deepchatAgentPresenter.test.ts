@@ -1843,6 +1843,22 @@ describe('DeepChatAgentPresenter', () => {
         })
       )
     })
+
+    it('cancels generation only when the event id matches the active assistant message', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      const cancelSpy = vi.spyOn(agent, 'cancelGeneration').mockResolvedValue(undefined)
+      ;(agent as any).activeGenerations.set('s1', {
+        runId: 'run-1',
+        messageId: 'msg-active',
+        abortController: new AbortController()
+      })
+
+      await expect(agent.cancelGenerationByEventId('s1', 'msg-other')).resolves.toBe(false)
+      await expect(agent.cancelGenerationByEventId('s1', 'msg-active')).resolves.toBe(true)
+
+      expect(cancelSpy).toHaveBeenCalledTimes(1)
+      expect(cancelSpy).toHaveBeenCalledWith('s1')
+    })
   })
 
   describe('queuePendingInput', () => {

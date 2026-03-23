@@ -24,171 +24,6 @@
           <div class="flex items-start justify-between gap-4 p-4">
             <div class="flex-1">
               <div class="text-base font-medium">
-                {{ t('settings.notificationsHooks.telegram.title') }}
-              </div>
-              <p class="text-sm text-muted-foreground">
-                {{ t('settings.notificationsHooks.telegram.description') }}
-              </p>
-            </div>
-            <div class="flex items-center gap-2">
-              <Switch
-                :model-value="config.telegram.enabled"
-                @update:model-value="(value) => updateChannelEnabled('telegram', value)"
-              />
-              <Button
-                variant="ghost"
-                size="icon"
-                class="h-7 w-7"
-                @click="telegramOpen = !telegramOpen"
-              >
-                <Icon
-                  :icon="telegramOpen ? 'lucide:chevron-up' : 'lucide:chevron-down'"
-                  class="w-4 h-4"
-                />
-              </Button>
-            </div>
-          </div>
-          <Collapsible v-model:open="telegramOpen">
-            <CollapsibleContent>
-              <div class="border-t p-4 space-y-4">
-                <div class="space-y-2">
-                  <Label class="text-xs text-muted-foreground">{{
-                    t('settings.notificationsHooks.telegram.botToken')
-                  }}</Label>
-                  <div class="relative w-full">
-                    <Input
-                      v-model="config.telegram.botToken"
-                      :type="showTelegramToken ? 'text' : 'password'"
-                      :placeholder="t('settings.notificationsHooks.telegram.botTokenPlaceholder')"
-                      class="pr-10"
-                      @blur="persistConfig"
-                    />
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      class="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7 p-0"
-                      @click="showTelegramToken = !showTelegramToken"
-                    >
-                      <Icon
-                        :icon="showTelegramToken ? 'lucide:eye-off' : 'lucide:eye'"
-                        class="w-4 h-4 text-muted-foreground"
-                      />
-                    </Button>
-                  </div>
-                </div>
-
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div class="space-y-2">
-                    <Label class="text-xs text-muted-foreground">{{
-                      t('settings.notificationsHooks.telegram.chatId')
-                    }}</Label>
-                    <Input
-                      v-model="config.telegram.chatId"
-                      :placeholder="t('settings.notificationsHooks.telegram.chatIdPlaceholder')"
-                      @blur="persistConfig"
-                    />
-                  </div>
-                  <div class="space-y-2">
-                    <Label class="text-xs text-muted-foreground">{{
-                      t('settings.notificationsHooks.telegram.threadId')
-                    }}</Label>
-                    <Input
-                      v-model="config.telegram.threadId"
-                      :placeholder="t('settings.notificationsHooks.telegram.threadIdPlaceholder')"
-                      @blur="persistConfig"
-                    />
-                  </div>
-                </div>
-
-                <div class="space-y-2">
-                  <Label class="text-xs text-muted-foreground">{{
-                    t('settings.notificationsHooks.events.title')
-                  }}</Label>
-                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <label
-                      v-for="eventName in eventNames"
-                      :key="`telegram-${eventName}`"
-                      class="flex items-center gap-2 text-sm"
-                    >
-                      <Checkbox
-                        :checked="config.telegram.events.includes(eventName)"
-                        @update:checked="
-                          (value) => updateChannelEvent('telegram', eventName, value === true)
-                        "
-                      />
-                      <span>{{ eventLabel(eventName) }}</span>
-                    </label>
-                  </div>
-                </div>
-
-                <div class="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    :disabled="telegramTesting"
-                    @click="runTelegramTest"
-                  >
-                    <Icon
-                      :icon="telegramTesting ? 'lucide:loader-2' : 'lucide:send'"
-                      :class="['w-4 h-4 mr-1', telegramTesting && 'animate-spin']"
-                    />
-                    {{
-                      telegramTesting
-                        ? t('settings.notificationsHooks.test.testing')
-                        : t('settings.notificationsHooks.test.button')
-                    }}
-                  </Button>
-                </div>
-
-                <div v-if="telegramTestResult" class="text-xs space-y-1">
-                  <div class="flex flex-wrap items-center gap-2">
-                    <span
-                      :class="telegramTestResult.success ? 'text-emerald-600' : 'text-destructive'"
-                    >
-                      {{
-                        telegramTestResult.success
-                          ? t('settings.notificationsHooks.test.success')
-                          : t('settings.notificationsHooks.test.failed')
-                      }}
-                    </span>
-                    <span class="text-muted-foreground">
-                      {{
-                        t('settings.notificationsHooks.test.duration', {
-                          ms: telegramTestResult.durationMs
-                        })
-                      }}
-                    </span>
-                    <span
-                      v-if="telegramTestResult.statusCode !== undefined"
-                      class="text-muted-foreground"
-                    >
-                      {{
-                        t('settings.notificationsHooks.test.statusCode', {
-                          code: telegramTestResult.statusCode
-                        })
-                      }}
-                    </span>
-                    <span v-if="telegramTestResult.retryAfterMs" class="text-muted-foreground">
-                      {{
-                        t('settings.notificationsHooks.test.retryAfter', {
-                          ms: telegramTestResult.retryAfterMs
-                        })
-                      }}
-                    </span>
-                  </div>
-                  <div v-if="telegramTestResult.error" class="text-destructive break-all">
-                    {{ telegramTestResult.error }}
-                  </div>
-                </div>
-              </div>
-            </CollapsibleContent>
-          </Collapsible>
-        </div>
-
-        <div class="border rounded-lg overflow-hidden">
-          <div class="flex items-start justify-between gap-4 p-4">
-            <div class="flex-1">
-              <div class="text-base font-medium">
                 {{ t('settings.notificationsHooks.discord.title') }}
               </div>
               <p class="text-sm text-muted-foreground">
@@ -618,18 +453,14 @@ const isLoading = ref(false)
 const isSaving = ref(false)
 let pendingSave = false
 
-const telegramOpen = ref(false)
 const discordOpen = ref(false)
 const confirmoOpen = ref(false)
 const commandsOpen = ref(false)
 
-const showTelegramToken = ref(false)
 const showDiscordWebhook = ref(false)
 
-const telegramTesting = ref(false)
 const discordTesting = ref(false)
 const confirmoTesting = ref(false)
-const telegramTestResult = ref<HookTestResult | null>(null)
 const discordTestResult = ref<HookTestResult | null>(null)
 const confirmoTestResult = ref<HookTestResult | null>(null)
 const confirmoStatus = ref<{ available: boolean; path: string } | null>(null)
@@ -697,16 +528,14 @@ const persistConfig = async () => {
   }
 }
 
-const updateChannelEnabled = (channel: 'telegram' | 'discord' | 'confirmo', value: boolean) => {
+const updateChannelEnabled = (channel: 'discord' | 'confirmo', value: boolean) => {
   if (!config.value) return
   if (channel === 'confirmo' && !confirmoAvailable.value) return
   const nextEnabled = Boolean(value)
   const wasEnabled = config.value[channel].enabled
   config.value[channel].enabled = nextEnabled
   if (!wasEnabled && nextEnabled) {
-    if (channel === 'telegram') {
-      telegramOpen.value = true
-    } else if (channel === 'discord') {
+    if (channel === 'discord') {
       discordOpen.value = true
     } else if (channel === 'confirmo') {
       confirmoOpen.value = true
@@ -727,7 +556,7 @@ const updateCommandsEnabled = (value: boolean) => {
 }
 
 const updateChannelEvent = (
-  channel: 'telegram' | 'discord' | 'confirmo',
+  channel: 'discord' | 'confirmo',
   eventName: HookEventName,
   checked: boolean
 ) => {
@@ -747,25 +576,6 @@ const updateCommandEnabled = (eventName: HookEventName, value: boolean) => {
   if (!config.value) return
   config.value.commands.events[eventName].enabled = Boolean(value)
   persistConfig()
-}
-
-const runTelegramTest = async () => {
-  if (telegramTesting.value) return
-  await persistConfig()
-  telegramTesting.value = true
-  telegramTestResult.value = null
-  try {
-    const result = await configPresenter.testTelegramNotification()
-    telegramTestResult.value = result
-  } catch (error) {
-    telegramTestResult.value = {
-      success: false,
-      durationMs: 0,
-      error: error instanceof Error ? error.message : String(error)
-    }
-  } finally {
-    telegramTesting.value = false
-  }
 }
 
 const runDiscordTest = async () => {

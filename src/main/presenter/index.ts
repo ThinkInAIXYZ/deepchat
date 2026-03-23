@@ -66,6 +66,8 @@ import { NewSessionHooksBridge } from './hooksNotifications/newSessionBridge'
 import { NewAgentPresenter } from './newAgentPresenter'
 import { DeepChatAgentPresenter } from './deepchatAgentPresenter'
 import { ProjectPresenter } from './projectPresenter'
+import { RemoteControlPresenter } from './remoteControlPresenter'
+import type { RemoteControlPresenterLike } from './remoteControlPresenter/interface'
 
 // IPC调用上下文接口
 interface IPCCallContext {
@@ -112,6 +114,7 @@ export class Presenter implements IPresenter {
   skillSyncPresenter: ISkillSyncPresenter
   newAgentPresenter: INewAgentPresenter
   projectPresenter: IProjectPresenter
+  remoteControlPresenter: RemoteControlPresenterLike
   hooksNotifications: HooksNotificationsService
   commandPermissionService: CommandPermissionService
   filePermissionService: FilePermissionService
@@ -290,6 +293,17 @@ export class Presenter implements IPresenter {
       this.sqlitePresenter as unknown as import('./sqlitePresenter').SQLitePresenter,
       this.devicePresenter
     )
+    this.remoteControlPresenter = new RemoteControlPresenter({
+      configPresenter: this.configPresenter,
+      newAgentPresenter: this.newAgentPresenter,
+      deepchatAgentPresenter,
+      windowPresenter: this.windowPresenter,
+      tabPresenter: this.tabPresenter,
+      getHooksNotificationsConfig: () => this.configPresenter.getHooksNotificationsConfig(),
+      setHooksNotificationsConfig: (config) =>
+        this.configPresenter.setHooksNotificationsConfig(config),
+      testTelegramHookNotification: () => this.configPresenter.testTelegramNotification()
+    })
 
     // Update hooksNotifications with actual dependencies now that newAgentPresenter is ready
     this.hooksNotifications = new HooksNotificationsService(this.configPresenter, {
@@ -392,6 +406,9 @@ export class Presenter implements IPresenter {
 
     // 初始化 Skills 系统
     this.initializeSkills()
+
+    // Initialize remote control runtime
+    void this.remoteControlPresenter.initialize()
   }
 
   // 初始化悬浮按钮
@@ -453,6 +470,7 @@ export class Presenter implements IPresenter {
 
   // 在应用退出时进行清理，关闭数据库连接
   destroy() {
+    void this.remoteControlPresenter.destroy()
     this.floatingButtonPresenter.destroy() // 销毁悬浮按钮
     this.tabPresenter.destroy()
     this.sqlitePresenter.close() // 关闭数据库连接

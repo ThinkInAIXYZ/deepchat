@@ -574,6 +574,34 @@ describe('NewAgentPresenter', () => {
     })
   })
 
+  describe('createDetachedSession', () => {
+    it('creates a detached session without window activation', async () => {
+      const result = await presenter.createDetachedSession({
+        title: 'Remote Session',
+        agentId: 'deepchat'
+      })
+
+      expect(result.id).toBe('mock-session-id')
+      expect(result.title).toBe('Remote Session')
+      expect(deepChatAgent.initSession).toHaveBeenCalledWith(
+        'mock-session-id',
+        expect.objectContaining({
+          agentId: 'deepchat',
+          providerId: 'openai',
+          modelId: 'gpt-4',
+          projectDir: null,
+          permissionMode: 'full_access'
+        })
+      )
+      expect(eventBus.sendToRenderer).toHaveBeenCalledWith('session:list-updated', 'all')
+      expect(eventBus.sendToRenderer).not.toHaveBeenCalledWith(
+        'session:activated',
+        'all',
+        expect.anything()
+      )
+    })
+  })
+
   describe('sendMessage', () => {
     it('promotes draft session before first message', async () => {
       configPresenter.getAcpAgents.mockResolvedValue([

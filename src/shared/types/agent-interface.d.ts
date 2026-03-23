@@ -480,6 +480,18 @@ export interface CreateSessionInput {
   generationSettings?: Partial<SessionGenerationSettings>
 }
 
+export interface CreateDetachedSessionInput {
+  agentId?: string
+  title?: string
+  projectDir?: string
+  providerId?: string
+  modelId?: string
+  permissionMode?: PermissionMode
+  activeSkills?: string[]
+  disabledAgentTools?: string[]
+  generationSettings?: Partial<SessionGenerationSettings>
+}
+
 // ---- Project Types ----
 
 export interface Project {

@@ -17,5 +17,6 @@
   "settings-skills": "Skills",
   "settings-notifications-hooks": "Hooks",
   "settings-dashboard": "Tableau de bord",
-  "settings-environments": "Environnements"
+  "settings-environments": "Environnements",
+  "settings-remote": "Remote"
 }
