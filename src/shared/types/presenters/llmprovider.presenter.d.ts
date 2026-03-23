@@ -1,6 +1,5 @@
 import { ShowResponse } from 'ollama'
 import type { ChatMessage } from '../core/chat-message'
-import type { LLMAgentEvent } from '../core/agent-events'
 import { ModelType } from '../core/model'
 import type { AcpDebugRequest, AcpDebugRunResult, AcpWorkdirInfo } from './legacy.presenters'
 
@@ -212,19 +211,6 @@ export interface ILlmProviderPresenter {
     updates: Partial<MODEL_META>
   ): Promise<boolean>
   getCustomModels(providerId: string): Promise<MODEL_META[]>
-  startStreamCompletion(
-    providerId: string,
-    messages: ChatMessage[],
-    modelId: string,
-    eventId: string,
-    temperature?: number,
-    maxTokens?: number,
-    enabledMcpTools?: string[],
-    thinkingBudget?: number,
-    reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high',
-    verbosity?: 'low' | 'medium' | 'high',
-    conversationId?: string
-  ): AsyncGenerator<LLMAgentEvent, void, unknown>
   generateCompletion(
     providerId: string,
     messages: { role: 'system' | 'user' | 'assistant'; content: string }[],

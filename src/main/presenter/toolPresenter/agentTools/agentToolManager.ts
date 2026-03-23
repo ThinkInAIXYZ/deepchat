@@ -563,7 +563,8 @@ export class AgentToolManager {
       throw new Error('process tool requires a conversation ID')
     }
 
-    const { backgroundExecSessionManager } = await import('./backgroundExecSessionManager')
+    const { backgroundExecSessionManager } =
+      await import('@/lib/agentRuntime/backgroundExecSessionManager')
 
     const validationResult = this.fileSystemSchemas.process.safeParse(args)
     if (!validationResult.success) {
@@ -952,7 +953,7 @@ export class AgentToolManager {
     addPath(app.getPath('temp'))
 
     if (conversationId) {
-      const approved = this.runtimePort.getApprovedFilePaths?.(conversationId) ?? []
+      const approved = this.runtimePort.getApprovedFilePaths(conversationId)
       for (const approvedPath of approved) {
         addPath(approvedPath)
       }
@@ -1563,8 +1564,7 @@ export class AgentToolManager {
     if (toolName === CHAT_SETTINGS_TOOL_NAMES.open) {
       const shouldCheckPermission = await this.isChatSettingsSkillActive(conversationId)
       if (shouldCheckPermission && conversationId) {
-        const approved =
-          this.runtimePort.consumeSettingsApproval?.(conversationId, toolName) ?? false
+        const approved = this.runtimePort.consumeSettingsApproval(conversationId, toolName)
         if (!approved) {
           const responseContent = 'components.messageBlockPermissionRequest.description.write'
           return {

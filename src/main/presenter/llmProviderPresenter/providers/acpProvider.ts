@@ -42,7 +42,7 @@ import {
   updateAcpConfigStateValue,
   type AcpProcessHandle,
   type AcpSessionRecord
-} from '../../agentPresenter/acp'
+} from '../acp'
 import { nanoid } from 'nanoid'
 import type { ProviderMcpRuntimePort } from '../runtimePorts'
 import { resolveAcpAgentAlias } from '@/presenter/configPresenter/acpRegistryConstants'

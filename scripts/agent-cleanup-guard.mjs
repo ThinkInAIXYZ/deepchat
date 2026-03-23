@@ -158,7 +158,6 @@ async function findViolations() {
     path.join(ROOT, 'src/main/presenter/mcpPresenter/toolManager.ts'),
     path.join(ROOT, 'src/main/presenter/syncPresenter/index.ts'),
     path.join(ROOT, 'src/main/presenter/llmProviderPresenter/providers'),
-    path.join(ROOT, 'src/main/presenter/agentPresenter'),
     path.join(ROOT, 'src/renderer/src/pages/ChatPage.vue'),
     path.join(ROOT, 'src/renderer/src/pages/NewThreadPage.vue'),
     path.join(ROOT, 'src/renderer/src/stores/ui'),
@@ -170,8 +169,15 @@ async function findViolations() {
 
   const fileSet = new Set()
   for (const entry of scanRoots) {
-    for (const file of await collectFiles(entry)) {
-      fileSet.add(file)
+    try {
+      for (const file of await collectFiles(entry)) {
+        fileSet.add(file)
+      }
+    } catch (error) {
+      if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
+        throw new Error(`Agent cleanup guard scan root is missing: ${relativePath(entry)}`)
+      }
+      throw error
     }
   }
 

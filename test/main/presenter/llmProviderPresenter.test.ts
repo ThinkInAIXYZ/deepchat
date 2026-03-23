@@ -1,12 +1,7 @@
 import { describe, it, expect, beforeEach, vi, beforeAll, afterEach } from 'vitest'
 import { LLMProviderPresenter } from '../../../src/main/presenter/llmProviderPresenter/index'
 import { ConfigPresenter } from '../../../src/main/presenter/configPresenter/index'
-import {
-  LLM_PROVIDER,
-  ChatMessage,
-  LLMAgentEvent,
-  ISQLitePresenter
-} from '../../../src/shared/presenter'
+import { LLM_PROVIDER, ChatMessage, ISQLitePresenter } from '../../../src/shared/presenter'
 
 // Ensure electron is mocked for this suite to avoid CJS named export issues
 vi.mock('electron', () => {
@@ -84,17 +79,6 @@ vi.mock('@/presenter/proxyConfig', () => ({
 describe('LLMProviderPresenter Integration Tests', () => {
   let llmProviderPresenter: LLMProviderPresenter
   let mockConfigPresenter: ConfigPresenter
-  const mockSessionRuntime = {
-    getSession: vi.fn().mockResolvedValue({
-      resolved: {
-        modelId: 'mock-gpt-thinking'
-      }
-    }),
-    resolveWorkspaceContext: vi.fn().mockResolvedValue({
-      chatMode: 'agent',
-      agentWorkspacePath: null
-    })
-  }
   const mockSqlitePresenter: ISQLitePresenter = {
     getAcpSession: vi.fn().mockResolvedValue(null),
     upsertAcpSession: vi.fn().mockResolvedValue(undefined),
@@ -191,22 +175,11 @@ describe('LLMProviderPresenter Integration Tests', () => {
     mockConfigPresenter.getCustomModels = vi.fn().mockReturnValue([])
     mockConfigPresenter.getProviderModels = vi.fn().mockReturnValue([])
     mockConfigPresenter.getModelStatus = vi.fn().mockReturnValue(true)
-    mockSessionRuntime.getSession.mockResolvedValue({
-      resolved: {
-        modelId: 'mock-gpt-thinking'
-      }
-    })
-    mockSessionRuntime.resolveWorkspaceContext.mockResolvedValue({
-      chatMode: 'agent',
-      agentWorkspacePath: null
-    })
 
     // Create new instance for each test
     llmProviderPresenter = new LLMProviderPresenter(
       mockConfigPresenter,
       mockSqlitePresenter,
-      () => mockSessionRuntime,
-      () => presenterRuntimeMock.toolPresenter as any,
       presenterRuntimeMock.mcpPresenter as any
     )
   })
@@ -276,139 +249,6 @@ describe('LLMProviderPresenter Integration Tests', () => {
     }, 10000)
   })
 
-  describe('Stream Completion', () => {
-    beforeEach(async () => {
-      await llmProviderPresenter.setCurrentProvider('mock-openai-api')
-    })
-
-    it('should handle basic stream completion', async () => {
-      const messages: ChatMessage[] = [{ role: 'user', content: 'Hello, how are you?' }]
-
-      const eventId = 'test-stream-1'
-      const events: LLMAgentEvent[] = []
-
-      try {
-        const stream = llmProviderPresenter.startStreamCompletion(
-          'mock-openai-api',
-          messages,
-          'mock-gpt-thinking',
-          eventId,
-          0.7,
-          1000
-        )
-
-        for await (const event of stream) {
-          events.push(event)
-
-          // 收集足够的事件后停止测试
-          if (events.length >= 5) {
-            await llmProviderPresenter.stopStream(eventId)
-            break
-          }
-        }
-      } catch (error) {
-        // 允许因为停止流而产生的错误
-        console.log('Stream stopped:', error)
-      }
-
-      // 验证我们收到了一些事件
-      expect(events.length).toBeGreaterThan(0)
-
-      // 检查事件类型
-      const eventTypes = events.map((e) => e.type)
-      expect(eventTypes).toContain('response')
-
-      // 验证事件数据结构
-      const responseEvents = events.filter((e) => e.type === 'response')
-      if (responseEvents.length > 0) {
-        const firstResponse = responseEvents[0] as { type: 'response'; data: any }
-        expect(firstResponse.data).toHaveProperty('eventId', eventId)
-      }
-    }, 20000)
-
-    it('should handle stream for markdown model', async () => {
-      const messages: ChatMessage[] = [{ role: 'user', content: 'Generate some markdown content' }]
-
-      const eventId = 'test-markdown-stream'
-      const events: LLMAgentEvent[] = []
-      let contentReceived = ''
-
-      try {
-        const stream = llmProviderPresenter.startStreamCompletion(
-          'mock-openai-api',
-          messages,
-          'mock-gpt-markdown',
-          eventId,
-          0.7,
-          500
-        )
-
-        for await (const event of stream) {
-          events.push(event)
-
-          if (event.type === 'response' && event.data.content) {
-            contentReceived += event.data.content
-          }
-
-          // 限制事件数量
-          if (events.length >= 10) {
-            await llmProviderPresenter.stopStream(eventId)
-            break
-          }
-        }
-      } catch (error) {
-        console.log('Markdown stream stopped:', error)
-      }
-
-      // 验证我们收到了内容
-      expect(events.length).toBeGreaterThan(0)
-      expect(contentReceived.length).toBeGreaterThan(0)
-
-      console.log('Received content sample:', contentReceived.substring(0, 100))
-    }, 20000)
-
-    it('should handle function calling model', async () => {
-      const messages: ChatMessage[] = [{ role: 'user', content: 'What time is it now?' }]
-
-      const eventId = 'test-function-call'
-      const events: LLMAgentEvent[] = []
-
-      try {
-        const stream = llmProviderPresenter.startStreamCompletion(
-          'mock-openai-api',
-          messages,
-          'gpt-4-mock',
-          eventId,
-          0.7,
-          1000
-        )
-
-        for await (const event of stream) {
-          events.push(event)
-
-          // 限制事件数量
-          if (events.length >= 15) {
-            await llmProviderPresenter.stopStream(eventId)
-            break
-          }
-        }
-      } catch (error) {
-        console.log('Function call stream stopped:', error)
-      }
-
-      // 验证收到了事件
-      expect(events.length).toBeGreaterThan(0)
-
-      // 检查是否有工具调用相关的事件
-      const toolCallEvents = events.filter(
-        (e) => e.type === 'response' && e.data && (e.data.tool_call_name || e.data.tool_call)
-      )
-
-      console.log('Total events:', events.length)
-      console.log('Tool call events:', toolCallEvents.length)
-    }, 25000)
-  })
-
   describe('Non-stream Completion', () => {
     beforeEach(async () => {
       await llmProviderPresenter.setCurrentProvider('mock-openai-api')
@@ -463,108 +303,6 @@ describe('LLMProviderPresenter Integration Tests', () => {
       expect(typeof title).toBe('string')
       expect(title.length).toBeGreaterThan(0)
       console.log('Generated title:', title)
-    }, 15000)
-  })
-
-  describe('Stream Management', () => {
-    beforeEach(async () => {
-      await llmProviderPresenter.setCurrentProvider('mock-openai-api')
-    })
-
-    it('should track active streams', async () => {
-      const eventId = 'test-tracking'
-
-      expect(llmProviderPresenter.isGenerating(eventId)).toBe(false)
-
-      const messages: ChatMessage[] = [{ role: 'user', content: 'Start a stream' }]
-
-      // 启动流但不等待完成
-      const streamPromise = (async () => {
-        const stream = llmProviderPresenter.startStreamCompletion(
-          'mock-openai-api',
-          messages,
-          'mock-gpt-thinking',
-          eventId
-        )
-
-        let count = 0
-        for await (const event of stream) {
-          count++
-          if (count >= 3) break // 只处理几个事件
-        }
-      })()
-
-      // 短暂等待让流开始
-      await new Promise((resolve) => setTimeout(resolve, 100))
-
-      // 检查流状态
-      expect(llmProviderPresenter.isGenerating(eventId)).toBe(true)
-
-      const streamState = llmProviderPresenter.getStreamState(eventId)
-      expect(streamState).toBeDefined()
-      expect(streamState?.providerId).toBe('mock-openai-api')
-
-      // 停止流
-      await llmProviderPresenter.stopStream(eventId)
-
-      // 等待流处理完成
-      await streamPromise.catch(() => {}) // 忽略停止导致的错误
-
-      // 验证流已停止
-      expect(llmProviderPresenter.isGenerating(eventId)).toBe(false)
-    }, 10000)
-
-    it('should handle concurrent streams limit', async () => {
-      // 设置较小的并发限制进行测试
-      llmProviderPresenter.setMaxConcurrentStreams(2)
-      expect(llmProviderPresenter.getMaxConcurrentStreams()).toBe(2)
-
-      const messages: ChatMessage[] = [{ role: 'user', content: 'Concurrent test' }]
-
-      // 启动多个流
-      const streams: Array<{
-        eventId: string
-        stream: AsyncGenerator<LLMAgentEvent, void, unknown>
-      }> = []
-      for (let i = 0; i < 3; i++) {
-        const eventId = `concurrent-${i}`
-        const stream = llmProviderPresenter.startStreamCompletion(
-          'mock-openai-api',
-          messages,
-          'mock-gpt-thinking',
-          eventId
-        )
-        streams.push({ eventId, stream })
-      }
-
-      // 处理流，第三个应该被限制
-      let errorCount = 0
-      let successCount = 0
-
-      for (const { eventId, stream } of streams) {
-        try {
-          let count = 0
-          for await (const event of stream) {
-            if (event.type === 'error') {
-              errorCount++
-              break
-            }
-            if (event.type === 'response') {
-              successCount++
-            }
-            count++
-            if (count >= 2) {
-              await llmProviderPresenter.stopStream(eventId)
-              break
-            }
-          }
-        } catch (error) {
-          // 预期的错误
-        }
-      }
-
-      // 应该有至少一个流被拒绝或出错
-      expect(errorCount + successCount).toBeGreaterThan(0)
     }, 15000)
   })
 
@@ -646,8 +384,6 @@ describe('LLMProviderPresenter Integration Tests', () => {
       const invalidLlmProvider = new LLMProviderPresenter(
         invalidMockConfig,
         mockSqlitePresenter,
-        () => mockSessionRuntime,
-        () => presenterRuntimeMock.toolPresenter as any,
         presenterRuntimeMock.mcpPresenter as any
       )
 

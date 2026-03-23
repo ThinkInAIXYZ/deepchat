@@ -5,14 +5,12 @@ import {
   MODEL_META,
   OllamaModel,
   ChatMessage,
-  LLMAgentEvent,
   KeyStatus,
   LLM_EMBEDDING_ATTRS,
   ModelScopeMcpSyncOptions,
   ModelScopeMcpSyncResult,
   IConfigPresenter,
   ISQLitePresenter,
-  IToolPresenter,
   AcpConfigState,
   AcpWorkdirInfo,
   AcpDebugRequest,
@@ -28,13 +26,11 @@ import { ProviderInstanceManager } from './managers/providerInstanceManager'
 import { ModelManager } from './managers/modelManager'
 import { OllamaManager } from './managers/ollamaManager'
 import { EmbeddingManager } from './managers/embeddingManager'
-import { AgentLoopHandler } from '../agentPresenter/loop'
 import { ModelScopeSyncManager } from './managers/modelScopeSyncManager'
 import type { OllamaProvider } from './providers/ollamaProvider'
 import { ShowResponse } from 'ollama'
-import { AcpSessionPersistence } from '../agentPresenter/acp'
+import { AcpSessionPersistence } from './acp'
 import { AcpProvider } from './providers/acpProvider'
-import type { AgentSessionRuntimePort } from '../agentPresenter/session/sessionRuntimePort'
 import type { ProviderMcpRuntimePort } from './runtimePorts'
 
 export class LLMProviderPresenter implements ILlmProviderPresenter {
@@ -48,18 +44,12 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
   private readonly modelManager: ModelManager
   private readonly ollamaManager: OllamaManager
   private readonly embeddingManager: EmbeddingManager
-  private readonly agentLoopHandler: AgentLoopHandler
   private readonly modelScopeSyncManager: ModelScopeSyncManager
   private readonly acpSessionPersistence: AcpSessionPersistence
 
   constructor(
     configPresenter: IConfigPresenter,
     sqlitePresenter: ISQLitePresenter,
-    getSessionRuntime?: () => Pick<
-      AgentSessionRuntimePort,
-      'getSession' | 'resolveWorkspaceContext'
-    >,
-    getToolPresenter?: () => IToolPresenter,
     mcpRuntime?: ProviderMcpRuntimePort
   ) {
     this.rateLimitManager = new RateLimitManager(configPresenter)
@@ -88,36 +78,6 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     this.modelScopeSyncManager = new ModelScopeSyncManager({
       configPresenter,
       getProviderInstance: this.getProviderInstance.bind(this)
-    })
-    this.agentLoopHandler = new AgentLoopHandler({
-      configPresenter,
-      getProviderInstance: this.getProviderInstance.bind(this),
-      activeStreams: this.activeStreams,
-      canStartNewStream: this.canStartNewStream.bind(this),
-      rateLimitManager: this.rateLimitManager,
-      getToolPresenter: () => {
-        if (!getToolPresenter) {
-          throw new Error('ToolPresenter is unavailable')
-        }
-        return getToolPresenter()
-      },
-      sessionRuntime: {
-        getSession: async (agentId) => {
-          if (!getSessionRuntime) {
-            throw new Error('Legacy session runtime is unavailable')
-          }
-          return await getSessionRuntime().getSession(agentId)
-        },
-        resolveWorkspaceContext: async (conversationId, modelId) => {
-          if (!getSessionRuntime) {
-            return {
-              chatMode: 'agent',
-              agentWorkspacePath: null
-            }
-          }
-          return await getSessionRuntime().resolveWorkspaceContext(conversationId, modelId)
-        }
-      } satisfies Pick<AgentSessionRuntimePort, 'getSession' | 'resolveWorkspaceContext'>
     })
 
     this.rateLimitManager.initializeProviderRateLimitConfigs()
@@ -254,38 +214,6 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
       this.stopStream(eventId)
     )
     await Promise.all(promises)
-  }
-
-  private canStartNewStream(): boolean {
-    return this.activeStreams.size < this.config.maxConcurrentStreams
-  }
-
-  async *startStreamCompletion(
-    providerId: string,
-    initialMessages: ChatMessage[],
-    modelId: string,
-    eventId: string,
-    temperature: number = 0.6,
-    maxTokens: number = 4096,
-    enabledMcpTools?: string[],
-    thinkingBudget?: number,
-    reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high',
-    verbosity?: 'low' | 'medium' | 'high',
-    conversationId?: string
-  ): AsyncGenerator<LLMAgentEvent, void, unknown> {
-    yield* this.agentLoopHandler.startStreamCompletion(
-      providerId,
-      initialMessages,
-      modelId,
-      eventId,
-      temperature,
-      maxTokens,
-      enabledMcpTools,
-      thinkingBudget,
-      reasoningEffort,
-      verbosity,
-      conversationId
-    )
   }
 
   // 非流式方法

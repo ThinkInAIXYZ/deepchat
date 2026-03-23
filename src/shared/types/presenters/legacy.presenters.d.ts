@@ -13,7 +13,6 @@ import type { NowledgeMemThread, NowledgeMemExportSummary } from '../nowledgeMem
 import type { AcpConfigState } from './llmprovider.presenter'
 import { ProviderChange, ProviderBatchUpdate } from './provider-operations'
 import type { AgentSessionLifecycleStatus } from './agent-provider'
-import type { IAgentPresenter } from './agent.presenter'
 import type { ISessionPresenter } from './session.presenter'
 import type { IConversationExporter } from './exporter.presenter'
 import type { IWorkspacePresenter } from './workspace'
@@ -455,9 +454,7 @@ export interface IPresenter {
   sqlitePresenter: ISQLitePresenter
   llmproviderPresenter: ILlmProviderPresenter
   configPresenter: IConfigPresenter
-  sessionPresenter: ISessionPresenter
   exporter: IConversationExporter
-  agentPresenter: IAgentPresenter & ISessionPresenter
   devicePresenter: IDevicePresenter
   upgradePresenter: IUpgradePresenter
   shortcutPresenter: IShortcutPresenter
@@ -1083,19 +1080,6 @@ export interface ILlmProviderPresenter {
     updates: Partial<MODEL_META>
   ): Promise<boolean>
   getCustomModels(providerId: string): Promise<MODEL_META[]>
-  startStreamCompletion(
-    providerId: string,
-    messages: ChatMessage[],
-    modelId: string,
-    eventId: string,
-    temperature?: number,
-    maxTokens?: number,
-    enabledMcpTools?: string[],
-    thinkingBudget?: number,
-    reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high',
-    verbosity?: 'low' | 'medium' | 'high',
-    conversationId?: string
-  ): AsyncGenerator<LLMAgentEvent, void, unknown>
   generateCompletion(
     providerId: string,
     messages: { role: 'system' | 'user' | 'assistant'; content: string }[],

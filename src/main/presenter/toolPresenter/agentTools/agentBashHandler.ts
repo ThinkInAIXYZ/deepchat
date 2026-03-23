@@ -6,17 +6,17 @@ import { z } from 'zod'
 import logger from '@shared/logger'
 import type { IConfigPresenter } from '@shared/presenter'
 import { getBackgroundExecConfig } from '@/lib/agentRuntime/backgroundExecSessionManager'
+import { backgroundExecSessionManager } from '@/lib/agentRuntime/backgroundExecSessionManager'
 import { terminateProcessTree } from '@/lib/agentRuntime/processTree'
 import { rtkRuntimeService } from '@/lib/agentRuntime/rtkRuntimeService'
+import { getShellEnvironment, getUserShell } from '@/lib/agentRuntime/shellEnvHelper'
+import { resolveSessionDir } from '@/lib/agentRuntime/sessionPaths'
 
 // Consider moving to a shared handlers location in future refactoring
 import {
   CommandPermissionRequiredError,
   CommandPermissionService
 } from '../../permission/commandPermissionService'
-import { resolveSessionDir } from '../../sessionPresenter/sessionPaths'
-import { getShellEnvironment, getUserShell } from './shellEnvHelper'
-import { backgroundExecSessionManager } from './backgroundExecSessionManager'
 
 const COMMAND_DEFAULT_TIMEOUT_MS = 120000
 const COMMAND_KILL_GRACE_MS = 5000

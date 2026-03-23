@@ -321,8 +321,6 @@ describe('OpenAICompatibleProvider MCP runtime injection', () => {
     const llmProviderPresenter = new LLMProviderPresenter(
       createConfigPresenter([providerConfig]),
       mockSqlitePresenter,
-      undefined,
-      undefined,
       mcpRuntime as any
     )
 

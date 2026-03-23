@@ -22,7 +22,7 @@ import { eventBus } from '@/eventbus'
 import { TAB_EVENTS, CONVERSATION_EVENTS } from '@/events'
 import type { ISessionPresenter } from './interface'
 import { MessageManager } from './managers/messageManager'
-import { buildUserMessageContext } from '../agentPresenter/message/messageFormatter'
+import { buildUserMessageContext } from './messageFormatter'
 import { CommandPermissionService } from '../permission/commandPermissionService'
 import { ConversationManager, type CreateConversationOptions } from './managers/conversationManager'
 import type { ConversationExportFormat } from '../exporter/formats/conversationExporter'
@@ -75,7 +75,7 @@ export class SessionPresenter implements ISessionPresenter {
     eventBus.on(TAB_EVENTS.CLOSED, (webContentsId: number) => {
       const activeConversationId = this.getActiveConversationIdSync(webContentsId)
       if (activeConversationId) {
-        void presenter.cleanupLegacyConversationRuntime(activeConversationId)
+        void presenter.cleanupConversationRuntimeArtifacts(activeConversationId)
         this.commandPermissionService.clearConversation(activeConversationId)
         presenter.filePermissionService?.clearConversation(activeConversationId)
         presenter.settingsPermissionService?.clearConversation(activeConversationId)
@@ -584,7 +584,7 @@ export class SessionPresenter implements ISessionPresenter {
   }
 
   async deleteConversation(conversationId: string): Promise<void> {
-    await presenter.cleanupLegacyConversationRuntime(conversationId)
+    await presenter.cleanupConversationRuntimeArtifacts(conversationId)
     this.commandPermissionService.clearConversation(conversationId)
     presenter.filePermissionService?.clearConversation(conversationId)
     presenter.settingsPermissionService?.clearConversation(conversationId)
@@ -1041,10 +1041,6 @@ export class SessionPresenter implements ISessionPresenter {
         : floatingWindow && floatingWindow.id === targetWindow.id
           ? 'floating'
           : 'main'
-    const sessionContext =
-      typeof presenter?.getLegacyRuntimeSessionSync === 'function'
-        ? presenter.getLegacyRuntimeSessionSync(conversation.id)
-        : null
     const settings = conversation.settings as unknown as Omit<
       Session['config'],
       'sessionId' | 'title' | 'isPinned'
@@ -1052,7 +1048,7 @@ export class SessionPresenter implements ISessionPresenter {
 
     return {
       sessionId: conversation.id,
-      status: sessionContext?.status ?? 'idle',
+      status: 'idle',
       config: {
         ...settings,
         sessionId: conversation.id,

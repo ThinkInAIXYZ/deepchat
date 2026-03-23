@@ -22,7 +22,7 @@ vi.mock('@shared/logger', () => ({
   }
 }))
 
-import { BackgroundExecSessionManager } from '@/presenter/agentPresenter/acp/backgroundExecSessionManager'
+import { BackgroundExecSessionManager } from '@/lib/agentRuntime/backgroundExecSessionManager'
 
 describe('BackgroundExecSessionManager', () => {
   let manager: BackgroundExecSessionManager

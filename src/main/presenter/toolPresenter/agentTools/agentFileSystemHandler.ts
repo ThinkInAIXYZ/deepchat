@@ -1,7 +1,8 @@
+import { realpathSync } from 'fs'
 import fs from 'fs/promises'
 import path from 'path'
 import os from 'os'
-import { getSessionsRoot } from '../../sessionPresenter/sessionPaths'
+import { getSessionsRoot } from '@/lib/agentRuntime/sessionPaths'
 import { z } from 'zod'
 import { minimatch } from 'minimatch'
 import { diffLines } from 'diff'
@@ -184,6 +185,7 @@ interface PathValidationOptions {
 
 export class AgentFileSystemHandler {
   private allowedDirectories: string[]
+  private readonly allowedDirectoryRoots: string[]
   private conversationId?: string
   private readonly sessionsRoot: string
 
@@ -193,6 +195,19 @@ export class AgentFileSystemHandler {
     }
     this.allowedDirectories = allowedDirectories.map((dir) =>
       this.normalizePath(path.resolve(this.expandHome(dir)))
+    )
+    this.allowedDirectoryRoots = Array.from(
+      new Set(
+        this.allowedDirectories.flatMap((dir) => {
+          const roots = [dir]
+          try {
+            roots.push(this.normalizePath(realpathSync.native(dir)))
+          } catch {
+            // Keep the configured directory when the target does not exist yet.
+          }
+          return roots
+        })
+      )
     )
     this.conversationId = options.conversationId
     this.sessionsRoot = this.normalizePath(getSessionsRoot())
@@ -206,12 +221,30 @@ export class AgentFileSystemHandler {
     return text.replace(/\r\n/g, '\n')
   }
 
+  private pathAliases(inputPath: string): string[] {
+    const normalized = this.normalizePath(inputPath)
+    const aliases = [normalized]
+
+    if (process.platform === 'darwin') {
+      if (normalized === '/var' || normalized.startsWith('/var/')) {
+        aliases.push(`/private${normalized}`)
+      }
+      if (normalized === '/private/var' || normalized.startsWith('/private/var/')) {
+        aliases.push(normalized.slice('/private'.length))
+      }
+    }
+
+    return Array.from(new Set(aliases))
+  }
+
   private isPathAllowed(candidatePath: string): boolean {
-    return this.allowedDirectories.some((dir) => {
-      if (candidatePath === dir) return true
-      const dirWithSeparator = dir.endsWith(path.sep) ? dir : `${dir}${path.sep}`
-      return candidatePath.startsWith(dirWithSeparator)
-    })
+    return this.pathAliases(candidatePath).some((candidateAlias) =>
+      this.allowedDirectoryRoots.some((dir) => {
+        if (candidateAlias === dir) return true
+        const dirWithSeparator = dir.endsWith(path.sep) ? dir : `${dir}${path.sep}`
+        return candidateAlias.startsWith(dirWithSeparator)
+      })
+    )
   }
 
   private expandHome(filepath: string): string {
@@ -248,10 +281,11 @@ export class AgentFileSystemHandler {
       const isAllowed = this.isPathAllowed(normalizedRequested)
       if (!isAllowed) {
         throw new Error(
-          `Access denied - path outside allowed directories: ${normalizedRequested} not in ${this.allowedDirectories.join(', ')}`
+          `Access denied - path outside allowed directories: ${normalizedRequested} not in ${this.allowedDirectoryRoots.join(', ')}`
         )
       }
     }
+    let pathResolutionError: unknown
     try {
       const realPath = await fs.realpath(normalizedRequested)
       const normalizedReal = this.normalizePath(realPath)
@@ -265,7 +299,8 @@ export class AgentFileSystemHandler {
         }
       }
       return realPath
-    } catch {
+    } catch (error) {
+      pathResolutionError = error
       const parentDir = path.dirname(normalizedRequested)
       try {
         const realParentPath = await fs.realpath(parentDir)
@@ -277,7 +312,16 @@ export class AgentFileSystemHandler {
           }
         }
         return normalizedRequested
-      } catch {
+      } catch (parentError) {
+        if (
+          pathResolutionError instanceof Error &&
+          pathResolutionError.message.startsWith('Access denied')
+        ) {
+          throw pathResolutionError
+        }
+        if (parentError instanceof Error && parentError.message.startsWith('Access denied')) {
+          throw parentError
+        }
         throw new Error(`Parent directory does not exist: ${parentDir}`)
       }
     }

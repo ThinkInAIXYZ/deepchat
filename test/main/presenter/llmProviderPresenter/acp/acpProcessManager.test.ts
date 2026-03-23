@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   AcpProcessManager,
   parseLoadSessionCapability
-} from '@/presenter/agentPresenter/acp/acpProcessManager'
+} from '@/presenter/llmProviderPresenter/acp/acpProcessManager'
 
 vi.mock('@/eventbus', () => ({
   eventBus: {

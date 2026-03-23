@@ -1,39 +1,40 @@
-# Agent Cleanup Checkpoint
+# Agent Cleanup Final Plan State
 
 ## Summary
 
-This workstream is paused after the main cleanup milestones were completed and dead code was
-archived.
+The cleanup is no longer paused. The runtime retirement slice completed on March 23, 2026.
 
-Done:
+## Completed Order
 
-- shared helper ownership moved to `src/main/lib/agentRuntime`
-- active renderer chat path moved off legacy message protocol
-- renderer dead code archived in `archives/code/dead-renderer-batch-1/`
-- renderer mock/orphan dead code archived in `archives/code/dead-code-batch-2/`
-- new-session skill state moved to `new_sessions.active_skills`
-- legacy `agentPresenter/**` removed from global presenter access
-- provider-layer MCP global access removed
+1. moved shared runtime helpers out of legacy presenter folders
+2. moved active renderer chat path off legacy message protocol
+3. archived dead renderer path code
+4. persisted new-session skills in `new_sessions.active_skills`
+5. removed legacy global presenter access
+6. retired legacy `AgentPresenter` runtime and public exposure
+7. migrated retained ACP/agent-tool helpers into current live modules
+8. archived retired source/tests and refreshed active docs
 
 ## Keep For Now
 
 - `LegacyChatImportService`
 - legacy import hook / status tracking
-- old `conversations/messages` tables as import-only sources
-- `scripts/agent-cleanup-guard.mjs` as anti-regression protection
+- old `conversations/messages` tables as import-only or export-facing sources
+- `SessionPresenter` as internal compatibility/data adapter
+- `scripts/agent-cleanup-guard.mjs`
 
-## Resume Order Later
+## Follow-up Order
 
 When cleanup resumes, use this order:
 
-1. clear the remaining export-only / non-active-path type coupling
+1. clear remaining export-only / non-active-path type coupling
 2. inventory and reduce adjacent provider globals
-3. run a final retirement audit on old presenter runtime wiring
-4. only then consider deleting old legacy folders or old import tables
+3. normalize older specs/docs that still mention retired paths where useful
+4. only then consider deeper removal of legacy import-era tables
 
 ## Default Rules
 
-1. One cleanup slice per PR.
-2. Do not mix event-contract changes with runtime decoupling.
-3. Do not remove import-only compatibility during routine refactors.
-4. Prefer archiving dead code before hard deletion.
+1. Do not reintroduce retired runtime entrypoints.
+2. Prefer archiving dead code before hard deletion.
+3. Keep import-only compatibility separate from active runtime design.
+4. Update docs/specs in the same slice when retiring architecture.

@@ -4,7 +4,7 @@ import {
   addContextMessages,
   buildUserMessageContext,
   formatUserMessageContent
-} from '@/presenter/agentPresenter/message/messageFormatter'
+} from '@/presenter/sessionPresenter/messageFormatter'
 
 const baseUsage = {
   context_usage: 0,

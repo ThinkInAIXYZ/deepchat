@@ -21,7 +21,7 @@ const createConversation = (overrides?: Partial<typeof baseSettings>) => ({
   id: 'conv-1',
   settings: {
     ...baseSettings,
-    ...(overrides ?? {})
+    ...overrides
   }
 })
 

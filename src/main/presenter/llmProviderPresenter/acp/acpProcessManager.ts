@@ -18,7 +18,7 @@ import type {
   AcpResolvedLaunchSpec
 } from '@shared/presenter'
 import type { AgentProcessHandle, AgentProcessManager } from './types'
-import { getShellEnvironment } from './shellEnvHelper'
+import { getShellEnvironment } from '@/lib/agentRuntime/shellEnvHelper'
 import { RuntimeHelper } from '@/lib/runtimeHelper'
 import { buildClientCapabilities } from './acpCapabilities'
 import { AcpFsHandler } from './acpFsHandler'
