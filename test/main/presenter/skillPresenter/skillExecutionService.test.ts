@@ -42,11 +42,15 @@ import { rtkRuntimeService } from '../../../../src/main/lib/agentRuntime/rtkRunt
 describe('SkillExecutionService', () => {
   let skillPresenter: ISkillPresenter
   let service: SkillExecutionService
+  let resolveConversationWorkdir: ReturnType<typeof vi.fn>
   const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform')
 
   beforeEach(() => {
     vi.clearAllMocks()
     vi.spyOn(fs, 'existsSync').mockReturnValue(false)
+    vi.mocked(fs.promises.stat).mockResolvedValue({
+      isDirectory: () => true
+    } as never)
 
     skillPresenter = {
       getActiveSkills: vi.fn().mockResolvedValue(['ocr']),
@@ -77,9 +81,16 @@ describe('SkillExecutionService', () => {
       ])
     } as unknown as ISkillPresenter
 
-    service = new SkillExecutionService(skillPresenter, {
-      getSetting: vi.fn().mockReturnValue(true)
-    } as never)
+    resolveConversationWorkdir = vi.fn().mockResolvedValue('/workspace/session')
+    service = new SkillExecutionService(
+      skillPresenter,
+      {
+        getSetting: vi.fn().mockReturnValue(true)
+      } as never,
+      {
+        resolveConversationWorkdir
+      }
+    )
   })
 
   afterEach(() => {
@@ -89,7 +100,7 @@ describe('SkillExecutionService', () => {
     }
   })
 
-  it('builds spawn plan with skill root cwd and merged env', async () => {
+  it('builds spawn plan with session workdir cwd and skill root env', async () => {
     vi.spyOn(service as never, 'resolveRuntimeCommand' as never).mockResolvedValue({
       command: 'uv',
       mode: 'uv'
@@ -104,10 +115,50 @@ describe('SkillExecutionService', () => {
       'conv-1'
     )
 
-    expect(plan.cwd).toBe('/skills/ocr')
+    expect(plan.cwd).toBe('/workspace/session')
     expect(plan.env.PATH).toBe('/shell/bin')
     expect(plan.env.API_KEY).toBe('secret')
+    expect(plan.env.SKILL_ROOT).toBe('/skills/ocr')
+    expect(plan.env.DEEPCHAT_SKILL_ROOT).toBe('/skills/ocr')
     expect(plan.args).toEqual(['run', '/skills/ocr/scripts/run.py', '--lang', 'en'])
+  })
+
+  it('falls back to skill root cwd when the session workdir is unavailable', async () => {
+    resolveConversationWorkdir.mockResolvedValueOnce(null)
+    vi.spyOn(service as never, 'resolveRuntimeCommand' as never).mockResolvedValue({
+      command: 'uv',
+      mode: 'uv'
+    })
+
+    const plan = await (service as never).buildSpawnPlan(
+      {
+        skill: 'ocr',
+        script: 'scripts/run.py'
+      },
+      'conv-1'
+    )
+
+    expect(plan.cwd).toBe('/skills/ocr')
+  })
+
+  it('falls back to skill root cwd when the resolved session workdir is not a directory', async () => {
+    vi.mocked(fs.promises.stat).mockResolvedValueOnce({
+      isDirectory: () => false
+    } as never)
+    vi.spyOn(service as never, 'resolveRuntimeCommand' as never).mockResolvedValue({
+      command: 'uv',
+      mode: 'uv'
+    })
+
+    const plan = await (service as never).buildSpawnPlan(
+      {
+        skill: 'ocr',
+        script: 'scripts/run.py'
+      },
+      'conv-1'
+    )
+
+    expect(plan.cwd).toBe('/skills/ocr')
   })
 
   it('falls back to bundled uv for python auto runtime', async () => {

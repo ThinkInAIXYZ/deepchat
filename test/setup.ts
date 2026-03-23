@@ -53,7 +53,8 @@ vi.mock('fs', () => {
       readFile: vi.fn(),
       writeFile: vi.fn(),
       mkdir: vi.fn(),
-      readdir: vi.fn()
+      readdir: vi.fn(),
+      stat: vi.fn()
     }
   }
 

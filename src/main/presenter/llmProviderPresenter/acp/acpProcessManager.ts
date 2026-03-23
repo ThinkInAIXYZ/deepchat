@@ -166,6 +166,25 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     return handler
   }
 
+  private resolveTerminalCwd(sessionId: string, requestedCwd?: string | null): string {
+    const explicitCwd = requestedCwd?.trim()
+    if (explicitCwd) {
+      return explicitCwd
+    }
+
+    const sessionWorkdir = this.sessionWorkdirs.get(sessionId)?.trim()
+    if (sessionWorkdir) {
+      return sessionWorkdir
+    }
+
+    const fallbackWorkdir = this.getFallbackWorkdir()
+    const conversationId = this.sessionConversations.get(sessionId)
+    console.warn(
+      `[ACP] Missing session workdir for terminal session ${sessionId}${conversationId ? ` (conversation ${conversationId})` : ''}, using fallback workdir: ${fallbackWorkdir}`
+    )
+    return fallbackWorkdir
+  }
+
   /**
    * Provide a fallback workspace for sessions that haven't registered a workdir.
    * Keeps file access constrained to a temp directory rather than the entire filesystem.
@@ -954,7 +973,10 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
       },
       // Terminal operations
       createTerminal: async (params) => {
-        return this.terminalManager.createTerminal(params)
+        return this.terminalManager.createTerminal({
+          ...params,
+          cwd: this.resolveTerminalCwd(params.sessionId, params.cwd)
+        })
       },
       terminalOutput: async (params) => {
         return this.terminalManager.terminalOutput(params)

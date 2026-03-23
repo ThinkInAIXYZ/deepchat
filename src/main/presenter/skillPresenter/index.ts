@@ -382,7 +382,8 @@ export class SkillPresenter implements ISkillPresenter {
     const scripts = (await this.listSkillScripts(metadata.name)).filter((script) => script.enabled)
     const lines = [
       '## DeepChat Runtime Context',
-      '- Skill root: resolved server-side by `skill_run`.',
+      '- Skill root: available via `SKILL_ROOT` and `DEEPCHAT_SKILL_ROOT`.',
+      '- `skill_run` executes from the current session workdir when available.',
       '- Recommended base_directory: `<skill_root>`'
     ]
 

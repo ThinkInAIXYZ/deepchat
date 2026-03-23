@@ -1229,7 +1229,11 @@ export class AgentToolManager {
     if (!this.skillExecutionService) {
       this.skillExecutionService = new SkillExecutionService(
         this.getSkillPresenter(),
-        this.configPresenter
+        this.configPresenter,
+        {
+          resolveConversationWorkdir: (conversationId) =>
+            this.getWorkdirForConversation(conversationId)
+        }
       )
     }
     return this.skillExecutionService

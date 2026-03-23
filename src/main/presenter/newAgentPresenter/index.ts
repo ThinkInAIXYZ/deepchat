@@ -150,7 +150,12 @@ export class NewAgentPresenter {
     if (input.generationSettings) {
       initConfig.generationSettings = input.generationSettings
     }
-    await agent.initSession(sessionId, initConfig)
+    try {
+      await this.initializeSessionRuntime(agent, sessionId, initConfig)
+    } catch (error) {
+      await this.cleanupFailedSessionInitialization(agent, sessionId)
+      throw error
+    }
     console.log(`[NewAgentPresenter] agent.initSession done`)
 
     // Bind to window and emit activated
@@ -224,13 +229,18 @@ export class NewAgentPresenter {
       const sessionId = this.sessionManager.create(agentId, 'New Chat', projectDir, {
         isDraft: true
       })
-      await this.ensureSessionRuntimeInitialized(agent, sessionId, {
-        agentId,
-        providerId: 'acp',
-        modelId: agentId,
-        projectDir,
-        permissionMode
-      })
+      try {
+        await this.ensureSessionRuntimeInitialized(agent, sessionId, {
+          agentId,
+          providerId: 'acp',
+          modelId: agentId,
+          projectDir,
+          permissionMode
+        })
+      } catch (error) {
+        await this.cleanupFailedSessionInitialization(agent, sessionId)
+        throw error
+      }
       record = this.sessionManager.get(sessionId)
       if (!record) {
         throw new Error(`Failed to read created ACP draft session: ${sessionId}`)
@@ -280,6 +290,12 @@ export class NewAgentPresenter {
       }
     }
     this.assertAcpSessionHasWorkdir(providerId, session.projectDir ?? null)
+    await this.syncAcpSessionWorkdir(
+      providerId,
+      sessionId,
+      session.agentId,
+      session.projectDir ?? null
+    )
     if (agent.queuePendingInput) {
       await agent.queuePendingInput(sessionId, normalizedInput)
       return
@@ -329,6 +345,12 @@ export class NewAgentPresenter {
       }
     }
     this.assertAcpSessionHasWorkdir(providerId, currentSession.projectDir ?? null)
+    await this.syncAcpSessionWorkdir(
+      providerId,
+      sessionId,
+      currentSession.agentId,
+      currentSession.projectDir ?? null
+    )
     return await agent.queuePendingInput(sessionId, normalizedInput)
   }
 
@@ -465,7 +487,7 @@ export class NewAgentPresenter {
     )
 
     try {
-      await agent.initSession(targetSessionId, {
+      await this.initializeSessionRuntime(agent, targetSessionId, {
         agentId: sourceSession.agentId,
         providerId: sourceState.providerId,
         modelId: sourceState.modelId,
@@ -1296,7 +1318,7 @@ export class NewAgentPresenter {
   ): Promise<void> {
     const state = await agent.getSessionState(sessionId)
     if (!state) {
-      await agent.initSession(sessionId, config)
+      await this.initializeSessionRuntime(agent, sessionId, config)
       return
     }
 
@@ -1307,6 +1329,82 @@ export class NewAgentPresenter {
     ) {
       await agent.setPermissionMode(sessionId, config.permissionMode)
     }
+
+    await this.syncAcpSessionWorkdir(
+      config.providerId,
+      sessionId,
+      config.agentId ?? config.modelId,
+      config.projectDir
+    )
+  }
+
+  private async initializeSessionRuntime(
+    agent: IAgentImplementation,
+    sessionId: string,
+    config: {
+      agentId?: string
+      providerId: string
+      modelId: string
+      projectDir?: string | null
+      permissionMode: PermissionMode
+      generationSettings?: Partial<SessionGenerationSettings>
+    }
+  ): Promise<void> {
+    await agent.initSession(sessionId, config)
+    await this.syncAcpSessionWorkdir(
+      config.providerId,
+      sessionId,
+      config.agentId ?? config.modelId,
+      config.projectDir ?? null
+    )
+  }
+
+  private async syncAcpSessionWorkdir(
+    providerId: string,
+    conversationId: string,
+    agentId: string,
+    projectDir?: string | null
+  ): Promise<void> {
+    if (providerId !== 'acp') {
+      return
+    }
+
+    const normalizedProjectDir = projectDir?.trim()
+    if (!normalizedProjectDir) {
+      return
+    }
+
+    try {
+      await this.llmProviderPresenter.setAcpWorkdir(
+        conversationId,
+        resolveAcpAgentAlias(agentId),
+        normalizedProjectDir
+      )
+    } catch (error) {
+      console.warn('[NewAgentPresenter] Failed to sync ACP workdir for session:', {
+        conversationId,
+        agentId,
+        projectDir: normalizedProjectDir,
+        error
+      })
+      throw error
+    }
+  }
+
+  private async cleanupFailedSessionInitialization(
+    agent: IAgentImplementation,
+    sessionId: string
+  ): Promise<void> {
+    try {
+      await agent.destroySession(sessionId)
+    } catch (cleanupError) {
+      console.warn(
+        `[NewAgentPresenter] Failed to cleanup session runtime after initialization error ${sessionId}:`,
+        cleanupError
+      )
+    }
+
+    this.sessionManager.delete(sessionId)
   }
 
   private buildExportConversation(

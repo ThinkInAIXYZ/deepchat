@@ -34,6 +34,10 @@ export interface SkillRunOptions {
   conversationId: string
 }
 
+interface SkillExecutionServiceOptions {
+  resolveConversationWorkdir?: (conversationId: string) => Promise<string | null>
+}
+
 interface SkillExecutionResult {
   output: string | { status: 'running'; sessionId: string }
   rtkApplied: boolean
@@ -66,12 +70,15 @@ function toStringEnv(input: NodeJS.ProcessEnv | Record<string, string>): Record<
 export class SkillExecutionService {
   private readonly runtimeHelper = RuntimeHelper.getInstance()
   private readonly configPresenter?: Pick<IConfigPresenter, 'getSetting'>
+  private readonly resolveConversationWorkdir?: (conversationId: string) => Promise<string | null>
 
   constructor(
     private readonly skillPresenter: ISkillPresenter,
-    configPresenter: IConfigPresenter
+    configPresenter: IConfigPresenter,
+    options: SkillExecutionServiceOptions = {}
   ) {
     this.configPresenter = configPresenter
+    this.resolveConversationWorkdir = options.resolveConversationWorkdir
     this.runtimeHelper.initializeRuntimes()
   }
 
@@ -136,10 +143,13 @@ export class SkillExecutionService {
 
     const extension = await this.skillPresenter.getSkillExtension(input.skill)
     const shellEnv = await getShellEnvironment()
+    const executionCwd = await this.resolveExecutionCwd(conversationId, metadata.skillRoot)
     const mergedEnv = {
       ...toStringEnv(process.env),
       ...shellEnv,
-      ...extension.env
+      ...extension.env,
+      SKILL_ROOT: metadata.skillRoot,
+      DEEPCHAT_SKILL_ROOT: metadata.skillRoot
     }
 
     const runtime = await this.resolveRuntimeCommand(
@@ -153,12 +163,63 @@ export class SkillExecutionService {
     return {
       command: runtime.command,
       args,
-      cwd: metadata.skillRoot,
+      cwd: executionCwd,
       env: mergedEnv,
       shellCommand: this.buildShellCommand(runtime.command, args),
       outputPrefix: `skillrun_${input.skill.replace(/[^a-zA-Z0-9_-]/g, '_')}`,
       spawnMode: 'direct'
     }
+  }
+
+  private async resolveExecutionCwd(conversationId: string, skillRoot: string): Promise<string> {
+    const normalizedSkillRoot = path.resolve(skillRoot)
+    if (!this.resolveConversationWorkdir) {
+      return normalizedSkillRoot
+    }
+
+    try {
+      const resolvedWorkdir = await this.resolveConversationWorkdir(conversationId)
+      const normalizedWorkdir = resolvedWorkdir?.trim()
+      if (normalizedWorkdir) {
+        const resolvedPath = path.resolve(normalizedWorkdir)
+        try {
+          const stat = await fs.promises.stat(resolvedPath)
+          if (stat.isDirectory()) {
+            return resolvedPath
+          }
+          logger.warn(
+            '[SkillExecutionService] Conversation workdir is not a directory, falling back to skill root',
+            {
+              conversationId,
+              invalidWorkdir: resolvedPath
+            }
+          )
+        } catch (error) {
+          logger.warn(
+            '[SkillExecutionService] Conversation workdir is invalid, falling back to skill root',
+            {
+              conversationId,
+              invalidWorkdir: resolvedPath,
+              error
+            }
+          )
+        }
+      }
+    } catch (error) {
+      logger.warn('[SkillExecutionService] Failed to resolve conversation workdir', {
+        conversationId,
+        error
+      })
+    }
+
+    logger.warn(
+      '[SkillExecutionService] Missing conversation workdir, falling back to skill root',
+      {
+        conversationId,
+        skillRoot: normalizedSkillRoot
+      }
+    )
+    return normalizedSkillRoot
   }
 
   private resolveRequestedScript(
