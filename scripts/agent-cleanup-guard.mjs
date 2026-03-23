@@ -104,12 +104,6 @@ function extractModuleSpecifiers(source) {
 }
 
 async function collectFiles(entryPath) {
-  try {
-    await fs.access(entryPath)
-  } catch {
-    return []
-  }
-
   const stats = await fs.stat(entryPath)
   if (stats.isFile()) {
     return isSourceFile(entryPath) ? [entryPath] : []
@@ -175,8 +169,15 @@ async function findViolations() {
 
   const fileSet = new Set()
   for (const entry of scanRoots) {
-    for (const file of await collectFiles(entry)) {
-      fileSet.add(file)
+    try {
+      for (const file of await collectFiles(entry)) {
+        fileSet.add(file)
+      }
+    } catch (error) {
+      if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
+        throw new Error(`Agent cleanup guard scan root is missing: ${relativePath(entry)}`)
+      }
+      throw error
     }
   }
 

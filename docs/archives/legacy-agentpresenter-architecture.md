@@ -120,14 +120,14 @@ graph TB
 
 | 组件 | 文件位置 | 行数 | 核心职责 |
 |------|---------|------|---------|
-| AgentPresenter | `src/main/presenter/agentPresenter/index.ts` | 472 | Agent 编排入口，sendMessage/cancelLoop/continueLoop |
-| agentLoopHandler | `src/main/presenter/agentPresenter/loop/agentLoopHandler.ts` | 670 | Agent Loop 主循环（while 循环） |
-| streamGenerationHandler | `src/main/presenter/agentPresenter/streaming/streamGenerationHandler.ts` | 645 | 流生成协调，准备上下文、启动 Stream |
-| loopOrchestrator | `src/main/presenter/agentPresenter/loop/loopOrchestrator.ts` | ~30 | Loop 状态管理 |
-| toolCallProcessor | `src/main/presenter/agentPresenter/loop/toolCallProcessor.ts` | 445 | 工具调用执行、结果处理 |
-| llmEventHandler | `src/main/presenter/agentPresenter/streaming/llmEventHandler.ts` | ~400 | 标准化 LLM 事件到内部格式 |
-| permissionHandler | `src/main/presenter/agentPresenter/permission/permissionHandler.ts` | ~600 | 权限请求响应协调 |
-| messageBuilder | `src/main/presenter/agentPresenter/message/messageBuilder.ts` | ~285 | 提示词构建、上下文压缩 |
+| AgentPresenter | `archives/code/legacy-agentpresenter-retirement/src/main/presenter/agentPresenter/index.ts` | 472 | Agent 编排入口，sendMessage/cancelLoop/continueLoop |
+| agentLoopHandler | `archives/code/legacy-agentpresenter-retirement/src/main/presenter/agentPresenter/loop/agentLoopHandler.ts` | 670 | Agent Loop 主循环（while 循环） |
+| streamGenerationHandler | `archives/code/legacy-agentpresenter-retirement/src/main/presenter/agentPresenter/streaming/streamGenerationHandler.ts` | 645 | 流生成协调，准备上下文、启动 Stream |
+| loopOrchestrator | `archives/code/legacy-agentpresenter-retirement/src/main/presenter/agentPresenter/loop/loopOrchestrator.ts` | ~30 | Loop 状态管理 |
+| toolCallProcessor | `archives/code/legacy-agentpresenter-retirement/src/main/presenter/agentPresenter/loop/toolCallProcessor.ts` | 445 | 工具调用执行、结果处理 |
+| llmEventHandler | `archives/code/legacy-agentpresenter-retirement/src/main/presenter/agentPresenter/streaming/llmEventHandler.ts` | ~400 | 标准化 LLM 事件到内部格式 |
+| permissionHandler | `archives/code/legacy-agentpresenter-retirement/src/main/presenter/agentPresenter/permission/permissionHandler.ts` | ~600 | 权限请求响应协调 |
+| messageBuilder | `archives/code/legacy-agentpresenter-retirement/src/main/presenter/agentPresenter/message/messageBuilder.ts` | ~285 | 提示词构建、上下文压缩 |
 
 **关键流程**：
 1. 用户发送消息 → `AgentPresenter.sendMessage()`
@@ -148,8 +148,8 @@ graph TB
 | ToolPresenter | `src/main/presenter/toolPresenter/index.ts` | 161 | 统一工具定义接口、工具调用路由 |
 | ToolMapper | `src/main/presenter/toolPresenter/toolMapper.ts` | ~100 | 工具名→来源映射（mcp/agent） |
 | McpPresenter | `src/main/presenter/mcpPresenter/index.ts` | ~500 | MCP 服务器管理、工具定义、工具调用 |
-| AgentToolManager | `src/main/presenter/agentPresenter/acp/agentToolManager.ts` | 577 | Agent 文件系统 + Browser 工具 |
-| AgentFileSystemHandler | `src/main/presenter/agentPresenter/acp/agentFileSystemHandler.ts` | 960 | 文件系统工具实现 |
+| AgentToolManager | `archives/code/legacy-agentpresenter-retirement/src/main/presenter/agentPresenter/acp/agentToolManager.ts` | 577 | Agent 文件系统 + Browser 工具 |
+| AgentFileSystemHandler | `archives/code/legacy-agentpresenter-retirement/src/main/presenter/agentPresenter/acp/agentFileSystemHandler.ts` | 960 | 文件系统工具实现 |
 
 **工具来源**：
 1. **MCP 工具**：外部 MCP 服务器提供，通过 `McpPresenter` 管理
@@ -291,16 +291,16 @@ const response = await toolPresenter.callTool({
 - ConversationManager: `src/main/presenter/sessionPresenter/managers/conversationManager.ts`
 
 **Agent 系统**：
-- AgentPresenter: `src/main/presenter/agentPresenter/index.ts:1-472`
-- Agent Loop: `src/main/presenter/agentPresenter/loop/agentLoopHandler.ts:1-670`
-- Stream Generation: `src/main/presenter/agentPresenter/streaming/streamGenerationHandler.ts:1-645`
-- Message Builder: `src/main/presenter/agentPresenter/message/messageBuilder.ts`
+- AgentPresenter: `archives/code/legacy-agentpresenter-retirement/src/main/presenter/agentPresenter/index.ts:1-472`
+- Agent Loop: `archives/code/legacy-agentpresenter-retirement/src/main/presenter/agentPresenter/loop/agentLoopHandler.ts:1-670`
+- Stream Generation: `archives/code/legacy-agentpresenter-retirement/src/main/presenter/agentPresenter/streaming/streamGenerationHandler.ts:1-645`
+- Message Builder: `archives/code/legacy-agentpresenter-retirement/src/main/presenter/agentPresenter/message/messageBuilder.ts`
 
 **工具系统**：
 - ToolPresenter: `src/main/presenter/toolPresenter/index.ts:1-161`
 - ToolMapper: `src/main/presenter/toolPresenter/toolMapper.ts`
-- AgentToolManager: `src/main/presenter/agentPresenter/acp/agentToolManager.ts:1-577`
-- AgentFileSystemHandler: `src/main/presenter/agentPresenter/acp/agentFileSystemHandler.ts:1-960`
+- AgentToolManager: `archives/code/legacy-agentpresenter-retirement/src/main/presenter/agentPresenter/acp/agentToolManager.ts:1-577`
+- AgentFileSystemHandler: `archives/code/legacy-agentpresenter-retirement/src/main/presenter/agentPresenter/acp/agentFileSystemHandler.ts:1-960`
 - McpPresenter: `src/main/presenter/mcpPresenter/index.ts`
 
 **事件系统**：
@@ -309,9 +309,9 @@ const response = await toolPresenter.callTool({
 
 ## 📚 深入阅读
 
-- **会话管理详情**: [architecture/session-management.md](./architecture/session-management.md)
-- **Agent 系统详解**: [architecture/agent-system.md](./architecture/agent-system.md)
-- **工具系统详解**: [architecture/tool-system.md](./architecture/tool-system.md)
-- **事件系统详解**: [architecture/event-system.md](./architecture/event-system.md)
-- **核心流程**: [FLOWS.md](./FLOWS.md)
-- **MCP 集成**: [architecture/mcp-integration.md](./architecture/mcp-integration.md)
+- **会话管理详情**: [architecture/session-management.md](../architecture/session-management.md)
+- **Agent 系统详解**: [architecture/agent-system.md](../architecture/agent-system.md)
+- **工具系统详解**: [architecture/tool-system.md](../architecture/tool-system.md)
+- **事件系统详解**: [architecture/event-system.md](../architecture/event-system.md)
+- **核心流程**: [FLOWS.md](../FLOWS.md)
+- **MCP 集成**: [architecture/mcp-integration.md](../architecture/mcp-integration.md)

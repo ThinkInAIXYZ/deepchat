@@ -125,7 +125,7 @@ pnpm run lint
 pnpm run typecheck
 ```
 
-如改到了主进程聊天链路，补跑相关 Vitest 套件和：
+如改到了主进程聊天链路，补跑相关 Vitest 套件，并执行：
 
 ```bash
 node scripts/agent-cleanup-guard.mjs

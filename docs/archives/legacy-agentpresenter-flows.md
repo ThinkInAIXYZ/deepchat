@@ -245,7 +245,7 @@ sequenceDiagram
 **关键代码位置**：
 - agentLoopHandler 主循环: `src/main/presenter/agentPresenter/loop/agentLoopHandler.ts:223-626`
 
-## 3. 工具调用路由流程
+## 4. 工具调用路由流程
 
 ```mermaid
 sequenceDiagram
@@ -317,7 +317,7 @@ async getAllToolDefinitions({chatMode, supportsVision, agentWorkspacePath}) {
 - AgentToolManager: `src/main/presenter/agentPresenter/acp/agentToolManager.ts`
 - AgentFileSystemHandler: `src/main/presenter/agentPresenter/acp/agentFileSystemHandler.ts`
 
-## 4. 权限请求与响应流程（Batch-level Permission + Resume Lock）
+## 5. 权限请求与响应流程（Batch-level Permission + Resume Lock）
 
 ### 完整流程
 
@@ -515,7 +515,7 @@ await llmEventHandler.flushStreamUpdates(messageId)
 - ToolCallProcessor: `src/main/presenter/agentPresenter/loop/toolCallProcessor.ts`
 - SessionManager: `src/main/presenter/agentPresenter/session/sessionManager.ts`
 
-## 5. 会话生命周期
+## 6. 会话生命周期
 
 ```mermaid
 stateDiagram-v2
@@ -601,7 +601,7 @@ sequenceDiagram
 - forkConversation: `src/main/presenter/sessionPresenter/managers/conversationManager.ts:818-861`
 - SessionManager.getSession: `src/main/presenter/sessionPresenter/session/sessionManager.ts:35-61`
 
-## 6. 继续生成（Continue）流程
+## 7. 继续生成（Continue）流程
 
 ```mermaid
 sequenceDiagram
