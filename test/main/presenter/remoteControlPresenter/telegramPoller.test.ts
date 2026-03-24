@@ -144,6 +144,124 @@ describe('TelegramPoller', () => {
     vi.useRealTimers()
   })
 
+  it('stops immediately while waiting in transient backoff', async () => {
+    vi.useFakeTimers()
+
+    const client = createClient()
+    client.getUpdates.mockRejectedValueOnce(new Error('network timeout')).mockImplementation(() => {
+      throw new Error('should not poll again after stop')
+    })
+
+    const poller = new TelegramPoller({
+      client: client as any,
+      parser: {
+        parseUpdate: vi.fn()
+      } as any,
+      router: {} as any,
+      bindingStore: {
+        getPollOffset: vi.fn().mockReturnValue(0),
+        setPollOffset: vi.fn(),
+        getTelegramConfig: vi.fn().mockReturnValue({
+          streamMode: 'draft'
+        })
+      } as any
+    })
+
+    await poller.start()
+
+    await vi.waitFor(() => {
+      expect(poller.getStatusSnapshot().state).toBe('backoff')
+    })
+
+    await poller.stop()
+
+    expect(client.getUpdates).toHaveBeenCalledTimes(1)
+    expect(poller.getStatusSnapshot().state).toBe('stopped')
+
+    vi.useRealTimers()
+  })
+
+  it('logs per-update delivery failures, advances offset, and keeps polling', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const onFatalError = vi.fn()
+    const setPollOffset = vi.fn()
+    const client = createClient()
+    client.sendMessage.mockRejectedValue(
+      new TelegramApiRequestError('Bad Request: chat not found', 400)
+    )
+    client.getUpdates
+      .mockResolvedValueOnce([
+        {
+          update_id: 1,
+          message: {
+            message_id: 20,
+            chat: {
+              id: 100,
+              type: 'private'
+            },
+            from: {
+              id: 123
+            },
+            text: 'hello'
+          }
+        }
+      ])
+      .mockImplementation(createBlockingUpdates())
+
+    const poller = new TelegramPoller({
+      client: client as any,
+      parser: {
+        parseUpdate: vi.fn().mockReturnValue({
+          kind: 'message',
+          updateId: 1,
+          chatId: 100,
+          messageThreadId: 0,
+          messageId: 20,
+          chatType: 'private',
+          fromId: 123,
+          text: 'hello',
+          command: null
+        })
+      } as any,
+      router: {
+        handleMessage: vi.fn().mockResolvedValue({
+          replies: ['running']
+        })
+      } as any,
+      bindingStore: {
+        getPollOffset: vi.fn().mockReturnValue(0),
+        setPollOffset,
+        getTelegramConfig: vi.fn().mockReturnValue({
+          streamMode: 'draft'
+        })
+      } as any,
+      onFatalError
+    })
+
+    await poller.start()
+
+    await vi.waitFor(() => {
+      expect(setPollOffset).toHaveBeenCalledWith(2)
+      expect(client.sendMessage).toHaveBeenCalled()
+      expect(client.getUpdates).toHaveBeenCalledTimes(2)
+    })
+
+    expect(setPollOffset.mock.invocationCallOrder[0]).toBeLessThan(
+      client.sendMessage.mock.invocationCallOrder[0]
+    )
+    expect(warnSpy).toHaveBeenCalledWith(
+      '[TelegramPoller] Failed to handle update:',
+      expect.objectContaining({
+        updateId: 1
+      })
+    )
+    expect(poller.getStatusSnapshot().state).toBe('running')
+    expect(onFatalError).not.toHaveBeenCalled()
+
+    await poller.stop()
+    warnSpy.mockRestore()
+  })
+
   it('sets and clears reactions only for plain-text conversations', async () => {
     const client = createClient()
     client.getUpdates

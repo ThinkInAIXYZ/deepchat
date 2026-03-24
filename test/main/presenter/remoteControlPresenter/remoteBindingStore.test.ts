@@ -85,6 +85,41 @@ describe('RemoteBindingStore', () => {
     expect(store.getTelegramConfig().streamMode).toBe('draft')
   })
 
+  it('keeps valid bindings when another binding is malformed', () => {
+    const configPresenter = createConfigPresenter()
+    configPresenter.setSetting('remoteControl', {
+      telegram: {
+        enabled: true,
+        allowlist: [123],
+        streamMode: 'draft',
+        defaultAgentId: 'deepchat',
+        pollOffset: 7,
+        pairing: {
+          code: null,
+          expiresAt: null
+        },
+        bindings: {
+          'telegram:100:0': {
+            sessionId: 'session-1',
+            updatedAt: 1
+          },
+          'telegram:200:0': {
+            sessionId: 123
+          }
+        }
+      }
+    })
+
+    const store = new RemoteBindingStore(configPresenter as any)
+
+    expect(store.getPollOffset()).toBe(7)
+    expect(store.getBinding('telegram:100:0')).toEqual({
+      sessionId: 'session-1',
+      updatedAt: 1
+    })
+    expect(store.getBinding('telegram:200:0')).toBeNull()
+  })
+
   it('keeps model menus in memory and clears them after rebinding the endpoint', () => {
     const configPresenter = createConfigPresenter()
     const store = new RemoteBindingStore(configPresenter as any)

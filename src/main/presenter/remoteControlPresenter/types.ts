@@ -307,7 +307,7 @@ const TelegramRemoteRuntimeConfigSchema = z
     pollOffset: z.number().int().nonnegative().optional(),
     lastFatalError: z.string().nullable().optional(),
     pairing: TelegramPairingStateSchema.optional(),
-    bindings: z.record(z.string(), TelegramEndpointBindingSchema).optional()
+    bindings: z.record(z.string(), z.unknown()).optional()
   })
   .strip()
 
@@ -343,12 +343,19 @@ export const normalizeRemoteControlConfig = (input: unknown): RemoteControlConfi
   const telegram = parsed.data.telegram ?? {}
   const bindings: Record<string, TelegramEndpointBinding> = {}
   for (const [endpointKey, binding] of Object.entries(telegram.bindings ?? {})) {
-    if (!binding?.sessionId?.trim()) {
+    const parsedBinding = TelegramEndpointBindingSchema.safeParse(binding)
+    if (!parsedBinding.success) {
       continue
     }
+
+    const normalizedSessionId = parsedBinding.data.sessionId.trim()
+    if (!normalizedSessionId) {
+      continue
+    }
+
     bindings[endpointKey] = {
-      sessionId: binding.sessionId.trim(),
-      updatedAt: binding.updatedAt ?? Date.now()
+      sessionId: normalizedSessionId,
+      updatedAt: parsedBinding.data.updatedAt ?? Date.now()
     }
   }
 

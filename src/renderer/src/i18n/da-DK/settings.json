@@ -1485,7 +1485,7 @@
       "streamModeDraft": "Udkast-streaming",
       "streamModeFinal": "Kun endeligt svar",
       "allowedUserIds": "Tilladte bruger-id'er",
-      "allowedUserIdsPlaceholder": "e.g. 123456789, 987654321",
+      "allowedUserIdsPlaceholder": "fx 123456789, 987654321",
       "defaultAgent": "Standard DeepChat-agent",
       "defaultAgentPlaceholder": "Vælg en agent",
       "openPairDialog": "Par",
@@ -1510,7 +1510,7 @@
       "title": "Telegram-hooks",
       "description": "Genbrug den samme Telegram-bot til hook-notifikationer.",
       "chatId": "Chat-id",
-      "chatIdPlaceholder": "e.g. 123456789",
+      "chatIdPlaceholder": "fx 123456789",
       "threadId": "Tråd-id (valgfrit)",
       "threadIdPlaceholder": "Valgfrit tråd-id"
     },

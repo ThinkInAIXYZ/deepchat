@@ -68,6 +68,7 @@ describe('RemoteConversationRunner', () => {
         updatedAt: 1
       }),
       clearBinding: vi.fn(),
+      clearActiveEvent: vi.fn(),
       rememberActiveEvent: vi.fn(),
       setBinding: vi.fn()
     }
@@ -191,5 +192,87 @@ describe('RemoteConversationRunner', () => {
     )
     expect(updated.providerId).toBe('anthropic')
     expect(updated.modelId).toBe('claude-3-5-sonnet')
+  })
+
+  it('does not fall back to the previous active assistant event while waiting for a new reply', async () => {
+    vi.useFakeTimers()
+
+    const session = createSession({
+      id: 'session-legacy',
+      agentId: 'deepchat-legacy',
+      status: 'idle'
+    })
+    const oldAssistantMessage = {
+      id: 'msg-old',
+      role: 'assistant',
+      content: 'old reply',
+      status: 'success',
+      orderSeq: 2
+    }
+
+    const newAgentPresenter = {
+      getSession: vi.fn().mockResolvedValue(session),
+      getMessages: vi
+        .fn()
+        .mockResolvedValueOnce([
+          {
+            id: 'user-1',
+            role: 'user',
+            content: 'hello',
+            status: 'success',
+            orderSeq: 1
+          }
+        ])
+        .mockResolvedValue([oldAssistantMessage]),
+      sendMessage: vi.fn().mockResolvedValue(undefined),
+      getMessage: vi.fn().mockResolvedValue(null)
+    }
+    const bindingStore = {
+      getBinding: vi.fn().mockReturnValue({
+        sessionId: 'session-legacy',
+        updatedAt: 1
+      }),
+      clearBinding: vi.fn(),
+      clearActiveEvent: vi.fn(),
+      rememberActiveEvent: vi.fn(),
+      setBinding: vi.fn()
+    }
+    const deepchatAgentPresenter = {
+      getActiveGeneration: vi
+        .fn()
+        .mockReturnValueOnce({
+          eventId: 'msg-old',
+          runId: 'run-old'
+        })
+        .mockReturnValue(null)
+    }
+    const runner = new RemoteConversationRunner(
+      {
+        configPresenter: {} as any,
+        newAgentPresenter: newAgentPresenter as any,
+        deepchatAgentPresenter: deepchatAgentPresenter as any,
+        windowPresenter: {} as any,
+        tabPresenter: {} as any,
+        resolveDefaultAgentId: vi.fn().mockResolvedValue('deepchat-new')
+      },
+      bindingStore as any
+    )
+
+    const executionPromise = runner.sendText('telegram:100:0', 'hello again')
+    await vi.advanceTimersByTimeAsync(1000)
+    const execution = await executionPromise
+
+    expect(execution.eventId).toBeNull()
+    expect(bindingStore.rememberActiveEvent).not.toHaveBeenCalledWith('telegram:100:0', 'msg-old')
+
+    const snapshot = await execution.getSnapshot()
+
+    expect(snapshot).toEqual({
+      messageId: null,
+      text: 'No assistant response was produced.',
+      completed: true
+    })
+
+    vi.useRealTimers()
   })
 })

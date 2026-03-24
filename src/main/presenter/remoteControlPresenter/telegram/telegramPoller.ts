@@ -17,8 +17,25 @@ import { TelegramParser } from './telegramParser'
 const POLL_BACKOFF_MS = [1_000, 2_000, 5_000, 10_000, 30_000] as const
 const CALLBACK_QUERY_ACK_TIMEOUT_MS = 500
 
-const sleep = async (ms: number): Promise<void> => {
-  await new Promise((resolve) => setTimeout(resolve, ms))
+const sleep = (ms: number, signal?: AbortSignal): Promise<void> => {
+  if (signal?.aborted) {
+    return Promise.resolve()
+  }
+
+  return new Promise((resolve) => {
+    const timeout = setTimeout(() => {
+      signal?.removeEventListener('abort', handleAbort)
+      resolve()
+    }, ms)
+
+    const handleAbort = () => {
+      clearTimeout(timeout)
+      signal?.removeEventListener('abort', handleAbort)
+      resolve()
+    }
+
+    signal?.addEventListener('abort', handleAbort, { once: true })
+  })
 }
 
 type TelegramPollerDeps = {
@@ -78,6 +95,9 @@ export class TelegramPoller {
     let backoffIndex = 0
 
     while (!this.stopRequested) {
+      const pollSignal = this.createPollSignal()
+      let updates: TelegramRawUpdate[]
+
       try {
         await this.ensureBotIdentity()
         this.setStatus({
@@ -85,24 +105,15 @@ export class TelegramPoller {
           lastError: null
         })
 
-        const updates = await this.deps.client.getUpdates({
+        updates = await this.deps.client.getUpdates({
           offset: this.deps.bindingStore.getPollOffset(),
           limit: TELEGRAM_REMOTE_POLL_LIMIT,
           timeout: TELEGRAM_REMOTE_POLL_TIMEOUT_SEC,
           allowedUpdates: ['message', 'callback_query'],
-          signal: this.createPollSignal()
+          signal: pollSignal
         })
 
         backoffIndex = 0
-
-        for (const update of updates) {
-          if (this.stopRequested) {
-            return
-          }
-
-          await this.handleRawUpdate(update)
-          this.deps.bindingStore.setPollOffset(update.update_id + 1)
-        }
       } catch (error) {
         if (this.stopRequested) {
           return
@@ -124,7 +135,31 @@ export class TelegramPoller {
           state: 'backoff',
           lastError
         })
-        await sleep(delay)
+        await sleep(delay, pollSignal)
+        continue
+      }
+
+      for (const update of updates) {
+        if (this.stopRequested) {
+          return
+        }
+
+        // Persist the next offset before processing to avoid replaying
+        // partially-delivered Telegram side effects after restart.
+        this.deps.bindingStore.setPollOffset(update.update_id + 1)
+
+        try {
+          await this.handleRawUpdate(update)
+        } catch (error) {
+          if (this.stopRequested) {
+            return
+          }
+
+          console.warn('[TelegramPoller] Failed to handle update:', {
+            updateId: update.update_id,
+            error
+          })
+        }
       }
     }
   }

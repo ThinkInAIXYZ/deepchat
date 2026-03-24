@@ -416,7 +416,7 @@ export class Presenter implements IPresenter {
     this.initializeSkills()
 
     // Initialize remote control runtime
-    void this.remoteControlPresenter.initialize()
+    void this.initializeRemoteControl()
   }
 
   // 初始化悬浮按钮
@@ -456,6 +456,14 @@ export class Presenter implements IPresenter {
     }
   }
 
+  private async initializeRemoteControl() {
+    try {
+      await this.remoteControlPresenter.initialize()
+    } catch (error) {
+      console.error('RemoteControlPresenter.initialize failed:', error)
+    }
+  }
+
   // 从配置中同步自定义模型到 LLMProviderPresenter
   private async syncCustomModels() {
     const providers = this.configPresenter.getProviders()
@@ -478,7 +486,7 @@ export class Presenter implements IPresenter {
 
   // 在应用退出时进行清理，关闭数据库连接
   destroy() {
-    void this.remoteControlPresenter.destroy()
+    void this.destroyRemoteControl()
     this.floatingButtonPresenter.destroy() // 销毁悬浮按钮
     this.tabPresenter.destroy()
     this.sqlitePresenter.close() // 关闭数据库连接
@@ -491,6 +499,14 @@ export class Presenter implements IPresenter {
     ;(this.skillSyncPresenter as SkillSyncPresenter).destroy() // 销毁 Skill Sync 相关资源
     // 注意: trayPresenter.destroy() 在 main/index.ts 的 will-quit 事件中处理
     // 此处不销毁 trayPresenter，其生命周期由 main/index.ts 管理
+  }
+
+  private async destroyRemoteControl() {
+    try {
+      await this.remoteControlPresenter.destroy()
+    } catch (error) {
+      console.error('RemoteControlPresenter.destroy failed:', error)
+    }
   }
 }
 

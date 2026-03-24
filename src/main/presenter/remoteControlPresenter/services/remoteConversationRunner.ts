@@ -338,7 +338,11 @@ export class RemoteConversationRunner {
         }
       }
 
-      const fallback = await this.findLatestAssistantMessageAfter(sessionId, afterOrderSeq)
+      const fallback = await this.findLatestAssistantMessageAfter(
+        sessionId,
+        afterOrderSeq,
+        options?.ignoreMessageId
+      )
       if (fallback) {
         return fallback
       }
@@ -370,16 +374,24 @@ export class RemoteConversationRunner {
       }
     }
 
-    return await this.findLatestAssistantMessageAfter(sessionId, tracking.afterOrderSeq)
+    return await this.findLatestAssistantMessageAfter(
+      sessionId,
+      tracking.afterOrderSeq,
+      tracking.ignoreMessageId
+    )
   }
 
   private async findLatestAssistantMessageAfter(
     sessionId: string,
-    afterOrderSeq: number
+    afterOrderSeq: number,
+    ignoreMessageId?: string | null
   ): Promise<ChatMessageRecord | null> {
     const messages = await this.deps.newAgentPresenter.getMessages(sessionId)
     const assistants = messages.filter(
-      (message) => message.role === 'assistant' && message.orderSeq > afterOrderSeq
+      (message) =>
+        message.role === 'assistant' &&
+        message.orderSeq > afterOrderSeq &&
+        message.id !== ignoreMessageId
     )
     if (assistants.length === 0) {
       return null

@@ -1485,7 +1485,7 @@
       "streamModeDraft": "Streaming brouillon",
       "streamModeFinal": "Réponse finale uniquement",
       "allowedUserIds": "IDs utilisateur autorisés",
-      "allowedUserIdsPlaceholder": "e.g. 123456789, 987654321",
+      "allowedUserIdsPlaceholder": "ex. 123456789, 987654321",
       "defaultAgent": "Agent DeepChat par défaut",
       "defaultAgentPlaceholder": "Sélectionner un agent",
       "openPairDialog": "Associer",
@@ -1510,7 +1510,7 @@
       "title": "Hooks Telegram",
       "description": "Réutilisez le même bot Telegram pour les notifications de hooks.",
       "chatId": "ID du chat",
-      "chatIdPlaceholder": "e.g. 123456789",
+      "chatIdPlaceholder": "ex. 123456789",
       "threadId": "ID du fil (optionnel)",
       "threadIdPlaceholder": "ID du fil optionnel"
     },
