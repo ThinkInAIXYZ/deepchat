@@ -51,6 +51,21 @@
         <!-- Bottom action buttons -->
         <div class="w-5 h-px bg-border my-1"></div>
 
+        <Tooltip v-if="showRemoteControlButton">
+          <TooltipTrigger as-child>
+            <Button
+              data-testid="remote-control-button"
+              class="flex items-center justify-center w-9 h-9 rounded-xl border transition-all duration-150 shadow-none"
+              :class="remoteControlButtonClass"
+              :title="remoteControlTooltip"
+              @click="openRemoteSettings"
+            >
+              <Icon icon="lucide:monitor-cloud" class="w-4 h-4" :class="remoteControlIconClass" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="right">{{ remoteControlTooltip }}</TooltipContent>
+        </Tooltip>
+
         <!-- Collapse toggle -->
         <Tooltip>
           <TooltipTrigger as-child>
@@ -226,7 +241,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { Icon } from '@iconify/vue'
 import { Input } from '@shadcn/components/ui/input'
 import {
@@ -244,24 +259,52 @@ import {
   DialogHeader,
   DialogTitle
 } from '@shadcn/components/ui/dialog'
-import { usePresenter } from '@/composables/usePresenter'
+import { usePresenter, useRemoteControlPresenter } from '@/composables/usePresenter'
+import { SETTINGS_EVENTS } from '@/events'
 import { useAgentStore } from '@/stores/ui/agent'
 import { useSessionStore, type UISession } from '@/stores/ui/session'
+import type { TelegramRemoteStatus } from '@shared/presenter'
 import AgentAvatar from './icons/AgentAvatar.vue'
 import WindowSideBarSessionItem from './WindowSideBarSessionItem.vue'
 import { useI18n } from 'vue-i18n'
 
 const windowPresenter = usePresenter('windowPresenter')
+const remoteControlPresenter = useRemoteControlPresenter()
 const { t } = useI18n()
 const agentStore = useAgentStore()
 const sessionStore = useSessionStore()
 
 const collapsed = ref(false)
+const remoteControlStatus = ref<TelegramRemoteStatus | null>(null)
 let agentSwitchSeq = 0
 let agentSwitchQueue: Promise<void> = Promise.resolve()
+let remoteControlStatusTimer: ReturnType<typeof setInterval> | null = null
 const selectedAgentName = computed(
   () => agentStore.selectedAgent?.name ?? t('chat.sidebar.allAgents')
 )
+const showRemoteControlButton = computed(() => remoteControlStatus.value?.enabled === true)
+const remoteControlTooltip = computed(() => {
+  const state = remoteControlStatus.value?.state ?? 'starting'
+  return t(`chat.sidebar.remoteControlStatus.${state}`)
+})
+const remoteControlButtonClass = computed(() => {
+  const state = remoteControlStatus.value?.state ?? 'starting'
+
+  if (state === 'error') {
+    return 'border-red-500/40 bg-red-500/10 hover:bg-red-500/15'
+  }
+
+  return 'border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/15'
+})
+const remoteControlIconClass = computed(() => {
+  const state = remoteControlStatus.value?.state ?? 'starting'
+
+  if (state === 'error') {
+    return 'text-red-600 dark:text-red-400'
+  }
+
+  return ['text-emerald-600 dark:text-emerald-400', state === 'starting' ? 'animate-pulse' : '']
+})
 
 const pinnedSessions = computed(() => sessionStore.getPinnedSessions(agentStore.selectedAgentId))
 const filteredGroups = computed(() => sessionStore.getFilteredGroups(agentStore.selectedAgentId))
@@ -301,6 +344,32 @@ const openSettings = () => {
   const windowId = window.api.getWindowId()
   if (windowId != null) {
     void windowPresenter.openOrFocusSettingsWindow()
+  }
+}
+
+const navigateToSettings = (windowId: number, routeName: 'settings-remote') => {
+  void windowPresenter.sendToWindow(windowId, SETTINGS_EVENTS.NAVIGATE, {
+    routeName
+  })
+}
+
+const openRemoteSettings = async () => {
+  const settingsWindowId = await windowPresenter.createSettingsWindow()
+  if (settingsWindowId == null) {
+    return
+  }
+
+  navigateToSettings(settingsWindowId, 'settings-remote')
+  window.setTimeout(() => {
+    navigateToSettings(settingsWindowId, 'settings-remote')
+  }, 250)
+}
+
+const refreshRemoteControlStatus = async () => {
+  try {
+    remoteControlStatus.value = await remoteControlPresenter.getTelegramStatus()
+  } catch (error) {
+    console.warn('[WindowSideBar] Failed to refresh remote control status:', error)
   }
 }
 
@@ -422,6 +491,20 @@ const handleDeleteConfirm = async () => {
 
   deleteTargetSession.value = null
 }
+
+onMounted(() => {
+  void refreshRemoteControlStatus()
+  remoteControlStatusTimer = setInterval(() => {
+    void refreshRemoteControlStatus()
+  }, 2_000)
+})
+
+onUnmounted(() => {
+  if (remoteControlStatusTimer) {
+    clearInterval(remoteControlStatusTimer)
+    remoteControlStatusTimer = null
+  }
+})
 </script>
 
 <style scoped>

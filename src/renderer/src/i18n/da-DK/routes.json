@@ -18,5 +18,6 @@
   "settings-notifications-hooks": "Hooks",
   "settings-dashboard": "Dashboard",
   "settings-environments": "Miljøer",
+  "settings-remote": "Fjernstyring",
   "settings-deepchat-agents": "DeepChat-agenter"
 }

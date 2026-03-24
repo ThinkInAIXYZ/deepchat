@@ -1469,6 +1469,65 @@
       "openTitle": "باز کردن پوشه ناموفق بود"
     }
   },
+  "remote": {
+    "title": "کنترل از راه دور",
+    "description": "کنترل از راه دور تلگرام و اعلان‌های هوک تلگرام را پیکربندی کنید.",
+    "telegram": {
+      "title": "Telegram",
+      "description": "یک ربات تلگرام را برای کنترل از راه دور و ارسال هوک مدیریت کنید.",
+      "botToken": "توکن ربات",
+      "botTokenPlaceholder": "توکن ربات تلگرام"
+    },
+    "remoteControl": {
+      "title": "کنترل از راه دور",
+      "description": "به کاربران مجاز تلگرام اجازه دهید نشست‌های DeepChat را از راه دور ادامه دهند.",
+      "streamMode": "حالت استریم",
+      "streamModeDraft": "استریم پیش‌نویس",
+      "streamModeFinal": "فقط پاسخ نهایی",
+      "allowedUserIds": "شناسه‌های کاربری مجاز",
+      "allowedUserIdsPlaceholder": "e.g. 123456789, 987654321",
+      "defaultAgent": "ایجنت پیش‌فرض DeepChat",
+      "defaultAgentPlaceholder": "یک ایجنت را انتخاب کنید",
+      "openPairDialog": "جفت‌سازی",
+      "manageBindings": "مدیریت اتصال‌ها",
+      "pairCode": "کد جفت‌سازی",
+      "noPairCode": "کد جفت‌سازی فعالی وجود ندارد",
+      "generatePairCode": "ایجاد",
+      "clearPairCode": "پاک کردن",
+      "pairCodeExpiresAt": "انقضا در {time}",
+      "pairDialogTitle": "جفت‌سازی تلگرام",
+      "pairDialogDescription": "یک کد جفت‌سازی بسازید و جفت‌سازی را در گفت‌وگوی ربات تلگرام کامل کنید.",
+      "pairDialogInstruction": "این دستور را برای ربات مربوطه بفرستید:",
+      "bindingsDialogTitle": "نشست‌های متصل",
+      "bindingsDialogDescription": "اتصال‌های نشست تلگرام را یکی‌یکی حذف کنید.",
+      "bindingsEmpty": "هنوز اتصال تلگرامی وجود ندارد.",
+      "pairingSuccessTitle": "جفت‌سازی کامل شد",
+      "pairingSuccessDescription": "فهرست شناسه‌های کاربری مجاز تازه‌سازی شد.",
+      "clearBindings": "پاک کردن اتصال‌ها",
+      "clearBindingsResult": "{count} اتصال پاک شد."
+    },
+    "hooks": {
+      "title": "هوک‌های تلگرام",
+      "description": "برای اعلان‌های هوک از همان ربات تلگرام استفاده کنید.",
+      "chatId": "شناسه چت",
+      "chatIdPlaceholder": "e.g. 123456789",
+      "threadId": "شناسه رشته (اختیاری)",
+      "threadIdPlaceholder": "شناسه رشته اختیاری"
+    },
+    "status": {
+      "title": "وضعیت اجرا",
+      "botUser": "کاربر ربات: {username} ({id})",
+      "bindings": "اتصال‌ها: {count}، افست واکشی: {pollOffset}",
+      "states": {
+        "disabled": "غیرفعال",
+        "stopped": "متوقف",
+        "starting": "در حال شروع",
+        "running": "در حال اجرا",
+        "backoff": "در حال تلاش مجدد پس از خطا",
+        "error": "خطا"
+      }
+    }
+  },
   "deepchatAgents": {
     "title": "ایجنت‌های DeepChat",
     "description": "ایجنت‌های DeepChat و پیش‌فرض‌هایی را که برای نشست‌های جدید اعمال می‌کنند مدیریت کنید.",

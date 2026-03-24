@@ -482,7 +482,7 @@ export interface IPresenter {
   newAgentPresenter: INewAgentPresenter
   projectPresenter: IProjectPresenter
   init(): void
-  destroy(): void
+  destroy(): Promise<void>
 }
 
 export interface INotificationPresenter {

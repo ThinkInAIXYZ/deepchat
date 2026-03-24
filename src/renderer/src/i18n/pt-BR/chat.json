@@ -248,6 +248,14 @@
     "allAgents": "Todos os agentes",
     "expandSidebar": "Expandir barra lateral",
     "collapseSidebar": "Recolher barra lateral",
+    "remoteControlStatus": {
+      "disabled": "Controle remoto desativado",
+      "stopped": "Controle remoto parado",
+      "starting": "Iniciando controle remoto",
+      "running": "Controle remoto em execução",
+      "backoff": "Tentando novamente o controle remoto",
+      "error": "Erro no controle remoto"
+    },
     "groupByDate": "Agrupar por data",
     "groupByProject": "Agrupar por projeto",
     "emptyTitle": "Ainda não há conversas",

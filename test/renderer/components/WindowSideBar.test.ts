@@ -1,6 +1,6 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, reactive } from 'vue'
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 
 type SetupOptions = {
   pinnedSessions?: Array<{ id: string; title: string; status: string; isPinned?: boolean }>
@@ -9,12 +9,26 @@ type SetupOptions = {
     labelKey?: string
     sessions: Array<{ id: string; title: string; status: string; isPinned?: boolean }>
   }>
+  remoteStatus?: {
+    enabled: boolean
+    state: 'disabled' | 'stopped' | 'starting' | 'running' | 'backoff' | 'error'
+  }
 }
+
+afterEach(() => {
+  vi.clearAllTimers()
+  vi.useRealTimers()
+})
 
 const setup = async (options: SetupOptions = {}) => {
   vi.resetModules()
+  vi.useFakeTimers()
 
   const operations: string[] = []
+  const remoteStatus = options.remoteStatus ?? {
+    enabled: false,
+    state: 'disabled' as const
+  }
   const agentStore = reactive({
     selectedAgentId: 'deepchat' as string | null,
     selectedAgentName: 'DeepChat',
@@ -58,6 +72,24 @@ const setup = async (options: SetupOptions = {}) => {
   const themeStore = reactive({
     isDark: false
   })
+  const windowPresenter = {
+    openOrFocusSettingsWindow: vi.fn(),
+    createSettingsWindow: vi.fn().mockResolvedValue(99),
+    getSettingsWindowId: vi.fn().mockReturnValue(99),
+    sendToWindow: vi.fn(),
+    show: vi.fn()
+  }
+  const remoteControlPresenter = {
+    getTelegramStatus: vi.fn().mockResolvedValue({
+      enabled: remoteStatus.enabled,
+      state: remoteStatus.state,
+      pollOffset: 0,
+      bindingCount: 0,
+      allowedUserCount: 0,
+      lastError: null,
+      botUser: null
+    })
+  }
 
   vi.doMock('@/stores/ui/agent', () => ({
     useAgentStore: () => agentStore
@@ -69,10 +101,8 @@ const setup = async (options: SetupOptions = {}) => {
     useThemeStore: () => themeStore
   }))
   vi.doMock('@/composables/usePresenter', () => ({
-    usePresenter: () => ({
-      openOrFocusSettingsWindow: vi.fn(),
-      show: vi.fn()
-    })
+    usePresenter: () => windowPresenter,
+    useRemoteControlPresenter: () => remoteControlPresenter
   }))
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({
@@ -143,7 +173,9 @@ const setup = async (options: SetupOptions = {}) => {
     }
   })
 
-  return { wrapper, operations, agentStore, sessionStore }
+  await flushPromises()
+
+  return { wrapper, operations, agentStore, sessionStore, windowPresenter, remoteControlPresenter }
 }
 
 describe('WindowSideBar agent switch', () => {
@@ -252,4 +284,58 @@ describe('WindowSideBar agent switch', () => {
     await (wrapper.vm as any).handleDeleteConfirm()
     expect(sessionStore.deleteSession).toHaveBeenCalledWith('normal-1')
   }, 10000)
+
+  it('shows the remote control button only when remote control is enabled', async () => {
+    const enabledSetup = await setup({
+      remoteStatus: {
+        enabled: true,
+        state: 'starting'
+      }
+    })
+
+    const button = enabledSetup.wrapper.find('[data-testid=\"remote-control-button\"]')
+
+    expect(button.exists()).toBe(true)
+    expect(button.classes().join(' ')).toContain('border-emerald-500/40')
+    expect(enabledSetup.wrapper.text()).toContain('chat.sidebar.remoteControlStatus.starting')
+    expect(enabledSetup.wrapper.html()).toContain('animate-pulse')
+
+    enabledSetup.wrapper.unmount()
+
+    const disabledSetup = await setup({
+      remoteStatus: {
+        enabled: false,
+        state: 'disabled'
+      }
+    })
+
+    expect(disabledSetup.wrapper.find('[data-testid=\"remote-control-button\"]').exists()).toBe(
+      false
+    )
+
+    disabledSetup.wrapper.unmount()
+  })
+
+  it('opens settings and navigates to remote settings when remote button is clicked', async () => {
+    const { wrapper, windowPresenter } = await setup({
+      remoteStatus: {
+        enabled: true,
+        state: 'running'
+      }
+    })
+
+    await wrapper.find('[data-testid=\"remote-control-button\"]').trigger('click')
+    await flushPromises()
+    await vi.advanceTimersByTimeAsync(250)
+
+    expect(windowPresenter.createSettingsWindow).toHaveBeenCalledTimes(1)
+    expect(windowPresenter.sendToWindow).toHaveBeenNthCalledWith(1, 99, 'settings:navigate', {
+      routeName: 'settings-remote'
+    })
+    expect(windowPresenter.sendToWindow).toHaveBeenNthCalledWith(2, 99, 'settings:navigate', {
+      routeName: 'settings-remote'
+    })
+
+    wrapper.unmount()
+  })
 })

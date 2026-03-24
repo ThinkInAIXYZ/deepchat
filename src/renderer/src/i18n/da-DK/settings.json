@@ -1469,6 +1469,65 @@
       "openTitle": "Kunne ikke åbne mappe"
     }
   },
+  "remote": {
+    "title": "Fjernstyring",
+    "description": "Konfigurer Telegram-fjernstyring og Telegram-hook-notifikationer.",
+    "telegram": {
+      "title": "Telegram",
+      "description": "Administrer én Telegram-bot til fjernstyring og hook-levering.",
+      "botToken": "Bot-token",
+      "botTokenPlaceholder": "Telegram bot-token"
+    },
+    "remoteControl": {
+      "title": "Fjernstyring",
+      "description": "Tillad autoriserede Telegram-brugere at fortsætte DeepChat-sessioner eksternt.",
+      "streamMode": "Stream-tilstand",
+      "streamModeDraft": "Udkast-streaming",
+      "streamModeFinal": "Kun endeligt svar",
+      "allowedUserIds": "Tilladte bruger-id'er",
+      "allowedUserIdsPlaceholder": "fx 123456789, 987654321",
+      "defaultAgent": "Standard DeepChat-agent",
+      "defaultAgentPlaceholder": "Vælg en agent",
+      "openPairDialog": "Par",
+      "manageBindings": "Administrer bindinger",
+      "pairCode": "Parringskode",
+      "noPairCode": "Ingen aktiv parringskode",
+      "generatePairCode": "Generer",
+      "clearPairCode": "Ryd",
+      "pairCodeExpiresAt": "Udløber {time}",
+      "pairDialogTitle": "Telegram-parring",
+      "pairDialogDescription": "Generer en parringskode, og fuldfør parringen i din Telegram-botchat.",
+      "pairDialogInstruction": "Send denne kommando til den tilsvarende bot:",
+      "bindingsDialogTitle": "Bundne sessioner",
+      "bindingsDialogDescription": "Fjern Telegram-sessionbindinger én ad gangen.",
+      "bindingsEmpty": "Ingen Telegram-bindinger endnu.",
+      "pairingSuccessTitle": "Parring fuldført",
+      "pairingSuccessDescription": "Listen over tilladte bruger-id'er er blevet opdateret.",
+      "clearBindings": "Ryd bindinger",
+      "clearBindingsResult": "{count} binding(er) ryddet."
+    },
+    "hooks": {
+      "title": "Telegram-hooks",
+      "description": "Genbrug den samme Telegram-bot til hook-notifikationer.",
+      "chatId": "Chat-id",
+      "chatIdPlaceholder": "fx 123456789",
+      "threadId": "Tråd-id (valgfrit)",
+      "threadIdPlaceholder": "Valgfrit tråd-id"
+    },
+    "status": {
+      "title": "Kørselsstatus",
+      "botUser": "Bot-bruger: {username} ({id})",
+      "bindings": "Bindinger: {count}, poll-offset: {pollOffset}",
+      "states": {
+        "disabled": "Deaktiveret",
+        "stopped": "Stoppet",
+        "starting": "Starter",
+        "running": "Kører",
+        "backoff": "Prøver igen efter fejl",
+        "error": "Fejl"
+      }
+    }
+  },
   "deepchatAgents": {
     "title": "DeepChat-agenter",
     "description": "Administrer DeepChat-agenter og de standardværdier, de bruger i nye sessioner.",

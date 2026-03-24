@@ -248,6 +248,14 @@
     "allAgents": "모든 에이전트",
     "expandSidebar": "사이드바 펼치기",
     "collapseSidebar": "사이드바 접기",
+    "remoteControlStatus": {
+      "disabled": "원격 제어가 비활성화됨",
+      "stopped": "원격 제어가 중지됨",
+      "starting": "원격 제어 시작 중",
+      "running": "원격 제어 실행 중",
+      "backoff": "원격 제어 재시도 중",
+      "error": "원격 제어 오류"
+    },
     "groupByDate": "날짜별 그룹화",
     "groupByProject": "프로젝트별 그룹화",
     "emptyTitle": "아직 대화가 없습니다",

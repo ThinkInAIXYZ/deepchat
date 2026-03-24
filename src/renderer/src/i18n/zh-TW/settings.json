@@ -98,8 +98,8 @@
       "botTokenPlaceholder": "Telegram 機器人 Token",
       "chatId": "聊天 ID",
       "chatIdPlaceholder": "例如 123456789",
-      "threadId": "主題 ID（選填）",
-      "threadIdPlaceholder": "選填主題 ID"
+      "threadId": "話題 ID（可選）",
+      "threadIdPlaceholder": "可選的話題 ID"
     },
     "discord": {
       "title": "Discord",
@@ -1467,6 +1467,65 @@
     },
     "errors": {
       "openTitle": "開啟目錄失敗"
+    }
+  },
+  "remote": {
+    "title": "遠端",
+    "description": "設定 Telegram 遠端控制與 Telegram Hook 通知。",
+    "telegram": {
+      "title": "Telegram",
+      "description": "使用同一個 Telegram Bot 管理遠端控制與 Hook 投遞。",
+      "botToken": "機器人 Token",
+      "botTokenPlaceholder": "Telegram 機器人 Token"
+    },
+    "remoteControl": {
+      "title": "遠端控制",
+      "description": "允許已授權的 Telegram 使用者遠端繼續 DeepChat 會話。",
+      "streamMode": "串流模式",
+      "streamModeDraft": "草稿串流",
+      "streamModeFinal": "僅最終結果",
+      "allowedUserIds": "允許的使用者 ID",
+      "allowedUserIdsPlaceholder": "例如 123456789, 987654321",
+      "defaultAgent": "預設 DeepChat 智能體",
+      "defaultAgentPlaceholder": "選擇一個智能體",
+      "openPairDialog": "配對",
+      "manageBindings": "管理綁定",
+      "pairCode": "配對碼",
+      "noPairCode": "目前沒有有效配對碼",
+      "generatePairCode": "產生",
+      "clearPairCode": "清除",
+      "pairCodeExpiresAt": "到期時間：{time}",
+      "pairDialogTitle": "Telegram 配對",
+      "pairDialogDescription": "生成配對碼後，請到 Telegram 機器人內完成配對。",
+      "pairDialogInstruction": "到對應的機器人送出這條指令：",
+      "bindingsDialogTitle": "已綁定會話",
+      "bindingsDialogDescription": "逐條移除 Telegram 與 DeepChat 會話的綁定關係。",
+      "bindingsEmpty": "目前還沒有已綁定的會話。",
+      "pairingSuccessTitle": "配對成功",
+      "pairingSuccessDescription": "允許的使用者 ID 已刷新。",
+      "clearBindings": "清除綁定",
+      "clearBindingsResult": "已清除 {count} 個綁定。"
+    },
+    "hooks": {
+      "title": "Telegram Hook 通知",
+      "description": "重用同一個 Telegram Bot 傳送 Hook 通知。",
+      "chatId": "聊天 ID",
+      "chatIdPlaceholder": "例如 123456789",
+      "threadId": "話題 ID（可選）",
+      "threadIdPlaceholder": "可選的話題 ID"
+    },
+    "status": {
+      "title": "執行狀態",
+      "botUser": "機器人使用者：{username} ({id})",
+      "bindings": "綁定數：{count}，輪詢偏移：{pollOffset}",
+      "states": {
+        "disabled": "已停用",
+        "stopped": "已停止",
+        "starting": "啟動中",
+        "running": "執行中",
+        "backoff": "失敗後重試中",
+        "error": "錯誤"
+      }
     }
   },
   "deepchatAgents": {

@@ -1469,6 +1469,65 @@
       "openTitle": "פתיחת התיקייה נכשלה"
     }
   },
+  "remote": {
+    "title": "שליטה מרחוק",
+    "description": "הגדר שליטה מרחוק ב-Telegram והתראות Hook של Telegram.",
+    "telegram": {
+      "title": "Telegram",
+      "description": "נהל בוט Telegram אחד עבור שליטה מרחוק ושליחת Hooks.",
+      "botToken": "טוקן בוט",
+      "botTokenPlaceholder": "טוקן בוט Telegram"
+    },
+    "remoteControl": {
+      "title": "שליטה מרחוק",
+      "description": "אפשר למשתמשי Telegram מורשים להמשיך סשנים של DeepChat מרחוק.",
+      "streamMode": "מצב סטרימינג",
+      "streamModeDraft": "סטרימינג טיוטה",
+      "streamModeFinal": "תשובה סופית בלבד",
+      "allowedUserIds": "מזהי משתמש מורשים",
+      "allowedUserIdsPlaceholder": "e.g. 123456789, 987654321",
+      "defaultAgent": "סוכן DeepChat ברירת מחדל",
+      "defaultAgentPlaceholder": "בחר סוכן",
+      "openPairDialog": "צימוד",
+      "manageBindings": "ניהול קישורים",
+      "pairCode": "קוד צימוד",
+      "noPairCode": "אין קוד צימוד פעיל",
+      "generatePairCode": "צור",
+      "clearPairCode": "נקה",
+      "pairCodeExpiresAt": "פג תוקף ב-{time}",
+      "pairDialogTitle": "צימוד Telegram",
+      "pairDialogDescription": "צור קוד צימוד והשלם את הצימוד מתוך הצ'אט עם בוט ה-Telegram שלך.",
+      "pairDialogInstruction": "שלח את הפקודה הזו לבוט המתאים:",
+      "bindingsDialogTitle": "סשנים מקושרים",
+      "bindingsDialogDescription": "הסר קישורי סשן של Telegram אחד-אחד.",
+      "bindingsEmpty": "עדיין אין קישורי Telegram.",
+      "pairingSuccessTitle": "הצימוד הושלם",
+      "pairingSuccessDescription": "רשימת מזהי המשתמש המורשים רועננה.",
+      "clearBindings": "נקה קישורים",
+      "clearBindingsResult": "{count} קישור(ים) נוקו."
+    },
+    "hooks": {
+      "title": "Hooks של Telegram",
+      "description": "השתמש שוב באותו בוט Telegram עבור התראות Hook.",
+      "chatId": "מזהה צ'אט",
+      "chatIdPlaceholder": "e.g. 123456789",
+      "threadId": "מזהה שרשור (אופציונלי)",
+      "threadIdPlaceholder": "מזהה שרשור אופציונלי"
+    },
+    "status": {
+      "title": "מצב ריצה",
+      "botUser": "משתמש הבוט: {username} ({id})",
+      "bindings": "קישורים: {count}, היסט סקר: {pollOffset}",
+      "states": {
+        "disabled": "מושבת",
+        "stopped": "נעצר",
+        "starting": "מתחיל",
+        "running": "פועל",
+        "backoff": "מנסה שוב לאחר כשל",
+        "error": "שגיאה"
+      }
+    }
+  },
   "deepchatAgents": {
     "title": "סוכני DeepChat",
     "description": "נהלו את סוכני DeepChat ואת הברירות שהם מחילים על שיחות חדשות.",

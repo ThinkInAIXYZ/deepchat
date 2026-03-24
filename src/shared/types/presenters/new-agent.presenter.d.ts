@@ -1,6 +1,7 @@
 import type {
   Agent,
   CreateSessionInput,
+  CreateDetachedSessionInput,
   SessionWithState,
   ChatMessageRecord,
   MessageTraceRecord,
@@ -19,6 +20,7 @@ import type { SearchResult } from './thread.presenter'
 
 export interface INewAgentPresenter {
   createSession(input: CreateSessionInput, webContentsId: number): Promise<SessionWithState>
+  createDetachedSession(input: CreateDetachedSessionInput): Promise<SessionWithState>
   ensureAcpDraftSession(input: {
     agentId: string
     projectDir: string

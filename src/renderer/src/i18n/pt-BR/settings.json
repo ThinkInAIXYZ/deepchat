@@ -1469,6 +1469,65 @@
       "openTitle": "Falha ao abrir diretório"
     }
   },
+  "remote": {
+    "title": "Remoto",
+    "description": "Configure o controle remoto do Telegram e as notificações de hook do Telegram.",
+    "telegram": {
+      "title": "Telegram",
+      "description": "Gerencie um único bot do Telegram para controle remoto e entrega de hooks.",
+      "botToken": "Token do bot",
+      "botTokenPlaceholder": "Token do bot do Telegram"
+    },
+    "remoteControl": {
+      "title": "Controle remoto",
+      "description": "Permita que usuários autorizados do Telegram continuem sessões do DeepChat remotamente.",
+      "streamMode": "Modo de streaming",
+      "streamModeDraft": "Streaming de rascunho",
+      "streamModeFinal": "Somente resposta final",
+      "allowedUserIds": "IDs de usuário permitidos",
+      "allowedUserIdsPlaceholder": "ex.: 123456789, 987654321",
+      "defaultAgent": "Agente DeepChat padrão",
+      "defaultAgentPlaceholder": "Selecione um agente",
+      "openPairDialog": "Parear",
+      "manageBindings": "Gerenciar vínculos",
+      "pairCode": "Código de pareamento",
+      "noPairCode": "Nenhum código de pareamento ativo",
+      "generatePairCode": "Gerar",
+      "clearPairCode": "Limpar",
+      "pairCodeExpiresAt": "Expira em {time}",
+      "pairDialogTitle": "Pareamento do Telegram",
+      "pairDialogDescription": "Gere um código de pareamento e conclua o pareamento no chat com o bot do Telegram.",
+      "pairDialogInstruction": "Envie este comando para o bot correspondente:",
+      "bindingsDialogTitle": "Sessões vinculadas",
+      "bindingsDialogDescription": "Remova os vínculos de sessão do Telegram um por um.",
+      "bindingsEmpty": "Ainda não há vínculos do Telegram.",
+      "pairingSuccessTitle": "Pareamento concluído",
+      "pairingSuccessDescription": "A lista de IDs de usuário permitidos foi atualizada.",
+      "clearBindings": "Limpar vínculos",
+      "clearBindingsResult": "{count} vínculo(s) limpo(s)."
+    },
+    "hooks": {
+      "title": "Hooks do Telegram",
+      "description": "Reutilize o mesmo bot do Telegram para notificações de hook.",
+      "chatId": "ID do chat",
+      "chatIdPlaceholder": "ex.: 123456789",
+      "threadId": "ID da thread (opcional)",
+      "threadIdPlaceholder": "ID opcional da thread"
+    },
+    "status": {
+      "title": "Status de execução",
+      "botUser": "Usuário do bot: {username} ({id})",
+      "bindings": "Vínculos: {count}, offset de polling: {pollOffset}",
+      "states": {
+        "disabled": "Desativado",
+        "stopped": "Parado",
+        "starting": "Iniciando",
+        "running": "Em execução",
+        "backoff": "Tentando novamente após falha",
+        "error": "Erro"
+      }
+    }
+  },
   "deepchatAgents": {
     "title": "Agentes do DeepChat",
     "description": "Gerencie os agentes do DeepChat e os padrões que eles aplicam às novas sessões.",

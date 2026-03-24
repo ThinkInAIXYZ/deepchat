@@ -1469,6 +1469,65 @@
       "openTitle": "Не удалось открыть каталог"
     }
   },
+  "remote": {
+    "title": "Удалённое управление",
+    "description": "Настройте удалённое управление через Telegram и уведомления Telegram Hook.",
+    "telegram": {
+      "title": "Telegram",
+      "description": "Управляйте одним ботом Telegram для удалённого управления и доставки хуков.",
+      "botToken": "Токен бота",
+      "botTokenPlaceholder": "Токен бота Telegram"
+    },
+    "remoteControl": {
+      "title": "Удалённое управление",
+      "description": "Разрешить авторизованным пользователям Telegram продолжать сессии DeepChat удалённо.",
+      "streamMode": "Режим стриминга",
+      "streamModeDraft": "Черновой стриминг",
+      "streamModeFinal": "Только финальный ответ",
+      "allowedUserIds": "Разрешённые ID пользователей",
+      "allowedUserIdsPlaceholder": "e.g. 123456789, 987654321",
+      "defaultAgent": "Агент DeepChat по умолчанию",
+      "defaultAgentPlaceholder": "Выберите агента",
+      "openPairDialog": "Связать",
+      "manageBindings": "Управление привязками",
+      "pairCode": "Код привязки",
+      "noPairCode": "Нет активного кода привязки",
+      "generatePairCode": "Сгенерировать",
+      "clearPairCode": "Очистить",
+      "pairCodeExpiresAt": "Истекает в {time}",
+      "pairDialogTitle": "Связка Telegram",
+      "pairDialogDescription": "Сгенерируйте код привязки и завершите привязку в чате с вашим ботом Telegram.",
+      "pairDialogInstruction": "Отправьте эту команду соответствующему боту:",
+      "bindingsDialogTitle": "Привязанные сессии",
+      "bindingsDialogDescription": "Удаляйте привязки Telegram к сессиям по одной.",
+      "bindingsEmpty": "Пока нет привязок Telegram.",
+      "pairingSuccessTitle": "Привязка завершена",
+      "pairingSuccessDescription": "Список разрешённых ID пользователей обновлён.",
+      "clearBindings": "Очистить привязки",
+      "clearBindingsResult": "Очищено привязок: {count}."
+    },
+    "hooks": {
+      "title": "Telegram Hook уведомления",
+      "description": "Используйте того же бота Telegram для hook-уведомлений.",
+      "chatId": "ID чата",
+      "chatIdPlaceholder": "e.g. 123456789",
+      "threadId": "ID треда (необязательно)",
+      "threadIdPlaceholder": "Необязательный ID треда"
+    },
+    "status": {
+      "title": "Статус выполнения",
+      "botUser": "Пользователь бота: {username} ({id})",
+      "bindings": "Привязки: {count}, смещение опроса: {pollOffset}",
+      "states": {
+        "disabled": "Отключено",
+        "stopped": "Остановлено",
+        "starting": "Запускается",
+        "running": "Работает",
+        "backoff": "Повтор после сбоя",
+        "error": "Ошибка"
+      }
+    }
+  },
   "deepchatAgents": {
     "title": "Агенты DeepChat",
     "description": "Управляйте агентами DeepChat и значениями по умолчанию, которые они применяют к новым сессиям.",

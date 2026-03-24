@@ -1469,6 +1469,65 @@
       "openTitle": "디렉터리를 열지 못했습니다"
     }
   },
+  "remote": {
+    "title": "원격 제어",
+    "description": "Telegram 원격 제어와 Telegram Hook 알림을 설정합니다.",
+    "telegram": {
+      "title": "Telegram",
+      "description": "하나의 Telegram 봇으로 원격 제어와 Hook 전송을 관리합니다.",
+      "botToken": "봇 토큰",
+      "botTokenPlaceholder": "Telegram 봇 토큰"
+    },
+    "remoteControl": {
+      "title": "원격 제어",
+      "description": "승인된 Telegram 사용자가 DeepChat 세션을 원격으로 이어서 사용할 수 있도록 허용합니다.",
+      "streamMode": "스트리밍 모드",
+      "streamModeDraft": "초안 스트리밍",
+      "streamModeFinal": "최종 결과만",
+      "allowedUserIds": "허용된 사용자 ID",
+      "allowedUserIdsPlaceholder": "예: 123456789, 987654321",
+      "defaultAgent": "기본 DeepChat 에이전트",
+      "defaultAgentPlaceholder": "에이전트 선택",
+      "openPairDialog": "페어링",
+      "manageBindings": "바인딩 관리",
+      "pairCode": "페어링 코드",
+      "noPairCode": "활성 페어링 코드 없음",
+      "generatePairCode": "생성",
+      "clearPairCode": "지우기",
+      "pairCodeExpiresAt": "{time}에 만료",
+      "pairDialogTitle": "Telegram 페어링",
+      "pairDialogDescription": "페어링 코드를 생성한 뒤 Telegram 봇 채팅에서 페어링을 완료하세요.",
+      "pairDialogInstruction": "해당 봇에 이 명령어를 보내세요:",
+      "bindingsDialogTitle": "연결된 세션",
+      "bindingsDialogDescription": "Telegram 세션 바인딩을 하나씩 제거합니다.",
+      "bindingsEmpty": "아직 Telegram 바인딩이 없습니다.",
+      "pairingSuccessTitle": "페어링 완료",
+      "pairingSuccessDescription": "허용된 사용자 ID 목록을 새로고침했습니다.",
+      "clearBindings": "바인딩 지우기",
+      "clearBindingsResult": "{count}개의 바인딩을 지웠습니다."
+    },
+    "hooks": {
+      "title": "Telegram Hook 알림",
+      "description": "같은 Telegram 봇을 Hook 알림에도 재사용합니다.",
+      "chatId": "채팅 ID",
+      "chatIdPlaceholder": "e.g. 123456789",
+      "threadId": "스레드 ID(선택)",
+      "threadIdPlaceholder": "선택 사항 스레드 ID"
+    },
+    "status": {
+      "title": "런타임 상태",
+      "botUser": "봇 사용자: {username} ({id})",
+      "bindings": "바인딩: {count}, 폴링 오프셋: {pollOffset}",
+      "states": {
+        "disabled": "비활성화됨",
+        "stopped": "중지됨",
+        "starting": "시작 중",
+        "running": "실행 중",
+        "backoff": "실패 후 재시도 중",
+        "error": "오류"
+      }
+    }
+  },
   "deepchatAgents": {
     "title": "DeepChat 에이전트",
     "description": "DeepChat 에이전트와 새 세션에 적용할 기본값을 관리합니다.",

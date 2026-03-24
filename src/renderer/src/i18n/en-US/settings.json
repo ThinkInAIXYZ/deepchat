@@ -1519,5 +1519,64 @@
     "errors": {
       "openTitle": "Failed to Open Directory"
     }
+  },
+  "remote": {
+    "title": "Remote",
+    "description": "Configure Telegram remote control and Telegram hook notifications.",
+    "telegram": {
+      "title": "Telegram",
+      "description": "Manage one Telegram bot for remote control and hook delivery.",
+      "botToken": "Bot Token",
+      "botTokenPlaceholder": "Telegram bot token"
+    },
+    "remoteControl": {
+      "title": "Remote Control",
+      "description": "Allow authorized Telegram users to continue DeepChat sessions remotely.",
+      "streamMode": "Stream Mode",
+      "streamModeDraft": "Draft streaming",
+      "streamModeFinal": "Final only",
+      "allowedUserIds": "Allowed User IDs",
+      "allowedUserIdsPlaceholder": "e.g. 123456789, 987654321",
+      "defaultAgent": "Default DeepChat Agent",
+      "defaultAgentPlaceholder": "Select an agent",
+      "openPairDialog": "Pair",
+      "manageBindings": "Manage Bindings",
+      "pairCode": "Pair Code",
+      "noPairCode": "No active pair code",
+      "generatePairCode": "Generate",
+      "clearPairCode": "Clear",
+      "pairCodeExpiresAt": "Expires at {time}",
+      "pairDialogTitle": "Telegram Pairing",
+      "pairDialogDescription": "Generate a pairing code and finish pairing from your Telegram bot chat.",
+      "pairDialogInstruction": "Send this command to the corresponding bot:",
+      "bindingsDialogTitle": "Bound Sessions",
+      "bindingsDialogDescription": "Remove Telegram session bindings one by one.",
+      "bindingsEmpty": "No Telegram bindings yet.",
+      "pairingSuccessTitle": "Pairing complete",
+      "pairingSuccessDescription": "The allowed user list has been refreshed.",
+      "clearBindings": "Clear Bindings",
+      "clearBindingsResult": "{count} binding(s) cleared."
+    },
+    "hooks": {
+      "title": "Telegram Hooks",
+      "description": "Reuse the same Telegram bot for hook notifications.",
+      "chatId": "Chat ID",
+      "chatIdPlaceholder": "e.g. 123456789",
+      "threadId": "Thread ID (optional)",
+      "threadIdPlaceholder": "Optional thread ID"
+    },
+    "status": {
+      "title": "Runtime Status",
+      "botUser": "Bot user: {username} ({id})",
+      "bindings": "Bindings: {count}, poll offset: {pollOffset}",
+      "states": {
+        "disabled": "Disabled",
+        "stopped": "Stopped",
+        "starting": "Starting",
+        "running": "Running",
+        "backoff": "Retrying after failure",
+        "error": "Error"
+      }
+    }
   }
 }

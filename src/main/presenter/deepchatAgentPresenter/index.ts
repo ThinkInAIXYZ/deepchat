@@ -888,6 +888,28 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     this.setSessionStatus(sessionId, 'idle')
   }
 
+  getActiveGeneration(sessionId: string): { eventId: string; runId: string } | null {
+    const activeGeneration = this.activeGenerations.get(sessionId)
+    if (!activeGeneration) {
+      return null
+    }
+
+    return {
+      eventId: activeGeneration.messageId,
+      runId: activeGeneration.runId
+    }
+  }
+
+  async cancelGenerationByEventId(sessionId: string, eventId: string): Promise<boolean> {
+    const activeGeneration = this.activeGenerations.get(sessionId)
+    if (!activeGeneration || activeGeneration.messageId !== eventId) {
+      return false
+    }
+
+    await this.cancelGeneration(sessionId)
+    return true
+  }
+
   private dispatchTerminalHooks(
     sessionId: string,
     state: DeepChatSessionState | undefined,

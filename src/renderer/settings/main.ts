@@ -103,6 +103,16 @@ const router = createRouter({
       }
     },
     {
+      path: '/remote',
+      name: 'settings-remote',
+      component: () => import('./components/RemoteSettings.vue'),
+      meta: {
+        titleKey: 'routes.settings-remote',
+        icon: 'lucide:smartphone',
+        position: 5.25
+      }
+    },
+    {
       path: '/notifications-hooks',
       name: 'settings-notifications-hooks',
       component: () => import('./components/NotificationsHooksSettings.vue'),

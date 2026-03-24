@@ -1,4 +1,4 @@
-import { type IPresenter } from '@shared/presenter'
+import { type IPresenter, type IRemoteControlPresenter } from '@shared/presenter'
 import { toRaw } from 'vue'
 
 // WebContentsId 缓存
@@ -57,7 +57,7 @@ function tryToRow(payloads: unknown[]) {
   }
 }
 
-function createProxy(presenterName: string, safeCall: boolean) {
+function createProxy(channel: string, safeCall: boolean, presenterName?: string) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return new Proxy({} as any, {
     get(_, functionName) {
@@ -69,25 +69,27 @@ function createProxy(presenterName: string, safeCall: boolean) {
         const rawPayloads = tryToRow(payloads)
 
         // 在调用中记录 webContentsId
+        const callTarget = presenterName
+          ? `${presenterName}.${functionName as string}`
+          : `remoteControlPresenter.${functionName as string}`
+
         if (import.meta.env.VITE_LOG_IPC_CALL === '1') {
-          console.log(
-            `[Renderer IPC] WebContents:${webContentsId || 'unknown'} -> ${presenterName}.${functionName as string}`
-          )
+          console.log(`[Renderer IPC] WebContents:${webContentsId || 'unknown'} -> ${callTarget}`)
         }
 
-        const invokedPromise = window.electron.ipcRenderer.invoke(
-          'presenter:call',
-          presenterName,
-          functionName,
-          ...rawPayloads
-        )
+        const invokedPromise =
+          presenterName != null
+            ? window.electron.ipcRenderer.invoke(
+                channel,
+                presenterName,
+                functionName,
+                ...rawPayloads
+              )
+            : window.electron.ipcRenderer.invoke(channel, functionName, ...rawPayloads)
 
         if (safeCall) {
           return await invokedPromise.catch((e: Error) => {
-            console.warn(
-              `[Renderer IPC Error] WebContents:${webContentsId} ${presenterName}.${functionName as string}:`,
-              e
-            )
+            console.warn(`[Renderer IPC Error] WebContents:${webContentsId} ${callTarget}:`, e)
             return null
           })
         } else {
@@ -107,5 +109,10 @@ export function usePresenter<T extends keyof IPresenter>(
   options?: UsePresenterOptions
 ): IPresenter[T] {
   const safeCall = options?.safeCall ?? true
-  return createProxy(name, safeCall)
+  return createProxy('presenter:call', safeCall, name)
+}
+
+export function useRemoteControlPresenter(options?: UsePresenterOptions): IRemoteControlPresenter {
+  const safeCall = options?.safeCall ?? true
+  return createProxy('remoteControlPresenter:call', safeCall)
 }

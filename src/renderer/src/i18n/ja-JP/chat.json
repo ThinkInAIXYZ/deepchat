@@ -248,6 +248,14 @@
     "allAgents": "すべてのエージェント",
     "expandSidebar": "サイドバーを展開",
     "collapseSidebar": "サイドバーを折りたたむ",
+    "remoteControlStatus": {
+      "disabled": "リモート操作は無効です",
+      "stopped": "リモート操作は停止しました",
+      "starting": "リモート操作を開始中",
+      "running": "リモート操作は稼働中です",
+      "backoff": "リモート操作を再試行中",
+      "error": "リモート操作エラー"
+    },
     "groupByDate": "日付でグループ化",
     "groupByProject": "プロジェクトでグループ化",
     "emptyTitle": "まだ会話がありません",

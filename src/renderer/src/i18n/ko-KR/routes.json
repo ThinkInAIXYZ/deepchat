@@ -18,5 +18,6 @@
   "settings-notifications-hooks": "훅",
   "settings-dashboard": "Dashboard",
   "settings-environments": "환경",
+  "settings-remote": "원격 제어",
   "settings-deepchat-agents": "DeepChat 에이전트"
 }

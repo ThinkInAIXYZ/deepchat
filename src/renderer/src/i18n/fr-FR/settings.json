@@ -1469,6 +1469,65 @@
       "openTitle": "Échec de l'ouverture du dossier"
     }
   },
+  "remote": {
+    "title": "Accès distant",
+    "description": "Configurez le contrôle à distance Telegram et les notifications de hooks Telegram.",
+    "telegram": {
+      "title": "Telegram",
+      "description": "Gérez un seul bot Telegram pour le contrôle à distance et l’envoi des hooks.",
+      "botToken": "Jeton du bot",
+      "botTokenPlaceholder": "Jeton du bot Telegram"
+    },
+    "remoteControl": {
+      "title": "Contrôle à distance",
+      "description": "Autorisez les utilisateurs Telegram approuvés à poursuivre les sessions DeepChat à distance.",
+      "streamMode": "Mode de streaming",
+      "streamModeDraft": "Streaming brouillon",
+      "streamModeFinal": "Réponse finale uniquement",
+      "allowedUserIds": "IDs utilisateur autorisés",
+      "allowedUserIdsPlaceholder": "ex. 123456789, 987654321",
+      "defaultAgent": "Agent DeepChat par défaut",
+      "defaultAgentPlaceholder": "Sélectionner un agent",
+      "openPairDialog": "Associer",
+      "manageBindings": "Gérer les liaisons",
+      "pairCode": "Code d’association",
+      "noPairCode": "Aucun code d’association actif",
+      "generatePairCode": "Générer",
+      "clearPairCode": "Effacer",
+      "pairCodeExpiresAt": "Expire à {time}",
+      "pairDialogTitle": "Association Telegram",
+      "pairDialogDescription": "Générez un code d’association puis terminez l’association dans la conversation avec votre bot Telegram.",
+      "pairDialogInstruction": "Envoyez cette commande au bot correspondant :",
+      "bindingsDialogTitle": "Sessions liées",
+      "bindingsDialogDescription": "Supprimez les liaisons de session Telegram une par une.",
+      "bindingsEmpty": "Aucune liaison Telegram pour le moment.",
+      "pairingSuccessTitle": "Association terminée",
+      "pairingSuccessDescription": "La liste des IDs utilisateur autorisés a été actualisée.",
+      "clearBindings": "Effacer les liaisons",
+      "clearBindingsResult": "{count} liaison(s) effacée(s)."
+    },
+    "hooks": {
+      "title": "Hooks Telegram",
+      "description": "Réutilisez le même bot Telegram pour les notifications de hooks.",
+      "chatId": "ID du chat",
+      "chatIdPlaceholder": "ex. 123456789",
+      "threadId": "ID du fil (optionnel)",
+      "threadIdPlaceholder": "ID du fil optionnel"
+    },
+    "status": {
+      "title": "État d’exécution",
+      "botUser": "Utilisateur du bot : {username} ({id})",
+      "bindings": "Liaisons : {count}, offset de polling : {pollOffset}",
+      "states": {
+        "disabled": "Désactivé",
+        "stopped": "Arrêté",
+        "starting": "Démarrage",
+        "running": "En cours",
+        "backoff": "Nouvel essai après échec",
+        "error": "Erreur"
+      }
+    }
+  },
   "deepchatAgents": {
     "title": "Agents DeepChat",
     "description": "Gérez les agents DeepChat et les valeurs par défaut qu'ils injectent dans les nouvelles sessions.",

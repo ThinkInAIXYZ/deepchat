@@ -1469,6 +1469,65 @@
       "openTitle": "ディレクトリを開けませんでした"
     }
   },
+  "remote": {
+    "title": "リモート",
+    "description": "Telegram リモート操作と Telegram Hook 通知を設定します。",
+    "telegram": {
+      "title": "Telegram",
+      "description": "1 つの Telegram Bot でリモート操作と Hook 配信を管理します。",
+      "botToken": "Bot トークン",
+      "botTokenPlaceholder": "Telegram Bot トークン"
+    },
+    "remoteControl": {
+      "title": "リモート操作",
+      "description": "認可済みの Telegram ユーザーが DeepChat セッションをリモートで継続できるようにします。",
+      "streamMode": "ストリーミングモード",
+      "streamModeDraft": "下書きストリーミング",
+      "streamModeFinal": "最終結果のみ",
+      "allowedUserIds": "許可するユーザー ID",
+      "allowedUserIdsPlaceholder": "e.g. 123456789, 987654321",
+      "defaultAgent": "デフォルトの DeepChat Agent",
+      "defaultAgentPlaceholder": "Agent を選択",
+      "openPairDialog": "ペアリング",
+      "manageBindings": "バインド管理",
+      "pairCode": "ペアリングコード",
+      "noPairCode": "有効なペアリングコードはありません",
+      "generatePairCode": "生成",
+      "clearPairCode": "クリア",
+      "pairCodeExpiresAt": "{time} に期限切れ",
+      "pairDialogTitle": "Telegram ペアリング",
+      "pairDialogDescription": "ペアリングコードを生成し、Telegram Bot とのチャットでペアリングを完了してください。",
+      "pairDialogInstruction": "対応する Bot にこのコマンドを送信してください:",
+      "bindingsDialogTitle": "紐付け済みセッション",
+      "bindingsDialogDescription": "Telegram のセッション紐付けを 1 件ずつ解除します。",
+      "bindingsEmpty": "Telegram の紐付けはまだありません。",
+      "pairingSuccessTitle": "ペアリング完了",
+      "pairingSuccessDescription": "許可されたユーザー ID の一覧を更新しました。",
+      "clearBindings": "バインドをクリア",
+      "clearBindingsResult": "{count} 件のバインドをクリアしました。"
+    },
+    "hooks": {
+      "title": "Telegram Hook 通知",
+      "description": "同じ Telegram Bot を Hook 通知にも再利用します。",
+      "chatId": "チャット ID",
+      "chatIdPlaceholder": "e.g. 123456789",
+      "threadId": "スレッド ID（任意）",
+      "threadIdPlaceholder": "任意のスレッド ID"
+    },
+    "status": {
+      "title": "ランタイム状態",
+      "botUser": "Bot ユーザー: {username} ({id})",
+      "bindings": "バインド数: {count}、poll オフセット: {pollOffset}",
+      "states": {
+        "disabled": "無効",
+        "stopped": "停止中",
+        "starting": "起動中",
+        "running": "実行中",
+        "backoff": "失敗後に再試行中",
+        "error": "エラー"
+      }
+    }
+  },
   "deepchatAgents": {
     "title": "DeepChatエージェント",
     "description": "DeepChatエージェントと、新しいセッションに適用する既定値を管理します。",

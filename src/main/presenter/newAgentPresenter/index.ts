@@ -2,6 +2,7 @@ import type {
   Agent,
   IAgentImplementation,
   CreateSessionInput,
+  CreateDetachedSessionInput,
   SessionRecord,
   SessionWithState,
   ChatMessageRecord,
@@ -235,6 +236,97 @@ export class NewAgentPresenter {
     return sessionResult
   }
 
+  async createDetachedSession(input: CreateDetachedSessionInput): Promise<SessionWithState> {
+    const agentId = input.agentId?.trim() || 'deepchat'
+    const title = input.title?.trim() || 'New Chat'
+    const agentType = await this.getAgentType(agentId)
+    const deepChatAgentConfig =
+      agentType === 'deepchat'
+        ? await this.configPresenter.resolveDeepChatAgentConfig(agentId)
+        : null
+    const projectDir =
+      input.projectDir?.trim() ||
+      deepChatAgentConfig?.defaultProjectPath?.trim() ||
+      this.configPresenter.getDefaultProjectPath() ||
+      null
+    const disabledAgentTools =
+      agentType === 'deepchat'
+        ? this.normalizeDisabledAgentTools(
+            input.disabledAgentTools ?? deepChatAgentConfig?.disabledAgentTools
+          )
+        : []
+    const agent = await this.resolveAgentImplementation(agentId)
+
+    const defaultModel = this.configPresenter.getDefaultModel()
+    const providerId =
+      input.providerId ??
+      deepChatAgentConfig?.defaultModelPreset?.providerId ??
+      defaultModel?.providerId ??
+      ''
+    const modelId =
+      input.modelId ??
+      deepChatAgentConfig?.defaultModelPreset?.modelId ??
+      defaultModel?.modelId ??
+      ''
+    const permissionMode: PermissionMode =
+      input.permissionMode !== undefined
+        ? input.permissionMode === 'default'
+          ? 'default'
+          : 'full_access'
+        : deepChatAgentConfig?.permissionMode === 'default'
+          ? 'default'
+          : 'full_access'
+    const generationSettings = this.mergeDeepChatDefaultGenerationSettings(
+      deepChatAgentConfig,
+      input.generationSettings
+    )
+
+    if (!providerId || !modelId) {
+      throw new Error('No provider or model configured. Please set a default model in settings.')
+    }
+    this.assertAcpSessionHasWorkdir(providerId, projectDir)
+
+    const sessionId = this.sessionManager.create(agentId, title, projectDir, {
+      isDraft: false,
+      disabledAgentTools
+    })
+
+    try {
+      await this.initializeSessionRuntime(agent, sessionId, {
+        agentId,
+        providerId,
+        modelId,
+        projectDir,
+        permissionMode,
+        generationSettings
+      })
+    } catch (error) {
+      await this.cleanupFailedSessionInitialization(agent, sessionId)
+      throw error
+    }
+
+    if (input.activeSkills && input.activeSkills.length > 0 && this.skillPresenter) {
+      await this.skillPresenter.setActiveSkills(sessionId, input.activeSkills)
+    }
+
+    this.emitSessionListUpdated()
+
+    const state = await agent.getSessionState(sessionId)
+    return {
+      id: sessionId,
+      agentId,
+      title,
+      projectDir,
+      isPinned: false,
+      isDraft: false,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      status: state?.status ?? 'idle',
+      providerId: state?.providerId ?? providerId,
+      modelId: state?.modelId ?? modelId
+    }
+  }
+
   async ensureAcpDraftSession(input: {
     agentId: string
     projectDir: string
@@ -301,6 +393,7 @@ export class NewAgentPresenter {
   async sendMessage(sessionId: string, content: string | SendMessageInput): Promise<void> {
     let session = this.sessionManager.get(sessionId)
     if (!session) throw new Error(`Session not found: ${sessionId}`)
+    const wasDraft = session.isDraft
     const normalizedInput = this.normalizeSendMessageInput(content)
 
     if (session.isDraft) {
@@ -313,6 +406,7 @@ export class NewAgentPresenter {
 
     const agent = await this.resolveAgentImplementation(session.agentId)
     const state = await agent.getSessionState(sessionId)
+    const hadMessages = (await agent.getMessages(sessionId)).length > 0
     let providerId = state?.providerId ?? ''
     if (!providerId) {
       if ((await this.getAgentType(session.agentId)) === 'acp') {
@@ -328,11 +422,17 @@ export class NewAgentPresenter {
     )
     if (agent.queuePendingInput) {
       await agent.queuePendingInput(sessionId, normalizedInput)
+      if (!hadMessages && !wasDraft) {
+        void this.generateSessionTitle(sessionId, session.title, providerId, state?.modelId ?? '')
+      }
       return
     }
     await agent.processMessage(sessionId, normalizedInput, {
       projectDir: session.projectDir ?? null
     })
+    if (!hadMessages && !wasDraft) {
+      void this.generateSessionTitle(sessionId, session.title, providerId, state?.modelId ?? '')
+    }
   }
 
   async listPendingInputs(sessionId: string) {

@@ -82,6 +82,16 @@ export type { IToolPresenter } from './tool.presenter'
 // New agent architecture types
 export type { INewAgentPresenter } from './new-agent.presenter'
 export type { IProjectPresenter } from './project.presenter'
+export type {
+  IRemoteControlPresenter,
+  TelegramHookSettings,
+  TelegramPairingSnapshot,
+  TelegramRemoteBindingSummary,
+  TelegramRemoteRuntimeState,
+  TelegramRemoteSettings,
+  TelegramRemoteStatus,
+  TelegramStreamMode
+} from './remote-control.presenter'
 
 // Re-export legacy types temporarily for compatibility
 export * from './legacy.presenters'

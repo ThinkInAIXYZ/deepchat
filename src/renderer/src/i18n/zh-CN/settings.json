@@ -145,12 +145,12 @@
     "telegram": {
       "title": "Telegram",
       "description": "通过 Telegram Bot 发送通知。",
-      "botToken": "Bot Token",
-      "botTokenPlaceholder": "Telegram Bot Token",
-      "chatId": "Chat ID",
+      "botToken": "机器人 Token",
+      "botTokenPlaceholder": "Telegram 机器人 Token",
+      "chatId": "聊天 ID",
       "chatIdPlaceholder": "例如 123456789",
-      "threadId": "Thread ID（可选）",
-      "threadIdPlaceholder": "可选 Thread ID"
+      "threadId": "话题 ID（可选）",
+      "threadIdPlaceholder": "可选的话题 ID"
     },
     "discord": {
       "title": "Discord",
@@ -1518,6 +1518,65 @@
     },
     "errors": {
       "openTitle": "打开目录失败"
+    }
+  },
+  "remote": {
+    "title": "远程",
+    "description": "配置 Telegram 远程控制和 Telegram Hook 通知。",
+    "telegram": {
+      "title": "Telegram",
+      "description": "用同一个 Telegram Bot 管理远程控制和 Hook 投递。",
+      "botToken": "机器人 Token",
+      "botTokenPlaceholder": "Telegram 机器人 Token"
+    },
+    "remoteControl": {
+      "title": "远程控制",
+      "description": "允许已授权的 Telegram 用户远程继续 DeepChat 会话。",
+      "streamMode": "流式模式",
+      "streamModeDraft": "草稿流式",
+      "streamModeFinal": "仅最终结果",
+      "allowedUserIds": "允许的用户 ID",
+      "allowedUserIdsPlaceholder": "例如 123456789, 987654321",
+      "defaultAgent": "默认 DeepChat 智能体",
+      "defaultAgentPlaceholder": "选择一个智能体",
+      "openPairDialog": "配对",
+      "manageBindings": "管理绑定",
+      "pairCode": "配对码",
+      "noPairCode": "当前没有有效配对码",
+      "generatePairCode": "生成",
+      "clearPairCode": "清除",
+      "pairCodeExpiresAt": "过期时间：{time}",
+      "pairDialogTitle": "Telegram 配对",
+      "pairDialogDescription": "生成配对码后，请去 Telegram 机器人里完成配对。",
+      "pairDialogInstruction": "去对应的机器人发送这条命令：",
+      "bindingsDialogTitle": "已绑定会话",
+      "bindingsDialogDescription": "逐条移除 Telegram 和 DeepChat 会话的绑定关系。",
+      "bindingsEmpty": "当前还没有绑定的会话。",
+      "pairingSuccessTitle": "配对成功",
+      "pairingSuccessDescription": "允许的用户 ID 已刷新。",
+      "clearBindings": "清除绑定",
+      "clearBindingsResult": "已清除 {count} 个绑定。"
+    },
+    "hooks": {
+      "title": "Telegram Hook 通知",
+      "description": "复用同一个 Telegram Bot 发送 Hook 通知。",
+      "chatId": "聊天 ID",
+      "chatIdPlaceholder": "例如 123456789",
+      "threadId": "话题 ID（可选）",
+      "threadIdPlaceholder": "可选的话题 ID"
+    },
+    "status": {
+      "title": "运行状态",
+      "botUser": "机器人用户：{username} ({id})",
+      "bindings": "绑定数：{count}，轮询偏移：{pollOffset}",
+      "states": {
+        "disabled": "已禁用",
+        "stopped": "已停止",
+        "starting": "启动中",
+        "running": "运行中",
+        "backoff": "失败后重试中",
+        "error": "错误"
+      }
     }
   }
 }

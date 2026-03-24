@@ -248,6 +248,14 @@
     "allAgents": "所有 Agents",
     "expandSidebar": "展開側邊欄",
     "collapseSidebar": "收起側邊欄",
+    "remoteControlStatus": {
+      "disabled": "遠程控制已停用",
+      "stopped": "遠程控制已停止",
+      "starting": "遠程控制啟動中",
+      "running": "遠程控制運行中",
+      "backoff": "遠程控制重試中",
+      "error": "遠程控制錯誤"
+    },
     "groupByDate": "按時間分組",
     "groupByProject": "按專案分組",
     "emptyTitle": "還沒有對話",

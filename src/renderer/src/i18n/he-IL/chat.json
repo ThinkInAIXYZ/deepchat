@@ -248,6 +248,14 @@
     "allAgents": "כל הסוכנים",
     "expandSidebar": "הרחב את הסרגל הצדדי",
     "collapseSidebar": "כווץ את הסרגל הצדדי",
+    "remoteControlStatus": {
+      "disabled": "בקרה מרחוק מושבתת",
+      "stopped": "בקרה מרחוק נעצרה",
+      "starting": "הבקרה מרחוק מתחילה",
+      "running": "הבקרה מרחוק פועלת",
+      "backoff": "הבקרה מרחוק מנסה שוב",
+      "error": "שגיאת בקרה מרחוק"
+    },
     "groupByDate": "קבץ לפי תאריך",
     "groupByProject": "קבץ לפי פרויקט",
     "emptyTitle": "עדיין אין שיחות",
