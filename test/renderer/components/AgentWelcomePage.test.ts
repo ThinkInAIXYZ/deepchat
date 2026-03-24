@@ -43,7 +43,8 @@ describe('AgentWelcomePage', () => {
             ({
               'welcome.agentPage.title': '选择 Agent 开始创作',
               'welcome.agentPage.manageAgents': '管理 DeepChat Agent',
-              'welcome.agentPage.deepchatType': 'DeepChat Agent'
+              'welcome.agentPage.deepchatType': 'DeepChat Agent',
+              'welcome.agentPage.acpType': 'ACP Agent Localized'
             }) as Record<string, string>
           )[key] ?? key
       })
@@ -81,6 +82,7 @@ describe('AgentWelcomePage', () => {
 
     expect(agentButtons).toHaveLength(9)
     expect(wrapper.text()).not.toContain('Agent 10')
+    expect(wrapper.text()).toContain('ACP Agent Localized')
 
     await agentButtons[0].trigger('click')
     expect(agentStore.setSelectedAgent).toHaveBeenCalledWith('agent-1')

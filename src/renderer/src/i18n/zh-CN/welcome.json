@@ -53,6 +53,7 @@
   "agentPage": {
     "title": "选择 Agent 开始创作",
     "deepchatType": "DeepChat Agent",
+    "acpType": "ACP Agent",
     "manageAgents": "管理 DeepChat Agent"
   }
 }

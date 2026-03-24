@@ -1297,7 +1297,7 @@
       "scriptDescription": "Description Override",
       "scriptDescriptionPlaceholder": "Optional description shown to the agent",
       "runtime": {
-        "auto": "Retorno automático",
+        "auto": "Automático",
         "system": "Runtime do sistema",
         "builtin": "Runtime integrado"
       }

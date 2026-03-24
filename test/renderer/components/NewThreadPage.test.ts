@@ -92,6 +92,7 @@ const setup = async (options?: {
   })
 
   const draftStore = reactive({
+    projectDir: projectStore.selectedProject?.path ?? undefined,
     providerId: undefined as string | undefined,
     modelId: undefined as string | undefined,
     permissionMode: 'full_access' as const,

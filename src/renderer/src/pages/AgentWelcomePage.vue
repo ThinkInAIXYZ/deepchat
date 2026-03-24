@@ -24,7 +24,11 @@
           <div class="min-w-0 flex-1">
             <div class="truncate text-sm font-semibold text-foreground">{{ agent.name }}</div>
             <div class="truncate text-xs text-muted-foreground">
-              {{ agent.type === 'deepchat' ? t('welcome.agentPage.deepchatType') : 'ACP' }}
+              {{
+                agent.type === 'deepchat'
+                  ? t('welcome.agentPage.deepchatType')
+                  : t('welcome.agentPage.acpType')
+              }}
             </div>
           </div>
           <Icon icon="lucide:chevron-right" class="h-4 w-4 text-muted-foreground/50" />
