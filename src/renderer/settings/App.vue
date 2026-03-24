@@ -124,6 +124,10 @@ const handleSettingsNavigate = async (
 if (window?.electron?.ipcRenderer) {
   window.electron.ipcRenderer.on(SETTINGS_EVENTS.NAVIGATE, handleSettingsNavigate)
 }
+
+const notifySettingsReady = () => {
+  window.electron?.ipcRenderer?.send(SETTINGS_EVENTS.READY)
+}
 const settings: Ref<
   {
     title: string
@@ -285,6 +289,7 @@ onMounted(async () => {
 
   // Wait for router to be ready
   await router.isReady()
+  notifySettingsReady()
 
   // Check for pending MCP install from localStorage
   try {

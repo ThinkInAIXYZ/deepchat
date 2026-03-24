@@ -70,15 +70,9 @@ const navigateToSettings = (windowId: number) => {
 }
 
 const openAgentSettings = async () => {
-  await windowPresenter.createSettingsWindow()
-  const settingsWindowId = windowPresenter.getSettingsWindowId()
+  const settingsWindowId = await windowPresenter.createSettingsWindow()
   if (settingsWindowId != null) {
     navigateToSettings(settingsWindowId)
-    window.setTimeout(() => {
-      if (windowPresenter.getSettingsWindowId() === settingsWindowId) {
-        navigateToSettings(settingsWindowId)
-      }
-    }, 250)
   }
 }
 </script>

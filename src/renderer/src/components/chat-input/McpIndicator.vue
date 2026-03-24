@@ -500,15 +500,9 @@ const navigateToMcpSettings = (windowId: number) => {
 }
 
 const openSettings = async () => {
-  await windowPresenter.createSettingsWindow()
-  const settingsWindowId = windowPresenter.getSettingsWindowId()
+  const settingsWindowId = await windowPresenter.createSettingsWindow()
   if (settingsWindowId != null) {
     navigateToMcpSettings(settingsWindowId)
-    window.setTimeout(() => {
-      if (windowPresenter.getSettingsWindowId() === settingsWindowId) {
-        navigateToMcpSettings(settingsWindowId)
-      }
-    }, 250)
   }
   panelOpen.value = false
 }

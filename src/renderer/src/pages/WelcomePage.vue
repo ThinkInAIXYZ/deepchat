@@ -108,15 +108,9 @@ const openSettings = async (routeName: SettingsRouteName) => {
     await router.replace({ name: 'chat' })
   }
 
-  await windowPresenter.createSettingsWindow()
-  const settingsWindowId = windowPresenter.getSettingsWindowId()
+  const settingsWindowId = await windowPresenter.createSettingsWindow()
   if (settingsWindowId != null) {
     navigateToSettings(settingsWindowId, routeName)
-    window.setTimeout(() => {
-      if (windowPresenter.getSettingsWindowId() === settingsWindowId) {
-        navigateToSettings(settingsWindowId, routeName)
-      }
-    }, 250)
   }
 }
 

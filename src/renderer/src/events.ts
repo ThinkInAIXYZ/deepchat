@@ -76,6 +76,7 @@ export const WINDOW_EVENTS = {
 
 // Settings related events
 export const SETTINGS_EVENTS = {
+  READY: 'settings:ready',
   NAVIGATE: 'settings:navigate',
   CHECK_FOR_UPDATES: 'settings:check-for-updates'
 }

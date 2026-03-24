@@ -8,13 +8,12 @@ afterEach(() => {
 })
 
 describe('AgentWelcomePage', () => {
-  it('renders up to nine agents and retries navigation to DeepChat agent settings', async () => {
+  it('renders up to nine agents and navigates to DeepChat agent settings', async () => {
     vi.resetModules()
     vi.useFakeTimers()
 
     const windowPresenter = {
       createSettingsWindow: vi.fn().mockResolvedValue(9),
-      getSettingsWindowId: vi.fn(() => 9),
       sendToWindow: vi.fn(() => true)
     }
     const agentStore = {
@@ -100,6 +99,6 @@ describe('AgentWelcomePage', () => {
     expect(windowPresenter.sendToWindow).toHaveBeenCalledWith(9, SETTINGS_EVENTS.NAVIGATE, {
       routeName: 'settings-deepchat-agents'
     })
-    expect(windowPresenter.sendToWindow).toHaveBeenCalledTimes(2)
+    expect(windowPresenter.sendToWindow).toHaveBeenCalledTimes(1)
   })
 })

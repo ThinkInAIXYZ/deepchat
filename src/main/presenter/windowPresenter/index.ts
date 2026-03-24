@@ -13,12 +13,23 @@ import iconWin from '../../../../resources/icon.ico?asset' // App icon (Windows)
 import { is } from '@electron-toolkit/utils' // Electron utilities
 import { IConfigPresenter, IWindowPresenter } from '@shared/presenter' // Window Presenter interface
 import { eventBus } from '@/eventbus' // Event bus
-import { CONFIG_EVENTS, SHORTCUT_EVENTS, SYSTEM_EVENTS, WINDOW_EVENTS } from '@/events' // System/Window/Config/Shortcut event constants
+import {
+  CONFIG_EVENTS,
+  SETTINGS_EVENTS,
+  SHORTCUT_EVENTS,
+  SYSTEM_EVENTS,
+  WINDOW_EVENTS
+} from '@/events' // System/Window/Config/Shortcut event constants
 import { presenter } from '../' // Global presenter registry
 import windowStateManager from 'electron-window-state' // Window state manager
 // TrayPresenter is globally managed in main/index.ts, this Presenter is not responsible for its lifecycle
 import { TabPresenter } from '../tabPresenter' // TabPresenter type
 import { FloatingChatWindow } from './FloatingChatWindow' // Floating chat window
+
+type PendingSettingsMessage = {
+  channel: string
+  args: unknown[]
+}
 
 /**
  * Window Presenter, responsible for managing all BrowserWindow instances and their lifecycles.
@@ -36,6 +47,8 @@ export class WindowPresenter implements IWindowPresenter {
   private mainWindowId: number | null = null
   private floatingChatWindow: FloatingChatWindow | null = null
   private settingsWindow: BrowserWindow | null = null
+  private settingsWindowReady = false
+  private pendingSettingsMessages: PendingSettingsMessage[] = []
 
   constructor(configPresenter: IConfigPresenter) {
     this.windows = new Map()
@@ -93,6 +106,10 @@ export class WindowPresenter implements IWindowPresenter {
       } catch (err) {
         console.error('Failed to open/focus settings window via IPC:', err)
       }
+    })
+
+    ipcMain.on(SETTINGS_EVENTS.READY, (event) => {
+      this.handleSettingsWindowReady(event.sender.id)
     })
 
     // 监听系统主题更新事件，通知所有窗口 Renderer
@@ -426,6 +443,10 @@ export class WindowPresenter implements IWindowPresenter {
       !this.settingsWindow.isDestroyed() &&
       this.settingsWindow.id === windowId
     ) {
+      if (this.shouldQueueSettingsMessage(channel)) {
+        this.pendingSettingsMessages.push({ channel, args })
+        return true
+      }
       try {
         this.settingsWindow.webContents.send(channel, ...args)
         return true
@@ -1220,6 +1241,7 @@ export class WindowPresenter implements IWindowPresenter {
     }
 
     this.settingsWindow = settingsWindow
+    this.resetSettingsWindowState()
     const windowId = settingsWindow.id
 
     // Manage window state to track position and size changes
@@ -1256,11 +1278,18 @@ export class WindowPresenter implements IWindowPresenter {
       }
     })
 
+    settingsWindow.webContents.on('did-start-loading', () => {
+      if (this.settingsWindow?.id === windowId) {
+        this.settingsWindowReady = false
+      }
+    })
+
     settingsWindow.on('closed', () => {
       console.log(`Settings window ${windowId} closed.`)
       // Unmanage window state when window is closed
       settingsWindowState.unmanage()
       this.settingsWindow = null
+      this.resetSettingsWindowState(true)
     })
 
     // Load settings renderer HTML
@@ -1316,6 +1345,53 @@ export class WindowPresenter implements IWindowPresenter {
    */
   public isSettingsWindowOpen(): boolean {
     return this.settingsWindow !== null && !this.settingsWindow.isDestroyed()
+  }
+
+  private shouldQueueSettingsMessage(channel: string): boolean {
+    return channel.startsWith('settings:') && !this.settingsWindowReady
+  }
+
+  private handleSettingsWindowReady(senderWebContentsId: number): void {
+    if (
+      !this.settingsWindow ||
+      this.settingsWindow.isDestroyed() ||
+      this.settingsWindow.webContents.isDestroyed() ||
+      this.settingsWindow.webContents.id !== senderWebContentsId
+    ) {
+      return
+    }
+
+    this.settingsWindowReady = true
+    this.flushPendingSettingsMessages()
+  }
+
+  private flushPendingSettingsMessages(): void {
+    if (
+      !this.settingsWindow ||
+      this.settingsWindow.isDestroyed() ||
+      this.settingsWindow.webContents.isDestroyed() ||
+      !this.settingsWindowReady ||
+      this.pendingSettingsMessages.length === 0
+    ) {
+      return
+    }
+
+    const pending = [...this.pendingSettingsMessages]
+    this.pendingSettingsMessages = []
+    pending.forEach(({ channel, args }) => {
+      try {
+        this.settingsWindow?.webContents.send(channel, ...args)
+      } catch (error) {
+        console.error(`Error flushing settings message "${channel}":`, error)
+      }
+    })
+  }
+
+  private resetSettingsWindowState(clearQueue = false): void {
+    this.settingsWindowReady = false
+    if (clearQueue) {
+      this.pendingSettingsMessages = []
+    }
   }
 
   public isApplicationQuitting(): boolean {
