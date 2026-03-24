@@ -49,5 +49,11 @@
       "ollama": "Ollama",
       "openrouter": "OpenRouter"
     }
+  },
+  "agentPage": {
+    "title": "Choisissez un agent pour commencer à créer",
+    "deepchatType": "Agent DeepChat",
+    "acpType": "Agent ACP",
+    "manageAgents": "Gérer les agents DeepChat"
   }
 }

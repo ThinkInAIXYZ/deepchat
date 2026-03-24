@@ -23,6 +23,7 @@ import { DeepChatMessageSearchResultsTable } from './tables/deepchatMessageSearc
 import { DeepChatPendingInputsTable } from './tables/deepchatPendingInputs'
 import { DeepChatUsageStatsTable } from './tables/deepchatUsageStats'
 import { LegacyImportStatusTable } from './tables/legacyImportStatus'
+import { AgentsTable } from './tables/agents'
 
 /**
  * 导入模式枚举
@@ -48,6 +49,7 @@ export class SQLitePresenter implements ISQLitePresenter {
   public deepchatPendingInputsTable!: DeepChatPendingInputsTable
   public deepchatUsageStatsTable!: DeepChatUsageStatsTable
   public legacyImportStatusTable!: LegacyImportStatusTable
+  public agentsTable!: AgentsTable
   private currentVersion: number = 0
   private dbPath: string
   private password?: string
@@ -168,6 +170,7 @@ export class SQLitePresenter implements ISQLitePresenter {
     this.deepchatPendingInputsTable = new DeepChatPendingInputsTable(this.db)
     this.deepchatUsageStatsTable = new DeepChatUsageStatsTable(this.db)
     this.legacyImportStatusTable = new LegacyImportStatusTable(this.db)
+    this.agentsTable = new AgentsTable(this.db)
 
     // Create only active tables for the new stack.
     this.acpSessionsTable.createTable()
@@ -181,6 +184,7 @@ export class SQLitePresenter implements ISQLitePresenter {
     this.deepchatPendingInputsTable.createTable()
     this.deepchatUsageStatsTable.createTable()
     this.legacyImportStatusTable.createTable()
+    this.agentsTable.createTable()
   }
 
   private initVersionTable() {
@@ -212,7 +216,8 @@ export class SQLitePresenter implements ISQLitePresenter {
       this.deepchatMessageSearchResultsTable,
       this.deepchatPendingInputsTable,
       this.deepchatUsageStatsTable,
-      this.legacyImportStatusTable
+      this.legacyImportStatusTable,
+      this.agentsTable
     ]
 
     // 获取最新的迁移版本

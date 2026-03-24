@@ -10,10 +10,14 @@ export interface UIAgent {
   id: string
   name: string
   type: 'deepchat' | 'acp'
+  agentType?: 'deepchat' | 'acp'
   enabled: boolean
+  protected?: boolean
   icon?: string
   description?: string
-  source?: 'registry' | 'manual'
+  source?: 'builtin' | 'registry' | 'manual'
+  avatar?: Agent['avatar']
+  config?: Agent['config']
   installState?: Agent['installState']
 }
 
@@ -43,12 +47,22 @@ export const useAgentStore = defineStore('agent', () => {
         id: a.id,
         name: a.name,
         type: a.type,
+        agentType: a.agentType,
         enabled: a.enabled,
+        protected: a.protected,
         icon: a.icon,
         description: a.description,
         source: a.source,
+        avatar: a.avatar,
+        config: a.config,
         installState: a.installState ?? null
       }))
+      if (
+        selectedAgentId.value !== null &&
+        !agents.value.some((agent) => agent.id === selectedAgentId.value)
+      ) {
+        selectedAgentId.value = null
+      }
     } catch (e) {
       error.value = `Failed to load agents: ${e}`
     } finally {
@@ -72,6 +86,10 @@ export const useAgentStore = defineStore('agent', () => {
       }
     }
   )
+
+  window.electron.ipcRenderer.on(CONFIG_EVENTS.AGENTS_CHANGED, () => {
+    void fetchAgents()
+  })
 
   return {
     agents,

@@ -49,5 +49,11 @@
       "ollama": "Ollama",
       "openrouter": "OpenRouter"
     }
+  },
+  "agentPage": {
+    "title": "בחרו סוכן כדי להתחיל ליצור",
+    "deepchatType": "סוכן DeepChat",
+    "acpType": "סוכן ACP",
+    "manageAgents": "ניהול סוכני DeepChat"
   }
 }

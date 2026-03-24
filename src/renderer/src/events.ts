@@ -32,7 +32,8 @@ export const CONFIG_EVENTS = {
   FONT_SIZE_CHANGED: 'config:font-size-changed',
   DEFAULT_SYSTEM_PROMPT_CHANGED: 'config:default-system-prompt-changed',
   CUSTOM_PROMPTS_CHANGED: 'config:custom-prompts-changed',
-  DEFAULT_PROJECT_PATH_CHANGED: 'config:default-project-path-changed'
+  DEFAULT_PROJECT_PATH_CHANGED: 'config:default-project-path-changed',
+  AGENTS_CHANGED: 'config:agents-changed'
 }
 
 // 会话相关事件
@@ -75,6 +76,7 @@ export const WINDOW_EVENTS = {
 
 // Settings related events
 export const SETTINGS_EVENTS = {
+  READY: 'settings:ready',
   NAVIGATE: 'settings:navigate',
   CHECK_FOR_UPDATES: 'settings:check-for-updates'
 }

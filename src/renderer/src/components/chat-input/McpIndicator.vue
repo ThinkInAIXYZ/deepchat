@@ -286,15 +286,50 @@ let latestLoadToken = 0
 
 const enabledServers = computed(() => mcpStore.enabledServers)
 const enabledServerCount = computed(() => mcpStore.enabledServerCount)
-
-const currentAgentId = computed(() => {
-  if (sessionStore.hasActiveSession) {
-    return sessionStore.activeSession?.agentId ?? 'deepchat'
+const availableAgents = computed(() => (Array.isArray(agentStore.agents) ? agentStore.agents : []))
+const resolveAgentType = (agentId: string | null | undefined): 'deepchat' | 'acp' => {
+  if (!agentId) {
+    return 'deepchat'
   }
-  return agentStore.selectedAgentId ?? 'deepchat'
+
+  const matchedAgent = availableAgents.value.find((agent) => agent.id === agentId)
+  const selectedAgent =
+    agentStore.selectedAgent && agentStore.selectedAgent.id === agentId
+      ? agentStore.selectedAgent
+      : null
+  const explicitType = matchedAgent?.agentType ?? matchedAgent?.type ?? selectedAgent?.type
+  if (explicitType === 'deepchat' || explicitType === 'acp') {
+    return explicitType
+  }
+
+  return agentId === 'deepchat' ? 'deepchat' : 'acp'
+}
+
+const currentAgent = computed(() => {
+  if (sessionStore.hasActiveSession) {
+    const sessionAgentId = sessionStore.activeSession?.agentId ?? 'deepchat'
+    return (
+      availableAgents.value.find((agent) => agent.id === sessionAgentId) ?? {
+        id: sessionAgentId,
+        type:
+          sessionStore.activeSession?.providerId === 'acp'
+            ? 'acp'
+            : resolveAgentType(sessionAgentId)
+      }
+    )
+  }
+  const selectedAgent = availableAgents.value.find(
+    (agent) => agent.id === agentStore.selectedAgentId
+  )
+  return (
+    agentStore.selectedAgent ?? {
+      id: agentStore.selectedAgentId ?? 'deepchat',
+      type: selectedAgent?.type ?? resolveAgentType(agentStore.selectedAgentId)
+    }
+  )
 })
 
-const isDeepchatContext = computed(() => currentAgentId.value === 'deepchat')
+const isDeepchatContext = computed(() => currentAgent.value.type === 'deepchat')
 const deepchatSessionId = computed(() =>
   isDeepchatContext.value && sessionStore.hasActiveSession ? sessionStore.activeSessionId : null
 )
@@ -465,15 +500,9 @@ const navigateToMcpSettings = (windowId: number) => {
 }
 
 const openSettings = async () => {
-  await windowPresenter.createSettingsWindow()
-  const settingsWindowId = windowPresenter.getSettingsWindowId()
+  const settingsWindowId = await windowPresenter.createSettingsWindow()
   if (settingsWindowId != null) {
     navigateToMcpSettings(settingsWindowId)
-    window.setTimeout(() => {
-      if (windowPresenter.getSettingsWindowId() === settingsWindowId) {
-        navigateToMcpSettings(settingsWindowId)
-      }
-    }, 250)
   }
   panelOpen.value = false
 }

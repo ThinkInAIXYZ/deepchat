@@ -18,5 +18,6 @@
   "settings-notifications-hooks": "フック",
   "settings-dashboard": "Dashboard",
   "settings-environments": "環境",
-  "settings-remote": "Remote"
+  "settings-remote": "Remote",
+  "settings-deepchat-agents": "DeepChatエージェント"
 }

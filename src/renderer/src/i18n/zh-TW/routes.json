@@ -18,5 +18,6 @@
   "settings-notifications-hooks": "Hooks",
   "settings-dashboard": "資料看板",
   "settings-environments": "目錄環境",
-  "settings-remote": "遠端"
+  "settings-remote": "遠端",
+  "settings-deepchat-agents": "DeepChat 智能體"
 }

@@ -6,6 +6,7 @@ import {
   type ModelSpec
 } from '@/presenter/deepchatAgentPresenter/compactionService'
 import type { SessionSummaryState } from '@/presenter/deepchatAgentPresenter/sessionStore'
+import type { DeepChatAgentConfig } from '@shared/types/agent-interface'
 
 vi.mock('tokenx', () => ({
   approximateTokenSize: vi.fn((text: string) => text.length)
@@ -110,6 +111,7 @@ function makePendingAssistantRecord(orderSeq: number, text: string, id = `assist
 function createService(options?: {
   summaryState?: SessionSummaryState
   compareAndSetResult?: { applied: boolean; currentState: SessionSummaryState }
+  sessionConfig?: DeepChatAgentConfig
 }) {
   const summaryState =
     options?.summaryState ??
@@ -151,11 +153,20 @@ function createService(options?: {
     getAutoCompactionRetainRecentPairs: vi.fn().mockReturnValue(2)
   } as any
 
+  const sessionConfig: DeepChatAgentConfig = {
+    autoCompactionEnabled: true,
+    autoCompactionTriggerThreshold: 80,
+    autoCompactionRetainRecentPairs: 2,
+    ...options?.sessionConfig
+  }
+  const resolveSessionConfig = vi.fn().mockImplementation(async () => sessionConfig)
+
   const service = new CompactionService(
     sessionStore,
     messageStore,
     llmProviderPresenter,
-    configPresenter
+    configPresenter,
+    resolveSessionConfig
   )
 
   return {
@@ -163,7 +174,9 @@ function createService(options?: {
     sessionStore,
     messageStore,
     llmProviderPresenter,
-    configPresenter
+    configPresenter,
+    resolveSessionConfig,
+    sessionConfig
   }
 }
 
@@ -172,7 +185,7 @@ describe('CompactionService', () => {
     vi.clearAllMocks()
   })
 
-  it('preserves file bodies and image metadata in user summary blocks', () => {
+  it('preserves file bodies and image metadata in user summary blocks', async () => {
     const { service, messageStore } = createService()
 
     messageStore.getMessages.mockReturnValue([
@@ -197,7 +210,7 @@ describe('CompactionService', () => {
       makeAssistantRecord(6, 'Third reply '.repeat(20))
     ])
 
-    const intent = service.prepareForNextUserTurn({
+    const intent = await service.prepareForNextUserTurn({
       sessionId: 's1',
       providerId: 'openai',
       modelId: 'gpt-4o',
@@ -215,9 +228,12 @@ describe('CompactionService', () => {
     expect(intent?.summaryBlocks[0]).not.toContain('data:image/png')
   })
 
-  it('returns null when auto compaction is disabled', () => {
-    const { service, messageStore, configPresenter } = createService()
-    configPresenter.getAutoCompactionEnabled.mockReturnValue(false)
+  it('returns null when auto compaction is disabled', async () => {
+    const { service, messageStore } = createService({
+      sessionConfig: {
+        autoCompactionEnabled: false
+      }
+    })
     messageStore.getMessages.mockReturnValue([
       makeUserRecord(1, 'A'.repeat(120)),
       makeAssistantRecord(2, 'B'.repeat(120)),
@@ -227,7 +243,7 @@ describe('CompactionService', () => {
       makeAssistantRecord(6, 'F'.repeat(120))
     ])
 
-    const intent = service.prepareForNextUserTurn({
+    const intent = await service.prepareForNextUserTurn({
       sessionId: 's1',
       providerId: 'openai',
       modelId: 'gpt-4o',
@@ -242,8 +258,8 @@ describe('CompactionService', () => {
     expect(intent).toBeNull()
   })
 
-  it('triggers compaction at the configured threshold before hard overflow', () => {
-    const { service, messageStore, configPresenter } = createService()
+  it('triggers compaction at the configured threshold before hard overflow', async () => {
+    const { service, messageStore, sessionConfig } = createService()
     messageStore.getMessages.mockReturnValue([
       makeUserRecord(1, 'A'.repeat(100)),
       makeAssistantRecord(2, 'B'.repeat(100)),
@@ -253,8 +269,8 @@ describe('CompactionService', () => {
       makeAssistantRecord(6, 'F'.repeat(100))
     ])
 
-    configPresenter.getAutoCompactionTriggerThreshold.mockReturnValue(100)
-    const noIntentAtFullBudget = service.prepareForNextUserTurn({
+    sessionConfig.autoCompactionTriggerThreshold = 100
+    const noIntentAtFullBudget = await service.prepareForNextUserTurn({
       sessionId: 's1',
       providerId: 'openai',
       modelId: 'gpt-4o',
@@ -266,8 +282,8 @@ describe('CompactionService', () => {
       newUserContent: 'latest turn'
     })
 
-    configPresenter.getAutoCompactionTriggerThreshold.mockReturnValue(80)
-    const intentAtEightyPercent = service.prepareForNextUserTurn({
+    sessionConfig.autoCompactionTriggerThreshold = 80
+    const intentAtEightyPercent = await service.prepareForNextUserTurn({
       sessionId: 's1',
       providerId: 'openai',
       modelId: 'gpt-4o',
@@ -283,9 +299,12 @@ describe('CompactionService', () => {
     expect(intentAtEightyPercent).not.toBeNull()
   })
 
-  it('retains only the configured recent message pairs for the next user turn', () => {
-    const { service, messageStore, configPresenter } = createService()
-    configPresenter.getAutoCompactionRetainRecentPairs.mockReturnValue(1)
+  it('retains only the configured recent message pairs for the next user turn', async () => {
+    const { service, messageStore } = createService({
+      sessionConfig: {
+        autoCompactionRetainRecentPairs: 1
+      }
+    })
     messageStore.getMessages.mockReturnValue([
       makeUserRecord(1, 'A'.repeat(100)),
       makeAssistantRecord(2, 'B'.repeat(100)),
@@ -295,7 +314,7 @@ describe('CompactionService', () => {
       makeAssistantRecord(6, 'F'.repeat(100))
     ])
 
-    const intent = service.prepareForNextUserTurn({
+    const intent = await service.prepareForNextUserTurn({
       sessionId: 's1',
       providerId: 'openai',
       modelId: 'gpt-4o',
@@ -312,7 +331,7 @@ describe('CompactionService', () => {
     expect(intent?.targetCursorOrderSeq).toBe(5)
   })
 
-  it('passes preserveInterleavedReasoning through to buildHistoryTurns', () => {
+  it('passes preserveInterleavedReasoning through to buildHistoryTurns', async () => {
     const { service, messageStore } = createService()
     messageStore.getMessages.mockReturnValue([
       makeUserRecord(1, 'turn one'),
@@ -325,7 +344,7 @@ describe('CompactionService', () => {
 
     const buildHistoryTurns = vi.mocked(contextBuilderModule.buildHistoryTurns)
 
-    service.prepareForNextUserTurn({
+    await service.prepareForNextUserTurn({
       sessionId: 's1',
       providerId: 'openai',
       modelId: 'gpt-4o',
@@ -336,7 +355,7 @@ describe('CompactionService', () => {
       preserveInterleavedReasoning: false,
       newUserContent: 'next turn'
     })
-    service.prepareForNextUserTurn({
+    await service.prepareForNextUserTurn({
       sessionId: 's1',
       providerId: 'openai',
       modelId: 'gpt-4o',
@@ -352,9 +371,12 @@ describe('CompactionService', () => {
     expect(buildHistoryTurns).toHaveBeenNthCalledWith(2, expect.any(Array), false, true)
   })
 
-  it('retains the configured recent pairs plus the resume target turn', () => {
-    const { service, messageStore, configPresenter } = createService()
-    configPresenter.getAutoCompactionRetainRecentPairs.mockReturnValue(1)
+  it('retains the configured recent pairs plus the resume target turn', async () => {
+    const { service, messageStore } = createService({
+      sessionConfig: {
+        autoCompactionRetainRecentPairs: 1
+      }
+    })
     messageStore.getMessages.mockReturnValue([
       makeUserRecord(1, 'A'.repeat(100)),
       makeAssistantRecord(2, 'B'.repeat(100)),
@@ -366,7 +388,7 @@ describe('CompactionService', () => {
       makePendingAssistantRecord(8, 'resume body', 'resume-target')
     ])
 
-    const intent = service.prepareForResumeTurn({
+    const intent = await service.prepareForResumeTurn({
       sessionId: 's1',
       messageId: 'resume-target',
       providerId: 'openai',

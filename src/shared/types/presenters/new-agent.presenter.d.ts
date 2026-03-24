@@ -64,7 +64,7 @@ export interface INewAgentPresenter {
   getMessageTraceCount(messageId: string): Promise<number>
   getMessageIds(sessionId: string): Promise<string[]>
   getMessage(messageId: string): Promise<ChatMessageRecord | null>
-  translateText(text: string, locale?: string): Promise<string>
+  translateText(text: string, locale?: string, agentId?: string): Promise<string>
   activateSession(webContentsId: number, sessionId: string): Promise<void>
   deactivateSession(webContentsId: number): Promise<void>
   getActiveSession(webContentsId: number): Promise<SessionWithState | null>

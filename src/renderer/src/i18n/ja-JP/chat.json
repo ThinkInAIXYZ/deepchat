@@ -40,7 +40,7 @@
       "badge": "Tools",
       "title": "Tools",
       "mcpSection": "MCP",
-      "builtinSection": "Built-in Tools",
+      "builtinSection": "内蔵ツール",
       "loading": "Loading tools...",
       "builtinEmpty": "No built-in tools available",
       "groups": {

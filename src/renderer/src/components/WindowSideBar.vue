@@ -39,7 +39,7 @@
               "
               @click="handleAgentSelect(agent.id)"
             >
-              <ModelIcon :model-id="agent.id" custom-class="w-4 h-4" :is-dark="themeStore.isDark" />
+              <AgentAvatar :agent="agent" class-name="w-4 h-4" />
             </Button>
           </TooltipTrigger>
           <TooltipContent side="right">{{ agent.name }}</TooltipContent>
@@ -260,18 +260,16 @@ import {
 } from '@shadcn/components/ui/dialog'
 import { usePresenter } from '@/composables/usePresenter'
 import { SETTINGS_EVENTS } from '@/events'
-import { useThemeStore } from '@/stores/theme'
 import { useAgentStore } from '@/stores/ui/agent'
 import { useSessionStore, type UISession } from '@/stores/ui/session'
 import type { TelegramRemoteStatus } from '@shared/presenter'
-import ModelIcon from './icons/ModelIcon.vue'
+import AgentAvatar from './icons/AgentAvatar.vue'
 import WindowSideBarSessionItem from './WindowSideBarSessionItem.vue'
 import { useI18n } from 'vue-i18n'
 
 const windowPresenter = usePresenter('windowPresenter')
 const remoteControlPresenter = usePresenter('remoteControlPresenter')
 const { t } = useI18n()
-const themeStore = useThemeStore()
 const agentStore = useAgentStore()
 const sessionStore = useSessionStore()
 

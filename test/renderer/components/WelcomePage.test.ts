@@ -23,7 +23,6 @@ describe('WelcomePage', () => {
     }
     const windowPresenter = {
       createSettingsWindow: vi.fn().mockResolvedValue(9),
-      getSettingsWindowId: vi.fn(() => 9),
       sendToWindow: vi.fn(() => true)
     }
 
@@ -100,7 +99,7 @@ describe('WelcomePage', () => {
     expect(windowPresenter.sendToWindow).toHaveBeenCalledWith(9, SETTINGS_EVENTS.NAVIGATE, {
       routeName: 'settings-provider'
     })
-    expect(windowPresenter.sendToWindow).toHaveBeenCalledTimes(2)
+    expect(windowPresenter.sendToWindow).toHaveBeenCalledTimes(1)
   })
 
   it('navigates the ACP entry to ACP settings', async () => {
@@ -118,7 +117,6 @@ describe('WelcomePage', () => {
     }
     const windowPresenter = {
       createSettingsWindow: vi.fn().mockResolvedValue(9),
-      getSettingsWindowId: vi.fn(() => 9),
       sendToWindow: vi.fn(() => true)
     }
 
@@ -195,7 +193,7 @@ describe('WelcomePage', () => {
     expect(windowPresenter.sendToWindow).toHaveBeenCalledWith(9, SETTINGS_EVENTS.NAVIGATE, {
       routeName: 'settings-acp'
     })
-    expect(windowPresenter.sendToWindow).toHaveBeenCalledTimes(2)
+    expect(windowPresenter.sendToWindow).toHaveBeenCalledTimes(1)
   })
 
   it('does nothing when no window id is available', async () => {
@@ -212,7 +210,6 @@ describe('WelcomePage', () => {
     }
     const windowPresenter = {
       createSettingsWindow: vi.fn().mockResolvedValue(9),
-      getSettingsWindowId: vi.fn(() => 9),
       sendToWindow: vi.fn(() => true)
     }
 

@@ -409,14 +409,82 @@ export interface MessageTraceRecord {
 
 // ---- Session / Agent Types ----
 
+export type AgentType = 'deepchat' | 'acp'
+export type AgentSource = 'builtin' | 'manual' | 'registry'
+
+export interface AgentAvatarLucide {
+  kind: 'lucide'
+  icon: string
+  lightColor?: string | null
+  darkColor?: string | null
+}
+
+export interface AgentAvatarMonogram {
+  kind: 'monogram'
+  text: string
+  backgroundColor?: string | null
+}
+
+export type AgentAvatar = AgentAvatarLucide | AgentAvatarMonogram
+
+export interface DeepChatAgentModelSelection {
+  providerId: string
+  modelId: string
+}
+
+export interface DeepChatAgentModelPreset extends DeepChatAgentModelSelection {
+  temperature?: number
+  contextLength?: number
+  maxTokens?: number
+  thinkingBudget?: number
+  reasoningEffort?: SessionGenerationSettings['reasoningEffort']
+  verbosity?: SessionGenerationSettings['verbosity']
+  forceInterleavedThinkingCompat?: boolean
+}
+
+export interface DeepChatAgentConfig {
+  defaultModelPreset?: DeepChatAgentModelPreset | null
+  assistantModel?: DeepChatAgentModelSelection | null
+  visionModel?: DeepChatAgentModelSelection | null
+  defaultProjectPath?: string | null
+  systemPrompt?: string
+  permissionMode?: PermissionMode
+  disabledAgentTools?: string[]
+  autoCompactionEnabled?: boolean
+  autoCompactionTriggerThreshold?: number
+  autoCompactionRetainRecentPairs?: number
+}
+
+export interface CreateDeepChatAgentInput {
+  name: string
+  enabled?: boolean
+  description?: string
+  icon?: string
+  avatar?: AgentAvatar | null
+  config?: DeepChatAgentConfig | null
+}
+
+export interface UpdateDeepChatAgentInput {
+  name?: string
+  enabled?: boolean
+  description?: string
+  icon?: string
+  avatar?: AgentAvatar | null
+  config?: DeepChatAgentConfig | null
+}
+
 export interface Agent {
   id: string
   name: string
-  type: 'deepchat' | 'acp'
+  type: AgentType
+  agentType?: AgentType
   enabled: boolean
+  protected?: boolean
   icon?: string
   description?: string
-  source?: 'registry' | 'manual'
+  source?: AgentSource
+  avatar?: AgentAvatar | null
+  config?: DeepChatAgentConfig | null
   installState?: {
     status: 'not_installed' | 'installing' | 'installed' | 'error'
     distributionType?: 'binary' | 'npx' | 'uvx' | 'manual' | null
