@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.0.0-beta.6 (2026-03-24)
+- 新增 Telegram Remote Control，可通过 Telegram 远程查看与驱动会话，远程控制配置也已接入设置页
+- 统一 DeepChat Agent 与 ACP Agent 的 Agent 能力和入口，补齐欢迎页、本地化文案与默认配置，整体使用路径更一致
+- 优化会话默认工作目录传递，修复 Agent / ACP / Skills 在 session workdir 继承上的问题
+- 强化启动与工具输出稳定性，修复 Splash 窗口显示时机，并为大体量工具输出增加保护与批处理适配
+- 移除过时 MCP UI 支持，修复 OpenAI Responses 历史序列化问题，同时继续打磨状态同步与路由细节
+
 ## v1.0.0-beta.5 (2026-03-22)
 - 优化启动 Splash 窗口与 ACP 配置加载提示，启动过程更直观
 - 支持 ACP Registry 搜索安装与 ACP 模型选择，ACP Agent 配置体验继续完善
