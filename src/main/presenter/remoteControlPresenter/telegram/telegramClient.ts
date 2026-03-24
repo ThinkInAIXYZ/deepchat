@@ -1,4 +1,4 @@
-import type { TelegramTransportTarget } from '../types'
+import type { TelegramInlineKeyboardMarkup, TelegramTransportTarget } from '../types'
 
 type TelegramApiErrorParameters = {
   retry_after?: number
@@ -30,9 +30,17 @@ export type TelegramRawMessage = {
   text?: string
 }
 
+export type TelegramRawCallbackQuery = {
+  id: string
+  from?: TelegramUser
+  message?: TelegramRawMessage
+  data?: string
+}
+
 export type TelegramRawUpdate = {
   update_id: number
   message?: TelegramRawMessage
+  callback_query?: TelegramRawCallbackQuery
 }
 
 export type TelegramBotUser = {
@@ -44,6 +52,11 @@ export type TelegramBotCommand = {
   command: string
   description: string
 }
+
+const buildReplyMarkup = (
+  replyMarkup?: TelegramInlineKeyboardMarkup | null
+): TelegramInlineKeyboardMarkup | undefined =>
+  replyMarkup === null ? { inline_keyboard: [] } : replyMarkup
 
 export class TelegramApiRequestError extends Error {
   constructor(
@@ -88,11 +101,16 @@ export class TelegramClient {
     )
   }
 
-  async sendMessage(target: TelegramTransportTarget, text: string): Promise<void> {
+  async sendMessage(
+    target: TelegramTransportTarget,
+    text: string,
+    replyMarkup?: TelegramInlineKeyboardMarkup
+  ): Promise<void> {
     await this.request('sendMessage', {
       chat_id: target.chatId,
       message_thread_id: target.messageThreadId || undefined,
-      text
+      text,
+      reply_markup: buildReplyMarkup(replyMarkup)
     })
   }
 
@@ -126,20 +144,60 @@ export class TelegramClient {
     })
   }
 
+  async editMessageText(params: {
+    target: TelegramTransportTarget
+    messageId: number
+    text: string
+    replyMarkup?: TelegramInlineKeyboardMarkup | null
+  }): Promise<void> {
+    await this.request('editMessageText', {
+      chat_id: params.target.chatId,
+      message_id: params.messageId,
+      text: params.text,
+      reply_markup: buildReplyMarkup(params.replyMarkup)
+    })
+  }
+
+  async editMessageReplyMarkup(params: {
+    target: TelegramTransportTarget
+    messageId: number
+    replyMarkup?: TelegramInlineKeyboardMarkup | null
+  }): Promise<void> {
+    await this.request('editMessageReplyMarkup', {
+      chat_id: params.target.chatId,
+      message_id: params.messageId,
+      reply_markup: buildReplyMarkup(params.replyMarkup)
+    })
+  }
+
+  async answerCallbackQuery(params: {
+    callbackQueryId: string
+    text?: string
+    showAlert?: boolean
+  }): Promise<void> {
+    await this.request('answerCallbackQuery', {
+      callback_query_id: params.callbackQueryId,
+      text: params.text,
+      show_alert: params.showAlert
+    })
+  }
+
   async setMessageReaction(params: {
     chatId: number
     messageId: number
-    emoji: string
+    emoji?: string | null
   }): Promise<void> {
     await this.request('setMessageReaction', {
       chat_id: params.chatId,
       message_id: params.messageId,
-      reaction: [
-        {
-          type: 'emoji',
-          emoji: params.emoji
-        }
-      ]
+      reaction: params.emoji
+        ? [
+            {
+              type: 'emoji',
+              emoji: params.emoji
+            }
+          ]
+        : []
     })
   }
 

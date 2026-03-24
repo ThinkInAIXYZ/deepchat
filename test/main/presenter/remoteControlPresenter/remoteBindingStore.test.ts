@@ -84,4 +84,28 @@ describe('RemoteBindingStore', () => {
     expect(store.getDefaultAgentId()).toBe('deepchat')
     expect(store.getTelegramConfig().streamMode).toBe('draft')
   })
+
+  it('keeps model menus in memory and clears them after rebinding the endpoint', () => {
+    const configPresenter = createConfigPresenter()
+    const store = new RemoteBindingStore(configPresenter as any)
+
+    const token = store.createModelMenuState('telegram:100:0', 'session-1', [
+      {
+        providerId: 'openai',
+        providerName: 'OpenAI',
+        models: [{ modelId: 'gpt-5', modelName: 'GPT-5' }]
+      }
+    ])
+
+    expect(store.getModelMenuState(token, 10 * 60 * 1000)).toEqual(
+      expect.objectContaining({
+        endpointKey: 'telegram:100:0',
+        sessionId: 'session-1'
+      })
+    )
+
+    store.setBinding('telegram:100:0', 'session-2')
+
+    expect(store.getModelMenuState(token, 10 * 60 * 1000)).toBeNull()
+  })
 })

@@ -143,6 +143,20 @@ describe('RemoteControlPresenter', () => {
     expect(pollerInstances[0].start).toHaveBeenCalledTimes(1)
     expect(telegramClientInstances).toHaveLength(1)
     expect(telegramClientInstances[0].setMyCommands).toHaveBeenCalledTimes(1)
+    expect(telegramClientInstances[0].setMyCommands).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({
+          command: 'model'
+        })
+      ])
+    )
+    expect(telegramClientInstances[0].setMyCommands).not.toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({
+          command: 'open'
+        })
+      ])
+    )
   })
 
   it('reports starting while the poller startup is still in flight', async () => {

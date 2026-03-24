@@ -292,100 +292,104 @@
     </div>
   </ScrollArea>
 
-  <Dialog :open="pairDialogOpen">
-    <DialogContent data-testid="remote-pair-dialog" class="sm:max-w-md">
-      <DialogHeader>
-        <DialogTitle>{{ t('settings.remote.remoteControl.pairDialogTitle') }}</DialogTitle>
-        <DialogDescription>
-          {{ t('settings.remote.remoteControl.pairDialogDescription') }}
-        </DialogDescription>
-      </DialogHeader>
+  <Dialog v-model:open="pairDialogVisible">
+    <DialogContent class="sm:max-w-md">
+      <div data-testid="remote-pair-dialog" class="space-y-6">
+        <DialogHeader>
+          <DialogTitle>{{ t('settings.remote.remoteControl.pairDialogTitle') }}</DialogTitle>
+          <DialogDescription>
+            {{ t('settings.remote.remoteControl.pairDialogDescription') }}
+          </DialogDescription>
+        </DialogHeader>
 
-      <div class="space-y-4">
-        <div class="space-y-2">
-          <div class="text-xs text-muted-foreground">
-            {{ t('settings.remote.remoteControl.pairCode') }}
+        <div class="space-y-4">
+          <div class="space-y-2">
+            <div class="text-xs text-muted-foreground">
+              {{ t('settings.remote.remoteControl.pairCode') }}
+            </div>
+            <div class="rounded-lg border bg-muted/30 px-3 py-2 font-mono text-lg tracking-[0.2em]">
+              {{ pairDialogCode || t('settings.remote.remoteControl.noPairCode') }}
+            </div>
+            <div v-if="pairDialogExpiresAt" class="text-xs text-muted-foreground">
+              {{
+                t('settings.remote.remoteControl.pairCodeExpiresAt', {
+                  time: formatTimestamp(pairDialogExpiresAt)
+                })
+              }}
+            </div>
           </div>
-          <div class="rounded-lg border bg-muted/30 px-3 py-2 font-mono text-lg tracking-[0.2em]">
-            {{ pairDialogCode || t('settings.remote.remoteControl.noPairCode') }}
-          </div>
-          <div v-if="pairDialogExpiresAt" class="text-xs text-muted-foreground">
-            {{
-              t('settings.remote.remoteControl.pairCodeExpiresAt', {
-                time: formatTimestamp(pairDialogExpiresAt)
-              })
-            }}
+
+          <div class="rounded-lg border border-dashed bg-muted/20 p-3 text-sm">
+            <div class="text-muted-foreground">
+              {{ t('settings.remote.remoteControl.pairDialogInstruction') }}
+            </div>
+            <div class="mt-2 rounded-md bg-background px-3 py-2 font-mono text-sm">
+              /pair {{ pairDialogCode || '------' }}
+            </div>
           </div>
         </div>
 
-        <div class="rounded-lg border border-dashed bg-muted/20 p-3 text-sm">
-          <div class="text-muted-foreground">
-            {{ t('settings.remote.remoteControl.pairDialogInstruction') }}
-          </div>
-          <div class="mt-2 rounded-md bg-background px-3 py-2 font-mono text-sm">
-            /pair {{ pairDialogCode || '------' }}
-          </div>
+        <div class="flex justify-end">
+          <Button variant="outline" @click="cancelPairDialog">
+            {{ t('common.cancel') }}
+          </Button>
         </div>
-      </div>
-
-      <div class="flex justify-end">
-        <Button variant="outline" @click="cancelPairDialog">
-          {{ t('common.cancel') }}
-        </Button>
       </div>
     </DialogContent>
   </Dialog>
 
-  <Dialog :open="bindingsDialogOpen">
-    <DialogContent data-testid="remote-bindings-dialog" class="sm:max-w-lg">
-      <DialogHeader>
-        <DialogTitle>{{ t('settings.remote.remoteControl.bindingsDialogTitle') }}</DialogTitle>
-        <DialogDescription>
-          {{ t('settings.remote.remoteControl.bindingsDialogDescription') }}
-        </DialogDescription>
-      </DialogHeader>
+  <Dialog v-model:open="bindingsDialogOpen">
+    <DialogContent class="sm:max-w-lg">
+      <div data-testid="remote-bindings-dialog" class="space-y-6">
+        <DialogHeader>
+          <DialogTitle>{{ t('settings.remote.remoteControl.bindingsDialogTitle') }}</DialogTitle>
+          <DialogDescription>
+            {{ t('settings.remote.remoteControl.bindingsDialogDescription') }}
+          </DialogDescription>
+        </DialogHeader>
 
-      <div class="space-y-3">
-        <div v-if="bindingsLoading" class="text-sm text-muted-foreground">
-          {{ t('common.loading') }}
-        </div>
-        <div
-          v-else-if="bindings.length === 0"
-          data-testid="remote-bindings-empty"
-          class="rounded-lg border border-dashed p-4 text-sm text-muted-foreground"
-        >
-          {{ t('settings.remote.remoteControl.bindingsEmpty') }}
-        </div>
-        <div v-else class="space-y-2">
+        <div class="space-y-3">
+          <div v-if="bindingsLoading" class="text-sm text-muted-foreground">
+            {{ t('common.loading') }}
+          </div>
           <div
-            v-for="binding in bindings"
-            :key="binding.endpointKey"
-            :data-testid="`remote-binding-${binding.endpointKey}`"
-            class="flex items-center justify-between gap-3 rounded-lg border p-3"
+            v-else-if="bindings.length === 0"
+            data-testid="remote-bindings-empty"
+            class="rounded-lg border border-dashed p-4 text-sm text-muted-foreground"
           >
-            <div class="min-w-0 flex-1">
-              <div class="truncate text-sm font-medium">{{ binding.sessionId }}</div>
-              <div class="mt-1 text-xs text-muted-foreground">
-                telegram:{{ binding.chatId }}:{{ binding.messageThreadId }}
-              </div>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              class="text-destructive hover:text-destructive"
-              :disabled="bindingRemovingKey === binding.endpointKey"
-              @click="removeBinding(binding.endpointKey)"
+            {{ t('settings.remote.remoteControl.bindingsEmpty') }}
+          </div>
+          <div v-else class="space-y-2">
+            <div
+              v-for="binding in bindings"
+              :key="binding.endpointKey"
+              :data-testid="`remote-binding-${binding.endpointKey}`"
+              class="flex items-center justify-between gap-3 rounded-lg border p-3"
             >
-              {{ t('common.delete') }}
-            </Button>
+              <div class="min-w-0 flex-1">
+                <div class="truncate text-sm font-medium">{{ binding.sessionId }}</div>
+                <div class="mt-1 text-xs text-muted-foreground">
+                  telegram:{{ binding.chatId }}:{{ binding.messageThreadId }}
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                class="text-destructive hover:text-destructive"
+                :disabled="bindingRemovingKey === binding.endpointKey"
+                @click="removeBinding(binding.endpointKey)"
+              >
+                {{ t('common.delete') }}
+              </Button>
+            </div>
           </div>
         </div>
-      </div>
 
-      <div class="flex justify-end">
-        <Button variant="outline" @click="bindingsDialogOpen = false">
-          {{ t('common.close') }}
-        </Button>
+        <div class="flex justify-end">
+          <Button variant="outline" @click="bindingsDialogOpen = false">
+            {{ t('common.close') }}
+          </Button>
+        </div>
       </div>
     </DialogContent>
   </Dialog>
@@ -476,6 +480,18 @@ const defaultAgentOptions = computed(() => {
   }
 
   return options
+})
+
+const pairDialogVisible = computed({
+  get: () => pairDialogOpen.value,
+  set: (open: boolean) => {
+    if (open) {
+      pairDialogOpen.value = true
+      return
+    }
+
+    void cancelPairDialog()
+  }
 })
 
 const parseAllowedUserIds = (value: string): number[] =>
@@ -710,10 +726,12 @@ const generatePairCodeAndOpenDialog = async () => {
 }
 
 const cancelPairDialog = async () => {
-  if (!pairDialogOpen.value) {
+  if (!pairDialogOpen.value && !pairDialogCode.value && !pairDialogExpectedCode.value) {
     return
   }
 
+  stopPairDialogPolling()
+  pairDialogOpen.value = false
   pairDialogCancelling.value = true
   try {
     await remoteControlPresenter.clearTelegramPairCode()

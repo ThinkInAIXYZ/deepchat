@@ -1,4 +1,4 @@
-import type { TelegramInboundMessage } from '../types'
+import type { TelegramInboundEvent, TelegramInboundMessage } from '../types'
 import { RemoteBindingStore } from './remoteBindingStore'
 
 export type RemoteAuthResult =
@@ -14,25 +14,25 @@ export type RemoteAuthResult =
 export class RemoteAuthGuard {
   constructor(private readonly bindingStore: RemoteBindingStore) {}
 
-  ensureAuthorized(message: TelegramInboundMessage): RemoteAuthResult {
-    if (message.chatType !== 'private') {
+  ensureAuthorized(event: TelegramInboundEvent): RemoteAuthResult {
+    if (event.chatType !== 'private') {
       return {
         ok: false,
         message: 'Telegram remote control only supports private chats in v1.'
       }
     }
 
-    if (!message.fromId || !Number.isInteger(message.fromId) || message.fromId <= 0) {
+    if (!event.fromId || !Number.isInteger(event.fromId) || event.fromId <= 0) {
       return {
         ok: false,
         message: 'Unable to verify your Telegram user ID.'
       }
     }
 
-    if (this.bindingStore.isAllowedUser(message.fromId)) {
+    if (this.bindingStore.isAllowedUser(event.fromId)) {
       return {
         ok: true,
-        userId: message.fromId
+        userId: event.fromId
       }
     }
 

@@ -23,6 +23,7 @@ describe('RemoteConversationRunner', () => {
     }
     const runner = new RemoteConversationRunner(
       {
+        configPresenter: {} as any,
         newAgentPresenter: {
           createDetachedSession: vi
             .fn()
@@ -78,6 +79,7 @@ describe('RemoteConversationRunner', () => {
     }
     const runner = new RemoteConversationRunner(
       {
+        configPresenter: {} as any,
         newAgentPresenter: newAgentPresenter as any,
         deepchatAgentPresenter: deepchatAgentPresenter as any,
         windowPresenter: {} as any,
@@ -92,5 +94,102 @@ describe('RemoteConversationRunner', () => {
     expect(execution.sessionId).toBe('session-legacy')
     expect(newAgentPresenter.sendMessage).toHaveBeenCalledWith('session-legacy', 'hello')
     expect(newAgentPresenter.createDetachedSession).not.toHaveBeenCalled()
+  })
+
+  it('lists recent sessions for the currently bound agent before falling back to default agent', async () => {
+    const newAgentPresenter = {
+      getSession: vi.fn().mockResolvedValue(
+        createSession({
+          id: 'session-bound',
+          agentId: 'deepchat-bound'
+        })
+      ),
+      getSessionList: vi.fn().mockResolvedValue([
+        createSession({
+          id: 'session-a',
+          agentId: 'deepchat-bound',
+          updatedAt: 5
+        }),
+        createSession({
+          id: 'session-b',
+          agentId: 'deepchat-bound',
+          updatedAt: 10
+        })
+      ])
+    }
+    const bindingStore = {
+      getBinding: vi.fn().mockReturnValue({
+        sessionId: 'session-bound',
+        updatedAt: 1
+      }),
+      rememberSessionSnapshot: vi.fn()
+    }
+    const runner = new RemoteConversationRunner(
+      {
+        configPresenter: {} as any,
+        newAgentPresenter: newAgentPresenter as any,
+        deepchatAgentPresenter: {} as any,
+        windowPresenter: {} as any,
+        tabPresenter: {} as any,
+        resolveDefaultAgentId: vi.fn().mockResolvedValue('deepchat-default')
+      },
+      bindingStore as any
+    )
+
+    const sessions = await runner.listSessions('telegram:100:0')
+
+    expect(newAgentPresenter.getSessionList).toHaveBeenCalledWith({
+      agentId: 'deepchat-bound'
+    })
+    expect(sessions.map((session) => session.id)).toEqual(['session-b', 'session-a'])
+    expect(bindingStore.rememberSessionSnapshot).toHaveBeenCalledWith('telegram:100:0', [
+      'session-b',
+      'session-a'
+    ])
+  })
+
+  it('delegates remote model switching to the bound session', async () => {
+    const newAgentPresenter = {
+      getSession: vi.fn().mockResolvedValue(
+        createSession({
+          id: 'session-bound',
+          agentId: 'deepchat-bound'
+        })
+      ),
+      setSessionModel: vi.fn().mockResolvedValue(
+        createSession({
+          id: 'session-bound',
+          agentId: 'deepchat-bound',
+          providerId: 'anthropic',
+          modelId: 'claude-3-5-sonnet'
+        })
+      )
+    }
+    const runner = new RemoteConversationRunner(
+      {
+        configPresenter: {} as any,
+        newAgentPresenter: newAgentPresenter as any,
+        deepchatAgentPresenter: {} as any,
+        windowPresenter: {} as any,
+        tabPresenter: {} as any,
+        resolveDefaultAgentId: vi.fn().mockResolvedValue('deepchat-default')
+      },
+      {
+        getBinding: vi.fn().mockReturnValue({
+          sessionId: 'session-bound',
+          updatedAt: 1
+        })
+      } as any
+    )
+
+    const updated = await runner.setSessionModel('telegram:100:0', 'anthropic', 'claude-3-5-sonnet')
+
+    expect(newAgentPresenter.setSessionModel).toHaveBeenCalledWith(
+      'session-bound',
+      'anthropic',
+      'claude-3-5-sonnet'
+    )
+    expect(updated.providerId).toBe('anthropic')
+    expect(updated.modelId).toBe('claude-3-5-sonnet')
   })
 })

@@ -98,8 +98,8 @@
       "botTokenPlaceholder": "Telegram 機器人 Token",
       "chatId": "聊天 ID",
       "chatIdPlaceholder": "例如 123456789",
-      "threadId": "主題 ID（可選）",
-      "threadIdPlaceholder": "可選的主題 ID"
+      "threadId": "話題 ID（可選）",
+      "threadIdPlaceholder": "可選的話題 ID"
     },
     "discord": {
       "title": "Discord",
@@ -1475,8 +1475,8 @@
     "telegram": {
       "title": "Telegram",
       "description": "使用同一個 Telegram Bot 管理遠端控制與 Hook 投遞。",
-      "botToken": "Bot Token",
-      "botTokenPlaceholder": "Telegram Bot Token"
+      "botToken": "機器人 Token",
+      "botTokenPlaceholder": "Telegram 機器人 Token"
     },
     "remoteControl": {
       "title": "遠端控制",
@@ -1486,8 +1486,8 @@
       "streamModeFinal": "僅最終結果",
       "allowedUserIds": "允許的使用者 ID",
       "allowedUserIdsPlaceholder": "例如 123456789, 987654321",
-      "defaultAgent": "預設 DeepChat Agent",
-      "defaultAgentPlaceholder": "選擇一個 Agent",
+      "defaultAgent": "預設 DeepChat 智能體",
+      "defaultAgentPlaceholder": "選擇一個智能體",
       "openPairDialog": "配對",
       "manageBindings": "管理綁定",
       "pairCode": "配對碼",
@@ -1507,16 +1507,16 @@
       "clearBindingsResult": "已清除 {count} 個綁定。"
     },
     "hooks": {
-      "title": "Telegram Hooks",
+      "title": "Telegram Hook 通知",
       "description": "重用同一個 Telegram Bot 傳送 Hook 通知。",
-      "chatId": "Chat ID",
+      "chatId": "聊天 ID",
       "chatIdPlaceholder": "例如 123456789",
-      "threadId": "Thread ID（可選）",
-      "threadIdPlaceholder": "可選的 Thread ID"
+      "threadId": "話題 ID（可選）",
+      "threadIdPlaceholder": "可選的話題 ID"
     },
     "status": {
       "title": "執行狀態",
-      "botUser": "Bot 使用者：{username} ({id})",
+      "botUser": "機器人使用者：{username} ({id})",
       "bindings": "綁定數：{count}，輪詢偏移：{pollOffset}",
       "states": {
         "disabled": "已停用",

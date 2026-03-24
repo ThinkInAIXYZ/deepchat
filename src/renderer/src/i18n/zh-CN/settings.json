@@ -145,12 +145,12 @@
     "telegram": {
       "title": "Telegram",
       "description": "通过 Telegram Bot 发送通知。",
-      "botToken": "Bot Token",
-      "botTokenPlaceholder": "Telegram Bot Token",
-      "chatId": "Chat ID",
+      "botToken": "机器人 Token",
+      "botTokenPlaceholder": "Telegram 机器人 Token",
+      "chatId": "聊天 ID",
       "chatIdPlaceholder": "例如 123456789",
-      "threadId": "Thread ID（可选）",
-      "threadIdPlaceholder": "可选 Thread ID"
+      "threadId": "话题 ID（可选）",
+      "threadIdPlaceholder": "可选的话题 ID"
     },
     "discord": {
       "title": "Discord",
@@ -1526,8 +1526,8 @@
     "telegram": {
       "title": "Telegram",
       "description": "用同一个 Telegram Bot 管理远程控制和 Hook 投递。",
-      "botToken": "Bot Token",
-      "botTokenPlaceholder": "Telegram Bot Token"
+      "botToken": "机器人 Token",
+      "botTokenPlaceholder": "Telegram 机器人 Token"
     },
     "remoteControl": {
       "title": "远程控制",
@@ -1537,8 +1537,8 @@
       "streamModeFinal": "仅最终结果",
       "allowedUserIds": "允许的用户 ID",
       "allowedUserIdsPlaceholder": "例如 123456789, 987654321",
-      "defaultAgent": "默认 DeepChat Agent",
-      "defaultAgentPlaceholder": "选择一个 Agent",
+      "defaultAgent": "默认 DeepChat 智能体",
+      "defaultAgentPlaceholder": "选择一个智能体",
       "openPairDialog": "配对",
       "manageBindings": "管理绑定",
       "pairCode": "配对码",
@@ -1558,16 +1558,16 @@
       "clearBindingsResult": "已清除 {count} 个绑定。"
     },
     "hooks": {
-      "title": "Telegram Hooks",
+      "title": "Telegram Hook 通知",
       "description": "复用同一个 Telegram Bot 发送 Hook 通知。",
-      "chatId": "Chat ID",
+      "chatId": "聊天 ID",
       "chatIdPlaceholder": "例如 123456789",
-      "threadId": "Thread ID（可选）",
-      "threadIdPlaceholder": "可选的 Thread ID"
+      "threadId": "话题 ID（可选）",
+      "threadIdPlaceholder": "可选的话题 ID"
     },
     "status": {
       "title": "运行状态",
-      "botUser": "Bot 用户：{username} ({id})",
+      "botUser": "机器人用户：{username} ({id})",
       "bindings": "绑定数：{count}，轮询偏移：{pollOffset}",
       "states": {
         "disabled": "已禁用",

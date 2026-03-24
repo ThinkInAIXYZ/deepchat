@@ -12,29 +12,31 @@
 - `remoteBindingStore`
   - Stores `remoteControl.telegram` config in Electron Store.
   - Persists poll offset, allowlist, default agent id, pair code, internal stream mode, and endpoint bindings.
-  - Keeps active event IDs and `/sessions` snapshots in memory.
+  - Keeps active event IDs, `/sessions` snapshots, and `/model` inline-menu state in memory.
 - `remoteAuthGuard`
   - Enforces private-chat-only usage.
   - Authenticates strictly by numeric `from.id`.
   - Supports one-time `/pair <code>` flow.
 - `remoteConversationRunner`
   - Creates detached sessions when needed.
-  - Resolves a valid enabled DeepChat default agent before creating or listing unbound Telegram sessions.
+  - Resolves a valid enabled DeepChat default agent before creating unbound Telegram sessions.
+  - Lists recent sessions by the currently bound session's agent when a valid binding exists; otherwise falls back to the default DeepChat agent.
+  - Exposes current-session lookup and bound-session model switching through `newAgentPresenter.setSessionModel()`.
   - Reuses `newAgentPresenter.sendMessage()` for plain-text Telegram input.
   - Tracks the active assistant message/event for `/stop`.
-  - Reuses existing chat-window activation logic for `/open`.
 - `remoteCommandRouter`
-  - Handles `/start`, `/help`, `/pair`, `/new`, `/sessions`, `/use`, `/stop`, `/open`, `/status`, and plain text.
+  - Handles `/start`, `/help`, `/pair`, `/new`, `/sessions`, `/use`, `/stop`, `/status`, `/model`, plain text, and `/model` callback actions.
 - `telegramClient`
-  - Calls `getMe`, `getUpdates`, `sendMessageDraft`, `sendMessage`, `sendChatAction`, `setMyCommands`, and `setMessageReaction`.
+  - Calls `getMe`, `getUpdates`, `sendMessageDraft`, `sendMessage`, `sendChatAction`, `setMyCommands`, `setMessageReaction`, `editMessageText`, `editMessageReplyMarkup`, and `answerCallbackQuery`.
 - `telegramParser`
-  - Parses private text updates and bot commands.
+  - Parses private text updates, bot commands, and callback queries into one internal event shape.
 - `telegramOutbound`
   - Builds plain-text assistant output, detects “desktop confirmation required” states, and chunks output to 4096 characters.
 - `telegramPoller`
   - Runs a single sequential long-poll loop.
   - Advances the stored offset only after a specific update is handled successfully.
   - Uses exponential backoff on failures.
+  - Only adds reactions for plain-text conversation messages and clears them after the conversation completes or fails.
 
 ## Shared / IPC Contract
 
@@ -72,11 +74,11 @@
 1. Renderer saves Remote settings through `remoteControlPresenter`.
 2. Main presenter updates `hooksNotifications.telegram` and `remoteControl.telegram`, then rebuilds the Telegram runtime if required.
 3. Telegram poller receives private updates through `getUpdates`.
-4. Parser normalizes text/command payloads.
-5. Router applies auth and command handling.
+4. Parser normalizes message and callback payloads.
+5. Router applies auth, command handling, and `/model` inline-menu transitions.
 6. Plain text enters `newAgentPresenter.sendMessage()` using the bound or newly created detached session.
-7. Poller watches assistant message state and sends draft/final Telegram output.
-8. Poller reacts to the incoming Telegram message on a best-effort basis.
+7. `/model` callback actions edit a single bot menu message in place and answer the callback query.
+8. Poller watches assistant message state and sends draft/final Telegram output.
 9. If the assistant pauses on a permission/question action, Telegram returns a desktop-confirmation notice instead of bypassing approval.
 
 ## Testing Strategy
@@ -85,8 +87,10 @@
 - Unit tests for `remoteBindingStore`.
 - Unit tests for `remoteCommandRouter`.
 - Unit tests for `remoteConversationRunner`.
+- Unit tests for `telegramParser`.
+- Unit tests for `telegramClient` request payloads.
 - Unit tests for `telegramOutbound` chunking/final-text behavior.
-- Unit tests for Telegram command registration / message reaction best-effort behavior.
+- Unit tests for Telegram command registration, callback handling, and message reaction lifecycle behavior.
 - Presenter-level tests for detached session creation.
 - Presenter-level tests for stop-by-event behavior.
 

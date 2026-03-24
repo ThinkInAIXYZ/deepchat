@@ -4,6 +4,7 @@ import {
   TELEGRAM_REMOTE_POLL_TIMEOUT_SEC,
   TELEGRAM_STREAM_POLL_INTERVAL_MS,
   TELEGRAM_TYPING_DELAY_MS,
+  type TelegramOutboundAction,
   type TelegramPollerStatusSnapshot,
   type TelegramTransportTarget
 } from '../types'
@@ -14,6 +15,7 @@ import { TelegramApiRequestError, TelegramClient, type TelegramRawUpdate } from 
 import { TelegramParser } from './telegramParser'
 
 const POLL_BACKOFF_MS = [1_000, 2_000, 5_000, 10_000, 30_000] as const
+const CALLBACK_QUERY_ACK_TIMEOUT_MS = 500
 
 const sleep = async (ms: number): Promise<void> => {
   await new Promise((resolve) => setTimeout(resolve, ms))
@@ -87,7 +89,7 @@ export class TelegramPoller {
           offset: this.deps.bindingStore.getPollOffset(),
           limit: TELEGRAM_REMOTE_POLL_LIMIT,
           timeout: TELEGRAM_REMOTE_POLL_TIMEOUT_SEC,
-          allowedUpdates: ['message'],
+          allowedUpdates: ['message', 'callback_query'],
           signal: this.createPollSignal()
         })
 
@@ -154,15 +156,47 @@ export class TelegramPoller {
       chatId: parsed.chatId,
       messageThreadId: parsed.messageThreadId
     }
-    await this.setIncomingReaction(parsed.chatId, parsed.messageId)
-    const routed = await this.deps.router.handleMessage(parsed)
+    const callbackAcknowledger =
+      parsed.kind === 'callback_query'
+        ? this.createCallbackQueryAcknowledger(parsed.callbackQueryId)
+        : null
+
+    let routed: Awaited<ReturnType<RemoteCommandRouter['handleMessage']>>
+    try {
+      routed = await this.deps.router.handleMessage(parsed)
+    } catch (error) {
+      if (callbackAcknowledger) {
+        await callbackAcknowledger.answer()
+      }
+      throw error
+    }
+
+    if (callbackAcknowledger) {
+      await callbackAcknowledger.answer(routed.callbackAnswer)
+    }
 
     for (const reply of routed.replies) {
       await this.sendChunkedMessage(target, reply)
     }
 
+    if (routed.outboundActions?.length) {
+      await this.dispatchOutboundActions(target, routed.outboundActions)
+    }
+
     if (routed.conversation) {
-      await this.deliverConversation(target, routed.conversation)
+      const reactionMessage = parsed.kind === 'message' && !parsed.command ? parsed : null
+
+      if (reactionMessage) {
+        await this.setIncomingReaction(reactionMessage.chatId, reactionMessage.messageId)
+      }
+
+      try {
+        await this.deliverConversation(target, routed.conversation)
+      } finally {
+        if (reactionMessage) {
+          await this.clearIncomingReaction(reactionMessage.chatId, reactionMessage.messageId)
+        }
+      }
     }
   }
 
@@ -256,6 +290,45 @@ export class TelegramPoller {
     }
   }
 
+  private async dispatchOutboundActions(
+    target: TelegramTransportTarget,
+    actions: TelegramOutboundAction[]
+  ): Promise<void> {
+    for (const action of actions) {
+      if (action.type === 'sendMessage') {
+        if (action.replyMarkup) {
+          await this.deps.client.sendMessage(target, action.text, action.replyMarkup)
+          continue
+        }
+
+        await this.sendChunkedMessage(target, action.text)
+        continue
+      }
+
+      await this.editMessageText(target, action)
+    }
+  }
+
+  private async editMessageText(
+    target: TelegramTransportTarget,
+    action: Extract<TelegramOutboundAction, { type: 'editMessageText' }>
+  ): Promise<void> {
+    try {
+      await this.deps.client.editMessageText({
+        target,
+        messageId: action.messageId,
+        text: action.text,
+        replyMarkup: action.replyMarkup ?? undefined
+      })
+    } catch (error) {
+      if (this.isMessageNotModifiedError(error)) {
+        return
+      }
+
+      throw error
+    }
+  }
+
   private async setIncomingReaction(chatId: number, messageId: number): Promise<void> {
     try {
       await this.deps.client.setMessageReaction({
@@ -266,6 +339,82 @@ export class TelegramPoller {
     } catch (error) {
       console.warn('[TelegramPoller] Failed to set message reaction:', error)
     }
+  }
+
+  private async clearIncomingReaction(chatId: number, messageId: number): Promise<void> {
+    try {
+      await this.deps.client.setMessageReaction({
+        chatId,
+        messageId,
+        emoji: null
+      })
+    } catch (error) {
+      console.warn('[TelegramPoller] Failed to clear message reaction:', error)
+    }
+  }
+
+  private async answerCallbackQuery(
+    callbackQueryId: string,
+    answer?: {
+      text?: string
+      showAlert?: boolean
+    }
+  ): Promise<void> {
+    try {
+      await this.deps.client.answerCallbackQuery({
+        callbackQueryId,
+        text: answer?.text,
+        showAlert: answer?.showAlert
+      })
+    } catch (error) {
+      if (this.isExpiredCallbackQueryError(error)) {
+        return
+      }
+
+      console.warn('[TelegramPoller] Failed to answer callback query:', error)
+    }
+  }
+
+  private createCallbackQueryAcknowledger(callbackQueryId: string): {
+    answer: (answer?: { text?: string; showAlert?: boolean }) => Promise<void>
+  } {
+    let answered = false
+    const timer = setTimeout(() => {
+      if (answered) {
+        return
+      }
+
+      answered = true
+      void this.answerCallbackQuery(callbackQueryId)
+    }, CALLBACK_QUERY_ACK_TIMEOUT_MS)
+
+    return {
+      answer: async (answer) => {
+        clearTimeout(timer)
+        if (answered) {
+          return
+        }
+
+        answered = true
+        await this.answerCallbackQuery(callbackQueryId, answer)
+      }
+    }
+  }
+
+  private isExpiredCallbackQueryError(error: unknown): boolean {
+    return (
+      error instanceof TelegramApiRequestError &&
+      error.code === 400 &&
+      /query is too old|query id is invalid|response timeout expired/i.test(error.message)
+    )
+  }
+
+  private isMessageNotModifiedError(error: unknown): boolean {
+    return (
+      error instanceof TelegramApiRequestError &&
+      error.code === 400 &&
+      /message is not modified/i.test(error.message)
+    )
   }
 
   private isFatalPollError(error: unknown): boolean {

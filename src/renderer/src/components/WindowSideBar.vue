@@ -348,23 +348,20 @@ const openSettings = () => {
 }
 
 const navigateToSettings = (windowId: number, routeName: 'settings-remote') => {
-  windowPresenter.sendToWindow(windowId, SETTINGS_EVENTS.NAVIGATE, {
+  void windowPresenter.sendToWindow(windowId, SETTINGS_EVENTS.NAVIGATE, {
     routeName
   })
 }
 
 const openRemoteSettings = async () => {
-  await windowPresenter.createSettingsWindow()
-  const settingsWindowId = windowPresenter.getSettingsWindowId()
+  const settingsWindowId = await windowPresenter.createSettingsWindow()
   if (settingsWindowId == null) {
     return
   }
 
   navigateToSettings(settingsWindowId, 'settings-remote')
   window.setTimeout(() => {
-    if (windowPresenter.getSettingsWindowId() === settingsWindowId) {
-      navigateToSettings(settingsWindowId, 'settings-remote')
-    }
+    navigateToSettings(settingsWindowId, 'settings-remote')
   }, 250)
 }
 

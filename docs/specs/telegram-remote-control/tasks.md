@@ -11,13 +11,13 @@
 3. Remote runtime services
    - Implement auth guard, binding store, command router, and conversation runner.
    - Route new Telegram sessions through a validated default DeepChat agent.
-   - Reuse existing stop/open/session listing behavior.
+   - Make `/sessions` prefer the currently bound agent and add bound-session `/model` switching.
 
 4. Telegram transport
    - Implement native-fetch Telegram client.
    - Implement long polling with offset persistence and backoff.
    - Implement plain-text outbound chunking and draft/final delivery.
-   - Register default Telegram bot commands and react to inbound messages on a best-effort basis.
+   - Register default Telegram bot commands, support inline-keyboard callback queries, and keep reactions scoped to plain-text conversations.
 
 5. Renderer
    - Add `RemoteSettings.vue`.
@@ -29,7 +29,8 @@
 
 6. Tests
    - Add main tests for auth guard, bindings, command routing, and chunking.
-   - Extend existing presenter tests for detached session creation and stop-by-event behavior.
+   - Add parser/client tests for callback query and inline-keyboard payloads.
+   - Extend existing presenter tests for detached session creation, session model switching, and stop-by-event behavior.
 
 7. Validation
    - Run formatting, i18n check, lint, and targeted tests when dependencies are available in the worktree.

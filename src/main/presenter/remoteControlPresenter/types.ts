@@ -19,6 +19,7 @@ export const TELEGRAM_STREAM_POLL_INTERVAL_MS = 450
 export const TELEGRAM_STREAM_START_TIMEOUT_MS = 8_000
 export const TELEGRAM_PRIVATE_THREAD_DEFAULT = 0
 export const TELEGRAM_RECENT_SESSION_LIMIT = 10
+export const TELEGRAM_MODEL_MENU_TTL_MS = 10 * 60 * 1000
 export const TELEGRAM_REMOTE_DEFAULT_AGENT_ID = 'deepchat'
 export const TELEGRAM_REMOTE_REACTION_EMOJI = '🤯'
 export const TELEGRAM_REMOTE_COMMANDS = [
@@ -51,8 +52,8 @@ export const TELEGRAM_REMOTE_COMMANDS = [
     description: 'Stop the active generation'
   },
   {
-    command: 'open',
-    description: 'Open the bound desktop session'
+    command: 'model',
+    description: 'Switch provider and model'
   },
   {
     command: 'status',
@@ -70,6 +71,11 @@ export type TelegramPairingState = {
   expiresAt: number | null
 }
 
+export type TelegramCommandPayload = {
+  name: string
+  args: string
+}
+
 export interface TelegramRemoteRuntimeConfig {
   enabled: boolean
   allowlist: number[]
@@ -85,18 +91,163 @@ export interface RemoteControlConfig {
   telegram: TelegramRemoteRuntimeConfig
 }
 
-export interface TelegramInboundMessage {
+interface TelegramInboundBase {
   updateId: number
   chatId: number
   messageThreadId: number
   messageId: number
   chatType: string
   fromId: number | null
+}
+
+export interface TelegramInboundMessage extends TelegramInboundBase {
+  kind: 'message'
   text: string
-  command: {
-    name: string
-    args: string
-  } | null
+  command: TelegramCommandPayload | null
+}
+
+export interface TelegramInboundCallbackQuery extends TelegramInboundBase {
+  kind: 'callback_query'
+  callbackQueryId: string
+  data: string
+}
+
+export type TelegramInboundEvent = TelegramInboundMessage | TelegramInboundCallbackQuery
+
+export interface TelegramInlineKeyboardButton {
+  text: string
+  callback_data: string
+}
+
+export interface TelegramInlineKeyboardMarkup {
+  inline_keyboard: TelegramInlineKeyboardButton[][]
+}
+
+export type TelegramOutboundAction =
+  | {
+      type: 'sendMessage'
+      text: string
+      replyMarkup?: TelegramInlineKeyboardMarkup
+    }
+  | {
+      type: 'editMessageText'
+      messageId: number
+      text: string
+      replyMarkup?: TelegramInlineKeyboardMarkup | null
+    }
+
+export interface TelegramCallbackAnswer {
+  text?: string
+  showAlert?: boolean
+}
+
+export interface TelegramModelOption {
+  modelId: string
+  modelName: string
+}
+
+export interface TelegramModelProviderOption {
+  providerId: string
+  providerName: string
+  models: TelegramModelOption[]
+}
+
+export interface TelegramModelMenuState {
+  endpointKey: string
+  sessionId: string
+  createdAt: number
+  providers: TelegramModelProviderOption[]
+}
+
+export type TelegramModelMenuCallback =
+  | {
+      action: 'provider'
+      token: string
+      providerIndex: number
+    }
+  | {
+      action: 'model'
+      token: string
+      providerIndex: number
+      modelIndex: number
+    }
+  | {
+      action: 'back' | 'cancel'
+      token: string
+    }
+
+const TELEGRAM_MODEL_MENU_CALLBACK_PREFIX = 'model'
+
+export const createTelegramCallbackToken = (): string =>
+  `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`
+
+export const buildModelMenuProviderCallbackData = (token: string, providerIndex: number): string =>
+  `${TELEGRAM_MODEL_MENU_CALLBACK_PREFIX}:${token}:p:${providerIndex}`
+
+export const buildModelMenuChoiceCallbackData = (
+  token: string,
+  providerIndex: number,
+  modelIndex: number
+): string => `${TELEGRAM_MODEL_MENU_CALLBACK_PREFIX}:${token}:m:${providerIndex}:${modelIndex}`
+
+export const buildModelMenuBackCallbackData = (token: string): string =>
+  `${TELEGRAM_MODEL_MENU_CALLBACK_PREFIX}:${token}:b`
+
+export const buildModelMenuCancelCallbackData = (token: string): string =>
+  `${TELEGRAM_MODEL_MENU_CALLBACK_PREFIX}:${token}:c`
+
+export const parseModelMenuCallbackData = (data: string): TelegramModelMenuCallback | null => {
+  const parts = data.trim().split(':')
+  if (parts[0] !== TELEGRAM_MODEL_MENU_CALLBACK_PREFIX || !parts[1]) {
+    return null
+  }
+
+  const token = parts[1]
+  const action = parts[2]
+  if (action === 'p' && parts[3] !== undefined) {
+    const providerIndex = Number.parseInt(parts[3], 10)
+    if (Number.isInteger(providerIndex) && providerIndex >= 0) {
+      return {
+        action: 'provider',
+        token,
+        providerIndex
+      }
+    }
+  }
+
+  if (action === 'm' && parts[3] !== undefined && parts[4] !== undefined) {
+    const providerIndex = Number.parseInt(parts[3], 10)
+    const modelIndex = Number.parseInt(parts[4], 10)
+    if (
+      Number.isInteger(providerIndex) &&
+      providerIndex >= 0 &&
+      Number.isInteger(modelIndex) &&
+      modelIndex >= 0
+    ) {
+      return {
+        action: 'model',
+        token,
+        providerIndex,
+        modelIndex
+      }
+    }
+  }
+
+  if (action === 'b') {
+    return {
+      action: 'back',
+      token
+    }
+  }
+
+  if (action === 'c') {
+    return {
+      action: 'cancel',
+      token
+    }
+  }
+
+  return null
 }
 
 export interface TelegramPollerStatusSnapshot {

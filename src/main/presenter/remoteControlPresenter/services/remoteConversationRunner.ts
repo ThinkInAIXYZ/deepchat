@@ -1,8 +1,17 @@
 import { BrowserWindow } from 'electron'
 import type { ChatMessageRecord, SessionWithState } from '@shared/types/agent-interface'
-import type { INewAgentPresenter, ITabPresenter, IWindowPresenter } from '@shared/presenter'
+import type {
+  IConfigPresenter,
+  INewAgentPresenter,
+  ITabPresenter,
+  IWindowPresenter
+} from '@shared/presenter'
 import type { DeepChatAgentPresenter } from '../../deepchatAgentPresenter'
-import { TELEGRAM_RECENT_SESSION_LIMIT, TELEGRAM_STREAM_POLL_INTERVAL_MS } from '../types'
+import {
+  TELEGRAM_RECENT_SESSION_LIMIT,
+  TELEGRAM_STREAM_POLL_INTERVAL_MS,
+  type TelegramModelProviderOption
+} from '../types'
 import {
   buildTelegramFinalText,
   extractTelegramStreamText,
@@ -33,6 +42,7 @@ export interface RemoteRunnerStatus {
 }
 
 type RemoteConversationRunnerDeps = {
+  configPresenter: IConfigPresenter
   newAgentPresenter: INewAgentPresenter
   deepchatAgentPresenter: DeepChatAgentPresenter
   windowPresenter: IWindowPresenter
@@ -85,7 +95,7 @@ export class RemoteConversationRunner {
   }
 
   async listSessions(endpointKey: string): Promise<SessionWithState[]> {
-    const agentId = await this.deps.resolveDefaultAgentId()
+    const agentId = await this.resolveSessionListAgentId(endpointKey)
     const sessions = await this.deps.newAgentPresenter.getSessionList({
       agentId
     })
@@ -117,6 +127,38 @@ export class RemoteConversationRunner {
 
     this.bindingStore.setBinding(endpointKey, session.id)
     return session
+  }
+
+  async listAvailableModelProviders(): Promise<TelegramModelProviderOption[]> {
+    const enabledProviders = this.deps.configPresenter.getEnabledProviders()
+    const enabledModelGroups = await this.deps.configPresenter.getAllEnabledModels()
+    const providerNameById = new Map(
+      enabledProviders.map((provider) => [provider.id, provider.name])
+    )
+
+    return enabledModelGroups
+      .filter((group) => providerNameById.has(group.providerId) && group.models.length > 0)
+      .map((group) => ({
+        providerId: group.providerId,
+        providerName: providerNameById.get(group.providerId) ?? group.providerId,
+        models: group.models.map((model) => ({
+          modelId: model.id,
+          modelName: model.name || model.id
+        }))
+      }))
+  }
+
+  async setSessionModel(
+    endpointKey: string,
+    providerId: string,
+    modelId: string
+  ): Promise<SessionWithState> {
+    const session = await this.getCurrentSession(endpointKey)
+    if (!session) {
+      throw new Error('No bound session. Send a message, /new, or /use first.')
+    }
+
+    return await this.deps.newAgentPresenter.setSessionModel(session.id, providerId, modelId)
   }
 
   async sendText(endpointKey: string, text: string): Promise<RemoteConversationExecution> {
@@ -212,6 +254,11 @@ export class RemoteConversationRunner {
 
   async getDefaultAgentId(): Promise<string> {
     return await this.deps.resolveDefaultAgentId()
+  }
+
+  private async resolveSessionListAgentId(endpointKey: string): Promise<string> {
+    const currentSession = await this.getCurrentSession(endpointKey)
+    return currentSession?.agentId ?? (await this.deps.resolveDefaultAgentId())
   }
 
   private async getConversationSnapshot(

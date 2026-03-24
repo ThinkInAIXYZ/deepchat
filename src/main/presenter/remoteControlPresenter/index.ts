@@ -229,6 +229,7 @@ export class RemoteControlPresenter {
     const authGuard = new RemoteAuthGuard(this.bindingStore)
     const runner = new RemoteConversationRunner(
       {
+        configPresenter: this.deps.configPresenter,
         newAgentPresenter: this.deps.newAgentPresenter,
         deepchatAgentPresenter: this.deps.deepchatAgentPresenter,
         windowPresenter: this.deps.windowPresenter,

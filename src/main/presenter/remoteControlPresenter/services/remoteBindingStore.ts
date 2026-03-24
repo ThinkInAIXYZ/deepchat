@@ -1,13 +1,16 @@
 import type { IConfigPresenter } from '@shared/presenter'
 import {
   REMOTE_CONTROL_SETTING_KEY,
+  TELEGRAM_MODEL_MENU_TTL_MS,
   buildTelegramEndpointKey,
   normalizeRemoteControlConfig,
   createPairCode,
+  createTelegramCallbackToken,
   buildTelegramPairingSnapshot,
   type RemoteControlConfig,
   type TelegramEndpointBinding,
-  type TelegramInboundMessage,
+  type TelegramInboundEvent,
+  type TelegramModelMenuState,
   type TelegramPairingState,
   type TelegramRemoteRuntimeConfig
 } from '../types'
@@ -15,6 +18,7 @@ import {
 export class RemoteBindingStore {
   private readonly activeEvents = new Map<string, string>()
   private readonly sessionSnapshots = new Map<string, string[]>()
+  private readonly modelMenuStates = new Map<string, TelegramModelMenuState>()
 
   constructor(private readonly configPresenter: IConfigPresenter) {}
 
@@ -41,7 +45,7 @@ export class RemoteBindingStore {
   }
 
   getEndpointKey(
-    target: { chatId: number; messageThreadId?: number } | TelegramInboundMessage
+    target: { chatId: number; messageThreadId?: number } | TelegramInboundEvent
   ): string {
     return buildTelegramEndpointKey(target.chatId, target.messageThreadId ?? 0)
   }
@@ -62,6 +66,7 @@ export class RemoteBindingStore {
       }
     }))
     this.activeEvents.delete(endpointKey)
+    this.clearModelMenuStatesForEndpoint(endpointKey)
   }
 
   clearBinding(endpointKey: string): void {
@@ -75,6 +80,7 @@ export class RemoteBindingStore {
     })
     this.activeEvents.delete(endpointKey)
     this.sessionSnapshots.delete(endpointKey)
+    this.clearModelMenuStatesForEndpoint(endpointKey)
   }
 
   listBindings(): Array<{
@@ -95,6 +101,7 @@ export class RemoteBindingStore {
     }))
     this.activeEvents.clear()
     this.sessionSnapshots.clear()
+    this.modelMenuStates.clear()
     return count
   }
 
@@ -182,5 +189,67 @@ export class RemoteBindingStore {
 
   getSessionSnapshot(endpointKey: string): string[] {
     return this.sessionSnapshots.get(endpointKey) ?? []
+  }
+
+  createModelMenuState(
+    endpointKey: string,
+    sessionId: string,
+    providers: TelegramModelMenuState['providers']
+  ): string {
+    this.clearExpiredModelMenuStates()
+    this.clearModelMenuStatesForEndpoint(endpointKey)
+    const token = createTelegramCallbackToken()
+    this.modelMenuStates.set(token, {
+      endpointKey,
+      sessionId,
+      createdAt: Date.now(),
+      providers: providers.map((provider) => ({
+        ...provider,
+        models: provider.models.map((model) => ({ ...model }))
+      }))
+    })
+    return token
+  }
+
+  getModelMenuState(token: string, ttlMs: number): TelegramModelMenuState | null {
+    this.clearExpiredModelMenuStates()
+    const state = this.modelMenuStates.get(token)
+    if (!state) {
+      return null
+    }
+
+    if (Date.now() - state.createdAt > ttlMs) {
+      this.modelMenuStates.delete(token)
+      return null
+    }
+
+    return {
+      ...state,
+      providers: state.providers.map((provider) => ({
+        ...provider,
+        models: provider.models.map((model) => ({ ...model }))
+      }))
+    }
+  }
+
+  clearModelMenuState(token: string): void {
+    this.modelMenuStates.delete(token)
+  }
+
+  private clearExpiredModelMenuStates(): void {
+    const now = Date.now()
+    for (const [token, state] of this.modelMenuStates.entries()) {
+      if (now - state.createdAt > TELEGRAM_MODEL_MENU_TTL_MS) {
+        this.modelMenuStates.delete(token)
+      }
+    }
+  }
+
+  private clearModelMenuStatesForEndpoint(endpointKey: string): void {
+    for (const [token, state] of this.modelMenuStates.entries()) {
+      if (state.endpointKey === endpointKey) {
+        this.modelMenuStates.delete(token)
+      }
+    }
   }
 }
