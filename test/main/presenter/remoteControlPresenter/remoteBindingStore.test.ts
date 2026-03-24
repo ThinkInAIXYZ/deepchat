@@ -36,6 +36,22 @@ describe('RemoteBindingStore', () => {
     expect(store.countBindings()).toBe(0)
   })
 
+  it('removes a single binding without touching others', () => {
+    const configPresenter = createConfigPresenter()
+    const store = new RemoteBindingStore(configPresenter as any)
+
+    store.setBinding('telegram:100:0', 'session-1')
+    store.setBinding('telegram:200:0', 'session-2')
+
+    store.clearBinding('telegram:100:0')
+
+    expect(store.getBinding('telegram:100:0')).toBeNull()
+    expect(store.getBinding('telegram:200:0')).toEqual({
+      sessionId: 'session-2',
+      updatedAt: expect.any(Number)
+    })
+  })
+
   it('stores and restores poll offset', () => {
     const configPresenter = createConfigPresenter()
     const store = new RemoteBindingStore(configPresenter as any)
@@ -44,5 +60,28 @@ describe('RemoteBindingStore', () => {
 
     const reloaded = new RemoteBindingStore(configPresenter as any)
     expect(reloaded.getPollOffset()).toBe(42)
+  })
+
+  it('normalizes empty defaultAgentId to deepchat', () => {
+    const configPresenter = createConfigPresenter()
+    configPresenter.setSetting('remoteControl', {
+      telegram: {
+        enabled: false,
+        allowlist: [],
+        streamMode: 'final',
+        defaultAgentId: '  ',
+        pollOffset: 0,
+        pairing: {
+          code: null,
+          expiresAt: null
+        },
+        bindings: {}
+      }
+    })
+
+    const store = new RemoteBindingStore(configPresenter as any)
+
+    expect(store.getDefaultAgentId()).toBe('deepchat')
+    expect(store.getTelegramConfig().streamMode).toBe('draft')
   })
 })

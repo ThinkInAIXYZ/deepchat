@@ -293,8 +293,12 @@ describe('WindowSideBar agent switch', () => {
       }
     })
 
-    expect(enabledSetup.wrapper.find('[data-testid=\"remote-control-button\"]').exists()).toBe(true)
+    const button = enabledSetup.wrapper.find('[data-testid=\"remote-control-button\"]')
+
+    expect(button.exists()).toBe(true)
+    expect(button.classes().join(' ')).toContain('border-emerald-500/40')
     expect(enabledSetup.wrapper.text()).toContain('chat.sidebar.remoteControlStatus.starting')
+    expect(enabledSetup.wrapper.html()).toContain('animate-pulse')
 
     enabledSetup.wrapper.unmount()
 

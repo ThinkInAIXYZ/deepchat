@@ -1,4 +1,5 @@
 import {
+  TELEGRAM_REMOTE_REACTION_EMOJI,
   TELEGRAM_REMOTE_POLL_LIMIT,
   TELEGRAM_REMOTE_POLL_TIMEOUT_SEC,
   TELEGRAM_STREAM_POLL_INTERVAL_MS,
@@ -153,6 +154,7 @@ export class TelegramPoller {
       chatId: parsed.chatId,
       messageThreadId: parsed.messageThreadId
     }
+    await this.setIncomingReaction(parsed.chatId, parsed.messageId)
     const routed = await this.deps.router.handleMessage(parsed)
 
     for (const reply of routed.replies) {
@@ -251,6 +253,18 @@ export class TelegramPoller {
   private async sendChunkedMessage(target: TelegramTransportTarget, text: string): Promise<void> {
     for (const chunk of chunkTelegramText(text)) {
       await this.deps.client.sendMessage(target, chunk)
+    }
+  }
+
+  private async setIncomingReaction(chatId: number, messageId: number): Promise<void> {
+    try {
+      await this.deps.client.setMessageReaction({
+        chatId,
+        messageId,
+        emoji: TELEGRAM_REMOTE_REACTION_EMOJI
+      })
+    } catch (error) {
+      console.warn('[TelegramPoller] Failed to set message reaction:', error)
     }
   }
 

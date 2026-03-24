@@ -22,7 +22,8 @@ describe('TelegramPoller', () => {
       }),
       sendMessage: vi.fn(),
       sendMessageDraft: vi.fn(),
-      sendChatAction: vi.fn()
+      sendChatAction: vi.fn(),
+      setMessageReaction: vi.fn()
     }
 
     const poller = new TelegramPoller({
@@ -66,7 +67,8 @@ describe('TelegramPoller', () => {
         ),
       sendMessage: vi.fn(),
       sendMessageDraft: vi.fn(),
-      sendChatAction: vi.fn()
+      sendChatAction: vi.fn(),
+      setMessageReaction: vi.fn()
     }
 
     const poller = new TelegramPoller({
@@ -125,7 +127,8 @@ describe('TelegramPoller', () => {
         }),
       sendMessage: vi.fn(),
       sendMessageDraft: vi.fn(),
-      sendChatAction: vi.fn()
+      sendChatAction: vi.fn(),
+      setMessageReaction: vi.fn()
     }
 
     const poller = new TelegramPoller({
@@ -161,5 +164,94 @@ describe('TelegramPoller', () => {
 
     await poller.stop()
     vi.useRealTimers()
+  })
+
+  it('reacts to incoming messages without blocking replies when the reaction call fails', async () => {
+    const client = {
+      getMe: vi.fn().mockResolvedValue({
+        id: 123,
+        username: 'deepchat_bot'
+      }),
+      getUpdates: vi
+        .fn()
+        .mockResolvedValueOnce([
+          {
+            update_id: 1,
+            message: {
+              message_id: 20,
+              chat: {
+                id: 100,
+                type: 'private'
+              },
+              from: {
+                id: 123
+              },
+              text: 'hello'
+            }
+          }
+        ])
+        .mockImplementation(({ signal }: { signal?: AbortSignal }) => {
+          return new Promise((_, reject) => {
+            signal?.addEventListener(
+              'abort',
+              () => {
+                reject(new Error('aborted'))
+              },
+              { once: true }
+            )
+          })
+        }),
+      sendMessage: vi.fn().mockResolvedValue(undefined),
+      sendMessageDraft: vi.fn().mockResolvedValue(undefined),
+      sendChatAction: vi.fn().mockResolvedValue(undefined),
+      setMessageReaction: vi.fn().mockRejectedValue(new Error('reaction failed'))
+    }
+
+    const poller = new TelegramPoller({
+      client: client as any,
+      parser: {
+        parseUpdate: vi.fn().mockReturnValue({
+          updateId: 1,
+          chatId: 100,
+          messageThreadId: 0,
+          messageId: 20,
+          chatType: 'private',
+          fromId: 123,
+          text: 'hello',
+          command: null
+        })
+      } as any,
+      router: {
+        handleMessage: vi.fn().mockResolvedValue({
+          replies: ['pong']
+        })
+      } as any,
+      bindingStore: {
+        getPollOffset: vi.fn().mockReturnValue(0),
+        setPollOffset: vi.fn(),
+        getTelegramConfig: vi.fn().mockReturnValue({
+          streamMode: 'draft'
+        })
+      } as any
+    })
+
+    await poller.start()
+
+    await vi.waitFor(() => {
+      expect(client.setMessageReaction).toHaveBeenCalledWith({
+        chatId: 100,
+        messageId: 20,
+        emoji: '🤯'
+      })
+      expect(client.sendMessage).toHaveBeenCalledWith(
+        {
+          chatId: 100,
+          messageThreadId: 0
+        },
+        'pong'
+      )
+    })
+
+    await poller.stop()
   })
 })

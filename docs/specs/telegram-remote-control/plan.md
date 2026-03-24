@@ -11,7 +11,7 @@
 
 - `remoteBindingStore`
   - Stores `remoteControl.telegram` config in Electron Store.
-  - Persists poll offset, allowlist, pair code, stream mode, and endpoint bindings.
+  - Persists poll offset, allowlist, default agent id, pair code, internal stream mode, and endpoint bindings.
   - Keeps active event IDs and `/sessions` snapshots in memory.
 - `remoteAuthGuard`
   - Enforces private-chat-only usage.
@@ -19,13 +19,14 @@
   - Supports one-time `/pair <code>` flow.
 - `remoteConversationRunner`
   - Creates detached sessions when needed.
+  - Resolves a valid enabled DeepChat default agent before creating or listing unbound Telegram sessions.
   - Reuses `newAgentPresenter.sendMessage()` for plain-text Telegram input.
   - Tracks the active assistant message/event for `/stop`.
   - Reuses existing chat-window activation logic for `/open`.
 - `remoteCommandRouter`
   - Handles `/start`, `/help`, `/pair`, `/new`, `/sessions`, `/use`, `/stop`, `/open`, `/status`, and plain text.
 - `telegramClient`
-  - Calls `getMe`, `getUpdates`, `sendMessageDraft`, `sendMessage`, and `sendChatAction`.
+  - Calls `getMe`, `getUpdates`, `sendMessageDraft`, `sendMessage`, `sendChatAction`, `setMyCommands`, and `setMessageReaction`.
 - `telegramParser`
   - Parses private text updates and bot commands.
 - `telegramOutbound`
@@ -38,13 +39,15 @@
 ## Shared / IPC Contract
 
 - Add `src/shared/types/presenters/remote-control.presenter.d.ts`.
-- Expose methods for reading/saving Telegram settings, reading runtime status, generating/clearing pair codes, clearing bindings, and testing Telegram hooks.
+- Expose methods for reading/saving Telegram settings, reading runtime status, listing/removing bindings, reading pairing snapshot, generating/clearing pair codes, clearing bindings, and testing Telegram hooks.
 
 ## Renderer Plan
 
 - Add a new `Remote` settings route and `RemoteSettings.vue`.
 - Move Telegram configuration out of `NotificationsHooksSettings.vue`.
 - Keep `Hooks` for Discord, Confirmo, and command hooks only.
+- Simplify the first-layer Telegram remote UI to allowed user IDs, default agent selection, pairing, and binding management.
+- Show pairing and binding management inside dialogs; hide remote/hook detail forms when their toggle is off.
 - Reuse existing i18n flow for all renderer-visible strings.
 
 ## Data Model
@@ -58,6 +61,7 @@
   - `remoteControl.telegram`
     - `enabled`
     - `allowlist`
+    - `defaultAgentId`
     - `streamMode`
     - `pairing`
     - `pollOffset`
@@ -72,14 +76,17 @@
 5. Router applies auth and command handling.
 6. Plain text enters `newAgentPresenter.sendMessage()` using the bound or newly created detached session.
 7. Poller watches assistant message state and sends draft/final Telegram output.
-8. If the assistant pauses on a permission/question action, Telegram returns a desktop-confirmation notice instead of bypassing approval.
+8. Poller reacts to the incoming Telegram message on a best-effort basis.
+9. If the assistant pauses on a permission/question action, Telegram returns a desktop-confirmation notice instead of bypassing approval.
 
 ## Testing Strategy
 
 - Unit tests for `remoteAuthGuard`.
 - Unit tests for `remoteBindingStore`.
 - Unit tests for `remoteCommandRouter`.
+- Unit tests for `remoteConversationRunner`.
 - Unit tests for `telegramOutbound` chunking/final-text behavior.
+- Unit tests for Telegram command registration / message reaction best-effort behavior.
 - Presenter-level tests for detached session creation.
 - Presenter-level tests for stop-by-event behavior.
 

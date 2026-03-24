@@ -55,11 +55,12 @@
           <TooltipTrigger as-child>
             <Button
               data-testid="remote-control-button"
-              class="flex items-center justify-center w-9 h-9 rounded-xl bg-transparent border-none hover:bg-white/30 dark:hover:bg-white/10 shadow-none"
+              class="flex items-center justify-center w-9 h-9 rounded-xl border transition-all duration-150 shadow-none"
+              :class="remoteControlButtonClass"
               :title="remoteControlTooltip"
               @click="openRemoteSettings"
             >
-              <Icon icon="lucide:monitor-cloud" class="w-4 h-4 text-foreground/80" />
+              <Icon icon="lucide:monitor-cloud" class="w-4 h-4" :class="remoteControlIconClass" />
             </Button>
           </TooltipTrigger>
           <TooltipContent side="right">{{ remoteControlTooltip }}</TooltipContent>
@@ -285,6 +286,24 @@ const showRemoteControlButton = computed(() => remoteControlStatus.value?.enable
 const remoteControlTooltip = computed(() => {
   const state = remoteControlStatus.value?.state ?? 'starting'
   return t(`chat.sidebar.remoteControlStatus.${state}`)
+})
+const remoteControlButtonClass = computed(() => {
+  const state = remoteControlStatus.value?.state ?? 'starting'
+
+  if (state === 'error') {
+    return 'border-red-500/40 bg-red-500/10 hover:bg-red-500/15'
+  }
+
+  return 'border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/15'
+})
+const remoteControlIconClass = computed(() => {
+  const state = remoteControlStatus.value?.state ?? 'starting'
+
+  if (state === 'error') {
+    return 'text-red-600 dark:text-red-400'
+  }
+
+  return ['text-emerald-600 dark:text-emerald-400', state === 'starting' ? 'animate-pulse' : '']
 })
 
 const pinnedSessions = computed(() => sessionStore.getPinnedSessions(agentStore.selectedAgentId))

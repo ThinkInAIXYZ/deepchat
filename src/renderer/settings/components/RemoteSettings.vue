@@ -98,69 +98,66 @@
               />
             </div>
 
-            <div class="space-y-4">
+            <div
+              v-if="settings.remoteEnabled"
+              data-testid="remote-control-details"
+              class="space-y-4"
+            >
               <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div class="space-y-2">
-                  <Label class="text-xs text-muted-foreground">
-                    {{ t('settings.remote.remoteControl.streamMode') }}
-                  </Label>
-                  <Select v-model="settings.streamMode" @update:model-value="persistSettings">
-                    <SelectTrigger class="h-8!">
-                      <SelectValue :placeholder="t('settings.remote.remoteControl.streamMode')" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="draft">
-                        {{ t('settings.remote.remoteControl.streamModeDraft') }}
-                      </SelectItem>
-                      <SelectItem value="final">
-                        {{ t('settings.remote.remoteControl.streamModeFinal') }}
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
                 <div class="space-y-2">
                   <Label class="text-xs text-muted-foreground">
                     {{ t('settings.remote.remoteControl.allowedUserIds') }}
                   </Label>
                   <Input
+                    data-testid="remote-allowed-user-ids-input"
                     v-model="allowedUserIdsText"
                     :placeholder="t('settings.remote.remoteControl.allowedUserIdsPlaceholder')"
                     @blur="persistSettings"
                   />
                 </div>
-              </div>
 
-              <div class="space-y-2">
-                <Label class="text-xs text-muted-foreground">
-                  {{ t('settings.remote.remoteControl.pairCode') }}
-                </Label>
-                <div class="flex flex-wrap items-center gap-2">
-                  <Input :model-value="pairCodeDisplay" readonly class="max-w-xs" />
-                  <Button variant="outline" size="sm" @click="generatePairCode">
-                    {{ t('settings.remote.remoteControl.generatePairCode') }}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    :disabled="!settings.pairCode"
-                    @click="clearPairCode"
+                <div class="space-y-2">
+                  <Label class="text-xs text-muted-foreground">
+                    {{ t('settings.remote.remoteControl.defaultAgent') }}
+                  </Label>
+                  <Select
+                    :model-value="settings.defaultAgentId"
+                    @update:model-value="(value) => updateDefaultAgentId(String(value))"
                   >
-                    {{ t('settings.remote.remoteControl.clearPairCode') }}
-                  </Button>
-                </div>
-                <div v-if="settings.pairCodeExpiresAt" class="text-xs text-muted-foreground">
-                  {{
-                    t('settings.remote.remoteControl.pairCodeExpiresAt', {
-                      time: formatTimestamp(settings.pairCodeExpiresAt)
-                    })
-                  }}
+                    <SelectTrigger data-testid="remote-default-agent-select" class="h-8!">
+                      <SelectValue
+                        :placeholder="t('settings.remote.remoteControl.defaultAgentPlaceholder')"
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem
+                        v-for="agent in defaultAgentOptions"
+                        :key="agent.id"
+                        :value="agent.id"
+                      >
+                        {{ agent.name }}
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 
               <div class="flex flex-wrap items-center gap-2">
-                <Button variant="outline" size="sm" @click="clearBindings">
-                  {{ t('settings.remote.remoteControl.clearBindings') }}
+                <Button
+                  data-testid="remote-pair-button"
+                  variant="outline"
+                  size="sm"
+                  @click="generatePairCodeAndOpenDialog"
+                >
+                  {{ t('settings.remote.remoteControl.openPairDialog') }}
+                </Button>
+                <Button
+                  data-testid="remote-bindings-button"
+                  variant="outline"
+                  size="sm"
+                  @click="openBindingsDialog"
+                >
+                  {{ t('settings.remote.remoteControl.manageBindings') }}
                 </Button>
               </div>
             </div>
@@ -182,7 +179,11 @@
               />
             </div>
 
-            <div class="space-y-4">
+            <div
+              v-if="settings.hookNotifications.enabled"
+              data-testid="remote-hooks-details"
+              class="space-y-4"
+            >
               <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div class="space-y-2">
                   <Label class="text-xs text-muted-foreground">
@@ -290,6 +291,104 @@
       </template>
     </div>
   </ScrollArea>
+
+  <Dialog :open="pairDialogOpen">
+    <DialogContent data-testid="remote-pair-dialog" class="sm:max-w-md">
+      <DialogHeader>
+        <DialogTitle>{{ t('settings.remote.remoteControl.pairDialogTitle') }}</DialogTitle>
+        <DialogDescription>
+          {{ t('settings.remote.remoteControl.pairDialogDescription') }}
+        </DialogDescription>
+      </DialogHeader>
+
+      <div class="space-y-4">
+        <div class="space-y-2">
+          <div class="text-xs text-muted-foreground">
+            {{ t('settings.remote.remoteControl.pairCode') }}
+          </div>
+          <div class="rounded-lg border bg-muted/30 px-3 py-2 font-mono text-lg tracking-[0.2em]">
+            {{ pairDialogCode || t('settings.remote.remoteControl.noPairCode') }}
+          </div>
+          <div v-if="pairDialogExpiresAt" class="text-xs text-muted-foreground">
+            {{
+              t('settings.remote.remoteControl.pairCodeExpiresAt', {
+                time: formatTimestamp(pairDialogExpiresAt)
+              })
+            }}
+          </div>
+        </div>
+
+        <div class="rounded-lg border border-dashed bg-muted/20 p-3 text-sm">
+          <div class="text-muted-foreground">
+            {{ t('settings.remote.remoteControl.pairDialogInstruction') }}
+          </div>
+          <div class="mt-2 rounded-md bg-background px-3 py-2 font-mono text-sm">
+            /pair {{ pairDialogCode || '------' }}
+          </div>
+        </div>
+      </div>
+
+      <div class="flex justify-end">
+        <Button variant="outline" @click="cancelPairDialog">
+          {{ t('common.cancel') }}
+        </Button>
+      </div>
+    </DialogContent>
+  </Dialog>
+
+  <Dialog :open="bindingsDialogOpen">
+    <DialogContent data-testid="remote-bindings-dialog" class="sm:max-w-lg">
+      <DialogHeader>
+        <DialogTitle>{{ t('settings.remote.remoteControl.bindingsDialogTitle') }}</DialogTitle>
+        <DialogDescription>
+          {{ t('settings.remote.remoteControl.bindingsDialogDescription') }}
+        </DialogDescription>
+      </DialogHeader>
+
+      <div class="space-y-3">
+        <div v-if="bindingsLoading" class="text-sm text-muted-foreground">
+          {{ t('common.loading') }}
+        </div>
+        <div
+          v-else-if="bindings.length === 0"
+          data-testid="remote-bindings-empty"
+          class="rounded-lg border border-dashed p-4 text-sm text-muted-foreground"
+        >
+          {{ t('settings.remote.remoteControl.bindingsEmpty') }}
+        </div>
+        <div v-else class="space-y-2">
+          <div
+            v-for="binding in bindings"
+            :key="binding.endpointKey"
+            :data-testid="`remote-binding-${binding.endpointKey}`"
+            class="flex items-center justify-between gap-3 rounded-lg border p-3"
+          >
+            <div class="min-w-0 flex-1">
+              <div class="truncate text-sm font-medium">{{ binding.sessionId }}</div>
+              <div class="mt-1 text-xs text-muted-foreground">
+                telegram:{{ binding.chatId }}:{{ binding.messageThreadId }}
+              </div>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              class="text-destructive hover:text-destructive"
+              :disabled="bindingRemovingKey === binding.endpointKey"
+              @click="removeBinding(binding.endpointKey)"
+            >
+              {{ t('common.delete') }}
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex justify-end">
+        <Button variant="outline" @click="bindingsDialogOpen = false">
+          {{ t('common.close') }}
+        </Button>
+      </div>
+    </DialogContent>
+  </Dialog>
 </template>
 
 <script setup lang="ts">
@@ -303,6 +402,13 @@ import { Button } from '@shadcn/components/ui/button'
 import { Label } from '@shadcn/components/ui/label'
 import { Checkbox } from '@shadcn/components/ui/checkbox'
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle
+} from '@shadcn/components/ui/dialog'
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -311,11 +417,18 @@ import {
 } from '@shadcn/components/ui/select'
 import { usePresenter } from '@/composables/usePresenter'
 import { useToast } from '@/components/use-toast'
+import type { Agent } from '@shared/types/agent-interface'
 import type { HookEventName, HookTestResult } from '@shared/hooksNotifications'
 import { HOOK_EVENT_NAMES } from '@shared/hooksNotifications'
-import type { TelegramRemoteSettings, TelegramRemoteStatus } from '@shared/presenter'
+import type {
+  TelegramPairingSnapshot,
+  TelegramRemoteBindingSummary,
+  TelegramRemoteSettings,
+  TelegramRemoteStatus
+} from '@shared/presenter'
 
 const remoteControlPresenter = usePresenter('remoteControlPresenter')
+const newAgentPresenter = usePresenter('newAgentPresenter')
 const { t } = useI18n()
 const { toast } = useToast()
 
@@ -327,14 +440,43 @@ const showBotToken = ref(false)
 const telegramTesting = ref(false)
 const telegramTestResult = ref<HookTestResult | null>(null)
 const allowedUserIdsText = ref('')
+const availableDeepChatAgents = ref<Agent[]>([])
+const pairDialogOpen = ref(false)
+const pairDialogCode = ref<string | null>(null)
+const pairDialogExpiresAt = ref<number | null>(null)
+const pairDialogExpectedCode = ref<string | null>(null)
+const pairDialogInitialAllowedUserIds = ref<number[]>([])
+const pairDialogCancelling = ref(false)
+const bindingsDialogOpen = ref(false)
+const bindingsLoading = ref(false)
+const bindingRemovingKey = ref<string | null>(null)
+const bindings = ref<TelegramRemoteBindingSummary[]>([])
 let statusRefreshTimer: ReturnType<typeof setInterval> | null = null
+let pairDialogRefreshTimer: ReturnType<typeof setInterval> | null = null
 let pendingSave = false
 
 const eventNames = HOOK_EVENT_NAMES
 
-const pairCodeDisplay = computed(
-  () => settings.value?.pairCode || t('settings.remote.remoteControl.noPairCode')
-)
+const defaultAgentOptions = computed(() => {
+  const options = availableDeepChatAgents.value
+    .filter((agent) => agent.type === 'deepchat' && agent.enabled)
+    .map((agent) => ({
+      id: agent.id,
+      name: agent.name
+    }))
+
+  if (
+    settings.value?.defaultAgentId &&
+    !options.some((agent) => agent.id === settings.value?.defaultAgentId)
+  ) {
+    options.unshift({
+      id: settings.value.defaultAgentId,
+      name: settings.value.defaultAgentId
+    })
+  }
+
+  return options
+})
 
 const parseAllowedUserIds = (value: string): number[] =>
   Array.from(
@@ -346,6 +488,13 @@ const parseAllowedUserIds = (value: string): number[] =>
     )
   ).sort((left, right) => left - right)
 
+const syncAllowedUserIds = (allowedUserIds: number[]) => {
+  if (settings.value) {
+    settings.value.allowedUserIds = [...allowedUserIds]
+  }
+  allowedUserIdsText.value = allowedUserIds.join(', ')
+}
+
 const syncLocalFields = (snapshot: TelegramRemoteSettings) => {
   settings.value = {
     ...snapshot,
@@ -354,11 +503,30 @@ const syncLocalFields = (snapshot: TelegramRemoteSettings) => {
       threadId: snapshot.hookNotifications.threadId ?? ''
     }
   }
-  allowedUserIdsText.value = snapshot.allowedUserIds.join(', ')
+  syncAllowedUserIds(snapshot.allowedUserIds)
 }
 
 const refreshStatus = async () => {
   status.value = await remoteControlPresenter.getTelegramStatus()
+}
+
+const refreshPairingSnapshot = async (): Promise<TelegramPairingSnapshot> => {
+  const snapshot = await remoteControlPresenter.getTelegramPairingSnapshot()
+  pairDialogCode.value = snapshot.pairCode
+  pairDialogExpiresAt.value = snapshot.pairCodeExpiresAt
+  return snapshot
+}
+
+const refreshAllowedUserIdsOnly = async () => {
+  const snapshot = await remoteControlPresenter.getTelegramPairingSnapshot()
+  syncAllowedUserIds(snapshot.allowedUserIds)
+}
+
+const loadDeepChatAgents = async () => {
+  const agents = await newAgentPresenter.getAgents()
+  availableDeepChatAgents.value = agents.filter(
+    (agent) => agent.type === 'deepchat' && agent.enabled !== false
+  )
 }
 
 const loadState = async () => {
@@ -366,7 +534,8 @@ const loadState = async () => {
   try {
     const [loadedSettings, loadedStatus] = await Promise.all([
       remoteControlPresenter.getTelegramSettings(),
-      remoteControlPresenter.getTelegramStatus()
+      remoteControlPresenter.getTelegramStatus(),
+      loadDeepChatAgents()
     ])
     syncLocalFields(loadedSettings)
     status.value = loadedStatus
@@ -408,7 +577,7 @@ const persistSettings = async () => {
   try {
     const saved = await remoteControlPresenter.saveTelegramSettings(nextSettings)
     syncLocalFields(saved)
-    await refreshStatus()
+    await Promise.all([refreshStatus(), loadDeepChatAgents()])
   } catch (error) {
     console.error('Failed to save remote settings:', error)
     toast({
@@ -430,6 +599,14 @@ const updateRemoteEnabled = (value: boolean) => {
     return
   }
   settings.value.remoteEnabled = Boolean(value)
+  void persistSettings()
+}
+
+const updateDefaultAgentId = (value: string) => {
+  if (!settings.value) {
+    return
+  }
+  settings.value.defaultAgentId = value
   void persistSettings()
 }
 
@@ -455,15 +632,74 @@ const updateHookEvent = (eventName: HookEventName, checked: boolean) => {
   void persistSettings()
 }
 
-const generatePairCode = async () => {
-  await persistSettings()
+const stopPairDialogPolling = () => {
+  if (pairDialogRefreshTimer) {
+    clearInterval(pairDialogRefreshTimer)
+    pairDialogRefreshTimer = null
+  }
+}
+
+const closePairDialogState = () => {
+  stopPairDialogPolling()
+  pairDialogOpen.value = false
+  pairDialogCode.value = null
+  pairDialogExpiresAt.value = null
+  pairDialogExpectedCode.value = null
+  pairDialogInitialAllowedUserIds.value = []
+}
+
+const pollPairingSnapshot = async () => {
+  if (!pairDialogOpen.value || !pairDialogExpectedCode.value) {
+    return
+  }
+
   try {
-    const pairCode = await remoteControlPresenter.createTelegramPairCode()
-    if (!settings.value) {
+    const snapshot = await refreshPairingSnapshot()
+    const allowedUserIdsChanged =
+      snapshot.allowedUserIds.join(',') !== pairDialogInitialAllowedUserIds.value.join(',')
+    const pairCodeConsumed =
+      snapshot.pairCode !== pairDialogExpectedCode.value && !snapshot.pairCode?.trim()
+
+    if (!pairCodeConsumed) {
       return
     }
-    settings.value.pairCode = pairCode.code
-    settings.value.pairCodeExpiresAt = pairCode.expiresAt
+
+    syncAllowedUserIds(snapshot.allowedUserIds)
+    await refreshStatus()
+
+    if (!pairDialogCancelling.value && allowedUserIdsChanged) {
+      toast({
+        title: t('settings.remote.remoteControl.pairingSuccessTitle'),
+        description: t('settings.remote.remoteControl.pairingSuccessDescription')
+      })
+    }
+
+    closePairDialogState()
+  } catch (error) {
+    console.warn('[RemoteSettings] Failed to poll pairing snapshot:', error)
+  }
+}
+
+const startPairDialogPolling = () => {
+  stopPairDialogPolling()
+  pairDialogRefreshTimer = setInterval(() => {
+    void pollPairingSnapshot()
+  }, 2_000)
+}
+
+const generatePairCodeAndOpenDialog = async () => {
+  await persistSettings()
+
+  try {
+    const pairCode = await remoteControlPresenter.createTelegramPairCode()
+    const snapshot = await refreshPairingSnapshot()
+    pairDialogExpectedCode.value = pairCode.code
+    pairDialogInitialAllowedUserIds.value = [...snapshot.allowedUserIds]
+    pairDialogCode.value = pairCode.code
+    pairDialogExpiresAt.value = pairCode.expiresAt
+    pairDialogCancelling.value = false
+    pairDialogOpen.value = true
+    startPairDialogPolling()
   } catch (error) {
     toast({
       title: t('common.error.operationFailed'),
@@ -473,13 +709,40 @@ const generatePairCode = async () => {
   }
 }
 
-const clearPairCode = async () => {
+const cancelPairDialog = async () => {
+  if (!pairDialogOpen.value) {
+    return
+  }
+
+  pairDialogCancelling.value = true
   try {
     await remoteControlPresenter.clearTelegramPairCode()
-    if (settings.value) {
-      settings.value.pairCode = null
-      settings.value.pairCodeExpiresAt = null
-    }
+  } catch (error) {
+    toast({
+      title: t('common.error.operationFailed'),
+      description: error instanceof Error ? error.message : String(error),
+      variant: 'destructive'
+    })
+  } finally {
+    pairDialogCancelling.value = false
+    closePairDialogState()
+  }
+}
+
+const loadBindings = async () => {
+  bindingsLoading.value = true
+  try {
+    bindings.value = await remoteControlPresenter.getTelegramBindings()
+  } finally {
+    bindingsLoading.value = false
+  }
+}
+
+const openBindingsDialog = async () => {
+  await persistSettings()
+  bindingsDialogOpen.value = true
+  try {
+    await loadBindings()
   } catch (error) {
     toast({
       title: t('common.error.operationFailed'),
@@ -489,22 +752,19 @@ const clearPairCode = async () => {
   }
 }
 
-const clearBindings = async () => {
+const removeBinding = async (endpointKey: string) => {
+  bindingRemovingKey.value = endpointKey
   try {
-    const clearedCount = await remoteControlPresenter.clearTelegramBindings()
-    await refreshStatus()
-    toast({
-      title: t('settings.remote.remoteControl.clearBindings'),
-      description: t('settings.remote.remoteControl.clearBindingsResult', {
-        count: clearedCount
-      })
-    })
+    await remoteControlPresenter.removeTelegramBinding(endpointKey)
+    await Promise.all([loadBindings(), refreshStatus(), refreshAllowedUserIdsOnly()])
   } catch (error) {
     toast({
       title: t('common.error.operationFailed'),
       description: error instanceof Error ? error.message : String(error),
       variant: 'destructive'
     })
+  } finally {
+    bindingRemovingKey.value = null
   }
 }
 
@@ -549,5 +809,6 @@ onUnmounted(() => {
     clearInterval(statusRefreshTimer)
     statusRefreshTimer = null
   }
+  stopPairDialogPolling()
 })
 </script>

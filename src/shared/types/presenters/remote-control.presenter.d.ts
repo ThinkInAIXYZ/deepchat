@@ -16,13 +16,25 @@ export interface TelegramHookSettings {
   events: HookEventName[]
 }
 
+export interface TelegramRemoteBindingSummary {
+  endpointKey: string
+  sessionId: string
+  chatId: number
+  messageThreadId: number
+  updatedAt: number
+}
+
+export interface TelegramPairingSnapshot {
+  pairCode: string | null
+  pairCodeExpiresAt: number | null
+  allowedUserIds: number[]
+}
+
 export interface TelegramRemoteSettings {
   botToken: string
   remoteEnabled: boolean
   allowedUserIds: number[]
-  streamMode: TelegramStreamMode
-  pairCode: string | null
-  pairCodeExpiresAt: number | null
+  defaultAgentId: string
   hookNotifications: TelegramHookSettings
 }
 
@@ -43,6 +55,9 @@ export interface IRemoteControlPresenter {
   getTelegramSettings(): Promise<TelegramRemoteSettings>
   saveTelegramSettings(input: TelegramRemoteSettings): Promise<TelegramRemoteSettings>
   getTelegramStatus(): Promise<TelegramRemoteStatus>
+  getTelegramBindings(): Promise<TelegramRemoteBindingSummary[]>
+  removeTelegramBinding(endpointKey: string): Promise<void>
+  getTelegramPairingSnapshot(): Promise<TelegramPairingSnapshot>
   createTelegramPairCode(): Promise<{ code: string; expiresAt: number }>
   clearTelegramPairCode(): Promise<void>
   clearTelegramBindings(): Promise<number>

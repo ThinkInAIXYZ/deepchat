@@ -10,17 +10,21 @@
 
 3. Remote runtime services
    - Implement auth guard, binding store, command router, and conversation runner.
+   - Route new Telegram sessions through a validated default DeepChat agent.
    - Reuse existing stop/open/session listing behavior.
 
 4. Telegram transport
    - Implement native-fetch Telegram client.
    - Implement long polling with offset persistence and backoff.
    - Implement plain-text outbound chunking and draft/final delivery.
+   - Register default Telegram bot commands and react to inbound messages on a best-effort basis.
 
 5. Renderer
    - Add `RemoteSettings.vue`.
    - Add `settings-remote` route.
    - Remove Telegram UI from `NotificationsHooksSettings.vue`.
+   - Simplify the Telegram remote first layer and move pairing / binding management into dialogs.
+   - Hide remote and hook detail sections when their toggle is off.
    - Add i18n keys for `Remote`.
 
 6. Tests

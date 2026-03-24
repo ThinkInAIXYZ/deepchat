@@ -12,6 +12,9 @@ const pollerInstances: Array<{
   stop: ReturnType<typeof vi.fn>
   deps: MockPollerDeps
 }> = []
+const telegramClientInstances: Array<{
+  setMyCommands: ReturnType<typeof vi.fn>
+}> = []
 let pollerStartImplementation: () => Promise<void> = async () => {}
 
 vi.mock('@/presenter/remoteControlPresenter/telegram/telegramPoller', () => ({
@@ -23,6 +26,16 @@ vi.mock('@/presenter/remoteControlPresenter/telegram/telegramPoller', () => ({
     constructor(deps: MockPollerDeps) {
       this.deps = deps
       pollerInstances.push(this)
+    }
+  }
+}))
+
+vi.mock('@/presenter/remoteControlPresenter/telegram/telegramClient', () => ({
+  TelegramClient: class MockTelegramClient {
+    readonly setMyCommands = vi.fn().mockResolvedValue(undefined)
+
+    constructor(_botToken: string) {
+      telegramClientInstances.push(this)
     }
   }
 }))
@@ -76,6 +89,7 @@ const createConfigPresenter = () => {
           enabled: true,
           allowlist: [],
           streamMode: 'draft',
+          defaultAgentId: 'deepchat',
           pollOffset: 0,
           pairing: {
             code: null,
@@ -98,6 +112,7 @@ const createConfigPresenter = () => {
 describe('RemoteControlPresenter', () => {
   beforeEach(() => {
     pollerInstances.length = 0
+    telegramClientInstances.length = 0
     pollerStartImplementation = async () => {}
   })
 
@@ -126,6 +141,8 @@ describe('RemoteControlPresenter', () => {
 
     expect(pollerInstances).toHaveLength(1)
     expect(pollerInstances[0].start).toHaveBeenCalledTimes(1)
+    expect(telegramClientInstances).toHaveLength(1)
+    expect(telegramClientInstances[0].setMyCommands).toHaveBeenCalledTimes(1)
   })
 
   it('reports starting while the poller startup is still in flight', async () => {
@@ -213,5 +230,120 @@ describe('RemoteControlPresenter', () => {
       })
     )
     expect(pollerInstances[0].stop).toHaveBeenCalledTimes(1)
+  })
+
+  it('returns bindings and pairing snapshot through the presenter contract', async () => {
+    const configPresenter = createConfigPresenter()
+    let hooksConfig = createHooksConfig()
+
+    configPresenter.setSetting('remoteControl', {
+      telegram: {
+        enabled: true,
+        allowlist: [123],
+        streamMode: 'final',
+        defaultAgentId: '',
+        pollOffset: 0,
+        pairing: {
+          code: '123456',
+          expiresAt: 123456789
+        },
+        bindings: {
+          'telegram:100:0': {
+            sessionId: 'session-1',
+            updatedAt: 10
+          }
+        }
+      }
+    })
+
+    const presenter = new RemoteControlPresenter({
+      configPresenter: configPresenter as any,
+      newAgentPresenter: {} as any,
+      deepchatAgentPresenter: {} as any,
+      windowPresenter: {} as any,
+      tabPresenter: {} as any,
+      getHooksNotificationsConfig: () => hooksConfig,
+      setHooksNotificationsConfig: (nextConfig) => {
+        hooksConfig = nextConfig
+        return nextConfig
+      },
+      testTelegramHookNotification: vi.fn().mockResolvedValue({
+        success: true,
+        durationMs: 0
+      })
+    })
+
+    await expect(presenter.getTelegramPairingSnapshot()).resolves.toEqual({
+      pairCode: '123456',
+      pairCodeExpiresAt: 123456789,
+      allowedUserIds: [123]
+    })
+
+    await expect(presenter.getTelegramBindings()).resolves.toEqual([
+      {
+        endpointKey: 'telegram:100:0',
+        sessionId: 'session-1',
+        chatId: 100,
+        messageThreadId: 0,
+        updatedAt: 10
+      }
+    ])
+
+    await presenter.removeTelegramBinding('telegram:100:0')
+
+    await expect(presenter.getTelegramBindings()).resolves.toEqual([])
+  })
+
+  it('falls back to the built-in deepchat agent when saving an invalid default agent', async () => {
+    const configPresenter = createConfigPresenter()
+    let hooksConfig = createHooksConfig()
+    const listAgents = vi.fn().mockResolvedValue([
+      { id: 'deepchat', name: 'DeepChat', type: 'deepchat', enabled: true },
+      { id: 'deepchat-alt', name: 'Alt', type: 'deepchat', enabled: false }
+    ])
+
+    const presenter = new RemoteControlPresenter({
+      configPresenter: {
+        ...configPresenter,
+        listAgents
+      } as any,
+      newAgentPresenter: {} as any,
+      deepchatAgentPresenter: {} as any,
+      windowPresenter: {} as any,
+      tabPresenter: {} as any,
+      getHooksNotificationsConfig: () => hooksConfig,
+      setHooksNotificationsConfig: (nextConfig) => {
+        hooksConfig = nextConfig
+        return nextConfig
+      },
+      testTelegramHookNotification: vi.fn().mockResolvedValue({
+        success: true,
+        durationMs: 0
+      })
+    })
+
+    const saved = await presenter.saveTelegramSettings({
+      botToken: 'test-bot-token',
+      remoteEnabled: true,
+      allowedUserIds: [],
+      defaultAgentId: 'deepchat-alt',
+      hookNotifications: {
+        enabled: false,
+        chatId: '',
+        threadId: undefined,
+        events: []
+      }
+    })
+
+    expect(saved.defaultAgentId).toBe('deepchat')
+    expect(configPresenter.setSetting).toHaveBeenCalledWith(
+      'remoteControl',
+      expect.objectContaining({
+        telegram: expect.objectContaining({
+          defaultAgentId: 'deepchat',
+          streamMode: 'draft'
+        })
+      })
+    )
   })
 })

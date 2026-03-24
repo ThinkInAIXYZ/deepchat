@@ -238,17 +238,48 @@ export class NewAgentPresenter {
 
   async createDetachedSession(input: CreateDetachedSessionInput): Promise<SessionWithState> {
     const agentId = input.agentId?.trim() || 'deepchat'
-    const projectDir = input.projectDir?.trim() ? input.projectDir.trim() : null
     const title = input.title?.trim() || 'New Chat'
+    const agentType = await this.getAgentType(agentId)
+    const deepChatAgentConfig =
+      agentType === 'deepchat'
+        ? await this.configPresenter.resolveDeepChatAgentConfig(agentId)
+        : null
+    const projectDir =
+      input.projectDir?.trim() ||
+      deepChatAgentConfig?.defaultProjectPath?.trim() ||
+      this.configPresenter.getDefaultProjectPath() ||
+      null
     const disabledAgentTools =
-      agentId === 'deepchat' ? this.normalizeDisabledAgentTools(input.disabledAgentTools) : []
+      agentType === 'deepchat'
+        ? this.normalizeDisabledAgentTools(
+            input.disabledAgentTools ?? deepChatAgentConfig?.disabledAgentTools
+          )
+        : []
     const agent = await this.resolveAgentImplementation(agentId)
 
     const defaultModel = this.configPresenter.getDefaultModel()
-    const providerId = input.providerId ?? defaultModel?.providerId ?? ''
-    const modelId = input.modelId ?? defaultModel?.modelId ?? ''
+    const providerId =
+      input.providerId ??
+      deepChatAgentConfig?.defaultModelPreset?.providerId ??
+      defaultModel?.providerId ??
+      ''
+    const modelId =
+      input.modelId ??
+      deepChatAgentConfig?.defaultModelPreset?.modelId ??
+      defaultModel?.modelId ??
+      ''
     const permissionMode: PermissionMode =
-      input.permissionMode === 'default' ? 'default' : 'full_access'
+      input.permissionMode !== undefined
+        ? input.permissionMode === 'default'
+          ? 'default'
+          : 'full_access'
+        : deepChatAgentConfig?.permissionMode === 'default'
+          ? 'default'
+          : 'full_access'
+    const generationSettings = this.mergeDeepChatDefaultGenerationSettings(
+      deepChatAgentConfig,
+      input.generationSettings
+    )
 
     if (!providerId || !modelId) {
       throw new Error('No provider or model configured. Please set a default model in settings.')
@@ -267,7 +298,7 @@ export class NewAgentPresenter {
         modelId,
         projectDir,
         permissionMode,
-        generationSettings: input.generationSettings
+        generationSettings
       })
     } catch (error) {
       await this.cleanupFailedSessionInitialization(agent, sessionId)

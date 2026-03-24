@@ -37,6 +37,7 @@ type RemoteConversationRunnerDeps = {
   deepchatAgentPresenter: DeepChatAgentPresenter
   windowPresenter: IWindowPresenter
   tabPresenter: ITabPresenter
+  resolveDefaultAgentId: () => Promise<string>
 }
 
 type ChatWindowLookupPresenter = ITabPresenter & {
@@ -50,9 +51,10 @@ export class RemoteConversationRunner {
   ) {}
 
   async createNewSession(endpointKey: string, title?: string): Promise<SessionWithState> {
+    const agentId = await this.deps.resolveDefaultAgentId()
     const session = await this.deps.newAgentPresenter.createDetachedSession({
       title: title?.trim() || 'New Chat',
-      agentId: 'deepchat'
+      agentId
     })
     this.bindingStore.setBinding(endpointKey, session.id)
     return session
@@ -83,8 +85,9 @@ export class RemoteConversationRunner {
   }
 
   async listSessions(endpointKey: string): Promise<SessionWithState[]> {
+    const agentId = await this.deps.resolveDefaultAgentId()
     const sessions = await this.deps.newAgentPresenter.getSessionList({
-      agentId: 'deepchat'
+      agentId
     })
     const sorted = [...sessions]
       .sort((left, right) => right.updatedAt - left.updatedAt)
@@ -205,6 +208,10 @@ export class RemoteConversationRunner {
       activeEventId,
       isGenerating: Boolean(activeEventId) || session.status === 'generating'
     }
+  }
+
+  async getDefaultAgentId(): Promise<string> {
+    return await this.deps.resolveDefaultAgentId()
   }
 
   private async getConversationSnapshot(

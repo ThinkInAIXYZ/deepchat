@@ -655,6 +655,49 @@ describe('NewAgentPresenter', () => {
         expect.anything()
       )
     })
+
+    it('inherits deepchat agent defaults for detached sessions', async () => {
+      configPresenter.resolveDeepChatAgentConfig.mockResolvedValue({
+        defaultModelPreset: {
+          providerId: 'anthropic',
+          modelId: 'claude-3-7-sonnet'
+        },
+        defaultProjectPath: '/workspaces/remote-default',
+        permissionMode: 'default',
+        disabledAgentTools: ['find'],
+        systemPrompt: 'Remote agent prompt'
+      })
+      configPresenter.getAgentType.mockResolvedValue('deepchat')
+
+      await presenter.createDetachedSession({
+        title: 'Remote Agent Session',
+        agentId: 'deepchat-remote'
+      })
+
+      expect(deepChatAgent.initSession).toHaveBeenCalledWith(
+        'mock-session-id',
+        expect.objectContaining({
+          agentId: 'deepchat-remote',
+          providerId: 'anthropic',
+          modelId: 'claude-3-7-sonnet',
+          projectDir: '/workspaces/remote-default',
+          permissionMode: 'default',
+          generationSettings: {
+            systemPrompt: 'Remote agent prompt'
+          }
+        })
+      )
+      expect(sqlitePresenter.newSessionsTable.create).toHaveBeenCalledWith(
+        'mock-session-id',
+        'deepchat-remote',
+        'Remote Agent Session',
+        '/workspaces/remote-default',
+        {
+          isDraft: false,
+          disabledAgentTools: []
+        }
+      )
+    })
   })
 
   describe('sendMessage', () => {

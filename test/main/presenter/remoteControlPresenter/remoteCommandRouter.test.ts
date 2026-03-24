@@ -55,7 +55,8 @@ describe('RemoteCommandRouter', () => {
       getSnapshot: vi.fn()
     }
     const runner = {
-      sendText: vi.fn().mockResolvedValue(conversation)
+      sendText: vi.fn().mockResolvedValue(conversation),
+      getDefaultAgentId: vi.fn().mockResolvedValue('deepchat')
     }
     const router = new RemoteCommandRouter({
       authGuard: {
@@ -144,10 +145,13 @@ describe('RemoteCommandRouter', () => {
         pair: vi.fn()
       } as any,
       runner: {
+        getDefaultAgentId: vi.fn().mockResolvedValue('deepchat-alt'),
         getStatus: vi.fn().mockResolvedValue({
           session: {
             id: 'session-1',
-            title: 'Remote chat'
+            title: 'Remote chat',
+            agentId: 'deepchat-alt',
+            modelId: 'gpt-5'
           },
           activeEventId: 'msg-1',
           isGenerating: true
@@ -182,5 +186,8 @@ describe('RemoteCommandRouter', () => {
 
     expect(result.replies[0]).toContain('Runtime: running')
     expect(result.replies[0]).toContain('Current session: Remote chat [session-1]')
+    expect(result.replies[0]).toContain('Default agent: deepchat-alt')
+    expect(result.replies[0]).toContain('Current agent: deepchat-alt')
+    expect(result.replies[0]).toContain('Current model: gpt-5')
   })
 })

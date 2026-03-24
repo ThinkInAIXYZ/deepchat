@@ -1,6 +1,17 @@
 import type { HookTestResult, TelegramNotificationsConfig } from '@shared/hooksNotifications'
-import type { TelegramRemoteSettings, TelegramRemoteStatus } from '@shared/presenter'
-import { normalizeTelegramSettingsInput, type TelegramPollerStatusSnapshot } from './types'
+import type {
+  TelegramPairingSnapshot,
+  TelegramRemoteBindingSummary,
+  TelegramRemoteSettings,
+  TelegramRemoteStatus
+} from '@shared/presenter'
+import {
+  TELEGRAM_REMOTE_COMMANDS,
+  TELEGRAM_REMOTE_DEFAULT_AGENT_ID,
+  normalizeTelegramSettingsInput,
+  parseTelegramEndpointKey,
+  type TelegramPollerStatusSnapshot
+} from './types'
 import type { RemoteControlPresenterDeps } from './interface'
 import { RemoteBindingStore } from './services/remoteBindingStore'
 import { RemoteAuthGuard } from './services/remoteAuthGuard'
@@ -47,9 +58,7 @@ export class RemoteControlPresenter {
       botToken: hooksConfig.botToken,
       remoteEnabled: remoteConfig.enabled,
       allowedUserIds: remoteConfig.allowlist,
-      streamMode: remoteConfig.streamMode,
-      pairCode: remoteConfig.pairing.code,
-      pairCodeExpiresAt: remoteConfig.pairing.expiresAt,
+      defaultAgentId: remoteConfig.defaultAgentId,
       hookNotifications: {
         enabled: hooksConfig.enabled,
         chatId: hooksConfig.chatId,
@@ -60,11 +69,17 @@ export class RemoteControlPresenter {
   }
 
   async getTelegramSettings(): Promise<TelegramRemoteSettings> {
-    return this.buildTelegramSettingsSnapshot()
+    const snapshot = this.buildTelegramSettingsSnapshot()
+    const defaultAgentId = await this.sanitizeDefaultAgentId(snapshot.defaultAgentId)
+    return {
+      ...snapshot,
+      defaultAgentId
+    }
   }
 
   async saveTelegramSettings(input: TelegramRemoteSettings): Promise<TelegramRemoteSettings> {
     const normalized = normalizeTelegramSettingsInput(input)
+    const defaultAgentId = await this.sanitizeDefaultAgentId(normalized.defaultAgentId)
     const currentHooksConfig = this.deps.getHooksNotificationsConfig()
     const currentRemoteConfig = this.bindingStore.getTelegramConfig()
     const currentBotToken = currentHooksConfig.telegram.botToken.trim()
@@ -81,18 +96,16 @@ export class RemoteControlPresenter {
       ...config,
       enabled: normalized.remoteEnabled,
       allowlist: normalized.allowedUserIds,
-      streamMode: normalized.streamMode,
+      defaultAgentId,
+      streamMode: 'draft',
       lastFatalError: shouldClearFatalError ? null : config.lastFatalError,
-      pairing: {
-        code: normalized.pairCode,
-        expiresAt: normalized.pairCodeExpiresAt
-      }
+      pairing: config.pairing
     }))
 
     await this.enqueueRuntimeOperation(async () => {
       await this.rebuildTelegramRuntime()
     })
-    return this.buildTelegramSettingsSnapshot()
+    return await this.getTelegramSettings()
   }
 
   async getTelegramStatus(): Promise<TelegramRemoteStatus> {
@@ -113,6 +126,35 @@ export class RemoteControlPresenter {
       lastError: runtimeStatus.lastError,
       botUser: runtimeStatus.botUser
     }
+  }
+
+  async getTelegramBindings(): Promise<TelegramRemoteBindingSummary[]> {
+    return this.bindingStore
+      .listBindings()
+      .map(({ endpointKey, binding }) => {
+        const endpoint = parseTelegramEndpointKey(endpointKey)
+        if (!endpoint) {
+          return null
+        }
+
+        return {
+          endpointKey,
+          sessionId: binding.sessionId,
+          chatId: endpoint.chatId,
+          messageThreadId: endpoint.messageThreadId,
+          updatedAt: binding.updatedAt
+        }
+      })
+      .filter((binding): binding is TelegramRemoteBindingSummary => binding !== null)
+      .sort((left, right) => right.updatedAt - left.updatedAt)
+  }
+
+  async removeTelegramBinding(endpointKey: string): Promise<void> {
+    this.bindingStore.clearBinding(endpointKey)
+  }
+
+  async getTelegramPairingSnapshot(): Promise<TelegramPairingSnapshot> {
+    return this.bindingStore.getPairingSnapshot()
   }
 
   async createTelegramPairCode(): Promise<{ code: string; expiresAt: number }> {
@@ -181,13 +223,18 @@ export class RemoteControlPresenter {
       botUser: null
     }
 
+    const client = new TelegramClient(botToken)
+    await this.registerTelegramCommands(client)
+
     const authGuard = new RemoteAuthGuard(this.bindingStore)
     const runner = new RemoteConversationRunner(
       {
         newAgentPresenter: this.deps.newAgentPresenter,
         deepchatAgentPresenter: this.deps.deepchatAgentPresenter,
         windowPresenter: this.deps.windowPresenter,
-        tabPresenter: this.deps.tabPresenter
+        tabPresenter: this.deps.tabPresenter,
+        resolveDefaultAgentId: async () =>
+          await this.sanitizeDefaultAgentId(this.bindingStore.getDefaultAgentId())
       },
       this.bindingStore
     )
@@ -199,7 +246,7 @@ export class RemoteControlPresenter {
     })
 
     this.telegramPoller = new TelegramPoller({
-      client: new TelegramClient(botToken),
+      client,
       parser: new TelegramParser(),
       router,
       bindingStore: this.bindingStore,
@@ -298,5 +345,36 @@ export class RemoteControlPresenter {
     const nextOperation = this.runtimeOperation.then(operation, operation)
     this.runtimeOperation = nextOperation.catch(() => {})
     return nextOperation
+  }
+
+  private async sanitizeDefaultAgentId(candidate: string | null | undefined): Promise<string> {
+    const normalizedCandidate = candidate?.trim() || TELEGRAM_REMOTE_DEFAULT_AGENT_ID
+    const agents = await this.deps.configPresenter.listAgents()
+    const enabledDeepChatAgents = agents.filter(
+      (agent) => agent.type === 'deepchat' && agent.enabled !== false
+    )
+    const enabledAgentIds = new Set(enabledDeepChatAgents.map((agent) => agent.id))
+    const nextDefaultAgentId = enabledAgentIds.has(normalizedCandidate)
+      ? normalizedCandidate
+      : enabledAgentIds.has(TELEGRAM_REMOTE_DEFAULT_AGENT_ID)
+        ? TELEGRAM_REMOTE_DEFAULT_AGENT_ID
+        : enabledDeepChatAgents[0]?.id || TELEGRAM_REMOTE_DEFAULT_AGENT_ID
+
+    if (this.bindingStore.getDefaultAgentId() !== nextDefaultAgentId) {
+      this.bindingStore.updateTelegramConfig((config) => ({
+        ...config,
+        defaultAgentId: nextDefaultAgentId
+      }))
+    }
+
+    return nextDefaultAgentId
+  }
+
+  private async registerTelegramCommands(client: TelegramClient): Promise<void> {
+    try {
+      await client.setMyCommands([...TELEGRAM_REMOTE_COMMANDS])
+    } catch (error) {
+      console.warn('[RemoteControlPresenter] Failed to register Telegram commands:', error)
+    }
   }
 }

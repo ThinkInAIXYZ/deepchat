@@ -1,6 +1,8 @@
 import { z } from 'zod'
 import type { HookEventName } from '@shared/hooksNotifications'
 import type {
+  TelegramPairingSnapshot,
+  TelegramRemoteBindingSummary,
   TelegramRemoteRuntimeState,
   TelegramRemoteSettings,
   TelegramRemoteStatus,
@@ -17,6 +19,46 @@ export const TELEGRAM_STREAM_POLL_INTERVAL_MS = 450
 export const TELEGRAM_STREAM_START_TIMEOUT_MS = 8_000
 export const TELEGRAM_PRIVATE_THREAD_DEFAULT = 0
 export const TELEGRAM_RECENT_SESSION_LIMIT = 10
+export const TELEGRAM_REMOTE_DEFAULT_AGENT_ID = 'deepchat'
+export const TELEGRAM_REMOTE_REACTION_EMOJI = '🤯'
+export const TELEGRAM_REMOTE_COMMANDS = [
+  {
+    command: 'start',
+    description: 'Show remote control status'
+  },
+  {
+    command: 'help',
+    description: 'Show available commands'
+  },
+  {
+    command: 'pair',
+    description: 'Authorize this Telegram account'
+  },
+  {
+    command: 'new',
+    description: 'Start a new DeepChat session'
+  },
+  {
+    command: 'sessions',
+    description: 'List recent sessions'
+  },
+  {
+    command: 'use',
+    description: 'Bind a listed session'
+  },
+  {
+    command: 'stop',
+    description: 'Stop the active generation'
+  },
+  {
+    command: 'open',
+    description: 'Open the bound desktop session'
+  },
+  {
+    command: 'status',
+    description: 'Show runtime and session status'
+  }
+] as const
 
 export type TelegramEndpointBinding = {
   sessionId: string
@@ -32,6 +74,7 @@ export interface TelegramRemoteRuntimeConfig {
   enabled: boolean
   allowlist: number[]
   streamMode: TelegramStreamMode
+  defaultAgentId: string
   pollOffset: number
   lastFatalError: string | null
   pairing: TelegramPairingState
@@ -79,6 +122,7 @@ export const createDefaultRemoteControlConfig = (): RemoteControlConfig => ({
     enabled: false,
     allowlist: [],
     streamMode: 'draft',
+    defaultAgentId: TELEGRAM_REMOTE_DEFAULT_AGENT_ID,
     pollOffset: 0,
     lastFatalError: null,
     pairing: {
@@ -107,6 +151,7 @@ const TelegramRemoteRuntimeConfigSchema = z
   .object({
     enabled: z.boolean().optional(),
     allowlist: z.array(z.union([z.number(), z.string()])).optional(),
+    defaultAgentId: z.string().optional(),
     streamMode: z.enum(['draft', 'final']).optional(),
     pollOffset: z.number().int().nonnegative().optional(),
     lastFatalError: z.string().nullable().optional(),
@@ -160,7 +205,8 @@ export const normalizeRemoteControlConfig = (input: unknown): RemoteControlConfi
     telegram: {
       enabled: Boolean(telegram.enabled),
       allowlist: normalizeTelegramUserIds(telegram.allowlist),
-      streamMode: telegram.streamMode ?? defaults.telegram.streamMode,
+      streamMode: 'draft',
+      defaultAgentId: telegram.defaultAgentId?.trim() || defaults.telegram.defaultAgentId,
       pollOffset:
         typeof telegram.pollOffset === 'number' && telegram.pollOffset >= 0
           ? telegram.pollOffset
@@ -179,6 +225,20 @@ export const normalizeRemoteControlConfig = (input: unknown): RemoteControlConfi
 export const buildTelegramEndpointKey = (chatId: number, messageThreadId: number): string =>
   `telegram:${chatId}:${messageThreadId || TELEGRAM_PRIVATE_THREAD_DEFAULT}`
 
+export const parseTelegramEndpointKey = (
+  endpointKey: string
+): Pick<TelegramRemoteBindingSummary, 'chatId' | 'messageThreadId'> | null => {
+  const match = /^telegram:(-?\d+):(-?\d+)$/.exec(endpointKey.trim())
+  if (!match) {
+    return null
+  }
+
+  return {
+    chatId: Number.parseInt(match[1], 10),
+    messageThreadId: Number.parseInt(match[2], 10)
+  }
+}
+
 export const createPairCode = (): { code: string; expiresAt: number } => {
   const code = `${Math.floor(100000 + Math.random() * 900000)}`
   return {
@@ -193,13 +253,19 @@ export const normalizeTelegramSettingsInput = (
   botToken: input.botToken?.trim() ?? '',
   remoteEnabled: Boolean(input.remoteEnabled),
   allowedUserIds: normalizeTelegramUserIds(input.allowedUserIds),
-  streamMode: input.streamMode === 'final' ? 'final' : 'draft',
-  pairCode: input.pairCode?.trim() || null,
-  pairCodeExpiresAt: typeof input.pairCodeExpiresAt === 'number' ? input.pairCodeExpiresAt : null,
+  defaultAgentId: input.defaultAgentId?.trim() || TELEGRAM_REMOTE_DEFAULT_AGENT_ID,
   hookNotifications: {
     enabled: Boolean(input.hookNotifications.enabled),
     chatId: input.hookNotifications.chatId?.trim() ?? '',
     threadId: input.hookNotifications.threadId?.trim() || undefined,
     events: Array.from(new Set(input.hookNotifications.events ?? []))
   }
+})
+
+export const buildTelegramPairingSnapshot = (
+  settings: TelegramRemoteRuntimeConfig
+): TelegramPairingSnapshot => ({
+  pairCode: settings.pairing.code,
+  pairCodeExpiresAt: settings.pairing.expiresAt,
+  allowedUserIds: [...settings.allowlist]
 })

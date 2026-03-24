@@ -115,6 +115,7 @@ export class RemoteCommandRouter {
         case 'status': {
           const runtime = this.deps.getPollerStatus()
           const status = await this.deps.runner.getStatus(endpointKey)
+          const defaultAgentId = await this.deps.runner.getDefaultAgentId()
           const telegramConfig = this.deps.bindingStore.getTelegramConfig()
           return {
             replies: [
@@ -122,7 +123,10 @@ export class RemoteCommandRouter {
                 'DeepChat Telegram Remote',
                 `Runtime: ${runtime.state}`,
                 `Stream mode: ${telegramConfig.streamMode}`,
+                `Default agent: ${defaultAgentId}`,
                 `Current session: ${status.session ? this.formatSessionLabel(status.session) : 'none'}`,
+                `Current agent: ${status.session?.agentId ?? 'none'}`,
+                `Current model: ${status.session?.modelId ?? 'none'}`,
                 `Generating: ${status.isGenerating ? 'yes' : 'no'}`,
                 `Allowed users: ${telegramConfig.allowlist.length}`,
                 `Bindings: ${Object.keys(telegramConfig.bindings).length}`,

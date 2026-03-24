@@ -4,9 +4,11 @@ import {
   buildTelegramEndpointKey,
   normalizeRemoteControlConfig,
   createPairCode,
+  buildTelegramPairingSnapshot,
   type RemoteControlConfig,
   type TelegramEndpointBinding,
   type TelegramInboundMessage,
+  type TelegramPairingState,
   type TelegramRemoteRuntimeConfig
 } from '../types'
 
@@ -75,6 +77,16 @@ export class RemoteBindingStore {
     this.sessionSnapshots.delete(endpointKey)
   }
 
+  listBindings(): Array<{
+    endpointKey: string
+    binding: TelegramEndpointBinding
+  }> {
+    return Object.entries(this.getTelegramConfig().bindings).map(([endpointKey, binding]) => ({
+      endpointKey,
+      binding
+    }))
+  }
+
   clearBindings(): number {
     const count = Object.keys(this.getTelegramConfig().bindings).length
     this.updateTelegramConfig((config) => ({
@@ -105,6 +117,10 @@ export class RemoteBindingStore {
     return this.getTelegramConfig().allowlist
   }
 
+  getDefaultAgentId(): string {
+    return this.getTelegramConfig().defaultAgentId
+  }
+
   isAllowedUser(userId: number | null | undefined): boolean {
     if (!userId) {
       return false
@@ -121,8 +137,12 @@ export class RemoteBindingStore {
     }))
   }
 
-  getPairingState() {
+  getPairingState(): TelegramPairingState {
     return this.getTelegramConfig().pairing
+  }
+
+  getPairingSnapshot() {
+    return buildTelegramPairingSnapshot(this.getTelegramConfig())
   }
 
   createPairCode(): { code: string; expiresAt: number } {

@@ -85,6 +85,8 @@ export type { IProjectPresenter } from './project.presenter'
 export type {
   IRemoteControlPresenter,
   TelegramHookSettings,
+  TelegramPairingSnapshot,
+  TelegramRemoteBindingSummary,
   TelegramRemoteRuntimeState,
   TelegramRemoteSettings,
   TelegramRemoteStatus,

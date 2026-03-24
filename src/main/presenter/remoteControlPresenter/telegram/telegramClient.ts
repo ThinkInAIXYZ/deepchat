@@ -40,6 +40,11 @@ export type TelegramBotUser = {
   username?: string
 }
 
+export type TelegramBotCommand = {
+  command: string
+  description: string
+}
+
 export class TelegramApiRequestError extends Error {
   constructor(
     message: string,
@@ -112,6 +117,29 @@ export class TelegramClient {
       chat_id: target.chatId,
       message_thread_id: target.messageThreadId || undefined,
       action
+    })
+  }
+
+  async setMyCommands(commands: TelegramBotCommand[]): Promise<void> {
+    await this.request('setMyCommands', {
+      commands
+    })
+  }
+
+  async setMessageReaction(params: {
+    chatId: number
+    messageId: number
+    emoji: string
+  }): Promise<void> {
+    await this.request('setMessageReaction', {
+      chat_id: params.chatId,
+      message_id: params.messageId,
+      reaction: [
+        {
+          type: 'emoji',
+          emoji: params.emoji
+        }
+      ]
     })
   }
 
