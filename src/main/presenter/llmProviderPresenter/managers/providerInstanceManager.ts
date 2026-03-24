@@ -99,6 +99,7 @@ export class ProviderInstanceManager {
       ['jiekou', JiekouProvider],
       ['zenmux', ZenmuxProvider],
       ['o3fan', O3fanProvider],
+      ['novita', OpenAICompatibleProvider],
       ['acp', AcpProvider]
     ])
   }
