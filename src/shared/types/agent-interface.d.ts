@@ -446,6 +446,7 @@ export interface DeepChatAgentConfig {
   defaultModelPreset?: DeepChatAgentModelPreset | null
   assistantModel?: DeepChatAgentModelSelection | null
   visionModel?: DeepChatAgentModelSelection | null
+  defaultProjectPath?: string | null
   systemPrompt?: string
   permissionMode?: PermissionMode
   disabledAgentTools?: string[]

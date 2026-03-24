@@ -51,10 +51,8 @@
     }
   },
   "agentPage": {
-    "title": "یک ایجنت انتخاب کنید",
-    "description": "ایجنت DeepChat پیش‌فرض‌های نشست‌های جدید را تعیین می‌کند. ایجنت‌های ACP رفتار فعلی خود را حفظ می‌کنند.",
+    "title": "یک ایجنت انتخاب کنید و خلق را شروع کنید",
     "deepchatType": "ایجنت DeepChat",
-    "newDeepChatAgent": "ایجنت جدید DeepChat",
-    "manageAgents": "مدیریت ایجنت‌ها"
+    "manageAgents": "مدیریت ایجنت‌های DeepChat"
   }
 }

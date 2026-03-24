@@ -69,7 +69,7 @@ const router = createRouter({
       meta: {
         titleKey: 'routes.settings-dashboard',
         icon: 'lucide:layout-dashboard',
-        position: 3.5
+        position: 4.5
       }
     },
     {
@@ -79,7 +79,7 @@ const router = createRouter({
       meta: {
         titleKey: 'routes.settings-mcp',
         icon: 'lucide:server',
-        position: 4
+        position: 5
       }
     },
     {
@@ -89,7 +89,7 @@ const router = createRouter({
       meta: {
         titleKey: 'routes.settings-deepchat-agents',
         icon: 'lucide:bot',
-        position: 4.5
+        position: 3.5
       }
     },
     {
@@ -99,7 +99,7 @@ const router = createRouter({
       meta: {
         titleKey: 'routes.settings-acp',
         icon: 'lucide:shield-check',
-        position: 5
+        position: 4
       }
     },
     {

@@ -51,10 +51,8 @@
     }
   },
   "agentPage": {
-    "title": "Vælg en agent",
-    "description": "En DeepChat-agent angiver standarderne for nye sessioner. ACP-agenter bevarer deres nuværende adfærd.",
+    "title": "Vælg en agent for at begynde at skabe",
     "deepchatType": "DeepChat-agent",
-    "newDeepChatAgent": "Ny DeepChat-agent",
-    "manageAgents": "Administrer agenter"
+    "manageAgents": "Administrer DeepChat-agenter"
   }
 }

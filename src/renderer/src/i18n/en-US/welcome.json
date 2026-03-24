@@ -51,10 +51,8 @@
     }
   },
   "agentPage": {
-    "title": "Choose an Agent",
-    "description": "A DeepChat Agent seeds the defaults for new sessions. ACP agents keep their existing behavior.",
+    "title": "Choose an Agent to Start Creating",
     "deepchatType": "DeepChat Agent",
-    "newDeepChatAgent": "New DeepChat Agent",
-    "manageAgents": "Manage Agents"
+    "manageAgents": "Manage DeepChat Agents"
   }
 }

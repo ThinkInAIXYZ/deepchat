@@ -51,10 +51,8 @@
     }
   },
   "agentPage": {
-    "title": "選擇一個智能體",
-    "description": "DeepChat 智能體會決定新會話的預設模型、提示詞、權限與工具開關。ACP 智能體則維持原有行為。",
+    "title": "選擇 Agent 開始創作",
     "deepchatType": "DeepChat 智能體",
-    "newDeepChatAgent": "新增 DeepChat 智能體",
-    "manageAgents": "管理智能體"
+    "manageAgents": "管理 DeepChat Agent"
   }
 }

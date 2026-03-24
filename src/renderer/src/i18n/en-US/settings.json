@@ -115,6 +115,8 @@
     "interleaved": "Force interleaved thinking compat",
     "systemPrompt": "Default system prompt",
     "systemPromptPlaceholder": "Leave blank for an empty system prompt",
+    "defaultProjectPath": "Default directory (optional)",
+    "defaultProjectPathPlaceholder": "Leave empty to use the global default directory",
     "permissionMode": "Default permission",
     "permissionFullAccess": "Full access",
     "permissionDefault": "Default permission",

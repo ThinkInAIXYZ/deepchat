@@ -67,6 +67,7 @@ const mergeDeepChatConfig = (
   defaultModelPreset: overrideConfig.defaultModelPreset ?? baseConfig.defaultModelPreset ?? null,
   assistantModel: overrideConfig.assistantModel ?? baseConfig.assistantModel ?? null,
   visionModel: overrideConfig.visionModel ?? baseConfig.visionModel ?? null,
+  defaultProjectPath: overrideConfig.defaultProjectPath ?? baseConfig.defaultProjectPath ?? null,
   systemPrompt: overrideConfig.systemPrompt ?? baseConfig.systemPrompt ?? '',
   permissionMode: overrideConfig.permissionMode ?? baseConfig.permissionMode ?? 'full_access',
   disabledAgentTools: overrideConfig.disabledAgentTools ?? baseConfig.disabledAgentTools ?? [],

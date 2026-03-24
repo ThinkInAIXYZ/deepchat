@@ -51,10 +51,8 @@
     }
   },
   "agentPage": {
-    "title": "에이전트 선택",
-    "description": "DeepChat 에이전트는 새 세션의 기본값을 정합니다. ACP 에이전트는 기존 동작을 유지합니다.",
+    "title": "에이전트를 선택해 제작 시작",
     "deepchatType": "DeepChat 에이전트",
-    "newDeepChatAgent": "새 DeepChat 에이전트",
-    "manageAgents": "에이전트 관리"
+    "manageAgents": "DeepChat 에이전트 관리"
   }
 }

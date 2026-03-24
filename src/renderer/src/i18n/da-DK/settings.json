@@ -1507,6 +1507,8 @@
     "interleaved": "Gennemtving kompatibilitet for interleaved thinking",
     "systemPrompt": "Standard systemprompt",
     "systemPromptPlaceholder": "Lad stå tomt for en tom systemprompt",
+    "defaultProjectPath": "Standardmappe (valgfri)",
+    "defaultProjectPathPlaceholder": "Lad stå tomt for at bruge den globale standardmappe",
     "permissionMode": "Standardtilladelse",
     "permissionFullAccess": "Fuld adgang",
     "permissionDefault": "Standardtilladelse",

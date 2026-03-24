@@ -1507,6 +1507,8 @@
     "interleaved": "כפיית תאימות לחשיבה משולבת",
     "systemPrompt": "הנחיית מערכת ברירת מחדל",
     "systemPromptPlaceholder": "השאירו ריק כדי להשתמש בהנחיית מערכת ריקה",
+    "defaultProjectPath": "תיקיית ברירת מחדל (אופציונלי)",
+    "defaultProjectPathPlaceholder": "השאירו ריק כדי להשתמש בתיקיית ברירת המחדל הגלובלית",
     "permissionMode": "הרשאת ברירת מחדל",
     "permissionFullAccess": "גישה מלאה",
     "permissionDefault": "הרשאת ברירת מחדל",

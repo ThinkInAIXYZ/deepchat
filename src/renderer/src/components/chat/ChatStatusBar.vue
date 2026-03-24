@@ -1792,26 +1792,18 @@ const resolveDefaultGenerationSettings = async (
   const agentConfig = await resolveDeepChatAgentConfig(agentId)
   const modelConfig = await configPresenter.getModelConfig(modelId, providerId)
   const portrait = (await configPresenter.getReasoningPortrait?.(providerId, modelId)) ?? null
-  const preset = agentConfig.defaultModelPreset
-  const presetMatches = preset?.providerId === providerId && preset?.modelId === modelId
   const contextLengthDefault = toValidNonNegativeInteger(modelConfig.contextLength) ?? 32000
   const maxTokensDefault =
     toValidNonNegativeInteger(modelConfig.maxTokens) ?? Math.min(4096, contextLengthDefault)
 
   const defaults: SessionGenerationSettings = {
     systemPrompt: agentConfig.systemPrompt ?? '',
-    temperature:
-      (presetMatches ? parseFiniteNumericValue(preset?.temperature) : undefined) ??
-      parseFiniteNumericValue(modelConfig.temperature) ??
-      0.7,
-    contextLength:
-      (presetMatches ? toValidNonNegativeInteger(preset?.contextLength) : undefined) ??
-      contextLengthDefault,
+    temperature: parseFiniteNumericValue(modelConfig.temperature) ?? 0.7,
+    contextLength: contextLengthDefault,
     maxTokens:
-      (presetMatches ? toValidNonNegativeInteger(preset?.maxTokens) : undefined) ??
-      (maxTokensDefault <= contextLengthDefault
+      maxTokensDefault <= contextLengthDefault
         ? maxTokensDefault
-        : Math.min(4096, contextLengthDefault))
+        : Math.min(4096, contextLengthDefault)
   }
 
   const interleavedThinkingDefault =
@@ -1826,9 +1818,7 @@ const resolveDefaultGenerationSettings = async (
 
   if (portrait?.supported === true && hasThinkingBudgetSupport(portrait)) {
     const defaultBudget = normalizeLegacyThinkingBudgetValue(
-      (presetMatches ? preset?.thinkingBudget : undefined) ??
-        modelConfig.thinkingBudget ??
-        portrait.budget?.default
+      modelConfig.thinkingBudget ?? portrait.budget?.default
     )
     if (defaultBudget !== undefined) {
       defaults.thinkingBudget = defaultBudget
@@ -1838,9 +1828,7 @@ const resolveDefaultGenerationSettings = async (
   if (supportsReasoningEffort(portrait)) {
     const effort = normalizeReasoningEffort(
       portrait,
-      (presetMatches ? preset?.reasoningEffort : undefined) ??
-        modelConfig.reasoningEffort ??
-        portrait?.effort
+      modelConfig.reasoningEffort ?? portrait?.effort
     )
     if (effort) {
       defaults.reasoningEffort = effort
@@ -1848,19 +1836,10 @@ const resolveDefaultGenerationSettings = async (
   }
 
   if (supportsVerbosity(portrait)) {
-    const verbosity = normalizeVerbosity(
-      portrait,
-      (presetMatches ? preset?.verbosity : undefined) ??
-        modelConfig.verbosity ??
-        portrait?.verbosity
-    )
+    const verbosity = normalizeVerbosity(portrait, modelConfig.verbosity ?? portrait?.verbosity)
     if (verbosity) {
       defaults.verbosity = verbosity
     }
-  }
-
-  if (presetMatches && typeof preset?.forceInterleavedThinkingCompat === 'boolean') {
-    defaults.forceInterleavedThinkingCompat = preset.forceInterleavedThinkingCompat
   }
 
   return defaults

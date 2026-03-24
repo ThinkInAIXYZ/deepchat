@@ -85,9 +85,21 @@ function createMockDeepChatAgent() {
 function createMockConfigPresenter() {
   return {
     getDefaultModel: vi.fn().mockReturnValue({ providerId: 'openai', modelId: 'gpt-4' }),
+    getDefaultProjectPath: vi.fn().mockReturnValue(null),
     getModelConfig: vi.fn().mockReturnValue({}),
     getSetting: vi.fn().mockReturnValue(undefined),
-    getAcpAgents: vi.fn().mockResolvedValue([])
+    getAcpAgents: vi.fn().mockResolvedValue([]),
+    getAcpEnabled: vi.fn().mockResolvedValue(true),
+    listAgents: vi
+      .fn()
+      .mockResolvedValue([{ id: 'deepchat', name: 'DeepChat', type: 'deepchat', enabled: true }]),
+    getAgentType: vi.fn().mockImplementation(async (agentId: string) => {
+      if (agentId === 'deepchat') {
+        return 'deepchat'
+      }
+      return agentId.startsWith('acp') ? 'acp' : null
+    }),
+    resolveDeepChatAgentConfig: vi.fn().mockResolvedValue({})
   } as any
 }
 
@@ -316,6 +328,49 @@ describe('NewAgentPresenter', () => {
           projectDir: null,
           permissionMode: 'full_access'
         })
+      )
+    })
+
+    it('uses the DeepChat agent default directory when createSession does not provide one', async () => {
+      configPresenter.resolveDeepChatAgentConfig.mockResolvedValue({
+        defaultProjectPath: '/workspaces/agent-default'
+      })
+
+      await presenter.createSession({ agentId: 'deepchat', message: 'Hi' }, 1)
+
+      expect(deepChatAgent.initSession).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          projectDir: '/workspaces/agent-default'
+        })
+      )
+      expect(sqlitePresenter.newSessionsTable.create).toHaveBeenCalledWith(
+        'mock-session-id',
+        'deepchat',
+        'Hi',
+        '/workspaces/agent-default',
+        expect.any(Object)
+      )
+    })
+
+    it('falls back to the global default directory when the DeepChat agent has none', async () => {
+      configPresenter.resolveDeepChatAgentConfig.mockResolvedValue({})
+      configPresenter.getDefaultProjectPath.mockReturnValue('/workspaces/global-default')
+
+      await presenter.createSession({ agentId: 'deepchat', message: 'Hi' }, 1)
+
+      expect(deepChatAgent.initSession).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          projectDir: '/workspaces/global-default'
+        })
+      )
+      expect(sqlitePresenter.newSessionsTable.create).toHaveBeenCalledWith(
+        'mock-session-id',
+        'deepchat',
+        'Hi',
+        '/workspaces/global-default',
+        expect.any(Object)
       )
     })
 
@@ -1361,8 +1416,9 @@ describe('NewAgentPresenter', () => {
     })
 
     it('includes ACP agents from config', async () => {
-      configPresenter.getAcpAgents.mockResolvedValue([
-        { id: 'acp-coder', name: 'ACP Coder', command: 'acp-coder' }
+      configPresenter.listAgents.mockResolvedValue([
+        { id: 'deepchat', name: 'DeepChat', type: 'deepchat', enabled: true },
+        { id: 'acp-coder', name: 'ACP Coder', type: 'acp', enabled: true }
       ])
 
       const agents = await presenter.getAgents()

@@ -51,10 +51,8 @@
     }
   },
   "agentPage": {
-    "title": "选择一个 Agent",
-    "description": "DeepChat Agent 会决定新会话的默认模型、提示词、权限和工具开关。ACP Agent 仍然保持原有行为。",
+    "title": "选择 Agent 开始创作",
     "deepchatType": "DeepChat Agent",
-    "newDeepChatAgent": "新建 DeepChat Agent",
-    "manageAgents": "管理 Agents"
+    "manageAgents": "管理 DeepChat Agent"
   }
 }

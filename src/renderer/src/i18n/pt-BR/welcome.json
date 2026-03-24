@@ -51,10 +51,8 @@
     }
   },
   "agentPage": {
-    "title": "Escolha um agente",
-    "description": "Um agente do DeepChat define os padrões das novas sessões. Os agentes ACP mantêm o comportamento atual.",
+    "title": "Escolha um agente para começar a criar",
     "deepchatType": "Agente do DeepChat",
-    "newDeepChatAgent": "Novo agente do DeepChat",
-    "manageAgents": "Gerenciar agentes"
+    "manageAgents": "Gerenciar agentes do DeepChat"
   }
 }

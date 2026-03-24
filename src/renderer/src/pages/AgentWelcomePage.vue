@@ -5,18 +5,15 @@
         <img src="@/assets/logo-dark.png" class="w-16 h-16" loading="lazy" />
       </div>
 
-      <h1 class="mb-2 text-3xl font-semibold text-foreground">
+      <h1 class="mb-10 text-3xl font-semibold text-foreground">
         {{ t('welcome.agentPage.title') }}
       </h1>
-      <p class="mb-10 max-w-xl text-center text-sm text-muted-foreground">
-        {{ t('welcome.agentPage.description') }}
-      </p>
 
-      <div class="grid w-full max-w-3xl gap-3 md:grid-cols-2 xl:grid-cols-3">
+      <div class="grid w-full max-w-3xl grid-cols-3 gap-3">
         <button
-          v-for="agent in agentStore.enabledAgents"
+          v-for="agent in displayedAgents"
           :key="agent.id"
-          class="flex items-center gap-3 rounded-2xl border border-border/60 bg-card/40 px-4 py-4 text-left transition-all duration-150 hover:border-border hover:bg-accent/40"
+          class="flex items-center gap-3 rounded-xl border border-border/60 bg-card/40 px-4 py-3 text-left transition-all duration-150 hover:border-border hover:bg-accent/40"
           @click="selectAgent(agent.id)"
         >
           <div
@@ -34,21 +31,19 @@
         </button>
       </div>
 
-      <div class="mt-8 flex flex-wrap items-center justify-center gap-2">
-        <Button size="sm" @click="openAgentSettings">
-          {{ t('welcome.agentPage.newDeepChatAgent') }}
-        </Button>
-        <Button size="sm" variant="outline" @click="openAgentSettings">
-          {{ t('welcome.agentPage.manageAgents') }}
-        </Button>
-      </div>
+      <button
+        class="mt-8 text-xs text-muted-foreground transition-colors hover:text-foreground"
+        @click="openAgentSettings"
+      >
+        {{ t('welcome.agentPage.manageAgents') }}
+      </button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import { Icon } from '@iconify/vue'
-import { Button } from '@shadcn/components/ui/button'
 import { useI18n } from 'vue-i18n'
 import { usePresenter } from '@/composables/usePresenter'
 import { SETTINGS_EVENTS } from '@/events'
@@ -58,18 +53,28 @@ import AgentAvatar from '@/components/icons/AgentAvatar.vue'
 const { t } = useI18n()
 const windowPresenter = usePresenter('windowPresenter')
 const agentStore = useAgentStore()
+const displayedAgents = computed(() => agentStore.enabledAgents.slice(0, 9))
 
 const selectAgent = (agentId: string) => {
   agentStore.setSelectedAgent(agentId)
+}
+
+const navigateToSettings = (windowId: number) => {
+  windowPresenter.sendToWindow(windowId, SETTINGS_EVENTS.NAVIGATE, {
+    routeName: 'settings-deepchat-agents'
+  })
 }
 
 const openAgentSettings = async () => {
   await windowPresenter.createSettingsWindow()
   const settingsWindowId = windowPresenter.getSettingsWindowId()
   if (settingsWindowId != null) {
-    windowPresenter.sendToWindow(settingsWindowId, SETTINGS_EVENTS.NAVIGATE, {
-      routeName: 'settings-deepchat-agents'
-    })
+    navigateToSettings(settingsWindowId)
+    window.setTimeout(() => {
+      if (windowPresenter.getSettingsWindowId() === settingsWindowId) {
+        navigateToSettings(settingsWindowId)
+      }
+    }, 250)
   }
 }
 </script>

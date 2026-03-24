@@ -1507,6 +1507,8 @@
     "interleaved": "強制相容交錯思考",
     "systemPrompt": "預設系統提示詞",
     "systemPromptPlaceholder": "留空即使用空白系統提示詞",
+    "defaultProjectPath": "預設目錄（可選）",
+    "defaultProjectPathPlaceholder": "留空則使用全域預設目錄",
     "permissionMode": "預設權限",
     "permissionFullAccess": "完整權限",
     "permissionDefault": "預設權限",

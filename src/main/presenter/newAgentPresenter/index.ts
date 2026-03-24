@@ -104,13 +104,17 @@ export class NewAgentPresenter {
   async createSession(input: CreateSessionInput, webContentsId: number): Promise<SessionWithState> {
     const agentId = input.agentId || 'deepchat'
     console.log(`[NewAgentPresenter] createSession agent=${agentId} webContentsId=${webContentsId}`)
-    const projectDir = input.projectDir?.trim() ? input.projectDir.trim() : null
     const normalizedInput = this.normalizeCreateSessionInput(input)
     const agentType = await this.getAgentType(agentId)
     const deepChatAgentConfig =
       agentType === 'deepchat'
         ? await this.configPresenter.resolveDeepChatAgentConfig(agentId)
         : null
+    const projectDir =
+      input.projectDir?.trim() ||
+      deepChatAgentConfig?.defaultProjectPath?.trim() ||
+      this.configPresenter.getDefaultProjectPath() ||
+      null
     const disabledAgentTools =
       agentType === 'deepchat'
         ? this.normalizeDisabledAgentTools(
@@ -1301,32 +1305,10 @@ export class NewAgentPresenter {
     config: Awaited<ReturnType<IConfigPresenter['resolveDeepChatAgentConfig']>> | null,
     overrides?: Partial<SessionGenerationSettings>
   ): Partial<SessionGenerationSettings> | undefined {
-    const preset = config?.defaultModelPreset
     const defaults: Partial<SessionGenerationSettings> = {}
 
     if (typeof config?.systemPrompt === 'string') {
       defaults.systemPrompt = config.systemPrompt
-    }
-    if (typeof preset?.temperature === 'number') {
-      defaults.temperature = preset.temperature
-    }
-    if (typeof preset?.contextLength === 'number') {
-      defaults.contextLength = preset.contextLength
-    }
-    if (typeof preset?.maxTokens === 'number') {
-      defaults.maxTokens = preset.maxTokens
-    }
-    if (typeof preset?.thinkingBudget === 'number') {
-      defaults.thinkingBudget = preset.thinkingBudget
-    }
-    if (preset?.reasoningEffort) {
-      defaults.reasoningEffort = preset.reasoningEffort
-    }
-    if (preset?.verbosity) {
-      defaults.verbosity = preset.verbosity
-    }
-    if (typeof preset?.forceInterleavedThinkingCompat === 'boolean') {
-      defaults.forceInterleavedThinkingCompat = preset.forceInterleavedThinkingCompat
     }
 
     const merged = {

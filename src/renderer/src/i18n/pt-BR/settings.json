@@ -1507,6 +1507,8 @@
     "interleaved": "Forçar compatibilidade com raciocínio intercalado",
     "systemPrompt": "Prompt de sistema padrão",
     "systemPromptPlaceholder": "Deixe em branco para usar um prompt de sistema vazio",
+    "defaultProjectPath": "Diretório padrão (opcional)",
+    "defaultProjectPathPlaceholder": "Deixe em branco para usar o diretório padrão global",
     "permissionMode": "Permissão padrão",
     "permissionFullAccess": "Acesso total",
     "permissionDefault": "Permissão padrão",

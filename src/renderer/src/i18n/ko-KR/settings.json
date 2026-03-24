@@ -1507,6 +1507,8 @@
     "interleaved": "인터리브드 사고 호환 강제",
     "systemPrompt": "기본 시스템 프롬프트",
     "systemPromptPlaceholder": "빈 시스템 프롬프트를 쓰려면 비워 두세요",
+    "defaultProjectPath": "기본 디렉터리(선택)",
+    "defaultProjectPathPlaceholder": "비워 두면 전역 기본 디렉터리를 사용합니다",
     "permissionMode": "기본 권한",
     "permissionFullAccess": "전체 접근",
     "permissionDefault": "기본 권한",

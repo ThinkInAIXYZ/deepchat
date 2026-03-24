@@ -161,6 +161,10 @@ const selectedAgent = computed(() => {
   return { id: selectedAgentId, type: resolveAgentType(selectedAgentId) }
 })
 const isAcpSelectedAgent = computed(() => selectedAgent.value.type === 'acp')
+const normalizeProjectPath = (value: string | null | undefined) => {
+  const normalized = value?.trim()
+  return normalized ? normalized : null
+}
 const selectedProjectName = computed(
   () => projectStore.selectedProject?.name ?? t('common.project.select')
 )
@@ -295,34 +299,9 @@ async function submitText(text: string, files: MessageFile[]) {
 const buildDraftGenerationSettings = (
   config: DeepChatAgentConfig
 ): Partial<SessionGenerationSettings> => {
-  const preset = config.defaultModelPreset
-  const settings: Partial<SessionGenerationSettings> = {
+  return {
     systemPrompt: config.systemPrompt ?? ''
   }
-
-  if (typeof preset?.temperature === 'number') {
-    settings.temperature = preset.temperature
-  }
-  if (typeof preset?.contextLength === 'number') {
-    settings.contextLength = preset.contextLength
-  }
-  if (typeof preset?.maxTokens === 'number') {
-    settings.maxTokens = preset.maxTokens
-  }
-  if (typeof preset?.thinkingBudget === 'number') {
-    settings.thinkingBudget = preset.thinkingBudget
-  }
-  if (preset?.reasoningEffort) {
-    settings.reasoningEffort = preset.reasoningEffort
-  }
-  if (preset?.verbosity) {
-    settings.verbosity = preset.verbosity
-  }
-  if (typeof preset?.forceInterleavedThinkingCompat === 'boolean') {
-    settings.forceInterleavedThinkingCompat = preset.forceInterleavedThinkingCompat
-  }
-
-  return settings
 }
 
 const resolveDeepChatAgentConfig = async (agentId: string): Promise<DeepChatAgentConfig> => {
@@ -342,8 +321,9 @@ const resolveDeepChatAgentConfig = async (agentId: string): Promise<DeepChatAgen
 
 const applyDraftDefaultsForSelectedAgent = async (): Promise<void> => {
   const agentId = selectedAgent.value.id
+  const globalDefaultProjectPath = normalizeProjectPath(projectStore.defaultProjectPath)
+  const currentProjectPath = normalizeProjectPath(projectStore.selectedProject?.path)
   draftStore.agentId = agentId
-  draftStore.projectDir = projectStore.selectedProject?.path
   draftStore.providerId = undefined
   draftStore.modelId = undefined
   draftStore.permissionMode = 'full_access'
@@ -358,6 +338,11 @@ const applyDraftDefaultsForSelectedAgent = async (): Promise<void> => {
   draftStore.forceInterleavedThinkingCompat = undefined
 
   if (selectedAgent.value.type === 'acp') {
+    const resolvedProjectPath = currentProjectPath ?? globalDefaultProjectPath
+    if (!currentProjectPath && globalDefaultProjectPath) {
+      projectStore.selectProject(globalDefaultProjectPath, 'default')
+    }
+    draftStore.projectDir = resolvedProjectPath ?? undefined
     draftStore.providerId = 'acp'
     draftStore.modelId = agentId
     draftStore.permissionMode = 'full_access'
@@ -366,6 +351,18 @@ const applyDraftDefaultsForSelectedAgent = async (): Promise<void> => {
   }
 
   const config = await resolveDeepChatAgentConfig(agentId)
+  const agentDefaultProjectPath = normalizeProjectPath(config.defaultProjectPath)
+  const resolvedProjectPath =
+    agentDefaultProjectPath ?? currentProjectPath ?? globalDefaultProjectPath
+  if (agentDefaultProjectPath) {
+    projectStore.selectProject(
+      agentDefaultProjectPath,
+      agentDefaultProjectPath === globalDefaultProjectPath ? 'default' : 'manual'
+    )
+  } else if (!currentProjectPath && globalDefaultProjectPath) {
+    projectStore.selectProject(globalDefaultProjectPath, 'default')
+  }
+  draftStore.projectDir = resolvedProjectPath ?? undefined
   draftStore.providerId = config.defaultModelPreset?.providerId
   draftStore.modelId = config.defaultModelPreset?.modelId
   draftStore.permissionMode = config.permissionMode === 'default' ? 'default' : 'full_access'

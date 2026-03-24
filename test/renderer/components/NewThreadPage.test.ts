@@ -48,18 +48,31 @@ const setup = async (options?: {
     path: string
     name: string
   }
+  defaultProjectPath?: string | null
   defaultModel?: { providerId: string; modelId: string }
   preferredModel?: { providerId: string; modelId: string }
+  resolvedAgentConfig?: Record<string, unknown>
 }) => {
   vi.resetModules()
   chatInputTriggerAttachMock.mockReset()
   chatInputPendingSkillsSnapshotRef.value = []
 
   const projectStore = reactive({
-    selectedProject: options?.selectedProject ?? { path: '/tmp/workspace', name: 'workspace' },
+    selectedProject: (options?.selectedProject ?? {
+      path: '/tmp/workspace',
+      name: 'workspace'
+    }) as { path: string; name: string } | null,
     selectedProjectName: options?.selectedProject?.name ?? 'workspace',
+    defaultProjectPath: options?.defaultProjectPath ?? null,
     projects: [],
-    selectProject: vi.fn(),
+    selectProject: vi.fn((path: string | null) => {
+      projectStore.selectedProject = path
+        ? {
+            path,
+            name: path.split(/[/\\]/).pop() ?? path
+          }
+        : null
+    }),
     openFolderPicker: vi.fn()
   })
 
@@ -103,7 +116,13 @@ const setup = async (options?: {
         return Promise.resolve(options?.preferredModel)
       }
       return Promise.resolve(undefined)
-    })
+    }),
+    resolveDeepChatAgentConfig: vi.fn().mockResolvedValue(
+      options?.resolvedAgentConfig ?? {
+        disabledAgentTools: [],
+        permissionMode: 'full_access'
+      }
+    )
   }
 
   const newAgentPresenter = {
@@ -271,6 +290,27 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
         }
       })
     )
+  })
+
+  it('prefers the agent default directory over the current selection', async () => {
+    const { projectStore, agentStore, draftStore } = await setup({
+      defaultProjectPath: '/workspaces/global',
+      resolvedAgentConfig: {
+        defaultProjectPath: '/workspaces/agent-writer',
+        disabledAgentTools: [],
+        permissionMode: 'full_access'
+      }
+    })
+
+    agentStore.selectedAgentId = 'deepchat'
+    await flushPromises()
+
+    expect(projectStore.selectProject).toHaveBeenCalledWith('/workspaces/agent-writer', 'manual')
+    expect(projectStore.selectedProject).toEqual({
+      path: '/workspaces/agent-writer',
+      name: 'agent-writer'
+    })
+    expect(draftStore.projectDir).toBe('/workspaces/agent-writer')
   })
 
   it('prefers preferredModel over defaultModel when creating a deepchat session', async () => {

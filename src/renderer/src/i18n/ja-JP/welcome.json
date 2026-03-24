@@ -51,10 +51,8 @@
     }
   },
   "agentPage": {
-    "title": "エージェントを選択",
-    "description": "DeepChatエージェントは新しいセッションの既定値を決めます。ACPエージェントは既存の動作を保ちます。",
+    "title": "エージェントを選んで作成を始める",
     "deepchatType": "DeepChatエージェント",
-    "newDeepChatAgent": "新しいDeepChatエージェント",
-    "manageAgents": "エージェントを管理"
+    "manageAgents": "DeepChatエージェントを管理"
   }
 }

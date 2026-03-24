@@ -1507,6 +1507,8 @@
     "interleaved": "Forcer la compatibilité avec le raisonnement intercalé",
     "systemPrompt": "Prompt système par défaut",
     "systemPromptPlaceholder": "Laissez vide pour utiliser un prompt système vide",
+    "defaultProjectPath": "Répertoire par défaut (facultatif)",
+    "defaultProjectPathPlaceholder": "Laissez vide pour utiliser le répertoire par défaut global",
     "permissionMode": "Autorisation par défaut",
     "permissionFullAccess": "Accès complet",
     "permissionDefault": "Autorisation par défaut",

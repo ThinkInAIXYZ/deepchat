@@ -51,10 +51,8 @@
     }
   },
   "agentPage": {
-    "title": "Выберите агента",
-    "description": "Агент DeepChat задаёт значения по умолчанию для новых сессий. Агенты ACP сохраняют текущее поведение.",
+    "title": "Выберите агента, чтобы начать работу",
     "deepchatType": "Агент DeepChat",
-    "newDeepChatAgent": "Новый агент DeepChat",
-    "manageAgents": "Управление агентами"
+    "manageAgents": "Управление агентами DeepChat"
   }
 }

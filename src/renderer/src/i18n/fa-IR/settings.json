@@ -1507,6 +1507,8 @@
     "interleaved": "اجبار به سازگاری با تفکر درهم‌تنیده",
     "systemPrompt": "پرامپت سیستمی پیش‌فرض",
     "systemPromptPlaceholder": "برای استفاده از پرامپت سیستمی خالی، اینجا را خالی بگذارید",
+    "defaultProjectPath": "پوشه پیش‌فرض (اختیاری)",
+    "defaultProjectPathPlaceholder": "برای استفاده از پوشه پیش‌فرض سراسری، خالی بگذارید",
     "permissionMode": "مجوز پیش‌فرض",
     "permissionFullAccess": "دسترسی کامل",
     "permissionDefault": "مجوز پیش‌فرض",

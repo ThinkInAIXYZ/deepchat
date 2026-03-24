@@ -115,6 +115,8 @@
     "interleaved": "强制兼容交错思考",
     "systemPrompt": "默认系统提示词",
     "systemPromptPlaceholder": "留空则使用空白系统提示词",
+    "defaultProjectPath": "默认目录（可选）",
+    "defaultProjectPathPlaceholder": "留空则使用全局默认目录",
     "permissionMode": "默认权限",
     "permissionFullAccess": "全部启用",
     "permissionDefault": "默认权限",

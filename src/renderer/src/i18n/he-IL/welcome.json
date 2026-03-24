@@ -51,10 +51,8 @@
     }
   },
   "agentPage": {
-    "title": "בחירת סוכן",
-    "description": "סוכן DeepChat קובע את ברירות המחדל לשיחות חדשות. סוכני ACP שומרים על ההתנהגות הקיימת שלהם.",
+    "title": "בחרו סוכן כדי להתחיל ליצור",
     "deepchatType": "סוכן DeepChat",
-    "newDeepChatAgent": "סוכן DeepChat חדש",
-    "manageAgents": "ניהול סוכנים"
+    "manageAgents": "ניהול סוכני DeepChat"
   }
 }

@@ -1507,6 +1507,8 @@
     "interleaved": "インターリーブ思考互換を強制",
     "systemPrompt": "既定のシステムプロンプト",
     "systemPromptPlaceholder": "空欄のシステムプロンプトにする場合は空のままにします",
+    "defaultProjectPath": "既定のディレクトリ（任意）",
+    "defaultProjectPathPlaceholder": "未設定の場合はグローバル既定ディレクトリを使用します",
     "permissionMode": "既定の権限",
     "permissionFullAccess": "フルアクセス",
     "permissionDefault": "既定の権限",
