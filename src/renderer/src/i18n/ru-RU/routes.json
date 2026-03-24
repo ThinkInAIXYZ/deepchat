@@ -17,5 +17,6 @@
   "settings-skills": "Skills",
   "settings-notifications-hooks": "Хуки",
   "settings-dashboard": "Панель",
-  "settings-environments": "Окружения"
+  "settings-environments": "Окружения",
+  "settings-deepchat-agents": "Агенты DeepChat"
 }

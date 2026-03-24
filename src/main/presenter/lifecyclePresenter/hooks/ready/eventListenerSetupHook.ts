@@ -89,13 +89,6 @@ export const eventListenerSetupHook: LifecycleHook = {
 
         navigateToAbout()
         triggerUpdateCheck()
-
-        setTimeout(() => {
-          if (presenter.windowPresenter.getSettingsWindowId() === settingsWindowId) {
-            navigateToAbout()
-            triggerUpdateCheck()
-          }
-        }, 250)
       } catch (error) {
         console.error(
           'eventListenerSetupHook: Failed to route tray update check to settings window:',

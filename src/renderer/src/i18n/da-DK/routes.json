@@ -17,5 +17,6 @@
   "settings-skills": "Skills",
   "settings-notifications-hooks": "Hooks",
   "settings-dashboard": "Dashboard",
-  "settings-environments": "Miljøer"
+  "settings-environments": "Miljøer",
+  "settings-deepchat-agents": "DeepChat-agenter"
 }

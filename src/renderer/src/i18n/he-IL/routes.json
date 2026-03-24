@@ -17,5 +17,6 @@
   "settings-skills": "Skills",
   "settings-notifications-hooks": "Hooks",
   "settings-dashboard": "Dashboard",
-  "settings-environments": "סביבות"
+  "settings-environments": "סביבות",
+  "settings-deepchat-agents": "סוכני DeepChat"
 }
