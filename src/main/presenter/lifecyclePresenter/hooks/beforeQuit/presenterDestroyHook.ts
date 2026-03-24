@@ -19,7 +19,7 @@ export const presenterDestroyHook: LifecycleHook = {
       throw new Error('presenterDestroyHook: Presenter has been destroyed')
     }
 
-    presenter.destroy()
+    await presenter.destroy()
 
     console.log('presenterDestroyHook: System presenter destroyed successfully')
   }

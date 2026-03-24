@@ -101,8 +101,8 @@ const setup = async (options: SetupOptions = {}) => {
     useThemeStore: () => themeStore
   }))
   vi.doMock('@/composables/usePresenter', () => ({
-    usePresenter: (name: string) =>
-      name === 'remoteControlPresenter' ? remoteControlPresenter : windowPresenter
+    usePresenter: () => windowPresenter,
+    useRemoteControlPresenter: () => remoteControlPresenter
   }))
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({

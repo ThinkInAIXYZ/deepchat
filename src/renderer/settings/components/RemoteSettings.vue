@@ -419,7 +419,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@shadcn/components/ui/select'
-import { usePresenter } from '@/composables/usePresenter'
+import { usePresenter, useRemoteControlPresenter } from '@/composables/usePresenter'
 import { useToast } from '@/components/use-toast'
 import type { Agent } from '@shared/types/agent-interface'
 import type { HookEventName, HookTestResult } from '@shared/hooksNotifications'
@@ -431,7 +431,7 @@ import type {
   TelegramRemoteStatus
 } from '@shared/presenter'
 
-const remoteControlPresenter = usePresenter('remoteControlPresenter')
+const remoteControlPresenter = useRemoteControlPresenter()
 const newAgentPresenter = usePresenter('newAgentPresenter')
 const { t } = useI18n()
 const { toast } = useToast()

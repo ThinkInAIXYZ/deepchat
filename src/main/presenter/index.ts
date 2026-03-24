@@ -28,7 +28,8 @@ import {
   ISkillPresenter,
   ISkillSyncPresenter,
   INewAgentPresenter,
-  IProjectPresenter
+  IProjectPresenter,
+  IRemoteControlPresenter
 } from '@shared/presenter'
 import { eventBus } from '@/eventbus'
 import { LLMProviderPresenter } from './llmProviderPresenter'
@@ -87,6 +88,45 @@ interface IPCCallContext {
 export class Presenter implements IPresenter {
   // 私有静态实例
   private static instance: Presenter
+  static readonly DISPATCHABLE_PRESENTERS = new Set<keyof IPresenter>([
+    'windowPresenter',
+    'sqlitePresenter',
+    'llmproviderPresenter',
+    'configPresenter',
+    'exporter',
+    'devicePresenter',
+    'upgradePresenter',
+    'shortcutPresenter',
+    'filePresenter',
+    'mcpPresenter',
+    'syncPresenter',
+    'deeplinkPresenter',
+    'notificationPresenter',
+    'tabPresenter',
+    'yoBrowserPresenter',
+    'oauthPresenter',
+    'dialogPresenter',
+    'knowledgePresenter',
+    'workspacePresenter',
+    'toolPresenter',
+    'skillPresenter',
+    'skillSyncPresenter',
+    'newAgentPresenter',
+    'projectPresenter'
+  ])
+
+  static readonly REMOTE_CONTROL_METHODS = new Set<keyof IRemoteControlPresenter>([
+    'getTelegramSettings',
+    'saveTelegramSettings',
+    'getTelegramStatus',
+    'getTelegramBindings',
+    'removeTelegramBinding',
+    'getTelegramPairingSnapshot',
+    'createTelegramPairCode',
+    'clearTelegramPairCode',
+    'clearTelegramBindings',
+    'testTelegramHookNotification'
+  ])
 
   windowPresenter: IWindowPresenter
   sqlitePresenter: ISQLitePresenter
@@ -116,13 +156,14 @@ export class Presenter implements IPresenter {
   skillSyncPresenter: ISkillSyncPresenter
   newAgentPresenter: INewAgentPresenter
   projectPresenter: IProjectPresenter
-  remoteControlPresenter: RemoteControlPresenterLike
   hooksNotifications: HooksNotificationsService
   commandPermissionService: CommandPermissionService
   filePermissionService: FilePermissionService
   settingsPermissionService: SettingsPermissionService
   private sessionMessageManager: MessageManager
   private sessionPresenterInternal?: SessionPresenter
+  #remoteControlPresenter: RemoteControlPresenterLike
+  readonly #remoteControlBridge: IRemoteControlPresenter
 
   private constructor(lifecycleManager: ILifecycleManager) {
     // Store lifecycle manager reference for component access
@@ -301,7 +342,7 @@ export class Presenter implements IPresenter {
       this.sqlitePresenter as unknown as import('./sqlitePresenter').SQLitePresenter,
       this.devicePresenter
     )
-    this.remoteControlPresenter = new RemoteControlPresenter({
+    this.#remoteControlPresenter = new RemoteControlPresenter({
       configPresenter: this.configPresenter,
       newAgentPresenter: this.newAgentPresenter,
       deepchatAgentPresenter,
@@ -312,6 +353,20 @@ export class Presenter implements IPresenter {
         this.configPresenter.setHooksNotificationsConfig(config),
       testTelegramHookNotification: () => this.configPresenter.testTelegramNotification()
     })
+    this.#remoteControlBridge = {
+      getTelegramSettings: () => this.#remoteControlPresenter.getTelegramSettings(),
+      saveTelegramSettings: (input) => this.#remoteControlPresenter.saveTelegramSettings(input),
+      getTelegramStatus: () => this.#remoteControlPresenter.getTelegramStatus(),
+      getTelegramBindings: () => this.#remoteControlPresenter.getTelegramBindings(),
+      removeTelegramBinding: (endpointKey) =>
+        this.#remoteControlPresenter.removeTelegramBinding(endpointKey),
+      getTelegramPairingSnapshot: () => this.#remoteControlPresenter.getTelegramPairingSnapshot(),
+      createTelegramPairCode: () => this.#remoteControlPresenter.createTelegramPairCode(),
+      clearTelegramPairCode: () => this.#remoteControlPresenter.clearTelegramPairCode(),
+      clearTelegramBindings: () => this.#remoteControlPresenter.clearTelegramBindings(),
+      testTelegramHookNotification: () =>
+        this.#remoteControlPresenter.testTelegramHookNotification()
+    }
 
     // Update hooksNotifications with actual dependencies now that newAgentPresenter is ready
     this.hooksNotifications = new HooksNotificationsService(this.configPresenter, {
@@ -458,10 +513,22 @@ export class Presenter implements IPresenter {
 
   private async initializeRemoteControl() {
     try {
-      await this.remoteControlPresenter.initialize()
+      await this.#remoteControlPresenter.initialize()
     } catch (error) {
       console.error('RemoteControlPresenter.initialize failed:', error)
     }
+  }
+
+  async callRemoteControl(
+    method: keyof IRemoteControlPresenter,
+    ...payloads: unknown[]
+  ): Promise<unknown> {
+    if (!Presenter.REMOTE_CONTROL_METHODS.has(method)) {
+      throw new Error(`Method "${String(method)}" is not allowed on "remoteControlPresenter"`)
+    }
+
+    const handler = this.#remoteControlBridge[method] as (...args: unknown[]) => unknown
+    return await handler(...payloads)
   }
 
   // 从配置中同步自定义模型到 LLMProviderPresenter
@@ -485,8 +552,8 @@ export class Presenter implements IPresenter {
   }
 
   // 在应用退出时进行清理，关闭数据库连接
-  destroy() {
-    void this.destroyRemoteControl()
+  async destroy(): Promise<void> {
+    await this.destroyRemoteControl()
     this.floatingButtonPresenter.destroy() // 销毁悬浮按钮
     this.tabPresenter.destroy()
     this.sqlitePresenter.close() // 关闭数据库连接
@@ -503,7 +570,7 @@ export class Presenter implements IPresenter {
 
   private async destroyRemoteControl() {
     try {
-      await this.remoteControlPresenter.destroy()
+      await this.#remoteControlPresenter.destroy()
     } catch (error) {
       console.error('RemoteControlPresenter.destroy failed:', error)
     }
@@ -550,6 +617,13 @@ ipcMain.handle(
         )
       }
 
+      if (!Presenter.DISPATCHABLE_PRESENTERS.has(name as keyof IPresenter)) {
+        console.warn(
+          `[IPC Warning] WebContents:${context.webContentsId} blocked presenter access: ${name}`
+        )
+        return { error: `Presenter "${name}" is not accessible via generic dispatcher` }
+      }
+
       // 通过名称获取对应的 Presenter 实例
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let calledPresenter: any = presenter[name as keyof Presenter]
@@ -581,6 +655,38 @@ ipcMain.handle(
       const webContentsId = event.sender.id
 
       console.error(`[IPC Error] WebContents:${webContentsId} ${name}.${method}:`, e)
+      return { error: e.message || String(e) }
+    }
+  }
+)
+
+ipcMain.handle(
+  'remoteControlPresenter:call',
+  async (event: IpcMainInvokeEvent, method: string, ...payloads: unknown[]) => {
+    try {
+      const webContentsId = event.sender.id
+      const windowId = BrowserWindow.fromWebContents(event.sender)?.id
+
+      if (import.meta.env.VITE_LOG_IPC_CALL === '1') {
+        console.log(
+          `[IPC Call] WebContents:${webContentsId} Window:${windowId || 'unknown'} -> remoteControlPresenter.${method}`
+        )
+      }
+
+      if (!Presenter.REMOTE_CONTROL_METHODS.has(method as keyof IRemoteControlPresenter)) {
+        console.warn(
+          `[IPC Warning] WebContents:${webContentsId} blocked remote control method: ${method}`
+        )
+        return { error: `Method "${method}" is not allowed on "remoteControlPresenter"` }
+      }
+
+      return await presenter.callRemoteControl(method as keyof IRemoteControlPresenter, ...payloads)
+    } catch (
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      e: any
+    ) {
+      const webContentsId = event.sender.id
+      console.error(`[IPC Error] WebContents:${webContentsId} remoteControlPresenter.${method}:`, e)
       return { error: e.message || String(e) }
     }
   }

@@ -154,8 +154,8 @@ const setup = async (options: SetupOptions = {}) => {
   const toast = vi.fn()
 
   vi.doMock('@/composables/usePresenter', () => ({
-    usePresenter: (name: string) =>
-      name === 'remoteControlPresenter' ? remoteControlPresenter : newAgentPresenter
+    usePresenter: (name: string) => (name === 'newAgentPresenter' ? newAgentPresenter : null),
+    useRemoteControlPresenter: () => remoteControlPresenter
   }))
   vi.doMock('@/components/use-toast', () => ({
     useToast: () => ({
