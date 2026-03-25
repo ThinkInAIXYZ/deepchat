@@ -23,6 +23,7 @@ import {
   type TelegramPollerStatusSnapshot
 } from './types'
 import type { RemoteControlPresenterDeps } from './interface'
+import logger from '@shared/logger'
 import { RemoteBindingStore } from './services/remoteBindingStore'
 import { FeishuAuthGuard } from './services/feishuAuthGuard'
 import { FeishuCommandRouter } from './services/feishuCommandRouter'
@@ -504,6 +505,7 @@ export class RemoteControlPresenter {
       client,
       parser: new FeishuParser(),
       router,
+      logger,
       onStatusChange: (snapshot) => {
         this.feishuRuntimeStatus = snapshot
       },

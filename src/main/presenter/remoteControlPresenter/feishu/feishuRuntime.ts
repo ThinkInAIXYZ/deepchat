@@ -17,10 +17,15 @@ const sleep = async (ms: number): Promise<void> => {
   await new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+const FEISHU_INTERNAL_ERROR_REPLY = 'An internal error occurred while processing your request.'
+
 type FeishuRuntimeDeps = {
   client: FeishuClient
   parser: FeishuParser
   router: FeishuCommandRouter
+  logger?: {
+    error: (...params: unknown[]) => void
+  }
   onStatusChange?: (snapshot: FeishuRuntimeStatusSnapshot) => void
   onFatalError?: (message: string) => void
 }
@@ -260,13 +265,24 @@ export class FeishuRuntime {
         await this.deliverConversation(target, routed.conversation, runId)
       }
     } catch (error) {
-      console.warn('[FeishuRuntime] Failed to handle event:', {
+      const diagnostics = {
+        runId,
+        target,
         chatId: parsed.chatId,
         threadId: parsed.threadId,
         messageId: parsed.messageId,
-        eventId: parsed.eventId,
+        eventId: parsed.eventId
+      }
+
+      console.warn('[FeishuRuntime] Failed to handle event:', {
+        ...diagnostics,
         error
       })
+      if (this.deps.logger?.error) {
+        this.deps.logger.error(error, diagnostics)
+      } else {
+        console.error('[FeishuRuntime] Failed to handle event:', error, diagnostics)
+      }
 
       if (!this.isCurrentRun(runId)) {
         return
@@ -276,10 +292,7 @@ export class FeishuRuntime {
         if (!this.isCurrentRun(runId)) {
           return
         }
-        await this.deps.client.sendText(
-          target,
-          error instanceof Error ? error.message : String(error)
-        )
+        await this.deps.client.sendText(target, FEISHU_INTERNAL_ERROR_REPLY)
       } catch (sendError) {
         console.warn('[FeishuRuntime] Failed to send error reply:', {
           chatId: parsed.chatId,

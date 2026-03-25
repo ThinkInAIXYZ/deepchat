@@ -37,7 +37,7 @@ const createDeferred = <T>() => {
   }
 }
 
-const createHarness = async () => {
+const createHarness = async (options?: { logger?: { error: (...params: unknown[]) => void } }) => {
   let onMessage: ((event: unknown) => Promise<void>) | null = null
   const streamHandlers: Array<(event: unknown) => Promise<void>> = []
   const client = {
@@ -66,7 +66,8 @@ const createHarness = async () => {
   const runtime = new FeishuRuntime({
     client: client as any,
     parser: parser as any,
-    router: router as any
+    router: router as any,
+    logger: options?.logger
   })
   await runtime.start()
 
@@ -185,6 +186,48 @@ describe('FeishuRuntime', () => {
     await vi.waitFor(() => {
       expect(harness.router.handleMessage).toHaveBeenCalledTimes(1)
       expect(harness.client.sendText).toHaveBeenCalledTimes(1)
+    })
+
+    await harness.runtime.stop()
+  })
+
+  it('sends a safe generic error reply while logging detailed diagnostics', async () => {
+    const logger = {
+      error: vi.fn()
+    }
+    const harness = await createHarness({ logger })
+    const error = new Error('database credentials: secret-token')
+    harness.router.handleMessage.mockRejectedValue(error)
+
+    await harness.emitMessage({
+      parsed: createParsedMessage({
+        eventId: 'evt-error',
+        messageId: 'om-error'
+      })
+    })
+
+    await vi.waitFor(() => {
+      expect(harness.client.sendText).toHaveBeenCalledWith(
+        {
+          chatId: 'oc_1',
+          threadId: null,
+          replyToMessageId: 'om-error'
+        },
+        'An internal error occurred while processing your request.'
+      )
+    })
+
+    expect(logger.error).toHaveBeenCalledWith(error, {
+      runId: 1,
+      target: {
+        chatId: 'oc_1',
+        threadId: null,
+        replyToMessageId: 'om-error'
+      },
+      chatId: 'oc_1',
+      threadId: null,
+      messageId: 'om-error',
+      eventId: 'evt-error'
     })
 
     await harness.runtime.stop()
