@@ -776,5 +776,20 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       models: 'https://o3.fan/info/models',
       defaultBaseUrl: 'https://api.o3.fan/v1'
     }
+  },
+  {
+    id: 'novita',
+    name: 'Novita AI',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://api.novita.ai/openai',
+    enable: false,
+    websites: {
+      official: 'https://novita.ai/',
+      apiKey: 'https://novita.ai/',
+      docs: 'https://novita.ai/docs',
+      models: 'https://novita.ai/models',
+      defaultBaseUrl: 'https://api.novita.ai/openai'
+    }
   }
 ]

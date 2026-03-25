@@ -28,4 +28,19 @@ describe('ModelIcon', () => {
     expect(image.attributes('alt')).toBe('dimcode')
     expect(image.attributes('src')).toBe(dimcodeIcon)
   })
+
+  it('resolves novita to the novita.ai icon', async () => {
+    const ModelIcon = (await import('@/components/icons/ModelIcon.vue')).default
+    const novitaAiIcon = (await import('@/assets/llm-icons/novitaai.svg?url')).default
+    const wrapper = mount(ModelIcon, {
+      props: {
+        modelId: 'novita'
+      }
+    })
+
+    const image = wrapper.get('img')
+
+    expect(image.attributes('alt')).toBe('novita')
+    expect(image.attributes('src')).toBe(novitaAiIcon)
+  })
 })
