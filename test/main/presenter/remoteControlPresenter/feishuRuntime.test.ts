@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 import { FeishuRuntime } from '@/presenter/remoteControlPresenter/feishu/feishuRuntime'
-import type { FeishuInboundMessage } from '@/presenter/remoteControlPresenter/types'
+import {
+  FEISHU_CONVERSATION_POLL_TIMEOUT_MS,
+  TELEGRAM_STREAM_POLL_INTERVAL_MS,
+  type FeishuInboundMessage
+} from '@/presenter/remoteControlPresenter/types'
 
 const createParsedMessage = (
   overrides: Partial<FeishuInboundMessage> = {}
@@ -314,5 +318,50 @@ describe('FeishuRuntime', () => {
     })
 
     await harness.runtime.stop()
+  })
+
+  it('stops polling and sends a timeout message when a conversation never completes', async () => {
+    vi.useFakeTimers()
+
+    try {
+      const harness = await createHarness()
+      harness.router.handleMessage.mockResolvedValue({
+        replies: [],
+        conversation: {
+          sessionId: 'session-1',
+          eventId: 'msg-1',
+          getSnapshot: vi.fn().mockResolvedValue({
+            messageId: null,
+            text: '',
+            completed: false
+          })
+        }
+      })
+
+      await harness.onMessage({
+        parsed: createParsedMessage({
+          messageId: 'om_timeout'
+        })
+      })
+
+      await vi.advanceTimersByTimeAsync(
+        FEISHU_CONVERSATION_POLL_TIMEOUT_MS + TELEGRAM_STREAM_POLL_INTERVAL_MS
+      )
+
+      await vi.waitFor(() => {
+        expect(harness.client.sendText).toHaveBeenCalledWith(
+          {
+            chatId: 'oc_1',
+            threadId: null,
+            replyToMessageId: 'om_timeout'
+          },
+          'The current conversation timed out before finishing. Please try again.'
+        )
+      })
+
+      await harness.runtime.stop()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

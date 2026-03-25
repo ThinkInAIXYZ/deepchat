@@ -21,8 +21,10 @@ export const TELEGRAM_REMOTE_POLL_TIMEOUT_SEC = 30
 export const TELEGRAM_OUTBOUND_TEXT_LIMIT = 4096
 export const TELEGRAM_PAIR_CODE_TTL_MS = 10 * 60 * 1000
 export const FEISHU_PAIR_CODE_TTL_MS = TELEGRAM_PAIR_CODE_TTL_MS
+export const REMOTE_PAIR_CODE_MAX_FAILURES = 5
 export const FEISHU_INBOUND_DEDUP_TTL_MS = 30 * 60 * 1000
 export const FEISHU_INBOUND_DEDUP_LIMIT = 2048
+export const FEISHU_CONVERSATION_POLL_TIMEOUT_MS = 5 * 60 * 1000
 export const TELEGRAM_TYPING_DELAY_MS = 800
 export const TELEGRAM_STREAM_POLL_INTERVAL_MS = 450
 export const TELEGRAM_STREAM_START_TIMEOUT_MS = 8_000
@@ -136,6 +138,7 @@ export type TelegramEndpointBinding = RemoteEndpointBinding
 export type TelegramPairingState = {
   code: string | null
   expiresAt: number | null
+  failedAttempts: number
 }
 
 export type FeishuPairingState = TelegramPairingState
@@ -397,7 +400,8 @@ export const createDefaultRemoteControlConfig = (): RemoteControlConfig => ({
     lastFatalError: null,
     pairing: {
       code: null,
-      expiresAt: null
+      expiresAt: null,
+      failedAttempts: 0
     },
     bindings: {}
   },
@@ -412,7 +416,8 @@ export const createDefaultRemoteControlConfig = (): RemoteControlConfig => ({
     lastFatalError: null,
     pairing: {
       code: null,
-      expiresAt: null
+      expiresAt: null,
+      failedAttempts: 0
     },
     bindings: {}
   }
@@ -438,7 +443,8 @@ const RemoteEndpointBindingSchema = z
 const PairingStateSchema = z
   .object({
     code: z.string().nullable().optional(),
-    expiresAt: z.number().int().nonnegative().nullable().optional()
+    expiresAt: z.number().int().nonnegative().nullable().optional(),
+    failedAttempts: z.number().int().nonnegative().optional()
   })
   .strip()
 
@@ -621,7 +627,7 @@ export const normalizeRemoteControlConfig = (input: unknown): RemoteControlConfi
     telegram: {
       enabled: Boolean(telegram.enabled),
       allowlist: normalizeTelegramUserIds(telegram.allowlist),
-      streamMode: 'draft',
+      streamMode: telegram.streamMode === 'final' ? 'final' : defaults.telegram.streamMode,
       defaultAgentId: telegram.defaultAgentId?.trim() || defaults.telegram.defaultAgentId,
       pollOffset:
         typeof telegram.pollOffset === 'number' && telegram.pollOffset >= 0
@@ -631,7 +637,12 @@ export const normalizeRemoteControlConfig = (input: unknown): RemoteControlConfi
       pairing: {
         code: telegram.pairing?.code?.trim() || null,
         expiresAt:
-          typeof telegram.pairing?.expiresAt === 'number' ? telegram.pairing.expiresAt : null
+          typeof telegram.pairing?.expiresAt === 'number' ? telegram.pairing.expiresAt : null,
+        failedAttempts:
+          typeof telegram.pairing?.failedAttempts === 'number' &&
+          telegram.pairing.failedAttempts >= 0
+            ? Math.trunc(telegram.pairing.failedAttempts)
+            : 0
       },
       bindings: normalizeBindings(telegram.bindings, 'telegram')
     },
@@ -646,7 +657,11 @@ export const normalizeRemoteControlConfig = (input: unknown): RemoteControlConfi
       lastFatalError: feishu.lastFatalError?.trim() || null,
       pairing: {
         code: feishu.pairing?.code?.trim() || null,
-        expiresAt: typeof feishu.pairing?.expiresAt === 'number' ? feishu.pairing.expiresAt : null
+        expiresAt: typeof feishu.pairing?.expiresAt === 'number' ? feishu.pairing.expiresAt : null,
+        failedAttempts:
+          typeof feishu.pairing?.failedAttempts === 'number' && feishu.pairing.failedAttempts >= 0
+            ? Math.trunc(feishu.pairing.failedAttempts)
+            : 0
       },
       bindings: normalizeBindings(feishu.bindings, 'feishu')
     }
@@ -760,15 +775,10 @@ export const buildBindingSummary = (
   }
 }
 
-export const createPairCode = (
-  ttlMs: number = TELEGRAM_PAIR_CODE_TTL_MS
-): {
-  code: string
-  expiresAt: number
-} => {
-  const code = `${Math.floor(100000 + Math.random() * 900000)}`
+export const createPairCode = (ttlMs: number = TELEGRAM_PAIR_CODE_TTL_MS): TelegramPairingState => {
   return {
-    code,
+    code: `${Math.floor(100000 + Math.random() * 900000)}`,
+    failedAttempts: 0,
     expiresAt: Date.now() + ttlMs
   }
 }

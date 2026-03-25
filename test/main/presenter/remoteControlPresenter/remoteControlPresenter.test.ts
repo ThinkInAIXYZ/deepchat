@@ -316,6 +316,22 @@ describe('RemoteControlPresenter', () => {
       { id: 'deepchat-alt', name: 'Alt', type: 'deepchat', enabled: false }
     ])
 
+    configPresenter.setSetting('remoteControl', {
+      telegram: {
+        enabled: true,
+        allowlist: [],
+        streamMode: 'final',
+        defaultAgentId: 'deepchat',
+        pollOffset: 0,
+        pairing: {
+          code: null,
+          expiresAt: null,
+          failedAttempts: 0
+        },
+        bindings: {}
+      }
+    })
+
     const presenter = new RemoteControlPresenter({
       configPresenter: {
         ...configPresenter,
@@ -355,7 +371,7 @@ describe('RemoteControlPresenter', () => {
       expect.objectContaining({
         telegram: expect.objectContaining({
           defaultAgentId: 'deepchat',
-          streamMode: 'draft'
+          streamMode: 'final'
         })
       })
     )

@@ -88,17 +88,27 @@ export class RemoteBindingStore {
   }
 
   setBinding(endpointKey: string, sessionId: string, meta?: RemoteEndpointBindingMeta): void {
-    const channel = meta?.channel ?? this.resolveChannelFromEndpointKey(endpointKey)
-    if (!channel) {
+    const resolvedChannel = this.resolveChannelFromEndpointKey(endpointKey)
+    if (!resolvedChannel) {
       return
     }
 
-    this.updateBindings(channel, (bindings) => ({
+    this.updateBindings(resolvedChannel, (bindings) => ({
       ...bindings,
       [endpointKey]: {
         sessionId,
         updatedAt: Date.now(),
-        meta: meta ?? bindings[endpointKey]?.meta
+        meta: meta
+          ? {
+              ...meta,
+              channel: resolvedChannel
+            }
+          : bindings[endpointKey]?.meta
+            ? {
+                ...bindings[endpointKey].meta,
+                channel: resolvedChannel
+              }
+            : undefined
       }
     }))
     this.activeEvents.delete(endpointKey)
@@ -278,7 +288,10 @@ export class RemoteBindingStore {
         pairing
       }))
     }
-    return pairing
+    return {
+      code: pairing.code!,
+      expiresAt: pairing.expiresAt!
+    }
   }
 
   clearPairCode(channel: RemoteChannel = 'telegram'): void {
@@ -287,7 +300,8 @@ export class RemoteBindingStore {
         ...config,
         pairing: {
           code: null,
-          expiresAt: null
+          expiresAt: null,
+          failedAttempts: 0
         }
       }))
       return
@@ -297,9 +311,70 @@ export class RemoteBindingStore {
       ...config,
       pairing: {
         code: null,
-        expiresAt: null
+        expiresAt: null,
+        failedAttempts: 0
       }
     }))
+  }
+
+  recordPairCodeFailure(
+    channel: RemoteChannel,
+    maxAttempts: number
+  ): { attempts: number; exhausted: boolean } {
+    let result = {
+      attempts: 0,
+      exhausted: false
+    }
+
+    if (channel === 'telegram') {
+      this.updateTelegramConfig((config) => {
+        const attempts = config.pairing.failedAttempts + 1
+        const exhausted = attempts >= maxAttempts
+        result = {
+          attempts,
+          exhausted
+        }
+
+        return {
+          ...config,
+          pairing: exhausted
+            ? {
+                code: null,
+                expiresAt: null,
+                failedAttempts: 0
+              }
+            : {
+                ...config.pairing,
+                failedAttempts: attempts
+              }
+        }
+      })
+    } else {
+      this.updateFeishuConfig((config) => {
+        const attempts = config.pairing.failedAttempts + 1
+        const exhausted = attempts >= maxAttempts
+        result = {
+          attempts,
+          exhausted
+        }
+
+        return {
+          ...config,
+          pairing: exhausted
+            ? {
+                code: null,
+                expiresAt: null,
+                failedAttempts: 0
+              }
+            : {
+                ...config.pairing,
+                failedAttempts: attempts
+              }
+        }
+      })
+    }
+
+    return result
   }
 
   rememberActiveEvent(endpointKey: string, eventId: string): void {

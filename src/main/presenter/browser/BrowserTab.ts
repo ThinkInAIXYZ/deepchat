@@ -9,6 +9,7 @@ import { CDPManager } from './CDPManager'
 import { ScreenshotManager } from './ScreenshotManager'
 
 const INTERACTIVE_READY_WAIT_TIMEOUT_MS = 2000
+const INTERACTIVE_READY_TIMEOUT_MESSAGE_PREFIX = 'Timed out waiting for dom-ready:'
 const NAVIGATION_CDP_METHODS = new Set(['Page.navigate', 'Page.reload'])
 
 export class BrowserTab {
@@ -541,8 +542,10 @@ export class BrowserTab {
     if (this.awaitingMainFrameInteractive || this.status === BrowserPageStatus.Loading) {
       try {
         await this.waitForInteractiveReady(timeoutMs)
-      } catch {
-        // Fall through to the unified retryable error.
+      } catch (error) {
+        if (!this.isInteractiveReadyTimeoutError(error)) {
+          throw error
+        }
       }
 
       if (this.interactiveReady) {
@@ -795,13 +798,19 @@ export class BrowserTab {
 
       timeoutId = setTimeout(() => {
         cleanup()
-        reject(new Error(`Timed out waiting for dom-ready: ${this.url}`))
+        reject(new Error(`${INTERACTIVE_READY_TIMEOUT_MESSAGE_PREFIX} ${this.url}`))
       }, timeoutMs)
 
       this.webContents.once('dom-ready', onDomReady)
       this.webContents.on('did-fail-load', onFailLoad as any)
       this.webContents.once('destroyed', onDestroyed)
     })
+  }
+
+  private isInteractiveReadyTimeoutError(error: unknown): error is Error {
+    return (
+      error instanceof Error && error.message.startsWith(INTERACTIVE_READY_TIMEOUT_MESSAGE_PREFIX)
+    )
   }
 
   private async probeInteractiveReadiness(): Promise<boolean> {

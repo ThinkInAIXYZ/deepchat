@@ -120,7 +120,7 @@
                       :type="showBotToken ? 'text' : 'password'"
                       :placeholder="t('settings.remote.telegram.botTokenPlaceholder')"
                       class="pr-10"
-                      @blur="persistTelegramSettings"
+                      @blur="queueTelegramSettingsPersist"
                     />
                     <Button
                       variant="ghost"
@@ -187,7 +187,7 @@
                         data-testid="remote-allowed-user-ids-input"
                         v-model="telegramAllowedUserIdsText"
                         :placeholder="t('settings.remote.remoteControl.allowedUserIdsPlaceholder')"
-                        @blur="persistTelegramSettings"
+                        @blur="queueTelegramSettingsPersist"
                       />
                     </div>
 
@@ -269,7 +269,7 @@
                       <Input
                         v-model="telegramSettings.hookNotifications.chatId"
                         :placeholder="t('settings.remote.hooks.chatIdPlaceholder')"
-                        @blur="persistTelegramSettings"
+                        @blur="queueTelegramSettingsPersist"
                       />
                     </div>
                     <div class="space-y-2">
@@ -279,7 +279,7 @@
                       <Input
                         v-model="telegramSettings.hookNotifications.threadId"
                         :placeholder="t('settings.remote.hooks.threadIdPlaceholder')"
-                        @blur="persistTelegramSettings"
+                        @blur="queueTelegramSettingsPersist"
                       />
                     </div>
                   </div>
@@ -389,7 +389,7 @@
                     <Input
                       v-model="feishuSettings.appId"
                       :placeholder="t('settings.remote.feishu.appIdPlaceholder')"
-                      @blur="persistFeishuSettings"
+                      @blur="queueFeishuSettingsPersist"
                     />
                   </div>
                   <div class="space-y-2">
@@ -400,7 +400,7 @@
                       v-model="feishuSettings.appSecret"
                       type="password"
                       :placeholder="t('settings.remote.feishu.appSecretPlaceholder')"
-                      @blur="persistFeishuSettings"
+                      @blur="queueFeishuSettingsPersist"
                     />
                   </div>
                   <div class="space-y-2">
@@ -410,7 +410,7 @@
                     <Input
                       v-model="feishuSettings.verificationToken"
                       :placeholder="t('settings.remote.feishu.verificationTokenPlaceholder')"
-                      @blur="persistFeishuSettings"
+                      @blur="queueFeishuSettingsPersist"
                     />
                   </div>
                   <div class="space-y-2">
@@ -420,7 +420,7 @@
                     <Input
                       v-model="feishuSettings.encryptKey"
                       :placeholder="t('settings.remote.feishu.encryptKeyPlaceholder')"
-                      @blur="persistFeishuSettings"
+                      @blur="queueFeishuSettingsPersist"
                     />
                   </div>
                 </div>
@@ -483,7 +483,7 @@
                         v-model="feishuPairedUserOpenIdsText"
                         data-testid="remote-feishu-paired-user-open-ids-input"
                         :placeholder="t('settings.remote.feishu.pairedUserOpenIdsPlaceholder')"
-                        @blur="persistFeishuSettings"
+                        @blur="queueFeishuSettingsPersist"
                       />
                     </div>
 
@@ -765,6 +765,10 @@ const pendingSave = reactive<Record<RemoteChannel, boolean>>({
   telegram: false,
   feishu: false
 })
+const saveTasks: Record<RemoteChannel, Promise<void> | null> = {
+  telegram: null,
+  feishu: null
+}
 
 let statusRefreshTimer: ReturnType<typeof setInterval> | null = null
 let pairDialogRefreshTimer: ReturnType<typeof setInterval> | null = null
@@ -1154,68 +1158,82 @@ const buildFeishuDraftSettings = (): FeishuRemoteSettings | null => {
   }
 }
 
-const persistTelegramSettings = async () => {
-  const nextSettings = buildTelegramDraftSettings()
-  if (!nextSettings) {
+const toastSaveError = (error: unknown) => {
+  toast({
+    title: t('common.error.operationFailed'),
+    description: error instanceof Error ? error.message : String(error),
+    variant: 'destructive'
+  })
+}
+
+const persistChannelSettings = async (channel: RemoteChannel): Promise<void> => {
+  pendingSave[channel] = true
+
+  if (saveTasks[channel]) {
+    await saveTasks[channel]
     return
   }
 
-  if (saving.telegram) {
-    pendingSave.telegram = true
-    return
-  }
+  const task = (async () => {
+    while (pendingSave[channel]) {
+      pendingSave[channel] = false
+      saving[channel] = true
 
-  saving.telegram = true
+      try {
+        if (channel === 'telegram') {
+          const nextSettings = buildTelegramDraftSettings()
+          if (!nextSettings) {
+            return
+          }
+
+          const saved = await saveChannelSettingsCompat('telegram', nextSettings)
+          syncTelegramFields(saved)
+        } else {
+          const nextSettings = buildFeishuDraftSettings()
+          if (!nextSettings) {
+            return
+          }
+
+          const saved = await saveChannelSettingsCompat('feishu', nextSettings)
+          syncFeishuFields(saved)
+        }
+
+        await Promise.all([refreshStatus(), loadDeepChatAgents()])
+      } catch (error) {
+        console.error(`Failed to save ${channel} remote settings:`, error)
+        toastSaveError(error)
+        throw error
+      } finally {
+        saving[channel] = false
+      }
+    }
+  })()
+
+  saveTasks[channel] = task
+
   try {
-    const saved = await saveChannelSettingsCompat('telegram', nextSettings)
-    syncTelegramFields(saved)
-    await Promise.all([refreshStatus(), loadDeepChatAgents()])
-  } catch (error) {
-    console.error('Failed to save Telegram remote settings:', error)
-    toast({
-      title: t('common.error.operationFailed'),
-      description: error instanceof Error ? error.message : String(error),
-      variant: 'destructive'
-    })
+    await task
   } finally {
-    saving.telegram = false
-    if (pendingSave.telegram) {
-      pendingSave.telegram = false
-      void persistTelegramSettings()
+    if (saveTasks[channel] === task) {
+      saveTasks[channel] = null
     }
   }
 }
 
+const persistTelegramSettings = async () => {
+  await persistChannelSettings('telegram')
+}
+
 const persistFeishuSettings = async () => {
-  const nextSettings = buildFeishuDraftSettings()
-  if (!nextSettings) {
-    return
-  }
+  await persistChannelSettings('feishu')
+}
 
-  if (saving.feishu) {
-    pendingSave.feishu = true
-    return
-  }
+const queueTelegramSettingsPersist = () => {
+  void persistTelegramSettings().catch(() => undefined)
+}
 
-  saving.feishu = true
-  try {
-    const saved = await saveChannelSettingsCompat('feishu', nextSettings)
-    syncFeishuFields(saved)
-    await Promise.all([refreshStatus(), loadDeepChatAgents()])
-  } catch (error) {
-    console.error('Failed to save Feishu remote settings:', error)
-    toast({
-      title: t('common.error.operationFailed'),
-      description: error instanceof Error ? error.message : String(error),
-      variant: 'destructive'
-    })
-  } finally {
-    saving.feishu = false
-    if (pendingSave.feishu) {
-      pendingSave.feishu = false
-      void persistFeishuSettings()
-    }
-  }
+const queueFeishuSettingsPersist = () => {
+  void persistFeishuSettings().catch(() => undefined)
 }
 
 const updateTelegramRemoteEnabled = (value: boolean) => {
@@ -1223,7 +1241,7 @@ const updateTelegramRemoteEnabled = (value: boolean) => {
     return
   }
   telegramSettings.value.remoteEnabled = Boolean(value)
-  void persistTelegramSettings()
+  queueTelegramSettingsPersist()
 }
 
 const updateFeishuRemoteEnabled = (value: boolean) => {
@@ -1231,7 +1249,7 @@ const updateFeishuRemoteEnabled = (value: boolean) => {
     return
   }
   feishuSettings.value.remoteEnabled = Boolean(value)
-  void persistFeishuSettings()
+  queueFeishuSettingsPersist()
 }
 
 const channelEnabled = (channel: RemoteChannel): boolean =>
@@ -1253,7 +1271,7 @@ const updateTelegramDefaultAgentId = (value: string) => {
     return
   }
   telegramSettings.value.defaultAgentId = value
-  void persistTelegramSettings()
+  queueTelegramSettingsPersist()
 }
 
 const updateFeishuDefaultAgentId = (value: string) => {
@@ -1261,7 +1279,7 @@ const updateFeishuDefaultAgentId = (value: string) => {
     return
   }
   feishuSettings.value.defaultAgentId = value
-  void persistFeishuSettings()
+  queueFeishuSettingsPersist()
 }
 
 const updateHookEnabled = (value: boolean) => {
@@ -1269,7 +1287,7 @@ const updateHookEnabled = (value: boolean) => {
     return
   }
   telegramSettings.value.hookNotifications.enabled = Boolean(value)
-  void persistTelegramSettings()
+  queueTelegramSettingsPersist()
 }
 
 const updateHookEvent = (eventName: HookEventName, checked: boolean) => {
@@ -1283,7 +1301,7 @@ const updateHookEvent = (eventName: HookEventName, checked: boolean) => {
     events.delete(eventName)
   }
   telegramSettings.value.hookNotifications.events = Array.from(events)
-  void persistTelegramSettings()
+  queueTelegramSettingsPersist()
 }
 
 const stopPairDialogPolling = () => {
@@ -1352,11 +1370,22 @@ const startPairDialogPolling = () => {
   }, 2_000)
 }
 
+const persistChannelDraftOrAbort = async (channel: RemoteChannel): Promise<boolean> => {
+  try {
+    if (channel === 'telegram') {
+      await persistTelegramSettings()
+    } else {
+      await persistFeishuSettings()
+    }
+    return true
+  } catch {
+    return false
+  }
+}
+
 const generatePairCodeAndOpenDialog = async (channel: RemoteChannel) => {
-  if (channel === 'telegram') {
-    await persistTelegramSettings()
-  } else {
-    await persistFeishuSettings()
+  if (!(await persistChannelDraftOrAbort(channel))) {
+    return
   }
 
   try {
@@ -1411,10 +1440,8 @@ const loadBindings = async (channel: RemoteChannel) => {
 }
 
 const openBindingsDialog = async (channel: RemoteChannel) => {
-  if (channel === 'telegram') {
-    await persistTelegramSettings()
-  } else {
-    await persistFeishuSettings()
+  if (!(await persistChannelDraftOrAbort(channel))) {
+    return
   }
 
   bindingsDialogChannel.value = channel
@@ -1455,7 +1482,10 @@ const runTelegramHookTest = async () => {
     return
   }
 
-  await persistTelegramSettings()
+  if (!(await persistChannelDraftOrAbort('telegram'))) {
+    return
+  }
+
   telegramTesting.value = true
   telegramTestResult.value = null
   try {

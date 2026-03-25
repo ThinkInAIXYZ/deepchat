@@ -1,4 +1,4 @@
-import type { FeishuInboundMessage } from '../types'
+import { REMOTE_PAIR_CODE_MAX_FAILURES, type FeishuInboundMessage } from '../types'
 import { RemoteBindingStore } from './remoteBindingStore'
 
 export type FeishuAuthResult =
@@ -66,6 +66,13 @@ export class FeishuAuthGuard {
     }
 
     if (pairing.code !== normalizedCode) {
+      const result = this.bindingStore.recordPairCodeFailure(
+        'feishu',
+        REMOTE_PAIR_CODE_MAX_FAILURES
+      )
+      if (result.exhausted) {
+        return 'Too many invalid pairing attempts. The current pairing code has expired. Generate a new code from DeepChat Remote settings.'
+      }
       return 'Pairing code is invalid.'
     }
 

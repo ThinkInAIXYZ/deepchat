@@ -224,7 +224,7 @@ export class RemoteControlPresenter {
       enabled: normalized.remoteEnabled,
       allowlist: normalized.allowedUserIds,
       defaultAgentId,
-      streamMode: 'draft',
+      streamMode: currentRemoteConfig.streamMode,
       lastFatalError: shouldClearFatalError ? null : config.lastFatalError,
       pairing: config.pairing
     }))

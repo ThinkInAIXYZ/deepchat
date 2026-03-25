@@ -66,7 +66,7 @@ describe('RemoteBindingStore', () => {
     expect(reloaded.getPollOffset()).toBe(42)
   })
 
-  it('normalizes empty defaultAgentId to deepchat', () => {
+  it('normalizes empty defaultAgentId to deepchat while preserving streamMode', () => {
     const configPresenter = createConfigPresenter()
     configPresenter.setSetting('remoteControl', {
       telegram: {
@@ -86,7 +86,7 @@ describe('RemoteBindingStore', () => {
     const store = new RemoteBindingStore(configPresenter as any)
 
     expect(store.getDefaultAgentId()).toBe('deepchat')
-    expect(store.getTelegramConfig().streamMode).toBe('draft')
+    expect(store.getTelegramConfig().streamMode).toBe('final')
   })
 
   it('migrates legacy root-level telegram config into the nested structure', () => {
@@ -119,10 +119,11 @@ describe('RemoteBindingStore', () => {
         defaultAgentId: 'legacy-agent',
         pollOffset: 9,
         lastFatalError: 'boom',
-        pairing: {
+        pairing: expect.objectContaining({
           code: '654321',
-          expiresAt: 123
-        }
+          expiresAt: 123,
+          failedAttempts: 0
+        })
       })
     )
     expect(store.getBinding('telegram:100:0')).toEqual(
@@ -167,10 +168,11 @@ describe('RemoteBindingStore', () => {
         enabled: true,
         pairedUserOpenIds: ['ou_1', 'ou_2'],
         lastFatalError: 'fatal',
-        pairing: {
+        pairing: expect.objectContaining({
           code: '123456',
-          expiresAt: 456
-        }
+          expiresAt: 456,
+          failedAttempts: 0
+        })
       })
     )
     expect(store.getBinding('feishu:oc_x:root')).toEqual(
@@ -240,5 +242,65 @@ describe('RemoteBindingStore', () => {
     store.setBinding('telegram:100:0', 'session-2')
 
     expect(store.getModelMenuState(token, 10 * 60 * 1000)).toBeNull()
+  })
+
+  it('normalizes binding meta channel from the endpoint key', () => {
+    const configPresenter = createConfigPresenter()
+    const store = new RemoteBindingStore(configPresenter as any)
+
+    store.setBinding('telegram:100:0', 'session-1', {
+      channel: 'feishu',
+      kind: 'dm',
+      chatId: '100',
+      threadId: null
+    })
+
+    expect(store.getBinding('telegram:100:0')).toEqual(
+      expect.objectContaining({
+        sessionId: 'session-1',
+        meta: expect.objectContaining({
+          channel: 'telegram'
+        })
+      })
+    )
+
+    store.clearBinding('telegram:100:0')
+
+    expect(store.getBinding('telegram:100:0')).toBeNull()
+  })
+
+  it('expires a pairing code after too many failures and resets failures for a new code', () => {
+    const configPresenter = createConfigPresenter()
+    const store = new RemoteBindingStore(configPresenter as any)
+
+    const pairing = store.createPairCode('telegram')
+
+    for (let attempt = 1; attempt < 5; attempt += 1) {
+      expect(store.recordPairCodeFailure('telegram', 5)).toEqual({
+        attempts: attempt,
+        exhausted: false
+      })
+    }
+
+    expect(store.getTelegramPairingState()).toEqual(
+      expect.objectContaining({
+        code: pairing.code,
+        failedAttempts: 4
+      })
+    )
+
+    expect(store.recordPairCodeFailure('telegram', 5)).toEqual({
+      attempts: 5,
+      exhausted: true
+    })
+    expect(store.getTelegramPairingState()).toEqual({
+      code: null,
+      expiresAt: null,
+      failedAttempts: 0
+    })
+
+    store.createPairCode('telegram')
+
+    expect(store.getTelegramPairingState().failedAttempts).toBe(0)
   })
 })

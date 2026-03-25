@@ -10,6 +10,7 @@ import type {
 } from '../types'
 import {
   TELEGRAM_MODEL_MENU_TTL_MS,
+  TELEGRAM_REMOTE_COMMANDS,
   buildModelMenuBackCallbackData,
   buildModelMenuCancelCallbackData,
   buildModelMenuChoiceCallbackData,
@@ -437,15 +438,15 @@ export class RemoteCommandRouter {
   private formatHelpMessage(): string {
     return [
       'Commands:',
-      '/start',
-      '/help',
-      '/pair <code>',
-      '/new [title]',
-      '/sessions',
-      '/use <index>',
-      '/stop',
-      '/status',
-      '/model',
+      ...TELEGRAM_REMOTE_COMMANDS.map((item) =>
+        item.command === 'pair'
+          ? '/pair <code> - Authorize this Telegram account'
+          : item.command === 'new'
+            ? '/new [title] - Start a new DeepChat session'
+            : item.command === 'use'
+              ? '/use <index> - Bind a listed session'
+              : `/${item.command} - ${item.description}`
+      ),
       'Plain text sends to the current bound session.'
     ].join('\n')
   }

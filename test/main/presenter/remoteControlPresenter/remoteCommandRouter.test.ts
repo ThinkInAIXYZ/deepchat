@@ -199,7 +199,7 @@ describe('RemoteCommandRouter', () => {
     expect(result.replies[0]).toContain('Current model: gpt-5')
   })
 
-  it('shows /model in help output and removes /open', async () => {
+  it('shows /model and /open in help output', async () => {
     const router = new RemoteCommandRouter({
       authGuard: {
         ensureAuthorized: vi.fn(),
@@ -221,7 +221,7 @@ describe('RemoteCommandRouter', () => {
     )
 
     expect(result.replies[0]).toContain('/model')
-    expect(result.replies[0]).not.toContain('/open')
+    expect(result.replies[0]).toContain('/open')
   })
 
   it('returns a prompt when /model is used without a bound session', async () => {

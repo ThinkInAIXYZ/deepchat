@@ -1,4 +1,5 @@
 import {
+  FEISHU_CONVERSATION_POLL_TIMEOUT_MS,
   FEISHU_INBOUND_DEDUP_LIMIT,
   FEISHU_INBOUND_DEDUP_TTL_MS,
   TELEGRAM_STREAM_POLL_INTERVAL_MS,
@@ -266,10 +267,20 @@ export class FeishuRuntime {
     target: FeishuTransportTarget,
     execution: RemoteConversationExecution
   ): Promise<void> {
+    const startedAt = Date.now()
+
     while (!this.stopRequested) {
       const snapshot = await execution.getSnapshot()
       if (snapshot.completed) {
         await this.deps.client.sendText(target, snapshot.text)
+        return
+      }
+
+      if (Date.now() - startedAt >= FEISHU_CONVERSATION_POLL_TIMEOUT_MS) {
+        await this.deps.client.sendText(
+          target,
+          'The current conversation timed out before finishing. Please try again.'
+        )
         return
       }
 

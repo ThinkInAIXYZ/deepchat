@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { defineComponent, reactive } from 'vue'
+import { defineComponent, h, inject, provide, reactive, ref, watch, type Ref } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 
 type SetupOptions = {
@@ -322,6 +322,103 @@ const setup = async (options: SetupOptions = {}) => {
   }
 
   const toast = vi.fn()
+  const tabsContextKey = Symbol('remote-settings-tabs')
+  const tabsComponents = {
+    Tabs: defineComponent({
+      props: {
+        modelValue: {
+          type: String,
+          default: ''
+        }
+      },
+      emits: ['update:modelValue'],
+      setup(props, { emit, slots }) {
+        const currentValue = ref(String(props.modelValue ?? ''))
+        watch(
+          () => props.modelValue,
+          (value) => {
+            currentValue.value = String(value ?? '')
+          }
+        )
+
+        provide(tabsContextKey, {
+          currentValue,
+          setValue: (value: string) => {
+            currentValue.value = value
+            emit('update:modelValue', value)
+          }
+        })
+
+        return () => h('div', slots.default?.())
+      }
+    }),
+    TabsList: defineComponent({
+      setup(_props, { slots }) {
+        return () => h('div', slots.default?.())
+      }
+    }),
+    TabsTrigger: defineComponent({
+      inheritAttrs: false,
+      props: {
+        value: {
+          type: String,
+          required: true
+        }
+      },
+      setup(props, { attrs, slots }) {
+        const tabs = inject<{
+          currentValue: Ref<string>
+          setValue: (value: string) => void
+        }>(tabsContextKey)
+
+        if (!tabs) {
+          throw new Error('TabsTrigger must be used inside Tabs')
+        }
+
+        return () =>
+          h(
+            'button',
+            {
+              ...attrs,
+              'data-state': tabs.currentValue.value === props.value ? 'active' : 'inactive',
+              onClick: () => tabs.setValue(props.value)
+            },
+            slots.default?.()
+          )
+      }
+    }),
+    TabsContent: defineComponent({
+      inheritAttrs: false,
+      props: {
+        value: {
+          type: String,
+          required: true
+        }
+      },
+      setup(props, { attrs, slots }) {
+        const tabs = inject<{
+          currentValue: Ref<string>
+          setValue: (value: string) => void
+        }>(tabsContextKey)
+
+        if (!tabs) {
+          throw new Error('TabsContent must be used inside Tabs')
+        }
+
+        return () =>
+          h(
+            'div',
+            {
+              ...attrs,
+              'data-state': tabs.currentValue.value === props.value ? 'active' : 'inactive',
+              'data-tabs-content-value': props.value,
+              style: tabs.currentValue.value === props.value ? undefined : { display: 'none' }
+            },
+            slots.default?.()
+          )
+      }
+    })
+  }
 
   vi.doMock('@/composables/usePresenter', () => ({
     usePresenter: (name: string) => (name === 'newAgentPresenter' ? newAgentPresenter : null),
@@ -346,6 +443,7 @@ const setup = async (options: SetupOptions = {}) => {
       }
     })
   }))
+  vi.doMock('@shadcn/components/ui/tabs', () => tabsComponents)
 
   const passthrough = defineComponent({
     template: '<div><slot /></div>'
@@ -415,10 +513,6 @@ const setup = async (options: SetupOptions = {}) => {
         SelectValue: passthrough,
         SelectContent: passthrough,
         SelectItem: passthrough,
-        Tabs: passthrough,
-        TabsList: passthrough,
-        TabsTrigger: passthrough,
-        TabsContent: passthrough,
         Dialog: dialogStub,
         DialogContent: passthrough,
         DialogHeader: passthrough,
@@ -440,13 +534,14 @@ const setup = async (options: SetupOptions = {}) => {
     remoteState,
     remoteControlPresenter,
     newAgentPresenter,
-    toast
+    toast,
+    tabsComponents
   }
 }
 
 describe('RemoteSettings', () => {
   it('hides remote and hook details when both toggles are disabled', async () => {
-    const { wrapper } = await setup({
+    const { wrapper, tabsComponents } = await setup({
       settings: {
         botToken: 'telegram-token',
         remoteEnabled: false,
@@ -464,6 +559,46 @@ describe('RemoteSettings', () => {
     expect(wrapper.find('[data-testid="remote-control-details"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="remote-hooks-details"]').exists()).toBe(false)
     expect(wrapper.text()).not.toContain('settings.remote.remoteControl.streamMode')
+  })
+
+  it('shows only the active tab content when switching channels', async () => {
+    const { wrapper, tabsComponents } = await setup({
+      settings: {
+        botToken: 'telegram-token',
+        remoteEnabled: true,
+        allowedUserIds: [123],
+        defaultAgentId: 'deepchat',
+        hookNotifications: {
+          enabled: false,
+          chatId: '',
+          threadId: '',
+          events: []
+        }
+      },
+      feishuChannelSettingsOverride: {
+        remoteEnabled: true
+      }
+    })
+
+    const telegramPanel = wrapper.find('[data-tabs-content-value="telegram"]')
+    const feishuPanel = wrapper.find('[data-tabs-content-value="feishu"]')
+
+    expect(telegramPanel.isVisible()).toBe(true)
+    expect(feishuPanel.isVisible()).toBe(false)
+
+    const feishuTrigger = wrapper
+      .findAllComponents(tabsComponents.TabsTrigger)
+      .find((component) => component.attributes('data-testid') === 'remote-tab-feishu')
+
+    expect(feishuTrigger).toBeDefined()
+
+    await feishuTrigger!.trigger('click')
+    await flushPromises()
+
+    expect(telegramPanel.attributes('data-state')).toBe('inactive')
+    expect(feishuPanel.attributes('data-state')).toBe('active')
+    expect(telegramPanel.attributes('style')).toContain('display: none')
+    expect(feishuPanel.attributes('style')).toBeUndefined()
   })
 
   it('toggles telegram remote control from the overview card', async () => {
@@ -595,6 +730,36 @@ describe('RemoteSettings', () => {
     )
   })
 
+  it('does not open the pair dialog when saving telegram settings fails', async () => {
+    const { wrapper, remoteControlPresenter, toast } = await setup({
+      settings: {
+        botToken: 'telegram-token',
+        remoteEnabled: true,
+        allowedUserIds: [123],
+        defaultAgentId: 'deepchat',
+        hookNotifications: {
+          enabled: false,
+          chatId: '',
+          threadId: '',
+          events: []
+        }
+      }
+    })
+
+    remoteControlPresenter.saveChannelSettings.mockRejectedValueOnce(new Error('save failed'))
+
+    await wrapper.find('[data-testid="remote-pair-button"]').trigger('click')
+    await flushPromises()
+
+    expect(remoteControlPresenter.createChannelPairCode).not.toHaveBeenCalled()
+    expect(wrapper.find('[data-testid="remote-pair-dialog"]').exists()).toBe(false)
+    expect(toast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        description: 'save failed'
+      })
+    )
+  })
+
   it('lists only enabled deepchat agents in the default agent selector area', async () => {
     const { wrapper } = await setup({
       settings: {
@@ -664,5 +829,75 @@ describe('RemoteSettings', () => {
       'telegram:100:0'
     )
     expect(wrapper.find('[data-testid="remote-bindings-empty"]').exists()).toBe(true)
+  })
+
+  it('does not open bindings when saving feishu settings fails', async () => {
+    const { wrapper, remoteControlPresenter, toast, tabsComponents } = await setup({
+      feishuChannelSettingsOverride: {
+        remoteEnabled: true
+      }
+    })
+
+    const feishuTrigger = wrapper
+      .findAllComponents(tabsComponents.TabsTrigger)
+      .find((component) => component.attributes('data-testid') === 'remote-tab-feishu')
+
+    expect(feishuTrigger).toBeDefined()
+
+    await feishuTrigger!.trigger('click')
+    await flushPromises()
+
+    remoteControlPresenter.saveChannelSettings.mockImplementationOnce(async (channel: string) => {
+      if (channel === 'feishu') {
+        throw new Error('feishu save failed')
+      }
+
+      return {}
+    })
+
+    await wrapper.find('[data-testid="feishu-bindings-button"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="remote-bindings-dialog"]').exists()).toBe(false)
+    expect(toast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        description: 'feishu save failed'
+      })
+    )
+  })
+
+  it('does not run the telegram hook test when saving settings fails', async () => {
+    const { wrapper, remoteControlPresenter, toast } = await setup({
+      settings: {
+        botToken: 'telegram-token',
+        remoteEnabled: true,
+        allowedUserIds: [123],
+        defaultAgentId: 'deepchat',
+        hookNotifications: {
+          enabled: true,
+          chatId: '100',
+          threadId: '',
+          events: []
+        }
+      }
+    })
+
+    remoteControlPresenter.saveChannelSettings.mockRejectedValueOnce(new Error('hook save failed'))
+
+    const hookTestButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('settings.notificationsHooks.test.button'))
+
+    expect(hookTestButton).toBeDefined()
+
+    await hookTestButton!.trigger('click')
+    await flushPromises()
+
+    expect(remoteControlPresenter.testTelegramHookNotification).not.toHaveBeenCalled()
+    expect(toast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        description: 'hook save failed'
+      })
+    )
   })
 })

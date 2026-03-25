@@ -1,4 +1,8 @@
-import type { TelegramInboundEvent, TelegramInboundMessage } from '../types'
+import {
+  REMOTE_PAIR_CODE_MAX_FAILURES,
+  type TelegramInboundEvent,
+  type TelegramInboundMessage
+} from '../types'
 import { RemoteBindingStore } from './remoteBindingStore'
 
 export type RemoteAuthResult =
@@ -44,11 +48,6 @@ export class RemoteAuthGuard {
   }
 
   pair(message: TelegramInboundMessage, rawCode: string): string {
-    const bindingStoreCompat = this.bindingStore as RemoteBindingStore & {
-      getPairingState?: () => ReturnType<RemoteBindingStore['getTelegramPairingState']>
-      clearPairCode?: ((channel: 'telegram') => void) | (() => void)
-    }
-
     const authorization = this.ensurePrivatePairingContext(message)
     if (authorization) {
       return authorization
@@ -59,28 +58,26 @@ export class RemoteAuthGuard {
       return 'Usage: /pair <6-digit-code>'
     }
 
-    const pairing =
-      bindingStoreCompat.getTelegramPairingState?.() ?? bindingStoreCompat.getPairingState?.()
+    const pairing = this.bindingStore.getTelegramPairingState()
     if (!pairing.code || !pairing.expiresAt || pairing.expiresAt <= Date.now()) {
-      if (bindingStoreCompat.clearPairCode.length === 0) {
-        ;(bindingStoreCompat.clearPairCode as () => void)()
-      } else {
-        ;(bindingStoreCompat.clearPairCode as (channel: 'telegram') => void)('telegram')
-      }
+      this.bindingStore.clearPairCode('telegram')
       return 'Pairing code is missing or expired. Generate a new code from DeepChat Remote settings.'
     }
 
     if (pairing.code !== normalizedCode) {
+      const result = this.bindingStore.recordPairCodeFailure(
+        'telegram',
+        REMOTE_PAIR_CODE_MAX_FAILURES
+      )
+      if (result.exhausted) {
+        return 'Too many invalid pairing attempts. The current pairing code has expired. Generate a new code from DeepChat Remote settings.'
+      }
       return 'Pairing code is invalid.'
     }
 
     const userId = message.fromId as number
     this.bindingStore.addAllowedUser(userId)
-    if (bindingStoreCompat.clearPairCode.length === 0) {
-      ;(bindingStoreCompat.clearPairCode as () => void)()
-    } else {
-      ;(bindingStoreCompat.clearPairCode as (channel: 'telegram') => void)('telegram')
-    }
+    this.bindingStore.clearPairCode('telegram')
     return `Pairing complete. Telegram user ${userId} is now authorized.`
   }
 
