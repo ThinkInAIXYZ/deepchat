@@ -31,6 +31,7 @@ type FeishuProcessedInboundEntry = {
 }
 
 export class FeishuRuntime {
+  private runId = 0
   private started = false
   private stopRequested = false
   private statusSnapshot: FeishuRuntimeStatusSnapshot = {
@@ -49,6 +50,7 @@ export class FeishuRuntime {
       return
     }
 
+    const runId = ++this.runId
     this.started = true
     this.stopRequested = false
     this.setStatus({
@@ -58,21 +60,33 @@ export class FeishuRuntime {
 
     try {
       const botUser = await this.deps.client.probeBot()
+      if (!this.isCurrentRun(runId)) {
+        return
+      }
+
       this.setBotUser(botUser)
       await this.deps.client.startMessageStream({
         onMessage: async (event) => {
           try {
-            this.acceptRawMessage(event)
+            this.acceptRawMessage(event, runId)
           } catch (error) {
             console.warn('[FeishuRuntime] Failed to enqueue event:', error)
           }
         }
       })
+      if (!this.isCurrentRun(runId)) {
+        return
+      }
+
       this.setStatus({
         state: 'running',
         lastError: null
       })
     } catch (error) {
+      if (!this.isCurrentRun(runId)) {
+        return
+      }
+
       this.started = false
       this.setStatus({
         state: 'error',
@@ -85,6 +99,7 @@ export class FeishuRuntime {
   async stop(): Promise<void> {
     this.stopRequested = true
     this.started = false
+    this.runId += 1
     this.deps.client.stop()
     this.endpointOperations.clear()
     this.processedInboundByMessage.clear()
@@ -98,8 +113,12 @@ export class FeishuRuntime {
     return { ...this.statusSnapshot }
   }
 
-  private acceptRawMessage(event: Parameters<FeishuParser['parseEvent']>[0]): void {
-    if (this.stopRequested || !this.started) {
+  private isCurrentRun(runId: number): boolean {
+    return this.runId === runId && this.started && !this.stopRequested
+  }
+
+  private acceptRawMessage(event: Parameters<FeishuParser['parseEvent']>[0], runId: number): void {
+    if (!this.isCurrentRun(runId)) {
       return
     }
 
@@ -122,12 +141,12 @@ export class FeishuRuntime {
 
     const endpointKey = buildFeishuEndpointKey(parsed.chatId, parsed.threadId)
     if (parsed.command?.name === 'stop') {
-      void this.processInboundMessage(parsed)
+      void this.processInboundMessage(parsed, runId)
       return
     }
 
-    this.enqueueEndpointOperation(endpointKey, async () => {
-      await this.processInboundMessage(parsed)
+    this.enqueueEndpointOperation(endpointKey, runId, async () => {
+      await this.processInboundMessage(parsed, runId)
     })
   }
 
@@ -189,12 +208,16 @@ export class FeishuRuntime {
     }
   }
 
-  private enqueueEndpointOperation(endpointKey: string, operation: () => Promise<void>): void {
+  private enqueueEndpointOperation(
+    endpointKey: string,
+    runId: number,
+    operation: () => Promise<void>
+  ): void {
     const previous = this.endpointOperations.get(endpointKey) ?? Promise.resolve()
     const next = previous
       .catch(() => undefined)
       .then(async () => {
-        if (this.stopRequested || !this.started) {
+        if (!this.isCurrentRun(runId)) {
           return
         }
 
@@ -209,8 +232,8 @@ export class FeishuRuntime {
     this.endpointOperations.set(endpointKey, next)
   }
 
-  private async processInboundMessage(parsed: FeishuInboundMessage): Promise<void> {
-    if (this.stopRequested || !this.started) {
+  private async processInboundMessage(parsed: FeishuInboundMessage, runId: number): Promise<void> {
+    if (!this.isCurrentRun(runId)) {
       return
     }
 
@@ -222,16 +245,19 @@ export class FeishuRuntime {
 
     try {
       const routed = await this.deps.router.handleMessage(parsed)
-      if (this.stopRequested || !this.started) {
+      if (!this.isCurrentRun(runId)) {
         return
       }
 
       for (const reply of routed.replies) {
+        if (!this.isCurrentRun(runId)) {
+          return
+        }
         await this.deps.client.sendText(target, reply)
       }
 
       if (routed.conversation) {
-        await this.deliverConversation(target, routed.conversation)
+        await this.deliverConversation(target, routed.conversation, runId)
       }
     } catch (error) {
       console.warn('[FeishuRuntime] Failed to handle event:', {
@@ -242,11 +268,14 @@ export class FeishuRuntime {
         error
       })
 
-      if (this.stopRequested || !this.started) {
+      if (!this.isCurrentRun(runId)) {
         return
       }
 
       try {
+        if (!this.isCurrentRun(runId)) {
+          return
+        }
         await this.deps.client.sendText(
           target,
           error instanceof Error ? error.message : String(error)
@@ -265,18 +294,29 @@ export class FeishuRuntime {
 
   private async deliverConversation(
     target: FeishuTransportTarget,
-    execution: RemoteConversationExecution
+    execution: RemoteConversationExecution,
+    runId: number
   ): Promise<void> {
     const startedAt = Date.now()
 
-    while (!this.stopRequested) {
+    while (this.isCurrentRun(runId)) {
       const snapshot = await execution.getSnapshot()
+      if (!this.isCurrentRun(runId)) {
+        return
+      }
+
       if (snapshot.completed) {
+        if (!this.isCurrentRun(runId)) {
+          return
+        }
         await this.deps.client.sendText(target, snapshot.text)
         return
       }
 
       if (Date.now() - startedAt >= FEISHU_CONVERSATION_POLL_TIMEOUT_MS) {
+        if (!this.isCurrentRun(runId)) {
+          return
+        }
         await this.deps.client.sendText(
           target,
           'The current conversation timed out before finishing. Please try again.'

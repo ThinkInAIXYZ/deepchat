@@ -104,4 +104,46 @@ describe('FeishuCommandRouter', () => {
     expect(result.replies[0]).toContain('Model updated.')
     expect(result.replies[0]).toContain('GPT-5')
   })
+
+  it('returns a desktop window hint when /open cannot find a chat window', async () => {
+    const router = new FeishuCommandRouter({
+      authGuard: {
+        ensureAuthorized: vi.fn().mockReturnValue({
+          ok: true,
+          userOpenId: 'ou_123'
+        }),
+        pair: vi.fn()
+      } as any,
+      runner: {
+        open: vi.fn().mockResolvedValue({
+          status: 'windowNotFound'
+        })
+      } as any,
+      bindingStore: {
+        getFeishuConfig: vi.fn().mockReturnValue({
+          pairedUserOpenIds: ['ou_123'],
+          bindings: {}
+        })
+      } as any,
+      getRuntimeStatus: vi.fn().mockReturnValue({
+        state: 'running',
+        lastError: null,
+        botUser: null
+      })
+    })
+
+    const result = await router.handleMessage(
+      createMessage({
+        text: '/open',
+        command: {
+          name: 'open',
+          args: ''
+        }
+      })
+    )
+
+    expect(result).toEqual({
+      replies: ['Could not find a DeepChat desktop window. Open DeepChat and try /open again.']
+    })
+  })
 })

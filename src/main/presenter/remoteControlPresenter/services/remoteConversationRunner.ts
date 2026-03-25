@@ -42,6 +42,18 @@ export interface RemoteRunnerStatus {
   isGenerating: boolean
 }
 
+export type RemoteOpenSessionResult =
+  | {
+      status: 'noSession'
+    }
+  | {
+      status: 'windowNotFound'
+    }
+  | {
+      status: 'ok'
+      session: SessionWithState
+    }
+
 type RemoteConversationRunnerDeps = {
   configPresenter: IConfigPresenter
   newAgentPresenter: INewAgentPresenter
@@ -238,20 +250,27 @@ export class RemoteConversationRunner {
     return stopped
   }
 
-  async open(endpointKey: string): Promise<SessionWithState | null> {
+  async open(endpointKey: string): Promise<RemoteOpenSessionResult> {
     const session = await this.getCurrentSession(endpointKey)
     if (!session) {
-      return null
+      return {
+        status: 'noSession'
+      }
     }
 
     const window = await this.resolveChatWindow()
     if (!window || window.isDestroyed()) {
-      return null
+      return {
+        status: 'windowNotFound'
+      }
     }
 
     await this.deps.newAgentPresenter.activateSession(window.webContents.id, session.id)
     this.deps.windowPresenter.show(window.id, true)
-    return session
+    return {
+      status: 'ok',
+      session
+    }
   }
 
   async getStatus(endpointKey: string): Promise<RemoteRunnerStatus> {

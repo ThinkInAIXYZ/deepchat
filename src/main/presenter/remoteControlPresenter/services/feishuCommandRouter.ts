@@ -131,12 +131,14 @@ export class FeishuCommandRouter {
         }
 
         case 'open': {
-          const session = await this.deps.runner.open(endpointKey)
+          const openResult = await this.deps.runner.open(endpointKey)
           return {
             replies: [
-              session
-                ? `Opened on desktop: ${this.formatSessionLabel(session)}`
-                : 'No bound session. Send a message, /new, or /use first.'
+              openResult.status === 'ok'
+                ? `Opened on desktop: ${this.formatSessionLabel(openResult.session)}`
+                : openResult.status === 'windowNotFound'
+                  ? 'Could not find a DeepChat desktop window. Open DeepChat and try /open again.'
+                  : 'No bound session. Send a message, /new, or /use first.'
             ]
           }
         }

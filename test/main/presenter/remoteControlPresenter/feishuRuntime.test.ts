@@ -39,6 +39,7 @@ const createDeferred = <T>() => {
 
 const createHarness = async () => {
   let onMessage: ((event: unknown) => Promise<void>) | null = null
+  const streamHandlers: Array<(event: unknown) => Promise<void>> = []
   const client = {
     probeBot: vi.fn().mockResolvedValue({
       openId: 'ou_bot',
@@ -48,6 +49,7 @@ const createHarness = async () => {
       .fn()
       .mockImplementation(async (params: { onMessage: (event: unknown) => Promise<void> }) => {
         onMessage = params.onMessage
+        streamHandlers.push(params.onMessage)
       }),
     stop: vi.fn(),
     sendText: vi.fn().mockResolvedValue(undefined)
@@ -73,7 +75,11 @@ const createHarness = async () => {
     client,
     parser,
     router,
-    onMessage: onMessage!
+    onMessage: onMessage!,
+    emitMessage: async (event: unknown) => {
+      await onMessage?.(event)
+    },
+    getStreamHandlers: () => [...streamHandlers]
   }
 }
 
@@ -184,6 +190,48 @@ describe('FeishuRuntime', () => {
     await harness.runtime.stop()
   })
 
+  it('ignores stale websocket callbacks after the runtime restarts', async () => {
+    const harness = await createHarness()
+    harness.router.handleMessage.mockResolvedValue({
+      replies: ['fresh']
+    })
+
+    const staleHandler = harness.getStreamHandlers()[0]
+    await harness.runtime.stop()
+    await harness.runtime.start()
+
+    await staleHandler({
+      parsed: createParsedMessage({
+        eventId: 'evt-stale',
+        messageId: 'om-stale'
+      })
+    })
+    await Promise.resolve()
+
+    expect(harness.router.handleMessage).not.toHaveBeenCalled()
+
+    await harness.emitMessage({
+      parsed: createParsedMessage({
+        eventId: 'evt-fresh',
+        messageId: 'om-fresh'
+      })
+    })
+
+    await vi.waitFor(() => {
+      expect(harness.router.handleMessage).toHaveBeenCalledTimes(1)
+      expect(harness.client.sendText).toHaveBeenCalledWith(
+        {
+          chatId: 'oc_1',
+          threadId: null,
+          replyToMessageId: 'om-fresh'
+        },
+        'fresh'
+      )
+    })
+
+    await harness.runtime.stop()
+  })
+
   it('serializes messages per endpoint while allowing different endpoints in parallel', async () => {
     const deferred = createDeferred<void>()
     const harness = await createHarness()
@@ -236,6 +284,83 @@ describe('FeishuRuntime', () => {
 
     await vi.waitFor(() => {
       expect(started).toEqual(['A', 'C', 'B'])
+    })
+
+    await harness.runtime.stop()
+  })
+
+  it('invalidates queued endpoint work from a previous run after restart', async () => {
+    const firstRoute = createDeferred<{
+      replies: string[]
+    }>()
+    const harness = await createHarness()
+    const handledTexts: string[] = []
+
+    harness.router.handleMessage.mockImplementation(async (message: FeishuInboundMessage) => {
+      handledTexts.push(message.text)
+      if (message.text === 'A') {
+        return await firstRoute.promise
+      }
+
+      return {
+        replies: [message.text]
+      }
+    })
+
+    await harness.emitMessage({
+      parsed: createParsedMessage({
+        eventId: 'evt-a',
+        messageId: 'om-a',
+        text: 'A'
+      })
+    })
+
+    await vi.waitFor(() => {
+      expect(handledTexts).toEqual(['A'])
+    })
+
+    await harness.emitMessage({
+      parsed: createParsedMessage({
+        eventId: 'evt-b',
+        messageId: 'om-b',
+        text: 'B'
+      })
+    })
+    await Promise.resolve()
+
+    expect(handledTexts).toEqual(['A'])
+
+    await harness.runtime.stop()
+    await harness.runtime.start()
+
+    firstRoute.resolve({
+      replies: ['stale-a']
+    })
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(handledTexts).toEqual(['A'])
+    expect(harness.client.sendText).not.toHaveBeenCalledWith(expect.anything(), 'stale-a')
+    expect(harness.client.sendText).not.toHaveBeenCalledWith(expect.anything(), 'B')
+
+    await harness.emitMessage({
+      parsed: createParsedMessage({
+        eventId: 'evt-fresh-after-restart',
+        messageId: 'om-fresh-after-restart',
+        text: 'fresh'
+      })
+    })
+
+    await vi.waitFor(() => {
+      expect(handledTexts).toEqual(['A', 'fresh'])
+      expect(harness.client.sendText).toHaveBeenCalledWith(
+        {
+          chatId: 'oc_1',
+          threadId: null,
+          replyToMessageId: 'om-fresh-after-restart'
+        },
+        'fresh'
+      )
     })
 
     await harness.runtime.stop()
@@ -363,5 +488,80 @@ describe('FeishuRuntime', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('does not deliver conversation output from a previous run after restart', async () => {
+    const deferred = createDeferred<{
+      messageId: string | null
+      text: string
+      completed: boolean
+    }>()
+    const harness = await createHarness()
+
+    harness.router.handleMessage.mockImplementation(async (message: FeishuInboundMessage) => {
+      if (message.text === 'fresh') {
+        return {
+          replies: ['fresh reply']
+        }
+      }
+
+      return {
+        replies: [],
+        conversation: {
+          sessionId: 'session-1',
+          eventId: 'msg-1',
+          getSnapshot: vi.fn().mockReturnValue(deferred.promise)
+        }
+      }
+    })
+
+    await harness.emitMessage({
+      parsed: createParsedMessage({
+        eventId: 'evt-old-conversation',
+        messageId: 'om-old-conversation',
+        text: 'hello'
+      })
+    })
+
+    await vi.waitFor(() => {
+      expect(harness.router.handleMessage).toHaveBeenCalledTimes(1)
+    })
+
+    await harness.runtime.stop()
+    await harness.runtime.start()
+
+    deferred.resolve({
+      messageId: 'msg-1',
+      text: 'stale conversation output',
+      completed: true
+    })
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(harness.client.sendText).not.toHaveBeenCalledWith(
+      expect.anything(),
+      'stale conversation output'
+    )
+
+    await harness.emitMessage({
+      parsed: createParsedMessage({
+        eventId: 'evt-new-conversation',
+        messageId: 'om-new-conversation',
+        text: 'fresh'
+      })
+    })
+
+    await vi.waitFor(() => {
+      expect(harness.client.sendText).toHaveBeenCalledWith(
+        {
+          chatId: 'oc_1',
+          threadId: null,
+          replyToMessageId: 'om-new-conversation'
+        },
+        'fresh reply'
+      )
+    })
+
+    await harness.runtime.stop()
   })
 })

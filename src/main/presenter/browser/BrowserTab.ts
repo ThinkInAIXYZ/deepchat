@@ -117,9 +117,20 @@ export class BrowserTab {
     const response = await session.sendCommand(method, params ?? {})
 
     if (method === 'Page.navigate') {
-      this.beginMainFrameNavigation(
-        typeof params?.url === 'string' && params.url.trim() ? params.url : this.url
-      )
+      const navigationResponse = response as {
+        loaderId?: string
+        errorText?: string
+      }
+      const hasCommittedCrossDocumentNavigation =
+        typeof navigationResponse.loaderId === 'string' &&
+        navigationResponse.loaderId.trim() !== '' &&
+        !navigationResponse.errorText
+
+      if (hasCommittedCrossDocumentNavigation) {
+        this.beginMainFrameNavigation(
+          typeof params?.url === 'string' && params.url.trim() ? params.url : this.url
+        )
+      }
     } else if (method === 'Page.reload') {
       this.beginMainFrameNavigation(this.url)
     }
@@ -833,7 +844,11 @@ export class BrowserTab {
 
       const readyState = typeof probe?.readyState === 'string' ? probe.readyState : ''
       const hasBody = probe?.hasBody === true
-      if (!hasBody && readyState !== 'interactive' && readyState !== 'complete') {
+      if (readyState !== 'interactive' && readyState !== 'complete') {
+        return false
+      }
+
+      if (!hasBody) {
         return false
       }
 
@@ -891,6 +906,15 @@ export class BrowserTab {
       }
 
       this.beginMainFrameNavigation(details.url || this.url)
+    })
+
+    this.webContents.on('did-navigate-in-page', (_event, url: string, isMainFrame: boolean) => {
+      if (!isMainFrame) {
+        return
+      }
+
+      this.url = url || this.url
+      this.updatedAt = Date.now()
     })
 
     this.webContents.on('did-start-loading', () => {
