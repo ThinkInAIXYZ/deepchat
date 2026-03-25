@@ -72,6 +72,7 @@ import burncloudColorIcon from '@/assets/llm-icons/burncloud-color.svg?url'
 import xiaomiColorIcon from '@/assets/llm-icons/xiaomi.png?url'
 import o3fanColorIcon from '@/assets/llm-icons/o3-fan.png?url'
 import voiceAiColorIcon from '@/assets/llm-icons/voiceai.svg?url'
+import novitaAiIcon from '@/assets/llm-icons/novitaai.svg?url'
 
 // 导入所有图标
 const icons = {
@@ -157,6 +158,9 @@ const icons = {
   burncloud: burncloudColorIcon,
   xiaomi: xiaomiColorIcon,
   voiceai: voiceAiColorIcon,
+  novita: novitaAiIcon,
+  novitaai: novitaAiIcon,
+  'novita.ai': novitaAiIcon,
   default: defaultIcon
 }
 
@@ -244,7 +248,8 @@ const monoIconUrls = new Set([
   lmstudioColorIcon,
   _302aiIcon,
   awsBedrockIcon,
-  voiceAiColorIcon
+  voiceAiColorIcon,
+  novitaAiIcon
 ])
 
 const invert = computed(() => {

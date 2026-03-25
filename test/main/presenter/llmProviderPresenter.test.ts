@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi, beforeAll, afterEach } from 'vite
 import { LLMProviderPresenter } from '../../../src/main/presenter/llmProviderPresenter/index'
 import { ConfigPresenter } from '../../../src/main/presenter/configPresenter/index'
 import { LLM_PROVIDER, ChatMessage, ISQLitePresenter } from '../../../src/shared/presenter'
+import { OpenAICompatibleProvider } from '../../../src/main/presenter/llmProviderPresenter/providers/openAICompatibleProvider'
 
 // Ensure electron is mocked for this suite to avoid CJS named export issues
 vi.mock('electron', () => {
@@ -213,6 +214,30 @@ describe('LLMProviderPresenter Integration Tests', () => {
       await llmProviderPresenter.setCurrentProvider('mock-openai-api')
       const currentProvider = llmProviderPresenter.getCurrentProvider()
       expect(currentProvider?.id).toBe('mock-openai-api')
+    })
+
+    it('should resolve novita via apiType fallback without an id-specific provider mapping', () => {
+      const novitaProvider: LLM_PROVIDER = {
+        id: 'novita',
+        name: 'Novita AI',
+        apiType: 'openai-completions',
+        apiKey: 'deepchatIsAwesome',
+        baseUrl: 'https://api.novita.ai/openai',
+        enable: true
+      }
+
+      mockConfigPresenter.getProviders = vi.fn().mockReturnValue([novitaProvider])
+      mockConfigPresenter.getProviderById = vi.fn().mockReturnValue(novitaProvider)
+
+      llmProviderPresenter = new LLMProviderPresenter(
+        mockConfigPresenter,
+        mockSqlitePresenter,
+        presenterRuntimeMock.mcpPresenter as any
+      )
+
+      const providerInstance = llmProviderPresenter.getProviderInstance('novita')
+
+      expect(providerInstance).toBeInstanceOf(OpenAICompatibleProvider)
     })
   })
 
