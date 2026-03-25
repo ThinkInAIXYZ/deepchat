@@ -1,0 +1,865 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DeepChat Deeplink Playground</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f5f1e8;
+        --panel: rgba(255, 251, 245, 0.92);
+        --panel-strong: #fffdf8;
+        --text: #1f1a17;
+        --muted: #6a5d54;
+        --line: rgba(72, 48, 29, 0.14);
+        --accent: #cb5a2e;
+        --accent-strong: #9d3e16;
+        --accent-soft: rgba(203, 90, 46, 0.12);
+        --shadow: 0 24px 60px rgba(71, 45, 22, 0.12);
+        --radius: 20px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', sans-serif;
+        color: var(--text);
+        background:
+          radial-gradient(circle at top left, rgba(255, 217, 182, 0.8), transparent 34%),
+          radial-gradient(circle at top right, rgba(253, 240, 201, 0.85), transparent 28%),
+          linear-gradient(180deg, #fff7ee 0%, var(--bg) 100%);
+      }
+
+      .page {
+        max-width: 1480px;
+        margin: 0 auto;
+        padding: 32px 24px 64px;
+      }
+
+      .hero,
+      .grid-2,
+      .grid-3,
+      .builder-layout {
+        display: grid;
+        gap: 16px;
+      }
+
+      .hero {
+        grid-template-columns: 1.3fr 0.9fr;
+        margin-bottom: 24px;
+      }
+
+      .grid-2 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .grid-3 {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .builder-layout {
+        grid-template-columns: 320px 1fr;
+      }
+
+      .hero-card,
+      .section,
+      .builder-panel,
+      .tips {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(18px);
+      }
+
+      .hero-card,
+      .section,
+      .builder-panel {
+        padding: 22px;
+      }
+
+      .tips {
+        margin-bottom: 24px;
+        padding: 18px 20px;
+      }
+
+      .hero-card h1,
+      .section-title {
+        letter-spacing: -0.04em;
+      }
+
+      .hero-card h1 {
+        margin: 0 0 10px;
+        font-size: 34px;
+        line-height: 1.05;
+      }
+
+      .hero-card p,
+      .section-desc,
+      .section-note,
+      .card-subtitle,
+      .tips ul,
+      .footer {
+        color: var(--muted);
+      }
+
+      .hero-card p,
+      .section-desc,
+      .tips ul,
+      .meta-row .value {
+        line-height: 1.6;
+      }
+
+      .quick-nav,
+      .card-actions,
+      .toolbar,
+      .search-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      .chip,
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .chip {
+        padding: 9px 14px;
+        background: var(--panel-strong);
+        border: 1px solid var(--line);
+        color: var(--text);
+        text-decoration: none;
+      }
+
+      .pill {
+        padding: 4px 10px;
+        background: var(--accent-soft);
+        color: var(--accent-strong);
+      }
+
+      .hero-meta {
+        display: grid;
+        gap: 12px;
+        padding: 24px;
+      }
+
+      .meta-row {
+        display: grid;
+        grid-template-columns: 88px 1fr;
+        gap: 10px;
+      }
+
+      .meta-row .label,
+      .code-label {
+        color: var(--muted);
+        font-size: 12px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .section {
+        margin-bottom: 24px;
+      }
+
+      .section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: end;
+        gap: 16px;
+        margin-bottom: 16px;
+      }
+
+      .section-title {
+        margin: 0;
+        font-size: 24px;
+      }
+
+      .card {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        padding: 16px;
+        background: var(--panel-strong);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+      }
+
+      .card-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 12px;
+      }
+
+      .card-title {
+        margin: 0;
+        font-size: 15px;
+        font-weight: 700;
+      }
+
+      button {
+        appearance: none;
+        border: 0;
+        border-radius: 999px;
+        padding: 8px 14px;
+        font-size: 13px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      button.primary {
+        background: var(--accent);
+        color: #fff;
+      }
+
+      button.secondary {
+        background: var(--accent-soft);
+        color: var(--accent-strong);
+      }
+
+      pre,
+      .deeplink-box,
+      input,
+      select {
+        font-family: 'Cascadia Code', 'JetBrains Mono', 'Consolas', monospace;
+      }
+
+      pre,
+      .deeplink-box {
+        margin: 0;
+        padding: 12px;
+        background: #201712;
+        color: #fff5ee;
+        border-radius: 12px;
+        overflow-x: auto;
+        font-size: 12px;
+        line-height: 1.5;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+
+      .builder-form,
+      .builder-output {
+        display: grid;
+        gap: 12px;
+      }
+
+      .field {
+        display: grid;
+        gap: 6px;
+      }
+
+      .field label {
+        font-size: 13px;
+        font-weight: 700;
+      }
+
+      .field input,
+      .field select {
+        width: 100%;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 10px 12px;
+        background: var(--panel-strong);
+        color: var(--text);
+        font-size: 13px;
+      }
+
+      .search-row input {
+        min-width: 240px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 10px 12px;
+        background: var(--panel-strong);
+        color: var(--text);
+        font-size: 13px;
+      }
+
+      .footer {
+        margin-top: 28px;
+        font-size: 13px;
+        text-align: center;
+      }
+
+      @media (max-width: 1100px) {
+        .hero,
+        .grid-2,
+        .grid-3,
+        .builder-layout {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media (max-width: 720px) {
+        .page {
+          padding: 18px 14px 40px;
+        }
+
+        .hero-card h1 {
+          font-size: 28px;
+        }
+
+        .card-head {
+          flex-direction: column;
+        }
+
+        .search-row input {
+          min-width: 0;
+          width: 100%;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <section class="hero">
+        <div class="hero-card">
+          <h1>DeepChat Deeplink Playground</h1>
+          <p>
+            这个页面用于手工验证当前仓库支持的 deeplink。它会展示原始 JSON、Base64
+            编码后的参数，以及最终 `deepchat://...` 链接。
+          </p>
+          <div class="quick-nav">
+            <a class="chip" href="#start-section">start</a>
+            <a class="chip" href="#mcp-section">mcp/install</a>
+            <a class="chip" href="#provider-section">provider/install</a>
+            <a class="chip" href="#builder-section">builder</a>
+          </div>
+        </div>
+        <div class="hero-meta">
+          <div class="meta-row">
+            <div class="label">Scope</div>
+            <div class="value">`start` / `mcp/install` / `provider/install`</div>
+          </div>
+          <div class="meta-row">
+            <div class="label">Data</div>
+            <div class="value">全部使用 fake message、fake baseUrl、fake apiKey</div>
+          </div>
+          <div class="meta-row">
+            <div class="label">Open</div>
+            <div class="value">浏览器会尝试唤起 `deepchat://` 协议，部分环境会先弹确认</div>
+          </div>
+          <div class="meta-row">
+            <div class="label">Copy</div>
+            <div class="value">复制的是最终 deeplink，可直接用于外部联调</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="tips">
+        <strong>验证前建议</strong>
+        <ul>
+          <li>先启动 DeepChat，再点 `Open`，这样最容易观察设置页和对话框行为。</li>
+          <li>`provider/install` 的 built-in 导入是覆盖语义，custom 导入是新增语义。</li>
+          <li>`acp` 不在本页 provider 导入列表中，因为它不属于 `settings-provider` 导入流。</li>
+        </ul>
+      </section>
+
+      <section id="start-section" class="section">
+        <div class="section-header">
+          <div>
+            <h2 class="section-title">start</h2>
+            <p class="section-desc">用于唤起应用并把预置消息、模型或 mentions 带入新会话。</p>
+          </div>
+          <div class="section-note">共 <span id="start-count">0</span> 条示例</div>
+        </div>
+        <div id="start-grid" class="grid-2"></div>
+      </section>
+
+      <section id="mcp-section" class="section">
+        <div class="section-header">
+          <div>
+            <h2 class="section-title">mcp/install</h2>
+            <p class="section-desc">用于安装 stdio / sse MCP 配置。当前协议参数名是 `code`。</p>
+          </div>
+          <div class="section-note">共 <span id="mcp-count">0</span> 条示例</div>
+        </div>
+        <div id="mcp-grid" class="grid-2"></div>
+      </section>
+
+      <section id="provider-section" class="section">
+        <div class="section-header">
+          <div>
+            <h2 class="section-title">provider/install</h2>
+            <p class="section-desc">
+              built-in 用 `id` 匹配并覆盖；custom 用 `name + type` 新增。列表已排除 `acp`。
+            </p>
+          </div>
+          <div class="section-note">
+            built-in <span id="builtin-count">0</span> 条 / custom
+            <span id="custom-count">0</span> 条
+          </div>
+        </div>
+        <div class="toolbar" style="margin-bottom: 16px">
+          <div class="search-row">
+            <span class="pill">Filter</span>
+            <input
+              id="provider-filter"
+              type="text"
+              placeholder="按 id / type / name 过滤 provider 示例"
+            />
+          </div>
+        </div>
+        <div class="grid-2">
+          <div>
+            <div class="toolbar" style="margin-bottom: 12px">
+              <strong>Built-in Providers</strong>
+            </div>
+            <div id="builtin-grid" class="grid-3"></div>
+          </div>
+          <div>
+            <div class="toolbar" style="margin-bottom: 12px">
+              <strong>Custom Provider Types</strong>
+            </div>
+            <div id="custom-grid" class="grid-3"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="builder-section" class="builder-panel">
+        <div class="section-header">
+          <div>
+            <h2 class="section-title">provider/install builder</h2>
+            <p class="section-desc">
+              这里可以临时改 `id / name / type / baseUrl / apiKey`，实时生成符合应用解析格式的
+              deeplink。
+            </p>
+          </div>
+        </div>
+        <div class="builder-layout">
+          <div class="builder-form">
+            <div class="field">
+              <label for="builder-mode">Mode</label>
+              <select id="builder-mode">
+                <option value="builtin">Built-in by id</option>
+                <option value="custom">Custom by type</option>
+              </select>
+            </div>
+            <div id="builder-id-field" class="field">
+              <label for="builder-id">Provider ID</label>
+              <select id="builder-id"></select>
+            </div>
+            <div id="builder-name-field" class="field" style="display: none">
+              <label for="builder-name">Provider Name</label>
+              <input id="builder-name" type="text" value="My Proxy" />
+            </div>
+            <div id="builder-type-field" class="field" style="display: none">
+              <label for="builder-type">Provider Type</label>
+              <select id="builder-type"></select>
+            </div>
+            <div class="field">
+              <label for="builder-url">Base URL</label>
+              <input id="builder-url" type="text" value="https://proxy.example.com/v1" />
+            </div>
+            <div class="field">
+              <label for="builder-key">API Key</label>
+              <input id="builder-key" type="text" value="sk-builder-demo-key" />
+            </div>
+          </div>
+          <div class="builder-output">
+            <div>
+              <div class="code-label">Raw JSON</div>
+              <pre id="builder-json"></pre>
+            </div>
+            <div>
+              <div class="code-label">Base64</div>
+              <pre id="builder-base64"></pre>
+            </div>
+            <div>
+              <div class="toolbar">
+                <div class="code-label">DeepLink</div>
+                <div class="card-actions">
+                  <button id="builder-open" class="primary" type="button">Open</button>
+                  <button id="builder-copy" class="secondary" type="button">Copy</button>
+                </div>
+              </div>
+              <div id="builder-link" class="deeplink-box"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div class="footer">
+        Generated for manual verification in repository test assets. No real secrets are stored
+        here.
+      </div>
+    </div>
+
+    <script>
+      const builtinProviderIds = [
+        'ollama',
+        'deepseek',
+        'qiniu',
+        'silicon',
+        'ppio',
+        'jiekou',
+        'zenmux',
+        'tokenflux',
+        'burncloud',
+        'openai-responses',
+        'cherryin',
+        'openai',
+        'voiceai',
+        'gemini',
+        'vertex',
+        'anthropic',
+        'openrouter',
+        'poe',
+        '302ai',
+        'vercel-ai-gateway',
+        'together',
+        'github',
+        'github-copilot',
+        'doubao',
+        'minimax',
+        'fireworks',
+        'zhipu',
+        'moonshot',
+        'dashscope',
+        'lmstudio',
+        'groq',
+        'grok',
+        'aihubmix',
+        'hunyuan',
+        'azure-openai',
+        'modelscope',
+        'aws-bedrock',
+        'xiaomi',
+        'o3fan',
+        'novita'
+      ]
+
+      const customProviderTypes = [
+        'minimax',
+        'deepseek',
+        'silicon',
+        'siliconcloud',
+        'dashscope',
+        'ppio',
+        'gemini',
+        'vertex',
+        'zhipu',
+        'github',
+        'github-copilot',
+        'ollama',
+        'anthropic',
+        'doubao',
+        'openai',
+        'openai-completions',
+        'voiceai',
+        'openai-compatible',
+        'openai-responses',
+        'lmstudio',
+        'together',
+        'groq',
+        'grok',
+        'vercel-ai-gateway',
+        'poe',
+        'aws-bedrock',
+        'jiekou',
+        'zenmux',
+        'o3fan'
+      ]
+
+      const startExamples = [
+        {
+          title: 'Basic start',
+          description: '只传消息文本，验证应用唤起与默认新会话。',
+          payload: {
+            msg: '你好，DeepChat',
+            model: '',
+            system: '',
+            mentions: ''
+          }
+        },
+        {
+          title: 'Full start payload',
+          description: '带上模型、system prompt 和 mentions。',
+          payload: {
+            msg: '帮我总结一下这周的迭代状态',
+            model: 'deepseek-chat',
+            system: 'You are a concise project assistant.',
+            mentions: 'README.md,docs/specs/provider-deeplink-import/spec.md'
+          }
+        }
+      ]
+
+      const mcpExamples = [
+        {
+          title: 'stdio MCP install',
+          description: '安装一个 stdio MCP server。',
+          payload: {
+            mcpServers: {
+              'demo-filesystem': {
+                command: 'npx',
+                args: ['-y', '@modelcontextprotocol/server-filesystem', 'C:/workspace/demo'],
+                env: {
+                  NODE_ENV: 'development'
+                },
+                autoApprove: ['all']
+              }
+            }
+          }
+        },
+        {
+          title: 'sse MCP install',
+          description: '安装一个 sse MCP server。',
+          payload: {
+            mcpServers: {
+              'demo-search': {
+                url: 'https://mcp.example.com/sse',
+                type: 'sse',
+                descriptions: 'Example SSE MCP server',
+                autoApprove: ['search_web']
+              }
+            }
+          }
+        }
+      ]
+
+      const providerBuiltinExamples = builtinProviderIds.map((id) => ({
+        title: id,
+        description: 'Built-in provider import',
+        payload: {
+          id,
+          baseUrl: `https://${id}.example.com/v1`,
+          apiKey: `sk-${id.replace(/[^a-z0-9]/gi, '-')}-demo-key`
+        }
+      }))
+
+      const providerCustomExamples = customProviderTypes.map((type) => ({
+        title: type,
+        description: 'Custom provider import',
+        payload: {
+          name: `${type} Proxy`,
+          type,
+          baseUrl: type === 'ollama' ? 'http://localhost:11434' : `https://${type}.example.com/v1`,
+          apiKey:
+            type === 'ollama' ? 'ollama-demo-key' : `sk-${type.replace(/[^a-z0-9]/gi, '-')}-custom`
+        }
+      }))
+
+      const escapeHtml = (value) =>
+        value
+          .replaceAll('&', '&amp;')
+          .replaceAll('<', '&lt;')
+          .replaceAll('>', '&gt;')
+          .replaceAll('"', '&quot;')
+
+      const toBase64 = (value) => {
+        const bytes = new TextEncoder().encode(value)
+        let binary = ''
+        for (const byte of bytes) {
+          binary += String.fromCharCode(byte)
+        }
+        return btoa(binary)
+      }
+
+      const encodeQuery = (payload) =>
+        Object.entries(payload)
+          .filter(([, value]) => value !== '')
+          .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+          .join('&')
+
+      const buildStartLink = (payload) => `deepchat://start?${encodeQuery(payload)}`
+
+      const buildMcpLink = (payload) =>
+        `deepchat://mcp/install?code=${encodeURIComponent(toBase64(JSON.stringify(payload)))}`
+
+      const buildProviderLink = (payload) =>
+        `deepchat://provider/install?v=1&data=${encodeURIComponent(toBase64(JSON.stringify(payload)))}`
+
+      const openDeepLink = (href) => {
+        window.location.href = href
+      }
+
+      const copyText = async (text) => {
+        try {
+          if (navigator.clipboard?.writeText) {
+            await navigator.clipboard.writeText(text)
+            return
+          }
+        } catch (error) {
+          console.warn('Clipboard API failed, fallback to textarea copy.', error)
+        }
+
+        const textarea = document.createElement('textarea')
+        textarea.value = text
+        textarea.setAttribute('readonly', 'readonly')
+        textarea.style.position = 'fixed'
+        textarea.style.opacity = '0'
+        document.body.appendChild(textarea)
+        textarea.select()
+        document.execCommand('copy')
+        document.body.removeChild(textarea)
+      }
+
+      const createCard = ({ title, description, payload, linkBuilder }) => {
+        const card = document.createElement('article')
+        card.className = 'card'
+
+        const json = JSON.stringify(payload, null, 2)
+        const deeplink = linkBuilder(payload)
+
+        card.innerHTML = `
+          <div class="card-head">
+            <div>
+              <h3 class="card-title">${title}</h3>
+              <p class="card-subtitle">${description}</p>
+            </div>
+            <div class="card-actions">
+              <button type="button" class="primary">Open</button>
+              <button type="button" class="secondary">Copy</button>
+            </div>
+          </div>
+          <div>
+            <div class="code-label">Raw JSON</div>
+            <pre>${escapeHtml(json)}</pre>
+          </div>
+          <div>
+            <div class="code-label">DeepLink</div>
+            <div class="deeplink-box">${escapeHtml(deeplink)}</div>
+          </div>
+        `
+
+        const [openButton, copyButton] = card.querySelectorAll('button')
+        openButton.addEventListener('click', () => openDeepLink(deeplink))
+        copyButton.addEventListener('click', async () => {
+          await copyText(deeplink)
+          copyButton.textContent = 'Copied'
+          window.setTimeout(() => {
+            copyButton.textContent = 'Copy'
+          }, 1200)
+        })
+
+        return card
+      }
+
+      const renderExamples = (containerId, examples, linkBuilder) => {
+        const container = document.getElementById(containerId)
+        container.innerHTML = ''
+        examples.forEach((example) => {
+          container.appendChild(
+            createCard({
+              ...example,
+              linkBuilder
+            })
+          )
+        })
+      }
+
+      const renderProviderExamples = (filterText = '') => {
+        const normalized = filterText.trim().toLowerCase()
+        const builtin = providerBuiltinExamples.filter((example) =>
+          `${example.title} ${JSON.stringify(example.payload)}`.toLowerCase().includes(normalized)
+        )
+        const custom = providerCustomExamples.filter((example) =>
+          `${example.title} ${JSON.stringify(example.payload)}`.toLowerCase().includes(normalized)
+        )
+
+        renderExamples('builtin-grid', builtin, buildProviderLink)
+        renderExamples('custom-grid', custom, buildProviderLink)
+
+        document.getElementById('builtin-count').textContent = String(builtin.length)
+        document.getElementById('custom-count').textContent = String(custom.length)
+      }
+
+      const builderElements = {
+        mode: document.getElementById('builder-mode'),
+        idField: document.getElementById('builder-id-field'),
+        id: document.getElementById('builder-id'),
+        nameField: document.getElementById('builder-name-field'),
+        name: document.getElementById('builder-name'),
+        typeField: document.getElementById('builder-type-field'),
+        type: document.getElementById('builder-type'),
+        url: document.getElementById('builder-url'),
+        key: document.getElementById('builder-key'),
+        json: document.getElementById('builder-json'),
+        base64: document.getElementById('builder-base64'),
+        link: document.getElementById('builder-link'),
+        open: document.getElementById('builder-open'),
+        copy: document.getElementById('builder-copy')
+      }
+
+      const fillSelect = (element, values) => {
+        element.innerHTML = ''
+        values.forEach((value) => {
+          const option = document.createElement('option')
+          option.value = value
+          option.textContent = value
+          element.appendChild(option)
+        })
+      }
+
+      const updateBuilder = () => {
+        const isBuiltin = builderElements.mode.value === 'builtin'
+        builderElements.idField.style.display = isBuiltin ? 'grid' : 'none'
+        builderElements.nameField.style.display = isBuiltin ? 'none' : 'grid'
+        builderElements.typeField.style.display = isBuiltin ? 'none' : 'grid'
+
+        const payload = isBuiltin
+          ? {
+              id: builderElements.id.value,
+              baseUrl: builderElements.url.value,
+              apiKey: builderElements.key.value
+            }
+          : {
+              name: builderElements.name.value,
+              type: builderElements.type.value,
+              baseUrl: builderElements.url.value,
+              apiKey: builderElements.key.value
+            }
+
+        const json = JSON.stringify(payload, null, 2)
+        const base64 = toBase64(json)
+        const deeplink = `deepchat://provider/install?v=1&data=${encodeURIComponent(base64)}`
+
+        builderElements.json.textContent = json
+        builderElements.base64.textContent = base64
+        builderElements.link.textContent = deeplink
+        builderElements.open.onclick = () => openDeepLink(deeplink)
+        builderElements.copy.onclick = async () => {
+          await copyText(deeplink)
+          builderElements.copy.textContent = 'Copied'
+          window.setTimeout(() => {
+            builderElements.copy.textContent = 'Copy'
+          }, 1200)
+        }
+      }
+
+      fillSelect(builderElements.id, builtinProviderIds)
+      fillSelect(builderElements.type, customProviderTypes)
+
+      renderExamples('start-grid', startExamples, buildStartLink)
+      renderExamples('mcp-grid', mcpExamples, buildMcpLink)
+      renderProviderExamples()
+
+      document.getElementById('start-count').textContent = String(startExamples.length)
+      document.getElementById('mcp-count').textContent = String(mcpExamples.length)
+
+      document.getElementById('provider-filter').addEventListener('input', (event) => {
+        renderProviderExamples(event.target.value)
+      })
+      ;[
+        builderElements.mode,
+        builderElements.id,
+        builderElements.name,
+        builderElements.type,
+        builderElements.url,
+        builderElements.key
+      ].forEach((element) => element.addEventListener('input', updateBuilder))
+
+      updateBuilder()
+    </script>
+  </body>
+</html>

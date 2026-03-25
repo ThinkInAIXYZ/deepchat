@@ -558,6 +558,15 @@
         "baseUrlPlaceholder": "אנא הזן את כתובת הבסיס ל-API",
         "enable": "הפעל ספק"
       },
+      "providerDeeplinkImport": {
+        "title": "ייבוא ספק",
+        "description": "בדוק את תצורת הספק שפוענחה לפני החלתה.",
+        "type": "סוג",
+        "url": "כתובת URL",
+        "key": "מפתח",
+        "overwriteWarning": "ייבוא זה ידרוס את תצורת הספק הנוכחית.",
+        "confirming": "מייבא..."
+      },
       "deleteProvider": {
         "title": "אשר מחיקת ספק",
         "content": "האם אתה בטוח שברצונך למחוק את הספק \"{name}\"? לא ניתן לבטל פעולה זו.",

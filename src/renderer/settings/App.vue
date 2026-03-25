@@ -72,8 +72,10 @@ import { useProviderStore } from '@/stores/providerStore'
 import { useModelStore } from '@/stores/modelStore'
 import { useOllamaStore } from '@/stores/ollamaStore'
 import { useMcpStore } from '@/stores/mcp'
+import { useProviderDeeplinkImportStore } from '@/stores/providerDeeplinkImport'
 import { useMcpInstallDeeplinkHandler } from '../src/lib/storeInitializer'
 import { useFontManager } from '../src/composables/useFontManager'
+import type { ProviderInstallPreview } from '@shared/presenter'
 
 const devicePresenter = usePresenter('devicePresenter')
 const windowPresenter = usePresenter('windowPresenter')
@@ -92,6 +94,7 @@ const providerStore = useProviderStore()
 const modelStore = useModelStore()
 const ollamaStore = useOllamaStore()
 const mcpStore = useMcpStore()
+const providerDeeplinkImportStore = useProviderDeeplinkImportStore()
 const { setup: setupMcpDeeplink, cleanup: cleanupMcpDeeplink } = useMcpInstallDeeplinkHandler()
 // Register MCP deeplink listener immediately to avoid race with incoming IPC
 setupMcpDeeplink()
@@ -121,8 +124,29 @@ const handleSettingsNavigate = async (
   }
 }
 
+const handleProviderInstall = async (_event: unknown, payload?: ProviderInstallPreview) => {
+  if (!payload) return
+
+  await providerStore.initialize()
+  await router.isReady()
+
+  if (payload.kind === 'builtin') {
+    await router.push({
+      name: 'settings-provider',
+      params: {
+        providerId: payload.id
+      }
+    })
+  } else if (router.currentRoute.value.name !== 'settings-provider') {
+    await router.push({ name: 'settings-provider' })
+  }
+
+  providerDeeplinkImportStore.openPreview(payload)
+}
+
 if (window?.electron?.ipcRenderer) {
   window.electron.ipcRenderer.on(SETTINGS_EVENTS.NAVIGATE, handleSettingsNavigate)
+  window.electron.ipcRenderer.on(SETTINGS_EVENTS.PROVIDER_INSTALL, handleProviderInstall)
 }
 
 const notifySettingsReady = () => {
@@ -347,6 +371,10 @@ onBeforeUnmount(() => {
 
   window.electron.ipcRenderer.removeAllListeners(NOTIFICATION_EVENTS.SHOW_ERROR)
   window.electron.ipcRenderer.removeListener(SETTINGS_EVENTS.NAVIGATE, handleSettingsNavigate)
+  window.electron.ipcRenderer.removeListener(
+    SETTINGS_EVENTS.PROVIDER_INSTALL,
+    handleProviderInstall
+  )
   cleanupMcpDeeplink()
 })
 </script>

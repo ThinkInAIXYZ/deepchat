@@ -555,6 +555,15 @@
         "baseUrlPlaceholder": "기본 URL을 입력하세요",
         "enable": "제공자 활성화"
       },
+      "providerDeeplinkImport": {
+        "title": "제공자 가져오기",
+        "description": "적용하기 전에 파싱된 제공자 설정을 확인하세요.",
+        "type": "유형",
+        "url": "URL",
+        "key": "키",
+        "overwriteWarning": "이 가져오기는 현재 제공자 설정을 덮어씁니다.",
+        "confirming": "가져오는 중..."
+      },
       "deleteProvider": {
         "title": "제공자 삭제",
         "content": "제공자 \"{name}\"을(를) 삭제하시겠습니까? 이 작업은 취소할 수 없습니다.",

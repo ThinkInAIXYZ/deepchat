@@ -577,6 +577,15 @@
         "baseUrlPlaceholder": "Please enter the API base URL",
         "enable": "Enable Provider"
       },
+      "providerDeeplinkImport": {
+        "title": "Import Provider",
+        "description": "Review the parsed provider configuration before applying it.",
+        "type": "Type",
+        "url": "URL",
+        "key": "Key",
+        "overwriteWarning": "This import will overwrite the current provider configuration.",
+        "confirming": "Importing..."
+      },
       "deleteProvider": {
         "title": "Confirm Delete Provider",
         "content": "Are you sure you want to delete provider \"{name}\"? This action cannot be undone.",

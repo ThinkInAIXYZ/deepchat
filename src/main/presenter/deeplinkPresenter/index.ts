@@ -2,8 +2,21 @@ import { app, BrowserWindow } from 'electron'
 import { presenter } from '@/presenter'
 import { IDeeplinkPresenter, MCPServerConfig } from '@shared/presenter'
 import path from 'path'
-import { DEEPLINK_EVENTS, MCP_EVENTS, WINDOW_EVENTS } from '@/events'
+import {
+  NOTIFICATION_EVENTS,
+  SETTINGS_EVENTS,
+  DEEPLINK_EVENTS,
+  MCP_EVENTS,
+  WINDOW_EVENTS
+} from '@/events'
 import { eventBus, SendTarget } from '@/eventbus'
+import {
+  PROVIDER_INSTALL_VERSION,
+  isProviderInstallCustomType,
+  maskApiKey,
+  type ProviderInstallDeeplinkPayload,
+  type ProviderInstallPreview
+} from '@shared/providerDeeplink'
 
 interface MCPInstallConfig {
   mcpServers: Record<
@@ -203,6 +216,13 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
           await this.handleMcpInstall(urlObj.searchParams)
         } else {
           console.warn('Unknown MCP subcommand:', subCommand)
+        }
+      } else if (command === 'provider') {
+        const subCommand = urlObj.pathname.slice(1)
+        if (subCommand === 'install') {
+          await this.handleProviderInstall(urlObj.searchParams)
+        } else {
+          console.warn('Unknown provider subcommand:', subCommand)
         }
       } else {
         console.warn('Unknown DeepLink command:', command)
@@ -462,6 +482,35 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
     }
   }
 
+  async handleProviderInstall(params: URLSearchParams): Promise<void> {
+    console.log(
+      'Processing provider/install command, parameters:',
+      Object.fromEntries(params.entries())
+    )
+
+    try {
+      const preview = this.parseProviderInstallParams(params)
+      const settingsWindowId = await presenter.windowPresenter.createSettingsWindow()
+      if (!settingsWindowId) {
+        this.notifyProviderImportError('Failed to open settings window for provider deeplink.')
+        return
+      }
+
+      presenter.windowPresenter.sendToWindow(settingsWindowId, SETTINGS_EVENTS.NAVIGATE, {
+        routeName: 'settings-provider'
+      })
+      presenter.windowPresenter.sendToWindow(
+        settingsWindowId,
+        SETTINGS_EVENTS.PROVIDER_INSTALL,
+        preview
+      )
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Invalid provider deeplink.'
+      console.error('Error parsing provider install deeplink:', error)
+      this.notifyProviderImportError(message)
+    }
+  }
+
   /**
    * Store MCP config in the first available app window localStorage.
    * @param mcpConfig MCP 配置对象
@@ -521,6 +570,158 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
         console.warn('Timeout waiting for app window creation')
         resolve(null)
       }, 10000) // 10秒超时
+    })
+  }
+
+  private parseProviderInstallParams(params: URLSearchParams): ProviderInstallPreview {
+    const version = params.get('v')
+    if (version !== PROVIDER_INSTALL_VERSION) {
+      throw new Error(`Unsupported provider deeplink version: ${version || 'missing'}`)
+    }
+
+    const rawData = params.get('data')
+    if (!rawData) {
+      throw new Error("Missing 'data' parameter")
+    }
+
+    const payload = this.parseProviderInstallPayload(rawData)
+
+    if ('id' in payload) {
+      const id = this.sanitizeStringParameter(payload.id)
+      const baseUrl = this.sanitizeProviderInstallField(payload.baseUrl, 'baseUrl')
+      const apiKey = this.sanitizeProviderInstallField(payload.apiKey, 'apiKey')
+      if (!id) {
+        throw new Error('Provider id is required.')
+      }
+      if (id === 'acp') {
+        throw new Error('ACP provider deeplinks are not supported.')
+      }
+
+      const provider = presenter.configPresenter.getProviderById(id)
+      if (!provider) {
+        throw new Error(`Unknown provider id: ${id}`)
+      }
+
+      return {
+        kind: 'builtin',
+        id,
+        baseUrl,
+        apiKey,
+        maskedApiKey: maskApiKey(apiKey),
+        iconModelId: id,
+        willOverwrite: true
+      }
+    }
+
+    const type = this.sanitizeStringParameter(payload.type)
+    const name = this.sanitizeStringParameter(payload.name)
+    const baseUrl = this.sanitizeProviderInstallField(payload.baseUrl, 'baseUrl')
+    const apiKey = this.sanitizeProviderInstallField(payload.apiKey, 'apiKey')
+    if (!name) {
+      throw new Error('Provider name is required for custom provider imports.')
+    }
+    if (!type) {
+      throw new Error('Provider type is required for custom provider imports.')
+    }
+    if (type === 'acp') {
+      throw new Error('ACP provider deeplinks are not supported.')
+    }
+    if (!isProviderInstallCustomType(type)) {
+      throw new Error(`Unsupported provider type: ${type}`)
+    }
+
+    return {
+      kind: 'custom',
+      name,
+      type,
+      baseUrl,
+      apiKey,
+      maskedApiKey: maskApiKey(apiKey),
+      iconModelId: type
+    }
+  }
+
+  private parseProviderInstallPayload(rawData: string): ProviderInstallDeeplinkPayload {
+    const sanitizedBase64 = rawData.replace(/\s+/g, '')
+    if (!sanitizedBase64) {
+      throw new Error('Provider deeplink data is empty.')
+    }
+
+    let jsonString = ''
+    try {
+      const buffer = Buffer.from(sanitizedBase64, 'base64')
+      const normalizedInput = sanitizedBase64.replace(/=+$/, '')
+      const normalizedOutput = buffer.toString('base64').replace(/=+$/, '')
+      if (normalizedInput !== normalizedOutput) {
+        throw new Error('Invalid base64 payload.')
+      }
+      jsonString = buffer.toString('utf8')
+    } catch (error) {
+      throw new Error(
+        error instanceof Error ? error.message : 'Failed to decode provider deeplink payload.'
+      )
+    }
+
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(jsonString)
+    } catch {
+      throw new Error('Provider deeplink payload is not valid JSON.')
+    }
+
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error('Provider deeplink payload must be an object.')
+    }
+
+    const payload = parsed as Partial<ProviderInstallDeeplinkPayload> & Record<string, unknown>
+    const hasId = typeof payload.id === 'string'
+    const hasType = typeof payload.type === 'string'
+
+    if (hasId === hasType) {
+      throw new Error("Provider deeplink payload must include either 'id' or 'type'.")
+    }
+
+    if (typeof payload.baseUrl !== 'string') {
+      throw new Error("Provider deeplink payload must include a string 'baseUrl'.")
+    }
+    if (typeof payload.apiKey !== 'string') {
+      throw new Error("Provider deeplink payload must include a string 'apiKey'.")
+    }
+
+    if (hasId) {
+      return {
+        id: payload.id as string,
+        baseUrl: payload.baseUrl,
+        apiKey: payload.apiKey
+      }
+    }
+
+    if (typeof payload.name !== 'string') {
+      throw new Error("Custom provider deeplink payload must include a string 'name'.")
+    }
+
+    return {
+      name: payload.name,
+      type: payload.type as string,
+      baseUrl: payload.baseUrl,
+      apiKey: payload.apiKey
+    }
+  }
+
+  private sanitizeProviderInstallField(value: string, field: string): string {
+    const sanitized = this.sanitizeStringParameter(value)
+    if (value.trim().length > 0 && sanitized.length === 0) {
+      throw new Error(`Provider deeplink field '${field}' is invalid.`)
+    }
+    return sanitized
+  }
+
+  private notifyProviderImportError(message: string): void {
+    eventBus.sendToRenderer(NOTIFICATION_EVENTS.SHOW_ERROR, SendTarget.ALL_WINDOWS, {
+      id: `provider-deeplink-${Date.now()}`,
+      title: 'Provider Deeplink',
+      message,
+      type: 'error'
     })
   }
 
