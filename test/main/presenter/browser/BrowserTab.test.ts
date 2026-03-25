@@ -1,6 +1,7 @@
 import { EventEmitter } from 'events'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { BrowserTab } from '@/presenter/browser/BrowserTab'
+import { BrowserPageStatus } from '@shared/types/browser'
 
 class MockWebContents extends EventEmitter {
   url = 'about:blank'
@@ -53,6 +54,21 @@ class MockWebContents extends EventEmitter {
     this.emit('dom-ready')
   }
 
+  emitStartNavigation(
+    url: string,
+    options?: {
+      isSameDocument?: boolean
+      isMainFrame?: boolean
+    }
+  ) {
+    this.url = url
+    this.emit('did-start-navigation', {
+      url,
+      isSameDocument: options?.isSameDocument ?? false,
+      isMainFrame: options?.isMainFrame ?? true
+    })
+  }
+
   finishLoad() {
     this.emitDomReady()
     this.loading = false
@@ -87,8 +103,21 @@ describe('BrowserTab', () => {
     return {
       tab,
       webContents,
+      cdpManager,
       screenshotManager
     }
+  }
+
+  const makePageInteractive = async (
+    tab: BrowserTab,
+    webContents: MockWebContents,
+    url: string = 'https://example.com'
+  ) => {
+    const navigationPromise = tab.navigateUntilDomReady(url)
+    await Promise.resolve()
+    webContents.emitDomReady()
+    await navigationPromise
+    webContents.finishLoad()
   }
 
   it('waits up to 2 seconds for tooling actions while the page is loading', async () => {
@@ -145,6 +174,76 @@ describe('BrowserTab', () => {
       'YoBrowser page is not ready to capture screenshot. Retry this request. url=about:blank status=idle'
     )
     expect(webContents.debugger.sendCommand).not.toHaveBeenCalled()
+  })
+
+  it('allows cdp exploration after dom-ready even if loading restarts', async () => {
+    const { tab, webContents } = createTab()
+
+    await makePageInteractive(tab, webContents)
+
+    webContents.loading = true
+    webContents.emit('did-start-loading')
+
+    await expect(tab.sendCdpCommand('Runtime.evaluate')).resolves.toEqual({})
+    expect(tab.status).toBe(BrowserPageStatus.Loading)
+
+    webContents.loading = false
+    webContents.emit('did-stop-loading')
+    expect(tab.status).toBe(BrowserPageStatus.Ready)
+  })
+
+  it('re-blocks cdp exploration for a new main-frame navigation until the next interactive event', async () => {
+    const { tab, webContents } = createTab()
+
+    await makePageInteractive(tab, webContents)
+
+    webContents.emitStartNavigation('https://example.com/next')
+    webContents.loading = true
+    webContents.emit('did-start-loading')
+
+    const commandPromise = tab.sendCdpCommand('Runtime.evaluate')
+    await Promise.resolve()
+    expect(webContents.debugger.sendCommand).not.toHaveBeenCalled()
+
+    webContents.emitDomReady()
+    await expect(commandPromise).resolves.toEqual({})
+  })
+
+  it('ignores same-document and subframe navigations for interactive readiness', async () => {
+    const { tab, webContents } = createTab()
+
+    await makePageInteractive(tab, webContents)
+
+    webContents.emitStartNavigation('https://example.com#section', { isSameDocument: true })
+    await expect(tab.sendCdpCommand('Runtime.evaluate')).resolves.toEqual({})
+
+    webContents.emitStartNavigation('https://ads.example.com', { isMainFrame: false })
+    await expect(tab.sendCdpCommand('Runtime.evaluate')).resolves.toEqual({})
+  })
+
+  it('allows exploration after timeout when the renderer probe finds a live document', async () => {
+    const { tab, webContents, cdpManager } = createTab()
+
+    await expect(
+      tab.sendCdpCommand('Page.navigate', { url: 'https://example.com/probe' })
+    ).resolves.toEqual({})
+
+    cdpManager.evaluateScript.mockResolvedValueOnce({
+      readyState: 'complete',
+      hasBody: true,
+      href: 'https://example.com/probe'
+    })
+
+    const commandPromise = tab.sendCdpCommand('Runtime.evaluate')
+    await vi.advanceTimersByTimeAsync(2000)
+
+    await expect(commandPromise).resolves.toEqual({})
+    expect(tab.status).toBe(BrowserPageStatus.Loading)
+    expect(cdpManager.evaluateScript).toHaveBeenCalledWith(
+      webContents.debugger,
+      expect.stringContaining('document.readyState')
+    )
+    expect(webContents.debugger.sendCommand).toHaveBeenLastCalledWith('Runtime.evaluate', {})
   })
 
   it('marks Page.navigate as loading so the next tool waits for the new document', async () => {

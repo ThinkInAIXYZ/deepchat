@@ -735,7 +735,7 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
       canGoBack: state.page.contents.navigationHistory.canGoBack(),
       canGoForward: state.page.contents.navigationHistory.canGoForward(),
       visible: state.visible,
-      loading: state.page.status === BrowserPageStatus.Loading
+      loading: state.page.contents.isLoading() || state.page.status === BrowserPageStatus.Loading
     }
   }
 
