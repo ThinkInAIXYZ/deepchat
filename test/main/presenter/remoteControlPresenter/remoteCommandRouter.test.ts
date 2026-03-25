@@ -199,7 +199,7 @@ describe('RemoteCommandRouter', () => {
     expect(result.replies[0]).toContain('Current model: gpt-5')
   })
 
-  it('shows /model in help output and removes /open', async () => {
+  it('shows /model and /open in help output', async () => {
     const router = new RemoteCommandRouter({
       authGuard: {
         ensureAuthorized: vi.fn(),
@@ -221,7 +221,110 @@ describe('RemoteCommandRouter', () => {
     )
 
     expect(result.replies[0]).toContain('/model')
-    expect(result.replies[0]).not.toContain('/open')
+    expect(result.replies[0]).toContain('/open')
+  })
+
+  it('returns guidance when /open is used without a bound session', async () => {
+    const router = new RemoteCommandRouter({
+      authGuard: {
+        ensureAuthorized: vi.fn().mockReturnValue({
+          ok: true,
+          userId: 123
+        }),
+        pair: vi.fn()
+      } as any,
+      runner: {
+        open: vi.fn().mockResolvedValue({
+          status: 'noSession'
+        })
+      } as any,
+      bindingStore: createBindingStore() as any,
+      getPollerStatus: vi.fn()
+    })
+
+    const result = await router.handleMessage(
+      createMessage({
+        text: '/open',
+        command: {
+          name: 'open',
+          args: ''
+        }
+      })
+    )
+
+    expect(result).toEqual({
+      replies: ['No bound session. Send a message, /new, or /use first.']
+    })
+  })
+
+  it('returns a desktop window hint when /open cannot find a chat window', async () => {
+    const router = new RemoteCommandRouter({
+      authGuard: {
+        ensureAuthorized: vi.fn().mockReturnValue({
+          ok: true,
+          userId: 123
+        }),
+        pair: vi.fn()
+      } as any,
+      runner: {
+        open: vi.fn().mockResolvedValue({
+          status: 'windowNotFound'
+        })
+      } as any,
+      bindingStore: createBindingStore() as any,
+      getPollerStatus: vi.fn()
+    })
+
+    const result = await router.handleMessage(
+      createMessage({
+        text: '/open',
+        command: {
+          name: 'open',
+          args: ''
+        }
+      })
+    )
+
+    expect(result).toEqual({
+      replies: ['Could not find a DeepChat desktop window. Open DeepChat and try /open again.']
+    })
+  })
+
+  it('returns the formatted session label when /open succeeds', async () => {
+    const router = new RemoteCommandRouter({
+      authGuard: {
+        ensureAuthorized: vi.fn().mockReturnValue({
+          ok: true,
+          userId: 123
+        }),
+        pair: vi.fn()
+      } as any,
+      runner: {
+        open: vi.fn().mockResolvedValue({
+          status: 'ok',
+          session: {
+            id: 'session-1',
+            title: 'Remote chat'
+          }
+        })
+      } as any,
+      bindingStore: createBindingStore() as any,
+      getPollerStatus: vi.fn()
+    })
+
+    const result = await router.handleMessage(
+      createMessage({
+        text: '/open',
+        command: {
+          name: 'open',
+          args: ''
+        }
+      })
+    )
+
+    expect(result).toEqual({
+      replies: ['Opened on desktop: Remote chat [session-1]']
+    })
   })
 
   it('returns a prompt when /model is used without a bound session', async () => {

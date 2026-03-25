@@ -1471,7 +1471,7 @@
   },
   "remote": {
     "title": "원격 제어",
-    "description": "Telegram 원격 제어와 Telegram Hook 알림을 설정합니다.",
+    "description": "한 곳에서 Telegram과 Feishu 원격 제어를 설정합니다.",
     "telegram": {
       "title": "Telegram",
       "description": "하나의 Telegram 봇으로 원격 제어와 Hook 전송을 관리합니다.",
@@ -1480,7 +1480,7 @@
     },
     "remoteControl": {
       "title": "원격 제어",
-      "description": "승인된 Telegram 사용자가 DeepChat 세션을 원격으로 이어서 사용할 수 있도록 허용합니다.",
+      "description": "각 원격 엔드포인트를 하나의 DeepChat 세션에 바인딩하고, 명령 사이에서도 그 세션을 계속 사용합니다.",
       "streamMode": "스트리밍 모드",
       "streamModeDraft": "초안 스트리밍",
       "streamModeFinal": "최종 결과만",
@@ -1504,7 +1504,9 @@
       "pairingSuccessTitle": "페어링 완료",
       "pairingSuccessDescription": "허용된 사용자 ID 목록을 새로고침했습니다.",
       "clearBindings": "바인딩 지우기",
-      "clearBindingsResult": "{count}개의 바인딩을 지웠습니다."
+      "clearBindingsResult": "{count}개의 바인딩을 지웠습니다.",
+      "pairDialogInstructionTelegram": "이 명령을 Telegram 봇에게 보내세요:",
+      "pairDialogInstructionFeishu": "이 명령을 Feishu 봇에게 개인 메시지로 보내세요:"
     },
     "hooks": {
       "title": "Telegram Hook 알림",
@@ -1526,6 +1528,42 @@
         "backoff": "실패 후 재시도 중",
         "error": "오류"
       }
+    },
+    "feishu": {
+      "title": "Feishu",
+      "description": "Feishu 봇을 연결하여 개인 메시지, 그룹 채팅, 주제 스레드에서 사용할 수 있습니다.",
+      "appId": "앱 ID",
+      "appIdPlaceholder": "Feishu 앱 ID",
+      "appSecret": "앱 시크릿",
+      "appSecretPlaceholder": "Feishu 앱 시크릿",
+      "verificationToken": "검증 토큰",
+      "verificationTokenPlaceholder": "Feishu 검증 토큰",
+      "encryptKey": "암호화 키(선택)",
+      "encryptKeyPlaceholder": "이벤트 암호화를 사용하지 않으면 비워 두세요",
+      "botUser": "봇 사용자: {name} ({openId})",
+      "bindings": "바인딩: {count}, 페어링된 사용자: {pairedUserCount}",
+      "pairedUserOpenIds": "페어링된 사용자 Open ID",
+      "pairedUserOpenIdsPlaceholder": "예: ou_xxx, ou_yyy",
+      "accessRulesDescription": "먼저 개인 메시지에서 페어링하세요. 그룹에서는 {'@'}로 봇을 멘션한 페어링된 사용자만 세션을 제어할 수 있습니다.",
+      "accessRule1": "개인 메시지에서 /pair [코드]로 페어링하세요.",
+      "accessRule2": "그룹과 토픽에서는 페어링된 사용자가 {'@'}로 봇을 멘션할 때만 반응합니다."
+    },
+    "sections": {
+      "credentials": "자격 증명",
+      "remoteControl": "원격 제어",
+      "notifications": "알림",
+      "accessRules": "접근 규칙"
+    },
+    "overview": {
+      "telegram": "{bindingCount}개 바인딩, {pairedCount}명 페어링됨, hooks {hooks}",
+      "feishu": "{bindingCount}개 바인딩, {pairedCount}명 페어링됨",
+      "hooksOn": "켜짐",
+      "hooksOff": "꺼짐"
+    },
+    "bindingKinds": {
+      "dm": "개인 메시지",
+      "group": "그룹",
+      "topic": "토픽"
     }
   },
   "deepchatAgents": {

@@ -116,6 +116,15 @@ export class Presenter implements IPresenter {
   ])
 
   static readonly REMOTE_CONTROL_METHODS = new Set<keyof IRemoteControlPresenter>([
+    'getChannelSettings',
+    'saveChannelSettings',
+    'getChannelStatus',
+    'getChannelBindings',
+    'removeChannelBinding',
+    'getChannelPairingSnapshot',
+    'createChannelPairCode',
+    'clearChannelPairCode',
+    'clearChannelBindings',
     'getTelegramSettings',
     'saveTelegramSettings',
     'getTelegramStatus',
@@ -353,20 +362,7 @@ export class Presenter implements IPresenter {
         this.configPresenter.setHooksNotificationsConfig(config),
       testTelegramHookNotification: () => this.configPresenter.testTelegramNotification()
     })
-    this.#remoteControlBridge = {
-      getTelegramSettings: () => this.#remoteControlPresenter.getTelegramSettings(),
-      saveTelegramSettings: (input) => this.#remoteControlPresenter.saveTelegramSettings(input),
-      getTelegramStatus: () => this.#remoteControlPresenter.getTelegramStatus(),
-      getTelegramBindings: () => this.#remoteControlPresenter.getTelegramBindings(),
-      removeTelegramBinding: (endpointKey) =>
-        this.#remoteControlPresenter.removeTelegramBinding(endpointKey),
-      getTelegramPairingSnapshot: () => this.#remoteControlPresenter.getTelegramPairingSnapshot(),
-      createTelegramPairCode: () => this.#remoteControlPresenter.createTelegramPairCode(),
-      clearTelegramPairCode: () => this.#remoteControlPresenter.clearTelegramPairCode(),
-      clearTelegramBindings: () => this.#remoteControlPresenter.clearTelegramBindings(),
-      testTelegramHookNotification: () =>
-        this.#remoteControlPresenter.testTelegramHookNotification()
-    }
+    this.#remoteControlBridge = this.#remoteControlPresenter
 
     // Update hooksNotifications with actual dependencies now that newAgentPresenter is ready
     this.hooksNotifications = new HooksNotificationsService(this.configPresenter, {
@@ -528,7 +524,7 @@ export class Presenter implements IPresenter {
     }
 
     const handler = this.#remoteControlBridge[method] as (...args: unknown[]) => unknown
-    return await handler(...payloads)
+    return await Reflect.apply(handler, this.#remoteControlBridge, payloads)
   }
 
   // 从配置中同步自定义模型到 LLMProviderPresenter

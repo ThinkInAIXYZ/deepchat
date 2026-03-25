@@ -259,7 +259,8 @@
     "groupByDate": "Группировать по дате",
     "groupByProject": "Группировать по проекту",
     "emptyTitle": "Пока нет диалогов",
-    "emptyDescription": "Начните новый чат, чтобы приступить"
+    "emptyDescription": "Начните новый чат, чтобы приступить",
+    "remoteControlDisabled": "Отключено"
   },
   "floatingWidget": {
     "title": "DeepChat",

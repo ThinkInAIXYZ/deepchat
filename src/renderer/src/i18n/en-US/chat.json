@@ -261,6 +261,7 @@
     "allAgents": "All Agents",
     "expandSidebar": "Expand sidebar",
     "collapseSidebar": "Collapse sidebar",
+    "remoteControlDisabled": "Disabled",
     "remoteControlStatus": {
       "disabled": "Remote control disabled",
       "stopped": "Remote control stopped",

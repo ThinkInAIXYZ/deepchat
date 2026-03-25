@@ -1471,7 +1471,7 @@
   },
   "remote": {
     "title": "Fjernstyring",
-    "description": "Konfigurer Telegram-fjernstyring og Telegram-hook-notifikationer.",
+    "description": "Konfigurer Telegram- og Feishu-fjernstyring ét sted.",
     "telegram": {
       "title": "Telegram",
       "description": "Administrer én Telegram-bot til fjernstyring og hook-levering.",
@@ -1480,7 +1480,7 @@
     },
     "remoteControl": {
       "title": "Fjernstyring",
-      "description": "Tillad autoriserede Telegram-brugere at fortsætte DeepChat-sessioner eksternt.",
+      "description": "Bind hvert fjernendepunkt til én DeepChat-session, og behold sessionen på tværs af kommandoer.",
       "streamMode": "Stream-tilstand",
       "streamModeDraft": "Udkast-streaming",
       "streamModeFinal": "Kun endeligt svar",
@@ -1504,7 +1504,9 @@
       "pairingSuccessTitle": "Parring fuldført",
       "pairingSuccessDescription": "Listen over tilladte bruger-id'er er blevet opdateret.",
       "clearBindings": "Ryd bindinger",
-      "clearBindingsResult": "{count} binding(er) ryddet."
+      "clearBindingsResult": "{count} binding(er) ryddet.",
+      "pairDialogInstructionTelegram": "Send denne kommando til Telegram-botten:",
+      "pairDialogInstructionFeishu": "Send denne kommando til Feishu-botten i en direkte besked:"
     },
     "hooks": {
       "title": "Telegram-hooks",
@@ -1526,6 +1528,42 @@
         "backoff": "Prøver igen efter fejl",
         "error": "Fejl"
       }
+    },
+    "feishu": {
+      "title": "Feishu",
+      "description": "Tilslut en Feishu-bot til direkte beskeder, gruppechats og emnetråde.",
+      "appId": "App-id",
+      "appIdPlaceholder": "Feishu app-id",
+      "appSecret": "App-hemmelighed",
+      "appSecretPlaceholder": "Feishu app-hemmelighed",
+      "verificationToken": "Bekræftelsestoken",
+      "verificationTokenPlaceholder": "Feishu bekræftelsestoken",
+      "encryptKey": "Krypteringsnøgle (valgfri)",
+      "encryptKeyPlaceholder": "Lad feltet stå tomt, medmindre hændelseskryptering er slået til",
+      "botUser": "Bot-bruger: {name} ({openId})",
+      "bindings": "Bindinger: {count}, parrede brugere: {pairedUserCount}",
+      "pairedUserOpenIds": "Open ID'er for parrede brugere",
+      "pairedUserOpenIdsPlaceholder": "f.eks. ou_xxx, ou_yyy",
+      "accessRulesDescription": "Par først i en direkte besked. I grupper kan kun parrede brugere, der {'@'}-omtaler botten, styre en session.",
+      "accessRule1": "Par i en direkte besked med /pair [kode].",
+      "accessRule2": "I grupper og emner reagerer botten kun, når en parret bruger {'@'}-omtaler den."
+    },
+    "sections": {
+      "credentials": "Oplysninger",
+      "remoteControl": "Fjernstyring",
+      "notifications": "Notifikationer",
+      "accessRules": "Adgangsregler"
+    },
+    "overview": {
+      "telegram": "{bindingCount} bindinger, {pairedCount} parrede brugere, hooks {hooks}",
+      "feishu": "{bindingCount} bindinger, {pairedCount} parrede brugere",
+      "hooksOn": "til",
+      "hooksOff": "fra"
+    },
+    "bindingKinds": {
+      "dm": "Direkte besked",
+      "group": "Gruppe",
+      "topic": "Emne"
     }
   },
   "deepchatAgents": {

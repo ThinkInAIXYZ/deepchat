@@ -461,10 +461,13 @@ export class ToolPresenter implements IToolPresenter {
       lines.push('- Use `get_browser_status` to inspect the current session browser state.')
     }
     if (toolNames.has('load_url')) {
-      lines.push('- Use `load_url` to lazily create the session browser and navigate to a page.')
+      lines.push('- Prefer `load_url` to create the session browser and handle navigation.')
     }
     if (toolNames.has('cdp_send')) {
-      lines.push('- Use `cdp_send` for DOM inspection, scripted interaction, and screenshots.')
+      lines.push(
+        '- Use `cdp_send` for DOM inspection, scripted interaction, screenshots, and low-level CDP commands.'
+      )
+      lines.push('- Avoid using `cdp_send` `Page.navigate` for normal navigation unless needed.')
     }
 
     return lines.join('\n')
