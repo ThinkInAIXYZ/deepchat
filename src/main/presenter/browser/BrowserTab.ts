@@ -8,6 +8,9 @@ import {
 import { CDPManager } from './CDPManager'
 import { ScreenshotManager } from './ScreenshotManager'
 
+const INTERACTIVE_READY_WAIT_TIMEOUT_MS = 2000
+const NAVIGATION_CDP_METHODS = new Set(['Page.navigate', 'Page.reload'])
+
 export class BrowserTab {
   readonly pageId: string
   readonly createdAt: number
@@ -88,25 +91,40 @@ export class BrowserTab {
   }
 
   async extractDOM(selector?: string): Promise<string> {
-    this.ensureInteractiveReady('extract DOM')
+    await this.ensureInteractiveReadyOrWait('extract DOM')
     const session = await this.ensureSession()
     return await this.cdpManager.getDOM(session, selector)
   }
 
   async evaluateScript(script: string): Promise<unknown> {
-    this.ensureInteractiveReady('evaluate script')
+    await this.ensureInteractiveReadyOrWait('evaluate script')
     const session = await this.ensureSession()
     return await this.cdpManager.evaluateScript(session, script)
   }
 
   async sendCdpCommand(method: string, params?: Record<string, unknown>): Promise<unknown> {
-    this.ensureInteractiveReady(`send CDP command ${method}`)
+    if (NAVIGATION_CDP_METHODS.has(method)) {
+      this.ensureAvailable()
+    } else {
+      await this.ensureInteractiveReadyOrWait(`send CDP command ${method}`)
+    }
+
     const session = await this.ensureSession()
-    return await session.sendCommand(method, params ?? {})
+    const response = await session.sendCommand(method, params ?? {})
+
+    if (method === 'Page.navigate') {
+      this.prepareForNavigation(
+        typeof params?.url === 'string' && params.url.trim() ? params.url : this.url
+      )
+    } else if (method === 'Page.reload') {
+      this.prepareForNavigation(this.url)
+    }
+
+    return response
   }
 
   async takeScreenshot(options?: ScreenshotOptions): Promise<string> {
-    this.ensureInteractiveReady('capture screenshot')
+    await this.ensureInteractiveReadyOrWait('capture screenshot')
     await this.ensureSession()
     this.ensureAvailable()
 
@@ -491,7 +509,7 @@ export class BrowserTab {
 
   private async evaluate<T>(fn: (...args: any[]) => T, ...args: any[]): Promise<T> {
     this.ensureAvailable()
-    this.ensureInteractiveReady('evaluate script')
+    await this.ensureInteractiveReadyOrWait('evaluate script')
     const session = await this.ensureSession()
     const serializedArgs = JSON.stringify(args, (_key, value) =>
       value === undefined ? null : value
@@ -507,23 +525,29 @@ export class BrowserTab {
     }
   }
 
-  private ensureInteractiveReady(action: string): void {
+  private async ensureInteractiveReadyOrWait(
+    action: string,
+    timeoutMs: number = INTERACTIVE_READY_WAIT_TIMEOUT_MS
+  ): Promise<void> {
     this.ensureAvailable()
 
     if (this.interactiveReady) {
       return
     }
 
-    const error = new Error(
-      `YoBrowser page is not ready to ${action}. Retry this request. url=${this.url} status=${this.status}`
-    )
-    error.name = 'YoBrowserNotReadyError'
-    Object.assign(error, {
-      retryable: true,
-      url: this.url,
-      status: this.status
-    })
-    throw error
+    if (this.status === BrowserPageStatus.Loading) {
+      try {
+        await this.waitForInteractiveReady(timeoutMs)
+      } catch {
+        // Fall through to the unified retryable error.
+      }
+
+      if (this.interactiveReady) {
+        return
+      }
+    }
+
+    throw this.buildNotReadyError(action)
   }
 
   private validateKeyInput(key: string, count: number): string {
@@ -766,6 +790,19 @@ export class BrowserTab {
       this.webContents.on('did-fail-load', onFailLoad as any)
       this.webContents.once('destroyed', onDestroyed)
     })
+  }
+
+  private buildNotReadyError(action: string): Error {
+    const error = new Error(
+      `YoBrowser page is not ready to ${action}. Retry this request. url=${this.url} status=${this.status}`
+    )
+    error.name = 'YoBrowserNotReadyError'
+    Object.assign(error, {
+      retryable: true,
+      url: this.url,
+      status: this.status
+    })
+    return error
   }
 
   private async withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
