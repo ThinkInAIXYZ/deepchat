@@ -239,7 +239,7 @@ describe('WindowSideBar agent switch', () => {
 
     const item = wrapper.findComponent({ name: 'WindowSideBarSessionItem' })
     item.vm.$emit('toggle-pin', session)
-    await wrapper.vm.$nextTick()
+    await flushPromises()
 
     expect(sessionStore.toggleSessionPinned).toHaveBeenCalledWith('normal-1', true)
   }, 10000)

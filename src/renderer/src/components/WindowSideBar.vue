@@ -141,13 +141,16 @@
         </div>
 
         <!-- Session list -->
-        <div class="flex-1 overflow-y-auto px-1.5">
+        <div ref="sessionListRef" class="session-list flex-1 overflow-y-auto px-1.5">
           <div v-if="pinnedSessions.length > 0" class="pt-2 space-y-0.5">
             <WindowSideBarSessionItem
               v-for="session in pinnedSessions"
               :key="`pinned-${session.id}`"
               :session="session"
               :active="sessionStore.activeSessionId === session.id"
+              region="pinned"
+              :hero-hidden="pinFlightSessionId === session.id"
+              :pin-feedback-mode="pinFeedbackSessionId === session.id ? pinFeedbackMode : null"
               @select="handleSessionClick"
               @toggle-pin="handleTogglePin"
               @rename="openRenameDialog"
@@ -179,6 +182,9 @@
               :key="session.id"
               :session="session"
               :active="sessionStore.activeSessionId === session.id"
+              region="grouped"
+              :hero-hidden="pinFlightSessionId === session.id"
+              :pin-feedback-mode="pinFeedbackSessionId === session.id ? pinFeedbackMode : null"
               @select="handleSessionClick"
               @toggle-pin="handleTogglePin"
               @rename="openRenameDialog"
@@ -241,7 +247,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
 import { Icon } from '@iconify/vue'
 import { Input } from '@shadcn/components/ui/input'
 import {
@@ -268,6 +274,11 @@ import AgentAvatar from './icons/AgentAvatar.vue'
 import WindowSideBarSessionItem from './WindowSideBarSessionItem.vue'
 import { useI18n } from 'vue-i18n'
 
+type PinFeedbackMode = 'pinning' | 'unpinning'
+
+const PIN_FEEDBACK_DURATION_MS = 560
+const PIN_FLIGHT_DURATION_MS = 360
+
 const windowPresenter = usePresenter('windowPresenter')
 const remoteControlPresenter = useRemoteControlPresenter()
 const { t } = useI18n()
@@ -279,6 +290,7 @@ const remoteControlStatus = ref<TelegramRemoteStatus | null>(null)
 let agentSwitchSeq = 0
 let agentSwitchQueue: Promise<void> = Promise.resolve()
 let remoteControlStatusTimer: ReturnType<typeof setInterval> | null = null
+let pinFeedbackTimer: number | null = null
 const selectedAgentName = computed(
   () => agentStore.selectedAgent?.name ?? t('chat.sidebar.allAgents')
 )
@@ -308,6 +320,10 @@ const remoteControlIconClass = computed(() => {
 
 const pinnedSessions = computed(() => sessionStore.getPinnedSessions(agentStore.selectedAgentId))
 const filteredGroups = computed(() => sessionStore.getFilteredGroups(agentStore.selectedAgentId))
+const pinFlightSessionId = ref<string | null>(null)
+const pinFeedbackSessionId = ref<string | null>(null)
+const pinFeedbackMode = ref<PinFeedbackMode | null>(null)
+const sessionListRef = ref<HTMLElement | null>(null)
 const renameTargetSession = ref<UISession | null>(null)
 const clearTargetSession = ref<UISession | null>(null)
 const deleteTargetSession = ref<UISession | null>(null)
@@ -439,9 +455,172 @@ const openDeleteDialog = (session: UISession) => {
   deleteTargetSession.value = session
 }
 
-const handleTogglePin = async (session: UISession) => {
+const prefersReducedMotion = () =>
+  window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
+
+const clearPinFeedback = () => {
+  if (pinFeedbackTimer) {
+    window.clearTimeout(pinFeedbackTimer)
+    pinFeedbackTimer = null
+  }
+
+  pinFeedbackSessionId.value = null
+  pinFeedbackMode.value = null
+}
+
+const applyPinFeedback = (sessionId: string, nextPinned: boolean) => {
+  if (prefersReducedMotion()) {
+    clearPinFeedback()
+    return
+  }
+
+  if (pinFeedbackTimer) {
+    window.clearTimeout(pinFeedbackTimer)
+  }
+
+  pinFeedbackSessionId.value = sessionId
+  pinFeedbackMode.value = nextPinned ? 'pinning' : 'unpinning'
+  pinFeedbackTimer = window.setTimeout(() => {
+    pinFeedbackSessionId.value = null
+    pinFeedbackMode.value = null
+    pinFeedbackTimer = null
+  }, PIN_FEEDBACK_DURATION_MS)
+}
+
+const commitPinToggle = async (session: UISession, nextPinned: boolean, withFeedback = true) => {
+  await sessionStore.toggleSessionPinned(session.id, nextPinned)
+  if (withFeedback) {
+    applyPinFeedback(session.id, nextPinned)
+  }
+  await nextTick()
+}
+
+const waitForAnimationFrame = () =>
+  new Promise<void>((resolve) => {
+    window.requestAnimationFrame(() => resolve())
+  })
+
+const restoreSessionListScroll = (scrollTop: number | null) => {
+  if (scrollTop === null || !sessionListRef.value) {
+    return
+  }
+
+  sessionListRef.value.scrollTop = scrollTop
+}
+
+const getSessionItemElement = (sessionId: string, region: 'pinned' | 'grouped') =>
+  document.querySelector<HTMLElement>(
+    `.session-item[data-session-id="${sessionId}"][data-session-region="${region}"]`
+  )
+
+const createPinFlightClone = (sourceElement: HTMLElement, sourceRect: DOMRect) => {
+  const clone = sourceElement.cloneNode(true) as HTMLElement
+
+  clone.removeAttribute('style')
+  delete clone.dataset.pinFx
+  clone.dataset.heroHidden = 'false'
+  clone.setAttribute('aria-hidden', 'true')
+  clone.classList.add('sidebar-pin-flight')
+  Object.assign(clone.style, {
+    position: 'fixed',
+    left: `${sourceRect.left}px`,
+    top: `${sourceRect.top}px`,
+    width: `${sourceRect.width}px`,
+    height: `${sourceRect.height}px`,
+    margin: '0',
+    pointerEvents: 'none',
+    zIndex: '2147483647',
+    transformOrigin: 'top left',
+    willChange: 'transform',
+    contain: 'layout style paint'
+  })
+
+  return clone
+}
+
+const animatePinFlight = async (session: UISession, nextPinned: boolean) => {
+  const sourceRegion = session.isPinned ? 'pinned' : 'grouped'
+  const targetRegion = nextPinned ? 'pinned' : 'grouped'
+  const sourceElement = getSessionItemElement(session.id, sourceRegion)
+  const sourceRect = sourceElement?.getBoundingClientRect()
+  const preservedScrollTop = sessionListRef.value?.scrollTop ?? null
+
+  if (!sourceElement || !sourceRect || sourceRect.width === 0 || sourceRect.height === 0) {
+    await commitPinToggle(session, nextPinned)
+    return
+  }
+
+  const clone = createPinFlightClone(sourceElement, sourceRect)
+  document.body.appendChild(clone)
+  pinFlightSessionId.value = session.id
+  await nextTick()
+
   try {
-    await sessionStore.toggleSessionPinned(session.id, !session.isPinned)
+    await commitPinToggle(session, nextPinned, false)
+    restoreSessionListScroll(preservedScrollTop)
+    await waitForAnimationFrame()
+    restoreSessionListScroll(preservedScrollTop)
+    await waitForAnimationFrame()
+
+    const targetElement = getSessionItemElement(session.id, targetRegion)
+    const targetRect = targetElement?.getBoundingClientRect()
+
+    if (!targetElement || !targetRect || targetRect.width === 0 || targetRect.height === 0) {
+      pinFlightSessionId.value = null
+      applyPinFeedback(session.id, nextPinned)
+      return
+    }
+
+    const deltaX = targetRect.left - sourceRect.left
+    const deltaY = targetRect.top - sourceRect.top
+    const scaleX = targetRect.width / sourceRect.width
+    const scaleY = targetRect.height / sourceRect.height
+
+    const animation = clone.animate(
+      [
+        {
+          transform: 'translate3d(0, 0, 0) scale(1)',
+          opacity: 1,
+          offset: 0
+        },
+        {
+          transform: `translate3d(${deltaX * 0.88}px, ${deltaY * 0.88}px, 0) scale(${1.015}, ${1.015})`,
+          opacity: 1,
+          offset: 0.72
+        },
+        {
+          transform: `translate3d(${deltaX}px, ${deltaY}px, 0) scale(${scaleX}, ${scaleY})`,
+          opacity: 1,
+          offset: 1
+        }
+      ],
+      {
+        duration: PIN_FLIGHT_DURATION_MS,
+        easing: 'cubic-bezier(0.22, 0.88, 0.24, 1)',
+        fill: 'forwards'
+      }
+    )
+
+    await animation.finished.catch(() => undefined)
+    pinFlightSessionId.value = null
+    await nextTick()
+    applyPinFeedback(session.id, nextPinned)
+  } finally {
+    pinFlightSessionId.value = null
+    clone.remove()
+  }
+}
+
+const handleTogglePin = async (session: UISession) => {
+  const nextPinned = !session.isPinned
+
+  try {
+    if (prefersReducedMotion()) {
+      await commitPinToggle(session, nextPinned)
+      return
+    }
+
+    await animatePinFlight(session, nextPinned)
   } catch (error) {
     console.error('Failed to toggle pin status:', error)
   }
@@ -504,6 +683,9 @@ onUnmounted(() => {
     clearInterval(remoteControlStatusTimer)
     remoteControlStatusTimer = null
   }
+
+  pinFlightSessionId.value = null
+  clearPinFeedback()
 })
 </script>
 
@@ -512,7 +694,16 @@ onUnmounted(() => {
   -webkit-app-region: drag;
 }
 
+.session-list {
+  overflow-anchor: none;
+}
+
 button {
   -webkit-app-region: no-drag;
+}
+
+:global(.sidebar-pin-flight) {
+  transform: translateZ(0);
+  backface-visibility: hidden;
 }
 </style>
