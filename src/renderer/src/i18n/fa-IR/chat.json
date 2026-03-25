@@ -259,7 +259,8 @@
     "groupByDate": "گروه‌بندی بر اساس تاریخ",
     "groupByProject": "گروه‌بندی بر اساس پروژه",
     "emptyTitle": "هنوز گفت‌وگویی وجود ندارد",
-    "emptyDescription": "برای شروع، یک گفت‌وگوی جدید آغاز کنید"
+    "emptyDescription": "برای شروع، یک گفت‌وگوی جدید آغاز کنید",
+    "remoteControlDisabled": "غیرفعال"
   },
   "floatingWidget": {
     "title": "DeepChat",

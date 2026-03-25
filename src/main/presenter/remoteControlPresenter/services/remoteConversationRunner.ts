@@ -10,11 +10,12 @@ import type { DeepChatAgentPresenter } from '../../deepchatAgentPresenter'
 import {
   TELEGRAM_RECENT_SESSION_LIMIT,
   TELEGRAM_STREAM_POLL_INTERVAL_MS,
+  type RemoteEndpointBindingMeta,
   type TelegramModelProviderOption
 } from '../types'
 import {
   buildTelegramFinalText,
-  extractTelegramStreamText,
+  extractTelegramDraftText,
   safeParseAssistantBlocks
 } from '../telegram/telegramOutbound'
 import { RemoteBindingStore } from './remoteBindingStore'
@@ -60,13 +61,21 @@ export class RemoteConversationRunner {
     private readonly bindingStore: RemoteBindingStore
   ) {}
 
-  async createNewSession(endpointKey: string, title?: string): Promise<SessionWithState> {
+  async createNewSession(
+    endpointKey: string,
+    title?: string,
+    bindingMeta?: RemoteEndpointBindingMeta
+  ): Promise<SessionWithState> {
     const agentId = await this.deps.resolveDefaultAgentId()
     const session = await this.deps.newAgentPresenter.createDetachedSession({
       title: title?.trim() || 'New Chat',
       agentId
     })
-    this.bindingStore.setBinding(endpointKey, session.id)
+    if (bindingMeta) {
+      this.bindingStore.setBinding(endpointKey, session.id, bindingMeta)
+    } else {
+      this.bindingStore.setBinding(endpointKey, session.id)
+    }
     return session
   }
 
@@ -85,13 +94,16 @@ export class RemoteConversationRunner {
     return session
   }
 
-  async ensureBoundSession(endpointKey: string): Promise<SessionWithState> {
+  async ensureBoundSession(
+    endpointKey: string,
+    bindingMeta?: RemoteEndpointBindingMeta
+  ): Promise<SessionWithState> {
     const existing = await this.getCurrentSession(endpointKey)
     if (existing) {
       return existing
     }
 
-    return await this.createNewSession(endpointKey)
+    return await this.createNewSession(endpointKey, undefined, bindingMeta)
   }
 
   async listSessions(endpointKey: string): Promise<SessionWithState[]> {
@@ -109,7 +121,11 @@ export class RemoteConversationRunner {
     return sorted
   }
 
-  async useSessionByIndex(endpointKey: string, index: number): Promise<SessionWithState> {
+  async useSessionByIndex(
+    endpointKey: string,
+    index: number,
+    bindingMeta?: RemoteEndpointBindingMeta
+  ): Promise<SessionWithState> {
     const snapshot = this.bindingStore.getSessionSnapshot(endpointKey)
     if (snapshot.length === 0) {
       throw new Error('Run /sessions first before using /use.')
@@ -125,7 +141,11 @@ export class RemoteConversationRunner {
       throw new Error('Selected session no longer exists.')
     }
 
-    this.bindingStore.setBinding(endpointKey, session.id)
+    if (bindingMeta) {
+      this.bindingStore.setBinding(endpointKey, session.id, bindingMeta)
+    } else {
+      this.bindingStore.setBinding(endpointKey, session.id)
+    }
     return session
   }
 
@@ -161,8 +181,12 @@ export class RemoteConversationRunner {
     return await this.deps.newAgentPresenter.setSessionModel(session.id, providerId, modelId)
   }
 
-  async sendText(endpointKey: string, text: string): Promise<RemoteConversationExecution> {
-    const session = await this.ensureBoundSession(endpointKey)
+  async sendText(
+    endpointKey: string,
+    text: string,
+    bindingMeta?: RemoteEndpointBindingMeta
+  ): Promise<RemoteConversationExecution> {
+    const session = await this.ensureBoundSession(endpointKey, bindingMeta)
     const beforeMessages = await this.deps.newAgentPresenter.getMessages(session.id)
     const lastOrderSeq = beforeMessages.at(-1)?.orderSeq ?? 0
     const previousActiveEventId =
@@ -315,7 +339,7 @@ export class RemoteConversationRunner {
 
     return {
       messageId: trackedMessage.id,
-      text: completed ? buildTelegramFinalText(blocks) : extractTelegramStreamText(blocks),
+      text: completed ? buildTelegramFinalText(blocks) : extractTelegramDraftText(blocks),
       completed
     }
   }

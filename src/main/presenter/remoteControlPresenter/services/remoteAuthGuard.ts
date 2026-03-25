@@ -44,6 +44,11 @@ export class RemoteAuthGuard {
   }
 
   pair(message: TelegramInboundMessage, rawCode: string): string {
+    const bindingStoreCompat = this.bindingStore as RemoteBindingStore & {
+      getPairingState?: () => ReturnType<RemoteBindingStore['getTelegramPairingState']>
+      clearPairCode?: ((channel: 'telegram') => void) | (() => void)
+    }
+
     const authorization = this.ensurePrivatePairingContext(message)
     if (authorization) {
       return authorization
@@ -54,9 +59,14 @@ export class RemoteAuthGuard {
       return 'Usage: /pair <6-digit-code>'
     }
 
-    const pairing = this.bindingStore.getPairingState()
+    const pairing =
+      bindingStoreCompat.getTelegramPairingState?.() ?? bindingStoreCompat.getPairingState?.()
     if (!pairing.code || !pairing.expiresAt || pairing.expiresAt <= Date.now()) {
-      this.bindingStore.clearPairCode()
+      if (bindingStoreCompat.clearPairCode.length === 0) {
+        ;(bindingStoreCompat.clearPairCode as () => void)()
+      } else {
+        ;(bindingStoreCompat.clearPairCode as (channel: 'telegram') => void)('telegram')
+      }
       return 'Pairing code is missing or expired. Generate a new code from DeepChat Remote settings.'
     }
 
@@ -66,7 +76,11 @@ export class RemoteAuthGuard {
 
     const userId = message.fromId as number
     this.bindingStore.addAllowedUser(userId)
-    this.bindingStore.clearPairCode()
+    if (bindingStoreCompat.clearPairCode.length === 0) {
+      ;(bindingStoreCompat.clearPairCode as () => void)()
+    } else {
+      ;(bindingStoreCompat.clearPairCode as (channel: 'telegram') => void)('telegram')
+    }
     return `Pairing complete. Telegram user ${userId} is now authorized.`
   }
 

@@ -15,6 +15,8 @@ type SetupOptions = {
       events: string[]
     }
   }
+  telegramChannelSettingsOverride?: Record<string, unknown>
+  feishuChannelSettingsOverride?: Record<string, unknown>
   status?: {
     enabled: boolean
     state: 'disabled' | 'stopped' | 'starting' | 'running' | 'backoff' | 'error'
@@ -86,12 +88,180 @@ const setup = async (options: SetupOptions = {}) => {
     bindings: [...(options.bindings ?? [])]
   })
 
-  const remoteControlPresenter = {
-    getTelegramSettings: vi.fn(async () => ({
+  const feishuState = reactive({
+    settings: {
+      appId: '',
+      appSecret: '',
+      verificationToken: '',
+      encryptKey: '',
+      remoteEnabled: false,
+      defaultAgentId: 'deepchat',
+      pairedUserOpenIds: []
+    },
+    status: {
+      channel: 'feishu' as const,
+      enabled: false,
+      state: 'disabled' as const,
+      bindingCount: 0,
+      pairedUserCount: 0,
+      lastError: null,
+      botUser: null
+    },
+    pairingSnapshot: {
+      pairCode: null,
+      pairCodeExpiresAt: null,
+      pairedUserOpenIds: [] as string[]
+    },
+    bindings: [] as Array<{
+      channel: 'feishu'
+      endpointKey: string
+      sessionId: string
+      chatId: string
+      threadId: string | null
+      kind: 'dm' | 'group' | 'topic'
+      updatedAt: number
+    }>
+  })
+
+  const telegramSettingsSnapshot = () => {
+    const snapshot = {
       ...remoteState.settings,
-      hookNotifications: {
+      ...(options.telegramChannelSettingsOverride ?? {})
+    } as Record<string, unknown>
+
+    if (
+      !Object.prototype.hasOwnProperty.call(
+        options.telegramChannelSettingsOverride ?? {},
+        'hookNotifications'
+      )
+    ) {
+      snapshot.hookNotifications = {
         ...remoteState.settings.hookNotifications
       }
+    }
+
+    return snapshot
+  }
+
+  const feishuSettingsSnapshot = () => ({
+    ...feishuState.settings,
+    ...(options.feishuChannelSettingsOverride ?? {}),
+    pairedUserOpenIds:
+      options.feishuChannelSettingsOverride &&
+      Object.prototype.hasOwnProperty.call(
+        options.feishuChannelSettingsOverride,
+        'pairedUserOpenIds'
+      )
+        ? options.feishuChannelSettingsOverride.pairedUserOpenIds
+        : [...feishuState.settings.pairedUserOpenIds]
+  })
+
+  const remoteControlPresenter = {
+    getChannelSettings: vi.fn(async (channel: 'telegram' | 'feishu') =>
+      channel === 'telegram' ? telegramSettingsSnapshot() : feishuSettingsSnapshot()
+    ),
+    saveChannelSettings: vi.fn(async (channel: 'telegram' | 'feishu', nextSettings) => {
+      if (channel === 'telegram') {
+        remoteState.settings = {
+          ...nextSettings,
+          hookNotifications: {
+            ...nextSettings.hookNotifications
+          }
+        }
+        remoteState.status.enabled = nextSettings.remoteEnabled
+        remoteState.status.allowedUserCount = nextSettings.allowedUserIds.length
+        remoteState.pairingSnapshot.allowedUserIds = [...nextSettings.allowedUserIds]
+        return {
+          ...remoteState.settings,
+          hookNotifications: {
+            ...remoteState.settings.hookNotifications
+          }
+        }
+      }
+
+      feishuState.settings = {
+        ...nextSettings,
+        pairedUserOpenIds: [...nextSettings.pairedUserOpenIds]
+      }
+      feishuState.status.enabled = nextSettings.remoteEnabled
+      feishuState.status.pairedUserCount = nextSettings.pairedUserOpenIds.length
+      feishuState.pairingSnapshot.pairedUserOpenIds = [...nextSettings.pairedUserOpenIds]
+      return {
+        ...feishuState.settings,
+        pairedUserOpenIds: [...feishuState.settings.pairedUserOpenIds]
+      }
+    }),
+    getChannelStatus: vi.fn(async (channel: 'telegram' | 'feishu') =>
+      channel === 'telegram'
+        ? {
+            channel: 'telegram' as const,
+            ...remoteState.status
+          }
+        : {
+            ...feishuState.status
+          }
+    ),
+    getChannelPairingSnapshot: vi.fn(async (channel: 'telegram' | 'feishu') =>
+      channel === 'telegram'
+        ? {
+            ...remoteState.pairingSnapshot,
+            allowedUserIds: [...remoteState.pairingSnapshot.allowedUserIds]
+          }
+        : {
+            ...feishuState.pairingSnapshot,
+            pairedUserOpenIds: [...feishuState.pairingSnapshot.pairedUserOpenIds]
+          }
+    ),
+    createChannelPairCode: vi.fn(async (channel: 'telegram' | 'feishu') => {
+      if (channel === 'telegram') {
+        remoteState.pairingSnapshot.pairCode = '654321'
+        remoteState.pairingSnapshot.pairCodeExpiresAt = 123456789
+      } else {
+        feishuState.pairingSnapshot.pairCode = '654321'
+        feishuState.pairingSnapshot.pairCodeExpiresAt = 123456789
+      }
+      return {
+        code: '654321',
+        expiresAt: 123456789
+      }
+    }),
+    clearChannelPairCode: vi.fn(async (channel: 'telegram' | 'feishu') => {
+      if (channel === 'telegram') {
+        remoteState.pairingSnapshot.pairCode = null
+        remoteState.pairingSnapshot.pairCodeExpiresAt = null
+      } else {
+        feishuState.pairingSnapshot.pairCode = null
+        feishuState.pairingSnapshot.pairCodeExpiresAt = null
+      }
+    }),
+    getChannelBindings: vi.fn(async (channel: 'telegram' | 'feishu') =>
+      channel === 'telegram'
+        ? remoteState.bindings.map((binding) => ({
+            channel: 'telegram' as const,
+            endpointKey: binding.endpointKey,
+            sessionId: binding.sessionId,
+            chatId: String(binding.chatId),
+            threadId: binding.messageThreadId ? String(binding.messageThreadId) : null,
+            kind: binding.messageThreadId ? 'topic' : 'dm',
+            updatedAt: binding.updatedAt
+          }))
+        : [...feishuState.bindings]
+    ),
+    removeChannelBinding: vi.fn(async (channel: 'telegram' | 'feishu', endpointKey: string) => {
+      if (channel === 'telegram') {
+        remoteState.bindings = remoteState.bindings.filter(
+          (binding) => binding.endpointKey !== endpointKey
+        )
+        remoteState.status.bindingCount = remoteState.bindings.length
+      } else {
+        feishuState.bindings = feishuState.bindings.filter(
+          (binding) => binding.endpointKey !== endpointKey
+        )
+        feishuState.status.bindingCount = feishuState.bindings.length
+      }
+    }),
+    getTelegramSettings: vi.fn(async () => ({
+      ...telegramSettingsSnapshot()
     })),
     saveTelegramSettings: vi.fn(async (nextSettings) => {
       remoteState.settings = {
@@ -245,6 +415,10 @@ const setup = async (options: SetupOptions = {}) => {
         SelectValue: passthrough,
         SelectContent: passthrough,
         SelectItem: passthrough,
+        Tabs: passthrough,
+        TabsList: passthrough,
+        TabsTrigger: passthrough,
+        TabsContent: passthrough,
         Dialog: dialogStub,
         DialogContent: passthrough,
         DialogHeader: passthrough,
@@ -292,6 +466,91 @@ describe('RemoteSettings', () => {
     expect(wrapper.text()).not.toContain('settings.remote.remoteControl.streamMode')
   })
 
+  it('toggles telegram remote control from the overview card', async () => {
+    const { wrapper, remoteState, remoteControlPresenter } = await setup({
+      settings: {
+        botToken: 'telegram-token',
+        remoteEnabled: false,
+        allowedUserIds: [123],
+        defaultAgentId: 'deepchat',
+        hookNotifications: {
+          enabled: false,
+          chatId: '',
+          threadId: '',
+          events: []
+        }
+      }
+    })
+
+    await wrapper.find('[data-testid="remote-overview-toggle-telegram"]').setValue(true)
+    await flushPromises()
+
+    expect(remoteState.settings.remoteEnabled).toBe(true)
+    expect(remoteControlPresenter.saveChannelSettings).toHaveBeenCalledWith(
+      'telegram',
+      expect.objectContaining({
+        remoteEnabled: true
+      })
+    )
+    expect(wrapper.find('[data-testid="remote-control-details"]').exists()).toBe(true)
+  })
+
+  it('normalizes legacy telegram settings without hook notifications', async () => {
+    const { wrapper, toast } = await setup({
+      settings: {
+        botToken: 'telegram-token',
+        remoteEnabled: true,
+        allowedUserIds: [123],
+        defaultAgentId: 'deepchat',
+        hookNotifications: {
+          enabled: false,
+          chatId: '',
+          threadId: '',
+          events: []
+        }
+      },
+      telegramChannelSettingsOverride: {
+        hookNotifications: undefined
+      }
+    })
+
+    expect(toast).not.toHaveBeenCalled()
+    expect(wrapper.find('[data-testid="remote-control-details"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="remote-allowed-user-ids-input"]').element).toHaveProperty(
+      'value',
+      '123'
+    )
+  })
+
+  it('normalizes legacy feishu settings without paired user ids', async () => {
+    const { wrapper, toast } = await setup({
+      feishuChannelSettingsOverride: {
+        remoteEnabled: true,
+        pairedUserOpenIds: undefined
+      }
+    })
+
+    await wrapper.find('[data-testid="remote-tab-feishu"]').trigger('click')
+    await flushPromises()
+
+    expect(toast).not.toHaveBeenCalled()
+    expect(
+      wrapper.find('[data-testid="remote-feishu-paired-user-open-ids-input"]').element
+    ).toHaveProperty('value', '')
+  })
+
+  it('uses remote control as the feishu section title', async () => {
+    const { wrapper } = await setup({
+      feishuChannelSettingsOverride: {
+        remoteEnabled: true
+      }
+    })
+
+    const text = wrapper.text()
+    expect(text).not.toContain('settings.remote.sections.accessRules')
+    expect(text.match(/settings\.remote\.sections\.remoteControl/g)).toHaveLength(2)
+  })
+
   it('opens the pair dialog and closes it after pairing succeeds', async () => {
     const { wrapper, remoteState, remoteControlPresenter, toast } = await setup({
       settings: {
@@ -311,7 +570,7 @@ describe('RemoteSettings', () => {
     await wrapper.find('[data-testid="remote-pair-button"]').trigger('click')
     await flushPromises()
 
-    expect(remoteControlPresenter.createTelegramPairCode).toHaveBeenCalledTimes(1)
+    expect(remoteControlPresenter.createChannelPairCode).toHaveBeenCalledWith('telegram')
     expect(wrapper.find('[data-testid="remote-pair-dialog"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('/pair 654321')
 
@@ -400,7 +659,10 @@ describe('RemoteSettings', () => {
     await deleteButton.trigger('click')
     await flushPromises()
 
-    expect(remoteControlPresenter.removeTelegramBinding).toHaveBeenCalledWith('telegram:100:0')
+    expect(remoteControlPresenter.removeChannelBinding).toHaveBeenCalledWith(
+      'telegram',
+      'telegram:100:0'
+    )
     expect(wrapper.find('[data-testid="remote-bindings-empty"]').exists()).toBe(true)
   })
 })

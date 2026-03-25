@@ -150,7 +150,7 @@ describe('RemoteControlPresenter', () => {
         })
       ])
     )
-    expect(telegramClientInstances[0].setMyCommands).not.toHaveBeenCalledWith(
+    expect(telegramClientInstances[0].setMyCommands).toHaveBeenCalledWith(
       expect.arrayContaining([
         expect.objectContaining({
           command: 'open'

@@ -1,14 +1,18 @@
-import type { IConfigPresenter } from '@shared/presenter'
+import type { IConfigPresenter, RemoteChannel } from '@shared/presenter'
 import {
   REMOTE_CONTROL_SETTING_KEY,
   TELEGRAM_MODEL_MENU_TTL_MS,
-  buildTelegramEndpointKey,
   normalizeRemoteControlConfig,
   createPairCode,
   createTelegramCallbackToken,
+  buildFeishuPairingSnapshot,
+  buildTelegramEndpointKey,
   buildTelegramPairingSnapshot,
+  type FeishuPairingState,
+  type FeishuRemoteRuntimeConfig,
   type RemoteControlConfig,
-  type TelegramEndpointBinding,
+  type RemoteEndpointBinding,
+  type RemoteEndpointBindingMeta,
   type TelegramInboundEvent,
   type TelegramModelMenuState,
   type TelegramPairingState,
@@ -28,8 +32,20 @@ export class RemoteBindingStore {
     )
   }
 
+  getChannelConfig(channel: 'telegram'): TelegramRemoteRuntimeConfig
+  getChannelConfig(channel: 'feishu'): FeishuRemoteRuntimeConfig
+  getChannelConfig(channel: RemoteChannel): TelegramRemoteRuntimeConfig | FeishuRemoteRuntimeConfig
+  getChannelConfig(channel: RemoteChannel) {
+    const config = this.getConfig()
+    return config[channel]
+  }
+
   getTelegramConfig(): TelegramRemoteRuntimeConfig {
-    return this.getConfig().telegram
+    return this.getChannelConfig('telegram')
+  }
+
+  getFeishuConfig(): FeishuRemoteRuntimeConfig {
+    return this.getChannelConfig('feishu')
   }
 
   updateTelegramConfig(
@@ -44,25 +60,45 @@ export class RemoteBindingStore {
     return next.telegram
   }
 
+  updateFeishuConfig(
+    updater: (config: FeishuRemoteRuntimeConfig) => FeishuRemoteRuntimeConfig
+  ): FeishuRemoteRuntimeConfig {
+    const current = this.getConfig()
+    const next = normalizeRemoteControlConfig({
+      ...current,
+      feishu: updater(current.feishu)
+    })
+    this.configPresenter.setSetting(REMOTE_CONTROL_SETTING_KEY, next)
+    return next.feishu
+  }
+
   getEndpointKey(
     target: { chatId: number; messageThreadId?: number } | TelegramInboundEvent
   ): string {
     return buildTelegramEndpointKey(target.chatId, target.messageThreadId ?? 0)
   }
 
-  getBinding(endpointKey: string): TelegramEndpointBinding | null {
-    return this.getTelegramConfig().bindings[endpointKey] ?? null
+  getBinding(endpointKey: string): RemoteEndpointBinding | null {
+    const channel = this.resolveChannelFromEndpointKey(endpointKey)
+    if (!channel) {
+      return null
+    }
+
+    return this.getChannelBindings(channel)[endpointKey] ?? null
   }
 
-  setBinding(endpointKey: string, sessionId: string): void {
-    this.updateTelegramConfig((config) => ({
-      ...config,
-      bindings: {
-        ...config.bindings,
-        [endpointKey]: {
-          sessionId,
-          updatedAt: Date.now()
-        }
+  setBinding(endpointKey: string, sessionId: string, meta?: RemoteEndpointBindingMeta): void {
+    const channel = meta?.channel ?? this.resolveChannelFromEndpointKey(endpointKey)
+    if (!channel) {
+      return
+    }
+
+    this.updateBindings(channel, (bindings) => ({
+      ...bindings,
+      [endpointKey]: {
+        sessionId,
+        updatedAt: Date.now(),
+        meta: meta ?? bindings[endpointKey]?.meta
       }
     }))
     this.activeEvents.delete(endpointKey)
@@ -70,43 +106,75 @@ export class RemoteBindingStore {
   }
 
   clearBinding(endpointKey: string): void {
-    this.updateTelegramConfig((config) => {
-      const bindings = { ...config.bindings }
-      delete bindings[endpointKey]
-      return {
-        ...config,
-        bindings
-      }
+    const channel = this.resolveChannelFromEndpointKey(endpointKey)
+    if (!channel) {
+      return
+    }
+
+    this.updateBindings(channel, (bindings) => {
+      const nextBindings = { ...bindings }
+      delete nextBindings[endpointKey]
+      return nextBindings
     })
-    this.activeEvents.delete(endpointKey)
-    this.sessionSnapshots.delete(endpointKey)
-    this.clearModelMenuStatesForEndpoint(endpointKey)
+    this.clearTransientStateForEndpoint(endpointKey)
   }
 
-  listBindings(): Array<{
+  listBindings(channel?: RemoteChannel): Array<{
     endpointKey: string
-    binding: TelegramEndpointBinding
+    binding: RemoteEndpointBinding
   }> {
-    return Object.entries(this.getTelegramConfig().bindings).map(([endpointKey, binding]) => ({
-      endpointKey,
-      binding
-    }))
+    const configs =
+      channel === undefined
+        ? (['telegram', 'feishu'] as const).map(
+            (key) => [key, this.getChannelBindings(key)] as const
+          )
+        : ([[channel, this.getChannelBindings(channel)]] as const)
+
+    return configs.flatMap((entry) => {
+      const bindings = entry[1]
+      return Object.entries(bindings).map(([endpointKey, binding]) => ({
+        endpointKey,
+        binding
+      }))
+    })
   }
 
-  clearBindings(): number {
-    const count = Object.keys(this.getTelegramConfig().bindings).length
-    this.updateTelegramConfig((config) => ({
-      ...config,
-      bindings: {}
-    }))
-    this.activeEvents.clear()
-    this.sessionSnapshots.clear()
-    this.modelMenuStates.clear()
-    return count
+  clearBindings(channel?: RemoteChannel): number {
+    const entries = this.listBindings(channel)
+    if (channel === 'telegram') {
+      this.updateTelegramConfig((config) => ({
+        ...config,
+        bindings: {}
+      }))
+    } else if (channel === 'feishu') {
+      this.updateFeishuConfig((config) => ({
+        ...config,
+        bindings: {}
+      }))
+    } else {
+      this.updateTelegramConfig((config) => ({
+        ...config,
+        bindings: {}
+      }))
+      this.updateFeishuConfig((config) => ({
+        ...config,
+        bindings: {}
+      }))
+    }
+
+    for (const { endpointKey } of entries) {
+      this.clearTransientStateForEndpoint(endpointKey)
+    }
+
+    if (channel === undefined) {
+      this.modelMenuStates.clear()
+    }
+
+    return entries.length
   }
 
-  countBindings(): number {
-    return Object.keys(this.getTelegramConfig().bindings).length
+  countBindings(channel?: RemoteChannel): number {
+    return this.listBindings(channel).length
   }
 
   getPollOffset(): number {
@@ -124,8 +192,16 @@ export class RemoteBindingStore {
     return this.getTelegramConfig().allowlist
   }
 
-  getDefaultAgentId(): string {
+  getTelegramDefaultAgentId(): string {
     return this.getTelegramConfig().defaultAgentId
+  }
+
+  getDefaultAgentId(): string {
+    return this.getTelegramDefaultAgentId()
+  }
+
+  getFeishuDefaultAgentId(): string {
+    return this.getFeishuConfig().defaultAgentId
   }
 
   isAllowedUser(userId: number | null | undefined): boolean {
@@ -144,25 +220,80 @@ export class RemoteBindingStore {
     }))
   }
 
-  getPairingState(): TelegramPairingState {
+  getFeishuPairedUserOpenIds(): string[] {
+    return this.getFeishuConfig().pairedUserOpenIds
+  }
+
+  isFeishuPairedUser(openId: string | null | undefined): boolean {
+    if (!openId) {
+      return false
+    }
+    return this.getFeishuPairedUserOpenIds().includes(openId.trim())
+  }
+
+  addFeishuPairedUser(openId: string): void {
+    const normalized = openId.trim()
+    if (!normalized) {
+      return
+    }
+
+    this.updateFeishuConfig((config) => ({
+      ...config,
+      pairedUserOpenIds: Array.from(new Set([...config.pairedUserOpenIds, normalized])).sort(
+        (left, right) => left.localeCompare(right)
+      )
+    }))
+  }
+
+  getTelegramPairingState(): TelegramPairingState {
     return this.getTelegramConfig().pairing
   }
 
-  getPairingSnapshot() {
+  getPairingState(): TelegramPairingState {
+    return this.getTelegramPairingState()
+  }
+
+  getFeishuPairingState(): FeishuPairingState {
+    return this.getFeishuConfig().pairing
+  }
+
+  getTelegramPairingSnapshot() {
     return buildTelegramPairingSnapshot(this.getTelegramConfig())
   }
 
-  createPairCode(): { code: string; expiresAt: number } {
+  getFeishuPairingSnapshot() {
+    return buildFeishuPairingSnapshot(this.getFeishuConfig())
+  }
+
+  createPairCode(channel: RemoteChannel = 'telegram'): { code: string; expiresAt: number } {
     const pairing = createPairCode()
-    this.updateTelegramConfig((config) => ({
-      ...config,
-      pairing
-    }))
+    if (channel === 'telegram') {
+      this.updateTelegramConfig((config) => ({
+        ...config,
+        pairing
+      }))
+    } else {
+      this.updateFeishuConfig((config) => ({
+        ...config,
+        pairing
+      }))
+    }
     return pairing
   }
 
-  clearPairCode(): void {
-    this.updateTelegramConfig((config) => ({
+  clearPairCode(channel: RemoteChannel = 'telegram'): void {
+    if (channel === 'telegram') {
+      this.updateTelegramConfig((config) => ({
+        ...config,
+        pairing: {
+          code: null,
+          expiresAt: null
+        }
+      }))
+      return
+    }
+
+    this.updateFeishuConfig((config) => ({
       ...config,
       pairing: {
         code: null,
@@ -234,6 +365,47 @@ export class RemoteBindingStore {
 
   clearModelMenuState(token: string): void {
     this.modelMenuStates.delete(token)
+  }
+
+  private getChannelBindings(channel: RemoteChannel): Record<string, RemoteEndpointBinding> {
+    const config = this.getChannelConfig(channel)
+    return config.bindings
+  }
+
+  private updateBindings(
+    channel: RemoteChannel,
+    updater: (
+      bindings: Record<string, RemoteEndpointBinding>
+    ) => Record<string, RemoteEndpointBinding>
+  ): void {
+    if (channel === 'telegram') {
+      this.updateTelegramConfig((config) => ({
+        ...config,
+        bindings: updater(config.bindings)
+      }))
+      return
+    }
+
+    this.updateFeishuConfig((config) => ({
+      ...config,
+      bindings: updater(config.bindings)
+    }))
+  }
+
+  private resolveChannelFromEndpointKey(endpointKey: string): RemoteChannel | null {
+    if (endpointKey.startsWith('telegram:')) {
+      return 'telegram'
+    }
+    if (endpointKey.startsWith('feishu:')) {
+      return 'feishu'
+    }
+    return null
+  }
+
+  private clearTransientStateForEndpoint(endpointKey: string): void {
+    this.activeEvents.delete(endpointKey)
+    this.sessionSnapshots.delete(endpointKey)
+    this.clearModelMenuStatesForEndpoint(endpointKey)
   }
 
   private clearExpiredModelMenuStates(): void {

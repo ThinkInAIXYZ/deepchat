@@ -1,9 +1,15 @@
 import { z } from 'zod'
 import type { HookEventName } from '@shared/hooksNotifications'
 import type {
+  FeishuPairingSnapshot,
+  FeishuRemoteSettings,
+  FeishuRemoteStatus,
+  RemoteBindingKind,
+  RemoteBindingSummary,
+  RemoteChannel,
+  RemoteRuntimeState,
   TelegramPairingSnapshot,
   TelegramRemoteBindingSummary,
-  TelegramRemoteRuntimeState,
   TelegramRemoteSettings,
   TelegramRemoteStatus,
   TelegramStreamMode
@@ -14,6 +20,7 @@ export const TELEGRAM_REMOTE_POLL_LIMIT = 20
 export const TELEGRAM_REMOTE_POLL_TIMEOUT_SEC = 30
 export const TELEGRAM_OUTBOUND_TEXT_LIMIT = 4096
 export const TELEGRAM_PAIR_CODE_TTL_MS = 10 * 60 * 1000
+export const FEISHU_PAIR_CODE_TTL_MS = TELEGRAM_PAIR_CODE_TTL_MS
 export const TELEGRAM_TYPING_DELAY_MS = 800
 export const TELEGRAM_STREAM_POLL_INTERVAL_MS = 450
 export const TELEGRAM_STREAM_START_TIMEOUT_MS = 8_000
@@ -21,6 +28,7 @@ export const TELEGRAM_PRIVATE_THREAD_DEFAULT = 0
 export const TELEGRAM_RECENT_SESSION_LIMIT = 10
 export const TELEGRAM_MODEL_MENU_TTL_MS = 10 * 60 * 1000
 export const TELEGRAM_REMOTE_DEFAULT_AGENT_ID = 'deepchat'
+export const FEISHU_REMOTE_DEFAULT_AGENT_ID = TELEGRAM_REMOTE_DEFAULT_AGENT_ID
 export const TELEGRAM_REMOTE_REACTION_EMOJI = '🤯'
 export const TELEGRAM_REMOTE_COMMANDS = [
   {
@@ -52,6 +60,10 @@ export const TELEGRAM_REMOTE_COMMANDS = [
     description: 'Stop the active generation'
   },
   {
+    command: 'open',
+    description: 'Open the current session on desktop'
+  },
+  {
     command: 'model',
     description: 'Switch provider and model'
   },
@@ -61,15 +73,70 @@ export const TELEGRAM_REMOTE_COMMANDS = [
   }
 ] as const
 
-export type TelegramEndpointBinding = {
+export const FEISHU_REMOTE_COMMANDS = [
+  {
+    command: 'start',
+    description: 'Show remote control status'
+  },
+  {
+    command: 'help',
+    description: 'Show available commands'
+  },
+  {
+    command: 'pair',
+    description: 'Authorize this Feishu account'
+  },
+  {
+    command: 'new',
+    description: 'Start a new DeepChat session'
+  },
+  {
+    command: 'sessions',
+    description: 'List recent sessions'
+  },
+  {
+    command: 'use',
+    description: 'Bind a listed session'
+  },
+  {
+    command: 'stop',
+    description: 'Stop the active generation'
+  },
+  {
+    command: 'open',
+    description: 'Open the current session on desktop'
+  },
+  {
+    command: 'model',
+    description: 'View or switch the current model'
+  },
+  {
+    command: 'status',
+    description: 'Show runtime and session status'
+  }
+] as const
+
+export interface RemoteEndpointBindingMeta {
+  channel: RemoteChannel
+  kind: RemoteBindingKind
+  chatId: string
+  threadId: string | null
+}
+
+export type RemoteEndpointBinding = {
   sessionId: string
   updatedAt: number
+  meta?: RemoteEndpointBindingMeta
 }
+
+export type TelegramEndpointBinding = RemoteEndpointBinding
 
 export type TelegramPairingState = {
   code: string | null
   expiresAt: number | null
 }
+
+export type FeishuPairingState = TelegramPairingState
 
 export type TelegramCommandPayload = {
   name: string
@@ -87,8 +154,22 @@ export interface TelegramRemoteRuntimeConfig {
   bindings: Record<string, TelegramEndpointBinding>
 }
 
+export interface FeishuRemoteRuntimeConfig {
+  appId: string
+  appSecret: string
+  verificationToken: string
+  encryptKey: string
+  enabled: boolean
+  defaultAgentId: string
+  pairedUserOpenIds: string[]
+  lastFatalError: string | null
+  pairing: FeishuPairingState
+  bindings: Record<string, RemoteEndpointBinding>
+}
+
 export interface RemoteControlConfig {
   telegram: TelegramRemoteRuntimeConfig
+  feishu: FeishuRemoteRuntimeConfig
 }
 
 interface TelegramInboundBase {
@@ -113,6 +194,28 @@ export interface TelegramInboundCallbackQuery extends TelegramInboundBase {
 }
 
 export type TelegramInboundEvent = TelegramInboundMessage | TelegramInboundCallbackQuery
+
+export interface FeishuRawMention {
+  key: string
+  id?: {
+    open_id?: string
+  }
+  name?: string
+}
+
+export interface FeishuInboundMessage {
+  kind: 'message'
+  eventId: string
+  chatId: string
+  threadId: string | null
+  messageId: string
+  chatType: 'p2p' | 'group'
+  senderOpenId: string | null
+  text: string
+  command: TelegramCommandPayload | null
+  mentionedBot: boolean
+  mentions: FeishuRawMention[]
+}
 
 export interface TelegramInlineKeyboardButton {
   text: string
@@ -177,6 +280,8 @@ export type TelegramModelMenuCallback =
     }
 
 const TELEGRAM_MODEL_MENU_CALLBACK_PREFIX = 'model'
+const TELEGRAM_ENDPOINT_KEY_REGEX = /^telegram:(-?\d+):(-?\d+)$/
+const FEISHU_ENDPOINT_KEY_REGEX = /^feishu:([^:]+):([^:]+)$/
 
 export const createTelegramCallbackToken = (): string =>
   `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`
@@ -251,14 +356,26 @@ export const parseModelMenuCallbackData = (data: string): TelegramModelMenuCallb
 }
 
 export interface TelegramPollerStatusSnapshot {
-  state: TelegramRemoteRuntimeState
+  state: RemoteRuntimeState
   lastError: string | null
   botUser: TelegramRemoteStatus['botUser']
+}
+
+export interface FeishuRuntimeStatusSnapshot {
+  state: RemoteRuntimeState
+  lastError: string | null
+  botUser: FeishuRemoteStatus['botUser']
 }
 
 export interface TelegramTransportTarget {
   chatId: number
   messageThreadId: number
+}
+
+export interface FeishuTransportTarget {
+  chatId: string
+  threadId: string | null
+  replyToMessageId?: string | null
 }
 
 export interface TelegramRemoteHookSettingsInput {
@@ -281,17 +398,42 @@ export const createDefaultRemoteControlConfig = (): RemoteControlConfig => ({
       expiresAt: null
     },
     bindings: {}
+  },
+  feishu: {
+    appId: '',
+    appSecret: '',
+    verificationToken: '',
+    encryptKey: '',
+    enabled: false,
+    defaultAgentId: FEISHU_REMOTE_DEFAULT_AGENT_ID,
+    pairedUserOpenIds: [],
+    lastFatalError: null,
+    pairing: {
+      code: null,
+      expiresAt: null
+    },
+    bindings: {}
   }
 })
 
-const TelegramEndpointBindingSchema = z
+const RemoteEndpointBindingMetaSchema = z
   .object({
-    sessionId: z.string().min(1),
-    updatedAt: z.number().int().nonnegative().optional()
+    channel: z.enum(['telegram', 'feishu']).optional(),
+    kind: z.enum(['dm', 'group', 'topic']).optional(),
+    chatId: z.string().optional(),
+    threadId: z.string().nullable().optional()
   })
   .strip()
 
-const TelegramPairingStateSchema = z
+const RemoteEndpointBindingSchema = z
+  .object({
+    sessionId: z.string().min(1),
+    updatedAt: z.number().int().nonnegative().optional(),
+    meta: RemoteEndpointBindingMetaSchema.optional()
+  })
+  .strip()
+
+const PairingStateSchema = z
   .object({
     code: z.string().nullable().optional(),
     expiresAt: z.number().int().nonnegative().nullable().optional()
@@ -306,16 +448,96 @@ const TelegramRemoteRuntimeConfigSchema = z
     streamMode: z.enum(['draft', 'final']).optional(),
     pollOffset: z.number().int().nonnegative().optional(),
     lastFatalError: z.string().nullable().optional(),
-    pairing: TelegramPairingStateSchema.optional(),
+    pairing: PairingStateSchema.optional(),
+    bindings: z.record(z.string(), z.unknown()).optional()
+  })
+  .strip()
+
+const FeishuRemoteRuntimeConfigSchema = z
+  .object({
+    appId: z.string().optional(),
+    appSecret: z.string().optional(),
+    verificationToken: z.string().optional(),
+    encryptKey: z.string().optional(),
+    enabled: z.boolean().optional(),
+    defaultAgentId: z.string().optional(),
+    pairedUserOpenIds: z.array(z.string()).optional(),
+    lastFatalError: z.string().nullable().optional(),
+    pairing: PairingStateSchema.optional(),
     bindings: z.record(z.string(), z.unknown()).optional()
   })
   .strip()
 
 const RemoteControlConfigSchema = z
   .object({
-    telegram: TelegramRemoteRuntimeConfigSchema.optional()
+    telegram: TelegramRemoteRuntimeConfigSchema.optional(),
+    feishu: FeishuRemoteRuntimeConfigSchema.optional()
   })
   .strip()
+
+type LegacyTelegramRemoteConfig = z.infer<typeof TelegramRemoteRuntimeConfigSchema>
+type LegacyFeishuRemoteConfig = z.infer<typeof FeishuRemoteRuntimeConfigSchema>
+
+const hasOwn = (value: Record<string, unknown>, key: string): boolean =>
+  Object.prototype.hasOwnProperty.call(value, key)
+
+const hasAnyOwn = (value: Record<string, unknown>, keys: string[]): boolean =>
+  keys.some((key) => hasOwn(value, key))
+
+const hasBindingPrefix = (value: Record<string, unknown>, prefix: string): boolean => {
+  const bindings = value.bindings
+  if (!bindings || typeof bindings !== 'object' || Array.isArray(bindings)) {
+    return false
+  }
+
+  return Object.keys(bindings as Record<string, unknown>).some((key) => key.startsWith(prefix))
+}
+
+const extractLegacyTelegramConfig = (input: unknown): LegacyTelegramRemoteConfig | null => {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    return null
+  }
+
+  const record = input as Record<string, unknown>
+  if (
+    !hasAnyOwn(record, ['allowlist', 'streamMode', 'pollOffset', 'lastFatalError']) &&
+    !hasBindingPrefix(record, 'telegram:')
+  ) {
+    return null
+  }
+
+  const parsed = TelegramRemoteRuntimeConfigSchema.safeParse(record)
+  return parsed.success ? parsed.data : null
+}
+
+const extractLegacyFeishuConfig = (input: unknown): LegacyFeishuRemoteConfig | null => {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    return null
+  }
+
+  const record = input as Record<string, unknown>
+  if (
+    !hasAnyOwn(record, [
+      'appId',
+      'appSecret',
+      'verificationToken',
+      'encryptKey',
+      'pairedUserOpenIds',
+      'lastFatalError'
+    ]) &&
+    !hasBindingPrefix(record, 'feishu:')
+  ) {
+    return null
+  }
+
+  const parsed = FeishuRemoteRuntimeConfigSchema.safeParse(record)
+  return parsed.success ? parsed.data : null
+}
+
+const normalizeStringList = (input: Array<string | number> | undefined): string[] =>
+  Array.from(
+    new Set((input ?? []).map((value) => String(value ?? '').trim()).filter(Boolean))
+  ).sort((left, right) => left.localeCompare(right))
 
 export const normalizeTelegramUserIds = (input: Array<number | string> | undefined): number[] => {
   const normalized = new Set<number>()
@@ -333,17 +555,38 @@ export const normalizeTelegramUserIds = (input: Array<number | string> | undefin
   return Array.from(normalized).sort((left, right) => left - right)
 }
 
-export const normalizeRemoteControlConfig = (input: unknown): RemoteControlConfig => {
-  const defaults = createDefaultRemoteControlConfig()
-  const parsed = RemoteControlConfigSchema.safeParse(input)
-  if (!parsed.success) {
-    return defaults
+export const normalizeFeishuOpenIds = (input: Array<string | number> | undefined): string[] =>
+  normalizeStringList(input)
+
+const normalizeBindingMeta = (
+  endpointKey: string,
+  meta: unknown,
+  fallbackChannel: RemoteChannel
+): RemoteEndpointBindingMeta | undefined => {
+  const parsed = RemoteEndpointBindingMetaSchema.safeParse(meta)
+  if (parsed.success && parsed.data.channel && parsed.data.kind && parsed.data.chatId) {
+    return {
+      channel: parsed.data.channel,
+      kind: parsed.data.kind,
+      chatId: parsed.data.chatId,
+      threadId: parsed.data.threadId ?? null
+    }
   }
 
-  const telegram = parsed.data.telegram ?? {}
-  const bindings: Record<string, TelegramEndpointBinding> = {}
-  for (const [endpointKey, binding] of Object.entries(telegram.bindings ?? {})) {
-    const parsedBinding = TelegramEndpointBindingSchema.safeParse(binding)
+  if (fallbackChannel === 'telegram') {
+    return deriveTelegramBindingMeta(endpointKey) ?? undefined
+  }
+
+  return deriveFeishuBindingMeta(endpointKey) ?? undefined
+}
+
+const normalizeBindings = (
+  rawBindings: Record<string, unknown> | undefined,
+  channel: RemoteChannel
+): Record<string, RemoteEndpointBinding> => {
+  const bindings: Record<string, RemoteEndpointBinding> = {}
+  for (const [endpointKey, binding] of Object.entries(rawBindings ?? {})) {
+    const parsedBinding = RemoteEndpointBindingSchema.safeParse(binding)
     if (!parsedBinding.success) {
       continue
     }
@@ -355,9 +598,22 @@ export const normalizeRemoteControlConfig = (input: unknown): RemoteControlConfi
 
     bindings[endpointKey] = {
       sessionId: normalizedSessionId,
-      updatedAt: parsedBinding.data.updatedAt ?? Date.now()
+      updatedAt: parsedBinding.data.updatedAt ?? Date.now(),
+      meta: normalizeBindingMeta(endpointKey, parsedBinding.data.meta, channel)
     }
   }
+  return bindings
+}
+
+export const normalizeRemoteControlConfig = (input: unknown): RemoteControlConfig => {
+  const defaults = createDefaultRemoteControlConfig()
+  const parsed = RemoteControlConfigSchema.safeParse(input)
+  if (!parsed.success) {
+    return defaults
+  }
+
+  const telegram = parsed.data.telegram ?? extractLegacyTelegramConfig(input) ?? {}
+  const feishu = parsed.data.feishu ?? extractLegacyFeishuConfig(input) ?? {}
 
   return {
     telegram: {
@@ -375,7 +631,22 @@ export const normalizeRemoteControlConfig = (input: unknown): RemoteControlConfi
         expiresAt:
           typeof telegram.pairing?.expiresAt === 'number' ? telegram.pairing.expiresAt : null
       },
-      bindings
+      bindings: normalizeBindings(telegram.bindings, 'telegram')
+    },
+    feishu: {
+      appId: feishu.appId?.trim() || '',
+      appSecret: feishu.appSecret?.trim() || '',
+      verificationToken: feishu.verificationToken?.trim() || '',
+      encryptKey: feishu.encryptKey?.trim() || '',
+      enabled: Boolean(feishu.enabled),
+      defaultAgentId: feishu.defaultAgentId?.trim() || defaults.feishu.defaultAgentId,
+      pairedUserOpenIds: normalizeFeishuOpenIds(feishu.pairedUserOpenIds),
+      lastFatalError: feishu.lastFatalError?.trim() || null,
+      pairing: {
+        code: feishu.pairing?.code?.trim() || null,
+        expiresAt: typeof feishu.pairing?.expiresAt === 'number' ? feishu.pairing.expiresAt : null
+      },
+      bindings: normalizeBindings(feishu.bindings, 'feishu')
     }
   }
 }
@@ -386,7 +657,7 @@ export const buildTelegramEndpointKey = (chatId: number, messageThreadId: number
 export const parseTelegramEndpointKey = (
   endpointKey: string
 ): Pick<TelegramRemoteBindingSummary, 'chatId' | 'messageThreadId'> | null => {
-  const match = /^telegram:(-?\d+):(-?\d+)$/.exec(endpointKey.trim())
+  const match = TELEGRAM_ENDPOINT_KEY_REGEX.exec(endpointKey.trim())
   if (!match) {
     return null
   }
@@ -397,11 +668,106 @@ export const parseTelegramEndpointKey = (
   }
 }
 
-export const createPairCode = (): { code: string; expiresAt: number } => {
+export const buildTelegramBindingMeta = (
+  chatId: number,
+  messageThreadId: number
+): RemoteEndpointBindingMeta => {
+  const normalizedThreadId = messageThreadId || TELEGRAM_PRIVATE_THREAD_DEFAULT
+  const isTopic = normalizedThreadId > 0
+  const isGroup = chatId < 0
+  return {
+    channel: 'telegram',
+    kind: isTopic ? 'topic' : isGroup ? 'group' : 'dm',
+    chatId: String(chatId),
+    threadId: isTopic ? String(normalizedThreadId) : null
+  }
+}
+
+export const deriveTelegramBindingMeta = (
+  endpointKey: string
+): RemoteEndpointBindingMeta | null => {
+  const endpoint = parseTelegramEndpointKey(endpointKey)
+  if (!endpoint) {
+    return null
+  }
+
+  return buildTelegramBindingMeta(endpoint.chatId, endpoint.messageThreadId)
+}
+
+export const buildFeishuEndpointKey = (chatId: string, threadId?: string | null): string =>
+  `feishu:${chatId}:${threadId?.trim() || 'root'}`
+
+export const parseFeishuEndpointKey = (
+  endpointKey: string
+): Pick<RemoteBindingSummary, 'chatId' | 'threadId'> | null => {
+  const match = FEISHU_ENDPOINT_KEY_REGEX.exec(endpointKey.trim())
+  if (!match) {
+    return null
+  }
+
+  return {
+    chatId: match[1],
+    threadId: match[2] === 'root' ? null : match[2]
+  }
+}
+
+export const buildFeishuBindingMeta = (params: {
+  chatId: string
+  threadId?: string | null
+  chatType: 'p2p' | 'group'
+}): RemoteEndpointBindingMeta => ({
+  channel: 'feishu',
+  kind: params.chatType === 'p2p' ? 'dm' : params.threadId ? 'topic' : 'group',
+  chatId: params.chatId.trim(),
+  threadId: params.threadId?.trim() || null
+})
+
+export const deriveFeishuBindingMeta = (endpointKey: string): RemoteEndpointBindingMeta | null => {
+  const endpoint = parseFeishuEndpointKey(endpointKey)
+  if (!endpoint) {
+    return null
+  }
+
+  return {
+    channel: 'feishu',
+    kind: endpoint.threadId ? 'topic' : 'group',
+    chatId: endpoint.chatId,
+    threadId: endpoint.threadId
+  }
+}
+
+export const buildBindingSummary = (
+  endpointKey: string,
+  binding: RemoteEndpointBinding
+): RemoteBindingSummary | null => {
+  const meta =
+    binding.meta ?? deriveTelegramBindingMeta(endpointKey) ?? deriveFeishuBindingMeta(endpointKey)
+
+  if (!meta) {
+    return null
+  }
+
+  return {
+    channel: meta.channel,
+    endpointKey,
+    sessionId: binding.sessionId,
+    chatId: meta.chatId,
+    threadId: meta.threadId,
+    kind: meta.kind,
+    updatedAt: binding.updatedAt
+  }
+}
+
+export const createPairCode = (
+  ttlMs: number = TELEGRAM_PAIR_CODE_TTL_MS
+): {
+  code: string
+  expiresAt: number
+} => {
   const code = `${Math.floor(100000 + Math.random() * 900000)}`
   return {
     code,
-    expiresAt: Date.now() + TELEGRAM_PAIR_CODE_TTL_MS
+    expiresAt: Date.now() + ttlMs
   }
 }
 
@@ -420,10 +786,30 @@ export const normalizeTelegramSettingsInput = (
   }
 })
 
+export const normalizeFeishuSettingsInput = (
+  input: FeishuRemoteSettings
+): FeishuRemoteSettings => ({
+  appId: input.appId?.trim() ?? '',
+  appSecret: input.appSecret?.trim() ?? '',
+  verificationToken: input.verificationToken?.trim() ?? '',
+  encryptKey: input.encryptKey?.trim() ?? '',
+  remoteEnabled: Boolean(input.remoteEnabled),
+  defaultAgentId: input.defaultAgentId?.trim() || FEISHU_REMOTE_DEFAULT_AGENT_ID,
+  pairedUserOpenIds: normalizeFeishuOpenIds(input.pairedUserOpenIds)
+})
+
 export const buildTelegramPairingSnapshot = (
   settings: TelegramRemoteRuntimeConfig
 ): TelegramPairingSnapshot => ({
   pairCode: settings.pairing.code,
   pairCodeExpiresAt: settings.pairing.expiresAt,
   allowedUserIds: [...settings.allowlist]
+})
+
+export const buildFeishuPairingSnapshot = (
+  settings: FeishuRemoteRuntimeConfig
+): FeishuPairingSnapshot => ({
+  pairCode: settings.pairing.code,
+  pairCodeExpiresAt: settings.pairing.expiresAt,
+  pairedUserOpenIds: [...settings.pairedUserOpenIds]
 })

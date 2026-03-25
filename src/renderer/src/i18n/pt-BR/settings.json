@@ -1471,7 +1471,7 @@
   },
   "remote": {
     "title": "Remoto",
-    "description": "Configure o controle remoto do Telegram e as notificações de hook do Telegram.",
+    "description": "Configure o controle remoto do Telegram e do Feishu em um só lugar.",
     "telegram": {
       "title": "Telegram",
       "description": "Gerencie um único bot do Telegram para controle remoto e entrega de hooks.",
@@ -1480,7 +1480,7 @@
     },
     "remoteControl": {
       "title": "Controle remoto",
-      "description": "Permita que usuários autorizados do Telegram continuem sessões do DeepChat remotamente.",
+      "description": "Vincule cada endpoint remoto a uma sessão do DeepChat e mantenha essa sessão disponível entre os comandos.",
       "streamMode": "Modo de streaming",
       "streamModeDraft": "Streaming de rascunho",
       "streamModeFinal": "Somente resposta final",
@@ -1504,7 +1504,9 @@
       "pairingSuccessTitle": "Pareamento concluído",
       "pairingSuccessDescription": "A lista de IDs de usuário permitidos foi atualizada.",
       "clearBindings": "Limpar vínculos",
-      "clearBindingsResult": "{count} vínculo(s) limpo(s)."
+      "clearBindingsResult": "{count} vínculo(s) limpo(s).",
+      "pairDialogInstructionTelegram": "Envie este comando para o bot do Telegram:",
+      "pairDialogInstructionFeishu": "Envie este comando ao bot do Feishu em uma mensagem direta:"
     },
     "hooks": {
       "title": "Hooks do Telegram",
@@ -1526,6 +1528,42 @@
         "backoff": "Tentando novamente após falha",
         "error": "Erro"
       }
+    },
+    "feishu": {
+      "title": "Feishu",
+      "description": "Conecte um bot do Feishu para mensagens diretas, chats em grupo e tópicos.",
+      "appId": "ID do aplicativo",
+      "appIdPlaceholder": "ID do aplicativo Feishu",
+      "appSecret": "Segredo do aplicativo",
+      "appSecretPlaceholder": "Segredo do aplicativo Feishu",
+      "verificationToken": "Token de verificação",
+      "verificationTokenPlaceholder": "Token de verificação do Feishu",
+      "encryptKey": "Chave de criptografia (opcional)",
+      "encryptKeyPlaceholder": "Deixe em branco se a criptografia de eventos não estiver ativada",
+      "botUser": "Usuário do bot: {name} ({openId})",
+      "bindings": "Vínculos: {count}, usuários pareados: {pairedUserCount}",
+      "pairedUserOpenIds": "Open IDs dos usuários pareados",
+      "pairedUserOpenIdsPlaceholder": "ex.: ou_xxx, ou_yyy",
+      "accessRulesDescription": "Primeiro faça o pareamento em uma mensagem direta. Em grupos, apenas usuários pareados que mencionarem o bot com {'@'} podem controlar uma sessão.",
+      "accessRule1": "Faça o pareamento em uma mensagem direta com /pair [código].",
+      "accessRule2": "Em grupos e tópicos, o bot só reage quando um usuário pareado o menciona com {'@'}."
+    },
+    "sections": {
+      "credentials": "Credenciais",
+      "remoteControl": "Controle remoto",
+      "notifications": "Notificações",
+      "accessRules": "Regras de acesso"
+    },
+    "overview": {
+      "telegram": "{bindingCount} vínculos, {pairedCount} usuários pareados, hooks {hooks}",
+      "feishu": "{bindingCount} vínculos, {pairedCount} usuários pareados",
+      "hooksOn": "ativos",
+      "hooksOff": "desativados"
+    },
+    "bindingKinds": {
+      "dm": "Mensagem direta",
+      "group": "Grupo",
+      "topic": "Tópico"
     }
   },
   "deepchatAgents": {

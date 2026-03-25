@@ -130,6 +130,17 @@ export class RemoteCommandRouter {
           }
         }
 
+        case 'open': {
+          const session = await this.deps.runner.open(endpointKey)
+          return {
+            replies: [
+              session
+                ? `Opened on desktop: ${this.formatSessionLabel(session)}`
+                : 'No bound session. Send a message, /new, or /use first.'
+            ]
+          }
+        }
+
         case 'model': {
           const session = await this.deps.runner.getCurrentSession(endpointKey)
           if (!session) {
