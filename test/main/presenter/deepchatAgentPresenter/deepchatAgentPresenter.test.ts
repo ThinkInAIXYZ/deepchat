@@ -175,6 +175,7 @@ function createMockLlmProviderPresenter() {
     getProviderInstance: vi.fn().mockReturnValue({
       coreStream: vi.fn().mockReturnValue(createMockCoreStream()())
     }),
+    generateCompletionStandalone: vi.fn().mockResolvedValue('English screenshot summary'),
     generateText: vi.fn().mockResolvedValue({
       content: ['## Current Goal', '- Continue the session safely'].join('\n')
     })
@@ -223,7 +224,9 @@ function createMockConfigPresenter() {
     getAutoCompactionEnabled: vi.fn().mockReturnValue(true),
     getAutoCompactionTriggerThreshold: vi.fn().mockReturnValue(80),
     getAutoCompactionRetainRecentPairs: vi.fn().mockReturnValue(2),
-    getSetting: vi.fn().mockReturnValue(undefined)
+    getSetting: vi.fn().mockReturnValue(undefined),
+    getDefaultVisionModel: vi.fn().mockReturnValue(undefined),
+    resolveDeepChatAgentConfig: vi.fn().mockResolvedValue({})
   } as any
 }
 
@@ -2472,11 +2475,14 @@ describe('DeepChatAgentPresenter', () => {
       expect(updatedBlocks[1].extra.needsUserAction).toBe(false)
     })
 
-    it('offloads deferred tool results before resume', async () => {
+    it('normalizes deferred screenshot tool results before resume', async () => {
       tempHome = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-deferred-offload-'))
       getPathSpy = vi.spyOn(app, 'getPath').mockReturnValue(tempHome)
 
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      configPresenter.resolveDeepChatAgentConfig.mockResolvedValueOnce({
+        visionModel: { providerId: 'anthropic', modelId: 'claude-3-7-sonnet' }
+      })
       makeAssistantRow({
         blocks: [
           {
@@ -2539,10 +2545,8 @@ describe('DeepChatAgentPresenter', () => {
       const updatedBlocks = JSON.parse(
         sqlitePresenter.deepchatMessagesTable.updateContent.mock.calls[0][1]
       )
-      expect(updatedBlocks[0].tool_call.response).toContain('[Tool output offloaded]')
-      expect(updatedBlocks[0].tool_call.response).toContain('tool_tc1')
-      expect(updatedBlocks[0].tool_call.response).toContain('.offload')
-      expect(updatedBlocks[0].tool_call.response).not.toContain(tempHome!)
+      expect(updatedBlocks[0].tool_call.response).toBe('English screenshot summary')
+      expect(updatedBlocks[0].tool_call.response).not.toContain('[Tool output offloaded]')
       expect(updatedBlocks[0].status).toBe('success')
       expect(processStream).toHaveBeenCalledTimes(1)
     })
@@ -2780,6 +2784,124 @@ describe('DeepChatAgentPresenter', () => {
           providerId: 'openai'
         })
       )
+    })
+
+    it('rewrites screenshot tool output with the agent vision model during deferred execution', async () => {
+      toolPresenter.getAllToolDefinitions.mockResolvedValueOnce([
+        {
+          type: 'function',
+          function: {
+            name: 'cdp_send',
+            description: 'CDP tool',
+            parameters: { type: 'object', properties: {} }
+          },
+          server: { name: 'yobrowser', icons: '', description: '' }
+        }
+      ])
+      toolPresenter.callTool.mockResolvedValueOnce({
+        content: '{"data":"YWJj"}',
+        rawData: { toolCallId: 'tc1', content: '{"data":"YWJj"}', isError: false }
+      })
+      configPresenter.resolveDeepChatAgentConfig.mockResolvedValueOnce({
+        visionModel: { providerId: 'anthropic', modelId: 'claude-3-7-sonnet' }
+      })
+
+      await agent.initSession('s1', {
+        agentId: 'agent-vision',
+        providerId: 'openai',
+        modelId: 'gpt-4'
+      })
+
+      const result = await (agent as any).executeDeferredToolCall('s1', {
+        id: 'tc1',
+        name: 'cdp_send',
+        params: '{"method":"Page.captureScreenshot","params":{"format":"jpeg"}}'
+      })
+
+      expect(llmProvider.generateCompletionStandalone).toHaveBeenCalledWith(
+        'anthropic',
+        [
+          {
+            role: 'user',
+            content: [
+              expect.objectContaining({
+                type: 'text'
+              }),
+              {
+                type: 'image_url',
+                image_url: {
+                  url: 'data:image/jpeg;base64,YWJj',
+                  detail: 'auto'
+                }
+              }
+            ]
+          }
+        ],
+        'claude-3-7-sonnet',
+        expect.any(Number),
+        expect.any(Number)
+      )
+      expect(result).toEqual(
+        expect.objectContaining({
+          isError: false,
+          responseText: 'English screenshot summary'
+        })
+      )
+    })
+
+    it('uses the current session agent to resolve the vision model', async () => {
+      sqlitePresenter.newSessionsTable.get.mockReturnValue({
+        id: 's1',
+        agent_id: 'persisted-agent'
+      })
+      configPresenter.resolveDeepChatAgentConfig.mockResolvedValueOnce({
+        visionModel: { providerId: 'google', modelId: 'gemini-2.5-flash' }
+      })
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+
+      const normalized = await (agent as any).normalizeToolResultContent({
+        sessionId: 's1',
+        toolCallId: 'tc1',
+        toolName: 'cdp_send',
+        toolArgs: '{"method":"Page.captureScreenshot"}',
+        content: '{"data":"YWJj"}',
+        isError: false
+      })
+
+      expect(configPresenter.resolveDeepChatAgentConfig).toHaveBeenCalledWith('persisted-agent')
+      expect(llmProvider.generateCompletionStandalone).toHaveBeenCalledWith(
+        'google',
+        expect.any(Array),
+        'gemini-2.5-flash',
+        expect.any(Number),
+        expect.any(Number)
+      )
+      expect(normalized).toBe('English screenshot summary')
+    })
+
+    it('returns a readable error when the current session agent has no vision model', async () => {
+      configPresenter.resolveDeepChatAgentConfig.mockResolvedValueOnce({})
+      configPresenter.getDefaultVisionModel.mockReturnValueOnce({
+        providerId: 'openai',
+        modelId: 'gpt-4o'
+      })
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+
+      const normalized = await (agent as any).normalizeToolResultContent({
+        sessionId: 's1',
+        toolCallId: 'tc1',
+        toolName: 'cdp_send',
+        toolArgs: '{"method":"Page.captureScreenshot"}',
+        content: '{"data":"YWJj"}',
+        isError: false
+      })
+
+      expect(normalized).toContain('no vision model is configured')
+      expect(normalized).not.toContain('YWJj')
+      expect(configPresenter.getDefaultVisionModel).not.toHaveBeenCalled()
+      expect(llmProvider.generateCompletionStandalone).not.toHaveBeenCalled()
     })
   })
 })

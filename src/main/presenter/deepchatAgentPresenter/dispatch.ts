@@ -679,6 +679,20 @@ export async function executeTools(
         }
       }
 
+      if (hooks?.normalizeToolResult) {
+        toolRawData = {
+          ...toolRawData,
+          content: await hooks.normalizeToolResult({
+            sessionId: io.sessionId,
+            toolCallId: tc.id,
+            toolName: tc.name,
+            toolArgs: tc.arguments,
+            content: toolRawData.content,
+            isError: toolRawData.isError === true
+          })
+        }
+      }
+
       const searchPayload = extractSearchPayload(
         toolRawData.content,
         toolContext.name,
