@@ -25,15 +25,20 @@ const props = defineProps<{
 
 const DRAG_DELAY = 180
 const DRAG_THRESHOLD = 4
+const CLOSE_MOTION_SETTLE_MS = 240
 
 const { t } = useI18n()
 
 const isDragging = ref(false)
+const isHovering = ref(false)
+const isClosing = ref(false)
 const snapshot = ref<FloatingWidgetSnapshot>({
   expanded: false,
   activeCount: 0,
   sessions: []
 })
+
+let closingTimer: number | null = null
 
 const dragState = ref<DragState>({
   isDragging: false,
@@ -61,11 +66,39 @@ const clearDragTimer = () => {
   }
 }
 
+const clearClosingTimer = () => {
+  if (closingTimer) {
+    clearTimeout(closingTimer)
+    closingTimer = null
+  }
+}
+
+const syncCloseMotionState = (nextExpanded: boolean) => {
+  if (nextExpanded) {
+    clearClosingTimer()
+    isClosing.value = false
+    return
+  }
+
+  if (!snapshot.value.expanded) {
+    return
+  }
+
+  clearClosingTimer()
+  isClosing.value = true
+  closingTimer = window.setTimeout(() => {
+    isClosing.value = false
+    closingTimer = null
+  }, CLOSE_MOTION_SETTLE_MS)
+}
+
 const handleSnapshotUpdate = (nextSnapshot: FloatingWidgetSnapshot) => {
+  syncCloseMotionState(nextSnapshot.expanded)
   snapshot.value = nextSnapshot
 }
 
 const setExpanded = (expanded: boolean) => {
+  syncCloseMotionState(expanded)
   snapshot.value = {
     ...snapshot.value,
     expanded
@@ -77,10 +110,31 @@ const toggleExpanded = () => {
   setExpanded(!snapshot.value.expanded)
 }
 
+const setHovering = (hovering: boolean) => {
+  if (isHovering.value === hovering) {
+    return
+  }
+
+  isHovering.value = hovering
+  window.floatingButtonAPI.setHovering(hovering)
+}
+
 const startDragging = () => {
   dragState.value.isDragging = true
   isDragging.value = true
   window.floatingButtonAPI.onDragStart(dragState.value.startScreenX, dragState.value.startScreenY)
+}
+
+const handleMouseEnter = () => {
+  setHovering(true)
+}
+
+const handleMouseLeave = () => {
+  if (dragState.value.isDragging) {
+    return
+  }
+
+  setHovering(false)
 }
 
 const handleMouseDown = (event: MouseEvent) => {
@@ -187,6 +241,8 @@ onMounted(async () => {
 
 onUnmounted(() => {
   clearDragTimer()
+  clearClosingTimer()
+  setHovering(false)
   document.removeEventListener('mousemove', handleMouseMove)
   document.removeEventListener('mouseup', handleMouseUp)
   window.removeEventListener('blur', handleWindowBlur)
@@ -198,6 +254,7 @@ onUnmounted(() => {
   <div
     class="widget-stage h-screen w-screen overflow-hidden bg-transparent"
     :data-theme="props.theme"
+    :data-motion="isClosing ? 'closing' : 'idle'"
     :class="{ dark: props.theme === 'dark' }"
   >
     <div
@@ -206,10 +263,12 @@ onUnmounted(() => {
         snapshot.expanded ? 'cursor-grab' : 'cursor-pointer',
         isDragging ? 'cursor-grabbing' : ''
       ]"
+      @mouseenter="handleMouseEnter"
+      @mouseleave="handleMouseLeave"
       @mousedown="handleMouseDown"
       @contextmenu="handleRightClick"
     >
-      <div class="relative h-full w-full overflow-hidden rounded-[var(--widget-radius)]">
+      <div class="relative h-full w-full overflow-hidden">
         <div
           class="collapsed-layer absolute inset-0 flex h-full w-full items-center justify-center overflow-hidden"
           :class="[
@@ -368,6 +427,18 @@ onUnmounted(() => {
   border-radius: var(--widget-radius);
 }
 
+.widget-stage[data-motion='closing'] {
+  --transition-collapsed-layer: opacity 180ms ease, transform 220ms var(--widget-ease-soft);
+  --transition-expanded-shell: opacity 200ms ease, transform 220ms var(--widget-ease-soft);
+  --transition-panel: opacity 170ms ease, transform 180ms var(--widget-ease-soft);
+  --transition-session: opacity 160ms ease, transform 180ms var(--widget-ease-soft);
+  --transition-logo-hero:
+    opacity 180ms ease, transform 220ms var(--widget-ease-soft), border-color 180ms ease;
+  --transition-logo: opacity 160ms ease, transform 180ms var(--widget-ease-soft);
+  --transition-status-face: opacity 170ms ease, transform 180ms var(--widget-ease-soft);
+  --transition-status-logo: opacity 160ms ease, transform 160ms ease;
+}
+
 .widget-stage[data-theme='dark'] {
   --collapsed-orb-border: rgba(255, 255, 255, 0.09);
   --collapsed-orb-idle-bg:
@@ -496,6 +567,10 @@ onUnmounted(() => {
   filter: blur(10px);
 }
 
+.widget-stage[data-motion='closing'] .collapsed-layer-hidden {
+  filter: none;
+}
+
 .collapsed-layer.floating-shell-dragging {
   transform: translate3d(0, 0, 0) scale(0.985);
 }
@@ -522,6 +597,10 @@ onUnmounted(() => {
   opacity: 0;
   transform: translate3d(0, 18px, 0) scale(0.972);
   filter: blur(16px);
+}
+
+.widget-stage[data-motion='closing'] .floating-shell-expanded-hidden {
+  filter: none;
 }
 
 .floating-shell-expanded.floating-shell-dragging {
@@ -570,10 +649,13 @@ onUnmounted(() => {
   filter: blur(8px);
 }
 
+.widget-stage[data-motion='closing'] .collapsed-layer-hidden .logo-orb-hero {
+  filter: none;
+}
+
 .logo-orb::before {
   inset: 6px;
   border-radius: 9999px;
-  border: 1px solid var(--collapsed-orb-inner-ring-border);
 }
 
 .logo-orb::after {
@@ -700,10 +782,18 @@ onUnmounted(() => {
   filter: blur(8px);
 }
 
+.widget-stage[data-motion='closing'] .floating-shell-expanded-hidden .panel-header {
+  filter: none;
+}
+
 .floating-shell-expanded-hidden .panel-list {
   opacity: 0;
   transform: translate3d(0, 14px, 0) scale(0.992);
   filter: blur(10px);
+}
+
+.widget-stage[data-motion='closing'] .floating-shell-expanded-hidden .panel-list {
+  filter: none;
 }
 
 .floating-shell-expanded-active .panel-header {
@@ -759,6 +849,10 @@ onUnmounted(() => {
   opacity: 0;
   transform: translate3d(0, 14px, 0) scale(0.985);
   filter: blur(8px);
+}
+
+.widget-stage[data-motion='closing'] .floating-shell-expanded-hidden .session-row {
+  filter: none;
 }
 
 .floating-shell-expanded-active .session-row {

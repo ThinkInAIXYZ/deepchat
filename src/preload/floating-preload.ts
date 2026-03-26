@@ -5,6 +5,7 @@ import type { FloatingWidgetSnapshot } from '@shared/types/floating-widget'
 const FLOATING_BUTTON_EVENTS = {
   CLICKED: 'floating-button:clicked',
   RIGHT_CLICKED: 'floating-button:right-clicked',
+  HOVER_STATE_CHANGED: 'floating-button:hover-state-changed',
   SNAPSHOT_REQUEST: 'floating-button:snapshot-request',
   SNAPSHOT_UPDATED: 'floating-button:snapshot-updated',
   LANGUAGE_REQUEST: 'floating-button:language-request',
@@ -56,6 +57,10 @@ const floatingButtonAPI = {
 
   setExpanded: (expanded: boolean) => {
     ipcRenderer.send(FLOATING_BUTTON_EVENTS.SET_EXPANDED, expanded)
+  },
+
+  setHovering: (hovering: boolean) => {
+    ipcRenderer.send(FLOATING_BUTTON_EVENTS.HOVER_STATE_CHANGED, hovering)
   },
 
   openSession: (sessionId: string) => {

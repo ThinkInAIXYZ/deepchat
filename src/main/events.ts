@@ -230,6 +230,7 @@ export const FLOATING_BUTTON_EVENTS = {
   VISIBILITY_CHANGED: 'floating-button:visibility-changed', // 悬浮按钮显示状态改变
   POSITION_CHANGED: 'floating-button:position-changed', // 悬浮按钮位置改变
   ENABLED_CHANGED: 'floating-button:enabled-changed', // 悬浮按钮启用状态改变
+  HOVER_STATE_CHANGED: 'floating-button:hover-state-changed',
   SNAPSHOT_REQUEST: 'floating-button:snapshot-request',
   SNAPSHOT_UPDATED: 'floating-button:snapshot-updated',
   LANGUAGE_REQUEST: 'floating-button:language-request',

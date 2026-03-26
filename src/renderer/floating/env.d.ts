@@ -19,6 +19,7 @@ declare global {
       getTheme: () => Promise<'dark' | 'light'>
       toggleExpanded: () => void
       setExpanded: (expanded: boolean) => void
+      setHovering: (hovering: boolean) => void
       openSession: (sessionId: string) => void
       onDragStart: (x: number, y: number) => void
       onDragMove: (x: number, y: number) => void
