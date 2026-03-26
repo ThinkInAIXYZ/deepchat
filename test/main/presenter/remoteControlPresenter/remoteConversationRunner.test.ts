@@ -194,6 +194,124 @@ describe('RemoteConversationRunner', () => {
     expect(updated.modelId).toBe('claude-3-5-sonnet')
   })
 
+  it('returns noSession when /open has no bound session', async () => {
+    const runner = new RemoteConversationRunner(
+      {
+        configPresenter: {} as any,
+        newAgentPresenter: {
+          getSession: vi.fn()
+        } as any,
+        deepchatAgentPresenter: {} as any,
+        windowPresenter: {
+          getAllWindows: vi.fn(),
+          getFocusedWindow: vi.fn(),
+          createAppWindow: vi.fn(),
+          show: vi.fn()
+        } as any,
+        tabPresenter: {
+          getWindowType: vi.fn()
+        } as any,
+        resolveDefaultAgentId: vi.fn()
+      },
+      {
+        getBinding: vi.fn().mockReturnValue(null)
+      } as any
+    )
+
+    await expect(runner.open('telegram:100:0')).resolves.toEqual({
+      status: 'noSession'
+    })
+  })
+
+  it('returns windowNotFound when /open cannot resolve a desktop chat window', async () => {
+    const activateSession = vi.fn()
+    const createAppWindow = vi.fn().mockResolvedValue(null)
+    const show = vi.fn()
+    const runner = new RemoteConversationRunner(
+      {
+        configPresenter: {} as any,
+        newAgentPresenter: {
+          getSession: vi.fn().mockResolvedValue(createSession()),
+          activateSession
+        } as any,
+        deepchatAgentPresenter: {} as any,
+        windowPresenter: {
+          getAllWindows: vi.fn().mockReturnValue([]),
+          getFocusedWindow: vi.fn().mockReturnValue(null),
+          createAppWindow,
+          show
+        } as any,
+        tabPresenter: {
+          getWindowType: vi.fn().mockReturnValue('chat')
+        } as any,
+        resolveDefaultAgentId: vi.fn()
+      },
+      {
+        getBinding: vi.fn().mockReturnValue({
+          sessionId: 'session-1',
+          updatedAt: 1
+        }),
+        clearBinding: vi.fn()
+      } as any
+    )
+
+    await expect(runner.open('telegram:100:0')).resolves.toEqual({
+      status: 'windowNotFound'
+    })
+    expect(activateSession).not.toHaveBeenCalled()
+    expect(show).not.toHaveBeenCalled()
+    expect(createAppWindow).toHaveBeenCalledWith({
+      initialRoute: 'chat'
+    })
+  })
+
+  it('returns ok and activates the bound session when /open resolves a chat window', async () => {
+    const session = createSession()
+    const activateSession = vi.fn().mockResolvedValue(undefined)
+    const show = vi.fn()
+    const chatWindow = {
+      id: 7,
+      webContents: {
+        id: 70
+      },
+      isDestroyed: vi.fn().mockReturnValue(false)
+    }
+    const runner = new RemoteConversationRunner(
+      {
+        configPresenter: {} as any,
+        newAgentPresenter: {
+          getSession: vi.fn().mockResolvedValue(session),
+          activateSession
+        } as any,
+        deepchatAgentPresenter: {} as any,
+        windowPresenter: {
+          getAllWindows: vi.fn().mockReturnValue([chatWindow]),
+          getFocusedWindow: vi.fn().mockReturnValue(chatWindow),
+          createAppWindow: vi.fn(),
+          show
+        } as any,
+        tabPresenter: {
+          getWindowType: vi.fn().mockReturnValue('chat')
+        } as any,
+        resolveDefaultAgentId: vi.fn()
+      },
+      {
+        getBinding: vi.fn().mockReturnValue({
+          sessionId: 'session-1',
+          updatedAt: 1
+        }),
+        clearBinding: vi.fn()
+      } as any
+    )
+
+    await expect(runner.open('telegram:100:0')).resolves.toEqual({
+      status: 'ok',
+      session
+    })
+    expect(activateSession).toHaveBeenCalledWith(70, 'session-1')
+    expect(show).toHaveBeenCalledWith(7, true)
+  })
+
   it('does not fall back to the previous active assistant event while waiting for a new reply', async () => {
     vi.useFakeTimers()
 

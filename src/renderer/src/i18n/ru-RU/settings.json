@@ -1471,7 +1471,7 @@
   },
   "remote": {
     "title": "Удалённое управление",
-    "description": "Настройте удалённое управление через Telegram и уведомления Telegram Hook.",
+    "description": "Настройте удалённое управление через Telegram и Feishu в одном месте.",
     "telegram": {
       "title": "Telegram",
       "description": "Управляйте одним ботом Telegram для удалённого управления и доставки хуков.",
@@ -1480,7 +1480,7 @@
     },
     "remoteControl": {
       "title": "Удалённое управление",
-      "description": "Разрешить авторизованным пользователям Telegram продолжать сессии DeepChat удалённо.",
+      "description": "Привяжите каждую удалённую точку входа к одной сессии DeepChat и сохраняйте эту сессию между командами.",
       "streamMode": "Режим стриминга",
       "streamModeDraft": "Черновой стриминг",
       "streamModeFinal": "Только финальный ответ",
@@ -1504,7 +1504,9 @@
       "pairingSuccessTitle": "Привязка завершена",
       "pairingSuccessDescription": "Список разрешённых ID пользователей обновлён.",
       "clearBindings": "Очистить привязки",
-      "clearBindingsResult": "Очищено привязок: {count}."
+      "clearBindingsResult": "Очищено привязок: {count}.",
+      "pairDialogInstructionTelegram": "Отправьте эту команду боту Telegram:",
+      "pairDialogInstructionFeishu": "Отправьте эту команду боту Feishu в личном сообщении:"
     },
     "hooks": {
       "title": "Telegram Hook уведомления",
@@ -1526,6 +1528,42 @@
         "backoff": "Повтор после сбоя",
         "error": "Ошибка"
       }
+    },
+    "feishu": {
+      "title": "Feishu",
+      "description": "Подключите бота Feishu для личных сообщений, групповых чатов и веток тем.",
+      "appId": "ID приложения",
+      "appIdPlaceholder": "ID приложения Feishu",
+      "appSecret": "Секрет приложения",
+      "appSecretPlaceholder": "Секрет приложения Feishu",
+      "verificationToken": "Токен проверки",
+      "verificationTokenPlaceholder": "Токен проверки Feishu",
+      "encryptKey": "Ключ шифрования (необязательно)",
+      "encryptKeyPlaceholder": "Оставьте пустым, если шифрование событий не включено",
+      "botUser": "Пользователь бота: {name} ({openId})",
+      "bindings": "Привязки: {count}, связанных пользователей: {pairedUserCount}",
+      "pairedUserOpenIds": "Open ID связанных пользователей",
+      "pairedUserOpenIdsPlaceholder": "например: ou_xxx, ou_yyy",
+      "accessRulesDescription": "Сначала выполните привязку в личном сообщении. В группах только связанные пользователи, которые упоминают бота через {'@'}, могут управлять сессией.",
+      "accessRule1": "Выполните привязку в личном сообщении командой /pair [код].",
+      "accessRule2": "В группах и темах бот реагирует только тогда, когда связанный пользователь упоминает его через {'@'}."
+    },
+    "sections": {
+      "credentials": "Учетные данные",
+      "remoteControl": "Удалённое управление",
+      "notifications": "Уведомления",
+      "accessRules": "Правила доступа"
+    },
+    "overview": {
+      "telegram": "{bindingCount} привязок, {pairedCount} связанных пользователей, hooks {hooks}",
+      "feishu": "{bindingCount} привязок, {pairedCount} связанных пользователей",
+      "hooksOn": "вкл.",
+      "hooksOff": "выкл."
+    },
+    "bindingKinds": {
+      "dm": "Личка",
+      "group": "Группа",
+      "topic": "Тема"
     }
   },
   "deepchatAgents": {

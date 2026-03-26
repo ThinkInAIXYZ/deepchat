@@ -260,7 +260,8 @@
     "groupByProject": "Gruppér efter projekt",
     "pinned": "Fastgjorte",
     "emptyTitle": "Ingen samtaler endnu",
-    "emptyDescription": "Start en ny samtale for at komme i gang"
+    "emptyDescription": "Start en ny samtale for at komme i gang",
+    "remoteControlDisabled": "Deaktiveret"
   },
   "floatingWidget": {
     "title": "DeepChat",

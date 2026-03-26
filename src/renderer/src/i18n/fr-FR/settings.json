@@ -1471,7 +1471,7 @@
   },
   "remote": {
     "title": "Accès distant",
-    "description": "Configurez le contrôle à distance Telegram et les notifications de hooks Telegram.",
+    "description": "Configurez la télécommande Telegram et Feishu au même endroit.",
     "telegram": {
       "title": "Telegram",
       "description": "Gérez un seul bot Telegram pour le contrôle à distance et l’envoi des hooks.",
@@ -1480,7 +1480,7 @@
     },
     "remoteControl": {
       "title": "Contrôle à distance",
-      "description": "Autorisez les utilisateurs Telegram approuvés à poursuivre les sessions DeepChat à distance.",
+      "description": "Associez chaque point d’accès distant à une session DeepChat et conservez cette session entre les commandes.",
       "streamMode": "Mode de streaming",
       "streamModeDraft": "Streaming brouillon",
       "streamModeFinal": "Réponse finale uniquement",
@@ -1504,7 +1504,9 @@
       "pairingSuccessTitle": "Association terminée",
       "pairingSuccessDescription": "La liste des IDs utilisateur autorisés a été actualisée.",
       "clearBindings": "Effacer les liaisons",
-      "clearBindingsResult": "{count} liaison(s) effacée(s)."
+      "clearBindingsResult": "{count} liaison(s) effacée(s).",
+      "pairDialogInstructionTelegram": "Envoyez cette commande au bot Telegram :",
+      "pairDialogInstructionFeishu": "Envoyez cette commande au bot Feishu dans un message privé :"
     },
     "hooks": {
       "title": "Hooks Telegram",
@@ -1526,6 +1528,42 @@
         "backoff": "Nouvel essai après échec",
         "error": "Erreur"
       }
+    },
+    "feishu": {
+      "title": "Feishu",
+      "description": "Connectez un bot Feishu pour les messages privés, les discussions de groupe et les fils de sujet.",
+      "appId": "ID de l’application",
+      "appIdPlaceholder": "ID d’application Feishu",
+      "appSecret": "Secret de l’application",
+      "appSecretPlaceholder": "Secret d’application Feishu",
+      "verificationToken": "Jeton de vérification",
+      "verificationTokenPlaceholder": "Jeton de vérification Feishu",
+      "encryptKey": "Clé de chiffrement (optionnelle)",
+      "encryptKeyPlaceholder": "Laissez vide si le chiffrement des événements n’est pas activé",
+      "botUser": "Utilisateur du bot : {name} ({openId})",
+      "bindings": "Liaisons : {count}, utilisateurs associés : {pairedUserCount}",
+      "pairedUserOpenIds": "Open ID des utilisateurs associés",
+      "pairedUserOpenIdsPlaceholder": "ex. ou_xxx, ou_yyy",
+      "accessRulesDescription": "Associez d’abord dans un message privé. Dans les groupes, seuls les utilisateurs associés qui mentionnent le bot avec {'@'} peuvent piloter une session.",
+      "accessRule1": "Associez dans un message privé avec /pair [code].",
+      "accessRule2": "Dans les groupes et les sujets, le bot ne réagit que lorsqu’un utilisateur associé le mentionne avec {'@'}."
+    },
+    "sections": {
+      "credentials": "Identifiants",
+      "remoteControl": "Contrôle à distance",
+      "notifications": "Notifications",
+      "accessRules": "Règles d’accès"
+    },
+    "overview": {
+      "telegram": "{bindingCount} liaisons, {pairedCount} utilisateurs associés, hooks {hooks}",
+      "feishu": "{bindingCount} liaisons, {pairedCount} utilisateurs associés",
+      "hooksOn": "activés",
+      "hooksOff": "désactivés"
+    },
+    "bindingKinds": {
+      "dm": "Message privé",
+      "group": "Groupe",
+      "topic": "Sujet"
     }
   },
   "deepchatAgents": {

@@ -63,7 +63,9 @@
               <Icon icon="lucide:monitor-cloud" class="w-4 h-4" :class="remoteControlIconClass" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent side="right">{{ remoteControlTooltip }}</TooltipContent>
+          <TooltipContent side="right" class="whitespace-pre-line">
+            {{ remoteControlTooltip }}
+          </TooltipContent>
         </Tooltip>
 
         <!-- Collapse toggle -->
@@ -296,7 +298,13 @@ const agentStore = useAgentStore()
 const sessionStore = useSessionStore()
 
 const collapsed = ref(false)
-const remoteControlStatus = ref<TelegramRemoteStatus | null>(null)
+const remoteControlStatus = ref<{
+  telegram: TelegramRemoteStatus | null
+  feishu: FeishuRemoteStatus | null
+}>({
+  telegram: null,
+  feishu: null
+})
 let agentSwitchSeq = 0
 let agentSwitchQueue: Promise<void> = Promise.resolve()
 let remoteControlStatusTimer: ReturnType<typeof setInterval> | null = null
@@ -304,13 +312,52 @@ let pinFeedbackTimer: number | null = null
 const selectedAgentName = computed(
   () => agentStore.selectedAgent?.name ?? t('chat.sidebar.allAgents')
 )
-const showRemoteControlButton = computed(() => remoteControlStatus.value?.enabled === true)
+
+const presenterCompat = remoteControlPresenter as typeof remoteControlPresenter & {
+  getChannelStatus?: (
+    channel: 'telegram' | 'feishu'
+  ) => Promise<TelegramRemoteStatus | FeishuRemoteStatus>
+}
+const showRemoteControlButton = computed(
+  () => remoteControlStatus.value.telegram?.enabled || remoteControlStatus.value.feishu?.enabled
+)
+const aggregatedRemoteControlState = computed<RemoteRuntimeState>(() => {
+  const states = [remoteControlStatus.value.telegram, remoteControlStatus.value.feishu]
+    .filter((status) => status?.enabled)
+    .map((status) => status?.state as RemoteRuntimeState)
+
+  if (states.length === 0) {
+    return 'disabled'
+  }
+  if (states.includes('error')) {
+    return 'error'
+  }
+  if (states.includes('backoff')) {
+    return 'backoff'
+  }
+  if (states.includes('starting')) {
+    return 'starting'
+  }
+  if (states.includes('running')) {
+    return 'running'
+  }
+  if (states.includes('stopped')) {
+    return 'stopped'
+  }
+  return 'disabled'
+})
 const remoteControlTooltip = computed(() => {
-  const state = remoteControlStatus.value?.state ?? 'starting'
-  return t(`chat.sidebar.remoteControlStatus.${state}`)
+  const telegramState = remoteControlStatus.value.telegram?.enabled
+    ? t(`chat.sidebar.remoteControlStatus.${remoteControlStatus.value.telegram.state}`)
+    : t('chat.sidebar.remoteControlDisabled')
+  const feishuState = remoteControlStatus.value.feishu?.enabled
+    ? t(`chat.sidebar.remoteControlStatus.${remoteControlStatus.value.feishu.state}`)
+    : t('chat.sidebar.remoteControlDisabled')
+
+  return [`Telegram: ${telegramState}`, `Feishu: ${feishuState}`].join('\n')
 })
 const remoteControlButtonClass = computed(() => {
-  const state = remoteControlStatus.value?.state ?? 'starting'
+  const state = aggregatedRemoteControlState.value
 
   if (state === 'error') {
     return 'border-red-500/40 bg-red-500/10 hover:bg-red-500/15'
@@ -319,7 +366,7 @@ const remoteControlButtonClass = computed(() => {
   return 'border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/15'
 })
 const remoteControlIconClass = computed(() => {
-  const state = remoteControlStatus.value?.state ?? 'starting'
+  const state = aggregatedRemoteControlState.value
 
   if (state === 'error') {
     return 'text-red-600 dark:text-red-400'
@@ -442,7 +489,27 @@ const openRemoteSettings = async () => {
 
 const refreshRemoteControlStatus = async () => {
   try {
-    remoteControlStatus.value = await remoteControlPresenter.getTelegramStatus()
+    const [telegram, feishu] = presenterCompat.getChannelStatus
+      ? await Promise.all([
+          presenterCompat.getChannelStatus('telegram'),
+          presenterCompat.getChannelStatus('feishu')
+        ])
+      : [
+          await remoteControlPresenter.getTelegramStatus(),
+          {
+            channel: 'feishu',
+            enabled: false,
+            state: 'disabled',
+            bindingCount: 0,
+            pairedUserCount: 0,
+            lastError: null,
+            botUser: null
+          } satisfies FeishuRemoteStatus
+        ]
+    remoteControlStatus.value = {
+      telegram,
+      feishu
+    }
   } catch (error) {
     console.warn('[WindowSideBar] Failed to refresh remote control status:', error)
   }

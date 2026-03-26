@@ -261,6 +261,7 @@
     "allAgents": "所有 Agents",
     "expandSidebar": "展开侧边栏",
     "collapseSidebar": "收起侧边栏",
+    "remoteControlDisabled": "未启用",
     "remoteControlStatus": {
       "disabled": "远程控制已禁用",
       "stopped": "远程控制已停止",

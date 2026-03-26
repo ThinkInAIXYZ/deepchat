@@ -294,6 +294,10 @@ describe('ToolPresenter', () => {
           source: 'agent'
         },
         {
+          ...buildToolDefinition('load_url', 'yobrowser'),
+          source: 'agent'
+        },
+        {
           ...buildToolDefinition('cdp_send', 'yobrowser'),
           source: 'agent'
         }
@@ -303,6 +307,12 @@ describe('ToolPresenter', () => {
     expect(withoutYoBrowser).not.toContain('YoBrowser')
     expect(withYoBrowser).toContain('YoBrowser')
     expect(withYoBrowser).toContain('cdp_send')
+    expect(withYoBrowser).toContain(
+      'Prefer `load_url` to create the session browser and handle navigation.'
+    )
+    expect(withYoBrowser).toContain(
+      'Avoid using `cdp_send` `Page.navigate` for normal navigation unless needed.'
+    )
   })
 
   it('includes question guidance only when deepchat_question is enabled', () => {

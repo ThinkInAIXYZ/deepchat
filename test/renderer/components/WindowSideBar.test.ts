@@ -81,6 +81,28 @@ const setup = async (options: SetupOptions = {}) => {
     show: vi.fn()
   }
   const remoteControlPresenter = {
+    getChannelStatus: vi.fn(async (channel: 'telegram' | 'feishu') =>
+      channel === 'telegram'
+        ? {
+            channel: 'telegram' as const,
+            enabled: remoteStatus.enabled,
+            state: remoteStatus.state,
+            pollOffset: 0,
+            bindingCount: 0,
+            allowedUserCount: 0,
+            lastError: null,
+            botUser: null
+          }
+        : {
+            channel: 'feishu' as const,
+            enabled: false,
+            state: 'disabled' as const,
+            bindingCount: 0,
+            pairedUserCount: 0,
+            lastError: null,
+            botUser: null
+          }
+    ),
     getTelegramStatus: vi.fn().mockResolvedValue({
       enabled: remoteStatus.enabled,
       state: remoteStatus.state,

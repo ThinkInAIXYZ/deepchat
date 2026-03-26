@@ -260,7 +260,8 @@
     "groupByProject": "Grouper par projet",
     "pinned": "Épinglés",
     "emptyTitle": "Aucune conversation pour le moment",
-    "emptyDescription": "Commencez une nouvelle discussion pour démarrer"
+    "emptyDescription": "Commencez une nouvelle discussion pour démarrer",
+    "remoteControlDisabled": "Désactivé"
   },
   "floatingWidget": {
     "title": "DeepChat",

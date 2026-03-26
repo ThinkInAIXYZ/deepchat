@@ -260,7 +260,8 @@
     "groupByProject": "프로젝트별 그룹화",
     "pinned": "고정됨",
     "emptyTitle": "아직 대화가 없습니다",
-    "emptyDescription": "새 대화를 시작해 보세요"
+    "emptyDescription": "새 대화를 시작해 보세요",
+    "remoteControlDisabled": "사용 안 함"
   },
   "floatingWidget": {
     "title": "DeepChat",

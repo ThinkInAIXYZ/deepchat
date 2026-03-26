@@ -260,7 +260,8 @@
     "groupByProject": "按專案分組",
     "pinned": "置頂會話",
     "emptyTitle": "還沒有對話",
-    "emptyDescription": "開始一個新對話吧"
+    "emptyDescription": "開始一個新對話吧",
+    "remoteControlDisabled": "未啟用"
   },
   "floatingWidget": {
     "title": "DeepChat",

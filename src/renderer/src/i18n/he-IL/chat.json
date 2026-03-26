@@ -260,7 +260,8 @@
     "groupByProject": "קבץ לפי פרויקט",
     "pinned": "נעוצים",
     "emptyTitle": "עדיין אין שיחות",
-    "emptyDescription": "התחילו שיחה חדשה כדי להתחיל"
+    "emptyDescription": "התחילו שיחה חדשה כדי להתחיל",
+    "remoteControlDisabled": "מושבת"
   },
   "floatingWidget": {
     "title": "DeepChat",

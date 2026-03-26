@@ -260,7 +260,8 @@
     "groupByProject": "Группировать по проекту",
     "pinned": "Закрепленные",
     "emptyTitle": "Пока нет диалогов",
-    "emptyDescription": "Начните новый чат, чтобы приступить"
+    "emptyDescription": "Начните новый чат, чтобы приступить",
+    "remoteControlDisabled": "Отключено"
   },
   "floatingWidget": {
     "title": "DeepChat",
