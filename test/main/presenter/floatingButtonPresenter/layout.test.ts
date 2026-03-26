@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildFloatingWidgetSnapshot,
+  getPeekedCollapsedBounds,
   getCollapsedWidgetSize,
   getExpandedWidgetSize,
   repositionWidgetForResize,
@@ -79,6 +80,27 @@ describe('floating widget layout helpers', () => {
 
     expect(nextBounds.x + nextBounds.width).toBe(864)
     expect(nextBounds.y).toBe(120)
+  })
+
+  it('hides half of the collapsed widget outside the work area when idle', () => {
+    const peekedBounds = getPeekedCollapsedBounds(
+      {
+        x: 800,
+        y: 120,
+        width: getCollapsedWidgetSize(0).width,
+        height: getCollapsedWidgetSize(0).height
+      },
+      {
+        x: 0,
+        y: 0,
+        width: 864,
+        height: 900
+      },
+      'right'
+    )
+
+    expect(peekedBounds.x).toBe(832)
+    expect(peekedBounds.y).toBe(120)
   })
 
   it('snaps dropped widget bounds to the nearest horizontal edge and clamps Y', () => {
