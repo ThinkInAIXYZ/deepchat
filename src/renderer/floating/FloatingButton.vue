@@ -428,10 +428,8 @@ onUnmounted(() => {
 }
 
 .widget-stage[data-motion='closing'] {
-  --transition-collapsed-layer:
-    opacity 180ms ease, transform 220ms var(--widget-ease-soft);
-  --transition-expanded-shell:
-    opacity 200ms ease, transform 220ms var(--widget-ease-soft);
+  --transition-collapsed-layer: opacity 180ms ease, transform 220ms var(--widget-ease-soft);
+  --transition-expanded-shell: opacity 200ms ease, transform 220ms var(--widget-ease-soft);
   --transition-panel: opacity 170ms ease, transform 180ms var(--widget-ease-soft);
   --transition-session: opacity 160ms ease, transform 180ms var(--widget-ease-soft);
   --transition-logo-hero:
