@@ -22,7 +22,7 @@
 ## Coding Style & Naming Conventions
 - TypeScript + Vue 3 Composition API; Pinia for state; Tailwind for styles.
 - i18n: all user-facing strings use vue-i18n keys in `src/renderer/src/i18n`.
-- Prettier: single quotes, no semicolons, width 100. Run `pnpm run format`.
+- Oxfmt: single quotes, no semicolons, width 100. Run `pnpm run format`.
 - OxLint for JS/TS; hooks run `lint-staged` and `typecheck`.
 - Names: Vue components PascalCase (`ChatInput.vue`); variables/functions `camelCase`; types/classes `PascalCase`; constants `SCREAMING_SNAKE_CASE`.
 

@@ -19,8 +19,8 @@
     "test:coverage": "vitest --coverage",
     "test:watch": "vitest --watch",
     "test:ui": "vitest --ui",
-    "format:check": "prettier --check .",
-    "format": "prettier --cache --write .",
+    "format:check": "oxfmt --check .",
+    "format": "oxfmt .",
     "lint": "pnpm run lint:agent-cleanup && oxlint .",
     "lint:agent-cleanup": "node scripts/agent-cleanup-guard.mjs",
     "typecheck:node": "tsgo --noEmit -p tsconfig.node.json --composite false",
@@ -160,10 +160,10 @@
     "mermaid": "^11.12.2",
     "minimatch": "^10.1.1",
     "monaco-editor": "^0.52.2",
+    "oxfmt": "^0.42.0",
     "oxlint": "^1.35.0",
     "picocolors": "^1.1.1",
     "pinia": "^3.0.4",
-    "prettier": "^3.7.4",
     "reka-ui": "^2.7.0",
     "simple-git-hooks": "^2.13.1",
     "stream-monaco": "^0.0.15",
@@ -195,11 +195,8 @@
     "commit-msg": "node scripts/verify-commit.js \"$1\""
   },
   "lint-staged": {
-    "*.js": [
-      "prettier --write"
-    ],
-    "*.ts": [
-      "prettier --parser=typescript --write"
+    "*.{js,ts}": [
+      "oxfmt --no-error-on-unmatched-pattern"
     ]
   },
   "pnpm": {
