@@ -271,6 +271,7 @@
     },
     "groupByDate": "Group by date",
     "groupByProject": "Group by project",
+    "pinned": "Pinned",
     "emptyTitle": "No conversations yet",
     "emptyDescription": "Start a new chat to begin"
   }

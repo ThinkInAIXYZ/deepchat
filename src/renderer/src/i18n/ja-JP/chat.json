@@ -258,6 +258,7 @@
     },
     "groupByDate": "日付でグループ化",
     "groupByProject": "プロジェクトでグループ化",
+    "pinned": "ピン留め",
     "emptyTitle": "まだ会話がありません",
     "emptyDescription": "新しいチャットを始めましょう"
   },

@@ -23,8 +23,6 @@ const props = defineProps<{
 const emit = defineEmits<{
   select: [session: UISession]
   'toggle-pin': [session: UISession]
-  rename: [session: UISession]
-  clear: [session: UISession]
   delete: [session: UISession]
 }>()
 
@@ -38,7 +36,7 @@ const pinActionLabel = computed(() =>
 
 <template>
   <div
-    class="session-item no-drag flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors duration-200"
+    class="session-item no-drag flex w-full items-center gap-1 rounded-md px-2 py-1.5 text-left transition-colors duration-200"
     :class="active ? 'bg-accent text-accent-foreground' : 'text-foreground/80 hover:bg-accent/50'"
     :data-pin-fx="pinFeedbackMode ?? undefined"
     :data-hero-hidden="heroHidden ? 'true' : undefined"
@@ -178,8 +176,20 @@ const pinActionLabel = computed(() =>
   background: var(--accent);
 }
 
+.session-item:hover .pin-button--idle,
+.session-item:focus-within .pin-button--idle,
+.session-item[data-pin-fx] .pin-button--idle,
+.pin-button[data-pin-fx] {
+  visibility: visible;
+}
+
+.sidebar-pin-flight .pin-button--idle {
+  visibility: visible;
+}
+
 .pin-button--idle {
   color: var(--muted-foreground);
+  visibility: hidden;
 }
 
 .pin-button--active {

@@ -3,6 +3,7 @@ import { defineComponent, reactive } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 
 type SetupOptions = {
+  groupMode?: 'time' | 'project'
   pinnedSessions?: Array<{ id: string; title: string; status: string; isPinned?: boolean }>
   groups?: Array<{
     label: string
@@ -40,7 +41,7 @@ const setup = async (options: SetupOptions = {}) => {
   })
 
   const sessionStore = reactive({
-    groupMode: 'time' as const,
+    groupMode: (options.groupMode ?? 'time') as 'time' | 'project',
     activeSessionId: 'session-1' as string | null,
     hasActiveSession: true,
     selectSession: vi.fn(async (id: string) => {
@@ -216,8 +217,36 @@ describe('WindowSideBar agent switch', () => {
     await wrapper.vm.$nextTick()
 
     expect(wrapper.text()).toContain('Pinned Session')
+    expect(wrapper.text()).toContain('chat.sidebar.pinned')
     expect(wrapper.text()).toContain('common.time.today')
     expect(wrapper.text()).toContain('Normal Session')
+  }, 10000)
+
+  it('collapses and expands pinned sessions from the pinned folder header', async () => {
+    const { wrapper } = await setup({
+      pinnedSessions: [
+        {
+          id: 'pinned-1',
+          title: 'Pinned Session',
+          status: 'none'
+        }
+      ]
+    })
+
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.text()).toContain('chat.sidebar.pinned')
+    expect(wrapper.text()).toContain('Pinned Session')
+
+    await wrapper.find('[data-group-id="__pinned__"]').trigger('click')
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.text()).not.toContain('Pinned Session')
+
+    await wrapper.find('[data-group-id="__pinned__"]').trigger('click')
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.text()).toContain('Pinned Session')
   }, 10000)
 
   it('toggles pinned state from a session item action', async () => {
@@ -244,7 +273,73 @@ describe('WindowSideBar agent switch', () => {
     expect(sessionStore.toggleSessionPinned).toHaveBeenCalledWith('normal-1', true)
   }, 10000)
 
-  it('opens dialogs and dispatches rename, clear, and delete actions', async () => {
+  it('collapses and expands time groups from the folder header', async () => {
+    const { wrapper } = await setup({
+      groups: [
+        {
+          label: 'common.time.today',
+          labelKey: 'common.time.today',
+          sessions: [
+            {
+              id: 'time-1',
+              title: 'Today Session',
+              status: 'none'
+            }
+          ]
+        }
+      ]
+    })
+
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.text()).toContain('common.time.today')
+    expect(wrapper.text()).toContain('Today Session')
+
+    await wrapper.find('[data-group-id="common.time.today"]').trigger('click')
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.text()).not.toContain('Today Session')
+
+    await wrapper.find('[data-group-id="common.time.today"]').trigger('click')
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.text()).toContain('Today Session')
+  }, 10000)
+
+  it('collapses and expands project groups from the folder header', async () => {
+    const { wrapper } = await setup({
+      groupMode: 'project',
+      groups: [
+        {
+          label: 'DeepChat',
+          sessions: [
+            {
+              id: 'project-1',
+              title: 'Project Session',
+              status: 'none'
+            }
+          ]
+        }
+      ]
+    })
+
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.text()).toContain('DeepChat')
+    expect(wrapper.text()).toContain('Project Session')
+
+    await wrapper.find('[data-group-id="DeepChat"]').trigger('click')
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.text()).not.toContain('Project Session')
+
+    await wrapper.find('[data-group-id="DeepChat"]').trigger('click')
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.text()).toContain('Project Session')
+  }, 10000)
+
+  it('opens the delete dialog and dispatches delete actions', async () => {
     const session = {
       id: 'normal-1',
       title: 'Normal Session',
@@ -262,20 +357,6 @@ describe('WindowSideBar agent switch', () => {
     })
 
     const item = wrapper.findComponent({ name: 'WindowSideBarSessionItem' })
-
-    item.vm.$emit('rename', session)
-    await wrapper.vm.$nextTick()
-    expect(wrapper.text()).toContain('dialog.rename.title')
-    ;(wrapper.vm as any).renameValue = 'Renamed Session'
-    await (wrapper.vm as any).handleRenameConfirm()
-    expect(sessionStore.renameSession).toHaveBeenCalledWith('normal-1', 'Renamed Session')
-
-    item.vm.$emit('clear', session)
-    await wrapper.vm.$nextTick()
-    expect(wrapper.text()).toContain('dialog.cleanMessages.title')
-
-    await (wrapper.vm as any).handleClearConfirm()
-    expect(sessionStore.clearSessionMessages).toHaveBeenCalledWith('normal-1')
 
     item.vm.$emit('delete', session)
     await wrapper.vm.$nextTick()

@@ -258,6 +258,7 @@
     },
     "groupByDate": "Grouper par date",
     "groupByProject": "Grouper par projet",
+    "pinned": "Épinglés",
     "emptyTitle": "Aucune conversation pour le moment",
     "emptyDescription": "Commencez une nouvelle discussion pour démarrer"
   },

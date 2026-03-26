@@ -258,6 +258,7 @@
     },
     "groupByDate": "Gruppér efter dato",
     "groupByProject": "Gruppér efter projekt",
+    "pinned": "Fastgjorte",
     "emptyTitle": "Ingen samtaler endnu",
     "emptyDescription": "Start en ny samtale for at komme i gang"
   },
