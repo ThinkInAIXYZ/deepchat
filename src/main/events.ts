@@ -219,11 +219,6 @@ export const TRAY_EVENTS = {
   CHECK_FOR_UPDATES: 'tray:check-for-updates' // 托盘检查更新
 }
 
-// MCP会议专用事件
-export const MEETING_EVENTS = {
-  INSTRUCTION: 'mcp:meeting-instruction' // 主进程向渲染进程发送指令
-}
-
 // 悬浮按钮相关事件
 export const FLOATING_BUTTON_EVENTS = {
   CLICKED: 'floating-button:clicked', // 悬浮按钮被点击

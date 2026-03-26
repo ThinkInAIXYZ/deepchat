@@ -258,16 +258,6 @@ const DEFAULT_INMEMORY_SERVERS: Record<string, Omit<MCPServerConfig, 'enabled'>>
     env: {},
     disable: false
   },
-  'deepchat-inmemory/meeting-server': {
-    args: [],
-    descriptions: 'DeepChat内置会议服务，用于组织多Agent讨论',
-    icons: '👥',
-    autoApprove: ['all'],
-    type: 'inmemory' as MCPServerType,
-    command: 'deepchat-inmemory/meeting-server',
-    env: {},
-    disable: false
-  },
   // Merge platform-specific services
   ...PLATFORM_SPECIFIC_SERVERS
 }
@@ -384,13 +374,29 @@ export class McpConfHelper {
   private removeDeprecatedBuiltInServers(
     servers: Record<string, MCPServerConfig>
   ): Record<string, MCPServerConfig> {
-    const deprecatedBuiltInServers = ['powerpack']
+    const deprecatedBuiltInServers = ['powerpack', 'deepchat-inmemory/meeting-server']
+    let hasChanges = false
+    const removedBuiltInServers = new Set(this.getRemovedBuiltInServers())
+    let removedListChanged = false
 
     for (const serverName of deprecatedBuiltInServers) {
       if (servers[serverName]) {
         console.log(`Removing deprecated built-in MCP service: ${serverName}`)
         delete servers[serverName]
+        hasChanges = true
       }
+
+      if (removedBuiltInServers.delete(serverName)) {
+        removedListChanged = true
+      }
+    }
+
+    if (hasChanges) {
+      this.mcpStore.set('mcpServers', servers)
+    }
+
+    if (removedListChanged) {
+      this.setRemovedBuiltInServers(Array.from(removedBuiltInServers))
     }
 
     return servers
@@ -913,15 +919,9 @@ export class McpConfHelper {
     }
 
     try {
-      const mcpServers = this.mcpStore.get('mcpServers') || {}
-
-      if (mcpServers.powerpack) {
-        console.log('Removing deprecated powerpack MCP server')
-        delete mcpServers.powerpack
-        this.mcpStore.set('mcpServers', mcpServers)
-      }
+      this.removeDeprecatedBuiltInServers(this.mcpStore.get('mcpServers') || {})
     } catch (error) {
-      console.error('Error occurred while removing deprecated powerpack server:', error)
+      console.error('Error occurred while removing deprecated built-in MCP servers:', error)
     }
 
     // 升级后检查并添加平台特有服务

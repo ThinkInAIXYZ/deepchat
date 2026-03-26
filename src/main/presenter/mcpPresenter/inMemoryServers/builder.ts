@@ -9,7 +9,6 @@ import { FastGptKnowledgeServer } from './fastGptKnowledgeServer'
 import { DeepResearchServer } from './deepResearchServer'
 import { AutoPromptingServer } from './autoPromptingServer'
 import { ConversationSearchServer } from './conversationSearchServer'
-import { MeetingServer } from './meetingServer'
 import { BuiltinKnowledgeServer } from './builtinKnowledgeServer'
 import { BuiltinKnowledgeConfig } from '@shared/presenter'
 import { AppleServer } from './appleServer'
@@ -79,8 +78,6 @@ export function getInMemoryServer(
       return new AutoPromptingServer()
     case 'deepchat-inmemory/conversation-search-server':
       return new ConversationSearchServer()
-    case 'deepchat-inmemory/meeting-server':
-      return new MeetingServer()
     case 'deepchat/apple-server':
       // 只在 macOS 上创建 AppleServer
       if (process.platform !== 'darwin') {

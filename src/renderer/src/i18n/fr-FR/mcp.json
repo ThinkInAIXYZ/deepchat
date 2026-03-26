@@ -195,10 +195,6 @@
       "name": "Recherche d’historique",
       "desc": "Rechercher les conversations et messages passés (intégré à DeepChat)"
     },
-    "deepchat-inmemory/meeting-server": {
-      "name": "Réunion Multi-Agent",
-      "desc": "Le service de réunion intégré de DeepChat permet d’organiser et d’animer des discussions multi-agents."
-    },
     "builtinKnowledge": {
       "desc": "Recherche dans la base de connaissances intégrée de DeepChat (docs, contenus intégrés).",
       "name": "Base de connaissances intégrée"

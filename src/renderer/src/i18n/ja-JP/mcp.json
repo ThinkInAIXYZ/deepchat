@@ -195,10 +195,6 @@
       "name": "会話履歴検索",
       "desc": "DeepChat内蔵の会話履歴検索サービス、過去の会話記録とメッセージ内容を検索できます"
     },
-    "deepchat-inmemory/meeting-server": {
-      "name": "マルチエージェント会議",
-      "desc": "DeepChatの内蔵会議サービスは、マルチエージェントによる討論の開催と進行を可能にします。"
-    },
     "builtinKnowledge": {
       "desc": "deepchatビルトインナレッジベース検索サービス。これは、deepchatビルトインナレッジベースのコンテンツを検索できる",
       "name": "組み込みのナレッジベース検索"

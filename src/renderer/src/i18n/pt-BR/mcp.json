@@ -199,10 +199,6 @@
       "desc": "Pesquisa na base de conhecimento integrada do DeepChat para documentação e guias.",
       "name": "Pesquisa na base de conhecimento integrada"
     },
-    "deepchat-inmemory/meeting-server": {
-      "name": "Reuniões Multi-Agente",
-      "desc": "Reuniões integradas ao DeepChat para hospedar discussões multi-agente."
-    },
     "deepchat/apple-server": {
       "desc": "Permite que os modelos operem aplicativos do macOS como Calendário, Contatos, Mail, Mapas, Notas e Lembretes.",
       "name": "Assistente do Sistema macOS"

@@ -75,14 +75,9 @@
                 {{ t('settings.acp.installedSectionDescription') }}
               </p>
             </div>
-            <div class="flex items-center gap-2">
-              <Badge variant="outline">
-                {{ t('settings.acp.installedCount', { count: installedRegistryAgents.length }) }}
-              </Badge>
-              <Button size="sm" variant="outline" @click="openRegistryDialog">
-                {{ t('settings.acp.registryInstallEntry') }}
-              </Button>
-            </div>
+            <Badge variant="outline">
+              {{ t('settings.acp.installedCount', { count: installedRegistryAgents.length }) }}
+            </Badge>
           </div>
 
           <div
@@ -101,10 +96,6 @@
                 <p class="text-sm text-muted-foreground">
                   {{ t('settings.acp.installedEmptyDescription') }}
                 </p>
-                <Button @click="openRegistryDialog">
-                  <Icon icon="lucide:download" class="h-4 w-4 mr-2" />
-                  {{ t('settings.acp.registryInstallEntry') }}
-                </Button>
               </div>
             </CardContent>
           </Card>

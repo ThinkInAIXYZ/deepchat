@@ -83,10 +83,6 @@
       "desc": "DeepChat indbyggede dybdeforskningsservice baseret på Bocha-søgning (bemærk, at det kræver en lang kontekstmodel for at kunne bruges; modeller med utilstrækkelig kontekst kan fejle).",
       "name": "DeepResearch"
     },
-    "deepchat-inmemory/meeting-server": {
-      "desc": "DeepChat har en indbygget mødetjeneste, der understøtter igangsættelse og ledelse af diskussioner med flere intelligente agenter.",
-      "name": "Multi-agent møde"
-    },
     "deepchat/apple-server": {
       "desc": "Lad modellen kunne betjene macOS' systemfunktioner som kalender, kontakter, mail, kort, noter og påmindelser.",
       "name": "macOS systemassistent"

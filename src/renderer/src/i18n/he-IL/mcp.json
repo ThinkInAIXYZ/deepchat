@@ -238,10 +238,6 @@
       "desc": "חיפוש בסיס ידע מובנה של DeepChat עבור מסמכים ומדריכים של DeepChat.",
       "name": "חיפוש בסיס ידע מובנה"
     },
-    "deepchat-inmemory/meeting-server": {
-      "name": "פגישות מרובות סוכנים (Multi-Agent)",
-      "desc": "פגישות מובנות ב-DeepChat לאירוח דיונים מרובי סוכנים."
-    },
     "deepchat/apple-server": {
       "desc": "אפשר למודלים להפעיל אפליקציות macOS כמו יומן, אנשי קשר, דואר, מפות, פתקים ותזכורות.",
       "name": "עוזר מערכת macOS"
