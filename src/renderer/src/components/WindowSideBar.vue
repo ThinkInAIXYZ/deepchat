@@ -281,7 +281,7 @@ import { usePresenter, useRemoteControlPresenter } from '@/composables/usePresen
 import { SETTINGS_EVENTS } from '@/events'
 import { useAgentStore } from '@/stores/ui/agent'
 import { useSessionStore, type SessionGroup, type UISession } from '@/stores/ui/session'
-import type { TelegramRemoteStatus } from '@shared/presenter'
+import type { TelegramRemoteStatus, FeishuRemoteStatus, RemoteRuntimeState } from '@shared/presenter'
 import AgentAvatar from './icons/AgentAvatar.vue'
 import WindowSideBarSessionItem from './WindowSideBarSessionItem.vue'
 import { useI18n } from 'vue-i18n'
