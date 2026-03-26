@@ -36,7 +36,7 @@ const pinActionLabel = computed(() =>
 
 <template>
   <div
-    class="session-item no-drag flex w-full items-center gap-1 rounded-md px-2 py-1.5 text-left transition-colors duration-200"
+    class="session-item select-none cursor-pointer no-drag flex w-full items-center gap-1 rounded-md px-2 py-1.5 text-left transition-colors duration-200"
     :class="active ? 'bg-accent text-accent-foreground' : 'text-foreground/80 hover:bg-accent/50'"
     :data-pin-fx="pinFeedbackMode ?? undefined"
     :data-hero-hidden="heroHidden ? 'true' : undefined"
