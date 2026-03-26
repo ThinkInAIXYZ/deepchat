@@ -142,87 +142,104 @@
           </div>
         </div>
 
+        <!-- Empty state -->
+        <div
+          v-if="pinnedSessions.length === 0 && filteredGroups.length === 0"
+          class="flex flex-col items-center justify-center h-full px-4 text-center"
+        >
+          <Icon icon="lucide:message-square-plus" class="w-8 h-8 text-muted-foreground/40 mb-3" />
+          <p class="text-sm text-muted-foreground/60">{{ t('chat.sidebar.emptyTitle') }}</p>
+          <p class="text-xs text-muted-foreground/40 mt-1">
+            {{ t('chat.sidebar.emptyDescription') }}
+          </p>
+        </div>
+
         <!-- Session list -->
-        <div class="flex-1 overflow-y-auto px-1.5">
-          <div v-if="pinnedSessions.length > 0" class="pt-2 space-y-0.5">
-            <WindowSideBarSessionItem
-              v-for="session in pinnedSessions"
-              :key="`pinned-${session.id}`"
-              :session="session"
-              :active="sessionStore.activeSessionId === session.id"
-              @select="handleSessionClick"
-              @toggle-pin="handleTogglePin"
-              @rename="openRenameDialog"
-              @clear="openClearDialog"
-              @delete="openDeleteDialog"
-            />
+        <div ref="sessionListRef" class="session-list flex-1 overflow-y-auto px-1.5">
+          <div v-if="pinnedSessions.length > 0" class="pt-2">
+            <button
+              type="button"
+              class="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-xs font-medium text-muted-foreground transition-colors duration-150 hover:bg-accent/40 hover:text-foreground"
+              data-group-id="__pinned__"
+              :aria-expanded="!isPinnedSectionCollapsed"
+              @click="togglePinnedSection"
+            >
+              <Icon
+                :icon="isPinnedSectionCollapsed ? 'lucide:chevron-right' : 'lucide:chevron-down'"
+                class="h-3 w-3 shrink-0"
+              />
+              <span class="shrink-0 size-6 flex items-center justify-center">
+                <Icon
+                  :icon="isPinnedSectionCollapsed ? 'lucide:folder-closed' : 'lucide:folder-open'"
+                  class="size-4"
+                />
+              </span>
+              <span class="truncate">
+                {{ t('chat.sidebar.pinned') }}
+              </span>
+            </button>
+
+            <Transition name="sidebar-group-collapse">
+              <div v-if="!isPinnedSectionCollapsed" class="space-y-0.5 pl-4">
+                <WindowSideBarSessionItem
+                  v-for="session in pinnedSessions"
+                  :key="`pinned-${session.id}`"
+                  :session="session"
+                  :active="sessionStore.activeSessionId === session.id"
+                  region="pinned"
+                  :hero-hidden="pinFlightSessionId === session.id"
+                  :pin-feedback-mode="pinFeedbackSessionId === session.id ? pinFeedbackMode : null"
+                  @select="handleSessionClick"
+                  @toggle-pin="handleTogglePin"
+                  @delete="openDeleteDialog"
+                />
+              </div>
+            </Transition>
           </div>
 
-          <!-- Empty state -->
-          <div
-            v-if="pinnedSessions.length === 0 && filteredGroups.length === 0"
-            class="flex flex-col items-center justify-center h-full px-4 text-center"
-          >
-            <Icon icon="lucide:message-square-plus" class="w-8 h-8 text-muted-foreground/40 mb-3" />
-            <p class="text-sm text-muted-foreground/60">{{ t('chat.sidebar.emptyTitle') }}</p>
-            <p class="text-xs text-muted-foreground/40 mt-1">
-              {{ t('chat.sidebar.emptyDescription') }}
-            </p>
-          </div>
-
-          <template v-for="group in filteredGroups" :key="group.label">
-            <div class="px-1.5 pt-3 pb-1">
-              <span class="text-xs font-medium text-muted-foreground">{{
-                group.labelKey ? t(group.labelKey) : group.label
-              }}</span>
-            </div>
-            <WindowSideBarSessionItem
-              v-for="session in group.sessions"
-              :key="session.id"
-              :session="session"
-              :active="sessionStore.activeSessionId === session.id"
-              @select="handleSessionClick"
-              @toggle-pin="handleTogglePin"
-              @rename="openRenameDialog"
-              @clear="openClearDialog"
-              @delete="openDeleteDialog"
-            />
+          <template v-for="group in filteredGroups" :key="getGroupIdentifier(group)">
+            <button
+              type="button"
+              class="mt-2 flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-xs font-medium text-muted-foreground transition-colors duration-150 hover:bg-accent/40 hover:text-foreground"
+              :data-group-id="getGroupIdentifier(group)"
+              :aria-expanded="!isGroupCollapsed(group)"
+              @click="toggleGroup(group)"
+            >
+              <Icon
+                :icon="isGroupCollapsed(group) ? 'lucide:chevron-right' : 'lucide:chevron-down'"
+                class="h-3 w-3 shrink-0"
+              />
+              <span class="shrink-0 size-6 flex items-center justify-center">
+                <Icon
+                  :icon="isPinnedSectionCollapsed ? 'lucide:folder-closed' : 'lucide:folder-open'"
+                  class="size-4"
+                />
+              </span>
+              <span class="truncate">
+                {{ getGroupLabel(group) }}
+              </span>
+            </button>
+            <Transition name="sidebar-group-collapse">
+              <div v-if="!isGroupCollapsed(group)" class="space-y-0.5 pl-4">
+                <WindowSideBarSessionItem
+                  v-for="session in group.sessions"
+                  :key="session.id"
+                  :session="session"
+                  :active="sessionStore.activeSessionId === session.id"
+                  region="grouped"
+                  :hero-hidden="pinFlightSessionId === session.id"
+                  :pin-feedback-mode="pinFeedbackSessionId === session.id ? pinFeedbackMode : null"
+                  @select="handleSessionClick"
+                  @toggle-pin="handleTogglePin"
+                  @delete="openDeleteDialog"
+                />
+              </div>
+            </Transition>
           </template>
         </div>
       </div>
     </div>
   </TooltipProvider>
-
-  <Dialog v-model:open="renameDialogOpen">
-    <DialogContent>
-      <DialogHeader>
-        <DialogTitle>{{ t('dialog.rename.title') }}</DialogTitle>
-        <DialogDescription>{{ t('dialog.rename.description') }}</DialogDescription>
-      </DialogHeader>
-      <Input v-model="renameValue" />
-      <DialogFooter>
-        <Button variant="outline" @click="renameDialogOpen = false">{{
-          t('dialog.cancel')
-        }}</Button>
-        <Button variant="default" @click="handleRenameConfirm">{{ t('dialog.confirm') }}</Button>
-      </DialogFooter>
-    </DialogContent>
-  </Dialog>
-
-  <Dialog v-model:open="clearDialogOpen">
-    <DialogContent>
-      <DialogHeader>
-        <DialogTitle>{{ t('dialog.cleanMessages.title') }}</DialogTitle>
-        <DialogDescription>{{ t('dialog.cleanMessages.description') }}</DialogDescription>
-      </DialogHeader>
-      <DialogFooter>
-        <Button variant="outline" @click="clearDialogOpen = false">{{ t('dialog.cancel') }}</Button>
-        <Button variant="destructive" @click="handleClearConfirm">{{
-          t('dialog.cleanMessages.confirm')
-        }}</Button>
-      </DialogFooter>
-    </DialogContent>
-  </Dialog>
 
   <Dialog v-model:open="deleteDialogOpen">
     <DialogContent>
@@ -243,9 +260,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
 import { Icon } from '@iconify/vue'
-import { Input } from '@shadcn/components/ui/input'
 import {
   Tooltip,
   TooltipContent,
@@ -264,15 +280,20 @@ import {
 import { usePresenter, useRemoteControlPresenter } from '@/composables/usePresenter'
 import { SETTINGS_EVENTS } from '@/events'
 import { useAgentStore } from '@/stores/ui/agent'
-import { useSessionStore, type UISession } from '@/stores/ui/session'
+import { useSessionStore, type SessionGroup, type UISession } from '@/stores/ui/session'
 import type {
+  TelegramRemoteStatus,
   FeishuRemoteStatus,
-  RemoteRuntimeState,
-  TelegramRemoteStatus
+  RemoteRuntimeState
 } from '@shared/presenter'
 import AgentAvatar from './icons/AgentAvatar.vue'
 import WindowSideBarSessionItem from './WindowSideBarSessionItem.vue'
 import { useI18n } from 'vue-i18n'
+
+type PinFeedbackMode = 'pinning' | 'unpinning'
+
+const PIN_FEEDBACK_DURATION_MS = 560
+const PIN_FLIGHT_DURATION_MS = 500
 
 const windowPresenter = usePresenter('windowPresenter')
 const remoteControlPresenter = useRemoteControlPresenter()
@@ -291,6 +312,7 @@ const remoteControlStatus = ref<{
 let agentSwitchSeq = 0
 let agentSwitchQueue: Promise<void> = Promise.resolve()
 let remoteControlStatusTimer: ReturnType<typeof setInterval> | null = null
+let pinFeedbackTimer: number | null = null
 const selectedAgentName = computed(
   () => agentStore.selectedAgent?.name ?? t('chat.sidebar.allAgents')
 )
@@ -357,30 +379,15 @@ const remoteControlIconClass = computed(() => {
   return ['text-emerald-600 dark:text-emerald-400', state === 'starting' ? 'animate-pulse' : '']
 })
 
+const isPinnedSectionCollapsed = ref(false)
+const collapsedGroupIds = ref<Set<string>>(new Set())
 const pinnedSessions = computed(() => sessionStore.getPinnedSessions(agentStore.selectedAgentId))
 const filteredGroups = computed(() => sessionStore.getFilteredGroups(agentStore.selectedAgentId))
-const renameTargetSession = ref<UISession | null>(null)
-const clearTargetSession = ref<UISession | null>(null)
+const pinFlightSessionId = ref<string | null>(null)
+const pinFeedbackSessionId = ref<string | null>(null)
+const pinFeedbackMode = ref<PinFeedbackMode | null>(null)
+const sessionListRef = ref<HTMLElement | null>(null)
 const deleteTargetSession = ref<UISession | null>(null)
-const renameValue = ref('')
-
-const renameDialogOpen = computed({
-  get: () => renameTargetSession.value !== null,
-  set: (open: boolean) => {
-    if (!open) {
-      renameTargetSession.value = null
-    }
-  }
-})
-
-const clearDialogOpen = computed({
-  get: () => clearTargetSession.value !== null,
-  set: (open: boolean) => {
-    if (!open) {
-      clearTargetSession.value = null
-    }
-  }
-})
 
 const deleteDialogOpen = computed({
   get: () => deleteTargetSession.value !== null,
@@ -390,6 +397,74 @@ const deleteDialogOpen = computed({
     }
   }
 })
+
+const getGroupIdentifier = (group: SessionGroup) => group.labelKey ?? group.label
+
+const getGroupLabel = (group: SessionGroup) => (group.labelKey ? t(group.labelKey) : group.label)
+
+const isGroupCollapsed = (group: SessionGroup) =>
+  collapsedGroupIds.value.has(getGroupIdentifier(group))
+
+const togglePinnedSection = () => {
+  isPinnedSectionCollapsed.value = !isPinnedSectionCollapsed.value
+}
+
+const toggleGroup = (group: SessionGroup) => {
+  const groupId = getGroupIdentifier(group)
+  const nextCollapsedGroupIds = new Set(collapsedGroupIds.value)
+
+  if (nextCollapsedGroupIds.has(groupId)) {
+    nextCollapsedGroupIds.delete(groupId)
+  } else {
+    nextCollapsedGroupIds.add(groupId)
+  }
+
+  collapsedGroupIds.value = nextCollapsedGroupIds
+}
+
+watch(
+  [pinnedSessions, () => sessionStore.activeSessionId],
+  ([sessions, activeSessionId]) => {
+    if (sessions.length === 0) {
+      isPinnedSectionCollapsed.value = false
+      return
+    }
+
+    if (activeSessionId && sessions.some((session) => session.id === activeSessionId)) {
+      isPinnedSectionCollapsed.value = false
+    }
+  },
+  { immediate: true }
+)
+
+watch(
+  [filteredGroups, () => sessionStore.activeSessionId],
+  ([groups, activeSessionId]) => {
+    const validGroupIds = new Set(groups.map(getGroupIdentifier))
+    const nextCollapsedGroupIds = new Set(
+      [...collapsedGroupIds.value].filter((groupId) => validGroupIds.has(groupId))
+    )
+
+    if (activeSessionId) {
+      const activeGroup = groups.find((group) =>
+        group.sessions.some((session) => session.id === activeSessionId)
+      )
+
+      if (activeGroup) {
+        nextCollapsedGroupIds.delete(getGroupIdentifier(activeGroup))
+      }
+    }
+
+    const stateChanged =
+      nextCollapsedGroupIds.size !== collapsedGroupIds.value.size ||
+      [...nextCollapsedGroupIds].some((groupId) => !collapsedGroupIds.value.has(groupId))
+
+    if (stateChanged) {
+      collapsedGroupIds.value = nextCollapsedGroupIds
+    }
+  },
+  { immediate: true }
+)
 
 const openSettings = () => {
   const windowId = window.api.getWindowId()
@@ -488,64 +563,179 @@ const handleSessionClick = (session: { id: string }) => {
   void sessionStore.selectSession(session.id)
 }
 
-const closeAllSessionDialogs = () => {
-  renameTargetSession.value = null
-  clearTargetSession.value = null
-  deleteTargetSession.value = null
-}
-
-const openRenameDialog = (session: UISession) => {
-  closeAllSessionDialogs()
-  renameValue.value = session.title
-  renameTargetSession.value = session
-}
-
-const openClearDialog = (session: UISession) => {
-  closeAllSessionDialogs()
-  clearTargetSession.value = session
-}
-
 const openDeleteDialog = (session: UISession) => {
-  closeAllSessionDialogs()
   deleteTargetSession.value = session
 }
 
-const handleTogglePin = async (session: UISession) => {
+const prefersReducedMotion = () =>
+  window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
+
+const clearPinFeedback = () => {
+  if (pinFeedbackTimer) {
+    window.clearTimeout(pinFeedbackTimer)
+    pinFeedbackTimer = null
+  }
+
+  pinFeedbackSessionId.value = null
+  pinFeedbackMode.value = null
+}
+
+const applyPinFeedback = (sessionId: string, nextPinned: boolean) => {
+  if (prefersReducedMotion()) {
+    clearPinFeedback()
+    return
+  }
+
+  if (pinFeedbackTimer) {
+    window.clearTimeout(pinFeedbackTimer)
+  }
+
+  pinFeedbackSessionId.value = sessionId
+  pinFeedbackMode.value = nextPinned ? 'pinning' : 'unpinning'
+  pinFeedbackTimer = window.setTimeout(() => {
+    pinFeedbackSessionId.value = null
+    pinFeedbackMode.value = null
+    pinFeedbackTimer = null
+  }, PIN_FEEDBACK_DURATION_MS)
+}
+
+const commitPinToggle = async (session: UISession, nextPinned: boolean, withFeedback = true) => {
+  await sessionStore.toggleSessionPinned(session.id, nextPinned)
+  if (withFeedback) {
+    applyPinFeedback(session.id, nextPinned)
+  }
+  await nextTick()
+}
+
+const waitForAnimationFrame = () =>
+  new Promise<void>((resolve) => {
+    window.requestAnimationFrame(() => resolve())
+  })
+
+const restoreSessionListScroll = (scrollTop: number | null) => {
+  if (scrollTop === null || !sessionListRef.value) {
+    return
+  }
+
+  sessionListRef.value.scrollTop = scrollTop
+}
+
+const getSessionItemElement = (sessionId: string, region: 'pinned' | 'grouped') =>
+  document.querySelector<HTMLElement>(
+    `.session-item[data-session-id="${sessionId}"][data-session-region="${region}"]`
+  )
+
+const createPinFlightClone = (sourceElement: HTMLElement, sourceRect: DOMRect) => {
+  const clone = sourceElement.cloneNode(true) as HTMLElement
+
+  clone.removeAttribute('style')
+  delete clone.dataset.pinFx
+  clone.dataset.heroHidden = 'false'
+  clone.setAttribute('aria-hidden', 'true')
+  clone.classList.add('sidebar-pin-flight')
+  Object.assign(clone.style, {
+    position: 'fixed',
+    left: `${sourceRect.left}px`,
+    top: `${sourceRect.top}px`,
+    width: `${sourceRect.width}px`,
+    height: `${sourceRect.height}px`,
+    margin: '0',
+    pointerEvents: 'none',
+    zIndex: '2147483647',
+    transformOrigin: 'top left',
+    willChange: 'transform',
+    contain: 'layout style paint'
+  })
+
+  return clone
+}
+
+const animatePinFlight = async (session: UISession, nextPinned: boolean) => {
+  const sourceRegion = session.isPinned ? 'pinned' : 'grouped'
+  const targetRegion = nextPinned ? 'pinned' : 'grouped'
+  const sourceElement = getSessionItemElement(session.id, sourceRegion)
+  const sourceRect = sourceElement?.getBoundingClientRect()
+  const preservedScrollTop = sessionListRef.value?.scrollTop ?? null
+
+  if (!sourceElement || !sourceRect || sourceRect.width === 0 || sourceRect.height === 0) {
+    await commitPinToggle(session, nextPinned)
+    return
+  }
+
+  const clone = createPinFlightClone(sourceElement, sourceRect)
+  document.body.appendChild(clone)
+  pinFlightSessionId.value = session.id
+  await nextTick()
+
   try {
-    await sessionStore.toggleSessionPinned(session.id, !session.isPinned)
+    await commitPinToggle(session, nextPinned, false)
+    restoreSessionListScroll(preservedScrollTop)
+    await waitForAnimationFrame()
+    restoreSessionListScroll(preservedScrollTop)
+    await waitForAnimationFrame()
+
+    const targetElement = getSessionItemElement(session.id, targetRegion)
+    const targetRect = targetElement?.getBoundingClientRect()
+
+    if (!targetElement || !targetRect || targetRect.width === 0 || targetRect.height === 0) {
+      pinFlightSessionId.value = null
+      applyPinFeedback(session.id, nextPinned)
+      return
+    }
+
+    const deltaX = targetRect.left - sourceRect.left
+    const deltaY = targetRect.top - sourceRect.top
+    const scaleX = targetRect.width / sourceRect.width
+    const scaleY = targetRect.height / sourceRect.height
+
+    const animation = clone.animate(
+      [
+        {
+          transform: 'translate3d(0, 0, 0) scale(1)',
+          opacity: 1,
+          offset: 0
+        },
+        {
+          transform: `translate3d(${deltaX * 0.88}px, ${deltaY * 0.88}px, 0) scale(${1.015}, ${1.015})`,
+          opacity: 1,
+          offset: 0.72
+        },
+        {
+          transform: `translate3d(${deltaX}px, ${deltaY}px, 0) scale(${scaleX}, ${scaleY})`,
+          opacity: 1,
+          offset: 1
+        }
+      ],
+      {
+        duration: PIN_FLIGHT_DURATION_MS,
+        easing: 'cubic-bezier(0.22, 0.88, 0.24, 1)',
+        fill: 'forwards'
+      }
+    )
+
+    await animation.finished.catch(() => undefined)
+    pinFlightSessionId.value = null
+    await nextTick()
+    applyPinFeedback(session.id, nextPinned)
+  } finally {
+    pinFlightSessionId.value = null
+    clone.remove()
+  }
+}
+
+const handleTogglePin = async (session: UISession) => {
+  const nextPinned = !session.isPinned
+
+  try {
+    if (prefersReducedMotion()) {
+      await commitPinToggle(session, nextPinned)
+      return
+    }
+
+    await animatePinFlight(session, nextPinned)
   } catch (error) {
     console.error('Failed to toggle pin status:', error)
   }
-}
-
-const handleRenameConfirm = async () => {
-  const targetSession = renameTargetSession.value
-  if (!targetSession) {
-    return
-  }
-
-  try {
-    await sessionStore.renameSession(targetSession.id, renameValue.value)
-  } catch (error) {
-    console.error(t('common.error.renameChatFailed'), error)
-  }
-
-  renameTargetSession.value = null
-}
-
-const handleClearConfirm = async () => {
-  const targetSession = clearTargetSession.value
-  if (!targetSession) {
-    return
-  }
-
-  try {
-    await sessionStore.clearSessionMessages(targetSession.id)
-  } catch (error) {
-    console.error(t('common.error.cleanMessagesFailed'), error)
-  }
-
-  clearTargetSession.value = null
 }
 
 const handleDeleteConfirm = async () => {
@@ -575,6 +765,9 @@ onUnmounted(() => {
     clearInterval(remoteControlStatusTimer)
     remoteControlStatusTimer = null
   }
+
+  pinFlightSessionId.value = null
+  clearPinFeedback()
 })
 </script>
 
@@ -583,7 +776,39 @@ onUnmounted(() => {
   -webkit-app-region: drag;
 }
 
+.session-list {
+  overflow-anchor: none;
+}
+
 button {
   -webkit-app-region: no-drag;
+}
+
+:global(.sidebar-pin-flight) {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+.sidebar-group-collapse-enter-active,
+.sidebar-group-collapse-leave-active {
+  overflow: hidden;
+  transition:
+    max-height 180ms ease,
+    opacity 160ms ease,
+    transform 180ms ease;
+}
+
+.sidebar-group-collapse-enter-from,
+.sidebar-group-collapse-leave-to {
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+.sidebar-group-collapse-enter-to,
+.sidebar-group-collapse-leave-from {
+  max-height: 720px;
+  opacity: 1;
+  transform: translateY(0);
 }
 </style>

@@ -258,6 +258,7 @@
     },
     "groupByDate": "گروه‌بندی بر اساس تاریخ",
     "groupByProject": "گروه‌بندی بر اساس پروژه",
+    "pinned": "سنجاق‌شده‌ها",
     "emptyTitle": "هنوز گفت‌وگویی وجود ندارد",
     "emptyDescription": "برای شروع، یک گفت‌وگوی جدید آغاز کنید",
     "remoteControlDisabled": "غیرفعال"

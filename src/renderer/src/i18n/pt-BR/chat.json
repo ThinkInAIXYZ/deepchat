@@ -258,6 +258,7 @@
     },
     "groupByDate": "Agrupar por data",
     "groupByProject": "Agrupar por projeto",
+    "pinned": "Fixados",
     "emptyTitle": "Ainda não há conversas",
     "emptyDescription": "Inicie um novo chat para começar",
     "remoteControlDisabled": "Desativado"

@@ -272,6 +272,7 @@
     },
     "groupByDate": "按时间分组",
     "groupByProject": "按项目分组",
+    "pinned": "置顶会话",
     "emptyTitle": "还没有会话",
     "emptyDescription": "开始一个新会话吧"
   }
