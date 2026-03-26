@@ -124,6 +124,7 @@ const route = useRoute()
 const title = useTitle()
 const pendingProviderImportPreview = computed(() => providerDeeplinkImportStore.preview)
 const pendingProviderImportToken = computed(() => providerDeeplinkImportStore.previewToken)
+const isProcessingProviderPreview = ref(false)
 const providerImportConfirmDisabled = computed(() => {
   const preview = pendingProviderImportPreview.value
   if (!preview) {
@@ -195,9 +196,22 @@ const applyProviderInstallPreview = async (preview: ProviderInstallPreview) => {
   providerDeeplinkImportStore.openPreview(preview)
 }
 
+const releaseProviderPreviewProcessing = () => {
+  isProcessingProviderPreview.value = false
+  if (!pendingProviderImportPreview.value) {
+    void syncPendingProviderInstall()
+  }
+}
+
 const syncPendingProviderInstall = async () => {
+  if (isProcessingProviderPreview.value || pendingProviderImportPreview.value) {
+    return
+  }
+
+  isProcessingProviderPreview.value = true
   const preview = await windowPresenter.consumePendingSettingsProviderInstall()
   if (!preview) {
+    isProcessingProviderPreview.value = false
     return
   }
 
@@ -205,6 +219,7 @@ const syncPendingProviderInstall = async () => {
     await applyProviderInstallPreview(preview)
   } catch (error) {
     windowPresenter.setPendingSettingsProviderInstall(preview)
+    isProcessingProviderPreview.value = false
     console.error('Failed to sync pending provider install preview:', error)
   }
 }
@@ -216,6 +231,7 @@ const handleProviderInstall = async () => {
 const handleProviderImportDialogOpenChange = (open: boolean) => {
   if (!open) {
     providerDeeplinkImportStore.clearPreview()
+    releaseProviderPreviewProcessing()
   }
 }
 
@@ -259,6 +275,7 @@ const confirmProviderImport = async () => {
     }
 
     providerDeeplinkImportStore.clearPreview()
+    releaseProviderPreviewProcessing()
   } catch (error) {
     console.error('Failed to import provider from deeplink:', error)
     toast({

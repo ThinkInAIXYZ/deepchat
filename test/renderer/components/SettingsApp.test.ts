@@ -623,8 +623,7 @@ describe('Settings App', () => {
       }
     })
 
-    await Promise.resolve()
-    await Promise.resolve()
+    await flushPromises()
 
     expect(providerStore.initialize).toHaveBeenCalledTimes(1)
 

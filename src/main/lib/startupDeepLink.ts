@@ -1,5 +1,6 @@
 const STARTUP_DEEPLINK_ENV_KEY = 'STARTUP_DEEPLINK'
 const SECONDARY_STARTUP_ENV_KEYS = ['DEEPLINK_URL', 'deepchat_deeplink'] as const
+let pendingStartupDeepLink: string | null = null
 
 export const isDeepLinkUrl = (value: string | null | undefined): value is string => {
   if (typeof value !== 'string') {
@@ -18,6 +19,10 @@ export const findDeepLinkArg = (argv: readonly string[]): string | null => {
 }
 
 export const readStartupDeepLinkFromEnv = (env: NodeJS.ProcessEnv = process.env): string | null => {
+  if (pendingStartupDeepLink) {
+    return pendingStartupDeepLink
+  }
+
   const stored = env[STARTUP_DEEPLINK_ENV_KEY]
   return isDeepLinkUrl(stored) ? normalizeDeepLinkUrl(stored) : null
 }
@@ -48,21 +53,19 @@ export const findStartupDeepLink = (
 
 export const storeStartupDeepLink = (
   url: string,
-  env: NodeJS.ProcessEnv = process.env
+  _env: NodeJS.ProcessEnv = process.env
 ): string | null => {
   if (!isDeepLinkUrl(url)) {
     return null
   }
 
   const normalized = normalizeDeepLinkUrl(url)
-  env[STARTUP_DEEPLINK_ENV_KEY] = normalized
+  pendingStartupDeepLink = normalized
   return normalized
 }
 
-export const consumeStartupDeepLink = (env: NodeJS.ProcessEnv = process.env): string | null => {
-  const stored = readStartupDeepLinkFromEnv(env)
-  if (stored) {
-    delete env[STARTUP_DEEPLINK_ENV_KEY]
-  }
+export const consumeStartupDeepLink = (_env: NodeJS.ProcessEnv = process.env): string | null => {
+  const stored = pendingStartupDeepLink
+  pendingStartupDeepLink = null
   return stored
 }

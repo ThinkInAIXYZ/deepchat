@@ -51,7 +51,7 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
   init(): void {
     const startupDeepLinkUrl = consumeStartupDeepLink()
     if (startupDeepLinkUrl) {
-      console.log('Found startup deeplink URL:', startupDeepLinkUrl)
+      console.log('Found startup deeplink URL:', this.redactDeepLinkUrlForLog(startupDeepLinkUrl))
       this.startupUrl = startupDeepLinkUrl
     }
 
@@ -70,7 +70,7 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
     eventBus.once(WINDOW_EVENTS.FIRST_CONTENT_LOADED, () => {
       console.log('Window content loaded. Processing DeepLink if exists.')
       if (this.startupUrl) {
-        console.log('Processing startup URL:', this.startupUrl)
+        console.log('Processing startup URL:', this.redactDeepLinkUrlForLog(this.startupUrl))
         void this.handleDeepLink(this.startupUrl)
         this.startupUrl = null
       }
@@ -80,7 +80,10 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
     eventBus.on(MCP_EVENTS.INITIALIZED, () => {
       console.log('MCP initialized. Processing pending MCP install if exists.')
       if (this.pendingMcpInstallUrl) {
-        console.log('Processing pending MCP install URL:', this.pendingMcpInstallUrl)
+        console.log(
+          'Processing pending MCP install URL:',
+          this.redactDeepLinkUrlForLog(this.pendingMcpInstallUrl)
+        )
         void this.handleDeepLink(this.pendingMcpInstallUrl)
         this.pendingMcpInstallUrl = null
       }
@@ -88,19 +91,19 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
   }
 
   async handleDeepLink(url: string): Promise<void> {
-    console.log('Received DeepLink:', url)
-
     try {
       const urlObj = new URL(url)
+      console.log('Received DeepLink:', this.redactDeepLinkUrlForLog(url))
 
       if (urlObj.protocol !== 'deepchat:') {
         console.error('Unsupported protocol:', urlObj.protocol)
         return
       }
 
-      // 从 hostname 获取命令
-      const command = urlObj.hostname
-      const subCommand = urlObj.pathname.slice(1)
+      const rawPath = [urlObj.hostname, urlObj.pathname.replace(/^\/+/, '')]
+        .filter((segment) => segment.length > 0)
+        .join('/')
+      const [command = '', subCommand = ''] = rawPath.split('/')
 
       console.log('Parsed deeplink - command:', command, 'subCommand:', subCommand)
 
@@ -135,7 +138,7 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
   }
 
   async handleStart(params: URLSearchParams): Promise<void> {
-    console.log('Processing start command, parameters:', Object.fromEntries(params.entries()))
+    console.log('Processing start command, parameters:', this.redactSearchParamsForLog(params))
 
     let msg = params.get('msg')
     if (!msg) {
@@ -249,7 +252,10 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
   }
 
   async handleMcpInstall(params: URLSearchParams): Promise<void> {
-    console.log('Processing mcp/install command, parameters:', Object.fromEntries(params.entries()))
+    console.log(
+      'Processing mcp/install command, parameters:',
+      this.redactSearchParamsForLog(params)
+    )
 
     // 获取 JSON 数据
     const jsonBase64 = params.get('code')
@@ -265,7 +271,7 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
       const jsonString = Buffer.from(jsonBase64, 'base64').toString('utf-8')
       const mcpConfig = JSON.parse(jsonString) as MCPInstallConfig
 
-      console.log('Parsed MCP config:', mcpConfig)
+      console.log('Parsed MCP config:', this.redactValueForLog(mcpConfig))
 
       // 检查 MCP 配置是否有效
       if (!mcpConfig || !mcpConfig.mcpServers) {
@@ -371,7 +377,7 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
         // 添加服务器配置到完整配置中
         console.log(
           `Preparing to install MCP server: ${serverName} (type: ${determinedType})`,
-          finalConfig
+          this.redactValueForLog(finalConfig)
         )
         completeMcpConfig.mcpServers[serverName] = finalConfig
       }
@@ -400,7 +406,7 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
   async handleProviderInstall(params: URLSearchParams): Promise<void> {
     console.log(
       'Processing provider/install command, parameters:',
-      Object.fromEntries(params.entries())
+      this.redactSearchParamsForLog(params)
     )
 
     try {
@@ -572,6 +578,58 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
       message,
       type: 'error'
     })
+  }
+
+  private redactDeepLinkUrlForLog(url: string): string {
+    try {
+      const parsedUrl = new URL(url)
+      const sensitiveKeys = [...parsedUrl.searchParams.keys()].filter((key) =>
+        this.isSensitiveLogKey(key)
+      )
+
+      sensitiveKeys.forEach((key) => {
+        parsedUrl.searchParams.set(key, '[REDACTED]')
+      })
+
+      return parsedUrl.toString()
+    } catch {
+      return url.replace(
+        /([?&](?:apiKey|api_key|token|password|data|code)=)[^&]*/gi,
+        '$1[REDACTED]'
+      )
+    }
+  }
+
+  private redactSearchParamsForLog(params: URLSearchParams): Record<string, string> {
+    return this.redactValueForLog(Object.fromEntries(params.entries())) as Record<string, string>
+  }
+
+  private redactValueForLog(value: unknown): unknown {
+    if (Array.isArray(value)) {
+      return value.map((item) => this.redactValueForLog(item))
+    }
+
+    if (!value || typeof value !== 'object') {
+      return value
+    }
+
+    return Object.fromEntries(
+      Object.entries(value).map(([key, nestedValue]) => [
+        key,
+        this.isSensitiveLogKey(key) ? '[REDACTED]' : this.redactValueForLog(nestedValue)
+      ])
+    )
+  }
+
+  private isSensitiveLogKey(key: string): boolean {
+    const normalizedKey = key.replace(/[^a-z0-9]/gi, '').toLowerCase()
+    return (
+      normalizedKey.includes('apikey') ||
+      normalizedKey.includes('token') ||
+      normalizedKey.includes('password') ||
+      normalizedKey === 'data' ||
+      normalizedKey === 'code'
+    )
   }
 
   /**

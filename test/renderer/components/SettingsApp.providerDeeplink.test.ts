@@ -115,7 +115,7 @@ const mountSettingsApp = async (options?: {
   const setPendingSettingsProviderInstall = vi
     .fn()
     .mockImplementation(async (payload: Record<string, unknown>) => {
-      pendingProviderInstallQueue.unshift(payload)
+      pendingProviderInstallQueue.push(payload)
     })
   const queuePendingProviderInstall = (payload: Record<string, unknown>) => {
     pendingProviderInstallQueue.push(payload)
@@ -467,6 +467,108 @@ describe('SettingsApp provider deeplink', () => {
     expect(consumePendingSettingsProviderInstall).toHaveBeenCalled()
     expect(wrapper.get('[data-testid="provider-import-dialog"]').exists()).toBe(true)
     expect(wrapper.get('[data-testid="provider-import-kind"]').text()).toBe('builtin')
+  })
+
+  it('drains queued provider imports only after the active dialog is dismissed', async () => {
+    const {
+      wrapper,
+      installHandler,
+      queuePendingProviderInstall,
+      consumePendingSettingsProviderInstall
+    } = await mountSettingsApp({
+      routeName: 'settings-provider',
+      providerId: 'deepseek'
+    })
+
+    const firstPayload = {
+      kind: 'builtin' as const,
+      id: 'deepseek',
+      baseUrl: 'https://deepseek.example.com/v1',
+      apiKey: 'sk-deepseek-demo-key',
+      maskedApiKey: 'sk-d...-key',
+      iconModelId: 'deepseek',
+      willOverwrite: true
+    }
+    const secondPayload = {
+      kind: 'custom' as const,
+      name: 'minimax Proxy',
+      type: 'minimax',
+      baseUrl: 'https://minimax.example.com/v1',
+      apiKey: 'sk-minimax-custom',
+      maskedApiKey: 'sk-m...stom',
+      iconModelId: 'minimax'
+    }
+    const initialConsumeCount = consumePendingSettingsProviderInstall.mock.calls.length
+
+    queuePendingProviderInstall(firstPayload)
+    queuePendingProviderInstall(secondPayload)
+    await installHandler?.({})
+    await flushPromises()
+
+    expect(consumePendingSettingsProviderInstall).toHaveBeenCalledTimes(initialConsumeCount + 1)
+    expect(wrapper.get('[data-testid="provider-import-kind"]').text()).toBe('builtin')
+
+    window.dispatchEvent(new Event('focus'))
+    await flushPromises()
+
+    expect(consumePendingSettingsProviderInstall).toHaveBeenCalledTimes(initialConsumeCount + 1)
+
+    await wrapper.get('[data-testid="cancel-import"]').trigger('click')
+    await flushPromises()
+
+    expect(consumePendingSettingsProviderInstall).toHaveBeenCalledTimes(initialConsumeCount + 2)
+    expect(wrapper.get('[data-testid="provider-import-kind"]').text()).toBe('custom')
+  })
+
+  it('drains queued provider imports after a successful confirm', async () => {
+    const {
+      wrapper,
+      installHandler,
+      queuePendingProviderInstall,
+      consumePendingSettingsProviderInstall,
+      providerStore,
+      modelStore
+    } = await mountSettingsApp({
+      routeName: 'settings-provider',
+      providerId: 'deepseek'
+    })
+
+    const firstPayload = {
+      kind: 'builtin' as const,
+      id: 'deepseek',
+      baseUrl: 'https://deepseek.example.com/v1',
+      apiKey: 'sk-deepseek-demo-key',
+      maskedApiKey: 'sk-d...-key',
+      iconModelId: 'deepseek',
+      willOverwrite: true
+    }
+    const secondPayload = {
+      kind: 'custom' as const,
+      name: 'minimax Proxy',
+      type: 'minimax',
+      baseUrl: 'https://minimax.example.com/v1',
+      apiKey: 'sk-minimax-custom',
+      maskedApiKey: 'sk-m...stom',
+      iconModelId: 'minimax'
+    }
+    const initialConsumeCount = consumePendingSettingsProviderInstall.mock.calls.length
+
+    queuePendingProviderInstall(firstPayload)
+    queuePendingProviderInstall(secondPayload)
+    await installHandler?.({})
+    await flushPromises()
+
+    await wrapper.get('[data-testid="confirm-import"]').trigger('click')
+    await flushPromises()
+
+    expect(providerStore.updateProviderApi).toHaveBeenCalledWith(
+      'deepseek',
+      'sk-deepseek-demo-key',
+      'https://deepseek.example.com/v1'
+    )
+    expect(modelStore.refreshProviderModels).toHaveBeenCalledWith('deepseek')
+    expect(consumePendingSettingsProviderInstall).toHaveBeenCalledTimes(initialConsumeCount + 2)
+    expect(wrapper.get('[data-testid="provider-import-kind"]').text()).toBe('custom')
   })
 
   it('requeues pending provider installs when syncing the preview fails', async () => {

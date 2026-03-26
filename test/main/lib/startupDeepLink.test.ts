@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import {
   consumeStartupDeepLink,
   findDeepLinkArg,
@@ -7,6 +7,10 @@ import {
 } from '@/lib/startupDeepLink'
 
 describe('startupDeepLink utilities', () => {
+  beforeEach(() => {
+    consumeStartupDeepLink()
+  })
+
   it('prefers stored startup deeplink over argv and secondary env keys', () => {
     const env = {
       STARTUP_DEEPLINK: 'deepchat://start?msg=stored',
@@ -34,6 +38,8 @@ describe('startupDeepLink utilities', () => {
     expect(storeStartupDeepLink('deepchat://start?msg=hello', env)).toBe(
       'deepchat://start?msg=hello'
     )
+    expect(env.STARTUP_DEEPLINK).toBeUndefined()
+    expect(findStartupDeepLink(['electron'], env)).toBe('deepchat://start?msg=hello')
     expect(consumeStartupDeepLink(env)).toBe('deepchat://start?msg=hello')
     expect(consumeStartupDeepLink(env)).toBeNull()
   })
