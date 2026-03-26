@@ -15,6 +15,7 @@ import { IConfigPresenter, IWindowPresenter } from '@shared/presenter' // Window
 import { eventBus } from '@/eventbus' // Event bus
 import {
   CONFIG_EVENTS,
+  DEEPLINK_EVENTS,
   SETTINGS_EVENTS,
   SHORTCUT_EVENTS,
   SYSTEM_EVENTS,
@@ -25,6 +26,7 @@ import windowStateManager from 'electron-window-state' // Window state manager
 // TrayPresenter is globally managed in main/index.ts, this Presenter is not responsible for its lifecycle
 import { TabPresenter } from '../tabPresenter' // TabPresenter type
 import { FloatingChatWindow } from './FloatingChatWindow' // Floating chat window
+import type { ProviderInstallPreview } from '@shared/providerDeeplink'
 
 type PendingSettingsMessage = {
   channel: string
@@ -49,6 +51,7 @@ export class WindowPresenter implements IWindowPresenter {
   private settingsWindow: BrowserWindow | null = null
   private settingsWindowReady = false
   private pendingSettingsMessages: PendingSettingsMessage[] = []
+  private pendingSettingsProviderInstall: ProviderInstallPreview | null = null
 
   constructor(configPresenter: IConfigPresenter) {
     this.windows = new Map()
@@ -1328,6 +1331,20 @@ export class WindowPresenter implements IWindowPresenter {
     return null
   }
 
+  public setPendingSettingsProviderInstall(preview: ProviderInstallPreview): void {
+    this.pendingSettingsProviderInstall = { ...preview }
+  }
+
+  public consumePendingSettingsProviderInstall(): ProviderInstallPreview | null {
+    if (!this.pendingSettingsProviderInstall) {
+      return null
+    }
+
+    const preview = { ...this.pendingSettingsProviderInstall }
+    this.pendingSettingsProviderInstall = null
+    return preview
+  }
+
   /**
    * Close Settings Window if it exists
    */
@@ -1348,7 +1365,10 @@ export class WindowPresenter implements IWindowPresenter {
   }
 
   private shouldQueueSettingsMessage(channel: string): boolean {
-    return channel.startsWith('settings:') && !this.settingsWindowReady
+    return (
+      !this.settingsWindowReady &&
+      (channel.startsWith('settings:') || channel === DEEPLINK_EVENTS.MCP_INSTALL)
+    )
   }
 
   private handleSettingsWindowReady(senderWebContentsId: number): void {

@@ -1,14 +1,20 @@
 import { mount, flushPromises } from '@vue/test-utils'
 import { reactive, ref } from 'vue'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { DEEPLINK_EVENTS } from '@/events'
 
 const DEV_WELCOME_OVERRIDE_KEY = '__deepchat_dev_force_welcome'
 
-const mountApp = async (options?: { initComplete?: boolean; routeName?: 'chat' | 'welcome' }) => {
+const mountApp = async (options?: {
+  initComplete?: boolean
+  routeName?: 'chat' | 'welcome'
+  hasActiveSession?: boolean
+}) => {
   vi.resetModules()
 
   const initComplete = options?.initComplete ?? false
   const routeName = options?.routeName ?? 'chat'
+  const hasActiveSession = options?.hasActiveSession ?? false
   const route = reactive({
     name: routeName,
     path: routeName === 'welcome' ? '/welcome' : '/chat',
@@ -42,12 +48,32 @@ const mountApp = async (options?: { initComplete?: boolean; routeName?: 'chat' |
   const pageRouterStore = {
     goToNewThread: vi.fn()
   }
+  const agentStore = {
+    setSelectedAgent: vi.fn()
+  }
+  const draftStore = reactive({
+    pendingStartDeeplink: null as null | Record<string, unknown>,
+    setPendingStartDeeplink: vi.fn((payload: Record<string, unknown>) => {
+      draftStore.pendingStartDeeplink = {
+        ...payload,
+        token: 1
+      }
+    })
+  })
+  const sessionStore = {
+    hasActiveSession,
+    activeSessionId: hasActiveSession ? 'session-1' : null,
+    closeSession: vi.fn().mockResolvedValue(undefined),
+    selectSession: vi.fn()
+  }
   const toast = vi.fn(() => ({ dismiss: vi.fn() }))
+  const ipcOn = vi.fn()
+  const ipcRemoveAllListeners = vi.fn()
 
   ;(window as any).electron = {
     ipcRenderer: {
-      on: vi.fn(),
-      removeAllListeners: vi.fn(),
+      on: ipcOn,
+      removeAllListeners: ipcRemoveAllListeners,
       send: vi.fn()
     }
   }
@@ -79,12 +105,13 @@ const mountApp = async (options?: { initComplete?: boolean; routeName?: 'chat' |
     })
   }))
   vi.doMock('@/stores/ui/session', () => ({
-    useSessionStore: () => ({
-      hasActiveSession: false,
-      activeSessionId: null,
-      closeSession: vi.fn(),
-      selectSession: vi.fn()
-    })
+    useSessionStore: () => sessionStore
+  }))
+  vi.doMock('@/stores/ui/agent', () => ({
+    useAgentStore: () => agentStore
+  }))
+  vi.doMock('@/stores/ui/draft', () => ({
+    useDraftStore: () => draftStore
   }))
   vi.doMock('@/stores/ui/pageRouter', () => ({
     usePageRouterStore: () => pageRouterStore
@@ -164,7 +191,12 @@ const mountApp = async (options?: { initComplete?: boolean; routeName?: 'chat' |
   return {
     route,
     router,
-    configPresenter
+    configPresenter,
+    pageRouterStore,
+    agentStore,
+    draftStore,
+    sessionStore,
+    ipcOn
   }
 }
 
@@ -204,5 +236,42 @@ describe('App startup welcome flow', () => {
 
     expect(router.replace).toHaveBeenCalledWith({ name: 'welcome' })
     expect(route.name).toBe('welcome')
+  })
+
+  it('stores start deeplink payload and routes to a new deepchat thread', async () => {
+    const { draftStore, pageRouterStore, agentStore, sessionStore, ipcOn } = await mountApp({
+      initComplete: true,
+      routeName: 'chat',
+      hasActiveSession: true
+    })
+
+    const startHandler = ipcOn.mock.calls.find(
+      ([eventName]: [string]) => eventName === DEEPLINK_EVENTS.START
+    )?.[1]
+
+    expect(startHandler).toBeTypeOf('function')
+
+    await startHandler?.(
+      {},
+      {
+        msg: '你好，DeepChat',
+        modelId: 'deepseek-chat',
+        systemPrompt: 'Be concise',
+        mentions: ['README.md'],
+        autoSend: false
+      }
+    )
+    await flushPromises()
+
+    expect(draftStore.setPendingStartDeeplink).toHaveBeenCalledWith({
+      msg: '你好，DeepChat',
+      modelId: 'deepseek-chat',
+      systemPrompt: 'Be concise',
+      mentions: ['README.md'],
+      autoSend: false
+    })
+    expect(agentStore.setSelectedAgent).toHaveBeenCalledWith('deepchat')
+    expect(sessionStore.closeSession).toHaveBeenCalledTimes(1)
+    expect(pageRouterStore.goToNewThread).not.toHaveBeenCalled()
   })
 })

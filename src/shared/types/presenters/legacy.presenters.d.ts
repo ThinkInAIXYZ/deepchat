@@ -264,6 +264,12 @@ export interface IWindowPresenter {
   createSettingsWindow(): Promise<number | null>
   closeSettingsWindow(): void
   getSettingsWindowId(): number | null
+  setPendingSettingsProviderInstall(
+    preview: import('@shared/providerDeeplink').ProviderInstallPreview
+  ): void
+  consumePendingSettingsProviderInstall():
+    | import('@shared/providerDeeplink').ProviderInstallPreview
+    | null
   hide(windowId: number): void
   show(windowId?: number, shouldFocus?: boolean): void
   isMaximized(windowId: number): boolean

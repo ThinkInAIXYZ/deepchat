@@ -8,10 +8,23 @@ const passthrough = (name: string) =>
     template: '<div><slot /></div>'
   })
 
-const setup = async (options?: {
-  preview?: Record<string, unknown> | null
-  providerEnabled?: boolean
-}) => {
+const draggableStub = defineComponent({
+  name: 'draggable',
+  props: {
+    modelValue: {
+      type: Array,
+      default: () => []
+    },
+    itemKey: {
+      type: String,
+      default: 'id'
+    }
+  },
+  template:
+    '<div><slot v-for="element in modelValue" name="item" :element="element" :key="element[itemKey] ?? element.id" /></div>'
+})
+
+const setup = async () => {
   vi.resetModules()
 
   const provider = {
@@ -20,7 +33,7 @@ const setup = async (options?: {
     apiType: 'anthropic',
     apiKey: 'test-key',
     baseUrl: 'https://api.anthropic.com',
-    enable: options?.providerEnabled ?? true
+    enable: true
   }
   const providerStore = reactive({
     providers: [provider],
@@ -40,16 +53,6 @@ const setup = async (options?: {
     refreshProviderModels: vi.fn().mockResolvedValue(undefined)
   })
 
-  const clearPreview = vi.fn()
-  const providerDeeplinkImportStore = reactive({
-    preview: options?.preview ?? null,
-    clearPreview,
-    openPreview: vi.fn()
-  })
-  clearPreview.mockImplementation(() => {
-    providerDeeplinkImportStore.preview = null
-  })
-
   const router = {
     push: vi.fn(),
     replace: vi.fn()
@@ -60,9 +63,6 @@ const setup = async (options?: {
   }))
   vi.doMock('@/stores/modelStore', () => ({
     useModelStore: () => modelStore
-  }))
-  vi.doMock('@/stores/providerDeeplinkImport', () => ({
-    useProviderDeeplinkImportStore: () => providerDeeplinkImportStore
   }))
   vi.doMock('@/stores/theme', () => ({
     useThemeStore: () => ({ isDark: false })
@@ -82,9 +82,6 @@ const setup = async (options?: {
       t: (key: string) => key
     })
   }))
-  vi.doMock('nanoid', () => ({
-    nanoid: () => 'custom-provider-id'
-  }))
 
   const ModelProviderSettings = (
     await import('../../../src/renderer/settings/components/ModelProviderSettings.vue')
@@ -99,15 +96,8 @@ const setup = async (options?: {
         Switch: passthrough('Switch'),
         Icon: true,
         ModelIcon: true,
-        draggable: passthrough('draggable'),
+        draggable: draggableStub,
         AddCustomProviderDialog: true,
-        ProviderDeeplinkImportDialog: defineComponent({
-          name: 'ProviderDeeplinkImportDialog',
-          props: ['open', 'preview'],
-          emits: ['confirm', 'update:open'],
-          template:
-            '<div v-if="open"><span data-testid="import-kind">{{ preview?.kind }}</span><button data-testid="confirm-import" @click="$emit(\'confirm\')" /></div>'
-        }),
         OllamaProviderSettingsDetail: defineComponent({
           name: 'OllamaProviderSettingsDetail',
           template: '<div data-testid="ollama-detail" />'
@@ -130,7 +120,7 @@ const setup = async (options?: {
 
   await flushPromises()
 
-  return { wrapper, router, providerStore, modelStore, providerDeeplinkImportStore }
+  return { wrapper, router }
 }
 
 describe('ModelProviderSettings', () => {
@@ -145,79 +135,16 @@ describe('ModelProviderSettings', () => {
     expect(wrapper.find('[data-testid="anthropic-detail"]').exists()).toBe(false)
   })
 
-  it('confirms built-in provider imports and enables the provider', async () => {
-    const preview = {
-      kind: 'builtin',
-      id: 'anthropic',
-      baseUrl: 'https://proxy.example.com/v1',
-      apiKey: 'sk-import-1234',
-      maskedApiKey: 'sk-i...1234',
-      iconModelId: 'anthropic',
-      willOverwrite: true
-    }
-    const { wrapper, providerStore, modelStore, providerDeeplinkImportStore, router } = await setup(
-      {
-        preview,
-        providerEnabled: false
-      }
-    )
+  it('navigates to the selected provider when a provider row is clicked', async () => {
+    const { wrapper, router } = await setup()
 
-    await wrapper.get('[data-testid="confirm-import"]').trigger('click')
-    await flushPromises()
+    await wrapper.get('[data-provider-id="anthropic"]').trigger('click')
 
-    expect(providerStore.updateProviderApi).toHaveBeenCalledWith(
-      'anthropic',
-      'sk-import-1234',
-      'https://proxy.example.com/v1'
-    )
-    expect(providerStore.updateProviderStatus).toHaveBeenCalledWith('anthropic', true)
-    expect(modelStore.refreshProviderModels).toHaveBeenCalledWith('anthropic')
     expect(router.push).toHaveBeenCalledWith({
       name: 'settings-provider',
       params: {
         providerId: 'anthropic'
       }
     })
-    expect(providerDeeplinkImportStore.clearPreview).toHaveBeenCalledTimes(1)
-  })
-
-  it('confirms custom provider imports and creates a new provider entry', async () => {
-    const preview = {
-      kind: 'custom',
-      name: 'My Proxy',
-      type: 'openai-completions',
-      baseUrl: 'https://custom.example.com/v1',
-      apiKey: 'sk-custom-5678',
-      maskedApiKey: 'sk-c...5678',
-      iconModelId: 'openai-completions'
-    }
-    const { wrapper, providerStore, modelStore, providerDeeplinkImportStore, router } = await setup(
-      {
-        preview
-      }
-    )
-
-    await wrapper.get('[data-testid="confirm-import"]').trigger('click')
-    await flushPromises()
-
-    expect(providerStore.addCustomProvider).toHaveBeenCalledWith(
-      expect.objectContaining({
-        id: 'custom-provider-id',
-        name: 'My Proxy',
-        apiType: 'openai-completions',
-        apiKey: 'sk-custom-5678',
-        baseUrl: 'https://custom.example.com/v1',
-        enable: true,
-        custom: true
-      })
-    )
-    expect(modelStore.refreshProviderModels).toHaveBeenCalledWith('custom-provider-id')
-    expect(router.push).toHaveBeenCalledWith({
-      name: 'settings-provider',
-      params: {
-        providerId: 'custom-provider-id'
-      }
-    })
-    expect(providerDeeplinkImportStore.clearPreview).toHaveBeenCalledTimes(1)
   })
 })

@@ -4,9 +4,11 @@ import type { ProviderInstallPreview } from '@shared/presenter'
 
 export const useProviderDeeplinkImportStore = defineStore('providerDeeplinkImport', () => {
   const preview = ref<ProviderInstallPreview | null>(null)
+  const previewToken = ref(0)
 
   const openPreview = (nextPreview: ProviderInstallPreview) => {
-    preview.value = nextPreview
+    previewToken.value += 1
+    preview.value = { ...nextPreview }
   }
 
   const clearPreview = () => {
@@ -15,6 +17,7 @@ export const useProviderDeeplinkImportStore = defineStore('providerDeeplinkImpor
 
   return {
     preview,
+    previewToken,
     openPreview,
     clearPreview
   }

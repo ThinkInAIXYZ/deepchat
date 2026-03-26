@@ -1,10 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { NOTIFICATION_EVENTS, SETTINGS_EVENTS } from '@/events'
+import { DEEPLINK_EVENTS, NOTIFICATION_EVENTS, SETTINGS_EVENTS } from '@/events'
+
+const browserWindowFromIdMock = vi.hoisted(() => vi.fn())
+const electronAppMock = vi.hoisted(() => ({
+  setAsDefaultProtocolClient: vi.fn()
+}))
 
 const presenterMock = vi.hoisted(() => ({
   windowPresenter: {
     createSettingsWindow: vi.fn().mockResolvedValue(9),
-    sendToWindow: vi.fn(),
+    createAppWindow: vi.fn().mockResolvedValue(1),
+    sendToWindow: vi.fn().mockReturnValue(true),
+    setPendingSettingsProviderInstall: vi.fn(),
     getAllWindows: vi.fn().mockReturnValue([]),
     getFocusedWindow: vi.fn().mockReturnValue(null)
   },
@@ -23,6 +30,13 @@ const eventBusMock = vi.hoisted(() => ({
   sendToRenderer: vi.fn()
 }))
 
+vi.mock('electron', () => ({
+  app: electronAppMock,
+  BrowserWindow: {
+    fromId: browserWindowFromIdMock
+  }
+}))
+
 vi.mock('@/presenter', () => ({
   presenter: presenterMock
 }))
@@ -34,10 +48,16 @@ vi.mock('@/eventbus', () => ({
   }
 }))
 
-describe('DeeplinkPresenter provider install', () => {
+describe('DeeplinkPresenter', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     presenterMock.windowPresenter.createSettingsWindow.mockResolvedValue(9)
+    presenterMock.windowPresenter.createAppWindow.mockResolvedValue(1)
+    presenterMock.windowPresenter.sendToWindow.mockReturnValue(true)
+    presenterMock.windowPresenter.setPendingSettingsProviderInstall.mockReset()
+    presenterMock.windowPresenter.getAllWindows.mockReturnValue([])
+    presenterMock.windowPresenter.getFocusedWindow.mockReturnValue(null)
+    presenterMock.mcpPresenter.isReady.mockReturnValue(true)
     presenterMock.configPresenter.getProviderById.mockImplementation((providerId: string) => {
       if (providerId === 'openai') {
         return {
@@ -54,7 +74,89 @@ describe('DeeplinkPresenter provider install', () => {
     })
   })
 
-  it('routes built-in provider imports to settings and sends preview payload', async () => {
+  it('routes start deeplink to a chat window even when settings is focused', async () => {
+    const { DeeplinkPresenter } = await import('@/presenter/deeplinkPresenter')
+    const deeplinkPresenter = new DeeplinkPresenter()
+    const chatWindow = {
+      id: 1,
+      isDestroyed: () => false,
+      isMinimized: () => false,
+      show: vi.fn(),
+      focus: vi.fn(),
+      webContents: {
+        isLoadingMainFrame: () => false,
+        once: vi.fn()
+      }
+    }
+    const settingsWindow = {
+      id: 99,
+      isDestroyed: () => false
+    }
+
+    presenterMock.windowPresenter.getAllWindows.mockReturnValue([chatWindow as any])
+    presenterMock.windowPresenter.getFocusedWindow.mockReturnValue(settingsWindow as any)
+    browserWindowFromIdMock.mockReturnValue(chatWindow)
+
+    await deeplinkPresenter.handleDeepLink(
+      'deepchat://start?msg=%E4%BD%A0%E5%A5%BD&model=deepseek-chat&system=Be%20concise&mentions=README.md,docs%2Fspec.md'
+    )
+
+    expect(chatWindow.show).toHaveBeenCalledTimes(1)
+    expect(chatWindow.focus).toHaveBeenCalledTimes(1)
+    expect(presenterMock.windowPresenter.sendToWindow).toHaveBeenCalledWith(
+      1,
+      DEEPLINK_EVENTS.START,
+      {
+        msg: '你好',
+        modelId: 'deepseek-chat',
+        systemPrompt: 'Be concise',
+        mentions: ['README.md', 'docs/spec.md'],
+        autoSend: false
+      }
+    )
+  })
+
+  it('routes MCP imports through settings IPC instead of localStorage injection', async () => {
+    const { DeeplinkPresenter } = await import('@/presenter/deeplinkPresenter')
+    const deeplinkPresenter = new DeeplinkPresenter()
+    const payload = {
+      mcpServers: {
+        demo: {
+          command: 'npx',
+          args: ['-y', '@modelcontextprotocol/server-filesystem']
+        }
+      }
+    }
+    const url = `deepchat://mcp/install?code=${Buffer.from(JSON.stringify(payload)).toString('base64')}`
+
+    await deeplinkPresenter.handleDeepLink(url)
+
+    expect(presenterMock.windowPresenter.createSettingsWindow).toHaveBeenCalledTimes(1)
+    expect(presenterMock.windowPresenter.sendToWindow).toHaveBeenCalledWith(
+      9,
+      DEEPLINK_EVENTS.MCP_INSTALL,
+      {
+        mcpConfig: JSON.stringify({
+          mcpServers: {
+            demo: {
+              env: {},
+              descriptions: 'demo MCP Service',
+              icons: '🔌',
+              autoApprove: ['all'],
+              enabled: false,
+              disable: false,
+              args: ['-y', '@modelcontextprotocol/server-filesystem'],
+              type: 'stdio',
+              command: 'npx',
+              baseUrl: ''
+            }
+          }
+        })
+      }
+    )
+  })
+
+  it('routes built-in provider imports to settings and stores the preview for replay', async () => {
     const { DeeplinkPresenter } = await import('@/presenter/deeplinkPresenter')
     const deeplinkPresenter = new DeeplinkPresenter()
     const payload = {
@@ -67,6 +169,16 @@ describe('DeeplinkPresenter provider install', () => {
     await deeplinkPresenter.handleDeepLink(url)
 
     expect(presenterMock.windowPresenter.createSettingsWindow).toHaveBeenCalledTimes(1)
+    expect(presenterMock.windowPresenter.setPendingSettingsProviderInstall).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'builtin',
+        id: 'openai',
+        baseUrl: 'https://proxy.example.com/v1',
+        apiKey: 'sk-import-1234',
+        iconModelId: 'openai',
+        willOverwrite: true
+      })
+    )
     expect(presenterMock.windowPresenter.sendToWindow).toHaveBeenNthCalledWith(
       1,
       9,
@@ -78,19 +190,11 @@ describe('DeeplinkPresenter provider install', () => {
     expect(presenterMock.windowPresenter.sendToWindow).toHaveBeenNthCalledWith(
       2,
       9,
-      SETTINGS_EVENTS.PROVIDER_INSTALL,
-      expect.objectContaining({
-        kind: 'builtin',
-        id: 'openai',
-        baseUrl: 'https://proxy.example.com/v1',
-        apiKey: 'sk-import-1234',
-        iconModelId: 'openai',
-        willOverwrite: true
-      })
+      SETTINGS_EVENTS.PROVIDER_INSTALL
     )
   })
 
-  it('routes custom provider imports to settings and sends preview payload', async () => {
+  it('routes custom provider imports to settings and stores the preview for replay', async () => {
     const { DeeplinkPresenter } = await import('@/presenter/deeplinkPresenter')
     const deeplinkPresenter = new DeeplinkPresenter()
     const payload = {
@@ -103,10 +207,7 @@ describe('DeeplinkPresenter provider install', () => {
 
     await deeplinkPresenter.handleDeepLink(url)
 
-    expect(presenterMock.windowPresenter.sendToWindow).toHaveBeenNthCalledWith(
-      2,
-      9,
-      SETTINGS_EVENTS.PROVIDER_INSTALL,
+    expect(presenterMock.windowPresenter.setPendingSettingsProviderInstall).toHaveBeenCalledWith(
       expect.objectContaining({
         kind: 'custom',
         name: 'My Proxy',
@@ -115,6 +216,11 @@ describe('DeeplinkPresenter provider install', () => {
         apiKey: 'sk-custom-5678',
         iconModelId: 'openai-completions'
       })
+    )
+    expect(presenterMock.windowPresenter.sendToWindow).toHaveBeenNthCalledWith(
+      2,
+      9,
+      SETTINGS_EVENTS.PROVIDER_INSTALL
     )
   })
 

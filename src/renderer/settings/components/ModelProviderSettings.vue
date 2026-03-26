@@ -186,14 +186,6 @@
       v-model:open="isAddProviderDialogOpen"
       @provider-added="handleProviderAdded"
     />
-    <ProviderDeeplinkImportDialog
-      :open="Boolean(pendingImportPreview)"
-      :preview="pendingImportPreview"
-      :confirm-disabled="providerImportConfirmDisabled"
-      :submitting="isImportingProvider"
-      @update:open="handleProviderImportDialogOpenChange"
-      @confirm="confirmProviderImport"
-    />
   </div>
 </template>
 
@@ -209,7 +201,6 @@ import BedrockProviderSettingsDetail from './BedrockProviderSettingsDetail.vue'
 import ModelIcon from '@/components/icons/ModelIcon.vue'
 import { Icon } from '@iconify/vue'
 import AddCustomProviderDialog from './AddCustomProviderDialog.vue'
-import ProviderDeeplinkImportDialog from './ProviderDeeplinkImportDialog.vue'
 import { useI18n } from 'vue-i18n'
 import type { AWS_BEDROCK_PROVIDER, LLM_PROVIDER } from '@shared/presenter'
 import { Switch } from '@shadcn/components/ui/switch'
@@ -220,8 +211,6 @@ import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { useThemeStore } from '@/stores/theme'
 import { useLanguageStore } from '@/stores/language'
 import { onMounted } from 'vue'
-import { nanoid } from 'nanoid'
-import { useProviderDeeplinkImportStore } from '@/stores/providerDeeplinkImport'
 
 const route = useRoute()
 const router = useRouter()
@@ -230,12 +219,10 @@ const languageStore = useLanguageStore()
 const providerStore = useProviderStore()
 const modelStore = useModelStore()
 const themeStore = useThemeStore()
-const providerDeeplinkImportStore = useProviderDeeplinkImportStore()
 const isAddProviderDialogOpen = ref(false)
 const searchQueryBase = ref('')
 const searchQuery = refDebounced(searchQueryBase, 150)
 const showClearButton = computed(() => searchQueryBase.value.trim().length > 0)
-const isImportingProvider = ref(false)
 
 const editingProviderId = ref<string | null>(null)
 const editingName = ref('')
@@ -389,77 +376,6 @@ const openAddProviderDialog = () => {
 const handleProviderAdded = (provider: LLM_PROVIDER) => {
   // 添加成功后，自动选择新添加的provider
   setActiveProvider(provider.id)
-}
-
-const pendingImportPreview = computed(() => providerDeeplinkImportStore.preview)
-
-const providerImportConfirmDisabled = computed(() => {
-  const preview = pendingImportPreview.value
-  if (!preview) {
-    return true
-  }
-
-  if (preview.kind === 'builtin') {
-    return !providerStore.providers.some((provider) => provider.id === preview.id)
-  }
-
-  return false
-})
-
-const handleProviderImportDialogOpenChange = (open: boolean) => {
-  if (!open) {
-    providerDeeplinkImportStore.clearPreview()
-  }
-}
-
-const confirmProviderImport = async () => {
-  const preview = pendingImportPreview.value
-  if (!preview || isImportingProvider.value) {
-    return
-  }
-
-  isImportingProvider.value = true
-  try {
-    if (preview.kind === 'builtin') {
-      const targetProvider = providerStore.providers.find((provider) => provider.id === preview.id)
-      if (!targetProvider) {
-        return
-      }
-
-      await providerStore.updateProviderApi(preview.id, preview.apiKey, preview.baseUrl)
-      if (!targetProvider.enable) {
-        await providerStore.updateProviderStatus(preview.id, true)
-      }
-
-      await modelStore.refreshProviderModels(preview.id)
-      setActiveProvider(preview.id)
-      await nextTick()
-      scrollToProvider(preview.id)
-    } else {
-      const providerId = nanoid()
-      const newProvider: LLM_PROVIDER = {
-        id: providerId,
-        name: preview.name,
-        apiType: preview.type,
-        apiKey: preview.apiKey,
-        baseUrl: preview.baseUrl,
-        enable: true,
-        custom: true
-      }
-
-      await providerStore.addCustomProvider(newProvider)
-      await modelStore.refreshProviderModels(providerId)
-      setActiveProvider(providerId)
-      await nextTick()
-      scrollToProvider(providerId)
-    }
-
-    providerDeeplinkImportStore.clearPreview()
-  } catch (error) {
-    console.error('Failed to import provider from deeplink:', error)
-  } finally {
-    isImportingProvider.value = false
-  }
 }
 
 onMounted(async () => {
