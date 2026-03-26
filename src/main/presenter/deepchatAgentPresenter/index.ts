@@ -1424,7 +1424,16 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
                 body: gap
               }
             })
-          }
+          },
+          normalizeToolResult: async (tool) =>
+            await this.normalizeToolResultContent({
+              sessionId: tool.sessionId,
+              toolCallId: tool.toolCallId,
+              toolName: tool.toolName,
+              toolArgs: tool.toolArgs,
+              content: tool.content,
+              isError: tool.isError
+            })
         },
         io: {
           sessionId,
@@ -2867,7 +2876,15 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
           permissionRequest: rawData.permissionRequest as PendingToolInteraction['permission']
         }
       }
-      const responseText = this.toolContentToText(rawData.content)
+      const normalizedContent = await this.normalizeToolResultContent({
+        sessionId,
+        toolCallId: toolCall.id || '',
+        toolName,
+        toolArgs: toolCall.params || '{}',
+        content: rawData.content,
+        isError: rawData.isError === true
+      })
+      const responseText = this.toolContentToText(normalizedContent)
       const prepared = await this.toolOutputGuard.prepareToolOutput({
         sessionId,
         toolCallId: toolCall.id || '',
@@ -2954,6 +2971,174 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       ),
       mode: 'replace'
     })
+  }
+
+  private async normalizeToolResultContent(params: {
+    sessionId: string
+    toolCallId: string
+    toolName: string
+    toolArgs: string
+    content: MCPToolResponse['content']
+    isError: boolean
+  }): Promise<MCPToolResponse['content']> {
+    if (params.isError) {
+      return params.content
+    }
+
+    const screenshotPayload = this.extractScreenshotToolPayload(
+      params.toolName,
+      params.toolArgs,
+      params.content
+    )
+    if (!screenshotPayload) {
+      return params.content
+    }
+
+    const visionModel = await this.resolveScreenshotVisionModel(params.sessionId)
+    if (!visionModel) {
+      return 'Screenshot captured, but automatic English analysis is unavailable because no vision model is configured.'
+    }
+
+    try {
+      const messages: ChatMessage[] = [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: this.buildScreenshotAnalysisPrompt()
+            },
+            {
+              type: 'image_url',
+              image_url: {
+                url: screenshotPayload.dataUrl,
+                detail: 'auto'
+              }
+            }
+          ]
+        }
+      ]
+
+      const modelConfig = this.configPresenter.getModelConfig(
+        visionModel.modelId,
+        visionModel.providerId
+      )
+      const response = await this.llmProviderPresenter.generateCompletionStandalone(
+        visionModel.providerId,
+        messages,
+        visionModel.modelId,
+        modelConfig?.temperature ?? 0.2,
+        Math.min(modelConfig?.maxTokens ?? 900, 900)
+      )
+      const normalized = response.trim()
+      if (!normalized) {
+        return 'Screenshot captured, but automatic English analysis returned no usable description.'
+      }
+      return normalized
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      console.warn('[DeepChatAgent] Failed to normalize screenshot tool output:', {
+        sessionId: params.sessionId,
+        toolCallId: params.toolCallId,
+        error: message
+      })
+      return `Screenshot captured, but automatic English analysis failed: ${message}`
+    }
+  }
+
+  private extractScreenshotToolPayload(
+    toolName: string,
+    toolArgs: string,
+    content: MCPToolResponse['content']
+  ): { dataUrl: string } | null {
+    if (toolName !== 'cdp_send' || typeof content !== 'string') {
+      return null
+    }
+
+    const parsedArgs = this.parseJsonRecord(toolArgs)
+    if (!parsedArgs || parsedArgs.method !== 'Page.captureScreenshot') {
+      return null
+    }
+
+    const parsedContent = this.parseJsonRecord(content)
+    const rawData = typeof parsedContent?.data === 'string' ? parsedContent.data.trim() : ''
+    if (!rawData) {
+      return null
+    }
+
+    const screenshotParams = this.normalizeJsonRecord(parsedArgs.params)
+    const mimeType = this.resolveScreenshotMimeType(screenshotParams?.format)
+    const dataUrl = rawData.startsWith('data:image/')
+      ? rawData
+      : `data:${mimeType};base64,${rawData}`
+
+    return { dataUrl }
+  }
+
+  private normalizeJsonRecord(value: unknown): Record<string, unknown> | null {
+    if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+      return value as Record<string, unknown>
+    }
+
+    if (typeof value !== 'string' || !value.trim()) {
+      return null
+    }
+
+    return this.parseJsonRecord(value)
+  }
+
+  private parseJsonRecord(value: string): Record<string, unknown> | null {
+    try {
+      const parsed = JSON.parse(value) as unknown
+      if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>
+      }
+    } catch {}
+
+    return null
+  }
+
+  private resolveScreenshotMimeType(format: unknown): string {
+    if (format === 'jpeg') {
+      return 'image/jpeg'
+    }
+    if (format === 'webp') {
+      return 'image/webp'
+    }
+    return 'image/png'
+  }
+
+  private async resolveScreenshotVisionModel(
+    sessionId: string
+  ): Promise<{ providerId: string; modelId: string } | null> {
+    const agentId = this.getSessionAgentId(sessionId) ?? 'deepchat'
+
+    try {
+      const agentConfig = await this.configPresenter.resolveDeepChatAgentConfig(agentId)
+      const providerId = agentConfig.visionModel?.providerId?.trim()
+      const modelId = agentConfig.visionModel?.modelId?.trim()
+      if (providerId && modelId) {
+        return { providerId, modelId }
+      }
+    } catch (error) {
+      console.warn('[DeepChatAgent] Failed to resolve agent vision model:', {
+        sessionId,
+        agentId,
+        error
+      })
+    }
+
+    return null
+  }
+
+  private buildScreenshotAnalysisPrompt(): string {
+    return [
+      'Analyze this browser screenshot and respond in English only.',
+      'Describe only what is clearly visible.',
+      'Include the page type or layout, the most important visible text, interactive controls, status indicators, warnings, errors, and any detail that matters for the next browser action.',
+      'Do not speculate about hidden or unreadable content.',
+      'Return concise plain text in a single short paragraph.'
+    ].join('\n')
   }
 
   private toolContentToText(content: MCPToolResponse['content']): string {
