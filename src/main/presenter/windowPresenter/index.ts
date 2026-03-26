@@ -867,7 +867,9 @@ export class WindowPresenter implements IWindowPresenter {
       console.log(
         `Loading packaged main renderer file: ${join(__dirname, '../renderer/index.html')}`
       )
-      appWindow.loadFile(join(__dirname, '../renderer/index.html'), { hash: '/chat' })
+      appWindow.loadFile(join(__dirname, '../renderer/index.html'), {
+        hash: '/chat'
+      })
     }
 
     // DevTools 不再自动打开，需要手动通过菜单或快捷键打开
@@ -1204,8 +1206,8 @@ export class WindowPresenter implements IWindowPresenter {
     // Initialize window state manager to remember position and size
     const settingsWindowState = windowStateManager({
       file: 'settings-window-state.json',
-      defaultWidth: 900,
-      defaultHeight: 600
+      defaultWidth: 1300,
+      defaultHeight: 800
     })
 
     // Create Settings Window with state persistence
