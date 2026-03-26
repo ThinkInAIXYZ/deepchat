@@ -82,6 +82,10 @@ export const maskApiKey = (value: string): string => {
     return ''
   }
 
+  if (value.length <= 4) {
+    return '****'
+  }
+
   if (value.length <= 8) {
     return `${value.slice(0, 2)}***${value.slice(-2)}`
   }

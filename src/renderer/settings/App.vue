@@ -201,7 +201,12 @@ const syncPendingProviderInstall = async () => {
     return
   }
 
-  await applyProviderInstallPreview(preview)
+  try {
+    await applyProviderInstallPreview(preview)
+  } catch (error) {
+    windowPresenter.setPendingSettingsProviderInstall(preview)
+    console.error('Failed to sync pending provider install preview:', error)
+  }
 }
 
 const handleProviderInstall = async () => {
@@ -317,7 +322,7 @@ onMounted(() => {
 
 const initializeSettingsStores = async () => {
   try {
-    await providerStore.initialize()
+    await ensureProviderStoreReady()
     await modelStore.initialize()
     await ollamaStore.initialize?.()
   } catch (error) {

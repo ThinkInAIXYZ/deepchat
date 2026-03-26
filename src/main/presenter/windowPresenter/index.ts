@@ -51,7 +51,7 @@ export class WindowPresenter implements IWindowPresenter {
   private settingsWindow: BrowserWindow | null = null
   private settingsWindowReady = false
   private pendingSettingsMessages: PendingSettingsMessage[] = []
-  private pendingSettingsProviderInstall: ProviderInstallPreview | null = null
+  private pendingSettingsProviderInstalls: ProviderInstallPreview[] = []
 
   constructor(configPresenter: IConfigPresenter) {
     this.windows = new Map()
@@ -1332,17 +1332,16 @@ export class WindowPresenter implements IWindowPresenter {
   }
 
   public setPendingSettingsProviderInstall(preview: ProviderInstallPreview): void {
-    this.pendingSettingsProviderInstall = { ...preview }
+    this.pendingSettingsProviderInstalls.push(this.clonePendingSettingsProviderInstall(preview))
   }
 
   public consumePendingSettingsProviderInstall(): ProviderInstallPreview | null {
-    if (!this.pendingSettingsProviderInstall) {
+    const preview = this.pendingSettingsProviderInstalls.shift()
+    if (!preview) {
       return null
     }
 
-    const preview = { ...this.pendingSettingsProviderInstall }
-    this.pendingSettingsProviderInstall = null
-    return preview
+    return this.clonePendingSettingsProviderInstall(preview)
   }
 
   /**
@@ -1411,7 +1410,21 @@ export class WindowPresenter implements IWindowPresenter {
     this.settingsWindowReady = false
     if (clearQueue) {
       this.pendingSettingsMessages = []
+      this.clearPendingSettingsProviderInstalls()
     }
+  }
+
+  private clonePendingSettingsProviderInstall(
+    preview: ProviderInstallPreview
+  ): ProviderInstallPreview {
+    return { ...preview }
+  }
+
+  private clearPendingSettingsProviderInstalls(): void {
+    this.pendingSettingsProviderInstalls.forEach((preview) => {
+      preview.apiKey = ''
+    })
+    this.pendingSettingsProviderInstalls = []
   }
 
   public isApplicationQuitting(): boolean {

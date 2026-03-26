@@ -49,6 +49,9 @@ vi.mock('@/eventbus', () => ({
 }))
 
 describe('DeeplinkPresenter', () => {
+  const createProviderInstallBase64 = (payload: Record<string, string>) =>
+    Buffer.from(JSON.stringify(payload)).toString('base64')
+
   beforeEach(() => {
     vi.clearAllMocks()
     presenterMock.windowPresenter.createSettingsWindow.mockResolvedValue(9)
@@ -246,6 +249,51 @@ describe('DeeplinkPresenter', () => {
         title: 'Provider Deeplink',
         type: 'error'
       })
+    )
+  })
+
+  it('rejects provider payloads with missing base64 padding', async () => {
+    const { DeeplinkPresenter } = await import('@/presenter/deeplinkPresenter')
+    const deeplinkPresenter = new DeeplinkPresenter()
+    const validBase64 = createProviderInstallBase64({
+      id: 'openai',
+      baseUrl: 'https://proxy.example.com/v1',
+      apiKey: 'sk1'
+    })
+    const missingPadding = validBase64.replace(/=+$/, '')
+
+    expect(() => (deeplinkPresenter as any).parseProviderInstallPayload(missingPadding)).toThrow(
+      'Invalid base64 payload.'
+    )
+  })
+
+  it('rejects provider payloads with invalid base64 characters', async () => {
+    const { DeeplinkPresenter } = await import('@/presenter/deeplinkPresenter')
+    const deeplinkPresenter = new DeeplinkPresenter()
+    const validBase64 = createProviderInstallBase64({
+      id: 'openai',
+      baseUrl: 'https://proxy.example.com/v1',
+      apiKey: 'sk1'
+    })
+    const invalidCharacters = `${validBase64.slice(0, -2)}@#`
+
+    expect(() => (deeplinkPresenter as any).parseProviderInstallPayload(invalidCharacters)).toThrow(
+      'Invalid base64 payload.'
+    )
+  })
+
+  it('rejects truncated provider base64 payloads before JSON parsing', async () => {
+    const { DeeplinkPresenter } = await import('@/presenter/deeplinkPresenter')
+    const deeplinkPresenter = new DeeplinkPresenter()
+    const validBase64 = createProviderInstallBase64({
+      id: 'openai',
+      baseUrl: 'https://proxy.example.com/v1',
+      apiKey: 'sk1'
+    })
+    const truncatedPayload = validBase64.slice(0, -3)
+
+    expect(() => (deeplinkPresenter as any).parseProviderInstallPayload(truncatedPayload)).toThrow(
+      'Invalid base64 payload.'
     )
   })
 })

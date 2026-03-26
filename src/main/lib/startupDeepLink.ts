@@ -7,7 +7,7 @@ export const isDeepLinkUrl = (value: string | null | undefined): value is string
   }
 
   const normalized = value.trim()
-  return normalized.startsWith('deepchat:') || normalized.includes('deepchat://')
+  return normalized.startsWith('deepchat://') || normalized.startsWith('deepchat:')
 }
 
 export const normalizeDeepLinkUrl = (value: string): string => value.trim()

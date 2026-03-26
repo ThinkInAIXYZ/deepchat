@@ -23,6 +23,7 @@ const mountSettingsApp = async (options?: {
   routeName?: 'settings-common' | 'settings-provider'
   providerId?: string
   failImport?: boolean
+  failPreviewApply?: boolean
 }) => {
   vi.resetModules()
 
@@ -66,17 +67,21 @@ const mountSettingsApp = async (options?: {
   }
 
   const providerStore = reactive({
-    providers: [
-      {
-        id: 'deepseek',
-        name: 'DeepSeek',
-        apiType: 'deepseek',
-        apiKey: 'old-key',
-        baseUrl: 'https://old.example.com/v1',
-        enable: false
-      }
-    ],
-    initialize: vi.fn().mockResolvedValue(undefined),
+    providers: options?.failPreviewApply
+      ? []
+      : [
+          {
+            id: 'deepseek',
+            name: 'DeepSeek',
+            apiType: 'deepseek',
+            apiKey: 'old-key',
+            baseUrl: 'https://old.example.com/v1',
+            enable: false
+          }
+        ],
+    initialize: options?.failPreviewApply
+      ? vi.fn().mockRejectedValue(new Error('sync failed'))
+      : vi.fn().mockResolvedValue(undefined),
     updateProviderApi: options?.failImport
       ? vi.fn().mockRejectedValue(new Error('apply failed'))
       : vi.fn().mockResolvedValue(undefined),
@@ -107,6 +112,11 @@ const mountSettingsApp = async (options?: {
   const consumePendingSettingsProviderInstall = vi
     .fn()
     .mockImplementation(async () => pendingProviderInstallQueue.shift() ?? null)
+  const setPendingSettingsProviderInstall = vi
+    .fn()
+    .mockImplementation(async (payload: Record<string, unknown>) => {
+      pendingProviderInstallQueue.unshift(payload)
+    })
   const queuePendingProviderInstall = (payload: Record<string, unknown>) => {
     pendingProviderInstallQueue.push(payload)
   }
@@ -138,7 +148,8 @@ const mountSettingsApp = async (options?: {
       if (name === 'windowPresenter') {
         return {
           closeSettingsWindow: vi.fn(),
-          consumePendingSettingsProviderInstall
+          consumePendingSettingsProviderInstall,
+          setPendingSettingsProviderInstall
         }
       }
       if (name === 'configPresenter') {
@@ -280,7 +291,9 @@ const mountSettingsApp = async (options?: {
     providerDeeplinkImportStore,
     installHandler,
     queuePendingProviderInstall,
-    consumePendingSettingsProviderInstall
+    consumePendingSettingsProviderInstall,
+    setPendingSettingsProviderInstall,
+    pendingProviderInstallQueue
   }
 }
 
@@ -454,5 +467,36 @@ describe('SettingsApp provider deeplink', () => {
     expect(consumePendingSettingsProviderInstall).toHaveBeenCalled()
     expect(wrapper.get('[data-testid="provider-import-dialog"]').exists()).toBe(true)
     expect(wrapper.get('[data-testid="provider-import-kind"]').text()).toBe('builtin')
+  })
+
+  it('requeues pending provider installs when syncing the preview fails', async () => {
+    const {
+      wrapper,
+      installHandler,
+      queuePendingProviderInstall,
+      setPendingSettingsProviderInstall,
+      pendingProviderInstallQueue
+    } = await mountSettingsApp({
+      routeName: 'settings-common',
+      failPreviewApply: true
+    })
+
+    const payload = {
+      kind: 'custom' as const,
+      name: 'DeepSeek Proxy',
+      type: 'deepseek',
+      baseUrl: 'https://deepseek.example.com/v1',
+      apiKey: 'sk-deepseek-custom',
+      maskedApiKey: 'sk-d...stom',
+      iconModelId: 'deepseek'
+    }
+
+    queuePendingProviderInstall(payload)
+    await installHandler?.({})
+    await flushPromises()
+
+    expect(setPendingSettingsProviderInstall).toHaveBeenCalledWith(payload)
+    expect(pendingProviderInstallQueue).toEqual([payload])
+    expect(wrapper.find('[data-testid="provider-import-dialog"]').exists()).toBe(false)
   })
 })

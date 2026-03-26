@@ -426,9 +426,13 @@ describe('Settings App', () => {
     const ipcRemoveListener = vi.fn()
     const ipcRemoveAllListeners = vi.fn()
     const ipcSend = vi.fn()
+    let resolveProviderInitialize: (() => void) | null = null
+    const providerInitializePromise = new Promise<void>((resolve) => {
+      resolveProviderInitialize = resolve
+    })
     const providerStore = {
       providers: [],
-      initialize: vi.fn().mockResolvedValue(undefined)
+      initialize: vi.fn().mockReturnValue(providerInitializePromise)
     }
     const providerDeeplinkImportStore = {
       preview: null,
@@ -622,6 +626,8 @@ describe('Settings App', () => {
     await Promise.resolve()
     await Promise.resolve()
 
+    expect(providerStore.initialize).toHaveBeenCalledTimes(1)
+
     const installHandler = ipcOn.mock.calls.find(
       ([eventName]: [string]) => eventName === SETTINGS_EVENTS.PROVIDER_INSTALL
     )?.[1]
@@ -638,7 +644,13 @@ describe('Settings App', () => {
     expect(installHandler).toBeTypeOf('function')
 
     consumePendingSettingsProviderInstall.mockResolvedValueOnce(payload)
-    await installHandler?.({})
+    const installPromise = installHandler?.({})
+
+    expect(providerStore.initialize).toHaveBeenCalledTimes(1)
+
+    resolveProviderInitialize?.()
+    await installPromise
+    await flushPromises()
 
     expect(push).toHaveBeenCalledWith({
       name: 'settings-provider',

@@ -32,10 +32,7 @@ test/
 
 使用方式：
 
-```bash
-# 直接在浏览器中打开
-test/manual/deeplink-playground.html
-```
+直接在浏览器中打开 `test/manual/deeplink-playground.html` 即可。
 
 说明：
 

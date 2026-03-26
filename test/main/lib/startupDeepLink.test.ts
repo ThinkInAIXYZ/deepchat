@@ -43,4 +43,11 @@ describe('startupDeepLink utilities', () => {
       'deepchat://provider/install?v=1'
     )
   })
+
+  it('ignores strings that only contain a deeplink later in the value', () => {
+    expect(findDeepLinkArg(['electron', 'https://example.com/?next=deepchat://start?msg=1'])).toBe(
+      null
+    )
+    expect(findDeepLinkArg(['electron', 'prefix deepchat://start?msg=1'])).toBeNull()
+  })
 })

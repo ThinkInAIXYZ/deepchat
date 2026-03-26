@@ -121,7 +121,6 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
           console.warn('Unknown MCP subcommand:', subCommand)
         }
       } else if (command === 'provider') {
-        const subCommand = urlObj.pathname.slice(1)
         if (subCommand === 'install') {
           await this.handleProviderInstall(urlObj.searchParams)
         } else {
@@ -501,9 +500,8 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
     let jsonString = ''
     try {
       const buffer = Buffer.from(sanitizedBase64, 'base64')
-      const normalizedInput = sanitizedBase64.replace(/=+$/, '')
-      const normalizedOutput = buffer.toString('base64').replace(/=+$/, '')
-      if (normalizedInput !== normalizedOutput) {
+      const normalizedOutput = buffer.toString('base64')
+      if (sanitizedBase64 !== normalizedOutput) {
         throw new Error('Invalid base64 payload.')
       }
       jsonString = buffer.toString('utf8')
