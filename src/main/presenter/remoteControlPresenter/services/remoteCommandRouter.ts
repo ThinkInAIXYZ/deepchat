@@ -10,6 +10,7 @@ import type {
 } from '../types'
 import {
   TELEGRAM_MODEL_MENU_TTL_MS,
+  TELEGRAM_REMOTE_COMMANDS,
   buildModelMenuBackCallbackData,
   buildModelMenuCancelCallbackData,
   buildModelMenuChoiceCallbackData,
@@ -126,6 +127,19 @@ export class RemoteCommandRouter {
           return {
             replies: [
               stopped ? 'Stopped the active generation.' : 'There is no active generation to stop.'
+            ]
+          }
+        }
+
+        case 'open': {
+          const openResult = await this.deps.runner.open(endpointKey)
+          return {
+            replies: [
+              openResult.status === 'ok'
+                ? `Opened on desktop: ${this.formatSessionLabel(openResult.session)}`
+                : openResult.status === 'windowNotFound'
+                  ? 'Could not find a DeepChat desktop window. Open DeepChat and try /open again.'
+                  : 'No bound session. Send a message, /new, or /use first.'
             ]
           }
         }
@@ -426,15 +440,15 @@ export class RemoteCommandRouter {
   private formatHelpMessage(): string {
     return [
       'Commands:',
-      '/start',
-      '/help',
-      '/pair <code>',
-      '/new [title]',
-      '/sessions',
-      '/use <index>',
-      '/stop',
-      '/status',
-      '/model',
+      ...TELEGRAM_REMOTE_COMMANDS.map((item) =>
+        item.command === 'pair'
+          ? '/pair <code> - Authorize this Telegram account'
+          : item.command === 'new'
+            ? '/new [title] - Start a new DeepChat session'
+            : item.command === 'use'
+              ? '/use <index> - Bind a listed session'
+              : `/${item.command} - ${item.description}`
+      ),
       'Plain text sends to the current bound session.'
     ].join('\n')
   }

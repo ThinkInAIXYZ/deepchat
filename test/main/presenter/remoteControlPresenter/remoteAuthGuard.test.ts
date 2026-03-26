@@ -46,12 +46,14 @@ describe('RemoteAuthGuard', () => {
 
   it('pairs a user with a valid one-time code', () => {
     const store = {
-      getPairingState: vi.fn().mockReturnValue({
+      getTelegramPairingState: vi.fn().mockReturnValue({
         code: '123456',
-        expiresAt: Date.now() + 60_000
+        expiresAt: Date.now() + 60_000,
+        failedAttempts: 0
       }),
       addAllowedUser: vi.fn(),
-      clearPairCode: vi.fn()
+      clearPairCode: vi.fn(),
+      recordPairCodeFailure: vi.fn()
     } as any
     const guard = new RemoteAuthGuard(store)
 
@@ -59,17 +61,19 @@ describe('RemoteAuthGuard', () => {
 
     expect(result).toContain('Pairing complete')
     expect(store.addAllowedUser).toHaveBeenCalledWith(123)
-    expect(store.clearPairCode).toHaveBeenCalled()
+    expect(store.clearPairCode).toHaveBeenCalledWith('telegram')
   })
 
   it('rejects expired pair codes and clears them', () => {
     const store = {
-      getPairingState: vi.fn().mockReturnValue({
+      getTelegramPairingState: vi.fn().mockReturnValue({
         code: '123456',
-        expiresAt: Date.now() - 1
+        expiresAt: Date.now() - 1,
+        failedAttempts: 0
       }),
       addAllowedUser: vi.fn(),
-      clearPairCode: vi.fn()
+      clearPairCode: vi.fn(),
+      recordPairCodeFailure: vi.fn()
     } as any
     const guard = new RemoteAuthGuard(store)
 
@@ -77,6 +81,29 @@ describe('RemoteAuthGuard', () => {
 
     expect(result).toContain('missing or expired')
     expect(store.addAllowedUser).not.toHaveBeenCalled()
-    expect(store.clearPairCode).toHaveBeenCalled()
+    expect(store.clearPairCode).toHaveBeenCalledWith('telegram')
+  })
+
+  it('expires the pairing code after too many invalid attempts', () => {
+    const store = {
+      getTelegramPairingState: vi.fn().mockReturnValue({
+        code: '123456',
+        expiresAt: Date.now() + 60_000,
+        failedAttempts: 4
+      }),
+      addAllowedUser: vi.fn(),
+      clearPairCode: vi.fn(),
+      recordPairCodeFailure: vi.fn().mockReturnValue({
+        attempts: 5,
+        exhausted: true
+      })
+    } as any
+    const guard = new RemoteAuthGuard(store)
+
+    const result = guard.pair(createMessage(), '654321')
+
+    expect(result).toContain('Too many invalid pairing attempts')
+    expect(store.recordPairCodeFailure).toHaveBeenCalledWith('telegram', 5)
+    expect(store.addAllowedUser).not.toHaveBeenCalled()
   })
 })

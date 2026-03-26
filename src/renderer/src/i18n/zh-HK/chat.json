@@ -259,7 +259,8 @@
     "groupByDate": "按時間分組",
     "groupByProject": "按專案分組",
     "emptyTitle": "還沒有對話",
-    "emptyDescription": "開始一個新對話吧"
+    "emptyDescription": "開始一個新對話吧",
+    "remoteControlDisabled": "未啟用"
   },
   "floatingWidget": {
     "title": "DeepChat",

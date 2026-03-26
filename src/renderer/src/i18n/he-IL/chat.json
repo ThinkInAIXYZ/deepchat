@@ -259,7 +259,8 @@
     "groupByDate": "קבץ לפי תאריך",
     "groupByProject": "קבץ לפי פרויקט",
     "emptyTitle": "עדיין אין שיחות",
-    "emptyDescription": "התחילו שיחה חדשה כדי להתחיל"
+    "emptyDescription": "התחילו שיחה חדשה כדי להתחיל",
+    "remoteControlDisabled": "מושבת"
   },
   "floatingWidget": {
     "title": "DeepChat",

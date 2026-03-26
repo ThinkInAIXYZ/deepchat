@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 import {
   buildTelegramFinalText,
   chunkTelegramText,
-  extractTelegramStreamText
+  extractTelegramDraftText,
+  extractTelegramStreamText,
+  shouldSendTelegramDraft
 } from '@/presenter/remoteControlPresenter/telegram/telegramOutbound'
 
 describe('telegramOutbound', () => {
@@ -47,6 +49,31 @@ describe('telegramOutbound', () => {
 
     expect(text).toContain('Need your approval')
     expect(text).toContain('Desktop confirmation is required')
+  })
+
+  it('skips drafts for reasoning and action-only blocks', () => {
+    const blocks = [
+      {
+        type: 'reasoning_content' as const,
+        content: 'hidden reasoning',
+        status: 'success' as const,
+        timestamp: 1
+      },
+      {
+        type: 'action' as const,
+        action_type: 'question_request' as const,
+        content: 'Need your answer',
+        status: 'pending' as const,
+        timestamp: 2,
+        extra: {
+          needsUserAction: true
+        }
+      }
+    ]
+
+    expect(extractTelegramDraftText(blocks)).toBe('')
+    expect(shouldSendTelegramDraft(blocks)).toBe(false)
+    expect(buildTelegramFinalText(blocks)).toContain('Need your answer')
   })
 
   it('chunks long text within the Telegram limit', () => {

@@ -1522,19 +1522,40 @@
   },
   "remote": {
     "title": "远程",
-    "description": "配置 Telegram 远程控制和 Telegram Hook 通知。",
+    "description": "统一配置 Telegram 和飞书远程控制。",
     "telegram": {
       "title": "Telegram",
       "description": "用同一个 Telegram Bot 管理远程控制和 Hook 投递。",
       "botToken": "机器人 Token",
       "botTokenPlaceholder": "Telegram 机器人 Token"
     },
+    "feishu": {
+      "title": "飞书",
+      "description": "接入飞书 Bot，支持私聊、群聊和话题线程远程控制。",
+      "appId": "应用 ID",
+      "appIdPlaceholder": "飞书应用 ID",
+      "appSecret": "应用密钥",
+      "appSecretPlaceholder": "飞书应用密钥",
+      "verificationToken": "验证令牌",
+      "verificationTokenPlaceholder": "飞书事件订阅验证令牌",
+      "encryptKey": "加密密钥（可选）",
+      "encryptKeyPlaceholder": "未开启事件加密时可留空",
+      "botUser": "机器人账号：{name} ({openId})",
+      "bindings": "绑定数：{count}，已配对用户：{pairedUserCount}",
+      "pairedUserOpenIds": "已配对用户 Open ID",
+      "pairedUserOpenIdsPlaceholder": "例如 ou_xxx, ou_yyy",
+      "accessRulesDescription": "先在私聊完成配对。群聊里只有已配对且以 {'@'} 提及机器人的用户，才可以操作会话。",
+      "accessRule1": "先私聊机器人发送 /pair [配对码] 完成配对。",
+      "accessRule2": "群聊和话题线程里，只有已配对用户以 {'@'} 提及机器人时，消息才会进入会话。"
+    },
+    "sections": {
+      "credentials": "凭证",
+      "remoteControl": "远程控制",
+      "notifications": "通知",
+      "accessRules": "访问规则"
+    },
     "remoteControl": {
-      "title": "远程控制",
-      "description": "允许已授权的 Telegram 用户远程继续 DeepChat 会话。",
-      "streamMode": "流式模式",
-      "streamModeDraft": "草稿流式",
-      "streamModeFinal": "仅最终结果",
+      "description": "将每个远程入口绑定到一个 DeepChat 会话，并在不同命令之间持续复用该会话。",
       "allowedUserIds": "允许的用户 ID",
       "allowedUserIdsPlaceholder": "例如 123456789, 987654321",
       "defaultAgent": "默认 DeepChat 智能体",
@@ -1543,19 +1564,16 @@
       "manageBindings": "管理绑定",
       "pairCode": "配对码",
       "noPairCode": "当前没有有效配对码",
-      "generatePairCode": "生成",
-      "clearPairCode": "清除",
       "pairCodeExpiresAt": "过期时间：{time}",
-      "pairDialogTitle": "Telegram 配对",
-      "pairDialogDescription": "生成配对码后，请去 Telegram 机器人里完成配对。",
-      "pairDialogInstruction": "去对应的机器人发送这条命令：",
-      "bindingsDialogTitle": "已绑定会话",
-      "bindingsDialogDescription": "逐条移除 Telegram 和 DeepChat 会话的绑定关系。",
+      "pairDialogTitle": "{channel} 配对",
+      "pairDialogDescription": "生成配对码后，请去对应的 {channel} 机器人里完成配对。",
+      "pairDialogInstructionTelegram": "去 Telegram 机器人里发送这条命令：",
+      "pairDialogInstructionFeishu": "去飞书机器人的私聊里发送这条命令：",
+      "bindingsDialogTitle": "{channel} 绑定",
+      "bindingsDialogDescription": "逐条移除远程入口与 DeepChat 会话的绑定关系。",
       "bindingsEmpty": "当前还没有绑定的会话。",
       "pairingSuccessTitle": "配对成功",
-      "pairingSuccessDescription": "允许的用户 ID 已刷新。",
-      "clearBindings": "清除绑定",
-      "clearBindingsResult": "已清除 {count} 个绑定。"
+      "pairingSuccessDescription": "已配对主体列表已刷新。"
     },
     "hooks": {
       "title": "Telegram Hook 通知",
@@ -1577,6 +1595,17 @@
         "backoff": "失败后重试中",
         "error": "错误"
       }
+    },
+    "overview": {
+      "telegram": "{bindingCount} 个绑定，{pairedCount} 个已配对用户，hooks {hooks}",
+      "feishu": "{bindingCount} 个绑定，{pairedCount} 个已配对用户",
+      "hooksOn": "开启",
+      "hooksOff": "关闭"
+    },
+    "bindingKinds": {
+      "dm": "私聊",
+      "group": "群聊",
+      "topic": "话题"
     }
   }
 }

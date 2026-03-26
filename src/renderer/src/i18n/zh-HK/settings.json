@@ -1471,7 +1471,7 @@
   },
   "remote": {
     "title": "遠端",
-    "description": "設定 Telegram 遠端控制與 Telegram Hook 通知。",
+    "description": "統一設定 Telegram 與飛書遠端控制。",
     "telegram": {
       "title": "Telegram",
       "description": "使用同一個 Telegram Bot 管理遠端控制與 Hook 投遞。",
@@ -1480,7 +1480,7 @@
     },
     "remoteControl": {
       "title": "遠端控制",
-      "description": "允許已授權的 Telegram 使用者遠端繼續 DeepChat 會話。",
+      "description": "將每個遠端入口綁定到一個 DeepChat 會話，並在不同指令之間持續沿用該會話。",
       "streamMode": "串流模式",
       "streamModeDraft": "草稿串流",
       "streamModeFinal": "僅最終結果",
@@ -1499,12 +1499,14 @@
       "pairDialogDescription": "生成配對碼後，請到 Telegram 機器人內完成配對。",
       "pairDialogInstruction": "到對應的機器人送出這條指令：",
       "bindingsDialogTitle": "已綁定會話",
-      "bindingsDialogDescription": "逐條移除 Telegram 與 DeepChat 會話的綁定關係。",
+      "bindingsDialogDescription": "逐條移除遠端入口與 DeepChat 會話的綁定關係。",
       "bindingsEmpty": "目前還沒有已綁定的會話。",
       "pairingSuccessTitle": "配對成功",
       "pairingSuccessDescription": "允許的使用者 ID 已刷新。",
       "clearBindings": "清除綁定",
-      "clearBindingsResult": "已清除 {count} 個綁定。"
+      "clearBindingsResult": "已清除 {count} 個綁定。",
+      "pairDialogInstructionTelegram": "到 Telegram Bot 傳送這條指令：",
+      "pairDialogInstructionFeishu": "到飛書 Bot 的私聊中傳送這條指令："
     },
     "hooks": {
       "title": "Telegram Hook 通知",
@@ -1526,6 +1528,42 @@
         "backoff": "失敗後重試中",
         "error": "錯誤"
       }
+    },
+    "feishu": {
+      "title": "飛書",
+      "description": "接入飛書 Bot，支援私聊、群組聊天與話題串的遠端控制。",
+      "appId": "應用 ID",
+      "appIdPlaceholder": "飛書應用 ID",
+      "appSecret": "應用密鑰",
+      "appSecretPlaceholder": "飛書應用密鑰",
+      "verificationToken": "驗證令牌",
+      "verificationTokenPlaceholder": "飛書事件訂閱驗證令牌",
+      "encryptKey": "加密密鑰（可選）",
+      "encryptKeyPlaceholder": "未啟用事件加密時可留空",
+      "botUser": "機器人帳號：{name} ({openId})",
+      "bindings": "綁定數：{count}，已配對使用者：{pairedUserCount}",
+      "pairedUserOpenIds": "已配對使用者 Open ID",
+      "pairedUserOpenIdsPlaceholder": "例如 ou_xxx、ou_yyy",
+      "accessRulesDescription": "請先在私聊完成配對。在群組中，只有已配對且以 {'@'} 提及 Bot 的使用者才能操作會話。",
+      "accessRule1": "先在私聊中發送 /pair [配對碼] 完成配對。",
+      "accessRule2": "在群組與話題串中，只有已配對使用者以 {'@'} 提及 Bot 時，機器人才會回應。"
+    },
+    "sections": {
+      "credentials": "憑證",
+      "remoteControl": "遠端控制",
+      "notifications": "通知",
+      "accessRules": "存取規則"
+    },
+    "overview": {
+      "telegram": "{bindingCount} 個綁定，{pairedCount} 位已配對使用者，hooks {hooks}",
+      "feishu": "{bindingCount} 個綁定，{pairedCount} 位已配對使用者",
+      "hooksOn": "開啟",
+      "hooksOff": "關閉"
+    },
+    "bindingKinds": {
+      "dm": "私聊",
+      "group": "群組",
+      "topic": "話題"
     }
   },
   "deepchatAgents": {

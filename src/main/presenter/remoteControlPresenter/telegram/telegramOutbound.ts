@@ -44,22 +44,39 @@ export const blocksRequireDesktopConfirmation = (blocks: AssistantMessageBlock[]
       block.extra?.needsUserAction !== false
   )
 
-export const extractTelegramStreamText = (blocks: AssistantMessageBlock[]): string => {
-  const preferred = blocks
-    .filter((block) => block.type === 'content' && typeof block.content === 'string')
-    .map((block) => block.content?.trim() ?? '')
-    .filter(Boolean)
-
-  if (preferred.length > 0) {
-    return preferred.join('\n\n').trim()
-  }
-
-  return blocks
-    .filter((block) => block.type !== 'tool_call' && typeof block.content === 'string')
+const collectText = (
+  blocks: AssistantMessageBlock[],
+  predicate: (block: AssistantMessageBlock) => boolean
+): string =>
+  blocks
+    .filter(predicate)
     .map((block) => block.content?.trim() ?? '')
     .filter(Boolean)
     .join('\n\n')
     .trim()
+
+export const extractTelegramDraftText = (blocks: AssistantMessageBlock[]): string =>
+  collectText(blocks, (block) => block.type === 'content' && typeof block.content === 'string')
+
+export const shouldSendTelegramDraft = (blocks: AssistantMessageBlock[]): boolean =>
+  Boolean(extractTelegramDraftText(blocks))
+
+export const extractTelegramStreamText = (blocks: AssistantMessageBlock[]): string => {
+  const preferred = extractTelegramDraftText(blocks)
+
+  if (preferred) {
+    return preferred
+  }
+
+  return collectText(
+    blocks,
+    (block) =>
+      typeof block.content === 'string' &&
+      (block.type === 'content' ||
+        (block.type === 'action' &&
+          (block.action_type === 'tool_call_permission' ||
+            block.action_type === 'question_request')))
+  )
 }
 
 export const buildTelegramFinalText = (blocks: AssistantMessageBlock[]): string => {

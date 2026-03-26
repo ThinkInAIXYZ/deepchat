@@ -1,5 +1,6 @@
 import type { HookTestResult, HooksNotificationsSettings } from '@shared/hooksNotifications'
 import type {
+  FeishuRemoteSettings,
   IConfigPresenter,
   INewAgentPresenter,
   IRemoteControlPresenter,
@@ -28,4 +29,5 @@ export interface RemoteRuntimeLifecycle {
 export interface RemoteControlPresenterLike
   extends IRemoteControlPresenter, RemoteRuntimeLifecycle {
   buildTelegramSettingsSnapshot(): TelegramRemoteSettings
+  buildFeishuSettingsSnapshot(): FeishuRemoteSettings
 }

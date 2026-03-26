@@ -259,7 +259,8 @@
     "groupByDate": "Agrupar por data",
     "groupByProject": "Agrupar por projeto",
     "emptyTitle": "Ainda não há conversas",
-    "emptyDescription": "Inicie um novo chat para começar"
+    "emptyDescription": "Inicie um novo chat para começar",
+    "remoteControlDisabled": "Desativado"
   },
   "floatingWidget": {
     "title": "DeepChat",

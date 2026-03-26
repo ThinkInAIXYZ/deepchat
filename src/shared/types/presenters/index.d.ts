@@ -83,11 +83,21 @@ export type { IToolPresenter } from './tool.presenter'
 export type { INewAgentPresenter } from './new-agent.presenter'
 export type { IProjectPresenter } from './project.presenter'
 export type {
+  FeishuPairingSnapshot,
+  FeishuRemoteBindingSummary,
+  FeishuRemoteSettings,
+  FeishuRemoteStatus,
   IRemoteControlPresenter,
+  RemoteBindingKind,
+  RemoteBindingSummary,
+  RemoteChannel,
+  RemoteChannelSettings,
+  RemoteChannelStatus,
+  RemotePairingSnapshot,
+  RemoteRuntimeState,
   TelegramHookSettings,
   TelegramPairingSnapshot,
   TelegramRemoteBindingSummary,
-  TelegramRemoteRuntimeState,
   TelegramRemoteSettings,
   TelegramRemoteStatus,
   TelegramStreamMode

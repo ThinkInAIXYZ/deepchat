@@ -1471,7 +1471,7 @@
   },
   "remote": {
     "title": "שליטה מרחוק",
-    "description": "הגדר שליטה מרחוק ב-Telegram והתראות Hook של Telegram.",
+    "description": "הגדר שליטה מרחוק ב-Telegram וב-Feishu במקום אחד.",
     "telegram": {
       "title": "Telegram",
       "description": "נהל בוט Telegram אחד עבור שליטה מרחוק ושליחת Hooks.",
@@ -1480,7 +1480,7 @@
     },
     "remoteControl": {
       "title": "שליטה מרחוק",
-      "description": "אפשר למשתמשי Telegram מורשים להמשיך סשנים של DeepChat מרחוק.",
+      "description": "קשרו כל יעד מרוחק לסשן DeepChat אחד ושמרו על אותו סשן בין פקודות.",
       "streamMode": "מצב סטרימינג",
       "streamModeDraft": "סטרימינג טיוטה",
       "streamModeFinal": "תשובה סופית בלבד",
@@ -1504,7 +1504,9 @@
       "pairingSuccessTitle": "הצימוד הושלם",
       "pairingSuccessDescription": "רשימת מזהי המשתמש המורשים רועננה.",
       "clearBindings": "נקה קישורים",
-      "clearBindingsResult": "{count} קישור(ים) נוקו."
+      "clearBindingsResult": "{count} קישור(ים) נוקו.",
+      "pairDialogInstructionTelegram": "שלחו את הפקודה הזו לבוט Telegram:",
+      "pairDialogInstructionFeishu": "שלחו את הפקודה הזו לבוט Feishu בהודעה פרטית:"
     },
     "hooks": {
       "title": "Hooks של Telegram",
@@ -1526,6 +1528,42 @@
         "backoff": "מנסה שוב לאחר כשל",
         "error": "שגיאה"
       }
+    },
+    "feishu": {
+      "title": "Feishu",
+      "description": "חבר בוט Feishu להודעות פרטיות, שיחות קבוצתיות ושרשורי נושאים.",
+      "appId": "מזהה יישום",
+      "appIdPlaceholder": "מזהה יישום של Feishu",
+      "appSecret": "סוד היישום",
+      "appSecretPlaceholder": "סוד היישום של Feishu",
+      "verificationToken": "אסימון אימות",
+      "verificationTokenPlaceholder": "אסימון האימות של Feishu",
+      "encryptKey": "מפתח הצפנה (אופציונלי)",
+      "encryptKeyPlaceholder": "השאר ריק אם הצפנת אירועים לא מופעלת",
+      "botUser": "משתמש הבוט: {name} ({openId})",
+      "bindings": "קישורים: {count}, משתמשים מצומדים: {pairedUserCount}",
+      "pairedUserOpenIds": "Open ID של משתמשים מצומדים",
+      "pairedUserOpenIdsPlaceholder": "למשל ou_xxx, ou_yyy",
+      "accessRulesDescription": "צריך לבצע צימוד קודם בהודעה פרטית. בקבוצות, רק משתמשים מצומדים שמזכירים את הבוט עם {'@'} יכולים לשלוט בסשן.",
+      "accessRule1": "בצעו צימוד בהודעה פרטית עם /pair [קוד].",
+      "accessRule2": "בקבוצות ובנושאים, הבוט מגיב רק כאשר משתמש מצומד מזכיר אותו עם {'@'}."
+    },
+    "sections": {
+      "credentials": "אישורים",
+      "remoteControl": "שליטה מרחוק",
+      "notifications": "התראות",
+      "accessRules": "כללי גישה"
+    },
+    "overview": {
+      "telegram": "{bindingCount} קישורים, {pairedCount} משתמשים מצומדים, hooks {hooks}",
+      "feishu": "{bindingCount} קישורים, {pairedCount} משתמשים מצומדים",
+      "hooksOn": "מופעלים",
+      "hooksOff": "כבויים"
+    },
+    "bindingKinds": {
+      "dm": "הודעה פרטית",
+      "group": "קבוצה",
+      "topic": "נושא"
     }
   },
   "deepchatAgents": {

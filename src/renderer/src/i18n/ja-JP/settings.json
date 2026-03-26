@@ -1471,7 +1471,7 @@
   },
   "remote": {
     "title": "リモート",
-    "description": "Telegram リモート操作と Telegram Hook 通知を設定します。",
+    "description": "Telegram と Feishu のリモート操作を 1 か所で設定します。",
     "telegram": {
       "title": "Telegram",
       "description": "1 つの Telegram Bot でリモート操作と Hook 配信を管理します。",
@@ -1480,7 +1480,7 @@
     },
     "remoteControl": {
       "title": "リモート操作",
-      "description": "認可済みの Telegram ユーザーが DeepChat セッションをリモートで継続できるようにします。",
+      "description": "各リモートエンドポイントを 1 つの DeepChat セッションに結び付け、そのセッションをコマンド間で使い続けます。",
       "streamMode": "ストリーミングモード",
       "streamModeDraft": "下書きストリーミング",
       "streamModeFinal": "最終結果のみ",
@@ -1504,7 +1504,9 @@
       "pairingSuccessTitle": "ペアリング完了",
       "pairingSuccessDescription": "許可されたユーザー ID の一覧を更新しました。",
       "clearBindings": "バインドをクリア",
-      "clearBindingsResult": "{count} 件のバインドをクリアしました。"
+      "clearBindingsResult": "{count} 件のバインドをクリアしました。",
+      "pairDialogInstructionTelegram": "このコマンドを Telegram Bot に送信してください:",
+      "pairDialogInstructionFeishu": "このコマンドを Feishu Bot のダイレクトメッセージに送信してください:"
     },
     "hooks": {
       "title": "Telegram Hook 通知",
@@ -1526,6 +1528,42 @@
         "backoff": "失敗後に再試行中",
         "error": "エラー"
       }
+    },
+    "feishu": {
+      "title": "Feishu",
+      "description": "Feishu Bot を接続して、ダイレクトメッセージ、グループチャット、トピックスレッドから操作できます。",
+      "appId": "アプリ ID",
+      "appIdPlaceholder": "Feishu アプリ ID",
+      "appSecret": "アプリシークレット",
+      "appSecretPlaceholder": "Feishu アプリシークレット",
+      "verificationToken": "検証トークン",
+      "verificationTokenPlaceholder": "Feishu 検証トークン",
+      "encryptKey": "暗号化キー（任意）",
+      "encryptKeyPlaceholder": "イベント暗号化を有効にしていない場合は空欄のままにします",
+      "botUser": "Bot ユーザー: {name} ({openId})",
+      "bindings": "バインド数: {count}、ペア済みユーザー: {pairedUserCount}",
+      "pairedUserOpenIds": "ペア済みユーザー Open ID",
+      "pairedUserOpenIdsPlaceholder": "例: ou_xxx, ou_yyy",
+      "accessRulesDescription": "まずダイレクトメッセージでペアリングしてください。グループでは、{'@'} で Bot をメンションしたペア済みユーザーだけがセッションを操作できます。",
+      "accessRule1": "ダイレクトメッセージで /pair [コード] を送ってペアリングします。",
+      "accessRule2": "グループとトピックでは、ペア済みユーザーが {'@'} で Bot をメンションしたときだけ反応します。"
+    },
+    "sections": {
+      "credentials": "認証情報",
+      "remoteControl": "リモート操作",
+      "notifications": "通知",
+      "accessRules": "アクセスルール"
+    },
+    "overview": {
+      "telegram": "{bindingCount} 件のバインド、{pairedCount} 人のペア済みユーザー、hooks {hooks}",
+      "feishu": "{bindingCount} 件のバインド、{pairedCount} 人のペア済みユーザー",
+      "hooksOn": "有効",
+      "hooksOff": "無効"
+    },
+    "bindingKinds": {
+      "dm": "DM",
+      "group": "グループ",
+      "topic": "トピック"
     }
   },
   "deepchatAgents": {
