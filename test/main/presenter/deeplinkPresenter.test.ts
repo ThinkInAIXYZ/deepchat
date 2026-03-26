@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEEPLINK_EVENTS, NOTIFICATION_EVENTS, SETTINGS_EVENTS } from '@/events'
 
 const browserWindowFromIdMock = vi.hoisted(() => vi.fn())
@@ -53,7 +53,7 @@ describe('DeeplinkPresenter', () => {
     Buffer.from(JSON.stringify(payload)).toString('base64')
 
   beforeEach(() => {
-    vi.clearAllMocks()
+    vi.restoreAllMocks()
     presenterMock.windowPresenter.createSettingsWindow.mockResolvedValue(9)
     presenterMock.windowPresenter.createAppWindow.mockResolvedValue(1)
     presenterMock.windowPresenter.sendToWindow.mockReturnValue(true)
@@ -75,6 +75,10 @@ describe('DeeplinkPresenter', () => {
 
       return undefined
     })
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
   })
 
   it('routes start deeplink to a chat window even when settings is focused', async () => {
@@ -403,7 +407,5 @@ describe('DeeplinkPresenter', () => {
       .join(' ')
     expect(serializedLogs).not.toContain(rawData)
     expect(serializedLogs).not.toContain('sk-secret-value')
-
-    consoleLogSpy.mockRestore()
   })
 })

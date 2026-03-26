@@ -209,18 +209,27 @@ const syncPendingProviderInstall = async () => {
   }
 
   isProcessingProviderPreview.value = true
-  const preview = await windowPresenter.consumePendingSettingsProviderInstall()
-  if (!preview) {
-    isProcessingProviderPreview.value = false
-    return
-  }
+  let preview: ProviderInstallPreview | null = null
 
   try {
+    preview = await windowPresenter.consumePendingSettingsProviderInstall()
+    if (!preview) {
+      return
+    }
+
     await applyProviderInstallPreview(preview)
   } catch (error) {
-    windowPresenter.setPendingSettingsProviderInstall(preview)
-    isProcessingProviderPreview.value = false
+    if (preview) {
+      try {
+        windowPresenter.setPendingSettingsProviderInstall(preview)
+      } catch (requeueError) {
+        console.error('Failed to requeue pending provider install preview:', requeueError)
+      }
+    }
+
     console.error('Failed to sync pending provider install preview:', error)
+  } finally {
+    isProcessingProviderPreview.value = false
   }
 }
 
