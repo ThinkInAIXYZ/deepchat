@@ -52,6 +52,7 @@ import { ToolOutputGuard } from './toolOutputGuard'
 import type { ProviderRequestTracePayload } from '../llmProviderPresenter/requestTrace'
 import type { NewSessionHooksBridge } from '../hooksNotifications/newSessionBridge'
 import { providerDbLoader } from '../configPresenter/providerDbLoader'
+import { resolveSessionVisionTarget } from '../vision/sessionVisionResolver'
 
 type PendingInteractionEntry = {
   interaction: PendingToolInteraction
@@ -2996,7 +2997,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
 
     const visionModel = await this.resolveScreenshotVisionModel(params.sessionId)
     if (!visionModel) {
-      return 'Screenshot captured, but automatic English analysis is unavailable because no vision model is configured.'
+      return 'Screenshot captured, but automatic English analysis is unavailable because neither the current session model nor the agent vision model can analyze images.'
     }
 
     try {
@@ -3111,24 +3112,24 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
   private async resolveScreenshotVisionModel(
     sessionId: string
   ): Promise<{ providerId: string; modelId: string } | null> {
-    const agentId = this.getSessionAgentId(sessionId) ?? 'deepchat'
+    const state = this.runtimeState.get(sessionId)
+    const dbSession = this.sessionStore.get(sessionId)
+    const resolved = await resolveSessionVisionTarget({
+      providerId: state?.providerId ?? dbSession?.provider_id,
+      modelId: state?.modelId ?? dbSession?.model_id,
+      agentId: this.getSessionAgentId(sessionId) ?? 'deepchat',
+      configPresenter: this.configPresenter,
+      logLabel: `screenshot:${sessionId}`
+    })
 
-    try {
-      const agentConfig = await this.configPresenter.resolveDeepChatAgentConfig(agentId)
-      const providerId = agentConfig.visionModel?.providerId?.trim()
-      const modelId = agentConfig.visionModel?.modelId?.trim()
-      if (providerId && modelId) {
-        return { providerId, modelId }
-      }
-    } catch (error) {
-      console.warn('[DeepChatAgent] Failed to resolve agent vision model:', {
-        sessionId,
-        agentId,
-        error
-      })
+    if (!resolved) {
+      return null
     }
 
-    return null
+    return {
+      providerId: resolved.providerId,
+      modelId: resolved.modelId
+    }
   }
 
   private buildScreenshotAnalysisPrompt(): string {
@@ -3137,7 +3138,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       'Describe only what is clearly visible.',
       'Include the page type or layout, the most important visible text, interactive controls, status indicators, warnings, errors, and any detail that matters for the next browser action.',
       'Do not speculate about hidden or unreadable content.',
-      'Return concise plain text in a single short paragraph.'
+      'Return detailed plain text in a single paragraph.'
     ].join('\n')
   }
 

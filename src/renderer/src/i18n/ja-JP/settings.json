@@ -61,8 +61,7 @@
     "fileMaxSizeHint": "アップロードできるファイルの最大サイズを制限します",
     "defaultModel": {
       "title": "デフォルトモデル",
-      "chatModel": "デフォルトチャットモデル",
-      "visionModel": "デフォルト視覚モデル"
+      "chatModel": "デフォルトチャットモデル"
     },
     "autoCompaction": {
       "title": "自動圧縮",
@@ -1603,7 +1602,6 @@
     "modelsTitle": "モデルの既定値",
     "chatModel": "既定の会話モデル",
     "assistantModel": "アシスタントモデル",
-    "visionModel": "ビジョンモデル",
     "temperature": "温度",
     "contextLength": "コンテキスト長",
     "maxTokens": "最大トークン数",

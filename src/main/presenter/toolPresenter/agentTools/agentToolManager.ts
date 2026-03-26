@@ -20,6 +20,7 @@ import {
 } from './chatSettingsTools'
 import type { AgentToolRuntimePort } from '../runtimePorts'
 import { YO_BROWSER_TOOL_NAMES } from '../../browser/YoBrowserToolDefinitions'
+import { resolveSessionVisionTarget } from '../../vision/sessionVisionResolver'
 
 // Consider moving to a shared handlers location in future refactoring
 import {
@@ -433,7 +434,7 @@ export class AgentToolManager {
         function: {
           name: 'read',
           description:
-            "Read the contents of a file. Supports pagination via offset/limit for large files (auto-truncated at 4500 chars if not specified). When invoked from a skill context with relative paths, provide base_directory as the skill's root directory.",
+            "Read the contents of a file. Supports pagination via offset/limit for large files (auto-truncated at 4500 chars if not specified). For image files, returns an English description of visible content instead of raw pixels. When invoked from a skill context with relative paths, provide base_directory as the skill's root directory.",
           parameters: zodToJsonSchema(schemas.read) as {
             type: string
             properties: Record<string, unknown>
@@ -721,7 +722,7 @@ export class AgentToolManager {
 
           if (this.isImageMimeType(mimeType)) {
             return {
-              content: await this.readImageWithVisionFallback(validPath, mimeType)
+              content: await this.readImageWithVisionFallback(validPath, mimeType, conversationId)
             }
           }
 
@@ -1063,13 +1064,17 @@ export class AgentToolManager {
     return lines.join('\n')
   }
 
-  private async readImageWithVisionFallback(filePath: string, mimeType: string): Promise<string> {
+  private async readImageWithVisionFallback(
+    filePath: string,
+    mimeType: string,
+    conversationId?: string
+  ): Promise<string> {
     const fileBuffer = await fs.promises.readFile(filePath)
     const metadata = this.buildImageMetadataBlock(filePath, mimeType, fileBuffer.length)
-    const defaultVisionModel = this.configPresenter.getDefaultVisionModel?.()
+    const visionTarget = await this.resolveVisionTargetForConversation(conversationId)
 
-    if (!defaultVisionModel?.providerId || !defaultVisionModel?.modelId) {
-      return `${metadata}\n\nNo defaultVisionModel configured, downgraded to metadata.`
+    if (!visionTarget) {
+      return `${metadata}\n\nImage analysis unavailable because neither the current session model nor the agent vision model can analyze images.`
     }
 
     try {
@@ -1080,12 +1085,7 @@ export class AgentToolManager {
           content: [
             {
               type: 'text',
-              text: [
-                'Analyze this image and return exactly two sections.',
-                'Section 1 title: OCR',
-                'Section 2 title: Summary',
-                'Keep OCR as faithful extracted text and Summary concise.'
-              ].join('\n')
+              text: this.buildImageAnalysisPrompt()
             },
             {
               type: 'image_url',
@@ -1096,26 +1096,59 @@ export class AgentToolManager {
       ]
 
       const modelConfig = this.configPresenter.getModelConfig(
-        defaultVisionModel.modelId,
-        defaultVisionModel.providerId
+        visionTarget.modelId,
+        visionTarget.providerId
       )
       const response = await this.getLlmProviderPresenter().generateCompletionStandalone(
-        defaultVisionModel.providerId,
+        visionTarget.providerId,
         messages,
-        defaultVisionModel.modelId,
+        visionTarget.modelId,
         modelConfig?.temperature ?? 0.2,
         modelConfig?.maxTokens ?? 1200
       )
 
       const normalized = (response || '').trim()
       if (!normalized) {
-        return `${metadata}\n\nOCR:\n\nSummary:\nNo result returned by vision model.`
+        return `${metadata}\n\nImage analysis returned no usable description.`
       }
-      return normalized.startsWith('OCR:') ? normalized : `OCR:\n\nSummary:\n${normalized}`
+      return normalized
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       return `${metadata}\n\nVision analysis failed, downgraded to metadata.\nerror: ${message}`
     }
+  }
+
+  private async resolveVisionTargetForConversation(conversationId?: string) {
+    if (!conversationId) {
+      return null
+    }
+
+    try {
+      const sessionInfo = await this.runtimePort.resolveConversationSessionInfo(conversationId)
+      return await resolveSessionVisionTarget({
+        providerId: sessionInfo?.providerId,
+        modelId: sessionInfo?.modelId,
+        agentId: sessionInfo?.agentId,
+        configPresenter: this.configPresenter,
+        logLabel: `read:${conversationId}`
+      })
+    } catch (error) {
+      logger.warn('[AgentToolManager] Failed to resolve vision target for conversation:', {
+        conversationId,
+        error
+      })
+      return null
+    }
+  }
+
+  private buildImageAnalysisPrompt(): string {
+    return [
+      'Analyze this image and respond in English only.',
+      'Describe only what is clearly visible.',
+      'Include the main subject, scene or layout, any legible text, UI elements if present, status indicators, warnings, errors, and any detail that matters for understanding the image.',
+      'Do not speculate about hidden or unreadable content.',
+      'Return detailed plain text in a single paragraph.'
+    ].join('\n')
   }
 
   private assertWritePermission(

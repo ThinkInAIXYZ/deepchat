@@ -190,7 +190,8 @@ function createMockConfigPresenter() {
       contextLength: 128000,
       thinkingBudget: 512,
       reasoningEffort: 'medium',
-      verbosity: 'medium'
+      verbosity: 'medium',
+      vision: false
     }),
     getDefaultModel: vi.fn().mockReturnValue({ providerId: 'openai', modelId: 'gpt-4' }),
     getDefaultSystemPrompt: vi.fn().mockResolvedValue('You are a helpful assistant.'),
@@ -225,7 +226,6 @@ function createMockConfigPresenter() {
     getAutoCompactionTriggerThreshold: vi.fn().mockReturnValue(80),
     getAutoCompactionRetainRecentPairs: vi.fn().mockReturnValue(2),
     getSetting: vi.fn().mockReturnValue(undefined),
-    getDefaultVisionModel: vi.fn().mockReturnValue(undefined),
     resolveDeepChatAgentConfig: vi.fn().mockResolvedValue({})
   } as any
 }
@@ -2786,7 +2786,7 @@ describe('DeepChatAgentPresenter', () => {
       )
     })
 
-    it('rewrites screenshot tool output with the agent vision model during deferred execution', async () => {
+    it('prefers the current session model for screenshot analysis during deferred execution', async () => {
       toolPresenter.getAllToolDefinitions.mockResolvedValueOnce([
         {
           type: 'function',
@@ -2802,14 +2802,19 @@ describe('DeepChatAgentPresenter', () => {
         content: '{"data":"YWJj"}',
         rawData: { toolCallId: 'tc1', content: '{"data":"YWJj"}', isError: false }
       })
-      configPresenter.resolveDeepChatAgentConfig.mockResolvedValueOnce({
-        visionModel: { providerId: 'anthropic', modelId: 'claude-3-7-sonnet' }
-      })
+      configPresenter.getModelConfig.mockImplementation((modelId: string, providerId?: string) => ({
+        temperature: 0.7,
+        maxTokens: 4096,
+        contextLength: 128000,
+        thinkingBudget: 512,
+        reasoningEffort: 'medium',
+        verbosity: 'medium',
+        vision: providerId === 'openai' && modelId === 'gpt-4o'
+      }))
 
       await agent.initSession('s1', {
-        agentId: 'agent-vision',
         providerId: 'openai',
-        modelId: 'gpt-4'
+        modelId: 'gpt-4o'
       })
 
       const result = await (agent as any).executeDeferredToolCall('s1', {
@@ -2819,7 +2824,7 @@ describe('DeepChatAgentPresenter', () => {
       })
 
       expect(llmProvider.generateCompletionStandalone).toHaveBeenCalledWith(
-        'anthropic',
+        'openai',
         [
           {
             role: 'user',
@@ -2837,10 +2842,11 @@ describe('DeepChatAgentPresenter', () => {
             ]
           }
         ],
-        'claude-3-7-sonnet',
+        'gpt-4o',
         expect.any(Number),
         expect.any(Number)
       )
+      expect(configPresenter.resolveDeepChatAgentConfig).not.toHaveBeenCalled()
       expect(result).toEqual(
         expect.objectContaining({
           isError: false,
@@ -2849,7 +2855,7 @@ describe('DeepChatAgentPresenter', () => {
       )
     })
 
-    it('uses the current session agent to resolve the vision model', async () => {
+    it('falls back to the current session agent vision model when the current model has no vision', async () => {
       sqlitePresenter.newSessionsTable.get.mockReturnValue({
         id: 's1',
         agent_id: 'persisted-agent'
@@ -2857,6 +2863,15 @@ describe('DeepChatAgentPresenter', () => {
       configPresenter.resolveDeepChatAgentConfig.mockResolvedValueOnce({
         visionModel: { providerId: 'google', modelId: 'gemini-2.5-flash' }
       })
+      configPresenter.getModelConfig.mockImplementation((modelId: string, providerId?: string) => ({
+        temperature: 0.7,
+        maxTokens: 4096,
+        contextLength: 128000,
+        thinkingBudget: 512,
+        reasoningEffort: 'medium',
+        verbosity: 'medium',
+        vision: providerId === 'google' && modelId === 'gemini-2.5-flash'
+      }))
 
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
 
@@ -2880,12 +2895,8 @@ describe('DeepChatAgentPresenter', () => {
       expect(normalized).toBe('English screenshot summary')
     })
 
-    it('returns a readable error when the current session agent has no vision model', async () => {
+    it('returns a readable error when neither the current model nor the agent can analyze images', async () => {
       configPresenter.resolveDeepChatAgentConfig.mockResolvedValueOnce({})
-      configPresenter.getDefaultVisionModel.mockReturnValueOnce({
-        providerId: 'openai',
-        modelId: 'gpt-4o'
-      })
 
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
 
@@ -2898,9 +2909,8 @@ describe('DeepChatAgentPresenter', () => {
         isError: false
       })
 
-      expect(normalized).toContain('no vision model is configured')
+      expect(normalized).toContain('neither the current session model nor the agent vision model')
       expect(normalized).not.toContain('YWJj')
-      expect(configPresenter.getDefaultVisionModel).not.toHaveBeenCalled()
       expect(llmProvider.generateCompletionStandalone).not.toHaveBeenCalled()
     })
   })

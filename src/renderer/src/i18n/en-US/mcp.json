@@ -198,10 +198,6 @@
       "desc": "Allow DeepChat to interact with the local file system.",
       "name": "File System"
     },
-    "imageServer": {
-      "desc": "Enable any model in DeepChat to understand and generate images.",
-      "name": "Image Service"
-    },
     "braveSearch": {
       "desc": "Brave Search API https://brave.com/search/api/",
       "name": "Brave Search"

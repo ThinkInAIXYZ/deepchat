@@ -6,8 +6,15 @@ import type {
 } from '@shared/presenter'
 import type { ISkillPresenter } from '@shared/types/skill'
 
+export interface ConversationSessionInfo {
+  agentId: string
+  providerId: string
+  modelId: string
+}
+
 export interface AgentToolRuntimePort {
   resolveConversationWorkdir(conversationId: string): Promise<string | null>
+  resolveConversationSessionInfo(conversationId: string): Promise<ConversationSessionInfo | null>
   getSkillPresenter(): ISkillPresenter
   getYoBrowserToolHandler(): IYoBrowserPresenter['toolHandler']
   getFilePresenter(): Pick<IFilePresenter, 'getMimeType' | 'prepareFileCompletely'>

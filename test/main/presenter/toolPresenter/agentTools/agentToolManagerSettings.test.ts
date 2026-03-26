@@ -35,6 +35,7 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
       configPresenter,
       runtimePort: {
         resolveConversationWorkdir,
+        resolveConversationSessionInfo: vi.fn().mockResolvedValue(null),
         getSkillPresenter: () => skillPresenter,
         getYoBrowserToolHandler: () => ({
           getToolDefinitions,

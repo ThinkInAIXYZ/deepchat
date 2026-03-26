@@ -61,8 +61,7 @@
     "fileMaxSizeHint": "Limita o tamanho máximo de um arquivo enviado",
     "defaultModel": {
       "title": "Modelo padrão",
-      "chatModel": "Modelo de chat padrão",
-      "visionModel": "Modelo de visão padrão"
+      "chatModel": "Modelo de chat padrão"
     },
     "autoCompaction": {
       "title": "Compactação automática",
@@ -1603,7 +1602,6 @@
     "modelsTitle": "Padrões do modelo",
     "chatModel": "Modelo de chat padrão",
     "assistantModel": "Modelo auxiliar",
-    "visionModel": "Modelo de visão",
     "temperature": "Temperatura",
     "contextLength": "Tamanho do contexto",
     "maxTokens": "Máx. de tokens",

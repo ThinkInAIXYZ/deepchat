@@ -37,7 +37,6 @@ describe('ToolPresenter', () => {
     const configPresenter = {
       getSkillsEnabled: vi.fn().mockReturnValue(false),
       getSkillsPath: vi.fn().mockReturnValue('C:\\\\skills'),
-      getDefaultVisionModel: vi.fn(),
       getModelConfig: vi.fn()
     }
 
@@ -47,6 +46,7 @@ describe('ToolPresenter', () => {
       commandPermissionHandler: new CommandPermissionService(),
       agentToolRuntime: {
         resolveConversationWorkdir: vi.fn().mockResolvedValue(null),
+        resolveConversationSessionInfo: vi.fn().mockResolvedValue(null),
         getSkillPresenter: () =>
           ({
             getActiveSkills: vi.fn().mockResolvedValue([]),
@@ -98,11 +98,11 @@ describe('ToolPresenter', () => {
     const configPresenter = {
       getSkillsEnabled: vi.fn().mockReturnValue(false),
       getSkillsPath: vi.fn().mockReturnValue('C:\\\\skills'),
-      getDefaultVisionModel: vi.fn(),
       getModelConfig: vi.fn()
     }
     const runtimePort = {
       resolveConversationWorkdir: vi.fn().mockResolvedValue(null),
+      resolveConversationSessionInfo: vi.fn().mockResolvedValue(null),
       getSkillPresenter: () =>
         ({
           getActiveSkills: vi.fn().mockResolvedValue([]),
@@ -171,11 +171,11 @@ describe('ToolPresenter', () => {
     const configPresenter = {
       getSkillsEnabled: vi.fn().mockReturnValue(false),
       getSkillsPath: vi.fn().mockReturnValue('C:\\\\skills'),
-      getDefaultVisionModel: vi.fn(),
       getModelConfig: vi.fn()
     }
     const runtimePort = {
       resolveConversationWorkdir: vi.fn().mockResolvedValue(null),
+      resolveConversationSessionInfo: vi.fn().mockResolvedValue(null),
       getSkillPresenter: () =>
         ({
           getActiveSkills: vi.fn().mockResolvedValue([]),
@@ -237,7 +237,6 @@ describe('ToolPresenter', () => {
     const configPresenter = {
       getSkillsEnabled: vi.fn().mockReturnValue(false),
       getSkillsPath: vi.fn().mockReturnValue('C:\\\\skills'),
-      getDefaultVisionModel: vi.fn(),
       getModelConfig: vi.fn()
     }
 
@@ -247,6 +246,7 @@ describe('ToolPresenter', () => {
       commandPermissionHandler: new CommandPermissionService(),
       agentToolRuntime: {
         resolveConversationWorkdir: vi.fn().mockResolvedValue(null),
+        resolveConversationSessionInfo: vi.fn().mockResolvedValue(null),
         getSkillPresenter: () =>
           ({
             getActiveSkills: vi.fn().mockResolvedValue([]),
@@ -323,7 +323,6 @@ describe('ToolPresenter', () => {
     const configPresenter = {
       getSkillsEnabled: vi.fn().mockReturnValue(false),
       getSkillsPath: vi.fn().mockReturnValue('C:\\\\skills'),
-      getDefaultVisionModel: vi.fn(),
       getModelConfig: vi.fn()
     }
 
@@ -333,6 +332,7 @@ describe('ToolPresenter', () => {
       commandPermissionHandler: new CommandPermissionService(),
       agentToolRuntime: {
         resolveConversationWorkdir: vi.fn().mockResolvedValue(null),
+        resolveConversationSessionInfo: vi.fn().mockResolvedValue(null),
         getSkillPresenter: () =>
           ({
             getActiveSkills: vi.fn().mockResolvedValue([]),
@@ -394,7 +394,6 @@ describe('ToolPresenter', () => {
     const configPresenter = {
       getSkillsEnabled: vi.fn().mockReturnValue(false),
       getSkillsPath: vi.fn().mockReturnValue('C:\\\\skills'),
-      getDefaultVisionModel: vi.fn(),
       getModelConfig: vi.fn()
     }
 
@@ -404,6 +403,7 @@ describe('ToolPresenter', () => {
       commandPermissionHandler: new CommandPermissionService(),
       agentToolRuntime: {
         resolveConversationWorkdir: vi.fn().mockResolvedValue(null),
+        resolveConversationSessionInfo: vi.fn().mockResolvedValue(null),
         getSkillPresenter: () =>
           ({
             getActiveSkills: vi.fn().mockResolvedValue([]),

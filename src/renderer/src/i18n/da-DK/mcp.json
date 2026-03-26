@@ -95,10 +95,6 @@
       "desc": "FastGPT vidensbase søgetjeneste kan søge i indholdet af FastGPT vidensbasen.",
       "name": "FastGPT vidensbase søgning"
     },
-    "imageServer": {
-      "desc": "Når det er aktiveret, kan enhver model i DeepChat forstå billeder og generere billeder.",
-      "name": "Billedtjeneste"
-    },
     "ragflowKnowledge": {
       "desc": "RAGFlow vidensbase søgetjeneste kan søge i indholdet af RAGFlow vidensbasen.",
       "name": "RAGFlow vidensbase søgning"

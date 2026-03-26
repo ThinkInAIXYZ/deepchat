@@ -2,7 +2,6 @@ import { ArtifactsServer } from './artifactsServer'
 // FileSystemServer has been removed - filesystem capabilities are now provided via Agent tools
 import { BochaSearchServer } from './bochaSearchServer'
 import { BraveSearchServer } from './braveSearchServer'
-import { ImageServer } from './imageServer'
 import { DifyKnowledgeServer } from './difyKnowledgeServer'
 import { RagflowKnowledgeServer } from './ragflowKnowledgeServer'
 import { FastGptKnowledgeServer } from './fastGptKnowledgeServer'
@@ -15,7 +14,7 @@ import { AppleServer } from './appleServer'
 
 export function getInMemoryServer(
   serverName: string,
-  args: string[],
+  _args: string[],
   env?: Record<string, unknown>
 ) {
   switch (serverName) {
@@ -28,8 +27,6 @@ export function getInMemoryServer(
       return new BraveSearchServer(env)
     case 'deepResearch':
       return new DeepResearchServer(env)
-    case 'imageServer':
-      return new ImageServer(args[0] || undefined, args[1] || undefined)
     case 'difyKnowledge':
       return new DifyKnowledgeServer(
         env as {

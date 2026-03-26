@@ -102,7 +102,7 @@ interface IAppSettings {
   enableSkills?: boolean // Skills system global toggle
   hooksNotifications?: HooksNotificationsSettings // Hooks & notifications settings
   defaultModel?: { providerId: string; modelId: string } // Default model for new conversations
-  defaultVisionModel?: { providerId: string; modelId: string } // Default vision model for image tools
+  defaultVisionModel?: { providerId: string; modelId: string } // Legacy vision model setting for migration only
   defaultProjectPath?: string | null
   acpRegistryMigrationVersion?: number
   unifiedAgentsMigrationVersion?: number
@@ -362,6 +362,7 @@ export class ConfigPresenter implements IConfigPresenter {
   setAgentRepository(agentRepository: AgentRepository): void {
     this.agentRepository = agentRepository
     this.initializeUnifiedAgents()
+    this.migrateLegacyDefaultVisionModelToBuiltinAgent()
   }
 
   private getAgentRepositoryOrThrow(): AgentRepository {
@@ -394,6 +395,31 @@ export class ConfigPresenter implements IConfigPresenter {
     }
 
     this.syncRegistryAgentsToRepository()
+  }
+
+  private migrateLegacyDefaultVisionModelToBuiltinAgent(): void {
+    const legacySelection = this.store.get('defaultVisionModel') as ModelSelection | undefined
+    if (!legacySelection) {
+      return
+    }
+
+    const providerId = legacySelection.providerId?.trim()
+    const modelId = legacySelection.modelId?.trim()
+    const builtinVisionModel = this.getBuiltinDeepChatConfig().visionModel
+
+    if (!builtinVisionModel?.providerId || !builtinVisionModel?.modelId) {
+      if (providerId && modelId) {
+        this.updateBuiltinDeepChatConfig({
+          visionModel: {
+            providerId,
+            modelId
+          }
+        })
+      }
+    }
+
+    this.store.delete('defaultVisionModel')
+    eventBus.sendToMain(CONFIG_EVENTS.SETTING_CHANGED, 'defaultVisionModel', undefined)
   }
 
   private buildLegacyBuiltinDeepChatConfig(): DeepChatAgentConfig {
@@ -760,7 +786,9 @@ export class ConfigPresenter implements IConfigPresenter {
       const keysToClear = getAnthropicModelSelectionKeysToClear({
         defaultModel: this.getSetting('defaultModel'),
         assistantModel: this.getSetting('assistantModel'),
-        defaultVisionModel: this.getSetting('defaultVisionModel'),
+        defaultVisionModel: this.store.get('defaultVisionModel') as
+          | { providerId: string; modelId: string }
+          | undefined,
         preferredModel: this.getSetting('preferredModel')
       })
 
@@ -779,9 +807,6 @@ export class ConfigPresenter implements IConfigPresenter {
         }
         if (key === 'assistantModel') {
           return this.getBuiltinDeepChatConfig().assistantModel as T | undefined
-        }
-        if (key === 'defaultVisionModel') {
-          return this.getDefaultVisionModel() as T | undefined
         }
         if (key === 'default_system_prompt') {
           return this.getBuiltinDeepChatConfig().systemPrompt as T | undefined
@@ -806,10 +831,6 @@ export class ConfigPresenter implements IConfigPresenter {
             assistantModel: value as { providerId: string; modelId: string } | null | undefined
           })
           eventBus.sendToMain(CONFIG_EVENTS.SETTING_CHANGED, key, value)
-          return
-        }
-        if (key === 'defaultVisionModel') {
-          this.setDefaultVisionModel(value as { providerId: string; modelId: string } | undefined)
           return
         }
         if (key === 'default_system_prompt') {
@@ -2310,32 +2331,6 @@ export class ConfigPresenter implements IConfigPresenter {
           : null
     })
     eventBus.sendToMain(CONFIG_EVENTS.SETTING_CHANGED, 'defaultModel', model)
-  }
-
-  getDefaultVisionModel(): { providerId: string; modelId: string } | undefined {
-    const selection = this.getBuiltinDeepChatConfig().visionModel
-    if (selection?.providerId && selection?.modelId) {
-      return {
-        providerId: selection.providerId,
-        modelId: selection.modelId
-      }
-    }
-    return this.store.get('defaultVisionModel') as
-      | { providerId: string; modelId: string }
-      | undefined
-  }
-
-  setDefaultVisionModel(model: { providerId: string; modelId: string } | undefined): void {
-    this.updateBuiltinDeepChatConfig({
-      visionModel:
-        model?.providerId && model?.modelId
-          ? {
-              providerId: model.providerId,
-              modelId: model.modelId
-            }
-          : null
-    })
-    eventBus.sendToMain(CONFIG_EVENTS.SETTING_CHANGED, 'defaultVisionModel', model)
   }
 
   getDefaultProjectPath(): string | null {

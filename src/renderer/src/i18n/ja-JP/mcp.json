@@ -159,10 +159,6 @@
       "desc": "DeepChatがローカルファイルを操作できるようにします",
       "name": "ファイルシステム"
     },
-    "imageServer": {
-      "desc": "開いた後、deepchatのモデルは写真を理解して写真を生成できます。",
-      "name": "画像サービス"
-    },
     "braveSearch": {
       "desc": "勇敢な検索API https://brave.com/search/api/",
       "name": "勇敢な検索"

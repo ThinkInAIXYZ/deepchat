@@ -61,8 +61,7 @@
     "fileMaxSizeHint": "حداکثر اندازه یک فایل قابل آپلود را محدود می‌کند",
     "defaultModel": {
       "title": "مدل پیش‌فرض",
-      "chatModel": "مدل گفتگوی پیش‌فرض",
-      "visionModel": "مدل بینایی پیش‌فرض"
+      "chatModel": "مدل گفتگوی پیش‌فرض"
     },
     "autoCompaction": {
       "title": "فشرده‌سازی خودکار",
@@ -1603,7 +1602,6 @@
     "modelsTitle": "پیش‌فرض‌های مدل",
     "chatModel": "مدل پیش‌فرض گفتگو",
     "assistantModel": "مدل دستیار",
-    "visionModel": "مدل بینایی",
     "temperature": "دما",
     "contextLength": "طول کانتکست",
     "maxTokens": "حداکثر توکن",

@@ -159,10 +159,6 @@
       "desc": "DeepChat이 로컬 파일을 조작할 수 있도록 해줍니다",
       "name": "파일 시스템"
     },
-    "imageServer": {
-      "desc": "활성화 후 DeepChat의 모든 모델이 이미지를 이해하고 생성할 수 있습니다",
-      "name": "이미지 서비스"
-    },
     "braveSearch": {
       "desc": "Brave 검색 API https://brave.com/search/api/",
       "name": "Brave 검색"

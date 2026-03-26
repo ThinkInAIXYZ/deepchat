@@ -68,42 +68,6 @@
         </Popover>
       </div>
     </div>
-
-    <div class="flex items-center gap-3 h-10">
-      <span class="text-sm font-medium shrink-0 min-w-[220px]">{{
-        t('settings.common.defaultModel.visionModel')
-      }}</span>
-      <div class="ml-auto flex items-center gap-2">
-        <Popover v-model:open="visionModelSelectOpen">
-          <PopoverTrigger as-child>
-            <Button
-              variant="outline"
-              class="h-8 w-[320px] justify-between text-sm border-border hover:bg-accent"
-            >
-              <div class="flex items-center gap-2 min-w-0">
-                <ModelIcon
-                  v-if="selectedVisionModel"
-                  :model-id="selectedVisionModel.providerId"
-                  class="h-4 w-4"
-                  :is-dark="themeStore.isDark"
-                />
-                <span class="truncate">{{
-                  selectedVisionModel?.model?.name || t('settings.common.selectModel')
-                }}</span>
-              </div>
-              <ChevronDown class="h-4 w-4 opacity-50" />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent class="w-[320px] p-0" align="end">
-            <ModelSelect
-              :type="[ModelType.Chat, ModelType.ImageGeneration]"
-              :vision-only="true"
-              @update:model="handleVisionModelSelect"
-            />
-          </PopoverContent>
-        </Popover>
-      </div>
-    </div>
   </section>
 </template>
 
@@ -119,7 +83,6 @@ import ModelIcon from '@/components/icons/ModelIcon.vue'
 import { useThemeStore } from '@/stores/theme'
 import { useModelStore } from '@/stores/modelStore'
 import { usePresenter } from '@/composables/usePresenter'
-import { ModelType } from '@shared/model'
 import type { RENDERER_MODEL_META } from '@shared/presenter'
 
 const { t } = useI18n()
@@ -129,7 +92,6 @@ const configPresenter = usePresenter('configPresenter')
 
 const assistantModelSelectOpen = ref(false)
 const chatModelSelectOpen = ref(false)
-const visionModelSelectOpen = ref(false)
 
 interface SelectedModel {
   providerId: string
@@ -138,7 +100,6 @@ interface SelectedModel {
 
 const selectedAssistantModel = ref<SelectedModel | null>(null)
 const selectedChatModel = ref<SelectedModel | null>(null)
-const selectedVisionModel = ref<SelectedModel | null>(null)
 let isSyncingModelDefaults = false
 
 const selectBySetting = (
@@ -164,7 +125,7 @@ const selectBySetting = (
 }
 
 const persistModelSetting = async (
-  key: 'assistantModel' | 'defaultModel' | 'defaultVisionModel',
+  key: 'assistantModel' | 'defaultModel',
   previous: { providerId: string; modelId: string } | undefined,
   current: SelectedModel | null
 ): Promise<void> => {
@@ -198,15 +159,6 @@ const handleChatModelSelect = async (
   chatModelSelectOpen.value = false
 }
 
-const handleVisionModelSelect = async (
-  model: RENDERER_MODEL_META,
-  providerId: string
-): Promise<void> => {
-  selectedVisionModel.value = { providerId, model }
-  await configPresenter.setSetting('defaultVisionModel', { providerId, modelId: model.id })
-  visionModelSelectOpen.value = false
-}
-
 const syncModelSelections = async (): Promise<void> => {
   if (isSyncingModelDefaults) {
     return
@@ -217,9 +169,6 @@ const syncModelSelections = async (): Promise<void> => {
       | { providerId: string; modelId: string }
       | undefined
     const defaultModelSetting = (await configPresenter.getSetting('defaultModel')) as
-      | { providerId: string; modelId: string }
-      | undefined
-    const defaultVisionModelSetting = (await configPresenter.getSetting('defaultVisionModel')) as
       | { providerId: string; modelId: string }
       | undefined
 
@@ -233,21 +182,11 @@ const syncModelSelections = async (): Promise<void> => {
       (_model, providerId) => providerId !== 'acp'
     )
 
-    const visionSelection = selectBySetting(
-      defaultVisionModelSetting,
-      (model, providerId) =>
-        providerId !== 'acp' &&
-        Boolean(model.vision) &&
-        (model.type === ModelType.Chat || model.type === ModelType.ImageGeneration)
-    )
-
     selectedChatModel.value = chatSelection
     selectedAssistantModel.value = assistantSelection
-    selectedVisionModel.value = visionSelection
 
     await persistModelSetting('defaultModel', defaultModelSetting, chatSelection)
     await persistModelSetting('assistantModel', assistantModelSetting, assistantSelection)
-    await persistModelSetting('defaultVisionModel', defaultVisionModelSetting, visionSelection)
   } catch (error) {
     console.error('Failed to sync model selections:', error)
   } finally {

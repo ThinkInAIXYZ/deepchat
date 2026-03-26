@@ -61,8 +61,7 @@
     "fileMaxSizeHint": "단일 파일 업로드의 최대 크기를 제한합니다",
     "defaultModel": {
       "title": "기본 모델",
-      "chatModel": "기본 채팅 모델",
-      "visionModel": "기본 비전 모델"
+      "chatModel": "기본 채팅 모델"
     },
     "autoCompaction": {
       "title": "자동 압축",
@@ -1603,7 +1602,6 @@
     "modelsTitle": "모델 기본값",
     "chatModel": "기본 대화 모델",
     "assistantModel": "보조 모델",
-    "visionModel": "비전 모델",
     "temperature": "온도",
     "contextLength": "컨텍스트 길이",
     "maxTokens": "최대 토큰",

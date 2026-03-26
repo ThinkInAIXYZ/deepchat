@@ -73,8 +73,7 @@
     "fileMaxSizeHint": "Limits the maximum size of a single uploaded file",
     "defaultModel": {
       "title": "Default Model",
-      "chatModel": "Default Chat Model",
-      "visionModel": "Default Vision Model"
+      "chatModel": "Default Chat Model"
     }
   },
   "deepchatAgents": {
@@ -105,7 +104,6 @@
     "modelsTitle": "Model Defaults",
     "chatModel": "Default Chat Model",
     "assistantModel": "Assistant Model",
-    "visionModel": "Vision Model",
     "temperature": "Temperature",
     "contextLength": "Context Length",
     "maxTokens": "Max Tokens",

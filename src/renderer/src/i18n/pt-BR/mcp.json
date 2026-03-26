@@ -159,10 +159,6 @@
       "desc": "Permitir que o DeepChat interaja com o sistema de arquivos local.",
       "name": "Sistema de Arquivos"
     },
-    "imageServer": {
-      "desc": "Permite que qualquer modelo no DeepChat entenda e gere imagens.",
-      "name": "Serviço de Imagem"
-    },
     "braveSearch": {
       "desc": "API de Pesquisa Brave https://brave.com/search/api/",
       "name": "Pesquisa Brave"

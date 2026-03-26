@@ -165,16 +165,6 @@ const DEFAULT_INMEMORY_SERVERS: Record<string, Omit<MCPServerConfig, 'enabled'>>
     },
     disable: false
   },
-  imageServer: {
-    args: [],
-    descriptions: 'Image processing MCP service',
-    icons: '🖼️',
-    autoApprove: ['read_image_base64', 'read_multiple_images_base64'], // Auto-approve reading, require confirmation for uploads
-    type: 'inmemory' as MCPServerType,
-    command: 'image', // We need to map this command to the ImageServer class later
-    env: {},
-    disable: false
-  },
   ragflowKnowledge: {
     args: [],
     descriptions: 'DeepChat内置RAGFlow知识库检索服务',
@@ -374,7 +364,11 @@ export class McpConfHelper {
   private removeDeprecatedBuiltInServers(
     servers: Record<string, MCPServerConfig>
   ): Record<string, MCPServerConfig> {
-    const deprecatedBuiltInServers = ['powerpack', 'deepchat-inmemory/meeting-server']
+    const deprecatedBuiltInServers = [
+      'powerpack',
+      'deepchat-inmemory/meeting-server',
+      'imageServer'
+    ]
     let hasChanges = false
     const removedBuiltInServers = new Set(this.getRemovedBuiltInServers())
     let removedListChanged = false
