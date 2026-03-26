@@ -558,6 +558,15 @@
         "baseUrlPlaceholder": "Veuillez entrer l'URL de base de l'API",
         "enable": "Activer le fournisseur"
       },
+      "providerDeeplinkImport": {
+        "title": "Importer un fournisseur",
+        "description": "Vérifiez la configuration du fournisseur analysée avant de l'appliquer.",
+        "type": "Type",
+        "url": "URL",
+        "key": "Clé",
+        "overwriteWarning": "Cette importation écrasera la configuration actuelle du fournisseur.",
+        "confirming": "Importation..."
+      },
       "deleteProvider": {
         "title": "Confirmer la suppression du fournisseur",
         "content": "Êtes-vous sûr de vouloir supprimer le fournisseur \"{name}\" ? Cette action ne peut pas être annulée.",

@@ -558,6 +558,15 @@
         "baseUrlPlaceholder": "Por favor, insira a URL base da API",
         "enable": "Habilitar Provedor"
       },
+      "providerDeeplinkImport": {
+        "title": "Importar provedor",
+        "description": "Revise a configuração de provedor analisada antes de aplicá-la.",
+        "type": "Tipo",
+        "url": "URL",
+        "key": "Chave",
+        "overwriteWarning": "Esta importação substituirá a configuração atual do provedor.",
+        "confirming": "Importando..."
+      },
       "deleteProvider": {
         "title": "Confirmar Exclusão do Provedor",
         "content": "Tem certeza de que deseja excluir o provedor \"{name}\"? Esta ação não pode ser desfeita.",

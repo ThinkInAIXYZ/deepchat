@@ -492,6 +492,15 @@
         "baseUrlPlaceholder": "Indtast basis-URL'en for API'et",
         "enable": "Aktivér udbyder"
       },
+      "providerDeeplinkImport": {
+        "title": "Importer udbyder",
+        "description": "Gennemgå den fortolkede udbyderkonfiguration, før du anvender den.",
+        "type": "Type",
+        "url": "URL",
+        "key": "Nøgle",
+        "overwriteWarning": "Denne import vil overskrive den nuværende udbyderkonfiguration.",
+        "confirming": "Importerer..."
+      },
       "deleteProvider": {
         "title": "Bekræft sletning af udbyder",
         "content": "Er du sikker på, at du vil slette udbyderen \"{name}\"? Handlingen kan ikke fortrydes.",

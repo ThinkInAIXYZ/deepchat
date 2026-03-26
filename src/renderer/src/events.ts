@@ -78,7 +78,8 @@ export const WINDOW_EVENTS = {
 export const SETTINGS_EVENTS = {
   READY: 'settings:ready',
   NAVIGATE: 'settings:navigate',
-  CHECK_FOR_UPDATES: 'settings:check-for-updates'
+  CHECK_FOR_UPDATES: 'settings:check-for-updates',
+  PROVIDER_INSTALL: 'settings:provider-install'
 }
 
 // ollama 相关事件

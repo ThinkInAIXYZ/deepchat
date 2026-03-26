@@ -676,6 +676,15 @@
         "baseUrlPlaceholder": "请输入API基础地址",
         "enable": "启用服务商"
       },
+      "providerDeeplinkImport": {
+        "title": "导入服务商",
+        "description": "请确认解析出的服务商配置后再导入。",
+        "type": "类型",
+        "url": "地址",
+        "key": "密钥",
+        "overwriteWarning": "本次导入会覆盖当前服务商配置。",
+        "confirming": "导入中..."
+      },
       "deleteProvider": {
         "title": "确认删除服务商",
         "content": "是否确认删除服务商 \"{name}\"？此操作不可恢复。",

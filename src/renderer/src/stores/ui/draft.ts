@@ -6,6 +6,15 @@ import type {
   SessionGenerationSettings
 } from '@shared/types/agent-interface'
 
+export interface StartDeeplinkPayload {
+  token: number
+  msg: string
+  modelId: string | null
+  systemPrompt: string
+  mentions: string[]
+  autoSend: boolean
+}
+
 // --- Store ---
 
 export const useDraftStore = defineStore('draft', () => {
@@ -24,6 +33,8 @@ export const useDraftStore = defineStore('draft', () => {
   const forceInterleavedThinkingCompat = ref<boolean | undefined>(undefined)
   const permissionMode = ref<PermissionMode>('full_access')
   const disabledAgentTools = ref<string[]>([])
+  const pendingStartDeeplink = ref<StartDeeplinkPayload | null>(null)
+  let nextStartToken = 0
 
   // --- Actions ---
 
@@ -105,6 +116,21 @@ export const useDraftStore = defineStore('draft', () => {
     resetGenerationSettings()
   }
 
+  function setPendingStartDeeplink(
+    payload: Omit<StartDeeplinkPayload, 'token'>
+  ): StartDeeplinkPayload {
+    const nextPayload: StartDeeplinkPayload = {
+      ...payload,
+      token: ++nextStartToken
+    }
+    pendingStartDeeplink.value = nextPayload
+    return nextPayload
+  }
+
+  function clearPendingStartDeeplink(): void {
+    pendingStartDeeplink.value = null
+  }
+
   return {
     providerId,
     modelId,
@@ -120,10 +146,13 @@ export const useDraftStore = defineStore('draft', () => {
     forceInterleavedThinkingCompat,
     permissionMode,
     disabledAgentTools,
+    pendingStartDeeplink,
     toGenerationSettings,
     toCreateInput,
     updateGenerationSettings,
     resetGenerationSettings,
-    reset
+    reset,
+    setPendingStartDeeplink,
+    clearPendingStartDeeplink
   }
 })

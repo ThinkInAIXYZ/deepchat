@@ -558,6 +558,15 @@
         "baseUrlPlaceholder": "API URLを入力してください",
         "enable": "プロバイダーを有効にする"
       },
+      "providerDeeplinkImport": {
+        "title": "プロバイダーをインポート",
+        "description": "適用する前に、解析されたプロバイダー設定を確認してください。",
+        "type": "タイプ",
+        "url": "URL",
+        "key": "キー",
+        "overwriteWarning": "このインポートにより、現在のプロバイダー設定が上書きされます。",
+        "confirming": "インポート中..."
+      },
       "deleteProvider": {
         "title": "プロバイダーの削除確認",
         "content": "プロバイダー \"{name}\" を削除してもよろしいですか？この操作は元に戻せません。",

@@ -5,8 +5,10 @@ import { usePresenter } from './composables/usePresenter'
 import SelectedTextContextMenu from './components/message/SelectedTextContextMenu.vue'
 import { useArtifactStore } from './stores/artifact'
 import { useSessionStore } from '@/stores/ui/session'
+import { useAgentStore } from '@/stores/ui/agent'
+import { useDraftStore, type StartDeeplinkPayload } from '@/stores/ui/draft'
 import { usePageRouterStore } from '@/stores/ui/pageRouter'
-import { NOTIFICATION_EVENTS, SHORTCUT_EVENTS } from './events'
+import { DEEPLINK_EVENTS, NOTIFICATION_EVENTS, SHORTCUT_EVENTS } from './events'
 import { Toaster } from '@shadcn/components/ui/sonner'
 import { useToast } from '@/components/use-toast'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
@@ -31,6 +33,8 @@ const route = useRoute()
 const configPresenter = usePresenter('configPresenter')
 const artifactStore = useArtifactStore()
 const sessionStore = useSessionStore()
+const agentStore = useAgentStore()
+const draftStore = useDraftStore()
 const pageRouterStore = usePageRouterStore()
 const { toast } = useToast()
 const uiSettingsStore = useUiSettingsStore()
@@ -146,6 +150,8 @@ const handleErrorClosed = () => {
 const router = useRouter()
 const activeTab = ref('chat')
 const isStartupRouteReady = ref(false)
+const processingStartDeeplinkToken = ref<number | null>(null)
+const processedStartDeeplinkToken = ref<number | null>(null)
 
 const isDevWelcomeOverrideEnabled = () => {
   if (!import.meta.env.DEV) return false
@@ -220,6 +226,65 @@ const handleCreateNewConversation = async () => {
 
 // Removed GO_SETTINGS handler; now handled in main via tab logic
 
+const activatePendingStartDeeplink = async () => {
+  const pendingStartDeeplink = draftStore.pendingStartDeeplink
+  if (!pendingStartDeeplink || !isStartupRouteReady.value) {
+    return
+  }
+
+  const token = pendingStartDeeplink.token
+  if (processingStartDeeplinkToken.value === token || processedStartDeeplinkToken.value === token) {
+    return
+  }
+
+  processingStartDeeplinkToken.value = token
+
+  try {
+    const initComplete = Boolean(await configPresenter.getSetting('init_complete'))
+    if (!initComplete) {
+      return
+    }
+
+    await router.isReady()
+    if (router.currentRoute.value.name !== 'chat') {
+      await router.push({ name: 'chat' })
+    }
+
+    agentStore.setSelectedAgent('deepchat')
+    if (sessionStore.hasActiveSession) {
+      await sessionStore.closeSession()
+      processedStartDeeplinkToken.value = token
+      return
+    }
+
+    pageRouterStore.goToNewThread()
+    processedStartDeeplinkToken.value = token
+  } finally {
+    if (processingStartDeeplinkToken.value === token) {
+      processingStartDeeplinkToken.value = null
+    }
+  }
+}
+
+const handleStartDeeplink = (_event: unknown, payload?: Omit<StartDeeplinkPayload, 'token'>) => {
+  if (!payload?.msg) {
+    return
+  }
+
+  draftStore.setPendingStartDeeplink({
+    msg: payload.msg,
+    modelId: payload.modelId ?? null,
+    systemPrompt: payload.systemPrompt ?? '',
+    mentions: Array.isArray(payload.mentions) ? payload.mentions : [],
+    autoSend: Boolean(payload.autoSend)
+  })
+  void activatePendingStartDeeplink()
+}
+
+if (window?.electron?.ipcRenderer) {
+  window.electron.ipcRenderer.on(DEEPLINK_EVENTS.START, handleStartDeeplink)
+}
+
 // Handle ESC key - close floating chat window
 const handleEscKey = (event: KeyboardEvent) => {
   if (event.key === 'Escape') {
@@ -228,6 +293,15 @@ const handleEscKey = (event: KeyboardEvent) => {
 }
 
 void ensureStartupWelcomeState()
+
+watch(
+  () =>
+    [isStartupRouteReady.value, route.name, draftStore.pendingStartDeeplink?.token ?? 0] as const,
+  () => {
+    void activatePendingStartDeeplink()
+  },
+  { immediate: true }
+)
 
 onMounted(() => {
   // Set initial body class
@@ -349,6 +423,7 @@ onBeforeUnmount(() => {
   // GO_SETTINGS listener removed; handled in main
   window.electron.ipcRenderer.removeAllListeners(NOTIFICATION_EVENTS.SYS_NOTIFY_CLICKED)
   window.electron.ipcRenderer.removeAllListeners(NOTIFICATION_EVENTS.DATA_RESET_COMPLETE_DEV)
+  window.electron.ipcRenderer.removeAllListeners(DEEPLINK_EVENTS.START)
   cleanupMcpDeeplink()
 })
 </script>
