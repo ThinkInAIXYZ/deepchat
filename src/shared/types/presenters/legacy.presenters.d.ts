@@ -1159,7 +1159,8 @@ export interface ILlmProviderPresenter {
     messages: ChatMessage[],
     modelId: string,
     temperature?: number,
-    maxTokens?: number
+    maxTokens?: number,
+    options?: { signal?: AbortSignal }
   ): Promise<string>
   getAcpWorkdir(conversationId: string, agentId: string): Promise<AcpWorkdirInfo>
   setAcpWorkdir(conversationId: string, agentId: string, workdir: string | null): Promise<void>

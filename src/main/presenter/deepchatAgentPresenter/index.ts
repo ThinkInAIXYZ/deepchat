@@ -108,6 +108,16 @@ const isReasoningEffort = (value: unknown): value is 'minimal' | 'low' | 'medium
 const isVerbosity = (value: unknown): value is 'low' | 'medium' | 'high' =>
   value === 'low' || value === 'medium' || value === 'high'
 
+const createAbortError = (): Error => {
+  if (typeof DOMException !== 'undefined') {
+    return new DOMException('Aborted', 'AbortError')
+  }
+
+  const error = new Error('Aborted')
+  error.name = 'AbortError'
+  return error
+}
+
 export class DeepChatAgentPresenter implements IAgentImplementation {
   private readonly llmProviderPresenter: ILlmProviderPresenter
   private readonly configPresenter: IConfigPresenter
@@ -1012,6 +1022,23 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     return undefined
   }
 
+  private getAbortSignalForSession(sessionId: string): AbortSignal | undefined {
+    return (
+      this.activeGenerations.get(sessionId)?.abortController.signal ??
+      this.abortControllers.get(sessionId)?.signal
+    )
+  }
+
+  private throwIfAbortRequested(signal?: AbortSignal): void {
+    if (signal?.aborted) {
+      throw createAbortError()
+    }
+  }
+
+  private isAbortError(error: unknown): boolean {
+    return error instanceof Error && (error.name === 'AbortError' || error.name === 'CanceledError')
+  }
+
   private dispatchResolvedToolHook(params: {
     sessionId: string
     messageId: string
@@ -1433,7 +1460,8 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
               toolName: tool.toolName,
               toolArgs: tool.toolArgs,
               content: tool.content,
-              isError: tool.isError
+              isError: tool.isError,
+              abortSignal: abortController.signal
             })
         },
         io: {
@@ -2883,7 +2911,8 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
         toolName,
         toolArgs: toolCall.params || '{}',
         content: rawData.content,
-        isError: rawData.isError === true
+        isError: rawData.isError === true,
+        abortSignal: this.getAbortSignalForSession(sessionId)
       })
       const responseText = this.toolContentToText(normalizedContent)
       const prepared = await this.toolOutputGuard.prepareToolOutput({
@@ -2981,11 +3010,13 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     toolArgs: string
     content: MCPToolResponse['content']
     isError: boolean
+    abortSignal?: AbortSignal
   }): Promise<MCPToolResponse['content']> {
     if (params.isError) {
       return params.content
     }
 
+    const abortSignal = params.abortSignal ?? this.getAbortSignalForSession(params.sessionId)
     const screenshotPayload = this.extractScreenshotToolPayload(
       params.toolName,
       params.toolArgs,
@@ -2995,12 +3026,15 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       return params.content
     }
 
-    const visionModel = await this.resolveScreenshotVisionModel(params.sessionId)
-    if (!visionModel) {
-      return 'Screenshot captured, but automatic English analysis is unavailable because neither the current session model nor the agent vision model can analyze images.'
-    }
-
     try {
+      this.throwIfAbortRequested(abortSignal)
+      const visionModel = await this.resolveScreenshotVisionModel(params.sessionId, abortSignal)
+      this.throwIfAbortRequested(abortSignal)
+
+      if (!visionModel) {
+        return 'Screenshot captured, but automatic English analysis is unavailable because neither the current session model nor the agent vision model can analyze images.'
+      }
+
       const messages: ChatMessage[] = [
         {
           role: 'user',
@@ -3029,14 +3063,20 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
         messages,
         visionModel.modelId,
         modelConfig?.temperature ?? 0.2,
-        Math.min(modelConfig?.maxTokens ?? 900, 900)
+        Math.min(modelConfig?.maxTokens ?? 900, 900),
+        abortSignal ? { signal: abortSignal } : undefined
       )
+      this.throwIfAbortRequested(abortSignal)
       const normalized = response.trim()
       if (!normalized) {
         return 'Screenshot captured, but automatic English analysis returned no usable description.'
       }
       return normalized
     } catch (error) {
+      if (this.isAbortError(error)) {
+        return 'Screenshot captured, but automatic English analysis was canceled.'
+      }
+
       const message = error instanceof Error ? error.message : String(error)
       console.warn('[DeepChatAgent] Failed to normalize screenshot tool output:', {
         sessionId: params.sessionId,
@@ -3110,8 +3150,10 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
   }
 
   private async resolveScreenshotVisionModel(
-    sessionId: string
+    sessionId: string,
+    abortSignal?: AbortSignal
   ): Promise<{ providerId: string; modelId: string } | null> {
+    this.throwIfAbortRequested(abortSignal)
     const state = this.runtimeState.get(sessionId)
     const dbSession = this.sessionStore.get(sessionId)
     const agentId = this.getSessionAgentId(sessionId) ?? 'deepchat'
@@ -3120,8 +3162,10 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       modelId: state?.modelId ?? dbSession?.model_id,
       agentId,
       configPresenter: this.configPresenter,
+      signal: abortSignal,
       logLabel: `screenshot:${sessionId}`
     })
+    this.throwIfAbortRequested(abortSignal)
 
     if (!resolved) {
       return null
@@ -3130,6 +3174,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     if (resolved.source === 'agent-vision-model') {
       const agentSupportsVision =
         (await this.configPresenter.agentSupportsCapability?.(agentId, 'vision')) === true
+      this.throwIfAbortRequested(abortSignal)
       if (!agentSupportsVision) {
         return null
       }

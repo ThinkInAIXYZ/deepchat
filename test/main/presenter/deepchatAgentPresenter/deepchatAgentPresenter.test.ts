@@ -2846,7 +2846,8 @@ describe('DeepChatAgentPresenter', () => {
         ],
         'gpt-4o',
         expect.any(Number),
-        expect.any(Number)
+        expect.any(Number),
+        undefined
       )
       expect(configPresenter.resolveDeepChatAgentConfig).not.toHaveBeenCalled()
       expect(result).toEqual(
@@ -2896,9 +2897,28 @@ describe('DeepChatAgentPresenter', () => {
         expect.any(Array),
         'gemini-2.5-flash',
         expect.any(Number),
-        expect.any(Number)
+        expect.any(Number),
+        undefined
       )
       expect(normalized).toBe('English screenshot summary')
+    })
+
+    it('returns a cancellation message when screenshot normalization is aborted', async () => {
+      const abortController = new AbortController()
+      abortController.abort()
+
+      const normalized = await (agent as any).normalizeToolResultContent({
+        sessionId: 's1',
+        toolCallId: 'tc1',
+        toolName: 'cdp_send',
+        toolArgs: '{"method":"Page.captureScreenshot"}',
+        content: '{"data":"YWJj"}',
+        isError: false,
+        abortSignal: abortController.signal
+      })
+
+      expect(llmProvider.generateCompletionStandalone).not.toHaveBeenCalled()
+      expect(normalized).toBe('Screenshot captured, but automatic English analysis was canceled.')
     })
 
     it('ignores fallback agent vision models when the agent does not support vision', async () => {

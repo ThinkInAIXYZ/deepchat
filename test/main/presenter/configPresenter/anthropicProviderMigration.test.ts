@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { eventBus } from '@/eventbus'
 import { CONFIG_EVENTS } from '../../../../src/main/events'
 
@@ -155,6 +155,10 @@ describe('getAnthropicModelSelectionKeysToClear', () => {
 })
 
 describe('migrateLegacyDefaultVisionModelToBuiltinAgent', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
   it('migrates a valid legacy vision model with trimmed ids', () => {
     const store = {
       get: vi.fn().mockReturnValue({ providerId: ' openai ', modelId: ' gpt-4o ' }),
