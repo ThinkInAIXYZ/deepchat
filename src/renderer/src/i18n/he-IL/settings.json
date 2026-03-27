@@ -61,8 +61,7 @@
     "fileMaxSizeHint": "מגביל את הגודל המקסימלי של קובץ בודד המועלה",
     "defaultModel": {
       "title": "מודל ברירת מחדל",
-      "chatModel": "מודל צ'אט ברירת מחדל",
-      "visionModel": "מודל ראייה ברירת מחדל"
+      "chatModel": "מודל צ'אט ברירת מחדל"
     },
     "autoCompaction": {
       "title": "דחיסה אוטומטית",
@@ -557,6 +556,15 @@
         "baseUrl": "כתובת בסיס ל-API",
         "baseUrlPlaceholder": "אנא הזן את כתובת הבסיס ל-API",
         "enable": "הפעל ספק"
+      },
+      "providerDeeplinkImport": {
+        "title": "ייבוא ספק",
+        "description": "בדוק את תצורת הספק שפוענחה לפני החלתה.",
+        "type": "סוג",
+        "url": "כתובת URL",
+        "key": "מפתח",
+        "overwriteWarning": "ייבוא זה ידרוס את תצורת הספק הנוכחית.",
+        "confirming": "מייבא..."
       },
       "deleteProvider": {
         "title": "אשר מחיקת ספק",
@@ -1594,7 +1602,6 @@
     "modelsTitle": "ברירות מחדל למודל",
     "chatModel": "מודל שיחה ברירת מחדל",
     "assistantModel": "מודל עוזר",
-    "visionModel": "מודל ראייה",
     "temperature": "טמפרטורה",
     "contextLength": "אורך הקשר",
     "maxTokens": "מספר טוקנים מרבי",

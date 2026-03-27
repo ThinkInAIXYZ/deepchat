@@ -73,8 +73,7 @@
     "fileMaxSizeHint": "限制单个文件的最大上传大小",
     "defaultModel": {
       "title": "默认模型",
-      "chatModel": "默认聊天模型",
-      "visionModel": "默认视觉模型"
+      "chatModel": "默认聊天模型"
     }
   },
   "deepchatAgents": {
@@ -105,7 +104,6 @@
     "modelsTitle": "模型默认值",
     "chatModel": "默认对话模型",
     "assistantModel": "助手模型",
-    "visionModel": "视觉模型",
     "temperature": "Temperature",
     "contextLength": "Context Length",
     "maxTokens": "Max Tokens",
@@ -675,6 +673,15 @@
         "baseUrl": "API地址",
         "baseUrlPlaceholder": "请输入API基础地址",
         "enable": "启用服务商"
+      },
+      "providerDeeplinkImport": {
+        "title": "导入服务商",
+        "description": "请确认解析出的服务商配置后再导入。",
+        "type": "类型",
+        "url": "地址",
+        "key": "密钥",
+        "overwriteWarning": "本次导入会覆盖当前服务商配置。",
+        "confirming": "导入中..."
       },
       "deleteProvider": {
         "title": "确认删除服务商",

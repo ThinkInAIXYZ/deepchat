@@ -18,6 +18,31 @@ test/
 
 ## 🚀 快速开始
 
+## 🔗 手工验证 Deeplink Playground
+
+仓库内提供了一个静态验证页：
+
+- `test/manual/deeplink-playground.html`
+
+用途：
+
+- 验证 `deepchat://start`
+- 验证 `deepchat://mcp/install`
+- 验证 `deepchat://provider/install`
+
+使用方式：
+
+直接在浏览器中打开 `test/manual/deeplink-playground.html` 即可。
+
+说明：
+
+- 页面内置了示例 payload、Base64 编码结果和最终 deeplink
+- `provider/install` 区块覆盖了当前支持的 built-in provider 与 custom `apiType`
+- 页面里的 key 全部是 fake data，仅用于本地联调
+- 若浏览器拦截自定义协议，请允许页面打开 `deepchat://` 链接
+
+如果要验证应用内行为，建议先启动 DeepChat，再点击页面中的 `Open` 按钮。
+
 ### 安装测试依赖
 
 首先需要安装Vue组件测试所需的依赖：

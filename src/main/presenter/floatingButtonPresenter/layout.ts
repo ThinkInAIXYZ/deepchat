@@ -15,8 +15,8 @@ export interface WidgetRect {
 }
 
 export const FLOATING_WIDGET_LAYOUT = {
-  collapsedIdle: { width: 64, height: 64 },
-  collapsedBusy: { width: 64, height: 64 },
+  collapsedIdle: { width: 50, height: 50 },
+  collapsedBusy: { width: 50, height: 50 },
   expandedWidth: 388,
   expandedMinHeight: 168,
   expandedMaxHeight: 392,
@@ -144,6 +144,25 @@ export function repositionWidgetForResize(
     y: Math.round(nextY),
     width: nextSize.width,
     height: nextSize.height
+  }
+}
+
+export function getPeekedCollapsedBounds(
+  bounds: WidgetRect,
+  workArea: WidgetRect,
+  dockSide: FloatingWidgetDockSide
+): WidgetRect {
+  const hiddenWidth = Math.round(bounds.width / 2)
+  const x =
+    dockSide === 'left'
+      ? workArea.x - hiddenWidth
+      : workArea.x + workArea.width - bounds.width + hiddenWidth
+
+  return {
+    x: Math.round(x),
+    y: clampWidgetY(bounds.y, bounds.height, workArea),
+    width: bounds.width,
+    height: bounds.height
   }
 }
 

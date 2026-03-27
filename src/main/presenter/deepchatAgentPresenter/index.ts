@@ -52,6 +52,7 @@ import { ToolOutputGuard } from './toolOutputGuard'
 import type { ProviderRequestTracePayload } from '../llmProviderPresenter/requestTrace'
 import type { NewSessionHooksBridge } from '../hooksNotifications/newSessionBridge'
 import { providerDbLoader } from '../configPresenter/providerDbLoader'
+import { resolveSessionVisionTarget } from '../vision/sessionVisionResolver'
 
 type PendingInteractionEntry = {
   interaction: PendingToolInteraction
@@ -106,6 +107,16 @@ const isReasoningEffort = (value: unknown): value is 'minimal' | 'low' | 'medium
 
 const isVerbosity = (value: unknown): value is 'low' | 'medium' | 'high' =>
   value === 'low' || value === 'medium' || value === 'high'
+
+const createAbortError = (): Error => {
+  if (typeof DOMException !== 'undefined') {
+    return new DOMException('Aborted', 'AbortError')
+  }
+
+  const error = new Error('Aborted')
+  error.name = 'AbortError'
+  return error
+}
 
 export class DeepChatAgentPresenter implements IAgentImplementation {
   private readonly llmProviderPresenter: ILlmProviderPresenter
@@ -1011,6 +1022,23 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     return undefined
   }
 
+  private getAbortSignalForSession(sessionId: string): AbortSignal | undefined {
+    return (
+      this.activeGenerations.get(sessionId)?.abortController.signal ??
+      this.abortControllers.get(sessionId)?.signal
+    )
+  }
+
+  private throwIfAbortRequested(signal?: AbortSignal): void {
+    if (signal?.aborted) {
+      throw createAbortError()
+    }
+  }
+
+  private isAbortError(error: unknown): boolean {
+    return error instanceof Error && (error.name === 'AbortError' || error.name === 'CanceledError')
+  }
+
   private dispatchResolvedToolHook(params: {
     sessionId: string
     messageId: string
@@ -1424,7 +1452,17 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
                 body: gap
               }
             })
-          }
+          },
+          normalizeToolResult: async (tool) =>
+            await this.normalizeToolResultContent({
+              sessionId: tool.sessionId,
+              toolCallId: tool.toolCallId,
+              toolName: tool.toolName,
+              toolArgs: tool.toolArgs,
+              content: tool.content,
+              isError: tool.isError,
+              abortSignal: abortController.signal
+            })
         },
         io: {
           sessionId,
@@ -2867,7 +2905,16 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
           permissionRequest: rawData.permissionRequest as PendingToolInteraction['permission']
         }
       }
-      const responseText = this.toolContentToText(rawData.content)
+      const normalizedContent = await this.normalizeToolResultContent({
+        sessionId,
+        toolCallId: toolCall.id || '',
+        toolName,
+        toolArgs: toolCall.params || '{}',
+        content: rawData.content,
+        isError: rawData.isError === true,
+        abortSignal: this.getAbortSignalForSession(sessionId)
+      })
+      const responseText = this.toolContentToText(normalizedContent)
       const prepared = await this.toolOutputGuard.prepareToolOutput({
         sessionId,
         toolCallId: toolCall.id || '',
@@ -2954,6 +3001,199 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       ),
       mode: 'replace'
     })
+  }
+
+  private async normalizeToolResultContent(params: {
+    sessionId: string
+    toolCallId: string
+    toolName: string
+    toolArgs: string
+    content: MCPToolResponse['content']
+    isError: boolean
+    abortSignal?: AbortSignal
+  }): Promise<MCPToolResponse['content']> {
+    if (params.isError) {
+      return params.content
+    }
+
+    const abortSignal = params.abortSignal ?? this.getAbortSignalForSession(params.sessionId)
+    const screenshotPayload = this.extractScreenshotToolPayload(
+      params.toolName,
+      params.toolArgs,
+      params.content
+    )
+    if (!screenshotPayload) {
+      return params.content
+    }
+
+    try {
+      this.throwIfAbortRequested(abortSignal)
+      const visionModel = await this.resolveScreenshotVisionModel(params.sessionId, abortSignal)
+      this.throwIfAbortRequested(abortSignal)
+
+      if (!visionModel) {
+        return 'Screenshot captured, but automatic English analysis is unavailable because neither the current session model nor the agent vision model can analyze images.'
+      }
+
+      const messages: ChatMessage[] = [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: this.buildScreenshotAnalysisPrompt()
+            },
+            {
+              type: 'image_url',
+              image_url: {
+                url: screenshotPayload.dataUrl,
+                detail: 'auto'
+              }
+            }
+          ]
+        }
+      ]
+
+      const modelConfig = this.configPresenter.getModelConfig(
+        visionModel.modelId,
+        visionModel.providerId
+      )
+      const response = await this.llmProviderPresenter.generateCompletionStandalone(
+        visionModel.providerId,
+        messages,
+        visionModel.modelId,
+        modelConfig?.temperature ?? 0.2,
+        Math.min(modelConfig?.maxTokens ?? 900, 900),
+        abortSignal ? { signal: abortSignal } : undefined
+      )
+      this.throwIfAbortRequested(abortSignal)
+      const normalized = response.trim()
+      if (!normalized) {
+        return 'Screenshot captured, but automatic English analysis returned no usable description.'
+      }
+      return normalized
+    } catch (error) {
+      if (this.isAbortError(error)) {
+        return 'Screenshot captured, but automatic English analysis was canceled.'
+      }
+
+      const message = error instanceof Error ? error.message : String(error)
+      console.warn('[DeepChatAgent] Failed to normalize screenshot tool output:', {
+        sessionId: params.sessionId,
+        toolCallId: params.toolCallId,
+        error: message
+      })
+      return `Screenshot captured, but automatic English analysis failed: ${message}`
+    }
+  }
+
+  private extractScreenshotToolPayload(
+    toolName: string,
+    toolArgs: string,
+    content: MCPToolResponse['content']
+  ): { dataUrl: string } | null {
+    if (toolName !== 'cdp_send' || typeof content !== 'string') {
+      return null
+    }
+
+    const parsedArgs = this.parseJsonRecord(toolArgs)
+    if (!parsedArgs || parsedArgs.method !== 'Page.captureScreenshot') {
+      return null
+    }
+
+    const parsedContent = this.parseJsonRecord(content)
+    const rawData = typeof parsedContent?.data === 'string' ? parsedContent.data.trim() : ''
+    if (!rawData) {
+      return null
+    }
+
+    const screenshotParams = this.normalizeJsonRecord(parsedArgs.params)
+    const mimeType = this.resolveScreenshotMimeType(screenshotParams?.format)
+    const dataUrl = rawData.startsWith('data:image/')
+      ? rawData
+      : `data:${mimeType};base64,${rawData}`
+
+    return { dataUrl }
+  }
+
+  private normalizeJsonRecord(value: unknown): Record<string, unknown> | null {
+    if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+      return value as Record<string, unknown>
+    }
+
+    if (typeof value !== 'string' || !value.trim()) {
+      return null
+    }
+
+    return this.parseJsonRecord(value)
+  }
+
+  private parseJsonRecord(value: string): Record<string, unknown> | null {
+    try {
+      const parsed = JSON.parse(value) as unknown
+      if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>
+      }
+    } catch {}
+
+    return null
+  }
+
+  private resolveScreenshotMimeType(format: unknown): string {
+    if (format === 'jpeg') {
+      return 'image/jpeg'
+    }
+    if (format === 'webp') {
+      return 'image/webp'
+    }
+    return 'image/png'
+  }
+
+  private async resolveScreenshotVisionModel(
+    sessionId: string,
+    abortSignal?: AbortSignal
+  ): Promise<{ providerId: string; modelId: string } | null> {
+    this.throwIfAbortRequested(abortSignal)
+    const state = this.runtimeState.get(sessionId)
+    const dbSession = this.sessionStore.get(sessionId)
+    const agentId = this.getSessionAgentId(sessionId) ?? 'deepchat'
+    const resolved = await resolveSessionVisionTarget({
+      providerId: state?.providerId ?? dbSession?.provider_id,
+      modelId: state?.modelId ?? dbSession?.model_id,
+      agentId,
+      configPresenter: this.configPresenter,
+      signal: abortSignal,
+      logLabel: `screenshot:${sessionId}`
+    })
+    this.throwIfAbortRequested(abortSignal)
+
+    if (!resolved) {
+      return null
+    }
+
+    if (resolved.source === 'agent-vision-model') {
+      const agentSupportsVision =
+        (await this.configPresenter.agentSupportsCapability?.(agentId, 'vision')) === true
+      this.throwIfAbortRequested(abortSignal)
+      if (!agentSupportsVision) {
+        return null
+      }
+    }
+
+    return {
+      providerId: resolved.providerId,
+      modelId: resolved.modelId
+    }
+  }
+
+  private buildScreenshotAnalysisPrompt(): string {
+    return [
+      'Analyze this browser screenshot and respond in English only.',
+      'Describe only what is clearly visible.',
+      'Include the page type or layout, the most important visible text, interactive controls, status indicators, warnings, errors, and any detail that matters for the next browser action.',
+      'Do not speculate about hidden or unreadable content.',
+      'Return detailed plain text in a single paragraph.'
+    ].join('\n')
   }
 
   private toolContentToText(content: MCPToolResponse['content']): string {

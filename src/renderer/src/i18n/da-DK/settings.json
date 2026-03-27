@@ -61,8 +61,7 @@
     "fileMaxSizeHint": "Begrænser størrelsen på en enkelt uploadet fil",
     "defaultModel": {
       "title": "Standardmodel",
-      "chatModel": "Standard chatmodel",
-      "visionModel": "Standard visionsmodel"
+      "chatModel": "Standard chatmodel"
     },
     "autoCompaction": {
       "title": "Automatisk komprimering",
@@ -491,6 +490,15 @@
         "baseUrl": "API-basis-URL",
         "baseUrlPlaceholder": "Indtast basis-URL'en for API'et",
         "enable": "Aktivér udbyder"
+      },
+      "providerDeeplinkImport": {
+        "title": "Importer udbyder",
+        "description": "Gennemgå den fortolkede udbyderkonfiguration, før du anvender den.",
+        "type": "Type",
+        "url": "URL",
+        "key": "Nøgle",
+        "overwriteWarning": "Denne import vil overskrive den nuværende udbyderkonfiguration.",
+        "confirming": "Importerer..."
       },
       "deleteProvider": {
         "title": "Bekræft sletning af udbyder",
@@ -1594,7 +1602,6 @@
     "modelsTitle": "Modelstandarder",
     "chatModel": "Standard chatmodel",
     "assistantModel": "Assistentmodel",
-    "visionModel": "Visionsmodel",
     "temperature": "Temperatur",
     "contextLength": "Kontekstlængde",
     "maxTokens": "Maks. tokens",

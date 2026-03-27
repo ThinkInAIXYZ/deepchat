@@ -6,7 +6,7 @@ import type {
 } from '@shared/types/agent-interface'
 import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
 import type { ChatMessage } from '@shared/types/core/chat-message'
-import type { MCPToolDefinition } from '@shared/types/core/mcp'
+import type { MCPToolDefinition, MCPToolResponse } from '@shared/types/core/mcp'
 import type { ModelConfig } from '@shared/presenter'
 import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
 import type { DeepChatMessageStore } from './messageStore'
@@ -76,6 +76,14 @@ export interface ProcessHooks {
     reasoningContentLength: number
     toolCallCount: number
   }) => void
+  normalizeToolResult?: (tool: {
+    sessionId: string
+    toolCallId: string
+    toolName: string
+    toolArgs: string
+    content: MCPToolResponse['content']
+    isError: boolean
+  }) => Promise<MCPToolResponse['content']>
 }
 
 export interface PendingToolInteraction {

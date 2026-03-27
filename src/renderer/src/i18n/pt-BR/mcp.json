@@ -159,10 +159,6 @@
       "desc": "Permitir que o DeepChat interaja com o sistema de arquivos local.",
       "name": "Sistema de Arquivos"
     },
-    "imageServer": {
-      "desc": "Permite que qualquer modelo no DeepChat entenda e gere imagens.",
-      "name": "Serviço de Imagem"
-    },
     "braveSearch": {
       "desc": "API de Pesquisa Brave https://brave.com/search/api/",
       "name": "Pesquisa Brave"
@@ -198,10 +194,6 @@
     "builtinKnowledge": {
       "desc": "Pesquisa na base de conhecimento integrada do DeepChat para documentação e guias.",
       "name": "Pesquisa na base de conhecimento integrada"
-    },
-    "deepchat-inmemory/meeting-server": {
-      "name": "Reuniões Multi-Agente",
-      "desc": "Reuniões integradas ao DeepChat para hospedar discussões multi-agente."
     },
     "deepchat/apple-server": {
       "desc": "Permite que os modelos operem aplicativos do macOS como Calendário, Contatos, Mail, Mapas, Notas e Lembretes.",

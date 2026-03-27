@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.0.0-beta.7 (2026-03-27)
+- 新增 Novita AI LLM 提供商接入
+- 新增 Provider 配置导入能力（Deeplink 导入）
+- 新增 Feishu Bot 远端接入能力
+- 改进悬浮窗与侧边栏交互体验：SessionItem 由右键菜单切换为 hover/浮层交互，浮动按钮 hover 与透明度细节优化
+- 修复消息标题选择与 MCP 生命周期相关稳定性问题，并清理已过期 MCP Server
+
 ## v1.0.0-beta.6 (2026-03-24)
 - 新增 Telegram Remote Control，可通过 Telegram 远程查看与驱动会话，远程控制配置也已接入设置页
 - 统一 DeepChat Agent 与 ACP Agent 的 Agent 能力和入口，补齐欢迎页、本地化文案与默认配置，整体使用路径更一致

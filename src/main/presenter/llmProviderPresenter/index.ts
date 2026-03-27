@@ -33,6 +33,16 @@ import { AcpSessionPersistence } from './acp'
 import { AcpProvider } from './providers/acpProvider'
 import type { ProviderMcpRuntimePort } from './runtimePorts'
 
+const createAbortError = (): Error => {
+  if (typeof DOMException !== 'undefined') {
+    return new DOMException('Aborted', 'AbortError')
+  }
+
+  const error = new Error('Aborted')
+  error.name = 'AbortError'
+  return error
+}
+
 export class LLMProviderPresenter implements ILlmProviderPresenter {
   private currentProviderId: string | null = null
   private readonly activeStreams: Map<string, StreamState> = new Map()
@@ -258,16 +268,37 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     messages: ChatMessage[],
     modelId: string,
     temperature?: number,
-    maxTokens?: number
+    maxTokens?: number,
+    options?: { signal?: AbortSignal }
   ): Promise<string> {
     const provider = this.getProviderInstance(providerId)
     let response = ''
+    const signal = options?.signal
+
+    if (signal?.aborted) {
+      throw createAbortError()
+    }
+
+    const completionPromise = provider.completions(messages, modelId, temperature, maxTokens)
+    const abortPromise =
+      signal &&
+      new Promise<never>((_, reject) => {
+        const onAbort = () => reject(createAbortError())
+        signal.addEventListener('abort', onAbort, { once: true })
+        completionPromise.finally(() => signal.removeEventListener('abort', onAbort))
+      })
+
     try {
-      const llmResponse = await provider.completions(messages, modelId, temperature, maxTokens)
+      const llmResponse = await (abortPromise
+        ? Promise.race([completionPromise, abortPromise])
+        : completionPromise)
       response = llmResponse.content
 
       return response
     } catch (error) {
+      if (signal?.aborted || (error instanceof Error && error.name === 'AbortError')) {
+        throw error
+      }
       console.error('Stream error:', error)
       return ''
     }

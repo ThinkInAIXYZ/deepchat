@@ -159,10 +159,6 @@
       "desc": "Permettre à DeepChat de manipuler des fichiers locaux",
       "name": "Système de fichiers"
     },
-    "imageServer": {
-      "desc": "Après ouverture, tout modèle dans DeepChat peut comprendre des images et générer des images.",
-      "name": "Service d'images"
-    },
     "braveSearch": {
       "desc": "Brave Search API https://brave.com/search/api/",
       "name": "Brave Search"
@@ -194,10 +190,6 @@
     "deepchat-inmemory/conversation-search-server": {
       "name": "Recherche d’historique",
       "desc": "Rechercher les conversations et messages passés (intégré à DeepChat)"
-    },
-    "deepchat-inmemory/meeting-server": {
-      "name": "Réunion Multi-Agent",
-      "desc": "Le service de réunion intégré de DeepChat permet d’organiser et d’animer des discussions multi-agents."
     },
     "builtinKnowledge": {
       "desc": "Recherche dans la base de connaissances intégrée de DeepChat (docs, contenus intégrés).",

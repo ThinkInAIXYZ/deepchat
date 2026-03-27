@@ -259,6 +259,18 @@ export class Presenter implements IPresenter {
 
         return null
       },
+      resolveConversationSessionInfo: async (conversationId) => {
+        const session = await this.newAgentPresenter?.getSession(conversationId)
+        if (!session) {
+          return null
+        }
+
+        return {
+          agentId: session.agentId,
+          providerId: session.providerId,
+          modelId: session.modelId
+        }
+      },
       getSkillPresenter: () => this.skillPresenter,
       getYoBrowserToolHandler: () => this.yoBrowserPresenter.toolHandler,
       getFilePresenter: () => ({

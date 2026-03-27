@@ -15,6 +15,7 @@ import { IConfigPresenter, IWindowPresenter } from '@shared/presenter' // Window
 import { eventBus } from '@/eventbus' // Event bus
 import {
   CONFIG_EVENTS,
+  DEEPLINK_EVENTS,
   SETTINGS_EVENTS,
   SHORTCUT_EVENTS,
   SYSTEM_EVENTS,
@@ -25,6 +26,7 @@ import windowStateManager from 'electron-window-state' // Window state manager
 // TrayPresenter is globally managed in main/index.ts, this Presenter is not responsible for its lifecycle
 import { TabPresenter } from '../tabPresenter' // TabPresenter type
 import { FloatingChatWindow } from './FloatingChatWindow' // Floating chat window
+import type { ProviderInstallPreview } from '@shared/providerDeeplink'
 
 type PendingSettingsMessage = {
   channel: string
@@ -49,6 +51,7 @@ export class WindowPresenter implements IWindowPresenter {
   private settingsWindow: BrowserWindow | null = null
   private settingsWindowReady = false
   private pendingSettingsMessages: PendingSettingsMessage[] = []
+  private pendingSettingsProviderInstalls: ProviderInstallPreview[] = []
 
   constructor(configPresenter: IConfigPresenter) {
     this.windows = new Map()
@@ -864,7 +867,9 @@ export class WindowPresenter implements IWindowPresenter {
       console.log(
         `Loading packaged main renderer file: ${join(__dirname, '../renderer/index.html')}`
       )
-      appWindow.loadFile(join(__dirname, '../renderer/index.html'), { hash: '/chat' })
+      appWindow.loadFile(join(__dirname, '../renderer/index.html'), {
+        hash: '/chat'
+      })
     }
 
     // DevTools 不再自动打开，需要手动通过菜单或快捷键打开
@@ -1201,8 +1206,8 @@ export class WindowPresenter implements IWindowPresenter {
     // Initialize window state manager to remember position and size
     const settingsWindowState = windowStateManager({
       file: 'settings-window-state.json',
-      defaultWidth: 900,
-      defaultHeight: 600
+      defaultWidth: 1300,
+      defaultHeight: 800
     })
 
     // Create Settings Window with state persistence
@@ -1328,6 +1333,19 @@ export class WindowPresenter implements IWindowPresenter {
     return null
   }
 
+  public setPendingSettingsProviderInstall(preview: ProviderInstallPreview): void {
+    this.pendingSettingsProviderInstalls.push(this.clonePendingSettingsProviderInstall(preview))
+  }
+
+  public consumePendingSettingsProviderInstall(): ProviderInstallPreview | null {
+    const preview = this.pendingSettingsProviderInstalls.shift()
+    if (!preview) {
+      return null
+    }
+
+    return this.clonePendingSettingsProviderInstall(preview)
+  }
+
   /**
    * Close Settings Window if it exists
    */
@@ -1348,7 +1366,10 @@ export class WindowPresenter implements IWindowPresenter {
   }
 
   private shouldQueueSettingsMessage(channel: string): boolean {
-    return channel.startsWith('settings:') && !this.settingsWindowReady
+    return (
+      !this.settingsWindowReady &&
+      (channel.startsWith('settings:') || channel === DEEPLINK_EVENTS.MCP_INSTALL)
+    )
   }
 
   private handleSettingsWindowReady(senderWebContentsId: number): void {
@@ -1391,7 +1412,21 @@ export class WindowPresenter implements IWindowPresenter {
     this.settingsWindowReady = false
     if (clearQueue) {
       this.pendingSettingsMessages = []
+      this.clearPendingSettingsProviderInstalls()
     }
+  }
+
+  private clonePendingSettingsProviderInstall(
+    preview: ProviderInstallPreview
+  ): ProviderInstallPreview {
+    return { ...preview }
+  }
+
+  private clearPendingSettingsProviderInstalls(): void {
+    this.pendingSettingsProviderInstalls.forEach((preview) => {
+      preview.apiKey = ''
+    })
+    this.pendingSettingsProviderInstalls = []
   }
 
   public isApplicationQuitting(): boolean {

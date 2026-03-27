@@ -18,16 +18,12 @@ import { EmojiPicker } from '@/components/emoji-picker'
 import { useToast } from '@/components/use-toast'
 import { Icon } from '@iconify/vue'
 import { X } from 'lucide-vue-next'
-import ModelIcon from '@/components/icons/ModelIcon.vue'
-import { useModelStore } from '@/stores/modelStore'
 import { usePresenter } from '@/composables/usePresenter'
 import { nanoid } from 'nanoid'
 
 const { t } = useI18n()
 const { toast } = useToast()
-const modelStore = useModelStore()
 const devicePresenter = usePresenter('devicePresenter')
-const configPresenter = usePresenter('configPresenter')
 const props = defineProps<{
   serverName?: string
   initialConfig?: MCPServerConfig
@@ -57,14 +53,8 @@ const customHeadersFocused = ref(false)
 const customHeadersDisplayValue = ref('')
 const npmRegistry = ref(props.initialConfig?.customNpmRegistry || '')
 
-// imageServer 展示用（只读，来源于 defaultVisionModel）
-const selectedImageModelName = ref('')
-const selectedImageModelProvider = ref('')
-
 // 判断是否是inmemory类型
 const isInMemoryType = computed(() => type.value === 'inmemory')
-// 判断是否是imageServer
-const isImageServer = computed(() => isInMemoryType.value && name.value === 'imageServer')
 // 判断是否是buildInFileSystem
 const isBuildInFileSystem = computed(
   () => isInMemoryType.value && name.value === 'buildInFileSystem'
@@ -79,32 +69,6 @@ const formatJsonHeaders = (headers: Record<string, string>): string => {
   return Object.entries(headers)
     .map(([key, value]) => `${key}=${value}`)
     .join('\n')
-}
-const refreshImageServerDefaultModelDisplay = async (): Promise<void> => {
-  if (!isImageServer.value) {
-    selectedImageModelName.value = ''
-    selectedImageModelProvider.value = ''
-    return
-  }
-
-  const defaultVisionModel = (await configPresenter.getSetting('defaultVisionModel')) as
-    | { providerId: string; modelId: string }
-    | undefined
-  if (!defaultVisionModel?.providerId || !defaultVisionModel?.modelId) {
-    selectedImageModelName.value = ''
-    selectedImageModelProvider.value = ''
-    return
-  }
-
-  selectedImageModelProvider.value = defaultVisionModel.providerId
-  const providerEntry = modelStore.enabledModels.find(
-    (entry) => entry.providerId === defaultVisionModel.providerId
-  )
-  const resolvedModel = providerEntry?.models.find(
-    (model) => model.id === defaultVisionModel.modelId
-  )
-  selectedImageModelName.value =
-    resolvedModel?.name || `${defaultVisionModel.providerId}/${defaultVisionModel.modelId}`
 }
 
 // 获取内置服务器的本地化名称和描述
@@ -144,11 +108,9 @@ const jsonConfig = ref('')
 const showBaseUrl = computed(() => isRemoteType.value)
 // 添加计算属性来控制命令相关字段的显示
 const showCommandFields = computed(() => type.value === 'stdio')
-// 控制参数输入框的显示 (stdio 或 非imageServer且非buildInFileSystem的inmemory)
+// 控制参数输入框的显示 (stdio 或 非buildInFileSystem的inmemory)
 const showArgsInput = computed(
-  () =>
-    showCommandFields.value ||
-    (isInMemoryType.value && !isImageServer.value && !isBuildInFileSystem.value)
+  () => showCommandFields.value || (isInMemoryType.value && !isBuildInFileSystem.value)
 )
 
 // 控制文件夹选择界面的显示 (仅针对 buildInFileSystem)
@@ -253,11 +215,11 @@ const isNameValid = computed(() => name.value.trim().length > 0)
 const isCommandValid = computed(() => {
   // 对于SSE类型，命令不是必需的
   if (isRemoteType.value) return true
-  // 对于STDIO 或 inmemory 类型，命令是必需的 (排除内置 server)
-  if (type.value === 'stdio' || (isInMemoryType.value && !isImageServer.value)) {
+  // 对于STDIO 或 inmemory 类型，命令是必需的
+  if (type.value === 'stdio' || isInMemoryType.value) {
     return command.value.trim().length > 0
   }
-  return true // 其他情况（如 imageServer）默认有效
+  return true
 })
 const isEnvValid = computed(() => {
   try {
@@ -473,11 +435,9 @@ const handleSubmit = (): void => {
     }
   } else {
     // STDIO 或 inmemory 类型的服务器
-    const normalizedArgs = isImageServer.value
-      ? []
-      : isBuildInFileSystem.value
-        ? foldersList.value.filter((folder) => folder.trim().length > 0)
-        : argsRows.value.map((row) => row.value.trim()).filter((value) => value.length > 0)
+    const normalizedArgs = isBuildInFileSystem.value
+      ? foldersList.value.filter((folder) => folder.trim().length > 0)
+      : argsRows.value.map((row) => row.value.trim()).filter((value) => value.length > 0)
     serverConfig = {
       ...baseConfig,
       command: command.value.trim(),
@@ -590,15 +550,6 @@ watch(
     updateCustomHeadersDisplay()
   },
   { immediate: true }
-)
-
-// imageServer 仅展示默认视觉模型，不再通过 args 配置
-watch(
-  [() => name.value, () => type.value, () => modelStore.enabledModels],
-  () => {
-    void refreshImageServerDefaultModelDisplay()
-  },
-  { immediate: true, deep: true }
 )
 
 // Watch for initial config changes (primarily for edit mode)
@@ -791,25 +742,6 @@ HTTP-Referer=deepchatai.cn`
             :disabled="isFieldReadOnly"
             required
           />
-        </div>
-
-        <!-- 参数 (特殊处理 imageServer) -->
-        <div v-if="isImageServer" class="space-y-2">
-          <Label class="text-xs text-muted-foreground" for="server-model">
-            {{ t('settings.mcp.serverForm.imageModel') || '模型选择' }}
-          </Label>
-          <div
-            class="flex h-9 items-center rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background opacity-80"
-          >
-            <ModelIcon
-              v-if="selectedImageModelProvider"
-              :model-id="selectedImageModelProvider"
-              class="h-4 w-4 mr-2"
-            />
-            <span class="truncate">{{
-              selectedImageModelName || t('settings.mcp.serverForm.imageModel')
-            }}</span>
-          </div>
         </div>
 
         <!-- 文件夹选择 (特殊处理 buildInFileSystem) -->

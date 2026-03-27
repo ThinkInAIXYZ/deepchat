@@ -168,7 +168,7 @@ We use GitHub to host code, to track issues and feature requests, as well as acc
 ## Code Style
 
 - TypeScript + Vue 3 Composition API + Pinia; Tailwind + shadcn/ui for styling.
-- Prettier enforces single quotes and no semicolons; `pnpm run format` before committing.
+- Oxfmt enforces single quotes, no semicolons, and width 100; `pnpm run format` before committing.
 - OxLint is used for linting (`pnpm run lint`). Type checking via `pnpm run typecheck` (node + web targets).
 - Tests use Vitest (`test/main`, `test/renderer`). Name tests `*.test.ts`/`*.spec.ts`.
 - Follow naming conventions: PascalCase components/types, camelCase variables/functions, SCREAMING_SNAKE_CASE constants.

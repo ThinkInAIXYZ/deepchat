@@ -168,7 +168,7 @@ pnpm run dev
 ## 代码风格
 
 - TypeScript + Vue 3 Composition API + Pinia；样式使用 Tailwind + shadcn/ui。
-- Prettier：单引号、无分号；提交前请执行 `pnpm run format`。
+- Oxfmt：单引号、无分号、宽度 100；提交前请执行 `pnpm run format`。
 - OxLint 用于代码检查（`pnpm run lint`）；类型检查 `pnpm run typecheck`（node + web 双目标）。
 - 测试使用 Vitest（`test/main`、`test/renderer`），命名 `*.test.ts` / `*.spec.ts`。
 - 命名约定：组件/类型 PascalCase，变量/函数 camelCase，常量 SCREAMING_SNAKE_CASE。

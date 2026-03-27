@@ -76,13 +76,59 @@ describe('WindowPresenter settings navigation queue', () => {
       getContentProtectionEnabled: vi.fn(() => false)
     } as any)
 
+    const queuedPreview = {
+      kind: 'builtin' as const,
+      id: 'deepseek',
+      baseUrl: 'https://example.com/v1',
+      apiKey: 'sk-secret',
+      maskedApiKey: 'sk-s...cret',
+      iconModelId: 'deepseek-chat',
+      willOverwrite: true
+    }
+
     ;(presenter as any).pendingSettingsMessages = [
       { channel: SETTINGS_EVENTS.NAVIGATE, args: [{ routeName: 'settings-about' }] }
     ]
+    ;(presenter as any).pendingSettingsProviderInstalls = [queuedPreview]
     ;(presenter as any).settingsWindowReady = true
     ;(presenter as any).resetSettingsWindowState(true)
 
     expect((presenter as any).settingsWindowReady).toBe(false)
     expect((presenter as any).pendingSettingsMessages).toHaveLength(0)
+    expect(queuedPreview.apiKey).toBe('')
+    expect((presenter as any).pendingSettingsProviderInstalls).toHaveLength(0)
+  })
+
+  it('consumes pending provider installs in FIFO order', async () => {
+    const { WindowPresenter } = await import('@/presenter/windowPresenter')
+    const presenter = new WindowPresenter({
+      getContentProtectionEnabled: vi.fn(() => false)
+    } as any)
+
+    const firstPreview = {
+      kind: 'builtin' as const,
+      id: 'deepseek',
+      baseUrl: 'https://example.com/v1',
+      apiKey: 'sk-first',
+      maskedApiKey: 'sk-f...irst',
+      iconModelId: 'deepseek-chat',
+      willOverwrite: true
+    }
+    const secondPreview = {
+      kind: 'custom' as const,
+      name: 'DeepSeek Proxy',
+      type: 'deepseek',
+      baseUrl: 'https://proxy.example.com/v1',
+      apiKey: 'sk-second',
+      maskedApiKey: 'sk-s...cond',
+      iconModelId: 'deepseek-chat'
+    }
+
+    presenter.setPendingSettingsProviderInstall(firstPreview)
+    presenter.setPendingSettingsProviderInstall(secondPreview)
+
+    expect(presenter.consumePendingSettingsProviderInstall()).toEqual(firstPreview)
+    expect(presenter.consumePendingSettingsProviderInstall()).toEqual(secondPreview)
+    expect(presenter.consumePendingSettingsProviderInstall()).toBeNull()
   })
 })

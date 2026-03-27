@@ -2,21 +2,19 @@ import { ArtifactsServer } from './artifactsServer'
 // FileSystemServer has been removed - filesystem capabilities are now provided via Agent tools
 import { BochaSearchServer } from './bochaSearchServer'
 import { BraveSearchServer } from './braveSearchServer'
-import { ImageServer } from './imageServer'
 import { DifyKnowledgeServer } from './difyKnowledgeServer'
 import { RagflowKnowledgeServer } from './ragflowKnowledgeServer'
 import { FastGptKnowledgeServer } from './fastGptKnowledgeServer'
 import { DeepResearchServer } from './deepResearchServer'
 import { AutoPromptingServer } from './autoPromptingServer'
 import { ConversationSearchServer } from './conversationSearchServer'
-import { MeetingServer } from './meetingServer'
 import { BuiltinKnowledgeServer } from './builtinKnowledgeServer'
 import { BuiltinKnowledgeConfig } from '@shared/presenter'
 import { AppleServer } from './appleServer'
 
 export function getInMemoryServer(
   serverName: string,
-  args: string[],
+  _args: string[],
   env?: Record<string, unknown>
 ) {
   switch (serverName) {
@@ -29,8 +27,6 @@ export function getInMemoryServer(
       return new BraveSearchServer(env)
     case 'deepResearch':
       return new DeepResearchServer(env)
-    case 'imageServer':
-      return new ImageServer(args[0] || undefined, args[1] || undefined)
     case 'difyKnowledge':
       return new DifyKnowledgeServer(
         env as {
@@ -79,8 +75,6 @@ export function getInMemoryServer(
       return new AutoPromptingServer()
     case 'deepchat-inmemory/conversation-search-server':
       return new ConversationSearchServer()
-    case 'deepchat-inmemory/meeting-server':
-      return new MeetingServer()
     case 'deepchat/apple-server':
       // 只在 macOS 上创建 AppleServer
       if (process.platform !== 'darwin') {

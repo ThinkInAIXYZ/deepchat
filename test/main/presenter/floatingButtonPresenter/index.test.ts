@@ -20,6 +20,7 @@ const { electronState, floatingWindowState, presenterState, sendToRendererMock, 
     const floatingWindowState = {
       bounds: { x: 1136, y: 180, width: 64, height: 64 },
       dockSide: 'right' as 'left' | 'right',
+      opacity: 1,
       exists: true,
       instance: null as null | {
         create: ReturnType<typeof vi.fn>
@@ -29,6 +30,7 @@ const { electronState, floatingWindowState, presenterState, sendToRendererMock, 
         getState: ReturnType<typeof vi.fn>
         getBounds: ReturnType<typeof vi.fn>
         setBounds: ReturnType<typeof vi.fn>
+        setOpacity: ReturnType<typeof vi.fn>
         getDockSide: ReturnType<typeof vi.fn>
         setDockSide: ReturnType<typeof vi.fn>
         getWindow: ReturnType<typeof vi.fn>
@@ -36,6 +38,7 @@ const { electronState, floatingWindowState, presenterState, sendToRendererMock, 
       reset() {
         this.bounds = { x: 1136, y: 180, width: 64, height: 64 }
         this.dockSide = 'right'
+        this.opacity = 1
         this.exists = true
         this.instance = null
       }
@@ -111,6 +114,9 @@ vi.mock('../../../../src/main/presenter/floatingButtonPresenter/FloatingButtonWi
     public getBounds = vi.fn(() => ({ ...floatingWindowState.bounds }))
     public setBounds = vi.fn((bounds) => {
       floatingWindowState.bounds = { ...bounds }
+    })
+    public setOpacity = vi.fn((opacity: number) => {
+      floatingWindowState.opacity = opacity
     })
     public getDockSide = vi.fn(() => floatingWindowState.dockSide)
     public setDockSide = vi.fn((dockSide: 'left' | 'right') => {
@@ -190,6 +196,17 @@ describe('FloatingButtonPresenter drag layout sync', () => {
     floatingPresenter = new FloatingButtonPresenter(createConfigPresenter())
     await floatingPresenter.initialize()
 
+    expect(floatingWindowState.bounds).toMatchObject({
+      x:
+        electronState.workArea.x +
+        electronState.workArea.width -
+        getCollapsedWidgetSize(0).width / 2,
+      y: 180,
+      width: getCollapsedWidgetSize(0).width,
+      height: getCollapsedWidgetSize(0).height
+    })
+    expect(floatingWindowState.opacity).toBe(0.5)
+
     await emitEvent(FLOATING_BUTTON_EVENTS.SET_EXPANDED, true)
     await vi.advanceTimersByTimeAsync(400)
 
@@ -200,9 +217,11 @@ describe('FloatingButtonPresenter drag layout sync', () => {
 
     await emitEvent(FLOATING_BUTTON_EVENTS.DRAG_START, { x: 100, y: 100 })
     expect(floatingWindowState.bounds).toMatchObject({
+      x: electronState.workArea.x + electronState.workArea.width - getCollapsedWidgetSize(0).width,
       width: getCollapsedWidgetSize(0).width,
       height: getCollapsedWidgetSize(0).height
     })
+    expect(floatingWindowState.opacity).toBe(1)
 
     await emitEvent(FLOATING_BUTTON_EVENTS.DRAG_MOVE, { x: 220, y: 150 })
     expect(floatingWindowState.bounds).toMatchObject({
@@ -214,11 +233,15 @@ describe('FloatingButtonPresenter drag layout sync', () => {
 
     await emitEvent(FLOATING_BUTTON_EVENTS.DRAG_END)
     expect(floatingWindowState.bounds).toMatchObject({
-      x: electronState.workArea.x + electronState.workArea.width - getCollapsedWidgetSize(0).width,
+      x:
+        electronState.workArea.x +
+        electronState.workArea.width -
+        getCollapsedWidgetSize(0).width / 2,
       y: 230,
       width: getCollapsedWidgetSize(0).width,
       height: getCollapsedWidgetSize(0).height
     })
+    expect(floatingWindowState.opacity).toBe(0.5)
   })
 
   it('defers layout changes during drag and applies the latest snapshot after drop', async () => {
@@ -272,5 +295,71 @@ describe('FloatingButtonPresenter drag layout sync', () => {
       width: getExpandedWidgetSize(2).width,
       height: getExpandedWidgetSize(2).height
     })
+  })
+
+  it('reveals the collapsed widget on hover and peeks it again on mouse leave', async () => {
+    floatingPresenter = new FloatingButtonPresenter(createConfigPresenter())
+    await floatingPresenter.initialize()
+
+    expect(floatingWindowState.bounds.x).toBe(
+      electronState.workArea.x + electronState.workArea.width - getCollapsedWidgetSize(0).width / 2
+    )
+    expect(floatingWindowState.opacity).toBe(0.5)
+
+    await emitEvent(FLOATING_BUTTON_EVENTS.HOVER_STATE_CHANGED, true)
+    await vi.advanceTimersByTimeAsync(400)
+
+    expect(floatingWindowState.bounds.x).toBe(
+      electronState.workArea.x + electronState.workArea.width - getCollapsedWidgetSize(0).width
+    )
+    expect(floatingWindowState.opacity).toBe(1)
+
+    await emitEvent(FLOATING_BUTTON_EVENTS.HOVER_STATE_CHANGED, false)
+    await vi.advanceTimersByTimeAsync(400)
+
+    expect(floatingWindowState.bounds.x).toBe(
+      electronState.workArea.x + electronState.workArea.width - getCollapsedWidgetSize(0).width / 2
+    )
+    expect(floatingWindowState.opacity).toBe(0.5)
+  })
+
+  it('finishes the close animation before applying the idle peek state', async () => {
+    floatingPresenter = new FloatingButtonPresenter(createConfigPresenter())
+    await floatingPresenter.initialize()
+
+    const revealedX =
+      electronState.workArea.x + electronState.workArea.width - getCollapsedWidgetSize(0).width
+    const peekedX =
+      electronState.workArea.x + electronState.workArea.width - getCollapsedWidgetSize(0).width / 2
+
+    await emitEvent(FLOATING_BUTTON_EVENTS.HOVER_STATE_CHANGED, true)
+    await vi.advanceTimersByTimeAsync(400)
+
+    await emitEvent(FLOATING_BUTTON_EVENTS.SET_EXPANDED, true)
+    await vi.advanceTimersByTimeAsync(400)
+
+    await emitEvent(FLOATING_BUTTON_EVENTS.SET_EXPANDED, false)
+    await vi.advanceTimersByTimeAsync(140)
+    await emitEvent(FLOATING_BUTTON_EVENTS.HOVER_STATE_CHANGED, false)
+    await vi.advanceTimersByTimeAsync(260)
+
+    expect(floatingWindowState.bounds).toMatchObject({
+      x: revealedX,
+      y: 180,
+      width: getCollapsedWidgetSize(0).width,
+      height: getCollapsedWidgetSize(0).height
+    })
+    expect(floatingWindowState.opacity).toBe(1)
+
+    await vi.advanceTimersByTimeAsync(200)
+
+    expect(floatingWindowState.bounds.x).toBeGreaterThan(revealedX)
+    expect(floatingWindowState.bounds.x).toBeLessThan(peekedX)
+    expect(floatingWindowState.opacity).toBe(0.5)
+
+    await vi.advanceTimersByTimeAsync(240)
+
+    expect(floatingWindowState.bounds.x).toBe(peekedX)
+    expect(floatingWindowState.opacity).toBe(0.5)
   })
 })

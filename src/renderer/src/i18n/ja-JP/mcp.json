@@ -159,10 +159,6 @@
       "desc": "DeepChatがローカルファイルを操作できるようにします",
       "name": "ファイルシステム"
     },
-    "imageServer": {
-      "desc": "開いた後、deepchatのモデルは写真を理解して写真を生成できます。",
-      "name": "画像サービス"
-    },
     "braveSearch": {
       "desc": "勇敢な検索API https://brave.com/search/api/",
       "name": "勇敢な検索"
@@ -194,10 +190,6 @@
     "deepchat-inmemory/conversation-search-server": {
       "name": "会話履歴検索",
       "desc": "DeepChat内蔵の会話履歴検索サービス、過去の会話記録とメッセージ内容を検索できます"
-    },
-    "deepchat-inmemory/meeting-server": {
-      "name": "マルチエージェント会議",
-      "desc": "DeepChatの内蔵会議サービスは、マルチエージェントによる討論の開催と進行を可能にします。"
     },
     "builtinKnowledge": {
       "desc": "deepchatビルトインナレッジベース検索サービス。これは、deepchatビルトインナレッジベースのコンテンツを検索できる",

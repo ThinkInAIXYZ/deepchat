@@ -82,7 +82,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { TooltipProvider } from '@shadcn/components/ui/tooltip'
 import { Button } from '@shadcn/components/ui/button'
@@ -102,7 +102,7 @@ import { useProjectStore } from '@/stores/ui/project'
 import { useSessionStore } from '@/stores/ui/session'
 import { useAgentStore } from '@/stores/ui/agent'
 import { useModelStore } from '@/stores/modelStore'
-import { useDraftStore } from '@/stores/ui/draft'
+import { useDraftStore, type StartDeeplinkPayload } from '@/stores/ui/draft'
 import { usePresenter } from '@/composables/usePresenter'
 import type {
   DeepChatAgentConfig,
@@ -129,6 +129,7 @@ const chatInputRef = ref<{
 const acpDraftSessionId = ref<string | null>(null)
 const lastAcpDraftKey = ref<string | null>(null)
 const acpDraftRequestSeq = ref(0)
+let currentDraftDefaultsTask: Promise<void> | null = null
 const availableAgents = computed(() => (Array.isArray(agentStore.agents) ? agentStore.agents : []))
 const resolveAgentType = (agentId: string | null | undefined): 'deepchat' | 'acp' => {
   if (!agentId) {
@@ -222,6 +223,60 @@ async function resolveModel(): Promise<{ providerId: string; modelId: string } |
   }
 
   return null
+}
+
+const normalizeStartMention = (mention: string): string => {
+  const normalized = mention.trim().replace(/^@+/, '')
+  return normalized ? `@${normalized}` : ''
+}
+
+const buildStartMessage = (payload: StartDeeplinkPayload): string => {
+  const mentionText = payload.mentions.map(normalizeStartMention).filter(Boolean).join(' ')
+  return [payload.msg.trim(), mentionText].filter(Boolean).join(' ')
+}
+
+const resolveStartModelSelection = (
+  requestedModelId: string | null
+): { providerId: string; modelId: string } | null => {
+  const normalizedModelId = requestedModelId?.trim().toLowerCase()
+  if (!normalizedModelId) {
+    return null
+  }
+
+  for (const group of modelStore.enabledModels) {
+    const matched = group.models.find((model) => model.id.toLowerCase() === normalizedModelId)
+    if (matched) {
+      return { providerId: group.providerId, modelId: matched.id }
+    }
+  }
+
+  for (const group of modelStore.enabledModels) {
+    const matched = group.models.find((model) => model.id.toLowerCase().includes(normalizedModelId))
+    if (matched) {
+      return { providerId: group.providerId, modelId: matched.id }
+    }
+  }
+
+  return null
+}
+
+const applyStartDeeplink = async (payload: StartDeeplinkPayload) => {
+  const draftDefaultsTask = currentDraftDefaultsTask
+  if (draftDefaultsTask) {
+    await draftDefaultsTask
+  }
+
+  await nextTick()
+  message.value = buildStartMessage(payload)
+  draftStore.systemPrompt = payload.systemPrompt
+
+  const matchedModel = resolveStartModelSelection(payload.modelId)
+  if (matchedModel) {
+    draftStore.providerId = matchedModel.providerId
+    draftStore.modelId = matchedModel.modelId
+  }
+
+  draftStore.clearPendingStartDeeplink()
 }
 
 async function onSubmit() {
@@ -447,7 +502,12 @@ watch(
 watch(
   () => [selectedAgent.value.id, selectedAgent.value.type] as const,
   () => {
-    void applyDraftDefaultsForSelectedAgent()
+    const task = applyDraftDefaultsForSelectedAgent().finally(() => {
+      if (currentDraftDefaultsTask === task) {
+        currentDraftDefaultsTask = null
+      }
+    })
+    currentDraftDefaultsTask = task
   },
   { immediate: true }
 )
@@ -456,6 +516,18 @@ watch(
   () => projectStore.selectedProject?.path,
   (projectDir) => {
     draftStore.projectDir = projectDir
+  },
+  { immediate: true }
+)
+
+watch(
+  () => draftStore.pendingStartDeeplink?.token ?? 0,
+  () => {
+    const pendingStartDeeplink = draftStore.pendingStartDeeplink
+    if (!pendingStartDeeplink) {
+      return
+    }
+    void applyStartDeeplink(pendingStartDeeplink)
   },
   { immediate: true }
 )

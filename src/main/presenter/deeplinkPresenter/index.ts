@@ -2,8 +2,22 @@ import { app, BrowserWindow } from 'electron'
 import { presenter } from '@/presenter'
 import { IDeeplinkPresenter, MCPServerConfig } from '@shared/presenter'
 import path from 'path'
-import { DEEPLINK_EVENTS, MCP_EVENTS, WINDOW_EVENTS } from '@/events'
+import {
+  NOTIFICATION_EVENTS,
+  SETTINGS_EVENTS,
+  DEEPLINK_EVENTS,
+  MCP_EVENTS,
+  WINDOW_EVENTS
+} from '@/events'
 import { eventBus, SendTarget } from '@/eventbus'
+import { consumeStartupDeepLink } from '@/lib/startupDeepLink'
+import {
+  PROVIDER_INSTALL_VERSION,
+  isProviderInstallCustomType,
+  maskApiKey,
+  type ProviderInstallDeeplinkPayload,
+  type ProviderInstallPreview
+} from '@shared/providerDeeplink'
 
 interface MCPInstallConfig {
   mcpServers: Record<
@@ -35,10 +49,9 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
   private pendingMcpInstallUrl: string | null = null
 
   init(): void {
-    // 检查启动时的命令行参数是否包含deeplink URL（冷启动情况）
-    const startupDeepLinkUrl = this.checkStartupDeepLink()
+    const startupDeepLinkUrl = consumeStartupDeepLink()
     if (startupDeepLinkUrl) {
-      console.log('Found startup deeplink URL:', startupDeepLinkUrl)
+      console.log('Found startup deeplink URL:', this.redactDeepLinkUrlForLog(startupDeepLinkUrl))
       this.startupUrl = startupDeepLinkUrl
     }
 
@@ -53,25 +66,12 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
       app.setAsDefaultProtocolClient('deepchat')
     }
 
-    // 处理 macOS 上协议被调用的情况
-    app.on('open-url', (event, url) => {
-      event.preventDefault()
-      console.log('open-url event received:', url)
-      if (!app.isReady()) {
-        console.log('App not ready yet, saving URL:', url)
-        this.startupUrl = url
-      } else {
-        console.log('App is ready, checking URL:', url)
-        this.processDeepLink(url)
-      }
-    })
-
     // 监听窗口内容加载完成事件
     eventBus.once(WINDOW_EVENTS.FIRST_CONTENT_LOADED, () => {
       console.log('Window content loaded. Processing DeepLink if exists.')
       if (this.startupUrl) {
-        console.log('Processing startup URL:', this.startupUrl)
-        this.processDeepLink(this.startupUrl)
+        console.log('Processing startup URL:', this.redactDeepLinkUrlForLog(this.startupUrl))
+        void this.handleDeepLink(this.startupUrl)
         this.startupUrl = null
       }
     })
@@ -80,129 +80,54 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
     eventBus.on(MCP_EVENTS.INITIALIZED, () => {
       console.log('MCP initialized. Processing pending MCP install if exists.')
       if (this.pendingMcpInstallUrl) {
-        console.log('Processing pending MCP install URL:', this.pendingMcpInstallUrl)
-        this.handleDeepLink(this.pendingMcpInstallUrl)
+        console.log(
+          'Processing pending MCP install URL:',
+          this.redactDeepLinkUrlForLog(this.pendingMcpInstallUrl)
+        )
+        void this.handleDeepLink(this.pendingMcpInstallUrl)
         this.pendingMcpInstallUrl = null
       }
     })
-
-    // 处理 Windows 上协议被调用的情况
-    const gotTheLock = app.requestSingleInstanceLock()
-    if (!gotTheLock) {
-      app.quit() // Exit trigger: Second instance
-    } else {
-      app.on('second-instance', (_event, commandLine) => {
-        // 用户尝试运行第二个实例，我们应该聚焦到我们的窗口
-        if (presenter.windowPresenter.mainWindow) {
-          if (presenter.windowPresenter.mainWindow.isMinimized()) {
-            presenter.windowPresenter.mainWindow.restore()
-          }
-          presenter.windowPresenter.mainWindow.show()
-          presenter.windowPresenter.mainWindow.focus()
-        }
-        if (process.platform === 'win32') {
-          // 在 Windows 上，命令行参数包含协议 URL
-          const deepLinkUrl = commandLine.find((arg) => arg.startsWith('deepchat://'))
-          if (deepLinkUrl) {
-            if (!app.isReady()) {
-              console.log('Windows: App not ready yet, saving URL:', deepLinkUrl)
-              this.startupUrl = deepLinkUrl
-            } else {
-              console.log('Windows: App is ready, checking URL:', deepLinkUrl)
-              this.processDeepLink(deepLinkUrl)
-            }
-          }
-        }
-      })
-    }
-  }
-
-  // 新增：处理DeepLink的方法，根据URL类型和系统状态决定如何处理
-  private processDeepLink(url: string): void {
-    console.log('processDeepLink called with URL:', url)
-    try {
-      const urlObj = new URL(url)
-      const command = urlObj.hostname
-      const subCommand = urlObj.pathname.slice(1)
-
-      console.log('Parsed deeplink - command:', command, 'subCommand:', subCommand)
-
-      // 如果是MCP安装命令，需要等待MCP初始化完成
-      if (command === 'mcp' && subCommand === 'install') {
-        console.log('MCP install deeplink detected')
-        if (!presenter.mcpPresenter.isReady()) {
-          console.log('MCP not ready yet, saving MCP install URL for later')
-          this.pendingMcpInstallUrl = url
-          return
-        } else {
-          console.log('MCP is ready, processing MCP install immediately')
-        }
-      }
-
-      // 其他类型的DeepLink或MCP已初始化完成，直接处理
-      this.handleDeepLink(url)
-    } catch (error) {
-      console.error('Error processing DeepLink:', error)
-    }
-  }
-
-  /**
-   * 检查启动时的deeplink URL
-   * 用于处理冷启动时传递的deeplink
-   */
-  private checkStartupDeepLink(): string | null {
-    console.log('Checking for startup deeplink...')
-
-    // 首先检查环境变量（在main.ts中设置的）
-    const envDeepLink = process.env.STARTUP_DEEPLINK
-    if (envDeepLink) {
-      console.log('Found deeplink in startup environment variable:', envDeepLink)
-      // 清理环境变量，避免重复处理
-      delete process.env.STARTUP_DEEPLINK
-      return envDeepLink
-    }
-
-    // 检查命令行参数 - 尝试多种deeplink格式
-    const deepLinkArg = process.argv.find((arg) => {
-      return arg.startsWith('deepchat://') || arg.includes('deepchat://') || arg.match(/^deepchat:/)
-    })
-
-    if (deepLinkArg) {
-      console.log('Found deeplink in command line arguments:', deepLinkArg)
-      return deepLinkArg
-    }
-
-    // 检查所有命令行参数
-    console.log('All command line arguments:', process.argv)
-
-    console.log('No startup deeplink found')
-    return null
   }
 
   async handleDeepLink(url: string): Promise<void> {
-    console.log('Received DeepLink:', url)
-
     try {
       const urlObj = new URL(url)
+      console.log('Received DeepLink:', this.redactDeepLinkUrlForLog(url))
 
       if (urlObj.protocol !== 'deepchat:') {
         console.error('Unsupported protocol:', urlObj.protocol)
         return
       }
 
-      // 从 hostname 获取命令
-      const command = urlObj.hostname
+      const rawPath = [urlObj.hostname, urlObj.pathname.replace(/^\/+/, '')]
+        .filter((segment) => segment.length > 0)
+        .join('/')
+      const [command = '', subCommand = ''] = rawPath.split('/')
+
+      console.log('Parsed deeplink - command:', command, 'subCommand:', subCommand)
+
+      if (command === 'mcp' && subCommand === 'install' && !presenter.mcpPresenter.isReady()) {
+        console.log('MCP not ready yet, saving MCP install URL for later')
+        this.pendingMcpInstallUrl = url
+        return
+      }
 
       // 处理不同的命令
       if (command === 'start') {
         await this.handleStart(urlObj.searchParams)
       } else if (command === 'mcp') {
         // 处理 mcp/install 命令
-        const subCommand = urlObj.pathname.slice(1) // 移除开头的斜杠
         if (subCommand === 'install') {
           await this.handleMcpInstall(urlObj.searchParams)
         } else {
           console.warn('Unknown MCP subcommand:', subCommand)
+        }
+      } else if (command === 'provider') {
+        if (subCommand === 'install') {
+          await this.handleProviderInstall(urlObj.searchParams)
+        } else {
+          console.warn('Unknown provider subcommand:', subCommand)
         }
       } else {
         console.warn('Unknown DeepLink command:', command)
@@ -213,7 +138,7 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
   }
 
   async handleStart(params: URLSearchParams): Promise<void> {
-    console.log('Processing start command, parameters:', Object.fromEntries(params.entries()))
+    console.log('Processing start command, parameters:', this.redactSearchParamsForLog(params))
 
     let msg = params.get('msg')
     if (!msg) {
@@ -257,23 +182,52 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
     console.log('systemPrompt:', systemPrompt)
     console.log('autoSend:', autoSend, '(disabled for security)')
 
-    const focusedWindow = presenter.windowPresenter.getFocusedWindow()
-    if (focusedWindow) {
-      focusedWindow.show()
-      focusedWindow.focus()
-    } else {
-      presenter.windowPresenter.show()
+    const targetWindow = await this.resolveChatWindow()
+    if (!targetWindow) {
+      console.error('Failed to resolve chat window for start deeplink')
+      return
     }
 
-    const windowId = focusedWindow?.id || 1
-    await this.ensureChatWindowReady(windowId)
-    eventBus.sendToRenderer(DEEPLINK_EVENTS.START, SendTarget.DEFAULT_WINDOW, {
+    await this.ensureChatWindowReady(targetWindow.id)
+    presenter.windowPresenter.sendToWindow(targetWindow.id, DEEPLINK_EVENTS.START, {
       msg,
       modelId,
       systemPrompt,
       mentions,
       autoSend
     })
+  }
+
+  private async resolveChatWindow(): Promise<BrowserWindow | null> {
+    const appWindows = presenter.windowPresenter.getAllWindows()
+    const focusedWindow = presenter.windowPresenter.getFocusedWindow()
+    const focusedChatWindow =
+      focusedWindow && appWindows.some((window) => window.id === focusedWindow.id)
+        ? focusedWindow
+        : null
+
+    let targetWindow: BrowserWindow | null | undefined = focusedChatWindow ?? appWindows[0]
+
+    if (!targetWindow) {
+      const windowId = await presenter.windowPresenter.createAppWindow({
+        initialRoute: 'chat'
+      })
+      if (windowId == null) {
+        return null
+      }
+      targetWindow = BrowserWindow.fromId(windowId) ?? null
+    }
+
+    if (!targetWindow || targetWindow.isDestroyed()) {
+      return null
+    }
+
+    if (targetWindow.isMinimized()) {
+      targetWindow.restore()
+    }
+    targetWindow.show()
+    targetWindow.focus()
+    return targetWindow
   }
 
   /**
@@ -298,7 +252,10 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
   }
 
   async handleMcpInstall(params: URLSearchParams): Promise<void> {
-    console.log('Processing mcp/install command, parameters:', Object.fromEntries(params.entries()))
+    console.log(
+      'Processing mcp/install command, parameters:',
+      this.redactSearchParamsForLog(params)
+    )
 
     // 获取 JSON 数据
     const jsonBase64 = params.get('code')
@@ -314,19 +271,13 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
       const jsonString = Buffer.from(jsonBase64, 'base64').toString('utf-8')
       const mcpConfig = JSON.parse(jsonString) as MCPInstallConfig
 
-      console.log('Parsed MCP config:', mcpConfig)
+      console.log('Parsed MCP config:', this.redactValueForLog(mcpConfig))
 
       // 检查 MCP 配置是否有效
       if (!mcpConfig || !mcpConfig.mcpServers) {
         console.error('Invalid MCP configuration: missing mcpServers field')
         return
       }
-
-      // 检查应用程序是否已经完全启动（有窗口存在）
-      const allWindows = presenter.windowPresenter.getAllWindows()
-      const hasWindows = allWindows.length > 0
-
-      console.log('Window check - hasWindows:', hasWindows, 'windowCount:', allWindows.length)
 
       // Prepare complete MCP configuration for all servers
       const completeMcpConfig: { mcpServers: Record<string, any> } = { mcpServers: {} }
@@ -426,35 +377,25 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
         // 添加服务器配置到完整配置中
         console.log(
           `Preparing to install MCP server: ${serverName} (type: ${determinedType})`,
-          finalConfig
+          this.redactValueForLog(finalConfig)
         )
         completeMcpConfig.mcpServers[serverName] = finalConfig
       }
 
-      if (hasWindows) {
-        // 应用程序已启动，使用现有逻辑创建 Settings 窗口
-        const settingsWindowId = await presenter.windowPresenter.createSettingsWindow()
-        if (!settingsWindowId) {
-          console.error('Failed to open Settings window for MCP install deeplink')
-          return
-        }
-
-        // Store the complete MCP configuration in localStorage of the Settings window
-        const settingsWindow = BrowserWindow.fromId(settingsWindowId)
-        if (settingsWindow && !settingsWindow.isDestroyed()) {
-          try {
-            await settingsWindow.webContents.executeJavaScript(`
-              localStorage.setItem('pending-mcp-install', '${JSON.stringify(completeMcpConfig).replace(/'/g, "\\'")}');
-            `)
-            console.log('Complete MCP configuration stored in Settings window localStorage')
-          } catch (error) {
-            console.error('Failed to store MCP configuration in localStorage:', error)
-          }
-        }
-      } else {
-        console.log('App not fully started yet, saving MCP config for first app window')
-        await this.saveMcpConfigToAppWindow(completeMcpConfig)
+      if (Object.keys(completeMcpConfig.mcpServers).length === 0) {
+        console.error('No valid MCP servers found in deeplink payload')
+        return
       }
+
+      const settingsWindowId = await presenter.windowPresenter.createSettingsWindow()
+      if (!settingsWindowId) {
+        console.error('Failed to open Settings window for MCP install deeplink')
+        return
+      }
+
+      presenter.windowPresenter.sendToWindow(settingsWindowId, DEEPLINK_EVENTS.MCP_INSTALL, {
+        mcpConfig: JSON.stringify(completeMcpConfig)
+      })
 
       console.log('All MCP servers processing completed')
     } catch (error) {
@@ -462,66 +403,233 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
     }
   }
 
-  /**
-   * Store MCP config in the first available app window localStorage.
-   * @param mcpConfig MCP 配置对象
-   */
-  private async saveMcpConfigToAppWindow(mcpConfig: {
-    mcpServers: Record<string, any>
-  }): Promise<void> {
+  async handleProviderInstall(params: URLSearchParams): Promise<void> {
+    console.log(
+      'Processing provider/install command, parameters:',
+      this.redactSearchParamsForLog(params)
+    )
+
     try {
-      const appWindow = await this.waitForFirstAppWindow()
-      if (!appWindow) {
-        console.error('No app window available to store MCP configuration')
+      const preview = this.parseProviderInstallParams(params)
+      const settingsWindowId = await presenter.windowPresenter.createSettingsWindow()
+      if (!settingsWindowId) {
+        this.notifyProviderImportError('Failed to open settings window for provider deeplink.')
         return
       }
 
-      if (appWindow.webContents.isLoading()) {
-        await new Promise<void>((resolve) => {
-          appWindow.webContents.once('dom-ready', () => resolve())
-        })
-      }
-
-      await appWindow.webContents.executeJavaScript(`
-        localStorage.setItem('pending-mcp-install', '${JSON.stringify(mcpConfig).replace(/'/g, "\\'")}');
-      `)
-      console.log('MCP configuration stored in app window localStorage for cold start')
+      presenter.windowPresenter.setPendingSettingsProviderInstall(preview)
+      presenter.windowPresenter.sendToWindow(settingsWindowId, SETTINGS_EVENTS.NAVIGATE, {
+        routeName: 'settings-provider'
+      })
+      presenter.windowPresenter.sendToWindow(settingsWindowId, SETTINGS_EVENTS.PROVIDER_INSTALL)
     } catch (error) {
-      console.error('Failed to store MCP configuration in app window localStorage:', error)
+      const message = error instanceof Error ? error.message : 'Invalid provider deeplink.'
+      console.error('Error parsing provider install deeplink:', error)
+      this.notifyProviderImportError(message)
     }
   }
 
-  /**
-   * Wait for the first app window to become available.
-   * @returns Promise<BrowserWindow | null>
-   */
-  private async waitForFirstAppWindow(): Promise<BrowserWindow | null> {
-    return new Promise((resolve) => {
-      // 先检查是否已经有窗口
-      const existingWindows = presenter.windowPresenter.getAllWindows()
-      if (existingWindows.length > 0) {
-        resolve(existingWindows[0])
-        return
+  private parseProviderInstallParams(params: URLSearchParams): ProviderInstallPreview {
+    const version = params.get('v')
+    if (version !== PROVIDER_INSTALL_VERSION) {
+      throw new Error(`Unsupported provider deeplink version: ${version || 'missing'}`)
+    }
+
+    const rawData = params.get('data')
+    if (!rawData) {
+      throw new Error("Missing 'data' parameter")
+    }
+
+    const payload = this.parseProviderInstallPayload(rawData)
+
+    if ('id' in payload) {
+      const id = this.sanitizeStringParameter(payload.id)
+      const baseUrl = this.sanitizeProviderInstallField(payload.baseUrl, 'baseUrl')
+      const apiKey = this.sanitizeProviderInstallField(payload.apiKey, 'apiKey')
+      if (!id) {
+        throw new Error('Provider id is required.')
+      }
+      if (id === 'acp') {
+        throw new Error('ACP provider deeplinks are not supported.')
       }
 
-      // 监听窗口创建事件
-      const checkForWindow = () => {
-        const windows = presenter.windowPresenter.getAllWindows()
-        if (windows.length > 0) {
-          eventBus.off(WINDOW_EVENTS.WINDOW_CREATED, checkForWindow)
-          resolve(windows[0])
-        }
+      const provider = presenter.configPresenter.getProviderById(id)
+      if (!provider) {
+        throw new Error(`Unknown provider id: ${id}`)
       }
 
-      eventBus.on(WINDOW_EVENTS.WINDOW_CREATED, checkForWindow)
+      return {
+        kind: 'builtin',
+        id,
+        baseUrl,
+        apiKey,
+        maskedApiKey: maskApiKey(apiKey),
+        iconModelId: id,
+        willOverwrite: true
+      }
+    }
 
-      // 设置超时，避免无限等待
-      setTimeout(() => {
-        eventBus.off(WINDOW_EVENTS.WINDOW_CREATED, checkForWindow)
-        console.warn('Timeout waiting for app window creation')
-        resolve(null)
-      }, 10000) // 10秒超时
+    const type = this.sanitizeStringParameter(payload.type)
+    const name = this.sanitizeStringParameter(payload.name)
+    const baseUrl = this.sanitizeProviderInstallField(payload.baseUrl, 'baseUrl')
+    const apiKey = this.sanitizeProviderInstallField(payload.apiKey, 'apiKey')
+    if (!name) {
+      throw new Error('Provider name is required for custom provider imports.')
+    }
+    if (!type) {
+      throw new Error('Provider type is required for custom provider imports.')
+    }
+    if (type === 'acp') {
+      throw new Error('ACP provider deeplinks are not supported.')
+    }
+    if (!isProviderInstallCustomType(type)) {
+      throw new Error(`Unsupported provider type: ${type}`)
+    }
+
+    return {
+      kind: 'custom',
+      name,
+      type,
+      baseUrl,
+      apiKey,
+      maskedApiKey: maskApiKey(apiKey),
+      iconModelId: type
+    }
+  }
+
+  private parseProviderInstallPayload(rawData: string): ProviderInstallDeeplinkPayload {
+    const sanitizedBase64 = rawData.replace(/\s+/g, '')
+    if (!sanitizedBase64) {
+      throw new Error('Provider deeplink data is empty.')
+    }
+
+    let jsonString = ''
+    try {
+      const buffer = Buffer.from(sanitizedBase64, 'base64')
+      const normalizedOutput = buffer.toString('base64')
+      if (sanitizedBase64 !== normalizedOutput) {
+        throw new Error('Invalid base64 payload.')
+      }
+      jsonString = buffer.toString('utf8')
+    } catch (error) {
+      throw new Error(
+        error instanceof Error ? error.message : 'Failed to decode provider deeplink payload.'
+      )
+    }
+
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(jsonString)
+    } catch {
+      throw new Error('Provider deeplink payload is not valid JSON.')
+    }
+
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error('Provider deeplink payload must be an object.')
+    }
+
+    const payload = parsed as Partial<ProviderInstallDeeplinkPayload> & Record<string, unknown>
+    const hasId = typeof payload.id === 'string'
+    const hasType = typeof payload.type === 'string'
+
+    if (hasId === hasType) {
+      throw new Error("Provider deeplink payload must include either 'id' or 'type'.")
+    }
+
+    if (typeof payload.baseUrl !== 'string') {
+      throw new Error("Provider deeplink payload must include a string 'baseUrl'.")
+    }
+    if (typeof payload.apiKey !== 'string') {
+      throw new Error("Provider deeplink payload must include a string 'apiKey'.")
+    }
+
+    if (hasId) {
+      return {
+        id: payload.id as string,
+        baseUrl: payload.baseUrl,
+        apiKey: payload.apiKey
+      }
+    }
+
+    if (typeof payload.name !== 'string') {
+      throw new Error("Custom provider deeplink payload must include a string 'name'.")
+    }
+
+    return {
+      name: payload.name,
+      type: payload.type as string,
+      baseUrl: payload.baseUrl,
+      apiKey: payload.apiKey
+    }
+  }
+
+  private sanitizeProviderInstallField(value: string, field: string): string {
+    const sanitized = this.sanitizeStringParameter(value)
+    if (value.trim().length > 0 && sanitized.length === 0) {
+      throw new Error(`Provider deeplink field '${field}' is invalid.`)
+    }
+    return sanitized
+  }
+
+  private notifyProviderImportError(message: string): void {
+    eventBus.sendToRenderer(NOTIFICATION_EVENTS.SHOW_ERROR, SendTarget.ALL_WINDOWS, {
+      id: `provider-deeplink-${Date.now()}`,
+      title: 'Provider Deeplink',
+      message,
+      type: 'error'
     })
+  }
+
+  private redactDeepLinkUrlForLog(url: string): string {
+    try {
+      const parsedUrl = new URL(url)
+      const sensitiveKeys = [...parsedUrl.searchParams.keys()].filter((key) =>
+        this.isSensitiveLogKey(key)
+      )
+
+      sensitiveKeys.forEach((key) => {
+        parsedUrl.searchParams.set(key, '[REDACTED]')
+      })
+
+      return parsedUrl.toString()
+    } catch {
+      return url.replace(
+        /([?&](?:apiKey|api_key|token|password|data|code)=)[^&]*/gi,
+        '$1[REDACTED]'
+      )
+    }
+  }
+
+  private redactSearchParamsForLog(params: URLSearchParams): Record<string, string> {
+    return this.redactValueForLog(Object.fromEntries(params.entries())) as Record<string, string>
+  }
+
+  private redactValueForLog(value: unknown): unknown {
+    if (Array.isArray(value)) {
+      return value.map((item) => this.redactValueForLog(item))
+    }
+
+    if (!value || typeof value !== 'object') {
+      return value
+    }
+
+    return Object.fromEntries(
+      Object.entries(value).map(([key, nestedValue]) => [
+        key,
+        this.isSensitiveLogKey(key) ? '[REDACTED]' : this.redactValueForLog(nestedValue)
+      ])
+    )
+  }
+
+  private isSensitiveLogKey(key: string): boolean {
+    const normalizedKey = key.replace(/[^a-z0-9]/gi, '').toLowerCase()
+    return (
+      normalizedKey.includes('apikey') ||
+      normalizedKey.includes('token') ||
+      normalizedKey.includes('password') ||
+      normalizedKey === 'data' ||
+      normalizedKey === 'code'
+    )
   }
 
   /**

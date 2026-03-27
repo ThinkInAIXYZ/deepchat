@@ -377,6 +377,11 @@ export class ToolPresenter implements IToolPresenter {
         'Use `background: true` when you know a command should detach immediately; otherwise a foreground `exec` may yield a running `sessionId` after `yieldMs`.'
       )
     }
+    if (toolNames.has('read')) {
+      lines.push(
+        'When `read` targets an image file, it returns an English description of the visible content and any legible text.'
+      )
+    }
     if (toolNames.has('exec') && toolNames.has('read') && toolNames.has('edit')) {
       lines.push(
         'Recommended file task flow: `exec` for discovery/search -> `read` -> `edit`/`write`.'

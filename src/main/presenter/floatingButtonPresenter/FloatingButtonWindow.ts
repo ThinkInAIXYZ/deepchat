@@ -10,8 +10,6 @@ import {
 } from './layout'
 import windowStateManager from 'electron-window-state'
 
-const FLOATING_WIDGET_WINDOW_OPACITY = 1
-
 export class FloatingButtonWindow {
   private window: BrowserWindow | null = null
   private config: FloatingButtonConfig
@@ -83,7 +81,7 @@ export class FloatingButtonWindow {
       this.windowState.manage(this.window)
       this.window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
       this.window.setAlwaysOnTop(this.config.alwaysOnTop, 'floating')
-      this.window.setOpacity(FLOATING_WIDGET_WINDOW_OPACITY)
+      this.window.setOpacity(1)
       this.setBounds(initialBounds)
 
       if (isDev) {
@@ -135,7 +133,7 @@ export class FloatingButtonWindow {
       return
     }
 
-    this.window.setOpacity(FLOATING_WIDGET_WINDOW_OPACITY)
+    this.window.setOpacity(1)
 
     if (config.alwaysOnTop !== undefined) {
       this.window.setAlwaysOnTop(this.config.alwaysOnTop, 'floating')
@@ -174,6 +172,14 @@ export class FloatingButtonWindow {
 
     this.window.setBounds(bounds)
     this.state.bounds = { ...bounds }
+  }
+
+  public setOpacity(opacity: number): void {
+    if (!this.window || this.window.isDestroyed()) {
+      return
+    }
+
+    this.window.setOpacity(opacity)
   }
 
   public getDockSide(): FloatingWidgetDockSide {

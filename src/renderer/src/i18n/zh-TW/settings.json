@@ -61,8 +61,7 @@
     "fileMaxSizeHint": "限制單個檔案的最大上傳大小",
     "defaultModel": {
       "title": "預設模型",
-      "chatModel": "預設聊天模型",
-      "visionModel": "預設視覺模型"
+      "chatModel": "預設聊天模型"
     },
     "autoCompaction": {
       "title": "自動壓縮",
@@ -557,6 +556,15 @@
         "baseUrl": "API 基礎網址",
         "baseUrlPlaceholder": "請輸入 API 基礎網址",
         "enable": "啟用服務提供者"
+      },
+      "providerDeeplinkImport": {
+        "title": "匯入服務商",
+        "description": "請先確認解析出的服務商設定，再決定是否匯入。",
+        "type": "類型",
+        "url": "位址",
+        "key": "金鑰",
+        "overwriteWarning": "這次匯入會覆蓋目前的服務商設定。",
+        "confirming": "匯入中..."
       },
       "deleteProvider": {
         "title": "確認刪除服務提供者",
@@ -1594,7 +1602,6 @@
     "modelsTitle": "模型預設值",
     "chatModel": "預設對話模型",
     "assistantModel": "助手模型",
-    "visionModel": "視覺模型",
     "temperature": "溫度",
     "contextLength": "上下文長度",
     "maxTokens": "最大 Token 數",

@@ -2,6 +2,7 @@ import { FloatingButtonWindow } from './FloatingButtonWindow'
 import { FloatingButtonConfig, FloatingButtonState, DEFAULT_FLOATING_BUTTON_CONFIG } from './types'
 import {
   buildFloatingWidgetSnapshot,
+  getPeekedCollapsedBounds,
   getWidgetSizeForSnapshot,
   repositionWidgetForResize,
   snapWidgetBoundsToEdge,
@@ -23,6 +24,9 @@ const EMPTY_SNAPSHOT: FloatingWidgetSnapshot = {
 
 const WIDGET_LAYOUT_ANIMATION_DURATION_MS = 360
 const WIDGET_LAYOUT_ANIMATION_INTERVAL_MS = 16
+const COLLAPSE_REVEAL_LOCK_MS = WIDGET_LAYOUT_ANIMATION_DURATION_MS + 120
+const COLLAPSED_WIDGET_INACTIVE_OPACITY = 0.5
+const ACTIVE_WIDGET_OPACITY = 1
 
 type DragRuntimeState = {
   startX: number
@@ -39,7 +43,10 @@ export class FloatingButtonPresenter {
   private configPresenter: IConfigPresenter
   private snapshot: FloatingWidgetSnapshot = { ...EMPTY_SNAPSHOT }
   private layoutAnimationTimer: ReturnType<typeof setInterval> | null = null
+  private collapseRevealTimer: ReturnType<typeof setTimeout> | null = null
   private isDragging = false
+  private isHovered = false
+  private collapseRevealLock = false
   private pendingLayoutSync = false
 
   constructor(configPresenter: IConfigPresenter) {
@@ -80,6 +87,8 @@ export class FloatingButtonPresenter {
     this.config.enabled = false
     this.snapshot = { ...EMPTY_SNAPSHOT }
     this.isDragging = false
+    this.isHovered = false
+    this.clearCollapseRevealLock()
     this.pendingLayoutSync = false
     this.stopLayoutAnimation()
 
@@ -88,6 +97,7 @@ export class FloatingButtonPresenter {
     ipcMain.removeHandler(FLOATING_BUTTON_EVENTS.THEME_REQUEST)
     ipcMain.removeAllListeners(FLOATING_BUTTON_EVENTS.CLICKED)
     ipcMain.removeAllListeners(FLOATING_BUTTON_EVENTS.RIGHT_CLICKED)
+    ipcMain.removeAllListeners(FLOATING_BUTTON_EVENTS.HOVER_STATE_CHANGED)
     ipcMain.removeAllListeners(FLOATING_BUTTON_EVENTS.TOGGLE_EXPANDED)
     ipcMain.removeAllListeners(FLOATING_BUTTON_EVENTS.SET_EXPANDED)
     ipcMain.removeAllListeners(FLOATING_BUTTON_EVENTS.OPEN_SESSION)
@@ -111,10 +121,10 @@ export class FloatingButtonPresenter {
     this.config.enabled = true
 
     if (this.floatingWindow) {
-      this.floatingWindow.show()
       await this.refreshWidgetState()
       this.refreshLanguage()
       await this.refreshTheme()
+      this.floatingWindow.show()
       return
     }
 
@@ -190,10 +200,10 @@ export class FloatingButtonPresenter {
       await this.floatingWindow.create()
     }
 
-    this.floatingWindow.show()
     await this.refreshWidgetState()
     this.refreshLanguage()
     await this.refreshTheme()
+    this.floatingWindow.show()
   }
 
   private registerIpcHandlers(): void {
@@ -202,6 +212,7 @@ export class FloatingButtonPresenter {
     ipcMain.removeHandler(FLOATING_BUTTON_EVENTS.THEME_REQUEST)
     ipcMain.removeAllListeners(FLOATING_BUTTON_EVENTS.CLICKED)
     ipcMain.removeAllListeners(FLOATING_BUTTON_EVENTS.RIGHT_CLICKED)
+    ipcMain.removeAllListeners(FLOATING_BUTTON_EVENTS.HOVER_STATE_CHANGED)
     ipcMain.removeAllListeners(FLOATING_BUTTON_EVENTS.TOGGLE_EXPANDED)
     ipcMain.removeAllListeners(FLOATING_BUTTON_EVENTS.SET_EXPANDED)
     ipcMain.removeAllListeners(FLOATING_BUTTON_EVENTS.OPEN_SESSION)
@@ -234,6 +245,10 @@ export class FloatingButtonPresenter {
       this.showContextMenu()
     })
 
+    ipcMain.on(FLOATING_BUTTON_EVENTS.HOVER_STATE_CHANGED, (_event, hovering: boolean) => {
+      this.setHovering(Boolean(hovering))
+    })
+
     ipcMain.on(FLOATING_BUTTON_EVENTS.TOGGLE_EXPANDED, () => {
       this.toggleExpanded()
     })
@@ -257,9 +272,11 @@ export class FloatingButtonPresenter {
       }
 
       this.stopLayoutAnimation()
+      this.clearCollapseRevealLock()
+      this.isDragging = true
       const stableBounds = this.getSnapshotBounds(bounds)
       this.floatingWindow.setBounds(stableBounds)
-      this.isDragging = true
+      this.floatingWindow.setOpacity(this.resolveWindowOpacity())
 
       dragState = {
         startX: x,
@@ -313,7 +330,12 @@ export class FloatingButtonPresenter {
       this.floatingWindow.setBounds(snapped)
       this.isDragging = false
       dragState = null
+      this.floatingWindow.setOpacity(this.resolveWindowOpacity())
+      const hadPendingLayoutSync = this.pendingLayoutSync
       this.flushPendingLayoutSync()
+      if (!hadPendingLayoutSync) {
+        this.applyWindowLayout()
+      }
     })
   }
 
@@ -322,16 +344,40 @@ export class FloatingButtonPresenter {
       return
     }
 
+    const wasExpanded = this.snapshot.expanded
+    if (expanded) {
+      this.clearCollapseRevealLock()
+    }
+
     this.snapshot = {
       ...this.snapshot,
       expanded
     }
+
+    if (wasExpanded && !expanded) {
+      this.engageCollapseRevealLock()
+    }
+
     this.applyWindowLayout(true)
     this.pushSnapshotToRenderer()
   }
 
   private toggleExpanded(): void {
     this.setExpanded(!this.snapshot.expanded)
+  }
+
+  private setHovering(hovering: boolean): void {
+    if (this.isHovered === hovering) {
+      return
+    }
+
+    this.isHovered = hovering
+
+    if (!this.snapshot.expanded && this.collapseRevealLock) {
+      return
+    }
+
+    this.applyWindowLayout(true)
   }
 
   private applyWindowLayout(animate = false): void {
@@ -350,6 +396,7 @@ export class FloatingButtonPresenter {
     }
 
     const nextBounds = this.getSnapshotBounds(bounds)
+    this.floatingWindow.setOpacity(this.resolveWindowOpacity())
 
     if (!animate || this.areBoundsEqual(bounds, nextBounds)) {
       this.stopLayoutAnimation()
@@ -411,6 +458,29 @@ export class FloatingButtonPresenter {
     }
   }
 
+  private clearCollapseRevealLock(): void {
+    this.collapseRevealLock = false
+
+    if (this.collapseRevealTimer) {
+      clearTimeout(this.collapseRevealTimer)
+      this.collapseRevealTimer = null
+    }
+  }
+
+  private engageCollapseRevealLock(): void {
+    this.collapseRevealLock = true
+
+    if (this.collapseRevealTimer) {
+      clearTimeout(this.collapseRevealTimer)
+    }
+
+    this.collapseRevealTimer = setTimeout(() => {
+      this.collapseRevealTimer = null
+      this.collapseRevealLock = false
+      this.applyWindowLayout(true)
+    }, COLLAPSE_REVEAL_LOCK_MS)
+  }
+
   private flushPendingLayoutSync(): void {
     if (!this.pendingLayoutSync) {
       return
@@ -426,12 +496,32 @@ export class FloatingButtonPresenter {
     }
 
     const currentDisplay = screen.getDisplayMatching(bounds)
-    return repositionWidgetForResize(
+    const resizedBounds = repositionWidgetForResize(
       bounds,
       getWidgetSizeForSnapshot(this.snapshot),
       currentDisplay.workArea,
       this.floatingWindow.getDockSide()
     )
+
+    if (!this.snapshot.expanded && !this.shouldRevealCollapsedWidget()) {
+      return getPeekedCollapsedBounds(
+        resizedBounds,
+        currentDisplay.workArea,
+        this.floatingWindow.getDockSide()
+      )
+    }
+
+    return resizedBounds
+  }
+
+  private shouldRevealCollapsedWidget(): boolean {
+    return this.snapshot.expanded || this.isHovered || this.isDragging || this.collapseRevealLock
+  }
+
+  private resolveWindowOpacity(): number {
+    return this.shouldRevealCollapsedWidget()
+      ? ACTIVE_WIDGET_OPACITY
+      : COLLAPSED_WIDGET_INACTIVE_OPACITY
   }
 
   private easeInOutCubic(progress: number): number {

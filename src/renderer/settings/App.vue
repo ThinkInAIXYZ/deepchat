@@ -45,6 +45,15 @@
         }
       "
     />
+    <ProviderDeeplinkImportDialog
+      :key="pendingProviderImportToken"
+      :open="Boolean(pendingProviderImportPreview)"
+      :preview="pendingProviderImportPreview"
+      :confirm-disabled="providerImportConfirmDisabled"
+      :submitting="isImportingProvider"
+      @update:open="handleProviderImportDialogOpenChange"
+      @confirm="confirmProviderImport"
+    />
     <Toaster :theme="toasterTheme" />
   </div>
 </template>
@@ -52,7 +61,7 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
 import { useRouter, useRoute, RouterView } from 'vue-router'
-import { onMounted, onBeforeUnmount, Ref, ref, watch, computed } from 'vue'
+import { onMounted, onBeforeUnmount, Ref, ref, watch, computed, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useTitle } from '@vueuse/core'
 import { usePresenter } from '../src/composables/usePresenter'
@@ -71,9 +80,12 @@ import { useThemeStore } from '@/stores/theme'
 import { useProviderStore } from '@/stores/providerStore'
 import { useModelStore } from '@/stores/modelStore'
 import { useOllamaStore } from '@/stores/ollamaStore'
-import { useMcpStore } from '@/stores/mcp'
+import { useProviderDeeplinkImportStore } from '@/stores/providerDeeplinkImport'
 import { useMcpInstallDeeplinkHandler } from '../src/lib/storeInitializer'
 import { useFontManager } from '../src/composables/useFontManager'
+import type { LLM_PROVIDER, ProviderInstallPreview } from '@shared/presenter'
+import ProviderDeeplinkImportDialog from './components/ProviderDeeplinkImportDialog.vue'
+import { nanoid } from 'nanoid'
 
 const devicePresenter = usePresenter('devicePresenter')
 const windowPresenter = usePresenter('windowPresenter')
@@ -91,7 +103,7 @@ const themeStore = useThemeStore()
 const providerStore = useProviderStore()
 const modelStore = useModelStore()
 const ollamaStore = useOllamaStore()
-const mcpStore = useMcpStore()
+const providerDeeplinkImportStore = useProviderDeeplinkImportStore()
 const { setup: setupMcpDeeplink, cleanup: cleanupMcpDeeplink } = useMcpInstallDeeplinkHandler()
 // Register MCP deeplink listener immediately to avoid race with incoming IPC
 setupMcpDeeplink()
@@ -99,6 +111,7 @@ setupMcpDeeplink()
 const errorQueue = ref<Array<{ id: string; title: string; message: string; type: string }>>([])
 const currentErrorId = ref<string | null>(null)
 const errorDisplayTimer = ref<number | null>(null)
+const isImportingProvider = ref(false)
 const toasterTheme = computed(() =>
   themeStore.themeMode === 'system' ? (themeStore.isDark ? 'dark' : 'light') : themeStore.themeMode
 )
@@ -109,6 +122,29 @@ const { t, locale } = useI18n()
 const router = useRouter()
 const route = useRoute()
 const title = useTitle()
+const pendingProviderImportPreview = computed(() => providerDeeplinkImportStore.preview)
+const pendingProviderImportToken = computed(() => providerDeeplinkImportStore.previewToken)
+const isProcessingProviderPreview = ref(false)
+const providerImportConfirmDisabled = computed(() => {
+  const preview = pendingProviderImportPreview.value
+  if (!preview) {
+    return true
+  }
+
+  if (preview.kind === 'builtin') {
+    return !providerStore.providers.some((provider) => provider.id === preview.id)
+  }
+
+  return false
+})
+
+const navigateToProviderSettings = async (providerId?: string) => {
+  await router.push({
+    name: 'settings-provider',
+    params: providerId ? { providerId } : undefined
+  })
+}
+
 const handleSettingsNavigate = async (
   _event: unknown,
   payload?: { routeName?: string; section?: string }
@@ -119,10 +155,151 @@ const handleSettingsNavigate = async (
   if (router.currentRoute.value.name !== routeName) {
     await router.push({ name: routeName })
   }
+  if (routeName === 'settings-provider') {
+    await syncPendingProviderInstall()
+  }
+}
+
+let providerStoreInitializePromise: Promise<void> | null = null
+
+const ensureProviderStoreReady = async () => {
+  if (providerStore.providers.length > 0) {
+    return
+  }
+
+  if (!providerStoreInitializePromise) {
+    providerStoreInitializePromise = providerStore.initialize().catch((error) => {
+      providerStoreInitializePromise = null
+      throw error
+    })
+  }
+
+  await providerStoreInitializePromise
+}
+
+const applyProviderInstallPreview = async (preview: ProviderInstallPreview) => {
+  console.log(
+    'Applying provider install preview in settings renderer:',
+    preview.kind === 'builtin' ? preview.id : preview.name
+  )
+
+  await ensureProviderStoreReady()
+  await router.isReady()
+
+  if (preview.kind === 'builtin') {
+    await navigateToProviderSettings(preview.id)
+  } else if (router.currentRoute.value.name !== 'settings-provider') {
+    await navigateToProviderSettings()
+  }
+
+  await nextTick()
+  providerDeeplinkImportStore.openPreview(preview)
+}
+
+const releaseProviderPreviewProcessing = () => {
+  isProcessingProviderPreview.value = false
+  if (!pendingProviderImportPreview.value) {
+    void syncPendingProviderInstall()
+  }
+}
+
+const syncPendingProviderInstall = async () => {
+  if (isProcessingProviderPreview.value || pendingProviderImportPreview.value) {
+    return
+  }
+
+  isProcessingProviderPreview.value = true
+  let preview: ProviderInstallPreview | null = null
+
+  try {
+    preview = await windowPresenter.consumePendingSettingsProviderInstall()
+    if (!preview) {
+      return
+    }
+
+    await applyProviderInstallPreview(preview)
+  } catch (error) {
+    if (preview) {
+      try {
+        windowPresenter.setPendingSettingsProviderInstall(preview)
+      } catch (requeueError) {
+        console.error('Failed to requeue pending provider install preview:', requeueError)
+      }
+    }
+
+    console.error('Failed to sync pending provider install preview:', error)
+  } finally {
+    isProcessingProviderPreview.value = false
+  }
+}
+
+const handleProviderInstall = async () => {
+  await syncPendingProviderInstall()
+}
+
+const handleProviderImportDialogOpenChange = (open: boolean) => {
+  if (!open) {
+    providerDeeplinkImportStore.clearPreview()
+    releaseProviderPreviewProcessing()
+  }
+}
+
+const confirmProviderImport = async () => {
+  const preview = pendingProviderImportPreview.value
+  if (!preview || isImportingProvider.value) {
+    return
+  }
+
+  isImportingProvider.value = true
+
+  try {
+    if (preview.kind === 'builtin') {
+      const targetProvider = providerStore.providers.find((provider) => provider.id === preview.id)
+      if (!targetProvider) {
+        return
+      }
+
+      await providerStore.updateProviderApi(preview.id, preview.apiKey, preview.baseUrl)
+      if (!targetProvider.enable) {
+        await providerStore.updateProviderStatus(preview.id, true)
+      }
+
+      await modelStore.refreshProviderModels(preview.id)
+      await navigateToProviderSettings(preview.id)
+    } else {
+      const providerId = nanoid()
+      const newProvider: LLM_PROVIDER = {
+        id: providerId,
+        name: preview.name,
+        apiType: preview.type,
+        apiKey: preview.apiKey,
+        baseUrl: preview.baseUrl,
+        enable: true,
+        custom: true
+      }
+
+      await providerStore.addCustomProvider(newProvider)
+      await modelStore.refreshProviderModels(providerId)
+      await navigateToProviderSettings(providerId)
+    }
+
+    providerDeeplinkImportStore.clearPreview()
+    releaseProviderPreviewProcessing()
+  } catch (error) {
+    console.error('Failed to import provider from deeplink:', error)
+    toast({
+      title: t('common.error'),
+      description: error instanceof Error ? error.message : String(error),
+      variant: 'destructive'
+    })
+  } finally {
+    isImportingProvider.value = false
+  }
 }
 
 if (window?.electron?.ipcRenderer) {
   window.electron.ipcRenderer.on(SETTINGS_EVENTS.NAVIGATE, handleSettingsNavigate)
+  window.electron.ipcRenderer.on(SETTINGS_EVENTS.PROVIDER_INSTALL, handleProviderInstall)
 }
 
 const notifySettingsReady = () => {
@@ -171,7 +348,7 @@ onMounted(() => {
 
 const initializeSettingsStores = async () => {
   try {
-    await providerStore.initialize()
+    await ensureProviderStoreReady()
     await modelStore.initialize()
     await ollamaStore.initialize?.()
   } catch (error) {
@@ -275,6 +452,10 @@ const showErrorToast = (error: { id: string; title: string; message: string; typ
   displayError(error)
 }
 
+const handleWindowFocus = () => {
+  void syncPendingProviderInstall()
+}
+
 onMounted(async () => {
   // Listen for window maximize/unmaximize events
   devicePresenter.getDeviceInfo().then((deviceInfo: any) => {
@@ -289,50 +470,9 @@ onMounted(async () => {
 
   // Wait for router to be ready
   await router.isReady()
+  window.addEventListener('focus', handleWindowFocus)
+  await syncPendingProviderInstall()
   notifySettingsReady()
-
-  // Check for pending MCP install from localStorage
-  try {
-    const pendingMcpInstall = localStorage.getItem('pending-mcp-install')
-    if (pendingMcpInstall) {
-      console.log('Found pending MCP install in localStorage:', pendingMcpInstall)
-      // Clear the localStorage immediately to prevent re-processing
-      localStorage.removeItem('pending-mcp-install')
-
-      // Parse and process the MCP configuration
-      const mcpConfig = JSON.parse(pendingMcpInstall)
-
-      if (!mcpConfig?.mcpServers || typeof mcpConfig.mcpServers !== 'object') {
-        console.error('Invalid MCP install config, missing mcpServers')
-        return
-      }
-
-      // Enable MCP if not already enabled
-      if (!mcpStore.mcpEnabled) {
-        await mcpStore.setMcpEnabled(true)
-      }
-
-      // Set the MCP install cache
-      mcpStore.setMcpInstallCache(JSON.stringify(mcpConfig))
-
-      // Navigate to MCP settings page
-      const currentRoute = router.currentRoute.value
-      if (currentRoute.name !== 'settings-mcp') {
-        await router.push({ name: 'settings-mcp' })
-      } else {
-        await router.replace({
-          name: 'settings-mcp',
-          query: { ...currentRoute.query }
-        })
-      }
-
-      console.log('MCP install deeplink processed successfully')
-    }
-  } catch (error) {
-    console.error('Error processing pending MCP install:', error)
-    // Clear potentially corrupted data
-    localStorage.removeItem('pending-mcp-install')
-  }
 })
 
 const closeWindow = () => {
@@ -347,6 +487,11 @@ onBeforeUnmount(() => {
 
   window.electron.ipcRenderer.removeAllListeners(NOTIFICATION_EVENTS.SHOW_ERROR)
   window.electron.ipcRenderer.removeListener(SETTINGS_EVENTS.NAVIGATE, handleSettingsNavigate)
+  window.electron.ipcRenderer.removeListener(
+    SETTINGS_EVENTS.PROVIDER_INSTALL,
+    handleProviderInstall
+  )
+  window.removeEventListener('focus', handleWindowFocus)
   cleanupMcpDeeplink()
 })
 </script>

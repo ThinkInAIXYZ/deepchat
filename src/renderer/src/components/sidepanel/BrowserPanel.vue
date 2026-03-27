@@ -111,7 +111,7 @@ const isPresenterError = (value: unknown): value is { error: string } => {
   )
 }
 
-const callPresenter = async <T,>(
+const callPresenter = async <T>(
   action: string,
   promise: Promise<T | { error: string } | null>
 ): Promise<T | null> => {

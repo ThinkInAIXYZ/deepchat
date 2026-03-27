@@ -58,6 +58,7 @@ export default defineConfig({
     optimizeDeps: {
       exclude: ['markstream-vue', 'stream-monaco'],
       include: [
+        '@antv/infographic',
         'monaco-editor',
         'axios'
       ]

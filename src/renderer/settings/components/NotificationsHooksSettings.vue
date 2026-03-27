@@ -468,7 +468,7 @@ const confirmoAvailable = computed(() => confirmoStatus.value?.available ?? fals
 
 const eventNames = HOOK_EVENT_NAMES
 
-const buildEventRecord = <T,>(value: T) =>
+const buildEventRecord = <T>(value: T) =>
   Object.fromEntries(eventNames.map((name) => [name, value])) as Record<HookEventName, T>
 
 const commandTesting = ref<Record<HookEventName, boolean>>(buildEventRecord(false))

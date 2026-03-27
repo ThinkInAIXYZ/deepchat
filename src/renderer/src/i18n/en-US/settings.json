@@ -73,8 +73,7 @@
     "fileMaxSizeHint": "Limits the maximum size of a single uploaded file",
     "defaultModel": {
       "title": "Default Model",
-      "chatModel": "Default Chat Model",
-      "visionModel": "Default Vision Model"
+      "chatModel": "Default Chat Model"
     }
   },
   "deepchatAgents": {
@@ -105,7 +104,6 @@
     "modelsTitle": "Model Defaults",
     "chatModel": "Default Chat Model",
     "assistantModel": "Assistant Model",
-    "visionModel": "Vision Model",
     "temperature": "Temperature",
     "contextLength": "Context Length",
     "maxTokens": "Max Tokens",
@@ -576,6 +574,15 @@
         "baseUrl": "API Base URL",
         "baseUrlPlaceholder": "Please enter the API base URL",
         "enable": "Enable Provider"
+      },
+      "providerDeeplinkImport": {
+        "title": "Import Provider",
+        "description": "Review the parsed provider configuration before applying it.",
+        "type": "Type",
+        "url": "URL",
+        "key": "Key",
+        "overwriteWarning": "This import will overwrite the current provider configuration.",
+        "confirming": "Importing..."
       },
       "deleteProvider": {
         "title": "Confirm Delete Provider",

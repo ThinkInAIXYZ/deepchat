@@ -123,7 +123,8 @@ export const WINDOW_EVENTS = {
 export const SETTINGS_EVENTS = {
   READY: 'settings:ready',
   NAVIGATE: 'settings:navigate',
-  CHECK_FOR_UPDATES: 'settings:check-for-updates'
+  CHECK_FOR_UPDATES: 'settings:check-for-updates',
+  PROVIDER_INSTALL: 'settings:provider-install'
 }
 
 // ollama 相关事件
@@ -218,11 +219,6 @@ export const TRAY_EVENTS = {
   CHECK_FOR_UPDATES: 'tray:check-for-updates' // 托盘检查更新
 }
 
-// MCP会议专用事件
-export const MEETING_EVENTS = {
-  INSTRUCTION: 'mcp:meeting-instruction' // 主进程向渲染进程发送指令
-}
-
 // 悬浮按钮相关事件
 export const FLOATING_BUTTON_EVENTS = {
   CLICKED: 'floating-button:clicked', // 悬浮按钮被点击
@@ -230,6 +226,7 @@ export const FLOATING_BUTTON_EVENTS = {
   VISIBILITY_CHANGED: 'floating-button:visibility-changed', // 悬浮按钮显示状态改变
   POSITION_CHANGED: 'floating-button:position-changed', // 悬浮按钮位置改变
   ENABLED_CHANGED: 'floating-button:enabled-changed', // 悬浮按钮启用状态改变
+  HOVER_STATE_CHANGED: 'floating-button:hover-state-changed',
   SNAPSHOT_REQUEST: 'floating-button:snapshot-request',
   SNAPSHOT_UPDATED: 'floating-button:snapshot-updated',
   LANGUAGE_REQUEST: 'floating-button:language-request',

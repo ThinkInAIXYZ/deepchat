@@ -78,7 +78,8 @@ export const WINDOW_EVENTS = {
 export const SETTINGS_EVENTS = {
   READY: 'settings:ready',
   NAVIGATE: 'settings:navigate',
-  CHECK_FOR_UPDATES: 'settings:check-for-updates'
+  CHECK_FOR_UPDATES: 'settings:check-for-updates',
+  PROVIDER_INSTALL: 'settings:provider-install'
 }
 
 // ollama 相关事件
@@ -95,11 +96,6 @@ export const MCP_EVENTS = {
   SAMPLING_REQUEST: 'mcp:sampling-request',
   SAMPLING_DECISION: 'mcp:sampling-decision',
   SAMPLING_CANCELLED: 'mcp:sampling-cancelled'
-}
-
-// 新增会议相关事件
-export const MEETING_EVENTS = {
-  INSTRUCTION: 'mcp:meeting-instruction' // 监听来自主进程的指令
 }
 
 // 同步相关事件
