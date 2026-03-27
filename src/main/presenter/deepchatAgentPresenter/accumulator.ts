@@ -119,6 +119,21 @@ export function accumulate(state: StreamState, event: LLMCoreStreamEvent): void 
       }
       break
     }
+    case 'image_data': {
+      if (state.firstTokenTime === null) state.firstTokenTime = Date.now()
+      const block: AssistantMessageBlock = {
+        type: 'image',
+        status: 'pending',
+        timestamp: Date.now(),
+        image_data: {
+          data: event.image_data.data,
+          mimeType: event.image_data.mimeType
+        }
+      }
+      state.blocks.push(block)
+      state.dirty = true
+      break
+    }
     case 'usage': {
       state.metadata.inputTokens = event.usage.prompt_tokens
       state.metadata.outputTokens = event.usage.completion_tokens

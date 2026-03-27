@@ -66,6 +66,19 @@ const SUPPORTED_IMAGE_SIZES = {
 // Add list of models with configurable sizes
 const SIZE_CONFIGURABLE_MODELS = ['gpt-image-1', 'gpt-4o-image', 'gpt-4o-all']
 
+export function normalizeExtractedImageText(content: string): string {
+  const normalized = content
+    .replace(/\r\n/g, '\n')
+    .replace(/\n\s*\n/g, '\n')
+    .trim()
+  if (!normalized) {
+    return ''
+  }
+
+  const semanticText = normalized.replace(/[\`*_~!\[\]\(\)]/g, '').trim()
+  return semanticText.length > 0 ? normalized : ''
+}
+
 function getOpenAIChatCachedTokens(usage: unknown): number | undefined {
   if (!usage || typeof usage !== 'object') {
     return undefined
@@ -1294,7 +1307,7 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
           // 如果处理了图片，清理多余的空行并记录日志
           if (hasImages) {
             // 清理移除图片后可能留下的多余空行
-            processedCurrentContent = processedCurrentContent.replace(/\n\s*\n/g, '\n').trim()
+            processedCurrentContent = normalizeExtractedImageText(processedCurrentContent)
             console.log(
               `[handleChatCompletion] Processed ${currentContent.length} chars -> ${processedCurrentContent.length} chars (images removed)`
             )

@@ -210,6 +210,7 @@ export type AssistantBlockType =
   | 'error'
   | 'tool_call'
   | 'action'
+  | 'image'
 
 export interface ToolCallBlockData {
   id?: string
@@ -263,6 +264,10 @@ export interface AssistantMessageBlock {
         start: number
         end: number
       }
+  image_data?: {
+    data: string
+    mimeType: string
+  }
   tool_call?: ToolCallBlockData
   extra?: AssistantMessageExtra
   action_type?: 'tool_call_permission' | 'question_request'

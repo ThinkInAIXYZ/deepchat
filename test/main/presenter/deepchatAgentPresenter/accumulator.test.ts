@@ -235,4 +235,26 @@ describe('accumulate', () => {
     accumulate(state, { type: 'permission', permission: {} } as any)
     expect(state.blocks.length).toBe(blocksBefore)
   })
+
+  it('creates image blocks for image_data events without empty text blocks', () => {
+    accumulate(state, {
+      type: 'image_data',
+      image_data: {
+        data: 'imgcache://generated/test.png',
+        mimeType: 'deepchat/image-url'
+      }
+    })
+
+    expect(state.blocks).toHaveLength(1)
+    expect(state.blocks[0]).toMatchObject({
+      type: 'image',
+      status: 'pending',
+      image_data: {
+        data: 'imgcache://generated/test.png',
+        mimeType: 'deepchat/image-url'
+      }
+    })
+    expect(state.blocks.some((block) => block.type === 'content')).toBe(false)
+    expect(state.dirty).toBe(true)
+  })
 })
