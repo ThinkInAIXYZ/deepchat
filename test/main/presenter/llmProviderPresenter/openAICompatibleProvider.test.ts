@@ -7,7 +7,10 @@ import type {
   MCPToolDefinition,
   ModelConfig
 } from '../../../../src/shared/presenter'
-import { OpenAICompatibleProvider } from '../../../../src/main/presenter/llmProviderPresenter/providers/openAICompatibleProvider'
+import {
+  OpenAICompatibleProvider,
+  normalizeExtractedImageText
+} from '../../../../src/main/presenter/llmProviderPresenter/providers/openAICompatibleProvider'
 import { OpenRouterProvider } from '../../../../src/main/presenter/llmProviderPresenter/providers/openRouterProvider'
 import { LLMProviderPresenter } from '../../../../src/main/presenter/llmProviderPresenter'
 
@@ -333,5 +336,18 @@ describe('OpenAICompatibleProvider MCP runtime injection', () => {
     expect(provider).toBeInstanceOf(OpenRouterProvider)
     expect(mockMcpToolsToOpenAITools).toHaveBeenCalledWith(mcpTools, 'openrouter')
     expect(requestParams.tools).toEqual(convertedTools)
+  })
+})
+
+describe('normalizeExtractedImageText', () => {
+  it('keeps meaningful text after image markdown cleanup', () => {
+    expect(normalizeExtractedImageText('  Here is the updated image.\n\n')).toBe(
+      'Here is the updated image.'
+    )
+  })
+
+  it('drops markdown residue after image markdown cleanup', () => {
+    expect(normalizeExtractedImageText('`\n')).toBe('')
+    expect(normalizeExtractedImageText('[]()')).toBe('')
   })
 })
