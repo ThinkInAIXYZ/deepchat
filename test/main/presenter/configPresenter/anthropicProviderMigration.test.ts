@@ -1,4 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { eventBus } from '@/eventbus'
+import { CONFIG_EVENTS } from '../../../../src/main/events'
 
 vi.mock('@/eventbus', () => ({
   eventBus: {
@@ -32,6 +34,7 @@ vi.mock('electron', () => ({
 }))
 
 import {
+  ConfigPresenter,
   getAnthropicModelSelectionKeysToClear,
   normalizeAnthropicProviderForApiOnly
 } from '../../../../src/main/presenter/configPresenter'
@@ -148,5 +151,70 @@ describe('getAnthropicModelSelectionKeysToClear', () => {
     })
 
     expect(keysToClear).toEqual([])
+  })
+})
+
+describe('migrateLegacyDefaultVisionModelToBuiltinAgent', () => {
+  it('migrates a valid legacy vision model with trimmed ids', () => {
+    const store = {
+      get: vi.fn().mockReturnValue({ providerId: ' openai ', modelId: ' gpt-4o ' }),
+      delete: vi.fn()
+    }
+    const updateBuiltinDeepChatConfig = vi.fn()
+    const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
+      store,
+      getBuiltinDeepChatConfig: vi.fn().mockReturnValue({}),
+      updateBuiltinDeepChatConfig
+    })
+
+    expect(() =>
+      (
+        presenter as ConfigPresenter & {
+          migrateLegacyDefaultVisionModelToBuiltinAgent: () => void
+        }
+      ).migrateLegacyDefaultVisionModelToBuiltinAgent()
+    ).not.toThrow()
+
+    expect(updateBuiltinDeepChatConfig).toHaveBeenCalledWith({
+      visionModel: {
+        providerId: 'openai',
+        modelId: 'gpt-4o'
+      }
+    })
+    expect(store.delete).toHaveBeenCalledWith('defaultVisionModel')
+    expect(eventBus.sendToMain).toHaveBeenCalledWith(
+      CONFIG_EVENTS.SETTING_CHANGED,
+      'defaultVisionModel',
+      undefined
+    )
+  })
+
+  it('cleans up malformed legacy vision model without throwing', () => {
+    const store = {
+      get: vi.fn().mockReturnValue({ providerId: { bad: true }, modelId: 'gpt-4o' }),
+      delete: vi.fn()
+    }
+    const updateBuiltinDeepChatConfig = vi.fn()
+    const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
+      store,
+      getBuiltinDeepChatConfig: vi.fn().mockReturnValue({}),
+      updateBuiltinDeepChatConfig
+    })
+
+    expect(() =>
+      (
+        presenter as ConfigPresenter & {
+          migrateLegacyDefaultVisionModelToBuiltinAgent: () => void
+        }
+      ).migrateLegacyDefaultVisionModelToBuiltinAgent()
+    ).not.toThrow()
+
+    expect(updateBuiltinDeepChatConfig).not.toHaveBeenCalled()
+    expect(store.delete).toHaveBeenCalledWith('defaultVisionModel')
+    expect(eventBus.sendToMain).toHaveBeenCalledWith(
+      CONFIG_EVENTS.SETTING_CHANGED,
+      'defaultVisionModel',
+      undefined
+    )
   })
 })

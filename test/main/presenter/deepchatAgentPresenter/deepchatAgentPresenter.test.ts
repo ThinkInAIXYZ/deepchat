@@ -226,7 +226,9 @@ function createMockConfigPresenter() {
     getAutoCompactionTriggerThreshold: vi.fn().mockReturnValue(80),
     getAutoCompactionRetainRecentPairs: vi.fn().mockReturnValue(2),
     getSetting: vi.fn().mockReturnValue(undefined),
-    resolveDeepChatAgentConfig: vi.fn().mockResolvedValue({})
+    isKnownModel: vi.fn().mockReturnValue(true),
+    resolveDeepChatAgentConfig: vi.fn().mockResolvedValue({}),
+    agentSupportsCapability: vi.fn().mockResolvedValue(true)
   } as any
 }
 
@@ -2885,6 +2887,10 @@ describe('DeepChatAgentPresenter', () => {
       })
 
       expect(configPresenter.resolveDeepChatAgentConfig).toHaveBeenCalledWith('persisted-agent')
+      expect(configPresenter.agentSupportsCapability).toHaveBeenCalledWith(
+        'persisted-agent',
+        'vision'
+      )
       expect(llmProvider.generateCompletionStandalone).toHaveBeenCalledWith(
         'google',
         expect.any(Array),
@@ -2893,6 +2899,47 @@ describe('DeepChatAgentPresenter', () => {
         expect.any(Number)
       )
       expect(normalized).toBe('English screenshot summary')
+    })
+
+    it('ignores fallback agent vision models when the agent does not support vision', async () => {
+      sqlitePresenter.newSessionsTable.get.mockReturnValue({
+        id: 's1',
+        agent_id: 'persisted-agent'
+      })
+      configPresenter.resolveDeepChatAgentConfig.mockResolvedValueOnce({
+        visionModel: { providerId: 'google', modelId: 'gemini-2.5-flash' }
+      })
+      configPresenter.agentSupportsCapability.mockResolvedValueOnce(false)
+      configPresenter.getModelConfig.mockImplementation((modelId: string, providerId?: string) => ({
+        temperature: 0.7,
+        maxTokens: 4096,
+        contextLength: 128000,
+        thinkingBudget: 512,
+        reasoningEffort: 'medium',
+        verbosity: 'medium',
+        vision: providerId === 'google' && modelId === 'gemini-2.5-flash'
+      }))
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+
+      const normalized = await (agent as any).normalizeToolResultContent({
+        sessionId: 's1',
+        toolCallId: 'tc1',
+        toolName: 'cdp_send',
+        toolArgs: '{"method":"Page.captureScreenshot"}',
+        content: '{"data":"YWJj"}',
+        isError: false
+      })
+
+      expect(configPresenter.resolveDeepChatAgentConfig).toHaveBeenCalledWith('persisted-agent')
+      expect(configPresenter.agentSupportsCapability).toHaveBeenCalledWith(
+        'persisted-agent',
+        'vision'
+      )
+      expect(llmProvider.generateCompletionStandalone).not.toHaveBeenCalled()
+      expect(normalized).toBe(
+        'Screenshot captured, but automatic English analysis is unavailable because neither the current session model nor the agent vision model can analyze images.'
+      )
     })
 
     it('returns a readable error when neither the current model nor the agent can analyze images', async () => {

@@ -650,6 +650,7 @@ export interface IConfigPresenter {
   getAgentType(agentId: string): Promise<AgentType | null>
   getDeepChatAgentConfig(agentId: string): Promise<DeepChatAgentConfig | null>
   resolveDeepChatAgentConfig(agentId: string): Promise<DeepChatAgentConfig>
+  agentSupportsCapability?(agentId: string, capability: 'vision'): Promise<boolean>
   createDeepChatAgent(input: CreateDeepChatAgentInput): Promise<Agent>
   updateDeepChatAgent(agentId: string, updates: UpdateDeepChatAgentInput): Promise<Agent | null>
   deleteDeepChatAgent(agentId: string): Promise<boolean>
@@ -666,6 +667,7 @@ export interface IConfigPresenter {
   addMcpToAgent(agentId: string, isBuiltin: boolean, mcpId: string): Promise<void>
   removeMcpFromAgent(agentId: string, isBuiltin: boolean, mcpId: string): Promise<void>
   getMcpConfHelper(): any // Used to get MCP configuration helper
+  isKnownModel?(providerId: string, modelId: string): boolean
   getModelConfig(modelId: string, providerId?: string): ModelConfig
   setModelConfig(
     modelId: string,

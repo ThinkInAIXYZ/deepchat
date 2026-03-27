@@ -10,7 +10,10 @@ type SessionVisionResolverParams = {
   providerId?: string | null
   modelId?: string | null
   agentId?: string | null
-  configPresenter: Pick<IConfigPresenter, 'getModelConfig' | 'resolveDeepChatAgentConfig'>
+  configPresenter: Pick<
+    IConfigPresenter,
+    'getModelConfig' | 'resolveDeepChatAgentConfig' | 'isKnownModel'
+  >
   logLabel?: string
 }
 
@@ -19,11 +22,16 @@ export async function resolveSessionVisionTarget(
 ): Promise<SessionVisionTarget | null> {
   const sessionProviderId = params.providerId?.trim()
   const sessionModelId = params.modelId?.trim()
+  const sessionModelConfig =
+    sessionProviderId && sessionModelId
+      ? params.configPresenter.getModelConfig(sessionModelId, sessionProviderId)
+      : null
 
   if (
     sessionProviderId &&
     sessionModelId &&
-    params.configPresenter.getModelConfig(sessionModelId, sessionProviderId)?.vision
+    params.configPresenter.isKnownModel?.(sessionProviderId, sessionModelId) === true &&
+    sessionModelConfig?.vision
   ) {
     return {
       providerId: sessionProviderId,

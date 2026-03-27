@@ -1071,7 +1071,18 @@ export class AgentToolManager {
   ): Promise<string> {
     const fileBuffer = await fs.promises.readFile(filePath)
     const metadata = this.buildImageMetadataBlock(filePath, mimeType, fileBuffer.length)
-    const visionTarget = await this.resolveVisionTargetForConversation(conversationId)
+    let visionTarget: Awaited<ReturnType<typeof this.resolveVisionTargetForConversation>>
+
+    try {
+      visionTarget = await this.resolveVisionTargetForConversation(conversationId)
+    } catch (error) {
+      logger.warn('[AgentToolManager] Failed to resolve vision target for image read:', {
+        conversationId,
+        filePath,
+        error
+      })
+      throw error
+    }
 
     if (!visionTarget) {
       return `${metadata}\n\nImage analysis unavailable because neither the current session model nor the agent vision model can analyze images.`
@@ -1133,11 +1144,11 @@ export class AgentToolManager {
         logLabel: `read:${conversationId}`
       })
     } catch (error) {
-      logger.warn('[AgentToolManager] Failed to resolve vision target for conversation:', {
-        conversationId,
-        error
-      })
-      return null
+      if (this.isConversationNotFoundError(error)) {
+        return null
+      }
+
+      throw error
     }
   }
 

@@ -260,23 +260,15 @@ export class Presenter implements IPresenter {
         return null
       },
       resolveConversationSessionInfo: async (conversationId) => {
-        try {
-          const session = await this.newAgentPresenter?.getSession(conversationId)
-          if (!session) {
-            return null
-          }
-
-          return {
-            agentId: session.agentId,
-            providerId: session.providerId,
-            modelId: session.modelId
-          }
-        } catch (error) {
-          console.warn('[Presenter] Failed to resolve new session info:', {
-            conversationId,
-            error
-          })
+        const session = await this.newAgentPresenter?.getSession(conversationId)
+        if (!session) {
           return null
+        }
+
+        return {
+          agentId: session.agentId,
+          providerId: session.providerId,
+          modelId: session.modelId
         }
       },
       getSkillPresenter: () => this.skillPresenter,

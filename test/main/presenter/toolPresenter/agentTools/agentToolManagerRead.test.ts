@@ -57,6 +57,7 @@ describe('AgentToolManager read routing', () => {
     configPresenter = {
       getSkillsEnabled: () => false,
       getSkillsPath: () => workspaceDir,
+      isKnownModel: vi.fn().mockReturnValue(true),
       getModelConfig: vi.fn().mockReturnValue({
         temperature: 0.2,
         maxTokens: 1200,
@@ -217,6 +218,35 @@ describe('AgentToolManager read routing', () => {
 
     expect(result.content).toContain('[Image Metadata]')
     expect(result.content).toContain('neither the current session model nor the agent vision model')
+  })
+
+  it('falls back to image metadata when the conversation cannot be found', async () => {
+    const filePath = path.join(workspaceDir, 'image-missing-conversation.png')
+    await fs.writeFile(filePath, Buffer.from([6, 7, 8, 9]))
+    filePresenter.getMimeType.mockResolvedValue('image/png')
+    resolveConversationSessionInfo.mockRejectedValueOnce(new Error('Conversation conv1 not found'))
+
+    const result = (await manager.callTool(
+      'read',
+      { path: 'image-missing-conversation.png' },
+      'conv1'
+    )) as {
+      content: string
+    }
+
+    expect(result.content).toContain('[Image Metadata]')
+    expect(result.content).toContain('neither the current session model nor the agent vision model')
+  })
+
+  it('surfaces runtime errors while resolving the conversation vision target', async () => {
+    const filePath = path.join(workspaceDir, 'image-session-error.png')
+    await fs.writeFile(filePath, Buffer.from([1, 2, 3, 4]))
+    filePresenter.getMimeType.mockResolvedValue('image/png')
+    resolveConversationSessionInfo.mockRejectedValueOnce(new Error('session store offline'))
+
+    await expect(
+      manager.callTool('read', { path: 'image-session-error.png' }, 'conv1')
+    ).rejects.toThrow('session store offline')
   })
 
   it('rejects non-text binary reads without polluting prompt context', async () => {

@@ -3114,16 +3114,25 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
   ): Promise<{ providerId: string; modelId: string } | null> {
     const state = this.runtimeState.get(sessionId)
     const dbSession = this.sessionStore.get(sessionId)
+    const agentId = this.getSessionAgentId(sessionId) ?? 'deepchat'
     const resolved = await resolveSessionVisionTarget({
       providerId: state?.providerId ?? dbSession?.provider_id,
       modelId: state?.modelId ?? dbSession?.model_id,
-      agentId: this.getSessionAgentId(sessionId) ?? 'deepchat',
+      agentId,
       configPresenter: this.configPresenter,
       logLabel: `screenshot:${sessionId}`
     })
 
     if (!resolved) {
       return null
+    }
+
+    if (resolved.source === 'agent-vision-model') {
+      const agentSupportsVision =
+        (await this.configPresenter.agentSupportsCapability?.(agentId, 'vision')) === true
+      if (!agentSupportsVision) {
+        return null
+      }
     }
 
     return {

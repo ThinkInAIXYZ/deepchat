@@ -153,6 +153,15 @@ const isModelSelection = (value: unknown): value is ModelSelection => {
   return typeof record.providerId === 'string' && typeof record.modelId === 'string'
 }
 
+const normalizeKnownModelId = (modelId: string): string => {
+  const normalizedModelId = modelId.trim().toLowerCase()
+  return normalizedModelId.replace(/^models\//, '')
+}
+
+const normalizeKnownProviderId = (providerId: string): string =>
+  modelCapabilities.resolveProviderId(providerId.trim().toLowerCase()) ||
+  providerId.trim().toLowerCase()
+
 export const getAnthropicModelSelectionKeysToClear = (
   settings: Partial<
     Record<
@@ -398,16 +407,20 @@ export class ConfigPresenter implements IConfigPresenter {
   }
 
   private migrateLegacyDefaultVisionModelToBuiltinAgent(): void {
-    const legacySelection = this.store.get('defaultVisionModel') as ModelSelection | undefined
-    if (!legacySelection) {
+    const legacySelection = this.store.get('defaultVisionModel') as unknown
+    if (legacySelection === undefined) {
       return
     }
 
-    const providerId = legacySelection.providerId?.trim()
-    const modelId = legacySelection.modelId?.trim()
     const builtinVisionModel = this.getBuiltinDeepChatConfig().visionModel
 
-    if (!builtinVisionModel?.providerId || !builtinVisionModel?.modelId) {
+    if (
+      isModelSelection(legacySelection) &&
+      (!builtinVisionModel?.providerId || !builtinVisionModel?.modelId)
+    ) {
+      const providerId = legacySelection.providerId.trim()
+      const modelId = legacySelection.modelId.trim()
+
       if (providerId && modelId) {
         this.updateBuiltinDeepChatConfig({
           visionModel: {
@@ -1034,6 +1047,26 @@ export class ConfigPresenter implements IConfigPresenter {
 
   getCustomModels(providerId: string): MODEL_META[] {
     return this.providerModelHelper.getCustomModels(providerId)
+  }
+
+  isKnownModel(providerId: string, modelId: string): boolean {
+    const normalizedProviderId = normalizeKnownProviderId(providerId)
+    const normalizedModelId = normalizeKnownModelId(modelId)
+
+    if (!normalizedProviderId || !normalizedModelId) {
+      return false
+    }
+
+    const hasKnownModel = (models: Array<{ id: string }> | undefined): boolean =>
+      Array.isArray(models) &&
+      models.some((model) => normalizeKnownModelId(model.id) === normalizedModelId)
+
+    return (
+      this.hasUserModelConfig(normalizedModelId, normalizedProviderId) ||
+      hasKnownModel(this.getProviderModels(normalizedProviderId)) ||
+      hasKnownModel(this.getCustomModels(normalizedProviderId)) ||
+      hasKnownModel(this.getDbProviderModels(normalizedProviderId))
+    )
   }
 
   setCustomModels(providerId: string, models: MODEL_META[]): void {
@@ -1707,6 +1740,18 @@ export class ConfigPresenter implements IConfigPresenter {
     return this.getAgentRepositoryOrThrow().resolveDeepChatAgentConfig(
       agentId || BUILTIN_DEEPCHAT_AGENT_ID
     )
+  }
+
+  async agentSupportsCapability(agentId: string, capability: 'vision'): Promise<boolean> {
+    if (capability !== 'vision') {
+      return false
+    }
+
+    const agentConfig = await this.resolveDeepChatAgentConfig(agentId)
+    const providerId = agentConfig.visionModel?.providerId?.trim()
+    const modelId = agentConfig.visionModel?.modelId?.trim()
+
+    return Boolean(providerId && modelId && this.getModelConfig(modelId, providerId)?.vision)
   }
 
   async createDeepChatAgent(input: CreateDeepChatAgentInput): Promise<Agent> {
