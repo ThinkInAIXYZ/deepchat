@@ -709,6 +709,68 @@ describe('dispatch', () => {
       expect(state.blocks[0].status).toBe('success')
     })
 
+    it('normalizes tool output before offload when a hook rewrites screenshot content', async () => {
+      const tools = [makeTool('cdp_send')]
+      const longScreenshot = JSON.stringify({ data: 'x'.repeat(7000) })
+      const toolPresenter = createMockToolPresenter({ cdp_send: longScreenshot })
+      const conversation: any[] = []
+      const hooks = {
+        normalizeToolResult: vi.fn().mockResolvedValue('English screenshot summary')
+      }
+
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: {
+          id: 'tc-normalized',
+          name: 'cdp_send',
+          params: '{"method":"Page.captureScreenshot"}',
+          response: ''
+        }
+      })
+      state.completedToolCalls = [
+        {
+          id: 'tc-normalized',
+          name: 'cdp_send',
+          arguments: '{"method":"Page.captureScreenshot"}'
+        }
+      ]
+
+      const executed = await executeTools(
+        state,
+        conversation,
+        0,
+        tools,
+        toolPresenter,
+        'gpt-4',
+        io,
+        'full_access',
+        new ToolOutputGuard(),
+        32000,
+        1024,
+        hooks,
+        'openai'
+      )
+
+      expect(executed.terminalError).toBeUndefined()
+      expect(hooks.normalizeToolResult).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sessionId: 's1',
+          toolCallId: 'tc-normalized',
+          toolName: 'cdp_send',
+          toolArgs: '{"method":"Page.captureScreenshot"}',
+          content: longScreenshot,
+          isError: false
+        })
+      )
+      const toolMessage = conversation.find((message: any) => message.role === 'tool')
+      expect(toolMessage.content).toBe('English screenshot summary')
+      expect(toolMessage.content).not.toContain('[Tool output offloaded]')
+      expect(state.blocks[0].tool_call?.response).toBe('English screenshot summary')
+    })
+
     it('turns offload write failures into tool errors instead of falling back to raw content', async () => {
       tempHome = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-dispatch-offload-fail-'))
       getPathSpy = vi.spyOn(app, 'getPath').mockReturnValue(tempHome)

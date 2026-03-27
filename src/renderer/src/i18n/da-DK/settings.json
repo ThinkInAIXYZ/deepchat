@@ -61,8 +61,7 @@
     "fileMaxSizeHint": "Begrænser størrelsen på en enkelt uploadet fil",
     "defaultModel": {
       "title": "Standardmodel",
-      "chatModel": "Standard chatmodel",
-      "visionModel": "Standard visionsmodel"
+      "chatModel": "Standard chatmodel"
     },
     "autoCompaction": {
       "title": "Automatisk komprimering",
@@ -1603,7 +1602,6 @@
     "modelsTitle": "Modelstandarder",
     "chatModel": "Standard chatmodel",
     "assistantModel": "Assistentmodel",
-    "visionModel": "Visionsmodel",
     "temperature": "Temperatur",
     "contextLength": "Kontekstlængde",
     "maxTokens": "Maks. tokens",

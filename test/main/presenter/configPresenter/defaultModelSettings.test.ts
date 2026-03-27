@@ -45,27 +45,4 @@ describe('ConfigPresenter defaultModel settings', () => {
       expect(mockSetSetting).toHaveBeenCalledWith('defaultModel', undefined)
     })
   })
-
-  describe('getDefaultVisionModel', () => {
-    it('returns undefined when no default vision model is set', () => {
-      mockGetSetting.mockReturnValue(undefined)
-      const result = configPresenterProxy.getSetting('defaultVisionModel')
-      expect(result).toBeUndefined()
-    })
-
-    it('returns the default vision model when set', () => {
-      const defaultVisionModel = { providerId: 'openai', modelId: 'gpt-4o' }
-      mockGetSetting.mockReturnValue(defaultVisionModel)
-      const result = configPresenterProxy.getSetting('defaultVisionModel')
-      expect(result).toEqual(defaultVisionModel)
-    })
-  })
-
-  describe('setDefaultVisionModel', () => {
-    it('sets the default vision model', () => {
-      const defaultVisionModel = { providerId: 'google', modelId: 'gemini-2.0-flash' }
-      configPresenterProxy.setSetting('defaultVisionModel', defaultVisionModel)
-      expect(mockSetSetting).toHaveBeenCalledWith('defaultVisionModel', defaultVisionModel)
-    })
-  })
 })

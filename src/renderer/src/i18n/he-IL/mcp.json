@@ -198,10 +198,6 @@
       "desc": "אפשר ל-DeepChat אינטראקציה עם מערכת הקבצים המקומית.",
       "name": "מערכת קבצים"
     },
-    "imageServer": {
-      "desc": "אפשר לכל מודל ב-DeepChat להבין וליצור תמונות.",
-      "name": "שירות תמונות"
-    },
     "braveSearch": {
       "desc": "Brave Search API https://brave.com/search/api/",
       "name": "Brave Search"
@@ -237,10 +233,6 @@
     "builtinKnowledge": {
       "desc": "חיפוש בסיס ידע מובנה של DeepChat עבור מסמכים ומדריכים של DeepChat.",
       "name": "חיפוש בסיס ידע מובנה"
-    },
-    "deepchat-inmemory/meeting-server": {
-      "name": "פגישות מרובות סוכנים (Multi-Agent)",
-      "desc": "פגישות מובנות ב-DeepChat לאירוח דיונים מרובי סוכנים."
     },
     "deepchat/apple-server": {
       "desc": "אפשר למודלים להפעיל אפליקציות macOS כמו יומן, אנשי קשר, דואר, מפות, פתקים ותזכורות.",

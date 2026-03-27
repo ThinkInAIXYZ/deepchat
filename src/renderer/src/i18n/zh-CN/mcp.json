@@ -183,10 +183,6 @@
       "name": "Artifacts",
       "desc": "让你的 DeepChat 输出的多样化的 Artifacts 内容"
     },
-    "imageServer": {
-      "name": "图片服务",
-      "desc": "开启后 DeepChat 中任意模型都能看懂图片，能生成图片"
-    },
     "braveSearch": {
       "name": "Brave搜索",
       "desc": "Brave搜索 API https://brave.com/search/api/"
@@ -222,10 +218,6 @@
     "deepchat-inmemory/conversation-search-server": {
       "name": "对话历史搜索",
       "desc": "DeepChat内置对话历史搜索服务，可搜索历史对话记录和消息内容"
-    },
-    "deepchat-inmemory/meeting-server": {
-      "name": "多智能体会议",
-      "desc": "DeepChat 内置会议服务，支持发起和主持多智能体讨论"
     },
     "deepchat/apple-server": {
       "name": "macOS系统助手",

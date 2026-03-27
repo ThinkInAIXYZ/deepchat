@@ -175,6 +175,7 @@ function createMockLlmProviderPresenter() {
     getProviderInstance: vi.fn().mockReturnValue({
       coreStream: vi.fn().mockReturnValue(createMockCoreStream()())
     }),
+    generateCompletionStandalone: vi.fn().mockResolvedValue('English screenshot summary'),
     generateText: vi.fn().mockResolvedValue({
       content: ['## Current Goal', '- Continue the session safely'].join('\n')
     })
@@ -189,7 +190,8 @@ function createMockConfigPresenter() {
       contextLength: 128000,
       thinkingBudget: 512,
       reasoningEffort: 'medium',
-      verbosity: 'medium'
+      verbosity: 'medium',
+      vision: false
     }),
     getDefaultModel: vi.fn().mockReturnValue({ providerId: 'openai', modelId: 'gpt-4' }),
     getDefaultSystemPrompt: vi.fn().mockResolvedValue('You are a helpful assistant.'),
@@ -223,7 +225,10 @@ function createMockConfigPresenter() {
     getAutoCompactionEnabled: vi.fn().mockReturnValue(true),
     getAutoCompactionTriggerThreshold: vi.fn().mockReturnValue(80),
     getAutoCompactionRetainRecentPairs: vi.fn().mockReturnValue(2),
-    getSetting: vi.fn().mockReturnValue(undefined)
+    getSetting: vi.fn().mockReturnValue(undefined),
+    isKnownModel: vi.fn().mockReturnValue(true),
+    resolveDeepChatAgentConfig: vi.fn().mockResolvedValue({}),
+    agentSupportsCapability: vi.fn().mockResolvedValue(true)
   } as any
 }
 
@@ -2472,11 +2477,14 @@ describe('DeepChatAgentPresenter', () => {
       expect(updatedBlocks[1].extra.needsUserAction).toBe(false)
     })
 
-    it('offloads deferred tool results before resume', async () => {
+    it('normalizes deferred screenshot tool results before resume', async () => {
       tempHome = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-deferred-offload-'))
       getPathSpy = vi.spyOn(app, 'getPath').mockReturnValue(tempHome)
 
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      configPresenter.resolveDeepChatAgentConfig.mockResolvedValueOnce({
+        visionModel: { providerId: 'anthropic', modelId: 'claude-3-7-sonnet' }
+      })
       makeAssistantRow({
         blocks: [
           {
@@ -2539,10 +2547,8 @@ describe('DeepChatAgentPresenter', () => {
       const updatedBlocks = JSON.parse(
         sqlitePresenter.deepchatMessagesTable.updateContent.mock.calls[0][1]
       )
-      expect(updatedBlocks[0].tool_call.response).toContain('[Tool output offloaded]')
-      expect(updatedBlocks[0].tool_call.response).toContain('tool_tc1')
-      expect(updatedBlocks[0].tool_call.response).toContain('.offload')
-      expect(updatedBlocks[0].tool_call.response).not.toContain(tempHome!)
+      expect(updatedBlocks[0].tool_call.response).toBe('English screenshot summary')
+      expect(updatedBlocks[0].tool_call.response).not.toContain('[Tool output offloaded]')
       expect(updatedBlocks[0].status).toBe('success')
       expect(processStream).toHaveBeenCalledTimes(1)
     })
@@ -2780,6 +2786,199 @@ describe('DeepChatAgentPresenter', () => {
           providerId: 'openai'
         })
       )
+    })
+
+    it('prefers the current session model for screenshot analysis during deferred execution', async () => {
+      toolPresenter.getAllToolDefinitions.mockResolvedValueOnce([
+        {
+          type: 'function',
+          function: {
+            name: 'cdp_send',
+            description: 'CDP tool',
+            parameters: { type: 'object', properties: {} }
+          },
+          server: { name: 'yobrowser', icons: '', description: '' }
+        }
+      ])
+      toolPresenter.callTool.mockResolvedValueOnce({
+        content: '{"data":"YWJj"}',
+        rawData: { toolCallId: 'tc1', content: '{"data":"YWJj"}', isError: false }
+      })
+      configPresenter.getModelConfig.mockImplementation((modelId: string, providerId?: string) => ({
+        temperature: 0.7,
+        maxTokens: 4096,
+        contextLength: 128000,
+        thinkingBudget: 512,
+        reasoningEffort: 'medium',
+        verbosity: 'medium',
+        vision: providerId === 'openai' && modelId === 'gpt-4o'
+      }))
+
+      await agent.initSession('s1', {
+        providerId: 'openai',
+        modelId: 'gpt-4o'
+      })
+
+      const result = await (agent as any).executeDeferredToolCall('s1', {
+        id: 'tc1',
+        name: 'cdp_send',
+        params: '{"method":"Page.captureScreenshot","params":{"format":"jpeg"}}'
+      })
+
+      expect(llmProvider.generateCompletionStandalone).toHaveBeenCalledWith(
+        'openai',
+        [
+          {
+            role: 'user',
+            content: [
+              expect.objectContaining({
+                type: 'text'
+              }),
+              {
+                type: 'image_url',
+                image_url: {
+                  url: 'data:image/jpeg;base64,YWJj',
+                  detail: 'auto'
+                }
+              }
+            ]
+          }
+        ],
+        'gpt-4o',
+        expect.any(Number),
+        expect.any(Number),
+        undefined
+      )
+      expect(configPresenter.resolveDeepChatAgentConfig).not.toHaveBeenCalled()
+      expect(result).toEqual(
+        expect.objectContaining({
+          isError: false,
+          responseText: 'English screenshot summary'
+        })
+      )
+    })
+
+    it('falls back to the current session agent vision model when the current model has no vision', async () => {
+      sqlitePresenter.newSessionsTable.get.mockReturnValue({
+        id: 's1',
+        agent_id: 'persisted-agent'
+      })
+      configPresenter.resolveDeepChatAgentConfig.mockResolvedValueOnce({
+        visionModel: { providerId: 'google', modelId: 'gemini-2.5-flash' }
+      })
+      configPresenter.getModelConfig.mockImplementation((modelId: string, providerId?: string) => ({
+        temperature: 0.7,
+        maxTokens: 4096,
+        contextLength: 128000,
+        thinkingBudget: 512,
+        reasoningEffort: 'medium',
+        verbosity: 'medium',
+        vision: providerId === 'google' && modelId === 'gemini-2.5-flash'
+      }))
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+
+      const normalized = await (agent as any).normalizeToolResultContent({
+        sessionId: 's1',
+        toolCallId: 'tc1',
+        toolName: 'cdp_send',
+        toolArgs: '{"method":"Page.captureScreenshot"}',
+        content: '{"data":"YWJj"}',
+        isError: false
+      })
+
+      expect(configPresenter.resolveDeepChatAgentConfig).toHaveBeenCalledWith('persisted-agent')
+      expect(configPresenter.agentSupportsCapability).toHaveBeenCalledWith(
+        'persisted-agent',
+        'vision'
+      )
+      expect(llmProvider.generateCompletionStandalone).toHaveBeenCalledWith(
+        'google',
+        expect.any(Array),
+        'gemini-2.5-flash',
+        expect.any(Number),
+        expect.any(Number),
+        undefined
+      )
+      expect(normalized).toBe('English screenshot summary')
+    })
+
+    it('returns a cancellation message when screenshot normalization is aborted', async () => {
+      const abortController = new AbortController()
+      abortController.abort()
+
+      const normalized = await (agent as any).normalizeToolResultContent({
+        sessionId: 's1',
+        toolCallId: 'tc1',
+        toolName: 'cdp_send',
+        toolArgs: '{"method":"Page.captureScreenshot"}',
+        content: '{"data":"YWJj"}',
+        isError: false,
+        abortSignal: abortController.signal
+      })
+
+      expect(llmProvider.generateCompletionStandalone).not.toHaveBeenCalled()
+      expect(normalized).toBe('Screenshot captured, but automatic English analysis was canceled.')
+    })
+
+    it('ignores fallback agent vision models when the agent does not support vision', async () => {
+      sqlitePresenter.newSessionsTable.get.mockReturnValue({
+        id: 's1',
+        agent_id: 'persisted-agent'
+      })
+      configPresenter.resolveDeepChatAgentConfig.mockResolvedValueOnce({
+        visionModel: { providerId: 'google', modelId: 'gemini-2.5-flash' }
+      })
+      configPresenter.agentSupportsCapability.mockResolvedValueOnce(false)
+      configPresenter.getModelConfig.mockImplementation((modelId: string, providerId?: string) => ({
+        temperature: 0.7,
+        maxTokens: 4096,
+        contextLength: 128000,
+        thinkingBudget: 512,
+        reasoningEffort: 'medium',
+        verbosity: 'medium',
+        vision: providerId === 'google' && modelId === 'gemini-2.5-flash'
+      }))
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+
+      const normalized = await (agent as any).normalizeToolResultContent({
+        sessionId: 's1',
+        toolCallId: 'tc1',
+        toolName: 'cdp_send',
+        toolArgs: '{"method":"Page.captureScreenshot"}',
+        content: '{"data":"YWJj"}',
+        isError: false
+      })
+
+      expect(configPresenter.resolveDeepChatAgentConfig).toHaveBeenCalledWith('persisted-agent')
+      expect(configPresenter.agentSupportsCapability).toHaveBeenCalledWith(
+        'persisted-agent',
+        'vision'
+      )
+      expect(llmProvider.generateCompletionStandalone).not.toHaveBeenCalled()
+      expect(normalized).toBe(
+        'Screenshot captured, but automatic English analysis is unavailable because neither the current session model nor the agent vision model can analyze images.'
+      )
+    })
+
+    it('returns a readable error when neither the current model nor the agent can analyze images', async () => {
+      configPresenter.resolveDeepChatAgentConfig.mockResolvedValueOnce({})
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+
+      const normalized = await (agent as any).normalizeToolResultContent({
+        sessionId: 's1',
+        toolCallId: 'tc1',
+        toolName: 'cdp_send',
+        toolArgs: '{"method":"Page.captureScreenshot"}',
+        content: '{"data":"YWJj"}',
+        isError: false
+      })
+
+      expect(normalized).toContain('neither the current session model nor the agent vision model')
+      expect(normalized).not.toContain('YWJj')
+      expect(llmProvider.generateCompletionStandalone).not.toHaveBeenCalled()
     })
   })
 })

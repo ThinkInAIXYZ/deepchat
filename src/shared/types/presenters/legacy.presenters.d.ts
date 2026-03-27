@@ -650,6 +650,7 @@ export interface IConfigPresenter {
   getAgentType(agentId: string): Promise<AgentType | null>
   getDeepChatAgentConfig(agentId: string): Promise<DeepChatAgentConfig | null>
   resolveDeepChatAgentConfig(agentId: string): Promise<DeepChatAgentConfig>
+  agentSupportsCapability?(agentId: string, capability: 'vision'): Promise<boolean>
   createDeepChatAgent(input: CreateDeepChatAgentInput): Promise<Agent>
   updateDeepChatAgent(agentId: string, updates: UpdateDeepChatAgentInput): Promise<Agent | null>
   deleteDeepChatAgent(agentId: string): Promise<boolean>
@@ -666,6 +667,7 @@ export interface IConfigPresenter {
   addMcpToAgent(agentId: string, isBuiltin: boolean, mcpId: string): Promise<void>
   removeMcpFromAgent(agentId: string, isBuiltin: boolean, mcpId: string): Promise<void>
   getMcpConfHelper(): any // Used to get MCP configuration helper
+  isKnownModel?(providerId: string, modelId: string): boolean
   getModelConfig(modelId: string, providerId?: string): ModelConfig
   setModelConfig(
     modelId: string,
@@ -735,8 +737,6 @@ export interface IConfigPresenter {
   // Default model settings
   getDefaultModel(): { providerId: string; modelId: string } | undefined
   setDefaultModel(model: { providerId: string; modelId: string } | undefined): void
-  getDefaultVisionModel(): { providerId: string; modelId: string } | undefined
-  setDefaultVisionModel(model: { providerId: string; modelId: string } | undefined): void
   getDefaultProjectPath(): string | null
   setDefaultProjectPath(path: string | null): void
 
@@ -1159,7 +1159,8 @@ export interface ILlmProviderPresenter {
     messages: ChatMessage[],
     modelId: string,
     temperature?: number,
-    maxTokens?: number
+    maxTokens?: number,
+    options?: { signal?: AbortSignal }
   ): Promise<string>
   getAcpWorkdir(conversationId: string, agentId: string): Promise<AcpWorkdirInfo>
   setAcpWorkdir(conversationId: string, agentId: string, workdir: string | null): Promise<void>

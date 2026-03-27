@@ -73,8 +73,7 @@
     "fileMaxSizeHint": "限制单个文件的最大上传大小",
     "defaultModel": {
       "title": "默认模型",
-      "chatModel": "默认聊天模型",
-      "visionModel": "默认视觉模型"
+      "chatModel": "默认聊天模型"
     }
   },
   "deepchatAgents": {
@@ -105,7 +104,6 @@
     "modelsTitle": "模型默认值",
     "chatModel": "默认对话模型",
     "assistantModel": "助手模型",
-    "visionModel": "视觉模型",
     "temperature": "Temperature",
     "contextLength": "Context Length",
     "maxTokens": "Max Tokens",

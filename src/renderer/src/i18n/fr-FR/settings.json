@@ -61,8 +61,7 @@
     "fileMaxSizeHint": "Limite la taille maximale d'un fichier à télécharger",
     "defaultModel": {
       "title": "Modèle par défaut",
-      "chatModel": "Modèle de chat par défaut",
-      "visionModel": "Modèle vision par défaut"
+      "chatModel": "Modèle de chat par défaut"
     },
     "autoCompaction": {
       "title": "Compression automatique",
@@ -1603,7 +1602,6 @@
     "modelsTitle": "Valeurs par défaut du modèle",
     "chatModel": "Modèle de chat par défaut",
     "assistantModel": "Modèle d'assistant",
-    "visionModel": "Modèle de vision",
     "temperature": "Température",
     "contextLength": "Longueur du contexte",
     "maxTokens": "Nombre max. de tokens",
