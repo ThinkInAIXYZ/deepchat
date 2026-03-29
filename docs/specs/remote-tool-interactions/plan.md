@@ -2,70 +2,124 @@
 
 ## Summary
 
-Implement a structured remote interaction loop for Telegram and Feishu by extending the runner snapshot model, teaching the routers to pause around pending interactions, and adding channel-specific prompt rendering plus response parsing.
+Implement a structured remote interaction loop for Telegram and Feishu so remote endpoints can resolve paused permission and question interactions without falling back to a generic desktop-only notice. The feature stays inside Electron main and reuses the existing `RemoteConversationRunner`, `RemoteCommandRouter`, `FeishuCommandRouter`, and `newAgentPresenter.respondToolInteraction(...)` flow.
 
-## Main Process Changes
+## Goals
 
-- Extend `RemoteConversationSnapshot` and runner status with `pendingInteraction`.
-- Parse assistant `tool_call_permission` and `question_request` action blocks into a shared `RemotePendingInteraction` model.
-- Add `RemoteConversationRunner.getPendingInteraction()` and `respondToPendingInteraction()` so routers can resolve paused tool interactions without creating a new turn.
-- Keep follow-up polling on the same assistant message after a tool interaction response, allowing chained interactions to surface one by one.
+- Expose `RemoteConversationSnapshot.pendingInteraction` as the canonical paused-interaction state for remote delivery.
+- Preserve the current detached-session and bound-endpoint model without adding renderer IPC.
+- Let Telegram resolve interactions with inline buttons plus text fallback.
+- Let Feishu render interaction cards and fall back to complete plain-text prompts when card delivery fails.
+- Keep command/session state safe while an interaction is unresolved.
 
-## Router Flow
+## Readiness
 
-- Check for a current pending interaction before routing mutable commands or plain text.
-- Allow `/help`, `/status`, `/open`, and `/pending` while blocking `/new`, `/use`, `/model`, and unrelated plain-text turns.
-- Add `/pending` to both channel command lists and make `/status` report the current waiting interaction summary.
-- Parse remote replies into `ToolInteractionResponse`:
-  - Telegram/Feishu permission: `ALLOW` / `DENY`
-  - Telegram/Feishu question: option number or exact label
-  - Custom/plain-text answers when `custom` is allowed or `multiple` is true
+- No open clarification items remain.
+- The feature is ready for implementation and regression verification.
 
-## Telegram Delivery
+## Rollout Steps
 
-- Add callback token state for pending interactions in `RemoteBindingStore`.
-- Render permission prompts with inline `Allow` / `Deny`.
-- Render single-choice questions with inline option buttons plus `Other` when custom answers are allowed.
-- On callback expiry, re-read the current pending interaction and refresh the prompt instead of hard-failing.
-- After a callback resolves, edit the interaction message into a resolved state, then continue conversation polling if the agent resumes.
+1. Extend remote snapshot and runner contracts to surface `pendingInteraction`.
+2. Parse assistant `tool_call_permission` and `question_request` blocks into a shared `RemotePendingInteraction` model.
+3. Gate remote command routing around pending interactions and add `/pending`.
+4. Add Telegram-specific rendering, callback token state, callback refresh, and text fallback.
+5. Add Feishu-specific card rendering, text fallback, and inbound text parsing.
+6. Add regression coverage for runner extraction, callback refresh, prompt resend, and channel-specific prompt delivery.
+7. Update spec artifacts so acceptance, rollout, and compatibility are reviewable without tracing code.
 
-## Feishu Delivery
+## Dependencies
 
-- Add card-style prompt builders for permission and question states.
-- Extend `FeishuClient` and `FeishuRuntime` with outbound `sendCard` support.
-- Prefer card delivery and fall back to plain text if card sending fails.
-- Keep all responses text-based from the user side; do not add card-click callbacks.
+- `RemoteConversationSnapshot.pendingInteraction` in `RemoteConversationRunner`
+- `newAgentPresenter.respondToolInteraction(...)`
+- Existing Telegram outbound edit/send flows in `TelegramPoller`
+- Existing Feishu outbound text flow extended with card sending in `FeishuRuntime`
+- In-memory callback/token state in `RemoteBindingStore`
 
-## Data Model
+## Data And API Changes
 
+- `RemoteConversationSnapshot`
+  - Add `pendingInteraction: RemotePendingInteraction | null`
+  - Preserve `text` and `completed` semantics so remote delivery can send visible text plus a follow-up interaction prompt
+- `RemoteRunnerStatus`
+  - Add `pendingInteraction`
+  - Suppress `isGenerating` while the assistant is explicitly waiting on user action
 - `RemotePendingInteraction`
-  - `type`
-  - `messageId`
-  - `toolCallId`
-  - `toolName`
-  - `toolArgs`
-  - optional permission metadata
-  - optional question metadata
-- `TelegramPendingInteractionState`
-  - `endpointKey`
-  - `messageId`
-  - `toolCallId`
-  - `createdAt`
-- `FeishuOutboundAction`
-  - `sendText`
-  - `sendCard`
+  - Include `messageId`, `toolCallId`, `toolName`, `toolArgs`
+  - Include permission metadata for `tool_call_permission`
+  - Include question metadata for `question_request`
+- `RemoteCommandRouteResult` / `FeishuCommandRouteResult`
+  - Allow outbound interaction prompt actions in addition to normal replies/conversation execution
+
+## Telegram Rendering Behavior
+
+- Permission interactions render a dedicated prompt with inline `Allow` / `Deny` buttons.
+- Single-choice questions render inline option buttons and `Other` when custom text is allowed.
+- `question.multiple === true` does not render fake multi-select buttons and instead instructs the user to reply in plain text.
+- Text fallback accepts:
+  - `ALLOW` / `DENY` for permissions
+  - Exact numeric replies for question options
+  - Exact option labels for question options
+  - Custom text when allowed
+- Expired callback tokens do not hard-fail if the interaction still exists; the router re-reads the current pending interaction and refreshes the prompt.
+- After a button press, Telegram edits the original prompt into a resolved state immediately, then continues any deferred execution in the background.
+
+## Feishu Rendering Behavior
+
+- Pending interactions render as interactive-card style outbound messages when the card API succeeds.
+- Card fallback uses the full plain-text prompt, not only a short reply hint, so the user still sees permission/question details.
+- Feishu remains text-response only on the inbound side:
+  - `ALLOW` / `DENY` for permissions
+  - Exact numeric replies for question options
+  - Exact option labels for question options
+  - Custom text when allowed
+- `question.multiple === true` always uses plain-text answers.
+
+## Command Gating While Waiting
+
+- Blocked commands while a pending interaction exists:
+  - `/new`
+  - `/use`
+  - `/model`
+  - Unrelated plain-text new-turn input
+- Allowed commands while a pending interaction exists:
+  - `/help`
+  - `/status`
+  - `/open`
+  - `/pending`
+- `/pending` re-sends the current prompt for the endpoint-bound session.
+
+## Migration And Compatibility
+
+- `RemoteConversationSnapshot.pendingInteraction` is additive and does not require a persisted config migration.
+- Existing Telegram and Feishu bindings remain valid.
+- Existing remote sessions continue to use detached session creation and the same runner/session binding path.
+- Telegram keeps inline-button interaction handling; Feishu does not introduce public callback endpoints.
+- The former generic "Desktop confirmation is required" message becomes a fallback path only, not the primary remote behavior.
 
 ## Risks And Mitigations
 
-- Stale callback tokens: rebind tokens to the current endpoint/message/tool call and refresh prompts when the interaction still exists.
-- Session drift while waiting: block session-switching commands until the current interaction is resolved.
-- Card delivery instability in Feishu: fall back to plain text and keep parsing on inbound text only.
+- Stale callback tokens
+  - Mitigation: rebind tokens to `endpointKey + messageId + toolCallId` and refresh prompts when the current interaction still matches.
+- Session drift while waiting
+  - Mitigation: block `/new`, `/use`, `/model`, and unrelated plain-text turns until the interaction is resolved.
+- Feishu card delivery failures
+  - Mitigation: fall back to the full plain-text prompt and keep inbound parsing text-only.
+- Telegram callback latency
+  - Mitigation: edit the prompt immediately and run continuation work off the poll loop.
 
 ## Test Strategy
 
-- Runner tests for extracting pending interactions, responding to them, and continuing chained execution.
-- Telegram router tests for button/text approval flows, `/pending`, and expired callback refresh.
-- Telegram poller tests for sending prompt messages after a completed assistant response with `pendingInteraction`.
-- Feishu router tests for permission/question text parsing and `/pending` card prompts.
-- Feishu runtime tests for card delivery and card-to-text fallback.
-- Binding-store tests for pending interaction token lifecycle.
+- Runner tests
+  - Extract `pendingInteraction` from assistant action blocks
+  - Resume after tool interaction response
+  - Handle chained interactions on the same assistant message
+- Telegram tests
+  - Button callbacks and text fallback
+  - Expired callback token refresh
+  - `/pending` prompt resend
+  - Prompt edit timing and non-blocking deferred continuation
+- Feishu tests
+  - Card prompt generation
+  - Plain-text fallback content
+  - Text parsing for permission/question answers
+  - Pending command gating and `/pending`

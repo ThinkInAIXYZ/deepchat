@@ -9,7 +9,10 @@ import type {
 } from '../types'
 import { FEISHU_REMOTE_COMMANDS, buildFeishuBindingMeta, buildFeishuEndpointKey } from '../types'
 import type { RemoteConversationExecution } from './remoteConversationRunner'
-import { buildFeishuPendingInteractionCard } from '../feishu/feishuInteractionPrompt'
+import {
+  buildFeishuPendingInteractionCard,
+  buildFeishuPendingInteractionText
+} from '../feishu/feishuInteractionPrompt'
 import { FeishuAuthGuard } from './feishuAuthGuard'
 import { RemoteBindingStore } from './remoteBindingStore'
 import { RemoteConversationRunner } from './remoteConversationRunner'
@@ -305,7 +308,7 @@ export class FeishuCommandRouter {
         {
           type: 'sendCard',
           card: buildFeishuPendingInteractionCard(interaction),
-          fallbackText: this.formatPendingTextReplyHint(interaction)
+          fallbackText: buildFeishuPendingInteractionText(interaction)
         }
       ]
     }
@@ -337,15 +340,13 @@ export class FeishuCommandRouter {
     }
 
     if (!question.multiple) {
-      const optionIndex = Number.parseInt(normalized, 10)
-      if (
-        Number.isInteger(optionIndex) &&
-        optionIndex > 0 &&
-        optionIndex <= question.options.length
-      ) {
-        return {
-          kind: 'question_option',
-          optionLabel: question.options[optionIndex - 1].label
+      if (/^\d+$/.test(normalized)) {
+        const optionIndex = Number.parseInt(normalized, 10)
+        if (optionIndex > 0 && optionIndex <= question.options.length) {
+          return {
+            kind: 'question_option',
+            optionLabel: question.options[optionIndex - 1].label
+          }
         }
       }
 

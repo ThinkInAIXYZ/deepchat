@@ -246,7 +246,7 @@ describe('FeishuCommandRouter', () => {
       expect.arrayContaining([
         expect.objectContaining({
           type: 'sendCard',
-          fallbackText: expect.stringContaining('option number'),
+          fallbackText: expect.stringContaining('Pick one'),
           card: expect.objectContaining({
             header: expect.objectContaining({
               title: expect.objectContaining({
@@ -303,5 +303,51 @@ describe('FeishuCommandRouter', () => {
       optionLabel: 'Beta'
     })
     expect(result.replies).toEqual(['Selected: Beta'])
+  })
+
+  it('treats prefixed numeric text as custom input instead of an option', async () => {
+    const runner = {
+      getPendingInteraction: vi.fn().mockResolvedValue({
+        type: 'question',
+        messageId: 'assistant-4',
+        toolCallId: 'tool-4',
+        toolName: 'ask_user',
+        toolArgs: '{}',
+        question: {
+          question: 'Pick one',
+          options: [{ label: 'Alpha' }, { label: 'Beta' }],
+          custom: true,
+          multiple: false
+        }
+      }),
+      respondToPendingInteraction: vi.fn().mockResolvedValue({
+        waitingForUserMessage: false,
+        execution: null
+      })
+    }
+    const router = new FeishuCommandRouter({
+      authGuard: {
+        ensureAuthorized: vi.fn().mockReturnValue({
+          ok: true,
+          userOpenId: 'ou_123'
+        }),
+        pair: vi.fn()
+      } as any,
+      runner: runner as any,
+      bindingStore: createBindingStore() as any,
+      getRuntimeStatus: vi.fn()
+    })
+
+    const result = await router.handleMessage(
+      createMessage({
+        text: '2 please'
+      })
+    )
+
+    expect(runner.respondToPendingInteraction).toHaveBeenCalledWith('feishu:oc_100:root', {
+      kind: 'question_custom',
+      answerText: '2 please'
+    })
+    expect(result.replies).toEqual(['Answer received: 2 please'])
   })
 })

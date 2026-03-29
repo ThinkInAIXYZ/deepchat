@@ -58,6 +58,8 @@ export class TelegramPoller {
   private stopRequested = false
   private loopPromise: Promise<void> | null = null
   private activePollController: AbortController | null = null
+  private runId = 0
+  private readonly backgroundTasks = new Set<Promise<void>>()
   private statusSnapshot: TelegramPollerStatusSnapshot = {
     state: 'stopped',
     lastError: null,
@@ -72,9 +74,10 @@ export class TelegramPoller {
     }
 
     this.stopRequested = false
-    this.loopPromise = this.runLoop().finally(() => {
+    const runId = ++this.runId
+    this.loopPromise = this.runLoop(runId).finally(() => {
       this.loopPromise = null
-      if (!this.stopRequested && this.statusSnapshot.state !== 'error') {
+      if (this.isCurrentRun(runId) && this.statusSnapshot.state !== 'error') {
         this.setStatus({
           state: 'stopped'
         })
@@ -84,11 +87,13 @@ export class TelegramPoller {
 
   async stop(): Promise<void> {
     this.stopRequested = true
+    this.runId += 1
     this.activePollController?.abort()
     const loop = this.loopPromise
     if (loop) {
       await loop
     }
+    this.backgroundTasks.clear()
     this.setStatus({
       state: 'stopped'
     })
@@ -98,10 +103,10 @@ export class TelegramPoller {
     return { ...this.statusSnapshot }
   }
 
-  private async runLoop(): Promise<void> {
+  private async runLoop(runId: number): Promise<void> {
     let backoffIndex = 0
 
-    while (!this.stopRequested) {
+    while (this.isCurrentRun(runId)) {
       const pollSignal = this.createPollSignal()
       let updates: TelegramRawUpdate[]
 
@@ -122,7 +127,7 @@ export class TelegramPoller {
 
         backoffIndex = 0
       } catch (error) {
-        if (this.stopRequested) {
+        if (!this.isCurrentRun(runId)) {
           return
         }
 
@@ -147,7 +152,7 @@ export class TelegramPoller {
       }
 
       for (const update of updates) {
-        if (this.stopRequested) {
+        if (!this.isCurrentRun(runId)) {
           return
         }
 
@@ -156,9 +161,9 @@ export class TelegramPoller {
         this.deps.bindingStore.setPollOffset(update.update_id + 1)
 
         try {
-          await this.handleRawUpdate(update)
+          await this.handleRawUpdate(update, runId)
         } catch (error) {
-          if (this.stopRequested) {
+          if (!this.isCurrentRun(runId)) {
             return
           }
 
@@ -188,7 +193,7 @@ export class TelegramPoller {
     })
   }
 
-  private async handleRawUpdate(update: TelegramRawUpdate): Promise<void> {
+  private async handleRawUpdate(update: TelegramRawUpdate, runId: number): Promise<void> {
     const parsed = this.deps.parser.parseUpdate(update)
     if (!parsed) {
       return
@@ -220,13 +225,37 @@ export class TelegramPoller {
     await this.dispatchRouteResult(
       target,
       routed,
+      runId,
       parsed.kind === 'message' && !parsed.command ? parsed : null
     )
 
     if (routed.deferred) {
-      const deferred = await routed.deferred
-      await this.dispatchRouteResult(target, deferred)
+      this.scheduleDeferredRouteResult(target, routed.deferred, runId)
     }
+  }
+
+  private scheduleDeferredRouteResult(
+    target: TelegramTransportTarget,
+    deferred: Promise<RemoteCommandRouteContinuation>,
+    runId: number
+  ): void {
+    const task = Promise.resolve()
+      .then(async () => {
+        const continuation = await deferred
+        if (!this.isCurrentRun(runId)) {
+          return
+        }
+
+        await this.dispatchRouteResult(target, continuation, runId)
+      })
+      .catch((error) => {
+        console.warn('[TelegramPoller] Deferred route dispatch failed:', error)
+      })
+      .finally(() => {
+        this.backgroundTasks.delete(task)
+      })
+
+    this.backgroundTasks.add(task)
   }
 
   private async dispatchRouteResult(
@@ -234,13 +263,24 @@ export class TelegramPoller {
     routed:
       | Pick<RemoteCommandRouteResult, 'replies' | 'outboundActions' | 'conversation'>
       | RemoteCommandRouteContinuation,
-    reactionMessage?: TelegramInboundMessage | null
+    runId: number,
+    reactionMessage: TelegramInboundMessage | null = null
   ): Promise<void> {
+    if (!this.isCurrentRun(runId)) {
+      return
+    }
+
     for (const reply of routed.replies ?? []) {
+      if (!this.isCurrentRun(runId)) {
+        return
+      }
       await this.sendChunkedMessage(target, reply)
     }
 
     if (routed.outboundActions?.length) {
+      if (!this.isCurrentRun(runId)) {
+        return
+      }
       await this.dispatchOutboundActions(target, routed.outboundActions)
     }
 
@@ -253,7 +293,7 @@ export class TelegramPoller {
     }
 
     try {
-      await this.deliverConversation(target, routed.conversation)
+      await this.deliverConversation(target, routed.conversation, runId)
     } finally {
       if (reactionMessage) {
         await this.clearIncomingReaction(reactionMessage.chatId, reactionMessage.messageId)
@@ -265,19 +305,20 @@ export class TelegramPoller {
     target: TelegramTransportTarget,
     execution: NonNullable<
       Awaited<ReturnType<RemoteCommandRouter['handleMessage']>>['conversation']
-    >
+    >,
+    runId: number
   ): Promise<void> {
     const streamMode = this.deps.bindingStore.getTelegramConfig().streamMode
     if (streamMode === 'final') {
-      await this.deliverFinalConversation(target, execution)
+      await this.deliverFinalConversation(target, execution, runId)
       return
     }
 
     try {
-      await this.deliverDraftConversation(target, execution)
+      await this.deliverDraftConversation(target, execution, runId)
     } catch (error) {
       console.warn('[TelegramPoller] Draft streaming failed, falling back to final mode:', error)
-      await this.deliverFinalConversation(target, execution)
+      await this.deliverFinalConversation(target, execution, runId)
     }
   }
 
@@ -285,14 +326,15 @@ export class TelegramPoller {
     target: TelegramTransportTarget,
     execution: NonNullable<
       Awaited<ReturnType<RemoteCommandRouter['handleMessage']>>['conversation']
-    >
+    >,
+    runId: number
   ): Promise<void> {
     const draftId = createTelegramDraftId()
     const startedAt = Date.now()
     let typingSent = false
     let lastDraftText = ''
 
-    while (!this.stopRequested) {
+    while (this.isCurrentRun(runId)) {
       const snapshot = await execution.getSnapshot()
       if (snapshot.completed) {
         if (snapshot.text.trim()) {
@@ -321,12 +363,13 @@ export class TelegramPoller {
     target: TelegramTransportTarget,
     execution: NonNullable<
       Awaited<ReturnType<RemoteCommandRouter['handleMessage']>>['conversation']
-    >
+    >,
+    runId: number
   ): Promise<void> {
     const startedAt = Date.now()
     let typingSent = false
 
-    while (!this.stopRequested) {
+    while (this.isCurrentRun(runId)) {
       const snapshot = await execution.getSnapshot()
       if (snapshot.completed) {
         if (snapshot.text.trim()) {
@@ -516,6 +559,10 @@ export class TelegramPoller {
     }
 
     return error.message.includes('terminated by other getUpdates request')
+  }
+
+  private isCurrentRun(runId: number): boolean {
+    return this.runId === runId && !this.stopRequested
   }
 
   private setStatus(
