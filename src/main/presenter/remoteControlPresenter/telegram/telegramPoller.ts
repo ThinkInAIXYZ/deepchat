@@ -5,12 +5,17 @@ import {
   TELEGRAM_STREAM_POLL_INTERVAL_MS,
   TELEGRAM_TYPING_DELAY_MS,
   type RemotePendingInteraction,
+  type TelegramInboundMessage,
   type TelegramOutboundAction,
   type TelegramPollerStatusSnapshot,
   type TelegramTransportTarget
 } from '../types'
 import { RemoteBindingStore } from '../services/remoteBindingStore'
-import { RemoteCommandRouter } from '../services/remoteCommandRouter'
+import {
+  RemoteCommandRouter,
+  type RemoteCommandRouteContinuation,
+  type RemoteCommandRouteResult
+} from '../services/remoteCommandRouter'
 import { chunkTelegramText, createTelegramDraftId } from './telegramOutbound'
 import { buildTelegramPendingInteractionPrompt } from './telegramInteractionPrompt'
 import { TelegramApiRequestError, TelegramClient, type TelegramRawUpdate } from './telegramClient'
@@ -212,7 +217,26 @@ export class TelegramPoller {
       await callbackAcknowledger.answer(routed.callbackAnswer)
     }
 
-    for (const reply of routed.replies) {
+    await this.dispatchRouteResult(
+      target,
+      routed,
+      parsed.kind === 'message' && !parsed.command ? parsed : null
+    )
+
+    if (routed.deferred) {
+      const deferred = await routed.deferred
+      await this.dispatchRouteResult(target, deferred)
+    }
+  }
+
+  private async dispatchRouteResult(
+    target: TelegramTransportTarget,
+    routed:
+      | Pick<RemoteCommandRouteResult, 'replies' | 'outboundActions' | 'conversation'>
+      | RemoteCommandRouteContinuation,
+    reactionMessage?: TelegramInboundMessage | null
+  ): Promise<void> {
+    for (const reply of routed.replies ?? []) {
       await this.sendChunkedMessage(target, reply)
     }
 
@@ -220,19 +244,19 @@ export class TelegramPoller {
       await this.dispatchOutboundActions(target, routed.outboundActions)
     }
 
-    if (routed.conversation) {
-      const reactionMessage = parsed.kind === 'message' && !parsed.command ? parsed : null
+    if (!routed.conversation) {
+      return
+    }
 
+    if (reactionMessage) {
+      await this.setIncomingReaction(reactionMessage.chatId, reactionMessage.messageId)
+    }
+
+    try {
+      await this.deliverConversation(target, routed.conversation)
+    } finally {
       if (reactionMessage) {
-        await this.setIncomingReaction(reactionMessage.chatId, reactionMessage.messageId)
-      }
-
-      try {
-        await this.deliverConversation(target, routed.conversation)
-      } finally {
-        if (reactionMessage) {
-          await this.clearIncomingReaction(reactionMessage.chatId, reactionMessage.messageId)
-        }
+        await this.clearIncomingReaction(reactionMessage.chatId, reactionMessage.messageId)
       }
     }
   }

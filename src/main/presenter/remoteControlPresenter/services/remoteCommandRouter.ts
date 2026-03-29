@@ -36,6 +36,13 @@ export interface RemoteCommandRouteResult {
   outboundActions?: TelegramOutboundAction[]
   conversation?: RemoteConversationExecution
   callbackAnswer?: TelegramCallbackAnswer
+  deferred?: Promise<RemoteCommandRouteContinuation>
+}
+
+export interface RemoteCommandRouteContinuation {
+  replies?: string[]
+  outboundActions?: TelegramOutboundAction[]
+  conversation?: RemoteConversationExecution
 }
 
 type RemoteCommandRouterDeps = {
@@ -437,7 +444,7 @@ export class RemoteCommandRouter {
 
     this.deps.bindingStore.clearPendingInteractionState(callback.token)
 
-    const result = await this.deps.runner.respondToPendingInteraction(endpointKey, response)
+    const waitingForUserMessage = response.kind === 'question_other'
     return {
       replies: [],
       outboundActions: [
@@ -447,15 +454,20 @@ export class RemoteCommandRouter {
           text: buildTelegramInteractionResolvedText({
             interaction,
             responseText: this.describeInteractionResponse(interaction, response),
-            waitingForUserMessage: result.waitingForUserMessage
+            waitingForUserMessage
           }),
           replyMarkup: null
         }
       ],
-      ...(result.execution ? { conversation: result.execution } : {}),
       callbackAnswer: {
-        text: result.waitingForUserMessage ? 'Reply with your answer.' : 'Continuing...'
-      }
+        text: waitingForUserMessage ? 'Reply with your answer.' : 'Continuing...'
+      },
+      deferred: this.buildPendingCallbackContinuation(
+        endpointKey,
+        event.messageId,
+        interaction,
+        response
+      )
     }
   }
 
@@ -618,6 +630,44 @@ export class RemoteCommandRouter {
       type: 'sendMessage',
       text: prompt.text,
       ...(prompt.replyMarkup ? { replyMarkup: prompt.replyMarkup } : {})
+    }
+  }
+
+  private async buildPendingCallbackContinuation(
+    endpointKey: string,
+    messageId: number,
+    interaction: RemotePendingInteraction,
+    response: ToolInteractionResponse
+  ): Promise<RemoteCommandRouteContinuation> {
+    try {
+      const result = await this.deps.runner.respondToPendingInteraction(endpointKey, response)
+
+      if (result.waitingForUserMessage) {
+        if (response.kind === 'question_other') {
+          return {}
+        }
+
+        return {
+          outboundActions: [
+            {
+              type: 'editMessageText',
+              messageId,
+              text: buildTelegramInteractionResolvedText({
+                interaction,
+                responseText: this.describeInteractionResponse(interaction, response),
+                waitingForUserMessage: true
+              }),
+              replyMarkup: null
+            }
+          ]
+        }
+      }
+
+      return result.execution ? { conversation: result.execution } : {}
+    } catch (error) {
+      return {
+        replies: [error instanceof Error ? error.message : String(error)]
+      }
     }
   }
 

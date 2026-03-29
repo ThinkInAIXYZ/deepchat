@@ -53,6 +53,20 @@ const createRunner = (overrides: Record<string, unknown> = {}) => ({
   ...overrides
 })
 
+const createDeferred = <T>() => {
+  let resolve!: (value: T | PromiseLike<T>) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((nextResolve, nextReject) => {
+    resolve = nextResolve
+    reject = nextReject
+  })
+  return {
+    promise,
+    resolve,
+    reject
+  }
+}
+
 describe('RemoteCommandRouter', () => {
   it('returns pairing guidance for unauthorized plain text', async () => {
     const router = new RemoteCommandRouter({
@@ -725,5 +739,82 @@ describe('RemoteCommandRouter', () => {
         })
       })
     ])
+  })
+
+  it('returns pending callback edits immediately before continuation completes', async () => {
+    const bindingStore = createBindingStore()
+    bindingStore.getPendingInteractionState.mockReturnValue({
+      endpointKey: 'telegram:100:0',
+      createdAt: Date.now(),
+      messageId: 'assistant-4',
+      toolCallId: 'tool-4'
+    })
+    const deferred = createDeferred<{
+      waitingForUserMessage: boolean
+      execution: null
+    }>()
+    const runner = {
+      getPendingInteraction: vi.fn().mockResolvedValue({
+        type: 'permission',
+        messageId: 'assistant-4',
+        toolCallId: 'tool-4',
+        toolName: 'shell_command',
+        toolArgs: '{"command":"git push"}',
+        permission: {
+          permissionType: 'command',
+          description: 'Run git push',
+          command: 'git push'
+        }
+      }),
+      respondToPendingInteraction: vi.fn().mockReturnValue(deferred.promise)
+    }
+    const router = new RemoteCommandRouter({
+      authGuard: {
+        ensureAuthorized: vi.fn().mockReturnValue({
+          ok: true,
+          userId: 123
+        }),
+        pair: vi.fn()
+      } as any,
+      runner: runner as any,
+      bindingStore: bindingStore as any,
+      getPollerStatus: vi.fn()
+    })
+
+    const result = await Promise.race([
+      router.handleMessage(
+        createCallbackQuery({
+          data: 'pending:pending-token:allow'
+        })
+      ),
+      new Promise<'timeout'>((resolve) => setTimeout(() => resolve('timeout'), 25))
+    ])
+
+    expect(result).not.toBe('timeout')
+    expect(runner.respondToPendingInteraction).toHaveBeenCalledWith('telegram:100:0', {
+      kind: 'permission',
+      granted: true
+    })
+    expect(result).toEqual(
+      expect.objectContaining({
+        callbackAnswer: {
+          text: 'Continuing...'
+        },
+        outboundActions: [
+          expect.objectContaining({
+            type: 'editMessageText',
+            messageId: 30,
+            text: expect.stringContaining('Permission handled.')
+          })
+        ],
+        deferred: expect.any(Promise)
+      })
+    )
+
+    deferred.resolve({
+      waitingForUserMessage: false,
+      execution: null
+    })
+    await (result as Exclude<typeof result, 'timeout'>).deferred
   })
 })

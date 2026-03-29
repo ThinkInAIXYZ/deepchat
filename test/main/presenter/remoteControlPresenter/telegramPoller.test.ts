@@ -30,6 +30,20 @@ const createBlockingUpdates =
       )
     })
 
+const createDeferred = <T>() => {
+  let resolve!: (value: T | PromiseLike<T>) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((nextResolve, nextReject) => {
+    resolve = nextResolve
+    reject = nextReject
+  })
+  return {
+    promise,
+    resolve,
+    reject
+  }
+}
+
 describe('TelegramPoller', () => {
   it('reports running while waiting on long polling', async () => {
     const client = createClient()
@@ -819,6 +833,125 @@ describe('TelegramPoller', () => {
         expect.objectContaining({
           inline_keyboard: expect.any(Array)
         })
+      )
+    })
+
+    await poller.stop()
+  })
+
+  it('edits pending interaction cards before deferred continuation finishes', async () => {
+    const client = createClient()
+    const deferred = createDeferred<{
+      conversation?: {
+        sessionId: string
+        eventId: string
+        getSnapshot: () => Promise<{
+          messageId: string | null
+          text: string
+          completed: boolean
+          pendingInteraction: null
+        }>
+      }
+    }>()
+    client.getUpdates
+      .mockResolvedValueOnce([
+        {
+          update_id: 2,
+          callback_query: {
+            id: 'callback-1',
+            from: {
+              id: 123
+            },
+            data: 'pending:token:allow',
+            message: {
+              message_id: 30,
+              chat: {
+                id: 100,
+                type: 'private'
+              }
+            }
+          }
+        }
+      ])
+      .mockImplementation(createBlockingUpdates())
+
+    const poller = new TelegramPoller({
+      client: client as any,
+      parser: {
+        parseUpdate: vi.fn().mockReturnValue({
+          kind: 'callback_query',
+          updateId: 2,
+          chatId: 100,
+          messageThreadId: 0,
+          messageId: 30,
+          chatType: 'private',
+          fromId: 123,
+          callbackQueryId: 'callback-1',
+          data: 'pending:token:allow'
+        })
+      } as any,
+      router: {
+        handleMessage: vi.fn().mockResolvedValue({
+          replies: [],
+          outboundActions: [
+            {
+              type: 'editMessageText',
+              messageId: 30,
+              text: 'Permission handled.\nApproved. Continuing...',
+              replyMarkup: null
+            }
+          ],
+          callbackAnswer: {
+            text: 'Continuing...'
+          },
+          deferred: deferred.promise
+        })
+      } as any,
+      bindingStore: {
+        getPollOffset: vi.fn().mockReturnValue(0),
+        setPollOffset: vi.fn(),
+        getTelegramConfig: vi.fn().mockReturnValue({
+          streamMode: 'draft'
+        })
+      } as any
+    })
+
+    await poller.start()
+
+    await vi.waitFor(() => {
+      expect(client.editMessageText).toHaveBeenCalledWith({
+        target: {
+          chatId: 100,
+          messageThreadId: 0
+        },
+        messageId: 30,
+        text: 'Permission handled.\nApproved. Continuing...',
+        replyMarkup: undefined
+      })
+    })
+
+    expect(client.sendMessage).not.toHaveBeenCalled()
+
+    deferred.resolve({
+      conversation: {
+        sessionId: 'session-1',
+        eventId: 'msg-1',
+        getSnapshot: vi.fn().mockResolvedValue({
+          messageId: 'msg-1',
+          text: 'Done',
+          completed: true,
+          pendingInteraction: null
+        })
+      }
+    })
+
+    await vi.waitFor(() => {
+      expect(client.sendMessage).toHaveBeenCalledWith(
+        {
+          chatId: 100,
+          messageThreadId: 0
+        },
+        'Done'
       )
     })
 
