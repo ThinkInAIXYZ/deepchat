@@ -1,6 +1,6 @@
 import * as Lark from '@larksuiteoapi/node-sdk'
 import type { EventHandles } from '@larksuiteoapi/node-sdk'
-import type { FeishuTransportTarget } from '../types'
+import type { FeishuInteractiveCardPayload, FeishuTransportTarget } from '../types'
 
 const FEISHU_OUTBOUND_TEXT_LIMIT = 8_000
 
@@ -17,6 +17,8 @@ const createTextPayload = (text: string): string =>
   JSON.stringify({
     text
   })
+
+const createCardPayload = (card: FeishuInteractiveCardPayload): string => JSON.stringify(card)
 
 const chunkFeishuText = (text: string): string[] => {
   const normalized = text.trim() || '(No text output)'
@@ -156,5 +158,33 @@ export class FeishuClient {
         }
       })
     }
+  }
+
+  async sendCard(target: FeishuTransportTarget, card: FeishuInteractiveCardPayload): Promise<void> {
+    const content = createCardPayload(card)
+    if (target.replyToMessageId) {
+      await this.sdk.im.message.reply({
+        path: {
+          message_id: target.replyToMessageId
+        },
+        data: {
+          content,
+          msg_type: 'interactive',
+          reply_in_thread: Boolean(target.threadId)
+        }
+      })
+      return
+    }
+
+    await this.sdk.im.message.create({
+      params: {
+        receive_id_type: 'chat_id'
+      },
+      data: {
+        receive_id: target.chatId,
+        msg_type: 'interactive',
+        content
+      }
+    })
   }
 }

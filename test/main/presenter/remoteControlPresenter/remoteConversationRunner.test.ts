@@ -388,9 +388,239 @@ describe('RemoteConversationRunner', () => {
     expect(snapshot).toEqual({
       messageId: null,
       text: 'No assistant response was produced.',
-      completed: true
+      completed: true,
+      pendingInteraction: null
     })
 
     vi.useRealTimers()
+  })
+
+  it('extracts the latest pending interaction from assistant action blocks', async () => {
+    const runner = new RemoteConversationRunner(
+      {
+        configPresenter: {} as any,
+        newAgentPresenter: {
+          getSession: vi.fn().mockResolvedValue(createSession()),
+          getMessages: vi.fn().mockResolvedValue([
+            {
+              id: 'assistant-1',
+              role: 'assistant',
+              orderSeq: 2,
+              content: JSON.stringify([
+                {
+                  type: 'content',
+                  content: 'Need approval before continuing.',
+                  status: 'success',
+                  timestamp: 1
+                },
+                {
+                  type: 'action',
+                  action_type: 'tool_call_permission',
+                  content: 'Permission requested',
+                  status: 'pending',
+                  timestamp: 2,
+                  tool_call: {
+                    id: 'tool-1',
+                    name: 'shell_command',
+                    params: '{"command":"git push"}'
+                  },
+                  extra: {
+                    needsUserAction: true,
+                    permissionType: 'command',
+                    permissionRequest: JSON.stringify({
+                      permissionType: 'command',
+                      description: 'Run git push',
+                      command: 'git push',
+                      commandInfo: {
+                        command: 'git push',
+                        riskLevel: 'high',
+                        suggestion: 'Confirm before pushing.'
+                      }
+                    })
+                  }
+                }
+              ])
+            }
+          ])
+        } as any,
+        deepchatAgentPresenter: {} as any,
+        windowPresenter: {} as any,
+        tabPresenter: {} as any,
+        resolveDefaultAgentId: vi.fn().mockResolvedValue('deepchat')
+      },
+      {
+        getBinding: vi.fn().mockReturnValue({
+          sessionId: 'session-1',
+          updatedAt: 1
+        })
+      } as any
+    )
+
+    await expect(runner.getPendingInteraction('telegram:100:0')).resolves.toEqual({
+      type: 'permission',
+      messageId: 'assistant-1',
+      toolCallId: 'tool-1',
+      toolName: 'shell_command',
+      toolArgs: '{"command":"git push"}',
+      permission: {
+        permissionType: 'command',
+        description: 'Run git push',
+        rememberable: true,
+        command: 'git push',
+        commandInfo: {
+          command: 'git push',
+          riskLevel: 'high',
+          suggestion: 'Confirm before pushing.'
+        }
+      }
+    })
+  })
+
+  it('creates a follow-up execution after responding to a pending interaction', async () => {
+    const getMessage = vi
+      .fn()
+      .mockResolvedValueOnce({
+        id: 'assistant-2',
+        role: 'assistant',
+        orderSeq: 5,
+        content: JSON.stringify([
+          {
+            type: 'action',
+            action_type: 'tool_call_permission',
+            content: 'Permission requested',
+            status: 'pending',
+            timestamp: 1,
+            tool_call: {
+              id: 'tool-2',
+              name: 'shell_command',
+              params: '{"command":"git push"}'
+            },
+            extra: {
+              needsUserAction: true,
+              permissionType: 'command',
+              permissionRequest: JSON.stringify({
+                permissionType: 'command',
+                description: 'Run git push',
+                command: 'git push'
+              })
+            }
+          }
+        ])
+      })
+      .mockResolvedValue({
+        id: 'assistant-2',
+        role: 'assistant',
+        orderSeq: 5,
+        status: 'success',
+        content: JSON.stringify([
+          {
+            type: 'content',
+            content: 'Push completed.',
+            status: 'success',
+            timestamp: 2
+          }
+        ])
+      })
+    const newAgentPresenter = {
+      getSession: vi.fn().mockResolvedValue(createSession()),
+      getMessages: vi
+        .fn()
+        .mockResolvedValueOnce([
+          {
+            id: 'assistant-2',
+            role: 'assistant',
+            orderSeq: 5,
+            content: JSON.stringify([
+              {
+                type: 'action',
+                action_type: 'tool_call_permission',
+                content: 'Permission requested',
+                status: 'pending',
+                timestamp: 1,
+                tool_call: {
+                  id: 'tool-2',
+                  name: 'shell_command',
+                  params: '{"command":"git push"}'
+                },
+                extra: {
+                  needsUserAction: true,
+                  permissionType: 'command',
+                  permissionRequest: JSON.stringify({
+                    permissionType: 'command',
+                    description: 'Run git push',
+                    command: 'git push'
+                  })
+                }
+              }
+            ])
+          }
+        ])
+        .mockResolvedValue([
+          {
+            id: 'assistant-2',
+            role: 'assistant',
+            orderSeq: 5,
+            status: 'success',
+            content: JSON.stringify([
+              {
+                type: 'content',
+                content: 'Push completed.',
+                status: 'success',
+                timestamp: 2
+              }
+            ])
+          }
+        ]),
+      respondToolInteraction: vi.fn().mockResolvedValue({
+        resumed: true,
+        waitingForUserMessage: false
+      }),
+      getMessage
+    }
+    const bindingStore = {
+      getBinding: vi.fn().mockReturnValue({
+        sessionId: 'session-1',
+        updatedAt: 1
+      }),
+      clearActiveEvent: vi.fn(),
+      rememberActiveEvent: vi.fn()
+    }
+    const runner = new RemoteConversationRunner(
+      {
+        configPresenter: {} as any,
+        newAgentPresenter: newAgentPresenter as any,
+        deepchatAgentPresenter: {
+          getActiveGeneration: vi.fn().mockReturnValue(null)
+        } as any,
+        windowPresenter: {} as any,
+        tabPresenter: {} as any,
+        resolveDefaultAgentId: vi.fn().mockResolvedValue('deepchat')
+      },
+      bindingStore as any
+    )
+
+    const response = await runner.respondToPendingInteraction('telegram:100:0', {
+      kind: 'permission',
+      granted: true
+    })
+
+    expect(newAgentPresenter.respondToolInteraction).toHaveBeenCalledWith(
+      'session-1',
+      'assistant-2',
+      'tool-2',
+      {
+        kind: 'permission',
+        granted: true
+      }
+    )
+    expect(response.waitingForUserMessage).toBe(false)
+
+    const snapshot = await response.execution?.getSnapshot()
+    expect(snapshot).toEqual({
+      messageId: 'assistant-2',
+      text: 'Push completed.',
+      completed: true,
+      pendingInteraction: null
+    })
   })
 })

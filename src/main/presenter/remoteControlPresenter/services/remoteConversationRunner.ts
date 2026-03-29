@@ -1,5 +1,9 @@
 import { BrowserWindow } from 'electron'
-import type { ChatMessageRecord, SessionWithState } from '@shared/types/agent-interface'
+import type {
+  ChatMessageRecord,
+  SessionWithState,
+  ToolInteractionResponse
+} from '@shared/types/agent-interface'
 import type {
   IConfigPresenter,
   INewAgentPresenter,
@@ -11,6 +15,7 @@ import {
   TELEGRAM_RECENT_SESSION_LIMIT,
   TELEGRAM_STREAM_POLL_INTERVAL_MS,
   type RemoteEndpointBindingMeta,
+  type RemotePendingInteraction,
   type TelegramModelProviderOption
 } from '../types'
 import {
@@ -19,6 +24,7 @@ import {
   safeParseAssistantBlocks
 } from '../telegram/telegramOutbound'
 import { RemoteBindingStore } from './remoteBindingStore'
+import { collectPendingInteraction } from './remoteInteraction'
 
 const sleep = async (ms: number): Promise<void> => {
   await new Promise((resolve) => setTimeout(resolve, ms))
@@ -28,6 +34,7 @@ export interface RemoteConversationSnapshot {
   messageId: string | null
   text: string
   completed: boolean
+  pendingInteraction: RemotePendingInteraction | null
 }
 
 export interface RemoteConversationExecution {
@@ -40,6 +47,7 @@ export interface RemoteRunnerStatus {
   session: SessionWithState | null
   activeEventId: string | null
   isGenerating: boolean
+  pendingInteraction: RemotePendingInteraction | null
 }
 
 export type RemoteOpenSessionResult =
@@ -65,6 +73,10 @@ type RemoteConversationRunnerDeps = {
 
 type ChatWindowLookupPresenter = ITabPresenter & {
   getWindowType(windowId: number): 'chat' | 'browser'
+}
+
+type PendingInteractionDetails = RemotePendingInteraction & {
+  messageOrderSeq: number
 }
 
 export class RemoteConversationRunner {
@@ -213,15 +225,68 @@ export class RemoteConversationRunner {
       this.bindingStore.rememberActiveEvent(endpointKey, seededMessage.id)
     }
 
+    return this.createExecution(endpointKey, session.id, {
+      afterOrderSeq: lastOrderSeq,
+      preferredMessageId: seededMessage?.id ?? null,
+      ignoreMessageId: previousActiveEventId
+    })
+  }
+
+  async getPendingInteraction(endpointKey: string): Promise<RemotePendingInteraction | null> {
+    const session = await this.getCurrentSession(endpointKey)
+    if (!session) {
+      return null
+    }
+
+    const interaction = await this.getCurrentPendingInteractionDetails(session.id)
+    if (!interaction) {
+      return null
+    }
+
+    const { messageOrderSeq: _messageOrderSeq, ...rest } = interaction
+    return rest
+  }
+
+  async respondToPendingInteraction(
+    endpointKey: string,
+    response: ToolInteractionResponse
+  ): Promise<{
+    waitingForUserMessage: boolean
+    execution: RemoteConversationExecution | null
+  }> {
+    const session = await this.getCurrentSession(endpointKey)
+    if (!session) {
+      throw new Error('No bound session. Send a message, /new, or /use first.')
+    }
+
+    const interaction = await this.getCurrentPendingInteractionDetails(session.id)
+    if (!interaction) {
+      throw new Error('No pending interaction was found.')
+    }
+
+    const result = await this.deps.newAgentPresenter.respondToolInteraction(
+      session.id,
+      interaction.messageId,
+      interaction.toolCallId,
+      response
+    )
+
+    this.bindingStore.clearActiveEvent(endpointKey)
+
+    if (result.waitingForUserMessage) {
+      return {
+        waitingForUserMessage: true,
+        execution: null
+      }
+    }
+
     return {
-      sessionId: session.id,
-      eventId: seededMessage?.id ?? null,
-      getSnapshot: async () =>
-        await this.getConversationSnapshot(endpointKey, session.id, {
-          afterOrderSeq: lastOrderSeq,
-          preferredMessageId: seededMessage?.id ?? null,
-          ignoreMessageId: previousActiveEventId
-        })
+      waitingForUserMessage: false,
+      execution: this.createExecution(endpointKey, session.id, {
+        afterOrderSeq: Math.max(0, interaction.messageOrderSeq - 1),
+        preferredMessageId: interaction.messageId,
+        ignoreMessageId: null
+      })
     }
   }
 
@@ -279,9 +344,12 @@ export class RemoteConversationRunner {
       return {
         session: null,
         activeEventId: null,
-        isGenerating: false
+        isGenerating: false,
+        pendingInteraction: null
       }
     }
+
+    const pendingInteraction = await this.getCurrentPendingInteractionDetails(session.id)
 
     const activeEventId =
       this.bindingStore.getActiveEvent(endpointKey) ??
@@ -291,7 +359,11 @@ export class RemoteConversationRunner {
     return {
       session,
       activeEventId,
-      isGenerating: Boolean(activeEventId) || session.status === 'generating'
+      isGenerating:
+        !pendingInteraction && (Boolean(activeEventId) || session.status === 'generating'),
+      pendingInteraction: pendingInteraction
+        ? this.stripPendingInteractionDetails(pendingInteraction)
+        : null
     }
   }
 
@@ -319,7 +391,8 @@ export class RemoteConversationRunner {
       return {
         messageId: null,
         text: 'The bound session no longer exists.',
-        completed: true
+        completed: true,
+        pendingInteraction: null
       }
     }
 
@@ -343,14 +416,21 @@ export class RemoteConversationRunner {
       return {
         messageId: null,
         text: completed ? 'No assistant response was produced.' : '',
-        completed
+        completed,
+        pendingInteraction: null
       }
     }
 
     const blocks = safeParseAssistantBlocks(trackedMessage.content)
+    const pendingInteraction = collectPendingInteraction(
+      trackedMessage.id,
+      trackedMessage.orderSeq,
+      blocks
+    )
     const completed =
-      trackedMessage.status !== 'pending' &&
-      (!activeGeneration || activeGeneration.eventId !== trackedMessage.id)
+      Boolean(pendingInteraction) ||
+      (trackedMessage.status !== 'pending' &&
+        (!activeGeneration || activeGeneration.eventId !== trackedMessage.id))
 
     if (completed) {
       this.bindingStore.clearActiveEvent(endpointKey)
@@ -358,8 +438,15 @@ export class RemoteConversationRunner {
 
     return {
       messageId: trackedMessage.id,
-      text: completed ? buildTelegramFinalText(blocks) : extractTelegramDraftText(blocks),
-      completed
+      text: pendingInteraction
+        ? extractTelegramDraftText(blocks)
+        : completed
+          ? buildTelegramFinalText(blocks)
+          : extractTelegramDraftText(blocks),
+      completed,
+      pendingInteraction: pendingInteraction
+        ? this.stripPendingInteractionDetails(pendingInteraction)
+        : null
     }
   }
 
@@ -441,6 +528,48 @@ export class RemoteConversationRunner {
     }
 
     return assistants.sort((left, right) => right.orderSeq - left.orderSeq)[0]
+  }
+
+  private createExecution(
+    endpointKey: string,
+    sessionId: string,
+    tracking: {
+      afterOrderSeq: number
+      preferredMessageId: string | null
+      ignoreMessageId: string | null
+    }
+  ): RemoteConversationExecution {
+    return {
+      sessionId,
+      eventId: tracking.preferredMessageId,
+      getSnapshot: async () => await this.getConversationSnapshot(endpointKey, sessionId, tracking)
+    }
+  }
+
+  private async getCurrentPendingInteractionDetails(
+    sessionId: string
+  ): Promise<PendingInteractionDetails | null> {
+    const messages = await this.deps.newAgentPresenter.getMessages(sessionId)
+    const assistants = [...messages]
+      .filter((message) => message.role === 'assistant')
+      .sort((left, right) => right.orderSeq - left.orderSeq)
+
+    for (const message of assistants) {
+      const blocks = safeParseAssistantBlocks(message.content)
+      const interaction = collectPendingInteraction(message.id, message.orderSeq, blocks)
+      if (interaction) {
+        return interaction
+      }
+    }
+
+    return null
+  }
+
+  private stripPendingInteractionDetails(
+    interaction: PendingInteractionDetails
+  ): RemotePendingInteraction {
+    const { messageOrderSeq: _messageOrderSeq, ...rest } = interaction
+    return rest
   }
 
   private async resolveChatWindow(): Promise<BrowserWindow | null> {

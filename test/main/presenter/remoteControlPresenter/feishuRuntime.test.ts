@@ -52,7 +52,8 @@ const createHarness = async (options?: { logger?: { error: (...params: unknown[]
         streamHandlers.push(params.onMessage)
       }),
     stop: vi.fn(),
-    sendText: vi.fn().mockResolvedValue(undefined)
+    sendText: vi.fn().mockResolvedValue(undefined),
+    sendCard: vi.fn().mockResolvedValue(undefined)
   }
   const parser = {
     parseEvent: vi.fn((event: { parsed?: FeishuInboundMessage | null }) => event.parsed ?? null)
@@ -90,6 +91,7 @@ describe('FeishuRuntime', () => {
       messageId: string | null
       text: string
       completed: boolean
+      pendingInteraction: null
     }>()
     const harness = await createHarness()
     harness.router.handleMessage.mockResolvedValue({
@@ -118,7 +120,8 @@ describe('FeishuRuntime', () => {
     deferred.resolve({
       messageId: 'msg-1',
       text: 'done',
-      completed: true
+      completed: true,
+      pendingInteraction: null
     })
 
     await vi.waitFor(() => {
@@ -414,6 +417,7 @@ describe('FeishuRuntime', () => {
       messageId: string | null
       text: string
       completed: boolean
+      pendingInteraction: null
     }>()
     const harness = await createHarness()
 
@@ -471,7 +475,8 @@ describe('FeishuRuntime', () => {
     deferred.resolve({
       messageId: 'msg-1',
       text: 'partial output',
-      completed: true
+      completed: true,
+      pendingInteraction: null
     })
 
     await vi.waitFor(() => {
@@ -501,7 +506,8 @@ describe('FeishuRuntime', () => {
           getSnapshot: vi.fn().mockResolvedValue({
             messageId: null,
             text: '',
-            completed: false
+            completed: false,
+            pendingInteraction: null
           })
         }
       })
@@ -538,6 +544,7 @@ describe('FeishuRuntime', () => {
       messageId: string | null
       text: string
       completed: boolean
+      pendingInteraction: null
     }>()
     const harness = await createHarness()
 
@@ -576,7 +583,8 @@ describe('FeishuRuntime', () => {
     deferred.resolve({
       messageId: 'msg-1',
       text: 'stale conversation output',
-      completed: true
+      completed: true,
+      pendingInteraction: null
     })
     await Promise.resolve()
     await Promise.resolve()
@@ -602,6 +610,111 @@ describe('FeishuRuntime', () => {
           replyToMessageId: 'om-new-conversation'
         },
         'fresh reply'
+      )
+    })
+
+    await harness.runtime.stop()
+  })
+
+  it('sends pending interaction cards after conversation text completes', async () => {
+    const harness = await createHarness()
+    harness.router.handleMessage.mockResolvedValue({
+      replies: [],
+      conversation: {
+        sessionId: 'session-1',
+        eventId: 'msg-1',
+        getSnapshot: vi.fn().mockResolvedValue({
+          messageId: 'msg-1',
+          text: 'Need approval',
+          completed: true,
+          pendingInteraction: {
+            type: 'permission',
+            messageId: 'msg-1',
+            toolCallId: 'tool-1',
+            toolName: 'shell_command',
+            toolArgs: '{"command":"git push"}',
+            permission: {
+              permissionType: 'command',
+              description: 'Run git push',
+              command: 'git push'
+            }
+          }
+        })
+      }
+    })
+
+    await harness.emitMessage({
+      parsed: createParsedMessage({
+        eventId: 'evt-pending-card',
+        messageId: 'om-pending-card'
+      })
+    })
+
+    await vi.waitFor(() => {
+      expect(harness.client.sendText).toHaveBeenCalledWith(
+        {
+          chatId: 'oc_1',
+          threadId: null,
+          replyToMessageId: 'om-pending-card'
+        },
+        'Need approval'
+      )
+      expect(harness.client.sendCard).toHaveBeenCalledWith(
+        {
+          chatId: 'oc_1',
+          threadId: null,
+          replyToMessageId: 'om-pending-card'
+        },
+        expect.objectContaining({
+          header: expect.objectContaining({
+            title: expect.objectContaining({
+              content: 'Permission Required'
+            })
+          })
+        })
+      )
+    })
+
+    await harness.runtime.stop()
+  })
+
+  it('falls back to text when sending a Feishu card fails', async () => {
+    const harness = await createHarness()
+    harness.client.sendCard.mockRejectedValueOnce(new Error('card send failed'))
+    harness.router.handleMessage.mockResolvedValue({
+      replies: [],
+      outboundActions: [
+        {
+          type: 'sendCard',
+          card: {
+            header: {
+              title: {
+                tag: 'plain_text',
+                content: 'Question'
+              }
+            }
+          },
+          fallbackText: 'Reply with ALLOW or DENY.'
+        }
+      ]
+    })
+
+    await harness.emitMessage({
+      parsed: createParsedMessage({
+        eventId: 'evt-card-fallback',
+        messageId: 'om-card-fallback'
+      })
+    })
+
+    await vi.waitFor(() => {
+      expect(harness.client.sendCard).toHaveBeenCalled()
+      expect(harness.client.sendText).toHaveBeenCalledWith(
+        {
+          chatId: 'oc_1',
+          threadId: null,
+          replyToMessageId: 'om-card-fallback'
+        },
+        'Reply with ALLOW or DENY.'
       )
     })
 

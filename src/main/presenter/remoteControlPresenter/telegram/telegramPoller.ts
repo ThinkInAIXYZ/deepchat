@@ -4,6 +4,7 @@ import {
   TELEGRAM_REMOTE_POLL_TIMEOUT_SEC,
   TELEGRAM_STREAM_POLL_INTERVAL_MS,
   TELEGRAM_TYPING_DELAY_MS,
+  type RemotePendingInteraction,
   type TelegramOutboundAction,
   type TelegramPollerStatusSnapshot,
   type TelegramTransportTarget
@@ -11,6 +12,7 @@ import {
 import { RemoteBindingStore } from '../services/remoteBindingStore'
 import { RemoteCommandRouter } from '../services/remoteCommandRouter'
 import { chunkTelegramText, createTelegramDraftId } from './telegramOutbound'
+import { buildTelegramPendingInteractionPrompt } from './telegramInteractionPrompt'
 import { TelegramApiRequestError, TelegramClient, type TelegramRawUpdate } from './telegramClient'
 import { TelegramParser } from './telegramParser'
 
@@ -269,7 +271,12 @@ export class TelegramPoller {
     while (!this.stopRequested) {
       const snapshot = await execution.getSnapshot()
       if (snapshot.completed) {
-        await this.sendChunkedMessage(target, snapshot.text)
+        if (snapshot.text.trim()) {
+          await this.sendChunkedMessage(target, snapshot.text)
+        }
+        if (snapshot.pendingInteraction) {
+          await this.sendPendingInteractionPrompt(target, snapshot.pendingInteraction)
+        }
         return
       }
 
@@ -298,7 +305,12 @@ export class TelegramPoller {
     while (!this.stopRequested) {
       const snapshot = await execution.getSnapshot()
       if (snapshot.completed) {
-        await this.sendChunkedMessage(target, snapshot.text)
+        if (snapshot.text.trim()) {
+          await this.sendChunkedMessage(target, snapshot.text)
+        }
+        if (snapshot.pendingInteraction) {
+          await this.sendPendingInteractionPrompt(target, snapshot.pendingInteraction)
+        }
         return
       }
 
@@ -323,6 +335,22 @@ export class TelegramPoller {
     for (const chunk of chunkTelegramText(text)) {
       await this.deps.client.sendMessage(target, chunk)
     }
+  }
+
+  private async sendPendingInteractionPrompt(
+    target: TelegramTransportTarget,
+    interaction: RemotePendingInteraction
+  ): Promise<void> {
+    const endpointKey = this.deps.bindingStore.getEndpointKey(target)
+    const token = this.deps.bindingStore.createPendingInteractionState(endpointKey, interaction)
+    const prompt = buildTelegramPendingInteractionPrompt(interaction, token)
+
+    if (prompt.replyMarkup) {
+      await this.deps.client.sendMessage(target, prompt.text, prompt.replyMarkup)
+      return
+    }
+
+    await this.sendChunkedMessage(target, prompt.text)
   }
 
   private async dispatchOutboundActions(

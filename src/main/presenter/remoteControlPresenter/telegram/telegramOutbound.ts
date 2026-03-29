@@ -2,8 +2,6 @@ import type { AssistantMessageBlock } from '@shared/types/agent-interface'
 import { TELEGRAM_OUTBOUND_TEXT_LIMIT } from '../types'
 
 const EMPTY_TELEGRAM_TEXT = '(No text output)'
-const TELEGRAM_DESKTOP_CONFIRMATION_NOTICE =
-  'Desktop confirmation is required to continue this action.'
 
 export const createTelegramDraftId = (): number =>
   Math.max(1, Math.trunc(Math.random() * 2_000_000_000))
@@ -35,14 +33,6 @@ export const safeParseAssistantBlocks = (content: string): AssistantMessageBlock
       : []
   }
 }
-
-export const blocksRequireDesktopConfirmation = (blocks: AssistantMessageBlock[]): boolean =>
-  blocks.some(
-    (block) =>
-      block.type === 'action' &&
-      (block.action_type === 'tool_call_permission' || block.action_type === 'question_request') &&
-      block.extra?.needsUserAction !== false
-  )
 
 const collectText = (
   blocks: AssistantMessageBlock[],
@@ -80,12 +70,7 @@ export const extractTelegramStreamText = (blocks: AssistantMessageBlock[]): stri
 }
 
 export const buildTelegramFinalText = (blocks: AssistantMessageBlock[]): string => {
-  const text = extractTelegramStreamText(blocks) || EMPTY_TELEGRAM_TEXT
-  if (!blocksRequireDesktopConfirmation(blocks)) {
-    return text
-  }
-
-  return `${text}\n\n${TELEGRAM_DESKTOP_CONFIRMATION_NOTICE}`.trim()
+  return extractTelegramStreamText(blocks) || EMPTY_TELEGRAM_TEXT
 }
 
 export const chunkTelegramText = (

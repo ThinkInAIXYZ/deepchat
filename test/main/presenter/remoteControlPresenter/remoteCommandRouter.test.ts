@@ -42,7 +42,15 @@ const createBindingStore = () => ({
   }),
   createModelMenuState: vi.fn().mockReturnValue('menu-token'),
   getModelMenuState: vi.fn(),
-  clearModelMenuState: vi.fn()
+  clearModelMenuState: vi.fn(),
+  createPendingInteractionState: vi.fn().mockReturnValue('pending-token'),
+  getPendingInteractionState: vi.fn(),
+  clearPendingInteractionState: vi.fn()
+})
+
+const createRunner = (overrides: Record<string, unknown> = {}) => ({
+  getPendingInteraction: vi.fn().mockResolvedValue(null),
+  ...overrides
 })
 
 describe('RemoteCommandRouter', () => {
@@ -86,7 +94,8 @@ describe('RemoteCommandRouter', () => {
     }
     const runner = {
       sendText: vi.fn().mockResolvedValue(conversation),
-      getDefaultAgentId: vi.fn().mockResolvedValue('deepchat')
+      getDefaultAgentId: vi.fn().mockResolvedValue('deepchat'),
+      getPendingInteraction: vi.fn().mockResolvedValue(null)
     }
     const bindingStore = createBindingStore()
     const router = new RemoteCommandRouter({
@@ -116,9 +125,9 @@ describe('RemoteCommandRouter', () => {
   })
 
   it('returns usage help for an invalid /use command', async () => {
-    const runner = {
+    const runner = createRunner({
       useSessionByIndex: vi.fn()
-    }
+    })
     const router = new RemoteCommandRouter({
       authGuard: {
         ensureAuthorized: vi.fn().mockReturnValue({
@@ -161,7 +170,7 @@ describe('RemoteCommandRouter', () => {
         }),
         pair: vi.fn()
       } as any,
-      runner: {
+      runner: createRunner({
         getDefaultAgentId: vi.fn().mockResolvedValue('deepchat-alt'),
         getStatus: vi.fn().mockResolvedValue({
           session: {
@@ -171,9 +180,10 @@ describe('RemoteCommandRouter', () => {
             modelId: 'gpt-5'
           },
           activeEventId: 'msg-1',
-          isGenerating: true
+          isGenerating: true,
+          pendingInteraction: null
         })
-      } as any,
+      }) as any,
       bindingStore: createBindingStore() as any,
       getPollerStatus: vi.fn().mockReturnValue({
         state: 'running',
@@ -233,11 +243,11 @@ describe('RemoteCommandRouter', () => {
         }),
         pair: vi.fn()
       } as any,
-      runner: {
+      runner: createRunner({
         open: vi.fn().mockResolvedValue({
           status: 'noSession'
         })
-      } as any,
+      }) as any,
       bindingStore: createBindingStore() as any,
       getPollerStatus: vi.fn()
     })
@@ -266,11 +276,11 @@ describe('RemoteCommandRouter', () => {
         }),
         pair: vi.fn()
       } as any,
-      runner: {
+      runner: createRunner({
         open: vi.fn().mockResolvedValue({
           status: 'windowNotFound'
         })
-      } as any,
+      }) as any,
       bindingStore: createBindingStore() as any,
       getPollerStatus: vi.fn()
     })
@@ -299,7 +309,7 @@ describe('RemoteCommandRouter', () => {
         }),
         pair: vi.fn()
       } as any,
-      runner: {
+      runner: createRunner({
         open: vi.fn().mockResolvedValue({
           status: 'ok',
           session: {
@@ -307,7 +317,7 @@ describe('RemoteCommandRouter', () => {
             title: 'Remote chat'
           }
         })
-      } as any,
+      }) as any,
       bindingStore: createBindingStore() as any,
       getPollerStatus: vi.fn()
     })
@@ -328,9 +338,9 @@ describe('RemoteCommandRouter', () => {
   })
 
   it('returns a prompt when /model is used without a bound session', async () => {
-    const runner = {
+    const runner = createRunner({
       getCurrentSession: vi.fn().mockResolvedValue(null)
-    }
+    })
     const router = new RemoteCommandRouter({
       authGuard: {
         ensureAuthorized: vi.fn().mockReturnValue({
@@ -360,7 +370,7 @@ describe('RemoteCommandRouter', () => {
   })
 
   it('creates a provider menu for /model', async () => {
-    const runner = {
+    const runner = createRunner({
       getCurrentSession: vi.fn().mockResolvedValue({
         id: 'session-1',
         title: 'Remote chat',
@@ -379,7 +389,7 @@ describe('RemoteCommandRouter', () => {
           models: [{ modelId: 'claude-3-5-sonnet', modelName: 'Claude 3.5 Sonnet' }]
         }
       ])
-    }
+    })
     const bindingStore = createBindingStore()
     const router = new RemoteCommandRouter({
       authGuard: {
@@ -441,7 +451,7 @@ describe('RemoteCommandRouter', () => {
       ]
     })
 
-    const runner = {
+    const runner = createRunner({
       getCurrentSession: vi.fn().mockResolvedValue({
         id: 'session-1',
         title: 'Remote chat',
@@ -454,7 +464,7 @@ describe('RemoteCommandRouter', () => {
         providerId: 'anthropic',
         modelId: 'claude-3-5-sonnet'
       })
-    }
+    })
     const router = new RemoteCommandRouter({
       authGuard: {
         ensureAuthorized: vi.fn().mockReturnValue({
@@ -504,7 +514,7 @@ describe('RemoteCommandRouter', () => {
         }),
         pair: vi.fn()
       } as any,
-      runner: {} as any,
+      runner: createRunner() as any,
       bindingStore: bindingStore as any,
       getPollerStatus: vi.fn()
     })
@@ -526,6 +536,194 @@ describe('RemoteCommandRouter', () => {
         text: 'Model menu expired. Run /model again.',
         replyMarkup: null
       }
+    ])
+  })
+
+  it('routes plain text to a pending permission response before opening a new turn', async () => {
+    const runner = {
+      getPendingInteraction: vi.fn().mockResolvedValue({
+        type: 'permission',
+        messageId: 'assistant-1',
+        toolCallId: 'tool-1',
+        toolName: 'shell_command',
+        toolArgs: '{"command":"git push"}',
+        permission: {
+          permissionType: 'command',
+          description: 'Run git push',
+          command: 'git push'
+        }
+      }),
+      respondToPendingInteraction: vi.fn().mockResolvedValue({
+        waitingForUserMessage: false,
+        execution: {
+          sessionId: 'session-1',
+          eventId: 'assistant-1',
+          getSnapshot: vi.fn()
+        }
+      })
+    }
+    const router = new RemoteCommandRouter({
+      authGuard: {
+        ensureAuthorized: vi.fn().mockReturnValue({
+          ok: true,
+          userId: 123
+        }),
+        pair: vi.fn()
+      } as any,
+      runner: runner as any,
+      bindingStore: createBindingStore() as any,
+      getPollerStatus: vi.fn()
+    })
+
+    const result = await router.handleMessage(
+      createMessage({
+        text: 'ALLOW'
+      })
+    )
+
+    expect(runner.respondToPendingInteraction).toHaveBeenCalledWith('telegram:100:0', {
+      kind: 'permission',
+      granted: true
+    })
+    expect(result.replies).toEqual(['Approved. Continuing...'])
+    expect(result.conversation).toEqual(
+      expect.objectContaining({
+        sessionId: 'session-1'
+      })
+    )
+  })
+
+  it('re-sends the current pending interaction with buttons', async () => {
+    const bindingStore = createBindingStore()
+    const router = new RemoteCommandRouter({
+      authGuard: {
+        ensureAuthorized: vi.fn().mockReturnValue({
+          ok: true,
+          userId: 123
+        }),
+        pair: vi.fn()
+      } as any,
+      runner: {
+        getPendingInteraction: vi.fn().mockResolvedValue({
+          type: 'question',
+          messageId: 'assistant-2',
+          toolCallId: 'tool-2',
+          toolName: 'deepchat_question',
+          toolArgs: '{}',
+          question: {
+            question: 'Pick one',
+            options: [{ label: 'A' }, { label: 'B' }],
+            custom: true,
+            multiple: false
+          }
+        })
+      } as any,
+      bindingStore: bindingStore as any,
+      getPollerStatus: vi.fn()
+    })
+
+    const result = await router.handleMessage(
+      createMessage({
+        text: '/pending',
+        command: {
+          name: 'pending',
+          args: ''
+        }
+      })
+    )
+
+    expect(bindingStore.createPendingInteractionState).toHaveBeenCalledWith('telegram:100:0', {
+      type: 'question',
+      messageId: 'assistant-2',
+      toolCallId: 'tool-2',
+      toolName: 'deepchat_question',
+      toolArgs: '{}',
+      question: {
+        question: 'Pick one',
+        options: [{ label: 'A' }, { label: 'B' }],
+        custom: true,
+        multiple: false
+      }
+    })
+    expect(result.outboundActions).toEqual([
+      expect.objectContaining({
+        type: 'sendMessage',
+        text: expect.stringContaining('Question'),
+        replyMarkup: {
+          inline_keyboard: expect.arrayContaining([
+            [
+              expect.objectContaining({
+                text: 'A'
+              }),
+              expect.objectContaining({
+                text: 'B'
+              })
+            ]
+          ])
+        }
+      })
+    ])
+  })
+
+  it('refreshes expired pending interaction callbacks with the latest prompt', async () => {
+    const bindingStore = createBindingStore()
+    bindingStore.getPendingInteractionState.mockReturnValue(null)
+    const router = new RemoteCommandRouter({
+      authGuard: {
+        ensureAuthorized: vi.fn().mockReturnValue({
+          ok: true,
+          userId: 123
+        }),
+        pair: vi.fn()
+      } as any,
+      runner: {
+        getPendingInteraction: vi.fn().mockResolvedValue({
+          type: 'permission',
+          messageId: 'assistant-3',
+          toolCallId: 'tool-3',
+          toolName: 'shell_command',
+          toolArgs: '{"command":"git push"}',
+          permission: {
+            permissionType: 'command',
+            description: 'Run git push',
+            command: 'git push'
+          }
+        })
+      } as any,
+      bindingStore: bindingStore as any,
+      getPollerStatus: vi.fn()
+    })
+
+    const result = await router.handleMessage(
+      createCallbackQuery({
+        data: 'pending:expired-token:allow'
+      })
+    )
+
+    expect(bindingStore.createPendingInteractionState).toHaveBeenCalledWith('telegram:100:0', {
+      type: 'permission',
+      messageId: 'assistant-3',
+      toolCallId: 'tool-3',
+      toolName: 'shell_command',
+      toolArgs: '{"command":"git push"}',
+      permission: {
+        permissionType: 'command',
+        description: 'Run git push',
+        command: 'git push'
+      }
+    })
+    expect(result.callbackAnswer).toEqual({
+      text: 'Prompt refreshed.'
+    })
+    expect(result.outboundActions).toEqual([
+      expect.objectContaining({
+        type: 'editMessageText',
+        messageId: 30,
+        text: expect.stringContaining('Permission Required'),
+        replyMarkup: expect.objectContaining({
+          inline_keyboard: expect.any(Array)
+        })
+      })
     ])
   })
 })
