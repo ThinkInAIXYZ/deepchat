@@ -5,11 +5,16 @@ import {
   TELEGRAM_STREAM_POLL_INTERVAL_MS,
   buildFeishuEndpointKey,
   type FeishuInboundMessage,
+  type FeishuOutboundAction,
   type FeishuRuntimeStatusSnapshot,
   type FeishuTransportTarget
 } from '../types'
 import { FeishuCommandRouter } from '../services/feishuCommandRouter'
 import type { RemoteConversationExecution } from '../services/remoteConversationRunner'
+import {
+  buildFeishuPendingInteractionCard,
+  buildFeishuPendingInteractionText
+} from './feishuInteractionPrompt'
 import { FeishuClient, type FeishuBotIdentity } from './feishuClient'
 import { FeishuParser } from './feishuParser'
 
@@ -261,6 +266,10 @@ export class FeishuRuntime {
         await this.deps.client.sendText(target, reply)
       }
 
+      if (routed.outboundActions?.length) {
+        await this.dispatchOutboundActions(target, routed.outboundActions, runId)
+      }
+
       if (routed.conversation) {
         await this.deliverConversation(target, routed.conversation, runId)
       }
@@ -322,7 +331,23 @@ export class FeishuRuntime {
         if (!this.isCurrentRun(runId)) {
           return
         }
-        await this.deps.client.sendText(target, snapshot.text)
+        if (snapshot.text.trim()) {
+          await this.deps.client.sendText(target, snapshot.text)
+        }
+        if (snapshot.pendingInteraction) {
+          await this.dispatchOutboundActions(
+            target,
+            [
+              {
+                type: 'sendCard',
+                card: buildFeishuPendingInteractionCard(snapshot.pendingInteraction),
+                fallbackText: buildFeishuPendingInteractionText(snapshot.pendingInteraction)
+              }
+            ],
+            runId
+          )
+          return
+        }
         return
       }
 
@@ -348,6 +373,33 @@ export class FeishuRuntime {
         name: botUser.name
       }
     })
+  }
+
+  private async dispatchOutboundActions(
+    target: FeishuTransportTarget,
+    actions: FeishuOutboundAction[],
+    runId: number
+  ): Promise<void> {
+    for (const action of actions) {
+      if (!this.isCurrentRun(runId)) {
+        return
+      }
+
+      if (action.type === 'sendText') {
+        await this.deps.client.sendText(target, action.text)
+        continue
+      }
+
+      try {
+        await this.deps.client.sendCard(target, action.card)
+      } catch (error) {
+        console.warn(
+          '[FeishuRuntime] Failed to send interactive card, falling back to text:',
+          error
+        )
+        await this.deps.client.sendText(target, action.fallbackText)
+      }
+    }
   }
 
   private setStatus(

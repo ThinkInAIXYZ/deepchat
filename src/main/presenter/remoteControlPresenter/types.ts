@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import type { HookEventName } from '@shared/hooksNotifications'
+import type { QuestionOption } from '@shared/types/agent-interface'
 import type {
   FeishuPairingSnapshot,
   FeishuRemoteSettings,
@@ -31,6 +32,7 @@ export const TELEGRAM_STREAM_START_TIMEOUT_MS = 8_000
 export const TELEGRAM_PRIVATE_THREAD_DEFAULT = 0
 export const TELEGRAM_RECENT_SESSION_LIMIT = 10
 export const TELEGRAM_MODEL_MENU_TTL_MS = 10 * 60 * 1000
+export const TELEGRAM_INTERACTION_CALLBACK_TTL_MS = 10 * 60 * 1000
 export const TELEGRAM_REMOTE_DEFAULT_AGENT_ID = 'deepchat'
 export const FEISHU_REMOTE_DEFAULT_AGENT_ID = TELEGRAM_REMOTE_DEFAULT_AGENT_ID
 export const TELEGRAM_REMOTE_REACTION_EMOJI = '🤯'
@@ -66,6 +68,10 @@ export const TELEGRAM_REMOTE_COMMANDS = [
   {
     command: 'open',
     description: 'Open the current session on desktop'
+  },
+  {
+    command: 'pending',
+    description: 'Show the current pending interaction'
   },
   {
     command: 'model',
@@ -109,6 +115,10 @@ export const FEISHU_REMOTE_COMMANDS = [
   {
     command: 'open',
     description: 'Open the current session on desktop'
+  },
+  {
+    command: 'pending',
+    description: 'Show the current pending interaction'
   },
   {
     command: 'model',
@@ -231,6 +241,49 @@ export interface TelegramInlineKeyboardMarkup {
   inline_keyboard: TelegramInlineKeyboardButton[][]
 }
 
+export interface RemotePermissionCommandInfo {
+  command: string
+  riskLevel: 'low' | 'medium' | 'high' | 'critical'
+  suggestion: string
+  signature?: string
+  baseCommand?: string
+}
+
+export interface RemotePendingInteractionPermission {
+  permissionType: 'read' | 'write' | 'all' | 'command'
+  description: string
+  toolName?: string
+  serverName?: string
+  providerId?: string
+  requestId?: string
+  rememberable?: boolean
+  command?: string
+  commandSignature?: string
+  paths?: string[]
+  commandInfo?: RemotePermissionCommandInfo
+}
+
+export interface RemotePendingInteractionQuestion {
+  header?: string
+  question: string
+  options: QuestionOption[]
+  custom: boolean
+  multiple: boolean
+}
+
+export interface RemotePendingInteraction {
+  type: 'permission' | 'question'
+  messageId: string
+  toolCallId: string
+  toolName: string
+  toolArgs: string
+  serverName?: string
+  serverIcons?: string
+  serverDescription?: string
+  permission?: RemotePendingInteractionPermission
+  question?: RemotePendingInteractionQuestion
+}
+
 export type TelegramOutboundAction =
   | {
       type: 'sendMessage'
@@ -267,6 +320,13 @@ export interface TelegramModelMenuState {
   providers: TelegramModelProviderOption[]
 }
 
+export interface TelegramPendingInteractionState {
+  endpointKey: string
+  createdAt: number
+  messageId: string
+  toolCallId: string
+}
+
 export type TelegramModelMenuCallback =
   | {
       action: 'provider'
@@ -284,7 +344,44 @@ export type TelegramModelMenuCallback =
       token: string
     }
 
+export type TelegramPendingInteractionCallback =
+  | {
+      action: 'allow' | 'deny' | 'other'
+      token: string
+    }
+  | {
+      action: 'option'
+      token: string
+      optionIndex: number
+    }
+
+export interface FeishuCardConfig {
+  enable_forward?: boolean
+  update_multi?: boolean
+  wide_screen_mode?: boolean
+}
+
+export interface FeishuInteractiveCardPayload {
+  config?: FeishuCardConfig
+  header?: Record<string, unknown>
+  elements?: Array<Record<string, unknown>>
+  i18n_elements?: Record<string, Array<Record<string, unknown>>>
+  card_link?: Record<string, unknown>
+}
+
+export type FeishuOutboundAction =
+  | {
+      type: 'sendText'
+      text: string
+    }
+  | {
+      type: 'sendCard'
+      card: FeishuInteractiveCardPayload
+      fallbackText: string
+    }
+
 const TELEGRAM_MODEL_MENU_CALLBACK_PREFIX = 'model'
+const TELEGRAM_INTERACTION_CALLBACK_PREFIX = 'pending'
 const TELEGRAM_ENDPOINT_KEY_REGEX = /^telegram:(-?\d+):(-?\d+)$/
 const FEISHU_ENDPOINT_KEY_REGEX = /^feishu:([^:]+):([^:]+)$/
 
@@ -354,6 +451,51 @@ export const parseModelMenuCallbackData = (data: string): TelegramModelMenuCallb
     return {
       action: 'cancel',
       token
+    }
+  }
+
+  return null
+}
+
+export const buildPendingInteractionAllowCallbackData = (token: string): string =>
+  `${TELEGRAM_INTERACTION_CALLBACK_PREFIX}:${token}:allow`
+
+export const buildPendingInteractionDenyCallbackData = (token: string): string =>
+  `${TELEGRAM_INTERACTION_CALLBACK_PREFIX}:${token}:deny`
+
+export const buildPendingInteractionOtherCallbackData = (token: string): string =>
+  `${TELEGRAM_INTERACTION_CALLBACK_PREFIX}:${token}:other`
+
+export const buildPendingInteractionOptionCallbackData = (
+  token: string,
+  optionIndex: number
+): string => `${TELEGRAM_INTERACTION_CALLBACK_PREFIX}:${token}:o:${optionIndex}`
+
+export const parsePendingInteractionCallbackData = (
+  data: string
+): TelegramPendingInteractionCallback | null => {
+  const parts = data.trim().split(':')
+  if (parts[0] !== TELEGRAM_INTERACTION_CALLBACK_PREFIX || !parts[1]) {
+    return null
+  }
+
+  const token = parts[1]
+  const action = parts[2]
+  if (action === 'allow' || action === 'deny' || action === 'other') {
+    return {
+      action,
+      token
+    }
+  }
+
+  if (action === 'o' && parts[3] !== undefined) {
+    const optionIndex = Number.parseInt(parts[3], 10)
+    if (Number.isInteger(optionIndex) && optionIndex >= 0) {
+      return {
+        action: 'option',
+        token,
+        optionIndex
+      }
     }
   }
 

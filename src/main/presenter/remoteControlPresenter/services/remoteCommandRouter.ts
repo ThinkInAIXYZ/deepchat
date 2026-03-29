@@ -1,4 +1,6 @@
+import type { ToolInteractionResponse } from '@shared/types/agent-interface'
 import type {
+  RemotePendingInteraction,
   TelegramCallbackAnswer,
   TelegramInboundCallbackQuery,
   TelegramInboundEvent,
@@ -6,17 +8,24 @@ import type {
   TelegramInlineKeyboardMarkup,
   TelegramModelProviderOption,
   TelegramOutboundAction,
+  TelegramPendingInteractionCallback,
   TelegramPollerStatusSnapshot
 } from '../types'
 import {
+  TELEGRAM_INTERACTION_CALLBACK_TTL_MS,
   TELEGRAM_MODEL_MENU_TTL_MS,
   TELEGRAM_REMOTE_COMMANDS,
   buildModelMenuBackCallbackData,
   buildModelMenuCancelCallbackData,
   buildModelMenuChoiceCallbackData,
   buildModelMenuProviderCallbackData,
-  parseModelMenuCallbackData
+  parseModelMenuCallbackData,
+  parsePendingInteractionCallbackData
 } from '../types'
+import {
+  buildTelegramInteractionResolvedText,
+  buildTelegramPendingInteractionPrompt
+} from '../telegram/telegramInteractionPrompt'
 import type { RemoteConversationExecution } from './remoteConversationRunner'
 import { RemoteAuthGuard } from './remoteAuthGuard'
 import { RemoteBindingStore } from './remoteBindingStore'
@@ -27,6 +36,13 @@ export interface RemoteCommandRouteResult {
   outboundActions?: TelegramOutboundAction[]
   conversation?: RemoteConversationExecution
   callbackAnswer?: TelegramCallbackAnswer
+  deferred?: Promise<RemoteCommandRouteContinuation>
+}
+
+export interface RemoteCommandRouteContinuation {
+  replies?: string[]
+  outboundActions?: TelegramOutboundAction[]
+  conversation?: RemoteConversationExecution
 }
 
 type RemoteCommandRouterDeps = {
@@ -35,6 +51,8 @@ type RemoteCommandRouterDeps = {
   bindingStore: RemoteBindingStore
   getPollerStatus: () => TelegramPollerStatusSnapshot
 }
+
+const TELEGRAM_PENDING_ALLOWED_COMMANDS = new Set(['start', 'help', 'status', 'open', 'pending'])
 
 export class RemoteCommandRouter {
   constructor(private readonly deps: RemoteCommandRouterDeps) {}
@@ -80,6 +98,23 @@ export class RemoteCommandRouter {
     }
 
     try {
+      const pendingInteraction = await this.deps.runner.getPendingInteraction(endpointKey)
+      if (pendingInteraction) {
+        if (!command) {
+          return await this.handlePendingTextResponse(endpointKey, message.text, pendingInteraction)
+        }
+
+        if (command === 'pending') {
+          return this.buildPendingPromptResult(endpointKey, pendingInteraction)
+        }
+
+        if (!TELEGRAM_PENDING_ALLOWED_COMMANDS.has(command)) {
+          return {
+            replies: [this.formatPendingCommandBlockedMessage(pendingInteraction)]
+          }
+        }
+      }
+
       switch (command) {
         case 'new': {
           const title = message.command?.args?.trim()
@@ -144,6 +179,12 @@ export class RemoteCommandRouter {
           }
         }
 
+        case 'pending': {
+          return {
+            replies: ['No pending interaction is waiting.']
+          }
+        }
+
         case 'model': {
           const session = await this.deps.runner.getCurrentSession(endpointKey)
           if (!session) {
@@ -193,6 +234,7 @@ export class RemoteCommandRouter {
                 `Current agent: ${status.session?.agentId ?? 'none'}`,
                 `Current model: ${status.session?.modelId ?? 'none'}`,
                 `Generating: ${status.isGenerating ? 'yes' : 'no'}`,
+                `Waiting: ${status.pendingInteraction ? this.formatPendingStatus(status.pendingInteraction) : 'none'}`,
                 `Allowed users: ${telegramConfig.allowlist.length}`,
                 `Bindings: ${Object.keys(telegramConfig.bindings).length}`,
                 `Last error: ${runtime.lastError ?? 'none'}`
@@ -226,6 +268,22 @@ export class RemoteCommandRouter {
         replies: [],
         callbackAnswer: {
           text: auth.message,
+          showAlert: true
+        }
+      }
+    }
+
+    const pendingCallback = parsePendingInteractionCallbackData(event.data)
+    if (pendingCallback) {
+      return await this.handlePendingCallbackQuery(event, endpointKey, pendingCallback)
+    }
+
+    const pendingInteraction = await this.deps.runner.getPendingInteraction(endpointKey)
+    if (pendingInteraction) {
+      return {
+        replies: [],
+        callbackAnswer: {
+          text: this.formatPendingCommandBlockedMessage(pendingInteraction),
           showAlert: true
         }
       }
@@ -358,6 +416,84 @@ export class RemoteCommandRouter {
     }
   }
 
+  private async handlePendingCallbackQuery(
+    event: TelegramInboundCallbackQuery,
+    endpointKey: string,
+    callback: TelegramPendingInteractionCallback
+  ): Promise<RemoteCommandRouteResult> {
+    const interaction = await this.deps.runner.getPendingInteraction(endpointKey)
+    const state = this.deps.bindingStore.getPendingInteractionState(
+      callback.token,
+      TELEGRAM_INTERACTION_CALLBACK_TTL_MS
+    )
+
+    if (
+      !interaction ||
+      !state ||
+      state.endpointKey !== endpointKey ||
+      state.messageId !== interaction.messageId ||
+      state.toolCallId !== interaction.toolCallId
+    ) {
+      return await this.buildExpiredPendingInteractionResult(event.messageId, endpointKey)
+    }
+
+    const response = this.resolvePendingCallbackResponse(interaction, callback)
+    if (!response) {
+      return await this.buildExpiredPendingInteractionResult(event.messageId, endpointKey)
+    }
+
+    this.deps.bindingStore.clearPendingInteractionState(callback.token)
+
+    const waitingForUserMessage = response.kind === 'question_other'
+    return {
+      replies: [],
+      outboundActions: [
+        {
+          type: 'editMessageText',
+          messageId: event.messageId,
+          text: buildTelegramInteractionResolvedText({
+            interaction,
+            responseText: this.describeInteractionResponse(interaction, response),
+            waitingForUserMessage
+          }),
+          replyMarkup: null
+        }
+      ],
+      callbackAnswer: {
+        text: waitingForUserMessage ? 'Reply with your answer.' : 'Continuing...'
+      },
+      deferred: this.buildPendingCallbackContinuation(
+        endpointKey,
+        event.messageId,
+        interaction,
+        response
+      )
+    }
+  }
+
+  private async handlePendingTextResponse(
+    endpointKey: string,
+    text: string,
+    interaction: RemotePendingInteraction
+  ): Promise<RemoteCommandRouteResult> {
+    const response = this.resolvePendingTextResponse(text, interaction)
+    if (!response) {
+      return {
+        replies: [this.formatPendingTextReplyHint(interaction)]
+      }
+    }
+
+    const result = await this.deps.runner.respondToPendingInteraction(endpointKey, response)
+    return {
+      replies: [
+        result.waitingForUserMessage
+          ? 'Reply with your answer in your next message.'
+          : this.describeInteractionResponse(interaction, response)
+      ],
+      ...(result.execution ? { conversation: result.execution } : {})
+    }
+  }
+
   private buildExpiredMenuResult(messageId: number): RemoteCommandRouteResult {
     return {
       replies: [],
@@ -372,6 +508,44 @@ export class RemoteCommandRouter {
       callbackAnswer: {
         text: 'Model menu expired. Run /model again.',
         showAlert: true
+      }
+    }
+  }
+
+  private async buildExpiredPendingInteractionResult(
+    messageId: number,
+    endpointKey: string
+  ): Promise<RemoteCommandRouteResult> {
+    const interaction = await this.deps.runner.getPendingInteraction(endpointKey)
+    if (!interaction) {
+      return {
+        replies: [],
+        outboundActions: [
+          {
+            type: 'editMessageText',
+            messageId,
+            text: 'Pending interaction expired. Run /pending if another action is waiting.',
+            replyMarkup: null
+          }
+        ],
+        callbackAnswer: {
+          text: 'Pending interaction expired.',
+          showAlert: true
+        }
+      }
+    }
+
+    const prompt = this.createPendingPromptAction(
+      endpointKey,
+      interaction,
+      'editMessageText',
+      messageId
+    )
+    return {
+      replies: [],
+      outboundActions: [prompt],
+      callbackAnswer: {
+        text: 'Prompt refreshed.'
       }
     }
   }
@@ -425,6 +599,215 @@ export class RemoteCommandRouter {
     }
   }
 
+  private buildPendingPromptResult(
+    endpointKey: string,
+    interaction: RemotePendingInteraction
+  ): RemoteCommandRouteResult {
+    return {
+      replies: [],
+      outboundActions: [this.createPendingPromptAction(endpointKey, interaction, 'sendMessage')]
+    }
+  }
+
+  private createPendingPromptAction(
+    endpointKey: string,
+    interaction: RemotePendingInteraction,
+    mode: 'sendMessage' | 'editMessageText',
+    messageId?: number
+  ): TelegramOutboundAction {
+    const token = this.deps.bindingStore.createPendingInteractionState(endpointKey, interaction)
+    const prompt = buildTelegramPendingInteractionPrompt(interaction, token)
+    if (mode === 'editMessageText' && typeof messageId === 'number') {
+      return {
+        type: 'editMessageText',
+        messageId,
+        text: prompt.text,
+        replyMarkup: prompt.replyMarkup ?? null
+      }
+    }
+
+    return {
+      type: 'sendMessage',
+      text: prompt.text,
+      ...(prompt.replyMarkup ? { replyMarkup: prompt.replyMarkup } : {})
+    }
+  }
+
+  private async buildPendingCallbackContinuation(
+    endpointKey: string,
+    messageId: number,
+    interaction: RemotePendingInteraction,
+    response: ToolInteractionResponse
+  ): Promise<RemoteCommandRouteContinuation> {
+    try {
+      const result = await this.deps.runner.respondToPendingInteraction(endpointKey, response)
+
+      if (result.waitingForUserMessage) {
+        if (response.kind === 'question_other') {
+          return {}
+        }
+
+        return {
+          outboundActions: [
+            {
+              type: 'editMessageText',
+              messageId,
+              text: buildTelegramInteractionResolvedText({
+                interaction,
+                responseText: this.describeInteractionResponse(interaction, response),
+                waitingForUserMessage: true
+              }),
+              replyMarkup: null
+            }
+          ]
+        }
+      }
+
+      return result.execution ? { conversation: result.execution } : {}
+    } catch (error) {
+      return {
+        replies: [error instanceof Error ? error.message : String(error)]
+      }
+    }
+  }
+
+  private resolvePendingCallbackResponse(
+    interaction: RemotePendingInteraction,
+    callback: TelegramPendingInteractionCallback
+  ): ToolInteractionResponse | null {
+    if (interaction.type === 'permission') {
+      if (callback.action === 'allow') {
+        return { kind: 'permission', granted: true }
+      }
+      if (callback.action === 'deny') {
+        return { kind: 'permission', granted: false }
+      }
+      return null
+    }
+
+    if (callback.action === 'other') {
+      return { kind: 'question_other' }
+    }
+
+    if (callback.action !== 'option') {
+      return null
+    }
+
+    const option = interaction.question?.options?.[callback.optionIndex]
+    if (!option) {
+      return null
+    }
+
+    return {
+      kind: 'question_option',
+      optionLabel: option.label
+    }
+  }
+
+  private resolvePendingTextResponse(
+    text: string,
+    interaction: RemotePendingInteraction
+  ): ToolInteractionResponse | null {
+    const normalized = text.trim()
+    if (!normalized) {
+      return null
+    }
+
+    if (interaction.type === 'permission') {
+      const lowered = normalized.toLowerCase()
+      if (lowered === 'allow') {
+        return { kind: 'permission', granted: true }
+      }
+      if (lowered === 'deny') {
+        return { kind: 'permission', granted: false }
+      }
+      return null
+    }
+
+    const question = interaction.question
+    if (!question) {
+      return null
+    }
+
+    if (!question.multiple) {
+      const optionByIndex = Number.parseInt(normalized, 10)
+      if (
+        Number.isInteger(optionByIndex) &&
+        optionByIndex > 0 &&
+        optionByIndex <= question.options.length
+      ) {
+        return {
+          kind: 'question_option',
+          optionLabel: question.options[optionByIndex - 1].label
+        }
+      }
+
+      const matchedOption = question.options.find(
+        (option) =>
+          option.label.localeCompare(normalized, undefined, { sensitivity: 'accent' }) === 0
+      )
+      if (matchedOption) {
+        return {
+          kind: 'question_option',
+          optionLabel: matchedOption.label
+        }
+      }
+    }
+
+    if (question.multiple || question.custom !== false) {
+      return {
+        kind: 'question_custom',
+        answerText: normalized
+      }
+    }
+
+    return null
+  }
+
+  private describeInteractionResponse(
+    interaction: RemotePendingInteraction,
+    response: ToolInteractionResponse
+  ): string {
+    if (interaction.type === 'permission' && response.kind === 'permission') {
+      return response.granted ? 'Approved. Continuing...' : 'Denied.'
+    }
+
+    if (response.kind === 'question_option') {
+      return `Selected: ${response.optionLabel}`
+    }
+
+    if (response.kind === 'question_custom') {
+      return `Answer received: ${response.answerText.trim()}`
+    }
+
+    return 'Reply with your answer in a new message.'
+  }
+
+  private formatPendingTextReplyHint(interaction: RemotePendingInteraction): string {
+    if (interaction.type === 'permission') {
+      return 'Reply with ALLOW or DENY, or use /pending to show the buttons again.'
+    }
+
+    if (interaction.question?.multiple) {
+      return 'Reply with your answer in plain text.'
+    }
+
+    if (interaction.question?.custom !== false) {
+      return 'Reply with an option number, exact label, or your own answer.'
+    }
+
+    return 'Reply with an option number or exact label, or use /pending to show the buttons again.'
+  }
+
+  private formatPendingCommandBlockedMessage(interaction: RemotePendingInteraction): string {
+    return `Resolve the pending ${interaction.type} first. Use /pending to review it again.`
+  }
+
+  private formatPendingStatus(interaction: RemotePendingInteraction): string {
+    const toolLabel = interaction.toolName.trim() || 'unknown tool'
+    return `${interaction.type} via ${toolLabel}`
+  }
+
   private formatStartMessage(isAuthorized: boolean): string {
     const statusLine = isAuthorized
       ? 'Status: paired'
@@ -449,7 +832,7 @@ export class RemoteCommandRouter {
               ? '/use <index> - Bind a listed session'
               : `/${item.command} - ${item.description}`
       ),
-      'Plain text sends to the current bound session.'
+      'Plain text sends to the current bound session unless a tool interaction is waiting.'
     ].join('\n')
   }
 

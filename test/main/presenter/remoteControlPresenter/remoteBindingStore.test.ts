@@ -244,6 +244,28 @@ describe('RemoteBindingStore', () => {
     expect(store.getModelMenuState(token, 10 * 60 * 1000)).toBeNull()
   })
 
+  it('keeps pending interaction tokens in memory and clears them after rebinding the endpoint', () => {
+    const configPresenter = createConfigPresenter()
+    const store = new RemoteBindingStore(configPresenter as any)
+
+    const token = store.createPendingInteractionState('telegram:100:0', {
+      messageId: 'assistant-1',
+      toolCallId: 'tool-1'
+    })
+
+    expect(store.getPendingInteractionState(token)).toEqual(
+      expect.objectContaining({
+        endpointKey: 'telegram:100:0',
+        messageId: 'assistant-1',
+        toolCallId: 'tool-1'
+      })
+    )
+
+    store.setBinding('telegram:100:0', 'session-2')
+
+    expect(store.getPendingInteractionState(token)).toBeNull()
+  })
+
   it('normalizes binding meta channel from the endpoint key', () => {
     const configPresenter = createConfigPresenter()
     const store = new RemoteBindingStore(configPresenter as any)

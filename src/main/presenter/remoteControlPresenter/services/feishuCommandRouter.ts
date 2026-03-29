@@ -1,19 +1,25 @@
+import type { ToolInteractionResponse } from '@shared/types/agent-interface'
 import type { SessionWithState } from '@shared/types/agent-interface'
-import {
-  FEISHU_REMOTE_COMMANDS,
-  buildFeishuBindingMeta,
-  buildFeishuEndpointKey,
-  type FeishuInboundMessage,
-  type FeishuRuntimeStatusSnapshot,
-  type TelegramModelProviderOption
+import type {
+  FeishuInboundMessage,
+  FeishuOutboundAction,
+  FeishuRuntimeStatusSnapshot,
+  RemotePendingInteraction,
+  TelegramModelProviderOption
 } from '../types'
+import { FEISHU_REMOTE_COMMANDS, buildFeishuBindingMeta, buildFeishuEndpointKey } from '../types'
 import type { RemoteConversationExecution } from './remoteConversationRunner'
+import {
+  buildFeishuPendingInteractionCard,
+  buildFeishuPendingInteractionText
+} from '../feishu/feishuInteractionPrompt'
 import { FeishuAuthGuard } from './feishuAuthGuard'
 import { RemoteBindingStore } from './remoteBindingStore'
 import { RemoteConversationRunner } from './remoteConversationRunner'
 
 export interface FeishuCommandRouteResult {
   replies: string[]
+  outboundActions?: FeishuOutboundAction[]
   conversation?: RemoteConversationExecution
 }
 
@@ -23,6 +29,8 @@ type FeishuCommandRouterDeps = {
   bindingStore: RemoteBindingStore
   getRuntimeStatus: () => FeishuRuntimeStatusSnapshot
 }
+
+const FEISHU_PENDING_ALLOWED_COMMANDS = new Set(['start', 'help', 'status', 'open', 'pending'])
 
 export class FeishuCommandRouter {
   constructor(private readonly deps: FeishuCommandRouterDeps) {}
@@ -75,6 +83,23 @@ export class FeishuCommandRouter {
     }
 
     try {
+      const pendingInteraction = await this.deps.runner.getPendingInteraction(endpointKey)
+      if (pendingInteraction) {
+        if (!command) {
+          return await this.handlePendingTextResponse(endpointKey, message.text, pendingInteraction)
+        }
+
+        if (command === 'pending') {
+          return this.buildPendingPromptResult(pendingInteraction)
+        }
+
+        if (!FEISHU_PENDING_ALLOWED_COMMANDS.has(command)) {
+          return {
+            replies: [this.formatPendingCommandBlockedMessage(pendingInteraction)]
+          }
+        }
+      }
+
       switch (command) {
         case 'new': {
           const title = message.command?.args?.trim()
@@ -143,6 +168,11 @@ export class FeishuCommandRouter {
           }
         }
 
+        case 'pending':
+          return {
+            replies: ['No pending interaction is waiting.']
+          }
+
         case 'model':
           return await this.handleModelCommand(message, endpointKey)
 
@@ -161,6 +191,7 @@ export class FeishuCommandRouter {
                 `Current agent: ${status.session?.agentId ?? 'none'}`,
                 `Current model: ${status.session?.modelId ?? 'none'}`,
                 `Generating: ${status.isGenerating ? 'yes' : 'no'}`,
+                `Waiting: ${status.pendingInteraction ? this.formatPendingStatus(status.pendingInteraction) : 'none'}`,
                 `Paired users: ${feishuConfig.pairedUserOpenIds.length}`,
                 `Bindings: ${Object.keys(feishuConfig.bindings).length}`,
                 `Last error: ${runtime.lastError ?? 'none'}`
@@ -245,6 +276,121 @@ export class FeishuCommandRouter {
     }
   }
 
+  private async handlePendingTextResponse(
+    endpointKey: string,
+    text: string,
+    interaction: RemotePendingInteraction
+  ): Promise<FeishuCommandRouteResult> {
+    const response = this.resolvePendingTextResponse(text, interaction)
+    if (!response) {
+      return {
+        replies: [this.formatPendingTextReplyHint(interaction)]
+      }
+    }
+
+    const result = await this.deps.runner.respondToPendingInteraction(endpointKey, response)
+    return {
+      replies: [
+        result.waitingForUserMessage
+          ? 'Reply with your answer in your next message.'
+          : this.describeInteractionResponse(interaction, response)
+      ],
+      ...(result.execution ? { conversation: result.execution } : {})
+    }
+  }
+
+  private buildPendingPromptResult(
+    interaction: RemotePendingInteraction
+  ): FeishuCommandRouteResult {
+    return {
+      replies: [],
+      outboundActions: [
+        {
+          type: 'sendCard',
+          card: buildFeishuPendingInteractionCard(interaction),
+          fallbackText: buildFeishuPendingInteractionText(interaction)
+        }
+      ]
+    }
+  }
+
+  private resolvePendingTextResponse(
+    text: string,
+    interaction: RemotePendingInteraction
+  ): ToolInteractionResponse | null {
+    const normalized = text.trim()
+    if (!normalized) {
+      return null
+    }
+
+    if (interaction.type === 'permission') {
+      const lowered = normalized.toLowerCase()
+      if (lowered === 'allow') {
+        return { kind: 'permission', granted: true }
+      }
+      if (lowered === 'deny') {
+        return { kind: 'permission', granted: false }
+      }
+      return null
+    }
+
+    const question = interaction.question
+    if (!question) {
+      return null
+    }
+
+    if (!question.multiple) {
+      if (/^\d+$/.test(normalized)) {
+        const optionIndex = Number.parseInt(normalized, 10)
+        if (optionIndex > 0 && optionIndex <= question.options.length) {
+          return {
+            kind: 'question_option',
+            optionLabel: question.options[optionIndex - 1].label
+          }
+        }
+      }
+
+      const matchedOption = question.options.find(
+        (option) =>
+          option.label.localeCompare(normalized, undefined, { sensitivity: 'accent' }) === 0
+      )
+      if (matchedOption) {
+        return {
+          kind: 'question_option',
+          optionLabel: matchedOption.label
+        }
+      }
+    }
+
+    if (question.multiple || question.custom !== false) {
+      return {
+        kind: 'question_custom',
+        answerText: normalized
+      }
+    }
+
+    return null
+  }
+
+  private describeInteractionResponse(
+    interaction: RemotePendingInteraction,
+    response: ToolInteractionResponse
+  ): string {
+    if (interaction.type === 'permission' && response.kind === 'permission') {
+      return response.granted ? 'Approved. Continuing...' : 'Denied.'
+    }
+
+    if (response.kind === 'question_option') {
+      return `Selected: ${response.optionLabel}`
+    }
+
+    if (response.kind === 'question_custom') {
+      return `Answer received: ${response.answerText.trim()}`
+    }
+
+    return 'Reply with your answer in a new message.'
+  }
+
   private formatModelOverview(
     session: SessionWithState,
     providers: TelegramModelProviderOption[]
@@ -264,6 +410,31 @@ export class FeishuCommandRouter {
     ].join('\n')
   }
 
+  private formatPendingTextReplyHint(interaction: RemotePendingInteraction): string {
+    if (interaction.type === 'permission') {
+      return 'Reply with ALLOW or DENY.'
+    }
+
+    if (interaction.question?.multiple) {
+      return 'Reply with your answer in plain text.'
+    }
+
+    if (interaction.question?.custom !== false) {
+      return 'Reply with an option number, exact label, or your own answer.'
+    }
+
+    return 'Reply with an option number or exact label.'
+  }
+
+  private formatPendingCommandBlockedMessage(interaction: RemotePendingInteraction): string {
+    return `Resolve the pending ${interaction.type} first. Send /pending to review it again.`
+  }
+
+  private formatPendingStatus(interaction: RemotePendingInteraction): string {
+    const toolLabel = interaction.toolName.trim() || 'unknown tool'
+    return `${interaction.type} via ${toolLabel}`
+  }
+
   private formatStartMessage(isAuthorized: boolean): string {
     if (isAuthorized) {
       return [
@@ -281,7 +452,8 @@ export class FeishuCommandRouter {
   private formatHelpMessage(): string {
     return [
       'DeepChat Feishu Remote commands:',
-      ...FEISHU_REMOTE_COMMANDS.map((item) => `/${item.command} - ${item.description}`)
+      ...FEISHU_REMOTE_COMMANDS.map((item) => `/${item.command} - ${item.description}`),
+      'Plain text sends to the current bound session unless a tool interaction is waiting.'
     ].join('\n')
   }
 

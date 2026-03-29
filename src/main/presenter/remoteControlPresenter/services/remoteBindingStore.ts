@@ -1,6 +1,7 @@
 import type { IConfigPresenter, RemoteChannel } from '@shared/presenter'
 import {
   REMOTE_CONTROL_SETTING_KEY,
+  TELEGRAM_INTERACTION_CALLBACK_TTL_MS,
   TELEGRAM_MODEL_MENU_TTL_MS,
   normalizeRemoteControlConfig,
   createPairCode,
@@ -13,7 +14,9 @@ import {
   type RemoteControlConfig,
   type RemoteEndpointBinding,
   type RemoteEndpointBindingMeta,
+  type RemotePendingInteraction,
   type TelegramInboundEvent,
+  type TelegramPendingInteractionState,
   type TelegramModelMenuState,
   type TelegramPairingState,
   type TelegramRemoteRuntimeConfig
@@ -23,6 +26,7 @@ export class RemoteBindingStore {
   private readonly activeEvents = new Map<string, string>()
   private readonly sessionSnapshots = new Map<string, string[]>()
   private readonly modelMenuStates = new Map<string, TelegramModelMenuState>()
+  private readonly pendingInteractionStates = new Map<string, TelegramPendingInteractionState>()
 
   constructor(private readonly configPresenter: IConfigPresenter) {}
 
@@ -113,6 +117,7 @@ export class RemoteBindingStore {
     }))
     this.activeEvents.delete(endpointKey)
     this.clearModelMenuStatesForEndpoint(endpointKey)
+    this.clearPendingInteractionStatesForEndpoint(endpointKey)
   }
 
   clearBinding(endpointKey: string): void {
@@ -442,6 +447,43 @@ export class RemoteBindingStore {
     this.modelMenuStates.delete(token)
   }
 
+  createPendingInteractionState(
+    endpointKey: string,
+    interaction: Pick<RemotePendingInteraction, 'messageId' | 'toolCallId'>
+  ): string {
+    this.clearExpiredPendingInteractionStates()
+    this.clearPendingInteractionStatesForEndpoint(endpointKey)
+    const token = createTelegramCallbackToken()
+    this.pendingInteractionStates.set(token, {
+      endpointKey,
+      createdAt: Date.now(),
+      messageId: interaction.messageId,
+      toolCallId: interaction.toolCallId
+    })
+    return token
+  }
+
+  getPendingInteractionState(token: string, ttlMs: number = TELEGRAM_INTERACTION_CALLBACK_TTL_MS) {
+    this.clearExpiredPendingInteractionStates()
+    const state = this.pendingInteractionStates.get(token)
+    if (!state) {
+      return null
+    }
+
+    if (Date.now() - state.createdAt > ttlMs) {
+      this.pendingInteractionStates.delete(token)
+      return null
+    }
+
+    return {
+      ...state
+    }
+  }
+
+  clearPendingInteractionState(token: string): void {
+    this.pendingInteractionStates.delete(token)
+  }
+
   private getChannelBindings(channel: RemoteChannel): Record<string, RemoteEndpointBinding> {
     const config = this.getChannelConfig(channel)
     return config.bindings
@@ -481,6 +523,7 @@ export class RemoteBindingStore {
     this.activeEvents.delete(endpointKey)
     this.sessionSnapshots.delete(endpointKey)
     this.clearModelMenuStatesForEndpoint(endpointKey)
+    this.clearPendingInteractionStatesForEndpoint(endpointKey)
   }
 
   private clearExpiredModelMenuStates(): void {
@@ -496,6 +539,23 @@ export class RemoteBindingStore {
     for (const [token, state] of this.modelMenuStates.entries()) {
       if (state.endpointKey === endpointKey) {
         this.modelMenuStates.delete(token)
+      }
+    }
+  }
+
+  private clearExpiredPendingInteractionStates(): void {
+    const now = Date.now()
+    for (const [token, state] of this.pendingInteractionStates.entries()) {
+      if (now - state.createdAt > TELEGRAM_INTERACTION_CALLBACK_TTL_MS) {
+        this.pendingInteractionStates.delete(token)
+      }
+    }
+  }
+
+  private clearPendingInteractionStatesForEndpoint(endpointKey: string): void {
+    for (const [token, state] of this.pendingInteractionStates.entries()) {
+      if (state.endpointKey === endpointKey) {
+        this.pendingInteractionStates.delete(token)
       }
     }
   }
