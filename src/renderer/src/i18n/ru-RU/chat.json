@@ -119,7 +119,8 @@
   },
   "topbar": {
     "share": "Поделиться",
-    "more": "Ещё"
+    "more": "Ещё",
+    "backToParent": "Back to Parent"
   },
   "advancedSettings": {
     "button": "Расширенные",
@@ -152,7 +153,8 @@
     "sections": {
       "files": "Файлы",
       "git": "Git",
-      "artifacts": "Artifacts"
+      "artifacts": "Artifacts",
+      "subagents": "Subagents"
     },
     "files": {
       "contextMenu": {
@@ -206,7 +208,16 @@
         "truncated": "[обрезано]"
       }
     },
-    "title": "рабочее пространство"
+    "title": "рабочее пространство",
+    "subagents": {
+      "empty": "No child sessions yet",
+      "self": "Self",
+      "status": {
+        "working": "Running",
+        "error": "Error",
+        "idle": "Idle"
+      }
+    }
   },
   "modelPicker": {
     "empty": "Модели не найдены"
@@ -275,5 +286,8 @@
       "done": "Готово",
       "error": "Ошибка"
     }
+  },
+  "subagents": {
+    "label": "Subagents"
   }
 }

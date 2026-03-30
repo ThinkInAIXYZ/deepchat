@@ -54,6 +54,7 @@ import { AcpLaunchSpecService } from './acpLaunchSpecService'
 import { AcpProvider } from '../llmProviderPresenter/providers/acpProvider'
 import { resolveAcpAgentAlias } from './acpRegistryConstants'
 import { AgentRepository, BUILTIN_DEEPCHAT_AGENT_ID } from '../agentRepository'
+import { normalizeDeepChatSubagentConfig } from '@shared/lib/deepchatSubagents'
 import type {
   HookEventName,
   HookTestResult,
@@ -443,7 +444,7 @@ export class ConfigPresenter implements IConfigPresenter {
     const autoCompactionTriggerThreshold = this.store.get('autoCompactionTriggerThreshold')
     const autoCompactionRetainRecentPairs = this.store.get('autoCompactionRetainRecentPairs')
 
-    return {
+    return normalizeDeepChatSubagentConfig({
       defaultModelPreset:
         defaultModel?.providerId && defaultModel?.modelId
           ? {
@@ -474,7 +475,7 @@ export class ConfigPresenter implements IConfigPresenter {
         typeof autoCompactionTriggerThreshold === 'number' ? autoCompactionTriggerThreshold : 80,
       autoCompactionRetainRecentPairs:
         typeof autoCompactionRetainRecentPairs === 'number' ? autoCompactionRetainRecentPairs : 2
-    }
+    })
   }
 
   private syncRegistryAgentsToRepository(

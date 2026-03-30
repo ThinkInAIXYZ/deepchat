@@ -13,6 +13,7 @@ import type {
   CreateDeepChatAgentInput,
   UpdateDeepChatAgentInput
 } from '@shared/types/agent-interface'
+import { normalizeDeepChatSubagentConfig } from '@shared/lib/deepchatSubagents'
 import type { SQLitePresenter } from '../sqlitePresenter'
 import type { AgentRow } from '../sqlitePresenter/tables/agents'
 
@@ -63,25 +64,28 @@ const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T
 const mergeDeepChatConfig = (
   baseConfig: DeepChatAgentConfig,
   overrideConfig: DeepChatAgentConfig
-): DeepChatAgentConfig => ({
-  defaultModelPreset: overrideConfig.defaultModelPreset ?? baseConfig.defaultModelPreset ?? null,
-  assistantModel: overrideConfig.assistantModel ?? baseConfig.assistantModel ?? null,
-  visionModel: overrideConfig.visionModel ?? baseConfig.visionModel ?? null,
-  defaultProjectPath: overrideConfig.defaultProjectPath ?? baseConfig.defaultProjectPath ?? null,
-  systemPrompt: overrideConfig.systemPrompt ?? baseConfig.systemPrompt ?? '',
-  permissionMode: overrideConfig.permissionMode ?? baseConfig.permissionMode ?? 'full_access',
-  disabledAgentTools: overrideConfig.disabledAgentTools ?? baseConfig.disabledAgentTools ?? [],
-  autoCompactionEnabled:
-    overrideConfig.autoCompactionEnabled ?? baseConfig.autoCompactionEnabled ?? true,
-  autoCompactionTriggerThreshold:
-    overrideConfig.autoCompactionTriggerThreshold ??
-    baseConfig.autoCompactionTriggerThreshold ??
-    80,
-  autoCompactionRetainRecentPairs:
-    overrideConfig.autoCompactionRetainRecentPairs ??
-    baseConfig.autoCompactionRetainRecentPairs ??
-    2
-})
+): DeepChatAgentConfig =>
+  normalizeDeepChatSubagentConfig({
+    defaultModelPreset: overrideConfig.defaultModelPreset ?? baseConfig.defaultModelPreset ?? null,
+    assistantModel: overrideConfig.assistantModel ?? baseConfig.assistantModel ?? null,
+    visionModel: overrideConfig.visionModel ?? baseConfig.visionModel ?? null,
+    defaultProjectPath: overrideConfig.defaultProjectPath ?? baseConfig.defaultProjectPath ?? null,
+    systemPrompt: overrideConfig.systemPrompt ?? baseConfig.systemPrompt ?? '',
+    permissionMode: overrideConfig.permissionMode ?? baseConfig.permissionMode ?? 'full_access',
+    disabledAgentTools: overrideConfig.disabledAgentTools ?? baseConfig.disabledAgentTools ?? [],
+    subagentEnabled: overrideConfig.subagentEnabled ?? baseConfig.subagentEnabled ?? false,
+    subagents: overrideConfig.subagents ?? baseConfig.subagents ?? [],
+    autoCompactionEnabled:
+      overrideConfig.autoCompactionEnabled ?? baseConfig.autoCompactionEnabled ?? true,
+    autoCompactionTriggerThreshold:
+      overrideConfig.autoCompactionTriggerThreshold ??
+      baseConfig.autoCompactionTriggerThreshold ??
+      80,
+    autoCompactionRetainRecentPairs:
+      overrideConfig.autoCompactionRetainRecentPairs ??
+      baseConfig.autoCompactionRetainRecentPairs ??
+      2
+  })
 
 export class AgentRepository {
   constructor(private readonly sqlitePresenter: SQLitePresenter) {}
@@ -192,7 +196,8 @@ export class AgentRepository {
     if (!row || row.agent_type !== 'deepchat') {
       return null
     }
-    return parseJson<DeepChatAgentConfig>(row.config_json)
+    const config = parseJson<DeepChatAgentConfig>(row.config_json)
+    return config ? normalizeDeepChatSubagentConfig(config) : null
   }
 
   resolveDeepChatAgentConfig(agentId: string): DeepChatAgentConfig {

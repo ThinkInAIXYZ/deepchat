@@ -53,7 +53,12 @@ export interface INewAgentPresenter {
     targetMessageId: string,
     newTitle?: string
   ): Promise<SessionWithState>
-  getSessionList(filters?: { agentId?: string; projectDir?: string }): Promise<SessionWithState[]>
+  getSessionList(filters?: {
+    agentId?: string
+    projectDir?: string
+    includeSubagents?: boolean
+    parentSessionId?: string
+  }): Promise<SessionWithState[]>
   getSession(sessionId: string): Promise<SessionWithState | null>
   getMessages(sessionId: string): Promise<ChatMessageRecord[]>
   getSessionCompactionState(sessionId: string): Promise<SessionCompactionState>
@@ -99,6 +104,7 @@ export interface INewAgentPresenter {
   ): Promise<AcpConfigState | null>
   getPermissionMode(sessionId: string): Promise<PermissionMode>
   setPermissionMode(sessionId: string, mode: PermissionMode): Promise<void>
+  setSessionSubagentEnabled(sessionId: string, enabled: boolean): Promise<SessionWithState>
   setSessionModel(sessionId: string, providerId: string, modelId: string): Promise<SessionWithState>
   getSessionGenerationSettings(sessionId: string): Promise<SessionGenerationSettings | null>
   getSessionDisabledAgentTools(sessionId: string): Promise<string[]>

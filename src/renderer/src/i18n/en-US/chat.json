@@ -122,8 +122,12 @@
     "acpAgent": "ACP Agent"
   },
   "topbar": {
+    "backToParent": "Back to Parent",
     "share": "Share",
     "more": "More"
+  },
+  "subagents": {
+    "label": "Subagents"
   },
   "advancedSettings": {
     "button": "Advanced",
@@ -182,7 +186,8 @@
     "sections": {
       "files": "Files",
       "git": "Git",
-      "artifacts": "Artifacts"
+      "artifacts": "Artifacts",
+      "subagents": "Subagents"
     },
     "plan": {
       "section": "Plan",
@@ -210,6 +215,15 @@
       "clean": "Clean working tree",
       "staged": "Staged",
       "unstaged": "Unstaged"
+    },
+    "subagents": {
+      "empty": "No child sessions yet",
+      "self": "Self",
+      "status": {
+        "working": "Running",
+        "error": "Error",
+        "idle": "Idle"
+      }
     },
     "browser": {
       "section": "Browser",

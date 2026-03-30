@@ -394,6 +394,134 @@
         </section>
 
         <section class="space-y-4 rounded-2xl border border-border p-5">
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <div class="text-sm font-semibold">
+                {{ t('settings.deepchatAgents.subagentsTitle') }}
+              </div>
+              <div class="text-xs text-muted-foreground">
+                {{ t('settings.deepchatAgents.subagentsDescription') }}
+              </div>
+            </div>
+            <Switch
+              :model-value="form.subagentEnabled"
+              :aria-label="t('settings.deepchatAgents.subagentsEnabled')"
+              @update:model-value="form.subagentEnabled = $event"
+            />
+          </div>
+
+          <div class="space-y-3">
+            <div
+              v-for="(slot, index) in form.subagents"
+              :key="slot.id"
+              class="rounded-xl border border-border p-4"
+            >
+              <div class="flex items-center justify-between gap-3">
+                <div
+                  class="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground"
+                >
+                  {{ slot.id }}
+                </div>
+                <Button
+                  v-if="slot.targetType !== 'self'"
+                  variant="ghost"
+                  size="sm"
+                  class="h-7 px-2 text-xs"
+                  @click="removeSubagentSlot(index)"
+                >
+                  {{ t('common.delete') }}
+                </Button>
+              </div>
+
+              <div class="mt-4 grid gap-4 md:grid-cols-2">
+                <div class="space-y-2">
+                  <div class="text-sm font-medium">
+                    {{ t('settings.deepchatAgents.subagentTargetType') }}
+                  </div>
+                  <div class="flex gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      :class="
+                        slot.targetType === 'self' ? 'border-primary bg-accent/40' : 'border-border'
+                      "
+                      @click="setSubagentTargetType(slot, 'self')"
+                    >
+                      {{ t('settings.deepchatAgents.subagentTargetSelf') }}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      :class="
+                        slot.targetType === 'agent'
+                          ? 'border-primary bg-accent/40'
+                          : 'border-border'
+                      "
+                      @click="setSubagentTargetType(slot, 'agent')"
+                    >
+                      {{ t('settings.deepchatAgents.subagentTargetAgent') }}
+                    </Button>
+                  </div>
+                </div>
+
+                <label class="space-y-2">
+                  <div class="text-sm font-medium">
+                    {{ t('settings.deepchatAgents.subagentDisplayName') }}
+                  </div>
+                  <Input v-model="slot.displayName" />
+                </label>
+
+                <label v-if="slot.targetType === 'agent'" class="space-y-2 md:col-span-2">
+                  <div class="text-sm font-medium">
+                    {{ t('settings.deepchatAgents.subagentTargetAgentLabel') }}
+                  </div>
+                  <select
+                    v-model="slot.targetAgentId"
+                    class="flex h-10 w-full rounded-lg border border-border bg-background px-3 text-sm"
+                  >
+                    <option
+                      v-for="agentOption in availableSubagentTargetAgents"
+                      :key="agentOption.id"
+                      :value="agentOption.id"
+                    >
+                      {{ agentOption.name }}
+                    </option>
+                  </select>
+                </label>
+
+                <label class="space-y-2 md:col-span-2">
+                  <div class="text-sm font-medium">
+                    {{ t('settings.deepchatAgents.subagentDescription') }}
+                  </div>
+                  <Textarea v-model="slot.description" class="min-h-[72px]" />
+                </label>
+              </div>
+            </div>
+
+            <div class="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+              <span>
+                {{
+                  t('settings.deepchatAgents.subagentLimit', {
+                    count: form.subagents.length,
+                    max: subagentSlotLimit
+                  })
+                }}
+              </span>
+              <Button
+                size="sm"
+                variant="outline"
+                :disabled="form.subagents.length >= subagentSlotLimit"
+                @click="addSubagentSlot"
+              >
+                {{ t('settings.deepchatAgents.addSubagentSlot') }}
+              </Button>
+            </div>
+          </div>
+        </section>
+
+        <section class="space-y-4 rounded-2xl border border-border p-5">
           <div class="text-sm font-semibold">{{ t('settings.deepchatAgents.toolsTitle') }}</div>
           <div
             v-if="groupedTools.length === 0"
@@ -533,10 +661,16 @@ import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type {
   Agent,
   AgentAvatar as AgentAvatarValue,
+  DeepChatSubagentSlot,
   PermissionMode,
   Project
 } from '@shared/types/agent-interface'
 import type { RENDERER_MODEL_META, SystemPrompt } from '@shared/presenter'
+import {
+  DEEPCHAT_SUBAGENT_SLOT_LIMIT,
+  createDefaultDeepChatSelfSubagentSlot,
+  normalizeDeepChatSubagentSlots
+} from '@shared/lib/deepchatSubagents'
 
 type ModelKey = 'chatModel' | 'assistantModel' | 'visionModel'
 type AvatarKind = 'default' | 'lucide' | 'monogram'
@@ -549,6 +683,7 @@ type SidebarAgentItem = {
   avatar: AgentAvatarValue | null
   icon?: string
 }
+type EditableSubagentSlot = DeepChatSubagentSlot
 type ToolGroup = {
   name: string
   label: string
@@ -572,6 +707,8 @@ type FormState = {
   defaultProjectPath: string
   systemPrompt: string
   permissionMode: PermissionMode
+  subagentEnabled: boolean
+  subagents: EditableSubagentSlot[]
   disabledAgentTools: string[]
   autoCompactionEnabled: boolean
   autoCompactionTriggerThreshold: string
@@ -592,6 +729,7 @@ const configPresenter = usePresenter('configPresenter')
 const projectPresenter = usePresenter('projectPresenter', { safeCall: false })
 const toolPresenter = usePresenter('toolPresenter')
 const modelStore = useModelStore()
+const subagentSlotLimit = DEEPCHAT_SUBAGENT_SLOT_LIMIT
 
 const agents = ref<Agent[]>([])
 const tools = ref<MCPToolDefinition[]>([])
@@ -624,6 +762,8 @@ const form = reactive<FormState>({
   defaultProjectPath: '',
   systemPrompt: '',
   permissionMode: 'full_access',
+  subagentEnabled: false,
+  subagents: normalizeDeepChatSubagentSlots([createDefaultDeepChatSelfSubagentSlot()]),
   disabledAgentTools: [],
   autoCompactionEnabled: true,
   autoCompactionTriggerThreshold: '80',
@@ -763,6 +903,9 @@ const groupedTools = computed<ToolGroup[]>(() => {
       return left.name.localeCompare(right.name)
     })
 })
+const availableSubagentTargetAgents = computed(() =>
+  agents.value.filter((agent) => agent.type === 'deepchat' || agent.type === 'acp')
+)
 const draftSidebarAgent = computed<SidebarAgentItem>(() => ({
   id: DRAFT_AGENT_ID,
   name: form.name.trim() || t('settings.deepchatAgents.unnamed'),
@@ -816,6 +959,8 @@ const emptyForm = (): FormState => ({
   defaultProjectPath: '',
   systemPrompt: '',
   permissionMode: 'full_access',
+  subagentEnabled: false,
+  subagents: normalizeDeepChatSubagentSlots([createDefaultDeepChatSelfSubagentSlot()]),
   disabledAgentTools: [],
   autoCompactionEnabled: true,
   autoCompactionTriggerThreshold: '80',
@@ -833,6 +978,8 @@ const parseNum = (value: string) => {
   const parsed = Number(normalized)
   return Number.isFinite(parsed) ? parsed : undefined
 }
+const createAgentSlotId = () =>
+  `slot-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`
 const numText = (value: unknown) =>
   typeof value === 'number' && Number.isFinite(value) ? String(value) : ''
 const buildAvatar = (): AgentAvatarValue | null => {
@@ -885,6 +1032,8 @@ const fromAgent = (agent?: Agent | null): FormState => {
     defaultProjectPath: normalizePath(config.defaultProjectPath) ?? '',
     systemPrompt: config.systemPrompt ?? '',
     permissionMode: config.permissionMode === 'default' ? 'default' : 'full_access',
+    subagentEnabled: config.subagentEnabled === true,
+    subagents: normalizeDeepChatSubagentSlots(config.subagents),
     disabledAgentTools: [...(config.disabledAgentTools ?? [])],
     autoCompactionEnabled: config.autoCompactionEnabled ?? true,
     autoCompactionTriggerThreshold: numText(config.autoCompactionTriggerThreshold ?? 80),
@@ -909,6 +1058,41 @@ const modelText = (selection: EditableModel | undefined) => {
 }
 const getModelLabel = (key: ModelKey) => modelText(form[key])
 const getModelIconId = (key: ModelKey) => form[key]?.modelId ?? ''
+const setSubagentTargetType = (
+  slot: EditableSubagentSlot,
+  targetType: EditableSubagentSlot['targetType']
+) => {
+  slot.targetType = targetType
+  if (targetType === 'self') {
+    delete slot.targetAgentId
+    return
+  }
+
+  const firstAgent = availableSubagentTargetAgents.value[0]
+  slot.targetAgentId = slot.targetAgentId || firstAgent?.id || 'deepchat'
+}
+const addSubagentSlot = () => {
+  if (form.subagents.length >= subagentSlotLimit) {
+    return
+  }
+
+  const firstAgent = availableSubagentTargetAgents.value[0]
+  form.subagents.push({
+    id: createAgentSlotId(),
+    targetType: 'agent',
+    targetAgentId: firstAgent?.id || 'deepchat',
+    displayName: '',
+    description: ''
+  })
+}
+const removeSubagentSlot = (index: number) => {
+  const slot = form.subagents[index]
+  if (!slot || slot.targetType === 'self') {
+    return
+  }
+
+  form.subagents.splice(index, 1)
+}
 const clearModel = (key: ModelKey) => {
   form[key] = null
 }
@@ -1054,6 +1238,8 @@ const saveAgent = async () => {
         defaultProjectPath: normalizePath(form.defaultProjectPath),
         systemPrompt: form.systemPrompt,
         permissionMode: form.permissionMode,
+        subagentEnabled: form.subagentEnabled,
+        subagents: normalizeDeepChatSubagentSlots(form.subagents),
         disabledAgentTools: [...form.disabledAgentTools],
         autoCompactionEnabled: form.autoCompactionEnabled,
         autoCompactionTriggerThreshold: parseNum(form.autoCompactionTriggerThreshold) ?? 80,

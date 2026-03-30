@@ -119,7 +119,8 @@
   },
   "topbar": {
     "share": "共有",
-    "more": "その他"
+    "more": "その他",
+    "backToParent": "Back to Parent"
   },
   "advancedSettings": {
     "button": "詳細設定",
@@ -152,7 +153,8 @@
     "sections": {
       "files": "ファイル",
       "git": "Git",
-      "artifacts": "Artifacts"
+      "artifacts": "Artifacts",
+      "subagents": "Subagents"
     },
     "files": {
       "contextMenu": {
@@ -206,7 +208,16 @@
         "aborted": "中止"
       }
     },
-    "title": "ワークスペース"
+    "title": "ワークスペース",
+    "subagents": {
+      "empty": "No child sessions yet",
+      "self": "Self",
+      "status": {
+        "working": "Running",
+        "error": "Error",
+        "idle": "Idle"
+      }
+    }
   },
   "modelPicker": {
     "empty": "モデルが見つかりません"
@@ -275,5 +286,8 @@
       "done": "完了",
       "error": "エラー"
     }
+  },
+  "subagents": {
+    "label": "Subagents"
   }
 }

@@ -1626,6 +1626,17 @@
     "compactionDescription": "這些預設值只會影響之後新建立的 DeepChat 會話。",
     "compactionThreshold": "觸發門檻",
     "compactionRetainPairs": "保留最近訊息對",
-    "deleteConfirm": "確定要刪除智能體「{name}」嗎？它的歷史會話會自動回退到內建 DeepChat 智能體。"
+    "deleteConfirm": "確定要刪除智能體「{name}」嗎？它的歷史會話會自動回退到內建 DeepChat 智能體。",
+    "subagentsTitle": "Subagents",
+    "subagentsDescription": "Configure the reusable child-session slots exposed to subagent_orchestrator.",
+    "subagentsEnabled": "Enable subagents",
+    "subagentTargetType": "Target type",
+    "subagentTargetSelf": "Self",
+    "subagentTargetAgent": "Agent",
+    "subagentDisplayName": "Display name",
+    "subagentDescription": "Slot description",
+    "subagentTargetAgentLabel": "Target agent",
+    "subagentLimit": "{count}/{max} slots",
+    "addSubagentSlot": "+ Add Slot"
   }
 }

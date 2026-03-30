@@ -1626,6 +1626,17 @@
     "compactionDescription": "이 기본값은 앞으로 만드는 DeepChat 세션에만 적용됩니다.",
     "compactionThreshold": "트리거 임계값",
     "compactionRetainPairs": "최근 페어 유지",
-    "deleteConfirm": "에이전트 \"{name}\"을(를) 삭제할까요? 기록은 내장 DeepChat 에이전트로 이동합니다."
+    "deleteConfirm": "에이전트 \"{name}\"을(를) 삭제할까요? 기록은 내장 DeepChat 에이전트로 이동합니다.",
+    "subagentsTitle": "Subagents",
+    "subagentsDescription": "Configure the reusable child-session slots exposed to subagent_orchestrator.",
+    "subagentsEnabled": "Enable subagents",
+    "subagentTargetType": "Target type",
+    "subagentTargetSelf": "Self",
+    "subagentTargetAgent": "Agent",
+    "subagentDisplayName": "Display name",
+    "subagentDescription": "Slot description",
+    "subagentTargetAgentLabel": "Target agent",
+    "subagentLimit": "{count}/{max} slots",
+    "addSubagentSlot": "+ Add Slot"
   }
 }

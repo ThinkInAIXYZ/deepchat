@@ -10,6 +10,10 @@ export interface NewSessionRow {
   is_draft: number
   active_skills: string
   disabled_agent_tools: string
+  subagent_enabled: number
+  session_kind: 'regular' | 'subagent'
+  parent_session_id: string | null
+  subagent_meta_json: string | null
   created_at: number
   updated_at: number
 }
@@ -49,6 +53,14 @@ export class NewSessionsTable extends BaseTable {
     if (version >= 16) {
       columns.push("disabled_agent_tools TEXT NOT NULL DEFAULT '[]'")
     }
+    if (version >= 20) {
+      columns.push(
+        'subagent_enabled INTEGER NOT NULL DEFAULT 0',
+        "session_kind TEXT NOT NULL DEFAULT 'regular'",
+        'parent_session_id TEXT',
+        'subagent_meta_json TEXT'
+      )
+    }
 
     columns.push('created_at INTEGER NOT NULL', 'updated_at INTEGER NOT NULL')
 
@@ -71,11 +83,19 @@ export class NewSessionsTable extends BaseTable {
     if (version === 16) {
       return `ALTER TABLE new_sessions ADD COLUMN disabled_agent_tools TEXT NOT NULL DEFAULT '[]';`
     }
+    if (version === 20) {
+      return `
+        ALTER TABLE new_sessions ADD COLUMN subagent_enabled INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE new_sessions ADD COLUMN session_kind TEXT NOT NULL DEFAULT 'regular';
+        ALTER TABLE new_sessions ADD COLUMN parent_session_id TEXT;
+        ALTER TABLE new_sessions ADD COLUMN subagent_meta_json TEXT;
+      `
+    }
     return null
   }
 
   getLatestVersion(): number {
-    return 16
+    return 20
   }
 
   create(
@@ -88,6 +108,10 @@ export class NewSessionsTable extends BaseTable {
       isPinned?: boolean
       activeSkills?: string[]
       disabledAgentTools?: string[]
+      subagentEnabled?: boolean
+      sessionKind?: 'regular' | 'subagent'
+      parentSessionId?: string | null
+      subagentMetaJson?: string | null
       createdAt?: number
       updatedAt?: number
     }
@@ -106,9 +130,13 @@ export class NewSessionsTable extends BaseTable {
           is_draft,
           active_skills,
           disabled_agent_tools,
+          subagent_enabled,
+          session_kind,
+          parent_session_id,
+          subagent_meta_json,
           created_at,
           updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         id,
@@ -119,6 +147,10 @@ export class NewSessionsTable extends BaseTable {
         options?.isDraft ? 1 : 0,
         JSON.stringify(options?.activeSkills ?? []),
         JSON.stringify(options?.disabledAgentTools ?? []),
+        options?.subagentEnabled ? 1 : 0,
+        options?.sessionKind === 'subagent' ? 'subagent' : 'regular',
+        options?.parentSessionId ?? null,
+        options?.subagentMetaJson ?? null,
         createdAt,
         updatedAt
       )
@@ -130,7 +162,12 @@ export class NewSessionsTable extends BaseTable {
       | undefined
   }
 
-  list(filters?: { agentId?: string; projectDir?: string }): NewSessionRow[] {
+  list(filters?: {
+    agentId?: string
+    projectDir?: string
+    includeSubagents?: boolean
+    parentSessionId?: string
+  }): NewSessionRow[] {
     let sql = 'SELECT * FROM new_sessions'
     const conditions: string[] = []
     const params: unknown[] = []
@@ -142,6 +179,13 @@ export class NewSessionsTable extends BaseTable {
     if (filters?.projectDir) {
       conditions.push('project_dir = ?')
       params.push(filters.projectDir)
+    }
+    if (filters?.includeSubagents !== true) {
+      conditions.push("session_kind = 'regular'")
+    }
+    if (filters?.parentSessionId !== undefined) {
+      conditions.push('parent_session_id = ?')
+      params.push(filters.parentSessionId)
     }
 
     if (conditions.length > 0) {
@@ -163,6 +207,10 @@ export class NewSessionsTable extends BaseTable {
         | 'is_draft'
         | 'active_skills'
         | 'disabled_agent_tools'
+        | 'subagent_enabled'
+        | 'session_kind'
+        | 'parent_session_id'
+        | 'subagent_meta_json'
       >
     >
   ): void {
@@ -192,6 +240,22 @@ export class NewSessionsTable extends BaseTable {
     if (fields.disabled_agent_tools !== undefined) {
       setClauses.push('disabled_agent_tools = ?')
       params.push(fields.disabled_agent_tools)
+    }
+    if (fields.subagent_enabled !== undefined) {
+      setClauses.push('subagent_enabled = ?')
+      params.push(fields.subagent_enabled)
+    }
+    if (fields.session_kind !== undefined) {
+      setClauses.push('session_kind = ?')
+      params.push(fields.session_kind)
+    }
+    if (fields.parent_session_id !== undefined) {
+      setClauses.push('parent_session_id = ?')
+      params.push(fields.parent_session_id)
+    }
+    if (fields.subagent_meta_json !== undefined) {
+      setClauses.push('subagent_meta_json = ?')
+      params.push(fields.subagent_meta_json)
     }
 
     if (setClauses.length === 0) return

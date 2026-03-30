@@ -119,7 +119,8 @@
   },
   "topbar": {
     "share": "공유",
-    "more": "더보기"
+    "more": "더보기",
+    "backToParent": "Back to Parent"
   },
   "advancedSettings": {
     "button": "고급 설정",
@@ -152,7 +153,8 @@
     "sections": {
       "files": "파일",
       "git": "Git",
-      "artifacts": "Artifacts"
+      "artifacts": "Artifacts",
+      "subagents": "Subagents"
     },
     "files": {
       "contextMenu": {
@@ -206,7 +208,16 @@
         "truncated": "[잘림]"
       }
     },
-    "title": "작업 공간"
+    "title": "작업 공간",
+    "subagents": {
+      "empty": "No child sessions yet",
+      "self": "Self",
+      "status": {
+        "working": "Running",
+        "error": "Error",
+        "idle": "Idle"
+      }
+    }
   },
   "modelPicker": {
     "empty": "모델을 찾을 수 없습니다"
@@ -275,5 +286,8 @@
       "done": "완료",
       "error": "오류"
     }
+  },
+  "subagents": {
+    "label": "Subagents"
   }
 }

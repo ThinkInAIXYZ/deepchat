@@ -5,7 +5,7 @@
 
 export type SidePanelTab = 'workspace' | 'browser'
 
-export type WorkspaceNavSection = 'artifacts' | 'files' | 'git'
+export type WorkspaceNavSection = 'artifacts' | 'files' | 'git' | 'subagents'
 
 export type WorkspaceViewMode = 'preview' | 'code'
 

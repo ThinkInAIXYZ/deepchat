@@ -119,7 +119,8 @@
   },
   "topbar": {
     "share": "שיתוף",
-    "more": "עוד"
+    "more": "עוד",
+    "backToParent": "Back to Parent"
   },
   "advancedSettings": {
     "button": "מתקדם",
@@ -152,7 +153,8 @@
     "sections": {
       "files": "קבצים",
       "git": "Git",
-      "artifacts": "Artifacts"
+      "artifacts": "Artifacts",
+      "subagents": "Subagents"
     },
     "files": {
       "contextMenu": {
@@ -206,7 +208,16 @@
         "truncated": "[מקוצר]"
       }
     },
-    "title": "סביבת עבודה"
+    "title": "סביבת עבודה",
+    "subagents": {
+      "empty": "No child sessions yet",
+      "self": "Self",
+      "status": {
+        "working": "Running",
+        "error": "Error",
+        "idle": "Idle"
+      }
+    }
   },
   "modelPicker": {
     "empty": "לא נמצאו מודלים"
@@ -275,5 +286,8 @@
       "done": "הושלם",
       "error": "שגיאה"
     }
+  },
+  "subagents": {
+    "label": "Subagents"
   }
 }

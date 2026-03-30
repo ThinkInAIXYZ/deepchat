@@ -694,7 +694,11 @@ describe('NewAgentPresenter', () => {
         '/workspaces/remote-default',
         {
           isDraft: false,
-          disabledAgentTools: []
+          disabledAgentTools: [],
+          subagentEnabled: false,
+          sessionKind: undefined,
+          parentSessionId: undefined,
+          subagentMetaJson: null
         }
       )
     })

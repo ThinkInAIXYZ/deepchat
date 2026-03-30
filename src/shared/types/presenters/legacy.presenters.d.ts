@@ -1732,7 +1732,18 @@ export interface IMCPPresenter {
   getAllResources(): Promise<Array<ResourceListEntry & { client: { name: string; icon: string } }>>
   getPrompt(prompt: PromptListEntry, args?: Record<string, unknown>): Promise<unknown>
   readResource(resource: ResourceListEntry): Promise<Resource>
-  callTool(request: MCPToolCall): Promise<{ content: string; rawData: MCPToolResponse }>
+  callTool(
+    request: MCPToolCall,
+    options?: {
+      onProgress?: (update: {
+        kind: 'subagent_orchestrator'
+        toolCallId: string
+        responseMarkdown: string
+        progressJson: string
+      }) => void
+      signal?: AbortSignal
+    }
+  ): Promise<{ content: string; rawData: MCPToolResponse }>
   preCheckToolPermission?(request: MCPToolCall): Promise<{
     needsPermission: true
     toolName: string

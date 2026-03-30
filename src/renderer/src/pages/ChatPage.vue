@@ -353,6 +353,7 @@ const handleContextMenuAskAI = (event: Event) => {
 }
 
 type PendingInteractionView = {
+  sessionId: string
   messageId: string
   toolCallId: string
   actionType: 'question_request' | 'tool_call_permission'
@@ -361,12 +362,37 @@ type PendingInteractionView = {
   block: AssistantMessageBlock
 }
 
+type SubagentProgressPayload = {
+  tasks?: Array<{
+    sessionId?: string | null
+    waitingInteraction?: {
+      type: 'permission' | 'question'
+      messageId: string
+      toolCallId: string
+      actionBlock: AssistantMessageBlock
+    } | null
+  }>
+}
+
 function parseAssistantBlocks(content: string): AssistantMessageBlock[] {
   try {
     const parsed = JSON.parse(content) as AssistantMessageBlock[]
     return Array.isArray(parsed) ? parsed : []
   } catch {
     return []
+  }
+}
+
+function parseSubagentProgress(value: unknown): SubagentProgressPayload | null {
+  if (typeof value !== 'string' || !value.trim()) {
+    return null
+  }
+
+  try {
+    const parsed = JSON.parse(value) as SubagentProgressPayload
+    return Array.isArray(parsed?.tasks) ? parsed : null
+  } catch {
+    return null
   }
 }
 
@@ -394,6 +420,7 @@ const pendingInteractions = computed<PendingInteractionView[]>(() => {
       }
 
       list.push({
+        sessionId: props.sessionId,
         messageId: message.id,
         toolCallId,
         actionType: block.action_type,
@@ -401,6 +428,34 @@ const pendingInteractions = computed<PendingInteractionView[]>(() => {
         toolArgs: block.tool_call?.params || '',
         block
       })
+    }
+
+    for (const block of blocks) {
+      if (block.type !== 'tool_call' || block.tool_call?.name !== 'subagent_orchestrator') {
+        continue
+      }
+
+      const progress = parseSubagentProgress(block.extra?.subagentProgress)
+      if (!progress?.tasks?.length) {
+        continue
+      }
+
+      for (const task of progress.tasks) {
+        const waiting = task.waitingInteraction
+        if (!waiting?.actionBlock || !task.sessionId) {
+          continue
+        }
+
+        list.push({
+          sessionId: task.sessionId,
+          messageId: waiting.messageId,
+          toolCallId: waiting.toolCallId,
+          actionType: waiting.type === 'question' ? 'question_request' : 'tool_call_permission',
+          toolName: waiting.actionBlock.tool_call?.name || block.tool_call?.name || '',
+          toolArgs: waiting.actionBlock.tool_call?.params || '',
+          block: waiting.actionBlock
+        })
+      }
     }
   }
 
@@ -499,7 +554,7 @@ async function onToolInteractionRespond(response: ToolInteractionResponse) {
   isHandlingInteraction.value = true
   try {
     await newAgentPresenter.respondToolInteraction(
-      props.sessionId,
+      interaction.sessionId,
       interaction.messageId,
       interaction.toolCallId,
       response

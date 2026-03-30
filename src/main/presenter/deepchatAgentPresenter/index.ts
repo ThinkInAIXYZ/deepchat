@@ -53,6 +53,12 @@ import type { ProviderRequestTracePayload } from '../llmProviderPresenter/reques
 import type { NewSessionHooksBridge } from '../hooksNotifications/newSessionBridge'
 import { providerDbLoader } from '../configPresenter/providerDbLoader'
 import { resolveSessionVisionTarget } from '../vision/sessionVisionResolver'
+import {
+  buildAssistantPreviewMarkdown,
+  buildAssistantResponseMarkdown,
+  emitDeepChatInternalSessionUpdate,
+  extractWaitingInteraction
+} from './internalSessionEvents'
 
 type PendingInteractionEntry = {
   interaction: PendingToolInteraction
@@ -630,7 +636,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
               params: toolCall.params
             }
           })
-          const execution = await this.executeDeferredToolCall(sessionId, toolCall)
+          const execution = await this.executeDeferredToolCall(sessionId, messageId, toolCall)
           if (execution.terminalError) {
             this.dispatchHook('PostToolUseFailure', {
               sessionId,
@@ -2793,6 +2799,42 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     toolBlock.status = isError ? 'error' : 'success'
   }
 
+  private updateSubagentToolCallProgress(
+    sessionId: string,
+    messageId: string,
+    toolCallId: string,
+    responseMarkdown: string,
+    progressJson: string,
+    finalJson?: string
+  ): void {
+    const message = this.messageStore.getMessage(messageId)
+    if (!message || message.role !== 'assistant') {
+      return
+    }
+
+    try {
+      const blocks = JSON.parse(message.content) as AssistantMessageBlock[]
+      const toolBlock = blocks.find(
+        (block) => block.type === 'tool_call' && block.tool_call?.id === toolCallId
+      )
+      if (!toolBlock?.tool_call) {
+        return
+      }
+
+      toolBlock.tool_call.response = responseMarkdown
+      toolBlock.status = finalJson ? 'success' : 'loading'
+      toolBlock.extra = {
+        ...toolBlock.extra,
+        subagentProgress: progressJson,
+        ...(finalJson ? { subagentFinal: finalJson } : {})
+      }
+      this.messageStore.updateAssistantContent(messageId, blocks)
+      this.emitMessageRefresh(sessionId, messageId)
+    } catch (error) {
+      console.warn('[DeepChatAgent] Failed to persist subagent tool progress:', error)
+    }
+  }
+
   private async grantPermissionForPayload(
     sessionId: string,
     payload: PendingToolInteraction['permission'] | undefined,
@@ -2836,6 +2878,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
 
   private async executeDeferredToolCall(
     sessionId: string,
+    messageId: string,
     toolCall: NonNullable<AssistantMessageBlock['tool_call']>
   ): Promise<DeferredToolExecutionResult> {
     if (!this.toolPresenter) {
@@ -2895,7 +2938,25 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     }
 
     try {
-      const result = await this.toolPresenter.callTool(request)
+      const result = await this.toolPresenter.callTool(request, {
+        onProgress: (update) => {
+          if (
+            update.kind !== 'subagent_orchestrator' ||
+            update.toolCallId !== (toolCall.id || '')
+          ) {
+            return
+          }
+
+          this.updateSubagentToolCallProgress(
+            sessionId,
+            messageId,
+            toolCall.id || '',
+            update.responseMarkdown,
+            update.progressJson
+          )
+        },
+        signal: this.getAbortSignalForSession(sessionId)
+      })
       const rawData = result.rawData as MCPToolResponse
       if (rawData.requiresPermission) {
         return {
@@ -2904,6 +2965,22 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
           requiresPermission: true,
           permissionRequest: rawData.permissionRequest as PendingToolInteraction['permission']
         }
+      }
+      const subagentToolResult =
+        rawData.toolResult && typeof rawData.toolResult === 'object'
+          ? (rawData.toolResult as Record<string, unknown>)
+          : null
+      if (typeof subagentToolResult?.subagentProgress === 'string') {
+        this.updateSubagentToolCallProgress(
+          sessionId,
+          messageId,
+          toolCall.id || '',
+          this.toolContentToText(rawData.content),
+          subagentToolResult.subagentProgress,
+          typeof subagentToolResult.subagentFinal === 'string'
+            ? subagentToolResult.subagentFinal
+            : undefined
+        )
       }
       const normalizedContent = await this.normalizeToolResultContent({
         sessionId,
@@ -3387,6 +3464,12 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       sessionId,
       status
     })
+    emitDeepChatInternalSessionUpdate({
+      sessionId,
+      kind: 'status',
+      updatedAt: Date.now(),
+      status
+    })
 
     try {
       void presenter.floatingButtonPresenter.refreshWidgetState()
@@ -3401,6 +3484,26 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       eventId: messageId,
       messageId
     })
+
+    const message = this.messageStore.getMessage(messageId)
+    if (!message || message.role !== 'assistant') {
+      return
+    }
+
+    try {
+      const blocks = JSON.parse(message.content) as AssistantMessageBlock[]
+      emitDeepChatInternalSessionUpdate({
+        sessionId,
+        kind: 'blocks',
+        updatedAt: Date.now(),
+        messageId,
+        previewMarkdown: buildAssistantPreviewMarkdown(blocks),
+        responseMarkdown: buildAssistantResponseMarkdown(blocks),
+        waitingInteraction: extractWaitingInteraction(blocks, messageId)
+      })
+    } catch (error) {
+      console.warn('[DeepChatAgent] Failed to emit internal message refresh:', error)
+    }
   }
 
   private normalizeProjectDir(projectDir?: string | null): string | null {

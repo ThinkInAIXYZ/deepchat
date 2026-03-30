@@ -52,7 +52,53 @@
         data-testid="tool-call-details"
         class="rounded-lg border bg-muted text-card-foreground px-2 py-3 mt-2 mb-4 w-full"
       >
-        <div class="flex flex-col gap-4">
+        <div v-if="isSubagentOrchestrator" class="flex flex-col gap-3">
+          <div
+            v-for="task in subagentTasks"
+            :key="task.taskId"
+            class="rounded-lg border bg-background/90 px-3 py-3"
+          >
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0 flex-1">
+                <div class="truncate text-xs font-semibold text-foreground">
+                  {{ task.targetAgentName }}
+                </div>
+                <div class="mt-1 truncate text-[11px] text-muted-foreground">
+                  {{ task.title }}
+                </div>
+              </div>
+              <div class="flex items-center gap-2 shrink-0">
+                <span
+                  :class="getSubagentStatusClass(task.status)"
+                  class="rounded-full px-2 py-0.5 text-[10px] font-medium"
+                >
+                  {{ task.status }}
+                </span>
+                <button
+                  v-if="task.sessionId"
+                  class="rounded-md border px-2 py-1 text-[10px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                  @click.stop="openSubagentSession(task.sessionId)"
+                >
+                  {{ t('common.open') }}
+                </button>
+              </div>
+            </div>
+            <div
+              v-if="getSubagentPreviewLines(task).length > 0"
+              class="mt-3 space-y-1 text-[11px] text-muted-foreground"
+            >
+              <div
+                v-for="(line, index) in getSubagentPreviewLines(task)"
+                :key="`${task.taskId}-${index}`"
+                class="break-words"
+              >
+                > {{ line }}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div v-else class="flex flex-col gap-4">
           <div
             v-if="expandedToolTitle"
             data-testid="tool-call-expanded-title"
@@ -147,12 +193,14 @@ import { useI18n } from 'vue-i18n'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { CodeBlockNode } from 'markstream-vue'
 import { useThemeStore } from '@/stores/theme'
+import { useSessionStore } from '@/stores/ui/session'
 import { getLanguageFromFilename } from '@shared/utils/codeLanguage'
 import type { DisplayAssistantMessageBlock } from '@/components/chat/messageListItems'
 
 const { t } = useI18n()
 
 const themeStore = useThemeStore()
+const sessionStore = useSessionStore()
 
 const props = defineProps<{
   block: DisplayAssistantMessageBlock
@@ -279,17 +327,66 @@ const parsedParamsRecord = computed(() =>
 )
 
 const rawToolName = computed(() => props.block.tool_call?.name?.trim().toLowerCase() ?? '')
+const isSubagentOrchestrator = computed(() => rawToolName.value === 'subagent_orchestrator')
+
+type SubagentProgressTask = {
+  taskId: string
+  title: string
+  slotId: string
+  sessionId?: string | null
+  targetAgentId?: string | null
+  targetAgentName: string
+  status: string
+  previewMarkdown?: string
+  updatedAt?: number
+  resultSummary?: string
+}
+
+type SubagentProgressPayload = {
+  runId: string
+  mode: 'parallel' | 'chain'
+  tasks: SubagentProgressTask[]
+}
+
+const parseSubagentProgress = (value: unknown): SubagentProgressPayload | null => {
+  if (typeof value !== 'string' || !value.trim()) {
+    return null
+  }
+
+  try {
+    const parsed = JSON.parse(value) as SubagentProgressPayload
+    return Array.isArray(parsed?.tasks) ? parsed : null
+  } catch {
+    return null
+  }
+}
 
 const matchesToolContractName = (toolName: string, expectedName: string): boolean =>
   toolName === expectedName || toolName.endsWith(`_${expectedName}`)
 
 const summaryText = computed(() => {
+  if (isSubagentOrchestrator.value) {
+    const progress =
+      parseSubagentProgress(props.block.extra?.subagentProgress) ??
+      parseSubagentProgress(props.block.extra?.subagentFinal)
+    if (progress) {
+      return `${progress.mode} · ${progress.tasks.length} subagents`
+    }
+  }
+
   const raw = paramsText.value.trim()
   if (!raw) return ''
   if (!parsedParams.value.isJson) {
     return normalizeInlineText(raw)
   }
   return formatSummaryValue(extractFirstSummaryValue(parsedParams.value.value))
+})
+
+const subagentTasks = computed<SubagentProgressTask[]>(() => {
+  const progress =
+    parseSubagentProgress(props.block.extra?.subagentProgress) ??
+    parseSubagentProgress(props.block.extra?.subagentFinal)
+  return progress?.tasks ?? []
 })
 
 const updateSummaryOverflow = () => {
@@ -310,6 +407,9 @@ const isExecTool = computed(() => {
 const isProcessTool = computed(() => matchesToolContractName(rawToolName.value, 'process'))
 
 const shouldAutoExpand = computed(() => {
+  if (isSubagentOrchestrator.value) {
+    return props.block.status === 'loading'
+  }
   if (props.block.status !== 'loading') return false
   if (isProcessTool.value) return true
   if (!isExecTool.value || !parsedParamsRecord.value) return false
@@ -550,6 +650,30 @@ const copyResponse = async () => {
   } catch (error) {
     console.error('[MessageBlockToolCall] Failed to copy response:', error)
   }
+}
+
+const getSubagentPreviewLines = (task: SubagentProgressTask): string[] =>
+  (task.previewMarkdown ?? '')
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .slice(-3)
+
+const getSubagentStatusClass = (status: string): string => {
+  if (status === 'completed') {
+    return 'bg-emerald-500/10 text-emerald-600'
+  }
+  if (status === 'error' || status === 'cancelled') {
+    return 'bg-destructive/10 text-destructive'
+  }
+  if (status.startsWith('waiting')) {
+    return 'bg-amber-500/10 text-amber-600'
+  }
+  return 'bg-muted text-muted-foreground'
+}
+
+const openSubagentSession = (sessionId: string) => {
+  void sessionStore.selectSession(sessionId)
 }
 </script>
 

@@ -71,6 +71,8 @@ import { RemoteControlPresenter } from './remoteControlPresenter'
 import type { RemoteControlPresenterLike } from './remoteControlPresenter/interface'
 import { AgentRepository } from './agentRepository'
 import type { SQLitePresenter } from './sqlitePresenter'
+import { normalizeDeepChatSubagentSlots } from '@shared/lib/deepchatSubagents'
+import { subscribeDeepChatInternalSessionUpdates } from './deepchatAgentPresenter/internalSessionEvents'
 
 // IPC调用上下文接口
 interface IPCCallContext {
@@ -265,12 +267,68 @@ export class Presenter implements IPresenter {
           return null
         }
 
+        const agent = await this.configPresenter.getAgent(session.agentId)
+        const agentType = await this.configPresenter.getAgentType(session.agentId)
+        const permissionMode =
+          typeof this.newAgentPresenter?.getPermissionMode === 'function'
+            ? await this.newAgentPresenter.getPermissionMode(session.id)
+            : 'full_access'
+        const generationSettings =
+          typeof this.newAgentPresenter?.getSessionGenerationSettings === 'function'
+            ? await this.newAgentPresenter.getSessionGenerationSettings(session.id)
+            : null
+        const disabledAgentTools =
+          typeof this.newAgentPresenter?.getSessionDisabledAgentTools === 'function'
+            ? await this.newAgentPresenter.getSessionDisabledAgentTools(session.id)
+            : []
+        const activeSkills = await this.skillPresenter.getActiveSkills(session.id)
+        const availableSubagentSlots =
+          agentType === 'deepchat' && session.sessionKind === 'regular'
+            ? normalizeDeepChatSubagentSlots(
+                (await this.configPresenter.resolveDeepChatAgentConfig(session.agentId)).subagents
+              )
+            : []
+
         return {
+          sessionId: session.id,
           agentId: session.agentId,
+          agentName: agent?.name?.trim() || session.agentId,
+          agentType,
           providerId: session.providerId,
-          modelId: session.modelId
+          modelId: session.modelId,
+          projectDir: session.projectDir ?? null,
+          permissionMode,
+          generationSettings,
+          disabledAgentTools,
+          activeSkills,
+          sessionKind: session.sessionKind,
+          parentSessionId: session.parentSessionId ?? null,
+          subagentEnabled: session.subagentEnabled,
+          subagentMeta: session.subagentMeta ?? null,
+          availableSubagentSlots
         }
       },
+      createSubagentSession: async (input) => {
+        const newAgentPresenter = this.newAgentPresenter as INewAgentPresenter & {
+          createSubagentSession?: (createInput: typeof input) => Promise<{
+            id: string
+          } | null>
+        }
+        const created = await newAgentPresenter.createSubagentSession?.(input)
+        if (!created?.id) {
+          return null
+        }
+
+        return await agentToolRuntime.resolveConversationSessionInfo(created.id)
+      },
+      sendConversationMessage: async (conversationId, content) => {
+        await this.newAgentPresenter.sendMessage(conversationId, content)
+      },
+      cancelConversation: async (conversationId) => {
+        await this.newAgentPresenter.cancelGeneration(conversationId)
+      },
+      subscribeDeepChatSessionUpdates: (listener) =>
+        subscribeDeepChatInternalSessionUpdates(listener),
       getSkillPresenter: () => this.skillPresenter,
       getYoBrowserToolHandler: () => this.yoBrowserPresenter.toolHandler,
       getFilePresenter: () => ({

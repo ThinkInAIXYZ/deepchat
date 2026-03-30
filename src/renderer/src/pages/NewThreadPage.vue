@@ -109,6 +109,7 @@ import type {
   MessageFile,
   SessionGenerationSettings
 } from '@shared/types/agent-interface'
+import { normalizeDeepChatSubagentConfig } from '@shared/lib/deepchatSubagents'
 
 const projectStore = useProjectStore()
 const sessionStore = useSessionStore()
@@ -307,6 +308,7 @@ async function submitText(text: string, files: MessageFile[]) {
   const isAcp = isAcpSelectedAgent.value
   const draftPermissionMode = draftStore.permissionMode
   const draftDisabledAgentTools = [...draftStore.disabledAgentTools]
+  const draftSubagentEnabled = draftStore.subagentEnabled
   const draftGenerationSettings = draftStore.toGenerationSettings()
   if (isAcp && acpDraftSessionId.value) {
     await sessionStore.selectSession(acpDraftSessionId.value)
@@ -346,6 +348,7 @@ async function submitText(text: string, files: MessageFile[]) {
     modelId,
     permissionMode: draftPermissionMode,
     disabledAgentTools: isAcp ? undefined : draftDisabledAgentTools,
+    subagentEnabled: isAcp ? false : draftSubagentEnabled,
     generationSettings: draftGenerationSettings,
     activeSkills: dedupedPendingSkills.length > 0 ? dedupedPendingSkills : undefined
   })
@@ -366,12 +369,12 @@ const resolveDeepChatAgentConfig = async (agentId: string): Promise<DeepChatAgen
 
   const systemPrompt = await configPresenter.getSetting?.('default_system_prompt')
 
-  return {
+  return normalizeDeepChatSubagentConfig({
     defaultModelPreset: undefined,
     systemPrompt: typeof systemPrompt === 'string' ? systemPrompt : '',
     permissionMode: 'full_access',
     disabledAgentTools: []
-  }
+  })
 }
 
 const applyDraftDefaultsForSelectedAgent = async (): Promise<void> => {
@@ -383,6 +386,7 @@ const applyDraftDefaultsForSelectedAgent = async (): Promise<void> => {
   draftStore.modelId = undefined
   draftStore.permissionMode = 'full_access'
   draftStore.disabledAgentTools = []
+  draftStore.subagentEnabled = false
   draftStore.systemPrompt = undefined
   draftStore.temperature = undefined
   draftStore.contextLength = undefined
@@ -402,6 +406,7 @@ const applyDraftDefaultsForSelectedAgent = async (): Promise<void> => {
     draftStore.modelId = agentId
     draftStore.permissionMode = 'full_access'
     draftStore.disabledAgentTools = []
+    draftStore.subagentEnabled = false
     return
   }
 
@@ -422,6 +427,7 @@ const applyDraftDefaultsForSelectedAgent = async (): Promise<void> => {
   draftStore.modelId = config.defaultModelPreset?.modelId
   draftStore.permissionMode = config.permissionMode === 'default' ? 'default' : 'full_access'
   draftStore.disabledAgentTools = [...(config.disabledAgentTools ?? [])]
+  draftStore.subagentEnabled = config.subagentEnabled === true
   Object.assign(draftStore, buildDraftGenerationSettings(config))
 }
 

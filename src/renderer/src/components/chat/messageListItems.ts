@@ -70,6 +70,8 @@ export type DisplayAssistantMessageExtra = Record<string, string | number | obje
   questionResolution?: 'asked' | 'replied' | 'rejected'
   answerText?: string
   answerMessageId?: string
+  subagentProgress?: string
+  subagentFinal?: string
 }
 
 export type DisplayAssistantMessageBlock = {

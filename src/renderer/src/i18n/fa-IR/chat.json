@@ -119,7 +119,8 @@
   },
   "topbar": {
     "share": "اشتراک‌گذاری",
-    "more": "بیشتر"
+    "more": "بیشتر",
+    "backToParent": "Back to Parent"
   },
   "advancedSettings": {
     "button": "پیشرفته",
@@ -152,7 +153,8 @@
     "sections": {
       "files": "فایل‌ها",
       "git": "Git",
-      "artifacts": "Artifacts"
+      "artifacts": "Artifacts",
+      "subagents": "Subagents"
     },
     "files": {
       "contextMenu": {
@@ -206,7 +208,16 @@
       },
       "noOutput": "بدون خروجی"
     },
-    "title": "فضای کار"
+    "title": "فضای کار",
+    "subagents": {
+      "empty": "No child sessions yet",
+      "self": "Self",
+      "status": {
+        "working": "Running",
+        "error": "Error",
+        "idle": "Idle"
+      }
+    }
   },
   "modelPicker": {
     "empty": "هیچ مدلی پیدا نشد"
@@ -275,5 +286,8 @@
       "done": "انجام شد",
       "error": "خطا"
     }
+  },
+  "subagents": {
+    "label": "Subagents"
   }
 }

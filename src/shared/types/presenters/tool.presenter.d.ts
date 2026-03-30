@@ -5,6 +5,13 @@
 
 import type { MCPToolDefinition, MCPToolCall, MCPToolResponse } from '../core/mcp'
 
+export interface AgentToolProgressUpdate {
+  kind: 'subagent_orchestrator'
+  toolCallId: string
+  responseMarkdown: string
+  progressJson: string
+}
+
 /**
  * Tool Presenter interface
  * Unified interface for managing all tool sources (MCP, Agent)
@@ -27,7 +34,13 @@ export interface IToolPresenter {
    * Call a tool, routing to the appropriate source
    * @param request Tool call request
    */
-  callTool(request: MCPToolCall): Promise<{ content: unknown; rawData: MCPToolResponse }>
+  callTool(
+    request: MCPToolCall,
+    options?: {
+      onProgress?: (update: AgentToolProgressUpdate) => void
+      signal?: AbortSignal
+    }
+  ): Promise<{ content: unknown; rawData: MCPToolResponse }>
 
   /**
    * Pre-check tool permission without executing the tool.

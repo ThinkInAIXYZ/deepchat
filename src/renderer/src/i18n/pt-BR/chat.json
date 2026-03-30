@@ -119,7 +119,8 @@
   },
   "topbar": {
     "share": "Compartilhar",
-    "more": "Mais"
+    "more": "Mais",
+    "backToParent": "Back to Parent"
   },
   "advancedSettings": {
     "button": "Avançado",
@@ -152,7 +153,8 @@
     "sections": {
       "files": "Arquivos",
       "git": "Git",
-      "artifacts": "Artifacts"
+      "artifacts": "Artifacts",
+      "subagents": "Subagents"
     },
     "files": {
       "contextMenu": {
@@ -206,7 +208,16 @@
       },
       "noOutput": "Sem saída"
     },
-    "title": "área de trabalho"
+    "title": "área de trabalho",
+    "subagents": {
+      "empty": "No child sessions yet",
+      "self": "Self",
+      "status": {
+        "working": "Running",
+        "error": "Error",
+        "idle": "Idle"
+      }
+    }
   },
   "modelPicker": {
     "empty": "Nenhum modelo encontrado"
@@ -275,5 +286,8 @@
       "done": "Concluído",
       "error": "Erro"
     }
+  },
+  "subagents": {
+    "label": "Subagents"
   }
 }

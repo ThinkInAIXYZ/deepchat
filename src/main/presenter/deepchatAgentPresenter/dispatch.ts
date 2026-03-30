@@ -1,10 +1,16 @@
 import { eventBus, SendTarget } from '@/eventbus'
 import { STREAM_EVENTS } from '@/events'
 import { presenter } from '@/presenter'
-import type { MCPToolCall, MCPContentItem, MCPResourceContent } from '@shared/types/core/mcp'
+import type {
+  MCPToolCall,
+  MCPContentItem,
+  MCPResourceContent,
+  MCPToolResponse
+} from '@shared/types/core/mcp'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type { SearchResult } from '@shared/types/core/search'
 import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
+import type { AgentToolProgressUpdate } from '@shared/types/presenters/tool.presenter'
 import type { AssistantMessageBlock, PermissionMode } from '@shared/types/agent-interface'
 import { parseQuestionToolArgs, QUESTION_TOOL_NAME } from '../../lib/agentRuntime/questionTool'
 import type {
@@ -19,6 +25,12 @@ import { nanoid } from 'nanoid'
 import type { ToolBatchOutputFitItem, ToolOutputGuard } from './toolOutputGuard'
 import { buildTerminalErrorBlocks } from './messageStore'
 import { finalizeTrailingPendingNarrativeBlocks } from './accumulator'
+import {
+  buildAssistantPreviewMarkdown,
+  buildAssistantResponseMarkdown,
+  emitDeepChatInternalSessionUpdate,
+  extractWaitingInteraction
+} from './internalSessionEvents'
 
 type PermissionType = 'read' | 'write' | 'all' | 'command'
 
@@ -203,6 +215,46 @@ function updateToolCallBlock(
       block.tool_call.rtkFallbackReason = rtkMetadata.rtkFallbackReason
     }
     block.status = isError ? 'error' : 'success'
+  }
+}
+
+function updateSubagentToolCallBlock(
+  blocks: AssistantMessageBlock[],
+  toolCallId: string,
+  responseMarkdown: string,
+  progressJson: string,
+  finalJson?: string
+): void {
+  const block = blocks.find(
+    (item) => item.type === 'tool_call' && item.tool_call?.id === toolCallId
+  )
+  if (!block?.tool_call) {
+    return
+  }
+
+  block.tool_call.response = responseMarkdown
+  block.status = finalJson ? 'success' : 'loading'
+  block.extra = {
+    ...block.extra,
+    subagentProgress: progressJson,
+    ...(finalJson ? { subagentFinal: finalJson } : {})
+  }
+}
+
+function extractSubagentToolState(rawData: MCPToolResponse): {
+  subagentProgress?: string
+  subagentFinal?: string
+} {
+  const toolResult =
+    rawData.toolResult && typeof rawData.toolResult === 'object'
+      ? (rawData.toolResult as Record<string, unknown>)
+      : null
+
+  return {
+    subagentProgress:
+      typeof toolResult?.subagentProgress === 'string' ? toolResult.subagentProgress : undefined,
+    subagentFinal:
+      typeof toolResult?.subagentFinal === 'string' ? toolResult.subagentFinal : undefined
   }
 }
 
@@ -496,6 +548,16 @@ function flushBlocksToRenderer(io: IoParams, blocks: AssistantMessageBlock[]): v
     messageId: io.messageId,
     blocks: JSON.parse(JSON.stringify(blocks))
   })
+
+  emitDeepChatInternalSessionUpdate({
+    sessionId: io.sessionId,
+    kind: 'blocks',
+    updatedAt: Date.now(),
+    messageId: io.messageId,
+    previewMarkdown: buildAssistantPreviewMarkdown(blocks),
+    responseMarkdown: buildAssistantResponseMarkdown(blocks),
+    waitingInteraction: extractWaitingInteraction(blocks, io.messageId)
+  })
 }
 
 export async function executeTools(
@@ -661,7 +723,25 @@ export async function executeTools(
         params: tc.arguments
       })
 
-      const toolCallResult = await toolPresenter.callTool(toolCall)
+      const applyProgressUpdate = (update: AgentToolProgressUpdate) => {
+        if (update.kind !== 'subagent_orchestrator' || update.toolCallId !== tc.id) {
+          return
+        }
+
+        updateSubagentToolCallBlock(
+          state.blocks,
+          tc.id,
+          update.responseMarkdown,
+          update.progressJson
+        )
+        flushBlocksToRenderer(io, state.blocks)
+        io.messageStore.updateAssistantContent(io.messageId, state.blocks)
+      }
+
+      const toolCallResult = await toolPresenter.callTool(toolCall, {
+        onProgress: applyProgressUpdate,
+        signal: io.abortSignal
+      })
       let toolRawData = toolCallResult.rawData
 
       if (toolRawData?.requiresPermission) {
@@ -677,7 +757,10 @@ export async function executeTools(
         if (pendingPermission) {
           if (permissionMode === 'full_access') {
             await autoGrantPermission(io.sessionId, pendingPermission)
-            const retryCallResult = await toolPresenter.callTool(toolCall)
+            const retryCallResult = await toolPresenter.callTool(toolCall, {
+              onProgress: applyProgressUpdate,
+              signal: io.abortSignal
+            })
             toolRawData = retryCallResult.rawData
           } else {
             hooks?.onPermissionRequest?.(pendingPermission, {
@@ -696,6 +779,19 @@ export async function executeTools(
             continue
           }
         }
+      }
+
+      const subagentState = extractSubagentToolState(toolRawData)
+      if (subagentState.subagentProgress) {
+        updateSubagentToolCallBlock(
+          state.blocks,
+          tc.id,
+          typeof toolRawData.content === 'string'
+            ? toolRawData.content
+            : toolResponseToText(toolRawData.content),
+          subagentState.subagentProgress,
+          subagentState.subagentFinal
+        )
       }
 
       if (hooks?.normalizeToolResult) {

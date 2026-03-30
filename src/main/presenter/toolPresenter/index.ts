@@ -5,6 +5,7 @@ import type {
   MCPToolCall,
   MCPToolResponse
 } from '@shared/presenter'
+import type { AgentToolProgressUpdate } from '@shared/types/presenters/tool.presenter'
 import { resolveToolOffloadTemplatePath } from '@/lib/agentRuntime/sessionPaths'
 import { QUESTION_TOOL_NAME } from '@/lib/agentRuntime/questionTool'
 import { ToolMapper } from './toolMapper'
@@ -49,7 +50,13 @@ export interface IToolPresenter {
     agentWorkspacePath?: string | null
     conversationId?: string
   }): Promise<MCPToolDefinition[]>
-  callTool(request: MCPToolCall): Promise<{ content: unknown; rawData: MCPToolResponse }>
+  callTool(
+    request: MCPToolCall,
+    options?: {
+      onProgress?: (update: AgentToolProgressUpdate) => void
+      signal?: AbortSignal
+    }
+  ): Promise<{ content: unknown; rawData: MCPToolResponse }>
   preCheckToolPermission?(request: MCPToolCall): Promise<PreCheckedPermissionResult | null>
   buildToolSystemPrompt(context: {
     conversationId?: string
@@ -176,7 +183,13 @@ export class ToolPresenter implements IToolPresenter {
   /**
    * Call a tool, routing to the appropriate source based on mapping
    */
-  async callTool(request: MCPToolCall): Promise<{ content: unknown; rawData: MCPToolResponse }> {
+  async callTool(
+    request: MCPToolCall,
+    options?: {
+      onProgress?: (update: AgentToolProgressUpdate) => void
+      signal?: AbortSignal
+    }
+  ): Promise<{ content: unknown; rawData: MCPToolResponse }> {
     const toolName = request.function.name
     const source = this.mapper.getToolSource(toolName)
 
@@ -207,7 +220,16 @@ export class ToolPresenter implements IToolPresenter {
           }
         }
       }
-      const response = await this.agentToolManager.callTool(toolName, args, request.conversationId)
+      const response = await this.agentToolManager.callTool(
+        toolName,
+        args,
+        request.conversationId,
+        {
+          toolCallId: request.id,
+          onProgress: options?.onProgress,
+          signal: options?.signal
+        }
+      )
       const resolvedResponse = this.resolveAgentToolResponse(response)
       const rawData = resolvedResponse.rawData ?? {}
       return {

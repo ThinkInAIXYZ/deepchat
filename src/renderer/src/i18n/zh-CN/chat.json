@@ -122,8 +122,12 @@
     "acpAgent": "ACP Agent"
   },
   "topbar": {
+    "backToParent": "返回父会话",
     "share": "分享",
     "more": "更多"
+  },
+  "subagents": {
+    "label": "子代理"
   },
   "advancedSettings": {
     "button": "高级配置",
@@ -182,7 +186,8 @@
     "sections": {
       "files": "文件",
       "git": "Git",
-      "artifacts": "Artifacts"
+      "artifacts": "Artifacts",
+      "subagents": "子代理"
     },
     "plan": {
       "section": "计划",
@@ -210,6 +215,15 @@
       "clean": "工作区干净",
       "staged": "已暂存",
       "unstaged": "未暂存"
+    },
+    "subagents": {
+      "empty": "暂无子会话",
+      "self": "Self",
+      "status": {
+        "working": "运行中",
+        "error": "错误",
+        "idle": "空闲"
+      }
     },
     "browser": {
       "section": "浏览器",

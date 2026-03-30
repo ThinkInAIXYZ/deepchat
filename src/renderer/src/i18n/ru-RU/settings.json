@@ -1626,6 +1626,17 @@
     "compactionDescription": "Эти значения влияют только на будущие сессии DeepChat.",
     "compactionThreshold": "Порог срабатывания",
     "compactionRetainPairs": "Сохранять последние пары",
-    "deleteConfirm": "Удалить агента «{name}»? Его история будет возвращена встроенному агенту DeepChat."
+    "deleteConfirm": "Удалить агента «{name}»? Его история будет возвращена встроенному агенту DeepChat.",
+    "subagentsTitle": "Subagents",
+    "subagentsDescription": "Configure the reusable child-session slots exposed to subagent_orchestrator.",
+    "subagentsEnabled": "Enable subagents",
+    "subagentTargetType": "Target type",
+    "subagentTargetSelf": "Self",
+    "subagentTargetAgent": "Agent",
+    "subagentDisplayName": "Display name",
+    "subagentDescription": "Slot description",
+    "subagentTargetAgentLabel": "Target agent",
+    "subagentLimit": "{count}/{max} slots",
+    "addSubagentSlot": "+ Add Slot"
   }
 }

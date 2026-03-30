@@ -119,7 +119,8 @@
   },
   "topbar": {
     "share": "Del",
-    "more": "Mere"
+    "more": "Mere",
+    "backToParent": "Back to Parent"
   },
   "advancedSettings": {
     "button": "Avanceret",
@@ -152,7 +153,8 @@
     "sections": {
       "files": "Filer",
       "git": "Git",
-      "artifacts": "Artifacts"
+      "artifacts": "Artifacts",
+      "subagents": "Subagents"
     },
     "files": {
       "contextMenu": {
@@ -206,7 +208,16 @@
         "truncated": "[afkortet]"
       }
     },
-    "title": "arbejdsrum"
+    "title": "arbejdsrum",
+    "subagents": {
+      "empty": "No child sessions yet",
+      "self": "Self",
+      "status": {
+        "working": "Running",
+        "error": "Error",
+        "idle": "Idle"
+      }
+    }
   },
   "modelPicker": {
     "empty": "Ingen modeller fundet"
@@ -275,5 +286,8 @@
       "done": "Færdig",
       "error": "Fejl"
     }
+  },
+  "subagents": {
+    "label": "Subagents"
   }
 }

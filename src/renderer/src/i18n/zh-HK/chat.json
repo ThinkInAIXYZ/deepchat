@@ -123,7 +123,8 @@
   },
   "topbar": {
     "share": "分享",
-    "more": "更多"
+    "more": "更多",
+    "backToParent": "Back to Parent"
   },
   "advancedSettings": {
     "button": "進階設定",
@@ -156,7 +157,8 @@
     "sections": {
       "files": "文件",
       "git": "Git",
-      "artifacts": "Artifacts"
+      "artifacts": "Artifacts",
+      "subagents": "Subagents"
     },
     "files": {
       "contextMenu": {
@@ -210,7 +212,16 @@
         "truncated": "[已截斷]"
       }
     },
-    "title": "工作區"
+    "title": "工作區",
+    "subagents": {
+      "empty": "No child sessions yet",
+      "self": "Self",
+      "status": {
+        "working": "Running",
+        "error": "Error",
+        "idle": "Idle"
+      }
+    }
   },
   "modelPicker": {
     "empty": "未找到模型"
@@ -275,5 +286,8 @@
       "done": "已完成",
       "error": "錯誤"
     }
+  },
+  "subagents": {
+    "label": "Subagents"
   }
 }

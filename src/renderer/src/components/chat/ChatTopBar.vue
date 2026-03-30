@@ -4,6 +4,17 @@
     class="sticky top-0 z-10 flex items-center justify-between h-12 px-4 bg-background/60 backdrop-blur-lg window-drag-region"
   >
     <div class="flex items-center gap-2 min-w-0">
+      <Button
+        v-if="parentSessionId"
+        variant="ghost"
+        size="sm"
+        class="h-7 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
+        :title="t('chat.topbar.backToParent')"
+        @click="handleBackToParent"
+      >
+        <Icon icon="lucide:corner-up-left" class="h-3.5 w-3.5" />
+        <span>{{ t('chat.topbar.backToParent') }}</span>
+      </Button>
       <div v-if="project" class="flex items-center gap-1.5 text-muted-foreground">
         <Icon icon="lucide:folder" class="w-3.5 h-3.5 shrink-0" />
         <span class="text-xs truncate">{{ projectName }}</span>
@@ -189,6 +200,7 @@ const projectName = computed(() => props.project.split('/').pop() ?? props.proje
 const currentSession = computed(
   () => sessionStore.sessions.find((session) => session.id === props.sessionId) ?? null
 )
+const parentSessionId = computed(() => currentSession.value?.parentSessionId ?? null)
 const isPinned = computed(() => Boolean(currentSession.value?.isPinned))
 
 const openRenameDialog = () => {
@@ -261,6 +273,18 @@ const handleExport = async (format: 'markdown' | 'html' | 'txt' | 'nowledge-mem'
       description: t('thread.export.failedDesc'),
       variant: 'destructive'
     })
+  }
+}
+
+const handleBackToParent = async () => {
+  if (!parentSessionId.value) {
+    return
+  }
+
+  try {
+    await sessionStore.selectSession(parentSessionId.value)
+  } catch (error) {
+    console.error('Failed to navigate to parent session:', error)
   }
 }
 </script>

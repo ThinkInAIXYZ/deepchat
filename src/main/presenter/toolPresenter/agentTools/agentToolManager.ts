@@ -1,4 +1,5 @@
 import type { IConfigPresenter, MCPToolDefinition } from '@shared/presenter'
+import type { AgentToolProgressUpdate } from '@shared/types/presenters/tool.presenter'
 import { zodToJsonSchema } from 'zod-to-json-schema'
 import { z } from 'zod'
 import fs from 'fs'
@@ -21,6 +22,10 @@ import {
 import type { AgentToolRuntimePort } from '../runtimePorts'
 import { YO_BROWSER_TOOL_NAMES } from '../../browser/YoBrowserToolDefinitions'
 import { resolveSessionVisionTarget } from '../../vision/sessionVisionResolver'
+import {
+  SUBAGENT_ORCHESTRATOR_TOOL_NAME,
+  SubagentOrchestratorTool
+} from './subagentOrchestratorTool'
 
 // Consider moving to a shared handlers location in future refactoring
 import {
@@ -78,6 +83,7 @@ export class AgentToolManager {
   private skillTools: SkillTools | null = null
   private skillExecutionService: SkillExecutionService | null = null
   private chatSettingsHandler: ChatSettingsToolHandler | null = null
+  private subagentOrchestratorTool: SubagentOrchestratorTool | null = null
   private static readonly READ_FILE_AUTO_TRUNCATE_THRESHOLD = 4500
 
   private readonly fileSystemSchemas = {
@@ -246,6 +252,7 @@ export class AgentToolManager {
     this.configPresenter = options.configPresenter
     this.commandPermissionHandler = options.commandPermissionHandler
     this.runtimePort = options.runtimePort
+    this.subagentOrchestratorTool = new SubagentOrchestratorTool(this.runtimePort)
     if (this.agentWorkspacePath) {
       this.fileSystemHandler = new AgentFileSystemHandler([this.agentWorkspacePath])
       this.bashHandler = new AgentBashHandler(
@@ -295,6 +302,17 @@ export class AgentToolManager {
 
     // 2. Built-in question tool (all modes)
     defs.push(...this.getQuestionToolDefinitions())
+
+    // 2.5. Subagent orchestration tool (deepchat regular sessions only)
+    if (isAgentMode && context.conversationId && this.subagentOrchestratorTool) {
+      try {
+        if (await this.subagentOrchestratorTool.isAvailable(context.conversationId)) {
+          defs.push(this.subagentOrchestratorTool.getToolDefinition())
+        }
+      } catch (error) {
+        logger.warn('[AgentToolManager] Failed to resolve subagent tool availability', { error })
+      }
+    }
 
     // 3. Skill tools (agent mode only)
     if (isAgentMode && this.isSkillsEnabled()) {
@@ -351,7 +369,12 @@ export class AgentToolManager {
   async callTool(
     toolName: string,
     args: Record<string, unknown>,
-    conversationId?: string
+    conversationId?: string,
+    options?: {
+      toolCallId?: string
+      onProgress?: (update: AgentToolProgressUpdate) => void
+      signal?: AbortSignal
+    }
   ): Promise<AgentToolCallResult | string> {
     if (toolName === QUESTION_TOOL_NAME) {
       const validationResult = questionToolSchema.safeParse(args)
@@ -368,6 +391,14 @@ export class AgentToolManager {
           toolResult: validationResult.data
         }
       }
+    }
+
+    if (toolName === SUBAGENT_ORCHESTRATOR_TOOL_NAME) {
+      if (!this.subagentOrchestratorTool) {
+        throw new Error('Subagent orchestrator is not available.')
+      }
+
+      return await this.subagentOrchestratorTool.call(args, conversationId, options)
     }
 
     // Route to process tool
