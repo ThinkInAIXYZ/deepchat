@@ -216,6 +216,20 @@ function persistToolExecutionState(io: IoParams, state: StreamState): void {
   state.dirty = false
 }
 
+function finalizePendingNarrativeBeforeToolExecution(state: StreamState): void {
+  const last = state.blocks[state.blocks.length - 1]
+  if (
+    !last ||
+    last.status !== 'pending' ||
+    (last.type !== 'content' && last.type !== 'reasoning_content')
+  ) {
+    return
+  }
+
+  finalizeTrailingPendingNarrativeBlocks(state.blocks)
+  state.dirty = true
+}
+
 function applyFinalizedToolResults(params: {
   stagedResults: StagedToolResult[]
   fittedResults: ToolBatchOutputFitItem[]
@@ -243,10 +257,10 @@ function applyFinalizedToolResults(params: {
       })
     }
 
-    if (!fittedResult.downgraded && stagedResult.searchPayload) {
-      finalizeTrailingPendingNarrativeBlocks(state.blocks)
-      state.blocks.push(stagedResult.searchPayload.block)
-      for (const result of stagedResult.searchPayload.results) {
+    const searchPayload = fittedResult.downgraded ? null : stagedResult.searchPayload
+    if (searchPayload) {
+      state.blocks.push(searchPayload.block)
+      for (const result of searchPayload.results) {
         io.messageStore.addSearchResult({
           sessionId: io.sessionId,
           messageId: io.messageId,
@@ -384,7 +398,6 @@ function appendPermissionActionBlock(
   },
   permission: NonNullable<PendingToolInteraction['permission']>
 ): PendingToolInteraction {
-  finalizeTrailingPendingNarrativeBlocks(state.blocks)
   state.blocks.push({
     type: 'action',
     content: permission.description,
@@ -438,7 +451,6 @@ function appendQuestionActionBlock(
   },
   question: NonNullable<PendingToolInteraction['question']>
 ): PendingToolInteraction {
-  finalizeTrailingPendingNarrativeBlocks(state.blocks)
   state.blocks.push({
     type: 'action',
     content: '',
@@ -506,6 +518,8 @@ export async function executeTools(
   pendingInteractions: PendingToolInteraction[]
   terminalError?: string
 }> {
+  finalizePendingNarrativeBeforeToolExecution(state)
+
   for (const tc of state.completedToolCalls) {
     const toolDef = tools.find((t) => t.function.name === tc.name)
     if (!toolDef) continue

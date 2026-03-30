@@ -181,6 +181,7 @@ export class FeishuCommandRouter {
           const status = await this.deps.runner.getStatus(endpointKey)
           const defaultAgentId = await this.deps.runner.getDefaultAgentId()
           const defaultWorkdir = await this.deps.runner.getDefaultWorkdir(endpointKey)
+          const normalizedWorkdir = defaultWorkdir?.trim() || 'none'
           const feishuConfig = this.deps.bindingStore.getFeishuConfig()
           return {
             replies: [
@@ -188,7 +189,7 @@ export class FeishuCommandRouter {
                 'DeepChat Feishu Remote',
                 `Runtime: ${runtime.state}`,
                 `Default agent: ${defaultAgentId}`,
-                `Default workdir: ${defaultWorkdir ?? 'none'}`,
+                `Default workdir: ${normalizedWorkdir}`,
                 `Current session: ${status.session ? this.formatSessionLabel(status.session) : 'none'}`,
                 `Current agent: ${status.session?.agentId ?? 'none'}`,
                 `Current model: ${status.session?.modelId ?? 'none'}`,

@@ -374,6 +374,10 @@ export const buildRemoteRenderableBlocks = async (
   const rendered: RemoteRenderableBlock[] = []
 
   for (const [index, block] of blocks.entries()) {
+    // V1 remote rendering intentionally leaves `plan`, `action`, `audio`, and
+    // `artifact-thinking` out of the transcript path: remote control is private-chat
+    // only, action blocks are handled separately by `collectPendingInteraction`, and
+    // media upload/playback stays out of scope for now.
     if (block.type === 'content' && isRenderableNarrativeBlock(block)) {
       rendered.push({
         key: `${messageId}:${index}:answer`,

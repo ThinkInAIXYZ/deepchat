@@ -4,7 +4,7 @@
 
 Extend the existing Remote settings and runtime from Telegram-only to a fixed two-channel model: Telegram and Feishu. Telegram keeps hook notifications, while Feishu adds remote control only. Both channels continue to bind one remote endpoint to one DeepChat session and reuse the existing detached-session flow in Electron main.
 
-This iteration also standardizes Telegram and Feishu on a compact remote delivery model: one temporary status message per assistant turn, one streamed answer message that carries only user-visible answer content, and separate actionable prompts for pending interactions.
+This iteration also standardizes Telegram and Feishu on a compact remote delivery model: one temporary status message per assistant turn, one streamed answer track (one logical message sequence, delivered in one or more physical chunks as needed) that carries only user-visible answer content, and separate actionable prompts for pending interactions.
 
 ## User Stories
 
@@ -25,8 +25,8 @@ This iteration also standardizes Telegram and Feishu on a compact remote deliver
 - Feishu authorization requires DM pairing first; in groups/topics, only paired users who `@bot` may send commands or plain text to the bound session.
 - `/pair`, `/new`, `/sessions`, `/use`, `/stop`, `/status`, `/open`, and `/model` work for Feishu remote control.
 - Telegram `/model` continues to use inline keyboard menus; Feishu `/model` uses text commands only.
-- Telegram and Feishu remote conversations use one temporary status message plus one streamed answer message for normal assistant turns.
-- When streamed answer text exceeds platform limits, earlier chunks remain fixed and only the latest tail chunk stays editable.
+- Telegram and Feishu remote conversations use one temporary status message plus one streamed answer track (one logical message sequence, delivered in one or more physical chunks as needed) for normal assistant turns.
+- When streamed answer text exceeds platform limits, earlier chunks within that answer track remain fixed and only the latest tail chunk stays editable.
 - Reasoning-only, tool-call-only, tool-result-only, search-only, and pending-action-only assistant states never emit standalone transcript messages for normal remote delivery.
 - Existing local desktop chat behavior remains unchanged.
 

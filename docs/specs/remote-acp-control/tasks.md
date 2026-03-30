@@ -47,7 +47,7 @@
 ## T4 Settings UI And i18n
 
 - [x] Show all enabled agents in the default-agent selector
-- [x] Label ACP agents with ` (ACP)`
+- [x] Label ACP agents with `(ACP)`
 - [x] Add Telegram and Feishu default-directory inputs
 - [x] Add i18n strings for the new settings fields
 - Owner: Renderer settings
