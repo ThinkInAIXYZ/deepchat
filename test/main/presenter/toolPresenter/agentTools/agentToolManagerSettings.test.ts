@@ -27,6 +27,7 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
     })
   } as any
   const resolveConversationWorkdir = vi.fn()
+  const resolveConversationSessionInfo = vi.fn()
   const getToolDefinitions = vi.fn().mockReturnValue([])
 
   const buildManager = () =>
@@ -35,7 +36,7 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
       configPresenter,
       runtimePort: {
         resolveConversationWorkdir,
-        resolveConversationSessionInfo: vi.fn().mockResolvedValue(null),
+        resolveConversationSessionInfo,
         getSkillPresenter: () => skillPresenter,
         getYoBrowserToolHandler: () => ({
           getToolDefinitions,
@@ -58,6 +59,7 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resolveConversationWorkdir.mockResolvedValue(null)
+    resolveConversationSessionInfo.mockResolvedValue(null)
     skillPresenter.listSkillScripts.mockResolvedValue([])
     getToolDefinitions.mockReturnValue([])
   })
@@ -131,5 +133,66 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
     const workdir = await (manager as any).getWorkdirForConversation('new-session-1')
     expect(workdir).toBe('/tmp/new-session-workdir')
     expect(resolveConversationWorkdir).toHaveBeenCalledWith('new-session-1')
+  })
+
+  it('builds a stable slotId enum for subagent_orchestrator from the session config', async () => {
+    skillPresenter.getActiveSkills.mockResolvedValue([])
+    skillPresenter.getActiveSkillsAllowedTools.mockResolvedValue([])
+    resolveConversationSessionInfo.mockResolvedValue({
+      sessionId: 'conv-1',
+      agentId: 'deepchat',
+      agentName: 'DeepChat',
+      agentType: 'deepchat',
+      providerId: 'openai',
+      modelId: 'gpt-4.1',
+      projectDir: '/tmp/workspace',
+      permissionMode: 'full_access',
+      generationSettings: null,
+      disabledAgentTools: [],
+      activeSkills: [],
+      sessionKind: 'regular',
+      parentSessionId: null,
+      subagentEnabled: true,
+      subagentMeta: null,
+      availableSubagentSlots: [
+        {
+          id: 'writer',
+          targetType: 'self',
+          displayName: 'Writer Clone',
+          description: 'Handle drafting tasks.'
+        },
+        {
+          id: 'reviewer',
+          targetType: 'agent',
+          targetAgentId: 'acp-reviewer',
+          displayName: 'ACP Reviewer',
+          description: 'Review code changes.'
+        }
+      ]
+    })
+
+    const manager = buildManager()
+    const defs = await manager.getAllToolDefinitions({
+      chatMode: 'agent',
+      supportsVision: false,
+      agentWorkspacePath: null,
+      conversationId: 'conv-1'
+    })
+
+    const subagentDef = defs.find((def) => def.function.name === 'subagent_orchestrator')
+    const slotIdSchema = (subagentDef?.function.parameters as any)?.properties?.tasks?.items
+      ?.properties?.slotId
+    const promptSchema = (subagentDef?.function.parameters as any)?.properties?.tasks?.items
+      ?.properties?.prompt
+
+    expect(slotIdSchema?.enum).toEqual(['reviewer', 'writer'])
+    expect(slotIdSchema?.description).toContain('reviewer: ACP Reviewer | target=acp-reviewer')
+    expect(slotIdSchema?.description).toContain('writer: Writer Clone | target=current agent')
+    expect(subagentDef?.function.description).toContain(
+      'inherits the same working directory as the parent session'
+    )
+    expect(promptSchema?.description).toContain(
+      'The child session uses the same working directory as the parent session'
+    )
   })
 })

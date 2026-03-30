@@ -1,11 +1,18 @@
 import { nanoid } from 'nanoid'
 import { z } from 'zod'
 import type { MCPToolDefinition } from '@shared/presenter'
+import type { DeepChatSubagentSlot } from '@shared/types/agent-interface'
 import type { AgentToolProgressUpdate } from '@shared/types/presenters/tool.presenter'
 import type { AgentToolCallResult } from './agentToolManager'
 import type { AgentToolRuntimePort, ConversationSessionInfo } from '../runtimePorts'
 
 export const SUBAGENT_ORCHESTRATOR_TOOL_NAME = 'subagent_orchestrator'
+const SUBAGENT_WORKDIR_RULE =
+  'Every child session inherits the same working directory as the parent session.'
+const SUBAGENT_PROMPT_DESCRIPTION = [
+  'Describe only the delegated subtask itself.',
+  'The child session uses the same working directory as the parent session.'
+].join(' ')
 
 export const subagentOrchestratorTaskSchema = z.object({
   id: z.string().trim().min(1).optional(),
@@ -149,6 +156,7 @@ const buildHandoffMessage = (params: {
   const contract =
     params.task.expectedOutput?.trim() ||
     'Return a concise markdown result with your answer, key findings, and any important file paths or commands.'
+  const inheritedWorkspace = params.parent.projectDir?.trim() || '(none)'
 
   return [
     '# Structured Handoff',
@@ -168,8 +176,8 @@ const buildHandoffMessage = (params: {
     'Output Contract:',
     contract,
     '',
-    'Workspace Path:',
-    params.parent.projectDir || '(none)',
+    'Current Agent Working Directory:',
+    inheritedWorkspace,
     '',
     'Rules:',
     '- You are a child session with an isolated context.',
@@ -184,49 +192,128 @@ const isTerminalStatus = (status: SubagentTerminalStatus): boolean =>
 export class SubagentOrchestratorTool {
   constructor(private readonly runtimePort: AgentToolRuntimePort) {}
 
-  async isAvailable(conversationId?: string): Promise<boolean> {
+  private async getAvailableSession(
+    conversationId?: string
+  ): Promise<ConversationSessionInfo | null> {
     if (!conversationId) {
-      return false
+      return null
     }
 
     const session = await this.runtimePort.resolveConversationSessionInfo(conversationId)
     if (!session) {
-      return false
+      return null
     }
 
-    return (
-      session.agentType === 'deepchat' &&
+    return session.agentType === 'deepchat' &&
       session.sessionKind === 'regular' &&
       session.subagentEnabled === true &&
       session.availableSubagentSlots.length > 0
-    )
+      ? session
+      : null
   }
 
-  getToolDefinition(): MCPToolDefinition {
+  async isAvailable(conversationId?: string): Promise<boolean> {
+    return Boolean(await this.getAvailableSession(conversationId))
+  }
+
+  private buildSlotIdParameter(slots: DeepChatSubagentSlot[]) {
+    const normalizedSlots = [...slots]
+      .map((slot) => ({
+        ...slot,
+        id: slot.id.trim(),
+        displayName: slot.displayName.trim(),
+        description: slot.description.trim(),
+        targetAgentId: slot.targetAgentId?.trim()
+      }))
+      .filter((slot) => Boolean(slot.id))
+      .sort((left, right) => {
+        return (
+          left.id.localeCompare(right.id) ||
+          left.displayName.localeCompare(right.displayName) ||
+          (left.targetAgentId ?? '').localeCompare(right.targetAgentId ?? '')
+        )
+      })
+
+    const slotIds = Array.from(new Set(normalizedSlots.map((slot) => slot.id)))
+
+    const slotLines = normalizedSlots.map((slot) => {
+      const target =
+        slot.targetType === 'self'
+          ? 'current agent'
+          : (slot.targetAgentId?.trim() ?? 'configured agent')
+      const summaryParts = [`${slot.id}: ${slot.displayName || slot.id}`, `target=${target}`]
+      if (slot.description) {
+        const description = slot.description.trim()
+        summaryParts.push(description)
+      }
+
+      return `- ${summaryParts.join(' | ')}`
+    })
+
+    const description =
+      slotLines.length > 0
+        ? ['Use one of the configured subagent slot IDs for this session.', ...slotLines].join('\n')
+        : 'Use one of the configured subagent slot IDs for this session.'
+
+    return slotIds.length > 0
+      ? {
+          type: 'string',
+          enum: slotIds,
+          description
+        }
+      : {
+          type: 'string',
+          description
+        }
+  }
+
+  async getToolDefinition(conversationId?: string): Promise<MCPToolDefinition | null> {
+    const session = await this.getAvailableSession(conversationId)
+    if (!session) {
+      return null
+    }
+
+    const slotIdParameter = this.buildSlotIdParameter(session.availableSubagentSlots)
+
     return {
       type: 'function',
       function: {
         name: SUBAGENT_ORCHESTRATOR_TOOL_NAME,
-        description:
-          'Delegate up to 5 tasks to configured subagents, run them in parallel or in chain mode, and return a single aggregated markdown result after every child session finishes.',
+        description: `Delegate up to 5 tasks to configured subagents, run them in parallel or in chain mode, and return a single aggregated markdown result after every child session finishes. ${SUBAGENT_WORKDIR_RULE}`,
         parameters: {
           type: 'object',
           properties: {
             mode: {
               type: 'string',
-              enum: ['parallel', 'chain']
+              enum: ['parallel', 'chain'],
+              description: 'Choose whether delegated tasks run concurrently or one by one.'
             },
             tasks: {
               type: 'array',
               maxItems: 5,
+              description: `Ordered delegated subtasks. ${SUBAGENT_WORKDIR_RULE}`,
               items: {
                 type: 'object',
                 properties: {
-                  id: { type: 'string' },
-                  slotId: { type: 'string' },
-                  title: { type: 'string' },
-                  prompt: { type: 'string' },
-                  expectedOutput: { type: 'string' }
+                  id: {
+                    type: 'string',
+                    description: 'Optional stable task identifier for this orchestrator run.'
+                  },
+                  slotId: slotIdParameter,
+                  title: {
+                    type: 'string',
+                    description:
+                      'Short task label shown in progress cards and the final aggregate result.'
+                  },
+                  prompt: {
+                    type: 'string',
+                    description: SUBAGENT_PROMPT_DESCRIPTION
+                  },
+                  expectedOutput: {
+                    type: 'string',
+                    description:
+                      'Optional output contract for the child session, such as structure, scope, or formatting requirements.'
+                  }
                 },
                 required: ['slotId', 'title', 'prompt']
               }

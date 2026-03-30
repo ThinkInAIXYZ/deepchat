@@ -306,8 +306,11 @@ export class AgentToolManager {
     // 2.5. Subagent orchestration tool (deepchat regular sessions only)
     if (isAgentMode && context.conversationId && this.subagentOrchestratorTool) {
       try {
-        if (await this.subagentOrchestratorTool.isAvailable(context.conversationId)) {
-          defs.push(this.subagentOrchestratorTool.getToolDefinition())
+        const subagentToolDefinition = await this.subagentOrchestratorTool.getToolDefinition(
+          context.conversationId
+        )
+        if (subagentToolDefinition) {
+          defs.push(subagentToolDefinition)
         }
       } catch (error) {
         logger.warn('[AgentToolManager] Failed to resolve subagent tool availability', { error })
