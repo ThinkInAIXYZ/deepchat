@@ -303,6 +303,8 @@ export const buildRemoteStatusText = (
       return DEFAULT_REMOTE_STATUS_TEXT
     case 'action':
       return REMOTE_WAITING_STATUS_TEXT
+    default:
+      return DEFAULT_REMOTE_STATUS_TEXT
   }
 }
 
