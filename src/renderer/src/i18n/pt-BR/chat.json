@@ -110,7 +110,23 @@
     "clickToView": "Clique para ver detalhes",
     "functionName": "Nome da função",
     "params": "Parâmetros",
-    "responseData": "Dados de resposta"
+    "responseData": "Dados de resposta",
+    "subagents": {
+      "summary": "{mode} · {count} subagentes",
+      "mode": {
+        "parallel": "Paralelo",
+        "chain": "Sequencial"
+      },
+      "status": {
+        "queued": "Na fila",
+        "running": "Em execução",
+        "completed": "Concluído",
+        "error": "Erro",
+        "cancelled": "Cancelado",
+        "waiting_permission": "Aguardando permissão",
+        "waiting_question": "Aguardando entrada"
+      }
+    }
   },
   "mode": {
     "acpAgent": "Agente ACP",
@@ -120,7 +136,7 @@
   "topbar": {
     "share": "Compartilhar",
     "more": "Mais",
-    "backToParent": "Back to Parent"
+    "backToParent": "Voltar para a sessão pai"
   },
   "advancedSettings": {
     "button": "Avançado",
@@ -154,7 +170,7 @@
       "files": "Arquivos",
       "git": "Git",
       "artifacts": "Artifacts",
-      "subagents": "Subagents"
+      "subagents": "Subagentes"
     },
     "files": {
       "contextMenu": {
@@ -210,12 +226,12 @@
     },
     "title": "área de trabalho",
     "subagents": {
-      "empty": "No child sessions yet",
-      "self": "Self",
+      "empty": "Ainda não há sessões filhas",
+      "self": "Este agente",
       "status": {
-        "working": "Running",
-        "error": "Error",
-        "idle": "Idle"
+        "working": "Em execução",
+        "error": "Erro",
+        "idle": "Inativo"
       }
     }
   },
@@ -288,6 +304,6 @@
     }
   },
   "subagents": {
-    "label": "Subagents"
+    "label": "Subagentes"
   }
 }

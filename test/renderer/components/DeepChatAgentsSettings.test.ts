@@ -663,4 +663,179 @@ describe('DeepChatAgentsSettings', () => {
       })
     )
   })
+
+  it('uses a flat target agent select for subagent slots', async () => {
+    vi.resetModules()
+
+    const existingAgent = {
+      id: 'deepchat',
+      type: 'deepchat',
+      name: 'DeepChat',
+      enabled: true,
+      protected: true,
+      description: 'Writer agent',
+      avatar: null,
+      config: {
+        subagentEnabled: true,
+        subagents: [
+          {
+            id: 'slot-current',
+            targetType: 'self',
+            displayName: 'Current',
+            description: ''
+          },
+          {
+            id: 'slot-reviewer',
+            targetType: 'agent',
+            targetAgentId: 'acp-reviewer',
+            displayName: 'Reviewer',
+            description: ''
+          }
+        ]
+      }
+    }
+    const acpAgent = {
+      id: 'acp-reviewer',
+      type: 'acp',
+      name: 'ACP Reviewer',
+      enabled: true,
+      source: 'manual',
+      protected: false,
+      description: 'ACP reviewer',
+      avatar: null,
+      config: {}
+    }
+    const uninstalledRegistryAgent = {
+      id: 'acp-uninstalled',
+      type: 'acp',
+      name: 'ACP Not Installed',
+      enabled: true,
+      source: 'registry',
+      protected: false,
+      description: 'ACP not installed',
+      avatar: null,
+      config: {},
+      installState: {
+        status: 'not_installed'
+      }
+    }
+
+    const configPresenter = {
+      listAgents: vi.fn().mockResolvedValue([existingAgent, acpAgent, uninstalledRegistryAgent]),
+      getSystemPrompts: vi.fn().mockResolvedValue([]),
+      updateDeepChatAgent: vi.fn().mockResolvedValue(existingAgent),
+      createDeepChatAgent: vi.fn().mockResolvedValue({ id: 'deepchat-new' }),
+      deleteDeepChatAgent: vi.fn().mockResolvedValue(undefined)
+    }
+    const toolPresenter = {
+      getAllToolDefinitions: vi.fn().mockResolvedValue([])
+    }
+    const projectPresenter = {
+      getRecentProjects: vi.fn().mockResolvedValue([]),
+      selectDirectory: vi.fn().mockResolvedValue(null)
+    }
+    const modelStore = {
+      allProviderModels: [],
+      findModelByIdOrName: vi.fn(() => null)
+    }
+
+    vi.doMock('@/composables/usePresenter', () => ({
+      usePresenter: (name: string) => {
+        if (name === 'configPresenter') return configPresenter
+        if (name === 'projectPresenter') return projectPresenter
+        if (name === 'toolPresenter') return toolPresenter
+        return {}
+      }
+    }))
+    vi.doMock('@/stores/modelStore', () => ({
+      useModelStore: () => modelStore
+    }))
+    vi.doMock('vue-i18n', () => ({
+      useI18n: () => ({
+        t: (key: string) => key
+      })
+    }))
+    vi.doMock('@iconify/vue', () => ({
+      Icon: {
+        name: 'Icon',
+        template: '<span />'
+      }
+    }))
+
+    const DeepChatAgentsSettings = (
+      await import('../../../src/renderer/settings/components/DeepChatAgentsSettings.vue')
+    ).default
+
+    const wrapper = mount(DeepChatAgentsSettings, {
+      global: {
+        stubs: {
+          Button: ButtonStub,
+          Badge: passthrough('Badge'),
+          Input: InputStub,
+          Textarea: TextareaStub,
+          Switch: SwitchStub,
+          Dialog: DialogStub,
+          DialogContent: passthrough('DialogContent'),
+          DialogHeader: passthrough('DialogHeader'),
+          DialogTitle: passthrough('DialogTitle'),
+          DropdownMenu: passthrough('DropdownMenu'),
+          DropdownMenuContent: passthrough('DropdownMenuContent'),
+          DropdownMenuItem: DropdownMenuItemStub,
+          DropdownMenuSeparator: passthrough('DropdownMenuSeparator'),
+          DropdownMenuTrigger: passthrough('DropdownMenuTrigger'),
+          Popover: passthrough('Popover'),
+          PopoverContent: passthrough('PopoverContent'),
+          PopoverTrigger: passthrough('PopoverTrigger'),
+          Select: passthrough('Select'),
+          SelectContent: passthrough('SelectContent'),
+          SelectItem: passthrough('SelectItem'),
+          SelectTrigger: passthrough('SelectTrigger'),
+          SelectValue: passthrough('SelectValue'),
+          ModelSelect: passthrough('ModelSelect'),
+          AgentAvatar: passthrough('AgentAvatar'),
+          ModelIcon: passthrough('ModelIcon'),
+          Icon: true
+        }
+      }
+    })
+
+    await flushPromises()
+
+    expect(wrapper.text()).not.toContain('settings.deepchatAgents.subagentTargetType')
+
+    const targetSelects = wrapper.findAll('select')
+    expect(targetSelects).toHaveLength(2)
+    expect(targetSelects[0].text()).toContain('settings.deepchatAgents.subagentTargetSelf')
+    expect(targetSelects[0].text()).toContain('ACP Reviewer')
+    expect(targetSelects[0].text()).not.toContain('ACP Not Installed')
+
+    await targetSelects[0].setValue('acp-reviewer')
+    await targetSelects[1].setValue('__current_agent__')
+
+    const saveButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('common.save'))
+
+    expect(saveButton).toBeDefined()
+
+    await saveButton!.trigger('click')
+    await flushPromises()
+
+    const [, payload] = configPresenter.updateDeepChatAgent.mock.calls[0]
+    expect(payload.config.subagents).toEqual([
+      {
+        id: 'slot-current',
+        targetType: 'agent',
+        targetAgentId: 'acp-reviewer',
+        displayName: 'Current',
+        description: ''
+      },
+      {
+        id: 'slot-reviewer',
+        targetType: 'self',
+        displayName: 'Reviewer',
+        description: ''
+      }
+    ])
+  })
 })

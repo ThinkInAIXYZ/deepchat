@@ -1627,16 +1627,16 @@
     "compactionThreshold": "آستانه فعال‌سازی",
     "compactionRetainPairs": "نگه‌داری جفت‌های اخیر",
     "deleteConfirm": "ایجنت «{name}» حذف شود؟ تاریخچه آن به ایجنت داخلی DeepChat برمی‌گردد.",
-    "subagentsTitle": "Subagents",
-    "subagentsDescription": "Configure the reusable child-session slots exposed to subagent_orchestrator.",
-    "subagentsEnabled": "Enable subagents",
-    "subagentTargetType": "Target type",
-    "subagentTargetSelf": "Self",
-    "subagentTargetAgent": "Agent",
-    "subagentDisplayName": "Display name",
-    "subagentDescription": "Slot description",
-    "subagentTargetAgentLabel": "Target agent",
-    "subagentLimit": "{count}/{max} slots",
-    "addSubagentSlot": "+ Add Slot"
+    "subagentsTitle": "زیرایجنت‌ها",
+    "subagentsDescription": "اسلات‌های قابل‌استفاده‌مجددِ نشست فرزند را که `subagent_orchestrator` در اختیار می‌گذارد پیکربندی کنید.",
+    "subagentsEnabled": "فعال‌کردن زیرایجنت‌ها",
+    "subagentTargetType": "نوع مقصد",
+    "subagentTargetSelf": "همین ایجنت",
+    "subagentTargetAgent": "ایجنت",
+    "subagentDisplayName": "نام نمایشی",
+    "subagentDescription": "توضیح اسلات",
+    "subagentTargetAgentLabel": "ایجنت مقصد",
+    "subagentLimit": "{count}/{max} اسلات",
+    "addSubagentSlot": "+ افزودن اسلات"
   }
 }

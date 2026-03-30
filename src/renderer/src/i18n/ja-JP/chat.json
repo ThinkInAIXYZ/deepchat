@@ -110,7 +110,23 @@
     "clickToView": "詳細を表示",
     "functionName": "関数名",
     "params": "パラメータ",
-    "responseData": "レスポンスデータ"
+    "responseData": "レスポンスデータ",
+    "subagents": {
+      "summary": "{mode} · {count} 個のサブエージェント",
+      "mode": {
+        "parallel": "並列",
+        "chain": "直列"
+      },
+      "status": {
+        "queued": "待機中",
+        "running": "実行中",
+        "completed": "完了",
+        "error": "エラー",
+        "cancelled": "キャンセル済み",
+        "waiting_permission": "権限待ち",
+        "waiting_question": "入力待ち"
+      }
+    }
   },
   "mode": {
     "acpAgent": "ACPエージェント",
@@ -120,7 +136,7 @@
   "topbar": {
     "share": "共有",
     "more": "その他",
-    "backToParent": "Back to Parent"
+    "backToParent": "親セッションに戻る"
   },
   "advancedSettings": {
     "button": "詳細設定",
@@ -154,7 +170,7 @@
       "files": "ファイル",
       "git": "Git",
       "artifacts": "Artifacts",
-      "subagents": "Subagents"
+      "subagents": "サブエージェント"
     },
     "files": {
       "contextMenu": {
@@ -210,12 +226,12 @@
     },
     "title": "ワークスペース",
     "subagents": {
-      "empty": "No child sessions yet",
-      "self": "Self",
+      "empty": "子セッションはまだありません",
+      "self": "このエージェント",
       "status": {
-        "working": "Running",
-        "error": "Error",
-        "idle": "Idle"
+        "working": "実行中",
+        "error": "エラー",
+        "idle": "待機中"
       }
     }
   },
@@ -288,6 +304,6 @@
     }
   },
   "subagents": {
-    "label": "Subagents"
+    "label": "サブエージェント"
   }
 }

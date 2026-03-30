@@ -110,7 +110,23 @@
     "clickToView": "Нажмите, чтобы посмотреть детали",
     "functionName": "Имя функции",
     "params": "Параметры",
-    "responseData": "Данные ответа"
+    "responseData": "Данные ответа",
+    "subagents": {
+      "summary": "{mode} · {count} субагентов",
+      "mode": {
+        "parallel": "Параллельно",
+        "chain": "Последовательно"
+      },
+      "status": {
+        "queued": "В очереди",
+        "running": "Выполняется",
+        "completed": "Завершено",
+        "error": "Ошибка",
+        "cancelled": "Отменено",
+        "waiting_permission": "Ожидает разрешения",
+        "waiting_question": "Ожидает ввода"
+      }
+    }
   },
   "mode": {
     "acpAgent": "Агент АШП",
@@ -120,7 +136,7 @@
   "topbar": {
     "share": "Поделиться",
     "more": "Ещё",
-    "backToParent": "Back to Parent"
+    "backToParent": "Вернуться к родительской сессии"
   },
   "advancedSettings": {
     "button": "Расширенные",
@@ -154,7 +170,7 @@
       "files": "Файлы",
       "git": "Git",
       "artifacts": "Artifacts",
-      "subagents": "Subagents"
+      "subagents": "Субагенты"
     },
     "files": {
       "contextMenu": {
@@ -210,12 +226,12 @@
     },
     "title": "рабочее пространство",
     "subagents": {
-      "empty": "No child sessions yet",
-      "self": "Self",
+      "empty": "Дочерних сессий пока нет",
+      "self": "Этот агент",
       "status": {
-        "working": "Running",
-        "error": "Error",
-        "idle": "Idle"
+        "working": "Выполняется",
+        "error": "Ошибка",
+        "idle": "Неактивно"
       }
     }
   },
@@ -288,6 +304,6 @@
     }
   },
   "subagents": {
-    "label": "Subagents"
+    "label": "Субагенты"
   }
 }

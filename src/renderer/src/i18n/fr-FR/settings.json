@@ -1627,16 +1627,16 @@
     "compactionThreshold": "Seuil de déclenchement",
     "compactionRetainPairs": "Conserver les dernières paires",
     "deleteConfirm": "Supprimer l'agent « {name} » ? Son historique sera rattaché à l'agent DeepChat intégré.",
-    "subagentsTitle": "Subagents",
-    "subagentsDescription": "Configure the reusable child-session slots exposed to subagent_orchestrator.",
-    "subagentsEnabled": "Enable subagents",
-    "subagentTargetType": "Target type",
-    "subagentTargetSelf": "Self",
+    "subagentsTitle": "Sous-agents",
+    "subagentsDescription": "Configurez les emplacements de sessions enfants réutilisables exposés par `subagent_orchestrator`.",
+    "subagentsEnabled": "Activer les sous-agents",
+    "subagentTargetType": "Type de cible",
+    "subagentTargetSelf": "Cet agent",
     "subagentTargetAgent": "Agent",
-    "subagentDisplayName": "Display name",
-    "subagentDescription": "Slot description",
-    "subagentTargetAgentLabel": "Target agent",
-    "subagentLimit": "{count}/{max} slots",
-    "addSubagentSlot": "+ Add Slot"
+    "subagentDisplayName": "Nom d'affichage",
+    "subagentDescription": "Description de l'emplacement",
+    "subagentTargetAgentLabel": "Agent cible",
+    "subagentLimit": "{count}/{max} emplacements",
+    "addSubagentSlot": "+ Ajouter un emplacement"
   }
 }

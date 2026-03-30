@@ -114,7 +114,23 @@
     "clickToView": "点击查看详情",
     "functionName": "函数名称",
     "params": "参数",
-    "responseData": "响应数据"
+    "responseData": "响应数据",
+    "subagents": {
+      "summary": "{mode} · {count} 个 subagent",
+      "mode": {
+        "parallel": "并行",
+        "chain": "串行"
+      },
+      "status": {
+        "queued": "排队中",
+        "running": "运行中",
+        "completed": "已完成",
+        "error": "错误",
+        "cancelled": "已取消",
+        "waiting_permission": "等待权限批准",
+        "waiting_question": "等待补充输入"
+      }
+    }
   },
   "mode": {
     "current": "当前模式：{mode}",
@@ -127,7 +143,7 @@
     "more": "更多"
   },
   "subagents": {
-    "label": "子代理"
+    "label": "subagent"
   },
   "advancedSettings": {
     "button": "高级配置",
@@ -187,7 +203,7 @@
       "files": "文件",
       "git": "Git",
       "artifacts": "Artifacts",
-      "subagents": "子代理"
+      "subagents": "subagent"
     },
     "plan": {
       "section": "计划",
@@ -217,8 +233,8 @@
       "unstaged": "未暂存"
     },
     "subagents": {
-      "empty": "暂无子会话",
-      "self": "Self",
+      "empty": "暂无 subagent 会话",
+      "self": "当前智能体",
       "status": {
         "working": "运行中",
         "error": "错误",

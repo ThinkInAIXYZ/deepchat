@@ -1627,16 +1627,16 @@
     "compactionThreshold": "סף הפעלה",
     "compactionRetainPairs": "שמירת הזוגות האחרונים",
     "deleteConfirm": "למחוק את הסוכן \"{name}\"? ההיסטוריה שלו תחזור לסוכן DeepChat המובנה.",
-    "subagentsTitle": "Subagents",
-    "subagentsDescription": "Configure the reusable child-session slots exposed to subagent_orchestrator.",
-    "subagentsEnabled": "Enable subagents",
-    "subagentTargetType": "Target type",
-    "subagentTargetSelf": "Self",
-    "subagentTargetAgent": "Agent",
-    "subagentDisplayName": "Display name",
-    "subagentDescription": "Slot description",
-    "subagentTargetAgentLabel": "Target agent",
-    "subagentLimit": "{count}/{max} slots",
-    "addSubagentSlot": "+ Add Slot"
+    "subagentsTitle": "סוכני משנה",
+    "subagentsDescription": "הגדירו את משבצות שיחות-הבת הניתנות לשימוש חוזר ש-`subagent_orchestrator` חושף.",
+    "subagentsEnabled": "הפעלת סוכני משנה",
+    "subagentTargetType": "סוג יעד",
+    "subagentTargetSelf": "הסוכן הזה",
+    "subagentTargetAgent": "סוכן",
+    "subagentDisplayName": "שם תצוגה",
+    "subagentDescription": "תיאור המשבצת",
+    "subagentTargetAgentLabel": "סוכן יעד",
+    "subagentLimit": "{count}/{max} משבצות",
+    "addSubagentSlot": "+ הוספת משבצת"
   }
 }

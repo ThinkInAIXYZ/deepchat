@@ -110,7 +110,23 @@
     "clickToView": "לחץ לצפייה בפרטים",
     "functionName": "פונקציה",
     "params": "פרמטרים",
-    "responseData": "נתוני תגובה"
+    "responseData": "נתוני תגובה",
+    "subagents": {
+      "summary": "{mode} · {count} סוכני משנה",
+      "mode": {
+        "parallel": "במקביל",
+        "chain": "בטור"
+      },
+      "status": {
+        "queued": "ממתין בתור",
+        "running": "פועל",
+        "completed": "הושלם",
+        "error": "שגיאה",
+        "cancelled": "בוטל",
+        "waiting_permission": "ממתין לאישור",
+        "waiting_question": "ממתין לקלט"
+      }
+    }
   },
   "mode": {
     "acpAgent": "סוכן ACP",
@@ -120,7 +136,7 @@
   "topbar": {
     "share": "שיתוף",
     "more": "עוד",
-    "backToParent": "Back to Parent"
+    "backToParent": "חזרה לשיחת האב"
   },
   "advancedSettings": {
     "button": "מתקדם",
@@ -154,7 +170,7 @@
       "files": "קבצים",
       "git": "Git",
       "artifacts": "Artifacts",
-      "subagents": "Subagents"
+      "subagents": "סוכני משנה"
     },
     "files": {
       "contextMenu": {
@@ -210,12 +226,12 @@
     },
     "title": "סביבת עבודה",
     "subagents": {
-      "empty": "No child sessions yet",
-      "self": "Self",
+      "empty": "עדיין אין שיחות-בת",
+      "self": "הסוכן הזה",
       "status": {
-        "working": "Running",
-        "error": "Error",
-        "idle": "Idle"
+        "working": "פועל",
+        "error": "שגיאה",
+        "idle": "לא פעיל"
       }
     }
   },
@@ -288,6 +304,6 @@
     }
   },
   "subagents": {
-    "label": "Subagents"
+    "label": "סוכני משנה"
   }
 }

@@ -423,7 +423,6 @@
                   {{ slot.id }}
                 </div>
                 <Button
-                  v-if="slot.targetType !== 'self'"
                   variant="ghost"
                   size="sm"
                   class="h-7 px-2 text-xs"
@@ -434,61 +433,30 @@
               </div>
 
               <div class="mt-4 grid gap-4 md:grid-cols-2">
-                <div class="space-y-2">
+                <label class="space-y-2">
                   <div class="text-sm font-medium">
-                    {{ t('settings.deepchatAgents.subagentTargetType') }}
+                    {{ t('settings.deepchatAgents.subagentTargetAgentLabel') }}
                   </div>
-                  <div class="flex gap-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      :class="
-                        slot.targetType === 'self' ? 'border-primary bg-accent/40' : 'border-border'
-                      "
-                      @click="setSubagentTargetType(slot, 'self')"
+                  <select
+                    :value="getSubagentTargetValue(slot)"
+                    class="flex h-10 w-full rounded-lg border border-border bg-background px-3 text-sm"
+                    @change="handleSubagentTargetChange(slot, $event)"
+                  >
+                    <option
+                      v-for="agentOption in subagentTargetOptions"
+                      :key="agentOption.value"
+                      :value="agentOption.value"
                     >
-                      {{ t('settings.deepchatAgents.subagentTargetSelf') }}
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      :class="
-                        slot.targetType === 'agent'
-                          ? 'border-primary bg-accent/40'
-                          : 'border-border'
-                      "
-                      @click="setSubagentTargetType(slot, 'agent')"
-                    >
-                      {{ t('settings.deepchatAgents.subagentTargetAgent') }}
-                    </Button>
-                  </div>
-                </div>
+                      {{ agentOption.label }}
+                    </option>
+                  </select>
+                </label>
 
                 <label class="space-y-2">
                   <div class="text-sm font-medium">
                     {{ t('settings.deepchatAgents.subagentDisplayName') }}
                   </div>
                   <Input v-model="slot.displayName" />
-                </label>
-
-                <label v-if="slot.targetType === 'agent'" class="space-y-2 md:col-span-2">
-                  <div class="text-sm font-medium">
-                    {{ t('settings.deepchatAgents.subagentTargetAgentLabel') }}
-                  </div>
-                  <select
-                    v-model="slot.targetAgentId"
-                    class="flex h-10 w-full rounded-lg border border-border bg-background px-3 text-sm"
-                  >
-                    <option
-                      v-for="agentOption in availableSubagentTargetAgents"
-                      :key="agentOption.id"
-                      :value="agentOption.id"
-                    >
-                      {{ agentOption.name }}
-                    </option>
-                  </select>
                 </label>
 
                 <label class="space-y-2 md:col-span-2">
@@ -683,6 +651,10 @@ type SidebarAgentItem = {
   avatar: AgentAvatarValue | null
   icon?: string
 }
+type SelectOption = {
+  value: string
+  label: string
+}
 type EditableSubagentSlot = DeepChatSubagentSlot
 type ToolGroup = {
   name: string
@@ -717,6 +689,7 @@ type FormState = {
 
 const LUCIDE_ICONS = ['bot', 'sparkles', 'brain', 'code', 'book-open', 'pen-tool', 'rocket']
 const DRAFT_AGENT_ID = '__draft_deepchat_agent__'
+const CURRENT_SUBAGENT_TARGET = '__current_agent__'
 const GROUP_ORDER = [
   'agent-filesystem',
   'agent-core',
@@ -731,7 +704,7 @@ const toolPresenter = usePresenter('toolPresenter')
 const modelStore = useModelStore()
 const subagentSlotLimit = DEEPCHAT_SUBAGENT_SLOT_LIMIT
 
-const agents = ref<Agent[]>([])
+const allAgents = ref<Agent[]>([])
 const tools = ref<MCPToolDefinition[]>([])
 const recentProjects = ref<Project[]>([])
 const saving = ref(false)
@@ -903,9 +876,42 @@ const groupedTools = computed<ToolGroup[]>(() => {
       return left.name.localeCompare(right.name)
     })
 })
-const availableSubagentTargetAgents = computed(() =>
-  agents.value.filter((agent) => agent.type === 'deepchat' || agent.type === 'acp')
+const deepchatAgents = computed(() =>
+  allAgents.value
+    .filter((agent) => agent.type === 'deepchat')
+    .sort((a, b) =>
+      a.id === 'deepchat' ? -1 : b.id === 'deepchat' ? 1 : a.name.localeCompare(b.name)
+    )
 )
+const isAvailableSubagentTargetAgent = (agent: Agent) => {
+  if (agent.type === 'deepchat') {
+    return true
+  }
+
+  if (agent.type !== 'acp') {
+    return false
+  }
+
+  return agent.source !== 'registry' || agent.installState?.status === 'installed'
+}
+const availableSubagentTargetAgents = computed(() =>
+  allAgents.value.filter(isAvailableSubagentTargetAgent).sort((left, right) => {
+    if (left.type !== right.type) {
+      return left.type === 'deepchat' ? -1 : 1
+    }
+    return left.name.localeCompare(right.name)
+  })
+)
+const subagentTargetOptions = computed<SelectOption[]>(() => [
+  {
+    value: CURRENT_SUBAGENT_TARGET,
+    label: t('settings.deepchatAgents.subagentTargetSelf')
+  },
+  ...availableSubagentTargetAgents.value.map((agent) => ({
+    value: agent.id,
+    label: agent.name
+  }))
+])
 const draftSidebarAgent = computed<SidebarAgentItem>(() => ({
   id: DRAFT_AGENT_ID,
   name: form.name.trim() || t('settings.deepchatAgents.unnamed'),
@@ -914,7 +920,7 @@ const draftSidebarAgent = computed<SidebarAgentItem>(() => ({
   avatar: buildAvatar()
 }))
 const sidebarAgents = computed<SidebarAgentItem[]>(() => {
-  const savedAgents = agents.value.map((agent) => ({
+  const savedAgents = deepchatAgents.value.map((agent) => ({
     id: agent.id,
     name: agent.name,
     enabled: agent.enabled,
@@ -1058,36 +1064,45 @@ const modelText = (selection: EditableModel | undefined) => {
 }
 const getModelLabel = (key: ModelKey) => modelText(form[key])
 const getModelIconId = (key: ModelKey) => form[key]?.modelId ?? ''
-const setSubagentTargetType = (
-  slot: EditableSubagentSlot,
-  targetType: EditableSubagentSlot['targetType']
-) => {
-  slot.targetType = targetType
-  if (targetType === 'self') {
+const getSubagentTargetValue = (slot: EditableSubagentSlot) =>
+  slot.targetType === 'self'
+    ? CURRENT_SUBAGENT_TARGET
+    : (slot.targetAgentId ?? CURRENT_SUBAGENT_TARGET)
+
+const setSubagentTarget = (slot: EditableSubagentSlot, targetValue: string) => {
+  if (targetValue === CURRENT_SUBAGENT_TARGET) {
+    slot.targetType = 'self'
     delete slot.targetAgentId
     return
   }
 
-  const firstAgent = availableSubagentTargetAgents.value[0]
-  slot.targetAgentId = slot.targetAgentId || firstAgent?.id || 'deepchat'
+  slot.targetType = 'agent'
+  slot.targetAgentId = targetValue
 }
+
+const handleSubagentTargetChange = (slot: EditableSubagentSlot, event: Event) => {
+  const target = event.target
+  if (!(target instanceof HTMLSelectElement)) {
+    return
+  }
+
+  setSubagentTarget(slot, target.value)
+}
+
 const addSubagentSlot = () => {
   if (form.subagents.length >= subagentSlotLimit) {
     return
   }
 
-  const firstAgent = availableSubagentTargetAgents.value[0]
   form.subagents.push({
     id: createAgentSlotId(),
-    targetType: 'agent',
-    targetAgentId: firstAgent?.id || 'deepchat',
+    targetType: 'self',
     displayName: '',
     description: ''
   })
 }
 const removeSubagentSlot = (index: number) => {
-  const slot = form.subagents[index]
-  if (!slot || slot.targetType === 'self') {
+  if (!form.subagents[index]) {
     return
   }
 
@@ -1188,17 +1203,13 @@ const loadTools = async () => {
 }
 const loadAgents = async (preferredId?: string | null) => {
   const list = await configPresenter.listAgents()
-  agents.value = list
-    .filter((agent) => agent.type === 'deepchat')
-    .sort((a, b) =>
-      a.id === 'deepchat' ? -1 : b.id === 'deepchat' ? 1 : a.name.localeCompare(b.name)
-    )
+  allAgents.value = list
   const nextId =
-    preferredId && agents.value.some((agent) => agent.id === preferredId)
+    preferredId && deepchatAgents.value.some((agent) => agent.id === preferredId)
       ? preferredId
-      : (agents.value[0]?.id ?? null)
+      : (deepchatAgents.value[0]?.id ?? null)
   selectedAgentId.value = nextId
-  assignForm(fromAgent(agents.value.find((agent) => agent.id === nextId) ?? null))
+  assignForm(fromAgent(deepchatAgents.value.find((agent) => agent.id === nextId) ?? null))
 }
 const selectAgent = (agentId: string) => {
   if (agentId === DRAFT_AGENT_ID) {
@@ -1207,7 +1218,7 @@ const selectAgent = (agentId: string) => {
   }
 
   selectedAgentId.value = agentId
-  assignForm(fromAgent(agents.value.find((agent) => agent.id === agentId) ?? null))
+  assignForm(fromAgent(deepchatAgents.value.find((agent) => agent.id === agentId) ?? null))
 }
 const startCreate = () => {
   selectedAgentId.value = DRAFT_AGENT_ID

@@ -110,20 +110,20 @@
 
                 <div class="flex flex-wrap gap-2">
                   <Button
-                    v-for="tool in group.tools"
-                    :key="tool.function.name"
+                    v-for="item in group.items"
+                    :key="item.id"
                     variant="outline"
                     size="sm"
                     class="h-7 rounded-md px-2.5 text-xs shadow-none transition-colors"
                     :class="
-                      isToolEnabled(tool.function.name)
+                      isGroupItemEnabled(item)
                         ? 'border-primary bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground'
                         : 'border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground'
                     "
-                    :disabled="isToolPending(tool.function.name)"
-                    @click="toggleAgentTool(tool.function.name)"
+                    :disabled="isGroupItemPending(item)"
+                    @click="toggleGroupItem(item)"
                   >
-                    {{ tool.function.name }}
+                    {{ item.label }}
                   </Button>
                 </div>
               </div>
@@ -227,10 +227,23 @@ import { useDraftStore } from '@/stores/ui/draft'
 import { useAgentStore } from '@/stores/ui/agent'
 import { useProjectStore } from '@/stores/ui/project'
 
+type ToolGroupItem =
+  | {
+      kind: 'tool'
+      id: string
+      label: string
+      toolName: string
+    }
+  | {
+      kind: 'subagent'
+      id: 'subagent'
+      label: string
+    }
+
 type ToolGroup = {
   name: string
   label: string
-  tools: MCPToolDefinition[]
+  items: ToolGroupItem[]
 }
 
 type SystemPromptMenuOption = {
@@ -253,18 +266,25 @@ const props = withDefaults(
     systemPromptOptions?: SystemPromptMenuOption[]
     selectedSystemPromptId?: string
     showCustomSystemPromptBadge?: boolean
+    showSubagentToggle?: boolean
+    subagentEnabled?: boolean
+    subagentTogglePending?: boolean
   }>(),
   {
     showSystemPromptSection: false,
     systemPromptOptions: () => [],
     selectedSystemPromptId: 'empty',
-    showCustomSystemPromptBadge: false
+    showCustomSystemPromptBadge: false,
+    showSubagentToggle: false,
+    subagentEnabled: false,
+    subagentTogglePending: false
   }
 )
 
 const emit = defineEmits<{
   (e: 'select-system-prompt', optionId: string): void
   (e: 'open-change', open: boolean): void
+  (e: 'toggle-subagents', enabled: boolean): void
 }>()
 
 const { t } = useI18n()
@@ -381,19 +401,34 @@ const getGroupLabel = (serverName: string) => {
 }
 
 const groupedAgentTools = computed<ToolGroup[]>(() => {
-  const groups = new Map<string, MCPToolDefinition[]>()
+  const groups = new Map<string, ToolGroupItem[]>()
 
   for (const tool of agentTools.value) {
     const existing = groups.get(tool.server.name) ?? []
-    existing.push(tool)
+    existing.push({
+      kind: 'tool',
+      id: tool.function.name,
+      label: tool.function.name,
+      toolName: tool.function.name
+    })
     groups.set(tool.server.name, existing)
   }
 
+  if (props.showSubagentToggle) {
+    const existing = groups.get('agent-core') ?? []
+    existing.push({
+      kind: 'subagent',
+      id: 'subagent',
+      label: t('chat.subagents.label')
+    })
+    groups.set('agent-core', existing)
+  }
+
   return Array.from(groups.entries())
-    .map(([name, tools]) => ({
+    .map(([name, items]) => ({
       name,
       label: getGroupLabel(name),
-      tools: [...tools].sort((left, right) => left.function.name.localeCompare(right.function.name))
+      items: [...items].sort((left, right) => left.label.localeCompare(right.label))
     }))
     .sort((left, right) => {
       const leftIndex = GROUP_ORDER.indexOf(left.name)
@@ -414,11 +449,14 @@ const groupedAgentTools = computed<ToolGroup[]>(() => {
 
 const isToolEnabled = (toolName: string) => !disabledToolNames.value.includes(toolName)
 const isToolPending = (toolName: string) => pendingToolNames.value.includes(toolName)
-const getGroupToolNames = (group: ToolGroup) => group.tools.map((tool) => tool.function.name)
-const isGroupEnabled = (group: ToolGroup) =>
-  getGroupToolNames(group).some((toolName) => isToolEnabled(toolName))
-const isGroupPending = (group: ToolGroup) =>
-  getGroupToolNames(group).some((toolName) => isToolPending(toolName))
+const isGroupItemEnabled = (item: ToolGroupItem) =>
+  item.kind === 'subagent' ? props.subagentEnabled : isToolEnabled(item.toolName)
+const isGroupItemPending = (item: ToolGroupItem) =>
+  item.kind === 'subagent' ? props.subagentTogglePending : isToolPending(item.toolName)
+const getGroupToolNames = (group: ToolGroup) =>
+  group.items.flatMap((item) => (item.kind === 'tool' ? [item.toolName] : []))
+const isGroupEnabled = (group: ToolGroup) => group.items.some((item) => isGroupItemEnabled(item))
+const isGroupPending = (group: ToolGroup) => group.items.some((item) => isGroupItemPending(item))
 
 const getServerLabel = (serverName: string) => {
   return t(`mcp.inmemory.${serverName}.name`, serverName)
@@ -544,6 +582,19 @@ const toggleAgentTool = async (toolName: string) => {
   await persistDisabledTools(nextList, [toolName])
 }
 
+const toggleGroupItem = async (item: ToolGroupItem) => {
+  if (item.kind === 'subagent') {
+    if (!isDeepchatContext.value || props.subagentTogglePending) {
+      return
+    }
+
+    emit('toggle-subagents', !props.subagentEnabled)
+    return
+  }
+
+  await toggleAgentTool(item.toolName)
+}
+
 const setGroupEnabled = async (group: ToolGroup, enabled: boolean) => {
   if (!isDeepchatContext.value || isGroupPending(group)) {
     return
@@ -561,11 +612,21 @@ const setGroupEnabled = async (group: ToolGroup, enabled: boolean) => {
   }
 
   const nextList = Array.from(nextDisabledTools).sort((left, right) => left.localeCompare(right))
-  if (nextList.join('\n') === disabledToolNames.value.join('\n')) {
+  const shouldUpdateTools = nextList.join('\n') !== disabledToolNames.value.join('\n')
+  const shouldUpdateSubagents =
+    group.items.some((item) => item.kind === 'subagent') && props.subagentEnabled !== enabled
+
+  if (!shouldUpdateTools && !shouldUpdateSubagents) {
     return
   }
 
-  await persistDisabledTools(nextList, groupToolNames)
+  if (shouldUpdateTools) {
+    await persistDisabledTools(nextList, groupToolNames)
+  }
+
+  if (shouldUpdateSubagents) {
+    emit('toggle-subagents', enabled)
+  }
 }
 
 watch(

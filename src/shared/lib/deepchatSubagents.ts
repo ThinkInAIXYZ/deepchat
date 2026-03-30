@@ -60,7 +60,7 @@ export const normalizeDeepChatSubagentSlots = (
         ),
         description: normalizeDescription(
           typeof slot.description === 'string' ? slot.description : undefined,
-          'Inherit the current parent session agent logic with an isolated context.'
+          ''
         )
       })
       continue
@@ -88,10 +88,6 @@ export const normalizeDeepChatSubagentSlots = (
         ''
       )
     })
-  }
-
-  if (!normalized.some((slot) => slot.targetType === 'self')) {
-    pushSlot(createDefaultDeepChatSelfSubagentSlot())
   }
 
   return normalized

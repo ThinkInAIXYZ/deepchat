@@ -114,7 +114,23 @@
     "clickToView": "點擊查看詳情",
     "functionName": "函式名稱",
     "params": "參數",
-    "responseData": "回應資料"
+    "responseData": "回應資料",
+    "subagents": {
+      "summary": "{mode} · {count} 個 subagent",
+      "mode": {
+        "parallel": "並行",
+        "chain": "串行"
+      },
+      "status": {
+        "queued": "排隊中",
+        "running": "執行中",
+        "completed": "已完成",
+        "error": "錯誤",
+        "cancelled": "已取消",
+        "waiting_permission": "等待權限批准",
+        "waiting_question": "等待補充輸入"
+      }
+    }
   },
   "mode": {
     "acpAgent": "ACP Agent",
@@ -124,7 +140,7 @@
   "topbar": {
     "share": "分享",
     "more": "更多",
-    "backToParent": "Back to Parent"
+    "backToParent": "返回父會話"
   },
   "advancedSettings": {
     "button": "進階設定",
@@ -158,7 +174,7 @@
       "files": "檔案",
       "git": "Git",
       "artifacts": "Artifacts",
-      "subagents": "Subagents"
+      "subagents": "subagent"
     },
     "files": {
       "contextMenu": {
@@ -214,12 +230,12 @@
     },
     "title": "工作區",
     "subagents": {
-      "empty": "No child sessions yet",
-      "self": "Self",
+      "empty": "暫無 subagent 會話",
+      "self": "目前智能體",
       "status": {
-        "working": "Running",
-        "error": "Error",
-        "idle": "Idle"
+        "working": "執行中",
+        "error": "錯誤",
+        "idle": "閒置"
       }
     }
   },
@@ -288,6 +304,6 @@
     }
   },
   "subagents": {
-    "label": "Subagents"
+    "label": "subagent"
   }
 }

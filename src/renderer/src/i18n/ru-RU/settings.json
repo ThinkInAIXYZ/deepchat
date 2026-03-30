@@ -1627,16 +1627,16 @@
     "compactionThreshold": "Порог срабатывания",
     "compactionRetainPairs": "Сохранять последние пары",
     "deleteConfirm": "Удалить агента «{name}»? Его история будет возвращена встроенному агенту DeepChat.",
-    "subagentsTitle": "Subagents",
-    "subagentsDescription": "Configure the reusable child-session slots exposed to subagent_orchestrator.",
-    "subagentsEnabled": "Enable subagents",
-    "subagentTargetType": "Target type",
-    "subagentTargetSelf": "Self",
-    "subagentTargetAgent": "Agent",
-    "subagentDisplayName": "Display name",
-    "subagentDescription": "Slot description",
-    "subagentTargetAgentLabel": "Target agent",
-    "subagentLimit": "{count}/{max} slots",
-    "addSubagentSlot": "+ Add Slot"
+    "subagentsTitle": "Субагенты",
+    "subagentsDescription": "Настройте переиспользуемые слоты дочерних сессий, доступные через `subagent_orchestrator`.",
+    "subagentsEnabled": "Включить субагентов",
+    "subagentTargetType": "Тип цели",
+    "subagentTargetSelf": "Этот агент",
+    "subagentTargetAgent": "Агент",
+    "subagentDisplayName": "Отображаемое имя",
+    "subagentDescription": "Описание слота",
+    "subagentTargetAgentLabel": "Целевой агент",
+    "subagentLimit": "{count}/{max} слотов",
+    "addSubagentSlot": "+ Добавить слот"
   }
 }

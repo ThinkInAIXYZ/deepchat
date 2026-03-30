@@ -110,7 +110,23 @@
     "clickToView": "자세히 보려면 클릭하세요",
     "functionName": "함수 이름",
     "params": "매개변수",
-    "responseData": "응답 데이터"
+    "responseData": "응답 데이터",
+    "subagents": {
+      "summary": "{mode} · 하위 에이전트 {count}개",
+      "mode": {
+        "parallel": "병렬",
+        "chain": "순차"
+      },
+      "status": {
+        "queued": "대기열",
+        "running": "실행 중",
+        "completed": "완료됨",
+        "error": "오류",
+        "cancelled": "취소됨",
+        "waiting_permission": "권한 대기",
+        "waiting_question": "입력 대기"
+      }
+    }
   },
   "mode": {
     "acpAgent": "ACP 에이전트",
@@ -120,7 +136,7 @@
   "topbar": {
     "share": "공유",
     "more": "더보기",
-    "backToParent": "Back to Parent"
+    "backToParent": "상위 세션으로 돌아가기"
   },
   "advancedSettings": {
     "button": "고급 설정",
@@ -154,7 +170,7 @@
       "files": "파일",
       "git": "Git",
       "artifacts": "Artifacts",
-      "subagents": "Subagents"
+      "subagents": "하위 에이전트"
     },
     "files": {
       "contextMenu": {
@@ -210,12 +226,12 @@
     },
     "title": "작업 공간",
     "subagents": {
-      "empty": "No child sessions yet",
-      "self": "Self",
+      "empty": "아직 하위 세션이 없습니다",
+      "self": "현재 에이전트",
       "status": {
-        "working": "Running",
-        "error": "Error",
-        "idle": "Idle"
+        "working": "실행 중",
+        "error": "오류",
+        "idle": "대기 중"
       }
     }
   },
@@ -288,6 +304,6 @@
     }
   },
   "subagents": {
-    "label": "Subagents"
+    "label": "하위 에이전트"
   }
 }

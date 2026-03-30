@@ -21,12 +21,30 @@ class MockResizeObserver {
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
-    t: (key: string, params?: { count?: number }) => {
+    t: (key: string, params?: { count?: number; mode?: string }) => {
       if (key === 'toolCall.replacementsCount') {
         return `${params?.count ?? 0} replacements`
       }
       if (key === 'toolCall.badge.rtk') {
         return 'RTK'
+      }
+      if (key === 'chat.toolCall.subagents.summary') {
+        return `${params?.mode ?? 'mode'} · ${params?.count ?? 0} localized subagents`
+      }
+      if (key === 'chat.toolCall.subagents.mode.parallel') {
+        return 'localized parallel'
+      }
+      if (key === 'chat.toolCall.subagents.mode.chain') {
+        return 'localized chain'
+      }
+      if (key === 'chat.toolCall.subagents.status.running') {
+        return 'localized running'
+      }
+      if (key === 'chat.toolCall.subagents.status.waiting_permission') {
+        return 'localized waiting permission'
+      }
+      if (key === 'chat.toolCall.subagents.status.completed') {
+        return 'localized completed'
       }
       return key
     }
@@ -36,6 +54,12 @@ vi.mock('vue-i18n', () => ({
 vi.mock('@/stores/theme', () => ({
   useThemeStore: () => ({
     isDark: false
+  })
+}))
+
+vi.mock('@/stores/ui/session', () => ({
+  useSessionStore: () => ({
+    selectSession: vi.fn()
   })
 }))
 
@@ -615,5 +639,53 @@ describe('MessageBlockToolCall', () => {
     await nextTick()
 
     expect(wrapper.find('[data-testid="tool-call-details"]').exists()).toBe(false)
+  })
+
+  it('localizes subagent orchestrator summary and statuses', async () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          status: 'loading',
+          tool_call: {
+            id: 'subagent-1',
+            name: 'subagent_orchestrator',
+            params: '{"mode":"parallel"}',
+            response: ''
+          },
+          extra: {
+            subagentProgress: JSON.stringify({
+              runId: 'run-1',
+              mode: 'parallel',
+              tasks: [
+                {
+                  taskId: 'task-1',
+                  title: 'Inspect repo',
+                  slotId: 'slot-1',
+                  sessionId: 'child-1',
+                  targetAgentName: 'ACP Coder',
+                  status: 'running',
+                  previewMarkdown: 'line 1'
+                },
+                {
+                  taskId: 'task-2',
+                  title: 'Request approval',
+                  slotId: 'slot-2',
+                  sessionId: 'child-2',
+                  targetAgentName: 'Self Clone',
+                  status: 'waiting_permission',
+                  previewMarkdown: 'line 2'
+                }
+              ]
+            })
+          }
+        })
+      }
+    })
+
+    await nextTick()
+
+    expect(wrapper.text()).toContain('localized parallel · 2 localized subagents')
+    expect(wrapper.text()).toContain('localized running')
+    expect(wrapper.text()).toContain('localized waiting permission')
   })
 })

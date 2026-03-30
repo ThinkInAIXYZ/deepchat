@@ -110,7 +110,23 @@
     "clickToView": "برای مشاهده جزئیات کلیک کنید",
     "functionName": "نام تابع",
     "params": "پارامترها",
-    "responseData": "داده‌های پاسخ"
+    "responseData": "داده‌های پاسخ",
+    "subagents": {
+      "summary": "{mode} · {count} زیرایجنت",
+      "mode": {
+        "parallel": "موازی",
+        "chain": "زنجیره‌ای"
+      },
+      "status": {
+        "queued": "در صف",
+        "running": "در حال اجرا",
+        "completed": "تکمیل‌شده",
+        "error": "خطا",
+        "cancelled": "لغوشده",
+        "waiting_permission": "در انتظار مجوز",
+        "waiting_question": "در انتظار ورودی"
+      }
+    }
   },
   "mode": {
     "acpAgent": "نماینده ACP",
@@ -120,7 +136,7 @@
   "topbar": {
     "share": "اشتراک‌گذاری",
     "more": "بیشتر",
-    "backToParent": "Back to Parent"
+    "backToParent": "بازگشت به نشست والد"
   },
   "advancedSettings": {
     "button": "پیشرفته",
@@ -154,7 +170,7 @@
       "files": "فایل‌ها",
       "git": "Git",
       "artifacts": "Artifacts",
-      "subagents": "Subagents"
+      "subagents": "زیرایجنت‌ها"
     },
     "files": {
       "contextMenu": {
@@ -210,12 +226,12 @@
     },
     "title": "فضای کار",
     "subagents": {
-      "empty": "No child sessions yet",
-      "self": "Self",
+      "empty": "هنوز هیچ نشست فرزندی وجود ندارد",
+      "self": "همین ایجنت",
       "status": {
-        "working": "Running",
-        "error": "Error",
-        "idle": "Idle"
+        "working": "در حال اجرا",
+        "error": "خطا",
+        "idle": "بیکار"
       }
     }
   },
@@ -288,6 +304,6 @@
     }
   },
   "subagents": {
-    "label": "Subagents"
+    "label": "زیرایجنت‌ها"
   }
 }

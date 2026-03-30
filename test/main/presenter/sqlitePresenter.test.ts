@@ -238,6 +238,90 @@ describeIfSqlite('SQLitePresenter legacy schema bootstrap', () => {
     checkDb.close()
   })
 
+  it('migrates missing subagent columns when schema version is already 20', async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-sqlite-presenter-'))
+    tempDirs.push(tempDir)
+
+    const dbPath = path.join(tempDir, 'agent.db')
+    const bootstrapDb = new DatabaseCtor(dbPath)
+    bootstrapDb.exec(`
+      CREATE TABLE IF NOT EXISTS schema_versions (
+        version INTEGER PRIMARY KEY,
+        applied_at INTEGER NOT NULL
+      );
+      INSERT INTO schema_versions (version, applied_at) VALUES (20, ${Date.now()});
+      CREATE TABLE IF NOT EXISTS new_sessions (
+        id TEXT PRIMARY KEY,
+        agent_id TEXT NOT NULL,
+        title TEXT NOT NULL,
+        project_dir TEXT,
+        is_pinned INTEGER DEFAULT 0,
+        is_draft INTEGER NOT NULL DEFAULT 0,
+        active_skills TEXT NOT NULL DEFAULT '[]',
+        disabled_agent_tools TEXT NOT NULL DEFAULT '[]',
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+    `)
+    bootstrapDb.close()
+
+    const presenter = new SQLitePresenterCtor(dbPath)
+    presenter.newSessionsTable.create('session-1', 'deepchat', 'Recovered session', null, {
+      subagentEnabled: true,
+      sessionKind: 'subagent',
+      parentSessionId: 'parent-1',
+      subagentMetaJson: JSON.stringify({
+        slotId: 'slot-1',
+        displayName: 'Reviewer',
+        targetAgentId: 'acp-reviewer'
+      })
+    })
+    presenter.close()
+
+    const checkDb = new DatabaseCtor(dbPath)
+    const newSessionColumns = checkDb.prepare('PRAGMA table_info(new_sessions)').all() as Array<{
+      name: string
+    }>
+    const columnNames = new Set(newSessionColumns.map((column) => column.name))
+
+    expect(columnNames.has('subagent_enabled')).toBe(true)
+    expect(columnNames.has('session_kind')).toBe(true)
+    expect(columnNames.has('parent_session_id')).toBe(true)
+    expect(columnNames.has('subagent_meta_json')).toBe(true)
+
+    const row = checkDb
+      .prepare(
+        `SELECT subagent_enabled, session_kind, parent_session_id, subagent_meta_json
+         FROM new_sessions
+         WHERE id = ?`
+      )
+      .get('session-1') as
+      | {
+          subagent_enabled: number
+          session_kind: string
+          parent_session_id: string | null
+          subagent_meta_json: string | null
+        }
+      | undefined
+
+    expect(row).toEqual({
+      subagent_enabled: 1,
+      session_kind: 'subagent',
+      parent_session_id: 'parent-1',
+      subagent_meta_json: JSON.stringify({
+        slotId: 'slot-1',
+        displayName: 'Reviewer',
+        targetAgentId: 'acp-reviewer'
+      })
+    })
+
+    const versions = checkDb
+      .prepare('SELECT version FROM schema_versions ORDER BY version ASC')
+      .all() as Array<{ version: number }>
+    expect(versions.map((entry) => entry.version)).toContain(21)
+    checkDb.close()
+  })
+
   it('migrates new_environments from existing session history when schema version is 16', async () => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-sqlite-presenter-'))
     tempDirs.push(tempDir)

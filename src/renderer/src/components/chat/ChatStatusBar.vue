@@ -661,8 +661,12 @@
           :system-prompt-options="systemPromptMenuOptions"
           :selected-system-prompt-id="selectedSystemPromptId"
           :show-custom-system-prompt-badge="selectedSystemPromptId === '__custom__'"
+          :show-subagent-toggle="showSubagentToggle"
+          :subagent-enabled="subagentEnabled"
+          :subagent-toggle-pending="isSubagentToggleUpdating"
           @select-system-prompt="onSystemPromptSelect"
           @open-change="handleSessionPanelOpenChange"
+          @toggle-subagents="onSubagentToggle"
         />
 
         <DropdownMenu v-if="!isAcpAgent">
@@ -699,19 +703,6 @@
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-
-        <div
-          v-if="showSubagentToggle"
-          class="flex items-center gap-2 rounded-full px-2 py-1 text-xs text-muted-foreground backdrop-blur-lg"
-        >
-          <span>{{ t('chat.subagents.label') }}</span>
-          <Switch
-            :model-value="subagentEnabled"
-            :disabled="isSubagentToggleUpdating"
-            :aria-label="t('chat.subagents.label')"
-            @update:model-value="onSubagentToggle(Boolean($event))"
-          />
-        </div>
       </div>
     </div>
   </div>

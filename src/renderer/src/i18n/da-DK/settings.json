@@ -1627,16 +1627,16 @@
     "compactionThreshold": "Udløsningstærskel",
     "compactionRetainPairs": "Behold seneste par",
     "deleteConfirm": "Slet agenten \"{name}\"? Dens historik falder tilbage til den indbyggede DeepChat-agent.",
-    "subagentsTitle": "Subagents",
-    "subagentsDescription": "Configure the reusable child-session slots exposed to subagent_orchestrator.",
-    "subagentsEnabled": "Enable subagents",
-    "subagentTargetType": "Target type",
-    "subagentTargetSelf": "Self",
+    "subagentsTitle": "Underagenter",
+    "subagentsDescription": "Konfigurer de genanvendelige slots til undersessioner, som `subagent_orchestrator` stiller til rådighed.",
+    "subagentsEnabled": "Aktivér underagenter",
+    "subagentTargetType": "Måltype",
+    "subagentTargetSelf": "Denne agent",
     "subagentTargetAgent": "Agent",
-    "subagentDisplayName": "Display name",
-    "subagentDescription": "Slot description",
-    "subagentTargetAgentLabel": "Target agent",
-    "subagentLimit": "{count}/{max} slots",
-    "addSubagentSlot": "+ Add Slot"
+    "subagentDisplayName": "Visningsnavn",
+    "subagentDescription": "Slotbeskrivelse",
+    "subagentTargetAgentLabel": "Målagent",
+    "subagentLimit": "{count}/{max} pladser",
+    "addSubagentSlot": "+ Tilføj slot"
   }
 }

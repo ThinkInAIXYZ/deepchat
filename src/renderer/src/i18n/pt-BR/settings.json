@@ -1627,16 +1627,16 @@
     "compactionThreshold": "Limite de ativação",
     "compactionRetainPairs": "Manter pares recentes",
     "deleteConfirm": "Excluir o agente \"{name}\"? O histórico dele voltará para o agente DeepChat integrado.",
-    "subagentsTitle": "Subagents",
-    "subagentsDescription": "Configure the reusable child-session slots exposed to subagent_orchestrator.",
-    "subagentsEnabled": "Enable subagents",
-    "subagentTargetType": "Target type",
-    "subagentTargetSelf": "Self",
-    "subagentTargetAgent": "Agent",
-    "subagentDisplayName": "Display name",
-    "subagentDescription": "Slot description",
-    "subagentTargetAgentLabel": "Target agent",
+    "subagentsTitle": "Subagentes",
+    "subagentsDescription": "Configure os slots reutilizáveis de sessões filhas expostos pelo `subagent_orchestrator`.",
+    "subagentsEnabled": "Ativar subagentes",
+    "subagentTargetType": "Tipo de destino",
+    "subagentTargetSelf": "Este agente",
+    "subagentTargetAgent": "Agente",
+    "subagentDisplayName": "Nome de exibição",
+    "subagentDescription": "Descrição do slot",
+    "subagentTargetAgentLabel": "Agente de destino",
     "subagentLimit": "{count}/{max} slots",
-    "addSubagentSlot": "+ Add Slot"
+    "addSubagentSlot": "+ Adicionar slot"
   }
 }

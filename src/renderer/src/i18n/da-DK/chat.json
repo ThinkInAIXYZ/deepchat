@@ -110,6 +110,22 @@
     "params": "parameter",
     "response": "Værktøjsrespons",
     "responseData": "Svardata",
+    "subagents": {
+      "summary": "{mode} · {count} underagenter",
+      "mode": {
+        "parallel": "Parallel",
+        "chain": "Kæde"
+      },
+      "status": {
+        "queued": "I kø",
+        "running": "Kører",
+        "completed": "Fuldført",
+        "error": "Fejl",
+        "cancelled": "Annulleret",
+        "waiting_permission": "Afventer tilladelse",
+        "waiting_question": "Afventer input"
+      }
+    },
     "title": "Værktøjsopkald"
   },
   "mode": {
@@ -120,7 +136,7 @@
   "topbar": {
     "share": "Del",
     "more": "Mere",
-    "backToParent": "Back to Parent"
+    "backToParent": "Tilbage til forælder"
   },
   "advancedSettings": {
     "button": "Avanceret",
@@ -154,7 +170,7 @@
       "files": "Filer",
       "git": "Git",
       "artifacts": "Artifacts",
-      "subagents": "Subagents"
+      "subagents": "Underagenter"
     },
     "files": {
       "contextMenu": {
@@ -210,12 +226,12 @@
     },
     "title": "arbejdsrum",
     "subagents": {
-      "empty": "No child sessions yet",
-      "self": "Self",
+      "empty": "Ingen undersessioner endnu",
+      "self": "Denne agent",
       "status": {
-        "working": "Running",
-        "error": "Error",
-        "idle": "Idle"
+        "working": "Kører",
+        "error": "Fejl",
+        "idle": "Inaktiv"
       }
     }
   },
@@ -288,6 +304,6 @@
     }
   },
   "subagents": {
-    "label": "Subagents"
+    "label": "Underagenter"
   }
 }

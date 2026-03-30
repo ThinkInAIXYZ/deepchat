@@ -72,7 +72,7 @@
                   :class="getSubagentStatusClass(task.status)"
                   class="rounded-full px-2 py-0.5 text-[10px] font-medium"
                 >
-                  {{ task.status }}
+                  {{ getSubagentStatusLabel(task.status) }}
                 </span>
                 <button
                   v-if="task.sessionId"
@@ -370,7 +370,10 @@ const summaryText = computed(() => {
       parseSubagentProgress(props.block.extra?.subagentProgress) ??
       parseSubagentProgress(props.block.extra?.subagentFinal)
     if (progress) {
-      return `${progress.mode} · ${progress.tasks.length} subagents`
+      return t('chat.toolCall.subagents.summary', {
+        mode: getSubagentModeLabel(progress.mode),
+        count: progress.tasks.length
+      })
     }
   }
 
@@ -670,6 +673,38 @@ const getSubagentStatusClass = (status: string): string => {
     return 'bg-amber-500/10 text-amber-600'
   }
   return 'bg-muted text-muted-foreground'
+}
+
+function getSubagentModeLabel(mode: string): string {
+  switch (mode) {
+    case 'parallel':
+      return t('chat.toolCall.subagents.mode.parallel')
+    case 'chain':
+      return t('chat.toolCall.subagents.mode.chain')
+    default:
+      return mode
+  }
+}
+
+function getSubagentStatusLabel(status: string): string {
+  switch (status) {
+    case 'completed':
+      return t('chat.toolCall.subagents.status.completed')
+    case 'error':
+      return t('chat.toolCall.subagents.status.error')
+    case 'cancelled':
+      return t('chat.toolCall.subagents.status.cancelled')
+    case 'waiting_permission':
+      return t('chat.toolCall.subagents.status.waiting_permission')
+    case 'waiting_question':
+      return t('chat.toolCall.subagents.status.waiting_question')
+    case 'running':
+      return t('chat.toolCall.subagents.status.running')
+    case 'queued':
+      return t('chat.toolCall.subagents.status.queued')
+    default:
+      return status
+  }
 }
 
 const openSubagentSession = (sessionId: string) => {
