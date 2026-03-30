@@ -262,14 +262,19 @@ watch(
       return
     }
 
-    const exists = items.some(
+    const existsInArtifactItems = items.some(
       (item) =>
         item.threadId === context.threadId &&
         item.messageId === context.messageId &&
         item.artifactId === context.artifactId
     )
 
-    if (!exists) {
+    const matchesCurrentArtifact =
+      artifactStore.currentArtifact?.id === context.artifactId &&
+      artifactStore.currentMessageId === context.messageId &&
+      artifactStore.currentThreadId === context.threadId
+
+    if (!existsInArtifactItems && !matchesCurrentArtifact) {
       sidepanelStore.clearArtifact(props.sessionId)
     }
   },

@@ -28,18 +28,22 @@ import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 const props = defineProps<{
   content: string
   debug?: boolean
+  messageId?: string
+  threadId?: string
 }>()
 const themeStore = useThemeStore()
 const uiSettingsStore = useUiSettingsStore()
 // 组件映射表
 const artifactStore = useArtifactStore()
 // 生成唯一的 message ID 和 thread ID，用于 MarkdownRenderer
-const messageId = `artifact-msg-${nanoid()}`
-const threadId = `artifact-thread-${nanoid()}`
+const fallbackMessageId = `artifact-msg-${nanoid()}`
+const fallbackThreadId = `artifact-thread-${nanoid()}`
 const referenceStore = useReferenceStore()
 const newAgentPresenter = usePresenter('newAgentPresenter')
 const referenceNode = ref<HTMLElement | null>(null)
 const debouncedContent = ref(props.content)
+const effectiveMessageId = computed(() => props.messageId ?? fallbackMessageId)
+const effectiveThreadId = computed(() => props.threadId ?? fallbackThreadId)
 const codeBlockMonacoOption = computed(() => ({
   fontFamily: uiSettingsStore.formattedCodeFontFamily
 }))
@@ -63,11 +67,11 @@ setCustomComponents({
   reference: (_props) =>
     h(ReferenceNode, {
       ..._props,
-      messageId,
-      threadId,
+      messageId: effectiveMessageId.value,
+      threadId: effectiveThreadId.value,
       onClick() {
         // TODO: remove this temporary fallback after search result loading is fully unified.
-        newAgentPresenter.getSearchResults(_props.messageId ?? '').then((results) => {
+        newAgentPresenter.getSearchResults(effectiveMessageId.value).then((results) => {
           const index = parseInt(_props.node.id)
           if (index < results.length) {
             window.open(results[index - 1].url, '_blank', 'noopener,noreferrer')
@@ -77,7 +81,7 @@ setCustomComponents({
       onMouseEnter() {
         console.log('Mouse entered')
         referenceStore.hideReference()
-        newAgentPresenter.getSearchResults(_props.messageId ?? '').then((results) => {
+        newAgentPresenter.getSearchResults(effectiveMessageId.value).then((results) => {
           const index = parseInt(_props.node.id)
           if (index - 1 < results.length && referenceNode.value) {
             referenceStore.showReference(
@@ -120,8 +124,8 @@ setCustomComponents({
             content: v.node.code,
             status: 'loaded'
           },
-          messageId,
-          threadId,
+          effectiveMessageId.value,
+          effectiveThreadId.value,
           { force: true }
         )
       }

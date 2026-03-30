@@ -5,7 +5,11 @@
     data-testid="workspace-preview-markdown"
   >
     <div class="min-h-full px-4 py-4">
-      <MarkdownRenderer :content="resolvedContent" />
+      <MarkdownRenderer
+        :content="resolvedContent"
+        :message-id="previewSourceId"
+        :thread-id="props.sessionId"
+      />
     </div>
   </div>
 
@@ -91,6 +95,7 @@ import MermaidArtifact from '@/components/artifacts/MermaidArtifact.vue'
 import ReactArtifact from '@/components/artifacts/ReactArtifact.vue'
 
 const props = defineProps<{
+  sessionId?: string
   previewKind: WorkspacePreviewKind
   artifact?: ArtifactState | null
   filePreview?: WorkspaceFilePreview | null
@@ -137,6 +142,7 @@ const fileBlock = computed(() => {
 
 const resolvedBlock = computed(() => artifactBlock.value ?? fileBlock.value)
 const resolvedContent = computed(() => props.artifact?.content ?? props.filePreview?.content ?? '')
+const previewSourceId = computed(() => props.artifact?.id ?? props.filePreview?.path)
 const resolvedTitle = computed(
   () => props.artifact?.title ?? props.filePreview?.name ?? t('artifacts.preview')
 )

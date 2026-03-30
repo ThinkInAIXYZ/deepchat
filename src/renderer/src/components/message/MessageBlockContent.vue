@@ -2,7 +2,13 @@
 <template>
   <template v-for="(part, index) in processedContent" :key="index">
     <!-- 使用结构化渲染器替代 v-html -->
-    <MarkdownRenderer v-if="part.type === 'text'" :content="part.content" :loading="part.loading" />
+    <MarkdownRenderer
+      v-if="part.type === 'text'"
+      :content="part.content"
+      :loading="part.loading"
+      :message-id="messageId"
+      :thread-id="threadId"
+    />
 
     <ArtifactThinking v-else-if="part.type === 'thinking' && part.loading" />
     <div v-else-if="part.type === 'artifact' && part.artifact" class="my-1">

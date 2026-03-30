@@ -212,6 +212,9 @@ describe('WorkspacePanel', () => {
     sessionState.sections.files = true
     sessionState.sections.git = true
     sessionState.sections.artifacts = true
+    artifactStore.currentArtifact = null
+    artifactStore.currentMessageId = null
+    artifactStore.currentThreadId = null
 
     showArtifactMock.mockReset()
     toggleSectionMock.mockReset()
@@ -481,6 +484,36 @@ describe('WorkspacePanel', () => {
 
     expect(clearFileMock).toHaveBeenCalledWith('s1')
     expect(clearDiffMock).toHaveBeenCalledWith('s1')
+
+    wrapper.unmount()
+  })
+
+  it('keeps the current temporary artifact selection when it is not part of artifact items', async () => {
+    sessionState.selectedArtifactContext = {
+      threadId: 's1',
+      messageId: 'C:/repo/README.md',
+      artifactId: 'temp-html-preview'
+    }
+    artifactStore.currentArtifact = {
+      id: 'temp-html-preview',
+      type: 'text/html',
+      title: 'HTML Preview',
+      content: '<h1>Hello</h1>',
+      status: 'loaded'
+    }
+    artifactStore.currentMessageId = 'C:/repo/README.md'
+    artifactStore.currentThreadId = 's1'
+
+    const wrapper = mount(WorkspacePanel, {
+      props: {
+        sessionId: 's1',
+        workspacePath: 'C:/repo'
+      }
+    })
+
+    await flushPromises()
+
+    expect(clearArtifactMock).not.toHaveBeenCalled()
 
     wrapper.unmount()
   })

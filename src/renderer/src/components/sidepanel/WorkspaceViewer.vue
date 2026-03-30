@@ -102,6 +102,7 @@
 
       <WorkspacePreviewPane
         v-else-if="paneKind === 'preview' && previewKind"
+        :session-id="props.sessionId"
         :preview-kind="previewKind"
         :artifact="previewArtifact"
         :file-preview="previewFilePreview"
