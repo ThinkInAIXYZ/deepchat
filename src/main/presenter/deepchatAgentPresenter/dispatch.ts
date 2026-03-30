@@ -519,6 +519,7 @@ export async function executeTools(
   terminalError?: string
 }> {
   finalizePendingNarrativeBeforeToolExecution(state)
+  persistToolExecutionState(io, state)
 
   for (const tc of state.completedToolCalls) {
     const toolDef = tools.find((t) => t.function.name === tc.name)

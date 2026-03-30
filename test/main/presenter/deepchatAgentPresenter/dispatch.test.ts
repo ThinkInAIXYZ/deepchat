@@ -247,7 +247,14 @@ describe('dispatch', () => {
       expect(trailingBlockBeforeExecution?.status).toBe('pending')
 
       ;(toolPresenter.callTool as ReturnType<typeof vi.fn>).mockImplementation(async () => {
+        const persistedBlocks = (
+          io.messageStore.updateAssistantContent as ReturnType<typeof vi.fn>
+        ).mock.calls.at(-1)?.[1] as StreamState['blocks'] | undefined
         const trailingBlockDuringExecution = state.blocks.at(-1)
+        expect(io.messageStore.updateAssistantContent).toHaveBeenCalled()
+        expect(persistedBlocks?.at(-1)?.type).toBe('content')
+        expect(persistedBlocks?.at(-1)?.content).toBe(trailingText)
+        expect(persistedBlocks?.at(-1)?.status).toBe('success')
         expect(trailingBlockDuringExecution?.type).toBe('content')
         expect(trailingBlockDuringExecution?.content).toBe(trailingText)
         expect(trailingBlockDuringExecution?.status).toBe('success')
