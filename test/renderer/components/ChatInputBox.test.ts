@@ -11,6 +11,7 @@ const activeSkillsRef = ref<string[]>([])
 const pendingSkillsRef = ref<string[]>([])
 const activateSkillMock = vi.fn().mockResolvedValue(undefined)
 const deactivateSkillMock = vi.fn().mockResolvedValue(undefined)
+let lastEditorOptions: any = null
 const consumePendingSkillsMock = vi.fn(() => {
   const copied = [...pendingSkillsRef.value]
   pendingSkillsRef.value = []
@@ -32,7 +33,9 @@ vi.mock('@tiptap/vue-3', () => {
     public view = {
       dispatch: vi.fn()
     }
-    constructor(_options: any) {}
+    constructor(options: any) {
+      lastEditorOptions = options
+    }
     getText() {
       return ''
     }
@@ -142,6 +145,7 @@ describe('ChatInputBox attachments', () => {
     selectedFilesRef.value = []
     activeSkillsRef.value = []
     pendingSkillsRef.value = []
+    lastEditorOptions = null
   })
 
   const mountComponent = async (options?: { files?: any[] }) => {
@@ -169,6 +173,14 @@ describe('ChatInputBox attachments', () => {
     const wrapper = await mountComponent()
     await wrapper.find('.chat-input-editor').trigger('paste')
     expect(handlePasteMock).toHaveBeenCalled()
+  })
+
+  it('configures the editor with a bounded scrollable input area', async () => {
+    await mountComponent()
+    expect(lastEditorOptions?.editorProps?.attributes?.class).toContain('min-h-[80px]')
+    expect(lastEditorOptions?.editorProps?.attributes?.class).toContain('max-h-[240px]')
+    expect(lastEditorOptions?.editorProps?.attributes?.class).toContain('overflow-y-auto')
+    expect(lastEditorOptions?.editorProps?.attributes?.class).toContain('overscroll-contain')
   })
 
   it('handles drop files via composable', async () => {
