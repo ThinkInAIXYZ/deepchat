@@ -22,6 +22,7 @@ import {
   type FeishuRuntimeStatusSnapshot,
   type TelegramPollerStatusSnapshot
 } from './types'
+import { resolveAcpAgentAlias } from '../configPresenter/acpRegistryConstants'
 import type { RemoteControlPresenterDeps } from './interface'
 import logger from '@shared/logger'
 import { RemoteBindingStore } from './services/remoteBindingStore'
@@ -84,6 +85,7 @@ export class RemoteControlPresenter {
       remoteEnabled: remoteConfig.enabled,
       allowedUserIds: remoteConfig.allowlist,
       defaultAgentId: remoteConfig.defaultAgentId,
+      defaultWorkdir: remoteConfig.defaultWorkdir,
       hookNotifications: {
         enabled: hooksConfig.enabled,
         chatId: hooksConfig.chatId,
@@ -102,6 +104,7 @@ export class RemoteControlPresenter {
       encryptKey: remoteConfig.encryptKey,
       remoteEnabled: remoteConfig.enabled,
       defaultAgentId: remoteConfig.defaultAgentId,
+      defaultWorkdir: remoteConfig.defaultWorkdir,
       pairedUserOpenIds: [...remoteConfig.pairedUserOpenIds]
     }
   }
@@ -225,6 +228,7 @@ export class RemoteControlPresenter {
       enabled: normalized.remoteEnabled,
       allowlist: normalized.allowedUserIds,
       defaultAgentId,
+      defaultWorkdir: normalized.defaultWorkdir,
       streamMode: currentRemoteConfig.streamMode,
       lastFatalError: shouldClearFatalError ? null : config.lastFatalError,
       pairing: config.pairing
@@ -326,6 +330,7 @@ export class RemoteControlPresenter {
       encryptKey: normalized.encryptKey,
       enabled: normalized.remoteEnabled,
       defaultAgentId,
+      defaultWorkdir: normalized.defaultWorkdir,
       pairedUserOpenIds: normalized.pairedUserOpenIds,
       lastFatalError: shouldClearFatalError ? null : config.lastFatalError,
       pairing: config.pairing
@@ -505,6 +510,7 @@ export class RemoteControlPresenter {
       client,
       parser: new FeishuParser(),
       router,
+      bindingStore: this.bindingStore,
       logger,
       onStatusChange: (snapshot) => {
         this.feishuRuntimeStatus = snapshot
@@ -718,17 +724,17 @@ export class RemoteControlPresenter {
     channel: RemoteChannel,
     candidate: string | null | undefined
   ): Promise<string> {
-    const normalizedCandidate = candidate?.trim() || TELEGRAM_REMOTE_DEFAULT_AGENT_ID
-    const agents = await this.deps.configPresenter.listAgents()
-    const enabledDeepChatAgents = agents.filter(
-      (agent) => agent.type === 'deepchat' && agent.enabled !== false
+    const normalizedCandidate = resolveAcpAgentAlias(
+      candidate?.trim() || TELEGRAM_REMOTE_DEFAULT_AGENT_ID
     )
-    const enabledAgentIds = new Set(enabledDeepChatAgents.map((agent) => agent.id))
+    const agents = await this.deps.configPresenter.listAgents()
+    const enabledAgents = agents.filter((agent) => agent.enabled !== false)
+    const enabledAgentIds = new Set(enabledAgents.map((agent) => resolveAcpAgentAlias(agent.id)))
     const nextDefaultAgentId = enabledAgentIds.has(normalizedCandidate)
       ? normalizedCandidate
       : enabledAgentIds.has(TELEGRAM_REMOTE_DEFAULT_AGENT_ID)
         ? TELEGRAM_REMOTE_DEFAULT_AGENT_ID
-        : enabledDeepChatAgents[0]?.id || TELEGRAM_REMOTE_DEFAULT_AGENT_ID
+        : enabledAgents[0]?.id || TELEGRAM_REMOTE_DEFAULT_AGENT_ID
 
     if (channel === 'telegram') {
       if (this.bindingStore.getTelegramDefaultAgentId() !== nextDefaultAgentId) {

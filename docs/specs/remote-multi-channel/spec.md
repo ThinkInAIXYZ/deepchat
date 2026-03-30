@@ -4,7 +4,7 @@
 
 Extend the existing Remote settings and runtime from Telegram-only to a fixed two-channel model: Telegram and Feishu. Telegram keeps hook notifications, while Feishu adds remote control only. Both channels continue to bind one remote endpoint to one DeepChat session and reuse the existing detached-session flow in Electron main.
 
-This iteration also fixes the Telegram "deleted message" draft issue by preventing draft streaming from using reasoning-only, tool-call-only, or permission/question-request blocks as visible text.
+This iteration also standardizes Telegram and Feishu on a compact remote delivery model: one temporary status message per assistant turn, one streamed answer track (one logical message sequence, delivered in one or more physical chunks as needed) that carries only user-visible answer content, and separate actionable prompts for pending interactions.
 
 ## User Stories
 
@@ -13,7 +13,7 @@ This iteration also fixes the Telegram "deleted message" draft issue by preventi
 - As a Feishu user, I can pair in a bot DM, then continue the same DeepChat session from DM, group chat, or topic thread.
 - As an admin of the desktop app, I can see per-channel runtime health and binding counts from a shared overview area.
 - As a paired Feishu user, I can trigger a remote session in group/topic only when I explicitly `@bot`.
-- As a Telegram user, I no longer see bot replies visually attached to a deleted draft/reference while the assistant is only reasoning or issuing tool calls.
+- As a Telegram or Feishu user, I no longer need to read intermediate reasoning/tool/search transcript spam while the assistant is still running.
 
 ## Acceptance Criteria
 
@@ -25,7 +25,9 @@ This iteration also fixes the Telegram "deleted message" draft issue by preventi
 - Feishu authorization requires DM pairing first; in groups/topics, only paired users who `@bot` may send commands or plain text to the bound session.
 - `/pair`, `/new`, `/sessions`, `/use`, `/stop`, `/status`, `/open`, and `/model` work for Feishu remote control.
 - Telegram `/model` continues to use inline keyboard menus; Feishu `/model` uses text commands only.
-- Telegram draft streaming only uses stable visible content blocks. Reasoning-only, tool-call-only, and pending action-only assistant states never call `sendMessageDraft`.
+- Telegram and Feishu remote conversations use one temporary status message plus one streamed answer track (one logical message sequence, delivered in one or more physical chunks as needed) for normal assistant turns.
+- When streamed answer text exceeds platform limits, earlier chunks within that answer track remain fixed and only the latest tail chunk stays editable.
+- Reasoning-only, tool-call-only, tool-result-only, search-only, and pending-action-only assistant states never emit standalone transcript messages for normal remote delivery.
 - Existing local desktop chat behavior remains unchanged.
 
 ## Constraints
@@ -33,7 +35,8 @@ This iteration also fixes the Telegram "deleted message" draft issue by preventi
 - Keep a fixed two-channel architecture. Do not introduce a generic plugin registry for remote channels.
 - Telegram hook notifications remain under the shared Remote page; Feishu hook notifications are out of scope.
 - Remote sessions continue to use the existing `RemoteConversationRunner` and detached session creation path.
-- Feishu v1 supports DM, group, and topic/thread input; media upload, cards, approvals, and user-OAuth automation remain out of scope.
+- Feishu v1 supports DM, group, and topic/thread input; media upload and user-OAuth automation remain out of scope.
+- Pending interaction cards/prompts remain separate from the compact status-message lifecycle and do not erase already-streamed answer text.
 
 ## Non-Goals
 

@@ -59,6 +59,7 @@ export interface TelegramRemoteSettings {
   remoteEnabled: boolean
   allowedUserIds: number[]
   defaultAgentId: string
+  defaultWorkdir: string
   hookNotifications: TelegramHookSettings
 }
 
@@ -69,6 +70,7 @@ export interface FeishuRemoteSettings {
   encryptKey: string
   remoteEnabled: boolean
   defaultAgentId: string
+  defaultWorkdir: string
   pairedUserOpenIds: string[]
 }
 

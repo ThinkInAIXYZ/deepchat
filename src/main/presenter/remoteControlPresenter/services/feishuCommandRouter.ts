@@ -113,7 +113,7 @@ export class FeishuCommandRouter {
           const sessions = await this.deps.runner.listSessions(endpointKey)
           if (sessions.length === 0) {
             return {
-              replies: ['No DeepChat sessions were found.']
+              replies: ['No sessions were found.']
             }
           }
 
@@ -180,6 +180,8 @@ export class FeishuCommandRouter {
           const runtime = this.deps.getRuntimeStatus()
           const status = await this.deps.runner.getStatus(endpointKey)
           const defaultAgentId = await this.deps.runner.getDefaultAgentId()
+          const defaultWorkdir = await this.deps.runner.getDefaultWorkdir(endpointKey)
+          const normalizedWorkdir = defaultWorkdir?.trim() || 'none'
           const feishuConfig = this.deps.bindingStore.getFeishuConfig()
           return {
             replies: [
@@ -187,9 +189,11 @@ export class FeishuCommandRouter {
                 'DeepChat Feishu Remote',
                 `Runtime: ${runtime.state}`,
                 `Default agent: ${defaultAgentId}`,
+                `Default workdir: ${normalizedWorkdir}`,
                 `Current session: ${status.session ? this.formatSessionLabel(status.session) : 'none'}`,
                 `Current agent: ${status.session?.agentId ?? 'none'}`,
                 `Current model: ${status.session?.modelId ?? 'none'}`,
+                `Current workdir: ${status.session?.projectDir?.trim() || 'none'}`,
                 `Generating: ${status.isGenerating ? 'yes' : 'no'}`,
                 `Waiting: ${status.pendingInteraction ? this.formatPendingStatus(status.pendingInteraction) : 'none'}`,
                 `Paired users: ${feishuConfig.pairedUserOpenIds.length}`,
@@ -223,6 +227,12 @@ export class FeishuCommandRouter {
     if (!session) {
       return {
         replies: ['No bound session. Send a message, /new, or /use first.']
+      }
+    }
+
+    if (await this.deps.runner.isSessionModelLocked(session)) {
+      return {
+        replies: ['ACP sessions lock the model. Change the channel default agent instead.']
       }
     }
 

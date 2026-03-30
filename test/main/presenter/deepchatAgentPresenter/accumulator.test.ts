@@ -81,7 +81,24 @@ describe('accumulate', () => {
 
     expect(state.blocks).toHaveLength(2)
     expect(state.blocks[0].type).toBe('reasoning_content')
+    expect(state.blocks[0].status).toBe('success')
     expect(state.blocks[1].type).toBe('content')
+  })
+
+  it('finalizes trailing content before a tool call starts', () => {
+    accumulate(state, { type: 'text', content: 'Draft answer' })
+    accumulate(state, {
+      type: 'tool_call_start',
+      tool_call_id: 'tc1',
+      tool_call_name: 'search'
+    })
+
+    expect(state.blocks).toHaveLength(2)
+    expect(state.blocks[0]).toMatchObject({
+      type: 'content',
+      status: 'success'
+    })
+    expect(state.blocks[1].type).toBe('tool_call')
   })
 
   it('handles tool_call_start → push block and pending', () => {
@@ -137,6 +154,7 @@ describe('accumulate', () => {
 
     expect(state.pendingToolCalls.size).toBe(0)
     expect(state.completedToolCalls).toHaveLength(1)
+    expect(state.blocks[0].extra?.toolCallArgsComplete).toBe(true)
     expect(state.completedToolCalls[0]).toEqual({
       id: 'tc1',
       name: 'search',
@@ -191,7 +209,7 @@ describe('accumulate', () => {
     accumulate(state, { type: 'error', error_message: 'Rate limit' })
 
     expect(state.blocks).toHaveLength(2)
-    expect(state.blocks[0].status).toBe('error')
+    expect(state.blocks[0].status).toBe('success')
     expect(state.blocks[1].type).toBe('error')
     expect(state.blocks[1].content).toBe('Rate limit')
     expect(state.blocks[1].status).toBe('error')
@@ -248,7 +266,7 @@ describe('accumulate', () => {
     expect(state.blocks).toHaveLength(1)
     expect(state.blocks[0]).toMatchObject({
       type: 'image',
-      status: 'pending',
+      status: 'success',
       image_data: {
         data: 'imgcache://generated/test.png',
         mimeType: 'deepchat/image-url'

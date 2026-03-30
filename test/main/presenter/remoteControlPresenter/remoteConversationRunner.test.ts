@@ -16,6 +16,12 @@ const createSession = (overrides: Record<string, unknown> = {}) => ({
   ...overrides
 })
 
+const createConfigPresenter = (overrides: Record<string, unknown> = {}) => ({
+  getAgentType: vi.fn(async (agentId: string) => (agentId === 'acp-agent' ? 'acp' : 'deepchat')),
+  getDefaultProjectPath: vi.fn(() => null),
+  ...overrides
+})
+
 describe('RemoteConversationRunner', () => {
   it('creates new sessions with the current default deepchat agent', async () => {
     const bindingStore = {
@@ -23,7 +29,7 @@ describe('RemoteConversationRunner', () => {
     }
     const runner = new RemoteConversationRunner(
       {
-        configPresenter: {} as any,
+        configPresenter: createConfigPresenter() as any,
         newAgentPresenter: {
           createDetachedSession: vi
             .fn()
@@ -80,7 +86,7 @@ describe('RemoteConversationRunner', () => {
     }
     const runner = new RemoteConversationRunner(
       {
-        configPresenter: {} as any,
+        configPresenter: createConfigPresenter() as any,
         newAgentPresenter: newAgentPresenter as any,
         deepchatAgentPresenter: deepchatAgentPresenter as any,
         windowPresenter: {} as any,
@@ -127,7 +133,7 @@ describe('RemoteConversationRunner', () => {
     }
     const runner = new RemoteConversationRunner(
       {
-        configPresenter: {} as any,
+        configPresenter: createConfigPresenter() as any,
         newAgentPresenter: newAgentPresenter as any,
         deepchatAgentPresenter: {} as any,
         windowPresenter: {} as any,
@@ -168,7 +174,7 @@ describe('RemoteConversationRunner', () => {
     }
     const runner = new RemoteConversationRunner(
       {
-        configPresenter: {} as any,
+        configPresenter: createConfigPresenter() as any,
         newAgentPresenter: newAgentPresenter as any,
         deepchatAgentPresenter: {} as any,
         windowPresenter: {} as any,
@@ -197,7 +203,7 @@ describe('RemoteConversationRunner', () => {
   it('returns noSession when /open has no bound session', async () => {
     const runner = new RemoteConversationRunner(
       {
-        configPresenter: {} as any,
+        configPresenter: createConfigPresenter() as any,
         newAgentPresenter: {
           getSession: vi.fn()
         } as any,
@@ -229,7 +235,7 @@ describe('RemoteConversationRunner', () => {
     const show = vi.fn()
     const runner = new RemoteConversationRunner(
       {
-        configPresenter: {} as any,
+        configPresenter: createConfigPresenter() as any,
         newAgentPresenter: {
           getSession: vi.fn().mockResolvedValue(createSession()),
           activateSession
@@ -278,7 +284,7 @@ describe('RemoteConversationRunner', () => {
     }
     const runner = new RemoteConversationRunner(
       {
-        configPresenter: {} as any,
+        configPresenter: createConfigPresenter() as any,
         newAgentPresenter: {
           getSession: vi.fn().mockResolvedValue(session),
           activateSession
@@ -366,7 +372,7 @@ describe('RemoteConversationRunner', () => {
     }
     const runner = new RemoteConversationRunner(
       {
-        configPresenter: {} as any,
+        configPresenter: createConfigPresenter() as any,
         newAgentPresenter: newAgentPresenter as any,
         deepchatAgentPresenter: deepchatAgentPresenter as any,
         windowPresenter: {} as any,
@@ -388,6 +394,11 @@ describe('RemoteConversationRunner', () => {
     expect(snapshot).toEqual({
       messageId: null,
       text: 'No assistant response was produced.',
+      statusText: '',
+      finalText: 'No assistant response was produced.',
+      draftText: '',
+      renderBlocks: [],
+      fullText: 'No assistant response was produced.',
       completed: true,
       pendingInteraction: null
     })
@@ -398,9 +409,10 @@ describe('RemoteConversationRunner', () => {
   it('extracts the latest pending interaction from assistant action blocks', async () => {
     const runner = new RemoteConversationRunner(
       {
-        configPresenter: {} as any,
+        configPresenter: createConfigPresenter() as any,
         newAgentPresenter: {
           getSession: vi.fn().mockResolvedValue(createSession()),
+          sendMessage: vi.fn().mockResolvedValue(undefined),
           getMessages: vi.fn().mockResolvedValue([
             {
               id: 'assistant-1',
@@ -476,51 +488,89 @@ describe('RemoteConversationRunner', () => {
     })
   })
 
-  it('creates a follow-up execution after responding to a pending interaction', async () => {
-    const getMessage = vi
-      .fn()
-      .mockResolvedValueOnce({
-        id: 'assistant-2',
-        role: 'assistant',
-        orderSeq: 5,
-        content: JSON.stringify([
-          {
-            type: 'action',
-            action_type: 'tool_call_permission',
-            content: 'Permission requested',
-            status: 'pending',
-            timestamp: 1,
-            tool_call: {
-              id: 'tool-2',
-              name: 'shell_command',
-              params: '{"command":"git push"}'
-            },
-            extra: {
-              needsUserAction: true,
-              permissionType: 'command',
-              permissionRequest: JSON.stringify({
-                permissionType: 'command',
-                description: 'Run git push',
-                command: 'git push'
-              })
+  it('keeps stream text empty while the assistant is still reasoning', async () => {
+    const runner = new RemoteConversationRunner(
+      {
+        configPresenter: createConfigPresenter() as any,
+        newAgentPresenter: {
+          getSession: vi.fn().mockResolvedValue(createSession()),
+          getMessages: vi.fn().mockResolvedValue([
+            {
+              id: 'assistant-1',
+              role: 'assistant',
+              orderSeq: 2,
+              status: 'pending',
+              content: JSON.stringify([
+                {
+                  type: 'reasoning_content',
+                  content: 'Thinking now',
+                  status: 'pending',
+                  timestamp: 1
+                }
+              ])
             }
-          }
-        ])
-      })
-      .mockResolvedValue({
-        id: 'assistant-2',
-        role: 'assistant',
-        orderSeq: 5,
-        status: 'success',
-        content: JSON.stringify([
-          {
-            type: 'content',
-            content: 'Push completed.',
-            status: 'success',
-            timestamp: 2
-          }
-        ])
-      })
+          ]),
+          getMessage: vi.fn().mockResolvedValue({
+            id: 'assistant-1',
+            role: 'assistant',
+            orderSeq: 2,
+            status: 'pending',
+            content: JSON.stringify([
+              {
+                type: 'reasoning_content',
+                content: 'Thinking now',
+                status: 'pending',
+                timestamp: 1
+              }
+            ])
+          })
+        } as any,
+        deepchatAgentPresenter: {
+          getActiveGeneration: vi.fn().mockReturnValue({
+            eventId: 'assistant-1',
+            runId: 'run-1'
+          })
+        } as any,
+        windowPresenter: {} as any,
+        tabPresenter: {} as any,
+        resolveDefaultAgentId: vi.fn().mockResolvedValue('deepchat')
+      },
+      {
+        getBinding: vi.fn().mockReturnValue({
+          sessionId: 'session-1',
+          updatedAt: 1
+        }),
+        rememberActiveEvent: vi.fn(),
+        clearActiveEvent: vi.fn()
+      } as any
+    )
+
+    const snapshot = await (runner as any).getConversationSnapshot('telegram:100:0', 'session-1', {
+      afterOrderSeq: 0,
+      preferredMessageId: null,
+      ignoreMessageId: null
+    })
+
+    expect(snapshot.text).toBe('')
+    expect(snapshot.statusText).toBe('Running: thinking...')
+    expect(snapshot.completed).toBe(false)
+  })
+
+  it('creates a follow-up execution after responding to a pending interaction', async () => {
+    const getMessage = vi.fn().mockResolvedValue({
+      id: 'assistant-2',
+      role: 'assistant',
+      orderSeq: 5,
+      status: 'success',
+      content: JSON.stringify([
+        {
+          type: 'content',
+          content: 'Push completed.',
+          status: 'success',
+          timestamp: 2
+        }
+      ])
+    })
     const newAgentPresenter = {
       getSession: vi.fn().mockResolvedValue(createSession()),
       getMessages: vi
@@ -587,7 +637,7 @@ describe('RemoteConversationRunner', () => {
     }
     const runner = new RemoteConversationRunner(
       {
-        configPresenter: {} as any,
+        configPresenter: createConfigPresenter() as any,
         newAgentPresenter: newAgentPresenter as any,
         deepchatAgentPresenter: {
           getActiveGeneration: vi.fn().mockReturnValue(null)
@@ -619,8 +669,103 @@ describe('RemoteConversationRunner', () => {
     expect(snapshot).toEqual({
       messageId: 'assistant-2',
       text: 'Push completed.',
+      statusText: 'Running: writing...',
+      finalText: 'Push completed.',
+      draftText: '',
+      renderBlocks: [
+        expect.objectContaining({
+          kind: 'answer',
+          text: '[Answer]\nPush completed.'
+        })
+      ],
+      fullText: '[Answer]\nPush completed.',
       completed: true,
       pendingInteraction: null
     })
+  })
+
+  it('creates ACP sessions with provider, model, and channel default workdir', async () => {
+    const createDetachedSession = vi.fn().mockResolvedValue(
+      createSession({
+        agentId: 'acp-agent',
+        providerId: 'acp',
+        modelId: 'acp-agent',
+        projectDir: '/workspaces/remote'
+      })
+    )
+    const runner = new RemoteConversationRunner(
+      {
+        configPresenter: createConfigPresenter() as any,
+        newAgentPresenter: {
+          createDetachedSession
+        } as any,
+        deepchatAgentPresenter: {} as any,
+        windowPresenter: {} as any,
+        tabPresenter: {} as any,
+        resolveDefaultAgentId: vi.fn().mockResolvedValue('acp-agent')
+      },
+      {
+        setBinding: vi.fn(),
+        getTelegramConfig: vi.fn().mockReturnValue({
+          defaultWorkdir: '/workspaces/remote'
+        })
+      } as any
+    )
+
+    await runner.createNewSession('telegram:100:0', 'Remote ACP')
+
+    expect(createDetachedSession).toHaveBeenCalledWith({
+      title: 'Remote ACP',
+      agentId: 'acp-agent',
+      providerId: 'acp',
+      modelId: 'acp-agent',
+      projectDir: '/workspaces/remote'
+    })
+  })
+
+  it('falls back to the global default project path for ACP workdir resolution', async () => {
+    const runner = new RemoteConversationRunner(
+      {
+        configPresenter: createConfigPresenter({
+          getDefaultProjectPath: vi.fn(() => '/workspaces/global')
+        }) as any,
+        newAgentPresenter: {} as any,
+        deepchatAgentPresenter: {} as any,
+        windowPresenter: {} as any,
+        tabPresenter: {} as any,
+        resolveDefaultAgentId: vi.fn().mockResolvedValue('acp-agent')
+      },
+      {
+        getTelegramConfig: vi.fn().mockReturnValue({
+          defaultWorkdir: ''
+        })
+      } as any
+    )
+
+    await expect(runner.getDefaultWorkdir('telegram:100:0')).resolves.toBe('/workspaces/global')
+  })
+
+  it('rejects ACP session creation when neither remote nor global workdir is configured', async () => {
+    const runner = new RemoteConversationRunner(
+      {
+        configPresenter: createConfigPresenter() as any,
+        newAgentPresenter: {
+          createDetachedSession: vi.fn()
+        } as any,
+        deepchatAgentPresenter: {} as any,
+        windowPresenter: {} as any,
+        tabPresenter: {} as any,
+        resolveDefaultAgentId: vi.fn().mockResolvedValue('acp-agent')
+      },
+      {
+        getTelegramConfig: vi.fn().mockReturnValue({
+          defaultWorkdir: ''
+        })
+      } as any
+    )
+
+    await expect(runner.createNewSession('telegram:100:0')).rejects.toThrow(
+      'ACP agent requires a workdir. Set a Remote default directory or global default directory first.'
+    )
   })
 })

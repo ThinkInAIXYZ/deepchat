@@ -128,7 +128,7 @@ export class RemoteCommandRouter {
           const sessions = await this.deps.runner.listSessions(endpointKey)
           if (sessions.length === 0) {
             return {
-              replies: ['No DeepChat sessions were found.']
+              replies: ['No sessions were found.']
             }
           }
 
@@ -193,6 +193,12 @@ export class RemoteCommandRouter {
             }
           }
 
+          if (await this.deps.runner.isSessionModelLocked(session)) {
+            return {
+              replies: ['ACP sessions lock the model. Change the channel default agent instead.']
+            }
+          }
+
           const providers = await this.deps.runner.listAvailableModelProviders()
           if (providers.length === 0) {
             return {
@@ -222,17 +228,19 @@ export class RemoteCommandRouter {
           const runtime = this.deps.getPollerStatus()
           const status = await this.deps.runner.getStatus(endpointKey)
           const defaultAgentId = await this.deps.runner.getDefaultAgentId()
+          const defaultWorkdir = await this.deps.runner.getDefaultWorkdir(endpointKey)
           const telegramConfig = this.deps.bindingStore.getTelegramConfig()
           return {
             replies: [
               [
                 'DeepChat Telegram Remote',
                 `Runtime: ${runtime.state}`,
-                `Stream mode: ${telegramConfig.streamMode}`,
                 `Default agent: ${defaultAgentId}`,
+                `Default workdir: ${defaultWorkdir ?? 'none'}`,
                 `Current session: ${status.session ? this.formatSessionLabel(status.session) : 'none'}`,
                 `Current agent: ${status.session?.agentId ?? 'none'}`,
                 `Current model: ${status.session?.modelId ?? 'none'}`,
+                `Current workdir: ${status.session?.projectDir?.trim() || 'none'}`,
                 `Generating: ${status.isGenerating ? 'yes' : 'no'}`,
                 `Waiting: ${status.pendingInteraction ? this.formatPendingStatus(status.pendingInteraction) : 'none'}`,
                 `Allowed users: ${telegramConfig.allowlist.length}`,

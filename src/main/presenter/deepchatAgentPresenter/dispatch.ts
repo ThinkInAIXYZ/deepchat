@@ -18,6 +18,7 @@ import type { ChatMessage } from '@shared/types/core/chat-message'
 import { nanoid } from 'nanoid'
 import type { ToolBatchOutputFitItem, ToolOutputGuard } from './toolOutputGuard'
 import { buildTerminalErrorBlocks } from './messageStore'
+import { finalizeTrailingPendingNarrativeBlocks } from './accumulator'
 
 type PermissionType = 'read' | 'write' | 'all' | 'command'
 
@@ -215,6 +216,20 @@ function persistToolExecutionState(io: IoParams, state: StreamState): void {
   state.dirty = false
 }
 
+function finalizePendingNarrativeBeforeToolExecution(state: StreamState): void {
+  const last = state.blocks[state.blocks.length - 1]
+  if (
+    !last ||
+    last.status !== 'pending' ||
+    (last.type !== 'content' && last.type !== 'reasoning_content')
+  ) {
+    return
+  }
+
+  finalizeTrailingPendingNarrativeBlocks(state.blocks)
+  state.dirty = true
+}
+
 function applyFinalizedToolResults(params: {
   stagedResults: StagedToolResult[]
   fittedResults: ToolBatchOutputFitItem[]
@@ -242,9 +257,10 @@ function applyFinalizedToolResults(params: {
       })
     }
 
-    if (!fittedResult.downgraded && stagedResult.searchPayload) {
-      state.blocks.push(stagedResult.searchPayload.block)
-      for (const result of stagedResult.searchPayload.results) {
+    const searchPayload = fittedResult.downgraded ? null : stagedResult.searchPayload
+    if (searchPayload) {
+      state.blocks.push(searchPayload.block)
+      for (const result of searchPayload.results) {
         io.messageStore.addSearchResult({
           sessionId: io.sessionId,
           messageId: io.messageId,
@@ -502,6 +518,8 @@ export async function executeTools(
   pendingInteractions: PendingToolInteraction[]
   terminalError?: string
 }> {
+  finalizePendingNarrativeBeforeToolExecution(state)
+
   for (const tc of state.completedToolCalls) {
     const toolDef = tools.find((t) => t.function.name === tc.name)
     if (!toolDef) continue

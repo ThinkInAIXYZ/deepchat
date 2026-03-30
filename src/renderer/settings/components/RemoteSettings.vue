@@ -219,6 +219,86 @@
                     </div>
                   </div>
 
+                  <div class="space-y-2">
+                    <Label class="text-xs text-muted-foreground">
+                      {{ t('settings.remote.remoteControl.defaultWorkdir') }}
+                    </Label>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger as-child>
+                        <Button
+                          data-testid="remote-default-workdir-input"
+                          variant="outline"
+                          size="sm"
+                          class="h-8 w-full min-w-0 justify-between gap-1.5 rounded-lg px-2.5 text-xs"
+                          :title="telegramDefaultWorkdirTitle"
+                        >
+                          <div class="flex min-w-0 items-center gap-1.5">
+                            <Icon
+                              icon="lucide:folder"
+                              class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                            />
+                            <span class="truncate">{{ telegramDefaultWorkdirLabel }}</span>
+                          </div>
+                          <Icon
+                            icon="lucide:chevron-down"
+                            class="h-3 w-3 shrink-0 text-muted-foreground"
+                          />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start" class="w-[20rem]">
+                        <DropdownMenuItem
+                          v-for="project in telegramDirectoryOptions"
+                          :key="project.path"
+                          class="gap-2 px-2 py-1.5 text-xs"
+                          @select="selectDefaultWorkdir('telegram', project.path)"
+                        >
+                          <Icon
+                            icon="lucide:folder"
+                            class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                          />
+                          <div class="min-w-0 flex-1">
+                            <div class="truncate">{{ project.name }}</div>
+                            <div class="truncate text-[10px] text-muted-foreground">
+                              {{ project.path }}
+                            </div>
+                          </div>
+                          <Icon
+                            v-if="normalizePath(telegramSettings.defaultWorkdir) === project.path"
+                            icon="lucide:check"
+                            class="h-3.5 w-3.5 shrink-0"
+                          />
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          data-testid="remote-default-workdir-open-folder"
+                          class="gap-2 px-2 py-1.5 text-xs"
+                          @select="pickDefaultWorkdir('telegram')"
+                        >
+                          <Icon
+                            icon="lucide:folder-open"
+                            class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                          />
+                          <span>{{ t('common.project.openFolder') }}</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          v-if="telegramSettings.defaultWorkdir"
+                          data-testid="remote-default-workdir-clear"
+                          class="gap-2 px-2 py-1.5 text-xs"
+                          @select="clearDefaultWorkdir('telegram')"
+                        >
+                          <Icon
+                            icon="lucide:x"
+                            class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                          />
+                          <span>{{ t('common.clear') }}</span>
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                    <p class="text-xs text-muted-foreground">
+                      {{ t('settings.remote.remoteControl.defaultWorkdirHelper') }}
+                    </p>
+                  </div>
+
                   <div class="flex flex-wrap items-center gap-2">
                     <Button
                       data-testid="remote-pair-button"
@@ -515,6 +595,86 @@
                     </div>
                   </div>
 
+                  <div class="space-y-2">
+                    <Label class="text-xs text-muted-foreground">
+                      {{ t('settings.remote.remoteControl.defaultWorkdir') }}
+                    </Label>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger as-child>
+                        <Button
+                          data-testid="remote-feishu-default-workdir-input"
+                          variant="outline"
+                          size="sm"
+                          class="h-8 w-full min-w-0 justify-between gap-1.5 rounded-lg px-2.5 text-xs"
+                          :title="feishuDefaultWorkdirTitle"
+                        >
+                          <div class="flex min-w-0 items-center gap-1.5">
+                            <Icon
+                              icon="lucide:folder"
+                              class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                            />
+                            <span class="truncate">{{ feishuDefaultWorkdirLabel }}</span>
+                          </div>
+                          <Icon
+                            icon="lucide:chevron-down"
+                            class="h-3 w-3 shrink-0 text-muted-foreground"
+                          />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start" class="w-[20rem]">
+                        <DropdownMenuItem
+                          v-for="project in feishuDirectoryOptions"
+                          :key="project.path"
+                          class="gap-2 px-2 py-1.5 text-xs"
+                          @select="selectDefaultWorkdir('feishu', project.path)"
+                        >
+                          <Icon
+                            icon="lucide:folder"
+                            class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                          />
+                          <div class="min-w-0 flex-1">
+                            <div class="truncate">{{ project.name }}</div>
+                            <div class="truncate text-[10px] text-muted-foreground">
+                              {{ project.path }}
+                            </div>
+                          </div>
+                          <Icon
+                            v-if="normalizePath(feishuSettings.defaultWorkdir) === project.path"
+                            icon="lucide:check"
+                            class="h-3.5 w-3.5 shrink-0"
+                          />
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          data-testid="remote-feishu-default-workdir-open-folder"
+                          class="gap-2 px-2 py-1.5 text-xs"
+                          @select="pickDefaultWorkdir('feishu')"
+                        >
+                          <Icon
+                            icon="lucide:folder-open"
+                            class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                          />
+                          <span>{{ t('common.project.openFolder') }}</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          v-if="feishuSettings.defaultWorkdir"
+                          data-testid="remote-feishu-default-workdir-clear"
+                          class="gap-2 px-2 py-1.5 text-xs"
+                          @select="clearDefaultWorkdir('feishu')"
+                        >
+                          <Icon
+                            icon="lucide:x"
+                            class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                          />
+                          <span>{{ t('common.clear') }}</span>
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                    <p class="text-xs text-muted-foreground">
+                      {{ t('settings.remote.remoteControl.defaultWorkdirHelper') }}
+                    </p>
+                  </div>
+
                   <div class="flex flex-wrap items-center gap-2">
                     <Button
                       data-testid="feishu-pair-button"
@@ -695,6 +855,13 @@ import { Button } from '@shadcn/components/ui/button'
 import { Label } from '@shadcn/components/ui/label'
 import { Checkbox } from '@shadcn/components/ui/checkbox'
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger
+} from '@shadcn/components/ui/dropdown-menu'
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -711,7 +878,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@shadcn/components/ui/tabs'
 import { usePresenter, useRemoteControlPresenter } from '@/composables/usePresenter'
 import { useToast } from '@/components/use-toast'
-import type { Agent } from '@shared/types/agent-interface'
+import type { Agent, Project } from '@shared/types/agent-interface'
 import type { HookEventName, HookTestResult } from '@shared/hooksNotifications'
 import { HOOK_EVENT_NAMES } from '@shared/hooksNotifications'
 import type {
@@ -730,6 +897,7 @@ import type {
 const channels: RemoteChannel[] = ['telegram', 'feishu']
 const remoteControlPresenter = useRemoteControlPresenter()
 const newAgentPresenter = usePresenter('newAgentPresenter')
+const projectPresenter = usePresenter('projectPresenter')
 const { t } = useI18n()
 const { toast } = useToast()
 
@@ -743,7 +911,8 @@ const telegramTesting = ref(false)
 const telegramTestResult = ref<HookTestResult | null>(null)
 const telegramAllowedUserIdsText = ref('')
 const feishuPairedUserOpenIdsText = ref('')
-const availableDeepChatAgents = ref<Agent[]>([])
+const availableAgents = ref<Agent[]>([])
+const recentProjects = ref<Project[]>([])
 const activeChannel = ref<RemoteChannel>('telegram')
 const pairDialogChannel = ref<RemoteChannel | null>(null)
 const pairDialogOpen = ref(false)
@@ -778,6 +947,7 @@ const defaultTelegramSettings = (): TelegramRemoteSettings => ({
   remoteEnabled: false,
   allowedUserIds: [],
   defaultAgentId: 'deepchat',
+  defaultWorkdir: '',
   hookNotifications: {
     enabled: false,
     chatId: '',
@@ -793,6 +963,7 @@ const defaultFeishuSettings = (): FeishuRemoteSettings => ({
   encryptKey: '',
   remoteEnabled: false,
   defaultAgentId: 'deepchat',
+  defaultWorkdir: '',
   pairedUserOpenIds: []
 })
 
@@ -988,13 +1159,69 @@ const clearChannelPairCodeCompat = async (channel: RemoteChannel): Promise<void>
 
 const eventNames = HOOK_EVENT_NAMES
 const isAnySaving = computed(() => saving.telegram || saving.feishu)
+const normalizePath = (value: string | null | undefined): string => value?.trim() ?? ''
+const pathLabel = (value: string) => value.split(/[/\\]/).pop() ?? value
+const buildDirectoryOptions = (currentPath: string) => {
+  const normalizedCurrentPath = normalizePath(currentPath)
+  const options = new Map<string, { path: string; name: string }>()
+
+  if (normalizedCurrentPath) {
+    options.set(normalizedCurrentPath, {
+      path: normalizedCurrentPath,
+      name: pathLabel(normalizedCurrentPath)
+    })
+  }
+
+  for (const project of recentProjects.value) {
+    const normalizedPath = normalizePath(project.path)
+    if (!normalizedPath || options.has(normalizedPath)) {
+      continue
+    }
+
+    options.set(normalizedPath, {
+      path: normalizedPath,
+      name: project.name || pathLabel(normalizedPath)
+    })
+  }
+
+  return Array.from(options.values())
+}
+const telegramDirectoryOptions = computed(() =>
+  buildDirectoryOptions(telegramSettings.value?.defaultWorkdir ?? '')
+)
+const feishuDirectoryOptions = computed(() =>
+  buildDirectoryOptions(feishuSettings.value?.defaultWorkdir ?? '')
+)
+const defaultWorkdirLabel = (value: string | null | undefined) => {
+  const normalized = normalizePath(value)
+  return normalized
+    ? pathLabel(normalized)
+    : t('settings.remote.remoteControl.defaultWorkdirPlaceholder')
+}
+const defaultWorkdirTitle = (value: string | null | undefined) =>
+  normalizePath(value) || t('settings.remote.remoteControl.defaultWorkdirPlaceholder')
+const telegramDefaultWorkdirLabel = computed(() =>
+  defaultWorkdirLabel(telegramSettings.value?.defaultWorkdir)
+)
+const telegramDefaultWorkdirTitle = computed(() =>
+  defaultWorkdirTitle(telegramSettings.value?.defaultWorkdir)
+)
+const feishuDefaultWorkdirLabel = computed(() =>
+  defaultWorkdirLabel(feishuSettings.value?.defaultWorkdir)
+)
+const feishuDefaultWorkdirTitle = computed(() =>
+  defaultWorkdirTitle(feishuSettings.value?.defaultWorkdir)
+)
+
+const formatAgentOptionName = (agent: Pick<Agent, 'name' | 'type'>) =>
+  agent.type === 'acp' ? `${agent.name} (ACP)` : agent.name
 
 const defaultAgentOptions = (currentAgentId: string) => {
-  const options = availableDeepChatAgents.value
-    .filter((agent) => agent.type === 'deepchat' && agent.enabled)
+  const options = availableAgents.value
+    .filter((agent) => agent.enabled)
     .map((agent) => ({
       id: agent.id,
-      name: agent.name
+      name: formatAgentOptionName(agent)
     }))
 
   if (currentAgentId && !options.some((agent) => agent.id === currentAgentId)) {
@@ -1046,6 +1273,7 @@ const syncTelegramFields = (snapshot: Partial<TelegramRemoteSettings> | null | u
   telegramSettings.value = {
     ...fallback,
     ...snapshot,
+    defaultWorkdir: normalizePath(snapshot?.defaultWorkdir),
     hookNotifications: {
       ...fallback.hookNotifications,
       ...hookNotifications,
@@ -1065,6 +1293,7 @@ const syncFeishuFields = (snapshot: Partial<FeishuRemoteSettings> | null | undef
   feishuSettings.value = {
     ...fallback,
     ...snapshot,
+    defaultWorkdir: normalizePath(snapshot?.defaultWorkdir),
     pairedUserOpenIds: [...(snapshot?.pairedUserOpenIds ?? fallback.pairedUserOpenIds)]
   }
   feishuPairedUserOpenIdsText.value = feishuSettings.value.pairedUserOpenIds.join(', ')
@@ -1101,11 +1330,17 @@ const refreshPairingSnapshot = async (channel: RemoteChannel): Promise<RemotePai
   return snapshot
 }
 
-const loadDeepChatAgents = async () => {
-  const agents = await newAgentPresenter.getAgents()
-  availableDeepChatAgents.value = agents.filter(
-    (agent) => agent.type === 'deepchat' && agent.enabled !== false
-  )
+const loadAvailableAgents = async () => {
+  availableAgents.value = await newAgentPresenter.getAgents()
+}
+
+const loadRecentProjects = async () => {
+  try {
+    const result = await projectPresenter.getRecentProjects(8)
+    recentProjects.value = Array.isArray(result) ? result : []
+  } catch {
+    recentProjects.value = []
+  }
 }
 
 const loadState = async () => {
@@ -1117,7 +1352,8 @@ const loadState = async () => {
         getChannelSettingsCompat('feishu'),
         getChannelStatusCompat('telegram'),
         getChannelStatusCompat('feishu'),
-        loadDeepChatAgents()
+        loadAvailableAgents(),
+        loadRecentProjects()
       ])
 
     syncTelegramFields(loadedTelegramSettings)
@@ -1143,6 +1379,7 @@ const buildTelegramDraftSettings = (): TelegramRemoteSettings | null => {
 
   return {
     ...telegramSettings.value,
+    defaultWorkdir: normalizePath(telegramSettings.value.defaultWorkdir),
     allowedUserIds: parseAllowedUserIds(telegramAllowedUserIdsText.value)
   }
 }
@@ -1154,6 +1391,7 @@ const buildFeishuDraftSettings = (): FeishuRemoteSettings | null => {
 
   return {
     ...feishuSettings.value,
+    defaultWorkdir: normalizePath(feishuSettings.value.defaultWorkdir),
     pairedUserOpenIds: parseOpenIds(feishuPairedUserOpenIdsText.value)
   }
 }
@@ -1198,7 +1436,7 @@ const persistChannelSettings = async (channel: RemoteChannel): Promise<void> => 
           syncFeishuFields(saved)
         }
 
-        await Promise.all([refreshStatus(), loadDeepChatAgents()])
+        await Promise.all([refreshStatus(), loadAvailableAgents()])
       } catch (error) {
         console.error(`Failed to save ${channel} remote settings:`, error)
         toastSaveError(error)
@@ -1280,6 +1518,44 @@ const updateFeishuDefaultAgentId = (value: string) => {
   }
   feishuSettings.value.defaultAgentId = value
   queueFeishuSettingsPersist()
+}
+
+const setDefaultWorkdir = (channel: RemoteChannel, value: string) => {
+  const normalizedValue = normalizePath(value)
+
+  if (channel === 'telegram') {
+    if (!telegramSettings.value) {
+      return
+    }
+    telegramSettings.value.defaultWorkdir = normalizedValue
+    queueTelegramSettingsPersist()
+    return
+  }
+
+  if (!feishuSettings.value) {
+    return
+  }
+  feishuSettings.value.defaultWorkdir = normalizedValue
+  queueFeishuSettingsPersist()
+}
+
+const selectDefaultWorkdir = (channel: RemoteChannel, value: string) => {
+  setDefaultWorkdir(channel, value)
+}
+
+const clearDefaultWorkdir = (channel: RemoteChannel) => {
+  setDefaultWorkdir(channel, '')
+}
+
+const pickDefaultWorkdir = async (channel: RemoteChannel) => {
+  try {
+    const selectedPath = await projectPresenter.selectDirectory()
+    if (selectedPath) {
+      setDefaultWorkdir(channel, selectedPath)
+    }
+  } catch (error) {
+    console.warn('[RemoteSettings] Failed to select remote default workdir:', error)
+  }
 }
 
 const updateHookEnabled = (value: boolean) => {

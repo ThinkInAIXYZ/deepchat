@@ -382,8 +382,112 @@ describe('ToolPresenter', () => {
       ]
     })
 
-    expect(withoutQuestion).not.toContain('deepchat_question')
-    expect(withQuestion).toContain('deepchat_question')
+    expect(withoutQuestion).not.toContain('## User Interaction')
+    expect(withQuestion).toContain('## User Interaction')
+    expect(withQuestion).toContain(
+      'Use `deepchat_question` when missing user preferences, implementation direction, output shape, or risk decisions would materially change the result.'
+    )
+    expect(withQuestion).toContain(
+      'Do not ask for facts you can discover from the repo, tools, or existing conversation context.'
+    )
+    expect(withQuestion).toContain(
+      'Ask exactly one question per `deepchat_question` call. If multiple clarifications are needed, split them into multiple tool calls.'
+    )
+    expect(withQuestion).toContain(
+      'Do not send `questions`, `allowOther`, or stringified `options` JSON.'
+    )
+  })
+
+  it('describes the question schema and returns actionable validation errors', async () => {
+    const mcpPresenter = {
+      getAllToolDefinitions: vi.fn().mockResolvedValue([]),
+      callTool: vi.fn()
+    } as any
+    const configPresenter = {
+      getSkillsEnabled: vi.fn().mockReturnValue(false),
+      getSkillsPath: vi.fn().mockReturnValue('C:\\\\skills'),
+      getModelConfig: vi.fn()
+    }
+    const runtimePort = {
+      resolveConversationWorkdir: vi.fn().mockResolvedValue(null),
+      resolveConversationSessionInfo: vi.fn().mockResolvedValue(null),
+      getSkillPresenter: () =>
+        ({
+          getActiveSkills: vi.fn().mockResolvedValue([]),
+          getActiveSkillsAllowedTools: vi.fn().mockResolvedValue([]),
+          listSkillScripts: vi.fn().mockResolvedValue([]),
+          getSkillExtension: vi.fn().mockResolvedValue({
+            version: 1,
+            env: {},
+            runtimePolicy: { python: 'auto', node: 'auto' },
+            scriptOverrides: {}
+          })
+        }) as any,
+      getYoBrowserToolHandler: () => ({
+        getToolDefinitions: vi.fn().mockReturnValue([]),
+        callTool: vi.fn()
+      }),
+      getFilePresenter: () => ({
+        getMimeType: vi.fn(),
+        prepareFileCompletely: vi.fn()
+      }),
+      getLlmProviderPresenter: () => ({
+        generateCompletionStandalone: vi.fn()
+      }),
+      createSettingsWindow: vi.fn(),
+      sendToWindow: vi.fn().mockReturnValue(true),
+      getApprovedFilePaths: vi.fn().mockReturnValue([]),
+      consumeSettingsApproval: vi.fn().mockReturnValue(false)
+    }
+
+    const toolPresenter = new ToolPresenter({
+      mcpPresenter,
+      configPresenter: configPresenter as any,
+      commandPermissionHandler: new CommandPermissionService(),
+      agentToolRuntime: runtimePort as any
+    })
+
+    const defs = await toolPresenter.getAllToolDefinitions({
+      chatMode: 'agent',
+      supportsVision: false,
+      agentWorkspacePath: 'C:\\\\workspace'
+    })
+    const questionDef = defs.find((def) => def.function.name === 'deepchat_question')
+
+    expect(questionDef?.function.description).toContain('one structured clarification question')
+    expect(questionDef?.function.description).toContain(
+      'The loop resumes only after the user responds.'
+    )
+    expect((questionDef?.function.parameters as any)?.description).toContain(
+      'Ask exactly one blocking clarification question.'
+    )
+    expect((questionDef?.function.parameters as any)?.properties?.options?.description).toContain(
+      'Do not pass a stringified JSON array.'
+    )
+    expect((questionDef?.function.parameters as any)?.properties?.custom?.description).toContain(
+      'The field name is `custom`, not `allowOther`.'
+    )
+
+    await expect(
+      toolPresenter.callTool({
+        id: 'tool-1',
+        type: 'function',
+        function: {
+          name: 'deepchat_question',
+          arguments: JSON.stringify({
+            questions: [
+              {
+                question: 'Pick one',
+                options: [{ label: 'A' }]
+              }
+            ]
+          })
+        },
+        conversationId: 'conv-1'
+      })
+    ).rejects.toThrow(
+      'Use a single object with `header?`, `question`, `options`, `multiple?`, and `custom?`.'
+    )
   })
 
   it('guides search and directory discovery through exec', () => {

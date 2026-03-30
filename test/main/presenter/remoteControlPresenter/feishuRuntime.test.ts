@@ -40,6 +40,7 @@ const createDeferred = <T>() => {
 const createHarness = async (options?: { logger?: { error: (...params: unknown[]) => void } }) => {
   let onMessage: ((event: unknown) => Promise<void>) | null = null
   const streamHandlers: Array<(event: unknown) => Promise<void>> = []
+  let nextMessageId = 1
   const client = {
     probeBot: vi.fn().mockResolvedValue({
       openId: 'ou_bot',
@@ -52,7 +53,9 @@ const createHarness = async (options?: { logger?: { error: (...params: unknown[]
         streamHandlers.push(params.onMessage)
       }),
     stop: vi.fn(),
-    sendText: vi.fn().mockResolvedValue(undefined),
+    sendText: vi.fn().mockImplementation(async () => `om_bot_${nextMessageId++}`),
+    updateText: vi.fn().mockResolvedValue(undefined),
+    deleteMessage: vi.fn().mockResolvedValue(undefined),
     sendCard: vi.fn().mockResolvedValue(undefined)
   }
   const parser = {
@@ -63,11 +66,25 @@ const createHarness = async (options?: { logger?: { error: (...params: unknown[]
       replies: []
     })
   }
+  const deliveryStates = new Map<string, any>()
+  const bindingStore = {
+    getRemoteDeliveryState: vi.fn((endpointKey: string) => deliveryStates.get(endpointKey) ?? null),
+    rememberRemoteDeliveryState: vi.fn((endpointKey: string, state: any) => {
+      deliveryStates.set(endpointKey, {
+        ...state,
+        contentMessageIds: [...state.contentMessageIds]
+      })
+    }),
+    clearRemoteDeliveryState: vi.fn((endpointKey: string) => {
+      deliveryStates.delete(endpointKey)
+    })
+  }
 
   const runtime = new FeishuRuntime({
     client: client as any,
     parser: parser as any,
     router: router as any,
+    bindingStore: bindingStore as any,
     logger: options?.logger
   })
   await runtime.start()
@@ -77,6 +94,7 @@ const createHarness = async (options?: { logger?: { error: (...params: unknown[]
     client,
     parser,
     router,
+    bindingStore,
     onMessage: onMessage!,
     emitMessage: async (event: unknown) => {
       await onMessage?.(event)
@@ -86,6 +104,179 @@ const createHarness = async (options?: { logger?: { error: (...params: unknown[]
 }
 
 describe('FeishuRuntime', () => {
+  it('streams answer text beside a temporary status message', async () => {
+    vi.useFakeTimers()
+
+    try {
+      const harness = await createHarness()
+      harness.router.handleMessage.mockResolvedValue({
+        replies: [],
+        conversation: {
+          sessionId: 'session-1',
+          eventId: 'msg-1',
+          getSnapshot: vi
+            .fn()
+            .mockResolvedValueOnce({
+              messageId: 'msg-1',
+              text: '',
+              statusText: 'Running: thinking...',
+              finalText: '',
+              draftText: '',
+              renderBlocks: [],
+              fullText: '',
+              completed: false,
+              pendingInteraction: null
+            })
+            .mockResolvedValue({
+              messageId: 'msg-1',
+              text: 'Draft answer',
+              statusText: 'Running: writing...',
+              finalText: 'Final answer',
+              draftText: '',
+              renderBlocks: [],
+              fullText: '[Answer]\nFinal answer',
+              completed: true,
+              pendingInteraction: null
+            })
+        }
+      })
+
+      await harness.onMessage({
+        parsed: createParsedMessage({
+          messageId: 'om_incremental'
+        })
+      })
+
+      await vi.waitFor(() => {
+        expect(harness.client.sendText).toHaveBeenCalledWith(
+          {
+            chatId: 'oc_1',
+            threadId: null,
+            replyToMessageId: 'om_incremental'
+          },
+          'Running: thinking...'
+        )
+      })
+
+      await vi.advanceTimersByTimeAsync(TELEGRAM_STREAM_POLL_INTERVAL_MS)
+
+      await vi.waitFor(() => {
+        expect(harness.client.sendText).toHaveBeenCalledWith(
+          {
+            chatId: 'oc_1',
+            threadId: null,
+            replyToMessageId: 'om_incremental'
+          },
+          'Draft answer'
+        )
+        expect(harness.bindingStore.rememberRemoteDeliveryState).toHaveBeenCalledWith(
+          'feishu:oc_1:root',
+          expect.objectContaining({
+            sourceMessageId: 'msg-1',
+            statusMessageId: 'om_bot_1',
+            contentMessageIds: ['om_bot_2'],
+            lastStatusText: 'Running: writing...',
+            lastContentText: 'Draft answer'
+          })
+        )
+        expect(harness.client.updateText).toHaveBeenCalledWith('om_bot_2', 'Final answer')
+        expect(harness.client.deleteMessage).toHaveBeenCalledWith('om_bot_1')
+        expect(harness.bindingStore.clearRemoteDeliveryState).toHaveBeenCalledWith(
+          'feishu:oc_1:root'
+        )
+      })
+
+      await harness.runtime.stop()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('keeps the latest answer chunk editable when streamed text exceeds the platform limit', async () => {
+    vi.useFakeTimers()
+
+    try {
+      const harness = await createHarness()
+      const firstText = 'A'.repeat(7_900)
+      const expandedText = 'A'.repeat(8_205)
+
+      harness.router.handleMessage.mockResolvedValue({
+        replies: [],
+        conversation: {
+          sessionId: 'session-1',
+          eventId: 'msg-1',
+          getSnapshot: vi
+            .fn()
+            .mockResolvedValueOnce({
+              messageId: 'msg-1',
+              text: firstText,
+              statusText: 'Running: writing...',
+              finalText: '',
+              completed: false,
+              pendingInteraction: null
+            })
+            .mockResolvedValueOnce({
+              messageId: 'msg-1',
+              text: expandedText,
+              statusText: 'Running: writing...',
+              finalText: '',
+              completed: false,
+              pendingInteraction: null
+            })
+            .mockResolvedValue({
+              messageId: 'msg-1',
+              text: expandedText,
+              statusText: 'Running: writing...',
+              finalText: expandedText,
+              completed: true,
+              pendingInteraction: null
+            })
+        }
+      })
+
+      await harness.onMessage({
+        parsed: createParsedMessage({
+          messageId: 'om_long_answer'
+        })
+      })
+
+      await vi.waitFor(() => {
+        expect(harness.client.sendText).toHaveBeenCalledWith(
+          {
+            chatId: 'oc_1',
+            threadId: null,
+            replyToMessageId: 'om_long_answer'
+          },
+          firstText
+        )
+      })
+
+      await vi.advanceTimersByTimeAsync(TELEGRAM_STREAM_POLL_INTERVAL_MS)
+
+      await vi.waitFor(() => {
+        expect(harness.client.updateText).toHaveBeenCalledWith('om_bot_2', 'A'.repeat(8_000))
+        expect(harness.client.sendText).toHaveBeenCalledWith(
+          {
+            chatId: 'oc_1',
+            threadId: null,
+            replyToMessageId: 'om_long_answer'
+          },
+          'A'.repeat(205)
+        )
+      })
+
+      await vi.advanceTimersByTimeAsync(TELEGRAM_STREAM_POLL_INTERVAL_MS)
+
+      await vi.waitFor(() => {
+        expect(harness.client.deleteMessage).toHaveBeenCalledWith('om_bot_1')
+      })
+
+      await harness.runtime.stop()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('returns from websocket delivery before conversation completes', async () => {
     const deferred = createDeferred<{
       messageId: string | null
@@ -625,7 +816,9 @@ describe('FeishuRuntime', () => {
         eventId: 'msg-1',
         getSnapshot: vi.fn().mockResolvedValue({
           messageId: 'msg-1',
-          text: 'Need approval',
+          text: 'Partial answer',
+          statusText: 'Waiting for your response...',
+          finalText: '',
           completed: true,
           pendingInteraction: {
             type: 'permission',
@@ -657,7 +850,15 @@ describe('FeishuRuntime', () => {
           threadId: null,
           replyToMessageId: 'om-pending-card'
         },
-        'Need approval'
+        'Waiting for your response...'
+      )
+      expect(harness.client.sendText).toHaveBeenCalledWith(
+        {
+          chatId: 'oc_1',
+          threadId: null,
+          replyToMessageId: 'om-pending-card'
+        },
+        'Partial answer'
       )
       expect(harness.client.sendCard).toHaveBeenCalledWith(
         {

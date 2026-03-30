@@ -90,6 +90,7 @@ const createConfigPresenter = () => {
           allowlist: [],
           streamMode: 'draft',
           defaultAgentId: 'deepchat',
+          defaultWorkdir: '',
           pollOffset: 0,
           pairing: {
             code: null,
@@ -105,7 +106,11 @@ const createConfigPresenter = () => {
     getSetting: vi.fn((key: string) => store.get(key)),
     setSetting: vi.fn((key: string, value: unknown) => {
       store.set(key, value)
-    })
+    }),
+    listAgents: vi.fn().mockResolvedValue([
+      { id: 'deepchat', name: 'DeepChat', type: 'deepchat', enabled: true },
+      { id: 'acp-agent', name: 'ACP Agent', type: 'acp', enabled: true }
+    ])
   }
 }
 
@@ -256,6 +261,7 @@ describe('RemoteControlPresenter', () => {
         allowlist: [123],
         streamMode: 'final',
         defaultAgentId: '',
+        defaultWorkdir: '',
         pollOffset: 0,
         pairing: {
           code: '123456',
@@ -322,6 +328,7 @@ describe('RemoteControlPresenter', () => {
         allowlist: [],
         streamMode: 'final',
         defaultAgentId: 'deepchat',
+        defaultWorkdir: '',
         pollOffset: 0,
         pairing: {
           code: null,
@@ -357,6 +364,7 @@ describe('RemoteControlPresenter', () => {
       remoteEnabled: true,
       allowedUserIds: [],
       defaultAgentId: 'deepchat-alt',
+      defaultWorkdir: '/workspaces/remote',
       hookNotifications: {
         enabled: false,
         chatId: '',
@@ -366,14 +374,55 @@ describe('RemoteControlPresenter', () => {
     })
 
     expect(saved.defaultAgentId).toBe('deepchat')
+    expect(saved.defaultWorkdir).toBe('/workspaces/remote')
     expect(configPresenter.setSetting).toHaveBeenCalledWith(
       'remoteControl',
       expect.objectContaining({
         telegram: expect.objectContaining({
           defaultAgentId: 'deepchat',
+          defaultWorkdir: '/workspaces/remote',
           streamMode: 'final'
         })
       })
     )
+  })
+
+  it('keeps an enabled ACP agent as the remote default agent', async () => {
+    const configPresenter = createConfigPresenter()
+    let hooksConfig = createHooksConfig()
+
+    const presenter = new RemoteControlPresenter({
+      configPresenter: configPresenter as any,
+      newAgentPresenter: {} as any,
+      deepchatAgentPresenter: {} as any,
+      windowPresenter: {} as any,
+      tabPresenter: {} as any,
+      getHooksNotificationsConfig: () => hooksConfig,
+      setHooksNotificationsConfig: (nextConfig) => {
+        hooksConfig = nextConfig
+        return nextConfig
+      },
+      testTelegramHookNotification: vi.fn().mockResolvedValue({
+        success: true,
+        durationMs: 0
+      })
+    })
+
+    const saved = await presenter.saveTelegramSettings({
+      botToken: 'test-bot-token',
+      remoteEnabled: true,
+      allowedUserIds: [],
+      defaultAgentId: 'acp-agent',
+      defaultWorkdir: '/workspaces/acp',
+      hookNotifications: {
+        enabled: false,
+        chatId: '',
+        threadId: undefined,
+        events: []
+      }
+    })
+
+    expect(saved.defaultAgentId).toBe('acp-agent')
+    expect(saved.defaultWorkdir).toBe('/workspaces/acp')
   })
 })

@@ -29,7 +29,8 @@ This increment simplifies the Remote settings UX, removes the user-facing stream
 - Telegram settings appear under a new `Remote` settings page, and the old Telegram section is removed from `Hooks`.
 - The Remote settings page hides the remote-control detail area when remote control is disabled, and hides the Telegram hook detail area when hooks are disabled.
 - The first-layer Telegram remote UI shows allowed user IDs, a default DeepChat agent selector, a pairing button, and a binding-management button; pair code display moves into a modal.
-- Telegram remote no longer exposes a stream mode selector; draft streaming remains the internal default.
+- Telegram remote no longer exposes a stream mode selector, and `/status` no longer reports stream mode details.
+- Telegram remote conversation delivery uses one temporary status message plus one streamed answer message per assistant turn; the status message is deleted when the turn completes.
 - Telegram runtime registers its default command list when it starts.
 - Only plain-text conversation messages get a temporary bot reaction; slash commands and inline-button callbacks do not, and the reaction is cleared after the reply finishes or fails.
 - New Telegram sessions use the selected default DeepChat agent, inheriting that agent's default model/project/permission defaults; existing bound sessions remain bound even if the default agent later changes.
@@ -56,4 +57,5 @@ This increment simplifies the Remote settings UX, removes the user-facing stream
 - Existing Telegram hook settings remain valid and are reused by the new `Remote` page.
 - New remote-specific state lives under `remoteControl.telegram` in Electron Store.
 - `remoteControl.telegram.defaultAgentId` stores the default DeepChat agent for new Telegram sessions.
+- Legacy `remoteControl.telegram.streamMode` data may still exist for compatibility, but remote delivery no longer changes behavior based on it.
 - Disabling remote control or clearing the bot token cleanly stops polling without affecting local chats or persisted SQLite data.

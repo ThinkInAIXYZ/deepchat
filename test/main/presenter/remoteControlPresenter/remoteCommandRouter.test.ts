@@ -38,7 +38,8 @@ const createBindingStore = () => ({
     bindings: {
       'telegram:100:0': { sessionId: 'session-1', updatedAt: 1 }
     },
-    streamMode: 'draft'
+    streamMode: 'draft',
+    defaultWorkdir: ''
   }),
   createModelMenuState: vi.fn().mockReturnValue('menu-token'),
   getModelMenuState: vi.fn(),
@@ -50,6 +51,9 @@ const createBindingStore = () => ({
 
 const createRunner = (overrides: Record<string, unknown> = {}) => ({
   getPendingInteraction: vi.fn().mockResolvedValue(null),
+  getDefaultAgentId: vi.fn().mockResolvedValue('deepchat'),
+  getDefaultWorkdir: vi.fn().mockResolvedValue(null),
+  isSessionModelLocked: vi.fn().mockResolvedValue(false),
   ...overrides
 })
 
@@ -109,6 +113,8 @@ describe('RemoteCommandRouter', () => {
     const runner = {
       sendText: vi.fn().mockResolvedValue(conversation),
       getDefaultAgentId: vi.fn().mockResolvedValue('deepchat'),
+      getDefaultWorkdir: vi.fn().mockResolvedValue(null),
+      isSessionModelLocked: vi.fn().mockResolvedValue(false),
       getPendingInteraction: vi.fn().mockResolvedValue(null)
     }
     const bindingStore = createBindingStore()
@@ -186,12 +192,14 @@ describe('RemoteCommandRouter', () => {
       } as any,
       runner: createRunner({
         getDefaultAgentId: vi.fn().mockResolvedValue('deepchat-alt'),
+        getDefaultWorkdir: vi.fn().mockResolvedValue('/workspaces/remote'),
         getStatus: vi.fn().mockResolvedValue({
           session: {
             id: 'session-1',
             title: 'Remote chat',
             agentId: 'deepchat-alt',
-            modelId: 'gpt-5'
+            modelId: 'gpt-5',
+            projectDir: '/workspaces/current'
           },
           activeEventId: 'msg-1',
           isGenerating: true,
@@ -219,8 +227,54 @@ describe('RemoteCommandRouter', () => {
     expect(result.replies[0]).toContain('Runtime: running')
     expect(result.replies[0]).toContain('Current session: Remote chat [session-1]')
     expect(result.replies[0]).toContain('Default agent: deepchat-alt')
+    expect(result.replies[0]).toContain('Default workdir: /workspaces/remote')
     expect(result.replies[0]).toContain('Current agent: deepchat-alt')
     expect(result.replies[0]).toContain('Current model: gpt-5')
+    expect(result.replies[0]).toContain('Current workdir: /workspaces/current')
+  })
+
+  it('blocks /model when the current session is ACP-backed', async () => {
+    const listAvailableModelProviders = vi.fn()
+    const router = new RemoteCommandRouter({
+      authGuard: {
+        ensureAuthorized: vi.fn().mockReturnValue({
+          ok: true,
+          userId: 123
+        }),
+        pair: vi.fn()
+      } as any,
+      runner: createRunner({
+        getCurrentSession: vi.fn().mockResolvedValue({
+          id: 'session-1',
+          title: 'ACP Remote',
+          agentId: 'acp-agent',
+          modelId: 'acp-agent'
+        }),
+        isSessionModelLocked: vi.fn().mockResolvedValue(true),
+        listAvailableModelProviders
+      }) as any,
+      bindingStore: createBindingStore() as any,
+      getPollerStatus: vi.fn().mockReturnValue({
+        state: 'running',
+        lastError: null,
+        botUser: null
+      })
+    })
+
+    const result = await router.handleMessage(
+      createMessage({
+        text: '/model',
+        command: {
+          name: 'model',
+          args: ''
+        }
+      })
+    )
+
+    expect(result).toEqual({
+      replies: ['ACP sessions lock the model. Change the channel default agent instead.']
+    })
+    expect(listAvailableModelProviders).not.toHaveBeenCalled()
   })
 
   it('shows /model and /open in help output', async () => {

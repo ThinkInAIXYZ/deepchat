@@ -266,6 +266,31 @@ describe('RemoteBindingStore', () => {
     expect(store.getPendingInteractionState(token)).toBeNull()
   })
 
+  it('keeps remote delivery state in memory and clears it after rebinding the endpoint', () => {
+    const configPresenter = createConfigPresenter()
+    const store = new RemoteBindingStore(configPresenter as any)
+
+    store.rememberRemoteDeliveryState('telegram:100:0', {
+      sourceMessageId: 'msg-1',
+      statusMessageId: 100,
+      contentMessageIds: [101],
+      lastStatusText: 'Running: writing...',
+      lastContentText: 'Draft answer'
+    })
+
+    expect(store.getRemoteDeliveryState('telegram:100:0')).toEqual({
+      sourceMessageId: 'msg-1',
+      statusMessageId: 100,
+      contentMessageIds: [101],
+      lastStatusText: 'Running: writing...',
+      lastContentText: 'Draft answer'
+    })
+
+    store.setBinding('telegram:100:0', 'session-2')
+
+    expect(store.getRemoteDeliveryState('telegram:100:0')).toBeNull()
+  })
+
   it('normalizes binding meta channel from the endpoint key', () => {
     const configPresenter = createConfigPresenter()
     const store = new RemoteBindingStore(configPresenter as any)

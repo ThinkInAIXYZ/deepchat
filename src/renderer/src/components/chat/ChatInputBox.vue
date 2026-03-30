@@ -188,7 +188,7 @@ const setCaretToEnd = (editor: Editor) => {
 const editor = new VueEditor({
   editorProps: {
     attributes: {
-      class: 'outline-none min-h-[80px]'
+      class: 'outline-none min-h-[80px] max-h-[240px] overflow-y-auto overscroll-contain'
     }
   },
   extensions: [

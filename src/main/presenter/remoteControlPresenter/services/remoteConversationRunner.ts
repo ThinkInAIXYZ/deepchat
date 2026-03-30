@@ -4,9 +4,11 @@ import type {
   SessionWithState,
   ToolInteractionResponse
 } from '@shared/types/agent-interface'
+import type { SearchResult } from '@shared/types/core/search'
 import type {
   IConfigPresenter,
   INewAgentPresenter,
+  RemoteChannel,
   ITabPresenter,
   IWindowPresenter
 } from '@shared/presenter'
@@ -15,14 +17,20 @@ import {
   TELEGRAM_RECENT_SESSION_LIMIT,
   TELEGRAM_STREAM_POLL_INTERVAL_MS,
   type RemoteEndpointBindingMeta,
+  type RemoteRenderableBlock,
   type RemotePendingInteraction,
   type TelegramModelProviderOption
 } from '../types'
+import { safeParseAssistantBlocks } from '../telegram/telegramOutbound'
 import {
-  buildTelegramFinalText,
-  extractTelegramDraftText,
-  safeParseAssistantBlocks
-} from '../telegram/telegramOutbound'
+  REMOTE_WAITING_STATUS_TEXT,
+  buildRemoteDraftText,
+  buildRemoteFinalText,
+  buildRemoteFullText,
+  buildRemoteRenderableBlocks,
+  buildRemoteStreamText,
+  buildRemoteStatusText
+} from './remoteBlockRenderer'
 import { RemoteBindingStore } from './remoteBindingStore'
 import { collectPendingInteraction } from './remoteInteraction'
 
@@ -33,6 +41,11 @@ const sleep = async (ms: number): Promise<void> => {
 export interface RemoteConversationSnapshot {
   messageId: string | null
   text: string
+  statusText?: string
+  finalText?: string
+  draftText?: string
+  renderBlocks?: RemoteRenderableBlock[]
+  fullText?: string
   completed: boolean
   pendingInteraction: RemotePendingInteraction | null
 }
@@ -91,9 +104,25 @@ export class RemoteConversationRunner {
     bindingMeta?: RemoteEndpointBindingMeta
   ): Promise<SessionWithState> {
     const agentId = await this.deps.resolveDefaultAgentId()
+    const agentType = await this.deps.configPresenter.getAgentType(agentId)
+    const projectDir =
+      agentType === 'acp' ? await this.resolveDefaultWorkdirForAgent(endpointKey, agentId) : null
+    if (agentType === 'acp' && !projectDir) {
+      throw new Error(
+        'ACP agent requires a workdir. Set a Remote default directory or global default directory first.'
+      )
+    }
+
     const session = await this.deps.newAgentPresenter.createDetachedSession({
       title: title?.trim() || 'New Chat',
-      agentId
+      agentId,
+      ...(agentType === 'acp'
+        ? {
+            providerId: 'acp',
+            modelId: agentId,
+            projectDir: projectDir ?? undefined
+          }
+        : {})
     })
     if (bindingMeta) {
       this.bindingStore.setBinding(endpointKey, session.id, bindingMeta)
@@ -371,9 +400,49 @@ export class RemoteConversationRunner {
     return await this.deps.resolveDefaultAgentId()
   }
 
+  async getDefaultWorkdir(endpointKey: string): Promise<string | null> {
+    const agentId = await this.deps.resolveDefaultAgentId()
+    return await this.resolveDefaultWorkdirForAgent(endpointKey, agentId)
+  }
+
+  async isSessionModelLocked(session: Pick<SessionWithState, 'agentId'>): Promise<boolean> {
+    return (await this.deps.configPresenter.getAgentType(session.agentId)) === 'acp'
+  }
+
   private async resolveSessionListAgentId(endpointKey: string): Promise<string> {
     const currentSession = await this.getCurrentSession(endpointKey)
     return currentSession?.agentId ?? (await this.deps.resolveDefaultAgentId())
+  }
+
+  private resolveChannelFromEndpointKey(endpointKey: string): RemoteChannel {
+    return endpointKey.startsWith('feishu:') ? 'feishu' : 'telegram'
+  }
+
+  private getConfiguredDefaultWorkdir(endpointKey: string): string | null {
+    const channel = this.resolveChannelFromEndpointKey(endpointKey)
+    const config =
+      channel === 'feishu'
+        ? this.bindingStore.getFeishuConfig()
+        : this.bindingStore.getTelegramConfig()
+    const normalized = config.defaultWorkdir?.trim()
+    return normalized ? normalized : null
+  }
+
+  private getGlobalDefaultWorkdir(): string | null {
+    const projectDir = this.deps.configPresenter.getDefaultProjectPath()
+    const normalized = projectDir?.trim()
+    return normalized ? normalized : null
+  }
+
+  private async resolveDefaultWorkdirForAgent(
+    endpointKey: string,
+    agentId: string
+  ): Promise<string | null> {
+    if ((await this.deps.configPresenter.getAgentType(agentId)) !== 'acp') {
+      return null
+    }
+
+    return this.getConfiguredDefaultWorkdir(endpointKey) ?? this.getGlobalDefaultWorkdir()
   }
 
   private async getConversationSnapshot(
@@ -391,6 +460,11 @@ export class RemoteConversationRunner {
       return {
         messageId: null,
         text: 'The bound session no longer exists.',
+        statusText: '',
+        finalText: 'The bound session no longer exists.',
+        draftText: '',
+        renderBlocks: [],
+        fullText: 'The bound session no longer exists.',
         completed: true,
         pendingInteraction: null
       }
@@ -416,17 +490,38 @@ export class RemoteConversationRunner {
       return {
         messageId: null,
         text: completed ? 'No assistant response was produced.' : '',
+        statusText: completed ? '' : buildRemoteStatusText([]),
+        finalText: completed ? 'No assistant response was produced.' : '',
+        draftText: '',
+        renderBlocks: [],
+        fullText: completed ? 'No assistant response was produced.' : '',
         completed,
         pendingInteraction: null
       }
     }
 
     const blocks = safeParseAssistantBlocks(trackedMessage.content)
+    const streamText = buildRemoteStreamText(blocks)
+    const draftText = buildRemoteDraftText(blocks)
+    const renderBlocks = await buildRemoteRenderableBlocks({
+      messageId: trackedMessage.id,
+      blocks,
+      loadSearchResults: async (messageId, searchId) =>
+        await this.loadSearchResults(messageId, searchId)
+    })
+    const fullText = buildRemoteFullText(renderBlocks)
     const pendingInteraction = collectPendingInteraction(
       trackedMessage.id,
       trackedMessage.orderSeq,
       blocks
     )
+    const statusText = buildRemoteStatusText(blocks, Boolean(pendingInteraction))
+    const finalText = buildRemoteFinalText(blocks, {
+      preferTerminalError: trackedMessage.status === 'error',
+      fallbackErrorText:
+        trackedMessage.status === 'error' ? 'The conversation ended with an error.' : undefined,
+      fallbackNoResponseText: 'No assistant response was produced.'
+    })
     const completed =
       Boolean(pendingInteraction) ||
       (trackedMessage.status !== 'pending' &&
@@ -438,15 +533,33 @@ export class RemoteConversationRunner {
 
     return {
       messageId: trackedMessage.id,
-      text: pendingInteraction
-        ? extractTelegramDraftText(blocks)
-        : completed
-          ? buildTelegramFinalText(blocks)
-          : extractTelegramDraftText(blocks),
+      text: streamText,
+      statusText: pendingInteraction ? REMOTE_WAITING_STATUS_TEXT : statusText,
+      finalText,
+      draftText,
+      renderBlocks,
+      fullText,
       completed,
       pendingInteraction: pendingInteraction
         ? this.stripPendingInteractionDetails(pendingInteraction)
         : null
+    }
+  }
+
+  private async loadSearchResults(messageId: string, searchId?: string): Promise<SearchResult[]> {
+    if (typeof this.deps.newAgentPresenter.getSearchResults !== 'function') {
+      return []
+    }
+
+    try {
+      return await this.deps.newAgentPresenter.getSearchResults(messageId, searchId)
+    } catch (error) {
+      console.warn('[RemoteConversationRunner] Failed to load search results:', {
+        messageId,
+        searchId,
+        error
+      })
+      return []
     }
   }
 

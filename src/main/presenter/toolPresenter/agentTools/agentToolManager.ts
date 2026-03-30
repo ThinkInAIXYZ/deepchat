@@ -356,7 +356,9 @@ export class AgentToolManager {
     if (toolName === QUESTION_TOOL_NAME) {
       const validationResult = questionToolSchema.safeParse(args)
       if (!validationResult.success) {
-        throw new Error(`Invalid arguments for question: ${validationResult.error.message}`)
+        throw new Error(
+          `Invalid arguments for ${QUESTION_TOOL_NAME}. Use a single object with \`header?\`, \`question\`, \`options\`, \`multiple?\`, and \`custom?\`. Ask exactly one question per tool call. Do not use \`questions\` or \`allowOther\`, and do not pass stringified \`options\` JSON. Validation details: ${validationResult.error.message}`
+        )
       }
       return {
         content: 'question_requested',
@@ -530,7 +532,7 @@ export class AgentToolManager {
         function: {
           name: QUESTION_TOOL_NAME,
           description:
-            'Ask the user a structured question and pause the agent loop until the user responds.',
+            'Pause the agent loop and ask the user one structured clarification question when missing user preferences, implementation direction, output shape, or risk decisions would materially change the result. Do not use this for casual conversation or for facts you can discover from the repo, tools, or existing context. The loop resumes only after the user responds.',
           parameters: zodToJsonSchema(questionToolSchema) as {
             type: string
             properties: Record<string, unknown>

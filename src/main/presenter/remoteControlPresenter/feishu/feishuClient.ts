@@ -1,8 +1,10 @@
 import * as Lark from '@larksuiteoapi/node-sdk'
 import type { EventHandles } from '@larksuiteoapi/node-sdk'
-import type { FeishuInteractiveCardPayload, FeishuTransportTarget } from '../types'
-
-const FEISHU_OUTBOUND_TEXT_LIMIT = 8_000
+import {
+  FEISHU_OUTBOUND_TEXT_LIMIT,
+  type FeishuInteractiveCardPayload,
+  type FeishuTransportTarget
+} from '../types'
 
 export type FeishuRawMessageEvent = Parameters<
   NonNullable<EventHandles['im.message.receive_v1']>
@@ -13,6 +15,12 @@ export interface FeishuBotIdentity {
   name?: string
 }
 
+type FeishuMessageResponse = {
+  data?: {
+    message_id?: string
+  }
+}
+
 const createTextPayload = (text: string): string =>
   JSON.stringify({
     text
@@ -20,22 +28,22 @@ const createTextPayload = (text: string): string =>
 
 const createCardPayload = (card: FeishuInteractiveCardPayload): string => JSON.stringify(card)
 
-const chunkFeishuText = (text: string): string[] => {
+export const chunkFeishuText = (
+  text: string,
+  limit: number = FEISHU_OUTBOUND_TEXT_LIMIT
+): string[] => {
   const normalized = text.trim() || '(No text output)'
-  if (normalized.length <= FEISHU_OUTBOUND_TEXT_LIMIT) {
+  if (normalized.length <= limit) {
     return [normalized]
   }
 
   const chunks: string[] = []
   let remaining = normalized
 
-  while (remaining.length > FEISHU_OUTBOUND_TEXT_LIMIT) {
-    const window = remaining.slice(0, FEISHU_OUTBOUND_TEXT_LIMIT)
+  while (remaining.length > limit) {
+    const window = remaining.slice(0, limit)
     const splitIndex = Math.max(window.lastIndexOf('\n\n'), window.lastIndexOf('\n'))
-    const nextIndex =
-      splitIndex > Math.floor(FEISHU_OUTBOUND_TEXT_LIMIT * 0.55)
-        ? splitIndex
-        : FEISHU_OUTBOUND_TEXT_LIMIT
+    const nextIndex = splitIndex > Math.floor(limit * 0.55) ? splitIndex : limit
     chunks.push(remaining.slice(0, nextIndex).trim())
     remaining = remaining.slice(nextIndex).trim()
   }
@@ -131,10 +139,12 @@ export class FeishuClient {
     this.wsClient = null
   }
 
-  async sendText(target: FeishuTransportTarget, text: string): Promise<void> {
+  async sendText(target: FeishuTransportTarget, text: string): Promise<string | null> {
+    let messageId: string | null = null
+
     for (const chunk of chunkFeishuText(text)) {
       if (target.replyToMessageId) {
-        await this.sdk.im.message.reply({
+        const response = (await this.sdk.im.message.reply({
           path: {
             message_id: target.replyToMessageId
           },
@@ -143,11 +153,12 @@ export class FeishuClient {
             msg_type: 'text',
             reply_in_thread: Boolean(target.threadId)
           }
-        })
+        })) as FeishuMessageResponse
+        messageId = response.data?.message_id?.trim() || messageId
         continue
       }
 
-      await this.sdk.im.message.create({
+      const response = (await this.sdk.im.message.create({
         params: {
           receive_id_type: 'chat_id'
         },
@@ -156,8 +167,31 @@ export class FeishuClient {
           msg_type: 'text',
           content: createTextPayload(chunk)
         }
-      })
+      })) as FeishuMessageResponse
+      messageId = response.data?.message_id?.trim() || messageId
     }
+
+    return messageId
+  }
+
+  async updateText(messageId: string, text: string): Promise<void> {
+    await this.sdk.im.message.update({
+      path: {
+        message_id: messageId
+      },
+      data: {
+        msg_type: 'text',
+        content: createTextPayload(text)
+      }
+    })
+  }
+
+  async deleteMessage(messageId: string): Promise<void> {
+    await this.sdk.im.message.delete({
+      path: {
+        message_id: messageId
+      }
+    })
   }
 
   async sendCard(target: FeishuTransportTarget, card: FeishuInteractiveCardPayload): Promise<void> {

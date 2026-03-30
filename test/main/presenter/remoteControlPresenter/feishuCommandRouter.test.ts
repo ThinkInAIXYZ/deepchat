@@ -21,12 +21,16 @@ const createMessage = (
 const createBindingStore = () => ({
   getFeishuConfig: vi.fn().mockReturnValue({
     pairedUserOpenIds: ['ou_123'],
-    bindings: {}
+    bindings: {},
+    defaultWorkdir: ''
   })
 })
 
 const createRunner = (overrides: Record<string, unknown> = {}) => ({
   getPendingInteraction: vi.fn().mockResolvedValue(null),
+  getDefaultAgentId: vi.fn().mockResolvedValue('deepchat'),
+  getDefaultWorkdir: vi.fn().mockResolvedValue(null),
+  isSessionModelLocked: vi.fn().mockResolvedValue(false),
   ...overrides
 })
 
@@ -66,6 +70,7 @@ describe('FeishuCommandRouter', () => {
         modelId: 'gpt-4o',
         agentId: 'deepchat'
       }),
+      isSessionModelLocked: vi.fn().mockResolvedValue(false),
       listAvailableModelProviders: vi.fn().mockResolvedValue([
         {
           providerId: 'openai',
@@ -110,6 +115,50 @@ describe('FeishuCommandRouter', () => {
     expect(runner.setSessionModel).toHaveBeenCalledWith('feishu:oc_100:root', 'openai', 'gpt-5')
     expect(result.replies[0]).toContain('Model updated.')
     expect(result.replies[0]).toContain('GPT-5')
+  })
+
+  it('blocks /model when the current Feishu session is ACP-backed', async () => {
+    const listAvailableModelProviders = vi.fn()
+    const router = new FeishuCommandRouter({
+      authGuard: {
+        ensureAuthorized: vi.fn().mockReturnValue({
+          ok: true,
+          userOpenId: 'ou_123'
+        }),
+        pair: vi.fn()
+      } as any,
+      runner: createRunner({
+        getCurrentSession: vi.fn().mockResolvedValue({
+          id: 'session-1',
+          title: 'ACP Remote',
+          modelId: 'acp-agent',
+          agentId: 'acp-agent'
+        }),
+        isSessionModelLocked: vi.fn().mockResolvedValue(true),
+        listAvailableModelProviders
+      }) as any,
+      bindingStore: createBindingStore() as any,
+      getRuntimeStatus: vi.fn().mockReturnValue({
+        state: 'running',
+        lastError: null,
+        botUser: null
+      })
+    })
+
+    const result = await router.handleMessage(
+      createMessage({
+        text: '/model',
+        command: {
+          name: 'model',
+          args: ''
+        }
+      })
+    )
+
+    expect(result).toEqual({
+      replies: ['ACP sessions lock the model. Change the channel default agent instead.']
+    })
+    expect(listAvailableModelProviders).not.toHaveBeenCalled()
   })
 
   it('returns a desktop window hint when /open cannot find a chat window', async () => {

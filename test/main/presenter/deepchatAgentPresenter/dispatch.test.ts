@@ -48,6 +48,7 @@ import {
   finalize,
   finalizeError
 } from '@/presenter/deepchatAgentPresenter/dispatch'
+import { accumulate } from '@/presenter/deepchatAgentPresenter/accumulator'
 import { eventBus } from '@/eventbus'
 
 function createIo(overrides?: Partial<IoParams>): IoParams {
@@ -218,6 +219,68 @@ describe('dispatch', () => {
       const toolBlock = state.blocks.find((b) => b.type === 'tool_call')
       expect(toolBlock!.tool_call!.response).toBe('Sunny, 72F')
       expect(toolBlock!.status).toBe('success')
+    })
+
+    it('finalizes trailing narrative blocks before plain tool results run', async () => {
+      const tools = [makeTool('get_weather')]
+      const toolPresenter = createMockToolPresenter()
+      const conversation = [{ role: 'user' as const, content: 'Hello' }]
+      const trailingText = 'Working on it.'
+
+      accumulate(state, {
+        type: 'tool_call_start',
+        tool_call_id: 'tc1',
+        tool_call_name: 'get_weather'
+      })
+      accumulate(state, {
+        type: 'tool_call_end',
+        tool_call_id: 'tc1',
+        tool_call_arguments_complete: '{}'
+      })
+      accumulate(state, {
+        type: 'text',
+        content: trailingText
+      })
+
+      const trailingBlockBeforeExecution = state.blocks.at(-1)
+      expect(trailingBlockBeforeExecution?.type).toBe('content')
+      expect(trailingBlockBeforeExecution?.status).toBe('pending')
+
+      ;(toolPresenter.callTool as ReturnType<typeof vi.fn>).mockImplementation(async () => {
+        const trailingBlockDuringExecution = state.blocks.at(-1)
+        expect(trailingBlockDuringExecution?.type).toBe('content')
+        expect(trailingBlockDuringExecution?.content).toBe(trailingText)
+        expect(trailingBlockDuringExecution?.status).toBe('success')
+
+        return {
+          content: 'Sunny, 72F',
+          rawData: {
+            toolCallId: 'tc1',
+            content: 'Sunny, 72F',
+            isError: false
+          }
+        }
+      })
+
+      await executeTools(
+        state,
+        conversation,
+        0,
+        tools,
+        toolPresenter,
+        'gpt-4',
+        io,
+        'full_access',
+        new ToolOutputGuard(),
+        32000,
+        1024
+      )
+
+      const trailingBlockAfterExecution = state.blocks
+        .filter((block) => block.type === 'content')
+        .at(-1)
+      expect(trailingBlockAfterExecution?.content).toBe(trailingText)
+      expect(trailingBlockAfterExecution?.status).toBe('success')
     })
 
     it('does not emit PreToolUse for question interactions that pause execution', async () => {

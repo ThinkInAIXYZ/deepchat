@@ -22,11 +22,20 @@ import {
   type TelegramRemoteRuntimeConfig
 } from '../types'
 
+export interface RemoteDeliveryState {
+  sourceMessageId: string
+  statusMessageId: string | number | null
+  contentMessageIds: Array<string | number>
+  lastStatusText: string
+  lastContentText: string
+}
+
 export class RemoteBindingStore {
   private readonly activeEvents = new Map<string, string>()
   private readonly sessionSnapshots = new Map<string, string[]>()
   private readonly modelMenuStates = new Map<string, TelegramModelMenuState>()
   private readonly pendingInteractionStates = new Map<string, TelegramPendingInteractionState>()
+  private readonly remoteDeliveryStates = new Map<string, RemoteDeliveryState>()
 
   constructor(private readonly configPresenter: IConfigPresenter) {}
 
@@ -118,6 +127,7 @@ export class RemoteBindingStore {
     this.activeEvents.delete(endpointKey)
     this.clearModelMenuStatesForEndpoint(endpointKey)
     this.clearPendingInteractionStatesForEndpoint(endpointKey)
+    this.clearRemoteDeliveryState(endpointKey)
   }
 
   clearBinding(endpointKey: string): void {
@@ -394,6 +404,35 @@ export class RemoteBindingStore {
     this.activeEvents.delete(endpointKey)
   }
 
+  rememberRemoteDeliveryState(endpointKey: string, state: RemoteDeliveryState): void {
+    this.remoteDeliveryStates.set(endpointKey, {
+      sourceMessageId: state.sourceMessageId,
+      statusMessageId: state.statusMessageId,
+      contentMessageIds: [...state.contentMessageIds],
+      lastStatusText: state.lastStatusText,
+      lastContentText: state.lastContentText
+    })
+  }
+
+  getRemoteDeliveryState(endpointKey: string): RemoteDeliveryState | null {
+    const state = this.remoteDeliveryStates.get(endpointKey)
+    if (!state) {
+      return null
+    }
+
+    return {
+      sourceMessageId: state.sourceMessageId,
+      statusMessageId: state.statusMessageId,
+      contentMessageIds: [...state.contentMessageIds],
+      lastStatusText: state.lastStatusText,
+      lastContentText: state.lastContentText
+    }
+  }
+
+  clearRemoteDeliveryState(endpointKey: string): void {
+    this.remoteDeliveryStates.delete(endpointKey)
+  }
+
   rememberSessionSnapshot(endpointKey: string, sessionIds: string[]): void {
     this.sessionSnapshots.set(endpointKey, [...sessionIds])
   }
@@ -524,6 +563,7 @@ export class RemoteBindingStore {
     this.sessionSnapshots.delete(endpointKey)
     this.clearModelMenuStatesForEndpoint(endpointKey)
     this.clearPendingInteractionStatesForEndpoint(endpointKey)
+    this.clearRemoteDeliveryState(endpointKey)
   }
 
   private clearExpiredModelMenuStates(): void {

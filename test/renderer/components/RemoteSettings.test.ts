@@ -8,6 +8,7 @@ type SetupOptions = {
     remoteEnabled: boolean
     allowedUserIds: number[]
     defaultAgentId: string
+    defaultWorkdir?: string
     hookNotifications: {
       enabled: boolean
       chatId: string
@@ -44,6 +45,12 @@ type SetupOptions = {
     type: 'deepchat' | 'acp'
     enabled: boolean
   }>
+  recentProjects?: Array<{
+    name: string
+    path: string
+    icon?: string | null
+  }>
+  selectedDirectory?: string | null
 }
 
 afterEach(() => {
@@ -61,6 +68,7 @@ const setup = async (options: SetupOptions = {}) => {
       remoteEnabled: false,
       allowedUserIds: [123],
       defaultAgentId: 'deepchat',
+      defaultWorkdir: '',
       hookNotifications: {
         enabled: false,
         chatId: '',
@@ -96,6 +104,7 @@ const setup = async (options: SetupOptions = {}) => {
       encryptKey: '',
       remoteEnabled: false,
       defaultAgentId: 'deepchat',
+      defaultWorkdir: '',
       pairedUserOpenIds: []
     },
     status: {
@@ -320,6 +329,10 @@ const setup = async (options: SetupOptions = {}) => {
       ...(options.agents ?? [])
     ])
   }
+  const projectPresenter = {
+    getRecentProjects: vi.fn(async () => options.recentProjects ?? []),
+    selectDirectory: vi.fn(async () => options.selectedDirectory ?? null)
+  }
 
   const toast = vi.fn()
   const tabsContextKey = Symbol('remote-settings-tabs')
@@ -421,7 +434,11 @@ const setup = async (options: SetupOptions = {}) => {
   }
 
   vi.doMock('@/composables/usePresenter', () => ({
-    usePresenter: (name: string) => (name === 'newAgentPresenter' ? newAgentPresenter : null),
+    usePresenter: (name: string) => {
+      if (name === 'newAgentPresenter') return newAgentPresenter
+      if (name === 'projectPresenter') return projectPresenter
+      return null
+    },
     useRemoteControlPresenter: () => remoteControlPresenter
   }))
   vi.doMock('@/components/use-toast', () => ({
@@ -447,6 +464,12 @@ const setup = async (options: SetupOptions = {}) => {
 
   const passthrough = defineComponent({
     template: '<div><slot /></div>'
+  })
+
+  const dropdownMenuItemStub = defineComponent({
+    emits: ['select'],
+    template:
+      '<button v-bind="$attrs" type="button" @click="$emit(\'select\', $event)"><slot /></button>'
   })
 
   const inputStub = defineComponent({
@@ -518,6 +541,11 @@ const setup = async (options: SetupOptions = {}) => {
         DialogHeader: passthrough,
         DialogTitle: passthrough,
         DialogDescription: passthrough,
+        DropdownMenu: passthrough,
+        DropdownMenuContent: passthrough,
+        DropdownMenuItem: dropdownMenuItemStub,
+        DropdownMenuSeparator: passthrough,
+        DropdownMenuTrigger: passthrough,
         Button: buttonStub,
         Input: inputStub,
         Switch: switchStub,
@@ -532,8 +560,10 @@ const setup = async (options: SetupOptions = {}) => {
   return {
     wrapper,
     remoteState,
+    feishuState,
     remoteControlPresenter,
     newAgentPresenter,
+    projectPresenter,
     toast,
     tabsComponents
   }
@@ -628,6 +658,95 @@ describe('RemoteSettings', () => {
       })
     )
     expect(wrapper.find('[data-testid="remote-control-details"]').exists()).toBe(true)
+  })
+
+  it('shows enabled ACP agents in the default agent options', async () => {
+    const { wrapper } = await setup({
+      settings: {
+        botToken: 'telegram-token',
+        remoteEnabled: true,
+        allowedUserIds: [123],
+        defaultAgentId: 'deepchat',
+        defaultWorkdir: '',
+        hookNotifications: {
+          enabled: false,
+          chatId: '',
+          threadId: '',
+          events: []
+        }
+      }
+    })
+
+    expect(wrapper.text()).toContain('ACP Agent (ACP)')
+  })
+
+  it('persists the telegram default workdir when selecting a recent directory', async () => {
+    const { wrapper, remoteState, remoteControlPresenter } = await setup({
+      settings: {
+        botToken: 'telegram-token',
+        remoteEnabled: true,
+        allowedUserIds: [123],
+        defaultAgentId: 'acp-agent',
+        defaultWorkdir: '',
+        hookNotifications: {
+          enabled: false,
+          chatId: '',
+          threadId: '',
+          events: []
+        }
+      },
+      recentProjects: [{ name: 'remote', path: '/workspaces/remote', icon: null }]
+    })
+
+    const option = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('/workspaces/remote'))
+
+    expect(option).toBeDefined()
+
+    await option!.trigger('click')
+    await flushPromises()
+
+    expect(remoteState.settings.defaultWorkdir).toBe('/workspaces/remote')
+    expect(remoteControlPresenter.saveChannelSettings).toHaveBeenCalledWith(
+      'telegram',
+      expect.objectContaining({
+        defaultWorkdir: '/workspaces/remote'
+      })
+    )
+  })
+
+  it('picks and persists the feishu default workdir from the folder chooser', async () => {
+    const { wrapper, feishuState, remoteControlPresenter, projectPresenter, tabsComponents } =
+      await setup({
+        feishuChannelSettingsOverride: {
+          remoteEnabled: true,
+          defaultAgentId: 'acp-agent',
+          defaultWorkdir: ''
+        },
+        selectedDirectory: '/workspaces/feishu'
+      })
+
+    const feishuTrigger = wrapper
+      .findAllComponents(tabsComponents.TabsTrigger)
+      .find((component) => component.attributes('data-testid') === 'remote-tab-feishu')
+
+    expect(feishuTrigger).toBeDefined()
+
+    await feishuTrigger!.trigger('click')
+    await flushPromises()
+
+    await wrapper.find('[data-testid="remote-feishu-default-workdir-open-folder"]').trigger('click')
+    await flushPromises()
+
+    expect(projectPresenter.selectDirectory).toHaveBeenCalledTimes(1)
+    expect(feishuState.settings.defaultWorkdir).toBe('/workspaces/feishu')
+    expect(remoteControlPresenter.saveChannelSettings).toHaveBeenCalledWith(
+      'feishu',
+      expect.objectContaining({
+        defaultWorkdir: '/workspaces/feishu'
+      })
+    )
   })
 
   it('normalizes legacy telegram settings without hook notifications', async () => {
@@ -760,13 +879,14 @@ describe('RemoteSettings', () => {
     )
   })
 
-  it('lists only enabled deepchat agents in the default agent selector area', async () => {
+  it('lists only enabled agents in the default agent selector area', async () => {
     const { wrapper } = await setup({
       settings: {
         botToken: 'telegram-token',
         remoteEnabled: true,
         allowedUserIds: [123],
         defaultAgentId: 'deepchat',
+        defaultWorkdir: '',
         hookNotifications: {
           enabled: false,
           chatId: '',
@@ -778,7 +898,7 @@ describe('RemoteSettings', () => {
 
     expect(wrapper.text()).toContain('DeepChat')
     expect(wrapper.text()).not.toContain('DeepChat Alt')
-    expect(wrapper.text()).not.toContain('ACP Agent')
+    expect(wrapper.text()).toContain('ACP Agent (ACP)')
   })
 
   it('opens the bindings dialog and removes a binding from the list', async () => {
