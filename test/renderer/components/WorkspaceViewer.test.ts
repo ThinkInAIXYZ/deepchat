@@ -81,12 +81,17 @@ describe('WorkspaceViewer', () => {
       default: defineComponent({
         name: 'WorkspacePreviewPane',
         props: {
+          sessionId: {
+            type: String,
+            default: undefined
+          },
           previewKind: {
             type: String,
             required: true
           }
         },
-        template: '<div data-testid="preview-pane">{{ previewKind }}</div>'
+        template:
+          '<div data-testid="preview-pane" :data-session-id="sessionId">{{ previewKind }}</div>'
       })
     }))
 
@@ -209,6 +214,9 @@ describe('WorkspaceViewer', () => {
     })
 
     expect(wrapper.get('[data-testid="preview-pane"]').text()).toContain('markdown')
+    expect(wrapper.get('[data-testid="preview-pane"]').attributes('data-session-id')).toBe(
+      'thread-1'
+    )
 
     const codeButton = wrapper
       .findAll('button')

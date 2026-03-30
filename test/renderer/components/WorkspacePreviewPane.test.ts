@@ -1,8 +1,14 @@
 import { mount } from '@vue/test-utils'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { defineComponent } from 'vue'
 
 import WorkspacePreviewPane from '../../../src/renderer/src/components/sidepanel/viewer/WorkspacePreviewPane.vue'
+
+vi.mock('vue-i18n', () => ({
+  useI18n: () => ({
+    t: (key: string) => key
+  })
+}))
 
 const createFilePreview = (overrides: Record<string, unknown> = {}) => ({
   path: 'C:/repo/docs/index.html',
@@ -31,6 +37,7 @@ describe('WorkspacePreviewPane', () => {
   ])('renders %s file previews inside a single iframe pane', (kind, previewUrl, sandbox) => {
     const wrapper = mount(WorkspacePreviewPane, {
       props: {
+        sessionId: 'session-1',
         previewKind: kind,
         filePreview: createFilePreview({
           path: `C:/repo/docs/example.${kind}`,
@@ -82,6 +89,7 @@ describe('WorkspacePreviewPane', () => {
   it('keeps markdown preview in the markdown pane instead of iframe', () => {
     const wrapper = mount(WorkspacePreviewPane, {
       props: {
+        sessionId: 'session-1',
         previewKind: 'markdown',
         filePreview: createFilePreview({
           path: 'C:/repo/README.md',
@@ -101,9 +109,18 @@ describe('WorkspacePreviewPane', () => {
               content: {
                 type: String,
                 required: true
+              },
+              messageId: {
+                type: String,
+                default: undefined
+              },
+              threadId: {
+                type: String,
+                default: undefined
               }
             },
-            template: '<div data-testid="markdown-renderer">{{ content }}</div>'
+            template:
+              '<div data-testid="markdown-renderer" :data-message-id="messageId" :data-thread-id="threadId">{{ content }}</div>'
           }),
           HTMLArtifact: true,
           SvgArtifact: true,
@@ -116,11 +133,18 @@ describe('WorkspacePreviewPane', () => {
     expect(wrapper.find('iframe').exists()).toBe(false)
     expect(wrapper.get('[data-testid="workspace-preview-markdown"]').exists()).toBe(true)
     expect(wrapper.get('[data-testid="markdown-renderer"]').text()).toContain('# Hello')
+    expect(wrapper.get('[data-testid="markdown-renderer"]').attributes('data-message-id')).toBe(
+      'C:/repo/README.md'
+    )
+    expect(wrapper.get('[data-testid="markdown-renderer"]').attributes('data-thread-id')).toBe(
+      'session-1'
+    )
   })
 
   it('keeps image preview in the image pane instead of iframe', () => {
     const wrapper = mount(WorkspacePreviewPane, {
       props: {
+        sessionId: 'session-1',
         previewKind: 'image',
         filePreview: createFilePreview({
           path: 'C:/repo/assets/logo.png',
