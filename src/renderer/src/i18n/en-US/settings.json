@@ -104,6 +104,7 @@
     "modelsTitle": "Model Defaults",
     "chatModel": "Default Chat Model",
     "assistantModel": "Assistant Model",
+    "visionModel": "Vision Model",
     "temperature": "Temperature",
     "contextLength": "Context Length",
     "maxTokens": "Max Tokens",

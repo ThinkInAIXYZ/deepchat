@@ -1602,6 +1602,7 @@
     "modelsTitle": "ברירות מחדל למודל",
     "chatModel": "מודל שיחה ברירת מחדל",
     "assistantModel": "מודל עוזר",
+    "visionModel": "מודל ראייה",
     "temperature": "טמפרטורה",
     "contextLength": "אורך הקשר",
     "maxTokens": "מספר טוקנים מרבי",

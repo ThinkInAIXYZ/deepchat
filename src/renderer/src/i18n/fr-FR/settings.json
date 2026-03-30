@@ -1602,6 +1602,7 @@
     "modelsTitle": "Valeurs par défaut du modèle",
     "chatModel": "Modèle de chat par défaut",
     "assistantModel": "Modèle d'assistant",
+    "visionModel": "Modèle visuel",
     "temperature": "Température",
     "contextLength": "Longueur du contexte",
     "maxTokens": "Nombre max. de tokens",
