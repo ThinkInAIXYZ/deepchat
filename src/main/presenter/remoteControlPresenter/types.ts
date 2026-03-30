@@ -26,6 +26,7 @@ export const REMOTE_PAIR_CODE_MAX_FAILURES = 5
 export const FEISHU_INBOUND_DEDUP_TTL_MS = 30 * 60 * 1000
 export const FEISHU_INBOUND_DEDUP_LIMIT = 2048
 export const FEISHU_CONVERSATION_POLL_TIMEOUT_MS = 5 * 60 * 1000
+export const FEISHU_OUTBOUND_TEXT_LIMIT = 8_000
 export const TELEGRAM_TYPING_DELAY_MS = 800
 export const TELEGRAM_STREAM_POLL_INTERVAL_MS = 450
 export const TELEGRAM_STREAM_START_TIMEOUT_MS = 8_000
@@ -284,6 +285,14 @@ export interface RemotePendingInteraction {
   serverDescription?: string
   permission?: RemotePendingInteractionPermission
   question?: RemotePendingInteractionQuestion
+}
+
+export interface RemoteRenderableBlock {
+  key: string
+  kind: 'reasoning' | 'toolCall' | 'toolResult' | 'search' | 'imageNotice' | 'answer' | 'error'
+  text: string
+  truncated: boolean
+  sourceMessageId: string
 }
 
 export type TelegramOutboundAction =

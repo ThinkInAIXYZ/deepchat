@@ -4,6 +4,7 @@ import type {
   SessionWithState,
   ToolInteractionResponse
 } from '@shared/types/agent-interface'
+import type { SearchResult } from '@shared/types/core/search'
 import type {
   IConfigPresenter,
   INewAgentPresenter,
@@ -16,14 +17,16 @@ import {
   TELEGRAM_RECENT_SESSION_LIMIT,
   TELEGRAM_STREAM_POLL_INTERVAL_MS,
   type RemoteEndpointBindingMeta,
+  type RemoteRenderableBlock,
   type RemotePendingInteraction,
   type TelegramModelProviderOption
 } from '../types'
+import { safeParseAssistantBlocks } from '../telegram/telegramOutbound'
 import {
-  buildTelegramFinalText,
-  extractTelegramDraftText,
-  safeParseAssistantBlocks
-} from '../telegram/telegramOutbound'
+  buildRemoteDraftText,
+  buildRemoteFullText,
+  buildRemoteRenderableBlocks
+} from './remoteBlockRenderer'
 import { RemoteBindingStore } from './remoteBindingStore'
 import { collectPendingInteraction } from './remoteInteraction'
 
@@ -34,6 +37,9 @@ const sleep = async (ms: number): Promise<void> => {
 export interface RemoteConversationSnapshot {
   messageId: string | null
   text: string
+  draftText?: string
+  renderBlocks?: RemoteRenderableBlock[]
+  fullText?: string
   completed: boolean
   pendingInteraction: RemotePendingInteraction | null
 }
@@ -448,6 +454,9 @@ export class RemoteConversationRunner {
       return {
         messageId: null,
         text: 'The bound session no longer exists.',
+        draftText: '',
+        renderBlocks: [],
+        fullText: 'The bound session no longer exists.',
         completed: true,
         pendingInteraction: null
       }
@@ -473,12 +482,23 @@ export class RemoteConversationRunner {
       return {
         messageId: null,
         text: completed ? 'No assistant response was produced.' : '',
+        draftText: '',
+        renderBlocks: [],
+        fullText: completed ? 'No assistant response was produced.' : '',
         completed,
         pendingInteraction: null
       }
     }
 
     const blocks = safeParseAssistantBlocks(trackedMessage.content)
+    const draftText = buildRemoteDraftText(blocks)
+    const renderBlocks = await buildRemoteRenderableBlocks({
+      messageId: trackedMessage.id,
+      blocks,
+      loadSearchResults: async (messageId, searchId) =>
+        await this.loadSearchResults(messageId, searchId)
+    })
+    const fullText = buildRemoteFullText(renderBlocks)
     const pendingInteraction = collectPendingInteraction(
       trackedMessage.id,
       trackedMessage.orderSeq,
@@ -495,15 +515,31 @@ export class RemoteConversationRunner {
 
     return {
       messageId: trackedMessage.id,
-      text: pendingInteraction
-        ? extractTelegramDraftText(blocks)
-        : completed
-          ? buildTelegramFinalText(blocks)
-          : extractTelegramDraftText(blocks),
+      text: completed ? fullText : draftText,
+      draftText,
+      renderBlocks,
+      fullText,
       completed,
       pendingInteraction: pendingInteraction
         ? this.stripPendingInteractionDetails(pendingInteraction)
         : null
+    }
+  }
+
+  private async loadSearchResults(messageId: string, searchId?: string): Promise<SearchResult[]> {
+    if (typeof this.deps.newAgentPresenter.getSearchResults !== 'function') {
+      return []
+    }
+
+    try {
+      return await this.deps.newAgentPresenter.getSearchResults(messageId, searchId)
+    } catch (error) {
+      console.warn('[RemoteConversationRunner] Failed to load search results:', {
+        messageId,
+        searchId,
+        error
+      })
+      return []
     }
   }
 

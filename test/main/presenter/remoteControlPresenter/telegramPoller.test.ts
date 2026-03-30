@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { TelegramApiRequestError } from '@/presenter/remoteControlPresenter/telegram/telegramClient'
 import { TelegramPoller } from '@/presenter/remoteControlPresenter/telegram/telegramPoller'
+import { TELEGRAM_STREAM_POLL_INTERVAL_MS } from '@/presenter/remoteControlPresenter/types'
 
 const createClient = () => ({
   getMe: vi.fn().mockResolvedValue({
@@ -359,6 +360,150 @@ describe('TelegramPoller', () => {
     })
 
     await poller.stop()
+  })
+
+  it('streams drafts and delivers completed render blocks incrementally', async () => {
+    vi.useFakeTimers()
+
+    try {
+      const client = createClient()
+      client.getUpdates
+        .mockResolvedValueOnce([
+          {
+            update_id: 1,
+            message: {
+              message_id: 20,
+              chat: {
+                id: 100,
+                type: 'private'
+              },
+              from: {
+                id: 123
+              },
+              text: 'hello'
+            }
+          }
+        ])
+        .mockImplementation(createBlockingUpdates())
+
+      const reasoningBlock = {
+        key: 'msg-1:0:reasoning',
+        kind: 'reasoning' as const,
+        text: '[Reasoning]\nThinking',
+        truncated: false,
+        sourceMessageId: 'msg-1'
+      }
+      const answerBlock = {
+        key: 'msg-1:1:answer',
+        kind: 'answer' as const,
+        text: '[Answer]\nDone',
+        truncated: false,
+        sourceMessageId: 'msg-1'
+      }
+
+      const poller = new TelegramPoller({
+        client: client as any,
+        parser: {
+          parseUpdate: vi.fn().mockReturnValue({
+            kind: 'message',
+            updateId: 1,
+            chatId: 100,
+            messageThreadId: 0,
+            messageId: 20,
+            chatType: 'private',
+            fromId: 123,
+            text: 'hello',
+            command: null
+          })
+        } as any,
+        router: {
+          handleMessage: vi.fn().mockResolvedValue({
+            replies: [],
+            conversation: {
+              sessionId: 'session-1',
+              eventId: 'msg-1',
+              getSnapshot: vi
+                .fn()
+                .mockResolvedValueOnce({
+                  messageId: 'msg-1',
+                  text: '[Reasoning]\nThinking',
+                  draftText: '[Reasoning]\nThinking',
+                  renderBlocks: [],
+                  fullText: '',
+                  completed: false,
+                  pendingInteraction: null
+                })
+                .mockResolvedValueOnce({
+                  messageId: 'msg-1',
+                  text: '',
+                  draftText: '',
+                  renderBlocks: [reasoningBlock],
+                  fullText: '[Reasoning]\nThinking',
+                  completed: false,
+                  pendingInteraction: null
+                })
+                .mockResolvedValue({
+                  messageId: 'msg-1',
+                  text: '[Reasoning]\nThinking\n\n[Answer]\nDone',
+                  draftText: '',
+                  renderBlocks: [reasoningBlock, answerBlock],
+                  fullText: '[Reasoning]\nThinking\n\n[Answer]\nDone',
+                  completed: true,
+                  pendingInteraction: null
+                })
+            }
+          })
+        } as any,
+        bindingStore: {
+          getPollOffset: vi.fn().mockReturnValue(0),
+          setPollOffset: vi.fn(),
+          getTelegramConfig: vi.fn().mockReturnValue({
+            streamMode: 'draft'
+          })
+        } as any
+      })
+
+      await poller.start()
+
+      await vi.waitFor(() => {
+        expect(client.sendMessageDraft).toHaveBeenCalledWith(
+          {
+            chatId: 100,
+            messageThreadId: 0
+          },
+          expect.any(Number),
+          '[Reasoning]\nThinking'
+        )
+      })
+
+      await vi.advanceTimersByTimeAsync(TELEGRAM_STREAM_POLL_INTERVAL_MS)
+
+      await vi.waitFor(() => {
+        expect(client.sendMessage).toHaveBeenCalledWith(
+          {
+            chatId: 100,
+            messageThreadId: 0
+          },
+          '[Reasoning]\nThinking'
+        )
+      })
+
+      await vi.advanceTimersByTimeAsync(TELEGRAM_STREAM_POLL_INTERVAL_MS)
+
+      await vi.waitFor(() => {
+        expect(client.sendMessage).toHaveBeenCalledWith(
+          {
+            chatId: 100,
+            messageThreadId: 0
+          },
+          '[Answer]\nDone'
+        )
+      })
+
+      await poller.stop()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('does not react to command messages', async () => {

@@ -2,13 +2,36 @@ import type { AssistantMessageBlock } from '@shared/types/agent-interface'
 import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
 import type { StreamState } from './types'
 
+export function finalizeTrailingPendingNarrativeBlocks(blocks: AssistantMessageBlock[]): void {
+  const last = blocks[blocks.length - 1]
+  if (
+    !last ||
+    last.status !== 'pending' ||
+    (last.type !== 'content' && last.type !== 'reasoning_content')
+  ) {
+    return
+  }
+
+  last.status = 'success'
+}
+
 function getCurrentBlock(
   blocks: AssistantMessageBlock[],
   type: 'content' | 'reasoning_content'
 ): AssistantMessageBlock {
   const last = blocks[blocks.length - 1]
-  if (last && last.type === type && last.status === 'pending') {
-    return last
+  if (
+    last &&
+    last.status === 'pending' &&
+    (last.type === 'content' || last.type === 'reasoning_content') &&
+    last.type !== type
+  ) {
+    last.status = 'success'
+  }
+
+  const current = blocks[blocks.length - 1]
+  if (current && current.type === type && current.status === 'pending') {
+    return current
   }
   const block: AssistantMessageBlock = {
     type,
@@ -67,6 +90,7 @@ export function accumulate(state: StreamState, event: LLMCoreStreamEvent): void 
       break
     }
     case 'tool_call_start': {
+      finalizeTrailingPendingNarrativeBlocks(state.blocks)
       const toolBlock: AssistantMessageBlock = {
         type: 'tool_call',
         content: '',
@@ -108,6 +132,10 @@ export function accumulate(state: StreamState, event: LLMCoreStreamEvent): void 
         const block = state.blocks[pending.blockIndex]
         if (block?.tool_call) {
           block.tool_call.params = finalArgs
+          block.extra = {
+            ...block.extra,
+            toolCallArgsComplete: true
+          }
         }
         state.completedToolCalls.push({
           id: event.tool_call_id,
@@ -120,10 +148,11 @@ export function accumulate(state: StreamState, event: LLMCoreStreamEvent): void 
       break
     }
     case 'image_data': {
+      finalizeTrailingPendingNarrativeBlocks(state.blocks)
       if (state.firstTokenTime === null) state.firstTokenTime = Date.now()
       const block: AssistantMessageBlock = {
         type: 'image',
-        status: 'pending',
+        status: 'success',
         timestamp: Date.now(),
         image_data: {
           data: event.image_data.data,
@@ -146,6 +175,7 @@ export function accumulate(state: StreamState, event: LLMCoreStreamEvent): void 
       break
     }
     case 'error': {
+      finalizeTrailingPendingNarrativeBlocks(state.blocks)
       const errorBlock: AssistantMessageBlock = {
         type: 'error',
         content: event.error_message,

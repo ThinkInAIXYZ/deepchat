@@ -18,6 +18,7 @@ import type { ChatMessage } from '@shared/types/core/chat-message'
 import { nanoid } from 'nanoid'
 import type { ToolBatchOutputFitItem, ToolOutputGuard } from './toolOutputGuard'
 import { buildTerminalErrorBlocks } from './messageStore'
+import { finalizeTrailingPendingNarrativeBlocks } from './accumulator'
 
 type PermissionType = 'read' | 'write' | 'all' | 'command'
 
@@ -243,6 +244,7 @@ function applyFinalizedToolResults(params: {
     }
 
     if (!fittedResult.downgraded && stagedResult.searchPayload) {
+      finalizeTrailingPendingNarrativeBlocks(state.blocks)
       state.blocks.push(stagedResult.searchPayload.block)
       for (const result of stagedResult.searchPayload.results) {
         io.messageStore.addSearchResult({
@@ -382,6 +384,7 @@ function appendPermissionActionBlock(
   },
   permission: NonNullable<PendingToolInteraction['permission']>
 ): PendingToolInteraction {
+  finalizeTrailingPendingNarrativeBlocks(state.blocks)
   state.blocks.push({
     type: 'action',
     content: permission.description,
@@ -435,6 +438,7 @@ function appendQuestionActionBlock(
   },
   question: NonNullable<PendingToolInteraction['question']>
 ): PendingToolInteraction {
+  finalizeTrailingPendingNarrativeBlocks(state.blocks)
   state.blocks.push({
     type: 'action',
     content: '',

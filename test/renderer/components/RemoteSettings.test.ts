@@ -45,6 +45,12 @@ type SetupOptions = {
     type: 'deepchat' | 'acp'
     enabled: boolean
   }>
+  recentProjects?: Array<{
+    name: string
+    path: string
+    icon?: string | null
+  }>
+  selectedDirectory?: string | null
 }
 
 afterEach(() => {
@@ -323,6 +329,10 @@ const setup = async (options: SetupOptions = {}) => {
       ...(options.agents ?? [])
     ])
   }
+  const projectPresenter = {
+    getRecentProjects: vi.fn(async () => options.recentProjects ?? []),
+    selectDirectory: vi.fn(async () => options.selectedDirectory ?? null)
+  }
 
   const toast = vi.fn()
   const tabsContextKey = Symbol('remote-settings-tabs')
@@ -424,7 +434,11 @@ const setup = async (options: SetupOptions = {}) => {
   }
 
   vi.doMock('@/composables/usePresenter', () => ({
-    usePresenter: (name: string) => (name === 'newAgentPresenter' ? newAgentPresenter : null),
+    usePresenter: (name: string) => {
+      if (name === 'newAgentPresenter') return newAgentPresenter
+      if (name === 'projectPresenter') return projectPresenter
+      return null
+    },
     useRemoteControlPresenter: () => remoteControlPresenter
   }))
   vi.doMock('@/components/use-toast', () => ({
@@ -450,6 +464,12 @@ const setup = async (options: SetupOptions = {}) => {
 
   const passthrough = defineComponent({
     template: '<div><slot /></div>'
+  })
+
+  const dropdownMenuItemStub = defineComponent({
+    emits: ['select'],
+    template:
+      '<button v-bind="$attrs" type="button" @click="$emit(\'select\', $event)"><slot /></button>'
   })
 
   const inputStub = defineComponent({
@@ -521,6 +541,11 @@ const setup = async (options: SetupOptions = {}) => {
         DialogHeader: passthrough,
         DialogTitle: passthrough,
         DialogDescription: passthrough,
+        DropdownMenu: passthrough,
+        DropdownMenuContent: passthrough,
+        DropdownMenuItem: dropdownMenuItemStub,
+        DropdownMenuSeparator: passthrough,
+        DropdownMenuTrigger: passthrough,
         Button: buttonStub,
         Input: inputStub,
         Switch: switchStub,
@@ -535,8 +560,10 @@ const setup = async (options: SetupOptions = {}) => {
   return {
     wrapper,
     remoteState,
+    feishuState,
     remoteControlPresenter,
     newAgentPresenter,
+    projectPresenter,
     toast,
     tabsComponents
   }
@@ -653,7 +680,7 @@ describe('RemoteSettings', () => {
     expect(wrapper.text()).toContain('ACP Agent (ACP)')
   })
 
-  it('persists the telegram default workdir on blur', async () => {
+  it('persists the telegram default workdir when selecting a recent directory', async () => {
     const { wrapper, remoteState, remoteControlPresenter } = await setup({
       settings: {
         botToken: 'telegram-token',
@@ -667,12 +694,17 @@ describe('RemoteSettings', () => {
           threadId: '',
           events: []
         }
-      }
+      },
+      recentProjects: [{ name: 'remote', path: '/workspaces/remote', icon: null }]
     })
 
-    const input = wrapper.find('[data-testid="remote-default-workdir-input"]')
-    await input.setValue('/workspaces/remote')
-    await input.trigger('blur')
+    const option = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('/workspaces/remote'))
+
+    expect(option).toBeDefined()
+
+    await option!.trigger('click')
     await flushPromises()
 
     expect(remoteState.settings.defaultWorkdir).toBe('/workspaces/remote')
@@ -680,6 +712,39 @@ describe('RemoteSettings', () => {
       'telegram',
       expect.objectContaining({
         defaultWorkdir: '/workspaces/remote'
+      })
+    )
+  })
+
+  it('picks and persists the feishu default workdir from the folder chooser', async () => {
+    const { wrapper, feishuState, remoteControlPresenter, projectPresenter, tabsComponents } =
+      await setup({
+        feishuChannelSettingsOverride: {
+          remoteEnabled: true,
+          defaultAgentId: 'acp-agent',
+          defaultWorkdir: ''
+        },
+        selectedDirectory: '/workspaces/feishu'
+      })
+
+    const feishuTrigger = wrapper
+      .findAllComponents(tabsComponents.TabsTrigger)
+      .find((component) => component.attributes('data-testid') === 'remote-tab-feishu')
+
+    expect(feishuTrigger).toBeDefined()
+
+    await feishuTrigger!.trigger('click')
+    await flushPromises()
+
+    await wrapper.find('[data-testid="remote-feishu-default-workdir-open-folder"]').trigger('click')
+    await flushPromises()
+
+    expect(projectPresenter.selectDirectory).toHaveBeenCalledTimes(1)
+    expect(feishuState.settings.defaultWorkdir).toBe('/workspaces/feishu')
+    expect(remoteControlPresenter.saveChannelSettings).toHaveBeenCalledWith(
+      'feishu',
+      expect.objectContaining({
+        defaultWorkdir: '/workspaces/feishu'
       })
     )
   })

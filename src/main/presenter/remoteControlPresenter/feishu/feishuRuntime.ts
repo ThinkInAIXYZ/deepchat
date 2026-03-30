@@ -2,10 +2,12 @@ import {
   FEISHU_CONVERSATION_POLL_TIMEOUT_MS,
   FEISHU_INBOUND_DEDUP_LIMIT,
   FEISHU_INBOUND_DEDUP_TTL_MS,
+  FEISHU_OUTBOUND_TEXT_LIMIT,
   TELEGRAM_STREAM_POLL_INTERVAL_MS,
   buildFeishuEndpointKey,
   type FeishuInboundMessage,
   type FeishuOutboundAction,
+  type RemoteRenderableBlock,
   type FeishuRuntimeStatusSnapshot,
   type FeishuTransportTarget
 } from '../types'
@@ -15,7 +17,7 @@ import {
   buildFeishuPendingInteractionCard,
   buildFeishuPendingInteractionText
 } from './feishuInteractionPrompt'
-import { FeishuClient, type FeishuBotIdentity } from './feishuClient'
+import { chunkFeishuText, FeishuClient, type FeishuBotIdentity } from './feishuClient'
 import { FeishuParser } from './feishuParser'
 
 const sleep = async (ms: number): Promise<void> => {
@@ -320,19 +322,28 @@ export class FeishuRuntime {
     runId: number
   ): Promise<void> {
     const startedAt = Date.now()
+    let lastDeliveredBlockCount = 0
 
     while (this.isCurrentRun(runId)) {
       const snapshot = await execution.getSnapshot()
       if (!this.isCurrentRun(runId)) {
         return
       }
+      const renderBlocks = snapshot.renderBlocks ?? []
+      const fullText = snapshot.fullText ?? snapshot.text
+
+      lastDeliveredBlockCount = await this.sendRenderableBlocks(
+        target,
+        renderBlocks,
+        lastDeliveredBlockCount
+      )
 
       if (snapshot.completed) {
         if (!this.isCurrentRun(runId)) {
           return
         }
-        if (snapshot.text.trim()) {
-          await this.deps.client.sendText(target, snapshot.text)
+        if (renderBlocks.length === 0 && fullText.trim()) {
+          await this.deps.client.sendText(target, fullText)
         }
         if (snapshot.pendingInteraction) {
           await this.dispatchOutboundActions(
@@ -363,6 +374,55 @@ export class FeishuRuntime {
       }
 
       await sleep(TELEGRAM_STREAM_POLL_INTERVAL_MS)
+    }
+  }
+
+  private async sendRenderableBlocks(
+    target: FeishuTransportTarget,
+    renderBlocks: RemoteRenderableBlock[],
+    lastDeliveredBlockCount: number
+  ): Promise<number> {
+    for (const block of renderBlocks.slice(lastDeliveredBlockCount)) {
+      await this.sendRenderableBlock(target, block)
+    }
+
+    return renderBlocks.length
+  }
+
+  private async sendRenderableBlock(
+    target: FeishuTransportTarget,
+    block: RemoteRenderableBlock
+  ): Promise<void> {
+    const chunks = chunkFeishuText(block.text, FEISHU_OUTBOUND_TEXT_LIMIT - 48)
+    if (chunks.length <= 1) {
+      await this.deps.client.sendText(target, block.text)
+      return
+    }
+
+    const label = this.getRenderableBlockLabel(block)
+    for (const [index, chunk] of chunks.entries()) {
+      const text =
+        index === 0 ? chunk : `[${label} continued ${index + 1}/${chunks.length}]\n${chunk}`
+      await this.deps.client.sendText(target, text)
+    }
+  }
+
+  private getRenderableBlockLabel(block: RemoteRenderableBlock): string {
+    switch (block.kind) {
+      case 'toolCall':
+        return 'Tool Call'
+      case 'toolResult':
+        return 'Tool Result'
+      case 'imageNotice':
+        return 'Image Notice'
+      case 'answer':
+        return 'Answer'
+      case 'reasoning':
+        return 'Reasoning'
+      case 'search':
+        return 'Search'
+      case 'error':
+        return 'Error'
     }
   }
 

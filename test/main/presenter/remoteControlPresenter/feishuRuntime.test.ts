@@ -86,6 +86,89 @@ const createHarness = async (options?: { logger?: { error: (...params: unknown[]
 }
 
 describe('FeishuRuntime', () => {
+  it('delivers completed render blocks incrementally before the conversation finishes', async () => {
+    vi.useFakeTimers()
+
+    try {
+      const reasoningBlock = {
+        key: 'msg-1:0:reasoning',
+        kind: 'reasoning' as const,
+        text: '[Reasoning]\nThinking',
+        truncated: false,
+        sourceMessageId: 'msg-1'
+      }
+      const answerBlock = {
+        key: 'msg-1:1:answer',
+        kind: 'answer' as const,
+        text: '[Answer]\nDone',
+        truncated: false,
+        sourceMessageId: 'msg-1'
+      }
+      const harness = await createHarness()
+      harness.router.handleMessage.mockResolvedValue({
+        replies: [],
+        conversation: {
+          sessionId: 'session-1',
+          eventId: 'msg-1',
+          getSnapshot: vi
+            .fn()
+            .mockResolvedValueOnce({
+              messageId: 'msg-1',
+              text: '[Reasoning]\nThinking',
+              draftText: '',
+              renderBlocks: [reasoningBlock],
+              fullText: '[Reasoning]\nThinking',
+              completed: false,
+              pendingInteraction: null
+            })
+            .mockResolvedValue({
+              messageId: 'msg-1',
+              text: '[Reasoning]\nThinking\n\n[Answer]\nDone',
+              draftText: '',
+              renderBlocks: [reasoningBlock, answerBlock],
+              fullText: '[Reasoning]\nThinking\n\n[Answer]\nDone',
+              completed: true,
+              pendingInteraction: null
+            })
+        }
+      })
+
+      await harness.onMessage({
+        parsed: createParsedMessage({
+          messageId: 'om_incremental'
+        })
+      })
+
+      await vi.waitFor(() => {
+        expect(harness.client.sendText).toHaveBeenCalledWith(
+          {
+            chatId: 'oc_1',
+            threadId: null,
+            replyToMessageId: 'om_incremental'
+          },
+          '[Reasoning]\nThinking'
+        )
+      })
+
+      await vi.advanceTimersByTimeAsync(TELEGRAM_STREAM_POLL_INTERVAL_MS)
+
+      await vi.waitFor(() => {
+        expect(harness.client.sendText).toHaveBeenCalledWith(
+          {
+            chatId: 'oc_1',
+            threadId: null,
+            replyToMessageId: 'om_incremental'
+          },
+          '[Answer]\nDone'
+        )
+      })
+
+      await harness.runtime.stop()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('returns from websocket delivery before conversation completes', async () => {
     const deferred = createDeferred<{
       messageId: string | null

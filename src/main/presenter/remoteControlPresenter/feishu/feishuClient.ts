@@ -1,8 +1,10 @@
 import * as Lark from '@larksuiteoapi/node-sdk'
 import type { EventHandles } from '@larksuiteoapi/node-sdk'
-import type { FeishuInteractiveCardPayload, FeishuTransportTarget } from '../types'
-
-const FEISHU_OUTBOUND_TEXT_LIMIT = 8_000
+import {
+  FEISHU_OUTBOUND_TEXT_LIMIT,
+  type FeishuInteractiveCardPayload,
+  type FeishuTransportTarget
+} from '../types'
 
 export type FeishuRawMessageEvent = Parameters<
   NonNullable<EventHandles['im.message.receive_v1']>
@@ -20,22 +22,22 @@ const createTextPayload = (text: string): string =>
 
 const createCardPayload = (card: FeishuInteractiveCardPayload): string => JSON.stringify(card)
 
-const chunkFeishuText = (text: string): string[] => {
+export const chunkFeishuText = (
+  text: string,
+  limit: number = FEISHU_OUTBOUND_TEXT_LIMIT
+): string[] => {
   const normalized = text.trim() || '(No text output)'
-  if (normalized.length <= FEISHU_OUTBOUND_TEXT_LIMIT) {
+  if (normalized.length <= limit) {
     return [normalized]
   }
 
   const chunks: string[] = []
   let remaining = normalized
 
-  while (remaining.length > FEISHU_OUTBOUND_TEXT_LIMIT) {
-    const window = remaining.slice(0, FEISHU_OUTBOUND_TEXT_LIMIT)
+  while (remaining.length > limit) {
+    const window = remaining.slice(0, limit)
     const splitIndex = Math.max(window.lastIndexOf('\n\n'), window.lastIndexOf('\n'))
-    const nextIndex =
-      splitIndex > Math.floor(FEISHU_OUTBOUND_TEXT_LIMIT * 0.55)
-        ? splitIndex
-        : FEISHU_OUTBOUND_TEXT_LIMIT
+    const nextIndex = splitIndex > Math.floor(limit * 0.55) ? splitIndex : limit
     chunks.push(remaining.slice(0, nextIndex).trim())
     remaining = remaining.slice(nextIndex).trim()
   }

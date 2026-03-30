@@ -394,6 +394,9 @@ describe('RemoteConversationRunner', () => {
     expect(snapshot).toEqual({
       messageId: null,
       text: 'No assistant response was produced.',
+      draftText: '',
+      renderBlocks: [],
+      fullText: 'No assistant response was produced.',
       completed: true,
       pendingInteraction: null
     })
@@ -594,7 +597,15 @@ describe('RemoteConversationRunner', () => {
     const snapshot = await response.execution?.getSnapshot()
     expect(snapshot).toEqual({
       messageId: 'assistant-2',
-      text: 'Push completed.',
+      text: '[Answer]\nPush completed.',
+      draftText: '',
+      renderBlocks: [
+        expect.objectContaining({
+          kind: 'answer',
+          text: '[Answer]\nPush completed.'
+        })
+      ],
+      fullText: '[Answer]\nPush completed.',
       completed: true,
       pendingInteraction: null
     })

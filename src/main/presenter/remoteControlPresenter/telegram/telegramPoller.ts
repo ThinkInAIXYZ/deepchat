@@ -2,9 +2,11 @@ import {
   TELEGRAM_REMOTE_REACTION_EMOJI,
   TELEGRAM_REMOTE_POLL_LIMIT,
   TELEGRAM_REMOTE_POLL_TIMEOUT_SEC,
+  TELEGRAM_OUTBOUND_TEXT_LIMIT,
   TELEGRAM_STREAM_POLL_INTERVAL_MS,
   TELEGRAM_TYPING_DELAY_MS,
   type RemotePendingInteraction,
+  type RemoteRenderableBlock,
   type TelegramInboundMessage,
   type TelegramOutboundAction,
   type TelegramPollerStatusSnapshot,
@@ -333,12 +335,22 @@ export class TelegramPoller {
     const startedAt = Date.now()
     let typingSent = false
     let lastDraftText = ''
+    let lastDeliveredBlockCount = 0
 
     while (this.isCurrentRun(runId)) {
       const snapshot = await execution.getSnapshot()
+      const renderBlocks = snapshot.renderBlocks ?? []
+      const fullText = snapshot.fullText ?? snapshot.text
+      const draftTextValue = snapshot.draftText ?? snapshot.text
+      lastDeliveredBlockCount = await this.sendRenderableBlocks(
+        target,
+        renderBlocks,
+        lastDeliveredBlockCount
+      )
+
       if (snapshot.completed) {
-        if (snapshot.text.trim()) {
-          await this.sendChunkedMessage(target, snapshot.text)
+        if (renderBlocks.length === 0 && fullText.trim()) {
+          await this.sendChunkedMessage(target, fullText)
         }
         if (snapshot.pendingInteraction) {
           await this.sendPendingInteractionPrompt(target, snapshot.pendingInteraction)
@@ -346,10 +358,12 @@ export class TelegramPoller {
         return
       }
 
-      const draftText = snapshot.text.trim() ? chunkTelegramText(snapshot.text)[0] : ''
+      const draftText = draftTextValue.trim() ? chunkTelegramText(draftTextValue)[0] : ''
       if (draftText && draftText !== lastDraftText) {
         await this.deps.client.sendMessageDraft(target, draftId, draftText)
         lastDraftText = draftText
+      } else if (!draftText) {
+        lastDraftText = ''
       } else if (!typingSent && Date.now() - startedAt >= TELEGRAM_TYPING_DELAY_MS) {
         typingSent = true
         await this.sendTyping(target)
@@ -368,12 +382,21 @@ export class TelegramPoller {
   ): Promise<void> {
     const startedAt = Date.now()
     let typingSent = false
+    let lastDeliveredBlockCount = 0
 
     while (this.isCurrentRun(runId)) {
       const snapshot = await execution.getSnapshot()
+      const renderBlocks = snapshot.renderBlocks ?? []
+      const fullText = snapshot.fullText ?? snapshot.text
+      lastDeliveredBlockCount = await this.sendRenderableBlocks(
+        target,
+        renderBlocks,
+        lastDeliveredBlockCount
+      )
+
       if (snapshot.completed) {
-        if (snapshot.text.trim()) {
-          await this.sendChunkedMessage(target, snapshot.text)
+        if (renderBlocks.length === 0 && fullText.trim()) {
+          await this.sendChunkedMessage(target, fullText)
         }
         if (snapshot.pendingInteraction) {
           await this.sendPendingInteractionPrompt(target, snapshot.pendingInteraction)
@@ -401,6 +424,55 @@ export class TelegramPoller {
   private async sendChunkedMessage(target: TelegramTransportTarget, text: string): Promise<void> {
     for (const chunk of chunkTelegramText(text)) {
       await this.deps.client.sendMessage(target, chunk)
+    }
+  }
+
+  private async sendRenderableBlocks(
+    target: TelegramTransportTarget,
+    renderBlocks: RemoteRenderableBlock[],
+    lastDeliveredBlockCount: number
+  ): Promise<number> {
+    for (const block of renderBlocks.slice(lastDeliveredBlockCount)) {
+      await this.sendRenderableBlock(target, block)
+    }
+
+    return renderBlocks.length
+  }
+
+  private async sendRenderableBlock(
+    target: TelegramTransportTarget,
+    block: RemoteRenderableBlock
+  ): Promise<void> {
+    const continuationPrefix = `[${this.getRenderableBlockLabel(block)} continued`
+    const chunks = chunkTelegramText(block.text, TELEGRAM_OUTBOUND_TEXT_LIMIT - 48)
+    if (chunks.length <= 1) {
+      await this.deps.client.sendMessage(target, block.text)
+      return
+    }
+
+    for (const [index, chunk] of chunks.entries()) {
+      const text =
+        index === 0 ? chunk : `${continuationPrefix} ${index + 1}/${chunks.length}]\n${chunk}`
+      await this.deps.client.sendMessage(target, text)
+    }
+  }
+
+  private getRenderableBlockLabel(block: RemoteRenderableBlock): string {
+    switch (block.kind) {
+      case 'toolCall':
+        return 'Tool Call'
+      case 'toolResult':
+        return 'Tool Result'
+      case 'imageNotice':
+        return 'Image Notice'
+      case 'answer':
+        return 'Answer'
+      case 'reasoning':
+        return 'Reasoning'
+      case 'search':
+        return 'Search'
+      case 'error':
+        return 'Error'
     }
   }
 
