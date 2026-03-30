@@ -6,6 +6,9 @@ const TOOL_ARGS_PREVIEW_LIMIT = 1_200
 const TOOL_RESULT_PREVIEW_LIMIT = 1_600
 const SEARCH_RESULT_LIMIT = 5
 const SEARCH_SNIPPET_LIMIT = 220
+const DEFAULT_REMOTE_STATUS_TEXT = 'Running...'
+export const REMOTE_WAITING_STATUS_TEXT = 'Waiting for your response...'
+const DEFAULT_REMOTE_ERROR_TEXT = 'The conversation ended with an error.'
 
 const normalizeText = (value: string | undefined | null): string =>
   (value ?? '').replace(/\r\n/g, '\n').trim()
@@ -237,8 +240,126 @@ export const buildRemoteDraftText = (blocks: AssistantMessageBlock[]): string =>
     .join('\n\n')
     .trim()
 
+export const buildRemoteStreamText = (blocks: AssistantMessageBlock[]): string =>
+  blocks
+    .filter((block) => block.type === 'content')
+    .map((block) => normalizeText(block.content))
+    .filter(Boolean)
+    .join('\n\n')
+    .trim()
+
 const isToolCallArgsComplete = (block: AssistantMessageBlock): boolean =>
   block.status !== 'pending' || block.extra?.toolCallArgsComplete === true
+
+const getLastMeaningfulBlock = (blocks: AssistantMessageBlock[]): AssistantMessageBlock | null => {
+  for (let index = blocks.length - 1; index >= 0; index -= 1) {
+    const block = blocks[index]
+    if (block.type === 'action' && block.extra?.needsUserAction) {
+      continue
+    }
+
+    if (block.type === 'content' || block.type === 'reasoning_content' || block.type === 'error') {
+      if (normalizeText(block.content).length === 0) {
+        continue
+      }
+      return block
+    }
+
+    return block
+  }
+
+  return null
+}
+
+export const buildRemoteStatusText = (
+  blocks: AssistantMessageBlock[],
+  pendingInteraction: boolean = false
+): string => {
+  if (pendingInteraction) {
+    return REMOTE_WAITING_STATUS_TEXT
+  }
+
+  const latestBlock = getLastMeaningfulBlock(blocks)
+  if (!latestBlock) {
+    return DEFAULT_REMOTE_STATUS_TEXT
+  }
+
+  switch (latestBlock.type) {
+    case 'reasoning_content':
+      return 'Running: thinking...'
+    case 'content':
+      return 'Running: writing...'
+    case 'tool_call': {
+      const toolName = normalizeText(latestBlock.tool_call?.name) || 'tool'
+      return latestBlock.status === 'pending' || latestBlock.status === 'loading'
+        ? `Running: calling ${toolName}...`
+        : 'Running: processing tool results...'
+    }
+    case 'search':
+      return 'Running: reviewing search results...'
+    case 'image':
+      return 'Running: preparing image output...'
+    case 'error':
+      return DEFAULT_REMOTE_STATUS_TEXT
+    case 'action':
+      return REMOTE_WAITING_STATUS_TEXT
+  }
+}
+
+export const buildRemoteFinalText = (
+  blocks: AssistantMessageBlock[],
+  options?: {
+    preferTerminalError?: boolean
+    fallbackErrorText?: string
+    fallbackNoResponseText?: string
+  }
+): string => {
+  if (options?.preferTerminalError) {
+    for (let index = blocks.length - 1; index >= 0; index -= 1) {
+      const block = blocks[index]
+      if (block.type !== 'error') {
+        continue
+      }
+
+      const errorText = normalizeText(block.content)
+      if (errorText) {
+        return errorText
+      }
+    }
+  }
+
+  const answer = blocks
+    .filter((block) => block.type === 'content' && block.status !== 'pending')
+    .map((block) => normalizeText(block.content))
+    .filter(Boolean)
+    .join('\n\n')
+    .trim()
+  if (answer) {
+    return answer
+  }
+
+  for (let index = blocks.length - 1; index >= 0; index -= 1) {
+    const block = blocks[index]
+    if (block.type !== 'error') {
+      continue
+    }
+
+    const errorText = normalizeText(block.content)
+    if (errorText) {
+      return errorText
+    }
+  }
+
+  if (options?.fallbackErrorText) {
+    return options.fallbackErrorText
+  }
+
+  if (options?.fallbackNoResponseText) {
+    return options.fallbackNoResponseText
+  }
+
+  return DEFAULT_REMOTE_ERROR_TEXT
+}
 
 type BuildRemoteRenderableBlocksParams = {
   messageId: string

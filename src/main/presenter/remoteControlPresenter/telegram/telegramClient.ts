@@ -37,6 +37,10 @@ export type TelegramRawCallbackQuery = {
   data?: string
 }
 
+type TelegramSentMessage = {
+  message_id: number
+}
+
 export type TelegramRawUpdate = {
   update_id: number
   message?: TelegramRawMessage
@@ -105,13 +109,14 @@ export class TelegramClient {
     target: TelegramTransportTarget,
     text: string,
     replyMarkup?: TelegramInlineKeyboardMarkup
-  ): Promise<void> {
-    await this.request('sendMessage', {
+  ): Promise<number> {
+    const message = await this.request<TelegramSentMessage>('sendMessage', {
       chat_id: target.chatId,
       message_thread_id: target.messageThreadId || undefined,
       text,
       reply_markup: buildReplyMarkup(replyMarkup)
     })
+    return message.message_id
   }
 
   async sendMessageDraft(
@@ -167,6 +172,16 @@ export class TelegramClient {
       chat_id: params.target.chatId,
       message_id: params.messageId,
       reply_markup: buildReplyMarkup(params.replyMarkup)
+    })
+  }
+
+  async deleteMessage(params: {
+    target: TelegramTransportTarget
+    messageId: number
+  }): Promise<void> {
+    await this.request('deleteMessage', {
+      chat_id: params.target.chatId,
+      message_id: params.messageId
     })
   }
 

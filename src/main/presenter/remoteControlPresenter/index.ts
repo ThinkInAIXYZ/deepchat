@@ -510,6 +510,7 @@ export class RemoteControlPresenter {
       client,
       parser: new FeishuParser(),
       router,
+      bindingStore: this.bindingStore,
       logger,
       onStatusChange: (snapshot) => {
         this.feishuRuntimeStatus = snapshot

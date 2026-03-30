@@ -394,6 +394,8 @@ describe('RemoteConversationRunner', () => {
     expect(snapshot).toEqual({
       messageId: null,
       text: 'No assistant response was produced.',
+      statusText: '',
+      finalText: 'No assistant response was produced.',
       draftText: '',
       renderBlocks: [],
       fullText: 'No assistant response was produced.',
@@ -410,6 +412,7 @@ describe('RemoteConversationRunner', () => {
         configPresenter: createConfigPresenter() as any,
         newAgentPresenter: {
           getSession: vi.fn().mockResolvedValue(createSession()),
+          sendMessage: vi.fn().mockResolvedValue(undefined),
           getMessages: vi.fn().mockResolvedValue([
             {
               id: 'assistant-1',
@@ -483,6 +486,74 @@ describe('RemoteConversationRunner', () => {
         }
       }
     })
+  })
+
+  it('keeps stream text empty while the assistant is still reasoning', async () => {
+    const runner = new RemoteConversationRunner(
+      {
+        configPresenter: createConfigPresenter() as any,
+        newAgentPresenter: {
+          getSession: vi.fn().mockResolvedValue(createSession()),
+          getMessages: vi.fn().mockResolvedValue([
+            {
+              id: 'assistant-1',
+              role: 'assistant',
+              orderSeq: 2,
+              status: 'pending',
+              content: JSON.stringify([
+                {
+                  type: 'reasoning_content',
+                  content: 'Thinking now',
+                  status: 'pending',
+                  timestamp: 1
+                }
+              ])
+            }
+          ]),
+          getMessage: vi.fn().mockResolvedValue({
+            id: 'assistant-1',
+            role: 'assistant',
+            orderSeq: 2,
+            status: 'pending',
+            content: JSON.stringify([
+              {
+                type: 'reasoning_content',
+                content: 'Thinking now',
+                status: 'pending',
+                timestamp: 1
+              }
+            ])
+          })
+        } as any,
+        deepchatAgentPresenter: {
+          getActiveGeneration: vi.fn().mockReturnValue({
+            eventId: 'assistant-1',
+            runId: 'run-1'
+          })
+        } as any,
+        windowPresenter: {} as any,
+        tabPresenter: {} as any,
+        resolveDefaultAgentId: vi.fn().mockResolvedValue('deepchat')
+      },
+      {
+        getBinding: vi.fn().mockReturnValue({
+          sessionId: 'session-1',
+          updatedAt: 1
+        }),
+        rememberActiveEvent: vi.fn(),
+        clearActiveEvent: vi.fn()
+      } as any
+    )
+
+    const snapshot = await (runner as any).getConversationSnapshot('telegram:100:0', 'session-1', {
+      afterOrderSeq: 0,
+      preferredMessageId: null,
+      ignoreMessageId: null
+    })
+
+    expect(snapshot.text).toBe('')
+    expect(snapshot.statusText).toBe('Running: thinking...')
+    expect(snapshot.completed).toBe(false)
   })
 
   it('creates a follow-up execution after responding to a pending interaction', async () => {
@@ -597,7 +668,9 @@ describe('RemoteConversationRunner', () => {
     const snapshot = await response.execution?.getSnapshot()
     expect(snapshot).toEqual({
       messageId: 'assistant-2',
-      text: '[Answer]\nPush completed.',
+      text: 'Push completed.',
+      statusText: 'Running: writing...',
+      finalText: 'Push completed.',
       draftText: '',
       renderBlocks: [
         expect.objectContaining({

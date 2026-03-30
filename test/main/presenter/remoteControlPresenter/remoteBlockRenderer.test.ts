@@ -1,8 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
   buildRemoteDraftText,
+  buildRemoteFinalText,
   buildRemoteFullText,
-  buildRemoteRenderableBlocks
+  buildRemoteRenderableBlocks,
+  buildRemoteStreamText,
+  buildRemoteStatusText
 } from '@/presenter/remoteControlPresenter/services/remoteBlockRenderer'
 
 describe('remoteBlockRenderer', () => {
@@ -199,5 +202,92 @@ describe('remoteBlockRenderer', () => {
     expect(draftText).toContain('[Reasoning]\nThinking now')
     expect(draftText).toContain('[Answer]\nDraft answer')
     expect(draftText).not.toContain('Already sent')
+  })
+
+  it('builds stream text from answer content only', () => {
+    const streamText = buildRemoteStreamText([
+      {
+        type: 'reasoning_content',
+        content: 'Think first',
+        status: 'success',
+        timestamp: 1
+      },
+      {
+        type: 'content',
+        content: 'Visible answer',
+        status: 'pending',
+        timestamp: 2
+      },
+      {
+        type: 'content',
+        content: 'More answer',
+        status: 'success',
+        timestamp: 3
+      }
+    ])
+
+    expect(streamText).toBe('Visible answer\n\nMore answer')
+  })
+
+  it('builds compact status text for tool execution and waiting states', () => {
+    expect(
+      buildRemoteStatusText([
+        {
+          type: 'tool_call',
+          content: '',
+          status: 'pending',
+          timestamp: 1,
+          tool_call: {
+            id: 'tool-1',
+            name: 'shell_command',
+            params: '{"command":"ls"}'
+          }
+        }
+      ])
+    ).toBe('Running: calling shell_command...')
+
+    expect(buildRemoteStatusText([], true)).toBe('Waiting for your response...')
+  })
+
+  it('builds final text from answer content before falling back to terminal errors', () => {
+    expect(
+      buildRemoteFinalText([
+        {
+          type: 'reasoning_content',
+          content: 'hidden',
+          status: 'success',
+          timestamp: 1
+        },
+        {
+          type: 'content',
+          content: 'Final answer',
+          status: 'success',
+          timestamp: 2
+        }
+      ])
+    ).toBe('Final answer')
+
+    expect(
+      buildRemoteFinalText(
+        [
+          {
+            type: 'content',
+            content: 'partial answer',
+            status: 'success',
+            timestamp: 0
+          },
+          {
+            type: 'error',
+            content: 'assistant failed',
+            status: 'error',
+            timestamp: 1
+          }
+        ],
+        {
+          preferTerminalError: true,
+          fallbackNoResponseText: 'No assistant response was produced.'
+        }
+      )
+    ).toBe('assistant failed')
   })
 })

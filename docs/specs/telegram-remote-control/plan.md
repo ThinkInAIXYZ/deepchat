@@ -11,7 +11,7 @@
 
 - `remoteBindingStore`
   - Stores `remoteControl.telegram` config in Electron Store.
-  - Persists poll offset, allowlist, default agent id, pair code, internal stream mode, and endpoint bindings.
+  - Persists poll offset, allowlist, default agent id, pair code, legacy stream-mode compatibility data, and endpoint bindings.
   - Keeps active event IDs, `/sessions` snapshots, and `/model` inline-menu state in memory.
 - `remoteAuthGuard`
   - Enforces private-chat-only usage.
@@ -24,10 +24,13 @@
   - Exposes current-session lookup and bound-session model switching through `newAgentPresenter.setSessionModel()`.
   - Reuses `newAgentPresenter.sendMessage()` for plain-text Telegram input.
   - Tracks the active assistant message/event for `/stop`.
+  - Exposes `statusText`, streamed answer `text`, and `finalText` for remote delivery while preserving compatibility snapshot fields.
 - `remoteCommandRouter`
   - Handles `/start`, `/help`, `/pair`, `/new`, `/sessions`, `/use`, `/stop`, `/status`, `/model`, plain text, and `/model` callback actions.
 - `telegramClient`
-  - Calls `getMe`, `getUpdates`, `sendMessageDraft`, `sendMessage`, `sendChatAction`, `setMyCommands`, `setMessageReaction`, `editMessageText`, `editMessageReplyMarkup`, and `answerCallbackQuery`.
+  - Calls `getMe`, `getUpdates`, `sendMessage`, `sendChatAction`, `setMyCommands`, `setMessageReaction`, `editMessageText`, `editMessageReplyMarkup`, and `answerCallbackQuery`.
+  - Returns the bot-side `message_id` from `sendMessage()` so the runtime can track temporary status and streamed-answer messages.
+  - Deletes temporary status messages when a turn completes.
 - `telegramParser`
   - Parses private text updates, bot commands, and callback queries into one internal event shape.
 - `telegramOutbound`
@@ -37,6 +40,7 @@
   - Advances the stored offset only after a specific update is handled successfully.
   - Uses exponential backoff on failures.
   - Only adds reactions for plain-text conversation messages and clears them after the conversation completes or fails.
+  - Maintains one temporary status message plus one streamed answer message per assistant turn.
 
 ## Shared / IPC Contract
 
@@ -64,7 +68,7 @@
     - `enabled`
     - `allowlist`
     - `defaultAgentId`
-    - `streamMode`
+    - `streamMode` (legacy compatibility only; runtime ignores it)
     - `pairing`
     - `pollOffset`
     - `bindings`
@@ -78,7 +82,7 @@
 5. Router applies auth, command handling, and `/model` inline-menu transitions.
 6. Plain text enters `newAgentPresenter.sendMessage()` using the bound or newly created detached session.
 7. `/model` callback actions edit a single bot menu message in place and answer the callback query.
-8. Poller watches assistant message state and sends draft/final Telegram output.
+8. Poller watches assistant message state, edits a temporary status message as status changes, streams answer text into a separate message, and deletes the status message after final sync.
 9. If the assistant pauses on a permission/question action, Telegram returns a desktop-confirmation notice instead of bypassing approval.
 
 ## Testing Strategy
@@ -91,6 +95,7 @@
 - Unit tests for `telegramClient` request payloads.
 - Unit tests for `telegramOutbound` chunking/final-text behavior.
 - Unit tests for Telegram command registration, callback handling, and message reaction lifecycle behavior.
+- Unit tests for temporary-status deletion, streamed-answer updates, pending interaction prompting, and long-answer continuation behavior.
 - Presenter-level tests for detached session creation.
 - Presenter-level tests for stop-by-event behavior.
 

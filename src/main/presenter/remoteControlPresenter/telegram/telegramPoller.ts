@@ -2,11 +2,9 @@ import {
   TELEGRAM_REMOTE_REACTION_EMOJI,
   TELEGRAM_REMOTE_POLL_LIMIT,
   TELEGRAM_REMOTE_POLL_TIMEOUT_SEC,
-  TELEGRAM_OUTBOUND_TEXT_LIMIT,
   TELEGRAM_STREAM_POLL_INTERVAL_MS,
   TELEGRAM_TYPING_DELAY_MS,
   type RemotePendingInteraction,
-  type RemoteRenderableBlock,
   type TelegramInboundMessage,
   type TelegramOutboundAction,
   type TelegramPollerStatusSnapshot,
@@ -18,7 +16,7 @@ import {
   type RemoteCommandRouteContinuation,
   type RemoteCommandRouteResult
 } from '../services/remoteCommandRouter'
-import { chunkTelegramText, createTelegramDraftId } from './telegramOutbound'
+import { chunkTelegramText } from './telegramOutbound'
 import { buildTelegramPendingInteractionPrompt } from './telegramInteractionPrompt'
 import { TelegramApiRequestError, TelegramClient, type TelegramRawUpdate } from './telegramClient'
 import { TelegramParser } from './telegramParser'
@@ -54,6 +52,14 @@ type TelegramPollerDeps = {
   bindingStore: RemoteBindingStore
   onStatusChange?: (snapshot: TelegramPollerStatusSnapshot) => void
   onFatalError?: (message: string) => void
+}
+
+type TelegramRemoteDeliveryState = {
+  sourceMessageId: string
+  statusMessageId: number | null
+  contentMessageIds: number[]
+  lastStatusText: string
+  lastContentText: string
 }
 
 export class TelegramPoller {
@@ -310,96 +316,54 @@ export class TelegramPoller {
     >,
     runId: number
   ): Promise<void> {
-    const streamMode = this.deps.bindingStore.getTelegramConfig().streamMode
-    if (streamMode === 'final') {
-      await this.deliverFinalConversation(target, execution, runId)
-      return
-    }
-
-    try {
-      await this.deliverDraftConversation(target, execution, runId)
-    } catch (error) {
-      console.warn('[TelegramPoller] Draft streaming failed, falling back to final mode:', error)
-      await this.deliverFinalConversation(target, execution, runId)
-    }
-  }
-
-  private async deliverDraftConversation(
-    target: TelegramTransportTarget,
-    execution: NonNullable<
-      Awaited<ReturnType<RemoteCommandRouter['handleMessage']>>['conversation']
-    >,
-    runId: number
-  ): Promise<void> {
-    const draftId = createTelegramDraftId()
     const startedAt = Date.now()
     let typingSent = false
-    let lastDraftText = ''
-    let lastDeliveredBlockCount = 0
+    const endpointKey = this.deps.bindingStore.getEndpointKey(target)
 
     while (this.isCurrentRun(runId)) {
       const snapshot = await execution.getSnapshot()
-      const renderBlocks = snapshot.renderBlocks ?? []
-      const fullText = snapshot.fullText ?? snapshot.text
-      const draftTextValue = snapshot.draftText ?? snapshot.text
-      lastDeliveredBlockCount = await this.sendRenderableBlocks(
+      const sourceMessageId = snapshot.messageId ?? execution.eventId ?? null
+      let deliveryState = this.getStoredDeliveryState(endpointKey)
+      deliveryState = await this.prepareDeliveryStateForSource(
         target,
-        renderBlocks,
-        lastDeliveredBlockCount
+        endpointKey,
+        sourceMessageId,
+        deliveryState
       )
+      const statusText = snapshot.statusText?.trim() || ''
+      const streamText = snapshot.text?.trim() || ''
 
-      if (snapshot.completed) {
-        if (renderBlocks.length === 0 && fullText.trim()) {
-          await this.sendChunkedMessage(target, fullText)
+      if (sourceMessageId) {
+        deliveryState = deliveryState ?? {
+          sourceMessageId,
+          statusMessageId: null,
+          contentMessageIds: [],
+          lastStatusText: '',
+          lastContentText: ''
         }
-        if (snapshot.pendingInteraction) {
-          await this.sendPendingInteractionPrompt(target, snapshot.pendingInteraction)
-        }
-        return
+
+        deliveryState = await this.syncStatusMessage(target, endpointKey, deliveryState, statusText)
+        deliveryState = await this.syncContentText(target, endpointKey, deliveryState, streamText)
       }
 
-      const draftText = draftTextValue.trim() ? chunkTelegramText(draftTextValue)[0] : ''
-      if (draftText && draftText !== lastDraftText) {
-        await this.deps.client.sendMessageDraft(target, draftId, draftText)
-        lastDraftText = draftText
-      } else if (!draftText) {
-        lastDraftText = ''
-      } else if (!typingSent && Date.now() - startedAt >= TELEGRAM_TYPING_DELAY_MS) {
-        typingSent = true
-        await this.sendTyping(target)
-      }
-
-      await sleep(TELEGRAM_STREAM_POLL_INTERVAL_MS)
-    }
-  }
-
-  private async deliverFinalConversation(
-    target: TelegramTransportTarget,
-    execution: NonNullable<
-      Awaited<ReturnType<RemoteCommandRouter['handleMessage']>>['conversation']
-    >,
-    runId: number
-  ): Promise<void> {
-    const startedAt = Date.now()
-    let typingSent = false
-    let lastDeliveredBlockCount = 0
-
-    while (this.isCurrentRun(runId)) {
-      const snapshot = await execution.getSnapshot()
-      const renderBlocks = snapshot.renderBlocks ?? []
-      const fullText = snapshot.fullText ?? snapshot.text
-      lastDeliveredBlockCount = await this.sendRenderableBlocks(
-        target,
-        renderBlocks,
-        lastDeliveredBlockCount
-      )
-
       if (snapshot.completed) {
-        if (renderBlocks.length === 0 && fullText.trim()) {
-          await this.sendChunkedMessage(target, fullText)
-        }
         if (snapshot.pendingInteraction) {
           await this.sendPendingInteractionPrompt(target, snapshot.pendingInteraction)
+          return
+        }
+
+        const finalText = (snapshot.finalText ?? snapshot.fullText ?? snapshot.text).trim()
+        if (deliveryState) {
+          deliveryState = await this.syncFinalContentText(
+            target,
+            endpointKey,
+            deliveryState,
+            finalText
+          )
+          await this.deleteStatusMessage(target, deliveryState.statusMessageId)
+          this.deps.bindingStore.clearRemoteDeliveryState(endpointKey)
+        } else {
+          await this.sendChunkedMessage(target, finalText)
         }
         return
       }
@@ -410,6 +374,228 @@ export class TelegramPoller {
       }
 
       await sleep(TELEGRAM_STREAM_POLL_INTERVAL_MS)
+    }
+  }
+
+  private getStoredDeliveryState(endpointKey: string): TelegramRemoteDeliveryState | null {
+    const state = this.deps.bindingStore.getRemoteDeliveryState(endpointKey)
+    if (!state) {
+      return null
+    }
+
+    return {
+      sourceMessageId: state.sourceMessageId,
+      statusMessageId: typeof state.statusMessageId === 'number' ? state.statusMessageId : null,
+      contentMessageIds: state.contentMessageIds.filter(
+        (messageId): messageId is number => typeof messageId === 'number'
+      ),
+      lastStatusText: state.lastStatusText,
+      lastContentText: state.lastContentText
+    }
+  }
+
+  private rememberDeliveryState(
+    endpointKey: string,
+    state: TelegramRemoteDeliveryState
+  ): TelegramRemoteDeliveryState {
+    this.deps.bindingStore.rememberRemoteDeliveryState(endpointKey, state)
+    return state
+  }
+
+  private async prepareDeliveryStateForSource(
+    target: TelegramTransportTarget,
+    endpointKey: string,
+    sourceMessageId: string | null,
+    state: TelegramRemoteDeliveryState | null
+  ): Promise<TelegramRemoteDeliveryState | null> {
+    if (!state) {
+      return sourceMessageId
+        ? {
+            sourceMessageId,
+            statusMessageId: null,
+            contentMessageIds: [],
+            lastStatusText: '',
+            lastContentText: ''
+          }
+        : null
+    }
+
+    if (sourceMessageId && state.sourceMessageId === sourceMessageId) {
+      return state
+    }
+
+    await this.deleteStatusMessage(target, state.statusMessageId)
+    this.deps.bindingStore.clearRemoteDeliveryState(endpointKey)
+
+    if (!sourceMessageId) {
+      return null
+    }
+
+    return {
+      sourceMessageId,
+      statusMessageId: null,
+      contentMessageIds: [],
+      lastStatusText: '',
+      lastContentText: ''
+    }
+  }
+
+  private async syncStatusMessage(
+    target: TelegramTransportTarget,
+    endpointKey: string,
+    state: TelegramRemoteDeliveryState,
+    statusText: string
+  ): Promise<TelegramRemoteDeliveryState> {
+    const normalized = statusText.trim()
+    if (!normalized) {
+      return state
+    }
+
+    if (state.statusMessageId == null) {
+      const statusMessageId = await this.deps.client.sendMessage(target, normalized)
+      return this.rememberDeliveryState(endpointKey, {
+        ...state,
+        statusMessageId,
+        lastStatusText: normalized
+      })
+    }
+
+    if (normalized !== state.lastStatusText) {
+      await this.editMessageText(target, {
+        type: 'editMessageText',
+        messageId: state.statusMessageId,
+        text: normalized,
+        replyMarkup: null
+      })
+      return this.rememberDeliveryState(endpointKey, {
+        ...state,
+        lastStatusText: normalized
+      })
+    }
+
+    return state
+  }
+
+  private async syncContentText(
+    target: TelegramTransportTarget,
+    endpointKey: string,
+    state: TelegramRemoteDeliveryState,
+    contentText: string
+  ): Promise<TelegramRemoteDeliveryState> {
+    const normalized = contentText.trim()
+    if (!normalized) {
+      return state
+    }
+
+    const nextChunks = chunkTelegramText(normalized)
+    const previousChunks = state.lastContentText ? chunkTelegramText(state.lastContentText) : []
+    const contentMessageIds = [...state.contentMessageIds]
+
+    if (contentMessageIds.length === 0) {
+      for (const chunk of nextChunks) {
+        contentMessageIds.push(await this.deps.client.sendMessage(target, chunk))
+      }
+      return this.rememberDeliveryState(endpointKey, {
+        ...state,
+        contentMessageIds,
+        lastContentText: normalized
+      })
+    }
+
+    const editableIndex = Math.max(0, contentMessageIds.length - 1)
+    const retainedCount = Math.min(contentMessageIds.length, nextChunks.length)
+
+    for (let index = editableIndex; index < retainedCount; index += 1) {
+      if (previousChunks[index] === nextChunks[index]) {
+        continue
+      }
+
+      await this.editMessageText(target, {
+        type: 'editMessageText',
+        messageId: contentMessageIds[index],
+        text: nextChunks[index],
+        replyMarkup: null
+      })
+    }
+
+    for (let index = contentMessageIds.length; index < nextChunks.length; index += 1) {
+      contentMessageIds.push(await this.deps.client.sendMessage(target, nextChunks[index]))
+    }
+
+    return this.rememberDeliveryState(endpointKey, {
+      ...state,
+      contentMessageIds,
+      lastContentText: normalized
+    })
+  }
+
+  private async syncFinalContentText(
+    target: TelegramTransportTarget,
+    endpointKey: string,
+    state: TelegramRemoteDeliveryState,
+    finalText: string
+  ): Promise<TelegramRemoteDeliveryState> {
+    const normalized = finalText.trim()
+    if (!normalized) {
+      return state
+    }
+
+    const nextChunks = chunkTelegramText(normalized)
+    const previousChunks = state.lastContentText ? chunkTelegramText(state.lastContentText) : []
+    const contentMessageIds = [...state.contentMessageIds]
+
+    for (let index = 0; index < nextChunks.length; index += 1) {
+      if (index < contentMessageIds.length) {
+        if (previousChunks[index] === nextChunks[index]) {
+          continue
+        }
+
+        await this.editMessageText(target, {
+          type: 'editMessageText',
+          messageId: contentMessageIds[index],
+          text: nextChunks[index],
+          replyMarkup: null
+        })
+        continue
+      }
+
+      contentMessageIds.push(await this.deps.client.sendMessage(target, nextChunks[index]))
+    }
+
+    for (const messageId of contentMessageIds.slice(nextChunks.length)) {
+      await this.deleteMessage(target, messageId)
+    }
+
+    return this.rememberDeliveryState(endpointKey, {
+      ...state,
+      contentMessageIds: contentMessageIds.slice(0, nextChunks.length),
+      lastContentText: normalized
+    })
+  }
+
+  private async deleteStatusMessage(
+    target: TelegramTransportTarget,
+    messageId: number | null
+  ): Promise<void> {
+    if (messageId == null) {
+      return
+    }
+
+    await this.deleteMessage(target, messageId)
+  }
+
+  private async deleteMessage(target: TelegramTransportTarget, messageId: number): Promise<void> {
+    try {
+      await this.deps.client.deleteMessage({
+        target,
+        messageId
+      })
+    } catch (error) {
+      console.warn('[TelegramPoller] Failed to delete message:', {
+        target,
+        messageId,
+        error
+      })
     }
   }
 
@@ -424,55 +610,6 @@ export class TelegramPoller {
   private async sendChunkedMessage(target: TelegramTransportTarget, text: string): Promise<void> {
     for (const chunk of chunkTelegramText(text)) {
       await this.deps.client.sendMessage(target, chunk)
-    }
-  }
-
-  private async sendRenderableBlocks(
-    target: TelegramTransportTarget,
-    renderBlocks: RemoteRenderableBlock[],
-    lastDeliveredBlockCount: number
-  ): Promise<number> {
-    for (const block of renderBlocks.slice(lastDeliveredBlockCount)) {
-      await this.sendRenderableBlock(target, block)
-    }
-
-    return renderBlocks.length
-  }
-
-  private async sendRenderableBlock(
-    target: TelegramTransportTarget,
-    block: RemoteRenderableBlock
-  ): Promise<void> {
-    const continuationPrefix = `[${this.getRenderableBlockLabel(block)} continued`
-    const chunks = chunkTelegramText(block.text, TELEGRAM_OUTBOUND_TEXT_LIMIT - 48)
-    if (chunks.length <= 1) {
-      await this.deps.client.sendMessage(target, block.text)
-      return
-    }
-
-    for (const [index, chunk] of chunks.entries()) {
-      const text =
-        index === 0 ? chunk : `${continuationPrefix} ${index + 1}/${chunks.length}]\n${chunk}`
-      await this.deps.client.sendMessage(target, text)
-    }
-  }
-
-  private getRenderableBlockLabel(block: RemoteRenderableBlock): string {
-    switch (block.kind) {
-      case 'toolCall':
-        return 'Tool Call'
-      case 'toolResult':
-        return 'Tool Result'
-      case 'imageNotice':
-        return 'Image Notice'
-      case 'answer':
-        return 'Answer'
-      case 'reasoning':
-        return 'Reasoning'
-      case 'search':
-        return 'Search'
-      case 'error':
-        return 'Error'
     }
   }
 

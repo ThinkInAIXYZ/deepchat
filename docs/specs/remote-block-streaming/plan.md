@@ -2,55 +2,64 @@
 
 ## Summary
 
-Implement a shared remote block renderer and make both Telegram and Feishu runtimes consume `renderBlocks` incrementally. The renderer becomes the source of truth for remote transcript formatting, while `draftText` handles only the currently unfinished reasoning/content block.
+Reuse the shared remote block renderer to derive two remote outputs:
+
+- `statusText` for the temporary status message
+- `text` / `finalText` for the streamed answer message
+
+Telegram and Feishu both switch from “status message becomes final answer” to “temporary status + persistent streamed answer”.
 
 ## Key Decisions
 
-- Add `RemoteRenderableBlock` with stable `key`, `kind`, `text`, `truncated`, and `sourceMessageId`.
-- Extend `RemoteConversationSnapshot` with:
-  - `draftText`
-  - `renderBlocks`
-  - `fullText`
-  - keep `text` as fallback for compatibility
-- Render kinds:
-  - `reasoning`
-  - `toolCall`
-  - `toolResult`
-  - `search`
-  - `imageNotice`
-  - `answer`
-  - `error`
-- Use append-only completed blocks for incremental delivery; runtimes track only `lastDeliveredBlockCount`.
-- Summarize tool results deterministically with counts + preview, not raw unbounded output and not LLM summarization.
+- Keep `RemoteConversationSnapshot` fields:
+  - `statusText`
+  - `text`
+  - `finalText`
+  - compatibility fields: `draftText`, `renderBlocks`, `fullText`
+- Redefine remote runtime use of `text`:
+  - answer-content only
+  - may update throughout execution
+- Continue to build `RemoteRenderableBlock` data for compatibility and local display, but stop using those blocks as the primary remote transport payload.
+- Keep deterministic tool-result summarization and final fallback generation.
 
 ## Data Flow
 
-- `DeepChat` stream accumulation finalizes narrative blocks earlier when block type changes.
-- `RemoteConversationRunner` parses assistant blocks, loads search results when needed, and builds:
-  - `draftText`
-  - `renderBlocks`
-  - `fullText`
+- `DeepChat` stream accumulation still finalizes narrative/tool/search/error blocks as before.
+- `RemoteConversationRunner` parses assistant blocks and builds:
+  - `statusText`
+  - `text` as answer-only streamed content
+  - `finalText`
+  - compatibility fields (`draftText`, `renderBlocks`, `fullText`)
 - Telegram runtime:
-  - updates draft from `draftText`
-  - sends newly completed `renderBlocks` as normal messages
+  - creates one temporary status message
+  - creates one streamed answer message when answer content first appears
+  - edits the status message as `statusText` changes
+  - edits the streamed answer message as `text` grows
+  - deletes the status message after syncing the streamed answer to `finalText`
 - Feishu runtime:
-  - sends newly completed `renderBlocks` immediately
-  - remains append-only, no message editing
-- Pending interactions still short-circuit to the existing prompt/card delivery after completed blocks are sent.
+  - mirrors the same two-message lifecycle with text updates and message deletion
+- Pending interactions:
+  - set the status message to waiting
+  - keep any already-streamed answer content visible
+  - continue using the existing prompt/card delivery
 
 ## Risks And Mitigations
 
-- Narrative blocks staying `pending` too long would block incremental delivery
-  - Mitigation: finalize trailing `content` / `reasoning_content` on block-type transitions and before search/action/error insertions
-- Search blocks missing result details
-  - Mitigation: load persisted search results by `messageId + searchId`, with URL-only fallback
-- Long block payloads becoming unreadable
-  - Mitigation: keep block boundaries, chunk by platform limit, and add continuation labels for later chunks
+- Long answers can exceed platform message limits mid-stream
+  - Mitigation: split answer text into chunks, keep earlier chunks fixed, and continue editing only the newest tail chunk
+- A resumed pending interaction could accidentally create duplicate temporary status messages
+  - Mitigation: keep endpoint-scoped in-memory delivery state with `sourceMessageId`, `statusMessageId`, and `contentMessageIds`
+- Status-message deletion may fail due to platform constraints
+  - Mitigation: treat deletion as best-effort and always clear local transient state
 
 ## Test Strategy
 
-- Block renderer unit tests for reasoning/tool/search/image/full-text behavior
-- Accumulator tests for early block finalization
-- Runner tests for snapshot fields and render block output
-- Telegram runtime tests for draft + incremental block delivery
-- Feishu runtime tests for incremental block delivery before completion
+- Block renderer unit tests for answer-only `text`, status extraction, and final fallback behavior
+- Runner tests for `text` / `statusText` / `finalText` generation across reasoning, writing, and waiting states
+- Telegram runtime tests for:
+  - separate status and answer messages
+  - temporary status deletion
+  - streamed answer updates
+  - long-answer editable tail behavior
+  - pending prompt handling
+- Feishu runtime tests for the same lifecycle plus card fallback behavior

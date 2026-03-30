@@ -2,33 +2,36 @@
 
 ## T0 Spec
 
-- [x] Add `spec.md`, `plan.md`, and `tasks.md`
+- [x] Update the spec, plan, and tasks artifacts for dual-track remote delivery
 
-## T1 Shared Rendering
+## T1 Snapshot Contract
 
-- [x] Add `RemoteRenderableBlock`
-- [x] Add shared remote block renderer
-- [x] Add `draftText`, `renderBlocks`, and `fullText` snapshot fields
+- [x] Keep `statusText`, `text`, and `finalText` in `RemoteConversationSnapshot`
+- [x] Redefine `text` as answer-only streamed content for remote runtimes
+- [x] Keep `draftText`, `renderBlocks`, and `fullText` as compatibility fields
 
-## T2 Stream Finalization
+## T2 Compact Extraction
 
-- [x] Finalize pending `content` / `reasoning_content` blocks on type transitions
-- [x] Mark tool-call arguments as complete after `tool_call_end`
-- [x] Finalize narrative blocks before search/action/error insertions
+- [x] Derive short status strings from assistant blocks
+- [x] Derive streamed answer text from `content` blocks only
+- [x] Keep `finalText` limited to final answer or terminal fallback
 
 ## T3 Telegram Delivery
 
-- [x] Keep draft updates for unfinished reasoning/content
-- [x] Send completed blocks incrementally in both draft and final modes
-- [x] Keep pending interaction prompts after block delivery
+- [x] Create separate temporary status and streamed answer messages
+- [x] Delete the status message after final answer sync
+- [x] Keep pending interaction prompts separate and preserve streamed answer text
+- [x] Support long-answer chunk growth with an editable tail
 
 ## T4 Feishu Delivery
 
-- [x] Deliver completed blocks incrementally during polling
-- [x] Keep append-only reply behavior
-- [x] Keep pending interaction card fallback behavior
+- [x] Create separate temporary status and streamed answer messages
+- [x] Delete the status message after final answer sync
+- [x] Keep pending interaction cards/fallback text separate and preserve streamed answer text
+- [x] Support long-answer chunk growth with an editable tail
 
 ## T5 Validation
 
-- [x] Add formatter, accumulator, runner, Telegram, and Feishu tests
+- [x] Add formatter, runner, binding-store, Telegram, and Feishu regression tests
+- [x] Keep `/status` free of stream-mode output and retain legacy stream-mode config as a compatibility no-op
 - [x] Run repo quality gates and capture residual issues

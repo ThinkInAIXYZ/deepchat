@@ -235,7 +235,6 @@ export class RemoteCommandRouter {
               [
                 'DeepChat Telegram Remote',
                 `Runtime: ${runtime.state}`,
-                `Stream mode: ${telegramConfig.streamMode}`,
                 `Default agent: ${defaultAgentId}`,
                 `Default workdir: ${defaultWorkdir ?? 'none'}`,
                 `Current session: ${status.session ? this.formatSessionLabel(status.session) : 'none'}`,

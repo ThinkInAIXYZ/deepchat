@@ -2,34 +2,40 @@
 
 ## Summary
 
-Upgrade Telegram and Feishu remote delivery from a single plain-text summary into a shared block-based transcript. Remote users should see completed assistant blocks as they become available, including reasoning, tool calls, tool results, search summaries, errors, and final answers.
+Keep the shared remote block renderer, but move Telegram and Feishu to a dual-track remote delivery model:
+
+- one temporary status message that only shows execution state
+- one answer-text message that streams user-visible answer content
+
+The status message is deleted when the turn finishes. The answer-text message remains as the remote transcript for that turn.
 
 ## User Stories
 
-- As a Telegram remote user, I can see completed reasoning/tool/result/answer blocks instead of only the final summary text.
-- As a Feishu remote user, I can receive remote conversation output before the full run completes.
-- As a remote user, I can still receive pending permission/question prompts after any completed blocks have already been delivered.
-- As a remote user, I can read a complete final transcript from the sequence of block messages without depending on one duplicated final summary.
+- As a Telegram remote user, I can see answer text appear progressively without also receiving reasoning/tool/search transcript spam.
+- As a Feishu remote user, I get the same streaming answer experience with a separate execution-status indicator.
+- As a remote user, I can still receive pending permission/question prompts as separate actionable messages while preserving any answer text that has already streamed.
+- As a remote user, I keep the final answer in chat history while the temporary status message disappears after the turn ends.
 
 ## Acceptance Criteria
 
-- Remote snapshot generation exposes completed renderable blocks, current draft text, and a full-text fallback.
-- Telegram draft mode keeps updating the current unfinished reasoning/content block while completed blocks are sent as normal messages.
-- Telegram final mode and Feishu both deliver completed blocks incrementally during polling.
-- Tool calls are delivered after arguments are complete, and tool results are delivered after the tool response is persisted.
-- Tool results are summarized with metadata and preview text instead of dumping unbounded raw output.
-- Search blocks render stored search results with titles and links when available.
-- Image blocks render as text notices rather than binary payloads.
-- Pending remote interactions still use the existing Telegram prompt / Feishu card flow and are not merged into the normal transcript.
-- Existing remote fallback cases still work when no assistant blocks are available.
+- Remote snapshot generation continues to expose `statusText`, `text`, and `finalText`, while keeping `draftText`, `renderBlocks`, and `fullText` for compatibility.
+- During execution, `text` contains only streamable answer content from `content` blocks; `reasoning_content`, tool, search, and image transcript text never enters the answer stream.
+- `statusText` still reflects the current phase, such as thinking, calling a tool, reviewing search results, writing, or waiting for user input.
+- Telegram creates a temporary status message and a separate streamed answer message for a normal assistant turn.
+- Feishu creates a temporary status message and a separate streamed answer message for a normal assistant turn.
+- The status message is updated in place during execution and deleted when the turn completes, errors, times out, or produces no response.
+- The answer-text message is updated in place while it fits within the platform limit. When it grows beyond the limit, earlier chunks remain fixed and only the newest tail chunk stays editable.
+- Pending interactions set the status message to a waiting state, preserve already-streamed answer text, and continue to use the existing Telegram prompt / Feishu card flow.
+- `/status` no longer exposes Telegram stream mode information.
 
 ## Constraints
 
-- No extra model call is allowed to summarize tool output.
+- No extra model call is allowed to summarize tool output or synthesize status text.
+- Desktop-local message rendering and persistence remain unchanged.
 - No binary image upload support is added for remote channels.
-- Feishu remains append-only; no message edit requirement is introduced.
 
 ## Compatibility
 
 - Existing remote command routing and pending interaction behavior remain unchanged.
-- Old code paths that still read `snapshot.text` continue to have a fallback value.
+- Old code paths that still read `draftText`, `renderBlocks`, or `fullText` continue to have fallback values.
+- Legacy `TelegramStreamMode` config remains readable for compatibility, but remote delivery no longer changes behavior based on it.

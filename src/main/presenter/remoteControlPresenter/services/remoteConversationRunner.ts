@@ -23,9 +23,13 @@ import {
 } from '../types'
 import { safeParseAssistantBlocks } from '../telegram/telegramOutbound'
 import {
+  REMOTE_WAITING_STATUS_TEXT,
   buildRemoteDraftText,
+  buildRemoteFinalText,
   buildRemoteFullText,
-  buildRemoteRenderableBlocks
+  buildRemoteRenderableBlocks,
+  buildRemoteStreamText,
+  buildRemoteStatusText
 } from './remoteBlockRenderer'
 import { RemoteBindingStore } from './remoteBindingStore'
 import { collectPendingInteraction } from './remoteInteraction'
@@ -37,6 +41,8 @@ const sleep = async (ms: number): Promise<void> => {
 export interface RemoteConversationSnapshot {
   messageId: string | null
   text: string
+  statusText?: string
+  finalText?: string
   draftText?: string
   renderBlocks?: RemoteRenderableBlock[]
   fullText?: string
@@ -454,6 +460,8 @@ export class RemoteConversationRunner {
       return {
         messageId: null,
         text: 'The bound session no longer exists.',
+        statusText: '',
+        finalText: 'The bound session no longer exists.',
         draftText: '',
         renderBlocks: [],
         fullText: 'The bound session no longer exists.',
@@ -482,6 +490,8 @@ export class RemoteConversationRunner {
       return {
         messageId: null,
         text: completed ? 'No assistant response was produced.' : '',
+        statusText: completed ? '' : buildRemoteStatusText([]),
+        finalText: completed ? 'No assistant response was produced.' : '',
         draftText: '',
         renderBlocks: [],
         fullText: completed ? 'No assistant response was produced.' : '',
@@ -491,6 +501,7 @@ export class RemoteConversationRunner {
     }
 
     const blocks = safeParseAssistantBlocks(trackedMessage.content)
+    const streamText = buildRemoteStreamText(blocks)
     const draftText = buildRemoteDraftText(blocks)
     const renderBlocks = await buildRemoteRenderableBlocks({
       messageId: trackedMessage.id,
@@ -504,6 +515,13 @@ export class RemoteConversationRunner {
       trackedMessage.orderSeq,
       blocks
     )
+    const statusText = buildRemoteStatusText(blocks, Boolean(pendingInteraction))
+    const finalText = buildRemoteFinalText(blocks, {
+      preferTerminalError: trackedMessage.status === 'error',
+      fallbackErrorText:
+        trackedMessage.status === 'error' ? 'The conversation ended with an error.' : undefined,
+      fallbackNoResponseText: 'No assistant response was produced.'
+    })
     const completed =
       Boolean(pendingInteraction) ||
       (trackedMessage.status !== 'pending' &&
@@ -515,7 +533,9 @@ export class RemoteConversationRunner {
 
     return {
       messageId: trackedMessage.id,
-      text: completed ? fullText : draftText,
+      text: streamText,
+      statusText: pendingInteraction ? REMOTE_WAITING_STATUS_TEXT : statusText,
+      finalText,
       draftText,
       renderBlocks,
       fullText,

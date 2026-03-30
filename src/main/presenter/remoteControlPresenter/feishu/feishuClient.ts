@@ -15,6 +15,12 @@ export interface FeishuBotIdentity {
   name?: string
 }
 
+type FeishuMessageResponse = {
+  data?: {
+    message_id?: string
+  }
+}
+
 const createTextPayload = (text: string): string =>
   JSON.stringify({
     text
@@ -133,10 +139,12 @@ export class FeishuClient {
     this.wsClient = null
   }
 
-  async sendText(target: FeishuTransportTarget, text: string): Promise<void> {
+  async sendText(target: FeishuTransportTarget, text: string): Promise<string | null> {
+    let messageId: string | null = null
+
     for (const chunk of chunkFeishuText(text)) {
       if (target.replyToMessageId) {
-        await this.sdk.im.message.reply({
+        const response = (await this.sdk.im.message.reply({
           path: {
             message_id: target.replyToMessageId
           },
@@ -145,11 +153,12 @@ export class FeishuClient {
             msg_type: 'text',
             reply_in_thread: Boolean(target.threadId)
           }
-        })
+        })) as FeishuMessageResponse
+        messageId = response.data?.message_id?.trim() || messageId
         continue
       }
 
-      await this.sdk.im.message.create({
+      const response = (await this.sdk.im.message.create({
         params: {
           receive_id_type: 'chat_id'
         },
@@ -158,8 +167,31 @@ export class FeishuClient {
           msg_type: 'text',
           content: createTextPayload(chunk)
         }
-      })
+      })) as FeishuMessageResponse
+      messageId = response.data?.message_id?.trim() || messageId
     }
+
+    return messageId
+  }
+
+  async updateText(messageId: string, text: string): Promise<void> {
+    await this.sdk.im.message.update({
+      path: {
+        message_id: messageId
+      },
+      data: {
+        msg_type: 'text',
+        content: createTextPayload(text)
+      }
+    })
+  }
+
+  async deleteMessage(messageId: string): Promise<void> {
+    await this.sdk.im.message.delete({
+      path: {
+        message_id: messageId
+      }
+    })
   }
 
   async sendCard(target: FeishuTransportTarget, card: FeishuInteractiveCardPayload): Promise<void> {

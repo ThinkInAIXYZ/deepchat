@@ -9,7 +9,9 @@ describe('TelegramClient', () => {
         ok: true,
         json: vi.fn().mockResolvedValue({
           ok: true,
-          result: true
+          result: {
+            message_id: 42
+          }
         })
       })
     )
@@ -22,7 +24,7 @@ describe('TelegramClient', () => {
   it('sends inline keyboard payloads with sendMessage', async () => {
     const client = new TelegramClient('token')
 
-    await client.sendMessage(
+    const messageId = await client.sendMessage(
       {
         chatId: 100,
         messageThreadId: 0
@@ -40,6 +42,7 @@ describe('TelegramClient', () => {
       }
     )
 
+    expect(messageId).toBe(42)
     const fetchCall = vi.mocked(fetch).mock.calls[0]
     expect(fetchCall[0]).toContain('/sendMessage')
     expect(JSON.parse(fetchCall[1]!.body as string)).toEqual({
@@ -79,6 +82,25 @@ describe('TelegramClient', () => {
       reply_markup: {
         inline_keyboard: []
       }
+    })
+  })
+
+  it('deletes messages through deleteMessage', async () => {
+    const client = new TelegramClient('token')
+
+    await client.deleteMessage({
+      target: {
+        chatId: 100,
+        messageThreadId: 0
+      },
+      messageId: 31
+    })
+
+    const fetchCall = vi.mocked(fetch).mock.calls[0]
+    expect(fetchCall[0]).toContain('/deleteMessage')
+    expect(JSON.parse(fetchCall[1]!.body as string)).toEqual({
+      chat_id: 100,
+      message_id: 31
     })
   })
 
