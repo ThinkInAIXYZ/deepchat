@@ -7,6 +7,7 @@ import type {
 import type {
   IConfigPresenter,
   INewAgentPresenter,
+  RemoteChannel,
   ITabPresenter,
   IWindowPresenter
 } from '@shared/presenter'
@@ -91,9 +92,25 @@ export class RemoteConversationRunner {
     bindingMeta?: RemoteEndpointBindingMeta
   ): Promise<SessionWithState> {
     const agentId = await this.deps.resolveDefaultAgentId()
+    const agentType = await this.deps.configPresenter.getAgentType(agentId)
+    const projectDir =
+      agentType === 'acp' ? await this.resolveDefaultWorkdirForAgent(endpointKey, agentId) : null
+    if (agentType === 'acp' && !projectDir) {
+      throw new Error(
+        'ACP agent requires a workdir. Set a Remote default directory or global default directory first.'
+      )
+    }
+
     const session = await this.deps.newAgentPresenter.createDetachedSession({
       title: title?.trim() || 'New Chat',
-      agentId
+      agentId,
+      ...(agentType === 'acp'
+        ? {
+            providerId: 'acp',
+            modelId: agentId,
+            projectDir: projectDir ?? undefined
+          }
+        : {})
     })
     if (bindingMeta) {
       this.bindingStore.setBinding(endpointKey, session.id, bindingMeta)
@@ -371,9 +388,49 @@ export class RemoteConversationRunner {
     return await this.deps.resolveDefaultAgentId()
   }
 
+  async getDefaultWorkdir(endpointKey: string): Promise<string | null> {
+    const agentId = await this.deps.resolveDefaultAgentId()
+    return await this.resolveDefaultWorkdirForAgent(endpointKey, agentId)
+  }
+
+  async isSessionModelLocked(session: Pick<SessionWithState, 'agentId'>): Promise<boolean> {
+    return (await this.deps.configPresenter.getAgentType(session.agentId)) === 'acp'
+  }
+
   private async resolveSessionListAgentId(endpointKey: string): Promise<string> {
     const currentSession = await this.getCurrentSession(endpointKey)
     return currentSession?.agentId ?? (await this.deps.resolveDefaultAgentId())
+  }
+
+  private resolveChannelFromEndpointKey(endpointKey: string): RemoteChannel {
+    return endpointKey.startsWith('feishu:') ? 'feishu' : 'telegram'
+  }
+
+  private getConfiguredDefaultWorkdir(endpointKey: string): string | null {
+    const channel = this.resolveChannelFromEndpointKey(endpointKey)
+    const config =
+      channel === 'feishu'
+        ? this.bindingStore.getFeishuConfig()
+        : this.bindingStore.getTelegramConfig()
+    const normalized = config.defaultWorkdir?.trim()
+    return normalized ? normalized : null
+  }
+
+  private getGlobalDefaultWorkdir(): string | null {
+    const projectDir = this.deps.configPresenter.getDefaultProjectPath()
+    const normalized = projectDir?.trim()
+    return normalized ? normalized : null
+  }
+
+  private async resolveDefaultWorkdirForAgent(
+    endpointKey: string,
+    agentId: string
+  ): Promise<string | null> {
+    if ((await this.deps.configPresenter.getAgentType(agentId)) !== 'acp') {
+      return null
+    }
+
+    return this.getConfiguredDefaultWorkdir(endpointKey) ?? this.getGlobalDefaultWorkdir()
   }
 
   private async getConversationSnapshot(

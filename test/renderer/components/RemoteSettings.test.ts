@@ -8,6 +8,7 @@ type SetupOptions = {
     remoteEnabled: boolean
     allowedUserIds: number[]
     defaultAgentId: string
+    defaultWorkdir?: string
     hookNotifications: {
       enabled: boolean
       chatId: string
@@ -61,6 +62,7 @@ const setup = async (options: SetupOptions = {}) => {
       remoteEnabled: false,
       allowedUserIds: [123],
       defaultAgentId: 'deepchat',
+      defaultWorkdir: '',
       hookNotifications: {
         enabled: false,
         chatId: '',
@@ -96,6 +98,7 @@ const setup = async (options: SetupOptions = {}) => {
       encryptKey: '',
       remoteEnabled: false,
       defaultAgentId: 'deepchat',
+      defaultWorkdir: '',
       pairedUserOpenIds: []
     },
     status: {
@@ -630,6 +633,57 @@ describe('RemoteSettings', () => {
     expect(wrapper.find('[data-testid="remote-control-details"]').exists()).toBe(true)
   })
 
+  it('shows enabled ACP agents in the default agent options', async () => {
+    const { wrapper } = await setup({
+      settings: {
+        botToken: 'telegram-token',
+        remoteEnabled: true,
+        allowedUserIds: [123],
+        defaultAgentId: 'deepchat',
+        defaultWorkdir: '',
+        hookNotifications: {
+          enabled: false,
+          chatId: '',
+          threadId: '',
+          events: []
+        }
+      }
+    })
+
+    expect(wrapper.text()).toContain('ACP Agent (ACP)')
+  })
+
+  it('persists the telegram default workdir on blur', async () => {
+    const { wrapper, remoteState, remoteControlPresenter } = await setup({
+      settings: {
+        botToken: 'telegram-token',
+        remoteEnabled: true,
+        allowedUserIds: [123],
+        defaultAgentId: 'acp-agent',
+        defaultWorkdir: '',
+        hookNotifications: {
+          enabled: false,
+          chatId: '',
+          threadId: '',
+          events: []
+        }
+      }
+    })
+
+    const input = wrapper.find('[data-testid="remote-default-workdir-input"]')
+    await input.setValue('/workspaces/remote')
+    await input.trigger('blur')
+    await flushPromises()
+
+    expect(remoteState.settings.defaultWorkdir).toBe('/workspaces/remote')
+    expect(remoteControlPresenter.saveChannelSettings).toHaveBeenCalledWith(
+      'telegram',
+      expect.objectContaining({
+        defaultWorkdir: '/workspaces/remote'
+      })
+    )
+  })
+
   it('normalizes legacy telegram settings without hook notifications', async () => {
     const { wrapper, toast } = await setup({
       settings: {
@@ -760,13 +814,14 @@ describe('RemoteSettings', () => {
     )
   })
 
-  it('lists only enabled deepchat agents in the default agent selector area', async () => {
+  it('lists only enabled agents in the default agent selector area', async () => {
     const { wrapper } = await setup({
       settings: {
         botToken: 'telegram-token',
         remoteEnabled: true,
         allowedUserIds: [123],
         defaultAgentId: 'deepchat',
+        defaultWorkdir: '',
         hookNotifications: {
           enabled: false,
           chatId: '',
@@ -778,7 +833,7 @@ describe('RemoteSettings', () => {
 
     expect(wrapper.text()).toContain('DeepChat')
     expect(wrapper.text()).not.toContain('DeepChat Alt')
-    expect(wrapper.text()).not.toContain('ACP Agent')
+    expect(wrapper.text()).toContain('ACP Agent (ACP)')
   })
 
   it('opens the bindings dialog and removes a binding from the list', async () => {

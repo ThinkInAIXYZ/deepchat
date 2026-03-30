@@ -1563,11 +1563,14 @@
       "accessRules": "访问规则"
     },
     "remoteControl": {
-      "description": "将每个远程入口绑定到一个 DeepChat 会话，并在不同命令之间持续复用该会话。",
+      "description": "将每个远程入口绑定到一个会话，并在不同命令之间持续复用该会话。",
       "allowedUserIds": "允许的用户 ID",
       "allowedUserIdsPlaceholder": "例如 123456789, 987654321",
-      "defaultAgent": "默认 DeepChat 智能体",
+      "defaultAgent": "默认智能体",
       "defaultAgentPlaceholder": "选择一个智能体",
+      "defaultWorkdir": "默认目录",
+      "defaultWorkdirPlaceholder": "留空则回退到全局默认目录",
+      "defaultWorkdirHelper": "仅在默认智能体为 ACP 时使用。留空则回退到全局默认目录。",
       "openPairDialog": "配对",
       "manageBindings": "管理绑定",
       "pairCode": "配对码",

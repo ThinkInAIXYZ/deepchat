@@ -219,6 +219,21 @@
                     </div>
                   </div>
 
+                  <div class="space-y-2">
+                    <Label class="text-xs text-muted-foreground">
+                      {{ t('settings.remote.remoteControl.defaultWorkdir') }}
+                    </Label>
+                    <Input
+                      v-model="telegramSettings.defaultWorkdir"
+                      data-testid="remote-default-workdir-input"
+                      :placeholder="t('settings.remote.remoteControl.defaultWorkdirPlaceholder')"
+                      @blur="queueTelegramSettingsPersist"
+                    />
+                    <p class="text-xs text-muted-foreground">
+                      {{ t('settings.remote.remoteControl.defaultWorkdirHelper') }}
+                    </p>
+                  </div>
+
                   <div class="flex flex-wrap items-center gap-2">
                     <Button
                       data-testid="remote-pair-button"
@@ -515,6 +530,21 @@
                     </div>
                   </div>
 
+                  <div class="space-y-2">
+                    <Label class="text-xs text-muted-foreground">
+                      {{ t('settings.remote.remoteControl.defaultWorkdir') }}
+                    </Label>
+                    <Input
+                      v-model="feishuSettings.defaultWorkdir"
+                      data-testid="remote-feishu-default-workdir-input"
+                      :placeholder="t('settings.remote.remoteControl.defaultWorkdirPlaceholder')"
+                      @blur="queueFeishuSettingsPersist"
+                    />
+                    <p class="text-xs text-muted-foreground">
+                      {{ t('settings.remote.remoteControl.defaultWorkdirHelper') }}
+                    </p>
+                  </div>
+
                   <div class="flex flex-wrap items-center gap-2">
                     <Button
                       data-testid="feishu-pair-button"
@@ -743,7 +773,7 @@ const telegramTesting = ref(false)
 const telegramTestResult = ref<HookTestResult | null>(null)
 const telegramAllowedUserIdsText = ref('')
 const feishuPairedUserOpenIdsText = ref('')
-const availableDeepChatAgents = ref<Agent[]>([])
+const availableAgents = ref<Agent[]>([])
 const activeChannel = ref<RemoteChannel>('telegram')
 const pairDialogChannel = ref<RemoteChannel | null>(null)
 const pairDialogOpen = ref(false)
@@ -778,6 +808,7 @@ const defaultTelegramSettings = (): TelegramRemoteSettings => ({
   remoteEnabled: false,
   allowedUserIds: [],
   defaultAgentId: 'deepchat',
+  defaultWorkdir: '',
   hookNotifications: {
     enabled: false,
     chatId: '',
@@ -793,6 +824,7 @@ const defaultFeishuSettings = (): FeishuRemoteSettings => ({
   encryptKey: '',
   remoteEnabled: false,
   defaultAgentId: 'deepchat',
+  defaultWorkdir: '',
   pairedUserOpenIds: []
 })
 
@@ -989,12 +1021,15 @@ const clearChannelPairCodeCompat = async (channel: RemoteChannel): Promise<void>
 const eventNames = HOOK_EVENT_NAMES
 const isAnySaving = computed(() => saving.telegram || saving.feishu)
 
+const formatAgentOptionName = (agent: Pick<Agent, 'name' | 'type'>) =>
+  agent.type === 'acp' ? `${agent.name} (ACP)` : agent.name
+
 const defaultAgentOptions = (currentAgentId: string) => {
-  const options = availableDeepChatAgents.value
-    .filter((agent) => agent.type === 'deepchat' && agent.enabled)
+  const options = availableAgents.value
+    .filter((agent) => agent.enabled)
     .map((agent) => ({
       id: agent.id,
-      name: agent.name
+      name: formatAgentOptionName(agent)
     }))
 
   if (currentAgentId && !options.some((agent) => agent.id === currentAgentId)) {
@@ -1101,11 +1136,8 @@ const refreshPairingSnapshot = async (channel: RemoteChannel): Promise<RemotePai
   return snapshot
 }
 
-const loadDeepChatAgents = async () => {
-  const agents = await newAgentPresenter.getAgents()
-  availableDeepChatAgents.value = agents.filter(
-    (agent) => agent.type === 'deepchat' && agent.enabled !== false
-  )
+const loadAvailableAgents = async () => {
+  availableAgents.value = await newAgentPresenter.getAgents()
 }
 
 const loadState = async () => {
@@ -1117,7 +1149,7 @@ const loadState = async () => {
         getChannelSettingsCompat('feishu'),
         getChannelStatusCompat('telegram'),
         getChannelStatusCompat('feishu'),
-        loadDeepChatAgents()
+        loadAvailableAgents()
       ])
 
     syncTelegramFields(loadedTelegramSettings)
@@ -1198,7 +1230,7 @@ const persistChannelSettings = async (channel: RemoteChannel): Promise<void> => 
           syncFeishuFields(saved)
         }
 
-        await Promise.all([refreshStatus(), loadDeepChatAgents()])
+        await Promise.all([refreshStatus(), loadAvailableAgents()])
       } catch (error) {
         console.error(`Failed to save ${channel} remote settings:`, error)
         toastSaveError(error)

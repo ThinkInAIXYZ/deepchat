@@ -51,7 +51,7 @@ export const TELEGRAM_REMOTE_COMMANDS = [
   },
   {
     command: 'new',
-    description: 'Start a new DeepChat session'
+    description: 'Start a new session'
   },
   {
     command: 'sessions',
@@ -98,7 +98,7 @@ export const FEISHU_REMOTE_COMMANDS = [
   },
   {
     command: 'new',
-    description: 'Start a new DeepChat session'
+    description: 'Start a new session'
   },
   {
     command: 'sessions',
@@ -163,6 +163,7 @@ export interface TelegramRemoteRuntimeConfig {
   allowlist: number[]
   streamMode: TelegramStreamMode
   defaultAgentId: string
+  defaultWorkdir: string
   pollOffset: number
   lastFatalError: string | null
   pairing: TelegramPairingState
@@ -176,6 +177,7 @@ export interface FeishuRemoteRuntimeConfig {
   encryptKey: string
   enabled: boolean
   defaultAgentId: string
+  defaultWorkdir: string
   pairedUserOpenIds: string[]
   lastFatalError: string | null
   pairing: FeishuPairingState
@@ -538,6 +540,7 @@ export const createDefaultRemoteControlConfig = (): RemoteControlConfig => ({
     allowlist: [],
     streamMode: 'draft',
     defaultAgentId: TELEGRAM_REMOTE_DEFAULT_AGENT_ID,
+    defaultWorkdir: '',
     pollOffset: 0,
     lastFatalError: null,
     pairing: {
@@ -554,6 +557,7 @@ export const createDefaultRemoteControlConfig = (): RemoteControlConfig => ({
     encryptKey: '',
     enabled: false,
     defaultAgentId: FEISHU_REMOTE_DEFAULT_AGENT_ID,
+    defaultWorkdir: '',
     pairedUserOpenIds: [],
     lastFatalError: null,
     pairing: {
@@ -595,6 +599,7 @@ const TelegramRemoteRuntimeConfigSchema = z
     enabled: z.boolean().optional(),
     allowlist: z.array(z.union([z.number(), z.string()])).optional(),
     defaultAgentId: z.string().optional(),
+    defaultWorkdir: z.string().optional(),
     streamMode: z.enum(['draft', 'final']).optional(),
     pollOffset: z.number().int().nonnegative().optional(),
     lastFatalError: z.string().nullable().optional(),
@@ -611,6 +616,7 @@ const FeishuRemoteRuntimeConfigSchema = z
     encryptKey: z.string().optional(),
     enabled: z.boolean().optional(),
     defaultAgentId: z.string().optional(),
+    defaultWorkdir: z.string().optional(),
     pairedUserOpenIds: z.array(z.string()).optional(),
     lastFatalError: z.string().nullable().optional(),
     pairing: PairingStateSchema.optional(),
@@ -771,6 +777,7 @@ export const normalizeRemoteControlConfig = (input: unknown): RemoteControlConfi
       allowlist: normalizeTelegramUserIds(telegram.allowlist),
       streamMode: telegram.streamMode === 'final' ? 'final' : defaults.telegram.streamMode,
       defaultAgentId: telegram.defaultAgentId?.trim() || defaults.telegram.defaultAgentId,
+      defaultWorkdir: telegram.defaultWorkdir?.trim() || '',
       pollOffset:
         typeof telegram.pollOffset === 'number' && telegram.pollOffset >= 0
           ? telegram.pollOffset
@@ -795,6 +802,7 @@ export const normalizeRemoteControlConfig = (input: unknown): RemoteControlConfi
       encryptKey: feishu.encryptKey?.trim() || '',
       enabled: Boolean(feishu.enabled),
       defaultAgentId: feishu.defaultAgentId?.trim() || defaults.feishu.defaultAgentId,
+      defaultWorkdir: feishu.defaultWorkdir?.trim() || '',
       pairedUserOpenIds: normalizeFeishuOpenIds(feishu.pairedUserOpenIds),
       lastFatalError: feishu.lastFatalError?.trim() || null,
       pairing: {
@@ -932,6 +940,7 @@ export const normalizeTelegramSettingsInput = (
   remoteEnabled: Boolean(input.remoteEnabled),
   allowedUserIds: normalizeTelegramUserIds(input.allowedUserIds),
   defaultAgentId: input.defaultAgentId?.trim() || TELEGRAM_REMOTE_DEFAULT_AGENT_ID,
+  defaultWorkdir: input.defaultWorkdir?.trim() ?? '',
   hookNotifications: {
     enabled: Boolean(input.hookNotifications.enabled),
     chatId: input.hookNotifications.chatId?.trim() ?? '',
@@ -949,6 +958,7 @@ export const normalizeFeishuSettingsInput = (
   encryptKey: input.encryptKey?.trim() ?? '',
   remoteEnabled: Boolean(input.remoteEnabled),
   defaultAgentId: input.defaultAgentId?.trim() || FEISHU_REMOTE_DEFAULT_AGENT_ID,
+  defaultWorkdir: input.defaultWorkdir?.trim() ?? '',
   pairedUserOpenIds: normalizeFeishuOpenIds(input.pairedUserOpenIds)
 })
 
