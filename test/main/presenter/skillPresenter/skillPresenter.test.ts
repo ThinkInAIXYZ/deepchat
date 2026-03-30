@@ -358,9 +358,14 @@ describe('SkillPresenter', () => {
       expect(content).toBeTruthy()
       expect(content?.name).toBe('test-skill')
       expect(content?.content).toContain('Skill content')
-      expect(content?.content).toContain('Skill root: resolved server-side by `skill_run`.')
-      expect(content?.content).toContain('Recommended base_directory: `<skill_root>`')
-      expect(content?.content).not.toContain('/mock/home/.deepchat/skills/test-skill')
+      expect(content?.content).toContain('Skill root: `')
+      expect(content?.content).toContain('/.deepchat/skills/test-skill`.')
+      expect(content?.content).toContain(
+        'Relative paths mentioned by this skill are relative to the skill root unless stated otherwise.'
+      )
+      expect(content?.content).toContain(
+        'When this skill needs script execution, prefer `skill_run` over `exec`.'
+      )
     })
 
     it('should return null for non-existent skill', async () => {

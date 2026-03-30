@@ -664,10 +664,6 @@ export class AgentToolManager {
       return this.callProcessTool(toolName, args, conversationId)
     }
 
-    if (!this.fileSystemHandler) {
-      throw new Error('FileSystem handler not initialized')
-    }
-
     const schema = this.fileSystemSchemas[toolName as keyof typeof this.fileSystemSchemas]
     if (!schema) {
       throw new Error(`No schema found for FileSystem tool: ${toolName}`)
@@ -679,6 +675,50 @@ export class AgentToolManager {
     }
 
     const parsedArgs = validationResult.data
+
+    if (toolName === 'exec') {
+      if (!this.bashHandler) {
+        throw new Error('Bash handler not initialized for exec tool')
+      }
+      const execArgs = parsedArgs as {
+        command: string
+        timeoutMs?: number
+        description?: string
+        cwd?: string
+        background?: boolean
+        yieldMs?: number
+      }
+      const commandResult = await this.bashHandler.executeCommand(
+        {
+          command: execArgs.command,
+          timeout: execArgs.timeoutMs,
+          description: execArgs.description ?? 'Execute command',
+          cwd: execArgs.cwd,
+          background: execArgs.background,
+          yieldMs: execArgs.yieldMs
+        },
+        {
+          conversationId
+        }
+      )
+      const content =
+        typeof commandResult.output === 'string'
+          ? commandResult.output
+          : JSON.stringify(commandResult.output)
+      return {
+        content,
+        rawData: {
+          content,
+          rtkApplied: commandResult.rtkApplied,
+          rtkMode: commandResult.rtkMode,
+          rtkFallbackReason: commandResult.rtkFallbackReason
+        }
+      }
+    }
+
+    if (!this.fileSystemHandler) {
+      throw new Error('FileSystem handler not initialized')
+    }
 
     // Get dynamic workdir from conversation settings
     let dynamicWorkdir: string | null = null
@@ -698,7 +738,7 @@ export class AgentToolManager {
     const baseDirectory = explicitBaseDirectory ?? dynamicWorkdir ?? undefined
     const workspaceRoot =
       dynamicWorkdir ?? this.agentWorkspacePath ?? this.getDefaultAgentWorkspacePath()
-    const allowedDirectories = this.buildAllowedDirectories(workspaceRoot, conversationId)
+    const allowedDirectories = await this.buildAllowedDirectories(workspaceRoot, conversationId)
     const fileSystemHandler = new AgentFileSystemHandler(allowedDirectories, { conversationId })
 
     try {
@@ -868,45 +908,6 @@ export class AgentToolManager {
             )
           }
         }
-        case 'exec': {
-          if (!this.bashHandler) {
-            throw new Error('Bash handler not initialized for exec tool')
-          }
-          const execArgs = parsedArgs as {
-            command: string
-            timeoutMs?: number
-            description?: string
-            cwd?: string
-            background?: boolean
-            yieldMs?: number
-          }
-          const commandResult = await this.bashHandler.executeCommand(
-            {
-              command: execArgs.command,
-              timeout: execArgs.timeoutMs,
-              description: execArgs.description ?? 'Execute command',
-              cwd: execArgs.cwd,
-              background: execArgs.background,
-              yieldMs: execArgs.yieldMs
-            },
-            {
-              conversationId
-            }
-          )
-          const content =
-            typeof commandResult.output === 'string'
-              ? commandResult.output
-              : JSON.stringify(commandResult.output)
-          return {
-            content,
-            rawData: {
-              content,
-              rtkApplied: commandResult.rtkApplied,
-              rtkMode: commandResult.rtkMode,
-              rtkFallbackReason: commandResult.rtkFallbackReason
-            }
-          }
-        }
         default:
           throw new Error(`Unknown FileSystem tool: ${toolName}`)
       }
@@ -937,7 +938,10 @@ export class AgentToolManager {
     }
   }
 
-  private buildAllowedDirectories(workspacePath: string, conversationId?: string): string[] {
+  private async buildAllowedDirectories(
+    workspacePath: string,
+    conversationId?: string
+  ): Promise<string[]> {
     const ordered: string[] = []
     const seen = new Set<string>()
     const addPath = (value?: string | null) => {
@@ -951,7 +955,14 @@ export class AgentToolManager {
 
     addPath(workspacePath)
     addPath(this.agentWorkspacePath)
-    addPath(this.configPresenter.getSkillsPath())
+
+    if (conversationId) {
+      const activeSkillRoots = await this.resolveActiveSkillRoots(conversationId)
+      for (const skillRoot of activeSkillRoots) {
+        addPath(skillRoot)
+      }
+    }
+
     addPath(path.join(app.getPath('home'), '.deepchat'))
     addPath(app.getPath('temp'))
 
@@ -963,6 +974,86 @@ export class AgentToolManager {
     }
 
     return ordered
+  }
+
+  private async resolveActiveSkillRoots(conversationId: string): Promise<string[]> {
+    const skillPresenter = this.getSkillPresenter()
+    if (!skillPresenter?.getActiveSkills || !skillPresenter?.getMetadataList) {
+      return []
+    }
+
+    let activeSkillNames: string[]
+    let metadataList: Awaited<ReturnType<typeof skillPresenter.getMetadataList>>
+
+    try {
+      ;[activeSkillNames, metadataList] = await Promise.all([
+        skillPresenter.getActiveSkills(conversationId),
+        skillPresenter.getMetadataList()
+      ])
+    } catch (error) {
+      logger.warn('[AgentToolManager] Failed to resolve active skill roots', {
+        conversationId,
+        error
+      })
+      return []
+    }
+
+    const metadataByName = new Map(
+      metadataList
+        .filter((metadata) => metadata?.name?.trim())
+        .map((metadata) => [metadata.name.trim(), metadata])
+    )
+    const roots: string[] = []
+
+    for (const skillName of activeSkillNames) {
+      const normalizedSkillName = skillName?.trim()
+      if (!normalizedSkillName) {
+        continue
+      }
+
+      const metadata = metadataByName.get(normalizedSkillName)
+      if (!metadata) {
+        logger.warn(
+          '[AgentToolManager] Active skill metadata missing during file allowlist build',
+          {
+            conversationId,
+            skillName: normalizedSkillName
+          }
+        )
+        continue
+      }
+
+      const skillRoot = metadata.skillRoot?.trim()
+      if (!skillRoot) {
+        logger.warn('[AgentToolManager] Active skill root missing during file allowlist build', {
+          conversationId,
+          skillName: normalizedSkillName
+        })
+        continue
+      }
+
+      try {
+        const resolvedRoot = path.resolve(skillRoot)
+        if (!fs.existsSync(resolvedRoot) || !fs.statSync(resolvedRoot).isDirectory()) {
+          logger.warn('[AgentToolManager] Active skill root is not a directory', {
+            conversationId,
+            skillName: normalizedSkillName,
+            skillRoot: resolvedRoot
+          })
+          continue
+        }
+        roots.push(resolvedRoot)
+      } catch (error) {
+        logger.warn('[AgentToolManager] Failed to normalize active skill root', {
+          conversationId,
+          skillName: normalizedSkillName,
+          skillRoot,
+          error
+        })
+      }
+    }
+
+    return roots
   }
 
   private async resolveValidatedReadPath(
@@ -1470,8 +1561,13 @@ export class AgentToolManager {
 
       const workspaceRoot =
         dynamicWorkdir ?? this.agentWorkspacePath ?? this.getDefaultAgentWorkspacePath()
-      const allowedDirectories = this.buildAllowedDirectories(workspaceRoot, conversationId)
+      const allowedDirectories = await this.buildAllowedDirectories(workspaceRoot, conversationId)
       const fileSystemHandler = new AgentFileSystemHandler(allowedDirectories, { conversationId })
+      const explicitBaseDirectory =
+        typeof args.base_directory === 'string' && args.base_directory.trim().length > 0
+          ? args.base_directory
+          : undefined
+      const baseDirectory = explicitBaseDirectory ?? dynamicWorkdir ?? undefined
 
       // Collect target paths
       const targets = this.collectWriteTargets(toolName, args)
@@ -1485,7 +1581,7 @@ export class AgentToolManager {
       // Check each path
       const denied: string[] = []
       for (const target of targets) {
-        const resolved = fileSystemHandler.resolvePath(target, undefined)
+        const resolved = fileSystemHandler.resolvePath(target, baseDirectory)
         if (!fileSystemHandler.isPathAllowedAbsolute(resolved)) {
           denied.push(target)
         }
