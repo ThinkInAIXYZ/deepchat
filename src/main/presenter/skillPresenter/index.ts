@@ -382,13 +382,12 @@ export class SkillPresenter implements ISkillPresenter {
     const scripts = (await this.listSkillScripts(metadata.name)).filter((script) => script.enabled)
     const lines = [
       '## DeepChat Runtime Context',
-      '- Skill root: available via `SKILL_ROOT` and `DEEPCHAT_SKILL_ROOT`.',
-      '- `skill_run` executes from the current session workdir when available.',
-      '- Recommended base_directory: `<skill_root>`'
+      `- Skill root: \`${metadata.skillRoot}\`.`,
+      '- Relative paths mentioned by this skill are relative to the skill root unless stated otherwise.',
+      '- When this skill needs script execution, prefer `skill_run` over `exec`.'
     ]
 
     if (scripts.length > 0) {
-      lines.push('- Preferred execution tool: `skill_run`')
       lines.push('- Bundled runnable scripts:')
       lines.push(
         ...scripts.map((script) => {
@@ -401,7 +400,6 @@ export class SkillPresenter implements ISkillPresenter {
     }
 
     lines.push('- Do not guess script paths or change directories to locate skill files.')
-    lines.push('- Prefer `skill_run` over inline `python -c`, `node -e`, or ad-hoc shell snippets.')
 
     return lines.join('\n')
   }
