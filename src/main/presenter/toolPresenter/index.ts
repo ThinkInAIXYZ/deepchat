@@ -414,7 +414,12 @@ export class ToolPresenter implements IToolPresenter {
 
     return [
       '## User Interaction',
-      `If you need user confirmation or a structured choice, ask with the ${QUESTION_TOOL_NAME} tool.`
+      `Use \`${QUESTION_TOOL_NAME}\` when missing user preferences, implementation direction, output shape, or risk decisions would materially change the result.`,
+      'If the answer would meaningfully change the work, prefer asking instead of guessing.',
+      'Do not ask for facts you can discover from the repo, tools, or existing conversation context.',
+      `Ask exactly one question per \`${QUESTION_TOOL_NAME}\` call. If multiple clarifications are needed, split them into multiple tool calls.`,
+      'Use only the existing fields `header`, `question`, `options`, `multiple`, and `custom`.',
+      'Do not send `questions`, `allowOther`, or stringified `options` JSON.'
     ].join('\n')
   }
 
