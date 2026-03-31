@@ -12,7 +12,7 @@ import { DEEPLINK_EVENTS, NOTIFICATION_EVENTS, SHORTCUT_EVENTS } from './events'
 import { Toaster } from '@shadcn/components/ui/sonner'
 import { useToast } from '@/components/use-toast'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
-import { useThemeStore } from '@/stores/theme'
+import { useThemeStore, type ThemeMode } from '@/stores/theme'
 import { useLanguageStore } from '@/stores/language'
 import { useI18n } from 'vue-i18n'
 import TranslatePopup from '@/components/popup/TranslatePopup.vue'
@@ -56,25 +56,39 @@ const currentErrorId = ref<string | null>(null)
 const errorDisplayTimer = ref<number | null>(null)
 
 const { setup: setupMcpDeeplink, cleanup: cleanupMcpDeeplink } = useMcpInstallDeeplinkHandler()
-// Watch theme and font size changes, update body class directly
+
+const resolveThemeName = (themeMode: ThemeMode, isDark: boolean) => {
+  return themeMode === 'system' ? (isDark ? 'dark' : 'light') : themeMode
+}
+
+const syncAppearanceClasses = (themeName: string, fontSizeClass: string) => {
+  if (typeof document === 'undefined') {
+    return
+  }
+
+  for (const target of [document.documentElement, document.body]) {
+    target.classList.remove('light', 'dark', 'system')
+    target.classList.add(themeName)
+    target.classList.remove(
+      'text-xs',
+      'text-sm',
+      'text-base',
+      'text-lg',
+      'text-xl',
+      'text-2xl'
+    )
+    target.classList.add(fontSizeClass)
+  }
+}
+
 watch(
-  [() => themeStore.themeMode, () => uiSettingsStore.fontSizeClass],
-  ([newTheme, newFontSizeClass], [oldTheme, oldFontSizeClass]) => {
-    let newThemeName = newTheme
-    if (newTheme === 'system') {
-      newThemeName = themeStore.isDark ? 'dark' : 'light'
-    }
-    if (oldTheme) {
-      document.documentElement.classList.remove(oldTheme)
-    }
-    if (oldFontSizeClass) {
-      document.documentElement.classList.remove(oldFontSizeClass)
-    }
-    document.documentElement.classList.add(newThemeName)
-    document.documentElement.classList.add(newFontSizeClass)
-    console.log('newTheme', newThemeName)
+  [() => themeStore.themeMode, () => themeStore.isDark, () => uiSettingsStore.fontSizeClass],
+  ([themeMode, isDark, fontSizeClass]) => {
+    const nextThemeName = resolveThemeName(themeMode, isDark)
+    syncAppearanceClasses(nextThemeName, fontSizeClass)
+    console.log('newTheme', nextThemeName)
   },
-  { immediate: false } // Initialization is handled in onMounted
+  { immediate: true }
 )
 
 // Handle error notifications
@@ -304,10 +318,6 @@ watch(
 )
 
 onMounted(() => {
-  // Set initial body class
-  document.body.classList.add(themeStore.themeMode)
-  document.body.classList.add(uiSettingsStore.fontSizeClass)
-
   window.addEventListener('keydown', handleEscKey)
 
   // initialize store data

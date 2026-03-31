@@ -3,6 +3,8 @@
     <NodeRenderer
       :content="debouncedContent"
       :isDark="themeStore.isDark"
+      :codeBlockDarkTheme="codeBlockDarkTheme"
+      :codeBlockLightTheme="codeBlockLightTheme"
       :codeBlockMonacoOptions="codeBlockMonacoOption"
       @copy="$emit('copy', $event)"
     />
@@ -44,6 +46,9 @@ const referenceNode = ref<HTMLElement | null>(null)
 const debouncedContent = ref(props.content)
 const effectiveMessageId = computed(() => props.messageId ?? fallbackMessageId)
 const effectiveThreadId = computed(() => props.threadId ?? fallbackThreadId)
+const codeBlockThemes = ['vitesse-dark', 'vitesse-light'] as const
+const codeBlockDarkTheme = codeBlockThemes[0]
+const codeBlockLightTheme = codeBlockThemes[1]
 const codeBlockMonacoOption = computed(() => ({
   fontFamily: uiSettingsStore.formattedCodeFontFamily
 }))
@@ -114,6 +119,11 @@ setCustomComponents({
     }
     return h(CodeBlockNode, {
       ..._props,
+      isDark: themeStore.isDark,
+      darkTheme: codeBlockDarkTheme,
+      lightTheme: codeBlockLightTheme,
+      themes: [...codeBlockThemes],
+      monacoOptions: codeBlockMonacoOption.value,
       onPreviewCode(v) {
         artifactStore.showArtifact(
           {
