@@ -69,14 +69,7 @@ const syncAppearanceClasses = (themeName: string, fontSizeClass: string) => {
   for (const target of [document.documentElement, document.body]) {
     target.classList.remove('light', 'dark', 'system')
     target.classList.add(themeName)
-    target.classList.remove(
-      'text-xs',
-      'text-sm',
-      'text-base',
-      'text-lg',
-      'text-xl',
-      'text-2xl'
-    )
+    target.classList.remove('text-xs', 'text-sm', 'text-base', 'text-lg', 'text-xl', 'text-2xl')
     target.classList.add(fontSizeClass)
   }
 }
