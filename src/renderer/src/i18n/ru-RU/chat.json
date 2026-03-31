@@ -169,7 +169,7 @@
     "sections": {
       "files": "Файлы",
       "git": "Git",
-      "artifacts": "Artifacts",
+      "artifacts": "Артефакты",
       "subagents": "Субагенты"
     },
     "files": {

@@ -66,7 +66,7 @@
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <DropdownMenu>
+      <DropdownMenu v-if="!isReadOnly">
         <DropdownMenuTrigger as-child>
           <Button
             variant="ghost"
@@ -183,6 +183,7 @@ const props = defineProps<{
   sessionId: string
   title: string
   project: string
+  isReadOnly?: boolean
 }>()
 
 const attrs = useAttrs()
@@ -202,21 +203,34 @@ const currentSession = computed(
 )
 const parentSessionId = computed(() => currentSession.value?.parentSessionId ?? null)
 const isPinned = computed(() => Boolean(currentSession.value?.isPinned))
+const isReadOnly = computed(() => props.isReadOnly === true)
 
 const openRenameDialog = () => {
+  if (isReadOnly.value) {
+    return
+  }
   renameValue.value = currentSession.value?.title ?? props.title
   renameDialogOpen.value = true
 }
 
 const openClearDialog = () => {
+  if (isReadOnly.value) {
+    return
+  }
   clearDialogOpen.value = true
 }
 
 const openDeleteDialog = () => {
+  if (isReadOnly.value) {
+    return
+  }
   deleteDialogOpen.value = true
 }
 
 const handleTogglePin = async () => {
+  if (isReadOnly.value) {
+    return
+  }
   try {
     await sessionStore.toggleSessionPinned(props.sessionId, !isPinned.value)
   } catch (error) {
@@ -225,6 +239,9 @@ const handleTogglePin = async () => {
 }
 
 const handleRenameConfirm = async () => {
+  if (isReadOnly.value) {
+    return
+  }
   try {
     await sessionStore.renameSession(props.sessionId, renameValue.value)
   } catch (error) {
@@ -235,6 +252,9 @@ const handleRenameConfirm = async () => {
 }
 
 const handleClearConfirm = async () => {
+  if (isReadOnly.value) {
+    return
+  }
   try {
     await sessionStore.clearSessionMessages(props.sessionId)
   } catch (error) {
@@ -245,6 +265,9 @@ const handleClearConfirm = async () => {
 }
 
 const handleDeleteConfirm = async () => {
+  if (isReadOnly.value) {
+    return
+  }
   try {
     await sessionStore.deleteSession(props.sessionId)
   } catch (error) {

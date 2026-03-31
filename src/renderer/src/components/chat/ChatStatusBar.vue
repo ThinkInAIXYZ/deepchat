@@ -985,7 +985,10 @@ const showSubagentToggle = computed(() => {
   }
 
   if (hasActiveSession.value) {
-    return sessionStore.activeSession?.sessionKind === 'regular'
+    return (
+      sessionStore.activeSession?.sessionKind === 'regular' &&
+      inferAgentType(sessionStore.activeSession?.agentId) === 'deepchat'
+    )
   }
 
   return selectedAgentType.value === 'deepchat'

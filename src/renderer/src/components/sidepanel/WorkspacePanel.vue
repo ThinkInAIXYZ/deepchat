@@ -74,58 +74,6 @@
           </div>
         </section>
 
-        <section v-if="currentSession?.sessionKind === 'regular'">
-          <button
-            class="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium"
-            type="button"
-            @click="sidepanelStore.toggleSection(props.sessionId, 'subagents')"
-          >
-            <Icon icon="lucide:workflow" class="h-3.5 w-3.5 text-muted-foreground" />
-            <span class="flex-1 truncate">{{ t('chat.workspace.sections.subagents') }}</span>
-            <span class="text-[11px] text-muted-foreground">{{ childSessions.length }}</span>
-            <Icon
-              :icon="
-                sessionState.sections.subagents ? 'lucide:chevron-down' : 'lucide:chevron-right'
-              "
-              class="h-3.5 w-3.5 text-muted-foreground"
-            />
-          </button>
-          <div v-if="sessionState.sections.subagents" class="pb-2">
-            <div
-              v-if="childSessions.length === 0"
-              class="px-3 py-2 text-[11px] text-muted-foreground/70"
-            >
-              {{ t('chat.workspace.subagents.empty') }}
-            </div>
-            <button
-              v-for="child in childSessions"
-              :key="child.id"
-              class="flex w-full items-start gap-2 px-3 py-2 text-left text-xs transition-colors"
-              :class="
-                child.id === props.sessionId
-                  ? 'bg-accent text-accent-foreground'
-                  : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
-              "
-              type="button"
-              @click="handleSubagentOpen(child.id)"
-            >
-              <Icon icon="lucide:bot" class="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              <div class="min-w-0 flex-1">
-                <div class="truncate font-medium">
-                  {{ child.subagentMeta?.displayName || child.title }}
-                </div>
-                <div class="truncate text-[11px] text-muted-foreground/80">
-                  {{ getTargetAgentLabel(child) }}
-                </div>
-                <div class="mt-1 flex items-center gap-2 text-[10px] uppercase tracking-[0.06em]">
-                  <span>{{ getSessionStatusLabel(child.status) }}</span>
-                  <span>{{ formatUpdatedAt(child.updatedAt) }}</span>
-                </div>
-              </div>
-            </button>
-          </div>
-        </section>
-
         <section v-if="artifactItems.length > 0">
           <button
             class="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium"
@@ -185,8 +133,6 @@ import WorkspaceViewer from './WorkspaceViewer.vue'
 import { useWorkspaceSync } from './composables/useWorkspaceSync'
 import { useArtifactStore } from '@/stores/artifact'
 import { useMessageStore } from '@/stores/ui/message'
-import { useSessionStore, type UISession } from '@/stores/ui/session'
-import { useAgentStore } from '@/stores/ui/agent'
 import { useSidepanelStore, type WorkspaceArtifactContext } from '@/stores/ui/sidepanel'
 import type { WorkspaceGitFileChange } from '@shared/presenter'
 import type { ChatMessageRecord } from '@shared/types/agent-interface'
@@ -211,22 +157,10 @@ type ArtifactItem = WorkspaceArtifactContext & {
 const { t } = useI18n()
 const artifactStore = useArtifactStore()
 const messageStore = useMessageStore()
-const sessionStore = useSessionStore()
-const agentStore = useAgentStore()
 const sidepanelStore = useSidepanelStore()
 const workspacePresenter = usePresenter('workspacePresenter')
 
 const sessionState = computed(() => sidepanelStore.getSessionState(props.sessionId))
-const currentSession = computed(
-  () => sessionStore.sessions.find((session) => session.id === props.sessionId) ?? null
-)
-const childSessions = computed(() =>
-  sessionStore.sessions
-    .filter(
-      (session) => session.sessionKind === 'subagent' && session.parentSessionId === props.sessionId
-    )
-    .sort((left, right) => right.updatedAt - left.updatedAt)
-)
 const {
   fileTree,
   selectedFilePreview,
@@ -408,36 +342,5 @@ const getArtifactIcon = (type: string) => {
     default:
       return 'lucide:file'
   }
-}
-
-const getTargetAgentLabel = (session: UISession) => {
-  const targetAgentId = session.subagentMeta?.targetAgentId
-  if (!targetAgentId) {
-    return t('chat.workspace.subagents.self')
-  }
-
-  const matched = agentStore.agents.find((agent) => agent.id === targetAgentId)
-  return matched?.name || targetAgentId
-}
-
-const getSessionStatusLabel = (status: UISession['status']) => {
-  switch (status) {
-    case 'working':
-      return t('chat.workspace.subagents.status.working')
-    case 'error':
-      return t('chat.workspace.subagents.status.error')
-    default:
-      return t('chat.workspace.subagents.status.idle')
-  }
-}
-
-const formatUpdatedAt = (updatedAt: number) =>
-  new Date(updatedAt).toLocaleTimeString([], {
-    hour: '2-digit',
-    minute: '2-digit'
-  })
-
-const handleSubagentOpen = (sessionId: string) => {
-  void sessionStore.selectSession(sessionId)
 }
 </script>

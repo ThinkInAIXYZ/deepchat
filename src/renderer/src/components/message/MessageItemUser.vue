@@ -77,6 +77,7 @@
         :is-assistant="false"
         :is-edit-mode="isEditMode"
         :is-capturing-image="false"
+        :is-read-only="isReadOnly"
         @retry="onRetryAction"
         @delete="handleAction('delete')"
         @copy="handleAction('copy')"
@@ -106,6 +107,7 @@ const windowPresenter = usePresenter('windowPresenter')
 
 const props = defineProps<{
   message: DisplayUserMessage
+  isReadOnly?: boolean
 }>()
 
 const isEditMode = ref(false)
@@ -148,6 +150,10 @@ const previewFile = (filePath: string) => {
 }
 
 const startEdit = () => {
+  if (props.isReadOnly) {
+    return
+  }
+
   isEditMode.value = true
   if (props.message.content?.content && props.message.content.content.length > 0) {
     const textBlocks = props.message.content.content.filter((block) => block.type === 'text')
@@ -160,6 +166,10 @@ const startEdit = () => {
 }
 
 const saveEdit = async () => {
+  if (props.isReadOnly) {
+    return
+  }
+
   const nextText = editedText.value.trim()
   if (!nextText) return
 
@@ -177,6 +187,9 @@ const saveEdit = async () => {
 }
 
 const onRetryAction = () => {
+  if (props.isReadOnly) {
+    return
+  }
   emit('retry', props.message.id)
 }
 
@@ -201,6 +214,9 @@ const cancelEdit = () => {
 
 const handleAction = (action: 'delete' | 'copy') => {
   if (action === 'delete') {
+    if (props.isReadOnly) {
+      return
+    }
     emit('delete', props.message.id)
   } else if (action === 'copy') {
     window.api.copyText(getCopyText())

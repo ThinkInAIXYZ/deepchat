@@ -281,6 +281,21 @@ describe('WorkspacePanel', () => {
     wrapper.unmount()
   })
 
+  it('does not render a subagent section in the workspace navigation', async () => {
+    const wrapper = mount(WorkspacePanel, {
+      props: {
+        sessionId: 's1',
+        workspacePath: 'C:/repo'
+      }
+    })
+
+    await flushPromises()
+
+    expect(wrapper.text()).not.toContain('chat.workspace.sections.subagents')
+
+    wrapper.unmount()
+  })
+
   it('starts and stops workspace watchers with panel lifecycle', async () => {
     const wrapper = mount(WorkspacePanel, {
       props: {

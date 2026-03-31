@@ -6,6 +6,9 @@ import type { DisplayAssistantMessageBlock } from '@/components/chat/messageList
 
 const originalResizeObserver = globalThis.ResizeObserver
 let resizeObserverCallback: ResizeObserverCallback | null = null
+const { selectSessionMock } = vi.hoisted(() => ({
+  selectSessionMock: vi.fn()
+}))
 
 class MockResizeObserver {
   constructor(callback: ResizeObserverCallback) {
@@ -59,7 +62,7 @@ vi.mock('@/stores/theme', () => ({
 
 vi.mock('@/stores/ui/session', () => ({
   useSessionStore: () => ({
-    selectSession: vi.fn()
+    selectSession: selectSessionMock
   })
 }))
 
@@ -100,6 +103,7 @@ const createBlock = (
 
 beforeEach(() => {
   resizeObserverCallback = null
+  selectSessionMock.mockReset()
   globalThis.ResizeObserver = MockResizeObserver as unknown as typeof ResizeObserver
 })
 
@@ -687,5 +691,13 @@ describe('MessageBlockToolCall', () => {
     expect(wrapper.text()).toContain('localized parallel · 2 localized subagents')
     expect(wrapper.text()).toContain('localized running')
     expect(wrapper.text()).toContain('localized waiting permission')
+    expect(wrapper.findAll('[data-testid="subagent-task-trigger"]')).toHaveLength(2)
+    expect(wrapper.text()).not.toContain('line 1')
+    expect(wrapper.text()).not.toContain('line 2')
+    expect(wrapper.text()).not.toContain('common.open')
+
+    await wrapper.get('[data-testid="subagent-task-trigger"]').trigger('click')
+
+    expect(selectSessionMock).toHaveBeenCalledWith('child-1')
   })
 })

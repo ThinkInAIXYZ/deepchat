@@ -10,11 +10,13 @@
         :session-id="props.sessionId"
         :title="sessionTitle"
         :project="sessionProject"
+        :is-read-only="isReadOnlySession"
       />
       <MessageList
         :messages="displayMessages"
         :is-generating="isGenerating"
         :trace-message-ids="traceMessageIds"
+        :is-read-only="isReadOnlySession"
         @retry="onMessageRetry"
         @delete="onMessageDelete"
         @fork="onMessageFork"
@@ -25,7 +27,10 @@
       <TraceDialog :message-id="traceMessageId" @close="traceMessageId = null" />
 
       <!-- Input area (sticky bottom, messages scroll under) -->
-      <div class="chat-capture-hide sticky bottom-0 z-10 w-full px-6 pb-3 pt-3">
+      <div
+        v-if="!isReadOnlySession"
+        class="chat-capture-hide sticky bottom-0 z-10 w-full px-6 pb-3 pt-3"
+      >
         <div class="mx-auto flex w-full max-w-5xl min-w-0 flex-col items-center">
           <ChatToolInteractionOverlay
             v-if="activePendingInteraction"
@@ -122,6 +127,7 @@ const { t } = useI18n()
 
 const sessionTitle = computed(() => sessionStore.activeSession?.title ?? t('common.newChat'))
 const sessionProject = computed(() => sessionStore.activeSession?.projectDir ?? '')
+const isReadOnlySession = computed(() => sessionStore.activeSession?.sessionKind === 'subagent')
 const isGenerating = computed(
   () => sessionStore.activeSession?.status === 'working' || messageStore.isStreaming
 )
@@ -344,6 +350,10 @@ const chatInputRef = ref<{ triggerAttach: () => void } | null>(null)
 const isHandlingInteraction = ref(false)
 
 const handleContextMenuAskAI = (event: Event) => {
+  if (isReadOnlySession.value) {
+    return
+  }
+
   const detail = (event as CustomEvent<string>).detail
   const text = typeof detail === 'string' ? detail.trim() : ''
   if (!text) {
@@ -516,6 +526,7 @@ const showResumePendingQueue = computed(
 )
 
 async function onSubmit() {
+  if (isReadOnlySession.value) return
   if (isAcpWorkdirMissing.value) return
   if (activePendingInteraction.value || isHandlingInteraction.value) return
   const text = message.value.trim()
@@ -527,6 +538,7 @@ async function onSubmit() {
 }
 
 async function onCommandSubmit(command: string) {
+  if (isReadOnlySession.value) return
   if (isAcpWorkdirMissing.value) return
   if (activePendingInteraction.value || isHandlingInteraction.value) return
   const text = command.trim()
@@ -546,6 +558,10 @@ function onFilesChange(files: MessageFile[]) {
 }
 
 async function onToolInteractionRespond(response: ToolInteractionResponse) {
+  if (isReadOnlySession.value) {
+    return
+  }
+
   const interaction = activePendingInteraction.value
   if (!interaction || isHandlingInteraction.value) {
     return
@@ -568,6 +584,7 @@ async function onToolInteractionRespond(response: ToolInteractionResponse) {
 }
 
 async function onStop() {
+  if (isReadOnlySession.value) return
   if (!isGenerating.value) return
   try {
     await newAgentPresenter.cancelGeneration(props.sessionId)
@@ -577,6 +594,7 @@ async function onStop() {
 }
 
 async function onMessageRetry(messageId: string) {
+  if (isReadOnlySession.value) return
   if (!messageId) return
   if (activePendingInteraction.value || isHandlingInteraction.value) return
   try {
@@ -589,6 +607,7 @@ async function onMessageRetry(messageId: string) {
 }
 
 async function onMessageDelete(messageId: string) {
+  if (isReadOnlySession.value) return
   if (!messageId) return
   try {
     messageStore.clearStreamingState()
@@ -600,6 +619,7 @@ async function onMessageDelete(messageId: string) {
 }
 
 async function onMessageEditSave(payload: { messageId: string; text: string }) {
+  if (isReadOnlySession.value) return
   const messageId = payload?.messageId
   const text = payload?.text?.trim()
   if (!messageId || !text) return
@@ -613,6 +633,7 @@ async function onMessageEditSave(payload: { messageId: string; text: string }) {
 }
 
 async function onMessageFork(messageId: string) {
+  if (isReadOnlySession.value) return
   if (!messageId) return
   try {
     const forked = await newAgentPresenter.forkSession(props.sessionId, messageId)
@@ -624,6 +645,7 @@ async function onMessageFork(messageId: string) {
 }
 
 async function onMessageContinue(_conversationId: string, messageId: string) {
+  if (isReadOnlySession.value) return
   if (!messageId) return
   try {
     messageStore.clearStreamingState()
@@ -639,6 +661,7 @@ function onMessageTrace(messageId: string) {
 }
 
 async function onPendingInputUpdate(payload: { itemId: string; text: string }) {
+  if (isReadOnlySession.value) return
   const target = pendingInputStore.queueItems.find((item) => item.id === payload.itemId)
   if (!target) {
     return
@@ -651,18 +674,22 @@ async function onPendingInputUpdate(payload: { itemId: string; text: string }) {
 }
 
 async function onPendingInputMove(payload: { itemId: string; toIndex: number }) {
+  if (isReadOnlySession.value) return
   await pendingInputStore.moveQueueInput(props.sessionId, payload.itemId, payload.toIndex)
 }
 
 async function onPendingInputConvert(itemId: string) {
+  if (isReadOnlySession.value) return
   await pendingInputStore.convertToSteer(props.sessionId, itemId)
 }
 
 async function onPendingInputDelete(itemId: string) {
+  if (isReadOnlySession.value) return
   await pendingInputStore.deleteInput(props.sessionId, itemId)
 }
 
 async function onResumePendingQueue() {
+  if (isReadOnlySession.value) return
   await pendingInputStore.resumeQueue(props.sessionId)
 }
 

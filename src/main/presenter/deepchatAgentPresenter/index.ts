@@ -136,6 +136,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
   private readonly runtimeState: Map<string, DeepChatSessionState> = new Map()
   private readonly sessionGenerationSettings: Map<string, SessionGenerationSettings> = new Map()
   private readonly abortControllers: Map<string, AbortController> = new Map()
+  private readonly deferredToolAbortControllers: Map<string, AbortController> = new Map()
   private readonly activeGenerations: Map<string, ActiveGeneration> = new Map()
   private readonly sessionAgentIds: Map<string, string> = new Map()
   private readonly sessionProjectDirs: Map<string, string | null> = new Map()
@@ -242,6 +243,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       controller.abort()
       this.abortControllers.delete(sessionId)
     }
+    this.abortDeferredToolAbortControllers(sessionId)
     this.activeGenerations.delete(sessionId)
 
     this.pendingInputCoordinator.deleteBySession(sessionId)
@@ -902,6 +904,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
         this.abortControllers.delete(sessionId)
       }
     }
+    this.abortDeferredToolAbortControllers(sessionId)
     this.setSessionStatus(sessionId, 'idle')
   }
 
@@ -1033,6 +1036,48 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       this.activeGenerations.get(sessionId)?.abortController.signal ??
       this.abortControllers.get(sessionId)?.signal
     )
+  }
+
+  private buildDeferredToolAbortKey(sessionId: string, toolCallId: string): string {
+    return `${sessionId}:${toolCallId}`
+  }
+
+  private registerDeferredToolAbortController(
+    sessionId: string,
+    toolCallId: string
+  ): AbortController {
+    const key = this.buildDeferredToolAbortKey(sessionId, toolCallId)
+    this.deferredToolAbortControllers.get(key)?.abort()
+    const controller = new AbortController()
+    this.deferredToolAbortControllers.set(key, controller)
+    return controller
+  }
+
+  private clearDeferredToolAbortController(
+    sessionId: string,
+    toolCallId: string,
+    controller?: AbortController
+  ): void {
+    const key = this.buildDeferredToolAbortKey(sessionId, toolCallId)
+    const current = this.deferredToolAbortControllers.get(key)
+    if (!current) {
+      return
+    }
+    if (controller && current !== controller) {
+      return
+    }
+    this.deferredToolAbortControllers.delete(key)
+  }
+
+  private abortDeferredToolAbortControllers(sessionId: string): void {
+    const prefix = `${sessionId}:`
+    for (const [key, controller] of this.deferredToolAbortControllers) {
+      if (!key.startsWith(prefix)) {
+        continue
+      }
+      controller.abort()
+      this.deferredToolAbortControllers.delete(key)
+    }
   }
 
   private throwIfAbortRequested(signal?: AbortSignal): void {
@@ -2936,6 +2981,11 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       conversationId: sessionId,
       providerId: sessionState?.providerId?.trim() || undefined
     }
+    const deferredAbortController = toolCall.id
+      ? this.registerDeferredToolAbortController(sessionId, toolCall.id)
+      : null
+    const deferredAbortSignal =
+      deferredAbortController?.signal ?? this.getAbortSignalForSession(sessionId)
 
     try {
       const result = await this.toolPresenter.callTool(request, {
@@ -2955,7 +3005,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
             update.progressJson
           )
         },
-        signal: this.getAbortSignalForSession(sessionId)
+        signal: deferredAbortSignal
       })
       const rawData = result.rawData as MCPToolResponse
       if (rawData.requiresPermission) {
@@ -2989,7 +3039,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
         toolArgs: toolCall.params || '{}',
         content: rawData.content,
         isError: rawData.isError === true,
-        abortSignal: this.getAbortSignalForSession(sessionId)
+        abortSignal: deferredAbortSignal
       })
       const responseText = this.toolContentToText(normalizedContent)
       const prepared = await this.toolOutputGuard.prepareToolOutput({
@@ -3017,6 +3067,14 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       return {
         responseText: `Error: ${errorText}`,
         isError: true
+      }
+    } finally {
+      if (toolCall.id) {
+        this.clearDeferredToolAbortController(
+          sessionId,
+          toolCall.id,
+          deferredAbortController ?? undefined
+        )
       }
     }
   }

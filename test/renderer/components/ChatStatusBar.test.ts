@@ -617,6 +617,17 @@ describe('ChatStatusBar model and session panels', () => {
     expect(draft.draftStore.subagentEnabled).toBe(true)
   })
 
+  it('hides the subagent toggle for active regular sessions that are not deepchat', async () => {
+    const active = await setup({
+      agentId: 'acp-agent',
+      hasActiveSession: true,
+      activeProviderId: 'openai'
+    })
+
+    const activeIndicator = active.wrapper.find('.mcp-indicator-stub')
+    expect(activeIndicator.attributes('data-show-subagent-toggle')).toBe('false')
+  })
+
   it('renders compact model ids in the trigger and list, and keeps chevron actions for settings', async () => {
     const { wrapper } = await setup({
       agentId: 'deepchat',

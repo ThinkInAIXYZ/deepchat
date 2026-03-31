@@ -222,7 +222,7 @@ function updateSubagentToolCallBlock(
   blocks: AssistantMessageBlock[],
   toolCallId: string,
   responseMarkdown: string,
-  progressJson: string,
+  progressJson?: string,
   finalJson?: string
 ): void {
   const block = blocks.find(
@@ -233,11 +233,11 @@ function updateSubagentToolCallBlock(
   }
 
   block.tool_call.response = responseMarkdown
-  block.status = finalJson ? 'success' : 'loading'
+  block.status = typeof finalJson === 'string' ? 'success' : 'loading'
   block.extra = {
     ...block.extra,
-    subagentProgress: progressJson,
-    ...(finalJson ? { subagentFinal: finalJson } : {})
+    ...(typeof progressJson === 'string' ? { subagentProgress: progressJson } : {}),
+    ...(typeof finalJson === 'string' ? { subagentFinal: finalJson } : {})
   }
 }
 
@@ -782,7 +782,7 @@ export async function executeTools(
       }
 
       const subagentState = extractSubagentToolState(toolRawData)
-      if (subagentState.subagentProgress) {
+      if (subagentState.subagentProgress || subagentState.subagentFinal) {
         updateSubagentToolCallBlock(
           state.blocks,
           tc.id,

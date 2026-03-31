@@ -48,11 +48,7 @@ const extractBlockText = (block: AssistantMessageBlock): string[] => {
   return [typeof block.content === 'string' ? block.content : '']
 }
 
-const toDisplayLines = (text: string): string[] =>
-  text
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
+const toDisplayLines = (text: string): string[] => text.split(/\r?\n/)
 
 export const buildAssistantResponseMarkdown = (blocks: AssistantMessageBlock[]): string =>
   blocks
@@ -73,7 +69,7 @@ export const extractWaitingInteraction = (
   blocks: AssistantMessageBlock[],
   messageId: string
 ): DeepChatInternalSessionWaitingInteraction | null => {
-  for (let index = blocks.length - 1; index >= 0; index -= 1) {
+  for (let index = 0; index < blocks.length; index += 1) {
     const block = blocks[index]
     if (
       block.type !== 'action' ||
@@ -107,7 +103,11 @@ export const extractWaitingInteraction = (
 }
 
 export const emitDeepChatInternalSessionUpdate = (update: DeepChatInternalSessionUpdate): void => {
-  emitter.emit('update', update)
+  try {
+    emitter.emit('update', update)
+  } catch (error) {
+    console.error('[DeepChatInternalSessionEvents] Failed to emit session update:', error)
+  }
 }
 
 export const subscribeDeepChatInternalSessionUpdates = (

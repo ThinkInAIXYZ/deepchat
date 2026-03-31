@@ -1247,7 +1247,12 @@ export class NewAgentPresenter {
     }
 
     this.emitSessionListUpdated()
-    return (await this.tryBuildSessionWithState(updated)) as SessionWithState
+    const sessionWithState = await this.tryBuildSessionWithState(updated)
+    if (!sessionWithState) {
+      throw new Error(`Failed to build session state for sessionId: ${sessionId}`)
+    }
+
+    return sessionWithState
   }
 
   async setSessionModel(

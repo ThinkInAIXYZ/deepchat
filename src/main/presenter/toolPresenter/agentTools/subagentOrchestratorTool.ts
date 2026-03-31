@@ -152,11 +152,11 @@ const buildHandoffMessage = (params: {
   mode: SubagentOrchestratorArgs['mode']
   totalTasks: number
   task: MutableTaskState
+  inheritedWorkspace: string | null
 }): string => {
   const contract =
     params.task.expectedOutput?.trim() ||
     'Return a concise markdown result with your answer, key findings, and any important file paths or commands.'
-  const inheritedWorkspace = params.parent.projectDir?.trim() || '(none)'
 
   return [
     '# Structured Handoff',
@@ -177,7 +177,7 @@ const buildHandoffMessage = (params: {
     contract,
     '',
     'Current Agent Working Directory:',
-    inheritedWorkspace,
+    params.inheritedWorkspace?.trim() || '(none)',
     '',
     'Rules:',
     '- You are a child session with an isolated context.',
@@ -359,6 +359,11 @@ export class SubagentOrchestratorTool {
       )
     }
 
+    const inheritedWorkspace =
+      (await this.runtimePort.resolveConversationWorkdir(parent.sessionId))?.trim() ||
+      parent.projectDir?.trim() ||
+      null
+
     const slotMap = new Map(parent.availableSubagentSlots.map((slot) => [slot.id, slot]))
     const now = Date.now()
     const tasks = args.tasks.map((task, index): MutableTaskState => {
@@ -528,7 +533,7 @@ export class SubagentOrchestratorTool {
           slotId: task.slotId,
           displayName: task.targetAgentName,
           targetAgentId: task.targetAgentId,
-          projectDir: parent.projectDir,
+          projectDir: inheritedWorkspace,
           providerId: parent.providerId,
           modelId: parent.modelId,
           permissionMode: parent.permissionMode,
@@ -551,7 +556,8 @@ export class SubagentOrchestratorTool {
           parent,
           mode: args.mode,
           totalTasks: tasks.length,
-          task
+          task,
+          inheritedWorkspace
         })
         await this.runtimePort.sendConversationMessage(child.sessionId, handoff)
         task.started = true

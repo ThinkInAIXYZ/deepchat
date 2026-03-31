@@ -30,6 +30,7 @@ const buildAssistantMessage = (content: unknown) => ({
 type SetupOptions = {
   messages?: Array<Record<string, unknown>>
   pendingInputStorePatch?: Record<string, unknown>
+  sessionKind?: 'regular' | 'subagent'
 }
 
 const setup = async (options: SetupOptions = {}) => {
@@ -42,7 +43,8 @@ const setup = async (options: SetupOptions = {}) => {
       projectDir: 'C:/repo',
       providerId: 'acp',
       modelId: 'dimcode-acp',
-      status: 'idle'
+      status: 'idle',
+      sessionKind: options.sessionKind ?? 'regular'
     },
     sendMessage: vi.fn().mockResolvedValue(undefined),
     fetchSessions: vi.fn().mockResolvedValue(undefined),
@@ -127,7 +129,16 @@ const setup = async (options: SetupOptions = {}) => {
     TooltipProvider: passthrough('TooltipProvider')
   }))
   vi.doMock('@/components/chat/ChatTopBar.vue', () => ({
-    default: passthrough('ChatTopBar')
+    default: defineComponent({
+      name: 'ChatTopBar',
+      props: {
+        isReadOnly: {
+          type: Boolean,
+          default: false
+        }
+      },
+      template: '<div class="chat-top-bar-stub" :data-read-only="String(isReadOnly)" />'
+    })
   }))
   vi.doMock('@/components/chat/MessageList.vue', () => ({
     default: defineComponent({
@@ -144,9 +155,13 @@ const setup = async (options: SetupOptions = {}) => {
         traceMessageIds: {
           type: Array,
           default: () => []
+        },
+        isReadOnly: {
+          type: Boolean,
+          default: false
         }
       },
-      template: '<div class="message-list-stub" />'
+      template: '<div class="message-list-stub" :data-read-only="String(isReadOnly)" />'
     })
   }))
   vi.doMock('@/components/chat/ChatInputBox.vue', () => ({
@@ -375,5 +390,41 @@ describe('ChatPage', () => {
       text: '',
       files: [file]
     })
+  })
+
+  it('renders subagent sessions as read-only display mode', async () => {
+    const { wrapper } = await setup({
+      sessionKind: 'subagent',
+      messages: [
+        buildAssistantMessage([
+          {
+            type: 'action',
+            action_type: 'question_request',
+            status: 'pending',
+            tool_call: {
+              id: 'tool-1',
+              name: 'question',
+              params: '{}'
+            }
+          }
+        ])
+      ],
+      pendingInputStorePatch: {
+        queueItems: [
+          {
+            id: 'p1',
+            mode: 'queue',
+            payload: { text: 'queued', files: [] }
+          }
+        ]
+      }
+    })
+
+    expect(wrapper.find('.chat-top-bar-stub').attributes('data-read-only')).toBe('true')
+    expect(wrapper.find('.message-list-stub').attributes('data-read-only')).toBe('true')
+    expect(wrapper.find('.chat-input-box-stub').exists()).toBe(false)
+    expect(wrapper.find('.pending-input-lane-stub').exists()).toBe(false)
+    expect(wrapper.find('.chat-tool-interaction-overlay-stub').exists()).toBe(false)
+    expect(wrapper.findComponent({ name: 'ChatStatusBar' }).exists()).toBe(false)
   })
 })

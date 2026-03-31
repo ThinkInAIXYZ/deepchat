@@ -52,50 +52,40 @@
         data-testid="tool-call-details"
         class="rounded-lg border bg-muted text-card-foreground px-2 py-3 mt-2 mb-4 w-full"
       >
-        <div v-if="isSubagentOrchestrator" class="flex flex-col gap-3">
-          <div
+        <div v-if="isSubagentOrchestrator" class="flex flex-col gap-1.5">
+          <button
             v-for="task in subagentTasks"
             :key="task.taskId"
-            class="rounded-lg border bg-background/90 px-3 py-3"
+            data-testid="subagent-task-trigger"
+            type="button"
+            :disabled="!task.sessionId"
+            :class="[
+              'tool-call-pill inline-flex w-full min-h-7 border rounded-lg items-center gap-2 px-2 py-1.5 text-xs leading-4 transition-colors duration-150 overflow-hidden',
+              task.sessionId
+                ? 'cursor-pointer bg-background hover:bg-accent/60'
+                : 'cursor-default bg-background/80 opacity-70'
+            ]"
+            @click.stop="handleSubagentSessionOpen(task)"
           >
-            <div class="flex items-start justify-between gap-3">
-              <div class="min-w-0 flex-1">
-                <div class="truncate text-xs font-semibold text-foreground">
-                  {{ task.targetAgentName }}
-                </div>
-                <div class="mt-1 truncate text-[11px] text-muted-foreground">
-                  {{ task.title }}
-                </div>
-              </div>
-              <div class="flex items-center gap-2 shrink-0">
-                <span
-                  :class="getSubagentStatusClass(task.status)"
-                  class="rounded-full px-2 py-0.5 text-[10px] font-medium"
-                >
-                  {{ getSubagentStatusLabel(task.status) }}
-                </span>
-                <button
-                  v-if="task.sessionId"
-                  class="rounded-md border px-2 py-1 text-[10px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                  @click.stop="openSubagentSession(task.sessionId)"
-                >
-                  {{ t('common.open') }}
-                </button>
-              </div>
-            </div>
-            <div
-              v-if="getSubagentPreviewLines(task).length > 0"
-              class="mt-3 space-y-1 text-[11px] text-muted-foreground"
+            <span
+              :class="getSubagentStatusClass(task.status)"
+              class="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium"
             >
-              <div
-                v-for="(line, index) in getSubagentPreviewLines(task)"
-                :key="`${task.taskId}-${index}`"
-                class="break-words"
-              >
-                > {{ line }}
-              </div>
-            </div>
-          </div>
+              {{ getSubagentStatusLabel(task.status) }}
+            </span>
+            <span class="shrink-0 font-semibold text-foreground">
+              {{ task.targetAgentName }}
+            </span>
+            <span class="text-muted-foreground">·</span>
+            <span class="min-w-0 flex-1 truncate text-muted-foreground">
+              {{ task.title }}
+            </span>
+            <Icon
+              v-if="task.sessionId"
+              icon="lucide:chevron-right"
+              class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+            />
+          </button>
         </div>
 
         <div v-else class="flex flex-col gap-4">
@@ -655,13 +645,6 @@ const copyResponse = async () => {
   }
 }
 
-const getSubagentPreviewLines = (task: SubagentProgressTask): string[] =>
-  (task.previewMarkdown ?? '')
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .slice(-3)
-
 const getSubagentStatusClass = (status: string): string => {
   if (status === 'completed') {
     return 'bg-emerald-500/10 text-emerald-600'
@@ -673,6 +656,14 @@ const getSubagentStatusClass = (status: string): string => {
     return 'bg-amber-500/10 text-amber-600'
   }
   return 'bg-muted text-muted-foreground'
+}
+
+const handleSubagentSessionOpen = (task: SubagentProgressTask) => {
+  if (!task.sessionId) {
+    return
+  }
+
+  void sessionStore.selectSession(task.sessionId)
 }
 
 function getSubagentModeLabel(mode: string): string {
@@ -705,10 +696,6 @@ function getSubagentStatusLabel(status: string): string {
     default:
       return status
   }
-}
-
-const openSubagentSession = (sessionId: string) => {
-  void sessionStore.selectSession(sessionId)
 }
 </script>
 

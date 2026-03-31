@@ -75,7 +75,8 @@ const baseProps = {
   isAssistant: true,
   isCapturingImage: false,
   showTrace: true,
-  isInGeneratingThread: false
+  isInGeneratingThread: false,
+  isReadOnly: false
 }
 
 const mountToolbar = () =>
@@ -112,5 +113,20 @@ describe('MessageToolbar trace button visibility', () => {
     })
 
     expect(wrapper.find('[data-icon="lucide:bug"]').exists()).toBe(false)
+  })
+
+  it('hides mutating actions in read-only mode but keeps copy', () => {
+    traceDebugEnabled = true
+    const wrapper = mount(MessageToolbar, {
+      props: {
+        ...baseProps,
+        isReadOnly: true
+      }
+    })
+
+    expect(wrapper.find('[data-icon="lucide:refresh-cw"]').exists()).toBe(false)
+    expect(wrapper.find('[data-icon="lucide:git-branch"]').exists()).toBe(false)
+    expect(wrapper.find('[data-icon="lucide:trash-2"]').exists()).toBe(false)
+    expect(wrapper.find('[data-icon="lucide:copy"]').exists()).toBe(true)
   })
 })

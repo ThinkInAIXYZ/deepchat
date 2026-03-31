@@ -2741,7 +2741,7 @@ describe('DeepChatAgentPresenter', () => {
 
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
 
-      const result = await (agent as any).executeDeferredToolCall('s1', {
+      const result = await (agent as any).executeDeferredToolCall('s1', 'm1', {
         id: 'tc1',
         name: 'exec',
         params: '{"command":"npm test"}'
@@ -2774,7 +2774,7 @@ describe('DeepChatAgentPresenter', () => {
 
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
 
-      await (agent as any).executeDeferredToolCall('s1', {
+      await (agent as any).executeDeferredToolCall('s1', 'm1', {
         id: 'tc1',
         name: 'echo',
         params: '{}'
@@ -2784,6 +2784,9 @@ describe('DeepChatAgentPresenter', () => {
         expect.objectContaining({
           conversationId: 's1',
           providerId: 'openai'
+        }),
+        expect.objectContaining({
+          signal: expect.any(Object)
         })
       )
     })
@@ -2819,7 +2822,7 @@ describe('DeepChatAgentPresenter', () => {
         modelId: 'gpt-4o'
       })
 
-      const result = await (agent as any).executeDeferredToolCall('s1', {
+      const result = await (agent as any).executeDeferredToolCall('s1', 'm1', {
         id: 'tc1',
         name: 'cdp_send',
         params: '{"method":"Page.captureScreenshot","params":{"format":"jpeg"}}'
@@ -2847,7 +2850,9 @@ describe('DeepChatAgentPresenter', () => {
         'gpt-4o',
         expect.any(Number),
         expect.any(Number),
-        undefined
+        expect.objectContaining({
+          signal: expect.any(Object)
+        })
       )
       expect(configPresenter.resolveDeepChatAgentConfig).not.toHaveBeenCalled()
       expect(result).toEqual(
@@ -2856,6 +2861,62 @@ describe('DeepChatAgentPresenter', () => {
           responseText: 'English screenshot summary'
         })
       )
+    })
+
+    it('registers a cancellable controller for deferred subagent tool calls', async () => {
+      toolPresenter.getAllToolDefinitions.mockResolvedValueOnce([
+        {
+          type: 'function',
+          function: {
+            name: 'subagent_orchestrator',
+            description: 'Run subagents',
+            parameters: { type: 'object', properties: {} }
+          },
+          server: { name: 'agent', icons: '', description: '' }
+        }
+      ])
+
+      let capturedSignal: AbortSignal | undefined
+      toolPresenter.callTool.mockImplementationOnce(async (_request: unknown, options?: any) => {
+        capturedSignal = options?.signal
+
+        return await new Promise((_, reject) => {
+          options?.signal?.addEventListener(
+            'abort',
+            () => {
+              const error = new Error('Aborted')
+              error.name = 'AbortError'
+              reject(error)
+            },
+            { once: true }
+          )
+        })
+      })
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+
+      const executionPromise = (agent as any).executeDeferredToolCall('s1', 'm1', {
+        id: 'tc-subagent',
+        name: 'subagent_orchestrator',
+        params: '{}'
+      })
+
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      expect(capturedSignal).toBeDefined()
+      expect(capturedSignal?.aborted).toBe(false)
+      expect((agent as any).deferredToolAbortControllers.size).toBe(1)
+
+      await agent.cancelGeneration('s1')
+
+      expect(capturedSignal?.aborted).toBe(true)
+      await expect(executionPromise).resolves.toEqual(
+        expect.objectContaining({
+          isError: true,
+          responseText: 'Error: Aborted'
+        })
+      )
+      expect((agent as any).deferredToolAbortControllers.size).toBe(0)
     })
 
     it('falls back to the current session agent vision model when the current model has no vision', async () => {

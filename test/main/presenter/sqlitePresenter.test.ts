@@ -605,4 +605,36 @@ describeIfSqlite('SQLitePresenter legacy schema bootstrap', () => {
     expect(versions.map((entry) => entry.version)).toContain(19)
     checkDb.close()
   })
+
+  it('returns child sessions when filtering by parentSessionId without includeSubagents', async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-sqlite-presenter-'))
+    tempDirs.push(tempDir)
+
+    const dbPath = path.join(tempDir, 'agent.db')
+    const presenter = new SQLitePresenterCtor(dbPath)
+
+    presenter.newSessionsTable.create(
+      'parent-session',
+      'deepchat',
+      'Parent session',
+      '/workspace',
+      {
+        sessionKind: 'regular'
+      }
+    )
+    presenter.newSessionsTable.create('child-session', 'deepchat', 'Child session', '/workspace', {
+      sessionKind: 'subagent',
+      parentSessionId: 'parent-session'
+    })
+
+    const childRows = presenter.newSessionsTable.list({
+      parentSessionId: 'parent-session'
+    })
+    const defaultRows = presenter.newSessionsTable.list()
+
+    expect(childRows.map((row) => row.id)).toEqual(['child-session'])
+    expect(defaultRows.map((row) => row.id)).toEqual(['parent-session'])
+
+    presenter.close()
+  })
 })

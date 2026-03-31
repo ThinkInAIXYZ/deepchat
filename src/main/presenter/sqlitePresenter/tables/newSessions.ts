@@ -206,7 +206,7 @@ export class NewSessionsTable extends BaseTable {
       conditions.push('project_dir = ?')
       params.push(filters.projectDir)
     }
-    if (filters?.includeSubagents !== true) {
+    if (filters?.includeSubagents !== true && filters?.parentSessionId === undefined) {
       conditions.push("session_kind = 'regular'")
     }
     if (filters?.parentSessionId !== undefined) {

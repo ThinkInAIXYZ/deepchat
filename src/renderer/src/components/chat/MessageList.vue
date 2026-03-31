@@ -22,6 +22,7 @@
         <MessageItemUser
           v-else-if="item.role === 'user'"
           :message="item as DisplayUserMessage"
+          :is-read-only="isReadOnly"
           @retry="onRetry"
           @delete="onDelete"
           @edit-save="onEditSave"
@@ -33,6 +34,7 @@
           :is-in-generating-thread="isGenerating"
           :show-trace="traceMessageIdSet.has(item.id)"
           :is-capturing-image="isCapturing"
+          :is-read-only="isReadOnly"
           @retry="onRetry"
           @delete="onDelete"
           @fork="onFork"
@@ -64,10 +66,12 @@ const props = withDefaults(
     messages: MessageListItem[]
     isGenerating?: boolean
     traceMessageIds?: string[]
+    isReadOnly?: boolean
   }>(),
   {
     isGenerating: false,
-    traceMessageIds: () => []
+    traceMessageIds: () => [],
+    isReadOnly: false
   }
 )
 

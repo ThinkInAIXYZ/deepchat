@@ -39,25 +39,31 @@ describe('SubagentOrchestratorTool', () => {
   it('includes the parent session workdir in the child handoff', async () => {
     let listener: ((update: DeepChatInternalSessionUpdate) => void) | null = null
     let handoffMessage = ''
+    const resolvedWorkdir = '/workspace/resolved-parent-workdir'
 
-    const parentSession = buildSessionInfo()
+    const parentSession = buildSessionInfo({
+      projectDir: '/workspace/parent-session-record'
+    })
     const childSession = buildSessionInfo({
       sessionId: 'child-session',
       agentName: 'Reviewer Clone',
+      projectDir: '/workspace/child-session-record',
       sessionKind: 'subagent',
       parentSessionId: parentSession.sessionId,
       subagentEnabled: false,
       availableSubagentSlots: []
     })
+    const resolveConversationWorkdir = vi.fn().mockResolvedValue(resolvedWorkdir)
+    const createSubagentSession = vi.fn().mockResolvedValue(childSession)
 
     const tool = new SubagentOrchestratorTool({
-      resolveConversationWorkdir: vi.fn().mockResolvedValue(parentSession.projectDir),
+      resolveConversationWorkdir,
       resolveConversationSessionInfo: vi
         .fn()
         .mockImplementation(async (conversationId: string) =>
           conversationId === parentSession.sessionId ? parentSession : childSession
         ),
-      createSubagentSession: vi.fn().mockResolvedValue(childSession),
+      createSubagentSession,
       sendConversationMessage: vi.fn(async (conversationId: string, content: string) => {
         handoffMessage = content
         setTimeout(() => {
@@ -117,8 +123,16 @@ describe('SubagentOrchestratorTool', () => {
       }
     )
 
+    expect(resolveConversationWorkdir).toHaveBeenCalledWith(parentSession.sessionId)
+    expect(createSubagentSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        projectDir: resolvedWorkdir
+      })
+    )
     expect(handoffMessage).toContain('Current Agent Working Directory:')
-    expect(handoffMessage).toContain('/workspace/parent-app')
+    expect(handoffMessage).toContain(resolvedWorkdir)
+    expect(handoffMessage).not.toContain(parentSession.projectDir as string)
+    expect(handoffMessage).not.toContain(childSession.projectDir as string)
     expect(result.content).toContain('Inspect auth flow')
   })
 })

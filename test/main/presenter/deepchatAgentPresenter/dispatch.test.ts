@@ -206,6 +206,9 @@ describe('dispatch', () => {
           server: tools[0].server,
           conversationId: 's1',
           providerId: 'openai'
+        }),
+        expect.objectContaining({
+          signal: expect.any(Object)
         })
       )
 
@@ -219,6 +222,71 @@ describe('dispatch', () => {
       const toolBlock = state.blocks.find((b) => b.type === 'tool_call')
       expect(toolBlock!.tool_call!.response).toBe('Sunny, 72F')
       expect(toolBlock!.status).toBe('success')
+    })
+
+    it('persists final-only subagent tool payloads', async () => {
+      const tools = [makeTool('subagent_orchestrator')]
+      const toolPresenter = createMockToolPresenter()
+      const subagentFinal = JSON.stringify({
+        runId: 'run-1',
+        mode: 'parallel',
+        tasks: [
+          {
+            slotId: 'worker-1',
+            displayName: 'Worker 1',
+            title: 'Inspect repo',
+            status: 'completed'
+          }
+        ]
+      })
+
+      ;(toolPresenter.callTool as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        content: [{ type: 'text', text: 'Final summary' }],
+        rawData: {
+          toolCallId: 'tc1',
+          content: [{ type: 'text', text: 'Final summary' }],
+          isError: false,
+          toolResult: { subagentFinal }
+        }
+      })
+
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: { id: 'tc1', name: 'subagent_orchestrator', params: '{}', response: '' }
+      })
+      state.completedToolCalls = [{ id: 'tc1', name: 'subagent_orchestrator', arguments: '{}' }]
+
+      await executeTools(
+        state,
+        [],
+        0,
+        tools,
+        toolPresenter,
+        'gpt-4',
+        io,
+        'full_access',
+        new ToolOutputGuard(),
+        32000,
+        1024
+      )
+
+      const toolBlock = state.blocks.find(
+        (block) => block.type === 'tool_call' && block.tool_call?.id === 'tc1'
+      )
+      expect(toolBlock?.tool_call?.response).toBe('Final summary')
+      expect(toolBlock?.status).toBe('success')
+      expect(toolBlock?.extra?.subagentFinal).toBe(subagentFinal)
+
+      const persistedBlocks = (
+        io.messageStore.updateAssistantContent as ReturnType<typeof vi.fn>
+      ).mock.calls.at(-1)?.[1] as StreamState['blocks'] | undefined
+      const persistedToolBlock = persistedBlocks?.find(
+        (block) => block.type === 'tool_call' && block.tool_call?.id === 'tc1'
+      )
+      expect(persistedToolBlock?.extra?.subagentFinal).toBe(subagentFinal)
     })
 
     it('finalizes trailing narrative blocks before plain tool results run', async () => {
