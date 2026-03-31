@@ -113,6 +113,7 @@
     "responseData": "داده‌های پاسخ",
     "subagents": {
       "summary": "{mode} · {count} زیرایجنت",
+      "unnamedTask": "وظیفه بی‌نام",
       "mode": {
         "parallel": "موازی",
         "chain": "زنجیره‌ای"

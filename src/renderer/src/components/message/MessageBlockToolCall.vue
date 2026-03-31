@@ -389,13 +389,14 @@ const subagentTasks = computed<SubagentProgressTask[]>(() => {
     parseSubagentProgress(props.block.extra?.subagentProgress) ??
     parseSubagentProgress(props.block.extra?.subagentFinal)
   const unnamedAgentLabel = t('settings.deepchatAgents.unnamed')
+  const unnamedTaskLabel = t('chat.toolCall.subagents.unnamedTask')
 
   return (progress?.tasks ?? []).map((task, index) => {
     const slotId = normalizeOptionalText(task.slotId)
     const displayName = normalizeOptionalText(task.displayName)
     const normalizedId =
       normalizeOptionalText(task.taskId) || slotId || `subagent-task-${index + 1}`
-    const label = displayName || slotId || 'Unnamed Task'
+    const label = displayName || slotId || unnamedTaskLabel
     const title = normalizeOptionalText(task.title)
 
     return {

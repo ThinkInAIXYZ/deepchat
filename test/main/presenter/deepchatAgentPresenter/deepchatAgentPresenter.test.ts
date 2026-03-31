@@ -3052,22 +3052,55 @@ describe('DeepChatAgentPresenter', () => {
           }
         ])
       }
+      toolPresenter.getAllToolDefinitions.mockResolvedValueOnce([
+        {
+          type: 'function',
+          function: {
+            name: 'subagent_orchestrator',
+            description: 'Run subagents',
+            parameters: { type: 'object', properties: {} }
+          },
+          server: { name: 'agent', icons: '', description: '' }
+        }
+      ])
       const emitMessageRefreshSpy = vi
         .spyOn(agent as any, 'emitMessageRefresh')
         .mockImplementation(() => {})
+      toolPresenter.callTool.mockImplementationOnce(async (_request: unknown, options?: any) => {
+        options?.onProgress?.({
+          kind: 'subagent_orchestrator',
+          toolCallId: 'tc1',
+          responseMarkdown: 'Updated summary',
+          progressJson: '{"tasks":[]}'
+        })
+
+        return {
+          content: 'Updated summary',
+          rawData: {
+            content: 'Updated summary',
+            isError: false
+          }
+        }
+      })
 
       sqlitePresenter.deepchatMessagesTable.get
         .mockImplementationOnce((id: string) => (id === 'm1' ? staleRow : undefined))
         .mockImplementationOnce((id: string) => (id === 'm1' ? latestRow : undefined))
 
-      ;(agent as any).updateSubagentToolCallProgress(
-        's1',
-        'm1',
-        'tc1',
-        'Updated summary',
-        '{"tasks":[]}'
-      )
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
 
+      const result = await (agent as any).executeDeferredToolCall('s1', 'm1', {
+        id: 'tc1',
+        name: 'subagent_orchestrator',
+        params: '{}'
+      })
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          isError: false,
+          responseText: 'Updated summary'
+        })
+      )
       const updatedBlocks = JSON.parse(
         sqlitePresenter.deepchatMessagesTable.updateContent.mock.calls[0][1]
       )

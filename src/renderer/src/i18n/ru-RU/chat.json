@@ -113,6 +113,7 @@
     "responseData": "Данные ответа",
     "subagents": {
       "summary": "{mode} · {count} субагентов",
+      "unnamedTask": "Безымянная задача",
       "mode": {
         "parallel": "Параллельно",
         "chain": "Последовательно"

@@ -49,6 +49,9 @@ vi.mock('vue-i18n', () => ({
       if (key === 'chat.toolCall.subagents.status.completed') {
         return 'localized completed'
       }
+      if (key === 'chat.toolCall.subagents.unnamedTask') {
+        return 'Unnamed Task'
+      }
       if (key === 'settings.deepchatAgents.unnamed') {
         return 'Unnamed Agent'
       }

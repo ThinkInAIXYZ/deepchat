@@ -117,6 +117,7 @@
     "responseData": "响应数据",
     "subagents": {
       "summary": "{mode} · {count} 个 subagent",
+      "unnamedTask": "未命名任务",
       "mode": {
         "parallel": "并行",
         "chain": "串行"

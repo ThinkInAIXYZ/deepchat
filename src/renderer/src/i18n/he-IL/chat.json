@@ -113,6 +113,7 @@
     "responseData": "נתוני תגובה",
     "subagents": {
       "summary": "{mode} · {count} סוכני משנה",
+      "unnamedTask": "משימה ללא שם",
       "mode": {
         "parallel": "במקביל",
         "chain": "בטור"

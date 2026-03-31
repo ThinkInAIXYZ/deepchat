@@ -117,6 +117,7 @@
     "responseData": "Response data",
     "subagents": {
       "summary": "{mode} · {count} subagents",
+      "unnamedTask": "Unnamed task",
       "mode": {
         "parallel": "Parallel",
         "chain": "Chain"

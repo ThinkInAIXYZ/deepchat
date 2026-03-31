@@ -113,6 +113,7 @@
     "responseData": "Données de réponse",
     "subagents": {
       "summary": "{mode} · {count} sous-agents",
+      "unnamedTask": "Tâche sans nom",
       "mode": {
         "parallel": "Parallèle",
         "chain": "En chaîne"

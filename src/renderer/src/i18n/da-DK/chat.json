@@ -112,6 +112,7 @@
     "responseData": "Svardata",
     "subagents": {
       "summary": "{mode} · {count} underagenter",
+      "unnamedTask": "Unavngiven opgave",
       "mode": {
         "parallel": "Parallel",
         "chain": "Kæde"

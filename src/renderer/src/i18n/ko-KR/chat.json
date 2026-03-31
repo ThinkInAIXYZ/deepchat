@@ -113,6 +113,7 @@
     "responseData": "응답 데이터",
     "subagents": {
       "summary": "{mode} · 하위 에이전트 {count}개",
+      "unnamedTask": "이름 없는 작업",
       "mode": {
         "parallel": "병렬",
         "chain": "순차"
