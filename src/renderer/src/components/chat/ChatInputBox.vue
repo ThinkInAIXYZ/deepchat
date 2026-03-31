@@ -4,8 +4,8 @@
       'w-full overflow-hidden rounded-xl border bg-card/30 shadow-sm backdrop-blur-lg',
       props.maxWidthClass
     ]"
-    @dragover.prevent
-    @drop.prevent="onDrop"
+    @dragover="onDragOver"
+    @drop="onDrop"
   >
     <input ref="fileInput" type="file" class="hidden" multiple @change="files.handleFileSelect" />
 
@@ -83,6 +83,10 @@ import { TextSelection } from '@tiptap/pm/state'
 import { Icon } from '@iconify/vue'
 import type { MessageFile } from '@shared/types/agent-interface'
 import { useI18n } from 'vue-i18n'
+import {
+  buildChatInputWorkspaceReferenceText,
+  getChatInputWorkspaceItemDragData
+} from '@/lib/chatInputWorkspaceReference'
 import { useChatInputMentions } from './composables/useChatInputMentions'
 import { useChatInputFiles } from './composables/useChatInputFiles'
 import { useSkillsData } from '@/components/chat-input/composables/useSkillsData'
@@ -329,7 +333,44 @@ function onPaste(event: ClipboardEvent) {
   void files.handlePaste(event, true)
 }
 
+function onDragOver(event: DragEvent) {
+  event.preventDefault()
+  if (event.dataTransfer) {
+    event.dataTransfer.dropEffect = 'copy'
+  }
+}
+
+function insertWorkspaceReference(targetPath: string) {
+  const referenceText = buildChatInputWorkspaceReferenceText(
+    targetPath,
+    props.workspacePath,
+    targetPath.split(/[/\\]/).pop()
+  )
+  if (!referenceText) {
+    return false
+  }
+
+  const { from, to } = editor.state.selection
+  const docSize = editor.state.doc.content.size
+  const before =
+    from > 0 ? editor.state.doc.textBetween(Math.max(0, from - 1), from, '\n', '\n') : ''
+  const after =
+    to < docSize ? editor.state.doc.textBetween(to, Math.min(docSize, to + 1), '\n', '\n') : ''
+  const prefix = before && !/\s/.test(before) ? ' ' : ''
+  const suffix = after && /\s/.test(after) ? '' : ' '
+
+  editor.chain().focus().insertContent(`${prefix}${referenceText}${suffix}`).run()
+  return true
+}
+
 function onDrop(event: DragEvent) {
+  event.preventDefault()
+
+  const workspaceItem = getChatInputWorkspaceItemDragData(event.dataTransfer)
+  if (workspaceItem && insertWorkspaceReference(workspaceItem.path)) {
+    return
+  }
+
   if (!event.dataTransfer?.files || event.dataTransfer.files.length === 0) {
     return
   }

@@ -1,11 +1,13 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { defineComponent, ref, nextTick } from 'vue'
+import { CHAT_INPUT_WORKSPACE_ITEM_MIME } from '@/lib/chatInputWorkspaceReference'
 
 const handlePasteMock = vi.fn().mockResolvedValue(undefined)
 const handleDropMock = vi.fn().mockResolvedValue(undefined)
 const openFilePickerMock = vi.fn()
 const deleteFileMock = vi.fn()
+const insertContentMock = vi.fn()
 const selectedFilesRef = ref<any[]>([])
 const activeSkillsRef = ref<string[]>([])
 const pendingSkillsRef = ref<string[]>([])
@@ -25,13 +27,23 @@ vi.mock('@tiptap/vue-3', () => {
       setContent: vi.fn()
     }
     public state = {
-      doc: {},
+      doc: {
+        content: {
+          size: 0
+        },
+        textBetween: vi.fn(() => '')
+      },
+      selection: {
+        from: 0,
+        to: 0
+      },
       tr: {
         setSelection: vi.fn()
       }
     }
     public view = {
-      dispatch: vi.fn()
+      dispatch: vi.fn(),
+      updateState: vi.fn()
     }
     constructor(options: any) {
       lastEditorOptions = options
@@ -40,12 +52,21 @@ vi.mock('@tiptap/vue-3', () => {
       return ''
     }
     chain() {
-      return {
+      const api = {
+        focus: () => api,
+        insertContent: (content: string) => {
+          insertContentMock(content)
+          return api
+        },
+        run: () => true,
         setHardBreak: () => ({
           scrollIntoView: () => ({
             run: () => true
           })
         })
+      }
+      return {
+        ...api
       }
     }
     destroy() {}
@@ -193,6 +214,27 @@ describe('ChatInputBox attachments', () => {
       dataTransfer: { files }
     })
     expect(handleDropMock).toHaveBeenCalledWith(files)
+  })
+
+  it('inserts workspace references for internal workspace drops', async () => {
+    const wrapper = await mountComponent()
+    const dataTransfer = {
+      types: [CHAT_INPUT_WORKSPACE_ITEM_MIME],
+      getData: vi.fn(() =>
+        JSON.stringify({
+          path: '/repo/src/App.vue',
+          isDirectory: false
+        })
+      )
+    } as unknown as DataTransfer
+
+    await wrapper.setProps({
+      workspacePath: '/repo'
+    })
+    await wrapper.trigger('drop', { dataTransfer })
+
+    expect(insertContentMock).toHaveBeenCalledWith('@src/App.vue ')
+    expect(handleDropMock).not.toHaveBeenCalled()
   })
 
   it('handles remove attached file', async () => {
