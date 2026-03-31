@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.0.0 (2026-03-31)
+- DeepChat 1.0 正式发布：完成全新 Agent 架构切换，统一 DeepChat Agent 与 ACP Agent 主流程，并内置 DimCode Agent
+- 新增远程控制能力矩阵：支持 Telegram、Feishu 与 ACP Agent Remote，补齐权限消息、流式块渲染与工作目录选择
+- 强化工作流与工具链：支持 RTK 工具调用、Environments、Provider Deeplink 导入、Workspace 拖拽引用与 DeepChat Sub Agent 协作
+- 持续打磨桌面端体验：新增浮动窗口、用户仪表盘、自动压缩控制，并优化侧边栏、悬浮按钮、状态栏与工具调用交互
+- 完成正式版稳定性收敛：修复 HTML 预览、主题同步、消息标题选择、会话工作目录、MCP 生命周期与历史序列化等问题
+
 ## v1.0.0-beta.7 (2026-03-27)
 - 新增 Novita AI LLM 提供商接入
 - 新增 Provider 配置导入能力（Deeplink 导入）
