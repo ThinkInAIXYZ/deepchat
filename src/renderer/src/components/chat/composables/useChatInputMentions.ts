@@ -7,6 +7,10 @@ import { ACP_WORKSPACE_EVENTS } from '@/events'
 import { usePresenter } from '@/composables/usePresenter'
 import { useMcpStore } from '@/stores/mcp'
 import { useSkillsStore } from '@/stores/skillsStore'
+import {
+  buildChatInputWorkspaceReferenceText,
+  resolveChatInputWorkspaceReferencePath
+} from '@/lib/chatInputWorkspaceReference'
 import SuggestionList from '../mentions/SuggestionList.vue'
 import {
   buildCommandText,
@@ -154,8 +158,11 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
         ([] as WorkspaceFileNode[])
 
       return result.slice(0, 20).map((file) => {
-        const relativePath = window.api.toRelativePath?.(file.path, workspacePath) ?? ''
-        const displayPath = relativePath || file.name
+        const displayPath = resolveChatInputWorkspaceReferencePath(
+          file.path,
+          workspacePath,
+          file.name
+        )
         return {
           id: `file:${file.path}`,
           category: 'file' as const,
@@ -163,7 +170,7 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
           description: file.path,
           payload: {
             path: file.path,
-            insertText: `@${displayPath} `
+            insertText: `${buildChatInputWorkspaceReferenceText(file.path, workspacePath, file.name)} `
           }
         }
       })

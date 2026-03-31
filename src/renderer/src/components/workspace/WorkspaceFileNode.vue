@@ -3,10 +3,12 @@
     <ContextMenu>
       <ContextMenuTrigger as-child>
         <button
-          class="flex w-full items-center gap-1.5 px-4 py-1 text-left text-xs transition hover:bg-muted/40"
+          class="flex w-full cursor-grab items-center gap-1.5 px-4 py-1 text-left text-xs transition hover:bg-muted/40 active:cursor-grabbing"
           :style="{ paddingLeft: `${16 + depth * 12}px` }"
           type="button"
+          draggable="true"
           @click="handleClick"
+          @dragstart="handleDragStart"
         >
           <!-- Expand/collapse icon for directories -->
           <Icon
@@ -62,6 +64,7 @@ import { computed } from 'vue'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 import { usePresenter } from '@/composables/usePresenter'
+import { setChatInputWorkspaceItemDragData } from '@/lib/chatInputWorkspaceReference'
 import {
   ContextMenu,
   ContextMenuContent,
@@ -155,6 +158,13 @@ const handleRevealInFolder = async () => {
 
 const handleAppendFromMenu = () => {
   emitAppendPath()
+}
+
+const handleDragStart = (event: DragEvent) => {
+  setChatInputWorkspaceItemDragData(event.dataTransfer, {
+    path: props.node.path,
+    isDirectory: props.node.isDirectory
+  })
 }
 </script>
 
