@@ -2741,7 +2741,7 @@ describe('DeepChatAgentPresenter', () => {
 
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
 
-      const result = await (agent as any).executeDeferredToolCall('s1', {
+      const result = await (agent as any).executeDeferredToolCall('s1', 'm1', {
         id: 'tc1',
         name: 'exec',
         params: '{"command":"npm test"}'
@@ -2774,7 +2774,7 @@ describe('DeepChatAgentPresenter', () => {
 
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
 
-      await (agent as any).executeDeferredToolCall('s1', {
+      await (agent as any).executeDeferredToolCall('s1', 'm1', {
         id: 'tc1',
         name: 'echo',
         params: '{}'
@@ -2784,6 +2784,9 @@ describe('DeepChatAgentPresenter', () => {
         expect.objectContaining({
           conversationId: 's1',
           providerId: 'openai'
+        }),
+        expect.objectContaining({
+          signal: expect.any(Object)
         })
       )
     })
@@ -2819,7 +2822,7 @@ describe('DeepChatAgentPresenter', () => {
         modelId: 'gpt-4o'
       })
 
-      const result = await (agent as any).executeDeferredToolCall('s1', {
+      const result = await (agent as any).executeDeferredToolCall('s1', 'm1', {
         id: 'tc1',
         name: 'cdp_send',
         params: '{"method":"Page.captureScreenshot","params":{"format":"jpeg"}}'
@@ -2847,7 +2850,9 @@ describe('DeepChatAgentPresenter', () => {
         'gpt-4o',
         expect.any(Number),
         expect.any(Number),
-        undefined
+        expect.objectContaining({
+          signal: expect.any(Object)
+        })
       )
       expect(configPresenter.resolveDeepChatAgentConfig).not.toHaveBeenCalled()
       expect(result).toEqual(
@@ -2856,6 +2861,263 @@ describe('DeepChatAgentPresenter', () => {
           responseText: 'English screenshot summary'
         })
       )
+    })
+
+    it('registers a cancellable controller for deferred subagent tool calls', async () => {
+      toolPresenter.getAllToolDefinitions.mockResolvedValueOnce([
+        {
+          type: 'function',
+          function: {
+            name: 'subagent_orchestrator',
+            description: 'Run subagents',
+            parameters: { type: 'object', properties: {} }
+          },
+          server: { name: 'agent', icons: '', description: '' }
+        }
+      ])
+
+      let capturedSignal: AbortSignal | undefined
+      toolPresenter.callTool.mockImplementationOnce(async (_request: unknown, options?: any) => {
+        capturedSignal = options?.signal
+
+        return await new Promise((_, reject) => {
+          options?.signal?.addEventListener(
+            'abort',
+            () => {
+              const error = new Error('Aborted')
+              error.name = 'AbortError'
+              reject(error)
+            },
+            { once: true }
+          )
+        })
+      })
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+
+      const executionPromise = (agent as any).executeDeferredToolCall('s1', 'm1', {
+        id: 'tc-subagent',
+        name: 'subagent_orchestrator',
+        params: '{}'
+      })
+
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      expect(capturedSignal).toBeDefined()
+      expect(capturedSignal?.aborted).toBe(false)
+      expect((agent as any).deferredToolAbortControllers.size).toBe(1)
+
+      await agent.cancelGeneration('s1')
+
+      expect(capturedSignal?.aborted).toBe(true)
+      await expect(executionPromise).resolves.toEqual(
+        expect.objectContaining({
+          isError: true,
+          responseText: 'Error: Aborted'
+        })
+      )
+      expect((agent as any).deferredToolAbortControllers.size).toBe(0)
+    })
+
+    it('persists final-only deferred subagent snapshots', async () => {
+      const subagentFinal = JSON.stringify({
+        runId: 'run-final',
+        mode: 'parallel',
+        tasks: [
+          {
+            taskId: 'task-1',
+            slotId: 'slot-1',
+            title: 'Inspect repo',
+            targetAgentName: 'ACP Coder',
+            status: 'completed'
+          }
+        ]
+      })
+
+      toolPresenter.getAllToolDefinitions.mockResolvedValueOnce([
+        {
+          type: 'function',
+          function: {
+            name: 'subagent_orchestrator',
+            description: 'Run subagents',
+            parameters: { type: 'object', properties: {} }
+          },
+          server: { name: 'agent', icons: '', description: '' }
+        }
+      ])
+      toolPresenter.callTool.mockResolvedValueOnce({
+        content: 'Final summary',
+        rawData: {
+          content: 'Final summary',
+          isError: false,
+          toolResult: { subagentFinal }
+        }
+      })
+      sqlitePresenter.deepchatMessagesTable.get.mockReturnValue({
+        id: 'm1',
+        session_id: 's1',
+        order_seq: 1,
+        role: 'assistant',
+        content: JSON.stringify([
+          {
+            type: 'tool_call',
+            status: 'loading',
+            timestamp: 1,
+            tool_call: {
+              id: 'tc-final',
+              name: 'subagent_orchestrator',
+              params: '{}',
+              response: ''
+            }
+          }
+        ]),
+        status: 'pending',
+        is_context_edge: 0,
+        metadata: '{}',
+        created_at: Date.now(),
+        updated_at: Date.now()
+      })
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+
+      const result = await (agent as any).executeDeferredToolCall('s1', 'm1', {
+        id: 'tc-final',
+        name: 'subagent_orchestrator',
+        params: '{}'
+      })
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          isError: false,
+          responseText: 'Final summary'
+        })
+      )
+
+      const updatedBlocks = JSON.parse(
+        sqlitePresenter.deepchatMessagesTable.updateContent.mock.calls[0][1]
+      )
+      expect(updatedBlocks[0].tool_call.response).toBe('Final summary')
+      expect(updatedBlocks[0].status).toBe('success')
+      expect(updatedBlocks[0].extra).toEqual(
+        expect.objectContaining({
+          subagentFinal
+        })
+      )
+    })
+
+    it('re-reads the latest message content before persisting subagent progress', async () => {
+      const staleRow = {
+        id: 'm1',
+        session_id: 's1',
+        order_seq: 1,
+        role: 'assistant',
+        content: JSON.stringify([
+          {
+            type: 'tool_call',
+            status: 'loading',
+            timestamp: 1,
+            tool_call: {
+              id: 'tc1',
+              name: 'subagent_orchestrator',
+              params: '{}',
+              response: ''
+            }
+          }
+        ]),
+        status: 'pending',
+        is_context_edge: 0,
+        metadata: '{}',
+        created_at: Date.now(),
+        updated_at: Date.now()
+      }
+      const latestRow = {
+        ...staleRow,
+        content: JSON.stringify([
+          {
+            type: 'tool_call',
+            status: 'loading',
+            timestamp: 1,
+            tool_call: {
+              id: 'tc1',
+              name: 'subagent_orchestrator',
+              params: '{}',
+              response: ''
+            }
+          },
+          {
+            type: 'content',
+            status: 'success',
+            timestamp: 2,
+            content: 'Locally appended block'
+          }
+        ])
+      }
+      toolPresenter.getAllToolDefinitions.mockResolvedValueOnce([
+        {
+          type: 'function',
+          function: {
+            name: 'subagent_orchestrator',
+            description: 'Run subagents',
+            parameters: { type: 'object', properties: {} }
+          },
+          server: { name: 'agent', icons: '', description: '' }
+        }
+      ])
+      const emitMessageRefreshSpy = vi
+        .spyOn(agent as any, 'emitMessageRefresh')
+        .mockImplementation(() => {})
+      toolPresenter.callTool.mockImplementationOnce(async (_request: unknown, options?: any) => {
+        options?.onProgress?.({
+          kind: 'subagent_orchestrator',
+          toolCallId: 'tc1',
+          responseMarkdown: 'Updated summary',
+          progressJson: '{"tasks":[]}'
+        })
+
+        return {
+          content: 'Updated summary',
+          rawData: {
+            content: 'Updated summary',
+            isError: false
+          }
+        }
+      })
+
+      sqlitePresenter.deepchatMessagesTable.get
+        .mockImplementationOnce((id: string) => (id === 'm1' ? staleRow : undefined))
+        .mockImplementationOnce((id: string) => (id === 'm1' ? latestRow : undefined))
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+
+      const result = await (agent as any).executeDeferredToolCall('s1', 'm1', {
+        id: 'tc1',
+        name: 'subagent_orchestrator',
+        params: '{}'
+      })
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          isError: false,
+          responseText: 'Updated summary'
+        })
+      )
+      const updatedBlocks = JSON.parse(
+        sqlitePresenter.deepchatMessagesTable.updateContent.mock.calls[0][1]
+      )
+      expect(updatedBlocks).toHaveLength(2)
+      expect(updatedBlocks[0].tool_call.response).toBe('Updated summary')
+      expect(updatedBlocks[0].extra).toEqual(
+        expect.objectContaining({
+          subagentProgress: '{"tasks":[]}'
+        })
+      )
+      expect(updatedBlocks[1]).toEqual(
+        expect.objectContaining({
+          type: 'content',
+          content: 'Locally appended block'
+        })
+      )
+      expect(emitMessageRefreshSpy).toHaveBeenCalledWith('s1', 'm1')
     })
 
     it('falls back to the current session agent vision model when the current model has no vision', async () => {

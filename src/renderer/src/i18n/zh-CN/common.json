@@ -21,6 +21,7 @@
   "disabled": "已禁用",
   "disclaimer": "免责声明",
   "close": "关闭",
+  "open": "打开",
   "image": "图片",
   "error": {
     "requestFailed": "请求失败...",

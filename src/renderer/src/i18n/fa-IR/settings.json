@@ -1626,6 +1626,17 @@
     "compactionDescription": "این پیش‌فرض‌ها فقط بر نشست‌های جدید DeepChat اثر می‌گذارند.",
     "compactionThreshold": "آستانه فعال‌سازی",
     "compactionRetainPairs": "نگه‌داری جفت‌های اخیر",
-    "deleteConfirm": "ایجنت «{name}» حذف شود؟ تاریخچه آن به ایجنت داخلی DeepChat برمی‌گردد."
+    "deleteConfirm": "ایجنت «{name}» حذف شود؟ تاریخچه آن به ایجنت داخلی DeepChat برمی‌گردد.",
+    "subagentsTitle": "زیرایجنت‌ها",
+    "subagentsDescription": "اسلات‌های قابل‌استفاده‌مجددِ نشست فرزند را که `subagent_orchestrator` در اختیار می‌گذارد پیکربندی کنید.",
+    "subagentsEnabled": "فعال‌کردن زیرایجنت‌ها",
+    "subagentTargetType": "نوع مقصد",
+    "subagentTargetSelf": "همین ایجنت",
+    "subagentTargetAgent": "ایجنت",
+    "subagentDisplayName": "نام نمایشی",
+    "subagentDescription": "توضیح اسلات",
+    "subagentTargetAgentLabel": "ایجنت مقصد",
+    "subagentLimit": "{count}/{max} اسلات",
+    "addSubagentSlot": "+ افزودن اسلات"
   }
 }

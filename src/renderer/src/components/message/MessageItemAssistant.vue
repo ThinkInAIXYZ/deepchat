@@ -66,6 +66,7 @@
                 :message-id="currentMessage.id"
                 :conversation-id="currentThreadId"
                 :block="block"
+                :is-read-only="isReadOnly"
                 @continue="handleBlockContinue"
                 @switch-provider="handleBlockSwitchProvider"
               />
@@ -93,6 +94,7 @@
             :is-in-generating-thread="resolvedIsInGeneratingThread"
             :is-capturing-image="isCapturingImage"
             :show-trace="showTrace"
+            :is-read-only="isReadOnly"
             @retry="handleAction('retry')"
             @delete="handleAction('delete')"
             @copy="handleAction('copy')"
@@ -115,7 +117,7 @@
         <ContextMenuItem @select="handleSelectionTranslate">
           {{ t('contextMenu.translate.title') }}
         </ContextMenuItem>
-        <ContextMenuItem @select="handleSelectionAskAI">
+        <ContextMenuItem v-if="!isReadOnly" @select="handleSelectionAskAI">
           {{ t('contextMenu.askAI.title') }}
         </ContextMenuItem>
       </template>
@@ -123,17 +125,18 @@
         <ContextMenuItem @select="handleAction('copy')">
           {{ t('thread.toolbar.copy') }}
         </ContextMenuItem>
-        <ContextMenuItem @select="handleAction('retry')">
+        <ContextMenuItem v-if="!isReadOnly" @select="handleAction('retry')">
           {{ t('thread.toolbar.retry') }}
         </ContextMenuItem>
         <ContextMenuItem
+          v-if="!isReadOnly"
           :disabled="message.status === 'pending' || resolvedIsInGeneratingThread"
           @select="handleAction('fork')"
         >
           {{ t('thread.toolbar.fork') }}
         </ContextMenuItem>
-        <ContextMenuSeparator />
-        <ContextMenuItem @select="handleAction('delete')">
+        <ContextMenuSeparator v-if="!isReadOnly" />
+        <ContextMenuItem v-if="!isReadOnly" @select="handleAction('delete')">
           {{ t('thread.toolbar.delete') }}
         </ContextMenuItem>
       </template>
@@ -206,6 +209,7 @@ const props = defineProps<{
   useLegacyActions?: boolean
   isInGeneratingThread?: boolean
   showTrace?: boolean
+  isReadOnly?: boolean
 }>()
 
 const themeStore = useThemeStore()
@@ -250,6 +254,7 @@ const currentThreadId = computed(() => props.message.conversationId || '')
 const useLegacyActions = computed(() => props.useLegacyActions !== false)
 const resolvedIsInGeneratingThread = computed(() => props.isInGeneratingThread ?? false)
 const showTrace = computed(() => props.showTrace ?? false)
+const isReadOnly = computed(() => props.isReadOnly === true)
 const rootRef = ref<HTMLElement | null>(null)
 const showSelectionMenu = ref(false)
 const lastSelectionText = ref('')
@@ -439,6 +444,10 @@ const handleSelectionTranslate = () => {
 }
 
 const handleSelectionAskAI = () => {
+  if (isReadOnly.value) {
+    return
+  }
+
   const text = resolveSelectionText()
   if (!text) {
     return
@@ -447,14 +456,24 @@ const handleSelectionAskAI = () => {
 }
 
 const handleBlockContinue = (conversationId: string, messageId: string) => {
+  if (isReadOnly.value) {
+    return
+  }
   emit('continue', conversationId, messageId)
 }
 
 const handleBlockSwitchProvider = () => {
+  if (isReadOnly.value) {
+    return
+  }
   emit('switchProvider')
 }
 
 const handleAction = (action: HandleActionType) => {
+  if (isReadOnly.value && (action === 'retry' || action === 'delete' || action === 'fork')) {
+    return
+  }
+
   if (action === 'retry') {
     emit('retry', currentMessage.value.id)
   } else if (action === 'delete') {

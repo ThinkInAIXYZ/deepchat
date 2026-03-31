@@ -1626,6 +1626,17 @@
     "compactionDescription": "これらの既定値は、今後作成する DeepChat セッションにのみ適用されます。",
     "compactionThreshold": "発動しきい値",
     "compactionRetainPairs": "保持する直近ペア数",
-    "deleteConfirm": "エージェント「{name}」を削除しますか？ その履歴は内蔵 DeepChat エージェントに戻されます。"
+    "deleteConfirm": "エージェント「{name}」を削除しますか？ その履歴は内蔵 DeepChat エージェントに戻されます。",
+    "subagentsTitle": "サブエージェント",
+    "subagentsDescription": "`subagent_orchestrator` で使える再利用可能な子セッションスロットを設定します。",
+    "subagentsEnabled": "サブエージェントを有効にする",
+    "subagentTargetType": "対象タイプ",
+    "subagentTargetSelf": "このエージェント",
+    "subagentTargetAgent": "エージェント",
+    "subagentDisplayName": "表示名",
+    "subagentDescription": "スロットの説明",
+    "subagentTargetAgentLabel": "対象エージェント",
+    "subagentLimit": "{count}/{max} スロット",
+    "addSubagentSlot": "+ スロットを追加"
   }
 }

@@ -179,6 +179,8 @@ export type AssistantMessageExtra = Record<string, string | number | object[] | 
   questionResolution?: 'asked' | 'replied' | 'rejected'
   answerText?: string
   answerMessageId?: string
+  subagentProgress?: string
+  subagentFinal?: string
 }
 // Search-related message block types
 export type SearchBlock = {

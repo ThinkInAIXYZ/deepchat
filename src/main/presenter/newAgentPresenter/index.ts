@@ -15,6 +15,7 @@ import type {
   PermissionMode,
   SessionCompactionState,
   SessionGenerationSettings,
+  DeepChatSubagentMeta,
   ToolInteractionResponse,
   ToolInteractionResult,
   UsageDashboardData,
@@ -122,6 +123,11 @@ export class NewAgentPresenter {
             input.disabledAgentTools ?? deepChatAgentConfig?.disabledAgentTools
           )
         : []
+    const subagentEnabled = this.resolveSessionSubagentEnabled(
+      agentType,
+      input.subagentEnabled,
+      deepChatAgentConfig?.subagentEnabled
+    )
 
     const agent = await this.resolveAgentImplementation(agentId)
 
@@ -160,7 +166,8 @@ export class NewAgentPresenter {
     const title = normalizedInput.text.slice(0, 50) || 'New Chat'
     const sessionId = this.sessionManager.create(agentId, title, projectDir, {
       isDraft: false,
-      disabledAgentTools
+      disabledAgentTools,
+      subagentEnabled
     })
     console.log(`[NewAgentPresenter] session created id=${sessionId} title="${title}"`)
 
@@ -211,6 +218,10 @@ export class NewAgentPresenter {
       projectDir,
       isPinned: false,
       isDraft: false,
+      sessionKind: 'regular',
+      parentSessionId: null,
+      subagentEnabled,
+      subagentMeta: null,
       createdAt: Date.now(),
       updatedAt: Date.now(),
       status: state?.status ?? 'idle',
@@ -255,6 +266,11 @@ export class NewAgentPresenter {
             input.disabledAgentTools ?? deepChatAgentConfig?.disabledAgentTools
           )
         : []
+    const subagentEnabled = this.resolveSessionSubagentEnabled(
+      agentType,
+      input.subagentEnabled,
+      deepChatAgentConfig?.subagentEnabled
+    )
     const agent = await this.resolveAgentImplementation(agentId)
 
     const defaultModel = this.configPresenter.getDefaultModel()
@@ -288,7 +304,8 @@ export class NewAgentPresenter {
 
     const sessionId = this.sessionManager.create(agentId, title, projectDir, {
       isDraft: false,
-      disabledAgentTools
+      disabledAgentTools,
+      subagentEnabled
     })
 
     try {
@@ -319,12 +336,94 @@ export class NewAgentPresenter {
       projectDir,
       isPinned: false,
       isDraft: false,
+      sessionKind: 'regular',
+      parentSessionId: null,
+      subagentEnabled,
+      subagentMeta: null,
       createdAt: Date.now(),
       updatedAt: Date.now(),
       status: state?.status ?? 'idle',
       providerId: state?.providerId ?? providerId,
       modelId: state?.modelId ?? modelId
     }
+  }
+
+  async createSubagentSession(input: {
+    parentSessionId: string
+    agentId: string
+    slotId: string
+    displayName: string
+    targetAgentId?: string | null
+    projectDir?: string | null
+    providerId: string
+    modelId: string
+    permissionMode: PermissionMode
+    generationSettings?: Partial<SessionGenerationSettings>
+    disabledAgentTools?: string[]
+    activeSkills?: string[]
+  }): Promise<SessionWithState> {
+    const parentSessionId = input.parentSessionId?.trim()
+    if (!parentSessionId) {
+      throw new Error('Subagent session requires a parentSessionId.')
+    }
+
+    const slotId = input.slotId?.trim()
+    if (!slotId) {
+      throw new Error('Subagent session requires a slotId.')
+    }
+
+    const displayName = input.displayName?.trim() || 'Subagent'
+    const agentId = input.agentId?.trim()
+    if (!agentId) {
+      throw new Error('Subagent session requires an agentId.')
+    }
+
+    const projectDir = input.projectDir?.trim() || null
+    const disabledAgentTools = this.normalizeDisabledAgentTools(input.disabledAgentTools)
+    const subagentMeta: DeepChatSubagentMeta = {
+      slotId,
+      displayName,
+      targetAgentId: input.targetAgentId?.trim() || null
+    }
+
+    this.assertAcpSessionHasWorkdir(input.providerId, projectDir)
+
+    const agent = await this.resolveAgentImplementation(agentId)
+    const sessionId = this.sessionManager.create(agentId, displayName, projectDir, {
+      isDraft: false,
+      disabledAgentTools,
+      subagentEnabled: false,
+      sessionKind: 'subagent',
+      parentSessionId,
+      subagentMeta
+    })
+
+    try {
+      await this.initializeSessionRuntime(agent, sessionId, {
+        agentId,
+        providerId: input.providerId,
+        modelId: input.modelId,
+        projectDir,
+        permissionMode: input.permissionMode,
+        generationSettings: input.generationSettings
+      })
+    } catch (error) {
+      await this.cleanupFailedSessionInitialization(agent, sessionId)
+      throw error
+    }
+
+    if (input.activeSkills && input.activeSkills.length > 0 && this.skillPresenter) {
+      await this.skillPresenter.setActiveSkills(sessionId, input.activeSkills)
+    }
+
+    this.emitSessionListUpdated()
+
+    const record = this.sessionManager.get(sessionId)
+    if (!record) {
+      throw new Error(`Subagent session not found after creation: ${sessionId}`)
+    }
+
+    return (await this.buildSessionWithState(record)) as SessionWithState
   }
 
   async ensureAcpDraftSession(input: {
@@ -350,7 +449,8 @@ export class NewAgentPresenter {
     let record = await this.findReusableDraftSession(agentId, projectDir, agent)
     if (!record) {
       const sessionId = this.sessionManager.create(agentId, 'New Chat', projectDir, {
-        isDraft: true
+        isDraft: true,
+        subagentEnabled: false
       })
       try {
         await this.ensureSessionRuntimeInitialized(agent, sessionId, {
@@ -657,6 +757,8 @@ export class NewAgentPresenter {
   async getSessionList(filters?: {
     agentId?: string
     projectDir?: string
+    includeSubagents?: boolean
+    parentSessionId?: string
   }): Promise<SessionWithState[]> {
     const records = this.sessionManager.list(filters)
     const enriched: SessionWithState[] = []
@@ -1031,25 +1133,7 @@ export class NewAgentPresenter {
   }
 
   async deleteSession(sessionId: string): Promise<void> {
-    const session = this.sessionManager.get(sessionId)
-    if (!session) return
-    const agent = await this.resolveAgentImplementation(session.agentId)
-    const state = await agent.getSessionState(sessionId)
-    let providerId = state?.providerId ?? ''
-    if (!providerId) {
-      if ((await this.getAgentType(session.agentId)) === 'acp') {
-        providerId = 'acp'
-      }
-    }
-    if (providerId === 'acp') {
-      await this.llmProviderPresenter.clearAcpSession(sessionId)
-    }
-    await agent.destroySession(sessionId)
-    presenter.commandPermissionService.clearConversation(sessionId)
-    presenter.filePermissionService?.clearConversation(sessionId)
-    presenter.settingsPermissionService?.clearConversation(sessionId)
-    await this.skillPresenter?.clearNewAgentSessionSkills?.(sessionId)
-    this.sessionManager.delete(sessionId)
+    await this.deleteSessionInternal(sessionId)
     this.emitSessionListUpdated()
   }
 
@@ -1140,6 +1224,35 @@ export class NewAgentPresenter {
       return
     }
     await agent.setPermissionMode(sessionId, mode)
+  }
+
+  async setSessionSubagentEnabled(sessionId: string, enabled: boolean): Promise<SessionWithState> {
+    const session = this.sessionManager.get(sessionId)
+    if (!session) {
+      throw new Error(`Session not found: ${sessionId}`)
+    }
+
+    if (session.sessionKind !== 'regular') {
+      throw new Error('Only regular sessions can change subagent state.')
+    }
+
+    if ((await this.getAgentType(session.agentId)) !== 'deepchat') {
+      throw new Error('Only DeepChat sessions can change subagent state.')
+    }
+
+    this.sessionManager.update(sessionId, { subagentEnabled: enabled })
+    const updated = this.sessionManager.get(sessionId)
+    if (!updated) {
+      throw new Error(`Session not found after update: ${sessionId}`)
+    }
+
+    this.emitSessionListUpdated()
+    const sessionWithState = await this.tryBuildSessionWithState(updated)
+    if (!sessionWithState) {
+      throw new Error(`Failed to build session state for sessionId: ${sessionId}`)
+    }
+
+    return sessionWithState
   }
 
   async setSessionModel(
@@ -1417,6 +1530,53 @@ export class NewAgentPresenter {
     }
 
     return Object.keys(merged).length > 0 ? merged : undefined
+  }
+
+  private resolveSessionSubagentEnabled(
+    agentType: 'deepchat' | 'acp' | null,
+    inputEnabled?: boolean,
+    configEnabled?: boolean
+  ): boolean {
+    if (agentType !== 'deepchat') {
+      return false
+    }
+
+    if (typeof inputEnabled === 'boolean') {
+      return inputEnabled
+    }
+
+    return configEnabled === true
+  }
+
+  private async deleteSessionInternal(sessionId: string): Promise<void> {
+    const session = this.sessionManager.get(sessionId)
+    if (!session) return
+
+    if (session.sessionKind === 'regular') {
+      const children = this.sessionManager.list({
+        includeSubagents: true,
+        parentSessionId: sessionId
+      })
+      for (const child of children) {
+        await this.deleteSessionInternal(child.id)
+      }
+    }
+
+    const agent = await this.resolveAgentImplementation(session.agentId)
+    const state = await agent.getSessionState(sessionId)
+    let providerId = state?.providerId ?? ''
+    if (!providerId && (await this.getAgentType(session.agentId)) === 'acp') {
+      providerId = 'acp'
+    }
+    if (providerId === 'acp') {
+      await this.llmProviderPresenter.clearAcpSession(sessionId)
+    }
+    await agent.destroySession(sessionId)
+    presenter.commandPermissionService.clearConversation(sessionId)
+    presenter.filePermissionService?.clearConversation(sessionId)
+    presenter.settingsPermissionService?.clearConversation(sessionId)
+    await this.skillPresenter?.clearNewAgentSessionSkills?.(sessionId)
+    this.sessionManager.delete(sessionId)
   }
 
   private async isAcpBackedSession(sessionId: string, agentId: string): Promise<boolean> {

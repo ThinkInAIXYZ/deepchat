@@ -21,6 +21,7 @@
   "disabled": "비활성화",
   "disclaimer": "면책 조항",
   "close": "닫기",
+  "open": "열기",
   "error": {
     "requestFailed": "요청 실패...",
     "createChatFailed": "채팅 생성 실패",

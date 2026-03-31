@@ -16,6 +16,7 @@
   "disabled": "已停用",
   "disclaimer": "免責聲明",
   "close": "關閉",
+  "open": "開啟",
   "error": {
     "requestFailed": "請求失敗...",
     "createChatFailed": "建立對話失敗",

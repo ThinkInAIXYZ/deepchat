@@ -43,7 +43,11 @@ describe('NewSessionManager', () => {
         '/tmp/workspace',
         {
           isDraft: undefined,
-          disabledAgentTools: undefined
+          disabledAgentTools: undefined,
+          subagentEnabled: undefined,
+          sessionKind: undefined,
+          parentSessionId: undefined,
+          subagentMetaJson: null
         }
       )
       expect(sqlitePresenter.newEnvironmentsTable.syncPath).toHaveBeenCalledWith('/tmp/workspace')
@@ -72,6 +76,10 @@ describe('NewSessionManager', () => {
         projectDir: '/tmp/proj',
         isPinned: true,
         isDraft: false,
+        sessionKind: 'regular',
+        parentSessionId: null,
+        subagentEnabled: false,
+        subagentMeta: null,
         createdAt: 1000,
         updatedAt: 2000
       })

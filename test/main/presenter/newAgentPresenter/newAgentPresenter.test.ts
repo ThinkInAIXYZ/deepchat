@@ -694,7 +694,11 @@ describe('NewAgentPresenter', () => {
         '/workspaces/remote-default',
         {
           isDraft: false,
-          disabledAgentTools: []
+          disabledAgentTools: [],
+          subagentEnabled: false,
+          sessionKind: undefined,
+          parentSessionId: undefined,
+          subagentMetaJson: null
         }
       )
     })
@@ -1284,6 +1288,42 @@ describe('NewAgentPresenter', () => {
         'exec'
       ])
       expect(deepChatAgent.invalidateSessionSystemPromptCache).toHaveBeenCalledWith('s1')
+    })
+  })
+
+  describe('setSessionSubagentEnabled', () => {
+    it('throws when the updated session state cannot be rebuilt', async () => {
+      const row = {
+        id: 's1',
+        agent_id: 'deepchat',
+        title: 'Test',
+        project_dir: null,
+        is_pinned: 0,
+        is_draft: 0,
+        subagent_enabled: 0,
+        session_kind: 'regular',
+        parent_session_id: null,
+        subagent_meta_json: null,
+        created_at: 1000,
+        updated_at: 1000
+      }
+      sqlitePresenter.newSessionsTable.get.mockImplementation((id: string) =>
+        id === 's1' ? row : undefined
+      )
+      sqlitePresenter.newSessionsTable.update.mockImplementation((_: string, fields: any) => {
+        Object.assign(row, fields)
+      })
+      deepChatAgent.getSessionState.mockRejectedValueOnce(new Error('state unavailable'))
+
+      await expect(presenter.setSessionSubagentEnabled('s1', true)).rejects.toThrow(
+        'Failed to build session state for sessionId: s1'
+      )
+
+      expect(sqlitePresenter.newSessionsTable.update).toHaveBeenCalledWith('s1', {
+        subagent_enabled: 1
+      })
+      expect(row.subagent_enabled).toBe(1)
+      expect(eventBus.sendToRenderer).toHaveBeenCalledWith('session:list-updated', 'all')
     })
   })
 

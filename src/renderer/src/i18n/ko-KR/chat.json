@@ -110,7 +110,24 @@
     "clickToView": "자세히 보려면 클릭하세요",
     "functionName": "함수 이름",
     "params": "매개변수",
-    "responseData": "응답 데이터"
+    "responseData": "응답 데이터",
+    "subagents": {
+      "summary": "{mode} · 하위 에이전트 {count}개",
+      "unnamedTask": "이름 없는 작업",
+      "mode": {
+        "parallel": "병렬",
+        "chain": "순차"
+      },
+      "status": {
+        "queued": "대기열",
+        "running": "실행 중",
+        "completed": "완료됨",
+        "error": "오류",
+        "cancelled": "취소됨",
+        "waiting_permission": "권한 대기",
+        "waiting_question": "입력 대기"
+      }
+    }
   },
   "mode": {
     "acpAgent": "ACP 에이전트",
@@ -119,7 +136,8 @@
   },
   "topbar": {
     "share": "공유",
-    "more": "더보기"
+    "more": "더보기",
+    "backToParent": "상위 세션으로 돌아가기"
   },
   "advancedSettings": {
     "button": "고급 설정",
@@ -152,7 +170,8 @@
     "sections": {
       "files": "파일",
       "git": "Git",
-      "artifacts": "Artifacts"
+      "artifacts": "Artifacts",
+      "subagents": "하위 에이전트"
     },
     "files": {
       "contextMenu": {
@@ -206,7 +225,16 @@
         "truncated": "[잘림]"
       }
     },
-    "title": "작업 공간"
+    "title": "작업 공간",
+    "subagents": {
+      "empty": "아직 하위 세션이 없습니다",
+      "self": "현재 에이전트",
+      "status": {
+        "working": "실행 중",
+        "error": "오류",
+        "idle": "대기 중"
+      }
+    }
   },
   "modelPicker": {
     "empty": "모델을 찾을 수 없습니다"
@@ -275,5 +303,8 @@
       "done": "완료",
       "error": "오류"
     }
+  },
+  "subagents": {
+    "label": "하위 에이전트"
   }
 }

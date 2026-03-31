@@ -1626,6 +1626,17 @@
     "compactionDescription": "ברירות המחדל האלה משפיעות רק על שיחות DeepChat חדשות.",
     "compactionThreshold": "סף הפעלה",
     "compactionRetainPairs": "שמירת הזוגות האחרונים",
-    "deleteConfirm": "למחוק את הסוכן \"{name}\"? ההיסטוריה שלו תחזור לסוכן DeepChat המובנה."
+    "deleteConfirm": "למחוק את הסוכן \"{name}\"? ההיסטוריה שלו תחזור לסוכן DeepChat המובנה.",
+    "subagentsTitle": "סוכני משנה",
+    "subagentsDescription": "הגדירו את משבצות שיחות-הבת הניתנות לשימוש חוזר ש-`subagent_orchestrator` חושף.",
+    "subagentsEnabled": "הפעלת סוכני משנה",
+    "subagentTargetType": "סוג יעד",
+    "subagentTargetSelf": "הסוכן הזה",
+    "subagentTargetAgent": "סוכן",
+    "subagentDisplayName": "שם תצוגה",
+    "subagentDescription": "תיאור המשבצת",
+    "subagentTargetAgentLabel": "סוכן יעד",
+    "subagentLimit": "{count}/{max} משבצות",
+    "addSubagentSlot": "+ הוספת משבצת"
   }
 }

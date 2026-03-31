@@ -661,8 +661,12 @@
           :system-prompt-options="systemPromptMenuOptions"
           :selected-system-prompt-id="selectedSystemPromptId"
           :show-custom-system-prompt-badge="selectedSystemPromptId === '__custom__'"
+          :show-subagent-toggle="showSubagentToggle"
+          :subagent-enabled="subagentEnabled"
+          :subagent-toggle-pending="isSubagentToggleUpdating"
           @select-system-prompt="onSystemPromptSelect"
           @open-change="handleSessionPanelOpenChange"
+          @toggle-subagents="onSubagentToggle"
         />
 
         <DropdownMenu v-if="!isAcpAgent">
@@ -736,6 +740,7 @@ import type {
   PermissionMode,
   SessionGenerationSettings
 } from '@shared/types/agent-interface'
+import { normalizeDeepChatSubagentConfig } from '@shared/lib/deepchatSubagents'
 import type { ReasoningPortrait } from '@shared/types/model-db'
 import {
   normalizeLegacyThinkingBudgetValue,
@@ -817,6 +822,7 @@ const { t } = useI18n()
 
 const draftModelSelection = ref<ModelSelection | null>(null)
 const permissionMode = ref<PermissionMode>('full_access')
+const subagentEnabled = ref(false)
 const localSettings = ref<SessionGenerationSettings | null>(null)
 const loadedSettingsSelection = ref<ModelSelection | null>(null)
 const systemPromptList = ref<SystemPrompt[]>([])
@@ -857,6 +863,7 @@ let generationPersistTimer: ReturnType<typeof setTimeout> | null = null
 let pendingGenerationPatch: Partial<SessionGenerationSettings> = {}
 let generationPersistRequestToken = 0
 let generationLocalRevision = 0
+const isSubagentToggleUpdating = ref(false)
 
 const hasActiveSession = computed(() => sessionStore.hasActiveSession)
 const availableAgents = computed(() => (Array.isArray(agentStore.agents) ? agentStore.agents : []))
@@ -888,12 +895,12 @@ const resolveDeepChatAgentConfig = async (agentId: string): Promise<DeepChatAgen
       ? await configPresenter.getDefaultSystemPrompt()
       : await configPresenter.getSetting?.('default_system_prompt')) ?? ''
 
-  return {
+  return normalizeDeepChatSubagentConfig({
     defaultModelPreset: undefined,
     systemPrompt: typeof defaultSystemPrompt === 'string' ? defaultSystemPrompt : '',
     permissionMode: 'full_access',
     disabledAgentTools: []
-  }
+  })
 }
 
 const selectedAgentType = computed<'deepchat' | 'acp' | null>(() => {
@@ -972,6 +979,20 @@ const effectiveModelSelection = computed<ModelSelection | null>(() => {
 })
 
 const canSelectPermissionMode = computed(() => !isAcpAgent.value)
+const showSubagentToggle = computed(() => {
+  if (isAcpAgent.value) {
+    return false
+  }
+
+  if (hasActiveSession.value) {
+    return (
+      sessionStore.activeSession?.sessionKind === 'regular' &&
+      inferAgentType(sessionStore.activeSession?.agentId) === 'deepchat'
+    )
+  }
+
+  return selectedAgentType.value === 'deepchat'
+})
 
 const providerNameMap = computed(() => {
   const map = new Map<string, string>()
@@ -2222,6 +2243,29 @@ watch(
 watch(
   [
     () => sessionStore.activeSessionId,
+    showSubagentToggle,
+    () => sessionStore.activeSession?.subagentEnabled,
+    () => draftStore.subagentEnabled
+  ],
+  ([sessionId, canShow, activeEnabled, draftEnabled]) => {
+    if (!canShow) {
+      subagentEnabled.value = false
+      return
+    }
+
+    if (sessionId) {
+      subagentEnabled.value = activeEnabled === true
+      return
+    }
+
+    subagentEnabled.value = draftEnabled === true
+  },
+  { immediate: true }
+)
+
+watch(
+  [
+    () => sessionStore.activeSessionId,
     () => sessionStore.activeSession?.providerId,
     () => sessionStore.activeSession?.modelId,
     () => draftModelSelection.value?.providerId,
@@ -2668,10 +2712,34 @@ async function selectPermissionMode(mode: PermissionMode) {
   }
 }
 
+async function onSubagentToggle(enabled: boolean) {
+  if (!showSubagentToggle.value || subagentEnabled.value === enabled) {
+    return
+  }
+
+  subagentEnabled.value = enabled
+  const sessionId = sessionStore.activeSessionId
+  if (!sessionId) {
+    draftStore.subagentEnabled = enabled
+    return
+  }
+
+  isSubagentToggleUpdating.value = true
+  try {
+    await sessionStore.setSessionSubagentEnabled(sessionId, enabled)
+  } catch (error) {
+    console.warn('[ChatStatusBar] Failed to set subagent toggle:', error)
+    subagentEnabled.value = sessionStore.activeSession?.subagentEnabled === true
+  } finally {
+    isSubagentToggleUpdating.value = false
+  }
+}
+
 defineExpose({
   acpConfigState,
   localSettings,
   permissionMode,
+  subagentEnabled,
   showSystemPromptSection,
   showReasoningEffort,
   onTemperatureInput,

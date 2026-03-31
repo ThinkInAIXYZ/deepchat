@@ -4,6 +4,17 @@
     class="sticky top-0 z-10 flex items-center justify-between h-12 px-4 bg-background/60 backdrop-blur-lg window-drag-region"
   >
     <div class="flex items-center gap-2 min-w-0">
+      <Button
+        v-if="parentSessionId"
+        variant="ghost"
+        size="sm"
+        class="h-7 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
+        :title="t('chat.topbar.backToParent')"
+        @click="handleBackToParent"
+      >
+        <Icon icon="lucide:corner-up-left" class="h-3.5 w-3.5" />
+        <span>{{ t('chat.topbar.backToParent') }}</span>
+      </Button>
       <div v-if="project" class="flex items-center gap-1.5 text-muted-foreground">
         <Icon icon="lucide:folder" class="w-3.5 h-3.5 shrink-0" />
         <span class="text-xs truncate">{{ projectName }}</span>
@@ -55,7 +66,7 @@
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <DropdownMenu>
+      <DropdownMenu v-if="!isReadOnly">
         <DropdownMenuTrigger as-child>
           <Button
             variant="ghost"
@@ -172,6 +183,7 @@ const props = defineProps<{
   sessionId: string
   title: string
   project: string
+  isReadOnly?: boolean
 }>()
 
 const attrs = useAttrs()
@@ -189,22 +201,36 @@ const projectName = computed(() => props.project.split('/').pop() ?? props.proje
 const currentSession = computed(
   () => sessionStore.sessions.find((session) => session.id === props.sessionId) ?? null
 )
+const parentSessionId = computed(() => currentSession.value?.parentSessionId ?? null)
 const isPinned = computed(() => Boolean(currentSession.value?.isPinned))
+const isReadOnly = computed(() => props.isReadOnly === true)
 
 const openRenameDialog = () => {
+  if (isReadOnly.value) {
+    return
+  }
   renameValue.value = currentSession.value?.title ?? props.title
   renameDialogOpen.value = true
 }
 
 const openClearDialog = () => {
+  if (isReadOnly.value) {
+    return
+  }
   clearDialogOpen.value = true
 }
 
 const openDeleteDialog = () => {
+  if (isReadOnly.value) {
+    return
+  }
   deleteDialogOpen.value = true
 }
 
 const handleTogglePin = async () => {
+  if (isReadOnly.value) {
+    return
+  }
   try {
     await sessionStore.toggleSessionPinned(props.sessionId, !isPinned.value)
   } catch (error) {
@@ -213,6 +239,9 @@ const handleTogglePin = async () => {
 }
 
 const handleRenameConfirm = async () => {
+  if (isReadOnly.value) {
+    return
+  }
   try {
     await sessionStore.renameSession(props.sessionId, renameValue.value)
   } catch (error) {
@@ -223,6 +252,9 @@ const handleRenameConfirm = async () => {
 }
 
 const handleClearConfirm = async () => {
+  if (isReadOnly.value) {
+    return
+  }
   try {
     await sessionStore.clearSessionMessages(props.sessionId)
   } catch (error) {
@@ -233,6 +265,9 @@ const handleClearConfirm = async () => {
 }
 
 const handleDeleteConfirm = async () => {
+  if (isReadOnly.value) {
+    return
+  }
   try {
     await sessionStore.deleteSession(props.sessionId)
   } catch (error) {
@@ -261,6 +296,18 @@ const handleExport = async (format: 'markdown' | 'html' | 'txt' | 'nowledge-mem'
       description: t('thread.export.failedDesc'),
       variant: 'destructive'
     })
+  }
+}
+
+const handleBackToParent = async () => {
+  if (!parentSessionId.value) {
+    return
+  }
+
+  try {
+    await sessionStore.selectSession(parentSessionId.value)
+  } catch (error) {
+    console.error('Failed to navigate to parent session:', error)
   }
 }
 </script>

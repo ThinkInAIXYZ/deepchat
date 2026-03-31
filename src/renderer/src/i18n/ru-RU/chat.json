@@ -110,7 +110,24 @@
     "clickToView": "Нажмите, чтобы посмотреть детали",
     "functionName": "Имя функции",
     "params": "Параметры",
-    "responseData": "Данные ответа"
+    "responseData": "Данные ответа",
+    "subagents": {
+      "summary": "{mode} · {count} субагентов",
+      "unnamedTask": "Безымянная задача",
+      "mode": {
+        "parallel": "Параллельно",
+        "chain": "Последовательно"
+      },
+      "status": {
+        "queued": "В очереди",
+        "running": "Выполняется",
+        "completed": "Завершено",
+        "error": "Ошибка",
+        "cancelled": "Отменено",
+        "waiting_permission": "Ожидает разрешения",
+        "waiting_question": "Ожидает ввода"
+      }
+    }
   },
   "mode": {
     "acpAgent": "Агент АШП",
@@ -119,7 +136,8 @@
   },
   "topbar": {
     "share": "Поделиться",
-    "more": "Ещё"
+    "more": "Ещё",
+    "backToParent": "Вернуться к родительской сессии"
   },
   "advancedSettings": {
     "button": "Расширенные",
@@ -152,7 +170,8 @@
     "sections": {
       "files": "Файлы",
       "git": "Git",
-      "artifacts": "Artifacts"
+      "artifacts": "Артефакты",
+      "subagents": "Субагенты"
     },
     "files": {
       "contextMenu": {
@@ -206,7 +225,16 @@
         "truncated": "[обрезано]"
       }
     },
-    "title": "рабочее пространство"
+    "title": "рабочее пространство",
+    "subagents": {
+      "empty": "Дочерних сессий пока нет",
+      "self": "Этот агент",
+      "status": {
+        "working": "Выполняется",
+        "error": "Ошибка",
+        "idle": "Неактивно"
+      }
+    }
   },
   "modelPicker": {
     "empty": "Модели не найдены"
@@ -275,5 +303,8 @@
       "done": "Готово",
       "error": "Ошибка"
     }
+  },
+  "subagents": {
+    "label": "Субагенты"
   }
 }

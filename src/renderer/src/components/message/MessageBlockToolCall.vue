@@ -52,7 +52,43 @@
         data-testid="tool-call-details"
         class="rounded-lg border bg-muted text-card-foreground px-2 py-3 mt-2 mb-4 w-full"
       >
-        <div class="flex flex-col gap-4">
+        <div v-if="isSubagentOrchestrator" class="flex flex-col gap-1.5">
+          <button
+            v-for="task in subagentTasks"
+            :key="task.normalizedId"
+            data-testid="subagent-task-trigger"
+            type="button"
+            :disabled="!task.sessionId"
+            :class="[
+              'tool-call-pill inline-flex w-full min-h-7 border rounded-lg items-center gap-2 px-2 py-1.5 text-xs leading-4 transition-colors duration-150 overflow-hidden',
+              task.sessionId
+                ? 'cursor-pointer bg-background hover:bg-accent/60'
+                : 'cursor-default bg-background/80 opacity-70'
+            ]"
+            @click.stop="handleSubagentSessionOpen(task)"
+          >
+            <span
+              :class="getSubagentStatusClass(task.status)"
+              class="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium"
+            >
+              {{ getSubagentStatusLabel(task.status) }}
+            </span>
+            <span class="shrink-0 font-semibold text-foreground">
+              {{ task.targetAgentName }}
+            </span>
+            <span class="text-muted-foreground">·</span>
+            <span class="min-w-0 flex-1 truncate text-muted-foreground">
+              {{ task.title || task.label }}
+            </span>
+            <Icon
+              v-if="task.sessionId"
+              icon="lucide:chevron-right"
+              class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+            />
+          </button>
+        </div>
+
+        <div v-else class="flex flex-col gap-4">
           <div
             v-if="expandedToolTitle"
             data-testid="tool-call-expanded-title"
@@ -147,12 +183,14 @@ import { useI18n } from 'vue-i18n'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { CodeBlockNode } from 'markstream-vue'
 import { useThemeStore } from '@/stores/theme'
+import { useSessionStore } from '@/stores/ui/session'
 import { getLanguageFromFilename } from '@shared/utils/codeLanguage'
 import type { DisplayAssistantMessageBlock } from '@/components/chat/messageListItems'
 
 const { t } = useI18n()
 
 const themeStore = useThemeStore()
+const sessionStore = useSessionStore()
 
 const props = defineProps<{
   block: DisplayAssistantMessageBlock
@@ -279,17 +317,103 @@ const parsedParamsRecord = computed(() =>
 )
 
 const rawToolName = computed(() => props.block.tool_call?.name?.trim().toLowerCase() ?? '')
+const isSubagentOrchestrator = computed(() => rawToolName.value === 'subagent_orchestrator')
+
+type SubagentProgressTask = {
+  normalizedId: string
+  taskId: string
+  title: string
+  label: string
+  slotId: string
+  sessionId?: string | null
+  targetAgentId?: string | null
+  targetAgentName: string
+  status: string
+  previewMarkdown?: string
+  updatedAt?: number
+  resultSummary?: string
+}
+
+type RawSubagentProgressTask = Partial<SubagentProgressTask> & {
+  displayName?: string
+}
+
+type SubagentProgressPayload = {
+  runId: string
+  mode: 'parallel' | 'chain'
+  tasks: RawSubagentProgressTask[]
+}
+
+const parseSubagentProgress = (value: unknown): SubagentProgressPayload | null => {
+  if (typeof value !== 'string' || !value.trim()) {
+    return null
+  }
+
+  try {
+    const parsed = JSON.parse(value) as SubagentProgressPayload
+    return Array.isArray(parsed?.tasks) ? parsed : null
+  } catch {
+    return null
+  }
+}
 
 const matchesToolContractName = (toolName: string, expectedName: string): boolean =>
   toolName === expectedName || toolName.endsWith(`_${expectedName}`)
 
+const normalizeOptionalText = (value: unknown): string =>
+  typeof value === 'string' ? value.trim() : ''
+
 const summaryText = computed(() => {
+  if (isSubagentOrchestrator.value) {
+    const progress =
+      parseSubagentProgress(props.block.extra?.subagentProgress) ??
+      parseSubagentProgress(props.block.extra?.subagentFinal)
+    if (progress) {
+      return t('chat.toolCall.subagents.summary', {
+        mode: getSubagentModeLabel(progress.mode),
+        count: progress.tasks.length
+      })
+    }
+  }
+
   const raw = paramsText.value.trim()
   if (!raw) return ''
   if (!parsedParams.value.isJson) {
     return normalizeInlineText(raw)
   }
   return formatSummaryValue(extractFirstSummaryValue(parsedParams.value.value))
+})
+
+const subagentTasks = computed<SubagentProgressTask[]>(() => {
+  const progress =
+    parseSubagentProgress(props.block.extra?.subagentProgress) ??
+    parseSubagentProgress(props.block.extra?.subagentFinal)
+  const unnamedAgentLabel = t('settings.deepchatAgents.unnamed')
+  const unnamedTaskLabel = t('chat.toolCall.subagents.unnamedTask')
+
+  return (progress?.tasks ?? []).map((task, index) => {
+    const slotId = normalizeOptionalText(task.slotId)
+    const displayName = normalizeOptionalText(task.displayName)
+    const normalizedId =
+      normalizeOptionalText(task.taskId) || slotId || `subagent-task-${index + 1}`
+    const label = displayName || slotId || unnamedTaskLabel
+    const title = normalizeOptionalText(task.title)
+
+    return {
+      ...task,
+      normalizedId,
+      taskId: normalizedId,
+      title,
+      label,
+      slotId: slotId || normalizedId,
+      sessionId: typeof task.sessionId === 'string' ? task.sessionId : (task.sessionId ?? null),
+      targetAgentId:
+        typeof task.targetAgentId === 'string' ? task.targetAgentId : (task.targetAgentId ?? null),
+      targetAgentName:
+        normalizeOptionalText(task.targetAgentName) || displayName || unnamedAgentLabel,
+      status: normalizeOptionalText(task.status) || 'running'
+    }
+  })
 })
 
 const updateSummaryOverflow = () => {
@@ -310,6 +434,9 @@ const isExecTool = computed(() => {
 const isProcessTool = computed(() => matchesToolContractName(rawToolName.value, 'process'))
 
 const shouldAutoExpand = computed(() => {
+  if (isSubagentOrchestrator.value) {
+    return props.block.status === 'loading'
+  }
   if (props.block.status !== 'loading') return false
   if (isProcessTool.value) return true
   if (!isExecTool.value || !parsedParamsRecord.value) return false
@@ -549,6 +676,59 @@ const copyResponse = async () => {
     }, 2000)
   } catch (error) {
     console.error('[MessageBlockToolCall] Failed to copy response:', error)
+  }
+}
+
+const getSubagentStatusClass = (status: string): string => {
+  if (status === 'completed') {
+    return 'bg-emerald-500/10 text-emerald-600'
+  }
+  if (status === 'error' || status === 'cancelled') {
+    return 'bg-destructive/10 text-destructive'
+  }
+  if (status.startsWith('waiting')) {
+    return 'bg-amber-500/10 text-amber-600'
+  }
+  return 'bg-muted text-muted-foreground'
+}
+
+const handleSubagentSessionOpen = (task: SubagentProgressTask) => {
+  if (!task.sessionId) {
+    return
+  }
+
+  void sessionStore.selectSession(task.sessionId)
+}
+
+function getSubagentModeLabel(mode: string): string {
+  switch (mode) {
+    case 'parallel':
+      return t('chat.toolCall.subagents.mode.parallel')
+    case 'chain':
+      return t('chat.toolCall.subagents.mode.chain')
+    default:
+      return mode
+  }
+}
+
+function getSubagentStatusLabel(status: string): string {
+  switch (status) {
+    case 'completed':
+      return t('chat.toolCall.subagents.status.completed')
+    case 'error':
+      return t('chat.toolCall.subagents.status.error')
+    case 'cancelled':
+      return t('chat.toolCall.subagents.status.cancelled')
+    case 'waiting_permission':
+      return t('chat.toolCall.subagents.status.waiting_permission')
+    case 'waiting_question':
+      return t('chat.toolCall.subagents.status.waiting_question')
+    case 'running':
+      return t('chat.toolCall.subagents.status.running')
+    case 'queued':
+      return t('chat.toolCall.subagents.status.queued')
+    default:
+      return status
   }
 }
 </script>

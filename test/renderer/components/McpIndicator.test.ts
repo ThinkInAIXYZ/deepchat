@@ -27,7 +27,7 @@ const SwitchStub = defineComponent({
   },
   emits: ['update:modelValue'],
   template:
-    '<button role="switch" :aria-label="ariaLabel" :aria-checked="String(modelValue)" :disabled="disabled" @click="$emit(\'update:modelValue\', !modelValue)"><slot /></button>'
+    '<button v-bind="$attrs" role="switch" :aria-label="ariaLabel" :aria-checked="String(modelValue)" :disabled="disabled" @click="$emit(\'update:modelValue\', !modelValue)"><slot /></button>'
 })
 
 const buildTool = (name: string, serverName: string, source: 'mcp' | 'agent' = 'agent') => ({
@@ -53,6 +53,8 @@ const setup = async (options?: {
   activeAgentId?: string
   selectedAgentId?: string
   disabledAgentTools?: string[]
+  showSubagentToggle?: boolean
+  subagentEnabled?: boolean
 }) => {
   vi.resetModules()
 
@@ -151,6 +153,7 @@ const setup = async (options?: {
           'chat.advancedSettings.systemPrompt': 'System Prompt',
           'chat.advancedSettings.systemPromptPlaceholder': 'Select preset',
           'chat.advancedSettings.currentCustomPrompt': 'Current custom',
+          'chat.subagents.label': 'subagent',
           'chat.input.mcp.title': 'Enabled MCP',
           'chat.input.mcp.empty': 'No enabled services',
           'chat.input.mcp.openSettings': 'Open MCP settings',
@@ -179,6 +182,10 @@ const setup = async (options?: {
 
   const McpIndicator = (await import('@/components/chat-input/McpIndicator.vue')).default
   const wrapper = mount(McpIndicator, {
+    props: {
+      showSubagentToggle: options?.showSubagentToggle ?? false,
+      subagentEnabled: options?.subagentEnabled ?? false
+    },
     global: {
       stubs: {
         Button: ButtonStub,
@@ -293,5 +300,24 @@ describe('McpIndicator', () => {
 
     expect(draftStore.disabledAgentTools).toEqual(['exec'])
     expect(newAgentPresenter.updateSessionDisabledAgentTools).not.toHaveBeenCalled()
+  })
+
+  it('renders subagent as a regular tool button inside Agent Core and emits updates', async () => {
+    const { wrapper } = await setup({
+      hasActiveSession: true,
+      activeAgentId: 'deepchat',
+      showSubagentToggle: true,
+      subagentEnabled: true
+    })
+
+    expect(wrapper.text()).toContain('Agent Core')
+
+    const subagentButton = wrapper.findAll('button').find((node) => node.text() === 'subagent')
+
+    expect(subagentButton).toBeTruthy()
+
+    await subagentButton!.trigger('click')
+
+    expect(wrapper.emitted('toggle-subagents')).toEqual([[false]])
   })
 })

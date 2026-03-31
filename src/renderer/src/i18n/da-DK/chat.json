@@ -110,6 +110,23 @@
     "params": "parameter",
     "response": "Værktøjsrespons",
     "responseData": "Svardata",
+    "subagents": {
+      "summary": "{mode} · {count} underagenter",
+      "unnamedTask": "Unavngiven opgave",
+      "mode": {
+        "parallel": "Parallel",
+        "chain": "Kæde"
+      },
+      "status": {
+        "queued": "I kø",
+        "running": "Kører",
+        "completed": "Fuldført",
+        "error": "Fejl",
+        "cancelled": "Annulleret",
+        "waiting_permission": "Afventer tilladelse",
+        "waiting_question": "Afventer input"
+      }
+    },
     "title": "Værktøjsopkald"
   },
   "mode": {
@@ -119,7 +136,8 @@
   },
   "topbar": {
     "share": "Del",
-    "more": "Mere"
+    "more": "Mere",
+    "backToParent": "Tilbage til forælder"
   },
   "advancedSettings": {
     "button": "Avanceret",
@@ -152,7 +170,8 @@
     "sections": {
       "files": "Filer",
       "git": "Git",
-      "artifacts": "Artifacts"
+      "artifacts": "Artifacts",
+      "subagents": "Underagenter"
     },
     "files": {
       "contextMenu": {
@@ -206,7 +225,16 @@
         "truncated": "[afkortet]"
       }
     },
-    "title": "arbejdsrum"
+    "title": "arbejdsrum",
+    "subagents": {
+      "empty": "Ingen undersessioner endnu",
+      "self": "Denne agent",
+      "status": {
+        "working": "Kører",
+        "error": "Fejl",
+        "idle": "Inaktiv"
+      }
+    }
   },
   "modelPicker": {
     "empty": "Ingen modeller fundet"
@@ -275,5 +303,8 @@
       "done": "Færdig",
       "error": "Fejl"
     }
+  },
+  "subagents": {
+    "label": "Underagenter"
   }
 }

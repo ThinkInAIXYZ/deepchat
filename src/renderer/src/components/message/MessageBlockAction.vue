@@ -44,7 +44,7 @@
         ></div>
       </div>
 
-      <div class="flex flex-row gap-2">
+      <div v-if="!isReadOnly" class="flex flex-row gap-2">
         <Button variant="outline" size="sm" class="h-7 text-xs" @click="handleQuickSettings">
           <Icon icon="lucide:settings" class="w-3 h-3 mr-1" />
           {{ t('chat.messages.rateLimitQuickSettings') }}
@@ -57,7 +57,7 @@
     </div>
 
     <Button
-      v-if="block.extra?.needContinue"
+      v-if="block.extra?.needContinue && !isReadOnly"
       class="bg-primary rounded-lg hover:bg-indigo-600/50 h-8"
       size="sm"
       @click="handleClick"
@@ -78,7 +78,7 @@
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
-import { ref, onMounted, onUnmounted } from 'vue'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
 import type { DisplayAssistantMessageBlock } from '@/components/chat/messageListItems'
 
 const { t } = useI18n()
@@ -87,6 +87,7 @@ const props = defineProps<{
   messageId: string
   conversationId: string
   block: DisplayAssistantMessageBlock
+  isReadOnly?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -96,6 +97,7 @@ const emit = defineEmits<{
 
 const progressTimer = ref<number | null>(null)
 const currentTime = ref(Date.now())
+const isReadOnly = computed(() => props.isReadOnly === true)
 
 const getProviderName = (providerId?: string | number | boolean | object[]) => {
   if (!providerId || typeof providerId !== 'string') return 'Unknown Provider'

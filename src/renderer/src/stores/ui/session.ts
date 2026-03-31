@@ -4,7 +4,9 @@ import type { ComputedRef } from 'vue'
 import { usePresenter } from '@/composables/usePresenter'
 import { SESSION_EVENTS } from '@/events'
 import type {
+  DeepChatSubagentMeta,
   SessionWithState,
+  SessionKind,
   CreateSessionInput,
   SendMessageInput
 } from '@shared/types/agent-interface'
@@ -26,6 +28,10 @@ export interface UISession {
   modelId: string
   isPinned: boolean
   isDraft: boolean
+  sessionKind: SessionKind
+  parentSessionId: string | null
+  subagentEnabled: boolean
+  subagentMeta: DeepChatSubagentMeta | null
   createdAt: number
   updatedAt: number
 }
@@ -64,6 +70,10 @@ function mapToUISession(session: SessionWithState): UISession {
     modelId: session.modelId,
     isPinned: Boolean(session.isPinned),
     isDraft: Boolean(session.isDraft),
+    sessionKind: session.sessionKind,
+    parentSessionId: session.parentSessionId ?? null,
+    subagentEnabled: session.subagentEnabled,
+    subagentMeta: session.subagentMeta ?? null,
     createdAt: session.createdAt,
     updatedAt: session.updatedAt
   }
@@ -172,7 +182,7 @@ export const useSessionStore = defineStore('session', () => {
       const webContentsId = window.api.getWebContentsId()
       const previousActiveSessionId = activeSessionId.value
       const [result, activeSession] = await Promise.all([
-        newAgentPresenter.getSessionList(),
+        newAgentPresenter.getSessionList({ includeSubagents: true }),
         newAgentPresenter.getActiveSession(webContentsId)
       ])
       sessions.value = result.map(mapToUISession)
@@ -277,6 +287,22 @@ export const useSessionStore = defineStore('session', () => {
     }
   }
 
+  async function setSessionSubagentEnabled(sessionId: string, enabled: boolean): Promise<void> {
+    error.value = null
+    try {
+      const updated = await newAgentPresenter.setSessionSubagentEnabled(sessionId, enabled)
+      const index = sessions.value.findIndex((item) => item.id === sessionId)
+      if (index >= 0) {
+        sessions.value[index] = mapToUISession(updated)
+      } else {
+        sessions.value.push(mapToUISession(updated))
+      }
+    } catch (e) {
+      error.value = `Failed to update subagent state: ${e}`
+      throw e
+    }
+  }
+
   async function renameSession(sessionId: string, title: string): Promise<void> {
     error.value = null
     try {
@@ -347,7 +373,9 @@ export const useSessionStore = defineStore('session', () => {
 
   function getPinnedSessions(agentId: string | null): UISession[] {
     const pinned = sessions.value
-      .filter((session) => session.isPinned && !session.isDraft)
+      .filter(
+        (session) => session.sessionKind === 'regular' && session.isPinned && !session.isDraft
+      )
       .sort((a, b) => b.updatedAt - a.updatedAt)
 
     if (agentId === null) return pinned
@@ -357,7 +385,7 @@ export const useSessionStore = defineStore('session', () => {
 
   function getFilteredGroups(agentId: string | null): SessionGroup[] {
     const visibleSessions = sessions.value.filter(
-      (session) => !session.isDraft && !session.isPinned
+      (session) => session.sessionKind === 'regular' && !session.isDraft && !session.isPinned
     )
     const grouped =
       groupMode.value === 'time' ? groupByTime(visibleSessions) : groupByProject(visibleSessions)
@@ -434,6 +462,7 @@ export const useSessionStore = defineStore('session', () => {
     clearSessionMessages,
     exportSession,
     deleteSession,
+    setSessionSubagentEnabled,
     toggleGroupMode,
     getPinnedSessions,
     getFilteredGroups

@@ -249,6 +249,8 @@ export interface AssistantMessageExtra {
   questionResolution?: 'asked' | 'replied' | 'rejected'
   answerText?: string
   answerMessageId?: string
+  subagentProgress?: string
+  subagentFinal?: string
   [key: string]: string | number | boolean | object[] | undefined
 }
 
@@ -447,6 +449,22 @@ export interface DeepChatAgentModelPreset extends DeepChatAgentModelSelection {
   forceInterleavedThinkingCompat?: boolean
 }
 
+export interface DeepChatSubagentSlot {
+  id: string
+  targetType: 'self' | 'agent'
+  targetAgentId?: string
+  displayName: string
+  description: string
+}
+
+export type SessionKind = 'regular' | 'subagent'
+
+export interface DeepChatSubagentMeta {
+  slotId: string
+  displayName: string
+  targetAgentId?: string | null
+}
+
 export interface DeepChatAgentConfig {
   defaultModelPreset?: DeepChatAgentModelPreset | null
   assistantModel?: DeepChatAgentModelSelection | null
@@ -455,6 +473,8 @@ export interface DeepChatAgentConfig {
   systemPrompt?: string
   permissionMode?: PermissionMode
   disabledAgentTools?: string[]
+  subagentEnabled?: boolean
+  subagents?: DeepChatSubagentSlot[]
   autoCompactionEnabled?: boolean
   autoCompactionTriggerThreshold?: number
   autoCompactionRetainRecentPairs?: number
@@ -508,6 +528,10 @@ export interface SessionRecord {
   projectDir: string | null
   isPinned: boolean
   isDraft?: boolean
+  sessionKind: SessionKind
+  parentSessionId?: string | null
+  subagentEnabled: boolean
+  subagentMeta?: DeepChatSubagentMeta | null
   createdAt: number
   updatedAt: number
 }
@@ -550,6 +574,7 @@ export interface CreateSessionInput {
   permissionMode?: PermissionMode
   activeSkills?: string[]
   disabledAgentTools?: string[]
+  subagentEnabled?: boolean
   generationSettings?: Partial<SessionGenerationSettings>
 }
 
@@ -562,6 +587,7 @@ export interface CreateDetachedSessionInput {
   permissionMode?: PermissionMode
   activeSkills?: string[]
   disabledAgentTools?: string[]
+  subagentEnabled?: boolean
   generationSettings?: Partial<SessionGenerationSettings>
 }
 

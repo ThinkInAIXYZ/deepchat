@@ -114,7 +114,24 @@
     "clickToView": "點擊查看詳情",
     "functionName": "函數名稱",
     "params": "參數",
-    "responseData": "回應數據"
+    "responseData": "回應數據",
+    "subagents": {
+      "summary": "{mode} · {count} 個 subagent",
+      "unnamedTask": "未命名任務",
+      "mode": {
+        "parallel": "並行",
+        "chain": "串行"
+      },
+      "status": {
+        "queued": "排隊中",
+        "running": "執行中",
+        "completed": "已完成",
+        "error": "錯誤",
+        "cancelled": "已取消",
+        "waiting_permission": "等待權限批准",
+        "waiting_question": "等待補充輸入"
+      }
+    }
   },
   "mode": {
     "acpAgent": "ACP Agent",
@@ -123,7 +140,8 @@
   },
   "topbar": {
     "share": "分享",
-    "more": "更多"
+    "more": "更多",
+    "backToParent": "返回父會話"
   },
   "advancedSettings": {
     "button": "進階設定",
@@ -156,7 +174,8 @@
     "sections": {
       "files": "文件",
       "git": "Git",
-      "artifacts": "Artifacts"
+      "artifacts": "Artifacts",
+      "subagents": "subagent"
     },
     "files": {
       "contextMenu": {
@@ -210,7 +229,16 @@
         "truncated": "[已截斷]"
       }
     },
-    "title": "工作區"
+    "title": "工作區",
+    "subagents": {
+      "empty": "暫無 subagent 會話",
+      "self": "目前智能體",
+      "status": {
+        "working": "執行中",
+        "error": "錯誤",
+        "idle": "閒置"
+      }
+    }
   },
   "modelPicker": {
     "empty": "未找到模型"
@@ -275,5 +303,8 @@
       "done": "已完成",
       "error": "錯誤"
     }
+  },
+  "subagents": {
+    "label": "subagent"
   }
 }

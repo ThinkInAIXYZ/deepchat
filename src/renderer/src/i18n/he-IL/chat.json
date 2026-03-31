@@ -110,7 +110,24 @@
     "clickToView": "לחץ לצפייה בפרטים",
     "functionName": "פונקציה",
     "params": "פרמטרים",
-    "responseData": "נתוני תגובה"
+    "responseData": "נתוני תגובה",
+    "subagents": {
+      "summary": "{mode} · {count} סוכני משנה",
+      "unnamedTask": "משימה ללא שם",
+      "mode": {
+        "parallel": "במקביל",
+        "chain": "בטור"
+      },
+      "status": {
+        "queued": "ממתין בתור",
+        "running": "פועל",
+        "completed": "הושלם",
+        "error": "שגיאה",
+        "cancelled": "בוטל",
+        "waiting_permission": "ממתין לאישור",
+        "waiting_question": "ממתין לקלט"
+      }
+    }
   },
   "mode": {
     "acpAgent": "סוכן ACP",
@@ -119,7 +136,8 @@
   },
   "topbar": {
     "share": "שיתוף",
-    "more": "עוד"
+    "more": "עוד",
+    "backToParent": "חזרה לשיחת האב"
   },
   "advancedSettings": {
     "button": "מתקדם",
@@ -152,7 +170,8 @@
     "sections": {
       "files": "קבצים",
       "git": "Git",
-      "artifacts": "Artifacts"
+      "artifacts": "Artifacts",
+      "subagents": "סוכני משנה"
     },
     "files": {
       "contextMenu": {
@@ -206,7 +225,16 @@
         "truncated": "[מקוצר]"
       }
     },
-    "title": "סביבת עבודה"
+    "title": "סביבת עבודה",
+    "subagents": {
+      "empty": "עדיין אין שיחות-בת",
+      "self": "הסוכן הזה",
+      "status": {
+        "working": "פועל",
+        "error": "שגיאה",
+        "idle": "לא פעיל"
+      }
+    }
   },
   "modelPicker": {
     "empty": "לא נמצאו מודלים"
@@ -275,5 +303,8 @@
       "done": "הושלם",
       "error": "שגיאה"
     }
+  },
+  "subagents": {
+    "label": "סוכני משנה"
   }
 }

@@ -110,7 +110,24 @@
     "clickToView": "برای مشاهده جزئیات کلیک کنید",
     "functionName": "نام تابع",
     "params": "پارامترها",
-    "responseData": "داده‌های پاسخ"
+    "responseData": "داده‌های پاسخ",
+    "subagents": {
+      "summary": "{mode} · {count} زیرایجنت",
+      "unnamedTask": "وظیفه بی‌نام",
+      "mode": {
+        "parallel": "موازی",
+        "chain": "زنجیره‌ای"
+      },
+      "status": {
+        "queued": "در صف",
+        "running": "در حال اجرا",
+        "completed": "تکمیل‌شده",
+        "error": "خطا",
+        "cancelled": "لغوشده",
+        "waiting_permission": "در انتظار مجوز",
+        "waiting_question": "در انتظار ورودی"
+      }
+    }
   },
   "mode": {
     "acpAgent": "نماینده ACP",
@@ -119,7 +136,8 @@
   },
   "topbar": {
     "share": "اشتراک‌گذاری",
-    "more": "بیشتر"
+    "more": "بیشتر",
+    "backToParent": "بازگشت به نشست والد"
   },
   "advancedSettings": {
     "button": "پیشرفته",
@@ -152,7 +170,8 @@
     "sections": {
       "files": "فایل‌ها",
       "git": "Git",
-      "artifacts": "Artifacts"
+      "artifacts": "Artifacts",
+      "subagents": "زیرایجنت‌ها"
     },
     "files": {
       "contextMenu": {
@@ -206,7 +225,16 @@
       },
       "noOutput": "بدون خروجی"
     },
-    "title": "فضای کار"
+    "title": "فضای کار",
+    "subagents": {
+      "empty": "هنوز هیچ نشست فرزندی وجود ندارد",
+      "self": "همین ایجنت",
+      "status": {
+        "working": "در حال اجرا",
+        "error": "خطا",
+        "idle": "بیکار"
+      }
+    }
   },
   "modelPicker": {
     "empty": "هیچ مدلی پیدا نشد"
@@ -275,5 +303,8 @@
       "done": "انجام شد",
       "error": "خطا"
     }
+  },
+  "subagents": {
+    "label": "زیرایجنت‌ها"
   }
 }

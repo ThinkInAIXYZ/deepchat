@@ -76,7 +76,7 @@ describe('ChatSidePanel', () => {
     const handler = handlers.get('yo-browser:open-requested')
     expect(handler).toBeTypeOf('function')
 
-    handler?.({}, { windowId: 7 })
+    handler?.({}, { windowId: 7, sessionId: 'session-1' })
 
     expect(sidepanelStore.openBrowser).toHaveBeenCalledTimes(1)
   })

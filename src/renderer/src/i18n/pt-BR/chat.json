@@ -110,7 +110,24 @@
     "clickToView": "Clique para ver detalhes",
     "functionName": "Nome da função",
     "params": "Parâmetros",
-    "responseData": "Dados de resposta"
+    "responseData": "Dados de resposta",
+    "subagents": {
+      "summary": "{mode} · {count} subagentes",
+      "unnamedTask": "Tarefa sem nome",
+      "mode": {
+        "parallel": "Paralelo",
+        "chain": "Sequencial"
+      },
+      "status": {
+        "queued": "Na fila",
+        "running": "Em execução",
+        "completed": "Concluído",
+        "error": "Erro",
+        "cancelled": "Cancelado",
+        "waiting_permission": "Aguardando permissão",
+        "waiting_question": "Aguardando entrada"
+      }
+    }
   },
   "mode": {
     "acpAgent": "Agente ACP",
@@ -119,7 +136,8 @@
   },
   "topbar": {
     "share": "Compartilhar",
-    "more": "Mais"
+    "more": "Mais",
+    "backToParent": "Voltar para a sessão pai"
   },
   "advancedSettings": {
     "button": "Avançado",
@@ -152,7 +170,8 @@
     "sections": {
       "files": "Arquivos",
       "git": "Git",
-      "artifacts": "Artifacts"
+      "artifacts": "Artifacts",
+      "subagents": "Subagentes"
     },
     "files": {
       "contextMenu": {
@@ -206,7 +225,16 @@
       },
       "noOutput": "Sem saída"
     },
-    "title": "área de trabalho"
+    "title": "área de trabalho",
+    "subagents": {
+      "empty": "Ainda não há sessões filhas",
+      "self": "Este agente",
+      "status": {
+        "working": "Em execução",
+        "error": "Erro",
+        "idle": "Inativo"
+      }
+    }
   },
   "modelPicker": {
     "empty": "Nenhum modelo encontrado"
@@ -275,5 +303,8 @@
       "done": "Concluído",
       "error": "Erro"
     }
+  },
+  "subagents": {
+    "label": "Subagentes"
   }
 }

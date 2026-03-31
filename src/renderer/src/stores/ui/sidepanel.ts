@@ -25,7 +25,8 @@ const createSessionState = (): WorkspaceSessionState => ({
   sections: {
     artifacts: true,
     files: true,
-    git: false
+    git: false,
+    subagents: true
   }
 })
 

@@ -114,7 +114,24 @@
     "clickToView": "Click to view details",
     "functionName": "Function",
     "params": "Parameters",
-    "responseData": "Response data"
+    "responseData": "Response data",
+    "subagents": {
+      "summary": "{mode} · {count} subagents",
+      "unnamedTask": "Unnamed task",
+      "mode": {
+        "parallel": "Parallel",
+        "chain": "Chain"
+      },
+      "status": {
+        "queued": "Queued",
+        "running": "Running",
+        "completed": "Completed",
+        "error": "Error",
+        "cancelled": "Cancelled",
+        "waiting_permission": "Waiting for permission",
+        "waiting_question": "Waiting for input"
+      }
+    }
   },
   "mode": {
     "current": "Current mode: {mode}",
@@ -122,8 +139,12 @@
     "acpAgent": "ACP Agent"
   },
   "topbar": {
+    "backToParent": "Back to Parent",
     "share": "Share",
     "more": "More"
+  },
+  "subagents": {
+    "label": "Subagents"
   },
   "advancedSettings": {
     "button": "Advanced",
@@ -182,7 +203,8 @@
     "sections": {
       "files": "Files",
       "git": "Git",
-      "artifacts": "Artifacts"
+      "artifacts": "Artifacts",
+      "subagents": "Subagents"
     },
     "plan": {
       "section": "Plan",
@@ -210,6 +232,15 @@
       "clean": "Clean working tree",
       "staged": "Staged",
       "unstaged": "Unstaged"
+    },
+    "subagents": {
+      "empty": "No child sessions yet",
+      "self": "Self",
+      "status": {
+        "working": "Running",
+        "error": "Error",
+        "idle": "Idle"
+      }
     },
     "browser": {
       "section": "Browser",

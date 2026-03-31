@@ -53,6 +53,12 @@ import type { ProviderRequestTracePayload } from '../llmProviderPresenter/reques
 import type { NewSessionHooksBridge } from '../hooksNotifications/newSessionBridge'
 import { providerDbLoader } from '../configPresenter/providerDbLoader'
 import { resolveSessionVisionTarget } from '../vision/sessionVisionResolver'
+import {
+  buildAssistantPreviewMarkdown,
+  buildAssistantResponseMarkdown,
+  emitDeepChatInternalSessionUpdate,
+  extractWaitingInteraction
+} from './internalSessionEvents'
 
 type PendingInteractionEntry = {
   interaction: PendingToolInteraction
@@ -130,6 +136,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
   private readonly runtimeState: Map<string, DeepChatSessionState> = new Map()
   private readonly sessionGenerationSettings: Map<string, SessionGenerationSettings> = new Map()
   private readonly abortControllers: Map<string, AbortController> = new Map()
+  private readonly deferredToolAbortControllers: Map<string, AbortController> = new Map()
   private readonly activeGenerations: Map<string, ActiveGeneration> = new Map()
   private readonly sessionAgentIds: Map<string, string> = new Map()
   private readonly sessionProjectDirs: Map<string, string | null> = new Map()
@@ -236,6 +243,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       controller.abort()
       this.abortControllers.delete(sessionId)
     }
+    this.abortDeferredToolAbortControllers(sessionId)
     this.activeGenerations.delete(sessionId)
 
     this.pendingInputCoordinator.deleteBySession(sessionId)
@@ -630,7 +638,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
               params: toolCall.params
             }
           })
-          const execution = await this.executeDeferredToolCall(sessionId, toolCall)
+          const execution = await this.executeDeferredToolCall(sessionId, messageId, toolCall)
           if (execution.terminalError) {
             this.dispatchHook('PostToolUseFailure', {
               sessionId,
@@ -896,6 +904,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
         this.abortControllers.delete(sessionId)
       }
     }
+    this.abortDeferredToolAbortControllers(sessionId)
     this.setSessionStatus(sessionId, 'idle')
   }
 
@@ -1027,6 +1036,48 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       this.activeGenerations.get(sessionId)?.abortController.signal ??
       this.abortControllers.get(sessionId)?.signal
     )
+  }
+
+  private buildDeferredToolAbortKey(sessionId: string, toolCallId: string): string {
+    return `${sessionId}:${toolCallId}`
+  }
+
+  private registerDeferredToolAbortController(
+    sessionId: string,
+    toolCallId: string
+  ): AbortController {
+    const key = this.buildDeferredToolAbortKey(sessionId, toolCallId)
+    this.deferredToolAbortControllers.get(key)?.abort()
+    const controller = new AbortController()
+    this.deferredToolAbortControllers.set(key, controller)
+    return controller
+  }
+
+  private clearDeferredToolAbortController(
+    sessionId: string,
+    toolCallId: string,
+    controller?: AbortController
+  ): void {
+    const key = this.buildDeferredToolAbortKey(sessionId, toolCallId)
+    const current = this.deferredToolAbortControllers.get(key)
+    if (!current) {
+      return
+    }
+    if (controller && current !== controller) {
+      return
+    }
+    this.deferredToolAbortControllers.delete(key)
+  }
+
+  private abortDeferredToolAbortControllers(sessionId: string): void {
+    const prefix = `${sessionId}:`
+    for (const [key, controller] of this.deferredToolAbortControllers) {
+      if (!key.startsWith(prefix)) {
+        continue
+      }
+      controller.abort()
+      this.deferredToolAbortControllers.delete(key)
+    }
   }
 
   private throwIfAbortRequested(signal?: AbortSignal): void {
@@ -2793,6 +2844,47 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     toolBlock.status = isError ? 'error' : 'success'
   }
 
+  private updateSubagentToolCallProgress(
+    sessionId: string,
+    messageId: string,
+    toolCallId: string,
+    responseMarkdown: string,
+    progressJson?: string,
+    finalJson?: string
+  ): void {
+    try {
+      const message = this.messageStore.getMessage(messageId)
+      if (!message || message.role !== 'assistant') {
+        return
+      }
+
+      const latestMessage = this.messageStore.getMessage(messageId)
+      if (!latestMessage || latestMessage.role !== 'assistant') {
+        return
+      }
+
+      const blocks = JSON.parse(latestMessage.content) as AssistantMessageBlock[]
+      const toolBlock = blocks.find(
+        (block) => block.type === 'tool_call' && block.tool_call?.id === toolCallId
+      )
+      if (!toolBlock?.tool_call) {
+        return
+      }
+
+      toolBlock.tool_call.response = responseMarkdown
+      toolBlock.status = finalJson ? 'success' : 'loading'
+      toolBlock.extra = {
+        ...toolBlock.extra,
+        ...(typeof progressJson === 'string' ? { subagentProgress: progressJson } : {}),
+        ...(finalJson ? { subagentFinal: finalJson } : {})
+      }
+      this.messageStore.updateAssistantContent(messageId, blocks)
+      this.emitMessageRefresh(sessionId, messageId)
+    } catch (error) {
+      console.warn('[DeepChatAgent] Failed to persist subagent tool progress:', error)
+    }
+  }
+
   private async grantPermissionForPayload(
     sessionId: string,
     payload: PendingToolInteraction['permission'] | undefined,
@@ -2836,6 +2928,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
 
   private async executeDeferredToolCall(
     sessionId: string,
+    messageId: string,
     toolCall: NonNullable<AssistantMessageBlock['tool_call']>
   ): Promise<DeferredToolExecutionResult> {
     if (!this.toolPresenter) {
@@ -2893,9 +2986,32 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       conversationId: sessionId,
       providerId: sessionState?.providerId?.trim() || undefined
     }
+    const deferredAbortController = toolCall.id
+      ? this.registerDeferredToolAbortController(sessionId, toolCall.id)
+      : null
+    const deferredAbortSignal =
+      deferredAbortController?.signal ?? this.getAbortSignalForSession(sessionId)
 
     try {
-      const result = await this.toolPresenter.callTool(request)
+      const result = await this.toolPresenter.callTool(request, {
+        onProgress: (update) => {
+          if (
+            update.kind !== 'subagent_orchestrator' ||
+            update.toolCallId !== (toolCall.id || '')
+          ) {
+            return
+          }
+
+          this.updateSubagentToolCallProgress(
+            sessionId,
+            messageId,
+            toolCall.id || '',
+            update.responseMarkdown,
+            update.progressJson
+          )
+        },
+        signal: deferredAbortSignal
+      })
       const rawData = result.rawData as MCPToolResponse
       if (rawData.requiresPermission) {
         return {
@@ -2905,6 +3021,31 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
           permissionRequest: rawData.permissionRequest as PendingToolInteraction['permission']
         }
       }
+      const subagentToolResult =
+        rawData.toolResult && typeof rawData.toolResult === 'object'
+          ? (rawData.toolResult as Record<string, unknown>)
+          : null
+      if (typeof subagentToolResult?.subagentProgress === 'string') {
+        this.updateSubagentToolCallProgress(
+          sessionId,
+          messageId,
+          toolCall.id || '',
+          this.toolContentToText(rawData.content),
+          subagentToolResult.subagentProgress,
+          typeof subagentToolResult.subagentFinal === 'string'
+            ? subagentToolResult.subagentFinal
+            : undefined
+        )
+      } else if (typeof subagentToolResult?.subagentFinal === 'string') {
+        this.updateSubagentToolCallProgress(
+          sessionId,
+          messageId,
+          toolCall.id || '',
+          this.toolContentToText(rawData.content),
+          undefined,
+          subagentToolResult.subagentFinal
+        )
+      }
       const normalizedContent = await this.normalizeToolResultContent({
         sessionId,
         toolCallId: toolCall.id || '',
@@ -2912,7 +3053,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
         toolArgs: toolCall.params || '{}',
         content: rawData.content,
         isError: rawData.isError === true,
-        abortSignal: this.getAbortSignalForSession(sessionId)
+        abortSignal: deferredAbortSignal
       })
       const responseText = this.toolContentToText(normalizedContent)
       const prepared = await this.toolOutputGuard.prepareToolOutput({
@@ -2940,6 +3081,14 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       return {
         responseText: `Error: ${errorText}`,
         isError: true
+      }
+    } finally {
+      if (toolCall.id) {
+        this.clearDeferredToolAbortController(
+          sessionId,
+          toolCall.id,
+          deferredAbortController ?? undefined
+        )
       }
     }
   }
@@ -3387,6 +3536,12 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       sessionId,
       status
     })
+    emitDeepChatInternalSessionUpdate({
+      sessionId,
+      kind: 'status',
+      updatedAt: Date.now(),
+      status
+    })
 
     try {
       void presenter.floatingButtonPresenter.refreshWidgetState()
@@ -3401,6 +3556,26 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       eventId: messageId,
       messageId
     })
+
+    const message = this.messageStore.getMessage(messageId)
+    if (!message || message.role !== 'assistant') {
+      return
+    }
+
+    try {
+      const blocks = JSON.parse(message.content) as AssistantMessageBlock[]
+      emitDeepChatInternalSessionUpdate({
+        sessionId,
+        kind: 'blocks',
+        updatedAt: Date.now(),
+        messageId,
+        previewMarkdown: buildAssistantPreviewMarkdown(blocks),
+        responseMarkdown: buildAssistantResponseMarkdown(blocks),
+        waitingInteraction: extractWaitingInteraction(blocks, messageId)
+      })
+    } catch (error) {
+      console.warn('[DeepChatAgent] Failed to emit internal message refresh:', error)
+    }
   }
 
   private normalizeProjectDir(projectDir?: string | null): string | null {

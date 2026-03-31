@@ -6,6 +6,9 @@ import type { DisplayAssistantMessageBlock } from '@/components/chat/messageList
 
 const originalResizeObserver = globalThis.ResizeObserver
 let resizeObserverCallback: ResizeObserverCallback | null = null
+const { selectSessionMock } = vi.hoisted(() => ({
+  selectSessionMock: vi.fn()
+}))
 
 class MockResizeObserver {
   constructor(callback: ResizeObserverCallback) {
@@ -21,12 +24,36 @@ class MockResizeObserver {
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
-    t: (key: string, params?: { count?: number }) => {
+    t: (key: string, params?: { count?: number; mode?: string }) => {
       if (key === 'toolCall.replacementsCount') {
         return `${params?.count ?? 0} replacements`
       }
       if (key === 'toolCall.badge.rtk') {
         return 'RTK'
+      }
+      if (key === 'chat.toolCall.subagents.summary') {
+        return `${params?.mode ?? 'mode'} · ${params?.count ?? 0} localized subagents`
+      }
+      if (key === 'chat.toolCall.subagents.mode.parallel') {
+        return 'localized parallel'
+      }
+      if (key === 'chat.toolCall.subagents.mode.chain') {
+        return 'localized chain'
+      }
+      if (key === 'chat.toolCall.subagents.status.running') {
+        return 'localized running'
+      }
+      if (key === 'chat.toolCall.subagents.status.waiting_permission') {
+        return 'localized waiting permission'
+      }
+      if (key === 'chat.toolCall.subagents.status.completed') {
+        return 'localized completed'
+      }
+      if (key === 'chat.toolCall.subagents.unnamedTask') {
+        return 'Unnamed Task'
+      }
+      if (key === 'settings.deepchatAgents.unnamed') {
+        return 'Unnamed Agent'
       }
       return key
     }
@@ -36,6 +63,12 @@ vi.mock('vue-i18n', () => ({
 vi.mock('@/stores/theme', () => ({
   useThemeStore: () => ({
     isDark: false
+  })
+}))
+
+vi.mock('@/stores/ui/session', () => ({
+  useSessionStore: () => ({
+    selectSession: selectSessionMock
   })
 }))
 
@@ -76,6 +109,7 @@ const createBlock = (
 
 beforeEach(() => {
   resizeObserverCallback = null
+  selectSessionMock.mockReset()
   globalThis.ResizeObserver = MockResizeObserver as unknown as typeof ResizeObserver
 })
 
@@ -615,5 +649,114 @@ describe('MessageBlockToolCall', () => {
     await nextTick()
 
     expect(wrapper.find('[data-testid="tool-call-details"]').exists()).toBe(false)
+  })
+
+  it('localizes subagent orchestrator summary and statuses', async () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          status: 'loading',
+          tool_call: {
+            id: 'subagent-1',
+            name: 'subagent_orchestrator',
+            params: '{"mode":"parallel"}',
+            response: ''
+          },
+          extra: {
+            subagentProgress: JSON.stringify({
+              runId: 'run-1',
+              mode: 'parallel',
+              tasks: [
+                {
+                  taskId: 'task-1',
+                  title: 'Inspect repo',
+                  slotId: 'slot-1',
+                  sessionId: 'child-1',
+                  targetAgentName: 'ACP Coder',
+                  status: 'running',
+                  previewMarkdown: 'line 1'
+                },
+                {
+                  taskId: 'task-2',
+                  title: 'Request approval',
+                  slotId: 'slot-2',
+                  sessionId: 'child-2',
+                  targetAgentName: 'Self Clone',
+                  status: 'waiting_permission',
+                  previewMarkdown: 'line 2'
+                }
+              ]
+            })
+          }
+        })
+      }
+    })
+
+    await nextTick()
+
+    expect(wrapper.text()).toContain('localized parallel · 2 localized subagents')
+    expect(wrapper.text()).toContain('localized running')
+    expect(wrapper.text()).toContain('localized waiting permission')
+    expect(wrapper.findAll('[data-testid="subagent-task-trigger"]')).toHaveLength(2)
+    expect(wrapper.text()).not.toContain('line 1')
+    expect(wrapper.text()).not.toContain('line 2')
+    expect(wrapper.text()).not.toContain('common.open')
+
+    await wrapper.get('[data-testid="subagent-task-trigger"]').trigger('click')
+
+    expect(selectSessionMock).toHaveBeenCalledWith('child-1')
+  })
+
+  it('normalizes subagent task identifiers and fallback labels', async () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          status: 'loading',
+          tool_call: {
+            id: 'subagent-2',
+            name: 'subagent_orchestrator',
+            params: '{"mode":"parallel"}',
+            response: ''
+          },
+          extra: {
+            subagentProgress: JSON.stringify({
+              runId: 'run-2',
+              mode: 'parallel',
+              tasks: [
+                {
+                  slotId: 'slot-alpha',
+                  displayName: 'Planner',
+                  sessionId: 'child-alpha',
+                  status: 'running'
+                },
+                {
+                  slotId: 'slot-beta',
+                  sessionId: null,
+                  status: 'completed'
+                },
+                {
+                  sessionId: null,
+                  status: 'completed'
+                }
+              ]
+            })
+          }
+        })
+      }
+    })
+
+    await nextTick()
+
+    const tasks = wrapper.findAll('[data-testid="subagent-task-trigger"]')
+    expect(tasks).toHaveLength(3)
+    expect(tasks[0].text()).toContain('Planner')
+    expect(tasks[1].text()).toContain('Unnamed Agent')
+    expect(tasks[1].text()).toContain('slot-beta')
+    expect(tasks[2].text()).toContain('Unnamed Agent')
+    expect(tasks[2].text()).toContain('Unnamed Task')
+
+    await tasks[0].trigger('click')
+
+    expect(selectSessionMock).toHaveBeenCalledWith('child-alpha')
   })
 })
