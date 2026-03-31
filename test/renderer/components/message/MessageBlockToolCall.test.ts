@@ -49,6 +49,9 @@ vi.mock('vue-i18n', () => ({
       if (key === 'chat.toolCall.subagents.status.completed') {
         return 'localized completed'
       }
+      if (key === 'settings.deepchatAgents.unnamed') {
+        return 'Unnamed Agent'
+      }
       return key
     }
   })
@@ -699,5 +702,58 @@ describe('MessageBlockToolCall', () => {
     await wrapper.get('[data-testid="subagent-task-trigger"]').trigger('click')
 
     expect(selectSessionMock).toHaveBeenCalledWith('child-1')
+  })
+
+  it('normalizes subagent task identifiers and fallback labels', async () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          status: 'loading',
+          tool_call: {
+            id: 'subagent-2',
+            name: 'subagent_orchestrator',
+            params: '{"mode":"parallel"}',
+            response: ''
+          },
+          extra: {
+            subagentProgress: JSON.stringify({
+              runId: 'run-2',
+              mode: 'parallel',
+              tasks: [
+                {
+                  slotId: 'slot-alpha',
+                  displayName: 'Planner',
+                  sessionId: 'child-alpha',
+                  status: 'running'
+                },
+                {
+                  slotId: 'slot-beta',
+                  sessionId: null,
+                  status: 'completed'
+                },
+                {
+                  sessionId: null,
+                  status: 'completed'
+                }
+              ]
+            })
+          }
+        })
+      }
+    })
+
+    await nextTick()
+
+    const tasks = wrapper.findAll('[data-testid="subagent-task-trigger"]')
+    expect(tasks).toHaveLength(3)
+    expect(tasks[0].text()).toContain('Planner')
+    expect(tasks[1].text()).toContain('Unnamed Agent')
+    expect(tasks[1].text()).toContain('slot-beta')
+    expect(tasks[2].text()).toContain('Unnamed Agent')
+    expect(tasks[2].text()).toContain('Unnamed Task')
+
+    await tasks[0].trigger('click')
+
+    expect(selectSessionMock).toHaveBeenCalledWith('child-alpha')
   })
 })

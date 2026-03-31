@@ -2849,16 +2849,21 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     messageId: string,
     toolCallId: string,
     responseMarkdown: string,
-    progressJson: string,
+    progressJson?: string,
     finalJson?: string
   ): void {
-    const message = this.messageStore.getMessage(messageId)
-    if (!message || message.role !== 'assistant') {
-      return
-    }
-
     try {
-      const blocks = JSON.parse(message.content) as AssistantMessageBlock[]
+      const message = this.messageStore.getMessage(messageId)
+      if (!message || message.role !== 'assistant') {
+        return
+      }
+
+      const latestMessage = this.messageStore.getMessage(messageId)
+      if (!latestMessage || latestMessage.role !== 'assistant') {
+        return
+      }
+
+      const blocks = JSON.parse(latestMessage.content) as AssistantMessageBlock[]
       const toolBlock = blocks.find(
         (block) => block.type === 'tool_call' && block.tool_call?.id === toolCallId
       )
@@ -2870,7 +2875,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       toolBlock.status = finalJson ? 'success' : 'loading'
       toolBlock.extra = {
         ...toolBlock.extra,
-        subagentProgress: progressJson,
+        ...(typeof progressJson === 'string' ? { subagentProgress: progressJson } : {}),
         ...(finalJson ? { subagentFinal: finalJson } : {})
       }
       this.messageStore.updateAssistantContent(messageId, blocks)
@@ -3030,6 +3035,15 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
           typeof subagentToolResult.subagentFinal === 'string'
             ? subagentToolResult.subagentFinal
             : undefined
+        )
+      } else if (typeof subagentToolResult?.subagentFinal === 'string') {
+        this.updateSubagentToolCallProgress(
+          sessionId,
+          messageId,
+          toolCall.id || '',
+          this.toolContentToText(rawData.content),
+          undefined,
+          subagentToolResult.subagentFinal
         )
       }
       const normalizedContent = await this.normalizeToolResultContent({

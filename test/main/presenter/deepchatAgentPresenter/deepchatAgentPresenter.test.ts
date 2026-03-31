@@ -2919,6 +2919,174 @@ describe('DeepChatAgentPresenter', () => {
       expect((agent as any).deferredToolAbortControllers.size).toBe(0)
     })
 
+    it('persists final-only deferred subagent snapshots', async () => {
+      const subagentFinal = JSON.stringify({
+        runId: 'run-final',
+        mode: 'parallel',
+        tasks: [
+          {
+            taskId: 'task-1',
+            slotId: 'slot-1',
+            title: 'Inspect repo',
+            targetAgentName: 'ACP Coder',
+            status: 'completed'
+          }
+        ]
+      })
+
+      toolPresenter.getAllToolDefinitions.mockResolvedValueOnce([
+        {
+          type: 'function',
+          function: {
+            name: 'subagent_orchestrator',
+            description: 'Run subagents',
+            parameters: { type: 'object', properties: {} }
+          },
+          server: { name: 'agent', icons: '', description: '' }
+        }
+      ])
+      toolPresenter.callTool.mockResolvedValueOnce({
+        content: 'Final summary',
+        rawData: {
+          content: 'Final summary',
+          isError: false,
+          toolResult: { subagentFinal }
+        }
+      })
+      sqlitePresenter.deepchatMessagesTable.get.mockReturnValue({
+        id: 'm1',
+        session_id: 's1',
+        order_seq: 1,
+        role: 'assistant',
+        content: JSON.stringify([
+          {
+            type: 'tool_call',
+            status: 'loading',
+            timestamp: 1,
+            tool_call: {
+              id: 'tc-final',
+              name: 'subagent_orchestrator',
+              params: '{}',
+              response: ''
+            }
+          }
+        ]),
+        status: 'pending',
+        is_context_edge: 0,
+        metadata: '{}',
+        created_at: Date.now(),
+        updated_at: Date.now()
+      })
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+
+      const result = await (agent as any).executeDeferredToolCall('s1', 'm1', {
+        id: 'tc-final',
+        name: 'subagent_orchestrator',
+        params: '{}'
+      })
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          isError: false,
+          responseText: 'Final summary'
+        })
+      )
+
+      const updatedBlocks = JSON.parse(
+        sqlitePresenter.deepchatMessagesTable.updateContent.mock.calls[0][1]
+      )
+      expect(updatedBlocks[0].tool_call.response).toBe('Final summary')
+      expect(updatedBlocks[0].status).toBe('success')
+      expect(updatedBlocks[0].extra).toEqual(
+        expect.objectContaining({
+          subagentFinal
+        })
+      )
+    })
+
+    it('re-reads the latest message content before persisting subagent progress', async () => {
+      const staleRow = {
+        id: 'm1',
+        session_id: 's1',
+        order_seq: 1,
+        role: 'assistant',
+        content: JSON.stringify([
+          {
+            type: 'tool_call',
+            status: 'loading',
+            timestamp: 1,
+            tool_call: {
+              id: 'tc1',
+              name: 'subagent_orchestrator',
+              params: '{}',
+              response: ''
+            }
+          }
+        ]),
+        status: 'pending',
+        is_context_edge: 0,
+        metadata: '{}',
+        created_at: Date.now(),
+        updated_at: Date.now()
+      }
+      const latestRow = {
+        ...staleRow,
+        content: JSON.stringify([
+          {
+            type: 'tool_call',
+            status: 'loading',
+            timestamp: 1,
+            tool_call: {
+              id: 'tc1',
+              name: 'subagent_orchestrator',
+              params: '{}',
+              response: ''
+            }
+          },
+          {
+            type: 'content',
+            status: 'success',
+            timestamp: 2,
+            content: 'Locally appended block'
+          }
+        ])
+      }
+      const emitMessageRefreshSpy = vi
+        .spyOn(agent as any, 'emitMessageRefresh')
+        .mockImplementation(() => {})
+
+      sqlitePresenter.deepchatMessagesTable.get
+        .mockImplementationOnce((id: string) => (id === 'm1' ? staleRow : undefined))
+        .mockImplementationOnce((id: string) => (id === 'm1' ? latestRow : undefined))
+
+      ;(agent as any).updateSubagentToolCallProgress(
+        's1',
+        'm1',
+        'tc1',
+        'Updated summary',
+        '{"tasks":[]}'
+      )
+
+      const updatedBlocks = JSON.parse(
+        sqlitePresenter.deepchatMessagesTable.updateContent.mock.calls[0][1]
+      )
+      expect(updatedBlocks).toHaveLength(2)
+      expect(updatedBlocks[0].tool_call.response).toBe('Updated summary')
+      expect(updatedBlocks[0].extra).toEqual(
+        expect.objectContaining({
+          subagentProgress: '{"tasks":[]}'
+        })
+      )
+      expect(updatedBlocks[1]).toEqual(
+        expect.objectContaining({
+          type: 'content',
+          content: 'Locally appended block'
+        })
+      )
+      expect(emitMessageRefreshSpy).toHaveBeenCalledWith('s1', 'm1')
+    })
+
     it('falls back to the current session agent vision model when the current model has no vision', async () => {
       sqlitePresenter.newSessionsTable.get.mockReturnValue({
         id: 's1',

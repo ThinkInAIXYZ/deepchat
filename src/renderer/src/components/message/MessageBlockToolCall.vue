@@ -55,7 +55,7 @@
         <div v-if="isSubagentOrchestrator" class="flex flex-col gap-1.5">
           <button
             v-for="task in subagentTasks"
-            :key="task.taskId"
+            :key="task.normalizedId"
             data-testid="subagent-task-trigger"
             type="button"
             :disabled="!task.sessionId"
@@ -78,7 +78,7 @@
             </span>
             <span class="text-muted-foreground">·</span>
             <span class="min-w-0 flex-1 truncate text-muted-foreground">
-              {{ task.title }}
+              {{ task.title || task.label }}
             </span>
             <Icon
               v-if="task.sessionId"
@@ -320,8 +320,10 @@ const rawToolName = computed(() => props.block.tool_call?.name?.trim().toLowerCa
 const isSubagentOrchestrator = computed(() => rawToolName.value === 'subagent_orchestrator')
 
 type SubagentProgressTask = {
+  normalizedId: string
   taskId: string
   title: string
+  label: string
   slotId: string
   sessionId?: string | null
   targetAgentId?: string | null
@@ -332,10 +334,14 @@ type SubagentProgressTask = {
   resultSummary?: string
 }
 
+type RawSubagentProgressTask = Partial<SubagentProgressTask> & {
+  displayName?: string
+}
+
 type SubagentProgressPayload = {
   runId: string
   mode: 'parallel' | 'chain'
-  tasks: SubagentProgressTask[]
+  tasks: RawSubagentProgressTask[]
 }
 
 const parseSubagentProgress = (value: unknown): SubagentProgressPayload | null => {
@@ -353,6 +359,9 @@ const parseSubagentProgress = (value: unknown): SubagentProgressPayload | null =
 
 const matchesToolContractName = (toolName: string, expectedName: string): boolean =>
   toolName === expectedName || toolName.endsWith(`_${expectedName}`)
+
+const normalizeOptionalText = (value: unknown): string =>
+  typeof value === 'string' ? value.trim() : ''
 
 const summaryText = computed(() => {
   if (isSubagentOrchestrator.value) {
@@ -379,7 +388,31 @@ const subagentTasks = computed<SubagentProgressTask[]>(() => {
   const progress =
     parseSubagentProgress(props.block.extra?.subagentProgress) ??
     parseSubagentProgress(props.block.extra?.subagentFinal)
-  return progress?.tasks ?? []
+  const unnamedAgentLabel = t('settings.deepchatAgents.unnamed')
+
+  return (progress?.tasks ?? []).map((task, index) => {
+    const slotId = normalizeOptionalText(task.slotId)
+    const displayName = normalizeOptionalText(task.displayName)
+    const normalizedId =
+      normalizeOptionalText(task.taskId) || slotId || `subagent-task-${index + 1}`
+    const label = displayName || slotId || 'Unnamed Task'
+    const title = normalizeOptionalText(task.title)
+
+    return {
+      ...task,
+      normalizedId,
+      taskId: normalizedId,
+      title,
+      label,
+      slotId: slotId || normalizedId,
+      sessionId: typeof task.sessionId === 'string' ? task.sessionId : (task.sessionId ?? null),
+      targetAgentId:
+        typeof task.targetAgentId === 'string' ? task.targetAgentId : (task.targetAgentId ?? null),
+      targetAgentName:
+        normalizeOptionalText(task.targetAgentName) || displayName || unnamedAgentLabel,
+      status: normalizeOptionalText(task.status) || 'running'
+    }
+  })
 })
 
 const updateSummaryOverflow = () => {
