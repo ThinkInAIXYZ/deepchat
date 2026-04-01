@@ -234,32 +234,38 @@ describe('BackgroundExecSessionManager', () => {
     expect(log.output).toBe('timeout tail')
   })
 
-  it('passes the prepared env through start without re-merging PATH', async () => {
+  it('merges the prepared env on top of process env when starting a session', async () => {
     const child = new MockChildProcess()
     vi.mocked(spawn).mockReturnValue(child as never)
+    process.env.BASELINE_FLAG = 'baseline'
 
-    const result = await manager.start('conv-1', 'echo test', '/workspace', {
-      timeout: 0,
-      env: {
-        PATH: '/prepared/bin:/usr/local/bin',
-        CUSTOM_FLAG: '1'
-      }
-    })
-
-    expect(result).toEqual({
-      sessionId: expect.stringMatching(/^bg_/),
-      status: 'running'
-    })
-    expect(spawn).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.any(Array),
-      expect.objectContaining({
-        cwd: '/workspace',
+    try {
+      const result = await manager.start('conv-1', 'echo test', '/workspace', {
+        timeout: 0,
         env: {
           PATH: '/prepared/bin:/usr/local/bin',
           CUSTOM_FLAG: '1'
         }
       })
-    )
+
+      expect(result).toEqual({
+        sessionId: expect.stringMatching(/^bg_/),
+        status: 'running'
+      })
+      expect(spawn).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.any(Array),
+        expect.objectContaining({
+          cwd: '/workspace',
+          env: expect.objectContaining({
+            BASELINE_FLAG: 'baseline',
+            PATH: '/prepared/bin:/usr/local/bin',
+            CUSTOM_FLAG: '1'
+          })
+        })
+      )
+    } finally {
+      delete process.env.BASELINE_FLAG
+    }
   })
 })
