@@ -41,8 +41,8 @@ const titleSegments = computed(() => {
     return [{ text: title, match: false }]
   }
 
-  const lowerTitle = title.toLocaleLowerCase()
-  const lowerQuery = query.toLocaleLowerCase()
+  const lowerTitle = title.toLowerCase()
+  const lowerQuery = query.toLowerCase()
   const segments: Array<{ text: string; match: boolean }> = []
   let searchIndex = 0
   let matchIndex = lowerTitle.indexOf(lowerQuery)

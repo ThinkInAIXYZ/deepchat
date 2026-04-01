@@ -26,18 +26,20 @@
           />
         </div>
       </div>
-      <MessageList
-        :messages="displayMessages"
-        :is-generating="isGenerating"
-        :trace-message-ids="traceMessageIds"
-        :is-read-only="isReadOnlySession"
-        @retry="onMessageRetry"
-        @delete="onMessageDelete"
-        @fork="onMessageFork"
-        @continue="onMessageContinue"
-        @trace="onMessageTrace"
-        @edit-save="onMessageEditSave"
-      />
+      <div ref="messageSearchRoot">
+        <MessageList
+          :messages="displayMessages"
+          :is-generating="isGenerating"
+          :trace-message-ids="traceMessageIds"
+          :is-read-only="isReadOnlySession"
+          @retry="onMessageRetry"
+          @delete="onMessageDelete"
+          @fork="onMessageFork"
+          @continue="onMessageContinue"
+          @trace="onMessageTrace"
+          @edit-save="onMessageEditSave"
+        />
+      </div>
       <TraceDialog :message-id="traceMessageId" @close="traceMessageId = null" />
 
       <!-- Input area (sticky bottom, messages scroll under) -->
@@ -162,6 +164,7 @@ const isAcpWorkdirMissing = computed(() => {
 
 // --- Auto-scroll ---
 const scrollContainer = ref<HTMLDivElement>()
+const messageSearchRoot = ref<HTMLDivElement>()
 // Track whether user is near the bottom; if they scroll up, stop auto-following
 const isNearBottom = ref(true)
 const NEAR_BOTTOM_THRESHOLD = 80 // px
@@ -381,7 +384,7 @@ async function refreshChatSearchHighlights() {
 
   await nextTick()
 
-  const root = scrollContainer.value
+  const root = messageSearchRoot.value
   chatSearchMatches.value = applyChatSearchHighlights(root, chatSearchQuery.value)
 
   if (chatSearchMatches.value.length === 0) {
@@ -401,7 +404,7 @@ function focusChatSearchInput() {
 }
 
 function clearChatSearchState() {
-  clearChatSearchHighlights(scrollContainer.value)
+  clearChatSearchHighlights(messageSearchRoot.value)
   chatSearchMatches.value = []
   chatSearchQuery.value = ''
   activeChatSearchIndex.value = 0
@@ -450,7 +453,7 @@ function isEditableTarget(target: EventTarget | null): boolean {
 }
 
 function handleWindowKeydown(event: KeyboardEvent) {
-  if ((event.metaKey || event.ctrlKey) && event.key.toLocaleLowerCase() === 'f') {
+  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'f') {
     event.preventDefault()
     openChatSearch()
     return
@@ -851,7 +854,7 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener('context-menu-ask-ai', handleContextMenuAskAI)
   window.removeEventListener('keydown', handleWindowKeydown)
-  clearChatSearchHighlights(scrollContainer.value)
+  clearChatSearchHighlights(messageSearchRoot.value)
   pendingInputStore.clear()
 })
 </script>

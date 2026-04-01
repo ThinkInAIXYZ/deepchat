@@ -423,13 +423,13 @@ const remoteControlIconClass = computed(() => {
 
 const isPinnedSectionCollapsed = ref(false)
 const collapsedGroupIds = ref<Set<string>>(new Set())
-const normalizedSessionSearchQuery = computed(() => sessionSearchQuery.value.trim().toLocaleLowerCase())
+const normalizedSessionSearchQuery = computed(() => sessionSearchQuery.value.trim().toLowerCase())
 const matchesSessionSearch = (session: UISession) => {
   if (!normalizedSessionSearchQuery.value) {
     return true
   }
 
-  return session.title.toLocaleLowerCase().includes(normalizedSessionSearchQuery.value)
+  return session.title.toLowerCase().includes(normalizedSessionSearchQuery.value)
 }
 const pinnedSessions = computed(() =>
   sessionStore.getPinnedSessions(agentStore.selectedAgentId).filter(matchesSessionSearch)

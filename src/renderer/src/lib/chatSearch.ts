@@ -48,8 +48,8 @@ const collectSearchableTextNodes = (root: ParentNode): Text[] => {
 
 const buildHighlightedFragment = (value: string, query: string): DocumentFragment | null => {
   const fragment = document.createDocumentFragment()
-  const lowerValue = value.toLocaleLowerCase()
-  const lowerQuery = query.toLocaleLowerCase()
+  const lowerValue = value.toLowerCase()
+  const lowerQuery = query.toLowerCase()
   let searchIndex = 0
   let matchIndex = lowerValue.indexOf(lowerQuery)
   let hasMatch = false
