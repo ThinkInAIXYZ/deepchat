@@ -272,7 +272,7 @@ export interface AssistantMessageBlock {
   }
   tool_call?: ToolCallBlockData
   extra?: AssistantMessageExtra
-  action_type?: 'tool_call_permission' | 'question_request'
+  action_type?: 'tool_call_permission' | 'question_request' | 'rate_limit'
 }
 
 export interface MessageMetadata {

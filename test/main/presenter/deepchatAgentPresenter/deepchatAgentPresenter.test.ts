@@ -171,10 +171,13 @@ function createMockCoreStream() {
 }
 
 function createMockLlmProviderPresenter() {
+  const providerInstance = {
+    coreStream: vi.fn().mockImplementation(() => createMockCoreStream()())
+  }
+
   return {
-    getProviderInstance: vi.fn().mockReturnValue({
-      coreStream: vi.fn().mockReturnValue(createMockCoreStream()())
-    }),
+    getProviderInstance: vi.fn().mockReturnValue(providerInstance),
+    executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
     generateCompletionStandalone: vi.fn().mockResolvedValue('English screenshot summary'),
     generateText: vi.fn().mockResolvedValue({
       content: ['## Current Goal', '- Continue the session safely'].join('\n')
@@ -854,6 +857,197 @@ describe('DeepChatAgentPresenter', () => {
       expect(callArgs.modelConfig.thinkingBudget).toBe(1024)
       expect(callArgs.modelConfig.reasoningEffort).toBe('low')
       expect(callArgs.modelConfig.verbosity).toBe('high')
+    })
+
+    it('passes every provider turn through executeWithRateLimit', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.processMessage('s1', 'Hello')
+
+      const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      for await (const _event of callArgs.coreStream(
+        callArgs.messages,
+        callArgs.modelId,
+        callArgs.modelConfig,
+        callArgs.temperature,
+        callArgs.maxTokens,
+        callArgs.tools
+      )) {
+      }
+      for await (const _event of callArgs.coreStream(
+        callArgs.messages,
+        callArgs.modelId,
+        callArgs.modelConfig,
+        callArgs.temperature,
+        callArgs.maxTokens,
+        callArgs.tools
+      )) {
+      }
+
+      expect(llmProvider.executeWithRateLimit).toHaveBeenCalledTimes(2)
+      expect(llmProvider.executeWithRateLimit).toHaveBeenNthCalledWith(
+        1,
+        'openai',
+        expect.objectContaining({
+          signal: expect.any(AbortSignal),
+          onQueued: expect.any(Function)
+        })
+      )
+    })
+
+    it('emits and clears an ephemeral rate-limit message while waiting for the provider gate', async () => {
+      llmProvider.executeWithRateLimit.mockImplementation(
+        async (_providerId: string, options?: { onQueued?: (snapshot: any) => void }) => {
+          options?.onQueued?.({
+            providerId: 'openai',
+            qpsLimit: 1,
+            currentQps: 1,
+            queueLength: 2,
+            estimatedWaitTime: 4000
+          })
+        }
+      )
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.processMessage('s1', 'Hello')
+
+      const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      for await (const _event of callArgs.coreStream(
+        callArgs.messages,
+        callArgs.modelId,
+        callArgs.modelConfig,
+        callArgs.temperature,
+        callArgs.maxTokens,
+        callArgs.tools
+      )) {
+      }
+
+      const streamResponseCalls = (eventBus.sendToRenderer as ReturnType<typeof vi.fn>).mock.calls
+        .filter(([eventName]) => eventName === 'stream:response')
+        .map(([, , payload]) => payload)
+        .filter((payload) => typeof payload?.messageId === 'string')
+
+      const rateLimitShow = streamResponseCalls.find(
+        (payload) =>
+          payload.messageId.startsWith('__rate_limit__:') &&
+          Array.isArray(payload.blocks) &&
+          payload.blocks.length === 1
+      )
+      const rateLimitClear = streamResponseCalls.find(
+        (payload) =>
+          payload.messageId.startsWith('__rate_limit__:') &&
+          Array.isArray(payload.blocks) &&
+          payload.blocks.length === 0
+      )
+
+      expect(rateLimitShow).toMatchObject({
+        conversationId: 's1',
+        blocks: [
+          expect.objectContaining({
+            type: 'action',
+            action_type: 'rate_limit',
+            status: 'pending',
+            extra: expect.objectContaining({
+              providerId: 'openai',
+              queueLength: 2,
+              estimatedWaitTime: 4000
+            })
+          })
+        ]
+      })
+      expect(rateLimitClear).toMatchObject({
+        conversationId: 's1',
+        blocks: []
+      })
+    })
+
+    it('does not call provider.coreStream when a queued request is canceled', async () => {
+      const abortError = new Error('Aborted')
+      abortError.name = 'AbortError'
+      const queued = Promise.withResolvers<void>()
+      llmProvider.executeWithRateLimit.mockImplementation(
+        (
+          _providerId: string,
+          options?: { signal?: AbortSignal; onQueued?: (snapshot: any) => void }
+        ) =>
+          new Promise<void>((resolve, reject) => {
+            options?.onQueued?.({
+              providerId: 'openai',
+              qpsLimit: 1,
+              currentQps: 1,
+              queueLength: 1,
+              estimatedWaitTime: 1000
+            })
+            queued.resolve()
+
+            if (options?.signal?.aborted) {
+              reject(abortError)
+              return
+            }
+
+            options?.signal?.addEventListener(
+              'abort',
+              () => {
+                reject(abortError)
+              },
+              { once: true }
+            )
+
+            void resolve
+          })
+      )
+      ;(processStream as ReturnType<typeof vi.fn>).mockImplementation(
+        async (params: {
+          coreStream: (
+            messages: any[],
+            modelId: string,
+            modelConfig: any,
+            temperature: number,
+            maxTokens: number,
+            tools: any[]
+          ) => AsyncGenerator<unknown>
+          messages: any[]
+          modelId: string
+          modelConfig: any
+          temperature: number
+          maxTokens: number
+          tools: any[]
+        }) => {
+          try {
+            for await (const _event of params.coreStream(
+              params.messages,
+              params.modelId,
+              params.modelConfig,
+              params.temperature,
+              params.maxTokens,
+              params.tools
+            )) {
+            }
+
+            return { status: 'completed' as const }
+          } catch (error) {
+            return {
+              status:
+                error instanceof Error && error.name === 'AbortError'
+                  ? ('aborted' as const)
+                  : ('error' as const),
+              stopReason:
+                error instanceof Error && error.name === 'AbortError' ? 'user_stop' : 'error',
+              errorMessage: error instanceof Error ? error.message : String(error)
+            }
+          }
+        }
+      )
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+
+      const processing = agent.processMessage('s1', 'Hello')
+      await queued.promise
+      await agent.cancelGeneration('s1')
+      await processing
+
+      const providerCoreStream = llmProvider.getProviderInstance.mock.results[0]?.value.coreStream
+      expect(providerCoreStream).not.toHaveBeenCalled()
+      expect((await agent.getSessionState('s1'))?.status).toBe('idle')
     })
 
     it('reuses cached system prompt within the same day', async () => {

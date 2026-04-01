@@ -168,6 +168,32 @@ describe('processStream', () => {
     )
   })
 
+  it('treats AbortError thrown before the first event as aborted without writing an error block', async () => {
+    const abortError = new Error('Aborted')
+    abortError.name = 'AbortError'
+    const coreStream = vi.fn(async function* () {
+      throw abortError
+    }) as unknown as ProcessParams['coreStream']
+
+    const params = createParams({ coreStream })
+    const promise = processStream(params)
+    await vi.runAllTimersAsync()
+    const result = await promise
+
+    expect(result).toMatchObject({
+      status: 'aborted',
+      stopReason: 'user_stop',
+      errorMessage: 'common.error.userCanceledGeneration'
+    })
+    expect(messageStore.setMessageError).not.toHaveBeenCalled()
+    expect(messageStore.finalizeAssistantMessage).not.toHaveBeenCalled()
+    expect(eventBus.sendToRenderer).not.toHaveBeenCalledWith(
+      'stream:error',
+      'all',
+      expect.anything()
+    )
+  })
+
   it('single tool call → loop once, finalize', async () => {
     let callCount = 0
     const coreStream = vi.fn(function () {

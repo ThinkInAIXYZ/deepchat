@@ -15,7 +15,12 @@ import type {
 } from '@shared/types/agent-interface'
 import type { MCPToolCall, MCPToolResponse } from '@shared/types/core/mcp'
 import type { ChatMessage } from '@shared/types/core/chat-message'
-import type { IConfigPresenter, ILlmProviderPresenter, ModelConfig } from '@shared/presenter'
+import type {
+  IConfigPresenter,
+  ILlmProviderPresenter,
+  ModelConfig,
+  RateLimitQueueSnapshot
+} from '@shared/presenter'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
 import type { ReasoningPortrait } from '@shared/types/model-db'
@@ -113,6 +118,8 @@ const isReasoningEffort = (value: unknown): value is 'minimal' | 'low' | 'medium
 
 const isVerbosity = (value: unknown): value is 'low' | 'medium' | 'high' =>
   value === 'low' || value === 'medium' || value === 'high'
+
+const RATE_LIMIT_STREAM_MESSAGE_PREFIX = '__rate_limit__:'
 
 const createAbortError = (): Error => {
   if (typeof DOMException !== 'undefined') {
@@ -1342,6 +1349,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     }
 
     const traceEnabled = this.configPresenter.getSetting<boolean>('traceDebugEnabled') === true
+    const llmProviderPresenter = this.llmProviderPresenter
     const pendingInputCoordinator = this.pendingInputCoordinator
     const injectSteerInputsIntoRequest = this.injectSteerInputsIntoRequest.bind(this)
     const persistMessageTrace = this.persistMessageTrace.bind(this)
@@ -1374,6 +1382,9 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
 
     const abortController = new AbortController()
     const activeGeneration = this.registerActiveGeneration(sessionId, messageId, abortController)
+    const rateLimitMessageId = this.buildRateLimitStreamMessageId(activeGeneration.runId)
+    const emitRateLimitWaitingMessage = this.emitRateLimitWaitingMessage.bind(this)
+    const clearRateLimitWaitingMessage = this.clearRateLimitWaitingMessage.bind(this)
 
     try {
       this.dispatchHook('SessionStart', {
@@ -1407,8 +1418,21 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
           )
 
           let didConsumeSteerBatch = false
+          let queuedForRateLimit = false
 
           try {
+            await llmProviderPresenter.executeWithRateLimit(state.providerId, {
+              signal: abortController.signal,
+              onQueued: (snapshot) => {
+                queuedForRateLimit = true
+                emitRateLimitWaitingMessage(sessionId, rateLimitMessageId, snapshot)
+              }
+            })
+            if (queuedForRateLimit) {
+              clearRateLimitWaitingMessage(sessionId, rateLimitMessageId)
+              queuedForRateLimit = false
+            }
+
             for await (const event of provider.coreStream(
               injectedMessages,
               requestModelId,
@@ -1428,6 +1452,9 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
               pendingInputCoordinator.consumeClaimedSteerBatch(sessionId)
             }
           } catch (error) {
+            if (queuedForRateLimit) {
+              clearRateLimitWaitingMessage(sessionId, rateLimitMessageId)
+            }
             if (!didConsumeSteerBatch && claimedSteerBatch.length > 0) {
               pendingInputCoordinator.releaseClaimedInputs(sessionId)
             }
@@ -1667,6 +1694,47 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
 
   private isActiveRun(sessionId: string, runId: string): boolean {
     return this.activeGenerations.get(sessionId)?.runId === runId
+  }
+
+  private buildRateLimitStreamMessageId(runId: string): string {
+    return `${RATE_LIMIT_STREAM_MESSAGE_PREFIX}${runId}`
+  }
+
+  private emitRateLimitWaitingMessage(
+    sessionId: string,
+    messageId: string,
+    snapshot: RateLimitQueueSnapshot
+  ): void {
+    const block: AssistantMessageBlock = {
+      type: 'action',
+      action_type: 'rate_limit',
+      content: '',
+      status: 'pending',
+      timestamp: Date.now(),
+      extra: {
+        providerId: snapshot.providerId,
+        qpsLimit: snapshot.qpsLimit,
+        currentQps: snapshot.currentQps,
+        queueLength: snapshot.queueLength,
+        estimatedWaitTime: snapshot.estimatedWaitTime
+      }
+    }
+
+    eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, SendTarget.ALL_WINDOWS, {
+      conversationId: sessionId,
+      eventId: messageId,
+      messageId,
+      blocks: [block]
+    })
+  }
+
+  private clearRateLimitWaitingMessage(sessionId: string, messageId: string): void {
+    eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, SendTarget.ALL_WINDOWS, {
+      conversationId: sessionId,
+      eventId: messageId,
+      messageId,
+      blocks: []
+    })
   }
 
   private applyProcessResultStatus(

@@ -1,7 +1,23 @@
 import { RATE_LIMIT_EVENTS } from '@/events'
 import { eventBus, SendTarget } from '@/eventbus'
 import { IConfigPresenter, LLM_PROVIDER } from '@shared/presenter'
-import { ProviderRateLimitState, QueueItem, RateLimitConfig } from '../types'
+import {
+  ExecuteWithRateLimitOptions,
+  ProviderRateLimitState,
+  QueueItem,
+  RateLimitConfig,
+  RateLimitQueueSnapshot
+} from '../types'
+
+const createAbortError = (): Error => {
+  if (typeof DOMException !== 'undefined') {
+    return new DOMException('Aborted', 'AbortError')
+  }
+
+  const error = new Error('Aborted')
+  error.name = 'AbortError'
+  return error
+}
 
 export class RateLimitManager {
   private readonly providerRateLimitStates: Map<string, ProviderRateLimitState> = new Map()
@@ -97,8 +113,14 @@ export class RateLimitManager {
     return status
   }
 
-  async executeWithRateLimit(providerId: string): Promise<void> {
+  async executeWithRateLimit(
+    providerId: string,
+    options?: ExecuteWithRateLimitOptions
+  ): Promise<void> {
     const state = this.getOrCreateRateLimitState(providerId)
+    if (options?.signal?.aborted) {
+      throw createAbortError()
+    }
     if (!state.config.enabled) {
       this.recordRequest(providerId)
       return Promise.resolve()
@@ -108,14 +130,27 @@ export class RateLimitManager {
       return Promise.resolve()
     }
     return new Promise<void>((resolve, reject) => {
+      let settled = false
+      let abortCleanup: (() => void) | null = null
+      const settle = (callback: () => void) => {
+        if (settled) {
+          return
+        }
+        settled = true
+        abortCleanup?.()
+        abortCleanup = null
+        callback()
+      }
+
       const queueItem: QueueItem = {
         id: `${providerId}-${Date.now()}-${Math.random()}`,
         timestamp: Date.now(),
-        resolve,
-        reject
+        resolve: () => settle(resolve),
+        reject: (error) => settle(() => reject(error))
       }
 
       state.queue.push(queueItem)
+      const snapshot = this.buildQueueSnapshot(providerId, state)
       console.log(
         `[RateLimitManager] Request queued for ${providerId}, queue length: ${state.queue.length}`
       )
@@ -124,6 +159,29 @@ export class RateLimitManager {
         queueLength: state.queue.length,
         requestId: queueItem.id
       })
+      try {
+        options?.onQueued?.(snapshot)
+      } catch (error) {
+        console.warn(`[RateLimitManager] onQueued callback failed for ${providerId}:`, error)
+      }
+
+      const signal = options?.signal
+      if (signal) {
+        const onAbort = () => {
+          const removed = this.removeQueueItem(providerId, queueItem.id)
+          if (removed) {
+            console.log(`[RateLimitManager] Request aborted while queued for ${providerId}`)
+          }
+          queueItem.reject(createAbortError())
+        }
+        signal.addEventListener('abort', onAbort, { once: true })
+        abortCleanup = () => signal.removeEventListener('abort', onAbort)
+        if (signal.aborted) {
+          onAbort()
+          return
+        }
+      }
+
       this.processRateLimitQueue(providerId)
     })
   }
@@ -279,6 +337,39 @@ export class RateLimitManager {
   getQueueLength(providerId: string): number {
     const state = this.providerRateLimitStates.get(providerId)
     return state?.queue.length || 0
+  }
+
+  private removeQueueItem(providerId: string, queueItemId: string): boolean {
+    const state = this.providerRateLimitStates.get(providerId)
+    if (!state) {
+      return false
+    }
+
+    const index = state.queue.findIndex((item) => item.id === queueItemId)
+    if (index === -1) {
+      return false
+    }
+
+    state.queue.splice(index, 1)
+    return true
+  }
+
+  private buildQueueSnapshot(
+    providerId: string,
+    state: ProviderRateLimitState
+  ): RateLimitQueueSnapshot {
+    const intervalMs = (1 / state.config.qpsLimit) * 1000
+    const nextAllowedTime = state.lastRequestTime + intervalMs
+    const baseWaitTime = Math.max(0, nextAllowedTime - Date.now())
+    const additionalQueuedIntervals = Math.max(0, state.queue.length - 1) * intervalMs
+
+    return {
+      providerId,
+      qpsLimit: state.config.qpsLimit,
+      currentQps: this.getCurrentQps(providerId),
+      queueLength: state.queue.length,
+      estimatedWaitTime: Math.max(0, baseWaitTime + additionalQueuedIntervals)
+    }
   }
 
   private getLastRequestTime(providerId: string): number {
