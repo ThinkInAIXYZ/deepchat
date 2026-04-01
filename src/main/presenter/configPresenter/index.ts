@@ -16,7 +16,8 @@ import {
   AcpAgentState,
   AcpManualAgent,
   AcpRegistryAgent,
-  AcpResolvedLaunchSpec
+  AcpResolvedLaunchSpec,
+  ProviderDbRefreshResult
 } from '@shared/presenter'
 import { ProviderBatchUpdate } from '@shared/provider-operations'
 import { SearchEngineTemplate } from '@shared/chat'
@@ -343,7 +344,9 @@ export class ConfigPresenter implements IConfigPresenter {
     this.initProviderModelsDir()
 
     // 初始化 Provider DB（外部聚合 JSON，本地内置为兜底）
-    providerDbLoader.initialize().catch(() => {})
+    providerDbLoader.initialize().catch((error) => {
+      console.warn('[ConfigPresenter] Failed to initialize provider DB:', error)
+    })
 
     // If application version is updated, update appVersion
     if (this.store.get('appVersion') !== this.currentAppVersion) {
@@ -522,6 +525,10 @@ export class ConfigPresenter implements IConfigPresenter {
   // 提供聚合 Provider DB（只读）给渲染层/其他模块
   getProviderDb(): ProviderAggregate | null {
     return providerDbLoader.getDb()
+  }
+
+  async refreshProviderDb(force = false): Promise<ProviderDbRefreshResult> {
+    return providerDbLoader.refreshIfNeeded(force)
   }
 
   supportsReasoningCapability(providerId: string, modelId: string): boolean {

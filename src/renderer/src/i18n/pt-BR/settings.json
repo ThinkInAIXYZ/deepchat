@@ -171,6 +171,18 @@
       "backupSuccessTitle": "Backup bem-sucedido",
       "backupSuccessMessage": "Dados salvos em backup com sucesso"
     },
+    "modelConfigUpdate": {
+      "title": "Atualizar configuração dos modelos",
+      "description": "Força a atualização do provider.json para trazer as capacidades mais recentes dos modelos e as configurações padrão.",
+      "button": "Atualizar agora",
+      "updating": "Atualizando...",
+      "updatedTitle": "Configuração dos modelos atualizada",
+      "updatedDescription": "Os metadados mais recentes dos provedores foram atualizados.",
+      "upToDateTitle": "Já está atualizado",
+      "upToDateDescription": "A configuração local dos modelos já está usando os metadados mais recentes dos provedores.",
+      "failedTitle": "Falha ao atualizar",
+      "failedDescription": "Não foi possível atualizar a configuração dos modelos agora. Tente novamente mais tarde."
+    },
     "yoBrowser": {
       "clearButton": "Limpar dados do YoBrowser",
       "clearFailedDescription": "Tente novamente ou verifique os registros para obter mais informações.",
