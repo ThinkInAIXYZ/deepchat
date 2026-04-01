@@ -3,7 +3,7 @@ import fs from 'fs'
 import path from 'path'
 import { nanoid } from 'nanoid'
 import logger from '@shared/logger'
-import { getShellEnvironment, getUserShell } from './shellEnvHelper'
+import { getUserShell } from './shellEnvHelper'
 import { terminateProcessTree } from './processTree'
 import { resolveSessionDir } from './sessionPaths'
 
@@ -121,7 +121,6 @@ export class BackgroundExecSessionManager {
     const config = getConfig()
     const sessionId = `bg_${nanoid(12)}`
     const { shell, args } = getUserShell()
-    const shellEnv = await getShellEnvironment()
 
     const sessionDir = resolveSessionDir(conversationId)
     if (sessionDir) {
@@ -134,11 +133,7 @@ export class BackgroundExecSessionManager {
 
     const child = spawn(shell, [...args, command], {
       cwd,
-      env: {
-        ...process.env,
-        ...shellEnv,
-        ...options?.env
-      },
+      env: options?.env ? { ...options.env } : { ...process.env },
       detached: process.platform !== 'win32',
       stdio: ['pipe', 'pipe', 'pipe']
     })

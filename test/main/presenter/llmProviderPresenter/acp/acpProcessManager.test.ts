@@ -1,5 +1,9 @@
+import { EventEmitter } from 'events'
+import * as fs from 'fs'
 import path from 'path'
 import { describe, expect, it, vi } from 'vitest'
+import spawn from 'cross-spawn'
+import * as shellEnvHelper from '@/lib/agentRuntime/shellEnvHelper'
 import {
   AcpProcessManager,
   parseLoadSessionCapability
@@ -20,6 +24,31 @@ vi.mock('electron', () => ({
     getPath: vi.fn(() => '/tmp')
   }
 }))
+
+vi.mock('cross-spawn', () => ({
+  default: vi.fn()
+}))
+
+vi.mock('@/lib/agentRuntime/shellEnvHelper', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/agentRuntime/shellEnvHelper')>()
+  return {
+    ...actual,
+    getShellEnvironment: vi.fn().mockResolvedValue({ PATH: '/shell/bin' })
+  }
+})
+
+class MockStream extends EventEmitter {}
+
+class MockSpawnedChild extends EventEmitter {
+  stdout = new MockStream()
+  stderr = new MockStream()
+  stdin = new MockStream()
+  pid = 1234
+  killed = false
+  exitCode = null
+  signalCode = null
+  kill = vi.fn(() => true)
+}
 
 describe('parseLoadSessionCapability', () => {
   it('parses boolean capability from initialize result', () => {
@@ -222,5 +251,87 @@ describe('AcpProcessManager config cache fallback', () => {
         cwd: expect.stringContaining(path.join('deepchat-acp', 'sessions'))
       })
     )
+  })
+
+  it('keeps explicit PATH overrides ahead of bundled runtime and shell PATH', async () => {
+    const originalPath = process.env.PATH
+    process.env.PATH = '/usr/bin:/bin'
+
+    try {
+      const manager = new AcpProcessManager({
+        providerId: 'acp',
+        resolveLaunchSpec: vi.fn().mockResolvedValue({
+          agentId: 'agent-1',
+          source: 'manual',
+          distributionType: 'npx',
+          command: 'agent',
+          args: [],
+          env: {
+            PATH: '/launch/bin',
+            LAUNCH_ONLY: '1'
+          },
+          cwd: '/tmp/workspace'
+        }),
+        getAgentState: vi.fn().mockResolvedValue({
+          envOverride: {
+            PATH: '/user/bin',
+            USER_ONLY: '1'
+          }
+        })
+      })
+
+      const child = new MockSpawnedChild()
+      vi.mocked(spawn).mockReturnValue(child as never)
+      vi.spyOn(shellEnvHelper, 'getShellEnvironment').mockResolvedValue({
+        PATH: '/shell/bin'
+      })
+      vi.spyOn((manager as any).runtimeHelper, 'initializeRuntimes').mockImplementation(() => {})
+      vi.spyOn((manager as any).runtimeHelper, 'expandPath').mockImplementation(
+        (value: string) => value
+      )
+      vi.spyOn((manager as any).runtimeHelper, 'replaceWithRuntimeCommand').mockImplementation(
+        (value: string) => value
+      )
+      vi.spyOn((manager as any).runtimeHelper, 'prependBundledRuntimeToEnv').mockImplementation(
+        (env: Record<string, string>) => ({
+          ...env,
+          PATH: ['/runtime/bin', env.PATH].filter(Boolean).join(':')
+        })
+      )
+      vi.spyOn((manager as any).runtimeHelper, 'getDefaultPaths').mockReturnValue(['/default/bin'])
+      vi.spyOn((manager as any).runtimeHelper, 'getUvRuntimePath').mockReturnValue('/runtime/bin')
+      vi.spyOn((manager as any).runtimeHelper, 'getNodeRuntimePath').mockReturnValue(null)
+      vi.spyOn((manager as any).runtimeHelper, 'isInstalledInSystemDirectory').mockReturnValue(
+        false
+      )
+      vi.spyOn((manager as any).runtimeHelper, 'getUserNpmPrefix').mockReturnValue(null)
+      vi.spyOn(fs, 'existsSync').mockReturnValue(true)
+
+      await (manager as any).spawnAgentProcess(
+        {
+          id: 'agent-1',
+          name: 'Agent One',
+          command: 'agent'
+        },
+        '/tmp/workspace'
+      )
+
+      expect(spawn).toHaveBeenCalledWith(
+        'agent',
+        [],
+        expect.objectContaining({
+          cwd: '/tmp/workspace',
+          env: expect.objectContaining({
+            LAUNCH_ONLY: '1',
+            USER_ONLY: '1',
+            ACP_IDE: 'deepchat',
+            DEEPCHAT_ACP_AGENT_ID: 'agent-1',
+            PATH: expect.stringContaining('/user/bin:/launch/bin:/runtime/bin:/shell/bin')
+          })
+        })
+      )
+    } finally {
+      process.env.PATH = originalPath
+    }
   })
 })

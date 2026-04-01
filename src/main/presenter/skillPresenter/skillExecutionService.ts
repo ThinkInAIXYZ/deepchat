@@ -11,7 +11,11 @@ import type {
 } from '@shared/types/skill'
 import { backgroundExecSessionManager } from '@/lib/agentRuntime/backgroundExecSessionManager'
 import { rtkRuntimeService } from '@/lib/agentRuntime/rtkRuntimeService'
-import { getShellEnvironment, getUserShell } from '@/lib/agentRuntime/shellEnvHelper'
+import {
+  getShellEnvironment,
+  getUserShell,
+  mergeCommandEnvironment
+} from '@/lib/agentRuntime/shellEnvHelper'
 import { resolveSessionDir } from '@/lib/agentRuntime/sessionPaths'
 import { RuntimeHelper } from '@/lib/runtimeHelper'
 
@@ -59,12 +63,6 @@ interface SpawnPlan {
   shellCommand: string
   outputPrefix: string
   spawnMode: 'direct' | 'shell'
-}
-
-function toStringEnv(input: NodeJS.ProcessEnv | Record<string, string>): Record<string, string> {
-  return Object.fromEntries(
-    Object.entries(input).filter((entry): entry is [string, string] => typeof entry[1] === 'string')
-  )
 }
 
 export class SkillExecutionService {
@@ -144,13 +142,14 @@ export class SkillExecutionService {
     const extension = await this.skillPresenter.getSkillExtension(input.skill)
     const shellEnv = await getShellEnvironment()
     const executionCwd = await this.resolveExecutionCwd(conversationId, metadata.skillRoot)
-    const mergedEnv = {
-      ...toStringEnv(process.env),
-      ...shellEnv,
-      ...extension.env,
-      SKILL_ROOT: metadata.skillRoot,
-      DEEPCHAT_SKILL_ROOT: metadata.skillRoot
-    }
+    const mergedEnv = mergeCommandEnvironment({
+      shellEnv,
+      overrides: {
+        ...extension.env,
+        SKILL_ROOT: metadata.skillRoot,
+        DEEPCHAT_SKILL_ROOT: metadata.skillRoot
+      }
+    })
 
     const runtime = await this.resolveRuntimeCommand(
       script,

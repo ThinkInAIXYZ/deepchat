@@ -1,6 +1,12 @@
+import { EventEmitter } from 'events'
 import type { ChildProcess } from 'child_process'
+import { spawn } from 'child_process'
 import fs from 'fs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('child_process', () => ({
+  spawn: vi.fn()
+}))
 
 vi.mock('electron', () => ({
   app: {
@@ -23,6 +29,19 @@ vi.mock('@shared/logger', () => ({
 }))
 
 import { BackgroundExecSessionManager } from '@/lib/agentRuntime/backgroundExecSessionManager'
+
+class MockStream extends EventEmitter {}
+
+class MockChildProcess extends EventEmitter {
+  stdout = new MockStream()
+  stderr = new MockStream()
+  stdin = {
+    write: vi.fn(),
+    end: vi.fn(),
+    destroyed: false
+  }
+  pid = 321
+}
 
 describe('BackgroundExecSessionManager', () => {
   let manager: BackgroundExecSessionManager
@@ -213,5 +232,34 @@ describe('BackgroundExecSessionManager', () => {
     expect(log.timedOut).toBe(true)
     expect(poll.output).toBe('timeout tail')
     expect(log.output).toBe('timeout tail')
+  })
+
+  it('passes the prepared env through start without re-merging PATH', async () => {
+    const child = new MockChildProcess()
+    vi.mocked(spawn).mockReturnValue(child as never)
+
+    const result = await manager.start('conv-1', 'echo test', '/workspace', {
+      timeout: 0,
+      env: {
+        PATH: '/prepared/bin:/usr/local/bin',
+        CUSTOM_FLAG: '1'
+      }
+    })
+
+    expect(result).toEqual({
+      sessionId: expect.stringMatching(/^bg_/),
+      status: 'running'
+    })
+    expect(spawn).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.any(Array),
+      expect.objectContaining({
+        cwd: '/workspace',
+        env: {
+          PATH: '/prepared/bin:/usr/local/bin',
+          CUSTOM_FLAG: '1'
+        }
+      })
+    )
   })
 })

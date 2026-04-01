@@ -36,7 +36,10 @@ function createService(runCommand = vi.fn()) {
     },
     getShellEnvironment: vi.fn().mockResolvedValue({ PATH: '/shell/bin' }),
     runCommand,
-    getPath: (name) => (name === 'userData' ? '/mock/userData' : '/mock/temp')
+    getPath: (name) =>
+      name === 'userData'
+        ? path.join(os.tmpdir(), 'deepchat-rtk-userData')
+        : path.join(os.tmpdir(), 'deepchat-rtk-temp')
   })
 
   ;(service as never).healthState = {
@@ -160,7 +163,9 @@ describe('RtkRuntimeService', () => {
       '/runtime/rtk',
       ['rewrite', 'find . -name "*.ts"'],
       expect.objectContaining({
-        env: expect.objectContaining({ PATH: '/shell/bin' })
+        env: expect.objectContaining({
+          PATH: expect.stringContaining('/shell/bin')
+        })
       })
     )
     expect(result.originalCommand).toBe('find . -name "*.ts"')

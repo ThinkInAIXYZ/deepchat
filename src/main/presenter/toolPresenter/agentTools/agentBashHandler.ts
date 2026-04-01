@@ -9,7 +9,11 @@ import { getBackgroundExecConfig } from '@/lib/agentRuntime/backgroundExecSessio
 import { backgroundExecSessionManager } from '@/lib/agentRuntime/backgroundExecSessionManager'
 import { terminateProcessTree } from '@/lib/agentRuntime/processTree'
 import { rtkRuntimeService } from '@/lib/agentRuntime/rtkRuntimeService'
-import { getShellEnvironment, getUserShell } from '@/lib/agentRuntime/shellEnvHelper'
+import {
+  getShellEnvironment,
+  getUserShell,
+  mergeCommandEnvironment
+} from '@/lib/agentRuntime/shellEnvHelper'
 import { resolveSessionDir } from '@/lib/agentRuntime/sessionPaths'
 
 // Consider moving to a shared handlers location in future refactoring
@@ -323,17 +327,12 @@ export class AgentBashHandler {
     options: ExecuteCommandOptions
   ): Promise<CompletedShellProcessResult> {
     const { shell, args } = getUserShell()
-    const shellEnv = await getShellEnvironment()
     const outputFilePath = this.createOutputFilePath(options.conversationId, options.outputPrefix)
 
     return new Promise((resolve, reject) => {
       const child = spawn(shell, [...args, command], {
         cwd,
-        env: {
-          ...process.env,
-          ...shellEnv,
-          ...options.env
-        },
+        env: options.env ? { ...options.env } : { ...process.env },
         detached: process.platform !== 'win32',
         stdio: ['pipe', 'pipe', 'pipe']
       })
@@ -591,10 +590,14 @@ export class AgentBashHandler {
   ): Promise<PreparedCommand> {
     const baseEnv = env ?? {}
     if (!this.configPresenter) {
+      const shellEnv = await getShellEnvironment()
       return {
         originalCommand: command,
         command,
-        env: baseEnv,
+        env: mergeCommandEnvironment({
+          shellEnv,
+          overrides: baseEnv
+        }),
         rewritten: false,
         rtkApplied: false,
         rtkMode: 'bypass',
