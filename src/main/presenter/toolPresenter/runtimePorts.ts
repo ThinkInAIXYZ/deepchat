@@ -61,7 +61,10 @@ export interface AgentToolRuntimePort {
   getSkillPresenter(): ISkillPresenter
   getYoBrowserToolHandler(): IYoBrowserPresenter['toolHandler']
   getFilePresenter(): Pick<IFilePresenter, 'getMimeType' | 'prepareFileCompletely'>
-  getLlmProviderPresenter(): Pick<ILlmProviderPresenter, 'generateCompletionStandalone'>
+  getLlmProviderPresenter(): Pick<
+    ILlmProviderPresenter,
+    'executeWithRateLimit' | 'generateCompletionStandalone'
+  >
   createSettingsWindow(): ReturnType<IWindowPresenter['createSettingsWindow']>
   sendToWindow(
     windowId: number,

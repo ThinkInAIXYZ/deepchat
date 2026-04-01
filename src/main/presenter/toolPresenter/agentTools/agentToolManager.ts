@@ -1237,6 +1237,7 @@ export class AgentToolManager {
         visionTarget.modelId,
         visionTarget.providerId
       )
+      await this.getLlmProviderPresenter().executeWithRateLimit(visionTarget.providerId)
       const response = await this.getLlmProviderPresenter().generateCompletionStandalone(
         visionTarget.providerId,
         messages,

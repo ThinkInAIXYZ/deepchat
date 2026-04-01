@@ -33,6 +33,7 @@ describe('AgentToolManager read routing', () => {
     prepareFileCompletely: ReturnType<typeof vi.fn>
   }
   let llmProviderPresenter: {
+    executeWithRateLimit: ReturnType<typeof vi.fn>
     generateCompletionStandalone: ReturnType<typeof vi.fn>
   }
   let resolveConversationWorkdir: ReturnType<typeof vi.fn>
@@ -46,6 +47,7 @@ describe('AgentToolManager read routing', () => {
       prepareFileCompletely: vi.fn()
     }
     llmProviderPresenter = {
+      executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
       generateCompletionStandalone: vi.fn()
     }
     resolveConversationWorkdir = vi.fn().mockResolvedValue(null)
@@ -155,6 +157,7 @@ describe('AgentToolManager read routing', () => {
     }
 
     expect(result.content).toContain('detailed image description')
+    expect(llmProviderPresenter.executeWithRateLimit).toHaveBeenCalledWith('openai')
     expect(llmProviderPresenter.generateCompletionStandalone).toHaveBeenCalled()
     expect(llmProviderPresenter.generateCompletionStandalone).toHaveBeenCalledWith(
       'openai',
@@ -192,6 +195,7 @@ describe('AgentToolManager read routing', () => {
 
     expect(result.content).toContain('fallback image description')
     expect(configPresenter.resolveDeepChatAgentConfig).toHaveBeenCalledWith('agent-vision')
+    expect(llmProviderPresenter.executeWithRateLimit).toHaveBeenCalledWith('anthropic')
     expect(llmProviderPresenter.generateCompletionStandalone).toHaveBeenCalledWith(
       'anthropic',
       expect.any(Array),
@@ -218,6 +222,7 @@ describe('AgentToolManager read routing', () => {
 
     expect(result.content).toContain('[Image Metadata]')
     expect(result.content).toContain('neither the current session model nor the agent vision model')
+    expect(llmProviderPresenter.executeWithRateLimit).not.toHaveBeenCalled()
   })
 
   it('falls back to image metadata when the conversation cannot be found', async () => {
@@ -236,6 +241,7 @@ describe('AgentToolManager read routing', () => {
 
     expect(result.content).toContain('[Image Metadata]')
     expect(result.content).toContain('neither the current session model nor the agent vision model')
+    expect(llmProviderPresenter.executeWithRateLimit).not.toHaveBeenCalled()
   })
 
   it('surfaces runtime errors while resolving the conversation vision target', async () => {

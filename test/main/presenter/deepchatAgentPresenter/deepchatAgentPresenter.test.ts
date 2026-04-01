@@ -798,6 +798,7 @@ describe('DeepChatAgentPresenter', () => {
       await agent.processMessage('s1', 'new prompt')
 
       expect(llmProvider.generateText).toHaveBeenCalledTimes(1)
+      expect(llmProvider.executeWithRateLimit).toHaveBeenCalledWith('openai')
       expect(
         sqlitePresenter.deepchatSessionsTable.updateSummaryStateIfMatches
       ).toHaveBeenCalledWith(
@@ -3022,6 +3023,12 @@ describe('DeepChatAgentPresenter', () => {
         params: '{"method":"Page.captureScreenshot","params":{"format":"jpeg"}}'
       })
 
+      expect(llmProvider.executeWithRateLimit).toHaveBeenCalledWith(
+        'openai',
+        expect.objectContaining({
+          signal: expect.any(Object)
+        })
+      )
       expect(llmProvider.generateCompletionStandalone).toHaveBeenCalledWith(
         'openai',
         [
@@ -3348,6 +3355,12 @@ describe('DeepChatAgentPresenter', () => {
         'persisted-agent',
         'vision'
       )
+      expect(llmProvider.executeWithRateLimit).toHaveBeenCalledWith(
+        'google',
+        expect.objectContaining({
+          signal: undefined
+        })
+      )
       expect(llmProvider.generateCompletionStandalone).toHaveBeenCalledWith(
         'google',
         expect.any(Array),
@@ -3373,6 +3386,7 @@ describe('DeepChatAgentPresenter', () => {
         abortSignal: abortController.signal
       })
 
+      expect(llmProvider.executeWithRateLimit).not.toHaveBeenCalled()
       expect(llmProvider.generateCompletionStandalone).not.toHaveBeenCalled()
       expect(normalized).toBe('Screenshot captured, but automatic English analysis was canceled.')
     })

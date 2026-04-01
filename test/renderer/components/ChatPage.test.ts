@@ -29,6 +29,9 @@ const buildAssistantMessage = (content: unknown) => ({
 
 type SetupOptions = {
   messages?: Array<Record<string, unknown>>
+  isStreaming?: boolean
+  streamingBlocks?: unknown[]
+  currentStreamMessageId?: string | null
   pendingInputStorePatch?: Record<string, unknown>
   sessionKind?: 'regular' | 'subagent'
 }
@@ -62,9 +65,9 @@ const setup = async (options: SetupOptions = {}) => {
         }
       ])
     ],
-    isStreaming: false,
-    streamingBlocks: [],
-    currentStreamMessageId: null,
+    isStreaming: options.isStreaming ?? false,
+    streamingBlocks: options.streamingBlocks ?? [],
+    currentStreamMessageId: options.currentStreamMessageId ?? null,
     loadMessages: vi.fn().mockResolvedValue(undefined),
     clearStreamingState: vi.fn(),
     addOptimisticUserMessage: vi.fn()
@@ -148,6 +151,18 @@ const setup = async (options: SetupOptions = {}) => {
           type: Array,
           required: true
         },
+        conversationId: {
+          type: String,
+          default: ''
+        },
+        ephemeralRateLimitBlock: {
+          type: Object,
+          default: null
+        },
+        ephemeralRateLimitMessageId: {
+          type: String,
+          default: null
+        },
         isGenerating: {
           type: Boolean,
           default: false
@@ -161,7 +176,8 @@ const setup = async (options: SetupOptions = {}) => {
           default: false
         }
       },
-      template: '<div class="message-list-stub" :data-read-only="String(isReadOnly)" />'
+      template:
+        '<div class="message-list-stub" :data-read-only="String(isReadOnly)" :data-has-rate-limit="String(Boolean(ephemeralRateLimitBlock))" />'
     })
   }))
   vi.doMock('@/components/chat/ChatInputBox.vue', () => ({
@@ -255,6 +271,32 @@ describe('ChatPage', () => {
     expect(messages).toHaveLength(1)
     expect(messages[0].usage.reasoning_start_time).toBe(1_200)
     expect(messages[0].usage.reasoning_end_time).toBe(4_500)
+  })
+
+  it('extracts ephemeral rate-limit streaming blocks instead of creating a virtual assistant message', async () => {
+    const { wrapper } = await setup({
+      messages: [],
+      isStreaming: true,
+      currentStreamMessageId: '__rate_limit__:s1:1',
+      streamingBlocks: [
+        {
+          type: 'action',
+          action_type: 'rate_limit',
+          status: 'pending',
+          timestamp: 1
+        }
+      ]
+    })
+
+    const messageList = wrapper.findComponent({ name: 'MessageList' })
+    expect(messageList.props('messages')).toEqual([])
+    expect(messageList.props('ephemeralRateLimitMessageId')).toBe('__rate_limit__:s1:1')
+    expect(messageList.props('ephemeralRateLimitBlock')).toEqual(
+      expect.objectContaining({
+        action_type: 'rate_limit'
+      })
+    )
+    expect(wrapper.find('.message-list-stub').attributes('data-has-rate-limit')).toBe('true')
   })
 
   it('keeps pending lane visible below the tool interaction overlay', async () => {

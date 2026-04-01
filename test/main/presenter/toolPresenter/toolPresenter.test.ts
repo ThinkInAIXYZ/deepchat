@@ -70,6 +70,7 @@ describe('ToolPresenter', () => {
           prepareFileCompletely: vi.fn()
         }),
         getLlmProviderPresenter: () => ({
+          executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
           generateCompletionStandalone: vi.fn()
         }),
         createSettingsWindow: vi.fn(),
@@ -124,6 +125,7 @@ describe('ToolPresenter', () => {
         prepareFileCompletely: vi.fn()
       }),
       getLlmProviderPresenter: () => ({
+        executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
         generateCompletionStandalone: vi.fn()
       }),
       createSettingsWindow: vi.fn(),
@@ -159,7 +161,14 @@ describe('ToolPresenter', () => {
       conversationId: 'conv-1'
     })
 
-    expect(callToolSpy).toHaveBeenCalledWith('read', { path: 'foo' }, 'conv-1')
+    expect(callToolSpy).toHaveBeenCalledWith(
+      'read',
+      { path: 'foo' },
+      'conv-1',
+      expect.objectContaining({
+        toolCallId: 'tool-1'
+      })
+    )
   })
 
   it('filters disabled agent tools while preserving MCP tools', async () => {
@@ -197,6 +206,7 @@ describe('ToolPresenter', () => {
         prepareFileCompletely: vi.fn()
       }),
       getLlmProviderPresenter: () => ({
+        executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
         generateCompletionStandalone: vi.fn()
       }),
       createSettingsWindow: vi.fn(),
@@ -268,6 +278,7 @@ describe('ToolPresenter', () => {
           prepareFileCompletely: vi.fn()
         }),
         getLlmProviderPresenter: () => ({
+          executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
           generateCompletionStandalone: vi.fn()
         }),
         createSettingsWindow: vi.fn(),
@@ -354,6 +365,7 @@ describe('ToolPresenter', () => {
           prepareFileCompletely: vi.fn()
         }),
         getLlmProviderPresenter: () => ({
+          executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
           generateCompletionStandalone: vi.fn()
         }),
         createSettingsWindow: vi.fn(),
@@ -432,6 +444,7 @@ describe('ToolPresenter', () => {
         prepareFileCompletely: vi.fn()
       }),
       getLlmProviderPresenter: () => ({
+        executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
         generateCompletionStandalone: vi.fn()
       }),
       createSettingsWindow: vi.fn(),
@@ -529,6 +542,7 @@ describe('ToolPresenter', () => {
           prepareFileCompletely: vi.fn()
         }),
         getLlmProviderPresenter: () => ({
+          executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
           generateCompletionStandalone: vi.fn()
         }),
         createSettingsWindow: vi.fn(),

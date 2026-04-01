@@ -140,6 +140,7 @@ function createService(options?: {
   } as any
 
   const llmProviderPresenter = {
+    executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
     generateText: vi.fn().mockResolvedValue({
       content: 'generated summary'
     })

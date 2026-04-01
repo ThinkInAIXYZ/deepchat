@@ -3275,6 +3275,9 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
         visionModel.modelId,
         visionModel.providerId
       )
+      await this.llmProviderPresenter.executeWithRateLimit(visionModel.providerId, {
+        signal: abortSignal
+      })
       const response = await this.llmProviderPresenter.generateCompletionStandalone(
         visionModel.providerId,
         messages,

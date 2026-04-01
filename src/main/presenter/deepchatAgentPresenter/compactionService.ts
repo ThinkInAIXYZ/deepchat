@@ -704,6 +704,7 @@ export class CompactionService {
     spanText: string
   ): Promise<string> {
     const prompt = this.buildSummaryPrompt(previousSummary, spanText)
+    await this.llmProviderPresenter.executeWithRateLimit(model.providerId)
     const response = await this.llmProviderPresenter.generateText(
       model.providerId,
       prompt,
