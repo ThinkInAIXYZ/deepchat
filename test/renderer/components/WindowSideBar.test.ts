@@ -73,6 +73,12 @@ const setup = async (options: SetupOptions = {}) => {
   const themeStore = reactive({
     isDark: false
   })
+  const spotlightStore = reactive({
+    open: false,
+    toggleSpotlight: vi.fn(() => {
+      spotlightStore.open = !spotlightStore.open
+    })
+  })
   const windowPresenter = {
     openOrFocusSettingsWindow: vi.fn(),
     createSettingsWindow: vi.fn().mockResolvedValue(99),
@@ -122,6 +128,9 @@ const setup = async (options: SetupOptions = {}) => {
   }))
   vi.doMock('@/stores/theme', () => ({
     useThemeStore: () => themeStore
+  }))
+  vi.doMock('@/stores/ui/spotlight', () => ({
+    useSpotlightStore: () => spotlightStore
   }))
   vi.doMock('@/composables/usePresenter', () => ({
     usePresenter: () => windowPresenter,
@@ -198,7 +207,15 @@ const setup = async (options: SetupOptions = {}) => {
 
   await flushPromises()
 
-  return { wrapper, operations, agentStore, sessionStore, windowPresenter, remoteControlPresenter }
+  return {
+    wrapper,
+    operations,
+    agentStore,
+    sessionStore,
+    windowPresenter,
+    remoteControlPresenter,
+    spotlightStore
+  }
 }
 
 describe('WindowSideBar agent switch', () => {
@@ -324,6 +341,21 @@ describe('WindowSideBar agent switch', () => {
 
     expect(wrapper.text()).toContain('Alpha Session')
     expect(wrapper.text()).not.toContain('Beta Session')
+  }, 10000)
+
+  it('toggles spotlight from the rail search button', async () => {
+    const { wrapper, spotlightStore } = await setup()
+
+    const buttons = wrapper.findAll('button')
+    const spotlightButton = buttons.find((button) =>
+      button.attributes('title')?.includes('chat.spotlight.placeholder')
+    )
+
+    expect(spotlightButton).toBeTruthy()
+
+    await spotlightButton!.trigger('click')
+
+    expect(spotlightStore.toggleSpotlight).toHaveBeenCalledTimes(1)
   }, 10000)
 
   it('collapses and expands time groups from the folder header', async () => {

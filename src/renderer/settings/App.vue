@@ -86,6 +86,7 @@ import { useFontManager } from '../src/composables/useFontManager'
 import type { LLM_PROVIDER, ProviderInstallPreview } from '@shared/presenter'
 import ProviderDeeplinkImportDialog from './components/ProviderDeeplinkImportDialog.vue'
 import { nanoid } from 'nanoid'
+import { SETTINGS_NAVIGATION_ITEMS } from '@shared/settingsNavigation'
 
 const devicePresenter = usePresenter('devicePresenter')
 const windowPresenter = usePresenter('windowPresenter')
@@ -312,38 +313,17 @@ const settings: Ref<
     icon: string
     path: string
   }[]
-> = ref([])
+> = ref(
+  SETTINGS_NAVIGATION_ITEMS.map((item) => ({
+    title: item.titleKey,
+    name: item.routeName,
+    icon: item.icon,
+    path: item.path
+  }))
+)
 
-// Get all routes and build settings navigation
-const routes = router.getRoutes()
 onMounted(() => {
   void initializeSettingsStores()
-  const tempArray: {
-    title: string
-    name: string
-    icon: string
-    path: string
-    position: number
-  }[] = []
-  routes.forEach((route) => {
-    // In settings window, all routes are top-level, no parent 'settings' route
-    if (route.path !== '/' && route.meta?.titleKey) {
-      console.log(`Adding settings route: ${route.path} with titleKey: ${route.meta.titleKey}`)
-      tempArray.push({
-        title: route.meta.titleKey as string,
-        icon: route.meta.icon as string,
-        path: route.path,
-        name: route.name as string,
-        position: (route.meta.position as number) || 999
-      })
-    }
-    // Sort by position meta field, default to 999 if not present
-    tempArray.sort((a, b) => {
-      return a.position - b.position
-    })
-    settings.value = tempArray
-    console.log('Final sorted settings routes:', settings.value)
-  })
 })
 
 const initializeSettingsStores = async () => {

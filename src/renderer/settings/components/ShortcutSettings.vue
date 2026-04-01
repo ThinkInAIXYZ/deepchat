@@ -184,6 +184,10 @@ const shortcutMapping: Record<
     icon: 'lucide:plus-square',
     label: 'settings.shortcuts.newConversation'
   },
+  QuickSearch: {
+    icon: 'lucide:search',
+    label: 'settings.shortcuts.quickSearch'
+  },
   NewWindow: {
     icon: 'lucide:app-window',
     label: 'settings.shortcuts.newWindow'

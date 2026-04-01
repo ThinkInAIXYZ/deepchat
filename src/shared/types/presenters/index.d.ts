@@ -80,7 +80,13 @@ export type {
 export type { IToolPresenter } from './tool.presenter'
 
 // New agent architecture types
-export type { INewAgentPresenter } from './new-agent.presenter'
+export type {
+  INewAgentPresenter,
+  HistorySearchHit,
+  HistorySearchMessageHit,
+  HistorySearchOptions,
+  HistorySearchSessionHit
+} from './new-agent.presenter'
 export type { IProjectPresenter } from './project.presenter'
 export type {
   FeishuPairingSnapshot,

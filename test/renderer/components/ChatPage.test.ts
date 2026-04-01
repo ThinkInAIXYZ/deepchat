@@ -31,6 +31,7 @@ type SetupOptions = {
   messages?: Array<Record<string, unknown>>
   pendingInputStorePatch?: Record<string, unknown>
   sessionKind?: 'regular' | 'subagent'
+  spotlightPendingJump?: { sessionId: string; messageId: string } | null
 }
 
 const setup = async (options: SetupOptions = {}) => {
@@ -104,6 +105,13 @@ const setup = async (options: SetupOptions = {}) => {
     forkSession: vi.fn().mockResolvedValue({ id: 'forked' })
   }
 
+  const spotlightStore = reactive({
+    pendingMessageJump: options.spotlightPendingJump ?? null,
+    clearPendingMessageJump: vi.fn(() => {
+      spotlightStore.pendingMessageJump = null
+    })
+  })
+
   vi.doMock('@/stores/ui/session', () => ({
     useSessionStore: () => sessionStore
   }))
@@ -118,6 +126,9 @@ const setup = async (options: SetupOptions = {}) => {
   }))
   vi.doMock('@/composables/usePresenter', () => ({
     usePresenter: () => newAgentPresenter
+  }))
+  vi.doMock('@/stores/ui/spotlight', () => ({
+    useSpotlightStore: () => spotlightStore
   }))
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({
@@ -161,7 +172,8 @@ const setup = async (options: SetupOptions = {}) => {
           default: false
         }
       },
-      template: '<div class="message-list-stub" :data-read-only="String(isReadOnly)" />'
+      template:
+        '<div class="message-list-stub" :data-read-only="String(isReadOnly)"><div v-for="message in messages" :key="message.id" class="message-item-stub" :data-message-id="message.id" /></div>'
     })
   }))
   vi.doMock('@/components/chat/ChatInputBox.vue', () => ({
@@ -259,7 +271,8 @@ const setup = async (options: SetupOptions = {}) => {
   return {
     wrapper,
     messageStore,
-    pendingInputStore
+    pendingInputStore,
+    spotlightStore
   }
 }
 
@@ -460,5 +473,30 @@ describe('ChatPage', () => {
     expect(wrapper.find('.pending-input-lane-stub').exists()).toBe(false)
     expect(wrapper.find('.chat-tool-interaction-overlay-stub').exists()).toBe(false)
     expect(wrapper.findComponent({ name: 'ChatStatusBar' }).exists()).toBe(false)
+  })
+
+  it('consumes pending spotlight message jumps after loading the target session', async () => {
+    vi.useFakeTimers()
+    const scrollIntoView = vi.fn()
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      value: scrollIntoView,
+      configurable: true
+    })
+
+    const { wrapper, spotlightStore } = await setup({
+      spotlightPendingJump: {
+        sessionId: 's1',
+        messageId: 'm1'
+      }
+    })
+
+    await flushPromises()
+    vi.runAllTimers()
+    await flushPromises()
+
+    expect(scrollIntoView).toHaveBeenCalled()
+    expect(spotlightStore.clearPendingMessageJump).toHaveBeenCalled()
+    expect(wrapper.find('[data-message-id="m1"]').classes()).not.toContain('message-highlight')
+    vi.useRealTimers()
   })
 })

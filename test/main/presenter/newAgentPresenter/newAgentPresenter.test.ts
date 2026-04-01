@@ -164,7 +164,40 @@ function createMockSkillPresenter() {
 }
 
 function createMockSqlitePresenter() {
+  const db = {
+    prepare: vi.fn((sql: string) => ({
+      all: vi.fn((...args: unknown[]) => {
+        if (sql.includes('FROM new_sessions')) {
+          return [
+            {
+              id: 'session-1',
+              title: 'Release checklist',
+              projectDir: '/repo',
+              updatedAt: 200
+            }
+          ]
+        }
+
+        if (sql.includes('FROM deepchat_messages')) {
+          return [
+            {
+              id: 'message-1',
+              sessionId: 'session-1',
+              title: 'Release checklist',
+              role: 'assistant',
+              content: JSON.stringify([{ type: 'text', content: 'pnpm run build still fails on arm64' }]),
+              updatedAt: 100
+            }
+          ]
+        }
+
+        throw new Error(`Unexpected SQL in test: ${sql} with args ${JSON.stringify(args)}`)
+      })
+    }))
+  }
+
   return {
+    db,
     newSessionsTable: {
       create: vi.fn(),
       get: vi.fn(),
@@ -626,6 +659,35 @@ describe('NewAgentPresenter', () => {
       expect(deepChatAgent.destroySession).toHaveBeenCalledWith('mock-session-id')
       expect(sqlitePresenter.newSessionsTable.delete).toHaveBeenCalledWith('mock-session-id')
       expect(deepChatAgent.processMessage).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('searchHistory', () => {
+    it('returns session and message hits sorted by title relevance before recency', async () => {
+      const result = await presenter.searchHistory('release', { limit: 5 })
+
+      expect(result).toEqual([
+        {
+          kind: 'session',
+          sessionId: 'session-1',
+          title: 'Release checklist',
+          projectDir: '/repo',
+          updatedAt: 200
+        },
+        {
+          kind: 'message',
+          sessionId: 'session-1',
+          messageId: 'message-1',
+          title: 'Release checklist',
+          role: 'assistant',
+          snippet: 'pnpm run build still fails on arm64',
+          updatedAt: 100
+        }
+      ])
+    })
+
+    it('returns an empty array when query is blank', async () => {
+      await expect(presenter.searchHistory('   ')).resolves.toEqual([])
     })
   })
 

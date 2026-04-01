@@ -26,6 +26,8 @@ import { useFontManager } from './composables/useFontManager'
 import AppBar from '@/components/AppBar.vue'
 import { useDeviceVersion } from '@/composables/useDeviceVersion'
 import WindowSideBar from './components/WindowSideBar.vue'
+import SpotlightOverlay from '@/components/spotlight/SpotlightOverlay.vue'
+import { useSpotlightStore } from '@/stores/ui/spotlight'
 
 const DEV_WELCOME_OVERRIDE_KEY = '__deepchat_dev_force_welcome'
 
@@ -36,6 +38,7 @@ const sessionStore = useSessionStore()
 const agentStore = useAgentStore()
 const draftStore = useDraftStore()
 const pageRouterStore = usePageRouterStore()
+const spotlightStore = useSpotlightStore()
 const { toast } = useToast()
 const uiSettingsStore = useUiSettingsStore()
 const { setupFontListener } = useFontManager()
@@ -344,6 +347,10 @@ onMounted(() => {
     void handleCreateNewConversation()
   })
 
+  window.electron.ipcRenderer.on(SHORTCUT_EVENTS.TOGGLE_SPOTLIGHT, () => {
+    spotlightStore.toggleSpotlight()
+  })
+
   // GO_SETTINGS is now handled in main process (open/focus Settings tab)
 
   window.electron.ipcRenderer.on(NOTIFICATION_EVENTS.DATA_RESET_COMPLETE_DEV, () => {
@@ -423,6 +430,7 @@ onBeforeUnmount(() => {
   window.electron.ipcRenderer.removeAllListeners(SHORTCUT_EVENTS.ZOOM_OUT)
   window.electron.ipcRenderer.removeAllListeners(SHORTCUT_EVENTS.ZOOM_RESUME)
   window.electron.ipcRenderer.removeAllListeners(SHORTCUT_EVENTS.CREATE_NEW_CONVERSATION)
+  window.electron.ipcRenderer.removeAllListeners(SHORTCUT_EVENTS.TOGGLE_SPOTLIGHT)
   // GO_SETTINGS listener removed; handled in main
   window.electron.ipcRenderer.removeAllListeners(NOTIFICATION_EVENTS.SYS_NOTIFY_CLICKED)
   window.electron.ipcRenderer.removeAllListeners(NOTIFICATION_EVENTS.DATA_RESET_COMPLETE_DEV)
@@ -456,6 +464,7 @@ onBeforeUnmount(() => {
     <Toaster :theme="toasterTheme" />
     <SelectedTextContextMenu />
     <TranslatePopup />
+    <SpotlightOverlay />
     <!-- Global model check dialog -->
     <ModelCheckDialog
       :open="modelCheckStore.isDialogOpen"

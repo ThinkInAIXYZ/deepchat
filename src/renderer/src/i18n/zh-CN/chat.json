@@ -311,6 +311,20 @@
     "searchEmptyTitle": "没有找到匹配的会话",
     "searchEmptyDescription": "试试换一个标题关键词"
   },
+  "spotlight": {
+    "placeholder": "搜索会话、消息、Agent、设置与动作…",
+    "searching": "搜索中…",
+    "emptyTitle": "没有匹配结果",
+    "emptyDescription": "试试别的关键词，或直接打开最近会话。",
+    "hints": "↑↓ 选择 · Enter 打开 · Esc 关闭 · Home/End 跳转",
+    "kind": {
+      "session": "会话",
+      "message": "消息",
+      "agent": "Agent",
+      "setting": "设置",
+      "action": "动作"
+    }
+  },
   "inlineSearch": {
     "placeholder": "搜索当前会话",
     "ariaLabel": "搜索当前会话",

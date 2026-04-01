@@ -186,6 +186,7 @@ export const SHORTCUT_EVENTS = {
   ZOOM_RESUME: 'shortcut:zoom-resume',
   CREATE_NEW_WINDOW: 'shortcut:create-new-window',
   CREATE_NEW_CONVERSATION: 'shortcut:create-new-conversation',
+  TOGGLE_SPOTLIGHT: 'shortcut:toggle-spotlight',
   GO_SETTINGS: 'shortcut:go-settings',
   CLEAN_CHAT_HISTORY: 'shortcut:clean-chat-history',
   DELETE_CONVERSATION: 'shortcut:delete-conversation'

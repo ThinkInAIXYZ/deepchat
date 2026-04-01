@@ -51,6 +51,24 @@
         <!-- Bottom action buttons -->
         <div class="w-5 h-px bg-border my-1"></div>
 
+        <Tooltip>
+          <TooltipTrigger as-child>
+            <Button
+              class="flex items-center justify-center w-9 h-9 rounded-xl border transition-all duration-150 shadow-none"
+              :class="
+                spotlightStore.open
+                  ? 'bg-card/50 border-white/80 dark:border-white/20 ring-1 ring-black/10 hover:bg-white/30 dark:hover:bg-white/10'
+                  : 'bg-transparent border-none hover:bg-white/30 dark:hover:bg-white/10'
+              "
+              :title="t('chat.spotlight.placeholder')"
+              @click="spotlightStore.toggleSpotlight()"
+            >
+              <Icon icon="lucide:search" class="w-4 h-4 text-foreground/80" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="right">{{ t('chat.spotlight.placeholder') }}</TooltipContent>
+        </Tooltip>
+
         <Tooltip v-if="showRemoteControlButton">
           <TooltipTrigger as-child>
             <Button
@@ -322,6 +340,7 @@ import { usePresenter, useRemoteControlPresenter } from '@/composables/usePresen
 import { SETTINGS_EVENTS } from '@/events'
 import { useAgentStore } from '@/stores/ui/agent'
 import { useSessionStore, type SessionGroup, type UISession } from '@/stores/ui/session'
+import { useSpotlightStore } from '@/stores/ui/spotlight'
 import type {
   TelegramRemoteStatus,
   FeishuRemoteStatus,
@@ -341,6 +360,7 @@ const remoteControlPresenter = useRemoteControlPresenter()
 const { t } = useI18n()
 const agentStore = useAgentStore()
 const sessionStore = useSessionStore()
+const spotlightStore = useSpotlightStore()
 
 const collapsed = ref(false)
 const sessionSearchQuery = ref('')

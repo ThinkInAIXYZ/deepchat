@@ -121,6 +121,7 @@ import TraceDialog from '@/components/trace/TraceDialog.vue'
 import { useSessionStore } from '@/stores/ui/session'
 import { useMessageStore } from '@/stores/ui/message'
 import { usePendingInputStore } from '@/stores/ui/pendingInput'
+import { useSpotlightStore } from '@/stores/ui/spotlight'
 import { useModelStore } from '@/stores/modelStore'
 import { usePresenter } from '@/composables/usePresenter'
 import {
@@ -144,6 +145,7 @@ const props = defineProps<{
 const sessionStore = useSessionStore()
 const messageStore = useMessageStore()
 const pendingInputStore = usePendingInputStore()
+const spotlightStore = useSpotlightStore()
 const modelStore = useModelStore()
 const newAgentPresenter = usePresenter('newAgentPresenter')
 const { t } = useI18n()
@@ -177,6 +179,7 @@ const chatSearchBarRef = ref<{
   focusInput: () => void
   selectInput: () => void
 } | null>(null)
+let spotlightJumpTimer: number | null = null
 
 function scrollToBottom() {
   const el = scrollContainer.value
@@ -191,6 +194,47 @@ function onScroll() {
   isNearBottom.value = distanceFromBottom <= NEAR_BOTTOM_THRESHOLD
 }
 
+async function focusPendingSpotlightMessageJump(attempt = 0): Promise<void> {
+  const pendingJump = spotlightStore.pendingMessageJump
+  if (!pendingJump || pendingJump.sessionId !== props.sessionId) {
+    return
+  }
+
+  await nextTick()
+
+  const target = messageSearchRoot.value?.querySelector<HTMLElement>(
+    `[data-message-id="${pendingJump.messageId}"]`
+  )
+
+  if (!target) {
+    if (attempt >= 8) {
+      return
+    }
+
+    if (spotlightJumpTimer) {
+      window.clearTimeout(spotlightJumpTimer)
+    }
+
+    spotlightJumpTimer = window.setTimeout(() => {
+      void focusPendingSpotlightMessageJump(attempt + 1)
+    }, 80)
+    return
+  }
+
+  target.scrollIntoView({
+    block: 'center',
+    inline: 'nearest',
+    behavior: 'smooth'
+  })
+  target.classList.add('message-highlight')
+
+  window.setTimeout(() => {
+    target.classList.remove('message-highlight')
+  }, 2000)
+
+  spotlightStore.clearPendingMessageJump()
+}
+
 // Load messages when sessionId changes, then scroll to bottom
 watch(
   () => props.sessionId,
@@ -199,6 +243,10 @@ watch(
     if (id) {
       await Promise.all([messageStore.loadMessages(id), pendingInputStore.loadPendingInputs(id)])
       await nextTick()
+      if (spotlightStore.pendingMessageJump?.sessionId === id) {
+        void focusPendingSpotlightMessageJump()
+        return
+      }
       scrollToBottom()
       return
     }
@@ -370,6 +418,11 @@ const traceMessageIds = computed(() =>
 watch(
   displayMessages,
   () => {
+    if (spotlightStore.pendingMessageJump?.sessionId === props.sessionId) {
+      void focusPendingSpotlightMessageJump()
+      return
+    }
+
     if (isNearBottom.value) {
       nextTick(scrollToBottom)
     }
@@ -855,11 +908,24 @@ onUnmounted(() => {
   window.removeEventListener('context-menu-ask-ai', handleContextMenuAskAI)
   window.removeEventListener('keydown', handleWindowKeydown)
   clearChatSearchHighlights(messageSearchRoot.value)
+  if (spotlightJumpTimer) {
+    window.clearTimeout(spotlightJumpTimer)
+    spotlightJumpTimer = null
+  }
   pendingInputStore.clear()
 })
 </script>
 
 <style>
+.message-highlight {
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, var(--primary) 14%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 20%, transparent);
+  transition:
+    background-color 180ms ease,
+    box-shadow 180ms ease;
+}
+
 .chat-search-highlight {
   border-radius: 0.32rem;
   background: color-mix(in srgb, var(--primary) 12%, transparent);

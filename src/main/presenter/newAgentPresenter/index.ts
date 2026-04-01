@@ -27,6 +27,10 @@ import type { SearchResult } from '@shared/types/core/search'
 import type {
   AcpConfigState,
   IConfigPresenter,
+  HistorySearchHit,
+  HistorySearchOptions,
+  HistorySearchSessionHit,
+  HistorySearchMessageHit,
   ILlmProviderPresenter,
   ISkillPresenter,
   CONVERSATION
@@ -60,11 +64,148 @@ import {
 import { rtkRuntimeService } from '@/lib/agentRuntime/rtkRuntimeService'
 import { resolveAcpAgentAlias } from '../configPresenter/acpRegistryConstants'
 
+type SearchableSessionRow = {
+  id: string
+  title: string
+  projectDir: string | null
+  updatedAt: number
+}
+
+type SearchableMessageRow = {
+  id: string
+  sessionId: string
+  title: string
+  role: 'user' | 'assistant'
+  content: string
+  updatedAt: number
+}
+
 const RETIRED_DEFAULT_AGENT_TOOLS = new Set(['find', 'grep', 'ls'])
 const LEGACY_AGENT_TOOL_NAME_MAP: Record<string, string> = {
   yo_browser_cdp_send: 'cdp_send',
   yo_browser_window_open: 'load_url',
   yo_browser_window_list: 'get_browser_status'
+}
+
+const clampHistorySearchLimit = (value: number | undefined): number => {
+  if (typeof value !== 'number' || Number.isNaN(value)) {
+    return 12
+  }
+
+  return Math.min(Math.max(Math.floor(value), 1), 50)
+}
+
+const normalizeSearchText = (value: string): string => value.trim().toLowerCase()
+
+const buildSearchSnippet = (content: string, query: string, maxLength: number = 120): string => {
+  const normalizedContent = content.trim()
+  if (!normalizedContent) {
+    return ''
+  }
+
+  const lowerContent = normalizedContent.toLowerCase()
+  const lowerQuery = query.toLowerCase()
+  const index = lowerContent.indexOf(lowerQuery)
+
+  if (index === -1) {
+    return normalizedContent.length > maxLength
+      ? normalizedContent.slice(0, maxLength).trimEnd() + '…'
+      : normalizedContent
+  }
+
+  const start = Math.max(0, index - 48)
+  const end = Math.min(normalizedContent.length, index + query.length + 48)
+  let snippet = normalizedContent.slice(start, end).trim()
+
+  if (start > 0) {
+    snippet = '…' + snippet
+  }
+  if (end < normalizedContent.length) {
+    snippet += '…'
+  }
+
+  return snippet
+}
+
+const scoreSessionHit = (session: SearchableSessionRow, normalizedQuery: string): number => {
+  const title = session.title.toLowerCase()
+  if (title.startsWith(normalizedQuery)) {
+    return 400
+  }
+  if (title.includes(normalizedQuery)) {
+    return 320
+  }
+  return 0
+}
+
+const scoreMessageHit = (message: SearchableMessageRow, normalizedQuery: string): number => {
+  const title = message.title.toLowerCase()
+  const content = message.content.toLowerCase()
+
+  if (title.startsWith(normalizedQuery)) {
+    return 280
+  }
+  if (title.includes(normalizedQuery)) {
+    return 220
+  }
+  if (content.startsWith(normalizedQuery)) {
+    return 180
+  }
+  if (content.includes(normalizedQuery)) {
+    return 140
+  }
+  return 0
+}
+
+const extractSearchableMessageContent = (rawContent: string): string => {
+  try {
+    const parsed = JSON.parse(rawContent) as
+      | { text?: string; content?: Array<{ type?: string; text?: string }> }
+      | Array<{
+          type?: string
+          content?: string
+          text?: string
+          error?: string
+        }>
+
+    if (Array.isArray(parsed)) {
+      const segments = parsed
+        .flatMap((block) => {
+          if (!block || typeof block !== 'object') {
+            return []
+          }
+
+          const values = [block.content, block.text, block.error]
+          return values.filter((value): value is string => typeof value === 'string' && value.trim())
+        })
+        .map((value) => value.trim())
+
+      if (segments.length > 0) {
+        return segments.join('\n')
+      }
+    } else if (parsed && typeof parsed === 'object') {
+      if (typeof parsed.text === 'string' && parsed.text.trim()) {
+        return parsed.text.trim()
+      }
+
+      if (Array.isArray(parsed.content)) {
+        const segments = parsed.content
+          .filter(
+            (item): item is { type?: string; text?: string } =>
+              typeof item?.text === 'string' && item.text.trim().length > 0
+          )
+          .map((item) => item.text!.trim())
+
+        if (segments.length > 0) {
+          return segments.join('\n')
+        }
+      }
+    }
+  } catch {
+    // keep raw content fallback
+  }
+
+  return rawContent
 }
 
 export class NewAgentPresenter {
@@ -784,6 +925,99 @@ export class NewAgentPresenter {
     if (!session) throw new Error(`Session not found: ${sessionId}`)
     const agent = await this.resolveAgentImplementation(session.agentId)
     return agent.getMessages(sessionId)
+  }
+
+  async searchHistory(
+    query: string,
+    options?: HistorySearchOptions
+  ): Promise<HistorySearchHit[]> {
+    const normalizedQuery = normalizeSearchText(query)
+    if (!normalizedQuery) {
+      return []
+    }
+
+    const limit = clampHistorySearchLimit(options?.limit)
+    const db = (this.sqlitePresenter as unknown as { db?: { prepare: (sql: string) => any } }).db
+    if (!db) {
+      return []
+    }
+
+    const likeQuery = `%${normalizedQuery}%`
+
+    const sessionRows = db
+      .prepare(
+        `
+          SELECT
+            id,
+            title,
+            project_dir AS projectDir,
+            updated_at AS updatedAt
+          FROM new_sessions
+          WHERE session_kind = 'regular'
+            AND lower(title) LIKE ?
+          ORDER BY updated_at DESC
+          LIMIT ?
+        `
+      )
+      .all(likeQuery, limit * 2) as SearchableSessionRow[]
+
+    const messageRows = db
+      .prepare(
+        `
+          SELECT
+            m.id AS id,
+            m.session_id AS sessionId,
+            s.title AS title,
+            m.role AS role,
+            m.content AS content,
+            m.updated_at AS updatedAt
+          FROM deepchat_messages m
+          INNER JOIN new_sessions s
+            ON s.id = m.session_id
+          WHERE s.session_kind = 'regular'
+            AND lower(m.content) LIKE ?
+          ORDER BY m.updated_at DESC
+          LIMIT ?
+        `
+      )
+      .all(likeQuery, limit * 4) as SearchableMessageRow[]
+
+    const sessionHits: Array<HistorySearchSessionHit & { score: number }> = sessionRows
+      .map((session) => ({
+        kind: 'session' as const,
+        sessionId: session.id,
+        title: session.title,
+        projectDir: session.projectDir,
+        updatedAt: Number(session.updatedAt ?? 0),
+        score: scoreSessionHit(session, normalizedQuery)
+      }))
+      .filter((item) => item.score > 0)
+
+    const messageHits: Array<HistorySearchMessageHit & { score: number }> = messageRows
+      .map((message) => {
+        const content = extractSearchableMessageContent(message.content)
+        return {
+          kind: 'message' as const,
+          sessionId: message.sessionId,
+          messageId: message.id,
+          title: message.title,
+          role: message.role,
+          snippet: buildSearchSnippet(content, normalizedQuery),
+          updatedAt: Number(message.updatedAt ?? 0),
+          score: scoreMessageHit({ ...message, content }, normalizedQuery)
+        }
+      })
+      .filter((item) => item.score > 0)
+
+    return [...sessionHits, ...messageHits]
+      .sort((left, right) => {
+        if (right.score !== left.score) {
+          return right.score - left.score
+        }
+        return right.updatedAt - left.updatedAt
+      })
+      .slice(0, limit)
+      .map(({ score: _score, ...item }) => item)
   }
 
   async getSessionCompactionState(sessionId: string): Promise<SessionCompactionState> {
