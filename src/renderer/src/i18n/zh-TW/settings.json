@@ -171,6 +171,18 @@
       "backupSuccessTitle": "備份成功",
       "backupSuccessMessage": "成功備份了數據"
     },
+    "modelConfigUpdate": {
+      "title": "更新模型設定",
+      "description": "從上游強制重新整理 provider.json，以最新的服務商中繼資料更新模型能力與預設設定。",
+      "button": "立即更新",
+      "updating": "更新中...",
+      "updatedTitle": "模型設定已更新",
+      "updatedDescription": "已重新整理為最新的服務商中繼資料。",
+      "upToDateTitle": "已是最新",
+      "upToDateDescription": "目前本機模型設定已使用最新的服務商中繼資料。",
+      "failedTitle": "更新失敗",
+      "failedDescription": "目前無法重新整理模型設定，請稍後再試。"
+    },
     "yoBrowser": {
       "clearButton": "清空 YoBrowser 數據",
       "clearFailedDescription": "請重試或查看日誌獲取更多信息。",

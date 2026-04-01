@@ -15,10 +15,16 @@ vi.mock('electron', () => ({
   }
 }))
 
-vi.mock('../../../../src/main/lib/agentRuntime/shellEnvHelper', () => ({
-  getShellEnvironment: vi.fn().mockResolvedValue({ PATH: '/shell/bin' }),
-  getUserShell: vi.fn().mockReturnValue({ shell: '/bin/zsh', args: ['-c'] })
-}))
+vi.mock('../../../../src/main/lib/agentRuntime/shellEnvHelper', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('../../../../src/main/lib/agentRuntime/shellEnvHelper')>()
+
+  return {
+    ...actual,
+    getShellEnvironment: vi.fn().mockResolvedValue({ PATH: '/shell/bin' }),
+    getUserShell: vi.fn().mockReturnValue({ shell: '/bin/zsh', args: ['-c'] })
+  }
+})
 
 vi.mock('../../../../src/main/lib/agentRuntime/rtkRuntimeService', () => ({
   rtkRuntimeService: {
@@ -116,7 +122,7 @@ describe('SkillExecutionService', () => {
     )
 
     expect(plan.cwd).toBe('/workspace/session')
-    expect(plan.env.PATH).toBe('/shell/bin')
+    expect(plan.env.PATH).toContain('/shell/bin')
     expect(plan.env.API_KEY).toBe('secret')
     expect(plan.env.SKILL_ROOT).toBe('/skills/ocr')
     expect(plan.env.DEEPCHAT_SKILL_ROOT).toBe('/skills/ocr')

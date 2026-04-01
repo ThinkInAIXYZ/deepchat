@@ -117,6 +117,18 @@
       "backupSuccessTitle": "Backup lykkedes",
       "backupSuccessMessage": "Data blev sikkerhedskopieret"
     },
+    "modelConfigUpdate": {
+      "title": "Opdater modelkonfiguration",
+      "description": "Tving en opdatering af provider.json fra upstream for at hente de nyeste modelkapaciteter og standardindstillinger.",
+      "button": "Opdater nu",
+      "updating": "Opdaterer...",
+      "updatedTitle": "Modelkonfiguration opdateret",
+      "updatedDescription": "De seneste providerdata er blevet hentet.",
+      "upToDateTitle": "Allerede opdateret",
+      "upToDateDescription": "Den lokale modelkonfiguration bruger allerede de nyeste providerdata.",
+      "failedTitle": "Opdatering mislykkedes",
+      "failedDescription": "Modelkonfigurationen kunne ikke opdateres lige nu. Prøv igen senere."
+    },
     "yoBrowser": {
       "clearButton": "Ryd YoBrowser-data",
       "clearFailedDescription": "Prøv venligst igen, eller tjek logfilerne for at få flere oplysninger.",

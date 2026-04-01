@@ -18,7 +18,12 @@ import type {
   AcpResolvedLaunchSpec
 } from '@shared/presenter'
 import type { AgentProcessHandle, AgentProcessManager } from './types'
-import { getShellEnvironment } from '@/lib/agentRuntime/shellEnvHelper'
+import {
+  getPathEntriesFromEnv,
+  getShellEnvironment,
+  mergeCommandEnvironment,
+  setPathEntriesOnEnv
+} from '@/lib/agentRuntime/shellEnvHelper'
 import { RuntimeHelper } from '@/lib/runtimeHelper'
 import { buildClientCapabilities } from './acpCapabilities'
 import { AcpFsHandler } from './acpFsHandler'
@@ -798,36 +803,13 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     const processedArgs = expandedArgs
 
     const HOME_DIR = app.getPath('home')
-    const env: Record<string, string> = {}
-    Object.entries(process.env).forEach(([key, value]) => {
-      if (value !== undefined && value !== '') {
-        env[key] = value
-      }
-    })
-    let pathKey = process.platform === 'win32' ? 'Path' : 'PATH'
-    let pathValue = ''
+    let env = mergeCommandEnvironment()
 
-    // Collect existing PATH values
-    const existingPaths: string[] = []
-    const pathKeys = ['PATH', 'Path', 'path']
-    pathKeys.forEach((key) => {
-      const value = env[key]
-      if (value) {
-        existingPaths.push(value)
-      }
-    })
-
-    // Get shell environment variables for ALL commands (not just Node.js commands)
-    // This ensures commands like kimi-cli can find their dependencies in Release builds
     let shellEnv: Record<string, string> = {}
     try {
       shellEnv = await getShellEnvironment()
       console.info(`[ACP] Retrieved shell environment variables for agent ${agent.id}`)
-      Object.entries(shellEnv).forEach(([key, value]) => {
-        if (value !== undefined && value !== '' && !pathKeys.includes(key)) {
-          env[key] = value
-        }
-      })
+      env = mergeCommandEnvironment({ shellEnv })
     } catch (error) {
       console.warn(
         `[ACP] Failed to get shell environment variables for agent ${agent.id}, using fallback:`,
@@ -835,37 +817,16 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
       )
     }
 
-    // Get shell PATH if available (priority: shell PATH > existing PATH)
     const shellPath = shellEnv.PATH || shellEnv.Path || shellEnv.path
     if (shellPath) {
-      const shellPaths = shellPath.split(process.platform === 'win32' ? ';' : ':')
-      existingPaths.unshift(...shellPaths)
       console.info(`[ACP] Using shell PATH for agent ${agent.id} (length: ${shellPath.length})`)
     }
-
-    // Get default paths
-    const defaultPaths = this.runtimeHelper.getDefaultPaths(HOME_DIR)
-
-    // Merge all paths (priority: shell PATH > existing PATH > default paths)
-    const allPaths = [...existingPaths, ...defaultPaths]
-
-    // Normalize and set PATH
-    const normalized = this.runtimeHelper.normalizePathEnv(allPaths)
-    pathKey = normalized.key
-    pathValue = normalized.value
-    env[pathKey] = pathValue
 
     // Merge distribution/base environment variables first.
     if (launchSpec.env) {
       Object.entries(launchSpec.env).forEach(([key, value]) => {
         if (value !== undefined && value !== '') {
-          if (['PATH', 'Path', 'path'].includes(key)) {
-            const currentPathKey = process.platform === 'win32' ? 'Path' : 'PATH'
-            const separator = process.platform === 'win32' ? ';' : ':'
-            env[currentPathKey] = env[currentPathKey]
-              ? `${value}${separator}${env[currentPathKey]}`
-              : value
-          } else {
+          if (!['PATH', 'Path', 'path'].includes(key)) {
             env[key] = value
           }
         }
@@ -899,12 +860,28 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     if (userEnvOverride) {
       Object.entries(userEnvOverride).forEach(([key, value]) => {
         if (value !== undefined && value !== '') {
-          env[key] = value
+          if (!['PATH', 'Path', 'path'].includes(key)) {
+            env[key] = value
+          }
         }
       })
     }
 
+    setPathEntriesOnEnv(
+      env,
+      [
+        getPathEntriesFromEnv(userEnvOverride),
+        getPathEntriesFromEnv(launchSpec.env),
+        getPathEntriesFromEnv(env)
+      ],
+      {
+        includeDefaultPaths: false
+      }
+    )
+
     const mergedEnv = env
+    const pathKey = process.platform === 'win32' ? 'Path' : 'PATH'
+    const pathValue = mergedEnv[pathKey] || mergedEnv.PATH || ''
 
     console.info(`[ACP] Environment variables for agent ${agent.id}:`, {
       pathKey,

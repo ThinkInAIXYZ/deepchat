@@ -171,6 +171,18 @@
       "backupSuccessTitle": "Sauvegarde réussie",
       "backupSuccessMessage": "Données sauvegardées avec succès"
     },
+    "modelConfigUpdate": {
+      "title": "Mettre à jour la config des modèles",
+      "description": "Force la mise à jour de provider.json depuis la source afin d’actualiser les capacités des modèles et les réglages par défaut.",
+      "button": "Mettre à jour",
+      "updating": "Mise à jour...",
+      "updatedTitle": "Configuration des modèles mise à jour",
+      "updatedDescription": "Les dernières métadonnées des fournisseurs ont bien été récupérées.",
+      "upToDateTitle": "Déjà à jour",
+      "upToDateDescription": "La configuration locale utilise déjà les métadonnées fournisseur les plus récentes.",
+      "failedTitle": "Mise à jour impossible",
+      "failedDescription": "Impossible d’actualiser la configuration des modèles pour le moment. Réessayez plus tard."
+    },
     "yoBrowser": {
       "clearButton": "Effacer les données de YoBrowser",
       "clearFailedDescription": "Veuillez réessayer ou consulter les journaux pour plus d'informations.",

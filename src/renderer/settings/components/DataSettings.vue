@@ -147,6 +147,40 @@
       <!-- 分割线 -->
       <Separator class="my-4" />
 
+      <div class="flex flex-col gap-3 p-4 border border-border rounded-lg bg-card/30">
+        <div class="flex flex-row gap-3 items-start" :dir="languageStore.dir">
+          <Icon icon="lucide:refresh-cw" class="w-4 h-4 text-muted-foreground mt-1" />
+          <div class="flex flex-col gap-1">
+            <div class="text-sm font-medium">{{ t('settings.data.modelConfigUpdate.title') }}</div>
+            <p class="text-xs text-muted-foreground">
+              {{ t('settings.data.modelConfigUpdate.description') }}
+            </p>
+          </div>
+        </div>
+        <Button
+          variant="outline"
+          class="w-40"
+          :disabled="isUpdatingModelConfig"
+          :dir="languageStore.dir"
+          @click="handleRefreshProviderDb"
+        >
+          <Icon
+            :icon="isUpdatingModelConfig ? 'lucide:loader-2' : 'lucide:refresh-cw'"
+            class="w-4 h-4 text-muted-foreground"
+            :class="isUpdatingModelConfig ? 'animate-spin' : ''"
+          />
+          <span class="text-sm font-medium">
+            {{
+              isUpdatingModelConfig
+                ? t('settings.data.modelConfigUpdate.updating')
+                : t('settings.data.modelConfigUpdate.button')
+            }}
+          </span>
+        </Button>
+      </div>
+
+      <Separator class="my-4" />
+
       <!-- 数据重置选项 -->
       <AlertDialog v-model:open="isResetDialogOpen">
         <AlertDialogTrigger as-child>
@@ -372,6 +406,7 @@ const languageStore = useLanguageStore()
 const syncStore = useSyncStore()
 const devicePresenter = usePresenter('devicePresenter')
 const yoBrowserPresenter = usePresenter('yoBrowserPresenter')
+const configPresenter = usePresenter('configPresenter')
 const { backups: backupsRef } = storeToRefs(syncStore)
 const { toast } = useToast()
 
@@ -382,6 +417,7 @@ const selectedBackup = ref('')
 const isResetDialogOpen = ref(false)
 const resetType = ref<'chat' | 'knowledge' | 'config' | 'all'>('chat')
 const isResetting = ref(false)
+const isUpdatingModelConfig = ref(false)
 const isClearingSandbox = ref(false)
 const isClearSandboxDialogOpen = ref(false)
 
@@ -460,6 +496,51 @@ const handleBackup = async () => {
     }),
     duration: 4000
   })
+}
+
+const handleRefreshProviderDb = async () => {
+  if (isUpdatingModelConfig.value) return
+
+  isUpdatingModelConfig.value = true
+  try {
+    const result = await configPresenter.refreshProviderDb(true)
+
+    if (!result || result.status === 'error') {
+      console.error('Failed to refresh provider DB:', result?.message)
+      toast({
+        title: t('settings.data.modelConfigUpdate.failedTitle'),
+        description: t('settings.data.modelConfigUpdate.failedDescription'),
+        variant: 'destructive',
+        duration: 4000
+      })
+      return
+    }
+
+    const isUpToDate = result.status === 'not-modified' || result.status === 'skipped'
+    toast({
+      title: t(
+        isUpToDate
+          ? 'settings.data.modelConfigUpdate.upToDateTitle'
+          : 'settings.data.modelConfigUpdate.updatedTitle'
+      ),
+      description: t(
+        isUpToDate
+          ? 'settings.data.modelConfigUpdate.upToDateDescription'
+          : 'settings.data.modelConfigUpdate.updatedDescription'
+      ),
+      duration: 4000
+    })
+  } catch (error) {
+    console.error('Failed to refresh provider DB:', error)
+    toast({
+      title: t('settings.data.modelConfigUpdate.failedTitle'),
+      description: t('settings.data.modelConfigUpdate.failedDescription'),
+      variant: 'destructive',
+      duration: 4000
+    })
+  } finally {
+    isUpdatingModelConfig.value = false
+  }
 }
 
 // 关闭导入对话框
