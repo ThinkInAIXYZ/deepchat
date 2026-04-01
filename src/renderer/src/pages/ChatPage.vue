@@ -170,6 +170,9 @@ const messageSearchRoot = ref<HTMLDivElement>()
 // Track whether user is near the bottom; if they scroll up, stop auto-following
 const isNearBottom = ref(true)
 const NEAR_BOTTOM_THRESHOLD = 80 // px
+const MESSAGE_JUMP_RETRY_INTERVAL = 80
+const MESSAGE_HIGHLIGHT_DURATION = 2000
+const MAX_MESSAGE_JUMP_RETRIES = 8
 const traceMessageId = ref<string | null>(null)
 const isChatSearchOpen = ref(false)
 const chatSearchQuery = ref('')
@@ -207,7 +210,8 @@ async function focusPendingSpotlightMessageJump(attempt = 0): Promise<void> {
   )
 
   if (!target) {
-    if (attempt >= 8) {
+    // Retry briefly while virtualized / async-rendered message content settles after session switch.
+    if (attempt >= MAX_MESSAGE_JUMP_RETRIES) {
       return
     }
 
@@ -217,7 +221,7 @@ async function focusPendingSpotlightMessageJump(attempt = 0): Promise<void> {
 
     spotlightJumpTimer = window.setTimeout(() => {
       void focusPendingSpotlightMessageJump(attempt + 1)
-    }, 80)
+    }, MESSAGE_JUMP_RETRY_INTERVAL)
     return
   }
 
@@ -230,7 +234,7 @@ async function focusPendingSpotlightMessageJump(attempt = 0): Promise<void> {
 
   window.setTimeout(() => {
     target.classList.remove('message-highlight')
-  }, 2000)
+  }, MESSAGE_HIGHLIGHT_DURATION)
 
   spotlightStore.clearPendingMessageJump()
 }

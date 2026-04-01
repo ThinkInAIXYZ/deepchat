@@ -96,6 +96,8 @@ const clampHistorySearchLimit = (value: number | undefined): number => {
 }
 
 const normalizeSearchText = (value: string): string => value.trim().toLowerCase()
+const SESSION_SEARCH_OVERQUERY_FACTOR = 2
+const MESSAGE_SEARCH_OVERQUERY_FACTOR = 4
 
 const buildSearchSnippet = (content: string, query: string, maxLength: number = 120): string => {
   const normalizedContent = content.trim()
@@ -202,7 +204,7 @@ const extractSearchableMessageContent = (rawContent: string): string => {
       }
     }
   } catch {
-    // keep raw content fallback
+    // Plain-text messages are expected here; fall through and return the raw string content.
   }
 
   return rawContent
@@ -937,7 +939,7 @@ export class NewAgentPresenter {
     }
 
     const limit = clampHistorySearchLimit(options?.limit)
-    const db = (this.sqlitePresenter as unknown as { db?: { prepare: (sql: string) => any } }).db
+    const db = this.sqlitePresenter.getDatabase()
     if (!db) {
       return []
     }
@@ -959,7 +961,8 @@ export class NewAgentPresenter {
           LIMIT ?
         `
       )
-      .all(likeQuery, limit * 2) as SearchableSessionRow[]
+      // Pull a slightly larger working set so this method can score and trim cleaner matches.
+      .all(likeQuery, limit * SESSION_SEARCH_OVERQUERY_FACTOR) as SearchableSessionRow[]
 
     const messageRows = db
       .prepare(
@@ -980,7 +983,8 @@ export class NewAgentPresenter {
           LIMIT ?
         `
       )
-      .all(likeQuery, limit * 4) as SearchableMessageRow[]
+      // Message hits are noisier than title hits, so fetch more candidates before final sorting here.
+      .all(likeQuery, limit * MESSAGE_SEARCH_OVERQUERY_FACTOR) as SearchableMessageRow[]
 
     const sessionHits: Array<HistorySearchSessionHit & { score: number }> = sessionRows
       .map((session) => ({

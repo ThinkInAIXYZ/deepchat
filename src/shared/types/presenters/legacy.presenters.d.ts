@@ -397,6 +397,7 @@ export interface ISQLitePresenter {
   queryMessageIds(conversationId: string): Promise<string[]>
   deleteAllMessages(): Promise<void>
   runTransaction(operations: () => void): Promise<void>
+  getDatabase(): any
 
   // Added message management methods
   getMessage(messageId: string): Promise<SQLITE_MESSAGE | null>

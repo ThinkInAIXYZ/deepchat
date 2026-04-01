@@ -37,7 +37,12 @@ export interface SpotlightItem {
   keywords?: string[]
 }
 
+// Keep the list compact enough to fit the overlay without scrolling in most window sizes.
 const MAX_RESULTS = 12
+// Debounce just enough to avoid spamming IPC while keeping the palette responsive.
+const SEARCH_DEBOUNCE_DELAY = 80
+// Retry once after the settings window boots so navigation is not lost during renderer startup.
+const SETTINGS_WINDOW_NAVIGATION_RETRY_DELAY = 250
 
 const normalizeQuery = (value: string): string => value.trim().toLowerCase()
 
@@ -202,17 +207,19 @@ export const useSpotlightStore = defineStore('spotlight', () => {
       }
     }
 
+    const titleScore = scoreTextMatch(normalizedQuery, hit.title)
+    const snippetScore = scoreTextMatch(normalizedQuery, hit.snippet)
+
     return {
       id: `message:${hit.messageId}`,
       kind: 'message',
       icon: 'lucide:align-left',
       title: hit.title,
       snippet: hit.snippet,
-      subtitle: hit.title,
       sessionId: hit.sessionId,
       messageId: hit.messageId,
       updatedAt: hit.updatedAt,
-      score: Math.max(scoreTextMatch(normalizedQuery, hit.title), scoreTextMatch(normalizedQuery, hit.snippet)) + 10
+      score: Math.max(titleScore, snippetScore) + 10
     }
   }
 
@@ -282,7 +289,7 @@ export const useSpotlightStore = defineStore('spotlight', () => {
     ])
     loading.value = false
     resetActiveIndex()
-  }, 80)
+  }, SEARCH_DEBOUNCE_DELAY)
 
   const navigateToSettings = async (routeName?: SettingsNavigationItem['routeName']) => {
     const settingsWindowId = await windowPresenter.createSettingsWindow()
@@ -292,9 +299,10 @@ export const useSpotlightStore = defineStore('spotlight', () => {
 
     const payload = { routeName }
     windowPresenter.sendToWindow(settingsWindowId, SETTINGS_EVENTS.NAVIGATE, payload)
+    // The settings renderer may not be ready to process the first navigation message immediately.
     window.setTimeout(() => {
       windowPresenter.sendToWindow(settingsWindowId, SETTINGS_EVENTS.NAVIGATE, payload)
-    }, 250)
+    }, SETTINGS_WINDOW_NAVIGATION_RETRY_DELAY)
   }
 
   const setQuery = (value: string) => {

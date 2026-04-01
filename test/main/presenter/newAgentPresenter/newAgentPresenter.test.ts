@@ -198,6 +198,7 @@ function createMockSqlitePresenter() {
 
   return {
     db,
+    getDatabase: vi.fn(() => db),
     newSessionsTable: {
       create: vi.fn(),
       get: vi.fn(),

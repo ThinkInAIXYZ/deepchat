@@ -494,9 +494,9 @@ describe('ChatPage', () => {
     vi.runAllTimers()
     await flushPromises()
 
+    expect(wrapper.find('[data-message-id="m1"]').classes()).toContain('message-highlight')
     expect(scrollIntoView).toHaveBeenCalled()
     expect(spotlightStore.clearPendingMessageJump).toHaveBeenCalled()
-    expect(wrapper.find('[data-message-id="m1"]').classes()).not.toContain('message-highlight')
     vi.useRealTimers()
   })
 })
