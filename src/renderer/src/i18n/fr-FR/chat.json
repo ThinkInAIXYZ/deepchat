@@ -289,7 +289,11 @@
     "pinned": "Épinglés",
     "emptyTitle": "Aucune conversation pour le moment",
     "emptyDescription": "Commencez une nouvelle discussion pour démarrer",
-    "remoteControlDisabled": "Désactivé"
+    "remoteControlDisabled": "Désactivé",
+    "searchPlaceholder": "Rechercher des chats",
+    "searchAriaLabel": "Rechercher des chats",
+    "searchEmptyTitle": "Aucune conversation correspondante",
+    "searchEmptyDescription": "Essayez un autre mot-clé de titre"
   },
   "floatingWidget": {
     "title": "DeepChat",
@@ -306,5 +310,12 @@
   },
   "subagents": {
     "label": "Sous-agents"
+  },
+  "inlineSearch": {
+    "placeholder": "Rechercher dans la conversation",
+    "ariaLabel": "Rechercher dans la conversation actuelle",
+    "previous": "Résultat précédent",
+    "next": "Résultat suivant",
+    "close": "Fermer la recherche"
   }
 }

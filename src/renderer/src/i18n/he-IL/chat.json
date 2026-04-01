@@ -289,7 +289,11 @@
     "pinned": "נעוצים",
     "emptyTitle": "עדיין אין שיחות",
     "emptyDescription": "התחילו שיחה חדשה כדי להתחיל",
-    "remoteControlDisabled": "מושבת"
+    "remoteControlDisabled": "מושבת",
+    "searchPlaceholder": "חיפוש בצ׳אטים",
+    "searchAriaLabel": "חיפוש בצ׳אטים",
+    "searchEmptyTitle": "לא נמצאו שיחות תואמות",
+    "searchEmptyDescription": "נסו מילת מפתח אחרת בכותרת"
   },
   "floatingWidget": {
     "title": "DeepChat",
@@ -306,5 +310,12 @@
   },
   "subagents": {
     "label": "סוכני משנה"
+  },
+  "inlineSearch": {
+    "placeholder": "חיפוש בשיחה",
+    "ariaLabel": "חיפוש בשיחה הנוכחית",
+    "previous": "התאמה קודמת",
+    "next": "התאמה הבאה",
+    "close": "סגירת החיפוש"
   }
 }

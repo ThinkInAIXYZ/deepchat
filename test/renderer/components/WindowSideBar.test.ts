@@ -295,6 +295,37 @@ describe('WindowSideBar agent switch', () => {
     expect(sessionStore.toggleSessionPinned).toHaveBeenCalledWith('normal-1', true)
   }, 10000)
 
+  it('filters pinned and grouped sessions by the sidebar search input', async () => {
+    const { wrapper } = await setup({
+      pinnedSessions: [
+        {
+          id: 'pinned-1',
+          title: 'Alpha Session',
+          status: 'none'
+        }
+      ],
+      groups: [
+        {
+          label: 'common.time.today',
+          labelKey: 'common.time.today',
+          sessions: [
+            {
+              id: 'group-1',
+              title: 'Beta Session',
+              status: 'none'
+            }
+          ]
+        }
+      ]
+    })
+
+    await wrapper.find('input').setValue('alpha')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Alpha Session')
+    expect(wrapper.text()).not.toContain('Beta Session')
+  }, 10000)
+
   it('collapses and expands time groups from the folder header', async () => {
     const { wrapper } = await setup({
       groups: [

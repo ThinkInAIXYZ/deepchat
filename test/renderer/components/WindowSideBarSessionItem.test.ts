@@ -23,6 +23,7 @@ const mountComponent = async (options?: {
   status?: 'none' | 'working' | 'completed' | 'error'
   heroHidden?: boolean
   pinFeedbackMode?: 'pinning' | 'unpinning' | null
+  searchQuery?: string
 }) => {
   vi.resetModules()
 
@@ -41,7 +42,8 @@ const mountComponent = async (options?: {
       active: false,
       region: options?.isPinned ? 'pinned' : 'grouped',
       heroHidden: options?.heroHidden ?? false,
-      pinFeedbackMode: options?.pinFeedbackMode ?? null
+      pinFeedbackMode: options?.pinFeedbackMode ?? null,
+      searchQuery: options?.searchQuery ?? ''
     },
     global: {
       stubs: {
@@ -115,5 +117,15 @@ describe('WindowSideBarSessionItem', () => {
     expect(item.attributes('data-session-id')).toBe('session-1')
     expect(item.attributes('data-hero-hidden')).toBe('true')
     expect(pinButton.attributes('data-pin-fx')).toBe('pinning')
+  }, 10000)
+
+  it('highlights matching title fragments when filtering the sidebar', async () => {
+    const wrapper = await mountComponent({
+      searchQuery: 'Title'
+    })
+
+    const highlight = wrapper.find('.session-title__highlight')
+    expect(highlight.exists()).toBe(true)
+    expect(highlight.text()).toBe('Title')
   }, 10000)
 })

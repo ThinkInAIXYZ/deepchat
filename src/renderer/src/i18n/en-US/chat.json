@@ -305,6 +305,17 @@
     "groupByProject": "Group by project",
     "pinned": "Pinned",
     "emptyTitle": "No conversations yet",
-    "emptyDescription": "Start a new chat to begin"
+    "emptyDescription": "Start a new chat to begin",
+    "searchPlaceholder": "Search chats",
+    "searchAriaLabel": "Search chats",
+    "searchEmptyTitle": "No matching conversations",
+    "searchEmptyDescription": "Try a different title keyword"
+  },
+  "inlineSearch": {
+    "placeholder": "Search in conversation",
+    "ariaLabel": "Search in current conversation",
+    "previous": "Previous match",
+    "next": "Next match",
+    "close": "Close search"
   }
 }

@@ -289,7 +289,11 @@
     "pinned": "ピン留め",
     "emptyTitle": "まだ会話がありません",
     "emptyDescription": "新しいチャットを始めましょう",
-    "remoteControlDisabled": "無効"
+    "remoteControlDisabled": "無効",
+    "searchPlaceholder": "チャットタイトルを検索",
+    "searchAriaLabel": "チャットタイトルを検索",
+    "searchEmptyTitle": "一致する会話はありません",
+    "searchEmptyDescription": "別のキーワードを試してください"
   },
   "floatingWidget": {
     "title": "DeepChat",
@@ -306,5 +310,12 @@
   },
   "subagents": {
     "label": "サブエージェント"
+  },
+  "inlineSearch": {
+    "placeholder": "現在の会話を検索",
+    "ariaLabel": "現在の会話を検索",
+    "previous": "前の一致",
+    "next": "次の一致",
+    "close": "検索を閉じる"
   }
 }

@@ -289,7 +289,11 @@
     "pinned": "Закрепленные",
     "emptyTitle": "Пока нет диалогов",
     "emptyDescription": "Начните новый чат, чтобы приступить",
-    "remoteControlDisabled": "Отключено"
+    "remoteControlDisabled": "Отключено",
+    "searchPlaceholder": "Поиск по чатам",
+    "searchAriaLabel": "Поиск по чатам",
+    "searchEmptyTitle": "Совпадений не найдено",
+    "searchEmptyDescription": "Попробуйте другое ключевое слово в названии"
   },
   "floatingWidget": {
     "title": "DeepChat",
@@ -306,5 +310,12 @@
   },
   "subagents": {
     "label": "Субагенты"
+  },
+  "inlineSearch": {
+    "placeholder": "Поиск по текущему чату",
+    "ariaLabel": "Поиск по текущему чату",
+    "previous": "Предыдущее совпадение",
+    "next": "Следующее совпадение",
+    "close": "Закрыть поиск"
   }
 }

@@ -142,15 +142,53 @@
           </div>
         </div>
 
+        <div v-if="!collapsed" class="px-3 pb-2">
+          <div class="relative">
+            <Icon
+              icon="lucide:search"
+              class="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/70"
+            />
+            <Input
+              v-model="sessionSearchQuery"
+              class="h-8 rounded-xl border-0 bg-muted/60 pl-8 pr-8 text-xs shadow-none focus-visible:ring-1 focus-visible:ring-primary/30"
+              :placeholder="t('chat.sidebar.searchPlaceholder')"
+              :aria-label="t('chat.sidebar.searchAriaLabel')"
+              autocapitalize="off"
+              autocomplete="off"
+              spellcheck="false"
+            />
+            <button
+              v-if="sessionSearchQuery"
+              type="button"
+              class="absolute right-1.5 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground"
+              :title="t('common.close')"
+              :aria-label="t('common.close')"
+              @click="sessionSearchQuery = ''"
+            >
+              <Icon icon="lucide:x" class="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+
         <!-- Empty state -->
         <div
           v-if="pinnedSessions.length === 0 && filteredGroups.length === 0"
           class="flex flex-col items-center justify-center h-full px-4 text-center"
         >
           <Icon icon="lucide:message-square-plus" class="w-8 h-8 text-muted-foreground/40 mb-3" />
-          <p class="text-sm text-muted-foreground/60">{{ t('chat.sidebar.emptyTitle') }}</p>
+          <p class="text-sm text-muted-foreground/60">
+            {{
+              sessionSearchQuery
+                ? t('chat.sidebar.searchEmptyTitle')
+                : t('chat.sidebar.emptyTitle')
+            }}
+          </p>
           <p class="text-xs text-muted-foreground/40 mt-1">
-            {{ t('chat.sidebar.emptyDescription') }}
+            {{
+              sessionSearchQuery
+                ? t('chat.sidebar.searchEmptyDescription')
+                : t('chat.sidebar.emptyDescription')
+            }}
           </p>
         </div>
 
@@ -189,6 +227,7 @@
                   region="pinned"
                   :hero-hidden="pinFlightSessionId === session.id"
                   :pin-feedback-mode="pinFeedbackSessionId === session.id ? pinFeedbackMode : null"
+                  :search-query="sessionSearchQuery"
                   @select="handleSessionClick"
                   @toggle-pin="handleTogglePin"
                   @delete="openDeleteDialog"
@@ -229,6 +268,7 @@
                   region="grouped"
                   :hero-hidden="pinFlightSessionId === session.id"
                   :pin-feedback-mode="pinFeedbackSessionId === session.id ? pinFeedbackMode : null"
+                  :search-query="sessionSearchQuery"
                   @select="handleSessionClick"
                   @toggle-pin="handleTogglePin"
                   @delete="openDeleteDialog"
@@ -269,6 +309,7 @@ import {
   TooltipTrigger
 } from '@shadcn/components/ui/tooltip'
 import { Button } from '@shadcn/components/ui/button'
+import { Input } from '@shadcn/components/ui/input'
 import {
   Dialog,
   DialogContent,
@@ -302,6 +343,7 @@ const agentStore = useAgentStore()
 const sessionStore = useSessionStore()
 
 const collapsed = ref(false)
+const sessionSearchQuery = ref('')
 const remoteControlStatus = ref<{
   telegram: TelegramRemoteStatus | null
   feishu: FeishuRemoteStatus | null
@@ -381,8 +423,27 @@ const remoteControlIconClass = computed(() => {
 
 const isPinnedSectionCollapsed = ref(false)
 const collapsedGroupIds = ref<Set<string>>(new Set())
-const pinnedSessions = computed(() => sessionStore.getPinnedSessions(agentStore.selectedAgentId))
-const filteredGroups = computed(() => sessionStore.getFilteredGroups(agentStore.selectedAgentId))
+const normalizedSessionSearchQuery = computed(() => sessionSearchQuery.value.trim().toLocaleLowerCase())
+const matchesSessionSearch = (session: UISession) => {
+  if (!normalizedSessionSearchQuery.value) {
+    return true
+  }
+
+  return session.title.toLocaleLowerCase().includes(normalizedSessionSearchQuery.value)
+}
+const pinnedSessions = computed(() =>
+  sessionStore.getPinnedSessions(agentStore.selectedAgentId).filter(matchesSessionSearch)
+)
+const filteredGroups = computed(() =>
+  sessionStore
+    .getFilteredGroups(agentStore.selectedAgentId)
+    .map((group) => ({
+      label: group.label,
+      labelKey: group.labelKey,
+      sessions: group.sessions.filter(matchesSessionSearch)
+    }))
+    .filter((group) => group.sessions.length > 0)
+)
 const pinFlightSessionId = ref<string | null>(null)
 const pinFeedbackSessionId = ref<string | null>(null)
 const pinFeedbackMode = ref<PinFeedbackMode | null>(null)

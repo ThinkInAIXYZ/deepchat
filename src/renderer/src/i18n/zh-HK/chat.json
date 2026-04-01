@@ -289,7 +289,11 @@
     "pinned": "置頂會話",
     "emptyTitle": "還沒有對話",
     "emptyDescription": "開始一個新對話吧",
-    "remoteControlDisabled": "未啟用"
+    "remoteControlDisabled": "未啟用",
+    "searchPlaceholder": "搜尋會話標題",
+    "searchAriaLabel": "搜尋會話標題",
+    "searchEmptyTitle": "找不到相符的會話",
+    "searchEmptyDescription": "試試其他標題關鍵字"
   },
   "floatingWidget": {
     "title": "DeepChat",
@@ -306,5 +310,12 @@
   },
   "subagents": {
     "label": "subagent"
+  },
+  "inlineSearch": {
+    "placeholder": "搜尋目前會話",
+    "ariaLabel": "搜尋目前會話",
+    "previous": "上一個匹配",
+    "next": "下一個匹配",
+    "close": "關閉搜尋"
   }
 }

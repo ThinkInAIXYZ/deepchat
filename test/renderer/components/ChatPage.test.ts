@@ -221,6 +221,28 @@ const setup = async (options: SetupOptions = {}) => {
       template: '<div class="chat-tool-interaction-overlay-stub" />'
     })
   }))
+  vi.doMock('@/components/chat/ChatSearchBar.vue', () => ({
+    default: defineComponent({
+      name: 'ChatSearchBar',
+      props: {
+        modelValue: {
+          type: String,
+          default: ''
+        },
+        activeMatch: {
+          type: Number,
+          default: 0
+        },
+        totalMatches: {
+          type: Number,
+          default: 0
+        }
+      },
+      emits: ['update:modelValue', 'previous', 'next', 'close'],
+      template:
+        '<div class="chat-search-bar-stub" :data-active-match="String(activeMatch)" :data-total-matches="String(totalMatches)" />'
+    })
+  }))
   vi.doMock('@/components/trace/TraceDialog.vue', () => ({
     default: passthrough('TraceDialog')
   }))
@@ -390,6 +412,18 @@ describe('ChatPage', () => {
       text: '',
       files: [file]
     })
+  })
+
+  it('opens the inline search with Ctrl+F and closes it with Escape', async () => {
+    const { wrapper } = await setup()
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'f', ctrlKey: true }))
+    await flushPromises()
+    expect(wrapper.find('.chat-search-bar-stub').exists()).toBe(true)
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    await flushPromises()
+    expect(wrapper.find('.chat-search-bar-stub').exists()).toBe(false)
   })
 
   it('renders subagent sessions as read-only display mode', async () => {

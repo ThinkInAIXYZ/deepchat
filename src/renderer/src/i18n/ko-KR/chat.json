@@ -289,7 +289,11 @@
     "pinned": "고정됨",
     "emptyTitle": "아직 대화가 없습니다",
     "emptyDescription": "새 대화를 시작해 보세요",
-    "remoteControlDisabled": "사용 안 함"
+    "remoteControlDisabled": "사용 안 함",
+    "searchPlaceholder": "채팅 제목 검색",
+    "searchAriaLabel": "채팅 제목 검색",
+    "searchEmptyTitle": "일치하는 대화가 없습니다",
+    "searchEmptyDescription": "다른 제목 키워드를 시도해 보세요"
   },
   "floatingWidget": {
     "title": "DeepChat",
@@ -306,5 +310,12 @@
   },
   "subagents": {
     "label": "하위 에이전트"
+  },
+  "inlineSearch": {
+    "placeholder": "현재 대화 검색",
+    "ariaLabel": "현재 대화 검색",
+    "previous": "이전 일치",
+    "next": "다음 일치",
+    "close": "검색 닫기"
   }
 }

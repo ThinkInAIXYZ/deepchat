@@ -289,7 +289,11 @@
     "pinned": "Fixados",
     "emptyTitle": "Ainda não há conversas",
     "emptyDescription": "Inicie um novo chat para começar",
-    "remoteControlDisabled": "Desativado"
+    "remoteControlDisabled": "Desativado",
+    "searchPlaceholder": "Pesquisar conversas",
+    "searchAriaLabel": "Pesquisar conversas",
+    "searchEmptyTitle": "Nenhuma conversa encontrada",
+    "searchEmptyDescription": "Tente outra palavra-chave do título"
   },
   "floatingWidget": {
     "title": "DeepChat",
@@ -306,5 +310,12 @@
   },
   "subagents": {
     "label": "Subagentes"
+  },
+  "inlineSearch": {
+    "placeholder": "Pesquisar na conversa",
+    "ariaLabel": "Pesquisar na conversa atual",
+    "previous": "Resultado anterior",
+    "next": "Próximo resultado",
+    "close": "Fechar pesquisa"
   }
 }
