@@ -1231,7 +1231,7 @@ export class AgentToolManager {
     let visionTarget: Awaited<ReturnType<typeof this.resolveVisionTargetForConversation>>
 
     try {
-      visionTarget = await this.resolveVisionTargetForConversation(conversationId)
+      visionTarget = await this.resolveVisionTargetForConversation(conversationId, signal)
     } catch (error) {
       logger.warn('[AgentToolManager] Failed to resolve vision target for image read:', {
         conversationId,
@@ -1306,7 +1306,7 @@ export class AgentToolManager {
     }
   }
 
-  private async resolveVisionTargetForConversation(conversationId?: string) {
+  private async resolveVisionTargetForConversation(conversationId?: string, signal?: AbortSignal) {
     if (!conversationId) {
       return null
     }
@@ -1318,6 +1318,7 @@ export class AgentToolManager {
         modelId: sessionInfo?.modelId,
         agentId: sessionInfo?.agentId,
         configPresenter: this.configPresenter,
+        signal,
         logLabel: `read:${conversationId}`
       })
     } catch (error) {

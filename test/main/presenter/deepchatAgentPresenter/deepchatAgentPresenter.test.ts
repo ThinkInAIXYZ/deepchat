@@ -1065,6 +1065,91 @@ describe('DeepChatAgentPresenter', () => {
       expect((await agent.getSessionState('s1'))?.status).toBe('idle')
     })
 
+    it('does not call provider.coreStream when cancellation lands right after rate-limit wait', async () => {
+      llmProvider.executeWithRateLimit.mockImplementation(
+        async (
+          _providerId: string,
+          options?: { signal?: AbortSignal; onQueued?: (snapshot: any) => void }
+        ) => {
+          options?.onQueued?.({
+            providerId: 'openai',
+            qpsLimit: 1,
+            currentQps: 1,
+            queueLength: 1,
+            estimatedWaitTime: 1000
+          })
+          queueMicrotask(() => {
+            void agent.cancelGeneration('s1')
+          })
+        }
+      )
+      ;(processStream as ReturnType<typeof vi.fn>).mockImplementation(
+        async (params: {
+          coreStream: (
+            messages: any[],
+            modelId: string,
+            modelConfig: any,
+            temperature: number,
+            maxTokens: number,
+            tools: any[]
+          ) => AsyncGenerator<unknown>
+          messages: any[]
+          modelId: string
+          modelConfig: any
+          temperature: number
+          maxTokens: number
+          tools: any[]
+        }) => {
+          try {
+            for await (const _event of params.coreStream(
+              params.messages,
+              params.modelId,
+              params.modelConfig,
+              params.temperature,
+              params.maxTokens,
+              params.tools
+            )) {
+            }
+
+            return { status: 'completed' as const }
+          } catch (error) {
+            return {
+              status:
+                error instanceof Error && error.name === 'AbortError'
+                  ? ('aborted' as const)
+                  : ('error' as const),
+              stopReason:
+                error instanceof Error && error.name === 'AbortError' ? 'user_stop' : 'error',
+              errorMessage: error instanceof Error ? error.message : String(error)
+            }
+          }
+        }
+      )
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.processMessage('s1', 'Hello')
+
+      const providerCoreStream = llmProvider.getProviderInstance.mock.results[0]?.value.coreStream
+      expect(providerCoreStream).not.toHaveBeenCalled()
+
+      const streamResponseCalls = (eventBus.sendToRenderer as ReturnType<typeof vi.fn>).mock.calls
+        .filter(([eventName]) => eventName === 'stream:response')
+        .map(([, , payload]) => payload)
+        .filter((payload) => typeof payload?.messageId === 'string')
+      const rateLimitClear = streamResponseCalls.find(
+        (payload) =>
+          payload.messageId.startsWith('__rate_limit__:') &&
+          Array.isArray(payload.blocks) &&
+          payload.blocks.length === 0
+      )
+
+      expect(rateLimitClear).toMatchObject({
+        conversationId: 's1',
+        blocks: []
+      })
+      expect((await agent.getSessionState('s1'))?.status).toBe('idle')
+    })
+
     it('reuses cached system prompt within the same day', async () => {
       vi.useFakeTimers()
       vi.setSystemTime(new Date('2026-03-05T08:00:00.000Z'))
@@ -2380,6 +2465,49 @@ describe('DeepChatAgentPresenter', () => {
       expect(sqlitePresenter.deepchatMessagesTable.delete).toHaveBeenCalledWith('mock-msg-id')
     })
 
+    it('treats aborted compaction signals as cancellation even for non-abort errors', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      vi.mocked(eventBus.sendToRenderer).mockClear()
+      sqlitePresenter.deepchatMessagesTable.delete.mockClear()
+
+      const abortController = new AbortController()
+      abortController.abort()
+      vi.spyOn((agent as any).compactionService, 'applyCompaction').mockRejectedValueOnce(
+        new Error('late failure')
+      )
+
+      await expect(
+        (agent as any).applyCompactionIntent(
+          's1',
+          {
+            sessionId: 's1',
+            previousState: {
+              summaryText: null,
+              summaryCursorOrderSeq: 1,
+              summaryUpdatedAt: null
+            },
+            targetCursorOrderSeq: 3,
+            summaryBlocks: ['summarize this'],
+            currentModel: {
+              providerId: 'openai',
+              modelId: 'gpt-4',
+              contextLength: 128000
+            },
+            reserveTokens: 512
+          },
+          { signal: abortController.signal }
+        )
+      ).rejects.toThrow('late failure')
+
+      expect(sqlitePresenter.deepchatMessagesTable.delete).toHaveBeenCalledWith('mock-msg-id')
+      expect(eventBus.sendToRenderer).toHaveBeenCalledWith('session:compaction-updated', 'all', {
+        sessionId: 's1',
+        status: 'idle',
+        cursorOrderSeq: 1,
+        summaryUpdatedAt: null
+      })
+    })
+
     it('emits idle when clearMessages resets compaction state', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       sqlitePresenter.deepchatSessionsTable.updateSummaryState('s1', {
@@ -2526,6 +2654,37 @@ describe('DeepChatAgentPresenter', () => {
         })
       )
       expect(processStream).toHaveBeenCalledTimes(1)
+    })
+
+    it('treats an aborted resume signal as cancellation even for non-abort errors', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      makeAssistantRow({ blocks: [] })
+      vi.spyOn(agent as any, 'resolveCompactionStateForResumeTurn').mockResolvedValue({
+        summaryText: null,
+        summaryCursorOrderSeq: 1,
+        summaryUpdatedAt: null
+      })
+      vi.spyOn(agent as any, 'runStreamForMessage').mockImplementation(async () => {
+        ;(agent as any).abortControllers.get('s1')?.abort()
+        throw new Error('late failure')
+      })
+
+      const resumed = await (agent as any).resumeAssistantMessage('s1', 'm1', [])
+
+      expect(resumed).toBe(false)
+      const [messageId, contentJson, status] =
+        sqlitePresenter.deepchatMessagesTable.updateContentAndStatus.mock.calls.at(-1)
+      expect(messageId).toBe('m1')
+      expect(status).toBe('error')
+      expect(JSON.parse(contentJson)).toEqual([
+        {
+          type: 'error',
+          content: 'common.error.userCanceledGeneration',
+          status: 'error',
+          timestamp: expect.any(Number)
+        }
+      ])
+      expect((await agent.getSessionState('s1'))?.status).toBe('idle')
     })
 
     it('handles question_other and waits for user message without resume', async () => {

@@ -1492,6 +1492,9 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
               clearRateLimitWaitingMessage(sessionId, rateLimitMessageId)
               queuedForRateLimit = false
             }
+            if (abortController.signal.aborted) {
+              throw createAbortError()
+            }
 
             for await (const event of provider.coreStream(
               injectedMessages,
@@ -1839,6 +1842,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     }
     this.resumingMessages.add(messageId)
     let preStreamAbortController: AbortController | null = null
+    let preStreamAbortSignal: AbortSignal | undefined
 
     try {
       const state = this.runtimeState.get(sessionId)
@@ -1848,7 +1852,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
 
       this.setSessionStatus(sessionId, 'generating')
       preStreamAbortController = this.ensureSessionAbortController(sessionId)
-      const preStreamAbortSignal = preStreamAbortController.signal
+      preStreamAbortSignal = preStreamAbortController.signal
       this.throwIfAbortRequested(preStreamAbortSignal)
       const generationSettings = await this.getEffectiveSessionGenerationSettings(sessionId)
       this.throwIfAbortRequested(preStreamAbortSignal)
@@ -1952,7 +1956,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       return true
     } catch (error) {
       console.error('[DeepChatAgent] resumeAssistantMessage error:', error)
-      if (this.isAbortError(error)) {
+      if (this.isAbortError(error) || preStreamAbortSignal?.aborted) {
         const blocks = buildTerminalErrorBlocks(
           initialBlocks,
           'common.error.userCanceledGeneration'
@@ -3609,7 +3613,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     try {
       result = await this.compactionService.applyCompaction(intent, options?.signal)
     } catch (error) {
-      if (this.isAbortError(error)) {
+      if (this.isAbortError(error) || options?.signal?.aborted) {
         this.messageStore.deleteMessage(compactionMessageId)
         this.emitMessageRefresh(sessionId, compactionMessageId)
         this.emitCompactionState(

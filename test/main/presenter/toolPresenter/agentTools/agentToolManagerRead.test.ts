@@ -3,6 +3,7 @@ import fs from 'fs/promises'
 import os from 'os'
 import path from 'path'
 import { AgentToolManager } from '@/presenter/toolPresenter/agentTools/agentToolManager'
+import * as sessionVisionResolverModule from '@/presenter/vision/sessionVisionResolver'
 
 vi.mock('fs', async (importOriginal) => {
   const actual = (await importOriginal()) as typeof import('fs')
@@ -262,6 +263,39 @@ describe('AgentToolManager read routing', () => {
       })
     )
     expect(llmProviderPresenter.generateCompletionStandalone).not.toHaveBeenCalled()
+  })
+
+  it('passes abort signals into vision target resolution', async () => {
+    const filePath = path.join(workspaceDir, 'image-resolver-signal.png')
+    await fs.writeFile(filePath, Buffer.from([4, 5, 6, 7]))
+    filePresenter.getMimeType.mockResolvedValue('image/png')
+    resolveConversationSessionInfo.mockResolvedValue({
+      agentId: 'deepchat',
+      providerId: 'openai',
+      modelId: 'gpt-4o'
+    })
+    configPresenter.getModelConfig.mockImplementation((modelId: string, providerId?: string) => ({
+      temperature: 0.2,
+      maxTokens: 1200,
+      vision: providerId === 'openai' && modelId === 'gpt-4o'
+    }))
+    llmProviderPresenter.generateCompletionStandalone.mockResolvedValue('visible image description')
+    const resolveVisionTargetSpy = vi.spyOn(
+      sessionVisionResolverModule,
+      'resolveSessionVisionTarget'
+    )
+    const abortController = new AbortController()
+
+    await manager.callTool('read', { path: 'image-resolver-signal.png' }, 'conv1', {
+      signal: abortController.signal
+    })
+
+    expect(resolveVisionTargetSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        signal: abortController.signal,
+        logLabel: 'read:conv1'
+      })
+    )
   })
 
   it('falls back to image metadata when neither the current model nor the agent can analyze images', async () => {
