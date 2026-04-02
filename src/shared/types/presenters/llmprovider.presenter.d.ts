@@ -169,6 +169,14 @@ export interface ModelScopeMcpSyncResult {
   errors: string[]
 }
 
+export type RateLimitQueueSnapshot = {
+  providerId: string
+  qpsLimit: number
+  currentQps: number
+  queueLength: number
+  estimatedWaitTime: number
+}
+
 export type AcpConfigOptionValue = {
   value: string
   label: string
@@ -259,6 +267,13 @@ export interface ILlmProviderPresenter {
       lastRequestTime: number
     }
   >
+  executeWithRateLimit(
+    providerId: string,
+    options?: {
+      signal?: AbortSignal
+      onQueued?: (snapshot: RateLimitQueueSnapshot) => void
+    }
+  ): Promise<void>
   syncModelScopeMcpServers(
     providerId: string,
     syncOptions?: ModelScopeMcpSyncOptions

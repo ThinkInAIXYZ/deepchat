@@ -18,6 +18,10 @@ const CONTEXT_WINDOW_ERROR_PATTERNS = [
 const USER_CANCELED_GENERATION_ERROR = 'common.error.userCanceledGeneration'
 const NO_MODEL_RESPONSE_ERROR = 'common.error.noModelResponse'
 
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && (error.name === 'AbortError' || error.name === 'CanceledError')
+}
+
 function isContextWindowErrorMessage(message: string): boolean {
   const normalized = message.toLowerCase()
   return CONTEXT_WINDOW_ERROR_PATTERNS.some((pattern) => normalized.includes(pattern))
@@ -268,6 +272,15 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
       usage: buildUsageSnapshot(state)
     }
   } catch (err) {
+    if (io.abortSignal.aborted || isAbortError(err)) {
+      console.log(`[ProcessStream] aborted via exception after ${eventCount} events`)
+      return {
+        status: 'aborted' as const,
+        stopReason: 'user_stop',
+        errorMessage: USER_CANCELED_GENERATION_ERROR,
+        usage: buildUsageSnapshot(state)
+      }
+    }
     console.error(`[ProcessStream] exception after ${eventCount} events:`, err)
     finalizeError(state, io, err)
     return {

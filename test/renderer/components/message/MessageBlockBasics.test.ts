@@ -67,28 +67,21 @@ describe('MessageBlock basics', () => {
     expect(wrapper.emitted('continue')).toEqual([['s1', 'm1']])
   })
 
-  it('renders rate limit info and emits switchProvider', async () => {
+  it('renders a compact rate limit status block', () => {
     const wrapper = mount(MessageBlockAction, {
       props: {
         messageId: 'm1',
         conversationId: 's1',
         block: createBlock({
           action_type: 'rate_limit',
-          extra: {
-            providerId: 'openai',
-            queueLength: 3,
-            estimatedWaitTime: 5_000
-          }
+          timestamp: Date.now()
         })
       }
     })
 
-    const buttons = wrapper.findAll('button')
-    await buttons[1].trigger('click')
-
-    expect(wrapper.text()).toContain('chat.messages.rateLimitTitle')
-    expect(wrapper.text()).toContain('Openai')
-    expect(wrapper.emitted('switchProvider')).toEqual([[]])
+    expect(wrapper.find('[data-rate-limit-block="true"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('chat.messages.rateLimitCompactLoading')
+    expect(wrapper.findAll('button')).toHaveLength(0)
   })
 
   it('renders question request content and answer', () => {

@@ -1157,6 +1157,19 @@ export interface ILlmProviderPresenter {
       lastRequestTime: number
     }
   >
+  executeWithRateLimit(
+    providerId: string,
+    options?: {
+      signal?: AbortSignal
+      onQueued?: (snapshot: {
+        providerId: string
+        qpsLimit: number
+        currentQps: number
+        queueLength: number
+        estimatedWaitTime: number
+      }) => void
+    }
+  ): Promise<void>
   syncModelScopeMcpServers(
     providerId: string,
     syncOptions?: ModelScopeMcpSyncOptions

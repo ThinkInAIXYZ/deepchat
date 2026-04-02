@@ -43,6 +43,14 @@
           @copy-image="handleCopyImage"
         />
       </template>
+      <div v-if="ephemeralRateLimitBlock" data-rate-limit-indicator="true" class="pl-11 pr-11 pt-1">
+        <MessageBlockAction
+          :message-id="ephemeralRateLimitMessageId || '__rate_limit__'"
+          :conversation-id="conversationId"
+          :block="ephemeralRateLimitBlock"
+          :is-read-only="isReadOnly"
+        />
+      </div>
     </div>
   </div>
 </template>
@@ -51,10 +59,12 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import MessageItemAssistant from '@/components/message/MessageItemAssistant.vue'
+import MessageBlockAction from '@/components/message/MessageBlockAction.vue'
 import MessageItemUser from '@/components/message/MessageItemUser.vue'
 import { useMessageCapture } from '@/composables/message/useMessageCapture'
 import {
   type DisplayAssistantMessage,
+  type DisplayAssistantMessageBlock,
   isCompactionMessageItem,
   type DisplayUserMessage,
   type DisplayMessage,
@@ -64,11 +74,17 @@ import {
 const props = withDefaults(
   defineProps<{
     messages: MessageListItem[]
+    conversationId?: string
+    ephemeralRateLimitBlock?: DisplayAssistantMessageBlock | null
+    ephemeralRateLimitMessageId?: string | null
     isGenerating?: boolean
     traceMessageIds?: string[]
     isReadOnly?: boolean
   }>(),
   {
+    conversationId: '',
+    ephemeralRateLimitBlock: null,
+    ephemeralRateLimitMessageId: null,
     isGenerating: false,
     traceMessageIds: () => [],
     isReadOnly: false

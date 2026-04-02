@@ -171,10 +171,13 @@ function createMockCoreStream() {
 }
 
 function createMockLlmProviderPresenter() {
+  const providerInstance = {
+    coreStream: vi.fn().mockImplementation(() => createMockCoreStream()())
+  }
+
   return {
-    getProviderInstance: vi.fn().mockReturnValue({
-      coreStream: vi.fn().mockReturnValue(createMockCoreStream()())
-    }),
+    getProviderInstance: vi.fn().mockReturnValue(providerInstance),
+    executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
     generateCompletionStandalone: vi.fn().mockResolvedValue('English screenshot summary'),
     generateText: vi.fn().mockResolvedValue({
       content: ['## Current Goal', '- Continue the session safely'].join('\n')
@@ -795,6 +798,12 @@ describe('DeepChatAgentPresenter', () => {
       await agent.processMessage('s1', 'new prompt')
 
       expect(llmProvider.generateText).toHaveBeenCalledTimes(1)
+      expect(llmProvider.executeWithRateLimit).toHaveBeenCalledWith(
+        'openai',
+        expect.objectContaining({
+          signal: expect.any(AbortSignal)
+        })
+      )
       expect(
         sqlitePresenter.deepchatSessionsTable.updateSummaryStateIfMatches
       ).toHaveBeenCalledWith(
@@ -854,6 +863,291 @@ describe('DeepChatAgentPresenter', () => {
       expect(callArgs.modelConfig.thinkingBudget).toBe(1024)
       expect(callArgs.modelConfig.reasoningEffort).toBe('low')
       expect(callArgs.modelConfig.verbosity).toBe('high')
+    })
+
+    it('passes every provider turn through executeWithRateLimit', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.processMessage('s1', 'Hello')
+
+      const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      for await (const _event of callArgs.coreStream(
+        callArgs.messages,
+        callArgs.modelId,
+        callArgs.modelConfig,
+        callArgs.temperature,
+        callArgs.maxTokens,
+        callArgs.tools
+      )) {
+      }
+      for await (const _event of callArgs.coreStream(
+        callArgs.messages,
+        callArgs.modelId,
+        callArgs.modelConfig,
+        callArgs.temperature,
+        callArgs.maxTokens,
+        callArgs.tools
+      )) {
+      }
+
+      expect(llmProvider.executeWithRateLimit).toHaveBeenCalledTimes(2)
+      expect(llmProvider.executeWithRateLimit).toHaveBeenNthCalledWith(
+        1,
+        'openai',
+        expect.objectContaining({
+          signal: expect.any(AbortSignal),
+          onQueued: expect.any(Function)
+        })
+      )
+    })
+
+    it('emits and clears an ephemeral rate-limit message while waiting for the provider gate', async () => {
+      llmProvider.executeWithRateLimit.mockImplementation(
+        async (_providerId: string, options?: { onQueued?: (snapshot: any) => void }) => {
+          options?.onQueued?.({
+            providerId: 'openai',
+            qpsLimit: 1,
+            currentQps: 1,
+            queueLength: 2,
+            estimatedWaitTime: 4000
+          })
+        }
+      )
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.processMessage('s1', 'Hello')
+
+      const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      for await (const _event of callArgs.coreStream(
+        callArgs.messages,
+        callArgs.modelId,
+        callArgs.modelConfig,
+        callArgs.temperature,
+        callArgs.maxTokens,
+        callArgs.tools
+      )) {
+      }
+
+      const streamResponseCalls = (eventBus.sendToRenderer as ReturnType<typeof vi.fn>).mock.calls
+        .filter(([eventName]) => eventName === 'stream:response')
+        .map(([, , payload]) => payload)
+        .filter((payload) => typeof payload?.messageId === 'string')
+
+      const rateLimitShow = streamResponseCalls.find(
+        (payload) =>
+          payload.messageId.startsWith('__rate_limit__:') &&
+          Array.isArray(payload.blocks) &&
+          payload.blocks.length === 1
+      )
+      const rateLimitClear = streamResponseCalls.find(
+        (payload) =>
+          payload.messageId.startsWith('__rate_limit__:') &&
+          Array.isArray(payload.blocks) &&
+          payload.blocks.length === 0
+      )
+
+      expect(rateLimitShow).toMatchObject({
+        conversationId: 's1',
+        blocks: [
+          expect.objectContaining({
+            type: 'action',
+            action_type: 'rate_limit',
+            status: 'pending',
+            extra: expect.objectContaining({
+              providerId: 'openai',
+              queueLength: 2,
+              estimatedWaitTime: 4000
+            })
+          })
+        ]
+      })
+      expect(rateLimitClear).toMatchObject({
+        conversationId: 's1',
+        blocks: []
+      })
+    })
+
+    it('does not call provider.coreStream when a queued request is canceled', async () => {
+      const abortError = new Error('Aborted')
+      abortError.name = 'AbortError'
+      let queuedResolve!: (value?: void | PromiseLike<void>) => void
+      let queuedReject!: (reason?: unknown) => void
+      const queued = {
+        promise: new Promise<void>((resolve, reject) => {
+          queuedResolve = resolve
+          queuedReject = reject
+        }),
+        resolve: queuedResolve,
+        reject: queuedReject
+      }
+      llmProvider.executeWithRateLimit.mockImplementation(
+        (
+          _providerId: string,
+          options?: { signal?: AbortSignal; onQueued?: (snapshot: any) => void }
+        ) =>
+          new Promise<void>((resolve, reject) => {
+            options?.onQueued?.({
+              providerId: 'openai',
+              qpsLimit: 1,
+              currentQps: 1,
+              queueLength: 1,
+              estimatedWaitTime: 1000
+            })
+            queued.resolve()
+
+            if (options?.signal?.aborted) {
+              reject(abortError)
+              return
+            }
+
+            options?.signal?.addEventListener(
+              'abort',
+              () => {
+                reject(abortError)
+              },
+              { once: true }
+            )
+
+            void resolve
+          })
+      )
+      ;(processStream as ReturnType<typeof vi.fn>).mockImplementation(
+        async (params: {
+          coreStream: (
+            messages: any[],
+            modelId: string,
+            modelConfig: any,
+            temperature: number,
+            maxTokens: number,
+            tools: any[]
+          ) => AsyncGenerator<unknown>
+          messages: any[]
+          modelId: string
+          modelConfig: any
+          temperature: number
+          maxTokens: number
+          tools: any[]
+        }) => {
+          try {
+            for await (const _event of params.coreStream(
+              params.messages,
+              params.modelId,
+              params.modelConfig,
+              params.temperature,
+              params.maxTokens,
+              params.tools
+            )) {
+            }
+
+            return { status: 'completed' as const }
+          } catch (error) {
+            return {
+              status:
+                error instanceof Error && error.name === 'AbortError'
+                  ? ('aborted' as const)
+                  : ('error' as const),
+              stopReason:
+                error instanceof Error && error.name === 'AbortError' ? 'user_stop' : 'error',
+              errorMessage: error instanceof Error ? error.message : String(error)
+            }
+          }
+        }
+      )
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+
+      const processing = agent.processMessage('s1', 'Hello')
+      await queued.promise
+      await agent.cancelGeneration('s1')
+      await processing
+
+      const providerCoreStream = llmProvider.getProviderInstance.mock.results[0]?.value.coreStream
+      expect(providerCoreStream).not.toHaveBeenCalled()
+      expect((await agent.getSessionState('s1'))?.status).toBe('idle')
+    })
+
+    it('does not call provider.coreStream when cancellation lands right after rate-limit wait', async () => {
+      llmProvider.executeWithRateLimit.mockImplementation(
+        async (
+          _providerId: string,
+          options?: { signal?: AbortSignal; onQueued?: (snapshot: any) => void }
+        ) => {
+          options?.onQueued?.({
+            providerId: 'openai',
+            qpsLimit: 1,
+            currentQps: 1,
+            queueLength: 1,
+            estimatedWaitTime: 1000
+          })
+          queueMicrotask(() => {
+            void agent.cancelGeneration('s1')
+          })
+        }
+      )
+      ;(processStream as ReturnType<typeof vi.fn>).mockImplementation(
+        async (params: {
+          coreStream: (
+            messages: any[],
+            modelId: string,
+            modelConfig: any,
+            temperature: number,
+            maxTokens: number,
+            tools: any[]
+          ) => AsyncGenerator<unknown>
+          messages: any[]
+          modelId: string
+          modelConfig: any
+          temperature: number
+          maxTokens: number
+          tools: any[]
+        }) => {
+          try {
+            for await (const _event of params.coreStream(
+              params.messages,
+              params.modelId,
+              params.modelConfig,
+              params.temperature,
+              params.maxTokens,
+              params.tools
+            )) {
+            }
+
+            return { status: 'completed' as const }
+          } catch (error) {
+            return {
+              status:
+                error instanceof Error && error.name === 'AbortError'
+                  ? ('aborted' as const)
+                  : ('error' as const),
+              stopReason:
+                error instanceof Error && error.name === 'AbortError' ? 'user_stop' : 'error',
+              errorMessage: error instanceof Error ? error.message : String(error)
+            }
+          }
+        }
+      )
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.processMessage('s1', 'Hello')
+
+      const providerCoreStream = llmProvider.getProviderInstance.mock.results[0]?.value.coreStream
+      expect(providerCoreStream).not.toHaveBeenCalled()
+
+      const streamResponseCalls = (eventBus.sendToRenderer as ReturnType<typeof vi.fn>).mock.calls
+        .filter(([eventName]) => eventName === 'stream:response')
+        .map(([, , payload]) => payload)
+        .filter((payload) => typeof payload?.messageId === 'string')
+      const rateLimitClear = streamResponseCalls.find(
+        (payload) =>
+          payload.messageId.startsWith('__rate_limit__:') &&
+          Array.isArray(payload.blocks) &&
+          payload.blocks.length === 0
+      )
+
+      expect(rateLimitClear).toMatchObject({
+        conversationId: 's1',
+        blocks: []
+      })
+      expect((await agent.getSessionState('s1'))?.status).toBe('idle')
     })
 
     it('reuses cached system prompt within the same day', async () => {
@@ -1233,9 +1527,47 @@ describe('DeepChatAgentPresenter', () => {
 
       expect(prepareForNextUserTurn).toHaveBeenCalledWith(
         expect.objectContaining({
-          preserveInterleavedReasoning: true
+          preserveInterleavedReasoning: true,
+          signal: expect.any(AbortSignal)
         })
       )
+    })
+
+    it('passes abort signals into next-turn compaction execution', async () => {
+      const compactionIntent = {
+        sessionId: 's1',
+        previousState: {
+          summaryText: null,
+          summaryCursorOrderSeq: 1,
+          summaryUpdatedAt: null
+        },
+        targetCursorOrderSeq: 3,
+        summaryBlocks: ['summarize this'],
+        currentModel: {
+          providerId: 'openai',
+          modelId: 'gpt-4',
+          contextLength: 128000
+        },
+        reserveTokens: 4096
+      }
+      vi.spyOn((agent as any).compactionService, 'prepareForNextUserTurn').mockResolvedValue(
+        compactionIntent
+      )
+      const applyCompaction = vi
+        .spyOn((agent as any).compactionService, 'applyCompaction')
+        .mockResolvedValue({
+          succeeded: true,
+          summaryState: {
+            summaryText: 'rolled summary',
+            summaryCursorOrderSeq: 3,
+            summaryUpdatedAt: 123
+          }
+        })
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.processMessage('s1', 'Hello')
+
+      expect(applyCompaction).toHaveBeenCalledWith(compactionIntent, expect.any(AbortSignal))
     })
 
     it('injects request trace context when trace debug is enabled', async () => {
@@ -2133,6 +2465,49 @@ describe('DeepChatAgentPresenter', () => {
       expect(sqlitePresenter.deepchatMessagesTable.delete).toHaveBeenCalledWith('mock-msg-id')
     })
 
+    it('treats aborted compaction signals as cancellation even for non-abort errors', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      vi.mocked(eventBus.sendToRenderer).mockClear()
+      sqlitePresenter.deepchatMessagesTable.delete.mockClear()
+
+      const abortController = new AbortController()
+      abortController.abort()
+      vi.spyOn((agent as any).compactionService, 'applyCompaction').mockRejectedValueOnce(
+        new Error('late failure')
+      )
+
+      await expect(
+        (agent as any).applyCompactionIntent(
+          's1',
+          {
+            sessionId: 's1',
+            previousState: {
+              summaryText: null,
+              summaryCursorOrderSeq: 1,
+              summaryUpdatedAt: null
+            },
+            targetCursorOrderSeq: 3,
+            summaryBlocks: ['summarize this'],
+            currentModel: {
+              providerId: 'openai',
+              modelId: 'gpt-4',
+              contextLength: 128000
+            },
+            reserveTokens: 512
+          },
+          { signal: abortController.signal }
+        )
+      ).rejects.toThrow('late failure')
+
+      expect(sqlitePresenter.deepchatMessagesTable.delete).toHaveBeenCalledWith('mock-msg-id')
+      expect(eventBus.sendToRenderer).toHaveBeenCalledWith('session:compaction-updated', 'all', {
+        sessionId: 's1',
+        status: 'idle',
+        cursorOrderSeq: 1,
+        summaryUpdatedAt: null
+      })
+    })
+
     it('emits idle when clearMessages resets compaction state', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       sqlitePresenter.deepchatSessionsTable.updateSummaryState('s1', {
@@ -2226,6 +2601,10 @@ describe('DeepChatAgentPresenter', () => {
     }
 
     it('handles question_option and resumes assistant message', async () => {
+      const prepareForResumeTurn = vi.spyOn(
+        (agent as any).compactionService,
+        'prepareForResumeTurn'
+      )
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       makeAssistantRow({
         blocks: [
@@ -2269,7 +2648,43 @@ describe('DeepChatAgentPresenter', () => {
       expect(updatedBlocks[0].status).toBe('success')
       expect(updatedBlocks[1].status).toBe('success')
       expect(updatedBlocks[1].extra.answerText).toBe('A')
+      expect(prepareForResumeTurn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          signal: expect.any(AbortSignal)
+        })
+      )
       expect(processStream).toHaveBeenCalledTimes(1)
+    })
+
+    it('treats an aborted resume signal as cancellation even for non-abort errors', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      makeAssistantRow({ blocks: [] })
+      vi.spyOn(agent as any, 'resolveCompactionStateForResumeTurn').mockResolvedValue({
+        summaryText: null,
+        summaryCursorOrderSeq: 1,
+        summaryUpdatedAt: null
+      })
+      vi.spyOn(agent as any, 'runStreamForMessage').mockImplementation(async () => {
+        ;(agent as any).abortControllers.get('s1')?.abort()
+        throw new Error('late failure')
+      })
+
+      const resumed = await (agent as any).resumeAssistantMessage('s1', 'm1', [])
+
+      expect(resumed).toBe(false)
+      const [messageId, contentJson, status] =
+        sqlitePresenter.deepchatMessagesTable.updateContentAndStatus.mock.calls.at(-1)
+      expect(messageId).toBe('m1')
+      expect(status).toBe('error')
+      expect(JSON.parse(contentJson)).toEqual([
+        {
+          type: 'error',
+          content: 'common.error.userCanceledGeneration',
+          status: 'error',
+          timestamp: expect.any(Number)
+        }
+      ])
+      expect((await agent.getSessionState('s1'))?.status).toBe('idle')
     })
 
     it('handles question_other and waits for user message without resume', async () => {
@@ -2828,6 +3243,12 @@ describe('DeepChatAgentPresenter', () => {
         params: '{"method":"Page.captureScreenshot","params":{"format":"jpeg"}}'
       })
 
+      expect(llmProvider.executeWithRateLimit).toHaveBeenCalledWith(
+        'openai',
+        expect.objectContaining({
+          signal: expect.any(Object)
+        })
+      )
       expect(llmProvider.generateCompletionStandalone).toHaveBeenCalledWith(
         'openai',
         [
@@ -3154,6 +3575,12 @@ describe('DeepChatAgentPresenter', () => {
         'persisted-agent',
         'vision'
       )
+      expect(llmProvider.executeWithRateLimit).toHaveBeenCalledWith(
+        'google',
+        expect.objectContaining({
+          signal: undefined
+        })
+      )
       expect(llmProvider.generateCompletionStandalone).toHaveBeenCalledWith(
         'google',
         expect.any(Array),
@@ -3179,6 +3606,7 @@ describe('DeepChatAgentPresenter', () => {
         abortSignal: abortController.signal
       })
 
+      expect(llmProvider.executeWithRateLimit).not.toHaveBeenCalled()
       expect(llmProvider.generateCompletionStandalone).not.toHaveBeenCalled()
       expect(normalized).toBe('Screenshot captured, but automatic English analysis was canceled.')
     })

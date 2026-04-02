@@ -83,6 +83,7 @@
   "messages": {
     "thinking": "Pensée...",
     "rateLimitWaiting": "Limitation de débit, en attente dans la file...",
+    "rateLimitCompactLoading": "Limité par le débit ({seconds}s)",
     "rateLimitTitle": "Limitation de débit des requêtes",
     "rateLimitQueue": "Position dans la file",
     "rateLimitEstimated": "Temps d'attente estimé",

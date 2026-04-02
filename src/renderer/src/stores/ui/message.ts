@@ -9,6 +9,8 @@ import type {
 } from '@shared/types/agent-interface'
 import { useSessionStore } from './session'
 
+const EPHEMERAL_STREAM_MESSAGE_PREFIXES = ['__rate_limit__:']
+
 // --- Store ---
 
 export const useMessageStore = defineStore('message', () => {
@@ -124,6 +126,10 @@ export const useMessageStore = defineStore('message', () => {
     currentStreamMessageId.value = null
   }
 
+  function isEphemeralStreamMessageId(messageId: string): boolean {
+    return EPHEMERAL_STREAM_MESSAGE_PREFIXES.some((prefix) => messageId.startsWith(prefix))
+  }
+
   function applyStreamingBlocksToMessage(
     messageId: string,
     conversationId: string,
@@ -184,7 +190,7 @@ export const useMessageStore = defineStore('message', () => {
         currentStreamSessionId.value = msg.conversationId
         currentStreamMessageId.value = streamMessageId ?? null
         streamingBlocks.value = msg.blocks
-        if (streamMessageId) {
+        if (streamMessageId && !isEphemeralStreamMessageId(streamMessageId)) {
           applyStreamingBlocksToMessage(streamMessageId, msg.conversationId, msg.blocks)
         }
       }

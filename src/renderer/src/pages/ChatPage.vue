@@ -14,6 +14,9 @@
       />
       <MessageList
         :messages="displayMessages"
+        :conversation-id="props.sessionId"
+        :ephemeral-rate-limit-block="ephemeralRateLimitBlock"
+        :ephemeral-rate-limit-message-id="ephemeralRateLimitMessageId"
         :is-generating="isGenerating"
         :trace-message-ids="traceMessageIds"
         :is-read-only="isReadOnlySession"
@@ -131,6 +134,7 @@ const isReadOnlySession = computed(() => sessionStore.activeSession?.sessionKind
 const isGenerating = computed(
   () => sessionStore.activeSession?.status === 'working' || messageStore.isStreaming
 )
+const RATE_LIMIT_STREAM_MESSAGE_PREFIX = '__rate_limit__:'
 const isAcpWorkdirMissing = computed(() => {
   const activeSession = sessionStore.activeSession
   if (!activeSession || activeSession.providerId !== 'acp') {
@@ -311,6 +315,36 @@ const hasInlineStreamingTarget = computed(() => {
   return messageStore.messages.some((msg) => msg.id === messageId)
 })
 
+const ephemeralRateLimitMessageId = computed(() => {
+  const messageId = messageStore.currentStreamMessageId
+  if (
+    !messageStore.isStreaming ||
+    !messageId ||
+    !messageId.startsWith(RATE_LIMIT_STREAM_MESSAGE_PREFIX)
+  ) {
+    return null
+  }
+
+  return messageId
+})
+
+const ephemeralRateLimitBlock = computed<DisplayAssistantMessageBlock | null>(() => {
+  if (!ephemeralRateLimitMessageId.value || messageStore.streamingBlocks.length === 0) {
+    return null
+  }
+
+  const [firstBlock] = messageStore.streamingBlocks as DisplayAssistantMessageBlock[]
+  if (
+    messageStore.streamingBlocks.length !== 1 ||
+    firstBlock?.type !== 'action' ||
+    firstBlock.action_type !== 'rate_limit'
+  ) {
+    return null
+  }
+
+  return firstBlock
+})
+
 const displayMessages = computed(() => {
   const msgs: DisplayMessage[] = messageStore.messages.map(toDisplayMessage)
 
@@ -319,7 +353,8 @@ const displayMessages = computed(() => {
   if (
     messageStore.isStreaming &&
     messageStore.streamingBlocks.length > 0 &&
-    !hasInlineStreamingTarget.value
+    !hasInlineStreamingTarget.value &&
+    !ephemeralRateLimitBlock.value
   ) {
     msgs.push(toStreamingMessage(messageStore.streamingBlocks, messageStore.currentStreamMessageId))
   }
@@ -335,7 +370,7 @@ const traceMessageIds = computed(() =>
 
 // Auto-scroll when displayMessages changes (new message added, streaming updates)
 watch(
-  displayMessages,
+  [displayMessages, ephemeralRateLimitBlock],
   () => {
     if (isNearBottom.value) {
       nextTick(scrollToBottom)
