@@ -15,6 +15,67 @@ import { proxyConfig } from '../../proxyConfig'
 import { ProxyAgent } from 'undici'
 import type { Usage } from '@anthropic-ai/sdk/resources'
 import type { ProviderMcpRuntimePort } from '../runtimePorts'
+import {
+  applyAnthropicExplicitCacheBreakpoint,
+  applyAnthropicTopLevelCacheControl,
+  resolvePromptCachePlan
+} from '../promptCacheStrategy'
+
+type CacheAwareAnthropicUsage = Usage & {
+  cache_read_input_tokens?: number
+  cache_creation_input_tokens?: number
+  cacheReadInputTokens?: number
+  cacheWriteInputTokens?: number
+}
+
+function getAnthropicUsageNumber(
+  usage: CacheAwareAnthropicUsage | undefined,
+  snakeKey: 'cache_read_input_tokens' | 'cache_creation_input_tokens',
+  camelKey: 'cacheReadInputTokens' | 'cacheWriteInputTokens'
+): number {
+  const value = usage?.[snakeKey] ?? usage?.[camelKey]
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0
+}
+
+function buildAnthropicUsageSnapshot(usage: CacheAwareAnthropicUsage | undefined): {
+  prompt_tokens: number
+  completion_tokens: number
+  total_tokens: number
+  cached_tokens?: number
+  cache_write_tokens?: number
+} | null {
+  if (!usage) {
+    return null
+  }
+
+  const uncachedInputTokens =
+    typeof usage.input_tokens === 'number' && Number.isFinite(usage.input_tokens)
+      ? usage.input_tokens
+      : 0
+  const completionTokens =
+    typeof usage.output_tokens === 'number' && Number.isFinite(usage.output_tokens)
+      ? usage.output_tokens
+      : 0
+  const cachedTokens = getAnthropicUsageNumber(
+    usage,
+    'cache_read_input_tokens',
+    'cacheReadInputTokens'
+  )
+  const cacheWriteTokens = getAnthropicUsageNumber(
+    usage,
+    'cache_creation_input_tokens',
+    'cacheWriteInputTokens'
+  )
+  const promptTokens = uncachedInputTokens + cachedTokens + cacheWriteTokens
+
+  return {
+    prompt_tokens: promptTokens,
+    completion_tokens: completionTokens,
+    total_tokens: promptTokens + completionTokens,
+    ...(cachedTokens > 0 ? { cached_tokens: cachedTokens } : {}),
+    ...(cacheWriteTokens > 0 ? { cache_write_tokens: cacheWriteTokens } : {})
+  }
+}
 
 export class AnthropicProvider extends BaseLLMProvider {
   private anthropic!: Anthropic
@@ -40,6 +101,30 @@ export class AnthropicProvider extends BaseLLMProvider {
       'anthropic-version': '2023-06-01',
       'x-api-key': this.provider.apiKey || process.env.ANTHROPIC_API_KEY || 'MISSING_API_KEY'
     }
+  }
+
+  private applyPromptCache<T extends Record<string, unknown>>(
+    requestParams: T,
+    modelId: string,
+    messages: Anthropic.MessageParam[],
+    conversationId?: string
+  ): T {
+    const plan = resolvePromptCachePlan({
+      providerId: this.provider.id,
+      apiType: 'anthropic',
+      modelId,
+      messages: messages as unknown[],
+      conversationId
+    })
+    const nextRequestParams =
+      plan.mode === 'anthropic_explicit'
+        ? {
+            ...requestParams,
+            messages: applyAnthropicExplicitCacheBreakpoint(messages, plan)
+          }
+        : requestParams
+
+    return applyAnthropicTopLevelCacheControl(nextRequestParams, plan)
   }
 
   public onProxyResolved(): void {
@@ -458,10 +543,16 @@ export class AnthropicProvider extends BaseLLMProvider {
         requestParams.system = formattedMessages.system
       }
 
+      const cachedRequestParams = this.applyPromptCache(
+        requestParams,
+        modelId,
+        formattedMessages.messages
+      )
+
       if (!this.anthropic) {
         throw new Error('Anthropic client is not initialized')
       }
-      const response = await this.anthropic.messages.create(requestParams)
+      const response = await this.anthropic.messages.create(cachedRequestParams)
 
       const resultResp: LLMResponse = {
         content: ''
@@ -469,10 +560,13 @@ export class AnthropicProvider extends BaseLLMProvider {
 
       // 添加usage信息
       if (response.usage) {
+        const usageSnapshot = buildAnthropicUsageSnapshot(
+          response.usage as CacheAwareAnthropicUsage
+        )
         resultResp.totalUsage = {
-          prompt_tokens: response.usage.input_tokens,
-          completion_tokens: response.usage.output_tokens,
-          total_tokens: response.usage.input_tokens + response.usage.output_tokens
+          prompt_tokens: usageSnapshot?.prompt_tokens ?? 0,
+          completion_tokens: usageSnapshot?.completion_tokens ?? 0,
+          total_tokens: usageSnapshot?.total_tokens ?? 0
         }
       }
 
@@ -546,10 +640,16 @@ ${text}
         requestParams.system = systemPrompt
       }
 
+      const cachedRequestParams = this.applyPromptCache(
+        requestParams,
+        modelId,
+        requestParams.messages
+      )
+
       if (!this.anthropic) {
         throw new Error('Anthropic client is not initialized')
       }
-      const response = await this.anthropic.messages.create(requestParams)
+      const response = await this.anthropic.messages.create(cachedRequestParams)
 
       return {
         content: response.content
@@ -588,10 +688,16 @@ ${context}
         requestParams.system = systemPrompt
       }
 
+      const cachedRequestParams = this.applyPromptCache(
+        requestParams,
+        modelId,
+        requestParams.messages
+      )
+
       if (!this.anthropic) {
         throw new Error('Anthropic client is not initialized')
       }
-      const response = await this.anthropic.messages.create(requestParams)
+      const response = await this.anthropic.messages.create(cachedRequestParams)
 
       const suggestions = response.content
         .filter((block: any) => block.type === 'text')
@@ -657,14 +763,20 @@ ${context}
         // @ts-ignore - 类型不匹配，但格式是正确的
         streamParams.tools = anthropicTools
       }
+      const cachedStreamParams = this.applyPromptCache(
+        streamParams as unknown as Record<string, unknown>,
+        modelId,
+        formattedMessagesObject.messages,
+        modelConfig.conversationId
+      ) as unknown as Anthropic.Messages.MessageCreateParamsStreaming
       await this.emitRequestTrace(modelConfig, {
         endpoint: this.buildAnthropicEndpoint(),
         headers: this.buildAnthropicApiKeyHeaders(),
-        body: streamParams
+        body: cachedStreamParams
       })
       // console.log('streamParams', JSON.stringify(streamParams.messages))
       // 创建Anthropic流
-      const stream = await this.anthropic.messages.create(streamParams)
+      const stream = await this.anthropic.messages.create(cachedStreamParams)
 
       // 状态变量
       let accumulatedJson = ''
@@ -820,11 +932,10 @@ ${context}
         }
       }
       if (usageMetadata) {
-        yield createStreamEvent.usage({
-          prompt_tokens: usageMetadata.input_tokens,
-          completion_tokens: usageMetadata.output_tokens,
-          total_tokens: usageMetadata.input_tokens + usageMetadata.output_tokens
-        })
+        const usageSnapshot = buildAnthropicUsageSnapshot(usageMetadata as CacheAwareAnthropicUsage)
+        if (usageSnapshot) {
+          yield createStreamEvent.usage(usageSnapshot)
+        }
       }
       // 发送停止事件
       yield createStreamEvent.stop(toolUseDetected ? 'tool_use' : 'complete')

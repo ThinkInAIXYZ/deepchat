@@ -484,6 +484,8 @@
     "urlFormat": "API例：{defaultUrl}",
     "urlFormatFill": "API URL に入力",
     "openaiResponsesNotice": "OpenAI 公式サービスはデフォルトで Responses API を使用します。サードパーティのエンドポイントが Chat Completions のみをサポートしている場合は、OpenAI Completions プロバイダーを使用してください。",
+    "modifyBaseUrl": "変更",
+    "baseUrlLockedHint": "このプロバイダーは設定ミスを減らすため、推奨されるベースURLに固定されています。",
     "modelList": "モデル一覧",
     "enableModels": "モデルを有効にする",
     "disableAllModels": "すべてのモデルを無効にする",
@@ -578,6 +580,12 @@
         "overwriteWarning": "このインポートにより、現在のプロバイダー設定が上書きされます。",
         "confirming": "インポート中..."
       },
+      "baseUrlUnlock": {
+        "title": "ベースURLの変更を確認",
+        "description": "このプロバイダーのベースURLを変更することは推奨されません。誤ったエンドポイントを設定すると、リクエストの失敗やその他の予期しない動作を引き起こす可能性があります。リスクを理解している場合は、そのまま続行できます。",
+        "confirm": "続行"
+      },
+
       "deleteProvider": {
         "title": "プロバイダーの削除確認",
         "content": "プロバイダー \"{name}\" を削除してもよろしいですか？この操作は元に戻せません。",

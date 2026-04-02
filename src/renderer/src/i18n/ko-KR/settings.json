@@ -575,6 +575,12 @@
         "overwriteWarning": "이 가져오기는 현재 제공자 설정을 덮어씁니다.",
         "confirming": "가져오는 중..."
       },
+      "baseUrlUnlock": {
+        "title": "기본 URL 변경 확인",
+        "description": "이 제공자의 기본 URL을 변경하는 것은 권장되지 않습니다. 잘못된 엔드포인트를 입력하면 요청 실패나 기타 예상치 못한 동작이 발생할 수 있습니다. 위험을 이해한다면 계속 진행할 수 있습니다.",
+        "confirm": "계속"
+      },
+
       "deleteProvider": {
         "title": "제공자 삭제",
         "content": "제공자 \"{name}\"을(를) 삭제하시겠습니까? 이 작업은 취소할 수 없습니다.",
@@ -614,6 +620,8 @@
     "urlFormat": "API 샘플 : {defaultUrl}",
     "urlFormatFill": "API URL에 입력",
     "openaiResponsesNotice": "OpenAI 공식 서비스는 기본적으로 Responses API를 사용합니다. 서드파티 엔드포인트가 Chat Completions만 지원하는 경우 OpenAI Completions 공급자를 사용하세요.",
+    "modifyBaseUrl": "수정",
+    "baseUrlLockedHint": "이 제공자는 잘못된 설정을 줄이기 위해 권장 기본 URL로 고정되어 있습니다.",
     "azureApiVersion": "API 버전",
     "safety": {
       "title": "보안 설정",

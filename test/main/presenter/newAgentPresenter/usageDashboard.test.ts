@@ -95,6 +95,7 @@ type UsageStatsRow = {
   output_tokens: number
   total_tokens: number
   cached_input_tokens: number
+  cache_write_input_tokens: number
   estimated_cost_usd: number | null
   source: 'backfill' | 'live'
   created_at: number
@@ -277,6 +278,7 @@ function createMockSqlitePresenter() {
         output_tokens: input.outputTokens,
         total_tokens: input.totalTokens,
         cached_input_tokens: input.cachedInputTokens,
+        cache_write_input_tokens: input.cacheWriteInputTokens,
         estimated_cost_usd: input.estimatedCostUsd,
         source: input.source,
         created_at: input.createdAt,
@@ -447,7 +449,9 @@ describe('NewAgentPresenter usage dashboard', () => {
       metadata: JSON.stringify({
         inputTokens: 120,
         outputTokens: 80,
-        totalTokens: 200
+        totalTokens: 200,
+        cachedInputTokens: 15,
+        cacheWriteInputTokens: 5
       }),
       createdAt: Date.UTC(2026, 2, 10, 8, 0, 0),
       updatedAt: Date.UTC(2026, 2, 10, 8, 0, 1)
@@ -460,7 +464,8 @@ describe('NewAgentPresenter usage dashboard', () => {
       message_id: 'message-1',
       provider_id: 'openai',
       model_id: 'gpt-4o',
-      cached_input_tokens: 0,
+      cached_input_tokens: 15,
+      cache_write_input_tokens: 5,
       source: 'backfill'
     })
 
@@ -504,7 +509,8 @@ describe('NewAgentPresenter usage dashboard', () => {
         inputTokens: 140,
         outputTokens: 60,
         totalTokens: 200,
-        cachedInputTokens: 20
+        cachedInputTokens: 20,
+        cacheWriteInputTokens: 0
       })
     )
 
@@ -563,6 +569,7 @@ describe('NewAgentPresenter usage dashboard', () => {
       outputTokens: 80,
       totalTokens: 200,
       cachedInputTokens: 0,
+      cacheWriteInputTokens: 0,
       estimatedCostUsd: 0.01,
       source: 'live',
       createdAt: Date.UTC(2026, 2, 3, 8, 0, 0),
@@ -578,6 +585,7 @@ describe('NewAgentPresenter usage dashboard', () => {
       outputTokens: 40,
       totalTokens: 100,
       cachedInputTokens: 0,
+      cacheWriteInputTokens: 0,
       estimatedCostUsd: 0.004,
       source: 'live',
       createdAt: Date.UTC(2026, 2, 3, 8, 1, 0),
@@ -593,6 +601,7 @@ describe('NewAgentPresenter usage dashboard', () => {
       outputTokens: 20,
       totalTokens: 50,
       cachedInputTokens: 0,
+      cacheWriteInputTokens: 0,
       estimatedCostUsd: 0.002,
       source: 'live',
       createdAt: Date.UTC(2026, 2, 4, 8, 0, 0),
@@ -622,6 +631,7 @@ describe('NewAgentPresenter usage dashboard', () => {
       outputTokens: 10,
       totalTokens: 20,
       cachedInputTokens: 0,
+      cacheWriteInputTokens: 0,
       estimatedCostUsd: null,
       source: 'live',
       createdAt: Date.UTC(2026, 2, 5, 8, 0, 0),
@@ -637,6 +647,7 @@ describe('NewAgentPresenter usage dashboard', () => {
       outputTokens: 10,
       totalTokens: 20,
       cachedInputTokens: 0,
+      cacheWriteInputTokens: 0,
       estimatedCostUsd: null,
       source: 'live',
       createdAt: Date.UTC(2026, 2, 5, 8, 1, 0),
@@ -652,6 +663,7 @@ describe('NewAgentPresenter usage dashboard', () => {
       outputTokens: 10,
       totalTokens: 20,
       cachedInputTokens: 0,
+      cacheWriteInputTokens: 0,
       estimatedCostUsd: null,
       source: 'live',
       createdAt: Date.UTC(2026, 2, 6, 8, 0, 0),
@@ -667,6 +679,7 @@ describe('NewAgentPresenter usage dashboard', () => {
       outputTokens: 10,
       totalTokens: 20,
       cachedInputTokens: 0,
+      cacheWriteInputTokens: 0,
       estimatedCostUsd: null,
       source: 'live',
       createdAt: Date.UTC(2026, 2, 6, 8, 1, 0),

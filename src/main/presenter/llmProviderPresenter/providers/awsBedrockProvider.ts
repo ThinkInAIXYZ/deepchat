@@ -20,6 +20,66 @@ import {
 import Anthropic from '@anthropic-ai/sdk'
 import { Usage } from '@anthropic-ai/sdk/resources/messages'
 import type { ProviderMcpRuntimePort } from '../runtimePorts'
+import {
+  applyAnthropicExplicitCacheBreakpoint,
+  resolvePromptCachePlan
+} from '../promptCacheStrategy'
+
+type CacheAwareBedrockUsage = Usage & {
+  cache_read_input_tokens?: number
+  cache_creation_input_tokens?: number
+  cacheReadInputTokens?: number
+  cacheWriteInputTokens?: number
+}
+
+function getBedrockUsageNumber(
+  usage: CacheAwareBedrockUsage | undefined,
+  snakeKey: 'cache_read_input_tokens' | 'cache_creation_input_tokens',
+  camelKey: 'cacheReadInputTokens' | 'cacheWriteInputTokens'
+): number {
+  const value = usage?.[snakeKey] ?? usage?.[camelKey]
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0
+}
+
+function buildBedrockUsageSnapshot(usage: CacheAwareBedrockUsage | undefined): {
+  prompt_tokens: number
+  completion_tokens: number
+  total_tokens: number
+  cached_tokens?: number
+  cache_write_tokens?: number
+} | null {
+  if (!usage) {
+    return null
+  }
+
+  const uncachedInputTokens =
+    typeof usage.input_tokens === 'number' && Number.isFinite(usage.input_tokens)
+      ? usage.input_tokens
+      : 0
+  const completionTokens =
+    typeof usage.output_tokens === 'number' && Number.isFinite(usage.output_tokens)
+      ? usage.output_tokens
+      : 0
+  const cachedTokens = getBedrockUsageNumber(
+    usage,
+    'cache_read_input_tokens',
+    'cacheReadInputTokens'
+  )
+  const cacheWriteTokens = getBedrockUsageNumber(
+    usage,
+    'cache_creation_input_tokens',
+    'cacheWriteInputTokens'
+  )
+  const promptTokens = uncachedInputTokens + cachedTokens + cacheWriteTokens
+
+  return {
+    prompt_tokens: promptTokens,
+    completion_tokens: completionTokens,
+    total_tokens: promptTokens + completionTokens,
+    ...(cachedTokens > 0 ? { cached_tokens: cachedTokens } : {}),
+    ...(cacheWriteTokens > 0 ? { cache_write_tokens: cacheWriteTokens } : {})
+  }
+}
 
 export class AwsBedrockProvider extends BaseLLMProvider {
   private bedrock!: BedrockClient
@@ -62,6 +122,21 @@ export class AwsBedrockProvider extends BaseLLMProvider {
       }
     }
     return body
+  }
+
+  private applyPromptCache(
+    messages: Anthropic.MessageParam[],
+    modelId: string,
+    conversationId?: string
+  ): Anthropic.MessageParam[] {
+    const plan = resolvePromptCachePlan({
+      providerId: this.provider.id,
+      apiType: 'anthropic',
+      modelId,
+      messages: messages as unknown[],
+      conversationId
+    })
+    return applyAnthropicExplicitCacheBreakpoint(messages, plan)
   }
 
   public onProxyResolved(): void {
@@ -539,6 +614,7 @@ ${text}
       }
 
       const formattedMessages = this.formatMessages(messages)
+      const cachedMessages = this.applyPromptCache(formattedMessages.messages, modelId)
 
       // 创建基本请求参数
       const payload = {
@@ -546,7 +622,7 @@ ${text}
         max_tokens: maxTokens,
         temperature,
         system: formattedMessages.system,
-        messages
+        messages: cachedMessages
       }
 
       const command = new InvokeModelCommand({
@@ -566,10 +642,11 @@ ${text}
 
       // 添加usage信息
       if (response.usage) {
+        const usageSnapshot = buildBedrockUsageSnapshot(response.usage as CacheAwareBedrockUsage)
         resultResp.totalUsage = {
-          prompt_tokens: response.usage.input_tokens,
-          completion_tokens: response.usage.output_tokens,
-          total_tokens: response.usage.input_tokens + response.usage.output_tokens
+          prompt_tokens: usageSnapshot?.prompt_tokens ?? 0,
+          completion_tokens: usageSnapshot?.completion_tokens ?? 0,
+          total_tokens: usageSnapshot?.total_tokens ?? 0
         }
       }
 
@@ -628,6 +705,11 @@ ${text}
     try {
       // 格式化消息
       const formattedMessagesObject = this.formatMessages(messages)
+      const cachedMessages = this.applyPromptCache(
+        formattedMessagesObject.messages,
+        modelId,
+        modelConfig.conversationId
+      )
       console.log('formattedMessagesObject', JSON.stringify(formattedMessagesObject))
 
       // 将MCP工具转换为Anthropic工具格式
@@ -648,8 +730,8 @@ ${text}
         anthropic_version: 'bedrock-2023-05-31',
         max_tokens: maxTokens || 1024,
         temperature: temperature ?? 0.7,
-        // system: formattedMessagesObject.system,
-        messages: formattedMessagesObject.messages,
+        system: formattedMessagesObject.system,
+        messages: cachedMessages,
         thinking: undefined as any,
         tools: undefined as any
       }
@@ -888,11 +970,10 @@ ${text}
         }
       }
       if (usageMetadata) {
-        yield createStreamEvent.usage({
-          prompt_tokens: usageMetadata.input_tokens,
-          completion_tokens: usageMetadata.output_tokens,
-          total_tokens: usageMetadata.input_tokens + usageMetadata.output_tokens
-        })
+        const usageSnapshot = buildBedrockUsageSnapshot(usageMetadata as CacheAwareBedrockUsage)
+        if (usageSnapshot) {
+          yield createStreamEvent.usage(usageSnapshot)
+        }
       }
       // 发送停止事件
       yield createStreamEvent.stop(toolUseDetected ? 'tool_use' : 'complete')

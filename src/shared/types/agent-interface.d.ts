@@ -280,6 +280,7 @@ export interface MessageMetadata {
   inputTokens?: number
   outputTokens?: number
   cachedInputTokens?: number
+  cacheWriteInputTokens?: number
   generationTime?: number
   firstTokenTime?: number
   reasoningStartTime?: number

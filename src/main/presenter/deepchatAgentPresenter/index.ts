@@ -1405,7 +1405,8 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       maxTokens: generationSettings.maxTokens,
       thinkingBudget: generationSettings.thinkingBudget,
       reasoningEffort: generationSettings.reasoningEffort,
-      verbosity: generationSettings.verbosity
+      verbosity: generationSettings.verbosity,
+      conversationId: sessionId
     }
 
     const traceEnabled = this.configPresenter.getSetting<boolean>('traceDebugEnabled') === true

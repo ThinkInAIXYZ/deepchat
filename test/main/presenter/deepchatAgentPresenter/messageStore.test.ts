@@ -141,7 +141,8 @@ describe('DeepChatMessageStore', () => {
           inputTokens: 120,
           outputTokens: 30,
           totalTokens: 150,
-          cachedInputTokens: 20
+          cachedInputTokens: 20,
+          cacheWriteInputTokens: 12
         })
       )
 
@@ -155,6 +156,7 @@ describe('DeepChatMessageStore', () => {
           outputTokens: 30,
           totalTokens: 150,
           cachedInputTokens: 20,
+          cacheWriteInputTokens: 12,
           source: 'live'
         })
       )
@@ -184,7 +186,8 @@ describe('DeepChatMessageStore', () => {
             inputTokens: 120,
             outputTokens: 30,
             totalTokens: 150,
-            cachedInputTokens: 20
+            cachedInputTokens: 20,
+            cacheWriteInputTokens: 12
           })
         )
       ).not.toThrow()

@@ -165,6 +165,7 @@ declare module 'vue-i18n' {
     messages: {
       thinking: string
       rateLimitWaiting: string
+      rateLimitCompactLoading: string
       rateLimitTitle: string
       rateLimitQueue: string
       rateLimitEstimated: string
@@ -216,6 +217,23 @@ declare module 'vue-i18n' {
       functionName: string
       params: string
       responseData: string
+      subagents: {
+        summary: string
+        unnamedTask: string
+        mode: {
+          parallel: string
+          chain: string
+        }
+        status: {
+          queued: string
+          running: string
+          completed: string
+          error: string
+          cancelled: string
+          waiting_permission: string
+          waiting_question: string
+        }
+      }
     }
     mode: {
       current: string
@@ -223,8 +241,12 @@ declare module 'vue-i18n' {
       acpAgent: string
     }
     topbar: {
+      backToParent: string
       share: string
       more: string
+    }
+    subagents: {
+      label: string
     }
     advancedSettings: {
       button: string
@@ -456,6 +478,7 @@ declare module 'vue-i18n' {
         files: string
         git: string
         artifacts: string
+        subagents: string
       }
       plan: {
         section: string
@@ -483,6 +506,15 @@ declare module 'vue-i18n' {
         clean: string
         staged: string
         unstaged: string
+      }
+      subagents: {
+        empty: string
+        self: string
+        status: {
+          working: string
+          error: string
+          idle: string
+        }
       }
       browser: {
         section: string
@@ -548,6 +580,31 @@ declare module 'vue-i18n' {
       pinned: string
       emptyTitle: string
       emptyDescription: string
+      searchPlaceholder: string
+      searchAriaLabel: string
+      searchEmptyTitle: string
+      searchEmptyDescription: string
+    }
+    spotlight: {
+      placeholder: string
+      searching: string
+      emptyTitle: string
+      emptyDescription: string
+      hints: string
+      kind: {
+        session: string
+        message: string
+        agent: string
+        setting: string
+        action: string
+      }
+    }
+    inlineSearch: {
+      placeholder: string
+      ariaLabel: string
+      previous: string
+      next: string
+      close: string
     }
     loading: string
     copied: string
@@ -564,6 +621,7 @@ declare module 'vue-i18n' {
     disabled: string
     disclaimer: string
     close: string
+    open: string
     image: string
     error: string
     resetDataConfirmTitle: string
@@ -928,10 +986,6 @@ declare module 'vue-i18n' {
         name: string
         desc: string
       }
-      imageServer: {
-        name: string
-        desc: string
-      }
       braveSearch: {
         name: string
         desc: string
@@ -1258,7 +1312,6 @@ declare module 'vue-i18n' {
       defaultModel: {
         title: string
         chatModel: string
-        visionModel: string
       }
     }
     deepchatAgents: {
@@ -1304,6 +1357,17 @@ declare module 'vue-i18n' {
       permissionMode: string
       permissionFullAccess: string
       permissionDefault: string
+      subagentsTitle: string
+      subagentsDescription: string
+      subagentsEnabled: string
+      subagentTargetType: string
+      subagentTargetSelf: string
+      subagentTargetAgent: string
+      subagentDisplayName: string
+      subagentDescription: string
+      subagentTargetAgentLabel: string
+      subagentLimit: string
+      addSubagentSlot: string
       toolsTitle: string
       compactionTitle: string
       compactionEnabled: string
@@ -1406,6 +1470,18 @@ declare module 'vue-i18n' {
       toast: {
         backupSuccessTitle: string
         backupSuccessMessage: string
+      }
+      modelConfigUpdate: {
+        title: string
+        description: string
+        button: string
+        updating: string
+        updatedTitle: string
+        updatedDescription: string
+        upToDateTitle: string
+        upToDateDescription: string
+        failedTitle: string
+        failedDescription: string
       }
       yoBrowser: {
         title: string
@@ -1876,6 +1952,7 @@ declare module 'vue-i18n' {
       newWindow: string
       showHideWindow: string
       newConversation: string
+      quickSearch: string
       closeWindow: string
     }
     acp: {
@@ -2148,6 +2225,9 @@ declare module 'vue-i18n' {
         allowedUserIdsPlaceholder: string
         defaultAgent: string
         defaultAgentPlaceholder: string
+        defaultWorkdir: string
+        defaultWorkdirPlaceholder: string
+        defaultWorkdirHelper: string
         openPairDialog: string
         manageBindings: string
         pairCode: string

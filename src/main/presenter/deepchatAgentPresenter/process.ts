@@ -308,5 +308,8 @@ function buildUsageSnapshot(state: StreamState): Record<string, number> {
   if (typeof state.metadata.cachedInputTokens === 'number') {
     usage.cachedInputTokens = state.metadata.cachedInputTokens
   }
+  if (typeof state.metadata.cacheWriteInputTokens === 'number') {
+    usage.cacheWriteInputTokens = state.metadata.cacheWriteInputTokens
+  }
   return usage
 }

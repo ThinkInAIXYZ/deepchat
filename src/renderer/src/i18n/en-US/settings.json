@@ -546,6 +546,8 @@
     "urlFormat": "API Example: {defaultUrl}",
     "urlFormatFill": "Fill into API URL",
     "openaiResponsesNotice": "OpenAI defaults to the Responses API. If a third-party endpoint only supports Chat Completions, use the OpenAI Completions provider.",
+    "modifyBaseUrl": "Modify",
+    "baseUrlLockedHint": "This provider is pinned to the recommended Base URL to reduce misconfiguration.",
     "modelList": "Model List",
     "enableModels": "Enable Models",
     "disableAllModels": "Disable All Models",
@@ -608,6 +610,12 @@
         "overwriteWarning": "This import will overwrite the current provider configuration.",
         "confirming": "Importing..."
       },
+      "baseUrlUnlock": {
+        "title": "Confirm Base URL Change",
+        "description": "Changing the Base URL for this provider is not recommended. An incorrect endpoint may cause request failures or other unexpected behavior. You can still continue if you understand the risk.",
+        "confirm": "Continue"
+      },
+
       "deleteProvider": {
         "title": "Confirm Delete Provider",
         "content": "Are you sure you want to delete provider \"{name}\"? This action cannot be undone.",
