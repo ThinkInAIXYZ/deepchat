@@ -502,6 +502,13 @@ export interface INotificationPresenter {
 
 import type { ReasoningPortrait } from '../model-db'
 
+export type ProviderDbRefreshResult = {
+  status: 'updated' | 'not-modified' | 'skipped' | 'error'
+  lastUpdated: number | null
+  providersCount: number
+  message?: string
+}
+
 export interface IConfigPresenter {
   getSetting<T>(key: string): T | undefined
   setSetting<T>(key: string, value: T): void
@@ -736,6 +743,7 @@ export interface IConfigPresenter {
   setAutoDetectNpmRegistry?(enabled: boolean): void
   clearNpmRegistryCache?(): void
   getProviderDb(): { providers: Record<string, unknown> } | null
+  refreshProviderDb(force?: boolean): Promise<ProviderDbRefreshResult>
 
   // Default model settings
   getDefaultModel(): { providerId: string; modelId: string } | undefined
@@ -1152,6 +1160,19 @@ export interface ILlmProviderPresenter {
       lastRequestTime: number
     }
   >
+  executeWithRateLimit(
+    providerId: string,
+    options?: {
+      signal?: AbortSignal
+      onQueued?: (snapshot: {
+        providerId: string
+        qpsLimit: number
+        currentQps: number
+        queueLength: number
+        estimatedWaitTime: number
+      }) => void
+    }
+  ): Promise<void>
   syncModelScopeMcpServers(
     providerId: string,
     syncOptions?: ModelScopeMcpSyncOptions

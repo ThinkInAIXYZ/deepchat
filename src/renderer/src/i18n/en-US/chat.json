@@ -83,6 +83,7 @@
   "messages": {
     "thinking": "Thinking...",
     "rateLimitWaiting": "Rate limit reached, waiting in queue...",
+    "rateLimitCompactLoading": "Rate limited for {seconds}s...",
     "rateLimitTitle": "Rate Limit Active",
     "rateLimitQueue": "Queue Position",
     "rateLimitEstimated": "Estimated Wait",

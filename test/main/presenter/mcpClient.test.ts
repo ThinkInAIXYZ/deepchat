@@ -37,6 +37,7 @@ vi.mock('../../../src/main/eventbus', () => ({
 const presenterMocks = vi.hoisted(() => ({
   handleSamplingRequest: vi.fn(),
   cancelSamplingRequest: vi.fn(),
+  executeWithRateLimit: vi.fn(),
   generateCompletionStandalone: vi.fn(),
   getProviderModels: vi.fn(),
   getCustomModels: vi.fn()
@@ -54,6 +55,7 @@ vi.mock('../../../src/main/presenter', () => ({
       cancelSamplingRequest: presenterMocks.cancelSamplingRequest
     },
     llmproviderPresenter: {
+      executeWithRateLimit: presenterMocks.executeWithRateLimit,
       generateCompletionStandalone: presenterMocks.generateCompletionStandalone
     }
   }

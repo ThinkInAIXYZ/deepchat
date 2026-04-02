@@ -83,6 +83,7 @@
   "messages": {
     "thinking": "思考中...",
     "rateLimitWaiting": "レート制限により、キューで待機中...",
+    "rateLimitCompactLoading": "制限中（{seconds}秒）",
     "rateLimitTitle": "リクエストレート制限",
     "rateLimitQueue": "キューの位置",
     "rateLimitEstimated": "推定待機時間",

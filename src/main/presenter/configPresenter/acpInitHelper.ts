@@ -7,7 +7,12 @@ import type { AcpBuiltinAgentId, AcpAgentConfig, AcpAgentProfile } from '@shared
 import { spawn } from 'node-pty'
 import type { IPty } from 'node-pty'
 import { RuntimeHelper } from '@/lib/runtimeHelper'
-import { getShellEnvironment } from '@/lib/agentRuntime/shellEnvHelper'
+import {
+  getPathEntriesFromEnv,
+  getShellEnvironment,
+  mergeCommandEnvironment,
+  setPathEntriesOnEnv
+} from '@/lib/agentRuntime/shellEnvHelper'
 
 const execAsync = promisify(exec)
 
@@ -507,84 +512,48 @@ class AcpInitHelper {
       hasProfileEnv: !!(profile.env && Object.keys(profile.env).length > 0)
     })
 
-    const env: Record<string, string> = {}
-
-    // Add system environment variables
-    const systemEnvCount = Object.entries(process.env).filter(
-      ([, value]) => value !== undefined && value !== ''
-    ).length
-    Object.entries(process.env).forEach(([key, value]) => {
-      if (value !== undefined && value !== '') {
-        env[key] = value
-      }
-    })
+    let env = mergeCommandEnvironment()
+    const systemEnvCount = Object.keys(env).length
     console.log('[ACP Init] Added system environment variables:', systemEnvCount)
-
-    // Merge shell environment (includes user PATH from shell startup)
-    const pathKeys = ['PATH', 'Path', 'path']
-    const existingPaths: string[] = []
-    pathKeys.forEach((key) => {
-      const value = env[key]
-      if (value) existingPaths.push(value)
-    })
 
     try {
       const shellEnv = await getShellEnvironment()
-      Object.entries(shellEnv).forEach(([key, value]) => {
-        if (value !== undefined && value !== '' && !pathKeys.includes(key)) {
-          env[key] = value
-        }
-      })
-      const shellPath = shellEnv.PATH || shellEnv.Path || shellEnv.path
-      if (shellPath) {
-        existingPaths.unshift(shellPath)
-      }
+      env = mergeCommandEnvironment({ shellEnv })
     } catch (error) {
       console.warn('[ACP Init] Failed to merge shell environment variables:', error)
     }
 
-    // Prepare PATH merging
-    const HOME_DIR = app.getPath('home')
-    const defaultPaths = this.runtimeHelper.getDefaultPaths(HOME_DIR)
-    const allPaths = [...existingPaths, ...defaultPaths]
+    const prependPathSources: string[] = []
 
-    // Add runtime paths to PATH if using builtin runtime
     if (useBuiltinRuntime) {
-      const runtimePaths: string[] = []
-
       const uvRuntimePath = this.runtimeHelper.getUvRuntimePath()
       const nodeRuntimePath = this.runtimeHelper.getNodeRuntimePath()
 
       if (uvRuntimePath) {
-        runtimePaths.push(uvRuntimePath)
+        prependPathSources.push(uvRuntimePath)
         console.log('[ACP Init] Added UV runtime path:', uvRuntimePath)
       }
 
       if (process.platform === 'win32') {
         if (nodeRuntimePath) {
-          runtimePaths.push(nodeRuntimePath)
+          prependPathSources.push(nodeRuntimePath)
           console.log('[ACP Init] Added Node runtime path (Windows):', nodeRuntimePath)
         }
-      } else {
-        if (nodeRuntimePath) {
-          const nodeBinPath = path.join(nodeRuntimePath, 'bin')
-          runtimePaths.push(nodeBinPath)
-          console.log('[ACP Init] Added Node runtime path (Unix):', nodeBinPath)
-        }
+      } else if (nodeRuntimePath) {
+        const nodeBinPath = path.join(nodeRuntimePath, 'bin')
+        prependPathSources.push(nodeBinPath)
+        console.log('[ACP Init] Added Node runtime path (Unix):', nodeBinPath)
       }
 
-      if (runtimePaths.length > 0) {
-        allPaths.unshift(...runtimePaths)
+      if (prependPathSources.length > 0) {
+        setPathEntriesOnEnv(env, [prependPathSources, getPathEntriesFromEnv(env)], {
+          includeDefaultPaths: false
+        })
       } else {
         console.warn('[ACP Init] No runtime paths available to add to PATH')
       }
     }
 
-    // Normalize and set PATH
-    const normalizedPath = this.runtimeHelper.normalizePathEnv(allPaths)
-    env[normalizedPath.key] = normalizedPath.value
-
-    // Add registry environment variables if using builtin runtime
     if (useBuiltinRuntime) {
       if (npmRegistry && npmRegistry !== '') {
         env.npm_config_registry = npmRegistry
@@ -598,8 +567,6 @@ class AcpInitHelper {
         console.log('[ACP Init] Set UV registry:', uvRegistry)
       }
 
-      // On Windows, if app is installed in system directory, set npm prefix to user directory
-      // to avoid permission issues when installing global packages
       if (process.platform === 'win32' && this.runtimeHelper.isInstalledInSystemDirectory()) {
         const userNpmPrefix = this.runtimeHelper.getUserNpmPrefix()
 
@@ -611,47 +578,38 @@ class AcpInitHelper {
             userNpmPrefix
           )
 
-          // Add user npm bin directory to PATH
-          const pathKey = 'Path'
-          const separator = ';'
-          const existingPath = env[pathKey] || ''
           const userNpmBinPath = userNpmPrefix
-
-          // Ensure the user npm bin path is at the beginning of PATH
-          if (existingPath) {
-            env[pathKey] = [userNpmBinPath, existingPath].filter(Boolean).join(separator)
-          } else {
-            env[pathKey] = userNpmBinPath
-          }
+          setPathEntriesOnEnv(env, [userNpmBinPath, getPathEntriesFromEnv(env)], {
+            includeDefaultPaths: false
+          })
 
           console.log('[ACP Init] Added user npm bin directory to PATH:', userNpmBinPath)
         }
       }
     }
 
-    // Add custom environment variables from profile
     if (profile.env) {
       const customEnvCount = Object.entries(profile.env).filter(
         ([, value]) => value !== undefined && value !== ''
       ).length
       Object.entries(profile.env).forEach(([key, value]) => {
-        if (value !== undefined && value !== '') {
-          if (['PATH', 'Path', 'path'].includes(key)) {
-            // Merge PATH variables
-            const pathKey = process.platform === 'win32' ? 'Path' : 'PATH'
-            const separator = process.platform === 'win32' ? ';' : ':'
-            const existingPath = env[pathKey] || env[normalizedPath.key] || ''
-            env[pathKey] = [value, existingPath].filter(Boolean).join(separator)
-            console.log('[ACP Init] Merged custom PATH from profile:', {
-              customPath: value,
-              mergedPathLength: env[pathKey].length
-            })
-          } else {
-            env[key] = value
-            console.log('[ACP Init] Added custom env var:', key)
-          }
+        if (value !== undefined && value !== '' && !['PATH', 'Path', 'path'].includes(key)) {
+          env[key] = value
+          console.log('[ACP Init] Added custom env var:', key)
         }
       })
+
+      const customPathEntries = getPathEntriesFromEnv(profile.env)
+      if (customPathEntries.length > 0) {
+        setPathEntriesOnEnv(env, [customPathEntries, getPathEntriesFromEnv(env)], {
+          includeDefaultPaths: false
+        })
+        console.log('[ACP Init] Merged custom PATH from profile:', {
+          customPath: profile.env.PATH || profile.env.Path || profile.env.path,
+          mergedPathLength: env[process.platform === 'win32' ? 'Path' : 'PATH']?.length || 0
+        })
+      }
+
       console.log('[ACP Init] Added custom environment variables from profile:', customEnvCount)
     }
 

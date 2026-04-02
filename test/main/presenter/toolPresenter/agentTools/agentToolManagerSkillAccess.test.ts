@@ -65,6 +65,7 @@ describe('AgentToolManager skill file access', () => {
         }),
         getFilePresenter: () => filePresenter,
         getLlmProviderPresenter: () => ({
+          executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
           generateCompletionStandalone: vi.fn()
         }),
         createSettingsWindow: vi.fn(),

@@ -96,6 +96,7 @@ describe('SubagentOrchestratorTool', () => {
         prepareFileCompletely: vi.fn()
       })),
       getLlmProviderPresenter: vi.fn(() => ({
+        executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
         generateCompletionStandalone: vi.fn()
       })),
       createSettingsWindow: vi.fn(),

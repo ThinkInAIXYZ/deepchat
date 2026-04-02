@@ -233,6 +233,18 @@
       "backupSuccessTitle": "Backup successful",
       "backupSuccessMessage": "Data backed up successfully"
     },
+    "modelConfigUpdate": {
+      "title": "Update Model Config",
+      "description": "Force refresh provider.json from upstream to update model capabilities and default model settings.",
+      "button": "Update Now",
+      "updating": "Updating...",
+      "updatedTitle": "Model config updated",
+      "updatedDescription": "The latest provider metadata has been refreshed.",
+      "upToDateTitle": "Already up to date",
+      "upToDateDescription": "Your local model config is already using the latest provider metadata.",
+      "failedTitle": "Update failed",
+      "failedDescription": "Unable to refresh model config right now. Please try again later."
+    },
     "yoBrowser": {
       "clearButton": "Clear YoBrowser data",
       "clearFailedDescription": "Please try again or check the logs for more information.",

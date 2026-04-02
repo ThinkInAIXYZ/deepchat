@@ -83,6 +83,7 @@
   "messages": {
     "thinking": "正在思考...",
     "rateLimitWaiting": "速率限制，正在佇列等待...",
+    "rateLimitCompactLoading": "限速中（第 {seconds} 秒）",
     "rateLimitTitle": "請求速率限制",
     "rateLimitQueue": "佇列位置",
     "rateLimitEstimated": "預估等待時間",

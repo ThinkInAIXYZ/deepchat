@@ -81,6 +81,7 @@
     "rateLimitSwitchProvider": "Skift tjenesteudbyder",
     "rateLimitTitle": "Anmodningsfrekvensbegrænsning",
     "rateLimitWaiting": "Anmodningsfrekvensbegrænsning, venter i kø...",
+    "rateLimitCompactLoading": "Hastighedsbegrænset ({seconds}s)",
     "thinking": "Tænker..."
   },
   "notify": {

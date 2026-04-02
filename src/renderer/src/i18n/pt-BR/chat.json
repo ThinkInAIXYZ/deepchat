@@ -83,6 +83,7 @@
   "messages": {
     "thinking": "Pensando...",
     "rateLimitWaiting": "Limite de taxa atingido, aguardando na fila...",
+    "rateLimitCompactLoading": "Limitado por taxa ({seconds}s)",
     "rateLimitTitle": "Limite de Taxa Ativo",
     "rateLimitQueue": "Posição na Fila",
     "rateLimitEstimated": "Tempo Estimado",

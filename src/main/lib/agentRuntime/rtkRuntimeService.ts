@@ -12,7 +12,7 @@ import type {
   UsageDashboardRtkSummary
 } from '@shared/types/agent-interface'
 import logger from '@shared/logger'
-import { getShellEnvironment } from './shellEnvHelper'
+import { getShellEnvironment, mergeCommandEnvironment } from './shellEnvHelper'
 import { RuntimeHelper } from '../runtimeHelper'
 
 const RTK_ENABLED_SETTING_KEY = 'rtkEnabled'
@@ -650,15 +650,12 @@ export class RtkRuntimeService {
     dbPath?: string
   ): Promise<Record<string, string>> {
     const shellEnv = await this.getShellEnvironmentImpl()
-    const env = this.runtimeHelper.prependBundledRuntimeToEnv({
-      ...Object.fromEntries(
-        Object.entries(process.env).filter(
-          (entry): entry is [string, string] => typeof entry[1] === 'string'
-        )
-      ),
-      ...shellEnv,
-      ...baseEnv
-    })
+    const env = this.runtimeHelper.prependBundledRuntimeToEnv(
+      mergeCommandEnvironment({
+        shellEnv,
+        overrides: baseEnv
+      })
+    )
 
     if (dbPath) {
       fs.mkdirSync(path.dirname(dbPath), { recursive: true })

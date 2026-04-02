@@ -83,6 +83,7 @@
   "messages": {
     "thinking": "생각...",
     "rateLimitWaiting": "속도 제한으로 대기열에서 대기 중...",
+    "rateLimitCompactLoading": "속도 제한 중 ({seconds}초)",
     "rateLimitTitle": "요청 속도 제한",
     "rateLimitQueue": "대기열 위치",
     "rateLimitEstimated": "예상 대기 시간",

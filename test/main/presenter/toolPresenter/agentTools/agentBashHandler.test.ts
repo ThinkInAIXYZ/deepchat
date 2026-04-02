@@ -1,6 +1,7 @@
 import path from 'path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { backgroundExecSessionManager } from '../../../../../src/main/lib/agentRuntime/backgroundExecSessionManager'
+import * as shellEnvHelper from '../../../../../src/main/lib/agentRuntime/shellEnvHelper'
 import { AgentBashHandler } from '../../../../../src/main/presenter/toolPresenter/agentTools/agentBashHandler'
 
 describe('AgentBashHandler', () => {
@@ -136,6 +137,28 @@ describe('AgentBashHandler', () => {
     expect(result.rtkApplied).toBe(true)
     expect(result.rtkMode).toBe('rewrite')
     expect(result.output).toContain('Timed out')
+  })
+
+  it('builds fallback shell env when RTK settings are unavailable', async () => {
+    const handler = new AgentBashHandler(['/workspace'])
+
+    vi.spyOn(shellEnvHelper, 'getShellEnvironment').mockResolvedValue({
+      PATH: '/shell/bin:/usr/local/bin'
+    })
+
+    const prepared = await (handler as never).prepareCommand('which node', {
+      PATH: '/custom/bin',
+      CUSTOM_FLAG: '1'
+    })
+
+    expect(prepared.rtkApplied).toBe(false)
+    expect(prepared.rtkMode).toBe('bypass')
+    expect(prepared.env.CUSTOM_FLAG).toBe('1')
+    expect(prepared.env.PATH.split(':').slice(0, 3)).toEqual([
+      '/custom/bin',
+      '/shell/bin',
+      '/usr/local/bin'
+    ])
   })
 
   it('keeps background execution on the bypass path without foreground retry', async () => {

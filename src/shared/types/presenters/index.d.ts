@@ -12,6 +12,7 @@ export type {
   LLM_PROVIDER,
   LLM_PROVIDER_BASE,
   MODEL_META,
+  RateLimitQueueSnapshot,
   RENDERER_MODEL_META,
   LLM_EMBEDDING_ATTRS,
   KeyStatus,

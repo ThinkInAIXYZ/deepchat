@@ -83,6 +83,7 @@
   "messages": {
     "thinking": "Думаю ...",
     "rateLimitWaiting": "Ограничение скорости, ожидание в очереди...",
+    "rateLimitCompactLoading": "Ограничение скорости ({seconds}с)",
     "rateLimitTitle": "Ограничение скорости запросов",
     "rateLimitQueue": "Позиция в очереди",
     "rateLimitEstimated": "Предполагаемое время ожидания",

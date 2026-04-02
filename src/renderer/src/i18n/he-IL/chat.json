@@ -83,6 +83,7 @@
   "messages": {
     "thinking": "חושב...",
     "rateLimitWaiting": "הגעת למגבלת הקצב, ממתין בתור...",
+    "rateLimitCompactLoading": "מוגבל קצב ({seconds}ש׳)",
     "rateLimitTitle": "מגבלת קצב פעילה",
     "rateLimitQueue": "מיקום בתור",
     "rateLimitEstimated": "המתנה משוערת",

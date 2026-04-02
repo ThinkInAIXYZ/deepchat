@@ -171,6 +171,18 @@
       "backupSuccessTitle": "גיבוי הושלם בהצלחה",
       "backupSuccessMessage": "הנתונים גובו בהצלחה"
     },
+    "modelConfigUpdate": {
+      "title": "עדכון הגדרות המודלים",
+      "description": "מרענן בכפייה את provider.json מהמקור כדי לעדכן יכולות מודל והגדרות ברירת מחדל.",
+      "button": "עדכן עכשיו",
+      "updating": "מעדכן...",
+      "updatedTitle": "הגדרות המודלים עודכנו",
+      "updatedDescription": "מטא־הנתונים העדכניים של הספקים נטענו בהצלחה.",
+      "upToDateTitle": "כבר מעודכן",
+      "upToDateDescription": "הגדרות המודלים המקומיות כבר משתמשות במטא־הנתונים העדכניים ביותר של הספקים.",
+      "failedTitle": "העדכון נכשל",
+      "failedDescription": "כרגע אי אפשר לעדכן את הגדרות המודלים. נסה שוב מאוחר יותר."
+    },
     "yoBrowser": {
       "clearButton": "נקה את נתוני YoBrowser",
       "clearFailedDescription": "אנא נסה שוב או בדוק את היומנים לקבלת מידע נוסף.",

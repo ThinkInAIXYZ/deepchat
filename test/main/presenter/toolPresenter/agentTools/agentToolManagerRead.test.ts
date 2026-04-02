@@ -3,6 +3,7 @@ import fs from 'fs/promises'
 import os from 'os'
 import path from 'path'
 import { AgentToolManager } from '@/presenter/toolPresenter/agentTools/agentToolManager'
+import * as sessionVisionResolverModule from '@/presenter/vision/sessionVisionResolver'
 
 vi.mock('fs', async (importOriginal) => {
   const actual = (await importOriginal()) as typeof import('fs')
@@ -33,6 +34,7 @@ describe('AgentToolManager read routing', () => {
     prepareFileCompletely: ReturnType<typeof vi.fn>
   }
   let llmProviderPresenter: {
+    executeWithRateLimit: ReturnType<typeof vi.fn>
     generateCompletionStandalone: ReturnType<typeof vi.fn>
   }
   let resolveConversationWorkdir: ReturnType<typeof vi.fn>
@@ -46,6 +48,7 @@ describe('AgentToolManager read routing', () => {
       prepareFileCompletely: vi.fn()
     }
     llmProviderPresenter = {
+      executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
       generateCompletionStandalone: vi.fn()
     }
     resolveConversationWorkdir = vi.fn().mockResolvedValue(null)
@@ -155,6 +158,7 @@ describe('AgentToolManager read routing', () => {
     }
 
     expect(result.content).toContain('detailed image description')
+    expect(llmProviderPresenter.executeWithRateLimit).toHaveBeenCalledWith('openai')
     expect(llmProviderPresenter.generateCompletionStandalone).toHaveBeenCalled()
     expect(llmProviderPresenter.generateCompletionStandalone).toHaveBeenCalledWith(
       'openai',
@@ -192,12 +196,105 @@ describe('AgentToolManager read routing', () => {
 
     expect(result.content).toContain('fallback image description')
     expect(configPresenter.resolveDeepChatAgentConfig).toHaveBeenCalledWith('agent-vision')
+    expect(llmProviderPresenter.executeWithRateLimit).toHaveBeenCalledWith('anthropic')
     expect(llmProviderPresenter.generateCompletionStandalone).toHaveBeenCalledWith(
       'anthropic',
       expect.any(Array),
       'claude-3-7-sonnet',
       expect.any(Number),
       expect.any(Number)
+    )
+  })
+
+  it('propagates abort signals to queued image analysis waits', async () => {
+    const filePath = path.join(workspaceDir, 'image-abort.png')
+    await fs.writeFile(filePath, Buffer.from([4, 3, 2, 1]))
+    filePresenter.getMimeType.mockResolvedValue('image/png')
+    resolveConversationSessionInfo.mockResolvedValue({
+      agentId: 'deepchat',
+      providerId: 'openai',
+      modelId: 'gpt-4o'
+    })
+    configPresenter.getModelConfig.mockImplementation((modelId: string, providerId?: string) => ({
+      temperature: 0.2,
+      maxTokens: 1200,
+      vision: providerId === 'openai' && modelId === 'gpt-4o'
+    }))
+
+    const abortController = new AbortController()
+    const abortError = new Error('Aborted')
+    abortError.name = 'AbortError'
+    let queuedResolve!: () => void
+    const queued = new Promise<void>((resolve) => {
+      queuedResolve = resolve
+    })
+
+    llmProviderPresenter.executeWithRateLimit.mockImplementation(
+      async (_providerId: string, options?: { signal?: AbortSignal }) =>
+        await new Promise<void>((_resolve, reject) => {
+          queuedResolve()
+
+          if (options?.signal?.aborted) {
+            reject(abortError)
+            return
+          }
+
+          options?.signal?.addEventListener(
+            'abort',
+            () => {
+              reject(abortError)
+            },
+            { once: true }
+          )
+        })
+    )
+
+    const resultPromise = manager.callTool('read', { path: 'image-abort.png' }, 'conv1', {
+      signal: abortController.signal
+    })
+    await queued
+    abortController.abort()
+
+    await expect(resultPromise).rejects.toMatchObject({ name: 'AbortError' })
+    expect(llmProviderPresenter.executeWithRateLimit).toHaveBeenCalledWith(
+      'openai',
+      expect.objectContaining({
+        signal: abortController.signal
+      })
+    )
+    expect(llmProviderPresenter.generateCompletionStandalone).not.toHaveBeenCalled()
+  })
+
+  it('passes abort signals into vision target resolution', async () => {
+    const filePath = path.join(workspaceDir, 'image-resolver-signal.png')
+    await fs.writeFile(filePath, Buffer.from([4, 5, 6, 7]))
+    filePresenter.getMimeType.mockResolvedValue('image/png')
+    resolveConversationSessionInfo.mockResolvedValue({
+      agentId: 'deepchat',
+      providerId: 'openai',
+      modelId: 'gpt-4o'
+    })
+    configPresenter.getModelConfig.mockImplementation((modelId: string, providerId?: string) => ({
+      temperature: 0.2,
+      maxTokens: 1200,
+      vision: providerId === 'openai' && modelId === 'gpt-4o'
+    }))
+    llmProviderPresenter.generateCompletionStandalone.mockResolvedValue('visible image description')
+    const resolveVisionTargetSpy = vi.spyOn(
+      sessionVisionResolverModule,
+      'resolveSessionVisionTarget'
+    )
+    const abortController = new AbortController()
+
+    await manager.callTool('read', { path: 'image-resolver-signal.png' }, 'conv1', {
+      signal: abortController.signal
+    })
+
+    expect(resolveVisionTargetSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        signal: abortController.signal,
+        logLabel: 'read:conv1'
+      })
     )
   })
 
@@ -218,6 +315,7 @@ describe('AgentToolManager read routing', () => {
 
     expect(result.content).toContain('[Image Metadata]')
     expect(result.content).toContain('neither the current session model nor the agent vision model')
+    expect(llmProviderPresenter.executeWithRateLimit).not.toHaveBeenCalled()
   })
 
   it('falls back to image metadata when the conversation cannot be found', async () => {
@@ -236,6 +334,7 @@ describe('AgentToolManager read routing', () => {
 
     expect(result.content).toContain('[Image Metadata]')
     expect(result.content).toContain('neither the current session model nor the agent vision model')
+    expect(llmProviderPresenter.executeWithRateLimit).not.toHaveBeenCalled()
   })
 
   it('surfaces runtime errors while resolving the conversation vision target', async () => {

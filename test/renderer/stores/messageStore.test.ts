@@ -118,4 +118,55 @@ describe('messageStore', () => {
     expect(store.messages.value).toHaveLength(1)
     expect(store.messages.value[0]?.id).toBe('m2')
   })
+
+  it('keeps rate-limit stream messages ephemeral and skips message hydration', async () => {
+    const { store, newAgentPresenter } = await setupStore()
+    const responseHandler = (
+      (window as any).electron.ipcRenderer.on as ReturnType<typeof vi.fn>
+    ).mock.calls.find(([eventName]) => eventName === 'stream:response')?.[1]
+
+    expect(typeof responseHandler).toBe('function')
+
+    responseHandler(
+      {},
+      {
+        conversationId: 's1',
+        messageId: '__rate_limit__:s1:1',
+        blocks: [
+          {
+            type: 'action',
+            action_type: 'rate_limit',
+            status: 'pending',
+            timestamp: 1,
+            extra: {
+              providerId: 'openai',
+              qpsLimit: 1,
+              currentQps: 1,
+              queueLength: 2,
+              estimatedWaitTime: 4000
+            }
+          }
+        ]
+      }
+    )
+
+    expect(store.isStreaming.value).toBe(true)
+    expect(store.currentStreamMessageId.value).toBe('__rate_limit__:s1:1')
+    expect(store.streamingBlocks.value).toHaveLength(1)
+    expect(store.messages.value).toHaveLength(0)
+    expect(newAgentPresenter.getMessage).not.toHaveBeenCalled()
+
+    responseHandler(
+      {},
+      {
+        conversationId: 's1',
+        messageId: '__rate_limit__:s1:1',
+        blocks: []
+      }
+    )
+
+    expect(store.streamingBlocks.value).toEqual([])
+    expect(store.messages.value).toHaveLength(0)
+    expect(newAgentPresenter.getMessage).not.toHaveBeenCalled()
+  })
 })

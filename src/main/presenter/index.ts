@@ -337,13 +337,23 @@ export class Presenter implements IPresenter {
           this.filePresenter.prepareFileCompletely(absPath, typeInfo, contentType)
       }),
       getLlmProviderPresenter: () => ({
-        generateCompletionStandalone: (providerId, messages, modelId, temperature, maxTokens) =>
+        executeWithRateLimit: (providerId, options) =>
+          this.llmproviderPresenter.executeWithRateLimit(providerId, options),
+        generateCompletionStandalone: (
+          providerId,
+          messages,
+          modelId,
+          temperature,
+          maxTokens,
+          options
+        ) =>
           this.llmproviderPresenter.generateCompletionStandalone(
             providerId,
             messages,
             modelId,
             temperature,
-            maxTokens
+            maxTokens,
+            options
           )
       }),
       createSettingsWindow: () => this.windowPresenter.createSettingsWindow(),

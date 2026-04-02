@@ -140,6 +140,7 @@ function createService(options?: {
   } as any
 
   const llmProviderPresenter = {
+    executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
     generateText: vi.fn().mockResolvedValue({
       content: 'generated summary'
     })
@@ -450,6 +451,62 @@ describe('CompactionService', () => {
         summaryCursorOrderSeq: 3
       })
     )
+  })
+
+  it('passes abort signals into rate-limited compaction waits and rethrows cancellation', async () => {
+    const { service, llmProviderPresenter } = createService()
+    const abortController = new AbortController()
+    const abortError = new Error('Aborted')
+    abortError.name = 'AbortError'
+
+    llmProviderPresenter.executeWithRateLimit.mockImplementation(
+      (_providerId: string, options?: { signal?: AbortSignal }) =>
+        new Promise<void>((resolve, reject) => {
+          if (options?.signal?.aborted) {
+            reject(abortError)
+            return
+          }
+
+          options?.signal?.addEventListener(
+            'abort',
+            () => {
+              reject(abortError)
+            },
+            { once: true }
+          )
+
+          void resolve
+        })
+    )
+
+    const compactionPromise = service.applyCompaction(
+      {
+        sessionId: 's1',
+        previousState: {
+          summaryText: null,
+          summaryCursorOrderSeq: 1,
+          summaryUpdatedAt: null
+        },
+        targetCursorOrderSeq: 3,
+        summaryBlocks: ['span to summarize'],
+        currentModel: {
+          providerId: 'openai',
+          modelId: 'gpt-4o',
+          contextLength: 4096
+        },
+        reserveTokens: 512
+      },
+      abortController.signal
+    )
+
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    abortController.abort()
+
+    await expect(compactionPromise).rejects.toMatchObject({ name: 'AbortError' })
+    expect(llmProviderPresenter.executeWithRateLimit).toHaveBeenCalledWith('openai', {
+      signal: abortController.signal
+    })
+    expect(llmProviderPresenter.generateText).not.toHaveBeenCalled()
   })
 
   it('avoids direct oversized single-shot summarization when splitLargeBlock does not split', async () => {

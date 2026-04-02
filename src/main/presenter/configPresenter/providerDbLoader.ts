@@ -22,12 +22,20 @@ type MetaFile = {
   lastAttemptedAt?: number
 }
 
+export type ProviderDbRefreshResult = {
+  status: 'updated' | 'not-modified' | 'skipped' | 'error'
+  lastUpdated: number | null
+  providersCount: number
+  message?: string
+}
+
 export class ProviderDbLoader {
   private cache: ProviderAggregate | null = null
   private userDataDir: string
   private cacheDir: string
   private cacheFilePath: string
   private metaFilePath: string
+  private refreshPromise: Promise<ProviderDbRefreshResult> | null = null
 
   constructor() {
     this.userDataDir = app.getPath('userData')
@@ -53,8 +61,16 @@ export class ProviderDbLoader {
       } catch {}
     }
 
-    // Background refresh if needed (npm 缓存风格)
-    this.refreshIfNeeded().catch(() => {})
+    // Always refresh once in the background on startup to pick up upstream updates.
+    void this.refreshIfNeeded(true)
+      .then((result) => {
+        if (result.status === 'error') {
+          console.warn('[ProviderDbLoader] Startup refresh failed:', result.message)
+        }
+      })
+      .catch((error) => {
+        console.warn('[ProviderDbLoader] Startup refresh failed:', error)
+      })
   }
 
   getDb(): ProviderAggregate | null {
@@ -135,8 +151,8 @@ export class ProviderDbLoader {
 
   private getTtlHours(): number {
     const env = process.env.PROVIDER_DB_TTL_HOURS
-    const v = env ? Number(env) : 12
-    return Number.isFinite(v) && v > 0 ? v : 12
+    const v = env ? Number(env) : 4
+    return Number.isFinite(v) && v > 0 ? v : 4
   }
 
   private getProviderDbUrl(): string {
@@ -149,20 +165,58 @@ export class ProviderDbLoader {
     return DEFAULT_PROVIDER_DB_URL
   }
 
-  async refreshIfNeeded(force = false): Promise<void> {
+  async refreshIfNeeded(force = false): Promise<ProviderDbRefreshResult> {
+    if (this.refreshPromise) return this.refreshPromise
+
     const meta = this.readMeta()
     const ttlHours = this.getTtlHours()
     const url = this.getProviderDbUrl()
 
     const needFirstFetch = !meta || !fs.existsSync(this.cacheFilePath)
-    const expired = meta ? this.now() - meta.lastUpdated > ttlHours * 3600 * 1000 : true
+    const freshnessTimestamp = meta?.lastAttemptedAt ?? meta?.lastUpdated ?? 0
+    const expired = meta ? this.now() - freshnessTimestamp > ttlHours * 3600 * 1000 : true
 
-    if (!force && !needFirstFetch && !expired) return
+    if (!force && !needFirstFetch && !expired) {
+      return this.createResult('skipped', meta)
+    }
 
-    await this.fetchAndUpdate(url, meta || undefined)
+    this.refreshPromise = this.fetchAndUpdate(url, meta || undefined).finally(() => {
+      this.refreshPromise = null
+    })
+
+    return this.refreshPromise
   }
 
-  private async fetchAndUpdate(url: string, prevMeta?: MetaFile): Promise<void> {
+  private createResult(
+    status: ProviderDbRefreshResult['status'],
+    meta?: MetaFile | null,
+    message?: string
+  ): ProviderDbRefreshResult {
+    const db = this.getDb()
+    const providersCount = Object.keys(db?.providers || {}).length
+    return {
+      status,
+      lastUpdated: meta?.lastUpdated ?? null,
+      providersCount,
+      ...(message ? { message } : {})
+    }
+  }
+
+  private createAttemptMeta(
+    prevMeta: MetaFile | undefined,
+    url: string,
+    now: number
+  ): MetaFile | null {
+    if (!prevMeta) return null
+    return {
+      ...prevMeta,
+      sourceUrl: url,
+      ttlHours: this.getTtlHours(),
+      lastAttemptedAt: now
+    }
+  }
+
+  private async fetchAndUpdate(url: string, prevMeta?: MetaFile): Promise<ProviderDbRefreshResult> {
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 15000)
     try {
@@ -173,40 +227,44 @@ export class ProviderDbLoader {
       const now = this.now()
 
       if (res.status === 304 && prevMeta) {
-        // Not modified; update attempted time only
-        this.writeMeta({ ...prevMeta, lastAttemptedAt: now })
-        return
+        const meta: MetaFile = {
+          ...prevMeta,
+          sourceUrl: url,
+          ttlHours: this.getTtlHours(),
+          lastAttemptedAt: now
+        }
+        this.writeMeta(meta)
+        return this.createResult('not-modified', meta)
       }
 
       if (!res.ok) {
-        // Keep old cache
-        const meta = prevMeta ? { ...prevMeta, lastAttemptedAt: now } : undefined
+        const meta = this.createAttemptMeta(prevMeta, url, now)
         if (meta) this.writeMeta(meta)
-        return
+        return this.createResult('error', meta, `Request failed with status ${res.status}`)
       }
 
       const text = await res.text()
       // Size guard (≈ 5MB)
       if (text.length > 5 * 1024 * 1024) {
-        const meta = prevMeta ? { ...prevMeta, lastAttemptedAt: now } : undefined
+        const meta = this.createAttemptMeta(prevMeta, url, now)
         if (meta) this.writeMeta(meta)
-        return
+        return this.createResult('error', meta, 'Provider DB payload exceeds size limit')
       }
 
       let parsed: unknown
       try {
         parsed = JSON.parse(text)
       } catch {
-        const meta = prevMeta ? { ...prevMeta, lastAttemptedAt: now } : undefined
+        const meta = this.createAttemptMeta(prevMeta, url, now)
         if (meta) this.writeMeta(meta)
-        return
+        return this.createResult('error', meta, 'Provider DB payload is not valid JSON')
       }
 
       const sanitized = sanitizeAggregate(parsed)
       if (!sanitized) {
-        const meta = prevMeta ? { ...prevMeta, lastAttemptedAt: now } : undefined
+        const meta = this.createAttemptMeta(prevMeta, url, now)
         if (meta) this.writeMeta(meta)
-        return
+        return this.createResult('error', meta, 'Provider DB payload failed validation')
       }
 
       const etag = res.headers.get('etag') || undefined
@@ -229,8 +287,12 @@ export class ProviderDbLoader {
           lastUpdated: meta.lastUpdated
         })
       } catch {}
-    } catch {
-      // ignore
+      return this.createResult('updated', meta)
+    } catch (error) {
+      const meta = this.createAttemptMeta(prevMeta, url, this.now())
+      if (meta) this.writeMeta(meta)
+      const message = error instanceof Error ? error.message : 'Unknown provider DB refresh error'
+      return this.createResult('error', meta, message)
     } finally {
       clearTimeout(timeout)
     }

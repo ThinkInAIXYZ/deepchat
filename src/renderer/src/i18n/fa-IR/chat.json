@@ -83,6 +83,7 @@
   "messages": {
     "thinking": "در حال تفکر...",
     "rateLimitWaiting": "محدودیت نرخ درخواست، در صف انتظار...",
+    "rateLimitCompactLoading": "در محدودیت نرخ ({seconds}ث)",
     "rateLimitTitle": "محدودیت نرخ درخواست",
     "rateLimitQueue": "موقعیت صف",
     "rateLimitEstimated": "زمان تخمینی انتظار",

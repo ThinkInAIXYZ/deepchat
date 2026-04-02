@@ -171,6 +171,18 @@
       "backupSuccessTitle": "バックアップ成功",
       "backupSuccessMessage": "データは正常にバックアップされました"
     },
+    "modelConfigUpdate": {
+      "title": "モデル設定を更新",
+      "description": "上流の provider.json を強制的に更新し、モデル機能と既定設定を最新の状態にします。",
+      "button": "今すぐ更新",
+      "updating": "更新中...",
+      "updatedTitle": "モデル設定を更新しました",
+      "updatedDescription": "プロバイダーの最新メタデータを取得しました。",
+      "upToDateTitle": "すでに最新です",
+      "upToDateDescription": "ローカルのモデル設定は、すでに最新のプロバイダーメタデータを使用しています。",
+      "failedTitle": "更新に失敗しました",
+      "failedDescription": "現在モデル設定を更新できません。しばらくしてからもう一度お試しください。"
+    },
     "yoBrowser": {
       "clearButton": "YoBrowser データをクリアする",
       "clearFailedDescription": "もう一度試すか、ログで詳細を確認してください。",

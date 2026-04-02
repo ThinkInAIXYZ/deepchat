@@ -12,6 +12,7 @@ import {
   IConfigPresenter,
   ISQLitePresenter,
   AcpConfigState,
+  RateLimitQueueSnapshot,
   AcpWorkdirInfo,
   AcpDebugRequest,
   AcpDebugRunResult
@@ -201,6 +202,16 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     }
   > {
     return this.rateLimitManager.getAllProviderRateLimitStatus()
+  }
+
+  async executeWithRateLimit(
+    providerId: string,
+    options?: {
+      signal?: AbortSignal
+      onQueued?: (snapshot: RateLimitQueueSnapshot) => void
+    }
+  ): Promise<void> {
+    await this.rateLimitManager.executeWithRateLimit(providerId, options)
   }
 
   isGenerating(eventId: string): boolean {
