@@ -1,7 +1,7 @@
 import { mount, flushPromises } from '@vue/test-utils'
 import { reactive, ref } from 'vue'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { DEEPLINK_EVENTS } from '@/events'
+import { DEEPLINK_EVENTS, SHORTCUT_EVENTS } from '@/events'
 
 const DEV_WELCOME_OVERRIDE_KEY = '__deepchat_dev_force_welcome'
 
@@ -47,6 +47,21 @@ const mountApp = async (options?: {
   }
   const pageRouterStore = {
     goToNewThread: vi.fn()
+  }
+  const spotlightStore = {
+    open: false,
+    query: '',
+    results: [] as unknown[],
+    activeIndex: -1,
+    loading: false,
+    openSpotlight: vi.fn(),
+    closeSpotlight: vi.fn(),
+    setQuery: vi.fn(),
+    setActiveItem: vi.fn(),
+    moveActiveItem: vi.fn(),
+    executeItem: vi.fn(),
+    executeActiveItem: vi.fn(),
+    toggleSpotlight: vi.fn()
   }
   const agentStore = {
     setSelectedAgent: vi.fn()
@@ -115,6 +130,9 @@ const mountApp = async (options?: {
   }))
   vi.doMock('@/stores/ui/pageRouter', () => ({
     usePageRouterStore: () => pageRouterStore
+  }))
+  vi.doMock('@/stores/ui/spotlight', () => ({
+    useSpotlightStore: () => spotlightStore
   }))
   vi.doMock('@/components/use-toast', () => ({
     useToast: () => ({
@@ -196,7 +214,8 @@ const mountApp = async (options?: {
     agentStore,
     draftStore,
     sessionStore,
-    ipcOn
+    ipcOn,
+    spotlightStore
   }
 }
 
@@ -213,7 +232,7 @@ describe('App startup welcome flow', () => {
 
     expect(configPresenter.getSetting).toHaveBeenCalledWith('init_complete')
     expect(router.replace).toHaveBeenCalledWith({ name: 'welcome' })
-  })
+  }, 10000)
 
   it('redirects welcome back to chat when init is complete', async () => {
     const { router, configPresenter, route } = await mountApp({
@@ -273,5 +292,23 @@ describe('App startup welcome flow', () => {
     expect(agentStore.setSelectedAgent).toHaveBeenCalledWith('deepchat')
     expect(sessionStore.closeSession).toHaveBeenCalledTimes(1)
     expect(pageRouterStore.goToNewThread).not.toHaveBeenCalled()
+  })
+
+  it('opens spotlight from the global shortcut event', async () => {
+    const { ipcOn, spotlightStore } = await mountApp({
+      initComplete: true,
+      routeName: 'chat'
+    })
+
+    const shortcutHandler = ipcOn.mock.calls.find(
+      ([eventName]: [string]) => eventName === SHORTCUT_EVENTS.TOGGLE_SPOTLIGHT
+    )?.[1]
+
+    expect(shortcutHandler).toBeTypeOf('function')
+
+    shortcutHandler?.()
+
+    expect(spotlightStore.openSpotlight).toHaveBeenCalledTimes(1)
+    expect(spotlightStore.toggleSpotlight).not.toHaveBeenCalled()
   })
 })

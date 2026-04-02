@@ -312,7 +312,7 @@
     "searchEmptyDescription": "试试换一个标题关键词"
   },
   "spotlight": {
-    "placeholder": "搜索会话、消息、Agent、设置与动作…",
+    "placeholder": "搜索会话、Agent、设置与动作…",
     "searching": "搜索中…",
     "emptyTitle": "没有匹配结果",
     "emptyDescription": "试试别的关键词，或直接打开最近会话。",

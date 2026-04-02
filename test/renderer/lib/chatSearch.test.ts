@@ -47,4 +47,23 @@ describe('chatSearch', () => {
     expect(container.querySelectorAll('mark[data-chat-search-match="true"]')).toHaveLength(0)
     expect(container.textContent?.replace(/\s+/g, ' ').trim()).toBe('Hello world, hello DeepChat')
   })
+
+  it('ignores matches inside hidden message content', () => {
+    const container = document.createElement('div')
+    container.innerHTML = `
+      <div data-message-content="true">
+        <p>hi</p>
+        <p>Hi there!</p>
+        <div style="display: none;">
+          <p>thinking hi</p>
+        </div>
+      </div>
+    `
+
+    const matches = applyChatSearchHighlights(container, 'hi')
+
+    expect(matches).toHaveLength(2)
+    expect(matches.map((match) => match.textContent)).toEqual(['hi', 'Hi'])
+    expect(container.querySelectorAll('mark[data-chat-search-match="true"]')).toHaveLength(2)
+  })
 })

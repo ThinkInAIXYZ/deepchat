@@ -228,7 +228,7 @@ const handleCreateNewConversation = async () => {
       await sessionStore.closeSession()
       return
     }
-    pageRouterStore.goToNewThread()
+    pageRouterStore.goToNewThread({ refresh: true })
   } catch (error) {
     console.error('Failed to create new conversation:', error)
   }
@@ -267,7 +267,7 @@ const activatePendingStartDeeplink = async () => {
       return
     }
 
-    pageRouterStore.goToNewThread()
+    pageRouterStore.goToNewThread({ refresh: true })
     processedStartDeeplinkToken.value = token
   } finally {
     if (processingStartDeeplinkToken.value === token) {
@@ -348,7 +348,7 @@ onMounted(() => {
   })
 
   window.electron.ipcRenderer.on(SHORTCUT_EVENTS.TOGGLE_SPOTLIGHT, () => {
-    spotlightStore.toggleSpotlight()
+    spotlightStore.openSpotlight()
   })
 
   // GO_SETTINGS is now handled in main process (open/focus Settings tab)

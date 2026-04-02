@@ -24,8 +24,20 @@ const draggableStub = defineComponent({
     '<div><slot v-for="element in modelValue" name="item" :element="element" :key="element[itemKey] ?? element.id" /></div>'
 })
 
-const setup = async () => {
+const setup = async (options?: {
+  routeProviderId?: string | undefined
+  providers?: Array<{
+    id: string
+    name: string
+    apiType: string
+    apiKey: string
+    baseUrl: string
+    enable: boolean
+  }>
+}) => {
   vi.resetModules()
+  const routeProviderId =
+    options && 'routeProviderId' in options ? options.routeProviderId : 'anthropic'
 
   const provider = {
     id: 'anthropic',
@@ -35,9 +47,10 @@ const setup = async () => {
     baseUrl: 'https://api.anthropic.com',
     enable: true
   }
+  const providers = options?.providers ?? [provider]
   const providerStore = reactive({
-    providers: [provider],
-    sortedProviders: [provider],
+    providers,
+    sortedProviders: providers,
     refreshProviders: vi.fn().mockResolvedValue(undefined),
     updateProviderConfig: vi.fn().mockResolvedValue(undefined),
     updateProviderApi: vi.fn().mockResolvedValue(undefined),
@@ -71,7 +84,9 @@ const setup = async () => {
     useLanguageStore: () => ({ dir: 'ltr' })
   }))
   vi.doMock('vue-router', () => ({
-    useRoute: () => ({ params: { providerId: 'anthropic' } }),
+    useRoute: () => ({
+      params: routeProviderId ? { providerId: routeProviderId } : {}
+    }),
     useRouter: () => router
   }))
   vi.doMock('@vueuse/core', () => ({
@@ -146,5 +161,37 @@ describe('ModelProviderSettings', () => {
         providerId: 'anthropic'
       }
     })
+  })
+
+  it('skips ACP when auto-selecting the default provider settings view', async () => {
+    const { router } = await setup({
+      routeProviderId: undefined,
+      providers: [
+        {
+          id: 'acp',
+          name: 'ACP',
+          apiType: 'openai',
+          apiKey: '',
+          baseUrl: '',
+          enable: true
+        },
+        {
+          id: 'anthropic',
+          name: 'Anthropic',
+          apiType: 'anthropic',
+          apiKey: 'test-key',
+          baseUrl: 'https://api.anthropic.com',
+          enable: true
+        }
+      ]
+    })
+
+    expect(router.push).toHaveBeenCalledWith({
+      name: 'settings-provider',
+      params: {
+        providerId: 'anthropic'
+      }
+    })
+    expect(router.replace).not.toHaveBeenCalledWith({ name: 'settings-acp' })
   })
 })

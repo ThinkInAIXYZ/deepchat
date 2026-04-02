@@ -1050,6 +1050,7 @@
     "newWindow": "Откройте новое окно",
     "showHideWindow": "Показать/Скрыть окно",
     "newConversation": "Новый разговор",
+    "quickSearch": "Поиск Spotlight",
     "closeWindow": "Закройте текущую страницу вкладки"
   },
   "rateLimit": {

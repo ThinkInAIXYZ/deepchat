@@ -1050,6 +1050,7 @@
     "newWindow": "Abrir uma nova janela",
     "showHideWindow": "Mostrar/Ocultar janela",
     "newConversation": "Nova conversa",
+    "quickSearch": "Busca Spotlight",
     "closeWindow": "Fechar a guia atual"
   },
   "rateLimit": {

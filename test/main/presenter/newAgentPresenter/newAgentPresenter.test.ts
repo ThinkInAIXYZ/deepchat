@@ -185,7 +185,9 @@ function createMockSqlitePresenter() {
               sessionId: 'session-1',
               title: 'Release checklist',
               role: 'assistant',
-              content: JSON.stringify([{ type: 'text', content: 'pnpm run build still fails on arm64' }]),
+              content: JSON.stringify([
+                { type: 'text', content: 'pnpm run build still fails on arm64' }
+              ]),
               updatedAt: 100
             }
           ]

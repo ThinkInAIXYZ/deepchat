@@ -311,6 +311,20 @@
   "subagents": {
     "label": "サブエージェント"
   },
+  "spotlight": {
+    "placeholder": "会話、Agent、設定、アクションを検索…",
+    "searching": "検索中…",
+    "emptyTitle": "一致する結果がありません",
+    "emptyDescription": "別のキーワードを試すか、最近のセッションを開いてください。",
+    "hints": "↑↓ 移動 · Enter 開く · Esc 閉じる · Home/End ジャンプ",
+    "kind": {
+      "session": "セッション",
+      "message": "メッセージ",
+      "agent": "Agent",
+      "setting": "設定",
+      "action": "アクション"
+    }
+  },
   "inlineSearch": {
     "placeholder": "現在の会話を検索",
     "ariaLabel": "現在の会話を検索",

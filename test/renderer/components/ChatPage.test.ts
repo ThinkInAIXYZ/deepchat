@@ -251,6 +251,12 @@ const setup = async (options: SetupOptions = {}) => {
         }
       },
       emits: ['update:modelValue', 'previous', 'next', 'close'],
+      setup(_, { expose }) {
+        expose({
+          focusInput: vi.fn(),
+          selectInput: vi.fn()
+        })
+      },
       template:
         '<div class="chat-search-bar-stub" :data-active-match="String(activeMatch)" :data-total-matches="String(totalMatches)" />'
     })
@@ -490,8 +496,6 @@ describe('ChatPage', () => {
       }
     })
 
-    await flushPromises()
-    vi.runAllTimers()
     await flushPromises()
 
     expect(wrapper.find('[data-message-id="m1"]').classes()).toContain('message-highlight')

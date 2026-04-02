@@ -1,15 +1,15 @@
 <template>
   <div
     v-if="spotlightStore.open"
-    class="fixed inset-0 z-50 flex items-start justify-center bg-black/25 px-4 pt-16 backdrop-blur-[1px]"
+    class="window-no-drag-region fixed inset-0 z-[70] flex items-start justify-center bg-black/35 px-4 pt-16"
     @mousedown.self="spotlightStore.closeSpotlight()"
   >
     <div
-      class="flex w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-border/70 bg-card/40 shadow-2xl backdrop-blur-xl"
+      class="window-no-drag-region flex w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl"
     >
       <div class="flex items-center gap-3 border-b border-border/60 px-4 py-3">
         <Icon icon="lucide:search" class="h-4 w-4 shrink-0 text-muted-foreground" />
-        <input
+        <Input
           ref="inputRef"
           :value="spotlightStore.query"
           class="h-9 w-full bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
@@ -19,22 +19,26 @@
         />
       </div>
 
-      <div class="max-h-[28rem] overflow-y-auto p-2">
+      <div ref="resultsContainerRef" class="max-h-[28rem] overflow-y-auto p-2">
         <template v-if="spotlightStore.results.length > 0">
-          <button
+          <Button
             v-for="(item, index) in spotlightStore.results"
             :key="item.id"
             type="button"
-            class="flex w-full items-start gap-3 rounded-xl px-3 py-2 text-left transition-colors"
+            class="flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-2 text-left transition-colors"
             :class="
               index === spotlightStore.activeIndex
                 ? 'bg-accent text-accent-foreground'
                 : 'text-foreground/90 hover:bg-accent/60'
             "
+            :data-spotlight-active="index === spotlightStore.activeIndex ? 'true' : undefined"
             @mouseenter="spotlightStore.setActiveItem(index)"
-            @click="void spotlightStore.executeItem(item)"
+            @mousedown="handleItemMouseDown($event, item)"
+            @click="handleItemClick(item)"
           >
-            <span class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-background/60">
+            <span
+              class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-background"
+            >
               <Icon :icon="item.icon" class="h-4 w-4 text-muted-foreground" />
             </span>
 
@@ -45,10 +49,7 @@
                     v-for="(segment, segmentIndex) in highlightSegments(resolveItemTitle(item))"
                     :key="`${item.id}-title-${segmentIndex}`"
                   >
-                    <mark
-                      v-if="segment.match"
-                      class="rounded bg-primary/15 px-0.5 text-inherit"
-                    >
+                    <mark v-if="segment.match" class="rounded bg-primary/15 px-0.5 text-inherit">
                       {{ segment.text }}
                     </mark>
                     <template v-else>{{ segment.text }}</template>
@@ -61,14 +62,20 @@
                 </span>
               </span>
 
-              <span v-if="item.subtitle" class="mt-0.5 block truncate text-xs text-muted-foreground">
+              <span
+                v-if="item.subtitle"
+                class="mt-0.5 block truncate text-xs text-muted-foreground"
+              >
                 {{ item.subtitle }}
               </span>
-              <span v-if="item.snippet" class="mt-1 block line-clamp-2 text-xs text-muted-foreground">
+              <span
+                v-if="item.snippet"
+                class="mt-1 block line-clamp-2 text-xs text-muted-foreground"
+              >
                 {{ item.snippet }}
               </span>
             </span>
-          </button>
+          </Button>
         </template>
 
         <div
@@ -109,6 +116,8 @@ import { useSpotlightStore, type SpotlightItem } from '@/stores/ui/spotlight'
 const spotlightStore = useSpotlightStore()
 const { t } = useI18n()
 const inputRef = ref<HTMLInputElement | null>(null)
+const resultsContainerRef = ref<HTMLElement | null>(null)
+const pointerActivatedItemId = ref<string | null>(null)
 
 const focusInput = () => {
   nextTick(() => {
@@ -205,12 +214,64 @@ const handleKeydown = (event: KeyboardEvent) => {
   }
 }
 
+const handleItemMouseDown = (event: MouseEvent, item: SpotlightItem) => {
+  if (event.button !== 0) {
+    return
+  }
+
+  event.preventDefault()
+  pointerActivatedItemId.value = item.id
+  void spotlightStore.executeItem(item)
+  window.setTimeout(() => {
+    if (pointerActivatedItemId.value === item.id) {
+      pointerActivatedItemId.value = null
+    }
+  }, 0)
+}
+
+const handleItemClick = (item: SpotlightItem) => {
+  if (pointerActivatedItemId.value === item.id) {
+    pointerActivatedItemId.value = null
+    return
+  }
+
+  void spotlightStore.executeItem(item)
+}
+
 watch(
-  () => spotlightStore.open,
-  (isOpen) => {
+  () => [spotlightStore.open, spotlightStore.activationKey] as const,
+  ([isOpen]) => {
     if (isOpen) {
       focusInput()
     }
   }
 )
+
+watch(
+  () => [spotlightStore.open, spotlightStore.activeIndex, spotlightStore.results.length] as const,
+  ([isOpen, activeIndex, resultsLength]) => {
+    if (!isOpen || activeIndex < 0 || activeIndex >= resultsLength) {
+      return
+    }
+
+    nextTick(() => {
+      resultsContainerRef.value
+        ?.querySelector<HTMLElement>('[data-spotlight-active="true"]')
+        ?.scrollIntoView({
+          block: 'nearest'
+        })
+    })
+  }
+)
 </script>
+
+<style scoped>
+.window-no-drag-region {
+  -webkit-app-region: no-drag;
+}
+
+button,
+input {
+  -webkit-app-region: no-drag;
+}
+</style>

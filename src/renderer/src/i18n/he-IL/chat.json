@@ -311,6 +311,20 @@
   "subagents": {
     "label": "סוכני משנה"
   },
+  "spotlight": {
+    "placeholder": "חיפוש שיחות, סוכנים, הגדרות ופעולות…",
+    "searching": "מחפש…",
+    "emptyTitle": "לא נמצאו תוצאות מתאימות",
+    "emptyDescription": "נסו מילת מפתח אחרת או פתחו שיחה אחרונה.",
+    "hints": "↑↓ מעבר · Enter פתיחה · Esc סגירה · Home/End קפיצה",
+    "kind": {
+      "session": "שיחה",
+      "message": "הודעה",
+      "agent": "סוכן",
+      "setting": "הגדרה",
+      "action": "פעולה"
+    }
+  },
   "inlineSearch": {
     "placeholder": "חיפוש בשיחה",
     "ariaLabel": "חיפוש בשיחה הנוכחית",

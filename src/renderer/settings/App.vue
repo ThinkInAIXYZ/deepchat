@@ -87,6 +87,7 @@ import type { LLM_PROVIDER, ProviderInstallPreview } from '@shared/presenter'
 import ProviderDeeplinkImportDialog from './components/ProviderDeeplinkImportDialog.vue'
 import { nanoid } from 'nanoid'
 import { SETTINGS_NAVIGATION_ITEMS } from '@shared/settingsNavigation'
+import type { SettingsNavigationPayload } from '@shared/settingsNavigation'
 
 const devicePresenter = usePresenter('devicePresenter')
 const windowPresenter = usePresenter('windowPresenter')
@@ -146,15 +147,43 @@ const navigateToProviderSettings = async (providerId?: string) => {
   })
 }
 
-const handleSettingsNavigate = async (
-  _event: unknown,
-  payload?: { routeName?: string; section?: string }
-) => {
+const normalizeRouteParams = (params?: Record<string, string>) =>
+  Object.entries(params ?? {})
+    .filter(([, value]) => typeof value === 'string' && value.trim().length > 0)
+    .reduce<Record<string, string>>((acc, [key, value]) => {
+      acc[key] = value
+      return acc
+    }, {})
+
+const hasSameRouteParams = (
+  currentParams: Record<string, unknown>,
+  nextParams: Record<string, string>
+): boolean => {
+  const currentEntries = Object.entries(currentParams).filter(
+    ([, value]) => typeof value === 'string'
+  )
+  const nextEntries = Object.entries(nextParams)
+
+  if (currentEntries.length !== nextEntries.length) {
+    return false
+  }
+
+  return nextEntries.every(([key, value]) => currentParams[key] === value)
+}
+
+const handleSettingsNavigate = async (_event: unknown, payload?: SettingsNavigationPayload) => {
   const routeName = payload?.routeName
+  const params = normalizeRouteParams(payload?.params)
   if (!routeName || !router.hasRoute(routeName)) return
   await router.isReady()
-  if (router.currentRoute.value.name !== routeName) {
-    await router.push({ name: routeName })
+  if (
+    router.currentRoute.value.name !== routeName ||
+    !hasSameRouteParams(router.currentRoute.value.params, params)
+  ) {
+    await router.push({
+      name: routeName,
+      params: Object.keys(params).length > 0 ? params : undefined
+    })
   }
   if (routeName === 'settings-provider') {
     await syncPendingProviderInstall()

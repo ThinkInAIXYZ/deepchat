@@ -3,12 +3,37 @@ const ACTIVE_HIGHLIGHT_SELECTOR = '[data-chat-search-active]'
 
 export type ChatSearchMatch = HTMLElement
 
-const isEditableElement = (element: HTMLElement | null): boolean =>
+const isIgnoredElement = (element: HTMLElement | null): boolean =>
   Boolean(
     element?.closest(
       'input, textarea, select, button, [contenteditable="true"], [data-chat-search-match]'
     )
   )
+
+const isElementVisible = (element: HTMLElement | null): boolean => {
+  let currentElement = element
+
+  while (currentElement) {
+    if (currentElement.hidden || currentElement.getAttribute('aria-hidden') === 'true') {
+      return false
+    }
+
+    const style = window.getComputedStyle(currentElement)
+    if (
+      style.display === 'none' ||
+      style.visibility === 'hidden' ||
+      style.visibility === 'collapse' ||
+      style.contentVisibility === 'hidden' ||
+      style.opacity === '0'
+    ) {
+      return false
+    }
+
+    currentElement = currentElement.parentElement
+  }
+
+  return true
+}
 
 const collectSearchableTextNodes = (root: ParentNode): Text[] => {
   if (typeof document === 'undefined') {
@@ -26,7 +51,7 @@ const collectSearchableTextNodes = (root: ParentNode): Text[] => {
       }
 
       const parentElement = node.parentElement
-      if (!parentElement || isEditableElement(parentElement)) {
+      if (!parentElement || isIgnoredElement(parentElement) || !isElementVisible(parentElement)) {
         return NodeFilter.FILTER_REJECT
       }
 

@@ -8,10 +8,15 @@ import {
   webContents as electronWebContents
 } from 'electron'
 import { join } from 'path'
+import { pathToFileURL } from 'url'
 import icon from '../../../../resources/icon.png?asset' // App icon (macOS/Linux)
 import iconWin from '../../../../resources/icon.ico?asset' // App icon (Windows)
 import { is } from '@electron-toolkit/utils' // Electron utilities
 import { IConfigPresenter, IWindowPresenter } from '@shared/presenter' // Window Presenter interface
+import {
+  resolveSettingsNavigationPath,
+  type SettingsNavigationPayload
+} from '@shared/settingsNavigation'
 import { eventBus } from '@/eventbus' // Event bus
 import {
   CONFIG_EVENTS,
@@ -1189,12 +1194,17 @@ export class WindowPresenter implements IWindowPresenter {
   /**
    * Create or show Settings Window (singleton pattern)
    */
-  public async createSettingsWindow(): Promise<number | null> {
+  public async createSettingsWindow(
+    navigation?: SettingsNavigationPayload
+  ): Promise<number | null> {
     // If settings window already exists, just show and focus it
     if (this.settingsWindow && !this.settingsWindow.isDestroyed()) {
       console.log('Settings window already exists, showing and focusing.')
       this.settingsWindow.show()
       this.settingsWindow.focus()
+      if (navigation) {
+        this.sendToWindow(this.settingsWindow.id, SETTINGS_EVENTS.NAVIGATE, navigation)
+      }
       return this.settingsWindow.id
     }
 
@@ -1283,10 +1293,12 @@ export class WindowPresenter implements IWindowPresenter {
       }
     })
 
-    settingsWindow.webContents.on('did-start-loading', () => {
-      if (this.settingsWindow?.id === windowId) {
-        this.settingsWindowReady = false
-      }
+    settingsWindow.webContents.on('did-start-navigation', (details) => {
+      this.handleSettingsWindowNavigationStart(
+        windowId,
+        details.isMainFrame,
+        details.isSameDocument
+      )
     })
 
     settingsWindow.on('closed', () => {
@@ -1298,16 +1310,26 @@ export class WindowPresenter implements IWindowPresenter {
     })
 
     // Load settings renderer HTML
+    const initialNavigationPath = navigation
+      ? resolveSettingsNavigationPath(navigation.routeName, navigation.params)
+      : null
+
     if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-      console.log(
-        `Loading settings renderer URL in dev mode: ${process.env['ELECTRON_RENDERER_URL']}/settings/index.html`
-      )
-      await settingsWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '/settings/index.html')
+      const settingsUrl = new URL('/settings/index.html', process.env['ELECTRON_RENDERER_URL'])
+      if (initialNavigationPath) {
+        settingsUrl.hash = initialNavigationPath
+      }
+      console.log(`Loading settings renderer URL in dev mode: ${settingsUrl.toString()}`)
+      await settingsWindow.loadURL(settingsUrl.toString())
     } else {
-      console.log(
-        `Loading packaged settings renderer file: ${join(__dirname, '../renderer/settings/index.html')}`
-      )
-      await settingsWindow.loadFile(join(__dirname, '../renderer/settings/index.html'))
+      const packagedSettingsUrl = pathToFileURL(
+        join(__dirname, '../renderer/settings/index.html')
+      ).toString()
+      const targetUrl = initialNavigationPath
+        ? `${packagedSettingsUrl}#${initialNavigationPath}`
+        : packagedSettingsUrl
+      console.log(`Loading packaged settings renderer URL: ${targetUrl}`)
+      await settingsWindow.loadURL(targetUrl)
     }
 
     // Open DevTools in development mode
@@ -1384,6 +1406,18 @@ export class WindowPresenter implements IWindowPresenter {
 
     this.settingsWindowReady = true
     this.flushPendingSettingsMessages()
+  }
+
+  private handleSettingsWindowNavigationStart(
+    windowId: number,
+    isMainFrame: boolean,
+    isSameDocument: boolean
+  ): void {
+    if (!isMainFrame || isSameDocument || this.settingsWindow?.id !== windowId) {
+      return
+    }
+
+    this.settingsWindowReady = false
   }
 
   private flushPendingSettingsMessages(): void {

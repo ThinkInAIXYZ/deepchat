@@ -67,6 +67,20 @@ describe('pageRouter.initialize', () => {
     expect(store.route.value).toEqual({ name: 'newThread' })
   })
 
+  it('can force-refresh the new thread view', async () => {
+    const { store } = await setupStore({
+      activeNewSession: null
+    })
+
+    expect(store.newThreadRefreshKey.value).toBe(0)
+
+    store.goToNewThread({ refresh: true })
+    store.goToNewThread({ refresh: true })
+
+    expect(store.route.value).toEqual({ name: 'newThread' })
+    expect(store.newThreadRefreshKey.value).toBe(2)
+  })
+
   it('falls back to new thread when active session lookup fails', async () => {
     vi.resetModules()
 

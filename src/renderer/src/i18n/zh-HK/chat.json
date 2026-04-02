@@ -311,6 +311,20 @@
   "subagents": {
     "label": "subagent"
   },
+  "spotlight": {
+    "placeholder": "搜尋會話、Agent、設定與動作…",
+    "searching": "搜尋中…",
+    "emptyTitle": "沒有相符結果",
+    "emptyDescription": "試試其他關鍵字，或直接開啟最近會話。",
+    "hints": "↑↓ 選擇 · Enter 開啟 · Esc 關閉 · Home/End 跳轉",
+    "kind": {
+      "session": "會話",
+      "message": "訊息",
+      "agent": "Agent",
+      "setting": "設定",
+      "action": "動作"
+    }
+  },
   "inlineSearch": {
     "placeholder": "搜尋目前會話",
     "ariaLabel": "搜尋目前會話",

@@ -23,6 +23,12 @@ export interface SettingsNavigationItem {
   keywords: string[]
 }
 
+export interface SettingsNavigationPayload {
+  routeName: SettingsNavigationItem['routeName']
+  params?: Record<string, string>
+  section?: string
+}
+
 export const SETTINGS_NAVIGATION_ITEMS: SettingsNavigationItem[] = [
   {
     routeName: 'settings-common',
@@ -153,3 +159,34 @@ export const SETTINGS_NAVIGATION_ITEMS: SettingsNavigationItem[] = [
     keywords: ['about', 'version', 'info', '关于', '版本']
   }
 ]
+
+export const resolveSettingsNavigationPath = (
+  routeName: SettingsNavigationItem['routeName'],
+  params?: Record<string, string>
+): string => {
+  const item = SETTINGS_NAVIGATION_ITEMS.find(
+    (navigationItem) => navigationItem.routeName === routeName
+  )
+  if (!item) {
+    return '/common'
+  }
+
+  const resolvedSegments = item.path
+    .split('/')
+    .filter((segment) => segment.length > 0)
+    .flatMap((segment) => {
+      if (!segment.startsWith(':')) {
+        return [segment]
+      }
+
+      const key = segment.slice(1).replace(/\?$/, '')
+      const value = params?.[key]?.trim()
+      if (value) {
+        return [encodeURIComponent(value)]
+      }
+
+      return segment.endsWith('?') ? [] : [key]
+    })
+
+  return `/${resolvedSegments.join('/')}`
+}

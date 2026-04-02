@@ -311,6 +311,20 @@
   "subagents": {
     "label": "하위 에이전트"
   },
+  "spotlight": {
+    "placeholder": "대화, Agent, 설정, 동작 검색…",
+    "searching": "검색 중…",
+    "emptyTitle": "일치하는 결과가 없습니다",
+    "emptyDescription": "다른 키워드를 시도하거나 최근 세션을 열어 보세요.",
+    "hints": "↑↓ 이동 · Enter 열기 · Esc 닫기 · Home/End 이동",
+    "kind": {
+      "session": "세션",
+      "message": "메시지",
+      "agent": "Agent",
+      "setting": "설정",
+      "action": "동작"
+    }
+  },
   "inlineSearch": {
     "placeholder": "현재 대화 검색",
     "ariaLabel": "현재 대화 검색",

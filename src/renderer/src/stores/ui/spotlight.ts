@@ -2,10 +2,10 @@ import { computed, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { useDebounceFn } from '@vueuse/core'
 import { usePresenter } from '@/composables/usePresenter'
+import { useProviderStore } from '@/stores/providerStore'
 import { useAgentStore } from './agent'
 import { usePageRouterStore } from './pageRouter'
 import { useSessionStore } from './session'
-import { SETTINGS_EVENTS } from '@/events'
 import { SETTINGS_NAVIGATION_ITEMS, type SettingsNavigationItem } from '@shared/settingsNavigation'
 import type { HistorySearchHit } from '@shared/presenter'
 
@@ -32,6 +32,7 @@ export interface SpotlightItem {
   sessionId?: string
   messageId?: string
   routeName?: SettingsNavigationItem['routeName']
+  routeParams?: Record<string, string>
   actionId?: SpotlightActionId
   agentId?: string | null
   keywords?: string[]
@@ -41,9 +42,6 @@ export interface SpotlightItem {
 const MAX_RESULTS = 12
 // Debounce just enough to avoid spamming IPC while keeping the palette responsive.
 const SEARCH_DEBOUNCE_DELAY = 80
-// Retry once after the settings window boots so navigation is not lost during renderer startup.
-const SETTINGS_WINDOW_NAVIGATION_RETRY_DELAY = 250
-
 const normalizeQuery = (value: string): string => value.trim().toLowerCase()
 
 const scoreTextMatch = (query: string, ...parts: Array<string | null | undefined>): number => {
@@ -130,11 +128,13 @@ const actionItems: Array<{
 export const useSpotlightStore = defineStore('spotlight', () => {
   const newAgentPresenter = usePresenter('newAgentPresenter')
   const windowPresenter = usePresenter('windowPresenter')
+  const providerStore = useProviderStore()
   const sessionStore = useSessionStore()
   const agentStore = useAgentStore()
   const pageRouterStore = usePageRouterStore()
 
   const open = ref(false)
+  const activationKey = ref(0)
   const query = ref('')
   const results = ref<SpotlightItem[]>([])
   const activeIndex = ref(0)
@@ -223,16 +223,44 @@ export const useSpotlightStore = defineStore('spotlight', () => {
     }
   }
 
+  const buildProviderMatches = (normalizedQuery: string): SpotlightItem[] =>
+    providerStore.sortedProviders
+      .filter((provider) => provider.id !== 'acp')
+      .map((provider) => ({
+        id: `setting:provider:${provider.id}`,
+        kind: 'setting' as const,
+        icon: 'lucide:cloud-cog',
+        title: provider.name,
+        subtitle: provider.apiType,
+        routeName: 'settings-provider' as const,
+        routeParams: {
+          providerId: provider.id
+        },
+        keywords: [provider.id, provider.apiType, provider.baseUrl].filter(
+          (value): value is string => typeof value === 'string' && value.trim().length > 0
+        ),
+        score: scoreTextMatch(
+          normalizedQuery,
+          provider.name,
+          provider.id,
+          provider.apiType,
+          provider.baseUrl
+        )
+      }))
+      .filter((item) => item.score > 0)
+
   const buildSettingMatches = (normalizedQuery: string): SpotlightItem[] =>
-    SETTINGS_NAVIGATION_ITEMS.map((item) => ({
-      id: `setting:${item.routeName}`,
-      kind: 'setting' as const,
-      icon: item.icon,
-      titleKey: item.titleKey,
-      routeName: item.routeName,
-      keywords: item.keywords,
-      score: scoreTextMatch(normalizedQuery, item.routeName, item.path, ...item.keywords)
-    })).filter((item) => item.score > 0)
+    SETTINGS_NAVIGATION_ITEMS.filter((item) => item.routeName !== 'settings-provider')
+      .map((item) => ({
+        id: `setting:${item.routeName}`,
+        kind: 'setting' as const,
+        icon: item.icon,
+        titleKey: item.titleKey,
+        routeName: item.routeName,
+        keywords: item.keywords,
+        score: scoreTextMatch(normalizedQuery, item.routeName, item.path, ...item.keywords)
+      }))
+      .filter((item) => item.score > 0)
 
   const buildAgentMatches = (normalizedQuery: string): SpotlightItem[] =>
     buildAgentItems()
@@ -282,8 +310,11 @@ export const useSpotlightStore = defineStore('spotlight', () => {
     }
 
     results.value = sortResults([
-      ...historyHits.map((hit) => toHistoryItem(hit, normalizedQuery)),
+      ...historyHits
+        .filter((hit) => hit.kind === 'session')
+        .map((hit) => toHistoryItem(hit, normalizedQuery)),
       ...buildAgentMatches(normalizedQuery),
+      ...buildProviderMatches(normalizedQuery),
       ...buildSettingMatches(normalizedQuery),
       ...buildActionMatches(normalizedQuery)
     ])
@@ -291,18 +322,17 @@ export const useSpotlightStore = defineStore('spotlight', () => {
     resetActiveIndex()
   }, SEARCH_DEBOUNCE_DELAY)
 
-  const navigateToSettings = async (routeName?: SettingsNavigationItem['routeName']) => {
-    const settingsWindowId = await windowPresenter.createSettingsWindow()
-    if (settingsWindowId == null || !routeName) {
+  const navigateToSettings = async (
+    routeName?: SettingsNavigationItem['routeName'],
+    routeParams?: Record<string, string>
+  ) => {
+    if (!routeName) {
       return
     }
 
-    const payload = { routeName }
-    windowPresenter.sendToWindow(settingsWindowId, SETTINGS_EVENTS.NAVIGATE, payload)
-    // The settings renderer may not be ready to process the first navigation message immediately.
-    window.setTimeout(() => {
-      windowPresenter.sendToWindow(settingsWindowId, SETTINGS_EVENTS.NAVIGATE, payload)
-    }, SETTINGS_WINDOW_NAVIGATION_RETRY_DELAY)
+    await windowPresenter.createSettingsWindow(
+      routeParams ? { routeName, params: routeParams } : { routeName }
+    )
   }
 
   const setQuery = (value: string) => {
@@ -312,7 +342,11 @@ export const useSpotlightStore = defineStore('spotlight', () => {
       return
     }
 
-    const normalizedQuery = normalizeQuery(value)
+    refreshOpenResults(value)
+  }
+
+  const refreshOpenResults = (currentQuery: string) => {
+    const normalizedQuery = normalizeQuery(currentQuery)
     if (!normalizedQuery) {
       loading.value = false
       requestSeq.value += 1
@@ -323,12 +357,13 @@ export const useSpotlightStore = defineStore('spotlight', () => {
 
     loading.value = true
     const seq = ++requestSeq.value
-    void runSearch(value, seq)
+    void runSearch(currentQuery, seq)
   }
 
   const setOpen = (value: boolean) => {
     open.value = value
     if (value) {
+      activationKey.value += 1
       setQuery(query.value)
       return
     }
@@ -341,8 +376,7 @@ export const useSpotlightStore = defineStore('spotlight', () => {
   }
 
   const openSpotlight = () => {
-    open.value = true
-    setQuery(query.value)
+    setOpen(true)
   }
 
   const closeSpotlight = () => {
@@ -374,7 +408,8 @@ export const useSpotlightStore = defineStore('spotlight', () => {
 
     const currentIndex = activeIndex.value < 0 ? 0 : activeIndex.value
     const nextIndex =
-      ((currentIndex + delta) % results.value.length + results.value.length) % results.value.length
+      (((currentIndex + delta) % results.value.length) + results.value.length) %
+      results.value.length
     activeIndex.value = nextIndex
   }
 
@@ -410,7 +445,7 @@ export const useSpotlightStore = defineStore('spotlight', () => {
     }
 
     if (item.kind === 'setting') {
-      await navigateToSettings(item.routeName)
+      await navigateToSettings(item.routeName, item.routeParams)
       return
     }
 
@@ -419,7 +454,7 @@ export const useSpotlightStore = defineStore('spotlight', () => {
         if (sessionStore.hasActiveSession) {
           await sessionStore.closeSession()
         } else {
-          pageRouterStore.goToNewThread()
+          pageRouterStore.goToNewThread({ refresh: true })
         }
         return
       case 'open-settings':
@@ -449,17 +484,32 @@ export const useSpotlightStore = defineStore('spotlight', () => {
   }
 
   watch(
-    () => [sessionStore.sessions.length, agentStore.enabledAgents.length, open.value, query.value] as const,
-    ([, , isOpen, currentQuery]) => {
-      if (isOpen && !normalizeQuery(currentQuery)) {
-        results.value = buildDefaultResults()
-        resetActiveIndex()
+    () =>
+      [
+        sessionStore.sessions.map(
+          (session) => `${session.id}:${session.updatedAt}:${session.title}`
+        ),
+        providerStore.sortedProviders.map(
+          (provider) =>
+            `${provider.id}:${provider.name}:${provider.apiType}:${provider.baseUrl}:${provider.enable}`
+        ),
+        agentStore.enabledAgents.map(
+          (agent) =>
+            `${agent.id}:${agent.name}:${agent.description ?? ''}:${agent.type}:${agent.agentType ?? ''}`
+        )
+      ] as const,
+    () => {
+      if (!open.value) {
+        return
       }
+
+      refreshOpenResults(query.value)
     }
   )
 
   return {
     open,
+    activationKey,
     query,
     results,
     activeIndex,

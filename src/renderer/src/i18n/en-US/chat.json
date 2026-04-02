@@ -312,7 +312,7 @@
     "searchEmptyDescription": "Try a different title keyword"
   },
   "spotlight": {
-    "placeholder": "Search chats, messages, agents, settings, actions…",
+    "placeholder": "Search chats, agents, settings, actions…",
     "searching": "Searching…",
     "emptyTitle": "No matching results",
     "emptyDescription": "Try another keyword or open a recent session.",

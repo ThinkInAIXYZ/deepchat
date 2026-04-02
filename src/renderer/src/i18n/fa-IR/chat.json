@@ -311,6 +311,20 @@
   "subagents": {
     "label": "زیرایجنت‌ها"
   },
+  "spotlight": {
+    "placeholder": "جست‌وجوی گفتگوها، Agentها، تنظیمات و اقدامات…",
+    "searching": "در حال جست‌وجو…",
+    "emptyTitle": "نتیجهٔ مطابقی پیدا نشد",
+    "emptyDescription": "یک کلیدواژهٔ دیگر را امتحان کنید یا یک نشست اخیر را باز کنید.",
+    "hints": "↑↓ جابه‌جایی · Enter باز کردن · Esc بستن · Home/End پرش",
+    "kind": {
+      "session": "گفتگو",
+      "message": "پیام",
+      "agent": "Agent",
+      "setting": "تنظیمات",
+      "action": "اقدام"
+    }
+  },
   "inlineSearch": {
     "placeholder": "جستجو در گفتگو",
     "ariaLabel": "جستجو در گفتگوی فعلی",

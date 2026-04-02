@@ -3,12 +3,16 @@ import { ref, computed } from 'vue'
 import { usePresenter } from '@/composables/usePresenter'
 
 export type PageRoute = { name: 'newThread' } | { name: 'chat'; sessionId: string }
+type GoToNewThreadOptions = {
+  refresh?: boolean
+}
 
 export const usePageRouterStore = defineStore('pageRouter', () => {
   const newAgentPresenter = usePresenter('newAgentPresenter')
 
   // --- State ---
   const route = ref<PageRoute>({ name: 'newThread' })
+  const newThreadRefreshKey = ref(0)
   const error = ref<string | null>(null)
 
   // --- Actions ---
@@ -31,8 +35,11 @@ export const usePageRouterStore = defineStore('pageRouter', () => {
     }
   }
 
-  function goToNewThread(): void {
+  function goToNewThread(options: GoToNewThreadOptions = {}): void {
     route.value = { name: 'newThread' }
+    if (options.refresh) {
+      newThreadRefreshKey.value += 1
+    }
   }
 
   function goToChat(sessionId: string): void {
@@ -46,6 +53,7 @@ export const usePageRouterStore = defineStore('pageRouter', () => {
 
   return {
     route,
+    newThreadRefreshKey,
     error,
     initialize,
     goToNewThread,

@@ -196,9 +196,7 @@
           <Icon icon="lucide:message-square-plus" class="w-8 h-8 text-muted-foreground/40 mb-3" />
           <p class="text-sm text-muted-foreground/60">
             {{
-              sessionSearchQuery
-                ? t('chat.sidebar.searchEmptyTitle')
-                : t('chat.sidebar.emptyTitle')
+              sessionSearchQuery ? t('chat.sidebar.searchEmptyTitle') : t('chat.sidebar.emptyTitle')
             }}
           </p>
           <p class="text-xs text-muted-foreground/40 mt-1">
@@ -339,6 +337,7 @@ import {
 import { usePresenter, useRemoteControlPresenter } from '@/composables/usePresenter'
 import { SETTINGS_EVENTS } from '@/events'
 import { useAgentStore } from '@/stores/ui/agent'
+import { usePageRouterStore } from '@/stores/ui/pageRouter'
 import { useSessionStore, type SessionGroup, type UISession } from '@/stores/ui/session'
 import { useSpotlightStore } from '@/stores/ui/spotlight'
 import type {
@@ -359,6 +358,7 @@ const windowPresenter = usePresenter('windowPresenter')
 const remoteControlPresenter = useRemoteControlPresenter()
 const { t } = useI18n()
 const agentStore = useAgentStore()
+const pageRouterStore = usePageRouterStore()
 const sessionStore = useSessionStore()
 const spotlightStore = useSpotlightStore()
 
@@ -601,7 +601,12 @@ const refreshRemoteControlStatus = async () => {
 }
 
 const handleNewChat = () => {
-  void sessionStore.closeSession()
+  if (sessionStore.hasActiveSession) {
+    void sessionStore.closeSession()
+    return
+  }
+
+  pageRouterStore.goToNewThread({ refresh: true })
 }
 
 const handleAgentSelect = async (id: string | null) => {

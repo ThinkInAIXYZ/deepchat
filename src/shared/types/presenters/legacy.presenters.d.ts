@@ -261,7 +261,9 @@ export interface IWindowPresenter {
   minimize(windowId: number): void
   maximize(windowId: number): void
   close(windowId: number): void
-  createSettingsWindow(): Promise<number | null>
+  createSettingsWindow(
+    navigation?: import('@shared/settingsNavigation').SettingsNavigationPayload
+  ): Promise<number | null>
   closeSettingsWindow(): void
   getSettingsWindowId(): number | null
   setPendingSettingsProviderInstall(

@@ -178,7 +178,9 @@ const extractSearchableMessageContent = (rawContent: string): string => {
           }
 
           const values = [block.content, block.text, block.error]
-          return values.filter((value): value is string => typeof value === 'string' && value.trim())
+          return values.filter(
+            (value): value is string => typeof value === 'string' && !!value.trim()
+          )
         })
         .map((value) => value.trim())
 
@@ -929,10 +931,7 @@ export class NewAgentPresenter {
     return agent.getMessages(sessionId)
   }
 
-  async searchHistory(
-    query: string,
-    options?: HistorySearchOptions
-  ): Promise<HistorySearchHit[]> {
+  async searchHistory(query: string, options?: HistorySearchOptions): Promise<HistorySearchHit[]> {
     const normalizedQuery = normalizeSearchText(query)
     if (!normalizedQuery) {
       return []

@@ -311,6 +311,20 @@
   "subagents": {
     "label": "Subagentes"
   },
+  "spotlight": {
+    "placeholder": "Pesquisar conversas, agentes, configurações e ações…",
+    "searching": "Pesquisando…",
+    "emptyTitle": "Nenhum resultado correspondente",
+    "emptyDescription": "Tente outra palavra-chave ou abra uma sessão recente.",
+    "hints": "↑↓ mover · Enter abrir · Esc fechar · Home/End saltar",
+    "kind": {
+      "session": "Sessão",
+      "message": "Mensagem",
+      "agent": "Agente",
+      "setting": "Configuração",
+      "action": "Ação"
+    }
+  },
   "inlineSearch": {
     "placeholder": "Pesquisar na conversa",
     "ariaLabel": "Pesquisar na conversa atual",

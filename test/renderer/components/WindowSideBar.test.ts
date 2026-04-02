@@ -73,6 +73,9 @@ const setup = async (options: SetupOptions = {}) => {
   const themeStore = reactive({
     isDark: false
   })
+  const pageRouterStore = reactive({
+    goToNewThread: vi.fn()
+  })
   const spotlightStore = reactive({
     open: false,
     toggleSpotlight: vi.fn(() => {
@@ -128,6 +131,9 @@ const setup = async (options: SetupOptions = {}) => {
   }))
   vi.doMock('@/stores/theme', () => ({
     useThemeStore: () => themeStore
+  }))
+  vi.doMock('@/stores/ui/pageRouter', () => ({
+    usePageRouterStore: () => pageRouterStore
   }))
   vi.doMock('@/stores/ui/spotlight', () => ({
     useSpotlightStore: () => spotlightStore
@@ -214,7 +220,8 @@ const setup = async (options: SetupOptions = {}) => {
     sessionStore,
     windowPresenter,
     remoteControlPresenter,
-    spotlightStore
+    spotlightStore,
+    pageRouterStore
   }
 }
 
@@ -228,6 +235,16 @@ describe('WindowSideBar agent switch', () => {
     expect(agentStore.setSelectedAgent).toHaveBeenCalledWith('acp-a')
     expect(operations).toEqual(['close', 'set:acp-a'])
   }, 10000)
+
+  it('refreshes the new thread page when starting a new chat without an active session', async () => {
+    const { wrapper, pageRouterStore, sessionStore } = await setup()
+    sessionStore.hasActiveSession = false
+
+    ;(wrapper.vm as any).handleNewChat()
+
+    expect(sessionStore.closeSession).not.toHaveBeenCalled()
+    expect(pageRouterStore.goToNewThread).toHaveBeenCalledWith({ refresh: true })
+  })
 
   it('renders pinned sessions outside grouped sections', async () => {
     const { wrapper } = await setup({

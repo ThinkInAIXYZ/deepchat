@@ -311,6 +311,20 @@
   "subagents": {
     "label": "Sous-agents"
   },
+  "spotlight": {
+    "placeholder": "Rechercher des discussions, agents, paramètres et actions…",
+    "searching": "Recherche…",
+    "emptyTitle": "Aucun résultat correspondant",
+    "emptyDescription": "Essayez un autre mot-clé ou ouvrez une session récente.",
+    "hints": "↑↓ déplacer · Entrée ouvrir · Échap fermer · Home/End aller",
+    "kind": {
+      "session": "Session",
+      "message": "Message",
+      "agent": "Agent",
+      "setting": "Paramètre",
+      "action": "Action"
+    }
+  },
   "inlineSearch": {
     "placeholder": "Rechercher dans la conversation",
     "ariaLabel": "Rechercher dans la conversation actuelle",

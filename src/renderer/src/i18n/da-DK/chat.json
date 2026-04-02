@@ -311,6 +311,20 @@
   "subagents": {
     "label": "Underagenter"
   },
+  "spotlight": {
+    "placeholder": "Søg i samtaler, agenter, indstillinger og handlinger…",
+    "searching": "Søger…",
+    "emptyTitle": "Ingen matchende resultater",
+    "emptyDescription": "Prøv et andet søgeord, eller åbn en nylig session.",
+    "hints": "↑↓ flyt · Enter åbn · Esc luk · Home/End hop",
+    "kind": {
+      "session": "Session",
+      "message": "Besked",
+      "agent": "Agent",
+      "setting": "Indstilling",
+      "action": "Handling"
+    }
+  },
   "inlineSearch": {
     "placeholder": "Søg i samtalen",
     "ariaLabel": "Søg i den aktuelle samtale",
