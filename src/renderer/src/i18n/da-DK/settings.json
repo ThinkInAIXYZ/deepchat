@@ -418,6 +418,8 @@
     "urlFormat": "API-eksempel: {defaultUrl}",
     "urlFormatFill": "Udfyld API-URL",
     "openaiResponsesNotice": "OpenAI bruger som standard Responses API. Hvis et tredjeparts-endpoint kun understøtter Chat Completions, skal du bruge OpenAI Completions-udbyderen.",
+    "modifyBaseUrl": "Rediger",
+    "baseUrlLockedHint": "Denne udbyder er låst til den anbefalede basis-URL for at mindske fejlkonfiguration.",
     "modelList": "Modelliste",
     "enableModels": "Aktivér modeller",
     "disableAllModels": "Deaktiver alle modeller",
@@ -512,6 +514,12 @@
         "overwriteWarning": "Denne import vil overskrive den nuværende udbyderkonfiguration.",
         "confirming": "Importerer..."
       },
+      "baseUrlUnlock": {
+        "title": "Bekræft ændring af basis-URL",
+        "description": "Det anbefales ikke at ændre basis-URL'en for denne udbyder. Et forkert endpoint kan medføre fejl i forespørgsler eller anden uventet adfærd. Du kan stadig fortsætte, hvis du forstår risikoen.",
+        "confirm": "Fortsæt"
+      },
+
       "deleteProvider": {
         "title": "Bekræft sletning af udbyder",
         "content": "Er du sikker på, at du vil slette udbyderen \"{name}\"? Handlingen kan ikke fortrydes.",

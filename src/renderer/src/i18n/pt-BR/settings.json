@@ -484,6 +484,8 @@
     "urlFormat": "Exemplo de API: {defaultUrl}",
     "urlFormatFill": "Preencher na URL da API",
     "openaiResponsesNotice": "A OpenAI usa a API Responses por padrão. Se um endpoint de terceiros oferecer suporte apenas a Chat Completions, use o provedor OpenAI Completions.",
+    "modifyBaseUrl": "Modificar",
+    "baseUrlLockedHint": "Este provedor está fixado na URL base recomendada para reduzir erros de configuração.",
     "modelList": "Lista de Modelos",
     "enableModels": "Habilitar Modelos",
     "disableAllModels": "Desabilitar Todos os Modelos",
@@ -578,6 +580,12 @@
         "overwriteWarning": "Esta importação substituirá a configuração atual do provedor.",
         "confirming": "Importando..."
       },
+      "baseUrlUnlock": {
+        "title": "Confirmar alteração da URL base",
+        "description": "Não é recomendado alterar a URL base deste provedor. Um endpoint incorreto pode causar falhas nas requisições ou outros comportamentos inesperados. Você ainda pode continuar se entender o risco.",
+        "confirm": "Continuar"
+      },
+
       "deleteProvider": {
         "title": "Confirmar Exclusão do Provedor",
         "content": "Tem certeza de que deseja excluir o provedor \"{name}\"? Esta ação não pode ser desfeita.",

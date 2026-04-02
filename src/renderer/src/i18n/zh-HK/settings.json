@@ -484,6 +484,8 @@
     "urlFormat": "API範例：{defaultUrl}",
     "urlFormatFill": "填入 API URL",
     "openaiResponsesNotice": "OpenAI 官方服務預設使用 Responses API；若第三方僅支援 Chat Completions，請使用 OpenAI Completions 服務商。",
+    "modifyBaseUrl": "修改",
+    "baseUrlLockedHint": "此類 provider 預設固定為建議的 Base URL，避免誤修改導致請求異常。",
     "modelList": "模型列表",
     "enableModels": "模型已經啟用",
     "verifyLink": "驗證鏈接",
@@ -573,6 +575,12 @@
         "overwriteWarning": "本次導入會覆蓋目前的服務商設定。",
         "confirming": "導入中..."
       },
+      "baseUrlUnlock": {
+        "title": "確認修改 Base URL",
+        "description": "此類 provider 不建議修改 Base URL，錯誤的位址可能導致請求失敗或行為異常。確認後仍可繼續手動修改。",
+        "confirm": "繼續修改"
+      },
+
       "deleteProvider": {
         "title": "確認刪除服務商",
         "content": "是否確認刪除服務商 \"{name}\"？此操作不可恢復。",

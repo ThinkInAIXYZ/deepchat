@@ -26,7 +26,21 @@
           <Icon icon="lucide:trash-2" class="w-4 h-4 mr-1" />{{ t('settings.provider.delete') }}
         </Button>
       </div>
+      <div v-if="showLockedBaseUrl" class="flex w-full items-center gap-2">
+        <div
+          :id="`${provider.id}-url`"
+          class="flex h-9 flex-1 items-center rounded-md border border-input bg-muted px-3 text-sm text-muted-foreground"
+        >
+          <span class="truncate">
+            {{ apiHost || t('settings.provider.urlPlaceholder') }}
+          </span>
+        </div>
+        <Button variant="outline" size="sm" class="shrink-0 text-xs" @click="requestBaseUrlUnlock">
+          {{ t('settings.provider.modifyBaseUrl') }}
+        </Button>
+      </div>
       <Input
+        v-else
         :id="`${provider.id}-url`"
         :model-value="apiHost"
         :placeholder="t('settings.provider.urlPlaceholder')"
@@ -35,7 +49,7 @@
         @update:model-value="apiHost = String($event)"
       />
       <div class="text-xs text-muted-foreground">
-        <TooltipProvider v-if="hasDefaultBaseUrl" :delayDuration="200">
+        <TooltipProvider v-if="hasDefaultBaseUrl && !showLockedBaseUrl" :delayDuration="200">
           <Tooltip>
             <TooltipTrigger as-child>
               <button
@@ -56,6 +70,9 @@
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
+        <span v-else-if="showLockedBaseUrl">
+          {{ t('settings.provider.baseUrlLockedHint') }}
+        </span>
         <span v-else>
           {{
             t('settings.provider.urlFormat', {
@@ -191,6 +208,17 @@ const { t } = useI18n()
 const llmProviderPresenter = usePresenter('llmproviderPresenter')
 const modelCheckStore = useModelCheckStore()
 
+const EDITABLE_BASE_URL_PROVIDER_IDS = new Set([
+  'openai',
+  'openai-responses',
+  'anthropic',
+  'gemini',
+  'ollama',
+  'lmstudio',
+  'azure-openai',
+  'vertex'
+])
+
 const props = defineProps<{
   provider: LLM_PROVIDER
   providerWebsites?: ProviderWebsites
@@ -210,14 +238,22 @@ const apiHost = ref(props.provider.baseUrl || '')
 const keyStatus = ref<KeyStatus | null>(null)
 const isRefreshing = ref(false)
 const showApiKey = ref(false)
+const baseUrlUnlocked = ref(false)
 const defaultBaseUrl = computed(() => props.providerWebsites?.defaultBaseUrl?.trim() || '')
 const hasDefaultBaseUrl = computed(() => defaultBaseUrl.value.length > 0)
+const isBaseUrlEditableByDefault = computed(
+  () => props.provider.custom || EDITABLE_BASE_URL_PROVIDER_IDS.has(props.provider.id)
+)
+const showLockedBaseUrl = computed(
+  () => !isBaseUrlEditableByDefault.value && !baseUrlUnlocked.value
+)
 
 watch(
   () => props.provider,
   () => {
     apiKey.value = props.provider.apiKey || ''
     apiHost.value = props.provider.baseUrl || ''
+    baseUrlUnlocked.value = false
   },
   { immediate: true }
 )
@@ -242,7 +278,12 @@ const fillDefaultBaseUrl = () => {
   handleApiHostChange(defaultBaseUrl.value)
 }
 
+const requestBaseUrlUnlock = () => {
+  baseUrlUnlocked.value = true
+}
+
 const handleApiHostBlur = (event: FocusEvent) => {
+  if (showLockedBaseUrl.value) return
   const target = event.target as HTMLInputElement | null
   if (!target) return
   handleApiHostChange(target.value)

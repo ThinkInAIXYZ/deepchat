@@ -36,6 +36,28 @@ describe('promptCacheStrategy', () => {
     })
   })
 
+  it('creates an explicit cache breakpoint plan for ZenMux anthropic/* models', () => {
+    const plan = resolvePromptCachePlan({
+      providerId: 'zenmux',
+      apiType: 'anthropic',
+      modelId: 'anthropic/claude-sonnet-4-5',
+      messages: [
+        { role: 'user', content: [{ type: 'text', text: 'history' }] },
+        { role: 'assistant', content: [{ type: 'text', text: 'stable reply' }] },
+        { role: 'user', content: [{ type: 'text', text: 'latest question' }] }
+      ]
+    })
+
+    expect(plan).toEqual({
+      mode: 'anthropic_explicit',
+      ttl: '5m',
+      breakpointPlan: {
+        messageIndex: 1,
+        contentIndex: 0
+      }
+    })
+  })
+
   it('creates a single explicit breakpoint plan for Bedrock Claude', () => {
     const plan = resolvePromptCachePlan({
       providerId: 'aws-bedrock',

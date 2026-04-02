@@ -15,7 +15,11 @@ import { proxyConfig } from '../../proxyConfig'
 import { ProxyAgent } from 'undici'
 import type { Usage } from '@anthropic-ai/sdk/resources'
 import type { ProviderMcpRuntimePort } from '../runtimePorts'
-import { applyAnthropicTopLevelCacheControl, resolvePromptCachePlan } from '../promptCacheStrategy'
+import {
+  applyAnthropicExplicitCacheBreakpoint,
+  applyAnthropicTopLevelCacheControl,
+  resolvePromptCachePlan
+} from '../promptCacheStrategy'
 
 type CacheAwareAnthropicUsage = Usage & {
   cache_read_input_tokens?: number
@@ -112,7 +116,15 @@ export class AnthropicProvider extends BaseLLMProvider {
       messages: messages as unknown[],
       conversationId
     })
-    return applyAnthropicTopLevelCacheControl(requestParams, plan)
+    const nextRequestParams =
+      plan.mode === 'anthropic_explicit'
+        ? {
+            ...requestParams,
+            messages: applyAnthropicExplicitCacheBreakpoint(messages, plan)
+          }
+        : requestParams
+
+    return applyAnthropicTopLevelCacheControl(nextRequestParams, plan)
   }
 
   public onProxyResolved(): void {

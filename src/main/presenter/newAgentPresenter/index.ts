@@ -2213,8 +2213,8 @@ export class NewAgentPresenter {
           modelId,
           metadata: {
             ...metadata,
-            cachedInputTokens: 0,
-            cacheWriteInputTokens: 0
+            cachedInputTokens: metadata.cachedInputTokens ?? 0,
+            cacheWriteInputTokens: metadata.cacheWriteInputTokens ?? 0
           },
           source: 'backfill'
         })

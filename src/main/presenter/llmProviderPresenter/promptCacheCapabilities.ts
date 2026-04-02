@@ -25,6 +25,14 @@ export function resolvePromptCacheMode(providerId: string, modelId: string): Pro
   }
 
   if (
+    normalizedProviderId === 'zenmux' &&
+    normalizedModelId.startsWith('anthropic/') &&
+    isClaudeModel(normalizedModelId)
+  ) {
+    return 'anthropic_explicit'
+  }
+
+  if (
     normalizedProviderId === 'aws-bedrock' &&
     (normalizedModelId.includes('anthropic.claude') || isClaudeModel(normalizedModelId))
   ) {
