@@ -56,8 +56,11 @@
     </aside>
 
     <main class="min-w-0 flex-1 overflow-y-auto">
-      <div class="mx-auto flex w-full max-w-5xl flex-col gap-6 px-6 py-6">
-        <div class="flex items-start justify-between gap-4">
+      <div
+        data-testid="deepchat-agents-sticky-header"
+        class="sticky top-0 z-20 border-b border-border/80 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/85"
+      >
+        <div class="mx-auto flex w-full max-w-5xl items-start justify-between gap-4 px-6 py-4">
           <div class="flex items-center gap-4">
             <div
               class="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-border/70 bg-muted/40"
@@ -99,7 +102,9 @@
             </Button>
           </div>
         </div>
+      </div>
 
+      <div class="mx-auto flex w-full max-w-5xl flex-col gap-6 px-6 py-6">
         <section class="grid gap-4 rounded-2xl border border-border p-5 md:grid-cols-2">
           <label class="space-y-2">
             <div class="text-sm font-medium">{{ t('settings.deepchatAgents.name') }}</div>
@@ -550,7 +555,13 @@
               <div class="text-sm font-medium">
                 {{ `${t('settings.deepchatAgents.compactionThreshold')} (%)` }}
               </div>
-              <Input v-model="form.autoCompactionTriggerThreshold" type="number" min="5" max="95" />
+              <Input
+                v-model="form.autoCompactionTriggerThreshold"
+                data-testid="auto-compaction-trigger-threshold-input"
+                type="number"
+                min="5"
+                max="95"
+              />
             </label>
             <label class="space-y-2">
               <div class="text-sm font-medium">
@@ -558,6 +569,7 @@
               </div>
               <Input
                 v-model="form.autoCompactionRetainRecentPairs"
+                data-testid="auto-compaction-retain-recent-pairs-input"
                 type="number"
                 min="1"
                 max="10"
@@ -661,6 +673,7 @@ type ToolGroup = {
   label: string
   tools: MCPToolDefinition[]
 }
+type EditableNumberValue = string | number
 type FormState = {
   id: string | null
   protected: boolean
@@ -683,13 +696,19 @@ type FormState = {
   subagents: EditableSubagentSlot[]
   disabledAgentTools: string[]
   autoCompactionEnabled: boolean
-  autoCompactionTriggerThreshold: string
-  autoCompactionRetainRecentPairs: string
+  autoCompactionTriggerThreshold: EditableNumberValue
+  autoCompactionRetainRecentPairs: EditableNumberValue
 }
 
 const LUCIDE_ICONS = ['bot', 'sparkles', 'brain', 'code', 'book-open', 'pen-tool', 'rocket']
 const DRAFT_AGENT_ID = '__draft_deepchat_agent__'
 const CURRENT_SUBAGENT_TARGET = '__current_agent__'
+const AUTO_COMPACTION_TRIGGER_THRESHOLD_DEFAULT = 80
+const AUTO_COMPACTION_TRIGGER_THRESHOLD_MIN = 5
+const AUTO_COMPACTION_TRIGGER_THRESHOLD_MAX = 95
+const AUTO_COMPACTION_RETAIN_RECENT_PAIRS_DEFAULT = 2
+const AUTO_COMPACTION_RETAIN_RECENT_PAIRS_MIN = 1
+const AUTO_COMPACTION_RETAIN_RECENT_PAIRS_MAX = 10
 const GROUP_ORDER = [
   'agent-filesystem',
   'agent-core',
@@ -978,12 +997,35 @@ const normalizePath = (value: string | null | undefined) => {
   const normalized = value?.trim()
   return normalized ? normalized : null
 }
-const parseNum = (value: string) => {
-  const normalized = value.trim()
-  if (!normalized) return undefined
-  const parsed = Number(normalized)
-  return Number.isFinite(parsed) ? parsed : undefined
+const normalizeNumericInput = (
+  value: EditableNumberValue | null | undefined,
+  options: { fallback: number; min: number; max: number; integer?: boolean }
+) => {
+  if (value === '' || value === null || value === undefined) {
+    return options.fallback
+  }
+
+  const parsed = typeof value === 'number' ? value : Number(value.trim())
+  if (!Number.isFinite(parsed)) {
+    return options.fallback
+  }
+
+  const normalized = options.integer ? Math.round(parsed) : parsed
+  return Math.min(options.max, Math.max(options.min, normalized))
 }
+const normalizeAutoCompactionTriggerThreshold = (value: EditableNumberValue | null | undefined) =>
+  normalizeNumericInput(value, {
+    fallback: AUTO_COMPACTION_TRIGGER_THRESHOLD_DEFAULT,
+    min: AUTO_COMPACTION_TRIGGER_THRESHOLD_MIN,
+    max: AUTO_COMPACTION_TRIGGER_THRESHOLD_MAX
+  })
+const normalizeAutoCompactionRetainRecentPairs = (value: EditableNumberValue | null | undefined) =>
+  normalizeNumericInput(value, {
+    fallback: AUTO_COMPACTION_RETAIN_RECENT_PAIRS_DEFAULT,
+    min: AUTO_COMPACTION_RETAIN_RECENT_PAIRS_MIN,
+    max: AUTO_COMPACTION_RETAIN_RECENT_PAIRS_MAX,
+    integer: true
+  })
 const createAgentSlotId = () =>
   `slot-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`
 const numText = (value: unknown) =>
@@ -1042,8 +1084,12 @@ const fromAgent = (agent?: Agent | null): FormState => {
     subagents: normalizeDeepChatSubagentSlots(config.subagents),
     disabledAgentTools: [...(config.disabledAgentTools ?? [])],
     autoCompactionEnabled: config.autoCompactionEnabled ?? true,
-    autoCompactionTriggerThreshold: numText(config.autoCompactionTriggerThreshold ?? 80),
-    autoCompactionRetainRecentPairs: numText(config.autoCompactionRetainRecentPairs ?? 2)
+    autoCompactionTriggerThreshold: numText(
+      config.autoCompactionTriggerThreshold ?? AUTO_COMPACTION_TRIGGER_THRESHOLD_DEFAULT
+    ),
+    autoCompactionRetainRecentPairs: numText(
+      config.autoCompactionRetainRecentPairs ?? AUTO_COMPACTION_RETAIN_RECENT_PAIRS_DEFAULT
+    )
   }
 }
 const modelText = (selection: EditableModel | undefined) => {
@@ -1253,8 +1299,12 @@ const saveAgent = async () => {
         subagents: normalizeDeepChatSubagentSlots(form.subagents),
         disabledAgentTools: [...form.disabledAgentTools],
         autoCompactionEnabled: form.autoCompactionEnabled,
-        autoCompactionTriggerThreshold: parseNum(form.autoCompactionTriggerThreshold) ?? 80,
-        autoCompactionRetainRecentPairs: parseNum(form.autoCompactionRetainRecentPairs) ?? 2
+        autoCompactionTriggerThreshold: normalizeAutoCompactionTriggerThreshold(
+          form.autoCompactionTriggerThreshold
+        ),
+        autoCompactionRetainRecentPairs: normalizeAutoCompactionRetainRecentPairs(
+          form.autoCompactionRetainRecentPairs
+        )
       }
     }
     if (form.id) {
