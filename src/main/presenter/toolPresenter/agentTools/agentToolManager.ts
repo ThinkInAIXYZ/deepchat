@@ -72,6 +72,25 @@ interface AgentToolManagerOptions {
   runtimePort: AgentToolRuntimePort
 }
 
+const createAbortError = (): Error => {
+  if (typeof DOMException !== 'undefined') {
+    return new DOMException('Aborted', 'AbortError')
+  }
+
+  const error = new Error('Aborted')
+  error.name = 'AbortError'
+  return error
+}
+
+const throwIfAbortRequested = (signal?: AbortSignal): void => {
+  if (signal?.aborted) {
+    throw createAbortError()
+  }
+}
+
+const isAbortError = (error: unknown): boolean =>
+  error instanceof Error && (error.name === 'AbortError' || error.name === 'CanceledError')
+
 export class AgentToolManager {
   private static readonly YO_BROWSER_TOOL_NAME_SET = new Set<string>(YO_BROWSER_TOOL_NAMES)
   private agentWorkspacePath: string | null
@@ -414,7 +433,7 @@ export class AgentToolManager {
       if (!this.fileSystemHandler) {
         throw new Error(`FileSystem handler not initialized for tool: ${toolName}`)
       }
-      return await this.callFileSystemTool(toolName, args, conversationId)
+      return await this.callFileSystemTool(toolName, args, conversationId, options)
     }
 
     // Route to Skill tools
@@ -691,7 +710,10 @@ export class AgentToolManager {
   private async callFileSystemTool(
     toolName: string,
     args: Record<string, unknown>,
-    conversationId?: string
+    conversationId?: string,
+    options?: {
+      signal?: AbortSignal
+    }
   ): Promise<AgentToolCallResult> {
     // Handle process tool separately
     if (this.isProcessTool(toolName)) {
@@ -798,7 +820,12 @@ export class AgentToolManager {
 
           if (this.isImageMimeType(mimeType)) {
             return {
-              content: await this.readImageWithVisionFallback(validPath, mimeType, conversationId)
+              content: await this.readImageWithVisionFallback(
+                validPath,
+                mimeType,
+                conversationId,
+                options?.signal
+              )
             }
           }
 
@@ -1194,9 +1221,12 @@ export class AgentToolManager {
   private async readImageWithVisionFallback(
     filePath: string,
     mimeType: string,
-    conversationId?: string
+    conversationId?: string,
+    signal?: AbortSignal
   ): Promise<string> {
+    throwIfAbortRequested(signal)
     const fileBuffer = await fs.promises.readFile(filePath)
+    throwIfAbortRequested(signal)
     const metadata = this.buildImageMetadataBlock(filePath, mimeType, fileBuffer.length)
     let visionTarget: Awaited<ReturnType<typeof this.resolveVisionTargetForConversation>>
 
@@ -1216,6 +1246,7 @@ export class AgentToolManager {
     }
 
     try {
+      throwIfAbortRequested(signal)
       const dataUrl = `data:${mimeType};base64,${fileBuffer.toString('base64')}`
       const messages: ChatMessage[] = [
         {
@@ -1237,14 +1268,29 @@ export class AgentToolManager {
         visionTarget.modelId,
         visionTarget.providerId
       )
-      await this.getLlmProviderPresenter().executeWithRateLimit(visionTarget.providerId)
-      const response = await this.getLlmProviderPresenter().generateCompletionStandalone(
-        visionTarget.providerId,
-        messages,
-        visionTarget.modelId,
-        modelConfig?.temperature ?? 0.2,
-        modelConfig?.maxTokens ?? 1200
-      )
+      const llmProviderPresenter = this.getLlmProviderPresenter()
+      if (signal) {
+        await llmProviderPresenter.executeWithRateLimit(visionTarget.providerId, { signal })
+      } else {
+        await llmProviderPresenter.executeWithRateLimit(visionTarget.providerId)
+      }
+      throwIfAbortRequested(signal)
+      const response = signal
+        ? await llmProviderPresenter.generateCompletionStandalone(
+            visionTarget.providerId,
+            messages,
+            visionTarget.modelId,
+            modelConfig?.temperature ?? 0.2,
+            modelConfig?.maxTokens ?? 1200,
+            { signal }
+          )
+        : await llmProviderPresenter.generateCompletionStandalone(
+            visionTarget.providerId,
+            messages,
+            visionTarget.modelId,
+            modelConfig?.temperature ?? 0.2,
+            modelConfig?.maxTokens ?? 1200
+          )
 
       const normalized = (response || '').trim()
       if (!normalized) {
@@ -1252,6 +1298,9 @@ export class AgentToolManager {
       }
       return normalized
     } catch (error) {
+      if (isAbortError(error)) {
+        throw error
+      }
       const message = error instanceof Error ? error.message : String(error)
       return `${metadata}\n\nVision analysis failed, downgraded to metadata.\nerror: ${message}`
     }

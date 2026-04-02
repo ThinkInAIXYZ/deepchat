@@ -798,7 +798,12 @@ describe('DeepChatAgentPresenter', () => {
       await agent.processMessage('s1', 'new prompt')
 
       expect(llmProvider.generateText).toHaveBeenCalledTimes(1)
-      expect(llmProvider.executeWithRateLimit).toHaveBeenCalledWith('openai')
+      expect(llmProvider.executeWithRateLimit).toHaveBeenCalledWith(
+        'openai',
+        expect.objectContaining({
+          signal: expect.any(AbortSignal)
+        })
+      )
       expect(
         sqlitePresenter.deepchatSessionsTable.updateSummaryStateIfMatches
       ).toHaveBeenCalledWith(
@@ -964,7 +969,16 @@ describe('DeepChatAgentPresenter', () => {
     it('does not call provider.coreStream when a queued request is canceled', async () => {
       const abortError = new Error('Aborted')
       abortError.name = 'AbortError'
-      const queued = Promise.withResolvers<void>()
+      let queuedResolve!: (value?: void | PromiseLike<void>) => void
+      let queuedReject!: (reason?: unknown) => void
+      const queued = {
+        promise: new Promise<void>((resolve, reject) => {
+          queuedResolve = resolve
+          queuedReject = reject
+        }),
+        resolve: queuedResolve,
+        reject: queuedReject
+      }
       llmProvider.executeWithRateLimit.mockImplementation(
         (
           _providerId: string,
@@ -1428,9 +1442,47 @@ describe('DeepChatAgentPresenter', () => {
 
       expect(prepareForNextUserTurn).toHaveBeenCalledWith(
         expect.objectContaining({
-          preserveInterleavedReasoning: true
+          preserveInterleavedReasoning: true,
+          signal: expect.any(AbortSignal)
         })
       )
+    })
+
+    it('passes abort signals into next-turn compaction execution', async () => {
+      const compactionIntent = {
+        sessionId: 's1',
+        previousState: {
+          summaryText: null,
+          summaryCursorOrderSeq: 1,
+          summaryUpdatedAt: null
+        },
+        targetCursorOrderSeq: 3,
+        summaryBlocks: ['summarize this'],
+        currentModel: {
+          providerId: 'openai',
+          modelId: 'gpt-4',
+          contextLength: 128000
+        },
+        reserveTokens: 4096
+      }
+      vi.spyOn((agent as any).compactionService, 'prepareForNextUserTurn').mockResolvedValue(
+        compactionIntent
+      )
+      const applyCompaction = vi
+        .spyOn((agent as any).compactionService, 'applyCompaction')
+        .mockResolvedValue({
+          succeeded: true,
+          summaryState: {
+            summaryText: 'rolled summary',
+            summaryCursorOrderSeq: 3,
+            summaryUpdatedAt: 123
+          }
+        })
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.processMessage('s1', 'Hello')
+
+      expect(applyCompaction).toHaveBeenCalledWith(compactionIntent, expect.any(AbortSignal))
     })
 
     it('injects request trace context when trace debug is enabled', async () => {
@@ -2421,6 +2473,10 @@ describe('DeepChatAgentPresenter', () => {
     }
 
     it('handles question_option and resumes assistant message', async () => {
+      const prepareForResumeTurn = vi.spyOn(
+        (agent as any).compactionService,
+        'prepareForResumeTurn'
+      )
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       makeAssistantRow({
         blocks: [
@@ -2464,6 +2520,11 @@ describe('DeepChatAgentPresenter', () => {
       expect(updatedBlocks[0].status).toBe('success')
       expect(updatedBlocks[1].status).toBe('success')
       expect(updatedBlocks[1].extra.answerText).toBe('A')
+      expect(prepareForResumeTurn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          signal: expect.any(AbortSignal)
+        })
+      )
       expect(processStream).toHaveBeenCalledTimes(1)
     })
 

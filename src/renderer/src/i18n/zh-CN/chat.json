@@ -83,7 +83,7 @@
   "messages": {
     "thinking": "正在思考...",
     "rateLimitWaiting": "请求频率限制，正在排队等待...",
-    "rateLimitCompactLoading": "限速中（第 {seconds} 秒）",
+    "rateLimitCompactLoading": "限速中（{seconds} 秒）",
     "rateLimitTitle": "请求频率限制",
     "rateLimitQueue": "队列位置",
     "rateLimitEstimated": "预计等待",

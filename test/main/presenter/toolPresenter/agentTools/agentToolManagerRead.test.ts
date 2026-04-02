@@ -205,6 +205,65 @@ describe('AgentToolManager read routing', () => {
     )
   })
 
+  it('propagates abort signals to queued image analysis waits', async () => {
+    const filePath = path.join(workspaceDir, 'image-abort.png')
+    await fs.writeFile(filePath, Buffer.from([4, 3, 2, 1]))
+    filePresenter.getMimeType.mockResolvedValue('image/png')
+    resolveConversationSessionInfo.mockResolvedValue({
+      agentId: 'deepchat',
+      providerId: 'openai',
+      modelId: 'gpt-4o'
+    })
+    configPresenter.getModelConfig.mockImplementation((modelId: string, providerId?: string) => ({
+      temperature: 0.2,
+      maxTokens: 1200,
+      vision: providerId === 'openai' && modelId === 'gpt-4o'
+    }))
+
+    const abortController = new AbortController()
+    const abortError = new Error('Aborted')
+    abortError.name = 'AbortError'
+    let queuedResolve!: () => void
+    const queued = new Promise<void>((resolve) => {
+      queuedResolve = resolve
+    })
+
+    llmProviderPresenter.executeWithRateLimit.mockImplementation(
+      async (_providerId: string, options?: { signal?: AbortSignal }) =>
+        await new Promise<void>((_resolve, reject) => {
+          queuedResolve()
+
+          if (options?.signal?.aborted) {
+            reject(abortError)
+            return
+          }
+
+          options?.signal?.addEventListener(
+            'abort',
+            () => {
+              reject(abortError)
+            },
+            { once: true }
+          )
+        })
+    )
+
+    const resultPromise = manager.callTool('read', { path: 'image-abort.png' }, 'conv1', {
+      signal: abortController.signal
+    })
+    await queued
+    abortController.abort()
+
+    await expect(resultPromise).rejects.toMatchObject({ name: 'AbortError' })
+    expect(llmProviderPresenter.executeWithRateLimit).toHaveBeenCalledWith(
+      'openai',
+      expect.objectContaining({
+        signal: abortController.signal
+      })
+    )
+    expect(llmProviderPresenter.generateCompletionStandalone).not.toHaveBeenCalled()
+  })
+
   it('falls back to image metadata when neither the current model nor the agent can analyze images', async () => {
     const filePath = path.join(workspaceDir, 'image-no-vision.png')
     await fs.writeFile(filePath, Buffer.from([9, 8, 7, 6]))

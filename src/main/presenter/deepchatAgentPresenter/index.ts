@@ -389,12 +389,16 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     )
 
     this.setSessionStatus(sessionId, 'generating')
+    const preStreamAbortController = this.ensureSessionAbortController(sessionId)
+    const preStreamAbortSignal = preStreamAbortController.signal
     let consumedPendingQueueItem = false
     let userMessageId: string | null = null
     let assistantMessageId: string | null = null
 
     try {
+      this.throwIfAbortRequested(preStreamAbortSignal)
       const generationSettings = await this.getEffectiveSessionGenerationSettings(sessionId)
+      this.throwIfAbortRequested(preStreamAbortSignal)
       const interleavedReasoning = this.resolveInterleavedReasoningConfig(
         state.providerId,
         state.modelId,
@@ -402,11 +406,13 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       )
       const maxTokens = generationSettings.maxTokens
       const tools = await this.loadToolDefinitionsForSession(sessionId, projectDir)
+      this.throwIfAbortRequested(preStreamAbortSignal)
       const baseSystemPrompt = await this.buildSystemPromptWithSkills(
         sessionId,
         generationSettings.systemPrompt,
         tools
       )
+      this.throwIfAbortRequested(preStreamAbortSignal)
       const historyRecords = this.messageStore
         .getMessages(sessionId)
         .filter((message) => message.status === 'sent')
@@ -427,7 +433,8 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
         reserveTokens: maxTokens,
         supportsVision,
         preserveInterleavedReasoning: interleavedReasoning.preserveReasoningContent,
-        newUserContent: normalizedInput
+        newUserContent: normalizedInput,
+        signal: preStreamAbortSignal
       })
       let summaryState: SessionSummaryState
 
@@ -450,7 +457,8 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
         })
         summaryState = await this.applyCompactionIntent(sessionId, compactionIntent, {
           compactionMessageId,
-          startedExternally: true
+          startedExternally: true,
+          signal: preStreamAbortSignal
         })
       } else {
         summaryState = this.sessionStore.getSummaryState(sessionId)
@@ -463,6 +471,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       if (!userMessageId) {
         throw new Error('Failed to create user message.')
       }
+      this.throwIfAbortRequested(preStreamAbortSignal)
       this.emitMessageRefresh(sessionId, userMessageId)
 
       this.dispatchHook('UserPromptSubmit', {
@@ -492,6 +501,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
 
       const assistantOrderSeq = this.messageStore.getNextOrderSeq(sessionId)
       assistantMessageId = this.messageStore.createAssistantMessage(sessionId, assistantOrderSeq)
+      this.throwIfAbortRequested(preStreamAbortSignal)
 
       if (context?.pendingQueueItemId) {
         this.pendingInputCoordinator.consumeQueuedInput(sessionId, context.pendingQueueItemId)
@@ -531,6 +541,27 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
           console.warn('[DeepChatAgent] failed to release claimed queue input:', releaseError)
         }
       }
+      if (this.isAbortError(err) || preStreamAbortSignal.aborted) {
+        if (userMessageId) {
+          this.emitMessageRefresh(sessionId, userMessageId)
+        }
+        if (assistantMessageId) {
+          const existingAssistant = this.messageStore.getMessage(assistantMessageId)
+          const blocks = buildTerminalErrorBlocks(
+            existingAssistant ? this.parseAssistantBlocks(existingAssistant.content) : [],
+            'common.error.userCanceledGeneration'
+          )
+          this.messageStore.setMessageError(assistantMessageId, blocks)
+          this.emitMessageRefresh(sessionId, assistantMessageId)
+        }
+        this.dispatchTerminalHooks(sessionId, state, {
+          status: 'aborted',
+          stopReason: 'user_stop',
+          errorMessage: 'common.error.userCanceledGeneration'
+        })
+        this.setSessionStatus(sessionId, 'idle')
+        return
+      }
       const errorMessage = err instanceof Error ? err.message : String(err)
       if (assistantMessageId) {
         const existingAssistant = this.messageStore.getMessage(assistantMessageId)
@@ -556,6 +587,8 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
         error: { message: errorMessage }
       })
       this.setSessionStatus(sessionId, 'error')
+    } finally {
+      this.clearSessionAbortController(sessionId, preStreamAbortController)
     }
   }
 
@@ -1043,6 +1076,33 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       this.activeGenerations.get(sessionId)?.abortController.signal ??
       this.abortControllers.get(sessionId)?.signal
     )
+  }
+
+  private ensureSessionAbortController(sessionId: string): AbortController {
+    const activeGeneration = this.activeGenerations.get(sessionId)
+    if (activeGeneration) {
+      return activeGeneration.abortController
+    }
+
+    const existing = this.abortControllers.get(sessionId)
+    if (existing) {
+      existing.abort()
+    }
+
+    const controller = new AbortController()
+    this.abortControllers.set(sessionId, controller)
+    return controller
+  }
+
+  private clearSessionAbortController(sessionId: string, controller?: AbortController): void {
+    const current = this.abortControllers.get(sessionId)
+    if (!current) {
+      return
+    }
+    if (controller && current !== controller) {
+      return
+    }
+    this.abortControllers.delete(sessionId)
   }
 
   private buildDeferredToolAbortKey(sessionId: string, toolCallId: string): string {
@@ -1778,6 +1838,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       return false
     }
     this.resumingMessages.add(messageId)
+    let preStreamAbortController: AbortController | null = null
 
     try {
       const state = this.runtimeState.get(sessionId)
@@ -1786,7 +1847,11 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       }
 
       this.setSessionStatus(sessionId, 'generating')
+      preStreamAbortController = this.ensureSessionAbortController(sessionId)
+      const preStreamAbortSignal = preStreamAbortController.signal
+      this.throwIfAbortRequested(preStreamAbortSignal)
       const generationSettings = await this.getEffectiveSessionGenerationSettings(sessionId)
+      this.throwIfAbortRequested(preStreamAbortSignal)
       const interleavedReasoning = this.resolveInterleavedReasoningConfig(
         state.providerId,
         state.modelId,
@@ -1795,11 +1860,13 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       const maxTokens = generationSettings.maxTokens
       const projectDir = this.resolveProjectDir(sessionId)
       const tools = await this.loadToolDefinitionsForSession(sessionId, projectDir)
+      this.throwIfAbortRequested(preStreamAbortSignal)
       const baseSystemPrompt = await this.buildSystemPromptWithSkills(
         sessionId,
         generationSettings.systemPrompt,
         tools
       )
+      this.throwIfAbortRequested(preStreamAbortSignal)
       const summaryState = await this.resolveCompactionStateForResumeTurn({
         sessionId,
         messageId,
@@ -1809,8 +1876,10 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
         contextLength: generationSettings.contextLength,
         reserveTokens: maxTokens,
         supportsVision: this.supportsVision(state.providerId, state.modelId),
-        preserveInterleavedReasoning: interleavedReasoning.preserveReasoningContent
+        preserveInterleavedReasoning: interleavedReasoning.preserveReasoningContent,
+        signal: preStreamAbortSignal
       })
+      this.throwIfAbortRequested(preStreamAbortSignal)
       const systemPrompt = appendSummarySection(baseSystemPrompt, summaryState.summaryText)
       let resumeContext = buildResumeContext(
         sessionId,
@@ -1862,6 +1931,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
         }
       }
 
+      this.throwIfAbortRequested(preStreamAbortSignal)
       const { runId, result } = await this.runStreamForMessage({
         sessionId,
         messageId,
@@ -1882,6 +1952,21 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       return true
     } catch (error) {
       console.error('[DeepChatAgent] resumeAssistantMessage error:', error)
+      if (this.isAbortError(error)) {
+        const blocks = buildTerminalErrorBlocks(
+          initialBlocks,
+          'common.error.userCanceledGeneration'
+        )
+        this.messageStore.setMessageError(messageId, blocks)
+        this.emitMessageRefresh(sessionId, messageId)
+        this.dispatchTerminalHooks(sessionId, this.runtimeState.get(sessionId), {
+          status: 'aborted',
+          stopReason: 'user_stop',
+          errorMessage: 'common.error.userCanceledGeneration'
+        })
+        this.setSessionStatus(sessionId, 'idle')
+        return false
+      }
       const errorMessage = error instanceof Error ? error.message : String(error)
       const blocks = buildTerminalErrorBlocks(initialBlocks, errorMessage)
       this.messageStore.setMessageError(messageId, blocks)
@@ -1889,6 +1974,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       this.setSessionStatus(sessionId, 'error')
       throw error
     } finally {
+      this.clearSessionAbortController(sessionId, preStreamAbortController ?? undefined)
       this.resumingMessages.delete(messageId)
     }
   }
@@ -3482,9 +3568,10 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     reserveTokens: number
     supportsVision: boolean
     preserveInterleavedReasoning: boolean
+    signal?: AbortSignal
   }): Promise<SessionSummaryState> {
     const intent = await this.compactionService.prepareForResumeTurn(params)
-    return await this.applyCompactionIntent(params.sessionId, intent)
+    return await this.applyCompactionIntent(params.sessionId, intent, { signal: params.signal })
   }
 
   private async applyCompactionIntent(
@@ -3493,6 +3580,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     options?: {
       compactionMessageId?: string
       startedExternally?: boolean
+      signal?: AbortSignal
     }
   ): Promise<SessionSummaryState> {
     if (!intent) {
@@ -3517,7 +3605,20 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       })
     }
 
-    const result = await this.compactionService.applyCompaction(intent)
+    let result: Awaited<ReturnType<CompactionService['applyCompaction']>>
+    try {
+      result = await this.compactionService.applyCompaction(intent, options?.signal)
+    } catch (error) {
+      if (this.isAbortError(error)) {
+        this.messageStore.deleteMessage(compactionMessageId)
+        this.emitMessageRefresh(sessionId, compactionMessageId)
+        this.emitCompactionState(
+          sessionId,
+          this.summaryStateToCompactionState(intent.previousState)
+        )
+      }
+      throw error
+    }
     if (result.succeeded) {
       this.messageStore.updateCompactionMessage(
         compactionMessageId,

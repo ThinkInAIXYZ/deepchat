@@ -21,6 +21,25 @@ const SAFETY_MARGIN = 1.2
 const SUMMARIZATION_OVERHEAD_TOKENS = 4096
 const SUMMARY_OUTPUT_TOKENS_CAP = 2048
 
+const createAbortError = (): Error => {
+  if (typeof DOMException !== 'undefined') {
+    return new DOMException('Aborted', 'AbortError')
+  }
+
+  const error = new Error('Aborted')
+  error.name = 'AbortError'
+  return error
+}
+
+const throwIfAbortRequested = (signal?: AbortSignal): void => {
+  if (signal?.aborted) {
+    throw createAbortError()
+  }
+}
+
+const isAbortError = (error: unknown): boolean =>
+  error instanceof Error && (error.name === 'AbortError' || error.name === 'CanceledError')
+
 export type ModelSpec = {
   providerId: string
   modelId: string
@@ -215,8 +234,11 @@ export class CompactionService {
     supportsVision: boolean
     preserveInterleavedReasoning: boolean
     newUserContent: string | SendMessageInput
+    signal?: AbortSignal
   }): Promise<CompactionIntent | null> {
+    throwIfAbortRequested(params.signal)
     const settings = await this.getCompactionSettings(params.sessionId)
+    throwIfAbortRequested(params.signal)
     if (!settings.enabled) {
       return null
     }
@@ -245,8 +267,11 @@ export class CompactionService {
     reserveTokens: number
     supportsVision: boolean
     preserveInterleavedReasoning: boolean
+    signal?: AbortSignal
   }): Promise<CompactionIntent | null> {
+    throwIfAbortRequested(params.signal)
     const settings = await this.getCompactionSettings(params.sessionId)
+    throwIfAbortRequested(params.signal)
     if (!settings.enabled) {
       return null
     }
@@ -279,14 +304,19 @@ export class CompactionService {
     })
   }
 
-  async applyCompaction(intent: CompactionIntent): Promise<CompactionExecutionResult> {
+  async applyCompaction(
+    intent: CompactionIntent,
+    signal?: AbortSignal
+  ): Promise<CompactionExecutionResult> {
     try {
+      throwIfAbortRequested(signal)
       const nextSummary = await this.generateRollingSummary({
         sessionId: intent.sessionId,
         previousSummary: intent.previousState.summaryText,
         summaryBlocks: intent.summaryBlocks,
         currentModel: intent.currentModel,
-        reserveTokens: intent.reserveTokens
+        reserveTokens: intent.reserveTokens,
+        signal
       })
 
       const updatedState: SessionSummaryState = {
@@ -313,6 +343,9 @@ export class CompactionService {
         summaryState: compareAndSet.currentState
       }
     } catch (error) {
+      if (signal?.aborted || isAbortError(error)) {
+        throw error
+      }
       console.warn(`[CompactionService] Failed to compact session ${intent.sessionId}:`, error)
       return {
         succeeded: false,
@@ -496,9 +529,12 @@ export class CompactionService {
     summaryBlocks: string[]
     currentModel: ModelSpec
     reserveTokens: number
+    signal?: AbortSignal
   }): Promise<string> {
+    throwIfAbortRequested(params.signal)
     const currentModel = params.currentModel
     const assistantModel = await this.getAssistantModelSpec(params.sessionId, currentModel)
+    throwIfAbortRequested(params.signal)
     const previousSummaryTokens = approximateTokenSize(params.previousSummary || '')
     const blockTokens = params.summaryBlocks.reduce(
       (total, block) => total + approximateTokenSize(block),
@@ -515,7 +551,8 @@ export class CompactionService {
     return await this.summarizeBlocks(params.summaryBlocks, {
       previousSummary: params.previousSummary,
       model: preferredModel,
-      reserveTokens: params.reserveTokens
+      reserveTokens: params.reserveTokens,
+      signal: params.signal
     })
   }
 
@@ -525,8 +562,10 @@ export class CompactionService {
       previousSummary: string | null
       model: ModelSpec
       reserveTokens: number
+      signal?: AbortSignal
     }
   ): Promise<string> {
+    throwIfAbortRequested(options.signal)
     const normalizedBlocks = blocks.map((block) => block.trim()).filter(Boolean)
     if (normalizedBlocks.length === 0) {
       const normalizedPrevious = options.previousSummary?.trim()
@@ -546,7 +585,8 @@ export class CompactionService {
         options.model,
         options.reserveTokens,
         options.previousSummary,
-        normalizedBlocks.join('\n\n')
+        normalizedBlocks.join('\n\n'),
+        options.signal
       )
     }
 
@@ -569,7 +609,8 @@ export class CompactionService {
             options.model,
             options.reserveTokens,
             options.previousSummary,
-            joinedSplitBlocks
+            joinedSplitBlocks,
+            options.signal
           )
         }
 
@@ -596,16 +637,20 @@ export class CompactionService {
       previousSummary: string | null
       model: ModelSpec
       reserveTokens: number
+      signal?: AbortSignal
     }
   ): Promise<string> {
+    throwIfAbortRequested(options.signal)
     const chunkSummaries: string[] = []
     for (const chunk of chunkGroups) {
+      throwIfAbortRequested(options.signal)
       chunkSummaries.push(
         await this.generateSummaryText(
           options.model,
           options.reserveTokens,
           null,
-          chunk.join('\n\n')
+          chunk.join('\n\n'),
+          options.signal
         )
       )
     }
@@ -701,10 +746,17 @@ export class CompactionService {
     model: ModelSpec,
     reserveTokens: number,
     previousSummary: string | null,
-    spanText: string
+    spanText: string,
+    signal?: AbortSignal
   ): Promise<string> {
+    throwIfAbortRequested(signal)
     const prompt = this.buildSummaryPrompt(previousSummary, spanText)
-    await this.llmProviderPresenter.executeWithRateLimit(model.providerId)
+    if (signal) {
+      await this.llmProviderPresenter.executeWithRateLimit(model.providerId, { signal })
+    } else {
+      await this.llmProviderPresenter.executeWithRateLimit(model.providerId)
+    }
+    throwIfAbortRequested(signal)
     const response = await this.llmProviderPresenter.generateText(
       model.providerId,
       prompt,
