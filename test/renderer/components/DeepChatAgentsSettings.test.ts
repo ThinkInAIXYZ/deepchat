@@ -251,6 +251,262 @@ describe('DeepChatAgentsSettings', () => {
     })
   })
 
+  it('saves auto compaction settings when number inputs emit numeric values', async () => {
+    vi.resetModules()
+
+    const existingAgent = {
+      id: 'deepchat',
+      type: 'deepchat',
+      name: 'DeepChat',
+      enabled: true,
+      protected: true,
+      description: 'Writer agent',
+      avatar: null,
+      config: {
+        defaultModelPreset: null,
+        assistantModel: null,
+        visionModel: null,
+        systemPrompt: 'system prompt',
+        permissionMode: 'default',
+        disabledAgentTools: [],
+        autoCompactionEnabled: true,
+        autoCompactionTriggerThreshold: 72,
+        autoCompactionRetainRecentPairs: 4
+      }
+    }
+
+    const configPresenter = {
+      listAgents: vi.fn().mockResolvedValue([existingAgent]),
+      getSystemPrompts: vi.fn().mockResolvedValue([]),
+      updateDeepChatAgent: vi.fn().mockResolvedValue(existingAgent),
+      createDeepChatAgent: vi.fn().mockResolvedValue({ id: 'deepchat-new' }),
+      deleteDeepChatAgent: vi.fn().mockResolvedValue(undefined)
+    }
+    const toolPresenter = {
+      getAllToolDefinitions: vi.fn().mockResolvedValue([])
+    }
+    const projectPresenter = {
+      getRecentProjects: vi.fn().mockResolvedValue([]),
+      selectDirectory: vi.fn().mockResolvedValue(null)
+    }
+    const modelStore = {
+      allProviderModels: [],
+      findModelByIdOrName: vi.fn(() => null)
+    }
+
+    vi.doMock('@/composables/usePresenter', () => ({
+      usePresenter: (name: string) => {
+        if (name === 'configPresenter') return configPresenter
+        if (name === 'projectPresenter') return projectPresenter
+        if (name === 'toolPresenter') return toolPresenter
+        return {}
+      }
+    }))
+    vi.doMock('@/stores/modelStore', () => ({
+      useModelStore: () => modelStore
+    }))
+    vi.doMock('vue-i18n', () => ({
+      useI18n: () => ({
+        t: (key: string) => key
+      })
+    }))
+    vi.doMock('@iconify/vue', () => ({
+      Icon: {
+        name: 'Icon',
+        template: '<span />'
+      }
+    }))
+
+    const DeepChatAgentsSettings = (
+      await import('../../../src/renderer/settings/components/DeepChatAgentsSettings.vue')
+    ).default
+
+    const wrapper = mount(DeepChatAgentsSettings, {
+      global: {
+        stubs: {
+          Button: ButtonStub,
+          Badge: passthrough('Badge'),
+          Input: InputStub,
+          Textarea: TextareaStub,
+          Switch: SwitchStub,
+          Dialog: DialogStub,
+          DialogContent: passthrough('DialogContent'),
+          DialogHeader: passthrough('DialogHeader'),
+          DialogTitle: passthrough('DialogTitle'),
+          DropdownMenu: passthrough('DropdownMenu'),
+          DropdownMenuContent: passthrough('DropdownMenuContent'),
+          DropdownMenuItem: DropdownMenuItemStub,
+          DropdownMenuSeparator: passthrough('DropdownMenuSeparator'),
+          DropdownMenuTrigger: passthrough('DropdownMenuTrigger'),
+          Popover: passthrough('Popover'),
+          PopoverContent: passthrough('PopoverContent'),
+          PopoverTrigger: passthrough('PopoverTrigger'),
+          Select: passthrough('Select'),
+          SelectContent: passthrough('SelectContent'),
+          SelectItem: passthrough('SelectItem'),
+          SelectTrigger: passthrough('SelectTrigger'),
+          SelectValue: passthrough('SelectValue'),
+          ModelSelect: passthrough('ModelSelect'),
+          AgentAvatar: passthrough('AgentAvatar'),
+          ModelIcon: passthrough('ModelIcon'),
+          Icon: true
+        }
+      }
+    })
+
+    await flushPromises()
+
+    wrapper
+      .findComponent('[data-testid="auto-compaction-trigger-threshold-input"]')
+      .vm.$emit('update:modelValue', 91)
+    wrapper
+      .findComponent('[data-testid="auto-compaction-retain-recent-pairs-input"]')
+      .vm.$emit('update:modelValue', 6)
+
+    const saveButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('common.save'))
+
+    expect(saveButton).toBeDefined()
+
+    await saveButton!.trigger('click')
+    await flushPromises()
+
+    expect(configPresenter.updateDeepChatAgent).toHaveBeenCalledTimes(1)
+
+    const [, payload] = configPresenter.updateDeepChatAgent.mock.calls[0]
+    expect(payload.config.autoCompactionTriggerThreshold).toBe(91)
+    expect(payload.config.autoCompactionRetainRecentPairs).toBe(6)
+  })
+
+  it('falls back to default auto compaction values when inputs are blank or invalid', async () => {
+    vi.resetModules()
+
+    const existingAgent = {
+      id: 'deepchat',
+      type: 'deepchat',
+      name: 'DeepChat',
+      enabled: true,
+      protected: true,
+      description: 'Writer agent',
+      avatar: null,
+      config: {
+        defaultModelPreset: null,
+        assistantModel: null,
+        visionModel: null,
+        systemPrompt: 'system prompt',
+        permissionMode: 'default',
+        disabledAgentTools: [],
+        autoCompactionEnabled: true,
+        autoCompactionTriggerThreshold: 72,
+        autoCompactionRetainRecentPairs: 4
+      }
+    }
+
+    const configPresenter = {
+      listAgents: vi.fn().mockResolvedValue([existingAgent]),
+      getSystemPrompts: vi.fn().mockResolvedValue([]),
+      updateDeepChatAgent: vi.fn().mockResolvedValue(existingAgent),
+      createDeepChatAgent: vi.fn().mockResolvedValue({ id: 'deepchat-new' }),
+      deleteDeepChatAgent: vi.fn().mockResolvedValue(undefined)
+    }
+    const toolPresenter = {
+      getAllToolDefinitions: vi.fn().mockResolvedValue([])
+    }
+    const projectPresenter = {
+      getRecentProjects: vi.fn().mockResolvedValue([]),
+      selectDirectory: vi.fn().mockResolvedValue(null)
+    }
+    const modelStore = {
+      allProviderModels: [],
+      findModelByIdOrName: vi.fn(() => null)
+    }
+
+    vi.doMock('@/composables/usePresenter', () => ({
+      usePresenter: (name: string) => {
+        if (name === 'configPresenter') return configPresenter
+        if (name === 'projectPresenter') return projectPresenter
+        if (name === 'toolPresenter') return toolPresenter
+        return {}
+      }
+    }))
+    vi.doMock('@/stores/modelStore', () => ({
+      useModelStore: () => modelStore
+    }))
+    vi.doMock('vue-i18n', () => ({
+      useI18n: () => ({
+        t: (key: string) => key
+      })
+    }))
+    vi.doMock('@iconify/vue', () => ({
+      Icon: {
+        name: 'Icon',
+        template: '<span />'
+      }
+    }))
+
+    const DeepChatAgentsSettings = (
+      await import('../../../src/renderer/settings/components/DeepChatAgentsSettings.vue')
+    ).default
+
+    const wrapper = mount(DeepChatAgentsSettings, {
+      global: {
+        stubs: {
+          Button: ButtonStub,
+          Badge: passthrough('Badge'),
+          Input: InputStub,
+          Textarea: TextareaStub,
+          Switch: SwitchStub,
+          Dialog: DialogStub,
+          DialogContent: passthrough('DialogContent'),
+          DialogHeader: passthrough('DialogHeader'),
+          DialogTitle: passthrough('DialogTitle'),
+          DropdownMenu: passthrough('DropdownMenu'),
+          DropdownMenuContent: passthrough('DropdownMenuContent'),
+          DropdownMenuItem: DropdownMenuItemStub,
+          DropdownMenuSeparator: passthrough('DropdownMenuSeparator'),
+          DropdownMenuTrigger: passthrough('DropdownMenuTrigger'),
+          Popover: passthrough('Popover'),
+          PopoverContent: passthrough('PopoverContent'),
+          PopoverTrigger: passthrough('PopoverTrigger'),
+          Select: passthrough('Select'),
+          SelectContent: passthrough('SelectContent'),
+          SelectItem: passthrough('SelectItem'),
+          SelectTrigger: passthrough('SelectTrigger'),
+          SelectValue: passthrough('SelectValue'),
+          ModelSelect: passthrough('ModelSelect'),
+          AgentAvatar: passthrough('AgentAvatar'),
+          ModelIcon: passthrough('ModelIcon'),
+          Icon: true
+        }
+      }
+    })
+
+    await flushPromises()
+
+    wrapper
+      .findComponent('[data-testid="auto-compaction-trigger-threshold-input"]')
+      .vm.$emit('update:modelValue', '')
+    wrapper
+      .findComponent('[data-testid="auto-compaction-retain-recent-pairs-input"]')
+      .vm.$emit('update:modelValue', 'oops')
+
+    const saveButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('common.save'))
+
+    expect(saveButton).toBeDefined()
+
+    await saveButton!.trigger('click')
+    await flushPromises()
+
+    expect(configPresenter.updateDeepChatAgent).toHaveBeenCalledTimes(1)
+
+    const [, payload] = configPresenter.updateDeepChatAgent.mock.calls[0]
+    expect(payload.config.autoCompactionTriggerThreshold).toBe(80)
+    expect(payload.config.autoCompactionRetainRecentPairs).toBe(2)
+  })
+
   it('fills the system prompt field from a prompt template dialog', async () => {
     vi.resetModules()
 
