@@ -306,6 +306,31 @@
     "groupByProject": "Group by project",
     "pinned": "Pinned",
     "emptyTitle": "No conversations yet",
-    "emptyDescription": "Start a new chat to begin"
+    "emptyDescription": "Start a new chat to begin",
+    "searchPlaceholder": "Search chats",
+    "searchAriaLabel": "Search chats",
+    "searchEmptyTitle": "No matching conversations",
+    "searchEmptyDescription": "Try a different title keyword"
+  },
+  "spotlight": {
+    "placeholder": "Search chats, agents, settings, actions…",
+    "searching": "Searching…",
+    "emptyTitle": "No matching results",
+    "emptyDescription": "Try another keyword or open a recent session.",
+    "hints": "↑↓ move · Enter open · Esc close · Home/End jump",
+    "kind": {
+      "session": "Session",
+      "message": "Message",
+      "agent": "Agent",
+      "setting": "Setting",
+      "action": "Action"
+    }
+  },
+  "inlineSearch": {
+    "placeholder": "Search in conversation",
+    "ariaLabel": "Search in current conversation",
+    "previous": "Previous match",
+    "next": "Next match",
+    "close": "Close search"
   }
 }

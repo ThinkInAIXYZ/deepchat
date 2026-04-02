@@ -290,7 +290,11 @@
     "pinned": "سنجاق‌شده‌ها",
     "emptyTitle": "هنوز گفت‌وگویی وجود ندارد",
     "emptyDescription": "برای شروع، یک گفت‌وگوی جدید آغاز کنید",
-    "remoteControlDisabled": "غیرفعال"
+    "remoteControlDisabled": "غیرفعال",
+    "searchPlaceholder": "جستجوی گفتگوها",
+    "searchAriaLabel": "جستجوی گفتگوها",
+    "searchEmptyTitle": "گفتگوی منطبقی پیدا نشد",
+    "searchEmptyDescription": "یک کلیدواژه دیگر برای عنوان امتحان کنید"
   },
   "floatingWidget": {
     "title": "DeepChat",
@@ -307,5 +311,26 @@
   },
   "subagents": {
     "label": "زیرایجنت‌ها"
+  },
+  "spotlight": {
+    "placeholder": "جست‌وجوی گفتگوها، Agentها، تنظیمات و اقدامات…",
+    "searching": "در حال جست‌وجو…",
+    "emptyTitle": "نتیجهٔ مطابقی پیدا نشد",
+    "emptyDescription": "یک کلیدواژهٔ دیگر را امتحان کنید یا یک نشست اخیر را باز کنید.",
+    "hints": "↑↓ جابه‌جایی · Enter باز کردن · Esc بستن · Home/End پرش",
+    "kind": {
+      "session": "گفتگو",
+      "message": "پیام",
+      "agent": "Agent",
+      "setting": "تنظیمات",
+      "action": "اقدام"
+    }
+  },
+  "inlineSearch": {
+    "placeholder": "جستجو در گفتگو",
+    "ariaLabel": "جستجو در گفتگوی فعلی",
+    "previous": "نتیجه قبلی",
+    "next": "نتیجه بعدی",
+    "close": "بستن جستجو"
   }
 }

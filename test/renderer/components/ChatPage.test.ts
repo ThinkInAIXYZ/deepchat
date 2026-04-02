@@ -34,6 +34,7 @@ type SetupOptions = {
   currentStreamMessageId?: string | null
   pendingInputStorePatch?: Record<string, unknown>
   sessionKind?: 'regular' | 'subagent'
+  spotlightPendingJump?: { sessionId: string; messageId: string } | null
 }
 
 const setup = async (options: SetupOptions = {}) => {
@@ -107,6 +108,13 @@ const setup = async (options: SetupOptions = {}) => {
     forkSession: vi.fn().mockResolvedValue({ id: 'forked' })
   }
 
+  const spotlightStore = reactive({
+    pendingMessageJump: options.spotlightPendingJump ?? null,
+    clearPendingMessageJump: vi.fn(() => {
+      spotlightStore.pendingMessageJump = null
+    })
+  })
+
   vi.doMock('@/stores/ui/session', () => ({
     useSessionStore: () => sessionStore
   }))
@@ -121,6 +129,9 @@ const setup = async (options: SetupOptions = {}) => {
   }))
   vi.doMock('@/composables/usePresenter', () => ({
     usePresenter: () => newAgentPresenter
+  }))
+  vi.doMock('@/stores/ui/spotlight', () => ({
+    useSpotlightStore: () => spotlightStore
   }))
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({
@@ -177,7 +188,7 @@ const setup = async (options: SetupOptions = {}) => {
         }
       },
       template:
-        '<div class="message-list-stub" :data-read-only="String(isReadOnly)" :data-has-rate-limit="String(Boolean(ephemeralRateLimitBlock))" />'
+        '<div class="message-list-stub" :data-read-only="String(isReadOnly)" :data-has-rate-limit="String(Boolean(ephemeralRateLimitBlock))"><div v-for="message in messages" :key="message.id" class="message-item-stub" :data-message-id="message.id" /></div>'
     })
   }))
   vi.doMock('@/components/chat/ChatInputBox.vue', () => ({
@@ -237,6 +248,34 @@ const setup = async (options: SetupOptions = {}) => {
       template: '<div class="chat-tool-interaction-overlay-stub" />'
     })
   }))
+  vi.doMock('@/components/chat/ChatSearchBar.vue', () => ({
+    default: defineComponent({
+      name: 'ChatSearchBar',
+      props: {
+        modelValue: {
+          type: String,
+          default: ''
+        },
+        activeMatch: {
+          type: Number,
+          default: 0
+        },
+        totalMatches: {
+          type: Number,
+          default: 0
+        }
+      },
+      emits: ['update:modelValue', 'previous', 'next', 'close'],
+      setup(_, { expose }) {
+        expose({
+          focusInput: vi.fn(),
+          selectInput: vi.fn()
+        })
+      },
+      template:
+        '<div class="chat-search-bar-stub" :data-active-match="String(activeMatch)" :data-total-matches="String(totalMatches)" />'
+    })
+  }))
   vi.doMock('@/components/trace/TraceDialog.vue', () => ({
     default: passthrough('TraceDialog')
   }))
@@ -253,7 +292,8 @@ const setup = async (options: SetupOptions = {}) => {
   return {
     wrapper,
     messageStore,
-    pendingInputStore
+    pendingInputStore,
+    spotlightStore
   }
 }
 
@@ -434,6 +474,18 @@ describe('ChatPage', () => {
     })
   })
 
+  it('opens the inline search with Ctrl+F and closes it with Escape', async () => {
+    const { wrapper } = await setup()
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'f', ctrlKey: true }))
+    await flushPromises()
+    expect(wrapper.find('.chat-search-bar-stub').exists()).toBe(true)
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    await flushPromises()
+    expect(wrapper.find('.chat-search-bar-stub').exists()).toBe(false)
+  })
+
   it('renders subagent sessions as read-only display mode', async () => {
     const { wrapper } = await setup({
       sessionKind: 'subagent',
@@ -468,5 +520,28 @@ describe('ChatPage', () => {
     expect(wrapper.find('.pending-input-lane-stub').exists()).toBe(false)
     expect(wrapper.find('.chat-tool-interaction-overlay-stub').exists()).toBe(false)
     expect(wrapper.findComponent({ name: 'ChatStatusBar' }).exists()).toBe(false)
+  })
+
+  it('consumes pending spotlight message jumps after loading the target session', async () => {
+    vi.useFakeTimers()
+    const scrollIntoView = vi.fn()
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      value: scrollIntoView,
+      configurable: true
+    })
+
+    const { wrapper, spotlightStore } = await setup({
+      spotlightPendingJump: {
+        sessionId: 's1',
+        messageId: 'm1'
+      }
+    })
+
+    await flushPromises()
+
+    expect(wrapper.find('[data-message-id="m1"]').classes()).toContain('message-highlight')
+    expect(scrollIntoView).toHaveBeenCalled()
+    expect(spotlightStore.clearPendingMessageJump).toHaveBeenCalled()
+    vi.useRealTimers()
   })
 })

@@ -18,6 +18,30 @@ import type {
 import type { AcpConfigState } from './llmprovider.presenter'
 import type { SearchResult } from './thread.presenter'
 
+export interface HistorySearchOptions {
+  limit?: number
+}
+
+export interface HistorySearchSessionHit {
+  kind: 'session'
+  sessionId: string
+  title: string
+  projectDir: string | null
+  updatedAt: number
+}
+
+export interface HistorySearchMessageHit {
+  kind: 'message'
+  sessionId: string
+  messageId: string
+  title: string
+  role: 'user' | 'assistant'
+  snippet: string
+  updatedAt: number
+}
+
+export type HistorySearchHit = HistorySearchSessionHit | HistorySearchMessageHit
+
 export interface INewAgentPresenter {
   createSession(input: CreateSessionInput, webContentsId: number): Promise<SessionWithState>
   createDetachedSession(input: CreateDetachedSessionInput): Promise<SessionWithState>
@@ -61,6 +85,7 @@ export interface INewAgentPresenter {
   }): Promise<SessionWithState[]>
   getSession(sessionId: string): Promise<SessionWithState | null>
   getMessages(sessionId: string): Promise<ChatMessageRecord[]>
+  searchHistory(query: string, options?: HistorySearchOptions): Promise<HistorySearchHit[]>
   getSessionCompactionState(sessionId: string): Promise<SessionCompactionState>
   getSearchResults(messageId: string, searchId?: string): Promise<SearchResult[]>
   getLegacyImportStatus(): Promise<LegacyImportStatus>

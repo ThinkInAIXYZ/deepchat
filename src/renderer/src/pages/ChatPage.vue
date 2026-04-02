@@ -12,21 +12,37 @@
         :project="sessionProject"
         :is-read-only="isReadOnlySession"
       />
-      <MessageList
-        :messages="displayMessages"
-        :conversation-id="props.sessionId"
-        :ephemeral-rate-limit-block="ephemeralRateLimitBlock"
-        :ephemeral-rate-limit-message-id="ephemeralRateLimitMessageId"
-        :is-generating="isGenerating"
-        :trace-message-ids="traceMessageIds"
-        :is-read-only="isReadOnlySession"
-        @retry="onMessageRetry"
-        @delete="onMessageDelete"
-        @fork="onMessageFork"
-        @continue="onMessageContinue"
-        @trace="onMessageTrace"
-        @edit-save="onMessageEditSave"
-      />
+      <div v-if="isChatSearchOpen" class="pointer-events-none sticky top-14 z-20 px-6">
+        <div class="mx-auto flex w-full max-w-5xl justify-end">
+          <ChatSearchBar
+            ref="chatSearchBarRef"
+            v-model="chatSearchQuery"
+            class="pointer-events-auto"
+            :active-match="activeChatSearchIndex"
+            :total-matches="chatSearchMatches.length"
+            @previous="goToPreviousChatSearchMatch"
+            @next="goToNextChatSearchMatch"
+            @close="closeChatSearch"
+          />
+        </div>
+      </div>
+      <div ref="messageSearchRoot">
+        <MessageList
+          :messages="displayMessages"
+          :conversation-id="props.sessionId"
+          :ephemeral-rate-limit-block="ephemeralRateLimitBlock"
+          :ephemeral-rate-limit-message-id="ephemeralRateLimitMessageId"
+          :is-generating="isGenerating"
+          :trace-message-ids="traceMessageIds"
+          :is-read-only="isReadOnlySession"
+          @retry="onMessageRetry"
+          @delete="onMessageDelete"
+          @fork="onMessageFork"
+          @continue="onMessageContinue"
+          @trace="onMessageTrace"
+          @edit-save="onMessageEditSave"
+        />
+      </div>
       <TraceDialog :message-id="traceMessageId" @close="traceMessageId = null" />
 
       <!-- Input area (sticky bottom, messages scroll under) -->
@@ -91,6 +107,7 @@ import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { TooltipProvider } from '@shadcn/components/ui/tooltip'
 import ChatTopBar from '@/components/chat/ChatTopBar.vue'
+import ChatSearchBar from '@/components/chat/ChatSearchBar.vue'
 import MessageList from '@/components/chat/MessageList.vue'
 import type {
   DisplayAssistantMessageBlock,
@@ -107,8 +124,15 @@ import TraceDialog from '@/components/trace/TraceDialog.vue'
 import { useSessionStore } from '@/stores/ui/session'
 import { useMessageStore } from '@/stores/ui/message'
 import { usePendingInputStore } from '@/stores/ui/pendingInput'
+import { useSpotlightStore } from '@/stores/ui/spotlight'
 import { useModelStore } from '@/stores/modelStore'
 import { usePresenter } from '@/composables/usePresenter'
+import {
+  applyChatSearchHighlights,
+  clearChatSearchHighlights,
+  setActiveChatSearchMatch,
+  type ChatSearchMatch
+} from '@/lib/chatSearch'
 import type {
   ChatMessageRecord,
   AssistantMessageBlock,
@@ -124,6 +148,7 @@ const props = defineProps<{
 const sessionStore = useSessionStore()
 const messageStore = useMessageStore()
 const pendingInputStore = usePendingInputStore()
+const spotlightStore = useSpotlightStore()
 const modelStore = useModelStore()
 const newAgentPresenter = usePresenter('newAgentPresenter')
 const { t } = useI18n()
@@ -145,10 +170,23 @@ const isAcpWorkdirMissing = computed(() => {
 
 // --- Auto-scroll ---
 const scrollContainer = ref<HTMLDivElement>()
+const messageSearchRoot = ref<HTMLDivElement>()
 // Track whether user is near the bottom; if they scroll up, stop auto-following
 const isNearBottom = ref(true)
 const NEAR_BOTTOM_THRESHOLD = 80 // px
+const MESSAGE_JUMP_RETRY_INTERVAL = 80
+const MESSAGE_HIGHLIGHT_DURATION = 2000
+const MAX_MESSAGE_JUMP_RETRIES = 8
 const traceMessageId = ref<string | null>(null)
+const isChatSearchOpen = ref(false)
+const chatSearchQuery = ref('')
+const chatSearchMatches = ref<ChatSearchMatch[]>([])
+const activeChatSearchIndex = ref(0)
+const chatSearchBarRef = ref<{
+  focusInput: () => void
+  selectInput: () => void
+} | null>(null)
+let spotlightJumpTimer: number | null = null
 
 function scrollToBottom() {
   const el = scrollContainer.value
@@ -163,13 +201,60 @@ function onScroll() {
   isNearBottom.value = distanceFromBottom <= NEAR_BOTTOM_THRESHOLD
 }
 
+async function focusPendingSpotlightMessageJump(attempt = 0): Promise<void> {
+  const pendingJump = spotlightStore.pendingMessageJump
+  if (!pendingJump || pendingJump.sessionId !== props.sessionId) {
+    return
+  }
+
+  await nextTick()
+
+  const target = messageSearchRoot.value?.querySelector<HTMLElement>(
+    `[data-message-id="${pendingJump.messageId}"]`
+  )
+
+  if (!target) {
+    // Retry briefly while virtualized / async-rendered message content settles after session switch.
+    if (attempt >= MAX_MESSAGE_JUMP_RETRIES) {
+      return
+    }
+
+    if (spotlightJumpTimer) {
+      window.clearTimeout(spotlightJumpTimer)
+    }
+
+    spotlightJumpTimer = window.setTimeout(() => {
+      void focusPendingSpotlightMessageJump(attempt + 1)
+    }, MESSAGE_JUMP_RETRY_INTERVAL)
+    return
+  }
+
+  target.scrollIntoView({
+    block: 'center',
+    inline: 'nearest',
+    behavior: 'smooth'
+  })
+  target.classList.add('message-highlight')
+
+  window.setTimeout(() => {
+    target.classList.remove('message-highlight')
+  }, MESSAGE_HIGHLIGHT_DURATION)
+
+  spotlightStore.clearPendingMessageJump()
+}
+
 // Load messages when sessionId changes, then scroll to bottom
 watch(
   () => props.sessionId,
   async (id) => {
+    clearChatSearchState()
     if (id) {
       await Promise.all([messageStore.loadMessages(id), pendingInputStore.loadPendingInputs(id)])
       await nextTick()
+      if (spotlightStore.pendingMessageJump?.sessionId === id) {
+        void focusPendingSpotlightMessageJump()
+        return
+      }
       scrollToBottom()
       return
     }
@@ -372,9 +457,134 @@ const traceMessageIds = computed(() =>
 watch(
   [displayMessages, ephemeralRateLimitBlock],
   () => {
+    if (spotlightStore.pendingMessageJump?.sessionId === props.sessionId) {
+      void focusPendingSpotlightMessageJump()
+      return
+    }
+
     if (isNearBottom.value) {
       nextTick(scrollToBottom)
     }
+  },
+  { deep: true }
+)
+
+async function refreshChatSearchHighlights() {
+  if (!isChatSearchOpen.value) {
+    return
+  }
+
+  await nextTick()
+
+  const root = messageSearchRoot.value
+  chatSearchMatches.value = applyChatSearchHighlights(root, chatSearchQuery.value)
+
+  if (chatSearchMatches.value.length === 0) {
+    activeChatSearchIndex.value = 0
+    return
+  }
+
+  const nextIndex = Math.min(activeChatSearchIndex.value, chatSearchMatches.value.length - 1)
+  activeChatSearchIndex.value = nextIndex
+  setActiveChatSearchMatch(chatSearchMatches.value, nextIndex, { behavior: 'auto' })
+}
+
+function focusChatSearchInput() {
+  nextTick(() => {
+    chatSearchBarRef.value?.selectInput()
+  })
+}
+
+function clearChatSearchState() {
+  clearChatSearchHighlights(messageSearchRoot.value)
+  chatSearchMatches.value = []
+  chatSearchQuery.value = ''
+  activeChatSearchIndex.value = 0
+  isChatSearchOpen.value = false
+}
+
+function openChatSearch() {
+  isChatSearchOpen.value = true
+  focusChatSearchInput()
+  void refreshChatSearchHighlights()
+}
+
+function closeChatSearch() {
+  clearChatSearchState()
+}
+
+function activateChatSearchMatch(index: number, behavior: ScrollBehavior = 'smooth') {
+  if (chatSearchMatches.value.length === 0) {
+    activeChatSearchIndex.value = 0
+    return
+  }
+
+  const normalizedIndex =
+    ((index % chatSearchMatches.value.length) + chatSearchMatches.value.length) %
+    chatSearchMatches.value.length
+
+  activeChatSearchIndex.value = normalizedIndex
+  setActiveChatSearchMatch(chatSearchMatches.value, normalizedIndex, { behavior })
+}
+
+function goToNextChatSearchMatch() {
+  activateChatSearchMatch(activeChatSearchIndex.value + 1)
+}
+
+function goToPreviousChatSearchMatch() {
+  activateChatSearchMatch(activeChatSearchIndex.value - 1)
+}
+
+function isEditableTarget(target: EventTarget | null): boolean {
+  const element = target instanceof HTMLElement ? target : null
+  if (!element) {
+    return false
+  }
+
+  return Boolean(element.closest('input, textarea, select, [contenteditable="true"]'))
+}
+
+function handleWindowKeydown(event: KeyboardEvent) {
+  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'f') {
+    event.preventDefault()
+    openChatSearch()
+    return
+  }
+
+  if (!isChatSearchOpen.value) {
+    return
+  }
+
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    closeChatSearch()
+    return
+  }
+
+  if (event.key === 'Enter' && !isEditableTarget(event.target)) {
+    event.preventDefault()
+    if (event.shiftKey) {
+      goToPreviousChatSearchMatch()
+      return
+    }
+
+    goToNextChatSearchMatch()
+  }
+}
+
+watch(chatSearchQuery, () => {
+  activeChatSearchIndex.value = 0
+  void refreshChatSearchHighlights()
+})
+
+watch(
+  displayMessages,
+  () => {
+    if (!isChatSearchOpen.value) {
+      return
+    }
+
+    void refreshChatSearchHighlights()
   },
   { deep: true }
 )
@@ -730,10 +940,40 @@ async function onResumePendingQueue() {
 
 onMounted(() => {
   window.addEventListener('context-menu-ask-ai', handleContextMenuAskAI)
+  window.addEventListener('keydown', handleWindowKeydown)
 })
 
 onUnmounted(() => {
   window.removeEventListener('context-menu-ask-ai', handleContextMenuAskAI)
+  window.removeEventListener('keydown', handleWindowKeydown)
+  clearChatSearchHighlights(messageSearchRoot.value)
+  if (spotlightJumpTimer) {
+    window.clearTimeout(spotlightJumpTimer)
+    spotlightJumpTimer = null
+  }
   pendingInputStore.clear()
 })
 </script>
+
+<style>
+.message-highlight {
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, var(--primary) 14%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 20%, transparent);
+  transition:
+    background-color 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.chat-search-highlight {
+  border-radius: 0.32rem;
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+  color: inherit;
+  padding: 0 0.08rem;
+}
+
+.chat-search-highlight--active {
+  background: color-mix(in srgb, var(--primary) 22%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 18%, transparent);
+}
+</style>

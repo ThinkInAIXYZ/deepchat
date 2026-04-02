@@ -1062,6 +1062,7 @@
     "newWindow": "Ouvrez une nouvelle fenêtre",
     "showHideWindow": "Afficher/Masquer la fenêtre",
     "newConversation": "Nouvelle conversation",
+    "quickSearch": "Recherche Spotlight",
     "closeWindow": "Fermez la page d'onglet actuelle"
   },
   "rateLimit": {

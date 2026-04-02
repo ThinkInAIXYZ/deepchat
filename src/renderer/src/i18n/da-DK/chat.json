@@ -290,7 +290,11 @@
     "pinned": "Fastgjorte",
     "emptyTitle": "Ingen samtaler endnu",
     "emptyDescription": "Start en ny samtale for at komme i gang",
-    "remoteControlDisabled": "Deaktiveret"
+    "remoteControlDisabled": "Deaktiveret",
+    "searchPlaceholder": "Søg i chats",
+    "searchAriaLabel": "Søg i chats",
+    "searchEmptyTitle": "Ingen matchende samtaler",
+    "searchEmptyDescription": "Prøv et andet nøgleord i titlen"
   },
   "floatingWidget": {
     "title": "DeepChat",
@@ -307,5 +311,26 @@
   },
   "subagents": {
     "label": "Underagenter"
+  },
+  "spotlight": {
+    "placeholder": "Søg i samtaler, agenter, indstillinger og handlinger…",
+    "searching": "Søger…",
+    "emptyTitle": "Ingen matchende resultater",
+    "emptyDescription": "Prøv et andet søgeord, eller åbn en nylig session.",
+    "hints": "↑↓ flyt · Enter åbn · Esc luk · Home/End hop",
+    "kind": {
+      "session": "Session",
+      "message": "Besked",
+      "agent": "Agent",
+      "setting": "Indstilling",
+      "action": "Handling"
+    }
+  },
+  "inlineSearch": {
+    "placeholder": "Søg i samtalen",
+    "ariaLabel": "Søg i den aktuelle samtale",
+    "previous": "Forrige match",
+    "next": "Næste match",
+    "close": "Luk søgning"
   }
 }

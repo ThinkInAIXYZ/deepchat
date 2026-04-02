@@ -7,5 +7,5 @@
   "i18n-ally.namespace": true,
   "i18n-ally.pathMatcher": "{locale}/{namespaces}.json",
   "unocss.disable": true,
-  "typescript.experimental.useTsgo": true
+  "js/ts.experimental.useTsgo": true
 }

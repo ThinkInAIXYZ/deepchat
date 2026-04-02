@@ -51,6 +51,24 @@
         <!-- Bottom action buttons -->
         <div class="w-5 h-px bg-border my-1"></div>
 
+        <Tooltip>
+          <TooltipTrigger as-child>
+            <Button
+              class="flex items-center justify-center w-9 h-9 rounded-xl border transition-all duration-150 shadow-none"
+              :class="
+                spotlightStore.open
+                  ? 'bg-card/50 border-white/80 dark:border-white/20 ring-1 ring-black/10 hover:bg-white/30 dark:hover:bg-white/10'
+                  : 'bg-transparent border-none hover:bg-white/30 dark:hover:bg-white/10'
+              "
+              :title="t('chat.spotlight.placeholder')"
+              @click="spotlightStore.toggleSpotlight()"
+            >
+              <Icon icon="lucide:search" class="w-4 h-4 text-foreground/80" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="right">{{ t('chat.spotlight.placeholder') }}</TooltipContent>
+        </Tooltip>
+
         <Tooltip v-if="showRemoteControlButton">
           <TooltipTrigger as-child>
             <Button
@@ -142,15 +160,51 @@
           </div>
         </div>
 
+        <div v-if="!collapsed" class="px-3 pb-2">
+          <div class="relative">
+            <Icon
+              icon="lucide:search"
+              class="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/70"
+            />
+            <Input
+              v-model="sessionSearchQuery"
+              class="h-8 rounded-xl border-0 bg-muted/60 pl-8 pr-8 text-xs shadow-none focus-visible:ring-1 focus-visible:ring-primary/30"
+              :placeholder="t('chat.sidebar.searchPlaceholder')"
+              :aria-label="t('chat.sidebar.searchAriaLabel')"
+              autocapitalize="off"
+              autocomplete="off"
+              spellcheck="false"
+            />
+            <button
+              v-if="sessionSearchQuery"
+              type="button"
+              class="absolute right-1.5 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground"
+              :title="t('common.close')"
+              :aria-label="t('common.close')"
+              @click="sessionSearchQuery = ''"
+            >
+              <Icon icon="lucide:x" class="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+
         <!-- Empty state -->
         <div
           v-if="pinnedSessions.length === 0 && filteredGroups.length === 0"
           class="flex flex-col items-center justify-center h-full px-4 text-center"
         >
           <Icon icon="lucide:message-square-plus" class="w-8 h-8 text-muted-foreground/40 mb-3" />
-          <p class="text-sm text-muted-foreground/60">{{ t('chat.sidebar.emptyTitle') }}</p>
+          <p class="text-sm text-muted-foreground/60">
+            {{
+              sessionSearchQuery ? t('chat.sidebar.searchEmptyTitle') : t('chat.sidebar.emptyTitle')
+            }}
+          </p>
           <p class="text-xs text-muted-foreground/40 mt-1">
-            {{ t('chat.sidebar.emptyDescription') }}
+            {{
+              sessionSearchQuery
+                ? t('chat.sidebar.searchEmptyDescription')
+                : t('chat.sidebar.emptyDescription')
+            }}
           </p>
         </div>
 
@@ -189,6 +243,7 @@
                   region="pinned"
                   :hero-hidden="pinFlightSessionId === session.id"
                   :pin-feedback-mode="pinFeedbackSessionId === session.id ? pinFeedbackMode : null"
+                  :search-query="sessionSearchQuery"
                   @select="handleSessionClick"
                   @toggle-pin="handleTogglePin"
                   @delete="openDeleteDialog"
@@ -229,6 +284,7 @@
                   region="grouped"
                   :hero-hidden="pinFlightSessionId === session.id"
                   :pin-feedback-mode="pinFeedbackSessionId === session.id ? pinFeedbackMode : null"
+                  :search-query="sessionSearchQuery"
                   @select="handleSessionClick"
                   @toggle-pin="handleTogglePin"
                   @delete="openDeleteDialog"
@@ -269,6 +325,7 @@ import {
   TooltipTrigger
 } from '@shadcn/components/ui/tooltip'
 import { Button } from '@shadcn/components/ui/button'
+import { Input } from '@shadcn/components/ui/input'
 import {
   Dialog,
   DialogContent,
@@ -280,7 +337,9 @@ import {
 import { usePresenter, useRemoteControlPresenter } from '@/composables/usePresenter'
 import { SETTINGS_EVENTS } from '@/events'
 import { useAgentStore } from '@/stores/ui/agent'
+import { usePageRouterStore } from '@/stores/ui/pageRouter'
 import { useSessionStore, type SessionGroup, type UISession } from '@/stores/ui/session'
+import { useSpotlightStore } from '@/stores/ui/spotlight'
 import type {
   TelegramRemoteStatus,
   FeishuRemoteStatus,
@@ -299,9 +358,12 @@ const windowPresenter = usePresenter('windowPresenter')
 const remoteControlPresenter = useRemoteControlPresenter()
 const { t } = useI18n()
 const agentStore = useAgentStore()
+const pageRouterStore = usePageRouterStore()
 const sessionStore = useSessionStore()
+const spotlightStore = useSpotlightStore()
 
 const collapsed = ref(false)
+const sessionSearchQuery = ref('')
 const remoteControlStatus = ref<{
   telegram: TelegramRemoteStatus | null
   feishu: FeishuRemoteStatus | null
@@ -381,8 +443,27 @@ const remoteControlIconClass = computed(() => {
 
 const isPinnedSectionCollapsed = ref(false)
 const collapsedGroupIds = ref<Set<string>>(new Set())
-const pinnedSessions = computed(() => sessionStore.getPinnedSessions(agentStore.selectedAgentId))
-const filteredGroups = computed(() => sessionStore.getFilteredGroups(agentStore.selectedAgentId))
+const normalizedSessionSearchQuery = computed(() => sessionSearchQuery.value.trim().toLowerCase())
+const matchesSessionSearch = (session: UISession) => {
+  if (!normalizedSessionSearchQuery.value) {
+    return true
+  }
+
+  return session.title.toLowerCase().includes(normalizedSessionSearchQuery.value)
+}
+const pinnedSessions = computed(() =>
+  sessionStore.getPinnedSessions(agentStore.selectedAgentId).filter(matchesSessionSearch)
+)
+const filteredGroups = computed(() =>
+  sessionStore
+    .getFilteredGroups(agentStore.selectedAgentId)
+    .map((group) => ({
+      label: group.label,
+      labelKey: group.labelKey,
+      sessions: group.sessions.filter(matchesSessionSearch)
+    }))
+    .filter((group) => group.sessions.length > 0)
+)
 const pinFlightSessionId = ref<string | null>(null)
 const pinFeedbackSessionId = ref<string | null>(null)
 const pinFeedbackMode = ref<PinFeedbackMode | null>(null)
@@ -520,7 +601,12 @@ const refreshRemoteControlStatus = async () => {
 }
 
 const handleNewChat = () => {
-  void sessionStore.closeSession()
+  if (sessionStore.hasActiveSession) {
+    void sessionStore.closeSession()
+    return
+  }
+
+  pageRouterStore.goToNewThread({ refresh: true })
 }
 
 const handleAgentSelect = async (id: string | null) => {

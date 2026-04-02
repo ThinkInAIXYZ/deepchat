@@ -18,6 +18,7 @@ const props = defineProps<{
   region: SessionItemRegion
   heroHidden?: boolean
   pinFeedbackMode?: PinFeedbackMode | null
+  searchQuery?: string
 }>()
 
 const emit = defineEmits<{
@@ -32,6 +33,46 @@ const { session, active } = toRefs(props)
 const pinActionLabel = computed(() =>
   session.value.isPinned ? t('thread.actions.unpin') : t('thread.actions.pin')
 )
+
+const titleSegments = computed(() => {
+  const title = session.value.title
+  const query = props.searchQuery?.trim()
+  if (!query) {
+    return [{ text: title, match: false }]
+  }
+
+  const lowerTitle = title.toLowerCase()
+  const lowerQuery = query.toLowerCase()
+  const segments: Array<{ text: string; match: boolean }> = []
+  let searchIndex = 0
+  let matchIndex = lowerTitle.indexOf(lowerQuery)
+
+  while (matchIndex !== -1) {
+    if (matchIndex > searchIndex) {
+      segments.push({
+        text: title.slice(searchIndex, matchIndex),
+        match: false
+      })
+    }
+
+    segments.push({
+      text: title.slice(matchIndex, matchIndex + query.length),
+      match: true
+    })
+
+    searchIndex = matchIndex + query.length
+    matchIndex = lowerTitle.indexOf(lowerQuery, searchIndex)
+  }
+
+  if (searchIndex < title.length) {
+    segments.push({
+      text: title.slice(searchIndex),
+      match: false
+    })
+  }
+
+  return segments.length > 0 ? segments : [{ text: title, match: false }]
+})
 </script>
 
 <template>
@@ -62,7 +103,10 @@ const pinActionLabel = computed(() =>
       :class="{ 'session-title--loading': session.status === 'working' }"
     >
       <span class="session-title__label">
-        {{ session.title }}
+        <template v-for="(segment, index) in titleSegments" :key="`${session.id}-${index}`">
+          <mark v-if="segment.match" class="session-title__highlight">{{ segment.text }}</mark>
+          <template v-else>{{ segment.text }}</template>
+        </template>
       </span>
       <span v-if="session.status === 'working'" aria-hidden="true" class="session-title__sheen">
         {{ session.title }}
@@ -254,6 +298,13 @@ const pinActionLabel = computed(() =>
 
 .session-title--loading .session-title__label {
   color: var(--session-loading-base);
+}
+
+.session-title__highlight {
+  border-radius: 0.35rem;
+  background: color-mix(in srgb, var(--primary) 14%, transparent);
+  color: inherit;
+  padding: 0 0.08rem;
 }
 
 .session-title__sheen {

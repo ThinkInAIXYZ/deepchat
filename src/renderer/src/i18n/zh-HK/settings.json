@@ -1062,6 +1062,7 @@
     "newWindow": "打開新窗口",
     "showHideWindow": "顯示/隱藏窗口",
     "newConversation": "新會話",
+    "quickSearch": "聚焦搜尋",
     "closeWindow": "關閉當前視窗"
   },
   "rateLimit": {

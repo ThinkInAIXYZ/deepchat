@@ -1062,6 +1062,7 @@
     "newWindow": "新しいウィンドウを開きます",
     "showHideWindow": "ウィンドウを表示または非表示にします",
     "newConversation": "新しい会話",
+    "quickSearch": "Spotlight 検索",
     "closeWindow": "現在のタブページを閉じます"
   },
   "rateLimit": {

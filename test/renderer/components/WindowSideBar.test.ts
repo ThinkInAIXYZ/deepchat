@@ -73,6 +73,15 @@ const setup = async (options: SetupOptions = {}) => {
   const themeStore = reactive({
     isDark: false
   })
+  const pageRouterStore = reactive({
+    goToNewThread: vi.fn()
+  })
+  const spotlightStore = reactive({
+    open: false,
+    toggleSpotlight: vi.fn(() => {
+      spotlightStore.open = !spotlightStore.open
+    })
+  })
   const windowPresenter = {
     openOrFocusSettingsWindow: vi.fn(),
     createSettingsWindow: vi.fn().mockResolvedValue(99),
@@ -122,6 +131,12 @@ const setup = async (options: SetupOptions = {}) => {
   }))
   vi.doMock('@/stores/theme', () => ({
     useThemeStore: () => themeStore
+  }))
+  vi.doMock('@/stores/ui/pageRouter', () => ({
+    usePageRouterStore: () => pageRouterStore
+  }))
+  vi.doMock('@/stores/ui/spotlight', () => ({
+    useSpotlightStore: () => spotlightStore
   }))
   vi.doMock('@/composables/usePresenter', () => ({
     usePresenter: () => windowPresenter,
@@ -198,7 +213,16 @@ const setup = async (options: SetupOptions = {}) => {
 
   await flushPromises()
 
-  return { wrapper, operations, agentStore, sessionStore, windowPresenter, remoteControlPresenter }
+  return {
+    wrapper,
+    operations,
+    agentStore,
+    sessionStore,
+    windowPresenter,
+    remoteControlPresenter,
+    spotlightStore,
+    pageRouterStore
+  }
 }
 
 describe('WindowSideBar agent switch', () => {
@@ -211,6 +235,16 @@ describe('WindowSideBar agent switch', () => {
     expect(agentStore.setSelectedAgent).toHaveBeenCalledWith('acp-a')
     expect(operations).toEqual(['close', 'set:acp-a'])
   }, 10000)
+
+  it('refreshes the new thread page when starting a new chat without an active session', async () => {
+    const { wrapper, pageRouterStore, sessionStore } = await setup()
+    sessionStore.hasActiveSession = false
+
+    ;(wrapper.vm as any).handleNewChat()
+
+    expect(sessionStore.closeSession).not.toHaveBeenCalled()
+    expect(pageRouterStore.goToNewThread).toHaveBeenCalledWith({ refresh: true })
+  })
 
   it('renders pinned sessions outside grouped sections', async () => {
     const { wrapper } = await setup({
@@ -293,6 +327,52 @@ describe('WindowSideBar agent switch', () => {
     await flushPromises()
 
     expect(sessionStore.toggleSessionPinned).toHaveBeenCalledWith('normal-1', true)
+  }, 10000)
+
+  it('filters pinned and grouped sessions by the sidebar search input', async () => {
+    const { wrapper } = await setup({
+      pinnedSessions: [
+        {
+          id: 'pinned-1',
+          title: 'Alpha Session',
+          status: 'none'
+        }
+      ],
+      groups: [
+        {
+          label: 'common.time.today',
+          labelKey: 'common.time.today',
+          sessions: [
+            {
+              id: 'group-1',
+              title: 'Beta Session',
+              status: 'none'
+            }
+          ]
+        }
+      ]
+    })
+
+    await wrapper.find('input').setValue('alpha')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Alpha Session')
+    expect(wrapper.text()).not.toContain('Beta Session')
+  }, 10000)
+
+  it('toggles spotlight from the rail search button', async () => {
+    const { wrapper, spotlightStore } = await setup()
+
+    const buttons = wrapper.findAll('button')
+    const spotlightButton = buttons.find((button) =>
+      button.attributes('title')?.includes('chat.spotlight.placeholder')
+    )
+
+    expect(spotlightButton).toBeTruthy()
+
+    await spotlightButton!.trigger('click')
+
+    expect(spotlightStore.toggleSpotlight).toHaveBeenCalledTimes(1)
   }, 10000)
 
   it('collapses and expands time groups from the folder header', async () => {

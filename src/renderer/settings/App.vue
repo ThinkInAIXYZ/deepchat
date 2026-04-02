@@ -86,6 +86,8 @@ import { useFontManager } from '../src/composables/useFontManager'
 import type { LLM_PROVIDER, ProviderInstallPreview } from '@shared/presenter'
 import ProviderDeeplinkImportDialog from './components/ProviderDeeplinkImportDialog.vue'
 import { nanoid } from 'nanoid'
+import { SETTINGS_NAVIGATION_ITEMS } from '@shared/settingsNavigation'
+import type { SettingsNavigationPayload } from '@shared/settingsNavigation'
 
 const devicePresenter = usePresenter('devicePresenter')
 const windowPresenter = usePresenter('windowPresenter')
@@ -145,15 +147,43 @@ const navigateToProviderSettings = async (providerId?: string) => {
   })
 }
 
-const handleSettingsNavigate = async (
-  _event: unknown,
-  payload?: { routeName?: string; section?: string }
-) => {
+const normalizeRouteParams = (params?: Record<string, string>) =>
+  Object.entries(params ?? {})
+    .filter(([, value]) => typeof value === 'string' && value.trim().length > 0)
+    .reduce<Record<string, string>>((acc, [key, value]) => {
+      acc[key] = value
+      return acc
+    }, {})
+
+const hasSameRouteParams = (
+  currentParams: Record<string, unknown>,
+  nextParams: Record<string, string>
+): boolean => {
+  const currentEntries = Object.entries(currentParams).filter(
+    ([, value]) => typeof value === 'string'
+  )
+  const nextEntries = Object.entries(nextParams)
+
+  if (currentEntries.length !== nextEntries.length) {
+    return false
+  }
+
+  return nextEntries.every(([key, value]) => currentParams[key] === value)
+}
+
+const handleSettingsNavigate = async (_event: unknown, payload?: SettingsNavigationPayload) => {
   const routeName = payload?.routeName
+  const params = normalizeRouteParams(payload?.params)
   if (!routeName || !router.hasRoute(routeName)) return
   await router.isReady()
-  if (router.currentRoute.value.name !== routeName) {
-    await router.push({ name: routeName })
+  if (
+    router.currentRoute.value.name !== routeName ||
+    !hasSameRouteParams(router.currentRoute.value.params, params)
+  ) {
+    await router.push({
+      name: routeName,
+      params: Object.keys(params).length > 0 ? params : undefined
+    })
   }
   if (routeName === 'settings-provider') {
     await syncPendingProviderInstall()
@@ -312,38 +342,17 @@ const settings: Ref<
     icon: string
     path: string
   }[]
-> = ref([])
+> = ref(
+  SETTINGS_NAVIGATION_ITEMS.map((item) => ({
+    title: item.titleKey,
+    name: item.routeName,
+    icon: item.icon,
+    path: item.path
+  }))
+)
 
-// Get all routes and build settings navigation
-const routes = router.getRoutes()
 onMounted(() => {
   void initializeSettingsStores()
-  const tempArray: {
-    title: string
-    name: string
-    icon: string
-    path: string
-    position: number
-  }[] = []
-  routes.forEach((route) => {
-    // In settings window, all routes are top-level, no parent 'settings' route
-    if (route.path !== '/' && route.meta?.titleKey) {
-      console.log(`Adding settings route: ${route.path} with titleKey: ${route.meta.titleKey}`)
-      tempArray.push({
-        title: route.meta.titleKey as string,
-        icon: route.meta.icon as string,
-        path: route.path,
-        name: route.name as string,
-        position: (route.meta.position as number) || 999
-      })
-    }
-    // Sort by position meta field, default to 999 if not present
-    tempArray.sort((a, b) => {
-      return a.position - b.position
-    })
-    settings.value = tempArray
-    console.log('Final sorted settings routes:', settings.value)
-  })
 })
 
 const initializeSettingsStores = async () => {

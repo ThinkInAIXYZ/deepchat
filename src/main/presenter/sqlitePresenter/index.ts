@@ -121,6 +121,10 @@ export class SQLitePresenter implements ISQLitePresenter {
     return this.messagesTable.deleteAllInConversation(conversationId)
   }
 
+  public getDatabase(): Database.Database {
+    return this.db
+  }
+
   private backupDatabase(): void {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
     const backupPath = `${this.dbPath}.${timestamp}.bak`

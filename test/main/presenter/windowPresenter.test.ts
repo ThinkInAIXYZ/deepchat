@@ -131,4 +131,22 @@ describe('WindowPresenter settings navigation queue', () => {
     expect(presenter.consumePendingSettingsProviderInstall()).toEqual(secondPreview)
     expect(presenter.consumePendingSettingsProviderInstall()).toBeNull()
   })
+
+  it('keeps the settings window ready during same-document navigation', async () => {
+    const { WindowPresenter } = await import('@/presenter/windowPresenter')
+    const presenter = new WindowPresenter({
+      getContentProtectionEnabled: vi.fn(() => false)
+    } as any)
+
+    ;(presenter as any).settingsWindow = {
+      id: 9
+    }
+    ;(presenter as any).settingsWindowReady = true
+
+    ;(presenter as any).handleSettingsWindowNavigationStart(9, true, true)
+    expect((presenter as any).settingsWindowReady).toBe(true)
+
+    ;(presenter as any).handleSettingsWindowNavigationStart(9, true, false)
+    expect((presenter as any).settingsWindowReady).toBe(false)
+  })
 })

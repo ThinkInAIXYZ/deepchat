@@ -306,6 +306,31 @@
     "groupByProject": "按项目分组",
     "pinned": "置顶会话",
     "emptyTitle": "还没有会话",
-    "emptyDescription": "开始一个新会话吧"
+    "emptyDescription": "开始一个新会话吧",
+    "searchPlaceholder": "搜索会话标题",
+    "searchAriaLabel": "搜索会话标题",
+    "searchEmptyTitle": "没有找到匹配的会话",
+    "searchEmptyDescription": "试试换一个标题关键词"
+  },
+  "spotlight": {
+    "placeholder": "搜索会话、Agent、设置与动作…",
+    "searching": "搜索中…",
+    "emptyTitle": "没有匹配结果",
+    "emptyDescription": "试试别的关键词，或直接打开最近会话。",
+    "hints": "↑↓ 选择 · Enter 打开 · Esc 关闭 · Home/End 跳转",
+    "kind": {
+      "session": "会话",
+      "message": "消息",
+      "agent": "Agent",
+      "setting": "设置",
+      "action": "动作"
+    }
+  },
+  "inlineSearch": {
+    "placeholder": "搜索当前会话",
+    "ariaLabel": "搜索当前会话",
+    "previous": "上一处匹配",
+    "next": "下一处匹配",
+    "close": "关闭搜索"
   }
 }

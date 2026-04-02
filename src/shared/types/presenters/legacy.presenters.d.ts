@@ -261,7 +261,9 @@ export interface IWindowPresenter {
   minimize(windowId: number): void
   maximize(windowId: number): void
   close(windowId: number): void
-  createSettingsWindow(): Promise<number | null>
+  createSettingsWindow(
+    navigation?: import('@shared/settingsNavigation').SettingsNavigationPayload
+  ): Promise<number | null>
   closeSettingsWindow(): void
   getSettingsWindowId(): number | null
   setPendingSettingsProviderInstall(
@@ -397,6 +399,7 @@ export interface ISQLitePresenter {
   queryMessageIds(conversationId: string): Promise<string[]>
   deleteAllMessages(): Promise<void>
   runTransaction(operations: () => void): Promise<void>
+  getDatabase(): any
 
   // Added message management methods
   getMessage(messageId: string): Promise<SQLITE_MESSAGE | null>

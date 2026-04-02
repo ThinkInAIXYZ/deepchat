@@ -290,7 +290,11 @@
     "pinned": "ピン留め",
     "emptyTitle": "まだ会話がありません",
     "emptyDescription": "新しいチャットを始めましょう",
-    "remoteControlDisabled": "無効"
+    "remoteControlDisabled": "無効",
+    "searchPlaceholder": "チャットタイトルを検索",
+    "searchAriaLabel": "チャットタイトルを検索",
+    "searchEmptyTitle": "一致する会話はありません",
+    "searchEmptyDescription": "別のキーワードを試してください"
   },
   "floatingWidget": {
     "title": "DeepChat",
@@ -307,5 +311,26 @@
   },
   "subagents": {
     "label": "サブエージェント"
+  },
+  "spotlight": {
+    "placeholder": "会話、Agent、設定、アクションを検索…",
+    "searching": "検索中…",
+    "emptyTitle": "一致する結果がありません",
+    "emptyDescription": "別のキーワードを試すか、最近のセッションを開いてください。",
+    "hints": "↑↓ 移動 · Enter 開く · Esc 閉じる · Home/End ジャンプ",
+    "kind": {
+      "session": "セッション",
+      "message": "メッセージ",
+      "agent": "Agent",
+      "setting": "設定",
+      "action": "アクション"
+    }
+  },
+  "inlineSearch": {
+    "placeholder": "現在の会話を検索",
+    "ariaLabel": "現在の会話を検索",
+    "previous": "前の一致",
+    "next": "次の一致",
+    "close": "検索を閉じる"
   }
 }

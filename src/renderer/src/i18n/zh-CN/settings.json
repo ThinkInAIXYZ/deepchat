@@ -1124,6 +1124,7 @@
     "newWindow": "打开新窗口",
     "showHideWindow": "显示/隐藏窗口",
     "newConversation": "新会话",
+    "quickSearch": "聚焦搜索",
     "closeWindow": "关闭当前窗口"
   },
   "acp": {
