@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.0.1 (2026-04-02)
+- 新增会话内搜索与 Spotlight 全局搜索，方便快速定位历史消息与应用入口
+- 优化 Provider 数据库刷新流程，支持手动刷新模型配置
+- 更新 Markdown 渲染器预处理逻辑，提升消息渲染稳定性
+- 修复速率限制处理问题，减少请求受限时的异常体验
+
 ## v1.0.0 (2026-03-31)
 - DeepChat 1.0 正式发布：完成全新 Agent 架构切换，统一 DeepChat Agent 与 ACP Agent 主流程，并内置 DimCode Agent
 - 新增远程控制能力矩阵：支持 Telegram、Feishu 与 ACP Agent Remote，补齐权限消息、流式块渲染与工作目录选择
