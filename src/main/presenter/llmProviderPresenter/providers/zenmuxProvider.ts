@@ -208,8 +208,7 @@ export class ZenmuxProvider extends BaseLLMProvider {
 
   public async getEmbeddings(modelId: string, texts: string[]): Promise<number[][]> {
     if (this.isAnthropicModel(modelId)) {
-      const delegate = await this.ensureAnthropicDelegateReady()
-      return delegate.getEmbeddings(modelId, texts)
+      throw new Error(`Embeddings not supported for Anthropic models: ${modelId}`)
     }
 
     return this.openaiDelegate.getEmbeddings(modelId, texts)
@@ -217,8 +216,7 @@ export class ZenmuxProvider extends BaseLLMProvider {
 
   public async getDimensions(modelId: string): Promise<LLM_EMBEDDING_ATTRS> {
     if (this.isAnthropicModel(modelId)) {
-      const delegate = await this.ensureAnthropicDelegateReady()
-      return delegate.getDimensions(modelId)
+      throw new Error(`Embeddings not supported for Anthropic models: ${modelId}`)
     }
 
     return this.openaiDelegate.getDimensions(modelId)

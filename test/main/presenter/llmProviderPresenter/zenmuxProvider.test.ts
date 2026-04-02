@@ -331,4 +331,20 @@ describe('ZenmuxProvider', () => {
     expect(openaiProxySpy).toHaveBeenCalledTimes(1)
     expect(anthropicProxySpy).toHaveBeenCalledTimes(1)
   })
+
+  it('fails fast for embeddings on anthropic/* models', async () => {
+    const provider = new ZenmuxProvider(createProvider(), createConfigPresenter())
+
+    await expect(provider.getEmbeddings('anthropic/claude-sonnet-4-5', ['hello'])).rejects.toThrow(
+      'Embeddings not supported for Anthropic models: anthropic/claude-sonnet-4-5'
+    )
+  })
+
+  it('fails fast for embedding dimensions on anthropic/* models', async () => {
+    const provider = new ZenmuxProvider(createProvider(), createConfigPresenter())
+
+    await expect(provider.getDimensions('anthropic/claude-sonnet-4-5')).rejects.toThrow(
+      'Embeddings not supported for Anthropic models: anthropic/claude-sonnet-4-5'
+    )
+  })
 })
