@@ -1,6 +1,10 @@
 # Changelog
 
 ## v1.0.1 (2026-04-02)
+- Added in-chat search and Spotlight global search for faster access to messages and app entry points
+- Improved the provider database refresh flow and added manual model config refresh
+- Updated the Markdown renderer preprocessing flow to improve rendering stability
+- Fixed rate limit handling to reduce failures and degraded request experience
 - 新增会话内搜索与 Spotlight 全局搜索，方便快速定位历史消息与应用入口
 - 优化 Provider 数据库刷新流程，支持手动刷新模型配置
 - 更新 Markdown 渲染器预处理逻辑，提升消息渲染稳定性
