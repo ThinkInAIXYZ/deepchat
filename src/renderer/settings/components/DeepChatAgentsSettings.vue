@@ -56,8 +56,11 @@
     </aside>
 
     <main class="min-w-0 flex-1 overflow-y-auto">
-      <div class="mx-auto flex w-full max-w-5xl flex-col gap-6 px-6 py-6">
-        <div class="flex items-start justify-between gap-4">
+      <div
+        data-testid="deepchat-agents-sticky-header"
+        class="sticky top-0 z-20 border-b border-border/80 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/85"
+      >
+        <div class="mx-auto flex w-full max-w-5xl items-start justify-between gap-4 px-6 py-4">
           <div class="flex items-center gap-4">
             <div
               class="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-border/70 bg-muted/40"
@@ -99,7 +102,9 @@
             </Button>
           </div>
         </div>
+      </div>
 
+      <div class="mx-auto flex w-full max-w-5xl flex-col gap-6 px-6 py-6">
         <section class="grid gap-4 rounded-2xl border border-border p-5 md:grid-cols-2">
           <label class="space-y-2">
             <div class="text-sm font-medium">{{ t('settings.deepchatAgents.name') }}</div>
