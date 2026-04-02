@@ -33,6 +33,11 @@ import { proxyConfig } from '../../proxyConfig'
 import { modelCapabilities } from '../../configPresenter/modelCapabilities'
 import { ProxyAgent } from 'undici'
 import type { ProviderMcpRuntimePort } from '../runtimePorts'
+import {
+  applyOpenAIChatExplicitCacheBreakpoint,
+  applyOpenAIPromptCacheKey,
+  resolvePromptCachePlan
+} from '../promptCacheStrategy'
 
 const OPENAI_REASONING_MODELS = [
   'o4-mini',
@@ -80,6 +85,17 @@ export function normalizeExtractedImageText(content: string): string {
 }
 
 function getOpenAIChatCachedTokens(usage: unknown): number | undefined {
+  return getOpenAIChatUsageDetail(usage, 'cached_tokens')
+}
+
+function getOpenAIChatCacheWriteTokens(usage: unknown): number | undefined {
+  return getOpenAIChatUsageDetail(usage, 'cache_write_tokens')
+}
+
+function getOpenAIChatUsageDetail(
+  usage: unknown,
+  key: 'cached_tokens' | 'cache_write_tokens'
+): number | undefined {
   if (!usage || typeof usage !== 'object') {
     return undefined
   }
@@ -88,11 +104,11 @@ function getOpenAIChatCachedTokens(usage: unknown): number | undefined {
   const inputTokensDetails = (usage as { input_tokens_details?: unknown }).input_tokens_details
   const promptCachedTokens =
     promptTokensDetails && typeof promptTokensDetails === 'object'
-      ? (promptTokensDetails as { cached_tokens?: unknown }).cached_tokens
+      ? (promptTokensDetails as Record<string, unknown>)[key]
       : undefined
   const inputCachedTokens =
     inputTokensDetails && typeof inputTokensDetails === 'object'
-      ? (inputTokensDetails as { cached_tokens?: unknown }).cached_tokens
+      ? (inputTokensDetails as Record<string, unknown>)[key]
       : undefined
   const cachedTokens =
     typeof promptCachedTokens === 'number' ? promptCachedTokens : inputCachedTokens
@@ -768,7 +784,7 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
     const modelConfig = this.configPresenter.getModelConfig(modelId, this.provider.id)
     const supportsFunctionCall = modelConfig?.functionCall || false
 
-    const requestParams: OpenAI.Chat.ChatCompletionCreateParams = {
+    const requestParams: OpenAI.Chat.ChatCompletionCreateParamsNonStreaming = {
       messages: this.formatMessages(messages, supportsFunctionCall),
       model: modelId,
       stream: false,
@@ -781,12 +797,27 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
         ? { max_completion_tokens: maxTokens }
         : { max_tokens: maxTokens })
     }
+    const promptCachePlan = resolvePromptCachePlan({
+      providerId: this.provider.id,
+      apiType: 'openai_chat',
+      modelId,
+      messages: requestParams.messages as unknown[],
+      conversationId: modelConfig?.conversationId
+    })
+    requestParams.messages = applyOpenAIChatExplicitCacheBreakpoint(
+      requestParams.messages as ChatCompletionMessageParam[],
+      promptCachePlan
+    )
     OPENAI_REASONING_MODELS.forEach((noTempId) => {
       if (modelId.startsWith(noTempId)) {
         delete requestParams.temperature
       }
     })
-    const completion = await this.openai.chat.completions.create(requestParams)
+    const cachedRequestParams = applyOpenAIPromptCacheKey(
+      requestParams as unknown as Record<string, unknown>,
+      promptCachePlan
+    ) as unknown as OpenAI.Chat.ChatCompletionCreateParamsNonStreaming
+    const completion = await this.openai.chat.completions.create(cachedRequestParams)
 
     const message = completion.choices[0].message as ChatCompletionMessage & {
       reasoning_content?: string
@@ -1012,7 +1043,8 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
               prompt_tokens: result.usage.input_tokens || 0,
               completion_tokens: result.usage.output_tokens || 0,
               total_tokens: result.usage.total_tokens || 0,
-              cached_tokens: getOpenAIChatCachedTokens(result.usage)
+              cached_tokens: getOpenAIChatCachedTokens(result.usage),
+              cache_write_tokens: getOpenAIChatCacheWriteTokens(result.usage)
             })
           }
 
@@ -1081,7 +1113,7 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
         : undefined
 
     // 构建请求参数
-    const requestParams: OpenAI.Chat.ChatCompletionCreateParams = {
+    const requestParams: OpenAI.Chat.ChatCompletionCreateParamsStreaming = {
       messages: processedMessages,
       model: modelId,
       stream: true,
@@ -1132,15 +1164,32 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
     // 如果存在 API 工具且支持函数调用，则添加到请求参数中
     if (apiTools && apiTools.length > 0 && supportsFunctionCall) requestParams.tools = apiTools
 
+    const promptCachePlan = resolvePromptCachePlan({
+      providerId: this.provider.id,
+      apiType: 'openai_chat',
+      modelId,
+      messages: processedMessages as unknown[],
+      tools,
+      conversationId: modelConfig?.conversationId
+    })
+    requestParams.messages = applyOpenAIChatExplicitCacheBreakpoint(
+      requestParams.messages as ChatCompletionMessageParam[],
+      promptCachePlan
+    )
+    const cachedRequestParams = applyOpenAIPromptCacheKey(
+      requestParams as unknown as Record<string, unknown>,
+      promptCachePlan
+    ) as unknown as OpenAI.Chat.ChatCompletionCreateParamsStreaming
+
     await this.emitRequestTrace(modelConfig, {
       endpoint: this.buildChatCompletionsEndpoint(),
       headers: this.buildChatCompletionsTraceHeaders(),
-      body: requestParams
+      body: cachedRequestParams
     })
 
     // console.log('[handleChatCompletion] requestParams', JSON.stringify(requestParams))
     // 发起 OpenAI 聊天补全请求
-    const stream = await this.openai.chat.completions.create(requestParams)
+    const stream = await this.openai.chat.completions.create(cachedRequestParams)
 
     //-----------------------------------------------------------------------------------------------------
     // 流处理状态定义 (已将相关变量声明提升到顶部，确保可见性)
@@ -1179,6 +1228,7 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
           completion_tokens: number
           total_tokens: number
           cached_tokens?: number
+          cache_write_tokens?: number
         }
       | undefined = undefined
 
@@ -1195,7 +1245,8 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
       if (chunk.usage) {
         usage = {
           ...chunk.usage,
-          cached_tokens: getOpenAIChatCachedTokens(chunk.usage)
+          cached_tokens: getOpenAIChatCachedTokens(chunk.usage),
+          cache_write_tokens: getOpenAIChatCacheWriteTokens(chunk.usage)
         }
       }
 

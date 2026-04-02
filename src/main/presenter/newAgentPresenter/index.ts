@@ -2143,6 +2143,7 @@ export class NewAgentPresenter {
     inputTokens?: number
     outputTokens?: number
     cachedInputTokens?: number
+    cacheWriteInputTokens?: number
     generationTime?: number
     firstTokenTime?: number
     tokensPerSecond?: number
@@ -2158,6 +2159,10 @@ export class NewAgentPresenter {
         outputTokens: typeof parsed.outputTokens === 'number' ? parsed.outputTokens : undefined,
         cachedInputTokens:
           typeof parsed.cachedInputTokens === 'number' ? parsed.cachedInputTokens : undefined,
+        cacheWriteInputTokens:
+          typeof parsed.cacheWriteInputTokens === 'number'
+            ? parsed.cacheWriteInputTokens
+            : undefined,
         generationTime:
           typeof parsed.generationTime === 'number' ? parsed.generationTime : undefined,
         firstTokenTime:
@@ -2208,7 +2213,8 @@ export class NewAgentPresenter {
           modelId,
           metadata: {
             ...metadata,
-            cachedInputTokens: 0
+            cachedInputTokens: 0,
+            cacheWriteInputTokens: 0
           },
           source: 'backfill'
         })

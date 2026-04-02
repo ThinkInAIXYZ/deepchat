@@ -22,6 +22,7 @@ export interface UsageStatsRecordInput {
   outputTokens: number
   totalTokens: number
   cachedInputTokens: number
+  cacheWriteInputTokens: number
   estimatedCostUsd: number | null
   source: UsageStatsSource
   createdAt: number
@@ -152,18 +153,24 @@ export function normalizeUsageCounts(metadata: MessageMetadata): {
   outputTokens: number
   totalTokens: number
   cachedInputTokens: number
+  cacheWriteInputTokens: number
 } {
   const inputTokens = toNonNegativeInteger(metadata.inputTokens) ?? 0
   const outputTokens = toNonNegativeInteger(metadata.outputTokens) ?? 0
   const totalTokens = toNonNegativeInteger(metadata.totalTokens) ?? inputTokens + outputTokens
   const rawCached = toNonNegativeInteger(metadata.cachedInputTokens) ?? 0
-  const cachedInputTokens = inputTokens > 0 ? Math.min(rawCached, inputTokens) : rawCached
+  const rawCacheWrite = toNonNegativeInteger(metadata.cacheWriteInputTokens) ?? 0
+  const cappedCachedInputTokens = inputTokens > 0 ? Math.min(rawCached, inputTokens) : rawCached
+  const remainingInputTokens = Math.max(inputTokens - cappedCachedInputTokens, 0)
+  const cacheWriteInputTokens =
+    inputTokens > 0 ? Math.min(rawCacheWrite, remainingInputTokens) : rawCacheWrite
 
   return {
     inputTokens,
     outputTokens,
     totalTokens,
-    cachedInputTokens
+    cachedInputTokens: cappedCachedInputTokens,
+    cacheWriteInputTokens
   }
 }
 
@@ -195,6 +202,7 @@ export function estimateUsageCostUsd(params: {
   inputTokens: number
   outputTokens: number
   cachedInputTokens: number
+  cacheWriteInputTokens: number
 }): number | null {
   const model = resolvePricedModel(params.providerId, params.modelId)
   const inputRate = getCostNumber(model, 'input')
@@ -205,12 +213,17 @@ export function estimateUsageCostUsd(params: {
   }
 
   const cacheReadRate = getCostNumber(model, 'cache_read')
-  const billableInput = Math.max(params.inputTokens - params.cachedInputTokens, 0)
+  const cacheWriteRate = getCostNumber(model, 'cache_write')
+  const uncachedInput = Math.max(
+    params.inputTokens - params.cachedInputTokens - params.cacheWriteInputTokens,
+    0
+  )
 
   return (
-    (billableInput * inputRate +
+    (uncachedInput * inputRate +
       params.outputTokens * outputRate +
-      params.cachedInputTokens * (cacheReadRate ?? inputRate)) /
+      params.cachedInputTokens * (cacheReadRate ?? inputRate) +
+      params.cacheWriteInputTokens * (cacheWriteRate ?? inputRate)) /
     1_000_000
   )
 }
@@ -247,12 +260,14 @@ export function buildUsageStatsRecord(params: {
     outputTokens: usage.outputTokens,
     totalTokens: usage.totalTokens,
     cachedInputTokens: usage.cachedInputTokens,
+    cacheWriteInputTokens: usage.cacheWriteInputTokens,
     estimatedCostUsd: estimateUsageCostUsd({
       providerId,
       modelId,
       inputTokens: usage.inputTokens,
       outputTokens: usage.outputTokens,
-      cachedInputTokens: usage.cachedInputTokens
+      cachedInputTokens: usage.cachedInputTokens,
+      cacheWriteInputTokens: usage.cacheWriteInputTokens
     }),
     source: params.source,
     createdAt: params.createdAt,

@@ -186,13 +186,20 @@ describe('accumulate', () => {
   it('usage sets metadata', () => {
     accumulate(state, {
       type: 'usage',
-      usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15, cached_tokens: 3 }
+      usage: {
+        prompt_tokens: 10,
+        completion_tokens: 5,
+        total_tokens: 15,
+        cached_tokens: 3,
+        cache_write_tokens: 2
+      }
     })
 
     expect(state.metadata.inputTokens).toBe(10)
     expect(state.metadata.outputTokens).toBe(5)
     expect(state.metadata.totalTokens).toBe(15)
     expect(state.metadata.cachedInputTokens).toBe(3)
+    expect(state.metadata.cacheWriteInputTokens).toBe(2)
   })
 
   it('stop sets stopReason', () => {

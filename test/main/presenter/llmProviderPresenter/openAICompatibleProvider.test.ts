@@ -351,3 +351,131 @@ describe('normalizeExtractedImageText', () => {
     expect(normalizeExtractedImageText('[]()')).toBe('')
   })
 })
+
+describe('OpenAICompatibleProvider prompt cache behavior', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockModelsList.mockResolvedValue({ data: [] })
+    mockGetProxyUrl.mockReturnValue(null)
+    mockChatCompletionsCreate.mockResolvedValue(
+      createAsyncStream([
+        {
+          choices: [
+            {
+              delta: {
+                content: 'ok'
+              },
+              finish_reason: 'stop'
+            }
+          ],
+          usage: {
+            prompt_tokens: 80,
+            completion_tokens: 12,
+            total_tokens: 92,
+            prompt_tokens_details: {
+              cached_tokens: 24,
+              cache_write_tokens: 16
+            }
+          }
+        }
+      ])
+    )
+  })
+
+  it('injects prompt_cache_key only for official OpenAI chat completions', async () => {
+    const provider = new OpenAICompatibleProvider(
+      {
+        id: 'openai',
+        name: 'OpenAI',
+        apiType: 'openai-compatible',
+        apiKey: 'test-key',
+        baseUrl: 'https://api.openai.com/v1',
+        enable: false
+      },
+      createConfigPresenter([])
+    )
+    ;(provider as any).isInitialized = true
+
+    const modelConfig: ModelConfig = {
+      maxTokens: 1024,
+      contextLength: 8192,
+      vision: false,
+      functionCall: false,
+      reasoning: false,
+      type: 'chat',
+      conversationId: 'session-1'
+    }
+
+    const events = await collectEvents(
+      provider,
+      'gpt-5',
+      modelConfig,
+      [{ role: 'user', content: 'cache me' }],
+      []
+    )
+    const usageEvent = events.find((event) => event.type === 'usage')
+    const requestParams = mockChatCompletionsCreate.mock.calls[0]?.[0]
+
+    expect(requestParams.prompt_cache_key).toMatch(/^deepchat:openai:gpt-5:/)
+    expect(usageEvent).toMatchObject({
+      type: 'usage',
+      usage: {
+        cached_tokens: 24,
+        cache_write_tokens: 16
+      }
+    })
+  })
+
+  it('adds explicit cache_control breakpoint for OpenRouter Claude without top-level cache_control', async () => {
+    const provider = new OpenRouterProvider(
+      {
+        id: 'openrouter',
+        name: 'OpenRouter',
+        apiType: 'openai-compatible',
+        apiKey: 'test-key',
+        baseUrl: 'https://openrouter.ai/api/v1',
+        enable: false
+      },
+      createConfigPresenter([])
+    )
+    ;(provider as any).isInitialized = true
+
+    const modelConfig: ModelConfig = {
+      maxTokens: 1024,
+      contextLength: 8192,
+      vision: false,
+      functionCall: false,
+      reasoning: false,
+      type: 'chat',
+      conversationId: 'session-2'
+    }
+
+    await collectEvents(
+      provider,
+      'anthropic/claude-sonnet-4',
+      modelConfig,
+      [
+        { role: 'user', content: 'history' },
+        { role: 'assistant', content: 'stable reply' },
+        { role: 'user', content: 'latest question' }
+      ],
+      []
+    )
+
+    const requestParams = mockChatCompletionsCreate.mock.calls[0]?.[0]
+    expect(requestParams).not.toHaveProperty('cache_control')
+    expect(requestParams).not.toHaveProperty('prompt_cache_key')
+    expect(requestParams.messages[1]).toMatchObject({
+      role: 'assistant',
+      content: [
+        {
+          type: 'text',
+          text: 'stable reply',
+          cache_control: {
+            type: 'ephemeral'
+          }
+        }
+      ]
+    })
+  })
+})

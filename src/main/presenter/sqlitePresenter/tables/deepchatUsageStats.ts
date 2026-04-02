@@ -12,6 +12,7 @@ export interface DeepChatUsageStatsRow {
   output_tokens: number
   total_tokens: number
   cached_input_tokens: number
+  cache_write_input_tokens: number
   estimated_cost_usd: number | null
   source: 'backfill' | 'live'
   created_at: number
@@ -93,6 +94,7 @@ export class DeepChatUsageStatsTable extends BaseTable {
         output_tokens INTEGER NOT NULL DEFAULT 0,
         total_tokens INTEGER NOT NULL DEFAULT 0,
         cached_input_tokens INTEGER NOT NULL DEFAULT 0,
+        cache_write_input_tokens INTEGER NOT NULL DEFAULT 0,
         estimated_cost_usd REAL,
         source TEXT NOT NULL DEFAULT 'live',
         created_at INTEGER NOT NULL,
@@ -108,11 +110,16 @@ export class DeepChatUsageStatsTable extends BaseTable {
     if (version === 17) {
       return this.getCreateTableSQL()
     }
+    if (version === 22) {
+      return this.hasColumn('cache_write_input_tokens')
+        ? null
+        : `ALTER TABLE deepchat_usage_stats ADD COLUMN cache_write_input_tokens INTEGER NOT NULL DEFAULT 0;`
+    }
     return null
   }
 
   getLatestVersion(): number {
-    return 17
+    return 22
   }
 
   upsert(row: UsageStatsRecordInput): void {
@@ -128,11 +135,12 @@ export class DeepChatUsageStatsTable extends BaseTable {
           output_tokens,
           total_tokens,
           cached_input_tokens,
+          cache_write_input_tokens,
           estimated_cost_usd,
           source,
           created_at,
           updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(message_id) DO UPDATE SET
           session_id = excluded.session_id,
           usage_date = excluded.usage_date,
@@ -142,6 +150,7 @@ export class DeepChatUsageStatsTable extends BaseTable {
           output_tokens = excluded.output_tokens,
           total_tokens = excluded.total_tokens,
           cached_input_tokens = excluded.cached_input_tokens,
+          cache_write_input_tokens = excluded.cache_write_input_tokens,
           estimated_cost_usd = excluded.estimated_cost_usd,
           source = excluded.source,
           created_at = excluded.created_at,
@@ -157,6 +166,7 @@ export class DeepChatUsageStatsTable extends BaseTable {
         row.outputTokens,
         row.totalTokens,
         row.cachedInputTokens,
+        row.cacheWriteInputTokens,
         row.estimatedCostUsd,
         row.source,
         row.createdAt,

@@ -174,7 +174,8 @@ describe('OpenAIResponsesProvider tool call id mapping', () => {
               output_tokens: 5,
               total_tokens: 15,
               input_tokens_details: {
-                cached_tokens: 4
+                cached_tokens: 4,
+                cache_write_tokens: 6
               }
             }
           }
@@ -218,7 +219,8 @@ describe('OpenAIResponsesProvider tool call id mapping', () => {
     expect(usageEvent).toMatchObject({
       type: 'usage',
       usage: expect.objectContaining({
-        cached_tokens: 4
+        cached_tokens: 4,
+        cache_write_tokens: 6
       })
     })
     expect(stopEvent?.stop_reason).toBe('tool_use')
@@ -529,5 +531,48 @@ describe('OpenAIResponsesProvider tool call id mapping', () => {
       max_output_tokens: 512,
       stream: true
     })
+  })
+
+  it('injects prompt_cache_key for official OpenAI Responses requests', async () => {
+    mockResponsesCreate.mockResolvedValue(
+      createAsyncStream([
+        {
+          type: 'response.completed',
+          response: {
+            usage: {
+              input_tokens: 8,
+              output_tokens: 2,
+              total_tokens: 10
+            }
+          }
+        }
+      ])
+    )
+
+    const provider = new OpenAIResponsesProvider(
+      mockProvider,
+      mockConfigPresenter,
+      mcpRuntime as any
+    )
+    ;(provider as any).isInitialized = true
+
+    const promptCacheModelConfig: ModelConfig = {
+      ...modelConfig,
+      conversationId: 'session-1'
+    }
+
+    for await (const _event of provider.coreStream(
+      [{ role: 'user', content: 'cache me' }],
+      'gpt-5',
+      promptCacheModelConfig,
+      0.7,
+      512,
+      []
+    )) {
+      // consume stream
+    }
+
+    const requestParams = mockResponsesCreate.mock.calls[0][0] as Record<string, unknown>
+    expect(requestParams.prompt_cache_key).toMatch(/^deepchat:openai:gpt-5:/)
   })
 })

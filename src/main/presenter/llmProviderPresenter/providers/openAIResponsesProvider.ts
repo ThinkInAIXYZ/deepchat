@@ -24,6 +24,7 @@ import { proxyConfig } from '../../proxyConfig'
 import { ProxyAgent } from 'undici'
 import { modelCapabilities } from '../../configPresenter/modelCapabilities'
 import type { ProviderMcpRuntimePort } from '../runtimePorts'
+import { applyOpenAIPromptCacheKey, resolvePromptCachePlan } from '../promptCacheStrategy'
 
 const OPENAI_REASONING_MODELS = [
   'o4-mini',
@@ -62,7 +63,9 @@ function getOpenAIResponseCachedTokens(
     | {
         input_tokens_details?: {
           cached_tokens?: number
+          cache_write_tokens?: number
         }
+        cache_write_tokens?: number
       }
     | null
     | undefined
@@ -70,6 +73,24 @@ function getOpenAIResponseCachedTokens(
   const cachedTokens = usage?.input_tokens_details?.cached_tokens
   return typeof cachedTokens === 'number' && Number.isFinite(cachedTokens)
     ? cachedTokens
+    : undefined
+}
+
+function getOpenAIResponseCacheWriteTokens(usage: unknown): number | undefined {
+  if (!usage || typeof usage !== 'object') {
+    return undefined
+  }
+
+  const inputTokensDetails = (usage as { input_tokens_details?: unknown }).input_tokens_details
+  const nestedCacheWriteTokens =
+    inputTokensDetails && typeof inputTokensDetails === 'object'
+      ? (inputTokensDetails as Record<string, unknown>).cache_write_tokens
+      : undefined
+  const topLevelCacheWriteTokens = (usage as Record<string, unknown>).cache_write_tokens
+  const cacheWriteTokens =
+    typeof nestedCacheWriteTokens === 'number' ? nestedCacheWriteTokens : topLevelCacheWriteTokens
+  return typeof cacheWriteTokens === 'number' && Number.isFinite(cacheWriteTokens)
+    ? cacheWriteTokens
     : undefined
 }
 
@@ -305,7 +326,7 @@ export class OpenAIResponsesProvider extends BaseLLMProvider {
     }
 
     const formattedMessages = this.formatMessages(messages)
-    const requestParams: OpenAI.Responses.ResponseCreateParams = {
+    const requestParams: OpenAI.Responses.ResponseCreateParamsNonStreaming = {
       model: modelId,
       input: formattedMessages,
       temperature: temperature,
@@ -314,6 +335,13 @@ export class OpenAIResponsesProvider extends BaseLLMProvider {
     }
 
     const modelConfig = this.configPresenter.getModelConfig(modelId, this.provider.id)
+    const promptCachePlan = resolvePromptCachePlan({
+      providerId: this.provider.id,
+      apiType: 'openai_responses',
+      modelId,
+      messages: formattedMessages as unknown[],
+      conversationId: modelConfig?.conversationId
+    })
     if (modelConfig.reasoningEffort && this.supportsEffortParameter(modelId)) {
       ;(requestParams as any).reasoning = {
         effort: modelConfig.reasoningEffort
@@ -333,7 +361,12 @@ export class OpenAIResponsesProvider extends BaseLLMProvider {
       }
     })
 
-    const response = await this.openai.responses.create(requestParams)
+    const cachedRequestParams = applyOpenAIPromptCacheKey(
+      requestParams as unknown as Record<string, unknown>,
+      promptCachePlan
+    ) as unknown as OpenAI.Responses.ResponseCreateParamsNonStreaming
+
+    const response = await this.openai.responses.create(cachedRequestParams)
     const resultResp: LLMResponse = {
       content: ''
     }
@@ -571,7 +604,8 @@ export class OpenAIResponsesProvider extends BaseLLMProvider {
               prompt_tokens: result.usage.input_tokens || 0,
               completion_tokens: result.usage.output_tokens || 0,
               total_tokens: result.usage.total_tokens || 0,
-              cached_tokens: getOpenAIResponseCachedTokens(result.usage)
+              cached_tokens: getOpenAIResponseCachedTokens(result.usage),
+              cache_write_tokens: getOpenAIResponseCacheWriteTokens(result.usage)
             })
           }
 
@@ -631,13 +665,21 @@ export class OpenAIResponsesProvider extends BaseLLMProvider {
         ? await this.mcpRuntime?.mcpToolsToOpenAIResponsesTools(tools, this.provider.id)
         : undefined
 
-    const requestParams: OpenAI.Responses.ResponseCreateParams = {
+    const requestParams: OpenAI.Responses.ResponseCreateParamsStreaming = {
       model: modelId,
       input: processedMessages,
       temperature,
       max_output_tokens: maxTokens,
       stream: true
     }
+    const promptCachePlan = resolvePromptCachePlan({
+      providerId: this.provider.id,
+      apiType: 'openai_responses',
+      modelId,
+      messages: processedMessages as unknown[],
+      tools,
+      conversationId: modelConfig?.conversationId
+    })
 
     // 如果模型支持函数调用且有工具,添加 tools 参数
     if (tools.length > 0 && supportsFunctionCall && apiTools) {
@@ -660,13 +702,18 @@ export class OpenAIResponsesProvider extends BaseLLMProvider {
       if (modelId.startsWith(noTempId)) delete requestParams.temperature
     })
 
+    const cachedRequestParams = applyOpenAIPromptCacheKey(
+      requestParams as unknown as Record<string, unknown>,
+      promptCachePlan
+    ) as unknown as OpenAI.Responses.ResponseCreateParamsStreaming
+
     await this.emitRequestTrace(modelConfig, {
       endpoint: this.buildResponsesEndpoint(),
       headers: this.buildResponsesTraceHeaders(),
-      body: requestParams
+      body: cachedRequestParams
     })
 
-    const stream = await this.openai.responses.create(requestParams)
+    const stream = await this.openai.responses.create(cachedRequestParams)
 
     // --- State Variables ---
     type TagState = 'none' | 'start' | 'inside' | 'end'
@@ -696,6 +743,7 @@ export class OpenAIResponsesProvider extends BaseLLMProvider {
           completion_tokens: number
           total_tokens: number
           cached_tokens?: number
+          cache_write_tokens?: number
         }
       | undefined = undefined
 
@@ -1006,7 +1054,8 @@ export class OpenAIResponsesProvider extends BaseLLMProvider {
             prompt_tokens: response.usage.input_tokens || 0,
             completion_tokens: response.usage.output_tokens || 0,
             total_tokens: response.usage.total_tokens || 0,
-            cached_tokens: getOpenAIResponseCachedTokens(response.usage)
+            cached_tokens: getOpenAIResponseCachedTokens(response.usage),
+            cache_write_tokens: getOpenAIResponseCacheWriteTokens(response.usage)
           }
           yield createStreamEvent.usage(usage)
         }

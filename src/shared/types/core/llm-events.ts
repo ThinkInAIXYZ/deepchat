@@ -58,6 +58,7 @@ export interface UsageStreamEvent {
     completion_tokens: number
     total_tokens: number
     cached_tokens?: number
+    cache_write_tokens?: number
   }
 }
 
@@ -136,6 +137,7 @@ export const createStreamEvent = {
     completion_tokens: number
     total_tokens: number
     cached_tokens?: number
+    cache_write_tokens?: number
   }): UsageStreamEvent => ({
     type: 'usage',
     usage
