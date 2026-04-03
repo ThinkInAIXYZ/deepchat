@@ -83,7 +83,35 @@ function createMockSqlitePresenter() {
         }
       ),
       get: vi.fn((id: string) => sessionsStore.get(id)),
-      list: vi.fn(() => Array.from(sessionsStore.values())),
+      list: vi.fn(
+        (filters?: {
+          agentId?: string
+          projectDir?: string
+          includeSubagents?: boolean
+          parentSessionId?: string
+        }) => {
+          return Array.from(sessionsStore.values())
+            .filter((row) => {
+              if (filters?.agentId && row.agent_id !== filters.agentId) {
+                return false
+              }
+              if (filters?.projectDir && row.project_dir !== filters.projectDir) {
+                return false
+              }
+              if (filters?.includeSubagents !== true && filters?.parentSessionId === undefined) {
+                return (row.session_kind ?? 'regular') === 'regular'
+              }
+              if (
+                filters?.parentSessionId !== undefined &&
+                (row.parent_session_id ?? null) !== filters.parentSessionId
+              ) {
+                return false
+              }
+              return true
+            })
+            .sort((left, right) => right.updated_at - left.updated_at)
+        }
+      ),
       getDisabledAgentTools: vi.fn().mockReturnValue([]),
       updateDisabledAgentTools: vi.fn(),
       update: vi.fn(),
@@ -439,6 +467,7 @@ function createMockLlmProviderPresenter() {
         })()
       })
     }),
+    executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
     generateText: vi.fn().mockResolvedValue({
       content: ['## Current Goal', '- Continue the conversation'].join('\n')
     }),

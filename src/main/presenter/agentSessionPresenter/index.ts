@@ -381,7 +381,7 @@ export class AgentSessionPresenter {
     if (normalizedInput.text.trim() || (normalizedInput.files?.length ?? 0) > 0) {
       console.log(`[AgentSessionPresenter] firing queuePendingInput (non-blocking)`)
       if (agent.queuePendingInput) {
-        agent.queuePendingInput(sessionId, normalizedInput).catch((err) => {
+        agent.queuePendingInput(sessionId, normalizedInput, { source: 'send' }).catch((err) => {
           console.error('[AgentSessionPresenter] queuePendingInput failed:', err)
         })
       } else {
@@ -667,7 +667,7 @@ export class AgentSessionPresenter {
       session.projectDir ?? null
     )
     if (agent.queuePendingInput) {
-      await agent.queuePendingInput(sessionId, normalizedInput)
+      await agent.queuePendingInput(sessionId, normalizedInput, { source: 'send' })
       if (!hadMessages && !wasDraft) {
         void this.generateSessionTitle(sessionId, session.title, providerId, state?.modelId ?? '')
       }
@@ -726,7 +726,7 @@ export class AgentSessionPresenter {
       currentSession.agentId,
       currentSession.projectDir ?? null
     )
-    return await agent.queuePendingInput(sessionId, normalizedInput)
+    return await agent.queuePendingInput(sessionId, normalizedInput, { source: 'queue' })
   }
 
   async updateQueuedInput(sessionId: string, itemId: string, content: string | SendMessageInput) {

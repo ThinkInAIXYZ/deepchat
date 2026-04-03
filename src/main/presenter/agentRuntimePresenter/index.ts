@@ -4,8 +4,10 @@ import type {
   DeepChatSessionState,
   IAgentImplementation,
   MessageFile,
+  PendingInputEnqueueSource,
   PendingSessionInputRecord,
   PermissionMode,
+  QueuePendingInputOptions,
   SendMessageInput,
   SessionCompactionState,
   SessionGenerationSettings,
@@ -322,7 +324,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
 
   async queuePendingInput(
     sessionId: string,
-    content: string | SendMessageInput
+    content: string | SendMessageInput,
+    options?: QueuePendingInputOptions
   ): Promise<PendingSessionInputRecord> {
     const state = await this.getSessionState(sessionId)
     if (!state) {
@@ -330,7 +333,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     }
 
     const shouldClaimImmediately =
-      this.isAwaitingToolQuestionFollowUp(sessionId) ||
+      ((options?.source ?? 'send') === 'send' && this.isAwaitingToolQuestionFollowUp(sessionId)) ||
       this.shouldStartQueuedInputImmediately(sessionId, state.status)
     const record = this.pendingInputCoordinator.queuePendingInput(sessionId, content, {
       state: shouldClaimImmediately ? 'claimed' : 'pending'
@@ -339,7 +342,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     if (record.state === 'claimed') {
       void this.processMessage(sessionId, record.payload, {
         projectDir: this.resolveProjectDir(sessionId),
-        pendingQueueItemId: record.id
+        pendingQueueItemId: record.id,
+        pendingQueueItemSource: options?.source ?? 'send'
       })
       return record
     }
@@ -398,6 +402,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       projectDir?: string | null
       emitRefreshBeforeStream?: boolean
       pendingQueueItemId?: string
+      pendingQueueItemSource?: PendingInputEnqueueSource
     }
   ): Promise<void> {
     const state = this.runtimeState.get(sessionId)
@@ -528,7 +533,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       assistantMessageId = this.messageStore.createAssistantMessage(sessionId, assistantOrderSeq)
       this.throwIfAbortRequested(preStreamAbortSignal)
 
-      if (context?.pendingQueueItemId) {
+      if (context?.pendingQueueItemId && context.pendingQueueItemSource !== 'queue') {
         this.pendingInputCoordinator.consumeQueuedInput(sessionId, context.pendingQueueItemId)
         consumedPendingQueueItem = true
       }
@@ -546,6 +551,20 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         tools,
         interleavedReasoning
       })
+      if (context?.pendingQueueItemId && !consumedPendingQueueItem) {
+        if (context.pendingQueueItemSource === 'queue') {
+          if (result.status === 'completed' || result.status === 'paused') {
+            this.pendingInputCoordinator.consumeQueuedInput(sessionId, context.pendingQueueItemId)
+            consumedPendingQueueItem = true
+          } else {
+            this.rollbackClaimedQueueInputTurn(sessionId, context.pendingQueueItemId, userMessageId)
+            consumedPendingQueueItem = true
+          }
+        } else {
+          this.pendingInputCoordinator.consumeQueuedInput(sessionId, context.pendingQueueItemId)
+          consumedPendingQueueItem = true
+        }
+      }
       try {
         this.applyProcessResultStatus(sessionId, result, runId)
       } finally {
@@ -558,10 +577,15 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       console.error('[DeepChatAgent] processMessage error:', err)
       if (context?.pendingQueueItemId && !consumedPendingQueueItem) {
         try {
-          this.pendingInputCoordinator.releaseClaimedQueueInput(
-            sessionId,
-            context.pendingQueueItemId
-          )
+          if (context.pendingQueueItemSource === 'queue') {
+            this.rollbackClaimedQueueInputTurn(sessionId, context.pendingQueueItemId, userMessageId)
+          } else {
+            this.pendingInputCoordinator.releaseClaimedQueueInput(
+              sessionId,
+              context.pendingQueueItemId
+            )
+          }
+          consumedPendingQueueItem = true
         } catch (releaseError) {
           console.warn('[DeepChatAgent] failed to release claimed queue input:', releaseError)
         }
@@ -1756,6 +1780,19 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     }
 
     return (reason === 'enqueue' || reason === 'resume') && status === 'error'
+  }
+
+  private rollbackClaimedQueueInputTurn(
+    sessionId: string,
+    pendingQueueItemId: string,
+    userMessageId: string | null
+  ): void {
+    const userMessage = userMessageId ? this.messageStore.getMessage(userMessageId) : null
+    if (userMessage) {
+      this.invalidateSummaryIfNeeded(sessionId, userMessage.orderSeq)
+      this.messageStore.deleteFromOrderSeq(sessionId, userMessage.orderSeq)
+    }
+    this.pendingInputCoordinator.releaseClaimedQueueInput(sessionId, pendingQueueItemId)
   }
 
   private registerActiveGeneration(

@@ -849,6 +849,42 @@ describe('AgentSessionPresenter', () => {
     })
   })
 
+  describe('queuePendingInput', () => {
+    it('passes queue-origin metadata to agents for explicit queued inputs', async () => {
+      const queuePendingInput = vi.fn().mockResolvedValue({
+        id: 'q1',
+        sessionId: 's1',
+        mode: 'queue',
+        state: 'pending',
+        payload: { text: 'Later', files: [] },
+        queueOrder: 1,
+        claimedAt: null,
+        consumedAt: null,
+        createdAt: 1,
+        updatedAt: 1
+      })
+      ;(deepChatAgent as any).queuePendingInput = queuePendingInput
+      sqlitePresenter.newSessionsTable.get.mockReturnValue({
+        id: 's1',
+        agent_id: 'deepchat',
+        title: 'Test',
+        project_dir: '/tmp/workspace',
+        is_pinned: 0,
+        is_draft: 0,
+        created_at: 1000,
+        updated_at: 1000
+      })
+
+      await presenter.queuePendingInput('s1', 'Later')
+
+      expect(queuePendingInput).toHaveBeenCalledWith(
+        's1',
+        { text: 'Later', files: [] },
+        { source: 'queue' }
+      )
+    })
+  })
+
   describe('ensureAcpDraftSession', () => {
     it('creates draft session and prepares ACP session setup', async () => {
       configPresenter.getAcpAgents.mockResolvedValue([

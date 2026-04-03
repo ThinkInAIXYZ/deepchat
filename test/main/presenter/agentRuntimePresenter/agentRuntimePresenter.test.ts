@@ -2256,6 +2256,35 @@ describe('AgentRuntimePresenter', () => {
       )
       expect(result).toBe(claimedRecord)
     })
+
+    it('keeps queue-origin inputs pending while waiting for a tool follow-up', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+
+      const pendingRecord = {
+        id: 'q1',
+        sessionId: 's1',
+        mode: 'queue',
+        state: 'pending',
+        payload: { text: 'Queued later', files: [] },
+        queueOrder: 1,
+        claimedAt: null,
+        consumedAt: null,
+        createdAt: 1,
+        updatedAt: 1
+      }
+      const queueSpy = vi
+        .spyOn((agent as any).pendingInputCoordinator, 'queuePendingInput')
+        .mockReturnValue(pendingRecord)
+      const processSpy = vi.spyOn(agent, 'processMessage').mockResolvedValue()
+      vi.spyOn(agent as any, 'isAwaitingToolQuestionFollowUp').mockReturnValue(true)
+      vi.spyOn(agent as any, 'shouldStartQueuedInputImmediately').mockReturnValue(false)
+
+      const result = await agent.queuePendingInput('s1', 'Queued later', { source: 'queue' })
+
+      expect(queueSpy).toHaveBeenCalledWith('s1', 'Queued later', { state: 'pending' })
+      expect(processSpy).not.toHaveBeenCalled()
+      expect(result).toBe(pendingRecord)
+    })
   })
 
   describe('getMessages / getMessageIds / getMessage', () => {

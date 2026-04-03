@@ -33,6 +33,12 @@ export interface DeepChatSessionState {
   permissionMode: PermissionMode
 }
 
+export type PendingInputEnqueueSource = 'send' | 'queue'
+
+export interface QueuePendingInputOptions {
+  source?: PendingInputEnqueueSource
+}
+
 export interface IAgentImplementation {
   /** Initialize a new session for this agent */
   initSession(
@@ -57,14 +63,20 @@ export interface IAgentImplementation {
   processMessage(
     sessionId: string,
     content: string | SendMessageInput,
-    context?: { projectDir?: string | null; emitRefreshBeforeStream?: boolean }
+    context?: {
+      projectDir?: string | null
+      emitRefreshBeforeStream?: boolean
+      pendingQueueItemId?: string
+      pendingQueueItemSource?: PendingInputEnqueueSource
+    }
   ): Promise<void>
 
   /** Manage waiting lane inputs */
   listPendingInputs?(sessionId: string): Promise<PendingSessionInputRecord[]>
   queuePendingInput?(
     sessionId: string,
-    content: string | SendMessageInput
+    content: string | SendMessageInput,
+    options?: QueuePendingInputOptions
   ): Promise<PendingSessionInputRecord>
   updateQueuedInput?(
     sessionId: string,
