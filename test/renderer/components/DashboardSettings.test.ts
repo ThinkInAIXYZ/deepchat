@@ -408,6 +408,10 @@ describe('DashboardSettings', () => {
   it('renders summary cards and breakdown rows when stats exist', async () => {
     const { wrapper, getUsageDashboard } = await setup(buildDashboard())
     const summaryCards = wrapper.findAll('[data-testid^="summary-card-"]')
+    const header = wrapper.get('[data-testid="dashboard-header"]')
+    const calendarHeatmap = wrapper.get('[data-testid="dashboard-calendar-heatmap"]')
+    const calendarWeeks = wrapper.get('[data-testid="dashboard-calendar-weeks"]')
+    const tokenUsageList = wrapper.get('[data-testid="token-usage-list"]')
 
     expect(getUsageDashboard).toHaveBeenCalledTimes(1)
     expect(wrapper.text()).toContain('OpenAI')
@@ -426,6 +430,8 @@ describe('DashboardSettings', () => {
     expect(wrapper.text()).toContain('Mar 9, 2026 was your most active day, with 2 messages.')
     expect(wrapper.text()).not.toContain('settings.dashboard.summary.cacheHitRate')
     expect(summaryCards).toHaveLength(2)
+    expect(header.classes()).toContain('flex-col')
+    expect(header.classes()).toContain('sm:flex-row')
     expect(wrapper.find('[data-testid="summary-card-tokenUsage"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="summary-card-nostalgia"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="token-usage-trend-chart"]').exists()).toBe(true)
@@ -451,12 +457,15 @@ describe('DashboardSettings', () => {
     expect(wrapper.find('[data-testid="model-breakdown-scroll"]').exists()).toBe(true)
     expect(wrapper.find('[title="1,200"]').exists()).toBe(true)
     expect(wrapper.findAll('[data-testid="calendar-cell"]').length).toBeGreaterThan(0)
+    expect(calendarHeatmap.classes()).toContain('calendar-heatmap')
+    expect(calendarWeeks.attributes('style')).toContain('repeat(4, minmax(0, 1fr))')
+    expect(tokenUsageList.classes()).toContain('dashboard-token-usage-list')
     expect(wrapper.find('[data-testid="summary-card-nostalgia"]').html()).toContain(
       'whitespace-normal'
     )
     expect(wrapper.find('[data-testid="summary-card-nostalgia"]').html()).toContain('md:col-span-2')
     expect(wrapper.find('[data-testid="summary-card-nostalgia"]').html()).toContain(
-      'md:grid-cols-[minmax(0,14rem)_minmax(0,1fr)]'
+      'lg:grid-cols-[minmax(0,13rem)_minmax(0,1fr)]'
     )
     expect(wrapper.find('[data-testid="nostalgia-details"]').html()).toContain('space-y-2')
     expect(wrapper.find('[data-testid="nostalgia-rotating-value"]').text()).toBe('17 days')
@@ -472,6 +481,7 @@ describe('DashboardSettings', () => {
     const { wrapper } = await setup(buildDashboard())
 
     expect(wrapper.find('[data-testid="rtk-card"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="rtk-card"]').html()).toContain('dashboard-rtk-summary-grid')
     expect(wrapper.find('[data-testid="rtk-status-badge"]').text()).toBe('Bundled')
     expect(wrapper.find('[data-testid="rtk-summary-saved"]').text()).toContain('3.8k')
     expect(wrapper.find('[data-testid="rtk-summary-commands"]').text()).toContain('12')

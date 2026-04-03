@@ -9,7 +9,7 @@
     >
       <div class="flex items-center gap-3 border-b border-border/60 px-4 py-3">
         <Icon icon="lucide:search" class="h-4 w-4 shrink-0 text-muted-foreground" />
-        <Input
+        <input
           ref="inputRef"
           :value="spotlightStore.query"
           class="h-9 w-full bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
@@ -21,7 +21,7 @@
 
       <div ref="resultsContainerRef" class="max-h-[28rem] overflow-y-auto p-2">
         <template v-if="spotlightStore.results.length > 0">
-          <Button
+          <button
             v-for="(item, index) in spotlightStore.results"
             :key="item.id"
             type="button"
@@ -75,7 +75,7 @@
                 {{ item.snippet }}
               </span>
             </span>
-          </Button>
+          </button>
         </template>
 
         <div
