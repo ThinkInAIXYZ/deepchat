@@ -8,7 +8,7 @@ const eventBusMocks = vi.hoisted(() => ({
 }))
 
 const presenterMocks = vi.hoisted(() => ({
-  newAgentPresenter: {
+  agentSessionPresenter: {
     getSession: vi.fn()
   }
 }))
@@ -95,7 +95,7 @@ describe('ToolManager ACP MCP access control', () => {
     configPresenter.getAcpAgents.mockResolvedValue([{ id: 'agent-1', name: 'Agent 1' }])
     configPresenter.getAgentMcpSelections.mockResolvedValue([])
 
-    presenterMocks.newAgentPresenter.getSession.mockResolvedValue({
+    presenterMocks.agentSessionPresenter.getSession.mockResolvedValue({
       id: 'session-1',
       agentId: 'agent-1',
       title: 'New Chat',
@@ -137,7 +137,7 @@ describe('ToolManager ACP MCP access control', () => {
   it('skips ACP session resolution when provider hint is non-ACP', async () => {
     const client = createClient('open-server')
     const configPresenter = createConfigPresenter('open-server')
-    presenterMocks.newAgentPresenter.getSession.mockResolvedValue(null)
+    presenterMocks.agentSessionPresenter.getSession.mockResolvedValue(null)
 
     const manager = new ToolManager(
       configPresenter as never,
@@ -160,7 +160,7 @@ describe('ToolManager ACP MCP access control', () => {
     expect(result.isError).toBe(false)
     expect(result.content).toBe('ok')
     expect(client.callTool).toHaveBeenCalledWith('echo', {})
-    expect(presenterMocks.newAgentPresenter.getSession).not.toHaveBeenCalled()
+    expect(presenterMocks.agentSessionPresenter.getSession).not.toHaveBeenCalled()
     expect(configPresenter.getAgentMcpSelections).not.toHaveBeenCalled()
     expect(
       warnSpy.mock.calls.some((call) =>
@@ -173,7 +173,7 @@ describe('ToolManager ACP MCP access control', () => {
     const client = createClient('open-server')
     const configPresenter = createConfigPresenter('open-server')
 
-    presenterMocks.newAgentPresenter.getSession.mockResolvedValue({
+    presenterMocks.agentSessionPresenter.getSession.mockResolvedValue({
       id: 'session-2',
       agentId: 'deepchat',
       title: 'Normal Chat',
@@ -213,7 +213,7 @@ describe('ToolManager ACP MCP access control', () => {
   it('treats missing provider hint as a fallback to new session resolution', async () => {
     const client = createClient('open-server')
     const configPresenter = createConfigPresenter('open-server')
-    presenterMocks.newAgentPresenter.getSession.mockResolvedValue(null)
+    presenterMocks.agentSessionPresenter.getSession.mockResolvedValue(null)
 
     const manager = new ToolManager(
       configPresenter as never,
@@ -235,7 +235,7 @@ describe('ToolManager ACP MCP access control', () => {
     expect(result.isError).toBe(false)
     expect(result.content).toBe('ok')
     expect(client.callTool).toHaveBeenCalledWith('echo', {})
-    expect(presenterMocks.newAgentPresenter.getSession).toHaveBeenCalledWith('conv-fallback')
+    expect(presenterMocks.agentSessionPresenter.getSession).toHaveBeenCalledWith('conv-fallback')
     expect(configPresenter.getAgentMcpSelections).not.toHaveBeenCalled()
   })
 })

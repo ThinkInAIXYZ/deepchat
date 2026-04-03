@@ -2,13 +2,13 @@
 
 ## 概述
 
-本规格定义新架构会话页（`ChatPage + stores/ui/* + newAgentPresenter`）下的 `MessageToolbar` 功能补齐范围，目标是让按钮行为与产品语义一致，避免“可见但不可用/行为不一致”。
+本规格定义新架构会话页（`ChatPage + stores/ui/* + agentSessionPresenter`）下的 `MessageToolbar` 功能补齐范围，目标是让按钮行为与产品语义一致，避免“可见但不可用/行为不一致”。
 
 本规格**不包含 Trace 数据落库设计**，Trace 由独立规格处理：`docs/specs/message-trace-storage/`。
 
 ## 背景与目标
 
-1. 新 UI 主链路已迁移到 `newAgentPresenter + deepchatAgentPresenter`，但 `MessageToolbar` 仍大量依赖旧 `chatStore/sessionPresenter` 语义。
+1. 新 UI 主链路已迁移到 `agentSessionPresenter + agentRuntimePresenter`，但 `MessageToolbar` 仍大量依赖旧 `chatStore/sessionPresenter` 语义。
 2. 当前按钮存在“新旧链路行为不一致”与“有 UI 无闭环”的问题。
 3. 需要明确分阶段交付：先修前端行为与禁用策略，再补后端消息操作 API。
 
@@ -38,7 +38,7 @@
 
 ### A. 架构范围
 
-- [ ] 新会话页链路仅使用 `stores/ui/session.ts`、`stores/ui/message.ts`、`newAgentPresenter`。
+- [ ] 新会话页链路仅使用 `stores/ui/session.ts`、`stores/ui/message.ts`、`agentSessionPresenter`。
 - [ ] 不再依赖旧 `chatStore` 作为新页面消息操作入口。
 - [ ] 旧页面链路可保留兼容，但不作为新页面实现基线。
 

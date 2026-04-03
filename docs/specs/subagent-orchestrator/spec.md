@@ -133,7 +133,7 @@ V1 目标是把能力收口为单一 agent tool `subagent_orchestrator`，由 to
 
 ### 创建
 
-tool 内部通过 runtime port 调 `NewAgentPresenter` 创建 child session：
+tool 内部通过 runtime port 调 `AgentSessionPresenter` 创建 child session：
 
 1. `self` slot 继承父 `agentId`
 2. `agent` slot 使用 `slot.targetAgentId`

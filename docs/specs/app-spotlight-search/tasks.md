@@ -28,7 +28,7 @@
 
 - [ ] 新增 `HistorySearchOptions`
 - [ ] 新增 `HistorySearchHit / SessionHit / MessageHit`
-- [ ] `INewAgentPresenter` 增加 `searchHistory(query, options?)`
+- [ ] `IAgentSessionPresenter` 增加 `searchHistory(query, options?)`
 - [ ] 补充共享类型导出
 
 ## T4 设置导航 registry

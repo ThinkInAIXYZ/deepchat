@@ -41,7 +41,7 @@ const artifactStore = useArtifactStore()
 const fallbackMessageId = `artifact-msg-${nanoid()}`
 const fallbackThreadId = `artifact-thread-${nanoid()}`
 const referenceStore = useReferenceStore()
-const newAgentPresenter = usePresenter('newAgentPresenter')
+const agentSessionPresenter = usePresenter('agentSessionPresenter')
 const referenceNode = ref<HTMLElement | null>(null)
 const debouncedContent = ref(props.content)
 const effectiveMessageId = computed(() => props.messageId ?? fallbackMessageId)
@@ -76,7 +76,7 @@ setCustomComponents({
       threadId: effectiveThreadId.value,
       onClick() {
         // TODO: remove this temporary fallback after search result loading is fully unified.
-        newAgentPresenter.getSearchResults(effectiveMessageId.value).then((results) => {
+        agentSessionPresenter.getSearchResults(effectiveMessageId.value).then((results) => {
           const index = parseInt(_props.node.id)
           if (index < results.length) {
             window.open(results[index - 1].url, '_blank', 'noopener,noreferrer')
@@ -86,7 +86,7 @@ setCustomComponents({
       onMouseEnter() {
         console.log('Mouse entered')
         referenceStore.hideReference()
-        newAgentPresenter.getSearchResults(effectiveMessageId.value).then((results) => {
+        agentSessionPresenter.getSearchResults(effectiveMessageId.value).then((results) => {
           const index = parseInt(_props.node.id)
           if (index - 1 < results.length && referenceNode.value) {
             referenceStore.showReference(

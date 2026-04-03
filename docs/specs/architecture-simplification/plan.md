@@ -11,7 +11,7 @@
 ### 2. Main Composition / Lifecycle
 
 - 新增 `ConfigQueryPort`、`SessionRuntimePort`、`WindowRoutingPort` 等窄接口。
-- 让 `Presenter` 只在 composition root 组装 port；`newAgentPresenter`、`deepchatAgentPresenter` 只依赖 port。
+- 让 `Presenter` 只在 composition root 组装 port；`agentSessionPresenter`、`agentRuntimePresenter` 只依赖 port。
 - 首批迁移目标：
   - 会话 UI 刷新
   - 权限批准 / 清理

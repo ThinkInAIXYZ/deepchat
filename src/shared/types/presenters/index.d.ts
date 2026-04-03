@@ -82,12 +82,12 @@ export type { IToolPresenter } from './tool.presenter'
 
 // New agent architecture types
 export type {
-  INewAgentPresenter,
+  IAgentSessionPresenter,
   HistorySearchHit,
   HistorySearchMessageHit,
   HistorySearchOptions,
   HistorySearchSessionHit
-} from './new-agent.presenter'
+} from './agent-session.presenter'
 export type { IProjectPresenter } from './project.presenter'
 export type {
   FeishuPairingSnapshot,

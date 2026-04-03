@@ -2,18 +2,18 @@
 
 retirement 之后，会话管理被明确拆成两层：
 
-- 活跃聊天层：`newAgentPresenter` + `NewSessionManager`
+- 活跃聊天层：`agentSessionPresenter` + `NewSessionManager`
 - 兼容数据层：`SessionPresenter`
 
 ## 当前职责边界
 
 | 组件 | 位置 | 当前职责 |
 | --- | --- | --- |
-| `NewAgentPresenter` | `src/main/presenter/newAgentPresenter/index.ts` | renderer 唯一 session 入口 |
-| `NewSessionManager` | `src/main/presenter/newAgentPresenter/sessionManager.ts` | `new_sessions` 记录、窗口绑定、session CRUD |
-| `NewMessageManager` | `src/main/presenter/newAgentPresenter/messageManager.ts` | 新会话消息读取与 agent routing |
-| `DeepChatSessionStore` | `src/main/presenter/deepchatAgentPresenter/sessionStore.ts` | 活跃 runtime 状态 |
-| `DeepChatMessageStore` | `src/main/presenter/deepchatAgentPresenter/messageStore.ts` | 新消息持久化 |
+| `AgentSessionPresenter` | `src/main/presenter/agentSessionPresenter/index.ts` | renderer 唯一 session 入口 |
+| `NewSessionManager` | `src/main/presenter/agentSessionPresenter/sessionManager.ts` | `new_sessions` 记录、窗口绑定、session CRUD |
+| `NewMessageManager` | `src/main/presenter/agentSessionPresenter/messageManager.ts` | 新会话消息读取与 agent routing |
+| `DeepChatSessionStore` | `src/main/presenter/agentRuntimePresenter/sessionStore.ts` | 活跃 runtime 状态 |
+| `DeepChatMessageStore` | `src/main/presenter/agentRuntimePresenter/messageStore.ts` | 新消息持久化 |
 | `SessionPresenter` | `src/main/presenter/sessionPresenter/index.ts` | legacy conversation/thread/export 兼容层 |
 | `sessionPresenter/messageFormatter.ts` | `src/main/presenter/sessionPresenter/messageFormatter.ts` | 用户消息上下文格式化与 exporter 复用 |
 
@@ -22,9 +22,9 @@ retirement 之后，会话管理被明确拆成两层：
 ```mermaid
 sequenceDiagram
     participant R as Renderer
-    participant N as NewAgentPresenter
+    participant N as AgentSessionPresenter
     participant S as NewSessionManager
-    participant D as DeepChatAgentPresenter
+    participant D as AgentRuntimePresenter
 
     R->>N: createSession()
     N->>S: create()
@@ -70,4 +70,4 @@ sequenceDiagram
 - 维护 exporter 使用的用户消息归一化
 
 如果是当前聊天会话创建、发送消息、取消生成、tool interaction，请直接从
-`newAgentPresenter` 和 `deepchatAgentPresenter` 开始读。
+`agentSessionPresenter` 和 `agentRuntimePresenter` 开始读。

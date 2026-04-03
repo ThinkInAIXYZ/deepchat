@@ -5,9 +5,9 @@
 当前代码已经具备：
 
 1. `new_sessions` + `deepchat_sessions` 的新会话栈
-2. `NewAgentPresenter` 负责 session 生命周期与 renderer IPC
+2. `AgentSessionPresenter` 负责 session 生命周期与 renderer IPC
 3. `ToolPresenter -> AgentToolManager` 的 agent tool 路由
-4. `DeepChatAgentPresenter` 的 tool call / permission / question / resume 流
+4. `AgentRuntimePresenter` 的 tool call / permission / question / resume 流
 5. renderer 的 `MessageBlockToolCall`、`ChatToolInteractionOverlay`、`WorkspacePanel`
 
 缺的部分是：
@@ -41,7 +41,7 @@
 采用 main-only event：
 
 1. `dispatch.flushBlocksToRenderer()` 在 child assistant block 流式刷新时，同时发 main-only event
-2. `DeepChatAgentPresenter.setSessionStatus()` 和 `emitMessageRefresh()` 也发 main-only event
+2. `AgentRuntimePresenter.setSessionStatus()` 和 `emitMessageRefresh()` 也发 main-only event
 3. orchestrator 订阅这些事件，维护自己的内存态 queue
 
 这样避免：
@@ -80,7 +80,7 @@ tool 执行时通过 `IToolPresenter.callTool(..., { onProgress })` 回调：
 
 1. 扩展 `DeepChatAgentConfig`、session record、tool progress、presenter interface
 2. 更新 `new_sessions` schema / migration / table accessors
-3. 扩展 `NewSessionManager` 与 `NewAgentPresenter` 的 create/list/delete API
+3. 扩展 `NewSessionManager` 与 `AgentSessionPresenter` 的 create/list/delete API
 
 ### Phase 2：Tool Runtime
 
@@ -98,7 +98,7 @@ tool 执行时通过 `IToolPresenter.callTool(..., { onProgress })` 回调：
 
 1. 增加 main-only subagent runtime event 常量
 2. `dispatch` 在 child assistant block streaming 时发 event
-3. `DeepChatAgentPresenter` 在 message refresh / session status change 时发 event
+3. `AgentRuntimePresenter` 在 message refresh / session status change 时发 event
 4. `dispatch.executeTools()` 与 `executeDeferredToolCall()` 透传 `onProgress` / `signal`
 
 ### Phase 4：Renderer
@@ -153,7 +153,7 @@ tool 执行时通过 `IToolPresenter.callTool(..., { onProgress })` 回调：
 
 ### 4.4 父删子级联
 
-在 `NewAgentPresenter.deleteSession()` 递归查 child：
+在 `AgentSessionPresenter.deleteSession()` 递归查 child：
 
 1. 父删除时先深度删除所有 child
 2. child 单独删除不反查父
@@ -165,7 +165,7 @@ tool 执行时通过 `IToolPresenter.callTool(..., { onProgress })` 回调：
 
 1. SQLite migration / default columns
 2. `NewSessionManager` 读写新字段
-3. `NewAgentPresenter.getSessionList()` 过滤与级联删除
+3. `AgentSessionPresenter.getSessionList()` 过滤与级联删除
 4. `AgentToolManager` tool gating
 5. `subagent_orchestrator` 的 parallel / chain 执行顺序
 6. progress snapshot 与 preview 裁剪

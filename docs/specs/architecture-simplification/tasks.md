@@ -9,8 +9,8 @@
 ## Main
 
 - [x] 引入窄接口 ports
-- [x] 将 `newAgentPresenter` 的会话 UI 刷新与权限清理改成依赖 port
-- [x] 将 `deepchatAgentPresenter` 的权限批准与 env prompt model lookup 改成依赖 port
+- [x] 将 `agentSessionPresenter` 的会话 UI 刷新与权限清理改成依赖 port
+- [x] 将 `agentRuntimePresenter` 的权限批准与 env prompt model lookup 改成依赖 port
 - [x] 让 `Presenter` 成为 port 的唯一组装入口
 
 ## Renderer

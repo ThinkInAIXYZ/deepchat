@@ -2,7 +2,7 @@
 
 本文档使用时序图详细描述 DeepChat 的关键业务流程，帮助开发者理解运行时行为。
 
-> **Note (2026-03-09):** 本文档描述的是原始 AgentPresenter 流程。新架构流程（newAgentPresenter + deepchatAgentPresenter）已实现，核心流程类似但入口不同。详见 [P0 Implementation Summary](./P0_IMPLEMENTATION_SUMMARY.md)。
+> **Note (2026-03-09):** 本文档描述的是原始 AgentPresenter 流程。当前主流程入口是 `agentSessionPresenter` + `agentRuntimePresenter`（formerly `newAgentPresenter` + `deepchatAgentPresenter`）；核心流程类似但入口不同。详见 [P0 Implementation Summary](./P0_IMPLEMENTATION_SUMMARY.md)。
 
 ## 1. 发送消息完整流程
 

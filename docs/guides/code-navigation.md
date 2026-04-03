@@ -7,10 +7,10 @@
 如果你要追主聊天链路，按这个顺序跳：
 
 1. `src/main/presenter/index.ts`
-2. `src/main/presenter/newAgentPresenter/index.ts`
-3. `src/main/presenter/deepchatAgentPresenter/index.ts`
-4. `src/main/presenter/deepchatAgentPresenter/process.ts`
-5. `src/main/presenter/deepchatAgentPresenter/dispatch.ts`
+2. `src/main/presenter/agentSessionPresenter/index.ts`
+3. `src/main/presenter/agentRuntimePresenter/index.ts`
+4. `src/main/presenter/agentRuntimePresenter/process.ts`
+5. `src/main/presenter/agentRuntimePresenter/dispatch.ts`
 
 ## 按功能找代码
 
@@ -18,30 +18,30 @@
 
 | 功能 | 位置 | 备注 |
 | --- | --- | --- |
-| 创建会话 | `src/main/presenter/newAgentPresenter/index.ts` | `createSession()` |
-| ACP draft 会话 | `src/main/presenter/newAgentPresenter/index.ts` | `ensureAcpDraftSession()` |
-| session 记录管理 | `src/main/presenter/newAgentPresenter/sessionManager.ts` | `create/get/delete/bindWindow` |
-| agent 注册 | `src/main/presenter/newAgentPresenter/agentRegistry.ts` | `register/resolve` |
+| 创建会话 | `src/main/presenter/agentSessionPresenter/index.ts` | `createSession()` |
+| ACP draft 会话 | `src/main/presenter/agentSessionPresenter/index.ts` | `ensureAcpDraftSession()` |
+| session 记录管理 | `src/main/presenter/agentSessionPresenter/sessionManager.ts` | `create/get/delete/bindWindow` |
+| agent 注册 | `src/main/presenter/agentSessionPresenter/agentRegistry.ts` | `register/resolve` |
 
 ### 消息发送与流式处理
 
 | 功能 | 位置 | 备注 |
 | --- | --- | --- |
-| 发送消息入口 | `src/main/presenter/newAgentPresenter/index.ts` | `sendMessage()` |
-| agent runtime 入口 | `src/main/presenter/deepchatAgentPresenter/index.ts` | `processMessage()` |
-| 主循环 | `src/main/presenter/deepchatAgentPresenter/process.ts` | stream + tool loop |
-| 工具调度 | `src/main/presenter/deepchatAgentPresenter/dispatch.ts` | tool call / paused interaction |
-| 上下文构建 | `src/main/presenter/deepchatAgentPresenter/contextBuilder.ts` | history fitting / resume context |
-| 流式 echo | `src/main/presenter/deepchatAgentPresenter/echo.ts` | renderer 增量回显 |
+| 发送消息入口 | `src/main/presenter/agentSessionPresenter/index.ts` | `sendMessage()` |
+| agent runtime 入口 | `src/main/presenter/agentRuntimePresenter/index.ts` | `processMessage()` |
+| 主循环 | `src/main/presenter/agentRuntimePresenter/process.ts` | stream + tool loop |
+| 工具调度 | `src/main/presenter/agentRuntimePresenter/dispatch.ts` | tool call / paused interaction |
+| 上下文构建 | `src/main/presenter/agentRuntimePresenter/contextBuilder.ts` | history fitting / resume context |
+| 流式 echo | `src/main/presenter/agentRuntimePresenter/echo.ts` | renderer 增量回显 |
 
 ### 消息与状态持久化
 
 | 功能 | 位置 | 备注 |
 | --- | --- | --- |
-| runtime session state | `src/main/presenter/deepchatAgentPresenter/sessionStore.ts` | provider/model/permission/status |
-| message persistence | `src/main/presenter/deepchatAgentPresenter/messageStore.ts` | assistant/user message write |
-| pending input | `src/main/presenter/deepchatAgentPresenter/pendingInputStore.ts` | 启动后恢复 |
-| compaction | `src/main/presenter/deepchatAgentPresenter/compactionService.ts` | 长上下文摘要 |
+| runtime session state | `src/main/presenter/agentRuntimePresenter/sessionStore.ts` | provider/model/permission/status |
+| message persistence | `src/main/presenter/agentRuntimePresenter/messageStore.ts` | assistant/user message write |
+| pending input | `src/main/presenter/agentRuntimePresenter/pendingInputStore.ts` | 启动后恢复 |
+| compaction | `src/main/presenter/agentRuntimePresenter/compactionService.ts` | 长上下文摘要 |
 
 ### 工具系统
 
@@ -67,7 +67,7 @@
 
 | 功能 | 位置 | 备注 |
 | --- | --- | --- |
-| legacy import | `src/main/presenter/newAgentPresenter/legacyImportService.ts` | 旧数据导入新表 |
+| legacy import | `src/main/presenter/agentSessionPresenter/legacyImportService.ts` | 旧数据导入新表 |
 | legacy 会话兼容 | `src/main/presenter/sessionPresenter/index.ts` | main 内部 compatibility layer |
 | 用户消息格式化 | `src/main/presenter/sessionPresenter/messageFormatter.ts` | exporter 复用 |
 
@@ -77,17 +77,17 @@
 
 ```bash
 rg "createSession\\(" src/main
-rg "processMessage\\(" src/main/presenter/deepchatAgentPresenter
+rg "processMessage\\(" src/main/presenter/agentRuntimePresenter
 rg "callTool\\(" src/main/presenter/toolPresenter
-rg --files src/main/presenter | rg "newAgentPresenter|deepchatAgentPresenter|agentTools|acp"
+rg --files src/main/presenter | rg "agentSessionPresenter|agentRuntimePresenter|agentTools|acp"
 ```
 
 ## 看到这些词时怎么理解
 
 | 词 | 当前含义 |
 | --- | --- |
-| `newAgentPresenter` | renderer 唯一聊天会话入口 |
-| `deepchatAgentPresenter` | 当前聊天 runtime |
+| `agentSessionPresenter` | renderer 唯一聊天会话入口 |
+| `agentRuntimePresenter` | 当前聊天 runtime |
 | `SessionPresenter` | legacy conversation 兼容层，不是主链路 |
 | `agentPresenter` | 已退休；只会出现在 archive 或历史 spec 里 |
 

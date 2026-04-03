@@ -2,18 +2,18 @@ import type { HookTestResult, HooksNotificationsSettings } from '@shared/hooksNo
 import type {
   FeishuRemoteSettings,
   IConfigPresenter,
-  INewAgentPresenter,
+  IAgentSessionPresenter,
   IRemoteControlPresenter,
   ITabPresenter,
   IWindowPresenter,
   TelegramRemoteSettings
 } from '@shared/presenter'
-import type { DeepChatAgentPresenter } from '../deepchatAgentPresenter'
+import type { AgentRuntimePresenter } from '../agentRuntimePresenter'
 
 export interface RemoteControlPresenterDeps {
   configPresenter: IConfigPresenter
-  newAgentPresenter: INewAgentPresenter
-  deepchatAgentPresenter: DeepChatAgentPresenter
+  agentSessionPresenter: IAgentSessionPresenter
+  agentRuntimePresenter: AgentRuntimePresenter
   windowPresenter: IWindowPresenter
   tabPresenter: ITabPresenter
   getHooksNotificationsConfig: () => HooksNotificationsSettings

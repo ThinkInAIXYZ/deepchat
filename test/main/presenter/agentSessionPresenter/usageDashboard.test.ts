@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { NewAgentPresenter } from '@/presenter/newAgentPresenter/index'
-import { DeepChatMessageStore } from '@/presenter/deepchatAgentPresenter/messageStore'
+import { AgentSessionPresenter } from '@/presenter/agentSessionPresenter/index'
+import { DeepChatMessageStore } from '@/presenter/agentRuntimePresenter/messageStore'
 import { DASHBOARD_STATS_BACKFILL_KEY, type UsageStatsRecordInput } from '@/presenter/usageStats'
 
 vi.mock('@/eventbus', () => ({
@@ -413,7 +413,7 @@ function createMockSqlitePresenter() {
   } as any
 }
 
-describe('NewAgentPresenter usage dashboard', () => {
+describe('AgentSessionPresenter usage dashboard', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
@@ -421,7 +421,7 @@ describe('NewAgentPresenter usage dashboard', () => {
   function createPresenter() {
     const sqlitePresenter = createMockSqlitePresenter()
     const configPresenter = createMockConfigPresenter()
-    const presenter = new NewAgentPresenter(
+    const presenter = new AgentSessionPresenter(
       createMockDeepChatAgent() as any,
       createMockLlmProviderPresenter() as any,
       configPresenter as any,

@@ -13,7 +13,7 @@ import type {
   SessionKind
 } from '@shared/types/agent-interface'
 import type { ISkillPresenter } from '@shared/types/skill'
-import type { DeepChatInternalSessionUpdate } from '../deepchatAgentPresenter/internalSessionEvents'
+import type { DeepChatInternalSessionUpdate } from '../agentRuntimePresenter/internalSessionEvents'
 
 export interface ConversationSessionInfo {
   sessionId: string

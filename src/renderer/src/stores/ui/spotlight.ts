@@ -126,7 +126,7 @@ const actionItems: Array<{
 ]
 
 export const useSpotlightStore = defineStore('spotlight', () => {
-  const newAgentPresenter = usePresenter('newAgentPresenter')
+  const agentSessionPresenter = usePresenter('agentSessionPresenter')
   const windowPresenter = usePresenter('windowPresenter')
   const providerStore = useProviderStore()
   const sessionStore = useSessionStore()
@@ -301,7 +301,7 @@ export const useSpotlightStore = defineStore('spotlight', () => {
       return
     }
 
-    const historyHits = await newAgentPresenter.searchHistory(normalizedQuery, {
+    const historyHits = await agentSessionPresenter.searchHistory(normalizedQuery, {
       limit: MAX_RESULTS
     })
 

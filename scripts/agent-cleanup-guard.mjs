@@ -22,8 +22,8 @@ const LEGACY_MAIN_DIRS = [
 ]
 
 const PRIMARY_MAIN_GUARD_PATHS = [
-  path.join(ROOT, 'src/main/presenter/newAgentPresenter'),
-  path.join(ROOT, 'src/main/presenter/deepchatAgentPresenter'),
+  path.join(ROOT, 'src/main/presenter/agentSessionPresenter'),
+  path.join(ROOT, 'src/main/presenter/agentRuntimePresenter'),
   path.join(ROOT, 'src/main/presenter/skillPresenter'),
   path.join(ROOT, 'src/main/presenter/mcpPresenter/toolManager.ts'),
   path.join(ROOT, 'src/main/presenter/syncPresenter/index.ts')
@@ -52,7 +52,7 @@ const LEGACY_AGENT_RUNTIME_GLOBALS = [
   'skillPresenter',
   'filePermissionService',
   'settingsPermissionService',
-  'newAgentPresenter',
+  'agentSessionPresenter',
   'sessionPresenter',
   'yoBrowserPresenter',
   'filePresenter',
@@ -152,8 +152,8 @@ function buildViolation(kind, filePath, specifier) {
 
 async function findViolations() {
   const scanRoots = [
-    path.join(ROOT, 'src/main/presenter/newAgentPresenter'),
-    path.join(ROOT, 'src/main/presenter/deepchatAgentPresenter'),
+    path.join(ROOT, 'src/main/presenter/agentSessionPresenter'),
+    path.join(ROOT, 'src/main/presenter/agentRuntimePresenter'),
     path.join(ROOT, 'src/main/presenter/skillPresenter'),
     path.join(ROOT, 'src/main/presenter/mcpPresenter/toolManager.ts'),
     path.join(ROOT, 'src/main/presenter/syncPresenter/index.ts'),

@@ -4,7 +4,7 @@ Baseline captured on `2026-04-03`.
 
 ## 真实行为回归 / 契约漂移
 
-- `test/main/presenter/newAgentPresenter/integration.test.ts`
+- `test/main/presenter/agentSessionPresenter/integration.test.ts`
   - `configPresenter.getAgentType()` mock 契约缺失暴露了会话编排对配置查询的硬依赖。
 - `test/main/presenter/floatingButtonPresenter/*.test.ts`
   - 布局断言和当前窗口吸边行为不一致。
@@ -19,7 +19,7 @@ Baseline captured on `2026-04-03`.
 
 - `test/main/presenter/mcpClient.test.ts`
   - 仍然断言旧的 runtime command translation 细节。
-- `test/main/presenter/newAgentPresenter/messageManager.test.ts`
+- `test/main/presenter/agentSessionPresenter/messageManager.test.ts`
   - 仍然调用已不再暴露的方法。
 - `test/renderer/composables/useSearchConfig.test.ts`
   - 测试存在，但实现文件缺失。

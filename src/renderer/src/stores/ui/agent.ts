@@ -24,7 +24,7 @@ export interface UIAgent {
 // --- Store ---
 
 export const useAgentStore = defineStore('agent', () => {
-  const newAgentPresenter = usePresenter('newAgentPresenter')
+  const agentSessionPresenter = usePresenter('agentSessionPresenter')
 
   // --- State ---
   const agents = ref<UIAgent[]>([])
@@ -42,7 +42,7 @@ export const useAgentStore = defineStore('agent', () => {
     loading.value = true
     error.value = null
     try {
-      const result: Agent[] = await newAgentPresenter.getAgents()
+      const result: Agent[] = await agentSessionPresenter.getAgents()
       agents.value = result.map((a) => ({
         id: a.id,
         name: a.name,

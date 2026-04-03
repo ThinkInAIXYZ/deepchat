@@ -1,20 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import * as contextBuilderModule from '@/presenter/deepchatAgentPresenter/contextBuilder'
+import * as contextBuilderModule from '@/presenter/agentRuntimePresenter/contextBuilder'
 import {
   appendSummarySection,
   CompactionService,
   type ModelSpec
-} from '@/presenter/deepchatAgentPresenter/compactionService'
-import type { SessionSummaryState } from '@/presenter/deepchatAgentPresenter/sessionStore'
+} from '@/presenter/agentRuntimePresenter/compactionService'
+import type { SessionSummaryState } from '@/presenter/agentRuntimePresenter/sessionStore'
 import type { DeepChatAgentConfig } from '@shared/types/agent-interface'
 
 vi.mock('tokenx', () => ({
   approximateTokenSize: vi.fn((text: string) => text.length)
 }))
 
-vi.mock('@/presenter/deepchatAgentPresenter/contextBuilder', async (importOriginal) => {
+vi.mock('@/presenter/agentRuntimePresenter/contextBuilder', async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import('@/presenter/deepchatAgentPresenter/contextBuilder')>()
+    await importOriginal<typeof import('@/presenter/agentRuntimePresenter/contextBuilder')>()
   return {
     ...actual,
     buildHistoryTurns: vi.fn(actual.buildHistoryTurns)

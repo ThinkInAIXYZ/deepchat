@@ -132,7 +132,7 @@ const createAbortError = (): Error => {
   return error
 }
 
-export class DeepChatAgentPresenter implements IAgentImplementation {
+export class AgentRuntimePresenter implements IAgentImplementation {
   private readonly llmProviderPresenter: ILlmProviderPresenter
   private readonly configPresenter: IConfigPresenter
   private readonly sqlitePresenter: SQLitePresenter

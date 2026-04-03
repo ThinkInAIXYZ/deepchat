@@ -16,7 +16,7 @@
   - **SQL**: `ALTER TABLE new_sessions ADD COLUMN permission_mode TEXT DEFAULT 'default'`
   - **File**: `src/main/presenter/sqlitePresenter/tables/newSessionsTable.ts`
 - [ ] session manager 增加读写 `permission_mode` 能力。
-  - **File**: `src/main/presenter/newAgentPresenter/sessionManager.ts`
+  - **File**: `src/main/presenter/agentSessionPresenter/sessionManager.ts`
   - Add `permissionMode` to `create()` method
   - Add getter/setter methods
 - [ ] 补齐迁移与回填策略测试。
@@ -38,7 +38,7 @@
 - [ ] `Full access` 禁用态提示“先绑定 workspace"。
   - Add tooltip on disabled option
 - [ ] 选择结果写回 session 并可恢复。
-  - Call `newAgentPresenter.updateSessionPermissionMode()` (NEW IPC)
+  - Call `agentSessionPresenter.updateSessionPermissionMode()` (NEW IPC)
   - Load on session activation
 
 **Priority**: P0 - MVP Blocker
@@ -49,13 +49,13 @@
 ## T3 Default 权限流程 🔴 P0 CRITICAL
 
 - [ ] 新链路接入权限请求消息块与审批动作。
-  - **File**: `src/main/presenter/deepchatAgentPresenter/dispatch.ts`
+  - **File**: `src/main/presenter/agentRuntimePresenter/dispatch.ts`
   - Modify `executeTools()` to check permissions BEFORE calling tools
   - Create permission request block: `{ type: 'action', action_type: 'tool_call_permission', ... }`
   - Emit `STREAM_EVENTS.RESPONSE` with permission block
   - PAUSE stream processing (set session status to 'paused')
 - [ ] 实现 session 级白名单存储与查询。
-  - **CREATE**: `src/main/presenter/deepchatAgentPresenter/permissionChecker.ts`
+  - **CREATE**: `src/main/presenter/agentRuntimePresenter/permissionChecker.ts`
   - Create `permission_whitelists` table: `{ sessionId, toolName, pathPattern, permissionType, createdAt }`
   - Query: `SELECT * FROM permission_whitelists WHERE sessionId = ? AND toolName = ?`
 - [ ] 白名单匹配规则为 `toolName + pathPattern`。
@@ -71,14 +71,14 @@
 **Status**: NOT STARTED
 **Dependencies**: T1
 **Key Files**:
-- CREATE: `src/main/presenter/deepchatAgentPresenter/permissionChecker.ts`
-- MODIFY: `src/main/presenter/deepchatAgentPresenter/dispatch.ts`
-- MODIFY: `src/main/presenter/newAgentPresenter/index.ts`
+- CREATE: `src/main/presenter/agentRuntimePresenter/permissionChecker.ts`
+- MODIFY: `src/main/presenter/agentRuntimePresenter/dispatch.ts`
+- MODIFY: `src/main/presenter/agentSessionPresenter/index.ts`
 
 ## T4 Full access 边界控制 🔴 P0 CRITICAL
 
 - [ ] 实现自动通过逻辑（仅对 `projectDir` 内操作）。
-  - **File**: `src/main/presenter/deepchatAgentPresenter/permissionChecker.ts`
+  - **File**: `src/main/presenter/agentRuntimePresenter/permissionChecker.ts`
   - Check `session.permission_mode === 'full'`
   - If full access: auto-approve tools within projectDir
 - [ ] 实现路径归一化与越界检测。
@@ -99,9 +99,9 @@
 ## T5 Workspace 与会话绑定 ✅ P0 COMPLETE
 
 - [x] 工具执行上下文绑定 `session.projectDir`。
-  - **Status**: COMPLETE - `newAgentPresenter.createSession()` passes projectDir
+  - **Status**: COMPLETE - `agentSessionPresenter.createSession()` passes projectDir
 - [x] 统一传递 `conversationId = sessionId`。
-  - **Status**: COMPLETE - `deepchatAgentPresenter.processStream()` uses sessionId throughout
+  - **Status**: COMPLETE - `agentRuntimePresenter.processStream()` uses sessionId throughout
 - [x] 权限与消息归属链路统一按 `sessionId` 路由。
   - **Status**: COMPLETE - All new architecture uses sessionId
 
@@ -112,11 +112,11 @@
 ## T6 编辑历史 user 消息 🟡 P1 HIGH
 
 - [ ] 实现 `editUserMessage(sessionId, messageId, newContent)`。
-  - **File**: `src/main/presenter/newAgentPresenter/index.ts`
+  - **File**: `src/main/presenter/agentSessionPresenter/index.ts`
   - **IPC**: Add `editUserMessage(sessionId, messageId, newContent)` method
   - Validate: only user messages can be edited
 - [ ] 执行"编辑点后消息截断"。
-  - **File**: `src/main/presenter/deepchatAgentPresenter/messageStore.ts`
+  - **File**: `src/main/presenter/agentRuntimePresenter/messageStore.ts`
   - Add `deleteMessagesAfter(messageId)` method
   - Delete all messages with `orderSeq > editedMessage.orderSeq`
 - [ ] 自动触发 regenerate 并同步状态。
@@ -140,7 +140,7 @@
   - Old: `agentPresenter.retryMessage()` created variants
   - New: Must create NEW assistant message (not replace)
 - [ ] 实现 retry/regenerate 追加 assistant 消息。
-  - **File**: `src/main/presenter/newAgentPresenter/index.ts`
+  - **File**: `src/main/presenter/agentSessionPresenter/index.ts`
   - **IPC**: Add `retryMessage(sessionId, messageId)` method
   - Find the assistant message by messageId
   - Create new assistant message with same context
@@ -162,7 +162,7 @@
 ## T8 Fork 🟡 P1 HIGH
 
 - [ ] 实现 `forkSessionFromMessage(sessionId, messageId)`。
-  - **File**: `src/main/presenter/newAgentPresenter/index.ts`
+  - **File**: `src/main/presenter/agentSessionPresenter/index.ts`
   - **IPC**: Add `forkSessionFromMessage(sessionId, messageId)` method
   - Get all messages up to and including messageId
   - Create new session with copied messages
@@ -171,7 +171,7 @@
   - Include the assistant message at fork point
   - New session can continue from that point
 - [ ] fork 后新 session 可继续发送与生成。
-  - Initialize new session with deepchatAgentPresenter
+  - Initialize new session with agentRuntimePresenter
   - Enable sending messages and generating responses
 - [ ] 补齐 fork 前后消息隔离测试。
   - Test: fork creates independent session
@@ -191,7 +191,7 @@
   - Remove conversation settings UI from ChatPage
   - Migrate to session-level config
 - [ ] 将 agent 默认配置下沉到 session 存储。
-  - **File**: `src/main/presenter/newAgentPresenter/index.ts`
+  - **File**: `src/main/presenter/agentSessionPresenter/index.ts`
   - Extend `CreateSessionInput` to include:
     - `temperature?: number`
     - `contextLength?: number`

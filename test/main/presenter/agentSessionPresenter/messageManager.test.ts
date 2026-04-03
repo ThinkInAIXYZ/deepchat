@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { NewMessageManager } from '@/presenter/newAgentPresenter/messageManager'
-import type { AgentRegistry } from '@/presenter/newAgentPresenter/agentRegistry'
-import type { NewSessionManager } from '@/presenter/newAgentPresenter/sessionManager'
+import { NewMessageManager } from '@/presenter/agentSessionPresenter/messageManager'
+import type { AgentRegistry } from '@/presenter/agentSessionPresenter/agentRegistry'
+import type { NewSessionManager } from '@/presenter/agentSessionPresenter/sessionManager'
 import type { ChatMessageRecord } from '@shared/types/agent-interface'
 
 const mockMessage: ChatMessageRecord = {

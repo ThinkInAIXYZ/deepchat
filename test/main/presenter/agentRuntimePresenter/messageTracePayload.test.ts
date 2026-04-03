@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildPersistableMessageTracePayload,
   MESSAGE_TRACE_MAX_BYTES
-} from '@/presenter/deepchatAgentPresenter/messageTracePayload'
+} from '@/presenter/agentRuntimePresenter/messageTracePayload'
 
 describe('buildPersistableMessageTracePayload', () => {
   it('redacts sensitive headers/body with tail-4 mask strategy', () => {

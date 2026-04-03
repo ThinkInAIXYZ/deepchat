@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { NewAgentPresenter } from '@/presenter/newAgentPresenter/index'
+import { AgentSessionPresenter } from '@/presenter/agentSessionPresenter/index'
 
 vi.mock('nanoid', () => ({ nanoid: vi.fn(() => 'mock-session-id') }))
 
@@ -249,13 +249,13 @@ function createMockSqlitePresenter() {
   } as any
 }
 
-describe('NewAgentPresenter', () => {
+describe('AgentSessionPresenter', () => {
   let deepChatAgent: ReturnType<typeof createMockDeepChatAgent>
   let llmProviderPresenter: ReturnType<typeof createMockLlmProviderPresenter>
   let configPresenter: ReturnType<typeof createMockConfigPresenter>
   let sqlitePresenter: ReturnType<typeof createMockSqlitePresenter>
   let skillPresenter: ReturnType<typeof createMockSkillPresenter>
-  let presenter: NewAgentPresenter
+  let presenter: AgentSessionPresenter
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -264,7 +264,7 @@ describe('NewAgentPresenter', () => {
     configPresenter = createMockConfigPresenter()
     sqlitePresenter = createMockSqlitePresenter()
     skillPresenter = createMockSkillPresenter()
-    presenter = new NewAgentPresenter(
+    presenter = new AgentSessionPresenter(
       deepChatAgent as any,
       llmProviderPresenter,
       configPresenter,
@@ -992,7 +992,7 @@ describe('NewAgentPresenter', () => {
       expect(sessions).toHaveLength(1)
       expect(sessions[0].id).toBe('s1')
       expect(warnSpy).toHaveBeenCalledWith(
-        '[NewAgentPresenter] Skipping unavailable session id=missing-agent agent=disabled-agent:',
+        '[AgentSessionPresenter] Skipping unavailable session id=missing-agent agent=disabled-agent:',
         expect.any(Error)
       )
       warnSpy.mockRestore()
@@ -1037,7 +1037,7 @@ describe('NewAgentPresenter', () => {
       expect(sessions).toHaveLength(1)
       expect(sessions[0].id).toBe('healthy-state')
       expect(warnSpy).toHaveBeenCalledWith(
-        '[NewAgentPresenter] Skipping unavailable session id=broken-state agent=deepchat:',
+        '[AgentSessionPresenter] Skipping unavailable session id=broken-state agent=deepchat:',
         expect.any(Error)
       )
       warnSpy.mockRestore()
@@ -1080,7 +1080,7 @@ describe('NewAgentPresenter', () => {
 
       expect(await presenter.getSession('s-disabled')).toBeNull()
       expect(warnSpy).toHaveBeenCalledWith(
-        '[NewAgentPresenter] Skipping unavailable session id=s-disabled agent=disabled-agent:',
+        '[AgentSessionPresenter] Skipping unavailable session id=s-disabled agent=disabled-agent:',
         expect.any(Error)
       )
       warnSpy.mockRestore()
@@ -1773,7 +1773,7 @@ describe('NewAgentPresenter', () => {
       })
       await expect(presenter.getActiveSession(1)).resolves.toBeNull()
       expect(warnSpy).toHaveBeenCalledWith(
-        '[NewAgentPresenter] Skipping unavailable session id=s-disabled agent=disabled-agent:',
+        '[AgentSessionPresenter] Skipping unavailable session id=s-disabled agent=disabled-agent:',
         expect.any(Error)
       )
       warnSpy.mockRestore()

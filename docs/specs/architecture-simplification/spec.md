@@ -15,7 +15,7 @@
 
 - 为 `main` 和 `renderer` 建立可持续更新的结构基线，而不是一次性口头结论。
 - 限制活跃路径继续依赖全局 `presenter`、分散 IPC 监听和历史归档代码。
-- 让 `newAgentPresenter`、`deepchatAgentPresenter`、`App.vue`、`stores/ui/*` 的职责边界更清楚。
+- 让 `agentSessionPresenter`、`agentRuntimePresenter`、`App.vue`、`stores/ui/*` 的职责边界更清楚。
 - 为后续删除历史源码归档目录和死文件清理建立前置条件。
 
 ## Non-Goals
@@ -29,7 +29,7 @@
 
 - 仓库存在一组可更新的基线报告，至少覆盖依赖环、零入边候选、归档引用、失败测试分组。
 - 活跃主链路新增 anti-regression guard，阻止历史源码重新进入运行时依赖，阻止首批主链路继续回跳全局 `presenter`。
-- `newAgentPresenter` / `deepchatAgentPresenter` 首批关键路径改为依赖窄接口 port，而不是直接 import `presenter/index.ts`。
+- `agentSessionPresenter` / `agentRuntimePresenter` 首批关键路径改为依赖窄接口 port，而不是直接 import `presenter/index.ts`。
 - `renderer` 至少将 `App`、`session`、`message` 这条活跃链路的 IPC 监听收口到 helper / subscription hub，并把流式状态独立成单独状态面。
 - 文档中存在本次治理的 `spec.md`、`plan.md`、`tasks.md`，并且 `docs/README.md` 能导航到这些内容。
 

@@ -8,9 +8,9 @@
 ```mermaid
 sequenceDiagram
     participant R as Renderer
-    participant N as NewAgentPresenter
+    participant N as AgentSessionPresenter
     participant A as AgentRegistry
-    participant D as DeepChatAgentPresenter
+    participant D as AgentRuntimePresenter
     participant S as NewSessionManager
 
     R->>N: createSession(input, webContentsId)
@@ -24,9 +24,9 @@ sequenceDiagram
 
 关键文件：
 
-- `src/main/presenter/newAgentPresenter/index.ts`
-- `src/main/presenter/newAgentPresenter/sessionManager.ts`
-- `src/main/presenter/deepchatAgentPresenter/index.ts`
+- `src/main/presenter/agentSessionPresenter/index.ts`
+- `src/main/presenter/agentSessionPresenter/sessionManager.ts`
+- `src/main/presenter/agentRuntimePresenter/index.ts`
 
 ## 2. DeepChat 消息处理主循环
 
@@ -48,16 +48,16 @@ flowchart TD
 
 关键文件：
 
-- `src/main/presenter/deepchatAgentPresenter/process.ts`
-- `src/main/presenter/deepchatAgentPresenter/dispatch.ts`
-- `src/main/presenter/deepchatAgentPresenter/contextBuilder.ts`
-- `src/main/presenter/deepchatAgentPresenter/messageStore.ts`
+- `src/main/presenter/agentRuntimePresenter/process.ts`
+- `src/main/presenter/agentRuntimePresenter/dispatch.ts`
+- `src/main/presenter/agentRuntimePresenter/contextBuilder.ts`
+- `src/main/presenter/agentRuntimePresenter/messageStore.ts`
 
 ## 3. 工具调用与权限
 
 ```mermaid
 sequenceDiagram
-    participant D as DeepChatAgentPresenter
+    participant D as AgentRuntimePresenter
     participant T as ToolPresenter
     participant M as MCP Presenter
     participant G as AgentToolManager
@@ -94,8 +94,8 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant R as Renderer
-    participant N as NewAgentPresenter
-    participant D as DeepChatAgentPresenter
+    participant N as AgentSessionPresenter
+    participant D as AgentRuntimePresenter
     participant L as LLMProviderPresenter
     participant A as ACP helpers
 
@@ -109,7 +109,7 @@ sequenceDiagram
 
 关键文件：
 
-- `src/main/presenter/newAgentPresenter/index.ts`
+- `src/main/presenter/agentSessionPresenter/index.ts`
 - `src/main/presenter/llmProviderPresenter/index.ts`
 - `src/main/presenter/llmProviderPresenter/acp/`
 
@@ -118,7 +118,7 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant Hook as lifecycle import hook
-    participant N as NewAgentPresenter
+    participant N as AgentSessionPresenter
     participant I as LegacyChatImportService
     participant DB as SQLite / legacy tables
 
@@ -133,5 +133,5 @@ sequenceDiagram
 
 关键文件：
 
-- `src/main/presenter/newAgentPresenter/legacyImportService.ts`
+- `src/main/presenter/agentSessionPresenter/legacyImportService.ts`
 - `src/main/presenter/lifecyclePresenter/hooks/after-start/legacyImportHook.ts`

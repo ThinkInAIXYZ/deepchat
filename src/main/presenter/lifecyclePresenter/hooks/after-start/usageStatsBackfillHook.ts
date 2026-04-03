@@ -12,14 +12,14 @@ export const usageStatsBackfillHook: LifecycleHook = {
       throw new Error('usageStatsBackfillHook: Presenter not initialized')
     }
 
-    const newAgentPresenter = presenter.newAgentPresenter as unknown as {
+    const agentSessionPresenter = presenter.agentSessionPresenter as unknown as {
       startUsageStatsBackfill?: () => Promise<void>
     }
-    if (!newAgentPresenter.startUsageStatsBackfill) {
+    if (!agentSessionPresenter.startUsageStatsBackfill) {
       return
     }
 
-    void newAgentPresenter.startUsageStatsBackfill().catch((error) => {
+    void agentSessionPresenter.startUsageStatsBackfill().catch((error) => {
       console.error('usageStatsBackfillHook: failed to start usage stats backfill:', error)
     })
   }

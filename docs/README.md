@@ -7,8 +7,8 @@
 ```text
 Renderer
   -> preload IPC
-  -> newAgentPresenter
-  -> deepchatAgentPresenter
+  -> agentSessionPresenter
+  -> agentRuntimePresenter
   -> llmProviderPresenter / toolPresenter / mcpPresenter
   -> sqlitePresenter
 ```
@@ -21,7 +21,7 @@ Renderer
 | --- | --- |
 | [ARCHITECTURE.md](./ARCHITECTURE.md) | 当前主架构总览 |
 | [FLOWS.md](./FLOWS.md) | 当前消息、工具、ACP、导入流程 |
-| [architecture/agent-system.md](./architecture/agent-system.md) | `newAgentPresenter` / `deepchatAgentPresenter` 细节 |
+| [architecture/agent-system.md](./architecture/agent-system.md) | `agentSessionPresenter` / `agentRuntimePresenter` 细节 |
 | [architecture/tool-system.md](./architecture/tool-system.md) | `ToolPresenter`、agent tools、ACP helper 分层 |
 | [architecture/session-management.md](./architecture/session-management.md) | 新会话管理与 legacy 数据平面边界 |
 | [guides/code-navigation.md](./guides/code-navigation.md) | 当前代码导航入口 |

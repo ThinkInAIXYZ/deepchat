@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 const setupStore = async () => {
   vi.resetModules()
 
-  const newAgentPresenter = {
+  const agentSessionPresenter = {
     getSessionList: vi.fn().mockResolvedValue([]),
     getActiveSession: vi.fn().mockResolvedValue(null),
     createSession: vi.fn(),
@@ -32,7 +32,7 @@ const setupStore = async () => {
   }))
 
   vi.doMock('@/composables/usePresenter', () => ({
-    usePresenter: (name: string) => (name === 'tabPresenter' ? tabPresenter : newAgentPresenter)
+    usePresenter: (name: string) => (name === 'tabPresenter' ? tabPresenter : agentSessionPresenter)
   }))
 
   vi.doMock('@/stores/ui/pageRouter', () => ({
@@ -67,7 +67,7 @@ const setupStore = async () => {
       handler(undefined, payload)
     }
   }
-  return { store, clearStreamingState, newAgentPresenter, pageRouter, emitIpc, SESSION_EVENTS }
+  return { store, clearStreamingState, agentSessionPresenter, pageRouter, emitIpc, SESSION_EVENTS }
 }
 
 describe('sessionStore.getFilteredGroups', () => {
@@ -156,18 +156,18 @@ describe('sessionStore.getFilteredGroups', () => {
 
 describe('sessionStore streaming cleanup', () => {
   it('clears streaming state when switching active session', async () => {
-    const { store, clearStreamingState, newAgentPresenter } = await setupStore()
+    const { store, clearStreamingState, agentSessionPresenter } = await setupStore()
     store.activeSessionId.value = 'session-a'
 
     await store.selectSession('session-b')
 
-    expect(newAgentPresenter.activateSession).toHaveBeenCalledWith(1, 'session-b')
+    expect(agentSessionPresenter.activateSession).toHaveBeenCalledWith(1, 'session-b')
     expect(clearStreamingState).toHaveBeenCalledTimes(1)
   })
 
   it('syncs active session from presenter when fetching sessions', async () => {
-    const { store, newAgentPresenter } = await setupStore()
-    newAgentPresenter.getSessionList.mockResolvedValueOnce([
+    const { store, agentSessionPresenter } = await setupStore()
+    agentSessionPresenter.getSessionList.mockResolvedValueOnce([
       {
         id: 'session-sync-1',
         title: 'Session Sync',
@@ -182,20 +182,20 @@ describe('sessionStore streaming cleanup', () => {
         updatedAt: 2
       }
     ])
-    newAgentPresenter.getActiveSession.mockResolvedValueOnce({
+    agentSessionPresenter.getActiveSession.mockResolvedValueOnce({
       id: 'session-sync-1'
     })
 
     await store.fetchSessions()
 
-    expect(newAgentPresenter.getActiveSession).toHaveBeenCalledWith(1)
+    expect(agentSessionPresenter.getActiveSession).toHaveBeenCalledWith(1)
     expect(store.activeSessionId.value).toBe('session-sync-1')
   })
 
   it('clears streaming when fetch detects active session switch', async () => {
-    const { store, clearStreamingState, newAgentPresenter } = await setupStore()
+    const { store, clearStreamingState, agentSessionPresenter } = await setupStore()
     store.activeSessionId.value = 'session-a'
-    newAgentPresenter.getActiveSession.mockResolvedValueOnce({
+    agentSessionPresenter.getActiveSession.mockResolvedValueOnce({
       id: 'session-b'
     })
 
@@ -206,10 +206,10 @@ describe('sessionStore streaming cleanup', () => {
   })
 
   it('returns to new thread when active session becomes unavailable', async () => {
-    const { store, clearStreamingState, newAgentPresenter, pageRouter } = await setupStore()
+    const { store, clearStreamingState, agentSessionPresenter, pageRouter } = await setupStore()
     store.activeSessionId.value = 'session-a'
     pageRouter.currentRoute = 'chat'
-    newAgentPresenter.getActiveSession.mockResolvedValueOnce(null)
+    agentSessionPresenter.getActiveSession.mockResolvedValueOnce(null)
 
     await store.fetchSessions()
 
@@ -219,13 +219,13 @@ describe('sessionStore streaming cleanup', () => {
   })
 
   it('reloads sessions when the session list update event fires', async () => {
-    const { newAgentPresenter, emitIpc, SESSION_EVENTS } = await setupStore()
+    const { agentSessionPresenter, emitIpc, SESSION_EVENTS } = await setupStore()
 
     emitIpc(SESSION_EVENTS.LIST_UPDATED)
     await new Promise((resolve) => setTimeout(resolve, 0))
 
-    expect(newAgentPresenter.getSessionList).toHaveBeenCalledTimes(1)
-    expect(newAgentPresenter.getActiveSession).toHaveBeenCalledTimes(1)
+    expect(agentSessionPresenter.getSessionList).toHaveBeenCalledTimes(1)
+    expect(agentSessionPresenter.getActiveSession).toHaveBeenCalledTimes(1)
   })
 
   it('routes to chat when an external session activation targets this renderer', async () => {

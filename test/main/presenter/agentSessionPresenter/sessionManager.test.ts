@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { NewSessionManager } from '@/presenter/newAgentPresenter/sessionManager'
+import { NewSessionManager } from '@/presenter/agentSessionPresenter/sessionManager'
 
 vi.mock('nanoid', () => ({ nanoid: vi.fn(() => 'mock-id-123') }))
 

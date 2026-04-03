@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { NewAgentPresenter } from '@/presenter/newAgentPresenter/index'
-import { DeepChatAgentPresenter } from '@/presenter/deepchatAgentPresenter/index'
-import { estimateMessagesTokens } from '@/presenter/deepchatAgentPresenter/contextBuilder'
+import { AgentSessionPresenter } from '@/presenter/agentSessionPresenter/index'
+import { AgentRuntimePresenter } from '@/presenter/agentRuntimePresenter/index'
+import { estimateMessagesTokens } from '@/presenter/agentRuntimePresenter/contextBuilder'
 import { NewSessionHooksBridge } from '@/presenter/hooksNotifications/newSessionBridge'
 
 vi.mock('nanoid', () => {
@@ -484,7 +484,7 @@ describe('Integration: createSession end-to-end', () => {
   let sqlitePresenter: ReturnType<typeof createMockSqlitePresenter>
   let llmProvider: ReturnType<typeof createMockLlmProviderPresenter>
   let configPresenter: ReturnType<typeof createMockConfigPresenter>
-  let agentPresenter: NewAgentPresenter
+  let agentPresenter: AgentSessionPresenter
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -492,13 +492,13 @@ describe('Integration: createSession end-to-end', () => {
     llmProvider = createMockLlmProviderPresenter()
     configPresenter = createMockConfigPresenter()
 
-    const deepchatAgent = new DeepChatAgentPresenter(
+    const deepchatAgent = new AgentRuntimePresenter(
       llmProvider,
       configPresenter,
       sqlitePresenter,
       createMockToolPresenter()
     )
-    agentPresenter = new NewAgentPresenter(
+    agentPresenter = new AgentSessionPresenter(
       deepchatAgent as any,
       llmProvider,
       configPresenter,
@@ -631,7 +631,7 @@ describe('Integration: ACP hooks bridge', () => {
   let sqlitePresenter: ReturnType<typeof createMockSqlitePresenter>
   let llmProvider: ReturnType<typeof createMockLlmProviderPresenter>
   let configPresenter: ReturnType<typeof createMockConfigPresenter>
-  let agentPresenter: NewAgentPresenter
+  let agentPresenter: AgentSessionPresenter
   let hookDispatcher: { dispatchEvent: ReturnType<typeof vi.fn> }
 
   beforeEach(() => {
@@ -642,14 +642,14 @@ describe('Integration: ACP hooks bridge', () => {
     configPresenter.getAcpAgents.mockResolvedValue([{ id: 'coder', name: 'Coder' }])
     hookDispatcher = { dispatchEvent: vi.fn() }
 
-    const deepchatAgent = new DeepChatAgentPresenter(
+    const deepchatAgent = new AgentRuntimePresenter(
       llmProvider,
       configPresenter,
       sqlitePresenter,
       createMockToolPresenter(),
       new NewSessionHooksBridge(hookDispatcher)
     )
-    agentPresenter = new NewAgentPresenter(
+    agentPresenter = new AgentSessionPresenter(
       deepchatAgent as any,
       llmProvider,
       configPresenter,
@@ -713,8 +713,8 @@ describe('Integration: multi-turn context', () => {
   let sqlitePresenter: ReturnType<typeof createMockSqlitePresenter>
   let llmProvider: ReturnType<typeof createMockLlmProviderPresenter>
   let configPresenter: ReturnType<typeof createMockConfigPresenter>
-  let deepchatAgent: DeepChatAgentPresenter
-  let agentPresenter: NewAgentPresenter
+  let deepchatAgent: AgentRuntimePresenter
+  let agentPresenter: AgentSessionPresenter
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -722,13 +722,13 @@ describe('Integration: multi-turn context', () => {
     llmProvider = createMockLlmProviderPresenter()
     configPresenter = createMockConfigPresenter()
 
-    deepchatAgent = new DeepChatAgentPresenter(
+    deepchatAgent = new AgentRuntimePresenter(
       llmProvider,
       configPresenter,
       sqlitePresenter,
       createMockToolPresenter()
     )
-    agentPresenter = new NewAgentPresenter(
+    agentPresenter = new AgentSessionPresenter(
       deepchatAgent as any,
       llmProvider,
       configPresenter,
@@ -1236,7 +1236,7 @@ describe('Integration: crash recovery', () => {
     const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
 
     // Creating the agent triggers crash recovery
-    new DeepChatAgentPresenter(
+    new AgentRuntimePresenter(
       llmProvider,
       configPresenter,
       sqlitePresenter,

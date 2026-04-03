@@ -16,8 +16,8 @@ const SOURCE_EXTENSIONS = new Set([
 ])
 
 const MAIN_GUARD_PATHS = [
-  path.join(ROOT, 'src/main/presenter/newAgentPresenter'),
-  path.join(ROOT, 'src/main/presenter/deepchatAgentPresenter'),
+  path.join(ROOT, 'src/main/presenter/agentSessionPresenter'),
+  path.join(ROOT, 'src/main/presenter/agentRuntimePresenter'),
   path.join(ROOT, 'src/main/lib/agentRuntime')
 ]
 

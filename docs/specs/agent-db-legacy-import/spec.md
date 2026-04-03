@@ -13,7 +13,7 @@
    - `message_attachments(search_result/search_results)` -> `deepchat_message_search_results`
 3. `searchresult` 读写统一走新结构：
    - 新链路写入：tool 结果中的 `application/deepchat-webpage`
-   - 新链路读取：`newAgentPresenter.getSearchResults()`
+   - 新链路读取：`agentSessionPresenter.getSearchResults()`
 4. 导入状态持久化与重试：
    - 新表 `legacy_import_status`
    - IPC：`getLegacyImportStatus` / `retryLegacyImport`

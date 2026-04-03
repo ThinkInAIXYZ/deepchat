@@ -4,7 +4,7 @@ import {
   extractWaitingInteraction,
   emitDeepChatInternalSessionUpdate,
   subscribeDeepChatInternalSessionUpdates
-} from '@/presenter/deepchatAgentPresenter/internalSessionEvents'
+} from '@/presenter/agentRuntimePresenter/internalSessionEvents'
 
 describe('internalSessionEvents', () => {
   afterEach(() => {

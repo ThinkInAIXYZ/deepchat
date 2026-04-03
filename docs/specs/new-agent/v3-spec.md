@@ -26,7 +26,7 @@ v3 refactored the stream processing into five focused pieces with clear boundari
 ## Current Structure
 
 ```
-deepchatAgentPresenter/
+agentRuntimePresenter/
   index.ts           — session lifecycle only (init, destroy, getState, cancel, getMessages)
   process.ts         — the loop: stream → accumulate → echo → dispatch
   accumulator.ts     — accumulate(state, event): mutate blocks by event type

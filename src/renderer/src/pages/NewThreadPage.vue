@@ -117,7 +117,7 @@ const agentStore = useAgentStore()
 const modelStore = useModelStore()
 const draftStore = useDraftStore()
 const configPresenter = usePresenter('configPresenter')
-const newAgentPresenter = usePresenter('newAgentPresenter')
+const agentSessionPresenter = usePresenter('agentSessionPresenter')
 const { t } = useI18n()
 
 const message = ref('')
@@ -459,7 +459,7 @@ const ensureAcpDraftSession = async (agentId: string, projectPath: string) => {
   const requestSeq = ++acpDraftRequestSeq.value
 
   try {
-    const session = await newAgentPresenter.ensureAcpDraftSession({
+    const session = await agentSessionPresenter.ensureAcpDraftSession({
       agentId,
       projectDir,
       permissionMode: draftStore.permissionMode

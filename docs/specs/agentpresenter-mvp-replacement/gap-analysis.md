@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-This document analyzes the functional gaps between the old architecture (`agentPresenter` + `sessionPresenter` + `chatStore`) and the new architecture (`deepchatAgentPresenter` + `newAgentPresenter` + `sessionStore`/`messageStore`).
+This document analyzes the functional gaps between the old architecture (`agentPresenter` + `sessionPresenter` + `chatStore`) and the new architecture (`agentRuntimePresenter` + `agentSessionPresenter` + `sessionStore`/`messageStore`).
 
 **Critical Finding**: The new architecture has successfully implemented the core streaming and message persistence infrastructure, but lacks critical functionality in five key areas:
 
@@ -21,7 +21,7 @@ This document analyzes the functional gaps between the old architecture (`agentP
 ### Current State (New Architecture)
 
 **Implemented:**
-- ✅ Basic session creation via `newAgentPresenter.createSession()`
+- ✅ Basic session creation via `agentSessionPresenter.createSession()`
 - ✅ Model resolution from default settings (`configPresenter.getDefaultModel()`)
 - ✅ Preferred model fallback logic
 - ✅ Project/workspace binding via `projectStore.selectedProject.path`
@@ -29,7 +29,7 @@ This document analyzes the functional gaps between the old architecture (`agentP
 
 **File References:**
 - `src/renderer/src/pages/NewThreadPage.vue` (lines 70-112)
-- `src/main/presenter/newAgentPresenter/index.ts` (lines 24-60)
+- `src/main/presenter/agentSessionPresenter/index.ts` (lines 24-60)
 
 ### Missing Functionality
 
@@ -44,7 +44,7 @@ This document analyzes the functional gaps between the old architecture (`agentP
 
 **New Architecture:**
 - `ChatStatusBar.vue` line 91: Shows "Default permissions" as **read-only button** (no dropdown)
-- `newAgentPresenter` has no `permissionMode` parameter in `createSession()`
+- `agentSessionPresenter` has no `permissionMode` parameter in `createSession()`
 - `new_sessions` table has no `permission_mode` column
 
 **Impact**: Users cannot choose permission level; all sessions default to unknown behavior.
@@ -59,7 +59,7 @@ This document analyzes the functional gaps between the old architecture (`agentP
 
 **New Architecture:**
 - No validation in `NewThreadPage.onSubmit()`
-- No validation in `newAgentPresenter.createSession()`
+- No validation in `agentSessionPresenter.createSession()`
 
 #### 1.3 Default Model Loading from Settings
 
@@ -85,7 +85,7 @@ This document analyzes the functional gaps between the old architecture (`agentP
    - Disable "Full access" if `!projectStore.selectedProject`
    - Show tooltip: "Bind workspace first to enable Full access"
 
-3. **Update newAgentPresenter.createSession():**
+3. **Update agentSessionPresenter.createSession():**
    ```typescript
    async createSession(input: {
      message: string
@@ -104,12 +104,12 @@ This document analyzes the functional gaps between the old architecture (`agentP
 ### Current State (New Architecture)
 
 **Implemented:**
-- ✅ `deepchatAgentPresenter.process.ts` executes tool calls
-- ✅ `deepchatAgentPresenter.dispatch.ts` builds tool conversations
+- ✅ `agentRuntimePresenter.process.ts` executes tool calls
+- ✅ `agentRuntimePresenter.dispatch.ts` builds tool conversations
 
 **File References:**
-- `src/main/presenter/deepchatAgentPresenter/process.ts`
-- `src/main/presenter/deepchatAgentPresenter/dispatch.ts`
+- `src/main/presenter/agentRuntimePresenter/process.ts`
+- `src/main/presenter/agentRuntimePresenter/dispatch.ts`
 
 ### Missing Functionality
 
@@ -152,7 +152,7 @@ New Flow (BROKEN):
 - `handlePermissionResponse()` resumed loop with approved tool calls
 
 **New Architecture:**
-- `deepchatAgentPresenter` has no pause state
+- `agentRuntimePresenter` has no pause state
 - `processStream()` is synchronous - no yield points for user input
 - No IPC method to resume after permission approval
 
@@ -168,7 +168,7 @@ New Flow (BROKEN):
 **New Architecture:**
 - `messageStore` receives `STREAM_EVENTS.RESPONSE` with blocks
 - `MessageList` component unchanged (should still render blocks)
-- **Missing**: No handler to call `newAgentPresenter` permission methods (don't exist yet)
+- **Missing**: No handler to call `agentSessionPresenter` permission methods (don't exist yet)
 
 #### 2.4 Permission Approval Handler
 
@@ -187,8 +187,8 @@ async handlePermissionResponse(
 ```
 
 **New Architecture:**
-- ❌ No `handlePermissionResponse()` in `newAgentPresenter`
-- ❌ No `handlePermissionResponse()` in `deepchatAgentPresenter`
+- ❌ No `handlePermissionResponse()` in `agentSessionPresenter`
+- ❌ No `handlePermissionResponse()` in `agentRuntimePresenter`
 
 #### 2.5 Whitelist Management
 
@@ -260,9 +260,9 @@ NEW ARCHITECTURE (CURRENT - BROKEN):
 
 ### Required Implementation
 
-1. **Add permission checker to deepchatAgentPresenter:**
+1. **Add permission checker to agentRuntimePresenter:**
    ```typescript
-   // deepchatAgentPresenter/index.ts
+   // agentRuntimePresenter/index.ts
    private permissionChecker: PermissionChecker
    
    constructor(..., toolPresenter: IToolPresenter) {
@@ -290,7 +290,7 @@ NEW ARCHITECTURE (CURRENT - BROKEN):
 
 3. **Add IPC methods:**
    ```typescript
-   // newAgentPresenter/index.ts
+   // agentSessionPresenter/index.ts
    async handlePermissionResponse(
      sessionId: string,
      messageId: string,
@@ -315,15 +315,15 @@ NEW ARCHITECTURE (CURRENT - BROKEN):
 **Implemented:**
 - ✅ `NewSessionManager.create()` - creates session records
 - ✅ `NewSessionManager.bindWindow()` - binds session to window
-- ✅ `newAgentPresenter.createSession()` - full creation flow
-- ✅ `newAgentPresenter.activateSession()` - activation
-- ✅ `newAgentPresenter.deactivateSession()` - deactivation
+- ✅ `agentSessionPresenter.createSession()` - full creation flow
+- ✅ `agentSessionPresenter.activateSession()` - activation
+- ✅ `agentSessionPresenter.deactivateSession()` - deactivation
 - ✅ Session status tracking via `runtimeState` Map
 - ✅ Event emission: `SESSION_EVENTS.ACTIVATED`, `DEACTIVATED`, `STATUS_CHANGED`
 
 **File References:**
-- `src/main/presenter/newAgentPresenter/sessionManager.ts`
-- `src/main/presenter/newAgentPresenter/index.ts`
+- `src/main/presenter/agentSessionPresenter/sessionManager.ts`
+- `src/main/presenter/agentSessionPresenter/index.ts`
 - `src/renderer/src/stores/ui/session.ts`
 
 ### Missing Functionality
@@ -345,7 +345,7 @@ settings: {
 
 **New Architecture:**
 ```typescript
-// newAgentPresenter.createSession()
+// agentSessionPresenter.createSession()
 input: {
   message, projectDir, agentId, providerId, modelId
   // MISSING: temperature, contextLength, maxTokens, 
@@ -384,7 +384,7 @@ input: {
 **Notes:**
 - `new_sessions` table stores sessions
 - `sessionStore.fetchSessions()` loads from DB
-- State rebuilt from `deepchatAgentPresenter.getSessionState()`
+- State rebuilt from `agentRuntimePresenter.getSessionState()`
 
 #### 3.5 Session Deletion and Cleanup
 
@@ -464,9 +464,9 @@ createSession → initSession → bindWindow → processMessage → stream
 - ✅ Frontend `messageStore` listens to events and updates `streamingBlocks`
 
 **File References:**
-- `src/main/presenter/deepchatAgentPresenter/process.ts`
-- `src/main/presenter/deepchatAgentPresenter/accumulator.ts`
-- `src/main/presenter/deepchatAgentPresenter/messageStore.ts`
+- `src/main/presenter/agentRuntimePresenter/process.ts`
+- `src/main/presenter/agentRuntimePresenter/accumulator.ts`
+- `src/main/presenter/agentRuntimePresenter/messageStore.ts`
 - `src/renderer/src/stores/ui/message.ts`
 
 ### Missing Functionality
@@ -521,7 +521,7 @@ AssistantMessageBlock:
 **Status**: ✅ Implemented
 
 **Notes:**
-- Session status set to `'generating'` before stream (deepchatAgentPresenter line 101)
+- Session status set to `'generating'` before stream (agentRuntimePresenter line 101)
 - Status set to `'idle'` or `'error'` after completion (lines 167, 175)
 - `SESSION_EVENTS.STATUS_CHANGED` emitted
 - `sessionStore` updates session status
@@ -575,8 +575,8 @@ processMessage → create user message → create assistant message
 - ✅ Error handling for tool failures
 
 **File References:**
-- `src/main/presenter/deepchatAgentPresenter/process.ts`
-- `src/main/presenter/deepchatAgentPresenter/dispatch.ts`
+- `src/main/presenter/agentRuntimePresenter/process.ts`
+- `src/main/presenter/agentRuntimePresenter/dispatch.ts`
 
 ### Missing Functionality
 
@@ -771,7 +771,7 @@ NEW ARCHITECTURE (CURRENT):
 
 2. **Add resume method:**
    ```typescript
-   // deepchatAgentPresenter/index.ts
+   // agentRuntimePresenter/index.ts
    async resumeAfterPermission(
      sessionId: string,
      messageId: string,
@@ -809,7 +809,7 @@ NEW ARCHITECTURE (CURRENT):
    - Pause stream waiting for approval
 
 3. **Permission Response Handler**
-   - Add `handlePermissionResponse()` to newAgentPresenter
+   - Add `handlePermissionResponse()` to agentSessionPresenter
    - Implement resume mechanism after approval
    - Update session status ('paused' → 'generating')
 
@@ -847,7 +847,7 @@ NEW ARCHITECTURE (CURRENT):
 
 10. **Frontend Permission UI**
     - Ensure MessageList renders permission blocks
-    - Connect approve/reject buttons to newAgentPresenter
+    - Connect approve/reject buttons to agentSessionPresenter
     - Add "remember" checkbox
 
 ### P2: Medium (Nice to Have)
@@ -942,11 +942,11 @@ NEW ARCHITECTURE (CURRENT):
 
 | Component | File Path |
 |-----------|-----------|
-| NewAgentPresenter | `src/main/presenter/newAgentPresenter/index.ts` |
-| DeepChatAgentPresenter | `src/main/presenter/deepchatAgentPresenter/index.ts` |
-| ProcessStream | `src/main/presenter/deepchatAgentPresenter/process.ts` |
-| Dispatch | `src/main/presenter/deepchatAgentPresenter/dispatch.ts` |
-| MessageStore | `src/main/presenter/deepchatAgentPresenter/messageStore.ts` |
+| AgentSessionPresenter | `src/main/presenter/agentSessionPresenter/index.ts` |
+| AgentRuntimePresenter | `src/main/presenter/agentRuntimePresenter/index.ts` |
+| ProcessStream | `src/main/presenter/agentRuntimePresenter/process.ts` |
+| Dispatch | `src/main/presenter/agentRuntimePresenter/dispatch.ts` |
+| MessageStore | `src/main/presenter/agentRuntimePresenter/messageStore.ts` |
 | SessionStore (UI) | `src/renderer/src/stores/ui/session.ts` |
 | MessageStore (UI) | `src/renderer/src/stores/ui/message.ts` |
 | NewThreadPage | `src/renderer/src/pages/NewThreadPage.vue` |

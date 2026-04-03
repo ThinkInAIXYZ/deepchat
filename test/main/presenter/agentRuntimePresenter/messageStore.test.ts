@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { DeepChatMessageStore } from '@/presenter/deepchatAgentPresenter/messageStore'
+import { DeepChatMessageStore } from '@/presenter/agentRuntimePresenter/messageStore'
 import logger from '@shared/logger'
 
 vi.mock('nanoid', () => ({ nanoid: vi.fn(() => 'mock-msg-id') }))

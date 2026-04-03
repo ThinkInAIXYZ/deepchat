@@ -13,13 +13,13 @@ Generated on 2026-04-03.
 - `presenter/index.ts`: 39
 - `presenter/llmProviderPresenter/managers/providerInstanceManager.ts`: 38
 - `presenter/configPresenter/index.ts`: 22
-- `presenter/deepchatAgentPresenter/index.ts`: 20
+- `presenter/agentRuntimePresenter/index.ts`: 20
 - `presenter/lifecyclePresenter/hooks/index.ts`: 17
 - `presenter/sqlitePresenter/index.ts`: 16
 - `presenter/remoteControlPresenter/index.ts`: 15
 - `presenter/llmProviderPresenter/index.ts`: 14
 - `presenter/toolPresenter/agentTools/agentToolManager.ts`: 14
-- `presenter/newAgentPresenter/index.ts`: 13
+- `presenter/agentSessionPresenter/index.ts`: 13
 - `presenter/llmProviderPresenter/acp/index.ts`: 12
 - `presenter/filePresenter/mime.ts`: 11
 - `presenter/mcpPresenter/inMemoryServers/builder.ts`: 11
@@ -64,7 +64,7 @@ Generated on 2026-04-03.
 - `presenter/index.ts -> presenter/mcpPresenter/index.ts -> presenter/mcpPresenter/serverManager.ts -> presenter/mcpPresenter/mcpClient.ts -> presenter/mcpPresenter/inMemoryServers/builder.ts -> presenter/mcpPresenter/inMemoryServers/builtinKnowledgeServer.ts -> presenter/index.ts`
 - `presenter/index.ts -> presenter/mcpPresenter/index.ts -> presenter/mcpPresenter/toolManager.ts -> presenter/index.ts`
 - `presenter/index.ts -> presenter/mcpPresenter/index.ts -> presenter/index.ts`
-- `presenter/sqlitePresenter/index.ts -> presenter/newAgentPresenter/legacyImportService.ts -> presenter/sqlitePresenter/index.ts`
+- `presenter/sqlitePresenter/index.ts -> presenter/agentSessionPresenter/legacyImportService.ts -> presenter/sqlitePresenter/index.ts`
 - `presenter/index.ts -> presenter/syncPresenter/index.ts -> presenter/index.ts`
 
 ## renderer

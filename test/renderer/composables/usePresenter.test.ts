@@ -15,7 +15,7 @@ describe('usePresenter', () => {
 
   it('preserves undefined properties in object payloads across IPC', async () => {
     const { usePresenter } = await import('@/composables/usePresenter')
-    const presenter = usePresenter('newAgentPresenter')
+    const presenter = usePresenter('agentSessionPresenter')
 
     await presenter.updateSessionGenerationSettings('s1', {
       temperature: 0.7,

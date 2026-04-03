@@ -8,7 +8,7 @@ type GoToNewThreadOptions = {
 }
 
 export const usePageRouterStore = defineStore('pageRouter', () => {
-  const newAgentPresenter = usePresenter('newAgentPresenter')
+  const agentSessionPresenter = usePresenter('agentSessionPresenter')
 
   // --- State ---
   const route = ref<PageRoute>({ name: 'newThread' })
@@ -19,11 +19,11 @@ export const usePageRouterStore = defineStore('pageRouter', () => {
 
   async function initialize(): Promise<void> {
     try {
-      // 1. Check for active new-agent session on this window content first
+      // 1. Check for the active agent session on this webContents first
       const webContentsId = window.api.getWebContentsId()
-      const activeNewSession = await newAgentPresenter.getActiveSession(webContentsId)
-      if (activeNewSession) {
-        route.value = { name: 'chat', sessionId: activeNewSession.id }
+      const activeAgentSession = await agentSessionPresenter.getActiveSession(webContentsId)
+      if (activeAgentSession) {
+        route.value = { name: 'chat', sessionId: activeAgentSession.id }
         return
       }
 

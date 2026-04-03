@@ -321,7 +321,7 @@ const setup = async (options: SetupOptions = {}) => {
     }))
   }
 
-  const newAgentPresenter = {
+  const agentSessionPresenter = {
     getAgents: vi.fn(async () => [
       { id: 'deepchat', name: 'DeepChat', type: 'deepchat', enabled: true },
       { id: 'deepchat-alt', name: 'DeepChat Alt', type: 'deepchat', enabled: false },
@@ -435,7 +435,7 @@ const setup = async (options: SetupOptions = {}) => {
 
   vi.doMock('@/composables/usePresenter', () => ({
     usePresenter: (name: string) => {
-      if (name === 'newAgentPresenter') return newAgentPresenter
+      if (name === 'agentSessionPresenter') return agentSessionPresenter
       if (name === 'projectPresenter') return projectPresenter
       return null
     },
@@ -562,7 +562,7 @@ const setup = async (options: SetupOptions = {}) => {
     remoteState,
     feishuState,
     remoteControlPresenter,
-    newAgentPresenter,
+    agentSessionPresenter,
     projectPresenter,
     toast,
     tabsComponents

@@ -36,7 +36,7 @@ import type {
   CONVERSATION
 } from '@shared/presenter'
 import type { SQLitePresenter } from '../sqlitePresenter'
-import type { DeepChatAgentPresenter } from '../deepchatAgentPresenter'
+import type { AgentRuntimePresenter } from '../agentRuntimePresenter'
 import { AgentRegistry } from './agentRegistry'
 import { NewSessionManager } from './sessionManager'
 import { NewMessageManager } from './messageManager'
@@ -212,7 +212,7 @@ const extractSearchableMessageContent = (rawContent: string): string => {
   return rawContent
 }
 
-export class NewAgentPresenter {
+export class AgentSessionPresenter {
   private agentRegistry: AgentRegistry
   private sessionManager: NewSessionManager
   private messageManager: NewMessageManager
@@ -225,7 +225,7 @@ export class NewAgentPresenter {
   private usageStatsBackfillPromise: Promise<void> | null = null
 
   constructor(
-    deepchatAgent: DeepChatAgentPresenter,
+    agentRuntimePresenter: AgentRuntimePresenter,
     llmProviderPresenter: ILlmProviderPresenter,
     configPresenter: IConfigPresenter,
     sqlitePresenter: SQLitePresenter,
@@ -245,7 +245,7 @@ export class NewAgentPresenter {
     // Register the built-in deepchat agent
     this.agentRegistry.register(
       { id: 'deepchat', name: 'DeepChat', type: 'deepchat', enabled: true },
-      deepchatAgent
+      agentRuntimePresenter
     )
   }
 
@@ -253,7 +253,9 @@ export class NewAgentPresenter {
 
   async createSession(input: CreateSessionInput, webContentsId: number): Promise<SessionWithState> {
     const agentId = input.agentId || 'deepchat'
-    console.log(`[NewAgentPresenter] createSession agent=${agentId} webContentsId=${webContentsId}`)
+    console.log(
+      `[AgentSessionPresenter] createSession agent=${agentId} webContentsId=${webContentsId}`
+    )
     const normalizedInput = this.normalizeCreateSessionInput(input)
     const agentType = await this.getAgentType(agentId)
     const deepChatAgentConfig =
@@ -301,7 +303,7 @@ export class NewAgentPresenter {
       deepChatAgentConfig,
       input.generationSettings
     )
-    console.log(`[NewAgentPresenter] resolved provider=${providerId} model=${modelId}`)
+    console.log(`[AgentSessionPresenter] resolved provider=${providerId} model=${modelId}`)
 
     if (!providerId || !modelId) {
       throw new Error('No provider or model configured. Please set a default model in settings.')
@@ -315,7 +317,7 @@ export class NewAgentPresenter {
       disabledAgentTools,
       subagentEnabled
     })
-    console.log(`[NewAgentPresenter] session created id=${sessionId} title="${title}"`)
+    console.log(`[AgentSessionPresenter] session created id=${sessionId} title="${title}"`)
 
     // Initialize agent-side session
     const initConfig: {
@@ -341,7 +343,7 @@ export class NewAgentPresenter {
       await this.cleanupFailedSessionInitialization(agent, sessionId)
       throw error
     }
-    console.log(`[NewAgentPresenter] agent.initSession done`)
+    console.log(`[AgentSessionPresenter] agent.initSession done`)
 
     // Bind to window and emit activated
     this.sessionManager.bindWindow(webContentsId, sessionId)
@@ -377,14 +379,14 @@ export class NewAgentPresenter {
 
     // Queue the first message (non-blocking) after returning session ID
     if (normalizedInput.text.trim() || (normalizedInput.files?.length ?? 0) > 0) {
-      console.log(`[NewAgentPresenter] firing queuePendingInput (non-blocking)`)
+      console.log(`[AgentSessionPresenter] firing queuePendingInput (non-blocking)`)
       if (agent.queuePendingInput) {
         agent.queuePendingInput(sessionId, normalizedInput).catch((err) => {
-          console.error('[NewAgentPresenter] queuePendingInput failed:', err)
+          console.error('[AgentSessionPresenter] queuePendingInput failed:', err)
         })
       } else {
         agent.processMessage(sessionId, normalizedInput, { projectDir }).catch((err) => {
-          console.error('[NewAgentPresenter] processMessage failed:', err)
+          console.error('[AgentSessionPresenter] processMessage failed:', err)
         })
       }
     }
@@ -874,7 +876,7 @@ export class NewAgentPresenter {
         await agent.destroySession(targetSessionId)
       } catch (cleanupError) {
         console.warn(
-          `[NewAgentPresenter] Failed to cleanup forked session runtime ${targetSessionId}:`,
+          `[AgentSessionPresenter] Failed to cleanup forked session runtime ${targetSessionId}:`,
           cleanupError
         )
       }
@@ -1057,7 +1059,7 @@ export class NewAgentPresenter {
           searchId: result.searchId ?? row.search_id ?? undefined
         })
       } catch (error) {
-        console.warn('[NewAgentPresenter] Failed to parse search result row:', error)
+        console.warn('[AgentSessionPresenter] Failed to parse search result row:', error)
       }
     }
 
@@ -1642,7 +1644,10 @@ export class NewAgentPresenter {
       this.sessionManager.update(sessionId, { title: normalized })
       this.emitSessionListUpdated()
     } catch (error) {
-      console.warn(`[NewAgentPresenter] title generation skipped for session=${sessionId}:`, error)
+      console.warn(
+        `[AgentSessionPresenter] title generation skipped for session=${sessionId}:`,
+        error
+      )
     }
   }
 
@@ -1689,7 +1694,7 @@ export class NewAgentPresenter {
       return await this.buildSessionWithState(record)
     } catch (error) {
       console.warn(
-        `[NewAgentPresenter] Skipping unavailable session id=${record.id} agent=${record.agentId}:`,
+        `[AgentSessionPresenter] Skipping unavailable session id=${record.id} agent=${record.agentId}:`,
         error
       )
       return null
@@ -1882,7 +1887,7 @@ export class NewAgentPresenter {
       return ids.length > 0
     } catch (error) {
       console.warn(
-        `[NewAgentPresenter] Failed to inspect message ids for session=${sessionId}:`,
+        `[AgentSessionPresenter] Failed to inspect message ids for session=${sessionId}:`,
         error
       )
       return true
@@ -1965,7 +1970,7 @@ export class NewAgentPresenter {
         normalizedProjectDir
       )
     } catch (error) {
-      console.warn('[NewAgentPresenter] Failed to sync ACP workdir for session:', {
+      console.warn('[AgentSessionPresenter] Failed to sync ACP workdir for session:', {
         conversationId,
         agentId,
         projectDir: normalizedProjectDir,
@@ -1983,7 +1988,7 @@ export class NewAgentPresenter {
       await agent.destroySession(sessionId)
     } catch (cleanupError) {
       console.warn(
-        `[NewAgentPresenter] Failed to cleanup session runtime after initialization error ${sessionId}:`,
+        `[AgentSessionPresenter] Failed to cleanup session runtime after initialization error ${sessionId}:`,
         cleanupError
       )
     }

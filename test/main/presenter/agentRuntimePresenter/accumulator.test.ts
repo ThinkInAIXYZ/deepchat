@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { accumulate } from '@/presenter/deepchatAgentPresenter/accumulator'
-import { createState } from '@/presenter/deepchatAgentPresenter/types'
-import type { StreamState } from '@/presenter/deepchatAgentPresenter/types'
+import { accumulate } from '@/presenter/agentRuntimePresenter/accumulator'
+import { createState } from '@/presenter/agentRuntimePresenter/types'
+import type { StreamState } from '@/presenter/agentRuntimePresenter/types'
 
 describe('accumulate', () => {
   let state: StreamState

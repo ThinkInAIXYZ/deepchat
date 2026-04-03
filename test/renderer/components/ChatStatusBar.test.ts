@@ -381,7 +381,7 @@ const setup = async (options: SetupOptions = {}) => {
   const sessionSettingsResult =
     options.sessionSettings === null ? null : ({ ...baseSessionSettings } as TestGenerationSettings)
 
-  const newAgentPresenter = {
+  const agentSessionPresenter = {
     getPermissionMode: vi.fn().mockResolvedValue('full_access'),
     setPermissionMode: vi.fn().mockResolvedValue(undefined),
     getSessionGenerationSettings: vi.fn().mockResolvedValue(sessionSettingsResult),
@@ -463,7 +463,7 @@ const setup = async (options: SetupOptions = {}) => {
     usePresenter: (name: string) => {
       if (name === 'configPresenter') return configPresenter
       if (name === 'llmproviderPresenter') return llmproviderPresenter
-      return newAgentPresenter
+      return agentSessionPresenter
     }
   }))
   vi.doMock('vue-i18n', () => ({
@@ -532,7 +532,7 @@ const setup = async (options: SetupOptions = {}) => {
 
   return {
     wrapper,
-    newAgentPresenter,
+    agentSessionPresenter,
     llmproviderPresenter,
     agentStore,
     sessionStore,
@@ -685,7 +685,7 @@ describe('ChatStatusBar model and session panels', () => {
   })
 
   it('keeps showing loading until settings finish loading for the current model selection', async () => {
-    const { wrapper, sessionStore, newAgentPresenter } = await setup({
+    const { wrapper, sessionStore, agentSessionPresenter } = await setup({
       hasActiveSession: true,
       activeProviderId: 'openai',
       activeModelId: 'gpt-4'
@@ -707,8 +707,10 @@ describe('ChatStatusBar model and session panels', () => {
         sessionStore.activeSession.modelId = 'claude-3-5-sonnet'
       }
     })
-    newAgentPresenter.getSessionGenerationSettings.mockClear()
-    newAgentPresenter.getSessionGenerationSettings.mockImplementation(() => pendingSettings.promise)
+    agentSessionPresenter.getSessionGenerationSettings.mockClear()
+    agentSessionPresenter.getSessionGenerationSettings.mockImplementation(
+      () => pendingSettings.promise
+    )
 
     await (wrapper.vm as any).openModelSettings('anthropic', 'claude-3-5-sonnet')
     await flushPromises()
@@ -874,7 +876,7 @@ describe('ChatStatusBar model and session panels', () => {
   })
 
   it('falls back to model defaults when the active session has no saved generation settings', async () => {
-    const { wrapper, newAgentPresenter } = await setup({
+    const { wrapper, agentSessionPresenter } = await setup({
       agentId: 'deepchat',
       hasActiveSession: true,
       activeProviderId: 'openai',
@@ -882,7 +884,7 @@ describe('ChatStatusBar model and session panels', () => {
       sessionSettings: null
     })
 
-    expect(newAgentPresenter.getSessionGenerationSettings).toHaveBeenCalledWith('s1')
+    expect(agentSessionPresenter.getSessionGenerationSettings).toHaveBeenCalledWith('s1')
     expect((wrapper.vm as any).localSettings).toEqual({
       systemPrompt: 'Default prompt',
       temperature: 0.7,
@@ -1013,7 +1015,7 @@ describe('ChatStatusBar model and session panels', () => {
   it('debounces generation setting persistence to a single session update', async () => {
     vi.useFakeTimers()
 
-    const { wrapper, newAgentPresenter } = await setup({
+    const { wrapper, agentSessionPresenter } = await setup({
       hasActiveSession: true,
       activeProviderId: 'openai',
       activeModelId: 'gpt-4'
@@ -1027,13 +1029,13 @@ describe('ChatStatusBar model and session panels', () => {
 
     vi.advanceTimersByTime(299)
     await flushPromises()
-    expect(newAgentPresenter.updateSessionGenerationSettings).not.toHaveBeenCalled()
+    expect(agentSessionPresenter.updateSessionGenerationSettings).not.toHaveBeenCalled()
 
     vi.advanceTimersByTime(1)
     await flushPromises()
 
-    expect(newAgentPresenter.updateSessionGenerationSettings).toHaveBeenCalledTimes(1)
-    expect(newAgentPresenter.updateSessionGenerationSettings).toHaveBeenCalledWith(
+    expect(agentSessionPresenter.updateSessionGenerationSettings).toHaveBeenCalledTimes(1)
+    expect(agentSessionPresenter.updateSessionGenerationSettings).toHaveBeenCalledWith(
       's1',
       expect.objectContaining({ temperature: 1.2 })
     )
@@ -1045,7 +1047,7 @@ describe('ChatStatusBar model and session panels', () => {
   it('turns thinking budget off with the switch and clears the persisted field', async () => {
     vi.useFakeTimers()
 
-    const { wrapper, newAgentPresenter } = await setup({
+    const { wrapper, agentSessionPresenter } = await setup({
       hasActiveSession: true,
       activeProviderId: 'openai',
       activeModelId: 'gpt-4'
@@ -1059,7 +1061,7 @@ describe('ChatStatusBar model and session panels', () => {
     vi.advanceTimersByTime(300)
     await flushPromises()
 
-    expect(newAgentPresenter.updateSessionGenerationSettings).toHaveBeenCalledWith(
+    expect(agentSessionPresenter.updateSessionGenerationSettings).toHaveBeenCalledWith(
       's1',
       expect.objectContaining({ thinkingBudget: undefined })
     )
@@ -1071,7 +1073,7 @@ describe('ChatStatusBar model and session panels', () => {
   it('sends an explicit false when interleaved thinking is turned off', async () => {
     vi.useFakeTimers()
 
-    const { wrapper, newAgentPresenter } = await setup({
+    const { wrapper, agentSessionPresenter } = await setup({
       hasActiveSession: true,
       activeProviderId: 'openai',
       activeModelId: 'gpt-4',
@@ -1099,7 +1101,7 @@ describe('ChatStatusBar model and session panels', () => {
     vi.advanceTimersByTime(300)
     await flushPromises()
 
-    expect(newAgentPresenter.updateSessionGenerationSettings).toHaveBeenCalledWith(
+    expect(agentSessionPresenter.updateSessionGenerationSettings).toHaveBeenCalledWith(
       's1',
       expect.objectContaining({
         forceInterleavedThinkingCompat: false
@@ -1115,13 +1117,13 @@ describe('ChatStatusBar model and session panels', () => {
 
     const firstResponse = createDeferred<TestGenerationSettings>()
 
-    const { wrapper, newAgentPresenter } = await setup({
+    const { wrapper, agentSessionPresenter } = await setup({
       hasActiveSession: true,
       activeProviderId: 'openai',
       activeModelId: 'gpt-4'
     })
 
-    newAgentPresenter.updateSessionGenerationSettings.mockImplementation(
+    agentSessionPresenter.updateSessionGenerationSettings.mockImplementation(
       () => firstResponse.promise
     )
 
@@ -1163,13 +1165,13 @@ describe('ChatStatusBar model and session panels', () => {
     const secondResponse = createDeferred<TestGenerationSettings>()
     const responseQueue = [firstResponse.promise, secondResponse.promise]
 
-    const { wrapper, newAgentPresenter } = await setup({
+    const { wrapper, agentSessionPresenter } = await setup({
       hasActiveSession: true,
       activeProviderId: 'openai',
       activeModelId: 'gpt-4'
     })
 
-    newAgentPresenter.updateSessionGenerationSettings.mockImplementation(
+    agentSessionPresenter.updateSessionGenerationSettings.mockImplementation(
       () => responseQueue.shift() ?? Promise.reject(new Error('missing mocked response'))
     )
 
@@ -1234,7 +1236,7 @@ describe('ChatStatusBar model and session panels', () => {
   })
 
   it('reloads active session generation settings after switching models', async () => {
-    const { wrapper, sessionStore, newAgentPresenter } = await setup({
+    const { wrapper, sessionStore, agentSessionPresenter } = await setup({
       agentId: 'deepchat',
       hasActiveSession: true,
       activeProviderId: 'openai',
@@ -1257,13 +1259,13 @@ describe('ChatStatusBar model and session panels', () => {
         sessionStore.activeSession.modelId = 'claude-3-5-sonnet'
       }
     })
-    newAgentPresenter.getSessionGenerationSettings.mockClear()
-    newAgentPresenter.getSessionGenerationSettings.mockResolvedValue(nextSettings)
+    agentSessionPresenter.getSessionGenerationSettings.mockClear()
+    agentSessionPresenter.getSessionGenerationSettings.mockResolvedValue(nextSettings)
 
     await (wrapper.vm as any).selectModel('anthropic', 'claude-3-5-sonnet')
     await flushPromises()
 
-    expect(newAgentPresenter.getSessionGenerationSettings).toHaveBeenCalledWith('s1')
+    expect(agentSessionPresenter.getSessionGenerationSettings).toHaveBeenCalledWith('s1')
     expect((wrapper.vm as any).localSettings).toEqual(nextSettings)
   })
 
@@ -1607,21 +1609,21 @@ describe('ChatStatusBar model and session panels', () => {
     const processConfig = createAcpConfigState({}, 'gpt-5')
     const sessionConfig = createAcpConfigState({}, 'gpt-5-mini')
     const pendingSessionConfig = createDeferred<AcpConfigState | null>()
-    const { wrapper, newAgentPresenter } = await setup({
+    const { wrapper, agentSessionPresenter } = await setup({
       agentId: 'acp-agent',
       hasActiveSession: false,
       projectPath: '/tmp/workspace',
       acpProcessConfig: processConfig
     })
 
-    newAgentPresenter.getAcpSessionConfigOptions.mockImplementation(
+    agentSessionPresenter.getAcpSessionConfigOptions.mockImplementation(
       () => pendingSessionConfig.promise
     )
 
     await wrapper.setProps({ acpDraftSessionId: 'draft-1' })
     await flushPromises()
 
-    expect(newAgentPresenter.getAcpSessionConfigOptions).toHaveBeenCalledWith('draft-1')
+    expect(agentSessionPresenter.getAcpSessionConfigOptions).toHaveBeenCalledWith('draft-1')
     expect((wrapper.vm as any).acpConfigState).toBeNull()
     expect((wrapper.vm as any).acpConfigReadOnly).toBe(true)
     expect(wrapper.findAll('.acp-inline-option')).toHaveLength(0)
@@ -1639,7 +1641,7 @@ describe('ChatStatusBar model and session panels', () => {
   it('switches from warmup config to session config and writes ACP options through the session presenter', async () => {
     const processConfig = createAcpConfigState({}, 'gpt-5')
     const sessionConfig = createAcpConfigState({}, 'gpt-5-mini')
-    const { wrapper, newAgentPresenter } = await setup({
+    const { wrapper, agentSessionPresenter } = await setup({
       agentId: 'acp-agent',
       hasActiveSession: false,
       projectPath: '/tmp/workspace',
@@ -1653,7 +1655,7 @@ describe('ChatStatusBar model and session panels', () => {
     await wrapper.setProps({ acpDraftSessionId: 'draft-1' })
     await flushPromises()
 
-    expect(newAgentPresenter.getAcpSessionConfigOptions).toHaveBeenCalledWith('draft-1')
+    expect(agentSessionPresenter.getAcpSessionConfigOptions).toHaveBeenCalledWith('draft-1')
     expect(wrapper.text()).toContain('gpt-5-mini')
     expect((wrapper.vm as any).acpConfigReadOnly).toBe(false)
     ;(wrapper.vm as any).onAcpInlineOptionOpenChange('model', true)
@@ -1664,7 +1666,7 @@ describe('ChatStatusBar model and session panels', () => {
       .trigger('click')
     await flushPromises()
 
-    expect(newAgentPresenter.setAcpSessionConfigOption).toHaveBeenCalledWith(
+    expect(agentSessionPresenter.setAcpSessionConfigOption).toHaveBeenCalledWith(
       'draft-1',
       'model',
       'gpt-5'

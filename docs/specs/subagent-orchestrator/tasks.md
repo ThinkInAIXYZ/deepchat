@@ -3,13 +3,13 @@
 ## 1. Shared / Schema
 
 1. 扩展 `DeepChatAgentConfig`、`DeepChatSubagentSlot`、session record、tool progress 类型
-2. 扩展 `INewAgentPresenter` / `IToolPresenter`
+2. 扩展 `IAgentSessionPresenter` / `IToolPresenter`
 3. 为 `new_sessions` 增加 subagent 相关列与迁移测试
 
 ## 2. Main Session Layer
 
 1. 更新 `NewSessionsTable` / `NewSessionManager` create-get-list-update
-2. 更新 `NewAgentPresenter`：
+2. 更新 `AgentSessionPresenter`：
    - create session / detached session 支持 `subagentEnabled`
    - `getSessionList()` 支持 `includeSubagents` / `parentSessionId`
    - `setSessionSubagentEnabled()`
@@ -28,7 +28,7 @@
 
 1. 定义 main-only subagent runtime events
 2. `dispatch` 发 child block update event
-3. `DeepChatAgentPresenter` 发 child status / refresh event
+3. `AgentRuntimePresenter` 发 child status / refresh event
 4. `dispatch.executeTools()` / `executeDeferredToolCall()` 接 `onProgress`
 5. 把 `subagentProgress` / `subagentFinal` 写回 assistant block extra
 

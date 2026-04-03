@@ -6,8 +6,8 @@ import { app } from 'electron'
 import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
 import type { MCPToolDefinition } from '@shared/presenter'
 import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
-import type { ProcessParams } from '@/presenter/deepchatAgentPresenter/types'
-import { ToolOutputGuard } from '@/presenter/deepchatAgentPresenter/toolOutputGuard'
+import type { ProcessParams } from '@/presenter/agentRuntimePresenter/types'
+import { ToolOutputGuard } from '@/presenter/agentRuntimePresenter/toolOutputGuard'
 
 vi.mock('@/eventbus', () => ({
   eventBus: { sendToRenderer: vi.fn() },
@@ -36,7 +36,7 @@ vi.mock('@/presenter', () => ({
   }
 }))
 
-import { processStream } from '@/presenter/deepchatAgentPresenter/process'
+import { processStream } from '@/presenter/agentRuntimePresenter/process'
 import { eventBus } from '@/eventbus'
 
 const DEFAULT_INTERLEAVED_REASONING = {

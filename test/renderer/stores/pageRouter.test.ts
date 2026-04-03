@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 
-const setupStore = async (options?: { activeNewSession?: { id: string } | null }) => {
+const setupStore = async (options?: { activeAgentSession?: { id: string } | null }) => {
   vi.resetModules()
-  const newAgentPresenter = {
-    getActiveSession: vi.fn().mockResolvedValue(options?.activeNewSession ?? null)
+  const agentSessionPresenter = {
+    getActiveSession: vi.fn().mockResolvedValue(options?.activeAgentSession ?? null)
   }
 
   vi.doMock('pinia', () => ({
@@ -12,7 +12,7 @@ const setupStore = async (options?: { activeNewSession?: { id: string } | null }
 
   vi.doMock('@/composables/usePresenter', () => ({
     usePresenter: (name: string) => {
-      if (name === 'newAgentPresenter') return newAgentPresenter
+      if (name === 'agentSessionPresenter') return agentSessionPresenter
       return {}
     }
   }))
@@ -31,36 +31,36 @@ const setupStore = async (options?: { activeNewSession?: { id: string } | null }
 
   return {
     store,
-    newAgentPresenter
+    agentSessionPresenter
   }
 }
 
 describe('pageRouter.initialize', () => {
-  it('uses the active new-agent session when it exists', async () => {
-    const { store, newAgentPresenter } = await setupStore({
-      activeNewSession: { id: 'new-session-1' }
+  it('uses the active agent session when it exists', async () => {
+    const { store, agentSessionPresenter } = await setupStore({
+      activeAgentSession: { id: 'new-session-1' }
     })
 
     await store.initialize()
 
-    expect(newAgentPresenter.getActiveSession).toHaveBeenCalledWith(1)
+    expect(agentSessionPresenter.getActiveSession).toHaveBeenCalledWith(1)
     expect(store.route.value).toEqual({ name: 'chat', sessionId: 'new-session-1' })
   })
 
-  it('defaults to new thread when no new-agent active session exists', async () => {
-    const { store, newAgentPresenter } = await setupStore({
-      activeNewSession: null
+  it('defaults to new thread when no active agent session exists', async () => {
+    const { store, agentSessionPresenter } = await setupStore({
+      activeAgentSession: null
     })
 
     await store.initialize()
 
-    expect(newAgentPresenter.getActiveSession).toHaveBeenCalledWith(1)
+    expect(agentSessionPresenter.getActiveSession).toHaveBeenCalledWith(1)
     expect(store.route.value).toEqual({ name: 'newThread' })
   })
 
   it('allows manually going to new thread', async () => {
     const { store } = await setupStore({
-      activeNewSession: null
+      activeAgentSession: null
     })
     store.goToNewThread()
 
@@ -69,7 +69,7 @@ describe('pageRouter.initialize', () => {
 
   it('can force-refresh the new thread view', async () => {
     const { store } = await setupStore({
-      activeNewSession: null
+      activeAgentSession: null
     })
 
     expect(store.newThreadRefreshKey.value).toBe(0)
@@ -84,7 +84,7 @@ describe('pageRouter.initialize', () => {
   it('falls back to new thread when active session lookup fails', async () => {
     vi.resetModules()
 
-    const newAgentPresenter = {
+    const agentSessionPresenter = {
       getActiveSession: vi.fn().mockRejectedValue(new Error('boom'))
     }
 
@@ -94,7 +94,7 @@ describe('pageRouter.initialize', () => {
 
     vi.doMock('@/composables/usePresenter', () => ({
       usePresenter: (name: string) => {
-        if (name === 'newAgentPresenter') return newAgentPresenter
+        if (name === 'agentSessionPresenter') return agentSessionPresenter
         return {}
       }
     }))

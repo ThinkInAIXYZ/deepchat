@@ -35,7 +35,7 @@
 
 ### 3.1 Trace 上下文
 
-在 `deepchatAgentPresenter.runStreamForMessage` 构建 trace context：
+在 `agentRuntimePresenter.runStreamForMessage` 构建 trace context：
 
 1. `sessionId`
 2. `messageId`
@@ -69,7 +69,7 @@
 
 ### 5.1 IPC / Presenter
 
-在 `INewAgentPresenter` 增加：
+在 `IAgentSessionPresenter` 增加：
 
 1. `listMessageTraces(messageId: string): Promise<MessageTraceRecord[]>`
 2. `getMessageTraceCount(messageId: string): Promise<number>`（可选；也可在消息查询时聚合）

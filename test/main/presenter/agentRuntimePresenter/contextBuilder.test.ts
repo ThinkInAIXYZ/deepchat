@@ -4,7 +4,7 @@ import {
   buildResumeContext,
   fitMessagesToContextWindow,
   truncateContext
-} from '@/presenter/deepchatAgentPresenter/contextBuilder'
+} from '@/presenter/agentRuntimePresenter/contextBuilder'
 
 vi.mock('tokenx', () => ({
   approximateTokenSize: vi.fn((text: string) => {

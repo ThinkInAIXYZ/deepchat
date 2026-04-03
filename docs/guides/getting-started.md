@@ -37,8 +37,8 @@ pnpm test
 
 ```text
 Renderer
-  -> newAgentPresenter
-  -> deepchatAgentPresenter
+  -> agentSessionPresenter
+  -> agentRuntimePresenter
   -> toolPresenter / llmProviderPresenter
 ```
 
@@ -51,8 +51,8 @@ Renderer
 src/
 ├── main/
 │   ├── presenter/
-│   │   ├── newAgentPresenter/        # 当前会话入口
-│   │   ├── deepchatAgentPresenter/   # 当前聊天 runtime
+│   │   ├── agentSessionPresenter/        # 当前会话入口
+│   │   ├── agentRuntimePresenter/   # 当前聊天 runtime
 │   │   ├── toolPresenter/            # 工具路由
 │   │   │   └── agentTools/           # 本地 agent tools
 │   │   ├── llmProviderPresenter/     # provider 管理
@@ -72,8 +72,8 @@ src/
 ## 进入代码的推荐顺序
 
 1. `src/main/presenter/index.ts`
-2. `src/main/presenter/newAgentPresenter/index.ts`
-3. `src/main/presenter/deepchatAgentPresenter/index.ts`
+2. `src/main/presenter/agentSessionPresenter/index.ts`
+3. `src/main/presenter/agentRuntimePresenter/index.ts`
 4. `src/main/presenter/toolPresenter/index.ts`
 5. `src/main/presenter/llmProviderPresenter/index.ts`
 
@@ -83,9 +83,9 @@ src/
 
 优先看：
 
-- `src/main/presenter/newAgentPresenter/index.ts`
-- `src/main/presenter/deepchatAgentPresenter/process.ts`
-- `src/main/presenter/deepchatAgentPresenter/dispatch.ts`
+- `src/main/presenter/agentSessionPresenter/index.ts`
+- `src/main/presenter/agentRuntimePresenter/process.ts`
+- `src/main/presenter/agentRuntimePresenter/dispatch.ts`
 
 ### 添加或修改 agent tool
 
@@ -110,7 +110,7 @@ src/
 
 优先看：
 
-- `src/main/presenter/newAgentPresenter/legacyImportService.ts`
+- `src/main/presenter/agentSessionPresenter/legacyImportService.ts`
 - `src/main/presenter/sessionPresenter/index.ts`
 - `src/main/presenter/exporter/formats/`
 

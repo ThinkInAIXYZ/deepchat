@@ -7,9 +7,9 @@
 
 ```mermaid
 flowchart TD
-    UI["Renderer / IPC"] --> NewAgent["NewAgentPresenter"]
+    UI["Renderer / IPC"] --> NewAgent["AgentSessionPresenter"]
     NewAgent --> Registry["AgentRegistry"]
-    Registry --> DeepChat["DeepChatAgentPresenter"]
+    Registry --> DeepChat["AgentRuntimePresenter"]
     DeepChat --> Context["contextBuilder"]
     DeepChat --> Process["process.ts"]
     DeepChat --> Dispatch["dispatch.ts"]
@@ -21,16 +21,16 @@ flowchart TD
 
 主原则：
 
-- renderer 只面向 `newAgentPresenter`
-- `newAgentPresenter` 只做 session orchestration，不执行聊天 loop
-- `deepchatAgentPresenter` 独占聊天 runtime
+- renderer 只面向 `agentSessionPresenter`
+- `agentSessionPresenter` 只做 session orchestration，不执行聊天 loop
+- `agentRuntimePresenter` 独占聊天 runtime
 
 ## 模块布局
 
-### `newAgentPresenter/`
+### `agentSessionPresenter/`
 
 ```text
-newAgentPresenter/
+agentSessionPresenter/
 ├── index.ts
 ├── agentRegistry.ts
 ├── sessionManager.ts
@@ -46,10 +46,10 @@ newAgentPresenter/
 - 暴露 renderer IPC 方法
 - 保留 legacy import 流程
 
-### `deepchatAgentPresenter/`
+### `agentRuntimePresenter/`
 
 ```text
-deepchatAgentPresenter/
+agentRuntimePresenter/
 ├── index.ts
 ├── process.ts
 ├── dispatch.ts
@@ -75,12 +75,12 @@ deepchatAgentPresenter/
 
 | 层 | 主文件 | 责任 |
 | --- | --- | --- |
-| Session orchestration | `src/main/presenter/newAgentPresenter/index.ts` | session 生命周期与 IPC |
-| Agent runtime | `src/main/presenter/deepchatAgentPresenter/index.ts` | run state、取消、恢复、模型/权限切换 |
-| Stream loop | `src/main/presenter/deepchatAgentPresenter/process.ts` | 调用 provider、累计 blocks、驱动 tool loop |
-| Tool dispatch | `src/main/presenter/deepchatAgentPresenter/dispatch.ts` | 调用 `ToolPresenter`、暂停交互、生成 tool 结果 |
-| Context build | `src/main/presenter/deepchatAgentPresenter/contextBuilder.ts` | 历史裁剪、resume context、token budget |
-| Persistence | `src/main/presenter/deepchatAgentPresenter/messageStore.ts` | 消息持久化与故障恢复 |
+| Session orchestration | `src/main/presenter/agentSessionPresenter/index.ts` | session 生命周期与 IPC |
+| Agent runtime | `src/main/presenter/agentRuntimePresenter/index.ts` | run state、取消、恢复、模型/权限切换 |
+| Stream loop | `src/main/presenter/agentRuntimePresenter/process.ts` | 调用 provider、累计 blocks、驱动 tool loop |
+| Tool dispatch | `src/main/presenter/agentRuntimePresenter/dispatch.ts` | 调用 `ToolPresenter`、暂停交互、生成 tool 结果 |
+| Context build | `src/main/presenter/agentRuntimePresenter/contextBuilder.ts` | 历史裁剪、resume context、token budget |
+| Persistence | `src/main/presenter/agentRuntimePresenter/messageStore.ts` | 消息持久化与故障恢复 |
 
 ## 兼容边界
 
@@ -101,10 +101,10 @@ deepchatAgentPresenter/
 
 如果要追一条真实消息链路，推荐顺序：
 
-1. `src/main/presenter/newAgentPresenter/index.ts`
-2. `src/main/presenter/deepchatAgentPresenter/index.ts`
-3. `src/main/presenter/deepchatAgentPresenter/process.ts`
-4. `src/main/presenter/deepchatAgentPresenter/dispatch.ts`
+1. `src/main/presenter/agentSessionPresenter/index.ts`
+2. `src/main/presenter/agentRuntimePresenter/index.ts`
+3. `src/main/presenter/agentRuntimePresenter/process.ts`
+4. `src/main/presenter/agentRuntimePresenter/dispatch.ts`
 5. `src/main/presenter/toolPresenter/index.ts`
 
 ## 历史说明

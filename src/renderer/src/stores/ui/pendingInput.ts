@@ -7,7 +7,7 @@ import type { PendingSessionInputRecord, SendMessageInput } from '@shared/types/
 const MAX_PENDING_INPUTS = 5
 
 export const usePendingInputStore = defineStore('pendingInput', () => {
-  const newAgentPresenter = usePresenter('newAgentPresenter')
+  const agentSessionPresenter = usePresenter('agentSessionPresenter')
 
   const currentSessionId = ref<string | null>(null)
   const items = ref<PendingSessionInputRecord[]>([])
@@ -29,7 +29,7 @@ export const usePendingInputStore = defineStore('pendingInput', () => {
     loading.value = true
     error.value = null
     try {
-      const loadedItems = await newAgentPresenter.listPendingInputs(requestedId)
+      const loadedItems = await agentSessionPresenter.listPendingInputs(requestedId)
       if (requestedId !== currentSessionId.value) {
         return
       }
@@ -49,7 +49,7 @@ export const usePendingInputStore = defineStore('pendingInput', () => {
   async function queueInput(sessionId: string, input: string | SendMessageInput): Promise<void> {
     error.value = null
     try {
-      await newAgentPresenter.queuePendingInput(sessionId, input)
+      await agentSessionPresenter.queuePendingInput(sessionId, input)
       if (currentSessionId.value === sessionId) {
         await loadPendingInputs(sessionId)
       }
@@ -66,7 +66,7 @@ export const usePendingInputStore = defineStore('pendingInput', () => {
   ): Promise<void> {
     error.value = null
     try {
-      const updated = await newAgentPresenter.updateQueuedInput(sessionId, itemId, input)
+      const updated = await agentSessionPresenter.updateQueuedInput(sessionId, itemId, input)
       items.value = items.value.map((item) => (item.id === updated.id ? updated : item))
       if (currentSessionId.value === sessionId) {
         await loadPendingInputs(sessionId)
@@ -80,7 +80,7 @@ export const usePendingInputStore = defineStore('pendingInput', () => {
   async function moveQueueInput(sessionId: string, itemId: string, toIndex: number): Promise<void> {
     error.value = null
     try {
-      items.value = await newAgentPresenter.moveQueuedInput(sessionId, itemId, toIndex)
+      items.value = await agentSessionPresenter.moveQueuedInput(sessionId, itemId, toIndex)
     } catch (e) {
       error.value = `Failed to reorder queued message: ${e}`
       throw e
@@ -90,7 +90,7 @@ export const usePendingInputStore = defineStore('pendingInput', () => {
   async function convertToSteer(sessionId: string, itemId: string): Promise<void> {
     error.value = null
     try {
-      const updated = await newAgentPresenter.convertPendingInputToSteer(sessionId, itemId)
+      const updated = await agentSessionPresenter.convertPendingInputToSteer(sessionId, itemId)
       items.value = items.value.map((item) => (item.id === updated.id ? updated : item))
       if (currentSessionId.value === sessionId) {
         await loadPendingInputs(sessionId)
@@ -104,7 +104,7 @@ export const usePendingInputStore = defineStore('pendingInput', () => {
   async function deleteInput(sessionId: string, itemId: string): Promise<void> {
     error.value = null
     try {
-      await newAgentPresenter.deletePendingInput(sessionId, itemId)
+      await agentSessionPresenter.deletePendingInput(sessionId, itemId)
       items.value = items.value.filter((item) => item.id !== itemId)
     } catch (e) {
       error.value = `Failed to delete queued message: ${e}`
@@ -115,7 +115,7 @@ export const usePendingInputStore = defineStore('pendingInput', () => {
   async function resumeQueue(sessionId: string): Promise<void> {
     error.value = null
     try {
-      await newAgentPresenter.resumePendingQueue(sessionId)
+      await agentSessionPresenter.resumePendingQueue(sessionId)
       if (currentSessionId.value === sessionId) {
         await loadPendingInputs(sessionId)
       }

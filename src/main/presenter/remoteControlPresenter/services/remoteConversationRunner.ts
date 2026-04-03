@@ -7,12 +7,12 @@ import type {
 import type { SearchResult } from '@shared/types/core/search'
 import type {
   IConfigPresenter,
-  INewAgentPresenter,
+  IAgentSessionPresenter,
   RemoteChannel,
   ITabPresenter,
   IWindowPresenter
 } from '@shared/presenter'
-import type { DeepChatAgentPresenter } from '../../deepchatAgentPresenter'
+import type { AgentRuntimePresenter } from '../../agentRuntimePresenter'
 import {
   TELEGRAM_RECENT_SESSION_LIMIT,
   TELEGRAM_STREAM_POLL_INTERVAL_MS,
@@ -77,8 +77,8 @@ export type RemoteOpenSessionResult =
 
 type RemoteConversationRunnerDeps = {
   configPresenter: IConfigPresenter
-  newAgentPresenter: INewAgentPresenter
-  deepchatAgentPresenter: DeepChatAgentPresenter
+  agentSessionPresenter: IAgentSessionPresenter
+  agentRuntimePresenter: AgentRuntimePresenter
   windowPresenter: IWindowPresenter
   tabPresenter: ITabPresenter
   resolveDefaultAgentId: () => Promise<string>
@@ -113,7 +113,7 @@ export class RemoteConversationRunner {
       )
     }
 
-    const session = await this.deps.newAgentPresenter.createDetachedSession({
+    const session = await this.deps.agentSessionPresenter.createDetachedSession({
       title: title?.trim() || 'New Chat',
       agentId,
       ...(agentType === 'acp'
@@ -138,7 +138,7 @@ export class RemoteConversationRunner {
       return null
     }
 
-    const session = await this.deps.newAgentPresenter.getSession(binding.sessionId)
+    const session = await this.deps.agentSessionPresenter.getSession(binding.sessionId)
     if (!session) {
       this.bindingStore.clearBinding(endpointKey)
       return null
@@ -161,7 +161,7 @@ export class RemoteConversationRunner {
 
   async listSessions(endpointKey: string): Promise<SessionWithState[]> {
     const agentId = await this.resolveSessionListAgentId(endpointKey)
-    const sessions = await this.deps.newAgentPresenter.getSessionList({
+    const sessions = await this.deps.agentSessionPresenter.getSessionList({
       agentId
     })
     const sorted = [...sessions]
@@ -189,7 +189,7 @@ export class RemoteConversationRunner {
       throw new Error('Session index is out of range.')
     }
 
-    const session = await this.deps.newAgentPresenter.getSession(sessionId)
+    const session = await this.deps.agentSessionPresenter.getSession(sessionId)
     if (!session) {
       throw new Error('Selected session no longer exists.')
     }
@@ -231,7 +231,7 @@ export class RemoteConversationRunner {
       throw new Error('No bound session. Send a message, /new, or /use first.')
     }
 
-    return await this.deps.newAgentPresenter.setSessionModel(session.id, providerId, modelId)
+    return await this.deps.agentSessionPresenter.setSessionModel(session.id, providerId, modelId)
   }
 
   async sendText(
@@ -240,12 +240,12 @@ export class RemoteConversationRunner {
     bindingMeta?: RemoteEndpointBindingMeta
   ): Promise<RemoteConversationExecution> {
     const session = await this.ensureBoundSession(endpointKey, bindingMeta)
-    const beforeMessages = await this.deps.newAgentPresenter.getMessages(session.id)
+    const beforeMessages = await this.deps.agentSessionPresenter.getMessages(session.id)
     const lastOrderSeq = beforeMessages.at(-1)?.orderSeq ?? 0
     const previousActiveEventId =
-      this.deps.deepchatAgentPresenter.getActiveGeneration(session.id)?.eventId ?? null
+      this.deps.agentRuntimePresenter.getActiveGeneration(session.id)?.eventId ?? null
 
-    await this.deps.newAgentPresenter.sendMessage(session.id, text)
+    await this.deps.agentSessionPresenter.sendMessage(session.id, text)
 
     const seededMessage = await this.waitForAssistantMessage(session.id, lastOrderSeq, 800, {
       ignoreMessageId: previousActiveEventId
@@ -293,7 +293,7 @@ export class RemoteConversationRunner {
       throw new Error('No pending interaction was found.')
     }
 
-    const result = await this.deps.newAgentPresenter.respondToolInteraction(
+    const result = await this.deps.agentSessionPresenter.respondToolInteraction(
       session.id,
       interaction.messageId,
       interaction.toolCallId,
@@ -327,14 +327,14 @@ export class RemoteConversationRunner {
 
     const activeEventId =
       this.bindingStore.getActiveEvent(endpointKey) ??
-      this.deps.deepchatAgentPresenter.getActiveGeneration(session.id)?.eventId ??
+      this.deps.agentRuntimePresenter.getActiveGeneration(session.id)?.eventId ??
       null
 
     if (!activeEventId) {
       return false
     }
 
-    const stopped = await this.deps.deepchatAgentPresenter.cancelGenerationByEventId(
+    const stopped = await this.deps.agentRuntimePresenter.cancelGenerationByEventId(
       session.id,
       activeEventId
     )
@@ -359,7 +359,7 @@ export class RemoteConversationRunner {
       }
     }
 
-    await this.deps.newAgentPresenter.activateSession(window.webContents.id, session.id)
+    await this.deps.agentSessionPresenter.activateSession(window.webContents.id, session.id)
     this.deps.windowPresenter.show(window.id, true)
     return {
       status: 'ok',
@@ -382,7 +382,7 @@ export class RemoteConversationRunner {
 
     const activeEventId =
       this.bindingStore.getActiveEvent(endpointKey) ??
-      this.deps.deepchatAgentPresenter.getActiveGeneration(session.id)?.eventId ??
+      this.deps.agentRuntimePresenter.getActiveGeneration(session.id)?.eventId ??
       null
 
     return {
@@ -454,7 +454,7 @@ export class RemoteConversationRunner {
       ignoreMessageId: string | null
     }
   ): Promise<RemoteConversationSnapshot> {
-    const session = await this.deps.newAgentPresenter.getSession(sessionId)
+    const session = await this.deps.agentSessionPresenter.getSession(sessionId)
     if (!session) {
       this.bindingStore.clearBinding(endpointKey)
       return {
@@ -470,7 +470,7 @@ export class RemoteConversationRunner {
       }
     }
 
-    const activeGeneration = this.deps.deepchatAgentPresenter.getActiveGeneration(sessionId)
+    const activeGeneration = this.deps.agentRuntimePresenter.getActiveGeneration(sessionId)
     const trackedMessage = await this.resolveTrackedAssistantMessage(
       sessionId,
       tracking,
@@ -547,12 +547,12 @@ export class RemoteConversationRunner {
   }
 
   private async loadSearchResults(messageId: string, searchId?: string): Promise<SearchResult[]> {
-    if (typeof this.deps.newAgentPresenter.getSearchResults !== 'function') {
+    if (typeof this.deps.agentSessionPresenter.getSearchResults !== 'function') {
       return []
     }
 
     try {
-      return await this.deps.newAgentPresenter.getSearchResults(messageId, searchId)
+      return await this.deps.agentSessionPresenter.getSearchResults(messageId, searchId)
     } catch (error) {
       console.warn('[RemoteConversationRunner] Failed to load search results:', {
         messageId,
@@ -573,9 +573,9 @@ export class RemoteConversationRunner {
   ): Promise<ChatMessageRecord | null> {
     const deadline = Date.now() + timeoutMs
     while (Date.now() < deadline) {
-      const activeGeneration = this.deps.deepchatAgentPresenter.getActiveGeneration(sessionId)
+      const activeGeneration = this.deps.agentRuntimePresenter.getActiveGeneration(sessionId)
       if (activeGeneration?.eventId && activeGeneration.eventId !== options?.ignoreMessageId) {
-        const message = await this.deps.newAgentPresenter.getMessage(activeGeneration.eventId)
+        const message = await this.deps.agentSessionPresenter.getMessage(activeGeneration.eventId)
         if (message?.role === 'assistant') {
           return message
         }
@@ -611,7 +611,7 @@ export class RemoteConversationRunner {
         continue
       }
 
-      const message = await this.deps.newAgentPresenter.getMessage(messageId)
+      const message = await this.deps.agentSessionPresenter.getMessage(messageId)
       if (message?.role === 'assistant') {
         return message
       }
@@ -629,7 +629,7 @@ export class RemoteConversationRunner {
     afterOrderSeq: number,
     ignoreMessageId?: string | null
   ): Promise<ChatMessageRecord | null> {
-    const messages = await this.deps.newAgentPresenter.getMessages(sessionId)
+    const messages = await this.deps.agentSessionPresenter.getMessages(sessionId)
     const assistants = messages.filter(
       (message) =>
         message.role === 'assistant' &&
@@ -662,7 +662,7 @@ export class RemoteConversationRunner {
   private async getCurrentPendingInteractionDetails(
     sessionId: string
   ): Promise<PendingInteractionDetails | null> {
-    const messages = await this.deps.newAgentPresenter.getMessages(sessionId)
+    const messages = await this.deps.agentSessionPresenter.getMessages(sessionId)
     const assistants = [...messages]
       .filter((message) => message.role === 'assistant')
       .sort((left, right) => right.orderSeq - left.orderSeq)

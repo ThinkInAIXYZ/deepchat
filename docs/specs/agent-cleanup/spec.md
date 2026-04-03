@@ -7,8 +7,8 @@ The cleanup reached final runtime retirement on March 23, 2026.
 Current primary flow:
 
 - renderer active chat pages/stores/components
-- `newAgentPresenter`
-- `deepchatAgentPresenter`
+- `agentSessionPresenter`
+- `agentRuntimePresenter`
 - `toolPresenter`
 - `llmProviderPresenter`
 
@@ -59,7 +59,7 @@ It now protects these invariants:
 
 The remaining work is no longer runtime-retirement work. It is adjacent cleanup only:
 
-- export-only `@shared/chat` coupling in `newAgentPresenter`
+- export-only `@shared/chat` coupling in `agentSessionPresenter`
 - non-active renderer residual import in `PromptEditorSheet`
 - adjacent provider globals such as `devicePresenter` / `oauthPresenter`
 - optional archival/normalization of older specs that still mention retired paths

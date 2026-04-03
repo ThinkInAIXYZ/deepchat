@@ -77,7 +77,7 @@ const setup = async (pendingModelId: string) => {
       disabledAgentTools: []
     })
   }
-  const newAgentPresenter = {
+  const agentSessionPresenter = {
     ensureAcpDraftSession: vi.fn()
   }
 
@@ -99,7 +99,7 @@ const setup = async (pendingModelId: string) => {
   vi.doMock('@/composables/usePresenter', () => ({
     usePresenter: (name: string) => {
       if (name === 'configPresenter') return configPresenter
-      if (name === 'newAgentPresenter') return newAgentPresenter
+      if (name === 'agentSessionPresenter') return agentSessionPresenter
       return {}
     }
   }))

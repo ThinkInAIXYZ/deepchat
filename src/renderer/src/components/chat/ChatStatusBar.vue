@@ -817,7 +817,7 @@ const draftStore = useDraftStore()
 const projectStore = useProjectStore()
 const configPresenter = usePresenter('configPresenter')
 const llmproviderPresenter = usePresenter('llmproviderPresenter')
-const newAgentPresenter = usePresenter('newAgentPresenter')
+const agentSessionPresenter = usePresenter('agentSessionPresenter')
 const { t } = useI18n()
 
 const draftModelSelection = ref<ModelSelection | null>(null)
@@ -1898,7 +1898,7 @@ const flushGenerationPatch = async () => {
   const requestToken = ++generationPersistRequestToken
   const localRevisionAtRequest = generationLocalRevision
   try {
-    const updated = await newAgentPresenter.updateSessionGenerationSettings(sessionId, patch)
+    const updated = await agentSessionPresenter.updateSessionGenerationSettings(sessionId, patch)
     if (requestToken !== generationPersistRequestToken) {
       return
     }
@@ -2003,7 +2003,7 @@ const syncGenerationSettings = async () => {
   const sessionId = sessionStore.activeSessionId
   if (sessionId) {
     try {
-      const settings = await newAgentPresenter.getSessionGenerationSettings(sessionId)
+      const settings = await agentSessionPresenter.getSessionGenerationSettings(sessionId)
       if (token !== generationSyncToken) {
         return
       }
@@ -2060,7 +2060,7 @@ const syncAcpConfigOptions = async () => {
     acpConfigLoadedRequestKey.value = null
 
     try {
-      const state = await newAgentPresenter.getAcpSessionConfigOptions(activeAcpSessionId.value)
+      const state = await agentSessionPresenter.getAcpSessionConfigOptions(activeAcpSessionId.value)
       if (token !== acpConfigSyncToken || acpConfigRequestKey.value !== requestKey) {
         return
       }
@@ -2144,7 +2144,11 @@ const updateAcpConfigOption = async (configId: string, value: string | boolean) 
 
   acpOptionSavingIds.value = [...acpOptionSavingIds.value, configId]
   try {
-    const updated = await newAgentPresenter.setAcpSessionConfigOption(sessionId, configId, value)
+    const updated = await agentSessionPresenter.setAcpSessionConfigOption(
+      sessionId,
+      configId,
+      value
+    )
     setCachedAcpConfigState(agentId, updated)
     if (activeAcpSessionId.value !== sessionId) {
       return
@@ -2228,7 +2232,7 @@ watch(
     }
 
     try {
-      const mode = await newAgentPresenter.getPermissionMode(sessionId)
+      const mode = await agentSessionPresenter.getPermissionMode(sessionId)
       if (token !== permissionSyncToken) return
       permissionMode.value = mode === 'default' ? 'default' : 'full_access'
     } catch (error) {
@@ -2706,7 +2710,7 @@ async function selectPermissionMode(mode: PermissionMode) {
     return
   }
   try {
-    await newAgentPresenter.setPermissionMode(sessionId, mode)
+    await agentSessionPresenter.setPermissionMode(sessionId, mode)
   } catch (error) {
     console.warn('[ChatStatusBar] Failed to set permission mode:', error)
   }

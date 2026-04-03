@@ -2,7 +2,7 @@
 
 ## 1. 关键决策
 
-1. 新页面消息操作以 `newAgentPresenter` 为唯一目标接口。
+1. 新页面消息操作以 `agentSessionPresenter` 为唯一目标接口。
 2. 新架构下线 variants，不再做版本切换状态维护。
 3. 交付拆两阶段：
    - Phase 1：前端接线、显隐与禁用策略。
@@ -33,7 +33,7 @@
 
 ## 3. 新 API 设计（Phase 2）
 
-在 `INewAgentPresenter` 增加：
+在 `IAgentSessionPresenter` 增加：
 
 1. `editUserMessage(sessionId: string, messageId: string, newText: string): Promise<void>`
 2. `retryFromUserMessage(sessionId: string, messageId: string): Promise<void>`

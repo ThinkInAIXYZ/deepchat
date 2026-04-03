@@ -42,7 +42,7 @@ export interface HistorySearchMessageHit {
 
 export type HistorySearchHit = HistorySearchSessionHit | HistorySearchMessageHit
 
-export interface INewAgentPresenter {
+export interface IAgentSessionPresenter {
   createSession(input: CreateSessionInput, webContentsId: number): Promise<SessionWithState>
   createDetachedSession(input: CreateDetachedSessionInput): Promise<SessionWithState>
   ensureAcpDraftSession(input: {

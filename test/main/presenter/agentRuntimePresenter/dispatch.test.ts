@@ -8,12 +8,12 @@ import type {
   InterleavedReasoningConfig,
   IoParams,
   StreamState
-} from '@/presenter/deepchatAgentPresenter/types'
-import { createState } from '@/presenter/deepchatAgentPresenter/types'
-import { estimateMessagesTokens } from '@/presenter/deepchatAgentPresenter/contextBuilder'
+} from '@/presenter/agentRuntimePresenter/types'
+import { createState } from '@/presenter/agentRuntimePresenter/types'
+import { estimateMessagesTokens } from '@/presenter/agentRuntimePresenter/contextBuilder'
 import type { MCPToolDefinition } from '@shared/presenter'
 import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
-import { ToolOutputGuard } from '@/presenter/deepchatAgentPresenter/toolOutputGuard'
+import { ToolOutputGuard } from '@/presenter/agentRuntimePresenter/toolOutputGuard'
 import { QUESTION_TOOL_NAME } from '@/lib/agentRuntime/questionTool'
 
 vi.mock('@/eventbus', () => ({
@@ -47,8 +47,8 @@ import {
   executeTools as executeToolsInternal,
   finalize,
   finalizeError
-} from '@/presenter/deepchatAgentPresenter/dispatch'
-import { accumulate } from '@/presenter/deepchatAgentPresenter/accumulator'
+} from '@/presenter/agentRuntimePresenter/dispatch'
+import { accumulate } from '@/presenter/agentRuntimePresenter/accumulator'
 import { eventBus } from '@/eventbus'
 
 function createIo(overrides?: Partial<IoParams>): IoParams {

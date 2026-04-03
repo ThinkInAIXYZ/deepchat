@@ -38,7 +38,7 @@ No new DB tables. Changes to existing types:
 The v2 goals are implemented in the v3 module structure. The original `streamHandler.ts` + `agentLoop.ts` were refactored into five focused modules:
 
 ```
-deepchatAgentPresenter/
+agentRuntimePresenter/
   index.ts           — session lifecycle + single processStream() call
   process.ts         — unified loop: stream → accumulate → echo → dispatch
   accumulator.ts     — accumulate(state, event): pure block mutations

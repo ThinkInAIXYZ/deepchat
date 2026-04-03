@@ -157,7 +157,7 @@ function getContentType(format: 'markdown' | 'html' | 'txt' | 'nowledge-mem'): s
 // --- Store ---
 
 export const useSessionStore = defineStore('session', () => {
-  const newAgentPresenter = usePresenter('newAgentPresenter')
+  const agentSessionPresenter = usePresenter('agentSessionPresenter')
   const tabPresenter = usePresenter('tabPresenter')
   const pageRouter = usePageRouterStore()
   const messageStore = useMessageStore()
@@ -197,8 +197,8 @@ export const useSessionStore = defineStore('session', () => {
       const webContentsId = getCurrentWebContentsId()
       const previousActiveSessionId = activeSessionId.value
       const [result, activeSession] = await Promise.all([
-        newAgentPresenter.getSessionList({ includeSubagents: true }),
-        newAgentPresenter.getActiveSession(webContentsId)
+        agentSessionPresenter.getSessionList({ includeSubagents: true }),
+        agentSessionPresenter.getActiveSession(webContentsId)
       ])
       sessions.value = result.map(mapToUISession)
 
@@ -223,7 +223,7 @@ export const useSessionStore = defineStore('session', () => {
     error.value = null
     try {
       const webContentsId = getCurrentWebContentsId()
-      const session = await newAgentPresenter.createSession(input, webContentsId)
+      const session = await agentSessionPresenter.createSession(input, webContentsId)
       activeSessionId.value = session.id
 
       await fetchSessions()
@@ -240,7 +240,7 @@ export const useSessionStore = defineStore('session', () => {
         messageStore.clearStreamingState()
       }
       const webContentsId = getCurrentWebContentsId()
-      await newAgentPresenter.activateSession(webContentsId, sessionId)
+      await agentSessionPresenter.activateSession(webContentsId, sessionId)
       activeSessionId.value = sessionId
       pageRouter.goToChat(sessionId)
     } catch (e) {
@@ -253,7 +253,7 @@ export const useSessionStore = defineStore('session', () => {
     try {
       messageStore.clearStreamingState()
       const webContentsId = getCurrentWebContentsId()
-      await newAgentPresenter.deactivateSession(webContentsId)
+      await agentSessionPresenter.deactivateSession(webContentsId)
       activeSessionId.value = null
       pageRouter.goToNewThread()
     } catch (e) {
@@ -264,7 +264,7 @@ export const useSessionStore = defineStore('session', () => {
   async function sendMessage(sessionId: string, content: string | SendMessageInput): Promise<void> {
     error.value = null
     try {
-      await newAgentPresenter.sendMessage(sessionId, content)
+      await agentSessionPresenter.sendMessage(sessionId, content)
     } catch (e) {
       error.value = `Failed to send message: ${e}`
     }
@@ -277,7 +277,7 @@ export const useSessionStore = defineStore('session', () => {
   ): Promise<void> {
     error.value = null
     try {
-      const updated = await newAgentPresenter.setSessionModel(sessionId, providerId, modelId)
+      const updated = await agentSessionPresenter.setSessionModel(sessionId, providerId, modelId)
       const index = sessions.value.findIndex((item) => item.id === sessionId)
       if (index >= 0) {
         sessions.value[index] = mapToUISession(updated)
@@ -291,7 +291,7 @@ export const useSessionStore = defineStore('session', () => {
   async function deleteSession(sessionId: string): Promise<void> {
     error.value = null
     try {
-      await newAgentPresenter.deleteSession(sessionId)
+      await agentSessionPresenter.deleteSession(sessionId)
       if (activeSessionId.value === sessionId) {
         activeSessionId.value = null
         pageRouter.goToNewThread()
@@ -305,7 +305,7 @@ export const useSessionStore = defineStore('session', () => {
   async function setSessionSubagentEnabled(sessionId: string, enabled: boolean): Promise<void> {
     error.value = null
     try {
-      const updated = await newAgentPresenter.setSessionSubagentEnabled(sessionId, enabled)
+      const updated = await agentSessionPresenter.setSessionSubagentEnabled(sessionId, enabled)
       const index = sessions.value.findIndex((item) => item.id === sessionId)
       if (index >= 0) {
         sessions.value[index] = mapToUISession(updated)
@@ -325,7 +325,7 @@ export const useSessionStore = defineStore('session', () => {
       if (!normalized) {
         return
       }
-      await newAgentPresenter.renameSession(sessionId, normalized)
+      await agentSessionPresenter.renameSession(sessionId, normalized)
       const target = sessions.value.find((session) => session.id === sessionId)
       if (target) {
         target.title = normalized
@@ -339,7 +339,7 @@ export const useSessionStore = defineStore('session', () => {
   async function toggleSessionPinned(sessionId: string, pinned: boolean): Promise<void> {
     error.value = null
     try {
-      await newAgentPresenter.toggleSessionPinned(sessionId, pinned)
+      await agentSessionPresenter.toggleSessionPinned(sessionId, pinned)
       const target = sessions.value.find((session) => session.id === sessionId)
       if (target) {
         target.isPinned = pinned
@@ -353,7 +353,7 @@ export const useSessionStore = defineStore('session', () => {
   async function clearSessionMessages(sessionId: string): Promise<void> {
     error.value = null
     try {
-      await newAgentPresenter.clearSessionMessages(sessionId)
+      await agentSessionPresenter.clearSessionMessages(sessionId)
       if (activeSessionId.value === sessionId) {
         messageStore.clearStreamingState()
         await messageStore.loadMessages(sessionId)
@@ -370,7 +370,7 @@ export const useSessionStore = defineStore('session', () => {
   ): Promise<{ filename: string; content: string }> {
     error.value = null
     try {
-      const result = await newAgentPresenter.exportSession(sessionId, format)
+      const result = await agentSessionPresenter.exportSession(sessionId, format)
       const blob = new Blob([result.content], {
         type: getContentType(format)
       })

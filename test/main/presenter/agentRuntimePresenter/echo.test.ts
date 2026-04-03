@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import type { StreamState, IoParams } from '@/presenter/deepchatAgentPresenter/types'
-import { createState } from '@/presenter/deepchatAgentPresenter/types'
+import type { StreamState, IoParams } from '@/presenter/agentRuntimePresenter/types'
+import { createState } from '@/presenter/agentRuntimePresenter/types'
 
 vi.mock('@/eventbus', () => ({
   eventBus: { sendToRenderer: vi.fn() },
@@ -15,7 +15,7 @@ vi.mock('@/events', () => ({
   }
 }))
 
-import { startEcho } from '@/presenter/deepchatAgentPresenter/echo'
+import { startEcho } from '@/presenter/agentRuntimePresenter/echo'
 import { eventBus } from '@/eventbus'
 
 function createIo(): IoParams {

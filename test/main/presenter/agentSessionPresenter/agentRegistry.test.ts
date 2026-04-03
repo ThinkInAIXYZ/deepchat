@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { AgentRegistry } from '@/presenter/newAgentPresenter/agentRegistry'
+import { AgentRegistry } from '@/presenter/agentSessionPresenter/agentRegistry'
 import type { IAgentImplementation, Agent } from '@shared/types/agent-interface'
 
 function createMockAgent(): IAgentImplementation {

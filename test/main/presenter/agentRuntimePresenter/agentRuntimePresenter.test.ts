@@ -4,7 +4,7 @@ import os from 'os'
 import path from 'path'
 import { app } from 'electron'
 import type { DeepChatSessionState } from '@shared/types/agent-interface'
-import { DeepChatAgentPresenter } from '@/presenter/deepchatAgentPresenter/index'
+import { AgentRuntimePresenter } from '@/presenter/agentRuntimePresenter/index'
 import { NewSessionHooksBridge } from '@/presenter/hooksNotifications/newSessionBridge'
 
 vi.mock('nanoid', () => ({ nanoid: vi.fn(() => 'mock-msg-id') }))
@@ -63,17 +63,25 @@ vi.mock('@/lib/agentRuntime/systemEnvPromptBuilder', () => ({
 }))
 
 // Mock processStream to avoid timer/async complexity
-vi.mock('@/presenter/deepchatAgentPresenter/process', () => ({
+vi.mock('@/presenter/agentRuntimePresenter/process', () => ({
   processStream: vi.fn().mockResolvedValue({ status: 'completed' })
 }))
 
 import { eventBus } from '@/eventbus'
-import { processStream } from '@/presenter/deepchatAgentPresenter/process'
+import { processStream } from '@/presenter/agentRuntimePresenter/process'
 import { presenter } from '@/presenter'
 import {
   buildRuntimeCapabilitiesPrompt,
   buildSystemEnvPrompt
 } from '@/lib/agentRuntime/systemEnvPromptBuilder'
+
+function getSkillPresenterMock() {
+  return presenter.skillPresenter as {
+    getMetadataList: ReturnType<typeof vi.fn>
+    getActiveSkills: ReturnType<typeof vi.fn>
+    loadSkillContent: ReturnType<typeof vi.fn>
+  }
+}
 
 function createMockSqlitePresenter() {
   const summaryState = {
@@ -246,23 +254,19 @@ function createMockToolPresenter(toolDefs: any[] = []) {
   } as any
 }
 
-describe('DeepChatAgentPresenter', () => {
+describe('AgentRuntimePresenter', () => {
   let sqlitePresenter: ReturnType<typeof createMockSqlitePresenter>
   let llmProvider: ReturnType<typeof createMockLlmProviderPresenter>
   let configPresenter: ReturnType<typeof createMockConfigPresenter>
   let toolPresenter: ReturnType<typeof createMockToolPresenter>
-  let agent: DeepChatAgentPresenter
+  let agent: AgentRuntimePresenter
   let hookDispatcher: { dispatchEvent: ReturnType<typeof vi.fn> }
   let tempHome: string | null = null
   let getPathSpy: ReturnType<typeof vi.spyOn> | null = null
 
   beforeEach(() => {
     vi.clearAllMocks()
-    const skillPresenter = presenter.skillPresenter as {
-      getMetadataList: ReturnType<typeof vi.fn>
-      getActiveSkills: ReturnType<typeof vi.fn>
-      loadSkillContent: ReturnType<typeof vi.fn>
-    }
+    const skillPresenter = getSkillPresenterMock()
     skillPresenter.getMetadataList.mockResolvedValue([])
     skillPresenter.getActiveSkills.mockResolvedValue([])
     skillPresenter.loadSkillContent.mockResolvedValue(null)
@@ -271,12 +275,15 @@ describe('DeepChatAgentPresenter', () => {
     configPresenter = createMockConfigPresenter()
     toolPresenter = createMockToolPresenter()
     hookDispatcher = { dispatchEvent: vi.fn() }
-    agent = new DeepChatAgentPresenter(
+    agent = new AgentRuntimePresenter(
       llmProvider,
       configPresenter,
       sqlitePresenter,
       toolPresenter,
-      new NewSessionHooksBridge(hookDispatcher)
+      new NewSessionHooksBridge(hookDispatcher),
+      {
+        skillPresenter
+      }
     )
   })
 
@@ -307,7 +314,16 @@ describe('DeepChatAgentPresenter', () => {
         }
       ])
 
-      new DeepChatAgentPresenter(llmProvider, configPresenter, sqlitePresenter, toolPresenter)
+      new AgentRuntimePresenter(
+        llmProvider,
+        configPresenter,
+        sqlitePresenter,
+        toolPresenter,
+        undefined,
+        {
+          skillPresenter: getSkillPresenterMock()
+        }
+      )
 
       expect(consoleSpy).toHaveBeenCalledWith(
         'DeepChatAgent: recovered 1 pending messages to error status'
@@ -347,7 +363,16 @@ describe('DeepChatAgentPresenter', () => {
         sessionId === 's1' ? { id: 's1' } : null
       )
 
-      new DeepChatAgentPresenter(llmProvider, configPresenter, sqlitePresenter, toolPresenter)
+      new AgentRuntimePresenter(
+        llmProvider,
+        configPresenter,
+        sqlitePresenter,
+        toolPresenter,
+        undefined,
+        {
+          skillPresenter: getSkillPresenterMock()
+        }
+      )
 
       expect(sqlitePresenter.deepchatPendingInputsTable.update).toHaveBeenCalledTimes(1)
       expect(sqlitePresenter.deepchatPendingInputsTable.update).toHaveBeenCalledWith(
@@ -2540,11 +2565,15 @@ describe('DeepChatAgentPresenter', () => {
         permission_mode: 'full_access'
       })
 
-      const reopenedAgent = new DeepChatAgentPresenter(
+      const reopenedAgent = new AgentRuntimePresenter(
         llmProvider,
         configPresenter,
         sqlitePresenter,
-        toolPresenter
+        toolPresenter,
+        undefined,
+        {
+          skillPresenter: getSkillPresenterMock()
+        }
       )
       const compactionState = await reopenedAgent.getSessionCompactionState('s1')
 

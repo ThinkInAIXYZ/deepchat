@@ -127,8 +127,8 @@ describe('RemoteControlPresenter', () => {
 
     const presenter = new RemoteControlPresenter({
       configPresenter: configPresenter as any,
-      newAgentPresenter: {} as any,
-      deepchatAgentPresenter: {} as any,
+      agentSessionPresenter: {} as any,
+      agentRuntimePresenter: {} as any,
       windowPresenter: {} as any,
       tabPresenter: {} as any,
       getHooksNotificationsConfig: () => hooksConfig,
@@ -175,8 +175,8 @@ describe('RemoteControlPresenter', () => {
 
     const presenter = new RemoteControlPresenter({
       configPresenter: configPresenter as any,
-      newAgentPresenter: {} as any,
-      deepchatAgentPresenter: {} as any,
+      agentSessionPresenter: {} as any,
+      agentRuntimePresenter: {} as any,
       windowPresenter: {} as any,
       tabPresenter: {} as any,
       getHooksNotificationsConfig: () => hooksConfig,
@@ -210,8 +210,8 @@ describe('RemoteControlPresenter', () => {
 
     const presenter = new RemoteControlPresenter({
       configPresenter: configPresenter as any,
-      newAgentPresenter: {} as any,
-      deepchatAgentPresenter: {} as any,
+      agentSessionPresenter: {} as any,
+      agentRuntimePresenter: {} as any,
       windowPresenter: {} as any,
       tabPresenter: {} as any,
       getHooksNotificationsConfig: () => hooksConfig,
@@ -278,8 +278,8 @@ describe('RemoteControlPresenter', () => {
 
     const presenter = new RemoteControlPresenter({
       configPresenter: configPresenter as any,
-      newAgentPresenter: {} as any,
-      deepchatAgentPresenter: {} as any,
+      agentSessionPresenter: {} as any,
+      agentRuntimePresenter: {} as any,
       windowPresenter: {} as any,
       tabPresenter: {} as any,
       getHooksNotificationsConfig: () => hooksConfig,
@@ -344,8 +344,8 @@ describe('RemoteControlPresenter', () => {
         ...configPresenter,
         listAgents
       } as any,
-      newAgentPresenter: {} as any,
-      deepchatAgentPresenter: {} as any,
+      agentSessionPresenter: {} as any,
+      agentRuntimePresenter: {} as any,
       windowPresenter: {} as any,
       tabPresenter: {} as any,
       getHooksNotificationsConfig: () => hooksConfig,
@@ -393,8 +393,8 @@ describe('RemoteControlPresenter', () => {
 
     const presenter = new RemoteControlPresenter({
       configPresenter: configPresenter as any,
-      newAgentPresenter: {} as any,
-      deepchatAgentPresenter: {} as any,
+      agentSessionPresenter: {} as any,
+      agentRuntimePresenter: {} as any,
       windowPresenter: {} as any,
       tabPresenter: {} as any,
       getHooksNotificationsConfig: () => hooksConfig,

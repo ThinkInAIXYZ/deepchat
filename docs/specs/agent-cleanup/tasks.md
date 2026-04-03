@@ -30,7 +30,7 @@
 
 ## Remaining Backlog
 
-- [ ] remove export-only `@shared/chat` coupling in `src/main/presenter/newAgentPresenter/index.ts`
+- [ ] remove export-only `@shared/chat` coupling in `src/main/presenter/agentSessionPresenter/index.ts`
 - [ ] remove non-active renderer residual import in `PromptEditorSheet`
 - [ ] review adjacent provider globals such as `devicePresenter` / `oauthPresenter`
 - [ ] normalize older historical specs that still mention retired legacy paths

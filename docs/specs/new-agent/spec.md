@@ -18,7 +18,7 @@ See [Full-Stack Mismatch Analysis](../../architecture/new-ui-store-presenter-mis
 
 1. **Agent interface protocol** — define the unified contract all agents implement
 2. **agentPresenter** — router, thin session registry, event relay
-3. **deepchatAgentPresenter** — single-turn chat: message → LLM → streamed response → persist
+3. **agentRuntimePresenter** — single-turn chat: message → LLM → streamed response → persist
 4. **projectPresenter** — thin project directory CRUD
 5. **New DB tables** — `new_sessions`, `new_projects`, `deepchat_sessions`, `deepchat_messages`
 6. **New renderer stores** — sessionStore, messageStore, agentStore, projectStore, draftStore
@@ -41,14 +41,14 @@ See [Full-Stack Mismatch Analysis](../../architecture/new-ui-store-presenter-mis
 **Main process:**
 - `src/shared/types/agent-interface.d.ts` — agent interface protocol
 - `src/shared/types/chat-types.d.ts` — Agent, Session, Project, CreateSessionInput, ChatMessage, MessageBlock types
-- `src/main/presenter/newAgentPresenter/index.ts` — agentPresenter (router)
-- `src/main/presenter/newAgentPresenter/sessionManager.ts` — thin session registry
-- `src/main/presenter/newAgentPresenter/messageManager.ts` — message proxy
-- `src/main/presenter/newAgentPresenter/agentRegistry.ts` — agent discovery + routing
-- `src/main/presenter/deepchatAgentPresenter/index.ts` — deepchat agent implementation
-- `src/main/presenter/deepchatAgentPresenter/sessionStore.ts` — agent-owned session persistence
-- `src/main/presenter/deepchatAgentPresenter/messageStore.ts` — agent-owned message persistence
-- `src/main/presenter/deepchatAgentPresenter/streamHandler.ts` — LLM stream → message persistence + event emission
+- `src/main/presenter/agentSessionPresenter/index.ts` — agentPresenter (router)
+- `src/main/presenter/agentSessionPresenter/sessionManager.ts` — thin session registry
+- `src/main/presenter/agentSessionPresenter/messageManager.ts` — message proxy
+- `src/main/presenter/agentSessionPresenter/agentRegistry.ts` — agent discovery + routing
+- `src/main/presenter/agentRuntimePresenter/index.ts` — deepchat agent implementation
+- `src/main/presenter/agentRuntimePresenter/sessionStore.ts` — agent-owned session persistence
+- `src/main/presenter/agentRuntimePresenter/messageStore.ts` — agent-owned message persistence
+- `src/main/presenter/agentRuntimePresenter/streamHandler.ts` — LLM stream → message persistence + event emission
 - `src/main/presenter/projectPresenter/index.ts` — project CRUD
 - `src/main/presenter/sqlitePresenter/tables/` — new table definitions
 - `src/main/events.ts` — add SESSION_EVENTS
@@ -81,13 +81,13 @@ See [Full-Stack Mismatch Analysis](../../architecture/new-ui-store-presenter-mis
 ### Functional Requirements
 
 - [ ] Agent interface protocol defined as TypeScript types in `src/shared/types/`
-- [ ] agentPresenter registered in Presenter class, accessible via `usePresenter('newAgentPresenter')`
+- [ ] agentPresenter registered in Presenter class, accessible via `usePresenter('agentSessionPresenter')`
 - [ ] agentPresenter.sessionManager creates session records in new `new_sessions` table
 - [ ] agentPresenter.agentRegistry returns `[{ id: 'deepchat', name: 'DeepChat', type: 'deepchat', enabled: true }]`
-- [ ] agentPresenter routes `sendMessage()` to deepchatAgentPresenter based on session's agentId
-- [ ] deepchatAgentPresenter calls LLM provider's `coreStream()` and receives `LLMCoreStreamEvent` stream
-- [ ] deepchatAgentPresenter persists user message and assistant message in `deepchat_messages` table with structured JSON content
-- [ ] deepchatAgentPresenter emits stream events (response/end/error) via EventBus with `conversationId` for routing
+- [ ] agentPresenter routes `sendMessage()` to agentRuntimePresenter based on session's agentId
+- [ ] agentRuntimePresenter calls LLM provider's `coreStream()` and receives `LLMCoreStreamEvent` stream
+- [ ] agentRuntimePresenter persists user message and assistant message in `deepchat_messages` table with structured JSON content
+- [ ] agentRuntimePresenter emits stream events (response/end/error) via EventBus with `conversationId` for routing
 - [ ] agentPresenter relays all stream events to renderer
 - [ ] Stream events batched: 120ms flush to renderer, 600ms flush to DB
 - [ ] On app restart, any messages with `status = 'pending'` are marked as `'error'` (crash recovery)
@@ -104,11 +104,11 @@ See [Full-Stack Mismatch Analysis](../../architecture/new-ui-store-presenter-mis
 - [ ] `pnpm run typecheck` passes
 - [ ] `pnpm run lint` passes
 - [ ] `pnpm run format` passes
-- [ ] Unit tests for agentPresenter routing, deepchatAgentPresenter stream handling, sessionManager CRUD
+- [ ] Unit tests for agentPresenter routing, agentRuntimePresenter stream handling, sessionManager CRUD
 
 ## Constraints
 
-- LLM provider HTTP clients are reused directly — deepchatAgentPresenter calls `BaseLLMProvider.coreStream()` and consumes the `AsyncGenerator<LLMCoreStreamEvent>`
+- LLM provider HTTP clients are reused directly — agentRuntimePresenter calls `BaseLLMProvider.coreStream()` and consumes the `AsyncGenerator<LLMCoreStreamEvent>`
 - New tables live in the same SQLite database (`chat.db`) alongside old tables — no separate DB file
 - IPC routing is dynamic (`presenter[name]`) — no route registration needed beyond the 3 touchpoints
 - v0 sends a single user message and gets a single assistant response — no multi-turn context, no tool use

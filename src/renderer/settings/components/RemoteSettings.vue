@@ -896,7 +896,7 @@ import type {
 
 const channels: RemoteChannel[] = ['telegram', 'feishu']
 const remoteControlPresenter = useRemoteControlPresenter()
-const newAgentPresenter = usePresenter('newAgentPresenter')
+const agentSessionPresenter = usePresenter('agentSessionPresenter')
 const projectPresenter = usePresenter('projectPresenter')
 const { t } = useI18n()
 const { toast } = useToast()
@@ -1331,7 +1331,7 @@ const refreshPairingSnapshot = async (channel: RemoteChannel): Promise<RemotePai
 }
 
 const loadAvailableAgents = async () => {
-  availableAgents.value = await newAgentPresenter.getAgents()
+  availableAgents.value = await agentSessionPresenter.getAgents()
 }
 
 const loadRecentProjects = async () => {

@@ -3,7 +3,7 @@
 ## Summary
 
 Retire the live legacy `AgentPresenter -> SessionManager -> streaming/permission/loop` runtime
-chain and make the current `newAgentPresenter + deepchatAgentPresenter` path the only active chat
+chain and make the current `agentSessionPresenter + agentRuntimePresenter` path the only active chat
 execution flow.
 
 ## Scope

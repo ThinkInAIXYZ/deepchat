@@ -10,12 +10,12 @@
      - `legacy_import_status`
 
 2. Searchresult migration
-   - `deepchatAgentPresenter/dispatch.ts` 解析 `application/deepchat-webpage`
+   - `agentRuntimePresenter/dispatch.ts` 解析 `application/deepchat-webpage`
    - 同时写入：
      - assistant `search` block
      - `deepchat_message_search_results`
-   - `newAgentPresenter.getSearchResults()` 从新表读取
-   - 前端引用点改为 `newAgentPresenter.getSearchResults()`
+   - `agentSessionPresenter.getSearchResults()` 从新表读取
+   - 前端引用点改为 `agentSessionPresenter.getSearchResults()`
 
 3. Legacy import pipeline
    - 新增 `LegacyChatImportService`
@@ -25,7 +25,7 @@
    - 导入状态与错误写入 `legacy_import_status`
 
 4. Retry and observability
-   - `newAgentPresenter` 暴露：
+   - `agentSessionPresenter` 暴露：
      - `getLegacyImportStatus()`
      - `retryLegacyImport()`
    - 失败后允许手动重试，重复导入保持幂等

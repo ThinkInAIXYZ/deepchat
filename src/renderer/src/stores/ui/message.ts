@@ -15,7 +15,7 @@ const EPHEMERAL_STREAM_MESSAGE_PREFIXES = ['__rate_limit__:']
 // --- Store ---
 
 export const useMessageStore = defineStore('message', () => {
-  const newAgentPresenter = usePresenter('newAgentPresenter')
+  const agentSessionPresenter = usePresenter('agentSessionPresenter')
   const streamStateStore = useStreamStateStore()
 
   // --- State ---
@@ -48,7 +48,7 @@ export const useMessageStore = defineStore('message', () => {
   async function loadMessages(sessionId: string): Promise<void> {
     const requestId = ++latestLoadRequestId
     try {
-      const result = await newAgentPresenter.getMessages(sessionId)
+      const result = await agentSessionPresenter.getMessages(sessionId)
       if (requestId !== latestLoadRequestId) {
         return
       }
@@ -69,7 +69,7 @@ export const useMessageStore = defineStore('message', () => {
     if (cached) return cached
 
     try {
-      const msg = await newAgentPresenter.getMessage(id)
+      const msg = await agentSessionPresenter.getMessage(id)
       if (msg) {
         messageCache.value.set(msg.id, msg)
       }
@@ -146,7 +146,7 @@ export const useMessageStore = defineStore('message', () => {
     if (hydratingStreamMessageIds.has(messageId)) return
     hydratingStreamMessageIds.add(messageId)
 
-    void newAgentPresenter
+    void agentSessionPresenter
       .getMessage(messageId)
       .then((fetched) => {
         if (!fetched || fetched.sessionId !== conversationId) return

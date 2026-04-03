@@ -323,7 +323,7 @@ export class SQLitePresenter implements ISQLitePresenter {
     importedMessages: number
     importedSearchResults: number
   }> {
-    const { LegacyChatImportService } = await import('../newAgentPresenter/legacyImportService')
+    const { LegacyChatImportService } = await import('../agentSessionPresenter/legacyImportService')
     const service = new LegacyChatImportService(this)
     return await service.importFromSourceDb(sourceDbPath, mode)
   }

@@ -16,8 +16,8 @@
 ## T2 类型与接口
 
 - [x] 新增 `MessageTraceRecord` 共享类型
-- [x] `INewAgentPresenter` 增加 trace 查询接口
-- [x] `newAgentPresenter` 增加 trace 查询代理实现
+- [x] `IAgentSessionPresenter` 增加 trace 查询接口
+- [x] `agentSessionPresenter` 增加 trace 查询代理实现
 
 ## T3 脱敏与截断
 
