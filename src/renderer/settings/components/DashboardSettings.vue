@@ -1,7 +1,10 @@
 <template>
   <ScrollArea class="h-full w-full">
     <div class="mx-auto flex w-full max-w-7xl flex-col gap-6 p-4">
-      <div class="flex items-start gap-3 px-2 py-2">
+      <div
+        data-testid="dashboard-header"
+        class="flex flex-col gap-3 px-2 py-2 sm:flex-row sm:items-start sm:justify-between"
+      >
         <div class="min-w-0 flex-1">
           <h2 class="text-sm font-medium text-foreground">
             {{ t('settings.dashboard.title') }}
@@ -13,7 +16,7 @@
         <Button
           variant="outline"
           size="sm"
-          class="shrink-0"
+          class="w-full shrink-0 sm:w-auto"
           :disabled="isLoading"
           @click="void loadDashboard()"
         >
@@ -31,7 +34,7 @@
         data-testid="dashboard-backfill-banner"
         class="rounded-2xl border border-primary/20 bg-primary/10 px-4 py-3 text-sm text-foreground"
       >
-        <div class="flex items-center gap-3">
+        <div class="flex flex-col items-start gap-3 sm:flex-row sm:items-center">
           <span class="h-2 w-2 animate-pulse rounded-full bg-primary"></span>
           <div class="flex-1">
             <p class="font-medium">{{ t('settings.dashboard.backfill.runningTitle') }}</p>
@@ -64,10 +67,10 @@
 
       <section v-if="isLoading && !dashboard" class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <div
-          class="h-[17rem] animate-pulse rounded-2xl border border-border bg-muted/40 md:col-span-2 xl:col-span-3"
+          class="h-68 animate-pulse rounded-2xl border border-border bg-muted/40 md:col-span-2 xl:col-span-3"
         ></div>
         <div
-          class="h-[17rem] animate-pulse rounded-2xl border border-border bg-muted/40 md:col-span-2 xl:col-span-1"
+          class="h-68 animate-pulse rounded-2xl border border-border bg-muted/40 md:col-span-2 xl:col-span-1"
         ></div>
       </section>
 
@@ -84,12 +87,9 @@
             <CardContent class="space-y-4 pt-0">
               <div
                 data-testid="token-usage-trend-chart"
-                class="token-usage-trend-grid rounded-xl border border-border/40 bg-muted/10 px-3 py-3"
+                class="token-usage-trend-grid rounded-xl border border-border/40 bg-muted/10 px-2 py-2.5 sm:px-3 sm:py-3"
               >
-                <ChartContainer
-                  :config="tokenUsageChartConfig"
-                  class="aspect-auto h-[184px] w-full"
-                >
+                <ChartContainer :config="tokenUsageChartConfig" class="aspect-auto h-46 w-full">
                   <VisXYContainer
                     :data="tokenUsageCard.chartData"
                     :height="TOKEN_USAGE_CHART_HEIGHT"
@@ -154,7 +154,7 @@
                 </ChartContainer>
               </div>
 
-              <div data-testid="token-usage-list" class="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+              <div data-testid="token-usage-list" class="dashboard-token-usage-list grid gap-2">
                 <div
                   data-testid="token-usage-total-row"
                   class="rounded-lg border border-border/30 bg-muted/5 px-3 py-2.5"
@@ -295,33 +295,33 @@
             class="flex h-full flex-col overflow-hidden border-border/70 bg-card/90 backdrop-blur-sm md:col-span-2 xl:col-span-1"
           >
             <CardHeader class="space-y-1 pb-1">
-              <CardTitle class="break-words whitespace-normal text-base leading-tight">
+              <CardTitle class="wrap-break-word whitespace-normal text-base leading-tight">
                 {{ t('settings.dashboard.summary.nostalgiaLabel') }}
               </CardTitle>
             </CardHeader>
             <CardContent
-              class="flex flex-1 flex-col gap-3 pt-0 md:grid md:grid-cols-[minmax(0,14rem)_minmax(0,1fr)] md:items-start md:gap-4 xl:flex xl:flex-col"
+              class="flex flex-1 flex-col gap-3 pt-0 lg:grid lg:grid-cols-[minmax(0,13rem)_minmax(0,1fr)] lg:items-start lg:gap-4 xl:flex xl:flex-col"
             >
-              <div class="flex min-h-[4.5rem] items-start md:min-h-[5rem] sm:min-h-[5rem]">
+              <div class="flex min-h-18 items-start sm:min-h-20">
                 <Transition name="nostalgia-fade" mode="out-in">
                   <CardTitle
                     :key="activeNostalgiaStat?.id ?? 'unavailable'"
                     data-testid="nostalgia-rotating-value"
-                    class="break-words whitespace-normal text-2xl font-semibold leading-tight tracking-tight sm:text-3xl"
+                    class="wrap-break-word whitespace-normal text-2xl font-semibold leading-tight tracking-tight sm:text-3xl"
                   >
                     {{ activeNostalgiaStat?.value ?? t('settings.dashboard.unavailable') }}
                   </CardTitle>
                 </Transition>
               </div>
 
-              <div data-testid="nostalgia-details" class="space-y-2 md:pt-0.5">
+              <div data-testid="nostalgia-details" class="space-y-2 lg:pt-0.5">
                 <div
                   v-for="item in nostalgiaCard.details"
                   :key="item.id"
                   :data-testid="`nostalgia-detail-${item.id}`"
                   class="rounded-lg border border-border/30 bg-muted/5 px-3 py-2.5"
                 >
-                  <p class="break-words whitespace-normal text-sm leading-6">
+                  <p class="wrap-break-word whitespace-normal text-sm leading-6">
                     {{ item.content }}
                   </p>
                 </div>
@@ -358,7 +358,7 @@
                   {{ t('settings.dashboard.calendar.description') }}
                 </CardDescription>
               </div>
-              <div class="flex items-center gap-2 text-xs text-muted-foreground">
+              <div class="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                 <span>{{ t('settings.dashboard.calendar.legend') }}</span>
                 <div class="flex items-center gap-1">
                   <span
@@ -386,35 +386,52 @@
             </div>
           </CardHeader>
           <CardContent>
-            <div class="overflow-x-auto pb-2">
-              <div class="min-w-[760px]">
-                <div class="mb-2 flex pl-12 text-[11px] text-muted-foreground">
-                  <div
-                    v-for="month in calendarMonthLabels"
-                    :key="`${month.label}-${month.weekIndex}`"
-                    class="calendar-month-label"
-                    :style="{ width: `${month.span * 14}px` }"
-                  >
-                    {{ month.label }}
+            <div
+              data-testid="dashboard-calendar-scroll"
+              class="-mx-1 overflow-x-auto px-1 pb-2 sm:mx-0 sm:px-0"
+            >
+              <div data-testid="dashboard-calendar-heatmap" class="calendar-heatmap">
+                <div
+                  data-testid="dashboard-calendar-months"
+                  class="calendar-months-shell text-muted-foreground"
+                >
+                  <div aria-hidden="true"></div>
+                  <div class="calendar-months text-[11px]" :style="calendarGridStyle">
+                    <div
+                      v-for="month in calendarMonthLabels"
+                      :key="`${month.label}-${month.weekIndex}`"
+                      class="calendar-month-label"
+                      :style="{ gridColumn: `${month.weekIndex + 1} / span ${month.span}` }"
+                    >
+                      {{ month.label }}
+                    </div>
                   </div>
                 </div>
-                <div class="flex gap-2">
-                  <div class="mt-1 flex w-10 flex-col gap-1 text-[11px] text-muted-foreground">
-                    <span v-for="label in weekdayLabels" :key="label.key" class="h-3 leading-3">
+                <div class="calendar-body">
+                  <div class="calendar-weekday-labels text-muted-foreground">
+                    <span
+                      v-for="label in weekdayLabels"
+                      :key="label.key"
+                      class="calendar-weekday-label"
+                    >
                       {{ label.label }}
                     </span>
                   </div>
-                  <div class="flex gap-1">
+                  <div
+                    data-testid="dashboard-calendar-weeks"
+                    class="calendar-weeks"
+                    :style="calendarGridStyle"
+                  >
                     <div
                       v-for="(week, weekIndex) in calendarWeeks"
                       :key="`week-${weekIndex}`"
-                      class="flex flex-col gap-1"
+                      class="calendar-week"
                     >
                       <div
                         v-for="(day, dayIndex) in week"
                         :key="day ? day.date : `blank-${weekIndex}-${dayIndex}`"
                         data-testid="calendar-cell"
-                        class="calendar-cell rounded-[4px] border border-border/70"
+                        class="calendar-cell rounded-sm border border-border/70"
                         :class="day ? 'opacity-100' : 'opacity-0'"
                         :style="day ? calendarCellStyle(day.level) : undefined"
                         :title="day ? calendarCellTitle(day) : ''"
@@ -439,7 +456,7 @@
                   {{ t('settings.dashboard.rtk.description') }}
                 </CardDescription>
               </div>
-              <div class="flex items-center gap-2">
+              <div class="flex flex-wrap items-center gap-2">
                 <Badge
                   data-testid="rtk-status-badge"
                   variant="secondary"
@@ -469,7 +486,7 @@
               <p>{{ rtkStatusDescription }}</p>
             </div>
 
-            <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <div class="dashboard-rtk-summary-grid grid gap-3">
               <div
                 data-testid="rtk-summary-saved"
                 class="rounded-xl border border-border/40 bg-muted/5 px-4 py-3"
@@ -535,7 +552,7 @@
           </CardContent>
         </Card>
 
-        <div class="grid gap-4 2xl:grid-cols-2">
+        <div class="grid gap-4 xl:grid-cols-2">
           <Card class="border-border/70 bg-card/90 backdrop-blur-sm">
             <CardHeader class="pb-4">
               <CardTitle>{{ t('settings.dashboard.breakdown.providerTitle') }}</CardTitle>
@@ -553,7 +570,7 @@
               <div
                 v-else
                 data-testid="provider-breakdown-scroll"
-                class="max-h-[420px] overflow-y-auto pr-1"
+                class="max-h-105 overflow-y-auto pr-1"
               >
                 <div data-testid="provider-breakdown-chart">
                   <div
@@ -562,7 +579,7 @@
                     class="border-b border-border/40 py-3 last:border-b-0"
                   >
                     <div
-                      class="space-y-2.5 md:grid md:grid-cols-[minmax(0,180px)_minmax(0,1fr)_88px] md:items-center md:gap-4 md:space-y-0"
+                      class="space-y-2.5 lg:grid lg:grid-cols-[minmax(0,9.5rem)_minmax(0,1fr)_minmax(4.75rem,auto)] lg:items-center lg:gap-3 lg:space-y-0 xl:grid-cols-[minmax(0,10.5rem)_minmax(0,1fr)_88px]"
                     >
                       <div class="min-w-0">
                         <p class="truncate text-sm font-medium">{{ item.label }}</p>
@@ -574,7 +591,7 @@
                           }}
                         </p>
                       </div>
-                      <div class="min-w-0 md:px-1">
+                      <div class="min-w-0 lg:px-1">
                         <div class="h-1.5 rounded-full bg-muted/35">
                           <div
                             class="h-full rounded-full bg-[hsl(var(--usage-low)/0.9)]"
@@ -582,7 +599,7 @@
                           ></div>
                         </div>
                       </div>
-                      <div class="text-right text-xs text-muted-foreground">
+                      <div class="text-left text-xs text-muted-foreground lg:text-right">
                         <p :title="formatFullTokens(item.totalTokens)">
                           {{ formatTokens(item.totalTokens) }}
                         </p>
@@ -612,7 +629,7 @@
               <div
                 v-else
                 data-testid="model-breakdown-scroll"
-                class="max-h-[420px] overflow-y-auto pr-1"
+                class="max-h-105 overflow-y-auto pr-1"
               >
                 <div data-testid="model-breakdown-chart">
                   <div
@@ -621,7 +638,7 @@
                     class="border-b border-border/40 py-3 last:border-b-0"
                   >
                     <div
-                      class="space-y-2.5 md:grid md:grid-cols-[minmax(0,180px)_minmax(0,1fr)_88px] md:items-center md:gap-4 md:space-y-0"
+                      class="space-y-2.5 lg:grid lg:grid-cols-[minmax(0,9.5rem)_minmax(0,1fr)_minmax(4.75rem,auto)] lg:items-center lg:gap-3 lg:space-y-0 xl:grid-cols-[minmax(0,10.5rem)_minmax(0,1fr)_88px]"
                     >
                       <div class="min-w-0">
                         <p class="truncate text-sm font-medium">{{ item.label }}</p>
@@ -632,7 +649,7 @@
                           {{ item.secondaryLabel }}
                         </p>
                       </div>
-                      <div class="min-w-0 md:px-1">
+                      <div class="min-w-0 lg:px-1">
                         <div class="h-1.5 rounded-full bg-muted/35">
                           <div
                             class="h-full rounded-full bg-[hsl(var(--usage-low)/0.9)]"
@@ -640,7 +657,7 @@
                           ></div>
                         </div>
                       </div>
-                      <div class="text-right text-xs text-muted-foreground">
+                      <div class="text-left text-xs text-muted-foreground lg:text-right">
                         <p :title="formatFullTokens(item.totalTokens)">
                           {{ formatTokens(item.totalTokens) }}
                         </p>
@@ -955,6 +972,10 @@ const activeNostalgiaStat = computed<NostalgiaRotatingStat | null>(() => {
 
   return stats[nostalgiaStatIndex.value % stats.length]
 })
+
+const calendarGridStyle = computed(() => ({
+  gridTemplateColumns: `repeat(${Math.max(calendarWeeks.value.length, 1)}, minmax(0, 1fr))`
+}))
 
 const calendarWeeks = computed<CalendarCell[][]>(() => {
   const days = dashboard.value?.calendar ?? []
@@ -1374,6 +1395,68 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.dashboard-token-usage-list {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10.5rem), 1fr));
+}
+
+.dashboard-rtk-summary-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));
+}
+
+.calendar-heatmap {
+  --calendar-column-gap: 1px;
+  --calendar-row-gap: 1px;
+  --calendar-section-gap: 0.375rem;
+  --calendar-weekday-width: 1.5rem;
+  --calendar-label-font-size: 9px;
+  width: 100%;
+}
+
+.calendar-months-shell,
+.calendar-body {
+  display: grid;
+  grid-template-columns: var(--calendar-weekday-width) minmax(0, 1fr);
+  column-gap: var(--calendar-section-gap);
+}
+
+.calendar-months-shell {
+  margin-bottom: 0.5rem;
+  align-items: end;
+}
+
+.calendar-months {
+  display: grid;
+  min-width: 0;
+  column-gap: var(--calendar-column-gap);
+}
+
+.calendar-weekday-labels {
+  display: grid;
+  grid-template-rows: repeat(7, 1fr);
+  row-gap: var(--calendar-row-gap);
+  min-width: 0;
+}
+
+.calendar-weekday-label {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  font-size: var(--calendar-label-font-size);
+  line-height: 1;
+}
+
+.calendar-weeks {
+  display: grid;
+  min-width: 0;
+  column-gap: var(--calendar-column-gap);
+}
+
+.calendar-week {
+  display: grid;
+  row-gap: var(--calendar-row-gap);
+  min-width: 0;
+}
+
 .nostalgia-fade-enter-active,
 .nostalgia-fade-leave-active {
   transition: opacity 220ms ease;
@@ -1385,8 +1468,8 @@ onBeforeUnmount(() => {
 }
 
 .calendar-cell {
-  width: 12px;
-  height: 12px;
+  width: 100%;
+  aspect-ratio: 1;
   transition:
     transform 160ms ease,
     box-shadow 160ms ease;
@@ -1398,7 +1481,10 @@ onBeforeUnmount(() => {
 }
 
 .calendar-month-label {
-  min-width: 14px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .token-usage-trend-grid {
@@ -1406,11 +1492,44 @@ onBeforeUnmount(() => {
     linear-gradient(to right, hsl(var(--border) / 0.2) 1px, transparent 1px),
     linear-gradient(to bottom, hsl(var(--border) / 0.2) 1px, transparent 1px);
   background-size:
-    64px 100%,
-    100% 38px;
+    48px 100%,
+    100% 34px;
   background-position:
     0 0,
     0 100%;
+}
+
+@media (min-width: 640px) {
+  .calendar-heatmap {
+    --calendar-column-gap: 2px;
+    --calendar-row-gap: 2px;
+    --calendar-section-gap: 0.5rem;
+    --calendar-weekday-width: 1.875rem;
+    --calendar-label-font-size: 10px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .calendar-heatmap {
+    --calendar-column-gap: 3px;
+    --calendar-row-gap: 3px;
+    --calendar-weekday-width: 2.25rem;
+    --calendar-label-font-size: 11px;
+  }
+}
+
+@media (min-width: 1280px) {
+  .calendar-heatmap {
+    --calendar-column-gap: 4px;
+    --calendar-row-gap: 4px;
+    --calendar-weekday-width: 2.5rem;
+  }
+
+  .token-usage-trend-grid {
+    background-size:
+      64px 100%,
+      100% 38px;
+  }
 }
 
 :deep([data-slot='chart']) .unovis-xy-container,
