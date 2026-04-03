@@ -1,23 +1,10 @@
 import { type IPresenter, type IRemoteControlPresenter } from '@shared/presenter'
 import { toRaw } from 'vue'
-
-// WebContentsId 缓存
-let cachedWebContentsId: number | null = null
+import { getRendererWindowContext } from '@/lib/windowContext'
 
 // 获取当前webContentsId
 export function getWebContentsId(): number | null {
-  if (cachedWebContentsId !== null) {
-    return cachedWebContentsId
-  }
-
-  try {
-    // 通过preload API获取webContentsId
-    cachedWebContentsId = window.api.getWebContentsId()
-    return cachedWebContentsId
-  } catch (error) {
-    console.warn('Failed to get webContentsId:', error)
-    return null
-  }
+  return getRendererWindowContext().webContentsId
 }
 // 安全的序列化函数，避免克隆不可序列化的对象
 function safeSerialize(obj: unknown): unknown {

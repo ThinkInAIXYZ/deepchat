@@ -104,4 +104,4 @@ rg --files src/main/presenter | rg "newAgentPresenter|deepchatAgentPresenter|age
 
 - `docs/archives/legacy-agentpresenter-architecture.md`
 - `docs/archives/legacy-agentpresenter-flows.md`
-- `archives/code/legacy-agentpresenter-retirement/`
+- `docs/archives/thread-presenter-migration-plan.md`

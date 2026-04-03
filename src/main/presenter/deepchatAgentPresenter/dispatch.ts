@@ -1,6 +1,5 @@
 import { eventBus, SendTarget } from '@/eventbus'
 import { STREAM_EVENTS } from '@/events'
-import { presenter } from '@/presenter'
 import type {
   MCPToolCall,
   MCPContentItem,
@@ -399,41 +398,12 @@ function normalizePermissionRequest(
 }
 
 async function autoGrantPermission(
-  conversationId: string,
+  hooks: ProcessHooks | undefined,
+  _conversationId: string,
   permission: NonNullable<PendingToolInteraction['permission']>
 ): Promise<void> {
-  const type = permission.permissionType
-  const serverName = permission.serverName || ''
-  const toolName = permission.toolName || ''
-
-  if (type === 'command') {
-    const command = permission.command || permission.commandInfo?.command || ''
-    const signature =
-      permission.commandSignature ||
-      permission.commandInfo?.signature ||
-      (command ? presenter.commandPermissionService.extractCommandSignature(command) : '')
-    if (signature) {
-      presenter.commandPermissionService.approve(conversationId, signature, false)
-    }
-    return
-  }
-
-  if (
-    serverName === 'agent-filesystem' &&
-    Array.isArray(permission.paths) &&
-    permission.paths.length
-  ) {
-    presenter.filePermissionService?.approve(conversationId, permission.paths, false)
-    return
-  }
-
-  if (serverName === 'deepchat-settings' && toolName) {
-    presenter.settingsPermissionService?.approve(conversationId, toolName, false)
-    return
-  }
-
-  if (serverName && (type === 'read' || type === 'write' || type === 'all')) {
-    await presenter.mcpPresenter.grantPermission(serverName, type, false, conversationId)
+  if (hooks?.autoGrantPermission) {
+    await hooks.autoGrantPermission(permission)
   }
 }
 
@@ -698,7 +668,7 @@ export async function executeTools(
 
       if (preCheckedPermission) {
         if (permissionMode === 'full_access') {
-          await autoGrantPermission(io.sessionId, preCheckedPermission)
+          await autoGrantPermission(hooks, io.sessionId, preCheckedPermission)
         } else {
           hooks?.onPermissionRequest?.(preCheckedPermission, {
             callId: tc.id,
@@ -756,7 +726,7 @@ export async function executeTools(
 
         if (pendingPermission) {
           if (permissionMode === 'full_access') {
-            await autoGrantPermission(io.sessionId, pendingPermission)
+            await autoGrantPermission(hooks, io.sessionId, pendingPermission)
             const retryCallResult = await toolPresenter.callTool(toolCall, {
               onProgress: applyProgressUpdate,
               signal: io.abortSignal

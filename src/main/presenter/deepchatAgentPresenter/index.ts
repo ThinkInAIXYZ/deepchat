@@ -18,6 +18,7 @@ import type { ChatMessage } from '@shared/types/core/chat-message'
 import type {
   IConfigPresenter,
   ILlmProviderPresenter,
+  ISkillPresenter,
   ModelConfig,
   RateLimitQueueSnapshot
 } from '@shared/presenter'
@@ -38,7 +39,6 @@ import {
   buildRuntimeCapabilitiesPrompt,
   buildSystemEnvPrompt
 } from '@/lib/agentRuntime/systemEnvPromptBuilder'
-import { presenter } from '@/presenter'
 import {
   buildContext,
   buildResumeContext,
@@ -58,6 +58,7 @@ import type { ProviderRequestTracePayload } from '../llmProviderPresenter/reques
 import type { NewSessionHooksBridge } from '../hooksNotifications/newSessionBridge'
 import { providerDbLoader } from '../configPresenter/providerDbLoader'
 import { resolveSessionVisionTarget } from '../vision/sessionVisionResolver'
+import type { ConfigQueryPort, SessionRuntimePort } from '../runtimePorts'
 import {
   buildAssistantPreviewMarkdown,
   buildAssistantResponseMarkdown,
@@ -155,6 +156,12 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
   private readonly compactionService: CompactionService
   private readonly toolOutputGuard: ToolOutputGuard
   private readonly hooksBridge?: NewSessionHooksBridge
+  private readonly configQueryPort: Pick<ConfigQueryPort, 'getProviderModels' | 'getCustomModels'>
+  private readonly sessionRuntimePort?: SessionRuntimePort
+  private readonly skillPresenter?: Pick<
+    ISkillPresenter,
+    'getMetadataList' | 'getActiveSkills' | 'loadSkillContent'
+  >
   private nextRunSequence = 0
 
   constructor(
@@ -162,7 +169,15 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     configPresenter: IConfigPresenter,
     sqlitePresenter: SQLitePresenter,
     toolPresenter?: IToolPresenter,
-    hooksBridge?: NewSessionHooksBridge
+    hooksBridge?: NewSessionHooksBridge,
+    runtimePorts?: {
+      configQueryPort?: Pick<ConfigQueryPort, 'getProviderModels' | 'getCustomModels'>
+      sessionRuntimePort?: SessionRuntimePort
+      skillPresenter?: Pick<
+        ISkillPresenter,
+        'getMetadataList' | 'getActiveSkills' | 'loadSkillContent'
+      >
+    }
   ) {
     this.llmProviderPresenter = llmProviderPresenter
     this.configPresenter = configPresenter
@@ -179,11 +194,21 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       this.configPresenter,
       async (sessionId) => {
         const agentId = this.getSessionAgentId(sessionId) ?? 'deepchat'
+        if (typeof this.configPresenter.resolveDeepChatAgentConfig !== 'function') {
+          return {}
+        }
+
         return await this.configPresenter.resolveDeepChatAgentConfig(agentId)
       }
     )
     this.toolOutputGuard = new ToolOutputGuard()
     this.hooksBridge = hooksBridge
+    this.configQueryPort = runtimePorts?.configQueryPort ?? {
+      getProviderModels: (providerId) => this.configPresenter.getProviderModels?.(providerId) ?? [],
+      getCustomModels: (providerId) => this.configPresenter.getCustomModels?.(providerId) ?? []
+    }
+    this.sessionRuntimePort = runtimePorts?.sessionRuntimePort
+    this.skillPresenter = runtimePorts?.skillPresenter
 
     const recovered = this.messageStore.recoverPendingMessages()
     if (recovered > 0) {
@@ -1595,6 +1620,9 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
               }
             })
           },
+          autoGrantPermission: async (permission) => {
+            await this.sessionRuntimePort?.approvePermission(sessionId, permission)
+          },
           normalizeToolResult: async (tool) =>
             await this.normalizeToolResultContent({
               sessionId: tool.sessionId,
@@ -1998,7 +2026,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
     const dayKey = this.buildLocalDayKey(now)
 
     const skillsEnabled = this.configPresenter.getSkillsEnabled()
-    const skillPresenter = presenter?.skillPresenter
+    const skillPresenter = this.skillPresenter
     const availableSkillNames: string[] = []
     const activeSkillNames: string[] = []
 
@@ -2102,7 +2130,8 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
         providerId,
         modelId,
         workdir,
-        now
+        now,
+        modelLookup: this.configQueryPort
       })
     } catch (error) {
       console.warn(`[DeepChatAgent] Failed to build env prompt for session ${sessionId}:`, error)
@@ -3057,23 +3086,34 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
 
     if (permissionType === 'command') {
       const command = payload.command || payload.commandInfo?.command || ''
-      const signature =
-        payload.commandSignature ||
-        payload.commandInfo?.signature ||
-        (command ? presenter.commandPermissionService.extractCommandSignature(command) : '')
+      const signature = payload.commandSignature || payload.commandInfo?.signature || command
       if (signature) {
-        presenter.commandPermissionService.approve(sessionId, signature, false)
+        await this.sessionRuntimePort?.approvePermission(sessionId, {
+          permissionType: 'command',
+          command,
+          commandSignature: signature,
+          commandInfo: payload.commandInfo
+        })
       }
       return
     }
 
     if (serverName === 'agent-filesystem' && Array.isArray(payload.paths) && payload.paths.length) {
-      presenter.filePermissionService?.approve(sessionId, payload.paths, false)
+      await this.sessionRuntimePort?.approvePermission(sessionId, {
+        permissionType: 'write',
+        serverName,
+        toolName,
+        paths: payload.paths
+      })
       return
     }
 
     if (serverName === 'deepchat-settings' && toolName) {
-      presenter.settingsPermissionService?.approve(sessionId, toolName, false)
+      await this.sessionRuntimePort?.approvePermission(sessionId, {
+        permissionType: 'write',
+        serverName,
+        toolName
+      })
       return
     }
 
@@ -3081,7 +3121,11 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       serverName &&
       (permissionType === 'read' || permissionType === 'write' || permissionType === 'all')
     ) {
-      await presenter.mcpPresenter.grantPermission(serverName, permissionType, false, sessionId)
+      await this.sessionRuntimePort?.approvePermission(sessionId, {
+        permissionType,
+        serverName,
+        toolName
+      })
     }
   }
 
@@ -3720,11 +3764,7 @@ export class DeepChatAgentPresenter implements IAgentImplementation {
       status
     })
 
-    try {
-      void presenter.floatingButtonPresenter.refreshWidgetState()
-    } catch (error) {
-      console.warn('[DeepChatAgent] Failed to refresh floating widget state:', error)
-    }
+    this.sessionRuntimePort?.refreshSessionUi()
   }
 
   private emitMessageRefresh(sessionId: string, messageId: string): void {

@@ -6,20 +6,20 @@ This document tracks the development progress of new UI feature implementation. 
 
 **Architecture Design**: [new-ui-implementation-plan.md](../../architecture/new-ui-implementation-plan.md)
 
-## Archived Reference File List
+## Historical Reference Map
 
-| Archived Mock File | Purpose | Target Replacement |
+| Historical Mock | Purpose | Target Replacement |
 |-----------|---------|-------------------|
-| `archives/code/dead-code-batch-2/src/renderer/src/components/mock/MockWelcomePage.vue` | Welcome page | `pages/WelcomePage.vue` |
-| `archives/code/dead-code-batch-2/src/renderer/src/components/NewThreadMock.vue` | NewThread page | `pages/NewThreadPage.vue` |
-| `archives/code/dead-code-batch-2/src/renderer/src/components/mock/MockChatPage.vue` | Chat page | `pages/ChatPage.vue` |
-| `archives/code/dead-code-batch-2/src/renderer/src/components/mock/MockTopBar.vue` | Top bar | `components/chat/ChatTopBar.vue` |
-| `archives/code/dead-code-batch-2/src/renderer/src/components/mock/MockMessageList.vue` | Message list | `components/chat/MessageList.vue` |
-| `archives/code/dead-code-batch-2/src/renderer/src/components/mock/MockInputBox.vue` | Input box | `components/chat/ChatInputBox.vue` |
-| `archives/code/dead-code-batch-2/src/renderer/src/components/mock/MockInputToolbar.vue` | Input toolbar | `components/chat/ChatInputToolbar.vue` |
-| `archives/code/dead-code-batch-2/src/renderer/src/components/mock/MockStatusBar.vue` | Status bar | `components/chat/ChatStatusBar.vue` |
+| `MockWelcomePage` | Welcome page | `pages/WelcomePage.vue` |
+| `NewThreadMock` | NewThread page | `pages/NewThreadPage.vue` |
+| `MockChatPage` | Chat page | `pages/ChatPage.vue` |
+| `MockTopBar` | Top bar | `components/chat/ChatTopBar.vue` |
+| `MockMessageList` | Message list | `components/chat/MessageList.vue` |
+| `MockInputBox` | Input box | `components/chat/ChatInputBox.vue` |
+| `MockInputToolbar` | Input toolbar | `components/chat/ChatInputToolbar.vue` |
+| `MockStatusBar` | Status bar | `components/chat/ChatStatusBar.vue` |
 | `components/WindowSideBar.vue` | Sidebar | (refactored in place) |
-| `archives/code/dead-code-batch-2/src/renderer/src/composables/useMockViewState.ts` | State management | Replaced by stores |
+| `useMockViewState` | State management | Replaced by stores |
 
 ---
 
@@ -240,15 +240,15 @@ This document tracks the development progress of new UI feature implementation. 
 
 ### 5.5 Cleanup
 
-- [x] Archive `components/mock/MockWelcomePage.vue` -> `archives/code/dead-code-batch-2/`
-- [x] Archive `components/mock/MockChatPage.vue` -> `archives/code/dead-code-batch-2/`
-- [x] Archive `components/mock/MockTopBar.vue` -> `archives/code/dead-code-batch-2/`
-- [x] Archive `components/mock/MockMessageList.vue` -> `archives/code/dead-code-batch-2/`
-- [x] Archive `components/mock/MockInputBox.vue` -> `archives/code/dead-code-batch-2/`
-- [x] Archive `components/mock/MockInputToolbar.vue` -> `archives/code/dead-code-batch-2/`
-- [x] Archive `components/mock/MockStatusBar.vue` -> `archives/code/dead-code-batch-2/`
-- [x] Archive `components/NewThreadMock.vue` -> `archives/code/dead-code-batch-2/`
-- [x] Archive `composables/useMockViewState.ts` -> `archives/code/dead-code-batch-2/`
+- [x] Remove `components/mock/MockWelcomePage.vue` from the active tree
+- [x] Remove `components/mock/MockChatPage.vue` from the active tree
+- [x] Remove `components/mock/MockTopBar.vue` from the active tree
+- [x] Remove `components/mock/MockMessageList.vue` from the active tree
+- [x] Remove `components/mock/MockInputBox.vue` from the active tree
+- [x] Remove `components/mock/MockInputToolbar.vue` from the active tree
+- [x] Remove `components/mock/MockStatusBar.vue` from the active tree
+- [x] Remove `components/NewThreadMock.vue` from the active tree
+- [x] Remove `composables/useMockViewState.ts` from the active tree
 
 ---
 

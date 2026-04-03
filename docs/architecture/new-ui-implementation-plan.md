@@ -556,8 +556,8 @@ sessionStore.selectSession(id)
 - `chat.ts`: Remove session management logic, keep message logic
 
 **Deprecated**:
-- `components/mock/*.vue`: Archived in `archives/code/dead-code-batch-2/`
-- `composables/useMockViewState.ts`: Archived in `archives/code/dead-code-batch-2/`
+- `components/mock/*.vue`: Removed after the new UI rollout, only historical docs remain
+- `composables/useMockViewState.ts`: Removed after stores took over the state flow
 
 ---
 

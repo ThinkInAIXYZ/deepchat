@@ -1,8 +1,7 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, onScopeDispose, getCurrentScope } from 'vue'
 import type { ComputedRef } from 'vue'
 import { usePresenter } from '@/composables/usePresenter'
-import { SESSION_EVENTS } from '@/events'
 import type {
   DeepChatSubagentMeta,
   SessionWithState,
@@ -13,6 +12,8 @@ import type {
 import { downloadBlob } from '@/lib/download'
 import { usePageRouterStore } from './pageRouter'
 import { useMessageStore } from './message'
+import { bindSessionStoreIpc } from './sessionIpc'
+import { getRendererWindowContext } from '@/lib/windowContext'
 
 // --- Type Definitions ---
 
@@ -76,6 +77,20 @@ function mapToUISession(session: SessionWithState): UISession {
     subagentMeta: session.subagentMeta ?? null,
     createdAt: session.createdAt,
     updatedAt: session.updatedAt
+  }
+}
+
+function isRegularSession(session: Pick<UISession, 'sessionKind'>): boolean {
+  return (session.sessionKind ?? 'regular') === 'regular'
+}
+
+function getCurrentWebContentsId(): number {
+  return getRendererWindowContext().webContentsId ?? -1
+}
+
+function registerStoreCleanup(cleanup: () => void): void {
+  if (getCurrentScope()) {
+    onScopeDispose(cleanup)
   }
 }
 
@@ -146,7 +161,7 @@ export const useSessionStore = defineStore('session', () => {
   const tabPresenter = usePresenter('tabPresenter')
   const pageRouter = usePageRouterStore()
   const messageStore = useMessageStore()
-  const myWebContentsId = window.api.getWebContentsId()
+  const myWebContentsId = getCurrentWebContentsId()
   let rendererReadyNotified = false
 
   // --- State ---
@@ -179,7 +194,7 @@ export const useSessionStore = defineStore('session', () => {
     loading.value = true
     error.value = null
     try {
-      const webContentsId = window.api.getWebContentsId()
+      const webContentsId = getCurrentWebContentsId()
       const previousActiveSessionId = activeSessionId.value
       const [result, activeSession] = await Promise.all([
         newAgentPresenter.getSessionList({ includeSubagents: true }),
@@ -207,7 +222,7 @@ export const useSessionStore = defineStore('session', () => {
   async function createSession(input: CreateSessionInput): Promise<void> {
     error.value = null
     try {
-      const webContentsId = window.api.getWebContentsId()
+      const webContentsId = getCurrentWebContentsId()
       const session = await newAgentPresenter.createSession(input, webContentsId)
       activeSessionId.value = session.id
 
@@ -224,7 +239,7 @@ export const useSessionStore = defineStore('session', () => {
       if (activeSessionId.value && activeSessionId.value !== sessionId) {
         messageStore.clearStreamingState()
       }
-      const webContentsId = window.api.getWebContentsId()
+      const webContentsId = getCurrentWebContentsId()
       await newAgentPresenter.activateSession(webContentsId, sessionId)
       activeSessionId.value = sessionId
       pageRouter.goToChat(sessionId)
@@ -237,7 +252,7 @@ export const useSessionStore = defineStore('session', () => {
     error.value = null
     try {
       messageStore.clearStreamingState()
-      const webContentsId = window.api.getWebContentsId()
+      const webContentsId = getCurrentWebContentsId()
       await newAgentPresenter.deactivateSession(webContentsId)
       activeSessionId.value = null
       pageRouter.goToNewThread()
@@ -373,9 +388,7 @@ export const useSessionStore = defineStore('session', () => {
 
   function getPinnedSessions(agentId: string | null): UISession[] {
     const pinned = sessions.value
-      .filter(
-        (session) => session.sessionKind === 'regular' && session.isPinned && !session.isDraft
-      )
+      .filter((session) => isRegularSession(session) && session.isPinned && !session.isDraft)
       .sort((a, b) => b.updatedAt - a.updatedAt)
 
     if (agentId === null) return pinned
@@ -385,7 +398,7 @@ export const useSessionStore = defineStore('session', () => {
 
   function getFilteredGroups(agentId: string | null): SessionGroup[] {
     const visibleSessions = sessions.value.filter(
-      (session) => session.sessionKind === 'regular' && !session.isDraft && !session.isPinned
+      (session) => isRegularSession(session) && !session.isDraft && !session.isPinned
     )
     const grouped =
       groupMode.value === 'time' ? groupByTime(visibleSessions) : groupByProject(visibleSessions)
@@ -401,46 +414,30 @@ export const useSessionStore = defineStore('session', () => {
       .filter((group) => group.sessions.length > 0)
   }
 
-  // --- Event Listeners ---
-
-  window.electron.ipcRenderer.on(SESSION_EVENTS.LIST_UPDATED, () => {
-    fetchSessions()
-  })
-
-  window.electron.ipcRenderer.on(
-    SESSION_EVENTS.ACTIVATED,
-    (_: unknown, msg: { webContentsId: number; sessionId: string }) => {
-      if (msg.webContentsId === myWebContentsId) {
-        if (activeSessionId.value && activeSessionId.value !== msg.sessionId) {
-          messageStore.clearStreamingState()
-        }
-        activeSessionId.value = msg.sessionId
-        pageRouter.goToChat(msg.sessionId)
-        void tabPresenter.onRendererTabActivated(msg.sessionId)
-      }
-    }
-  )
-
-  window.electron.ipcRenderer.on(
-    SESSION_EVENTS.DEACTIVATED,
-    (_: unknown, msg: { webContentsId: number }) => {
-      if (msg.webContentsId === myWebContentsId) {
+  const cleanupIpcBindings = bindSessionStoreIpc({
+    webContentsId: myWebContentsId,
+    fetchSessions,
+    onActivated: (sessionId) => {
+      if (activeSessionId.value && activeSessionId.value !== sessionId) {
         messageStore.clearStreamingState()
-        activeSessionId.value = null
-        pageRouter.goToNewThread()
       }
-    }
-  )
-
-  window.electron.ipcRenderer.on(
-    SESSION_EVENTS.STATUS_CHANGED,
-    (_: unknown, msg: { sessionId: string; status: string }) => {
-      const session = sessions.value.find((s) => s.id === msg.sessionId)
+      activeSessionId.value = sessionId
+      pageRouter.goToChat(sessionId)
+      void tabPresenter.onRendererTabActivated(sessionId)
+    },
+    onDeactivated: () => {
+      messageStore.clearStreamingState()
+      activeSessionId.value = null
+      pageRouter.goToNewThread()
+    },
+    onStatusChanged: (payload) => {
+      const session = sessions.value.find((item) => item.id === payload.sessionId)
       if (session) {
-        session.status = mapSessionStatus(msg.status)
+        session.status = mapSessionStatus(payload.status)
       }
     }
-  )
+  })
+  registerStoreCleanup(cleanupIpcBindings)
 
   return {
     sessions,

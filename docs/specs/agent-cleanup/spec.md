@@ -20,7 +20,7 @@ Completed in this retirement slice:
 - migrated retained ACP helpers into `src/main/presenter/llmProviderPresenter/acp/`
 - migrated retained agent tools into `src/main/presenter/toolPresenter/agentTools/`
 - moved retained user message formatting helpers into `src/main/presenter/sessionPresenter/`
-- archived retired source and tests under `archives/code/legacy-agentpresenter-retirement/`
+- removed retired source and tests from the active tree, with history preserved in docs
 
 ## Compatibility Boundary
 
@@ -49,11 +49,11 @@ It now protects these invariants:
 
 - shared helper ownership moved to `src/main/lib/agentRuntime`
 - active renderer chat path moved off legacy message protocol
-- dead renderer and mock/orphan code archived under `archives/code/`
+- dead renderer and mock/orphan code removed from the active tree
 - new-session skills persisted in `new_sessions.active_skills`
 - legacy `agentPresenter/**` removed from global presenter access
 - provider-layer MCP global access removed
-- final legacy runtime retirement completed and archived
+- final legacy runtime retirement completed and documented
 
 ## Remaining Backlog
 

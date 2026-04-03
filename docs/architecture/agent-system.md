@@ -117,4 +117,4 @@ deepchatAgentPresenter/
 - `permissionHandler`
 - `startStreamCompletion`
 
-需要对照旧实现时，只看归档文档和 `archives/code/legacy-agentpresenter-retirement/`。
+需要对照旧实现时，只看归档文档，不再把历史源码快照当作活跃导航入口。

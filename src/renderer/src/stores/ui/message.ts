@@ -1,13 +1,14 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, onScopeDispose, getCurrentScope } from 'vue'
 import { usePresenter } from '@/composables/usePresenter'
-import { STREAM_EVENTS } from '@/events'
 import type {
   ChatMessageRecord,
   AssistantMessageBlock,
   MessageFile
 } from '@shared/types/agent-interface'
 import { useSessionStore } from './session'
+import { useStreamStateStore } from './stream'
+import { bindMessageStoreIpc } from './messageIpc'
 
 const EPHEMERAL_STREAM_MESSAGE_PREFIXES = ['__rate_limit__:']
 
@@ -15,14 +16,11 @@ const EPHEMERAL_STREAM_MESSAGE_PREFIXES = ['__rate_limit__:']
 
 export const useMessageStore = defineStore('message', () => {
   const newAgentPresenter = usePresenter('newAgentPresenter')
+  const streamStateStore = useStreamStateStore()
 
   // --- State ---
   const messageIds = ref<string[]>([])
   const messageCache = ref<Map<string, ChatMessageRecord>>(new Map())
-  const isStreaming = ref(false)
-  const streamingBlocks = ref<AssistantMessageBlock[]>([])
-  const currentStreamSessionId = ref<string | null>(null)
-  const currentStreamMessageId = ref<string | null>(null)
   const hydratingStreamMessageIds = new Set<string>()
   let latestLoadRequestId = 0
 
@@ -120,10 +118,7 @@ export const useMessageStore = defineStore('message', () => {
   }
 
   function clearStreamingState(): void {
-    isStreaming.value = false
-    streamingBlocks.value = []
-    currentStreamSessionId.value = null
-    currentStreamMessageId.value = null
+    streamStateStore.clearStreamingState()
   }
 
   function isEphemeralStreamMessageId(messageId: string): boolean {
@@ -170,72 +165,24 @@ export const useMessageStore = defineStore('message', () => {
       })
   }
 
-  // --- Event Listeners ---
-
-  window.electron.ipcRenderer.on(
-    STREAM_EVENTS.RESPONSE,
-    (
-      _: unknown,
-      msg: {
-        conversationId: string
-        blocks: AssistantMessageBlock[]
-        messageId?: string
-        eventId?: string
-      }
-    ) => {
-      const sessionStore = useSessionStore()
-      if (msg.conversationId === sessionStore.activeSessionId) {
-        const streamMessageId = msg.messageId ?? msg.eventId
-        isStreaming.value = true
-        currentStreamSessionId.value = msg.conversationId
-        currentStreamMessageId.value = streamMessageId ?? null
-        streamingBlocks.value = msg.blocks
-        if (streamMessageId && !isEphemeralStreamMessageId(streamMessageId)) {
-          applyStreamingBlocksToMessage(streamMessageId, msg.conversationId, msg.blocks)
-        }
-      }
-    }
-  )
-
-  window.electron.ipcRenderer.on(
-    STREAM_EVENTS.END,
-    (_: unknown, msg: { conversationId: string; messageId?: string; eventId?: string }) => {
-      const sessionStore = useSessionStore()
-      if (msg.conversationId === sessionStore.activeSessionId) {
-        isStreaming.value = false
-        streamingBlocks.value = []
-        currentStreamSessionId.value = null
-        currentStreamMessageId.value = null
-        // Reload messages from DB to get finalized content
-        void loadMessages(msg.conversationId)
-      }
-    }
-  )
-
-  window.electron.ipcRenderer.on(
-    STREAM_EVENTS.ERROR,
-    (
-      _: unknown,
-      msg: { conversationId: string; error: string; messageId?: string; eventId?: string }
-    ) => {
-      const sessionStore = useSessionStore()
-      if (msg.conversationId === sessionStore.activeSessionId) {
-        isStreaming.value = false
-        streamingBlocks.value = []
-        currentStreamSessionId.value = null
-        currentStreamMessageId.value = null
-        // Reload messages from DB to get error state
-        void loadMessages(msg.conversationId)
-      }
-    }
-  )
+  const cleanupIpcBindings = bindMessageStoreIpc({
+    getActiveSessionId: () => useSessionStore().activeSessionId,
+    setStreamingState: ({ sessionId, messageId, blocks }) => {
+      streamStateStore.setStream(sessionId, blocks, messageId)
+    },
+    clearStreamingState,
+    loadMessages,
+    applyStreamingBlocksToMessage,
+    isEphemeralStreamMessageId
+  })
+  registerStoreCleanup(cleanupIpcBindings)
 
   return {
     messageIds,
     messageCache,
-    isStreaming,
-    streamingBlocks,
-    currentStreamMessageId,
+    isStreaming: streamStateStore.isStreaming,
+    streamingBlocks: streamStateStore.streamingBlocks,
+    currentStreamMessageId: streamStateStore.currentStreamMessageId,
     messages,
     loadMessages,
     getMessage,
@@ -244,3 +191,8 @@ export const useMessageStore = defineStore('message', () => {
     clear
   }
 })
+const registerStoreCleanup = (cleanup: () => void) => {
+  if (getCurrentScope()) {
+    onScopeDispose(cleanup)
+  }
+}

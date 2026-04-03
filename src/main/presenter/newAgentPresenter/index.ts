@@ -43,7 +43,6 @@ import { NewMessageManager } from './messageManager'
 import { LegacyChatImportService } from './legacyImportService'
 import { eventBus, SendTarget } from '@/eventbus'
 import { SESSION_EVENTS } from '@/events'
-import { presenter } from '@/presenter'
 import {
   buildConversationExportContent,
   generateExportFilename,
@@ -63,6 +62,7 @@ import {
 } from '../usageStats'
 import { rtkRuntimeService } from '@/lib/agentRuntime/rtkRuntimeService'
 import { resolveAcpAgentAlias } from '../configPresenter/acpRegistryConstants'
+import type { SessionRuntimePort } from '../runtimePorts'
 
 type SearchableSessionRow = {
   id: string
@@ -221,6 +221,7 @@ export class NewAgentPresenter {
   private configPresenter: IConfigPresenter
   private legacyImportService: LegacyChatImportService
   private skillPresenter?: Pick<ISkillPresenter, 'setActiveSkills' | 'clearNewAgentSessionSkills'>
+  private sessionRuntimePort?: SessionRuntimePort
   private usageStatsBackfillPromise: Promise<void> | null = null
 
   constructor(
@@ -228,7 +229,8 @@ export class NewAgentPresenter {
     llmProviderPresenter: ILlmProviderPresenter,
     configPresenter: IConfigPresenter,
     sqlitePresenter: SQLitePresenter,
-    skillPresenter?: Pick<ISkillPresenter, 'setActiveSkills' | 'clearNewAgentSessionSkills'>
+    skillPresenter?: Pick<ISkillPresenter, 'setActiveSkills' | 'clearNewAgentSessionSkills'>,
+    sessionRuntimePort?: SessionRuntimePort
   ) {
     this.sqlitePresenter = sqlitePresenter
     this.llmProviderPresenter = llmProviderPresenter
@@ -238,6 +240,7 @@ export class NewAgentPresenter {
     this.sessionManager = new NewSessionManager(sqlitePresenter)
     this.messageManager = new NewMessageManager(this.agentRegistry)
     this.legacyImportService = new LegacyChatImportService(sqlitePresenter)
+    this.sessionRuntimePort = sessionRuntimePort
 
     // Register the built-in deepchat agent
     this.agentRegistry.register(
@@ -254,13 +257,11 @@ export class NewAgentPresenter {
     const normalizedInput = this.normalizeCreateSessionInput(input)
     const agentType = await this.getAgentType(agentId)
     const deepChatAgentConfig =
-      agentType === 'deepchat'
-        ? await this.configPresenter.resolveDeepChatAgentConfig(agentId)
-        : null
+      agentType === 'deepchat' ? await this.resolveDeepChatAgentConfigCompat(agentId) : null
     const projectDir =
       input.projectDir?.trim() ||
       deepChatAgentConfig?.defaultProjectPath?.trim() ||
-      this.configPresenter.getDefaultProjectPath() ||
+      this.getDefaultProjectPathCompat() ||
       null
     const disabledAgentTools =
       agentType === 'deepchat'
@@ -397,13 +398,11 @@ export class NewAgentPresenter {
     const title = input.title?.trim() || 'New Chat'
     const agentType = await this.getAgentType(agentId)
     const deepChatAgentConfig =
-      agentType === 'deepchat'
-        ? await this.configPresenter.resolveDeepChatAgentConfig(agentId)
-        : null
+      agentType === 'deepchat' ? await this.resolveDeepChatAgentConfigCompat(agentId) : null
     const projectDir =
       input.projectDir?.trim() ||
       deepChatAgentConfig?.defaultProjectPath?.trim() ||
-      this.configPresenter.getDefaultProjectPath() ||
+      this.getDefaultProjectPathCompat() ||
       null
     const disabledAgentTools =
       agentType === 'deepchat'
@@ -1649,12 +1648,7 @@ export class NewAgentPresenter {
 
   private emitSessionListUpdated(): void {
     eventBus.sendToRenderer(SESSION_EVENTS.LIST_UPDATED, SendTarget.ALL_WINDOWS)
-
-    try {
-      void presenter.floatingButtonPresenter.refreshWidgetState()
-    } catch (error) {
-      console.warn('[NewAgentPresenter] Failed to refresh floating widget state:', error)
-    }
+    this.sessionRuntimePort?.refreshSessionUi()
   }
 
   private async waitForSessionIdle(sessionId: string): Promise<boolean> {
@@ -1725,7 +1719,43 @@ export class NewAgentPresenter {
   }
 
   private async getAgentType(agentId: string): Promise<'deepchat' | 'acp' | null> {
+    if (typeof this.configPresenter.getAgentType !== 'function') {
+      const resolvedAgentId = resolveAcpAgentAlias(agentId)
+      if (resolvedAgentId === 'deepchat') {
+        return 'deepchat'
+      }
+      const fallbackAgent = await this.configPresenter.getAgent?.(resolvedAgentId)
+      if (fallbackAgent?.type === 'acp' || fallbackAgent?.type === 'deepchat') {
+        return fallbackAgent.type
+      }
+
+      const acpAgents = await this.configPresenter.getAcpAgents?.()
+      if (acpAgents?.some((agent) => resolveAcpAgentAlias(agent.id) === resolvedAgentId)) {
+        return 'acp'
+      }
+
+      return null
+    }
+
     return await this.configPresenter.getAgentType(resolveAcpAgentAlias(agentId))
+  }
+
+  private async resolveDeepChatAgentConfigCompat(
+    agentId: string
+  ): Promise<Awaited<ReturnType<IConfigPresenter['resolveDeepChatAgentConfig']>> | null> {
+    if (typeof this.configPresenter.resolveDeepChatAgentConfig !== 'function') {
+      return {} as Awaited<ReturnType<IConfigPresenter['resolveDeepChatAgentConfig']>>
+    }
+
+    return await this.configPresenter.resolveDeepChatAgentConfig(agentId)
+  }
+
+  private getDefaultProjectPathCompat(): string | null {
+    if (typeof this.configPresenter.getDefaultProjectPath !== 'function') {
+      return null
+    }
+
+    return this.configPresenter.getDefaultProjectPath() ?? null
   }
 
   private async resolveAssistantModelSelection(
@@ -1734,9 +1764,9 @@ export class NewAgentPresenter {
     fallbackModelId: string
   ): Promise<{ providerId: string; modelId: string }> {
     if ((await this.getAgentType(agentId)) === 'deepchat') {
-      const config = await this.configPresenter.resolveDeepChatAgentConfig(agentId)
-      const providerId = config.assistantModel?.providerId?.trim()
-      const modelId = config.assistantModel?.modelId?.trim()
+      const config = await this.resolveDeepChatAgentConfigCompat(agentId)
+      const providerId = config?.assistantModel?.providerId?.trim()
+      const modelId = config?.assistantModel?.modelId?.trim()
       if (providerId && modelId) {
         return {
           providerId,
@@ -1809,9 +1839,7 @@ export class NewAgentPresenter {
       await this.llmProviderPresenter.clearAcpSession(sessionId)
     }
     await agent.destroySession(sessionId)
-    presenter.commandPermissionService.clearConversation(sessionId)
-    presenter.filePermissionService?.clearConversation(sessionId)
-    presenter.settingsPermissionService?.clearConversation(sessionId)
+    this.sessionRuntimePort?.clearSessionPermissions(sessionId)
     await this.skillPresenter?.clearNewAgentSessionSkills?.(sessionId)
     this.sessionManager.delete(sessionId)
   }

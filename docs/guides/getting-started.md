@@ -137,4 +137,4 @@ node scripts/agent-cleanup-guard.mjs
 
 - `docs/archives/legacy-agentpresenter-architecture.md`
 - `docs/archives/legacy-agentpresenter-flows.md`
-- `archives/code/legacy-agentpresenter-retirement/`
+- `docs/archives/thread-presenter-migration-plan.md`

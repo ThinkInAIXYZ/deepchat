@@ -95,7 +95,7 @@ flowchart LR
 
 ## 归档与防回归
 
-- 退休代码已归档到 `archives/code/legacy-agentpresenter-retirement/`
+- 退休 runtime 的历史结构已经固化到 `docs/archives/` 文档，不再保留源码级导航入口
 - 历史架构文档见 [archives/legacy-agentpresenter-architecture.md](./archives/legacy-agentpresenter-architecture.md)
 - 历史流程文档见 [archives/legacy-agentpresenter-flows.md](./archives/legacy-agentpresenter-flows.md)
 - 防回归脚本：`scripts/agent-cleanup-guard.mjs`

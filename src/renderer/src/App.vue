@@ -8,7 +8,6 @@ import { useSessionStore } from '@/stores/ui/session'
 import { useAgentStore } from '@/stores/ui/agent'
 import { useDraftStore, type StartDeeplinkPayload } from '@/stores/ui/draft'
 import { usePageRouterStore } from '@/stores/ui/pageRouter'
-import { DEEPLINK_EVENTS, NOTIFICATION_EVENTS, SHORTCUT_EVENTS } from './events'
 import { Toaster } from '@shadcn/components/ui/sonner'
 import { useToast } from '@/components/use-toast'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
@@ -28,6 +27,7 @@ import { useDeviceVersion } from '@/composables/useDeviceVersion'
 import WindowSideBar from './components/WindowSideBar.vue'
 import SpotlightOverlay from '@/components/spotlight/SpotlightOverlay.vue'
 import { useSpotlightStore } from '@/stores/ui/spotlight'
+import { useAppIpcRuntime } from '@/composables/useAppIpcRuntime'
 
 const DEV_WELCOME_OVERRIDE_KEY = '__deepchat_dev_force_welcome'
 
@@ -291,9 +291,44 @@ const handleStartDeeplink = (_event: unknown, payload?: Omit<StartDeeplinkPayloa
   void activatePendingStartDeeplink()
 }
 
-if (window?.electron?.ipcRenderer) {
-  window.electron.ipcRenderer.on(DEEPLINK_EVENTS.START, handleStartDeeplink)
-}
+const { setup: setupAppIpcRuntime, cleanup: cleanupAppIpcRuntime } = useAppIpcRuntime({
+  handleStartDeeplink: (event, payload) => {
+    handleStartDeeplink(event, payload as Omit<StartDeeplinkPayload, 'token'> | undefined)
+  },
+  showErrorToast,
+  handleZoomIn,
+  handleZoomOut,
+  handleZoomResume,
+  handleCreateNewConversation,
+  openSpotlight: () => {
+    spotlightStore.openSpotlight()
+  },
+  handleDataResetComplete: () => {
+    toast({
+      title: t('settings.data.resetCompleteDevTitle'),
+      description: t('settings.data.resetCompleteDevMessage'),
+      variant: 'default',
+      duration: 15000
+    })
+  },
+  handleSystemNotificationClick: (msg) => {
+    let sessionId: string | null = null
+
+    if (typeof msg === 'string' && msg.startsWith('chat/')) {
+      const parts = msg.split('/')
+      if (parts.length === 3) {
+        sessionId = parts[1]
+      }
+    } else if (msg && typeof msg === 'object' && 'threadId' in msg) {
+      sessionId = (msg as { threadId?: string }).threadId ?? null
+    }
+
+    if (sessionId) {
+      void sessionStore.selectSession(sessionId)
+    }
+  },
+  getCurrentRouteName: () => router.currentRoute.value.name
+})
 
 // Handle ESC key - close floating chat window
 const handleEscKey = (event: KeyboardEvent) => {
@@ -319,69 +354,7 @@ onMounted(() => {
   // initialize store data
   void initAppStores()
   setupMcpDeeplink()
-
-  // Listen for global error notification events
-  window.electron.ipcRenderer.on(NOTIFICATION_EVENTS.SHOW_ERROR, (_event, error) => {
-    showErrorToast(error)
-  })
-
-  // Listen for shortcut key events
-  window.electron.ipcRenderer.on(SHORTCUT_EVENTS.ZOOM_IN, () => {
-    handleZoomIn()
-  })
-
-  window.electron.ipcRenderer.on(SHORTCUT_EVENTS.ZOOM_OUT, () => {
-    handleZoomOut()
-  })
-
-  window.electron.ipcRenderer.on(SHORTCUT_EVENTS.ZOOM_RESUME, () => {
-    handleZoomResume()
-  })
-
-  window.electron.ipcRenderer.on(SHORTCUT_EVENTS.CREATE_NEW_CONVERSATION, () => {
-    // Check if current route is chat page
-    const currentRoute = router.currentRoute.value
-    if (currentRoute.name !== 'chat') {
-      return
-    }
-    void handleCreateNewConversation()
-  })
-
-  window.electron.ipcRenderer.on(SHORTCUT_EVENTS.TOGGLE_SPOTLIGHT, () => {
-    spotlightStore.openSpotlight()
-  })
-
-  // GO_SETTINGS is now handled in main process (open/focus Settings tab)
-
-  window.electron.ipcRenderer.on(NOTIFICATION_EVENTS.DATA_RESET_COMPLETE_DEV, () => {
-    toast({
-      title: t('settings.data.resetCompleteDevTitle'),
-      description: t('settings.data.resetCompleteDevMessage'),
-      variant: 'default',
-      duration: 15000
-    })
-  })
-
-  window.electron.ipcRenderer.on(NOTIFICATION_EVENTS.SYS_NOTIFY_CLICKED, (_, msg) => {
-    let sessionId: string | null = null
-
-    // Check if msg is string and starts with chat/
-    if (typeof msg === 'string' && msg.startsWith('chat/')) {
-      // Split by /, check if there are three segments
-      const parts = msg.split('/')
-      if (parts.length === 3) {
-        // Extract middle part as sessionId
-        sessionId = parts[1]
-      }
-    } else if (msg && msg.threadId) {
-      // Compatible with original format, if msg is object and contains threadId property
-      sessionId = msg.threadId
-    }
-
-    if (sessionId) {
-      void sessionStore.selectSession(sessionId)
-    }
-  })
+  setupAppIpcRuntime()
 
   watch(
     () => activeTab.value,
@@ -424,17 +397,7 @@ onBeforeUnmount(() => {
   }
 
   window.removeEventListener('keydown', handleEscKey)
-
-  // Remove shortcut key event listeners
-  window.electron.ipcRenderer.removeAllListeners(SHORTCUT_EVENTS.ZOOM_IN)
-  window.electron.ipcRenderer.removeAllListeners(SHORTCUT_EVENTS.ZOOM_OUT)
-  window.electron.ipcRenderer.removeAllListeners(SHORTCUT_EVENTS.ZOOM_RESUME)
-  window.electron.ipcRenderer.removeAllListeners(SHORTCUT_EVENTS.CREATE_NEW_CONVERSATION)
-  window.electron.ipcRenderer.removeAllListeners(SHORTCUT_EVENTS.TOGGLE_SPOTLIGHT)
-  // GO_SETTINGS listener removed; handled in main
-  window.electron.ipcRenderer.removeAllListeners(NOTIFICATION_EVENTS.SYS_NOTIFY_CLICKED)
-  window.electron.ipcRenderer.removeAllListeners(NOTIFICATION_EVENTS.DATA_RESET_COMPLETE_DEV)
-  window.electron.ipcRenderer.removeAllListeners(DEEPLINK_EVENTS.START)
+  cleanupAppIpcRuntime()
   cleanupMcpDeeplink()
 })
 </script>

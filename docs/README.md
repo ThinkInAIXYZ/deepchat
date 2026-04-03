@@ -26,6 +26,8 @@ Renderer
 | [architecture/session-management.md](./architecture/session-management.md) | 新会话管理与 legacy 数据平面边界 |
 | [guides/code-navigation.md](./guides/code-navigation.md) | 当前代码导航入口 |
 | [guides/getting-started.md](./guides/getting-started.md) | 新开发者快速上手 |
+| [architecture/baselines/dependency-report.md](./architecture/baselines/dependency-report.md) | 当前依赖与耦合基线 |
+| [architecture/baselines/test-failure-groups.md](./architecture/baselines/test-failure-groups.md) | 当前测试失败分组基线 |
 
 ## 本次清理落库
 
@@ -34,7 +36,9 @@ Renderer
 | [docs/specs/legacy-agentpresenter-retirement/spec.md](./specs/legacy-agentpresenter-retirement/spec.md) | 本次 retirement 的目标、范围、兼容边界 |
 | [docs/specs/legacy-agentpresenter-retirement/plan.md](./specs/legacy-agentpresenter-retirement/plan.md) | 迁移/归档/验证计划 |
 | [docs/specs/legacy-agentpresenter-retirement/tasks.md](./specs/legacy-agentpresenter-retirement/tasks.md) | 已执行清单 |
-| [archives/code/legacy-agentpresenter-retirement/README.md](../archives/code/legacy-agentpresenter-retirement/README.md) | 代码归档说明 |
+| [docs/specs/architecture-simplification/spec.md](./specs/architecture-simplification/spec.md) | 整体减负治理规格 |
+| [docs/specs/architecture-simplification/plan.md](./specs/architecture-simplification/plan.md) | 分层/基线/guard 计划 |
+| [docs/specs/architecture-simplification/tasks.md](./specs/architecture-simplification/tasks.md) | 首期实施清单 |
 | [docs/specs/agent-cleanup/spec.md](./specs/agent-cleanup/spec.md) | cleanup 主规格，已更新到 retirement 完成态 |
 
 ## 活跃架构地图
@@ -46,6 +50,7 @@ docs/
 ├── FLOWS.md
 ├── architecture/
 │   ├── agent-system.md
+│   ├── baselines/
 │   ├── session-management.md
 │   ├── tool-system.md
 │   ├── event-system.md
@@ -56,6 +61,7 @@ docs/
 │   └── debugging.md
 ├── specs/
 │   ├── agent-cleanup/
+│   ├── architecture-simplification/
 │   └── legacy-agentpresenter-retirement/
 └── archives/
     ├── legacy-agentpresenter-architecture.md
@@ -83,4 +89,4 @@ docs/
    - 聊天执行链路： [architecture/agent-system.md](./architecture/agent-system.md)
    - 工具与权限： [architecture/tool-system.md](./architecture/tool-system.md)
    - 会话与兼容边界： [architecture/session-management.md](./architecture/session-management.md)
-4. 如果需要对照旧实现，再去看 `archives/`。
+4. 如果需要对照旧实现，再去看 `archives/` 历史文档，不要依赖已经移除的历史源码快照。

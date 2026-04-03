@@ -76,6 +76,9 @@ export interface ProcessHooks {
     reasoningContentLength: number
     toolCallCount: number
   }) => void
+  autoGrantPermission?: (
+    permission: NonNullable<PendingToolInteraction['permission']>
+  ) => Promise<void>
   normalizeToolResult?: (tool: {
     sessionId: string
     toolCallId: string

@@ -73,6 +73,7 @@ import { AgentRepository } from './agentRepository'
 import type { SQLitePresenter } from './sqlitePresenter'
 import { normalizeDeepChatSubagentSlots } from '@shared/lib/deepchatSubagents'
 import { subscribeDeepChatInternalSessionUpdates } from './deepchatAgentPresenter/internalSessionEvents'
+import type { ConfigQueryPort, SessionRuntimePort } from './runtimePorts'
 
 // IPC调用上下文接口
 interface IPCCallContext {
@@ -411,6 +412,63 @@ export class Presenter implements IPresenter {
       getMessage: async () => null
     })
     const newSessionHooksBridge = new NewSessionHooksBridge(this.hooksNotifications)
+    const configQueryPort: ConfigQueryPort = {
+      getProviderModels: (providerId) => this.configPresenter.getProviderModels?.(providerId) ?? [],
+      getCustomModels: (providerId) => this.configPresenter.getCustomModels?.(providerId) ?? [],
+      getAgentType: async (agentId) => await this.configPresenter.getAgentType(agentId)
+    }
+    const sessionRuntimePort: SessionRuntimePort = {
+      refreshSessionUi: () => {
+        try {
+          void this.floatingButtonPresenter.refreshWidgetState()
+        } catch (error) {
+          console.warn('[Presenter] Failed to refresh floating widget state:', error)
+        }
+      },
+      clearSessionPermissions: (sessionId) => {
+        this.commandPermissionService.clearConversation(sessionId)
+        this.filePermissionService.clearConversation(sessionId)
+        this.settingsPermissionService.clearConversation(sessionId)
+      },
+      approvePermission: async (sessionId, permission) => {
+        const permissionType = permission.permissionType
+        const serverName = permission.serverName || ''
+        const toolName = permission.toolName || ''
+
+        if (permissionType === 'command') {
+          const command = permission.command || permission.commandInfo?.command || ''
+          const signature =
+            permission.commandSignature ||
+            permission.commandInfo?.signature ||
+            (command ? this.commandPermissionService.extractCommandSignature(command) : '')
+          if (signature) {
+            this.commandPermissionService.approve(sessionId, signature, false)
+          }
+          return
+        }
+
+        if (
+          serverName === 'agent-filesystem' &&
+          Array.isArray(permission.paths) &&
+          permission.paths.length > 0
+        ) {
+          this.filePermissionService.approve(sessionId, permission.paths, false)
+          return
+        }
+
+        if (serverName === 'deepchat-settings' && toolName) {
+          this.settingsPermissionService.approve(sessionId, toolName, false)
+          return
+        }
+
+        if (
+          serverName &&
+          (permissionType === 'read' || permissionType === 'write' || permissionType === 'all')
+        ) {
+          await this.mcpPresenter.grantPermission(serverName, permissionType, false, sessionId)
+        }
+      }
+    }
 
     // Initialize new agent architecture presenters
     const deepchatAgentPresenter = new DeepChatAgentPresenter(
@@ -418,14 +476,20 @@ export class Presenter implements IPresenter {
       this.configPresenter,
       this.sqlitePresenter as unknown as import('./sqlitePresenter').SQLitePresenter,
       this.toolPresenter,
-      newSessionHooksBridge
+      newSessionHooksBridge,
+      {
+        configQueryPort,
+        sessionRuntimePort,
+        skillPresenter: this.skillPresenter
+      }
     )
     this.newAgentPresenter = new NewAgentPresenter(
       deepchatAgentPresenter,
       this.llmproviderPresenter as unknown as ILlmProviderPresenter,
       this.configPresenter,
       this.sqlitePresenter as unknown as import('./sqlitePresenter').SQLitePresenter,
-      this.skillPresenter
+      this.skillPresenter,
+      sessionRuntimePort
     )
     this.projectPresenter = new ProjectPresenter(
       this.sqlitePresenter as unknown as import('./sqlitePresenter').SQLitePresenter,
