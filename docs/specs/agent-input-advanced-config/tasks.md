@@ -10,7 +10,7 @@
 
 - [x] 新增 `SessionGenerationSettings`
 - [x] `CreateSessionInput` 增加 `generationSettings`
-- [x] `INewAgentPresenter` 增加 generation settings 读写接口
+- [x] `IAgentSessionPresenter` 增加 generation settings 读写接口
 - [x] `IAgentImplementation` 增加可选 generation settings 读写接口
 
 ## T2 持久化层
@@ -50,10 +50,10 @@
 
 ## T7 测试
 
-- [x] 更新 `deepchatAgentPresenter.test.ts`
-- [x] 更新 `newAgentPresenter.test.ts`
+- [x] 更新 `agentRuntimePresenter.test.ts`
+- [x] 更新 `agentSessionPresenter.test.ts`
 - [x] 更新 `NewThreadPage.test.ts`
-- [x] 更新 `newAgentPresenter/integration.test.ts` 兼容新参数
+- [x] 更新 `agentSessionPresenter/integration.test.ts` 兼容新参数
 
 ## T8 质量门禁
 

@@ -138,7 +138,7 @@ vi.mock('../../../../src/main/presenter/floatingButtonPresenter/FloatingButtonWi
 
 vi.mock('../../../../src/main/presenter/index', () => ({
   presenter: {
-    newAgentPresenter: {
+    agentSessionPresenter: {
       getSessionList: vi.fn(async () => presenterState.sessions),
       activateSession: vi.fn()
     },

@@ -4,7 +4,7 @@
 
 1. 保留现有独立悬浮窗口入口，但将其内容从“按钮 + 外部悬浮聊天窗入口”收敛为“任务小部件”。
 2. 小部件数据由主进程聚合，renderer 只负责展示和交互。
-3. 仅复用 `newAgentPresenter.getSessionList()` 与 `DeepChatAgentPresenter` 的状态事件，不新增独立数据库表。
+3. 仅复用 `agentSessionPresenter.getSessionList()` 与 `AgentRuntimePresenter` 的状态事件，不新增独立数据库表。
 4. 点击会话时不再打开旧的 `FloatingChatWindow`，而是唤起主窗口并激活对应会话。
 
 ## 数据模型
@@ -17,7 +17,7 @@
 
 状态来源：
 
-- 会话列表：`newAgentPresenter.getSessionList({ agentId: 'deepchat' })`
+- 会话列表：`agentSessionPresenter.getSessionList({ agentId: 'deepchat' })`
 - 会话状态：`SessionWithState.status`
 - 语言：`configPresenter.getLanguage()`
 
@@ -39,8 +39,8 @@
 
 以下场景统一触发 `floatingButtonPresenter.refreshWidgetState()`：
 
-- `newAgentPresenter` 发出列表更新时
-- `deepchatAgentPresenter` 会话状态变化时
+- `agentSessionPresenter` 发出列表更新时
+- `agentRuntimePresenter` 会话状态变化时
 - 标题自动生成完成时
 
 主进程刷新后向悬浮 renderer 发送最新 snapshot。
@@ -49,7 +49,7 @@
 
 1. 悬浮 renderer 发送 `open-session(sessionId)`
 2. 主进程选择目标 chat 窗口；若不存在则创建
-3. 主进程调用 `newAgentPresenter.activateSession(targetWebContentsId, sessionId)`
+3. 主进程调用 `agentSessionPresenter.activateSession(targetWebContentsId, sessionId)`
 4. 主进程显示并聚焦目标窗口
 5. 目标 renderer 收到 `SESSION_EVENTS.ACTIVATED` 后切换到对应 chat route
 

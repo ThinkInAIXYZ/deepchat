@@ -82,7 +82,7 @@ UI refinement：
 ### Phase 3：Presenter 与事件
 
 1. `AcpProvider` 增加 process/session config 读写接口
-2. `LLMProviderPresenter` 和 `NewAgentPresenter` 暴露代理方法
+2. `LLMProviderPresenter` 和 `AgentSessionPresenter` 暴露代理方法
 3. 发出 `SESSION_CONFIG_OPTIONS_READY`
 
 ### Phase 4：Renderer 状态栏
@@ -98,7 +98,7 @@ UI refinement：
 1. `AcpContentMapper` 覆盖 `config_option_update`
 2. `AcpProvider.prepareSession` 发出 config-ready 事件
 3. `AcpProvider.setSessionConfigOption` 使用 agent 返回的全量 state 回写缓存
-4. `NewAgentPresenter` 覆盖 ACP session config 读写代理
+4. `AgentSessionPresenter` 覆盖 ACP session config 读写代理
 
 ### 4.2 Renderer
 

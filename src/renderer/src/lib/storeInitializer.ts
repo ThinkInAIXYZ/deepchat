@@ -5,6 +5,7 @@ import { useModelStore } from '@/stores/modelStore'
 import { useOllamaStore } from '@/stores/ollamaStore'
 import { useMcpStore } from '@/stores/mcp'
 import { DEEPLINK_EVENTS } from '@/events'
+import { createIpcSubscriptionScope } from '@/lib/ipcSubscription'
 
 export const initAppStores = async () => {
   const uiSettingsStore = useUiSettingsStore()
@@ -26,6 +27,7 @@ export const initAppStores = async () => {
 export const useMcpInstallDeeplinkHandler = () => {
   const router = useRouter()
   const mcpStore = useMcpStore()
+  let cleanupIpcListeners: (() => void) | null = null
 
   const navigateToMcpSettings = async () => {
     await router.isReady()
@@ -78,11 +80,15 @@ export const useMcpInstallDeeplinkHandler = () => {
   }
 
   const setup = () => {
-    window.electron.ipcRenderer.on(DEEPLINK_EVENTS.MCP_INSTALL, handleMcpInstall)
+    cleanupIpcListeners?.()
+    const scope = createIpcSubscriptionScope()
+    scope.on(DEEPLINK_EVENTS.MCP_INSTALL, handleMcpInstall)
+    cleanupIpcListeners = scope.cleanup
   }
 
   const cleanup = () => {
-    window.electron.ipcRenderer.removeAllListeners(DEEPLINK_EVENTS.MCP_INSTALL)
+    cleanupIpcListeners?.()
+    cleanupIpcListeners = null
   }
 
   return { setup, cleanup }

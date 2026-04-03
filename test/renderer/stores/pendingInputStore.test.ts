@@ -31,7 +31,7 @@ const setupStore = async () => {
   vi.resetModules()
   setActivePinia(createPinia())
 
-  const newAgentPresenter = {
+  const agentSessionPresenter = {
     listPendingInputs: vi.fn(),
     queuePendingInput: vi.fn(),
     updateQueuedInput: vi.fn(),
@@ -42,7 +42,7 @@ const setupStore = async () => {
   }
 
   vi.doMock('@/composables/usePresenter', () => ({
-    usePresenter: () => newAgentPresenter
+    usePresenter: () => agentSessionPresenter
   }))
   ;(
     window as typeof window & {
@@ -64,17 +64,17 @@ const setupStore = async () => {
 
   return {
     store: usePendingInputStore(),
-    newAgentPresenter
+    agentSessionPresenter
   }
 }
 
 describe('pendingInput store', () => {
   it('ignores stale load results after the active session changes', async () => {
-    const { store, newAgentPresenter } = await setupStore()
+    const { store, agentSessionPresenter } = await setupStore()
     const firstLoad = createDeferred<ReturnType<typeof createPendingItem>[]>()
     const secondLoad = createDeferred<ReturnType<typeof createPendingItem>[]>()
 
-    newAgentPresenter.listPendingInputs
+    agentSessionPresenter.listPendingInputs
       .mockReturnValueOnce(firstLoad.promise)
       .mockReturnValueOnce(secondLoad.promise)
 
@@ -99,10 +99,10 @@ describe('pendingInput store', () => {
   })
 
   it('preserves clear state when an in-flight load later fails', async () => {
-    const { store, newAgentPresenter } = await setupStore()
+    const { store, agentSessionPresenter } = await setupStore()
     const load = createDeferred<ReturnType<typeof createPendingItem>[]>()
 
-    newAgentPresenter.listPendingInputs.mockReturnValueOnce(load.promise)
+    agentSessionPresenter.listPendingInputs.mockReturnValueOnce(load.promise)
 
     const loadPromise = store.loadPendingInputs('s1')
     expect(store.currentSessionId).toBe('s1')

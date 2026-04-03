@@ -545,28 +545,28 @@ export class FloatingButtonPresenter {
   }
 
   private async loadDeepChatSessions(): Promise<SessionWithState[]> {
-    const newAgentPresenter = presenter.newAgentPresenter as
+    const agentSessionPresenter = presenter.agentSessionPresenter as
       | {
           getSessionList?: (filters?: { agentId?: string }) => Promise<SessionWithState[]>
         }
       | undefined
 
-    if (!newAgentPresenter?.getSessionList) {
+    if (!agentSessionPresenter?.getSessionList) {
       return []
     }
 
-    return await newAgentPresenter.getSessionList({ agentId: 'deepchat' })
+    return await agentSessionPresenter.getSessionList({ agentId: 'deepchat' })
   }
 
   private async openSession(sessionId: string): Promise<void> {
     try {
-      const newAgentPresenter = presenter.newAgentPresenter as
+      const agentSessionPresenter = presenter.agentSessionPresenter as
         | {
             activateSession?: (webContentsId: number, sessionId: string) => Promise<void>
           }
         | undefined
 
-      if (!newAgentPresenter?.activateSession) {
+      if (!agentSessionPresenter?.activateSession) {
         return
       }
 
@@ -575,7 +575,7 @@ export class FloatingButtonPresenter {
         return
       }
 
-      await newAgentPresenter.activateSession(targetWindow.webContents.id, sessionId)
+      await agentSessionPresenter.activateSession(targetWindow.webContents.id, sessionId)
       presenter.windowPresenter.show(targetWindow.id, true)
       this.setExpanded(false)
     } catch (error) {

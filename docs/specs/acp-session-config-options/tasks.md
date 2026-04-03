@@ -27,7 +27,7 @@
 - [x] `AcpProcessHandle` / `AcpSessionRecord` 缓存统一 config state
 - [x] 新增 `SESSION_CONFIG_OPTIONS_READY` 事件
 - [x] `ILlmProviderPresenter` 增加 ACP process/session config 读写接口
-- [x] `INewAgentPresenter` 增加 ACP session config 读写接口
+- [x] `IAgentSessionPresenter` 增加 ACP session config 读写接口
 
 ## T4 Renderer 状态栏
 
@@ -41,7 +41,7 @@
 
 - [x] 更新 `acpContentMapper.test.ts`
 - [x] 更新 `acpProvider.test.ts`
-- [x] 更新 `newAgentPresenter.test.ts`
+- [x] 更新 `agentSessionPresenter.test.ts`
 - [x] 更新 `ChatStatusBar.test.ts`
 
 ## T6 质量门禁

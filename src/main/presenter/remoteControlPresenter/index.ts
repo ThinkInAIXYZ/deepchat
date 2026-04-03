@@ -683,8 +683,8 @@ export class RemoteControlPresenter {
     return new RemoteConversationRunner(
       {
         configPresenter: this.deps.configPresenter,
-        newAgentPresenter: this.deps.newAgentPresenter,
-        deepchatAgentPresenter: this.deps.deepchatAgentPresenter,
+        agentSessionPresenter: this.deps.agentSessionPresenter,
+        agentRuntimePresenter: this.deps.agentRuntimePresenter,
         windowPresenter: this.deps.windowPresenter,
         tabPresenter: this.deps.tabPresenter,
         resolveDefaultAgentId: async () =>

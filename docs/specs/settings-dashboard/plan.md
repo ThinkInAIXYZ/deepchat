@@ -27,7 +27,7 @@
 
 ## Dashboard Query
 
-- Expose `newAgentPresenter.getUsageDashboard()`.
+- Expose `agentSessionPresenter.getUsageDashboard()`.
 - Aggregate summary, 365-day calendar, provider breakdown, and model breakdown from `deepchat_usage_stats`.
 
 ## UI

@@ -99,7 +99,7 @@ const setup = async (options: SetupOptions = {}) => {
     }))
   })
 
-  const newAgentPresenter = {
+  const agentSessionPresenter = {
     respondToolInteraction: vi.fn().mockResolvedValue(undefined),
     cancelGeneration: vi.fn().mockResolvedValue(undefined),
     retryMessage: vi.fn().mockResolvedValue(undefined),
@@ -128,7 +128,7 @@ const setup = async (options: SetupOptions = {}) => {
     useModelStore: () => modelStore
   }))
   vi.doMock('@/composables/usePresenter', () => ({
-    usePresenter: () => newAgentPresenter
+    usePresenter: () => agentSessionPresenter
   }))
   vi.doMock('@/stores/ui/spotlight', () => ({
     useSpotlightStore: () => spotlightStore

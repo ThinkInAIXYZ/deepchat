@@ -735,7 +735,7 @@ type NostalgiaDetailItem = {
 }
 
 const { t, locale } = useI18n()
-const newAgentPresenter = usePresenter('newAgentPresenter')
+const agentSessionPresenter = usePresenter('agentSessionPresenter')
 
 const isLoading = ref(true)
 const isRetryingRtk = ref(false)
@@ -1065,7 +1065,7 @@ async function loadDashboard(): Promise<void> {
   try {
     isLoading.value = true
     errorMessage.value = ''
-    const nextDashboard = await newAgentPresenter.getUsageDashboard()
+    const nextDashboard = await agentSessionPresenter.getUsageDashboard()
     if (!isDashboardMounted) {
       return
     }
@@ -1094,7 +1094,7 @@ async function retryRtkHealthCheck(): Promise<void> {
 
   try {
     isRetryingRtk.value = true
-    await newAgentPresenter.retryRtkHealthCheck()
+    await agentSessionPresenter.retryRtkHealthCheck()
     await loadDashboard()
   } catch (error) {
     errorMessage.value =

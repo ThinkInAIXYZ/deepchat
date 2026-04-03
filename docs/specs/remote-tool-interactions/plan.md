@@ -2,7 +2,7 @@
 
 ## Summary
 
-Implement a structured remote interaction loop for Telegram and Feishu so remote endpoints can resolve paused permission and question interactions without falling back to a generic desktop-only notice. The feature stays inside Electron main and reuses the existing `RemoteConversationRunner`, `RemoteCommandRouter`, `FeishuCommandRouter`, and `newAgentPresenter.respondToolInteraction(...)` flow.
+Implement a structured remote interaction loop for Telegram and Feishu so remote endpoints can resolve paused permission and question interactions without falling back to a generic desktop-only notice. The feature stays inside Electron main and reuses the existing `RemoteConversationRunner`, `RemoteCommandRouter`, `FeishuCommandRouter`, and `agentSessionPresenter.respondToolInteraction(...)` flow.
 
 ## Goals
 
@@ -30,7 +30,7 @@ Implement a structured remote interaction loop for Telegram and Feishu so remote
 ## Dependencies
 
 - `RemoteConversationSnapshot.pendingInteraction` in `RemoteConversationRunner`
-- `newAgentPresenter.respondToolInteraction(...)`
+- `agentSessionPresenter.respondToolInteraction(...)`
 - Existing Telegram outbound edit/send flows in `TelegramPoller`
 - Existing Feishu outbound text flow extended with card sending in `FeishuRuntime`
 - In-memory callback/token state in `RemoteBindingStore`

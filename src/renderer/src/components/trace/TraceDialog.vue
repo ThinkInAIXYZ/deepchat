@@ -100,7 +100,7 @@ import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import type { MessageTraceRecord } from '@shared/types/agent-interface'
 
 const { t } = useI18n()
-const newAgentPresenter = usePresenter('newAgentPresenter')
+const agentSessionPresenter = usePresenter('agentSessionPresenter')
 const uiSettingsStore = useUiSettingsStore()
 
 const jsonEditor = ref<HTMLElement | null>(null)
@@ -274,7 +274,7 @@ const loadTraces = async (messageId: string) => {
   selectedTraceId.value = null
 
   try {
-    const result = await newAgentPresenter.listMessageTraces(messageId)
+    const result = await agentSessionPresenter.listMessageTraces(messageId)
     if (currentRequestId !== requestId.value) {
       return
     }

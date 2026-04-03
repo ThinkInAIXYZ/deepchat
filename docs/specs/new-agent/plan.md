@@ -33,23 +33,23 @@
 
 ## 2. Design Decisions
 
-### 2.1 Naming: `newAgentPresenter` not `agentPresenter`
+### 2.1 Naming: `agentSessionPresenter` not `agentPresenter`
 
-The old `agentPresenter` still exists and must keep working. The new one is registered as `newAgentPresenter` in IPresenter to avoid name collision. Renderer calls `usePresenter('newAgentPresenter')`. When old UI is removed, rename to `agentPresenter`.
+The old `agentPresenter` still exists and must keep working. The new one is registered as `agentSessionPresenter` in IPresenter to avoid name collision. Renderer calls `usePresenter('agentSessionPresenter')`. When old UI is removed, rename to `agentPresenter`.
 
 ### 2.2 Database: new tables in same chat.db
 
 No separate DB file. New tables coexist with old tables in `chat.db`:
 - `new_sessions` — agentPresenter's thin session registry
 - `new_projects` — project directory history
-- `deepchat_sessions` — deepchatAgentPresenter's session config
-- `deepchat_messages` — deepchatAgentPresenter's messages
+- `deepchat_sessions` — agentRuntimePresenter's session config
+- `deepchat_messages` — agentRuntimePresenter's messages
 
 Prefix `new_` on `sessions` and `projects` to avoid any conflict with potential future SQLite reserved words or collisions.
 
 ### 2.3 Stream handling: reuse LLMCoreStreamEvent, transform to LLMAgentEventData
 
-deepchatAgentPresenter consumes `LLMCoreStreamEvent` from `coreStream()` and:
+agentRuntimePresenter consumes `LLMCoreStreamEvent` from `coreStream()` and:
 1. Accumulates content into `AssistantMessageBlock[]` structure
 2. Persists structured JSON content to `deepchat_messages` (batched DB writes every 600ms)
 3. Transforms to `LLMAgentEventData` format with `conversationId` + `eventId` for routing
@@ -126,9 +126,9 @@ On stream end, both flush immediately with final content.
 
 - `Agent`, `Session`, `SessionStatus`, `CreateSessionInput`, `ChatMessage`, `UserMessageContent`, `AssistantMessageBlock`, `MessageMetadata`, `Project`
 
-**`presenters/new-agent.presenter.d.ts`** — IPC-facing interface:
+**`presenters/agent-session.presenter.d.ts`** — IPC-facing interface:
 
-- `INewAgentPresenter` — what the renderer can call: `createSession`, `sendMessage`, `getSessionList`, `getSession`, `getMessages`, `getMessageIds`, `getMessage`, `activateSession`, `deactivateSession`, `getActiveSession`, `getAgents`, `deleteSession`
+- `IAgentSessionPresenter` — what the renderer can call: `createSession`, `sendMessage`, `getSessionList`, `getSession`, `getMessages`, `getMessageIds`, `getMessage`, `activateSession`, `deactivateSession`, `getActiveSession`, `getAgents`, `deleteSession`
 
 **`presenters/project.presenter.d.ts`** — IPC-facing interface:
 
@@ -182,14 +182,14 @@ On stream end, both flush immediately with final content.
 
 Index: `CREATE INDEX idx_deepchat_messages_session ON deepchat_messages(session_id, order_seq)`
 
-### 3.3 agentPresenter (`src/main/presenter/newAgentPresenter/`)
+### 3.3 agentPresenter (`src/main/presenter/agentSessionPresenter/`)
 
-**`index.ts`** — main presenter class implementing `INewAgentPresenter`
+**`index.ts`** — main presenter class implementing `IAgentSessionPresenter`
 
 Owns:
 - `sessionManager` — thin CRUD over `new_sessions` table
 - `messageManager` — proxy that resolves agentId then delegates to agent
-- `agentRegistry` — `Map<string, IAgentImplementation>`, populated in constructor with deepchatAgentPresenter
+- `agentRegistry` — `Map<string, IAgentImplementation>`, populated in constructor with agentRuntimePresenter
 
 Methods (IPC-facing):
 - `createSession(input, webContentsId)` → sessionManager.create() + agent.initSession() + agent.processMessage() + emit ACTIVATED
@@ -230,7 +230,7 @@ Event relay:
 - `resolve(agentId)` → returns `IAgentImplementation` or throws
 - `getAll()` → returns `Agent[]` list (for v0: just deepchat)
 
-### 3.4 deepchatAgentPresenter (`src/main/presenter/deepchatAgentPresenter/`)
+### 3.4 agentRuntimePresenter (`src/main/presenter/agentRuntimePresenter/`)
 
 **`index.ts`** — implements `IAgentImplementation`
 
@@ -299,14 +299,14 @@ Methods:
 
 3 touchpoints:
 
-1. Import and add to IPresenter: `newAgentPresenter: INewAgentPresenter`, `projectPresenter: IProjectPresenter`
+1. Import and add to IPresenter: `agentSessionPresenter: IAgentSessionPresenter`, `projectPresenter: IProjectPresenter`
 2. Add class properties
 3. Instantiate in constructor:
-   - `this.deepchatAgentPresenter = new DeepChatAgentPresenter(this.llmProviderPresenter, this.configPresenter, this.sqlitePresenter)`
-   - `this.newAgentPresenter = new NewAgentPresenter(this.deepchatAgentPresenter, this.configPresenter, this.sqlitePresenter, this.eventBus)`
+   - `this.agentRuntimePresenter = new AgentRuntimePresenter(this.llmProviderPresenter, this.configPresenter, this.sqlitePresenter)`
+   - `this.agentSessionPresenter = new AgentSessionPresenter(this.agentRuntimePresenter, this.configPresenter, this.sqlitePresenter, this.eventBus)`
    - `this.projectPresenter = new ProjectPresenter(this.sqlitePresenter, this.devicePresenter)`
 
-Note: `deepchatAgentPresenter` is NOT exposed on IPresenter — it's internal. Only `newAgentPresenter` and `projectPresenter` are IPC-accessible.
+Note: `agentRuntimePresenter` is NOT exposed on IPresenter — it's internal. Only `agentSessionPresenter` and `projectPresenter` are IPC-accessible.
 
 ### 3.7 Events (`src/main/events.ts`)
 
@@ -327,14 +327,14 @@ STREAM_EVENTS reused as-is — same event names, same payload format. All stream
 
 **`session.ts`** — rewrite
 
-- Uses `usePresenter('newAgentPresenter')`
+- Uses `usePresenter('agentSessionPresenter')`
 - State: `sessions: Session[]`, `activeSessionId`, `groupMode`
 - Actions: `fetchSessions()`, `createSession(input)`, `selectSession(id)`, `closeSession()`
 - Listens to: `SESSION_EVENTS.LIST_UPDATED`, `SESSION_EVENTS.ACTIVATED`, `SESSION_EVENTS.DEACTIVATED`, `SESSION_EVENTS.STATUS_CHANGED`
 
 **`message.ts`** — new
 
-- Uses `usePresenter('newAgentPresenter')`
+- Uses `usePresenter('agentSessionPresenter')`
 - State: `messageIds: string[]`, `messageCache: Map<string, ChatMessage>`, `isStreaming: boolean`, `streamingBlocks: AssistantMessageBlock[]`
 - Actions: `loadMessages(sessionId)`, `getMessage(id)`
 - Listens to: `STREAM_EVENTS.RESPONSE` (update streaming blocks from `LLMAgentEventData`), `STREAM_EVENTS.END` (finalize), `STREAM_EVENTS.ERROR`
@@ -342,7 +342,7 @@ STREAM_EVENTS reused as-is — same event names, same payload format. All stream
 
 **`agent.ts`** — rewrite
 
-- Uses `usePresenter('newAgentPresenter')`
+- Uses `usePresenter('agentSessionPresenter')`
 - State: `agents: Agent[]`, `selectedAgentId`
 - Actions: `fetchAgents()`, `selectAgent(id)`
 
@@ -373,7 +373,7 @@ STREAM_EVENTS reused as-is — same event names, same payload format. All stream
 - `agentRegistry.register/resolve/getAll` — correct routing
 - `createSession` → calls sessionManager.create + agent.initSession + agent.processMessage
 
-**deepchatAgentPresenter:**
+**agentRuntimePresenter:**
 - `processMessage` → creates user message (JSON content), calls LLM, creates assistant message (JSON blocks)
 - `streamHandler` — given mock `AsyncGenerator<LLMCoreStreamEvent>`, verify: block accumulation, batched DB writes at 600ms, renderer flush at 120ms, final flush on stop
 - `messageStore` — CRUD operations against in-memory SQLite, verify JSON content round-trip
@@ -386,7 +386,7 @@ STREAM_EVENTS reused as-is — same event names, same payload format. All stream
 
 ### 4.2 Integration Tests
 
-- End-to-end: `newAgentPresenter.createSession()` → verify new_sessions row + deepchat_sessions row + deepchat_messages rows (with valid JSON content) + events emitted with conversationId
+- End-to-end: `agentSessionPresenter.createSession()` → verify new_sessions row + deepchat_sessions row + deepchat_messages rows (with valid JSON content) + events emitted with conversationId
 - Coexistence: old `sessionPresenter.createSession()` still works — old tables unaffected
 - Crash recovery: insert pending message, reinitialize presenter, verify status changed to error
 

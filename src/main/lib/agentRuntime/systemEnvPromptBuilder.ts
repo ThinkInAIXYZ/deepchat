@@ -1,7 +1,7 @@
 import * as fs from 'node:fs'
 import path from 'node:path'
-import { presenter } from '@/presenter'
 import logger from '@shared/logger'
+import type { ConfigQueryPort } from '@/presenter/runtimePorts'
 
 export interface BuildSystemEnvPromptOptions {
   providerId?: string
@@ -10,6 +10,7 @@ export interface BuildSystemEnvPromptOptions {
   platform?: NodeJS.Platform
   now?: Date
   agentsFilePath?: string
+  modelLookup?: Pick<ConfigQueryPort, 'getProviderModels' | 'getCustomModels'>
 }
 
 export interface RuntimeCapabilitiesPromptOptions {
@@ -18,15 +19,19 @@ export interface RuntimeCapabilitiesPromptOptions {
   hasProcess?: boolean
 }
 
-function resolveModelDisplayName(providerId: string, modelId: string): string | undefined {
+function resolveModelDisplayName(
+  providerId: string,
+  modelId: string,
+  modelLookup?: Pick<ConfigQueryPort, 'getProviderModels' | 'getCustomModels'>
+): string | undefined {
   try {
-    const models = presenter.configPresenter?.getProviderModels?.(providerId) || []
+    const models = modelLookup?.getProviderModels(providerId) || []
     const match = models.find((model) => model.id === modelId)
     if (match?.name) {
       return match.name
     }
 
-    const customModels = presenter.configPresenter?.getCustomModels?.(providerId) || []
+    const customModels = modelLookup?.getCustomModels(providerId) || []
     const customMatch = customModels.find((model) => model.id === modelId)
     if (customMatch?.name) {
       return customMatch.name
@@ -43,14 +48,15 @@ function resolveModelDisplayName(providerId: string, modelId: string): string | 
 
 function resolveModelIdentity(
   providerId?: string,
-  modelId?: string
+  modelId?: string,
+  modelLookup?: Pick<ConfigQueryPort, 'getProviderModels' | 'getCustomModels'>
 ): {
   modelName: string
   exactModelId: string
 } {
   const trimmedProviderId = providerId?.trim() || 'unknown-provider'
   const trimmedModelId = modelId?.trim() || 'unknown-model'
-  const displayName = resolveModelDisplayName(trimmedProviderId, trimmedModelId)
+  const displayName = resolveModelDisplayName(trimmedProviderId, trimmedModelId, modelLookup)
 
   return {
     modelName: displayName || trimmedModelId,
@@ -133,7 +139,11 @@ export async function buildSystemEnvPrompt(
     ? path.resolve(options.agentsFilePath)
     : path.join(workdir, 'AGENTS.md')
   const agentsContent = await readAgentsInstructions(agentsFilePath)
-  const { modelName, exactModelId } = resolveModelIdentity(options.providerId, options.modelId)
+  const { modelName, exactModelId } = resolveModelIdentity(
+    options.providerId,
+    options.modelId,
+    options.modelLookup
+  )
 
   const promptLines = [
     `You are powered by the model named ${modelName}.`,

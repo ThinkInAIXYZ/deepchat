@@ -295,7 +295,7 @@ const agentStore = useAgentStore()
 const projectStore = useProjectStore()
 const windowPresenter = usePresenter('windowPresenter')
 const toolPresenter = usePresenter('toolPresenter')
-const newAgentPresenter = usePresenter('newAgentPresenter')
+const agentSessionPresenter = usePresenter('agentSessionPresenter')
 
 const panelOpen = ref(false)
 const toolsLoading = ref(false)
@@ -503,7 +503,7 @@ const loadDeepchatTools = async () => {
         agentWorkspacePath: workspacePath.value
       }),
       deepchatSessionId.value
-        ? newAgentPresenter.getSessionDisabledAgentTools(deepchatSessionId.value)
+        ? agentSessionPresenter.getSessionDisabledAgentTools(deepchatSessionId.value)
         : Promise.resolve([...draftStore.disabledAgentTools])
     ])
 
@@ -554,7 +554,7 @@ const persistDisabledTools = async (nextList: string[], affectedToolNames: strin
 
   setToolsPending(affectedToolNames, true)
   try {
-    const persisted = await newAgentPresenter.updateSessionDisabledAgentTools(
+    const persisted = await agentSessionPresenter.updateSessionDisabledAgentTools(
       deepchatSessionId.value,
       nextList
     )

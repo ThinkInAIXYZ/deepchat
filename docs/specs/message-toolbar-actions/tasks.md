@@ -16,9 +16,9 @@
 
 ## T2 Phase 2：新后端消息操作 API
 
-- [ ] `INewAgentPresenter` 增加消息操作接口定义
-- [ ] `newAgentPresenter` 增加消息操作代理实现
-- [ ] `deepchatAgentPresenter` 实现编辑/重试/删除/fork 语义
+- [ ] `IAgentSessionPresenter` 增加消息操作接口定义
+- [ ] `agentSessionPresenter` 增加消息操作代理实现
+- [ ] `agentRuntimePresenter` 实现编辑/重试/删除/fork 语义
 - [ ] MessageStore/SQLite 层补齐对应读写方法
 
 ## T3 渲染层动作闭环

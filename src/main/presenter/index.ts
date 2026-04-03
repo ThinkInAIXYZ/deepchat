@@ -27,7 +27,7 @@ import {
   IYoBrowserPresenter,
   ISkillPresenter,
   ISkillSyncPresenter,
-  INewAgentPresenter,
+  IAgentSessionPresenter,
   IProjectPresenter,
   IRemoteControlPresenter
 } from '@shared/presenter'
@@ -64,15 +64,16 @@ import type { SkillSessionStatePort } from './skillPresenter'
 import { SkillSyncPresenter } from './skillSyncPresenter'
 import { HooksNotificationsService } from './hooksNotifications'
 import { NewSessionHooksBridge } from './hooksNotifications/newSessionBridge'
-import { NewAgentPresenter } from './newAgentPresenter'
-import { DeepChatAgentPresenter } from './deepchatAgentPresenter'
+import { AgentSessionPresenter } from './agentSessionPresenter'
+import { AgentRuntimePresenter } from './agentRuntimePresenter'
 import { ProjectPresenter } from './projectPresenter'
 import { RemoteControlPresenter } from './remoteControlPresenter'
 import type { RemoteControlPresenterLike } from './remoteControlPresenter/interface'
 import { AgentRepository } from './agentRepository'
 import type { SQLitePresenter } from './sqlitePresenter'
 import { normalizeDeepChatSubagentSlots } from '@shared/lib/deepchatSubagents'
-import { subscribeDeepChatInternalSessionUpdates } from './deepchatAgentPresenter/internalSessionEvents'
+import { subscribeDeepChatInternalSessionUpdates } from './agentRuntimePresenter/internalSessionEvents'
+import type { ConfigQueryPort, SessionRuntimePort } from './runtimePorts'
 
 // IPC调用上下文接口
 interface IPCCallContext {
@@ -113,7 +114,7 @@ export class Presenter implements IPresenter {
     'toolPresenter',
     'skillPresenter',
     'skillSyncPresenter',
-    'newAgentPresenter',
+    'agentSessionPresenter',
     'projectPresenter'
   ])
 
@@ -165,7 +166,7 @@ export class Presenter implements IPresenter {
   lifecycleManager: ILifecycleManager
   skillPresenter: ISkillPresenter
   skillSyncPresenter: ISkillSyncPresenter
-  newAgentPresenter: INewAgentPresenter
+  agentSessionPresenter: IAgentSessionPresenter
   projectPresenter: IProjectPresenter
   hooksNotifications: HooksNotificationsService
   commandPermissionService: CommandPermissionService
@@ -247,7 +248,7 @@ export class Presenter implements IPresenter {
     const agentToolRuntime: AgentToolRuntimePort = {
       resolveConversationWorkdir: async (conversationId) => {
         try {
-          const session = await this.newAgentPresenter?.getSession(conversationId)
+          const session = await this.agentSessionPresenter?.getSession(conversationId)
           const normalized = session?.projectDir?.trim()
           if (normalized) {
             return normalized
@@ -262,7 +263,7 @@ export class Presenter implements IPresenter {
         return null
       },
       resolveConversationSessionInfo: async (conversationId) => {
-        const session = await this.newAgentPresenter?.getSession(conversationId)
+        const session = await this.agentSessionPresenter?.getSession(conversationId)
         if (!session) {
           return null
         }
@@ -270,16 +271,16 @@ export class Presenter implements IPresenter {
         const agent = await this.configPresenter.getAgent(session.agentId)
         const agentType = await this.configPresenter.getAgentType(session.agentId)
         const permissionMode =
-          typeof this.newAgentPresenter?.getPermissionMode === 'function'
-            ? await this.newAgentPresenter.getPermissionMode(session.id)
+          typeof this.agentSessionPresenter?.getPermissionMode === 'function'
+            ? await this.agentSessionPresenter.getPermissionMode(session.id)
             : 'full_access'
         const generationSettings =
-          typeof this.newAgentPresenter?.getSessionGenerationSettings === 'function'
-            ? await this.newAgentPresenter.getSessionGenerationSettings(session.id)
+          typeof this.agentSessionPresenter?.getSessionGenerationSettings === 'function'
+            ? await this.agentSessionPresenter.getSessionGenerationSettings(session.id)
             : null
         const disabledAgentTools =
-          typeof this.newAgentPresenter?.getSessionDisabledAgentTools === 'function'
-            ? await this.newAgentPresenter.getSessionDisabledAgentTools(session.id)
+          typeof this.agentSessionPresenter?.getSessionDisabledAgentTools === 'function'
+            ? await this.agentSessionPresenter.getSessionDisabledAgentTools(session.id)
             : []
         const activeSkills = await this.skillPresenter.getActiveSkills(session.id)
         const availableSubagentSlots =
@@ -309,12 +310,12 @@ export class Presenter implements IPresenter {
         }
       },
       createSubagentSession: async (input) => {
-        const newAgentPresenter = this.newAgentPresenter as INewAgentPresenter & {
+        const agentSessionPresenter = this.agentSessionPresenter as IAgentSessionPresenter & {
           createSubagentSession?: (createInput: typeof input) => Promise<{
             id: string
           } | null>
         }
-        const created = await newAgentPresenter.createSubagentSession?.(input)
+        const created = await agentSessionPresenter.createSubagentSession?.(input)
         if (!created?.id) {
           return null
         }
@@ -322,10 +323,10 @@ export class Presenter implements IPresenter {
         return await agentToolRuntime.resolveConversationSessionInfo(created.id)
       },
       sendConversationMessage: async (conversationId, content) => {
-        await this.newAgentPresenter.sendMessage(conversationId, content)
+        await this.agentSessionPresenter.sendMessage(conversationId, content)
       },
       cancelConversation: async (conversationId) => {
-        await this.newAgentPresenter.cancelGeneration(conversationId)
+        await this.agentSessionPresenter.cancelGeneration(conversationId)
       },
       subscribeDeepChatSessionUpdates: (listener) =>
         subscribeDeepChatInternalSessionUpdates(listener),
@@ -376,7 +377,7 @@ export class Presenter implements IPresenter {
     const skillSessionStatePort: SkillSessionStatePort = {
       hasNewSession: async (conversationId) => {
         try {
-          return Boolean(await this.newAgentPresenter?.getSession(conversationId))
+          return Boolean(await this.agentSessionPresenter?.getSession(conversationId))
         } catch {
           return false
         }
@@ -392,10 +393,12 @@ export class Presenter implements IPresenter {
         sqlitePresenter.newEnvironmentsTable?.syncForSession(conversationId)
       },
       repairImportedLegacySessionSkills: async (conversationId) => {
-        const newAgentPresenter = this.newAgentPresenter as INewAgentPresenter & {
+        const agentSessionPresenter = this.agentSessionPresenter as IAgentSessionPresenter & {
           repairImportedLegacySessionSkills?: (sessionId: string) => Promise<string[]>
         }
-        return (await newAgentPresenter.repairImportedLegacySessionSkills?.(conversationId)) ?? []
+        return (
+          (await agentSessionPresenter.repairImportedLegacySessionSkills?.(conversationId)) ?? []
+        )
       }
     }
 
@@ -411,21 +414,84 @@ export class Presenter implements IPresenter {
       getMessage: async () => null
     })
     const newSessionHooksBridge = new NewSessionHooksBridge(this.hooksNotifications)
+    const configQueryPort: ConfigQueryPort = {
+      getProviderModels: (providerId) => this.configPresenter.getProviderModels?.(providerId) ?? [],
+      getCustomModels: (providerId) => this.configPresenter.getCustomModels?.(providerId) ?? [],
+      getAgentType: async (agentId) => await this.configPresenter.getAgentType(agentId)
+    }
+    const sessionRuntimePort: SessionRuntimePort = {
+      refreshSessionUi: () => {
+        try {
+          void this.floatingButtonPresenter.refreshWidgetState()
+        } catch (error) {
+          console.warn('[Presenter] Failed to refresh floating widget state:', error)
+        }
+      },
+      clearSessionPermissions: (sessionId) => {
+        this.commandPermissionService.clearConversation(sessionId)
+        this.filePermissionService.clearConversation(sessionId)
+        this.settingsPermissionService.clearConversation(sessionId)
+      },
+      approvePermission: async (sessionId, permission) => {
+        const permissionType = permission.permissionType
+        const serverName = permission.serverName || ''
+        const toolName = permission.toolName || ''
+
+        if (permissionType === 'command') {
+          const command = permission.command || permission.commandInfo?.command || ''
+          const signature =
+            permission.commandSignature ||
+            permission.commandInfo?.signature ||
+            (command ? this.commandPermissionService.extractCommandSignature(command) : '')
+          if (signature) {
+            this.commandPermissionService.approve(sessionId, signature, false)
+          }
+          return
+        }
+
+        if (
+          serverName === 'agent-filesystem' &&
+          Array.isArray(permission.paths) &&
+          permission.paths.length > 0
+        ) {
+          this.filePermissionService.approve(sessionId, permission.paths, false)
+          return
+        }
+
+        if (serverName === 'deepchat-settings' && toolName) {
+          this.settingsPermissionService.approve(sessionId, toolName, false)
+          return
+        }
+
+        if (
+          serverName &&
+          (permissionType === 'read' || permissionType === 'write' || permissionType === 'all')
+        ) {
+          await this.mcpPresenter.grantPermission(serverName, permissionType, false, sessionId)
+        }
+      }
+    }
 
     // Initialize new agent architecture presenters
-    const deepchatAgentPresenter = new DeepChatAgentPresenter(
+    const agentRuntimePresenter = new AgentRuntimePresenter(
       this.llmproviderPresenter as unknown as ILlmProviderPresenter,
       this.configPresenter,
       this.sqlitePresenter as unknown as import('./sqlitePresenter').SQLitePresenter,
       this.toolPresenter,
-      newSessionHooksBridge
+      newSessionHooksBridge,
+      {
+        configQueryPort,
+        sessionRuntimePort,
+        skillPresenter: this.skillPresenter
+      }
     )
-    this.newAgentPresenter = new NewAgentPresenter(
-      deepchatAgentPresenter,
+    this.agentSessionPresenter = new AgentSessionPresenter(
+      agentRuntimePresenter,
       this.llmproviderPresenter as unknown as ILlmProviderPresenter,
       this.configPresenter,
       this.sqlitePresenter as unknown as import('./sqlitePresenter').SQLitePresenter,
-      this.skillPresenter
+      this.skillPresenter,
+      sessionRuntimePort
     )
     this.projectPresenter = new ProjectPresenter(
       this.sqlitePresenter as unknown as import('./sqlitePresenter').SQLitePresenter,
@@ -433,8 +499,8 @@ export class Presenter implements IPresenter {
     )
     this.#remoteControlPresenter = new RemoteControlPresenter({
       configPresenter: this.configPresenter,
-      newAgentPresenter: this.newAgentPresenter,
-      deepchatAgentPresenter,
+      agentSessionPresenter: this.agentSessionPresenter,
+      agentRuntimePresenter,
       windowPresenter: this.windowPresenter,
       tabPresenter: this.tabPresenter,
       getHooksNotificationsConfig: () => this.configPresenter.getHooksNotificationsConfig(),
@@ -444,10 +510,10 @@ export class Presenter implements IPresenter {
     })
     this.#remoteControlBridge = this.#remoteControlPresenter
 
-    // Update hooksNotifications with actual dependencies now that newAgentPresenter is ready
+    // Update hooksNotifications with actual dependencies now that agentSessionPresenter is ready
     this.hooksNotifications = new HooksNotificationsService(this.configPresenter, {
-      getSession: this.newAgentPresenter.getSession.bind(this.newAgentPresenter),
-      getMessage: this.newAgentPresenter.getMessage.bind(this.newAgentPresenter)
+      getSession: this.agentSessionPresenter.getSession.bind(this.agentSessionPresenter),
+      getMessage: this.agentSessionPresenter.getMessage.bind(this.agentSessionPresenter)
     })
 
     this.setupEventBus() // 设置事件总线监听

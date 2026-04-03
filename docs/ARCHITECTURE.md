@@ -7,22 +7,22 @@
 ```mermaid
 flowchart LR
     Renderer["Renderer / Stores / Views"] --> Preload["preload IPC bridge"]
-    Preload --> NewAgent["newAgentPresenter"]
+    Preload --> NewAgent["agentSessionPresenter"]
     NewAgent --> Registry["AgentRegistry"]
-    Registry --> DeepChat["deepchatAgentPresenter"]
+    Registry --> DeepChat["agentRuntimePresenter"]
     DeepChat --> Tool["toolPresenter"]
     DeepChat --> Llm["llmProviderPresenter"]
     Tool --> Mcp["mcpPresenter"]
     Tool --> AgentTools["toolPresenter/agentTools"]
     Llm --> Acp["llmProviderPresenter/acp"]
     DeepChat --> SQLite["sqlitePresenter"]
-    NewAgent --> SessionDb["newAgentPresenter/sessionManager"]
+    NewAgent --> SessionDb["agentSessionPresenter/sessionManager"]
 ```
 
 主结论：
 
-- `newAgentPresenter` 是 renderer 唯一会话入口。
-- `deepchatAgentPresenter` 持有聊天 runtime、流式执行、工具交互、暂停恢复。
+- `agentSessionPresenter` 是 renderer 唯一会话入口。
+- `agentRuntimePresenter` 持有聊天 runtime、流式执行、工具交互、暂停恢复。
 - `toolPresenter` 统一路由 MCP tools 与本地 agent tools。
 - `llmProviderPresenter` 统一管理 provider 实例、流状态和 ACP provider helper。
 
@@ -31,8 +31,8 @@ flowchart LR
 | 模块 | 位置 | 职责 |
 | --- | --- | --- |
 | `Presenter` 组装层 | `src/main/presenter/index.ts` | 组装 presenter 依赖，暴露主进程能力 |
-| `NewAgentPresenter` | `src/main/presenter/newAgentPresenter/` | 会话创建、窗口绑定、agent 注册、IPC-facing API |
-| `DeepChatAgentPresenter` | `src/main/presenter/deepchatAgentPresenter/` | 聊天 runtime、stream loop、tool interaction、message persistence |
+| `AgentSessionPresenter` | `src/main/presenter/agentSessionPresenter/` | 会话创建、窗口绑定、agent 注册、IPC-facing API |
+| `AgentRuntimePresenter` | `src/main/presenter/agentRuntimePresenter/` | 聊天 runtime、stream loop、tool interaction、message persistence |
 | `ToolPresenter` | `src/main/presenter/toolPresenter/` | 工具定义聚合、调用路由、权限预检查 |
 | `Agent tools` | `src/main/presenter/toolPresenter/agentTools/` | 文件系统、命令、settings 等本地工具 |
 | `LLMProviderPresenter` | `src/main/presenter/llmProviderPresenter/` | provider 实例、stream state、model 管理、embedding、ACP provider |
@@ -43,7 +43,7 @@ flowchart LR
 
 ### 1. IPC / Session orchestration
 
-`newAgentPresenter` 负责：
+`agentSessionPresenter` 负责：
 
 - 创建/删除/激活会话
 - 绑定 `webContentsId -> sessionId`
@@ -53,7 +53,7 @@ flowchart LR
 
 ### 2. Chat runtime
 
-`deepchatAgentPresenter` 负责：
+`agentRuntimePresenter` 负责：
 
 - `processMessage()` 和 `processStream()` 主循环
 - `sessionStore` / `messageStore` / `pendingInputStore`
@@ -82,7 +82,7 @@ flowchart LR
 
 这次 retirement 后仍然保留的 legacy 边界只有：
 
-- `src/main/presenter/newAgentPresenter/legacyImportService.ts`
+- `src/main/presenter/agentSessionPresenter/legacyImportService.ts`
 - legacy import hook / status tracking
 - 旧 `conversations/messages` 表，作为 import-only 与导出数据源
 - `SessionPresenter` 作为 main 内部数据平面，不再是 renderer 主聊天入口
@@ -95,7 +95,7 @@ flowchart LR
 
 ## 归档与防回归
 
-- 退休代码已归档到 `archives/code/legacy-agentpresenter-retirement/`
+- 退休 runtime 的历史结构已经固化到 `docs/archives/` 文档，不再保留源码级导航入口
 - 历史架构文档见 [archives/legacy-agentpresenter-architecture.md](./archives/legacy-agentpresenter-architecture.md)
 - 历史流程文档见 [archives/legacy-agentpresenter-flows.md](./archives/legacy-agentpresenter-flows.md)
 - 防回归脚本：`scripts/agent-cleanup-guard.mjs`

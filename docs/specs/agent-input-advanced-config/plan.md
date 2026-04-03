@@ -4,7 +4,7 @@
 
 1. 新增 `SessionGenerationSettings`（共享类型）。
 2. `CreateSessionInput` 增加 `generationSettings?: Partial<SessionGenerationSettings>`。
-3. `INewAgentPresenter` 增加：
+3. `IAgentSessionPresenter` 增加：
    - `getSessionGenerationSettings(sessionId)`
    - `updateSessionGenerationSettings(sessionId, settings)`
 4. `IAgentImplementation` 增加可选：
@@ -13,9 +13,9 @@
 
 ## 2. 主进程（newAgent + deepchat）
 
-1. `newAgentPresenter.createSession` 透传 `generationSettings` 到 `agent.initSession`。
-2. `newAgentPresenter` 新增 generation settings 读写代理，保持 permission 相关接口不变。
-3. `deepchatAgentPresenter`：
+1. `agentSessionPresenter.createSession` 透传 `generationSettings` 到 `agent.initSession`。
+2. `agentSessionPresenter` 新增 generation settings 读写代理，保持 permission 相关接口不变。
+3. `agentRuntimePresenter`：
    - `initSession` 构造并持久化会话配置（模型默认 + 默认 system prompt + 覆盖值）。
    - `processMessage` / `resumeAssistantMessage` 读取会话配置构建上下文。
    - `runStreamForMessage` 使用会话 `temperature/maxTokens`，并将

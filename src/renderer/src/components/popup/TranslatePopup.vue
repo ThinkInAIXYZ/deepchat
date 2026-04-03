@@ -44,7 +44,7 @@ import { Button } from '@shadcn/components/ui/button'
 import { Icon } from '@iconify/vue'
 
 const { t, locale } = useI18n()
-const newAgentPresenter = usePresenter('newAgentPresenter')
+const agentSessionPresenter = usePresenter('agentSessionPresenter')
 const agentStore = useAgentStore()
 
 // 状态
@@ -127,7 +127,7 @@ const handleTranslateRequest = async (event: Event) => {
   translatedText.value = ''
 
   try {
-    const result = await newAgentPresenter.translateText(
+    const result = await agentSessionPresenter.translateText(
       newText,
       locale.value,
       agentStore.selectedAgentId ?? 'deepchat'

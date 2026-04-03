@@ -2,16 +2,16 @@
 
 ## 1. 当前基线（Updated 2026-02-28）
 
-1. 新旧双栈并存：`newAgentPresenter/deepchatAgentPresenter` 与旧 `sessionPresenter/useChatStore` 同时存在。
+1. 新旧双栈并存：`agentSessionPresenter/agentRuntimePresenter` 与旧 `sessionPresenter/useChatStore` 同时存在。
 2. 新 loop 已可运行，**streaming 和 message persistence 已完成**，但**权限流程完全缺失**。
 3. 产品方向已确定：MVP 先替换核心能力，再完成 chat 模式彻底移除。
-4. **关键发现**：`deepchatAgentPresenter/dispatch.ts` 的 `executeTools()` 直接调用工具，**无任何权限检查**。
+4. **关键发现**：`agentRuntimePresenter/dispatch.ts` 的 `executeTools()` 直接调用工具，**无任何权限检查**。
 
 ## 2. 核心架构决策
 
 1. 会话真源：`new_sessions + deepchat_sessions`。
 2. 消息真源：`deepchat_messages`。
-3. 主执行链路：`newAgentPresenter -> deepchatAgentPresenter`。
+3. 主执行链路：`agentSessionPresenter -> agentRuntimePresenter`。
 4. 新 UI 页面不再依赖 `useChatStore` 与旧 `sessionPresenter` 主流程。
 5. variants 本轮下线，fork 保留为唯一分叉能力。
 
@@ -65,7 +65,7 @@
 ### Phase 0：稳定主链路
 
 1. 清理新 UI 对 `useChatStore` 的依赖点。
-2. active session 查询与事件分发统一到 `newAgentPresenter`。
+2. active session 查询与事件分发统一到 `agentSessionPresenter`。
 3. 建立最小回归测试基线。
 
 ### Phase 1：权限 + Workspace（MVP 核心）
@@ -94,7 +94,7 @@
 
 ## 6. IPC 与类型面
 
-1. `INewAgentPresenter` 扩展：
+1. `IAgentSessionPresenter` 扩展：
    - `setSessionPermissionMode`
    - `editUserMessage`
    - `retryAssistantMessage`
@@ -138,9 +138,9 @@
 - ❌ Session configuration: PARTIAL (missing advanced options)
 
 **Immediate Next Steps**:
-1. Create `PermissionChecker` class in `deepchatAgentPresenter/`
+1. Create `PermissionChecker` class in `agentRuntimePresenter/`
 2. Modify `executeTools()` in `dispatch.ts` to check permissions before tool calls
-3. Add `handlePermissionResponse()` IPC method to `newAgentPresenter`
+3. Add `handlePermissionResponse()` IPC method to `agentSessionPresenter`
 4. Update `ChatStatusBar.vue` to show permission mode dropdown
 5. Add `permission_mode` column to `new_sessions` table
 6. Create `permission_whitelists` table for session-scoped whitelists

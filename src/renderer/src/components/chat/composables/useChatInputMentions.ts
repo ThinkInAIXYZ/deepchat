@@ -85,7 +85,7 @@ const normalizeAcpCommands = (commands: unknown): AcpSessionCommand[] => {
 
 export function useChatInputMentions(options: UseChatInputMentionsOptions) {
   const workspacePresenter = usePresenter('workspacePresenter')
-  const newAgentPresenter = usePresenter('newAgentPresenter')
+  const agentSessionPresenter = usePresenter('agentSessionPresenter')
   const skillPresenter = usePresenter('skillPresenter')
   const mcpStore = useMcpStore()
   const skillsStore = useSkillsStore()
@@ -237,7 +237,7 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
     }
 
     try {
-      const commands = await newAgentPresenter.getAcpSessionCommands(sessionId)
+      const commands = await agentSessionPresenter.getAcpSessionCommands(sessionId)
       if (fetchSeq !== acpCommandFetchSeq.value) {
         return
       }

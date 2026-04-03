@@ -142,7 +142,7 @@ Spotlight 作为 follow-up feature 分两层：
 
 新增 Presenter 接口：
 
-- `INewAgentPresenter.searchHistory(query, options?)`
+- `IAgentSessionPresenter.searchHistory(query, options?)`
 
 说明：
 

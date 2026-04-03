@@ -8,7 +8,7 @@ const setupStore = async (options?: {
 }) => {
   vi.resetModules()
 
-  const newAgentPresenter = {
+  const agentSessionPresenter = {
     searchHistory: vi.fn().mockResolvedValue(options?.historyHits ?? [])
   }
   const windowPresenter = {
@@ -56,8 +56,8 @@ const setupStore = async (options?: {
 
   vi.doMock('@/composables/usePresenter', () => ({
     usePresenter: (name: string) => {
-      if (name === 'newAgentPresenter') {
-        return newAgentPresenter
+      if (name === 'agentSessionPresenter') {
+        return agentSessionPresenter
       }
 
       if (name === 'windowPresenter') {

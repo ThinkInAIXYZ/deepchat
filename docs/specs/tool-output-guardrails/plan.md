@@ -15,7 +15,7 @@
   - downgrades tail items one by one to the fixed failure message
   - cleans up offload files for downgraded items
   - returns terminal fallback if the fully downgraded batch still does not fit
-- Refactor `executeTools()` in `deepchatAgentPresenter/dispatch.ts` into two phases:
+- Refactor `executeTools()` in `agentRuntimePresenter/dispatch.ts` into two phases:
   - execute tools and stage candidate outputs plus side effects
   - fit the staged batch, then commit final tool messages, blocks, hooks, and search persistence once
 - Keep `question` and `permission` pauses on the immediate path; they are not part of staged batch fitting.

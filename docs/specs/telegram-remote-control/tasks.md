@@ -5,7 +5,7 @@
    - Rebuild runtime on settings changes and app init.
 
 2. Detached session support
-   - Add `createDetachedSession()` to `newAgentPresenter`.
+   - Add `createDetachedSession()` to `agentSessionPresenter`.
    - Ensure first remote message still triggers title generation through the shared send path.
 
 3. Remote runtime services

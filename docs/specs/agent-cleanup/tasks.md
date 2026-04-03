@@ -5,8 +5,8 @@
 - [x] Added cleanup docs and static guardrails
 - [x] Moved shared runtime helpers out of legacy presenter folders
 - [x] Moved active renderer chat path off `@shared/chat`
-- [x] Archived dead renderer path code in `archives/code/dead-renderer-batch-1/`
-- [x] Archived renderer mock/orphan code in `archives/code/dead-code-batch-2/`
+- [x] Removed dead renderer path code from the active tree
+- [x] Removed renderer mock/orphan code from the active tree
 - [x] Persisted new-session skills in `new_sessions.active_skills`
 - [x] Retired old-session skill fallback to legacy conversation settings
 - [x] Removed global `presenter.*` access from legacy runtime modules
@@ -17,7 +17,7 @@
 - [x] Migrated retained ACP helpers to `src/main/presenter/llmProviderPresenter/acp/`
 - [x] Migrated retained agent tools to `src/main/presenter/toolPresenter/agentTools/`
 - [x] Migrated retained message formatting helper to `src/main/presenter/sessionPresenter/`
-- [x] Archived retired source and tests in `archives/code/legacy-agentpresenter-retirement/`
+- [x] Removed retired source and tests from the active tree and preserved history in docs
 - [x] Refreshed active architecture / flow / navigation docs
 
 ## Kept Intentionally
@@ -30,13 +30,13 @@
 
 ## Remaining Backlog
 
-- [ ] remove export-only `@shared/chat` coupling in `src/main/presenter/newAgentPresenter/index.ts`
+- [ ] remove export-only `@shared/chat` coupling in `src/main/presenter/agentSessionPresenter/index.ts`
 - [ ] remove non-active renderer residual import in `PromptEditorSheet`
 - [ ] review adjacent provider globals such as `devicePresenter` / `oauthPresenter`
 - [ ] normalize older historical specs that still mention retired legacy paths
 
-## Archive Batches
+## Historical Cleanup Batches
 
-- [x] `archives/code/dead-renderer-batch-1/`
-- [x] `archives/code/dead-code-batch-2/`
-- [x] `archives/code/legacy-agentpresenter-retirement/`
+- [x] dead renderer batch
+- [x] mock / orphan UI batch
+- [x] legacy agent runtime batch

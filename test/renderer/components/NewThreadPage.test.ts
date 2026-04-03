@@ -126,7 +126,7 @@ const setup = async (options?: {
     )
   }
 
-  const newAgentPresenter = {
+  const agentSessionPresenter = {
     ensureAcpDraftSession: vi.fn().mockImplementation(
       options?.ensureAcpDraftSession ??
         (() => {
@@ -152,7 +152,7 @@ const setup = async (options?: {
   }))
   vi.doMock('@/composables/usePresenter', () => ({
     usePresenter: (name: string) =>
-      name === 'configPresenter' ? configPresenter : newAgentPresenter
+      name === 'configPresenter' ? configPresenter : agentSessionPresenter
   }))
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({
@@ -202,20 +202,20 @@ const setup = async (options?: {
     agentStore,
     modelStore,
     draftStore,
-    newAgentPresenter
+    agentSessionPresenter
   }
 }
 
 describe('NewThreadPage ACP draft session bootstrap', () => {
   it('uses the preselected project path when default project selection is already applied', async () => {
-    const { newAgentPresenter } = await setup({
+    const { agentSessionPresenter } = await setup({
       selectedProject: {
         path: '/tmp/default-workspace',
         name: 'default-workspace'
       }
     })
 
-    expect(newAgentPresenter.ensureAcpDraftSession).toHaveBeenCalledWith({
+    expect(agentSessionPresenter.ensureAcpDraftSession).toHaveBeenCalledWith({
       agentId: 'acp-agent',
       projectDir: '/tmp/default-workspace',
       permissionMode: 'full_access'
@@ -223,9 +223,9 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
   })
 
   it('ensures ACP draft session and passes session-id to ChatInputBox', async () => {
-    const { wrapper, newAgentPresenter } = await setup()
+    const { wrapper, agentSessionPresenter } = await setup()
 
-    expect(newAgentPresenter.ensureAcpDraftSession).toHaveBeenCalledWith({
+    expect(agentSessionPresenter.ensureAcpDraftSession).toHaveBeenCalledWith({
       agentId: 'acp-agent',
       projectDir: '/tmp/workspace',
       permissionMode: 'full_access'

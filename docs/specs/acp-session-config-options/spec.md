@@ -65,7 +65,7 @@
 
 - [ ] 新增 `AcpConfigOption`、`AcpConfigOptionValue`、`AcpConfigState`
 - [ ] `ILlmProviderPresenter` 增加 ACP process/session config 读写接口
-- [ ] `INewAgentPresenter` 增加 ACP session config 读写接口
+- [ ] `IAgentSessionPresenter` 增加 ACP session config 读写接口
 - [ ] 新增 renderer 事件 `ACP_WORKSPACE_EVENTS.SESSION_CONFIG_OPTIONS_READY`
 
 ## 验收标准

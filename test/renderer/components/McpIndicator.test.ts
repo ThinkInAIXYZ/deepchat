@@ -104,7 +104,7 @@ const setup = async (options?: {
       ])
   }
 
-  const newAgentPresenter = {
+  const agentSessionPresenter = {
     getSessionDisabledAgentTools: vi
       .fn()
       .mockResolvedValue([...(options?.disabledAgentTools ?? [])]),
@@ -137,7 +137,7 @@ const setup = async (options?: {
   vi.doMock('@/composables/usePresenter', () => ({
     usePresenter: (name: string) => {
       if (name === 'toolPresenter') return toolPresenter
-      if (name === 'newAgentPresenter') return newAgentPresenter
+      if (name === 'agentSessionPresenter') return agentSessionPresenter
       return windowPresenter
     }
   }))
@@ -209,13 +209,13 @@ const setup = async (options?: {
     wrapper,
     draftStore,
     toolPresenter,
-    newAgentPresenter
+    agentSessionPresenter
   }
 }
 
 describe('McpIndicator', () => {
   it('renders icon-only trigger for deepchat and keeps built-in tools session scoped', async () => {
-    const { wrapper, newAgentPresenter } = await setup({
+    const { wrapper, agentSessionPresenter } = await setup({
       hasActiveSession: true,
       activeAgentId: 'deepchat'
     })
@@ -232,11 +232,13 @@ describe('McpIndicator', () => {
     await execButton!.trigger('click')
     await flushPromises()
 
-    expect(newAgentPresenter.updateSessionDisabledAgentTools).toHaveBeenCalledWith('s1', ['exec'])
+    expect(agentSessionPresenter.updateSessionDisabledAgentTools).toHaveBeenCalledWith('s1', [
+      'exec'
+    ])
   })
 
   it('supports enabling and disabling a whole tool group', async () => {
-    const { wrapper, newAgentPresenter } = await setup({
+    const { wrapper, agentSessionPresenter } = await setup({
       hasActiveSession: true,
       activeAgentId: 'deepchat',
       disabledAgentTools: ['exec']
@@ -250,14 +252,14 @@ describe('McpIndicator', () => {
     await filesystemSwitch.trigger('click')
     await flushPromises()
 
-    expect(newAgentPresenter.updateSessionDisabledAgentTools).toHaveBeenCalledWith('s1', [
+    expect(agentSessionPresenter.updateSessionDisabledAgentTools).toHaveBeenCalledWith('s1', [
       'exec',
       'read'
     ])
   })
 
   it('resets a fully disabled tool group back to all enabled when switched on', async () => {
-    const { wrapper, newAgentPresenter } = await setup({
+    const { wrapper, agentSessionPresenter } = await setup({
       hasActiveSession: true,
       activeAgentId: 'deepchat',
       disabledAgentTools: ['exec', 'read']
@@ -271,7 +273,7 @@ describe('McpIndicator', () => {
     await filesystemSwitch.trigger('click')
     await flushPromises()
 
-    expect(newAgentPresenter.updateSessionDisabledAgentTools).toHaveBeenCalledWith('s1', [])
+    expect(agentSessionPresenter.updateSessionDisabledAgentTools).toHaveBeenCalledWith('s1', [])
   })
 
   it('renders MCP badge for ACP sessions and keeps built-in tools hidden', async () => {
@@ -287,7 +289,7 @@ describe('McpIndicator', () => {
   })
 
   it('updates draft disabled tools for deepchat new thread mode', async () => {
-    const { wrapper, draftStore, newAgentPresenter } = await setup({
+    const { wrapper, draftStore, agentSessionPresenter } = await setup({
       hasActiveSession: false,
       selectedAgentId: 'deepchat'
     })
@@ -299,7 +301,7 @@ describe('McpIndicator', () => {
     await flushPromises()
 
     expect(draftStore.disabledAgentTools).toEqual(['exec'])
-    expect(newAgentPresenter.updateSessionDisabledAgentTools).not.toHaveBeenCalled()
+    expect(agentSessionPresenter.updateSessionDisabledAgentTools).not.toHaveBeenCalled()
   })
 
   it('renders subagent as a regular tool button inside Agent Core and emits updates', async () => {

@@ -2,7 +2,7 @@
 
 ## 概述
 
-以 `deepchatAgentPresenter` 新 loop 为唯一核心，分阶段替换旧 chat 体系。MVP 先完成权限、workspace 绑定、消息编辑、retry/regenerate、fork 五个核心能力，再推进设置收敛与 chat 模式清理。
+以 `agentRuntimePresenter` 新 loop 为唯一核心，分阶段替换旧 chat 体系。MVP 先完成权限、workspace 绑定、消息编辑、retry/regenerate、fork 五个核心能力，再推进设置收敛与 chat 模式清理。
 
 ## 背景与目标
 
@@ -61,8 +61,8 @@
 - [x] 权限判定与消息归属基于同一 `sessionId`。
 
 **Implementation Notes** (added 2026-02-28):
-- `newAgentPresenter.createSession()` already passes `projectDir` to session manager
-- `deepchatAgentPresenter.processStream()` uses `sessionId` throughout
+- `agentSessionPresenter.createSession()` already passes `projectDir` to session manager
+- `agentRuntimePresenter.processStream()` uses `sessionId` throughout
 - CRITICAL GAP: `executeTools()` in dispatch.ts does NOT check permissions before calling tools
 - Must add `PermissionChecker` class and integrate before tool execution
 
@@ -115,7 +115,7 @@
 **Implementation Notes** (added 2026-02-28):
 - PARTIALLY IMPLEMENTED: new architecture uses agent defaults
 - MISSING: session-level configuration (temperature, contextLength, maxTokens)
-- `newAgentPresenter.createSession()` only accepts providerId/modelId
+- `agentSessionPresenter.createSession()` only accepts providerId/modelId
 - Must extend CreateSessionInput to include all config options
 - Old architecture: CONVERSATION_SETTINGS had 12+ fields
 - New architecture: must decide which settings to persist at session level
@@ -123,7 +123,7 @@
 ### G. 架构替换
 
 - [x] 新 UI 主链路不依赖 `useChatStore` 与旧 `sessionPresenter`。
-- [x] `newAgentPresenter + deepchatAgentPresenter` 成为唯一主执行链路。
+- [x] `agentSessionPresenter + agentRuntimePresenter` 成为唯一主执行链路。
 
 **Implementation Notes** (added 2026-02-28):
 - MOSTLY COMPLETE: New UI uses sessionStore/messageStore

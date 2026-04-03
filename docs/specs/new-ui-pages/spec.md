@@ -4,13 +4,13 @@
 
 Three page components driven by the Page Router. No fallback to old ChatView — this is a full replacement.
 
-## Archived Reference Files
+## Historical Reference Map
 
-| Page | Archived Mock File |
+| Page | Historical Mock |
 |------|-----------|
-| WelcomePage | `archives/code/dead-code-batch-2/src/renderer/src/components/mock/MockWelcomePage.vue` |
-| NewThreadPage | `archives/code/dead-code-batch-2/src/renderer/src/components/NewThreadMock.vue` |
-| ChatPage | `archives/code/dead-code-batch-2/src/renderer/src/components/mock/MockChatPage.vue` |
+| WelcomePage | `MockWelcomePage` |
+| NewThreadPage | `NewThreadMock` |
+| ChatPage | `MockChatPage` |
 
 ## File Locations
 
@@ -84,7 +84,7 @@ onMounted(async () => {
 
 ## 2. WelcomePage
 
-**Archived mock reference**: `dead-code-batch-2/.../MockWelcomePage.vue`
+**Historical mock reference**: `MockWelcomePage` (removed from repo)
 
 **Layout**:
 ```
@@ -133,7 +133,7 @@ onMounted(async () => {
 
 ## 3. NewThreadPage
 
-**Archived mock reference**: `dead-code-batch-2/.../NewThreadMock.vue`
+**Historical mock reference**: `NewThreadMock` (removed from repo)
 
 **Layout**:
 ```
@@ -188,7 +188,7 @@ const handleSubmit = (message: string) => {
 
 ## 4. ChatPage
 
-**Archived mock reference**: `dead-code-batch-2/.../MockChatPage.vue`
+**Historical mock reference**: `MockChatPage` (removed from repo)
 
 **Props**:
 ```typescript
