@@ -125,11 +125,21 @@
                       {{ agent.description || t('settings.acp.builtinHint', { name: agent.name }) }}
                     </CardDescription>
                   </div>
-                  <Switch
-                    :model-value="agent.enabled"
-                    :disabled="Boolean(agentPending[agent.id])"
-                    @update:model-value="(value) => toggleRegistryAgent(agent, Boolean(value))"
-                  />
+                  <div class="flex items-center gap-2 shrink-0">
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      :disabled="Boolean(agentPending[agent.id])"
+                      @click="confirmRegistryAgentUninstall(agent)"
+                    >
+                      {{ t('settings.acp.registryUninstallAction') }}
+                    </Button>
+                    <Switch
+                      :model-value="agent.enabled"
+                      :disabled="Boolean(agentPending[agent.id])"
+                      @update:model-value="(value) => toggleRegistryAgent(agent, Boolean(value))"
+                    />
+                  </div>
                 </div>
               </CardHeader>
               <CardContent class="space-y-3">
@@ -181,14 +191,6 @@
                       @click="repairRegistryAgent(agent)"
                     >
                       {{ t('settings.acp.registryRepair') }}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      :disabled="Boolean(agentPending[agent.id])"
-                      @click="confirmRegistryAgentUninstall(agent)"
-                    >
-                      {{ t('settings.acp.registryUninstallAction') }}
                     </Button>
                     <Button
                       size="sm"
