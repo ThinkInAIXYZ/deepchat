@@ -1995,6 +1995,10 @@ declare module 'vue-i18n' {
       registryRefresh: string
       registryRepair: string
       registryInstallAction: string
+      registryUninstallAction: string
+      registryUninstallConfirm: string
+      registryUninstallDescription: string
+      registryUninstallFailed: string
       registryInstallTitle: string
       registryInstallDescription: string
       registryLearnMore: string

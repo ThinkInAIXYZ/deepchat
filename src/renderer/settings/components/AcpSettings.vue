@@ -125,11 +125,21 @@
                       {{ agent.description || t('settings.acp.builtinHint', { name: agent.name }) }}
                     </CardDescription>
                   </div>
-                  <Switch
-                    :model-value="agent.enabled"
-                    :disabled="Boolean(agentPending[agent.id])"
-                    @update:model-value="(value) => toggleRegistryAgent(agent, Boolean(value))"
-                  />
+                  <div class="flex items-center gap-2 shrink-0">
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      :disabled="Boolean(agentPending[agent.id])"
+                      @click="confirmRegistryAgentUninstall(agent)"
+                    >
+                      {{ t('settings.acp.registryUninstallAction') }}
+                    </Button>
+                    <Switch
+                      :model-value="agent.enabled"
+                      :disabled="Boolean(agentPending[agent.id])"
+                      @update:model-value="(value) => toggleRegistryAgent(agent, Boolean(value))"
+                    />
+                  </div>
                 </div>
               </CardHeader>
               <CardContent class="space-y-3">
@@ -520,6 +530,40 @@
       </DialogContent>
     </Dialog>
 
+    <AlertDialog
+      :open="uninstallDialog.open"
+      @update:open="(value) => handleRegistryUninstallDialogOpenChange(value)"
+    >
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>
+            {{
+              uninstallDialog.agent
+                ? t('settings.acp.registryUninstallConfirm', {
+                    name: uninstallDialog.agent.name
+                  })
+                : ''
+            }}
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            {{ t('settings.acp.registryUninstallDescription') }}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel @click="cancelRegistryAgentUninstall">
+            {{ t('common.cancel') }}
+          </AlertDialogCancel>
+          <AlertDialogAction
+            class="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            :disabled="!uninstallDialog.agent"
+            @click="confirmRegistryAgentUninstallAction"
+          >
+            {{ t('settings.acp.registryUninstallAction') }}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+
     <AcpDebugDialog
       :open="debugDialog.open"
       :agent-id="debugDialog.agentId"
@@ -551,6 +595,16 @@ import { Input } from '@shadcn/components/ui/input'
 import { Textarea } from '@shadcn/components/ui/textarea'
 import { Label } from '@shadcn/components/ui/label'
 import { Collapsible, CollapsibleContent } from '@shadcn/components/ui/collapsible'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle
+} from '@shadcn/components/ui/alert-dialog'
 import {
   Dialog,
   DialogContent,
@@ -603,6 +657,14 @@ const registryDialog = reactive({
   open: false,
   search: '',
   filter: 'all' as RegistryDialogFilter
+})
+
+const uninstallDialog = reactive<{
+  open: boolean
+  agent: AcpRegistryAgent | null
+}>({
+  open: false,
+  agent: null
 })
 
 const parseEnvBlock = (value: string): Record<string, string> => {
@@ -722,10 +784,10 @@ const setAgentPending = (agentId: string, pending: boolean) => {
   }
 }
 
-const handleError = (error: unknown, description?: string) => {
+const handleError = (error: unknown, description?: string, title?: string) => {
   console.error('[ACP] settings error:', error)
   toast({
-    title: t('settings.acp.saveFailed'),
+    title: title ?? t('settings.acp.saveFailed'),
     description:
       description ?? (error instanceof Error ? error.message : t('common.error.requestFailed')),
     variant: 'destructive'
@@ -859,6 +921,44 @@ const repairRegistryAgent = async (agent: AcpRegistryAgent) => {
   }
 }
 
+const uninstallRegistryAgent = async (agent: AcpRegistryAgent) => {
+  setAgentPending(agent.id, true)
+  try {
+    await configPresenter.uninstallAcpRegistryAgent(agent.id)
+    await loadAcpData()
+    toast({ title: t('settings.acp.deleteSuccess') })
+  } catch (error) {
+    handleError(error, undefined, t('settings.acp.registryUninstallFailed'))
+  } finally {
+    setAgentPending(agent.id, false)
+  }
+}
+
+const handleRegistryUninstallDialogOpenChange = (open: boolean) => {
+  uninstallDialog.open = open
+}
+
+const confirmRegistryAgentUninstall = (agent: AcpRegistryAgent) => {
+  uninstallDialog.agent = agent
+  uninstallDialog.open = true
+}
+
+const cancelRegistryAgentUninstall = () => {
+  uninstallDialog.open = false
+  uninstallDialog.agent = null
+}
+
+const confirmRegistryAgentUninstallAction = async () => {
+  const agent = uninstallDialog.agent
+  if (!agent) {
+    return
+  }
+
+  uninstallDialog.open = false
+  await uninstallRegistryAgent(agent)
+  uninstallDialog.agent = null
+}
+
 const openInspector = (agentId: string, agentName: string) => {
   debugDialog.agentId = agentId
   debugDialog.agentName = agentName
@@ -949,7 +1049,7 @@ const openRegistryDialog = () => {
 
 const registryActionLabel = (agent: AcpRegistryAgent) => {
   const status = agent.installState?.status ?? 'not_installed'
-  if (status === 'installed') return t('settings.acp.installState.installed')
+  if (status === 'installed') return t('settings.acp.registryUninstallAction')
   if (status === 'installing') return t('settings.acp.installState.installing')
   if (status === 'error') return t('settings.acp.registryRepair')
   return t('settings.acp.registryInstallAction')
@@ -957,12 +1057,12 @@ const registryActionLabel = (agent: AcpRegistryAgent) => {
 
 const registryActionVariant = (agent: AcpRegistryAgent) => {
   const status = agent.installState?.status ?? 'not_installed'
-  return status === 'installed' ? 'outline' : 'default'
+  return status === 'installed' ? 'destructive' : 'default'
 }
 
 const registryActionIcon = (agent: AcpRegistryAgent) => {
   const status = agent.installState?.status ?? 'not_installed'
-  if (status === 'installed') return 'lucide:check'
+  if (status === 'installed') return 'lucide:trash-2'
   if (status === 'installing') return 'lucide:loader'
   if (status === 'error') return 'lucide:wrench'
   return 'lucide:download'
@@ -974,11 +1074,15 @@ const registryActionSpins = (agent: AcpRegistryAgent) => {
 
 const isRegistryActionDisabled = (agent: AcpRegistryAgent) => {
   const status = agent.installState?.status ?? 'not_installed'
-  return Boolean(agentPending[agent.id]) || status === 'installing' || status === 'installed'
+  return Boolean(agentPending[agent.id]) || status === 'installing'
 }
 
 const handleRegistryCatalogAction = async (agent: AcpRegistryAgent) => {
   if (isRegistryActionDisabled(agent)) {
+    return
+  }
+  if ((agent.installState?.status ?? 'not_installed') === 'installed') {
+    await confirmRegistryAgentUninstall(agent)
     return
   }
   await installRegistryAgent(agent)

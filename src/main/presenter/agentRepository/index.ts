@@ -384,6 +384,24 @@ export class AgentRepository {
     return true
   }
 
+  clearRegistryAcpAgentInstallation(agentId: string, installState: AcpAgentInstallState): boolean {
+    const row = this.sqlitePresenter.agentsTable.get(agentId)
+    if (!row || row.agent_type !== 'acp' || row.source !== 'registry') {
+      return false
+    }
+
+    const state = parseJson<StoredAgentState>(row.state_json) ?? {}
+    this.sqlitePresenter.agentsTable.update(agentId, {
+      enabled: false,
+      stateJson: stringifyJson({
+        ...state,
+        installState
+      } satisfies StoredAgentState)
+    })
+
+    return true
+  }
+
   toAcpAgentConfig(
     agentId: string,
     preview?: Pick<AcpAgentConfig, 'command' | 'args'>
