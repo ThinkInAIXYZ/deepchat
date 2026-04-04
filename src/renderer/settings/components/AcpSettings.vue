@@ -928,7 +928,7 @@ const uninstallRegistryAgent = async (agent: AcpRegistryAgent) => {
     await loadAcpData()
     toast({ title: t('settings.acp.deleteSuccess') })
   } catch (error) {
-    handleError(error, undefined, t('settings.acp.saveFailed'))
+    handleError(error, undefined, t('settings.acp.registryUninstallFailed'))
   } finally {
     setAgentPending(agent.id, false)
   }

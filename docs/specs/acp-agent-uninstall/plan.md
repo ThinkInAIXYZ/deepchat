@@ -11,7 +11,7 @@
 ## Renderer
 
 - Add uninstall actions in `AcpSettings.vue` for both installed cards and registry overlay rows.
-- Confirm uninstall with a lightweight confirmation dialog (`window.confirm`).
+- Confirm uninstall with a lightweight AlertDialog-based confirmation flow (`AlertDialog` component/modal) so the renderer uses the built-in AlertDialog UI for lightweight confirmation.
 - Refresh ACP settings data after uninstall completes.
 
 ## Tests
