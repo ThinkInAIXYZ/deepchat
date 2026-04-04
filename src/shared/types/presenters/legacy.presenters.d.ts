@@ -642,6 +642,7 @@ export interface IConfigPresenter {
   setAcpAgentEnvOverride(agentId: string, env: Record<string, string>): Promise<void>
   ensureAcpAgentInstalled(agentId: string): Promise<AcpAgentInstallState>
   repairAcpAgent(agentId: string): Promise<AcpAgentInstallState>
+  uninstallAcpRegistryAgent(agentId: string): Promise<void>
   getAcpAgentInstallStatus(agentId: string): Promise<AcpAgentInstallState | null>
   listManualAcpAgents(): Promise<AcpManualAgent[]>
   addManualAcpAgent(

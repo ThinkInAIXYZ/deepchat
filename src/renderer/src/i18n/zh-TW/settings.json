@@ -1270,6 +1270,8 @@
     "installedEmptyDescription": "先從 ACP Registry 安裝 Agent，安裝後才會在這裡顯示可配置介面。",
     "registryOverlayEmpty": "目前篩選條件下沒有可安裝的 Agent。",
     "registryInstallAction": "安裝",
+    "registryUninstallAction": "卸載",
+    "registryUninstallConfirm": "卸載 Agent「{name}」？",
     "registryInstallTitle": "ACP Registry",
     "registryInstallDescription": "搜尋、篩選並安裝 ACP Agent。安裝完成後回到設定頁配置。",
     "registryLearnMore": "了解更多",

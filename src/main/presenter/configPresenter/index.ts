@@ -1635,6 +1635,35 @@ export class ConfigPresenter implements IConfigPresenter {
     }
   }
 
+  async uninstallAcpRegistryAgent(agentId: string): Promise<void> {
+    const resolvedId = resolveAcpAgentAlias(agentId)
+    const registryAgent = this.getRegistryAgentOrThrow(resolvedId)
+    const currentState = this.getAgentRepositoryOrThrow().getAgentInstallState(registryAgent.id)
+
+    await this.acpLaunchSpecService.uninstallRegistryAgent(registryAgent, currentState)
+
+    const uninstalledState: AcpAgentInstallState = {
+      status: 'not_installed',
+      version: registryAgent.version,
+      distributionType:
+        this.acpLaunchSpecService.selectRegistryDistribution(registryAgent)?.type ?? undefined,
+      lastCheckedAt: Date.now(),
+      installedAt: null,
+      installDir: null,
+      error: null
+    }
+
+    const updated = this.getAgentRepositoryOrThrow().clearRegistryAcpAgentInstallation(
+      registryAgent.id,
+      uninstalledState
+    )
+    if (!updated) {
+      throw new Error(`ACP registry agent not found: ${registryAgent.id}`)
+    }
+
+    this.handleAcpAgentsMutated([registryAgent.id])
+  }
+
   async getAcpAgentInstallStatus(agentId: string): Promise<AcpAgentInstallState | null> {
     return this.agentRepository?.getAgentInstallState(resolveAcpAgentAlias(agentId)) ?? null
   }

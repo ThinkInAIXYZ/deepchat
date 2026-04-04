@@ -1270,6 +1270,8 @@
     "installedEmptyDescription": "まず ACP Registry から Agent をインストールし、その後ここで設定してください。",
     "registryOverlayEmpty": "現在の絞り込み条件に一致する Agent はありません。",
     "registryInstallAction": "インストール",
+    "registryUninstallAction": "アンインストール",
+    "registryUninstallConfirm": "Agent「{name}」をアンインストールしますか？",
     "registryInstallTitle": "ACP Registry",
     "registryInstallDescription": "ACP Agent を検索、絞り込み、インストールします。インストール後は設定画面に戻って構成してください。",
     "registryLearnMore": "詳しく見る",

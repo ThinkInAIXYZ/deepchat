@@ -184,6 +184,14 @@
                     </Button>
                     <Button
                       size="sm"
+                      variant="destructive"
+                      :disabled="Boolean(agentPending[agent.id])"
+                      @click="confirmRegistryAgentUninstall(agent)"
+                    >
+                      {{ t('settings.acp.registryUninstallAction') }}
+                    </Button>
+                    <Button
+                      size="sm"
                       variant="outline"
                       @click="openInspector(agent.id, agent.name)"
                     >
@@ -722,10 +730,10 @@ const setAgentPending = (agentId: string, pending: boolean) => {
   }
 }
 
-const handleError = (error: unknown, description?: string) => {
+const handleError = (error: unknown, description?: string, title?: string) => {
   console.error('[ACP] settings error:', error)
   toast({
-    title: t('settings.acp.saveFailed'),
+    title: title ?? t('settings.acp.saveFailed'),
     description:
       description ?? (error instanceof Error ? error.message : t('common.error.requestFailed')),
     variant: 'destructive'
@@ -859,6 +867,32 @@ const repairRegistryAgent = async (agent: AcpRegistryAgent) => {
   }
 }
 
+const uninstallRegistryAgent = async (agent: AcpRegistryAgent) => {
+  setAgentPending(agent.id, true)
+  try {
+    await configPresenter.uninstallAcpRegistryAgent(agent.id)
+    await loadAcpData()
+    toast({ title: t('settings.acp.deleteSuccess') })
+  } catch (error) {
+    handleError(error, undefined, t('settings.acp.saveFailed'))
+  } finally {
+    setAgentPending(agent.id, false)
+  }
+}
+
+const confirmRegistryAgentUninstall = async (agent: AcpRegistryAgent) => {
+  if (typeof window !== 'undefined' && typeof window.confirm === 'function') {
+    const confirmed = window.confirm(
+      t('settings.acp.registryUninstallConfirm', { name: agent.name })
+    )
+    if (!confirmed) {
+      return
+    }
+  }
+
+  await uninstallRegistryAgent(agent)
+}
+
 const openInspector = (agentId: string, agentName: string) => {
   debugDialog.agentId = agentId
   debugDialog.agentName = agentName
@@ -949,7 +983,7 @@ const openRegistryDialog = () => {
 
 const registryActionLabel = (agent: AcpRegistryAgent) => {
   const status = agent.installState?.status ?? 'not_installed'
-  if (status === 'installed') return t('settings.acp.installState.installed')
+  if (status === 'installed') return t('settings.acp.registryUninstallAction')
   if (status === 'installing') return t('settings.acp.installState.installing')
   if (status === 'error') return t('settings.acp.registryRepair')
   return t('settings.acp.registryInstallAction')
@@ -957,12 +991,12 @@ const registryActionLabel = (agent: AcpRegistryAgent) => {
 
 const registryActionVariant = (agent: AcpRegistryAgent) => {
   const status = agent.installState?.status ?? 'not_installed'
-  return status === 'installed' ? 'outline' : 'default'
+  return status === 'installed' ? 'destructive' : 'default'
 }
 
 const registryActionIcon = (agent: AcpRegistryAgent) => {
   const status = agent.installState?.status ?? 'not_installed'
-  if (status === 'installed') return 'lucide:check'
+  if (status === 'installed') return 'lucide:trash-2'
   if (status === 'installing') return 'lucide:loader'
   if (status === 'error') return 'lucide:wrench'
   return 'lucide:download'
@@ -974,11 +1008,15 @@ const registryActionSpins = (agent: AcpRegistryAgent) => {
 
 const isRegistryActionDisabled = (agent: AcpRegistryAgent) => {
   const status = agent.installState?.status ?? 'not_installed'
-  return Boolean(agentPending[agent.id]) || status === 'installing' || status === 'installed'
+  return Boolean(agentPending[agent.id]) || status === 'installing'
 }
 
 const handleRegistryCatalogAction = async (agent: AcpRegistryAgent) => {
   if (isRegistryActionDisabled(agent)) {
+    return
+  }
+  if ((agent.installState?.status ?? 'not_installed') === 'installed') {
+    await confirmRegistryAgentUninstall(agent)
     return
   }
   await installRegistryAgent(agent)

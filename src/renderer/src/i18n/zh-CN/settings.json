@@ -1175,6 +1175,8 @@
     "registryRefresh": "刷新 Registry",
     "registryRepair": "修复",
     "registryInstallAction": "安装",
+    "registryUninstallAction": "卸载",
+    "registryUninstallConfirm": "卸载 Agent“{name}”？",
     "registryInstallTitle": "ACP Registry",
     "registryInstallDescription": "搜索、筛选并安装 ACP Agent。安装完成后回到设置页配置。",
     "registryLearnMore": "了解更多",

@@ -57,11 +57,11 @@ export const useAgentStore = defineStore('agent', () => {
         config: a.config,
         installState: a.installState ?? null
       }))
-      if (
-        selectedAgentId.value !== null &&
-        !agents.value.some((agent) => agent.id === selectedAgentId.value)
-      ) {
-        selectedAgentId.value = null
+      if (selectedAgentId.value !== null) {
+        const selectedAgent = agents.value.find((agent) => agent.id === selectedAgentId.value)
+        if (!selectedAgent || !selectedAgent.enabled) {
+          selectedAgentId.value = null
+        }
       }
     } catch (e) {
       error.value = `Failed to load agents: ${e}`
