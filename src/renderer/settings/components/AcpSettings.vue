@@ -530,6 +530,40 @@
       </DialogContent>
     </Dialog>
 
+    <AlertDialog
+      :open="uninstallDialog.open"
+      @update:open="(value) => handleRegistryUninstallDialogOpenChange(value)"
+    >
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>
+            {{
+              uninstallDialog.agent
+                ? t('settings.acp.registryUninstallConfirm', {
+                    name: uninstallDialog.agent.name
+                  })
+                : ''
+            }}
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            {{ t('settings.acp.registryUninstallDescription') }}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel @click="cancelRegistryAgentUninstall">
+            {{ t('common.cancel') }}
+          </AlertDialogCancel>
+          <AlertDialogAction
+            class="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            :disabled="!uninstallDialog.agent"
+            @click="confirmRegistryAgentUninstallAction"
+          >
+            {{ t('settings.acp.registryUninstallAction') }}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+
     <AcpDebugDialog
       :open="debugDialog.open"
       :agent-id="debugDialog.agentId"
@@ -561,6 +595,16 @@ import { Input } from '@shadcn/components/ui/input'
 import { Textarea } from '@shadcn/components/ui/textarea'
 import { Label } from '@shadcn/components/ui/label'
 import { Collapsible, CollapsibleContent } from '@shadcn/components/ui/collapsible'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle
+} from '@shadcn/components/ui/alert-dialog'
 import {
   Dialog,
   DialogContent,
@@ -613,6 +657,14 @@ const registryDialog = reactive({
   open: false,
   search: '',
   filter: 'all' as RegistryDialogFilter
+})
+
+const uninstallDialog = reactive<{
+  open: boolean
+  agent: AcpRegistryAgent | null
+}>({
+  open: false,
+  agent: null
 })
 
 const parseEnvBlock = (value: string): Record<string, string> => {
@@ -882,17 +934,29 @@ const uninstallRegistryAgent = async (agent: AcpRegistryAgent) => {
   }
 }
 
-const confirmRegistryAgentUninstall = async (agent: AcpRegistryAgent) => {
-  if (typeof window !== 'undefined' && typeof window.confirm === 'function') {
-    const confirmed = window.confirm(
-      t('settings.acp.registryUninstallConfirm', { name: agent.name })
-    )
-    if (!confirmed) {
-      return
-    }
+const handleRegistryUninstallDialogOpenChange = (open: boolean) => {
+  uninstallDialog.open = open
+}
+
+const confirmRegistryAgentUninstall = (agent: AcpRegistryAgent) => {
+  uninstallDialog.agent = agent
+  uninstallDialog.open = true
+}
+
+const cancelRegistryAgentUninstall = () => {
+  uninstallDialog.open = false
+  uninstallDialog.agent = null
+}
+
+const confirmRegistryAgentUninstallAction = async () => {
+  const agent = uninstallDialog.agent
+  if (!agent) {
+    return
   }
 
+  uninstallDialog.open = false
   await uninstallRegistryAgent(agent)
+  uninstallDialog.agent = null
 }
 
 const openInspector = (agentId: string, agentName: string) => {

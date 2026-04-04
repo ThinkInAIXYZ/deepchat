@@ -1272,6 +1272,7 @@
     "registryInstallAction": "Install",
     "registryUninstallAction": "Desinstalar",
     "registryUninstallConfirm": "Desinstalar o agente \"{name}\"?",
+    "registryUninstallDescription": "O DeepChat vai remover os arquivos locais de instalação e desativar este agente. Depois, você poderá instalá-lo novamente pelo ACP Registry.",
     "registryInstallTitle": "ACP Registry",
     "registryInstallDescription": "Search, filter, and install ACP agents. Configure them back in settings after installation.",
     "registryLearnMore": "Learn More",

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { defineComponent } from 'vue'
+import { defineComponent, inject, provide } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 
 const passthrough = (name: string) =>
@@ -69,14 +69,54 @@ const DialogStub = defineComponent({
   template: '<div v-if="open"><slot /></div>'
 })
 
+const ALERT_DIALOG_CLOSE = Symbol('alert-dialog-close')
+
+const AlertDialogStub = defineComponent({
+  name: 'AlertDialogStub',
+  props: {
+    open: {
+      type: Boolean,
+      default: false
+    }
+  },
+  emits: ['update:open'],
+  setup(_, { emit }) {
+    provide(ALERT_DIALOG_CLOSE, () => emit('update:open', false))
+  },
+  template: '<div v-if="open"><slot /></div>'
+})
+
+const AlertDialogActionStub = defineComponent({
+  name: 'AlertDialogActionStub',
+  props: {
+    disabled: {
+      type: Boolean,
+      default: false
+    }
+  },
+  emits: ['click'],
+  setup(_, { emit }) {
+    const closeDialog = inject<() => void>(ALERT_DIALOG_CLOSE, () => {})
+
+    const handleClick = (event: MouseEvent) => {
+      closeDialog()
+      emit('click', event)
+    }
+
+    return {
+      handleClick
+    }
+  },
+  template: '<button :disabled="disabled" @click="handleClick"><slot /></button>'
+})
+
 afterEach(() => {
   vi.clearAllMocks()
 })
 
 describe('AcpSettings', () => {
-  it('uninstalls an installed registry agent after confirmation', async () => {
+  it('uninstalls an installed registry agent through the alert dialog', async () => {
     vi.resetModules()
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
     const toast = vi.fn()
     const listAcpRegistryAgents = vi
       .fn()
@@ -113,8 +153,15 @@ describe('AcpSettings', () => {
     }))
     vi.doMock('vue-i18n', () => ({
       useI18n: () => ({
-        t: (key: string, params?: Record<string, string>) =>
-          key === 'settings.acp.registryUninstallConfirm' ? `confirm:${params?.name ?? ''}` : key
+        t: (key: string, params?: Record<string, string>) => {
+          if (key === 'settings.acp.registryUninstallAction') return 'Uninstall'
+          if (key === 'settings.acp.registryUninstallConfirm') {
+            return `confirm:${params?.name ?? ''}`
+          }
+          if (key === 'settings.acp.registryUninstallDescription') return 'desc'
+          if (key === 'settings.acp.deleteSuccess') return 'Deleted'
+          return key
+        }
       })
     }))
     vi.doMock('@/components/use-toast', () => ({
@@ -156,6 +203,14 @@ describe('AcpSettings', () => {
           Label: passthrough('Label'),
           Collapsible: passthrough('Collapsible'),
           CollapsibleContent: passthrough('CollapsibleContent'),
+          AlertDialog: AlertDialogStub,
+          AlertDialogAction: AlertDialogActionStub,
+          AlertDialogCancel: ButtonStub,
+          AlertDialogContent: passthrough('AlertDialogContent'),
+          AlertDialogDescription: passthrough('AlertDialogDescription'),
+          AlertDialogFooter: passthrough('AlertDialogFooter'),
+          AlertDialogHeader: passthrough('AlertDialogHeader'),
+          AlertDialogTitle: passthrough('AlertDialogTitle'),
           Dialog: DialogStub,
           DialogContent: passthrough('DialogContent'),
           DialogDescription: passthrough('DialogDescription'),
@@ -174,18 +229,29 @@ describe('AcpSettings', () => {
 
     const uninstallButton = wrapper
       .findAll('button')
-      .find((button) => button.text().includes('settings.acp.registryUninstallAction'))
+      .find((button) => button.text().includes('Uninstall'))
 
     expect(uninstallButton).toBeDefined()
 
     await uninstallButton!.trigger('click')
     await flushPromises()
 
-    expect(confirmSpy).toHaveBeenCalledWith('confirm:Codex ACP')
+    expect(wrapper.text()).toContain('confirm:Codex ACP')
+    expect(wrapper.text()).toContain('desc')
+
+    const uninstallActions = wrapper
+      .findAll('button')
+      .filter((button) => button.text().includes('Uninstall'))
+
+    expect(uninstallActions).toHaveLength(2)
+
+    await uninstallActions[uninstallActions.length - 1].trigger('click')
+    await flushPromises()
+
     expect(configPresenter.uninstallAcpRegistryAgent).toHaveBeenCalledWith('codex-acp')
     expect(configPresenter.listAcpRegistryAgents).toHaveBeenCalled()
     expect(toast).toHaveBeenCalledWith({
-      title: 'settings.acp.deleteSuccess'
+      title: 'Deleted'
     })
   })
 })
