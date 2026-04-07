@@ -45,6 +45,9 @@ export interface SessionGroup {
 
 export type GroupMode = 'time' | 'project'
 
+const SIDEBAR_GROUP_MODE_KEY = 'sidebar_group_mode'
+const DEFAULT_GROUP_MODE: GroupMode = 'project'
+
 // --- Helper Functions ---
 
 function mapSessionStatus(status: string): UISessionStatus {
@@ -159,15 +162,19 @@ function getContentType(format: 'markdown' | 'html' | 'txt' | 'nowledge-mem'): s
 export const useSessionStore = defineStore('session', () => {
   const agentSessionPresenter = usePresenter('agentSessionPresenter')
   const tabPresenter = usePresenter('tabPresenter')
+  const configPresenter = usePresenter('configPresenter', { safeCall: false })
   const pageRouter = usePageRouterStore()
   const messageStore = useMessageStore()
   const myWebContentsId = getCurrentWebContentsId()
   let rendererReadyNotified = false
+  let groupModeLoadPromise: Promise<void> | null = null
+  let hasLoadedGroupMode = false
+  let groupModeUpdateVersion = 0
 
   // --- State ---
   const sessions = ref<UISession[]>([])
   const activeSessionId = ref<string | null>(null)
-  const groupMode = ref<GroupMode>('time')
+  const groupMode = ref<GroupMode>(DEFAULT_GROUP_MODE)
   const loading = ref(false)
   const error = ref<string | null>(null)
 
@@ -178,6 +185,41 @@ export const useSessionStore = defineStore('session', () => {
   }
 
   notifyRendererReady()
+
+  const normalizeGroupMode = (value: unknown): GroupMode =>
+    value === 'time' || value === 'project' ? value : DEFAULT_GROUP_MODE
+
+  const loadGroupModePreference = async (): Promise<void> => {
+    const loadVersion = groupModeUpdateVersion
+
+    try {
+      const savedGroupMode = await configPresenter.getSetting<GroupMode>(SIDEBAR_GROUP_MODE_KEY)
+      if (groupModeUpdateVersion === loadVersion) {
+        groupMode.value = normalizeGroupMode(savedGroupMode)
+      }
+    } catch (error) {
+      if (groupModeUpdateVersion === loadVersion) {
+        groupMode.value = DEFAULT_GROUP_MODE
+      }
+      console.warn('[sessionStore] Failed to load sidebar group mode:', error)
+    } finally {
+      hasLoadedGroupMode = true
+    }
+  }
+
+  const ensureGroupModeLoaded = async (): Promise<void> => {
+    if (hasLoadedGroupMode) {
+      return
+    }
+
+    if (!groupModeLoadPromise) {
+      groupModeLoadPromise = loadGroupModePreference().finally(() => {
+        groupModeLoadPromise = null
+      })
+    }
+
+    await groupModeLoadPromise
+  }
 
   // --- Getters ---
   const activeSession: ComputedRef<UISession | undefined> = computed(() =>
@@ -194,6 +236,7 @@ export const useSessionStore = defineStore('session', () => {
     loading.value = true
     error.value = null
     try {
+      await ensureGroupModeLoaded()
       const webContentsId = getCurrentWebContentsId()
       const previousActiveSessionId = activeSessionId.value
       const [result, activeSession] = await Promise.all([
@@ -382,8 +425,21 @@ export const useSessionStore = defineStore('session', () => {
     }
   }
 
-  function toggleGroupMode(): void {
-    groupMode.value = groupMode.value === 'time' ? 'project' : 'time'
+  async function toggleGroupMode(): Promise<void> {
+    const previousMode = groupMode.value
+    const nextMode = previousMode === 'time' ? 'project' : 'time'
+    const updateVersion = ++groupModeUpdateVersion
+
+    groupMode.value = nextMode
+
+    try {
+      await configPresenter.setSetting(SIDEBAR_GROUP_MODE_KEY, nextMode)
+    } catch (error) {
+      if (groupModeUpdateVersion === updateVersion) {
+        groupMode.value = previousMode
+      }
+      console.warn('[sessionStore] Failed to persist sidebar group mode:', error)
+    }
   }
 
   function getPinnedSessions(agentId: string | null): UISession[] {
@@ -438,6 +494,7 @@ export const useSessionStore = defineStore('session', () => {
     }
   })
   registerStoreCleanup(cleanupIpcBindings)
+  void ensureGroupModeLoaded()
 
   return {
     sessions,

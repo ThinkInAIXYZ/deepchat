@@ -1,6 +1,14 @@
 import { describe, expect, it, vi } from 'vitest'
 
-const setupStore = async () => {
+type SetupStoreOptions = {
+  initialSettings?: Record<string, unknown>
+  failGetSetting?: boolean
+  failSetSetting?: boolean
+}
+
+const SIDEBAR_GROUP_MODE_KEY = 'sidebar_group_mode'
+
+const setupStore = async (options: SetupStoreOptions = {}) => {
   vi.resetModules()
 
   const agentSessionPresenter = {
@@ -25,6 +33,21 @@ const setupStore = async () => {
     goToNewThread: vi.fn(),
     currentRoute: 'chat'
   }
+  const settings = { ...(options.initialSettings ?? {}) }
+  const configPresenter = {
+    getSetting: vi.fn(async <T>(key: string) => {
+      if (options.failGetSetting) {
+        throw new Error('failed to read setting')
+      }
+      return settings[key] as T | undefined
+    }),
+    setSetting: vi.fn(async <T>(key: string, value: T) => {
+      if (options.failSetSetting) {
+        throw new Error('failed to write setting')
+      }
+      settings[key] = value
+    })
+  }
   const listeners = new Map<string, Array<(...args: any[]) => void>>()
 
   vi.doMock('pinia', () => ({
@@ -32,7 +55,11 @@ const setupStore = async () => {
   }))
 
   vi.doMock('@/composables/usePresenter', () => ({
-    usePresenter: (name: string) => (name === 'tabPresenter' ? tabPresenter : agentSessionPresenter)
+    usePresenter: (name: string) => {
+      if (name === 'tabPresenter') return tabPresenter
+      if (name === 'configPresenter') return configPresenter
+      return agentSessionPresenter
+    }
   }))
 
   vi.doMock('@/stores/ui/pageRouter', () => ({
@@ -67,12 +94,26 @@ const setupStore = async () => {
       handler(undefined, payload)
     }
   }
-  return { store, clearStreamingState, agentSessionPresenter, pageRouter, emitIpc, SESSION_EVENTS }
+  return {
+    store,
+    settings,
+    configPresenter,
+    clearStreamingState,
+    agentSessionPresenter,
+    pageRouter,
+    emitIpc,
+    SESSION_EVENTS
+  }
 }
 
 describe('sessionStore.getFilteredGroups', () => {
   it('hides draft sessions from grouped sidebar lists', async () => {
-    const { store } = await setupStore()
+    const { store } = await setupStore({
+      initialSettings: {
+        [SIDEBAR_GROUP_MODE_KEY]: 'time'
+      }
+    })
+    await store.fetchSessions()
     const now = Date.now()
 
     store.sessions.value = [
@@ -151,6 +192,63 @@ describe('sessionStore.getFilteredGroups', () => {
 
     expect(groupIds).toEqual(['normal-1'])
     expect(pinnedIds).toEqual(['pinned-1'])
+  })
+})
+
+describe('sessionStore group mode preferences', () => {
+  it('falls back to project when no saved preference exists', async () => {
+    const { store } = await setupStore()
+
+    await store.fetchSessions()
+
+    expect(store.groupMode.value).toBe('project')
+  })
+
+  it('restores the saved group mode preference', async () => {
+    const { store } = await setupStore({
+      initialSettings: {
+        [SIDEBAR_GROUP_MODE_KEY]: 'time'
+      }
+    })
+
+    await store.fetchSessions()
+
+    expect(store.groupMode.value).toBe('time')
+  })
+
+  it('falls back to project when the saved preference is invalid', async () => {
+    const { store } = await setupStore({
+      initialSettings: {
+        [SIDEBAR_GROUP_MODE_KEY]: 'invalid-mode'
+      }
+    })
+
+    await store.fetchSessions()
+
+    expect(store.groupMode.value).toBe('project')
+  })
+
+  it('persists toggled group mode changes', async () => {
+    const { store, settings, configPresenter } = await setupStore()
+
+    await store.fetchSessions()
+    await store.toggleGroupMode()
+
+    expect(store.groupMode.value).toBe('time')
+    expect(configPresenter.setSetting).toHaveBeenCalledWith(SIDEBAR_GROUP_MODE_KEY, 'time')
+    expect(settings[SIDEBAR_GROUP_MODE_KEY]).toBe('time')
+  })
+
+  it('rolls back the group mode when persistence fails', async () => {
+    const { store, configPresenter } = await setupStore({
+      failSetSetting: true
+    })
+
+    await store.fetchSessions()
+    await store.toggleGroupMode()
+
+    expect(store.groupMode.value).toBe('project')
+    expect(configPresenter.setSetting).toHaveBeenCalledWith(SIDEBAR_GROUP_MODE_KEY, 'time')
   })
 })
 
