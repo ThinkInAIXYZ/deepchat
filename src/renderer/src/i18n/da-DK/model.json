@@ -20,6 +20,29 @@
     "enableAll": "Aktiver alle",
     "disableAll": "Deaktiver alle"
   },
+  "sort": {
+    "status": "Efter status",
+    "name": "Efter navn"
+  },
+  "filter": {
+    "label": "Filter",
+    "clearAll": "Ryd filtre",
+    "visibleCount": "Viser {visible} / {total}",
+    "capabilities": "Funktioner",
+    "types": "Typer",
+    "capabilityOptions": {
+      "vision": "Vision",
+      "functionCall": "Funktionskald",
+      "reasoning": "Ræsonnement",
+      "search": "Websøgning"
+    },
+    "typeOptions": {
+      "chat": "Chat",
+      "embedding": "Indlejring",
+      "rerank": "Genrangering",
+      "imageGeneration": "Billedgenerering"
+    }
+  },
   "tags": {
     "reasoning": "Ræsonnement",
     "chat": "Chat",

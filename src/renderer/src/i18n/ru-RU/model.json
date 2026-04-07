@@ -20,6 +20,29 @@
     "enableAll": "Включить все",
     "disableAll": "Выключить все"
   },
+  "sort": {
+    "status": "По статусу",
+    "name": "По имени"
+  },
+  "filter": {
+    "label": "Фильтр",
+    "clearAll": "Очистить фильтры",
+    "visibleCount": "Показано {visible} / {total}",
+    "capabilities": "Возможности",
+    "types": "Типы",
+    "capabilityOptions": {
+      "vision": "Видение",
+      "functionCall": "Вызов функций",
+      "reasoning": "Рассуждение",
+      "search": "Веб-поиск"
+    },
+    "typeOptions": {
+      "chat": "Чат",
+      "embedding": "Встраивание",
+      "rerank": "Переранжирование",
+      "imageGeneration": "Генерация изображений"
+    }
+  },
   "tags": {
     "reasoning": "Рассуждение",
     "chat": "Чат",

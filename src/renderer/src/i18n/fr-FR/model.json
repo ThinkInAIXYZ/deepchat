@@ -20,6 +20,29 @@
     "enableAll": "Tout activer",
     "disableAll": "Tout désactiver"
   },
+  "sort": {
+    "status": "Par statut",
+    "name": "Par nom"
+  },
+  "filter": {
+    "label": "Filtrer",
+    "clearAll": "Effacer les filtres",
+    "visibleCount": "Affichage de {visible} / {total}",
+    "capabilities": "Capacités",
+    "types": "Types",
+    "capabilityOptions": {
+      "vision": "Vision",
+      "functionCall": "Appel de fonction",
+      "reasoning": "Raisonnement",
+      "search": "Recherche Web"
+    },
+    "typeOptions": {
+      "chat": "Discussion",
+      "embedding": "Incorporation",
+      "rerank": "Reclassement",
+      "imageGeneration": "Génération d'image"
+    }
+  },
   "tags": {
     "reasoning": "Raisonnement",
     "chat": "Discussion",

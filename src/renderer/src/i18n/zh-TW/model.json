@@ -20,6 +20,29 @@
     "enableAll": "全部啟用",
     "disableAll": "全部停用"
   },
+  "sort": {
+    "status": "按狀態",
+    "name": "按名稱"
+  },
+  "filter": {
+    "label": "篩選",
+    "clearAll": "清空篩選",
+    "visibleCount": "顯示 {visible} / {total}",
+    "capabilities": "能力",
+    "types": "類型",
+    "capabilityOptions": {
+      "vision": "視覺",
+      "functionCall": "函式呼叫",
+      "reasoning": "推理",
+      "search": "聯網搜尋"
+    },
+    "typeOptions": {
+      "chat": "對話",
+      "embedding": "向量",
+      "rerank": "重排",
+      "imageGeneration": "圖像生成"
+    }
+  },
   "tags": {
     "reasoning": "推理",
     "chat": "對話",

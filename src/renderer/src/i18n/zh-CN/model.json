@@ -20,6 +20,29 @@
     "enableAll": "全部启用",
     "disableAll": "全部禁用"
   },
+  "sort": {
+    "status": "按状态",
+    "name": "按名称"
+  },
+  "filter": {
+    "label": "筛选",
+    "clearAll": "清空筛选",
+    "visibleCount": "显示 {visible} / {total}",
+    "capabilities": "能力",
+    "types": "类型",
+    "capabilityOptions": {
+      "vision": "视觉",
+      "functionCall": "函数调用",
+      "reasoning": "推理",
+      "search": "联网搜索"
+    },
+    "typeOptions": {
+      "chat": "对话",
+      "embedding": "向量",
+      "rerank": "重排",
+      "imageGeneration": "图像生成"
+    }
+  },
   "tags": {
     "reasoning": "推理",
     "chat": "对话",

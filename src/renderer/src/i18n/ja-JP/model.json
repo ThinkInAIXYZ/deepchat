@@ -20,6 +20,29 @@
     "enableAll": "すべて有効にする",
     "disableAll": "すべて無効にする"
   },
+  "sort": {
+    "status": "ステータス順",
+    "name": "名前順"
+  },
+  "filter": {
+    "label": "フィルター",
+    "clearAll": "フィルターをクリア",
+    "visibleCount": "{visible} / {total} 件表示中",
+    "capabilities": "機能",
+    "types": "タイプ",
+    "capabilityOptions": {
+      "vision": "ビジョン",
+      "functionCall": "関数呼び出し",
+      "reasoning": "推論",
+      "search": "Web検索"
+    },
+    "typeOptions": {
+      "chat": "チャット",
+      "embedding": "埋め込み",
+      "rerank": "再ランク付け",
+      "imageGeneration": "画像生成"
+    }
+  },
   "tags": {
     "reasoning": "推論",
     "chat": "チャット",

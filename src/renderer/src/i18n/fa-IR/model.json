@@ -20,6 +20,29 @@
     "enableAll": "روش ‌کردن همه",
     "disableAll": "خاموش کردن همه"
   },
+  "sort": {
+    "status": "بر اساس وضعیت",
+    "name": "بر اساس نام"
+  },
+  "filter": {
+    "label": "فیلتر",
+    "clearAll": "پاک کردن فیلترها",
+    "visibleCount": "نمایش {visible} / {total}",
+    "capabilities": "قابلیت‌ها",
+    "types": "انواع",
+    "capabilityOptions": {
+      "vision": "بینایی",
+      "functionCall": "فراخوانی تابع",
+      "reasoning": "استدلال",
+      "search": "جستجوی وب"
+    },
+    "typeOptions": {
+      "chat": "گفتگو",
+      "embedding": "جاسازی",
+      "rerank": "رتبه‌بندی مجدد",
+      "imageGeneration": "تولید تصویر"
+    }
+  },
   "tags": {
     "reasoning": "استدلال",
     "chat": "گفتگو",

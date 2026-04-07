@@ -20,6 +20,29 @@
     "enableAll": "הפעל הכל",
     "disableAll": "השבת הכל"
   },
+  "sort": {
+    "status": "לפי סטטוס",
+    "name": "לפי שם"
+  },
+  "filter": {
+    "label": "סינון",
+    "clearAll": "נקה סינונים",
+    "visibleCount": "מציג {visible} / {total}",
+    "capabilities": "יכולות",
+    "types": "סוגים",
+    "capabilityOptions": {
+      "vision": "ראייה",
+      "functionCall": "קריאת פונקציה",
+      "reasoning": "חשיבה",
+      "search": "חיפוש ברשת"
+    },
+    "typeOptions": {
+      "chat": "צ'אט",
+      "embedding": "הטמעה",
+      "rerank": "דירוג מחדש",
+      "imageGeneration": "יצירת תמונות"
+    }
+  },
   "tags": {
     "reasoning": "חשיבה (Reasoning)",
     "chat": "צ'אט",
