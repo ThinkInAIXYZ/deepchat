@@ -136,7 +136,7 @@ function groupByProject(sessions: UISession[]): SessionGroup[] {
     projectMap.get(dir)!.push(session)
   }
   return Array.from(projectMap.entries()).map(([dir, sessions]) => ({
-    label: dir === '__no_project__' ? 'common.project.none' : (dir.split('/').pop() ?? dir),
+    label: dir === '__no_project__' ? 'common.project.none' : (dir.split(/[\\/]/).pop() ?? dir),
     labelKey: dir === '__no_project__' ? 'common.project.none' : undefined,
     sessions
   }))
@@ -168,6 +168,7 @@ export const useSessionStore = defineStore('session', () => {
   const myWebContentsId = getCurrentWebContentsId()
   let rendererReadyNotified = false
   let groupModeLoadPromise: Promise<void> | null = null
+  let groupModeWritePromise: Promise<void> = Promise.resolve()
   let hasLoadedGroupMode = false
   let groupModeUpdateVersion = 0
 
@@ -427,19 +428,24 @@ export const useSessionStore = defineStore('session', () => {
 
   async function toggleGroupMode(): Promise<void> {
     const previousMode = groupMode.value
-    const nextMode = previousMode === 'time' ? 'project' : 'time'
-    const updateVersion = ++groupModeUpdateVersion
+    groupMode.value = previousMode === 'time' ? 'project' : 'time'
+    const localVersion = ++groupModeUpdateVersion
 
-    groupMode.value = nextMode
-
-    try {
-      await configPresenter.setSetting(SIDEBAR_GROUP_MODE_KEY, nextMode)
-    } catch (error) {
-      if (groupModeUpdateVersion === updateVersion) {
-        groupMode.value = previousMode
+    groupModeWritePromise = groupModeWritePromise.then(async () => {
+      try {
+        await configPresenter.setSetting(SIDEBAR_GROUP_MODE_KEY, groupMode.value)
+        if (localVersion !== groupModeUpdateVersion) {
+          return
+        }
+      } catch (error) {
+        if (localVersion === groupModeUpdateVersion) {
+          groupMode.value = previousMode
+        }
+        console.warn('[sessionStore] Failed to persist sidebar group mode:', error)
       }
-      console.warn('[sessionStore] Failed to persist sidebar group mode:', error)
-    }
+    })
+
+    await groupModeWritePromise
   }
 
   function getPinnedSessions(agentId: string | null): UISession[] {

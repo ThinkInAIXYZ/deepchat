@@ -193,6 +193,33 @@ describe('sessionStore.getFilteredGroups', () => {
     expect(groupIds).toEqual(['normal-1'])
     expect(pinnedIds).toEqual(['pinned-1'])
   })
+
+  it('uses the last path segment for Windows project labels', async () => {
+    const { store } = await setupStore()
+    const now = Date.now()
+
+    await store.fetchSessions()
+    store.sessions.value = [
+      {
+        id: 'windows-1',
+        title: 'Windows Chat',
+        agentId: 'deepchat',
+        status: 'none',
+        projectDir: 'C:\\Users\\DeepChat\\workspace',
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        isPinned: false,
+        isDraft: false,
+        createdAt: now,
+        updatedAt: now
+      }
+    ]
+
+    const groups = store.getFilteredGroups(null)
+
+    expect(groups).toHaveLength(1)
+    expect(groups[0]?.label).toBe('workspace')
+  })
 })
 
 describe('sessionStore group mode preferences', () => {
@@ -249,6 +276,39 @@ describe('sessionStore group mode preferences', () => {
 
     expect(store.groupMode.value).toBe('project')
     expect(configPresenter.setSetting).toHaveBeenCalledWith(SIDEBAR_GROUP_MODE_KEY, 'time')
+  })
+
+  it('serializes concurrent group mode writes and persists the last toggle', async () => {
+    const { store, settings, configPresenter } = await setupStore()
+    const pendingResolvers: Array<() => void> = []
+
+    await store.fetchSessions()
+    configPresenter.setSetting.mockImplementation(async <T>(key: string, value: T) => {
+      await new Promise<void>((resolve) => {
+        pendingResolvers.push(() => {
+          settings[key] = value
+          resolve()
+        })
+      })
+    })
+
+    const firstToggle = store.toggleGroupMode()
+    const secondToggle = store.toggleGroupMode()
+
+    await Promise.resolve()
+
+    expect(store.groupMode.value).toBe('project')
+    expect(configPresenter.setSetting).toHaveBeenCalledTimes(1)
+
+    pendingResolvers.shift()?.()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(configPresenter.setSetting).toHaveBeenCalledTimes(2)
+
+    pendingResolvers.shift()?.()
+    await Promise.all([firstToggle, secondToggle])
+
+    expect(settings[SIDEBAR_GROUP_MODE_KEY]).toBe('project')
   })
 })
 
