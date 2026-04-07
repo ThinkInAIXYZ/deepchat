@@ -16,21 +16,11 @@ import {
 } from '@shared/modelConfigDefaults'
 import { OpenAICompatibleProvider } from './openAICompatibleProvider'
 import { providerDbLoader } from '../../configPresenter/providerDbLoader'
-import { modelCapabilities } from '../../configPresenter/modelCapabilities'
 import type { ProviderMcpRuntimePort } from '../runtimePorts'
 
-export class DoubaoProvider extends OpenAICompatibleProvider {
-  // List of models that support thinking parameter
-  private static readonly THINKING_MODELS: string[] = [
-    'deepseek-v3-1-250821',
-    'doubao-seed-1-6-vision-250815',
-    'doubao-seed-1-6-250615',
-    'doubao-seed-1-6-flash-250615',
-    'doubao-1-5-thinking-vision-pro-250428',
-    'doubao-1-5-ui-tars-250428',
-    'doubao-1-5-thinking-pro-m-250428'
-  ]
+const DOUBAO_THINKING_NOTE = 'doubao-thinking-parameter'
 
+export class DoubaoProvider extends OpenAICompatibleProvider {
   constructor(
     provider: LLM_PROVIDER,
     configPresenter: IConfigPresenter,
@@ -41,7 +31,9 @@ export class DoubaoProvider extends OpenAICompatibleProvider {
   }
 
   private supportsThinking(modelId: string): boolean {
-    return DoubaoProvider.THINKING_MODELS.includes(modelId)
+    const model = providerDbLoader.getModel(this.provider.id, modelId)
+    const notes = model?.extra_capabilities?.reasoning?.notes
+    return Array.isArray(notes) && notes.includes(DOUBAO_THINKING_NOTE)
   }
 
   /**
@@ -93,8 +85,7 @@ export class DoubaoProvider extends OpenAICompatibleProvider {
   }
 
   protected async fetchOpenAIModels(): Promise<MODEL_META[]> {
-    const resolvedId = modelCapabilities.resolveProviderId(this.provider.id) || this.provider.id
-    const provider = providerDbLoader.getProvider(resolvedId)
+    const provider = providerDbLoader.getProvider(this.provider.id)
     if (!provider || !Array.isArray(provider.models)) {
       return []
     }

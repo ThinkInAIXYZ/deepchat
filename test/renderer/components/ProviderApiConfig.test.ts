@@ -70,6 +70,7 @@ async function setup(options?: {
 }) {
   vi.resetModules()
 
+  const toast = vi.fn()
   const llmproviderPresenter = {
     getKeyStatus: vi.fn().mockResolvedValue(null),
     refreshModels: vi.fn().mockResolvedValue(undefined)
@@ -105,6 +106,11 @@ async function setup(options?: {
 
   vi.doMock('@/stores/modelCheck', () => ({
     useModelCheckStore: () => modelCheckStore
+  }))
+  vi.doMock('@/components/use-toast', () => ({
+    useToast: () => ({
+      toast
+    })
   }))
 
   vi.doMock('@shadcn/components/ui/input', () => ({
@@ -155,6 +161,7 @@ async function setup(options?: {
 
   return {
     wrapper,
+    toast,
     llmproviderPresenter,
     modelCheckStore
   }
@@ -232,5 +239,76 @@ describe('ProviderApiConfig', () => {
 
     expect(wrapper.find('input#custom-demo-url').exists()).toBe(true)
     expect(findButtonByText(wrapper, 'Modify')).toBeUndefined()
+  })
+
+  it('shows the metadata sync hint for DB-backed providers and delegates refresh to the presenter', async () => {
+    const { wrapper, toast, llmproviderPresenter } = await setup({
+      provider: createProvider({
+        id: 'doubao',
+        name: 'Doubao',
+        apiType: 'doubao',
+        baseUrl: 'https://ark.cn-beijing.volces.com/api/v3'
+      })
+    })
+
+    expect(wrapper.text()).toContain('settings.provider.refreshModelsWithMetadataHint')
+
+    const refreshButton = findButtonByText(wrapper, 'settings.provider.refreshModels')
+    expect(refreshButton).toBeDefined()
+
+    await refreshButton!.trigger('click')
+    await flushPromises()
+
+    expect(llmproviderPresenter.refreshModels).toHaveBeenCalledWith('doubao')
+    expect(toast).toHaveBeenCalledWith({
+      title: 'settings.provider.toast.refreshModelsSuccessTitle',
+      description: 'settings.provider.toast.refreshModelsSuccessDescriptionWithMetadata',
+      duration: 4000
+    })
+  })
+
+  it('refreshes only models for non DB-backed providers', async () => {
+    const { wrapper, toast, llmproviderPresenter } = await setup()
+
+    expect(wrapper.text()).not.toContain('settings.provider.refreshModelsWithMetadataHint')
+
+    const refreshButton = findButtonByText(wrapper, 'settings.provider.refreshModels')
+    expect(refreshButton).toBeDefined()
+
+    await refreshButton!.trigger('click')
+    await flushPromises()
+
+    expect(llmproviderPresenter.refreshModels).toHaveBeenCalledWith('deepseek')
+    expect(toast).toHaveBeenCalledWith({
+      title: 'settings.provider.toast.refreshModelsSuccessTitle',
+      description: 'settings.provider.toast.refreshModelsSuccessDescription',
+      duration: 4000
+    })
+  })
+
+  it('shows a destructive toast when metadata-backed refresh fails', async () => {
+    const { wrapper, toast, llmproviderPresenter } = await setup({
+      provider: createProvider({
+        id: 'doubao',
+        name: 'Doubao',
+        apiType: 'doubao',
+        baseUrl: 'https://ark.cn-beijing.volces.com/api/v3'
+      })
+    })
+    llmproviderPresenter.refreshModels.mockRejectedValueOnce(new Error('network down'))
+
+    const refreshButton = findButtonByText(wrapper, 'settings.provider.refreshModels')
+    expect(refreshButton).toBeDefined()
+
+    await refreshButton!.trigger('click')
+    await flushPromises()
+
+    expect(llmproviderPresenter.refreshModels).toHaveBeenCalledWith('doubao')
+    expect(toast).toHaveBeenCalledWith({
+      title: 'settings.provider.toast.refreshModelsFailedTitle',
+      description: 'settings.provider.toast.refreshModelsFailedDescriptionWithMetadata',
+      variant: 'destructive',
+      duration: 4000
+    })
   })
 })

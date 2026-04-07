@@ -486,6 +486,7 @@
     "openaiResponsesNotice": "OpenAI 公式サービスはデフォルトで Responses API を使用します。サードパーティのエンドポイントが Chat Completions のみをサポートしている場合は、OpenAI Completions プロバイダーを使用してください。",
     "modifyBaseUrl": "変更",
     "baseUrlLockedHint": "このプロバイダーは設定ミスを減らすため、推奨されるベースURLに固定されています。",
+    "refreshModelsWithMetadataHint": "このプロバイダーを更新すると、まず上流メタデータを同期し、その後ローカルのモデル一覧を再構築します。",
     "modelList": "モデル一覧",
     "enableModels": "モデルを有効にする",
     "disableAllModels": "すべてのモデルを無効にする",
@@ -660,7 +661,13 @@
       "backupSuccessTitle": "バックアップが完了しました",
       "backupSuccessMessage": "バックアップを保存しました（時刻：{time}、サイズ：{size}）",
       "importSuccessTitle": "インポートが完了しました",
-      "importSuccessMessage": "{count} 件の会話を正常にインポートしました"
+      "importSuccessMessage": "{count} 件の会話を正常にインポートしました",
+      "refreshModelsSuccessTitle": "モデルを更新しました",
+      "refreshModelsSuccessDescription": "このプロバイダーの最新のモデル一覧を同期しました。",
+      "refreshModelsSuccessDescriptionWithMetadata": "このプロバイダーの上流メタデータと最新のモデル一覧を同期しました。",
+      "refreshModelsFailedTitle": "更新に失敗しました",
+      "refreshModelsFailedDescription": "現在、このプロバイダーのモデル一覧を更新できません。後でもう一度お試しください。",
+      "refreshModelsFailedDescriptionWithMetadata": "現在、このプロバイダーの上流メタデータとモデルを同期できません。後でもう一度お試しください。"
     },
     "apiKeyLabel": "API Key",
     "apiUrlLabel": "API URL",

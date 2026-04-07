@@ -486,6 +486,7 @@
     "openaiResponsesNotice": "OpenAI משתמשת כברירת מחדל ב-Responses API. אם endpoint של צד שלישי תומך רק ב-Chat Completions, השתמש בספק OpenAI Completions.",
     "modifyBaseUrl": "ערוך",
     "baseUrlLockedHint": "הספק הזה נעול לכתובת הבסיס המומלצת כדי לצמצם שגיאות תצורה.",
+    "refreshModelsWithMetadataHint": "רענון הספק הזה יסנכרן קודם את המטא־דאטה במעלה הזרם ולאחר מכן יבנה מחדש את רשימת המודלים המקומית.",
     "modelList": "רשימת מודלים",
     "enableModels": "הפעל מודלים",
     "disableAllModels": "השבת את כל המודלים",
@@ -660,7 +661,13 @@
       "backupSuccessTitle": "הגיבוי הושלם",
       "backupSuccessMessage": "הגיבוי נשמר ב-{time} ({size})",
       "importSuccessTitle": "הייבוא הושלם",
-      "importSuccessMessage": "יובאו בהצלחה {count} שיחות"
+      "importSuccessMessage": "יובאו בהצלחה {count} שיחות",
+      "refreshModelsSuccessTitle": "המודלים רועננו",
+      "refreshModelsSuccessDescription": "רשימת המודלים העדכנית סונכרנה עבור הספק הזה.",
+      "refreshModelsSuccessDescriptionWithMetadata": "המטא־דאטה במעלה הזרם ורשימת המודלים העדכנית סונכרנו עבור הספק הזה.",
+      "refreshModelsFailedTitle": "הרענון נכשל",
+      "refreshModelsFailedDescription": "לא ניתן לרענן כעת את המודלים של הספק הזה. נסה שוב מאוחר יותר.",
+      "refreshModelsFailedDescriptionWithMetadata": "לא ניתן לסנכרן כעת את המטא־דאטה במעלה הזרם ואת המודלים של הספק הזה. נסה שוב מאוחר יותר."
     },
     "modelscope": {
       "mcpSync": {

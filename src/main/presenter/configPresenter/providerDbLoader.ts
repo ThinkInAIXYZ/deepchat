@@ -281,7 +281,7 @@ export class ProviderDbLoader {
       this.writeMeta(meta)
       this.cache = sanitized
       try {
-        const providersCount = Object.keys(sanitized.providers || {}).length
+        const providersCount = Object.keys(this.cache.providers || {}).length
         eventBus.send(PROVIDER_DB_EVENTS.UPDATED, SendTarget.ALL_WINDOWS, {
           providersCount,
           lastUpdated: meta.lastUpdated

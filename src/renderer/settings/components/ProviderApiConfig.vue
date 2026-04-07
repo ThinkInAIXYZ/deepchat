@@ -165,8 +165,10 @@
               : t('settings.provider.refreshModels')
           }}
         </Button>
-        <!-- Key Status Display -->
       </div>
+      <p v-if="shouldRefreshProviderDbFirst" class="text-xs leading-5 text-muted-foreground">
+        {{ t('settings.provider.refreshModelsWithMetadataHint') }}
+      </p>
       <div v-if="!provider.custom" class="text-xs text-muted-foreground">
         {{ t('settings.provider.howToGet') }}: {{ t('settings.provider.getKeyTip') }}
         <a :href="providerWebsites?.apiKey" target="_blank" class="text-primary">{{
@@ -193,8 +195,10 @@ import {
 import { Icon } from '@iconify/vue'
 import GitHubCopilotOAuth from './GitHubCopilotOAuth.vue'
 import { usePresenter } from '@/composables/usePresenter'
+import { useToast } from '@/components/use-toast'
 import { useModelCheckStore } from '@/stores/modelCheck'
 import type { LLM_PROVIDER, KeyStatus } from '@shared/presenter'
+import { isProviderDbBackedProvider } from '@shared/providerDbCatalog'
 
 interface ProviderWebsites {
   official: string
@@ -207,6 +211,7 @@ interface ProviderWebsites {
 const { t } = useI18n()
 const llmProviderPresenter = usePresenter('llmproviderPresenter')
 const modelCheckStore = useModelCheckStore()
+const { toast } = useToast()
 
 const EDITABLE_BASE_URL_PROVIDER_IDS = new Set([
   'openai',
@@ -247,6 +252,7 @@ const isBaseUrlEditableByDefault = computed(
 const showLockedBaseUrl = computed(
   () => !isBaseUrlEditableByDefault.value && !baseUrlUnlocked.value
 )
+const shouldRefreshProviderDbFirst = computed(() => isProviderDbBackedProvider(props.provider.id))
 
 watch(
   () => props.provider,
@@ -323,8 +329,27 @@ const refreshModels = async () => {
   isRefreshing.value = true
   try {
     await llmProviderPresenter.refreshModels(props.provider.id)
+    toast({
+      title: t('settings.provider.toast.refreshModelsSuccessTitle'),
+      description: t(
+        shouldRefreshProviderDbFirst.value
+          ? 'settings.provider.toast.refreshModelsSuccessDescriptionWithMetadata'
+          : 'settings.provider.toast.refreshModelsSuccessDescription'
+      ),
+      duration: 4000
+    })
   } catch (error) {
     console.error('Failed to refresh models:', error)
+    toast({
+      title: t('settings.provider.toast.refreshModelsFailedTitle'),
+      description: t(
+        shouldRefreshProviderDbFirst.value
+          ? 'settings.provider.toast.refreshModelsFailedDescriptionWithMetadata'
+          : 'settings.provider.toast.refreshModelsFailedDescription'
+      ),
+      variant: 'destructive',
+      duration: 4000
+    })
   } finally {
     isRefreshing.value = false
   }

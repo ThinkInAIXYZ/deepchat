@@ -18,8 +18,9 @@ import {
   AcpDebugRunResult
 } from '@shared/presenter'
 import { ProviderChange, ProviderBatchUpdate } from '@shared/provider-operations'
+import { isProviderDbBackedProvider } from '@shared/providerDbCatalog'
 import { eventBus } from '@/eventbus'
-import { CONFIG_EVENTS } from '@/events'
+import { CONFIG_EVENTS, PROVIDER_DB_EVENTS } from '@/events'
 import { BaseLLMProvider } from './baseProvider'
 import { ProviderConfig, StreamState } from './types'
 import { RateLimitManager } from './managers/rateLimitManager'
@@ -47,6 +48,8 @@ const createAbortError = (): Error => {
 export class LLMProviderPresenter implements ILlmProviderPresenter {
   private currentProviderId: string | null = null
   private readonly activeStreams: Map<string, StreamState> = new Map()
+  private readonly modelRefreshPromises: Map<string, Promise<void>> = new Map()
+  private readonly configPresenter: IConfigPresenter
   private readonly config: ProviderConfig = {
     maxConcurrentStreams: 10
   }
@@ -63,6 +66,7 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     sqlitePresenter: ISQLitePresenter,
     mcpRuntime?: ProviderMcpRuntimePort
   ) {
+    this.configPresenter = configPresenter
     this.rateLimitManager = new RateLimitManager(configPresenter)
     this.acpSessionPersistence = new AcpSessionPersistence(sqlitePresenter)
     this.providerInstanceManager = new ProviderInstanceManager({
@@ -104,6 +108,10 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
 
     eventBus.on(CONFIG_EVENTS.PROVIDER_BATCH_UPDATE, (batchUpdate: ProviderBatchUpdate) => {
       this.providerInstanceManager.handleProviderBatchUpdate(batchUpdate)
+    })
+
+    eventBus.on(PROVIDER_DB_EVENTS.UPDATED, () => {
+      this.refreshEnabledProviderDbBackedModelsInBackground('provider-db-updated')
     })
   }
 
@@ -378,10 +386,58 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     return provider.getKeyStatus()
   }
 
-  async refreshModels(providerId: string): Promise<void> {
-    try {
+  private getEnabledProviderIdsUsingProviderDb(): string[] {
+    return this.providerInstanceManager
+      .getProviders()
+      .filter((provider) => provider.enable && isProviderDbBackedProvider(provider.id))
+      .map((provider) => provider.id)
+  }
+
+  private async syncProviderDbBeforeRefresh(providerId: string): Promise<void> {
+    if (!isProviderDbBackedProvider(providerId)) {
+      return
+    }
+
+    const result = await this.configPresenter.refreshProviderDb(true)
+    if (result.status === 'error') {
+      throw new Error(result.message || 'Provider DB refresh failed')
+    }
+  }
+
+  private enqueueProviderModelRefresh(providerId: string): Promise<void> {
+    const existingRefresh = this.modelRefreshPromises.get(providerId)
+    if (existingRefresh) {
+      return existingRefresh
+    }
+
+    const refreshPromise = (async () => {
       const provider = this.getProviderInstance(providerId)
       await provider.refreshModels()
+    })().finally(() => {
+      if (this.modelRefreshPromises.get(providerId) === refreshPromise) {
+        this.modelRefreshPromises.delete(providerId)
+      }
+    })
+
+    this.modelRefreshPromises.set(providerId, refreshPromise)
+    return refreshPromise
+  }
+
+  private refreshEnabledProviderDbBackedModelsInBackground(reason: string): void {
+    for (const providerId of this.getEnabledProviderIdsUsingProviderDb()) {
+      void this.enqueueProviderModelRefresh(providerId).catch((error) => {
+        console.warn(
+          `[LLMProviderPresenter] Failed to refresh models for provider ${providerId} during ${reason}:`,
+          error
+        )
+      })
+    }
+  }
+
+  async refreshModels(providerId: string): Promise<void> {
+    try {
+      await this.syncProviderDbBeforeRefresh(providerId)
+      await this.enqueueProviderModelRefresh(providerId)
     } catch (error) {
       console.error(`Failed to refresh models for provider ${providerId}:`, error)
       const errorMessage = error instanceof Error ? error.message : String(error)
