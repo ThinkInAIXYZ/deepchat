@@ -140,10 +140,9 @@ describe('ProviderDbLoader', () => {
     await loader.initialize()
 
     expect(loader.getDb()?.providers).toHaveProperty('openai')
-    expect(loader.getDb()?.providers).toHaveProperty('doubao')
     expect(fetchMock).toHaveBeenCalledTimes(1)
     expect(state.send).toHaveBeenCalledWith('provider-db:loaded', 'ALL_WINDOWS', {
-      providersCount: 2
+      providersCount: 1
     })
   })
 
@@ -227,78 +226,12 @@ describe('ProviderDbLoader', () => {
     const result = await loader.refreshIfNeeded(true)
 
     expect(result.status).toBe('updated')
-    expect(result.providersCount).toBe(3)
+    expect(result.providersCount).toBe(2)
     expect(loader.getDb()?.providers).toHaveProperty('anthropic')
-    expect(loader.getDb()?.providers).toHaveProperty('doubao')
     expect(state.send).toHaveBeenCalledWith('provider-db:updated', 'ALL_WINDOWS', {
-      providersCount: 3,
+      providersCount: 2,
       lastUpdated: expect.any(Number)
     })
-  })
-
-  it('appends missing doubao supplement models without duplicating upstream models', async () => {
-    writeCachedDb({
-      providers: {
-        doubao: {
-          id: 'doubao',
-          name: 'Doubao',
-          models: [
-            {
-              id: 'doubao-seed-1-6-250615',
-              name: 'Doubao Seed 1.6'
-            }
-          ]
-        }
-      }
-    })
-
-    const ProviderDbLoader = await importLoader()
-    const loader = new ProviderDbLoader()
-
-    const doubaoModels = loader.getProvider('doubao')?.models ?? []
-    const modelIds = doubaoModels.map((model) => model.id)
-
-    expect(modelIds).toContain('doubao-seed-1-6-250615')
-    expect(modelIds).toContain('doubao-seed-1.8')
-    expect(modelIds).toContain('doubao-seed-2.0-pro')
-    expect(modelIds.filter((id) => id === 'doubao-seed-1-6-250615')).toHaveLength(1)
-  })
-
-  it('uses upstream provider data as the merge base for overlapping doubao models', async () => {
-    writeCachedDb({
-      providers: {
-        doubao: {
-          id: 'doubao',
-          name: 'Doubao',
-          models: [
-            {
-              id: 'doubao-seed-2.0-pro',
-              name: 'Upstream Doubao Seed 2.0 Pro',
-              tool_call: false,
-              modalities: {
-                input: ['text'],
-                output: ['text']
-              }
-            }
-          ]
-        }
-      }
-    })
-
-    const ProviderDbLoader = await importLoader()
-    const loader = new ProviderDbLoader()
-    const model = loader.getModel('doubao', 'doubao-seed-2.0-pro')
-
-    expect(model).toMatchObject({
-      id: 'doubao-seed-2.0-pro',
-      name: 'Upstream Doubao Seed 2.0 Pro',
-      tool_call: true,
-      modalities: {
-        input: ['text', 'image', 'video'],
-        output: ['text']
-      }
-    })
-    expect(model?.extra_capabilities?.reasoning?.notes).toContain('doubao-thinking-parameter')
   })
 
   it('returns an error result and preserves the existing cache when refresh fails', async () => {

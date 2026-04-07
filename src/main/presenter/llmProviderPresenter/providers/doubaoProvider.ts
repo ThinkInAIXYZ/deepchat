@@ -16,8 +16,9 @@ import {
 } from '@shared/modelConfigDefaults'
 import { OpenAICompatibleProvider } from './openAICompatibleProvider'
 import { providerDbLoader } from '../../configPresenter/providerDbLoader'
-import { PROVIDER_DB_SUPPLEMENT_NOTES } from '../../configPresenter/providerDbSupplements'
 import type { ProviderMcpRuntimePort } from '../runtimePorts'
+
+const DOUBAO_THINKING_NOTE = 'doubao-thinking-parameter'
 
 export class DoubaoProvider extends OpenAICompatibleProvider {
   constructor(
@@ -32,7 +33,7 @@ export class DoubaoProvider extends OpenAICompatibleProvider {
   private supportsThinking(modelId: string): boolean {
     const model = providerDbLoader.getModel(this.provider.id, modelId)
     const notes = model?.extra_capabilities?.reasoning?.notes
-    return Array.isArray(notes) && notes.includes(PROVIDER_DB_SUPPLEMENT_NOTES.doubaoThinking)
+    return Array.isArray(notes) && notes.includes(DOUBAO_THINKING_NOTE)
   }
 
   /**

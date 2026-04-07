@@ -72,12 +72,6 @@ vi.mock('../../../../src/main/presenter/configPresenter/providerDbLoader', () =>
   }
 }))
 
-vi.mock('../../../../src/main/presenter/configPresenter/providerDbSupplements', () => ({
-  PROVIDER_DB_SUPPLEMENT_NOTES: {
-    doubaoThinking: 'doubao-thinking-parameter'
-  }
-}))
-
 vi.mock('../../../../src/main/presenter/configPresenter/modelCapabilities', () => ({
   modelCapabilities: {
     supportsReasoningEffort: vi.fn().mockReturnValue(false),
@@ -143,7 +137,7 @@ describe('DoubaoProvider', () => {
     )
   })
 
-  it('maps supplemented doubao catalog entries into provider models', async () => {
+  it('maps doubao catalog entries into provider models', async () => {
     mockGetProvider.mockReturnValue({
       id: 'doubao',
       name: 'Doubao',
@@ -182,7 +176,7 @@ describe('DoubaoProvider', () => {
     ])
   })
 
-  it('adds Doubao thinking parameter for supplemented reasoning models based on metadata notes', async () => {
+  it('adds Doubao thinking parameter for reasoning models based on metadata notes', async () => {
     mockGetProvider.mockReturnValue({
       id: 'doubao',
       name: 'Doubao',

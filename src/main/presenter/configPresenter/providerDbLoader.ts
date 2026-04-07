@@ -8,7 +8,6 @@ import {
   sanitizeAggregate
 } from '@shared/types/model-db'
 import { resolveProviderId } from './providerId'
-import { PROVIDER_DB_SUPPLEMENTS } from './providerDbSupplements'
 import { eventBus, SendTarget } from '@/eventbus'
 import { PROVIDER_DB_EVENTS } from '@/events'
 
@@ -28,108 +27,6 @@ export type ProviderDbRefreshResult = {
   lastUpdated: number | null
   providersCount: number
   message?: string
-}
-
-const isPlainObject = (value: unknown): value is Record<string, unknown> => {
-  return !!value && typeof value === 'object' && !Array.isArray(value)
-}
-
-const cloneValue = <T>(value: T): T => {
-  if (typeof structuredClone === 'function') {
-    return structuredClone(value)
-  }
-
-  return JSON.parse(JSON.stringify(value)) as T
-}
-
-const mergeDefinedValue = <T>(base: T, override: unknown): T => {
-  if (override === undefined) {
-    return cloneValue(base)
-  }
-
-  if (!isPlainObject(override)) {
-    return cloneValue(override as T)
-  }
-
-  const result: Record<string, unknown> = isPlainObject(base) ? cloneValue(base) : {}
-
-  for (const [key, value] of Object.entries(override)) {
-    if (value === undefined) continue
-
-    const current = result[key]
-    result[key] =
-      isPlainObject(current) && isPlainObject(value)
-        ? mergeDefinedValue(current, value)
-        : cloneValue(value)
-  }
-
-  return result as T
-}
-
-const mergeProviderModels = (
-  baseModels: ProviderModel[],
-  supplementModels: ProviderModel[] | undefined
-): ProviderModel[] => {
-  const mergedModels = baseModels.map((model) => cloneValue(model))
-
-  if (!supplementModels || supplementModels.length === 0) {
-    return mergedModels
-  }
-
-  const modelIndexById = new Map(mergedModels.map((model, index) => [model.id, index]))
-
-  for (const supplementModel of supplementModels) {
-    const existingIndex = modelIndexById.get(supplementModel.id)
-
-    if (existingIndex === undefined) {
-      modelIndexById.set(supplementModel.id, mergedModels.length)
-      mergedModels.push(cloneValue(supplementModel))
-      continue
-    }
-
-    const existingModel = mergedModels[existingIndex]
-    const mergedModel = mergeDefinedValue(existingModel, supplementModel)
-
-    if (existingModel.name) {
-      mergedModel.name = existingModel.name
-    }
-
-    if (existingModel.display_name) {
-      mergedModel.display_name = existingModel.display_name
-    }
-
-    mergedModels[existingIndex] = mergedModel
-  }
-
-  return mergedModels
-}
-
-const mergeProviderAggregate = (
-  base: ProviderAggregate | null,
-  supplement: ProviderAggregate
-): ProviderAggregate => {
-  const mergedProviders = base ? cloneValue(base.providers) : {}
-
-  for (const [providerId, supplementProvider] of Object.entries(supplement.providers)) {
-    const existingProvider = mergedProviders[providerId]
-
-    if (!existingProvider) {
-      mergedProviders[providerId] = cloneValue(supplementProvider)
-      continue
-    }
-
-    const { models: _existingModels, ...existingWithoutModels } = existingProvider
-    const { models: supplementModels, ...supplementWithoutModels } = supplementProvider
-
-    mergedProviders[providerId] = {
-      ...mergeDefinedValue(existingWithoutModels, supplementWithoutModels),
-      models: mergeProviderModels(existingProvider.models, supplementModels)
-    }
-  }
-
-  return {
-    providers: mergedProviders
-  }
 }
 
 export class ProviderDbLoader {
@@ -154,7 +51,7 @@ export class ProviderDbLoader {
   // Public: initialize on app start (non-blocking refresh)
   async initialize(): Promise<void> {
     // Load from cache or built-in
-    this.cache = this.applySupplements(this.loadFromCache() ?? this.loadFromBuiltIn())
+    this.cache = this.loadFromCache() ?? this.loadFromBuiltIn()
     if (this.cache) {
       try {
         const providersCount = Object.keys(this.cache.providers || {}).length
@@ -179,7 +76,7 @@ export class ProviderDbLoader {
   getDb(): ProviderAggregate | null {
     if (this.cache) return this.cache
     // Lazy try again if not initialized yet
-    this.cache = this.applySupplements(this.loadFromCache() ?? this.loadFromBuiltIn())
+    this.cache = this.loadFromCache() ?? this.loadFromBuiltIn()
     return this.cache
   }
 
@@ -224,10 +121,6 @@ export class ProviderDbLoader {
     } catch {
       return null
     }
-  }
-
-  private applySupplements(db: ProviderAggregate | null): ProviderAggregate {
-    return mergeProviderAggregate(db, PROVIDER_DB_SUPPLEMENTS)
   }
 
   private readMeta(): MetaFile | null {
@@ -386,7 +279,7 @@ export class ProviderDbLoader {
       // Write cache atomically and update in-memory
       this.writeCacheAtomically(sanitized)
       this.writeMeta(meta)
-      this.cache = this.applySupplements(sanitized)
+      this.cache = sanitized
       try {
         const providersCount = Object.keys(this.cache.providers || {}).length
         eventBus.send(PROVIDER_DB_EVENTS.UPDATED, SendTarget.ALL_WINDOWS, {
