@@ -51,7 +51,7 @@
                     :key="option.value"
                     :data-testid="`model-capability-filter-${option.value}`"
                     size="sm"
-                    class="justify-between  px-3 text-xs"
+                    class="justify-between px-3 text-xs"
                     :variant="selectedCapabilities.includes(option.value) ? 'default' : 'outline'"
                     @click="toggleCapabilityFilter(option.value)"
                   >
@@ -74,7 +74,7 @@
                     :key="option.value"
                     :data-testid="`model-type-filter-${option.value}`"
                     size="sm"
-                    class="justify-between  px-3 text-xs"
+                    class="justify-between px-3 text-xs"
                     :variant="selectedTypes.includes(option.value) ? 'default' : 'outline'"
                     @click="toggleTypeFilter(option.value)"
                   >
@@ -108,8 +108,8 @@
                 class="w-full justify-between px-2! text-xs"
                 @click="setSort(option.value)"
               >
-              <span>{{ option.label }}</span>
-              <Icon v-if="sortState === option.value" icon="lucide:check" class="h-2 w-2" />
+                <span>{{ option.label }}</span>
+                <Icon v-if="sortState === option.value" icon="lucide:check" class="h-2 w-2" />
               </Button>
             </div>
           </PopoverContent>
