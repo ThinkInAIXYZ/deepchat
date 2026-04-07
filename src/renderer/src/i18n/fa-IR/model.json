@@ -21,26 +21,26 @@
     "disableAll": "خاموش کردن همه"
   },
   "sort": {
-    "status": "By Status",
-    "name": "By Name"
+    "status": "بر اساس وضعیت",
+    "name": "بر اساس نام"
   },
   "filter": {
-    "label": "Filter",
-    "clearAll": "Clear Filters",
-    "visibleCount": "Showing {visible} / {total}",
-    "capabilities": "Capabilities",
-    "types": "Types",
+    "label": "فیلتر",
+    "clearAll": "پاک کردن فیلترها",
+    "visibleCount": "نمایش {visible} / {total}",
+    "capabilities": "قابلیت‌ها",
+    "types": "انواع",
     "capabilityOptions": {
-      "vision": "Vision",
-      "functionCall": "Function Calling",
-      "reasoning": "Reasoning",
-      "search": "Web Search"
+      "vision": "بینایی",
+      "functionCall": "فراخوانی تابع",
+      "reasoning": "استدلال",
+      "search": "جستجوی وب"
     },
     "typeOptions": {
-      "chat": "Chat",
-      "embedding": "Embedding",
-      "rerank": "Rerank",
-      "imageGeneration": "Image Generation"
+      "chat": "گفتگو",
+      "embedding": "جاسازی",
+      "rerank": "رتبه‌بندی مجدد",
+      "imageGeneration": "تولید تصویر"
     }
   },
   "tags": {

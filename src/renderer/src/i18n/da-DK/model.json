@@ -21,26 +21,26 @@
     "disableAll": "Deaktiver alle"
   },
   "sort": {
-    "status": "By Status",
-    "name": "By Name"
+    "status": "Efter status",
+    "name": "Efter navn"
   },
   "filter": {
     "label": "Filter",
-    "clearAll": "Clear Filters",
-    "visibleCount": "Showing {visible} / {total}",
-    "capabilities": "Capabilities",
-    "types": "Types",
+    "clearAll": "Ryd filtre",
+    "visibleCount": "Viser {visible} / {total}",
+    "capabilities": "Funktioner",
+    "types": "Typer",
     "capabilityOptions": {
       "vision": "Vision",
-      "functionCall": "Function Calling",
-      "reasoning": "Reasoning",
-      "search": "Web Search"
+      "functionCall": "Funktionskald",
+      "reasoning": "Ræsonnement",
+      "search": "Websøgning"
     },
     "typeOptions": {
       "chat": "Chat",
-      "embedding": "Embedding",
-      "rerank": "Rerank",
-      "imageGeneration": "Image Generation"
+      "embedding": "Indlejring",
+      "rerank": "Genrangering",
+      "imageGeneration": "Billedgenerering"
     }
   },
   "tags": {

@@ -21,26 +21,26 @@
     "disableAll": "Desativar Todos"
   },
   "sort": {
-    "status": "By Status",
-    "name": "By Name"
+    "status": "Por Status",
+    "name": "Por Nome"
   },
   "filter": {
-    "label": "Filter",
-    "clearAll": "Clear Filters",
-    "visibleCount": "Showing {visible} / {total}",
-    "capabilities": "Capabilities",
-    "types": "Types",
+    "label": "Filtrar",
+    "clearAll": "Limpar Filtros",
+    "visibleCount": "Mostrando {visible} / {total}",
+    "capabilities": "Capacidades",
+    "types": "Tipos",
     "capabilityOptions": {
-      "vision": "Vision",
-      "functionCall": "Function Calling",
-      "reasoning": "Reasoning",
-      "search": "Web Search"
+      "vision": "Visão",
+      "functionCall": "Chamada de Função",
+      "reasoning": "Raciocínio",
+      "search": "Busca na Web"
     },
     "typeOptions": {
       "chat": "Chat",
-      "embedding": "Embedding",
-      "rerank": "Rerank",
-      "imageGeneration": "Image Generation"
+      "embedding": "Incorporação",
+      "rerank": "Reclassificação",
+      "imageGeneration": "Geração de Imagem"
     }
   },
   "tags": {

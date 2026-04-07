@@ -21,26 +21,26 @@
     "disableAll": "השבת הכל"
   },
   "sort": {
-    "status": "By Status",
-    "name": "By Name"
+    "status": "לפי סטטוס",
+    "name": "לפי שם"
   },
   "filter": {
-    "label": "Filter",
-    "clearAll": "Clear Filters",
-    "visibleCount": "Showing {visible} / {total}",
-    "capabilities": "Capabilities",
-    "types": "Types",
+    "label": "סינון",
+    "clearAll": "נקה סינונים",
+    "visibleCount": "מציג {visible} / {total}",
+    "capabilities": "יכולות",
+    "types": "סוגים",
     "capabilityOptions": {
-      "vision": "Vision",
-      "functionCall": "Function Calling",
-      "reasoning": "Reasoning",
-      "search": "Web Search"
+      "vision": "ראייה",
+      "functionCall": "קריאת פונקציה",
+      "reasoning": "חשיבה",
+      "search": "חיפוש ברשת"
     },
     "typeOptions": {
-      "chat": "Chat",
-      "embedding": "Embedding",
-      "rerank": "Rerank",
-      "imageGeneration": "Image Generation"
+      "chat": "צ'אט",
+      "embedding": "הטמעה",
+      "rerank": "דירוג מחדש",
+      "imageGeneration": "יצירת תמונות"
     }
   },
   "tags": {

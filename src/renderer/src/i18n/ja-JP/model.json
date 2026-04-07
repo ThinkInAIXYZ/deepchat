@@ -21,26 +21,26 @@
     "disableAll": "すべて無効にする"
   },
   "sort": {
-    "status": "By Status",
-    "name": "By Name"
+    "status": "ステータス順",
+    "name": "名前順"
   },
   "filter": {
-    "label": "Filter",
-    "clearAll": "Clear Filters",
-    "visibleCount": "Showing {visible} / {total}",
-    "capabilities": "Capabilities",
-    "types": "Types",
+    "label": "フィルター",
+    "clearAll": "フィルターをクリア",
+    "visibleCount": "{visible} / {total} 件表示中",
+    "capabilities": "機能",
+    "types": "タイプ",
     "capabilityOptions": {
-      "vision": "Vision",
-      "functionCall": "Function Calling",
-      "reasoning": "Reasoning",
-      "search": "Web Search"
+      "vision": "ビジョン",
+      "functionCall": "関数呼び出し",
+      "reasoning": "推論",
+      "search": "Web検索"
     },
     "typeOptions": {
-      "chat": "Chat",
-      "embedding": "Embedding",
-      "rerank": "Rerank",
-      "imageGeneration": "Image Generation"
+      "chat": "チャット",
+      "embedding": "埋め込み",
+      "rerank": "再ランク付け",
+      "imageGeneration": "画像生成"
     }
   },
   "tags": {

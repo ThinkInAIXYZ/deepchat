@@ -21,26 +21,26 @@
     "disableAll": "Выключить все"
   },
   "sort": {
-    "status": "By Status",
-    "name": "By Name"
+    "status": "По статусу",
+    "name": "По имени"
   },
   "filter": {
-    "label": "Filter",
-    "clearAll": "Clear Filters",
-    "visibleCount": "Showing {visible} / {total}",
-    "capabilities": "Capabilities",
-    "types": "Types",
+    "label": "Фильтр",
+    "clearAll": "Очистить фильтры",
+    "visibleCount": "Показано {visible} / {total}",
+    "capabilities": "Возможности",
+    "types": "Типы",
     "capabilityOptions": {
-      "vision": "Vision",
-      "functionCall": "Function Calling",
-      "reasoning": "Reasoning",
-      "search": "Web Search"
+      "vision": "Видение",
+      "functionCall": "Вызов функций",
+      "reasoning": "Рассуждение",
+      "search": "Веб-поиск"
     },
     "typeOptions": {
-      "chat": "Chat",
-      "embedding": "Embedding",
-      "rerank": "Rerank",
-      "imageGeneration": "Image Generation"
+      "chat": "Чат",
+      "embedding": "Встраивание",
+      "rerank": "Переранжирование",
+      "imageGeneration": "Генерация изображений"
     }
   },
   "tags": {
