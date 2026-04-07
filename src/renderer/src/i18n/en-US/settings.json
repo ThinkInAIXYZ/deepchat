@@ -548,6 +548,7 @@
     "openaiResponsesNotice": "OpenAI defaults to the Responses API. If a third-party endpoint only supports Chat Completions, use the OpenAI Completions provider.",
     "modifyBaseUrl": "Modify",
     "baseUrlLockedHint": "This provider is pinned to the recommended Base URL to reduce misconfiguration.",
+    "refreshModelsWithMetadataHint": "Refreshing this provider will sync upstream metadata first, then rebuild the local model list.",
     "modelList": "Model List",
     "enableModels": "Enable Models",
     "disableAllModels": "Disable All Models",
@@ -690,7 +691,13 @@
       "backupSuccessTitle": "Backup completed",
       "backupSuccessMessage": "Backup saved at {time} ({size})",
       "importSuccessTitle": "Import completed",
-      "importSuccessMessage": "Successfully imported {count} conversations"
+      "importSuccessMessage": "Successfully imported {count} conversations",
+      "refreshModelsSuccessTitle": "Models refreshed",
+      "refreshModelsSuccessDescription": "The latest model list has been synced for this provider.",
+      "refreshModelsSuccessDescriptionWithMetadata": "Upstream metadata and the latest model list have been synced for this provider.",
+      "refreshModelsFailedTitle": "Refresh failed",
+      "refreshModelsFailedDescription": "Unable to refresh models for this provider right now. Please try again later.",
+      "refreshModelsFailedDescriptionWithMetadata": "Unable to refresh upstream metadata and models for this provider right now. Please try again later."
     },
     "modelscope": {
       "mcpSync": {

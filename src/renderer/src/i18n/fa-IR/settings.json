@@ -486,6 +486,7 @@
     "openaiResponsesNotice": "OpenAI به صورت پیش‌فرض از Responses API استفاده می‌کند. اگر endpoint شخص ثالث فقط از Chat Completions پشتیبانی می‌کند، از ارائه‌دهنده OpenAI Completions استفاده کنید.",
     "modifyBaseUrl": "ویرایش",
     "baseUrlLockedHint": "این ارائه‌دهنده برای کاهش خطاهای پیکربندی روی آدرس پایه پیشنهادی قفل شده است.",
+    "refreshModelsWithMetadataHint": "نوسازی این ارائه‌دهنده ابتدا فرادادهٔ بالادستی را همگام می‌کند و سپس فهرست محلی مدل‌ها را بازسازی می‌کند.",
     "modelList": "فهرست مدل‌ها",
     "enableModels": "روشن کردن مدل‌ها",
     "disableAllModels": "خاموش کردن همه مدل‌ها",
@@ -660,7 +661,13 @@
       "backupSuccessTitle": "پشتیبان‌گیری کامل شد",
       "backupSuccessMessage": "فایل پشتیبان در {time} ذخیره شد (حجم: {size})",
       "importSuccessTitle": "درون‌ریزی با موفقیت انجام شد",
-      "importSuccessMessage": "{count} گفتگو با موفقیت درون‌ریزی شد"
+      "importSuccessMessage": "{count} گفتگو با موفقیت درون‌ریزی شد",
+      "refreshModelsSuccessTitle": "مدل‌ها نوسازی شدند",
+      "refreshModelsSuccessDescription": "جدیدترین فهرست مدل برای این ارائه‌دهنده همگام شد.",
+      "refreshModelsSuccessDescriptionWithMetadata": "فرادادهٔ بالادستی و جدیدترین فهرست مدل برای این ارائه‌دهنده همگام شد.",
+      "refreshModelsFailedTitle": "نوسازی ناموفق بود",
+      "refreshModelsFailedDescription": "در حال حاضر امکان نوسازی مدل‌های این ارائه‌دهنده وجود ندارد. لطفاً بعداً دوباره تلاش کنید.",
+      "refreshModelsFailedDescriptionWithMetadata": "در حال حاضر امکان همگام‌سازی فرادادهٔ بالادستی و مدل‌های این ارائه‌دهنده وجود ندارد. لطفاً بعداً دوباره تلاش کنید."
     },
     "apiKeyLabel": "کلید API",
     "apiUrlLabel": "آدرس API",

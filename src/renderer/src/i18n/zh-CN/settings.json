@@ -549,6 +549,7 @@
     "openaiResponsesNotice": "OpenAI 官方服务默认使用 Responses API；若第三方仅支持 Chat Completions，请使用 OpenAI Completions 服务商。",
     "modifyBaseUrl": "修改",
     "baseUrlLockedHint": "此类 provider 默认固定为推荐的 Base URL，避免误修改导致请求异常。",
+    "refreshModelsWithMetadataHint": "刷新该服务商时会先同步上游元数据，再重建本地模型列表。",
     "modelList": "模型列表",
     "enableModels": "启用模型",
     "disableAllModels": "禁用全部",
@@ -576,7 +577,13 @@
       "backupSuccessTitle": "备份完成",
       "backupSuccessMessage": "备份已保存（时间：{time}，大小：{size}）",
       "importSuccessTitle": "导入完成",
-      "importSuccessMessage": "成功导入 {count} 条会话"
+      "importSuccessMessage": "成功导入 {count} 条会话",
+      "refreshModelsSuccessTitle": "模型已刷新",
+      "refreshModelsSuccessDescription": "该服务商的最新模型列表已同步。",
+      "refreshModelsSuccessDescriptionWithMetadata": "该服务商的上游元数据和最新模型列表已同步。",
+      "refreshModelsFailedTitle": "刷新失败",
+      "refreshModelsFailedDescription": "暂时无法刷新该服务商的模型列表，请稍后重试。",
+      "refreshModelsFailedDescriptionWithMetadata": "暂时无法刷新该服务商的上游元数据和模型列表，请稍后重试。"
     },
     "modelscope": {
       "name": "ModelScope",

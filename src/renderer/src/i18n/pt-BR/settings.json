@@ -486,6 +486,7 @@
     "openaiResponsesNotice": "A OpenAI usa a API Responses por padrão. Se um endpoint de terceiros oferecer suporte apenas a Chat Completions, use o provedor OpenAI Completions.",
     "modifyBaseUrl": "Modificar",
     "baseUrlLockedHint": "Este provedor está fixado na URL base recomendada para reduzir erros de configuração.",
+    "refreshModelsWithMetadataHint": "Atualizar este provedor sincroniza primeiro os metadados upstream e depois reconstrói a lista local de modelos.",
     "modelList": "Lista de Modelos",
     "enableModels": "Habilitar Modelos",
     "disableAllModels": "Desabilitar Todos os Modelos",
@@ -660,7 +661,13 @@
       "backupSuccessTitle": "Backup concluído",
       "backupSuccessMessage": "Backup salvo em {time} ({size})",
       "importSuccessTitle": "Importação concluída",
-      "importSuccessMessage": "{count} conversas importadas com sucesso"
+      "importSuccessMessage": "{count} conversas importadas com sucesso",
+      "refreshModelsSuccessTitle": "Modelos atualizados",
+      "refreshModelsSuccessDescription": "A lista mais recente de modelos foi sincronizada para este provedor.",
+      "refreshModelsSuccessDescriptionWithMetadata": "Os metadados upstream e a lista mais recente de modelos foram sincronizados para este provedor.",
+      "refreshModelsFailedTitle": "Falha na atualização",
+      "refreshModelsFailedDescription": "Não foi possível atualizar os modelos deste provedor agora. Tente novamente mais tarde.",
+      "refreshModelsFailedDescriptionWithMetadata": "Não foi possível sincronizar os metadados upstream e os modelos deste provedor agora. Tente novamente mais tarde."
     },
     "modelscope": {
       "mcpSync": {

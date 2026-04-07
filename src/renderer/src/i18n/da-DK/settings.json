@@ -420,6 +420,7 @@
     "openaiResponsesNotice": "OpenAI bruger som standard Responses API. Hvis et tredjeparts-endpoint kun understøtter Chat Completions, skal du bruge OpenAI Completions-udbyderen.",
     "modifyBaseUrl": "Rediger",
     "baseUrlLockedHint": "Denne udbyder er låst til den anbefalede basis-URL for at mindske fejlkonfiguration.",
+    "refreshModelsWithMetadataHint": "Opdatering af denne udbyder synkroniserer først upstream-metadata og genopbygger derefter den lokale modelliste.",
     "modelList": "Modelliste",
     "enableModels": "Aktivér modeller",
     "disableAllModels": "Deaktiver alle modeller",
@@ -594,7 +595,13 @@
       "backupSuccessTitle": "Backup fuldført",
       "backupSuccessMessage": "Backup gemt {time} ({size})",
       "importSuccessTitle": "Import fuldført",
-      "importSuccessMessage": "Importerede {count} samtaler"
+      "importSuccessMessage": "Importerede {count} samtaler",
+      "refreshModelsSuccessTitle": "Modeller opdateret",
+      "refreshModelsSuccessDescription": "Den nyeste modelliste er blevet synkroniseret for denne udbyder.",
+      "refreshModelsSuccessDescriptionWithMetadata": "Upstream-metadata og den nyeste modelliste er blevet synkroniseret for denne udbyder.",
+      "refreshModelsFailedTitle": "Opdatering mislykkedes",
+      "refreshModelsFailedDescription": "Modellerne for denne udbyder kunne ikke opdateres lige nu. Prøv igen senere.",
+      "refreshModelsFailedDescriptionWithMetadata": "Upstream-metadata og modeller for denne udbyder kunne ikke opdateres lige nu. Prøv igen senere."
     },
     "modelscope": {
       "mcpSync": {

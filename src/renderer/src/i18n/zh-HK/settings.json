@@ -486,6 +486,7 @@
     "openaiResponsesNotice": "OpenAI 官方服務預設使用 Responses API；若第三方僅支援 Chat Completions，請使用 OpenAI Completions 服務商。",
     "modifyBaseUrl": "修改",
     "baseUrlLockedHint": "此類 provider 預設固定為建議的 Base URL，避免誤修改導致請求異常。",
+    "refreshModelsWithMetadataHint": "刷新該服務商時會先同步上游元資料，再重建本地模型列表。",
     "modelList": "模型列表",
     "enableModels": "模型已經啟用",
     "verifyLink": "驗證鏈接",
@@ -660,7 +661,13 @@
       "backupSuccessTitle": "備份完成",
       "backupSuccessMessage": "備份已儲存（時間：{time}，大小：{size}）",
       "importSuccessTitle": "匯入完成",
-      "importSuccessMessage": "成功匯入 {count} 個對話"
+      "importSuccessMessage": "成功匯入 {count} 個對話",
+      "refreshModelsSuccessTitle": "模型已刷新",
+      "refreshModelsSuccessDescription": "該服務商的最新模型列表已同步。",
+      "refreshModelsSuccessDescriptionWithMetadata": "該服務商的上游元資料和最新模型列表已同步。",
+      "refreshModelsFailedTitle": "刷新失敗",
+      "refreshModelsFailedDescription": "暫時無法刷新該服務商的模型列表，請稍後重試。",
+      "refreshModelsFailedDescriptionWithMetadata": "暫時無法刷新該服務商的上游元資料和模型列表，請稍後重試。"
     },
     "apiKeyLabel": "API Key",
     "apiUrlLabel": "API URL",

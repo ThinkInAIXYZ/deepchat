@@ -486,6 +486,7 @@
     "openaiResponsesNotice": "OpenAI utilise par défaut l'API Responses. Si un endpoint tiers ne prend en charge que Chat Completions, utilisez le fournisseur OpenAI Completions.",
     "modifyBaseUrl": "Modifier",
     "baseUrlLockedHint": "Ce fournisseur est verrouillé sur l’URL de base recommandée afin de réduire les erreurs de configuration.",
+    "refreshModelsWithMetadataHint": "L’actualisation de ce fournisseur synchronise d’abord les métadonnées en amont, puis reconstruit la liste locale des modèles.",
     "modelList": "Liste des modèles",
     "enableModels": "Activer les modèles",
     "disableAllModels": "Désactiver tous les modèles",
@@ -660,7 +661,13 @@
       "backupSuccessTitle": "Sauvegarde terminée",
       "backupSuccessMessage": "Sauvegarde enregistrée à {time} ({size})",
       "importSuccessTitle": "Importation terminée",
-      "importSuccessMessage": "{count} conversations importées avec succès"
+      "importSuccessMessage": "{count} conversations importées avec succès",
+      "refreshModelsSuccessTitle": "Modèles actualisés",
+      "refreshModelsSuccessDescription": "La dernière liste de modèles a été synchronisée pour ce fournisseur.",
+      "refreshModelsSuccessDescriptionWithMetadata": "Les métadonnées en amont et la dernière liste de modèles ont été synchronisées pour ce fournisseur.",
+      "refreshModelsFailedTitle": "Actualisation échouée",
+      "refreshModelsFailedDescription": "Impossible d’actualiser les modèles de ce fournisseur pour le moment. Veuillez réessayer plus tard.",
+      "refreshModelsFailedDescriptionWithMetadata": "Impossible de synchroniser les métadonnées en amont et les modèles de ce fournisseur pour le moment. Veuillez réessayer plus tard."
     },
     "apiKeyLabel": "Clé API",
     "apiUrlLabel": "URL API",

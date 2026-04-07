@@ -622,6 +622,7 @@
     "openaiResponsesNotice": "OpenAI 공식 서비스는 기본적으로 Responses API를 사용합니다. 서드파티 엔드포인트가 Chat Completions만 지원하는 경우 OpenAI Completions 공급자를 사용하세요.",
     "modifyBaseUrl": "수정",
     "baseUrlLockedHint": "이 제공자는 잘못된 설정을 줄이기 위해 권장 기본 URL로 고정되어 있습니다.",
+    "refreshModelsWithMetadataHint": "이 공급자를 새로 고치면 먼저 상위 메타데이터를 동기화한 뒤 로컬 모델 목록을 다시 구성합니다.",
     "azureApiVersion": "API 버전",
     "safety": {
       "title": "보안 설정",
@@ -660,7 +661,13 @@
       "backupSuccessTitle": "백업이 완료되었습니다",
       "backupSuccessMessage": "백업이 저장되었습니다 (시간: {time}, 크기: {size})",
       "importSuccessTitle": "가져오기가 완료되었습니다",
-      "importSuccessMessage": "{count}개의 대화를 성공적으로 가져왔습니다"
+      "importSuccessMessage": "{count}개의 대화를 성공적으로 가져왔습니다",
+      "refreshModelsSuccessTitle": "모델을 새로 고쳤습니다",
+      "refreshModelsSuccessDescription": "이 공급자의 최신 모델 목록이 동기화되었습니다.",
+      "refreshModelsSuccessDescriptionWithMetadata": "이 공급자의 상위 메타데이터와 최신 모델 목록이 동기화되었습니다.",
+      "refreshModelsFailedTitle": "새로 고침에 실패했습니다",
+      "refreshModelsFailedDescription": "지금은 이 공급자의 모델 목록을 새로 고칠 수 없습니다. 나중에 다시 시도하세요.",
+      "refreshModelsFailedDescriptionWithMetadata": "지금은 이 공급자의 상위 메타데이터와 모델을 동기화할 수 없습니다. 나중에 다시 시도하세요."
     },
     "apiKeyLabel": "API Key",
     "apiUrlLabel": "API URL",

@@ -622,6 +622,7 @@
     "openaiResponsesNotice": "OpenAI по умолчанию использует Responses API. Если сторонний endpoint поддерживает только Chat Completions, используйте провайдера OpenAI Completions.",
     "modifyBaseUrl": "Изменить",
     "baseUrlLockedHint": "Этот провайдер закреплён за рекомендуемым базовым URL, чтобы снизить риск ошибочной настройки.",
+    "refreshModelsWithMetadataHint": "Обновление этого провайдера сначала синхронизирует метаданные из upstream, а затем пересоберёт локальный список моделей.",
     "azureApiVersion": "Версия API",
     "safety": {
       "title": "Настройки безопасности",
@@ -660,7 +661,13 @@
       "backupSuccessTitle": "Резервное копирование завершено",
       "backupSuccessMessage": "Резервная копия сохранена (время: {time}, размер: {size})",
       "importSuccessTitle": "Импорт завершён",
-      "importSuccessMessage": "Успешно импортировано {count} бесед"
+      "importSuccessMessage": "Успешно импортировано {count} бесед",
+      "refreshModelsSuccessTitle": "Модели обновлены",
+      "refreshModelsSuccessDescription": "Для этого провайдера синхронизирован актуальный список моделей.",
+      "refreshModelsSuccessDescriptionWithMetadata": "Для этого провайдера синхронизированы upstream-метаданные и актуальный список моделей.",
+      "refreshModelsFailedTitle": "Не удалось обновить",
+      "refreshModelsFailedDescription": "Сейчас не удалось обновить модели этого провайдера. Попробуйте позже.",
+      "refreshModelsFailedDescriptionWithMetadata": "Сейчас не удалось синхронизировать upstream-метаданные и модели этого провайдера. Попробуйте позже."
     },
     "apiKeyLabel": "API ключ",
     "apiUrlLabel": "API URL",
