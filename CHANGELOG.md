@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.0.2 (2026-04-08)
+- Added provider model list filtering and sorting, and now remembers the sidebar session grouping mode
+- Added ACP Agent uninstall support and refined provider prompt cache configuration
+- Improved remote delivery ordering for Telegram and Feishu, and fixed db-backed model list sync stability
+- Refined dashboard and settings responsiveness, and fixed auto compact settings persistence
+- 新增 Provider 模型列表筛选排序能力，并记住侧边栏会话分组方式
+- 新增 ACP Agent 卸载支持，并完善 Provider Prompt Cache 配置体验
+- 优化 Telegram 与 Feishu 远程消息投递顺序，修复数据库驱动模型列表同步稳定性
+- 改进仪表盘与设置页响应式布局，并修复自动压缩设置保存问题
+
 ## v1.0.1 (2026-04-02)
 - Added in-chat search and Spotlight global search for faster access to messages and app entry points
 - Improved the provider database refresh flow and added manual model config refresh
