@@ -24,10 +24,12 @@ import {
 
 export interface RemoteDeliveryState {
   sourceMessageId: string
-  statusMessageId: string | number | null
-  contentMessageIds: Array<string | number>
-  lastStatusText: string
-  lastContentText: string
+  segments: Array<{
+    key: string
+    kind: 'process' | 'answer' | 'terminal'
+    messageIds: Array<string | number>
+    lastText: string
+  }>
 }
 
 export class RemoteBindingStore {
@@ -407,10 +409,12 @@ export class RemoteBindingStore {
   rememberRemoteDeliveryState(endpointKey: string, state: RemoteDeliveryState): void {
     this.remoteDeliveryStates.set(endpointKey, {
       sourceMessageId: state.sourceMessageId,
-      statusMessageId: state.statusMessageId,
-      contentMessageIds: [...state.contentMessageIds],
-      lastStatusText: state.lastStatusText,
-      lastContentText: state.lastContentText
+      segments: state.segments.map((segment) => ({
+        key: segment.key,
+        kind: segment.kind,
+        messageIds: [...segment.messageIds],
+        lastText: segment.lastText
+      }))
     })
   }
 
@@ -422,10 +426,12 @@ export class RemoteBindingStore {
 
     return {
       sourceMessageId: state.sourceMessageId,
-      statusMessageId: state.statusMessageId,
-      contentMessageIds: [...state.contentMessageIds],
-      lastStatusText: state.lastStatusText,
-      lastContentText: state.lastContentText
+      segments: state.segments.map((segment) => ({
+        key: segment.key,
+        kind: segment.kind,
+        messageIds: [...segment.messageIds],
+        lastText: segment.lastText
+      }))
     }
   }
 

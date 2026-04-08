@@ -72,7 +72,10 @@ const createHarness = async (options?: { logger?: { error: (...params: unknown[]
     rememberRemoteDeliveryState: vi.fn((endpointKey: string, state: any) => {
       deliveryStates.set(endpointKey, {
         ...state,
-        contentMessageIds: [...state.contentMessageIds]
+        segments: state.segments.map((segment: any) => ({
+          ...segment,
+          messageIds: [...segment.messageIds]
+        }))
       })
     }),
     clearRemoteDeliveryState: vi.fn((endpointKey: string) => {
@@ -104,7 +107,7 @@ const createHarness = async (options?: { logger?: { error: (...params: unknown[]
 }
 
 describe('FeishuRuntime', () => {
-  it('streams answer text beside a temporary status message', async () => {
+  it('streams answer text beside a persistent trace log', async () => {
     vi.useFakeTimers()
 
     try {
@@ -119,6 +122,15 @@ describe('FeishuRuntime', () => {
             .mockResolvedValueOnce({
               messageId: 'msg-1',
               text: '',
+              traceText: '💻 shell_command: "git status"',
+              deliverySegments: [
+                {
+                  key: 'msg-1:0:process',
+                  kind: 'process',
+                  text: '💻 shell_command: "git status"',
+                  sourceMessageId: 'msg-1'
+                }
+              ],
               statusText: 'Running: thinking...',
               finalText: '',
               draftText: '',
@@ -127,9 +139,50 @@ describe('FeishuRuntime', () => {
               completed: false,
               pendingInteraction: null
             })
+            .mockResolvedValueOnce({
+              messageId: 'msg-1',
+              text: 'Draft answer',
+              traceText: '💻 shell_command: "git status"',
+              deliverySegments: [
+                {
+                  key: 'msg-1:0:process',
+                  kind: 'process',
+                  text: '💻 shell_command: "git status"',
+                  sourceMessageId: 'msg-1'
+                },
+                {
+                  key: 'msg-1:1:answer',
+                  kind: 'answer',
+                  text: 'Draft answer',
+                  sourceMessageId: 'msg-1'
+                }
+              ],
+              statusText: 'Running: writing...',
+              finalText: '',
+              draftText: '',
+              renderBlocks: [],
+              fullText: '[Answer]\nDraft answer',
+              completed: false,
+              pendingInteraction: null
+            })
             .mockResolvedValue({
               messageId: 'msg-1',
               text: 'Draft answer',
+              traceText: '💻 shell_command: "git status"',
+              deliverySegments: [
+                {
+                  key: 'msg-1:0:process',
+                  kind: 'process',
+                  text: '💻 shell_command: "git status"',
+                  sourceMessageId: 'msg-1'
+                },
+                {
+                  key: 'msg-1:1:answer',
+                  kind: 'answer',
+                  text: 'Final answer',
+                  sourceMessageId: 'msg-1'
+                }
+              ],
               statusText: 'Running: writing...',
               finalText: 'Final answer',
               draftText: '',
@@ -154,7 +207,7 @@ describe('FeishuRuntime', () => {
             threadId: null,
             replyToMessageId: 'om_incremental'
           },
-          'Running: thinking...'
+          '💻 shell_command: "git status"'
         )
       })
 
@@ -173,14 +226,23 @@ describe('FeishuRuntime', () => {
           'feishu:oc_1:root',
           expect.objectContaining({
             sourceMessageId: 'msg-1',
-            statusMessageId: 'om_bot_1',
-            contentMessageIds: ['om_bot_2'],
-            lastStatusText: 'Running: writing...',
-            lastContentText: 'Draft answer'
+            segments: [
+              {
+                key: 'msg-1:0:process',
+                kind: 'process',
+                messageIds: ['om_bot_1'],
+                lastText: '💻 shell_command: "git status"'
+              },
+              {
+                key: 'msg-1:1:answer',
+                kind: 'answer',
+                messageIds: ['om_bot_2'],
+                lastText: 'Draft answer'
+              }
+            ]
           })
         )
         expect(harness.client.updateText).toHaveBeenCalledWith('om_bot_2', 'Final answer')
-        expect(harness.client.deleteMessage).toHaveBeenCalledWith('om_bot_1')
         expect(harness.bindingStore.clearRemoteDeliveryState).toHaveBeenCalledWith(
           'feishu:oc_1:root'
         )
@@ -210,6 +272,7 @@ describe('FeishuRuntime', () => {
             .mockResolvedValueOnce({
               messageId: 'msg-1',
               text: firstText,
+              traceText: '',
               statusText: 'Running: writing...',
               finalText: '',
               completed: false,
@@ -218,6 +281,7 @@ describe('FeishuRuntime', () => {
             .mockResolvedValueOnce({
               messageId: 'msg-1',
               text: expandedText,
+              traceText: '',
               statusText: 'Running: writing...',
               finalText: '',
               completed: false,
@@ -226,6 +290,7 @@ describe('FeishuRuntime', () => {
             .mockResolvedValue({
               messageId: 'msg-1',
               text: expandedText,
+              traceText: '',
               statusText: 'Running: writing...',
               finalText: expandedText,
               completed: true,
@@ -254,7 +319,7 @@ describe('FeishuRuntime', () => {
       await vi.advanceTimersByTimeAsync(TELEGRAM_STREAM_POLL_INTERVAL_MS)
 
       await vi.waitFor(() => {
-        expect(harness.client.updateText).toHaveBeenCalledWith('om_bot_2', 'A'.repeat(8_000))
+        expect(harness.client.updateText).toHaveBeenCalledWith('om_bot_1', 'A'.repeat(8_000))
         expect(harness.client.sendText).toHaveBeenCalledWith(
           {
             chatId: 'oc_1',
@@ -268,7 +333,194 @@ describe('FeishuRuntime', () => {
       await vi.advanceTimersByTimeAsync(TELEGRAM_STREAM_POLL_INTERVAL_MS)
 
       await vi.waitFor(() => {
-        expect(harness.client.deleteMessage).toHaveBeenCalledWith('om_bot_1')
+        expect(harness.client.deleteMessage).not.toHaveBeenCalled()
+      })
+
+      await harness.runtime.stop()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('appends later process and answer segments in DeepChat order instead of rewriting the first answer', async () => {
+    vi.useFakeTimers()
+
+    try {
+      const harness = await createHarness()
+      harness.router.handleMessage.mockResolvedValue({
+        replies: [],
+        conversation: {
+          sessionId: 'session-1',
+          eventId: 'msg-1',
+          getSnapshot: vi
+            .fn()
+            .mockResolvedValueOnce({
+              messageId: 'msg-1',
+              text: 'Let me inspect these files.',
+              traceText: '',
+              deliverySegments: [
+                {
+                  key: 'msg-1:0:answer',
+                  kind: 'answer',
+                  text: 'Let me inspect these files.',
+                  sourceMessageId: 'msg-1'
+                }
+              ],
+              statusText: 'Running: writing...',
+              finalText: '',
+              completed: false,
+              pendingInteraction: null
+            })
+            .mockResolvedValueOnce({
+              messageId: 'msg-1',
+              text: 'Let me inspect these files.',
+              traceText: '',
+              deliverySegments: [
+                {
+                  key: 'msg-1:0:answer',
+                  kind: 'answer',
+                  text: 'Let me inspect these files.',
+                  sourceMessageId: 'msg-1'
+                },
+                {
+                  key: 'msg-1:1:process',
+                  kind: 'process',
+                  text: '📖 read_file: "/tmp/report.md"',
+                  sourceMessageId: 'msg-1'
+                }
+              ],
+              statusText: 'Running: calling read_file...',
+              finalText: '',
+              completed: false,
+              pendingInteraction: null
+            })
+            .mockResolvedValue({
+              messageId: 'msg-1',
+              text: 'Summary ready.',
+              traceText: '',
+              deliverySegments: [
+                {
+                  key: 'msg-1:0:answer',
+                  kind: 'answer',
+                  text: 'Let me inspect these files.',
+                  sourceMessageId: 'msg-1'
+                },
+                {
+                  key: 'msg-1:1:process',
+                  kind: 'process',
+                  text: '📖 read_file: "/tmp/report.md"',
+                  sourceMessageId: 'msg-1'
+                },
+                {
+                  key: 'msg-1:2:answer',
+                  kind: 'answer',
+                  text: 'Summary ready.',
+                  sourceMessageId: 'msg-1'
+                }
+              ],
+              statusText: 'Running: writing...',
+              finalText: 'Summary ready.',
+              completed: true,
+              pendingInteraction: null
+            })
+        }
+      })
+
+      await harness.onMessage({
+        parsed: createParsedMessage({
+          messageId: 'om_segment_order'
+        })
+      })
+
+      await vi.waitFor(() => {
+        expect(harness.client.sendText).toHaveBeenCalledWith(
+          {
+            chatId: 'oc_1',
+            threadId: null,
+            replyToMessageId: 'om_segment_order'
+          },
+          'Let me inspect these files.'
+        )
+      })
+
+      await vi.advanceTimersByTimeAsync(TELEGRAM_STREAM_POLL_INTERVAL_MS)
+
+      await vi.waitFor(() => {
+        expect(harness.client.sendText).toHaveBeenCalledWith(
+          {
+            chatId: 'oc_1',
+            threadId: null,
+            replyToMessageId: 'om_segment_order'
+          },
+          '📖 read_file: "/tmp/report.md"'
+        )
+      })
+
+      await vi.advanceTimersByTimeAsync(TELEGRAM_STREAM_POLL_INTERVAL_MS)
+
+      await vi.waitFor(() => {
+        expect(harness.client.sendText).toHaveBeenCalledWith(
+          {
+            chatId: 'oc_1',
+            threadId: null,
+            replyToMessageId: 'om_segment_order'
+          },
+          'Summary ready.'
+        )
+        expect(harness.client.updateText).not.toHaveBeenCalledWith('om_bot_1', 'Summary ready.')
+        expect(harness.bindingStore.clearRemoteDeliveryState).toHaveBeenCalledWith(
+          'feishu:oc_1:root'
+        )
+      })
+
+      await harness.runtime.stop()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('keeps tool-only turns as trace-only without appending the no-response fallback', async () => {
+    vi.useFakeTimers()
+
+    try {
+      const harness = await createHarness()
+      harness.router.handleMessage.mockResolvedValue({
+        replies: [],
+        conversation: {
+          sessionId: 'session-1',
+          eventId: 'msg-1',
+          getSnapshot: vi.fn().mockResolvedValue({
+            messageId: 'msg-1',
+            text: '',
+            traceText: '📖 read_file: "/tmp/report.md"',
+            statusText: 'Running: calling read_file...',
+            finalText: 'No assistant response was produced.',
+            renderBlocks: [],
+            completed: true,
+            pendingInteraction: null
+          })
+        }
+      })
+
+      await harness.onMessage({
+        parsed: createParsedMessage({
+          messageId: 'om_trace_only'
+        })
+      })
+
+      await vi.waitFor(() => {
+        expect(harness.client.sendText).toHaveBeenCalledTimes(1)
+        expect(harness.client.sendText).toHaveBeenCalledWith(
+          {
+            chatId: 'oc_1',
+            threadId: null,
+            replyToMessageId: 'om_trace_only'
+          },
+          '📖 read_file: "/tmp/report.md"'
+        )
+        expect(harness.bindingStore.clearRemoteDeliveryState).toHaveBeenCalledWith(
+          'feishu:oc_1:root'
+        )
       })
 
       await harness.runtime.stop()
@@ -844,14 +1096,6 @@ describe('FeishuRuntime', () => {
     })
 
     await vi.waitFor(() => {
-      expect(harness.client.sendText).toHaveBeenCalledWith(
-        {
-          chatId: 'oc_1',
-          threadId: null,
-          replyToMessageId: 'om-pending-card'
-        },
-        'Waiting for your response...'
-      )
       expect(harness.client.sendText).toHaveBeenCalledWith(
         {
           chatId: 'oc_1',

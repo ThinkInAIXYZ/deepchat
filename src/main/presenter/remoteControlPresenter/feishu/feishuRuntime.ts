@@ -4,6 +4,7 @@ import {
   FEISHU_INBOUND_DEDUP_TTL_MS,
   TELEGRAM_STREAM_POLL_INTERVAL_MS,
   buildFeishuEndpointKey,
+  type RemoteDeliverySegment,
   type FeishuInboundMessage,
   type FeishuOutboundAction,
   type FeishuRuntimeStatusSnapshot,
@@ -12,6 +13,7 @@ import {
 import { RemoteBindingStore } from '../services/remoteBindingStore'
 import { FeishuCommandRouter } from '../services/feishuCommandRouter'
 import type { RemoteConversationExecution } from '../services/remoteConversationRunner'
+import { REMOTE_NO_RESPONSE_TEXT } from '../services/remoteBlockRenderer'
 import {
   buildFeishuPendingInteractionCard,
   buildFeishuPendingInteractionText
@@ -44,10 +46,12 @@ type FeishuProcessedInboundEntry = {
 
 type FeishuRemoteDeliveryState = {
   sourceMessageId: string
-  statusMessageId: string | null
-  contentMessageIds: string[]
-  lastStatusText: string
-  lastContentText: string
+  segments: Array<{
+    key: string
+    kind: 'process' | 'answer' | 'terminal'
+    messageIds: string[]
+    lastText: string
+  }>
 }
 
 export class FeishuRuntime {
@@ -344,20 +348,10 @@ export class FeishuRuntime {
         sourceMessageId,
         deliveryState
       )
-      const statusText = snapshot.statusText?.trim() || ''
-      const streamText = snapshot.text?.trim() || ''
+      let deliverySegments = this.getSnapshotDeliverySegments(snapshot, sourceMessageId)
 
       if (sourceMessageId) {
-        deliveryState = deliveryState ?? {
-          sourceMessageId,
-          statusMessageId: null,
-          contentMessageIds: [],
-          lastStatusText: '',
-          lastContentText: ''
-        }
-
-        deliveryState = await this.syncStatusMessage(target, endpointKey, deliveryState, statusText)
-        deliveryState = await this.syncContentText(target, endpointKey, deliveryState, streamText)
+        deliveryState = deliveryState ?? this.createDeliveryState(sourceMessageId)
       }
 
       if (snapshot.completed) {
@@ -365,6 +359,14 @@ export class FeishuRuntime {
           return
         }
         if (snapshot.pendingInteraction) {
+          if (deliveryState && deliverySegments.length > 0) {
+            deliveryState = await this.syncDeliverySegments(
+              target,
+              endpointKey,
+              deliveryState,
+              deliverySegments
+            )
+          }
           await this.dispatchOutboundActions(
             target,
             [
@@ -379,15 +381,21 @@ export class FeishuRuntime {
           return
         }
 
-        const finalText = (snapshot.finalText ?? snapshot.fullText ?? snapshot.text).trim()
+        const finalText = this.getFinalDeliveryText(snapshot)
+        deliverySegments = this.appendTerminalDeliverySegment(
+          deliverySegments,
+          sourceMessageId,
+          finalText
+        )
         if (deliveryState) {
-          deliveryState = await this.syncFinalContentText(
-            target,
-            endpointKey,
-            deliveryState,
-            finalText
-          )
-          await this.deleteStatusMessage(deliveryState.statusMessageId)
+          if (deliverySegments.length > 0) {
+            deliveryState = await this.syncDeliverySegments(
+              target,
+              endpointKey,
+              deliveryState,
+              deliverySegments
+            )
+          }
           this.deps.bindingStore.clearRemoteDeliveryState(endpointKey)
         } else if (finalText) {
           await this.deps.client.sendText(target, finalText)
@@ -401,18 +409,26 @@ export class FeishuRuntime {
         }
         const timeoutText = 'The current conversation timed out before finishing. Please try again.'
         if (deliveryState) {
-          deliveryState = await this.syncFinalContentText(
+          deliveryState = await this.syncDeliverySegments(
             target,
             endpointKey,
             deliveryState,
-            timeoutText
+            this.appendTerminalDeliverySegment(deliverySegments, sourceMessageId, timeoutText)
           )
-          await this.deleteStatusMessage(deliveryState.statusMessageId)
           this.deps.bindingStore.clearRemoteDeliveryState(endpointKey)
         } else {
           await this.deps.client.sendText(target, timeoutText)
         }
         return
+      }
+
+      if (deliveryState && deliverySegments.length > 0) {
+        deliveryState = await this.syncDeliverySegments(
+          target,
+          endpointKey,
+          deliveryState,
+          deliverySegments
+        )
       }
 
       await sleep(TELEGRAM_STREAM_POLL_INTERVAL_MS)
@@ -427,12 +443,14 @@ export class FeishuRuntime {
 
     return {
       sourceMessageId: state.sourceMessageId,
-      statusMessageId: typeof state.statusMessageId === 'string' ? state.statusMessageId : null,
-      contentMessageIds: state.contentMessageIds.filter(
-        (messageId): messageId is string => typeof messageId === 'string'
-      ),
-      lastStatusText: state.lastStatusText,
-      lastContentText: state.lastContentText
+      segments: state.segments.map((segment) => ({
+        key: segment.key,
+        kind: segment.kind,
+        messageIds: segment.messageIds.filter(
+          (messageId): messageId is string => typeof messageId === 'string'
+        ),
+        lastText: segment.lastText
+      }))
     }
   }
 
@@ -444,186 +462,224 @@ export class FeishuRuntime {
     return state
   }
 
+  private createDeliveryState(sourceMessageId: string): FeishuRemoteDeliveryState {
+    return {
+      sourceMessageId,
+      segments: []
+    }
+  }
+
   private async prepareDeliveryStateForSource(
     endpointKey: string,
     sourceMessageId: string | null,
     state: FeishuRemoteDeliveryState | null
   ): Promise<FeishuRemoteDeliveryState | null> {
     if (!state) {
-      return sourceMessageId
-        ? {
-            sourceMessageId,
-            statusMessageId: null,
-            contentMessageIds: [],
-            lastStatusText: '',
-            lastContentText: ''
-          }
-        : null
+      return sourceMessageId ? this.createDeliveryState(sourceMessageId) : null
     }
 
     if (sourceMessageId && state.sourceMessageId === sourceMessageId) {
       return state
     }
 
-    await this.deleteStatusMessage(state.statusMessageId)
     this.deps.bindingStore.clearRemoteDeliveryState(endpointKey)
 
     if (!sourceMessageId) {
       return null
     }
 
-    return {
-      sourceMessageId,
-      statusMessageId: null,
-      contentMessageIds: [],
-      lastStatusText: '',
-      lastContentText: ''
-    }
+    return this.createDeliveryState(sourceMessageId)
   }
 
-  private async syncStatusMessage(
-    target: FeishuTransportTarget,
-    endpointKey: string,
-    state: FeishuRemoteDeliveryState,
-    statusText: string
-  ): Promise<FeishuRemoteDeliveryState> {
-    const normalized = statusText.trim()
-    if (!normalized) {
-      return state
+  private getSnapshotDeliverySegments(
+    snapshot: Awaited<ReturnType<RemoteConversationExecution['getSnapshot']>>,
+    sourceMessageId: string | null
+  ): RemoteDeliverySegment[] {
+    if (snapshot.deliverySegments !== undefined) {
+      return snapshot.deliverySegments.filter((segment) => segment.text.trim().length > 0)
     }
 
-    if (!state.statusMessageId) {
-      const statusMessageId = await this.deps.client.sendText(target, normalized)
-      return this.rememberDeliveryState(endpointKey, {
-        ...state,
-        statusMessageId,
-        lastStatusText: normalized
+    if (!sourceMessageId) {
+      return []
+    }
+
+    const segments: RemoteDeliverySegment[] = []
+    const traceText = snapshot.traceText?.trim() || ''
+    const answerText = snapshot.text?.trim() || ''
+
+    if (traceText) {
+      segments.push({
+        key: `${sourceMessageId}:legacy:process`,
+        kind: 'process',
+        text: traceText,
+        sourceMessageId
       })
     }
 
-    if (normalized !== state.lastStatusText) {
-      await this.deps.client.updateText(state.statusMessageId, normalized)
-      return this.rememberDeliveryState(endpointKey, {
-        ...state,
-        lastStatusText: normalized
+    if (answerText) {
+      segments.push({
+        key: `${sourceMessageId}:legacy:answer`,
+        kind: 'answer',
+        text: answerText,
+        sourceMessageId
       })
     }
 
-    return state
+    return segments
   }
 
-  private async syncContentText(
+  private getFinalDeliveryText(
+    snapshot: Awaited<ReturnType<RemoteConversationExecution['getSnapshot']>>
+  ): string {
+    return (snapshot.finalText ?? snapshot.fullText ?? snapshot.text).trim()
+  }
+
+  private appendTerminalDeliverySegment(
+    segments: RemoteDeliverySegment[],
+    sourceMessageId: string | null,
+    finalText: string
+  ): RemoteDeliverySegment[] {
+    const normalized = finalText.trim()
+    if (!sourceMessageId || !normalized) {
+      return segments
+    }
+
+    if (segments.some((segment) => segment.kind === 'answer')) {
+      return segments
+    }
+
+    if (normalized === REMOTE_NO_RESPONSE_TEXT && segments.length > 0) {
+      return segments
+    }
+
+    return [
+      ...segments,
+      {
+        key: `${sourceMessageId}:terminal`,
+        kind: 'terminal',
+        text: normalized,
+        sourceMessageId
+      }
+    ]
+  }
+
+  private isDeliveryStateCompatible(
+    state: FeishuRemoteDeliveryState,
+    segments: RemoteDeliverySegment[]
+  ): boolean {
+    if (segments.length < state.segments.length) {
+      return false
+    }
+
+    return state.segments.every((segment, index) => segments[index]?.key === segment.key)
+  }
+
+  private async syncDeliverySegments(
     target: FeishuTransportTarget,
     endpointKey: string,
     state: FeishuRemoteDeliveryState,
-    contentText: string
+    segments: RemoteDeliverySegment[]
   ): Promise<FeishuRemoteDeliveryState> {
-    const normalized = contentText.trim()
-    if (!normalized) {
+    if (segments.length === 0) {
       return state
     }
 
+    let nextState = state
+    if (!this.isDeliveryStateCompatible(nextState, segments)) {
+      this.deps.bindingStore.clearRemoteDeliveryState(endpointKey)
+      nextState = this.createDeliveryState(state.sourceMessageId)
+    }
+
+    const syncedSegments: FeishuRemoteDeliveryState['segments'] = []
+
+    for (const [index, segment] of segments.entries()) {
+      const syncedSegment = await this.syncDeliverySegment(
+        target,
+        nextState.segments[index] ?? null,
+        segment
+      )
+      syncedSegments.push(syncedSegment)
+    }
+
+    return this.rememberDeliveryState(endpointKey, {
+      sourceMessageId: nextState.sourceMessageId,
+      segments: syncedSegments
+    })
+  }
+
+  private async syncDeliverySegment(
+    target: FeishuTransportTarget,
+    existing: FeishuRemoteDeliveryState['segments'][number] | null,
+    segment: RemoteDeliverySegment
+  ): Promise<FeishuRemoteDeliveryState['segments'][number]> {
+    const normalized = segment.text.trim()
     const nextChunks = chunkFeishuText(normalized)
-    const previousChunks = state.lastContentText ? chunkFeishuText(state.lastContentText) : []
-    const contentMessageIds = [...state.contentMessageIds]
 
-    if (contentMessageIds.length === 0) {
+    if (!existing) {
+      const messageIds: string[] = []
       for (const chunk of nextChunks) {
         const messageId = await this.deps.client.sendText(target, chunk)
         if (messageId) {
-          contentMessageIds.push(messageId)
+          messageIds.push(messageId)
         }
       }
-      return this.rememberDeliveryState(endpointKey, {
-        ...state,
-        contentMessageIds,
-        lastContentText: normalized
-      })
+
+      return {
+        key: segment.key,
+        kind: segment.kind,
+        messageIds,
+        lastText: normalized
+      }
     }
 
-    const editableIndex = Math.max(0, contentMessageIds.length - 1)
-    const retainedCount = Math.min(contentMessageIds.length, nextChunks.length)
+    const previousChunks = existing.lastText ? chunkFeishuText(existing.lastText) : []
+    if (
+      nextChunks.length < existing.messageIds.length ||
+      previousChunks.length < existing.messageIds.length ||
+      previousChunks
+        .slice(0, Math.max(0, existing.messageIds.length - 1))
+        .some((chunk, index) => chunk !== nextChunks[index])
+    ) {
+      const messageIds: string[] = []
+      for (const chunk of nextChunks) {
+        const messageId = await this.deps.client.sendText(target, chunk)
+        if (messageId) {
+          messageIds.push(messageId)
+        }
+      }
+
+      return {
+        key: segment.key,
+        kind: segment.kind,
+        messageIds,
+        lastText: normalized
+      }
+    }
+
+    const messageIds = [...existing.messageIds]
+    const editableIndex = Math.max(0, messageIds.length - 1)
+    const retainedCount = Math.min(messageIds.length, nextChunks.length)
 
     for (let index = editableIndex; index < retainedCount; index += 1) {
       if (previousChunks[index] === nextChunks[index]) {
         continue
       }
 
-      await this.deps.client.updateText(contentMessageIds[index], nextChunks[index])
+      await this.deps.client.updateText(messageIds[index], nextChunks[index])
     }
 
-    for (let index = contentMessageIds.length; index < nextChunks.length; index += 1) {
+    for (let index = messageIds.length; index < nextChunks.length; index += 1) {
       const messageId = await this.deps.client.sendText(target, nextChunks[index])
       if (messageId) {
-        contentMessageIds.push(messageId)
+        messageIds.push(messageId)
       }
     }
 
-    return this.rememberDeliveryState(endpointKey, {
-      ...state,
-      contentMessageIds,
-      lastContentText: normalized
-    })
-  }
-
-  private async syncFinalContentText(
-    target: FeishuTransportTarget,
-    endpointKey: string,
-    state: FeishuRemoteDeliveryState,
-    finalText: string
-  ): Promise<FeishuRemoteDeliveryState> {
-    const normalized = finalText.trim()
-    if (!normalized) {
-      return state
-    }
-
-    const nextChunks = chunkFeishuText(normalized)
-    const previousChunks = state.lastContentText ? chunkFeishuText(state.lastContentText) : []
-    const contentMessageIds = [...state.contentMessageIds]
-
-    for (let index = 0; index < nextChunks.length; index += 1) {
-      if (index < contentMessageIds.length) {
-        if (previousChunks[index] === nextChunks[index]) {
-          continue
-        }
-
-        await this.deps.client.updateText(contentMessageIds[index], nextChunks[index])
-        continue
-      }
-
-      const messageId = await this.deps.client.sendText(target, nextChunks[index])
-      if (messageId) {
-        contentMessageIds.push(messageId)
-      }
-    }
-
-    for (const messageId of contentMessageIds.slice(nextChunks.length)) {
-      await this.deleteMessage(messageId)
-    }
-
-    return this.rememberDeliveryState(endpointKey, {
-      ...state,
-      contentMessageIds: contentMessageIds.slice(0, nextChunks.length),
-      lastContentText: normalized
-    })
-  }
-
-  private async deleteStatusMessage(messageId: string | null): Promise<void> {
-    if (!messageId) {
-      return
-    }
-
-    await this.deleteMessage(messageId)
-  }
-
-  private async deleteMessage(messageId: string): Promise<void> {
-    try {
-      await this.deps.client.deleteMessage(messageId)
-    } catch (error) {
-      console.warn('[FeishuRuntime] Failed to delete message:', {
-        messageId,
-        error
-      })
+    return {
+      key: segment.key,
+      kind: segment.kind,
+      messageIds,
+      lastText: normalized
     }
   }
 

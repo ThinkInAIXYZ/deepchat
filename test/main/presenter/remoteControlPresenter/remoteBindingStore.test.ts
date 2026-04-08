@@ -272,18 +272,38 @@ describe('RemoteBindingStore', () => {
 
     store.rememberRemoteDeliveryState('telegram:100:0', {
       sourceMessageId: 'msg-1',
-      statusMessageId: 100,
-      contentMessageIds: [101],
-      lastStatusText: 'Running: writing...',
-      lastContentText: 'Draft answer'
+      segments: [
+        {
+          key: 'msg-1:0:process',
+          kind: 'process',
+          messageIds: [100],
+          lastText: '💻 shell_command: "git status"'
+        },
+        {
+          key: 'msg-1:1:answer',
+          kind: 'answer',
+          messageIds: [101],
+          lastText: 'Draft answer'
+        }
+      ]
     })
 
     expect(store.getRemoteDeliveryState('telegram:100:0')).toEqual({
       sourceMessageId: 'msg-1',
-      statusMessageId: 100,
-      contentMessageIds: [101],
-      lastStatusText: 'Running: writing...',
-      lastContentText: 'Draft answer'
+      segments: [
+        {
+          key: 'msg-1:0:process',
+          kind: 'process',
+          messageIds: [100],
+          lastText: '💻 shell_command: "git status"'
+        },
+        {
+          key: 'msg-1:1:answer',
+          kind: 'answer',
+          messageIds: [101],
+          lastText: 'Draft answer'
+        }
+      ]
     })
 
     store.setBinding('telegram:100:0', 'session-2')

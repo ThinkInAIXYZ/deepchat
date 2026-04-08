@@ -1,10 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
+  buildRemoteDeliverySegments,
   buildRemoteDraftText,
   buildRemoteFinalText,
   buildRemoteFullText,
   buildRemoteRenderableBlocks,
   buildRemoteStreamText,
+  buildRemoteTraceText,
   buildRemoteStatusText
 } from '@/presenter/remoteControlPresenter/services/remoteBlockRenderer'
 
@@ -227,6 +229,189 @@ describe('remoteBlockRenderer', () => {
     ])
 
     expect(streamText).toBe('Visible answer\n\nMore answer')
+  })
+
+  it('builds remote trace lines from raw tool names and summarized params', () => {
+    const traceText = buildRemoteTraceText([
+      {
+        type: 'tool_call',
+        content: '',
+        status: 'success',
+        timestamp: 1,
+        tool_call: {
+          id: 'tool-1',
+          name: 'search_files',
+          params: '{"query":"daily news|agent.dynamic|moti.send","limit":10}'
+        },
+        extra: {
+          toolCallArgsComplete: true
+        }
+      },
+      {
+        type: 'tool_call',
+        content: '',
+        status: 'success',
+        timestamp: 2,
+        tool_call: {
+          id: 'tool-2',
+          name: 'read_file',
+          params: '{"path":"/tmp/report.md"}'
+        },
+        extra: {
+          toolCallArgsComplete: true
+        }
+      }
+    ])
+
+    expect(traceText).toBe(
+      '🔎 search_files: "daily news|agent.dynamic|moti.send"\n📖 read_file: "/tmp/report.md"'
+    )
+  })
+
+  it('adds a separate error trace line for failed tool calls and truncates long previews', () => {
+    const traceText = buildRemoteTraceText([
+      {
+        type: 'tool_call',
+        content: '',
+        status: 'error',
+        timestamp: 1,
+        tool_call: {
+          id: 'tool-1',
+          name: 'shell_command',
+          params: JSON.stringify({
+            command: `ls ${'very-long-segment/'.repeat(20)}`
+          }),
+          response: JSON.stringify({
+            error: 'permission denied'
+          })
+        },
+        extra: {
+          toolCallArgsComplete: true
+        }
+      }
+    ])
+
+    expect(traceText).toContain('💻 shell_command: "ls very-long-segment/')
+    expect(traceText).toContain('..."')
+    expect(traceText).toContain('\n❌ shell_command: "permission denied"')
+  })
+
+  it('does not build trace text for answer-only turns', () => {
+    const traceText = buildRemoteTraceText([
+      {
+        type: 'content',
+        content: 'Only the final answer',
+        status: 'success',
+        timestamp: 1
+      }
+    ])
+
+    expect(traceText).toBe('')
+  })
+
+  it('builds ordered delivery segments that preserve answer and process transitions', () => {
+    const segments = buildRemoteDeliverySegments('msg-1', [
+      {
+        type: 'content',
+        content: 'Reviewing these files first.',
+        status: 'success',
+        timestamp: 1
+      },
+      {
+        type: 'tool_call',
+        content: '',
+        status: 'success',
+        timestamp: 2,
+        tool_call: {
+          id: 'tool-1',
+          name: 'read_file',
+          params: '{"path":"/tmp/a.md"}'
+        },
+        extra: {
+          toolCallArgsComplete: true
+        }
+      },
+      {
+        type: 'tool_call',
+        content: '',
+        status: 'error',
+        timestamp: 3,
+        tool_call: {
+          id: 'tool-2',
+          name: 'shell_command',
+          params: '{"command":"ls -la"}',
+          response: '{"error":"permission denied"}'
+        },
+        extra: {
+          toolCallArgsComplete: true
+        }
+      },
+      {
+        type: 'content',
+        content: 'Everything is organized.',
+        status: 'pending',
+        timestamp: 4
+      }
+    ])
+
+    expect(segments).toEqual([
+      {
+        key: 'msg-1:0:answer',
+        kind: 'answer',
+        text: 'Reviewing these files first.',
+        sourceMessageId: 'msg-1'
+      },
+      {
+        key: 'msg-1:1:process',
+        kind: 'process',
+        text: '📖 read_file: "/tmp/a.md"\n💻 shell_command: "ls -la"\n❌ shell_command: "permission denied"',
+        sourceMessageId: 'msg-1'
+      },
+      {
+        key: 'msg-1:3:answer',
+        kind: 'answer',
+        text: 'Everything is organized.',
+        sourceMessageId: 'msg-1'
+      }
+    ])
+  })
+
+  it('keeps consecutive answer blocks together when hidden blocks appear between them', () => {
+    const segments = buildRemoteDeliverySegments('msg-2', [
+      {
+        type: 'content',
+        content: 'Part 1',
+        status: 'success',
+        timestamp: 1
+      },
+      {
+        type: 'reasoning_content',
+        content: 'hidden',
+        status: 'success',
+        timestamp: 2
+      },
+      {
+        type: 'search',
+        content: '',
+        status: 'success',
+        timestamp: 3
+      },
+      {
+        type: 'content',
+        content: 'Part 2',
+        status: 'success',
+        timestamp: 4
+      }
+    ])
+
+    expect(segments).toEqual([
+      {
+        key: 'msg-2:0:answer',
+        kind: 'answer',
+        text: 'Part 1\n\nPart 2',
+        sourceMessageId: 'msg-2'
+      }
+    ])
   })
 
   it('builds compact status text for tool execution and waiting states', () => {

@@ -182,6 +182,7 @@ import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { CodeBlockNode } from 'markstream-vue'
+import { summarizeToolCallPreview } from '@shared/lib/toolCallSummary'
 import { useThemeStore } from '@/stores/theme'
 import { useSessionStore } from '@/stores/ui/session'
 import { getLanguageFromFilename } from '@shared/utils/codeLanguage'
@@ -202,39 +203,6 @@ type ExpansionSource = 'auto' | 'manual' | null
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value)
-
-const normalizeInlineText = (value: string): string => value.replace(/\s+/g, ' ').trim()
-
-const extractFirstSummaryValue = (value: unknown): unknown => {
-  if (Array.isArray(value)) {
-    return value.length > 0 ? value[0] : ''
-  }
-  if (isRecord(value)) {
-    const entries = Object.entries(value)
-    return entries.length > 0 ? entries[0][1] : ''
-  }
-  return value
-}
-
-const formatSummaryValue = (value: unknown): string => {
-  if (typeof value === 'string') {
-    return normalizeInlineText(value)
-  }
-  if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
-    return String(value)
-  }
-  if (value === null) {
-    return 'null'
-  }
-  if (value === undefined) {
-    return ''
-  }
-  try {
-    return normalizeInlineText(JSON.stringify(value))
-  } catch {
-    return normalizeInlineText(String(value))
-  }
-}
 
 const coerceNumericParam = (value: unknown): number | null => {
   if (typeof value === 'number' && Number.isFinite(value)) {
@@ -378,10 +346,7 @@ const summaryText = computed(() => {
 
   const raw = paramsText.value.trim()
   if (!raw) return ''
-  if (!parsedParams.value.isJson) {
-    return normalizeInlineText(raw)
-  }
-  return formatSummaryValue(extractFirstSummaryValue(parsedParams.value.value))
+  return summarizeToolCallPreview(raw)
 })
 
 const subagentTasks = computed<SubagentProgressTask[]>(() => {
