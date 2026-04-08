@@ -49,7 +49,7 @@ type FeishuRemoteDeliveryState = {
   segments: Array<{
     key: string
     kind: 'process' | 'answer' | 'terminal'
-    messageIds: string[]
+    messageIds: Array<string | null>
     lastText: string
   }>
 }
@@ -447,7 +447,8 @@ export class FeishuRuntime {
         key: segment.key,
         kind: segment.kind,
         messageIds: segment.messageIds.filter(
-          (messageId): messageId is string => typeof messageId === 'string'
+          (messageId): messageId is string | null =>
+            typeof messageId === 'string' || messageId === null
         ),
         lastText: segment.lastText
       }))
@@ -544,7 +545,8 @@ export class FeishuRuntime {
       return segments
     }
 
-    if (segments.some((segment) => segment.kind === 'answer')) {
+    const lastAnswerSegment = [...segments].reverse().find((segment) => segment.kind === 'answer')
+    if (lastAnswerSegment?.text === normalized) {
       return segments
     }
 
@@ -616,12 +618,10 @@ export class FeishuRuntime {
     const nextChunks = chunkFeishuText(normalized)
 
     if (!existing) {
-      const messageIds: string[] = []
+      const messageIds: Array<string | null> = []
       for (const chunk of nextChunks) {
         const messageId = await this.deps.client.sendText(target, chunk)
-        if (messageId) {
-          messageIds.push(messageId)
-        }
+        messageIds.push(messageId ?? null)
       }
 
       return {
@@ -640,12 +640,10 @@ export class FeishuRuntime {
         .slice(0, Math.max(0, existing.messageIds.length - 1))
         .some((chunk, index) => chunk !== nextChunks[index])
     ) {
-      const messageIds: string[] = []
+      const messageIds: Array<string | null> = []
       for (const chunk of nextChunks) {
         const messageId = await this.deps.client.sendText(target, chunk)
-        if (messageId) {
-          messageIds.push(messageId)
-        }
+        messageIds.push(messageId ?? null)
       }
 
       return {
@@ -665,14 +663,17 @@ export class FeishuRuntime {
         continue
       }
 
-      await this.deps.client.updateText(messageIds[index], nextChunks[index])
+      const messageId = messageIds[index]
+      if (!messageId) {
+        continue
+      }
+
+      await this.deps.client.updateText(messageId, nextChunks[index])
     }
 
     for (let index = messageIds.length; index < nextChunks.length; index += 1) {
       const messageId = await this.deps.client.sendText(target, nextChunks[index])
-      if (messageId) {
-        messageIds.push(messageId)
-      }
+      messageIds.push(messageId ?? null)
     }
 
     return {

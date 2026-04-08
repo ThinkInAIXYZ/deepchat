@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { FeishuRuntime } from '@/presenter/remoteControlPresenter/feishu/feishuRuntime'
 import {
   FEISHU_CONVERSATION_POLL_TIMEOUT_MS,
+  FEISHU_OUTBOUND_TEXT_LIMIT,
   TELEGRAM_STREAM_POLL_INTERVAL_MS,
   type FeishuInboundMessage
 } from '@/presenter/remoteControlPresenter/types'
@@ -254,6 +255,95 @@ describe('FeishuRuntime', () => {
     }
   })
 
+  it('appends terminal text after a partial answer when the final state differs', async () => {
+    vi.useFakeTimers()
+
+    try {
+      const harness = await createHarness()
+      harness.router.handleMessage.mockResolvedValue({
+        replies: [],
+        conversation: {
+          sessionId: 'session-1',
+          eventId: 'msg-1',
+          getSnapshot: vi
+            .fn()
+            .mockResolvedValueOnce({
+              messageId: 'msg-1',
+              text: 'Partial answer',
+              traceText: '',
+              deliverySegments: [
+                {
+                  key: 'msg-1:0:answer',
+                  kind: 'answer',
+                  text: 'Partial answer',
+                  sourceMessageId: 'msg-1'
+                }
+              ],
+              statusText: 'Running: writing...',
+              finalText: '',
+              completed: false,
+              pendingInteraction: null
+            })
+            .mockResolvedValue({
+              messageId: 'msg-1',
+              text: 'Partial answer',
+              traceText: '',
+              deliverySegments: [
+                {
+                  key: 'msg-1:0:answer',
+                  kind: 'answer',
+                  text: 'Partial answer',
+                  sourceMessageId: 'msg-1'
+                }
+              ],
+              statusText: 'Running: writing...',
+              finalText: 'The conversation ended with an error.',
+              completed: true,
+              pendingInteraction: null
+            })
+        }
+      })
+
+      await harness.onMessage({
+        parsed: createParsedMessage({
+          messageId: 'om_partial_error'
+        })
+      })
+
+      await vi.waitFor(() => {
+        expect(harness.client.sendText).toHaveBeenCalledWith(
+          {
+            chatId: 'oc_1',
+            threadId: null,
+            replyToMessageId: 'om_partial_error'
+          },
+          'Partial answer'
+        )
+      })
+
+      await vi.advanceTimersByTimeAsync(TELEGRAM_STREAM_POLL_INTERVAL_MS)
+
+      await vi.waitFor(() => {
+        expect(harness.client.sendText).toHaveBeenCalledWith(
+          {
+            chatId: 'oc_1',
+            threadId: null,
+            replyToMessageId: 'om_partial_error'
+          },
+          'The conversation ended with an error.'
+        )
+        expect(harness.client.updateText).not.toHaveBeenCalledWith(
+          'om_bot_1',
+          'The conversation ended with an error.'
+        )
+      })
+
+      await harness.runtime.stop()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('keeps the latest answer chunk editable when streamed text exceeds the platform limit', async () => {
     vi.useFakeTimers()
 
@@ -334,6 +424,102 @@ describe('FeishuRuntime', () => {
 
       await vi.waitFor(() => {
         expect(harness.client.deleteMessage).not.toHaveBeenCalled()
+      })
+
+      await harness.runtime.stop()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('preserves null messageId holes so later updates do not target the wrong chunk', async () => {
+    vi.useFakeTimers()
+
+    try {
+      const harness = await createHarness()
+      const firstChunk = 'A'.repeat(FEISHU_OUTBOUND_TEXT_LIMIT)
+      const changedMiddleChunk = 'D'.repeat(FEISHU_OUTBOUND_TEXT_LIMIT)
+      const initialText =
+        firstChunk + 'B'.repeat(FEISHU_OUTBOUND_TEXT_LIMIT) + 'C'.repeat(FEISHU_OUTBOUND_TEXT_LIMIT)
+      const updatedText = firstChunk + changedMiddleChunk + 'C'.repeat(FEISHU_OUTBOUND_TEXT_LIMIT)
+      const sendResults: Array<string | null> = ['om_bot_1', null, 'om_bot_3']
+
+      harness.client.sendText.mockImplementation(async () =>
+        sendResults.length > 0 ? (sendResults.shift() as string | null) : 'om_bot_4'
+      )
+      harness.router.handleMessage.mockResolvedValue({
+        replies: [],
+        conversation: {
+          sessionId: 'session-1',
+          eventId: 'msg-1',
+          getSnapshot: vi
+            .fn()
+            .mockResolvedValueOnce({
+              messageId: 'msg-1',
+              text: initialText,
+              traceText: '',
+              deliverySegments: [
+                {
+                  key: 'msg-1:0:answer',
+                  kind: 'answer',
+                  text: initialText,
+                  sourceMessageId: 'msg-1'
+                }
+              ],
+              statusText: 'Running: writing...',
+              finalText: '',
+              completed: false,
+              pendingInteraction: null
+            })
+            .mockResolvedValue({
+              messageId: 'msg-1',
+              text: updatedText,
+              traceText: '',
+              deliverySegments: [
+                {
+                  key: 'msg-1:0:answer',
+                  kind: 'answer',
+                  text: updatedText,
+                  sourceMessageId: 'msg-1'
+                }
+              ],
+              statusText: 'Running: writing...',
+              finalText: updatedText,
+              completed: true,
+              pendingInteraction: null
+            })
+        }
+      })
+
+      await harness.onMessage({
+        parsed: createParsedMessage({
+          messageId: 'om_hole_alignment'
+        })
+      })
+
+      await vi.waitFor(() => {
+        expect(harness.bindingStore.rememberRemoteDeliveryState).toHaveBeenCalled()
+      })
+
+      expect(harness.bindingStore.rememberRemoteDeliveryState.mock.calls[0]).toEqual([
+        'feishu:oc_1:root',
+        {
+          sourceMessageId: 'msg-1',
+          segments: [
+            {
+              key: 'msg-1:0:answer',
+              kind: 'answer',
+              messageIds: ['om_bot_1', null, 'om_bot_3'],
+              lastText: initialText
+            }
+          ]
+        }
+      ])
+
+      await vi.advanceTimersByTimeAsync(TELEGRAM_STREAM_POLL_INTERVAL_MS)
+
+      await vi.waitFor(() => {
+        expect(harness.client.updateText).not.toHaveBeenCalledWith('om_bot_3', changedMiddleChunk)
       })
 
       await harness.runtime.stop()

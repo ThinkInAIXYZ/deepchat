@@ -504,7 +504,8 @@ export class TelegramPoller {
       return segments
     }
 
-    if (segments.some((segment) => segment.kind === 'answer')) {
+    const last = segments[segments.length - 1]
+    if (last?.kind === 'answer' && last.text === normalized) {
       return segments
     }
 

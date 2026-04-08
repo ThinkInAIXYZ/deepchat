@@ -27,7 +27,7 @@ export interface RemoteDeliveryState {
   segments: Array<{
     key: string
     kind: 'process' | 'answer' | 'terminal'
-    messageIds: Array<string | number>
+    messageIds: Array<string | number | null>
     lastText: string
   }>
 }

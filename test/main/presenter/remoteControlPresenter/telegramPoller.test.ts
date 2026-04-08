@@ -715,6 +715,131 @@ describe('TelegramPoller', () => {
     }
   })
 
+  it('appends terminal text after a partial answer when the final state differs', async () => {
+    vi.useFakeTimers()
+
+    try {
+      const client = createClient()
+      const bindingStore = createBindingStore()
+
+      client.getUpdates
+        .mockResolvedValueOnce([
+          {
+            update_id: 1,
+            message: {
+              message_id: 20,
+              chat: {
+                id: 100,
+                type: 'private'
+              },
+              from: {
+                id: 123
+              },
+              text: 'hello'
+            }
+          }
+        ])
+        .mockImplementation(createBlockingUpdates())
+
+      const poller = new TelegramPoller({
+        client: client as any,
+        parser: {
+          parseUpdate: vi.fn().mockReturnValue({
+            kind: 'message',
+            updateId: 1,
+            chatId: 100,
+            messageThreadId: 0,
+            messageId: 20,
+            chatType: 'private',
+            fromId: 123,
+            text: 'hello',
+            command: null
+          })
+        } as any,
+        router: {
+          handleMessage: vi.fn().mockResolvedValue({
+            replies: [],
+            conversation: {
+              sessionId: 'session-1',
+              eventId: 'msg-1',
+              getSnapshot: vi
+                .fn()
+                .mockResolvedValueOnce({
+                  messageId: 'msg-1',
+                  text: 'Partial answer',
+                  traceText: '',
+                  deliverySegments: [
+                    {
+                      key: 'msg-1:0:answer',
+                      kind: 'answer',
+                      text: 'Partial answer',
+                      sourceMessageId: 'msg-1'
+                    }
+                  ],
+                  statusText: 'Running: writing...',
+                  finalText: '',
+                  completed: false,
+                  pendingInteraction: null
+                })
+                .mockResolvedValue({
+                  messageId: 'msg-1',
+                  text: 'Partial answer',
+                  traceText: '',
+                  deliverySegments: [
+                    {
+                      key: 'msg-1:0:answer',
+                      kind: 'answer',
+                      text: 'Partial answer',
+                      sourceMessageId: 'msg-1'
+                    }
+                  ],
+                  statusText: 'Running: writing...',
+                  finalText: 'The conversation ended with an error.',
+                  completed: true,
+                  pendingInteraction: null
+                })
+            }
+          })
+        } as any,
+        bindingStore: bindingStore as any
+      })
+
+      await poller.start()
+
+      await vi.waitFor(() => {
+        expect(client.sendMessage).toHaveBeenCalledWith(
+          {
+            chatId: 100,
+            messageThreadId: 0
+          },
+          'Partial answer'
+        )
+      })
+
+      await vi.advanceTimersByTimeAsync(TELEGRAM_STREAM_POLL_INTERVAL_MS)
+
+      await vi.waitFor(() => {
+        expect(client.sendMessage).toHaveBeenCalledWith(
+          {
+            chatId: 100,
+            messageThreadId: 0
+          },
+          'The conversation ended with an error.'
+        )
+        expect(client.editMessageText).not.toHaveBeenCalledWith(
+          expect.objectContaining({
+            messageId: 100,
+            text: 'The conversation ended with an error.'
+          })
+        )
+      })
+
+      await poller.stop()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('appends later process and answer segments in DeepChat order instead of rewriting the first answer', async () => {
     vi.useFakeTimers()
 
