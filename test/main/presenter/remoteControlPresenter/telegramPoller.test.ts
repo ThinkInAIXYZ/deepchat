@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 import { TelegramApiRequestError } from '@/presenter/remoteControlPresenter/telegram/telegramClient'
 import { TelegramPoller } from '@/presenter/remoteControlPresenter/telegram/telegramPoller'
-import { TELEGRAM_STREAM_POLL_INTERVAL_MS } from '@/presenter/remoteControlPresenter/types'
+import {
+  TELEGRAM_OUTBOUND_TEXT_LIMIT,
+  TELEGRAM_STREAM_POLL_INTERVAL_MS
+} from '@/presenter/remoteControlPresenter/types'
 
 const createClient = () => {
   let nextMessageId = 100
@@ -36,7 +39,10 @@ const createBindingStore = () => {
     rememberRemoteDeliveryState: vi.fn((endpointKey: string, state: any) => {
       deliveryStates.set(endpointKey, {
         ...state,
-        contentMessageIds: [...state.contentMessageIds]
+        segments: state.segments.map((segment: any) => ({
+          ...segment,
+          messageIds: [...segment.messageIds]
+        }))
       })
     }),
     clearRemoteDeliveryState: vi.fn((endpointKey: string) => {
@@ -387,7 +393,7 @@ describe('TelegramPoller', () => {
     await poller.stop()
   })
 
-  it('streams answer text beside a temporary status message', async () => {
+  it('streams answer text beside a persistent trace log', async () => {
     vi.useFakeTimers()
 
     try {
@@ -438,6 +444,15 @@ describe('TelegramPoller', () => {
                 .mockResolvedValueOnce({
                   messageId: 'msg-1',
                   text: '',
+                  traceText: '💻 shell_command: "git status"',
+                  deliverySegments: [
+                    {
+                      key: 'msg-1:0:process',
+                      kind: 'process',
+                      text: '💻 shell_command: "git status"',
+                      sourceMessageId: 'msg-1'
+                    }
+                  ],
                   statusText: 'Running: thinking...',
                   finalText: '',
                   draftText: '',
@@ -449,6 +464,21 @@ describe('TelegramPoller', () => {
                 .mockResolvedValueOnce({
                   messageId: 'msg-1',
                   text: 'Draft answer',
+                  traceText: '💻 shell_command: "git status"',
+                  deliverySegments: [
+                    {
+                      key: 'msg-1:0:process',
+                      kind: 'process',
+                      text: '💻 shell_command: "git status"',
+                      sourceMessageId: 'msg-1'
+                    },
+                    {
+                      key: 'msg-1:1:answer',
+                      kind: 'answer',
+                      text: 'Draft answer',
+                      sourceMessageId: 'msg-1'
+                    }
+                  ],
                   statusText: 'Running: writing...',
                   finalText: '',
                   draftText: '',
@@ -460,6 +490,21 @@ describe('TelegramPoller', () => {
                 .mockResolvedValue({
                   messageId: 'msg-1',
                   text: 'Draft answer',
+                  traceText: '💻 shell_command: "git status"',
+                  deliverySegments: [
+                    {
+                      key: 'msg-1:0:process',
+                      kind: 'process',
+                      text: '💻 shell_command: "git status"',
+                      sourceMessageId: 'msg-1'
+                    },
+                    {
+                      key: 'msg-1:1:answer',
+                      kind: 'answer',
+                      text: 'Final answer',
+                      sourceMessageId: 'msg-1'
+                    }
+                  ],
                   statusText: 'Running: writing...',
                   finalText: 'Final answer',
                   draftText: '',
@@ -482,7 +527,7 @@ describe('TelegramPoller', () => {
             chatId: 100,
             messageThreadId: 0
           },
-          'Running: thinking...'
+          '💻 shell_command: "git status"'
         )
       })
 
@@ -496,23 +541,24 @@ describe('TelegramPoller', () => {
           },
           'Draft answer'
         )
-        expect(client.editMessageText).toHaveBeenCalledWith({
-          target: {
-            chatId: 100,
-            messageThreadId: 0
-          },
-          messageId: 100,
-          text: 'Running: writing...',
-          replyMarkup: undefined
-        })
         expect(bindingStore.rememberRemoteDeliveryState).toHaveBeenCalledWith(
           'telegram:100:0',
           expect.objectContaining({
             sourceMessageId: 'msg-1',
-            statusMessageId: 100,
-            contentMessageIds: [101],
-            lastStatusText: 'Running: writing...',
-            lastContentText: 'Draft answer'
+            segments: [
+              {
+                key: 'msg-1:0:process',
+                kind: 'process',
+                messageIds: [100],
+                lastText: '💻 shell_command: "git status"'
+              },
+              {
+                key: 'msg-1:1:answer',
+                kind: 'answer',
+                messageIds: [101],
+                lastText: 'Draft answer'
+              }
+            ]
           })
         )
       })
@@ -520,6 +566,11 @@ describe('TelegramPoller', () => {
       await vi.advanceTimersByTimeAsync(TELEGRAM_STREAM_POLL_INTERVAL_MS)
 
       await vi.waitFor(() => {
+        expect(client.editMessageText).not.toHaveBeenCalledWith(
+          expect.objectContaining({
+            messageId: 100
+          })
+        )
         expect(client.editMessageText).toHaveBeenCalledWith({
           target: {
             chatId: 100,
@@ -528,13 +579,6 @@ describe('TelegramPoller', () => {
           messageId: 101,
           text: 'Final answer',
           replyMarkup: undefined
-        })
-        expect(client.deleteMessage).toHaveBeenCalledWith({
-          target: {
-            chatId: 100,
-            messageThreadId: 0
-          },
-          messageId: 100
         })
         expect(bindingStore.clearRemoteDeliveryState).toHaveBeenCalledWith('telegram:100:0')
       })
@@ -599,6 +643,7 @@ describe('TelegramPoller', () => {
                 .mockResolvedValueOnce({
                   messageId: 'msg-1',
                   text: firstText,
+                  traceText: '',
                   statusText: 'Running: writing...',
                   finalText: '',
                   completed: false,
@@ -607,6 +652,7 @@ describe('TelegramPoller', () => {
                 .mockResolvedValueOnce({
                   messageId: 'msg-1',
                   text: expandedText,
+                  traceText: '',
                   statusText: 'Running: writing...',
                   finalText: '',
                   completed: false,
@@ -615,6 +661,7 @@ describe('TelegramPoller', () => {
                 .mockResolvedValue({
                   messageId: 'msg-1',
                   text: expandedText,
+                  traceText: '',
                   statusText: 'Running: writing...',
                   finalText: expandedText,
                   completed: true,
@@ -646,7 +693,7 @@ describe('TelegramPoller', () => {
             chatId: 100,
             messageThreadId: 0
           },
-          messageId: 101,
+          messageId: 100,
           text: 'A'.repeat(4_096),
           replyMarkup: undefined
         })
@@ -662,13 +709,610 @@ describe('TelegramPoller', () => {
       await vi.advanceTimersByTimeAsync(TELEGRAM_STREAM_POLL_INTERVAL_MS)
 
       await vi.waitFor(() => {
-        expect(client.deleteMessage).toHaveBeenCalledWith({
-          target: {
+        expect(client.deleteMessage).not.toHaveBeenCalled()
+      })
+
+      await poller.stop()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('preserves null messageId holes from stored delivery state so edits stay aligned', async () => {
+    vi.useFakeTimers()
+
+    try {
+      const client = createClient()
+      const bindingStore = createBindingStore()
+      const firstChunk = 'A'.repeat(TELEGRAM_OUTBOUND_TEXT_LIMIT)
+      const changedMiddleChunk = 'D'.repeat(TELEGRAM_OUTBOUND_TEXT_LIMIT)
+      const initialText =
+        firstChunk +
+        ' ' +
+        'B'.repeat(TELEGRAM_OUTBOUND_TEXT_LIMIT) +
+        ' ' +
+        'C'.repeat(TELEGRAM_OUTBOUND_TEXT_LIMIT)
+      const updatedText =
+        firstChunk + ' ' + changedMiddleChunk + ' ' + 'C'.repeat(TELEGRAM_OUTBOUND_TEXT_LIMIT)
+
+      bindingStore.rememberRemoteDeliveryState('telegram:100:0', {
+        sourceMessageId: 'msg-1',
+        segments: [
+          {
+            key: 'msg-1:0:answer',
+            kind: 'answer',
+            messageIds: [100, null, 102],
+            lastText: initialText
+          }
+        ]
+      })
+
+      client.getUpdates
+        .mockResolvedValueOnce([
+          {
+            update_id: 1,
+            message: {
+              message_id: 20,
+              chat: {
+                id: 100,
+                type: 'private'
+              },
+              from: {
+                id: 123
+              },
+              text: 'hello'
+            }
+          }
+        ])
+        .mockImplementation(createBlockingUpdates())
+
+      const poller = new TelegramPoller({
+        client: client as any,
+        parser: {
+          parseUpdate: vi.fn().mockReturnValue({
+            kind: 'message',
+            updateId: 1,
+            chatId: 100,
+            messageThreadId: 0,
+            messageId: 20,
+            chatType: 'private',
+            fromId: 123,
+            text: 'hello',
+            command: null
+          })
+        } as any,
+        router: {
+          handleMessage: vi.fn().mockResolvedValue({
+            replies: [],
+            conversation: {
+              sessionId: 'session-1',
+              eventId: 'msg-1',
+              getSnapshot: vi.fn().mockResolvedValue({
+                messageId: 'msg-1',
+                text: updatedText,
+                traceText: '',
+                deliverySegments: [
+                  {
+                    key: 'msg-1:0:answer',
+                    kind: 'answer',
+                    text: updatedText,
+                    sourceMessageId: 'msg-1'
+                  }
+                ],
+                statusText: 'Running: writing...',
+                finalText: updatedText,
+                completed: true,
+                pendingInteraction: null
+              })
+            }
+          })
+        } as any,
+        bindingStore: bindingStore as any
+      })
+
+      await poller.start()
+
+      await vi.waitFor(() => {
+        expect(client.editMessageText).not.toHaveBeenCalledWith(
+          expect.objectContaining({
+            messageId: 102,
+            text: changedMiddleChunk
+          })
+        )
+      })
+
+      await poller.stop()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('appends terminal text after a partial answer when the final state differs', async () => {
+    vi.useFakeTimers()
+
+    try {
+      const client = createClient()
+      const bindingStore = createBindingStore()
+
+      client.getUpdates
+        .mockResolvedValueOnce([
+          {
+            update_id: 1,
+            message: {
+              message_id: 20,
+              chat: {
+                id: 100,
+                type: 'private'
+              },
+              from: {
+                id: 123
+              },
+              text: 'hello'
+            }
+          }
+        ])
+        .mockImplementation(createBlockingUpdates())
+
+      const poller = new TelegramPoller({
+        client: client as any,
+        parser: {
+          parseUpdate: vi.fn().mockReturnValue({
+            kind: 'message',
+            updateId: 1,
+            chatId: 100,
+            messageThreadId: 0,
+            messageId: 20,
+            chatType: 'private',
+            fromId: 123,
+            text: 'hello',
+            command: null
+          })
+        } as any,
+        router: {
+          handleMessage: vi.fn().mockResolvedValue({
+            replies: [],
+            conversation: {
+              sessionId: 'session-1',
+              eventId: 'msg-1',
+              getSnapshot: vi
+                .fn()
+                .mockResolvedValueOnce({
+                  messageId: 'msg-1',
+                  text: 'Partial answer',
+                  traceText: '',
+                  deliverySegments: [
+                    {
+                      key: 'msg-1:0:answer',
+                      kind: 'answer',
+                      text: 'Partial answer',
+                      sourceMessageId: 'msg-1'
+                    }
+                  ],
+                  statusText: 'Running: writing...',
+                  finalText: '',
+                  completed: false,
+                  pendingInteraction: null
+                })
+                .mockResolvedValue({
+                  messageId: 'msg-1',
+                  text: 'Partial answer',
+                  traceText: '',
+                  deliverySegments: [
+                    {
+                      key: 'msg-1:0:answer',
+                      kind: 'answer',
+                      text: 'Partial answer',
+                      sourceMessageId: 'msg-1'
+                    }
+                  ],
+                  statusText: 'Running: writing...',
+                  finalText: 'The conversation ended with an error.',
+                  completed: true,
+                  pendingInteraction: null
+                })
+            }
+          })
+        } as any,
+        bindingStore: bindingStore as any
+      })
+
+      await poller.start()
+
+      await vi.waitFor(() => {
+        expect(client.sendMessage).toHaveBeenCalledWith(
+          {
             chatId: 100,
             messageThreadId: 0
           },
-          messageId: 100
-        })
+          'Partial answer'
+        )
+      })
+
+      await vi.advanceTimersByTimeAsync(TELEGRAM_STREAM_POLL_INTERVAL_MS)
+
+      await vi.waitFor(() => {
+        expect(client.sendMessage).toHaveBeenCalledWith(
+          {
+            chatId: 100,
+            messageThreadId: 0
+          },
+          'The conversation ended with an error.'
+        )
+        expect(client.editMessageText).not.toHaveBeenCalledWith(
+          expect.objectContaining({
+            messageId: 100,
+            text: 'The conversation ended with an error.'
+          })
+        )
+      })
+
+      await poller.stop()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not append a terminal segment when the latest answer already matches after a process segment', async () => {
+    vi.useFakeTimers()
+
+    try {
+      const client = createClient()
+      const bindingStore = createBindingStore()
+
+      client.getUpdates
+        .mockResolvedValueOnce([
+          {
+            update_id: 1,
+            message: {
+              message_id: 20,
+              chat: {
+                id: 100,
+                type: 'private'
+              },
+              from: {
+                id: 123
+              },
+              text: 'hello'
+            }
+          }
+        ])
+        .mockImplementation(createBlockingUpdates())
+
+      const poller = new TelegramPoller({
+        client: client as any,
+        parser: {
+          parseUpdate: vi.fn().mockReturnValue({
+            kind: 'message',
+            updateId: 1,
+            chatId: 100,
+            messageThreadId: 0,
+            messageId: 20,
+            chatType: 'private',
+            fromId: 123,
+            text: 'hello',
+            command: null
+          })
+        } as any,
+        router: {
+          handleMessage: vi.fn().mockResolvedValue({
+            replies: [],
+            conversation: {
+              sessionId: 'session-1',
+              eventId: 'msg-1',
+              getSnapshot: vi.fn().mockResolvedValueOnce({
+                messageId: 'msg-1',
+                text: 'Final answer',
+                traceText: '',
+                deliverySegments: [
+                  {
+                    key: 'msg-1:0:answer',
+                    kind: 'answer',
+                    text: 'Final answer',
+                    sourceMessageId: 'msg-1'
+                  },
+                  {
+                    key: 'msg-1:1:process',
+                    kind: 'process',
+                    text: '💻 shell_command: "git status"',
+                    sourceMessageId: 'msg-1'
+                  }
+                ],
+                statusText: 'Running: processing tool results...',
+                finalText: 'Final answer',
+                completed: true,
+                pendingInteraction: null
+              })
+            }
+          })
+        } as any,
+        bindingStore: bindingStore as any
+      })
+
+      await poller.start()
+
+      await vi.waitFor(() => {
+        expect(client.sendMessage).toHaveBeenCalledWith(
+          {
+            chatId: 100,
+            messageThreadId: 0
+          },
+          'Final answer'
+        )
+        expect(client.sendMessage).toHaveBeenCalledWith(
+          {
+            chatId: 100,
+            messageThreadId: 0
+          },
+          '💻 shell_command: "git status"'
+        )
+      })
+
+      expect(client.sendMessage).not.toHaveBeenCalledWith(
+        {
+          chatId: 100,
+          messageThreadId: 0
+        },
+        'Final answer',
+        expect.anything()
+      )
+      expect(
+        client.sendMessage.mock.calls.filter(([, text]) => text === 'Final answer')
+      ).toHaveLength(1)
+
+      await poller.stop()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('appends later process and answer segments in DeepChat order instead of rewriting the first answer', async () => {
+    vi.useFakeTimers()
+
+    try {
+      const client = createClient()
+      const bindingStore = createBindingStore()
+
+      client.getUpdates
+        .mockResolvedValueOnce([
+          {
+            update_id: 1,
+            message: {
+              message_id: 20,
+              chat: {
+                id: 100,
+                type: 'private'
+              },
+              from: {
+                id: 123
+              },
+              text: 'hello'
+            }
+          }
+        ])
+        .mockImplementation(createBlockingUpdates())
+
+      const poller = new TelegramPoller({
+        client: client as any,
+        parser: {
+          parseUpdate: vi.fn().mockReturnValue({
+            kind: 'message',
+            updateId: 1,
+            chatId: 100,
+            messageThreadId: 0,
+            messageId: 20,
+            chatType: 'private',
+            fromId: 123,
+            text: 'hello',
+            command: null
+          })
+        } as any,
+        router: {
+          handleMessage: vi.fn().mockResolvedValue({
+            replies: [],
+            conversation: {
+              sessionId: 'session-1',
+              eventId: 'msg-1',
+              getSnapshot: vi
+                .fn()
+                .mockResolvedValueOnce({
+                  messageId: 'msg-1',
+                  text: 'Let me inspect these files.',
+                  traceText: '',
+                  deliverySegments: [
+                    {
+                      key: 'msg-1:0:answer',
+                      kind: 'answer',
+                      text: 'Let me inspect these files.',
+                      sourceMessageId: 'msg-1'
+                    }
+                  ],
+                  statusText: 'Running: writing...',
+                  finalText: '',
+                  completed: false,
+                  pendingInteraction: null
+                })
+                .mockResolvedValueOnce({
+                  messageId: 'msg-1',
+                  text: 'Let me inspect these files.',
+                  traceText: '',
+                  deliverySegments: [
+                    {
+                      key: 'msg-1:0:answer',
+                      kind: 'answer',
+                      text: 'Let me inspect these files.',
+                      sourceMessageId: 'msg-1'
+                    },
+                    {
+                      key: 'msg-1:1:process',
+                      kind: 'process',
+                      text: '📖 read_file: "/tmp/report.md"',
+                      sourceMessageId: 'msg-1'
+                    }
+                  ],
+                  statusText: 'Running: calling read_file...',
+                  finalText: '',
+                  completed: false,
+                  pendingInteraction: null
+                })
+                .mockResolvedValue({
+                  messageId: 'msg-1',
+                  text: 'Summary ready.',
+                  traceText: '',
+                  deliverySegments: [
+                    {
+                      key: 'msg-1:0:answer',
+                      kind: 'answer',
+                      text: 'Let me inspect these files.',
+                      sourceMessageId: 'msg-1'
+                    },
+                    {
+                      key: 'msg-1:1:process',
+                      kind: 'process',
+                      text: '📖 read_file: "/tmp/report.md"',
+                      sourceMessageId: 'msg-1'
+                    },
+                    {
+                      key: 'msg-1:2:answer',
+                      kind: 'answer',
+                      text: 'Summary ready.',
+                      sourceMessageId: 'msg-1'
+                    }
+                  ],
+                  statusText: 'Running: writing...',
+                  finalText: 'Summary ready.',
+                  completed: true,
+                  pendingInteraction: null
+                })
+            }
+          })
+        } as any,
+        bindingStore: bindingStore as any
+      })
+
+      await poller.start()
+
+      await vi.waitFor(() => {
+        expect(client.sendMessage).toHaveBeenCalledWith(
+          {
+            chatId: 100,
+            messageThreadId: 0
+          },
+          'Let me inspect these files.'
+        )
+      })
+
+      await vi.advanceTimersByTimeAsync(TELEGRAM_STREAM_POLL_INTERVAL_MS)
+
+      await vi.waitFor(() => {
+        expect(client.sendMessage).toHaveBeenCalledWith(
+          {
+            chatId: 100,
+            messageThreadId: 0
+          },
+          '📖 read_file: "/tmp/report.md"'
+        )
+      })
+
+      await vi.advanceTimersByTimeAsync(TELEGRAM_STREAM_POLL_INTERVAL_MS)
+
+      await vi.waitFor(() => {
+        expect(client.sendMessage).toHaveBeenCalledWith(
+          {
+            chatId: 100,
+            messageThreadId: 0
+          },
+          'Summary ready.'
+        )
+        expect(client.editMessageText).not.toHaveBeenCalledWith(
+          expect.objectContaining({
+            messageId: 100,
+            text: 'Summary ready.'
+          })
+        )
+        expect(bindingStore.clearRemoteDeliveryState).toHaveBeenCalledWith('telegram:100:0')
+      })
+
+      await poller.stop()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('keeps tool-only turns as trace-only without appending the no-response fallback', async () => {
+    vi.useFakeTimers()
+
+    try {
+      const client = createClient()
+      const bindingStore = createBindingStore()
+
+      client.getUpdates
+        .mockResolvedValueOnce([
+          {
+            update_id: 1,
+            message: {
+              message_id: 20,
+              chat: {
+                id: 100,
+                type: 'private'
+              },
+              from: {
+                id: 123
+              },
+              text: 'hello'
+            }
+          }
+        ])
+        .mockImplementation(createBlockingUpdates())
+
+      const poller = new TelegramPoller({
+        client: client as any,
+        parser: {
+          parseUpdate: vi.fn().mockReturnValue({
+            kind: 'message',
+            updateId: 1,
+            chatId: 100,
+            messageThreadId: 0,
+            messageId: 20,
+            chatType: 'private',
+            fromId: 123,
+            text: 'hello',
+            command: null
+          })
+        } as any,
+        router: {
+          handleMessage: vi.fn().mockResolvedValue({
+            replies: [],
+            conversation: {
+              sessionId: 'session-1',
+              eventId: 'msg-1',
+              getSnapshot: vi.fn().mockResolvedValue({
+                messageId: 'msg-1',
+                text: '',
+                traceText: '📖 read_file: "/tmp/report.md"',
+                statusText: 'Running: calling read_file...',
+                finalText: 'No assistant response was produced.',
+                renderBlocks: [],
+                completed: true,
+                pendingInteraction: null
+              })
+            }
+          })
+        } as any,
+        bindingStore: bindingStore as any
+      })
+
+      await poller.start()
+
+      await vi.waitFor(() => {
+        expect(client.sendMessage).toHaveBeenCalledTimes(1)
+        expect(client.sendMessage).toHaveBeenCalledWith(
+          {
+            chatId: 100,
+            messageThreadId: 0
+          },
+          '📖 read_file: "/tmp/report.md"'
+        )
+        expect(bindingStore.clearRemoteDeliveryState).toHaveBeenCalledWith('telegram:100:0')
       })
 
       await poller.stop()
@@ -1132,18 +1776,10 @@ describe('TelegramPoller', () => {
           chatId: 100,
           messageThreadId: 0
         },
-        'Waiting for your response...'
-      )
-      expect(client.sendMessage).toHaveBeenNthCalledWith(
-        2,
-        {
-          chatId: 100,
-          messageThreadId: 0
-        },
         'Partial answer'
       )
       expect(client.sendMessage).toHaveBeenNthCalledWith(
-        3,
+        2,
         {
           chatId: 100,
           messageThreadId: 0

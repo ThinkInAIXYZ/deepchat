@@ -295,6 +295,13 @@ export interface RemoteRenderableBlock {
   sourceMessageId: string
 }
 
+export interface RemoteDeliverySegment {
+  key: string
+  kind: 'process' | 'answer' | 'terminal'
+  text: string
+  sourceMessageId: string
+}
+
 export type TelegramOutboundAction =
   | {
       type: 'sendMessage'

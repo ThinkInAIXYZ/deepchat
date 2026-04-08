@@ -394,6 +394,8 @@ describe('RemoteConversationRunner', () => {
     expect(snapshot).toEqual({
       messageId: null,
       text: 'No assistant response was produced.',
+      traceText: '',
+      deliverySegments: [],
       statusText: '',
       finalText: 'No assistant response was produced.',
       draftText: '',
@@ -669,6 +671,15 @@ describe('RemoteConversationRunner', () => {
     expect(snapshot).toEqual({
       messageId: 'assistant-2',
       text: 'Push completed.',
+      traceText: '',
+      deliverySegments: [
+        {
+          key: 'assistant-2:0:answer',
+          kind: 'answer',
+          text: 'Push completed.',
+          sourceMessageId: 'assistant-2'
+        }
+      ],
       statusText: 'Running: writing...',
       finalText: 'Push completed.',
       draftText: '',

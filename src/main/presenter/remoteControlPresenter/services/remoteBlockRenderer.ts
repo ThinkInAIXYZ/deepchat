@@ -1,14 +1,17 @@
 import type { AssistantMessageBlock } from '@shared/types/agent-interface'
 import type { SearchResult } from '@shared/types/core/search'
-import type { RemoteRenderableBlock } from '../types'
+import { summarizeToolCallPreview } from '@shared/lib/toolCallSummary'
+import type { RemoteDeliverySegment, RemoteRenderableBlock } from '../types'
 
 const TOOL_ARGS_PREVIEW_LIMIT = 1_200
 const TOOL_RESULT_PREVIEW_LIMIT = 1_600
 const SEARCH_RESULT_LIMIT = 5
 const SEARCH_SNIPPET_LIMIT = 220
+const TRACE_PREVIEW_LIMIT = 160
 const DEFAULT_REMOTE_STATUS_TEXT = 'Running...'
 export const REMOTE_WAITING_STATUS_TEXT = 'Waiting for your response...'
 const DEFAULT_REMOTE_ERROR_TEXT = 'The conversation ended with an error.'
+export const REMOTE_NO_RESPONSE_TEXT = 'No assistant response was produced.'
 
 const normalizeText = (value: string | undefined | null): string =>
   (value ?? '').replace(/\r\n/g, '\n').trim()
@@ -200,6 +203,113 @@ const formatImageNoticeBlock = (block: AssistantMessageBlock): string => {
 
 const formatErrorBlock = (content: string): string => buildSection('[Error]', content)
 
+const truncateSingleLine = (value: string, limit: number): string => {
+  const normalized = value.trim()
+  if (!normalized) {
+    return ''
+  }
+
+  if (normalized.length <= limit) {
+    return normalized
+  }
+
+  return `${normalized.slice(0, Math.max(0, limit - 3)).trimEnd()}...`
+}
+
+const escapeTracePreview = (value: string): string =>
+  value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+
+const getTracePreview = (
+  value: string | undefined | null,
+  fallback: string = '(none)',
+  limit: number = TRACE_PREVIEW_LIMIT
+): string => {
+  const preview = summarizeToolCallPreview(value) || fallback
+  return escapeTracePreview(truncateSingleLine(preview, limit))
+}
+
+const getTraceEmoji = (toolName: string): string => {
+  const normalized = toolName.trim().toLowerCase()
+
+  if (!normalized) {
+    return '🛠'
+  }
+
+  if (normalized.includes('cron') || normalized.includes('schedule')) {
+    return '⏰'
+  }
+
+  if (
+    normalized === 'grep' ||
+    normalized === 'find' ||
+    normalized.includes('search') ||
+    normalized.includes('grep')
+  ) {
+    return '🔎'
+  }
+
+  if (
+    normalized === 'read' ||
+    normalized === 'cat' ||
+    normalized.includes('read') ||
+    normalized.includes('open')
+  ) {
+    return '📖'
+  }
+
+  if (
+    normalized === 'write' ||
+    normalized === 'edit' ||
+    normalized.includes('write') ||
+    normalized.includes('edit')
+  ) {
+    return '📝'
+  }
+
+  if (normalized === 'ls' || normalized.includes('list') || normalized.includes('directory')) {
+    return '📂'
+  }
+
+  if (
+    normalized === 'exec' ||
+    normalized === 'process' ||
+    normalized.includes('exec') ||
+    normalized.includes('process') ||
+    normalized.includes('terminal') ||
+    normalized.includes('shell') ||
+    normalized.includes('command')
+  ) {
+    return '💻'
+  }
+
+  return '🛠'
+}
+
+const getProcessLogLines = (block: AssistantMessageBlock): string[] => {
+  if (block.type !== 'tool_call' || !isToolCallArgsComplete(block)) {
+    return []
+  }
+
+  const toolName = normalizeText(block.tool_call?.name) || 'unknown_tool'
+  const lines = [
+    `${getTraceEmoji(toolName)} ${toolName}: "${getTracePreview(block.tool_call?.params)}"`
+  ]
+
+  if (block.status === 'error') {
+    lines.push(
+      `❌ ${toolName}: "${getTracePreview(block.tool_call?.response || block.content, 'error')}"`
+    )
+  }
+
+  return lines
+}
+
+export const buildRemoteTraceText = (blocks: AssistantMessageBlock[]): string =>
+  blocks
+    .flatMap((block) => getProcessLogLines(block))
+    .join('\n')
+    .trim()
+
 const isRenderableNarrativeBlock = (block: AssistantMessageBlock): boolean =>
   (block.type === 'content' || block.type === 'reasoning_content') &&
   block.status !== 'pending' &&
@@ -247,6 +357,78 @@ export const buildRemoteStreamText = (blocks: AssistantMessageBlock[]): string =
     .filter(Boolean)
     .join('\n\n')
     .trim()
+
+export const buildRemoteDeliverySegments = (
+  messageId: string,
+  blocks: AssistantMessageBlock[]
+): RemoteDeliverySegment[] => {
+  const segments: RemoteDeliverySegment[] = []
+  let current: {
+    key: string
+    kind: 'process' | 'answer'
+    parts: string[]
+  } | null = null
+
+  const flushCurrent = () => {
+    if (!current) {
+      return
+    }
+
+    const text = current.parts.join(current.kind === 'process' ? '\n' : '\n\n').trim()
+    if (!text) {
+      current = null
+      return
+    }
+
+    segments.push({
+      key: current.key,
+      kind: current.kind,
+      text,
+      sourceMessageId: messageId
+    })
+    current = null
+  }
+
+  for (const [index, block] of blocks.entries()) {
+    const processLines = getProcessLogLines(block)
+    if (processLines.length > 0) {
+      if (!current || current.kind !== 'process') {
+        flushCurrent()
+        current = {
+          key: `${messageId}:${index}:process`,
+          kind: 'process',
+          parts: []
+        }
+      }
+      current.parts.push(...processLines)
+      continue
+    }
+
+    if (block.type !== 'content') {
+      continue
+    }
+
+    const content = normalizeText(block.content)
+    if (!content) {
+      continue
+    }
+
+    if (!current || current.kind !== 'answer') {
+      flushCurrent()
+      current = {
+        key: `${messageId}:${index}:answer`,
+        kind: 'answer',
+        parts: []
+      }
+    }
+
+    current.parts.push(content)
+  }
+
+  flushCurrent()
+
+  return segments
+}
 
 const isToolCallArgsComplete = (block: AssistantMessageBlock): boolean =>
   block.status !== 'pending' || block.extra?.toolCallArgsComplete === true

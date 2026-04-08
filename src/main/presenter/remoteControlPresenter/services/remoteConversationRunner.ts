@@ -15,6 +15,7 @@ import type {
 import type { AgentRuntimePresenter } from '../../agentRuntimePresenter'
 import {
   TELEGRAM_RECENT_SESSION_LIMIT,
+  type RemoteDeliverySegment,
   TELEGRAM_STREAM_POLL_INTERVAL_MS,
   type RemoteEndpointBindingMeta,
   type RemoteRenderableBlock,
@@ -23,11 +24,14 @@ import {
 } from '../types'
 import { safeParseAssistantBlocks } from '../telegram/telegramOutbound'
 import {
+  REMOTE_NO_RESPONSE_TEXT,
   REMOTE_WAITING_STATUS_TEXT,
+  buildRemoteDeliverySegments,
   buildRemoteDraftText,
   buildRemoteFinalText,
   buildRemoteFullText,
   buildRemoteRenderableBlocks,
+  buildRemoteTraceText,
   buildRemoteStreamText,
   buildRemoteStatusText
 } from './remoteBlockRenderer'
@@ -41,6 +45,8 @@ const sleep = async (ms: number): Promise<void> => {
 export interface RemoteConversationSnapshot {
   messageId: string | null
   text: string
+  traceText?: string
+  deliverySegments?: RemoteDeliverySegment[]
   statusText?: string
   finalText?: string
   draftText?: string
@@ -460,6 +466,8 @@ export class RemoteConversationRunner {
       return {
         messageId: null,
         text: 'The bound session no longer exists.',
+        traceText: '',
+        deliverySegments: [],
         statusText: '',
         finalText: 'The bound session no longer exists.',
         draftText: '',
@@ -490,11 +498,13 @@ export class RemoteConversationRunner {
       return {
         messageId: null,
         text: completed ? 'No assistant response was produced.' : '',
+        traceText: '',
+        deliverySegments: [],
         statusText: completed ? '' : buildRemoteStatusText([]),
-        finalText: completed ? 'No assistant response was produced.' : '',
+        finalText: completed ? REMOTE_NO_RESPONSE_TEXT : '',
         draftText: '',
         renderBlocks: [],
-        fullText: completed ? 'No assistant response was produced.' : '',
+        fullText: completed ? REMOTE_NO_RESPONSE_TEXT : '',
         completed,
         pendingInteraction: null
       }
@@ -502,7 +512,9 @@ export class RemoteConversationRunner {
 
     const blocks = safeParseAssistantBlocks(trackedMessage.content)
     const streamText = buildRemoteStreamText(blocks)
+    const traceText = buildRemoteTraceText(blocks)
     const draftText = buildRemoteDraftText(blocks)
+    const deliverySegments = buildRemoteDeliverySegments(trackedMessage.id, blocks)
     const renderBlocks = await buildRemoteRenderableBlocks({
       messageId: trackedMessage.id,
       blocks,
@@ -520,7 +532,7 @@ export class RemoteConversationRunner {
       preferTerminalError: trackedMessage.status === 'error',
       fallbackErrorText:
         trackedMessage.status === 'error' ? 'The conversation ended with an error.' : undefined,
-      fallbackNoResponseText: 'No assistant response was produced.'
+      fallbackNoResponseText: REMOTE_NO_RESPONSE_TEXT
     })
     const completed =
       Boolean(pendingInteraction) ||
@@ -534,6 +546,8 @@ export class RemoteConversationRunner {
     return {
       messageId: trackedMessage.id,
       text: streamText,
+      traceText,
+      deliverySegments,
       statusText: pendingInteraction ? REMOTE_WAITING_STATUS_TEXT : statusText,
       finalText,
       draftText,
