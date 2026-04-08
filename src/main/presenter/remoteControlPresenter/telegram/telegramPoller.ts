@@ -62,7 +62,7 @@ type TelegramRemoteDeliveryState = {
   segments: Array<{
     key: string
     kind: 'process' | 'answer' | 'terminal'
-    messageIds: number[]
+    messageIds: Array<number | null>
     lastText: string
   }>
 }
@@ -407,7 +407,8 @@ export class TelegramPoller {
         key: segment.key,
         kind: segment.kind,
         messageIds: segment.messageIds.filter(
-          (messageId): messageId is number => typeof messageId === 'number'
+          (messageId): messageId is number | null =>
+            typeof messageId === 'number' || messageId === null
         ),
         lastText: segment.lastText
       }))
@@ -504,8 +505,8 @@ export class TelegramPoller {
       return segments
     }
 
-    const last = segments[segments.length - 1]
-    if (last?.kind === 'answer' && last.text === normalized) {
+    const lastAnswerSegment = [...segments].reverse().find((segment) => segment.kind === 'answer')
+    if (lastAnswerSegment?.text === normalized) {
       return segments
     }
 
@@ -620,9 +621,14 @@ export class TelegramPoller {
         continue
       }
 
+      const messageId = messageIds[index]
+      if (!messageId) {
+        continue
+      }
+
       await this.editMessageText(target, {
         type: 'editMessageText',
-        messageId: messageIds[index],
+        messageId,
         text: nextChunks[index],
         replyMarkup: null
       })
