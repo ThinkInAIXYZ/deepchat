@@ -1,15 +1,23 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent, h } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { MarkdownLinkContext } from '@/components/markdown/linkTypes'
 
-const { showArtifactMock, getSearchResultsMock, hideReferenceMock, showReferenceMock, nanoidMock } =
-  vi.hoisted(() => ({
-    showArtifactMock: vi.fn(),
-    getSearchResultsMock: vi.fn().mockResolvedValue([]),
-    hideReferenceMock: vi.fn(),
-    showReferenceMock: vi.fn(),
-    nanoidMock: vi.fn()
-  }))
+const {
+  showArtifactMock,
+  getSearchResultsMock,
+  hideReferenceMock,
+  showReferenceMock,
+  nanoidMock,
+  navigateLinkMock
+} = vi.hoisted(() => ({
+  showArtifactMock: vi.fn(),
+  getSearchResultsMock: vi.fn().mockResolvedValue([]),
+  hideReferenceMock: vi.fn(),
+  showReferenceMock: vi.fn(),
+  nanoidMock: vi.fn(),
+  navigateLinkMock: vi.fn().mockResolvedValue(true)
+}))
 
 const setup = async (props: Record<string, unknown> = {}) => {
   vi.resetModules()
@@ -48,6 +56,12 @@ const setup = async (props: Record<string, unknown> = {}) => {
   vi.doMock('@/composables/usePresenter', () => ({
     usePresenter: () => ({
       getSearchResults: getSearchResultsMock
+    })
+  }))
+
+  vi.doMock('@/components/markdown/useMarkdownLinkNavigation', () => ({
+    useMarkdownLinkNavigation: () => ({
+      navigateLink: navigateLinkMock
     })
   }))
 
@@ -107,8 +121,13 @@ const setup = async (props: Record<string, unknown> = {}) => {
       CodeBlockNode,
       ReferenceNode,
       MermaidBlockNode,
-      setCustomComponents: (components: Record<string, (...args: any[]) => any>) => {
-        customComponents = components
+      removeCustomComponents: vi.fn(),
+      setCustomComponents: (
+        customIdOrComponents: string | Record<string, (...args: any[]) => any>,
+        maybeComponents?: Record<string, (...args: any[]) => any>
+      ) => {
+        customComponents =
+          typeof customIdOrComponents === 'string' ? (maybeComponents ?? {}) : customIdOrComponents
       }
     }
   })
@@ -123,7 +142,10 @@ const setup = async (props: Record<string, unknown> = {}) => {
 
   await flushPromises()
 
-  return { wrapper }
+  return {
+    wrapper,
+    getCustomComponents: () => customComponents
+  }
 }
 
 describe('MarkdownRenderer', () => {
@@ -134,6 +156,8 @@ describe('MarkdownRenderer', () => {
     hideReferenceMock.mockReset()
     showReferenceMock.mockReset()
     nanoidMock.mockReset()
+    navigateLinkMock.mockReset()
+    navigateLinkMock.mockResolvedValue(true)
     nanoidMock.mockReturnValueOnce('fallback-message').mockReturnValueOnce('fallback-thread')
   })
 
@@ -174,5 +198,35 @@ describe('MarkdownRenderer', () => {
       'artifact-thread-fallback-thread',
       { force: true }
     )
+  })
+
+  it('routes reference clicks through the shared markdown link navigator', async () => {
+    getSearchResultsMock.mockResolvedValueOnce([
+      {
+        url: 'https://example.com/reference'
+      }
+    ])
+
+    const { getCustomComponents } = await setup({
+      messageId: 'message-1',
+      threadId: 'thread-1',
+      linkContext: {
+        source: 'chat',
+        sessionId: 'thread-1'
+      } satisfies MarkdownLinkContext
+    })
+
+    const referenceVNode = getCustomComponents().reference?.({
+      node: {
+        id: '1'
+      }
+    })
+    const clickEvent = new MouseEvent('click', { altKey: true })
+
+    await referenceVNode.props.onClick(clickEvent)
+    await flushPromises()
+
+    expect(getSearchResultsMock).toHaveBeenCalledWith('message-1')
+    expect(navigateLinkMock).toHaveBeenCalledWith('https://example.com/reference', clickEvent)
   })
 })

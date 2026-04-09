@@ -3,7 +3,11 @@
     ref="messageBlock"
     class="markdown-content-wrapper relative w-full px-4 pb-8 artifact-dialog-content"
   >
-    <MarkdownRenderer :content="props.block.content || ''" @copy="handleCopyClick" />
+    <MarkdownRenderer
+      :content="props.block.content || ''"
+      :link-context="{ source: 'artifact' }"
+      @copy="handleCopyClick"
+    />
   </div>
 </template>
 

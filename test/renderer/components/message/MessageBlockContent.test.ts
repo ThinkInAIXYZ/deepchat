@@ -3,6 +3,7 @@ import { defineComponent } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import MessageBlockContent from '@/components/message/MessageBlockContent.vue'
 import type { DisplayAssistantMessageBlock } from '@/components/chat/messageListItems'
+import type { MarkdownLinkContext } from '@/components/markdown/linkTypes'
 
 const { syncArtifactMock, completeArtifactMock, getSearchResultsMock } = vi.hoisted(() => ({
   syncArtifactMock: vi.fn(),
@@ -65,10 +66,14 @@ vi.mock('@/components/markdown/MarkdownRenderer.vue', () => ({
       threadId: {
         type: String,
         default: undefined
+      },
+      linkContext: {
+        type: Object as () => MarkdownLinkContext | undefined,
+        default: undefined
       }
     },
     template:
-      '<div class="markdown-stub" :data-message-id="messageId" :data-thread-id="threadId">{{ content }}</div>'
+      '<div class="markdown-stub" :data-message-id="messageId" :data-thread-id="threadId" :data-link-source="linkContext?.source" :data-link-session-id="linkContext?.sessionId">{{ content }}</div>'
   })
 }))
 
@@ -168,6 +173,8 @@ describe('MessageBlockContent', () => {
     const markdown = wrapper.get('.markdown-stub')
     expect(markdown.attributes('data-message-id')).toBe('m3')
     expect(markdown.attributes('data-thread-id')).toBe('s3')
+    expect(markdown.attributes('data-link-source')).toBe('chat')
+    expect(markdown.attributes('data-link-session-id')).toBe('s3')
     expect(markdown.text()).toContain('plain markdown content')
   })
 })

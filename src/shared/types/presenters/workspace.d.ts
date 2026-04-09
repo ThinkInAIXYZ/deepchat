@@ -100,6 +100,19 @@ export type WorkspaceInvalidationEvent = {
   source: WorkspaceInvalidationSource
 }
 
+export type ResolveMarkdownLinkedFileInput = {
+  workspacePath: string | null
+  href: string
+  sourceFilePath?: string | null
+}
+
+export type WorkspaceLinkedFileResolution = {
+  path: string
+  name: string
+  relativePath: string
+  workspaceRoot: string | null
+}
+
 /**
  * Workspace Presenter interface
  */
@@ -172,6 +185,14 @@ export interface IWorkspacePresenter {
    * @param filePath Absolute file path
    */
   readFilePreview(filePath: string): Promise<WorkspaceFilePreview | null>
+
+  /**
+   * Resolve a markdown file link against the current workspace or source file.
+   * Authorizes the resolved file for subsequent preview/open operations.
+   */
+  resolveMarkdownLinkedFile(
+    input: ResolveMarkdownLinkedFileInput
+  ): Promise<WorkspaceLinkedFileResolution | null>
 
   /**
    * Read git status for the provided workspace path.

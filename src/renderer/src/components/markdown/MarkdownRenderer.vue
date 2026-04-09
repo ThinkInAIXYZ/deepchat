@@ -2,6 +2,7 @@
   <div class="prose prose-zinc prose-sm dark:prose-invert w-full max-w-none break-all">
     <NodeRenderer
       :content="debouncedContent"
+      :custom-id="customRendererId"
       :isDark="themeStore.isDark"
       :codeBlockDarkTheme="codeBlockDarkTheme"
       :codeBlockLightTheme="codeBlockLightTheme"
@@ -17,21 +18,26 @@ import { useArtifactStore } from '@/stores/artifact'
 import { useReferenceStore } from '@/stores/reference'
 import { nanoid } from 'nanoid'
 import { useDebounceFn } from '@vueuse/core'
-import { computed, h, ref, watch } from 'vue'
+import { computed, h, onBeforeUnmount, ref, watch } from 'vue'
 import NodeRenderer, {
   CodeBlockNode,
   ReferenceNode,
+  removeCustomComponents,
   setCustomComponents,
   MermaidBlockNode
 } from 'markstream-vue'
 import { useThemeStore } from '@/stores/theme'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
+import LinkNode from './LinkNode.vue'
+import { useMarkdownLinkNavigation } from './useMarkdownLinkNavigation'
+import type { MarkdownLinkContext } from './linkTypes'
 
 const props = defineProps<{
   content: string
   debug?: boolean
   messageId?: string
   threadId?: string
+  linkContext?: MarkdownLinkContext
 }>()
 const themeStore = useThemeStore()
 const uiSettingsStore = useUiSettingsStore()
@@ -46,12 +52,36 @@ const referenceNode = ref<HTMLElement | null>(null)
 const debouncedContent = ref(props.content)
 const effectiveMessageId = computed(() => props.messageId ?? fallbackMessageId)
 const effectiveThreadId = computed(() => props.threadId ?? fallbackThreadId)
+const effectiveLinkContext = computed<MarkdownLinkContext>(() => {
+  const provided = props.linkContext
+  if (provided) {
+    return provided
+  }
+
+  return {
+    source: 'chat',
+    sessionId: props.threadId
+  }
+})
+const customRendererId = computed(() =>
+  [
+    'markdown',
+    effectiveThreadId.value,
+    effectiveMessageId.value,
+    effectiveLinkContext.value.source,
+    effectiveLinkContext.value.sessionId ?? '',
+    effectiveLinkContext.value.sourceFilePath ?? ''
+  ].join('::')
+)
 const codeBlockThemes = ['vitesse-dark', 'vitesse-light'] as const
 const codeBlockDarkTheme = codeBlockThemes[0]
 const codeBlockLightTheme = codeBlockThemes[1]
 const codeBlockMonacoOption = computed(() => ({
   fontFamily: uiSettingsStore.formattedCodeFontFamily
 }))
+const { navigateLink } = useMarkdownLinkNavigation({
+  linkContext: effectiveLinkContext
+})
 
 const updateContent = useDebounceFn(
   (value: string) => {
@@ -68,79 +98,95 @@ watch(
   }
 )
 
-setCustomComponents({
-  reference: (_props) =>
-    h(ReferenceNode, {
-      ..._props,
-      messageId: effectiveMessageId.value,
-      threadId: effectiveThreadId.value,
-      onClick() {
-        // TODO: remove this temporary fallback after search result loading is fully unified.
-        agentSessionPresenter.getSearchResults(effectiveMessageId.value).then((results) => {
-          const index = parseInt(_props.node.id)
-          if (index < results.length) {
-            window.open(results[index - 1].url, '_blank', 'noopener,noreferrer')
+watch(
+  customRendererId,
+  (nextCustomRendererId, previousCustomRendererId) => {
+    if (previousCustomRendererId && previousCustomRendererId !== nextCustomRendererId) {
+      removeCustomComponents(previousCustomRendererId)
+    }
+
+    setCustomComponents(nextCustomRendererId, {
+      link: (_props) =>
+        h(LinkNode, {
+          ..._props,
+          linkContext: effectiveLinkContext.value
+        }),
+      reference: (_props) =>
+        h(ReferenceNode, {
+          ..._props,
+          messageId: effectiveMessageId.value,
+          threadId: effectiveThreadId.value,
+          onClick(event?: MouseEvent) {
+            agentSessionPresenter.getSearchResults(effectiveMessageId.value).then((results) => {
+              const index = parseInt(_props.node.id, 10) - 1
+              if (index >= 0 && index < results.length) {
+                void navigateLink(results[index].url, event)
+              }
+            })
+          },
+          onMouseEnter() {
+            referenceStore.hideReference()
+            agentSessionPresenter.getSearchResults(effectiveMessageId.value).then((results) => {
+              const index = parseInt(_props.node.id, 10) - 1
+              if (index >= 0 && index < results.length && referenceNode.value) {
+                referenceStore.showReference(
+                  results[index],
+                  referenceNode.value.getBoundingClientRect()
+                )
+              }
+            })
+          },
+          onMouseLeave() {
+            referenceStore.hideReference()
           }
+        }),
+      mermaid: (_props) => {
+        return h(MermaidBlockNode, {
+          ..._props,
+          isStrict: true
         })
       },
-      onMouseEnter() {
-        console.log('Mouse entered')
-        referenceStore.hideReference()
-        agentSessionPresenter.getSearchResults(effectiveMessageId.value).then((results) => {
-          const index = parseInt(_props.node.id)
-          if (index - 1 < results.length && referenceNode.value) {
-            referenceStore.showReference(
-              results[index - 1],
-              referenceNode.value.getBoundingClientRect()
+      code_block: (_props) => {
+        const isMermaid = _props.node.language === 'mermaid'
+        if (isMermaid) {
+          return h(MermaidBlockNode, {
+            ..._props,
+            isStrict: true
+          })
+        }
+        return h(CodeBlockNode, {
+          ..._props,
+          isDark: themeStore.isDark,
+          darkTheme: codeBlockDarkTheme,
+          lightTheme: codeBlockLightTheme,
+          themes: [...codeBlockThemes],
+          monacoOptions: codeBlockMonacoOption.value,
+          onPreviewCode(v) {
+            artifactStore.showArtifact(
+              {
+                id: v.id,
+                type: v.artifactType,
+                title: v.artifactTitle,
+                language: v.language,
+                content: v.node.code,
+                status: 'loaded'
+              },
+              effectiveMessageId.value,
+              effectiveThreadId.value,
+              { force: true }
             )
           }
         })
-      },
-      onMouseLeave() {
-        console.log('Mouse left')
-        referenceStore.hideReference()
       }
-    }),
-  mermaid: (_props) => {
-    // 对于 Mermaid 代码块，直接返回 MermaidNode 组件
-    return h(MermaidBlockNode, {
-      ..._props,
-      isStrict: true
     })
   },
-  code_block: (_props) => {
-    const isMermaid = _props.node.language === 'mermaid'
-    if (isMermaid) {
-      // 对于 Mermaid 代码块，直接返回 MermaidNode 组件
-      return h(MermaidBlockNode, {
-        ..._props,
-        isStrict: true
-      })
-    }
-    return h(CodeBlockNode, {
-      ..._props,
-      isDark: themeStore.isDark,
-      darkTheme: codeBlockDarkTheme,
-      lightTheme: codeBlockLightTheme,
-      themes: [...codeBlockThemes],
-      monacoOptions: codeBlockMonacoOption.value,
-      onPreviewCode(v) {
-        artifactStore.showArtifact(
-          {
-            id: v.id,
-            type: v.artifactType,
-            title: v.artifactTitle,
-            language: v.language,
-            content: v.node.code,
-            status: 'loaded'
-          },
-          effectiveMessageId.value,
-          effectiveThreadId.value,
-          { force: true }
-        )
-      }
-    })
+  {
+    immediate: true
   }
+)
+
+onBeforeUnmount(() => {
+  removeCustomComponents(customRendererId.value)
 })
 
 defineEmits(['copy'])
