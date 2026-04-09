@@ -130,12 +130,19 @@ vi.mock('../../../../src/main/events', () => ({
   }
 }))
 
+vi.mock('@shared/logger', () => ({
+  default: {
+    warn: vi.fn()
+  }
+}))
+
 // Import mocked modules
 import fs from 'fs'
 import path from 'path'
 import matter from 'gray-matter'
 import { watch } from 'chokidar'
 import { unzipSync } from 'fflate'
+import logger from '@shared/logger'
 import { eventBus } from '../../../../src/main/eventbus'
 import { SKILL_EVENTS } from '../../../../src/main/events'
 import { SkillPresenter } from '../../../../src/main/presenter/skillPresenter/index'
@@ -190,6 +197,24 @@ function mockSkillTree(relativeRoots: string[]) {
   ;(fs.readdirSync as Mock).mockImplementation((target: string) => {
     return tree.get(String(target).replace(/\/+$/, '')) ?? []
   })
+}
+
+function createSkillMetadata(name: string, dirName: string): SkillMetadata {
+  return {
+    name,
+    description: `${name} description`,
+    path: `${DEFAULT_SKILLS_DIR}/${dirName}/SKILL.md`,
+    skillRoot: `${DEFAULT_SKILLS_DIR}/${dirName}`,
+    category: null
+  }
+}
+
+function getWatcherHandler(eventName: string) {
+  const watcherInstance = (watch as Mock).mock.results[(watch as Mock).mock.results.length - 1]
+    ?.value as { on: Mock } | undefined
+  return watcherInstance?.on.mock.calls.find((call: unknown[]) => call[0] === eventName)?.[1] as
+    | ((filePath: string) => Promise<void>)
+    | undefined
 }
 
 describe('SkillPresenter', () => {
@@ -560,6 +585,26 @@ describe('SkillPresenter', () => {
       ])
     })
 
+    it('rejects oversized skill markdown files before loading content', async () => {
+      ;(fs.statSync as Mock).mockReturnValue({
+        isFile: () => true,
+        size: 6 * 1024 * 1024,
+        mtimeMs: Date.now()
+      })
+      ;(fs.readFileSync as Mock).mockClear()
+
+      const result = await skillPresenter.viewSkill('test-skill')
+
+      expect(result).toEqual({
+        success: false,
+        error: '[SkillPresenter] Skill file too large: 6291456 bytes (max: 5242880)'
+      })
+      expect(fs.readFileSync).not.toHaveBeenCalledWith(
+        expect.stringContaining('/test-skill/SKILL.md'),
+        'utf-8'
+      )
+    })
+
     it('rejects file paths outside the skill root', async () => {
       const result = await skillPresenter.viewSkill('test-skill', {
         filePath: '../secrets.txt'
@@ -636,6 +681,38 @@ describe('SkillPresenter', () => {
         success: false,
         action: 'write_file',
         error: 'Draft file path must stay within allowed draft folders'
+      })
+    })
+
+    it('rejects invalid conversation ids when creating draft directories', async () => {
+      ;(matter as unknown as Mock).mockReturnValue({
+        data: { name: 'draft-skill', description: 'Draft' },
+        content: '# Draft body'
+      })
+
+      const result = await skillPresenter.manageDraftSkill('../conv-draft', {
+        action: 'create',
+        content: '---\nname: draft-skill\ndescription: Draft\n---\n\n# Draft body'
+      })
+
+      expect(result).toEqual({
+        success: false,
+        action: 'create',
+        error: 'Invalid conversationId for draft path'
+      })
+      expect(fs.writeFileSync).not.toHaveBeenCalled()
+    })
+
+    it('rejects invalid conversation ids when resolving draft paths', async () => {
+      const result = await skillPresenter.manageDraftSkill('/conv-draft', {
+        action: 'delete',
+        draftPath: '/mock/temp/deepchat-skill-drafts/conv-draft/123-draft'
+      })
+
+      expect(result).toEqual({
+        success: false,
+        action: 'delete',
+        error: 'Draft path is invalid or outside the draft root'
       })
     })
 
@@ -1420,6 +1497,82 @@ describe('SkillPresenter', () => {
       skillPresenter.watchSkillFiles()
 
       expect(watch).toHaveBeenCalledTimes(1)
+    })
+
+    it('keeps the first cached entry when a changed skill renames to a duplicate name', async () => {
+      const metadataCache = (skillPresenter as any).metadataCache as Map<string, SkillMetadata>
+      const originalMetadata = createSkillMetadata('skill-a', 'skill-a')
+      const existingDuplicate = createSkillMetadata('skill-b', 'skill-b')
+
+      metadataCache.set(originalMetadata.name, originalMetadata)
+      metadataCache.set(existingDuplicate.name, existingDuplicate)
+      ;(skillPresenter as any).parseSkillMetadata = vi
+        .fn()
+        .mockResolvedValue(createSkillMetadata('skill-b', 'skill-a'))
+
+      skillPresenter.watchSkillFiles()
+      const changeHandler = getWatcherHandler('change')
+
+      await changeHandler?.(originalMetadata.path)
+
+      expect(metadataCache.has('skill-a')).toBe(false)
+      expect(metadataCache.get('skill-b')).toEqual(existingDuplicate)
+      expect(logger.warn).toHaveBeenCalledWith(
+        '[SkillPresenter] Duplicate skill name discovered. Keeping the first entry.',
+        expect.objectContaining({
+          name: 'skill-b',
+          path: originalMetadata.path,
+          existingPath: existingDuplicate.path
+        })
+      )
+      expect(eventBus.sendToRenderer).not.toHaveBeenCalled()
+    })
+
+    it('updates cached metadata when a changed skill is renamed without conflicts', async () => {
+      const metadataCache = (skillPresenter as any).metadataCache as Map<string, SkillMetadata>
+      const originalMetadata = createSkillMetadata('skill-a', 'skill-a')
+      const renamedMetadata = createSkillMetadata('skill-c', 'skill-a')
+
+      metadataCache.set(originalMetadata.name, originalMetadata)
+      ;(skillPresenter as any).parseSkillMetadata = vi.fn().mockResolvedValue(renamedMetadata)
+
+      skillPresenter.watchSkillFiles()
+      const changeHandler = getWatcherHandler('change')
+
+      await changeHandler?.(originalMetadata.path)
+
+      expect(metadataCache.has('skill-a')).toBe(false)
+      expect(metadataCache.get('skill-c')).toEqual(renamedMetadata)
+      expect(eventBus.sendToRenderer).toHaveBeenCalledWith(
+        SKILL_EVENTS.METADATA_UPDATED,
+        'all',
+        renamedMetadata
+      )
+    })
+
+    it('keeps the first cached entry when an added skill duplicates an existing name', async () => {
+      const metadataCache = (skillPresenter as any).metadataCache as Map<string, SkillMetadata>
+      const existingMetadata = createSkillMetadata('skill-b', 'skill-b')
+      const duplicateMetadata = createSkillMetadata('skill-b', 'skill-candidate')
+
+      metadataCache.set(existingMetadata.name, existingMetadata)
+      ;(skillPresenter as any).parseSkillMetadata = vi.fn().mockResolvedValue(duplicateMetadata)
+
+      skillPresenter.watchSkillFiles()
+      const addHandler = getWatcherHandler('add')
+
+      await addHandler?.(duplicateMetadata.path)
+
+      expect(metadataCache.get('skill-b')).toEqual(existingMetadata)
+      expect(logger.warn).toHaveBeenCalledWith(
+        '[SkillPresenter] Duplicate skill name discovered. Keeping the first entry.',
+        expect.objectContaining({
+          name: 'skill-b',
+          path: duplicateMetadata.path,
+          existingPath: existingMetadata.path
+        })
+      )
+      expect(eventBus.sendToRenderer).not.toHaveBeenCalled()
     })
   })
 

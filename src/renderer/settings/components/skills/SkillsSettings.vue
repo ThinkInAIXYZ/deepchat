@@ -183,7 +183,8 @@ const deletingSkill = ref<SkillMetadata | null>(null)
 const eventCleanup = ref<(() => void) | null>(null)
 
 onMounted(async () => {
-  draftSuggestionsEnabled.value = configPresenter.getSkillDraftSuggestionsEnabled?.() ?? false
+  const enabled = await configPresenter.getSkillDraftSuggestionsEnabled?.()
+  draftSuggestionsEnabled.value = enabled ?? false
   await skillsStore.loadSkills()
   setupEventListeners()
 })

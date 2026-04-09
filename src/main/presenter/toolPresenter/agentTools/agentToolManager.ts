@@ -259,24 +259,36 @@ export class AgentToolManager {
         .optional()
         .describe('Optional timeout in milliseconds for the script run')
     }),
-    skill_manage: z.object({
-      action: z
-        .enum(['create', 'edit', 'write_file', 'remove_file', 'delete'])
-        .describe('Draft-only skill management action'),
-      draftPath: z
-        .string()
-        .optional()
-        .describe('Existing draft root path. Required for edit, write_file, remove_file, delete'),
-      content: z
-        .string()
-        .optional()
-        .describe('Complete SKILL.md document including frontmatter and body'),
-      filePath: z
-        .string()
-        .optional()
-        .describe('Relative file path under references/, templates/, scripts/, or assets/'),
-      fileContent: z.string().optional().describe('Text content for write_file')
-    })
+    skill_manage: z.discriminatedUnion('action', [
+      z.object({
+        action: z.literal('create').describe('Draft-only skill management action'),
+        content: z.string().describe('Complete SKILL.md document including frontmatter and body')
+      }),
+      z.object({
+        action: z.literal('edit').describe('Draft-only skill management action'),
+        draftPath: z.string().describe('Existing draft root path'),
+        content: z.string().describe('Complete SKILL.md document including frontmatter and body')
+      }),
+      z.object({
+        action: z.literal('write_file').describe('Draft-only skill management action'),
+        draftPath: z.string().describe('Existing draft root path'),
+        filePath: z
+          .string()
+          .describe('Relative file path under references/, templates/, scripts/, or assets/'),
+        fileContent: z.string().describe('Text content for write_file')
+      }),
+      z.object({
+        action: z.literal('remove_file').describe('Draft-only skill management action'),
+        draftPath: z.string().describe('Existing draft root path'),
+        filePath: z
+          .string()
+          .describe('Relative file path under references/, templates/, scripts/, or assets/')
+      }),
+      z.object({
+        action: z.literal('delete').describe('Draft-only skill management action'),
+        draftPath: z.string().describe('Existing draft root path')
+      })
+    ])
   }
 
   constructor(options: AgentToolManagerOptions) {

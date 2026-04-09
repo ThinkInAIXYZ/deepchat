@@ -100,6 +100,7 @@ const BINARY_LIKE_EXTENSIONS = new Set([
   '.ico'
 ])
 const DRAFT_ALLOWED_TOP_LEVEL_DIRS = new Set(['references', 'templates', 'scripts', 'assets'])
+const DRAFT_CONVERSATION_ID_PATTERN = /^[A-Za-z0-9._-]+$/
 const DRAFT_INJECTION_PATTERNS = [
   /ignore\s+previous\s+instructions/i,
   /disregard\s+all\s+prior/i,
@@ -534,6 +535,16 @@ export class SkillPresenter implements ISkillPresenter {
         platforms: metadata.platforms,
         metadata: metadata.metadata,
         isPinned
+      }
+    }
+
+    const stats = fs.statSync(metadata.path)
+    if (stats.size > SKILL_CONFIG.SKILL_FILE_MAX_SIZE) {
+      const errorMessage = `[SkillPresenter] Skill file too large: ${stats.size} bytes (max: ${SKILL_CONFIG.SKILL_FILE_MAX_SIZE})`
+      console.error(errorMessage)
+      return {
+        success: false,
+        error: errorMessage
       }
     }
 
@@ -1498,8 +1509,28 @@ export class SkillPresenter implements ISkillPresenter {
           path.basename(path.dirname(filePath))
         )
         if (metadata) {
+          const existingMetadata = this.metadataCache.get(metadata.name)
+          if (existingMetadata && existingMetadata.path !== metadata.path) {
+            logger.warn(
+              '[SkillPresenter] Duplicate skill name discovered. Keeping the first entry.',
+              {
+                name: metadata.name,
+                path: metadata.path,
+                existingPath: existingMetadata.path
+              }
+            )
+            const previousMetadata = this.metadataCache.get(previousName)
+            if (previousName !== metadata.name && previousMetadata?.path === metadata.path) {
+              this.metadataCache.delete(previousName)
+            }
+            return
+          }
+
           if (previousName !== metadata.name) {
-            this.metadataCache.delete(previousName)
+            const previousMetadata = this.metadataCache.get(previousName)
+            if (previousMetadata?.path === metadata.path) {
+              this.metadataCache.delete(previousName)
+            }
           }
           this.metadataCache.set(metadata.name, metadata)
           eventBus.sendToRenderer(SKILL_EVENTS.METADATA_UPDATED, SendTarget.ALL_WINDOWS, metadata)
@@ -1514,6 +1545,19 @@ export class SkillPresenter implements ISkillPresenter {
           path.basename(path.dirname(filePath))
         )
         if (metadata) {
+          const existingMetadata = this.metadataCache.get(metadata.name)
+          if (existingMetadata && existingMetadata.path !== metadata.path) {
+            logger.warn(
+              '[SkillPresenter] Duplicate skill name discovered. Keeping the first entry.',
+              {
+                name: metadata.name,
+                path: metadata.path,
+                existingPath: existingMetadata.path
+              }
+            )
+            return
+          }
+
           this.metadataCache.set(metadata.name, metadata)
           eventBus.sendToRenderer(SKILL_EVENTS.INSTALLED, SendTarget.ALL_WINDOWS, {
             name: metadata.name
@@ -1801,9 +1845,38 @@ export class SkillPresenter implements ISkillPresenter {
     }
   }
 
+  private validateDraftConversationId(conversationId: string): string | null {
+    const normalizedConversationId = conversationId.trim()
+    if (!normalizedConversationId) {
+      return null
+    }
+    if (path.isAbsolute(normalizedConversationId)) {
+      return null
+    }
+    if (normalizedConversationId !== path.basename(normalizedConversationId)) {
+      return null
+    }
+    if (
+      normalizedConversationId.includes('..') ||
+      normalizedConversationId.includes('/') ||
+      normalizedConversationId.includes('\\') ||
+      normalizedConversationId.includes(path.sep)
+    ) {
+      return null
+    }
+    if (!DRAFT_CONVERSATION_ID_PATTERN.test(normalizedConversationId)) {
+      return null
+    }
+    return normalizedConversationId
+  }
+
   private createDraftDirectory(conversationId: string, skillName: string): string {
+    const safeConversationId = this.validateDraftConversationId(conversationId)
+    if (!safeConversationId) {
+      throw new Error('Invalid conversationId for draft path')
+    }
     this.ensureDraftRoot()
-    const conversationRoot = path.join(this.draftsRoot, conversationId)
+    const conversationRoot = path.join(this.draftsRoot, safeConversationId)
     fs.mkdirSync(conversationRoot, { recursive: true })
     const safeSlug = skillName.replace(/[^a-z0-9._-]/g, '-')
     const draftPath = path.join(conversationRoot, `${Date.now()}-${safeSlug}`)
@@ -1815,7 +1888,11 @@ export class SkillPresenter implements ISkillPresenter {
     if (!draftPath?.trim()) {
       return null
     }
-    const conversationRoot = path.resolve(this.draftsRoot, conversationId)
+    const safeConversationId = this.validateDraftConversationId(conversationId)
+    if (!safeConversationId) {
+      return null
+    }
+    const conversationRoot = path.resolve(this.draftsRoot, safeConversationId)
     const resolvedDraftPath = path.resolve(draftPath)
     const relativePath = path.relative(conversationRoot, resolvedDraftPath)
     if (relativePath === '' || relativePath.startsWith('..') || path.isAbsolute(relativePath)) {

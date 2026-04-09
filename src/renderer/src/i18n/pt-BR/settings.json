@@ -1309,7 +1309,7 @@
     "addSkill": "Adicionar skill",
     "draftSuggestions": {
       "title": "Sugerir rascunhos de skill",
-      "description": "Depois que uma tarefa for concluída, permita que o agent sugira rascunhos temporários e reutilizáveis de skill. Os rascunhos permanecem em uma pasta temporária até que você escolha importá-los manualmente."
+      "description": "Depois que uma tarefa for concluída, permita que o agente sugira rascunhos temporários e reutilizáveis de skill. Os rascunhos permanecem em uma pasta temporária até que você escolha importá-los manualmente."
     },
     "conflict": {
       "description": "A skill chamada \\\"{name}\\\" já existe. Deseja sobrescrevê-la?",
