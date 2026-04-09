@@ -35,6 +35,7 @@
       </span>
       <Switch
         v-if="!hideEnableToggle"
+        :key="`${providerId}:${modelId}`"
         :model-value="enabled"
         @update:model-value="onEnabledChange"
       />

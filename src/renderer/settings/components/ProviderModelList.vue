@@ -227,8 +227,9 @@
                 </Button>
               </div>
             </div>
-            <div v-else-if="isModelItem(item)" class="bg-card">
+            <div v-else-if="isModelItem(item)" :key="item.id" class="bg-card">
               <ModelConfigItem
+                :key="item.id"
                 :model-name="item.model.name"
                 :model-id="item.model.id"
                 :provider-id="item.providerId"
@@ -458,15 +459,77 @@ const matchesAdvancedFilters = (model: RENDERER_MODEL_META) => {
 
 const statusSortWeight = (model: RENDERER_MODEL_META) => (model.enabled ? 0 : 1)
 
+const getModelKey = (model: RENDERER_MODEL_META) => `${model.providerId}:${model.id}`
+const statusSortOrder = ref<Record<string, number>>({})
+
+const buildStatusSortOrder = () => {
+  const models = [
+    ...props.customModels,
+    ...props.providerModels.flatMap((provider) => provider.models)
+  ]
+  const nextOrder: Record<string, number> = {}
+  const orderedModels = [...models].sort((left, right) => {
+    const statusDifference = statusSortWeight(left) - statusSortWeight(right)
+    if (statusDifference !== 0) {
+      return statusDifference
+    }
+
+    return modelNameCollator.compare(left.name, right.name)
+  })
+
+  orderedModels.forEach((model, index) => {
+    nextOrder[getModelKey(model)] = index
+  })
+
+  statusSortOrder.value = nextOrder
+}
+
+const modelStructureSignature = computed(() =>
+  JSON.stringify({
+    customModels: props.customModels.map((model) => ({
+      providerId: model.providerId,
+      id: model.id,
+      name: model.name,
+      group: model.group,
+      type: model.type ?? ModelType.Chat,
+      capabilities: getModelCapabilityValues(model)
+    })),
+    providerModels: props.providerModels.map((provider) => ({
+      providerId: provider.providerId,
+      models: provider.models.map((model) => ({
+        id: model.id,
+        name: model.name,
+        group: model.group,
+        type: model.type ?? ModelType.Chat,
+        capabilities: getModelCapabilityValues(model)
+      }))
+    }))
+  })
+)
+
+watch(modelStructureSignature, buildStatusSortOrder, { immediate: true })
+
 const sortModels = (models: RENDERER_MODEL_META[]) =>
   [...models].sort((left, right) => {
     if (filterState.sort === 'name') {
       return modelNameCollator.compare(left.name, right.name)
     }
 
-    const statusDifference = statusSortWeight(left) - statusSortWeight(right)
-    if (statusDifference !== 0) {
-      return statusDifference
+    const leftRank = statusSortOrder.value[getModelKey(left)]
+    const rightRank = statusSortOrder.value[getModelKey(right)]
+
+    if (leftRank !== undefined || rightRank !== undefined) {
+      if (leftRank === undefined) {
+        return 1
+      }
+
+      if (rightRank === undefined) {
+        return -1
+      }
+
+      if (leftRank !== rightRank) {
+        return leftRank - rightRank
+      }
     }
 
     return modelNameCollator.compare(left.name, right.name)
@@ -634,6 +697,9 @@ const removeFilterToken = (token: FilterToken) => {
 }
 
 const setSort = (sort: ModelSortKey) => {
+  if (sort === 'status') {
+    buildStatusSortOrder()
+  }
   filterState.sort = sort
   sortPopoverOpen.value = false
 }
