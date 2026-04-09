@@ -142,6 +142,15 @@ const resolvePayloadWindowId = (payload: unknown): number | null => {
   return typeof typedPayload.windowId === 'number' ? typedPayload.windowId : null
 }
 
+const resolvePayloadUrl = (payload: unknown): string => {
+  if (!payload || typeof payload !== 'object') {
+    return ''
+  }
+
+  const typedPayload = payload as { url?: unknown }
+  return typeof typedPayload.url === 'string' ? typedPayload.url : ''
+}
+
 const getSessionUiStatus = (sessionId: string) => {
   return sessionStore.sessions.find((session) => session.id === sessionId)?.status ?? null
 }
@@ -354,10 +363,21 @@ const handleOpenRequested = async (_event: unknown, payload: unknown) => {
     return
   }
 
+  const url = resolvePayloadUrl(payload)
   console.info('[BrowserPanel] panel open requested', {
-    windowId: hostWindowId.value
+    windowId: hostWindowId.value,
+    url
   })
+
+  // Update the URL input to reflect the requested URL
+  if (url) {
+    urlInput.value = url
+  }
+
   await loadState(currentSessionId.value)
+
+  // Wait for panel to be visible and DOM ready before attaching
+  await nextTick()
   if (isBrowserPanelVisible.value) {
     await ensureVisibleAttachment()
   }

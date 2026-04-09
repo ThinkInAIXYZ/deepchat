@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { chokidarState, sendToRendererMock, execFileMock } = vi.hoisted(() => {
@@ -99,13 +100,24 @@ vi.mock('../../../src/main/events', () => ({
 import { WorkspacePresenter } from '../../../src/main/presenter/workspacePresenter'
 import { WORKSPACE_EVENTS } from '../../../src/main/events'
 import {
+  createWorkspacePreviewFileUrl,
   createWorkspacePreviewUrl,
+  registerWorkspacePreviewFile,
   registerWorkspacePreviewRoot,
   resetWorkspacePreviewProtocolState,
   resolveWorkspacePreviewRequest,
+  unregisterWorkspacePreviewFile,
   unregisterWorkspacePreviewRoot,
   WORKSPACE_PREVIEW_PROTOCOL
 } from '../../../src/main/presenter/workspacePresenter/workspacePreviewProtocol'
+
+function normalizeForAccess(value: string): string {
+  try {
+    return path.normalize(fs.realpathSync(value))
+  } catch {
+    return path.normalize(path.resolve(value))
+  }
+}
 
 beforeEach(() => {
   resetWorkspacePreviewProtocolState()
@@ -342,6 +354,150 @@ describe('WorkspacePresenter readFilePreview', () => {
   })
 })
 
+describe('WorkspacePresenter resolveMarkdownLinkedFile', () => {
+  let workspacePath: string
+  let outsideFilePath: string
+
+  beforeEach(() => {
+    workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-workspace-links-'))
+    fs.mkdirSync(path.join(workspacePath, 'docs', 'nested'), { recursive: true })
+    fs.writeFileSync(path.join(workspacePath, 'docs', 'guide.md'), '# Guide')
+    fs.writeFileSync(path.join(workspacePath, 'docs', 'nested', 'child.md'), '# Child')
+    fs.writeFileSync(path.join(workspacePath, 'docs', 'root.md'), '# Root')
+    outsideFilePath = path.join(path.dirname(workspacePath), 'outside.html')
+    fs.writeFileSync(outsideFilePath, '<html></html>')
+  })
+
+  afterEach(() => {
+    fs.rmSync(workspacePath, { recursive: true, force: true })
+    fs.rmSync(outsideFilePath, { force: true })
+  })
+
+  it('resolves relative links from the source markdown file directory', async () => {
+    const presenter = new WorkspacePresenter({
+      prepareFileCompletely: vi.fn()
+    } as any)
+
+    await presenter.registerWorkspace(workspacePath)
+
+    const resolution = await presenter.resolveMarkdownLinkedFile({
+      workspacePath,
+      href: './nested/child.md#details',
+      sourceFilePath: path.join(workspacePath, 'docs', 'guide.md')
+    })
+
+    expect(resolution).toEqual({
+      path: normalizeForAccess(path.join(workspacePath, 'docs', 'nested', 'child.md')),
+      name: 'child.md',
+      relativePath: 'docs/nested/child.md',
+      workspaceRoot: normalizeForAccess(workspacePath)
+    })
+  })
+
+  it('falls back to the workspace root when no source markdown file is provided', async () => {
+    const presenter = new WorkspacePresenter({
+      prepareFileCompletely: vi.fn()
+    } as any)
+
+    await presenter.registerWorkspace(workspacePath)
+
+    const resolution = await presenter.resolveMarkdownLinkedFile({
+      workspacePath,
+      href: 'docs/root.md'
+    })
+
+    expect(resolution).toEqual({
+      path: normalizeForAccess(path.join(workspacePath, 'docs', 'root.md')),
+      name: 'root.md',
+      relativePath: 'docs/root.md',
+      workspaceRoot: normalizeForAccess(workspacePath)
+    })
+  })
+
+  it('authorizes files resolved outside the workspace for subsequent preview reads', async () => {
+    const prepareFileCompletely = vi.fn().mockResolvedValue({
+      path: outsideFilePath,
+      name: 'outside.html',
+      mimeType: 'text/html',
+      content: '<html></html>',
+      thumbnail: '',
+      metadata: {
+        fileName: 'outside.html',
+        fileSize: 13,
+        fileCreated: new Date('2024-01-01T00:00:00Z'),
+        fileModified: new Date('2024-01-02T00:00:00Z')
+      }
+    })
+
+    const presenter = new WorkspacePresenter({
+      prepareFileCompletely
+    } as any)
+
+    await presenter.registerWorkspace(workspacePath)
+
+    const resolution = await presenter.resolveMarkdownLinkedFile({
+      workspacePath,
+      href: '../../outside.html',
+      sourceFilePath: path.join(workspacePath, 'docs', 'guide.md')
+    })
+    const preview = await presenter.readFilePreview(outsideFilePath)
+
+    expect(resolution).toEqual({
+      path: normalizeForAccess(outsideFilePath),
+      name: 'outside.html',
+      relativePath: normalizeForAccess(outsideFilePath),
+      workspaceRoot: null
+    })
+    expect(preview?.path).toBe(normalizeForAccess(outsideFilePath))
+    expect(preview?.previewUrl).toBe(createWorkspacePreviewFileUrl(outsideFilePath))
+    expect(preview?.relativePath).toBe(normalizeForAccess(outsideFilePath))
+  })
+
+  it('supports file urls and absolute file paths', async () => {
+    const presenter = new WorkspacePresenter({
+      prepareFileCompletely: vi.fn()
+    } as any)
+
+    await presenter.registerWorkspace(workspacePath)
+
+    const fileUrlResolution = await presenter.resolveMarkdownLinkedFile({
+      workspacePath,
+      href: pathToFileURL(path.join(workspacePath, 'docs', 'root.md')).href
+    })
+    const absoluteResolution = await presenter.resolveMarkdownLinkedFile({
+      workspacePath,
+      href: path.join(workspacePath, 'docs', 'root.md')
+    })
+
+    expect(fileUrlResolution?.path).toBe(
+      normalizeForAccess(path.join(workspacePath, 'docs', 'root.md'))
+    )
+    expect(absoluteResolution?.path).toBe(
+      normalizeForAccess(path.join(workspacePath, 'docs', 'root.md'))
+    )
+  })
+
+  it('returns null for missing files without authorizing them', async () => {
+    const prepareFileCompletely = vi.fn()
+    const presenter = new WorkspacePresenter({
+      prepareFileCompletely
+    } as any)
+
+    await presenter.registerWorkspace(workspacePath)
+
+    const resolution = await presenter.resolveMarkdownLinkedFile({
+      workspacePath,
+      href: './missing.md',
+      sourceFilePath: path.join(workspacePath, 'docs', 'guide.md')
+    })
+    const preview = await presenter.readFilePreview(path.join(workspacePath, 'docs', 'missing.md'))
+
+    expect(resolution).toBeNull()
+    expect(preview).toBeNull()
+    expect(prepareFileCompletely).not.toHaveBeenCalled()
+  })
+})
+
 describe('workspacePreviewProtocol helpers', () => {
   let workspacePath: string
 
@@ -364,10 +520,10 @@ describe('workspacePreviewProtocol helpers', () => {
 
     const previewUrl = createWorkspacePreviewUrl(workspacePath, htmlPath)
     expect(previewUrl).toMatch(new RegExp(`^${WORKSPACE_PREVIEW_PROTOCOL}://`))
-    expect(resolveWorkspacePreviewRequest(previewUrl!)).toBe(path.normalize(htmlPath))
+    expect(resolveWorkspacePreviewRequest(previewUrl!)).toBe(normalizeForAccess(htmlPath))
 
     const assetUrl = new URL('assets/app.css', previewUrl!).href
-    expect(resolveWorkspacePreviewRequest(assetUrl)).toBe(path.normalize(cssPath))
+    expect(resolveWorkspacePreviewRequest(assetUrl)).toBe(normalizeForAccess(cssPath))
   })
 
   it('rejects unregistered roots and outside-root preview URLs', () => {
@@ -385,5 +541,22 @@ describe('workspacePreviewProtocol helpers', () => {
     expect(
       createWorkspacePreviewUrl(workspacePath, path.join(workspacePath, '..', 'outside.txt'))
     ).toBeNull()
+  })
+
+  it('resolves exact-file preview URLs without exposing sibling assets', () => {
+    const outsideFilePath = path.join(workspacePath, 'docs', 'standalone.html')
+    fs.writeFileSync(outsideFilePath, '<html></html>')
+
+    registerWorkspacePreviewFile(outsideFilePath)
+
+    const previewUrl = createWorkspacePreviewFileUrl(outsideFilePath)
+    expect(previewUrl).toMatch(new RegExp(`^${WORKSPACE_PREVIEW_PROTOCOL}://file-`))
+    expect(resolveWorkspacePreviewRequest(previewUrl)).toBe(normalizeForAccess(outsideFilePath))
+
+    const assetUrl = new URL('assets/app.css', previewUrl).href
+    expect(resolveWorkspacePreviewRequest(assetUrl)).toBeNull()
+
+    unregisterWorkspacePreviewFile(outsideFilePath)
+    expect(resolveWorkspacePreviewRequest(previewUrl)).toBeNull()
   })
 })

@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { defineComponent } from 'vue'
 
 import WorkspacePreviewPane from '../../../src/renderer/src/components/sidepanel/viewer/WorkspacePreviewPane.vue'
+import type { MarkdownLinkContext } from '@/components/markdown/linkTypes'
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
@@ -53,6 +54,12 @@ describe('WorkspacePreviewPane', () => {
         stubs: {
           MarkdownRenderer: defineComponent({
             name: 'MarkdownRenderer',
+            props: {
+              linkContext: {
+                type: Object as () => MarkdownLinkContext | undefined,
+                default: undefined
+              }
+            },
             template: '<div />'
           }),
           HTMLArtifact: defineComponent({
@@ -117,10 +124,14 @@ describe('WorkspacePreviewPane', () => {
               threadId: {
                 type: String,
                 default: undefined
+              },
+              linkContext: {
+                type: Object as () => MarkdownLinkContext | undefined,
+                default: undefined
               }
             },
             template:
-              '<div data-testid="markdown-renderer" :data-message-id="messageId" :data-thread-id="threadId">{{ content }}</div>'
+              '<div data-testid="markdown-renderer" :data-message-id="messageId" :data-thread-id="threadId" :data-link-source="linkContext?.source" :data-link-session-id="linkContext?.sessionId" :data-source-file-path="linkContext?.sourceFilePath">{{ content }}</div>'
           }),
           HTMLArtifact: true,
           SvgArtifact: true,
@@ -139,6 +150,15 @@ describe('WorkspacePreviewPane', () => {
     expect(wrapper.get('[data-testid="markdown-renderer"]').attributes('data-thread-id')).toBe(
       'session-1'
     )
+    expect(wrapper.get('[data-testid="markdown-renderer"]').attributes('data-link-source')).toBe(
+      'workspace'
+    )
+    expect(
+      wrapper.get('[data-testid="markdown-renderer"]').attributes('data-link-session-id')
+    ).toBe('session-1')
+    expect(
+      wrapper.get('[data-testid="markdown-renderer"]').attributes('data-source-file-path')
+    ).toBe('C:/repo/README.md')
   })
 
   it('keeps image preview in the image pane instead of iframe', () => {
