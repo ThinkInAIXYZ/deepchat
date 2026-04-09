@@ -110,6 +110,7 @@ import type {
   SessionGenerationSettings
 } from '@shared/types/agent-interface'
 import { normalizeDeepChatSubagentConfig } from '@shared/lib/deepchatSubagents'
+import { isChatSelectableModelType, type ModelType } from '@shared/model'
 
 const projectStore = useProjectStore()
 const sessionStore = useSessionStore()
@@ -177,13 +178,17 @@ const isAcpWorkdirMissing = computed(() => {
   return !projectStore.selectedProject?.path?.trim()
 })
 
+const isChatSelectableModel = (model: { type?: ModelType }) => isChatSelectableModelType(model.type)
+
 const getEnabledModel = (
   providerId?: string,
   modelId?: string
 ): { providerId: string; modelId: string } | null => {
   if (!providerId || !modelId) return null
   const matched = modelStore.enabledModels.some(
-    (group) => group.providerId === providerId && group.models.some((model) => model.id === modelId)
+    (group) =>
+      group.providerId === providerId &&
+      group.models.some((model) => model.id === modelId && isChatSelectableModel(model))
   )
   return matched ? { providerId, modelId } : null
 }
@@ -218,8 +223,9 @@ async function resolveModel(): Promise<{ providerId: string; modelId: string } |
 
   // 3. First available enabled model
   for (const group of modelStore.enabledModels) {
-    if (group.models.length > 0) {
-      return { providerId: group.providerId, modelId: group.models[0].id }
+    const firstChatSelectableModel = group.models.find(isChatSelectableModel)
+    if (firstChatSelectableModel) {
+      return { providerId: group.providerId, modelId: firstChatSelectableModel.id }
     }
   }
 
@@ -245,14 +251,18 @@ const resolveStartModelSelection = (
   }
 
   for (const group of modelStore.enabledModels) {
-    const matched = group.models.find((model) => model.id.toLowerCase() === normalizedModelId)
+    const matched = group.models.find(
+      (model) => model.id.toLowerCase() === normalizedModelId && isChatSelectableModel(model)
+    )
     if (matched) {
       return { providerId: group.providerId, modelId: matched.id }
     }
   }
 
   for (const group of modelStore.enabledModels) {
-    const matched = group.models.find((model) => model.id.toLowerCase().includes(normalizedModelId))
+    const matched = group.models.find(
+      (model) => model.id.toLowerCase().includes(normalizedModelId) && isChatSelectableModel(model)
+    )
     if (matched) {
       return { providerId: group.providerId, modelId: matched.id }
     }

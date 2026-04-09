@@ -146,6 +146,34 @@
             </p>
           </div>
 
+          <div v-if="showEndpointTypeSelector" class="space-y-2">
+            <Label for="endpointType">{{
+              t('settings.model.modelConfig.endpointType.label')
+            }}</Label>
+            <Select v-model="config.endpointType">
+              <SelectTrigger :class="{ 'border-destructive': errors.endpointType }">
+                <SelectValue
+                  :placeholder="t('settings.model.modelConfig.endpointType.placeholder')"
+                />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem
+                  v-for="endpointType in availableEndpointTypes"
+                  :key="endpointType"
+                  :value="endpointType"
+                >
+                  {{ t(`settings.model.modelConfig.endpointType.options.${endpointType}`) }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <p class="text-xs text-muted-foreground">
+              {{ t('settings.model.modelConfig.endpointType.description') }}
+            </p>
+            <p v-if="errors.endpointType" class="text-xs text-destructive">
+              {{ errors.endpointType }}
+            </p>
+          </div>
+
           <!-- API 端点（仅 OpenAI 兼容 provider 显示） -->
           <div v-if="showApiEndpointSelector" class="space-y-2">
             <Label for="apiEndpoint">{{ t('settings.model.modelConfig.apiEndpoint.label') }}</Label>
@@ -380,7 +408,13 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
-import { ApiEndpointType, ModelType } from '@shared/model'
+import {
+  ApiEndpointType,
+  ModelType,
+  NEW_API_ENDPOINT_TYPES,
+  isNewApiEndpointType,
+  type NewApiEndpointType
+} from '@shared/model'
 import type { ModelConfig } from '@shared/presenter'
 import type { ReasoningPortrait } from '@shared/types/model-db'
 import {
@@ -475,9 +509,18 @@ const isResponsesProvider = computed(() => {
   return apiType === 'openai' || apiType === 'openai-responses'
 })
 
+const isNewApiProvider = computed(() => {
+  if (providerIdLower.value === 'new-api') {
+    return true
+  }
+
+  return currentProvider.value?.apiType?.toLowerCase() === 'new-api'
+})
+
 const showApiEndpointSelector = computed(
-  () => !isResponsesProvider.value && isOpenAICompatibleProvider.value
+  () => !isNewApiProvider.value && !isResponsesProvider.value && isOpenAICompatibleProvider.value
 )
+const showEndpointTypeSelector = computed(() => isNewApiProvider.value)
 
 const createDefaultConfig = (): ModelConfig => ({
   maxTokens: DEFAULT_MODEL_MAX_TOKENS,
@@ -489,6 +532,7 @@ const createDefaultConfig = (): ModelConfig => ({
   forceInterleavedThinkingCompat: undefined,
   type: ModelType.Chat,
   apiEndpoint: ApiEndpointType.Chat,
+  endpointType: undefined,
   reasoningEffort: 'medium',
   verbosity: 'medium'
 })
@@ -669,6 +713,54 @@ const isThinkingBudgetSentinel = (
   return sentinelValues.has(roundedValue)
 }
 
+const capabilitySupportsReasoning = ref<boolean | null>(null)
+const capabilityBudgetRange = ref<{ min?: number; max?: number; default?: number } | null>(null)
+const capabilitySupportsEffort = ref<boolean | null>(null)
+const capabilityEffortDefault = ref<'minimal' | 'low' | 'medium' | 'high' | undefined>(undefined)
+const capabilitySupportsVerbosity = ref<boolean | null>(null)
+const capabilityVerbosityDefault = ref<'low' | 'medium' | 'high' | undefined>(undefined)
+
+const fetchCapabilities = async () => {
+  if (!props.providerId || !props.modelId) {
+    capabilityReasoningPortrait.value = null
+    capabilitySupportsReasoning.value = null
+    capabilityBudgetRange.value = null
+    capabilitySupportsEffort.value = null
+    capabilityEffortDefault.value = undefined
+    capabilitySupportsVerbosity.value = null
+    capabilityVerbosityDefault.value = undefined
+    return
+  }
+  try {
+    const portrait =
+      (await configPresenter.getReasoningPortrait?.(props.providerId, props.modelId)) ?? null
+    capabilityReasoningPortrait.value = portrait
+    capabilitySupportsReasoning.value =
+      typeof portrait?.supported === 'boolean' ? portrait.supported : null
+    capabilityBudgetRange.value = portrait?.budget
+      ? {
+          ...(typeof portrait.budget.min === 'number' ? { min: portrait.budget.min } : {}),
+          ...(typeof portrait.budget.max === 'number' ? { max: portrait.budget.max } : {}),
+          ...(typeof portrait.budget.default === 'number'
+            ? { default: portrait.budget.default }
+            : {})
+        }
+      : null
+    capabilitySupportsEffort.value = hasReasoningEffortSupport(portrait)
+    capabilityEffortDefault.value = normalizeReasoningEffortValue(portrait, portrait?.effort)
+    capabilitySupportsVerbosity.value = hasVerbositySupport(portrait)
+    capabilityVerbosityDefault.value = normalizeVerbosityValue(portrait, portrait?.verbosity)
+  } catch {
+    capabilityReasoningPortrait.value = null
+    capabilitySupportsReasoning.value = null
+    capabilityBudgetRange.value = null
+    capabilitySupportsEffort.value = null
+    capabilityEffortDefault.value = undefined
+    capabilitySupportsVerbosity.value = null
+    capabilityVerbosityDefault.value = undefined
+  }
+}
+
 const providerCustomModelList = computed(() => {
   if (!props.providerId) return []
   return customModels.value.find((entry) => entry.providerId === props.providerId)?.models ?? []
@@ -679,6 +771,33 @@ const providerStandardModelList = computed(() => {
   return (
     allProviderModels.value.find((entry) => entry.providerId === props.providerId)?.models ?? []
   )
+})
+
+const currentModelLookupId = computed(() =>
+  (isCreateMode.value ? modelIdField.value : props.modelId || modelIdField.value).trim()
+)
+
+const providerModelMeta = computed(() => {
+  const targetModelId = currentModelLookupId.value
+  if (!targetModelId) return null
+
+  return (
+    providerStandardModelList.value.find((model) => model.id === targetModelId) ??
+    providerCustomModelList.value.find((model) => model.id === targetModelId) ??
+    null
+  )
+})
+
+const availableEndpointTypes = computed<NewApiEndpointType[]>(() => {
+  const supportedEndpointTypes = providerModelMeta.value?.supportedEndpointTypes
+  if (Array.isArray(supportedEndpointTypes) && supportedEndpointTypes.length > 0) {
+    const normalizedEndpointTypes = supportedEndpointTypes.filter(isNewApiEndpointType)
+    if (normalizedEndpointTypes.length > 0) {
+      return normalizedEndpointTypes
+    }
+  }
+
+  return [...NEW_API_ENDPOINT_TYPES]
 })
 
 const currentCustomModel = computed(() => {
@@ -709,8 +828,38 @@ const buildCustomModelPayload = (id: string, name: string, enabled?: boolean) =>
   vision: config.value.vision ?? DEFAULT_MODEL_VISION,
   functionCall: config.value.functionCall ?? DEFAULT_MODEL_FUNCTION_CALL,
   reasoning: config.value.reasoning ?? false,
-  type: config.value.type ?? ModelType.Chat
+  type: config.value.type ?? ModelType.Chat,
+  endpointType: config.value.endpointType
 })
+
+const syncNewApiDerivedFields = () => {
+  if (!showEndpointTypeSelector.value) {
+    return
+  }
+
+  if (!isNewApiEndpointType(config.value.endpointType)) {
+    config.value.endpointType =
+      providerModelMeta.value?.endpointType ??
+      providerModelMeta.value?.supportedEndpointTypes?.[0] ??
+      availableEndpointTypes.value[0]
+  }
+
+  if (config.value.endpointType === 'image-generation') {
+    config.value.apiEndpoint = ApiEndpointType.Image
+    config.value.type = ModelType.ImageGeneration
+    return
+  }
+
+  config.value.apiEndpoint = ApiEndpointType.Chat
+
+  if (config.value.type === ModelType.ImageGeneration) {
+    const providerModelType = providerModelMeta.value?.type
+    config.value.type =
+      providerModelType && providerModelType !== ModelType.ImageGeneration
+        ? providerModelType
+        : ModelType.Chat
+  }
+}
 
 const initializeIdentityFields = () => {
   if (isCreateMode.value) {
@@ -733,6 +882,7 @@ const loadConfig = async () => {
 
   if (isCreateMode.value) {
     config.value = createDefaultConfig()
+    syncNewApiDerivedFields()
     await fetchCapabilities()
     return
   }
@@ -742,6 +892,13 @@ const loadConfig = async () => {
   try {
     const modelConfig = await modelConfigStore.getModelConfig(props.modelId, props.providerId)
     config.value = { ...modelConfig }
+
+    if (showEndpointTypeSelector.value && !isNewApiEndpointType(config.value.endpointType)) {
+      config.value.endpointType =
+        providerModelMeta.value?.endpointType ??
+        providerModelMeta.value?.supportedEndpointTypes?.[0] ??
+        availableEndpointTypes.value[0]
+    }
 
     if (showApiEndpointSelector.value && !config.value.apiEndpoint) {
       config.value.apiEndpoint = ApiEndpointType.Chat
@@ -791,6 +948,8 @@ const loadConfig = async () => {
       capabilityReasoningPortrait.value?.budget?.max
     )
   }
+
+  syncNewApiDerivedFields()
 }
 
 // 验证表单
@@ -839,6 +998,10 @@ const validateForm = () => {
     } else if (config.value.temperature > 2) {
       errors.value.temperature = t('settings.model.modelConfig.validation.temperatureMax')
     }
+  }
+
+  if (showEndpointTypeSelector.value && !isNewApiEndpointType(config.value.endpointType)) {
+    errors.value.endpointType = t('settings.model.modelConfig.endpointType.required')
   }
 }
 
@@ -891,7 +1054,8 @@ const handleSave = async () => {
           vision: config.value.vision,
           functionCall: config.value.functionCall,
           reasoning: config.value.reasoning,
-          type: config.value.type ?? ModelType.Chat
+          type: config.value.type ?? ModelType.Chat,
+          endpointType: config.value.endpointType
         })
       }
 
@@ -944,6 +1108,13 @@ watch(
   { immediate: true }
 )
 
+watch(
+  () => [config.value.endpointType, config.value.type, showEndpointTypeSelector.value],
+  () => {
+    syncNewApiDerivedFields()
+  }
+)
+
 const supportsVerbosity = computed(() => capabilitySupportsVerbosity.value === true)
 
 const isDeepSeekV31Model = computed(() => {
@@ -985,54 +1156,6 @@ const showInterleavedThinking = computed(() => {
     typeof config.value.forceInterleavedThinkingCompat === 'boolean'
   )
 })
-
-const capabilitySupportsReasoning = ref<boolean | null>(null)
-const capabilityBudgetRange = ref<{ min?: number; max?: number; default?: number } | null>(null)
-const capabilitySupportsEffort = ref<boolean | null>(null)
-const capabilityEffortDefault = ref<'minimal' | 'low' | 'medium' | 'high' | undefined>(undefined)
-const capabilitySupportsVerbosity = ref<boolean | null>(null)
-const capabilityVerbosityDefault = ref<'low' | 'medium' | 'high' | undefined>(undefined)
-
-const fetchCapabilities = async () => {
-  if (!props.providerId || !props.modelId) {
-    capabilityReasoningPortrait.value = null
-    capabilitySupportsReasoning.value = null
-    capabilityBudgetRange.value = null
-    capabilitySupportsEffort.value = null
-    capabilityEffortDefault.value = undefined
-    capabilitySupportsVerbosity.value = null
-    capabilityVerbosityDefault.value = undefined
-    return
-  }
-  try {
-    const portrait =
-      (await configPresenter.getReasoningPortrait?.(props.providerId, props.modelId)) ?? null
-    capabilityReasoningPortrait.value = portrait
-    capabilitySupportsReasoning.value =
-      typeof portrait?.supported === 'boolean' ? portrait.supported : null
-    capabilityBudgetRange.value = portrait?.budget
-      ? {
-          ...(typeof portrait.budget.min === 'number' ? { min: portrait.budget.min } : {}),
-          ...(typeof portrait.budget.max === 'number' ? { max: portrait.budget.max } : {}),
-          ...(typeof portrait.budget.default === 'number'
-            ? { default: portrait.budget.default }
-            : {})
-        }
-      : null
-    capabilitySupportsEffort.value = hasReasoningEffortSupport(portrait)
-    capabilityEffortDefault.value = normalizeReasoningEffortValue(portrait, portrait?.effort)
-    capabilitySupportsVerbosity.value = hasVerbositySupport(portrait)
-    capabilityVerbosityDefault.value = normalizeVerbosityValue(portrait, portrait?.verbosity)
-  } catch {
-    capabilityReasoningPortrait.value = null
-    capabilitySupportsReasoning.value = null
-    capabilityBudgetRange.value = null
-    capabilitySupportsEffort.value = null
-    capabilityEffortDefault.value = undefined
-    capabilitySupportsVerbosity.value = null
-    capabilityVerbosityDefault.value = undefined
-  }
-}
 
 watch(
   () => [props.providerId, props.modelId, props.open],

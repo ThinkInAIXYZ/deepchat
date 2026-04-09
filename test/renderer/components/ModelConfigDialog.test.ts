@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
-import { defineComponent, reactive } from 'vue'
+import { defineComponent, nextTick, reactive, ref } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import type { ReasoningPortrait } from '../../../src/shared/types/model-db'
+import { ApiEndpointType, ModelType } from '../../../src/shared/model'
 
 const passthrough = (name: string) =>
   defineComponent({
@@ -16,6 +17,10 @@ type SetupOptions = {
   providerApiType?: string
   modelConfig?: Record<string, unknown>
   reasoningPortrait?: ReasoningPortrait | null
+  mode?: 'create' | 'edit'
+  isCustomModel?: boolean
+  providerModels?: Array<Record<string, unknown>>
+  customModels?: Array<Record<string, unknown>>
 }
 
 const setup = async (options: SetupOptions) => {
@@ -39,11 +44,16 @@ const setup = async (options: SetupOptions) => {
   }
 
   const modelStore = reactive({
-    customModels: [],
+    customModels: [
+      {
+        providerId: options.providerId,
+        models: options.customModels ?? []
+      }
+    ],
     allProviderModels: [
       {
         providerId: options.providerId,
-        models: [{ id: options.modelId, name: options.modelName }]
+        models: options.providerModels ?? [{ id: options.modelId, name: options.modelName }]
       }
     ],
     addCustomModel: vi.fn().mockResolvedValue(undefined),
@@ -66,6 +76,12 @@ const setup = async (options: SetupOptions) => {
   vi.doMock('@/stores/modelStore', () => ({
     useModelStore: () => modelStore
   }))
+  vi.doMock('pinia', () => ({
+    storeToRefs: () => ({
+      customModels: ref(modelStore.customModels),
+      allProviderModels: ref(modelStore.allProviderModels)
+    })
+  }))
   vi.doMock('@/stores/providerStore', () => ({
     useProviderStore: () => providerStore
   }))
@@ -84,7 +100,9 @@ const setup = async (options: SetupOptions) => {
       open: true,
       modelId: options.modelId,
       modelName: options.modelName,
-      providerId: options.providerId
+      providerId: options.providerId,
+      mode: options.mode ?? 'edit',
+      isCustomModel: options.isCustomModel ?? false
     },
     global: {
       stubs: {
@@ -116,7 +134,7 @@ const setup = async (options: SetupOptions) => {
 
   await flushPromises()
 
-  return { wrapper }
+  return { wrapper, modelConfigStore }
 }
 
 describe('ModelConfigDialog reasoning portraits', () => {
@@ -215,5 +233,94 @@ describe('ModelConfigDialog reasoning portraits', () => {
 
     expect(wrapper.text()).not.toContain('settings.model.modelConfig.reasoningEffort.label')
     expect(wrapper.text()).not.toContain('settings.model.modelConfig.thinkingBudget.label')
+  })
+})
+
+describe('ModelConfigDialog new-api endpoint normalization', () => {
+  it('restores chat routing and provider model type when switching away from image-generation', async () => {
+    const { wrapper, modelConfigStore } = await setup({
+      providerId: 'new-api',
+      modelId: 'gpt-4.1',
+      modelName: 'GPT-4.1',
+      providerApiType: 'new-api',
+      providerModels: [
+        {
+          id: 'gpt-4.1',
+          name: 'GPT-4.1',
+          type: ModelType.Chat,
+          supportedEndpointTypes: ['openai', 'image-generation'],
+          endpointType: 'openai'
+        }
+      ],
+      modelConfig: {
+        type: ModelType.ImageGeneration,
+        apiEndpoint: ApiEndpointType.Image,
+        endpointType: 'image-generation'
+      }
+    })
+
+    expect((wrapper.vm as any).config.apiEndpoint).toBe(ApiEndpointType.Image)
+    expect((wrapper.vm as any).config.type).toBe(ModelType.ImageGeneration)
+
+    ;(wrapper.vm as any).config.endpointType = 'openai'
+    await nextTick()
+    await flushPromises()
+
+    expect((wrapper.vm as any).config.apiEndpoint).toBe(ApiEndpointType.Chat)
+    expect((wrapper.vm as any).config.type).toBe(ModelType.Chat)
+
+    await (wrapper.vm as any).handleSave()
+
+    expect(modelConfigStore.setModelConfig).toHaveBeenCalledWith(
+      'gpt-4.1',
+      'new-api',
+      expect.objectContaining({
+        endpointType: 'openai',
+        apiEndpoint: ApiEndpointType.Chat,
+        type: ModelType.Chat
+      })
+    )
+  })
+
+  it('forces image endpoint for image-generation and falls back to chat type for custom models', async () => {
+    const { wrapper, modelConfigStore } = await setup({
+      providerId: 'new-api',
+      modelId: '',
+      modelName: '',
+      providerApiType: 'new-api',
+      mode: 'create',
+      modelConfig: {
+        type: ModelType.Chat,
+        apiEndpoint: ApiEndpointType.Chat
+      }
+    })
+
+    ;(wrapper.vm as any).config.endpointType = 'image-generation'
+    await nextTick()
+    await flushPromises()
+
+    expect((wrapper.vm as any).config.apiEndpoint).toBe(ApiEndpointType.Image)
+    expect((wrapper.vm as any).config.type).toBe(ModelType.ImageGeneration)
+
+    ;(wrapper.vm as any).config.endpointType = 'openai'
+    await nextTick()
+    await flushPromises()
+
+    expect((wrapper.vm as any).config.apiEndpoint).toBe(ApiEndpointType.Chat)
+    expect((wrapper.vm as any).config.type).toBe(ModelType.Chat)
+
+    ;(wrapper.vm as any).modelIdField = 'custom-image-model'
+    ;(wrapper.vm as any).modelNameField = 'Custom Image Model'
+    await (wrapper.vm as any).handleSave()
+
+    expect(modelConfigStore.setModelConfig).toHaveBeenCalledWith(
+      'custom-image-model',
+      'new-api',
+      expect.objectContaining({
+        endpointType: 'openai',
+        apiEndpoint: ApiEndpointType.Chat,
+        type: ModelType.Chat
+      })
+    )
   })
 })

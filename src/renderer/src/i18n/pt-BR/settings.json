@@ -452,6 +452,19 @@
           "chat": "Geração de texto",
           "image": "Geração de Imagens"
         }
+      },
+      "endpointType": {
+        "label": "Tipo de endpoint",
+        "description": "Selecione qual protocolo upstream o New API deve usar para este modelo.",
+        "placeholder": "Selecione o tipo de endpoint",
+        "required": "O tipo de endpoint é obrigatório",
+        "options": {
+          "openai": "OpenAI Chat",
+          "openai-response": "OpenAI Responses",
+          "anthropic": "Anthropic Messages",
+          "gemini": "Gemini Native",
+          "image-generation": "Geração de Imagens"
+        }
       }
     }
   },
@@ -586,7 +599,6 @@
         "description": "Não é recomendado alterar a URL base deste provedor. Um endpoint incorreto pode causar falhas nas requisições ou outros comportamentos inesperados. Você ainda pode continuar se entender o risco.",
         "confirm": "Continuar"
       },
-
       "deleteProvider": {
         "title": "Confirmar Exclusão do Provedor",
         "content": "Tem certeza de que deseja excluir o provedor \"{name}\"? Esta ação não pode ser desfeita.",

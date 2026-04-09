@@ -21,7 +21,12 @@ import {
 } from '@shared/presenter'
 import { ProviderBatchUpdate } from '@shared/provider-operations'
 import { SearchEngineTemplate } from '@shared/chat'
-import { ModelType } from '@shared/model'
+import {
+  ModelType,
+  isNewApiEndpointType,
+  resolveNewApiCapabilityProviderId,
+  type NewApiEndpointType
+} from '@shared/model'
 import {
   DEFAULT_MODEL_CAPABILITY_FALLBACKS,
   resolveModelContextLength,
@@ -531,19 +536,70 @@ export class ConfigPresenter implements IConfigPresenter {
     return providerDbLoader.refreshIfNeeded(force)
   }
 
+  private resolveNewApiCapabilityEndpointType(modelId: string): NewApiEndpointType {
+    const modelConfig = this.getModelConfig(modelId, 'new-api')
+    if (isNewApiEndpointType(modelConfig.endpointType)) {
+      return modelConfig.endpointType
+    }
+
+    const storedModel =
+      this.getProviderModels('new-api').find((model) => model.id === modelId) ??
+      this.getCustomModels('new-api').find((model) => model.id === modelId)
+
+    if (storedModel) {
+      if (isNewApiEndpointType(storedModel.endpointType)) {
+        return storedModel.endpointType
+      }
+
+      const supportedEndpointTypes =
+        storedModel.supportedEndpointTypes?.filter(isNewApiEndpointType) ?? []
+      if (
+        storedModel.type === ModelType.ImageGeneration &&
+        supportedEndpointTypes.includes('image-generation')
+      ) {
+        return 'image-generation'
+      }
+      if (supportedEndpointTypes.length > 0) {
+        return supportedEndpointTypes[0]
+      }
+      if (storedModel.type === ModelType.ImageGeneration) {
+        return 'image-generation'
+      }
+    }
+
+    return 'openai'
+  }
+
+  private resolveCapabilityProviderId(providerId: string, modelId: string): string {
+    if (providerId.trim().toLowerCase() !== 'new-api') {
+      return providerId
+    }
+
+    return resolveNewApiCapabilityProviderId(this.resolveNewApiCapabilityEndpointType(modelId))
+  }
+
   supportsReasoningCapability(providerId: string, modelId: string): boolean {
-    return modelCapabilities.supportsReasoning(providerId, modelId)
+    return modelCapabilities.supportsReasoning(
+      this.resolveCapabilityProviderId(providerId, modelId),
+      modelId
+    )
   }
 
   getReasoningPortrait(providerId: string, modelId: string): ReasoningPortrait | null {
-    return modelCapabilities.getReasoningPortrait(providerId, modelId)
+    return modelCapabilities.getReasoningPortrait(
+      this.resolveCapabilityProviderId(providerId, modelId),
+      modelId
+    )
   }
 
   getThinkingBudgetRange(
     providerId: string,
     modelId: string
   ): { min?: number; max?: number; default?: number } {
-    return modelCapabilities.getThinkingBudgetRange(providerId, modelId)
+    return modelCapabilities.getThinkingBudgetRange(
+      this.resolveCapabilityProviderId(providerId, modelId),
+      modelId
+    )
   }
 
   supportsSearchCapability(providerId: string, modelId: string): boolean {
@@ -558,22 +614,34 @@ export class ConfigPresenter implements IConfigPresenter {
   }
 
   supportsReasoningEffortCapability(providerId: string, modelId: string): boolean {
-    return modelCapabilities.supportsReasoningEffort(providerId, modelId)
+    return modelCapabilities.supportsReasoningEffort(
+      this.resolveCapabilityProviderId(providerId, modelId),
+      modelId
+    )
   }
 
   getReasoningEffortDefault(
     providerId: string,
     modelId: string
   ): 'minimal' | 'low' | 'medium' | 'high' | undefined {
-    return modelCapabilities.getReasoningEffortDefault(providerId, modelId)
+    return modelCapabilities.getReasoningEffortDefault(
+      this.resolveCapabilityProviderId(providerId, modelId),
+      modelId
+    )
   }
 
   supportsVerbosityCapability(providerId: string, modelId: string): boolean {
-    return modelCapabilities.supportsVerbosity(providerId, modelId)
+    return modelCapabilities.supportsVerbosity(
+      this.resolveCapabilityProviderId(providerId, modelId),
+      modelId
+    )
   }
 
   getVerbosityDefault(providerId: string, modelId: string): 'low' | 'medium' | 'high' | undefined {
-    return modelCapabilities.getVerbosityDefault(providerId, modelId)
+    return modelCapabilities.getVerbosityDefault(
+      this.resolveCapabilityProviderId(providerId, modelId),
+      modelId
+    )
   }
 
   private migrateConfigData(oldVersion: string | undefined): void {

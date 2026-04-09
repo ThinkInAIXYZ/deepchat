@@ -452,6 +452,19 @@
           "chat": "テキスト生成",
           "image": "画像生成"
         }
+      },
+      "endpointType": {
+        "label": "エンドポイントタイプ",
+        "description": "このモデルに対してNew APIが使用するアップストリームプロトコルを選択してください。",
+        "placeholder": "エンドポイントタイプを選択",
+        "required": "エンドポイントタイプは必須です",
+        "options": {
+          "openai": "OpenAI Chat",
+          "openai-response": "OpenAI Responses",
+          "anthropic": "Anthropic Messages",
+          "gemini": "Gemini Native",
+          "image-generation": "画像生成"
+        }
       }
     }
   },
@@ -586,7 +599,6 @@
         "description": "このプロバイダーのベースURLを変更することは推奨されません。誤ったエンドポイントを設定すると、リクエストの失敗やその他の予期しない動作を引き起こす可能性があります。リスクを理解している場合は、そのまま続行できます。",
         "confirm": "続行"
       },
-
       "deleteProvider": {
         "title": "プロバイダーの削除確認",
         "content": "プロバイダー \"{name}\" を削除してもよろしいですか？この操作は元に戻せません。",

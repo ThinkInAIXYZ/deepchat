@@ -452,6 +452,19 @@
           "chat": "Génération de texte",
           "image": "Génération d'images"
         }
+      },
+      "endpointType": {
+        "label": "Type de point de terminaison",
+        "description": "Sélectionnez le protocole amont que New API doit utiliser pour ce modèle.",
+        "placeholder": "Sélectionner le type de point de terminaison",
+        "required": "Le type de point de terminaison est requis",
+        "options": {
+          "openai": "OpenAI Chat",
+          "openai-response": "OpenAI Responses",
+          "anthropic": "Anthropic Messages",
+          "gemini": "Gemini Native",
+          "image-generation": "Génération d'images"
+        }
       }
     }
   },
@@ -586,7 +599,6 @@
         "description": "Il n’est pas recommandé de modifier l’URL de base de ce fournisseur. Un point de terminaison incorrect peut provoquer des échecs de requête ou d’autres comportements inattendus. Vous pouvez tout de même continuer si vous comprenez le risque.",
         "confirm": "Continuer"
       },
-
       "deleteProvider": {
         "title": "Confirmer la suppression du fournisseur",
         "content": "Êtes-vous sûr de vouloir supprimer le fournisseur \"{name}\" ? Cette action ne peut pas être annulée.",

@@ -171,9 +171,7 @@
       </p>
       <div v-if="!provider.custom" class="text-xs text-muted-foreground">
         {{ t('settings.provider.howToGet') }}: {{ t('settings.provider.getKeyTip') }}
-        <a :href="providerWebsites?.apiKey" target="_blank" class="text-primary">{{
-          provider.name
-        }}</a>
+        <a :href="providerApiKeyUrl" target="_blank" class="text-primary">{{ provider.name }}</a>
         {{ t('settings.provider.getKeyTipEnd') }}
       </div>
     </div>
@@ -216,6 +214,7 @@ const { toast } = useToast()
 const EDITABLE_BASE_URL_PROVIDER_IDS = new Set([
   'openai',
   'openai-responses',
+  'new-api',
   'anthropic',
   'gemini',
   'ollama',
@@ -253,6 +252,23 @@ const showLockedBaseUrl = computed(
   () => !isBaseUrlEditableByDefault.value && !baseUrlUnlocked.value
 )
 const shouldRefreshProviderDbFirst = computed(() => isProviderDbBackedProvider(props.provider.id))
+const providerApiKeyUrl = computed(() => {
+  if (props.provider.id !== 'new-api') {
+    return props.providerWebsites?.apiKey || ''
+  }
+
+  const normalizedHost = apiHost.value.trim() || defaultBaseUrl.value
+  if (!normalizedHost) {
+    return props.providerWebsites?.apiKey || ''
+  }
+
+  try {
+    const parsedUrl = new URL(normalizedHost)
+    return `${parsedUrl.origin}/console/token`
+  } catch {
+    return props.providerWebsites?.apiKey || ''
+  }
+})
 
 watch(
   () => props.provider,

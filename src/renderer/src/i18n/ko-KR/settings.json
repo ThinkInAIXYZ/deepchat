@@ -452,6 +452,19 @@
           "chat": "텍스트 생성",
           "image": "이미지 생성"
         }
+      },
+      "endpointType": {
+        "label": "엔드포인트 유형",
+        "description": "이 모델에 대해 New API가 사용할 업스트림 프로토콜을 선택하세요.",
+        "placeholder": "엔드포인트 유형 선택",
+        "required": "엔드포인트 유형은 필수입니다",
+        "options": {
+          "openai": "OpenAI Chat",
+          "openai-response": "OpenAI Responses",
+          "anthropic": "Anthropic Messages",
+          "gemini": "Gemini Native",
+          "image-generation": "이미지 생성"
+        }
       }
     }
   },
@@ -580,7 +593,6 @@
         "description": "이 제공자의 기본 URL을 변경하는 것은 권장되지 않습니다. 잘못된 엔드포인트를 입력하면 요청 실패나 기타 예상치 못한 동작이 발생할 수 있습니다. 위험을 이해한다면 계속 진행할 수 있습니다.",
         "confirm": "계속"
       },
-
       "deleteProvider": {
         "title": "제공자 삭제",
         "content": "제공자 \"{name}\"을(를) 삭제하시겠습니까? 이 작업은 취소할 수 없습니다.",

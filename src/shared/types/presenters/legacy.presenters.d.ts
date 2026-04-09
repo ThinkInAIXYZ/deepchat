@@ -3,6 +3,7 @@ import { BrowserWindow } from 'electron'
 import { MessageFile } from './chat'
 import { ShowResponse } from 'ollama'
 import { ShortcutKeySetting } from '@/presenter/configPresenter/shortcutKeySettings'
+import type { NewApiEndpointType } from '@shared/model'
 import { ApiEndpointType, ModelType } from '@shared/model'
 import type {
   HookEventName,
@@ -171,6 +172,7 @@ export interface ModelConfig {
   maxCompletionTokens?: number // GPT-5 series uses this parameter to replace maxTokens
   conversationId?: string
   apiEndpoint?: ApiEndpointType
+  endpointType?: NewApiEndpointType
   // Search-related parameters
   enableSearch?: boolean
   forcedSearch?: boolean
@@ -774,6 +776,8 @@ export type RENDERER_MODEL_META = {
   contextLength?: number
   maxTokens?: number
   description?: string
+  supportedEndpointTypes?: NewApiEndpointType[]
+  endpointType?: NewApiEndpointType
 }
 export type MODEL_META = {
   id: string
@@ -789,9 +793,12 @@ export type MODEL_META = {
   contextLength?: number
   maxTokens?: number
   description?: string
+  supportedEndpointTypes?: NewApiEndpointType[]
+  endpointType?: NewApiEndpointType
 }
 export type LLM_PROVIDER = {
   id: string
+  capabilityProviderId?: string
   name: string
   apiType: string
   apiKey: string

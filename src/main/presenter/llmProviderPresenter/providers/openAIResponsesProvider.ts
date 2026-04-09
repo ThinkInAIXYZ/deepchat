@@ -114,11 +114,11 @@ export class OpenAIResponsesProvider extends BaseLLMProvider {
   }
 
   private supportsEffortParameter(modelId: string): boolean {
-    return modelCapabilities.supportsReasoningEffort(this.provider.id, modelId)
+    return modelCapabilities.supportsReasoningEffort(this.getCapabilityProviderId(), modelId)
   }
 
   private supportsVerbosityParameter(modelId: string): boolean {
-    return modelCapabilities.supportsVerbosity(this.provider.id, modelId)
+    return modelCapabilities.supportsVerbosity(this.getCapabilityProviderId(), modelId)
   }
 
   private resolveTraceAuthToken(): string {

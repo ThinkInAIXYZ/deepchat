@@ -4,6 +4,7 @@ import { useProviderStore } from '@/stores/providerStore'
 import { useAgentStore } from '@/stores/ui/agent'
 import AcpAgentIcon from './AcpAgentIcon.vue'
 import cherryinColorIcon from '@/assets/llm-icons/cherryin-color.png?url'
+import newApiColorIcon from '@/assets/llm-icons/newapi.svg?url'
 import adobeColorIcon from '@/assets/llm-icons/adobe-color.svg?url'
 import zeaburColorIcon from '@/assets/llm-icons/zeabur-color.svg?url'
 import zhipuColorIcon from '@/assets/llm-icons/zhipu-color.svg?url'
@@ -85,6 +86,7 @@ const icons = {
   'dimcode-acp': dimcodeColorIcon,
   o3fan: o3fanColorIcon,
   cherryin: cherryinColorIcon,
+  'new-api': newApiColorIcon,
   modelscope: modelscopeColorIcon,
   '302ai': _302aiIcon,
   aihubmix: aihubmixColorIcon,

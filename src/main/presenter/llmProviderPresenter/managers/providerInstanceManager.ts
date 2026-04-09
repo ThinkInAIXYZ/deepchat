@@ -34,6 +34,7 @@ import { JiekouProvider } from '../providers/jiekouProvider'
 import { ZenmuxProvider } from '../providers/zenmuxProvider'
 import { O3fanProvider } from '../providers/o3fanProvider'
 import { VoiceAIProvider } from '../providers/voiceAIProvider'
+import { NewApiProvider } from '../providers/newApiProvider'
 import { RateLimitManager } from './rateLimitManager'
 import { StreamState } from '../types'
 import { AcpSessionPersistence } from '../acp'
@@ -90,6 +91,7 @@ export class ProviderInstanceManager {
       ['voiceai', VoiceAIProvider],
       ['openai-responses', OpenAIResponsesProvider],
       ['cherryin', CherryInProvider],
+      ['new-api', NewApiProvider],
       ['lmstudio', LMStudioProvider],
       ['together', TogetherProvider],
       ['groq', GroqProvider],
@@ -124,6 +126,7 @@ export class ProviderInstanceManager {
       ['voiceai', VoiceAIProvider],
       ['openai-compatible', OpenAICompatibleProvider],
       ['openai-responses', OpenAIResponsesProvider],
+      ['new-api', NewApiProvider],
       ['lmstudio', LMStudioProvider],
       ['together', TogetherProvider],
       ['groq', GroqProvider],

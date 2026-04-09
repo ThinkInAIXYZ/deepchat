@@ -452,6 +452,19 @@
           "chat": "יצירת טקסט",
           "image": "יצירת תמונות"
         }
+      },
+      "endpointType": {
+        "label": "סוג נקודת קצה",
+        "description": "בחר באיזה פרוטוקול upstream ישתמש New API עבור מודל זה.",
+        "placeholder": "בחר סוג נקודת קצה",
+        "required": "סוג נקודת קצה נדרש",
+        "options": {
+          "openai": "OpenAI Chat",
+          "openai-response": "OpenAI Responses",
+          "anthropic": "Anthropic Messages",
+          "gemini": "Gemini Native",
+          "image-generation": "יצירת תמונות"
+        }
       }
     }
   },
@@ -586,7 +599,6 @@
         "description": "לא מומלץ לשנות את כתובת הבסיס של הספק הזה. נקודת קצה שגויה עלולה לגרום לכשלי בקשות או להתנהגות בלתי צפויה אחרת. אפשר עדיין להמשיך אם מבינים את הסיכון.",
         "confirm": "המשך"
       },
-
       "deleteProvider": {
         "title": "אשר מחיקת ספק",
         "content": "האם אתה בטוח שברצונך למחוק את הספק \"{name}\"? לא ניתן לבטל פעולה זו.",

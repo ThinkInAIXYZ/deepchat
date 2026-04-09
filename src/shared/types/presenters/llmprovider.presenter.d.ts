@@ -1,6 +1,7 @@
 import { ShowResponse } from 'ollama'
 import type { ChatMessage } from '../core/chat-message'
 import { ModelType } from '../core/model'
+import type { NewApiEndpointType } from '@shared/model'
 import type { AcpDebugRequest, AcpDebugRunResult, AcpWorkdirInfo } from './legacy.presenters'
 
 /**
@@ -23,6 +24,8 @@ export type RENDERER_MODEL_META = {
   contextLength?: number
   maxTokens?: number
   description?: string
+  supportedEndpointTypes?: NewApiEndpointType[]
+  endpointType?: NewApiEndpointType
 }
 
 export type MODEL_META = {
@@ -40,10 +43,13 @@ export type MODEL_META = {
   contextLength?: number
   maxTokens?: number
   description?: string
+  supportedEndpointTypes?: NewApiEndpointType[]
+  endpointType?: NewApiEndpointType
 }
 
 export type LLM_PROVIDER = {
   id: string
+  capabilityProviderId?: string
   name: string
   apiType: string
   apiKey: string

@@ -452,6 +452,19 @@
           "chat": "文本生成",
           "image": "圖片生成"
         }
+      },
+      "endpointType": {
+        "label": "協議類型",
+        "description": "選擇 New API 為當前模型使用的上游協議。",
+        "placeholder": "選擇協議類型",
+        "required": "協議類型為必填項",
+        "options": {
+          "openai": "OpenAI Chat",
+          "openai-response": "OpenAI Responses",
+          "anthropic": "Anthropic Messages",
+          "gemini": "Gemini Native",
+          "image-generation": "圖片生成"
+        }
       }
     }
   },
@@ -581,7 +594,6 @@
         "description": "此類 provider 不建議修改 Base URL，錯誤的位址可能導致請求失敗或行為異常。確認後仍可繼續手動修改。",
         "confirm": "繼續修改"
       },
-
       "deleteProvider": {
         "title": "確認刪除服務商",
         "content": "是否確認刪除服務商 \"{name}\"？此操作不可恢復。",

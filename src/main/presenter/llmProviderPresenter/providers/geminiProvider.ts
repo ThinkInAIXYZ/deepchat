@@ -329,7 +329,10 @@ export class GeminiProvider extends BaseLLMProvider {
   // 判断模型是否支持 thinkingBudget
   private supportsThinkingBudget(modelId: string): boolean {
     const normalized = modelId.replace(/^models\//i, '')
-    const range = modelCapabilities.getThinkingBudgetRange(this.provider.id, normalized)
+    const range = modelCapabilities.getThinkingBudgetRange(
+      this.getCapabilityProviderId(),
+      normalized
+    )
     return (
       typeof range.default === 'number' ||
       typeof range.min === 'number' ||
