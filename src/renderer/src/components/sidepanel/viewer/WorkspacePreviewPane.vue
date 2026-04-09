@@ -1,85 +1,94 @@
 <template>
   <div
-    v-if="props.previewKind === 'markdown'"
-    class="h-full min-h-0 overflow-auto"
-    data-testid="workspace-preview-markdown"
+    class="flex h-full min-h-0 w-full flex-col overflow-hidden"
+    data-testid="workspace-preview-pane"
   >
-    <div class="min-h-full px-4 py-4">
-      <MarkdownRenderer
-        :content="resolvedContent"
-        :message-id="previewSourceId"
-        :thread-id="props.sessionId"
-        :link-context="markdownLinkContext"
+    <div
+      v-if="props.previewKind === 'markdown'"
+      class="min-h-0 w-full flex-1 overflow-auto"
+      data-testid="workspace-preview-markdown"
+    >
+      <div class="min-h-full px-4 py-4">
+        <MarkdownRenderer
+          :content="resolvedContent"
+          :message-id="previewSourceId"
+          :thread-id="props.sessionId"
+          :link-context="markdownLinkContext"
+        />
+      </div>
+    </div>
+
+    <div
+      v-else-if="props.previewKind === 'image'"
+      class="min-h-0 w-full flex-1 overflow-auto bg-muted/20"
+      data-testid="workspace-preview-image"
+    >
+      <div class="flex min-h-full items-center justify-center p-4">
+        <img
+          v-if="imageSrc"
+          :src="imageSrc"
+          :alt="resolvedTitle"
+          class="max-h-full max-w-full rounded-md object-contain shadow-sm"
+        />
+      </div>
+    </div>
+
+    <div
+      v-else-if="documentPreviewUrl"
+      class="min-h-0 w-full flex-1 overflow-hidden"
+      :data-testid="documentPreviewTestId"
+    >
+      <iframe
+        :src="documentPreviewUrl"
+        class="h-full min-h-0 w-full border-0"
+        :sandbox="documentPreviewSandbox"
+      ></iframe>
+    </div>
+
+    <div
+      v-else-if="props.previewKind === 'html' && artifactBlock"
+      class="min-h-0 w-full flex-1 overflow-hidden"
+      data-testid="workspace-preview-html-artifact"
+    >
+      <HTMLArtifact
+        :block="artifactBlock"
+        :is-preview="true"
+        viewport-size="desktop"
+        class="h-full min-h-0 w-full"
       />
     </div>
-  </div>
 
-  <div
-    v-else-if="props.previewKind === 'image'"
-    class="h-full min-h-0 overflow-auto bg-muted/20"
-    data-testid="workspace-preview-image"
-  >
-    <div class="flex min-h-full items-center justify-center p-4">
-      <img
-        v-if="imageSrc"
-        :src="imageSrc"
-        :alt="resolvedTitle"
-        class="max-h-full max-w-full rounded-md object-contain shadow-sm"
-      />
+    <div
+      v-else-if="props.previewKind === 'svg' && resolvedBlock"
+      class="min-h-0 w-full flex-1 overflow-hidden"
+      data-testid="workspace-preview-svg"
+    >
+      <SvgArtifact :block="resolvedBlock" class="h-full min-h-0 w-full" />
     </div>
-  </div>
 
-  <div
-    v-else-if="documentPreviewUrl"
-    class="h-full min-h-0 overflow-hidden"
-    :data-testid="documentPreviewTestId"
-  >
-    <iframe
-      :src="documentPreviewUrl"
-      class="h-full w-full border-0"
-      :sandbox="documentPreviewSandbox"
-    ></iframe>
-  </div>
+    <div
+      v-else-if="props.previewKind === 'mermaid' && artifactBlock"
+      class="min-h-0 w-full flex-1 overflow-hidden"
+      data-testid="workspace-preview-mermaid"
+    >
+      <MermaidArtifact :block="artifactBlock" :is-preview="true" class="h-full min-h-0 w-full" />
+    </div>
 
-  <div
-    v-else-if="props.previewKind === 'html' && artifactBlock"
-    class="h-full min-h-0 overflow-hidden"
-    data-testid="workspace-preview-html-artifact"
-  >
-    <HTMLArtifact
-      :block="artifactBlock"
-      :is-preview="true"
-      viewport-size="desktop"
-      class="h-full"
-    />
-  </div>
+    <div
+      v-else-if="props.previewKind === 'react' && artifactBlock"
+      class="min-h-0 w-full flex-1 overflow-hidden"
+      data-testid="workspace-preview-react"
+    >
+      <ReactArtifact :block="artifactBlock" :is-preview="true" class="h-full min-h-0 w-full" />
+    </div>
 
-  <div
-    v-else-if="props.previewKind === 'svg' && resolvedBlock"
-    class="h-full min-h-0 overflow-hidden"
-    data-testid="workspace-preview-svg"
-  >
-    <SvgArtifact :block="resolvedBlock" class="h-full" />
-  </div>
-
-  <div
-    v-else-if="props.previewKind === 'mermaid' && artifactBlock"
-    class="h-full min-h-0 overflow-hidden"
-    data-testid="workspace-preview-mermaid"
-  >
-    <MermaidArtifact :block="artifactBlock" :is-preview="true" class="h-full" />
-  </div>
-
-  <div
-    v-else-if="props.previewKind === 'react' && artifactBlock"
-    class="h-full min-h-0 overflow-hidden"
-    data-testid="workspace-preview-react"
-  >
-    <ReactArtifact :block="artifactBlock" :is-preview="true" class="h-full" />
-  </div>
-
-  <div v-else class="h-full min-h-0 overflow-auto px-4 py-3" data-testid="workspace-preview-raw">
-    <pre class="whitespace-pre-wrap break-words text-sm leading-6">{{ resolvedContent }}</pre>
+    <div
+      v-else
+      class="min-h-0 w-full flex-1 overflow-auto px-4 py-3"
+      data-testid="workspace-preview-raw"
+    >
+      <pre class="whitespace-pre-wrap break-words text-sm leading-6">{{ resolvedContent }}</pre>
+    </div>
   </div>
 </template>
 

@@ -136,6 +136,12 @@ describe('WorkspaceViewer', () => {
   it('shows raw artifact preview through preview pane fallback', async () => {
     const { wrapper } = await setup()
 
+    expect(wrapper.get('[data-testid="workspace-viewer-body"]').classes()).toEqual(
+      expect.arrayContaining(['min-h-0', 'flex-1', 'overflow-hidden'])
+    )
+    expect(wrapper.get('[data-testid="preview-pane"]').classes()).toEqual(
+      expect.arrayContaining(['h-full', 'min-h-0', 'w-full'])
+    )
     expect(wrapper.get('[data-testid="preview-pane"]').text()).toContain('raw')
     expect(wrapper.text()).toContain('artifacts.preview')
     expect(wrapper.text()).toContain('artifacts.code')
@@ -175,6 +181,9 @@ describe('WorkspaceViewer', () => {
     })
 
     expect(wrapper.find('[data-testid="code-pane"]').exists()).toBe(true)
+    expect(wrapper.get('[data-testid="code-pane"]').classes()).toEqual(
+      expect.arrayContaining(['h-full', 'min-h-0', 'w-full'])
+    )
     expect(wrapper.find('[data-testid="preview-pane"]').exists()).toBe(false)
     expect(wrapper.text()).not.toContain('artifacts.preview')
     expect(wrapper.text()).not.toContain('artifacts.code')
@@ -344,6 +353,9 @@ describe('WorkspaceViewer', () => {
     })
 
     expect(wrapper.find('[data-testid="info-pane"]').exists()).toBe(true)
+    expect(wrapper.get('[data-testid="info-pane"]').classes()).toEqual(
+      expect.arrayContaining(['h-full', 'min-h-0', 'w-full'])
+    )
     expect(wrapper.find('[data-testid="preview-pane"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="code-pane"]').exists()).toBe(false)
   })

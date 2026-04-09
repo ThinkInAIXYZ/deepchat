@@ -1,6 +1,6 @@
 <template>
-  <div class="flex h-full min-w-0 flex-1 flex-col bg-background">
-    <div class="flex h-11 items-center justify-between border-b px-3">
+  <div class="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-background">
+    <div class="flex h-11 shrink-0 items-center justify-between border-b px-3">
       <div class="min-w-0">
         <h3 class="truncate text-sm font-medium">{{ viewerTitle }}</h3>
         <p v-if="viewerSubtitle" class="truncate text-xs text-muted-foreground">
@@ -45,7 +45,7 @@
       </div>
     </div>
 
-    <div class="min-h-0 flex-1 overflow-hidden">
+    <div class="flex min-h-0 flex-1 flex-col overflow-hidden" data-testid="workspace-viewer-body">
       <div
         v-if="paneKind === 'empty' && !(activeSource === 'file' && props.loadingFilePreview)"
         class="flex h-full items-center justify-center px-6"
@@ -98,10 +98,15 @@
         </template>
       </div>
 
-      <WorkspaceCodePane v-else-if="paneKind === 'code' && codeSource" :source="codeSource" />
+      <WorkspaceCodePane
+        v-else-if="paneKind === 'code' && codeSource"
+        class="h-full min-h-0 w-full"
+        :source="codeSource"
+      />
 
       <WorkspacePreviewPane
         v-else-if="paneKind === 'preview' && previewKind"
+        class="h-full min-h-0 w-full"
         :session-id="props.sessionId"
         :preview-kind="previewKind"
         :artifact="previewArtifact"
@@ -110,6 +115,7 @@
 
       <WorkspaceInfoPane
         v-else-if="paneKind === 'info' && props.filePreview"
+        class="h-full min-h-0 w-full"
         :file-preview="props.filePreview"
       />
 

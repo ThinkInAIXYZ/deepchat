@@ -428,9 +428,11 @@ onBeforeUnmount(() => {
 
         <!-- Main content area -->
         <div
-          class="flex-1 min-w-0 bg-background overflow-hidden rounded-tl-xl border-black/20 dark:border-white/10 border-l border-t"
+          class="flex h-full min-h-0 flex-1 min-w-0 flex-col overflow-hidden rounded-tl-xl border-l border-t border-black/20 bg-background dark:border-white/10"
         >
-          <RouterView v-if="isStartupRouteReady" />
+          <div class="min-h-0 flex-1">
+            <RouterView v-if="isStartupRouteReady" />
+          </div>
         </div>
       </div>
     </div>

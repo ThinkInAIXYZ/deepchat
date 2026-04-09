@@ -1,8 +1,8 @@
 <template>
-  <div class="h-full min-h-0 overflow-hidden bg-background">
+  <div class="flex h-full min-h-0 w-full overflow-hidden bg-background">
     <div
       ref="editorRef"
-      class="h-full w-full"
+      class="workspace-code-editor-host h-full min-h-0 w-full flex-1"
       :data-language="resolvedLanguage"
       data-testid="workspace-code-pane"
     ></div>
@@ -10,7 +10,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useMonaco } from 'stream-monaco'
 import { useThemeStore } from '@/stores/theme'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
@@ -31,6 +31,7 @@ const themeStore = useThemeStore()
 const editorRef = ref<HTMLElement | null>(null)
 const editorInitialized = ref(false)
 let createEditorTask: Promise<void> | null = null
+let resizeObserver: ResizeObserver | null = null
 const resolvedTheme = computed(() => (themeStore.isDark ? 'vitesse-dark' : 'vitesse-light'))
 
 const { createEditor, updateCode, cleanupEditor, getEditorView, getEditor } = useMonaco({
@@ -148,6 +149,14 @@ const applyTheme = async () => {
   }
 }
 
+const layoutEditor = () => {
+  try {
+    getEditorView()?.layout()
+  } catch (error) {
+    console.warn('[WorkspaceCodePane] Failed to layout Monaco editor:', error)
+  }
+}
+
 const syncEditor = async () => {
   const editorElement = editorRef.value
   if (!editorElement) {
@@ -169,6 +178,7 @@ const syncEditor = async () => {
       editorInitialized.value = true
       await applyTheme()
       applyFontFamily(uiSettingsStore.formattedCodeFontFamily)
+      layoutEditor()
     })()
 
     try {
@@ -180,6 +190,7 @@ const syncEditor = async () => {
   }
 
   updateCode(nextContent, nextLanguage)
+  layoutEditor()
 }
 
 watch(
@@ -220,14 +231,69 @@ watch(editorRef, (value) => {
     return
   }
 
+  resizeObserver?.disconnect()
+  resizeObserver = null
   cleanupEditor()
   editorInitialized.value = false
   createEditorTask = null
 })
 
+onMounted(() => {
+  if (typeof ResizeObserver === 'undefined') {
+    return
+  }
+
+  resizeObserver = new ResizeObserver(() => {
+    layoutEditor()
+  })
+
+  if (editorRef.value) {
+    resizeObserver.observe(editorRef.value)
+  }
+})
+
+watch(
+  editorRef,
+  (value, oldValue) => {
+    if (!resizeObserver) {
+      return
+    }
+
+    if (oldValue) {
+      resizeObserver.unobserve(oldValue)
+    }
+
+    if (value) {
+      resizeObserver.observe(value)
+      layoutEditor()
+    }
+  },
+  { flush: 'post' }
+)
+
 onBeforeUnmount(() => {
+  resizeObserver?.disconnect()
+  resizeObserver = null
   cleanupEditor()
   editorInitialized.value = false
   createEditorTask = null
 })
 </script>
+
+<style scoped>
+.workspace-code-editor-host {
+  display: flex;
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow: hidden !important;
+}
+
+.workspace-code-editor-host :deep(.monaco-editor),
+.workspace-code-editor-host :deep(.overflow-guard),
+.workspace-code-editor-host :deep(.monaco-scrollable-element) {
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: none !important;
+}
+</style>

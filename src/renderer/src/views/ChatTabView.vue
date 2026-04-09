@@ -1,6 +1,6 @@
 <template>
-  <div class="flex h-full w-full flex-row overflow-hidden">
-    <div class="flex h-full min-w-0 w-0 flex-1 transition-[width] duration-200 ease-out">
+  <div class="flex h-full min-h-0 w-full flex-row overflow-hidden">
+    <div class="flex h-full min-h-0 min-w-0 w-0 flex-1 transition-[width] duration-200 ease-out">
       <template v-if="isReady">
         <AgentWelcomePage
           v-if="pageRouter.currentRoute === 'newThread' && agentStore.selectedAgentId === null"

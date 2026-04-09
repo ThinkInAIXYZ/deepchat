@@ -82,9 +82,14 @@ describe('WorkspacePreviewPane', () => {
       }
     })
 
+    expect(wrapper.get('[data-testid="workspace-preview-pane"]').classes()).toEqual(
+      expect.arrayContaining(['flex', 'h-full', 'min-h-0', 'w-full', 'flex-col', 'overflow-hidden'])
+    )
     const iframe = wrapper.get('iframe')
     expect(iframe.attributes('src')).toBe(previewUrl)
-    expect(wrapper.get(`[data-testid="workspace-preview-${kind}"]`).exists()).toBe(true)
+    expect(wrapper.get(`[data-testid="workspace-preview-${kind}"]`).classes()).toEqual(
+      expect.arrayContaining(['flex-1', 'min-h-0', 'w-full'])
+    )
 
     if (sandbox) {
       expect(iframe.attributes('sandbox')).toBe(sandbox)
@@ -142,6 +147,9 @@ describe('WorkspacePreviewPane', () => {
     })
 
     expect(wrapper.find('iframe').exists()).toBe(false)
+    expect(wrapper.get('[data-testid="workspace-preview-pane"]').classes()).toEqual(
+      expect.arrayContaining(['flex', 'h-full', 'min-h-0', 'w-full', 'flex-col', 'overflow-hidden'])
+    )
     expect(wrapper.get('[data-testid="workspace-preview-markdown"]').exists()).toBe(true)
     expect(wrapper.get('[data-testid="markdown-renderer"]').text()).toContain('# Hello')
     expect(wrapper.get('[data-testid="markdown-renderer"]').attributes('data-message-id')).toBe(
@@ -188,8 +196,60 @@ describe('WorkspacePreviewPane', () => {
     })
 
     expect(wrapper.find('iframe').exists()).toBe(false)
+    expect(wrapper.get('[data-testid="workspace-preview-pane"]').classes()).toEqual(
+      expect.arrayContaining(['flex', 'h-full', 'min-h-0', 'w-full', 'flex-col', 'overflow-hidden'])
+    )
     expect(wrapper.get('[data-testid="workspace-preview-image"] img').attributes('src')).toBe(
       'imgcache://logo.png'
+    )
+  })
+
+  it('passes full-height classes to HTML artifact previews', () => {
+    const wrapper = mount(WorkspacePreviewPane, {
+      props: {
+        sessionId: 'session-1',
+        previewKind: 'html',
+        artifact: {
+          id: 'artifact-1',
+          type: 'text/html',
+          title: 'Preview',
+          content: '<html><body>Hello</body></html>',
+          status: 'loaded'
+        }
+      },
+      global: {
+        stubs: {
+          MarkdownRenderer: true,
+          HTMLArtifact: defineComponent({
+            name: 'HTMLArtifact',
+            props: {
+              block: {
+                type: Object,
+                required: true
+              },
+              isPreview: {
+                type: Boolean,
+                required: true
+              },
+              viewportSize: {
+                type: String,
+                default: undefined
+              }
+            },
+            template: '<div data-testid="html-artifact-stub" />'
+          }),
+          SvgArtifact: true,
+          MermaidArtifact: true,
+          ReactArtifact: true
+        }
+      }
+    })
+
+    expect(wrapper.get('[data-testid="workspace-preview-html-artifact"]').classes()).toEqual(
+      expect.arrayContaining(['flex-1', 'min-h-0', 'w-full', 'overflow-hidden'])
+    )
+    expect(wrapper.get('[data-testid="html-artifact-stub"]').classes()).toEqual(
+      expect.arrayContaining(['h-full', 'min-h-0', 'w-full'])
     )
   })
 })
