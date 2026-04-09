@@ -27,6 +27,8 @@ import { useDeviceVersion } from '@/composables/useDeviceVersion'
 import WindowSideBar from './components/WindowSideBar.vue'
 import SpotlightOverlay from '@/components/spotlight/SpotlightOverlay.vue'
 import { useSpotlightStore } from '@/stores/ui/spotlight'
+import { useSidepanelStore } from '@/stores/ui/sidepanel'
+import { useSidebarStore } from '@/stores/ui/sidebar'
 import { useAppIpcRuntime } from '@/composables/useAppIpcRuntime'
 
 const DEV_WELCOME_OVERRIDE_KEY = '__deepchat_dev_force_welcome'
@@ -38,6 +40,8 @@ const sessionStore = useSessionStore()
 const agentStore = useAgentStore()
 const draftStore = useDraftStore()
 const pageRouterStore = usePageRouterStore()
+const sidepanelStore = useSidepanelStore()
+const sidebarStore = useSidebarStore()
 const spotlightStore = useSpotlightStore()
 const { toast } = useToast()
 const uiSettingsStore = useUiSettingsStore()
@@ -300,6 +304,16 @@ const { setup: setupAppIpcRuntime, cleanup: cleanupAppIpcRuntime } = useAppIpcRu
   handleZoomOut,
   handleZoomResume,
   handleCreateNewConversation,
+  handleToggleSidebar: () => {
+    sidebarStore.toggleSidebar()
+  },
+  handleToggleWorkspace: () => {
+    if (pageRouterStore.currentRoute !== 'chat' || !pageRouterStore.chatSessionId) {
+      return
+    }
+
+    sidepanelStore.toggleWorkspace(pageRouterStore.chatSessionId)
+  },
   openSpotlight: () => {
     spotlightStore.openSpotlight()
   },

@@ -73,6 +73,15 @@ const setup = async (options: SetupOptions = {}) => {
   const themeStore = reactive({
     isDark: false
   })
+  const sidebarStore = reactive({
+    collapsed: false,
+    toggleSidebar: vi.fn(() => {
+      sidebarStore.collapsed = !sidebarStore.collapsed
+    }),
+    setCollapsed: vi.fn((value: boolean) => {
+      sidebarStore.collapsed = value
+    })
+  })
   const pageRouterStore = reactive({
     goToNewThread: vi.fn()
   })
@@ -128,6 +137,9 @@ const setup = async (options: SetupOptions = {}) => {
   }))
   vi.doMock('@/stores/ui/session', () => ({
     useSessionStore: () => sessionStore
+  }))
+  vi.doMock('@/stores/ui/sidebar', () => ({
+    useSidebarStore: () => sidebarStore
   }))
   vi.doMock('@/stores/theme', () => ({
     useThemeStore: () => themeStore
@@ -221,7 +233,8 @@ const setup = async (options: SetupOptions = {}) => {
     windowPresenter,
     remoteControlPresenter,
     spotlightStore,
-    pageRouterStore
+    pageRouterStore,
+    sidebarStore
   }
 }
 
@@ -373,6 +386,18 @@ describe('WindowSideBar agent switch', () => {
     await spotlightButton!.trigger('click')
 
     expect(spotlightStore.toggleSpotlight).toHaveBeenCalledTimes(1)
+  }, 10000)
+
+  it('toggles the shared sidebar store from the collapse button', async () => {
+    const { wrapper, sidebarStore } = await setup()
+
+    expect(wrapper.get('[data-testid=\"window-sidebar\"]').classes()).toContain('w-[288px]')
+
+    await wrapper.get('[data-testid=\"window-sidebar-toggle\"]').trigger('click')
+    await flushPromises()
+
+    expect(sidebarStore.toggleSidebar).toHaveBeenCalledTimes(1)
+    expect(wrapper.get('[data-testid=\"window-sidebar\"]').classes()).toContain('w-12')
   }, 10000)
 
   it('collapses and expands time groups from the folder header', async () => {
