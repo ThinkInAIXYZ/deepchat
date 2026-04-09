@@ -266,12 +266,12 @@ export class AgentToolManager {
       }),
       z.object({
         action: z.literal('edit').describe('Draft-only skill management action'),
-        draftPath: z.string().describe('Existing draft root path'),
+        draftId: z.string().describe('Opaque draft ID returned by skill_manage create'),
         content: z.string().describe('Complete SKILL.md document including frontmatter and body')
       }),
       z.object({
         action: z.literal('write_file').describe('Draft-only skill management action'),
-        draftPath: z.string().describe('Existing draft root path'),
+        draftId: z.string().describe('Opaque draft ID returned by skill_manage create'),
         filePath: z
           .string()
           .describe('Relative file path under references/, templates/, scripts/, or assets/'),
@@ -279,14 +279,14 @@ export class AgentToolManager {
       }),
       z.object({
         action: z.literal('remove_file').describe('Draft-only skill management action'),
-        draftPath: z.string().describe('Existing draft root path'),
+        draftId: z.string().describe('Opaque draft ID returned by skill_manage create'),
         filePath: z
           .string()
           .describe('Relative file path under references/, templates/, scripts/, or assets/')
       }),
       z.object({
         action: z.literal('delete').describe('Draft-only skill management action'),
-        draftPath: z.string().describe('Existing draft root path')
+        draftId: z.string().describe('Opaque draft ID returned by skill_manage create')
       })
     ])
   }
@@ -1530,7 +1530,7 @@ export class AgentToolManager {
         function: {
           name: 'skill_manage',
           description:
-            'Create or edit temporary draft skills in the conversation draft area. This cannot modify installed skills.',
+            'Create or edit temporary draft skills in the conversation draft area. Use the returned draftId for follow-up draft operations. This cannot modify installed skills.',
           parameters: zodToJsonSchema(schemas.skill_manage) as {
             type: string
             properties: Record<string, unknown>

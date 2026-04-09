@@ -110,6 +110,10 @@ vi.mock('fflate', () => ({
   unzipSync: vi.fn()
 }))
 
+vi.mock('node:crypto', () => ({
+  randomUUID: vi.fn().mockReturnValue('12345678-1234-1234-1234-123456789abc')
+}))
+
 vi.mock('../../../../src/main/eventbus', () => ({
   eventBus: {
     sendToRenderer: vi.fn()
@@ -142,6 +146,7 @@ import path from 'path'
 import matter from 'gray-matter'
 import { watch } from 'chokidar'
 import { unzipSync } from 'fflate'
+import { randomUUID } from 'node:crypto'
 import logger from '@shared/logger'
 import { eventBus } from '../../../../src/main/eventbus'
 import { SKILL_EVENTS } from '../../../../src/main/events'
@@ -224,6 +229,7 @@ describe('SkillPresenter', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     newSessionActiveSkillsStore.clear()
+    ;(randomUUID as Mock).mockReturnValue('12345678-1234-1234-1234-123456789abc')
 
     mockConfigPresenter = {
       getSkillsPath: vi.fn().mockReturnValue('')
@@ -400,6 +406,43 @@ describe('SkillPresenter', () => {
 
       expect(skills.length).toBe(0)
       consoleSpy.mockRestore()
+    })
+
+    it('sorts manifest paths before resolving duplicate skill names', async () => {
+      const firstPath = `${DEFAULT_SKILLS_DIR}/a-first/SKILL.md`
+      const secondPath = `${DEFAULT_SKILLS_DIR}/z-second/SKILL.md`
+
+      ;(skillPresenter as any).collectSkillManifestPaths = vi
+        .fn()
+        .mockReturnValue([secondPath, firstPath])
+      ;(skillPresenter as any).parseSkillMetadata = vi
+        .fn()
+        .mockImplementation(async (skillPath: string) => ({
+          name: 'duplicate-skill',
+          description: 'Duplicate skill',
+          path: skillPath,
+          skillRoot: path.dirname(skillPath),
+          category: null
+        }))
+
+      const skills = await skillPresenter.discoverSkills()
+
+      expect(
+        (skillPresenter as any).parseSkillMetadata.mock.calls.map((call: unknown[]) => call[0])
+      ).toEqual([firstPath, secondPath])
+      expect(skills).toEqual([
+        expect.objectContaining({
+          name: 'duplicate-skill',
+          path: firstPath
+        })
+      ])
+      expect(logger.warn).toHaveBeenCalledWith(
+        '[SkillPresenter] Duplicate skill name discovered. Keeping the first entry.',
+        expect.objectContaining({
+          name: 'duplicate-skill',
+          path: secondPath
+        })
+      )
     })
   })
 
@@ -633,10 +676,12 @@ describe('SkillPresenter', () => {
         expect.objectContaining({
           success: true,
           action: 'create',
-          skillName: 'draft-skill'
+          skillName: 'draft-skill',
+          draftId: 'draft-12345678-1234-1234-1234-123456789abc'
         })
       )
-      expect(result.draftPath).toContain('/deepchat-skill-drafts/conv-draft/')
+      expect(result).not.toHaveProperty('draftPath')
+      expect(randomUUID).toHaveBeenCalledTimes(1)
       expect(fs.writeFileSync).toHaveBeenCalled()
       expect(fs.renameSync).toHaveBeenCalled()
     })
@@ -672,7 +717,7 @@ describe('SkillPresenter', () => {
 
       const result = await skillPresenter.manageDraftSkill('conv-draft', {
         action: 'write_file',
-        draftPath: draft.draftPath,
+        draftId: draft.draftId,
         filePath: 'notes/guide.md',
         fileContent: '# Guide'
       })
@@ -698,21 +743,21 @@ describe('SkillPresenter', () => {
       expect(result).toEqual({
         success: false,
         action: 'create',
-        error: 'Invalid conversationId for draft path'
+        error: 'Invalid conversationId for draft access'
       })
       expect(fs.writeFileSync).not.toHaveBeenCalled()
     })
 
-    it('rejects invalid conversation ids when resolving draft paths', async () => {
+    it('rejects invalid conversation ids when resolving draft handles', async () => {
       const result = await skillPresenter.manageDraftSkill('/conv-draft', {
         action: 'delete',
-        draftPath: '/mock/temp/deepchat-skill-drafts/conv-draft/123-draft'
+        draftId: 'draft-123'
       })
 
       expect(result).toEqual({
         success: false,
         action: 'delete',
-        error: 'Draft path is invalid or outside the draft root'
+        error: 'Draft handle is invalid for this conversation'
       })
     })
 

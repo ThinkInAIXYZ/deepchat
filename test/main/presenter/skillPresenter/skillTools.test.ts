@@ -60,7 +60,7 @@ describe('SkillTools', () => {
       manageDraftSkill: vi.fn().mockResolvedValue({
         success: true,
         action: 'create',
-        draftPath: '/tmp/drafts/conv-123/123-code-review',
+        draftId: 'draft-abc123',
         skillName: 'code-review'
       }),
       installBuiltinSkills: vi.fn().mockResolvedValue(undefined),
@@ -176,7 +176,7 @@ describe('SkillTools', () => {
     it('delegates draft operations to the presenter', async () => {
       const request: SkillManageRequest = {
         action: 'write_file',
-        draftPath: '/tmp/drafts/conv-123/123-code-review',
+        draftId: 'draft-abc123',
         filePath: 'references/checklist.md',
         fileContent: '# Checklist'
       }

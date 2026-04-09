@@ -145,7 +145,7 @@ export type SkillManageAction = 'create' | 'edit' | 'write_file' | 'remove_file'
 
 export interface SkillManageRequest {
   action: SkillManageAction
-  draftPath?: string
+  draftId?: string
   content?: string
   filePath?: string
   fileContent?: string
@@ -154,7 +154,7 @@ export interface SkillManageRequest {
 export interface SkillManageResult {
   success: boolean
   action: SkillManageAction
-  draftPath?: string
+  draftId?: string
   filePath?: string
   skillName?: string
   error?: string

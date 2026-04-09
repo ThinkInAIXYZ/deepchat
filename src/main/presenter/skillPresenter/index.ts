@@ -1,6 +1,7 @@
 import { app, shell } from 'electron'
 import path from 'path'
 import fs from 'fs'
+import { randomUUID } from 'node:crypto'
 import { FSWatcher, watch } from 'chokidar'
 import matter from 'gray-matter'
 import { unzipSync } from 'fflate'
@@ -101,6 +102,7 @@ const BINARY_LIKE_EXTENSIONS = new Set([
 ])
 const DRAFT_ALLOWED_TOP_LEVEL_DIRS = new Set(['references', 'templates', 'scripts', 'assets'])
 const DRAFT_CONVERSATION_ID_PATTERN = /^[A-Za-z0-9._-]+$/
+const DRAFT_ID_PATTERN = /^[A-Za-z0-9._-]+$/
 const DRAFT_INJECTION_PATTERNS = [
   /ignore\s+previous\s+instructions/i,
   /disregard\s+all\s+prior/i,
@@ -280,7 +282,11 @@ export class SkillPresenter implements ISkillPresenter {
       return []
     }
 
-    for (const skillPath of this.collectSkillManifestPaths(this.skillsDir)) {
+    const skillManifestPaths = [...this.collectSkillManifestPaths(this.skillsDir)].sort(
+      (left, right) => left.localeCompare(right)
+    )
+
+    for (const skillPath of skillManifestPaths) {
       const dirName = path.basename(path.dirname(skillPath))
       try {
         const metadata = await this.parseSkillMetadata(skillPath, dirName)
@@ -578,36 +584,52 @@ export class SkillPresenter implements ISkillPresenter {
           if (!parsed.success) {
             return { success: false, action, error: parsed.error }
           }
-          const draftPath = this.createDraftDirectory(conversationId, parsed.skillName)
+          const { draftId, draftPath } = this.createDraftHandle(conversationId)
           this.atomicWriteFile(path.join(draftPath, 'SKILL.md'), request.content!)
-          return { success: true, action, draftPath, skillName: parsed.skillName }
+          return { success: true, action, draftId, skillName: parsed.skillName }
         }
         case 'edit': {
           const parsed = this.validateDraftSkillDocument(request.content)
           if (!parsed.success) {
             return { success: false, action, error: parsed.error }
           }
-          const draftPath = this.resolveDraftPath(conversationId, request.draftPath)
+          const draftId = this.validateDraftId(request.draftId)
+          if (!draftId) {
+            return {
+              success: false,
+              action,
+              error: 'Draft handle is invalid for this conversation'
+            }
+          }
+          const draftPath = this.getDraftPathForId(conversationId, draftId)
           if (!draftPath) {
             return {
               success: false,
               action,
-              error: 'Draft path is invalid or outside the draft root'
+              error: 'Draft handle is invalid for this conversation'
             }
           }
           if (!fs.existsSync(draftPath)) {
-            return { success: false, action, error: 'Draft path not found' }
+            return { success: false, action, error: 'Draft not found' }
           }
           this.atomicWriteFile(path.join(draftPath, 'SKILL.md'), request.content!)
-          return { success: true, action, draftPath, skillName: parsed.skillName }
+          return { success: true, action, draftId, skillName: parsed.skillName }
         }
         case 'write_file': {
-          const draftPath = this.resolveDraftPath(conversationId, request.draftPath)
+          const draftId = this.validateDraftId(request.draftId)
+          if (!draftId) {
+            return {
+              success: false,
+              action,
+              error: 'Draft handle is invalid for this conversation'
+            }
+          }
+          const draftPath = this.getDraftPathForId(conversationId, draftId)
           if (!draftPath) {
             return {
               success: false,
               action,
-              error: 'Draft path is invalid or outside the draft root'
+              error: 'Draft handle is invalid for this conversation'
             }
           }
           if (!request.filePath?.trim()) {
@@ -637,17 +659,25 @@ export class SkillPresenter implements ISkillPresenter {
           return {
             success: true,
             action,
-            draftPath,
+            draftId,
             filePath: path.relative(draftPath, resolvedFilePath)
           }
         }
         case 'remove_file': {
-          const draftPath = this.resolveDraftPath(conversationId, request.draftPath)
+          const draftId = this.validateDraftId(request.draftId)
+          if (!draftId) {
+            return {
+              success: false,
+              action,
+              error: 'Draft handle is invalid for this conversation'
+            }
+          }
+          const draftPath = this.getDraftPathForId(conversationId, draftId)
           if (!draftPath) {
             return {
               success: false,
               action,
-              error: 'Draft path is invalid or outside the draft root'
+              error: 'Draft handle is invalid for this conversation'
             }
           }
           if (!request.filePath?.trim()) {
@@ -668,24 +698,32 @@ export class SkillPresenter implements ISkillPresenter {
           return {
             success: true,
             action,
-            draftPath,
+            draftId,
             filePath: path.relative(draftPath, resolvedFilePath)
           }
         }
         case 'delete': {
-          const draftPath = this.resolveDraftPath(conversationId, request.draftPath)
+          const draftId = this.validateDraftId(request.draftId)
+          if (!draftId) {
+            return {
+              success: false,
+              action,
+              error: 'Draft handle is invalid for this conversation'
+            }
+          }
+          const draftPath = this.getDraftPathForId(conversationId, draftId)
           if (!draftPath) {
             return {
               success: false,
               action,
-              error: 'Draft path is invalid or outside the draft root'
+              error: 'Draft handle is invalid for this conversation'
             }
           }
           if (!fs.existsSync(draftPath)) {
-            return { success: false, action, error: 'Draft path not found' }
+            return { success: false, action, error: 'Draft not found' }
           }
           fs.rmSync(draftPath, { recursive: true, force: true })
-          return { success: true, action, draftPath }
+          return { success: true, action, draftId }
         }
         default:
           return { success: false, action, error: `Unsupported draft action: ${action}` }
@@ -1870,22 +1908,48 @@ export class SkillPresenter implements ISkillPresenter {
     return normalizedConversationId
   }
 
-  private createDraftDirectory(conversationId: string, skillName: string): string {
+  private validateDraftId(draftId: string | undefined): string | null {
+    const normalizedDraftId = draftId?.trim()
+    if (!normalizedDraftId) {
+      return null
+    }
+    if (path.isAbsolute(normalizedDraftId)) {
+      return null
+    }
+    if (normalizedDraftId !== path.basename(normalizedDraftId)) {
+      return null
+    }
+    if (
+      normalizedDraftId.includes('..') ||
+      normalizedDraftId.includes('/') ||
+      normalizedDraftId.includes('\\') ||
+      normalizedDraftId.includes(path.sep)
+    ) {
+      return null
+    }
+    if (!DRAFT_ID_PATTERN.test(normalizedDraftId)) {
+      return null
+    }
+    return normalizedDraftId
+  }
+
+  private createDraftHandle(conversationId: string): { draftId: string; draftPath: string } {
     const safeConversationId = this.validateDraftConversationId(conversationId)
     if (!safeConversationId) {
-      throw new Error('Invalid conversationId for draft path')
+      throw new Error('Invalid conversationId for draft access')
     }
     this.ensureDraftRoot()
     const conversationRoot = path.join(this.draftsRoot, safeConversationId)
     fs.mkdirSync(conversationRoot, { recursive: true })
-    const safeSlug = skillName.replace(/[^a-z0-9._-]/g, '-')
-    const draftPath = path.join(conversationRoot, `${Date.now()}-${safeSlug}`)
+    const draftId = `draft-${randomUUID()}`
+    const draftPath = path.join(conversationRoot, draftId)
     fs.mkdirSync(draftPath, { recursive: true })
-    return draftPath
+    return { draftId, draftPath }
   }
 
-  private resolveDraftPath(conversationId: string, draftPath: string | undefined): string | null {
-    if (!draftPath?.trim()) {
+  private getDraftPathForId(conversationId: string, draftId: string): string | null {
+    const safeDraftId = this.validateDraftId(draftId)
+    if (!safeDraftId) {
       return null
     }
     const safeConversationId = this.validateDraftConversationId(conversationId)
@@ -1893,9 +1957,9 @@ export class SkillPresenter implements ISkillPresenter {
       return null
     }
     const conversationRoot = path.resolve(this.draftsRoot, safeConversationId)
-    const resolvedDraftPath = path.resolve(draftPath)
+    const resolvedDraftPath = path.resolve(conversationRoot, safeDraftId)
     const relativePath = path.relative(conversationRoot, resolvedDraftPath)
-    if (relativePath === '' || relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
+    if (!relativePath || relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
       return null
     }
     return resolvedDraftPath

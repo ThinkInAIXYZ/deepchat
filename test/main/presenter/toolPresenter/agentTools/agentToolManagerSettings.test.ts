@@ -159,7 +159,7 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
     expect(skillPresenter.manageDraftSkill).not.toHaveBeenCalled()
   })
 
-  it('rejects skill_manage edit requests without draftPath before calling the presenter', async () => {
+  it('rejects skill_manage edit requests without draftId before calling the presenter', async () => {
     skillPresenter.getActiveSkills.mockResolvedValue([])
     skillPresenter.getActiveSkillsAllowedTools.mockResolvedValue([])
     const manager = buildManager()
@@ -187,7 +187,7 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
         'skill_manage',
         {
           action: 'write_file',
-          draftPath: '/tmp/deepchat-skill-drafts/conv-1/draft-1',
+          draftId: 'draft-1',
           filePath: 'references/guide.md'
         },
         'conv-1'
@@ -202,7 +202,7 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
     skillPresenter.manageDraftSkill.mockResolvedValue({
       success: true,
       action: 'create',
-      draftPath: '/tmp/deepchat-skill-drafts/conv-1/draft-1'
+      draftId: 'draft-1'
     })
     const manager = buildManager()
 
