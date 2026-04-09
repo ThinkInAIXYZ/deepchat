@@ -187,6 +187,8 @@ export const SHORTCUT_EVENTS = {
   CREATE_NEW_WINDOW: 'shortcut:create-new-window',
   CREATE_NEW_CONVERSATION: 'shortcut:create-new-conversation',
   TOGGLE_SPOTLIGHT: 'shortcut:toggle-spotlight',
+  TOGGLE_SIDEBAR: 'shortcut:toggle-sidebar',
+  TOGGLE_WORKSPACE: 'shortcut:toggle-workspace',
   GO_SETTINGS: 'shortcut:go-settings',
   CLEAN_CHAT_HISTORY: 'shortcut:clean-chat-history',
   DELETE_CONVERSATION: 'shortcut:delete-conversation'

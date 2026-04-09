@@ -1071,6 +1071,8 @@
     "goSettings": "Abrir Configurações",
     "hideWindow": "Ocultar janela",
     "quitApp": "Sair do app",
+    "toggleSidebar": "Mostrar/ocultar barra lateral",
+    "toggleWorkspace": "Mostrar/ocultar espaço de trabalho",
     "zoomIn": "Ampliar ",
     "zoomOut": "Reduzir ",
     "zoomReset": "Redefinir zoom",

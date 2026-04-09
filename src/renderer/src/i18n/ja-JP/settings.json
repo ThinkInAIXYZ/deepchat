@@ -1071,6 +1071,8 @@
     "goSettings": "設定を開く",
     "hideWindow": "ウィンドウを非表示にします",
     "quitApp": "プログラムを終了します",
+    "toggleSidebar": "サイドバーを表示/非表示",
+    "toggleWorkspace": "ワークスペースを表示/非表示",
     "zoomIn": "フォントにズームインします",
     "zoomOut": "フォントを削減します",
     "zoomReset": "フォントをリセットします",

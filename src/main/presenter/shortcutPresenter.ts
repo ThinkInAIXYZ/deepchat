@@ -68,6 +68,30 @@ export class ShortcutPresenter implements IShortcutPresenter {
       })
     }
 
+    if (this.shortcutKeys.ToggleSidebar) {
+      globalShortcut.register(this.shortcutKeys.ToggleSidebar, () => {
+        const focusedWindow = presenter.windowPresenter.getFocusedWindow()
+        if (focusedWindow?.isFocused()) {
+          void presenter.windowPresenter.sendToWebContents(
+            focusedWindow.webContents.id,
+            SHORTCUT_EVENTS.TOGGLE_SIDEBAR
+          )
+        }
+      })
+    }
+
+    if (this.shortcutKeys.ToggleWorkspace) {
+      globalShortcut.register(this.shortcutKeys.ToggleWorkspace, () => {
+        const focusedWindow = presenter.windowPresenter.getFocusedWindow()
+        if (focusedWindow?.isFocused()) {
+          void presenter.windowPresenter.sendToWebContents(
+            focusedWindow.webContents.id,
+            SHORTCUT_EVENTS.TOGGLE_WORKSPACE
+          )
+        }
+      })
+    }
+
     // Command+Shift+N 或 Ctrl+Shift+N 创建新窗口
     if (this.shortcutKeys.NewWindow) {
       globalShortcut.register(this.shortcutKeys.NewWindow, () => {
