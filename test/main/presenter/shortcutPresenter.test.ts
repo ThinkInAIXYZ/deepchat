@@ -6,6 +6,7 @@ const unregisterAllMock = vi.hoisted(() => vi.fn())
 const presenterMock = vi.hoisted(() => ({
   windowPresenter: {
     getFocusedWindow: vi.fn(),
+    getAllWindows: vi.fn(),
     sendToWebContents: vi.fn(),
     mainWindow: null,
     getSettingsWindowId: vi.fn(() => null),
@@ -43,13 +44,15 @@ vi.mock('@/eventbus', () => ({
 describe('ShortcutPresenter', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    presenterMock.windowPresenter.getFocusedWindow.mockReturnValue({
+    const chatWindow = {
       id: 7,
       isFocused: vi.fn(() => true),
       webContents: {
         id: 42
       }
-    })
+    }
+    presenterMock.windowPresenter.getFocusedWindow.mockReturnValue(chatWindow)
+    presenterMock.windowPresenter.getAllWindows.mockReturnValue([chatWindow])
   })
 
   it('registers sidebar and workspace shortcuts and sends renderer events to the focused window', async () => {
@@ -86,11 +89,58 @@ describe('ShortcutPresenter', () => {
   })
 
   it('does not send sidebar or workspace events when the focused window is not active', async () => {
+    presenterMock.windowPresenter.getAllWindows.mockReturnValue([
+      {
+        id: 7,
+        isFocused: vi.fn(() => false),
+        webContents: {
+          id: 42
+        }
+      }
+    ])
     presenterMock.windowPresenter.getFocusedWindow.mockReturnValue({
       id: 7,
       isFocused: vi.fn(() => false),
       webContents: {
         id: 42
+      }
+    })
+
+    const { ShortcutPresenter } = await import('@/presenter/shortcutPresenter')
+    const shortcutPresenter = new ShortcutPresenter({
+      getShortcutKey: vi.fn(() => ({}))
+    } as any)
+
+    shortcutPresenter.registerShortcuts()
+
+    const toggleSidebarCall = registerMock.mock.calls.find(
+      ([accelerator]) => accelerator === 'CommandOrControl+B'
+    )
+    const toggleWorkspaceCall = registerMock.mock.calls.find(
+      ([accelerator]) => accelerator === 'CommandOrControl+J'
+    )
+
+    toggleSidebarCall?.[1]()
+    toggleWorkspaceCall?.[1]()
+
+    expect(presenterMock.windowPresenter.sendToWebContents).not.toHaveBeenCalled()
+  })
+
+  it('does not send sidebar or workspace events to the settings window', async () => {
+    presenterMock.windowPresenter.getAllWindows.mockReturnValue([
+      {
+        id: 7,
+        isFocused: vi.fn(() => false),
+        webContents: {
+          id: 42
+        }
+      }
+    ])
+    presenterMock.windowPresenter.getFocusedWindow.mockReturnValue({
+      id: 99,
+      isFocused: vi.fn(() => true),
+      webContents: {
+        id: 77
       }
     })
 
