@@ -1,6 +1,6 @@
 <template>
-  <div class="flex h-full min-w-0 flex-1 overflow-hidden">
-    <aside class="flex h-full w-[224px] shrink-0 flex-col border-r bg-muted/20">
+  <div class="flex h-full min-h-0 min-w-0 flex-1 overflow-hidden">
+    <aside class="flex h-full min-h-0 w-[224px] shrink-0 flex-col border-r bg-muted/20">
       <div class="flex-1 overflow-auto py-2">
         <section>
           <button

@@ -1,13 +1,17 @@
 <template>
-  <div class="w-full h-full flex flex-col overflow-hidden">
+  <div
+    class="flex h-full min-h-0 w-full flex-col overflow-hidden"
+    data-testid="mermaid-artifact-root"
+  >
     <div
       v-if="props.isPreview"
       ref="mermaidRef"
-      class="w-full h-full p-4 overflow-auto flex items-center justify-center [&_svg]:!w-full [&_svg]:!h-full [&_svg]:max-h-[calc(100vh-120px)] [&_svg]:object-contain"
+      class="flex h-full min-h-0 w-full flex-1 items-center justify-center overflow-auto p-4 [&_svg]:max-h-full [&_svg]:max-w-full [&_svg]:h-auto [&_svg]:w-auto"
+      data-testid="mermaid-artifact-preview"
     ></div>
-    <div v-else class="h-full p-4">
+    <div v-else class="h-full min-h-0 p-4">
       <pre
-        class="rounded-lg bg-muted p-4 h-full m-0 overflow-auto"
+        class="m-0 h-full min-h-0 overflow-auto rounded-lg bg-muted p-4"
       ><code class="font-mono text-sm leading-6 h-full block">{{ props.block.content }}</code></pre>
     </div>
   </div>
@@ -52,17 +56,17 @@ const sanitizeMermaidContent = (content: string): string => {
     /<iframe[^>]*>[\s\S]*?<\/iframe>/gi,
     // Object 和 Embed 标签 - 可以执行代码
     /<object[^>]*>[\s\S]*?<\/object>/gi,
-    /<embed[^>]*[^>]*>/gi,
+    /<embed\b(?:"[^"]*"|'[^']*'|[^'">])*?>/gi,
     // Form 标签 - 可能用于 CSRF
     /<form[^>]*>[\s\S]*?<\/form>/gi,
     // Link 标签 - 可能加载恶意样式或脚本
-    /<link[^>]*>/gi,
+    /<link\b(?:"[^"]*"|'[^']*'|[^'">])*?>/gi,
     // Style 标签 - 可能包含恶意 CSS
     /<style[^>]*>[\s\S]*?<\/style>/gi,
     // Meta 标签 - 可能用于重定向或执行
-    /<meta[^>]*>/gi,
+    /<meta\b(?:"[^"]*"|'[^']*'|[^'">])*?>/gi,
     // Img 标签 - PoC 中使用的攻击向量，带事件处理器特别危险
-    /<img[^>]*>/gi
+    /<img\b(?:"[^"]*"|'[^']*'|[^'">])*?>/gi
   ]
 
   // 移除危险标签
@@ -72,7 +76,7 @@ const sanitizeMermaidContent = (content: string): string => {
 
   // 移除所有事件处理器属性 (on* 属性)
   // 这包括 onerror, onclick, onload, onmouseover 等
-  sanitized = sanitized.replace(/on\w+\s*=\s*["'][^"']*["']/gi, '')
+  sanitized = sanitized.replace(/on\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '')
 
   // 移除危险的协议
   const dangerousProtocols = [/javascript\s*:/gi, /vbscript\s*:/gi, /data\s*:\s*text\/html/gi]

@@ -1,10 +1,11 @@
 <template>
-  <div class="w-full h-full overflow-auto">
+  <div class="flex h-full min-h-0 w-full overflow-hidden" data-testid="react-artifact-root">
     <iframe
       ref="iframeRef"
       :srcdoc="htmlContent"
-      class="w-full h-full min-h-[400px] html-iframe-wrapper"
+      class="html-iframe-wrapper h-full min-h-0 w-full"
       sandbox="allow-scripts"
+      data-testid="react-artifact-iframe"
     ></iframe>
   </div>
 </template>

@@ -1,11 +1,11 @@
 <template>
   <div
-    class="relative h-full shrink-0 overflow-hidden transition-[width] duration-200 ease-out"
+    class="relative h-full min-h-0 shrink-0 overflow-hidden transition-[width] duration-200 ease-out"
     :style="{ width: `${panelWidth}px` }"
   >
     <aside
       v-if="props.sessionId"
-      class="absolute inset-y-0 right-0 flex h-full w-full flex-col border-l bg-background shadow-lg transition-all duration-200 ease-out"
+      class="absolute inset-y-0 right-0 flex h-full min-h-0 w-full flex-col border-l bg-background shadow-lg transition-all duration-200 ease-out"
       :class="
         shouldShow
           ? 'translate-x-0 opacity-100'
