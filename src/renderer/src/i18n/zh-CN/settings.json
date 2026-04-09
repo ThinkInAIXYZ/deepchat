@@ -1370,6 +1370,10 @@
   "skills": {
     "title": "Skills设置",
     "description": "管理和配置 AI 助手的 skill 模块",
+    "draftSuggestions": {
+      "title": "任务后建议沉淀 Skill Draft",
+      "description": "任务完成后，允许 Agent 在识别到可复用流程时建议生成临时 skill draft。draft 会先保存在临时目录，需你手动决定是否导入安装。"
+    },
     "openFolder": "打开文件夹",
     "addSkill": "添加 skill",
     "empty": "暂无 skill",

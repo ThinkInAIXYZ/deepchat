@@ -1370,6 +1370,10 @@
   "skills": {
     "title": "Skills",
     "description": "Manage and configure AI assistant skills",
+    "draftSuggestions": {
+      "title": "Suggest Skill Drafts",
+      "description": "After a task is complete, allow the agent to suggest temporary reusable skill drafts. Drafts stay in a temp folder until you choose to import them manually."
+    },
     "openFolder": "Open Folder",
     "addSkill": "Add Skill",
     "empty": "No skills yet",

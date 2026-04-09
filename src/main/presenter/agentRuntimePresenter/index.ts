@@ -2064,8 +2064,15 @@ export class AgentRuntimePresenter implements IAgentImplementation {
 
     const skillsEnabled = this.configPresenter.getSkillsEnabled()
     const skillPresenter = this.skillPresenter
-    const availableSkillNames: string[] = []
+    const availableSkills: Array<{
+      name: string
+      description: string
+      category?: string | null
+      platforms?: string[]
+    }> = []
     const activeSkillNames: string[] = []
+    const skillDraftSuggestionsEnabled =
+      this.configPresenter.getSkillDraftSuggestionsEnabled?.() ?? false
 
     if (skillsEnabled && skillPresenter) {
       if (skillPresenter.getMetadataList) {
@@ -2074,7 +2081,12 @@ export class AgentRuntimePresenter implements IAgentImplementation {
           for (const metadata of metadataList) {
             const skillName = metadata?.name?.trim()
             if (skillName) {
-              availableSkillNames.push(skillName)
+              availableSkills.push({
+                name: skillName,
+                description: metadata.description?.trim() || '',
+                category: metadata.category ?? null,
+                platforms: metadata.platforms
+              })
             }
           }
         } catch (error) {
@@ -2103,7 +2115,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       }
     }
 
-    const normalizedAvailableSkills = this.normalizeSkillNames(availableSkillNames)
+    const normalizedAvailableSkills = this.normalizeSkillMetadata(availableSkills)
     const normalizedActiveSkills = this.normalizeSkillNames(activeSkillNames)
     const agentToolNames = this.getAgentToolNames(toolDefinitions)
     const fingerprint = this.buildSystemPromptFingerprint({
@@ -2112,9 +2124,10 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       workdir,
       basePrompt: normalizedBase,
       skillsEnabled,
-      availableSkillNames: normalizedAvailableSkills,
+      availableSkillNames: normalizedAvailableSkills.map((skill) => skill.name),
       activeSkillNames: normalizedActiveSkills,
-      toolSignature: this.buildToolSignature(toolDefinitions)
+      toolSignature: this.buildToolSignature(toolDefinitions),
+      skillDraftSuggestionsEnabled
     })
 
     const cachedPrompt = this.systemPromptCache.get(sessionId)
@@ -2134,11 +2147,16 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       hasProcess: agentToolNames.has('process')
     })
     const skillsMetadataPrompt = skillsEnabled
-      ? this.buildSkillsMetadataPrompt(normalizedAvailableSkills, {
-          canListSkills: agentToolNames.has('skill_list'),
-          canControlSkills: agentToolNames.has('skill_control'),
-          canRunSkillScripts: agentToolNames.has('skill_run')
-        })
+      ? this.buildSkillsMetadataPrompt(
+          normalizedAvailableSkills,
+          {
+            canListSkills: agentToolNames.has('skill_list'),
+            canViewSkills: agentToolNames.has('skill_view'),
+            canManageDraftSkills: agentToolNames.has('skill_manage'),
+            canRunSkillScripts: agentToolNames.has('skill_run')
+          },
+          skillDraftSuggestionsEnabled
+        )
       : ''
 
     let skillsPrompt = ''
@@ -2158,7 +2176,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
           )
         }
       }
-      skillsPrompt = this.buildActiveSkillsPrompt(skillSections)
+      skillsPrompt = this.buildPinnedSkillsPrompt(skillSections)
     }
 
     let envPrompt = ''
@@ -2215,16 +2233,24 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   }
 
   private buildSkillsMetadataPrompt(
-    availableSkillNames: string[],
+    availableSkills: Array<{
+      name: string
+      description: string
+      category?: string | null
+      platforms?: string[]
+    }>,
     capabilities: {
       canListSkills: boolean
-      canControlSkills: boolean
+      canViewSkills: boolean
+      canManageDraftSkills: boolean
       canRunSkillScripts: boolean
-    }
+    },
+    skillDraftSuggestionsEnabled: boolean
   ): string {
     if (
       !capabilities.canListSkills &&
-      !capabilities.canControlSkills &&
+      !capabilities.canViewSkills &&
+      !capabilities.canManageDraftSkills &&
       !capabilities.canRunSkillScripts
     ) {
       return ''
@@ -2233,43 +2259,64 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     const lines = ['## Skills']
     let hasContent = false
 
-    if (capabilities.canListSkills) {
+    if (capabilities.canListSkills || capabilities.canViewSkills) {
       lines.push(
-        'If you may need specialized guidance, call `skill_list` to inspect available skills and activation status.'
-      )
-      hasContent = true
-    }
-    if (capabilities.canControlSkills) {
-      lines.push(
-        'After identifying a matching skill, call `skill_control` to activate or deactivate it before proceeding.'
+        'Before replying, always scan available skills. If any skill plausibly matches the task, call `skill_view` first.'
       )
       hasContent = true
     }
     if (capabilities.canRunSkillScripts) {
       lines.push(
-        'Use `skill_run` to execute bundled helper scripts from active skills when a skill provides them.'
+        'Use `skill_run` only for pinned skills when a pinned skill provides bundled helper scripts.'
+      )
+      hasContent = true
+    }
+    if (capabilities.canManageDraftSkills && skillDraftSuggestionsEnabled) {
+      lines.push(
+        'After completing a complex task, solving a tricky bug, or discovering a non-trivial workflow, you may draft a reusable skill with `skill_manage`.'
+      )
+      lines.push(
+        'Only propose one draft per task, do it after the main answer is complete, and use `deepchat_question` to ask whether the user wants to keep the draft.'
+      )
+      lines.push(
+        'Do not modify installed skills with `skill_manage`; it is draft-only in this version.'
       )
       hasContent = true
     }
 
-    if (availableSkillNames.length > 0) {
-      lines.push('Installed skill names:')
-      lines.push(...availableSkillNames.map((name) => `- ${name}`))
+    if (availableSkills.length > 0) {
+      lines.push('<available_skills>')
+      lines.push(
+        ...availableSkills.map((skill) => {
+          const details: string[] = []
+          if (skill.category) {
+            details.push(`category=${skill.category}`)
+          }
+          if (skill.platforms?.length) {
+            details.push(`platforms=${skill.platforms.join(',')}`)
+          }
+          const suffix = details.length > 0 ? ` [${details.join('; ')}]` : ''
+          return `- ${skill.name}: ${skill.description}${suffix}`
+        })
+      )
+      lines.push('</available_skills>')
       hasContent = true
     } else if (hasContent) {
-      lines.push('Installed skill names: (none)')
+      lines.push('<available_skills>')
+      lines.push('(none)')
+      lines.push('</available_skills>')
     }
 
     return hasContent ? lines.join('\n') : ''
   }
 
-  private buildActiveSkillsPrompt(skillSections: string[]): string {
+  private buildPinnedSkillsPrompt(skillSections: string[]): string {
     if (skillSections.length === 0) {
       return ''
     }
     return [
-      '## Activated Skills',
-      'Follow these active skill instructions during this conversation.',
+      '## Pinned Skills',
+      'These pinned skills are preloaded for this conversation. Follow them when relevant.',
       '',
       skillSections.join('\n\n')
     ].join('\n')
@@ -2281,6 +2328,41 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     ).sort((a, b) => a.localeCompare(b))
   }
 
+  private normalizeSkillMetadata(
+    skills: Array<{
+      name: string
+      description: string
+      category?: string | null
+      platforms?: string[]
+    }>
+  ): Array<{
+    name: string
+    description: string
+    category?: string | null
+    platforms?: string[]
+  }> {
+    const deduped = new Map<string, (typeof skills)[number]>()
+    for (const skill of skills) {
+      const name = skill.name.trim()
+      if (!name || deduped.has(name)) {
+        continue
+      }
+      deduped.set(name, {
+        ...skill,
+        name,
+        description: skill.description.trim(),
+        category: skill.category?.trim() || null,
+        platforms: skill.platforms?.map((platform) => platform.trim()).filter(Boolean)
+      })
+    }
+    return Array.from(deduped.values()).sort((left, right) => {
+      return (
+        (left.category ?? '').localeCompare(right.category ?? '') ||
+        left.name.localeCompare(right.name)
+      )
+    })
+  }
+
   private buildSystemPromptFingerprint(params: {
     providerId: string
     modelId: string
@@ -2290,6 +2372,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     availableSkillNames: string[]
     activeSkillNames: string[]
     toolSignature: string[]
+    skillDraftSuggestionsEnabled: boolean
   }): string {
     return JSON.stringify({
       providerId: params.providerId,
@@ -2299,7 +2382,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       skillsEnabled: params.skillsEnabled,
       availableSkillNames: params.availableSkillNames,
       activeSkillNames: params.activeSkillNames,
-      toolSignature: params.toolSignature
+      toolSignature: params.toolSignature,
+      skillDraftSuggestionsEnabled: params.skillDraftSuggestionsEnabled
     })
   }
 

@@ -231,6 +231,14 @@ export class AgentToolManager {
 
   private readonly skillSchemas = {
     skill_list: z.object({}),
+    skill_view: z.object({
+      name: z.string().min(1).describe('Skill name to inspect'),
+      file_path: z
+        .string()
+        .min(1)
+        .optional()
+        .describe('Optional file path under the skill root to inspect')
+    }),
     skill_run: z.object({
       skill: z.string().min(1).describe('Active skill name that owns the script'),
       script: z
@@ -251,19 +259,24 @@ export class AgentToolManager {
         .optional()
         .describe('Optional timeout in milliseconds for the script run')
     }),
-    skill_control: z
-      .object({
-        action: z.enum(['activate', 'deactivate']).describe('The action to perform'),
-        skill_name: z.string().min(1).optional().describe('Skill name to activate or deactivate'),
-        skills: z
-          .array(z.string())
-          .min(1)
-          .optional()
-          .describe('List of skill names to activate or deactivate')
-      })
-      .refine((data) => Boolean(data.skill_name || (data.skills && data.skills.length > 0)), {
-        message: 'Either skill_name or skills must be provided'
-      })
+    skill_manage: z.object({
+      action: z
+        .enum(['create', 'edit', 'write_file', 'remove_file', 'delete'])
+        .describe('Draft-only skill management action'),
+      draftPath: z
+        .string()
+        .optional()
+        .describe('Existing draft root path. Required for edit, write_file, remove_file, delete'),
+      content: z
+        .string()
+        .optional()
+        .describe('Complete SKILL.md document including frontmatter and body'),
+      filePath: z
+        .string()
+        .optional()
+        .describe('Relative file path under references/, templates/, scripts/, or assets/'),
+      fileContent: z.string().optional().describe('Text content for write_file')
+    })
   }
 
   constructor(options: AgentToolManagerOptions) {
@@ -1485,10 +1498,28 @@ export class AgentToolManager {
       {
         type: 'function',
         function: {
-          name: 'skill_control',
+          name: 'skill_view',
           description:
-            'Activate or deactivate skills. Activated skills inject their expertise into the conversation context.',
-          parameters: zodToJsonSchema(schemas.skill_control) as {
+            'Inspect a specific skill before relying on it. Returns the rendered SKILL.md body or a requested supporting file under the skill root.',
+          parameters: zodToJsonSchema(schemas.skill_view) as {
+            type: string
+            properties: Record<string, unknown>
+            required?: string[]
+          }
+        },
+        server: {
+          name: 'agent-skills',
+          icons: '🎯',
+          description: 'Agent Skills management'
+        }
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'skill_manage',
+          description:
+            'Create or edit temporary draft skills in the conversation draft area. This cannot modify installed skills.',
+          parameters: zodToJsonSchema(schemas.skill_manage) as {
             type: string
             properties: Record<string, unknown>
             required?: string[]
@@ -1509,7 +1540,7 @@ export class AgentToolManager {
       function: {
         name: 'skill_run',
         description:
-          'Run a bundled script from an active skill. This is the preferred way to execute skill-local Python, Node, or shell helpers without guessing paths.',
+          'Run a bundled script from a pinned skill. This is the preferred way to execute skill-local Python, Node, or shell helpers without guessing paths.',
         parameters: zodToJsonSchema(this.skillSchemas.skill_run) as {
           type: string
           properties: Record<string, unknown>
@@ -1525,7 +1556,7 @@ export class AgentToolManager {
   }
 
   private isSkillTool(toolName: string): boolean {
-    return toolName === 'skill_list' || toolName === 'skill_control'
+    return toolName === 'skill_list' || toolName === 'skill_view' || toolName === 'skill_manage'
   }
 
   private isSkillExecutionTool(toolName: string): boolean {
@@ -1719,16 +1750,23 @@ export class AgentToolManager {
       return { content: JSON.stringify(result) }
     }
 
-    if (toolName === 'skill_control') {
-      const schema = this.skillSchemas.skill_control
+    if (toolName === 'skill_view') {
+      const schema = this.skillSchemas.skill_view
       const validationResult = schema.safeParse(args)
       if (!validationResult.success) {
-        throw new Error(`Invalid arguments for skill_control: ${validationResult.error.message}`)
+        throw new Error(`Invalid arguments for skill_view: ${validationResult.error.message}`)
       }
+      const result = await skillTools.handleSkillView(conversationId, validationResult.data)
+      return { content: JSON.stringify(result) }
+    }
 
-      const { action, skill_name: skillName, skills } = validationResult.data
-      const skillNames = skillName ? [skillName] : (skills ?? [])
-      const result = await skillTools.handleSkillControl(conversationId, action, skillNames)
+    if (toolName === 'skill_manage') {
+      const schema = this.skillSchemas.skill_manage
+      const validationResult = schema.safeParse(args)
+      if (!validationResult.success) {
+        throw new Error(`Invalid arguments for skill_manage: ${validationResult.error.message}`)
+      }
+      const result = await skillTools.handleSkillManage(conversationId, validationResult.data)
       return { content: JSON.stringify(result) }
     }
 

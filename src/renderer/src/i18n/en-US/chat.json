@@ -189,11 +189,11 @@
   },
   "skills": {
     "indicator": {
-      "active": "{count} skills active",
-      "none": "No skills active"
+      "active": "{count} pinned skills",
+      "none": "No pinned skills"
     },
     "panel": {
-      "title": "Skills",
+      "title": "Pinned Skills",
       "manage": "Manage",
       "empty": "No skills installed"
     }

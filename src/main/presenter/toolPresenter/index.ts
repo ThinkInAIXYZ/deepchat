@@ -450,15 +450,23 @@ export class ToolPresenter implements IToolPresenter {
     let hasContent = false
 
     if (toolNames.has('skill_list')) {
-      lines.push('- Use `skill_list` to inspect available skills and activation status.')
+      lines.push('- Use `skill_list` to inspect installed skills and pinned status.')
       hasContent = true
     }
-    if (toolNames.has('skill_control')) {
-      lines.push('- Use `skill_control` to activate or deactivate skills before continuing.')
+    if (toolNames.has('skill_view')) {
+      lines.push(
+        '- Use `skill_view` to inspect a skill or one of its linked files before relying on it.'
+      )
+      hasContent = true
+    }
+    if (toolNames.has('skill_manage')) {
+      lines.push(
+        '- Use `skill_manage` only for temporary draft skills after the main task is complete.'
+      )
       hasContent = true
     }
     if (toolNames.has('skill_run')) {
-      lines.push('- Use `skill_run` to execute bundled scripts from active skills.')
+      lines.push('- Use `skill_run` to execute bundled scripts from pinned skills.')
       hasContent = true
     }
 

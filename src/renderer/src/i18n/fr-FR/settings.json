@@ -1307,6 +1307,10 @@
   },
   "skills": {
     "addSkill": "Ajouter une compétence",
+    "draftSuggestions": {
+      "title": "Suggérer des brouillons de compétences",
+      "description": "Une fois une tâche terminée, autorisez l'agent à suggérer des brouillons temporaires de compétences réutilisables. Les brouillons restent dans un dossier temporaire jusqu'à ce que vous choisissiez de les importer manuellement."
+    },
     "conflict": {
       "description": "La compétence nommée « {name} » existe déjà. Voulez-vous la remplacer ?",
       "overwrite": "couverture",

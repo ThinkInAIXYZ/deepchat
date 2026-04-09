@@ -107,6 +107,7 @@ interface IAppSettings {
   codeFontFamily?: string // Custom code font
   skillsPath?: string // Skills directory path
   enableSkills?: boolean // Skills system global toggle
+  skillDraftSuggestionsEnabled?: boolean // Whether agent may propose skill drafts after tasks
   hooksNotifications?: HooksNotificationsSettings // Hooks & notifications settings
   defaultModel?: { providerId: string; modelId: string } // Default model for new conversations
   defaultVisionModel?: { providerId: string; modelId: string } // Legacy vision model setting for migration only
@@ -257,6 +258,7 @@ export class ConfigPresenter implements IConfigPresenter {
         default_system_prompt: '',
         skillsPath: path.join(app.getPath('home'), '.deepchat', 'skills'),
         enableSkills: true,
+        skillDraftSuggestionsEnabled: false,
         updateChannel: 'stable', // Default to stable version
         appVersion: this.currentAppVersion,
         hooksNotifications: createDefaultHooksNotificationsConfig()
@@ -1315,6 +1317,14 @@ export class ConfigPresenter implements IConfigPresenter {
     this.setSetting('enableSkills', enabled)
   }
 
+  getSkillDraftSuggestionsEnabled(): boolean {
+    return this.getSetting<boolean>('skillDraftSuggestionsEnabled') ?? false
+  }
+
+  setSkillDraftSuggestionsEnabled(enabled: boolean): void {
+    this.setSetting('skillDraftSuggestionsEnabled', enabled)
+  }
+
   getSkillsPath(): string {
     return (
       this.getSetting<string>('skillsPath') || path.join(app.getPath('home'), '.deepchat', 'skills')
@@ -1325,10 +1335,15 @@ export class ConfigPresenter implements IConfigPresenter {
     this.setSetting('skillsPath', skillsPath)
   }
 
-  getSkillSettings(): { skillsPath: string; enableSkills: boolean } {
+  getSkillSettings(): {
+    skillsPath: string
+    enableSkills: boolean
+    skillDraftSuggestionsEnabled: boolean
+  } {
     return {
       skillsPath: this.getSkillsPath(),
-      enableSkills: this.getSkillsEnabled()
+      enableSkills: this.getSkillsEnabled(),
+      skillDraftSuggestionsEnabled: this.getSkillDraftSuggestionsEnabled()
     }
   }
 

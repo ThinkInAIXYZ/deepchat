@@ -1,79 +1,66 @@
-import type { ISkillPresenter, SkillControlAction, SkillListItem } from '@shared/types/skill'
+import type {
+  ISkillPresenter,
+  SkillListItem,
+  SkillManageRequest,
+  SkillManageResult,
+  SkillViewResult
+} from '@shared/types/skill'
 
 export class SkillTools {
   constructor(private readonly skillPresenter: ISkillPresenter) {}
 
-  async handleSkillList(
-    conversationId?: string
-  ): Promise<{ skills: SkillListItem[]; activeCount: number; totalCount: number }> {
+  async handleSkillList(conversationId?: string): Promise<{
+    skills: SkillListItem[]
+    pinnedCount: number
+    activeCount: number
+    totalCount: number
+  }> {
     const allSkills = await this.skillPresenter.getMetadataList()
-    const activeSkills = conversationId
+    const pinnedSkills = conversationId
       ? await this.skillPresenter.getActiveSkills(conversationId)
       : []
-    const activeSet = new Set(activeSkills)
+    const pinnedSet = new Set(pinnedSkills)
 
     const skillList = allSkills.map((skill) => ({
       name: skill.name,
       description: skill.description,
-      active: activeSet.has(skill.name)
+      category: skill.category ?? null,
+      platforms: skill.platforms,
+      metadata: skill.metadata,
+      isPinned: pinnedSet.has(skill.name),
+      active: pinnedSet.has(skill.name)
     }))
 
     return {
       skills: skillList,
-      activeCount: activeSkills.length,
+      pinnedCount: pinnedSkills.length,
+      activeCount: pinnedSkills.length,
       totalCount: allSkills.length
     }
   }
 
-  async handleSkillControl(
+  async handleSkillView(
     conversationId: string | undefined,
-    action: SkillControlAction,
-    skillNames: string[]
-  ): Promise<{
-    success: boolean
-    action?: SkillControlAction
-    affectedSkills?: string[]
-    activeSkills?: string[]
-    error?: string
-  }> {
+    input: { name: string; file_path?: string }
+  ): Promise<SkillViewResult> {
+    return await this.skillPresenter.viewSkill(input.name, {
+      filePath: input.file_path,
+      conversationId
+    })
+  }
+
+  async handleSkillManage(
+    conversationId: string | undefined,
+    request: SkillManageRequest
+  ): Promise<SkillManageResult> {
     if (!conversationId) {
       return {
         success: false,
-        error: 'No conversation context available for skill control'
+        action: request.action,
+        error: 'No conversation context available for skill_manage'
       }
     }
 
-    if (!skillNames.length) {
-      return {
-        success: false,
-        error: 'No skill names provided'
-      }
-    }
-
-    const currentActiveSkills = await this.skillPresenter.getActiveSkills(conversationId)
-    const currentSet = new Set(currentActiveSkills)
-
-    let newActiveSkills: string[]
-    let affectedSkills: string[]
-
-    if (action === 'activate') {
-      const validatedSkills = await this.skillPresenter.validateSkillNames(skillNames)
-      validatedSkills.forEach((skill) => currentSet.add(skill))
-      newActiveSkills = Array.from(currentSet)
-      affectedSkills = validatedSkills
-    } else {
-      skillNames.forEach((skill) => currentSet.delete(skill))
-      newActiveSkills = Array.from(currentSet)
-      affectedSkills = skillNames
-    }
-
-    await this.skillPresenter.setActiveSkills(conversationId, newActiveSkills)
-
-    return {
-      success: true,
-      action,
-      affectedSkills,
-      activeSkills: newActiveSkills
-    }
+    return await this.skillPresenter.manageDraftSkill(conversationId, request)
   }
 }

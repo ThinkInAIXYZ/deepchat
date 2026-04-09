@@ -620,9 +620,15 @@ export interface IConfigPresenter {
   // Skills settings
   getSkillsEnabled(): boolean
   setSkillsEnabled(enabled: boolean): void
+  getSkillDraftSuggestionsEnabled(): boolean
+  setSkillDraftSuggestionsEnabled(enabled: boolean): void
   getSkillsPath(): string
   setSkillsPath(skillsPath: string): void
-  getSkillSettings(): { skillsPath: string; enableSkills: boolean }
+  getSkillSettings(): {
+    skillsPath: string
+    enableSkills: boolean
+    skillDraftSuggestionsEnabled: boolean
+  }
   // MCP configuration related methods
   getMcpServers(): Promise<Record<string, MCPServerConfig>>
   setMcpServers(servers: Record<string, MCPServerConfig>): Promise<void>

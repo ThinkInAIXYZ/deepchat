@@ -126,6 +126,26 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
     expect(defs.map((def) => def.function.name)).toContain('skill_run')
   })
 
+  it('exposes skill inspection and draft tools without skill_control', async () => {
+    skillPresenter.getActiveSkills.mockResolvedValue([])
+    skillPresenter.getActiveSkillsAllowedTools.mockResolvedValue([])
+
+    const manager = buildManager()
+
+    const defs = await manager.getAllToolDefinitions({
+      chatMode: 'agent',
+      supportsVision: false,
+      agentWorkspacePath: null,
+      conversationId: 'conv-1'
+    })
+
+    const names = defs.map((def) => def.function.name)
+    expect(names).toContain('skill_list')
+    expect(names).toContain('skill_view')
+    expect(names).toContain('skill_manage')
+    expect(names).not.toContain('skill_control')
+  })
+
   it('resolves workdir from new session first', async () => {
     resolveConversationWorkdir.mockResolvedValue('/tmp/new-session-workdir')
 

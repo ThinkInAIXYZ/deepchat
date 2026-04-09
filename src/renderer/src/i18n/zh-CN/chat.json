@@ -189,11 +189,11 @@
   },
   "skills": {
     "indicator": {
-      "active": "{count} 个技能已激活",
-      "none": "无激活技能"
+      "active": "{count} 个固定技能",
+      "none": "无固定技能"
     },
     "panel": {
-      "title": "技能",
+      "title": "固定技能",
       "manage": "管理",
       "empty": "暂无安装技能"
     }

@@ -206,6 +206,7 @@ function createMockConfigPresenter() {
     }),
     getDefaultModel: vi.fn().mockReturnValue({ providerId: 'openai', modelId: 'gpt-4' }),
     getDefaultSystemPrompt: vi.fn().mockResolvedValue('You are a helpful assistant.'),
+    getSkillDraftSuggestionsEnabled: vi.fn().mockReturnValue(false),
     getReasoningPortrait: vi.fn().mockImplementation((providerId: string, modelId: string) => {
       if (providerId === 'gemini' && modelId === 'gemini-2.5-pro') {
         return {
@@ -1227,7 +1228,7 @@ describe('AgentRuntimePresenter', () => {
       expect(secondCallArgs.messages[0].content).toContain('DATE:Fri Mar 06 2026')
     })
 
-    it('invalidates cached prompt when active skills change', async () => {
+    it('invalidates cached prompt when pinned skills change', async () => {
       vi.useFakeTimers()
       vi.setSystemTime(new Date('2026-03-05T08:00:00.000Z'))
       const envBuilder = buildSystemEnvPrompt as ReturnType<typeof vi.fn>
@@ -1248,7 +1249,7 @@ describe('AgentRuntimePresenter', () => {
       expect(envBuilder).toHaveBeenCalledTimes(2)
 
       const secondCallArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[1][0]
-      expect(secondCallArgs.messages[0].content).toContain('## Activated Skills')
+      expect(secondCallArgs.messages[0].content).toContain('## Pinned Skills')
       expect(secondCallArgs.messages[0].content).toContain('### skill-a')
       expect(secondCallArgs.messages[0].content).toContain('Skill A instructions')
     })
@@ -1276,8 +1277,8 @@ describe('AgentRuntimePresenter', () => {
           type: 'function',
           source: 'agent',
           function: {
-            name: 'skill_control',
-            description: 'skill control',
+            name: 'skill_view',
+            description: 'skill view',
             parameters: { type: 'object', properties: {} }
           },
           server: { name: 'agent-skills', icons: '', description: '' }
@@ -1300,21 +1301,21 @@ describe('AgentRuntimePresenter', () => {
 
       const runtimeIndex = systemPrompt.indexOf('RUNTIME_CAPABILITIES')
       const skillsIndex = systemPrompt.indexOf('## Skills')
-      const activeSkillsIndex = systemPrompt.indexOf('## Activated Skills')
+      const pinnedSkillsIndex = systemPrompt.indexOf('## Pinned Skills')
       const envIndex = systemPrompt.indexOf('ENV_BLOCK')
       const toolingIndex = systemPrompt.indexOf('TOOLING_BLOCK')
       const userPromptIndex = systemPrompt.indexOf('USER_CUSTOM_PROMPT')
 
       expect(runtimeIndex).toBeGreaterThanOrEqual(0)
       expect(skillsIndex).toBeGreaterThan(runtimeIndex)
-      expect(activeSkillsIndex).toBeGreaterThan(skillsIndex)
-      expect(envIndex).toBeGreaterThan(activeSkillsIndex)
+      expect(pinnedSkillsIndex).toBeGreaterThan(skillsIndex)
+      expect(envIndex).toBeGreaterThan(pinnedSkillsIndex)
       expect(toolingIndex).toBeGreaterThan(envIndex)
       expect(userPromptIndex).toBeGreaterThan(toolingIndex)
       expect(systemPrompt).toContain('- skill-a')
-      expect(systemPrompt).toContain('`skill_list`')
-      expect(systemPrompt).toContain('`skill_control`')
-      expect(systemPrompt).not.toContain('desc-a')
+      expect(systemPrompt).toContain('`skill_view`')
+      expect(systemPrompt).not.toContain('`skill_control`')
+      expect(systemPrompt).toContain('desc-a')
     })
 
     it('derives runtime capabilities from the current enabled agent tools', async () => {

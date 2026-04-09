@@ -13,9 +13,13 @@ import {
   SkillFolderNode,
   SkillInstallOptions,
   SkillExtensionConfig,
+  SkillManageRequest,
+  SkillManageResult,
   SkillRuntimePolicy,
   SkillScriptDescriptor,
-  SkillScriptRuntime
+  SkillScriptRuntime,
+  SkillViewResult,
+  SkillLinkedFile
 } from '@shared/types/skill'
 import { eventBus, SendTarget } from '@/eventbus'
 import { SKILL_EVENTS } from '@/events'
@@ -43,7 +47,13 @@ export const SKILL_CONFIG = {
   WATCHER_POLL_INTERVAL: 100, // ms
 
   /** Sidecar configuration directory name */
-  SIDECAR_DIR: '.deepchat-meta'
+  SIDECAR_DIR: '.deepchat-meta',
+
+  /** Draft skill configuration */
+  DRAFT_ROOT_DIR: 'deepchat-skill-drafts',
+  DRAFT_MAX_CONTENT_CHARS: 100000,
+  DRAFT_RETENTION_MS: 7 * 24 * 60 * 60 * 1000,
+  MAX_LINKED_FILE_SIZE: 1024 * 1024
 } as const
 
 const SUPPORTED_SCRIPT_EXTENSIONS: Record<string, SkillScriptRuntime> = {
@@ -58,6 +68,46 @@ const DEFAULT_RUNTIME_POLICY: SkillRuntimePolicy = {
   python: 'auto',
   node: 'auto'
 }
+
+const SKILL_NAME_PATTERN = /^[a-z0-9][a-z0-9._-]*$/
+const BINARY_LIKE_EXTENSIONS = new Set([
+  '.png',
+  '.jpg',
+  '.jpeg',
+  '.gif',
+  '.webp',
+  '.avif',
+  '.pdf',
+  '.zip',
+  '.tar',
+  '.gz',
+  '.sqlite',
+  '.db',
+  '.woff',
+  '.woff2',
+  '.ttf',
+  '.otf',
+  '.exe',
+  '.dll',
+  '.so',
+  '.dylib',
+  '.mp3',
+  '.mp4',
+  '.mov',
+  '.avi',
+  '.wasm',
+  '.bin',
+  '.ico'
+])
+const DRAFT_ALLOWED_TOP_LEVEL_DIRS = new Set(['references', 'templates', 'scripts', 'assets'])
+const DRAFT_INJECTION_PATTERNS = [
+  /ignore\s+previous\s+instructions/i,
+  /disregard\s+all\s+prior/i,
+  /system\s+prompt/i,
+  /reveal\s+hidden\s+instructions/i,
+  /forget\s+all\s+above/i,
+  /override\s+the\s+rules/i
+]
 
 export interface SkillSessionStatePort {
   hasNewSession(conversationId: string): Promise<boolean>
@@ -141,6 +191,7 @@ function sanitizeSkillExtensionConfig(input: unknown): SkillExtensionConfig {
 export class SkillPresenter implements ISkillPresenter {
   private skillsDir: string
   private sidecarDir: string
+  private draftsRoot: string
   private metadataCache: Map<string, SkillMetadata> = new Map()
   private contentCache: Map<string, SkillContent> = new Map()
   private watcher: FSWatcher | null = null
@@ -156,6 +207,7 @@ export class SkillPresenter implements ISkillPresenter {
     // Skills directory: ~/.deepchat/skills/
     this.skillsDir = this.resolveSkillsDir()
     this.sidecarDir = path.join(this.skillsDir, SKILL_CONFIG.SIDECAR_DIR)
+    this.draftsRoot = path.join(app.getPath('temp'), SKILL_CONFIG.DRAFT_ROOT_DIR)
     this.ensureSkillsDir()
   }
 
@@ -210,6 +262,7 @@ export class SkillPresenter implements ISkillPresenter {
     if (this.initialized) return
 
     await this.installBuiltinSkills()
+    this.cleanupExpiredDrafts()
     await this.discoverSkills()
     this.watchSkillFiles()
     this.initialized = true
@@ -226,28 +279,35 @@ export class SkillPresenter implements ISkillPresenter {
       return []
     }
 
-    const entries = fs.readdirSync(this.skillsDir, { withFileTypes: true })
-
-    for (const entry of entries) {
-      if (this.shouldIgnoreSkillsRootEntry(entry.name)) {
-        continue
-      }
-      if (entry.isDirectory()) {
-        const skillPath = path.join(this.skillsDir, entry.name, 'SKILL.md')
-        if (fs.existsSync(skillPath)) {
-          try {
-            const metadata = await this.parseSkillMetadata(skillPath, entry.name)
-            if (metadata) {
-              this.metadataCache.set(entry.name, metadata)
-            }
-          } catch (error) {
-            console.error(`[SkillPresenter] Failed to parse skill ${entry.name}:`, error)
-          }
+    for (const skillPath of this.collectSkillManifestPaths(this.skillsDir)) {
+      const dirName = path.basename(path.dirname(skillPath))
+      try {
+        const metadata = await this.parseSkillMetadata(skillPath, dirName)
+        if (!metadata) {
+          continue
         }
+        if (this.metadataCache.has(metadata.name)) {
+          logger.warn(
+            '[SkillPresenter] Duplicate skill name discovered. Keeping the first entry.',
+            {
+              name: metadata.name,
+              path: metadata.path
+            }
+          )
+          continue
+        }
+        this.metadataCache.set(metadata.name, metadata)
+      } catch (error) {
+        console.error(`[SkillPresenter] Failed to parse skill at ${skillPath}:`, error)
       }
     }
 
-    const skills = Array.from(this.metadataCache.values())
+    const skills = Array.from(this.metadataCache.values()).sort((left, right) => {
+      return (
+        (left.category ?? '').localeCompare(right.category ?? '') ||
+        left.name.localeCompare(right.name)
+      )
+    })
     eventBus.sendToRenderer(SKILL_EVENTS.DISCOVERED, SendTarget.ALL_WINDOWS, skills)
 
     return skills
@@ -282,6 +342,14 @@ export class SkillPresenter implements ISkillPresenter {
         description: data.description || '',
         path: skillPath,
         skillRoot: path.dirname(skillPath),
+        category: this.deriveSkillCategory(path.dirname(skillPath)),
+        platforms: Array.isArray(data.platforms)
+          ? data.platforms.filter((platform): platform is string => typeof platform === 'string')
+          : undefined,
+        metadata:
+          data.metadata && typeof data.metadata === 'object'
+            ? (data.metadata as Record<string, unknown>)
+            : undefined,
         allowedTools: Array.isArray(data.allowedTools)
           ? data.allowedTools.filter((t): t is string => typeof t === 'string')
           : undefined
@@ -305,7 +373,12 @@ export class SkillPresenter implements ISkillPresenter {
       }
       await this.discoveryPromise
     }
-    return Array.from(this.metadataCache.values())
+    return Array.from(this.metadataCache.values()).sort((left, right) => {
+      return (
+        (left.category ?? '').localeCompare(right.category ?? '') ||
+        left.name.localeCompare(right.name)
+      )
+    })
   }
 
   /**
@@ -320,8 +393,24 @@ export class SkillPresenter implements ISkillPresenter {
       return `${header}\n\n${dirLine}\nNo skills are currently installed.`
     }
 
-    const lines = skills.map((skill) => `- ${skill.name}: ${skill.description}`)
-    return `${header}\n\n${dirLine}\nYou can activate these skills using skill_control tool:\n${lines.join('\n')}`
+    const lines = skills.map((skill) => {
+      const details: string[] = []
+      if (skill.category) {
+        details.push(`category=${skill.category}`)
+      }
+      if (skill.platforms?.length) {
+        details.push(`platforms=${skill.platforms.join(',')}`)
+      }
+      const suffix = details.length > 0 ? ` (${details.join('; ')})` : ''
+      return `- ${skill.name}: ${skill.description}${suffix}`
+    })
+    return [
+      header,
+      '',
+      dirLine,
+      'Inspect these skills with `skill_view` before relying on them.',
+      ...lines
+    ].join('\n')
   }
 
   /**
@@ -369,6 +458,233 @@ export class SkillPresenter implements ISkillPresenter {
     } catch (error) {
       console.error(`[SkillPresenter] Error loading skill content for ${name}:`, error)
       return null
+    }
+  }
+
+  async viewSkill(
+    name: string,
+    options?: {
+      filePath?: string
+      conversationId?: string
+    }
+  ): Promise<SkillViewResult> {
+    if (this.metadataCache.size === 0) {
+      await this.discoverSkills()
+    }
+
+    const metadata = this.metadataCache.get(name)
+    if (!metadata) {
+      return {
+        success: false,
+        error: `Skill "${name}" not found`
+      }
+    }
+
+    const pinnedSkills = options?.conversationId
+      ? await this.getActiveSkills(options.conversationId)
+      : []
+    const isPinned = pinnedSkills.includes(metadata.name)
+
+    if (options?.filePath?.trim()) {
+      const resolvedPath = this.resolveSkillRelativePath(
+        metadata.skillRoot,
+        options.filePath.trim()
+      )
+      if (!resolvedPath) {
+        return {
+          success: false,
+          error: 'Requested skill file is outside the skill root'
+        }
+      }
+
+      if (!fs.existsSync(resolvedPath)) {
+        return {
+          success: false,
+          error: `Skill file not found: ${options.filePath.trim()}`
+        }
+      }
+
+      const stats = fs.statSync(resolvedPath)
+      if (!stats.isFile()) {
+        return {
+          success: false,
+          error: 'Requested skill path is not a file'
+        }
+      }
+      if (stats.size > SKILL_CONFIG.MAX_LINKED_FILE_SIZE) {
+        return {
+          success: false,
+          error: 'Requested skill file is too large to load inline'
+        }
+      }
+      if (this.isBinaryLikeFile(resolvedPath)) {
+        return {
+          success: false,
+          error: 'Binary skill files cannot be loaded with skill_view'
+        }
+      }
+
+      return {
+        success: true,
+        name: metadata.name,
+        category: metadata.category ?? null,
+        skillRoot: metadata.skillRoot,
+        filePath: path.relative(metadata.skillRoot, resolvedPath),
+        content: fs.readFileSync(resolvedPath, 'utf-8'),
+        platforms: metadata.platforms,
+        metadata: metadata.metadata,
+        isPinned
+      }
+    }
+
+    const rawContent = fs.readFileSync(metadata.path, 'utf-8')
+    const { content } = matter(rawContent)
+
+    return {
+      success: true,
+      name: metadata.name,
+      category: metadata.category ?? null,
+      skillRoot: metadata.skillRoot,
+      filePath: null,
+      content: this.replacePathVariables(content, metadata),
+      platforms: metadata.platforms,
+      metadata: metadata.metadata,
+      linkedFiles: this.listSkillLinkedFiles(metadata.skillRoot),
+      isPinned
+    }
+  }
+
+  async manageDraftSkill(
+    conversationId: string,
+    request: SkillManageRequest
+  ): Promise<SkillManageResult> {
+    const action = request.action
+
+    try {
+      switch (action) {
+        case 'create': {
+          const parsed = this.validateDraftSkillDocument(request.content)
+          if (!parsed.success) {
+            return { success: false, action, error: parsed.error }
+          }
+          const draftPath = this.createDraftDirectory(conversationId, parsed.skillName)
+          this.atomicWriteFile(path.join(draftPath, 'SKILL.md'), request.content!)
+          return { success: true, action, draftPath, skillName: parsed.skillName }
+        }
+        case 'edit': {
+          const parsed = this.validateDraftSkillDocument(request.content)
+          if (!parsed.success) {
+            return { success: false, action, error: parsed.error }
+          }
+          const draftPath = this.resolveDraftPath(conversationId, request.draftPath)
+          if (!draftPath) {
+            return {
+              success: false,
+              action,
+              error: 'Draft path is invalid or outside the draft root'
+            }
+          }
+          if (!fs.existsSync(draftPath)) {
+            return { success: false, action, error: 'Draft path not found' }
+          }
+          this.atomicWriteFile(path.join(draftPath, 'SKILL.md'), request.content!)
+          return { success: true, action, draftPath, skillName: parsed.skillName }
+        }
+        case 'write_file': {
+          const draftPath = this.resolveDraftPath(conversationId, request.draftPath)
+          if (!draftPath) {
+            return {
+              success: false,
+              action,
+              error: 'Draft path is invalid or outside the draft root'
+            }
+          }
+          if (!request.filePath?.trim()) {
+            return { success: false, action, error: 'filePath is required for write_file' }
+          }
+          if (typeof request.fileContent !== 'string') {
+            return { success: false, action, error: 'fileContent is required for write_file' }
+          }
+          const resolvedFilePath = this.resolveDraftFilePath(draftPath, request.filePath)
+          if (!resolvedFilePath) {
+            return {
+              success: false,
+              action,
+              error: 'Draft file path must stay within allowed draft folders'
+            }
+          }
+          const blockedPattern = this.findDraftInjectionPattern(request.fileContent)
+          if (blockedPattern) {
+            return {
+              success: false,
+              action,
+              error: `Draft content rejected by security scan: ${blockedPattern}`
+            }
+          }
+          fs.mkdirSync(path.dirname(resolvedFilePath), { recursive: true })
+          this.atomicWriteFile(resolvedFilePath, request.fileContent)
+          return {
+            success: true,
+            action,
+            draftPath,
+            filePath: path.relative(draftPath, resolvedFilePath)
+          }
+        }
+        case 'remove_file': {
+          const draftPath = this.resolveDraftPath(conversationId, request.draftPath)
+          if (!draftPath) {
+            return {
+              success: false,
+              action,
+              error: 'Draft path is invalid or outside the draft root'
+            }
+          }
+          if (!request.filePath?.trim()) {
+            return { success: false, action, error: 'filePath is required for remove_file' }
+          }
+          const resolvedFilePath = this.resolveDraftFilePath(draftPath, request.filePath)
+          if (!resolvedFilePath) {
+            return {
+              success: false,
+              action,
+              error: 'Draft file path must stay within allowed draft folders'
+            }
+          }
+          if (!fs.existsSync(resolvedFilePath)) {
+            return { success: false, action, error: 'Draft file not found' }
+          }
+          fs.rmSync(resolvedFilePath, { force: true })
+          return {
+            success: true,
+            action,
+            draftPath,
+            filePath: path.relative(draftPath, resolvedFilePath)
+          }
+        }
+        case 'delete': {
+          const draftPath = this.resolveDraftPath(conversationId, request.draftPath)
+          if (!draftPath) {
+            return {
+              success: false,
+              action,
+              error: 'Draft path is invalid or outside the draft root'
+            }
+          }
+          if (!fs.existsSync(draftPath)) {
+            return { success: false, action, error: 'Draft path not found' }
+          }
+          fs.rmSync(draftPath, { recursive: true, force: true })
+          return { success: true, action, draftPath }
+        }
+        default:
+          return { success: false, action, error: `Unsupported draft action: ${action}` }
+      }
+    } catch (error) {
+      return {
+        success: false,
+        action,
+        error: error instanceof Error ? error.message : String(error)
+      }
     }
   }
 
@@ -469,7 +785,7 @@ export class SkillPresenter implements ISkillPresenter {
     options?: SkillInstallOptions
   ): Promise<SkillInstallResult> {
     if (!fs.existsSync(zipPath)) {
-      return { success: false, error: 'Zip file not found' }
+      return { success: false, error: 'Zip file not found', errorCode: 'not_found' }
     }
 
     const tempDir = fs.mkdtempSync(path.join(app.getPath('temp'), 'deepchat-skill-'))
@@ -482,7 +798,7 @@ export class SkillPresenter implements ISkillPresenter {
       return await this.installFromDirectory(skillDir, options)
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error)
-      return { success: false, error: errorMsg }
+      return { success: false, error: errorMsg, errorCode: 'io_error' }
     } finally {
       fs.rmSync(tempDir, { recursive: true, force: true })
     }
@@ -498,7 +814,7 @@ export class SkillPresenter implements ISkillPresenter {
       return await this.installFromZip(tempZipPath, options)
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error)
-      return { success: false, error: errorMsg }
+      return { success: false, error: errorMsg, errorCode: 'io_error' }
     } finally {
       if (fs.existsSync(tempZipPath)) {
         fs.rmSync(tempZipPath, { force: true })
@@ -515,12 +831,16 @@ export class SkillPresenter implements ISkillPresenter {
       const resolvedSource = path.resolve(folderPath)
 
       if (!fs.existsSync(resolvedSource)) {
-        return { success: false, error: 'Skill folder not found' }
+        return { success: false, error: 'Skill folder not found', errorCode: 'not_found' }
       }
 
       const skillMdPath = path.join(resolvedSource, 'SKILL.md')
       if (!fs.existsSync(skillMdPath)) {
-        return { success: false, error: 'SKILL.md not found in the folder' }
+        return {
+          success: false,
+          error: 'SKILL.md not found in the folder',
+          errorCode: 'invalid_skill'
+        }
       }
 
       const content = fs.readFileSync(skillMdPath, 'utf-8')
@@ -529,22 +849,39 @@ export class SkillPresenter implements ISkillPresenter {
       const skillDescription = typeof data.description === 'string' ? data.description.trim() : ''
 
       if (!skillName) {
-        return { success: false, error: 'Skill name not found in SKILL.md frontmatter' }
+        return {
+          success: false,
+          error: 'Skill name not found in SKILL.md frontmatter',
+          errorCode: 'invalid_skill'
+        }
       }
 
       if (!skillDescription) {
-        return { success: false, error: 'Skill description not found in SKILL.md frontmatter' }
+        return {
+          success: false,
+          error: 'Skill description not found in SKILL.md frontmatter',
+          errorCode: 'invalid_skill'
+        }
       }
 
       if (skillName.includes('/') || skillName.includes('\\')) {
-        return { success: false, error: 'Invalid skill name in SKILL.md frontmatter' }
+        return {
+          success: false,
+          error: 'Invalid skill name in SKILL.md frontmatter',
+          errorCode: 'invalid_skill'
+        }
       }
 
       const targetDir = path.join(this.skillsDir, skillName)
       const resolvedTarget = path.resolve(targetDir)
 
       if (resolvedSource === resolvedTarget) {
-        return { success: false, error: `Skill "${skillName}" already exists` }
+        return {
+          success: false,
+          error: `Skill "${skillName}" already exists`,
+          errorCode: 'conflict',
+          existingSkillName: skillName
+        }
       }
 
       const relativeToSource = path.relative(resolvedSource, resolvedTarget)
@@ -552,12 +889,21 @@ export class SkillPresenter implements ISkillPresenter {
         relativeToSource === '' ||
         (!relativeToSource.startsWith('..') && !path.isAbsolute(relativeToSource))
       ) {
-        return { success: false, error: 'Target directory cannot be inside source folder' }
+        return {
+          success: false,
+          error: 'Target directory cannot be inside source folder',
+          errorCode: 'invalid_skill'
+        }
       }
 
       if (fs.existsSync(resolvedTarget)) {
         if (!options?.overwrite) {
-          return { success: false, error: `Skill "${skillName}" already exists` }
+          return {
+            success: false,
+            error: `Skill "${skillName}" already exists`,
+            errorCode: 'conflict',
+            existingSkillName: skillName
+          }
         }
         this.backupExistingSkill(skillName)
         this.metadataCache.delete(skillName)
@@ -579,7 +925,7 @@ export class SkillPresenter implements ISkillPresenter {
       return { success: true, skillName }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error)
-      return { success: false, error: errorMsg }
+      return { success: false, error: errorMsg, errorCode: 'io_error' }
     }
   }
 
@@ -1130,7 +1476,7 @@ export class SkillPresenter implements ISkillPresenter {
 
     this.watcher = watch(this.skillsDir, {
       ignoreInitial: true,
-      depth: 2, // Watch skill directories and their immediate contents
+      depth: SKILL_CONFIG.FOLDER_TREE_MAX_DEPTH,
       ignored: (watchPath) =>
         watchPath.includes(`${path.sep}${SKILL_CONFIG.SIDECAR_DIR}${path.sep}`) ||
         path.basename(watchPath) === SKILL_CONFIG.SIDECAR_DIR,
@@ -1142,16 +1488,20 @@ export class SkillPresenter implements ISkillPresenter {
 
     this.watcher.on('change', async (filePath: string) => {
       if (path.basename(filePath) === 'SKILL.md') {
-        const skillDir = path.dirname(filePath)
-        const skillName = path.basename(skillDir)
-
-        // Invalidate caches
-        this.contentCache.delete(skillName)
+        const previousName =
+          this.findSkillNameByPath(filePath) ?? path.basename(path.dirname(filePath))
+        this.contentCache.delete(previousName)
 
         // Re-parse metadata
-        const metadata = await this.parseSkillMetadata(filePath, skillName)
+        const metadata = await this.parseSkillMetadata(
+          filePath,
+          path.basename(path.dirname(filePath))
+        )
         if (metadata) {
-          this.metadataCache.set(skillName, metadata)
+          if (previousName !== metadata.name) {
+            this.metadataCache.delete(previousName)
+          }
+          this.metadataCache.set(metadata.name, metadata)
           eventBus.sendToRenderer(SKILL_EVENTS.METADATA_UPDATED, SendTarget.ALL_WINDOWS, metadata)
         }
       }
@@ -1159,14 +1509,14 @@ export class SkillPresenter implements ISkillPresenter {
 
     this.watcher.on('add', async (filePath: string) => {
       if (path.basename(filePath) === 'SKILL.md') {
-        const skillDir = path.dirname(filePath)
-        const skillName = path.basename(skillDir)
-
-        const metadata = await this.parseSkillMetadata(filePath, skillName)
+        const metadata = await this.parseSkillMetadata(
+          filePath,
+          path.basename(path.dirname(filePath))
+        )
         if (metadata) {
-          this.metadataCache.set(skillName, metadata)
+          this.metadataCache.set(metadata.name, metadata)
           eventBus.sendToRenderer(SKILL_EVENTS.INSTALLED, SendTarget.ALL_WINDOWS, {
-            name: skillName
+            name: metadata.name
           })
         }
       }
@@ -1174,9 +1524,8 @@ export class SkillPresenter implements ISkillPresenter {
 
     this.watcher.on('unlink', (filePath: string) => {
       if (path.basename(filePath) === 'SKILL.md') {
-        const skillDir = path.dirname(filePath)
-        const skillName = path.basename(skillDir)
-
+        const skillName =
+          this.findSkillNameByPath(filePath) ?? path.basename(path.dirname(filePath))
         this.metadataCache.delete(skillName)
         this.contentCache.delete(skillName)
         eventBus.sendToRenderer(SKILL_EVENTS.UNINSTALLED, SendTarget.ALL_WINDOWS, {
@@ -1291,6 +1640,253 @@ export class SkillPresenter implements ISkillPresenter {
     }
 
     return acc
+  }
+
+  private collectSkillManifestPaths(
+    currentDir: string,
+    depth: number = 0,
+    acc: string[] = []
+  ): string[] {
+    if (depth > SKILL_CONFIG.FOLDER_TREE_MAX_DEPTH) {
+      return acc
+    }
+
+    const entries = fs.readdirSync(currentDir, { withFileTypes: true })
+    for (const entry of entries) {
+      if (entry.isSymbolicLink()) {
+        continue
+      }
+
+      const fullPath = path.join(currentDir, entry.name)
+      if (entry.isDirectory()) {
+        if (this.shouldIgnoreSkillsRootEntry(entry.name)) {
+          continue
+        }
+        this.collectSkillManifestPaths(fullPath, depth + 1, acc)
+        continue
+      }
+
+      if (entry.name === 'SKILL.md') {
+        acc.push(fullPath)
+      }
+    }
+
+    return acc
+  }
+
+  private deriveSkillCategory(skillRoot: string): string | null {
+    const relative = path.relative(this.skillsDir, skillRoot)
+    if (!relative || relative === '.' || path.isAbsolute(relative)) {
+      return null
+    }
+
+    const segments = relative.split(path.sep).filter(Boolean)
+    return segments.length > 1 ? segments.slice(0, -1).join('/') : null
+  }
+
+  private listSkillLinkedFiles(skillRoot: string): SkillLinkedFile[] {
+    const linkedFiles: SkillLinkedFile[] = []
+    for (const [dirName, kind] of [
+      ['references', 'reference'],
+      ['templates', 'template'],
+      ['scripts', 'script'],
+      ['assets', 'asset']
+    ] as const) {
+      const targetDir = path.join(skillRoot, dirName)
+      if (!fs.existsSync(targetDir)) {
+        continue
+      }
+      this.collectLinkedFiles(targetDir, skillRoot, kind, linkedFiles)
+    }
+
+    return linkedFiles.sort((left, right) => left.path.localeCompare(right.path))
+  }
+
+  private collectLinkedFiles(
+    currentDir: string,
+    skillRoot: string,
+    kind: SkillLinkedFile['kind'],
+    acc: SkillLinkedFile[]
+  ): void {
+    const entries = fs.readdirSync(currentDir, { withFileTypes: true })
+
+    for (const entry of entries) {
+      if (entry.isSymbolicLink()) {
+        continue
+      }
+
+      const fullPath = path.join(currentDir, entry.name)
+      if (entry.isDirectory()) {
+        this.collectLinkedFiles(fullPath, skillRoot, kind, acc)
+        continue
+      }
+
+      acc.push({
+        path: path.relative(skillRoot, fullPath),
+        kind
+      })
+    }
+  }
+
+  private resolveSkillRelativePath(skillRoot: string, filePath: string): string | null {
+    const resolvedPath = path.resolve(skillRoot, filePath)
+    const relativePath = path.relative(skillRoot, resolvedPath)
+    if (!relativePath || relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
+      return null
+    }
+    return resolvedPath
+  }
+
+  private isBinaryLikeFile(filePath: string): boolean {
+    return BINARY_LIKE_EXTENSIONS.has(path.extname(filePath).toLowerCase())
+  }
+
+  private validateDraftSkillDocument(
+    content: string | undefined
+  ): { success: true; skillName: string } | { success: false; error: string } {
+    if (typeof content !== 'string' || content.trim().length === 0) {
+      return { success: false, error: 'content is required' }
+    }
+    if (!content.trimStart().startsWith('---')) {
+      return { success: false, error: 'Draft skill content must include YAML frontmatter' }
+    }
+    if (content.length > SKILL_CONFIG.DRAFT_MAX_CONTENT_CHARS) {
+      return {
+        success: false,
+        error: `Draft skill content exceeds ${SKILL_CONFIG.DRAFT_MAX_CONTENT_CHARS} characters`
+      }
+    }
+
+    const blockedPattern = this.findDraftInjectionPattern(content)
+    if (blockedPattern) {
+      return {
+        success: false,
+        error: `Draft content rejected by security scan: ${blockedPattern}`
+      }
+    }
+
+    const { data, content: body } = matter(content)
+    const skillName = typeof data.name === 'string' ? data.name.trim() : ''
+    const description = typeof data.description === 'string' ? data.description.trim() : ''
+    if (!skillName) {
+      return { success: false, error: 'Skill frontmatter must include name' }
+    }
+    if (!SKILL_NAME_PATTERN.test(skillName) || skillName.length > 64) {
+      return {
+        success: false,
+        error: 'Skill name must match ^[a-z0-9][a-z0-9._-]*$ and be <= 64 characters'
+      }
+    }
+    if (!description || description.length > 1024) {
+      return {
+        success: false,
+        error: 'Skill description is required and must be <= 1024 characters'
+      }
+    }
+    if (!body.trim()) {
+      return { success: false, error: 'Skill body cannot be empty' }
+    }
+
+    return { success: true, skillName }
+  }
+
+  private findDraftInjectionPattern(content: string): string | null {
+    const matched = DRAFT_INJECTION_PATTERNS.find((pattern) => pattern.test(content))
+    return matched ? matched.source : null
+  }
+
+  private ensureDraftRoot(): void {
+    if (!fs.existsSync(this.draftsRoot)) {
+      fs.mkdirSync(this.draftsRoot, { recursive: true })
+    }
+  }
+
+  private createDraftDirectory(conversationId: string, skillName: string): string {
+    this.ensureDraftRoot()
+    const conversationRoot = path.join(this.draftsRoot, conversationId)
+    fs.mkdirSync(conversationRoot, { recursive: true })
+    const safeSlug = skillName.replace(/[^a-z0-9._-]/g, '-')
+    const draftPath = path.join(conversationRoot, `${Date.now()}-${safeSlug}`)
+    fs.mkdirSync(draftPath, { recursive: true })
+    return draftPath
+  }
+
+  private resolveDraftPath(conversationId: string, draftPath: string | undefined): string | null {
+    if (!draftPath?.trim()) {
+      return null
+    }
+    const conversationRoot = path.resolve(this.draftsRoot, conversationId)
+    const resolvedDraftPath = path.resolve(draftPath)
+    const relativePath = path.relative(conversationRoot, resolvedDraftPath)
+    if (relativePath === '' || relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
+      return null
+    }
+    return resolvedDraftPath
+  }
+
+  private resolveDraftFilePath(draftPath: string, relativeFilePath: string): string | null {
+    const normalizedFilePath = relativeFilePath.trim().replace(/\\/g, '/').replace(/^\/+/, '')
+    const [topLevelDir] = normalizedFilePath.split('/')
+    if (!topLevelDir || !DRAFT_ALLOWED_TOP_LEVEL_DIRS.has(topLevelDir)) {
+      return null
+    }
+
+    const resolvedPath = path.resolve(draftPath, normalizedFilePath)
+    const relativePath = path.relative(draftPath, resolvedPath)
+    if (!relativePath || relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
+      return null
+    }
+    return resolvedPath
+  }
+
+  private atomicWriteFile(targetPath: string, content: string): void {
+    const tempPath = path.join(
+      path.dirname(targetPath),
+      `.${path.basename(targetPath)}.${process.pid}.${Date.now()}.tmp`
+    )
+    fs.writeFileSync(tempPath, content, 'utf-8')
+    fs.renameSync(tempPath, targetPath)
+  }
+
+  private cleanupExpiredDrafts(): void {
+    if (!fs.existsSync(this.draftsRoot)) {
+      return
+    }
+
+    const now = Date.now()
+    const conversationEntries = fs.readdirSync(this.draftsRoot, { withFileTypes: true })
+    for (const conversationEntry of conversationEntries) {
+      if (!conversationEntry.isDirectory()) {
+        continue
+      }
+
+      const conversationDir = path.join(this.draftsRoot, conversationEntry.name)
+      const draftEntries = fs.readdirSync(conversationDir, { withFileTypes: true })
+      for (const draftEntry of draftEntries) {
+        if (!draftEntry.isDirectory()) {
+          continue
+        }
+
+        const draftDir = path.join(conversationDir, draftEntry.name)
+        const stats = fs.statSync(draftDir)
+        if (now - stats.mtimeMs > SKILL_CONFIG.DRAFT_RETENTION_MS) {
+          fs.rmSync(draftDir, { recursive: true, force: true })
+        }
+      }
+
+      if (fs.existsSync(conversationDir) && fs.readdirSync(conversationDir).length === 0) {
+        fs.rmSync(conversationDir, { recursive: true, force: true })
+      }
+    }
+  }
+
+  private findSkillNameByPath(skillPath: string): string | null {
+    for (const metadata of this.metadataCache.values()) {
+      if (metadata.path === skillPath) {
+        return metadata.name
+      }
+    }
+    return null
   }
 
   private getPersistedNewSessionSkills(conversationId: string): string[] {
