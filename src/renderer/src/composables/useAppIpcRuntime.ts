@@ -8,6 +8,8 @@ interface UseAppIpcRuntimeOptions {
   handleZoomOut: () => void
   handleZoomResume: () => void
   handleCreateNewConversation: () => void | Promise<void>
+  handleToggleSidebar: () => void
+  handleToggleWorkspace: () => void
   openSpotlight: () => void
   handleDataResetComplete: () => void
   handleSystemNotificationClick: (payload: unknown) => void
@@ -35,6 +37,8 @@ export function useAppIpcRuntime(options: UseAppIpcRuntimeOptions) {
 
       void options.handleCreateNewConversation()
     })
+    scope.on(SHORTCUT_EVENTS.TOGGLE_SIDEBAR, options.handleToggleSidebar)
+    scope.on(SHORTCUT_EVENTS.TOGGLE_WORKSPACE, options.handleToggleWorkspace)
     scope.on(SHORTCUT_EVENTS.TOGGLE_SPOTLIGHT, options.openSpotlight)
     scope.on(NOTIFICATION_EVENTS.DATA_RESET_COMPLETE_DEV, options.handleDataResetComplete)
     scope.on(NOTIFICATION_EVENTS.SYS_NOTIFY_CLICKED, (_event, payload) => {

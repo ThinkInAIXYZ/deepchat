@@ -54,7 +54,7 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
   private readonly screenshotManager = new ScreenshotManager(this.cdpManager)
   private readonly downloadManager = new DownloadManager()
   private readonly windowPresenter: IWindowPresenter
-  private readonly embeddedHostReadyTimeoutMs = 2000
+  private readonly embeddedHostReadyTimeoutMs = 5000
   private readonly embeddedHostReadyStableMs = 120
   readonly toolHandler: YoBrowserToolHandler
 

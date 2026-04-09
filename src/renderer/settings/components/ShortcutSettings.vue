@@ -188,6 +188,14 @@ const shortcutMapping: Record<
     icon: 'lucide:search',
     label: 'settings.shortcuts.quickSearch'
   },
+  ToggleSidebar: {
+    icon: 'lucide:panel-left-close',
+    label: 'settings.shortcuts.toggleSidebar'
+  },
+  ToggleWorkspace: {
+    icon: 'lucide:panel-right-close',
+    label: 'settings.shortcuts.toggleWorkspace'
+  },
   NewWindow: {
     icon: 'lucide:app-window',
     label: 'settings.shortcuts.newWindow'

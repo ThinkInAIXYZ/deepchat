@@ -74,6 +74,8 @@ export type {
   WorkspaceInvalidationKind,
   WorkspaceInvalidationSource,
   WorkspaceInvalidationEvent,
+  ResolveMarkdownLinkedFileInput,
+  WorkspaceLinkedFileResolution,
   IWorkspacePresenter
 } from './workspace'
 

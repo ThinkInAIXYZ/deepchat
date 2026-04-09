@@ -1029,6 +1029,8 @@
     "goSettings": "Åbn indstillinger",
     "hideWindow": "Skjul vindue",
     "quitApp": "Afslut app",
+    "toggleSidebar": "Vis/skjul sidepanel",
+    "toggleWorkspace": "Vis/skjul arbejdsområde",
     "zoomIn": "Zoom ind",
     "zoomOut": "Zoom ud",
     "zoomReset": "Nulstil zoom",

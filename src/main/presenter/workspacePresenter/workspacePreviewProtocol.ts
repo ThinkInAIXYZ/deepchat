@@ -5,8 +5,42 @@ import { protocol } from 'electron'
 
 export const WORKSPACE_PREVIEW_PROTOCOL = 'workspace-preview'
 
-const workspaceRootsById = new Map<string, string>()
-const workspaceIdsByRoot = new Map<string, string>()
+/**
+ * Bidirectional map for managing path-to-id mappings
+ */
+class BidirectionalMap {
+  private readonly pathToId = new Map<string, string>()
+  private readonly idToPath = new Map<string, string>()
+
+  getIdByPath(path: string): string | undefined {
+    return this.pathToId.get(path)
+  }
+
+  getPathById(id: string): string | undefined {
+    return this.idToPath.get(id)
+  }
+
+  set(path: string, id: string): void {
+    this.pathToId.set(path, id)
+    this.idToPath.set(id, path)
+  }
+
+  deleteByPath(path: string): void {
+    const id = this.pathToId.get(path)
+    if (id) {
+      this.pathToId.delete(path)
+      this.idToPath.delete(id)
+    }
+  }
+
+  clear(): void {
+    this.pathToId.clear()
+    this.idToPath.clear()
+  }
+}
+
+const workspaceRegistry = new BidirectionalMap()
+const fileRegistry = new BidirectionalMap()
 
 let schemesRegistered = false
 
@@ -26,16 +60,45 @@ function isPathInsideRoot(rootPath: string, targetPath: string): boolean {
   )
 }
 
-function getOrCreateWorkspaceId(workspaceRoot: string): string {
-  const existingId = workspaceIdsByRoot.get(workspaceRoot)
+/**
+ * Get or create an ID for a given path using the specified registry
+ * @param registry The bidirectional map to use
+ * @param path The path to get/create an ID for
+ * @param prefix Optional prefix for the generated ID
+ */
+function getOrCreateId(registry: BidirectionalMap, path: string, prefix = ''): string {
+  const existingId = registry.getIdByPath(path)
   if (existingId) {
     return existingId
   }
 
-  const workspaceId = createHash('sha256').update(workspaceRoot).digest('hex')
-  workspaceIdsByRoot.set(workspaceRoot, workspaceId)
-  workspaceRootsById.set(workspaceId, workspaceRoot)
-  return workspaceId
+  const hash = createHash('sha256').update(path).digest('hex')
+  const id = prefix ? `${prefix}${hash}` : hash
+  registry.set(path, id)
+  return id
+}
+
+function getOrCreateWorkspaceId(workspaceRoot: string): string {
+  return getOrCreateId(workspaceRegistry, workspaceRoot)
+}
+
+function getOrCreateWorkspaceFileId(filePath: string): string {
+  return getOrCreateId(fileRegistry, filePath, 'file-')
+}
+
+/**
+ * Build a workspace preview URL from an ID and path components
+ * @param id The workspace or file ID
+ * @param pathComponents Path components to encode and join
+ */
+function buildPreviewUrl(id: string, ...pathComponents: string[]): string {
+  const encodedPath = pathComponents
+    .flatMap((component) => component.split(path.sep))
+    .filter(Boolean)
+    .map(encodeURIComponent)
+    .join('/')
+
+  return `${WORKSPACE_PREVIEW_PROTOCOL}://${id}/${encodedPath}`
 }
 
 export function registerWorkspacePreviewSchemes(): void {
@@ -66,13 +129,17 @@ export function registerWorkspacePreviewRoot(workspacePath: string): void {
 
 export function unregisterWorkspacePreviewRoot(workspacePath: string): void {
   const normalizedRoot = normalizePathForAccess(workspacePath)
-  const workspaceId = workspaceIdsByRoot.get(normalizedRoot)
-  if (!workspaceId) {
-    return
-  }
+  workspaceRegistry.deleteByPath(normalizedRoot)
+}
 
-  workspaceIdsByRoot.delete(normalizedRoot)
-  workspaceRootsById.delete(workspaceId)
+export function registerWorkspacePreviewFile(filePath: string): void {
+  const normalizedFilePath = normalizePathForAccess(filePath)
+  getOrCreateWorkspaceFileId(normalizedFilePath)
+}
+
+export function unregisterWorkspacePreviewFile(filePath: string): void {
+  const normalizedFilePath = normalizePathForAccess(filePath)
+  fileRegistry.deleteByPath(normalizedFilePath)
 }
 
 export function createWorkspacePreviewUrl(workspaceRoot: string, filePath: string): string | null {
@@ -85,9 +152,15 @@ export function createWorkspacePreviewUrl(workspaceRoot: string, filePath: strin
 
   const workspaceId = getOrCreateWorkspaceId(normalizedRoot)
   const relativePath = path.relative(normalizedRoot, normalizedFilePath)
-  const encodedPath = relativePath.split(path.sep).map(encodeURIComponent).join('/')
 
-  return `${WORKSPACE_PREVIEW_PROTOCOL}://${workspaceId}/${encodedPath}`
+  return buildPreviewUrl(workspaceId, relativePath)
+}
+
+export function createWorkspacePreviewFileUrl(filePath: string): string {
+  const normalizedFilePath = normalizePathForAccess(filePath)
+  const workspaceFileId = getOrCreateWorkspaceFileId(normalizedFilePath)
+
+  return buildPreviewUrl(workspaceFileId, path.basename(normalizedFilePath))
 }
 
 export function resolveWorkspacePreviewRequest(requestUrl: string): string | null {
@@ -103,7 +176,29 @@ export function resolveWorkspacePreviewRequest(requestUrl: string): string | nul
     return null
   }
 
-  const workspaceRoot = workspaceRootsById.get(parsedUrl.hostname)
+  const previewFilePath = fileRegistry.getPathById(parsedUrl.hostname)
+  if (previewFilePath) {
+    try {
+      const decodedSegments = parsedUrl.pathname
+        .split('/')
+        .filter(Boolean)
+        .map((segment) => decodeURIComponent(segment))
+
+      if (decodedSegments.length > 1) {
+        return null
+      }
+
+      if (decodedSegments.length === 1 && decodedSegments[0] !== path.basename(previewFilePath)) {
+        return null
+      }
+    } catch {
+      return null
+    }
+
+    return previewFilePath
+  }
+
+  const workspaceRoot = workspaceRegistry.getPathById(parsedUrl.hostname)
   if (!workspaceRoot) {
     return null
   }
@@ -130,7 +225,7 @@ export function resolveWorkspacePreviewRequest(requestUrl: string): string | nul
 }
 
 export function resetWorkspacePreviewProtocolState(): void {
-  workspaceRootsById.clear()
-  workspaceIdsByRoot.clear()
+  workspaceRegistry.clear()
+  fileRegistry.clear()
   schemesRegistered = false
 }

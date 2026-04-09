@@ -1083,6 +1083,8 @@
     "goSettings": "Paramètres ouvrir",
     "hideWindow": "Cache-fenêtre",
     "quitApp": "Quitter l'application",
+    "toggleSidebar": "Afficher/masquer la barre latérale",
+    "toggleWorkspace": "Afficher/masquer l’espace de travail",
     "zoomIn": "Zoomer",
     "zoomOut": "Zoom out",
     "zoomReset": "Réinitialiser le zoom",

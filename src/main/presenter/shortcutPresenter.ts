@@ -30,6 +30,19 @@ export class ShortcutPresenter implements IShortcutPresenter {
       ...this.configPresenter.getShortcutKey()
     }
 
+    const getFocusedChatWindow = () => {
+      const focusedWindow = presenter.windowPresenter.getFocusedWindow()
+      if (!focusedWindow?.isFocused()) {
+        return
+      }
+
+      const isChatWindow = presenter.windowPresenter
+        .getAllWindows()
+        .some((window) => window.id === focusedWindow.id)
+
+      return isChatWindow ? focusedWindow : undefined
+    }
+
     // Command+N 或 Ctrl+N 创建新会话
     if (this.shortcutKeys.NewConversation) {
       globalShortcut.register(this.shortcutKeys.NewConversation, async () => {
@@ -65,6 +78,30 @@ export class ShortcutPresenter implements IShortcutPresenter {
           targetWindow.webContents.id,
           SHORTCUT_EVENTS.TOGGLE_SPOTLIGHT
         )
+      })
+    }
+
+    if (this.shortcutKeys.ToggleSidebar) {
+      globalShortcut.register(this.shortcutKeys.ToggleSidebar, () => {
+        const focusedWindow = getFocusedChatWindow()
+        if (focusedWindow) {
+          void presenter.windowPresenter.sendToWebContents(
+            focusedWindow.webContents.id,
+            SHORTCUT_EVENTS.TOGGLE_SIDEBAR
+          )
+        }
+      })
+    }
+
+    if (this.shortcutKeys.ToggleWorkspace) {
+      globalShortcut.register(this.shortcutKeys.ToggleWorkspace, () => {
+        const focusedWindow = getFocusedChatWindow()
+        if (focusedWindow) {
+          void presenter.windowPresenter.sendToWebContents(
+            focusedWindow.webContents.id,
+            SHORTCUT_EVENTS.TOGGLE_WORKSPACE
+          )
+        }
       })
     }
 

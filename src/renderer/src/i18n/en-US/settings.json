@@ -1145,6 +1145,8 @@
     "goSettings": "Open Settings",
     "hideWindow": "Hide window",
     "quitApp": "Quit app",
+    "toggleSidebar": "Toggle Sidebar",
+    "toggleWorkspace": "Toggle Workspace",
     "zoomIn": "Zoom in ",
     "zoomOut": "Zoom out ",
     "zoomReset": "Reset zoom",

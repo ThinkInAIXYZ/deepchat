@@ -1083,6 +1083,8 @@
     "goSettings": "打開設置",
     "hideWindow": "隱藏窗口",
     "quitApp": "退出程序",
+    "toggleSidebar": "顯示/隱藏側邊欄",
+    "toggleWorkspace": "顯示/隱藏工作區",
     "zoomIn": "放大字體",
     "zoomOut": "縮小字體",
     "zoomReset": "重置字體",

@@ -8,6 +8,10 @@
       :loading="part.loading"
       :message-id="messageId"
       :thread-id="threadId"
+      :link-context="{
+        source: 'chat',
+        sessionId: threadId
+      }"
     />
 
     <ArtifactThinking v-else-if="part.type === 'thinking' && part.loading" />

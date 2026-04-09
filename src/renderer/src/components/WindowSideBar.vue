@@ -1,6 +1,7 @@
 <template>
   <TooltipProvider :delay-duration="200">
     <div
+      data-testid="window-sidebar"
       class="flex flex-row h-full shrink-0 window-drag-region transition-all duration-200"
       :class="collapsed ? 'w-12' : 'w-[288px]'"
     >
@@ -90,8 +91,9 @@
         <Tooltip>
           <TooltipTrigger as-child>
             <Button
+              data-testid="window-sidebar-toggle"
               class="flex items-center justify-center w-9 h-9 rounded-xl bg-transparent border-none hover:bg-white/30 dark:hover:bg-white/10 shadow-none"
-              @click="collapsed = !collapsed"
+              @click="sidebarStore.toggleSidebar()"
             >
               <Icon
                 :icon="collapsed ? 'lucide:panel-left-open' : 'lucide:panel-left-close'"
@@ -348,6 +350,7 @@ import type {
 import AgentAvatar from './icons/AgentAvatar.vue'
 import WindowSideBarSessionItem from './WindowSideBarSessionItem.vue'
 import { useI18n } from 'vue-i18n'
+import { useSidebarStore } from '@/stores/ui/sidebar'
 
 type PinFeedbackMode = 'pinning' | 'unpinning'
 
@@ -360,9 +363,10 @@ const { t } = useI18n()
 const agentStore = useAgentStore()
 const pageRouterStore = usePageRouterStore()
 const sessionStore = useSessionStore()
+const sidebarStore = useSidebarStore()
 const spotlightStore = useSpotlightStore()
 
-const collapsed = ref(false)
+const collapsed = computed(() => sidebarStore.collapsed)
 const sessionSearchQuery = ref('')
 const remoteControlStatus = ref<{
   telegram: TelegramRemoteStatus | null

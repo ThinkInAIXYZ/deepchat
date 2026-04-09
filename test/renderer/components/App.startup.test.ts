@@ -9,12 +9,16 @@ const mountApp = async (options?: {
   initComplete?: boolean
   routeName?: 'chat' | 'welcome'
   hasActiveSession?: boolean
+  pageRouteName?: 'newThread' | 'chat'
+  chatSessionId?: string | null
 }) => {
   vi.resetModules()
 
   const initComplete = options?.initComplete ?? false
   const routeName = options?.routeName ?? 'chat'
   const hasActiveSession = options?.hasActiveSession ?? false
+  const pageRouteName = options?.pageRouteName ?? 'chat'
+  const chatSessionId = options?.chatSessionId ?? (pageRouteName === 'chat' ? 'session-1' : null)
   const route = reactive({
     name: routeName,
     path: routeName === 'welcome' ? '/welcome' : '/chat',
@@ -46,7 +50,15 @@ const mountApp = async (options?: {
     getSetting: vi.fn().mockResolvedValue(initComplete)
   }
   const pageRouterStore = {
+    currentRoute: pageRouteName,
+    chatSessionId,
     goToNewThread: vi.fn()
+  }
+  const sidepanelStore = {
+    toggleWorkspace: vi.fn()
+  }
+  const sidebarStore = {
+    toggleSidebar: vi.fn()
   }
   const spotlightStore = {
     open: false,
@@ -131,6 +143,12 @@ const mountApp = async (options?: {
   vi.doMock('@/stores/ui/pageRouter', () => ({
     usePageRouterStore: () => pageRouterStore
   }))
+  vi.doMock('@/stores/ui/sidepanel', () => ({
+    useSidepanelStore: () => sidepanelStore
+  }))
+  vi.doMock('@/stores/ui/sidebar', () => ({
+    useSidebarStore: () => sidebarStore
+  }))
   vi.doMock('@/stores/ui/spotlight', () => ({
     useSpotlightStore: () => spotlightStore
   }))
@@ -211,6 +229,8 @@ const mountApp = async (options?: {
     router,
     configPresenter,
     pageRouterStore,
+    sidepanelStore,
+    sidebarStore,
     agentStore,
     draftStore,
     sessionStore,
@@ -310,5 +330,60 @@ describe('App startup welcome flow', () => {
 
     expect(spotlightStore.openSpotlight).toHaveBeenCalledTimes(1)
     expect(spotlightStore.toggleSpotlight).not.toHaveBeenCalled()
+  })
+
+  it('toggles the sidebar from the global shortcut event', async () => {
+    const { ipcOn, sidebarStore } = await mountApp({
+      initComplete: true,
+      routeName: 'chat'
+    })
+
+    const shortcutHandler = ipcOn.mock.calls.find(
+      ([eventName]: [string]) => eventName === SHORTCUT_EVENTS.TOGGLE_SIDEBAR
+    )?.[1]
+
+    expect(shortcutHandler).toBeTypeOf('function')
+
+    shortcutHandler?.()
+
+    expect(sidebarStore.toggleSidebar).toHaveBeenCalledTimes(1)
+  })
+
+  it('toggles the workspace panel from the global shortcut event when a chat session is active', async () => {
+    const { ipcOn, sidepanelStore } = await mountApp({
+      initComplete: true,
+      routeName: 'chat',
+      pageRouteName: 'chat',
+      chatSessionId: 'session-42'
+    })
+
+    const shortcutHandler = ipcOn.mock.calls.find(
+      ([eventName]: [string]) => eventName === SHORTCUT_EVENTS.TOGGLE_WORKSPACE
+    )?.[1]
+
+    expect(shortcutHandler).toBeTypeOf('function')
+
+    shortcutHandler?.()
+
+    expect(sidepanelStore.toggleWorkspace).toHaveBeenCalledWith('session-42')
+  })
+
+  it('ignores the workspace shortcut when no chat session is active', async () => {
+    const { ipcOn, sidepanelStore } = await mountApp({
+      initComplete: true,
+      routeName: 'chat',
+      pageRouteName: 'newThread',
+      chatSessionId: null
+    })
+
+    const shortcutHandler = ipcOn.mock.calls.find(
+      ([eventName]: [string]) => eventName === SHORTCUT_EVENTS.TOGGLE_WORKSPACE
+    )?.[1]
+
+    expect(shortcutHandler).toBeTypeOf('function')
+
+    shortcutHandler?.()
+
+    expect(sidepanelStore.toggleWorkspace).not.toHaveBeenCalled()
   })
 })

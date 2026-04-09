@@ -57,6 +57,7 @@ export class WindowPresenter implements IWindowPresenter {
   private settingsWindowReady = false
   private pendingSettingsMessages: PendingSettingsMessage[] = []
   private pendingSettingsProviderInstalls: ProviderInstallPreview[] = []
+  private readonly blockedWindowOpenProtocols = new Set(['about:', 'blob:', 'data:', 'javascript:'])
 
   constructor(configPresenter: IConfigPresenter) {
     this.windows = new Map()
@@ -152,6 +153,30 @@ export class WindowPresenter implements IWindowPresenter {
     eventBus.on(WINDOW_EVENTS.SET_APPLICATION_QUITTING, (data: { isQuitting: boolean }) => {
       console.log(`WindowPresenter: Setting application quitting state to ${data.isQuitting}`)
       this.setApplicationQuitting(data.isQuitting)
+    })
+  }
+
+  private setupManagedWindowOpenHandler(window: BrowserWindow): void {
+    window.webContents.setWindowOpenHandler(({ url }) => {
+      if (!url?.trim()) {
+        return { action: 'deny' }
+      }
+
+      try {
+        const parsedUrl = new URL(url)
+        if (this.blockedWindowOpenProtocols.has(parsedUrl.protocol)) {
+          console.warn(`Blocked attempt to open disallowed URL from managed window: ${url}`)
+          return { action: 'deny' }
+        }
+
+        shell.openExternal(url).catch((error) => {
+          console.error(`Failed to open external URL from managed window: ${url}`, error)
+        })
+      } catch (error) {
+        console.warn(`Blocked attempt to open invalid URL from managed window: ${url}`, error)
+      }
+
+      return { action: 'deny' }
     })
   }
 
@@ -654,6 +679,7 @@ export class WindowPresenter implements IWindowPresenter {
     this.windows.set(windowId, appWindow) // 将窗口实例存入 Map
 
     managedWindowState.manage(appWindow) // 管理窗口状态
+    this.setupManagedWindowOpenHandler(appWindow)
 
     // 应用内容保护设置
     const contentProtectionEnabled = this.configPresenter.getContentProtectionEnabled()

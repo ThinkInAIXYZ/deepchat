@@ -9,6 +9,7 @@
         :content="resolvedContent"
         :message-id="previewSourceId"
         :thread-id="props.sessionId"
+        :link-context="markdownLinkContext"
       />
     </div>
   </div>
@@ -93,6 +94,7 @@ import HTMLArtifact from '@/components/artifacts/HTMLArtifact.vue'
 import SvgArtifact from '@/components/artifacts/SvgArtifact.vue'
 import MermaidArtifact from '@/components/artifacts/MermaidArtifact.vue'
 import ReactArtifact from '@/components/artifacts/ReactArtifact.vue'
+import type { MarkdownLinkContext } from '@/components/markdown/linkTypes'
 
 const props = defineProps<{
   sessionId?: string
@@ -143,6 +145,20 @@ const fileBlock = computed(() => {
 const resolvedBlock = computed(() => artifactBlock.value ?? fileBlock.value)
 const resolvedContent = computed(() => props.artifact?.content ?? props.filePreview?.content ?? '')
 const previewSourceId = computed(() => props.artifact?.id ?? props.filePreview?.path)
+const markdownLinkContext = computed<MarkdownLinkContext>(() => {
+  if (props.filePreview) {
+    return {
+      source: 'workspace',
+      sessionId: props.sessionId,
+      sourceFilePath: props.filePreview.path
+    }
+  }
+
+  return {
+    source: 'artifact',
+    sessionId: props.sessionId
+  }
+})
 const resolvedTitle = computed(
   () => props.artifact?.title ?? props.filePreview?.name ?? t('artifacts.preview')
 )

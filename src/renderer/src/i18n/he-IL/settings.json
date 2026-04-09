@@ -1083,6 +1083,8 @@
     "goSettings": "פתח הגדרות",
     "hideWindow": "הסתר חלון",
     "quitApp": "צא מהאפליקציה",
+    "toggleSidebar": "הצג/הסתר סרגל צד",
+    "toggleWorkspace": "הצג/הסתר סביבת עבודה",
     "zoomIn": "הגדל תצוגה ",
     "zoomOut": "הקטן תצוגה ",
     "zoomReset": "אפס תצוגה",

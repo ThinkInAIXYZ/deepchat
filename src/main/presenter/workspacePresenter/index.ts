@@ -1,6 +1,7 @@
 import path from 'path'
 import fs from 'fs'
 import { execFile } from 'child_process'
+import { fileURLToPath } from 'url'
 import { promisify } from 'util'
 import { shell } from 'electron'
 import { FSWatcher, watch } from 'chokidar'
@@ -9,13 +10,17 @@ import { WORKSPACE_EVENTS } from '@/events'
 import { readDirectoryShallow } from './directoryReader'
 import { searchWorkspaceFiles } from './workspaceFileSearch'
 import {
+  createWorkspacePreviewFileUrl,
   createWorkspacePreviewUrl,
+  registerWorkspacePreviewFile,
   registerWorkspacePreviewRoot,
+  unregisterWorkspacePreviewFile,
   unregisterWorkspacePreviewRoot
 } from './workspacePreviewProtocol'
 import type {
   IFilePresenter,
   IWorkspacePresenter,
+  ResolveMarkdownLinkedFileInput,
   WorkspaceFileNode,
   WorkspaceFilePreview,
   WorkspaceFilePreviewKind,
@@ -24,7 +29,8 @@ import type {
   WorkspaceGitState,
   WorkspaceInvalidationEvent,
   WorkspaceInvalidationKind,
-  WorkspaceInvalidationSource
+  WorkspaceInvalidationSource,
+  WorkspaceLinkedFileResolution
 } from '@shared/presenter'
 
 const execFileAsync = promisify(execFile)
@@ -96,6 +102,7 @@ const getInvalidationPriority = (kind: WorkspaceInvalidationKind): number => {
  */
 export class WorkspacePresenter implements IWorkspacePresenter {
   private readonly allowedPaths = new Set<string>()
+  private readonly allowedExactPaths = new Set<string>()
   private readonly filePresenter: IFilePresenter
   private readonly watchRuntimes = new Map<string, WorkspaceWatchRuntime>()
 
@@ -174,6 +181,11 @@ export class WorkspacePresenter implements IWorkspacePresenter {
     for (const runtime of runtimes) {
       void this.disposeRuntime(runtime)
     }
+
+    for (const exactPath of this.allowedExactPaths) {
+      unregisterWorkspacePreviewFile(exactPath)
+    }
+    this.allowedExactPaths.clear()
   }
 
   private createContentWatcher(workspacePath: string): FSWatcher {
@@ -400,6 +412,10 @@ export class WorkspacePresenter implements IWorkspacePresenter {
       ? normalizedTarget
       : `${normalizedTarget}${path.sep}`
 
+    if (this.allowedExactPaths.has(normalizedTarget)) {
+      return true
+    }
+
     for (const workspace of this.allowedPaths) {
       const normalizedWorkspace = this.normalizePathForAccess(workspace)
       const workspaceWithSep = normalizedWorkspace.endsWith(path.sep)
@@ -496,11 +512,78 @@ export class WorkspacePresenter implements IWorkspacePresenter {
     filePath: string,
     kind: WorkspaceFilePreviewKind
   ): string | undefined {
-    if (!workspaceRoot || (kind !== 'html' && kind !== 'pdf' && kind !== 'svg')) {
+    if (kind !== 'html' && kind !== 'pdf' && kind !== 'svg') {
       return undefined
     }
 
-    return createWorkspacePreviewUrl(workspaceRoot, filePath) ?? undefined
+    if (workspaceRoot) {
+      return createWorkspacePreviewUrl(workspaceRoot, filePath) ?? undefined
+    }
+
+    return createWorkspacePreviewFileUrl(filePath)
+  }
+
+  private authorizeExactFile(filePath: string): string {
+    const normalizedFilePath = this.normalizePathForAccess(filePath)
+    this.allowedExactPaths.add(normalizedFilePath)
+    registerWorkspacePreviewFile(normalizedFilePath)
+    return normalizedFilePath
+  }
+
+  private stripMarkdownLinkDecorators(href: string): string {
+    const trimmedHref = href.trim()
+    const queryIndex = trimmedHref.indexOf('?')
+    const hashIndex = trimmedHref.indexOf('#')
+    const firstDecoratorIndex = [queryIndex, hashIndex]
+      .filter((index) => index >= 0)
+      .sort((left, right) => left - right)[0]
+
+    if (firstDecoratorIndex == null) {
+      return trimmedHref
+    }
+
+    return trimmedHref.slice(0, firstDecoratorIndex)
+  }
+
+  private isAbsoluteWindowsPath(value: string): boolean {
+    return /^[a-zA-Z]:[\\/]/.test(value)
+  }
+
+  private isAbsoluteMarkdownPath(value: string): boolean {
+    return value.startsWith('/') || this.isAbsoluteWindowsPath(value)
+  }
+
+  private resolveMarkdownLinkedPath(input: ResolveMarkdownLinkedFileInput): string | null {
+    const rawHref = this.stripMarkdownLinkDecorators(input.href)
+    if (!rawHref) {
+      return null
+    }
+
+    if (rawHref.startsWith('file://')) {
+      try {
+        return this.normalizePathForAccess(fileURLToPath(rawHref))
+      } catch {
+        return null
+      }
+    }
+
+    if (this.isAbsoluteMarkdownPath(rawHref)) {
+      return this.normalizePathForAccess(rawHref)
+    }
+
+    const sourceFilePath = input.sourceFilePath?.trim() || null
+    const workspacePath = input.workspacePath?.trim() || null
+    const baseDir = sourceFilePath
+      ? path.dirname(sourceFilePath)
+      : workspacePath
+        ? workspacePath
+        : null
+
+    if (!baseDir) {
+      return null
+    }
+
+    return this.normalizePathForAccess(path.resolve(baseDir, rawHref))
   }
 
   private async runGitCommand(workspacePath: string, args: string[]): Promise<string | null> {
@@ -643,6 +726,38 @@ export class WorkspacePresenter implements IWorkspacePresenter {
     }
   }
 
+  async resolveMarkdownLinkedFile(
+    input: ResolveMarkdownLinkedFileInput
+  ): Promise<WorkspaceLinkedFileResolution | null> {
+    const resolvedPath = this.resolveMarkdownLinkedPath(input)
+    if (!resolvedPath) {
+      return null
+    }
+
+    let stat: fs.Stats
+    try {
+      stat = fs.statSync(resolvedPath)
+    } catch {
+      return null
+    }
+
+    if (!stat.isFile()) {
+      return null
+    }
+
+    const normalizedPath = this.authorizeExactFile(resolvedPath)
+    const workspaceRoot = this.getWorkspaceRootForPath(normalizedPath)
+
+    return {
+      path: normalizedPath,
+      name: path.basename(normalizedPath),
+      relativePath: workspaceRoot
+        ? this.toRelativeWorkspacePath(workspaceRoot, normalizedPath)
+        : normalizedPath,
+      workspaceRoot
+    }
+  }
+
   async readFilePreview(filePath: string): Promise<WorkspaceFilePreview | null> {
     if (!this.isPathAllowed(filePath)) {
       console.warn(`[Workspace] Blocked preview attempt for unauthorized path: ${filePath}`)
@@ -655,21 +770,22 @@ export class WorkspacePresenter implements IWorkspacePresenter {
         undefined,
         'origin'
       )
-      const workspaceRoot = this.getWorkspaceRootForPath(filePath)
-      const kind = this.resolvePreviewKind(preparedFile.mimeType, filePath)
+      const normalizedPreparedPath = this.normalizePathForAccess(preparedFile.path)
+      const workspaceRoot = this.getWorkspaceRootForPath(normalizedPreparedPath)
+      const kind = this.resolvePreviewKind(preparedFile.mimeType, normalizedPreparedPath)
 
       return {
-        path: preparedFile.path,
+        path: normalizedPreparedPath,
         relativePath: workspaceRoot
-          ? this.toRelativeWorkspacePath(workspaceRoot, preparedFile.path)
-          : path.basename(preparedFile.path),
+          ? this.toRelativeWorkspacePath(workspaceRoot, normalizedPreparedPath)
+          : normalizedPreparedPath,
         name: preparedFile.name,
         mimeType: preparedFile.mimeType,
         kind,
         content: kind === 'image' ? (preparedFile.thumbnail ?? '') : (preparedFile.content ?? ''),
-        previewUrl: this.resolvePreviewUrl(workspaceRoot, preparedFile.path, kind),
+        previewUrl: this.resolvePreviewUrl(workspaceRoot, normalizedPreparedPath, kind),
         thumbnail: preparedFile.thumbnail,
-        language: this.inferLanguage(filePath, kind),
+        language: this.inferLanguage(normalizedPreparedPath, kind),
         metadata: {
           ...preparedFile.metadata
         }
