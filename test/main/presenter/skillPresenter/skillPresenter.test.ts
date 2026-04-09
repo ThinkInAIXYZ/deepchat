@@ -150,7 +150,7 @@ import { randomUUID } from 'node:crypto'
 import logger from '@shared/logger'
 import { eventBus } from '../../../../src/main/eventbus'
 import { SKILL_EVENTS } from '../../../../src/main/events'
-import { SkillPresenter } from '../../../../src/main/presenter/skillPresenter/index'
+import { SKILL_CONFIG, SkillPresenter } from '../../../../src/main/presenter/skillPresenter/index'
 
 function createDirEntry(name: string) {
   return {
@@ -408,6 +408,45 @@ describe('SkillPresenter', () => {
       consoleSpy.mockRestore()
     })
 
+    it('continues discovery when a sibling directory cannot be read', async () => {
+      ;(fs.existsSync as Mock).mockReturnValue(true)
+      ;(fs.readdirSync as Mock).mockImplementation((target: string) => {
+        if (target === DEFAULT_SKILLS_DIR) {
+          return [createDirEntry('broken-skill'), createDirEntry('working-skill')]
+        }
+        if (target === `${DEFAULT_SKILLS_DIR}/broken-skill`) {
+          throw new Error('Access denied')
+        }
+        if (target === `${DEFAULT_SKILLS_DIR}/working-skill`) {
+          return [createFileEntry('SKILL.md')]
+        }
+        return []
+      })
+      ;(fs.readFileSync as Mock).mockImplementation((target: string) => target)
+      ;(matter as unknown as Mock).mockImplementation((raw: string) => ({
+        data: {
+          name: raw.includes('working-skill') ? 'working-skill' : 'broken-skill',
+          description: 'Skill description'
+        },
+        content: '# Skill body'
+      }))
+
+      const skills = await skillPresenter.discoverSkills()
+
+      expect(skills).toEqual([
+        expect.objectContaining({
+          name: 'working-skill'
+        })
+      ])
+      expect(logger.warn).toHaveBeenCalledWith(
+        '[SkillPresenter] Failed to scan skill directory, skipping subtree',
+        expect.objectContaining({
+          currentDir: `${DEFAULT_SKILLS_DIR}/broken-skill`,
+          error: expect.any(Error)
+        })
+      )
+    })
+
     it('sorts manifest paths before resolving duplicate skill names', async () => {
       const firstPath = `${DEFAULT_SKILLS_DIR}/a-first/SKILL.md`
       const secondPath = `${DEFAULT_SKILLS_DIR}/z-second/SKILL.md`
@@ -658,6 +697,44 @@ describe('SkillPresenter', () => {
         error: 'Requested skill file is outside the skill root'
       })
     })
+
+    it('returns a structured error when requested skill file access throws', async () => {
+      ;(fs.statSync as Mock).mockImplementation((target: string) => {
+        if (String(target).endsWith('/references/guide.md')) {
+          throw new Error('Disk failure')
+        }
+        return {
+          isFile: () => true,
+          size: 1024,
+          mtimeMs: Date.now()
+        }
+      })
+
+      const result = await skillPresenter.viewSkill('test-skill', {
+        filePath: 'references/guide.md'
+      })
+
+      expect(result).toEqual({
+        success: false,
+        error: 'Failed to load requested skill file: Disk failure'
+      })
+    })
+
+    it('returns a structured error when main skill content access throws', async () => {
+      ;(fs.readFileSync as Mock).mockImplementation((target: string) => {
+        if (String(target).endsWith('/test-skill/SKILL.md')) {
+          throw new Error('Read failure')
+        }
+        return target
+      })
+
+      const result = await skillPresenter.viewSkill('test-skill')
+
+      expect(result).toEqual({
+        success: false,
+        error: 'Failed to load skill view: Read failure'
+      })
+    })
   })
 
   describe('manageDraftSkill', () => {
@@ -682,6 +759,11 @@ describe('SkillPresenter', () => {
       )
       expect(result).not.toHaveProperty('draftPath')
       expect(randomUUID).toHaveBeenCalledTimes(1)
+      expect(fs.writeFileSync).toHaveBeenCalledWith(
+        expect.stringContaining('/.lastActivity'),
+        expect.any(String),
+        'utf-8'
+      )
       expect(fs.writeFileSync).toHaveBeenCalled()
       expect(fs.renameSync).toHaveBeenCalled()
     })
@@ -729,6 +811,38 @@ describe('SkillPresenter', () => {
       })
     })
 
+    it('refreshes the draft activity marker after successful draft file writes', async () => {
+      ;(matter as unknown as Mock).mockReturnValue({
+        data: { name: 'draft-skill', description: 'Draft' },
+        content: '# Draft body'
+      })
+
+      const draft = await skillPresenter.manageDraftSkill('conv-draft', {
+        action: 'create',
+        content: '---\nname: draft-skill\ndescription: Draft\n---\n\n# Draft body'
+      })
+      ;(fs.writeFileSync as Mock).mockClear()
+
+      const result = await skillPresenter.manageDraftSkill('conv-draft', {
+        action: 'write_file',
+        draftId: draft.draftId,
+        filePath: 'references/guide.md',
+        fileContent: '# Guide'
+      })
+
+      expect(result).toEqual({
+        success: true,
+        action: 'write_file',
+        draftId: draft.draftId,
+        filePath: 'references/guide.md'
+      })
+      expect(fs.writeFileSync).toHaveBeenCalledWith(
+        expect.stringContaining('/.lastActivity'),
+        expect.any(String),
+        'utf-8'
+      )
+    })
+
     it('rejects invalid conversation ids when creating draft directories', async () => {
       ;(matter as unknown as Mock).mockReturnValue({
         data: { name: 'draft-skill', description: 'Draft' },
@@ -770,6 +884,66 @@ describe('SkillPresenter', () => {
 
       expect(result.success).toBe(false)
       expect(result.error).toContain('Draft content rejected by security scan')
+    })
+  })
+
+  describe('cleanupExpiredDrafts', () => {
+    it('uses the last activity marker instead of the draft directory mtime', () => {
+      const now = 1_000_000
+      const conversationDir = '/mock/temp/deepchat-skill-drafts/conv-clean'
+      const staleDraftDir = `${conversationDir}/draft-stale`
+      const freshDraftDir = `${conversationDir}/draft-fresh`
+      const staleMarker = `${staleDraftDir}/.lastActivity`
+      const freshMarker = `${freshDraftDir}/.lastActivity`
+      ;(skillPresenter as any).draftsRoot = '/mock/temp/deepchat-skill-drafts'
+      ;(fs.existsSync as Mock).mockImplementation((target: string) => {
+        return (
+          target === '/mock/temp/deepchat-skill-drafts' ||
+          target === conversationDir ||
+          target === staleMarker ||
+          target === freshMarker
+        )
+      })
+      ;(fs.readdirSync as Mock).mockImplementation((target: string) => {
+        if (target === '/mock/temp/deepchat-skill-drafts') {
+          return [createDirEntry('conv-clean')]
+        }
+        if (target === conversationDir) {
+          return [createDirEntry('draft-stale'), createDirEntry('draft-fresh')]
+        }
+        return []
+      })
+      ;(fs.statSync as Mock).mockImplementation((target: string) => {
+        if (target === staleMarker) {
+          return { isFile: () => true, size: 0, mtimeMs: now - SKILL_CONFIG.DRAFT_RETENTION_MS - 1 }
+        }
+        if (target === freshMarker) {
+          return { isFile: () => true, size: 0, mtimeMs: now - SKILL_CONFIG.DRAFT_RETENTION_MS + 1 }
+        }
+        if (target === staleDraftDir) {
+          return { isFile: () => false, size: 0, mtimeMs: now }
+        }
+        if (target === freshDraftDir) {
+          return {
+            isFile: () => false,
+            size: 0,
+            mtimeMs: now - SKILL_CONFIG.DRAFT_RETENTION_MS - 1
+          }
+        }
+        return { isFile: () => true, size: 0, mtimeMs: now }
+      })
+
+      const dateNowSpy = vi.spyOn(Date, 'now').mockReturnValue(now)
+
+      ;(skillPresenter as any).cleanupExpiredDrafts()
+
+      expect(fs.rmSync).toHaveBeenCalledWith(staleDraftDir, { recursive: true, force: true })
+      expect(fs.rmSync).not.toHaveBeenCalledWith(freshDraftDir, {
+        recursive: true,
+        force: true
+      })
+
+      dateNowSpy.mockRestore()
     })
   })
 

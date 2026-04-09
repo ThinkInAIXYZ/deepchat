@@ -103,6 +103,7 @@ const BINARY_LIKE_EXTENSIONS = new Set([
 const DRAFT_ALLOWED_TOP_LEVEL_DIRS = new Set(['references', 'templates', 'scripts', 'assets'])
 const DRAFT_CONVERSATION_ID_PATTERN = /^[A-Za-z0-9._-]+$/
 const DRAFT_ID_PATTERN = /^[A-Za-z0-9._-]+$/
+const DRAFT_ACTIVITY_MARKER = '.lastActivity'
 const DRAFT_INJECTION_PATTERNS = [
   /ignore\s+previous\s+instructions/i,
   /disregard\s+all\s+prior/i,
@@ -493,81 +494,105 @@ export class SkillPresenter implements ISkillPresenter {
     const isPinned = pinnedSkills.includes(metadata.name)
 
     if (options?.filePath?.trim()) {
-      const resolvedPath = this.resolveSkillRelativePath(
-        metadata.skillRoot,
-        options.filePath.trim()
-      )
-      if (!resolvedPath) {
+      try {
+        const requestedFilePath = options.filePath.trim()
+        const resolvedPath = this.resolveSkillRelativePath(metadata.skillRoot, requestedFilePath)
+        if (!resolvedPath) {
+          return {
+            success: false,
+            error: 'Requested skill file is outside the skill root'
+          }
+        }
+
+        if (!fs.existsSync(resolvedPath)) {
+          return {
+            success: false,
+            error: `Skill file not found: ${requestedFilePath}`
+          }
+        }
+
+        const stats = fs.statSync(resolvedPath)
+        if (!stats.isFile()) {
+          return {
+            success: false,
+            error: 'Requested skill path is not a file'
+          }
+        }
+        if (stats.size > SKILL_CONFIG.MAX_LINKED_FILE_SIZE) {
+          return {
+            success: false,
+            error: 'Requested skill file is too large to load inline'
+          }
+        }
+        if (this.isBinaryLikeFile(resolvedPath)) {
+          return {
+            success: false,
+            error: 'Binary skill files cannot be loaded with skill_view'
+          }
+        }
+
+        return {
+          success: true,
+          name: metadata.name,
+          category: metadata.category ?? null,
+          skillRoot: metadata.skillRoot,
+          filePath: path.relative(metadata.skillRoot, resolvedPath),
+          content: fs.readFileSync(resolvedPath, 'utf-8'),
+          platforms: metadata.platforms,
+          metadata: metadata.metadata,
+          isPinned
+        }
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error)
+        console.error('[SkillPresenter] Failed to load requested skill file for skill_view:', {
+          name: metadata.name,
+          filePath: options.filePath.trim(),
+          error
+        })
         return {
           success: false,
-          error: 'Requested skill file is outside the skill root'
+          error: `Failed to load requested skill file: ${errorMessage}`
+        }
+      }
+    }
+
+    try {
+      const stats = fs.statSync(metadata.path)
+      if (stats.size > SKILL_CONFIG.SKILL_FILE_MAX_SIZE) {
+        const errorMessage = `[SkillPresenter] Skill file too large: ${stats.size} bytes (max: ${SKILL_CONFIG.SKILL_FILE_MAX_SIZE})`
+        console.error(errorMessage)
+        return {
+          success: false,
+          error: errorMessage
         }
       }
 
-      if (!fs.existsSync(resolvedPath)) {
-        return {
-          success: false,
-          error: `Skill file not found: ${options.filePath.trim()}`
-        }
-      }
-
-      const stats = fs.statSync(resolvedPath)
-      if (!stats.isFile()) {
-        return {
-          success: false,
-          error: 'Requested skill path is not a file'
-        }
-      }
-      if (stats.size > SKILL_CONFIG.MAX_LINKED_FILE_SIZE) {
-        return {
-          success: false,
-          error: 'Requested skill file is too large to load inline'
-        }
-      }
-      if (this.isBinaryLikeFile(resolvedPath)) {
-        return {
-          success: false,
-          error: 'Binary skill files cannot be loaded with skill_view'
-        }
-      }
+      const rawContent = fs.readFileSync(metadata.path, 'utf-8')
+      const { content } = matter(rawContent)
 
       return {
         success: true,
         name: metadata.name,
         category: metadata.category ?? null,
         skillRoot: metadata.skillRoot,
-        filePath: path.relative(metadata.skillRoot, resolvedPath),
-        content: fs.readFileSync(resolvedPath, 'utf-8'),
+        filePath: null,
+        content: this.replacePathVariables(content, metadata),
         platforms: metadata.platforms,
         metadata: metadata.metadata,
+        linkedFiles: this.listSkillLinkedFiles(metadata.skillRoot),
         isPinned
       }
-    }
-
-    const stats = fs.statSync(metadata.path)
-    if (stats.size > SKILL_CONFIG.SKILL_FILE_MAX_SIZE) {
-      const errorMessage = `[SkillPresenter] Skill file too large: ${stats.size} bytes (max: ${SKILL_CONFIG.SKILL_FILE_MAX_SIZE})`
-      console.error(errorMessage)
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      console.error('[SkillPresenter] Failed to load skill_view content:', {
+        name: metadata.name,
+        path: metadata.path,
+        error
+      })
       return {
         success: false,
-        error: errorMessage
+        error: `Failed to load skill view: ${errorMessage}`
       }
-    }
-
-    const rawContent = fs.readFileSync(metadata.path, 'utf-8')
-    const { content } = matter(rawContent)
-
-    return {
-      success: true,
-      name: metadata.name,
-      category: metadata.category ?? null,
-      skillRoot: metadata.skillRoot,
-      filePath: null,
-      content: this.replacePathVariables(content, metadata),
-      platforms: metadata.platforms,
-      metadata: metadata.metadata,
-      linkedFiles: this.listSkillLinkedFiles(metadata.skillRoot),
-      isPinned
     }
   }
 
@@ -586,6 +611,7 @@ export class SkillPresenter implements ISkillPresenter {
           }
           const { draftId, draftPath } = this.createDraftHandle(conversationId)
           this.atomicWriteFile(path.join(draftPath, 'SKILL.md'), request.content!)
+          this.touchDraftActivity(draftPath)
           return { success: true, action, draftId, skillName: parsed.skillName }
         }
         case 'edit': {
@@ -613,6 +639,7 @@ export class SkillPresenter implements ISkillPresenter {
             return { success: false, action, error: 'Draft not found' }
           }
           this.atomicWriteFile(path.join(draftPath, 'SKILL.md'), request.content!)
+          this.touchDraftActivity(draftPath)
           return { success: true, action, draftId, skillName: parsed.skillName }
         }
         case 'write_file': {
@@ -656,6 +683,7 @@ export class SkillPresenter implements ISkillPresenter {
           }
           fs.mkdirSync(path.dirname(resolvedFilePath), { recursive: true })
           this.atomicWriteFile(resolvedFilePath, request.fileContent)
+          this.touchDraftActivity(draftPath)
           return {
             success: true,
             action,
@@ -695,6 +723,7 @@ export class SkillPresenter implements ISkillPresenter {
             return { success: false, action, error: 'Draft file not found' }
           }
           fs.rmSync(resolvedFilePath, { force: true })
+          this.touchDraftActivity(draftPath)
           return {
             success: true,
             action,
@@ -1733,7 +1762,17 @@ export class SkillPresenter implements ISkillPresenter {
       return acc
     }
 
-    const entries = fs.readdirSync(currentDir, { withFileTypes: true })
+    let entries: fs.Dirent[]
+    try {
+      entries = fs.readdirSync(currentDir, { withFileTypes: true })
+    } catch (error) {
+      logger.warn('[SkillPresenter] Failed to scan skill directory, skipping subtree', {
+        currentDir,
+        error
+      })
+      return acc
+    }
+
     for (const entry of entries) {
       if (entry.isSymbolicLink()) {
         continue
@@ -1980,6 +2019,22 @@ export class SkillPresenter implements ISkillPresenter {
     return resolvedPath
   }
 
+  private getDraftActivityMarkerPath(draftPath: string): string {
+    return path.join(draftPath, DRAFT_ACTIVITY_MARKER)
+  }
+
+  private touchDraftActivity(draftPath: string): void {
+    fs.writeFileSync(this.getDraftActivityMarkerPath(draftPath), `${Date.now()}`, 'utf-8')
+  }
+
+  private getDraftLastActivityMs(draftPath: string): number {
+    const markerPath = this.getDraftActivityMarkerPath(draftPath)
+    if (fs.existsSync(markerPath)) {
+      return fs.statSync(markerPath).mtimeMs
+    }
+    return fs.statSync(draftPath).mtimeMs
+  }
+
   private atomicWriteFile(targetPath: string, content: string): void {
     const tempPath = path.join(
       path.dirname(targetPath),
@@ -2009,8 +2064,8 @@ export class SkillPresenter implements ISkillPresenter {
         }
 
         const draftDir = path.join(conversationDir, draftEntry.name)
-        const stats = fs.statSync(draftDir)
-        if (now - stats.mtimeMs > SKILL_CONFIG.DRAFT_RETENTION_MS) {
+        const lastActivityMs = this.getDraftLastActivityMs(draftDir)
+        if (now - lastActivityMs > SKILL_CONFIG.DRAFT_RETENTION_MS) {
           fs.rmSync(draftDir, { recursive: true, force: true })
         }
       }
