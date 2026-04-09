@@ -20,7 +20,11 @@ type TestGenerationSettings = {
 type ExtraModelGroup = {
   providerId: string
   providerName: string
-  models: Array<{ id: string; name: string }>
+  models: Array<{
+    id: string
+    name: string
+    type?: 'chat' | 'embedding' | 'rerank' | 'imageGeneration'
+  }>
 }
 
 type SetupOptions = {
@@ -654,6 +658,51 @@ describe('ChatStatusBar model and session panels', () => {
     await flushPromises()
 
     expect((wrapper.vm as any).isModelSettingsExpanded).toBe(true)
+  })
+
+  it('filters embedding and rerank models out of the chat model list', async () => {
+    const { wrapper } = await setup({
+      extraModelGroups: [
+        {
+          providerId: 'new-api',
+          providerName: 'New API',
+          models: [
+            { id: 'text-embedding-3-large', name: 'Embedding', type: 'embedding' },
+            { id: 'bge-rerank-v2', name: 'Rerank', type: 'rerank' },
+            { id: 'gpt-4.1', name: 'GPT-4.1', type: 'chat' },
+            { id: 'gpt-image-1', name: 'GPT Image 1', type: 'imageGeneration' }
+          ]
+        }
+      ]
+    })
+
+    const filteredGroups = (wrapper.vm as any).filteredModelGroups as Array<{
+      providerId: string
+      models: Array<{ id: string }>
+    }>
+    const newApiGroup = filteredGroups.find((group) => group.providerId === 'new-api')
+
+    expect(newApiGroup?.models.map((model) => model.id)).toEqual(['gpt-4.1', 'gpt-image-1'])
+    expect(wrapper.text()).not.toContain('text-embedding-3-large')
+    expect(wrapper.text()).not.toContain('bge-rerank-v2')
+  })
+
+  it('skips non-chat defaults and falls back to the first chat-selectable model', async () => {
+    const { wrapper, draftStore } = await setup({
+      extraModelGroups: [
+        {
+          providerId: 'new-api',
+          providerName: 'New API',
+          models: [{ id: 'text-embedding-3-large', name: 'Embedding', type: 'embedding' }]
+        }
+      ],
+      defaultModel: { providerId: 'new-api', modelId: 'text-embedding-3-large' },
+      preferredModel: undefined
+    })
+
+    expect(draftStore.providerId).toBe('openai')
+    expect(draftStore.modelId).toBe('gpt-4')
+    expect((wrapper.vm as any).displayModelText).toBe('gpt-4')
   })
 
   it('shows reasoning effort controls only when model capability supports it', async () => {

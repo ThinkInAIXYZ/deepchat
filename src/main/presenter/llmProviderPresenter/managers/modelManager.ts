@@ -42,12 +42,14 @@ export class ModelManager {
         model.functionCall = config.functionCall
         model.reasoning = config.reasoning
         model.type = config.type
+        model.endpointType = config.endpointType ?? model.endpointType
       } else {
         model.vision = model.vision !== undefined ? model.vision : config.vision
         model.functionCall =
           model.functionCall !== undefined ? model.functionCall : config.functionCall
         model.reasoning = model.reasoning !== undefined ? model.reasoning : config.reasoning
         model.type = model.type || config.type
+        model.endpointType = model.endpointType ?? config.endpointType
       }
 
       return model

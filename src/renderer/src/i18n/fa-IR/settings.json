@@ -452,6 +452,19 @@
           "chat": "تولید متن",
           "image": "تولید تصویر"
         }
+      },
+      "endpointType": {
+        "label": "Endpoint Type",
+        "description": "Select which upstream protocol New API should use for this model.",
+        "placeholder": "Select endpoint type",
+        "required": "Endpoint type is required",
+        "options": {
+          "openai": "OpenAI Chat",
+          "openai-response": "OpenAI Responses",
+          "anthropic": "Anthropic Messages",
+          "gemini": "Gemini Native",
+          "image-generation": "Image Generation"
+        }
       }
     }
   },
@@ -586,7 +599,6 @@
         "description": "تغییر آدرس پایه برای این ارائه‌دهنده توصیه نمی‌شود. یک نقطه‌پایان نادرست ممکن است باعث شکست درخواست‌ها یا رفتارهای غیرمنتظره دیگر شود. اگر از این ریسک آگاه هستید، می‌توانید ادامه دهید.",
         "confirm": "ادامه"
       },
-
       "deleteProvider": {
         "title": "پذیرش پاک کردن فراهم‌کننده",
         "content": "آیا مطمئن هستید که می‌خواهید فراهم‌کننده \"{name}\" را پاک کنید؟ این کنش بازگشت‌پذیر نیست.",

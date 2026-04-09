@@ -118,7 +118,9 @@ export const useModelStore = defineStore('model', () => {
     functionCall: resolveModelFunctionCall(model.functionCall),
     reasoning: model.reasoning ?? false,
     enableSearch: (model as RENDERER_MODEL_META).enableSearch ?? false,
-    type: (model.type ?? ModelType.Chat) as ModelType
+    type: (model.type ?? ModelType.Chat) as ModelType,
+    supportedEndpointTypes: model.supportedEndpointTypes,
+    endpointType: model.endpointType
   })
 
   const createQueryHandle = <TData>(
@@ -215,7 +217,8 @@ export const useModelStore = defineStore('model', () => {
           vision: resolveModelVision(config.vision ?? normalized.vision),
           functionCall: resolveModelFunctionCall(config.functionCall ?? normalized.functionCall),
           reasoning: config.reasoning ?? normalized.reasoning ?? false,
-          type: config.type ?? normalized.type ?? ModelType.Chat
+          type: config.type ?? normalized.type ?? ModelType.Chat,
+          endpointType: config.endpointType ?? normalized.endpointType
         }
       }
     } catch (error) {
@@ -355,7 +358,10 @@ export const useModelStore = defineStore('model', () => {
               (model as RENDERER_MODEL_META).enableSearch ??
               (fallback as RENDERER_MODEL_META | undefined)?.enableSearch ??
               false,
-            type: (model.type ?? fallback?.type ?? ModelType.Chat) as ModelType
+            type: (model.type ?? fallback?.type ?? ModelType.Chat) as ModelType,
+            supportedEndpointTypes:
+              model.supportedEndpointTypes ?? fallback?.supportedEndpointTypes,
+            endpointType: model.endpointType ?? fallback?.endpointType
           }
         }
 
@@ -409,7 +415,9 @@ export const useModelStore = defineStore('model', () => {
               vision: meta.vision || false,
               functionCall: meta.functionCall || false,
               reasoning: meta.reasoning || false,
-              type: (meta.type || ModelType.Chat) as ModelType
+              type: (meta.type || ModelType.Chat) as ModelType,
+              supportedEndpointTypes: meta.supportedEndpointTypes,
+              endpointType: meta.endpointType
             }))
           }
         } catch (error) {

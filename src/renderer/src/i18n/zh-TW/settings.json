@@ -452,6 +452,19 @@
           "chat": "文字生成",
           "image": "圖片生成"
         }
+      },
+      "endpointType": {
+        "label": "Endpoint Type",
+        "description": "Select which upstream protocol New API should use for this model.",
+        "placeholder": "Select endpoint type",
+        "required": "Endpoint type is required",
+        "options": {
+          "openai": "OpenAI Chat",
+          "openai-response": "OpenAI Responses",
+          "anthropic": "Anthropic Messages",
+          "gemini": "Gemini Native",
+          "image-generation": "Image Generation"
+        }
       }
     }
   },
@@ -586,7 +599,6 @@
         "description": "此類 provider 不建議修改 Base URL，錯誤的位址可能導致請求失敗或行為異常。確認後仍可繼續手動修改。",
         "confirm": "繼續修改"
       },
-
       "deleteProvider": {
         "title": "確認刪除服務提供者",
         "content": "是否確認刪除服務提供者「{name}」？此操作無法復原。",

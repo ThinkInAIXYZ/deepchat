@@ -514,6 +514,19 @@
         "temperatureRequired": "温度不能为空",
         "temperatureMin": "温度必须大于等于0",
         "temperatureMax": "温度必须小于等于2"
+      },
+      "endpointType": {
+        "label": "协议类型",
+        "description": "选择 New API 为当前模型使用的上游协议。",
+        "placeholder": "选择协议类型",
+        "required": "协议类型为必填项",
+        "options": {
+          "openai": "OpenAI Chat",
+          "openai-response": "OpenAI Responses",
+          "anthropic": "Anthropic Messages",
+          "gemini": "Gemini Native",
+          "image-generation": "Image Generation"
+        }
       }
     }
   },
@@ -721,7 +734,6 @@
         "description": "此类 provider 不建议修改 Base URL，错误的地址可能导致请求失败或行为异常。确认后仍可继续手动修改。",
         "confirm": "继续修改"
       },
-
       "deleteProvider": {
         "title": "确认删除服务商",
         "content": "是否确认删除服务商 \"{name}\"？此操作不可恢复。",

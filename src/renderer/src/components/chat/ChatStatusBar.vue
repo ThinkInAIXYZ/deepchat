@@ -741,6 +741,7 @@ import type {
   SessionGenerationSettings
 } from '@shared/types/agent-interface'
 import { normalizeDeepChatSubagentConfig } from '@shared/lib/deepchatSubagents'
+import { isChatSelectableModelType } from '@shared/model'
 import type { ReasoningPortrait } from '@shared/types/model-db'
 import {
   normalizeLegacyThinkingBudgetValue,
@@ -1002,11 +1003,15 @@ const providerNameMap = computed(() => {
   return map
 })
 
+const getChatSelectableModels = (models: RENDERER_MODEL_META[]): RENDERER_MODEL_META[] =>
+  models.filter((model) => isChatSelectableModelType(model.type))
+
 const modelGroups = computed<GroupedModelList[]>(() => {
   const groupsById = new Map(
     modelStore.enabledModels
       .filter((group) => group.providerId !== 'acp')
-      .map((group) => [group.providerId, group.models] as const)
+      .map((group) => [group.providerId, getChatSelectableModels(group.models)] as const)
+      .filter(([, models]) => models.length > 0)
   )
 
   const result: GroupedModelList[] = []
@@ -1390,7 +1395,10 @@ const getAcpOptionDisplayValue = (option: AcpConfigOption): string => {
 
 const findEnabledModelMeta = (providerId: string, modelId: string): RENDERER_MODEL_META | null => {
   const group = modelStore.enabledModels.find((item) => item.providerId === providerId)
-  return group?.models.find((model) => model.id === modelId) ?? null
+  return (
+    group?.models.find((model) => model.id === modelId && isChatSelectableModelType(model.type)) ??
+    null
+  )
 }
 
 const getReasoningEffortOptions = (
@@ -1499,13 +1507,13 @@ const findEnabledModel = (providerId: string, modelId: string): ModelSelection |
 const pickFirstEnabledModel = (): ModelSelection | null => {
   for (const group of modelStore.enabledModels) {
     if (group.providerId === 'acp') continue
-    const firstModel = group.models[0]
+    const firstModel = group.models.find((model) => isChatSelectableModelType(model.type))
     if (firstModel) {
       return { providerId: group.providerId, modelId: firstModel.id }
     }
   }
   for (const group of modelStore.enabledModels) {
-    const firstModel = group.models[0]
+    const firstModel = group.models.find((model) => isChatSelectableModelType(model.type))
     if (firstModel) {
       return { providerId: group.providerId, modelId: firstModel.id }
     }

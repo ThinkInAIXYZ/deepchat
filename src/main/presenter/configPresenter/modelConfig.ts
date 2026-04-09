@@ -1,4 +1,4 @@
-import { ApiEndpointType, ModelType } from '@shared/model'
+import { ApiEndpointType, ModelType, isNewApiEndpointType } from '@shared/model'
 import { IModelConfig, ModelConfig, ModelConfigSource } from '@shared/presenter'
 import {
   DEFAULT_MODEL_CAPABILITY_FALLBACKS,
@@ -453,6 +453,7 @@ export class ModelConfigHelper {
         temperature: 0.6,
         type: ModelType.Chat,
         apiEndpoint: ApiEndpointType.Chat,
+        endpointType: undefined,
         thinkingBudget: undefined,
         forceInterleavedThinkingCompat: undefined,
         reasoningEffort: undefined,
@@ -476,6 +477,9 @@ export class ModelConfigHelper {
         maxCompletionTokens: storedConfig.maxCompletionTokens ?? finalConfig.maxCompletionTokens,
         conversationId: storedConfig.conversationId ?? finalConfig.conversationId,
         apiEndpoint: storedConfig.apiEndpoint ?? finalConfig.apiEndpoint,
+        endpointType: isNewApiEndpointType(storedConfig.endpointType)
+          ? storedConfig.endpointType
+          : finalConfig.endpointType,
         enableSearch: storedConfig.enableSearch ?? finalConfig.enableSearch,
         forcedSearch: storedConfig.forcedSearch ?? finalConfig.forcedSearch,
         searchStrategy: storedConfig.searchStrategy ?? finalConfig.searchStrategy,

@@ -514,6 +514,19 @@
           "chat": "Text Generation",
           "image": "Image Generation"
         }
+      },
+      "endpointType": {
+        "label": "Endpoint Type",
+        "description": "Select which upstream protocol New API should use for this model.",
+        "placeholder": "Select endpoint type",
+        "required": "Endpoint type is required",
+        "options": {
+          "openai": "OpenAI Chat",
+          "openai-response": "OpenAI Responses",
+          "anthropic": "Anthropic Messages",
+          "gemini": "Gemini Native",
+          "image-generation": "Image Generation"
+        }
       }
     }
   },
@@ -616,7 +629,6 @@
         "description": "Changing the Base URL for this provider is not recommended. An incorrect endpoint may cause request failures or other unexpected behavior. You can still continue if you understand the risk.",
         "confirm": "Continue"
       },
-
       "deleteProvider": {
         "title": "Confirm Delete Provider",
         "content": "Are you sure you want to delete provider \"{name}\"? This action cannot be undone.",

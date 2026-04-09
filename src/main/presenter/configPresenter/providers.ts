@@ -203,6 +203,21 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
     }
   },
   {
+    id: 'new-api',
+    name: 'New API',
+    apiType: 'new-api',
+    apiKey: '',
+    baseUrl: 'https://www.newapi.ai',
+    enable: false,
+    websites: {
+      official: 'https://www.newapi.ai/',
+      apiKey: 'https://www.newapi.ai/token',
+      docs: 'https://www.newapi.ai/zh/docs/api',
+      models: 'https://www.newapi.ai/zh/docs/api',
+      defaultBaseUrl: 'https://www.newapi.ai'
+    }
+  },
+  {
     id: 'openai',
     name: 'OpenAI',
     apiType: 'openai',

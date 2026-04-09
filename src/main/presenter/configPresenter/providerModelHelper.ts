@@ -93,6 +93,7 @@ export class ProviderModelHelper {
         model.reasoning =
           model.reasoning !== undefined ? model.reasoning : config.reasoning || false
         model.type = model.type !== undefined ? model.type : config.type || ModelType.Chat
+        model.endpointType = config.endpointType ?? model.endpointType
       } else {
         model.vision = model.vision || false
         model.functionCall = model.functionCall || false
@@ -153,10 +154,12 @@ export class ProviderModelHelper {
     const store = this.getProviderModelStore(providerId)
     const customModels = (store.get('custom_models') || []) as MODEL_META[]
     return customModels.map((model) => {
+      const config = this.getModelConfig(model.id, providerId)
       model.vision = model.vision !== undefined ? model.vision : false
       model.functionCall = model.functionCall !== undefined ? model.functionCall : false
       model.reasoning = model.reasoning !== undefined ? model.reasoning : false
       model.type = model.type || ModelType.Chat
+      model.endpointType = config?.endpointType ?? model.endpointType
       return model
     })
   }

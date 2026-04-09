@@ -77,6 +77,10 @@ export abstract class BaseLLMProvider {
     return BaseLLMProvider.DEFAULT_MODEL_FETCH_TIMEOUT
   }
 
+  protected getCapabilityProviderId(): string {
+    return this.provider.capabilityProviderId || this.provider.id
+  }
+
   /**
    * Load cached model data from configuration
    * Called in constructor to avoid needing to re-fetch model lists every time

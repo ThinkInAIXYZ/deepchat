@@ -398,6 +398,19 @@
           "chat": "tekstgenerering",
           "image": "Billedgenerering"
         }
+      },
+      "endpointType": {
+        "label": "Endpoint Type",
+        "description": "Select which upstream protocol New API should use for this model.",
+        "placeholder": "Select endpoint type",
+        "required": "Endpoint type is required",
+        "options": {
+          "openai": "OpenAI Chat",
+          "openai-response": "OpenAI Responses",
+          "anthropic": "Anthropic Messages",
+          "gemini": "Gemini Native",
+          "image-generation": "Image Generation"
+        }
       }
     }
   },
@@ -520,7 +533,6 @@
         "description": "Det anbefales ikke at ændre basis-URL'en for denne udbyder. Et forkert endpoint kan medføre fejl i forespørgsler eller anden uventet adfærd. Du kan stadig fortsætte, hvis du forstår risikoen.",
         "confirm": "Fortsæt"
       },
-
       "deleteProvider": {
         "title": "Bekræft sletning af udbyder",
         "content": "Er du sikker på, at du vil slette udbyderen \"{name}\"? Handlingen kan ikke fortrydes.",

@@ -452,6 +452,19 @@
           "chat": "генерация текста",
           "image": "Генерация изображений"
         }
+      },
+      "endpointType": {
+        "label": "Endpoint Type",
+        "description": "Select which upstream protocol New API should use for this model.",
+        "placeholder": "Select endpoint type",
+        "required": "Endpoint type is required",
+        "options": {
+          "openai": "OpenAI Chat",
+          "openai-response": "OpenAI Responses",
+          "anthropic": "Anthropic Messages",
+          "gemini": "Gemini Native",
+          "image-generation": "Image Generation"
+        }
       }
     }
   },
@@ -580,7 +593,6 @@
         "description": "Изменять базовый URL для этого провайдера не рекомендуется. Неверный адрес конечной точки может привести к ошибкам запросов или другому непредвиденному поведению. Если вы понимаете риск, всё равно можно продолжить.",
         "confirm": "Продолжить"
       },
-
       "deleteProvider": {
         "title": "Подтверждение удаления провайдера",
         "content": "Вы уверены, что хотите удалить провайдера \"{name}\"? Это действие нельзя отменить.",
