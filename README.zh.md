@@ -161,15 +161,19 @@ ACP 生态中更多兼容 Agent/Client 参考：https://agentclientprotocol.com/
       <a href="https://www.qiniu.com">七牛</a>
     </td>
     <td>
+      <img src="./src/renderer/src/assets/llm-icons/newapi.svg" width="50" height="50" alt="NewApi图标"><br/>
+      <a href="https://www.newapi.ai/">NewApi</a>
+    </td>
+    <td>
       <img src="./src/renderer/src/assets/llm-icons/grok.svg" width="50" height="50" alt="Grok图标"><br/>
       <a href="https://x.ai/">Grok</a>
     </td>
+  </tr>
+  <tr align="center">
     <td>
       <img src="./src/renderer/src/assets/llm-icons/zhipu-color.svg" width="50" height="50" alt="智谱图标"><br/>
       <a href="https://open.bigmodel.cn/">智谱</a>
     </td>
-  </tr>
-  <tr align="center">
     <td>
       <img src="./src/renderer/src/assets/llm-icons/ppio-color.svg" width="50" height="50" alt="PPIO图标"><br/>
       <a href="https://ppinfra.com/">派欧云</a>
@@ -182,12 +186,12 @@ ACP 生态中更多兼容 Agent/Client 参考：https://agentclientprotocol.com/
       <img src="./src/renderer/src/assets/llm-icons/fireworks-color.svg" width="50" height="50" alt="Fireworks图标"><br/>
       <a href="https://fireworks.ai/">Fireworks</a>
     </td>
+  </tr>
+  <tr align="center">
     <td>
       <img src="./src/renderer/src/assets/llm-icons/aihubmix.png" width="50" height="50" alt="AIHubMix图标"><br/>
       <a href="https://aihubmix.com/">推理时代</a>
     </td>
-  </tr>
-  <tr align="center">
     <td>
       <img src="./src/renderer/src/assets/llm-icons/doubao-color.svg" width="50" height="50" alt="Doubao图标"><br/>
       <a href="https://console.volcengine.com/ark/">火山引擎</a>
@@ -200,12 +204,12 @@ ACP 生态中更多兼容 Agent/Client 参考：https://agentclientprotocol.com/
       <img src="./src/renderer/src/assets/llm-icons/groq.svg" width="50" height="50" alt="Groq图标"><br/>
       <a href="https://groq.com/">Groq</a>
     </td>
+  </tr>
+  <tr align="center">
     <td>
       <img src="./src/renderer/src/assets/llm-icons/jiekou-color.svg" width="50" height="50" alt="JieKou.AI图标"><br/>
       <a href="https://jiekou.ai?utm_source=github_deepchat">JieKou.AI</a>
     </td>
-  </tr>
-  <tr align="center">
     <td>
       <img src="./src/renderer/src/assets/llm-icons/zenmux-color.svg" width="50" height="50" alt="ZenMux图标"><br/>
       <a href="https://zenmux.ai/">ZenMux</a>
@@ -218,12 +222,12 @@ ACP 生态中更多兼容 Agent/Client 参考：https://agentclientprotocol.com/
       <img src="./src/renderer/src/assets/llm-icons/lmstudio.svg" width="50" height="50" alt="LM Studio图标"><br/>
       <a href="https://lmstudio.ai/docs/app">LM Studio</a>
     </td>
+  </tr>
+  <tr align="center">
     <td>
       <img src="./src/renderer/src/assets/llm-icons/hunyuan-color.svg" width="50" height="50" alt="混元图标"><br/>
       <a href="https://cloud.tencent.com/product/hunyuan">混元</a>
     </td>
-  </tr>
-  <tr align="center">
     <td>
       <img src="./src/renderer/src/assets/llm-icons/302ai.svg" width="50" height="50" alt="302.AI图标"><br/>
       <a href="https://302.ai">302.AI</a>
@@ -236,12 +240,12 @@ ACP 生态中更多兼容 Agent/Client 参考：https://agentclientprotocol.com/
       <img src="./src/renderer/src/assets/llm-icons/poe-color.svg" width="50" height="50" alt="Poe图标"><br/>
       <a href="https://poe.com/">Poe</a>
     </td>
+  </tr>
+  <tr align="center">
     <td>
       <img src="./src/renderer/src/assets/llm-icons/vercel.svg" width="50" height="50" alt="Vercel AI Gateway图标"><br/>
       <a href="https://vercel.com/ai">Vercel AI Gateway</a>
     </td>
-  </tr>
-  <tr align="center">
     <td>
       <img src="./src/renderer/src/assets/llm-icons/openrouter.svg" width="50" height="50" alt="OpenRouter图标"><br/>
       <a href="https://openrouter.ai/">OpenRouter</a>
@@ -254,12 +258,12 @@ ACP 生态中更多兼容 Agent/Client 参考：https://agentclientprotocol.com/
       <img src="./src/renderer/src/assets/llm-icons/tokenflux-color.svg" width="50" height="50" alt="TokenFlux图标"><br/>
       <a href="https://tokenflux.ai/">TokenFlux</a>
     </td>
+  </tr>
+  <tr align="center">
     <td>
       <img src="./src/renderer/src/assets/llm-icons/burncloud-color.svg" width="50" height="50" alt="BurnCloud图标"><br/>
       <a href="https://www.burncloud.com/">BurnCloud</a>
     </td>
-  </tr>
-  <tr align="center">
     <td>
       <img src="./src/renderer/src/assets/llm-icons/openai.svg" width="50" height="50" alt="OpenAI Responses图标"><br/>
       <a href="https://openai.com/">OpenAI Responses</a>
@@ -272,12 +276,12 @@ ACP 生态中更多兼容 Agent/Client 参考：https://agentclientprotocol.com/
       <img src="./src/renderer/src/assets/llm-icons/modelscope-color.svg" width="50" height="50" alt="ModelScope图标"><br/>
       <a href="https://modelscope.cn/">魔塔社区</a>
     </td>
+  </tr>
+  <tr align="center">
     <td>
       <img src="./src/renderer/src/assets/llm-icons/aws-bedrock.svg" width="50" height="50" alt="AWS Bedrock图标"><br/>
       <a href="https://aws.amazon.com/bedrock/">AWS Bedrock</a>
     </td>
-  </tr>
-  <tr align="center">
     <td>
       <img src="./src/renderer/src/assets/llm-icons/siliconcloud-color.svg" width="50" height="50" alt="SiliconFlow图标"><br/>
       <a href="https://www.siliconflow.cn/">硅基流动</a>
@@ -286,7 +290,6 @@ ACP 生态中更多兼容 Agent/Client 参考：https://agentclientprotocol.com/
       <img src="./src/renderer/src/assets/llm-icons/anthropic.svg" width="50" height="50" alt="Anthropic图标"><br/>
       <a href="https://www.anthropic.com/">Anthropic</a>
     </td>
-    <td></td>
     <td></td>
   </tr>
 
