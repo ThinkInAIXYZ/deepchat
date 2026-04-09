@@ -1253,6 +1253,10 @@
   },
   "skills": {
     "addSkill": "Tilføj færdighed",
+    "draftSuggestions": {
+      "title": "Foreslå skill-kladder",
+      "description": "Når en opgave er færdig, kan agenten foreslå midlertidige og genanvendelige skill-kladder. Kladderne bliver i en midlertidig mappe, indtil du vælger at importere dem manuelt."
+    },
     "conflict": {
       "description": "Skillen \"{name}\" findes allerede. Vil du overskrive?",
       "overwrite": "dække",

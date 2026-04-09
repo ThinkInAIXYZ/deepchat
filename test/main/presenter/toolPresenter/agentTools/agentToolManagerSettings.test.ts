@@ -19,6 +19,7 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
     getActiveSkills: vi.fn(),
     getActiveSkillsAllowedTools: vi.fn(),
     listSkillScripts: vi.fn().mockResolvedValue([]),
+    manageDraftSkill: vi.fn(),
     getSkillExtension: vi.fn().mockResolvedValue({
       version: 1,
       env: {},
@@ -62,6 +63,7 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
     resolveConversationWorkdir.mockResolvedValue(null)
     resolveConversationSessionInfo.mockResolvedValue(null)
     skillPresenter.listSkillScripts.mockResolvedValue([])
+    skillPresenter.manageDraftSkill.mockResolvedValue({ success: true, action: 'create' })
     getToolDefinitions.mockReturnValue([])
   })
 
@@ -124,6 +126,100 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
     })
 
     expect(defs.map((def) => def.function.name)).toContain('skill_run')
+  })
+
+  it('exposes skill inspection and draft tools without skill_control', async () => {
+    skillPresenter.getActiveSkills.mockResolvedValue([])
+    skillPresenter.getActiveSkillsAllowedTools.mockResolvedValue([])
+
+    const manager = buildManager()
+
+    const defs = await manager.getAllToolDefinitions({
+      chatMode: 'agent',
+      supportsVision: false,
+      agentWorkspacePath: null,
+      conversationId: 'conv-1'
+    })
+
+    const names = defs.map((def) => def.function.name)
+    expect(names).toContain('skill_list')
+    expect(names).toContain('skill_view')
+    expect(names).toContain('skill_manage')
+    expect(names).not.toContain('skill_control')
+  })
+
+  it('rejects skill_manage create requests without content before calling the presenter', async () => {
+    skillPresenter.getActiveSkills.mockResolvedValue([])
+    skillPresenter.getActiveSkillsAllowedTools.mockResolvedValue([])
+    const manager = buildManager()
+
+    await expect(manager.callTool('skill_manage', { action: 'create' }, 'conv-1')).rejects.toThrow(
+      'Invalid arguments for skill_manage'
+    )
+    expect(skillPresenter.manageDraftSkill).not.toHaveBeenCalled()
+  })
+
+  it('rejects skill_manage edit requests without draftId before calling the presenter', async () => {
+    skillPresenter.getActiveSkills.mockResolvedValue([])
+    skillPresenter.getActiveSkillsAllowedTools.mockResolvedValue([])
+    const manager = buildManager()
+
+    await expect(
+      manager.callTool(
+        'skill_manage',
+        {
+          action: 'edit',
+          content: '---\nname: draft\ndescription: Draft\n---\n\nBody'
+        },
+        'conv-1'
+      )
+    ).rejects.toThrow('Invalid arguments for skill_manage')
+    expect(skillPresenter.manageDraftSkill).not.toHaveBeenCalled()
+  })
+
+  it('rejects skill_manage write_file requests without fileContent before calling the presenter', async () => {
+    skillPresenter.getActiveSkills.mockResolvedValue([])
+    skillPresenter.getActiveSkillsAllowedTools.mockResolvedValue([])
+    const manager = buildManager()
+
+    await expect(
+      manager.callTool(
+        'skill_manage',
+        {
+          action: 'write_file',
+          draftId: 'draft-1',
+          filePath: 'references/guide.md'
+        },
+        'conv-1'
+      )
+    ).rejects.toThrow('Invalid arguments for skill_manage')
+    expect(skillPresenter.manageDraftSkill).not.toHaveBeenCalled()
+  })
+
+  it('passes valid skill_manage create requests to the presenter', async () => {
+    skillPresenter.getActiveSkills.mockResolvedValue([])
+    skillPresenter.getActiveSkillsAllowedTools.mockResolvedValue([])
+    skillPresenter.manageDraftSkill.mockResolvedValue({
+      success: true,
+      action: 'create',
+      draftId: 'draft-1'
+    })
+    const manager = buildManager()
+
+    const result = (await manager.callTool(
+      'skill_manage',
+      {
+        action: 'create',
+        content: '---\nname: draft\ndescription: Draft\n---\n\nBody'
+      },
+      'conv-1'
+    )) as { content: string }
+
+    expect(skillPresenter.manageDraftSkill).toHaveBeenCalledWith('conv-1', {
+      action: 'create',
+      content: '---\nname: draft\ndescription: Draft\n---\n\nBody'
+    })
+    expect(result.content).toContain('"success":true')
   })
 
   it('resolves workdir from new session first', async () => {

@@ -1307,6 +1307,10 @@
   },
   "skills": {
     "addSkill": "新增技能",
+    "draftSuggestions": {
+      "title": "任務後建議沉澱 Skill Draft",
+      "description": "任務完成後，允許 Agent 在識別到可重用流程時建議生成臨時 skill draft。draft 會先保存在臨時目錄，需你手動決定是否導入安裝。"
+    },
     "conflict": {
       "description": "名為「{name}」的 skill 已存在。是否要覆蓋？",
       "overwrite": "覆蓋",

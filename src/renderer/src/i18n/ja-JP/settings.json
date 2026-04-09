@@ -1307,6 +1307,10 @@
   },
   "skills": {
     "addSkill": "スキル追加",
+    "draftSuggestions": {
+      "title": "スキルドラフトを提案",
+      "description": "タスク完了後、Agent が再利用可能な一時的なスキルドラフトを提案できるようにします。ドラフトは、手動でインポートすることを選ぶまで一時フォルダに保持されます。"
+    },
     "conflict": {
       "description": "「{name}」という名前のスキルが既に存在します。上書きしますか？",
       "overwrite": "覆う",

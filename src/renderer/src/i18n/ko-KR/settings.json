@@ -1307,6 +1307,10 @@
   },
   "skills": {
     "addSkill": "스킬 추가",
+    "draftSuggestions": {
+      "title": "스킬 초안 제안",
+      "description": "작업이 끝난 뒤 Agent가 재사용 가능한 임시 스킬 초안을 제안할 수 있도록 합니다. 초안은 직접 가져오기를 선택할 때까지 임시 폴더에 유지됩니다."
+    },
     "conflict": {
       "description": "\"{name}\"이라는 이름의 스킬이 이미 존재합니다. 덮어쓰시겠습니까?",
       "overwrite": "복개",

@@ -123,7 +123,7 @@ export class SkillExecutionService {
   private async buildSpawnPlan(input: SkillRunRequest, conversationId: string): Promise<SpawnPlan> {
     const activeSkills = await this.skillPresenter.getActiveSkills(conversationId)
     if (!activeSkills.includes(input.skill)) {
-      throw new Error(`Skill "${input.skill}" is not active in this conversation`)
+      throw new Error(`Skill "${input.skill}" is not pinned in this conversation`)
     }
 
     const metadata = (await this.skillPresenter.getMetadataList()).find(
