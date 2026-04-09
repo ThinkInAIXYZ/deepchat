@@ -454,16 +454,16 @@
         }
       },
       "endpointType": {
-        "label": "Endpoint Type",
-        "description": "Select which upstream protocol New API should use for this model.",
-        "placeholder": "Select endpoint type",
-        "required": "Endpoint type is required",
+        "label": "協議類型",
+        "description": "選擇 New API 為當前模型使用的上游協議。",
+        "placeholder": "選擇協議類型",
+        "required": "協議類型為必填項",
         "options": {
           "openai": "OpenAI Chat",
           "openai-response": "OpenAI Responses",
           "anthropic": "Anthropic Messages",
           "gemini": "Gemini Native",
-          "image-generation": "Image Generation"
+          "image-generation": "圖片生成"
         }
       }
     }

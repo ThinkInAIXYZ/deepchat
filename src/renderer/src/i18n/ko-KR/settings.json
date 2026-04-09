@@ -454,16 +454,16 @@
         }
       },
       "endpointType": {
-        "label": "Endpoint Type",
-        "description": "Select which upstream protocol New API should use for this model.",
-        "placeholder": "Select endpoint type",
-        "required": "Endpoint type is required",
+        "label": "엔드포인트 유형",
+        "description": "이 모델에 대해 New API가 사용할 업스트림 프로토콜을 선택하세요.",
+        "placeholder": "엔드포인트 유형 선택",
+        "required": "엔드포인트 유형은 필수입니다",
         "options": {
           "openai": "OpenAI Chat",
           "openai-response": "OpenAI Responses",
           "anthropic": "Anthropic Messages",
           "gemini": "Gemini Native",
-          "image-generation": "Image Generation"
+          "image-generation": "이미지 생성"
         }
       }
     }

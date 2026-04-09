@@ -454,16 +454,16 @@
         }
       },
       "endpointType": {
-        "label": "Endpoint Type",
-        "description": "Select which upstream protocol New API should use for this model.",
-        "placeholder": "Select endpoint type",
-        "required": "Endpoint type is required",
+        "label": "סוג נקודת קצה",
+        "description": "בחר באיזה פרוטוקול upstream ישתמש New API עבור מודל זה.",
+        "placeholder": "בחר סוג נקודת קצה",
+        "required": "סוג נקודת קצה נדרש",
         "options": {
           "openai": "OpenAI Chat",
           "openai-response": "OpenAI Responses",
           "anthropic": "Anthropic Messages",
           "gemini": "Gemini Native",
-          "image-generation": "Image Generation"
+          "image-generation": "יצירת תמונות"
         }
       }
     }

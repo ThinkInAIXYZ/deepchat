@@ -454,16 +454,16 @@
         }
       },
       "endpointType": {
-        "label": "Endpoint Type",
-        "description": "Select which upstream protocol New API should use for this model.",
-        "placeholder": "Select endpoint type",
-        "required": "Endpoint type is required",
+        "label": "Tipo de endpoint",
+        "description": "Selecione qual protocolo upstream o New API deve usar para este modelo.",
+        "placeholder": "Selecione o tipo de endpoint",
+        "required": "O tipo de endpoint é obrigatório",
         "options": {
           "openai": "OpenAI Chat",
           "openai-response": "OpenAI Responses",
           "anthropic": "Anthropic Messages",
           "gemini": "Gemini Native",
-          "image-generation": "Image Generation"
+          "image-generation": "Geração de Imagens"
         }
       }
     }

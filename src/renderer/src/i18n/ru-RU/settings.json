@@ -454,16 +454,16 @@
         }
       },
       "endpointType": {
-        "label": "Endpoint Type",
-        "description": "Select which upstream protocol New API should use for this model.",
-        "placeholder": "Select endpoint type",
-        "required": "Endpoint type is required",
+        "label": "Тип конечной точки",
+        "description": "Выберите, какой upstream-протокол New API должен использовать для этой модели.",
+        "placeholder": "Выберите тип конечной точки",
+        "required": "Тип конечной точки обязателен",
         "options": {
           "openai": "OpenAI Chat",
           "openai-response": "OpenAI Responses",
           "anthropic": "Anthropic Messages",
           "gemini": "Gemini Native",
-          "image-generation": "Image Generation"
+          "image-generation": "Генерация изображений"
         }
       }
     }
