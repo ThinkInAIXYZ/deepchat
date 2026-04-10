@@ -687,6 +687,31 @@ describe('ChatStatusBar model and session panels', () => {
     expect(wrapper.text()).not.toContain('bge-rerank-v2')
   })
 
+  it('shows Ollama chat models in the picker while filtering Ollama embedding models out', async () => {
+    const { wrapper } = await setup({
+      extraModelGroups: [
+        {
+          providerId: 'ollama',
+          providerName: 'Ollama',
+          models: [
+            { id: 'deepseek-r1:1.5b', name: 'DeepSeek R1', type: 'chat' },
+            { id: 'nomic-embed-text:latest', name: 'Nomic Embed', type: 'embedding' }
+          ]
+        }
+      ]
+    })
+
+    const filteredGroups = (wrapper.vm as any).filteredModelGroups as Array<{
+      providerId: string
+      models: Array<{ id: string }>
+    }>
+    const ollamaGroup = filteredGroups.find((group) => group.providerId === 'ollama')
+
+    expect(ollamaGroup?.models.map((model) => model.id)).toEqual(['deepseek-r1:1.5b'])
+    expect(wrapper.text()).toContain('deepseek-r1:1.5b')
+    expect(wrapper.text()).not.toContain('nomic-embed-text:latest')
+  })
+
   it('skips non-chat defaults and falls back to the first chat-selectable model', async () => {
     const { wrapper, draftStore } = await setup({
       extraModelGroups: [
