@@ -19,7 +19,7 @@ import type {
   ProcessHooks,
   StreamState
 } from './types'
-import type { ChatMessage } from '@shared/types/core/chat-message'
+import type { ChatMessage, ChatMessageProviderOptions } from '@shared/types/core/chat-message'
 import { nanoid } from 'nanoid'
 import type { ToolBatchOutputFitItem, ToolOutputGuard } from './toolOutputGuard'
 import { buildTerminalErrorBlocks } from './messageStore'
@@ -81,6 +81,73 @@ function extractReasoningFromBlocks(blocks: AssistantMessageBlock[]): string {
     .filter((b) => b.type === 'reasoning_content')
     .map((b) => b.content || '')
     .join('')
+}
+
+function parseProviderOptionsJson(
+  value: string | undefined
+): ChatMessageProviderOptions | undefined {
+  if (!value) {
+    return undefined
+  }
+
+  try {
+    const parsed = JSON.parse(value)
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return parsed as ChatMessageProviderOptions
+    }
+  } catch {}
+
+  return undefined
+}
+
+function getBlockProviderOptions(
+  block: AssistantMessageBlock
+): ChatMessageProviderOptions | undefined {
+  return parseProviderOptionsJson(
+    typeof block.extra?.providerOptionsJson === 'string'
+      ? block.extra.providerOptionsJson
+      : undefined
+  )
+}
+
+function extractAssistantContent(
+  blocks: AssistantMessageBlock[]
+): ChatMessage['content'] | undefined {
+  const textBlocks = blocks.filter(
+    (block): block is AssistantMessageBlock & { content: string } =>
+      block.type === 'content' && typeof block.content === 'string' && block.content.length > 0
+  )
+
+  if (textBlocks.length === 0) {
+    return undefined
+  }
+
+  const contentParts = textBlocks.map((block) => {
+    const providerOptions = getBlockProviderOptions(block)
+    return {
+      type: 'text' as const,
+      text: block.content,
+      ...(providerOptions ? { provider_options: providerOptions } : {})
+    }
+  })
+
+  return contentParts.some((part) => part.provider_options)
+    ? contentParts
+    : contentParts.map((part) => part.text).join('')
+}
+
+function extractReasoningProviderOptions(
+  blocks: AssistantMessageBlock[]
+): ChatMessageProviderOptions | undefined {
+  const reasoningBlocks = blocks.filter((block) => block.type === 'reasoning_content')
+  for (const block of reasoningBlocks) {
+    const providerOptions = getBlockProviderOptions(block)
+    if (providerOptions) {
+      return providerOptions
+    }
+  }
+
+  return undefined
 }
 
 function toolResponseToText(content: string | MCPContentItem[]): string {
@@ -564,20 +631,26 @@ export async function executeTools(
   }
 
   const iterationBlocks = state.blocks.slice(prevBlockCount)
-  const assistantText = extractTextFromBlocks(iterationBlocks)
+  const assistantContent =
+    extractAssistantContent(iterationBlocks) ?? extractTextFromBlocks(iterationBlocks)
   const assistantMessage: ChatMessage = {
     role: 'assistant',
-    content: assistantText,
+    content: assistantContent,
     tool_calls: state.completedToolCalls.map((tc) => ({
       id: tc.id,
       type: 'function' as const,
-      function: { name: tc.name, arguments: tc.arguments }
+      function: { name: tc.name, arguments: tc.arguments },
+      ...(tc.providerOptions ? { provider_options: tc.providerOptions } : {})
     }))
   }
 
   const reasoning = extractReasoningFromBlocks(iterationBlocks)
   if (interleavedReasoning.preserveReasoningContent && reasoning) {
     assistantMessage.reasoning_content = reasoning
+    const reasoningProviderOptions = extractReasoningProviderOptions(iterationBlocks)
+    if (reasoningProviderOptions) {
+      assistantMessage.reasoning_provider_options = reasoningProviderOptions
+    }
   } else if (
     reasoning &&
     interleavedReasoning.reasoningSupported &&

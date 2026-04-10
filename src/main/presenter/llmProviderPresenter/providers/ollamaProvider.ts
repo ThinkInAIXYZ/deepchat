@@ -18,6 +18,14 @@ import { BaseLLMProvider, SUMMARY_TITLES_PROMPT } from '../baseProvider'
 import { Ollama, Message, ShowResponse } from 'ollama'
 import { EMBEDDING_TEST_KEY, isNormalized } from '@/utils/vector'
 import type { ProviderMcpRuntimePort } from '../runtimePorts'
+import {
+  runAiSdkCoreStream,
+  runAiSdkDimensions,
+  runAiSdkEmbeddings,
+  runAiSdkGenerateText,
+  shouldUseAiSdkRuntime,
+  type AiSdkRuntimeContext
+} from '../aiSdk'
 
 // Define Ollama tool type
 interface OllamaTool {
@@ -58,6 +66,18 @@ export class OllamaProvider extends BaseLLMProvider {
       })
     }
     this.init()
+  }
+
+  protected getAiSdkRuntimeContext(): AiSdkRuntimeContext {
+    return {
+      providerKind: 'ollama',
+      provider: this.provider,
+      configPresenter: this.configPresenter,
+      defaultHeaders: this.defaultHeaders,
+      buildLegacyFunctionCallPrompt: (tools) => this.getFunctionCallWrapPrompt(tools),
+      emitRequestTrace: (modelConfig, payload) => this.emitRequestTrace(modelConfig, payload),
+      supportsNativeTools: (_modelId, modelConfig) => modelConfig.functionCall === true
+    }
   }
 
   private getOllamaBaseUrl(): string {
@@ -280,6 +300,19 @@ export class OllamaProvider extends BaseLLMProvider {
   }
 
   public async summaryTitles(messages: ChatMessage[], modelId: string): Promise<string> {
+    if (shouldUseAiSdkRuntime(this.configPresenter)) {
+      const prompt = `${SUMMARY_TITLES_PROMPT}\n\n${messages.map((m) => `${m.role}: ${m.content}`).join('\n')}`
+      const response = await runAiSdkGenerateText(
+        this.getAiSdkRuntimeContext(),
+        [{ role: 'user', content: prompt }],
+        modelId,
+        this.configPresenter.getModelConfig(modelId, this.provider.id),
+        0.3,
+        30
+      )
+      return response.content.trim() || 'New Conversation'
+    }
+
     try {
       const prompt = `${SUMMARY_TITLES_PROMPT}\n\n${messages.map((m) => `${m.role}: ${m.content}`).join('\n')}`
 
@@ -305,6 +338,17 @@ export class OllamaProvider extends BaseLLMProvider {
     temperature?: number,
     maxTokens?: number
   ): Promise<LLMResponse> {
+    if (shouldUseAiSdkRuntime(this.configPresenter)) {
+      return runAiSdkGenerateText(
+        this.getAiSdkRuntimeContext(),
+        messages,
+        modelId,
+        this.configPresenter.getModelConfig(modelId, this.provider.id),
+        temperature,
+        maxTokens
+      )
+    }
+
     try {
       const response = await this.ollama.chat({
         model: modelId,
@@ -371,6 +415,17 @@ export class OllamaProvider extends BaseLLMProvider {
     temperature?: number,
     maxTokens?: number
   ): Promise<LLMResponse> {
+    if (shouldUseAiSdkRuntime(this.configPresenter)) {
+      return runAiSdkGenerateText(
+        this.getAiSdkRuntimeContext(),
+        [{ role: 'user', content: `Please summarize the following content:\n\n${text}` }],
+        modelId,
+        this.configPresenter.getModelConfig(modelId, this.provider.id),
+        temperature ?? 0.5,
+        maxTokens
+      )
+    }
+
     try {
       const prompt = `Please summarize the following content:\n\n${text}`
 
@@ -399,6 +454,17 @@ export class OllamaProvider extends BaseLLMProvider {
     temperature?: number,
     maxTokens?: number
   ): Promise<LLMResponse> {
+    if (shouldUseAiSdkRuntime(this.configPresenter)) {
+      return runAiSdkGenerateText(
+        this.getAiSdkRuntimeContext(),
+        [{ role: 'user', content: prompt }],
+        modelId,
+        this.configPresenter.getModelConfig(modelId, this.provider.id),
+        temperature,
+        maxTokens
+      )
+    }
+
     try {
       const response = await this.ollama.generate({
         model: modelId,
@@ -598,6 +664,19 @@ export class OllamaProvider extends BaseLLMProvider {
     maxTokens: number,
     mcpTools: MCPToolDefinition[]
   ): AsyncGenerator<LLMCoreStreamEvent> {
+    if (shouldUseAiSdkRuntime(this.configPresenter)) {
+      yield* runAiSdkCoreStream(
+        this.getAiSdkRuntimeContext(),
+        messages,
+        modelId,
+        modelConfig,
+        temperature,
+        maxTokens,
+        mcpTools
+      )
+      return
+    }
+
     if (!modelId) throw new Error('Model ID is required')
     // Ollama 不需要图片生成分支，直接处理聊天完成
     yield* this.handleChatCompletion(
@@ -1317,6 +1396,10 @@ export class OllamaProvider extends BaseLLMProvider {
   }
 
   async getEmbeddings(modelId: string, texts: string[]): Promise<number[][]> {
+    if (shouldUseAiSdkRuntime(this.configPresenter)) {
+      return runAiSdkEmbeddings(this.getAiSdkRuntimeContext(), modelId, texts)
+    }
+
     // Ollama embedding API: 只支持单条文本
     const results: number[][] = []
     for (const text of texts) {
@@ -1334,6 +1417,10 @@ export class OllamaProvider extends BaseLLMProvider {
   }
 
   async getDimensions(modelId: string): Promise<LLM_EMBEDDING_ATTRS> {
+    if (shouldUseAiSdkRuntime(this.configPresenter)) {
+      return runAiSdkDimensions(this.getAiSdkRuntimeContext(), modelId)
+    }
+
     const res = await this.getEmbeddings(modelId, [EMBEDDING_TEST_KEY])
     return {
       dimensions: res[0].length,

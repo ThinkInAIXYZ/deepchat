@@ -2,13 +2,21 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { IConfigPresenter, LLM_PROVIDER, ModelConfig } from '../../../../src/shared/presenter'
 import { AnthropicProvider } from '../../../../src/main/presenter/llmProviderPresenter/providers/anthropicProvider'
 
-const { mockAnthropicConstructor, mockMessagesCreate, mockModelsList, mockGetProxyUrl } =
-  vi.hoisted(() => ({
-    mockAnthropicConstructor: vi.fn(),
-    mockMessagesCreate: vi.fn().mockResolvedValue({ content: [], usage: undefined }),
-    mockModelsList: vi.fn().mockResolvedValue({ data: [] }),
-    mockGetProxyUrl: vi.fn().mockReturnValue(null)
-  }))
+const {
+  mockAnthropicConstructor,
+  mockMessagesCreate,
+  mockModelsList,
+  mockGetProxyUrl,
+  mockRunAiSdkGenerateText,
+  mockShouldUseAiSdkRuntime
+} = vi.hoisted(() => ({
+  mockAnthropicConstructor: vi.fn(),
+  mockMessagesCreate: vi.fn().mockResolvedValue({ content: [], usage: undefined }),
+  mockModelsList: vi.fn().mockResolvedValue({ data: [] }),
+  mockGetProxyUrl: vi.fn().mockReturnValue(null),
+  mockRunAiSdkGenerateText: vi.fn().mockResolvedValue({ content: 'ai-sdk-result' }),
+  mockShouldUseAiSdkRuntime: vi.fn().mockReturnValue(false)
+}))
 
 vi.mock('@anthropic-ai/sdk', () => ({
   default: vi.fn().mockImplementation((options: Record<string, unknown>) => {
@@ -48,6 +56,12 @@ vi.mock('../../../../src/main/presenter/proxyConfig', () => ({
   proxyConfig: {
     getProxyUrl: mockGetProxyUrl
   }
+}))
+
+vi.mock('../../../../src/main/presenter/llmProviderPresenter/aiSdk', () => ({
+  runAiSdkCoreStream: vi.fn(),
+  runAiSdkGenerateText: mockRunAiSdkGenerateText,
+  shouldUseAiSdkRuntime: mockShouldUseAiSdkRuntime
 }))
 
 const createConfigPresenter = () =>
@@ -96,6 +110,8 @@ describe('AnthropicProvider API-only behavior', () => {
     mockMessagesCreate.mockResolvedValue({ content: [], usage: undefined })
     mockModelsList.mockResolvedValue({ data: [] })
     mockGetProxyUrl.mockReturnValue(null)
+    mockRunAiSdkGenerateText.mockResolvedValue({ content: 'ai-sdk-result' })
+    mockShouldUseAiSdkRuntime.mockReturnValue(false)
     delete process.env.ANTHROPIC_API_KEY
   })
 
@@ -240,6 +256,46 @@ describe('AnthropicProvider API-only behavior', () => {
       }
     })
     expect(events.some((event) => event.type === 'text')).toBe(true)
+  })
+
+  it('uses AI SDK runtime for the official anthropic provider', async () => {
+    mockShouldUseAiSdkRuntime.mockReturnValue(true)
+
+    const officialProvider = new AnthropicProvider(
+      createProvider({ enable: false }),
+      createConfigPresenter()
+    )
+
+    await officialProvider.summaryTitles(
+      [{ role: 'user', content: 'hello' }],
+      'claude-sonnet-4-5-20250929'
+    )
+
+    expect(mockRunAiSdkGenerateText).toHaveBeenCalledTimes(1)
+  })
+
+  it('uses AI SDK runtime for anthropic-compatible providers as well', async () => {
+    mockShouldUseAiSdkRuntime.mockReturnValue(true)
+    mockRunAiSdkGenerateText.mockResolvedValue({ content: 'ai-sdk-compatible' })
+
+    const minimaxProvider = new AnthropicProvider(
+      createProvider({
+        id: 'minimax',
+        name: 'MiniMax',
+        enable: false,
+        baseUrl: 'https://api.minimaxi.com/anthropic'
+      }),
+      createConfigPresenter()
+    )
+
+    const title = await minimaxProvider.summaryTitles(
+      [{ role: 'user', content: 'hello' }],
+      'anthropic/claude-sonnet-4.5'
+    )
+
+    expect(title).toBe('ai-sdk-compatible')
+    expect(mockRunAiSdkGenerateText).toHaveBeenCalledTimes(1)
+    expect(mockMessagesCreate).not.toHaveBeenCalled()
   })
 
   it('normalizes cache read and cache write usage metadata for streams', async () => {

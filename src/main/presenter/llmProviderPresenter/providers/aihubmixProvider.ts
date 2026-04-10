@@ -4,8 +4,20 @@ import { proxyConfig } from '@/presenter/proxyConfig'
 import { ProxyAgent } from 'undici'
 import OpenAI from 'openai'
 import type { ProviderMcpRuntimePort } from '../runtimePorts'
+import type { AiSdkRuntimeContext } from '../aiSdk'
 
 export class AihubmixProvider extends OpenAICompatibleProvider {
+  protected override getAiSdkRuntimeContext(): AiSdkRuntimeContext {
+    const context = super.getAiSdkRuntimeContext()
+    return {
+      ...context,
+      defaultHeaders: {
+        ...context.defaultHeaders,
+        'APP-Code': 'SMUE7630'
+      }
+    }
+  }
+
   constructor(
     provider: LLM_PROVIDER,
     configPresenter: IConfigPresenter,

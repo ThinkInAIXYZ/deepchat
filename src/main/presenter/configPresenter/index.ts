@@ -112,6 +112,7 @@ interface IAppSettings {
   defaultModel?: { providerId: string; modelId: string } // Default model for new conversations
   defaultVisionModel?: { providerId: string; modelId: string } // Legacy vision model setting for migration only
   defaultProjectPath?: string | null
+  llmRuntimeMode?: 'ai-sdk' | 'legacy'
   acpRegistryMigrationVersion?: number
   unifiedAgentsMigrationVersion?: number
   [key: string]: unknown // Allow arbitrary keys, using unknown type instead of any
@@ -256,6 +257,7 @@ export class ConfigPresenter implements IConfigPresenter {
         fontFamily: '',
         codeFontFamily: '',
         default_system_prompt: '',
+        llmRuntimeMode: 'ai-sdk',
         skillsPath: path.join(app.getPath('home'), '.deepchat', 'skills'),
         enableSkills: true,
         skillDraftSuggestionsEnabled: false,

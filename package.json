@@ -63,6 +63,13 @@
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "^0.16.1",
+    "@ai-sdk/amazon-bedrock": "^4.0.92",
+    "@ai-sdk/anthropic": "^3.0.68",
+    "@ai-sdk/google": "^3.0.61",
+    "@ai-sdk/google-vertex": "^4.0.106",
+    "@ai-sdk/openai": "^3.0.52",
+    "@ai-sdk/openai-compatible": "^2.0.41",
+    "@ai-sdk/provider": "^3.0.8",
     "@anthropic-ai/sdk": "^0.53.0",
     "@aws-sdk/client-bedrock": "^3.958.0",
     "@aws-sdk/client-bedrock-runtime": "^3.958.0",
@@ -74,6 +81,7 @@
     "@jxa/run": "^1.4.0",
     "@larksuiteoapi/node-sdk": "^1.60.0",
     "@modelcontextprotocol/sdk": "^1.28.0",
+    "ai": "^6.0.157",
     "axios": "^1.13.6",
     "better-sqlite3-multiple-ciphers": "12.8.0",
     "cheerio": "^1.2.0",
@@ -96,6 +104,7 @@
     "nanoid": "^5.1.7",
     "node-pty": "^1.1.0",
     "ollama": "^0.5.18",
+    "ollama-ai-provider": "^1.2.0",
     "openai": "^6.33.0",
     "pdf-parse-new": "^1.4.1",
     "run-applescript": "^7.1.0",
@@ -110,6 +119,7 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@antv/infographic": "^0.2.7",
     "@electron-toolkit/tsconfig": "^1.0.1",
     "@electron/notarize": "^3.1.1",
     "@iconify-json/lucide": "^1.2.99",
@@ -189,7 +199,6 @@
     "vue-virtual-scroller": "^2.0.0-beta.10",
     "vuedraggable": "^4.1.0",
     "yaml": "^2.8.3",
-    "@antv/infographic": "^0.2.7",
     "zod-to-json-schema": "^3.25.1"
   },
   "simple-git-hooks": {

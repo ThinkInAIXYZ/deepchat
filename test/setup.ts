@@ -1,5 +1,7 @@
 import { vi, beforeEach, afterEach } from 'vitest'
 
+process.env.DEEPCHAT_LLM_RUNTIME ??= 'legacy'
+
 // Mock Electron modules for testing
 vi.mock('electron', () => ({
   app: {

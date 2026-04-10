@@ -5,7 +5,7 @@ import type {
   QuestionOption
 } from '@shared/types/agent-interface'
 import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
-import type { ChatMessage } from '@shared/types/core/chat-message'
+import type { ChatMessage, ChatMessageProviderOptions } from '@shared/types/core/chat-message'
 import type { MCPToolDefinition, MCPToolResponse } from '@shared/types/core/mcp'
 import type { ModelConfig } from '@shared/presenter'
 import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
@@ -24,6 +24,7 @@ export interface ToolCallResult {
   id: string
   name: string
   arguments: string
+  providerOptions?: ChatMessageProviderOptions
   serverName?: string
   serverIcons?: string
   serverDescription?: string
@@ -34,7 +35,15 @@ export interface StreamState {
   metadata: MessageMetadata
   startTime: number
   firstTokenTime: number | null
-  pendingToolCalls: Map<string, { name: string; arguments: string; blockIndex: number }>
+  pendingToolCalls: Map<
+    string,
+    {
+      name: string
+      arguments: string
+      blockIndex: number
+      providerOptions?: ChatMessageProviderOptions
+    }
+  >
   completedToolCalls: ToolCallResult[]
   stopReason: 'complete' | 'tool_use' | 'error' | 'abort' | 'max_tokens'
   dirty: boolean

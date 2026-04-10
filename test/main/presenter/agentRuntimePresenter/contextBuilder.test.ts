@@ -163,6 +163,45 @@ function makeAssistantWithReasoningAndToolRecord(
   }
 }
 
+function makeAssistantWithToolProviderOptionsRecord(
+  orderSeq: number,
+  text: string,
+  toolResponse: string
+) {
+  return {
+    id: `asst-${orderSeq}`,
+    sessionId: 's1',
+    orderSeq,
+    role: 'assistant' as const,
+    content: JSON.stringify([
+      { type: 'content', content: text, status: 'success', timestamp: Date.now() },
+      {
+        type: 'tool_call',
+        status: 'success',
+        timestamp: Date.now(),
+        extra: {
+          providerOptionsJson: JSON.stringify({
+            vertex: {
+              thoughtSignature: 'tool-thought-signature'
+            }
+          })
+        },
+        tool_call: {
+          id: `tc-${orderSeq}`,
+          name: 'example_tool',
+          params: '{"foo":"bar"}',
+          response: toolResponse
+        }
+      }
+    ]),
+    status: 'sent' as const,
+    isContextEdge: 0,
+    metadata: '{}',
+    createdAt: Date.now(),
+    updatedAt: Date.now()
+  }
+}
+
 describe('truncateContext', () => {
   it('returns all messages when within budget', () => {
     const history = [
@@ -509,6 +548,37 @@ describe('buildContext', () => {
         ]
       },
       { role: 'tool', tool_call_id: 'tc-3', content: 'All good' },
+      { role: 'user', content: 'next' }
+    ])
+  })
+
+  it('replays settled tool call provider options for follow-up turns', () => {
+    const messages = [
+      makeUserRecord(1, 'check this'),
+      makeAssistantWithToolProviderOptionsRecord(2, 'Tool finished', 'All good')
+    ]
+    const store = createMockMessageStore(messages)
+    const result = buildContext('s1', 'next', '', 10000, 4096, store)
+
+    expect(result).toEqual([
+      { role: 'user', content: 'check this' },
+      {
+        role: 'assistant',
+        content: 'Tool finished',
+        tool_calls: [
+          {
+            id: 'tc-2',
+            type: 'function',
+            function: { name: 'example_tool', arguments: '{"foo":"bar"}' },
+            provider_options: {
+              vertex: {
+                thoughtSignature: 'tool-thought-signature'
+              }
+            }
+          }
+        ]
+      },
+      { role: 'tool', tool_call_id: 'tc-2', content: 'All good' },
       { role: 'user', content: 'next' }
     ])
   })

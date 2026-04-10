@@ -24,6 +24,12 @@ import {
   applyAnthropicExplicitCacheBreakpoint,
   resolvePromptCachePlan
 } from '../promptCacheStrategy'
+import {
+  runAiSdkCoreStream,
+  runAiSdkGenerateText,
+  shouldUseAiSdkRuntime,
+  type AiSdkRuntimeContext
+} from '../aiSdk'
 
 type CacheAwareBedrockUsage = Usage & {
   cache_read_input_tokens?: number
@@ -93,6 +99,18 @@ export class AwsBedrockProvider extends BaseLLMProvider {
   ) {
     super(provider, configPresenter, mcpRuntime)
     this.init()
+  }
+
+  protected getAiSdkRuntimeContext(): AiSdkRuntimeContext {
+    return {
+      providerKind: 'aws-bedrock',
+      provider: this.provider,
+      configPresenter: this.configPresenter,
+      defaultHeaders: this.defaultHeaders,
+      buildLegacyFunctionCallPrompt: (tools) => this.getFunctionCallWrapPrompt(tools),
+      emitRequestTrace: (modelConfig, payload) => this.emitRequestTrace(modelConfig, payload),
+      supportsNativeTools: (_modelId, modelConfig) => modelConfig.functionCall === true
+    }
   }
 
   private getBedrockRegion(): string {
@@ -266,6 +284,18 @@ export class AwsBedrockProvider extends BaseLLMProvider {
   // 依赖 generateText
   public async summaryTitles(messages: ChatMessage[], modelId: string): Promise<string> {
     const prompt = `${SUMMARY_TITLES_PROMPT}\n\n${messages.map((m) => `${m.role}: ${m.content}`).join('\n')}`
+    if (shouldUseAiSdkRuntime(this.configPresenter)) {
+      const response = await runAiSdkGenerateText(
+        this.getAiSdkRuntimeContext(),
+        [{ role: 'user', content: prompt }],
+        modelId,
+        this.configPresenter.getModelConfig(modelId, this.provider.id),
+        0.3,
+        50
+      )
+      return response.content.trim()
+    }
+
     const response = await this.generateText(prompt, modelId, 0.3, 50)
 
     return response.content.trim()
@@ -284,6 +314,20 @@ export class AwsBedrockProvider extends BaseLLMProvider {
 ${text}
 
 请提供一个简洁明了的摘要。`
+    if (shouldUseAiSdkRuntime(this.configPresenter)) {
+      const messages: ChatMessage[] = [
+        ...(systemPrompt ? [{ role: 'system' as const, content: systemPrompt }] : []),
+        { role: 'user', content: prompt }
+      ]
+      return runAiSdkGenerateText(
+        this.getAiSdkRuntimeContext(),
+        messages,
+        modelId,
+        this.configPresenter.getModelConfig(modelId, this.provider.id),
+        temperature,
+        maxTokens
+      )
+    }
 
     return this.generateText(prompt, modelId, temperature, maxTokens, systemPrompt)
   }
@@ -295,6 +339,21 @@ ${text}
     maxTokens?: number,
     systemPrompt?: string
   ): Promise<LLMResponse> {
+    if (shouldUseAiSdkRuntime(this.configPresenter)) {
+      const messages: ChatMessage[] = [
+        ...(systemPrompt ? [{ role: 'system' as const, content: systemPrompt }] : []),
+        { role: 'user', content: prompt }
+      ]
+      return runAiSdkGenerateText(
+        this.getAiSdkRuntimeContext(),
+        messages,
+        modelId,
+        this.configPresenter.getModelConfig(modelId, this.provider.id),
+        temperature,
+        maxTokens
+      )
+    }
+
     try {
       const payload = {
         anthropic_version: 'bedrock-2023-05-31',
@@ -608,6 +667,17 @@ ${text}
     temperature?: number,
     maxTokens?: number
   ): Promise<LLMResponse> {
+    if (shouldUseAiSdkRuntime(this.configPresenter)) {
+      return runAiSdkGenerateText(
+        this.getAiSdkRuntimeContext(),
+        messages,
+        modelId,
+        this.configPresenter.getModelConfig(modelId, this.provider.id),
+        temperature,
+        maxTokens
+      )
+    }
+
     try {
       if (!this.bedrockRuntime) {
         throw new Error('AWS Bedrock client is not initialized')
@@ -699,6 +769,19 @@ ${text}
     maxTokens: number,
     mcpTools: MCPToolDefinition[]
   ): AsyncGenerator<LLMCoreStreamEvent> {
+    if (shouldUseAiSdkRuntime(this.configPresenter)) {
+      yield* runAiSdkCoreStream(
+        this.getAiSdkRuntimeContext(),
+        messages,
+        modelId,
+        modelConfig,
+        temperature,
+        maxTokens,
+        mcpTools
+      )
+      return
+    }
+
     if (!this.bedrockRuntime) throw new Error('AWS Bedrock client is not initialized')
     if (!modelId) throw new Error('Model ID is required')
     console.log('modelConfig', modelConfig, modelId)

@@ -30,6 +30,13 @@ import { modelCapabilities } from '../../configPresenter/modelCapabilities'
 import { eventBus, SendTarget } from '@/eventbus'
 import { CONFIG_EVENTS } from '@/events'
 import type { ProviderMcpRuntimePort } from '../runtimePorts'
+import {
+  runAiSdkCoreStream,
+  runAiSdkEmbeddings,
+  runAiSdkGenerateText,
+  shouldUseAiSdkRuntime,
+  type AiSdkRuntimeContext
+} from '../aiSdk'
 
 // Mapping from simple keys to API HarmCategory constants
 const keyToHarmCategoryMap: Record<string, HarmCategory> = {
@@ -70,6 +77,19 @@ export class VertexProvider extends BaseLLMProvider {
 
   private get vertexProvider(): VERTEX_PROVIDER {
     return this.provider as VERTEX_PROVIDER
+  }
+
+  protected getAiSdkRuntimeContext(): AiSdkRuntimeContext {
+    return {
+      providerKind: 'vertex',
+      provider: this.provider,
+      configPresenter: this.configPresenter,
+      defaultHeaders: this.defaultHeaders,
+      buildLegacyFunctionCallPrompt: (tools) => this.getFunctionCallWrapPrompt(tools),
+      emitRequestTrace: (modelConfig, payload) => this.emitRequestTrace(modelConfig, payload),
+      supportsNativeTools: (_modelId, modelConfig) => modelConfig.functionCall === true,
+      shouldUseImageGeneration: (_modelId, modelConfig) => modelConfig.apiEndpoint === 'image'
+    }
   }
 
   private resolveProjectId(): string | undefined {
@@ -262,6 +282,18 @@ export class VertexProvider extends BaseLLMProvider {
     messages: { role: 'system' | 'user' | 'assistant'; content: string }[],
     modelId: string
   ): Promise<string> {
+    if (shouldUseAiSdkRuntime(this.configPresenter)) {
+      const prompt = `${SUMMARY_TITLES_PROMPT}\n\n${messages.map((m) => `${m.role}: ${m.content}`).join('\n')}`
+      const response = await runAiSdkGenerateText(
+        this.getAiSdkRuntimeContext(),
+        [{ role: 'user', content: prompt }],
+        modelId,
+        this.configPresenter.getModelConfig(modelId, this.provider.id),
+        0.4
+      )
+      return response.content.trim() || 'New Conversation'
+    }
+
     console.log('vertex summary check, ignore modelId', modelId)
     // Use Vertex AI to generate conversation titles
     try {
@@ -666,6 +698,17 @@ export class VertexProvider extends BaseLLMProvider {
     temperature?: number,
     maxTokens?: number
   ): Promise<LLMResponse> {
+    if (shouldUseAiSdkRuntime(this.configPresenter)) {
+      return runAiSdkGenerateText(
+        this.getAiSdkRuntimeContext(),
+        messages,
+        modelId,
+        this.configPresenter.getModelConfig(modelId, this.provider.id),
+        temperature,
+        maxTokens
+      )
+    }
+
     try {
       if (!this.genAI) {
         throw new Error('Google Generative AI client is not initialized')
@@ -788,6 +831,22 @@ export class VertexProvider extends BaseLLMProvider {
     temperature?: number,
     maxTokens?: number
   ): Promise<LLMResponse> {
+    if (shouldUseAiSdkRuntime(this.configPresenter)) {
+      return runAiSdkGenerateText(
+        this.getAiSdkRuntimeContext(),
+        [
+          {
+            role: 'user',
+            content: `Please generate a concise summary for the following content:\n\n${text}`
+          }
+        ],
+        modelId,
+        this.configPresenter.getModelConfig(modelId, this.provider.id),
+        temperature,
+        maxTokens
+      )
+    }
+
     if (!this.isInitialized) {
       throw new Error('Provider not initialized')
     }
@@ -818,6 +877,17 @@ export class VertexProvider extends BaseLLMProvider {
     temperature?: number,
     maxTokens?: number
   ): Promise<LLMResponse> {
+    if (shouldUseAiSdkRuntime(this.configPresenter)) {
+      return runAiSdkGenerateText(
+        this.getAiSdkRuntimeContext(),
+        [{ role: 'user', content: prompt }],
+        modelId,
+        this.configPresenter.getModelConfig(modelId, this.provider.id),
+        temperature,
+        maxTokens
+      )
+    }
+
     if (!this.isInitialized) {
       throw new Error('Provider not initialized')
     }
@@ -905,6 +975,19 @@ export class VertexProvider extends BaseLLMProvider {
     maxTokens: number,
     mcpTools: MCPToolDefinition[]
   ): AsyncGenerator<LLMCoreStreamEvent> {
+    if (shouldUseAiSdkRuntime(this.configPresenter)) {
+      yield* runAiSdkCoreStream(
+        this.getAiSdkRuntimeContext(),
+        messages,
+        modelId,
+        modelConfig,
+        temperature,
+        maxTokens,
+        mcpTools
+      )
+      return
+    }
+
     if (!this.isInitialized) throw new Error('Provider not initialized')
     if (!modelId) throw new Error('Model ID is required')
     console.log('modelConfig', modelConfig, modelId)
@@ -1199,6 +1282,10 @@ export class VertexProvider extends BaseLLMProvider {
   }
 
   async getEmbeddings(modelId: string, texts: string[]): Promise<number[][]> {
+    if (shouldUseAiSdkRuntime(this.configPresenter)) {
+      return runAiSdkEmbeddings(this.getAiSdkRuntimeContext(), modelId, texts)
+    }
+
     if (!this.genAI) throw new Error('Google Generative AI client is not initialized')
     // Vertex embedContent 支持批量输入
     const resp = await this.genAI.models.embedContent({

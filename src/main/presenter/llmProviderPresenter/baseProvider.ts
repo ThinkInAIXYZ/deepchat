@@ -17,6 +17,7 @@ import { CONFIG_EVENTS } from '@/events'
 import logger from '@shared/logger'
 import { resolveRequestTraceContext, type ProviderRequestTracePayload } from './requestTrace'
 import type { ProviderMcpRuntimePort } from './runtimePorts'
+import { normalizeToolInputSchema } from './aiSdk/toolMapper'
 
 /**
  * Base LLM Provider Abstract Class
@@ -717,23 +718,81 @@ ${this.convertToolsToXml(tools)}
    * @returns XML 格式的工具定义字符串
    */
   protected convertToolsToXml(tools: MCPToolDefinition[]): string {
+    const resolveParameterType = (parameter: unknown): string | undefined => {
+      if (!parameter || typeof parameter !== 'object' || Array.isArray(parameter)) {
+        return undefined
+      }
+
+      if (typeof (parameter as { type?: unknown }).type === 'string') {
+        return (parameter as { type: string }).type
+      }
+
+      for (const branchKey of ['anyOf', 'oneOf', 'allOf'] as const) {
+        const branches = (parameter as Record<string, unknown>)[branchKey]
+        if (!Array.isArray(branches)) {
+          continue
+        }
+
+        const types = Array.from(
+          new Set(
+            branches
+              .filter(
+                (branch): branch is Record<string, unknown> =>
+                  Boolean(branch) && typeof branch === 'object' && !Array.isArray(branch)
+              )
+              .map((branch) => branch.type)
+              .filter((type): type is string => typeof type === 'string')
+          )
+        )
+
+        if (types.length === 1) {
+          return types[0]
+        }
+      }
+
+      return undefined
+    }
+
     const xmlTools = tools
       .map((tool) => {
         const { name, description, parameters } = tool.function
-        const { properties, required = [] } = parameters
+        const normalizedParameters = normalizeToolInputSchema(
+          (parameters as Record<string, unknown> | undefined) ?? {}
+        )
+        const properties =
+          normalizedParameters.properties &&
+          typeof normalizedParameters.properties === 'object' &&
+          !Array.isArray(normalizedParameters.properties)
+            ? (normalizedParameters.properties as Record<string, unknown>)
+            : {}
+        const required = Array.isArray(normalizedParameters.required)
+          ? normalizedParameters.required.filter(
+              (value): value is string => typeof value === 'string'
+            )
+          : []
 
         // 构建参数 XML
         const paramsXml = Object.entries(properties)
           .map(([paramName, paramDef]) => {
             const requiredAttr = required.includes(paramName) ? ' required="true"' : ''
-            const descriptionAttr = paramDef.description
-              ? ` description="${paramDef.description}"`
-              : ''
-            const typeAttr = paramDef.type ? ` type="${paramDef.type}"` : ''
+            const paramMeta =
+              paramDef && typeof paramDef === 'object' && !Array.isArray(paramDef)
+                ? (paramDef as Record<string, unknown>)
+                : {}
+            const descriptionAttr =
+              typeof paramMeta.description === 'string'
+                ? ` description="${paramMeta.description}"`
+                : ''
+            const paramType = resolveParameterType(paramMeta)
+            const typeAttr = paramType ? ` type="${paramType}"` : ''
 
             return `<parameter name="${paramName}"${requiredAttr}${descriptionAttr}${typeAttr}></parameter>`
           })
           .join('\n    ')
+
+        if (!paramsXml) {
+          return `<tool name="${name}" description="${description}"></tool>`
+        }
 
         // 构建工具 XML
         return `<tool name="${name}" description="${description}">
