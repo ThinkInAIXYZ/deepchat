@@ -65,6 +65,14 @@ export class ModelStatusHelper {
     return result
   }
 
+  private hasStoredStatus(statusKey: string): boolean {
+    const candidate = this.store as ElectronStore<any> & { has?: (key: string) => boolean }
+    if (typeof candidate.has === 'function') {
+      return candidate.has(statusKey)
+    }
+    return this.store.get(statusKey) !== undefined
+  }
+
   setModelStatus(providerId: string, modelId: string, enabled: boolean): void {
     const statusKey = this.getStatusKey(providerId, modelId)
     this.setSetting(statusKey, enabled)
@@ -82,6 +90,21 @@ export class ModelStatusHelper {
 
   disableModel(providerId: string, modelId: string): void {
     this.setModelStatus(providerId, modelId, false)
+  }
+
+  ensureModelStatus(providerId: string, modelId: string, enabled: boolean): void {
+    const statusKey = this.getStatusKey(providerId, modelId)
+
+    if (this.cache.has(statusKey) || this.hasStoredStatus(statusKey)) {
+      if (!this.cache.has(statusKey)) {
+        const status = this.store.get(statusKey) as boolean | undefined
+        this.cache.set(statusKey, typeof status === 'boolean' ? status : false)
+      }
+      return
+    }
+
+    this.store.set(statusKey, enabled)
+    this.cache.set(statusKey, enabled)
   }
 
   clearModelStatusCache(): void {

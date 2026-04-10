@@ -573,6 +573,7 @@ export interface IConfigPresenter {
   setCloseToQuit(value: boolean): void
   getModelStatus(providerId: string, modelId: string): boolean
   setModelStatus(providerId: string, modelId: string, enabled: boolean): void
+  ensureModelStatus(providerId: string, modelId: string, enabled: boolean): void
   // Batch get model status
   getBatchModelStatus(providerId: string, modelIds: string[]): Record<string, boolean>
   // Language settings

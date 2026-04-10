@@ -1,19 +1,15 @@
 import { onBeforeUnmount, onMounted, ref } from 'vue'
-import { defineStore, storeToRefs } from 'pinia'
+import { defineStore } from 'pinia'
 import { OLLAMA_EVENTS } from '@/events'
 import { usePresenter } from '@/composables/usePresenter'
-import type { OllamaModel, RENDERER_MODEL_META } from '@shared/presenter'
-import { ModelType } from '@shared/model'
-import { DEFAULT_MODEL_CONTEXT_LENGTH, DEFAULT_MODEL_MAX_TOKENS } from '@shared/modelConfigDefaults'
+import type { OllamaModel } from '@shared/presenter'
 import { useModelStore } from '@/stores/modelStore'
 import { useProviderStore } from '@/stores/providerStore'
 
 export const useOllamaStore = defineStore('ollama', () => {
   const llmP = usePresenter('llmproviderPresenter')
-  const configP = usePresenter('configPresenter')
   const modelStore = useModelStore()
   const providerStore = useProviderStore()
-  const { allProviderModels, enabledModels } = storeToRefs(modelStore)
 
   const runningModels = ref<Record<string, OllamaModel[]>>({})
   const localModels = ref<Record<string, OllamaModel[]>>({})
@@ -60,119 +56,6 @@ export const useOllamaStore = defineStore('ollama', () => {
   const getOllamaPullingModels = (providerId: string): Record<string, number> =>
     pullingProgress.value[providerId] || {}
 
-  type OllamaRendererModel = RENDERER_MODEL_META & {
-    ollamaModel?: OllamaModel
-    temperature?: number
-    reasoningEffort?: string
-    verbosity?: string
-    thinkingBudget?: number
-    forcedSearch?: boolean
-    searchStrategy?: string
-  }
-
-  const syncOllamaModelsToGlobal = async (providerId: string): Promise<void> => {
-    const ollamaProvider = providerStore.providers.find((p) => p.id === providerId)
-    if (!ollamaProvider) return
-
-    const existingOllamaModels =
-      allProviderModels.value.find((item) => item.providerId === providerId)?.models || []
-
-    const existingModelMap = new Map<string, OllamaRendererModel>(
-      existingOllamaModels.map((model) => [model.id, model as OllamaRendererModel])
-    )
-
-    const local = getOllamaLocalModels(providerId)
-
-    const ollamaModelsAsGlobal = await Promise.all(
-      local.map(async (model) => {
-        const existingModel = existingModelMap.get(model.name)
-        const capabilitySources: string[] = []
-        if (Array.isArray((model as any)?.capabilities)) {
-          capabilitySources.push(...((model as any).capabilities as string[]))
-        }
-        if (
-          existingModel?.ollamaModel &&
-          Array.isArray((existingModel.ollamaModel as any)?.capabilities)
-        ) {
-          capabilitySources.push(...((existingModel.ollamaModel as any).capabilities as string[]))
-        }
-        const capabilitySet = new Set(capabilitySources)
-
-        const modelConfig = await configP.getModelConfig(model.name, providerId)
-
-        const contextLength =
-          modelConfig?.contextLength ??
-          existingModel?.contextLength ??
-          (model as any)?.model_info?.context_length ??
-          DEFAULT_MODEL_CONTEXT_LENGTH
-
-        const maxTokens =
-          modelConfig?.maxTokens ?? existingModel?.maxTokens ?? DEFAULT_MODEL_MAX_TOKENS
-
-        const resolvedType =
-          modelConfig?.type ??
-          existingModel?.type ??
-          (capabilitySet.has('embedding') ? ModelType.Embedding : ModelType.Chat)
-
-        const normalized: OllamaRendererModel = {
-          ...existingModel,
-          id: model.name,
-          name: model.name,
-          contextLength,
-          maxTokens,
-          group: existingModel?.group || 'local',
-          enabled: true,
-          isCustom: existingModel?.isCustom || false,
-          providerId,
-          vision: modelConfig?.vision ?? existingModel?.vision ?? capabilitySet.has('vision'),
-          functionCall:
-            modelConfig?.functionCall ?? existingModel?.functionCall ?? capabilitySet.has('tools'),
-          reasoning:
-            modelConfig?.reasoning ?? existingModel?.reasoning ?? capabilitySet.has('thinking'),
-          temperature: modelConfig?.temperature ?? existingModel?.temperature,
-          reasoningEffort: modelConfig?.reasoningEffort ?? existingModel?.reasoningEffort,
-          verbosity: modelConfig?.verbosity ?? existingModel?.verbosity,
-          thinkingBudget: modelConfig?.thinkingBudget ?? existingModel?.thinkingBudget,
-          type: resolvedType,
-          ollamaModel: model
-        }
-
-        return normalized
-      })
-    )
-
-    const existingIndex = allProviderModels.value.findIndex(
-      (item) => item.providerId === providerId
-    )
-
-    if (existingIndex !== -1) {
-      allProviderModels.value[existingIndex].models = ollamaModelsAsGlobal
-    } else {
-      allProviderModels.value.push({
-        providerId,
-        models: ollamaModelsAsGlobal
-      })
-    }
-
-    const enabledIndex = enabledModels.value.findIndex((item) => item.providerId === providerId)
-    const enabledOllamaModels = ollamaModelsAsGlobal.filter((model) => model.enabled)
-
-    if (enabledIndex !== -1) {
-      if (enabledOllamaModels.length > 0) {
-        enabledModels.value[enabledIndex].models = enabledOllamaModels
-      } else {
-        enabledModels.value.splice(enabledIndex, 1)
-      }
-    } else if (enabledOllamaModels.length > 0) {
-      enabledModels.value.push({
-        providerId,
-        models: enabledOllamaModels
-      })
-    }
-
-    enabledModels.value = [...enabledModels.value]
-  }
-
   const refreshOllamaModels = async (providerId: string): Promise<void> => {
     try {
       const [running, local] = await Promise.all([
@@ -181,7 +64,8 @@ export const useOllamaStore = defineStore('ollama', () => {
       ])
       setRunningModels(providerId, running)
       setLocalModels(providerId, local)
-      await syncOllamaModelsToGlobal(providerId)
+      await llmP.refreshModels(providerId)
+      await modelStore.refreshProviderModels(providerId)
     } catch (error) {
       console.error('Failed to refresh Ollama models for', providerId, error)
     }
@@ -218,9 +102,9 @@ export const useOllamaStore = defineStore('ollama', () => {
     }
 
     if (status === 'success' || status === 'completed') {
-      setTimeout(() => {
+      setTimeout(async () => {
         updatePullingProgress(providerId, modelName)
-        modelStore.getProviderModelsQuery(providerId).refetch()
+        await refreshOllamaModels(providerId)
       }, 600)
     }
   }
@@ -292,7 +176,6 @@ export const useOllamaStore = defineStore('ollama', () => {
     getOllamaRunningModels,
     getOllamaLocalModels,
     getOllamaPullingModels,
-    syncOllamaModelsToGlobal,
     handleOllamaModelPullEvent,
     setupOllamaEventListeners,
     removeOllamaEventListeners,

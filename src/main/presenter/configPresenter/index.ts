@@ -1016,6 +1016,10 @@ export class ConfigPresenter implements IConfigPresenter {
     this.modelStatusHelper.setModelStatus(providerId, modelId, enabled)
   }
 
+  ensureModelStatus(providerId: string, modelId: string, enabled: boolean): void {
+    this.modelStatusHelper.ensureModelStatus(providerId, modelId, enabled)
+  }
+
   enableModel(providerId: string, modelId: string): void {
     this.modelStatusHelper.enableModel(providerId, modelId)
   }

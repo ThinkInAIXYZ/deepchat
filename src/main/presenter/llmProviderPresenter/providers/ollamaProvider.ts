@@ -11,6 +11,7 @@ import {
   LLM_EMBEDDING_ATTRS,
   IConfigPresenter
 } from '@shared/presenter'
+import { ModelType } from '@shared/model'
 import { DEFAULT_MODEL_CONTEXT_LENGTH, DEFAULT_MODEL_MAX_TOKENS } from '@shared/modelConfigDefaults'
 import { createStreamEvent } from '@shared/types/core/llm-events'
 import { BaseLLMProvider, SUMMARY_TITLES_PROMPT } from '../baseProvider'
@@ -75,24 +76,129 @@ export class OllamaProvider extends BaseLLMProvider {
     return headers
   }
 
+  private mergeCapabilities(...sources: Array<string[] | undefined>): string[] {
+    return Array.from(new Set(sources.flatMap((source) => (Array.isArray(source) ? source : []))))
+  }
+
+  private mergeModelInfo(
+    primary?: OllamaModel['model_info'],
+    secondary?: OllamaModel['model_info']
+  ): OllamaModel['model_info'] {
+    if (!primary && !secondary) {
+      return undefined
+    }
+
+    const mergedGeneral =
+      secondary?.general || primary?.general
+        ? {
+            ...secondary?.general,
+            ...primary?.general
+          }
+        : undefined
+
+    const mergedVisionEmbeddingLength =
+      primary?.vision?.embedding_length ?? secondary?.vision?.embedding_length
+    const mergedVision =
+      typeof mergedVisionEmbeddingLength === 'number'
+        ? {
+            embedding_length: mergedVisionEmbeddingLength
+          }
+        : undefined
+
+    return {
+      ...secondary,
+      ...primary,
+      ...(mergedGeneral ? { general: mergedGeneral } : {}),
+      ...(mergedVision ? { vision: mergedVision } : {})
+    }
+  }
+
+  private mergeOllamaModels(preferred: OllamaModel, secondary?: OllamaModel): OllamaModel {
+    if (!secondary) {
+      return preferred
+    }
+
+    return {
+      ...secondary,
+      ...preferred,
+      details: {
+        ...secondary.details,
+        ...preferred.details
+      },
+      model_info: this.mergeModelInfo(preferred.model_info, secondary.model_info),
+      capabilities: this.mergeCapabilities(preferred.capabilities, secondary.capabilities)
+    }
+  }
+
+  private resolveOllamaModelMeta(model: OllamaModel, cachedModel?: MODEL_META): MODEL_META {
+    const capabilitySet = new Set(
+      this.mergeCapabilities(
+        model.capabilities,
+        cachedModel?.type === ModelType.Embedding ? ['embedding'] : undefined,
+        cachedModel?.vision ? ['vision'] : undefined,
+        cachedModel?.functionCall ? ['tools'] : undefined,
+        cachedModel?.reasoning ? ['thinking'] : undefined
+      )
+    )
+
+    const resolvedType = capabilitySet.has('embedding')
+      ? ModelType.Embedding
+      : (cachedModel?.type ?? ModelType.Chat)
+
+    const family = model.details?.family || cachedModel?.group || 'default'
+    const parameterSize = model.details?.parameter_size || ''
+    const description = `${parameterSize} ${family} model`.trim()
+
+    return {
+      id: model.name,
+      name: model.name,
+      providerId: this.provider.id,
+      contextLength:
+        model.model_info?.context_length ??
+        cachedModel?.contextLength ??
+        DEFAULT_MODEL_CONTEXT_LENGTH,
+      maxTokens: cachedModel?.maxTokens ?? DEFAULT_MODEL_MAX_TOKENS,
+      isCustom: false,
+      group: family,
+      description,
+      vision: capabilitySet.has('vision') || Boolean(model.model_info?.vision?.embedding_length),
+      functionCall: capabilitySet.has('tools'),
+      reasoning: capabilitySet.has('thinking'),
+      type: resolvedType
+    }
+  }
+
   // Basic Provider functionality implementation
   protected async fetchProviderModels(): Promise<MODEL_META[]> {
     try {
       console.log('Ollama service check', this.ollama, this.provider)
-      // Get list of locally installed Ollama models
-      const ollamaModels = await this.listModels()
+      const [localModels, runningModels] = await Promise.all([
+        this.listModels(),
+        this.listRunningModels()
+      ])
 
-      // Convert Ollama model format to application's MODEL_META format
-      return ollamaModels.map((model) => ({
-        id: model.name,
-        name: model.name,
-        providerId: this.provider.id,
-        contextLength: DEFAULT_MODEL_CONTEXT_LENGTH,
-        maxTokens: DEFAULT_MODEL_MAX_TOKENS,
-        isCustom: false,
-        group: model.details?.family || 'default',
-        description: `${model.details?.parameter_size || ''} ${model.details?.family || ''} model`
-      }))
+      const cachedModels = new Map(
+        this.configPresenter.getProviderModels(this.provider.id).map((model) => [model.id, model])
+      )
+
+      const mergedModels = new Map<string, OllamaModel>()
+      for (const localModel of localModels) {
+        mergedModels.set(localModel.name, localModel)
+      }
+      for (const runningModel of runningModels) {
+        const existing = mergedModels.get(runningModel.name)
+        const merged = existing
+          ? this.mergeOllamaModels(existing, runningModel)
+          : this.mergeOllamaModels(runningModel)
+        mergedModels.set(runningModel.name, merged)
+      }
+
+      const resolvedModels = Array.from(mergedModels.values()).map((model) => {
+        this.configPresenter.ensureModelStatus(this.provider.id, model.name, true)
+        return this.resolveOllamaModelMeta(model, cachedModels.get(model.name))
+      })
+
+      return resolvedModels
     } catch (error) {
       console.error('Failed to fetch Ollama models:', error)
       // Fallback to aggregated Provider DB curated list for Ollama

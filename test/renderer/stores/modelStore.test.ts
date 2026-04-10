@@ -21,7 +21,11 @@ const createQueryCache = () => {
   }
 }
 
-const setupStore = async (overrides?: { configPresenter?: Record<string, any> }) => {
+const setupStore = async (overrides?: {
+  configPresenter?: Record<string, any>
+  llmPresenter?: Record<string, any>
+  providerStore?: Record<string, any>
+}) => {
   vi.resetModules()
 
   const queryCache = createQueryCache()
@@ -39,7 +43,13 @@ const setupStore = async (overrides?: { configPresenter?: Record<string, any> })
     ...overrides?.configPresenter
   }
   const llmPresenter = {
-    getModelList: vi.fn(async () => [])
+    getModelList: vi.fn(async () => []),
+    updateModelStatus: vi.fn(async () => undefined),
+    ...overrides?.llmPresenter
+  }
+  const providerStore = {
+    providers: [],
+    ...overrides?.providerStore
   }
 
   vi.doMock('pinia', () => ({
@@ -59,7 +69,7 @@ const setupStore = async (overrides?: { configPresenter?: Record<string, any> })
   }))
 
   vi.doMock('@/stores/providerStore', () => ({
-    useProviderStore: () => ({ providers: [] })
+    useProviderStore: () => providerStore
   }))
 
   vi.doMock('@/composables/usePresenter', () => ({
@@ -150,5 +160,30 @@ describe('modelStore.refreshProviderModels', () => {
         ]
       }
     ])
+  })
+
+  it('persists ollama model status changes through llm presenter', async () => {
+    const { store, llmPresenter } = await setupStore({
+      providerStore: {
+        providers: [{ id: 'ollama', apiType: 'ollama' }]
+      },
+      configPresenter: {
+        getDbProviderModels: vi.fn(async () => []),
+        getProviderModels: vi.fn(async () => [
+          {
+            id: 'deepseek-r1:1.5b',
+            name: 'deepseek-r1:1.5b',
+            providerId: 'ollama',
+            isCustom: false
+          }
+        ]),
+        getBatchModelStatus: vi.fn(async () => ({ 'deepseek-r1:1.5b': true }))
+      }
+    })
+
+    await store.refreshProviderModels('ollama')
+    await store.updateModelStatus('ollama', 'deepseek-r1:1.5b', false)
+
+    expect(llmPresenter.updateModelStatus).toHaveBeenCalledWith('ollama', 'deepseek-r1:1.5b', false)
   })
 })

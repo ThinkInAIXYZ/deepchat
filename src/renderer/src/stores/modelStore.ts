@@ -577,11 +577,6 @@ export const useModelStore = defineStore('model', () => {
     const previousState = getLocalModelEnabledState(providerId, modelId)
     updateLocalModelStatus(providerId, modelId, enabled)
 
-    const provider = providerStore.providers.find((p) => p.id === providerId)
-    if (provider?.apiType === 'ollama') {
-      return
-    }
-
     try {
       await llmP.updateModelStatus(providerId, modelId, enabled)
       await refreshProviderModels(providerId)
