@@ -7,6 +7,7 @@ import type {
 import { wrapLanguageModel } from 'ai'
 import { createAmazonBedrock } from '@ai-sdk/amazon-bedrock'
 import { createAnthropic } from '@ai-sdk/anthropic'
+import { createAzure } from '@ai-sdk/azure'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { createVertex } from '@ai-sdk/google-vertex'
 import { createOpenAI } from '@ai-sdk/openai'
@@ -19,6 +20,7 @@ import { createReasoningMiddleware } from './middlewares/reasoningMiddleware'
 export type AiSdkProviderKind =
   | 'openai-compatible'
   | 'openai-responses'
+  | 'azure'
   | 'anthropic'
   | 'gemini'
   | 'vertex'
@@ -40,6 +42,7 @@ export interface AiSdkProviderContext {
   apiType:
     | 'openai_chat'
     | 'openai_responses'
+    | 'azure_responses'
     | 'anthropic'
     | 'google'
     | 'vertex'
@@ -49,6 +52,9 @@ export interface AiSdkProviderContext {
   embeddingModel?: any
   imageModel?: any
   endpoint: string
+  imageEndpoint?: string
+  embeddingEndpoint?: string
+  resolvedModelId?: string
 }
 
 function isObjectRecord(value: unknown): value is Record<string, unknown> {
@@ -238,6 +244,16 @@ function buildOpenAIEndpoint(baseUrl: string, path: string): string {
   return `${baseUrl.replace(/\/+$/, '')}${path}`
 }
 
+const DEFAULT_AZURE_V1_API_VERSION = 'v1'
+const DEFAULT_AZURE_DEPLOYMENT_API_VERSION = '2024-02-01'
+
+export interface NormalizedAzureBaseUrl {
+  baseURL?: string
+  apiVersion: string
+  useDeploymentBasedUrls: boolean
+  deploymentName?: string
+}
+
 export function normalizeAnthropicBaseUrl(baseUrl: string | undefined): string {
   const normalized = (baseUrl || 'https://api.anthropic.com').replace(/\/+$/, '')
 
@@ -281,6 +297,78 @@ export function normalizeVertexBaseUrl(
   return `${normalized}/${apiVersion}/publishers/google`
 }
 
+export function normalizeAzureBaseUrl(
+  baseUrl: string | undefined,
+  apiVersion: string | undefined
+): NormalizedAzureBaseUrl {
+  const normalizedBaseUrl = baseUrl?.trim()
+  const normalizedApiVersion = apiVersion?.trim()
+
+  if (!normalizedBaseUrl) {
+    return {
+      apiVersion: normalizedApiVersion || DEFAULT_AZURE_V1_API_VERSION,
+      useDeploymentBasedUrls: false
+    }
+  }
+
+  try {
+    const url = new URL(normalizedBaseUrl)
+    url.search = ''
+    url.hash = ''
+
+    let pathname = url.pathname.replace(/\/+$/, '')
+    let deploymentName: string | undefined
+
+    const deploymentMatch = pathname.match(/\/openai\/deployments\/([^/]+)(?:\/.*)?$/i)
+    if (deploymentMatch?.[1]) {
+      deploymentName = decodeURIComponent(deploymentMatch[1])
+      pathname = pathname.slice(0, deploymentMatch.index ?? pathname.length) || '/openai'
+    } else if (/\/openai\/v1$/i.test(pathname)) {
+      pathname = pathname.replace(/\/openai\/v1$/i, '/openai')
+    } else if (!/\/openai$/i.test(pathname)) {
+      pathname = pathname ? `${pathname}/openai` : '/openai'
+    }
+
+    url.pathname = pathname || '/openai'
+
+    return {
+      baseURL: url.toString().replace(/\/+$/, ''),
+      apiVersion:
+        normalizedApiVersion ||
+        (deploymentName ? DEFAULT_AZURE_DEPLOYMENT_API_VERSION : DEFAULT_AZURE_V1_API_VERSION),
+      useDeploymentBasedUrls: Boolean(deploymentName),
+      deploymentName
+    }
+  } catch {
+    const fallbackBaseUrl = normalizedBaseUrl.replace(/\/+$/, '')
+
+    return {
+      baseURL: fallbackBaseUrl.endsWith('/openai')
+        ? fallbackBaseUrl
+        : fallbackBaseUrl.endsWith('/openai/v1')
+          ? fallbackBaseUrl.slice(0, -'/v1'.length)
+          : `${fallbackBaseUrl}/openai`,
+      apiVersion: normalizedApiVersion || DEFAULT_AZURE_V1_API_VERSION,
+      useDeploymentBasedUrls: false
+    }
+  }
+}
+
+function buildAzureEndpoint(
+  baseURL: string | undefined,
+  path: string,
+  apiVersion: string,
+  deploymentName: string,
+  useDeploymentBasedUrls: boolean
+): string {
+  const basePath = (baseURL || '').replace(/\/+$/, '')
+  const endpoint = useDeploymentBasedUrls
+    ? `${basePath}/deployments/${deploymentName}${path}`
+    : `${basePath}/v1${path}`
+
+  return `${endpoint}?api-version=${encodeURIComponent(apiVersion)}`
+}
+
 export function createAiSdkProviderContext(
   params: CreateAiSdkProviderContextParams
 ): AiSdkProviderContext {
@@ -314,6 +402,50 @@ export function createAiSdkProviderContext(
         embeddingModel: provider.embedding(params.modelId),
         imageModel: provider.image(params.modelId),
         endpoint: buildOpenAIEndpoint(baseUrl || 'https://api.openai.com/v1', '/responses')
+      }
+    }
+
+    case 'azure': {
+      const azureApiVersion = params.configPresenter.getSetting<string>('azureApiVersion')
+      const azureConfig = normalizeAzureBaseUrl(baseUrl || undefined, azureApiVersion)
+      const deploymentName = azureConfig.deploymentName || params.modelId
+      const provider = createAzure({
+        baseURL: azureConfig.baseURL,
+        apiKey: params.provider.apiKey || undefined,
+        headers: params.defaultHeaders,
+        fetch,
+        apiVersion: azureConfig.apiVersion,
+        useDeploymentBasedUrls: azureConfig.useDeploymentBasedUrls
+      })
+
+      return {
+        providerOptionsKey: 'azure',
+        apiType: 'azure_responses',
+        model: maybeWrapModel(provider.responses(deploymentName) as any),
+        embeddingModel: provider.embedding(deploymentName),
+        imageModel: provider.image(deploymentName),
+        endpoint: buildAzureEndpoint(
+          azureConfig.baseURL,
+          '/responses',
+          azureConfig.apiVersion,
+          deploymentName,
+          azureConfig.useDeploymentBasedUrls
+        ),
+        imageEndpoint: buildAzureEndpoint(
+          azureConfig.baseURL,
+          '/images/generations',
+          azureConfig.apiVersion,
+          deploymentName,
+          azureConfig.useDeploymentBasedUrls
+        ),
+        embeddingEndpoint: buildAzureEndpoint(
+          azureConfig.baseURL,
+          '/embeddings',
+          azureConfig.apiVersion,
+          deploymentName,
+          azureConfig.useDeploymentBasedUrls
+        ),
+        resolvedModelId: deploymentName
       }
     }
 

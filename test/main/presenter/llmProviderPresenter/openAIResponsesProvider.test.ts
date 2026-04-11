@@ -589,4 +589,32 @@ describe('OpenAIResponsesProvider tool call id mapping', () => {
     const requestParams = mockResponsesCreate.mock.calls[0][0] as Record<string, unknown>
     expect(requestParams.prompt_cache_key).toMatch(/^deepchat:openai:gpt-5:/)
   })
+
+  it('builds azure ai sdk runtime contexts for azure-openai providers', () => {
+    const provider = new OpenAIResponsesProvider(
+      {
+        id: 'azure-openai',
+        name: 'Azure OpenAI',
+        apiType: 'openai-responses',
+        apiKey: 'test-key',
+        baseUrl: 'https://example.openai.azure.com/openai',
+        enable: false
+      },
+      mockConfigPresenter
+    )
+
+    const context = (provider as any).getAiSdkRuntimeContext()
+
+    expect(context.providerKind).toBe('azure')
+    expect(context.buildTraceHeaders()).toMatchObject({
+      'Content-Type': 'application/json',
+      'api-key': 'test-key'
+    })
+    expect(
+      context.shouldUseImageGeneration('gpt-image-1', {
+        apiEndpoint: 'image'
+      } as ModelConfig)
+    ).toBe(true)
+    expect(context.shouldUseImageGeneration('gpt-image-1', {} as ModelConfig)).toBe(false)
+  })
 })

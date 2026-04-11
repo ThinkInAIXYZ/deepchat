@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type {
   ChatMessage,
   IConfigPresenter,
@@ -178,6 +178,20 @@ const mockSqlitePresenter = {
   deleteAcpSession: vi.fn().mockResolvedValue(undefined),
   deleteAcpSessions: vi.fn().mockResolvedValue(undefined)
 } as unknown as ISQLitePresenter
+
+const previousRuntimeMode = process.env.DEEPCHAT_LLM_RUNTIME
+
+beforeAll(() => {
+  process.env.DEEPCHAT_LLM_RUNTIME = 'legacy'
+})
+
+afterAll(() => {
+  if (previousRuntimeMode === undefined) {
+    delete process.env.DEEPCHAT_LLM_RUNTIME
+    return
+  }
+  process.env.DEEPCHAT_LLM_RUNTIME = previousRuntimeMode
+})
 
 describe('OpenAICompatibleProvider MCP runtime injection', () => {
   const convertedTools = [
@@ -480,5 +494,34 @@ describe('OpenAICompatibleProvider prompt cache behavior', () => {
         }
       ]
     })
+  })
+
+  it('builds azure ai sdk runtime contexts for azure-openai providers', () => {
+    const provider = new OpenAICompatibleProvider(
+      {
+        id: 'azure-openai',
+        name: 'Azure OpenAI',
+        apiType: 'openai-completions',
+        apiKey: 'test-key',
+        baseUrl: 'https://example.openai.azure.com/openai/deployments/deepchat-prod',
+        enable: false
+      },
+      createConfigPresenter([])
+    )
+
+    const context = (provider as any).getAiSdkRuntimeContext()
+
+    expect(context.providerKind).toBe('azure')
+    expect(context.cleanHeaders).toBe(false)
+    expect(context.buildTraceHeaders()).toMatchObject({
+      'Content-Type': 'application/json',
+      'api-key': 'test-key'
+    })
+    expect(
+      context.shouldUseImageGeneration('gpt-image-1', {
+        apiEndpoint: 'image'
+      } as ModelConfig)
+    ).toBe(true)
+    expect(context.shouldUseImageGeneration('gpt-image-1', {} as ModelConfig)).toBe(false)
   })
 })

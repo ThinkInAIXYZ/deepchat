@@ -119,4 +119,30 @@ describe('AI SDK anthropic provider options', () => {
       streamFunctionCallArguments: true
     })
   })
+
+  it('keeps azure responses options under the azure namespace without prompt cache keys', () => {
+    const result = buildProviderOptions({
+      providerId: 'azure-openai',
+      providerOptionsKey: 'azure',
+      apiType: 'azure_responses',
+      modelId: 'my-gpt-4.1-deployment',
+      modelConfig: {
+        reasoningEffort: 'medium' as const,
+        verbosity: 'high' as const,
+        maxCompletionTokens: 2048,
+        conversationId: 'conv-1'
+      },
+      tools: [],
+      messages: []
+    })
+
+    expect(result.providerOptions).toEqual({
+      azure: {
+        reasoningEffort: 'medium',
+        textVerbosity: 'high',
+        maxCompletionTokens: 2048
+      }
+    })
+    expect(result.providerOptions?.azure).not.toHaveProperty('promptCacheKey')
+  })
 })

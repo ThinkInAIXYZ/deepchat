@@ -60,6 +60,7 @@ export interface BuildProviderOptionsParams {
   apiType:
     | 'openai_chat'
     | 'openai_responses'
+    | 'azure_responses'
     | 'anthropic'
     | 'google'
     | 'vertex'
@@ -115,6 +116,23 @@ export function buildProviderOptions(
       }
       if (promptCachePlan.cacheKey) {
         config.promptCacheKey = promptCachePlan.cacheKey
+      }
+      if (Object.keys(config).length > 0) {
+        providerOptions[params.providerOptionsKey] = config
+      }
+      break
+    }
+
+    case 'azure_responses': {
+      const config: Record<string, unknown> = {}
+      if (params.modelConfig.reasoningEffort) {
+        config.reasoningEffort = params.modelConfig.reasoningEffort
+      }
+      if (params.modelConfig.verbosity) {
+        config.textVerbosity = params.modelConfig.verbosity
+      }
+      if (params.modelConfig.maxCompletionTokens) {
+        config.maxCompletionTokens = params.modelConfig.maxCompletionTokens
       }
       if (Object.keys(config).length > 0) {
         providerOptions[params.providerOptionsKey] = config

@@ -322,18 +322,23 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
   }
 
   protected getAiSdkRuntimeContext(): AiSdkRuntimeContext {
+    const isAzureOpenAI = this.provider.id === 'azure-openai'
+
     return {
-      providerKind: 'openai-compatible',
+      providerKind: isAzureOpenAI ? 'azure' : 'openai-compatible',
       provider: this.provider,
       configPresenter: this.configPresenter,
       defaultHeaders: this.defaultHeaders,
       buildLegacyFunctionCallPrompt: (tools) => this.getFunctionCallWrapPrompt(tools),
       emitRequestTrace: (modelConfig, payload) => this.emitRequestTrace(modelConfig, payload),
-      cleanHeaders: !this.isOfficialOpenAIService() && this.provider.id !== 'azure-openai',
+      buildTraceHeaders: () => this.buildChatCompletionsTraceHeaders(),
+      cleanHeaders: !this.isOfficialOpenAIService() && !isAzureOpenAI,
       supportsNativeTools: (_modelId, modelConfig) => modelConfig.functionCall === true,
       shouldUseImageGeneration: (modelId, modelConfig) =>
-        this.getEffectiveApiEndpoint(modelId) === ApiEndpointType.Image ||
-        modelConfig.apiEndpoint === ApiEndpointType.Image
+        isAzureOpenAI
+          ? modelConfig.apiEndpoint === ApiEndpointType.Image
+          : this.getEffectiveApiEndpoint(modelId) === ApiEndpointType.Image ||
+            modelConfig.apiEndpoint === ApiEndpointType.Image
     }
   }
 
@@ -1691,7 +1696,7 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
     maxTokens: number,
     mcpTools: MCPToolDefinition[]
   ): AsyncGenerator<LLMCoreStreamEvent> {
-    if (shouldUseAiSdkRuntime(this.configPresenter) && this.provider.id !== 'azure-openai') {
+    if (shouldUseAiSdkRuntime(this.configPresenter)) {
       yield* runAiSdkCoreStream(
         this.getAiSdkRuntimeContext(),
         messages,
@@ -1986,7 +1991,7 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
   public async summaryTitles(messages: ChatMessage[], modelId: string): Promise<string> {
     const summaryText = `${SUMMARY_TITLES_PROMPT}\n\n${messages.map((m) => `${m.role}: ${m.content}`).join('\n')}`
     const fullMessage: ChatMessage[] = [{ role: 'user', content: summaryText }]
-    if (shouldUseAiSdkRuntime(this.configPresenter) && this.provider.id !== 'azure-openai') {
+    if (shouldUseAiSdkRuntime(this.configPresenter)) {
       const response = await runAiSdkGenerateText(
         this.getAiSdkRuntimeContext(),
         fullMessage,
@@ -2006,7 +2011,7 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
     temperature?: number,
     maxTokens?: number
   ): Promise<LLMResponse> {
-    if (shouldUseAiSdkRuntime(this.configPresenter) && this.provider.id !== 'azure-openai') {
+    if (shouldUseAiSdkRuntime(this.configPresenter)) {
       return runAiSdkGenerateText(
         this.getAiSdkRuntimeContext(),
         messages,
@@ -2032,7 +2037,7 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
       { role: 'system', content: systemPrompt },
       { role: 'user', content: text } // Use the input text directly
     ]
-    if (shouldUseAiSdkRuntime(this.configPresenter) && this.provider.id !== 'azure-openai') {
+    if (shouldUseAiSdkRuntime(this.configPresenter)) {
       return runAiSdkGenerateText(
         this.getAiSdkRuntimeContext(),
         requestMessages,
@@ -2055,7 +2060,7 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
     const requestMessages: ChatMessage[] = [{ role: 'user', content: prompt }]
     // Note: formatMessages might not be needed here if it's just a single prompt string,
     // but keeping it for consistency in case formatMessages adds system prompts or other logic.
-    if (shouldUseAiSdkRuntime(this.configPresenter) && this.provider.id !== 'azure-openai') {
+    if (shouldUseAiSdkRuntime(this.configPresenter)) {
       return runAiSdkGenerateText(
         this.getAiSdkRuntimeContext(),
         requestMessages,
@@ -2110,7 +2115,7 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
   }
 
   async getEmbeddings(modelId: string, texts: string[]): Promise<number[][]> {
-    if (shouldUseAiSdkRuntime(this.configPresenter) && this.provider.id !== 'azure-openai') {
+    if (shouldUseAiSdkRuntime(this.configPresenter)) {
       return runAiSdkEmbeddings(this.getAiSdkRuntimeContext(), modelId, texts)
     }
 
@@ -2127,7 +2132,7 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
   }
 
   async getDimensions(modelId: string): Promise<LLM_EMBEDDING_ATTRS> {
-    if (shouldUseAiSdkRuntime(this.configPresenter) && this.provider.id !== 'azure-openai') {
+    if (shouldUseAiSdkRuntime(this.configPresenter)) {
       return runAiSdkDimensions(this.getAiSdkRuntimeContext(), modelId)
     }
 

@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
+  createAiSdkProviderContext,
+  normalizeAzureBaseUrl,
   normalizeAnthropicBaseUrl,
   normalizeVertexRequestBody,
   normalizeVertexBaseUrl
@@ -110,5 +112,99 @@ describe('AI SDK provider factory', () => {
         }
       ]
     })
+  })
+
+  it('normalizes azure resource base urls to the openai prefix with v1 semantics', () => {
+    expect(normalizeAzureBaseUrl('https://example.openai.azure.com', undefined)).toEqual({
+      baseURL: 'https://example.openai.azure.com/openai',
+      apiVersion: 'v1',
+      useDeploymentBasedUrls: false
+    })
+
+    expect(normalizeAzureBaseUrl('https://example.openai.azure.com/openai/v1', undefined)).toEqual({
+      baseURL: 'https://example.openai.azure.com/openai',
+      apiVersion: 'v1',
+      useDeploymentBasedUrls: false
+    })
+  })
+
+  it('preserves deployment-based azure urls and legacy api versions', () => {
+    expect(
+      normalizeAzureBaseUrl(
+        'https://example.openai.azure.com/openai/deployments/deepchat-prod',
+        undefined
+      )
+    ).toEqual({
+      baseURL: 'https://example.openai.azure.com/openai',
+      apiVersion: '2024-02-01',
+      useDeploymentBasedUrls: true,
+      deploymentName: 'deepchat-prod'
+    })
+
+    expect(
+      normalizeAzureBaseUrl(
+        'https://example.openai.azure.com/openai/deployments/deepchat-prod',
+        '2025-04-01-preview'
+      )
+    ).toEqual({
+      baseURL: 'https://example.openai.azure.com/openai',
+      apiVersion: '2025-04-01-preview',
+      useDeploymentBasedUrls: true,
+      deploymentName: 'deepchat-prod'
+    })
+  })
+
+  it('builds azure responses endpoints without duplicating v1 segments', () => {
+    const context = createAiSdkProviderContext({
+      providerKind: 'azure',
+      provider: {
+        id: 'azure-openai',
+        name: 'Azure OpenAI',
+        apiKey: 'test-key',
+        baseUrl: 'https://example.openai.azure.com/openai/v1',
+        enable: false
+      } as any,
+      configPresenter: {
+        getSetting: () => undefined
+      } as any,
+      defaultHeaders: {},
+      modelId: 'my-gpt-4.1-deployment'
+    })
+
+    expect(context.apiType).toBe('azure_responses')
+    expect(context.providerOptionsKey).toBe('azure')
+    expect(context.endpoint).toBe(
+      'https://example.openai.azure.com/openai/v1/responses?api-version=v1'
+    )
+    expect(context.embeddingEndpoint).toBe(
+      'https://example.openai.azure.com/openai/v1/embeddings?api-version=v1'
+    )
+    expect(context.imageEndpoint).toBe(
+      'https://example.openai.azure.com/openai/v1/images/generations?api-version=v1'
+    )
+    expect(context.resolvedModelId).toBe('my-gpt-4.1-deployment')
+  })
+
+  it('uses deployment ids from azure deployment-scoped urls', () => {
+    const context = createAiSdkProviderContext({
+      providerKind: 'azure',
+      provider: {
+        id: 'azure-openai',
+        name: 'Azure OpenAI',
+        apiKey: 'test-key',
+        baseUrl: 'https://example.openai.azure.com/openai/deployments/deepchat-prod',
+        enable: false
+      } as any,
+      configPresenter: {
+        getSetting: () => undefined
+      } as any,
+      defaultHeaders: {},
+      modelId: 'ignored-model-id'
+    })
+
+    expect(context.endpoint).toBe(
+      'https://example.openai.azure.com/openai/deployments/deepchat-prod/responses?api-version=2024-02-01'
+    )
+    expect(context.resolvedModelId).toBe('deepchat-prod')
   })
 })

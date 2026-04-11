@@ -32,6 +32,7 @@ export interface AiSdkRuntimeContext {
       body?: unknown
     }
   ) => Promise<void>
+  buildTraceHeaders?: () => Record<string, string>
   cleanHeaders?: boolean
   supportsNativeTools?: (modelId: string, modelConfig: ModelConfig) => boolean
   shouldUseImageGeneration?: (modelId: string, modelConfig: ModelConfig) => boolean
@@ -179,9 +180,9 @@ export async function runAiSdkGenerateText(
 
   await context.emitRequestTrace?.(modelConfig, {
     endpoint: runtime.providerContext.endpoint,
-    headers: context.defaultHeaders,
+    headers: context.buildTraceHeaders?.() ?? context.defaultHeaders,
     body: {
-      model: modelId,
+      model: runtime.providerContext.resolvedModelId ?? modelId,
       maxOutputTokens: maxTokens,
       temperature
     }
@@ -228,10 +229,10 @@ export async function* runAiSdkCoreStream(
     }
 
     await context.emitRequestTrace?.(modelConfig, {
-      endpoint: providerContext.endpoint,
-      headers: context.defaultHeaders,
+      endpoint: providerContext.imageEndpoint ?? providerContext.endpoint,
+      headers: context.buildTraceHeaders?.() ?? context.defaultHeaders,
       body: {
-        model: modelId,
+        model: providerContext.resolvedModelId ?? modelId,
         prompt
       }
     })
@@ -264,9 +265,9 @@ export async function* runAiSdkCoreStream(
 
   await context.emitRequestTrace?.(modelConfig, {
     endpoint: runtime.providerContext.endpoint,
-    headers: context.defaultHeaders,
+    headers: context.buildTraceHeaders?.() ?? context.defaultHeaders,
     body: {
-      model: modelId,
+      model: runtime.providerContext.resolvedModelId ?? modelId,
       maxOutputTokens: maxTokens,
       temperature,
       tools: tools.map((tool) => tool.function.name)
