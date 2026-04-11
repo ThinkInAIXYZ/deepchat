@@ -1,4 +1,5 @@
 import type { AssistantMessageBlock } from '@shared/types/agent-interface'
+import type { PermissionRequestPayload } from '@shared/types/core/llm-events'
 import type {
   IoParams,
   PendingToolInteraction,
@@ -23,6 +24,7 @@ const CONTEXT_WINDOW_ERROR_PATTERNS = [
 ]
 const USER_CANCELED_GENERATION_ERROR = 'common.error.userCanceledGeneration'
 const NO_MODEL_RESPONSE_ERROR = 'common.error.noModelResponse'
+type PendingPermissionPayload = NonNullable<PendingToolInteraction['permission']>
 
 function isAbortError(error: unknown): boolean {
   return error instanceof Error && (error.name === 'AbortError' || error.name === 'CanceledError')
@@ -103,8 +105,8 @@ function normalizeProviderPermissionType(
 }
 
 function toStreamingProviderPermission(
-  permission: Record<string, unknown>
-): NonNullable<PendingToolInteraction['permission']> {
+  permission: PermissionRequestPayload
+): PendingPermissionPayload {
   const toolName =
     typeof permission.tool_call_name === 'string' && permission.tool_call_name.trim()
       ? permission.tool_call_name.trim()
@@ -131,9 +133,7 @@ function toStreamingProviderPermission(
     !Array.isArray(permission.metadata)
       ? (permission.metadata as Record<string, unknown>)
       : undefined
-  const permissionType = normalizeProviderPermissionType(
-    permission.permissionType as PendingToolInteraction['permission']['permissionType']
-  )
+  const permissionType = normalizeProviderPermissionType(permission.permissionType)
 
   return {
     permissionType,
@@ -152,10 +152,10 @@ function toStreamingProviderPermission(
 
 function appendStreamingProviderPermissionBlock(
   state: StreamState,
-  permissionPayload: Record<string, unknown>
+  permissionPayload: PermissionRequestPayload
 ): {
   actionBlock: AssistantMessageBlock
-  permission: NonNullable<PendingToolInteraction['permission']>
+  permission: PendingPermissionPayload
   tool: {
     callId?: string
     name?: string
@@ -301,7 +301,7 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
         if (event.type === 'permission') {
           const { actionBlock, permission, tool } = appendStreamingProviderPermissionBlock(
             state,
-            event.permission as Record<string, unknown>
+            event.permission
           )
           hooks?.onPermissionRequest?.(permission, tool)
           hooks?.onStreamingProviderPermission?.(permission, tool, (granted) => {

@@ -3186,7 +3186,6 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       } else {
         await this.llmProviderPresenter.resolveAgentPermission(input.requestId, input.granted)
         this.updatePersistedProviderPermissionState(
-          input.sessionId,
           input.messageId,
           input.toolCallId,
           input.requestId,
@@ -3200,7 +3199,6 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   }
 
   private updatePersistedProviderPermissionState(
-    sessionId: string,
     messageId: string,
     toolCallId: string,
     requestId: string,
