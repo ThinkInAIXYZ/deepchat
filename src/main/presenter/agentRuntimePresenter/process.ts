@@ -25,6 +25,7 @@ const CONTEXT_WINDOW_ERROR_PATTERNS = [
 const USER_CANCELED_GENERATION_ERROR = 'common.error.userCanceledGeneration'
 const NO_MODEL_RESPONSE_ERROR = 'common.error.noModelResponse'
 type PendingPermissionPayload = NonNullable<PendingToolInteraction['permission']>
+type PendingPermissionCommandInfo = NonNullable<PendingPermissionPayload['commandInfo']>
 
 function isAbortError(error: unknown): boolean {
   return error instanceof Error && (error.name === 'AbortError' || error.name === 'CanceledError')
@@ -104,6 +105,50 @@ function normalizeProviderPermissionType(
     : 'write'
 }
 
+function parseStreamingPermissionPaths(raw: unknown): string[] | undefined {
+  if (!Array.isArray(raw)) {
+    return undefined
+  }
+
+  const paths = raw.filter(
+    (item): item is string => typeof item === 'string' && item.trim().length > 0
+  )
+  return paths.length > 0 ? paths : undefined
+}
+
+function parseStreamingPermissionCommandInfo(
+  raw: unknown
+): PendingPermissionCommandInfo | undefined {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return undefined
+  }
+
+  const value = raw as Record<string, unknown>
+  if (typeof value.command !== 'string' || !value.command.trim()) {
+    return undefined
+  }
+
+  const riskLevel =
+    value.riskLevel === 'low' ||
+    value.riskLevel === 'medium' ||
+    value.riskLevel === 'high' ||
+    value.riskLevel === 'critical'
+      ? value.riskLevel
+      : 'medium'
+
+  return {
+    command: value.command.trim(),
+    riskLevel,
+    suggestion: typeof value.suggestion === 'string' ? value.suggestion.trim() : '',
+    ...(typeof value.signature === 'string' && value.signature.trim()
+      ? { signature: value.signature.trim() }
+      : {}),
+    ...(typeof value.baseCommand === 'string' && value.baseCommand.trim()
+      ? { baseCommand: value.baseCommand.trim() }
+      : {})
+  }
+}
+
 function toStreamingProviderPermission(
   permission: PermissionRequestPayload
 ): PendingPermissionPayload {
@@ -127,6 +172,12 @@ function toStreamingProviderPermission(
     typeof permission.command === 'string' && permission.command.trim()
       ? permission.command.trim()
       : undefined
+  const commandSignature =
+    typeof permission.commandSignature === 'string' && permission.commandSignature.trim()
+      ? permission.commandSignature.trim()
+      : undefined
+  const paths = parseStreamingPermissionPaths(permission.paths)
+  const commandInfo = parseStreamingPermissionCommandInfo(permission.commandInfo)
   const metadata =
     permission.metadata &&
     typeof permission.metadata === 'object' &&
@@ -146,6 +197,9 @@ function toStreamingProviderPermission(
     ...(providerId ? { providerId } : {}),
     ...(requestId ? { requestId } : {}),
     ...(command ? { command } : {}),
+    ...(commandSignature ? { commandSignature } : {}),
+    ...(paths ? { paths } : {}),
+    ...(commandInfo ? { commandInfo } : {}),
     ...(metadata?.rememberable === false ? { rememberable: false } : {})
   }
 }

@@ -194,6 +194,15 @@ describe('processStream', () => {
           permissionType: 'command',
           server_name: 'Claude Agent',
           command: 'dir',
+          commandSignature: 'dir',
+          paths: ['C:/tmp/a.txt', '', 123 as unknown as string],
+          commandInfo: {
+            command: 'dir',
+            riskLevel: 'medium',
+            suggestion: 'Review before running.',
+            signature: 'dir',
+            baseCommand: 'dir'
+          },
           metadata: { rememberable: false }
         }
       } as LLMCoreStreamEvent
@@ -245,7 +254,16 @@ describe('processStream', () => {
         providerId: 'acp',
         requestId: 'req-acp-1',
         permissionType: 'command',
-        command: 'dir'
+        command: 'dir',
+        commandSignature: 'dir',
+        paths: ['C:/tmp/a.txt'],
+        commandInfo: {
+          command: 'dir',
+          riskLevel: 'medium',
+          suggestion: 'Review before running.',
+          signature: 'dir',
+          baseCommand: 'dir'
+        }
       })
     )
 
