@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.0.3-beta.1 (2026-04-11)
+- Migrated model requests to the AI SDK runtime, improving prompt cache behavior, provider consistency, and streaming stability
+- Added NewAPI provider support and refined compatible endpoint configuration
+- Improved model management with more stable provider toggles and synchronized Ollama selectable model status
+- Added `skill_view` draft flow and automatic tool activation after skill previews to smooth skill setup
+- Enhanced Markdown and workspace link navigation, added sidebar panel toggle hotkeys, and fixed artifact viewer sizing in the side panel
+- 将模型请求迁移到 AI SDK 运行时，进一步改善 Prompt Cache 表现、Provider 一致性与流式稳定性
+- 新增 NewAPI Provider 支持，并完善兼容端点配置体验
+- 改进模型管理，修复 Provider 模型开关稳定性并同步 Ollama 可选模型状态
+- 新增 `skill_view` 草稿流，并在技能预览后自动激活工具，减少技能接入摩擦
+- 优化 Markdown 与工作区链接跳转体验，新增侧栏面板切换快捷键，并修复侧边栏制品预览高度问题
+
 ## v1.0.2 (2026-04-08)
 - Added provider model list filtering and sorting, and now remembers the sidebar session grouping mode
 - Added ACP Agent uninstall support and refined provider prompt cache configuration
