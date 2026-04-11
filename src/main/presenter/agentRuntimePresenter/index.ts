@@ -91,6 +91,16 @@ type ResumeBudgetToolCall = {
   offloadPath?: string
 }
 
+type ActiveProviderPermission = {
+  requestId: string
+  sessionId: string
+  messageId: string
+  toolCallId: string
+  providerId: string
+  permissionType: 'read' | 'write' | 'all' | 'command'
+  resolve: (granted: boolean) => Promise<void>
+}
+
 type PersistedSessionGenerationRow = {
   provider_id: string
   model_id: string
@@ -155,6 +165,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   private readonly interactionLocks: Set<string> = new Set()
   private readonly resumingMessages: Set<string> = new Set()
   private readonly drainingPendingQueues: Set<string> = new Set()
+  private readonly activeProviderPermissions: Map<string, ActiveProviderPermission> = new Map()
   private readonly compactionService: CompactionService
   private readonly toolOutputGuard: ToolOutputGuard
   private readonly hooksBridge?: NewSessionHooksBridge
@@ -279,6 +290,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     }
     this.abortDeferredToolAbortControllers(sessionId)
     this.activeGenerations.delete(sessionId)
+    this.clearActiveProviderPermissionsForSession(sessionId)
 
     this.pendingInputCoordinator.deleteBySession(sessionId)
     this.messageStore.deleteBySession(sessionId)
@@ -708,6 +720,19 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         }
         const permissionPayload = this.parsePermissionPayload(actionBlock)
         const permissionType = permissionPayload?.permissionType ?? 'write'
+        const requestId = permissionPayload?.requestId?.trim()
+        const providerId = permissionPayload?.providerId?.trim()
+        if (providerId === 'acp' && requestId) {
+          await this.resolveProviderPermissionInteraction({
+            sessionId,
+            messageId,
+            toolCallId: toolCall.id,
+            requestId,
+            permissionType,
+            granted: response.granted
+          })
+          return { resumed: false }
+        }
         const state = this.runtimeState.get(sessionId)
         const projectDir = this.resolveProjectDir(sessionId)
         let shouldDispatchResolvedToolHook = false
@@ -994,6 +1019,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       }
     }
     this.abortDeferredToolAbortControllers(sessionId)
+    this.clearActiveProviderPermissionsForSession(sessionId)
     this.setSessionStatus(sessionId, 'idle')
   }
 
@@ -1626,6 +1652,15 @@ export class AgentRuntimePresenter implements IAgentImplementation {
               tool
             })
           },
+          onStreamingProviderPermission: (permission, tool, commitDecision) => {
+            this.registerActiveProviderPermission(
+              sessionId,
+              messageId,
+              permission,
+              tool,
+              commitDecision
+            )
+          },
           onInterleavedReasoningGap: (gap) => {
             console.warn(
               `[DeepChatAgent] Interleaved reasoning gap detected for ${gap.providerId}/${gap.modelId}. Update provider DB metadata at ${gap.providerDbSourceUrl}.`
@@ -1817,6 +1852,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       return
     }
     this.activeGenerations.delete(sessionId)
+    this.clearActiveProviderPermissionsForSession(sessionId)
     if (this.abortControllers.get(sessionId) === activeGeneration.abortController) {
       this.abortControllers.delete(sessionId)
     }
@@ -3100,6 +3136,104 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         typeof block.extra?.permissionRequestId === 'string'
           ? block.extra.permissionRequestId
           : undefined
+    }
+  }
+
+  private registerActiveProviderPermission(
+    sessionId: string,
+    messageId: string,
+    permission: NonNullable<PendingToolInteraction['permission']>,
+    tool: {
+      callId?: string
+      name?: string
+      params?: string
+    },
+    commitDecision: (granted: boolean) => void
+  ): void {
+    const requestId = permission.requestId?.trim()
+    const providerId = permission.providerId?.trim()
+    if (!requestId || providerId !== 'acp') {
+      return
+    }
+
+    this.activeProviderPermissions.set(requestId, {
+      requestId,
+      sessionId,
+      messageId,
+      toolCallId: tool.callId || '',
+      providerId,
+      permissionType: permission.permissionType,
+      resolve: async (granted: boolean) => {
+        await this.llmProviderPresenter.resolveAgentPermission(requestId, granted)
+        commitDecision(granted)
+      }
+    })
+  }
+
+  private async resolveProviderPermissionInteraction(input: {
+    sessionId: string
+    messageId: string
+    toolCallId: string
+    requestId: string
+    permissionType: 'read' | 'write' | 'all' | 'command'
+    granted: boolean
+  }): Promise<void> {
+    const active = this.activeProviderPermissions.get(input.requestId)
+
+    try {
+      if (active) {
+        await active.resolve(input.granted)
+      } else {
+        await this.llmProviderPresenter.resolveAgentPermission(input.requestId, input.granted)
+        this.updatePersistedProviderPermissionState(
+          input.sessionId,
+          input.messageId,
+          input.toolCallId,
+          input.requestId,
+          input.permissionType,
+          input.granted
+        )
+      }
+    } finally {
+      this.activeProviderPermissions.delete(input.requestId)
+    }
+  }
+
+  private updatePersistedProviderPermissionState(
+    sessionId: string,
+    messageId: string,
+    toolCallId: string,
+    requestId: string,
+    permissionType: 'read' | 'write' | 'all' | 'command',
+    granted: boolean
+  ): void {
+    const message = this.messageStore.getMessage(messageId)
+    if (!message || message.role !== 'assistant') {
+      return
+    }
+
+    const blocks = this.parseAssistantBlocks(message.content)
+    const actionBlock = blocks.find(
+      (block) =>
+        block.type === 'action' &&
+        block.action_type === 'tool_call_permission' &&
+        block.tool_call?.id === toolCallId &&
+        (block.extra?.permissionRequestId === requestId || requestId === '')
+    )
+
+    if (!actionBlock) {
+      return
+    }
+
+    this.markPermissionResolved(actionBlock, granted, permissionType)
+    this.messageStore.updateAssistantContent(messageId, blocks)
+  }
+
+  private clearActiveProviderPermissionsForSession(sessionId: string): void {
+    for (const [requestId, permission] of this.activeProviderPermissions.entries()) {
+      if (permission.sessionId === sessionId) {
+        this.activeProviderPermissions.delete(requestId)
+      }
     }
   }
 

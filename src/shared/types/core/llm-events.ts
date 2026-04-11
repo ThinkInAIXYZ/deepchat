@@ -222,6 +222,7 @@ export interface PermissionRequestPayload {
   server_name?: string
   server_description?: string
   server_icons?: string
+  command?: string
   options?: PermissionRequestOption[]
   metadata?: Record<string, unknown>
 }

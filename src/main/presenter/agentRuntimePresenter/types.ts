@@ -88,6 +88,15 @@ export interface ProcessHooks {
   autoGrantPermission?: (
     permission: NonNullable<PendingToolInteraction['permission']>
   ) => Promise<void>
+  onStreamingProviderPermission?: (
+    permission: NonNullable<PendingToolInteraction['permission']>,
+    tool: {
+      callId?: string
+      name?: string
+      params?: string
+    },
+    commitDecision: (granted: boolean) => void
+  ) => void
   normalizeToolResult?: (tool: {
     sessionId: string
     toolCallId: string
