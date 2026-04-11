@@ -2,6 +2,7 @@ import type { MCPToolDefinition } from '@shared/presenter'
 import { jsonSchema, tool, type ToolSet } from 'ai'
 
 type JsonSchema = Record<string, unknown>
+const UNSAFE_TOOL_NAMES = new Set(['__proto__', 'constructor', 'prototype'])
 
 function isObjectSchema(value: unknown): value is JsonSchema {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
@@ -144,17 +145,20 @@ export function normalizeToolInputSchema(schema: Record<string, unknown>): Recor
 }
 
 export function mcpToolsToAISDKTools(tools: MCPToolDefinition[]): ToolSet {
-  return tools.reduce<ToolSet>((acc, toolDef) => {
-    const name = toolDef.function.name
-    if (!name) {
+  return tools.reduce<ToolSet>(
+    (acc, toolDef) => {
+      const name = toolDef.function.name
+      if (!name || UNSAFE_TOOL_NAMES.has(name)) {
+        return acc
+      }
+
+      acc[name] = tool({
+        description: toolDef.function.description,
+        inputSchema: jsonSchema(normalizeToolInputSchema(toolDef.function.parameters as JsonSchema))
+      })
+
       return acc
-    }
-
-    acc[name] = tool({
-      description: toolDef.function.description,
-      inputSchema: jsonSchema(normalizeToolInputSchema(toolDef.function.parameters as JsonSchema))
-    })
-
-    return acc
-  }, {})
+    },
+    Object.create(null) as ToolSet
+  )
 }

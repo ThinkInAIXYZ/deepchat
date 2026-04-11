@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { normalizeToolInputSchema } from '@/presenter/llmProviderPresenter/aiSdk/toolMapper'
+import {
+  mcpToolsToAISDKTools,
+  normalizeToolInputSchema
+} from '@/presenter/llmProviderPresenter/aiSdk/toolMapper'
 
 describe('AI SDK tool schema normalization', () => {
   it('normalizes discriminated union schemas to a top-level object schema', () => {
@@ -80,5 +83,46 @@ describe('AI SDK tool schema normalization', () => {
       additionalProperties: false
     })
     expect(normalized).not.toHaveProperty('items')
+  })
+
+  it('uses a safe dictionary and skips unsafe tool names', () => {
+    const tools = mcpToolsToAISDKTools([
+      {
+        type: 'function',
+        function: {
+          name: '__proto__',
+          description: 'unsafe',
+          parameters: {
+            type: 'object',
+            properties: {}
+          }
+        },
+        server: {
+          name: 'unsafe-server',
+          icons: '',
+          description: 'unsafe'
+        }
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'safe_tool',
+          description: 'safe',
+          parameters: {
+            type: 'object',
+            properties: {}
+          }
+        },
+        server: {
+          name: 'safe-server',
+          icons: '',
+          description: 'safe'
+        }
+      }
+    ])
+
+    expect(Object.getPrototypeOf(tools)).toBeNull()
+    expect(tools).not.toHaveProperty('__proto__')
+    expect(tools).toHaveProperty('safe_tool')
   })
 })
