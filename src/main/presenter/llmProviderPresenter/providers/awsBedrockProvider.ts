@@ -1,96 +1,21 @@
 import {
-  LLMResponse,
-  MODEL_META,
-  LLMCoreStreamEvent,
-  ModelConfig,
-  MCPToolDefinition,
-  ChatMessage,
   AWS_BEDROCK_PROVIDER,
-  IConfigPresenter
+  ChatMessage,
+  IConfigPresenter,
+  LLMCoreStreamEvent,
+  LLMResponse,
+  MCPToolDefinition,
+  MODEL_META,
+  ModelConfig
 } from '@shared/presenter'
-import { createStreamEvent } from '@shared/types/core/llm-events'
-import { BaseLLMProvider, SUMMARY_TITLES_PROMPT } from '../baseProvider'
 import { BedrockClient, ListFoundationModelsCommand } from '@aws-sdk/client-bedrock'
-import {
-  BedrockRuntimeClient,
-  InvokeModelCommand,
-  InvokeModelCommandOutput,
-  InvokeModelWithResponseStreamCommand
-} from '@aws-sdk/client-bedrock-runtime'
-import Anthropic from '@anthropic-ai/sdk'
-import { Usage } from '@anthropic-ai/sdk/resources/messages'
+import { BaseLLMProvider, SUMMARY_TITLES_PROMPT } from '../baseProvider'
+import { runAiSdkCoreStream, runAiSdkGenerateText, type AiSdkRuntimeContext } from '../aiSdk'
 import type { ProviderMcpRuntimePort } from '../runtimePorts'
-import {
-  applyAnthropicExplicitCacheBreakpoint,
-  resolvePromptCachePlan
-} from '../promptCacheStrategy'
-import {
-  runAiSdkCoreStream,
-  runAiSdkGenerateText,
-  shouldUseAiSdkRuntime,
-  type AiSdkRuntimeContext
-} from '../aiSdk'
-
-type CacheAwareBedrockUsage = Usage & {
-  cache_read_input_tokens?: number
-  cache_creation_input_tokens?: number
-  cacheReadInputTokens?: number
-  cacheWriteInputTokens?: number
-}
-
-function getBedrockUsageNumber(
-  usage: CacheAwareBedrockUsage | undefined,
-  snakeKey: 'cache_read_input_tokens' | 'cache_creation_input_tokens',
-  camelKey: 'cacheReadInputTokens' | 'cacheWriteInputTokens'
-): number {
-  const value = usage?.[snakeKey] ?? usage?.[camelKey]
-  return typeof value === 'number' && Number.isFinite(value) ? value : 0
-}
-
-function buildBedrockUsageSnapshot(usage: CacheAwareBedrockUsage | undefined): {
-  prompt_tokens: number
-  completion_tokens: number
-  total_tokens: number
-  cached_tokens?: number
-  cache_write_tokens?: number
-} | null {
-  if (!usage) {
-    return null
-  }
-
-  const uncachedInputTokens =
-    typeof usage.input_tokens === 'number' && Number.isFinite(usage.input_tokens)
-      ? usage.input_tokens
-      : 0
-  const completionTokens =
-    typeof usage.output_tokens === 'number' && Number.isFinite(usage.output_tokens)
-      ? usage.output_tokens
-      : 0
-  const cachedTokens = getBedrockUsageNumber(
-    usage,
-    'cache_read_input_tokens',
-    'cacheReadInputTokens'
-  )
-  const cacheWriteTokens = getBedrockUsageNumber(
-    usage,
-    'cache_creation_input_tokens',
-    'cacheWriteInputTokens'
-  )
-  const promptTokens = uncachedInputTokens + cachedTokens + cacheWriteTokens
-
-  return {
-    prompt_tokens: promptTokens,
-    completion_tokens: completionTokens,
-    total_tokens: promptTokens + completionTokens,
-    ...(cachedTokens > 0 ? { cached_tokens: cachedTokens } : {}),
-    ...(cacheWriteTokens > 0 ? { cache_write_tokens: cacheWriteTokens } : {})
-  }
-}
 
 export class AwsBedrockProvider extends BaseLLMProvider {
   private bedrock!: BedrockClient
-  private bedrockRuntime!: BedrockRuntimeClient
-  private defaultModel = 'anthropic.claude-3-5-sonnet-20240620-v1:0'
+  private readonly defaultModel = 'anthropic.claude-3-5-sonnet-20240620-v1:0'
 
   constructor(
     provider: AWS_BEDROCK_PROVIDER,
@@ -113,86 +38,50 @@ export class AwsBedrockProvider extends BaseLLMProvider {
     }
   }
 
-  private getBedrockRegion(): string {
+  private getCredentials() {
     const provider = this.provider as AWS_BEDROCK_PROVIDER
-    return provider.credential?.region || process.env.BEDROCK_REGION || 'unknown-region'
-  }
+    const accessKeyId = provider.credential?.accessKeyId || process.env.BEDROCK_ACCESS_KEY_ID
+    const secretAccessKey =
+      provider.credential?.secretAccessKey || process.env.BEDROCK_SECRET_ACCESS_KEY
+    const region = provider.credential?.region || process.env.BEDROCK_REGION
 
-  private buildBedrockStreamEndpoint(modelId: string): string {
-    const region = this.getBedrockRegion()
-    return `https://bedrock-runtime.${region}.amazonaws.com/model/${encodeURIComponent(modelId)}/invoke-with-response-stream`
-  }
-
-  private decodeBedrockBody(body: unknown): unknown {
-    if (typeof body === 'string') {
-      try {
-        return JSON.parse(body)
-      } catch {
-        return body
-      }
+    if (!accessKeyId || !secretAccessKey || !region) {
+      return null
     }
-    if (body instanceof Uint8Array) {
-      const text = new TextDecoder().decode(body)
-      try {
-        return JSON.parse(text)
-      } catch {
-        return text
-      }
+
+    return {
+      accessKeyId,
+      secretAccessKey,
+      region
     }
-    return body
   }
 
-  private applyPromptCache(
-    messages: Anthropic.MessageParam[],
-    modelId: string,
-    conversationId?: string
-  ): Anthropic.MessageParam[] {
-    const plan = resolvePromptCachePlan({
-      providerId: this.provider.id,
-      apiType: 'anthropic',
-      modelId,
-      messages: messages as unknown[],
-      conversationId
-    })
-    return applyAnthropicExplicitCacheBreakpoint(messages, plan)
-  }
-
-  public onProxyResolved(): void {
-    this.init()
-  }
+  public onProxyResolved(): void {}
 
   protected async init() {
-    if (this.provider.enable) {
-      try {
-        const provider = this.provider as AWS_BEDROCK_PROVIDER
-        const accessKeyId = provider.credential?.accessKeyId || process.env.BEDROCK_ACCESS_KEY_ID
-        const secretAccessKey =
-          provider.credential?.secretAccessKey || process.env.BEDROCK_SECRET_ACCESS_KEY
-        const region = provider.credential?.region || process.env.BEDROCK_REGION
-
-        if (!accessKeyId || !secretAccessKey || !region) {
-          throw new Error('Access Key Id, Secret Access Key and Region are all needed.')
-        }
-
-        this.bedrock = new BedrockClient({
-          credentials: { accessKeyId, secretAccessKey },
-          region
-        })
-
-        this.bedrockRuntime = new BedrockRuntimeClient({
-          credentials: { accessKeyId, secretAccessKey },
-          region
-        })
-
-        await super.init()
-      } catch (error) {
-        console.error('Failed to initialize AWS Bedrock provider:', error)
-      }
+    const credentials = this.getCredentials()
+    if (!credentials) {
+      return
     }
+
+    this.bedrock = new BedrockClient({
+      credentials: {
+        accessKeyId: credentials.accessKeyId,
+        secretAccessKey: credentials.secretAccessKey
+      },
+      region: credentials.region
+    })
+
+    await super.init()
   }
 
   protected async fetchProviderModels(): Promise<MODEL_META[]> {
     try {
+      const credentials = this.getCredentials()
+      if (!credentials) {
+        throw new Error('Missing AWS Bedrock credentials')
+      }
+
       const region = await this.bedrock.config.region()
       const command = new ListFoundationModelsCommand({})
       const response = await this.bedrock.send(command)
@@ -200,15 +89,29 @@ export class AwsBedrockProvider extends BaseLLMProvider {
 
       return (
         models
-          ?.filter((m) => m.modelId && /^anthropic.claude-[a-z0-9-]+(:\d+)$/g.test(m.modelId))
-          ?.filter((m) => m.modelLifecycle?.status === 'ACTIVE')
-          ?.filter((m) => m.inferenceTypesSupported && m.inferenceTypesSupported.length > 0)
-          .map<MODEL_META>((m) => ({
-            id: `${m.inferenceTypesSupported?.includes('ON_DEMAND') ? m.modelId! : `${region.split('-')[0]}.${m.modelId}`}`,
-            name: m.modelId?.replace('anthropic.', '') || '<Unknown>',
+          ?.filter(
+            (model) => model.modelId && /^anthropic.claude-[a-z0-9-]+(:\d+)$/g.test(model.modelId)
+          )
+          ?.filter((model) => model.modelLifecycle?.status === 'ACTIVE')
+          ?.filter(
+            (model) => model.inferenceTypesSupported && model.inferenceTypesSupported.length > 0
+          )
+          .map<MODEL_META>((model) => ({
+            id: model.inferenceTypesSupported?.includes('ON_DEMAND')
+              ? model.modelId!
+              : `${region.split('-')[0]}.${model.modelId}`,
+            name: model.modelId?.replace('anthropic.', '') || '<Unknown>',
             providerId: this.provider.id,
             maxTokens: 64_000,
-            group: `AWS Bedrock Claude - ${m.modelId?.includes('opus') ? 'opus' : m.modelId?.includes('sonnet') ? 'sonnet' : m.modelId?.includes('haiku') ? 'haiku' : 'other'}`,
+            group: `AWS Bedrock Claude - ${
+              model.modelId?.includes('opus')
+                ? 'opus'
+                : model.modelId?.includes('sonnet')
+                  ? 'sonnet'
+                  : model.modelId?.includes('haiku')
+                    ? 'haiku'
+                    : 'other'
+            }`,
             isCustom: false,
             contextLength: 200_000,
             vision: false,
@@ -218,90 +121,63 @@ export class AwsBedrockProvider extends BaseLLMProvider {
       )
     } catch (error) {
       console.error('获取AWS Bedrock Anthropic模型列表出错:', error)
+      return this.configPresenter
+        .getDbProviderModels('amazon-bedrock')
+        .filter((model) => model.id.startsWith('anthropic.'))
+        .map((model) => ({
+          id: model.id,
+          name: model.name,
+          providerId: this.provider.id,
+          maxTokens: model.maxTokens,
+          group: model.group || 'Bedrock Claude',
+          isCustom: false,
+          contextLength: model.contextLength,
+          vision: model.vision || false,
+          functionCall: model.functionCall || false,
+          reasoning: model.reasoning || false,
+          ...(model.type ? { type: model.type } : {})
+        }))
     }
-
-    // 如果API请求失败或返回数据解析失败，优先使用聚合 Provider DB 的模型列表（仅筛选 Bedrock 上的 Anthropic 模型）
-    console.log('从API获取模型列表失败，使用 Provider DB 作为兜底（筛选 anthropic.*）')
-    const dbModels = this.configPresenter
-      .getDbProviderModels('amazon-bedrock')
-      .filter((m) => m.id.startsWith('anthropic.'))
-      .map((m) => ({
-        id: m.id,
-        name: m.name,
-        providerId: this.provider.id,
-        maxTokens: m.maxTokens,
-        group: m.group || 'Bedrock Claude',
-        isCustom: false,
-        contextLength: m.contextLength,
-        vision: m.vision || false,
-        functionCall: m.functionCall || false,
-        reasoning: m.reasoning || false,
-        ...(m.type ? { type: m.type } : {})
-      }))
-
-    return dbModels
   }
 
   public async check(): Promise<{ isOk: boolean; errorMsg: string | null }> {
+    if (!this.getCredentials()) {
+      return { isOk: false, errorMsg: 'Missing AWS Bedrock credentials' }
+    }
+
     try {
-      if (!this.bedrockRuntime) {
-        return { isOk: false, errorMsg: '未初始化 AWS Bedrock SDK' }
-      }
+      await runAiSdkGenerateText(
+        this.getAiSdkRuntimeContext(),
+        [{ role: 'user', content: 'Hi' }],
+        this.defaultModel,
+        this.configPresenter.getModelConfig(this.defaultModel, this.provider.id),
+        0.2,
+        16
+      )
 
-      // 发送一个简单请求来检查 API 连接状态
-      // Prepare the payload for the Messages API request.
-      const payload = {
-        anthropic_version: 'bedrock-2023-05-31',
-        max_tokens: 10,
-        messages: [
-          {
-            role: 'user',
-            content: [{ type: 'text', text: 'Hi' }]
-          }
-        ]
-      }
-      const command = new InvokeModelCommand({
-        contentType: 'application/json',
-        body: JSON.stringify(payload),
-        modelId: this.defaultModel
-      })
-      const apiResponse = await this.bedrockRuntime.send(command)
-
-      // Decode and return the response(s)
-      const decodedResponseBody = new TextDecoder().decode(apiResponse.body)
-      /** @type {MessagesResponseBody} */
-      const responseBody = JSON.parse(decodedResponseBody)
-      const responseText = responseBody.content[0].text
-
-      return { isOk: responseText.length > 0, errorMsg: null }
+      return { isOk: true, errorMsg: null }
     } catch (error: unknown) {
-      console.error('AWS Bedrock Claude API check failed:', error)
-      const errorMessage = error instanceof Error ? error.message : String(error)
-      return { isOk: false, errorMsg: `API 检查失败: ${errorMessage}` }
+      return {
+        isOk: false,
+        errorMsg: error instanceof Error ? error.message : String(error)
+      }
     }
   }
 
-  // 依赖 generateText
   public async summaryTitles(messages: ChatMessage[], modelId: string): Promise<string> {
     const prompt = `${SUMMARY_TITLES_PROMPT}\n\n${messages.map((m) => `${m.role}: ${m.content}`).join('\n')}`
-    if (shouldUseAiSdkRuntime(this.configPresenter)) {
-      const response = await runAiSdkGenerateText(
-        this.getAiSdkRuntimeContext(),
-        [{ role: 'user', content: prompt }],
-        modelId,
-        this.configPresenter.getModelConfig(modelId, this.provider.id),
-        0.3,
-        50
-      )
-      return response.content.trim()
-    }
-
-    const response = await this.generateText(prompt, modelId, 0.3, 50)
+    const response = await runAiSdkGenerateText(
+      this.getAiSdkRuntimeContext(),
+      [{ role: 'user', content: prompt }],
+      modelId,
+      this.configPresenter.getModelConfig(modelId, this.provider.id),
+      0.3,
+      50
+    )
 
     return response.content.trim()
   }
 
-  // 依赖 generateText
   async summaries(
     text: string,
     modelId: string,
@@ -309,27 +185,22 @@ export class AwsBedrockProvider extends BaseLLMProvider {
     maxTokens?: number,
     systemPrompt?: string
   ): Promise<LLMResponse> {
-    const prompt = `请对以下内容进行摘要:
+    const messages: ChatMessage[] = [
+      ...(systemPrompt ? [{ role: 'system' as const, content: systemPrompt }] : []),
+      {
+        role: 'user',
+        content: `请对以下内容进行摘要:\n\n${text}\n\n请提供一个简洁明了的摘要。`
+      }
+    ]
 
-${text}
-
-请提供一个简洁明了的摘要。`
-    if (shouldUseAiSdkRuntime(this.configPresenter)) {
-      const messages: ChatMessage[] = [
-        ...(systemPrompt ? [{ role: 'system' as const, content: systemPrompt }] : []),
-        { role: 'user', content: prompt }
-      ]
-      return runAiSdkGenerateText(
-        this.getAiSdkRuntimeContext(),
-        messages,
-        modelId,
-        this.configPresenter.getModelConfig(modelId, this.provider.id),
-        temperature,
-        maxTokens
-      )
-    }
-
-    return this.generateText(prompt, modelId, temperature, maxTokens, systemPrompt)
+    return runAiSdkGenerateText(
+      this.getAiSdkRuntimeContext(),
+      messages,
+      modelId,
+      this.configPresenter.getModelConfig(modelId, this.provider.id),
+      temperature,
+      maxTokens
+    )
   }
 
   async generateText(
@@ -339,428 +210,57 @@ ${text}
     maxTokens?: number,
     systemPrompt?: string
   ): Promise<LLMResponse> {
-    if (shouldUseAiSdkRuntime(this.configPresenter)) {
-      const messages: ChatMessage[] = [
-        ...(systemPrompt ? [{ role: 'system' as const, content: systemPrompt }] : []),
-        { role: 'user', content: prompt }
-      ]
-      return runAiSdkGenerateText(
-        this.getAiSdkRuntimeContext(),
-        messages,
-        modelId,
-        this.configPresenter.getModelConfig(modelId, this.provider.id),
-        temperature,
-        maxTokens
-      )
-    }
+    const messages: ChatMessage[] = [
+      ...(systemPrompt ? [{ role: 'system' as const, content: systemPrompt }] : []),
+      { role: 'user', content: prompt }
+    ]
 
-    try {
-      const payload = {
-        anthropic_version: 'bedrock-2023-05-31',
-        max_tokens: maxTokens,
-        temperature,
-        system: systemPrompt,
-        messages: [
-          {
-            role: 'user',
-            content: [{ type: 'text', text: prompt }]
-          }
-        ]
-      }
-      const command = new InvokeModelCommand({
-        contentType: 'application/json',
-        body: JSON.stringify(payload),
-        modelId
-      })
-
-      const response = await this.bedrockRuntime.send(command)
-
-      // Decode and return the response(s)
-      const decodedResponseBody = new TextDecoder().decode(response.body)
-      /** @type {MessagesResponseBody} */
-      const responseBody = JSON.parse(decodedResponseBody)
-      return { content: responseBody.content[0].text, reasoning_content: undefined }
-    } catch (error) {
-      console.error('AWS Bedrock generate text error:', error)
-      throw error
-    }
+    return runAiSdkGenerateText(
+      this.getAiSdkRuntimeContext(),
+      messages,
+      modelId,
+      this.configPresenter.getModelConfig(modelId, this.provider.id),
+      temperature,
+      maxTokens
+    )
   }
 
-  private formatMessages(messages: ChatMessage[]): {
-    system?: string
-    messages: Anthropic.MessageParam[]
-  } {
-    // console.log('开始格式化消息，总消息数:', messages.length)
-
-    // 提取系统消息
-    let systemContent = ''
-    for (const msg of messages) {
-      if (msg.role === 'system') {
-        systemContent +=
-          (typeof msg.content === 'string'
-            ? msg.content
-            : msg.content && Array.isArray(msg.content)
-              ? msg.content
-                  .filter((c) => c.type === 'text')
-                  .map((c) => c.text || '')
-                  .join('\n')
-              : '') + '\n'
-      }
-    }
-
-    // 定义消息组和内容块的类型
-    type ContentBlock = Anthropic.ContentBlockParam
-    type ToolCall = { id: string; function: { name: string; arguments?: string } }
-    type MessageGroup = {
-      role: string
-      contents: ContentBlock[]
-      toolCalls?: string[]
-      hasToolUse?: boolean
-    }
-
-    // 预处理：对消息进行分组
-    // 新的逻辑：每个assistant消息如果包含tool_calls，就单独成组
-    const messageGroups: MessageGroup[] = []
-    let currentGroup: MessageGroup | null = null
-
-    // 用于跟踪tool_calls和tool响应的匹配
-    const toolResponseMap = new Map<string, ContentBlock>()
-
-    // 第一阶段：建立初始分组和收集工具响应
-    for (let i = 0; i < messages.length; i++) {
-      const msg = messages[i]
-      if (msg.role === 'system') continue // 系统消息已处理
-
-      // console.log(
-      //   `处理第${i + 1}条消息, 角色:${msg.role}`,
-      //   msg.content
-      //     ? typeof msg.content === 'string'
-      //       ? '内容长度:' + msg.content.length
-      //       : '数组内容长度:' + (Array.isArray(msg.content) ? msg.content.length : 0)
-      //     : '无内容'
-      // )
-
-      // 处理工具响应，将其与对应的工具调用关联
-      if (msg.role === 'tool' && 'tool_call_id' in msg) {
-        const toolCallId = msg.tool_call_id as string
-        const responseContent =
-          typeof msg.content === 'string'
-            ? msg.content
-            : Array.isArray(msg.content)
-              ? JSON.stringify(msg.content)
-              : ''
-
-        toolResponseMap.set(toolCallId, {
-          type: 'tool_result',
-          tool_use_id: toolCallId,
-          content: responseContent
-        } as ContentBlock)
-
-        // console.log('记录tool响应，tool_call_id:', toolCallId)
-        continue
-      }
-
-      // 处理用户消息 - 开始新组
-      if (msg.role === 'user') {
-        if (currentGroup) {
-          messageGroups.push(currentGroup)
-        }
-
-        let formattedContent: ContentBlock[] = []
-        if (typeof msg.content === 'string') {
-          formattedContent = [{ type: 'text', text: msg.content }]
-        } else if (msg.content && Array.isArray(msg.content)) {
-          formattedContent = msg.content.map((c) => {
-            if (c.type === 'image_url' && c.image_url) {
-              return {
-                type: 'image',
-                source: c.image_url.url.startsWith('data:image')
-                  ? {
-                      type: 'base64',
-                      data: c.image_url.url.split(',')[1],
-                      media_type: c.image_url.url.split(';')[0].split(':')[1] as
-                        | 'image/jpeg'
-                        | 'image/png'
-                        | 'image/gif'
-                        | 'image/webp'
-                    }
-                  : { type: 'url', url: c.image_url.url }
-              } as ContentBlock
-            } else {
-              return { type: 'text', text: c.text || '' } as ContentBlock
-            }
-          })
-        }
-
-        currentGroup = {
-          role: 'user',
-          contents: formattedContent
-        }
-
-        // console.log('开始新的用户消息组')
-        continue
-      }
-
-      // 处理assistant消息 - 添加到当前组或开始新组
-      if (msg.role === 'assistant') {
-        // 检查是否需要新建一个组：
-        // 1. 当前还没有组
-        // 2. 当前组不是assistant
-        // 3. 当前组是assistant但包含了工具调用
-        const shouldCreateNewGroup =
-          !currentGroup || currentGroup.role !== 'assistant' || currentGroup.hasToolUse === true
-
-        if (shouldCreateNewGroup) {
-          if (currentGroup) {
-            messageGroups.push(currentGroup)
-          }
-
-          currentGroup = {
-            role: 'assistant',
-            contents: [],
-            toolCalls: [],
-            hasToolUse: false
-          }
-        }
-
-        // 确保currentGroup已初始化
-        if (!currentGroup) {
-          currentGroup = {
-            role: 'assistant',
-            contents: [],
-            toolCalls: [],
-            hasToolUse: false
-          }
-        }
-
-        // 处理常规内容
-        if (msg.content) {
-          let assistantContent: ContentBlock[] = []
-          if (typeof msg.content === 'string') {
-            if (msg.content.trim()) {
-              assistantContent = [{ type: 'text', text: msg.content }]
-            }
-          } else if (Array.isArray(msg.content)) {
-            // 处理各种内容类型
-            for (const content of msg.content) {
-              if (content.type === 'text') {
-                currentGroup.contents.push({
-                  type: 'text',
-                  text: content.text || ''
-                } as ContentBlock)
-              } else if (content.type === 'image_url' && content.image_url) {
-                currentGroup.contents.push({
-                  type: 'image',
-                  source: content.image_url.url.startsWith('data:image')
-                    ? {
-                        type: 'base64',
-                        data: content.image_url.url.split(',')[1],
-                        media_type: content.image_url.url.split(';')[0].split(':')[1] as
-                          | 'image/jpeg'
-                          | 'image/png'
-                          | 'image/gif'
-                          | 'image/webp'
-                      }
-                    : { type: 'url', url: content.image_url.url }
-                } as ContentBlock)
-              }
-            }
-
-            continue
-          }
-
-          currentGroup.contents.push(...assistantContent)
-          // console.log('添加文本内容到当前assistant组, 项数:', assistantContent.length)
-        }
-
-        // 处理tool_calls
-        if ('tool_calls' in msg && Array.isArray(msg.tool_calls)) {
-          // console.log('处理assistant消息中的tool_calls', msg.tool_calls.length)
-
-          // 标记当前组包含工具调用
-          if (currentGroup) {
-            currentGroup.hasToolUse = true
-          }
-
-          for (const toolCall of msg.tool_calls as ToolCall[]) {
-            try {
-              // @ts-ignore - 转换为Anthropic格式
-              currentGroup.contents.push({
-                type: 'tool_use',
-                id: toolCall.id,
-                name: toolCall.function.name,
-                input: JSON.parse(toolCall.function.arguments || '{}')
-              } as ContentBlock)
-
-              // console.log('添加tool_call到当前assistant组:', toolCall.function.name)
-
-              // 记录工具调用，稍后查找响应
-              if (!currentGroup.toolCalls) currentGroup.toolCalls = []
-              currentGroup.toolCalls.push(toolCall.id)
-            } catch (e) {
-              console.error('Error processing tool_call:', e)
-            }
-          }
-        }
-      }
-    }
-
-    // 添加最后一个组
-    if (currentGroup) {
-      messageGroups.push(currentGroup)
-    }
-
-    // console.log('预处理完成，消息组数量:', messageGroups.length)
-
-    // 第二阶段：生成最终的格式化消息
-    const formattedMessages: Anthropic.MessageParam[] = []
-
-    for (const group of messageGroups) {
-      if (group.contents.length === 0) continue
-
-      // 添加组的主要内容
-      formattedMessages.push({
-        role: group.role as 'user' | 'assistant',
-        content: group.contents as Anthropic.ContentBlockParam[]
-      })
-
-      // console.log(`添加${group.role}组，内容项数:${group.contents.length}`)
-
-      // 如果是assistant组且有工具调用，添加对应的工具响应
-      if (group.role === 'assistant' && group.toolCalls && group.toolCalls.length > 0) {
-        for (const toolCallId of group.toolCalls) {
-          const toolResponse = toolResponseMap.get(toolCallId)
-          if (toolResponse) {
-            formattedMessages.push({
-              role: 'user',
-              content: [toolResponse]
-            })
-
-            // console.log('添加工具响应，tool_call_id:', toolCallId)
-          }
-        }
-      }
-    }
-
-    // console.log('格式化完成, 最终消息数:', formattedMessages.length)
-    // 为调试目的，打印前3条消息的结构
-    // formattedMessages.slice(0, Math.min(3, formattedMessages.length)).forEach((msg, i) => {
-    //   console.log(`最终消息#${i + 1}:`, {
-    //     role: msg.role,
-    //     contentLength: Array.isArray(msg.content) ? msg.content.length : 0,
-    //     contentTypes: Array.isArray(msg.content)
-    //       ? msg.content.map((c) => c.type).join(',')
-    //       : typeof msg.content
-    //   })
-    // })
-
-    return {
-      system: systemContent || undefined,
-      messages: formattedMessages
-    }
-  }
-
-  // 依赖 formatMessages
   async completions(
     messages: ChatMessage[],
     modelId: string,
     temperature?: number,
     maxTokens?: number
   ): Promise<LLMResponse> {
-    if (shouldUseAiSdkRuntime(this.configPresenter)) {
-      return runAiSdkGenerateText(
-        this.getAiSdkRuntimeContext(),
-        messages,
-        modelId,
-        this.configPresenter.getModelConfig(modelId, this.provider.id),
-        temperature,
-        maxTokens
-      )
-    }
-
-    try {
-      if (!this.bedrockRuntime) {
-        throw new Error('AWS Bedrock client is not initialized')
-      }
-
-      const formattedMessages = this.formatMessages(messages)
-      const cachedMessages = this.applyPromptCache(formattedMessages.messages, modelId)
-
-      // 创建基本请求参数
-      const payload = {
-        anthropic_version: 'bedrock-2023-05-31',
-        max_tokens: maxTokens,
-        temperature,
-        system: formattedMessages.system,
-        messages: cachedMessages
-      }
-
-      const command = new InvokeModelCommand({
-        contentType: 'application/json',
-        body: JSON.stringify(payload),
-        modelId
-      })
-
-      // 执行请求
-      const response = (await this.bedrockRuntime.send(command)) as InvokeModelCommandOutput & {
-        usage?: any
-      }
-
-      const resultResp: LLMResponse = {
-        content: ''
-      }
-
-      // 添加usage信息
-      if (response.usage) {
-        const usageSnapshot = buildBedrockUsageSnapshot(response.usage as CacheAwareBedrockUsage)
-        resultResp.totalUsage = {
-          prompt_tokens: usageSnapshot?.prompt_tokens ?? 0,
-          completion_tokens: usageSnapshot?.completion_tokens ?? 0,
-          total_tokens: usageSnapshot?.total_tokens ?? 0
-        }
-      }
-
-      // 获取文本内容
-      // const content = response.content
-      //   .filter((block) => block.type === 'text')
-      //   .map((block) => (block.type === 'text' ? block.text : ''))
-      //   .join('')
-      const decodedResponseBody = new TextDecoder().decode(response.body)
-      /** @type {MessagesResponseBody} */
-      const responseBody = JSON.parse(decodedResponseBody)
-      const content = responseBody.content[0].text
-
-      // 处理<think>标签
-      if (content.includes('<think>')) {
-        const thinkStart = content.indexOf('<think>')
-        const thinkEnd = content.indexOf('</think>')
-
-        if (thinkEnd > thinkStart) {
-          // 提取reasoning_content
-          resultResp.reasoning_content = content.substring(thinkStart + 7, thinkEnd).trim()
-
-          // 合并<think>前后的普通内容
-          const beforeThink = content.substring(0, thinkStart).trim()
-          const afterThink = content.substring(thinkEnd + 8).trim()
-          resultResp.content = [beforeThink, afterThink].filter(Boolean).join('\n')
-        } else {
-          // 如果没有找到配对的结束标签，将所有内容作为普通内容
-          resultResp.content = content
-        }
-      } else {
-        // 没有think标签，所有内容作为普通内容
-        resultResp.content = content
-      }
-
-      return resultResp
-    } catch (error) {
-      console.error('AWS Bedrock Claude completions error:', error)
-      throw error
-    }
+    return runAiSdkGenerateText(
+      this.getAiSdkRuntimeContext(),
+      messages,
+      modelId,
+      this.configPresenter.getModelConfig(modelId, this.provider.id),
+      temperature,
+      maxTokens
+    )
   }
 
-  // 依赖 formatMessages
-  // 添加coreStream方法
+  async suggestions(
+    context: string,
+    modelId: string,
+    temperature?: number,
+    maxTokens?: number
+  ): Promise<string[]> {
+    const response = await this.generateText(
+      `根据下面的上下文，给出3个可能的回复建议，每个建议一行，不要有编号或者额外的解释：\n\n${context}`,
+      modelId,
+      temperature ?? 0.7,
+      maxTokens ?? 128
+    )
+
+    return response.content
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .slice(0, 3)
+  }
+
   async *coreStream(
     messages: ChatMessage[],
     modelId: string,
@@ -769,301 +269,14 @@ ${text}
     maxTokens: number,
     mcpTools: MCPToolDefinition[]
   ): AsyncGenerator<LLMCoreStreamEvent> {
-    if (shouldUseAiSdkRuntime(this.configPresenter)) {
-      yield* runAiSdkCoreStream(
-        this.getAiSdkRuntimeContext(),
-        messages,
-        modelId,
-        modelConfig,
-        temperature,
-        maxTokens,
-        mcpTools
-      )
-      return
-    }
-
-    if (!this.bedrockRuntime) throw new Error('AWS Bedrock client is not initialized')
-    if (!modelId) throw new Error('Model ID is required')
-    console.log('modelConfig', modelConfig, modelId)
-    try {
-      // 格式化消息
-      const formattedMessagesObject = this.formatMessages(messages)
-      const cachedMessages = this.applyPromptCache(
-        formattedMessagesObject.messages,
-        modelId,
-        modelConfig.conversationId
-      )
-      console.log('formattedMessagesObject', JSON.stringify(formattedMessagesObject))
-
-      // 将MCP工具转换为Anthropic工具格式
-      const anthropicTools =
-        mcpTools.length > 0
-          ? await this.mcpRuntime?.mcpToolsToAnthropicTools(mcpTools, this.provider.id)
-          : undefined
-
-      // 创建基本请求参数
-      // const streamParams = {
-      //   model: modelId,
-      //   max_tokens: maxTokens || 1024,
-      //   temperature: temperature || 0.7,
-      //   messages: formattedMessagesObject.messages,
-      //   stream: true
-      // } as Anthropic.Messages.MessageCreateParamsStreaming
-      const payload = {
-        anthropic_version: 'bedrock-2023-05-31',
-        max_tokens: maxTokens || 1024,
-        temperature: temperature ?? 0.7,
-        system: formattedMessagesObject.system,
-        messages: cachedMessages,
-        thinking: undefined as any,
-        tools: undefined as any
-      }
-      const command = new InvokeModelWithResponseStreamCommand({
-        contentType: 'application/json',
-        body: JSON.stringify(payload),
-        modelId
-      })
-
-      // 启用Claude 3.7模型的思考功能
-      if (modelId.includes('claude-3-7')) {
-        payload.thinking = { budget_tokens: 1024, type: 'enabled' }
-      }
-
-      // // 如果有系统消息，添加到请求参数中
-      // if (formattedMessagesObject.system) {
-      //   // @ts-ignore - system属性在类型定义中可能不存在，但API已支持
-      //   streamParams.system = formattedMessagesObject.system
-      // }
-
-      // 添加工具参数
-      if (anthropicTools && anthropicTools.length > 0) {
-        // @ts-ignore - 类型不匹配，但格式是正确的
-        payload.tools = anthropicTools
-      }
-
-      await this.emitRequestTrace(modelConfig, {
-        endpoint: this.buildBedrockStreamEndpoint(modelId),
-        headers: {
-          'Content-Type': 'application/json',
-          'x-aws-region': this.getBedrockRegion()
-        },
-        body: this.decodeBedrockBody(command.input.body)
-      })
-      // 创建Anthropic流
-      const response = await this.bedrockRuntime.send(command)
-      const body = await response.body
-      if (!body) {
-        throw new Error('No response body from AWS Bedrock')
-      }
-
-      // 状态变量
-      let accumulatedJson = ''
-      let toolUseDetected = false
-      let currentToolId = ''
-      let currentToolName = ''
-      let currentToolInputs: Record<string, unknown> = {}
-      let usageMetadata: Usage | undefined
-      // 处理流中的各种事件
-      for await (const item of body) {
-        if (!item.chunk) continue
-
-        const chunk = JSON.parse(new TextDecoder().decode(item.chunk.bytes))
-        // 处理使用统计
-        if (chunk.type === 'message_start' && chunk.message.usage) {
-          usageMetadata = chunk.message.usage
-        }
-
-        // 处理工具调用开始
-        // @ts-ignore - Anthropic SDK类型定义不完整
-        if (chunk.type === 'content_block_start' && chunk.content_block?.type === 'tool_use') {
-          toolUseDetected = true
-          // @ts-ignore - content_block不在类型定义中
-          currentToolId = chunk.content_block.id || `anthropic-tool-${Date.now()}`
-          // @ts-ignore - content_block不在类型定义中
-          currentToolName = chunk.content_block.name || ''
-          currentToolInputs = {}
-          accumulatedJson = ''
-
-          // 发送工具调用开始事件
-          if (currentToolName) {
-            yield {
-              type: 'tool_call_start',
-              tool_call_id: currentToolId,
-              tool_call_name: currentToolName
-            }
-          }
-          continue
-        }
-
-        // 处理工具调用参数更新 - input_json_delta
-        // @ts-ignore - 类型定义中没有工具相关字段
-        if (chunk.type === 'content_block_delta' && chunk.delta?.type === 'input_json_delta') {
-          // @ts-ignore - partial_json不在类型定义中
-          const partialJson = chunk.delta.partial_json
-          if (partialJson) {
-            accumulatedJson += partialJson
-
-            // 发送工具调用参数块事件
-            yield {
-              type: 'tool_call_chunk',
-              tool_call_id: currentToolId,
-              tool_call_arguments_chunk: partialJson
-            }
-          }
-          continue
-        }
-
-        // 处理工具使用更新 - tool_use_delta
-        // @ts-ignore - 类型定义中没有工具相关字段
-        if (chunk.type === 'content_block_delta' && chunk.delta?.type === 'tool_use_delta') {
-          // @ts-ignore - delta.name不在类型定义中
-          if (chunk.delta.name && !currentToolName) {
-            // @ts-ignore - 访问delta.name
-            currentToolName = chunk.delta.name
-            yield {
-              type: 'tool_call_start',
-              tool_call_id: currentToolId,
-              tool_call_name: currentToolName
-            }
-          }
-
-          // @ts-ignore - delta.input不在类型定义中
-          if (chunk.delta.input) {
-            currentToolInputs = {
-              ...currentToolInputs,
-              // @ts-ignore - 访问delta.input
-              ...chunk.delta.input
-            }
-          }
-          continue
-        }
-
-        // 处理内容块结束
-        if (chunk.type === 'content_block_stop') {
-          // 处理工具调用完成
-          if (toolUseDetected && currentToolName && accumulatedJson) {
-            try {
-              // 尝试解析完整的JSON
-              const jsonStr = accumulatedJson.trim()
-              if (jsonStr && (jsonStr.startsWith('{') || jsonStr.startsWith('['))) {
-                try {
-                  const jsonObject = JSON.parse(jsonStr)
-                  if (jsonObject && typeof jsonObject === 'object') {
-                    currentToolInputs = { ...currentToolInputs, ...jsonObject }
-                  }
-                } catch (e) {
-                  console.error('解析完整JSON失败:', e)
-                }
-              }
-            } catch (e) {
-              console.error('处理累积JSON失败:', e)
-            }
-
-            // 发送工具调用结束事件
-            const argsString = JSON.stringify(currentToolInputs)
-            yield {
-              type: 'tool_call_end',
-              tool_call_id: currentToolId,
-              tool_call_arguments_complete: argsString
-            }
-
-            // 重置工具调用状态
-            accumulatedJson = ''
-          }
-          continue
-        }
-
-        // 检查消息是否因为工具调用而停止
-        if (chunk.type === 'message_delta' && chunk.delta?.stop_reason === 'tool_use') {
-          // 设置为工具使用停止，主循环会处理工具调用
-          continue
-        }
-
-        // 处理思考内容（如果有）
-        // @ts-ignore - 类型定义中没有thinking相关字段
-        if (chunk.type === 'content_block_delta' && chunk.delta?.type === 'thinking_delta') {
-          // @ts-ignore - delta.thinking不在类型定义中
-          const thinkingText = chunk.delta.thinking
-          if (thinkingText) {
-            yield {
-              type: 'reasoning',
-              reasoning_content: thinkingText
-            }
-          }
-          continue
-        }
-
-        // 处理常规文本内容
-        if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
-          const text = chunk.delta.text
-          if (text) {
-            // 处理<think>标签
-            if (text.includes('<think>')) {
-              const parts = text.split('<think>')
-              if (parts[0]) {
-                yield {
-                  type: 'text',
-                  content: parts[0]
-                }
-              }
-
-              if (parts[1]) {
-                // 检查是否包含</think>
-                const thinkParts = parts[1].split('</think>')
-                if (thinkParts.length > 1) {
-                  yield {
-                    type: 'reasoning',
-                    reasoning_content: thinkParts[0]
-                  }
-
-                  if (thinkParts[1]) {
-                    yield {
-                      type: 'text',
-                      content: thinkParts[1]
-                    }
-                  }
-                } else {
-                  yield {
-                    type: 'reasoning',
-                    reasoning_content: parts[1]
-                  }
-                }
-              }
-            } else if (text.includes('</think>')) {
-              const parts = text.split('</think>')
-              yield {
-                type: 'reasoning',
-                reasoning_content: parts[0]
-              }
-
-              if (parts[1]) {
-                yield {
-                  type: 'text',
-                  content: parts[1]
-                }
-              }
-            } else {
-              yield {
-                type: 'text',
-                content: text
-              }
-            }
-          }
-          continue
-        }
-      }
-      if (usageMetadata) {
-        const usageSnapshot = buildBedrockUsageSnapshot(usageMetadata as CacheAwareBedrockUsage)
-        if (usageSnapshot) {
-          yield createStreamEvent.usage(usageSnapshot)
-        }
-      }
-      // 发送停止事件
-      yield createStreamEvent.stop(toolUseDetected ? 'tool_use' : 'complete')
-    } catch (error) {
-      console.error('AWS Bedrock Claude coreStream error:', error)
-      yield createStreamEvent.error(error instanceof Error ? error.message : '未知错误')
-      yield createStreamEvent.stop('error')
-    }
+    yield* runAiSdkCoreStream(
+      this.getAiSdkRuntimeContext(),
+      messages,
+      modelId,
+      modelConfig,
+      temperature,
+      maxTokens,
+      mcpTools
+    )
   }
 }

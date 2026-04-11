@@ -145,12 +145,12 @@ export class _302AIProvider extends OpenAICompatibleProvider {
    */
   protected async fetchOpenAIModels(options?: { timeout: number }): Promise<MODEL_META[]> {
     try {
-      const response = await this.openai.models.list(options)
+      const response = await this.fetchOpenAIModelRecords(options)
       // console.log('302AI models response:', JSON.stringify(response, null, 2))
 
       const models: MODEL_META[] = []
 
-      for (const model of response.data) {
+      for (const model of response) {
         // Type the model as 302AI specific response
         const _302aiModel = model as unknown as _302AIModelResponse
 

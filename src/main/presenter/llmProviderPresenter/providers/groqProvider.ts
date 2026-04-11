@@ -91,12 +91,12 @@ export class GroqProvider extends OpenAICompatibleProvider {
    */
   protected async fetchOpenAIModels(options?: { timeout: number }): Promise<MODEL_META[]> {
     try {
-      const response = await this.openai.models.list(options)
+      const response = await this.fetchOpenAIModelRecords(options)
       // console.log('Groq models response:', JSON.stringify(response, null, 2))
 
       const models: MODEL_META[] = []
 
-      for (const model of response.data) {
+      for (const model of response) {
         // Type the model as Groq specific response
         const groqModel = model as unknown as GroqModelResponse
 

@@ -1,6 +1,8 @@
 import type { MCPToolDefinition, ModelConfig } from '@shared/presenter'
 import type { ModelMessage } from 'ai'
 import { resolvePromptCachePlan } from '../promptCacheStrategy'
+import { modelCapabilities } from '../../configPresenter/modelCapabilities'
+import { providerDbLoader } from '../../configPresenter/providerDbLoader'
 
 type ProviderOptionsRecord = Record<string, Record<string, unknown>>
 
@@ -81,6 +83,37 @@ function isOfficialAnthropicProvider(providerId: string): boolean {
   return providerId.trim().toLowerCase() === 'anthropic'
 }
 
+function supportsDoubaoThinking(providerId: string, modelId: string): boolean {
+  if (providerId !== 'doubao') {
+    return false
+  }
+
+  const model = providerDbLoader.getModel(providerId, modelId)
+  const notes = model?.extra_capabilities?.reasoning?.notes
+  return Array.isArray(notes) && notes.includes('doubao-thinking-parameter')
+}
+
+function supportsSiliconcloudThinking(modelId: string): boolean {
+  const normalizedModelId = modelId.toLowerCase()
+  return [
+    'qwen/qwen3-8b',
+    'qwen/qwen3-14b',
+    'qwen/qwen3-32b',
+    'qwen/qwen3-30b-a3b',
+    'qwen/qwen3-235b-a22b',
+    'tencent/hunyuan-a13b-instruct',
+    'zai-org/glm-4.5v',
+    'deepseek-ai/deepseek-v3.1',
+    'pro/deepseek-ai/deepseek-v3.1'
+  ].some((supportedModel) => normalizedModelId.includes(supportedModel))
+}
+
+function supportsGrokReasoningEffort(modelId: string): boolean {
+  return ['grok-3-mini', 'grok-3-mini-fast'].some((model) =>
+    modelId.toLowerCase().includes(model.toLowerCase())
+  )
+}
+
 export function buildProviderOptions(
   params: BuildProviderOptionsParams
 ): ProviderOptionsMappingResult {
@@ -105,7 +138,7 @@ export function buildProviderOptions(
     case 'openai_chat':
     case 'openai_responses': {
       const config: Record<string, unknown> = {}
-      if (params.modelConfig.reasoningEffort) {
+      if (params.modelConfig.reasoningEffort && params.providerId !== 'grok') {
         config.reasoningEffort = params.modelConfig.reasoningEffort
       }
       if (params.modelConfig.verbosity) {
@@ -116,6 +149,43 @@ export function buildProviderOptions(
       }
       if (promptCachePlan.cacheKey) {
         config.promptCacheKey = promptCachePlan.cacheKey
+      }
+      if (
+        supportsDoubaoThinking(params.providerId, params.modelId) &&
+        params.modelConfig.reasoning
+      ) {
+        config.thinking = {
+          type: 'enabled'
+        }
+      }
+      if (
+        params.providerId === 'siliconcloud' &&
+        supportsSiliconcloudThinking(params.modelId) &&
+        params.modelConfig.reasoning
+      ) {
+        config.enable_thinking = true
+      }
+      if (
+        params.providerId === 'dashscope' &&
+        modelCapabilities.supportsReasoning(params.providerId, params.modelId) &&
+        params.modelConfig.reasoning
+      ) {
+        config.enable_thinking = true
+        const dbBudget = modelCapabilities.getThinkingBudgetRange(
+          params.providerId,
+          params.modelId
+        ).default
+        const budget = params.modelConfig.thinkingBudget ?? dbBudget
+        if (typeof budget === 'number') {
+          config.thinking_budget = budget
+        }
+      }
+      if (
+        params.providerId === 'grok' &&
+        params.modelConfig.reasoningEffort &&
+        supportsGrokReasoningEffort(params.modelId)
+      ) {
+        config.reasoning_effort = params.modelConfig.reasoningEffort
       }
       if (Object.keys(config).length > 0) {
         providerOptions[params.providerOptionsKey] = config

@@ -1,6 +1,6 @@
 # DeepChat 文档索引
 
-本文档反映 `2026-03-23` 完成的 legacy `AgentPresenter` retirement 之后的代码结构。
+本文档反映 `2026-04-11` 完成 legacy `AgentPresenter` retirement 与 legacy provider runtime retirement 之后的代码结构。
 
 当前聊天主链路已经收敛为：
 
@@ -36,6 +36,10 @@ Renderer
 | [docs/specs/legacy-agentpresenter-retirement/spec.md](./specs/legacy-agentpresenter-retirement/spec.md) | 本次 retirement 的目标、范围、兼容边界 |
 | [docs/specs/legacy-agentpresenter-retirement/plan.md](./specs/legacy-agentpresenter-retirement/plan.md) | 迁移/归档/验证计划 |
 | [docs/specs/legacy-agentpresenter-retirement/tasks.md](./specs/legacy-agentpresenter-retirement/tasks.md) | 已执行清单 |
+| [docs/specs/legacy-llm-provider-runtime-retirement/spec.md](./specs/legacy-llm-provider-runtime-retirement/spec.md) | legacy provider runtime retirement 规格 |
+| [docs/specs/legacy-llm-provider-runtime-retirement/plan.md](./specs/legacy-llm-provider-runtime-retirement/plan.md) | provider runtime 收口与依赖清理计划 |
+| [docs/specs/legacy-llm-provider-runtime-retirement/tasks.md](./specs/legacy-llm-provider-runtime-retirement/tasks.md) | provider runtime 退役执行清单 |
+| [docs/specs/ai-sdk-runtime/spec.md](./specs/ai-sdk-runtime/spec.md) | AI SDK runtime 规格，现已更新为 retired 状态 |
 | [docs/specs/architecture-simplification/spec.md](./specs/architecture-simplification/spec.md) | 整体减负治理规格 |
 | [docs/specs/architecture-simplification/plan.md](./specs/architecture-simplification/plan.md) | 分层/基线/guard 计划 |
 | [docs/specs/architecture-simplification/tasks.md](./specs/architecture-simplification/tasks.md) | 首期实施清单 |
@@ -62,10 +66,13 @@ docs/
 ├── specs/
 │   ├── agent-cleanup/
 │   ├── architecture-simplification/
+│   ├── ai-sdk-runtime/
+│   ├── legacy-llm-provider-runtime-retirement/
 │   └── legacy-agentpresenter-retirement/
 └── archives/
     ├── legacy-agentpresenter-architecture.md
     ├── legacy-agentpresenter-flows.md
+    ├── legacy-llm-provider-runtime.md
     ├── thread-presenter-migration-plan.md
     └── workspace-agent-refactoring-summary.md
 ```
@@ -78,6 +85,7 @@ docs/
 | --- | --- |
 | [archives/legacy-agentpresenter-architecture.md](./archives/legacy-agentpresenter-architecture.md) | 旧 `AgentPresenter` 架构快照 |
 | [archives/legacy-agentpresenter-flows.md](./archives/legacy-agentpresenter-flows.md) | 旧 `startStreamCompletion` / permission / loop 流程 |
+| [archives/legacy-llm-provider-runtime.md](./archives/legacy-llm-provider-runtime.md) | 旧 provider runtime 的历史归档与提交锚点 |
 | [archives/thread-presenter-migration-plan.md](./archives/thread-presenter-migration-plan.md) | 历史迁移设计 |
 | [archives/workspace-agent-refactoring-summary.md](./archives/workspace-agent-refactoring-summary.md) | 历史工作区改造总结 |
 

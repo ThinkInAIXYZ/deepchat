@@ -1,7 +1,6 @@
 import { IConfigPresenter, LLM_PROVIDER, LLMResponse, MODEL_META } from '@shared/presenter'
 import { DEFAULT_MODEL_CONTEXT_LENGTH, DEFAULT_MODEL_MAX_TOKENS } from '@shared/modelConfigDefaults'
 import { OpenAICompatibleProvider } from './openAICompatibleProvider'
-import Together from 'together-ai'
 import type { ProviderMcpRuntimePort } from '../runtimePorts'
 export class TogetherProvider extends OpenAICompatibleProvider {
   constructor(
@@ -68,15 +67,12 @@ export class TogetherProvider extends OpenAICompatibleProvider {
   }
 
   protected async fetchTogetherAIModels(options?: { timeout: number }): Promise<MODEL_META[]> {
-    const togetherai = new Together({
-      apiKey: this.provider.apiKey
-    })
-    const response = await togetherai.models.list(options)
+    const response = await this.fetchOpenAIModelRecords(options)
     return response
       .filter((model) => model.type === 'chat' || model.type === 'language')
       .map((model) => ({
-        id: model.id,
-        name: model.id,
+        id: model.id as string,
+        name: model.id as string,
         group: 'default',
         providerId: this.provider.id,
         isCustom: false,

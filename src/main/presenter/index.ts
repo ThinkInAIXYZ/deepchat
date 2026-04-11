@@ -198,14 +198,6 @@ export class Presenter implements IPresenter {
       this.configPresenter,
       this.sqlitePresenter,
       {
-        mcpToolsToAnthropicTools: (mcpTools, serverName) =>
-          this.mcpPresenter.mcpToolsToAnthropicTools(mcpTools, serverName),
-        mcpToolsToGeminiTools: (mcpTools, serverName) =>
-          this.mcpPresenter.mcpToolsToGeminiTools(mcpTools, serverName),
-        mcpToolsToOpenAITools: (mcpTools, serverName) =>
-          this.mcpPresenter.mcpToolsToOpenAITools(mcpTools, serverName),
-        mcpToolsToOpenAIResponsesTools: (mcpTools, serverName) =>
-          this.mcpPresenter.mcpToolsToOpenAIResponsesTools(mcpTools, serverName),
         getNpmRegistry: () => this.mcpPresenter.getNpmRegistry?.() ?? null,
         getUvRegistry: () => this.mcpPresenter.getUvRegistry?.() ?? null
       }

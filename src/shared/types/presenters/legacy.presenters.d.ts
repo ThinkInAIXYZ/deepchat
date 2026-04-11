@@ -1852,20 +1852,6 @@ export interface IMCPPresenter {
   setMcpRouterApiKey?(key: string): Promise<void>
   isServerInstalled?(source: string, sourceId: string): Promise<boolean>
   updateMcpRouterServersAuth?(apiKey: string): Promise<void>
-
-  mcpToolsToAnthropicTools(
-    mcpTools: MCPToolDefinition[],
-    serverName: string
-  ): Promise<AnthropicTool[]>
-  mcpToolsToGeminiTools(
-    mcpTools: MCPToolDefinition[] | undefined,
-    serverName: string
-  ): Promise<ToolListUnion>
-  mcpToolsToOpenAITools(mcpTools: MCPToolDefinition[], serverName: string): Promise<OpenAITool[]>
-  mcpToolsToOpenAIResponsesTools(
-    mcpTools: MCPToolDefinition[],
-    serverName: string
-  ): Promise<OpenAI.Responses.Tool[]>
 }
 
 export interface IDeeplinkPresenter {

@@ -3,10 +3,7 @@ import {
   LLMResponse,
   MODEL_META,
   ChatMessage,
-  IConfigPresenter,
-  LLMCoreStreamEvent,
-  ModelConfig,
-  MCPToolDefinition
+  IConfigPresenter
 } from '@shared/presenter'
 import { ModelType } from '@shared/model'
 import {
@@ -18,8 +15,6 @@ import { OpenAICompatibleProvider } from './openAICompatibleProvider'
 import { providerDbLoader } from '../../configPresenter/providerDbLoader'
 import type { ProviderMcpRuntimePort } from '../runtimePorts'
 
-const DOUBAO_THINKING_NOTE = 'doubao-thinking-parameter'
-
 export class DoubaoProvider extends OpenAICompatibleProvider {
   constructor(
     provider: LLM_PROVIDER,
@@ -28,60 +23,6 @@ export class DoubaoProvider extends OpenAICompatibleProvider {
   ) {
     // Initialize Doubao model configuration
     super(provider, configPresenter, mcpRuntime)
-  }
-
-  private supportsThinking(modelId: string): boolean {
-    const model = providerDbLoader.getModel(this.provider.id, modelId)
-    const notes = model?.extra_capabilities?.reasoning?.notes
-    return Array.isArray(notes) && notes.includes(DOUBAO_THINKING_NOTE)
-  }
-
-  /**
-   * Override coreStream method to support Doubao's thinking parameter
-   */
-  async *coreStream(
-    messages: ChatMessage[],
-    modelId: string,
-    modelConfig: ModelConfig,
-    temperature: number,
-    maxTokens: number,
-    mcpTools: MCPToolDefinition[]
-  ): AsyncGenerator<LLMCoreStreamEvent> {
-    if (!this.isInitialized) throw new Error('Provider not initialized')
-    if (!modelId) throw new Error('Model ID is required')
-
-    const shouldAddThinking = this.supportsThinking(modelId) && modelConfig?.reasoning
-
-    if (shouldAddThinking) {
-      // Original create method
-      const originalCreate = this.openai.chat.completions.create.bind(this.openai.chat.completions)
-      // Replace create method to add thinking parameter
-      this.openai.chat.completions.create = ((params: any, options?: any) => {
-        const modifiedParams = {
-          ...params,
-          thinking: {
-            type: 'enabled'
-          }
-        }
-        return originalCreate(modifiedParams, options)
-      }) as any
-
-      try {
-        const effectiveModelConfig = { ...modelConfig, reasoning: false }
-        yield* super.coreStream(
-          messages,
-          modelId,
-          effectiveModelConfig,
-          temperature,
-          maxTokens,
-          mcpTools
-        )
-      } finally {
-        this.openai.chat.completions.create = originalCreate
-      }
-    } else {
-      yield* super.coreStream(messages, modelId, modelConfig, temperature, maxTokens, mcpTools)
-    }
   }
 
   protected async fetchOpenAIModels(): Promise<MODEL_META[]> {

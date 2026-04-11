@@ -1,4 +1,3 @@
-import Anthropic from '@anthropic-ai/sdk'
 import {
   ChatMessage,
   IConfigPresenter,
@@ -68,43 +67,8 @@ class NewApiGeminiDelegate extends GeminiProvider {
 }
 
 class NewApiAnthropicDelegate extends AnthropicProvider {
-  private clientInitialized = false
-
-  protected override async init() {}
-
-  public async ensureClientInitialized(): Promise<void> {
-    const apiKey = this.provider.apiKey || process.env.ANTHROPIC_API_KEY || null
-    if (!apiKey) {
-      this.clientInitialized = false
-      this.isInitialized = false
-      return
-    }
-
-    const proxyUrl = proxyConfig.getProxyUrl()
-    const fetchOptions: { dispatcher?: ProxyAgent } = {}
-
-    if (proxyUrl) {
-      fetchOptions.dispatcher = new ProxyAgent(proxyUrl)
-    }
-
-    const self = this as unknown as { anthropic?: Anthropic }
-    self.anthropic = new Anthropic({
-      apiKey,
-      baseURL: this.provider.baseUrl || DEFAULT_NEW_API_BASE_URL,
-      defaultHeaders: this.defaultHeaders,
-      fetchOptions
-    })
-
-    this.clientInitialized = true
+  protected override async init() {
     this.isInitialized = true
-  }
-
-  public isClientInitialized(): boolean {
-    return this.clientInitialized
-  }
-
-  public override onProxyResolved(): void {
-    void this.ensureClientInitialized()
   }
 }
 
@@ -327,12 +291,6 @@ export class NewApiProvider extends BaseLLMProvider {
   }
 
   private async ensureAnthropicDelegateReady(): Promise<NewApiAnthropicDelegate> {
-    await this.anthropicDelegate.ensureClientInitialized()
-
-    if (!this.anthropicDelegate.isClientInitialized()) {
-      throw new Error('Anthropic SDK not initialized')
-    }
-
     return this.anthropicDelegate
   }
 

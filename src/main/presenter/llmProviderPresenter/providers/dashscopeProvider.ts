@@ -3,14 +3,10 @@ import {
   LLMResponse,
   MODEL_META,
   ChatMessage,
-  IConfigPresenter,
-  LLMCoreStreamEvent,
-  ModelConfig,
-  MCPToolDefinition
+  IConfigPresenter
 } from '@shared/presenter'
 import { DEFAULT_MODEL_CONTEXT_LENGTH, DEFAULT_MODEL_MAX_TOKENS } from '@shared/modelConfigDefaults'
 import { OpenAICompatibleProvider } from './openAICompatibleProvider'
-import { modelCapabilities } from '../../configPresenter/modelCapabilities'
 import type { ProviderMcpRuntimePort } from '../runtimePorts'
 
 export class DashscopeProvider extends OpenAICompatibleProvider {
@@ -22,66 +18,19 @@ export class DashscopeProvider extends OpenAICompatibleProvider {
     super(provider, configPresenter, mcpRuntime)
   }
 
-  private supportsEnableThinking(modelId: string): boolean {
-    return modelCapabilities.supportsReasoning(this.provider.id, modelId)
-  }
-
-  /**
-   * Override coreStream method to support DashScope's enable_thinking and enable_search parameters
-   */
-  async *coreStream(
-    messages: ChatMessage[],
-    modelId: string,
-    modelConfig: ModelConfig,
-    temperature: number,
-    maxTokens: number,
-    mcpTools: MCPToolDefinition[]
-  ): AsyncGenerator<LLMCoreStreamEvent> {
-    if (!this.isInitialized) throw new Error('Provider not initialized')
-    if (!modelId) throw new Error('Model ID is required')
-
-    const shouldAddEnableThinking = this.supportsEnableThinking(modelId) && modelConfig?.reasoning
-    const chatCompletions = this.openai.chat.completions
-    const originalCreate = chatCompletions.create
-
-    if (shouldAddEnableThinking) {
-      // Original create method
-      const originalCreateWithContext = originalCreate.bind(chatCompletions)
-      // Replace create method to add enable_thinking parameter
-      chatCompletions.create = ((params: any, options?: any) => {
-        const modifiedParams = { ...params }
-
-        modifiedParams.enable_thinking = true
-        const dbBudget = modelCapabilities.getThinkingBudgetRange(this.provider.id, modelId).default
-        const budget = modelConfig?.thinkingBudget ?? dbBudget
-        if (typeof budget === 'number') {
-          modifiedParams.thinking_budget = budget
-        }
-
-        return originalCreateWithContext(modifiedParams, options)
-      }) as typeof chatCompletions.create
-    }
-
-    try {
-      yield* super.coreStream(messages, modelId, modelConfig, temperature, maxTokens, mcpTools)
-    } finally {
-      if (shouldAddEnableThinking) {
-        chatCompletions.create = originalCreate
-      }
-    }
-  }
-
   protected async fetchOpenAIModels(options?: { timeout: number }): Promise<MODEL_META[]> {
-    const response = await this.openai.models.list(options)
-    return response.data.map((model) => ({
-      id: model.id,
-      name: model.id,
-      group: 'default',
-      providerId: this.provider.id,
-      isCustom: false,
-      contextLength: DEFAULT_MODEL_CONTEXT_LENGTH,
-      maxTokens: DEFAULT_MODEL_MAX_TOKENS
-    }))
+    const response = await this.fetchOpenAIModelRecords(options)
+    return response
+      .filter((model): model is Record<string, string> => typeof model.id === 'string')
+      .map((model) => ({
+        id: model.id,
+        name: model.id,
+        group: 'default',
+        providerId: this.provider.id,
+        isCustom: false,
+        contextLength: DEFAULT_MODEL_CONTEXT_LENGTH,
+        maxTokens: DEFAULT_MODEL_MAX_TOKENS
+      }))
   }
 
   async completions(

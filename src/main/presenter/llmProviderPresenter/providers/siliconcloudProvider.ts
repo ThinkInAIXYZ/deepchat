@@ -4,10 +4,7 @@ import {
   MODEL_META,
   ChatMessage,
   KeyStatus,
-  IConfigPresenter,
-  LLMCoreStreamEvent,
-  ModelConfig,
-  MCPToolDefinition
+  IConfigPresenter
 } from '@shared/presenter'
 import { DEFAULT_MODEL_CONTEXT_LENGTH, DEFAULT_MODEL_MAX_TOKENS } from '@shared/modelConfigDefaults'
 import { OpenAICompatibleProvider } from './openAICompatibleProvider'
@@ -34,19 +31,6 @@ interface SiliconCloudKeyResponse {
 }
 
 export class SiliconcloudProvider extends OpenAICompatibleProvider {
-  // 支持 enable_thinking 参数的模型列表
-  private static readonly ENABLE_THINKING_MODELS: string[] = [
-    'qwen/qwen3-8b',
-    'qwen/qwen3-14b',
-    'qwen/qwen3-32b',
-    'qwen/qwen3-30b-a3b',
-    'qwen/qwen3-235b-a22b',
-    'tencent/hunyuan-a13b-instruct',
-    'zai-org/glm-4.5v',
-    'deepseek-ai/deepseek-v3.1',
-    'pro/deepseek-ai/deepseek-v3.1'
-  ]
-
   constructor(
     provider: LLM_PROVIDER,
     configPresenter: IConfigPresenter,
@@ -55,77 +39,19 @@ export class SiliconcloudProvider extends OpenAICompatibleProvider {
     super(provider, configPresenter, mcpRuntime)
   }
 
-  /**
-   * 检查模型是否支持 enable_thinking 参数
-   * @param modelId 模型ID
-   * @returns boolean 是否支持 enable_thinking
-   */
-  private supportsEnableThinking(modelId: string): boolean {
-    const normalizedModelId = modelId.toLowerCase()
-    return SiliconcloudProvider.ENABLE_THINKING_MODELS.some((supportedModel) =>
-      normalizedModelId.includes(supportedModel)
-    )
-  }
-
-  /**
-   * 重写 coreStream 方法以支持 SiliconCloud 的 enable_thinking 参数
-   */
-  async *coreStream(
-    messages: ChatMessage[],
-    modelId: string,
-    modelConfig: ModelConfig,
-    temperature: number,
-    maxTokens: number,
-    mcpTools: MCPToolDefinition[]
-  ): AsyncGenerator<LLMCoreStreamEvent> {
-    if (!this.isInitialized) throw new Error('Provider not initialized')
-    if (!modelId) throw new Error('Model ID is required')
-
-    const shouldAddEnableThinking = this.supportsEnableThinking(modelId) && modelConfig?.reasoning
-
-    if (shouldAddEnableThinking) {
-      // 原始的 create 方法
-      const originalCreate = this.openai.chat.completions.create.bind(this.openai.chat.completions)
-      // 替换 create 方法以添加 enable_thinking 参数
-      this.openai.chat.completions.create = ((params: any, options?: any) => {
-        const modifiedParams = {
-          ...params,
-          enable_thinking: true
-        }
-        return originalCreate(modifiedParams, options)
-      }) as any
-
-      try {
-        const effectiveModelConfig = { ...modelConfig, reasoning: false }
-        yield* super.coreStream(
-          messages,
-          modelId,
-          effectiveModelConfig,
-          temperature,
-          maxTokens,
-          mcpTools
-        )
-      } finally {
-        this.openai.chat.completions.create = originalCreate
-      }
-    } else {
-      yield* super.coreStream(messages, modelId, modelConfig, temperature, maxTokens, mcpTools)
-    }
-  }
-
   protected async fetchOpenAIModels(options?: { timeout: number }): Promise<MODEL_META[]> {
-    const response = await this.openai.models.list({
-      ...options
-    })
-    return response.data.map((model) => ({
-      id: model.id,
-      name: model.id,
-      group: 'default',
-      providerId: this.provider.id,
-      isCustom: false,
-      contextLength: DEFAULT_MODEL_CONTEXT_LENGTH,
-      maxTokens: DEFAULT_MODEL_MAX_TOKENS
-    }))
+    const response = await this.fetchOpenAIModelRecords(options)
+    return response
+      .filter((model): model is Record<string, string> => typeof model.id === 'string')
+      .map((model) => ({
+        id: model.id,
+        name: model.id,
+        group: 'default',
+        providerId: this.provider.id,
+        isCustom: false,
+        contextLength: DEFAULT_MODEL_CONTEXT_LENGTH,
+        maxTokens: DEFAULT_MODEL_MAX_TOKENS
+      }))
   }
 
   async completions(

@@ -112,12 +112,11 @@ export class ModelscopeProvider extends OpenAICompatibleProvider {
     }
 
     try {
-      // Use models endpoint to check API key validity
-      const response = await this.openai.models.list({ timeout: 10000 })
+      const response = await this.fetchOpenAIModelRecords({ timeout: 10000 })
 
       return {
         limit_remaining: 'Available',
-        remainNum: response.data?.length || 0
+        remainNum: response.length
       }
     } catch (error) {
       console.error('ModelScope API key check failed:', error)

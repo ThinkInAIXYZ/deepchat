@@ -48,24 +48,6 @@ vi.mock('electron', () => ({
   }
 }))
 
-vi.mock('openai', () => {
-  class MockOpenAI {
-    chat = {
-      completions: {
-        create: vi.fn()
-      }
-    }
-    models = {
-      list: mockModelsList
-    }
-  }
-
-  return {
-    default: MockOpenAI,
-    AzureOpenAI: MockOpenAI
-  }
-})
-
 vi.mock('@/presenter', () => ({
   presenter: {
     devicePresenter: {

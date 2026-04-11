@@ -1,39 +1,18 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { IConfigPresenter, LLM_PROVIDER, ModelConfig } from '../../../../src/shared/presenter'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { IConfigPresenter, LLM_PROVIDER } from '../../../../src/shared/presenter'
 import { DoubaoProvider } from '../../../../src/main/presenter/llmProviderPresenter/providers/doubaoProvider'
 
-const { mockChatCompletionsCreate, mockGetProvider, mockGetModel, mockGetProxyUrl } = vi.hoisted(
-  () => ({
-    mockChatCompletionsCreate: vi.fn(),
-    mockGetProvider: vi.fn(),
-    mockGetModel: vi.fn(),
-    mockGetProxyUrl: vi.fn().mockReturnValue(null)
-  })
-)
+const { mockGetProvider } = vi.hoisted(() => ({
+  mockGetProvider: vi.fn()
+}))
 
-vi.mock('openai', () => {
-  class MockOpenAI {
-    chat = {
-      completions: {
-        create: mockChatCompletionsCreate
-      }
-    }
-    models = {
-      list: vi.fn().mockResolvedValue({ data: [] })
-    }
-  }
-
-  return {
-    default: MockOpenAI,
-    AzureOpenAI: MockOpenAI
-  }
-})
-
-vi.mock('@/presenter', () => ({
-  presenter: {
-    devicePresenter: {
-      cacheImage: vi.fn()
-    }
+vi.mock('electron', () => ({
+  app: {
+    getName: vi.fn(() => 'DeepChat'),
+    getVersion: vi.fn(() => '0.0.0-test'),
+    getPath: vi.fn(() => '/mock/path'),
+    isReady: vi.fn(() => true),
+    on: vi.fn()
   }
 }))
 
@@ -61,32 +40,23 @@ vi.mock('@/events', () => ({
 
 vi.mock('../../../../src/main/presenter/proxyConfig', () => ({
   proxyConfig: {
-    getProxyUrl: mockGetProxyUrl
+    getProxyUrl: vi.fn().mockReturnValue(null)
   }
 }))
 
 vi.mock('../../../../src/main/presenter/configPresenter/providerDbLoader', () => ({
   providerDbLoader: {
     getProvider: mockGetProvider,
-    getModel: mockGetModel
+    getModel: vi.fn()
   }
 }))
 
-vi.mock('../../../../src/main/presenter/configPresenter/modelCapabilities', () => ({
-  modelCapabilities: {
-    supportsReasoningEffort: vi.fn().mockReturnValue(false),
-    supportsVerbosity: vi.fn().mockReturnValue(false),
-    supportsReasoning: vi.fn().mockReturnValue(false)
-  }
+vi.mock('../../../../src/main/presenter/llmProviderPresenter/aiSdk', () => ({
+  runAiSdkCoreStream: vi.fn(),
+  runAiSdkDimensions: vi.fn(),
+  runAiSdkEmbeddings: vi.fn(),
+  runAiSdkGenerateText: vi.fn()
 }))
-
-const createAsyncStream = (chunks: Array<Record<string, unknown>>) => ({
-  async *[Symbol.asyncIterator]() {
-    for (const chunk of chunks) {
-      yield chunk
-    }
-  }
-})
 
 const createProvider = (overrides?: Partial<LLM_PROVIDER>): LLM_PROVIDER => ({
   id: 'doubao',
@@ -98,7 +68,7 @@ const createProvider = (overrides?: Partial<LLM_PROVIDER>): LLM_PROVIDER => ({
   ...overrides
 })
 
-const createConfigPresenter = () =>
+const createConfigPresenter = (): IConfigPresenter =>
   ({
     getProviderModels: vi.fn().mockReturnValue([]),
     getCustomModels: vi.fn().mockReturnValue([]),
@@ -109,46 +79,8 @@ const createConfigPresenter = () =>
   }) as unknown as IConfigPresenter
 
 describe('DoubaoProvider', () => {
-  const previousRuntimeMode = process.env.DEEPCHAT_LLM_RUNTIME
-
-  const modelConfig: ModelConfig = {
-    maxTokens: 1024,
-    contextLength: 8192,
-    vision: true,
-    functionCall: true,
-    reasoning: true,
-    type: 'chat'
-  }
-
   beforeEach(() => {
     vi.clearAllMocks()
-    mockGetProxyUrl.mockReturnValue(null)
-    mockChatCompletionsCreate.mockResolvedValue(
-      createAsyncStream([
-        {
-          choices: [
-            {
-              delta: {
-                content: 'ok'
-              },
-              finish_reason: 'stop'
-            }
-          ]
-        }
-      ])
-    )
-  })
-
-  beforeAll(() => {
-    process.env.DEEPCHAT_LLM_RUNTIME = 'legacy'
-  })
-
-  afterAll(() => {
-    if (previousRuntimeMode === undefined) {
-      delete process.env.DEEPCHAT_LLM_RUNTIME
-      return
-    }
-    process.env.DEEPCHAT_LLM_RUNTIME = previousRuntimeMode
   })
 
   it('maps doubao catalog entries into provider models', async () => {
@@ -188,47 +120,5 @@ describe('DoubaoProvider', () => {
         reasoning: true
       })
     ])
-  })
-
-  it('adds Doubao thinking parameter for reasoning models based on metadata notes', async () => {
-    mockGetProvider.mockReturnValue({
-      id: 'doubao',
-      name: 'Doubao',
-      models: []
-    })
-    mockGetModel.mockReturnValue({
-      id: 'doubao-seed-2.0-pro',
-      extra_capabilities: {
-        reasoning: {
-          notes: ['doubao-thinking-parameter']
-        }
-      }
-    })
-
-    const provider = new DoubaoProvider(createProvider(), createConfigPresenter())
-    ;(provider as any).isInitialized = true
-
-    const events = []
-    for await (const event of provider.coreStream(
-      [{ role: 'user', content: 'hello' }],
-      'doubao-seed-2.0-pro',
-      modelConfig,
-      0.7,
-      1024,
-      []
-    )) {
-      events.push(event)
-    }
-
-    expect(events.some((event) => event.type === 'text')).toBe(true)
-    expect(mockChatCompletionsCreate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        model: 'doubao-seed-2.0-pro',
-        thinking: {
-          type: 'enabled'
-        }
-      }),
-      undefined
-    )
   })
 })

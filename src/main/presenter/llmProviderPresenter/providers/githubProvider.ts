@@ -7,7 +7,6 @@ import {
 } from '@shared/presenter'
 import { DEFAULT_MODEL_CONTEXT_LENGTH, DEFAULT_MODEL_MAX_TOKENS } from '@shared/modelConfigDefaults'
 import { OpenAICompatibleProvider } from './openAICompatibleProvider'
-import { ModelsPage } from 'openai/resources'
 import type { ProviderMcpRuntimePort } from '../runtimePorts'
 
 export class GithubProvider extends OpenAICompatibleProvider {
@@ -19,23 +18,19 @@ export class GithubProvider extends OpenAICompatibleProvider {
     super(provider, configPresenter, mcpRuntime)
   }
   protected async fetchOpenAIModels(options?: { timeout: number }): Promise<MODEL_META[]> {
-    const response = (await this.openai.models.list(options)) as ModelsPage & {
-      body: {
-        id: string
-        name: string
-        description: string
-      }[]
-    }
-    return response.body.map((model) => ({
-      id: model.name,
-      name: model.name,
-      group: 'default',
-      providerId: this.provider.id,
-      isCustom: false,
-      contextLength: DEFAULT_MODEL_CONTEXT_LENGTH,
-      maxTokens: DEFAULT_MODEL_MAX_TOKENS,
-      description: model.description
-    }))
+    const response = await this.fetchOpenAIModelRecords(options)
+    return response
+      .filter((model) => typeof model.name === 'string')
+      .map((model) => ({
+        id: model.name as string,
+        name: model.name as string,
+        group: 'default',
+        providerId: this.provider.id,
+        isCustom: false,
+        contextLength: DEFAULT_MODEL_CONTEXT_LENGTH,
+        maxTokens: DEFAULT_MODEL_MAX_TOKENS,
+        description: typeof model.description === 'string' ? model.description : undefined
+      }))
   }
   async completions(
     messages: ChatMessage[],

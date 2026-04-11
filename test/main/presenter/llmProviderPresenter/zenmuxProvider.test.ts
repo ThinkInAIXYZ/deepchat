@@ -1,28 +1,6 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { IConfigPresenter, LLM_PROVIDER } from '../../../../src/shared/presenter'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { IConfigPresenter, LLM_PROVIDER, MODEL_META } from '../../../../src/shared/presenter'
 import { ZenmuxProvider } from '../../../../src/main/presenter/llmProviderPresenter/providers/zenmuxProvider'
-
-const ZENMUX_ANTHROPIC_BASE_URL = 'https://zenmux.ai/api/anthropic'
-
-const {
-  mockOpenAIConstructor,
-  mockAnthropicConstructor,
-  mockChatCompletionsCreate,
-  mockOpenAIModelsList,
-  mockAnthropicMessagesCreate,
-  mockAnthropicModelsList,
-  mockGetProxyUrl,
-  mockCacheImage
-} = vi.hoisted(() => ({
-  mockOpenAIConstructor: vi.fn(),
-  mockAnthropicConstructor: vi.fn(),
-  mockChatCompletionsCreate: vi.fn(),
-  mockOpenAIModelsList: vi.fn().mockResolvedValue({ data: [] }),
-  mockAnthropicMessagesCreate: vi.fn(),
-  mockAnthropicModelsList: vi.fn().mockResolvedValue({ data: [] }),
-  mockGetProxyUrl: vi.fn().mockReturnValue(null),
-  mockCacheImage: vi.fn()
-}))
 
 vi.mock('electron', () => ({
   app: {
@@ -31,76 +9,15 @@ vi.mock('electron', () => ({
     getPath: vi.fn(() => '/mock/path'),
     isReady: vi.fn(() => true),
     on: vi.fn()
-  },
-  session: {},
-  ipcMain: {
-    on: vi.fn(),
-    handle: vi.fn(),
-    removeHandler: vi.fn()
-  },
-  BrowserWindow: vi.fn(() => ({
-    loadURL: vi.fn(),
-    loadFile: vi.fn(),
-    on: vi.fn(),
-    webContents: { send: vi.fn(), on: vi.fn(), isDestroyed: vi.fn(() => false) },
-    isDestroyed: vi.fn(() => false),
-    close: vi.fn(),
-    show: vi.fn(),
-    hide: vi.fn()
-  })),
-  dialog: {
-    showOpenDialog: vi.fn()
-  },
-  shell: {
-    openExternal: vi.fn()
   }
 }))
-
-vi.mock('openai', () => {
-  class MockOpenAI {
-    chat = {
-      completions: {
-        create: mockChatCompletionsCreate
-      }
-    }
-    models = {
-      list: mockOpenAIModelsList
-    }
-    embeddings = {
-      create: vi.fn()
-    }
-
-    constructor(options: Record<string, unknown>) {
-      mockOpenAIConstructor(options)
-    }
-  }
-
-  return {
-    default: MockOpenAI,
-    AzureOpenAI: MockOpenAI
-  }
-})
 
 vi.mock('@/presenter', () => ({
   presenter: {
     devicePresenter: {
-      cacheImage: mockCacheImage
+      cacheImage: vi.fn()
     }
   }
-}))
-
-vi.mock('@anthropic-ai/sdk', () => ({
-  default: vi.fn().mockImplementation((options: Record<string, unknown>) => {
-    mockAnthropicConstructor(options)
-    return {
-      messages: {
-        create: mockAnthropicMessagesCreate
-      },
-      models: {
-        list: mockAnthropicModelsList
-      }
-    }
-  })
 }))
 
 vi.mock('@/eventbus', () => ({
@@ -130,25 +47,23 @@ vi.mock('@/events', () => ({
 
 vi.mock('../../../../src/main/presenter/proxyConfig', () => ({
   proxyConfig: {
-    getProxyUrl: mockGetProxyUrl
+    getProxyUrl: vi.fn().mockReturnValue(null)
   }
 }))
 
-vi.mock('../../../../src/main/presenter/configPresenter/modelCapabilities', () => ({
-  modelCapabilities: {
-    supportsReasoningEffort: vi.fn().mockReturnValue(false),
-    supportsVerbosity: vi.fn().mockReturnValue(false),
-    supportsReasoning: vi.fn().mockReturnValue(false),
-    resolveProviderId: vi.fn((providerId: string) => providerId)
-  }
+vi.mock('../../../../src/main/presenter/llmProviderPresenter/aiSdk', () => ({
+  runAiSdkCoreStream: vi.fn(),
+  runAiSdkDimensions: vi.fn(),
+  runAiSdkEmbeddings: vi.fn(),
+  runAiSdkGenerateText: vi.fn()
 }))
 
-const createConfigPresenter = () =>
+const createConfigPresenter = (): IConfigPresenter =>
   ({
     getProviderModels: vi.fn().mockReturnValue([]),
     getCustomModels: vi.fn().mockReturnValue([]),
-    getModelConfig: vi.fn().mockReturnValue(undefined),
     getDbProviderModels: vi.fn().mockReturnValue([]),
+    getModelConfig: vi.fn().mockReturnValue(undefined),
     getSetting: vi.fn().mockReturnValue(undefined),
     setProviderModels: vi.fn(),
     getModelStatus: vi.fn().mockReturnValue(true)
@@ -165,180 +80,77 @@ const createProvider = (overrides?: Partial<LLM_PROVIDER>): LLM_PROVIDER => ({
 })
 
 describe('ZenmuxProvider', () => {
-  const previousRuntimeMode = process.env.DEEPCHAT_LLM_RUNTIME
-
   beforeEach(() => {
     vi.clearAllMocks()
-    mockGetProxyUrl.mockReturnValue(null)
-    mockOpenAIModelsList.mockResolvedValue({ data: [] })
-    mockAnthropicModelsList.mockResolvedValue({ data: [] })
-    mockChatCompletionsCreate.mockResolvedValue({
-      choices: [{ message: { content: 'openai-ok' } }]
-    })
-    mockAnthropicMessagesCreate.mockResolvedValue({
-      content: [{ type: 'text', text: 'anthropic-ok' }],
-      usage: undefined
-    })
   })
 
-  beforeAll(() => {
-    process.env.DEEPCHAT_LLM_RUNTIME = 'legacy'
-  })
-
-  afterAll(() => {
-    if (previousRuntimeMode === undefined) {
-      delete process.env.DEEPCHAT_LLM_RUNTIME
-      return
-    }
-    process.env.DEEPCHAT_LLM_RUNTIME = previousRuntimeMode
-  })
-
-  it('routes anthropic/* models through the fixed Anthropic endpoint', async () => {
+  it('routes anthropic models through the anthropic delegate', async () => {
     const provider = new ZenmuxProvider(createProvider(), createConfigPresenter())
+    const anthropicDelegate = (provider as any).anthropicDelegate
+    const openaiDelegate = (provider as any).openaiDelegate
+    const anthropicSpy = vi
+      .spyOn(anthropicDelegate, 'generateText')
+      .mockResolvedValue({ content: 'anthropic-ok' })
+    const openaiSpy = vi.spyOn(openaiDelegate, 'generateText')
 
     const result = await provider.generateText('hello', 'anthropic/claude-sonnet-4-5')
 
     expect(result.content).toBe('anthropic-ok')
-    expect(mockAnthropicConstructor).toHaveBeenCalledWith(
-      expect.objectContaining({
-        apiKey: 'test-key',
-        baseURL: ZENMUX_ANTHROPIC_BASE_URL
-      })
+    expect(anthropicSpy).toHaveBeenCalledWith(
+      'hello',
+      'anthropic/claude-sonnet-4-5',
+      undefined,
+      undefined
     )
-    expect(mockAnthropicMessagesCreate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        model: 'anthropic/claude-sonnet-4-5'
-      })
-    )
-    expect(mockAnthropicMessagesCreate.mock.calls.at(-1)?.[0]).not.toHaveProperty('cache_control')
-    expect(mockChatCompletionsCreate).not.toHaveBeenCalled()
+    expect(openaiSpy).not.toHaveBeenCalled()
   })
 
-  it('uses explicit Anthropic cache breakpoints for ZenMux Claude history', async () => {
-    mockAnthropicMessagesCreate.mockResolvedValueOnce({
-      content: [{ type: 'text', text: 'anthropic-ok' }],
-      usage: undefined
-    })
-
+  it('routes non-anthropic models through the openai-compatible delegate', async () => {
     const provider = new ZenmuxProvider(createProvider(), createConfigPresenter())
     const anthropicDelegate = (provider as any).anthropicDelegate
-    anthropicDelegate.clientInitialized = true
-    anthropicDelegate.isInitialized = true
-    anthropicDelegate.anthropic = {
-      messages: {
-        create: mockAnthropicMessagesCreate
-      },
-      models: {
-        list: mockAnthropicModelsList
-      }
-    }
-    vi.spyOn(anthropicDelegate, 'ensureClientInitialized').mockResolvedValue(undefined)
-
-    const result = await provider.completions(
-      [
-        { role: 'user', content: 'history' },
-        { role: 'assistant', content: 'stable reply' },
-        { role: 'user', content: 'latest question' }
-      ],
-      'anthropic/claude-sonnet-4-5'
-    )
-
-    expect(result.content).toBe('anthropic-ok')
-    expect(mockAnthropicMessagesCreate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        model: 'anthropic/claude-sonnet-4-5',
-        messages: [
-          {
-            role: 'user',
-            content: [{ type: 'text', text: 'history' }]
-          },
-          {
-            role: 'assistant',
-            content: [
-              {
-                type: 'text',
-                text: 'stable reply',
-                cache_control: {
-                  type: 'ephemeral'
-                }
-              }
-            ]
-          },
-          {
-            role: 'user',
-            content: [{ type: 'text', text: 'latest question' }]
-          }
-        ]
-      })
-    )
-    expect(mockAnthropicMessagesCreate.mock.calls.at(-1)?.[0]).not.toHaveProperty('cache_control')
-  })
-
-  it('routes non-anthropic models through the configured OpenAI-compatible endpoint', async () => {
-    const provider = new ZenmuxProvider(
-      createProvider({ baseUrl: 'https://custom.zenmux.ai/api/v1' }),
-      createConfigPresenter()
-    )
+    const openaiDelegate = (provider as any).openaiDelegate
+    const openaiSpy = vi
+      .spyOn(openaiDelegate, 'generateText')
+      .mockResolvedValue({ content: 'openai-ok' })
+    const anthropicSpy = vi.spyOn(anthropicDelegate, 'generateText')
 
     const result = await provider.generateText('hello', 'moonshotai/kimi-k2.5')
 
     expect(result.content).toBe('openai-ok')
-    expect(mockOpenAIConstructor).toHaveBeenCalledWith(
-      expect.objectContaining({
-        apiKey: 'test-key',
-        baseURL: 'https://custom.zenmux.ai/api/v1'
-      })
-    )
-    expect(mockChatCompletionsCreate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        model: 'moonshotai/kimi-k2.5'
-      })
-    )
-    expect(mockAnthropicMessagesCreate).not.toHaveBeenCalled()
+    expect(openaiSpy).toHaveBeenCalledWith('hello', 'moonshotai/kimi-k2.5', undefined, undefined)
+    expect(anthropicSpy).not.toHaveBeenCalled()
   })
 
-  it('fetches model metadata from the OpenAI-compatible models API and keeps the ZenMux group', async () => {
-    mockOpenAIModelsList.mockResolvedValue({
-      data: [{ id: 'moonshotai/kimi-k2.5' }, { id: 'anthropic/claude-sonnet-4-5' }]
-    })
-
+  it('fetches model metadata from the shared OpenAI-compatible path and keeps the ZenMux group', async () => {
     const provider = new ZenmuxProvider(createProvider(), createConfigPresenter())
+    const openaiDelegate = (provider as any).openaiDelegate
+    vi.spyOn(openaiDelegate, 'fetchZenmuxModels').mockResolvedValue([
+      {
+        id: 'moonshotai/kimi-k2.5',
+        name: 'moonshotai/kimi-k2.5',
+        group: 'default',
+        providerId: 'zenmux',
+        isCustom: false,
+        contextLength: 64000,
+        maxTokens: 8192
+      }
+    ] as MODEL_META[])
+
     const models = await provider.fetchModels()
 
-    expect(mockOpenAIModelsList).toHaveBeenCalled()
     expect(models).toEqual([
       expect.objectContaining({
         id: 'moonshotai/kimi-k2.5',
-        group: 'ZenMux',
-        providerId: 'zenmux'
-      }),
-      expect.objectContaining({
-        id: 'anthropic/claude-sonnet-4-5',
         group: 'ZenMux',
         providerId: 'zenmux'
       })
     ])
   })
 
-  it('uses the OpenAI-compatible check path', async () => {
+  it('keeps proxy refresh fan-out across both delegates', () => {
     const provider = new ZenmuxProvider(createProvider(), createConfigPresenter())
-
-    const result = await provider.check()
-
-    expect(result).toEqual({ isOk: true, errorMsg: null })
-    expect(mockOpenAIModelsList).toHaveBeenCalled()
-    expect(mockAnthropicMessagesCreate).not.toHaveBeenCalled()
-  })
-
-  it('refreshes both delegates on proxy updates after the anthropic route has been initialized', async () => {
-    const provider = new ZenmuxProvider(createProvider(), createConfigPresenter())
-    const openaiDelegate = (provider as any).openaiDelegate
-    const anthropicDelegate = (provider as any).anthropicDelegate
-    const openaiProxySpy = vi.spyOn(openaiDelegate, 'onProxyResolved')
-    const anthropicProxySpy = vi.spyOn(anthropicDelegate, 'onProxyResolved')
-    await anthropicDelegate.ensureClientInitialized()
-
-    expect(anthropicDelegate.isClientInitialized()).toBe(true)
+    const openaiProxySpy = vi.spyOn((provider as any).openaiDelegate, 'onProxyResolved')
+    const anthropicProxySpy = vi.spyOn((provider as any).anthropicDelegate, 'onProxyResolved')
 
     provider.onProxyResolved()
 
@@ -346,7 +158,7 @@ describe('ZenmuxProvider', () => {
     expect(anthropicProxySpy).toHaveBeenCalledTimes(1)
   })
 
-  it('fails fast for embeddings on anthropic/* models', async () => {
+  it('fails fast for embeddings on anthropic models', async () => {
     const provider = new ZenmuxProvider(createProvider(), createConfigPresenter())
 
     await expect(provider.getEmbeddings('anthropic/claude-sonnet-4-5', ['hello'])).rejects.toThrow(
@@ -354,7 +166,7 @@ describe('ZenmuxProvider', () => {
     )
   })
 
-  it('fails fast for embedding dimensions on anthropic/* models', async () => {
+  it('fails fast for embedding dimensions on anthropic models', async () => {
     const provider = new ZenmuxProvider(createProvider(), createConfigPresenter())
 
     await expect(provider.getDimensions('anthropic/claude-sonnet-4-5')).rejects.toThrow(

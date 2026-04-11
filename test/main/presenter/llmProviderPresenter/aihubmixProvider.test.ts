@@ -1,25 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { IConfigPresenter, LLM_PROVIDER } from '../../../../src/shared/presenter'
 import { AihubmixProvider } from '../../../../src/main/presenter/llmProviderPresenter/providers/aihubmixProvider'
-import type { AiSdkRuntimeContext } from '../../../../src/main/presenter/llmProviderPresenter/aiSdk'
-
-const { mockModelsList, mockGetProxyUrl } = vi.hoisted(() => ({
-  mockModelsList: vi.fn().mockResolvedValue({ data: [] }),
-  mockGetProxyUrl: vi.fn().mockReturnValue(null)
-}))
-
-vi.mock('openai', () => {
-  class MockOpenAI {
-    models = {
-      list: mockModelsList
-    }
-  }
-
-  return {
-    default: MockOpenAI,
-    AzureOpenAI: MockOpenAI
-  }
-})
+import type { AiSdkRuntimeContext } from '../../../../src/main/presenter/llmProviderPresenter/aiSdk/runtime'
 
 vi.mock('electron', () => ({
   app: {
@@ -28,36 +10,6 @@ vi.mock('electron', () => ({
     getPath: vi.fn(() => '/mock/path'),
     isReady: vi.fn(() => true),
     on: vi.fn()
-  },
-  session: {},
-  ipcMain: {
-    on: vi.fn(),
-    handle: vi.fn(),
-    removeHandler: vi.fn()
-  },
-  BrowserWindow: vi.fn(() => ({
-    loadURL: vi.fn(),
-    loadFile: vi.fn(),
-    on: vi.fn(),
-    webContents: { send: vi.fn(), on: vi.fn(), isDestroyed: vi.fn(() => false) },
-    isDestroyed: vi.fn(() => false),
-    close: vi.fn(),
-    show: vi.fn(),
-    hide: vi.fn()
-  })),
-  dialog: {
-    showOpenDialog: vi.fn()
-  },
-  shell: {
-    openExternal: vi.fn()
-  }
-}))
-
-vi.mock('@/presenter', () => ({
-  presenter: {
-    devicePresenter: {
-      cacheImage: vi.fn()
-    }
   }
 }))
 
@@ -91,17 +43,15 @@ vi.mock('@/events', () => ({
 
 vi.mock('../../../../src/main/presenter/proxyConfig', () => ({
   proxyConfig: {
-    getProxyUrl: mockGetProxyUrl
+    getProxyUrl: vi.fn().mockReturnValue(null)
   }
 }))
 
-vi.mock('../../../../src/main/presenter/configPresenter/modelCapabilities', () => ({
-  modelCapabilities: {
-    supportsReasoningEffort: vi.fn().mockReturnValue(false),
-    supportsVerbosity: vi.fn().mockReturnValue(false),
-    supportsReasoning: vi.fn().mockReturnValue(false),
-    resolveProviderId: vi.fn((providerId: string) => providerId)
-  }
+vi.mock('../../../../src/main/presenter/llmProviderPresenter/aiSdk', () => ({
+  runAiSdkCoreStream: vi.fn(),
+  runAiSdkDimensions: vi.fn(),
+  runAiSdkEmbeddings: vi.fn(),
+  runAiSdkGenerateText: vi.fn()
 }))
 
 class TestAihubmixProvider extends AihubmixProvider {
@@ -110,7 +60,7 @@ class TestAihubmixProvider extends AihubmixProvider {
   }
 }
 
-const createConfigPresenter = () =>
+const createConfigPresenter = (): IConfigPresenter =>
   ({
     getProviders: vi.fn().mockReturnValue([]),
     getProviderModels: vi.fn().mockReturnValue([]),
@@ -134,12 +84,10 @@ const createProvider = (): LLM_PROVIDER =>
 describe('AihubmixProvider AI SDK runtime headers', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockGetProxyUrl.mockReturnValue(null)
   })
 
   it('preserves the DeepChat APP-Code header in AI SDK mode', () => {
     const provider = new TestAihubmixProvider(createProvider(), createConfigPresenter())
-
     const context = provider.exposeAiSdkRuntimeContext()
 
     expect(context.defaultHeaders).toMatchObject({

@@ -9,22 +9,6 @@ import type {
 import { ApiEndpointType, ModelType } from '../../../../src/shared/model'
 import { NewApiProvider } from '../../../../src/main/presenter/llmProviderPresenter/providers/newApiProvider'
 
-const {
-  mockOpenAIChatCreate,
-  mockOpenAIResponsesCreate,
-  mockOpenAIModelsList,
-  mockAnthropicModelsList,
-  mockAnthropicMessagesCreate,
-  mockGetProxyUrl
-} = vi.hoisted(() => ({
-  mockOpenAIChatCreate: vi.fn(),
-  mockOpenAIResponsesCreate: vi.fn(),
-  mockOpenAIModelsList: vi.fn().mockResolvedValue({ data: [] }),
-  mockAnthropicModelsList: vi.fn().mockResolvedValue({ data: [] }),
-  mockAnthropicMessagesCreate: vi.fn().mockResolvedValue({}),
-  mockGetProxyUrl: vi.fn().mockReturnValue(null)
-}))
-
 vi.mock('electron', () => ({
   app: {
     getName: vi.fn(() => 'DeepChat'),
@@ -32,107 +16,7 @@ vi.mock('electron', () => ({
     getPath: vi.fn(() => '/mock/path'),
     isReady: vi.fn(() => true),
     on: vi.fn()
-  },
-  session: {},
-  ipcMain: {
-    on: vi.fn(),
-    handle: vi.fn(),
-    removeHandler: vi.fn()
-  },
-  BrowserWindow: vi.fn(() => ({
-    loadURL: vi.fn(),
-    loadFile: vi.fn(),
-    on: vi.fn(),
-    webContents: { send: vi.fn(), on: vi.fn(), isDestroyed: vi.fn(() => false) },
-    isDestroyed: vi.fn(() => false),
-    close: vi.fn(),
-    show: vi.fn(),
-    hide: vi.fn()
-  })),
-  dialog: {
-    showOpenDialog: vi.fn()
-  },
-  shell: {
-    openExternal: vi.fn()
   }
-}))
-
-vi.mock('openai', () => {
-  class MockOpenAI {
-    chat = {
-      completions: {
-        create: mockOpenAIChatCreate
-      }
-    }
-    responses = {
-      create: mockOpenAIResponsesCreate
-    }
-    models = {
-      list: mockOpenAIModelsList
-    }
-  }
-
-  return {
-    default: MockOpenAI,
-    AzureOpenAI: MockOpenAI
-  }
-})
-
-vi.mock('@anthropic-ai/sdk', () => {
-  class MockAnthropic {
-    models = {
-      list: mockAnthropicModelsList
-    }
-    messages = {
-      create: mockAnthropicMessagesCreate
-    }
-
-    constructor(_: Record<string, unknown>) {}
-  }
-
-  return {
-    default: MockAnthropic
-  }
-})
-
-vi.mock('@google/genai', () => ({
-  Content: class {},
-  GoogleGenAI: class MockGoogleGenAI {
-    models = {
-      list: vi.fn().mockResolvedValue([]),
-      generateContent: vi.fn().mockResolvedValue({ text: 'ok' })
-    }
-
-    constructor(_: Record<string, unknown>) {}
-  },
-  FunctionCallingConfigMode: {
-    ANY: 'ANY',
-    AUTO: 'AUTO',
-    NONE: 'NONE'
-  },
-  GenerateContentParameters: class {},
-  GenerateContentResponseUsageMetadata: class {},
-  GenerateContentConfig: class {},
-  HarmBlockThreshold: {
-    BLOCK_NONE: 'BLOCK_NONE',
-    BLOCK_LOW_AND_ABOVE: 'BLOCK_LOW_AND_ABOVE',
-    BLOCK_MEDIUM_AND_ABOVE: 'BLOCK_MEDIUM_AND_ABOVE',
-    BLOCK_ONLY_HIGH: 'BLOCK_ONLY_HIGH',
-    HARM_BLOCK_THRESHOLD_UNSPECIFIED: 'HARM_BLOCK_THRESHOLD_UNSPECIFIED'
-  },
-  HarmCategory: {
-    HARM_CATEGORY_HARASSMENT: 'HARM_CATEGORY_HARASSMENT',
-    HARM_CATEGORY_HATE_SPEECH: 'HARM_CATEGORY_HATE_SPEECH',
-    HARM_CATEGORY_SEXUALLY_EXPLICIT: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
-    HARM_CATEGORY_DANGEROUS_CONTENT: 'HARM_CATEGORY_DANGEROUS_CONTENT'
-  },
-  Modality: {
-    TEXT: 'TEXT',
-    IMAGE: 'IMAGE'
-  },
-  Part: class {},
-  SafetySetting: class {},
-  Tool: class {}
 }))
 
 vi.mock('@/presenter', () => ({
@@ -170,21 +54,15 @@ vi.mock('@/events', () => ({
 
 vi.mock('../../../../src/main/presenter/proxyConfig', () => ({
   proxyConfig: {
-    getProxyUrl: mockGetProxyUrl
+    getProxyUrl: vi.fn().mockReturnValue(null)
   }
 }))
 
-vi.mock('../../../../src/main/presenter/configPresenter/modelCapabilities', () => ({
-  modelCapabilities: {
-    supportsReasoningEffort: vi.fn().mockReturnValue(false),
-    supportsVerbosity: vi.fn().mockReturnValue(false),
-    supportsReasoning: vi.fn().mockReturnValue(false),
-    supportsVision: vi.fn().mockReturnValue(false),
-    supportsToolCall: vi.fn().mockReturnValue(false),
-    supportsImageOutput: vi.fn().mockReturnValue(false),
-    getThinkingBudgetRange: vi.fn().mockReturnValue({}),
-    resolveProviderId: vi.fn((providerId: string) => providerId)
-  }
+vi.mock('../../../../src/main/presenter/llmProviderPresenter/aiSdk', () => ({
+  runAiSdkCoreStream: vi.fn(),
+  runAiSdkDimensions: vi.fn(),
+  runAiSdkEmbeddings: vi.fn(),
+  runAiSdkGenerateText: vi.fn()
 }))
 
 const createProvider = (overrides?: Partial<LLM_PROVIDER>): LLM_PROVIDER => ({

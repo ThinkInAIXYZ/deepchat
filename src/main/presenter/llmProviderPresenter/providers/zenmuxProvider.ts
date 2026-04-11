@@ -1,4 +1,3 @@
-import Anthropic from '@anthropic-ai/sdk'
 import {
   ChatMessage,
   IConfigPresenter,
@@ -11,9 +10,7 @@ import {
   MODEL_META,
   ModelConfig
 } from '@shared/presenter'
-import { ProxyAgent } from 'undici'
 import { BaseLLMProvider } from '../baseProvider'
-import { proxyConfig } from '../../proxyConfig'
 import { AnthropicProvider } from './anthropicProvider'
 import { OpenAICompatibleProvider } from './openAICompatibleProvider'
 import type { ProviderMcpRuntimePort } from '../runtimePorts'
@@ -31,44 +28,8 @@ class ZenmuxOpenAIDelegate extends OpenAICompatibleProvider {
 }
 
 class ZenmuxAnthropicDelegate extends AnthropicProvider {
-  private clientInitialized = false
-
-  protected override async init() {}
-
-  public async ensureClientInitialized(): Promise<void> {
-    const apiKey = this.provider.apiKey || process.env.ANTHROPIC_API_KEY || null
-    if (!apiKey) {
-      this.clientInitialized = false
-      this.isInitialized = false
-      return
-    }
-
-    const proxyUrl = proxyConfig.getProxyUrl()
-    const fetchOptions: { dispatcher?: ProxyAgent } = {}
-
-    if (proxyUrl) {
-      const proxyAgent = new ProxyAgent(proxyUrl)
-      fetchOptions.dispatcher = proxyAgent
-    }
-
-    const self = this as unknown as { anthropic?: Anthropic }
-    self.anthropic = new Anthropic({
-      apiKey,
-      baseURL: this.provider.baseUrl || ZENMUX_ANTHROPIC_BASE_URL,
-      defaultHeaders: this.defaultHeaders,
-      fetchOptions
-    })
-
-    this.clientInitialized = true
+  protected override async init() {
     this.isInitialized = true
-  }
-
-  public isClientInitialized(): boolean {
-    return this.clientInitialized
-  }
-
-  public override onProxyResolved(): void {
-    void this.ensureClientInitialized()
   }
 }
 
@@ -102,12 +63,6 @@ export class ZenmuxProvider extends BaseLLMProvider {
   }
 
   private async ensureAnthropicDelegateReady(): Promise<ZenmuxAnthropicDelegate> {
-    await this.anthropicDelegate.ensureClientInitialized()
-
-    if (!this.anthropicDelegate.isClientInitialized()) {
-      throw new Error('Anthropic SDK not initialized')
-    }
-
     return this.anthropicDelegate
   }
 
@@ -121,10 +76,7 @@ export class ZenmuxProvider extends BaseLLMProvider {
 
   public onProxyResolved(): void {
     this.openaiDelegate.onProxyResolved()
-
-    if (this.anthropicDelegate.isClientInitialized()) {
-      this.anthropicDelegate.onProxyResolved()
-    }
+    this.anthropicDelegate.onProxyResolved()
   }
 
   public async check(): Promise<{ isOk: boolean; errorMsg: string | null }> {

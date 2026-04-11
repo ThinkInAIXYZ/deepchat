@@ -1,7 +1,27 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+
+const { mockGetThinkingBudgetRange, mockGetModel, mockSupportsReasoning } = vi.hoisted(() => ({
+  mockGetThinkingBudgetRange: vi.fn().mockReturnValue({}),
+  mockGetModel: vi.fn().mockReturnValue(undefined),
+  mockSupportsReasoning: vi.fn().mockReturnValue(false)
+}))
+
+vi.mock('@/presenter/configPresenter/providerDbLoader', () => ({
+  providerDbLoader: {
+    getModel: mockGetModel
+  }
+}))
+
+vi.mock('@/presenter/configPresenter/modelCapabilities', () => ({
+  modelCapabilities: {
+    getThinkingBudgetRange: mockGetThinkingBudgetRange,
+    supportsReasoning: mockSupportsReasoning
+  }
+}))
+
 import { buildProviderOptions } from '@/presenter/llmProviderPresenter/aiSdk/providerOptionsMapper'
 
-describe('AI SDK anthropic provider options', () => {
+describe('AI SDK provider options', () => {
   const baseModelConfig = {
     reasoning: true,
     reasoningEffort: 'high' as const,
@@ -70,6 +90,76 @@ describe('AI SDK anthropic provider options', () => {
       toolStreaming: false
     })
     expect(result.providerOptions?.anthropic).not.toHaveProperty('effort')
+  })
+
+  it('adds doubao thinking options through providerOptions instead of monkey-patching the sdk client', () => {
+    mockGetModel.mockReturnValue({
+      extra_capabilities: {
+        reasoning: {
+          notes: ['doubao-thinking-parameter']
+        }
+      }
+    })
+
+    const result = buildProviderOptions({
+      providerId: 'doubao',
+      providerOptionsKey: 'openai',
+      apiType: 'openai_chat',
+      modelId: 'doubao-seed-2.0-pro',
+      modelConfig: {
+        reasoning: true
+      },
+      tools: [],
+      messages: []
+    })
+
+    expect(result.providerOptions).toEqual({
+      openai: {
+        thinking: {
+          type: 'enabled'
+        }
+      }
+    })
+  })
+
+  it('adds siliconcloud thinking flags through providerOptions for supported models', () => {
+    const result = buildProviderOptions({
+      providerId: 'siliconcloud',
+      providerOptionsKey: 'openai',
+      apiType: 'openai_chat',
+      modelId: 'Qwen/Qwen3-32B',
+      modelConfig: {
+        reasoning: true
+      },
+      tools: [],
+      messages: []
+    })
+
+    expect(result.providerOptions).toEqual({
+      openai: {
+        enable_thinking: true
+      }
+    })
+  })
+
+  it('maps grok reasoning effort to the vendor-specific body field', () => {
+    const result = buildProviderOptions({
+      providerId: 'grok',
+      providerOptionsKey: 'openai',
+      apiType: 'openai_chat',
+      modelId: 'grok-3-mini',
+      modelConfig: {
+        reasoningEffort: 'medium' as const
+      },
+      tools: [],
+      messages: []
+    })
+
+    expect(result.providerOptions).toEqual({
+      openai: {
+        reasoning_effort: 'medium'
+      }
+    })
   })
 
   it('disables vertex function-call argument streaming when no tools are present', () => {
