@@ -1,13 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type {
-  ChatMessage,
-  IConfigPresenter,
-  LLMCoreStreamEvent,
-  LLM_PROVIDER,
-  ModelConfig
-} from '../../../../src/shared/presenter'
+import type { IConfigPresenter, LLM_PROVIDER, ModelConfig } from '../../../../src/shared/presenter'
 import { ApiEndpointType, ModelType } from '../../../../src/shared/model'
-import { NewApiProvider } from '../../../../src/main/presenter/llmProviderPresenter/providers/newApiProvider'
+import { AiSdkProvider } from '../../../../src/main/presenter/llmProviderPresenter/providers/aiSdkProvider'
+
+const { mockRunAiSdkCoreStream } = vi.hoisted(() => ({
+  mockRunAiSdkCoreStream: vi.fn()
+}))
 
 vi.mock('electron', () => ({
   app: {
@@ -47,6 +45,10 @@ vi.mock('@/events', () => ({
     PROVIDER_BATCH_UPDATE: 'PROVIDER_BATCH_UPDATE',
     MODEL_LIST_CHANGED: 'MODEL_LIST_CHANGED'
   },
+  PROVIDER_DB_EVENTS: {
+    LOADED: 'LOADED',
+    UPDATED: 'UPDATED'
+  },
   NOTIFICATION_EVENTS: {
     SHOW_ERROR: 'SHOW_ERROR'
   }
@@ -59,7 +61,7 @@ vi.mock('../../../../src/main/presenter/proxyConfig', () => ({
 }))
 
 vi.mock('../../../../src/main/presenter/llmProviderPresenter/aiSdk', () => ({
-  runAiSdkCoreStream: vi.fn(),
+  runAiSdkCoreStream: mockRunAiSdkCoreStream,
   runAiSdkDimensions: vi.fn(),
   runAiSdkEmbeddings: vi.fn(),
   runAiSdkGenerateText: vi.fn()
@@ -102,33 +104,62 @@ const createConfigPresenter = (
 describe('NewApiProvider capability routing', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockRunAiSdkCoreStream.mockReturnValue({
+      async *[Symbol.asyncIterator]() {
+        yield { type: 'image_data', image_data: { data: 'generated-image', mimeType: 'image/png' } }
+      }
+    })
   })
 
   it('maps openai-response delegates to openai capability semantics', () => {
-    const provider = new NewApiProvider(createProvider(), createConfigPresenter())
-    const delegateProvider = (provider as any).openaiResponsesDelegate.provider as LLM_PROVIDER
+    const provider = new AiSdkProvider(
+      createProvider(),
+      createConfigPresenter({
+        'gpt-4o': {
+          endpointType: 'openai-response'
+        }
+      })
+    )
+    const routeDecision = (provider as any).resolveRouteDecision('gpt-4o')
+    const runtimeProvider = (provider as any).getRuntimeProvider(routeDecision) as LLM_PROVIDER
 
-    expect(delegateProvider.id).toBe('new-api')
-    expect(delegateProvider.capabilityProviderId).toBe('openai')
-    expect(delegateProvider.apiType).toBe('openai-responses')
+    expect(runtimeProvider.id).toBe('new-api')
+    expect(runtimeProvider.capabilityProviderId).toBe('openai')
+    expect(runtimeProvider.apiType).toBe('openai-responses')
   })
 
   it('maps gemini delegates to gemini capability semantics', () => {
-    const provider = new NewApiProvider(createProvider(), createConfigPresenter())
-    const delegateProvider = (provider as any).geminiDelegate.provider as LLM_PROVIDER
+    const provider = new AiSdkProvider(
+      createProvider(),
+      createConfigPresenter({
+        'gemini-model': {
+          endpointType: 'gemini'
+        }
+      })
+    )
+    const routeDecision = (provider as any).resolveRouteDecision('gemini-model')
+    const runtimeProvider = (provider as any).getRuntimeProvider(routeDecision) as LLM_PROVIDER
 
-    expect(delegateProvider.id).toBe('new-api')
-    expect(delegateProvider.capabilityProviderId).toBe('gemini')
-    expect(delegateProvider.apiType).toBe('gemini')
+    expect(runtimeProvider.id).toBe('new-api')
+    expect(runtimeProvider.capabilityProviderId).toBe('gemini')
+    expect(runtimeProvider.apiType).toBe('gemini')
   })
 
   it('maps anthropic delegates to anthropic capability semantics', () => {
-    const provider = new NewApiProvider(createProvider(), createConfigPresenter())
-    const delegateProvider = (provider as any).anthropicDelegate.provider as LLM_PROVIDER
+    const provider = new AiSdkProvider(
+      createProvider(),
+      createConfigPresenter({
+        'claude-model': {
+          endpointType: 'anthropic'
+        }
+      })
+    )
+    const routeDecision = (provider as any).resolveRouteDecision('claude-model')
+    const runtimeProvider = (provider as any).getRuntimeProvider(routeDecision) as LLM_PROVIDER
 
-    expect(delegateProvider.id).toBe('new-api')
-    expect(delegateProvider.capabilityProviderId).toBe('anthropic')
-    expect(delegateProvider.apiType).toBe('anthropic')
+    expect(runtimeProvider.id).toBe('new-api')
+    expect(runtimeProvider.capabilityProviderId).toBe('anthropic')
+    expect(runtimeProvider.apiType).toBe('anthropic')
   })
 
   it('keeps image-generation on the image runtime route while using openai capabilities', async () => {
@@ -139,28 +170,21 @@ describe('NewApiProvider capability routing', () => {
         type: ModelType.Chat
       }
     })
-    const provider = new NewApiProvider(createProvider(), configPresenter)
-    const openaiChatDelegate = (provider as any).openaiChatDelegate
-    const coreStreamSpy = vi
-      .spyOn(openaiChatDelegate, 'coreStream')
-      .mockImplementation(async function* (
-        _messages: ChatMessage[],
-        _modelId: string,
-        modelConfig: ModelConfig
-      ): AsyncIterable<LLMCoreStreamEvent> {
-        expect(modelConfig.apiEndpoint).toBe(ApiEndpointType.Image)
-        expect(modelConfig.type).toBe(ModelType.ImageGeneration)
-        expect(modelConfig.endpointType).toBe('image-generation')
-        yield { type: 'text', content: 'generated-image' } as LLMCoreStreamEvent
-      })
+    const provider = new AiSdkProvider(createProvider(), configPresenter)
+    ;(provider as any).isInitialized = true
 
     const result = await provider.completions(
       [{ role: 'user', content: 'Draw a cat' }],
       'gpt-image-1'
     )
 
-    expect(openaiChatDelegate.provider.capabilityProviderId).toBe('openai')
-    expect(coreStreamSpy).toHaveBeenCalledOnce()
+    const modelConfig = mockRunAiSdkCoreStream.mock.calls.at(-1)?.[3]
+    const context = mockRunAiSdkCoreStream.mock.calls.at(-1)?.[0]
+
+    expect(context.provider.capabilityProviderId).toBe('openai')
+    expect(modelConfig.apiEndpoint).toBe(ApiEndpointType.Image)
+    expect(modelConfig.type).toBe(ModelType.ImageGeneration)
+    expect(modelConfig.endpointType).toBe('image-generation')
     expect(result.content).toBe('generated-image')
   })
 })

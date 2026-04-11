@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { IConfigPresenter, LLM_PROVIDER, ModelConfig } from '../../../../src/shared/presenter'
 import {
-  OpenAICompatibleProvider,
+  AiSdkProvider,
   normalizeExtractedImageText
-} from '../../../../src/main/presenter/llmProviderPresenter/providers/openAICompatibleProvider'
+} from '../../../../src/main/presenter/llmProviderPresenter/providers/aiSdkProvider'
 
 const {
   mockGetProxyUrl,
@@ -31,6 +31,7 @@ vi.mock('electron', () => ({
 
 vi.mock('@/eventbus', () => ({
   eventBus: {
+    on: vi.fn(),
     sendToRenderer: vi.fn()
   },
   SendTarget: {
@@ -41,6 +42,10 @@ vi.mock('@/eventbus', () => ({
 vi.mock('@/events', () => ({
   CONFIG_EVENTS: {
     MODEL_LIST_CHANGED: 'MODEL_LIST_CHANGED'
+  },
+  PROVIDER_DB_EVENTS: {
+    LOADED: 'LOADED',
+    UPDATED: 'UPDATED'
   },
   NOTIFICATION_EVENTS: {
     SHOW_ERROR: 'SHOW_ERROR'
@@ -88,7 +93,7 @@ const createConfigPresenter = (): IConfigPresenter =>
     getModelStatus: vi.fn().mockReturnValue(true)
   }) as unknown as IConfigPresenter
 
-describe('OpenAICompatibleProvider', () => {
+describe('AiSdkProvider openai-compatible', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.unstubAllGlobals()
@@ -114,8 +119,8 @@ describe('OpenAICompatibleProvider', () => {
     })
     vi.stubGlobal('fetch', fetchMock)
 
-    const provider = new OpenAICompatibleProvider(createProvider(), createConfigPresenter())
-    const models = await (provider as any).fetchOpenAIModels()
+    const provider = new AiSdkProvider(createProvider(), createConfigPresenter())
+    const models = await provider.fetchModels()
 
     expect(fetchMock).toHaveBeenCalledWith(
       'https://mock.example.com/v1/models',
@@ -135,7 +140,7 @@ describe('OpenAICompatibleProvider', () => {
   })
 
   it('forwards streaming requests to the AI SDK runtime', async () => {
-    const provider = new OpenAICompatibleProvider(createProvider(), createConfigPresenter())
+    const provider = new AiSdkProvider(createProvider(), createConfigPresenter())
     ;(provider as any).isInitialized = true
 
     const modelConfig: ModelConfig = {
@@ -176,8 +181,8 @@ describe('OpenAICompatibleProvider', () => {
     )
   })
 
-  it('builds azure runtime context with azure auth headers and image routing', () => {
-    const provider = new OpenAICompatibleProvider(
+  it('builds azure runtime context with azure auth headers and image routing', async () => {
+    const provider = new AiSdkProvider(
       createProvider({
         id: 'azure-openai',
         name: 'Azure OpenAI',
@@ -186,20 +191,37 @@ describe('OpenAICompatibleProvider', () => {
       }),
       createConfigPresenter()
     )
+    ;(provider as any).isInitialized = true
 
-    const context = (provider as any).getAiSdkRuntimeContext()
+    const modelConfig = {
+      apiEndpoint: 'image',
+      maxTokens: 1024,
+      contextLength: 8192,
+      vision: false,
+      functionCall: false,
+      reasoning: false,
+      type: 'chat'
+    } as ModelConfig
 
+    for await (const _event of provider.coreStream(
+      [{ role: 'user', content: 'paint' }],
+      'gpt-image-1',
+      modelConfig,
+      0.7,
+      256,
+      []
+    )) {
+      break
+    }
+
+    const context = mockRunAiSdkCoreStream.mock.calls.at(-1)?.[0]
     expect(context.providerKind).toBe('azure')
     expect(context.cleanHeaders).toBe(false)
     expect(context.buildTraceHeaders()).toMatchObject({
       'Content-Type': 'application/json',
       'api-key': 'test-key'
     })
-    expect(
-      context.shouldUseImageGeneration('gpt-image-1', {
-        apiEndpoint: 'image'
-      } as ModelConfig)
-    ).toBe(true)
+    expect(context.shouldUseImageGeneration('gpt-image-1', modelConfig)).toBe(true)
     expect(context.shouldUseImageGeneration('gpt-image-1', {} as ModelConfig)).toBe(false)
   })
 })

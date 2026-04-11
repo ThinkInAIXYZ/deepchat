@@ -1,53 +1,19 @@
 import { ProviderBatchUpdate, ProviderChange } from '@shared/provider-operations'
-import { IConfigPresenter, LLM_PROVIDER } from '@shared/presenter'
+import { LLM_PROVIDER } from '@shared/presenter'
 import { BaseLLMProvider } from '../baseProvider'
-import { DeepseekProvider } from '../providers/deepseekProvider'
-import { SiliconcloudProvider } from '../providers/siliconcloudProvider'
-import { DashscopeProvider } from '../providers/dashscopeProvider'
-import { OpenAICompatibleProvider } from '../providers/openAICompatibleProvider'
-import { PPIOProvider } from '../providers/ppioProvider'
-import { TokenFluxProvider } from '../providers/tokenfluxProvider'
-import { GeminiProvider } from '../providers/geminiProvider'
-import { GithubProvider } from '../providers/githubProvider'
 import { GithubCopilotProvider } from '../providers/githubCopilotProvider'
 import { OllamaProvider } from '../providers/ollamaProvider'
-import { AnthropicProvider } from '../providers/anthropicProvider'
-import { AwsBedrockProvider } from '../providers/awsBedrockProvider'
-import { DoubaoProvider } from '../providers/doubaoProvider'
-import { TogetherProvider } from '../providers/togetherProvider'
-import { GrokProvider } from '../providers/grokProvider'
-import { GroqProvider } from '../providers/groqProvider'
-import { ZhipuProvider } from '../providers/zhipuProvider'
-import { LMStudioProvider } from '../providers/lmstudioProvider'
-import { OpenAIResponsesProvider } from '../providers/openAIResponsesProvider'
-import { CherryInProvider } from '../providers/cherryInProvider'
-import { VertexProvider } from '../providers/vertexProvider'
-import { OpenRouterProvider } from '../providers/openRouterProvider'
-import { MinimaxProvider } from '../providers/minimaxProvider'
-import { AihubmixProvider } from '../providers/aihubmixProvider'
-import { _302AIProvider } from '../providers/_302AIProvider'
-import { ModelscopeProvider } from '../providers/modelscopeProvider'
 import { AcpProvider } from '../providers/acpProvider'
-import { VercelAIGatewayProvider } from '../providers/vercelAIGatewayProvider'
-import { PoeProvider } from '../providers/poeProvider'
-import { JiekouProvider } from '../providers/jiekouProvider'
-import { ZenmuxProvider } from '../providers/zenmuxProvider'
-import { O3fanProvider } from '../providers/o3fanProvider'
 import { VoiceAIProvider } from '../providers/voiceAIProvider'
-import { NewApiProvider } from '../providers/newApiProvider'
+import { AiSdkProvider } from '../providers/aiSdkProvider'
 import { RateLimitManager } from './rateLimitManager'
 import { StreamState } from '../types'
 import { AcpSessionPersistence } from '../acp'
 import type { ProviderMcpRuntimePort } from '../runtimePorts'
-
-type ProviderConstructor = new (
-  provider: LLM_PROVIDER,
-  configPresenter: IConfigPresenter,
-  ...rest: any[]
-) => BaseLLMProvider
+import { resolveAiSdkProviderDefinition } from '../providerRegistry'
 
 interface ProviderInstanceManagerOptions {
-  configPresenter: IConfigPresenter
+  configPresenter: import('@shared/presenter').IConfigPresenter
   activeStreams: Map<string, StreamState>
   rateLimitManager: RateLimitManager
   getCurrentProviderId: () => string | null
@@ -57,89 +23,10 @@ interface ProviderInstanceManagerOptions {
 }
 
 export class ProviderInstanceManager {
-  private static readonly PROVIDER_ID_MAP = ProviderInstanceManager.buildProviderIdMap()
-  private static readonly PROVIDER_TYPE_MAP = ProviderInstanceManager.buildProviderTypeMap()
-
   private readonly providers: Map<string, LLM_PROVIDER> = new Map()
   private readonly providerInstances: Map<string, BaseLLMProvider> = new Map()
 
   constructor(private readonly options: ProviderInstanceManagerOptions) {}
-
-  private static buildProviderIdMap(): Map<string, ProviderConstructor> {
-    return new Map<string, ProviderConstructor>([
-      ['302ai', _302AIProvider],
-      ['minimax', MinimaxProvider],
-      ['grok', GrokProvider],
-      ['openrouter', OpenRouterProvider],
-      ['ppio', PPIOProvider],
-      ['tokenflux', TokenFluxProvider],
-      ['deepseek', DeepseekProvider],
-      ['aihubmix', AihubmixProvider],
-      ['modelscope', ModelscopeProvider],
-      ['silicon', SiliconcloudProvider],
-      ['siliconcloud', SiliconcloudProvider],
-      ['dashscope', DashscopeProvider],
-      ['gemini', GeminiProvider],
-      ['zhipu', ZhipuProvider],
-      ['vertex', VertexProvider],
-      ['github', GithubProvider],
-      ['github-copilot', GithubCopilotProvider],
-      ['ollama', OllamaProvider],
-      ['anthropic', AnthropicProvider],
-      ['doubao', DoubaoProvider],
-      ['openai', OpenAIResponsesProvider],
-      ['voiceai', VoiceAIProvider],
-      ['openai-responses', OpenAIResponsesProvider],
-      ['cherryin', CherryInProvider],
-      ['new-api', NewApiProvider],
-      ['lmstudio', LMStudioProvider],
-      ['together', TogetherProvider],
-      ['groq', GroqProvider],
-      ['vercel-ai-gateway', VercelAIGatewayProvider],
-      ['poe', PoeProvider],
-      ['aws-bedrock', AwsBedrockProvider],
-      ['jiekou', JiekouProvider],
-      ['zenmux', ZenmuxProvider],
-      ['o3fan', O3fanProvider],
-      ['acp', AcpProvider]
-    ])
-  }
-
-  private static buildProviderTypeMap(): Map<string, ProviderConstructor> {
-    return new Map<string, ProviderConstructor>([
-      ['minimax', AnthropicProvider],
-      ['deepseek', DeepseekProvider],
-      ['silicon', SiliconcloudProvider],
-      ['siliconcloud', SiliconcloudProvider],
-      ['dashscope', DashscopeProvider],
-      ['ppio', PPIOProvider],
-      ['gemini', GeminiProvider],
-      ['vertex', VertexProvider],
-      ['zhipu', ZhipuProvider],
-      ['github', GithubProvider],
-      ['github-copilot', GithubCopilotProvider],
-      ['ollama', OllamaProvider],
-      ['anthropic', AnthropicProvider],
-      ['doubao', DoubaoProvider],
-      ['openai', OpenAIResponsesProvider],
-      ['openai-completions', OpenAICompatibleProvider],
-      ['voiceai', VoiceAIProvider],
-      ['openai-compatible', OpenAICompatibleProvider],
-      ['openai-responses', OpenAIResponsesProvider],
-      ['new-api', NewApiProvider],
-      ['lmstudio', LMStudioProvider],
-      ['together', TogetherProvider],
-      ['groq', GroqProvider],
-      ['grok', GrokProvider],
-      ['vercel-ai-gateway', VercelAIGatewayProvider],
-      ['poe', PoeProvider],
-      ['aws-bedrock', AwsBedrockProvider],
-      ['jiekou', JiekouProvider],
-      ['zenmux', ZenmuxProvider],
-      ['acp', AcpProvider],
-      ['o3fan', O3fanProvider]
-    ])
-  }
 
   init(): void {
     const providers = this.options.configPresenter.getProviders()
@@ -390,22 +277,6 @@ export class ProviderInstanceManager {
    */
   private createProviderInstance(provider: LLM_PROVIDER): BaseLLMProvider | undefined {
     try {
-      let ProviderClass = ProviderInstanceManager.PROVIDER_ID_MAP.get(provider.id)
-
-      if (!ProviderClass) {
-        ProviderClass = ProviderInstanceManager.PROVIDER_TYPE_MAP.get(provider.apiType)
-        if (ProviderClass) {
-          console.log(
-            `No specific provider found for id: ${provider.id}, falling back to apiType: ${provider.apiType}`
-          )
-        }
-      }
-
-      if (!ProviderClass) {
-        console.warn(`Unknown provider type: ${provider.apiType} for provider id: ${provider.id}`)
-        return undefined
-      }
-
       if (provider.id === 'acp') {
         if (!this.options.acpSessionPersistence) {
           throw new Error('ACP session persistence is not configured')
@@ -418,7 +289,25 @@ export class ProviderInstanceManager {
         )
       }
 
-      return new ProviderClass(provider, this.options.configPresenter, this.options.mcpRuntime)
+      if (provider.id === 'github-copilot') {
+        return new GithubCopilotProvider(provider, this.options.configPresenter)
+      }
+
+      if (provider.id === 'voiceai') {
+        return new VoiceAIProvider(provider, this.options.configPresenter)
+      }
+
+      if (provider.id === 'ollama' || provider.apiType === 'ollama') {
+        return new OllamaProvider(provider, this.options.configPresenter, this.options.mcpRuntime)
+      }
+
+      const definition = resolveAiSdkProviderDefinition(provider)
+      if (!definition) {
+        console.warn(`Unknown provider type: ${provider.apiType} for provider id: ${provider.id}`)
+        return undefined
+      }
+
+      return new AiSdkProvider(provider, this.options.configPresenter, this.options.mcpRuntime)
     } catch (error) {
       console.error(`Failed to create provider instance for ${provider.id}:`, error)
       return undefined

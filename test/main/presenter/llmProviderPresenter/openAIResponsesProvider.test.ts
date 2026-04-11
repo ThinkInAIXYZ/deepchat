@@ -1,6 +1,18 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { IConfigPresenter, LLM_PROVIDER, ModelConfig } from '../../../../src/shared/presenter'
-import { OpenAIResponsesProvider } from '../../../../src/main/presenter/llmProviderPresenter/providers/openAIResponsesProvider'
+import { AiSdkProvider } from '../../../../src/main/presenter/llmProviderPresenter/providers/aiSdkProvider'
+
+const {
+  mockRunAiSdkCoreStream,
+  mockRunAiSdkDimensions,
+  mockRunAiSdkEmbeddings,
+  mockRunAiSdkGenerateText
+} = vi.hoisted(() => ({
+  mockRunAiSdkCoreStream: vi.fn(),
+  mockRunAiSdkDimensions: vi.fn(),
+  mockRunAiSdkEmbeddings: vi.fn(),
+  mockRunAiSdkGenerateText: vi.fn()
+}))
 
 vi.mock('electron', () => ({
   app: {
@@ -14,6 +26,7 @@ vi.mock('electron', () => ({
 
 vi.mock('@/eventbus', () => ({
   eventBus: {
+    on: vi.fn(),
     sendToRenderer: vi.fn()
   },
   SendTarget: {
@@ -24,6 +37,10 @@ vi.mock('@/eventbus', () => ({
 vi.mock('@/events', () => ({
   CONFIG_EVENTS: {
     MODEL_LIST_CHANGED: 'MODEL_LIST_CHANGED'
+  },
+  PROVIDER_DB_EVENTS: {
+    LOADED: 'LOADED',
+    UPDATED: 'UPDATED'
   },
   NOTIFICATION_EVENTS: {
     SHOW_ERROR: 'SHOW_ERROR'
@@ -37,10 +54,10 @@ vi.mock('../../../../src/main/presenter/proxyConfig', () => ({
 }))
 
 vi.mock('../../../../src/main/presenter/llmProviderPresenter/aiSdk', () => ({
-  runAiSdkCoreStream: vi.fn(),
-  runAiSdkDimensions: vi.fn(),
-  runAiSdkEmbeddings: vi.fn(),
-  runAiSdkGenerateText: vi.fn()
+  runAiSdkCoreStream: mockRunAiSdkCoreStream,
+  runAiSdkDimensions: mockRunAiSdkDimensions,
+  runAiSdkEmbeddings: mockRunAiSdkEmbeddings,
+  runAiSdkGenerateText: mockRunAiSdkGenerateText
 }))
 
 const createProvider = (overrides?: Partial<LLM_PROVIDER>): LLM_PROVIDER => ({
@@ -64,17 +81,48 @@ const createConfigPresenter = (): IConfigPresenter =>
   }) as unknown as IConfigPresenter
 
 describe('OpenAIResponsesProvider', () => {
-  it('uses the responses runtime for official OpenAI providers', () => {
-    const provider = new OpenAIResponsesProvider(createProvider(), createConfigPresenter())
-    const context = (provider as any).getAiSdkRuntimeContext()
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockRunAiSdkCoreStream.mockReturnValue({
+      async *[Symbol.asyncIterator]() {
+        yield { type: 'stop', stop_reason: 'complete' }
+      }
+    })
+  })
+
+  it('uses the responses runtime for official OpenAI providers', async () => {
+    const provider = new AiSdkProvider(createProvider(), createConfigPresenter())
+    ;(provider as any).isInitialized = true
+
+    try {
+      for await (const _event of provider.coreStream(
+        [{ role: 'user', content: 'hello' }],
+        'gpt-4o',
+        {
+          maxTokens: 1024,
+          contextLength: 8192,
+          vision: false,
+          functionCall: false,
+          reasoning: false,
+          type: 'chat'
+        } as ModelConfig,
+        0.7,
+        256,
+        []
+      )) {
+        break
+      }
+    } catch {}
+
+    const context = mockRunAiSdkCoreStream.mock.calls.at(-1)?.[0]
 
     expect(context.providerKind).toBe('openai-responses')
     expect(context.shouldUseImageGeneration('gpt-image-1', {} as ModelConfig)).toBe(true)
     expect(context.shouldUseImageGeneration('gpt-4o', {} as ModelConfig)).toBe(false)
   })
 
-  it('uses azure runtime semantics for azure-openai responses providers', () => {
-    const provider = new OpenAIResponsesProvider(
+  it('uses azure runtime semantics for azure-openai responses providers', async () => {
+    const provider = new AiSdkProvider(
       createProvider({
         id: 'azure-openai',
         name: 'Azure OpenAI',
@@ -82,7 +130,30 @@ describe('OpenAIResponsesProvider', () => {
       }),
       createConfigPresenter()
     )
-    const context = (provider as any).getAiSdkRuntimeContext()
+    ;(provider as any).isInitialized = true
+
+    try {
+      for await (const _event of provider.coreStream(
+        [{ role: 'user', content: 'paint' }],
+        'gpt-image-1',
+        {
+          apiEndpoint: 'image',
+          maxTokens: 1024,
+          contextLength: 8192,
+          vision: false,
+          functionCall: false,
+          reasoning: false,
+          type: 'chat'
+        } as ModelConfig,
+        0.7,
+        256,
+        []
+      )) {
+        break
+      }
+    } catch {}
+
+    const context = mockRunAiSdkCoreStream.mock.calls.at(-1)?.[0]
 
     expect(context.providerKind).toBe('azure')
     expect(context.buildTraceHeaders()).toMatchObject({

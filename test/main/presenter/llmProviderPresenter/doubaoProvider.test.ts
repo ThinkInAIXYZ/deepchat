@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { IConfigPresenter, LLM_PROVIDER } from '../../../../src/shared/presenter'
-import { DoubaoProvider } from '../../../../src/main/presenter/llmProviderPresenter/providers/doubaoProvider'
+import { AiSdkProvider } from '../../../../src/main/presenter/llmProviderPresenter/providers/aiSdkProvider'
 
 const { mockGetProvider } = vi.hoisted(() => ({
   mockGetProvider: vi.fn()
@@ -33,6 +33,10 @@ vi.mock('@/events', () => ({
   CONFIG_EVENTS: {
     MODEL_LIST_CHANGED: 'MODEL_LIST_CHANGED'
   },
+  PROVIDER_DB_EVENTS: {
+    LOADED: 'LOADED',
+    UPDATED: 'UPDATED'
+  },
   NOTIFICATION_EVENTS: {
     SHOW_ERROR: 'SHOW_ERROR'
   }
@@ -46,6 +50,7 @@ vi.mock('../../../../src/main/presenter/proxyConfig', () => ({
 
 vi.mock('../../../../src/main/presenter/configPresenter/providerDbLoader', () => ({
   providerDbLoader: {
+    getDb: vi.fn().mockReturnValue(null),
     getProvider: mockGetProvider,
     getModel: vi.fn()
   }
@@ -78,7 +83,7 @@ const createConfigPresenter = (): IConfigPresenter =>
     getModelStatus: vi.fn().mockReturnValue(true)
   }) as unknown as IConfigPresenter
 
-describe('DoubaoProvider', () => {
+describe('AiSdkProvider doubao', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
@@ -107,8 +112,8 @@ describe('DoubaoProvider', () => {
       ]
     })
 
-    const provider = new DoubaoProvider(createProvider(), createConfigPresenter())
-    const models = await (provider as any).fetchOpenAIModels()
+    const provider = new AiSdkProvider(createProvider(), createConfigPresenter())
+    const models = await provider.fetchModels()
 
     expect(models).toEqual([
       expect.objectContaining({

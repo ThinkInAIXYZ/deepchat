@@ -91,8 +91,7 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
       getProviderInstance: this.getProviderInstance.bind(this)
     })
     this.modelScopeSyncManager = new ModelScopeSyncManager({
-      configPresenter,
-      getProviderInstance: this.getProviderInstance.bind(this)
+      configPresenter
     })
 
     this.rateLimitManager.initializeProviderRateLimitConfigs()

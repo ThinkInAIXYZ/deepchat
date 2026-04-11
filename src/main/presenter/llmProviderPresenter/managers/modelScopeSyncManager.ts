@@ -4,23 +4,18 @@ import {
   ModelScopeMcpSyncOptions,
   ModelScopeMcpSyncResult
 } from '@shared/presenter'
-import { BaseLLMProvider } from '../baseProvider'
-import { ModelscopeProvider, ModelScopeMcpServer } from '../providers/modelscopeProvider'
+import {
+  convertModelScopeMcpServerToConfig,
+  fetchModelScopeMcpServers,
+  ModelScopeMcpServer
+} from '../modelScopeMcp'
 
 interface ModelScopeSyncManagerOptions {
   configPresenter: IConfigPresenter
-  getProviderInstance: (providerId: string) => BaseLLMProvider
 }
 
 export class ModelScopeSyncManager {
   constructor(private readonly options: ModelScopeSyncManagerOptions) {}
-
-  private isModelscopeProvider(provider: BaseLLMProvider): provider is ModelscopeProvider {
-    return (
-      typeof (provider as Partial<ModelscopeProvider>).syncMcpServers === 'function' &&
-      typeof (provider as Partial<ModelscopeProvider>).convertMcpServerToConfig === 'function'
-    )
-  }
 
   async syncModelScopeMcpServers(
     providerId: string,
@@ -35,10 +30,10 @@ export class ModelScopeSyncManager {
       throw new Error(error)
     }
 
-    const provider = this.options.getProviderInstance(providerId)
+    const provider = this.options.configPresenter.getProviderById(providerId)
 
-    if (!this.isModelscopeProvider(provider)) {
-      const error = 'Provider is not a ModelScope provider instance'
+    if (!provider) {
+      const error = 'Provider is not configured'
       console.error(`[ModelScope MCP Sync] Error: ${error}`)
       throw new Error(error)
     }
@@ -56,7 +51,7 @@ export class ModelScopeSyncManager {
       const syncTask = async () => {
         console.log(`[ModelScope MCP Sync] Fetching MCP servers from ModelScope API...`)
 
-        const mcpResponse = await provider.syncMcpServers(syncOptions)
+        const mcpResponse = await fetchModelScopeMcpServers(provider, syncOptions)
 
         if (!mcpResponse || !mcpResponse.success || !mcpResponse.data?.mcp_server_list) {
           const errorMsg = 'Invalid response from ModelScope MCP API'
@@ -84,7 +79,7 @@ export class ModelScopeSyncManager {
                 return null
               }
 
-              const config = provider.convertMcpServerToConfig(server)
+              const config = convertModelScopeMcpServerToConfig(server)
 
               const name = server.name || server.id
               const displayName = server.chinese_name || server.name || server.id

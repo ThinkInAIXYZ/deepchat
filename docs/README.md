@@ -39,6 +39,9 @@ Renderer
 | [docs/specs/legacy-llm-provider-runtime-retirement/spec.md](./specs/legacy-llm-provider-runtime-retirement/spec.md) | legacy provider runtime retirement 规格 |
 | [docs/specs/legacy-llm-provider-runtime-retirement/plan.md](./specs/legacy-llm-provider-runtime-retirement/plan.md) | provider runtime 收口与依赖清理计划 |
 | [docs/specs/legacy-llm-provider-runtime-retirement/tasks.md](./specs/legacy-llm-provider-runtime-retirement/tasks.md) | provider runtime 退役执行清单 |
+| [docs/specs/provider-layer-simplification/spec.md](./specs/provider-layer-simplification/spec.md) | provider layer 第二轮内部收口规格 |
+| [docs/specs/provider-layer-simplification/plan.md](./specs/provider-layer-simplification/plan.md) | registry + generic provider 合并计划 |
+| [docs/specs/provider-layer-simplification/tasks.md](./specs/provider-layer-simplification/tasks.md) | provider layer 第二轮执行清单 |
 | [docs/specs/ai-sdk-runtime/spec.md](./specs/ai-sdk-runtime/spec.md) | AI SDK runtime 规格，现已更新为 retired 状态 |
 | [docs/specs/architecture-simplification/spec.md](./specs/architecture-simplification/spec.md) | 整体减负治理规格 |
 | [docs/specs/architecture-simplification/plan.md](./specs/architecture-simplification/plan.md) | 分层/基线/guard 计划 |
@@ -67,6 +70,7 @@ docs/
 │   ├── agent-cleanup/
 │   ├── architecture-simplification/
 │   ├── ai-sdk-runtime/
+│   ├── provider-layer-simplification/
 │   ├── legacy-llm-provider-runtime-retirement/
 │   └── legacy-agentpresenter-retirement/
 └── archives/

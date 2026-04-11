@@ -2,7 +2,19 @@ import { describe, it, expect, beforeEach, vi, beforeAll, afterEach } from 'vite
 import { LLMProviderPresenter } from '../../../src/main/presenter/llmProviderPresenter/index'
 import { ConfigPresenter } from '../../../src/main/presenter/configPresenter/index'
 import { LLM_PROVIDER, ChatMessage, ISQLitePresenter } from '../../../src/shared/presenter'
-import { OpenAICompatibleProvider } from '../../../src/main/presenter/llmProviderPresenter/providers/openAICompatibleProvider'
+import { AiSdkProvider } from '../../../src/main/presenter/llmProviderPresenter/providers/aiSdkProvider'
+
+const {
+  mockRunAiSdkCoreStream,
+  mockRunAiSdkDimensions,
+  mockRunAiSdkEmbeddings,
+  mockRunAiSdkGenerateText
+} = vi.hoisted(() => ({
+  mockRunAiSdkCoreStream: vi.fn(),
+  mockRunAiSdkDimensions: vi.fn(),
+  mockRunAiSdkEmbeddings: vi.fn(),
+  mockRunAiSdkGenerateText: vi.fn().mockResolvedValue({ content: 'mock completion' })
+}))
 
 // Ensure electron is mocked for this suite to avoid CJS named export issues
 vi.mock('electron', () => {
@@ -75,6 +87,13 @@ vi.mock('@/presenter/proxyConfig', () => ({
   proxyConfig: {
     getProxyUrl: vi.fn().mockReturnValue(null)
   }
+}))
+
+vi.mock('../../../src/main/presenter/llmProviderPresenter/aiSdk', () => ({
+  runAiSdkCoreStream: mockRunAiSdkCoreStream,
+  runAiSdkDimensions: mockRunAiSdkDimensions,
+  runAiSdkEmbeddings: mockRunAiSdkEmbeddings,
+  runAiSdkGenerateText: mockRunAiSdkGenerateText
 }))
 
 describe('LLMProviderPresenter Integration Tests', () => {
@@ -158,6 +177,19 @@ describe('LLMProviderPresenter Integration Tests', () => {
   beforeEach(() => {
     // Clear all mocks before each test
     vi.clearAllMocks()
+    vi.unstubAllGlobals()
+    mockRunAiSdkGenerateText.mockResolvedValue({ content: 'mock completion' })
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          data: [{ id: 'mock-gpt-thinking' }, { id: 'gpt-4-mock' }, { id: 'mock-gpt-markdown' }]
+        }),
+        text: vi.fn().mockResolvedValue('')
+      })
+    )
 
     // Reset mock implementations
     mockConfigPresenter.getProviders = vi.fn().mockReturnValue([mockProvider])
@@ -194,6 +226,7 @@ describe('LLMProviderPresenter Integration Tests', () => {
 
     // Wait for any pending async operations to complete
     await new Promise((resolve) => setTimeout(resolve, 100))
+    vi.unstubAllGlobals()
   })
 
   describe('Basic Provider Management', () => {
@@ -237,7 +270,7 @@ describe('LLMProviderPresenter Integration Tests', () => {
 
       const providerInstance = llmProviderPresenter.getProviderInstance('novita')
 
-      expect(providerInstance).toBeInstanceOf(OpenAICompatibleProvider)
+      expect(providerInstance).toBeInstanceOf(AiSdkProvider)
     })
   })
 
@@ -369,6 +402,8 @@ describe('LLMProviderPresenter Integration Tests', () => {
     })
 
     it('should handle provider check failure for invalid config', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Network error')))
+
       // 创建一个无效配置的provider
       const invalidProvider: LLM_PROVIDER = {
         id: 'invalid-test',

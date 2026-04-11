@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { IConfigPresenter, LLM_PROVIDER } from '../../../../src/shared/presenter'
-import { AnthropicProvider } from '../../../../src/main/presenter/llmProviderPresenter/providers/anthropicProvider'
+import { AiSdkProvider } from '../../../../src/main/presenter/llmProviderPresenter/providers/aiSdkProvider'
 
 const { mockRunAiSdkCoreStream, mockRunAiSdkGenerateText } = vi.hoisted(() => ({
   mockRunAiSdkCoreStream: vi.fn(),
@@ -19,6 +19,7 @@ vi.mock('electron', () => ({
 
 vi.mock('@/eventbus', () => ({
   eventBus: {
+    on: vi.fn(),
     sendToRenderer: vi.fn()
   },
   SendTarget: {
@@ -29,6 +30,10 @@ vi.mock('@/eventbus', () => ({
 vi.mock('@/events', () => ({
   CONFIG_EVENTS: {
     MODEL_LIST_CHANGED: 'MODEL_LIST_CHANGED'
+  },
+  PROVIDER_DB_EVENTS: {
+    LOADED: 'LOADED',
+    UPDATED: 'UPDATED'
   }
 }))
 
@@ -68,7 +73,7 @@ const createConfigPresenter = (): IConfigPresenter =>
     getModelStatus: vi.fn().mockReturnValue(true)
   }) as unknown as IConfigPresenter
 
-describe('AnthropicProvider', () => {
+describe('AiSdkProvider anthropic', () => {
   const originalEnvKey = process.env.ANTHROPIC_API_KEY
 
   beforeEach(() => {
@@ -87,7 +92,7 @@ describe('AnthropicProvider', () => {
   })
 
   it('fails fast when no Anthropic API key is available', async () => {
-    const provider = new AnthropicProvider(
+    const provider = new AiSdkProvider(
       createProvider({
         apiKey: ''
       }),
@@ -103,12 +108,13 @@ describe('AnthropicProvider', () => {
 
   it('uses the AI SDK runtime for provider health checks', async () => {
     process.env.ANTHROPIC_API_KEY = 'env-key'
-    const provider = new AnthropicProvider(
+    const provider = new AiSdkProvider(
       createProvider({
         apiKey: ''
       }),
       createConfigPresenter()
     )
+    ;(provider as any).isInitialized = true
 
     await expect(provider.check()).resolves.toEqual({
       isOk: true,
@@ -120,14 +126,15 @@ describe('AnthropicProvider', () => {
       }),
       [{ role: 'user', content: 'Hello' }],
       'claude-sonnet-4-5-20250929',
-      undefined,
+      expect.any(Object),
       0.2,
       16
     )
   })
 
   it('passes system prompts through the AI SDK text path', async () => {
-    const provider = new AnthropicProvider(createProvider(), createConfigPresenter())
+    const provider = new AiSdkProvider(createProvider(), createConfigPresenter())
+    ;(provider as any).isInitialized = true
 
     await provider.generateText('hi', 'claude-sonnet-4-5-20250929', 0.2, 32, 'Real system prompt')
 
@@ -140,14 +147,14 @@ describe('AnthropicProvider', () => {
         { role: 'user', content: 'hi' }
       ],
       'claude-sonnet-4-5-20250929',
-      undefined,
+      expect.any(Object),
       0.2,
       32
     )
   })
 
   it('reads model metadata from the provider database snapshot', async () => {
-    const provider = new AnthropicProvider(createProvider(), createConfigPresenter())
+    const provider = new AiSdkProvider(createProvider(), createConfigPresenter())
     const models = await (provider as any).fetchProviderModels()
 
     expect(models).toEqual([

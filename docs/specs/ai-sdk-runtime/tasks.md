@@ -14,4 +14,4 @@
 - [x] Remove legacy provider SDK fallback branches.
 - [x] Remove provider-specific MCP conversion interfaces from presenter ports.
 - [x] Record retirement history in [../legacy-llm-provider-runtime-retirement/tasks.md](../legacy-llm-provider-runtime-retirement/tasks.md).
-- [ ] Run format, i18n, lint, and targeted tests.
+- [x] Run format, i18n, lint, and targeted tests.

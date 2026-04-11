@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { IConfigPresenter, LLM_PROVIDER } from '../../../../src/shared/presenter'
-import { AihubmixProvider } from '../../../../src/main/presenter/llmProviderPresenter/providers/aihubmixProvider'
-import type { AiSdkRuntimeContext } from '../../../../src/main/presenter/llmProviderPresenter/aiSdk/runtime'
+import type { IConfigPresenter, LLM_PROVIDER, ModelConfig } from '../../../../src/shared/presenter'
+import { AiSdkProvider } from '../../../../src/main/presenter/llmProviderPresenter/providers/aiSdkProvider'
+
+const { mockRunAiSdkCoreStream } = vi.hoisted(() => ({
+  mockRunAiSdkCoreStream: vi.fn()
+}))
 
 vi.mock('electron', () => ({
   app: {
@@ -34,6 +37,7 @@ vi.mock('@/events', () => ({
     MODEL_LIST_CHANGED: 'MODEL_LIST_CHANGED'
   },
   PROVIDER_DB_EVENTS: {
+    LOADED: 'LOADED',
     UPDATED: 'UPDATED'
   },
   NOTIFICATION_EVENTS: {
@@ -48,17 +52,11 @@ vi.mock('../../../../src/main/presenter/proxyConfig', () => ({
 }))
 
 vi.mock('../../../../src/main/presenter/llmProviderPresenter/aiSdk', () => ({
-  runAiSdkCoreStream: vi.fn(),
+  runAiSdkCoreStream: mockRunAiSdkCoreStream,
   runAiSdkDimensions: vi.fn(),
   runAiSdkEmbeddings: vi.fn(),
   runAiSdkGenerateText: vi.fn()
 }))
-
-class TestAihubmixProvider extends AihubmixProvider {
-  public exposeAiSdkRuntimeContext(): AiSdkRuntimeContext {
-    return this.getAiSdkRuntimeContext()
-  }
-}
 
 const createConfigPresenter = (): IConfigPresenter =>
   ({
@@ -84,11 +82,36 @@ const createProvider = (): LLM_PROVIDER =>
 describe('AihubmixProvider AI SDK runtime headers', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockRunAiSdkCoreStream.mockReturnValue({
+      async *[Symbol.asyncIterator]() {
+        yield { type: 'stop', stop_reason: 'complete' }
+      }
+    })
   })
 
-  it('preserves the DeepChat APP-Code header in AI SDK mode', () => {
-    const provider = new TestAihubmixProvider(createProvider(), createConfigPresenter())
-    const context = provider.exposeAiSdkRuntimeContext()
+  it('preserves the DeepChat APP-Code header in AI SDK mode', async () => {
+    const provider = new AiSdkProvider(createProvider(), createConfigPresenter())
+    ;(provider as any).isInitialized = true
+
+    for await (const _event of provider.coreStream(
+      [{ role: 'user', content: 'hello' }],
+      'gpt-4o',
+      {
+        maxTokens: 1024,
+        contextLength: 8192,
+        vision: false,
+        functionCall: false,
+        reasoning: false,
+        type: 'chat'
+      } as ModelConfig,
+      0.7,
+      256,
+      []
+    )) {
+      break
+    }
+
+    const context = mockRunAiSdkCoreStream.mock.calls.at(-1)?.[0]
 
     expect(context.defaultHeaders).toMatchObject({
       'APP-Code': 'SMUE7630',
