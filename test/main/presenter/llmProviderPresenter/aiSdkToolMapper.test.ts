@@ -115,6 +115,40 @@ describe('AI SDK tool schema normalization', () => {
     })
   })
 
+  it('uses a safe dictionary when merging variant properties', () => {
+    const normalized = normalizeToolInputSchema({
+      anyOf: [
+        {
+          type: 'object',
+          properties: {
+            __proto__: {
+              type: 'string'
+            },
+            safe: {
+              type: 'string'
+            }
+          }
+        },
+        {
+          type: 'object',
+          properties: {
+            constructor: {
+              type: 'string'
+            },
+            safe: {
+              type: 'string'
+            }
+          }
+        }
+      ]
+    })
+
+    expect(Object.getPrototypeOf(normalized.properties as object)).toBeNull()
+    expect(normalized.properties).not.toHaveProperty('__proto__')
+    expect(normalized.properties).not.toHaveProperty('constructor')
+    expect(normalized.properties).toHaveProperty('safe')
+  })
+
   it('uses a safe dictionary and skips unsafe tool names', () => {
     const tools = mcpToolsToAISDKTools([
       {

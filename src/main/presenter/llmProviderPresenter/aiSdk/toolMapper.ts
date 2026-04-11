@@ -73,10 +73,14 @@ function mergeVariantProperties(variants: JsonSchema[]): Record<string, unknown>
     return undefined
   }
 
-  const merged: Record<string, unknown> = {}
+  const merged: Record<string, unknown> = Object.create(null)
 
   for (const propertyMap of propertyMaps) {
     for (const [key, value] of Object.entries(propertyMap)) {
+      if (UNSAFE_TOOL_NAMES.has(key)) {
+        continue
+      }
+
       merged[key] = key in merged ? mergePropertySchemas(merged[key], value) : value
     }
   }

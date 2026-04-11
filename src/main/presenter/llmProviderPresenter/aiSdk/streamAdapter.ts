@@ -185,12 +185,20 @@ export async function* adaptAiSdkStream(
 
       case 'file': {
         const mediaType = part.file.mediaType
-        if (!mediaType.startsWith('image/')) {
+        if (typeof mediaType !== 'string' || !mediaType.startsWith('image/')) {
           break
         }
 
         const dataUrl = `data:${mediaType};base64,${part.file.base64}`
-        const cachedImage = options.cacheImage ? await options.cacheImage(dataUrl) : dataUrl
+        let cachedImage = dataUrl
+
+        if (options.cacheImage) {
+          try {
+            cachedImage = await options.cacheImage(dataUrl)
+          } catch (error) {
+            console.warn('[AI SDK Stream Adapter] Failed to cache image part:', error)
+          }
+        }
 
         yield createStreamEvent.imageData({
           data: cachedImage,

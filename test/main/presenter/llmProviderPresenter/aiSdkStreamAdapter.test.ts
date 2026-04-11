@@ -178,4 +178,90 @@ describe('AI SDK stream adapter', () => {
     })
     expect(events[2]).toEqual({ type: 'stop', stop_reason: 'stop_sequence' })
   })
+
+  it('falls back to the original image data url when image caching fails', async () => {
+    const cacheImage = vi.fn().mockRejectedValue(new Error('cache failed'))
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    const events = await collectEvents(
+      [
+        {
+          type: 'file',
+          file: {
+            mediaType: 'image/jpeg',
+            base64: 'YWJjZA=='
+          }
+        },
+        {
+          type: 'finish',
+          finishReason: 'stop',
+          rawFinishReason: 'stop',
+          totalUsage: {
+            inputTokens: 1,
+            outputTokens: 1,
+            totalTokens: 2
+          }
+        }
+      ],
+      { supportsNativeTools: true, cacheImage }
+    )
+
+    expect(cacheImage).toHaveBeenCalledWith('data:image/jpeg;base64,YWJjZA==')
+    expect(warnSpy).toHaveBeenCalled()
+    expect(events[0]).toEqual({
+      type: 'image_data',
+      image_data: {
+        data: 'data:image/jpeg;base64,YWJjZA==',
+        mimeType: 'image/jpeg'
+      }
+    })
+
+    warnSpy.mockRestore()
+  })
+
+  it('skips file parts with missing or non-image media types', async () => {
+    const cacheImage = vi.fn()
+    const events = await collectEvents(
+      [
+        {
+          type: 'file',
+          file: {
+            mediaType: undefined,
+            base64: 'ZmFrZQ=='
+          }
+        },
+        {
+          type: 'file',
+          file: {
+            mediaType: 'application/pdf',
+            base64: 'ZmFrZQ=='
+          }
+        },
+        {
+          type: 'finish',
+          finishReason: 'stop',
+          rawFinishReason: 'stop',
+          totalUsage: {
+            inputTokens: 1,
+            outputTokens: 1,
+            totalTokens: 2
+          }
+        }
+      ],
+      { supportsNativeTools: true, cacheImage }
+    )
+
+    expect(cacheImage).not.toHaveBeenCalled()
+    expect(events).toEqual([
+      {
+        type: 'usage',
+        usage: {
+          prompt_tokens: 1,
+          completion_tokens: 1,
+          total_tokens: 2
+        }
+      },
+      { type: 'stop', stop_reason: 'stop_sequence' }
+    ])
+  })
 })
