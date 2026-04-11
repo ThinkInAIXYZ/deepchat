@@ -185,6 +185,7 @@ function createMockLlmProviderPresenter() {
 
   return {
     getProviderInstance: vi.fn().mockReturnValue(providerInstance),
+    resolveAgentPermission: vi.fn().mockResolvedValue(undefined),
     executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
     generateCompletionStandalone: vi.fn().mockResolvedValue('English screenshot summary'),
     generateText: vi.fn().mockResolvedValue({
@@ -3179,6 +3180,161 @@ describe('AgentRuntimePresenter', () => {
         })
       )
       expect(processStream).toHaveBeenCalledTimes(1)
+    })
+
+    it('handles ACP permission grant through live provider resolver without deferred tool resume', async () => {
+      await agent.initSession('s1', { providerId: 'acp', modelId: 'claude-code-acp' })
+      makeAssistantRow({
+        blocks: [
+          {
+            type: 'tool_call',
+            status: 'pending',
+            timestamp: 1,
+            tool_call: { id: 'tc1', name: 'Terminal', params: '{"command":"dir"}', response: '' }
+          },
+          {
+            type: 'action',
+            action_type: 'tool_call_permission',
+            status: 'pending',
+            timestamp: 2,
+            content: 'components.messageBlockPermissionRequest.description.command',
+            tool_call: { id: 'tc1', name: 'Terminal', params: '{"command":"dir"}' },
+            extra: {
+              needsUserAction: true,
+              permissionType: 'command',
+              providerId: 'acp',
+              permissionRequestId: 'acp-req-1',
+              permissionRequest: JSON.stringify({
+                permissionType: 'command',
+                description: 'components.messageBlockPermissionRequest.description.command',
+                toolName: 'Terminal',
+                providerId: 'acp',
+                requestId: 'acp-req-1',
+                command: 'dir'
+              })
+            }
+          }
+        ]
+      })
+
+      ;(agent as any).activeProviderPermissions.set('acp-req-1', {
+        requestId: 'acp-req-1',
+        sessionId: 's1',
+        messageId: 'm1',
+        toolCallId: 'tc1',
+        providerId: 'acp',
+        permissionType: 'command',
+        resolve: async (granted: boolean) => {
+          await llmProvider.resolveAgentPermission('acp-req-1', granted)
+          sqlitePresenter.deepchatMessagesTable.updateContent(
+            'm1',
+            JSON.stringify([
+              {
+                type: 'tool_call',
+                status: 'pending',
+                timestamp: 1,
+                tool_call: {
+                  id: 'tc1',
+                  name: 'Terminal',
+                  params: '{"command":"dir"}',
+                  response: ''
+                }
+              },
+              {
+                type: 'action',
+                action_type: 'tool_call_permission',
+                status: 'granted',
+                timestamp: 2,
+                content: 'components.messageBlockPermissionRequest.description.command',
+                tool_call: { id: 'tc1', name: 'Terminal', params: '{"command":"dir"}' },
+                extra: {
+                  needsUserAction: false,
+                  permissionType: 'command',
+                  grantedPermissions: 'command',
+                  providerId: 'acp',
+                  permissionRequestId: 'acp-req-1',
+                  permissionRequest: JSON.stringify({
+                    permissionType: 'command',
+                    description: 'components.messageBlockPermissionRequest.description.command',
+                    toolName: 'Terminal',
+                    providerId: 'acp',
+                    requestId: 'acp-req-1',
+                    command: 'dir'
+                  })
+                }
+              }
+            ])
+          )
+        }
+      })
+
+      const result = await agent.respondToolInteraction('s1', 'm1', 'tc1', {
+        kind: 'permission',
+        granted: true
+      })
+
+      expect(result).toEqual({ resumed: false })
+      expect(llmProvider.resolveAgentPermission).toHaveBeenCalledWith('acp-req-1', true)
+      expect(toolPresenter.callTool).not.toHaveBeenCalled()
+      expect(processStream).not.toHaveBeenCalled()
+      const updatedBlocks = JSON.parse(
+        sqlitePresenter.deepchatMessagesTable.updateContent.mock.calls[0][1]
+      )
+      expect(updatedBlocks[1].status).toBe('granted')
+      expect(updatedBlocks[1].extra.needsUserAction).toBe(false)
+      expect((agent as any).activeProviderPermissions.has('acp-req-1')).toBe(false)
+    })
+
+    it('falls back to direct ACP permission resolve when live resolver is missing', async () => {
+      await agent.initSession('s1', { providerId: 'acp', modelId: 'claude-code-acp' })
+      makeAssistantRow({
+        blocks: [
+          {
+            type: 'tool_call',
+            status: 'pending',
+            timestamp: 1,
+            tool_call: { id: 'tc1', name: 'Terminal', params: '{"command":"dir"}', response: '' }
+          },
+          {
+            type: 'action',
+            action_type: 'tool_call_permission',
+            status: 'pending',
+            timestamp: 2,
+            content: 'components.messageBlockPermissionRequest.description.command',
+            tool_call: { id: 'tc1', name: 'Terminal', params: '{"command":"dir"}' },
+            extra: {
+              needsUserAction: true,
+              permissionType: 'command',
+              providerId: 'acp',
+              permissionRequestId: 'acp-req-2',
+              permissionRequest: JSON.stringify({
+                permissionType: 'command',
+                description: 'components.messageBlockPermissionRequest.description.command',
+                toolName: 'Terminal',
+                providerId: 'acp',
+                requestId: 'acp-req-2',
+                command: 'dir'
+              })
+            }
+          }
+        ]
+      })
+
+      const result = await agent.respondToolInteraction('s1', 'm1', 'tc1', {
+        kind: 'permission',
+        granted: false
+      })
+
+      expect(result).toEqual({ resumed: false })
+      expect(llmProvider.resolveAgentPermission).toHaveBeenCalledWith('acp-req-2', false)
+      expect(toolPresenter.callTool).not.toHaveBeenCalled()
+      expect(processStream).not.toHaveBeenCalled()
+      const updatedBlocks = JSON.parse(
+        sqlitePresenter.deepchatMessagesTable.updateContent.mock.calls[0][1]
+      )
+      expect(updatedBlocks[1].status).toBe('denied')
+      expect(updatedBlocks[1].content).toBe('User denied the request.')
+      expect(updatedBlocks[1].extra.needsUserAction).toBe(false)
     })
   })
 

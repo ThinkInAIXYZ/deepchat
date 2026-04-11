@@ -222,6 +222,16 @@ export interface PermissionRequestPayload {
   server_name?: string
   server_description?: string
   server_icons?: string
+  command?: string
+  commandSignature?: string
+  paths?: string[]
+  commandInfo?: {
+    command: string
+    riskLevel: 'low' | 'medium' | 'high' | 'critical'
+    suggestion: string
+    signature?: string
+    baseCommand?: string
+  }
   options?: PermissionRequestOption[]
   metadata?: Record<string, unknown>
 }

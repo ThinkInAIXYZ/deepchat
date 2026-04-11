@@ -119,6 +119,37 @@ describe('AcpProvider runDebugAction error handling', () => {
     expect(commands).toEqual([{ name: 'review', description: 'run review', input: null }])
   })
 
+  it('maps execute permissions to command and includes the raw command', () => {
+    const provider = Object.create(AcpProvider.prototype) as any
+    provider.provider = { id: 'acp', name: 'ACP' }
+
+    const payload = provider.buildPermissionPayload(
+      {
+        sessionId: 'session-1',
+        toolCall: {
+          toolCallId: 'tc-terminal',
+          title: 'Terminal',
+          kind: 'execute',
+          rawInput: { command: 'dir' }
+        },
+        options: []
+      },
+      {
+        conversationId: 'conv-1',
+        agent: {
+          id: 'agent1',
+          name: 'Claude Agent',
+          command: 'claude'
+        }
+      },
+      'req-1'
+    )
+
+    expect(payload.permissionType).toBe('command')
+    expect(payload.command).toBe('dir')
+    expect(payload.description).toBe('components.messageBlockPermissionRequest.description.command')
+  })
+
   it('prepares ACP session without prompt and emits ready events', async () => {
     const configState = createConfigState()
     const provider = Object.create(AcpProvider.prototype) as any

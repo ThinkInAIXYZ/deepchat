@@ -168,6 +168,119 @@ describe('processStream', () => {
     )
   })
 
+  it('flushes ACP provider permission blocks immediately and keeps live permission updates mutable', async () => {
+    let releaseStream: (() => void) | null = null
+    let commitDecision: ((granted: boolean) => void) | null = null
+    const coreStream = vi.fn(async function* () {
+      yield {
+        type: 'tool_call_start',
+        tool_call_id: 'tc1',
+        tool_call_name: 'Terminal'
+      } as LLMCoreStreamEvent
+      yield {
+        type: 'tool_call_chunk',
+        tool_call_id: 'tc1',
+        tool_call_arguments_chunk: '{"command":"dir"}'
+      } as LLMCoreStreamEvent
+      yield {
+        type: 'permission',
+        permission: {
+          providerId: 'acp',
+          requestId: 'req-acp-1',
+          tool_call_id: 'tc1',
+          tool_call_name: 'Terminal',
+          tool_call_params: '{"command":"dir"}',
+          description: 'components.messageBlockPermissionRequest.description.command',
+          permissionType: 'command',
+          server_name: 'Claude Agent',
+          command: 'dir',
+          commandSignature: 'dir',
+          paths: ['C:/tmp/a.txt', '', 123 as unknown as string],
+          commandInfo: {
+            command: 'dir',
+            riskLevel: 'medium',
+            suggestion: 'Review before running.',
+            signature: 'dir',
+            baseCommand: 'dir'
+          },
+          metadata: { rememberable: false }
+        }
+      } as LLMCoreStreamEvent
+      await new Promise<void>((resolve) => {
+        releaseStream = resolve
+      })
+      yield { type: 'stop', stop_reason: 'complete' } as LLMCoreStreamEvent
+    }) as unknown as ProcessParams['coreStream']
+
+    const onStreamingProviderPermission = vi.fn(
+      (_permission, _tool, resolvePermission: (granted: boolean) => void) => {
+        commitDecision = resolvePermission
+      }
+    )
+    const params = createParams({
+      providerId: 'acp',
+      modelId: 'claude-code-acp',
+      coreStream,
+      hooks: { onStreamingProviderPermission }
+    })
+
+    const promise = processStream(params)
+    await vi.advanceTimersByTimeAsync(1)
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(onStreamingProviderPermission).toHaveBeenCalledTimes(1)
+    expect(messageStore.updateAssistantContent).toHaveBeenCalled()
+
+    const pendingBlocks = (messageStore.updateAssistantContent as ReturnType<typeof vi.fn>).mock
+      .calls[0][1]
+    expect(pendingBlocks[0].type).toBe('tool_call')
+    expect(pendingBlocks[1]).toEqual(
+      expect.objectContaining({
+        type: 'action',
+        action_type: 'tool_call_permission',
+        status: 'pending',
+        extra: expect.objectContaining({
+          providerId: 'acp',
+          permissionRequestId: 'req-acp-1',
+          permissionType: 'command',
+          needsUserAction: true,
+          rememberable: false
+        })
+      })
+    )
+    expect(JSON.parse(pendingBlocks[1].extra.permissionRequest)).toEqual(
+      expect.objectContaining({
+        providerId: 'acp',
+        requestId: 'req-acp-1',
+        permissionType: 'command',
+        command: 'dir',
+        commandSignature: 'dir',
+        paths: ['C:/tmp/a.txt'],
+        commandInfo: {
+          command: 'dir',
+          riskLevel: 'medium',
+          suggestion: 'Review before running.',
+          signature: 'dir',
+          baseCommand: 'dir'
+        }
+      })
+    )
+
+    expect(commitDecision).not.toBeNull()
+    commitDecision?.(true)
+
+    const grantedBlocks = (messageStore.updateAssistantContent as ReturnType<typeof vi.fn>).mock
+      .calls[1][1]
+    expect(grantedBlocks[1].status).toBe('granted')
+    expect(grantedBlocks[1].extra.needsUserAction).toBe(false)
+    expect(grantedBlocks[1].extra.grantedPermissions).toBe('command')
+
+    releaseStream?.()
+    await vi.runAllTimersAsync()
+    await promise
+  })
+
   it('treats AbortError thrown before the first event as aborted without writing an error block', async () => {
     const abortError = new Error('Aborted')
     abortError.name = 'AbortError'

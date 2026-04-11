@@ -1071,6 +1071,7 @@ export class AcpProvider extends BaseLLMProvider {
   ): PermissionRequestPayload {
     const permissionType = this.mapPermissionType(params.toolCall.kind)
     const toolName = params.toolCall.title?.trim() || params.toolCall.toolCallId
+    const command = this.extractCommand(params.toolCall)
     const options: PermissionRequestOption[] = params.options.map((option) => ({
       optionId: option.optionId,
       kind: option.kind,
@@ -1092,6 +1093,7 @@ export class AcpProvider extends BaseLLMProvider {
       permissionType,
       server_name: context.agent.name,
       server_description: context.agent.command,
+      ...(command ? { command } : {}),
       options,
       metadata: { rememberable: false }
     }
@@ -1112,7 +1114,23 @@ export class AcpProvider extends BaseLLMProvider {
     return toolCall.toolCallId
   }
 
-  private mapPermissionType(kind?: schema.ToolKind | null): 'read' | 'write' | 'all' {
+  private extractCommand(
+    toolCall: schema.RequestPermissionRequest['toolCall']
+  ): string | undefined {
+    const rawInput = toolCall.rawInput
+    if (!rawInput || typeof rawInput !== 'object') {
+      return undefined
+    }
+
+    const command = (rawInput as Record<string, unknown>).command
+    if (typeof command !== 'string' || !command.trim()) {
+      return undefined
+    }
+
+    return command.trim()
+  }
+
+  private mapPermissionType(kind?: schema.ToolKind | null): 'read' | 'write' | 'all' | 'command' {
     switch (kind) {
       case 'read':
       case 'fetch':
@@ -1121,8 +1139,9 @@ export class AcpProvider extends BaseLLMProvider {
       case 'edit':
       case 'delete':
       case 'move':
-      case 'execute':
         return 'write'
+      case 'execute':
+        return 'command'
       default:
         return 'all'
     }
