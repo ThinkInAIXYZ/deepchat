@@ -187,4 +187,33 @@ describe('BaseLLMProvider tool XML conversion', () => {
 
     expect(xml).toContain('<tool name="noop" description="No arguments tool"></tool>')
   })
+
+  it('escapes XML-sensitive characters in parameter descriptions', () => {
+    const provider = new TestProvider(configPresenter)
+    const xml = provider.renderToolsXml([
+      {
+        type: 'function',
+        function: {
+          name: 'escape_test',
+          description: 'Escape test',
+          parameters: {
+            type: 'object',
+            properties: {
+              query: {
+                type: 'string',
+                description: 'He said "hi" & used <tag> > output'
+              }
+            }
+          }
+        },
+        server: {
+          name: 'deepchat',
+          icons: 'tool',
+          description: 'DeepChat tools'
+        }
+      }
+    ])
+
+    expect(xml).toContain('description="He said &quot;hi&quot; &amp; used &lt;tag&gt; &gt; output"')
+  })
 })

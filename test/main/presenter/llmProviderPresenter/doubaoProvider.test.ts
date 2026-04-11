@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { IConfigPresenter, LLM_PROVIDER, ModelConfig } from '../../../../src/shared/presenter'
 import { DoubaoProvider } from '../../../../src/main/presenter/llmProviderPresenter/providers/doubaoProvider'
 
@@ -109,6 +109,8 @@ const createConfigPresenter = () =>
   }) as unknown as IConfigPresenter
 
 describe('DoubaoProvider', () => {
+  const previousRuntimeMode = process.env.DEEPCHAT_LLM_RUNTIME
+
   const modelConfig: ModelConfig = {
     maxTokens: 1024,
     contextLength: 8192,
@@ -135,6 +137,18 @@ describe('DoubaoProvider', () => {
         }
       ])
     )
+  })
+
+  beforeAll(() => {
+    process.env.DEEPCHAT_LLM_RUNTIME = 'legacy'
+  })
+
+  afterAll(() => {
+    if (previousRuntimeMode === undefined) {
+      delete process.env.DEEPCHAT_LLM_RUNTIME
+      return
+    }
+    process.env.DEEPCHAT_LLM_RUNTIME = previousRuntimeMode
   })
 
   it('maps doubao catalog entries into provider models', async () => {

@@ -52,23 +52,40 @@ function mapUserContent(content: ChatMessage['content']): any[] {
     ]
   }
 
-  return content.map((part) => {
-    if (part.type === 'text') {
-      return {
-        type: 'text',
-        text: part.text
+  return content
+    .map((part) => {
+      if (part.type === 'text') {
+        return {
+          type: 'text',
+          text: part.text
+        }
       }
-    }
 
-    const imageUrl = part.image_url.url
-    const mediaType = resolveImageMediaType(imageUrl)
+      if (
+        part.type === 'image_url' &&
+        part.image_url &&
+        typeof part.image_url.url === 'string' &&
+        part.image_url.url
+      ) {
+        const imageUrl = part.image_url.url
+        const mediaType = resolveImageMediaType(imageUrl)
 
-    return {
-      type: 'image',
-      image: resolveBinaryData(imageUrl),
-      ...(mediaType ? { mediaType } : {})
-    }
-  })
+        return {
+          type: 'image',
+          image: resolveBinaryData(imageUrl),
+          ...(mediaType ? { mediaType } : {})
+        }
+      }
+
+      return null
+    })
+    .filter(
+      (
+        part
+      ): part is
+        | { type: 'text'; text: string }
+        | { type: 'image'; image: string | URL; mediaType?: string } => part !== null
+    )
 }
 
 function mapAssistantTextAndReasoning(message: ChatMessage): any[] {

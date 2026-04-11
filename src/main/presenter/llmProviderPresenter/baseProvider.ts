@@ -82,6 +82,14 @@ export abstract class BaseLLMProvider {
     return this.provider.capabilityProviderId || this.provider.id
   }
 
+  private escapeXmlAttribute(value: string): string {
+    return value
+      .replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+  }
+
   /**
    * Load cached model data from configuration
    * Called in constructor to avoid needing to re-fetch model lists every time
@@ -781,7 +789,7 @@ ${this.convertToolsToXml(tools)}
                 : {}
             const descriptionAttr =
               typeof paramMeta.description === 'string'
-                ? ` description="${paramMeta.description}"`
+                ? ` description="${this.escapeXmlAttribute(paramMeta.description)}"`
                 : ''
             const paramType = resolveParameterType(paramMeta)
             const typeAttr = paramType ? ` type="${paramType}"` : ''

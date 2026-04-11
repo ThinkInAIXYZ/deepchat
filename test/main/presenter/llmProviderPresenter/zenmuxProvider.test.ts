@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { IConfigPresenter, LLM_PROVIDER } from '../../../../src/shared/presenter'
 import { ZenmuxProvider } from '../../../../src/main/presenter/llmProviderPresenter/providers/zenmuxProvider'
 
@@ -165,6 +165,8 @@ const createProvider = (overrides?: Partial<LLM_PROVIDER>): LLM_PROVIDER => ({
 })
 
 describe('ZenmuxProvider', () => {
+  const previousRuntimeMode = process.env.DEEPCHAT_LLM_RUNTIME
+
   beforeEach(() => {
     vi.clearAllMocks()
     mockGetProxyUrl.mockReturnValue(null)
@@ -177,6 +179,18 @@ describe('ZenmuxProvider', () => {
       content: [{ type: 'text', text: 'anthropic-ok' }],
       usage: undefined
     })
+  })
+
+  beforeAll(() => {
+    process.env.DEEPCHAT_LLM_RUNTIME = 'legacy'
+  })
+
+  afterAll(() => {
+    if (previousRuntimeMode === undefined) {
+      delete process.env.DEEPCHAT_LLM_RUNTIME
+      return
+    }
+    process.env.DEEPCHAT_LLM_RUNTIME = previousRuntimeMode
   })
 
   it('routes anthropic/* models through the fixed Anthropic endpoint', async () => {

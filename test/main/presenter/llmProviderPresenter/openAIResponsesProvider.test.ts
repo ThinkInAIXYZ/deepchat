@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { OpenAIResponsesProvider } from '../../../../src/main/presenter/llmProviderPresenter/providers/openAIResponsesProvider'
 import type {
   ChatMessage,
@@ -84,6 +84,8 @@ const mcpRuntime = {
 }
 
 describe('OpenAIResponsesProvider tool call id mapping', () => {
+  const previousRuntimeMode = process.env.DEEPCHAT_LLM_RUNTIME
+
   const mockProvider: LLM_PROVIDER = {
     id: 'openai',
     name: 'OpenAI',
@@ -138,6 +140,18 @@ describe('OpenAIResponsesProvider tool call id mapping', () => {
     mockModelsList.mockResolvedValue({ data: [] })
     mockMcpToolsToOpenAIResponsesTools.mockResolvedValue([])
     mockGetProxyUrl.mockReturnValue(null)
+  })
+
+  beforeAll(() => {
+    process.env.DEEPCHAT_LLM_RUNTIME = 'legacy'
+  })
+
+  afterAll(() => {
+    if (previousRuntimeMode === undefined) {
+      delete process.env.DEEPCHAT_LLM_RUNTIME
+      return
+    }
+    process.env.DEEPCHAT_LLM_RUNTIME = previousRuntimeMode
   })
 
   it('uses call_id for streamed tool events when item_id differs from call_id', async () => {

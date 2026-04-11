@@ -110,10 +110,20 @@ export function normalizeToolInputSchema(schema: Record<string, unknown>): Recor
     : []
 
   if (!variants.length) {
+    const required = Array.isArray(normalized.required)
+      ? normalized.required.filter((key): key is string => typeof key === 'string')
+      : undefined
+    const additionalProperties =
+      typeof normalized.additionalProperties === 'boolean' ||
+      isObjectSchema(normalized.additionalProperties)
+        ? normalized.additionalProperties
+        : undefined
+
     return {
-      ...normalized,
       type: 'object',
-      properties: isObjectSchema(normalized.properties) ? normalized.properties : {}
+      properties: isObjectSchema(normalized.properties) ? normalized.properties : {},
+      ...(required?.length ? { required } : {}),
+      ...(additionalProperties !== undefined ? { additionalProperties } : {})
     }
   }
 

@@ -37,6 +37,51 @@ export interface AiSdkRuntimeContext {
   shouldUseImageGeneration?: (modelId: string, modelConfig: ModelConfig) => boolean
 }
 
+function normalizePromptValue(value: unknown): string {
+  if (typeof value === 'string') {
+    return value
+  }
+
+  if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
+    return String(value)
+  }
+
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => {
+        if (typeof item === 'string') {
+          return item
+        }
+
+        if (item && typeof item === 'object' && 'text' in item && typeof item.text === 'string') {
+          return item.text
+        }
+
+        return ''
+      })
+      .filter((item) => item.trim().length > 0)
+      .join('\n')
+  }
+
+  if (value && typeof value === 'object') {
+    if ('text' in value && typeof value.text === 'string') {
+      return value.text
+    }
+
+    const stringified = String(value)
+    return stringified === '[object Object]' ? '' : stringified
+  }
+
+  return ''
+}
+
+function extractImagePrompt(messages: ChatMessage[]): string {
+  return messages
+    .map((message) => (message.role === 'user' ? normalizePromptValue(message.content) : ''))
+    .filter((content) => content.trim().length > 0)
+    .join('\n\n')
+}
+
 function resolveSupportsNativeTools(
   context: AiSdkRuntimeContext,
   modelId: string,
@@ -167,10 +212,7 @@ export async function* runAiSdkCoreStream(
   tools: MCPToolDefinition[]
 ): AsyncGenerator<LLMCoreStreamEvent> {
   if (shouldUseImageGenerationRuntime(context, modelId, modelConfig)) {
-    const prompt = messages
-      .map((message) => (message.role === 'user' ? String(message.content ?? '') : ''))
-      .filter(Boolean)
-      .join('\n\n')
+    const prompt = extractImagePrompt(messages)
 
     const providerContext = createAiSdkProviderContext({
       providerKind: context.providerKind,

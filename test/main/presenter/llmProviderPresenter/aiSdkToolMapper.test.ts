@@ -53,4 +53,32 @@ describe('AI SDK tool schema normalization', () => {
       properties: {}
     })
   })
+
+  it('drops non-object root fields when falling back to an object schema', () => {
+    const normalized = normalizeToolInputSchema({
+      type: 'array',
+      items: {
+        type: 'string'
+      },
+      properties: {
+        query: {
+          type: 'string'
+        }
+      },
+      required: ['query'],
+      additionalProperties: false
+    })
+
+    expect(normalized).toEqual({
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string'
+        }
+      },
+      required: ['query'],
+      additionalProperties: false
+    })
+    expect(normalized).not.toHaveProperty('items')
+  })
 })

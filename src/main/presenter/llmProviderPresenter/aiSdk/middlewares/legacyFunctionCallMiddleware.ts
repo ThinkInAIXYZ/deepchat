@@ -8,7 +8,8 @@ function appendTextToUserMessage(message: ModelMessage, extraText: string): Mode
 
   if (!Array.isArray(message.content)) {
     return {
-      role: 'user',
+      ...message,
+      role: message.role ?? 'user',
       content: [
         {
           type: 'text',
