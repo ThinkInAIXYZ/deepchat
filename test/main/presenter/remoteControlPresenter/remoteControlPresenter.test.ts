@@ -10,6 +10,7 @@ type MockPollerDeps = {
 const pollerInstances: Array<{
   start: ReturnType<typeof vi.fn>
   stop: ReturnType<typeof vi.fn>
+  getStatusSnapshot: ReturnType<typeof vi.fn>
   deps: MockPollerDeps
 }> = []
 const telegramClientInstances: Array<{
@@ -19,8 +20,23 @@ let pollerStartImplementation: () => Promise<void> = async () => {}
 
 vi.mock('@/presenter/remoteControlPresenter/telegram/telegramPoller', () => ({
   TelegramPoller: class MockTelegramPoller {
-    readonly start = vi.fn(() => pollerStartImplementation())
+    readonly start = vi.fn(async () => {
+      await pollerStartImplementation()
+      this.deps.onStatusChange?.({
+        state: 'running',
+        lastError: null,
+        botUser: {
+          id: 123,
+          username: 'deepchat_bot'
+        }
+      })
+    })
     readonly stop = vi.fn().mockResolvedValue(undefined)
+    readonly getStatusSnapshot = vi.fn().mockReturnValue({
+      state: 'stopped',
+      lastError: null,
+      botUser: null
+    })
     readonly deps: MockPollerDeps
 
     constructor(deps: MockPollerDeps) {

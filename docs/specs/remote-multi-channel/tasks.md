@@ -1,11 +1,36 @@
-# Remote Multi-Channel Tasks
+# Remote Adapter Framework + Plugin Seam Tasks
 
-1. Expand shared remote-control presenter types for channel-aware APIs and overview snapshots.
-2. Extend `remoteControl` config normalization for Telegram + Feishu runtime state.
-3. Update `RemoteBindingStore` to read/write both channels and persist endpoint metadata.
-4. Add Feishu client/runtime/parser/auth/router files under `src/main/presenter/remoteControlPresenter/feishu/`.
-5. Update `RemoteControlPresenter` to manage both runtimes and expose channel-aware IPC methods.
-6. Update Telegram runtime draft gating so reasoning/tool-call/pending-action states never stream drafts.
-7. Rebuild `RemoteSettings.vue` into overview + tabs and refresh the sidebar remote indicator.
-8. Update main/renderer tests and add Feishu runtime coverage.
-9. Run `pnpm run format`, `pnpm run i18n`, `pnpm run lint`, and targeted Vitest suites.
+## Phase 1: Internal Contracts
+
+- [x] Add `types/channel.ts` with adapter lifecycle, status, factory, attachment, and plugin manifest types.
+- [x] Add plugin manifest validation helpers and ABI version constants.
+- [x] Add `ChannelAdapter` base class with idempotent lifecycle management, status emission, logger integration, and shared download helpers.
+- [x] Add `ChannelManager` and `AdapterRegistry` with built-in and future plugin source support.
+
+## Phase 2: Built-In Adapter Migration
+
+- [x] Implement `TelegramAdapter` as a wrapper around the existing Telegram runtime stack.
+- [x] Implement `FeishuAdapter` as a wrapper around the existing Feishu runtime stack.
+- [x] Preserve existing command routing, pairing, binding, callback, pending interaction, and streaming behavior.
+- [x] Preserve fatal auto-disable by disabling persisted config and unregistering the active adapter.
+
+## Phase 3: Presenter Refactor
+
+- [x] Refactor `RemoteControlPresenter` to manage remote runtimes through `ChannelManager`.
+- [x] Register built-in adapter factories for Telegram and Feishu.
+- [x] Rebuild only the affected adapter when channel settings change.
+- [x] Keep renderer-visible presenter methods and `RemoteChannel` compatibility unchanged.
+
+## Phase 4: Plugin Seam
+
+- [x] Reserve plugin manifest ABI fields for future third-party channel packages.
+- [x] Keep plugin source support in the adapter registry without executing external bundles.
+- [x] Document the future host-process boundary for third-party channel plugins.
+
+## Phase 5: Validation
+
+- [x] Add unit tests for `ChannelAdapter`, `ChannelManager`, plugin manifest validation, `TelegramAdapter`, and `FeishuAdapter`.
+- [x] Update `RemoteControlPresenter` regression tests for manager-driven runtime rebuild behavior.
+- [x] Verify main-process remote control suites still pass after the migration.
+- [x] Verify renderer Remote settings and sidebar compatibility tests still pass.
+- [ ] Run repository-wide format, i18n, lint, and full typecheck gates.

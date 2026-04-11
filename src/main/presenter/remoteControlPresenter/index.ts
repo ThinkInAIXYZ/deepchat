@@ -22,21 +22,17 @@ import {
   type FeishuRuntimeStatusSnapshot,
   type TelegramPollerStatusSnapshot
 } from './types'
+import type { ChannelAdapterConfig } from './types/channel'
 import { resolveAcpAgentAlias } from '../configPresenter/acpRegistryConstants'
 import type { RemoteControlPresenterDeps } from './interface'
-import logger from '@shared/logger'
 import { RemoteBindingStore } from './services/remoteBindingStore'
-import { FeishuAuthGuard } from './services/feishuAuthGuard'
-import { FeishuCommandRouter } from './services/feishuCommandRouter'
-import { RemoteAuthGuard } from './services/remoteAuthGuard'
 import { RemoteConversationRunner } from './services/remoteConversationRunner'
-import { RemoteCommandRouter } from './services/remoteCommandRouter'
-import { FeishuClient } from './feishu/feishuClient'
-import { FeishuParser } from './feishu/feishuParser'
-import { FeishuRuntime } from './feishu/feishuRuntime'
 import { TelegramClient } from './telegram/telegramClient'
-import { TelegramParser } from './telegram/telegramParser'
-import { TelegramPoller } from './telegram/telegramPoller'
+import { ChannelManager } from './channelManager'
+import { TelegramAdapter } from './adapters/telegram/TelegramAdapter'
+import { FeishuAdapter } from './adapters/feishu/FeishuAdapter'
+
+const DEFAULT_CHANNEL_ID = 'default'
 
 const DEFAULT_TELEGRAM_POLLER_STATUS: TelegramPollerStatusSnapshot = {
   state: 'stopped',
@@ -52,16 +48,13 @@ const DEFAULT_FEISHU_RUNTIME_STATUS: FeishuRuntimeStatusSnapshot = {
 
 export class RemoteControlPresenter {
   private readonly bindingStore: RemoteBindingStore
-  private telegramPoller: TelegramPoller | null = null
-  private telegramPollerStatus: TelegramPollerStatusSnapshot = { ...DEFAULT_TELEGRAM_POLLER_STATUS }
-  private activeBotToken: string | null = null
-  private feishuRuntime: FeishuRuntime | null = null
-  private feishuRuntimeStatus: FeishuRuntimeStatusSnapshot = { ...DEFAULT_FEISHU_RUNTIME_STATUS }
-  private activeFeishuRuntimeKey: string | null = null
+  private readonly channelManager: ChannelManager
   private runtimeOperation: Promise<void> = Promise.resolve()
 
   constructor(private readonly deps: RemoteControlPresenterDeps) {
     this.bindingStore = new RemoteBindingStore(this.deps.configPresenter)
+    this.channelManager = new ChannelManager()
+    this.registerBuiltInFactories()
   }
 
   async initialize(): Promise<void> {
@@ -72,7 +65,7 @@ export class RemoteControlPresenter {
 
   async destroy(): Promise<void> {
     await this.enqueueRuntimeOperation(async () => {
-      await Promise.all([this.stopTelegramRuntime(), this.stopFeishuRuntime()])
+      await this.channelManager.unregisterAll()
     })
   }
 
@@ -366,6 +359,43 @@ export class RemoteControlPresenter {
     return await this.deps.testTelegramHookNotification()
   }
 
+  private registerBuiltInFactories(): void {
+    this.channelManager.registerFactory({
+      source: 'builtin',
+      channelType: 'telegram',
+      create: (config) =>
+        new TelegramAdapter(config, {
+          bindingStore: this.bindingStore,
+          createConversationRunner: () => this.createConversationRunner('telegram'),
+          registerTelegramCommands: async (client) => {
+            await this.registerTelegramCommands(client)
+          },
+          onFatalError: async (message) => {
+            await this.enqueueRuntimeOperation(async () => {
+              await this.disableTelegramRuntimeForFatalError(config.configSignature ?? '', message)
+            })
+          },
+          configSignature: config.configSignature
+        })
+    })
+
+    this.channelManager.registerFactory({
+      source: 'builtin',
+      channelType: 'feishu',
+      create: (config) =>
+        new FeishuAdapter(config, {
+          bindingStore: this.bindingStore,
+          createConversationRunner: () => this.createConversationRunner('feishu'),
+          onFatalError: async (message) => {
+            await this.enqueueRuntimeOperation(async () => {
+              await this.disableFeishuRuntimeForFatalError(config.configSignature ?? '', message)
+            })
+          },
+          configSignature: config.configSignature
+        })
+    })
+  }
+
   private buildTelegramHookConfig(
     settings: TelegramRemoteSettings,
     previous: TelegramNotificationsConfig
@@ -384,178 +414,72 @@ export class RemoteControlPresenter {
     const settings = this.buildTelegramSettingsSnapshot()
     const botToken = settings.botToken.trim()
 
-    if (!settings.remoteEnabled) {
-      await this.stopTelegramRuntime()
-      this.telegramPollerStatus = {
-        state: 'disabled',
-        lastError: null,
-        botUser: null
-      }
+    if (!settings.remoteEnabled || !botToken) {
+      await this.channelManager.unregisterAdapter('telegram', DEFAULT_CHANNEL_ID)
       return
     }
 
-    if (!botToken) {
-      await this.stopTelegramRuntime()
-      this.telegramPollerStatus = {
-        state: 'error',
-        lastError: 'Bot token is required.',
-        botUser: null
-      }
+    const configSignature = this.buildTelegramAdapterSignature(settings)
+    const existing = this.channelManager.getAdapter('telegram', DEFAULT_CHANNEL_ID)
+    if (existing?.configSignature === configSignature && existing.connected) {
       return
     }
 
-    if (this.telegramPoller && this.activeBotToken === botToken) {
-      return
-    }
+    await this.channelManager.unregisterAdapter('telegram', DEFAULT_CHANNEL_ID)
 
-    await this.stopTelegramRuntime()
-    this.activeBotToken = botToken
-    this.telegramPollerStatus = {
-      state: 'starting',
-      lastError: null,
-      botUser: null
-    }
-
-    const client = new TelegramClient(botToken)
-    await this.registerTelegramCommands(client)
-
-    const authGuard = new RemoteAuthGuard(this.bindingStore)
-    const runner = this.createConversationRunner('telegram')
-    const router = new RemoteCommandRouter({
-      authGuard,
-      runner,
-      bindingStore: this.bindingStore,
-      getPollerStatus: () => this.getEffectiveTelegramStatus(botToken, true, null)
-    })
-
-    this.telegramPoller = new TelegramPoller({
-      client,
-      parser: new TelegramParser(),
-      router,
-      bindingStore: this.bindingStore,
-      onStatusChange: (snapshot) => {
-        this.telegramPollerStatus = snapshot
-      },
-      onFatalError: (message) => {
-        void this.enqueueRuntimeOperation(async () => {
-          await this.disableTelegramRuntimeForFatalError(botToken, message)
-        })
-      }
-    })
+    const adapter = await this.channelManager.createAdapter(
+      await this.buildChannelAdapterConfig(
+        'telegram',
+        {
+          botToken
+        },
+        configSignature
+      )
+    )
+    this.channelManager.registerAdapter(adapter)
 
     try {
-      await this.telegramPoller.start()
-    } catch (error) {
-      this.telegramPollerStatus = {
-        state: 'error',
-        lastError: error instanceof Error ? error.message : String(error),
-        botUser: null
-      }
-      await this.stopTelegramRuntime()
+      await adapter.connect()
+    } catch {
+      // The adapter status snapshot already captures the failure.
     }
   }
 
   private async rebuildFeishuRuntime(): Promise<void> {
     const settings = this.buildFeishuSettingsSnapshot()
-    const runtimeKey = this.buildFeishuRuntimeKey(settings)
 
-    if (!settings.remoteEnabled) {
-      await this.stopFeishuRuntime()
-      this.feishuRuntimeStatus = {
-        state: 'disabled',
-        lastError: null,
-        botUser: null
-      }
+    if (!settings.remoteEnabled || !settings.appId.trim() || !settings.appSecret.trim()) {
+      await this.channelManager.unregisterAdapter('feishu', DEFAULT_CHANNEL_ID)
       return
     }
 
-    if (!settings.appId.trim() || !settings.appSecret.trim()) {
-      await this.stopFeishuRuntime()
-      this.feishuRuntimeStatus = {
-        state: 'error',
-        lastError: 'App ID and App Secret are required.',
-        botUser: null
-      }
+    const configSignature = this.buildFeishuAdapterSignature(settings)
+    const existing = this.channelManager.getAdapter('feishu', DEFAULT_CHANNEL_ID)
+    if (existing?.configSignature === configSignature && existing.connected) {
       return
     }
 
-    if (this.feishuRuntime && this.activeFeishuRuntimeKey === runtimeKey) {
-      return
-    }
+    await this.channelManager.unregisterAdapter('feishu', DEFAULT_CHANNEL_ID)
 
-    await this.stopFeishuRuntime()
-    this.activeFeishuRuntimeKey = runtimeKey
-    this.feishuRuntimeStatus = {
-      state: 'starting',
-      lastError: null,
-      botUser: null
-    }
-
-    const client = new FeishuClient({
-      appId: settings.appId,
-      appSecret: settings.appSecret,
-      verificationToken: settings.verificationToken,
-      encryptKey: settings.encryptKey
-    })
-    const runner = this.createConversationRunner('feishu')
-    const router = new FeishuCommandRouter({
-      authGuard: new FeishuAuthGuard(this.bindingStore),
-      runner,
-      bindingStore: this.bindingStore,
-      getRuntimeStatus: () =>
-        this.getEffectiveFeishuStatus(true, null, settings.appId, settings.appSecret)
-    })
-
-    this.feishuRuntime = new FeishuRuntime({
-      client,
-      parser: new FeishuParser(),
-      router,
-      bindingStore: this.bindingStore,
-      logger,
-      onStatusChange: (snapshot) => {
-        this.feishuRuntimeStatus = snapshot
-      },
-      onFatalError: (message) => {
-        void this.enqueueRuntimeOperation(async () => {
-          await this.disableFeishuRuntimeForFatalError(runtimeKey, message)
-        })
-      }
-    })
+    const adapter = await this.channelManager.createAdapter(
+      await this.buildChannelAdapterConfig(
+        'feishu',
+        {
+          appId: settings.appId.trim(),
+          appSecret: settings.appSecret.trim(),
+          verificationToken: settings.verificationToken.trim(),
+          encryptKey: settings.encryptKey.trim()
+        },
+        configSignature
+      )
+    )
+    this.channelManager.registerAdapter(adapter)
 
     try {
-      await this.feishuRuntime.start()
-    } catch (error) {
-      this.feishuRuntimeStatus = {
-        state: 'error',
-        lastError: error instanceof Error ? error.message : String(error),
-        botUser: null
-      }
-      await this.stopFeishuRuntime()
+      await adapter.connect()
+    } catch {
+      // The adapter status snapshot already captures the failure.
     }
-  }
-
-  private async stopTelegramRuntime(): Promise<void> {
-    const poller = this.telegramPoller
-    this.telegramPoller = null
-    this.activeBotToken = null
-
-    if (!poller) {
-      return
-    }
-
-    await poller.stop()
-  }
-
-  private async stopFeishuRuntime(): Promise<void> {
-    const runtime = this.feishuRuntime
-    this.feishuRuntime = null
-    this.activeFeishuRuntimeKey = null
-
-    if (!runtime) {
-      return
-    }
-
-    await runtime.stop()
   }
 
   private getEffectiveTelegramStatus(
@@ -587,7 +511,16 @@ export class RemoteControlPresenter {
       }
     }
 
-    return { ...this.telegramPollerStatus }
+    const snapshot = this.channelManager.getStatusSnapshot('telegram', DEFAULT_CHANNEL_ID)
+    if (!snapshot) {
+      return { ...DEFAULT_TELEGRAM_POLLER_STATUS }
+    }
+
+    return {
+      state: snapshot.state,
+      lastError: snapshot.lastError,
+      botUser: (snapshot.botUser as TelegramRemoteStatus['botUser']) ?? null
+    }
   }
 
   private getEffectiveFeishuStatus(
@@ -620,17 +553,27 @@ export class RemoteControlPresenter {
       }
     }
 
-    return { ...this.feishuRuntimeStatus }
+    const snapshot = this.channelManager.getStatusSnapshot('feishu', DEFAULT_CHANNEL_ID)
+    if (!snapshot) {
+      return { ...DEFAULT_FEISHU_RUNTIME_STATUS }
+    }
+
+    return {
+      state: snapshot.state,
+      lastError: snapshot.lastError,
+      botUser: (snapshot.botUser as FeishuRemoteStatus['botUser']) ?? null
+    }
   }
 
   private async disableTelegramRuntimeForFatalError(
-    botToken: string,
+    configSignature: string,
     errorMessage: string
   ): Promise<void> {
-    const currentHooksConfig = this.deps.getHooksNotificationsConfig().telegram
-    const currentRemoteConfig = this.bindingStore.getTelegramConfig()
-
-    if (!currentRemoteConfig.enabled || currentHooksConfig.botToken.trim() !== botToken) {
+    const currentSettings = this.buildTelegramSettingsSnapshot()
+    if (
+      !currentSettings.remoteEnabled ||
+      this.buildTelegramAdapterSignature(currentSettings) !== configSignature
+    ) {
       return
     }
 
@@ -640,27 +583,17 @@ export class RemoteControlPresenter {
       lastFatalError: errorMessage
     }))
 
-    await this.stopTelegramRuntime()
-    this.telegramPollerStatus = {
-      state: 'error',
-      lastError: errorMessage,
-      botUser: null
-    }
+    await this.channelManager.unregisterAdapter('telegram', DEFAULT_CHANNEL_ID)
   }
 
   private async disableFeishuRuntimeForFatalError(
-    runtimeKey: string,
+    configSignature: string,
     errorMessage: string
   ): Promise<void> {
-    const currentRemoteConfig = this.bindingStore.getFeishuConfig()
+    const currentSettings = this.buildFeishuSettingsSnapshot()
     if (
-      !currentRemoteConfig.enabled ||
-      this.buildFeishuRuntimeKey({
-        appId: currentRemoteConfig.appId,
-        appSecret: currentRemoteConfig.appSecret,
-        verificationToken: currentRemoteConfig.verificationToken,
-        encryptKey: currentRemoteConfig.encryptKey
-      }) !== runtimeKey
+      !currentSettings.remoteEnabled ||
+      this.buildFeishuAdapterSignature(currentSettings) !== configSignature
     ) {
       return
     }
@@ -671,12 +604,51 @@ export class RemoteControlPresenter {
       lastFatalError: errorMessage
     }))
 
-    await this.stopFeishuRuntime()
-    this.feishuRuntimeStatus = {
-      state: 'error',
-      lastError: errorMessage,
-      botUser: null
+    await this.channelManager.unregisterAdapter('feishu', DEFAULT_CHANNEL_ID)
+  }
+
+  private async buildChannelAdapterConfig(
+    channel: RemoteChannel,
+    channelConfig: Record<string, unknown>,
+    configSignature: string
+  ): Promise<ChannelAdapterConfig> {
+    return {
+      channelId: DEFAULT_CHANNEL_ID,
+      channelType: channel,
+      agentId: await this.sanitizeDefaultAgentId(channel, this.getDefaultAgentId(channel)),
+      channelConfig,
+      source: 'builtin',
+      configSignature
     }
+  }
+
+  private buildTelegramAdapterSignature(settings: TelegramRemoteSettings): string {
+    return JSON.stringify({
+      botToken: settings.botToken.trim(),
+      remoteEnabled: settings.remoteEnabled,
+      allowedUserIds: [...settings.allowedUserIds],
+      defaultAgentId: settings.defaultAgentId.trim(),
+      defaultWorkdir: settings.defaultWorkdir.trim(),
+      hookNotifications: {
+        enabled: settings.hookNotifications.enabled,
+        chatId: settings.hookNotifications.chatId.trim(),
+        threadId: settings.hookNotifications.threadId?.trim() || '',
+        events: [...settings.hookNotifications.events]
+      }
+    })
+  }
+
+  private buildFeishuAdapterSignature(settings: FeishuRemoteSettings): string {
+    return JSON.stringify({
+      appId: settings.appId.trim(),
+      appSecret: settings.appSecret.trim(),
+      verificationToken: settings.verificationToken.trim(),
+      encryptKey: settings.encryptKey.trim(),
+      remoteEnabled: settings.remoteEnabled,
+      defaultAgentId: settings.defaultAgentId.trim(),
+      defaultWorkdir: settings.defaultWorkdir.trim(),
+      pairedUserOpenIds: [...settings.pairedUserOpenIds]
+    })
   }
 
   private createConversationRunner(channel: RemoteChannel): RemoteConversationRunner {
@@ -698,20 +670,6 @@ export class RemoteControlPresenter {
     return channel === 'telegram'
       ? this.bindingStore.getTelegramDefaultAgentId()
       : this.bindingStore.getFeishuDefaultAgentId()
-  }
-
-  private buildFeishuRuntimeKey(settings: {
-    appId: string
-    appSecret: string
-    verificationToken: string
-    encryptKey: string
-  }): string {
-    return [
-      settings.appId.trim(),
-      settings.appSecret.trim(),
-      settings.verificationToken.trim(),
-      settings.encryptKey.trim()
-    ].join('::')
   }
 
   private enqueueRuntimeOperation(operation: () => Promise<void>): Promise<void> {

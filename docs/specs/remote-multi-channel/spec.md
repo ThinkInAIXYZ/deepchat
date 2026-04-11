@@ -1,52 +1,76 @@
-# Remote Multi-Channel
+# Remote Adapter Framework + Plugin Seam
 
 ## Summary
 
-Extend the existing Remote settings and runtime from Telegram-only to a fixed two-channel model: Telegram and Feishu. Telegram keeps hook notifications, while Feishu adds remote control only. Both channels continue to bind one remote endpoint to one DeepChat session and reuse the existing detached-session flow in Electron main.
+Refactor DeepChat remote control from presenter-owned Telegram / Feishu runtimes into a unified adapter framework. Telegram and Feishu remain the only user-visible remote channels in this iteration, but the main-process runtime must expose a stable adapter / factory boundary so future built-in channels and locally installed third-party IM integrations can plug in without rewriting `RemoteControlPresenter`.
 
-This iteration also standardizes Telegram and Feishu on a compact remote delivery model: one temporary status message per assistant turn, one streamed answer track (one logical message sequence, delivered in one or more physical chunks as needed) that carries only user-visible answer content, and separate actionable prompts for pending interactions.
+This iteration does not ship a runnable third-party plugin system. It only reserves the ABI, manifest format, and process-boundary constraints that future channel plugins must follow.
 
 ## User Stories
 
-- As a desktop user, I can configure Telegram and Feishu remote control from one Remote page without mixing their credentials and rules together.
-- As a Telegram user, I can continue using the existing private-chat pairing flow and hook notifications.
-- As a Feishu user, I can pair in a bot DM, then continue the same DeepChat session from DM, group chat, or topic thread.
-- As an admin of the desktop app, I can see per-channel runtime health and binding counts from a shared overview area.
-- As a paired Feishu user, I can trigger a remote session in group/topic only when I explicitly `@bot`.
-- As a Telegram or Feishu user, I no longer need to read intermediate reasoning/tool/search transcript spam while the assistant is still running.
+- As a maintainer, I can add a new built-in remote channel without adding another presenter-owned runtime branch beside Telegram and Feishu.
+- As a maintainer, I can migrate Telegram and Feishu onto the same adapter lifecycle without changing their existing command, pairing, binding, or streaming behavior.
+- As a future plugin author, I can target a documented channel-plugin ABI instead of patching DeepChat internals.
+- As a desktop user, my existing Remote settings page and sidebar status indicator continue to work exactly as before for Telegram and Feishu.
 
 ## Acceptance Criteria
 
-- The Remote page renders a shared overview plus separate Telegram and Feishu tabs.
-- Telegram settings continue to support bot token, remote pairing, allowlist, default agent, hook settings, and hook test actions.
-- Feishu settings support app credentials, pairing, paired user management, default agent selection, and binding management.
-- Feishu runtime runs in Electron main via WebSocket event subscription and does not require a renderer window.
-- Feishu endpoints are keyed by `chatId + optional threadId`, with topic/thread replies isolated from the group root conversation.
-- Feishu authorization requires DM pairing first; in groups/topics, only paired users who `@bot` may send commands or plain text to the bound session.
-- `/pair`, `/new`, `/sessions`, `/use`, `/stop`, `/status`, `/open`, and `/model` work for Feishu remote control.
-- Telegram `/model` continues to use inline keyboard menus; Feishu `/model` uses text commands only.
-- Telegram and Feishu remote conversations use one temporary status message plus one streamed answer track (one logical message sequence, delivered in one or more physical chunks as needed) for normal assistant turns.
-- When streamed answer text exceeds platform limits, earlier chunks within that answer track remain fixed and only the latest tail chunk stays editable.
-- Reasoning-only, tool-call-only, tool-result-only, search-only, and pending-action-only assistant states never emit standalone transcript messages for normal remote delivery.
-- Existing local desktop chat behavior remains unchanged.
+- `RemoteControlPresenter` manages remote channels through `ChannelManager` and built-in adapter factories instead of holding `TelegramPoller` / `FeishuRuntime` instances directly.
+- A shared internal contract exists for:
+  - channel adapter lifecycle
+  - channel status snapshots
+  - channel factories / registry
+  - future plugin manifest parsing
+- Telegram remote control behavior remains unchanged:
+  - commands
+  - callback menus
+  - pending interaction flow
+  - binding / pairing rules
+  - fatal auto-disable
+  - streamed delivery behavior
+- Feishu remote control behavior remains unchanged:
+  - direct-message pairing
+  - mention gating in groups / topics
+  - command handling
+  - pending interaction flow
+  - fatal auto-disable
+  - streamed delivery behavior
+- Renderer-visible contracts stay compatible:
+  - `RemoteChannel` remains `'telegram' | 'feishu'`
+  - existing Remote settings tabs remain Telegram + Feishu only
+  - existing sidebar polling remains compatible
+- A channel plugin manifest ABI exists and is validated in tests.
 
 ## Constraints
 
-- Keep a fixed two-channel architecture. Do not introduce a generic plugin registry for remote channels.
-- Telegram hook notifications remain under the shared Remote page; Feishu hook notifications are out of scope.
-- Remote sessions continue to use the existing `RemoteConversationRunner` and detached session creation path.
-- Feishu v1 supports DM, group, and topic/thread input; media upload and user-OAuth automation remain out of scope.
-- Pending interaction cards/prompts remain separate from the compact status-message lifecycle and do not erase already-streamed answer text.
+- Do not load third-party channel JavaScript directly inside Electron main or renderer.
+- Third-party channels are future work and must eventually run behind a dedicated plugin host boundary.
+- This iteration does not add Discord / Slack runtime code, configuration schema, or settings UI.
+- This iteration does not add plugin installation UI, plugin directory scanning, or plugin-host process management.
+- Existing `remoteControl` persisted data, Telegram hook test API, and renderer IPC contract must remain backward compatible.
 
 ## Non-Goals
 
-- A general remote channel SDK or third-party channel plugin system.
-- Feishu user-OAuth flows, approval cards, or hook notifications.
-- Rich Feishu card-based model switching.
-- Telegram group chat support.
+- Shipping a complete third-party channel marketplace or installer.
+- Shipping Discord / Slack / QQ as user-configurable remote channels in this iteration.
+- Reworking Remote settings UI structure beyond compatibility-preserving changes.
+- Replacing current Telegram / Feishu command routers with a fully generic cross-platform command layer.
+
+## Plugin ABI Guardrails
+
+- Future channel plugins use `manifest.json + bundle.js + index.d.ts + optional config.schema.json`.
+- The manifest must declare:
+  - `schemaVersion`
+  - `pluginId`
+  - `apiVersion`
+  - `entry`
+  - `types`
+  - `channelType`
+- The JS bundle exports `createChannelPlugin()`.
+- Future plugin configuration UI must be schema-driven; plugins do not inject renderer code.
 
 ## Compatibility
 
-- Existing `remoteControl.telegram` store data stays valid and is normalized into the new dual-channel config.
-- Existing Telegram hook settings remain valid and continue to be saved through the Remote page.
-- New Feishu-specific state is additive under `remoteControl.feishu`.
+- Existing Telegram and Feishu settings continue to load from the current `remoteControl` config structure.
+- Existing renderer code keeps using the same presenter methods.
+- Existing Telegram / Feishu runtime tests remain valid, and new adapter-layer tests cover the new boundaries.
