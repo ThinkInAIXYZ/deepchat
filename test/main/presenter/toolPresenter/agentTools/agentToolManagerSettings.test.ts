@@ -157,7 +157,9 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
   })
 
   it('returns skill_view activation metadata after viewing a main SKILL.md', async () => {
-    skillPresenter.getActiveSkills.mockResolvedValue([])
+    skillPresenter.getActiveSkills
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce(['deepchat-settings'])
     skillPresenter.getActiveSkillsAllowedTools.mockResolvedValue([])
     skillPresenter.viewSkill.mockResolvedValue({
       success: true,
