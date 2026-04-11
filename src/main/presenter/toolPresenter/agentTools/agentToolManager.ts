@@ -1768,20 +1768,25 @@ export class AgentToolManager {
       if (!validationResult.success) {
         throw new Error(`Invalid arguments for skill_view: ${validationResult.error.message}`)
       }
-      const isLinkedFileView = typeof validationResult.data.file_path === 'string'
-      const wasActive =
+      const normalizedFilePath =
+        typeof validationResult.data.file_path === 'string'
+          ? validationResult.data.file_path.trim()
+          : ''
+      const isLinkedFileView = normalizedFilePath.length > 0
+      const previousActiveSkills =
         conversationId && !isLinkedFileView
-          ? (await this.getSkillPresenter().getActiveSkills(conversationId)).includes(
-              validationResult.data.name
-            )
-          : false
+          ? await this.getSkillPresenter().getActiveSkills(conversationId)
+          : []
       const result = await skillTools.handleSkillView(conversationId, validationResult.data)
+      const nextActiveSkills =
+        conversationId && !isLinkedFileView
+          ? await this.getSkillPresenter().getActiveSkills(conversationId)
+          : previousActiveSkills
       const activationApplied =
         Boolean(conversationId) &&
-        result.success === true &&
         !isLinkedFileView &&
-        !wasActive &&
-        result.isPinned === true
+        !previousActiveSkills.includes(validationResult.data.name) &&
+        nextActiveSkills.includes(validationResult.data.name)
       const activationSource =
         !conversationId || result.success !== true
           ? 'none'

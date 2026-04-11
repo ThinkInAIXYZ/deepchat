@@ -572,8 +572,11 @@ export class SkillPresenter implements ISkillPresenter {
       let nextIsPinned = isPinned
 
       if (options?.conversationId && !isPinned) {
-        await this.setActiveSkills(options.conversationId, [...pinnedSkills, metadata.name])
-        nextIsPinned = true
+        const updatedSkills = await this.setActiveSkills(options.conversationId, [
+          ...pinnedSkills,
+          metadata.name
+        ])
+        nextIsPinned = updatedSkills.includes(metadata.name)
       }
 
       return {
@@ -1474,14 +1477,14 @@ export class SkillPresenter implements ISkillPresenter {
   /**
    * Set active skills for a conversation
    */
-  async setActiveSkills(conversationId: string, skills: string[]): Promise<void> {
+  async setActiveSkills(conversationId: string, skills: string[]): Promise<string[]> {
     try {
       const isNewSession = await this.isNewAgentSession(conversationId)
       // Validate skill names
       const validSkills = await this.validateSkillNames(skills)
       if (!isNewSession) {
         this.warnLegacySkillRetired(conversationId)
-        return
+        return await this.getActiveSkills(conversationId)
       }
 
       const previousSkills = await this.getActiveSkills(conversationId)
@@ -1506,6 +1509,8 @@ export class SkillPresenter implements ISkillPresenter {
           skills: deactivated
         })
       }
+
+      return validSkills
     } catch (error) {
       console.error(`[SkillPresenter] Error setting active skills for ${conversationId}:`, error)
       throw error

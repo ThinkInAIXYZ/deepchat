@@ -158,7 +158,7 @@ function createMockLlmProviderPresenter() {
 
 function createMockSkillPresenter() {
   return {
-    setActiveSkills: vi.fn().mockResolvedValue(undefined),
+    setActiveSkills: vi.fn().mockResolvedValue([]),
     clearNewAgentSessionSkills: vi.fn().mockResolvedValue(undefined)
   } as any
 }

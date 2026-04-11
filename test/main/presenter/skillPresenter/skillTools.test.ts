@@ -77,7 +77,7 @@ describe('SkillTools', () => {
       saveSkillExtension: vi.fn().mockResolvedValue(undefined),
       listSkillScripts: vi.fn().mockResolvedValue([]),
       getActiveSkills: vi.fn().mockResolvedValue([]),
-      setActiveSkills: vi.fn().mockResolvedValue(undefined),
+      setActiveSkills: vi.fn().mockResolvedValue([]),
       validateSkillNames: vi.fn().mockImplementation((names: string[]) => {
         const available = new Set(mockSkillMetadata.map((skill) => skill.name))
         return Promise.resolve(names.filter((name) => available.has(name)))
