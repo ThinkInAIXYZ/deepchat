@@ -1,19 +1,50 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type {
-  AWS_BEDROCK_PROVIDER,
-  ChatMessage,
-  IConfigPresenter,
-  ModelConfig
-} from '../../../../src/shared/presenter'
-import { AwsBedrockProvider } from '../../../../src/main/presenter/llmProviderPresenter/providers/awsBedrockProvider'
+import type { AWS_BEDROCK_PROVIDER, IConfigPresenter } from '../../../../src/shared/presenter'
+import { AiSdkProvider } from '../../../../src/main/presenter/llmProviderPresenter/providers/aiSdkProvider'
 
-const { mockBedrockRuntimeSend, mockGetProxyUrl } = vi.hoisted(() => ({
-  mockBedrockRuntimeSend: vi.fn(),
-  mockGetProxyUrl: vi.fn().mockReturnValue(null)
+const { mockBedrockSend, mockRunAiSdkCoreStream, mockRunAiSdkGenerateText } = vi.hoisted(() => ({
+  mockBedrockSend: vi.fn(),
+  mockRunAiSdkCoreStream: vi.fn(),
+  mockRunAiSdkGenerateText: vi.fn().mockResolvedValue({ content: 'ok' })
+}))
+
+vi.mock('electron', () => ({
+  app: {
+    getName: vi.fn(() => 'DeepChat'),
+    getVersion: vi.fn(() => '0.0.0-test'),
+    getPath: vi.fn(() => '/mock/path'),
+    isReady: vi.fn(() => true),
+    on: vi.fn()
+  }
+}))
+
+vi.mock('@/eventbus', () => ({
+  eventBus: {
+    on: vi.fn(),
+    sendToRenderer: vi.fn()
+  },
+  SendTarget: {
+    ALL_WINDOWS: 'ALL_WINDOWS'
+  }
+}))
+
+vi.mock('@/events', () => ({
+  CONFIG_EVENTS: {
+    MODEL_LIST_CHANGED: 'MODEL_LIST_CHANGED'
+  },
+  PROVIDER_DB_EVENTS: {
+    LOADED: 'LOADED',
+    UPDATED: 'UPDATED'
+  }
 }))
 
 vi.mock('@aws-sdk/client-bedrock', () => ({
-  BedrockClient: vi.fn(),
+  BedrockClient: vi.fn().mockImplementation(() => ({
+    config: {
+      region: vi.fn().mockResolvedValue('us-east-1')
+    },
+    send: mockBedrockSend
+  })),
   ListFoundationModelsCommand: class ListFoundationModelsCommand {
     input: unknown
 
@@ -23,36 +54,28 @@ vi.mock('@aws-sdk/client-bedrock', () => ({
   }
 }))
 
-vi.mock('@aws-sdk/client-bedrock-runtime', () => ({
-  BedrockRuntimeClient: vi.fn(),
-  InvokeModelCommand: class InvokeModelCommand {
-    input: Record<string, unknown>
-
-    constructor(input: Record<string, unknown>) {
-      this.input = input
-    }
-  },
-  InvokeModelWithResponseStreamCommand: class InvokeModelWithResponseStreamCommand {
-    input: Record<string, unknown>
-
-    constructor(input: Record<string, unknown>) {
-      this.input = input
-    }
-  }
+vi.mock('../../../../src/main/presenter/llmProviderPresenter/aiSdk', () => ({
+  runAiSdkCoreStream: mockRunAiSdkCoreStream,
+  runAiSdkGenerateText: mockRunAiSdkGenerateText
 }))
 
-vi.mock('../../../../src/main/presenter/proxyConfig', () => ({
-  proxyConfig: {
-    getProxyUrl: mockGetProxyUrl
-  }
-}))
-
-const createConfigPresenter = () =>
+const createConfigPresenter = (): IConfigPresenter =>
   ({
     getProviderModels: vi.fn().mockReturnValue([]),
     getCustomModels: vi.fn().mockReturnValue([]),
+    getDbProviderModels: vi.fn().mockReturnValue([
+      {
+        id: 'anthropic.claude-3-5-sonnet-20240620-v1:0',
+        name: 'Claude 3.5 Sonnet',
+        group: 'Bedrock Claude',
+        contextLength: 200000,
+        maxTokens: 64000,
+        vision: false,
+        functionCall: false,
+        reasoning: false
+      }
+    ]),
     getModelConfig: vi.fn().mockReturnValue(undefined),
-    getDbProviderModels: vi.fn().mockReturnValue([]),
     getSetting: vi.fn().mockReturnValue(undefined),
     setProviderModels: vi.fn(),
     getModelStatus: vi.fn().mockReturnValue(true)
@@ -71,137 +94,80 @@ const createProvider = (overrides?: Partial<AWS_BEDROCK_PROVIDER>): AWS_BEDROCK_
   ...overrides
 })
 
-const createAsyncStream = (chunks: Array<Record<string, unknown>>) => ({
-  async *[Symbol.asyncIterator]() {
-    for (const chunk of chunks) {
-      yield chunk
-    }
-  }
-})
-
-const createBedrockChunk = (chunk: Record<string, unknown>) => ({
-  chunk: {
-    bytes: new TextEncoder().encode(JSON.stringify(chunk))
-  }
-})
-
-describe('AwsBedrockProvider prompt cache behavior', () => {
-  const modelConfig: ModelConfig = {
-    maxTokens: 1024,
-    contextLength: 8192,
-    vision: false,
-    functionCall: false,
-    reasoning: false,
-    type: 'chat',
-    conversationId: 'session-1'
-  }
-
-  const messages: ChatMessage[] = [
-    { role: 'system', content: 'system prompt' },
-    { role: 'user', content: 'history' },
-    { role: 'assistant', content: 'stable reply' },
-    { role: 'user', content: 'latest question' }
-  ]
-
+describe('AiSdkProvider aws-bedrock', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockGetProxyUrl.mockReturnValue(null)
-    mockBedrockRuntimeSend.mockResolvedValue({
-      body: Promise.resolve(
-        createAsyncStream([
-          createBedrockChunk({
-            type: 'message_start',
-            message: {
-              usage: {
-                input_tokens: 10,
-                output_tokens: 5,
-                cacheReadInputTokens: 20,
-                cacheWriteInputTokens: 30
-              }
-            }
-          }),
-          createBedrockChunk({
-            type: 'content_block_delta',
-            delta: {
-              type: 'text_delta',
-              text: 'hello'
-            }
-          })
-        ])
-      )
-    })
+    mockRunAiSdkGenerateText.mockResolvedValue({ content: 'ok' })
   })
 
-  it('adds an explicit cache_control breakpoint before the latest user turn', async () => {
-    const provider = new AwsBedrockProvider(createProvider(), createConfigPresenter())
-    ;(provider as any).bedrockRuntime = {
-      send: mockBedrockRuntimeSend
-    }
+  it('fails fast when credentials are missing', async () => {
+    const provider = new AiSdkProvider(
+      createProvider({
+        credential: undefined
+      }),
+      createConfigPresenter()
+    )
 
-    const events = []
-    for await (const event of provider.coreStream(
-      messages,
-      'anthropic.claude-3-5-sonnet-20240620-v1:0',
-      modelConfig,
-      0.2,
-      64,
-      []
-    )) {
-      events.push(event)
-    }
+    await expect(provider.check()).resolves.toEqual({
+      isOk: false,
+      errorMsg: 'Missing AWS Bedrock credentials'
+    })
+    expect(mockRunAiSdkGenerateText).not.toHaveBeenCalled()
+  })
 
-    const command = mockBedrockRuntimeSend.mock.calls[0][0] as {
-      input: {
-        body: string
-      }
-    }
-    const payload = JSON.parse(command.input.body)
-
-    expect(payload).not.toHaveProperty('cache_control')
-    expect(payload.system).toBe('system prompt\n')
-    expect(payload.messages[1]).toMatchObject({
-      role: 'assistant',
-      content: [
+  it('maps active Claude models from the Bedrock catalog', async () => {
+    mockBedrockSend.mockResolvedValue({
+      modelSummaries: [
         {
-          type: 'text',
-          text: 'stable reply',
-          cache_control: {
-            type: 'ephemeral'
-          }
+          modelId: 'anthropic.claude-3-5-sonnet-20240620-v1:0',
+          modelLifecycle: { status: 'ACTIVE' },
+          inferenceTypesSupported: ['ON_DEMAND']
         }
       ]
     })
-    expect(events.some((event) => event.type === 'text')).toBe(true)
+
+    const provider = new AiSdkProvider(createProvider(), createConfigPresenter())
+    const models = await provider.fetchModels()
+
+    expect(models).toEqual([
+      expect.objectContaining({
+        id: 'anthropic.claude-3-5-sonnet-20240620-v1:0',
+        providerId: 'aws-bedrock'
+      })
+    ])
   })
 
-  it('normalizes cache read and cache write usage fields from Bedrock streams', async () => {
-    const provider = new AwsBedrockProvider(createProvider(), createConfigPresenter())
-    ;(provider as any).bedrockRuntime = {
-      send: mockBedrockRuntimeSend
-    }
+  it('falls back to the provider DB snapshot when the Bedrock catalog lookup fails', async () => {
+    mockBedrockSend.mockRejectedValue(new Error('catalog unavailable'))
 
-    const events = []
-    for await (const event of provider.coreStream(
-      messages,
-      'anthropic.claude-3-5-sonnet-20240620-v1:0',
-      modelConfig,
-      0.2,
-      64,
-      []
-    )) {
-      events.push(event)
-    }
+    const provider = new AiSdkProvider(createProvider(), createConfigPresenter())
+    const models = await provider.fetchModels()
 
-    const usageEvent = events.find((event) => event.type === 'usage')
-    expect(usageEvent).toMatchObject({
-      type: 'usage',
-      usage: {
-        prompt_tokens: 60,
-        completion_tokens: 5,
-        total_tokens: 65,
-        cached_tokens: 20,
-        cache_write_tokens: 30
-      }
+    expect(models).toEqual([
+      expect.objectContaining({
+        id: 'anthropic.claude-3-5-sonnet-20240620-v1:0',
+        group: 'Bedrock Claude'
+      })
+    ])
+  })
+
+  it('uses the AI SDK runtime for health checks', async () => {
+    const provider = new AiSdkProvider(createProvider(), createConfigPresenter())
+    ;(provider as any).isInitialized = true
+
+    await expect(provider.check()).resolves.toEqual({
+      isOk: true,
+      errorMsg: null
     })
+    expect(mockRunAiSdkGenerateText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerKind: 'aws-bedrock'
+      }),
+      [{ role: 'user', content: 'Hi' }],
+      'anthropic.claude-3-5-sonnet-20240620-v1:0',
+      expect.any(Object),
+      0.2,
+      16
+    )
   })
 })

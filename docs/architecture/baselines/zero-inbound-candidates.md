@@ -6,7 +6,7 @@ These files have no in-repo importers inside their scope and need manual classif
 
 ## main
 
-- Candidate count: 16
+- Candidate count: 15
 
 - `env.d.ts`
 - `lib/system.ts`
@@ -14,7 +14,6 @@ These files have no in-repo importers inside their scope and need manual classif
 - `presenter/browser/BrowserContextBuilder.ts`
 - `presenter/configPresenter/aes.ts`
 - `presenter/llmProviderPresenter/oauthHelper.ts`
-- `presenter/llmProviderPresenter/providers/openAIProvider.ts`
 - `presenter/mcpPresenter/agentMcpFilter.ts`
 - `presenter/searchPrompts/searchPrompts.ts`
 - `presenter/sessionPresenter/events.ts`
@@ -73,4 +72,3 @@ These files have no in-repo importers inside their scope and need manual classif
 - `stores/systemPromptStore.ts`
 - `utils/maxOutputTokens.ts`
 - `views/SettingsTabView.vue`
-

@@ -106,6 +106,7 @@ export type AssistantMessageBlock = {
 export type {
   ChatMessage,
   ChatMessageContent,
+  ChatMessageProviderOptions,
   ChatMessageRole,
   ChatMessageToolCall
 } from './chat-message'

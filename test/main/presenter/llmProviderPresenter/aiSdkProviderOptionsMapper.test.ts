@@ -1,0 +1,238 @@
+import { describe, expect, it, vi } from 'vitest'
+
+const { mockGetThinkingBudgetRange, mockGetModel, mockSupportsReasoning } = vi.hoisted(() => ({
+  mockGetThinkingBudgetRange: vi.fn().mockReturnValue({}),
+  mockGetModel: vi.fn().mockReturnValue(undefined),
+  mockSupportsReasoning: vi.fn().mockReturnValue(false)
+}))
+
+vi.mock('@/presenter/configPresenter/providerDbLoader', () => ({
+  providerDbLoader: {
+    getModel: mockGetModel
+  }
+}))
+
+vi.mock('@/presenter/configPresenter/modelCapabilities', () => ({
+  modelCapabilities: {
+    getThinkingBudgetRange: mockGetThinkingBudgetRange,
+    supportsReasoning: mockSupportsReasoning
+  }
+}))
+
+import { buildProviderOptions } from '@/presenter/llmProviderPresenter/aiSdk/providerOptionsMapper'
+
+describe('AI SDK provider options', () => {
+  const baseModelConfig = {
+    reasoning: true,
+    reasoningEffort: 'high' as const,
+    thinkingBudget: 2048,
+    conversationId: 'conv-1'
+  }
+
+  it('keeps official anthropic beta features enabled', () => {
+    const result = buildProviderOptions({
+      providerId: 'anthropic',
+      providerOptionsKey: 'anthropic',
+      apiType: 'anthropic',
+      modelId: 'claude-sonnet-4-5',
+      modelConfig: baseModelConfig,
+      tools: [],
+      messages: []
+    })
+
+    expect(result.providerOptions?.anthropic).toMatchObject({
+      toolStreaming: true,
+      sendReasoning: true,
+      effort: 'high',
+      thinking: {
+        type: 'enabled',
+        budgetTokens: 2048
+      }
+    })
+  })
+
+  it('disables anthropic beta-only options for compatible providers', () => {
+    const result = buildProviderOptions({
+      providerId: 'zenmux',
+      providerOptionsKey: 'anthropic',
+      apiType: 'anthropic',
+      modelId: 'anthropic/claude-sonnet-4.5',
+      modelConfig: baseModelConfig,
+      tools: [],
+      messages: []
+    })
+
+    expect(result.providerOptions?.anthropic).toMatchObject({
+      toolStreaming: false,
+      thinking: {
+        type: 'enabled',
+        budgetTokens: 2048
+      }
+    })
+    expect(result.providerOptions?.anthropic).not.toHaveProperty('sendReasoning')
+    expect(result.providerOptions?.anthropic).not.toHaveProperty('effort')
+  })
+
+  it('disables anthropic beta-only options for custom anthropic providers', () => {
+    const result = buildProviderOptions({
+      providerId: 'my-anthropic-proxy',
+      providerOptionsKey: 'anthropic',
+      apiType: 'anthropic',
+      modelId: 'claude-sonnet-4-5',
+      modelConfig: {
+        reasoningEffort: 'medium' as const
+      },
+      tools: [],
+      messages: []
+    })
+
+    expect(result.providerOptions?.anthropic).toMatchObject({
+      toolStreaming: false
+    })
+    expect(result.providerOptions?.anthropic).not.toHaveProperty('effort')
+  })
+
+  it('adds doubao thinking options through providerOptions instead of monkey-patching the sdk client', () => {
+    mockGetModel.mockReturnValue({
+      extra_capabilities: {
+        reasoning: {
+          notes: ['doubao-thinking-parameter']
+        }
+      }
+    })
+
+    const result = buildProviderOptions({
+      providerId: 'doubao',
+      providerOptionsKey: 'openai',
+      apiType: 'openai_chat',
+      modelId: 'doubao-seed-2.0-pro',
+      modelConfig: {
+        reasoning: true
+      },
+      tools: [],
+      messages: []
+    })
+
+    expect(result.providerOptions).toEqual({
+      openai: {
+        thinking: {
+          type: 'enabled'
+        }
+      }
+    })
+  })
+
+  it('adds siliconcloud thinking flags through providerOptions for supported models', () => {
+    const result = buildProviderOptions({
+      providerId: 'siliconcloud',
+      providerOptionsKey: 'openai',
+      apiType: 'openai_chat',
+      modelId: 'Qwen/Qwen3-32B',
+      modelConfig: {
+        reasoning: true
+      },
+      tools: [],
+      messages: []
+    })
+
+    expect(result.providerOptions).toEqual({
+      openai: {
+        enable_thinking: true
+      }
+    })
+  })
+
+  it('maps grok reasoning effort to the vendor-specific body field', () => {
+    const result = buildProviderOptions({
+      providerId: 'grok',
+      providerOptionsKey: 'openai',
+      apiType: 'openai_chat',
+      modelId: 'grok-3-mini',
+      modelConfig: {
+        reasoningEffort: 'medium' as const
+      },
+      tools: [],
+      messages: []
+    })
+
+    expect(result.providerOptions).toEqual({
+      openai: {
+        reasoning_effort: 'medium'
+      }
+    })
+  })
+
+  it('disables vertex function-call argument streaming when no tools are present', () => {
+    const result = buildProviderOptions({
+      providerId: 'vertex',
+      providerOptionsKey: 'vertex',
+      apiType: 'vertex',
+      modelId: 'gemini-2.5-flash',
+      modelConfig: {},
+      tools: [],
+      messages: []
+    })
+
+    expect(result.providerOptions?.vertex).toMatchObject({
+      streamFunctionCallArguments: false
+    })
+  })
+
+  it('enables vertex function-call argument streaming when tools are present', () => {
+    const result = buildProviderOptions({
+      providerId: 'vertex',
+      providerOptionsKey: 'vertex',
+      apiType: 'vertex',
+      modelId: 'gemini-2.5-flash',
+      modelConfig: {},
+      tools: [
+        {
+          type: 'function',
+          function: {
+            name: 'skill_manage',
+            description: 'Manage a skill',
+            parameters: {
+              type: 'object',
+              properties: {
+                name: {
+                  type: 'string'
+                }
+              }
+            }
+          }
+        }
+      ] as any,
+      messages: []
+    })
+
+    expect(result.providerOptions?.vertex).toMatchObject({
+      streamFunctionCallArguments: true
+    })
+  })
+
+  it('keeps azure responses options under the azure namespace without prompt cache keys', () => {
+    const result = buildProviderOptions({
+      providerId: 'azure-openai',
+      providerOptionsKey: 'azure',
+      apiType: 'azure_responses',
+      modelId: 'my-gpt-4.1-deployment',
+      modelConfig: {
+        reasoningEffort: 'medium' as const,
+        verbosity: 'high' as const,
+        maxCompletionTokens: 2048,
+        conversationId: 'conv-1'
+      },
+      tools: [],
+      messages: []
+    })
+
+    expect(result.providerOptions).toEqual({
+      azure: {
+        reasoningEffort: 'medium',
+        textVerbosity: 'high',
+        maxCompletionTokens: 2048
+      }
+    })
+    expect(result.providerOptions?.azure).not.toHaveProperty('promptCacheKey')
+  })
+})

@@ -1,5 +1,5 @@
 import { approximateTokenSize } from 'tokenx'
-import type { ChatMessage } from '@shared/types/core/chat-message'
+import type { ChatMessage, ChatMessageProviderOptions } from '@shared/types/core/chat-message'
 import type {
   ChatMessageRecord,
   AssistantMessageBlock,
@@ -27,6 +27,33 @@ export type HistoryTurn = {
   records: ChatMessageRecord[]
   messages: ChatMessage[]
   tokens: number
+}
+
+function parseProviderOptionsJson(
+  value: string | undefined
+): ChatMessageProviderOptions | undefined {
+  if (!value) {
+    return undefined
+  }
+
+  try {
+    const parsed = JSON.parse(value)
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return parsed as ChatMessageProviderOptions
+    }
+  } catch {}
+
+  return undefined
+}
+
+function getBlockProviderOptions(
+  block: AssistantMessageBlock
+): ChatMessageProviderOptions | undefined {
+  return parseProviderOptionsJson(
+    typeof block.extra?.providerOptionsJson === 'string'
+      ? block.extra.providerOptionsJson
+      : undefined
+  )
 }
 
 function resolveFileMimeType(file: MessageFile): string {
@@ -266,7 +293,10 @@ export function recordToChatMessages(
     toolCalls.push({
       id: toolCall.id,
       type: 'function',
-      function: { name: toolCall.name, arguments: toolCall.params || '{}' }
+      function: { name: toolCall.name, arguments: toolCall.params || '{}' },
+      ...(getBlockProviderOptions(block)
+        ? { provider_options: getBlockProviderOptions(block) }
+        : {})
     })
   }
 
@@ -274,13 +304,34 @@ export function recordToChatMessages(
     return [{ role: 'assistant', content: combinedText }]
   }
 
+  const contentParts = blocks
+    .filter(
+      (block): block is AssistantMessageBlock & { content: string } =>
+        block.type === 'content' && typeof block.content === 'string' && block.content.length > 0
+    )
+    .map((block) => {
+      const providerOptions = getBlockProviderOptions(block)
+      return {
+        type: 'text' as const,
+        text: block.content,
+        ...(providerOptions ? { provider_options: providerOptions } : {})
+      }
+    })
+
   const assistantMessage: ChatMessage = {
     role: 'assistant',
-    content: text,
+    content: contentParts.some((part) => part.provider_options) ? contentParts : text,
     tool_calls: toolCalls
   }
   if (preserveInterleavedReasoning && reasoning) {
     assistantMessage.reasoning_content = reasoning
+    const reasoningProviderOptions = blocks
+      .filter((block) => block.type === 'reasoning_content')
+      .map((block) => getBlockProviderOptions(block))
+      .find(Boolean)
+    if (reasoningProviderOptions) {
+      assistantMessage.reasoning_provider_options = reasoningProviderOptions
+    }
   }
 
   const result: ChatMessage[] = [assistantMessage]

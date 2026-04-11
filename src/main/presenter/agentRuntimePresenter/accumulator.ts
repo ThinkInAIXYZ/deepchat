@@ -1,5 +1,6 @@
 import type { AssistantMessageBlock } from '@shared/types/agent-interface'
 import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
+import type { ChatMessageProviderOptions } from '@shared/types/core/chat-message'
 import type { StreamState } from './types'
 
 export function finalizeTrailingPendingNarrativeBlocks(blocks: AssistantMessageBlock[]): void {
@@ -17,30 +18,47 @@ export function finalizeTrailingPendingNarrativeBlocks(blocks: AssistantMessageB
 
 function getCurrentBlock(
   blocks: AssistantMessageBlock[],
-  type: 'content' | 'reasoning_content'
+  type: 'content' | 'reasoning_content',
+  providerOptions?: ChatMessageProviderOptions
 ): AssistantMessageBlock {
+  const providerOptionsJson = serializeProviderOptions(providerOptions)
   const last = blocks[blocks.length - 1]
   if (
     last &&
     last.status === 'pending' &&
-    (last.type === 'content' || last.type === 'reasoning_content') &&
-    last.type !== type
+    (last.type === 'content' || last.type === 'reasoning_content')
   ) {
+    const lastProviderOptionsJson =
+      typeof last.extra?.providerOptionsJson === 'string'
+        ? last.extra.providerOptionsJson
+        : undefined
+
+    if (last.type === type && lastProviderOptionsJson === providerOptionsJson) {
+      return last
+    }
+
     last.status = 'success'
   }
 
-  const current = blocks[blocks.length - 1]
-  if (current && current.type === type && current.status === 'pending') {
-    return current
-  }
   const block: AssistantMessageBlock = {
     type,
     content: '',
     status: 'pending',
-    timestamp: Date.now()
+    timestamp: Date.now(),
+    ...(providerOptionsJson ? { extra: { providerOptionsJson } } : {})
   }
   blocks.push(block)
   return block
+}
+
+function serializeProviderOptions(
+  providerOptions?: ChatMessageProviderOptions
+): string | undefined {
+  if (!providerOptions) {
+    return undefined
+  }
+
+  return JSON.stringify(providerOptions)
 }
 
 function updateReasoningMetadata(state: StreamState, start: number, end: number): void {
@@ -61,7 +79,7 @@ export function accumulate(state: StreamState, event: LLMCoreStreamEvent): void 
   switch (event.type) {
     case 'text': {
       if (state.firstTokenTime === null) state.firstTokenTime = Date.now()
-      const block = getCurrentBlock(state.blocks, 'content')
+      const block = getCurrentBlock(state.blocks, 'content', event.provider_options)
       block.content += event.content
       state.dirty = true
       break
@@ -69,7 +87,7 @@ export function accumulate(state: StreamState, event: LLMCoreStreamEvent): void 
     case 'reasoning': {
       const currentTime = Date.now()
       if (state.firstTokenTime === null) state.firstTokenTime = currentTime
-      const block = getCurrentBlock(state.blocks, 'reasoning_content')
+      const block = getCurrentBlock(state.blocks, 'reasoning_content', event.provider_options)
       block.content += event.reasoning_content
       if (
         typeof block.reasoning_time !== 'object' ||
@@ -91,6 +109,7 @@ export function accumulate(state: StreamState, event: LLMCoreStreamEvent): void 
     }
     case 'tool_call_start': {
       finalizeTrailingPendingNarrativeBlocks(state.blocks)
+      const providerOptionsJson = serializeProviderOptions(event.provider_options)
       const toolBlock: AssistantMessageBlock = {
         type: 'tool_call',
         content: '',
@@ -101,13 +120,15 @@ export function accumulate(state: StreamState, event: LLMCoreStreamEvent): void 
           name: event.tool_call_name,
           params: '',
           response: ''
-        }
+        },
+        ...(providerOptionsJson ? { extra: { providerOptionsJson } } : {})
       }
       state.blocks.push(toolBlock)
       state.pendingToolCalls.set(event.tool_call_id, {
         name: event.tool_call_name,
         arguments: '',
-        blockIndex: state.blocks.length - 1
+        blockIndex: state.blocks.length - 1,
+        providerOptions: event.provider_options
       })
       state.dirty = true
       break
@@ -116,9 +137,18 @@ export function accumulate(state: StreamState, event: LLMCoreStreamEvent): void 
       const pending = state.pendingToolCalls.get(event.tool_call_id)
       if (pending) {
         pending.arguments += event.tool_call_arguments_chunk
+        if (!pending.providerOptions && event.provider_options) {
+          pending.providerOptions = event.provider_options
+        }
         const block = state.blocks[pending.blockIndex]
         if (block?.tool_call) {
           block.tool_call.params = pending.arguments
+          if (event.provider_options) {
+            block.extra = {
+              ...block.extra,
+              providerOptionsJson: serializeProviderOptions(event.provider_options)
+            }
+          }
         }
         state.dirty = true
       }
@@ -128,19 +158,24 @@ export function accumulate(state: StreamState, event: LLMCoreStreamEvent): void 
       const pending = state.pendingToolCalls.get(event.tool_call_id)
       if (pending) {
         const finalArgs = event.tool_call_arguments_complete ?? pending.arguments
+        const providerOptions = event.provider_options ?? pending.providerOptions
         pending.arguments = finalArgs
         const block = state.blocks[pending.blockIndex]
         if (block?.tool_call) {
           block.tool_call.params = finalArgs
           block.extra = {
             ...block.extra,
-            toolCallArgsComplete: true
+            toolCallArgsComplete: true,
+            ...(providerOptions
+              ? { providerOptionsJson: serializeProviderOptions(providerOptions) }
+              : {})
           }
         }
         state.completedToolCalls.push({
           id: event.tool_call_id,
           name: pending.name,
-          arguments: finalArgs
+          arguments: finalArgs,
+          ...(providerOptions ? { providerOptions } : {})
         })
         state.pendingToolCalls.delete(event.tool_call_id)
         state.dirty = true

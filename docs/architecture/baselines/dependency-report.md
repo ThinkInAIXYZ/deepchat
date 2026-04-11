@@ -32,7 +32,6 @@ Generated on 2026-04-03.
 - `eventbus.ts`: 57
 - `presenter/index.ts`: 44
 - `presenter/llmProviderPresenter/runtimePorts.ts`: 34
-- `presenter/llmProviderPresenter/providers/openAICompatibleProvider.ts`: 24
 - `presenter/llmProviderPresenter/baseProvider.ts`: 19
 - `presenter/remoteControlPresenter/types.ts`: 18
 - `presenter/sqlitePresenter/tables/baseTable.ts`: 16
@@ -51,9 +50,7 @@ Generated on 2026-04-03.
 - `presenter/index.ts -> presenter/windowPresenter/index.ts -> presenter/windowPresenter/FloatingChatWindow.ts -> presenter/index.ts`
 - `presenter/index.ts -> presenter/shortcutPresenter.ts -> presenter/index.ts`
 - `presenter/index.ts -> presenter/llmProviderPresenter/index.ts -> presenter/llmProviderPresenter/baseProvider.ts -> presenter/devicePresenter/index.ts -> presenter/index.ts`
-- `presenter/index.ts -> presenter/llmProviderPresenter/index.ts -> presenter/llmProviderPresenter/managers/providerInstanceManager.ts -> presenter/llmProviderPresenter/providers/deepseekProvider.ts -> presenter/llmProviderPresenter/providers/openAICompatibleProvider.ts -> presenter/index.ts`
 - `presenter/index.ts -> presenter/llmProviderPresenter/index.ts -> presenter/llmProviderPresenter/managers/providerInstanceManager.ts -> presenter/llmProviderPresenter/providers/githubCopilotProvider.ts -> presenter/githubCopilotDeviceFlow.ts -> presenter/index.ts`
-- `presenter/index.ts -> presenter/llmProviderPresenter/index.ts -> presenter/llmProviderPresenter/managers/providerInstanceManager.ts -> presenter/llmProviderPresenter/providers/openAIResponsesProvider.ts -> presenter/index.ts`
 - `presenter/filePresenter/mime.ts -> presenter/filePresenter/CsvFileAdapter.ts -> presenter/filePresenter/BaseFileAdapter.ts -> presenter/filePresenter/mime.ts`
 - `presenter/index.ts -> presenter/sessionPresenter/index.ts -> presenter/index.ts`
 - `presenter/index.ts -> presenter/sessionPresenter/index.ts -> presenter/sessionPresenter/managers/conversationManager.ts -> presenter/index.ts`
@@ -115,4 +112,3 @@ Generated on 2026-04-03.
 - `components/json-viewer/JsonValue.ts -> components/json-viewer/JsonObject.ts -> components/json-viewer/JsonValue.ts`
 - `components/json-viewer/JsonArray.ts -> components/json-viewer/JsonValue.ts -> components/json-viewer/JsonArray.ts`
 - `composables/usePageCapture.example.ts -> composables/usePageCapture.example.ts`
-

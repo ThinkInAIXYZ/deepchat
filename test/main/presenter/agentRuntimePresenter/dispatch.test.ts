@@ -528,6 +528,72 @@ describe('dispatch', () => {
       expect(assistantMsg.reasoning_content).toBe('Let me think...')
     })
 
+    it('preserves tool call provider options in the follow-up assistant message', async () => {
+      const tools = [makeTool('exec')]
+      const toolPresenter = createMockToolPresenter({ exec: 'done' })
+      const conversation: any[] = []
+
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: {
+          id: 'tc1',
+          name: 'exec',
+          params: '{"command":"tree"}',
+          response: ''
+        },
+        extra: {
+          providerOptionsJson: JSON.stringify({
+            vertex: {
+              thoughtSignature: 'tool-thought-signature'
+            }
+          })
+        }
+      })
+      state.completedToolCalls = [
+        {
+          id: 'tc1',
+          name: 'exec',
+          arguments: '{"command":"tree"}',
+          providerOptions: {
+            vertex: {
+              thoughtSignature: 'tool-thought-signature'
+            }
+          }
+        }
+      ]
+
+      await executeTools(
+        state,
+        conversation,
+        0,
+        tools,
+        toolPresenter,
+        'gemini-3.1-flash-lite-preview',
+        io,
+        'full_access',
+        new ToolOutputGuard(),
+        32000,
+        1024
+      )
+
+      const assistantMsg = conversation.find((message: any) => message.role === 'assistant')
+      expect(assistantMsg.tool_calls).toEqual([
+        {
+          id: 'tc1',
+          type: 'function',
+          function: { name: 'exec', arguments: '{"command":"tree"}' },
+          provider_options: {
+            vertex: {
+              thoughtSignature: 'tool-thought-signature'
+            }
+          }
+        }
+      ])
+    })
+
     it('does not include reasoning_content when compatibility is disabled', async () => {
       const tools = [makeTool('search')]
       const toolPresenter = createMockToolPresenter({ search: 'result' })

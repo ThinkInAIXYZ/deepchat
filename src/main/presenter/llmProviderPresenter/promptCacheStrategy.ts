@@ -1,6 +1,4 @@
 import { createHash } from 'crypto'
-import Anthropic from '@anthropic-ai/sdk'
-import type { ChatCompletionContentPart, ChatCompletionMessageParam } from 'openai/resources'
 import type { MCPToolDefinition } from '@shared/presenter'
 import { resolvePromptCacheMode, type PromptCacheMode } from './promptCacheCapabilities'
 
@@ -32,7 +30,23 @@ type EphemeralCacheControl = { type: 'ephemeral' }
 
 const EPHEMERAL_CACHE_CONTROL: EphemeralCacheControl = { type: 'ephemeral' }
 
-type AnthropicTextBlockWithCache = Anthropic.TextBlockParam & {
+type PromptCacheTextPart = {
+  type: 'text'
+  text: string
+  cache_control?: EphemeralCacheControl
+}
+
+type PromptCacheOpenAIMessage = {
+  role: string
+  content?: string | Array<PromptCacheTextPart | Record<string, unknown>>
+}
+
+type PromptCacheAnthropicMessage = {
+  role: 'user' | 'assistant'
+  content: string | Array<PromptCacheTextPart | Record<string, unknown>>
+}
+
+type AnthropicTextBlockWithCache = PromptCacheTextPart & {
   cache_control?: EphemeralCacheControl
 }
 
@@ -59,7 +73,7 @@ function buildPromptCacheKey(
 }
 
 function findOpenAIChatBreakpoint(
-  messages: ChatCompletionMessageParam[]
+  messages: PromptCacheOpenAIMessage[]
 ): PromptCacheBreakpointPlan | undefined {
   let prefixEnd = messages.length
 
@@ -102,7 +116,7 @@ function findOpenAIChatBreakpoint(
 }
 
 function findAnthropicBreakpoint(
-  messages: Anthropic.MessageParam[]
+  messages: PromptCacheAnthropicMessage[]
 ): PromptCacheBreakpointPlan | undefined {
   let prefixEnd = messages.length
 
@@ -168,8 +182,8 @@ export function resolvePromptCachePlan(params: ResolvePromptCachePlanParams): Pr
 
   const breakpointPlan =
     params.apiType === 'anthropic'
-      ? findAnthropicBreakpoint(params.messages as Anthropic.MessageParam[])
-      : findOpenAIChatBreakpoint(params.messages as ChatCompletionMessageParam[])
+      ? findAnthropicBreakpoint(params.messages as PromptCacheAnthropicMessage[])
+      : findOpenAIChatBreakpoint(params.messages as PromptCacheOpenAIMessage[])
 
   return {
     mode,
@@ -207,9 +221,9 @@ export function applyAnthropicTopLevelCacheControl<T extends Record<string, unkn
 }
 
 export function applyOpenAIChatExplicitCacheBreakpoint(
-  messages: ChatCompletionMessageParam[],
+  messages: PromptCacheOpenAIMessage[],
   plan: PromptCachePlan
-): ChatCompletionMessageParam[] {
+): PromptCacheOpenAIMessage[] {
   if (plan.mode !== 'anthropic_explicit' || !plan.breakpointPlan) {
     return messages
   }
@@ -222,8 +236,8 @@ export function applyOpenAIChatExplicitCacheBreakpoint(
   }
 
   const content = target.content
-  let nextContent: ChatCompletionMessageParam['content'] =
-    content as ChatCompletionMessageParam['content']
+  let nextContent: PromptCacheOpenAIMessage['content'] =
+    content as PromptCacheOpenAIMessage['content']
 
   if (typeof content === 'string') {
     if (!content.trim() || contentIndex !== 0) {
@@ -235,7 +249,7 @@ export function applyOpenAIChatExplicitCacheBreakpoint(
         type: 'text',
         text: content,
         cache_control: EPHEMERAL_CACHE_CONTROL
-      } as unknown as ChatCompletionContentPart
+      } satisfies PromptCacheTextPart
     ]
   } else if (Array.isArray(content)) {
     nextContent = content.map((part, index) => {
@@ -249,10 +263,11 @@ export function applyOpenAIChatExplicitCacheBreakpoint(
       }
 
       return {
-        ...part,
+        type: 'text',
+        text: part.text,
         cache_control: EPHEMERAL_CACHE_CONTROL
-      } as unknown as ChatCompletionContentPart
-    }) as ChatCompletionMessageParam['content']
+      } satisfies PromptCacheTextPart
+    }) as PromptCacheOpenAIMessage['content']
   } else {
     return messages
   }
@@ -262,15 +277,15 @@ export function applyOpenAIChatExplicitCacheBreakpoint(
       ? ({
           ...message,
           content: nextContent
-        } as ChatCompletionMessageParam)
+        } as PromptCacheOpenAIMessage)
       : message
   )
 }
 
 export function applyAnthropicExplicitCacheBreakpoint(
-  messages: Anthropic.MessageParam[],
+  messages: PromptCacheAnthropicMessage[],
   plan: PromptCachePlan
-): Anthropic.MessageParam[] {
+): PromptCacheAnthropicMessage[] {
   if (plan.mode !== 'anthropic_explicit' || !plan.breakpointPlan) {
     return messages
   }
@@ -283,7 +298,7 @@ export function applyAnthropicExplicitCacheBreakpoint(
   }
 
   const content = target.content
-  let nextContent: Anthropic.MessageParam['content'] = content
+  let nextContent: PromptCacheAnthropicMessage['content'] = content
 
   if (typeof content === 'string') {
     if (!content.trim() || contentIndex !== 0) {
@@ -309,7 +324,8 @@ export function applyAnthropicExplicitCacheBreakpoint(
       }
 
       return {
-        ...block,
+        type: 'text',
+        text: block.text,
         cache_control: EPHEMERAL_CACHE_CONTROL
       } satisfies AnthropicTextBlockWithCache
     })
@@ -322,7 +338,7 @@ export function applyAnthropicExplicitCacheBreakpoint(
       ? ({
           ...message,
           content: nextContent
-        } as Anthropic.MessageParam)
+        } as PromptCacheAnthropicMessage)
       : message
   )
 }

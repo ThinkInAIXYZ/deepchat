@@ -1,5 +1,7 @@
 // Strong-typed LLM core stream events (discriminated union)
 
+import type { ChatMessageProviderOptions } from './chat-message'
+
 export type StreamEventType =
   | 'text'
   | 'reasoning'
@@ -16,29 +18,34 @@ export type StreamEventType =
 export interface TextStreamEvent {
   type: 'text'
   content: string
+  provider_options?: ChatMessageProviderOptions
 }
 
 export interface ReasoningStreamEvent {
   type: 'reasoning'
   reasoning_content: string
+  provider_options?: ChatMessageProviderOptions
 }
 
 export interface ToolCallStartEvent {
   type: 'tool_call_start'
   tool_call_id: string
   tool_call_name: string
+  provider_options?: ChatMessageProviderOptions
 }
 
 export interface ToolCallChunkEvent {
   type: 'tool_call_chunk'
   tool_call_id: string
   tool_call_arguments_chunk: string
+  provider_options?: ChatMessageProviderOptions
 }
 
 export interface ToolCallEndEvent {
   type: 'tool_call_end'
   tool_call_id: string
   tool_call_arguments_complete?: string
+  provider_options?: ChatMessageProviderOptions
 }
 
 export interface PermissionRequestEvent {
@@ -102,30 +109,54 @@ export type LLMCoreStreamEvent =
 export type {
   ChatMessage,
   ChatMessageContent,
+  ChatMessageProviderOptions,
   ChatMessageRole,
   ChatMessageToolCall
 } from './chat-message'
 
 export const createStreamEvent = {
-  text: (content: string): TextStreamEvent => ({ type: 'text', content }),
-  reasoning: (reasoning_content: string): ReasoningStreamEvent => ({
-    type: 'reasoning',
-    reasoning_content
+  text: (content: string, provider_options?: ChatMessageProviderOptions): TextStreamEvent => ({
+    type: 'text',
+    content,
+    ...(provider_options ? { provider_options } : {})
   }),
-  toolCallStart: (tool_call_id: string, tool_call_name: string): ToolCallStartEvent => ({
+  reasoning: (
+    reasoning_content: string,
+    provider_options?: ChatMessageProviderOptions
+  ): ReasoningStreamEvent => ({
+    type: 'reasoning',
+    reasoning_content,
+    ...(provider_options ? { provider_options } : {})
+  }),
+  toolCallStart: (
+    tool_call_id: string,
+    tool_call_name: string,
+    provider_options?: ChatMessageProviderOptions
+  ): ToolCallStartEvent => ({
     type: 'tool_call_start',
     tool_call_id,
-    tool_call_name
+    tool_call_name,
+    ...(provider_options ? { provider_options } : {})
   }),
-  toolCallChunk: (tool_call_id: string, tool_call_arguments_chunk: string): ToolCallChunkEvent => ({
+  toolCallChunk: (
+    tool_call_id: string,
+    tool_call_arguments_chunk: string,
+    provider_options?: ChatMessageProviderOptions
+  ): ToolCallChunkEvent => ({
     type: 'tool_call_chunk',
     tool_call_id,
-    tool_call_arguments_chunk
+    tool_call_arguments_chunk,
+    ...(provider_options ? { provider_options } : {})
   }),
-  toolCallEnd: (tool_call_id: string, tool_call_arguments_complete?: string): ToolCallEndEvent => ({
+  toolCallEnd: (
+    tool_call_id: string,
+    tool_call_arguments_complete?: string,
+    provider_options?: ChatMessageProviderOptions
+  ): ToolCallEndEvent => ({
     type: 'tool_call_end',
     tool_call_id,
-    tool_call_arguments_complete
+    tool_call_arguments_complete,
+    ...(provider_options ? { provider_options } : {})
   }),
   permission: (permission: PermissionRequestPayload): PermissionRequestEvent => ({
     type: 'permission',

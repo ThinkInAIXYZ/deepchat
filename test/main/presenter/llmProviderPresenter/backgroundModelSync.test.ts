@@ -5,7 +5,7 @@ import type {
   LLM_PROVIDER
 } from '../../../../src/shared/presenter'
 import { LLMProviderPresenter } from '../../../../src/main/presenter/llmProviderPresenter'
-import { OpenAICompatibleProvider } from '../../../../src/main/presenter/llmProviderPresenter/providers/openAICompatibleProvider'
+import { AiSdkProvider } from '../../../../src/main/presenter/llmProviderPresenter/providers/aiSdkProvider'
 
 const eventState = vi.hoisted(() => ({
   handlers: new Map<string, Array<(...args: unknown[]) => void>>()
@@ -47,24 +47,6 @@ vi.mock('electron', () => ({
     openExternal: vi.fn()
   }
 }))
-
-vi.mock('openai', () => {
-  class MockOpenAI {
-    chat = {
-      completions: {
-        create: vi.fn()
-      }
-    }
-    models = {
-      list: mockModelsList
-    }
-  }
-
-  return {
-    default: MockOpenAI,
-    AzureOpenAI: MockOpenAI
-  }
-})
 
 vi.mock('@/presenter', () => ({
   presenter: {
@@ -190,7 +172,7 @@ describe('LLMProviderPresenter background model sync', () => {
 
   it('does not trigger an extra startup refresh for non DB-backed providers', async () => {
     const refreshSpy = vi
-      .spyOn(OpenAICompatibleProvider.prototype, 'refreshModels')
+      .spyOn(AiSdkProvider.prototype, 'refreshModels')
       .mockResolvedValue(undefined)
 
     const presenter = new LLMProviderPresenter(createConfigPresenter(), mockSqlitePresenter)
@@ -203,7 +185,7 @@ describe('LLMProviderPresenter background model sync', () => {
 
   it('re-syncs enabled DB-backed provider models when provider-db updates', async () => {
     const refreshSpy = vi
-      .spyOn(OpenAICompatibleProvider.prototype, 'refreshModels')
+      .spyOn(AiSdkProvider.prototype, 'refreshModels')
       .mockResolvedValue(undefined)
 
     new LLMProviderPresenter(
@@ -231,7 +213,7 @@ describe('LLMProviderPresenter background model sync', () => {
 
   it('ignores provider-db updates for providers that do not use the provider DB catalog', async () => {
     const refreshSpy = vi
-      .spyOn(OpenAICompatibleProvider.prototype, 'refreshModels')
+      .spyOn(AiSdkProvider.prototype, 'refreshModels')
       .mockResolvedValue(undefined)
 
     new LLMProviderPresenter(createConfigPresenter(), mockSqlitePresenter)
@@ -248,13 +230,11 @@ describe('LLMProviderPresenter background model sync', () => {
 
   it('coalesces duplicate background refreshes for the same provider', async () => {
     let resolveRefresh: (() => void) | null = null
-    const refreshSpy = vi
-      .spyOn(OpenAICompatibleProvider.prototype, 'refreshModels')
-      .mockReturnValue(
-        new Promise<void>((resolve) => {
-          resolveRefresh = resolve
-        })
-      )
+    const refreshSpy = vi.spyOn(AiSdkProvider.prototype, 'refreshModels').mockReturnValue(
+      new Promise<void>((resolve) => {
+        resolveRefresh = resolve
+      })
+    )
 
     new LLMProviderPresenter(
       createConfigPresenter(
@@ -304,7 +284,7 @@ describe('LLMProviderPresenter background model sync', () => {
     })
     const configPresenter = createConfigPresenter(provider)
     const refreshSpy = vi
-      .spyOn(OpenAICompatibleProvider.prototype, 'refreshModels')
+      .spyOn(AiSdkProvider.prototype, 'refreshModels')
       .mockResolvedValue(undefined)
 
     const presenter = new LLMProviderPresenter(configPresenter, mockSqlitePresenter)
@@ -332,7 +312,7 @@ describe('LLMProviderPresenter background model sync', () => {
       message: 'network down'
     })
     const refreshSpy = vi
-      .spyOn(OpenAICompatibleProvider.prototype, 'refreshModels')
+      .spyOn(AiSdkProvider.prototype, 'refreshModels')
       .mockResolvedValue(undefined)
 
     const presenter = new LLMProviderPresenter(configPresenter, mockSqlitePresenter)
@@ -346,7 +326,7 @@ describe('LLMProviderPresenter background model sync', () => {
   it('does not refresh provider DB for providers that manage models themselves', async () => {
     const configPresenter = createConfigPresenter()
     const refreshSpy = vi
-      .spyOn(OpenAICompatibleProvider.prototype, 'refreshModels')
+      .spyOn(AiSdkProvider.prototype, 'refreshModels')
       .mockResolvedValue(undefined)
 
     const presenter = new LLMProviderPresenter(configPresenter, mockSqlitePresenter)
@@ -358,7 +338,7 @@ describe('LLMProviderPresenter background model sync', () => {
 
   it('logs provider-db refresh failures without blocking presenter initialization', async () => {
     const refreshSpy = vi
-      .spyOn(OpenAICompatibleProvider.prototype, 'refreshModels')
+      .spyOn(AiSdkProvider.prototype, 'refreshModels')
       .mockRejectedValue(new Error('refresh failed'))
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
 
