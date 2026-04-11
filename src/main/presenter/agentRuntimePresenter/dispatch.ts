@@ -324,6 +324,19 @@ function extractSubagentToolState(rawData: MCPToolResponse): {
   }
 }
 
+function shouldRefreshToolsAfterCall(toolName: string, rawData: MCPToolResponse): boolean {
+  if (toolName !== 'skill_view') {
+    return false
+  }
+
+  const toolResult =
+    rawData.toolResult && typeof rawData.toolResult === 'object'
+      ? (rawData.toolResult as Record<string, unknown>)
+      : null
+
+  return toolResult?.activationApplied === true
+}
+
 function persistToolExecutionState(io: IoParams, state: StreamState): void {
   if (!state.dirty) {
     return
@@ -615,6 +628,7 @@ export async function executeTools(
 ): Promise<{
   executed: number
   pendingInteractions: PendingToolInteraction[]
+  toolsChanged: boolean
   terminalError?: string
 }> {
   finalizePendingNarrativeBeforeToolExecution(state)
@@ -673,6 +687,7 @@ export async function executeTools(
   conversation.push(assistantMessage)
 
   let executed = 0
+  let toolsChanged = false
   const pendingInteractions: PendingToolInteraction[] = []
   const stagedResults: StagedToolResult[] = []
 
@@ -851,6 +866,10 @@ export async function executeTools(
         }
       }
 
+      if (shouldRefreshToolsAfterCall(tc.name, toolRawData)) {
+        toolsChanged = true
+      }
+
       const searchPayload = extractSearchPayload(
         toolRawData.content,
         toolContext.name,
@@ -927,13 +946,14 @@ export async function executeTools(
       return {
         executed,
         pendingInteractions,
+        toolsChanged,
         terminalError: fittedResults.message
       }
     }
   }
 
   persistToolExecutionState(io, state)
-  return { executed, pendingInteractions }
+  return { executed, pendingInteractions, toolsChanged }
 }
 
 export function finalizePaused(state: StreamState, io: IoParams): void {

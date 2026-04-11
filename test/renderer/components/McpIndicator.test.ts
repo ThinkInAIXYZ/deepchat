@@ -58,6 +58,27 @@ const setup = async (options?: {
 }) => {
   vi.resetModules()
 
+  const ipcListeners = new Map<string, Set<(...args: unknown[]) => void>>()
+  const ipcRenderer = {
+    on: vi.fn((event: string, handler: (...args: unknown[]) => void) => {
+      const listeners = ipcListeners.get(event) ?? new Set()
+      listeners.add(handler)
+      ipcListeners.set(event, listeners)
+    }),
+    removeListener: vi.fn((event: string, handler: (...args: unknown[]) => void) => {
+      ipcListeners.get(event)?.delete(handler)
+    }),
+    emit: (event: string, payload?: unknown) => {
+      for (const listener of ipcListeners.get(event) ?? []) {
+        listener({}, payload)
+      }
+    }
+  }
+
+  ;(window as any).electron = {
+    ipcRenderer
+  }
+
   const mcpStore = reactive({
     enabledServers: [{ name: 'demo-server', icons: 'D', enabled: true }],
     enabledServerCount: 1,
@@ -209,7 +230,8 @@ const setup = async (options?: {
     wrapper,
     draftStore,
     toolPresenter,
-    agentSessionPresenter
+    agentSessionPresenter,
+    ipcRenderer
   }
 }
 
@@ -321,5 +343,26 @@ describe('McpIndicator', () => {
     await subagentButton!.trigger('click')
 
     expect(wrapper.emitted('toggle-subagents')).toEqual([[false]])
+  })
+
+  it('reloads deepchat tools when the active session emits skill activation changes', async () => {
+    const { toolPresenter, ipcRenderer } = await setup({
+      hasActiveSession: true,
+      activeAgentId: 'deepchat'
+    })
+
+    toolPresenter.getAllToolDefinitions.mockClear()
+    ipcRenderer.emit('skill:activated', {
+      conversationId: 's1',
+      skills: ['deepchat-settings']
+    })
+    await flushPromises()
+
+    expect(toolPresenter.getAllToolDefinitions).toHaveBeenCalledTimes(1)
+    expect(toolPresenter.getAllToolDefinitions).toHaveBeenCalledWith({
+      chatMode: 'agent',
+      conversationId: 's1',
+      agentWorkspacePath: '/tmp/workspace'
+    })
   })
 })

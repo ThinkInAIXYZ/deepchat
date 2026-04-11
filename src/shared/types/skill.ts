@@ -204,7 +204,7 @@ export interface ISkillPresenter {
 
   // Session state management
   getActiveSkills(conversationId: string): Promise<string[]>
-  setActiveSkills(conversationId: string, skills: string[]): Promise<void>
+  setActiveSkills(conversationId: string, skills: string[]): Promise<string[]>
   clearNewAgentSessionSkills?(conversationId: string): Promise<void>
   validateSkillNames(names: string[]): Promise<string[]>
 

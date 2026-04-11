@@ -115,6 +115,7 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
   }
   const echo = startEcho(state, io)
   const conversationMessages = [...messages]
+  let currentTools = [...tools]
   let toolCallCount = 0
 
   console.log(`[ProcessStream] start session=${io.sessionId} message=${io.messageId}`)
@@ -130,7 +131,7 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
         modelConfig,
         temperature,
         maxTokens,
-        tools
+        currentTools
       )
 
       // Reset per-iteration accumulator state
@@ -185,7 +186,7 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
         state,
         conversationMessages,
         prevBlockCount,
-        tools,
+        currentTools,
         toolPresenter!,
         modelId,
         interleavedReasoning,
@@ -199,6 +200,14 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
       )
       toolCallCount += executed.executed
       echo.flush()
+
+      if (executed.toolsChanged && params.refreshTools) {
+        try {
+          currentTools = await params.refreshTools()
+        } catch (error) {
+          console.warn('[ProcessStream] failed to refresh tools after skill activation:', error)
+        }
+      }
 
       if (executed.terminalError) {
         finalizeError(state, io, executed.terminalError)

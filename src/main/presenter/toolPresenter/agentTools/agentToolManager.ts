@@ -1768,8 +1768,46 @@ export class AgentToolManager {
       if (!validationResult.success) {
         throw new Error(`Invalid arguments for skill_view: ${validationResult.error.message}`)
       }
+      const normalizedFilePath =
+        typeof validationResult.data.file_path === 'string'
+          ? validationResult.data.file_path.trim()
+          : ''
+      const isLinkedFileView = normalizedFilePath.length > 0
+      const previousActiveSkills =
+        conversationId && !isLinkedFileView
+          ? await this.getSkillPresenter().getActiveSkills(conversationId)
+          : []
       const result = await skillTools.handleSkillView(conversationId, validationResult.data)
-      return { content: JSON.stringify(result) }
+      const nextActiveSkills =
+        conversationId && !isLinkedFileView
+          ? await this.getSkillPresenter().getActiveSkills(conversationId)
+          : previousActiveSkills
+      const activationApplied =
+        Boolean(conversationId) &&
+        !isLinkedFileView &&
+        !previousActiveSkills.includes(validationResult.data.name) &&
+        nextActiveSkills.includes(validationResult.data.name)
+      const activationSource =
+        !conversationId || result.success !== true
+          ? 'none'
+          : activationApplied
+            ? 'skill_md'
+            : isLinkedFileView
+              ? 'file'
+              : 'none'
+      const content = JSON.stringify(result)
+
+      return {
+        content,
+        rawData: {
+          content,
+          toolResult: {
+            activationApplied,
+            activationSource,
+            ...(activationApplied ? { activatedSkill: validationResult.data.name } : {})
+          }
+        }
+      }
     }
 
     if (toolName === 'skill_manage') {

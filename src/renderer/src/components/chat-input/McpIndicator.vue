@@ -205,7 +205,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
@@ -219,7 +219,7 @@ import {
 } from '@shadcn/components/ui/select'
 import { Switch } from '@shadcn/components/ui/switch'
 import type { MCPToolDefinition } from '@shared/presenter'
-import { SETTINGS_EVENTS } from '@/events'
+import { SETTINGS_EVENTS, SKILL_EVENTS } from '@/events'
 import { usePresenter } from '@/composables/usePresenter'
 import { useMcpStore } from '@/stores/mcp'
 import { useSessionStore } from '@/stores/ui/session'
@@ -629,6 +629,21 @@ const setGroupEnabled = async (group: ToolGroup, enabled: boolean) => {
   }
 }
 
+const handleSkillRuntimeChange = (
+  _event: unknown,
+  payload: { conversationId?: string | null; skills?: string[] }
+) => {
+  if (!isDeepchatContext.value || !deepchatSessionId.value) {
+    return
+  }
+
+  if (payload?.conversationId !== deepchatSessionId.value) {
+    return
+  }
+
+  void loadDeepchatTools()
+}
+
 watch(
   () => [isDeepchatContext.value, deepchatSessionId.value, workspacePath.value] as const,
   () => {
@@ -654,4 +669,22 @@ watch(
     }
   }
 )
+
+onMounted(() => {
+  if (!window.electron?.ipcRenderer) {
+    return
+  }
+
+  window.electron.ipcRenderer.on(SKILL_EVENTS.ACTIVATED, handleSkillRuntimeChange)
+  window.electron.ipcRenderer.on(SKILL_EVENTS.DEACTIVATED, handleSkillRuntimeChange)
+})
+
+onUnmounted(() => {
+  if (!window.electron?.ipcRenderer) {
+    return
+  }
+
+  window.electron.ipcRenderer.removeListener(SKILL_EVENTS.ACTIVATED, handleSkillRuntimeChange)
+  window.electron.ipcRenderer.removeListener(SKILL_EVENTS.DEACTIVATED, handleSkillRuntimeChange)
+})
 </script>

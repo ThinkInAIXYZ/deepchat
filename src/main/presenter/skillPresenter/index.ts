@@ -569,6 +569,15 @@ export class SkillPresenter implements ISkillPresenter {
 
       const rawContent = fs.readFileSync(metadata.path, 'utf-8')
       const { content } = matter(rawContent)
+      let nextIsPinned = isPinned
+
+      if (options?.conversationId && !isPinned) {
+        const updatedSkills = await this.setActiveSkills(options.conversationId, [
+          ...pinnedSkills,
+          metadata.name
+        ])
+        nextIsPinned = updatedSkills.includes(metadata.name)
+      }
 
       return {
         success: true,
@@ -580,7 +589,7 @@ export class SkillPresenter implements ISkillPresenter {
         platforms: metadata.platforms,
         metadata: metadata.metadata,
         linkedFiles: this.listSkillLinkedFiles(metadata.skillRoot),
-        isPinned
+        isPinned: nextIsPinned
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
@@ -1468,14 +1477,14 @@ export class SkillPresenter implements ISkillPresenter {
   /**
    * Set active skills for a conversation
    */
-  async setActiveSkills(conversationId: string, skills: string[]): Promise<void> {
+  async setActiveSkills(conversationId: string, skills: string[]): Promise<string[]> {
     try {
       const isNewSession = await this.isNewAgentSession(conversationId)
       // Validate skill names
       const validSkills = await this.validateSkillNames(skills)
       if (!isNewSession) {
         this.warnLegacySkillRetired(conversationId)
-        return
+        return await this.getActiveSkills(conversationId)
       }
 
       const previousSkills = await this.getActiveSkills(conversationId)
@@ -1500,6 +1509,8 @@ export class SkillPresenter implements ISkillPresenter {
           skills: deactivated
         })
       }
+
+      return validSkills
     } catch (error) {
       console.error(`[SkillPresenter] Error setting active skills for ${conversationId}:`, error)
       throw error

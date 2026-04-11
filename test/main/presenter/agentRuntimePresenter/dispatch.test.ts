@@ -483,6 +483,58 @@ describe('dispatch', () => {
       expect(state.blocks[0].tool_call!.server_description).toBe('Test server')
     })
 
+    it('flags toolsChanged when skill_view activates a skill via main SKILL.md', async () => {
+      const tools = [makeTool('skill_view')]
+      const toolPresenter = {
+        ...createMockToolPresenter(),
+        callTool: vi.fn().mockResolvedValue({
+          content: '{"success":true,"name":"deepchat-settings","isPinned":true}',
+          rawData: {
+            toolCallId: 'tc1',
+            content: '{"success":true,"name":"deepchat-settings","isPinned":true}',
+            isError: false,
+            toolResult: {
+              activationApplied: true,
+              activationSource: 'skill_md',
+              activatedSkill: 'deepchat-settings'
+            }
+          }
+        })
+      } as unknown as IToolPresenter
+
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: {
+          id: 'tc1',
+          name: 'skill_view',
+          params: '{"name":"deepchat-settings"}',
+          response: ''
+        }
+      })
+      state.completedToolCalls = [
+        { id: 'tc1', name: 'skill_view', arguments: '{"name":"deepchat-settings"}' }
+      ]
+
+      const result = await executeTools(
+        state,
+        [],
+        0,
+        tools,
+        toolPresenter,
+        'gpt-4',
+        io,
+        'full_access',
+        new ToolOutputGuard(),
+        32000,
+        1024
+      )
+
+      expect(result.toolsChanged).toBe(true)
+    })
+
     it('includes reasoning_content when interleaved compatibility is enabled', async () => {
       const tools = [makeTool('search')]
       const toolPresenter = createMockToolPresenter({ search: 'result' })
