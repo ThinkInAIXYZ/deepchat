@@ -85,6 +85,36 @@ describe('AI SDK tool schema normalization', () => {
     expect(normalized).not.toHaveProperty('items')
   })
 
+  it('uses the union of required keys for allOf branches', () => {
+    const normalized = normalizeToolInputSchema({
+      allOf: [
+        {
+          type: 'object',
+          properties: {
+            query: { type: 'string' }
+          },
+          required: ['query']
+        },
+        {
+          type: 'object',
+          properties: {
+            limit: { type: 'number' }
+          },
+          required: ['limit']
+        }
+      ]
+    })
+
+    expect(normalized).toMatchObject({
+      type: 'object',
+      properties: {
+        query: { type: 'string' },
+        limit: { type: 'number' }
+      },
+      required: ['query', 'limit']
+    })
+  })
+
   it('uses a safe dictionary and skips unsafe tool names', () => {
     const tools = mcpToolsToAISDKTools([
       {

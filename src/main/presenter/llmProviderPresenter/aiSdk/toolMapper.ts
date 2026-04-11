@@ -25,6 +25,20 @@ function intersectRequiredKeys(variants: JsonSchema[]): string[] | undefined {
   return intersection.length > 0 ? intersection : undefined
 }
 
+function unionRequiredKeys(variants: JsonSchema[]): string[] | undefined {
+  const union = Array.from(
+    new Set(
+      variants.flatMap((variant) =>
+        Array.isArray(variant.required)
+          ? variant.required.filter((key): key is string => typeof key === 'string')
+          : []
+      )
+    )
+  )
+
+  return union.length > 0 ? union : undefined
+}
+
 function mergePropertySchemas(existing: unknown, incoming: unknown): unknown {
   if (!isObjectSchema(existing) || !isObjectSchema(incoming)) {
     return incoming
@@ -132,12 +146,14 @@ export function normalizeToolInputSchema(schema: Record<string, unknown>): Recor
   const sanitizedRest = Object.fromEntries(
     Object.entries(rest).filter(([key]) => !['anyOf', 'oneOf', 'allOf'].includes(key))
   )
+  const required =
+    branchKey === 'allOf' ? unionRequiredKeys(variants) : intersectRequiredKeys(variants)
 
   return {
     ...sanitizedRest,
     type: 'object',
     properties: mergeVariantProperties(variants) ?? {},
-    ...(intersectRequiredKeys(variants) ? { required: intersectRequiredKeys(variants) } : {}),
+    ...(required ? { required } : {}),
     ...(variants.every((variant) => variant.additionalProperties === false)
       ? { additionalProperties: false }
       : {})
