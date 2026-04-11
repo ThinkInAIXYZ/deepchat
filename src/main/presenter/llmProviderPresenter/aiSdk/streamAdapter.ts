@@ -77,6 +77,7 @@ export async function* adaptAiSdkStream(
   const toolArgumentBuffers = new Map<string, string>()
   const endedToolCalls = new Set<string>()
   let bufferedLegacyText = ''
+  let legacyToolUseDetected = false
 
   const emitLegacyTextBuffer = async function* (
     flushAll = false
@@ -115,6 +116,7 @@ export async function* adaptAiSdkStream(
         continue
       }
 
+      legacyToolUseDetected = true
       for (const toolCall of toolCalls) {
         yield createStreamEvent.toolCallStart(toolCall.id, toolCall.function.name)
         yield createStreamEvent.toolCallChunk(toolCall.id, toolCall.function.arguments)
@@ -202,7 +204,11 @@ export async function* adaptAiSdkStream(
           yield* emitLegacyTextBuffer(true)
         }
         yield toUsageEvent(part.totalUsage)
-        yield createStreamEvent.stop(mapFinishReason(part.finishReason))
+        yield createStreamEvent.stop(
+          !options.supportsNativeTools && legacyToolUseDetected
+            ? 'tool_use'
+            : mapFinishReason(part.finishReason)
+        )
         break
 
       case 'error':

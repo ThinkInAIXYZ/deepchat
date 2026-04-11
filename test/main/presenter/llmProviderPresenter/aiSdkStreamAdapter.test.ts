@@ -140,7 +140,7 @@ describe('AI SDK stream adapter', () => {
         total_tokens: 6
       }
     })
-    expect(events[6]).toEqual({ type: 'stop', stop_reason: 'stop_sequence' })
+    expect(events[6]).toEqual({ type: 'stop', stop_reason: 'tool_use' })
   })
 
   it('maps image file parts and caches the emitted data url', async () => {
